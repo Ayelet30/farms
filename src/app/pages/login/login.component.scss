@@ -1,0 +1,65 @@
+//@import 'styles/variables';
+
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f4f6f3; /* רקע בהיר ירקרק */
+  direction: rtl;
+}
+
+.login-card {
+  background-color: #e6ecd9; /* ירוק זית בהיר */
+  border: 2px solid #7a8b55; /* ירוק זית כהה */
+  border-radius: 20px;
+  padding: 30px 40px;
+  box-shadow: 0 4px 12px rgba(122, 139, 85, 0.2);
+  max-width: 400px;
+  width: 100%;
+}
+
+h2 {
+  text-align: center;
+  color: #5e6f3c; /* כותרת בירוק כהה */
+  margin-bottom: 20px;
+}
+
+label {
+  display: block;
+  margin-top: 10px;
+  color: #4b5e30;
+  font-weight: 600;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  margin-top: 5px;
+  border: 1px solid #a2b37c;
+  border-radius: 8px;
+  background-color: #f9faf6;
+  font-family: inherit;
+}
+
+button {
+  width: 100%;
+  margin-top: 20px;
+  padding: 12px;
+  background-color: #7a8b55;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+button:hover {
+  background-color: #5e6f3c;
+}
+
+.error-message {
+  color: darkred;
+  margin-top: 15px;
+  text-align: center;
+}
