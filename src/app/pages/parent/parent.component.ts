@@ -1,11 +1,42 @@
 import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common'; 
+import { signOut } from 'firebase/auth';
+import { Router } from '@angular/router';
+import { inject } from '@angular/core';
+import { Auth } from '@angular/fire/auth';
+import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+
 
 @Component({
   selector: 'app-parent',
-  imports: [],
+  standalone: true,
+  imports: [CommonModule , MatDialogModule ], 
   templateUrl: './parent.component.html',
-  styleUrl: './parent.component.scss'
+  styleUrls: ['./parent.component.scss']
 })
 export class ParentComponent {
+  selectedSection: string = 'children';
 
+  constructor(
+    private auth: Auth,
+    private router: Router,
+    private dialog: MatDialog
+  ) {}
+  async logout() {
+    const dialogRef = this.dialog.open(LogoutConfirmationComponent, {
+      width: '320px',
+      panelClass: 'custom-login-dialog'
+    });
+
+    const confirmed = await dialogRef.afterClosed().toPromise();
+    if (confirmed) {
+      await signOut(this.auth);
+      this.router.navigate(['/']);
+    }
+  }
+
+  selectSection(section: string) {
+    this.selectedSection = section;
+  }
 }
