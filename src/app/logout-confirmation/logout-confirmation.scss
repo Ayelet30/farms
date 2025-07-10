@@ -1,0 +1,42 @@
+.dialog-box {
+  background-color: #f4f6f3;
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  font-family: 'Segoe UI', sans-serif;
+  border: 2px solid #7a8b55;
+  max-width: 300px;
+}
+
+h3 {
+  color: #5e6f3c;
+  margin-bottom: 10px;
+}
+
+p {
+  color: #4b5e30;
+  margin-bottom: 20px;
+}
+
+.button-group {
+  display: flex;
+  justify-content: space-around;
+}
+
+button {
+  padding: 8px 16px;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.confirm {
+  background-color: #7a8b55;
+  color: white;
+}
+
+.cancel {
+  background-color: #ccc;
+  color: #333;
+}
