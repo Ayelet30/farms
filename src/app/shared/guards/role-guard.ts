@@ -1,12 +1,11 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { Auth, getAuth } from '@angular/fire/auth';
-import { Firestore, doc, getDoc } from '@angular/fire/firestore';
+import { Auth } from '@angular/fire/auth';
+import { getSupabaseClient } from '../../services/supabase.service';
 
 export const RoleGuard: CanActivateFn = async (route, state) => {
   const router = inject(Router);
   const auth = inject(Auth);
-  const firestore = inject(Firestore);
   const user = auth.currentUser;
 
   if (!user) {
@@ -14,12 +13,23 @@ export const RoleGuard: CanActivateFn = async (route, state) => {
     return false;
   }
 
-  const uid = user.uid;
-  const userDoc = await getDoc(doc(firestore, 'users', uid));
-  const userData = userDoc.data();
+  const uid = user.uid; // 👈 מזהה שמגיע מ־Firebase בלבד
   const requiredRole = route.data['role'];
 
-  if (userData && userData['role'] === requiredRole) {
+  const supabase = getSupabaseClient();
+  const { data: userData, error } = await supabase
+    .from('users')
+    .select('role')
+    .eq('uid', uid)
+    .single();
+
+  if (error || !userData) {
+    console.error('שגיאה בשליפת role מה־Supabase:', error);
+    router.navigate(['/login']);
+    return false;
+  }
+
+  if (userData.role === requiredRole) {
     return true;
   } else {
     router.navigate(['/login']);
