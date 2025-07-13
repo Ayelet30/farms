@@ -1,0 +1,26 @@
+<div class="children-container">
+  <h2>🧒 הילדים שלי</h2>
+
+  <div *ngIf="loading">טוען...</div>
+  <div *ngIf="!loading && children.length === 0">אין ילדים להצגה.</div>
+
+  <!-- כפתורים עם שמות הילדים -->
+  <div class="children-buttons" *ngIf="children.length > 0">
+    <button
+      *ngFor="let child of children"
+      (click)="toggleChildDetails(child)"
+      [class.active]="selectedChild?.id === child.id"
+    >
+      {{ child.full_name }}
+    </button>
+  </div>
+
+  <!-- כרטיס ילד נבחר -->
+  <div class="child-card" *ngIf="selectedChild">
+    <h3>{{ selectedChild.full_name }}</h3>
+    <p><strong>ת"ז:</strong> {{ selectedChild.id }}</p>
+    <p><strong>גיל:</strong> {{ getAge(selectedChild.birth_date) }} שנים</p>
+    <p><strong>סטטוס:</strong> {{ selectedChild.status === 'active' ? 'פעיל' : 'לא פעיל' }}</p>
+    <!-- כפתורים נוספים ייכנסו כאן בהמשך -->
+  </div>
+</div>

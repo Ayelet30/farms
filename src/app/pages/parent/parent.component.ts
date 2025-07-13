@@ -6,12 +6,13 @@ import { inject } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { ParentChildrenComponent } from '../parent-children/parent-children';
 
 
 @Component({
   selector: 'app-parent',
   standalone: true,
-  imports: [CommonModule , MatDialogModule ], 
+  imports: [CommonModule, MatDialogModule, ParentChildrenComponent], 
   templateUrl: './parent.component.html',
   styleUrls: ['./parent.component.scss']
 })
