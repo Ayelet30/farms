@@ -1,20 +1,38 @@
 <div class="parent-layout">
-  <nav class="side-menu" [class.open]="menuOpen">
-    <div class="logo-area">
-      <!-- <img src="assets/images/logo.png" alt="לוגו" /> -->
-      <h3>{{ farmName }}</h3>
-    </div>
+  <nav class="side-menu" [class.collapsed]="menuCollapsed">
+  <button class="toggle-button" (click)="toggleMenu()">
+  <!-- 🟢 כשהתפריט פתוח – חץ פנימה -->
+  <svg *ngIf="!menuCollapsed" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none">
+    <path d="M9 6L15 12L9 18" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
 
-    <ul>
-      <li *ngFor="let item of menuItems" (click)="navigateTo(item.path)" [class.active]="isActive(item.path)">
-        {{ item.icon }} {{ item.label }}
-      </li>
-    </ul>
+  <!-- 🔵 כשהתפריט סגור – חץ החוצה -->
+  <svg *ngIf="menuCollapsed" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none">
+    <path d="M15 6L9 12L15 18" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</button>
 
-    <div class="logout-area">
-      <button (click)="logout()">🚪 התנתקות</button>
-    </div>
-  </nav>
+
+
+  <div class="logo-area">
+    <h3 *ngIf="!menuCollapsed">{{ farmName }}</h3>
+  </div>
+
+  <ul>
+    <li *ngFor="let item of menuItems"
+        (click)="navigateTo(item.path)"
+        [class.active]="isActive(item.path)">
+      <span class="icon">{{ item.icon }}</span>
+      <span class="label" *ngIf="!menuCollapsed">{{ item.label }}</span>
+    </li>
+  </ul>
+
+  <div class="logout-area">
+    <button (click)="logout()">
+      🚪 <span *ngIf="!menuCollapsed">התנתקות</span>
+    </button>
+  </div>
+</nav>
 
   <div class="main-content">
     <div class="top-banner">

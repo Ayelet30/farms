@@ -14,7 +14,7 @@
   padding: 20px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  /* stify-content: space-between; */
 }
 
 /* תוכן ראשי */
@@ -30,7 +30,8 @@
   width: 100%;
   height: 250px;
   overflow: hidden;
-  background-color: #eee; /* רקע למקרה שנשאר רווח */
+  background-color: #eee;
+  /* רקע למקרה שנשאר רווח */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -101,4 +102,109 @@
   padding: 6px 12px;
   border-radius: 6px;
   cursor: pointer;
+}
+
+/* 
+.side-menu {
+  width: 240px;
+  transition: width 0.3s;
+}
+
+.side-menu.collapsed {
+  width: 70px;
+} */
+
+.side-menu .toggle-button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.side-menu ul {
+  list-style: none;
+  padding: 0;
+}
+
+.side-menu li {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  background-color: #5a5a30;
+  border-radius: 6px;
+  transition: background-color 0.3s;
+}
+
+.side-menu li .icon {
+  margin-left: 8px;
+  font-size: 1.1rem;
+}
+
+.side-menu li .label {
+  white-space: nowrap;
+}
+
+.side-menu.collapsed li {
+  justify-content: center;
+}
+
+.side-menu.collapsed li .icon {
+  margin-left: 0;
+}
+
+.side-menu.collapsed li .label {
+  display: none;
+}
+
+.logout-area {
+  text-align: center;
+  margin-top: auto;
+}
+
+.side-menu {
+  width: 240px;
+  background-color: #42421f;
+  color: white;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: width 0.3s;
+}
+
+.side-menu.collapsed {
+  width: 70px;
+}
+
+.toggle-button {
+  position: absolute;
+  top: 43px;
+  left: 10px;
+  transform: translateY(-50%);
+  background-color: #85649b;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-button:hover {
+  background-color: #9e7cc9;
+}
+
+.toggle-button svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.3s ease;
+
 }
