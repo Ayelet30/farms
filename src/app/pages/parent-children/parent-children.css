@@ -1,53 +1,91 @@
-/* .children-container {
-  padding: 20px;
-  background-color: #f4f6f3;
-  direction: rtl;
-} */
-
-/* .child-card {
-  background-color: #e6ecd9;
-  border: 2px solid #7a8b55;
-  border-radius: 12px;
-  padding: 15px;
-  margin-bottom: 15px;
-  box-shadow: 0 2px 6px rgba(122, 139, 85, 0.2);
-} */
-.children-container {
-  padding: 20px;
-  direction: rtl;
-  background-color: #f4f6f3;
-}
-
 .children-buttons {
   display: flex;
-  gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  gap: 10px;
+  margin-top: 12px;
+  justify-content: center;
+}
 
-  button {
-    background-color: #e6ecd9;
-    border: 2px solid #7a8b55;
-    border-radius: 10px;
-    padding: 8px 14px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.3s;
-  }
+.child-button {
+  background-color: #85649B;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
 
-  button.active {
-    background-color: #7a8b55;
-    color: white;
-  }
+.child-button:hover {
+  background-color: #6f5285;
+}
 
-  button:hover {
-    background-color: #d0dab5;
-  }
+.child-button.active {
+  background-color: #5a3f6a;
 }
 
 .child-card {
-  background-color: #ffffff;
-  border: 1px solid #ccc;
-  padding: 16px;
+  border: 2px solid #85649B;
   border-radius: 12px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  padding: 16px;
+  margin-top: 20px;
+  background-color: #fdfdfd;
+  direction: rtl;
+}
+
+.child-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.editable-title {
+  font-size: 20px;
+  font-weight: bold;
+  color: #85649B;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 4px 10px;
+  margin-bottom: 8px;
+}
+
+.button-group {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-edit,
+.btn-save {
+  background-color: #85649B;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.btn-edit:hover,
+.btn-save:hover {
+  background-color: #6f5285;
+}
+
+.editable-input {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+}
+.status-active {
+  color: green;
+  font-weight: bold;
+}
+
+.status-inactive {
+  color: red;
+  font-weight: bold;
 }
