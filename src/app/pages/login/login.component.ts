@@ -29,9 +29,11 @@ export class LoginComponent {
   async login() {
     try {
       const cred = await signInWithEmailAndPassword(this.auth, this.email, this.password);
+      const token = await cred.user.getIdToken(); // מביא את הטוקן מ־Firebase
+
       const uid = cred.user.uid;
-      console.log("BEFORE");
       const supabase = getSupabaseClient(); // ✅ יוצרת את הלקוח רק כשצריך
+ 
       // 🟣 כאן משתמשים בשורה ששאלת עליה:
       const { data: user, error } = await supabase
         .from('users')
@@ -43,9 +45,7 @@ export class LoginComponent {
       if (error || !user) {
         throw new Error('לא נמצאו נתוני משתמש');
       }
-      console.log("AFTER2");
       const role = user.role;
-      console.log("!!!!!!!!" + role);
 
       switch (role) {
         case 'parent': this.router.navigate(['/parent']); this.dialogRef.close();

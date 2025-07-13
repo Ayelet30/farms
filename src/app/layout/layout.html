@@ -1,0 +1,28 @@
+<div class="parent-layout">
+  <nav class="side-menu" [class.open]="menuOpen">
+    <div class="logo-area">
+      <!-- <img src="assets/images/logo.png" alt="לוגו" /> -->
+      <h3>{{ farmName }}</h3>
+    </div>
+
+    <ul>
+      <li *ngFor="let item of menuItems" (click)="navigateTo(item.path)" [class.active]="isActive(item.path)">
+        {{ item.icon }} {{ item.label }}
+      </li>
+    </ul>
+
+    <div class="logout-area">
+      <button (click)="logout()">🚪 התנתקות</button>
+    </div>
+  </nav>
+
+  <div class="main-content">
+    <div class="top-banner">
+      <img src="assets/images/hors.png" alt="תמונת אווירה של החווה" />
+    </div>
+
+    <div class="content-area">
+      <router-outlet></router-outlet>
+    </div>
+  </div>
+</div>
