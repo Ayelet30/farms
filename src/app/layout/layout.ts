@@ -84,10 +84,11 @@ logout() {
   isActive(path: string): boolean {
     return this.router.url.includes(path);
   }
+menuCollapsed = false;
 
-  toggleMenu() {
-    this.menuOpen = !this.menuOpen;
-  }
+toggleMenu() {
+  this.menuCollapsed = !this.menuCollapsed;
+}
 
   
 }
