@@ -1,6 +1,11 @@
 import { Component, OnInit } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { MatDialog } from '@angular/material/dialog';
+import { LogoutConfirmationComponent } from '../logout-confirmation/logout-confirmation';
+
+
+
 
 import { getCurrentUserData, getFarmNameById, logout } from '../services/supabase.service';
 
@@ -18,7 +23,25 @@ export class LayoutComponent implements OnInit {
   farmName: string = '';
 
 
-  constructor(private router: Router) {}
+  constructor(
+  private dialog: MatDialog,
+  private router: Router
+) {}
+
+logout() {
+  const dialogRef = this.dialog.open(LogoutConfirmationComponent, {
+    width: '320px',
+    disableClose: true
+  });
+
+  dialogRef.afterClosed().subscribe(result => {
+    if (result === true) {
+      logout(); // הפונקציה שמבצעת את ההתנתקות (כמו supabase.auth.signOut())
+      this.router.navigate(['/home']);
+    }
+  });
+}
+
 
   async ngOnInit() {
     const userData = await getCurrentUserData();
@@ -66,8 +89,5 @@ export class LayoutComponent implements OnInit {
     this.menuOpen = !this.menuOpen;
   }
 
-  logout() {
-    logout();
-    this.router.navigate(['/home']);
-  }
+  
 }

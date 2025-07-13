@@ -6,21 +6,71 @@
 
   <!-- כפתורים עם שמות הילדים -->
   <div class="children-buttons" *ngIf="children.length > 0">
-    <button
-      *ngFor="let child of children"
-      (click)="toggleChildDetails(child)"
-      [class.active]="selectedChild?.id === child.id"
-    >
+    <button *ngFor="let child of children" (click)="toggleChildDetails(child)"
+      [class.active]="selectedChild?.id === child.id" class="child-button">
       {{ child.full_name }}
     </button>
   </div>
 
   <!-- כרטיס ילד נבחר -->
   <div class="child-card" *ngIf="selectedChild">
-    <h3>{{ selectedChild.full_name }}</h3>
+    <div class="child-header">
+      <div *ngIf="!isEditing">
+        <h3>{{ selectedChild.full_name }}</h3>
+      </div>
+      <div *ngIf="isEditing">
+        <input [(ngModel)]="editableChild.full_name" class="editable-title" />
+      </div>
+
+      <div class="button-group">
+        <button *ngIf="!isEditing" (click)="isEditing = true" class="btn-edit">✏️ ערוך</button>
+        <button *ngIf="isEditing" (click)="saveChild()" class="btn-save">💾 שמור</button>
+      </div>
+    </div>
+
+    <!-- ת"ז -->
     <p><strong>ת"ז:</strong> {{ selectedChild.id }}</p>
-    <p><strong>גיל:</strong> {{ getAge(selectedChild.birth_date) }} שנים</p>
-    <p><strong>סטטוס:</strong> {{ selectedChild.status === 'active' ? 'פעיל' : 'לא פעיל' }}</p>
-    <!-- כפתורים נוספים ייכנסו כאן בהמשך -->
+
+    <!-- גיל -->
+    <p>
+      <strong>גיל:</strong>
+      <span *ngIf="!isEditing">{{ getAge(selectedChild.birth_date) }} שנים</span>
+      <input *ngIf="isEditing" type="number" [(ngModel)]="editableChild.age" class="editable-input" />
+    </p>
+    <p>
+  <strong>מין:</strong>
+  <span *ngIf="!isEditing">{{ selectedChild.gender || '-' }}</span>
+  <select *ngIf="isEditing" [(ngModel)]="editableChild.gender" class="editable-input" required>
+    <option value="" disabled hidden>בחר מין</option>
+    <option value="זכר">זכר</option>
+    <option value="נקבה">נקבה</option>
+  </select>
+</p>
+
+    <p>
+      <strong>קופת חולים:</strong>
+      <span *ngIf="!isEditing">{{ selectedChild.health_fund || '-' }}</span>
+      <select *ngIf="isEditing" [(ngModel)]="editableChild.health_fund" class="editable-input" required>
+        <option value="" disabled hidden>בחר קופה</option>
+        <option *ngFor="let fund of healthFunds" [value]="fund">{{ fund }}</option>
+      </select>
+    </p>
+    <p>
+      <strong>מדריך:</strong>
+      <span *ngIf="!isEditing">{{ selectedChild.instructor || '-' }}</span>
+      <select *ngIf="isEditing" [(ngModel)]="editableChild.instructor" class="editable-input" required>
+        <option value="" disabled hidden>בחר מדריך</option>
+        <option *ngFor="let name of instructors" [value]="name">{{ name }}</option>
+      </select>
+    </p>
+
+    <!-- סטטוס -->
+     <p>
+  <strong>סטטוס:</strong>
+  <span [ngClass]="selectedChild.status === 'active' ? 'status-active' : 'status-inactive'">
+    {{ selectedChild.status === 'active' ? 'פעיל' : 'לא פעיל' }}
+  </span>
+</p>
+
   </div>
 </div>
