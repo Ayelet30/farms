@@ -34,13 +34,12 @@ export class LoginComponent {
       const uid = cred.user.uid;
       const supabase = getSupabaseClient(); // ✅ יוצרת את הלקוח רק כשצריך
  
-      // 🟣 כאן משתמשים בשורה ששאלת עליה:
       const { data: user, error } = await supabase
         .from('users')
         .select('role')
         .eq('uid', uid)
         .single();
-      console.log("AFTER1");
+      console.log("AFTER1" + user);
 
       if (error || !user) {
         throw new Error('לא נמצאו נתוני משתמש');
