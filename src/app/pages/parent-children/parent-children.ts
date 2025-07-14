@@ -122,7 +122,7 @@ export class ParentChildrenComponent implements OnInit {
       gender: '',
       health_fund: '',
       instructor: '',
-      status: 'active'
+      status: 'waiting'
     };
     this.selectedChild = null;
   }
@@ -166,9 +166,9 @@ export class ParentChildrenComponent implements OnInit {
       this.validationErrors['health_fund'] = 'יש לבחור קופת חולים';
     }
 
-    if (!this.newChild.instructor) {
-      this.validationErrors['instructor'] = 'יש לבחור מדריך';
-    }
+    // if (!this.newChild.instructor) {
+    //   this.validationErrors['instructor'] = 'יש לבחור מדריך';
+    // }
 
     // אם יש שגיאות, עצור
     if (Object.keys(this.validationErrors).length > 0) {
@@ -200,7 +200,7 @@ export class ParentChildrenComponent implements OnInit {
         gender: this.newChild.gender,
         health_fund: this.newChild.health_fund,
         instructor: this.newChild.instructor,
-        status: 'active',
+        status: 'waiting',
         parent_uid: uid,
         farm_id: farmId
       });
