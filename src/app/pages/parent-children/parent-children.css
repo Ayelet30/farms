@@ -7,7 +7,7 @@
 }
 
 .child-button {
-  background-color: #85649B;
+  background-color: #8a9362; /* ירוק זית בינוני */
   color: white;
   border: none;
   border-radius: 20px;
@@ -18,15 +18,15 @@
 }
 
 .child-button:hover {
-  background-color: #6f5285;
+  background-color: #6f754f; /* ירוק זית כהה */
 }
 
 .child-button.active {
-  background-color: #5a3f6a;
+  background-color: #5f6640; /* ירוק זית עמוק */
 }
 
 .child-card {
-  border: 2px solid #85649B;
+  border: 2px solid #8a9362;
   border-radius: 12px;
   padding: 16px;
   margin-top: 20px;
@@ -43,7 +43,7 @@
 .editable-title {
   font-size: 20px;
   font-weight: bold;
-  color: #85649B;
+  color: #6f754f;
   border: 1px solid #ccc;
   border-radius: 8px;
   padding: 4px 10px;
@@ -57,7 +57,7 @@
 
 .btn-edit,
 .btn-save {
-  background-color: #85649B;
+  background-color: #8a9362;
   color: white;
   border: none;
   padding: 6px 12px;
@@ -69,7 +69,7 @@
 
 .btn-edit:hover,
 .btn-save:hover {
-  background-color: #6f5285;
+  background-color: #6f754f;
 }
 
 .editable-input {
