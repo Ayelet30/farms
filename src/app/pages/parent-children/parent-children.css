@@ -89,3 +89,31 @@
   color: red;
   font-weight: bold;
 }
+.add-button {
+  background-color: #8a9362; 
+  font-weight: bold;
+}
+
+.add-button:hover {
+  background-color: #4d7d2b;
+}
+.error-msg {
+  color: red;
+  font-size: 12px;
+  margin-top: 2px;
+  margin-bottom: 8px;
+}
+.child-card .editable-input {
+  width: fit-content;
+  min-width: 200px;
+  max-width: 100%;
+}
+
+.child-card .form-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+

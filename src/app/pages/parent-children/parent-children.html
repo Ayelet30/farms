@@ -1,6 +1,4 @@
 <div class="children-container">
-  <!-- <h2> הילדים שלי</h2> -->
-
   <div *ngIf="loading">טוען...</div>
   <div *ngIf="!loading && children.length === 0">אין ילדים להצגה.</div>
 
@@ -10,6 +8,7 @@
       [class.active]="selectedChild?.id === child.id" class="child-button">
       {{ child.full_name }}
     </button>
+    <button (click)="addNewChild()" class="child-button add-button">➕ </button>
   </div>
 
   <!-- כרטיס ילד נבחר -->
@@ -28,24 +27,23 @@
       </div>
     </div>
 
-    <!-- ת"ז -->
     <p><strong>ת"ז:</strong> {{ selectedChild.id }}</p>
 
-    <!-- גיל -->
     <p>
       <strong>גיל:</strong>
       <span *ngIf="!isEditing">{{ getAge(selectedChild.birth_date) }} שנים</span>
       <input *ngIf="isEditing" type="number" [(ngModel)]="editableChild.age" class="editable-input" />
     </p>
+
     <p>
-  <strong>מין:</strong>
-  <span *ngIf="!isEditing">{{ selectedChild.gender || '-' }}</span>
-  <select *ngIf="isEditing" [(ngModel)]="editableChild.gender" class="editable-input" required>
-    <option value="" disabled hidden>בחר מין</option>
-    <option value="זכר">זכר</option>
-    <option value="נקבה">נקבה</option>
-  </select>
-</p>
+      <strong>מין:</strong>
+      <span *ngIf="!isEditing">{{ selectedChild.gender || '-' }}</span>
+      <select *ngIf="isEditing" [(ngModel)]="editableChild.gender" class="editable-input" required>
+        <option value="" disabled hidden>בחר מין</option>
+        <option value="זכר">זכר</option>
+        <option value="נקבה">נקבה</option>
+      </select>
+    </p>
 
     <p>
       <strong>קופת חולים:</strong>
@@ -55,6 +53,7 @@
         <option *ngFor="let fund of healthFunds" [value]="fund">{{ fund }}</option>
       </select>
     </p>
+
     <p>
       <strong>מדריך:</strong>
       <span *ngIf="!isEditing">{{ selectedChild.instructor || '-' }}</span>
@@ -64,13 +63,87 @@
       </select>
     </p>
 
-    <!-- סטטוס -->
-     <p>
-  <strong>סטטוס:</strong>
-  <span [ngClass]="selectedChild.status === 'active' ? 'status-active' : 'status-inactive'">
-    {{ selectedChild.status === 'active' ? 'פעיל' : 'לא פעיל' }}
-  </span>
-</p>
+    <p>
+      <strong>סטטוס:</strong>
+      <span [ngClass]="selectedChild.status === 'active' ? 'status-active' : 'status-inactive'">
+        {{ selectedChild.status === 'active' ? 'פעיל' : 'לא פעיל' }}
+      </span>
+    </p>
+  </div>
+</div>
 
+<!-- טופס הוספת ילד חדש -->
+<div class="child-card" *ngIf="newChild">
+  <h3>הוספת ילד חדש</h3>
+
+  <div class="form-field">
+    <label>שם מלא</label>
+    <input class="editable-input" [(ngModel)]="newChild.full_name" required />
+    <div *ngIf="validationErrors['full_name']" class="error-msg">
+      {{ validationErrors['full_name'] }}
+    </div>
+  </div>
+
+  <div class="form-field">
+    <label>תעודת זהות</label>
+    <input
+      class="editable-input"
+      [(ngModel)]="newChild.id"
+      maxlength="9"
+      pattern="[0-9]*"
+      inputmode="numeric"
+      required
+      (keypress)="allowOnlyNumbers($event)"
+    />
+    <div *ngIf="validationErrors['id']" class="error-msg">
+      {{ validationErrors['id'] }}
+    </div>
+  </div>
+
+  <div class="form-field">
+    <label>תאריך לידה</label>
+    <input class="editable-input" type="date" [(ngModel)]="newChild.birth_date" required />
+    <div *ngIf="validationErrors['birth_date']" class="error-msg">
+      {{ validationErrors['birth_date'] }}
+    </div>
+  </div>
+
+  <div class="form-field">
+    <label>מין</label>
+    <select class="editable-input" [(ngModel)]="newChild.gender" required>
+      <option value="" disabled hidden>בחר מין</option>
+      <option value="זכר">זכר</option>
+      <option value="נקבה">נקבה</option>
+    </select>
+    <div *ngIf="validationErrors['gender']" class="error-msg">
+      {{ validationErrors['gender'] }}
+    </div>
+  </div>
+
+  <div class="form-field">
+    <label>קופת חולים</label>
+    <select class="editable-input" [(ngModel)]="newChild.health_fund" required>
+      <option value="" disabled hidden>בחר קופה</option>
+      <option *ngFor="let fund of healthFunds" [value]="fund">{{ fund }}</option>
+    </select>
+    <div *ngIf="validationErrors['health_fund']" class="error-msg">
+      {{ validationErrors['health_fund'] }}
+    </div>
+  </div>
+
+  <div class="form-field">
+    <label>מדריך</label>
+    <select class="editable-input" [(ngModel)]="newChild.instructor" required>
+      <option value="" disabled hidden>בחר מדריך</option>
+      <option *ngFor="let name of instructors" [value]="name">{{ name }}</option>
+    </select>
+    <div *ngIf="validationErrors['instructor']" class="error-msg">
+      {{ validationErrors['instructor'] }}
+    </div>
+  </div>
+
+  <div class="button-group">
+    <button class="btn-save" (click)="saveNewChild()">שמור</button>
+    <button class="btn-edit" (click)="cancelNewChild()">ביטול</button>
   </div>
 </div>

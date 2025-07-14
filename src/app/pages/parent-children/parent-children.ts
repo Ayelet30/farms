@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { getSupabaseClient } from '../../services/supabase.service';
+import { getCurrentUserData, getSupabaseClient } from '../../services/supabase.service';
 
 @Component({
   selector: 'app-parent-children',
@@ -18,6 +18,10 @@ export class ParentChildrenComponent implements OnInit {
   loading = true;
   healthFunds: string[] = ['כללית', 'מאוחדת', 'מכבי', 'לאומית'];
   instructors: string[] = [];
+  supabase = getSupabaseClient();
+  validationErrors: { [key: string]: string } = {};
+
+
 
   async ngOnInit() {
     const supabase = getSupabaseClient();
@@ -44,42 +48,44 @@ export class ParentChildrenComponent implements OnInit {
     };
 
     this.isEditing = false;
+    this.newChild = null; 
+
   }
   async saveChild() {
-  const supabase = getSupabaseClient();
+    const supabase = getSupabaseClient();
 
-  // חשב גיל חדש (אם יש צורך)
-  const newBirthDate = this.calculateBirthDateFromAge(this.editableChild.age);
+    // חשב גיל חדש (אם יש צורך)
+    const newBirthDate = this.calculateBirthDateFromAge(this.editableChild.age);
 
-  const { error } = await supabase
-    .from('children')
-    .update({
-      full_name: this.editableChild.full_name,
-      birth_date: newBirthDate,
-      health_fund: this.editableChild.health_fund,
-      instructor: this.editableChild.instructor,
-      gender: this.editableChild.gender
-    })
-    .eq('id', this.editableChild.id);
+    const { error } = await supabase
+      .from('children')
+      .update({
+        full_name: this.editableChild.full_name,
+        birth_date: newBirthDate,
+        health_fund: this.editableChild.health_fund,
+        instructor: this.editableChild.instructor,
+        gender: this.editableChild.gender
+      })
+      .eq('id', this.editableChild.id);
 
-  if (error) {
-    console.error("שגיאה בשמירה:", error);
-    return;
+    if (error) {
+      console.error("שגיאה בשמירה:", error);
+      return;
+    }
+
+    // עדכון מקומי ב־selectedChild + ברשימת הילדים
+    this.selectedChild = { ...this.editableChild };
+    this.selectedChild.birth_date = newBirthDate;
+
+    const index = this.children.findIndex(c => c.id === this.editableChild.id);
+    if (index !== -1) {
+      this.children[index] = { ...this.editableChild };
+      this.children[index].birth_date = newBirthDate;
+    }
+
+    // סיום עריכה
+    this.isEditing = false;
   }
-
-  // עדכון מקומי ב־selectedChild + ברשימת הילדים
-  this.selectedChild = { ...this.editableChild };
-  this.selectedChild.birth_date = newBirthDate;
-
-  const index = this.children.findIndex(c => c.id === this.editableChild.id);
-  if (index !== -1) {
-    this.children[index] = { ...this.editableChild };
-    this.children[index].birth_date = newBirthDate;
-  }
-
-  // סיום עריכה
-  this.isEditing = false;
-}
 
   getAge(birthDate: string): number {
     const birth = new Date(birthDate);
@@ -107,5 +113,116 @@ export class ParentChildrenComponent implements OnInit {
       this.instructors = data.map(d => d.full_name);
     }
   }
+  newChild: any = null;
+
+  addNewChild() {
+    this.newChild = {
+      full_name: '',
+      birth_date: '',
+      gender: '',
+      health_fund: '',
+      instructor: '',
+      status: 'active'
+    };
+    this.selectedChild = null;
+  }
+  async getFarmId(): Promise<string | null> {
+    const userData = await getCurrentUserData(); // מתוך supabase.service.ts
+    return userData?.farm_id ?? null;
+  }
+  async loadChildren() {
+    const userData = await getCurrentUserData();
+    const { data, error } = await this.supabase
+      .from('children')
+      .select('*')
+      .eq('parent_uid', userData.uid);
+
+    if (!error) {
+      this.children = data;
+    }
+  }
+
+  async saveNewChild() {
+    this.validationErrors = {}; // איפוס שגיאות
+
+    // בדיקות
+    if (!this.newChild.id || this.newChild.id.length !== 9) {
+      this.validationErrors['id'] = 'ת"ז חייבת להכיל בדיוק 9 ספרות';
+    }
+
+    if (!this.newChild.full_name) {
+      this.validationErrors['full_name'] = 'נא להזין שם מלא';
+    }
+
+    if (!this.newChild.birth_date) {
+      this.validationErrors['birth_date'] = 'יש לבחור תאריך לידה';
+    }
+
+    if (!this.newChild.gender) {
+      this.validationErrors['gender'] = 'יש לבחור מין';
+    }
+
+    if (!this.newChild.health_fund) {
+      this.validationErrors['health_fund'] = 'יש לבחור קופת חולים';
+    }
+
+    if (!this.newChild.instructor) {
+      this.validationErrors['instructor'] = 'יש לבחור מדריך';
+    }
+
+    // אם יש שגיאות, עצור
+    if (Object.keys(this.validationErrors).length > 0) {
+      return;
+    }
+
+    // בדיקת כפילות
+    const { data: existingChild } = await this.supabase
+      .from('children')
+      .select('id')
+      .eq('id', this.newChild.id)
+      .maybeSingle();
+
+    if (existingChild) {
+      this.validationErrors['id'] = 'ת"ז זו כבר קיימת במערכת';
+      return;
+    }
+
+    // המשך שמירה...
+    const uid = (await getCurrentUserData())?.uid;
+    const farmId = await this.getFarmId();
+
+    const { error } = await this.supabase
+      .from('children')
+      .insert({
+        id: this.newChild.id,
+        full_name: this.newChild.full_name,
+        birth_date: this.newChild.birth_date,
+        gender: this.newChild.gender,
+        health_fund: this.newChild.health_fund,
+        instructor: this.newChild.instructor,
+        status: 'active',
+        parent_uid: uid,
+        farm_id: farmId
+      });
+
+    if (!error) {
+      this.loadChildren();
+      this.newChild = null;
+    }
+  }
+
+  allowOnlyNumbers(event: KeyboardEvent) {
+    const charCode = event.key;
+    if (!/^\d$/.test(charCode)) {
+      event.preventDefault();
+    }
+  }
+
+  cancelNewChild() {
+    this.newChild = null;
+    this.validationErrors = {};
+
+  }
+
 
 }
