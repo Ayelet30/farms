@@ -18,7 +18,7 @@ export const routes: Routes = [
     //   { path: 'summary', loadComponent: () => import('./pages/parent/parent-summary/parent-summary.component').then(m => m.ParentSummaryComponent) },
     //   { path: 'payments', loadComponent: () => import('./pages/parent/parent-payments/parent-payments.component').then(m => m.ParentPaymentsComponent) },
     //   { path: 'notes', loadComponent: () => import('./pages/parent/parent-notes/parent-notes.component').then(m => m.ParentNotesComponent) },
-    //   { path: 'details', loadComponent: () => import('./pages/parent/parent-details/parent-details.component').then(m => m.ParentDetailsComponent) },
+      { path: 'details', loadComponent: () => import('./pages/parent-details/parent-details').then(m => m.ParentDetailsComponent) },
     //   { path: '', redirectTo: 'children', pathMatch: 'full' }
     ]
   },    { path: 'guide', loadComponent: () => import('./pages/guide/guide.component').then(m => m.GuideComponent), canActivate: [RoleGuard], data: { role: 'guide' } },
