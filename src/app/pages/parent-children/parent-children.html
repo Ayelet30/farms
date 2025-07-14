@@ -24,6 +24,8 @@
       <div class="button-group">
         <button *ngIf="!isEditing" (click)="isEditing = true" class="btn-edit">✏️ ערוך</button>
         <button *ngIf="isEditing" (click)="saveChild()" class="btn-save">💾 שמור</button>
+        <button class="btn-delete" (click)="confirmDeleteChild()">🗑️ הסר</button>
+
       </div>
     </div>
 
@@ -158,5 +160,14 @@
   <div class="button-group">
     <button class="btn-save" (click)="saveNewChild()">שמור</button>
     <button class="btn-edit" (click)="cancelNewChild()">ביטול</button>
+  </div>
+</div>
+<div class="dialog-overlay" *ngIf="showDeleteConfirm">
+  <div class="dialog-box">
+    <h3>האם את בטוחה שברצונך להסיר את הילד?</h3>
+    <div class="dialog-buttons">
+      <button class="btn-delete" (click)="deleteChild()">אישור</button>
+      <button class="btn-edit" (click)="cancelDelete()">ביטול</button>
+    </div>
   </div>
 </div>

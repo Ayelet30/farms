@@ -131,16 +131,18 @@ export class ParentChildrenComponent implements OnInit {
     return userData?.farm_id ?? null;
   }
   async loadChildren() {
-    const userData = await getCurrentUserData();
-    const { data, error } = await this.supabase
-      .from('children')
-      .select('*')
-      .eq('parent_uid', userData.uid);
+  const uid = (await getCurrentUserData())?.uid;
 
-    if (!error) {
-      this.children = data;
-    }
+  const { data, error } = await this.supabase
+    .from('children')
+    .select('*')
+    .eq('parent_uid', uid)
+    .not('status', 'eq', 'deleted'); // ❗️סינון רק של מחוקים
+
+  if (!error && data) {
+    this.children = data;
   }
+}
 
   async saveNewChild() {
     this.validationErrors = {}; // איפוס שגיאות
@@ -204,7 +206,7 @@ export class ParentChildrenComponent implements OnInit {
         parent_uid: uid,
         farm_id: farmId
       });
-
+      //נדרש להוסיף שליחה לאישור המזכירה 
     if (!error) {
       this.loadChildren();
       this.newChild = null;
@@ -223,6 +225,29 @@ export class ParentChildrenComponent implements OnInit {
     this.validationErrors = {};
 
   }
+showDeleteConfirm = false;
+
+confirmDeleteChild() {
+  this.showDeleteConfirm = true;
+}
+
+cancelDelete() {
+  this.showDeleteConfirm = false;
+}
+
+async deleteChild() {
+  const { error } = await this.supabase
+    .from('children')
+    .update({ status: 'deleted' })
+    .eq('id', this.selectedChild.id);
+
+  if (!error) {
+    this.showDeleteConfirm = false;
+    this.selectedChild = null;
+    this.loadChildren(); // מרענן את הרשימה
+  }
+}
+
 
 
 }
