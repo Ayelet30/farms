@@ -21,6 +21,8 @@ export class ParentDetailsComponent implements OnInit {
     phone: '',
     email: ''
   };
+  visibleChildren: any[] = [];
+
 
 
 
@@ -50,6 +52,8 @@ export class ParentDetailsComponent implements OnInit {
         .select('*')
         .eq('parent_uid', parentData.uid);
 
+this.children = childrenData || [];
+this.visibleChildren = this.children.filter(child => child.status !== 'deleted');
 
 
       if (!childrenError) {
