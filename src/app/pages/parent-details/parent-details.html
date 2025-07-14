@@ -44,16 +44,18 @@
 
 </div>
 
-<div *ngIf="!loading && children.length > 0" class="children-list">
+<div *ngIf="!loading && visibleChildren.length > 0" class="children-list">
   <h3>🧒 הילדים שלי</h3>
   <ul>
-    <li *ngFor="let child of children">
+    <li *ngFor="let child of visibleChildren">
       <strong>{{ child.full_name }}</strong> –
       גיל: {{ getAge(child.birth_date) }} –
       סטטוס: {{ getStatusText(child.status) }}
     </li>
   </ul>
 </div>
+
+
 
 <div *ngIf="!loading && children.length === 0">
   <p>לא נמצאו ילדים להצגה.</p>

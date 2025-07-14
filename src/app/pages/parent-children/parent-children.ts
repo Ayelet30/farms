@@ -27,7 +27,11 @@ export class ParentChildrenComponent implements OnInit {
     const supabase = getSupabaseClient();
 
     // טוען את הילדים
-    const { data: childrenData } = await supabase.from('children').select('*');
+    const { data: childrenData } = await supabase
+  .from('children')
+  .select('*')
+  .neq('status', 'deleted');
+
     this.children = childrenData || [];
 
     // טוען מדריכים לפי farm_id של הילד הראשון (או תחליפי לפי איך שיש לך)
