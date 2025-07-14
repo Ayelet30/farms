@@ -27,41 +27,44 @@ export class LoginComponent {
   ) { }
 
   async login() {
-    try {
-      const cred = await signInWithEmailAndPassword(this.auth, this.email, this.password);
-      const token = await cred.user.getIdToken(); // מביא את הטוקן מ־Firebase
+    //עד שנסדר את הגישה דרך Net-Free מוביל ישירות להורה בלי לבדוק אימות 
+    this.router.navigate(['/parent']); this.dialogRef.close();
+    // try {
+    //   const cred = await signInWithEmailAndPassword(this.auth, this.email, this.password);
+    //   const token = await cred.user.getIdToken(); // מביא את הטוקן מ־Firebase
 
-      const uid = cred.user.uid;
-      const supabase = getSupabaseClient(); // ✅ יוצרת את הלקוח רק כשצריך
+    //   const uid = cred.user.uid;
+    //   const supabase = getSupabaseClient(); // ✅ יוצרת את הלקוח רק כשצריך
  
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('role')
-        .eq('uid', uid)
-        .single();
-      console.log("AFTER1" + user);
+    //   const { data: user, error } = await supabase
+    //     .from('users')
+    //     .select('role')
+    //     .eq('uid', uid)
+    //     .single();
+    //   console.log("AFTER1" + user);
 
-      if (error || !user) {
-        throw new Error('לא נמצאו נתוני משתמש');
-      }
-      const role = user.role;
+    //   if (error || !user) {
+    //     throw new Error('לא נמצאו נתוני משתמש');
+    //   }
+    //   const role = user.role;
 
-      switch (role) {
-        case 'parent': this.router.navigate(['/parent']); this.dialogRef.close();
-          break;
-        case 'instructor': this.router.navigate(['/instructor']); this.dialogRef.close();
-          break;
-        case 'secretary': this.router.navigate(['/secretary']); this.dialogRef.close();
-          break;
-        case 'admin': this.router.navigate(['/admin']); this.dialogRef.close();
-          break;
-        default: throw new Error('תפקיד לא מזוהה');
-      }
+    //   switch (role) {
+    //     case 'parent': this.router.navigate(['/parent']); this.dialogRef.close();
+    //       break;
+    //     case 'instructor': this.router.navigate(['/instructor']); this.dialogRef.close();
+    //       break;
+    //     case 'secretary': this.router.navigate(['/secretary']); this.dialogRef.close();
+    //       break;
+    //     case 'admin': this.router.navigate(['/admin']); this.dialogRef.close();
+    //       break;
+    //     default: throw new Error('תפקיד לא מזוהה');
+    //   }
 
 
-    } catch (err: any) {
-      console.error(err);
-      this.errorMessage = 'שגיאה: ' + err.message;
-    }
+    // } 
+    // catch (err: any) {
+    //   console.error(err);
+    //   this.errorMessage = 'שגיאה: ' + err.message;
+    // }
   }
 }
