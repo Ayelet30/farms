@@ -7,12 +7,13 @@ import { Auth } from '@angular/fire/auth';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { ParentChildrenComponent } from '../parent-children/parent-children';
+import { ParentDetailsComponent } from "../parent-details/parent-details";
 
 
 @Component({
   selector: 'app-parent',
   standalone: true,
-  imports: [CommonModule, MatDialogModule, ParentChildrenComponent], 
+  imports: [CommonModule, MatDialogModule, ParentChildrenComponent, ParentDetailsComponent], 
   templateUrl: './parent.component.html',
   styleUrls: ['./parent.component.scss']
 })
@@ -39,5 +40,6 @@ export class ParentComponent {
 
   selectSection(section: string) {
     this.selectedSection = section;
+    console.log("!!!!!!!!!!!!!!!!!!!!1" + this.selectedSection); 
   }
 }
