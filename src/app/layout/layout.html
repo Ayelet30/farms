@@ -15,7 +15,12 @@
 
 
   <div class="logo-area">
-    <h3 *ngIf="!menuCollapsed">{{ farmName }}</h3>
+<div *ngIf="!menuCollapsed" class="welcome-text">
+  <p>ברוכים הבאים</p>
+  <p>לחוות</p>
+  <p class="farm-name">{{ farmName }}</p>
+</div>
+
   </div>
 
   <ul>
