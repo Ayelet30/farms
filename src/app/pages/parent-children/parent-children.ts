@@ -34,7 +34,6 @@ export class ParentChildrenComponent implements OnInit {
 
     this.children = childrenData || [];
 
-    // טוען מדריכים לפי farm_id של הילד הראשון (או תחליפי לפי איך שיש לך)
     const farmId = this.children[0]?.farm_id;
     if (farmId) {
       await this.loadInstructors(farmId);
