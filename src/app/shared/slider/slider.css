@@ -1,0 +1,250 @@
+.parent-layout {
+  display: flex;
+  min-height: 100vh;
+  direction: rtl;
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f4f6f3;
+}
+
+/* תפריט צד */
+.side-menu {
+  width: 240px;
+  background-color: #42421f;
+  color: white;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  /* stify-content: space-between; */
+}
+
+/* תוכן ראשי */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #fffef9;
+}
+
+
+.top-banner {
+  width: 100%;
+  height: 100px;
+  overflow: hidden;
+  background-color: #eee;
+  /* רקע למקרה שנשאר רווח */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.top-banner img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* אזור התוכן */
+.content-area {
+  flex: 1;
+  padding: 40px 30px;
+  overflow-y: auto;
+}
+
+/* עיצוב הלוגו והתפריט */
+.logo-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 40px;
+}
+
+.logo-area img {
+  width: 50px;
+  height: 50px;
+  margin-bottom: 10px;
+}
+
+.logo-area h3 {
+  font-size: 1.2rem;
+  color: #f8f7e8;
+}
+
+.side-menu ul {
+  list-style: none;
+  padding: 0;
+}
+
+.side-menu li {
+  padding: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  background-color: #5a5a30;
+  border-radius: 6px;
+  transition: background-color 0.3s;
+  font-size: 0.95rem;
+}
+
+.side-menu li:hover,
+.side-menu li.active {
+  background-color: #e6ecd9;
+  color: #2e2e1e;
+  font-weight: bold;
+}
+
+.logout-area {
+  text-align: center;
+}
+
+.logout-area button {
+  background: none;
+  border: 2px solid #e6ecd9;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* 
+.side-menu {
+  width: 240px;
+  transition: width 0.3s;
+}
+
+.side-menu.collapsed {
+  width: 70px;
+} */
+
+.side-menu .toggle-button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.side-menu ul {
+  list-style: none;
+  padding: 0;
+}
+
+.side-menu li {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  background-color: #5a5a30;
+  border-radius: 6px;
+  transition: background-color 0.3s;
+}
+
+.side-menu li .icon {
+  margin-left: 8px;
+  font-size: 1.1rem;
+}
+
+.side-menu li .label {
+  white-space: nowrap;
+}
+
+.side-menu.collapsed li {
+  justify-content: center;
+}
+
+.side-menu.collapsed li .icon {
+  margin-left: 0;
+}
+
+.side-menu.collapsed li .label {
+  display: none;
+}
+
+.logout-area {
+  text-align: center;
+  margin-top: auto;
+}
+
+.side-menu {
+  width: 240px;
+  background-color: #42421f;
+  color: white;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: width 0.3s;
+}
+
+.side-menu.collapsed {
+  width: 70px;
+}
+
+.toggle-button {
+  position: absolute;
+  top: 43px;
+  left: 10px;
+  transform: translateY(-50%);
+  background-color: #85649b;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-button:hover {
+  background-color: #9e7cc9;
+}
+
+.toggle-button svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.3s ease;
+
+}
+
+.welcome-text {
+  text-align: center;
+  font-size: 1.2rem;
+  line-height: 0.4;
+  margin-right: 12px;
+  margin-top: -20px;
+}
+
+.farm-name {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #5a7b3f;
+  /* ירוק זית, אפשר לשנות לצבע שמתאים לעיצוב שלך */
+}
+.collapsed-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 55px;
+  margin-bottom: 20px;
+}
+
+.farm-name-collapsed {
+  font-size: 15px;
+  color: #5a7b3f;
+  font-weight: bold;
+  text-align: center;
+  padding: 0 6px;
+  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60px;
+}
+
+.side-menu.collapsed {
+  width: 70px;
+  align-items: center; /* ✅ מרכז את כל התוכן */
+}

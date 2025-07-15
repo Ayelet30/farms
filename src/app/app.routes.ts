@@ -25,5 +25,23 @@ export const routes: Routes = [
     { path: 'admin', loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminComponent), canActivate: [RoleGuard], data: { role: 'admin' } },
     { path: 'booking/:type', loadComponent: () => import('./pages/booking/booking.component').then(m => m.BookingComponent)},
     { path: '**', redirectTo: 'home' },
-    
+    {
+  path: 'guide',
+  loadComponent: () => import('./layout/layout').then(m => m.LayoutComponent),
+  canActivate: [RoleGuard],
+  data: { role: 'guide' },
+  children: [
+    { path: '', loadComponent: () => import('./pages/guide/guide.component').then(m => m.GuideComponent) }
+  ]
+},
+{
+  path: 'admin',
+  loadComponent: () => import('./layout/layout').then(m => m.LayoutComponent),
+  canActivate: [RoleGuard],
+  data: { role: 'admin' },
+  children: [
+    { path: '', loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminComponent) }
+  ]
+}
+
 ];
