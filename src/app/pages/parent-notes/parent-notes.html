@@ -1,0 +1,57 @@
+<div class="notes-container">
+  <h2>📨 שלח הודעה למשרד</h2>
+
+  <form (ngSubmit)="submitNote()" #noteForm="ngForm">
+    <label for="subject">נושא</label>
+    <select id="subject" [(ngModel)]="newNote.subject" name="subject" required>
+      <option value="" disabled selected hidden>בחר נושא</option>
+      <option value="חיוב">חיוב</option>
+      <option value="לוח זמנים">לוח זמנים</option>
+      <option value="בקשה כללית">בקשה כללית</option>
+    </select>
+
+    <label for="content">תוכן ההודעה</label>
+    <textarea
+      id="content"
+      [(ngModel)]="newNote.content"
+      name="content"
+      maxlength="500"
+      required
+    ></textarea>
+
+    <button type="submit">שלח הודעה למשרד</button>
+  </form>
+
+  <div *ngIf="confirmationMessage" class="confirmation">
+    {{ confirmationMessage }}
+  </div>
+
+  <button (click)="toggleHistory()" class="history-btn">
+    🔍 {{ showHistory ? 'הסתר את ההערות שנשלחו' : 'הצג את ההערות שנשלחו בעבר' }}
+  </button>
+
+  <div *ngIf="showHistory" class="notes-history">
+    <table>
+      <thead>
+        <tr>
+          <th>תאריך</th>
+          <th>נושא</th>
+          <th>תוכן</th>
+          <th>סטטוס</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let note of noteHistory">
+          <td>{{ note.date_sent | date: 'dd.MM.yy' }}</td>
+          <td>{{ note.title }}</td>
+          <td>{{ note.content.length > 20 ? (note.content | slice:0:20) + '...' : note.content }}</td>
+          <td>
+            <span [ngClass]="statusClass(note.status)">
+              {{ getStatusLabel(note.status) }}
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

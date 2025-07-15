@@ -1,0 +1,8 @@
+<header class="site-header">
+  <div class="auth-section">
+    <button class="auth-button" [ngClass]="isLoggedIn ? 'logout' : 'login'" (click)="handleLoginLogout()">
+      {{ isLoggedIn ? 'התנתק' : 'התחבר' }}
+    </button>
+    <span *ngIf="parentName" class="parent-name">{{ parentName }}</span>
+  </div>
+</header>

@@ -1,0 +1,62 @@
+<div *ngIf="!loading && parent" class="child-card">
+  <div class="child-header">
+    <div *ngIf="!isEditing">
+      <h3>{{ parent.full_name }}</h3>
+    </div>
+    <div *ngIf="isEditing">
+      <input [(ngModel)]="editableParent.full_name" class="editable-title" />
+    </div>
+
+   <div class="button-group">
+  <button *ngIf="!isEditing" (click)="isEditing = true" class="btn-edit">✏️ ערוך</button>
+  <ng-container *ngIf="isEditing">
+    <button (click)="saveParent()" class="btn-save">💾 שמור</button>
+    <button (click)="cancelEdit()" class="btn-cancel">❌ ביטול</button>
+  </ng-container>
+</div>
+
+  </div>
+
+  <p><strong>תעודת זהות:</strong> {{ parent.id_number }}</p>
+
+  <p>
+    <strong>כתובת:</strong>
+    <span *ngIf="!isEditing">{{ parent.address || '-' }}</span>
+    <input *ngIf="isEditing" [(ngModel)]="editableParent.address" class="editable-input" />
+  </p>
+<p>
+  <strong>טלפון:</strong>
+  <span *ngIf="!isEditing">{{ parent.phone || '-' }}</span>
+  <ng-container *ngIf="isEditing">
+    <input [(ngModel)]="editableParent.phone" class="editable-input" />
+    <div *ngIf="phoneError" class="error-msg">{{ phoneError }}</div>
+  </ng-container>
+</p>
+
+<p>
+  <strong>דוא"ל:</strong>
+  <span *ngIf="!isEditing">{{ parent.email || '-' }}</span>
+  <ng-container *ngIf="isEditing">
+    <input [(ngModel)]="editableParent.email" type="email" class="editable-input" />
+    <div *ngIf="emailError" class="error-msg">{{ emailError }}</div>
+  </ng-container>
+</p>
+
+</div>
+
+<div *ngIf="!loading && visibleChildren.length > 0" class="children-list">
+  <h3>🧒 הילדים שלי</h3>
+  <ul>
+    <li *ngFor="let child of visibleChildren">
+      <strong>{{ child.full_name }}</strong> –
+      גיל: {{ getAge(child.birth_date) }} –
+      סטטוס: {{ getStatusText(child.status) }}
+    </li>
+  </ul>
+</div>
+
+
+
+<div *ngIf="!loading && children.length === 0">
+  <p>לא נמצאו ילדים להצגה.</p>
+</div>

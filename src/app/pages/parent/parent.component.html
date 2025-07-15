@@ -11,7 +11,6 @@
     </div>
     <div class="user-info">
       שלום, הורה יקר 👋
-      <button (click)="logout()">🚪 התנתקות</button>
     </div>
   </div>
 
@@ -32,12 +31,11 @@
     <!-- אזור תוכן מרכזי -->
     <div class="content-area">
 <app-parent-children *ngIf="selectedSection === 'children'"></app-parent-children>
-      <!-- <app-parent-schedule *ngIf="selectedSection === 'schedule'"></app-parent-schedule>
+       <!-- <app-parent-schedule *ngIf="selectedSection === 'schedule'"></app-parent-schedule>
       <app-parent-summary *ngIf="selectedSection === 'summary'"></app-parent-summary>
       <app-parent-payments *ngIf="selectedSection === 'payments'"></app-parent-payments>
-      <app-parent-notes *ngIf="selectedSection === 'notes'"></app-parent-notes>
-      <app-parent-details *ngIf="selectedSection === 'details'"></app-parent-details> -->
-        <!-- <p *ngIf="selectedSection === 'children'">כאן תוצג רשימת הילדים</p> -->
+      <app-parent-notes *ngIf="selectedSection === 'notes'"></app-parent-notes> -->
+      <app-parent-details *ngIf="selectedSection === 'details'"></app-parent-details> 
 
     </div>
   </div>

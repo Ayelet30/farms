@@ -17,13 +17,31 @@ export const routes: Routes = [
     //   { path: 'schedule', loadComponent: () => import('./pages/parent/parent-schedule/parent-schedule.component').then(m => m.ParentScheduleComponent) },
     //   { path: 'summary', loadComponent: () => import('./pages/parent/parent-summary/parent-summary.component').then(m => m.ParentSummaryComponent) },
     //   { path: 'payments', loadComponent: () => import('./pages/parent/parent-payments/parent-payments.component').then(m => m.ParentPaymentsComponent) },
-    //   { path: 'notes', loadComponent: () => import('./pages/parent/parent-notes/parent-notes.component').then(m => m.ParentNotesComponent) },
-    //   { path: 'details', loadComponent: () => import('./pages/parent/parent-details/parent-details.component').then(m => m.ParentDetailsComponent) },
+      { path: 'notes', loadComponent: () => import('./pages/parent-notes/parent-notes').then(m => m.ParentNotesComponent) },
+      { path: 'details', loadComponent: () => import('./pages/parent-details/parent-details').then(m => m.ParentDetailsComponent) },
     //   { path: '', redirectTo: 'children', pathMatch: 'full' }
     ]
   },    { path: 'guide', loadComponent: () => import('./pages/guide/guide.component').then(m => m.GuideComponent), canActivate: [RoleGuard], data: { role: 'guide' } },
     { path: 'admin', loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminComponent), canActivate: [RoleGuard], data: { role: 'admin' } },
     { path: 'booking/:type', loadComponent: () => import('./pages/booking/booking.component').then(m => m.BookingComponent)},
     { path: '**', redirectTo: 'home' },
-    
+    {
+  path: 'guide',
+  loadComponent: () => import('./layout/layout').then(m => m.LayoutComponent),
+  canActivate: [RoleGuard],
+  data: { role: 'guide' },
+  children: [
+    { path: '', loadComponent: () => import('./pages/guide/guide.component').then(m => m.GuideComponent) }
+  ]
+},
+{
+  path: 'admin',
+  loadComponent: () => import('./layout/layout').then(m => m.LayoutComponent),
+  canActivate: [RoleGuard],
+  data: { role: 'admin' },
+  children: [
+    { path: '', loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminComponent) }
+  ]
+}
+
 ];

@@ -1,0 +1,74 @@
+.notes-container {
+  max-width: 600px;
+  margin: auto;
+  font-family: 'Segoe UI', sans-serif;
+  direction: rtl;
+}
+
+label {
+  font-weight: bold;
+  display: block;
+  margin-top: 16px;
+}
+
+select, textarea {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+
+textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+button {
+  margin-top: 16px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background-color: #cce1ff;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.confirmation {
+  margin-top: 12px;
+  color: green;
+  font-weight: bold;
+}
+
+.notes-history {
+  margin-top: 20px;
+  overflow-x: auto;
+  background-color: #f9f9f9;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  direction: rtl;
+}
+
+th, td {
+  padding: 8px;
+  text-align: right;
+  border-bottom: 1px solid #ddd;
+}
+
+.status-received {
+  color: gray;
+}
+
+.status-in-progress {
+  color: orange;
+}
+
+.status-resolved {
+  color: green;
+}
