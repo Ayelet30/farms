@@ -4,20 +4,35 @@
   right: 0;
   left: 0;
   height: 100px;
-  background-image: url('/assets/images/header.png'); /* 🔁 זה הנתיב הנכון */
+  background-image: url('/assets/images/header.png');
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
   z-index: 1000;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 12px 20px;
+  font-family: 'Segoe UI', sans-serif;
 }
+
+.auth-section {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* רווח בין הכפתור לשם */
+}
+
+.parent-name {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #5a7b3f;
+}
+
+
 .auth-button {
-  position: absolute;
-  top: 30px;
-  left: 20px;
   padding: 8px 16px;
   border: none;
   border-radius: 8px;
-  /* font-weight: bold; */
   font-family: inherit;
   font-size: 14px;
   cursor: pointer;
