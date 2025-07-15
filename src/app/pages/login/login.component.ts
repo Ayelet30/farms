@@ -40,7 +40,7 @@ export class LoginComponent {
         .select('role')
         .eq('uid', uid)
         .single();
-      console.log("AFTER1");
+      console.log("AFTER1", supabase );
 
       if (error || !user) {
         throw new Error('לא נמצאו נתוני משתמש');
