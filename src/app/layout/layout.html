@@ -1,53 +1,9 @@
-<div class="parent-layout">
-  <nav class="side-menu" [class.collapsed]="menuCollapsed">
-  <button class="toggle-button" (click)="toggleMenu()">
-    
+<app-header></app-header>
 
-  <!-- 🟢 כשהתפריט פתוח – חץ פנימה -->
-  <svg *ngIf="!menuCollapsed" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none">
-    <path d="M9 6L15 12L9 18" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>
-
-  <!-- 🔵 כשהתפריט סגור – חץ החוצה -->
-  <svg *ngIf="menuCollapsed" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none">
-    <path d="M15 6L9 12L15 18" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>
-</button>
-<div class="farm-name-collapsed" *ngIf="menuCollapsed">
-  {{ farmName }}
-</div>
-
-
-  <div class="logo-area">
-<div *ngIf="!menuCollapsed" class="welcome-text">
-  <p>ברוכים הבאים</p>
-  <p>לחוות</p>
-  <p class="farm-name">{{ farmName }}</p>
-</div>
-
-  </div>
-
-  <ul>
-    <li *ngFor="let item of menuItems"
-        (click)="navigateTo(item.path)"
-        [class.active]="isActive(item.path)">
-      <span class="icon">{{ item.icon }}</span>
-      <span class="label" *ngIf="!menuCollapsed">{{ item.label }}</span>
-    </li>
-  </ul>
-
-  <div class="logout-area">
-    <button (click)="logout()">
-      🚪 <span *ngIf="!menuCollapsed">התנתקות</span>
-    </button>
-  </div>
-</nav>
+<div class="parent-layout" style="margin-top: 100px;">
+  <app-slider></app-slider>
 
   <div class="main-content">
-    <div class="top-banner">
-      <img src="assets/images/header.png" alt="תמונת אווירה של החווה" />
-    </div>
-
     <div class="content-area">
       <router-outlet></router-outlet>
     </div>

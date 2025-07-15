@@ -1,0 +1,6 @@
+<header class="site-header">
+    <button class="auth-button" [ngClass]="isLoggedIn ? 'logout' : 'login'" (click)="handleLoginLogout()">
+        {{ isLoggedIn ? 'התנתק' : 'התחבר' }}
+    </button>
+
+</header>
