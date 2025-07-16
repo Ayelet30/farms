@@ -1,0 +1,29 @@
+<div class="schedule-wrapper">
+  <!-- 🔽 בחירת ילד -->
+  <div class="toolbar">
+  <div class="custom-dropdown">
+  <div class="selected-child" [ngStyle]="{ 'background-color': getColorForChild(selectedChildId) }"
+       (click)="dropdownOpen = !dropdownOpen">
+    {{ getChildName(selectedChildId) || '📚 כל הילדים' }}
+    <span class="arrow">&#9660;</span>
+  </div>
+
+  <ul class="dropdown-list" *ngIf="dropdownOpen">
+    <li (click)="selectChild('all')" [ngStyle]="{ 'background-color': '#eee' }">
+      📚 כל הילדים
+    </li>
+    <li *ngFor="let child of children"
+        (click)="selectChild(child.id)"
+        [ngStyle]="{ 'background-color': getColorForChild(child.id) }">
+      {{ child.full_name }}
+    </li>
+  </ul>
+</div>
+
+
+
+  </div>
+
+  <!-- 📅 FullCalendar -->
+  <full-calendar [options]="calendarOptions"></full-calendar>
+</div>
