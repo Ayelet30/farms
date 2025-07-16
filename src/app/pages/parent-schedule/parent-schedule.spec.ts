@@ -1,18 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { SliderComponent  } from './slider';
+import { ParentScheduleComponent } from './parent-schedule';
 
-describe('Slider', () => {
-  let component: SliderComponent ;
-  let fixture: ComponentFixture<SliderComponent >;
+describe('ParentSchedule', () => {
+  let component: ParentScheduleComponent;
+  let fixture: ComponentFixture<ParentScheduleComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [SliderComponent ]
+      imports: [ParentScheduleComponent]
     })
     .compileComponents();
 
-    fixture = TestBed.createComponent(SliderComponent );
+    fixture = TestBed.createComponent(ParentScheduleComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });

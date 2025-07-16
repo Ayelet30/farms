@@ -1,0 +1,129 @@
+/* מבנה כללי */
+.schedule-wrapper {
+  padding: 16px;
+  direction: rtl;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+select {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+
+/* FullCalendar - יישור לימין */
+::ng-deep .fc {
+  direction: rtl !important;
+  text-align: right;
+}
+
+::ng-deep .fc-toolbar-title {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+/* עיצוב אירועים */
+::ng-deep .fc-daygrid-event,
+::ng-deep .fc-timegrid-event {
+  font-size: 12px;
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+
+/* שורת הימים דביקה */
+::ng-deep .fc-col-header {
+  position: sticky;
+  top: 0;
+  background-color: white;
+  z-index: 100;
+  border-bottom: 1px solid #ccc;
+}
+
+/* עיצוב תאי כותרת הימים */
+::ng-deep .fc-col-header-cell {
+  box-sizing: border-box;
+  padding: 8px 4px;
+  text-align: center;
+  white-space: nowrap;
+  border-right: 1px solid #e0e0e0;
+}
+
+::ng-deep .fc-col-header-cell:not(:last-child) {
+  border-left: 1px solid #e0e0e0;
+}
+
+/* סנכרון טבלאות - כותרת + גוף */
+::ng-deep .fc .fc-scrollgrid,
+::ng-deep .fc .fc-col-header,
+::ng-deep .fc .fc-timegrid-body {
+  table-layout: fixed !important;
+}
+
+/* ביטול שורת כל היום */
+::ng-deep .fc-timegrid-all-day,
+::ng-deep .fc-timegrid-axis-frame {
+  display: none !important;
+}
+
+/* קווים אופקיים אחידים */
+::ng-deep .fc-timegrid-slot {
+  border-top: 1px solid #e0e0e0 !important;
+}
+
+/* גלילה אנכית נוחה */
+::ng-deep .fc-scroller-harness {
+  overflow-y: auto !important;
+  max-height: 600px;
+}
+.custom-dropdown {
+  position: relative;
+  width: 200px;
+  margin-bottom: 16px;
+}
+
+.selected-child {
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #000;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #ccc;
+}
+
+.arrow {
+  font-size: 14px;
+}
+
+.dropdown-list {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 100%;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  z-index: 10;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.dropdown-list li {
+  padding: 8px 12px;
+  cursor: pointer;
+  color: #000;
+}
+
+.dropdown-list li:hover {
+  opacity: 0.8;
+}
