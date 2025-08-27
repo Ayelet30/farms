@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
-import { getCurrentUserData, getFarmNameById, logout } from '../../services/supabase.service';
+import { getCurrentUserData, getFarmMetaById, logout } from '../../services/supabaseClient';
 
 @Component({
   selector: 'app-slider',
@@ -23,7 +23,7 @@ export class SliderComponent implements OnInit {
   async ngOnInit() {
     const userData = await getCurrentUserData();
     this.role = userData?.role || '';
-    this.farmName = await getFarmNameById(userData?.farm_id);
+    //this.farmName = await getFarmMetaById(userData?.farm_id);
     this.setMenuItemsByRole();
   }
 
