@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
-import { getCurrentUserData, getSupabaseClient, logout } from '../../services/supabase.service';
+import { getCurrentUserData, getSupabaseClient, logout } from '../../services/supabaseClient';
 
 @Component({
   selector: 'app-header',

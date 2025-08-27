@@ -1,11 +1,13 @@
+// example: src/app/auth/login.component.ts
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { Auth } from '@angular/fire/auth';
+import { setTenantContext, getSupabaseClient } from '../../services/supabaseClient';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { getSupabaseClient } from '../../services/supabase.service';
-import { MatDialogRef } from '@angular/material/dialog';
+import { auth } from '../../core/firebase.client';
+
+
 
 
 @Component({
@@ -13,18 +15,12 @@ import { MatDialogRef } from '@angular/material/dialog';
   imports: [CommonModule, FormsModule],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss'
-})
-export class LoginComponent {
-  email: string = '';
-  password: string = '';
-  errorMessage: string = '';
+})export class LoginComponent {
+  email = '';
+  password = '';
+  errorMessage = ""; 
 
-  constructor(
-    private auth: Auth,
-    private router: Router,
-    private dialogRef: MatDialogRef<LoginComponent> // ✅ מוסיפים את זה
-
-  ) { }
+  constructor(private router: Router) {}
 
   async login() {
     try {
