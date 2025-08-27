@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
-import { getSupabaseClient } from '../../services/supabase.service';
+import { getSupabaseClient } from '../../services/supabaseClient';
 
 export const RoleGuard: CanActivateFn = async (route, state) => {
   const router = inject(Router);

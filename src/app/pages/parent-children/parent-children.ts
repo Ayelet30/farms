@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { getCurrentUserData, getSupabaseClient } from '../../services/supabase.service';
+import { getCurrentUserData, getSupabaseClient } from '../../services/supabaseClient';
 
 @Component({
   selector: 'app-parent-children',
