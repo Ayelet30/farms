@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
-import { getCurrentUserData, getFarmMetaById, logout } from '../../services/supabaseClient';
+import { fetchCurrentFarmName, getCurrentUserData, getFarmMetaById, logout } from '../../services/supabaseClient';
 
 @Component({
   selector: 'app-slider',
@@ -15,16 +15,21 @@ import { getCurrentUserData, getFarmMetaById, logout } from '../../services/supa
 export class SliderComponent implements OnInit {
   role: string = '';
   menuItems: any[] = [];
-  farmName: string = '';
+  farmName: string | null = null;
+;
   menuCollapsed = false;
+  error: string | undefined;
 
   constructor(private router: Router, private dialog: MatDialog) {}
 
   async ngOnInit() {
+     const res = await fetchCurrentFarmName(); // אפשר גם { refresh: true } אם צריך לרענן
+    if (!res.ok) this.error = res.error;
+    else this.farmName = res.data;
     const userData = await getCurrentUserData();
-    this.role = userData?.role || '';
-    //this.farmName = await getFarmMetaById(userData?.farm_id);
+    this.role = userData.role;
     this.setMenuItemsByRole();
+
   }
 
   setMenuItemsByRole() {

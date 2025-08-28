@@ -24,7 +24,9 @@ export class ParentComponent {
     private auth: Auth,
     private router: Router,
     private dialog: MatDialog
-  ) {}
+  ) {
+    console.log("&&&&&&&&&");
+  }
   async logout() {
     const dialogRef = this.dialog.open(LogoutConfirmationComponent, {
       width: '320px',

@@ -1,38 +1,25 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { Auth } from '@angular/fire/auth';
-import { getSupabaseClient } from '../../services/supabaseClient';
+import { CurrentUserService } from '../../core/auth/current-user.service';
 
-export const RoleGuard: CanActivateFn = async (route, state) => {
+export const RoleGuard: CanActivateFn = (route, state) => {
   const router = inject(Router);
-  const auth = inject(Auth);
-  const user = auth.currentUser;
+  const cuSvc = inject(CurrentUserService);
+  const user = cuSvc.current;
+
+  console.log(user);
+
 
   if (!user) {
-    router.navigate(['/login']);
-    return false;
+    return router.createUrlTree(['/login'], { queryParams: { redirect: state.url } });
   }
 
-  const uid = user.uid; // 👈 מזהה שמגיע מ־Firebase בלבד
-  const requiredRole = route.data['role'];
+  const required = (route.data['roles'] ?? route.data['role']) as string | string[] | undefined;
+  console.log("!!!!!!!!!", required);
 
-  const supabase = getSupabaseClient();
-  const { data: userData, error } = await supabase
-    .from('users')
-    .select('role')
-    .eq('uid', uid)
-    .single();
+  if (!required) return true;
 
-  if (error || !userData) {
-    console.error('שגיאה בשליפת role מה־Supabase:', error);
-    router.navigate(['/login']);
-    return false;
-  }
-
-  if (userData.role === requiredRole) {
-    return true;
-  } else {
-    router.navigate(['/login']);
-    return false;
-  }
+  const requiredRoles = Array.isArray(required) ? required : [required];
+  const ok = !!user.role && requiredRoles.includes(user.role);
+  return ok ? true : router.createUrlTree(['/forbidden']);
 };

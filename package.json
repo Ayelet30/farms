@@ -12,18 +12,25 @@
   "dependencies": {
     "@angular/animations": "^20.0.6",
     "@angular/cdk": "^20.0.5",
-    "@angular/common": "^20.0.0",
-    "@angular/compiler": "^20.0.0",
-    "@angular/core": "^20.0.0",
+    "@angular/common": "^20.0.6",
+    "@angular/compiler": "^20.0.6",
+    "@angular/core": "^20.0.6",
     "@angular/fire": "^20.0.1",
-    "@angular/forms": "^20.0.0",
+    "@angular/forms": "^20.0.6",
     "@angular/material": "^20.0.5",
-    "@angular/platform-browser": "^20.0.0",
-    "@angular/router": "^20.0.0",
+    "@angular/platform-browser": "^20.0.6",
+    "@angular/platform-browser-dynamic": "^20.0.6",
+    "@angular/router": "^20.0.6",
+    "@fullcalendar/angular": "^6.1.19",
+    "@fullcalendar/core": "^6.1.19",
+    "@fullcalendar/daygrid": "^6.1.19",
+    "@fullcalendar/interaction": "^6.1.19",
+    "@fullcalendar/timegrid": "^6.1.19",
     "@supabase/supabase-js": "^2.50.5",
     "angular-calendar": "^0.31.1",
     "date-fns": "^4.1.0",
     "firebase": "^11.10.0",
+    "jwt-decode": "^4.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.15.0"
@@ -42,4 +49,3 @@
     "typescript": "~5.8.2"
   }
 }
-

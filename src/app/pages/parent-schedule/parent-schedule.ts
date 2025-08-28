@@ -48,6 +48,7 @@ endDate: string = '';
   };
 
   async ngOnInit() {
+    console.log("$$$$$$$$$$$");
     await this.loadChildren();
     await this.loadLessons();
     this.filterLessons();

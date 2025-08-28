@@ -34,6 +34,7 @@ export class ParentDetailsComponent implements OnInit {
     }
 
     const supabase = getSupabaseClient();
+    console.log("????????????");
 
     // שליפת פרטי ההורה
     const { data: parentData, error: parentError } = await supabase

@@ -1,7 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { getCurrentUserData, getSupabaseClient } from '../../services/supabaseClient';
+import { fetchMyChildren, getCurrentUserData, getMyChildren, getSupabaseClient } from '../../services/supabaseClient';
+import { CurrentUserService } from '../../core/auth/current-user.service';
 
 @Component({
   selector: 'app-parent-children',
@@ -18,21 +19,16 @@ export class ParentChildrenComponent implements OnInit {
   loading = true;
   healthFunds: string[] = ['כללית', 'מאוחדת', 'מכבי', 'לאומית'];
   instructors: string[] = [];
-  supabase = getSupabaseClient();
   validationErrors: { [key: string]: string } = {};
+  error: string | undefined;
 
 
 
   async ngOnInit() {
-    const supabase = getSupabaseClient();
-
-    // טוען את הילדים
-    const { data: childrenData } = await supabase
-  .from('children')
-  .select('*')
-  .neq('status', 'deleted');
-
-    this.children = childrenData || [];
+      const res = await fetchMyChildren();
+    this.loading = false;
+    if (!res.ok) this.error = res.error;
+    else this.children = res.data;
 
     const farmId = this.children[0]?.farm_id;
     if (farmId) {
@@ -134,17 +130,11 @@ export class ParentChildrenComponent implements OnInit {
     return userData?.farm_id ?? null;
   }
   async loadChildren() {
-  const uid = (await getCurrentUserData())?.uid;
+  const res = await fetchMyChildren();
+    this.loading = false;
+    if (!res.ok) this.error = res.error;
+    else this.children = res.data;
 
-  const { data, error } = await this.supabase
-    .from('children')
-    .select('*')
-    .eq('parent_uid', uid)
-    .not('status', 'eq', 'deleted'); // ❗️סינון רק של מחוקים
-
-  if (!error && data) {
-    this.children = data;
-  }
 }
 
   async saveNewChild() {
@@ -181,39 +171,40 @@ export class ParentChildrenComponent implements OnInit {
     }
 
     // בדיקת כפילות
-    const { data: existingChild } = await this.supabase
-      .from('children')
-      .select('id')
-      .eq('id', this.newChild.id)
-      .maybeSingle();
+    // const { data: existingChild } = await this.supabase
+    //   .from('children')
+    //   .select('id')
+    //   .eq('id', this.newChild.id)
+    //   .maybeSingle();
+      
 
-    if (existingChild) {
-      this.validationErrors['id'] = 'ת"ז זו כבר קיימת במערכת';
-      return;
-    }
+    // if (existingChild) {
+    //   this.validationErrors['id'] = 'ת"ז זו כבר קיימת במערכת';
+    //   return;
+    // }
 
     // המשך שמירה...
     const uid = (await getCurrentUserData())?.uid;
     const farmId = await this.getFarmId();
 
-    const { error } = await this.supabase
-      .from('children')
-      .insert({
-        id: this.newChild.id,
-        full_name: this.newChild.full_name,
-        birth_date: this.newChild.birth_date,
-        gender: this.newChild.gender,
-        health_fund: this.newChild.health_fund,
-        instructor: this.newChild.instructor,
-        status: 'waiting',
-        parent_uid: uid,
-        farm_id: farmId
-      });
+    // const { error } = await this.supabase
+    //   .from('children')
+    //   .insert({
+    //     id: this.newChild.id,
+    //     full_name: this.newChild.full_name,
+    //     birth_date: this.newChild.birth_date,
+    //     gender: this.newChild.gender,
+    //     health_fund: this.newChild.health_fund,
+    //     instructor: this.newChild.instructor,
+    //     status: 'waiting',
+    //     parent_uid: uid,
+    //     farm_id: farmId
+    //   });
       //נדרש להוסיף שליחה לאישור המזכירה 
-    if (!error) {
-      this.loadChildren();
-      this.newChild = null;
-    }
+    // if (!error) {
+    //   this.loadChildren();
+    //   this.newChild = null;
+    // }
   }
 
   allowOnlyNumbers(event: KeyboardEvent) {
@@ -239,16 +230,16 @@ cancelDelete() {
 }
 
 async deleteChild() {
-  const { error } = await this.supabase
-    .from('children')
-    .update({ status: 'deleted' })
-    .eq('id', this.selectedChild.id);
+//   const { error } = await this.supabase
+//     .from('children')
+//     .update({ status: 'deleted' })
+//     .eq('id', this.selectedChild.id);
 
-  if (!error) {
-    this.showDeleteConfirm = false;
-    this.selectedChild = null;
-    this.loadChildren(); // מרענן את הרשימה
-  }
+//   if (!error) {
+//     this.showDeleteConfirm = false;
+//     this.selectedChild = null;
+//     this.loadChildren(); // מרענן את הרשימה
+//   }
 }
 
 

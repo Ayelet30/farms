@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
-import { getCurrentUserData, getSupabaseClient, logout } from '../../services/supabaseClient';
+import { getCurrentParentDetails, getCurrentUserData, getSupabaseClient, logout, setTenantContext } from '../../services/supabaseClient';
+import { CurrentUserService } from '../../core/auth/current-user.service';
 
 @Component({
   selector: 'app-header',
@@ -15,37 +16,28 @@ import { getCurrentUserData, getSupabaseClient, logout } from '../../services/su
 export class HeaderComponent {
   isLoggedIn = false;
   parentName: string = '';
-    supabase = getSupabaseClient();
-  
-  
+  supabase = getSupabaseClient();
+
+  async ngOnInit() {
+    const user = await getCurrentUserData();
+    this.isLoggedIn = !!user;
+  }
 
 
-async ngOnInit() {
-  const user = await getCurrentUserData();
-  this.isLoggedIn = !!user;
-}
-
-
-  constructor(private router: Router, private dialog: MatDialog) {
+  constructor(private router: Router, private dialog: MatDialog, private cuSvc: CurrentUserService) {
     this.checkLogin();
   }
 
   async checkLogin() {
-  const user = await getCurrentUserData();
-  this.isLoggedIn = !!user;
-
-  if (user?.uid) {
-    const { data, error } = await this.supabase
-      .from('parents') 
-      .select('full_name') 
-      .eq('uid', user.uid)
-      .single();
-
-    if (data?.full_name) {
-      this.parentName = data.full_name;
+    const parent = await this.cuSvc.loadParentDetails();
+    console.log('Parent:', parent);
+    if (!parent) {
+      console.log("אין הורה כזה")
+    } else {
+      this.parentName = parent.full_name;
     }
+
   }
-}
 
 
   handleLoginLogout() {
