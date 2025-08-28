@@ -1,83 +1,77 @@
-// example: src/app/auth/login.component.ts
-import { Component, inject } from '@angular/core';
+// src/app/auth/login.component.ts
+import { Component, inject, Optional } from '@angular/core';
 import { Router } from '@angular/router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { setTenantContext, getSupabaseClient, determineAndSetTenantByUid } from '../../services/supabaseClient';
+import { determineAndSetTenantByUid, getSupabaseClient } from '../../services/supabaseClient';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Auth } from '@angular/fire/auth';
-import { ActivatedRoute } from '@angular/router';
 import { CurrentUserService } from '../../core/auth/current-user.service';
+import { MatDialogRef } from '@angular/material/dialog';
 
 @Component({
   selector: 'app-login',
+  standalone: true,                 // אם זה קומפוננטה standalone
   imports: [CommonModule, FormsModule],
   templateUrl: './login.component.html',
-  styleUrl: './login.component.scss'
+  styleUrls: ['./login.component.scss']   // ← לתקן ל־styleUrls
 })
-
 export class LoginComponent {
   email = '';
   password = '';
-  errorMessage = ""; 
-  dialogRef: any;
+  errorMessage = '';
   private auth = inject(Auth);
 
+  constructor(
+    private router: Router,
+    private cuSvc: CurrentUserService,
+    @Optional() private dialogRef?: MatDialogRef<LoginComponent>   // אופציונלי לבטיחות
+  ) {}
 
-  constructor(private router: Router,
-  private route: ActivatedRoute,
-  private cuSvc: CurrentUserService,
-  ) {
+  private routeByRole(role: string): string {
+    switch (role) {
+      case 'parent': return '/parent';
+      case 'instructor': return '/instructor';
+      case 'secretary': return '/secretary';
+      case 'admin': return '/admin';
+      case 'manager':
+      case 'coordinator': return '/ops';
+      default: throw new Error('תפקיד לא מזוהה');
+    }
   }
 
   async login() {
-  try {
-    const cred = await signInWithEmailAndPassword(this.auth, this.email, this.password);
-    const uid = cred.user.uid;
+    try {
+      const cred = await signInWithEmailAndPassword(this.auth, this.email, this.password);
+      const uid = cred.user.uid;
 
-    // שליפת role
-    const { data: userRow, error } = await getSupabaseClient()
-      .from('users')
-      .select('role')
-      .eq('uid', uid)
-      .single();
-    if (error || !userRow) throw new Error('לא נמצאו נתוני משתמש');
+      // 1) קובע tenant קודם
+      await determineAndSetTenantByUid(uid);
 
-    // 👇 חובה: לקבוע tenant לפני כל קריאה ל־db()/parents...
-    await determineAndSetTenantByUid(uid);
+      // 2) טוען role (לאחר קביעת tenant)
+      const { data: userRow, error } = await getSupabaseClient()
+        .from('users')
+        .select('role')
+        .eq('uid', uid)
+        .single();
+      if (error || !userRow) throw new Error('לא נמצאו נתוני משתמש');
 
-    // לעדכן את ה־CurrentUserService (כדי שה־RoleGuard לא יעיף אותך)
-    this.cuSvc.setCurrent({ uid, role: String(userRow.role).toLowerCase() });
+      const role = String(userRow.role ?? '').toLowerCase();
+      // 3) מעדכן משתמש נוכחי (ל־guards)
+      this.cuSvc.setCurrent({ uid, role });
 
-    // ניווט לפי Role
-    switch (String(userRow.role).toLowerCase()) {
-      case 'parent':      this.router.navigate(['/parent']); break;
-      case 'instructor':  this.router.navigate(['/instructor']); break;
-      case 'secretary':   this.router.navigate(['/secretary']); break;
-      case 'admin':       this.router.navigate(['/admin']); break;
-      case 'manager':
-      case 'coordinator': this.router.navigate(['/ops']); break;
-      default: throw new Error('תפקיד לא מזוהה');
+      // 4) יעד אחד לפי תפקיד
+      const target = this.routeByRole(role);
+
+      // 5) סוגר דיאלוג (אם רץ כדיאלוג)
+      this.dialogRef?.close({ success: true, role, target });
+
+      // 6) מנווט
+      await this.router.navigateByUrl(target);
+
+    } catch (e: any) {
+      console.error(e);
+      this.errorMessage = 'שגיאה: ' + (e?.message ?? e);
     }
-
-  } catch (e: any) {
-    console.error(e);
-    this.errorMessage = 'שגיאה: ' + (e?.message ?? e);
   }
 }
-
-private routeByRole(role: string) {
-  switch (role) {
-    case 'parent': return '/parent';
-    case 'instructor': return '/instructor';
-    case 'secretary': return '/secretary';
-    case 'admin': return '/admin';
-    case 'manager': 
-    case 'coordinator': return '/ops';
-    default: throw new Error('תפקיד לא מזוהה');
-  }
-}
-}
-
-
-

@@ -15,7 +15,6 @@ export const RoleGuard: CanActivateFn = (route, state) => {
   }
 
   const required = (route.data['roles'] ?? route.data['role']) as string | string[] | undefined;
-  console.log("!!!!!!!!!", required);
 
   if (!required) return true;
 

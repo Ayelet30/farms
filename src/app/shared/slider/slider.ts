@@ -42,9 +42,10 @@ export class SliderComponent implements OnInit {
         { path: 'parent/notes', label: 'הערות למשרד', icon: '📝' },
         { path: 'parent/details', label: 'הפרטים שלי', icon: '⚙️' }
       ];
-    } else if (this.role === 'guide') {
+    } else if (this.role === 'instructor') {
       this.menuItems = [
         { path: 'guide/children', label: 'כל הילדים', icon: '👶' },
+        {path: 'guide/children', label: ' לו"ז ומעקב', icon: '👶' },
         { path: 'guide/activities', label: 'ניהול פעילויות', icon: '🏇' },
         { path: 'guide/notes', label: 'רשומות והערות', icon: '📝' }
       ];

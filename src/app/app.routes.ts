@@ -21,15 +21,16 @@ export const routes: Routes = [
       { path: 'details', loadComponent: () => import('./pages/parent-details/parent-details').then(m => m.ParentDetailsComponent) },
     //   { path: '', redirectTo: 'children', pathMatch: 'full' }
     ]
-  },    { path: 'guide', loadComponent: () => import('./pages/guide/guide.component').then(m => m.GuideComponent), canActivate: [RoleGuard], data: { role: 'guide' } },
+  },   
+   { path: 'instructor', loadComponent: () => import('./pages/guide/guide.component').then(m => m.GuideComponent), canActivate: [RoleGuard], data: { role: 'instructor' } },
     { path: 'admin', loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminComponent), canActivate: [RoleGuard], data: { role: 'admin' } },
     { path: 'booking/:type', loadComponent: () => import('./pages/booking/booking.component').then(m => m.BookingComponent)},
     { path: '**', redirectTo: 'home' },
     {
-  path: 'guide',
+  path: 'instructor',
   loadComponent: () => import('./layout/layout').then(m => m.LayoutComponent),
   canActivate: [RoleGuard],
-  data: { role: 'guide' },
+  data: { role: 'instructor' },
   children: [
     { path: '', loadComponent: () => import('./pages/guide/guide.component').then(m => m.GuideComponent) }
   ]
