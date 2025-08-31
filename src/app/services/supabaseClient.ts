@@ -1,69 +1,63 @@
-// supabaseClient.ts
+// src/app/services/supabaseClient.ts
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getAuth, signOut } from 'firebase/auth';
 import { ChildRow, ParentDetails } from '../Types/detailes.model';
 
-const supabaseUrl = 'https://aztgdhcvucvpvsmusfpz.supabase.co';
-const supabaseAnon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6dGdkaGN2dWN2cHZzbXVzZnB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIxMzI4NDIsImV4cCI6MjA2NzcwODg0Mn0.NRhi2ZJq4I0TSVI91Epf_aQT6UUYpcE7Mm1GMPSrC8s'; // עדיף מה־env
+/** ===================== CONFIG ===================== **/
+// רצוי להעביר ל-environment / runtime config
+const SUPABASE_URL = 'https://aztgdhcvucvpvsmusfpz.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6dGdkaGN2dWN2cHZzbXVzZnB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIxMzI4NDIsImV4cCI6MjA2NzcwODg0Mn0.NRhi2ZJq4I0TSVI91Epf_aQT6UUYpcE7Mm1GMPSrC8s';
 
-
-let supabase: SupabaseClient | null = null;
-type UserRow = { uid: string; role?: string; farm_id?: string; default_farm_id?: string };
-
+/** ===================== TYPES ===================== **/
 export type FarmMeta = { id: string; name: string; schema_name: string };
+export type TenantContext = { id: string; schema: string; accessToken?: string };
 
+type UserRow = {
+  uid: string;
+  role?: string;
+  farm_id?: string;
+  default_farm_id?: string;
+};
+
+type BootstrapResp = {
+  access_token: string;
+  farm: FarmMeta;
+  role_in_tenant: string;
+};
+
+/** ===================== STATE ===================== **/
+let supabase: SupabaseClient | null = null;
+let authBearer: string | null = null;   // ה-JWT הקצר-מועד מהשרת
+let currentTenant: TenantContext | null = null;
 let currentFarmMeta: FarmMeta | null = null;
+let refreshTimer: any = null;
 
-export async function determineAndSetTenantByUid(uid: string) {
-  // מושכים את המשתמש הגלובלי וצופים לשדה farm_id / default_farm_id
-  const { data: userRow, error } = await getSupabaseClient()
-    .from('users')
-    .select('uid, role, farm_id')
-    .eq('uid', uid)
-    .single();
-    
-    if (error || !userRow) throw new Error('לא נמצא משתמש גלובלי לבחירת חווה');
-    
-    const farmId = (userRow as UserRow).default_farm_id || (userRow as UserRow).farm_id;
-    if (!farmId) throw new Error('למשתמש אין farm משויך');
-    
-    const meta = await getFarmMetaById(farmId);
-    if (!meta) throw new Error('לא נמצאה חווה עבור המשתמש');
-
-     currentFarmMeta = meta; // 👈 נשמר לשימוש בקומפוננטות
-
-    // כרגע בלי minting – אין accessToken של Supabase, זה בסדר לשאילתות שמותרות ל-anon
-    await setTenantContext({ id: meta.id, schema: meta.schema_name });
-    return { id: meta.id, schema: meta.schema_name };
+/** ===================== CLIENT FACTORY ===================== **/
+function makeClient(): SupabaseClient {
+  return createClient(SUPABASE_URL.trim(), SUPABASE_ANON_KEY.trim(), {
+    auth: {
+      // אין לנו refresh_token → לא לנהל session פנימי של supabase-js
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      lock: async (_n, _t, fn) => await fn(),
+    },
+    global: {
+      headers: {
+        apikey: SUPABASE_ANON_KEY.trim(),
+        ...(authBearer ? { Authorization: `Bearer ${authBearer}` } : {}),
+      },
+    },
+  });
 }
 
-export type TenantContext = {
-  id: string;
-  schema: string;
-  accessToken?: string;
-};
-let currentTenant: TenantContext | null = null;
-
+/** ספק יחיד של ה-client */
 export function getSupabaseClient(): SupabaseClient {
-  if (!supabase) {
-    supabase = createClient(supabaseUrl, supabaseAnon, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-      global: {
-        headers: {
-          apikey: supabaseAnon,                          // ✅ תמיד נשלח
-          Authorization: `Bearer ${supabaseAnon}`,       // ✅ עד setSession
-        },
-      },
-    });
-  }
+  if (!supabase) supabase = makeClient();
   return supabase;
 }
 
-// ✅ מחליף את assertTenant()
+/** ===================== HELPERS ===================== **/
 function requireTenant(): TenantContext {
   if (!currentTenant?.schema) {
     throw new Error('Tenant context is not set. Call setTenantContext() first.');
@@ -71,14 +65,46 @@ function requireTenant(): TenantContext {
   return currentTenant;
 }
 
-// ✅ משתמשים בו בכל מקום במקום assertTenant()
 function db() {
   if (!supabase) getSupabaseClient();
   const tenant = requireTenant();
   return getSupabaseClient().schema(tenant.schema);
 }
 
-/** public.users לפי Firebase UID */
+/** ===================== TENANT / SESSION ===================== **/
+export async function setTenantContext(ctx: TenantContext) {
+  currentTenant = { ...ctx };
+
+  // נשמור את ה-JWT ונבנה קליינט חדש עם Authorization גלובלי
+  authBearer = ctx.accessToken ?? null;
+  supabase = makeClient();
+
+  // תזמון ריענון לפני פקיעה (אופציונלי)
+  clearTimeout(refreshTimer);
+  if (authBearer) scheduleTokenRefresh(authBearer);
+}
+
+export async function clearTenantContext() {
+  currentTenant = null;
+  authBearer = null;
+  clearTimeout(refreshTimer);
+  refreshTimer = null;
+
+  // בונים קליינט “נקי” ללא Authorization
+  supabase = makeClient();
+
+  // ניקוי auth פנימי (למקרה שהיו זרימות אחרות)
+  await supabase.auth.signOut().catch(() => {});
+}
+
+export async function logout(): Promise<void> {
+  await clearTenantContext();
+  const auth = getAuth();
+  await signOut(auth);
+}
+
+/** ===================== GLOBAL (public schema) ===================== **/
+/** שליפת משתמש גלובלי לפי Firebase UID (public schema) */
 export async function getCurrentUserData(): Promise<any> {
   const auth = getAuth();
   const currentUser = auth.currentUser;
@@ -97,46 +123,22 @@ export async function getCurrentUserData(): Promise<any> {
   return data;
 }
 
-/** קונטקסט טננט + הזרקת accessToken (אם יש) */
-export async function setTenantContext(ctx: TenantContext) {
-  currentTenant = { ...ctx };
-  if (!supabase) getSupabaseClient();
-  if (ctx.accessToken) {
-    await supabase!.auth.setSession({ access_token: ctx.accessToken, refresh_token: '' });
-  }
-}
-
-export async function clearTenantContext() {
-  currentTenant = null;
-  if (!supabase) return;
-  await supabase.auth.signOut();
-}
-
-export async function logout(): Promise<void> {
-  await clearTenantContext();
-  const auth = getAuth();
-  await signOut(auth);
-}
-
-/** פרטי מטא של חווה מהשכבה הגלובלית */
-export async function getFarmMetaById(farmId: string): Promise<{ id: string; name: string; schema_name: string } | null> {
+/** מטא-דאטה של חווה מהשכבה הגלובלית */
+export async function getFarmMetaById(farmId: string): Promise<FarmMeta | null> {
   const { data, error } = await getSupabaseClient()
     .from('farms')
     .select('id, name, schema_name')
     .eq('id', farmId)
     .single();
 
-    console.log("xxxxxxxxxx", data)
-
   if (error) {
     console.error('שגיאה בשליפת חווה:', error);
     return null;
   }
-  return data;
+  return data as FarmMeta;
 }
 
-/* ------------------------- Parent Details (עם Cache) ------------------------ */
-
+/** ===================== PARENT CACHE ===================== **/
 type CacheEntry<T> = { key: string; data: T; expires: number };
 let parentCache: CacheEntry<ParentDetails | null> | null = null;
 
@@ -148,33 +150,32 @@ export function invalidateParentCache() {
   parentCache = null;
 }
 
-/**
- * שליפת פרטי הורה מסכמת ה־tenant.
- * 1) קודם לפי UID (הכי זול/מדויק).
- * 2) אם אין – ננסה דרך public.users.parent_id (קריאה אחת גלובלית + אחת לסכמה).
- * `options.cacheMs` – שמירת תוצאה במטמון (ברירת מחדל 60 שניות).
- */
+/** ===================== PARENT API (per-tenant) ===================== **/
 export async function getCurrentParentDetails(
-  select = 'id_number, uid, full_name, phone, email',
+  select = 'uid, full_name, id_number, adress, phone, email',
   options?: { cacheMs?: number }
 ): Promise<ParentDetails | null> {
-  const tenant = requireTenant(); // 👈 במקום assertTenant()
+  const tenant = requireTenant();
   const auth = getAuth();
   const fbUser = auth.currentUser;
   if (!fbUser) throw new Error('No Firebase user is logged in.');
-  
+
   const ttl = options?.cacheMs ?? 60_000;
   const key = parentKey(fbUser.uid, tenant.schema, select);
-  
+
+  if (parentCache && parentCache.key === key && parentCache.expires > Date.now()) {
+    return parentCache.data;
+  }
+
   const dbc = db();
-  
+
+  // לפי UID (TEXT)
   const { data: byUid, error: errUid } = await dbc
-  .from('parents')
-  .select(select)
-  .eq('uid', fbUser.uid)
-  .maybeSingle();
-  
-  console.log("*********", key);
+    .from('parents') 
+    .select(select)
+    .eq('uid', fbUser.uid)
+    .maybeSingle();
+
   if (errUid) console.warn('parents by uid error:', errUid);
   if (byUid) {
     const casted = byUid as unknown as ParentDetails;
@@ -182,6 +183,7 @@ export async function getCurrentParentDetails(
     return casted;
   }
 
+  // נפילה אופציונלית לפי parent_id (אם יש בשכבה הגלובלית)
   const appUser = await getCurrentUserData();
   if (appUser?.parent_id) {
     const { data: byId, error: errId } = await dbc
@@ -199,12 +201,8 @@ export async function getCurrentParentDetails(
   return null;
 }
 
-
-/**
- * עוטפת את getCurrentParentDetails ומחזירה גם סטטוס פשוט לשימוש בקומפוננטות.
- */
 export async function fetchCurrentParentDetails(
-  select = 'id, uid, full_name, phone, email',
+  select = 'uid, full_name, phone, emailfull_name, birth_date, parent_uid, status, health_fund, instructor',
   options?: { cacheMs?: number }
 ): Promise<{ ok: boolean; data: ParentDetails | null; error?: string }> {
   try {
@@ -215,45 +213,53 @@ export async function fetchCurrentParentDetails(
   }
 }
 
-// ----- Children API -----
-
-/** כל הילדים להורה הנוכחי (ע"פ parent_id, עם נפילה ל-parent_uid אם קיים) */
+/** ===================== CHILDREN API (per-tenant) ===================== **/
 export async function getMyChildren(
-  select = 'id, parent_uid, full_name,'
+  select = 'id, parent_uid, full_name'
 ): Promise<ChildRow[]> {
-  // נמצא את ההורה (יש לך כבר את הפונקציה הזו)
-  const parent = await getCurrentParentDetails('id, uid');
-  if (!parent?.id && !parent?.uid) {
-    throw new Error('Parent not found for current user');
-  }
+  const fbUid = getAuth().currentUser?.uid;
+  if (!fbUid) throw new Error('No Firebase user');
 
-  // תמיד עוברים דרך הסכמה של הטננט
-  const query = db().from('children').select(select);
-
-  // 1) ראשית לפי parent_id (ה-FK המקובל)
-  if (parent?.id) {
-    const { data, error } = await query.eq('parent_id', parent.id).order('full_name', { ascending: true });
-    if (error) throw error;
-    if (data && data.length) return data as unknown as ChildRow[];
-  }
-
-  // 2) נפילה אופציונלית: אם יש עמודה children.parent_uid אצלך
+  const dbc = db();
+  const parent = await getCurrentParentDetails('id_number, uid', { cacheMs: 0 });
+  
+  
+  // קודם ננסה לפי parent_id (UUID)
   if (parent?.uid) {
-    const { data, error } = await db()
-      .from('children')
-      .select(select)
-      .eq('parent_uid', parent.uid)
-      .order('full_name', { ascending: true });
-    if (error) throw error;
-    return (data ?? []) as unknown as ChildRow[];
+    const { data, error } = await dbc
+    .from('children')
+    .select(select)
+    .eq('parent_uid', parent.uid)
+    .order('full_name', { ascending: true });
+    
+    if (!error) return (data ?? []) as unknown as ChildRow[];
+    
+    console.log('!!!!!!!!!', select);
+    console.log('!!!!!!!!!', data);
+
+    const msg = (error as any)?.message || '';
+    const looksLikeBadColumn =
+      msg.includes('parent_id') ||
+      (error as any)?.code === 'PGRST302' ||
+      (error as any)?.code === 'PGRST301';
+
+    if (!looksLikeBadColumn) throw error; // שגיאה אחרת – נזרוק
   }
 
-  return [];
+  // נפילה: לפי parent_uid (טקסט = Firebase UID)
+  const { data, error } = await dbc
+    .from('children')
+    .select(select)
+    .eq('parent_uid', fbUid)
+    .order('full_name', { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as unknown as ChildRow[];
 }
 
-/** עטיפה עם סטטוס לשימוש נוח בקומפוננטות */
+
 export async function fetchMyChildren(
-  select = 'id, parent_id, full_name, class_id, grade'
+  select = 'id, parent_uid, full_name'
 ): Promise<{ ok: boolean; data: ChildRow[]; error?: string }> {
   try {
     const data = await getMyChildren(select);
@@ -264,12 +270,15 @@ export async function fetchMyChildren(
   }
 }
 
+/** ===================== FARM META (per-tenant) ===================== **/
 export function getCurrentFarmMetaSync(): FarmMeta | null {
   return currentFarmMeta;
 }
 
-export async function getCurrentFarmMeta(opts?: { refresh?: boolean }): Promise<FarmMeta | null> {
-  const tenant = requireTenant(); // יוודא שיש קונטקסט
+export async function getCurrentFarmMeta(
+  opts?: { refresh?: boolean }
+): Promise<FarmMeta | null> {
+  const tenant = requireTenant();
   if (!currentFarmMeta || opts?.refresh) {
     const meta = await getFarmMetaById(tenant.id);
     currentFarmMeta = meta;
@@ -277,13 +286,16 @@ export async function getCurrentFarmMeta(opts?: { refresh?: boolean }): Promise<
   return currentFarmMeta;
 }
 
-export async function getCurrentFarmName(opts?: { refresh?: boolean }): Promise<string | null> {
+export async function getCurrentFarmName(
+  opts?: { refresh?: boolean }
+): Promise<string | null> {
   const meta = await getCurrentFarmMeta(opts);
   return meta?.name ?? null;
 }
 
-export async function fetchCurrentFarmName(opts?: { refresh?: boolean })
-: Promise<{ ok: boolean; data: string | null; error?: string }> {
+export async function fetchCurrentFarmName(
+  opts?: { refresh?: boolean }
+): Promise<{ ok: boolean; data: string | null; error?: string }> {
   try {
     const name = await getCurrentFarmName(opts);
     return { ok: true, data: name };
@@ -292,4 +304,80 @@ export async function fetchCurrentFarmName(opts?: { refresh?: boolean })
   }
 }
 
+/** ===================== BOOTSTRAP (after Firebase sign-in) ===================== **/
+export async function bootstrapSupabaseSession(): Promise<BootstrapResp> {
+  const fb = getAuth();
+  const user = fb.currentUser;
+  if (!user) throw new Error('No Firebase user');
 
+  const idToken = await user.getIdToken(true);
+
+  const res = await fetch('/api/loginBootstrap', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+
+  const ctype = res.headers.get('content-type') || '';
+  if (!res.ok) {
+    let msg = `loginBootstrap failed: ${res.status}`;
+    try { msg = (await res.json()).error || msg; } catch {}
+    throw new Error(msg);
+  }
+  if (!ctype.includes('application/json')) {
+    const snippet = await res.text().then(t => t.slice(0, 200)).catch(() => '');
+    throw new Error(`loginBootstrap returned non-JSON (${ctype}). Snippet: ${snippet}`);
+  }
+
+  const data = (await res.json()) as BootstrapResp;
+
+  await setTenantContext({
+    id: data.farm.id,
+    schema: data.farm.schema_name,
+    accessToken: data.access_token,
+  });
+
+  currentFarmMeta = data.farm;
+  return data;
+}
+
+/** ===================== LEGACY PICK-TENANT (optional) ===================== **/
+export async function determineAndSetTenantByUid(uid: string) {
+  const { data: userRow, error } = await getSupabaseClient()
+    .from('users')
+    .select('uid, role, farm_id, default_farm_id')
+    .eq('uid', uid)
+    .single();
+
+  if (error || !userRow) throw new Error('לא נמצא משתמש גלובלי לבחירת חווה');
+
+  const farmId = (userRow as UserRow).default_farm_id || (userRow as UserRow).farm_id;
+  if (!farmId) throw new Error('למשתמש אין farm משויך');
+
+  const meta = await getFarmMetaById(farmId);
+  if (!meta) throw new Error('לא נמצאה חווה עבור המשתמש');
+
+  currentFarmMeta = meta;
+  await setTenantContext({ id: meta.id, schema: meta.schema_name }); // ללא JWT מותאם
+  return { id: meta.id, schema: meta.schema_name };
+}
+
+/** ===================== TOKEN REFRESH (optional) ===================== **/
+function scheduleTokenRefresh(jwt: string) {
+  try {
+    const body = jwt.split('.')[1] || '';
+    const { exp } = JSON.parse(atob(body)); // exp בשניות
+    const msLeft = exp * 1000 - Date.now();
+    const delay = Math.max(msLeft - 60_000, 10_000); // דקה לפני פקיעה
+
+    refreshTimer = setTimeout(async () => {
+      try {
+        // מנפיקים JWT חדש מהפונקציה, וזה יקרא שוב ל-setTenantContext
+        await bootstrapSupabaseSession();
+      } catch (e) {
+        console.warn('token refresh failed', e);
+      }
+    }, delay);
+  } catch {
+    // אם לא הצלחנו לפענח – לא נתזמן; לפיתוח זה בסדר
+  }
+}

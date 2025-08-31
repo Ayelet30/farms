@@ -1,7 +1,5 @@
 // functions/src/initFirebase.ts
-import { getApps, initializeApp } from 'firebase-admin/app';
 import * as path from 'path';
-import * as dotenv from 'dotenv';
 import { config as dotenvConfig } from 'dotenv';
 
 dotenvConfig({ path: path.resolve(__dirname, '../.env.local') });

@@ -6,9 +6,7 @@
  *
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
-
-import {setGlobalOptions} from "firebase-functions";
-export { loginBootstrap } from './loginBootstrap';
+export { loginBootstrap } from '../loginBootstrap';
 
 
 
@@ -26,7 +24,6 @@ export { loginBootstrap } from './loginBootstrap';
 // functions should each use functions.runWith({ maxInstances: 10 }) instead.
 // In the v1 API, each function can only serve one request per container, so
 // this will be the maximum concurrent request count.
-setGlobalOptions({ maxInstances: 10 });
 
 // export const helloWorld = onRequest((request, response) => {
 //   logger.info("Hello logs!", {structuredData: true});

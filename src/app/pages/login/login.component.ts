@@ -2,7 +2,7 @@
 import { Component, inject, Optional } from '@angular/core';
 import { Router } from '@angular/router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { determineAndSetTenantByUid, getSupabaseClient } from '../../services/supabaseClient';
+import { bootstrapSupabaseSession, getCurrentFarmMetaSync } from '../../services/supabaseClient';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Auth } from '@angular/fire/auth';
@@ -11,21 +11,22 @@ import { MatDialogRef } from '@angular/material/dialog';
 
 @Component({
   selector: 'app-login',
-  standalone: true,                 // אם זה קומפוננטה standalone
+  standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './login.component.html',
-  styleUrls: ['./login.component.scss']   // ← לתקן ל־styleUrls
+  styleUrls: ['./login.component.scss']
 })
 export class LoginComponent {
   email = '';
   password = '';
   errorMessage = '';
+  loading = false;
   private auth = inject(Auth);
 
   constructor(
     private router: Router,
     private cuSvc: CurrentUserService,
-    @Optional() private dialogRef?: MatDialogRef<LoginComponent>   // אופציונלי לבטיחות
+    @Optional() private dialogRef?: MatDialogRef<LoginComponent>
   ) {}
 
   private routeByRole(role: string): string {
@@ -36,42 +37,41 @@ export class LoginComponent {
       case 'admin': return '/admin';
       case 'manager':
       case 'coordinator': return '/ops';
-      default: throw new Error('תפקיד לא מזוהה');
+      default: return '/home';
     }
   }
 
   async login() {
+    this.errorMessage = '';
+    this.loading = true;
     try {
+      // 1) Firebase sign-in
       const cred = await signInWithEmailAndPassword(this.auth, this.email, this.password);
       const uid = cred.user.uid;
 
-      // 1) קובע tenant קודם
-      await determineAndSetTenantByUid(uid);
+      // 2) Supabase bootstrap (מנפיק טוקן, קובע schema + farm)
+      const boot = await bootstrapSupabaseSession();
+      const role = String(boot.role_in_tenant ?? '').toLowerCase();
 
-      // 2) טוען role (לאחר קביעת tenant)
-      const { data: userRow, error } = await getSupabaseClient()
-        .from('users')
-        .select('role')
-        .eq('uid', uid)
-        .single();
-      if (error || !userRow) throw new Error('לא נמצאו נתוני משתמש');
+      // 3) עדכון current user ל-Guards ולשאר המערכת
+      const farm = getCurrentFarmMetaSync(); // מכיל { id, name, schema_name } מה-bootstrap
+      this.cuSvc.setCurrent({
+        uid,
+        role,
+        // farmId: farm?.id,
+        // farmName: farm?.name,
+        // schema: farm?.schema_name
+      });
 
-      const role = String(userRow.role ?? '').toLowerCase();
-      // 3) מעדכן משתמש נוכחי (ל־guards)
-      this.cuSvc.setCurrent({ uid, role });
-
-      // 4) יעד אחד לפי תפקיד
+      // 4) ניווט לפי תפקיד
       const target = this.routeByRole(role);
-
-      // 5) סוגר דיאלוג (אם רץ כדיאלוג)
       this.dialogRef?.close({ success: true, role, target });
-
-      // 6) מנווט
       await this.router.navigateByUrl(target);
-
     } catch (e: any) {
       console.error(e);
-      this.errorMessage = 'שגיאה: ' + (e?.message ?? e);
+      this.errorMessage = e?.message || 'Login failed';
+    } finally {
+      this.loading = false;
     }
   }
 }

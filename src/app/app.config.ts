@@ -45,7 +45,7 @@ import { FormsModule } from '@angular/forms';
 import { routes } from './app.routes';
 
 import { provideFirebaseApp, initializeApp } from '@angular/fire/app';
-import { provideAuth, getAuth } from '@angular/fire/auth';
+import { provideAuth, getAuth, authInstance$ } from '@angular/fire/auth';
 import { provideFirestore, getFirestore } from '@angular/fire/firestore';
 import { provideStorage, getStorage } from '@angular/fire/storage';
 
@@ -54,12 +54,15 @@ import { CalendarModule, DateAdapter } from 'angular-calendar';
 import { adapterFactory } from 'angular-calendar/date-adapters/date-fns';
 
 import { CURRENT_USER_INIT_PROVIDER } from './app.initializer';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { AuthInterceptor } from '..//app/core/http/auth.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
+    provideHttpClient(withInterceptors([AuthInterceptor])),
 
     // ✅ אתחול יחיד של Firebase (Modular API)
     provideFirebaseApp(() => initializeApp(environment.firebase)),
