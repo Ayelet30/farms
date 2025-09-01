@@ -4,9 +4,9 @@ import { Auth } from '@angular/fire/auth';
 import { onIdTokenChanged, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { BehaviorSubject, firstValueFrom, filter, take } from 'rxjs';
 
-import { setTenantContext, clearTenantContext, getCurrentUserData, getCurrentParentDetails } from '../../services/supabaseClient';
+import { setTenantContext, clearTenantContext, getCurrentUserData, getCurrentUserDetails } from '../../services/supabaseClient';
 import { CurrentUser } from './current-user.model';
-import { ParentDetails } from '../../Types/detailes.model';
+import { ParentDetails, UserDetails } from '../../Types/detailes.model';
 
 type MintResponse = {
   accessToken: string;
@@ -21,9 +21,26 @@ export class CurrentUserService {
   // ✅ זה האובזרוובל היחיד שנשתמש בו
   private _user$ = new BehaviorSubject<CurrentUser | null>(null);
   readonly user$ = this._user$.asObservable();
-  private _parentDetails$ = new BehaviorSubject<ParentDetails | null>(null);
-  readonly parentDetails$ = this._parentDetails$.asObservable();
-  get parentDetails() { return this._parentDetails$.value; }
+ // ה־Subject הפרטי שמחזיק את הערך
+  private readonly _userDetails = new BehaviorSubject<UserDetails | null>(null);
+
+  // ה־Observable הציבורי לקריאה בלבד
+  readonly userDetails$ = this._userDetails.asObservable();
+
+  /** עדכון הערך מתוך ה-service */
+  setUserDetails(details: UserDetails | null): void {
+    this._userDetails.next(details);
+  }
+
+  /** איפוס נוח */
+  clearUserDetails(): void {
+    this._userDetails.next(null);
+  }
+
+  /** גישה סינכרונית לערך הנוכחי (אופציונלי) */
+  get snapshot(): UserDetails | null {
+    return this._userDetails.value;
+  }
 
   // מוכנות ל־guards
   private _ready$ = new BehaviorSubject(false);
@@ -66,10 +83,10 @@ export class CurrentUserService {
   }
 
   /** קורא ל־getCurrentParentDetails ושומר בזיכרון (עם cache ברירת מחדל) */
-  async loadParentDetails(select = 'id_number, uid, full_name, phone, email', cacheMs = 60_000) {
+  async loadUserDetails(select = 'id_number, uid, full_name, phone, email', cacheMs = 60_000) {
     await this.waitUntilReady?.();
-    const details = await getCurrentParentDetails(select, { cacheMs });
-    this._parentDetails$.next(details);
+    const details = await getCurrentUserDetails(select, { cacheMs });
+    this.setUserDetails(details);
     return details;
   }
 

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
-import { getCurrentParentDetails, getCurrentUserData, getSupabaseClient, logout, setTenantContext } from '../../services/supabaseClient';
+import { getCurrentUserDetails, getCurrentUserData, getSupabaseClient, logout, setTenantContext } from '../../services/supabaseClient';
 import { CurrentUserService } from '../../core/auth/current-user.service';
 
 @Component({
@@ -11,11 +11,15 @@ import { CurrentUserService } from '../../core/auth/current-user.service';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './header.html',
-  styleUrls: ['./header.css']
+  styleUrls: ['./header.scss']
 })
 export class HeaderComponent {
   isLoggedIn = false;
-  parentName: string = '';
+  userName: string = '';
+  userRole: string  | undefined;
+  farmName: string | undefined;
+  farmNote: string = '';
+
   supabase = getSupabaseClient();
 
   async ngOnInit() {
@@ -29,12 +33,16 @@ export class HeaderComponent {
   }
 
   async checkLogin() {
-    const parent = await this.cuSvc.loadParentDetails();
-    console.log('Parent:', parent);
-    if (!parent) {
-      console.log("אין הורה כזה")
+    const user = await this.cuSvc.loadUserDetails();
+    console.log('user:', user);
+    if (!user) {
+      console.log("אין משתמש כזה")
     } else {
-      this.parentName = parent.full_name;
+      this.userName = user.full_name;
+      this.userRole = user.role!;
+      this.farmName = user.farm_name!;
+      this.farmNote = "user.farm_note";
+      this.isLoggedIn = true;
     }
 
   }

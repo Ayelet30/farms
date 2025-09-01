@@ -6,6 +6,19 @@ export type ParentDetails = {
   email?: string | null;
 };
 
+export interface UserDetails {
+  uid: string;
+  full_name: string;
+  id_number?: string | null;
+  address?: string | null; // שימי לב: address
+  phone?: string | null;
+  email?: string | null;
+  role?: string | null;        // למשל: 'parent'
+  role_id?: number | null;     // אם קיים ב-tenant_users
+  farm_id?: number | null;     // tenant_id
+  farm_name?: string | null;   // שם החווה
+};
+
 export type ChildRow = {
   id: string;
   parent_id: string;

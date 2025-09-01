@@ -4,18 +4,18 @@ import { Router, RouterModule } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
 import { fetchCurrentFarmName, getCurrentUserData, getFarmMetaById, logout } from '../../services/supabaseClient';
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-slider',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, FormsModule],
   templateUrl: './slider.html',
-  styleUrls: ['./slider.css']
+  styleUrls: ['./slider.scss']
 })
 export class SliderComponent implements OnInit {
   role: string = '';
   menuItems: any[] = [];
-  farmName: string | null = null;
 ;
   menuCollapsed = false;
   error: string | undefined;
@@ -23,9 +23,6 @@ export class SliderComponent implements OnInit {
   constructor(private router: Router, private dialog: MatDialog) {}
 
   async ngOnInit() {
-     const res = await fetchCurrentFarmName(); // אפשר גם { refresh: true } אם צריך לרענן
-    if (!res.ok) this.error = res.error;
-    else this.farmName = res.data;
     const userData = await getCurrentUserData();
     this.role = userData.role;
     this.setMenuItemsByRole();
@@ -35,25 +32,25 @@ export class SliderComponent implements OnInit {
   setMenuItemsByRole() {
     if (this.role === 'parent') {
       this.menuItems = [
-        { path: 'parent/children', label: 'הילדים שלי', icon: '👨‍👧' },
-        { path: 'parent/schedule', label: 'מערכת שיעורים', icon: '📅' },
-        { path: 'parent/summary', label: 'סיכום פעילות', icon: '🧾' },
-        { path: 'parent/payments', label: 'אמצעי תשלום', icon: '💳' },
-        { path: 'parent/notes', label: 'הערות למשרד', icon: '📝' },
-        { path: 'parent/details', label: 'הפרטים שלי', icon: '⚙️' }
+        { path: 'parent/children', label: 'הילדים שלי', icon: 'children' },
+        { path: 'parent/schedule', label: 'מערכת שיעורים', icon: 'calendar' },
+        { path: 'parent/summary', label: 'סיכום פעילות', icon: 'receipt' },
+        { path: 'parent/payments', label: 'אמצעי תשלום', icon: 'card' },
+        { path: 'parent/notes', label: 'הערות למשרד', icon: 'note' },
+        { path: 'parent/details', label: 'הפרטים שלי', icon: 'user' },
       ];
     } else if (this.role === 'instructor') {
       this.menuItems = [
-        { path: 'guide/children', label: 'כל הילדים', icon: '👶' },
-        {path: 'guide/children', label: ' לו"ז ומעקב', icon: '👶' },
-        { path: 'guide/activities', label: 'ניהול פעילויות', icon: '🏇' },
-        { path: 'guide/notes', label: 'רשומות והערות', icon: '📝' }
+        { path: 'instructor/children', label: 'כל הילדים', icon: 'children' },
+        {path: 'instructor/schedule', label: ' לו"ז ומעקב', icon: 'calendar' },
+        { path: 'instructor/activities', label: 'ניהול פעילויות', icon: 'user' },
+        { path: 'instructor/notes', label: 'רשומות והערות', icon: 'note' }
       ];
     } else if (this.role === 'admin') {
       this.menuItems = [
-        { path: 'admin/users', label: 'ניהול משתמשים', icon: '🧑‍💼' },
-        { path: 'admin/logs', label: 'צפייה ביומנים', icon: '📊' },
-        { path: 'admin/settings', label: 'הגדרות מערכת', icon: '⚙️' }
+        { path: 'admin/users', label: 'ניהול משתמשים', icon: 'user' },
+        { path: 'admin/logs', label: 'צפייה ביומנים', icon: 'calendar' },
+        { path: 'admin/settings', label: 'הגדרות מערכת', icon: 'note' }
       ];
     }
   }

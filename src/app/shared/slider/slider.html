@@ -1,36 +1,22 @@
 <nav class="side-menu" [class.collapsed]="menuCollapsed">
   <!-- כפתור פתיחה/סגירה -->
   <button class="toggle-button" (click)="toggleMenu()">
-    <svg *ngIf="!menuCollapsed" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M9 6L15 12L9 18" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <svg *ngIf="!menuCollapsed" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+      fill="none">
+      <path d="M9 6L15 12L9 18" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
-    <svg *ngIf="menuCollapsed" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M15 6L9 12L15 18" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <svg *ngIf="menuCollapsed" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+      fill="none">
+      <path d="M15 6L9 12L15 18" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
   </button>
 
-  <!-- שם החווה כשהתפריט מצומצם -->
-  <div class="collapsed-header" *ngIf="menuCollapsed">
-    <div class="farm-name-collapsed">{{ farmName }}</div>
-  </div>
-
-  <!-- שם החווה הרגיל -->
-  <div class="logo-area" *ngIf="!menuCollapsed">
-    <div class="welcome-text">
-      <p>ברוכים הבאים</p>
-      <p>לחוות</p>
-      <p class="farm-name">{{ farmName }}</p>
-    </div>
-  </div>
-
   <!-- תפריט -->
   <ul>
-    <li *ngFor="let item of menuItems"
-        (click)="navigateTo(item.path)"
-        [class.active]="isActive(item.path)">
-      <span class="icon">{{ item.icon }}</span>
+    <li *ngFor="let item of menuItems" (click)="navigateTo(item.path)" [class.active]="isActive(item.path)">
+      <span class="icon" [ngClass]="'i-' + item.icon"></span>
       <span class="label" *ngIf="!menuCollapsed">{{ item.label }}</span>
-    </li>
+      </li>
+
   </ul>
 </nav>
-

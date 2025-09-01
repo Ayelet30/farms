@@ -1,0 +1,194 @@
+@use '../../../styles/tokens/header.tokens.scss' as *;
+ 
+.site-header {
+  direction: rtl;
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* ימין: חווה | שמאל: משתמש */
+  min-height: 58px;
+  padding: 10px 16px;
+  background: linear-gradient(180deg, $cream-top 0%, $cream-bottom 100%);
+  border-bottom: 1px solid $gold-soft;
+  position: relative;
+  isolation: isolate;
+
+  /* --- אזור החווה (ימין) --- */
+  .farm-section {
+    /* פריסה מדויקת: אייקון מימין, שתי שורות טקסט משמאלו */
+    display: grid;
+    grid-template-columns: 36px auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    column-gap: 10px;
+    color: $text-strong;
+
+    /* אייקון סוס עגול – יישב בעמודה הימנית (ב-RTL) וישתרע על 2 שורות */
+    &::before {
+      content: "";
+      grid-column: 1;
+      grid-row: 1 / span 2;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #f7f4e9;
+      border: 1px solid #d9d0b3;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 82%;
+      /* אייקון סוס מינימליסטי (SVG) */
+      background-image: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'>\
+  <circle cx='12' cy='12' r='11' fill='%23fbf7ee' stroke='%238e845f' stroke-width='1.2'/>\
+  <path d='M7 13c2-3 4-4 7-4 1.5 0 2.5.4 3.5 1.3-.6.3-1.1.9-1.3 1.6-.2.7 0 1.5.5 2-1 .6-2 .9-3.3.9-2.6 0-4.7-1-6.4-1.8z' fill='none' stroke='%238e845f' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/>\
+  <circle cx='16.3' cy='10.1' r='0.7' fill='%238e845f'/>\
+</svg>");
+    }
+
+    .farm-name {
+      grid-column: 2;
+      grid-row: 1;
+      font-weight: 800;
+      font-size: 18px;      /* בולט כמו בתמונה */
+      line-height: 1.1;
+      color: $text-strong;
+      letter-spacing: 0.1px;
+    }
+
+    .farm-note {
+      grid-column: 2;
+      grid-row: 2;
+      margin-top: 2px;
+      font-size: 13px;
+      color: $text-muted;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+  }
+
+  /* --- אזור המשתמש/אימות (שמאל) --- */
+  .auth-section {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    color: $text-strong;
+    font-weight: 500;
+
+    /* קו מפריד לפני השם */
+    .parent-name {
+      padding-inline-start: 14px;
+      border-inline-start: 1px solid $gold-soft;
+      color: $text-strong;
+      font-weight: 700;
+      line-height: 1;
+
+      /* אייקון פרופיל עגול לצד השם (בין הקו לשם) */
+      &::before {
+        content: "";
+        display: inline-block;
+        width: 32px;
+        height: 32px;
+        margin-inline-end: 12px; /* בא משמאל לשם ב-RTL */
+        border-radius: 50%;
+        background: #eef3ea;          /* ירקרק עדין */
+        border: 1px solid #c7d2c3;
+        vertical-align: middle;
+        background-image: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'>\
+  <circle cx='12' cy='9' r='3' fill='none' stroke='%235a7a61' stroke-width='1.8'/>\
+  <path d='M5 19c2.1-3.2 4.5-4.8 7-4.8S16.9 15.8 19 19' fill='none' stroke='%235a7a61' stroke-width='1.8' stroke-linecap='round'/>\
+</svg>");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 78%;
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
+      }
+    }
+
+    /* תפקיד קטן ומתחת לשם ויזואלית (יישב צמוד לימין, נראה שורה שנייה) */
+    .parent-Role {
+      margin-inline-start: -46px;  /* מכניס אותו מתחת לשם, מתחת לאייקון */
+      padding-inline-start: 46px;  /* משמר את הקו המפריד לצד שמאל */
+      margin-top: 18px;
+      font-size: 12px;
+      color: $text-muted;
+      line-height: 1;
+    }
+
+    .auth-button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      padding: 8px 6px;
+      margin: 0;
+      font: inherit;
+      font-weight: 700;
+      color: $text-strong;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+
+      /* חץ שמאלה קטן לפני הטקסט */
+      &::before {
+        content: "";
+        width: 18px;
+        height: 18px;
+        display: inline-block;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 18px 18px;
+        background-image: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>\
+  <path d='M5 12h14M5 12l6-6M5 12l6 6'/></svg>");
+      }
+
+      &:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+      &.login {
+        padding: 6px 12px;
+        border: 1px solid $green-accent;
+        border-radius: 999px;
+        color: $green-accent;
+        background: #ffffff;
+        box-shadow: 0 0 0 1px rgba(47, 94, 53, 0.05);
+        text-decoration: none;
+
+        &::before {
+          background-image: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>\
+  <path d='M9 5h10v14H9'/><path d='M13 12H3m0 0l4-4M3 12l4 4'/></svg>");
+        }
+
+        &:hover { background: rgba(47, 94, 53, 0.05); }
+      }
+
+      &.logout { color: $text-strong; }
+    }
+  }
+
+  /* רספונסיבי: הידוק ריווחים במסכים קטנים */
+  @media (max-width: 640px) {
+    padding: 8px 12px;
+
+    &::after { width: 28%; height: 5px; }
+
+    .farm-section {
+      grid-template-columns: 32px auto;
+      .farm-name { font-size: 16px; }
+      .farm-note { font-size: 12px; }
+      &::before { width: 32px; height: 32px; }
+    }
+
+    .auth-section {
+      gap: 10px;
+      .parent-Role {
+        margin-inline-start: -42px;
+        padding-inline-start: 42px;
+        margin-top: 16px;
+        font-size: 11px;
+      }
+      .auth-button { padding: 6px 4px; }
+    }
+  }
+}

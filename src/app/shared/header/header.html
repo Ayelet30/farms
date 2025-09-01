@@ -1,8 +1,13 @@
 <header class="site-header">
+  <div class="farm-section">
+    <span *ngIf="farmName" class="farm-name">{{ farmName }}</span>
+    <span *ngIf="farmNote" class="farm-note">{{ farmNote }}</span>
+  </div>
   <div class="auth-section">
+    <span *ngIf="userName" class="parent-name">{{ userName }}</span>
+    <span *ngIf="userRole" class="parent-Role">{{ userRole }}</span>
     <button class="auth-button" [ngClass]="isLoggedIn ? 'logout' : 'login'" (click)="handleLoginLogout()">
       {{ isLoggedIn ? 'התנתק' : 'התחבר' }}
     </button>
-    <span *ngIf="parentName" class="parent-name">{{ parentName }}</span>
   </div>
 </header>
