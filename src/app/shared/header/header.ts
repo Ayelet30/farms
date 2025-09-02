@@ -41,7 +41,7 @@ export class HeaderComponent {
       this.userName = user.full_name;
       this.userRole = user.role!;
       this.farmName = user.farm_name!;
-      this.farmNote = "user.farm_note";
+      this.farmNote = "אתר לניהול חוות";
       this.isLoggedIn = true;
     }
 
