@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 
 import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 
-import type { ScheduleItem } from '../../../models/schedule-item.model'; // עדכני נתיב לפי הפרויקט
+import type { ScheduleItem } from '../../../models/schedule-item.model'
 
 @Component({
   selector: 'schedule-app',
