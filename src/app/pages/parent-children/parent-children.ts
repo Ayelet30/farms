@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  dbTenant,                  // CHANGED: לעבוד מול סכימת הטננט
+  dbTenant,                  // : לעבוד מול סכימת הטננט
   fetchMyChildren,           // נשתמש עם select מלא
   getCurrentUserData         // בשביל parent_uid ב-INSERT
 } from '../../services/supabaseClient';
@@ -24,18 +24,15 @@ export class ParentChildrenComponent implements OnInit {
 
 
   healthFunds: string[] = ['כללית', 'מאוחדת', 'מכבי', 'לאומית'];
-  //instructors: { id?: string | number; full_name: string }[] = [];
   validationErrors: { [key: string]: string } = {};
   newChild: any = null;
   
 
-  // CHANGED: ה-SELECT כולל את המזהה החדש child_uuid ואת gov_id (ת"ז)
-  private readonly CHILD_SELECT =
-    'child_uuid, gov_id, full_name, birth_date, gender, health_fund, instructor, parent_uid, status , medical_notes'; // CHANGED
+private readonly CHILD_SELECT =
+  'child_uuid, gov_id, full_name, birth_date, gender, health_fund, instructor, parent_uid, status, medical_notes';
 
   async ngOnInit() {
     await this.loadChildren();
-   // await this.loadInstructors(); // CHANGED: בלי farm
   }
 
   async loadChildren() {
@@ -50,44 +47,49 @@ export class ParentChildrenComponent implements OnInit {
     }
   }
 
-  toggleChildDetails(child: any) {
-    // CHANGED: השוואה לפי child_uuid במקום id
-    this.selectedChild = this.selectedChild?.child_uuid === child.child_uuid ? null : child; // CHANGED
+toggleChildDetails(child: any) {
+  this.selectedChild = this.selectedChild?.child_uuid === child.child_uuid ? null : child;
 
-    this.editableChild = this.selectedChild
-      ? {
-          ...this.selectedChild,
-          age: this.selectedChild.birth_date ? this.getAge(this.selectedChild.birth_date) : null
-        }
-      : null;
-
-    this.isEditing = false;
-    this.newChild = null;
+  if (this.selectedChild) {
+    this.editableChild = {
+      ...this.selectedChild,
+      // גיל תמיד מחושב מתאריך, לא נערך
+      age: this.selectedChild.birth_date ? this.getAge(this.selectedChild.birth_date) : null
+    };
+  } else {
+    this.editableChild = null;
   }
 
-  async saveChild() {
-    if (!this.editableChild) return;
+  this.isEditing = false;
+  this.newChild = null;
+}
 
-    const dbc = dbTenant();
 
-    // חישוב גיל -> תאריך לידה חדש אם נערך
-    const newBirthDate =
-      this.editableChild.age != null
-        ? this.calculateBirthDateFromAge(this.editableChild.age)
-        : this.editableChild.birth_date;
+async saveChild() {
+  console.log('saveChild clicked', this.editableChild);
 
-    // CHANGED: אין עדכון id, ואין שימוש ב-id; מסננים לפי child_uuid
-    const { error } = await dbc
+  if (!this.editableChild?.child_uuid) {
+    this.error = 'לא נבחר ילד לעריכה';
+    return;
+  }
+
+  const dbc = dbTenant();
+
+  const newBirthDate =
+    this.editableChild.birth_date || null; 
+
+  try {
+    const { data, error } = await dbc
       .from('children')
       .update({
         full_name: this.editableChild.full_name,
-        birth_date: newBirthDate,
+        birth_date: newBirthDate,                        // אופציונלי לעריכה
         health_fund: this.editableChild.health_fund,
         instructor: this.editableChild.instructor || null,
-        gender: this.editableChild.gender , 
-         medical_notes: this.newChild.medical_notes || null
+        medical_notes: this.editableChild.medical_notes || null
       })
-      .eq('child_uuid', this.editableChild.child_uuid); // CHANGED
+      .eq('child_uuid', this.editableChild.child_uuid)
+      .select('child_uuid');
 
     if (error) {
       console.error('שגיאה בשמירת ילד:', error);
@@ -95,13 +97,38 @@ export class ParentChildrenComponent implements OnInit {
       return;
     }
 
+    if (!data || data.length === 0) {
+      this.error = 'לא נמצאה רשומה לעדכון (בדקו child_uuid)';
+      return;
+    }
+
+    // רענון הרשימה
     await this.loadChildren();
 
-    // CHANGED: למצוא מחדש לפי child_uuid
-    const updated = this.children.find(c => c.child_uuid === this.editableChild.child_uuid); // CHANGED
-    this.selectedChild = updated ?? null;
+    const uuid = this.editableChild.child_uuid;
+    const updated = this.children.find(c => c.child_uuid === uuid);
+
+    if (!updated) {
+      this.selectedChild = null;
+      this.editableChild = null;
+      this.isEditing = false;
+      return;
+    }
+
+    // שיחזור מצב תצוגה עקבי לאחר רענון
+    this.selectedChild = updated;
+    this.editableChild = {
+      ...updated,
+      age: updated.birth_date ? this.getAge(updated.birth_date) : null
+    };
+
     this.isEditing = false;
+    this.error = undefined;
+  } catch (e: any) {
+    console.error('שגיאה לא צפויה בשמירה:', e);
+    this.error = e?.message ?? 'שגיאה לא צפויה';
   }
+}
 
   getAge(birthDate: string): number {
     if (!birthDate) return 0;
@@ -118,26 +145,9 @@ export class ParentChildrenComponent implements OnInit {
       .split('T')[0];
   }
 
-  // // CHANGED: טעינת מדריכים מהסכימה של הטננט; בלי farm_id
-  // async loadInstructors() {
-  //   const dbc = dbTenant();
-  //   const { data, error } = await dbc
-  //     .from('instructors')
-  //     .select('id, full_name')
-  //     .order('full_name');
-
-  //   if (error) {
-  //     console.error('שגיאה בטעינת מדריכים:', error);
-  //     this.instructors = [];
-  //   } else {
-  //     this.instructors = (data ?? []).map((d: any) => ({ id: d.id, full_name: d.full_name }));
-  //   }
-  //}
-
   addNewChild() {
-    // CHANGED: הוספת gov_id (ת"ז) ב"ילד חדש". לא מזינים child_uuid (נוצר אוטומטית)
     this.newChild = {
-      gov_id: '',          // CHANGED: ת"ז (9 ספרות)
+      gov_id: '',          // ת"ז (9 ספרות)
       full_name: '',
       birth_date: '',
       gender: '',
@@ -153,7 +163,6 @@ export class ParentChildrenComponent implements OnInit {
   async saveNewChild() {
     this.validationErrors = {};
 
-    // CHANGED: ולידציה על gov_id
     if (!/^\d{9}$/.test(this.newChild.gov_id || '')) {
       this.validationErrors['gov_id'] = 'ת״ז חייבת להכיל בדיוק 9 ספרות';
     }
@@ -168,9 +177,8 @@ export class ParentChildrenComponent implements OnInit {
     const dbc = dbTenant();
     const parentUid = (await getCurrentUserData())?.uid ?? null;
 
-    // CHANGED: לא שולחים child_uuid; כן שולחים gov_id
     const payload: any = {
-      gov_id: this.newChild.gov_id,          // CHANGED
+      gov_id: this.newChild.gov_id,          
       full_name: this.newChild.full_name,
       birth_date: this.newChild.birth_date,
       gender: this.newChild.gender,
@@ -181,7 +189,6 @@ export class ParentChildrenComponent implements OnInit {
       medical_notes: this.newChild.medical_notes || null
     };
 
-    // אופציונלי: בדיקת כפילות gov_id להודעה ידידותית
     const { data: exists } = await dbc.from('children').select('gov_id').eq('gov_id', this.newChild.gov_id).maybeSingle();
     if (exists) {
       this.validationErrors['gov_id'] = 'ת״ז זו כבר קיימת במערכת';
@@ -226,7 +233,7 @@ export class ParentChildrenComponent implements OnInit {
   }
 
   async deleteChild() {
-    if (!this.selectedChild?.child_uuid) return; // CHANGED
+    if (!this.selectedChild?.child_uuid) return; 
 
     const dbc = dbTenant();
     const { error } = await dbc
@@ -242,6 +249,7 @@ export class ParentChildrenComponent implements OnInit {
 
     this.showDeleteConfirm = false;
     this.selectedChild = null;
+    this.editableChild = null; 
     await this.loadChildren();
   }
 }

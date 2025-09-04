@@ -37,20 +37,14 @@
     <p><strong>ת"ז:</strong> {{ selectedChild.gov_id || '-' }}</p> <!-- CHANGED -->
 
     <p>
-      <strong>גיל:</strong>
-      <span *ngIf="!isEditing">{{ getAge(selectedChild.birth_date) }} שנים</span>
-      <input *ngIf="isEditing" type="number" [(ngModel)]="editableChild.age" class="editable-input" />
-    </p>
+  <strong>גיל:</strong>
+  <span>{{ getAge(selectedChild.birth_date) }} שנים</span>
+</p>
 
-    <p>
-      <strong>מין:</strong>
-      <span *ngIf="!isEditing">{{ selectedChild.gender || '-' }}</span>
-      <select *ngIf="isEditing" [(ngModel)]="editableChild.gender" class="editable-input" required>
-        <option value="" disabled hidden>בחר מין</option>
-        <option value="זכר">זכר</option>
-        <option value="נקבה">נקבה</option>
-      </select>
-    </p>
+<p>
+  <strong>מין:</strong>
+  <span>{{ selectedChild.gender || '-' }}</span>
+</p>
 
     <p>
       <strong>קופת חולים:</strong>
