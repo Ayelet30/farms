@@ -6,7 +6,7 @@
  *
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
-export { loginBootstrap } from '../loginBootstrap';
+export * from "../loginBootstrap.js";
 
 
 

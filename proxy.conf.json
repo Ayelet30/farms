@@ -1,9 +1,10 @@
+
 {
-  "/api": {
-    "target": "http://127.0.0.1:5001/bereshit-ac5d8/europe-west1",
-    "secure": false,
+  "/api/loginBootstrap": {
+    "target": "https://loginbootstrap-wxi37vbfra-ew.a.run.app",
     "changeOrigin": true,
-    "logLevel": "debug",
-    "pathRewrite": { "^/api": "" }
+    "secure": true,
+    "pathRewrite": { "^/api/loginBootstrap$": "/" }
   }
 }
+

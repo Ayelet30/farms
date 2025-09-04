@@ -1,7 +1,9 @@
 {
   "name": "chavat-bereshit",
   "version": "0.0.0",
-  "engines": { "node": "20" }, 
+  "engines": {
+    "node": "20"
+  },
   "main": "lib/index.js",
   "scripts": {
     "start": "ng serve --proxy-config proxy.conf.json",
@@ -34,27 +36,27 @@
     "angular-calendar": "^0.31.1",
     "date-fns": "^4.1.0",
     "firebase": "^11.10.0",
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^5.1.1",
     "jwt-decode": "^4.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
-    "zone.js": "~0.15.0",
-    "firebase-admin": "^12.6.0",
-    "firebase-functions": "^5.1.1"
+    "zone.js": "~0.15.0"
   },
   "devDependencies": {
     "@angular/build": "^20.0.2",
     "@angular/cli": "^20.0.2",
     "@angular/compiler-cli": "^20.0.0",
     "@types/jasmine": "~5.1.0",
+    "@types/node": "^24.3.0",
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^5.1.1",
     "jasmine-core": "~5.7.0",
     "karma": "~6.4.0",
     "karma-chrome-launcher": "~3.2.0",
     "karma-coverage": "~2.2.0",
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
-    "typescript": "~5.8.2",
-    "firebase-admin": "^12.6.0",
-    "firebase-functions": "^5.1.1"
+    "typescript": "~5.8.2"
   }
 }
-
