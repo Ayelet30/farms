@@ -22,14 +22,16 @@ export class ParentChildrenComponent implements OnInit {
   loading = true;
   error: string | undefined;
 
+
   healthFunds: string[] = ['כללית', 'מאוחדת', 'מכבי', 'לאומית'];
-  instructors: { id?: string | number; full_name: string }[] = [];
+  //instructors: { id?: string | number; full_name: string }[] = [];
   validationErrors: { [key: string]: string } = {};
   newChild: any = null;
+  
 
   // CHANGED: ה-SELECT כולל את המזהה החדש child_uuid ואת gov_id (ת"ז)
   private readonly CHILD_SELECT =
-    'child_uuid, gov_id, full_name, birth_date, gender, health_fund, instructor, parent_uid, status'; // CHANGED
+    'child_uuid, gov_id, full_name, birth_date, gender, health_fund, instructor, parent_uid, status , medical_notes'; // CHANGED
 
   async ngOnInit() {
     await this.loadChildren();
@@ -82,7 +84,8 @@ export class ParentChildrenComponent implements OnInit {
         birth_date: newBirthDate,
         health_fund: this.editableChild.health_fund,
         instructor: this.editableChild.instructor || null,
-        gender: this.editableChild.gender
+        gender: this.editableChild.gender , 
+         medical_notes: this.newChild.medical_notes || null
       })
       .eq('child_uuid', this.editableChild.child_uuid); // CHANGED
 
@@ -140,7 +143,8 @@ export class ParentChildrenComponent implements OnInit {
       gender: '',
       health_fund: '',
       instructor: '',
-      status: 'waiting'
+      status: 'waiting',
+      medical_notes: ''
     };
     this.selectedChild = null;
     this.validationErrors = {};
@@ -157,6 +161,7 @@ export class ParentChildrenComponent implements OnInit {
     if (!this.newChild.birth_date) this.validationErrors['birth_date'] = 'יש לבחור תאריך לידה';
     if (!this.newChild.gender) this.validationErrors['gender'] = 'יש לבחור מין';
     if (!this.newChild.health_fund) this.validationErrors['health_fund'] = 'יש לבחור קופת חולים';
+    
 
     if (Object.keys(this.validationErrors).length > 0) return;
 
@@ -172,7 +177,8 @@ export class ParentChildrenComponent implements OnInit {
       health_fund: this.newChild.health_fund,
       instructor: this.newChild.instructor || null,
       status: 'waiting',
-      parent_uid: parentUid
+      parent_uid: parentUid , 
+      medical_notes: this.newChild.medical_notes || null
     };
 
     // אופציונלי: בדיקת כפילות gov_id להודעה ידידותית
