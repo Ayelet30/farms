@@ -61,6 +61,20 @@
       </select>
     </p>
 
+    <p>
+  <strong>הערות רפואיות / רגישויות:</strong>
+  <span *ngIf="!isEditing">{{ selectedChild.medical_notes || '-' }}</span>
+  <textarea
+    *ngIf="isEditing"
+    [(ngModel)]="editableChild.medical_notes"
+    class="editable-input"
+    rows="3"
+    maxlength="4000"
+    placeholder="למשל: רגישות לבוטנים; אלרגיה לפניצילין; אסטמה קלה…"
+  ></textarea>
+</p>
+
+
     <!-- מדריך (לא חובה כרגע)
     <p>
       <strong>מדריך:</strong>
@@ -151,6 +165,17 @@
       {{ validationErrors['health_fund'] }}
     </div>
   </div>
+  <div class="form-field">
+  <label>הערות רפואיות / רגישויות</label>
+  <textarea
+    class="editable-input"
+    [(ngModel)]="newChild.medical_notes"
+    rows="3"
+    maxlength="4000"
+    placeholder="למשל: רגישות לבוטנים; אלרגיה לפניצילין; אסטמה קלה…"
+  ></textarea>
+</div>
+
 
   <div class="button-group">
     <button class="btn-save" (click)="saveNewChild()" type="button">שמור</button> <!-- CHANGED -->
