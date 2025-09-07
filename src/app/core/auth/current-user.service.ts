@@ -1,77 +1,70 @@
+
 import { Injectable, inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Auth } from '@angular/fire/auth';
 import { onIdTokenChanged, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { BehaviorSubject, firstValueFrom, filter, take } from 'rxjs';
 
-import { setTenantContext, clearTenantContext, getCurrentUserData, getCurrentUserDetails } from '../../services/supabaseClient';
-import { CurrentUser } from './current-user.model';
-import { ParentDetails, UserDetails } from '../../Types/detailes.model';
+import {
+  clearTenantContext,
+  getCurrentUserData,
+  getCurrentUserDetails,
+  listMembershipsForCurrentUser,
+  selectMembership,
+  type Membership,
+} from '../../services/supabaseClient';
 
-type MintResponse = {
-  accessToken: string;
-  tenant: { id: string; schema: string } | null;
-};
+import type { UserDetails } from '../../Types/detailes.model';
+
+interface CurrentUser {
+  uid: string;
+  farmName?: string;
+  email?: string;
+  displayName?: string;
+  role: string | null;
+  memberships?: Membership[];
+  selectedTenantId?: string | null;
+}
 
 @Injectable({ providedIn: 'root' })
 export class CurrentUserService {
   private auth = inject(Auth);
   private platformId = inject(PLATFORM_ID);
 
-  // ✅ זה האובזרוובל היחיד שנשתמש בו
-  private _user$ = new BehaviorSubject<CurrentUser | null>(null);
+  private readonly _user$ = new BehaviorSubject<CurrentUser | null>(null);
   readonly user$ = this._user$.asObservable();
- // ה־Subject הפרטי שמחזיק את הערך
-  private readonly _userDetails = new BehaviorSubject<UserDetails | null>(null);
 
-  // ה־Observable הציבורי לקריאה בלבד
+  private readonly _userDetails = new BehaviorSubject<UserDetails | null>(null);
   readonly userDetails$ = this._userDetails.asObservable();
 
-  /** עדכון הערך מתוך ה-service */
-  setUserDetails(details: UserDetails | null): void {
-    this._userDetails.next(details);
-  }
+  private readonly _ready$ = new BehaviorSubject(false);
 
-  /** איפוס נוח */
-  clearUserDetails(): void {
-    this._userDetails.next(null);
-  }
+  setUserDetails(details: UserDetails | null): void { this._userDetails.next(details); }
+  clearUserDetails(): void { this._userDetails.next(null); }
+  get snapshot(): UserDetails | null { return this._userDetails.value; }
 
-  /** גישה סינכרונית לערך הנוכחי (אופציונלי) */
-  get snapshot(): UserDetails | null {
-    return this._userDetails.value;
-  }
-
-  // מוכנות ל־guards
-  private _ready$ = new BehaviorSubject(false);
-
-  /** אתחול חד-פעמי באפליקציה (אופציונלי) */
   async init(): Promise<void> {
     if (!isPlatformBrowser(this.platformId)) return;
-
     await setPersistence(this.auth, browserLocalPersistence);
 
     await new Promise<void>((resolve) => {
       const unsub = onIdTokenChanged(this.auth, async (fbUser) => {
         try {
           if (fbUser) {
-            // שליפת role חד-פעמית (לפי המימוש שלך ב-supabaseClient)
-            const row = await getCurrentUserData(); // אמור להחזיר { role, ... }
-            const role = row?.role ?? null;
-
-            // (אופציונלי) קיבוע קונטקסט טננט אם יש לך לוגיקה כזו
-           // await setTenantContext({ id, schema, accessToken });
-
+            const row = await getCurrentUserData();
+            const role = (row?.role ?? null) as string | null;
             this._user$.next({
               uid: fbUser.uid,
               email: fbUser.email ?? undefined,
               displayName: fbUser.displayName ?? undefined,
               role,
-              tenant: null, // שימי כאן אם את מנהלת tenant
+              memberships: undefined,
+              selectedTenantId: null,
             });
           } else {
             await clearTenantContext();
             this._user$.next(null);
+            this.clearUserDetails();
           }
         } finally {
           this._ready$.next(true);
@@ -82,34 +75,97 @@ export class CurrentUserService {
     });
   }
 
-  /** קורא ל־getCurrentParentDetails ושומר בזיכרון (עם cache ברירת מחדל) */
   async loadUserDetails(select = 'id_number, uid, full_name, phone, email', cacheMs = 60_000) {
-    await this.waitUntilReady?.();
+    await this.waitUntilReady();
     const details = await getCurrentUserDetails(select, { cacheMs });
     this.setUserDetails(details);
     return details;
   }
 
-  /** נקרא אחרי לוגאין ידני כדי לעדכן את ה־guard */
-  setCurrent(user: { uid: string; role: string } | null) {
-    this._user$.next(user); // ✅ היה _current$ → undefined
+  setCurrent(patch: Partial<CurrentUser> & Pick<CurrentUser, 'uid'> | null) {
+    if (!patch) { this._user$.next(null); return; }
+    const prev = this._user$.value ?? { uid: patch.uid, role: null as string | null };
+    this._user$.next({ ...prev, ...patch });
   }
 
-  /** ערך סנאפשוט (נוח ל־guards) */
-  get current(): CurrentUser | null {
-    return this._user$.value;
+  setMemberships(memberships: Membership[]) {
+    const cur = this._user$.value; if (!cur) return;
+    this._user$.next({ ...cur, memberships });
   }
 
-  /** ממתין לאתחול */
+  setSelectedTenant(tenantId: string | null) {
+    const cur = this._user$.value; if (!cur) return;
+    this._user$.next({ ...cur, selectedTenantId: tenantId });
+  }
+
+  get current(): CurrentUser | null { return this._user$.value; }
+
   waitUntilReady(): Promise<void> {
     return firstValueFrom(this._ready$.pipe(filter(Boolean), take(1))) as unknown as Promise<void>;
   }
 
-  /** לוגאאוט נקי */
   async logout() {
     await clearTenantContext();
     const { signOut } = await import('@angular/fire/auth');
     await signOut(this.auth);
     this._user$.next(null);
+    this.clearUserDetails();
+  }
+
+  /**
+   * Hydration אחרי Login: טוען memberships, בוחר טננט (אם יש אחד או אם נשמר ב-localStorage),
+   * מקים הקשר טננט, טוען פרטי משתמש, ומעדכן current-user באופן אטומי.
+   */
+  async hydrateAfterLogin() {
+    await this.waitUntilReady();
+    const fbUser = this.auth.currentUser!;
+
+    // 1) כל השיוכים
+    const memberships = await listMembershipsForCurrentUser(true);
+    this.setMemberships(memberships);
+
+    // 2) בחירה אוטומטית (נשמר/בודד/ללא בחירה)
+    const saved = localStorage.getItem('selectedTenant');
+    const exists = memberships.find(m => m.tenant_id === saved);
+    const toPick = exists?.tenant_id || (memberships.length === 1 ? memberships[0].tenant_id : null);
+
+    let picked: Membership | null = null;
+    if (toPick) {
+      picked = await selectMembership(toPick);
+      this.setSelectedTenant(picked.tenant_id);
+    }
+
+    // 3) טוענים פרטי משתמש ברמת הטננט (אם נבחר)
+    const details = picked ? await this.loadUserDetails('uid, full_name, id_number, address, phone, email', 0) : null;
+
+    // 4) מעדכנים role ו-state
+    this.setCurrent({
+      uid: fbUser.uid,
+      role: (picked?.role_in_tenant ?? this.current?.role ?? null) as any,
+      memberships,
+      selectedTenantId: picked?.tenant_id ?? null,
+    });
+
+    return { selected: picked, details };
+  }
+
+  /**
+   * החלפת תפקיד/טננט בזמן ריצה (למשל מה-Header): בוחר membership, מקים הקשר,
+   * טוען פרטים, ומעדכן role + selectedTenantId. מחזיר role שנבחר.
+   */
+  async switchMembership(tenantId: string) {
+    const fbUser = this.auth.currentUser!;
+    const picked = await selectMembership(tenantId);
+    this.setSelectedTenant(picked.tenant_id);
+    const details = await this.loadUserDetails('uid, full_name, id_number, address, phone, email', 0);
+
+    this.setCurrent({
+      uid: fbUser.uid,
+      role: picked.role_in_tenant as any,
+      memberships: this.current?.memberships,
+      selectedTenantId: picked.tenant_id,
+    });
+
+    return { role: picked.role_in_tenant, details };
   }
 }

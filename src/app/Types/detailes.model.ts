@@ -1,3 +1,5 @@
+import { Membership } from "../services/supabaseClient";
+
 export type ParentDetails = {
   id: string;
   uid: string;
@@ -13,10 +15,13 @@ export interface UserDetails {
   address?: string | null; // שימי לב: address
   phone?: string | null;
   email?: string | null;
-  role?: string | null;        // למשל: 'parent'
+  role?: string | null;        // למשל: 'הורה'
+  role_in_tenant?: string | null; // למשל parent
   role_id?: number | null;     // אם קיים ב-tenant_users
   farm_id?: number | null;     // tenant_id
   farm_name?: string | null;   // שם החווה
+  memberships?: Membership[];       // ← חדש
+  selectedTenantId?: string | null; // ← אופ
 };
 
 export type ChildRow = {

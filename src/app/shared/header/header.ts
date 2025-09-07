@@ -5,11 +5,14 @@ import { MatDialog } from '@angular/material/dialog';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
 import { getCurrentUserDetails, getCurrentUserData, getSupabaseClient, logout, setTenantContext } from '../../services/supabaseClient';
 import { CurrentUserService } from '../../core/auth/current-user.service';
+import { listMembershipsForCurrentUser, selectMembership, Membership } from '../../services/supabaseClient';
+import { TokensService } from '../../services/tokens.service';
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './header.html',
   styleUrls: ['./header.scss']
 })
@@ -19,16 +22,24 @@ export class HeaderComponent {
   userRole: string  | undefined;
   farmName: string | undefined;
   farmNote: string = '';
-
+  
+  roleMenuOpen = false;
+  memberships: Membership[] = [];
+  roleHe: Record<string,string> = { instructor: 'מדריך', parent: 'הורה', secretary: 'מזכירות', manager: 'מנהל' };
+  
   supabase = getSupabaseClient();
+  tokensService: any;
 
   async ngOnInit() {
-    const user = await getCurrentUserData();
+     try {
+    this.memberships = await listMembershipsForCurrentUser();
+    const user = this.memberships.at(0);
     this.isLoggedIn = !!user;
+  } catch {}
   }
 
 
-  constructor(private router: Router, private dialog: MatDialog, private cuSvc: CurrentUserService) {
+  constructor(private router: Router, private dialog: MatDialog, public cuSvc: CurrentUserService) {
     this.checkLogin();
   }
 
@@ -65,4 +76,26 @@ export class HeaderComponent {
       this.router.navigate(['/login']);
     }
   }
+ routeByRole(role: string | null | undefined) {
+    switch ((role || '').toLowerCase()) {
+      case 'parent': return '/parent';
+      case 'instructor': return '/instructor';
+      case 'secretary': return '/secretary';
+      case 'admin': return '/admin';
+      case 'manager':
+      case 'coordinator': return '/ops';
+      default: return '/home';
+    }
+  }
+
+  async onChooseTenant(tenantId: string | null | undefined) {
+  if (!tenantId) return;
+  const { role } = await this.cuSvc.switchMembership(tenantId);
+  const target = this.routeByRole(role);
+  await this.router.navigateByUrl(target);
 }
+
+  
+}
+
+

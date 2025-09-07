@@ -1,41 +1,54 @@
-@use '../../../styles/tokens/sidebar.tokens' as *;
+/* ====== ICON DATA-URIs (stroke=currentColor) ====== */
+$icon-calendar: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 9.5h18'/%3E%3Cpath d='M8 3v3M16 3v3'/%3E%3C/svg%3E";
+$icon-user:     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='8.5' r='3.1'/%3E%3Cpath d='M5 19.3c2.3-3.4 4.7-5.1 7-5.1s4.7 1.7 7 5.1'/%3E%3C/svg%3E";
+$icon-settings: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3.2'/%3E%3Cpath d='M12 2.5v3M12 18.5v3M4.6 5.6l2.1 2.1M17.3 18.3l2.1 2.1M2.5 12h3M18.5 12h3M4.6 18.4l2.1-2.1M17.3 5.7l2.1-2.1'/%3E%3C/svg%3E";
+$icon-receipt:  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cpath d='M7 8h10M7 12h10M7 16h7'/%3E%3C/svg%3E";
+$icon-card:     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3Cpath d='M3 9h18'/%3E%3Crect x='5' y='13' width='6' height='3' rx='1'/%3E%3C/svg%3E";
+$icon-note:     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cpath d='M8 9h8M8 13h8'/%3E%3C/svg%3E";
+$icon-children: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='8' cy='9' r='3'/%3E%3Ccircle cx='16' cy='9' r='3'/%3E%3Cpath d='M3 20c1.6-2.8 3.8-4 5-4s3.4 1.2 5 4'/%3E%3Cpath d='M11 20c1.6-2.8 3.8-4 5-4s3.4 1.2 5 4'/%3E%3C/svg%3E";
+$icon-close:    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6l-12 12'/%3E%3C/svg%3E";
 
-/* צבע לקווי האייקון (מקודד ל-URL) */
-$stroke: '%2394a079';
-
-/* ROOT מתאים ל-HTML שלך */
+/* ====== SIDEMENU ====== */
 .side-menu {
-  width: $width-open;
-  min-width: $width-open;
+  width: var(--width-open);
+  min-width: var(--width-open);
   height: 100%;
-  background: $panel-bg;
-  color: $text;
-  border-inline-end: 1px solid $panel-bg-2;
+  background: var(--panel-bg);
+  color: var(--text);
+  border-inline-end: 1px solid var(--panel-bg-2);
   transition: width .22s ease, min-width .22s ease;
 
-  &.collapsed { width: $width-closed; min-width: $width-closed; }
+  &.collapsed {
+    width: var(--width-closed);
+    min-width: var(--width-closed);
+  }
 
-  /* כפתור פתיחה/סגירה – שימי לב לשם המחלקה */
+  /* toggle */
   .toggle-button {
-    position: relative; top: 20px; inset-inline-start: 14px;
-    width: 32px; height: 32px; border-radius: 8px;
-    background: transparent; border: 1px solid rgba(0,0,0,.08);
+    position: relative;
+    top: 20px;
+    inset-inline-start: 14px;
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid rgba(0, 0, 0, .08);
     cursor: pointer;
+    color: var(--text); /* ייצבע את ה-SVG */
 
     &::before {
       content: "";
       display: block;
       width: 18px; height: 18px;
       margin: 6px auto;
-      /* חובה מרכאות סביב ה-url כשזה data URI במשתנה */
+      background: currentColor;
       background-image: url("#{$icon-close}");
-      background-position: center;
       background-repeat: no-repeat;
+      background-position: center;
       background-size: 18px;
       opacity: .85;
     }
 
-    &:hover { background: rgba(0,0,0,.03); }
+    &:hover { background: rgba(0,0,0,.03); color: var(--text-active); }
   }
 
   ul {
@@ -43,17 +56,13 @@ $stroke: '%2394a079';
     display: flex; flex-direction: column; gap: 10px;
   }
 
-  /* כל פריט תפריט (אין <a> בתבנית, לכן מעצבים את li עצמו) */
   ul > li {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    flex-direction: row-reverse; /* אייקון מימין */
-    height: $item-h;
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 12px; flex-direction: row-reverse;
+    height: var(--item-h);
     padding: 0 14px;
-    border-radius: $radius;
-    color: $text;
+    border-radius: var(--radius);
+    color: var(--text);
     transition: background .15s ease, box-shadow .15s ease, color .15s ease;
     cursor: pointer;
 
@@ -64,32 +73,30 @@ $stroke: '%2394a079';
       background-repeat: no-repeat;
       background-size: 22px;
       opacity: .95;
+      color: var(--muted);
     }
 
-    .label {
-      font-size: 16px; font-weight: 700; letter-spacing: .2px; white-space: nowrap;
-    }
+    .label { font-size: 16px; font-weight: 700; letter-spacing: .2px; white-space: nowrap; }
 
-    &:hover { background: rgba(0,0,0,.04); }
+    &:hover { background: rgba(0,0,0,.04); .icon { color: var(--text-active); } }
   }
 
   /* פריט פעיל */
   ul > li.active {
     position: relative;
-    background: $chip-active;
-    color: $text-active;
-    box-shadow:
-      0 1px 0 rgba(0,0,0,.04),
-      0 4px 12px rgba(90, 100, 40, .08);
-    border: 1px solid rgba($accent, .35);
+    background: var(--chip-active);
+    color: var(--text-active);
+    box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 4px 12px rgba(90,100,40,.08);
+    border: 1px solid var(--accent);
 
     &::before {
       content: "";
-      position: absolute;
-      inset-inline-end: 0; top: 0; bottom: 0;
-      width: 3px; background: $accent;
-      border-radius: 0 $radius $radius 0;
+      position: absolute; inset-inline-end: 0; top: 0; bottom: 0;
+      width: 3px; background: var(--accent);
+      border-radius: 0 var(--radius) var(--radius) 0;
     }
+
+    .icon { color: var(--accent); }
   }
 
   /* מצב סגור – רק אייקונים */
@@ -98,30 +105,16 @@ $stroke: '%2394a079';
     ul > li {
       width: 100%; justify-content: center; padding-inline: 8px; gap: 0;
       .label { position: absolute; opacity: 0; pointer-events: none; }
-      .icon { width: 24px; height: 24px; background-size: 20px; }
+      .icon  { width: 24px; height: 24px; background-size: 20px; color: var(--muted); }
     }
   }
-}
 
-/* ========= מיפוי אייקונים ========= */
-.side-menu .i-calendar {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27#{$stroke}%27 stroke-width=%271.6%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Crect x=%273%27 y=%274.5%27 width=%2718%27 height=%2716%27 rx=%272%27/%3E%3Cpath d=%27M3 9.5h18%27/%3E%3Cpath d=%27M8 3v3M16 3v3%27/%3E%3C/svg%3E");
-}
-.side-menu .i-user {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27#{$stroke}%27 stroke-width=%271.8%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2712%27 cy=%278.5%27 r=%273.1%27/%3E%3Cpath d=%27M5 19.3c2.3-3.4 4.7-5.1 7-5.1s4.7 1.7 7 5.1%27/%3E%3C/svg%3E");
-}
-.side-menu .i-settings {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27#{$stroke}%27 stroke-width=%271.6%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%273.2%27/%3E%3Cpath d=%27M12 2.5v3M12 18.5v3M4.6 5.6l2.1 2.1M17.3 18.3l2.1 2.1M2.5 12h3M18.5 12h3M4.6 18.4l2.1-2.1M17.3 5.7l2.1-2.1%27/%3E%3C/svg%3E");
-}
-.side-menu .i-children {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27#{$stroke}%27 stroke-width=%271.6%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%278%27 cy=%279%27 r=%273%27/%3E%3Ccircle cx=%2716%27 cy=%279%27 r=%273%27/%3E%3Cpath d=%27M3 20c1.6-2.8 3.8-4 5-4s3.4 1.2 5 4%27/%3E%3Cpath d=%27M11 20c1.6-2.8 3.8-4 5-4s3.4 1.2 5 4%27/%3E%3C/svg%3E");
-}
-.side-menu .i-receipt {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27#{$stroke}%27 stroke-width=%271.6%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Crect x=%274%27 y=%273%27 width=%2716%27 height=%2718%27 rx=%272%27/%3E%3Cpath d=%27M7 8h10M7 12h10M7 16h7%27/%3E%3C/svg%3E");
-}
-.side-menu .i-card {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27#{$stroke}%27 stroke-width=%271.6%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Crect x=%273%27 y=%275%27 width=%2718%27 height=%2714%27 rx=%272%27/%3E%3Cpath d=%27M3 9h18%27/%3E%3Crect x=%275%27 y=%2713%27 width=%276%27 height=%273%27 rx=%271%27/%3E%3C/svg%3E");
-}
-.side-menu .i-note {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27#{$stroke}%27 stroke-width=%271.6%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Crect x=%274%27 y=%273%27 width=%2716%27 height=%2718%27 rx=%272%27/%3E%3Cpath d=%27M8 9h8M8 13h8%27/%3E%3C/svg%3E");
+  /* ====== ICON MAPPING ====== */
+  .i-calendar { background-image: url("#{$icon-calendar}"); }
+  .i-user     { background-image: url("#{$icon-user}"); }
+  .i-settings { background-image: url("#{$icon-settings}"); }
+  .i-children { background-image: url("#{$icon-children}"); }
+  .i-receipt  { background-image: url("#{$icon-receipt}"); }
+  .i-card     { background-image: url("#{$icon-card}"); }
+  .i-note     { background-image: url("#{$icon-note}"); }
 }

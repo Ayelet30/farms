@@ -1,0 +1,27 @@
+/* tokens — load per farm as a separate bundle */
+:root {
+  /* Palette */
+  --cream-top:    red;
+  --cream-bottom: #fbf7ee;
+  --gold:         #d1b16a;
+  --gold-soft:    #e9ddbb;
+  --green-accent: #2f5e35;
+  --text-strong:  #1f1c16;
+  --text-muted:   #837a66;
+
+  /* UI Colors */
+  --panel-bg:     #f7f4ec;  /* רקע פנל */
+  --panel-bg-2:   #efe9d4;  /* איזורי עזר */
+  --text:         #6f7650;  /* טקסט רגיל */
+  --text-active:  #505c38;  /* טקסט פריט פעיל */
+  --muted:        #94a079;  /* טקסט חלש/אייקונים */
+  --accent:       #6b7d47;  /* ירוק דומיננטי למסגרות */
+  --divider:      #e6dcc1;  /* קו מפריד */
+  --chip-active:  #e8e1c8;  /* רקע פריט פעיל */
+
+  /* Sizes */
+  --width-open:   272px;
+  --width-closed: 72px;
+  --item-h:       52px;
+  --radius:       12px;
+}

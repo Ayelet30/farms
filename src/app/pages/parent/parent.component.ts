@@ -42,6 +42,5 @@ export class ParentComponent {
 
   selectSection(section: string) {
     this.selectedSection = section;
-    console.log("!!!!!!!!!!!!!!!!!!!!1" + this.selectedSection); 
   }
 }

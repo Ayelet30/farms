@@ -1,20 +1,3 @@
-/* Colors */
-$panel-bg:      #f7f4ec !default;  /* רקע פנל */
-$panel-bg-2:    #efe9d4 !default;  /* לאיזורי עזר */
-$text:          #6f7650 !default;  /* טקסט רגיל */
-$text-active:   #505c38 !default;  /* טקסט פריט פעיל */
-$muted:         #94a079 !default;  /* טקסט חלש/אייקונים */
-$accent:        #6b7d47 !default;  /* ירוק דומיננטי למסגרות */
-$divider:       #e6dcc1 !default;  /* קו מפריד */
-$chip-active:   #e8e1c8 !default;  /* רקע פריט פעיל */
-
-/* Sizes */
-$width-open:    272px !default;
-$width-closed:  72px  !default;
-$item-h:        52px  !default;
-$radius:        12px  !default;
-
-/* Icons – data URI מקודד (stroke = $muted) */
 $icon-calendar: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a079' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 9.5h18'/%3E%3Cpath d='M8 3v3M16 3v3'/%3E%3C/svg%3E" !default;
 $icon-user:     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a079' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='8.5' r='3.1'/%3E%3Cpath d='M5 19.3c2.3-3.4 4.7-5.1 7-5.1s4.7 1.7 7 5.1'/%3E%3C/svg%3E" !default;
 $icon-settings: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a079' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3.2'/%3E%3Cpath d='M12 2.5v3M12 18.5v3M4.6 5.6l2.1 2.1M17.3 18.3l2.1 2.1M2.5 12h3M18.5 12h3M4.6 18.4l2.1-2.1M17.3 5.7l2.1-2.1'/%3E%3C/svg%3E" !default;

@@ -1,4 +1,5 @@
-@use '../../../styles/tokens/header.tokens.scss' as *;
+@use '../../../styles/tokens/header.tokens' as *;
+
 
 .site-header {
   direction: rtl;
@@ -8,12 +9,12 @@
   /* ימין: חווה | שמאל: משתמש */
   min-height: 58px;
   padding: 10px 16px;
-  background: linear-gradient(180deg, $cream-top 0%, $cream-bottom 100%);
-  border-bottom: 1px solid $gold-soft;
+  background: linear-gradient(180deg, var(--cream-top) 0%, var(--cream-bottom) 100%);
+  border-bottom: 1px solid var(var(--gold-soft));
   position: relative;
   isolation: isolate;
 
-  /* --- אזור החווה (ימין) --- */
+  /* var(--- אזור החווה (ימין) var(--- */
   .farm-section {
     /* פריסה מדויקת: אייקון מימין, שתי שורות טקסט משמאלו */
     display: grid;
@@ -21,7 +22,7 @@
     grid-template-rows: auto auto;
     align-items: center;
     column-gap: 10px;
-    color: $text-strong;
+    color: var(--text-strong);
 
     /* אייקון סוס עגול – יישב בעמודה הימנית (ב-RTL) וישתרע על 2 שורות */
     &::before {
@@ -53,7 +54,7 @@
       font-size: 18px;
       /* בולט כמו בתמונה */
       line-height: 1.1;
-      color: $text-strong;
+      color: var(--text-strong);
       letter-spacing: 0.1px;
     }
 
@@ -62,7 +63,7 @@
       grid-row: 2;
       margin-top: 2px;
       font-size: 13px;
-      color: $text-muted;
+      color: var(--text-muted);
       line-height: 1.15;
       white-space: nowrap;
     }
@@ -73,12 +74,12 @@
     flex-direction: column;
   }
 
-  /* --- אזור המשתמש/אימות (שמאל) --- */
+  /* var(--- אזור המשתמש/אימות (שמאל) var(--- */
   .auth-section {
     display: inline-flex;
     align-items: center;
     gap: 14px;
-    color: $text-strong;
+    color: var(--text-strong);
     font-weight: 500;
 
     /* קו מפריד לפני השם */
@@ -88,7 +89,7 @@
       padding-inline-end: 14px;
       border-inline-end: 1px solid #e9ddbb;
       padding-left: 20px;
-      color: $text-strong;
+      color: var(--text-strong);
       font-weight: 700;
       line-height: 1;
 
@@ -123,7 +124,7 @@
       grid-row: 2;
       margin-right: 0px;
       font-size: 12px;
-      color: $text-muted;
+      color: var(--text-muted);
       line-height: 1;
     }
 
@@ -201,7 +202,7 @@
 
     /* אם תרצי שהאייקון יהיה בתחילת הכפתור: הוסיפי class "icon-start" */
     .btn-logout.icon-start {
-      padding: var(--padV) var(--padH) var(--padV) calc(var(--padH) + var(--iconSize) + var(--gap));
+      padding: (var(--padV) var(--padH) var(--padV) calc var(--padH) + var(--iconSize) + var(--gap));
 
       &::after {
         inset-inline-end: auto;
@@ -240,3 +241,21 @@
     }
   }
 }
+.parent-name {
+  display: inline-flex; align-items: center; gap: .4rem;
+  cursor: pointer; position: relative;
+}
+.parent-name .chevron {
+  display: inline-block; width: 8px; height: 8px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(45deg); transition: transform .15s ease;
+}
+.parent-name.open .chevron { transform: rotate(225deg); }
+
+.role-menu {
+  position: absolute; margin-top: 6px; padding: 6px; list-style: none;
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.12); min-width: 220px; z-index: 1000;
+}
+.role-menu li { padding: 10px 12px; border-radius: 10px; cursor: pointer; }
+.role-menu li:hover { background: #f3f6ff; color: #1e6cff; }

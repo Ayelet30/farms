@@ -5,11 +5,33 @@
   </div>
   <div class="auth-section">
     <div class="parent-details">
-      <span *ngIf="userName" class="parent-name">{{ userName }}</span>
+      <span *ngIf="userName" class="parent-name">{{ userName }}
+      </span>
       <span *ngIf="userRole" class="parent-Role">{{ userRole }}</span>
     </div>
+
+<ng-container *ngIf="(cuSvc.user$ | async) as u; else noUser">
+  <div class="role-switcher" *ngIf="(u.memberships?.length ?? 0) > 1">
+    <select
+      #tenantSel
+      [value]="u.selectedTenantId ?? ''"
+      (change)="onChooseTenant(tenantSel.value)"
+    >
+      <option value="" disabled>בחר חווה/תפקיד…</option>
+      <option *ngFor="let m of (u.memberships ?? [])" [value]="m.tenant_id">
+        {{ m.farm?.name || m.tenant_id }} — {{ m.role_in_tenant }}
+      </option>
+    </select>
+  </div>
+</ng-container>
+
+<ng-template #noUser></ng-template>
+
+
     <button class="auth-button" [ngClass]="isLoggedIn ? 'logout' : 'login'" (click)="handleLoginLogout()">
       {{ isLoggedIn ? 'התנתק' : 'התחבר' }}
     </button>
   </div>
 </header>
+
+
