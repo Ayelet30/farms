@@ -1,22 +1,19 @@
 @use '../../../styles/tokens/header.tokens' as *;
 
-
 .site-header {
   direction: rtl;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  /* ימין: חווה | שמאל: משתמש */
+  justify-content: space-between; /* ימין: חווה | שמאל: משתמש */
   min-height: 58px;
   padding: 10px 16px;
   background: linear-gradient(180deg, var(--cream-top) 0%, var(--cream-bottom) 100%);
-  border-bottom: 1px solid var(var(--gold-soft));
+  border-bottom: 1px solid var(--gold-soft);
   position: relative;
   isolation: isolate;
 
-  /* var(--- אזור החווה (ימין) var(--- */
+  /* --- אזור החווה (ימין) --- */
   .farm-section {
-    /* פריסה מדויקת: אייקון מימין, שתי שורות טקסט משמאלו */
     display: grid;
     grid-template-columns: 36px auto;
     grid-template-rows: auto auto;
@@ -24,7 +21,6 @@
     column-gap: 10px;
     color: var(--text-strong);
 
-    /* אייקון סוס עגול – יישב בעמודה הימנית (ב-RTL) וישתרע על 2 שורות */
     &::before {
       content: "";
       grid-column: 1;
@@ -32,19 +28,9 @@
       width: 36px;
       height: 36px;
       border-radius: 50%;
-      background: #f7f4e9;
-      border: 1px solid #d9d0b3;
+      background: var(--cream-top);
+      border: 1px solid var(--gold-soft);
       box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
-      background-repeat: no-repeat;
-      background-position: center;
-      background-size: 82%;
-      /* אייקון סוס מינימליסטי (SVG) */
-      background-image: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'>\
-  <circle cx='12' cy='12' r='11' fill='%23fbf7ee' stroke='%238e845f' stroke-width='1.2'/>\
-  <path d='M7 13c2-3 4-4 7-4 1.5 0 2.5.4 3.5 1.3-.6.3-1.1.9-1.3 1.6-.2.7 0 1.5.5 2-1 .6-2 .9-3.3.9-2.6 0-4.7-1-6.4-1.8z' fill='none' stroke='%238e845f' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/>\
-  <circle cx='16.3' cy='10.1' r='0.7' fill='%238e845f'/>\
-</svg>");
     }
 
     .farm-name {
@@ -52,7 +38,6 @@
       grid-row: 1;
       font-weight: 800;
       font-size: 18px;
-      /* בולט כמו בתמונה */
       line-height: 1.1;
       color: var(--text-strong);
       letter-spacing: 0.1px;
@@ -69,12 +54,7 @@
     }
   }
 
-  .parent-details{
-     display: flex;
-    flex-direction: column;
-  }
-
-  /* var(--- אזור המשתמש/אימות (שמאל) var(--- */
+  /* --- אזור המשתמש (שמאל) --- */
   .auth-section {
     display: inline-flex;
     align-items: center;
@@ -82,55 +62,115 @@
     color: var(--text-strong);
     font-weight: 500;
 
-    /* קו מפריד לפני השם */
+    /* שורה 1: שם (עם חץ) | שורה 2: תפקיד */
+    .parent-details {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      position: relative;
+
+      /* רוחב אווטאר ומרווח קבועים לשתי השורות */
+      --avatar: 32px;
+      --avatar-gap: 12px;
+    }
+
+    /* שם + אווטאר + קו מפריד */
     .parent-name {
-      grid-column: 1;
-      grid-row: 1;
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
       padding-inline-end: 14px;
-      border-inline-end: 1px solid #e9ddbb;
-      padding-left: 20px;
+      border-inline-end: 1px solid var(--gold-soft);
       color: var(--text-strong);
       font-weight: 700;
       line-height: 1;
 
-      /* אייקון פרופיל עגול לצד השם (בין הקו לשם) */
       &::before {
         content: "";
         display: inline-block;
-        width: 32px;
-        height: 32px;
-        margin-inline-end: 12px;
-        /* בא משמאל לשם ב-RTL */
+        width: var(--avatar);
+        height: var(--avatar);
+        margin-inline-end: var(--avatar-gap);
         border-radius: 50%;
-        background: #eef3ea;
-        /* ירקרק עדין */
-        border: 1px solid #c7d2c3;
-        vertical-align: middle;
-        background-image: url("data:image/svg+xml;utf8,\
+        background: var(--text-strong);
+        -webkit-mask: url("data:image/svg+xml;utf8,\
 <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'>\
-  <circle cx='12' cy='9' r='3' fill='none' stroke='%235a7a61' stroke-width='1.8'/>\
-  <path d='M5 19c2.1-3.2 4.5-4.8 7-4.8S16.9 15.8 19 19' fill='none' stroke='%235a7a61' stroke-width='1.8' stroke-linecap='round'/>\
-</svg>");
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: 78%;
-        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
+<circle cx='12' cy='9' r='3' fill='currentColor'/>\
+<path d='M5 19c2.1-3.2 4.5-4.8 7-4.8S16.9 15.8 19 19' fill='currentColor'/>\
+</svg>") center / 78% no-repeat;
+        mask: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'>\
+<circle cx='12' cy='9' r='3' fill='currentColor'/>\
+<path d='M5 19c2.1-3.2 4.5-4.8 7-4.8S16.9 15.8 19 19' fill='currentColor'/>\
+</svg>") center / 78% no-repeat;
+        outline: 1px solid var(--gold-soft);
+        outline-offset: -1px;
+        box-shadow: 0 1px 0 rgba(0,0,0,.03);
       }
     }
 
-    /* תפקיד קטן ומתחת לשם ויזואלית (יישב צמוד לימין, נראה שורה שנייה) */
+    /* התפקיד – מיושר להתחלת טקסט השם (אחרי האווטאר) */
     .parent-Role {
-      grid-column: 1;
-      grid-row: 2;
-      margin-right: 0px;
       font-size: 12px;
       color: var(--text-muted);
-      line-height: 1;
+      line-height: 1.15;
+      white-space: nowrap;
+      padding-inline-start: calc(var(--avatar) + var(--avatar-gap));
+
+      &::before {
+        content: "התפקיד: ";
+        color: var(--text-muted);
+        font-weight: 600;
+      }
     }
 
+    /* משולש קטן שמחליף את ה-select */
+    .role-switcher {
+      display: inline-block;
+      position: relative;
+      width: 14px;
+      height: 14px;
+      margin-inline-start: 2px;
+      vertical-align: middle;
+
+      &::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        margin: auto;
+        width: 8px;
+        height: 8px;
+        border-inline-end: 2px solid var(--text-strong);
+        border-block-end: 2px solid var(--text-strong);
+        transform: rotate(45deg);
+        transition: transform .15s ease, border-color .15s ease;
+      }
+
+      /* ה-select שקוף אך קליקבילי */
+      select {
+        position: absolute;
+        inset: -6px; /* הגדלת hitbox */
+        opacity: 0;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        background: transparent;
+        border: 0;
+        cursor: pointer;
+      }
+
+      &:has(select:focus-visible) {
+        outline: 2px solid var(--gold-soft);
+        outline-offset: 3px;
+      }
+      &:has(select:focus-visible)::after { transform: rotate(225deg); }
+      &:hover::after { border-color: var(--text-muted); }
+    }
+
+    /* כפתור התחברות/התנתקות */
     .auth-button {
-      /* tunables */
-      --padV: .28rem;
+      // --padV: .28rem;
       --padH: 4.8rem;
       --gap: .4rem;
       --iconSize: 1.05rem;
@@ -139,10 +179,9 @@
       position: relative;
       display: grid;
       direction: rtl;
-      /* טקסט בעברית */
       background: transparent;
       border: 0;
-      color: #1b1b1b;
+      color: var(--text-strong);
       font-weight: 700;
       line-height: 1;
       padding: var(--padV) calc(var(--padH) + var(--iconSize) + var(--gap)) var(--padV) var(--padH);
@@ -150,7 +189,6 @@
       cursor: pointer;
       transition: background-color .15s ease, transform .04s ease;
 
-      /* האייקון: "logout" בקצה הוויזואלי (inline-end) */
       &::before {
         content: "";
         position: absolute;
@@ -175,87 +213,40 @@
         transition: transform .18s ease;
       }
 
-      &:hover {
-        background-color: rgba(241, 100, 100, 0.16);
-        color: red;
-        ;
-
-        &::after {
-          transform: translateX(1px);
-        }
-      }
-
-      &:active {
-        transform: translateY(1px);
-      }
-
-      &:focus-visible {
-        outline: 2px solid rgba(0, 0, 0, .25);
-        outline-offset: 2px;
-      }
-
-      &:disabled {
-        opacity: .5;
-        cursor: not-allowed;
-      }
+      &:hover { background-color: rgba(0, 0, 0, 0.04); }
+      &:active { transform: translateY(1px); }
+      &:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
+      &:disabled { opacity: .5; cursor: not-allowed; }
     }
 
-    /* אם תרצי שהאייקון יהיה בתחילת הכפתור: הוסיפי class "icon-start" */
+    /* אם תרצי את האייקון בתחילת הכפתור */
     .btn-logout.icon-start {
-      padding: (var(--padV) var(--padH) var(--padV) calc var(--padH) + var(--iconSize) + var(--gap));
-
-      &::after {
-        inset-inline-end: auto;
-        inset-inline-start: var(--padH);
-      }
+      padding: var(--padV) var(--padH) var(--padV) calc(var(--padH) + var(--iconSize) + var(--gap));
+      &::after { inset-inline-end: auto; inset-inline-start: var(--padH); }
     }
   }
-
-  .farm-section {
-    grid-template-columns: 32px auto;
-
-    .farm-name {
-      font-size: 16px;
-    }
-
-    .farm-note {
-      font-size: 12px;
-    }
-
-    &::after {
-      width: 32px;
-      height: 32px;
-    }
-  }
-
-  .auth-section {
-    gap: 10px;
-
-    .parent-Role {
-      margin-right: 46px;
-      font-size: 11px;
-    }
-
-    .auth-button {
-      padding: 6px 4px;
-    }
-  }
-}
-.parent-name {
-  display: inline-flex; align-items: center; gap: .4rem;
-  cursor: pointer; position: relative;
-}
-.parent-name .chevron {
-  display: inline-block; width: 8px; height: 8px;
-  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
-  transform: rotate(45deg); transition: transform .15s ease;
-}
-.parent-name.open .chevron { transform: rotate(225deg); }
-
+/* תפריט תפקידים צף (אם משתמשת ב־UL/LI) */
 .role-menu {
-  position: absolute; margin-top: 6px; padding: 6px; list-style: none;
-  background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(0,0,0,.12); min-width: 220px; z-index: 1000;
+  position: absolute;
+  margin-top: 6px;
+  padding: 6px;
+  list-style: none;
+  background: var(--cream-top);
+  border: 1px solid var(--gold-soft);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .12);
+  min-width: 220px;
+  z-index: 1000;
 }
-.role-menu li { padding: 10px 12px; border-radius: 10px; cursor: pointer; }
-.role-menu li:hover { background: #f3f6ff; color: #1e6cff; }
+.role-menu li {
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--text-strong);
+}
+.role-menu li:hover {
+  background: var(--cream-bottom);
+  color: var(--text-strong);
+}
+}
+

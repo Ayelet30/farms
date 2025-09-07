@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
-import { getCurrentUserDetails, getCurrentUserData, getSupabaseClient, logout, setTenantContext } from '../../services/supabaseClient';
+import { getCurrentUserDetails, getCurrentUserData, getSupabaseClient, logout, setTenantContext, getCurrentFarmMetaSync } from '../../services/supabaseClient';
 import { CurrentUserService } from '../../core/auth/current-user.service';
 import { listMembershipsForCurrentUser, selectMembership, Membership } from '../../services/supabaseClient';
 import { TokensService } from '../../services/tokens.service';
@@ -25,6 +25,7 @@ export class HeaderComponent {
   
   roleMenuOpen = false;
   memberships: Membership[] = [];
+  selected: Membership | null = null;
   roleHe: Record<string,string> = { instructor: 'מדריך', parent: 'הורה', secretary: 'מזכירות', manager: 'מנהל' };
   
   supabase = getSupabaseClient();
@@ -39,12 +40,12 @@ export class HeaderComponent {
   }
 
 
-  constructor(private router: Router, private dialog: MatDialog, public cuSvc: CurrentUserService) {
+  constructor(public cu: CurrentUserService, private dialog: MatDialog, private router: Router, private tokens: TokensService) {
     this.checkLogin();
   }
 
   async checkLogin() {
-    const user = await this.cuSvc.loadUserDetails();
+    const user = await this.cu.loadUserDetails();
     console.log('user:', user);
     if (!user) {
       console.log("אין משתמש כזה")
@@ -66,7 +67,7 @@ export class HeaderComponent {
         disableClose: true
       });
 
-      dialogRef.afterClosed().subscribe(result => {
+      dialogRef.afterClosed().subscribe((result: boolean) => {
         if (result === true) {
           logout();
           this.router.navigate(['/home']);
@@ -88,13 +89,23 @@ export class HeaderComponent {
     }
   }
 
-  async onChooseTenant(tenantId: string | null | undefined) {
-  if (!tenantId) return;
-  const { role } = await this.cuSvc.switchMembership(tenantId);
-  const target = this.routeByRole(role);
-  await this.router.navigateByUrl(target);
-}
 
+ async onChooseMembership(m: Membership | null) {
+    if (!m) return;
+
+    // שולחים גם tenant וגם role כדי לקבל JWT וסביבה תואמים
+    const { role } = await this.cu.switchMembership(m.tenant_id, m.role_in_tenant);
+
+    // עדכון environment (טוקנים/סכימה) לפי החווה שבפועל הוקמה בצד השרת
+    const farm = getCurrentFarmMetaSync();
+    this.tokens.applytokens(farm?.schema_name || 'public');
+
+    this.checkLogin();
+
+    // ניווט לפי role שחזר מהשרת (למקרה שהשרת בחר אחרת)
+    const target = this.routeByRole(role);
+    await this.router.navigateByUrl(target);
+  }
   
 }
 

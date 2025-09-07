@@ -8,7 +8,6 @@ import { FormsModule } from '@angular/forms';
 import { Auth } from '@angular/fire/auth';
 import { CurrentUserService } from '../../core/auth/current-user.service';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
-import { MembershipPickerDialogComponent } from '../../core/auth/membership-picker.dialog';
 import { TokensService } from '../../services/tokens.service';
 
 @Component({
@@ -56,27 +55,13 @@ export class LoginComponent {
       // 2) Hydration מלא של current-user (memberships + בחירה אוטו' אם אפשר + פרטים)
       const { selected } = await this.cuSvc.hydrateAfterLogin();
 
+      console.log('selected', selected);
+
       // 3) אם אין בחירה ונמצאו כמה שיוכים — נפתח דיאלוג בחירה
       const memberships = this.cuSvc.current?.memberships || [];
       let activeRole: string | null | undefined = selected?.role_in_tenant ?? this.cuSvc.current?.role;
       let activeFarm: string | null | undefined = selected?.farm?.schema_name;
 
-      if (!selected && memberships.length > 1) {
-        const chosenTenantId = await this.dialog
-          .open(MembershipPickerDialogComponent, {
-            width: '420px',
-            data: { memberships }
-          })
-          .afterClosed()
-          .toPromise();
-
-        const tenantToUse = chosenTenantId || memberships[0]?.tenant_id; // נפילה אוטו' לראשון אם נסגר בלי בחירה
-        if (tenantToUse) {
-          const { role, details } = await this.cuSvc.switchMembership(tenantToUse);
-          activeRole = role;
-        }
-      }
-      
       //set tokens by farm
       this.tokens.restoreLasttokens(activeFarm);
 

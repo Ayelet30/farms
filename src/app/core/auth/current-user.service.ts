@@ -7,6 +7,7 @@ import { BehaviorSubject, firstValueFrom, filter, take } from 'rxjs';
 
 import {
   clearTenantContext,
+  getCurrentFarmMetaSync,
   getCurrentUserData,
   getCurrentUserDetails,
   listMembershipsForCurrentUser,
@@ -15,6 +16,7 @@ import {
 } from '../../services/supabaseClient';
 
 import type { UserDetails } from '../../Types/detailes.model';
+import { TokensService } from '../../services/tokens.service';
 
 interface CurrentUser {
   uid: string;
@@ -30,6 +32,9 @@ interface CurrentUser {
 export class CurrentUserService {
   private auth = inject(Auth);
   private platformId = inject(PLATFORM_ID);
+
+  private tokens = inject(TokensService);
+
 
   private readonly _user$ = new BehaviorSubject<CurrentUser | null>(null);
   readonly user$ = this._user$.asObservable();
@@ -75,7 +80,7 @@ export class CurrentUserService {
     });
   }
 
-  async loadUserDetails(select = 'id_number, uid, full_name, phone, email', cacheMs = 60_000) {
+  async loadUserDetails(select = 'id_number, uid, full_name', cacheMs = 60_000) {
     await this.waitUntilReady();
     const details = await getCurrentUserDetails(select, { cacheMs });
     this.setUserDetails(details);
@@ -94,7 +99,10 @@ export class CurrentUserService {
   }
 
   setSelectedTenant(tenantId: string | null) {
+    console.log("setSelectedTenant", tenantId)
+
     const cur = this._user$.value; if (!cur) return;
+    console.log("setSelectedTenant", cur)
     this._user$.next({ ...cur, selectedTenantId: tenantId });
   }
 
@@ -116,56 +124,67 @@ export class CurrentUserService {
    * Hydration אחרי Login: טוען memberships, בוחר טננט (אם יש אחד או אם נשמר ב-localStorage),
    * מקים הקשר טננט, טוען פרטי משתמש, ומעדכן current-user באופן אטומי.
    */
-  async hydrateAfterLogin() {
-    await this.waitUntilReady();
-    const fbUser = this.auth.currentUser!;
+  // current-user.service.ts
+async hydrateAfterLogin() {
+  await this.waitUntilReady();
+  const fbUser = this.auth.currentUser!;
+  // 1) טען כל השיוכים
+  const memberships = await listMembershipsForCurrentUser(true);
+  this.setMemberships(memberships);
 
-    // 1) כל השיוכים
-    const memberships = await listMembershipsForCurrentUser(true);
-    this.setMemberships(memberships);
+  // 2) בחירה אוטומטית:
+  //    אם נשמר tenantId => נבחר אותו; אחרת אם יש לפחות אחד => נבחר את הראשון.
+  const saved = localStorage.getItem('selectedTenant');
+  const exists = memberships.find(m => m.tenant_id === saved);
+  const toPick = exists?.tenant_id ?? (memberships.length > 0 ? memberships[0].tenant_id : null);
 
-    // 2) בחירה אוטומטית (נשמר/בודד/ללא בחירה)
-    const saved = localStorage.getItem('selectedTenant');
-    const exists = memberships.find(m => m.tenant_id === saved);
-    const toPick = exists?.tenant_id || (memberships.length === 1 ? memberships[0].tenant_id : null);
-
-    let picked: Membership | null = null;
-    if (toPick) {
-      picked = await selectMembership(toPick);
-      this.setSelectedTenant(picked.tenant_id);
-    }
-
-    // 3) טוענים פרטי משתמש ברמת הטננט (אם נבחר)
-    const details = picked ? await this.loadUserDetails('uid, full_name, id_number, address, phone, email', 0) : null;
-
-    // 4) מעדכנים role ו-state
-    this.setCurrent({
-      uid: fbUser.uid,
-      role: (picked?.role_in_tenant ?? this.current?.role ?? null) as any,
-      memberships,
-      selectedTenantId: picked?.tenant_id ?? null,
-    });
-
-    return { selected: picked, details };
+  const pickedMembership = memberships.find(m => m.tenant_id === toPick) ?? memberships[0] ?? null;
+  
+  let picked: Membership | null = null;
+  if (toPick) {
+    picked = await selectMembership(toPick, pickedMembership?.role_in_tenant);   
+    this.setSelectedTenant(picked.tenant_id);  // מעדכן סטייט
   }
 
-  /**
-   * החלפת תפקיד/טננט בזמן ריצה (למשל מה-Header): בוחר membership, מקים הקשר,
-   * טוען פרטים, ומעדכן role + selectedTenantId. מחזיר role שנבחר.
-   */
-  async switchMembership(tenantId: string) {
-    const fbUser = this.auth.currentUser!;
-    const picked = await selectMembership(tenantId);
-    this.setSelectedTenant(picked.tenant_id);
-    const details = await this.loadUserDetails('uid, full_name, id_number, address, phone, email', 0);
+  // 3) טען פרטי משתמש ברמת הטננט (אם יש בחירה)
+  const details = picked
+    ? await this.loadUserDetails('uid, full_name, id_number, address, phone, email', 0)
+    : null;
+  // 4) עדכן current user (role נמשך מהבחירה)
+  this.setCurrent({
+    uid: fbUser.uid,
+    role: (picked?.role_in_tenant ?? this.current?.role ?? null) as any,
+    memberships,
+    selectedTenantId: picked?.tenant_id ?? null,
+  });
 
-    this.setCurrent({
-      uid: fbUser.uid,
-      role: picked.role_in_tenant as any,
-      memberships: this.current?.memberships,
-      selectedTenantId: picked.tenant_id,
-    });
+  return { selected: picked, details };
+}
 
-    return { role: picked.role_in_tenant, details };
-  }
+async switchMembership(tenantId: string, roleInTenant?: string) {
+  await this.waitUntilReady();
+  const fbUser = this.auth.currentUser!;
+  const picked = await selectMembership(tenantId, roleInTenant);
+
+  this.setSelectedTenant(picked.tenant_id);
+
+  // טען פרטים ללא cache
+  const details = await this.loadUserDetails('uid, full_name, id_number, address, phone, email', 0);
+
+  this.setCurrent({
+    uid: fbUser.uid,
+    role: picked.role_in_tenant as any,
+    memberships: this.current?.memberships,
+    selectedTenantId: picked.tenant_id,
+  });
+
+  // עדכון טוקנים/סכמה לשאר השירותים
+  const farm = getCurrentFarmMetaSync();
+  // אם יש לך TokensService:
+   this.tokens.applytokens(farm?.schema_name || 'public');
+   
+
+  return { role: picked.role_in_tenant, details };
+}
+
 }

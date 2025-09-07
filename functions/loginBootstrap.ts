@@ -6,12 +6,12 @@ import jwt from "jsonwebtoken";
 import * as logger from "firebase-functions/logger";
 import { randomUUID } from "node:crypto";
 
-// init once
+// ==== init once ====
 if (getApps().length === 0) {
   initializeApp();
 }
 
-// helpers
+// ==== helpers ====
 function sendJson(
   res: any,
   status: number,
@@ -27,7 +27,7 @@ function tokenPreview(t: string): string {
   return `${t.split(".").length}-parts len=${t.length}`;
 }
 
-// helper: קריאת PostgREST של Supabase + לוגים
+// helper: PostgREST fetch + logs
 async function sbFetch<T>(
   url: string,
   serviceKey: string,
@@ -60,11 +60,12 @@ async function sbFetch<T>(
   return { ok: r.ok, status: r.status, text, json };
 }
 
-// secrets
+// ==== secrets ====
 const SUPABASE_URL = defineSecret("SUPABASE_URL");
 const SUPABASE_SERVICE_KEY = defineSecret("SUPABASE_SERVICE_KEY");
 const SUPABASE_JWT_SECRET = defineSecret("SUPABASE_JWT_SECRET");
 
+// ==== function ====
 export const loginBootstrap = onRequest(
   { region: "europe-west1", cors: true, secrets: [SUPABASE_URL, SUPABASE_SERVICE_KEY, SUPABASE_JWT_SECRET] },
   async (req, res): Promise<void> => {
@@ -80,6 +81,7 @@ export const loginBootstrap = onRequest(
     });
 
     try {
+      // CORS preflight
       if (req.method === "OPTIONS") {
         res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
         res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
@@ -94,11 +96,11 @@ export const loginBootstrap = onRequest(
         return;
       }
 
-      // סודות (trim) + הסרת סלאש סופי מה-URL
+      // secrets + url normalize
       const rawUrl = (SUPABASE_URL.value() ?? process.env.SUPABASE_URL ?? "").trim();
       const serviceKey = (SUPABASE_SERVICE_KEY.value() ?? process.env.SUPABASE_SERVICE_KEY ?? "").trim();
       const jwtSecret = (SUPABASE_JWT_SECRET.value() ?? process.env.SUPABASE_JWT_SECRET ?? "").trim();
-      const url = rawUrl.replace(/\/+$/, ""); // למניעת // כפול
+      const url = rawUrl.replace(/\/+$/, "");
 
       logger.debug("secrets presence", {
         reqId,
@@ -113,17 +115,19 @@ export const loginBootstrap = onRequest(
       if (!jwtSecret) missing.push("SUPABASE_JWT_SECRET");
       if (missing.length) {
         logger.error("Supabase config missing", { reqId, missing });
-        return sendJson(res, 500, { error: "Supabase config missing", missing }, { reqId, stage: "secrets" });
+        sendJson(res, 500, { error: "Supabase config missing", missing }, { reqId, stage: "secrets" });
+        return;
       }
 
-      // אימות Firebase ID token
+      // verify Firebase ID token
       const authHeader = req.headers.authorization || "";
       const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
       logger.debug("auth header parsed", { reqId, token: tokenPreview(idToken) });
 
       if (!idToken) {
         logger.warn("Missing Firebase ID token", { reqId });
-        return sendJson(res, 401, { error: "Missing Firebase ID token" }, { reqId, stage: "auth_header" });
+        sendJson(res, 401, { error: "Missing Firebase ID token" }, { reqId, stage: "auth_header" });
+        return;
       }
 
       const decoded = await verifyIdTokenOr401(idToken, reqId);
@@ -138,13 +142,19 @@ export const loginBootstrap = onRequest(
         exp: (decoded as any).exp,
       });
 
-      // tenant_users
+      // ===== read requested tenant/role from query =====
+      const askedTenantId = (req.query.tenantId || req.query.tenant_id) as string | undefined;
+      const askedRole = (req.query.role || req.query.role_in_tenant) as string | undefined;
+      logger.debug("tenant/role requested", { reqId, askedTenantId, askedRole });
+
+      // ===== memberships =====
       const q1 = `${url}/rest/v1/tenant_users?uid=eq.${encodeURIComponent(uid)}&is_active=eq.true&select=tenant_id,role_in_tenant`;
       const r1 = await sbFetch<Array<{ tenant_id: string; role_in_tenant: string }>>(q1, serviceKey, { reqId, label: "tenant_users" });
 
       if (!r1.ok || !Array.isArray(r1.json)) {
         logger.error("tenant_users query failed", { reqId, status: r1.status, stage: "tenant_users", preview: r1.text.slice(0, 300) });
-        return sendJson(res, r1.status, { error: "tenant_users query failed", stage: "tenant_users", details: r1.text.slice(0, 500) }, { reqId });
+        sendJson(res, r1.status, { error: "tenant_users query failed", stage: "tenant_users", details: r1.text.slice(0, 500) }, { reqId });
+        return;
       }
 
       const memberships = r1.json;
@@ -152,33 +162,63 @@ export const loginBootstrap = onRequest(
 
       if (memberships.length === 0) {
         logger.warn("no active membership", { reqId, uid });
-        return sendJson(res, 403, { error: "User has no active farm membership", stage: "no_membership" }, { reqId });
+        sendJson(res, 403, { error: "User has no active farm membership", stage: "no_membership" }, { reqId });
+        return;
       }
 
-      const { tenant_id: farmId, role_in_tenant } = memberships[0];
-      logger.debug("selected membership", { reqId, farmId, role_in_tenant });
+      // ===== choose membership according to request =====
+      let chosen = memberships[0];
 
-      // farms
+      if (askedTenantId) {
+        const found = memberships.find(m => m.tenant_id === askedTenantId);
+        if (!found) {
+          logger.warn("requested tenant not in memberships", { reqId, uid, askedTenantId });
+          sendJson(res, 403, { error: "no-membership-for-tenant", tenantId: askedTenantId }, { reqId, stage: "tenant_not_allowed" });
+          return;
+        }
+        chosen = found;
+      }
+
+      if (askedRole) {
+        const sameTenantSameRole = memberships.find(
+          m => m.tenant_id === chosen.tenant_id && m.role_in_tenant === askedRole
+        );
+        if (sameTenantSameRole) {
+          chosen = sameTenantSameRole;
+        }
+      }
+
+      const farmId = chosen.tenant_id;
+      const role_in_tenant = askedRole || chosen.role_in_tenant;
+      logger.debug("selected membership (effective)", { reqId, farmId, role_in_tenant });
+
+      // ===== farms =====
       const q2 = `${url}/rest/v1/farms?select=id,name,schema_name&id=eq.${encodeURIComponent(farmId)}`;
       const r2 = await sbFetch<Array<{ id: string; name: string; schema_name: string }>>(q2, serviceKey, { reqId, label: "farms_select" });
 
       if (!r2.ok || !Array.isArray(r2.json)) {
         logger.error("Farm lookup failed", { reqId, status: r2.status, stage: "farms_select", preview: r2.text.slice(0, 300) });
-        return sendJson(res, r2.status, { error: "Farm lookup failed", stage: "farms_select", details: r2.text.slice(0, 500) }, { reqId });
+        sendJson(res, r2.status, { error: "Farm lookup failed", stage: "farms_select", details: r2.text.slice(0, 500) }, { reqId });
+        return;
       }
 
       const farm = r2.json[0];
       if (!farm) {
         logger.warn("farm not found", { reqId, farmId });
-        return sendJson(res, 404, { error: "Farm not found", stage: "farm_missing" }, { reqId });
+        sendJson(res, 404, { error: "Farm not found", stage: "farm_missing" }, { reqId });
+        return;
       }
 
-      // JWT ל-Supabase
-      const access_token = jwt.sign(
-        { role: "authenticated", sub: uid, user_metadata: { tenant_id: farmId } },
-        jwtSecret,
-        { expiresIn: "15m" }
-      );
+      // ===== JWT for chosen tenant =====
+      const payload = {
+        role: "authenticated",
+        sub: uid,
+        tenant_id: farmId,                   // top-level claim (נוח ל-RLS)
+        role_in_tenant,                      // top-level (אופציונלי)
+        user_metadata: { tenant_id: farmId, role_in_tenant }
+      };
+
+      const access_token = jwt.sign(payload, jwtSecret, { expiresIn: "15m" });
 
       logger.info("loginBootstrap ok", { reqId, uid, farmId, role_in_tenant });
       sendJson(res, 200, { access_token, farm, role_in_tenant }, { reqId, stage: "done" });
@@ -191,7 +231,7 @@ export const loginBootstrap = onRequest(
   }
 );
 
-// עטיפה ייעודית לאימות הטוקן – נחזיר 401 במקום 500
+// ==== token verification wrapper ====
 async function verifyIdTokenOr401(idToken: string, reqId: string) {
   try {
     return await getAuth().verifyIdToken(idToken);

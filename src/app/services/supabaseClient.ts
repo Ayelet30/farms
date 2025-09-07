@@ -11,7 +11,7 @@ function readMeta(name: string): string | null {
 function runtime(key: string): string | null {
   const w = (window as any);
   return (w.__RUNTIME__?.[key] ?? readMeta(`x-${key.toLowerCase().replace(/_/g, '-')}`) ??
-          (import.meta as any).env?.[key] ?? (process as any)?.env?.[key] ?? null)?.trim?.() || null;
+    (import.meta as any).env?.[key] ?? (process as any)?.env?.[key] ?? null)?.trim?.() || null;
 }
 
 const SUPABASE_URL = runtime('SUPABASE_URL');
@@ -39,11 +39,13 @@ let refreshTimer: any = null;
 
 /** ===================== CLIENT ===================== **/
 function makeClient(): SupabaseClient {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    throw new Error('Missing Supabase runtime config (SUPABASE_URL / SUPABASE_ANON_KEY)');
-  }
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('Missing Supabase runtime config');
+
+  const storageKey = `sb-${currentTenant?.id ?? 'neutral'}-auth`;
+
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
+      storageKey,
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: false,
@@ -81,13 +83,20 @@ export const dbTenant = () => db();
 export const dbPublic = () => db('public');
 export function clearDbCache() { _schemaClients = {}; }
 
+let _ctxLock: Promise<void> | null = null;
+
 export async function setTenantContext(ctx: TenantContext) {
-  currentTenant = { ...ctx };
-  authBearer = ctx.accessToken ?? null;
-  supabase = makeClient();
-  clearTimeout(refreshTimer);
-  if (authBearer) scheduleTokenRefresh(authBearer);
+  const run = async () => {
+    currentTenant = { ...ctx };
+    authBearer = ctx.accessToken ?? null;
+    supabase = makeClient();
+    clearTimeout(refreshTimer);
+    if (authBearer) scheduleTokenRefresh(authBearer);
+  };
+  _ctxLock = (_ctxLock ?? Promise.resolve()).then(run);
+  await _ctxLock;
 }
+
 
 export async function clearTenantContext() {
   currentTenant = null;
@@ -95,7 +104,7 @@ export async function clearTenantContext() {
   clearTimeout(refreshTimer);
   refreshTimer = null;
   supabase = makeClient();
-  try { await supabase.auth.signOut(); } catch {}
+  try { await supabase.auth.signOut(); } catch { }
 }
 
 export async function logout(): Promise<void> {
@@ -128,56 +137,114 @@ export async function getCurrentFarmMeta(opts?: { refresh?: boolean }): Promise<
   return currentFarmMeta;
 }
 export async function getCurrentFarmName(opts?: { refresh?: boolean }): Promise<string | null> {
-  const meta = await getCurrentFarmMeta(opts); return meta?.name ?? null; }
+  const meta = await getCurrentFarmMeta(opts); return meta?.name ?? null;
+}
+
+type ResolveOpts = {
+  tenantId?: string | null;         // אילוץ טננט מסוים (מומלץ להעביר!)
+  roleInTenant?: string | null;     // אופציונלי: אילוץ role בתוך הטננט
+};
 
 /** ===================== DETAILS ===================== **/
 async function resolveRoleAndFarm(
   dbcTenant: ReturnType<typeof db>,
   dbcPublic: ReturnType<typeof db>,
-  uid: string
-): Promise<{ targetTable: string | null; role: string | null; role_in_tenant: string | null; roleId: number | null; farmId: number | null; farmName: string | null }> {
-  const { data: tu } = await dbcPublic
+  uid: string,
+  opts: ResolveOpts = {}
+): Promise<{
+  targetTable: string | null;
+  role: string | null;
+  role_in_tenant: string | null;
+  roleId: number | null;
+  farmId: number | null;
+  farmName: string | null;
+}> {
+  // ננסה לנעול טננט לפי הקשר קיים אם לא הועבר במפורש
+  let ctxTenantId: string | null = null;
+  try { ctxTenantId = requireTenant().id; } catch { /* no context yet */ }
+
+  const wantedTenantId = opts.tenantId ?? ctxTenantId ?? null;
+  const wantedRole = opts.roleInTenant ?? null;
+
+  // בונים שאילתה שמחזירה מקסימום שורה אחת (uid + tenant_id [+ role])
+  let q = dbcPublic
     .from('tenant_users')
     .select('tenant_id, role_id, role_in_tenant, is_active')
     .eq('uid', uid)
-    .eq('is_active', true)
-    .maybeSingle();
+    .eq('is_active', true);
 
-  const farmId = tu?.tenant_id ?? null;
+  if (wantedTenantId) q = q.eq('tenant_id', wantedTenantId);
+  if (wantedRole) q = q.eq('role_in_tenant', wantedRole as any);
+
+  // נסיון ראשון: maybeSingle — ואם יש ריבוי שורות ניפול ללימיט 1
+  let tu: any | null = null;
+  const firstTry = await q.maybeSingle();
+  if (!firstTry.error) {
+    tu = firstTry.data ?? null;
+  } else {
+    // 406 / Ambiguous result וכו' — נביא שורה אחת מפורשות
+    const { data: list } = await q.limit(1);
+    tu = (list && list[0]) || null;
+  }
+
+  const farmId = tu?.tenant_id ?? wantedTenantId ?? null;
   const roleId = tu?.role_id ?? null;
-  const role_in_tenant = (tu?.role_in_tenant as string | null) ?? null;
+  const role_in_tenant = (tu?.role_in_tenant as string | null) ?? wantedRole ?? null;
   let roleStr: string | null = role_in_tenant;
   let targetTable: string | null = null;
 
+  // ניסיון לפי role_id → role.description/table
   if (roleId != null) {
-    const { data: rr } = await dbcTenant.from('role').select('id, description, table').eq('id', roleId).maybeSingle();
-    if (rr?.table) { targetTable = rr.table as string; roleStr = (rr.description as string) ?? roleStr; }
+    const { data: rr } = await dbcTenant
+      .from('role')
+      .select('id, description, table')
+      .eq('id', roleId)
+      .maybeSingle();
+    if (rr?.table) {
+      targetTable = rr.table as string;
+      roleStr = (rr.description as string) ?? roleStr;
+    }
   }
+
+  // ניסיון לפי description → table
   if (!targetTable && roleStr) {
-    const { data: rr2 } = await dbcTenant.from('role').select('table').eq('description', roleStr).maybeSingle();
+    const { data: rr2 } = await dbcTenant
+      .from('role')
+      .select('table')
+      .eq('description', roleStr)
+      .maybeSingle();
     if (rr2?.table) targetTable = rr2.table as string;
   }
 
+  // שם חווה
   let farmName: string | null = null;
   if (farmId != null) {
-    const { data: farm } = await dbcPublic.from('farms').select('name').eq('id', farmId).maybeSingle();
+    const { data: farm } = await dbcPublic
+      .from('farms')
+      .select('name')
+      .eq('id', farmId)
+      .maybeSingle();
     farmName = (farm?.name as string) ?? null;
   }
 
+  // fallback: חיפוש טבלה לפי מופע uid (בטננט הנוכחי בלבד)
   if (!targetTable) {
     const { data: roles } = await dbcTenant.from('role').select('table');
     for (const r of roles ?? []) {
-      const tbl = r.table as string; if (!tbl) continue;
-      const { data } = await dbcTenant.from(tbl).select('uid').eq('uid', uid).maybeSingle();
-      if (data) { targetTable = tbl; break; }
+      const tbl = r.table as string;
+      if (!tbl) continue;
+      const { data } = await dbcTenant.from(tbl).select('uid').eq('uid', uid).limit(1);
+      if (data && data.length) { targetTable = tbl; break; }
     }
   }
+
   return { targetTable, role: roleStr ?? null, role_in_tenant, roleId, farmId, farmName };
 }
 
 let userCache: { key: string; data: UserDetails; expires: number } | null = null;
+
 export async function getCurrentUserDetails(
-  select = 'uid, full_name, id_number, address, phone, email',
+  select = 'uid, full_name, id_number',
   options?: { cacheMs?: number }
 ): Promise<UserDetails | null> {
   const tenant = requireTenant();
@@ -188,17 +255,65 @@ export async function getCurrentUserDetails(
   const cacheKey = `${tenant.schema}|${fbUser.uid}|${select}`;
   if (userCache && userCache.key === cacheKey && userCache.expires > Date.now()) return userCache.data;
 
-  const dbcTenant = db();
+  const dbcTenant = db();         // סכימת הטננט הנוכחית
   const dbcPublic = db('public');
-  const { targetTable, role, role_in_tenant, roleId, farmId, farmName } = await resolveRoleAndFarm(dbcTenant, dbcPublic, fbUser.uid);
+
+  // ננעלים לטננט הנבחר כדי לא להתבלבל בין חוות שונות
+  const { targetTable, role, role_in_tenant, roleId, farmId, farmName } =
+    await resolveRoleAndFarm(dbcTenant, dbcPublic, fbUser.uid, { tenantId: tenant.id });
+
   if (!targetTable) return null;
 
-  let { data, error } = await dbcTenant.from(targetTable).select(select).eq('uid', fbUser.uid).maybeSingle();
-  if (error) {
-    const retry = await dbcTenant.from(targetTable).select('*').eq('uid', fbUser.uid).maybeSingle();
-    data = retry.data;
-  }
-  const rec: any = data ?? null; if (!rec) return null;
+  // במקום maybeSingle: מביאים את כל הרשומות עבור ה-uid ובוחרים אחת דטרמיניסטית
+  const { data: rows, error } = await dbcTenant
+    .from(targetTable)
+    .select('*')                 // מביא * כדי שנוכל לדרג לפי שדות אם קיימים
+    .eq('uid', fbUser.uid);
+
+  if (error) throw error;
+
+
+  const list = (rows ?? []) as any[];
+  if (!list.length) return null;
+
+  // פונקציית בחירה דטרמיניסטית כשיש כפילויות:
+  const pickBest = (arr: any[]) => {
+    if (arr.length === 1) return arr[0];
+
+    // 1) is_active === true אם קיים
+    let filtered = arr;
+    if (arr.some(r => 'is_active' in r)) {
+      const actives = arr.filter(r => r.is_active === true);
+      if (actives.length) filtered = actives;
+    }
+
+    // 2) לפי updated_at אם קיים
+    if (filtered.some(r => 'updated_at' in r && r.updated_at)) {
+      filtered = [...filtered].sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+      return filtered[0];
+    }
+
+    // 3) לפי created_at אם קיים
+    if (filtered.some(r => 'created_at' in r && r.created_at)) {
+      filtered = [...filtered].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      return filtered[0];
+    }
+
+    // 4) לפי id (אם נומרי/מספיק להשוואה)
+    if (filtered.some(r => 'id' in r)) {
+      filtered = [...filtered].sort((a, b) => {
+        const ax = typeof a.id === 'number' ? a.id : parseInt(a.id, 10) || 0;
+        const bx = typeof b.id === 'number' ? b.id : parseInt(b.id, 10) || 0;
+        return bx - ax;
+      });
+      return filtered[0];
+    }
+
+    // 5)fallback: פשוט הראשונה בסדר קבוע
+    return filtered[0];
+  };
+
+  const rec: any = pickBest(list);
   const address = rec.address ?? rec.adress ?? null;
 
   const result: UserDetails = {
@@ -214,28 +329,44 @@ export async function getCurrentUserDetails(
     farm_id: farmId,
     farm_name: farmName,
   };
+
   userCache = { key: cacheKey, data: result, expires: Date.now() + ttl };
   return result;
 }
 
 /** ===================== BOOTSTRAP + TOKEN REFRESH ===================== **/
-export async function bootstrapSupabaseSession(tenantId?: string): Promise<BootstrapResp> {
+export async function bootstrapSupabaseSession(tenantId?: string, roleInTenant?: string): Promise<BootstrapResp> {
   const user = getAuth().currentUser;
   if (!user) throw new Error('No Firebase user');
   const idToken = await user.getIdToken(true);
-  const url = tenantId ? `/api/loginBootstrap?tenantId=${tenantId}` : '/api/loginBootstrap';
+
+  // שולחים גם tenantId וגם tenant_id לטובת תאימות שרת
+  const qs = new URLSearchParams();
+  if (tenantId) { qs.set('tenantId', tenantId); qs.set('tenant_id', tenantId); }
+  if (roleInTenant) { qs.set('role', roleInTenant); qs.set('role_in_tenant', roleInTenant); }
+
+  
+  const url = qs.toString() ? `/api/loginBootstrap?${qs}` : '/api/loginBootstrap';
   const res = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` } });
   const raw = await res.text();
   let parsed: any = null; try { parsed = JSON.parse(raw); } catch {}
   if (!res.ok) throw new Error(parsed?.error || `loginBootstrap failed: ${res.status}`);
+  
   const data = parsed as BootstrapResp;
 
+  // אם הועבר tenantId ובכל זאת חזר farm אחר – נרים דגל
+  if (tenantId && data?.farm?.id && data.farm.id !== tenantId) {
+    console.warn('bootstrap returned different farm than requested', { requested: tenantId, got: data.farm.id });
+  }
+
+  // הקמת הקשר מלאה בעת בחירה
   if (tenantId) {
     await setTenantContext({ id: data.farm.id, schema: data.farm.schema_name, accessToken: data.access_token });
     currentFarmMeta = data.farm;
   }
   return data;
 }
+
 
 function scheduleTokenRefresh(jwt: string) {
   try {
@@ -252,24 +383,42 @@ let membershipsCache: Membership[] = [];
 export function clearMembershipCache() { membershipsCache = []; }
 
 export async function listMembershipsForCurrentUser(force = false): Promise<Membership[]> {
-  const fb = getAuth().currentUser; if (!fb) throw new Error('No Firebase user');
+  const fb = getAuth().currentUser;
+  if (!fb) throw new Error('No Firebase user');
   if (!force && membershipsCache.length) return membershipsCache;
 
-  // ⚠️ בוחרים את role_in_tenant ולא את role_id (שמספרי)
+  // מביאים רק מזהים ותפקיד
   const { data, error } = await dbPublic()
     .from('tenant_users')
-    .select(`tenant_id, role_in_tenant, farm:tenant_id ( id, name, schema_name )`)
+    .select('tenant_id, role_in_tenant')
     .eq('uid', fb.uid)
     .eq('is_active', true);
 
   if (error) throw error;
-  membershipsCache = (data ?? []).map((r: any) => ({
+
+  // הקלדנו את המערך כדי למנוע any/unknown
+  type RowTU = { tenant_id: string; role_in_tenant: RoleInTenant | null };
+  const rows: RowTU[] = (data ?? []) as RowTU[];
+
+  // במקום metas[i] – נבנה מפה לפי tenant_id (בטוח יותר מהסתמכות על אינדקס)
+  const metaById = new Map<string, FarmMeta | null>();
+  await Promise.all(
+    rows.map(async (r) => {
+      const meta = await getFarmMetaById(r.tenant_id);
+      metaById.set(r.tenant_id, meta);
+    })
+  );
+
+  membershipsCache = rows.map((r) => ({
     tenant_id: r.tenant_id,
     role_in_tenant: (r.role_in_tenant as RoleInTenant) ?? 'parent',
-    farm: r.farm ?? null,
+    farm: metaById.get(r.tenant_id) ?? null,
   }));
+
   return membershipsCache;
 }
+
+
 
 export function getSelectedMembershipSync(): Membership | null {
   if (!currentTenant) return null;
@@ -277,24 +426,43 @@ export function getSelectedMembershipSync(): Membership | null {
   return found ?? (currentFarmMeta ? { tenant_id: currentTenant.id, role_in_tenant: 'parent' as RoleInTenant, farm: currentFarmMeta } : null);
 }
 
-export async function selectMembership(tenantId: string): Promise<Membership> {
+export async function selectMembership(tenantId: string, roleInTenant?: string): Promise<Membership> {
   const list = await listMembershipsForCurrentUser(true);
   const chosen = list.find(m => m.tenant_id === tenantId) ?? list[0];
   if (!chosen) throw new Error('No memberships');
+  
+  // בקשה לשרת עם tenant + role
+  let boot = await bootstrapSupabaseSession(tenantId, roleInTenant);
+  
+  // אם חזר טננט אחר ממה שביקשנו — ננסה פעם נוספת באופן מפורש
+  if (boot?.farm?.id !== tenantId) {
+    console.warn('server returned different tenant; retrying once...', { asked: tenantId, got: boot?.farm?.id });
+    boot = await bootstrapSupabaseSession(tenantId, roleInTenant);
+  }
 
-  // מנפיקים JWT Tenant ומקימים הקשר
-  const boot = await bootstrapSupabaseSession(tenantId);
-  await setTenantContext({ id: chosen.farm?.id ?? tenantId, schema: chosen.farm?.schema_name ?? 'public', accessToken: boot.access_token });
+  // נרמל לפי התשובה האחרונה מהשרת (היא הקובעת)
+  const normalized: Membership = {
+    tenant_id: boot.farm.id,
+    role_in_tenant: (boot.role_in_tenant as RoleInTenant) ?? chosen.role_in_tenant,
+    farm: boot.farm,
+  };
 
-  // מעדכנים מטא
-  currentFarmMeta = boot.farm ?? chosen.farm ?? currentFarmMeta;
+  // ניקה caches כדי שלא יישארו נתונים מהחווה הקודמת
+  clearDbCache();
+  userCache = null as any;   // <-- אם המשתנה בקובץ הוא local, אל תשכחי לעדכן את שמו
+  
+  clearMembershipCache();
+  
 
-  // מעדכנים cache
-  membershipsCache = list.map(m => m.tenant_id === chosen.tenant_id ? { ...m, role_in_tenant: boot.role_in_tenant ?? m.role_in_tenant, farm: boot.farm ?? m.farm } : m);
+  currentFarmMeta = boot.farm;
+  membershipsCache = list.map(m =>
+    (m.tenant_id === chosen.tenant_id || m.tenant_id === boot.farm.id) ? normalized : m
+  );
 
-  localStorage.setItem('selectedTenant', chosen.tenant_id);
-  return membershipsCache.find(m => m.tenant_id === chosen.tenant_id)!;
+  localStorage.setItem('selectedTenant', normalized.tenant_id);
+  return normalized;
 }
+
 
 /** ===================== PARENT API (per-tenant) ===================== **/
 export async function getCurrentParentDetails(

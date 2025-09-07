@@ -24,9 +24,7 @@ export class SliderComponent implements OnInit {
 
   async ngOnInit() {
     const userData = await getCurrentUserDetails();
-    console.log("!????????????", userData);
     this.role = userData?.role_in_tenant ? userData?.role_in_tenant : '';
-    console.log("!!!!!!!!!", this.role);
     this.setMenuItemsByRole();
 
   }

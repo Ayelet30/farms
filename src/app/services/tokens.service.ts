@@ -25,15 +25,11 @@ export class TokensService {
   }
 
   restoreLasttokens(fallback: string = 'bereshit_farm') {
-    const saved = localStorage.getItem('tokensKey') || fallback;
-    this.applytokens(saved);
+    this.applytokens(fallback);
   }
 
   private resolveHref(tokensKey: string): string {
     // אם ה-baseHref שלך הוא '/', זה יחפש בשורש ה-dist:
     return new URL(`tokens-${tokensKey}.css`, document.baseURI).toString();
-
-    // לחלופין אם שמים תחת assets:
-   //  return "styles/tokens/" + tokensKey + ".tokens.scss";
   }
 }
