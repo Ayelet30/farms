@@ -2,13 +2,18 @@
   <div *ngIf="loading">טוען...</div>
   <div *ngIf="!loading && children.length === 0">אין ילדים להצגה.</div>
 
-  <!-- כפתורים עם שמות הילדים -->
+  <!-- כפתורי בחירת ילד -->
   <div class="children-buttons" *ngIf="children.length > 0">
-    <button *ngFor="let child of children" (click)="toggleChildDetails(child)"
-      [class.active]="selectedChild?.id === child.id" class="child-button">
+    <button
+      *ngFor="let child of children"
+      (click)="toggleChildDetails(child)"
+      [class.active]="selectedChild?.child_uuid === child.child_uuid" 
+      class="child-button"
+    >
       {{ child.full_name }}
     </button>
-    <button (click)="addNewChild()" class="child-button add-button">➕ </button>
+
+    <button (click)="addNewChild()" class="child-button add-button" type="button">➕</button> <!-- CHANGED -->
   </div>
 
   <!-- כרטיס ילד נבחר -->
@@ -22,30 +27,24 @@
       </div>
 
       <div class="button-group">
-        <button *ngIf="!isEditing" (click)="isEditing = true" class="btn-edit">✏️ ערוך</button>
-        <button *ngIf="isEditing" (click)="saveChild()" class="btn-save">💾 שמור</button>
-        <button class="btn-delete" (click)="confirmDeleteChild()">🗑️ הסר</button>
-
+        <button *ngIf="!isEditing" (click)="isEditing = true" class="btn-edit" type="button">✏️ ערוך</button>
+        <button *ngIf="isEditing" (click)="saveChild()" class="btn-save" type="button">💾 שמור</button> <!-- CHANGED -->
+        <button class="btn-delete" (click)="confirmDeleteChild()" type="button">🗑️ הסר</button> <!-- CHANGED -->
       </div>
     </div>
 
-    <p><strong>ת"ז:</strong> {{ selectedChild.id }}</p>
+    <!-- הצגת ת"ז אמיתית מהשדה gov_id במקום id -->
+    <p><strong>ת"ז:</strong> {{ selectedChild.gov_id || '-' }}</p> <!-- CHANGED -->
 
     <p>
-      <strong>גיל:</strong>
-      <span *ngIf="!isEditing">{{ getAge(selectedChild.birth_date) }} שנים</span>
-      <input *ngIf="isEditing" type="number" [(ngModel)]="editableChild.age" class="editable-input" />
-    </p>
+  <strong>גיל:</strong>
+  <span>{{ getAge(selectedChild.birth_date) }} שנים</span>
+</p>
 
-    <p>
-      <strong>מין:</strong>
-      <span *ngIf="!isEditing">{{ selectedChild.gender || '-' }}</span>
-      <select *ngIf="isEditing" [(ngModel)]="editableChild.gender" class="editable-input" required>
-        <option value="" disabled hidden>בחר מין</option>
-        <option value="זכר">זכר</option>
-        <option value="נקבה">נקבה</option>
-      </select>
-    </p>
+<p>
+  <strong>מין:</strong>
+  <span>{{ selectedChild.gender || '-' }}</span>
+</p>
 
     <p>
       <strong>קופת חולים:</strong>
@@ -56,34 +55,49 @@
       </select>
     </p>
 
-    <!-- <p>
+    <p>
+  <strong>הערות רפואיות / רגישויות:</strong>
+  <span *ngIf="!isEditing">{{ selectedChild.medical_notes || '-' }}</span>
+  <textarea
+    *ngIf="isEditing"
+    [(ngModel)]="editableChild.medical_notes"
+    class="editable-input"
+    rows="3"
+    maxlength="4000"
+    placeholder="למשל: רגישות לבוטנים; אלרגיה לפניצילין; אסטמה קלה…"
+  ></textarea>
+</p>
+
+
+    <!-- מדריך (לא חובה כרגע)
+    <p>
       <strong>מדריך:</strong>
       <span *ngIf="!isEditing">{{ selectedChild.instructor || '-' }}</span>
-      <select *ngIf="isEditing" [(ngModel)]="editableChild.instructor" class="editable-input" required>
+      <select *ngIf="isEditing" [(ngModel)]="editableChild.instructor" class="editable-input">
         <option value="" disabled hidden>בחר מדריך</option>
         <option *ngFor="let name of instructors" [value]="name">{{ name }}</option>
       </select>
-    </p> -->
+    </p>
+    -->
 
-   <p>
-  <strong>סטטוס:</strong>
-  <span 
-    [ngClass]="{
-      'status-active': selectedChild.status === 'active',
-      'status-waiting': selectedChild.status === 'waiting',
-      'status-inactive': selectedChild.status !== 'active' && selectedChild.status !== 'waiting'
-    }"
-  >
-    {{
-      selectedChild.status === 'active'
-        ? 'פעיל'
-        : selectedChild.status === 'waiting'
-        ? 'ממתין לאישור מזכירה'
-        : 'לא פעיל'
-    }}
-  </span>
-</p>
-
+    <p>
+      <strong>סטטוס:</strong>
+      <span
+        [ngClass]="{
+          'status-active': selectedChild.status === 'active',
+          'status-waiting': selectedChild.status === 'waiting',
+          'status-inactive': selectedChild.status !== 'active' && selectedChild.status !== 'waiting'
+        }"
+      >
+        {{
+          selectedChild.status === 'active'
+            ? 'פעיל'
+            : selectedChild.status === 'waiting'
+            ? 'ממתין לאישור מזכירה'
+            : 'לא פעיל'
+        }}
+      </span>
+    </p>
   </div>
 </div>
 
@@ -103,15 +117,15 @@
     <label>תעודת זהות</label>
     <input
       class="editable-input"
-      [(ngModel)]="newChild.id"
+      [(ngModel)]="newChild.gov_id" 
       maxlength="9"
       pattern="[0-9]*"
       inputmode="numeric"
       required
       (keypress)="allowOnlyNumbers($event)"
     />
-    <div *ngIf="validationErrors['id']" class="error-msg">
-      {{ validationErrors['id'] }}
+    <div *ngIf="validationErrors['gov_id']" class="error-msg"> <!-- CHANGED -->
+      {{ validationErrors['gov_id'] }}
     </div>
   </div>
 
@@ -145,29 +159,31 @@
       {{ validationErrors['health_fund'] }}
     </div>
   </div>
+  <div class="form-field">
+  <label>הערות רפואיות / רגישויות</label>
+  <textarea
+    class="editable-input"
+    [(ngModel)]="newChild.medical_notes"
+    rows="3"
+    maxlength="4000"
+    placeholder="למשל: רגישות לבוטנים; אלרגיה לפניצילין; אסטמה קלה…"
+  ></textarea>
+</div>
 
-  <!-- <div class="form-field">
-    <label>מדריך</label>
-    <select class="editable-input" [(ngModel)]="newChild.instructor" required>
-      <option value="" disabled hidden>בחר מדריך</option>
-      <option *ngFor="let name of instructors" [value]="name">{{ name }}</option>
-    </select>
-    <div *ngIf="validationErrors['instructor']" class="error-msg">
-      {{ validationErrors['instructor'] }}
-    </div>
-  </div> -->
 
   <div class="button-group">
-    <button class="btn-save" (click)="saveNewChild()">שמור</button>
-    <button class="btn-edit" (click)="cancelNewChild()">ביטול</button>
+    <button class="btn-save" (click)="saveNewChild()" type="button">שמור</button> <!-- CHANGED -->
+    <button class="btn-edit" (click)="cancelNewChild()" type="button">ביטול</button> <!-- CHANGED -->
   </div>
 </div>
+
+<!-- דיאלוג מחיקה -->
 <div class="dialog-overlay" *ngIf="showDeleteConfirm">
   <div class="dialog-box">
     <h3>האם את בטוחה שברצונך להסיר את הילד?</h3>
     <div class="dialog-buttons">
-      <button class="btn-delete" (click)="deleteChild()">אישור</button>
-      <button class="btn-edit" (click)="cancelDelete()">ביטול</button>
+      <button class="btn-delete" (click)="deleteChild()" type="button">אישור</button> <!-- CHANGED -->
+      <button class="btn-edit" (click)="cancelDelete()" type="button">ביטול</button> <!-- CHANGED -->
     </div>
   </div>
 </div>
