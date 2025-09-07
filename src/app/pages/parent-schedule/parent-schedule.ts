@@ -1,21 +1,24 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { getCurrentUserData, getSupabaseClient } from '../../services/supabaseClient';
+import { dbTenant, getCurrentUserData, getSupabaseClient } from '../../services/supabaseClient';
 import { Lesson } from './parent-schedule.model';
+import { ScheduleComponent, ScheduleItem } from '../../custom-widget/schedule/schedule'; // ← חדש
 
-// FullCalendar
-import { FullCalendarModule } from '@fullcalendar/angular';
-import { CalendarOptions } from '@fullcalendar/core';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import heLocale from '@fullcalendar/core/locales/he';
+
+
+// // FullCalendar
+// import { FullCalendarModule } from '@fullcalendar/angular';
+// import { CalendarOptions } from '@fullcalendar/core';
+// import dayGridPlugin from '@fullcalendar/daygrid';
+// import timeGridPlugin from '@fullcalendar/timegrid';
+// import interactionPlugin from '@fullcalendar/interaction';
+// import heLocale from '@fullcalendar/core/locales/he';
 
 @Component({
   selector: 'app-parent-schedule',
   standalone: true,
-  imports: [CommonModule, FormsModule, FullCalendarModule],
+  imports: [CommonModule, FormsModule, ScheduleComponent],
   templateUrl: './parent-schedule.html',
   styleUrls: ['./parent-schedule.css']
 })
@@ -25,35 +28,35 @@ export class ParentScheduleComponent implements OnInit {
   filteredLessons: Lesson[] = [];
   selectedChildId: string = '';
   weekView = true;
-  supabase = getSupabaseClient();
   startDate: string = '';
 endDate: string = '';
+  items: ScheduleItem[] = []; // ← חדש
 
+  // calendarOptions: CalendarOptions = {
+  //   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
+  //   initialView: 'timeGridWeek',
+  //   locale: heLocale,
+  //   headerToolbar: {
+  //     left: 'prev,next today',
+  //     center: 'title',
+  //     right: 'dayGridMonth,timeGridWeek,timeGridDay'
+  //   },
+  //   events: [],
+  //   height: 'auto',
+  //   slotMinTime: '07:00:00',
+  //   slotMaxTime: '21:00:00'
+  //   ,  allDaySlot: false,
 
-  calendarOptions: CalendarOptions = {
-    plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
-    initialView: 'timeGridWeek',
-    locale: heLocale,
-    headerToolbar: {
-      left: 'prev,next today',
-      center: 'title',
-      right: 'dayGridMonth,timeGridWeek,timeGridDay'
-    },
-    events: [],
-    height: 'auto',
-    slotMinTime: '07:00:00',
-    slotMaxTime: '21:00:00'
-    ,  allDaySlot: false,
-
-  };
+  // };
 
   async ngOnInit() {
-    console.log("$$$$$$$$$$$");
     await this.loadChildren();
     await this.loadLessons();
-    this.filterLessons();
-    this.setCalendarEvents();
+    this.setScheduleItems(); // ← כאן
+      this.filterLessons();
+
   }
+  
 getStartOfWeek(): string {
   const today = new Date();
   const diff = today.getDate() - today.getDay() + 1;
@@ -68,119 +71,148 @@ getEndOfWeek(): string {
 }
 
   async loadChildren() {
-    try {
-      const user = await getCurrentUserData();
-      if (!user?.uid) {
-        console.error('User UID not found');
-        this.children = [];
-        return;
-      }
+  try {
+    const user = await getCurrentUserData();
+    if (!user?.uid) { this.children = []; return; }
 
-      const { data: parentData, error: parentError } = await this.supabase
-        .from('parents')
-        .select('*')
-        .eq('uid', user.uid)
-        .single();
+    const dbc = dbTenant(); // <-- CHANGED: לקוח סכימת טננט
 
-      if (parentError || !parentData) {
-        console.error('Parent not found');
-        this.children = [];
-        return;
-      }
+    const { data: parent, error: e1 } = await dbc
+      .from('parents')
+      .select('uid')
+      .eq('uid', user.uid)
+      .maybeSingle(); // עדיף maybeSingle כדי לא להפיל אם אין
 
-      const { data: childrenData, error: childrenError } = await this.supabase
-        .from('children')
-        .select('id, full_name')
-        .eq('parent_uid', parentData.uid)
-        .eq('status', 'active');
-
-      if (childrenError) {
-        console.error('Error loading children:', childrenError.message);
-        this.children = [];
-        return;
-      }
-
-      this.children = childrenData ?? [];
-
-      if (this.children.length > 0) {
-        this.selectedChildId = this.children[0].id;
-      }
-
-    } catch (err) {
-      console.error('Unexpected error loading children:', err);
+    if (e1 || !parent) {
+      console.error('Parent not found', e1);
       this.children = [];
-    }
-  }
-
-  async loadLessons() {
-    const { data, error } = await this.supabase
-      .from('lessons')
-      .select('*, instructors(full_name)')
-      .in('child_id', this.children.map(c => c.id));
-
-    if (!data || error) {
-      this.lessons = [];
       return;
     }
 
-    this.lessons = data.map((lesson: any) => ({
-      ...lesson,
-      instructor_name: lesson.instructors?.full_name || '',
-      child_color: this.getColorForChild(lesson.child_id),
-      child_name: this.children.find(c => c.id === lesson.child_id)?.full_name || ''
-    }));
+    const { data: kids, error: e2 } = await dbc
+      .from('children')
+      .select('child_uuid, full_name, status')
+      .eq('parent_uid', parent.uid)
+      .eq('status', 'active');
+
+    if (e2) { console.error('Error loading children:', e2); this.children = []; return; }
+
+    this.children = kids ?? [];
+    if (this.children.length > 0) {
+      this.selectedChildId = this.children[0].child_uuid; // <-- CHANGED
+    }
+  } catch (err) {
+    console.error('Unexpected error loading children:', err);
+    this.children = [];
+  }
+}
+async loadLessons() {
+  const dbc = dbTenant();
+  const childIds = this.children.map(c => c.child_uuid);
+  if (childIds.length === 0) { this.lessons = []; return; }
+
+  // טווח: 8 שבועות קדימה
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+  // טיפוס מקומי לשורה שחוזרת מה-View
+type LessonsOccurrenceRow = {
+  lesson_id: string;
+  child_id: string;
+  instructor_id: string | null;
+  lesson_type: 'רגיל' | 'השלמה';
+  status: 'ממתין לאישור' | 'אושר' | 'בוטל' | 'הושלם';
+  day_of_week: string;     // ← נוסף
+  start_time: string;      // ← נוסף (פורמט time של PG יגיע כמחרוזת)
+  end_time: string;        // ← נוסף
+  start_datetime: string;
+  end_datetime: string;
+};
+
+const { data, error } = await dbc
+  .from('lessons_occurrences')
+  .select('lesson_id, child_id, instructor_id, lesson_type, status, day_of_week, start_time, end_time, start_datetime, end_datetime')
+  .in('child_id', childIds)
+  .gte('occur_date', today)
+  .lte('occur_date', in8Weeks);
+
+  if (error) {
+    console.error('Error loading lesson occurrences:', error);
+    this.lessons = [];
+    return;
   }
 
-  filterLessons() {
-  if (this.selectedChildId === 'all') {
-    this.filteredLessons = this.lessons;
-  } else {
-    this.filteredLessons = this.lessons.filter(
-      l => l.child_id === this.selectedChildId
-    );
+  const rows = (data ?? []) as LessonsOccurrenceRow[];
+
+  // אוספים מזהי מדריכים (string) עם type predicate כדי לשמח את TS
+  const instructorIds = Array.from(
+    new Set(
+      rows
+        .map((r: LessonsOccurrenceRow) => r.instructor_id)
+        .filter((x: string | null): x is string => !!x)
+    )
+  );
+
+  // מפה id_number -> full_name
+  let instructorNameById: Record<string, string> = {};
+  if (instructorIds.length > 0) {
+    const { data: inst } = await dbc
+      .from('instructors')
+      .select('id_number, full_name')
+      .in('id_number', instructorIds);
+
+    const instRows = (inst ?? []) as { id_number: string; full_name: string }[];
+    const map: Record<string, string> = {};
+    for (const row of instRows) {
+      map[row.id_number] = row.full_name ?? '';
+    }
+    instructorNameById = map;
   }
+
+  // מיפוי לשיעורים שלך + שדות datetime לתצוגה
+  this.lessons = rows.map((r: LessonsOccurrenceRow) => ({
+  id: String(r.lesson_id),
+  child_id: r.child_id,
+  day_of_week: r.day_of_week,     // ← הוחזר
+  start_time: r.start_time,       // ← הוחזר
+  end_time: r.end_time,           // ← הוחזר
+  lesson_type: r.lesson_type,
+  status: r.status,
+  instructor_id: r.instructor_id ?? '',  // ← המרה ל-string כדי להתאים למודל
+  instructor_name: r.instructor_id ? (instructorNameById[r.instructor_id] ?? '') : '',
+  child_color: this.getColorForChild(r.child_id),
+  child_name: this.children.find(c => c.child_uuid === r.child_id)?.full_name || '',
+  // שדות חדשים (אם הוספת למודל כאופציונליים)
+  start_datetime: r.start_datetime,
+  end_datetime: r.end_datetime,
+}));
+
+}
+
+  getLessonDateTime(dayName: string, timeStr: string): string {
+  const dayMap: Record<string, number> = {
+    'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6
+  };
+
+  const today = new Date();
+  const currentDay = today.getDay(); // 0=Sunday
+  const targetDay = dayMap[dayName];
+  const diff = (targetDay - currentDay + 7) % 7;
+
+  const eventDate = new Date(today);
+  eventDate.setDate(today.getDate() + diff);
+
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  eventDate.setHours(hours, minutes, 0, 0);
+
+  return this.toLocalIso(eventDate); // ← ללא Z
 }
 
 
-  setCalendarEvents() {
-    this.calendarOptions.events = this.filteredLessons.map(lesson => ({
-      id: lesson.id,
-      title: `${lesson.lesson_type} עם ${lesson.instructor_name}`,
-      start: this.getLessonDateTime(lesson.day_of_week, lesson.start_time),
-      end: this.getLessonDateTime(lesson.day_of_week, lesson.end_time),
-      backgroundColor: lesson.child_color,
-      borderColor: lesson.child_color
-    }));
-  }
-
-  getLessonDateTime(dayName: string, timeStr: string): string {
-    const dayMap: Record<string, number> = {
-      'ראשון': 0,
-      'שני': 1,
-      'שלישי': 2,
-      'רביעי': 3,
-      'חמישי': 4,
-      'שישי': 5,
-      'שבת': 6
-    };
-
-    const today = new Date();
-    const currentDay = today.getDay(); // 0=Sunday
-    const targetDay = dayMap[dayName];
-    const diff = (targetDay - currentDay + 7) % 7;
-    const eventDate = new Date(today);
-    eventDate.setDate(today.getDate() + diff);
-
-    const [hours, minutes] = timeStr.split(':');
-    eventDate.setHours(+hours, +minutes, 0);
-
-    return eventDate.toISOString();
-  }
-
   getColorForChild(child_id: string): string {
-  const index = this.children.findIndex(c => c.id === child_id);
+    const index = this.children.findIndex(c => c.child_uuid === child_id);  // CHANGED
   const colors = ['#d8f3dc', '#fbc4ab', '#cdb4db', '#b5ead7', '#ffdac1'];
-  return colors[index % colors.length];
+  return colors[(index >= 0 ? index : 0) % colors.length];
 }
 dropdownOpen = false;
 
@@ -191,8 +223,8 @@ selectChild(childId: string) {
 }
 
 getChildName(childId: string): string | null {
-  if (childId === 'all') return null;
-  return this.children.find(c => c.id === childId)?.full_name || null;
+if (childId === 'all') return null;
+  return this.children.find(c => c.child_uuid === childId)?.full_name || null; 
 }
 
 
@@ -201,11 +233,93 @@ getChildName(childId: string): string | null {
     this.weekView = !this.weekView;
   }
 
-  refresh() {
-    this.loadLessons().then(() => {
-      this.filterLessons();
-      this.setCalendarEvents();
-    });
+  // refresh() {
+  //   this.loadLessons().then(() => {
+  //     this.filterLessons();
+  //     this.setCalendarEvents();
+  //   });
+  // }
+   refresh() {
+  this.loadLessons().then(() => {
+    this.filterLessons();
+    this.setScheduleItems(); // ← כאן
+  });
+}
+
+  // מסננת את השיעורים לפי הילד הנבחר
+filterLessons() {
+  if (this.selectedChildId === 'all' || !this.selectedChildId) {
+    this.filteredLessons = this.lessons;
+  } else {
+    this.filteredLessons = this.lessons.filter(l => l.child_id === this.selectedChildId);
+  }
+}
+
+// ב-ParentScheduleComponent (בתוך ה-class)
+// במקום setCalendarEvents()
+private toIsoLocal(s?: string): string | undefined {
+  if (!s) return undefined;
+  // Supabase מחזיר "YYYY-MM-DD HH:MM:SS" (בלי T)
+  // FullCalendar מסתדר יופי עם "YYYY-MM-DDTHH:MM:SS" (לוקאלי, בלי Z)
+  return s.includes('T') ? s : s.replace(' ', 'T');
+}
+/** מחזיר ISO עם T (ללא Z) או fallback אם אין ערך */
+private isoWithTFallback(s: string | undefined | null, fallbackIso: string): string {
+  if (s && s.trim() !== '') {
+    const v = s.trim();
+    return v.includes('T') ? v : v.replace(' ', 'T');
+  }
+  return fallbackIso; // תמיד string
+}
+
+/** ISO לוקאלי ללא Z (כדי לא להזיז שעות) */
+private toLocalIso(date: Date): string {
+  const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
+  return (
+    date.getFullYear() + '-' +
+    pad(date.getMonth() + 1) + '-' +
+    pad(date.getDate()) + 'T' +
+    pad(date.getHours()) + ':' +
+    pad(date.getMinutes()) + ':' +
+    pad(date.getSeconds())
+  );
+}
+
+setScheduleItems() {
+  const src = (this.filteredLessons?.length ? this.filteredLessons : this.lessons) ?? [];
+
+  this.items = src.map((lesson) => {
+    const startFallback = this.getLessonDateTime(lesson.day_of_week, lesson.start_time);
+    const endFallback   = this.getLessonDateTime(lesson.day_of_week, lesson.end_time);
+
+    const start = this.isoWithTFallback(lesson.start_datetime, startFallback);
+    const end   = this.isoWithTFallback(lesson.end_datetime,   endFallback);
+
+    return {
+      id: lesson.id,
+      title: `${lesson.lesson_type}${lesson.instructor_name ? ' עם ' + lesson.instructor_name : ''}`,
+      start,                // תמיד string
+      end,                  // תמיד string
+      color: lesson.child_color,
+      meta: {
+        status: lesson.status,
+        child_id: lesson.child_id,
+        child_name: lesson.child_name,
+        instructor_id: lesson.instructor_id,
+        instructor_name: lesson.instructor_name,
+      },
+    } satisfies ScheduleItem; // אופציונלי: אימות טייפ בזמן קומפילציה
+  });
+}
+
+
+
+    // מאזינים אופציונליים מהווידג'ט
+  onEventClick(item: ScheduleItem) {
+    console.log('event clicked', item);
+  }
+  onDateClick(dateIso: string) {
+    console.log('date clicked', dateIso);
   }
 
   print() {
