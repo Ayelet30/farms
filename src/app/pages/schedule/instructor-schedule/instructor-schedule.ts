@@ -1,3 +1,4 @@
+
 // instructor-schedule.component.ts
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -9,7 +10,7 @@ import type { ScheduleItem } from '../../../models/schedule-item.model'
 @Component({
   selector: 'schedule-app',
   standalone: true,
-  imports: [CommonModule, ScheduleComponent],
+  imports: [CommonModule],
   templateUrl: './instructor-schedule.html',
   styleUrls: ['./instructor-schedule.scss'],
 })

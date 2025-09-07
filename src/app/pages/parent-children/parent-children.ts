@@ -6,6 +6,7 @@ import {
   fetchMyChildren,           // נשתמש עם select מלא
   getCurrentUserData         // בשביל parent_uid ב-INSERT
 } from '../../services/supabaseClient';
+import { ScheduleComponent } from "../../custom-widget/schedule/schedule";
 
 @Component({
   selector: 'app-parent-children',
@@ -29,7 +30,7 @@ export class ParentChildrenComponent implements OnInit {
   
 
 private readonly CHILD_SELECT =
-  'child_uuid, gov_id, full_name, birth_date, gender, health_fund, instructor, parent_uid, status, medical_notes';
+  'child_uuid, gov_id, full_name, birth_date, gender, health_fund, instructor_id, parent_uid, status, medical_notes';
 
   async ngOnInit() {
     await this.loadChildren();
@@ -37,7 +38,7 @@ private readonly CHILD_SELECT =
 
   async loadChildren() {
     this.loading = true;
-    const res = await fetchMyChildren(this.CHILD_SELECT); // CHANGED
+    const res = await fetchMyChildren(this.CHILD_SELECT); 
     this.loading = false;
 
     if (!res.ok) {
