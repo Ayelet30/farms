@@ -1,0 +1,67 @@
+
+:host { display: block; }
+
+/* FullCalendar - יישור לימין */
+::ng-deep .fc {
+  direction: rtl !important;
+  text-align: right;
+}
+
+::ng-deep .fc-toolbar-title {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+/* עיצוב אירועים */
+::ng-deep .fc-daygrid-event,
+::ng-deep .fc-timegrid-event {
+  font-size: 12px;
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+
+/* שורת הימים דביקה */
+::ng-deep .fc-col-header {
+  position: sticky;
+  top: 0;
+  background-color: white;
+  z-index: 100;
+  border-bottom: 1px solid #ccc;
+}
+
+/* עיצוב תאי כותרת הימים */
+::ng-deep .fc-col-header-cell {
+  box-sizing: border-box;
+  padding: 8px 4px;
+  text-align: center;
+  white-space: nowrap;
+  border-right: 1px solid #e0e0e0;
+}
+
+::ng-deep .fc-col-header-cell:not(:last-child) {
+  border-left: 1px solid #e0e0e0;
+}
+
+/* סנכרון טבלאות - כותרת + גוף */
+::ng-deep .fc .fc-scrollgrid,
+::ng-deep .fc .fc-col-header,
+::ng-deep .fc .fc-timegrid-body {
+  table-layout: fixed !important;
+}
+
+/* ביטול שורת כל היום */
+::ng-deep .fc-timegrid-all-day,
+::ng-deep .fc-timegrid-axis-frame {
+  display: none !important;
+}
+
+/* קווים אופקיים אחידים */
+::ng-deep .fc-timegrid-slot {
+  border-top: 1px solid #e0e0e0 !important;
+}
+
+/* גלילה אנכית נוחה */
+::ng-deep .fc-scroller-harness {
+  overflow-y: auto !important;
+  max-height: 600px;
+}

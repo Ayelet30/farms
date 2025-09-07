@@ -1,29 +1,43 @@
+
+
+
+
+
+
+
+
 <div class="schedule-wrapper">
-  <!-- 🔽 בחירת ילד -->
+  <!-- 🔽 בחירת ילד (נשאר אצל ההורה) -->
   <div class="toolbar">
-  <div class="custom-dropdown">
-  <div class="selected-child" [ngStyle]="{ 'background-color': getColorForChild(selectedChildId) }"
-       (click)="dropdownOpen = !dropdownOpen">
-    {{ getChildName(selectedChildId) || '📚 כל הילדים' }}
-    <span class="arrow">&#9660;</span>
+    <div class="custom-dropdown">
+      <div class="selected-child"
+           [ngStyle]="{ 'background-color': getColorForChild(selectedChildId) }"
+           (click)="dropdownOpen = !dropdownOpen">
+        {{ getChildName(selectedChildId) || '📚 כל הילדים' }}
+        <span class="arrow">&#9660;</span>
+      </div>
+
+      <ul class="dropdown-list" *ngIf="dropdownOpen">
+        <li (click)="selectChild('all')" [ngStyle]="{ 'background-color': '#eee' }">📚 כל הילדים</li>
+        <li *ngFor="let child of children"
+            (click)="selectChild(child.child_uuid)"
+            [ngStyle]="{ 'background-color': getColorForChild(child.child_uuid) }">
+          {{ child.full_name }}
+        </li>
+      </ul>
+    </div>
   </div>
 
-  <ul class="dropdown-list" *ngIf="dropdownOpen">
-    <li (click)="selectChild('all')" [ngStyle]="{ 'background-color': '#eee' }">
-      📚 כל הילדים
-    </li>
-    <li *ngFor="let child of children"
-        (click)="selectChild(child.id)"
-        [ngStyle]="{ 'background-color': getColorForChild(child.id) }">
-      {{ child.full_name }}
-    </li>
-  </ul>
+  <!-- 📅 הווידג'ט החדש -->
+  <app-schedule
+    [items]="items"
+    [initialView]="'timeGridWeek'"
+    [rtl]="true"
+    [slotMinTime]="'07:00:00'"
+    [slotMaxTime]="'21:00:00'"
+    [allDaySlot]="false"
+    (eventClick)="onEventClick($event)"
+    (dateClick)="onDateClick($event)"
+  ></app-schedule>
 </div>
 
-
-
-  </div>
-
-  <!-- 📅 FullCalendar -->
-  <full-calendar [options]="calendarOptions"></full-calendar>
-</div>
