@@ -24,13 +24,14 @@ export interface UserDetails {
   selectedTenantId?: string | null; // ← אופ
 };
 
-export type ChildRow = {
-  id: string;
-  parent_id: string;
-  full_name?: string;
-  first_name?: string;
-  last_name?: string;
-  class_id?: string;
-  grade?: string;
-  // הוסיפי כאן שדות רלוונטיים מהטבלה שלכם
-};
+export type ChildRow =
+  Record<string, string | null | undefined> & {
+    id: string;
+    parent_id: string;
+    full_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    class_id?: string | null;
+    grade?: string | null;
+    status?: 'active' | 'deleted' | null;
+  };

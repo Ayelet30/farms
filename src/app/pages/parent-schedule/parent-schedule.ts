@@ -7,14 +7,6 @@ import { ScheduleComponent, ScheduleItem } from '../../custom-widget/schedule/sc
 
 
 
-// // FullCalendar
-// import { FullCalendarModule } from '@fullcalendar/angular';
-// import { CalendarOptions } from '@fullcalendar/core';
-// import dayGridPlugin from '@fullcalendar/daygrid';
-// import timeGridPlugin from '@fullcalendar/timegrid';
-// import interactionPlugin from '@fullcalendar/interaction';
-// import heLocale from '@fullcalendar/core/locales/he';
-
 @Component({
   selector: 'app-parent-schedule',
   standalone: true,
@@ -30,29 +22,13 @@ export class ParentScheduleComponent implements OnInit {
   weekView = true;
   startDate: string = '';
 endDate: string = '';
-  items: ScheduleItem[] = []; // ← חדש
+  items: ScheduleItem[] = []; 
 
-  // calendarOptions: CalendarOptions = {
-  //   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
-  //   initialView: 'timeGridWeek',
-  //   locale: heLocale,
-  //   headerToolbar: {
-  //     left: 'prev,next today',
-  //     center: 'title',
-  //     right: 'dayGridMonth,timeGridWeek,timeGridDay'
-  //   },
-  //   events: [],
-  //   height: 'auto',
-  //   slotMinTime: '07:00:00',
-  //   slotMaxTime: '21:00:00'
-  //   ,  allDaySlot: false,
-
-  // };
 
   async ngOnInit() {
     await this.loadChildren();
     await this.loadLessons();
-    this.setScheduleItems(); // ← כאן
+    this.setScheduleItems(); 
       this.filterLessons();
 
   }
@@ -75,13 +51,13 @@ getEndOfWeek(): string {
     const user = await getCurrentUserData();
     if (!user?.uid) { this.children = []; return; }
 
-    const dbc = dbTenant(); // <-- CHANGED: לקוח סכימת טננט
+    const dbc = dbTenant(); 
 
     const { data: parent, error: e1 } = await dbc
       .from('parents')
       .select('uid')
       .eq('uid', user.uid)
-      .maybeSingle(); // עדיף maybeSingle כדי לא להפיל אם אין
+      .maybeSingle(); 
 
     if (e1 || !parent) {
       console.error('Parent not found', e1);
@@ -99,7 +75,7 @@ getEndOfWeek(): string {
 
     this.children = kids ?? [];
     if (this.children.length > 0) {
-      this.selectedChildId = this.children[0].child_uuid; // <-- CHANGED
+      this.selectedChildId = this.children[0].child_uuid; 
     }
   } catch (err) {
     console.error('Unexpected error loading children:', err);
@@ -115,16 +91,15 @@ async loadLessons() {
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 
-  // טיפוס מקומי לשורה שחוזרת מה-View
 type LessonsOccurrenceRow = {
   lesson_id: string;
   child_id: string;
   instructor_id: string | null;
   lesson_type: 'רגיל' | 'השלמה';
   status: 'ממתין לאישור' | 'אושר' | 'בוטל' | 'הושלם';
-  day_of_week: string;     // ← נוסף
-  start_time: string;      // ← נוסף (פורמט time של PG יגיע כמחרוזת)
-  end_time: string;        // ← נוסף
+  day_of_week: string;     
+  start_time: string;      
+  end_time: string;       
   start_datetime: string;
   end_datetime: string;
 };
@@ -144,7 +119,6 @@ const { data, error } = await dbc
 
   const rows = (data ?? []) as LessonsOccurrenceRow[];
 
-  // אוספים מזהי מדריכים (string) עם type predicate כדי לשמח את TS
   const instructorIds = Array.from(
     new Set(
       rows
@@ -153,7 +127,6 @@ const { data, error } = await dbc
     )
   );
 
-  // מפה id_number -> full_name
   let instructorNameById: Record<string, string> = {};
   if (instructorIds.length > 0) {
     const { data: inst } = await dbc
@@ -169,20 +142,18 @@ const { data, error } = await dbc
     instructorNameById = map;
   }
 
-  // מיפוי לשיעורים שלך + שדות datetime לתצוגה
   this.lessons = rows.map((r: LessonsOccurrenceRow) => ({
   id: String(r.lesson_id),
   child_id: r.child_id,
-  day_of_week: r.day_of_week,     // ← הוחזר
-  start_time: r.start_time,       // ← הוחזר
-  end_time: r.end_time,           // ← הוחזר
+  day_of_week: r.day_of_week,     
+  start_time: r.start_time,       
+  end_time: r.end_time,           
   lesson_type: r.lesson_type,
   status: r.status,
-  instructor_id: r.instructor_id ?? '',  // ← המרה ל-string כדי להתאים למודל
+  instructor_id: r.instructor_id ?? '',  
   instructor_name: r.instructor_id ? (instructorNameById[r.instructor_id] ?? '') : '',
   child_color: this.getColorForChild(r.child_id),
   child_name: this.children.find(c => c.child_uuid === r.child_id)?.full_name || '',
-  // שדות חדשים (אם הוספת למודל כאופציונליים)
   start_datetime: r.start_datetime,
   end_datetime: r.end_datetime,
 }));
@@ -210,7 +181,7 @@ const { data, error } = await dbc
 
 
   getColorForChild(child_id: string): string {
-    const index = this.children.findIndex(c => c.child_uuid === child_id);  // CHANGED
+    const index = this.children.findIndex(c => c.child_uuid === child_id);  
   const colors = ['#d8f3dc', '#fbc4ab', '#cdb4db', '#b5ead7', '#ffdac1'];
   return colors[(index >= 0 ? index : 0) % colors.length];
 }
@@ -233,16 +204,10 @@ if (childId === 'all') return null;
     this.weekView = !this.weekView;
   }
 
-  // refresh() {
-  //   this.loadLessons().then(() => {
-  //     this.filterLessons();
-  //     this.setCalendarEvents();
-  //   });
-  // }
    refresh() {
   this.loadLessons().then(() => {
     this.filterLessons();
-    this.setScheduleItems(); // ← כאן
+    this.setScheduleItems();
   });
 }
 
@@ -255,15 +220,11 @@ filterLessons() {
   }
 }
 
-// ב-ParentScheduleComponent (בתוך ה-class)
-// במקום setCalendarEvents()
 private toIsoLocal(s?: string): string | undefined {
   if (!s) return undefined;
   // Supabase מחזיר "YYYY-MM-DD HH:MM:SS" (בלי T)
-  // FullCalendar מסתדר יופי עם "YYYY-MM-DDTHH:MM:SS" (לוקאלי, בלי Z)
   return s.includes('T') ? s : s.replace(' ', 'T');
 }
-/** מחזיר ISO עם T (ללא Z) או fallback אם אין ערך */
 private isoWithTFallback(s: string | undefined | null, fallbackIso: string): string {
   if (s && s.trim() !== '') {
     const v = s.trim();
@@ -308,7 +269,7 @@ setScheduleItems() {
         instructor_id: lesson.instructor_id,
         instructor_name: lesson.instructor_name,
       },
-    } satisfies ScheduleItem; // אופציונלי: אימות טייפ בזמן קומפילציה
+    } satisfies ScheduleItem; 
   });
 }
 

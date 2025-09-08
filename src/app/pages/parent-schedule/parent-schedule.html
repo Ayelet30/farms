@@ -1,11 +1,3 @@
-
-
-
-
-
-
-
-
 <div class="schedule-wrapper">
   <!-- 🔽 בחירת ילד (נשאר אצל ההורה) -->
   <div class="toolbar">
@@ -16,7 +8,6 @@
         {{ getChildName(selectedChildId) || '📚 כל הילדים' }}
         <span class="arrow">&#9660;</span>
       </div>
-
       <ul class="dropdown-list" *ngIf="dropdownOpen">
         <li (click)="selectChild('all')" [ngStyle]="{ 'background-color': '#eee' }">📚 כל הילדים</li>
         <li *ngFor="let child of children"
