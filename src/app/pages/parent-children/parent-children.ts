@@ -1,6 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import type { ChildRow } from '../../Types/detailes.model';
+
 import {
   dbTenant,                  // : לעבוד מול סכימת הטננט
   fetchMyChildren,           // נשתמש עם select מלא
@@ -28,6 +30,7 @@ export class ParentChildrenComponent implements OnInit {
   validationErrors: { [key: string]: string } = {};
   newChild: any = null;
   
+  
 
 private readonly CHILD_SELECT =
   'child_uuid, gov_id, full_name, birth_date, gender, health_fund, instructor_id, parent_uid, status, medical_notes';
@@ -36,17 +39,39 @@ private readonly CHILD_SELECT =
     await this.loadChildren();
   }
 
-  async loadChildren() {
-    this.loading = true;
-    const res = await fetchMyChildren(this.CHILD_SELECT); 
-    this.loading = false;
 
-    if (!res.ok) {
-      this.error = res.error;
-    } else {
-      this.children = res.data ?? [];
-    }
+
+async loadChildren(): Promise<void> {
+  this.loading = true;
+
+  const baseSelect =
+    this.CHILD_SELECT && this.CHILD_SELECT.trim().length
+      ? this.CHILD_SELECT
+      : 'id, parent_id, full_name, status';
+
+  const hasStatus = /(^|,)\s*status\s*(,|$)/.test(baseSelect);
+  const selectWithStatus = hasStatus ? baseSelect : `${baseSelect}, status`;
+
+  const res = await fetchMyChildren(selectWithStatus);
+  this.loading = false;
+
+  if (!res.ok) {
+    this.error = res.error;
+    return;
   }
+
+  const data = (res.data ?? []) as ChildRow[];
+
+  const rows = data.filter(r => r.status !== 'deleted');
+
+  this.children = rows;
+
+  if (this.selectedChild && !rows.some(r => r.id === this.selectedChild)) {
+    this.selectedChild = rows[0]?.id ?? '';
+  }
+
+}
+
 
 toggleChildDetails(child: any) {
   this.selectedChild = this.selectedChild?.child_uuid === child.child_uuid ? null : child;
@@ -84,7 +109,7 @@ async saveChild() {
       .from('children')
       .update({
         full_name: this.editableChild.full_name,
-        birth_date: newBirthDate,                        // אופציונלי לעריכה
+        birth_date: newBirthDate,                        
         health_fund: this.editableChild.health_fund,
         instructor: this.editableChild.instructor || null,
         medical_notes: this.editableChild.medical_notes || null
@@ -237,10 +262,11 @@ async saveChild() {
     if (!this.selectedChild?.child_uuid) return; 
 
     const dbc = dbTenant();
-    const { error } = await dbc
+    const { data, error } = await dbc
       .from('children')
       .update({ status: 'deleted' })
-      .eq('child_uuid', this.selectedChild.child_uuid); // CHANGED
+      .eq('child_uuid', this.selectedChild.child_uuid).select('child_uuid, status')
+    .single(); 
 
     if (error) {
       console.error('שגיאה במחיקה:', error);
