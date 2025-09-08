@@ -1,7 +1,7 @@
-<div class="notes-container">
+<div class="message-container">
   <h2>📨 שלח הודעה למשרד</h2>
 
-  <form (ngSubmit)="submitNote()" #noteForm="ngForm">
+  <form (ngSubmit)="submitMessage()" #noteForm="ngForm">
     <label for="subject">נושא</label>
     <select id="subject" [(ngModel)]="newNote.subject" name="subject" required>
       <option value="" disabled selected hidden>בחר נושא</option>
@@ -30,7 +30,7 @@
     🔍 {{ showHistory ? 'הסתר את ההערות שנשלחו' : 'הצג את ההערות שנשלחו בעבר' }}
   </button>
 
-  <div *ngIf="showHistory" class="notes-history">
+  <div *ngIf="showHistory" class="message-history">
     <table>
       <thead>
         <tr>
