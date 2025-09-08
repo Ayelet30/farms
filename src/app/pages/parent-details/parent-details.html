@@ -1,5 +1,6 @@
 <div *ngIf="!loading && parent" class="child-card">
   <div class="child-header">
+    <p *ngIf="infoMessage" class="inline-message" aria-live="polite">{{ infoMessage }}</p>
     <div *ngIf="!isEditing">
       <h3>{{ parent.full_name }}</h3>
     </div>

@@ -123,3 +123,10 @@
   font-size: 12px;
   margin-top: 4px;
 }
+.inline-message {
+  direction: rtl;
+  margin: 8px 0 12px;
+  color: #167516;      /* ירוק נעים */
+  font-weight: 600;
+}
+
