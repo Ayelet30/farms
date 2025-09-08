@@ -39,6 +39,15 @@
   justify-content: space-between;
   align-items: center;
 }
+.info-banner {
+  direction: rtl;
+  padding: 10px 14px;
+  margin: 8px 0 16px;
+  border-radius: 10px;
+  background: #eef8ee;      /* ירקרק עדין */
+  border: 1px solid #cce8cc; 
+  font-weight: 600;
+}
 
 .editable-title {
   font-size: 20px;

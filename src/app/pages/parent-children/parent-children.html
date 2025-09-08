@@ -1,8 +1,9 @@
 <div class="children-container">
   <div *ngIf="loading">טוען...</div>
   <div *ngIf="!loading && children.length === 0">אין ילדים להצגה.</div>
+    <div *ngIf="infoMessage" class="info-banner">{{ infoMessage }}</div>
 
-  <!-- כפתורי בחירת ילד -->
+
   <div class="children-buttons" *ngIf="children.length > 0">
     <button
       *ngFor="let child of children"
@@ -34,7 +35,7 @@
     </div>
 
     <!-- הצגת ת"ז אמיתית מהשדה gov_id במקום id -->
-    <p><strong>ת"ז:</strong> {{ selectedChild.gov_id || '-' }}</p> <!-- CHANGED -->
+    <p><strong>ת"ז:</strong> {{ selectedChild.gov_id || '-' }}</p> 
 
     <p>
   <strong>גיל:</strong>
@@ -67,18 +68,6 @@
     placeholder="למשל: רגישות לבוטנים; אלרגיה לפניצילין; אסטמה קלה…"
   ></textarea>
 </p>
-
-
-    <!-- מדריך (לא חובה כרגע)
-    <p>
-      <strong>מדריך:</strong>
-      <span *ngIf="!isEditing">{{ selectedChild.instructor || '-' }}</span>
-      <select *ngIf="isEditing" [(ngModel)]="editableChild.instructor" class="editable-input">
-        <option value="" disabled hidden>בחר מדריך</option>
-        <option *ngFor="let name of instructors" [value]="name">{{ name }}</option>
-      </select>
-    </p>
-    -->
 
     <p>
       <strong>סטטוס:</strong>
@@ -168,12 +157,13 @@
     maxlength="4000"
     placeholder="למשל: רגישות לבוטנים; אלרגיה לפניצילין; אסטמה קלה…"
   ></textarea>
+  
 </div>
 
 
   <div class="button-group">
-    <button class="btn-save" (click)="saveNewChild()" type="button">שמור</button> <!-- CHANGED -->
-    <button class="btn-edit" (click)="cancelNewChild()" type="button">ביטול</button> <!-- CHANGED -->
+    <button class="btn-save" (click)="saveNewChild()" type="button">שמור</button> 
+    <button class="btn-edit" (click)="cancelNewChild()" type="button">ביטול</button> 
   </div>
 </div>
 
@@ -182,8 +172,8 @@
   <div class="dialog-box">
     <h3>האם את בטוחה שברצונך להסיר את הילד?</h3>
     <div class="dialog-buttons">
-      <button class="btn-delete" (click)="deleteChild()" type="button">אישור</button> <!-- CHANGED -->
-      <button class="btn-edit" (click)="cancelDelete()" type="button">ביטול</button> <!-- CHANGED -->
+      <button class="btn-delete" (click)="deleteChild()" type="button">אישור</button> 
+      <button class="btn-edit" (click)="cancelDelete()" type="button">ביטול</button>
     </div>
   </div>
 </div>
