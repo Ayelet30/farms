@@ -5,7 +5,7 @@ import type { ChildRow } from '../../Types/detailes.model';
 
 import {
   dbTenant,                  // : לעבוד מול סכימת הטננט
-  fetchMyChildren,           // נשתמש עם select מלא
+  fetchMyChildren,           //   select מלא
   getCurrentUserData         // בשביל parent_uid ב-INSERT
 } from '../../services/supabaseClient';
 
@@ -15,6 +15,7 @@ import {
   imports: [CommonModule, FormsModule],
   templateUrl: './parent-children.html',
   styleUrls: ['./parent-children.css']
+  
 })
 export class ParentChildrenComponent implements OnInit {
   children: any[] = [];
@@ -23,6 +24,8 @@ export class ParentChildrenComponent implements OnInit {
   isEditing = false;
   loading = true;
   error: string | undefined;
+  infoMessage: string | null = null;
+private infoTimer: any;
 
 
   healthFunds: string[] = ['כללית', 'מאוחדת', 'מכבי', 'לאומית'];
@@ -37,7 +40,11 @@ private readonly CHILD_SELECT =
   async ngOnInit() {
     await this.loadChildren();
   }
-
+private showInfo(msg: string, ms = 5000) {
+  this.infoMessage = msg;
+  if (this.infoTimer) clearTimeout(this.infoTimer);
+  this.infoTimer = setTimeout(() => (this.infoMessage = null), ms);
+}
 
 
 async loadChildren(): Promise<void> {
@@ -207,8 +214,7 @@ async saveChild() {
       full_name: this.newChild.full_name,
       birth_date: this.newChild.birth_date,
       gender: this.newChild.gender,
-      health_fund: this.newChild.health_fund,
-      instructor: this.newChild.instructor || null,
+      health_fund: this.newChild.health_fund,      
       status: 'waiting',
       parent_uid: parentUid , 
       medical_notes: this.newChild.medical_notes || null
@@ -233,6 +239,8 @@ async saveChild() {
 
     await this.loadChildren();
     this.newChild = null;
+    this.showInfo('הוספת הילד עברה לאישור מזכירה');
+
   }
 
   allowOnlyNumbers(event: KeyboardEvent) {
@@ -263,7 +271,7 @@ async saveChild() {
     const dbc = dbTenant();
     const { data, error } = await dbc
       .from('children')
-      .update({ status: 'deleted' })
+      .update({ status: 'waiting' })
       .eq('child_uuid', this.selectedChild.child_uuid).select('child_uuid, status')
     .single(); 
 
@@ -277,5 +285,7 @@ async saveChild() {
     this.selectedChild = null;
     this.editableChild = null; 
     await this.loadChildren();
+    this.showInfo('מחיקת הילד עברה לאישור המזכירה');
+
   }
 }

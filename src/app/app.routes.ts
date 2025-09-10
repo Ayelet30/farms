@@ -17,7 +17,7 @@ export const routes: Routes = [
       { path: 'schedule', loadComponent: () => import('./pages/parent-schedule/parent-schedule').then(m => m.ParentScheduleComponent) },
     //   { path: 'summary', loadComponent: () => import('./pages/parent/parent-summary/parent-summary.component').then(m => m.ParentSummaryComponent) },
     //   { path: 'payments', loadComponent: () => import('./pages/parent/parent-payments/parent-payments.component').then(m => m.ParentPaymentsComponent) },
-      { path: 'notes', loadComponent: () => import('./pages/parent-notes/parent-notes').then(m => m.ParentNotesComponent) },
+      { path: 'messages', loadComponent: () => import('./pages/parent-messages/parent-messages').then(m => m.ParentMessagesComponent) },
       { path: 'details', loadComponent: () => import('./pages/parent-details/parent-details').then(m => m.ParentDetailsComponent) },
     //   { path: '', redirectTo: 'children', pathMatch: 'full' }
     ]
