@@ -18,11 +18,13 @@ export class ParentScheduleComponent implements OnInit {
   children: any[] = [];
   lessons: Lesson[] = [];
   filteredLessons: Lesson[] = [];
-  selectedChildId: string = '';
   weekView = true;
   startDate: string = '';
 endDate: string = '';
   items: ScheduleItem[] = []; 
+  selectedChildId: string = 'all';  
+  dropdownOpen = false;
+
 
 
   async ngOnInit() {
@@ -30,6 +32,9 @@ endDate: string = '';
     await this.loadLessons();
     this.setScheduleItems(); 
       this.filterLessons();
+        this.selectedChildId = 'all';
+  this.refresh();                  
+
 
   }
   
@@ -74,9 +79,9 @@ getEndOfWeek(): string {
     if (e2) { console.error('Error loading children:', e2); this.children = []; return; }
 
     this.children = kids ?? [];
-    if (this.children.length > 0) {
-      this.selectedChildId = this.children[0].child_uuid; 
-    }
+    // if (this.children.length > 0) {
+    //   this.selectedChildId = this.children[0].child_uuid; 
+    // }
   } catch (err) {
     console.error('Unexpected error loading children:', err);
     this.children = [];
@@ -142,21 +147,34 @@ const { data, error } = await dbc
     instructorNameById = map;
   }
 
-  this.lessons = rows.map((r: LessonsOccurrenceRow) => ({
-  id: String(r.lesson_id),
-  child_id: r.child_id,
-  day_of_week: r.day_of_week,     
-  start_time: r.start_time,       
-  end_time: r.end_time,           
-  lesson_type: r.lesson_type,
-  status: r.status,
-  instructor_id: r.instructor_id ?? '',  
-  instructor_name: r.instructor_id ? (instructorNameById[r.instructor_id] ?? '') : '',
-  child_color: this.getColorForChild(r.child_id),
-  child_name: this.children.find(c => c.child_uuid === r.child_id)?.full_name || '',
-  start_datetime: r.start_datetime,
-  end_datetime: r.end_datetime,
-}));
+this.lessons = rows.map((r: LessonsOccurrenceRow) => {
+  // חישובי תאריכים
+  const startFallback = this.getLessonDateTime(r.day_of_week, r.start_time);
+  const endFallback   = this.getLessonDateTime(r.day_of_week, r.end_time);
+
+  const start = this.isoWithTFallback(r.start_datetime, startFallback);
+  const end   = this.isoWithTFallback(r.end_datetime,   endFallback);
+
+  // מזהה ייחודי לכל מופע בלו״ז (ילד + התחלה)
+  const occurrenceKey = `${r.child_id}__${start}`;
+
+  return {
+    id: occurrenceKey,                          // ⟵ ייחודי עכשיו
+    child_id: r.child_id,
+    day_of_week: r.day_of_week,
+    start_time: r.start_time,
+    end_time: r.end_time,
+    lesson_type: r.lesson_type,
+    status: r.status,
+    instructor_id: r.instructor_id ?? '',
+    instructor_name: r.instructor_id ? (instructorNameById[r.instructor_id] ?? '') : '',
+    child_color: this.getColorForChild(r.child_id),
+    child_name: this.children.find(c => c.child_uuid === r.child_id)?.full_name || '',
+    start_datetime: start,
+    end_datetime: end,
+  } as Lesson;
+});
+
 
 }
 
@@ -185,19 +203,19 @@ const { data, error } = await dbc
   const colors = ['#d8f3dc', '#fbc4ab', '#cdb4db', '#b5ead7', '#ffdac1'];
   return colors[(index >= 0 ? index : 0) % colors.length];
 }
-dropdownOpen = false;
 
 selectChild(childId: string) {
   this.selectedChildId = childId;
   this.dropdownOpen = false;
-  this.refresh(); // מרענן את הלוח לפי הילד
+  this.refresh();                  // מרענן לפי הבחירה
 }
 
-getChildName(childId: string): string | null {
-if (childId === 'all') return null;
-  return this.children.find(c => c.child_uuid === childId)?.full_name || null; 
+getChildName(childId: string | null): string | null {
+  if (!childId || childId === 'all') return null;
+  return this.children.find(c => c.child_uuid === childId)?.full_name || null;
 }
 
+toggleDropdown() { this.dropdownOpen = !this.dropdownOpen; }
 
   // שאר פעולות
   toggleView() {
@@ -213,11 +231,9 @@ if (childId === 'all') return null;
 
   // מסננת את השיעורים לפי הילד הנבחר
 filterLessons() {
-  if (this.selectedChildId === 'all' || !this.selectedChildId) {
-    this.filteredLessons = this.lessons;
-  } else {
-    this.filteredLessons = this.lessons.filter(l => l.child_id === this.selectedChildId);
-  }
+  this.filteredLessons = (this.selectedChildId === 'all' || !this.selectedChildId)
+    ? this.lessons
+    : this.lessons.filter(l => l.child_id === this.selectedChildId);
 }
 
 private toIsoLocal(s?: string): string | undefined {
@@ -247,30 +263,58 @@ private toLocalIso(date: Date): string {
 }
 
 setScheduleItems() {
-  const src = (this.filteredLessons?.length ? this.filteredLessons : this.lessons) ?? [];
+  // מקור הנתונים לתצוגה: אם יש סינון – filteredLessons, אחרת כל השיעורים
+  const base = (this.filteredLessons && this.filteredLessons.length ? this.filteredLessons : this.lessons) || [];
 
-  this.items = src.map((lesson) => {
+  const uniq = new Map<string, ScheduleItem>(); // מניעת כפילויות לפי מפתח ייחודי
+
+  for (const lesson of base) {
+    // נפילות בטוחות לזמני התחלה/סיום
     const startFallback = this.getLessonDateTime(lesson.day_of_week, lesson.start_time);
     const endFallback   = this.getLessonDateTime(lesson.day_of_week, lesson.end_time);
 
     const start = this.isoWithTFallback(lesson.start_datetime, startFallback);
     const end   = this.isoWithTFallback(lesson.end_datetime,   endFallback);
 
-    return {
-      id: lesson.id,
-      title: `${lesson.lesson_type}${lesson.instructor_name ? ' עם ' + lesson.instructor_name : ''}`,
-      start,                // תמיד string
-      end,                  // תמיד string
-      color: lesson.child_color,
-      meta: {
-        status: lesson.status,
-        child_id: lesson.child_id,
-        child_name: lesson.child_name,
-        instructor_id: lesson.instructor_id,
-        instructor_name: lesson.instructor_name,
-      },
-    } satisfies ScheduleItem; 
-  });
+    // ולידציה בסיסית
+    if (!start || !end) continue;
+    const startMs = Date.parse(start);
+    const endMs   = Date.parse(end);
+    if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) continue;
+
+    // צבע לפי הילד של השיעור (לא לפי הבחירה בתפריט)
+    const color = lesson.child_color || this.getColorForChild(lesson.child_id);
+
+    // כותרת ברורה כשמציגים "כל הילדים"
+    const childLabel = lesson.child_name || this.getChildName(lesson.child_id) || 'ילד';
+    const title =
+      `${childLabel} — ${lesson.lesson_type}` +
+      (lesson.instructor_name ? ` עם ${lesson.instructor_name}` : '');
+
+    // מפתח ייחודי לכל מופע ביומן (מונע דריסה כשמציגים כמה ילדים יחד)
+    const uid = `${lesson.id || 'occ'}__${lesson.child_id || 'child'}__${start}`;
+
+    if (!uniq.has(uid)) {
+      uniq.set(uid, {
+        id: uid,
+        title,
+        start,           // string ISO מקומי (בלי Z)
+        end,             // string ISO מקומי (בלי Z)
+        color,
+        meta: {
+          status: lesson.status,
+          child_id: lesson.child_id,
+          child_name: lesson.child_name,
+          instructor_id: lesson.instructor_id,
+          instructor_name: lesson.instructor_name,
+        },
+      } as ScheduleItem);
+    }
+  }
+
+  // סידור כרונולוגי לתצוגה עקבית
+  this.items = Array.from(uniq.values())
+    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
 }
 
 
