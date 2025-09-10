@@ -8,7 +8,6 @@ import {
   fetchMyChildren,           // נשתמש עם select מלא
   getCurrentUserData         // בשביל parent_uid ב-INSERT
 } from '../../services/supabaseClient';
-import { ScheduleComponent } from "../../custom-widget/schedule/schedule";
 
 @Component({
   selector: 'app-parent-children',

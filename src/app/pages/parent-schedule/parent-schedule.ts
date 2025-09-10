@@ -2,8 +2,9 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant, getCurrentUserData, getSupabaseClient } from '../../services/supabaseClient';
-import { Lesson } from './parent-schedule.model';
-import { ScheduleComponent, ScheduleItem } from '../../custom-widget/schedule/schedule'; // ← חדש
+import { Lesson } from '../../models/lesson-schedule.model';
+import { ScheduleComponent } from '../../custom-widget/schedule/schedule'; // ← חדש
+import { ScheduleItem } from '../../models/schedule-item.model'
 
 
 
