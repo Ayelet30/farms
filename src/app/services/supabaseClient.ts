@@ -18,7 +18,7 @@ const SUPABASE_URL = runtime('SUPABASE_URL');
 const SUPABASE_ANON_KEY = runtime('SUPABASE_ANON_KEY');
 
 /** ===================== TYPES ===================== **/
-export type FarmMeta = { id: string; name: string; schema_name: string };
+export type FarmMeta = { id: string; name: string; schema_name: string; logo_url?: string | null  };
 export type TenantContext = { id: string; schema: string; accessToken?: string };
 
 export type RoleInTenant = 'parent' | 'instructor' | 'secretary' | 'manager' | 'admin' | 'coordinator';
@@ -333,6 +333,32 @@ export async function getCurrentUserDetails(
   userCache = { key: cacheKey, data: result, expires: Date.now() + ttl };
   return result;
 }
+const farmLogoCache = new Map<string, string | null>();
+
+// ✅ מחזיר את ה-URL כמו שהוא שמור בטבלה, בלי לגעת ב-Storage בכלל
+export async function getCurrentFarmLogoUrl(): Promise<string | null> {
+  const ctx = requireTenant(); // חייב להיות קונטקסט טננט
+  const { data, error } = await dbPublic()
+    .from('farms')
+    .select('logo_url')
+    .eq('id', ctx.id)
+    .maybeSingle();
+  if (error) throw error;
+  const url = (data?.logo_url || '').trim();
+  return url || null;
+}
+
+export async function getFarmLogoUrl(farmIdOrSchema: string): Promise<string | null> {
+  const { data, error } = await dbPublic()
+    .from('farms')
+    .select('logo_url')
+    .or(`id.eq.${farmIdOrSchema},schema_name.eq.${farmIdOrSchema}`)
+    .maybeSingle();
+  if (error) throw error;
+  const url = (data?.logo_url || '').trim();
+  return url || null;
+}
+
 
 /** ===================== BOOTSTRAP + TOKEN REFRESH ===================== **/
 export async function bootstrapSupabaseSession(tenantId?: string, roleInTenant?: string): Promise<BootstrapResp> {

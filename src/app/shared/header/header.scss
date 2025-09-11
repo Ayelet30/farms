@@ -4,7 +4,7 @@
   direction: rtl;
   display: flex;
   align-items: center;
-  justify-content: space-between; /* ימין: חווה | שמאל: משתמש */
+  justify-content: space-between; 
   min-height: 58px;
   padding: 10px 16px;
   background: linear-gradient(180deg, var(--cream-top) 0%, var(--cream-bottom) 100%);
@@ -12,7 +12,9 @@
   position: relative;
   isolation: isolate;
 
-  /* --- אזור החווה (ימין) --- */
+  > .auth-section { order: 1; }   /* ימין */
+  > .farm-section { order: 2; }   /* שמאל */
+
   .farm-section {
     display: grid;
     grid-template-columns: 36px auto;
@@ -22,15 +24,53 @@
     color: var(--text-strong);
 
     &::before {
-      content: "";
+      display: none !important;
+      content: none !important;
+    }
+
+    .farm-logo {
       grid-column: 1;
       grid-row: 1 / span 2;
       width: 36px;
       height: 36px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       border-radius: 50%;
-      background: var(--cream-top);
       border: 1px solid var(--gold-soft);
+      background-color: var(--cream-top);
+      background-position: center;
+      background-size: cover;
+      background-repeat: no-repeat;
       box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
+      overflow: hidden;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      line-height: 0;
+      position: relative; 
+      z-index: 1;
+    }
+
+    .farm-logo img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+
+    .farm-logo .logo-initials {
+      width: 100%;
+      height: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+      color: var(--text-strong);
     }
 
     .farm-name {
@@ -54,7 +94,6 @@
     }
   }
 
-  /* --- אזור המשתמש (שמאל) --- */
   .auth-section {
     display: inline-flex;
     align-items: center;
@@ -62,20 +101,16 @@
     color: var(--text-strong);
     font-weight: 500;
 
-    /* שורה 1: שם (עם חץ) | שורה 2: תפקיד */
     .parent-details {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
       gap: 2px;
       position: relative;
-
-      /* רוחב אווטאר ומרווח קבועים לשתי השורות */
       --avatar: 32px;
       --avatar-gap: 12px;
     }
 
-    /* שם + אווטאר + קו מפריד */
     .parent-name {
       display: inline-flex;
       align-items: center;
@@ -110,7 +145,6 @@
       }
     }
 
-    /* התפקיד – מיושר להתחלת טקסט השם (אחרי האווטאר) */
     .parent-Role {
       font-size: 12px;
       color: var(--text-muted);
@@ -125,7 +159,6 @@
       }
     }
 
-    /* משולש קטן שמחליף את ה-select */
     .role-switcher {
       display: inline-block;
       position: relative;
@@ -147,10 +180,9 @@
         transition: transform .15s ease, border-color .15s ease;
       }
 
-      /* ה-select שקוף אך קליקבילי */
       select {
         position: absolute;
-        inset: -6px; /* הגדלת hitbox */
+        inset: -6px; 
         opacity: 0;
         appearance: none;
         -webkit-appearance: none;
@@ -168,9 +200,7 @@
       &:hover::after { border-color: var(--text-muted); }
     }
 
-    /* כפתור התחברות/התנתקות */
     .auth-button {
-      // --padV: .28rem;
       --padH: 4.8rem;
       --gap: .4rem;
       --iconSize: 1.05rem;
@@ -219,34 +249,32 @@
       &:disabled { opacity: .5; cursor: not-allowed; }
     }
 
-    /* אם תרצי את האייקון בתחילת הכפתור */
     .btn-logout.icon-start {
       padding: var(--padV) var(--padH) var(--padV) calc(var(--padH) + var(--iconSize) + var(--gap));
       &::after { inset-inline-end: auto; inset-inline-start: var(--padH); }
     }
   }
-/* תפריט תפקידים צף (אם משתמשת ב־UL/LI) */
-.role-menu {
-  position: absolute;
-  margin-top: 6px;
-  padding: 6px;
-  list-style: none;
-  background: var(--cream-top);
-  border: 1px solid var(--gold-soft);
-  border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, .12);
-  min-width: 220px;
-  z-index: 1000;
-}
-.role-menu li {
-  padding: 10px 12px;
-  border-radius: 10px;
-  cursor: pointer;
-  color: var(--text-strong);
-}
-.role-menu li:hover {
-  background: var(--cream-bottom);
-  color: var(--text-strong);
-}
-}
 
+  .role-menu {
+    position: absolute;
+    margin-top: 6px;
+    padding: 6px;
+    list-style: none;
+    background: var(--cream-top);
+    border: 1px solid var(--gold-soft);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .12);
+    min-width: 220px;
+    z-index: 1000;
+  }
+  .role-menu li {
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    color: var(--text-strong);
+  }
+  .role-menu li:hover {
+    background: var(--cream-bottom);
+    color: var(--text-strong);
+  }
+}
