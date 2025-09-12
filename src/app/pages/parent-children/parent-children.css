@@ -1,71 +1,154 @@
+/* קונטיינר כללי */
+.children-container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* פס בחירה עליון (צ'יפים של ילדים + הוספה) */
 .children-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 12px;
+  margin: 12px 0 6px;
   justify-content: center;
 }
 
-.child-button {
-  background-color: #8a9362; /* ירוק זית בינוני */
-  color: white;
+.child-chip {
+  background-color: #8a9362;
+  color: #fff;
   border: none;
-  border-radius: 20px;
-  padding: 8px 16px;
-  font-size: 16px;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 15px;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: transform .05s ease, background-color .2s ease, opacity .2s ease;
+}
+.child-chip:hover { background-color: #6f754f; }
+.child-chip.active { background-color: #5f6640; }
+.child-chip.disabled { opacity: .6; cursor: not-allowed; }
+
+.add-button { font-weight: 700; }
+
+/* באנר מידע */
+.info-banner {
+  direction: rtl;
+  padding: 10px 14px;
+  margin: 8px 0 10px;
+  border-radius: 10px;
+  background: #eef8ee;
+  border: 1px solid #cce8cc;
+  font-weight: 600;
+  text-align: center;
 }
 
-.child-button:hover {
-  background-color: #6f754f; /* ירוק זית כהה */
+/* גריד כרטיסים */
+.cards-grid {
+  display: grid;
+  grid-template-columns:1fr;
+  gap: 16px;
+  margin-top: 12px;
 }
-
-.child-button.active {
-  background-color: #5f6640; /* ירוק זית עמוק */
+@media (min-width: 768px) {
+  .cards-grid {
+    grid-template-columns: repeat(2, minmax(280px, 1fr));
+  }
 }
-
+/* כרטיס ילד */
 .child-card {
   border: 2px solid #8a9362;
-  border-radius: 12px;
-  padding: 16px;
-  margin-top: 20px;
-  background-color: #fdfdfd;
-  direction: rtl;
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
 }
 
 .child-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-}
-.info-banner {
-  direction: rtl;
-  padding: 10px 14px;
-  margin: 8px 0 16px;
-  border-radius: 10px;
-  background: #eef8ee;      /* ירקרק עדין */
-  border: 1px solid #cce8cc; 
-  font-weight: 600;
+  align-items: start;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
-.editable-title {
-  font-size: 20px;
-  font-weight: bold;
-  color: #6f754f;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 4px 10px;
-  margin-bottom: 8px;
-}
-
-.button-group {
+.title-wrap {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.btn-edit,
-.btn-save {
+.child-name {
+  margin: 0;
+  font-size: 18px;
+}
+
+.age-badge {
+  background: #f0f4e9;
+  border: 1px solid #cbd6b6;
+  color: #55603d;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* פעולות (אייקונים קטנים) */
+.actions {
+  display: flex;
+  gap: 6px;
+}
+.icon-btn {
+  background: #f5f7f1;
+  border: 1px solid #d6dec6;
+  border-radius: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.icon-btn:hover { background: #e9efde; }
+.icon-btn.danger {
+  background: #fdeaea;
+  border-color: #f2c0c0;
+}
+.icon-btn.danger:hover { background: #fbd0d0; }
+
+/* קטעים בכרטיס */
+.card-section { margin-top: 10px; }
+.section-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.row { display: flex; gap: 6px; align-items: center; }
+.key { color: #586141; font-weight: 600; }
+.val { color: #222; }
+.muted { color: #888; }
+.sep { padding: 0 4px; }
+.stars { margin-right: 6px; color: #f4b400; }
+
+/* אזור עריכה בכרטיס */
+.editable-area {
+  border-top: 1px dashed #d8dfcb;
+  margin-top: 12px;
+  padding-top: 10px;
+}
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.form-row label { width: 110px; color: #586141; }
+.form-row.end { justify-content: flex-end; }
+
+.editable-input {
+  padding: 4px 8px;
+  border: 1px solid #cdd6bf;
+  border-radius: 8px;
+  font-size: 14px;
+  min-width: 180px;
+}
+
+.button-group { display: flex; gap: 10px; }
+.btn-edit, .btn-save {
   background-color: #8a9362;
   color: white;
   border: none;
@@ -73,88 +156,34 @@
   border-radius: 8px;
   font-size: 14px;
   cursor: pointer;
-  transition: background-color 0.3s ease;
 }
+.btn-edit:hover, .btn-save:hover { background-color: #6f754f; }
 
-.btn-edit:hover,
-.btn-save:hover {
-  background-color: #6f754f;
-}
-
-.editable-input {
-  display: inline-block;
-  margin-right: 8px;
-  padding: 4px 8px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 14px;
-}
-.status-active {
-  color: green;
-  font-weight: bold;
-}
-
-.status-inactive {
-  color: red;
-  font-weight: bold;
-}
-.add-button {
-  background-color: #8a9362; 
-  font-weight: bold;
-}
-
-.add-button:hover {
-  background-color: #4d7d2b;
-}
-.error-msg {
-  color: red;
-  font-size: 12px;
-  margin-top: 2px;
-  margin-bottom: 8px;
-}
-.child-card .editable-input {
-  width: fit-content;
-  min-width: 200px;
-  max-width: 100%;
-}
-
-.child-card .form-field {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  margin-bottom: 16px;
-}
+/* דיאלוג מחיקה */
 .dialog-overlay {
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  background: rgba(0, 0, 0, 0.4);
+  inset: 0;
+  background: rgba(0,0,0,.4);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2000;
 }
-
 .dialog-box {
   background: white;
   border-radius: 12px;
   padding: 24px;
   width: 90%;
   max-width: 360px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 16px rgba(0,0,0,.2);
   text-align: center;
-  font-family: 'Segoe UI', sans-serif;
-  border: 2px solid #6d8f61; /* צבע ירוק זית */
+  border: 2px solid #6d8f61;
 }
-
 .dialog-buttons {
   margin-top: 16px;
   display: flex;
   justify-content: space-around;
 }
-
 .btn-delete {
   background-color: #c84e4e;
   color: white;
@@ -164,9 +193,7 @@
   font-size: 14px;
   cursor: pointer;
 }
+.btn-delete:hover { background-color: #a83c3c; }
 
-.btn-delete:hover {
-  background-color: #a83c3c;
-}
-
-
+/* הודעות שגיאה לטופס הוספה */
+.error-msg { color: #c70000; font-size: 12px; margin-top: 2px; }
