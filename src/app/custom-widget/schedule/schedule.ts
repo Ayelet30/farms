@@ -1,5 +1,15 @@
+// schedule.component.ts
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output, ViewChild, NgZone, OnChanges, SimpleChanges } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  Input,
+  Output,
+  ViewChild,
+  NgZone,
+  OnChanges,
+  SimpleChanges
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FullCalendarModule, FullCalendarComponent } from '@fullcalendar/angular';
 import { CalendarOptions, EventClickArg, DatesSetArg } from '@fullcalendar/core';
@@ -8,9 +18,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import heLocale from '@fullcalendar/core/locales/he';
-import { ScheduleItem } from '../../models/schedule-item.model'
-
-
+import { ScheduleItem } from '../../models/schedule-item.model';
 
 @Component({
   selector: 'app-schedule',
@@ -30,7 +38,8 @@ export class ScheduleComponent implements OnChanges {
   @Input() slotMaxTime = '21:00:00';
   @Input() allDaySlot = false;
 
-  @Output() eventClick = new EventEmitter<ScheduleItem>();
+  // ✅ פולט EventClickArg כדי לשמור על כל המידע של FullCalendar
+  @Output() eventClick = new EventEmitter<EventClickArg>();
   @Output() dateClick = new EventEmitter<string>();
 
   currentView = this.initialView;
@@ -49,19 +58,17 @@ export class ScheduleComponent implements OnChanges {
     events: [],
     dateClick: (info: DateClickArg) => this.dateClick.emit(info.dateStr),
     eventClick: (arg: EventClickArg) => {
-      const found = this.items.find(i => i.id === String(arg.event.id));
-      if (found) this.eventClick.emit(found);
+      // ✅ שולח את כל ה־arg החוצה
+      this.eventClick.emit(arg);
     },
     eventContent: (arg) => {
       const { event } = arg;
       const status = event.extendedProps['status'] || '';
       return {
-        html: `
-          <div class="event-box ${status}">
-            <div class="time">${event.start?.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</div>
-            <div class="title">${event.title}</div>
-          </div>
-        `
+        html: `<div class="event-box ${status}">
+                 <div class="time">${event.start?.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</div>
+                 <div class="title">${event.title}</div>
+               </div>`
       };
     },
     datesSet: (info: DatesSetArg) => {
@@ -74,9 +81,7 @@ export class ScheduleComponent implements OnChanges {
     }
   };
 
-  constructor(private ngZone: NgZone) {
-    console.log("!!!!!!!!!!!", this.items)
-  }
+  constructor(private ngZone: NgZone) {}
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['items']) {
@@ -87,7 +92,13 @@ export class ScheduleComponent implements OnChanges {
           title: i.title,
           start: i.start,
           end: i.end,
-          extendedProps: { status: i.status }
+          extendedProps: {
+            status: i.status,
+            child_id: i.meta?.child_id,
+            child_name: i.meta?.child_name,
+            instructor_id: i.meta?.instructor_id,
+            instructor_name: i.meta?.instructor_name,
+          }
         }))
       };
     }

@@ -1,5 +1,5 @@
 <div class="schedule-container">
- <app-schedule
+  <app-schedule
     [items]="items"
     [initialView]="'timeGridWeek'"
     [rtl]="true"
@@ -7,7 +7,11 @@
     [slotMaxTime]="'21:00:00'"
     [allDaySlot]="false"
     (eventClick)="onEventClick($event)"
-    (dateClick)="onDateClick($event)"
-  ></app-schedule>
-</div>
+    (dateClick)="onDateClick($event)">
+  </app-schedule>
 
+  <!-- Overlay של כרטיס הילד -->
+  <div *ngIf="selectedChild" class="note-overlay">
+    <app-note [child]="selectedChild"></app-note>
+  </div>
+</div>

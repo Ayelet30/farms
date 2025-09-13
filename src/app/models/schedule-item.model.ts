@@ -4,6 +4,13 @@ export interface ScheduleItem {
   start: string;
   end: string;
   color?: string;
-  status?: 'active' | 'lesson' | 'free';
-  meta?: any;
-};
+  status: "ממתין לאישור" | "אושר" | "בוטל" | "הושלם"; // ← עדכון
+  meta?: {
+    status: string;
+    child_id: string;
+    child_name: string;
+    instructor_id: string;
+    instructor_name: string;
+  };
+}
+
