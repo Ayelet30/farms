@@ -4,7 +4,6 @@
   margin: 0 auto;
 }
 
-/* פס בחירה עליון (צ'יפים של ילדים + הוספה) */
 .children-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -14,15 +13,15 @@
 }
 .card-close {
   position: absolute;
-  top: -10px;          /* דוחף החוצה לכיוון הפינה */
+  top: -10px;          
   right: -10px;
-  width: 22px;         /* קטן יותר */
+  width: 22px;         
   height: 22px;
   border-radius: 999px;
-  border: 1px solid #b8c39f;   /* ירקרק עדין תואם למסגרת */
+  border: 1px solid #b8c39f;   
   background: #fff;
   color: #333;
-  font-size: 14px;     /* X קטן */
+  font-size: 14px;     
   line-height: 20px;
   display: flex;
   align-items: center;
@@ -49,24 +48,19 @@
 .child-chip:hover { background-color: #6f754f; }
 .child-chip.active { background-color: #5f6640; }
 .add-button { font-weight: 700; }
-/* לא פעיל: אפור, "לא לחיץ" ויזואלית */
 .child-chip.status-disabled {
-  background-color: #e5e7eb;   /* אפור בהיר */
+  background-color: #e5e7eb;   
   color: #9ca3af;
   border: 1px dashed #d1d5db;
   cursor: not-allowed;
-  /* לא לשים pointer-events: none; כדי שההודעה תופיע בלחיצה */
 }
 
-/* חסום בגלל מגבלת 4 – מוחלש שונה מלא פעיל */
 .child-chip.limit-disabled {
   opacity: .55;
   cursor: not-allowed;
 }
 
-/* אם הדפדפן מיישם סגנון ברירת־מחדל ל-disabled, נבטל: */
 .child-chip[disabled] { filter: none; }
-/* באנר מידע */
 .info-banner {
   direction: rtl;
   padding: 10px 14px;
@@ -79,7 +73,6 @@
 }
 .today-flag { font-weight: 800; color: #5f6640; }
 
-/* גריד כרטיסים */
 .cards-grid {
   display: grid;
   grid-template-columns:1fr;
@@ -91,17 +84,17 @@
     grid-template-columns: repeat(2, minmax(280px, 1fr));
   }
 }
-/* כרטיס ילד */
 .child-card {
   border: 2px solid #8a9362;
   border-radius: 14px;
   padding: 14px;
   background: #fff;
-    overflow: visible; /* כדי לאפשר לאיקס לבלוט מחוץ למסגרת */
+    overflow: visible; 
       position: relative;
 
 
 }
+.muted { color: #888; }
 
 .child-header {
   display: flex;
@@ -133,7 +126,6 @@
   white-space: nowrap;
 }
 
-/* פעולות (אייקונים קטנים) */
 .actions {
   display: flex;
   gap: 6px;
@@ -153,7 +145,6 @@
 }
 .icon-btn.danger:hover { background: #fbd0d0; }
 
-/* קטעים בכרטיס */
 .card-section { margin-top: 10px; }
 .section-title {
   font-weight: 700;
@@ -166,7 +157,6 @@
 .sep { padding: 0 4px; }
 .stars { margin-right: 6px; color: #f4b400; }
 
-/* אזור עריכה בכרטיס */
 .editable-area {
   border-top: 1px dashed #d8dfcb;
   margin-top: 12px;
@@ -201,7 +191,6 @@
 }
 .btn-edit:hover, .btn-save:hover { background-color: #6f754f; }
 
-/* דיאלוג מחיקה */
 .dialog-overlay {
   position: fixed;
   inset: 0;
@@ -237,5 +226,4 @@
 }
 .btn-delete:hover { background-color: #a83c3c; }
 
-/* הודעות שגיאה לטופס הוספה */
 .error-msg { color: #c70000; font-size: 12px; margin-top: 2px; }

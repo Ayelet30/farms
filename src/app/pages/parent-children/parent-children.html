@@ -48,7 +48,6 @@
     </div>
       </div>
 
-      <!-- תחום רכיבה (placeholder – התאימי לשדה שלך אם קיים) -->
       <p class="row"><span class="key">תחום רכיבה:</span><span class="val">רכיבה טיפולית</span></p>
 
       <!-- התור הבא -->
@@ -177,12 +176,11 @@
 
 <ng-template #lastTpl let-last>
   <div class="row" *ngIf="last; else noLast">
-    <span class="val">{{ last.desc }}</span>
-    <span class="muted sep">•</span>
-    <span class="muted">{{ last.date }}</span>
-    <span class="stars" *ngIf="last.rating">
-      <ng-container *ngFor="let s of [].constructor(last.rating)">★</ng-container>
+    <span class="val">
+      {{ last.date }} • {{ last.time }}
+      <ng-container *ngIf="last.instructor"> • עם {{ last.instructor }}</ng-container>
+      <span class="muted" *ngIf="last.pendingCompletion"> — טרם מעודכן כי הושלם</span>
     </span>
   </div>
-  <ng-template #noLast><div class="muted">—</div></ng-template>
+  <ng-template #noLast><div class="muted">אין פעילות להצגה</div></ng-template>
 </ng-template>
