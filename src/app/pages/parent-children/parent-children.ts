@@ -316,7 +316,7 @@ export class ParentChildrenComponent implements OnInit {
   error: string | undefined;
 
   // --- בחירה מרובה של כרטיסים ---
-  private maxSelected = 4;
+  maxSelected = 4;
   selectedIds = new Set<string>();               // child_uuid-ים נבחרים
 
   // --- עריכה פר-כרטיס ---
@@ -368,7 +368,38 @@ trackByChild = (_: number, item: any) => this.childId(item);
 get selectedChildren(): any[] {
   return this.children.filter(c => this.hasSelected(c));
 }
+isActiveChild(c: any): boolean {
+  return (c?.['status'] ?? '') === 'active';
+}
 
+toggleChildSelection(child: any) {
+  const id = this.childId(child);
+  if (!id) return;
+
+  // לא פעיל? רק מציגים הודעה וחוזרים
+  if (!this.isActiveChild(child)) {
+    this.showInfo('לא ניתן לפתוח את הכרטיס כי הילד אינו פעיל');
+    return;
+  }
+
+  // אם כבר פתוח – נסגור
+  if (this.selectedIds.has(id)) {
+    this.selectedIds.delete(id);
+    delete this.editing[id];
+    delete this.editables[id];
+    return;
+  }
+
+  // מגבלת 4 כרטיסים
+  if (this.selectedIds.size >= this.maxSelected) {
+    this.showInfo('ניתן לצפות עד 4 ילדים במקביל, סגור כרטיס קיים כדי להוסיף חדש');
+    return;
+  }
+
+  // לפתוח כרטיס
+  this.selectedIds.add(id);
+  this.ensureEditable(child);
+}
 
   // ====== טעינה ======
   async loadChildren(): Promise<void> {
@@ -405,23 +436,7 @@ get selectedChildren(): any[] {
   }
 
   // ====== בחירה מרובה ======
- toggleChildSelection(child: any) {
-  const id = this.childId(child);
-  if (!id) return;
 
-  if (this.selectedIds.has(id)) {
-    this.selectedIds.delete(id);
-    delete this.editing[id];
-    delete this.editables[id];
-    return;
-  }
-  if (this.selectedIds.size >= this.maxSelected) {
-    this.showInfo('ניתן לצפות עד 4 ילדים במקביל, סגור כרטיס קיים כדי להוסיף חדש');
-    return;
-  }
-  this.selectedIds.add(id);
-  this.ensureEditable(child);
-}
 private ensureEditable(child: any) {
   const id = this.childId(child);
   if (!id) return;
@@ -608,4 +623,13 @@ async deleteChild() {
     // TODO: למשוך מה-DB
     return null;
   }
+  closeCard(child: any) {
+  const id = this.childId(child);
+  if (!id) return;
+  // מסירים מהתצוגה בלבד
+  this.selectedIds.delete(id);
+  delete this.editing[id];
+  delete this.editables[id];
+}
+
 }

@@ -6,13 +6,17 @@
 
   <!-- פס בחירה עליון + כפתור הוספה -->
   <div class="children-buttons" *ngIf="children.length > 0">
-  <button
+<button
   *ngFor="let child of children"
   (click)="toggleChildSelection(child)"
   class="child-chip"
   [class.active]="hasSelected(child)"
-  [class.disabled]="!hasSelected(child) && selectedIds.size >= 4"
-  type="button">
+  [class.status-disabled]="!isActiveChild(child)"
+  [class.limit-disabled]="isActiveChild(child) && !hasSelected(child) && selectedIds.size >= maxSelected"
+  [attr.aria-disabled]="(!isActiveChild(child) || (isActiveChild(child) && !hasSelected(child) && selectedIds.size >= maxSelected)) ? 'true' : null"
+  [attr.title]="!isActiveChild(child) ? 'הילד אינו פעיל' : (selectedIds.size >= maxSelected && !hasSelected(child) ? 'מקסימום 4 כרטיסים פתוחים' : null)"
+  type="button"
+>
   {{ child.full_name }}
 </button>
 
@@ -23,6 +27,14 @@
   <!-- גריד של עד 4 כרטיסים -->
 <div class="cards-grid" *ngIf="selectedChildren.length > 0">
   <div class="child-card" *ngFor="let c of selectedChildren; trackBy: trackByChild">
+    <button
+    class="card-close"
+    type="button"
+    (click)="closeCard(c)"
+    title="סגירת כרטיס"
+    aria-label="סגירת כרטיס"
+  >❌</button>
+
       <div class="child-header">
         <div class="title-wrap">
           <h3 class="child-name">🧒 {{ c.full_name }}</h3>
@@ -32,7 +44,7 @@
     <div class="actions">
         <button *ngIf="!editing[childId(c)]" class="icon-btn" type="button" (click)="startEdit(c)">✏️</button>
       <button *ngIf="editing[childId(c)]" class="icon-btn" type="button" (click)="saveChild(c)">💾</button>
-      <button class="icon-btn danger" type="button" (click)="confirmDeleteChild(c)">❌</button>
+      <button class="icon-btn danger" type="button" (click)="confirmDeleteChild(c)">🗑️</button>
     </div>
       </div>
 
