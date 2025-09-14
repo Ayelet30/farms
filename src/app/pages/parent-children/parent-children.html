@@ -90,10 +90,18 @@
       </div>
 
       <!-- קישורים נוספים -->
-      <div class="links-row">
-        <button class="link-btn" type="button" (click)="goToHistory(c)">📖 היסטוריה</button>
-        <button class="link-btn" type="button" (click)="goToBooking(c)">📅 הזמן תור</button>
-      </div>
+     <div class="links-row">
+  <button class="cta-btn" type="button" (click)="openHistory(c)">
+    <span class="icon">📖</span>
+    <span>היסטוריה</span>
+  </button>
+
+  <button class="cta-btn primary" type="button" (click)="goToBooking(c)">
+    <span class="icon">📅</span>
+    <span>הזמן תור</span>
+  </button>
+</div>
+
     </div>
   </div>
 
@@ -148,6 +156,32 @@
       <button class="btn-edit" (click)="cancelNewChild()" type="button">ביטול</button>
     </div>
   </div>
+<!-- History Modal -->
+<div class="dialog-overlay" *ngIf="showHistory">
+  <div class="history-modal">
+    <button class="card-close small" (click)="closeHistory()" aria-label="סגור">✕</button>
+
+    <h3 class="history-title">היסטוריית שיעורים — {{ historyChildName }}</h3>
+
+    <div *ngIf="historyLoading" class="history-loading">טוען…</div>
+
+    <div *ngIf="!historyLoading && historyItems.length === 0" class="history-empty">
+      אין היסטוריה להצגה
+    </div>
+
+    <ul class="history-list" *ngIf="!historyLoading && historyItems.length > 0">
+      <li *ngFor="let h of historyItems; let i = index" class="history-item">
+        <div class="line">
+          <span class="when">{{ h.date }} • {{ h.time }}</span>
+          <span class="sep" *ngIf="h.instructor">•</span>
+          <span class="with" *ngIf="h.instructor">עם {{ h.instructor }}</span>
+          <span class="badge" [ngClass]="statusClass(h.status)">{{ h.status }}</span>
+        </div>
+        <div class="muted" *ngIf="h.lesson_type">סוג שיעור: {{ h.lesson_type }}</div>
+      </li>
+    </ul>
+  </div>
+</div>
 
   <!-- דיאלוג עזיבה/מחיקה -->
   <div class="dialog-overlay" *ngIf="showDeleteConfirm">

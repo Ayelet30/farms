@@ -227,3 +227,155 @@
 .btn-delete:hover { background-color: #a83c3c; }
 
 .error-msg { color: #c70000; font-size: 12px; margin-top: 2px; }
+
+/* שורת כפתורי הפעולות בתחתית הכרטיס */
+.links-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* כפתורי CTA תואמי מיתוג */
+.cta-btn {
+  appearance: none;
+  border: 1.5px solid #8a9362;
+  background: #f7f9f4;                 /* רקע בהיר תואם */
+  color: #2b2b2b;
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;                             /* רווח בין האייקון לטקסט */
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgba(0,0,0,.04);
+  transition: background .2s, border-color .2s, transform .03s, box-shadow .2s;
+}
+
+.cta-btn:hover {
+  background: #eef4e5;
+  border-color: #6f754f;
+  box-shadow: 0 2px 6px rgba(0,0,0,.06);
+}
+
+.cta-btn:active { transform: translateY(1px); }
+
+/* וריאציית primary (ל"הזמן תור") */
+.cta-btn.primary {
+  background: #8a9362;
+  border-color: #8a9362;
+  color: #fff;
+}
+.cta-btn.primary:hover {
+  background: #6f754f;
+  border-color: #6f754f;
+}
+
+/* אייקון קטן, תואם שורה */
+.cta-btn .icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* מצב נגישות/מנוטרל אם תשתמשי בעתיד */
+.cta-btn[aria-disabled="true"],
+.cta-btn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+/* ===== History Modal ===== */
+
+.history-modal {
+  position: relative;
+  background: #fff;
+  border: 2px solid #8a9362;
+  border-radius: 16px;
+  width: min(720px, 92vw);
+  max-height: 80vh;
+  overflow: auto;
+  padding: 18px 18px 14px;
+  box-shadow: 0 10px 26px rgba(0,0,0,.18);
+}
+
+/* כפתור X קטן בפינה של המודל */
+.card-close.small {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid #b8c39f;
+  background: #fff;
+  font-size: 12px;
+  line-height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.card-close.small:hover { background: #f3f7ed; }
+
+/* כותרת המודל – תואם לפונט הראשי של האתר */
+.history-title{
+  font-family: var(--font-ui, inherit); /* ירש את הפונט הראשי של האתר */
+  font-weight: 700;                     /* או 600 אם תרצי דק יותר */
+  font-size: 20px;                      /* תיאום לגודל כותרות בכרטיסים */
+  line-height: 1.25;
+  letter-spacing: normal;
+  color: #2b2b2b;                       /* אותו צבע טקסט כמו ביתר האתר */
+  margin: 0 0 12px;
+  text-align: right;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+
+.history-loading,
+.history-empty {
+  padding: 12px 6px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.history-item {
+  padding: 10px 6px;
+  border-bottom: 1px dashed #e5e7eb;
+}
+.history-item:last-child { border-bottom: 0; }
+
+.history-item .line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.history-item .when { font-weight: 600; }
+.history-item .with { color: #374151; }
+.history-item .sep { color: #9ca3af; }
+
+/* תגיות סטטוס */
+.badge {
+  margin-inline-start: auto; /* דוחף את הסטטוס לקצה בשורה */
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.badge.st-done     { background: #eef8ee; color: #286b2a; border-color: #cbe8cb; }
+.badge.st-approved { background: #f4f6ea; color: #5f6640; border-color: #e2e8c7; }
+.badge.st-pending  { background: #fff6e5; color: #9a6a00; border-color: #f6e3b9; }
+.badge.st-cancel   { background: #fdecec; color: #a83c3c; border-color: #f2c0c0; }
+.badge.st-other    { background: #eef2f7; color: #334155; border-color: #d7deea; }
