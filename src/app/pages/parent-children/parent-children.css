@@ -12,7 +12,30 @@
   margin: 12px 0 6px;
   justify-content: center;
 }
+.card-close {
+  position: absolute;
+  top: -10px;          /* דוחף החוצה לכיוון הפינה */
+  right: -10px;
+  width: 22px;         /* קטן יותר */
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid #b8c39f;   /* ירקרק עדין תואם למסגרת */
+  background: #fff;
+  color: #333;
+  font-size: 14px;     /* X קטן */
+  line-height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  z-index: 5;
+}
 
+.card-close:hover {
+  background: #f3f7ed;
+  transform: scale(1.04);
+}
 .child-chip {
   background-color: #8a9362;
   color: #fff;
@@ -25,10 +48,24 @@
 }
 .child-chip:hover { background-color: #6f754f; }
 .child-chip.active { background-color: #5f6640; }
-.child-chip.disabled { opacity: .6; cursor: not-allowed; }
-
 .add-button { font-weight: 700; }
+/* לא פעיל: אפור, "לא לחיץ" ויזואלית */
+.child-chip.status-disabled {
+  background-color: #e5e7eb;   /* אפור בהיר */
+  color: #9ca3af;
+  border: 1px dashed #d1d5db;
+  cursor: not-allowed;
+  /* לא לשים pointer-events: none; כדי שההודעה תופיע בלחיצה */
+}
 
+/* חסום בגלל מגבלת 4 – מוחלש שונה מלא פעיל */
+.child-chip.limit-disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+/* אם הדפדפן מיישם סגנון ברירת־מחדל ל-disabled, נבטל: */
+.child-chip[disabled] { filter: none; }
 /* באנר מידע */
 .info-banner {
   direction: rtl;
@@ -59,6 +96,10 @@
   border-radius: 14px;
   padding: 14px;
   background: #fff;
+    overflow: visible; /* כדי לאפשר לאיקס לבלוט מחוץ למסגרת */
+      position: relative;
+
+
 }
 
 .child-header {
