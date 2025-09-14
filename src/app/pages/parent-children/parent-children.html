@@ -165,10 +165,15 @@
 <!-- תבניות להצגת "התור הבא" ו"פעילות אחרונה" -->
 <ng-template #nextTpl let-next>
   <div class="row" *ngIf="next; else noNext">
-    <span class="val">{{ next.date }} • {{ next.time }} <ng-container *ngIf="next.instructor">• עם {{ next.instructor }}</ng-container></span>
+    <span class="today-flag" *ngIf="next.isToday"><strong>היום!</strong>&nbsp;</span>
+    <span class="val">
+      {{ next.date }} • {{ next.time }}
+      <ng-container *ngIf="next.instructor"> • עם {{ next.instructor }}</ng-container>
+    </span>
   </div>
-  <ng-template #noNext><div class="muted">—</div></ng-template>
+  <ng-template #noNext><div class="muted">אין תורים להצגה</div></ng-template>
 </ng-template>
+
 
 <ng-template #lastTpl let-last>
   <div class="row" *ngIf="last; else noLast">

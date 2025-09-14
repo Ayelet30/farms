@@ -301,6 +301,14 @@ import {
   fetchMyChildren,
   getCurrentUserData
 } from '../../services/supabaseClient';
+type OccurrenceRow = {
+  child_id: string;
+  start_datetime: string;          // עמודה ב־view (התאימי לשם המדויק אם שונה)
+  instructor_id?: string | null;
+  status?: string | null;
+};
+
+type InstructorRow = { id_number: string; full_name: string | null };
 
 @Component({
   selector: 'app-parent-children',
@@ -314,6 +322,8 @@ export class ParentChildrenComponent implements OnInit {
   children: ChildRow[] = [];
   loading = true;
   error: string | undefined;
+// מפה: child_uuid -> התור הבא שלו
+nextAppointments: Record<string, { date: string; time: string; instructor?: string; isToday: boolean; _ts: number } | null> = {};
 
   // --- בחירה מרובה של כרטיסים ---
   maxSelected = 4;
@@ -432,6 +442,7 @@ toggleChildSelection(child: any) {
     .filter(Boolean) as string[]);
   initial.forEach(c => this.ensureEditable(c));
 }
+await this.loadNextAppointments();
 
   }
 
@@ -453,6 +464,140 @@ startEdit(child: any) {
   if (!id) return;
   this.ensureEditable(child);
   this.editing[id] = true;
+}
+// מיפוי ימי השבוע (תחילת שבוע ISO = שני)
+private hebDayToIsoIndex(day: string): number {
+  const map: Record<string, number> = {
+    'שני': 0, 'שלישי': 1, 'רביעי': 2, 'חמישי': 3, 'שישי': 4, 'שבת': 5, 'ראשון': 6
+  };
+  return map[day] ?? -1;
+}
+
+private startOfIsoWeek(d: Date): Date {
+  const x = new Date(d);
+  const mondayIndex = (x.getDay() + 6) % 7; // Monday=0 ... Sunday=6
+  x.setDate(x.getDate() - mondayIndex);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+private addDays(d: Date, days: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + days);
+  return x;
+}
+
+private combineDateTime(date: Date, time: string): Date {
+  const [hh, mm = '0', ss = '0'] = (time || '').split(':');
+  const x = new Date(date);
+  x.setHours(parseInt(hh || '0', 10), parseInt(mm, 10), parseInt(ss, 10), 0);
+  return x;
+}
+
+private fmtDateHe(d: Date): string {
+  //  dd/mm/yyyy
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+private fmtTimeHe(d: Date): string {
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+private nextOccurrenceForLesson(row: any, now: Date): Date | null {
+  const dayIdx = this.hebDayToIsoIndex(row?.day_of_week || '');
+  if (dayIdx < 0 || !row?.start_time) return null;
+
+  // עוגן שבוע (ברירת מחדל: תחילת השבוע הנוכחי)
+  let anchor = row?.anchor_week_start ? new Date(row.anchor_week_start) : this.startOfIsoWeek(now);
+  anchor.setHours(0, 0, 0, 0);
+
+  const rweeks = Math.max(1, Number(row?.repeat_weeks || 1));
+  const nowWeek = this.startOfIsoWeek(now);
+
+  // מיישרים לפריטציה של repeat_weeks מול העוגן
+  const diffWeeks = Math.max(0, Math.floor((nowWeek.getTime() - anchor.getTime()) / (7 * 24 * 3600 * 1000)));
+  const k = Math.floor(diffWeeks / rweeks) * rweeks;
+  let wkStart = this.addDays(anchor, k * 7);
+
+  // היום בשבוע בהתבסס על ISO (שני=0 ... ראשון=6)
+  let candDate = this.addDays(wkStart, dayIdx);
+  let candDT = this.combineDateTime(candDate, row.start_time);
+
+  let guard = 0;
+  while (candDT.getTime() < now.getTime() && guard < 300) {
+    wkStart = this.addDays(wkStart, rweeks * 7);
+    candDate = this.addDays(wkStart, dayIdx);
+    candDT = this.combineDateTime(candDate, row.start_time);
+    guard++;
+  }
+  return guard >= 300 ? null : candDT;
+}
+private async loadNextAppointments(): Promise<void> {
+  const ids = this.children.map(c => this.childId(c)).filter(Boolean) as string[];
+  if (ids.length === 0) return;
+
+  // ברירת מחדל: אין תורים
+  this.nextAppointments = {};
+  ids.forEach(id => (this.nextAppointments[id] = null));
+
+  const nowIso = new Date().toISOString();
+  const dbc = dbTenant();
+
+  // שולפים את כל המופעים הבאים (מאושר) לכל הילדים, ממויין לפי ילד ואז זמן
+  const { data: occRaw, error } = await dbc
+    .from('lessons_occurrences')
+    .select('child_id, start_datetime, instructor_id, status')
+    .in('child_id', ids)
+    .gte('start_datetime', nowIso)
+    .in('status', ['אושר'])                          // התאימי אם ה־view מחזיר סטטוסים אחרים
+    .order('child_id', { ascending: true })
+    .order('start_datetime', { ascending: true });
+
+  if (error) {
+    console.error('שגיאה בקריאת lessons_occurrences:', error);
+    return;
+  }
+
+  const occs: OccurrenceRow[] = (occRaw ?? []) as OccurrenceRow[];
+
+  // שמות מדריכים (אופציונלי)
+  const instrIds = Array.from(new Set(occs.map(o => o.instructor_id).filter(Boolean))) as string[];
+  let instructorNameById: Record<string, string> = {};
+  if (instrIds.length) {
+    const { data: instRaw } = await dbc
+      .from('instructors')
+      .select('id_number, full_name')
+      .in('id_number', instrIds);
+
+    const inst: InstructorRow[] = (instRaw ?? []) as InstructorRow[];
+    instructorNameById = Object.fromEntries(inst.map(i => [i.id_number, i.full_name ?? ''])) as Record<string, string>;
+  }
+
+  // בגלל המיון: הפגישה הראשונה לכל ילד תהיה הרשומה הראשונה שנפגוש עבור אותו child_id
+  for (const o of occs) {
+    const cid = o.child_id;
+    if (!cid) continue;
+    if (this.nextAppointments[cid]) continue; // כבר קבענו "הקרובה ביותר" לילד זה
+
+    const dt = new Date(o.start_datetime);
+this.nextAppointments[cid] = {
+  date: this.fmtDateHe(dt),
+  time: this.fmtTimeHe(dt),
+  instructor: instructorNameById[o.instructor_id ?? ''],
+  isToday: this.isSameLocalDate(dt, new Date()),   // ⬅️ חדש
+  _ts: dt.getTime(),
+};
+
+  }
+}
+private isSameLocalDate(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear()
+      && a.getMonth() === b.getMonth()
+      && a.getDate() === b.getDate();
 }
 
 async saveChild(child: any) {
@@ -614,10 +759,15 @@ async deleteChild() {
 
   // ====== תצוגות "התור הבא" ו"פעילות אחרונה" (ממלא מקום) ======
   // חברי כאן לשאילתה/שירותים המתאימים של שיעורים/יומן.
-  getNextAppointment(_child: ChildRow): { date: string; time: string; instructor?: string } | null {
-    // TODO: למשוך מה-DB
-    return null;
-  }
+  getNextAppointment(child: any) {
+  const id = this.childId(child);
+  const v = id ? this.nextAppointments[id] : null;
+  if (!v) return null;
+  const { date, time, instructor, isToday } = v;   // ⬅️ כולל isToday
+  return { date, time, instructor, isToday };
+}
+
+
 
   getLastActivity(_child: ChildRow): { desc: string; date: string; rating?: number } | null {
     // TODO: למשוך מה-DB
