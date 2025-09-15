@@ -164,7 +164,6 @@ export class InstructorScheduleComponent implements OnInit {
       return;
     }
 
-    // כדי ש־Angular יזהה שינוי גם אם אותו ילד נבחר שוב
     this.selectedChild = { ...child };
   }
 

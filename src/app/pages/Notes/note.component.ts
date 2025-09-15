@@ -43,17 +43,14 @@ import { db } from '../../services/supabaseClient';
   ]
 })
 export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
-  /** אירוע יציאה להורה */
-  @Output() close = new EventEmitter<void>();
-
   @Input() child: any;
+  @Output() close = new EventEmitter<void>();
   @ViewChild('scrollable') scrollable!: ElementRef;
 
   notes: any[] = [];
   newNote = '';
   noteType = 'כללי';
   selectedFile: File | null = null;
-  quickNotes: any;
 
   ngOnInit() {}
 
@@ -67,7 +64,6 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
     }
   }
 
-  /** קריאה מהכפתור לסגירת הכרטיס */
   onClose(): void {
     this.close.emit();
   }
@@ -161,5 +157,11 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
 
   trackByNote(index: number, note: any) {
     return note.id;
+  }
+
+  onBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
+      this.onClose();
+    }
   }
 }

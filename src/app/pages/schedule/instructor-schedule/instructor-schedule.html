@@ -11,7 +11,9 @@
   </app-schedule>
 
   <!-- Overlay של כרטיס הילד -->
-  <div *ngIf="selectedChild" class="note-overlay">
-    <app-note [child]="selectedChild"></app-note>
-  </div>
+  <app-note
+    *ngIf="selectedChild"
+    [child]="selectedChild"
+    (close)="selectedChild = null">
+  </app-note>
 </div>
