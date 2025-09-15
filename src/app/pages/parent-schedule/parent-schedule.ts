@@ -2,9 +2,9 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant, getCurrentUserData } from '../../services/supabaseClient';
-import { Lesson } from '../../models/lesson-schedule.model';
 import { ScheduleComponent } from '../../custom-widget/schedule/schedule';
 import { ScheduleItem } from '../../models/schedule-item.model';
+import { Lesson } from '../../models/lesson-schedule.model';
 import { EventClickArg } from '@fullcalendar/core';
 
 @Component({
@@ -133,7 +133,7 @@ async loadLessons() {
       instructorNameById = map;
     }
 
-this.lessons = rows.map((r: LessonsOccurrenceRow) => {
+this.lessons = rows.map((r: Lesson) => {
   // חישובי תאריכים
   const startFallback = this.getLessonDateTime(r.day_of_week, r.start_time);
   const endFallback   = this.getLessonDateTime(r.day_of_week, r.end_time);
