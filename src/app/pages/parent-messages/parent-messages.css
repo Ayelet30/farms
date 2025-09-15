@@ -1,4 +1,4 @@
-.notes-container {
+.message-container {
   max-width: 600px;
   margin: auto;
   font-family: 'Segoe UI', sans-serif;
@@ -41,7 +41,7 @@ button {
   font-weight: bold;
 }
 
-.notes-history {
+.message-history {
   margin-top: 20px;
   overflow-x: auto;
   background-color: #f9f9f9;

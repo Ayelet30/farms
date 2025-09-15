@@ -1,189 +1,220 @@
-<div class="children-container">
+<div class="children-container" dir="rtl">
   <div *ngIf="loading">טוען...</div>
   <div *ngIf="!loading && children.length === 0">אין ילדים להצגה.</div>
 
-  <!-- כפתורי בחירת ילד -->
-  <div class="children-buttons" *ngIf="children.length > 0">
-    <button
-      *ngFor="let child of children"
-      (click)="toggleChildDetails(child)"
-      [class.active]="selectedChild?.child_uuid === child.child_uuid" 
-      class="child-button"
-    >
-      {{ child.full_name }}
-    </button>
+  <div *ngIf="infoMessage" class="info-banner">{{ infoMessage }}</div>
 
-    <button (click)="addNewChild()" class="child-button add-button" type="button">➕</button> <!-- CHANGED -->
+  <!-- פס בחירה עליון + כפתור הוספה -->
+  <div class="children-buttons" *ngIf="children.length > 0">
+<button
+  *ngFor="let child of children"
+  (click)="toggleChildSelection(child)"
+  class="child-chip"
+  [class.active]="hasSelected(child)"
+  [class.status-disabled]="!isActiveChild(child)"
+  [class.limit-disabled]="isActiveChild(child) && !hasSelected(child) && selectedIds.size >= maxSelected"
+  [attr.aria-disabled]="(!isActiveChild(child) || (isActiveChild(child) && !hasSelected(child) && selectedIds.size >= maxSelected)) ? 'true' : null"
+  [attr.title]="!isActiveChild(child) ? 'הילד אינו פעיל' : (selectedIds.size >= maxSelected && !hasSelected(child) ? 'מקסימום 4 כרטיסים פתוחים' : null)"
+  type="button"
+>
+  {{ child.full_name }}
+</button>
+
+
+    <button (click)="addNewChild()" class="child-chip add-button" type="button">➕ הוסף ילד</button>
   </div>
 
-  <!-- כרטיס ילד נבחר -->
-  <div class="child-card" *ngIf="selectedChild">
-    <div class="child-header">
-      <div *ngIf="!isEditing">
-        <h3>{{ selectedChild.full_name }}</h3>
-      </div>
-      <div *ngIf="isEditing">
-        <input [(ngModel)]="editableChild.full_name" class="editable-title" />
+  <!-- גריד של עד 4 כרטיסים -->
+<div class="cards-grid" *ngIf="selectedChildren.length > 0">
+  <div class="child-card" *ngFor="let c of selectedChildren; trackBy: trackByChild">
+    <button
+    class="card-close"
+    type="button"
+    (click)="closeCard(c)"
+    title="סגירת כרטיס"
+    aria-label="סגירת כרטיס"
+  >❌</button>
+
+      <div class="child-header">
+        <div class="title-wrap">
+          <h3 class="child-name">🧒 {{ c.full_name }}</h3>
+          <span class="age-badge" *ngIf="c.birth_date">🎂גיל: {{ getAge(c.birth_date) }} </span>
+        </div>
+
+    <div class="actions">
+        <button *ngIf="!editing[childId(c)]" class="icon-btn" type="button" (click)="startEdit(c)">✏️</button>
+      <button *ngIf="editing[childId(c)]" class="icon-btn" type="button" (click)="saveChild(c)">💾</button>
+      <button class="icon-btn danger" type="button" (click)="confirmDeleteChild(c)">🗑️</button>
+    </div>
       </div>
 
-      <div class="button-group">
-        <button *ngIf="!isEditing" (click)="isEditing = true" class="btn-edit" type="button">✏️ ערוך</button>
-        <button *ngIf="isEditing" (click)="saveChild()" class="btn-save" type="button">💾 שמור</button> <!-- CHANGED -->
-        <button class="btn-delete" (click)="confirmDeleteChild()" type="button">🗑️ הסר</button> <!-- CHANGED -->
+      <p class="row"><span class="key">תחום רכיבה:</span><span class="val">רכיבה טיפולית</span></p>
+
+      <!-- התור הבא -->
+      <div class="card-section">
+        <div class="section-title">📅 התור הבא</div>
+        <ng-container [ngTemplateOutlet]="nextTpl" [ngTemplateOutletContext]="{ $implicit: getNextAppointment(c) }"></ng-container>
       </div>
+
+      <!-- פעילות אחרונה -->
+      <div class="card-section">
+        <div class="section-title">❤️ פעילות אחרונה</div>
+        <ng-container [ngTemplateOutlet]="lastTpl" [ngTemplateOutletContext]="{ $implicit: getLastActivity(c) }"></ng-container>
+      </div>
+
+      <!-- פרטים ניתנים לעריכה -->
+    <div class="editable-area" *ngIf="editing[childId(c)]">
+      <div class="form-row">
+          <label>שם מלא</label>
+        <input [(ngModel)]="editables[childId(c)].full_name" class="editable-input" />
+      </div>
+        <div class="form-row">
+          <label>תאריך לידה</label>
+          <input type="date" [(ngModel)]="editables[c.child_uuid!].birth_date" class="editable-input" />
+        </div>
+        <div class="form-row">
+          <label>קופת חולים</label>
+          <select [(ngModel)]="editables[c.child_uuid!].health_fund" class="editable-input">
+            <option value="" disabled hidden>בחר קופה</option>
+            <option *ngFor="let fund of healthFunds" [value]="fund">{{ fund }}</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>הערות רפואיות</label>
+          <textarea [(ngModel)]="editables[c.child_uuid!].medical_notes" rows="3" class="editable-input"></textarea>
+        </div>
+        <div class="form-row end">
+          <button class="btn-save" type="button" (click)="saveChild(c)">שמור</button>
+          <button class="btn-edit" type="button" (click)="cancelEdit(c)">ביטול</button>
+        </div>
+      </div>
+
+      <!-- קישורים נוספים -->
+     <div class="links-row">
+  <button class="cta-btn" type="button" (click)="openHistory(c)">
+    <span class="icon">📖</span>
+    <span>היסטוריה</span>
+  </button>
+
+  <button class="cta-btn primary" type="button" (click)="goToBooking(c)">
+    <span class="icon">📅</span>
+    <span>הזמן תור</span>
+  </button>
+</div>
+
+    </div>
+  </div>
+
+  <!-- טופס הוספת ילד חדש -->
+  <div class="child-card" *ngIf="newChild">
+    <h3>הוספת ילד חדש</h3>
+
+    <div class="form-field">
+      <label>שם מלא</label>
+      <input class="editable-input" [(ngModel)]="newChild.full_name" required />
+      <div *ngIf="validationErrors['full_name']" class="error-msg">{{ validationErrors['full_name'] }}</div>
     </div>
 
-    <!-- הצגת ת"ז אמיתית מהשדה gov_id במקום id -->
-    <p><strong>ת"ז:</strong> {{ selectedChild.gov_id || '-' }}</p> <!-- CHANGED -->
+    <div class="form-field">
+      <label>תעודת זהות</label>
+      <input class="editable-input" [(ngModel)]="newChild.gov_id" maxlength="9" pattern="[0-9]*" inputmode="numeric" required (keypress)="allowOnlyNumbers($event)" />
+      <div *ngIf="validationErrors['gov_id']" class="error-msg">{{ validationErrors['gov_id'] }}</div>
+    </div>
 
-    <p>
-  <strong>גיל:</strong>
-  <span>{{ getAge(selectedChild.birth_date) }} שנים</span>
-</p>
+    <div class="form-field">
+      <label>תאריך לידה</label>
+      <input class="editable-input" type="date" [(ngModel)]="newChild.birth_date" required />
+      <div *ngIf="validationErrors['birth_date']" class="error-msg">{{ validationErrors['birth_date'] }}</div>
+    </div>
 
-<p>
-  <strong>מין:</strong>
-  <span>{{ selectedChild.gender || '-' }}</span>
-</p>
+    <div class="form-field">
+      <label>מין</label>
+      <select class="editable-input" [(ngModel)]="newChild.gender" required>
+        <option value="" disabled hidden>בחר מין</option>
+        <option value="זכר">זכר</option>
+        <option value="נקבה">נקבה</option>
+      </select>
+      <div *ngIf="validationErrors['gender']" class="error-msg">{{ validationErrors['gender'] }}</div>
+    </div>
 
-    <p>
-      <strong>קופת חולים:</strong>
-      <span *ngIf="!isEditing">{{ selectedChild.health_fund || '-' }}</span>
-      <select *ngIf="isEditing" [(ngModel)]="editableChild.health_fund" class="editable-input" required>
+    <div class="form-field">
+      <label>קופת חולים</label>
+      <select class="editable-input" [(ngModel)]="newChild.health_fund" required>
         <option value="" disabled hidden>בחר קופה</option>
         <option *ngFor="let fund of healthFunds" [value]="fund">{{ fund }}</option>
       </select>
-    </p>
+      <div *ngIf="validationErrors['health_fund']" class="error-msg">{{ validationErrors['health_fund'] }}</div>
+    </div>
 
-    <p>
-  <strong>הערות רפואיות / רגישויות:</strong>
-  <span *ngIf="!isEditing">{{ selectedChild.medical_notes || '-' }}</span>
-  <textarea
-    *ngIf="isEditing"
-    [(ngModel)]="editableChild.medical_notes"
-    class="editable-input"
-    rows="3"
-    maxlength="4000"
-    placeholder="למשל: רגישות לבוטנים; אלרגיה לפניצילין; אסטמה קלה…"
-  ></textarea>
-</p>
+    <div class="form-field">
+      <label>הערות רפואיות / רגישויות</label>
+      <textarea class="editable-input" [(ngModel)]="newChild.medical_notes" rows="3" maxlength="4000"></textarea>
+    </div>
 
+    <div class="button-group">
+      <button class="btn-save" (click)="saveNewChild()" type="button">שמור</button>
+      <button class="btn-edit" (click)="cancelNewChild()" type="button">ביטול</button>
+    </div>
+  </div>
+<!-- History Modal -->
+<div class="dialog-overlay" *ngIf="showHistory">
+  <div class="history-modal">
+    <button class="card-close small" (click)="closeHistory()" aria-label="סגור">✕</button>
 
-    <!-- מדריך (לא חובה כרגע)
-    <p>
-      <strong>מדריך:</strong>
-      <span *ngIf="!isEditing">{{ selectedChild.instructor || '-' }}</span>
-      <select *ngIf="isEditing" [(ngModel)]="editableChild.instructor" class="editable-input">
-        <option value="" disabled hidden>בחר מדריך</option>
-        <option *ngFor="let name of instructors" [value]="name">{{ name }}</option>
-      </select>
-    </p>
-    -->
+    <h3 class="history-title">היסטוריית שיעורים — {{ historyChildName }}</h3>
 
-    <p>
-      <strong>סטטוס:</strong>
-      <span
-        [ngClass]="{
-          'status-active': selectedChild.status === 'active',
-          'status-waiting': selectedChild.status === 'waiting',
-          'status-inactive': selectedChild.status !== 'active' && selectedChild.status !== 'waiting'
-        }"
-      >
-        {{
-          selectedChild.status === 'active'
-            ? 'פעיל'
-            : selectedChild.status === 'waiting'
-            ? 'ממתין לאישור מזכירה'
-            : 'לא פעיל'
-        }}
-      </span>
-    </p>
+    <div *ngIf="historyLoading" class="history-loading">טוען…</div>
+
+    <div *ngIf="!historyLoading && historyItems.length === 0" class="history-empty">
+      אין היסטוריה להצגה
+    </div>
+
+    <ul class="history-list" *ngIf="!historyLoading && historyItems.length > 0">
+      <li *ngFor="let h of historyItems; let i = index" class="history-item">
+        <div class="line">
+          <span class="when">{{ h.date }} • {{ h.time }}</span>
+          <span class="sep" *ngIf="h.instructor">•</span>
+          <span class="with" *ngIf="h.instructor">עם {{ h.instructor }}</span>
+          <span class="badge" [ngClass]="statusClass(h.status)">{{ h.status }}</span>
+        </div>
+        <div class="muted" *ngIf="h.lesson_type">סוג שיעור: {{ h.lesson_type }}</div>
+      </li>
+    </ul>
   </div>
 </div>
 
-<!-- טופס הוספת ילד חדש -->
-<div class="child-card" *ngIf="newChild">
-  <h3>הוספת ילד חדש</h3>
-
-  <div class="form-field">
-    <label>שם מלא</label>
-    <input class="editable-input" [(ngModel)]="newChild.full_name" required />
-    <div *ngIf="validationErrors['full_name']" class="error-msg">
-      {{ validationErrors['full_name'] }}
-    </div>
-  </div>
-
-  <div class="form-field">
-    <label>תעודת זהות</label>
-    <input
-      class="editable-input"
-      [(ngModel)]="newChild.gov_id" 
-      maxlength="9"
-      pattern="[0-9]*"
-      inputmode="numeric"
-      required
-      (keypress)="allowOnlyNumbers($event)"
-    />
-    <div *ngIf="validationErrors['gov_id']" class="error-msg"> <!-- CHANGED -->
-      {{ validationErrors['gov_id'] }}
-    </div>
-  </div>
-
-  <div class="form-field">
-    <label>תאריך לידה</label>
-    <input class="editable-input" type="date" [(ngModel)]="newChild.birth_date" required />
-    <div *ngIf="validationErrors['birth_date']" class="error-msg">
-      {{ validationErrors['birth_date'] }}
-    </div>
-  </div>
-
-  <div class="form-field">
-    <label>מין</label>
-    <select class="editable-input" [(ngModel)]="newChild.gender" required>
-      <option value="" disabled hidden>בחר מין</option>
-      <option value="זכר">זכר</option>
-      <option value="נקבה">נקבה</option>
-    </select>
-    <div *ngIf="validationErrors['gender']" class="error-msg">
-      {{ validationErrors['gender'] }}
-    </div>
-  </div>
-
-  <div class="form-field">
-    <label>קופת חולים</label>
-    <select class="editable-input" [(ngModel)]="newChild.health_fund" required>
-      <option value="" disabled hidden>בחר קופה</option>
-      <option *ngFor="let fund of healthFunds" [value]="fund">{{ fund }}</option>
-    </select>
-    <div *ngIf="validationErrors['health_fund']" class="error-msg">
-      {{ validationErrors['health_fund'] }}
-    </div>
-  </div>
-  <div class="form-field">
-  <label>הערות רפואיות / רגישויות</label>
-  <textarea
-    class="editable-input"
-    [(ngModel)]="newChild.medical_notes"
-    rows="3"
-    maxlength="4000"
-    placeholder="למשל: רגישות לבוטנים; אלרגיה לפניצילין; אסטמה קלה…"
-  ></textarea>
-</div>
-
-
-  <div class="button-group">
-    <button class="btn-save" (click)="saveNewChild()" type="button">שמור</button> <!-- CHANGED -->
-    <button class="btn-edit" (click)="cancelNewChild()" type="button">ביטול</button> <!-- CHANGED -->
-  </div>
-</div>
-
-<!-- דיאלוג מחיקה -->
-<div class="dialog-overlay" *ngIf="showDeleteConfirm">
-  <div class="dialog-box">
-    <h3>האם את בטוחה שברצונך להסיר את הילד?</h3>
-    <div class="dialog-buttons">
-      <button class="btn-delete" (click)="deleteChild()" type="button">אישור</button> <!-- CHANGED -->
-      <button class="btn-edit" (click)="cancelDelete()" type="button">ביטול</button> <!-- CHANGED -->
+  <!-- דיאלוג עזיבה/מחיקה -->
+  <div class="dialog-overlay" *ngIf="showDeleteConfirm">
+    <div class="dialog-box">
+      <h3>האם את בטוחה שברצונך להסיר את הילד?</h3>
+      <div class="dialog-buttons">
+        <button class="btn-delete" (click)="deleteChild()" type="button">אישור</button>
+        <button class="btn-edit" (click)="cancelDelete()" type="button">ביטול</button>
+      </div>
     </div>
   </div>
 </div>
+
+<!-- תבניות להצגת "התור הבא" ו"פעילות אחרונה" -->
+<ng-template #nextTpl let-next>
+  <div class="row" *ngIf="next; else noNext">
+    <span class="today-flag" *ngIf="next.isToday"><strong>היום!</strong>&nbsp;</span>
+    <span class="val">
+      {{ next.date }} • {{ next.time }}
+      <ng-container *ngIf="next.instructor"> • עם {{ next.instructor }}</ng-container>
+    </span>
+  </div>
+  <ng-template #noNext><div class="muted">אין תורים להצגה</div></ng-template>
+</ng-template>
+
+
+<ng-template #lastTpl let-last>
+  <div class="row" *ngIf="last; else noLast">
+    <span class="val">
+      {{ last.date }} • {{ last.time }}
+      <ng-container *ngIf="last.instructor"> • עם {{ last.instructor }}</ng-container>
+      <span class="muted" *ngIf="last.pendingCompletion"> — טרם מעודכן כי הושלם</span>
+    </span>
+  </div>
+  <ng-template #noLast><div class="muted">אין פעילות להצגה</div></ng-template>
+</ng-template>

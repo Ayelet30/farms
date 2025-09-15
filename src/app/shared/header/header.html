@@ -1,31 +1,58 @@
 <header class="site-header">
-  <div class="farm-section">
-    <span *ngIf="farmName" class="farm-name">{{ farmName }}</span>
-    <span *ngIf="farmNote" class="farm-note">{{ farmNote }}</span>
+  <!-- צד שמאל: שם חווה + תיאור + עיגול לוגו לחיץ -->
+  <div class="left-group">
+   <div class="farm-section">
+<button
+  type="button"
+  class="farm-logo"
+  (click)="goHome()"
+  [title]="farmName || 'עמוד הבית'"
+  [style.background]="farmLogoUrl ? 'center / cover no-repeat url(' + farmLogoUrl + ')' : ''"
+>
+  <span *ngIf="!farmLogoUrl" class="logo-initials">{{ farmInitials }}</span>
+</button>
+
+
+<span *ngIf="farmName" class="farm-name">{{ farmName }}</span>
+<span *ngIf="farmNote" class="farm-note">{{ farmNote }}</span>
+
+  <span *ngIf="farmName" class="farm-name">{{ farmName }}</span>
+  <span *ngIf="farmNote" class="farm-note">{{ farmNote }}</span>
+</div>
+
+   
   </div>
-  <div class="auth-section">
+
+  <!-- צד ימין: אזור הזדהות/מחליף תפקידים -->
+  <div class="auth-section" dir="rtl">
     <div class="parent-details">
-      <span *ngIf="userName" class="parent-name">{{ userName }}
+      <span *ngIf="userName" class="parent-name">
+        {{ userName }}
+
         <ng-container *ngIf="(cu.user$ | async) as u; else noUser">
-  <div class="role-switcher" *ngIf="(u.memberships?.length ?? 0) > 1">
-    <select
-      [(ngModel)]="selected"
-      (ngModelChange)="onChooseMembership($event)"
-    >
-      <option *ngFor="let m of (u.memberships ?? [])" [ngValue]="m">
-        {{ m.farm?.name || m.tenant_id }} — {{ m.role_in_tenant }}
-      </option>
-    </select>
-  </div>
-</ng-container>
-<ng-template #noUser></ng-template>
+          <div class="role-switcher" *ngIf="(u.memberships?.length ?? 0) > 1">
+            <select
+              [(ngModel)]="selected"
+              (ngModelChange)="onChooseMembership($event)"
+            >
+              <option *ngFor="let m of (u.memberships ?? [])" [ngValue]="m">
+                {{ m.farm?.name || m.tenant_id }} — {{ m.role_in_tenant }}
+              </option>
+            </select>
+          </div>
+        </ng-container>
+        <ng-template #noUser></ng-template>
       </span>
+
       <span *ngIf="userRole" class="parent-Role">{{ userRole }}</span>
     </div>
-    <button class="auth-button" [ngClass]="isLoggedIn ? 'logout' : 'login'" (click)="handleLoginLogout()">
+
+    <button
+      class="auth-button"
+      [ngClass]="isLoggedIn ? 'logout' : 'login'"
+      (click)="handleLoginLogout()"
+    >
       {{ isLoggedIn ? 'התנתק' : 'התחבר' }}
     </button>
   </div>
 </header>
-
-
