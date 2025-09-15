@@ -46,6 +46,10 @@ export class SliderComponent implements OnInit {
         { path: 'instructor/activities', label: 'ניהול פעילויות', icon: 'user' },
         { path: 'instructor/notes', label: 'רשומות והערות', icon: 'note' }
       ];
+      } else if (this.role === 'secretary') {
+      this.menuItems = [
+        { path: 'secretary/parents', label: 'הורים בחווה', icon: 'user' },
+      ];
     } else if (this.role === 'admin') {
       this.menuItems = [
         { path: 'admin/users', label: 'ניהול משתמשים', icon: 'user' },

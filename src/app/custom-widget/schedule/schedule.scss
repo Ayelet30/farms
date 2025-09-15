@@ -1,0 +1,112 @@
+.fc {
+    --fc-page-bg-color: #ffff;
+    --fc-neutral-bg-color: #ffff;
+    --fc-border-color: var(--fc-border-color);
+
+    --fc-button-text-color: var(--text-active);
+    --fc-button-bg-color: var(--panel-bg);
+    --fc-button-border-color: var(--fc-border-color);;
+    --fc-button-hover-bg-color: var(--gold-soft);
+    --fc-button-active-bg-color: var(--text-active);
+    --fc-button-active-text-color: var(--fc-neutral-bg-color);
+    --fc-button-active-border-color: var(--text-active);
+
+    --fc-today-bg-color: rgba(59, 130, 246, .07); /* כחול עדין ל"היום" */
+    --fc-now-indicator-color: #ef4444;            /* קו "עכשיו" */
+  }
+
+/* ===== סרגל עליון ===== */
+.fc .fc-toolbar { gap: 1.5rem; }
+.fc .fc-toolbar-title {
+  font-weight: 800 !important;
+  color: var(--text-active) !important;
+  letter-spacing: .5px; 
+  font-size: 1.5rem;
+  line-height: 1em;
+  margin: 0px;
+  font-family: cursive;
+}
+
+.fc .fc-button-primary:not(:disabled).fc-button-active, .fc .fc-button-primary:not(:disabled):active {
+    background-color: var(--fc-button-active-bg-color);
+    border-color: var(--fc-button-active-border-color);
+    color: #ffff;
+}
+
+.fc-direction-rtl .fc-toolbar-ltr {
+    flex-direction: initial;
+    border: var(--fc-button-border-color) solid 2px;
+    border-radius: 18px;
+    padding: 16px;
+    background-color: var(--fc-neutral-bg-color);
+}
+
+.fc-next-button .fc-button .fc-button-primary{
+  width: 50px !important;
+  height: 50px !important;
+}
+
+
+.fc-header-toolbar .fc-toolbar-chunk{
+  border: var(--fc-border-color) solid 1px;
+  background-color: var(--fc-neutral-bg-color);
+   display: flex;
+    flex-wrap: wrap;
+    row-gap: .75rem;
+}
+
+.fc table {
+    border-collapse: collapse;
+    border-spacing: 25px;
+    font-size: 1em;
+}
+
+.fc-direction-rtl .fc-toolbar-ltr {
+    flex-direction: initial;
+    border: var(--fc-button-border-color) solid 2px;
+    background-color: var(--fc-neutral-bg-color);
+}
+
+
+.fc .fc-button-primary {
+    background-color: var(--fc-button-bg-color);
+    border-color: var(--fc-button-border-color);
+    color: var(--fc-button-text-color);
+    border-radius: 10px !important;
+    min-width: 70px;
+    height: 35px;
+    font-weight: 700;
+    font-size: 12px;
+    line-height: 1em;
+}
+
+// /* ===== רשת שעות – רווחים ונראות ===== */
+// /* גובה שורות (יותר “אוויר”) */
+// .bereshit-calendar .fc-timegrid-slot { height: 3.2rem; } /* ≈51px לכל חצי שעה */
+
+// /* ריווח אופקי בתוך כל עמודת יום (כדי שלא יידבק לקצה) */
+// .bereshit-calendar .fc-timegrid-col-frame { padding: 0 .55rem; }
+
+// /* קווי משנה עדינים יותר */
+// .bereshit-calendar .fc-timegrid-slot-minor { border-top-color: rgba(0,0,0,.05); }
+
+/* ===== אירועים (כרטיסים) ===== */
+.bereshit-calendar .fc-timegrid-event{
+  border: 0;
+  border-radius: 16px;
+  padding: .55rem .65rem;
+  margin: .35rem 0;               /* ריווח אנכי בין אירועים */
+  box-shadow: 0 1px 0 rgba(0,0,0,.05), 0 6px 12px rgba(0,0,0,.04);
+}
+.bereshit-calendar .fc .fc-event-time{
+  display: inline-block;
+  font-weight: 700;
+  color: var(--text-strong);
+  margin-bottom: .15rem;
+}
+
+.fc-direction-rtl .fc-button-group > .fc-button:not(:first-child) {
+    border-bottom-right-radius: 0px;
+    border-top-right-radius: 0px;
+    margin-right: 10px;
+}

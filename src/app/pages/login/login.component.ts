@@ -9,6 +9,7 @@ import { Auth } from '@angular/fire/auth';
 import { CurrentUserService } from '../../core/auth/current-user.service';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { TokensService } from '../../services/tokens.service';
+import { sendPasswordResetEmail } from 'firebase/auth';
 
 @Component({
   selector: 'app-login',
@@ -22,7 +23,10 @@ export class LoginComponent {
   password = '';
   errorMessage = '';
   loading = false;
+  isLoading = false;
+  successMessage = '';
   private auth = inject(Auth);
+
 
   constructor(
     private router: Router,
@@ -30,7 +34,9 @@ export class LoginComponent {
     private dialog: MatDialog,
     private tokens: TokensService,
     @Optional() private dialogRef?: MatDialogRef<LoginComponent>
-  ) {}
+  ) {
+    (this.auth as any).languageCode = 'he';
+  }
 
   private routeByRole(role: string | null | undefined): string {
     switch ((role || '').toLowerCase()) {
@@ -70,11 +76,53 @@ export class LoginComponent {
       this.dialogRef?.close({ success: true, role: activeRole, target });
       await this.router.navigateByUrl(target);
 
-    } catch (e: any) {
-      console.error(e);
-      this.errorMessage = e?.message || 'Login failed';
+    } 
+    catch (e: any) {
+      console.error("???????????",e);
+      const code = e?.code || '';
+      if (code === 'auth/invalid-credential') {
+        this.errorMessage = 'שם משתמש או סיסמא שגויים';
+      } else if (code === 'auth/invalid-email') {
+        this.errorMessage = 'כתובת דוא"ל לא תקינה.';
+      } else if (code === 'auth/too-many-requests') {
+        this.errorMessage = 'נחסמו ניסיונות לזמן קצר. נסה שוב מאוחר יותר.';
+      } else {
+        this.errorMessage = 'אירעה שגיאה בכניסה למערכת אנא פנה לתמיכה.';
+        console.error(e);
+      }
     } finally {
-      this.loading = false;
+      this.isLoading = false;
+    }
+  
+  }
+
+  async forgotPassword(): Promise<void> {
+    this.errorMessage = '';
+    this.successMessage = '';
+
+    if (!this.email) {
+      this.errorMessage = 'הכנס את כתובת הדוא"ל ואז לחצי "שכחתי סיסמה".';
+      return;
+    }
+
+    this.isLoading = true;
+    try {
+      await sendPasswordResetEmail(this.auth, this.email /*, actionCodeSettings */);
+      this.successMessage = 'שלחנו קישור לאיפוס סיסמה לכתובת הדוא"ל שלך. בדקי את תיבת הדואר/ספאם.';
+    } catch (e: any) {
+      const code = e?.code || '';
+      if (code === 'auth/invalid-credential') {
+        this.errorMessage = 'לא נמצאה משתמש עם הדוא"ל הזה.';
+      } else if (code === 'auth/invalid-email') {
+        this.errorMessage = 'כתובת דוא"ל לא תקינה.';
+      } else if (code === 'auth/too-many-requests') {
+        this.errorMessage = 'נחסמו ניסיונות לזמן קצר. נסי שוב מאוחר יותר.';
+      } else {
+        this.errorMessage = 'אירעה שגיאה בשליחת מייל האיפוס.';
+        console.error(e);
+      }
+    } finally {
+      this.isLoading = false;
     }
   }
 }

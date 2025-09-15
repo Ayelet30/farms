@@ -1,33 +1,39 @@
 <div class="home-container">
   <div class="image-section">
-    <img src="assets/images/hors.png" alt="סוס" />
+    <picture>
+      <!-- תמונה קלה למובייל -->
+      <source media="(max-width: 768px)" srcset="assets/images/hors-mobile.jpg" />
+      <img src="assets/images/hors.png" alt="סוס" />
+    </picture>
   </div>
+
+  <div class="buttons">
+    <button class="login-icon" (click)="goToLogin()" title="התחברות">התחברות</button>
+  </div>
+
   <div class="content">
-
     <div class="activities">
-
       <div class="activity-box" (click)="openBooking('therapeutic')">
         <strong>רכיבה טיפולית</strong><br />
         רכיבה טיפולית היא שיטת טיפול בעזרת בעלי חיים
         המשלבת מרכיבים חינוכיים, פסיכולוגיים ושיקומיים בעזרת סוסים וחמורים
         קהל היעד של הרכיבה הטיפולית הוא ילדים, מתבגרים או מבוגרים בעלי לקויות או הפרעות רגשיות
       </div>
+
       <div class="activity-box" (click)="openBooking('western')">
         <strong>רכיבה מערבית</strong><br />
-        <p> רכיבה על סוסים בסגנון מערבי נקראת “רכיבת ווסטרן”.
-          רכיבה זו התפתחה מעבודת החוואים והבוקרים במערב ארה”ב.
-          הרכיבה המערבית עשתה דרך ארוכה מאוד והיא נחשבת לרכיבה המוכרת ביותר בעולם ולחלק משמעותי בתחרויות.</p>
+        <p>רכיבה על סוסים בסגנון מערבי נקראת “רכיבת ווסטרן”. רכיבה זו התפתחה מעבודת החוואים
+          והבוקרים במערב ארה”ב. הרכיבה המערבית עשתה דרך ארוכה מאוד והיא נחשבת לרכיבה המוכרת ביותר
+          בעולם ולחלק משמעותי בתחרויות.</p>
       </div>
+
       <div class="activity-box" (click)="openBooking('group')">
         <strong>קבוצות רכיבה</strong><br />
-        <p> רכיבה על סוסים מתאימה לקבוצות, למשפחות,
-          כבילוי רומנטי וגם לארגונים וחברות.
-          הבילוי מתאים כמעט לכל הגילאים, וכבר מגיל שלוש ילדים יכולים לרכב על סוסי פוני.</p>
+        <p>רכיבה על סוסים מתאימה לקבוצות, למשפחות, כבילוי רומנטי וגם לארגונים וחברות. הבילוי מתאים כמעט לכל
+          הגילאים, וכבר מגיל שלוש ילדים יכולים לרכב על סוסי פוני.</p>
       </div>
     </div>
   </div>
-  <div></div>
-  <div class="buttons">
-    <button class="login-icon" (click)="goToLogin()" title="התחברות">התחברות</button>
-  </div>
+
+
 </div>

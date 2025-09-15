@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, Output,  ViewEncapsulation} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 // FullCalendar
@@ -10,6 +10,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import heLocale from '@fullcalendar/core/locales/he';
+
 
 
 /** אירוע גנרי שהווידג'ט מצפה לקבל */
@@ -27,7 +28,8 @@ export type ScheduleItem = {
   standalone: true,
   imports: [CommonModule, FormsModule, FullCalendarModule],
   templateUrl: './schedule.html',
-  styleUrls: ['./schedule.css'],
+  styleUrls: ['./schedule.scss'],
+  encapsulation: ViewEncapsulation.None
 })
 export class ScheduleComponent implements OnChanges {
   /** רשימת אירועים להצגה */
@@ -46,6 +48,12 @@ export class ScheduleComponent implements OnChanges {
   /** האזנות החוצה */
   @Output() eventClick = new EventEmitter<ScheduleItem>();
   @Output() dateClick = new EventEmitter<string>();
+
+  
+// eventClassNames: (({ event }) => {}) | undefined
+//   const { kind } = event.extendedProps as any;
+//   return [ kind === 'therapy' ? 'event-therapy' : 'event-lesson' ];
+// },
 
   calendarOptions: CalendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
@@ -89,4 +97,7 @@ export class ScheduleComponent implements OnChanges {
       }))
     };
   }
+  
 }
+
+

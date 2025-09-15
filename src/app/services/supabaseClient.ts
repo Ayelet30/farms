@@ -249,6 +249,7 @@ export async function getCurrentUserDetails(
 ): Promise<UserDetails | null> {
   const tenant = requireTenant();
   const fbUser = getAuth().currentUser;
+  
   if (!fbUser) throw new Error('No Firebase user is logged in.');
 
   const ttl = options?.cacheMs ?? 60_000;
