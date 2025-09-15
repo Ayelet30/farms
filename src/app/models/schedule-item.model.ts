@@ -1,9 +1,16 @@
-// src/app/models/input-data.model.ts
 export interface ScheduleItem {
   id: string;
-  time: string,
-  date: Date,
-   child_name: string,
-
-
+  title: string;
+  start: string;
+  end: string;
+  color?: string;
+  status: "ממתין לאישור" | "אושר" | "בוטל" | "הושלם"; // ← עדכון
+  meta?: {
+    status: string;
+    child_id: string;
+    child_name: string;
+    instructor_id: string;
+    instructor_name: string;
+  };
 }
+
