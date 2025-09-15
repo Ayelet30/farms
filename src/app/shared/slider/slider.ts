@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
@@ -14,20 +14,24 @@ import { FormsModule } from '@angular/forms';
   styleUrls: ['./slider.scss']
 })
 export class SliderComponent implements OnInit {
+  isDesktop = false;
   role: string = '';
   menuItems: any[] = [];
-;
   menuCollapsed = false;
   error: string | undefined;
-
+  
   constructor(private router: Router, private dialog: MatDialog) {}
-
+  
   async ngOnInit() {
     const userData = await getCurrentUserDetails();
     this.role = userData?.role_in_tenant ? userData?.role_in_tenant : '';
+    this.syncBreakpoint();
     this.setMenuItemsByRole();
 
   }
+
+  @HostListener('window:resize')
+  onResize() { this.syncBreakpoint(); }
 
   setMenuItemsByRole() {
     if (this.role === 'parent') {
@@ -49,6 +53,7 @@ export class SliderComponent implements OnInit {
       } else if (this.role === 'secretary') {
       this.menuItems = [
         { path: 'secretary/parents', label: 'הורים בחווה', icon: 'user' },
+        { path: 'secretary/regulations', label: 'ניהול תקנונים', icon: 'note'}
       ];
     } else if (this.role === 'admin') {
       this.menuItems = [
@@ -61,15 +66,22 @@ export class SliderComponent implements OnInit {
 
   navigateTo(path: string) {
     this.router.navigate([path]);
-    this.menuCollapsed = false;
+    if (!this.isDesktop) this.menuCollapsed = true;
   }
 
   isActive(path: string): boolean {
     return this.router.url.includes(path);
   }
 
-  toggleMenu() {
-    this.menuCollapsed = !this.menuCollapsed;
+  toggleMenu(force?: boolean) {
+    this.menuCollapsed = typeof force === 'boolean' ? force : !this.menuCollapsed;
+  }
+
+   private syncBreakpoint() {
+    this.isDesktop = window.matchMedia('(min-width: 1024px)').matches;
+    // ברירת מחדל: דסקטופ פתוח, מובייל סגור
+    this.menuCollapsed = !this.isDesktop;
   }
 
 }
+

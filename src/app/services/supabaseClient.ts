@@ -16,9 +16,11 @@ function runtime(key: string): string | null {
 
 const SUPABASE_URL = runtime('SUPABASE_URL');
 const SUPABASE_ANON_KEY = runtime('SUPABASE_ANON_KEY');
+const LOGIN_BOOTSTRAP_URL = runtime('LOGIN_BOOTSTRAP_URL') ?? '/api/loginBootstrap';
+
 
 /** ===================== TYPES ===================== **/
-export type FarmMeta = { id: string; name: string; schema_name: string; logo_url?: string | null  };
+export type FarmMeta = { id: string; name: string; schema_name: string; logo_url?: string | null };
 export type TenantContext = { id: string; schema: string; accessToken?: string };
 
 export type RoleInTenant = 'parent' | 'instructor' | 'secretary' | 'manager' | 'admin' | 'coordinator';
@@ -36,6 +38,23 @@ let authBearer: string | null = null;
 let currentTenant: TenantContext | null = null;
 let currentFarmMeta: FarmMeta | null = null;
 let refreshTimer: any = null;
+
+let currentRoleInTenant: string | null = null;
+
+// מאזינים לשינוי טננט (למשל כדי לרענן UI/ראוטרים)
+type TenantListener = (ctx: TenantContext | null) => void;
+const tenantListeners = new Set<TenantListener>();
+export function onTenantChange(cb: TenantListener): () => void {
+  tenantListeners.add(cb);
+  return () => tenantListeners.delete(cb);
+}
+function notifyTenantChange() {
+  for (const cb of tenantListeners) { try { cb(currentTenant); } catch { } }
+}
+
+// לזכור את בקשת הבוטסטרפ האחרונה – לרענון טוקן לאותו טננט/רול
+let _lastBootstrap: { tenantId?: string; roleInTenant?: string | null } = {};
+
 
 /** ===================== CLIENT ===================== **/
 function makeClient(): SupabaseClient {
@@ -65,7 +84,7 @@ export function getSupabaseClient(): SupabaseClient {
   return supabase;
 }
 
-function requireTenant(): TenantContext {
+export function requireTenant(): TenantContext {
   if (!currentTenant?.schema) throw new Error('Tenant context is not set. Call setTenantContext() first.');
   return currentTenant;
 }
@@ -92,11 +111,11 @@ export async function setTenantContext(ctx: TenantContext) {
     supabase = makeClient();
     clearTimeout(refreshTimer);
     if (authBearer) scheduleTokenRefresh(authBearer);
+    notifyTenantChange();                 // <-- הוספה
   };
   _ctxLock = (_ctxLock ?? Promise.resolve()).then(run);
   await _ctxLock;
 }
-
 
 export async function clearTenantContext() {
   currentTenant = null;
@@ -105,6 +124,7 @@ export async function clearTenantContext() {
   refreshTimer = null;
   supabase = makeClient();
   try { await supabase.auth.signOut(); } catch { }
+  notifyTenantChange();                   // <-- הוספה
 }
 
 export async function logout(): Promise<void> {
@@ -249,7 +269,7 @@ export async function getCurrentUserDetails(
 ): Promise<UserDetails | null> {
   const tenant = requireTenant();
   const fbUser = getAuth().currentUser;
-  
+
   if (!fbUser) throw new Error('No Firebase user is logged in.');
 
   const ttl = options?.cacheMs ?? 60_000;
@@ -367,32 +387,31 @@ export async function bootstrapSupabaseSession(tenantId?: string, roleInTenant?:
   if (!user) throw new Error('No Firebase user');
   const idToken = await user.getIdToken(true);
 
-  // שולחים גם tenantId וגם tenant_id לטובת תאימות שרת
   const qs = new URLSearchParams();
   if (tenantId) { qs.set('tenantId', tenantId); qs.set('tenant_id', tenantId); }
   if (roleInTenant) { qs.set('role', roleInTenant); qs.set('role_in_tenant', roleInTenant); }
 
-  
-  const url = qs.toString() ? `/api/loginBootstrap?${qs}` : '/api/loginBootstrap';
+  const url = qs.toString() ? `${LOGIN_BOOTSTRAP_URL}?${qs}` : LOGIN_BOOTSTRAP_URL;
+
   const res = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` } });
   const raw = await res.text();
-  let parsed: any = null; try { parsed = JSON.parse(raw); } catch {}
+  let parsed: any = null; try { parsed = JSON.parse(raw); } catch { }
   if (!res.ok) throw new Error(parsed?.error || `loginBootstrap failed: ${res.status}`);
-  
+
   const data = parsed as BootstrapResp;
 
-  // אם הועבר tenantId ובכל זאת חזר farm אחר – נרים דגל
-  if (tenantId && data?.farm?.id && data.farm.id !== tenantId) {
-    console.warn('bootstrap returned different farm than requested', { requested: tenantId, got: data.farm.id });
-  }
+  // נעדכן role אחרון והקשר רענון
+  currentRoleInTenant = (data?.role_in_tenant as any) ?? roleInTenant ?? null;
+  _lastBootstrap = { tenantId: data?.farm?.id ?? tenantId, roleInTenant: currentRoleInTenant };
 
-  // הקמת הקשר מלאה בעת בחירה
-  if (tenantId) {
+  // קביעת קונטקסט אם ביקשנו טננט (או אם אין עדיין)
+  if (tenantId || !currentTenant) {
     await setTenantContext({ id: data.farm.id, schema: data.farm.schema_name, accessToken: data.access_token });
     currentFarmMeta = data.farm;
   }
   return data;
 }
+
 
 
 function scheduleTokenRefresh(jwt: string) {
@@ -401,7 +420,16 @@ function scheduleTokenRefresh(jwt: string) {
     const { exp } = JSON.parse(atob(body));
     const msLeft = exp * 1000 - Date.now();
     const delay = Math.max(msLeft - 60_000, 10_000);
-    refreshTimer = setTimeout(async () => { try { await bootstrapSupabaseSession(); } catch (e) { console.warn('token refresh failed', e); } }, delay);
+
+    refreshTimer = setTimeout(async () => {
+      try {
+        const tId = _lastBootstrap.tenantId ?? currentTenant?.id ?? localStorage.getItem('selectedTenant') ?? undefined;
+        const rIn = _lastBootstrap.roleInTenant ?? currentRoleInTenant ?? undefined;
+        await bootstrapSupabaseSession(tId, rIn);
+      } catch (e) {
+        console.warn('token refresh failed', e);
+      }
+    }, delay);
   } catch { /* ignore */ }
 }
 
@@ -457,10 +485,10 @@ export async function selectMembership(tenantId: string, roleInTenant?: string):
   const list = await listMembershipsForCurrentUser(true);
   const chosen = list.find(m => m.tenant_id === tenantId) ?? list[0];
   if (!chosen) throw new Error('No memberships');
-  
+
   // בקשה לשרת עם tenant + role
   let boot = await bootstrapSupabaseSession(tenantId, roleInTenant);
-  
+
   // אם חזר טננט אחר ממה שביקשנו — ננסה פעם נוספת באופן מפורש
   if (boot?.farm?.id !== tenantId) {
     console.warn('server returned different tenant; retrying once...', { asked: tenantId, got: boot?.farm?.id });
@@ -477,14 +505,18 @@ export async function selectMembership(tenantId: string, roleInTenant?: string):
   // ניקה caches כדי שלא יישארו נתונים מהחווה הקודמת
   clearDbCache();
   userCache = null as any;   // <-- אם המשתנה בקובץ הוא local, אל תשכחי לעדכן את שמו
-  
+
   clearMembershipCache();
-  
+
 
   currentFarmMeta = boot.farm;
   membershipsCache = list.map(m =>
     (m.tenant_id === chosen.tenant_id || m.tenant_id === boot.farm.id) ? normalized : m
   );
+
+  _lastBootstrap = { tenantId: normalized.tenant_id, roleInTenant: normalized.role_in_tenant };
+  currentRoleInTenant = normalized.role_in_tenant;
+
 
   localStorage.setItem('selectedTenant', normalized.tenant_id);
   return normalized;
@@ -596,3 +628,62 @@ export async function fetchCurrentFarmName(
     return { ok: false, data: null, error: e?.message ?? 'Unknown error' };
   }
 }
+
+export async function ensureTenantContextReady(): Promise<void> {
+  if (currentTenant?.schema) return;
+
+  const stored = localStorage.getItem('selectedTenant');
+  if (stored) {
+    await bootstrapSupabaseSession(stored, currentRoleInTenant ?? undefined);
+    return;
+  }
+
+  const list = await listMembershipsForCurrentUser(true);
+  if (!list.length) throw new Error('No memberships for current user');
+  await selectMembership(list[0].tenant_id, list[0].role_in_tenant);
+}
+
+export type RequiredAgreementRow = {
+  agreement_id: string;
+  agreement_code: string;
+  title: string;
+  scope: 'per_child' | 'per_parent';
+  version_id: string;
+  body_md?: string | null;
+  storage_path?: string | null;
+  accepted: boolean;
+};
+
+export async function rpcGetRequiredAgreements(childId: string, parentUid: string, activityTag?: string | null) {
+  const tenant = requireTenant();
+  const { data, error } = await getSupabaseClient().rpc('get_required_agreements', {
+    tenant_schema: tenant.schema,
+    child: childId,
+    parent: parentUid,
+    activity_tag: activityTag ?? null
+  });
+  if (error) throw error;
+  return (data ?? []) as RequiredAgreementRow[];
+}
+
+export async function insertAgreementAcceptance(opts: {
+  versionId: string; parentUid: string; childId?: string | null;
+  fullNameSnapshot?: string | null; roleSnapshot?: string | null;
+  ip?: string | null; userAgent?: string | null; signaturePath?: string | null;
+}) {
+  const dbc = db();
+  const { data, error } = await dbc.from('user_agreement_acceptances').insert({
+    agreement_version_id: opts.versionId,
+    parent_user_id: opts.parentUid,
+    child_id: opts.childId ?? null,
+    full_name_snapshot: opts.fullNameSnapshot ?? null,
+    role_snapshot: opts.roleSnapshot ?? 'parent',
+    ip: opts.ip ?? null,
+    user_agent: opts.userAgent ?? (typeof navigator !== 'undefined' ? navigator.userAgent : null),
+    signature_path: opts.signaturePath ?? null
+  }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+

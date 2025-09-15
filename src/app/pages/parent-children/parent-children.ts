@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import type { ChildRow } from '../../Types/detailes.model';
 import { dbTenant, fetchMyChildren, getCurrentUserData } from '../../services/supabaseClient';
+import { ChildConsentsComponent } from '../../consents/child-consents.component/child-consents.component';
 
 /* =========================
    Types
@@ -23,7 +24,7 @@ type InstructorRow = { id_number: string; full_name: string | null };
 @Component({
   selector: 'app-parent-children',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ChildConsentsComponent],
   templateUrl: './parent-children.html',
   styleUrls: ['./parent-children.css']
 })
