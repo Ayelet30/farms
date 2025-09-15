@@ -11,23 +11,24 @@
   margin: 12px 0 6px;
   justify-content: center;
 }
+
 .card-close {
   position: absolute;
-  top: -10px;          
+  top: -10px;
   right: -10px;
-  width: 22px;         
+  width: 22px;
   height: 22px;
   border-radius: 999px;
-  border: 1px solid #b8c39f;   
+  border: 1px solid #b8c39f;
   background: #fff;
   color: #333;
-  font-size: 14px;     
+  font-size: 14px;
   line-height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
   z-index: 5;
 }
 
@@ -35,6 +36,7 @@
   background: #f3f7ed;
   transform: scale(1.04);
 }
+
 .child-chip {
   background-color: #8a9362;
   color: #fff;
@@ -45,11 +47,21 @@
   cursor: pointer;
   transition: transform .05s ease, background-color .2s ease, opacity .2s ease;
 }
-.child-chip:hover { background-color: #6f754f; }
-.child-chip.active { background-color: #5f6640; }
-.add-button { font-weight: 700; }
+
+.child-chip:hover {
+  background-color: #6f754f;
+}
+
+.child-chip.active {
+  background-color: #5f6640;
+}
+
+.add-button {
+  font-weight: 700;
+}
+
 .child-chip.status-disabled {
-  background-color: #e5e7eb;   
+  background-color: #e5e7eb;
   color: #9ca3af;
   border: 1px dashed #d1d5db;
   cursor: not-allowed;
@@ -60,7 +72,10 @@
   cursor: not-allowed;
 }
 
-.child-chip[disabled] { filter: none; }
+.child-chip[disabled] {
+  filter: none;
+}
+
 .info-banner {
   direction: rtl;
   padding: 10px 14px;
@@ -71,30 +86,40 @@
   font-weight: 600;
   text-align: center;
 }
-.today-flag { font-weight: 800; color: #5f6640; }
+
+.today-flag {
+  font-weight: 800;
+  color: #5f6640;
+}
 
 .cards-grid {
   display: grid;
-  grid-template-columns:1fr;
+  grid-template-columns: 1fr;
   gap: 16px;
   margin-top: 12px;
 }
+
 @media (min-width: 768px) {
   .cards-grid {
     grid-template-columns: repeat(2, minmax(280px, 1fr));
   }
 }
+
 .child-card {
   border: 2px solid #8a9362;
   border-radius: 14px;
   padding: 14px;
   background: #fff;
-    overflow: visible; 
-      position: relative;
+  color: var(--text-active);
+  overflow: visible;
+  position: relative;
 
 
 }
-.muted { color: #888; }
+
+.muted {
+  color: #888;
+}
 
 .child-header {
   display: flex;
@@ -130,6 +155,7 @@
   display: flex;
   gap: 6px;
 }
+
 .icon-btn {
   background: #f5f7f1;
   border: 1px solid #d6dec6;
@@ -138,38 +164,74 @@
   cursor: pointer;
   font-size: 14px;
 }
-.icon-btn:hover { background: #e9efde; }
+
+.icon-btn:hover {
+  background: #e9efde;
+}
+
 .icon-btn.danger {
   background: #fdeaea;
   border-color: #f2c0c0;
 }
-.icon-btn.danger:hover { background: #fbd0d0; }
 
-.card-section { margin-top: 10px; }
+.icon-btn.danger:hover {
+  background: #fbd0d0;
+}
+
+.card-section {
+  margin-top: 10px;
+}
+
 .section-title {
   font-weight: 700;
   margin-bottom: 4px;
 }
-.row { display: flex; gap: 6px; align-items: center; }
-.key { color: #586141; font-weight: 600; }
-.val { color: #222; }
-.muted { color: #888; }
-.sep { padding: 0 4px; }
-.stars { margin-right: 6px; color: #f4b400; }
+
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.key {
+  color: #586141;
+  font-weight: 600;
+}
+
+.muted {
+  color: #888;
+}
+
+.sep {
+  padding: 0 4px;
+}
+
+.stars {
+  margin-right: 6px;
+  color: #f4b400;
+}
 
 .editable-area {
   border-top: 1px dashed #d8dfcb;
   margin-top: 12px;
   padding-top: 10px;
 }
+
 .form-row {
   display: flex;
   align-items: center;
   gap: 8px;
   margin: 6px 0;
 }
-.form-row label { width: 110px; color: #586141; }
-.form-row.end { justify-content: flex-end; }
+
+.form-row label {
+  width: 110px;
+  color: #586141;
+}
+
+.form-row.end {
+  justify-content: flex-end;
+}
 
 .editable-input {
   padding: 4px 8px;
@@ -179,8 +241,13 @@
   min-width: 180px;
 }
 
-.button-group { display: flex; gap: 10px; }
-.btn-edit, .btn-save {
+.button-group {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-edit,
+.btn-save {
   background-color: #8a9362;
   color: white;
   border: none;
@@ -189,32 +256,39 @@
   font-size: 14px;
   cursor: pointer;
 }
-.btn-edit:hover, .btn-save:hover { background-color: #6f754f; }
+
+.btn-edit:hover,
+.btn-save:hover {
+  background-color: #6f754f;
+}
 
 .dialog-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.4);
+  background: rgba(0, 0, 0, .4);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2000;
 }
+
 .dialog-box {
   background: white;
   border-radius: 12px;
   padding: 24px;
   width: 90%;
   max-width: 360px;
-  box-shadow: 0 8px 16px rgba(0,0,0,.2);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, .2);
   text-align: center;
   border: 2px solid #6d8f61;
 }
+
 .dialog-buttons {
   margin-top: 16px;
   display: flex;
   justify-content: space-around;
 }
+
 .btn-delete {
   background-color: #c84e4e;
   color: white;
@@ -224,13 +298,21 @@
   font-size: 14px;
   cursor: pointer;
 }
-.btn-delete:hover { background-color: #a83c3c; }
 
-.error-msg { color: #c70000; font-size: 12px; margin-top: 2px; }
+.btn-delete:hover {
+  background-color: #a83c3c;
+}
+
+.error-msg {
+  color: #c70000;
+  font-size: 12px;
+  margin-top: 2px;
+}
 
 /* שורת כפתורי הפעולות בתחתית הכרטיס */
 .links-row {
   display: flex;
+  direction: ltr;
   gap: 8px;
   margin-top: 12px;
 }
@@ -239,27 +321,31 @@
 .cta-btn {
   appearance: none;
   border: 1.5px solid #8a9362;
-  background: #f7f9f4;                 /* רקע בהיר תואם */
+  background: #f7f9f4;
+  /* רקע בהיר תואם */
   color: #2b2b2b;
   border-radius: 12px;
   padding: 8px 14px;
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
-  gap: 8px;                             /* רווח בין האייקון לטקסט */
+  gap: 8px;
+  /* רווח בין האייקון לטקסט */
   cursor: pointer;
-  box-shadow: 0 1px 0 rgba(0,0,0,.04);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .04);
   transition: background .2s, border-color .2s, transform .03s, box-shadow .2s;
 }
 
 .cta-btn:hover {
   background: #eef4e5;
   border-color: #6f754f;
-  box-shadow: 0 2px 6px rgba(0,0,0,.06);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .06);
 }
 
-.cta-btn:active { transform: translateY(1px); }
+.cta-btn:active {
+  transform: translateY(1px);
+}
 
 /* וריאציית primary (ל"הזמן תור") */
 .cta-btn.primary {
@@ -267,6 +353,7 @@
   border-color: #8a9362;
   color: #fff;
 }
+
 .cta-btn.primary:hover {
   background: #6f754f;
   border-color: #6f754f;
@@ -285,6 +372,7 @@
   cursor: not-allowed;
   box-shadow: none;
 }
+
 /* ===== History Modal ===== */
 
 .history-modal {
@@ -296,7 +384,7 @@
   max-height: 80vh;
   overflow: auto;
   padding: 18px 18px 14px;
-  box-shadow: 0 10px 26px rgba(0,0,0,.18);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .18);
 }
 
 /* כפתור X קטן בפינה של המודל */
@@ -316,16 +404,23 @@
   justify-content: center;
   cursor: pointer;
 }
-.card-close.small:hover { background: #f3f7ed; }
+
+.card-close.small:hover {
+  background: #f3f7ed;
+}
 
 /* כותרת המודל – תואם לפונט הראשי של האתר */
-.history-title{
-  font-family: var(--font-ui, inherit); /* ירש את הפונט הראשי של האתר */
-  font-weight: 700;                     /* או 600 אם תרצי דק יותר */
-  font-size: 20px;                      /* תיאום לגודל כותרות בכרטיסים */
+.history-title {
+  font-family: var(--font-ui, inherit);
+  /* ירש את הפונט הראשי של האתר */
+  font-weight: 700;
+  /* או 600 אם תרצי דק יותר */
+  font-size: 20px;
+  /* תיאום לגודל כותרות בכרטיסים */
   line-height: 1.25;
   letter-spacing: normal;
-  color: #2b2b2b;                       /* אותו צבע טקסט כמו ביתר האתר */
+  color: #2b2b2b;
+  /* אותו צבע טקסט כמו ביתר האתר */
   margin: 0 0 12px;
   text-align: right;
   -webkit-font-smoothing: antialiased;
@@ -350,7 +445,10 @@
   padding: 10px 6px;
   border-bottom: 1px dashed #e5e7eb;
 }
-.history-item:last-child { border-bottom: 0; }
+
+.history-item:last-child {
+  border-bottom: 0;
+}
 
 .history-item .line {
   display: flex;
@@ -360,13 +458,22 @@
   justify-content: flex-start;
 }
 
-.history-item .when { font-weight: 600; }
-.history-item .with { color: #374151; }
-.history-item .sep { color: #9ca3af; }
+.history-item .when {
+  font-weight: 600;
+}
+
+.history-item .with {
+  color: #374151;
+}
+
+.history-item .sep {
+  color: #9ca3af;
+}
 
 /* תגיות סטטוס */
 .badge {
-  margin-inline-start: auto; /* דוחף את הסטטוס לקצה בשורה */
+  margin-inline-start: auto;
+  /* דוחף את הסטטוס לקצה בשורה */
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 12px;
@@ -374,8 +481,64 @@
   border: 1px solid transparent;
 }
 
-.badge.st-done     { background: #eef8ee; color: #286b2a; border-color: #cbe8cb; }
-.badge.st-approved { background: #f4f6ea; color: #5f6640; border-color: #e2e8c7; }
-.badge.st-pending  { background: #fff6e5; color: #9a6a00; border-color: #f6e3b9; }
-.badge.st-cancel   { background: #fdecec; color: #a83c3c; border-color: #f2c0c0; }
-.badge.st-other    { background: #eef2f7; color: #334155; border-color: #d7deea; }
+.badge.st-done {
+  background: #eef8ee;
+  color: #286b2a;
+  border-color: #cbe8cb;
+}
+
+.badge.st-approved {
+  background: #f4f6ea;
+  color: #5f6640;
+  border-color: #e2e8c7;
+}
+
+.badge.st-pending {
+  background: #fff6e5;
+  color: #9a6a00;
+  border-color: #f6e3b9;
+}
+
+.badge.st-cancel {
+  background: #fdecec;
+  color: #a83c3c;
+  border-color: #f2c0c0;
+}
+
+.badge.st-other {
+  background: #eef2f7;
+  color: #334155;
+  border-color: #d7deea;
+}
+
+/* אייקונים אחידים */
+.icon {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+}
+
+.icon-btn .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.child-name .icon {
+  margin-inline-end: 6px;
+}
+
+.child-chip .icon {
+  width: 16px;
+  height: 16px;
+  margin-inline-end: 6px;
+}
+
+.cta-btn .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.card-close .icon {
+  width: 14px;
+  height: 14px;
+}

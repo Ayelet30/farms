@@ -1,0 +1,20 @@
+  <div class="wrap">
+    <h2>אישורים נדרשים עבור {{childName}}</h2>
+
+    <ul>
+      <li *ngFor="let a of required()">
+        <span [class.ok]="a.accepted">• {{a.title}}</span>
+        <button *ngIf="!a.accepted" (click)="open(a)">חתימה</button>
+      </li>
+    </ul>
+
+    <consent-modal
+      *ngIf="openAgreement()"
+      [tenantSchema]="tenantSchema"
+      [parentUid]="parentUid"
+      [childId]="childId"
+      [agreement]="openAgreement()"
+      (accepted)="refresh()"
+      (closed)="openAgreement.set(null)">
+    </consent-modal>
+  </div>

@@ -1,0 +1,16 @@
+  <div class="backdrop" (click)="close()"></div>
+  <div class="modal">
+    <h3>{{agreement?.title}}</h3>
+
+    <!-- הצגת Markdown: אפשר להחליף ל ngx-markdown אם מותקן -->
+    <div class="body" [innerHTML]="renderMarkdown(agreement?.body_md || '')"></div>
+
+    <label class="confirm">
+      <input type="checkbox" [(ngModel)]="checked" />
+      קראתי ואני מאשר/ת
+    </label>
+
+    <div class="actions">
+      <button class="ghost" (click)="close()">בטל</button>
+      <button class="primary" [disabled]="!checked || loading()" (click)="approve()">אישור</button>
+    </div>

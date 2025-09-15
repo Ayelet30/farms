@@ -1,0 +1,8 @@
+    .backdrop{position:fixed;inset:0;background:#0006}
+    .modal{position:fixed;inset:auto 0 0 0;margin:auto;max-width:720px;background:#fff;border-radius:16px;
+           padding:20px;box-shadow:0 10px 30px #0003;direction:rtl}
+    .body{max-height:50vh;overflow:auto;white-space:pre-wrap}
+    .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+    .primary{background:#0ea5e9;color:white;border:none;padding:8px 14px;border-radius:10px}
+    .ghost{background:transparent;border:1px solid #cbd5e1;color:#0f172a;padding:8px 14px;border-radius:10px}
+    .confirm{display:flex;align-items:center;gap:8px;margin:12px 0}

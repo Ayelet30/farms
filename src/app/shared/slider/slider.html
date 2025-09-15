@@ -1,26 +1,33 @@
-<nav class="side-menu" [class.collapsed]="menuCollapsed">
-  <button class="toggle-button"
-        (click)="toggleMenu()"
-        [attr.aria-expanded]="!menuCollapsed"
-        [attr.aria-label]="menuCollapsed ? 'פתח תפריט' : 'סגור תפריט'">
-  <svg class="chevron" [class.left]="menuCollapsed"
-       xmlns="http://www.w3.org/2000/svg" width="18" height="18"
-       viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <!-- ברירת מחדל: ימינה. כשסגור (menuCollapsed=true) נוסיף .left שמסובב לשמאל -->
-    <path d="M9 6L15 12L9 18"
-          stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round" />
-  </svg>
-</button>
+<!-- side-menu.html -->
+<div class="layout" [class.desktop]="isDesktop">
+  <!-- Drawer/Sidebar -->
+  <nav class="side-menu"
+       [class.collapsed]="menuCollapsed"
+       [class.mobile]="!isDesktop"
+       [class.open]="!menuCollapsed && !isDesktop">
 
+    <button class="toggle-button"
+            (click)="toggleMenu()"
+            [attr.aria-expanded]="!menuCollapsed"
+            [attr.aria-label]="menuCollapsed ? 'פתח תפריט' : 'סגור תפריט'">
+      <svg class="chevron" [class.left]="menuCollapsed" viewBox="0 0 24 24" width="20" height="20" fill="none">
+        <path d="M9 6L15 12L9 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
 
-
-  <!-- תפריט -->
-  <ul>
-    <li *ngFor="let item of menuItems" (click)="navigateTo(item.path)" [class.active]="isActive(item.path)">
-      <span class="icon" [ngClass]="'i-' + item.icon"></span>
-      <span class="label" *ngIf="!menuCollapsed">{{ item.label }}</span>
+    <ul>
+      <li *ngFor="let item of menuItems"
+          (click)="navigateTo(item.path)"
+          [class.active]="isActive(item.path)">
+        <span class="icon" [ngClass]="'i-' + item.icon"></span>
+        <span class="label" *ngIf="!menuCollapsed">{{ item.label }}</span>
       </li>
+    </ul>
+  </nav>
 
-  </ul>
-</nav>
+  <!-- שכבת כיסוי במובייל -->
+  <div class="scrim"
+       *ngIf="!isDesktop && !menuCollapsed"
+       (click)="toggleMenu(true)">
+  </div>
+</div>

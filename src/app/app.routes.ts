@@ -39,6 +39,7 @@ export const routes: Routes = [
     data: { role: 'secretary' },
     children: [
       { path: 'parents', loadComponent: () => import('./pages/secretary-parents/secretary-parents').then(m => m.SecretaryParentsComponent) },
+      { path: 'regulations', loadComponent: () => import('./admin/agreements-admin.component/agreements-admin.component').then(m => m.AgreementsAdminComponent) },
     ]
   },
   { path: 'admin', loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminComponent), canActivate: [RoleGuard], data: { role: 'admin' } },
