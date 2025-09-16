@@ -1,10 +1,12 @@
-import { Component, OnInit, HostListener } from '@angular/core';
+import { Component, OnInit, HostListener, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+
 import { MatDialog } from '@angular/material/dialog';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
-import { fetchCurrentFarmName, getCurrentUserData, getCurrentUserDetails, getFarmMetaById, logout } from '../../services/supabaseClient';
-import { FormsModule } from '@angular/forms';
+
+import { CurrentUserService } from '../../core/auth/current-user.service';
 
 @Component({
   selector: 'app-slider',
@@ -14,58 +16,88 @@ import { FormsModule } from '@angular/forms';
   styleUrls: ['./slider.scss']
 })
 export class SliderComponent implements OnInit {
+  private router = inject(Router);
+  private dialog = inject(MatDialog);
+  private cu = inject(CurrentUserService);
+
   isDesktop = false;
-  role: string = '';
-  menuItems: any[] = [];
   menuCollapsed = false;
+
+  role = '';
+  menuItems: Array<{ path: string; label: string; icon: string }> = [];
   error: string | undefined;
-  
-  constructor(private router: Router, private dialog: MatDialog) {}
-  
+
   async ngOnInit() {
-    const userData = await getCurrentUserDetails();
-    this.role = userData?.role_in_tenant ? userData?.role_in_tenant : '';
-    this.syncBreakpoint();
+    await this.cu.waitUntilReady();
+
+    // האזיני לשינויים בתפקיד והחליפי תפריט בהתאם
+    this.cu.user$.subscribe(u => {
+      const roleKey = (u?.role || '').toLowerCase();
+      if (roleKey !== this.role) {
+        this.role = roleKey;
+        this.setMenuItemsByRole();
+      }
+    });
+
+    // פעם ראשונה – קחי מהמצב הנוכחי
+    const cur = this.cu.current;
+    this.role = (cur?.role || '').toLowerCase();
     this.setMenuItemsByRole();
 
+    // מצב רספונסיבי התחלתי
+    this.syncBreakpoint();
   }
 
   @HostListener('window:resize')
   onResize() { this.syncBreakpoint(); }
 
-  setMenuItemsByRole() {
-    if (this.role === 'parent') {
-      this.menuItems = [
-        { path: 'parent/children', label: 'הילדים שלי', icon: 'children' },
-        { path: 'parent/schedule', label: 'מערכת שיעורים', icon: 'calendar' },
-        { path: 'parent/summary', label: 'סיכום פעילות', icon: 'receipt' },
-        { path: 'parent/payments', label: 'אמצעי תשלום', icon: 'card' },
-        { path: 'parent/messages', label: 'הודעות למשרד', icon: 'note' },
-        { path: 'parent/details', label: 'הפרטים שלי', icon: 'user' },
-      ];
-    } else if (this.role === 'instructor') {
-      this.menuItems = [
-        { path: 'instructor/children', label: 'כל הילדים', icon: 'children' },
-        {path: 'instructor/schedule', label: ' לו"ז ומעקב', icon: 'calendar' },
-        { path: 'instructor/activities', label: 'ניהול פעילויות', icon: 'user' },
-        { path: 'instructor/notes', label: 'רשומות והערות', icon: 'note' }
-      ];
-      } else if (this.role === 'secretary') {
-      this.menuItems = [
-        { path: 'secretary/parents', label: 'הורים בחווה', icon: 'user' },
-        { path: 'secretary/regulations', label: 'ניהול תקנונים', icon: 'note'}
-      ];
-    } else if (this.role === 'admin') {
-      this.menuItems = [
-        { path: 'admin/users', label: 'ניהול משתמשים', icon: 'user' },
-        { path: 'admin/logs', label: 'צפייה ביומנים', icon: 'calendar' },
-        { path: 'admin/settings', label: 'הגדרות מערכת', icon: 'note' }
-      ];
+  /** בונה פריטי תפריט לפי תפקיד */
+  private setMenuItemsByRole() {
+    switch (this.role) {
+      case 'parent':
+        this.menuItems = [
+          { path: 'parent/children', label: 'הילדים שלי', icon: 'children' },
+          { path: 'parent/schedule', label: 'מערכת שיעורים', icon: 'calendar' },
+          { path: 'parent/summary',  label: 'סיכום פעילות', icon: 'receipt' },
+          { path: 'parent/payments', label: 'אמצעי תשלום', icon: 'card' },
+          { path: 'parent/messages', label: 'הודעות למשרד', icon: 'note' },
+          { path: 'parent/details',  label: 'הפרטים שלי',   icon: 'user' },
+        ];
+        break;
+
+      case 'instructor':
+        this.menuItems = [
+          { path: 'instructor/children',  label: 'כל הילדים',     icon: 'children' },
+          { path: 'instructor/schedule',  label: 'לו״ז ומעקב',     icon: 'calendar' },
+          { path: 'instructor/activities',label: 'ניהול פעילויות', icon: 'user' },
+          { path: 'instructor/notes',     label: 'רשומות והערות',  icon: 'note' },
+        ];
+        break;
+
+      case 'secretary':
+        this.menuItems = [
+          { path: 'secretary/parents',     label: 'הורים בחווה',   icon: 'user' },
+          { path: 'secretary/regulations', label: 'ניהול תקנונים', icon: 'note' },
+        ];
+        break;
+
+      case 'admin':
+        this.menuItems = [
+          { path: 'admin/users',    label: 'ניהול משתמשים', icon: 'user' },
+          { path: 'admin/logs',     label: 'צפייה ביומנים',  icon: 'calendar' },
+          { path: 'admin/settings', label: 'הגדרות מערכת',  icon: 'note' },
+        ];
+        break;
+
+      default:
+        this.menuItems = [];
+        break;
     }
   }
 
   navigateTo(path: string) {
     this.router.navigate([path]);
+    // במובייל — לאחר ניווט סוגרים את התפריט
     if (!this.isDesktop) this.menuCollapsed = true;
   }
 
@@ -77,11 +109,9 @@ export class SliderComponent implements OnInit {
     this.menuCollapsed = typeof force === 'boolean' ? force : !this.menuCollapsed;
   }
 
-   private syncBreakpoint() {
+  /** קובע מצב רספונסיבי: בדסקטופ פתוח, במובייל סגור וצף */
+  private syncBreakpoint() {
     this.isDesktop = window.matchMedia('(min-width: 1024px)').matches;
-    // ברירת מחדל: דסקטופ פתוח, מובייל סגור
-    this.menuCollapsed = !this.isDesktop;
+    this.menuCollapsed = !this.isDesktop; // דסקטופ פתוח, מובייל סגור
   }
-
 }
-

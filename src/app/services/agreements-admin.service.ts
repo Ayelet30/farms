@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { CurrentUserService } from '../core/auth/current-user.service';
+import { SUPABASE } from '../core/supabase.token';
 
 export interface CreateAgreementDto {
   tenantSchema: string;
@@ -25,8 +26,7 @@ export interface AddVersionDto {
 
 @Injectable({ providedIn: 'root' })
 export class AgreementsAdminService {
-  private supabase = inject(SupabaseClient);
-
+  private supabase = inject<SupabaseClient>(SUPABASE);
 
   // ===== Storage =====
   async uploadPdf(tenantSchema: string, agreementCode: string, versionHint: number | 'next', file: File) {
