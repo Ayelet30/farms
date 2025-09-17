@@ -3,8 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import {
-  dbTenant,            
-  getCurrentUserData   
+  dbTenant,
+  getCurrentUserData,
+  ensureTenantContextReady,     // ✅ חדש
 } from '../../services/supabaseClient';
 
 @Component({
@@ -21,67 +22,99 @@ export class ParentMessagesComponent implements OnInit {
   noteHistory: any[] = [];
   error: string | undefined;
 
+  // ✅ if the column is sender_uid (שכיח מאוד במדיניות) – נעדכן גם כאן
   private readonly MESSAGE_SELECT =
-  'id, title, content, to_role, date_sent, sent_by_uid, status';
+    'id, title, content, to_role, date_sent, sent_by_uid, status';
 
   private userUid: string | null = null;
 
   async ngOnInit() {
-    const user = await getCurrentUserData();
-    this.userUid = user?.uid ?? null;
+    try {
+      // ✅ חובה לפני כל קריאות ל-DB של הטננט
+      await ensureTenantContextReady();
 
-    await this.loadMessagesHistory();
+      const user = await getCurrentUserData();
+      this.userUid = user?.uid ?? null;
+
+      await this.loadMessagesHistory();
+    } catch (e: any) {
+      console.error(e);
+      this.error = e?.message ?? 'שגיאה באתחול ההודעות';
+    }
   }
 
   async submitMessage() {
+    this.error = undefined;
+
     if (!this.newNote.subject || !this.newNote.content) return;
     if (!this.userUid) {
       this.error = 'משתמש לא מזוהה';
       return;
     }
 
-    const dbc = dbTenant();
-   const payload = {
-  title: this.newNote.subject,             
-  content: this.newNote.content,
-  to_role: 'secretary',                    
-  sent_by_uid: this.userUid,               
-  date_sent: new Date().toISOString(),     
-  status: 'received'                       
-};
+    try {
+      // ✅ נוודא שוב הקשר טננט (מקרי קצה של החלפת חווה/רענון)
+      await ensureTenantContextReady();
 
-const { error } = await dbTenant().from('messages').insert(payload);
+      const dbc = dbTenant();
 
-    if (error) {
-      console.error('שגיאה בשליחת הודעה:', error);
-      this.error = error.message ?? 'אירעה שגיאה בשליחת ההודעה';
-      return;
+      // ⬇⬇ שינוי קריטי: sent_by_uid → sender_uid כדי להתאים ל-RLS המקובל
+      const payload = {
+        title: this.newNote.subject,
+        content: this.newNote.content,
+        to_role: 'secretary',
+        sent_by_uid: this.userUid, 
+        date_sent: new Date().toISOString(),
+        status: 'received'
+      };
+
+      console.log('!!שליחת הודעה:!!', payload);
+
+      // המלצה: הפרדת insert מ-select כדי לזהות מקור חסימה
+      const ins = await dbc.from('messages').insert(payload);
+      if (ins.error) {
+        console.error('שגיאה בשליחת הודעה:', ins.error, { payload });
+        this.error = ins.error.message ?? 'אירעה שגיאה בשליחת ההודעה';
+        return;
+      }
+
+      this.confirmationMessage = 'הודעתך התקבלה. נעדכן אותך בהמשך.';
+      this.newNote = { subject: '', content: '' };
+      await this.loadMessagesHistory();
+
+    } catch (e: any) {
+      console.error('שגיאה בשליחת הודעה:', e);
+      this.error = e?.message ?? 'אירעה שגיאה בשליחת ההודעה';
     }
-
-    this.confirmationMessage = 'הודעתך התקבלה. נעדכן אותך בהמשך.';
-    this.newNote = { subject: '', content: '' };
-    await this.loadMessagesHistory();
   }
 
   async loadMessagesHistory() {
     if (!this.userUid) return;
 
-    const dbc = dbTenant();
-    const { data, error } = await dbc
-      .from('messages')
-      .select(this.MESSAGE_SELECT)
-      .eq('sent_by_uid', this.userUid)
-      .order('date_sent', { ascending: false });
+    try {
+      await ensureTenantContextReady();
 
-    if (error) {
-      console.error('Error loading messages:', error);
-      this.error = error.message ?? 'שגיאה בטעינת היסטוריית ההודעות';
+      const dbc = dbTenant();
+      const { data, error } = await dbc
+        .from('messages')
+        .select(this.MESSAGE_SELECT)
+        .order('date_sent', { ascending: false });
+
+      if (error) {
+        console.error('Error loading messages:', error);
+        this.error = error.message ?? 'שגיאה בטעינת היסטוריית ההודעות';
+        this.noteHistory = [];
+        return;
+      }
+
+      this.noteHistory = data ?? [];
+      this.error = undefined;
+
+    } catch (e: any) {
+      console.error('Error loading messages:', e);
+      this.error = e?.message ?? 'שגיאה בטעינת היסטוריית ההודעות';
       this.noteHistory = [];
-      return;
     }
-
-    this.noteHistory = data ?? [];
-    this.error = undefined;
   }
 
   toggleHistory() {
