@@ -28,7 +28,7 @@ import type { Membership } from '../../services/supabaseClient';
 export class HeaderComponent implements OnInit {
   private router = inject(Router);
   private dialog = inject(MatDialog);
-  private cu = inject(CurrentUserService);
+  protected  cu = inject(CurrentUserService);
   private tokens = inject(TokensService);
 
   // מצב תצוגה
