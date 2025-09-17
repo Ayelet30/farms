@@ -209,7 +209,10 @@ statusClass(st: string): string {
 
   async saveChild(child: any) {
     const id = this.childId(child);
-    if (!id) return;
+     if (!id) {
+    this.error = 'חסר מזהה ילד (child_uuid).';
+    return;
+  }
     const model = this.editables[id];
 
     const { error } = await dbTenant()
