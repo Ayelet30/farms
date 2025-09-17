@@ -1,0 +1,54 @@
+:host { display: block; }
+
+
+.activity-summary {
+--bg: #f7fbf5; /* קרם-ירקרק עדין */
+--fg: #1f2d16; /* טקסט כהה */
+--brand: #77a65a;
+--brand-2: #9cc88b;
+--muted: #8aa38c;
+background: var(--bg);
+color: var(--fg);
+padding: 16px;
+border-radius: 16px;
+}
+
+
+.head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+
+
+h1 { margin: 0; font-size: 22px; font-weight: 700; }
+.actions { display: flex; gap: 8px; }
+.btn { appearance: none; border: 0; cursor: pointer; padding: 8px 12px; border-radius: 12px; background: #fff; color: var(--fg); box-shadow: 0 1px 0 rgba(0,0,0,.06), 0 1px 8px rgba(0,0,0,.05); transition: transform .06s ease; }
+.btn:hover { transform: translateY(-1px); }
+.btn.primary { background: var(--brand); color: #fff; }
+.btn[disabled] { opacity: .6; cursor: default; }
+
+
+.filters { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; background: #fff; border-radius: 16px; padding: 12px; margin-bottom: 16px; box-shadow: 0 1px 0 rgba(0,0,0,.06), 0 1px 8px rgba(0,0,0,.05); }
+.filter-group { display: grid; gap: 8px; }
+.filter-group > label { font-weight: 600; }
+.children-picker { display: flex; gap: 8px; }
+.chip { border: 1px solid var(--brand); background: #fff; color: var(--brand); border-radius: 999px; padding: 4px 8px; }
+.chip.outline { background: transparent; }
+.children-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; }
+.child-item { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.child-item .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+
+.dates { display: flex; align-items: center; gap: 8px; }
+.dates .sep { opacity: .5; }
+
+
+.table-wrap { background: #fff; border-radius: 16px; padding: 12px; box-shadow: 0 1px 0 rgba(0,0,0,.06), 0 1px 8px rgba(0,0,0,.05); }
+.summary { width: 100%; border-collapse: collapse; }
+.summary thead th { text-align: right; background: var(--brand-2); color: #10250f; font-weight: 700; padding: 10px; }
+.summary tbody td { padding: 10px; border-top: 1px solid #eef3ea; vertical-align: top; }
+.summary tbody tr:hover { background: #fbfdf9; }
+.summary .muted { color: var(--muted); text-align: center; }
+.summary .note { white-space: pre-wrap; }
+
+
+@media (max-width: 1024px) {
+.filters { grid-template-columns: 1fr; }
+}
