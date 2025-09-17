@@ -1,0 +1,5 @@
+.wrap{direction:rtl}
+    ul{list-style:none;padding:0;margin:0}
+    li{display:flex;align-items:center;gap:8px;margin:8px 0}
+    .ok{color:#16a34a}
+    button{border:1px solid #0ea5e9;background:transparent;color:#0ea5e9;padding:4px 10px;border-radius:8px}

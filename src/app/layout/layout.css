@@ -1,9 +1,8 @@
-.parent-layout {
+.body-layout {
   display: flex;
   min-height: 100vh;
   direction: rtl;
-  font-family: 'Segoe UI', sans-serif;
-  background-color: #f4f6f3;
+  background-color: var(--panel-bg);
 }
 
 /* תפריט צד */

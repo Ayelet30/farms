@@ -1,18 +1,22 @@
-<div class="login-container">
+<div class="login-container" dir="rtl">
   <div class="login-card">
     <h2>התחברות למערכת</h2>
-    <!-- <form (ngSubmit)="login()"> -->
-       <form (ngSubmit)="login()">
+
+    <form (ngSubmit)="login()">
       <label for="email">דוא"ל</label>
       <input type="email" id="email" [(ngModel)]="email" name="email" required />
 
       <label for="password">סיסמה</label>
       <input type="password" id="password" [(ngModel)]="password" name="password" required />
 
-      <button type="submit">התחבר</button>
-
+      <div class="actions">
+        <button type="submit" [disabled]="isLoading">התחבר</button>
+      </div>
+      <button type="button" class="link-button" (click)="forgotPassword()" [disabled]="isLoading">
+        שכחתי סיסמה
+      </button>
       <div *ngIf="errorMessage" class="error-message">{{ errorMessage }}</div>
+      <div *ngIf="successMessage" class="success-message">{{ successMessage }}</div>
     </form>
   </div>
 </div>
-

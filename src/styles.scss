@@ -1,4 +1,16 @@
 /* You can add global styles to this file, and also import other style files */
 
-html, body { height: 100%; }
-body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+
+@font-face {
+  font-family: "Heebo";
+  src: url("/assets/fonts/heebo/Heebo[wght].woff2") format("woff2");
+  font-weight: 100 900;     /* Variable font – כל הטווח */
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-ui: "Heebo", system-ui, -apple-system, "Segoe UI", "Tahoma", Arial, sans-serif;
+}
+html, body { font-family: var(--font-ui); }
+

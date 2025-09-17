@@ -1,59 +1,183 @@
 /* -------- Widths -------- */
-:root{
-  --width-open: 280px;   /* פתוח */
-  --width-closed: 64px;  /* סגור - רק אייקונים */
+:root {
+  --width-open: 280px;
+  /* פתוח */
+  --width-closed: 64px;
+  /* סגור - רק אייקונים */
 }
 
-/* -------- Side menu -------- */
-.side-menu{
-  position: relative;
-  width: var(--width-open);
-  min-width: var(--width-open);
-  height: 100%;
+.layout {
+  display: block; 
   background: var(--panel-bg);
   color: var(--text);
   border-inline-end: 1px solid var(--panel-bg-2);
   transition: width .22s ease, min-width .22s ease;
 }
-.side-menu.collapsed{
+.layout.desktop {
+  grid-template-columns: var(--width-open) 1fr;
+  
+}
+.layout.desktop .side-menu.collapsed {
+  grid-template-columns: var(--width-closed) 1fr;
+}
+
+/* ===== Drawer במובייל ===== */
+/* ===== פריסת דף: תפריט בצד ימין גם בדסקטופ ===== */
+.layout {
+  display: block; /* מובייל: אין דחיפה של התוכן */
+}
+
+/* בדסקטופ: שתי עמודות – תוכן ואז תפריט מימין */
+@media (min-width: 1024px){
+  .layout {
+    --menu-col: var(--width-open);    
+    grid-template-areas: "content menu";
+    grid-template-columns: 1fr var(--menu-col);
+  }
+  /* כשמצומצם – נקטין את עמודת התפריט (נתמך בכרום/אדג' מודרניים) */
+  .layout:has(.side-menu.collapsed) { --menu-col: var(--width-closed); }
+
+  .side-menu { grid-area: menu; position: sticky; top: 0; height: 100dvh; transform: none !important; z-index: 1; }
+  .page-content { grid-area: content; min-height: 100dvh; }
+}
+
+/* ===== מובייל: Rail קבוע מימין + Drawer צף בפתיחה ===== */
+.side-menu.mobile{
+  position: relative;
+  height: 100dvh;
+  z-index: 1100;
+
+  /* ברירת המחדל במובייל: צר (rail) – גלוי כל הזמן */
+  width: var(--width-closed);
+  min-width: var(--width-closed);
+  box-shadow: none;
+  background: var(--panel-bg);
+
+  /* אנימציה על שינוי רוחב/צל */
+  transition: width .22s ease, box-shadow .22s ease;
+}
+
+/* פתוח (Drawer צף מעל התוכן) */
+.side-menu.mobile.open{
+  position: fixed;
+  width: var(--width-open);
+  min-width: var(--width-open);
+  box-shadow: 0 12px 40px rgba(0,0,0,.22);
+}
+
+/* במובייל לא משתמשים בתרגום מחוץ למסך – ה-Rail תמיד גלוי */
+.side-menu.mobile.collapsed { /* סגור = rail */ }
+.side-menu.mobile:not(.collapsed) { /* פתוח = drawer */ }
+
+/* שכבת כיסוי מאחור – רק כשהתפריט פתוח במובייל */
+.scrim{
+  position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 1000;
+}
+@media (min-width: 1024px){ .scrim{ display:none; } }
+
+/* ===== כפתור הטוגגל ===== */
+/* שמים אותו בתוך ה-Rail – ליד הקצה הימני */
+.side-menu .toggle-button{
+  position: relative;
+  margin: 10px 8px 10px;
+  align-self: flex-end;
+}
+/* חץ: כשסגור – מצביע שמאלה (נכנס פנימה), כשפתוח – ימינה */
+.chevron{ transition: transform 150ms ease; }
+.chevron.left{ transform: rotate(180deg); }
+
+/* ===== מצב מצומצם (אייקונים בלבד) כבר יש לך – עובד מושלם עם ה-Rail ===== */
+.side-menu.collapsed ul{
+  padding-inline: 8px;
+}
+.side-menu.collapsed ul>li{
+  width:100%;
+  justify-content:center;
+  padding-inline:8px;
+  gap:0;
+}
+.side-menu.collapsed ul>li .label{
+  position:absolute; opacity:0; pointer-events:none;
+}
+
+/* לשמירה שהאייקון הפעיל מודגש גם ברייל */
+.side-menu.collapsed ul>li.active .icon{
+  width: 32px; height: 32px;
+  background-size: 20px;
+  background-color: var(--chip-active, rgba(0,0,0,.05));
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  color: var(--accent);
+}
+
+.side-menu.collapsed {
   width: var(--width-closed);
   min-width: var(--width-closed);
 }
 
 /* -------- Toggle (ghost icon button) -------- */
-.side-menu .toggle-button{
-  position: absolute;
+.side-menu .toggle-button {
+  position: relative;
+  margin-bottom: 10px;
   top: 12px;
-  left: -12px;          /* מציץ קצת שמאלה מהתפריט */
   z-index: 10;
 
-  display: grid; place-items: center;
-  width: 32px; height: 32px;
-  border: none; background: transparent; cursor: pointer;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
   border-radius: 50%;
   color: var(--muted, #6b7280);
 }
-.side-menu .toggle-button:hover{
-  background: rgba(0,0,0,.06);
+
+.side-menu .toggle-button:hover {
+  background: rgba(0, 0, 0, .06);
   color: var(--accent);
 }
-.side-menu .toggle-button:active{ background: rgba(0,0,0,.10); }
-.side-menu .toggle-button:focus-visible{
-  outline: none; box-shadow: 0 0 0 3px rgba(0,0,0,.08);
+
+.side-menu .toggle-button:active {
+  background: rgba(0, 0, 0, .10);
+}
+
+.side-menu .toggle-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, .08);
 }
 
 /* האייקון (Chevron) */
-.chevron{ width:20px; height:20px; display:block; transition: transform 150ms ease; }
-.chevron.left{ transform: rotate(180deg); } /* סגור = שמאלה; פתוח = ימינה */
+.chevron {
+  width: 20px;
+  height: 20px;
+  display: block;
+  transition: transform 150ms ease;
+}
+
+.chevron.left {
+  transform: rotate(180deg);
+}
+
+/* סגור = שמאלה; פתוח = ימינה */
 
 /* -------- Items list -------- */
-.side-menu ul{
-  list-style: none; margin: 0; padding: 0 16px 12px;
-  display: flex; flex-direction: column; gap: 10px;
+.side-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-.side-menu ul > li{
-  display: inline-flex; align-items: center; justify-content: center;
-  gap: 12px; flex-direction: row-reverse; /* RTL: אייקון לפני טקסט */
+
+.side-menu ul>li {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-direction: row-reverse;
+  /* RTL: אייקון לפני טקסט */
   height: var(--item-h, 48px);
   padding: 0 14px;
   border-radius: var(--radius, 12px);
@@ -61,10 +185,14 @@
   transition: background .15s ease, box-shadow .15s ease, color .15s ease, border-color .15s ease;
   cursor: pointer;
 }
-.side-menu ul > li:hover{ background: rgba(0,0,0,.04); }
 
-.side-menu ul > li .icon{
-  width: 22px; height: 22px;
+.side-menu ul>li:hover {
+  background: rgba(0, 0, 0, .04);
+}
+
+.side-menu ul>li .icon {
+  width: 22px;
+  height: 22px;
   display: inline-block;
   background-position: center;
   background-repeat: no-repeat;
@@ -72,69 +200,108 @@
   opacity: .95;
   color: var(--muted);
 }
-.side-menu ul > li .label{
-  font-size: 16px; font-weight: 700; letter-spacing: .2px; white-space: nowrap;
+
+.side-menu ul>li .label {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  white-space: nowrap;
 }
 
 /* Active item (open state) – בלי פס צד */
-.side-menu ul > li.active{
+.side-menu ul>li.active {
   background: var(--chip-active);
   color: var(--text-active);
-  box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 4px 12px rgba(90,100,40,.08);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .04), 0 4px 12px rgba(90, 100, 40, .08);
   border: 1px solid var(--accent);
 }
-.side-menu ul > li.active::before{ content:none; } /* ביטול הפס הישן */
-.side-menu ul > li.active .icon{ color: var(--accent); }
+
+.side-menu ul>li.active::before {
+  content: none;
+}
+
+/* ביטול הפס הישן */
+.side-menu ul>li.active .icon {
+  color: var(--accent);
+}
 
 /* -------- Collapsed state (icons only) -------- */
-.side-menu.collapsed ul{ padding-inline: 8px; }
-.side-menu.collapsed ul > li{
-  width: 100%; justify-content: center; padding-inline: 8px; gap: 0;
+.side-menu.collapsed ul {
+  padding-inline: 8px;
 }
-.side-menu.collapsed ul > li .label{
-  position: absolute; opacity: 0; pointer-events: none;
+
+.side-menu.collapsed ul>li {
+  width: 100%;
+  justify-content: center;
+  padding-inline: 8px;
+  gap: 0;
 }
-.side-menu.collapsed ul > li .icon{
-  width: 24px; height: 24px; background-size: 20px; color: var(--muted);
+
+.side-menu.collapsed ul>li .label {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.side-menu.collapsed ul>li .icon {
+  width: 24px;
+  height: 24px;
+  background-size: 20px;
+  color: var(--muted);
 }
 
 /* Collapsed: בלי "כרטיס" מלא לפריט הפעיל, רק הדגשה סביב האייקון עצמו */
-.side-menu.collapsed ul > li.active{
-  background: transparent; border: none; box-shadow: none;
+.side-menu.collapsed ul>li.active {
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
-.side-menu.collapsed ul > li.active::before{ content: none !important; }
+
+.side-menu.collapsed ul>li.active::before {
+  content: none !important;
+}
 
 /* ✅ הילה פנימית – האייקון נשאר גלוי */
-.side-menu.collapsed ul > li.active .icon{
-  width: 32px;                 /* גדול יותר מהרגיל כדי להכיל הילה */
+.side-menu.collapsed ul>li.active .icon {
+  width: 32px;
+  /* גדול יותר מהרגיל כדי להכיל הילה */
   height: 32px;
-  background-size: 20px;       /* גודל הסמל בפנים */
-  background-color: var(--chip-active, rgba(0,0,0,0.05));
+  background-size: 20px;
+  /* גודל הסמל בפנים */
+  background-color: var(--chip-active, rgba(0, 0, 0, 0.05));
   border: 1px solid var(--accent);
-  border-radius: 10px;         /* לעיגול מלא: 50% */
-  box-shadow: 0 2px 8px rgba(0,0,0,.06);
-  color: var(--accent);        /* צובע את ה-stroke של ה-SVG ב-data URI */
+  border-radius: 10px;
+  /* לעיגול מלא: 50% */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .06);
+  color: var(--accent);
+  /* צובע את ה-stroke של ה-SVG ב-data URI */
 }
 
 /* -------- Icon mapping (data-URIs; stroke=currentColor) -------- */
-.side-menu .i-calendar{
+.side-menu .i-calendar {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 9.5h18'/%3E%3Cpath d='M8 3v3M16 3v3'/%3E%3C/svg%3E");
 }
-.side-menu .i-user{
+
+.side-menu .i-user {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='8.5' r='3.1'/%3E%3Cpath d='M5 19.3c2.3-3.4 4.7-5.1 7-5.1s4.7 1.7 7 5.1'/%3E%3C/svg%3E");
 }
-.side-menu .i-settings{
+
+.side-menu .i-settings {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3.2'/%3E%3Cpath d='M12 2.5v3M12 18.5v3M4.6 5.6l2.1 2.1M17.3 18.3l2.1 2.1M2.5 12h3M18.5 12h3M4.6 18.4l2.1-2.1M17.3 5.7l2.1-2.1'/%3E%3C/svg%3E");
 }
-.side-menu .i-children{
+
+.side-menu .i-children {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='8' cy='9' r='3'/%3E%3Ccircle cx='16' cy='9' r='3'/%3E%3Cpath d='M3 20c1.6-2.8 3.8-4 5-4s3.4 1.2 5 4'/%3E%3Cpath d='M11 20c1.6-2.8 3.8-4 5-4s3.4 1.2 5 4'/%3E%3C/svg%3E");
 }
-.side-menu .i-receipt{
+
+.side-menu .i-receipt {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cpath d='M7 8h10M7 12h10M7 16h7'/%3E%3C/svg%3E");
 }
-.side-menu .i-card{
+
+.side-menu .i-card {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3Cpath d='M3 9h18'/%3E%3Crect x='5' y='13' width='6' height='3' rx='1'/%3E%3C/svg%3E");
 }
-.side-menu .i-note{
+
+.side-menu .i-note {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cpath d='M8 9h8M8 13h8'/%3E%3C/svg%3E");
 }

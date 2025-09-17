@@ -4,13 +4,16 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: #f4f6f3; /* רקע בהיר ירקרק */
+  background-color: #f4f6f3;
+  /* רקע בהיר ירקרק */
   direction: rtl;
 }
 
 .login-card {
-  background-color: #e6ecd9; /* ירוק זית בהיר */
-  border: 2px solid #7a8b55; /* ירוק זית כהה */
+  background-color: #e6ecd9;
+  /* ירוק זית בהיר */
+  border: 2px solid #7a8b55;
+  /* ירוק זית כהה */
   border-radius: 20px;
   padding: 30px 40px;
   box-shadow: 0 4px 12px rgba(122, 139, 85, 0.2);
@@ -20,7 +23,8 @@
 
 h2 {
   text-align: center;
-  color: #5e6f3c; /* כותרת בירוק כהה */
+  color: #5e6f3c;
+  /* כותרת בירוק כהה */
   margin-bottom: 20px;
 }
 
@@ -62,4 +66,39 @@ button:hover {
   color: darkred;
   margin-top: 15px;
   text-align: center;
+}
+
+.login-card {
+  direction: rtl;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  color: #5e6f3c;
+
+  &:hover {
+    background-color: transparent;
+  }
+}
+
+.error-message {
+  color: #b00020;
+  margin-top: 10px;
+}
+
+.success-message {
+  color: #1b5e20;
+  margin-top: 10px;
 }

@@ -1,1 +1,23 @@
-<full-calendar [options]="calendarOptions"></full-calendar>
+<!-- תפריט תצוגה -->
+<div class="card top-card">
+  <div class="view-buttons">
+    <button (click)="changeView('timeGridDay')" [class.active]="currentView === 'timeGridDay'">יומי</button>
+    <button (click)="changeView('timeGridWeek')" [class.active]="currentView === 'timeGridWeek'">שבועי</button>
+    <button (click)="changeView('dayGridMonth')" [class.active]="currentView === 'dayGridMonth'">חודשי</button>
+  </div>
+</div>
+
+<!-- ניווט -->
+<div class="card nav-card">
+  <div class="actions">
+    <button (click)="prev()">יום קודם</button>
+    <button (click)="today()">היום</button>
+    <button (click)="next()">יום הבא</button>
+  </div>
+  <div class="current-date">{{ currentDate }}</div>
+</div>
+
+<!-- FullCalendar -->
+<full-calendar #calendar [options]="calendarOptions"></full-calendar>
+
+

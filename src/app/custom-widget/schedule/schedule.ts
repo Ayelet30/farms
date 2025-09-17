@@ -1,92 +1,121 @@
+// schedule.component.ts
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  Input,
+  Output,
+  ViewChild,
+  NgZone,
+  OnChanges,
+  SimpleChanges
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
-
-// FullCalendar
-import { FullCalendarModule } from '@fullcalendar/angular';
-import { CalendarOptions, EventClickArg } from '@fullcalendar/core';
+import { FullCalendarModule, FullCalendarComponent } from '@fullcalendar/angular';
+import { CalendarOptions, EventClickArg, DatesSetArg } from '@fullcalendar/core';
 import { DateClickArg } from '@fullcalendar/interaction';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import heLocale from '@fullcalendar/core/locales/he';
-
-
-/** אירוע גנרי שהווידג'ט מצפה לקבל */
-export type ScheduleItem = {
-  id: string;           // מזהה ייחודי (string)
-  title: string;        // כותרת האירוע
-  start: string;        // ISO datetime
-  end: string;          // ISO datetime
-  color?: string;       // צבע רקע/מסגרת
-  meta?: any;           // מידע נוסף אופציונלי
-};
+import { ScheduleItem } from '../../models/schedule-item.model';
 
 @Component({
   selector: 'app-schedule',
   standalone: true,
   imports: [CommonModule, FormsModule, FullCalendarModule],
   templateUrl: './schedule.html',
-  styleUrls: ['./schedule.css'],
+  styleUrls: ['./schedule.component.scss'],
 })
 export class ScheduleComponent implements OnChanges {
-  /** רשימת אירועים להצגה */
+  @ViewChild('calendar') calendarComponent!: FullCalendarComponent;
+
   @Input() items: ScheduleItem[] = [];
-
-  /** תצוגת ברירת מחדל */
   @Input() initialView: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay' = 'timeGridWeek';
-
-  /** RTL / לוקליזציה / טווח שעות */
   @Input() rtl = true;
   @Input() locale: any = heLocale;
   @Input() slotMinTime = '07:00:00';
   @Input() slotMaxTime = '21:00:00';
   @Input() allDaySlot = false;
 
-  /** האזנות החוצה */
-  @Output() eventClick = new EventEmitter<ScheduleItem>();
+  // ✅ פולט EventClickArg כדי לשמור על כל המידע של FullCalendar
+  @Output() eventClick = new EventEmitter<EventClickArg>();
   @Output() dateClick = new EventEmitter<string>();
+
+  currentView = this.initialView;
+  currentDate = '';
 
   calendarOptions: CalendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
-    initialView: 'timeGridWeek',
-    locale: heLocale,
-    direction: 'rtl',
-    headerToolbar: {
-      left: 'prev,next today',
-      center: 'title',
-      right: 'dayGridMonth,timeGridWeek,timeGridDay'
-    },
-    events: [],
+    initialView: this.initialView,
+    locale: this.locale,
+    direction: this.rtl ? 'rtl' : 'ltr',
+    headerToolbar: false,
     height: 'auto',
-    slotMinTime: '07:00:00',
-    slotMaxTime: '21:00:00',
-    allDaySlot: false,
+    slotMinTime: this.slotMinTime,
+    slotMaxTime: this.slotMaxTime,
+    allDaySlot: this.allDaySlot,
+    events: [],
     dateClick: (info: DateClickArg) => this.dateClick.emit(info.dateStr),
     eventClick: (arg: EventClickArg) => {
-      const found = this.items.find(i => i.id === String(arg.event.id));
-      if (found) this.eventClick.emit(found);
+      // ✅ שולח את כל ה־arg החוצה
+      this.eventClick.emit(arg);
+    },
+    eventContent: (arg) => {
+      const { event } = arg;
+      const status = event.extendedProps['status'] || '';
+      return {
+        html: `<div class="event-box ${status}">
+                 <div class="time">${event.start?.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</div>
+                 <div class="title">${event.title}</div>
+               </div>`
+      };
+    },
+    datesSet: (info: DatesSetArg) => {
+      // שימוש ב-setTimeout כדי למנוע ExpressionChangedAfterItHasBeenCheckedError
+      this.ngZone.run(() => {
+        setTimeout(() => {
+          this.currentDate = info.view.title;
+        });
+      });
     }
   };
 
-  ngOnChanges(): void {
-    // מעדכן את האופציות בכל פעם שה־@Input משתנים
-    this.calendarOptions = {
-      ...this.calendarOptions,
-      initialView: this.initialView,
-      locale: this.locale,
-      direction: this.rtl ? 'rtl' : 'ltr',
-      slotMinTime: this.slotMinTime,
-      slotMaxTime: this.slotMaxTime,
-      allDaySlot: this.allDaySlot,
-      events: this.items.map(i => ({
-        id: i.id,
-        title: i.title,
-        start: i.start,
-        end: i.end,
-        backgroundColor: i.color,
-        borderColor: i.color
-      }))
-    };
+  constructor(private ngZone: NgZone) {}
+
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['items']) {
+      this.calendarOptions = {
+        ...this.calendarOptions,
+        events: this.items.map(i => ({
+          id: i.id,
+          title: i.title,
+          start: i.start,
+          end: i.end,
+          extendedProps: {
+            status: i.status,
+            child_id: i.meta?.child_id,
+            child_name: i.meta?.child_name,
+            instructor_id: i.meta?.instructor_id,
+            instructor_name: i.meta?.instructor_name,
+          }
+        }))
+      };
+    }
   }
+
+  get calendarApi() {
+    return this.calendarComponent.getApi();
+  }
+
+  changeView(view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay') {
+    this.currentView = view;
+    this.calendarApi.changeView(view);
+  }
+
+  next() { this.calendarApi.next(); }
+  prev() { this.calendarApi.prev(); }
+  today() { this.calendarApi.today(); }
 }
+
+

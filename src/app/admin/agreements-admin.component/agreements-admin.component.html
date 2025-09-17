@@ -1,0 +1,106 @@
+<div class="wrap">
+    <h2>ניהול תקנונים ({{tenantSchema}})</h2>
+
+    <!-- יצירת מסמך חדש -->
+    <fieldset class="card">
+      <legend>יצירת מסמך חדש</legend>
+      <div class="grid">
+        <label>קוד
+          <input [(ngModel)]="newAgreement.code" placeholder="child_medical">
+        </label>
+        <label>כותרת
+          <input [(ngModel)]="newAgreement.title" placeholder="הצהרת בריאות ילד">
+        </label>
+        <label>Scope
+          <select [(ngModel)]="newAgreement.scope">
+            <option value="per_child">per_child</option>
+            <option value="per_parent">per_parent</option>
+          </select>
+        </label>
+        <label>Renewal ISO8601 (אופציונלי)
+          <input [(ngModel)]="newAgreement.renewalIso" placeholder="P12M">
+        </label>
+        <label>התרעה לפני (ימים)
+          <input type="number" [(ngModel)]="newAgreement.renewalNotifyDays" placeholder="14">
+        </label>
+      </div>
+      <button (click)="createAgreement()" [disabled]="busy()">צור מסמך</button>
+    </fieldset>
+
+    <!-- רשימת מסמכים -->
+    <div class="list">
+      <div class="item" *ngFor="let a of agreements()">
+        <div class="head">
+          <b>{{a.title}}</b>
+          <span class="muted">({{a.code}} · {{a.scope}} · {{a.status}})</span>
+        </div>
+
+        <!-- גרסאות -->
+        <div class="versions">
+          <button (click)="toggleAccordion(a)">גרסאות</button>
+          <div *ngIf="a._open">
+            <table class="table">
+              <thead>
+                <tr><th>#</th><th>severity</th><th>effective_from</th><th>pdf</th><th>פעולות</th></tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let v of a._versions">
+                  <td>{{v.version}}</td>
+                  <td>{{v.severity}}</td>
+                  <td>{{v.effective_from | date:'yyyy-MM-dd HH:mm'}}</td>
+                  <td>{{v.storage_path || '—'}}</td>
+                  <td>
+                    <button (click)="publishVersion(a.code, v.version)">פרסם</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="grid mt">
+              <label>Severity
+                <select [(ngModel)]="newVersion.severity">
+                  <option>major</option>
+                  <option>minor</option>
+                </select>
+              </label>
+              <label>effective_from
+                <input [(ngModel)]="newVersion.effective_from" type="datetime-local">
+              </label>
+              <label>Markdown (אופציונלי)
+                <textarea rows="5" [(ngModel)]="newVersion.body_md" placeholder="# כותרת\nתוכן..."></textarea>
+              </label>
+              <label>PDF (אופציונלי)
+                <input type="file" (change)="onPdfPick($event, a.code)">
+              </label>
+              <label>פרסום מיידי
+                <input type="checkbox" [(ngModel)]="newVersion.publish_now">
+              </label>
+            </div>
+            <div class="actions">
+              <button (click)="addVersion(a.code)">הוסף גרסה</button>
+              <button class="danger" (click)="archiveAgreement(a.code)">ארכוב מסמך</button>
+            </div>
+
+            <fieldset class="card mt">
+              <legend>Targets</legend>
+              <div class="grid">
+                <label>activity_tag
+                  <input [(ngModel)]="target.activityTag" placeholder="riding">
+                </label>
+                <label>min_age
+                  <input type="number" [(ngModel)]="target.minChildAge">
+                </label>
+                <label>max_age
+                  <input type="number" [(ngModel)]="target.maxChildAge">
+                </label>
+                <label>required
+                  <input type="checkbox" [(ngModel)]="target.required">
+                </label>
+              </div>
+              <button (click)="saveTarget(a.code)">שמור Target</button>
+            </fieldset>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>

@@ -1,11 +1,11 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { dbTenant, getCurrentUserData, getSupabaseClient } from '../../services/supabaseClient';
-import { Lesson } from './parent-schedule.model';
-import { ScheduleComponent, ScheduleItem } from '../../custom-widget/schedule/schedule'; // ← חדש
-
-
+import { dbTenant, getCurrentUserData } from '../../services/supabaseClient';
+import { ScheduleComponent } from '../../custom-widget/schedule/schedule';
+import { ScheduleItem } from '../../models/schedule-item.model';
+import { Lesson } from '../../models/lesson-schedule.model';
+import { EventClickArg } from '@fullcalendar/core';
 
 @Component({
   selector: 'app-parent-schedule',
@@ -37,46 +37,46 @@ endDate: string = '';
 
 
   }
-  
-getStartOfWeek(): string {
-  const today = new Date();
-  const diff = today.getDate() - today.getDay() + 1;
-  const start = new Date(today.setDate(diff));
-  return start.toISOString().substring(0, 10);
-}
 
-getEndOfWeek(): string {
-  const start = new Date(this.getStartOfWeek());
-  start.setDate(start.getDate() + 6);
-  return start.toISOString().substring(0, 10);
-}
+  getStartOfWeek(): string {
+    const today = new Date();
+    const diff = today.getDate() - today.getDay() + 1;
+    const start = new Date(today.setDate(diff));
+    return start.toISOString().substring(0, 10);
+  }
+
+  getEndOfWeek(): string {
+    const start = new Date(this.getStartOfWeek());
+    start.setDate(start.getDate() + 6);
+    return start.toISOString().substring(0, 10);
+  }
 
   async loadChildren() {
-  try {
-    const user = await getCurrentUserData();
-    if (!user?.uid) { this.children = []; return; }
+    try {
+      const user = await getCurrentUserData();
+      if (!user?.uid) { this.children = []; return; }
 
-    const dbc = dbTenant(); 
+      const dbc = dbTenant();
 
-    const { data: parent, error: e1 } = await dbc
-      .from('parents')
-      .select('uid')
-      .eq('uid', user.uid)
-      .maybeSingle(); 
+      const { data: parent, error: e1 } = await dbc
+        .from('parents')
+        .select('uid')
+        .eq('uid', user.uid)
+        .maybeSingle();
 
-    if (e1 || !parent) {
-      console.error('Parent not found', e1);
-      this.children = [];
-      return;
-    }
+      if (e1 || !parent) {
+        console.error('Parent not found', e1);
+        this.children = [];
+        return;
+      }
 
-    const { data: kids, error: e2 } = await dbc
-      .from('children')
-      .select('child_uuid, full_name, status')
-      .eq('parent_uid', parent.uid)
-      .eq('status', 'active');
+      const { data: kids, error: e2 } = await dbc
+        .from('children')
+        .select('child_uuid, full_name, status')
+        .eq('parent_uid', parent.uid)
+        .eq('status', 'active');
 
-    if (e2) { console.error('Error loading children:', e2); this.children = []; return; }
+      if (e2) { console.error('Error loading children:', e2); this.children = []; return; }
 
     this.children = kids ?? [];
     // if (this.children.length > 0) {
@@ -92,62 +92,48 @@ async loadLessons() {
   const childIds = this.children.map(c => c.child_uuid);
   if (childIds.length === 0) { this.lessons = []; return; }
 
-  // טווח: 8 שבועות קדימה
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 
-type LessonsOccurrenceRow = {
-  lesson_id: string;
-  child_id: string;
-  instructor_id: string | null;
-  lesson_type: 'רגיל' | 'השלמה';
-  status: 'ממתין לאישור' | 'אושר' | 'בוטל' | 'הושלם';
-  day_of_week: string;     
-  start_time: string;      
-  end_time: string;       
-  start_datetime: string;
-  end_datetime: string;
-};
+    const { data, error } = await dbc
+      .from('lessons_occurrences')
+      .select('lesson_id, child_id, instructor_id, lesson_type, status, day_of_week, start_time, end_time, start_datetime, end_datetime')
+      .in('child_id', childIds)
+      .gte('occur_date', today)
+      .lte('occur_date', in8Weeks);
 
-const { data, error } = await dbc
-  .from('lessons_occurrences')
-  .select('lesson_id, child_id, instructor_id, lesson_type, status, day_of_week, start_time, end_time, start_datetime, end_datetime')
-  .in('child_id', childIds)
-  .gte('occur_date', today)
-  .lte('occur_date', in8Weeks);
-
-  if (error) {
-    console.error('Error loading lesson occurrences:', error);
-    this.lessons = [];
-    return;
-  }
-
-  const rows = (data ?? []) as LessonsOccurrenceRow[];
-
-  const instructorIds = Array.from(
-    new Set(
-      rows
-        .map((r: LessonsOccurrenceRow) => r.instructor_id)
-        .filter((x: string | null): x is string => !!x)
-    )
-  );
-
-  let instructorNameById: Record<string, string> = {};
-  if (instructorIds.length > 0) {
-    const { data: inst } = await dbc
-      .from('instructors')
-      .select('id_number, full_name')
-      .in('id_number', instructorIds);
-
-    const instRows = (inst ?? []) as { id_number: string; full_name: string }[];
-    const map: Record<string, string> = {};
-    for (const row of instRows) {
-      map[row.id_number] = row.full_name ?? '';
+    if (error) {
+      console.error('Error loading lesson occurrences:', error);
+      this.lessons = [];
+      return;
     }
-    instructorNameById = map;
-  }
 
-this.lessons = rows.map((r: LessonsOccurrenceRow) => {
+    const rows = (data ?? []) as Lesson[];
+
+    const instructorIds = Array.from(
+      new Set(
+        rows
+          .map((r: Lesson) => r.instructor_id)
+          .filter((x: string | null): x is string => !!x)
+      )
+    );
+
+    let instructorNameById: Record<string, string> = {};
+    if (instructorIds.length > 0) {
+      const { data: inst } = await dbc
+        .from('instructors')
+        .select('id_number, full_name')
+        .in('id_number', instructorIds);
+
+      const instRows = (inst ?? []) as { id_number: string; full_name: string }[];
+      const map: Record<string, string> = {};
+      for (const row of instRows) {
+        map[row.id_number] = row.full_name ?? '';
+      }
+      instructorNameById = map;
+    }
+
+this.lessons = rows.map((r: Lesson) => {
   // חישובי תאריכים
   const startFallback = this.getLessonDateTime(r.day_of_week, r.start_time);
   const endFallback   = this.getLessonDateTime(r.day_of_week, r.end_time);
@@ -179,24 +165,23 @@ this.lessons = rows.map((r: LessonsOccurrenceRow) => {
 }
 
   getLessonDateTime(dayName: string, timeStr: string): string {
-  const dayMap: Record<string, number> = {
-    'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6
-  };
+    const dayMap: Record<string, number> = {
+      'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6
+    };
 
-  const today = new Date();
-  const currentDay = today.getDay(); // 0=Sunday
-  const targetDay = dayMap[dayName];
-  const diff = (targetDay - currentDay + 7) % 7;
+    const today = new Date();
+    const currentDay = today.getDay();
+    const targetDay = dayMap[dayName];
+    const diff = (targetDay - currentDay + 7) % 7;
 
-  const eventDate = new Date(today);
-  eventDate.setDate(today.getDate() + diff);
+    const eventDate = new Date(today);
+    eventDate.setDate(today.getDate() + diff);
 
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  eventDate.setHours(hours, minutes, 0, 0);
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    eventDate.setHours(hours, minutes, 0, 0);
 
-  return this.toLocalIso(eventDate); // ← ללא Z
-}
-
+    return this.toLocalIso(eventDate);
+  }
 
   getColorForChild(child_id: string): string {
     const index = this.children.findIndex(c => c.child_uuid === child_id);  
@@ -222,12 +207,12 @@ toggleDropdown() { this.dropdownOpen = !this.dropdownOpen; }
     this.weekView = !this.weekView;
   }
 
-   refresh() {
-  this.loadLessons().then(() => {
-    this.filterLessons();
-    this.setScheduleItems();
-  });
-}
+  refresh() {
+    this.loadLessons().then(() => {
+      this.filterLessons();
+      this.setScheduleItems();
+    });
+  }
 
   // מסננת את השיעורים לפי הילד הנבחר
 filterLessons() {
@@ -236,31 +221,30 @@ filterLessons() {
     : this.lessons.filter(l => l.child_id === this.selectedChildId);
 }
 
-private toIsoLocal(s?: string): string | undefined {
-  if (!s) return undefined;
-  // Supabase מחזיר "YYYY-MM-DD HH:MM:SS" (בלי T)
-  return s.includes('T') ? s : s.replace(' ', 'T');
-}
-private isoWithTFallback(s: string | undefined | null, fallbackIso: string): string {
-  if (s && s.trim() !== '') {
-    const v = s.trim();
-    return v.includes('T') ? v : v.replace(' ', 'T');
+  private toIsoLocal(s?: string): string | undefined {
+    if (!s) return undefined;
+    return s.includes('T') ? s : s.replace(' ', 'T');
   }
-  return fallbackIso; // תמיד string
-}
 
-/** ISO לוקאלי ללא Z (כדי לא להזיז שעות) */
-private toLocalIso(date: Date): string {
-  const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
-  return (
-    date.getFullYear() + '-' +
-    pad(date.getMonth() + 1) + '-' +
-    pad(date.getDate()) + 'T' +
-    pad(date.getHours()) + ':' +
-    pad(date.getMinutes()) + ':' +
-    pad(date.getSeconds())
-  );
-}
+  private isoWithTFallback(s: string | undefined | null, fallbackIso: string): string {
+    if (s && s.trim() !== '') {
+      const v = s.trim();
+      return v.includes('T') ? v : v.replace(' ', 'T');
+    }
+    return fallbackIso;
+  }
+
+  private toLocalIso(date: Date): string {
+    const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
+    return (
+      date.getFullYear() + '-' +
+      pad(date.getMonth() + 1) + '-' +
+      pad(date.getDate()) + 'T' +
+      pad(date.getHours()) + ':' +
+      pad(date.getMinutes()) + ':' +
+      pad(date.getSeconds())
+    );
+  }
 
 setScheduleItems() {
   // מקור הנתונים לתצוגה: אם יש סינון – filteredLessons, אחרת כל השיעורים
@@ -273,8 +257,8 @@ setScheduleItems() {
     const startFallback = this.getLessonDateTime(lesson.day_of_week, lesson.start_time);
     const endFallback   = this.getLessonDateTime(lesson.day_of_week, lesson.end_time);
 
-    const start = this.isoWithTFallback(lesson.start_datetime, startFallback);
-    const end   = this.isoWithTFallback(lesson.end_datetime,   endFallback);
+      const start = this.isoWithTFallback(lesson.start_datetime, startFallback);
+      const end   = this.isoWithTFallback(lesson.end_datetime,   endFallback);
 
     // ולידציה בסיסית
     if (!start || !end) continue;
@@ -317,12 +301,29 @@ setScheduleItems() {
     .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
 }
 
+  // ← מתוקן
+  onEventClick(arg: EventClickArg) {
+    const event = arg.event;
 
+    const item: ScheduleItem = {
+      id: event.id,
+      title: event.title,
+      start: event.start?.toISOString() ?? '',
+      end: event.end?.toISOString() ?? '',
+      color: event.backgroundColor,
+      status: event.extendedProps['status'],
+      meta: {
+        child_id: event.extendedProps['child_id'],
+        child_name: event.extendedProps['child_name'],
+        instructor_id: event.extendedProps['instructor_id'],
+        instructor_name: event.extendedProps['instructor_name'],
+        status: event.extendedProps['status']
+      }
+    };
 
-    // מאזינים אופציונליים מהווידג'ט
-  onEventClick(item: ScheduleItem) {
     console.log('event clicked', item);
   }
+
   onDateClick(dateIso: string) {
     console.log('date clicked', dateIso);
   }

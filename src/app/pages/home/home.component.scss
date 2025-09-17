@@ -1,3 +1,4 @@
+/* ---- פריסת ברירת מחדל (נשארת כמו אצלך) ---- */
 .home-container {
   display: flex;
   flex-direction: row;
@@ -8,7 +9,7 @@
 }
 
 .image-section {
-  flex: 0.5;
+  flex: 1;
   background-color: #e6f4ec;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
@@ -24,53 +25,64 @@
   object-fit: cover;
 }
 
+.buttons {
+  position: absolute;
+  left: 50px;
+  flex: 0.1;
+}
+
+.content {
+  flex: 2;
+}
+
 .left-panel {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center; /* הפעילויות יישארו ממורכזות אנכית */
+  justify-content: center;
+  /* הפעילויות יישארו ממורכזות אנכית */
   padding: 2rem;
   background-color: #e6f4ec;
-  position: relative; /* כדי ש־.login-icon יתמקם ביחס לפאנל הזה */
+  position: relative;
+  /* כדי ש־.login-icon יתמקם ביחס לפאנל הזה */
 }
 
-$login-start: #e6ecd9; /* ירוק זית בהיר */
-$login-end:   #7a8b55;   // ירוק זית כהה (למטה)
-$login-text:  #fff;
-$radius:      12px;
+$login-start: #e6ecd9;
+/* ירוק זית בהיר */
+$login-end: #7a8b55; // ירוק זית כהה (למטה)
+$login-text: #fff;
+$radius: 5px;
 
 .login-icon {
   position: relative;
-    top: 21px;
-    left: 20px;
-    max-width: 115px;
-    max-height: 40px;
-
-   --padV: .62rem;
-  --padH: 1rem;
+  top: 21px;
+  left: 20px;
+  max-width: 115px;
+  max-height: 40px;
 
   position: relative;
   display: inline-block;
-  direction: rtl;                /* טקסט בעברית */
-  padding: var(--padV) calc(var(--padH) + var(--iconSize) + .75rem) var(--padV) var(--padH);
-  border: 0;
+  direction: rtl;
+  /* טקסט בעברית */
+  padding: 10px;
+  border: 1px solid $login-end;
   border-radius: $radius;
   cursor: pointer;
 
-  color: $login-text;
+  color: $login-end;
+  font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: .2px;
-  background: linear-gradient(180deg, $login-start 0%, $login-end 100%);
-  box-shadow: 0 6px 16px rgba(0,0,0,.12), 0 2px 6px rgba(0,0,0,.14);
-  transition: filter .2s ease, transform .04s ease-in, box-shadow .2s ease;
-
-  /* האייקון – חץ ימינה (SVG דרך mask כדי שיירש את currentColor) */
+  background-color: $login-start;
+  
   &::after {
     content: "";
     position: absolute;
-    inset-block: 0;               /* מרכז אנכי לוגי */
+    inset-block: 0;
+    /* מרכז אנכי לוגי */
     margin-block: auto;
-    inset-inline-start: calc(var(--padH) - .2rem); /* בצד הימני ב-RTL */
+    inset-inline-start: calc(var(--padH) - .2rem);
+    /* בצד הימני ב-RTL */
     width: var(--iconSize);
     height: var(--iconSize);
     background: currentColor;
@@ -79,7 +91,7 @@ $radius:      12px;
 <path d='M3 12h12'/>\
 <path d='M11 5l7 7-7 7'/>\
 </svg>") center / contain no-repeat;
-            mask: url("data:image/svg+xml;utf8,\
+    mask: url("data:image/svg+xml;utf8,\
 <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>\
 <path d='M3 12h12'/>\
 <path d='M11 5l7 7-7 7'/>\
@@ -89,12 +101,17 @@ $radius:      12px;
 
   &:hover {
     filter: brightness(1.03) saturate(1.02);
-    &::after { transform: translateX(-2px); } /* תנועה עדינה פנימה */
+
+    &::after {
+      transform: translateX(-2px);
+    }
+
+    /* תנועה עדינה פנימה */
   }
 
   &:active {
     transform: translateY(1px);
-    box-shadow: 0 3px 8px rgba(0,0,0,.18), 0 1px 3px rgba(0,0,0,.2);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, .18), 0 1px 3px rgba(0, 0, 0, .2);
   }
 
   &:focus-visible {
@@ -111,9 +128,10 @@ $radius:      12px;
   /* מצב טעינה (רצוי להוסיף class="btn-login loading") */
   &.loading {
     pointer-events: none;
+
     &::after {
       -webkit-mask: none;
-              mask: none;
+      mask: none;
       width: 1.05rem;
       height: 1.05rem;
       border: 2px solid currentColor;
@@ -124,7 +142,11 @@ $radius:      12px;
   }
 }
 
-@keyframes btnlogin-spin { to { transform: rotate(360deg); } }
+@keyframes btnlogin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 .content {
   display: flex;
@@ -176,5 +198,67 @@ $radius:      12px;
   direction: rtl;
 }
 
+/* ---- התאמות מסך בינוני (טאבלט מתחת ל-992px) ---- */
+@media (max-width: 992px) {
+  .home-container {
+    flex-direction: column;
+    /* במקום שורה -> טור אחד */
+    height: auto;
+    /* ניתן לגובה להתארך */
+  }
 
+  .image-section {
+    border: 0;
+    background: transparent;
+    position: absolute;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
 
+  .image-section img {
+    border: 0;
+    background: transparent;
+    z-index: 10;
+  }
+
+  .content {
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+  }
+
+  .activities {
+    margin: 1rem 0;
+    gap: 1rem;
+  }
+
+  .activity-box {
+    max-width: 100%;
+    border-radius: 20px;
+    z-index: 1;
+    background: transparent;
+  }
+
+  .buttons {
+    position: relative;
+    /* לא פיקסד במובייל */
+    display: flex;
+    justify-content: center;
+    margin: 1rem 0;
+  }
+}
+
+/* ---- התאמות מסך קטן (מתחת ל-576px) ---- */
+@media (max-width: 576px) {
+
+  .activity-box strong {
+    font-size: 1rem;
+    z-index: 1;
+    background: transparent;
+  }
+
+  .login-icon {
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+  }
+}
