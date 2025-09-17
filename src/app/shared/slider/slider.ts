@@ -48,6 +48,7 @@ export class SliderComponent implements OnInit {
     this.syncBreakpoint();
   }
 
+
   @HostListener('window:resize')
   onResize() { this.syncBreakpoint(); }
 
@@ -60,7 +61,7 @@ export class SliderComponent implements OnInit {
           { path: 'parent/schedule', label: 'מערכת שיעורים', icon: 'calendar' },
           { path: 'parent/summary',  label: 'סיכום פעילות', icon: 'receipt' },
           { path: 'parent/payments', label: 'אמצעי תשלום', icon: 'card' },
-          { path: 'parent/messages', label: 'הודעות למשרד', icon: 'note' },
+          { path: 'parent/messages', label: 'הודעות', icon: 'note' },
           { path: 'parent/details',  label: 'הפרטים שלי',   icon: 'user' },
         ];
         break;
