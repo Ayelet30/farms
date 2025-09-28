@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 // עדכני נתיבים לפי הפרויקט שלך
-import { dbTenant, fetchMyChildren } from '../../services/supabaseClient';
+import { dbTenant, fetchMyChildren } from '../../services/supabaseClient.service';
 
 interface ChildRow {
   child_uuid: string;
