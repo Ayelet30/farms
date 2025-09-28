@@ -5,14 +5,38 @@ import { ChildRow, ParentDetails, UserDetails } from '../Types/detailes.model';
 
 /** ===================== RUNTIME CONFIG (בלי מפתחות בקוד) ===================== **/
 function readMeta(name: string): string | null {
+  if (typeof document === 'undefined') return null;
   const el = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
   return el?.content?.trim() || null;
 }
+
 function runtime(key: string): string | null {
-  const w = (window as any);
-  return (w.__RUNTIME__?.[key] ?? readMeta(`x-${key.toLowerCase().replace(/_/g, '-')}`) ??
-    (import.meta as any).env?.[key] ?? (process as any)?.env?.[key] ?? null)?.trim?.() || null;
+  const metaName = `x-${key.toLowerCase().replace(/_/g, '-')}`;
+  const maybeWindow = typeof window !== 'undefined' ? (window as any) : undefined;
+
+  let fromImportMeta: any = null;
+  try {
+    // יהיה זמין אם הבילדר תומך (Vite, וכו')
+    fromImportMeta = (import.meta as any)?.env?.[key] ?? null;
+  } catch { /* ignore */ }
+
+  let fromProcess: any = null;
+  try {
+    // יהיה זמין ב-SSR/Node
+    fromProcess = (process as any)?.env?.[key] ?? null;
+  } catch { /* ignore */ }
+
+  const val =
+    maybeWindow?.__RUNTIME__?.[key] ??
+    readMeta(metaName) ??
+    fromImportMeta ??
+    fromProcess ??
+    null;
+
+  return typeof val === 'string' ? val.trim() : val;
 }
+
+
 
 const SUPABASE_URL = runtime('SUPABASE_URL');
 const SUPABASE_ANON_KEY = runtime('SUPABASE_ANON_KEY');
@@ -109,6 +133,7 @@ export async function setTenantContext(ctx: TenantContext) {
     currentTenant = { ...ctx };
     authBearer = ctx.accessToken ?? null;
     supabase = makeClient();
+    clearDbCache(); 
     clearTimeout(refreshTimer);
     if (authBearer) scheduleTokenRefresh(authBearer);
     notifyTenantChange();                 // <-- הוספה
@@ -123,6 +148,7 @@ export async function clearTenantContext() {
   clearTimeout(refreshTimer);
   refreshTimer = null;
   supabase = makeClient();
+  clearDbCache(); 
   try { await supabase.auth.signOut(); } catch { }
   notifyTenantChange();                   // <-- הוספה
 }
@@ -394,6 +420,7 @@ export async function bootstrapSupabaseSession(tenantId?: string, roleInTenant?:
   const url = qs.toString() ? `${LOGIN_BOOTSTRAP_URL}?${qs}` : LOGIN_BOOTSTRAP_URL;
 
   const res = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` } });
+  console.log("@@@@@@@@@@@@", res)
   const raw = await res.text();
   let parsed: any = null; try { parsed = JSON.parse(raw); } catch { }
   if (!res.ok) throw new Error(parsed?.error || `loginBootstrap failed: ${res.status}`);
@@ -412,26 +439,39 @@ export async function bootstrapSupabaseSession(tenantId?: string, roleInTenant?:
   return data;
 }
 
-
-
 function scheduleTokenRefresh(jwt: string) {
   try {
     const body = jwt.split('.')[1] || '';
-    const { exp } = JSON.parse(atob(body));
+    const base64Decode = (b64: string) => {
+      if (typeof atob === 'function') return atob(b64);
+      if (typeof Buffer !== 'undefined') return Buffer.from(b64, 'base64').toString('utf-8');
+      throw new Error('No base64 decoder available');
+    };
+    const parsed = JSON.parse(base64Decode(body));
+    const exp = Number(parsed?.exp);
+    if (!exp || Number.isNaN(exp)) return;
+
     const msLeft = exp * 1000 - Date.now();
     const delay = Math.max(msLeft - 60_000, 10_000);
 
+    clearTimeout(refreshTimer);
     refreshTimer = setTimeout(async () => {
       try {
-        const tId = _lastBootstrap.tenantId ?? currentTenant?.id ?? localStorage.getItem('selectedTenant') ?? undefined;
+        const tId =
+          _lastBootstrap.tenantId ??
+          currentTenant?.id ??
+          (typeof localStorage !== 'undefined' ? localStorage.getItem('selectedTenant') ?? undefined : undefined);
         const rIn = _lastBootstrap.roleInTenant ?? currentRoleInTenant ?? undefined;
         await bootstrapSupabaseSession(tId, rIn);
       } catch (e) {
         console.warn('token refresh failed', e);
       }
     }, delay);
-  } catch { /* ignore */ }
+  } catch (e) {
+    console.debug('scheduleTokenRefresh skipped:', (e as any)?.message ?? e);
+  }
 }
+
 
 /** ===================== MEMBERSHIPS (multi-tenant) ===================== **/
 let membershipsCache: Membership[] = [];
@@ -608,6 +648,7 @@ export async function ensureTenantContextReady(): Promise<void> {
 
   const stored = localStorage.getItem('selectedTenant');
   if (stored) {
+    console.log("!!!!!!!!!!!!", stored)
     await bootstrapSupabaseSession(stored, currentRoleInTenant ?? undefined);
     return;
   }
