@@ -2,7 +2,7 @@ import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AgreementsAdminService } from '../../services/agreements-admin.service';
-import { ensureTenantContextReady, getCurrentFarmMetaSync } from '../../services/supabaseClient';
+import { ensureTenantContextReady, getCurrentFarmMetaSync } from '../../services/supabaseClient.service';
 import { CurrentUserService } from '../../core/auth/current-user.service';
 
 @Component({
