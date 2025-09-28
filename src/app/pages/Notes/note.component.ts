@@ -20,7 +20,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSelectModule } from '@angular/material/select';
 import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
-import { db } from '../../services/supabaseClient';
+import { db } from '../../services/supabaseClient.service';
 
 @Component({
   selector: 'app-note',

@@ -13,7 +13,7 @@ import {
   listMembershipsForCurrentUser,
   selectMembership,
   type Membership,
-} from '../../services/supabaseClient';
+} from '../../services/supabaseClient.service';
 
 import type { UserDetails } from '../../Types/detailes.model';
 import { TokensService } from '../../services/tokens.service';

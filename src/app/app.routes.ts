@@ -32,16 +32,17 @@ export const routes: Routes = [
       { path: 'schedule', loadComponent: () => import('./pages/schedule/instructor-schedule/instructor-schedule').then(m => m.InstructorScheduleComponent) },
     ]
   },
-  {
+ {
     path: 'secretary',
     loadComponent: () => import('./layout/layout').then(m => m.LayoutComponent),
     canActivate: [RoleGuard],
     data: { role: 'secretary' },
     children: [
-      { path: 'parents', loadComponent: () => import('./pages/secretary-parents/secretary-parents').then(m => m.SecretaryParentsComponent) },
-      { path: 'regulations', loadComponent: () => import('./admin/agreements-admin.component/agreements-admin.component').then(m => m.AgreementsAdminComponent) },
+        { path: 'parents', loadComponent: () => import('./pages/secretary-parents/secretary-parents').then(m => m.SecretaryParentsComponent) },
+        { path: 'regulations', loadComponent: () => import('./admin/agreements-admin.component/agreements-admin.component').then(m => m.AgreementsAdminComponent) },
+        { path: 'children', loadComponent: () => import('./pages/secretary-children/secretary-children.component').then(m => m.SecretaryChildrenComponent) }, // ✅ הוסף את השורה הזו
     ]
-  },
+},
   { path: 'admin', loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminComponent), canActivate: [RoleGuard], data: { role: 'admin' } },
   { path: 'booking/:type', loadComponent: () => import('./pages/booking/booking.component').then(m => m.BookingComponent) },
   { path: '**', redirectTo: 'home' },
