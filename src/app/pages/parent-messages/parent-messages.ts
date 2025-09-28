@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import {
   dbTenant,            
   getCurrentUserData   
-} from '../../services/supabaseClient';
+} from '../../services/supabaseClient.service';
 
 @Component({
   selector: 'app-parent-notes',

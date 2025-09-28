@@ -5,7 +5,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import type { ChildRow } from '../../Types/detailes.model';
-import { dbTenant, fetchMyChildren, getCurrentUserData } from '../../services/supabaseClient';
+import { dbTenant, fetchMyChildren, getCurrentUserData } from '../../services/supabaseClient.service';
 import { ChildConsentsComponent } from '../../consents/child-consents.component/child-consents.component';
 
 /* =========================

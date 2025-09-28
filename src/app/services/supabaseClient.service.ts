@@ -569,52 +569,26 @@ export async function fetchCurrentParentDetails(
 
 /** ===================== CHILDREN API (per-tenant) ===================== **/
 export async function getMyChildren(
-  select = 'id, parent_uid, full_name'
+  select = 'id:child_uuid, full_name, gov_id, birth_date, parent_id:parent_uid, status'
 ): Promise<ChildRow[]> {
-  const fbUid = getAuth().currentUser?.uid;
-  if (!fbUid) throw new Error('No Firebase user');
-
-  const dbc = db(); // משתמש בסכימת הטננט הנוכחית
-
-  // ננסה קודם למצוא הורה בטבלת parents (מדויק יותר)
-  const parent = await getCurrentParentDetails('uid', { cacheMs: 0 }).catch(() => null);
-  if (parent?.uid) {
-    const { data, error } = await dbc
-      .from('children')
-      .select(select)
-      .eq('parent_uid', parent.uid)
-      .order('full_name', { ascending: true });
-
-    if (!error) return (data ?? []) as unknown as ChildRow[];
-
-    // אם יש שגיאה על עמודה/מדיניות — ניפול לפילטר לפי fbUid
-    const msg = (error as any)?.message || '';
-    const looksLikeBadColumn =
-      msg.includes('parent_id') ||
-      (error as any)?.code === 'PGRST302' ||
-      (error as any)?.code === 'PGRST301';
-    if (!looksLikeBadColumn) throw error;
-  }
-
-  // נפילה אחורה: פילטר ישיר לפי uid של המשתמש
+  await ensureTenantContextReady();
+  const dbc = db();               // לקוח סכימת הטננט
   const { data, error } = await dbc
     .from('children')
-    .select(select)
-    .eq('parent_uid', fbUid)
+    .select(select)               // <- כאן ה-alias-ים
     .order('full_name', { ascending: true });
-
   if (error) throw error;
   return (data ?? []) as unknown as ChildRow[];
 }
 
+
 export async function fetchMyChildren(
-  select = 'id, parent_uid, full_name'
+  select = 'id:child_uuid, full_name, gov_id, birth_date, parent_id:parent_uid, status'
 ): Promise<{ ok: boolean; data: ChildRow[]; error?: string }> {
   try {
     const data = await getMyChildren(select);
     return { ok: true, data };
   } catch (e: any) {
-    console.warn('getMyChildren error:', e);
     return { ok: false, data: [], error: e?.message ?? 'Unknown error' };
   }
 }
@@ -685,5 +659,53 @@ export async function insertAgreementAcceptance(opts: {
   if (error) throw error;
   return data;
 }
+// === Parents listing (per-tenant) ===
+export type ParentRow = {
+  id: string;
+  uid: string | null;
+  full_name: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: any;
+  is_active?: boolean | null;
+  created_at?: string | null;
+};
+export type ListParentsOpts = {
+  select?: string;
+  search?: string | null;
+  limit?: number;
+  offset?: number;
+  orderBy?: 'full_name' | 'created_at';
+  ascending?: boolean;
+};
 
+/** מחזיר את כל ההורים בחווה (כלומר בסכימת ה-tenant הנוכחי) */
+export async function listParents(opts: ListParentsOpts = {}): Promise<{ rows: ParentRow[]; count?: number | null }> {
+  const tenant = requireTenant();    
+
+  const dbc = db(tenant.schema);
+
+  const select = opts.select ?? 'uid, full_name,extra_notes, address, phone, email';
+  let q = dbc.from('parents').select(select, { count: 'exact' });
+
+  if (opts.search?.trim()) {
+    const s = `%${opts.search.trim()}%`;
+    q = q.or(`full_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
+  }
+
+  const orderBy = opts.orderBy ?? 'full_name';
+  const ascending = opts.ascending ?? true;
+  q = q.order(orderBy, { ascending });
+
+  const limit = Math.max(1, opts.limit ?? 50);
+  const offset = Math.max(0, opts.offset ?? 0);
+  q = q.range(offset, offset + limit - 1);
+
+  const { data, error, count } = await q;
+  
+  if (error) throw error;
+
+
+  return { rows: (data ?? []) as unknown as ParentRow[], count: count ?? null };
+}
 

@@ -12,11 +12,11 @@ import {
   getFarmLogoUrl,
   getSelectedMembershipSync,
   logout as sbLogout,
-} from '../../services/supabaseClient';
+} from '../../services/supabaseClient.service';
 
 import { CurrentUserService } from '../../core/auth/current-user.service';
 import { TokensService } from '../../services/tokens.service';
-import type { Membership } from '../../services/supabaseClient';
+import type { Membership } from '../../services/supabaseClient.service';
 
 @Component({
   selector: 'app-header',
@@ -28,7 +28,7 @@ import type { Membership } from '../../services/supabaseClient';
 export class HeaderComponent implements OnInit {
   private router = inject(Router);
   private dialog = inject(MatDialog);
-  private cu = inject(CurrentUserService);
+  public cu = inject(CurrentUserService);
   private tokens = inject(TokensService);
 
   // מצב תצוגה
