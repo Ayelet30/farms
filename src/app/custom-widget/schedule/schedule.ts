@@ -8,7 +8,10 @@ import {
   ViewChild,
   NgZone,
   OnChanges,
-  SimpleChanges
+  SimpleChanges,
+  ViewEncapsulation,            // ← חדש
+  AfterViewInit,                 // ← אם תרצי לגלול גם מיד אחרי רנדור ראשון
+  HostListener
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FullCalendarModule, FullCalendarComponent } from '@fullcalendar/angular';
@@ -25,9 +28,10 @@ import { ScheduleItem } from '../../models/schedule-item.model';
   standalone: true,
   imports: [CommonModule, FormsModule, FullCalendarModule],
   templateUrl: './schedule.html',
-  styleUrls: ['./schedule.component.scss'],
+  styleUrls: ['./schedule.scss'],
+  encapsulation: ViewEncapsulation.None          // ← חשוב כדי שה-SCSS יחול על .fc
 })
-export class ScheduleComponent implements OnChanges {
+export class ScheduleComponent implements OnChanges, AfterViewInit {
   @ViewChild('calendar') calendarComponent!: FullCalendarComponent;
 
   @Input() items: ScheduleItem[] = [];
@@ -38,12 +42,24 @@ export class ScheduleComponent implements OnChanges {
   @Input() slotMaxTime = '21:00:00';
   @Input() allDaySlot = false;
 
-  // ✅ פולט EventClickArg כדי לשמור על כל המידע של FullCalendar
   @Output() eventClick = new EventEmitter<EventClickArg>();
   @Output() dateClick = new EventEmitter<string>();
 
   currentView = this.initialView;
   currentDate = '';
+
+  // שעה נוכחית בפורמט FC (HH:MM:SS)
+  private nowScroll(): string {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+  }
+  private isToday(d: Date) {
+    const t = new Date();
+    return d.getFullYear() === t.getFullYear() &&
+           d.getMonth() === t.getMonth() &&
+           d.getDate() === t.getDate();
+  }
 
   calendarOptions: CalendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
@@ -55,33 +71,56 @@ export class ScheduleComponent implements OnChanges {
     slotMinTime: this.slotMinTime,
     slotMaxTime: this.slotMaxTime,
     allDaySlot: this.allDaySlot,
+
+    nowIndicator: true,                     // ← אינדיקטור "עכשיו"
+    scrollTime: this.nowScroll(),           // ← מיקוד ראשוני
+    slotDuration: '00:30:00',
+
     events: [],
     dateClick: (info: DateClickArg) => this.dateClick.emit(info.dateStr),
-    eventClick: (arg: EventClickArg) => {
-      // ✅ שולח את כל ה־arg החוצה
-      this.eventClick.emit(arg);
-    },
+    eventClick: (arg: EventClickArg) => this.eventClick.emit(arg),
+
+    // צ'יפ/מבנה כרטיס לאירוע
     eventContent: (arg) => {
       const { event } = arg;
-      const status = event.extendedProps['status'] || '';
+      const status = event.extendedProps['status'] || '';                 // 'canceled'/'therapeutic' ...
+      const type   = event.extendedProps['type']   || '';                 // אופציונלי
+      const chip   = type ? `<span class="chip">${type}</span>` : '';
       return {
         html: `<div class="event-box ${status}">
                  <div class="time">${event.start?.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</div>
                  <div class="title">${event.title}</div>
+                 ${chip}
                </div>`
       };
     },
+
     datesSet: (info: DatesSetArg) => {
-      // שימוש ב-setTimeout כדי למנוע ExpressionChangedAfterItHasBeenCheckedError
       this.ngZone.run(() => {
-        setTimeout(() => {
-          this.currentDate = info.view.title;
-        });
+        // עדכון כותרת
+        this.currentDate = info.view.title;
+        // בכל ניווט לתאריך שהוא היום – לגלול לשעה הנוכחית
+        // (רלוונטי לתצוגות timeGrid)
+        const api = this.calendarApi;
+        if (api && (info.view.type === 'timeGridDay' || info.view.type === 'timeGridWeek')) {
+          if (this.isToday(api.getDate())) {
+            setTimeout(() => api.scrollToTime(this.nowScroll()), 0);
+          }
+        }
       });
     }
   };
 
   constructor(private ngZone: NgZone) {}
+
+  ngAfterViewInit(): void {
+    // ביטחון גם לאחר הרנדר הראשוני:
+    setTimeout(() => {
+      if (this.calendarApi && (this.currentView === 'timeGridDay' || this.currentView === 'timeGridWeek')) {
+        this.calendarApi.scrollToTime(this.nowScroll());
+      }
+    }, 0);
+  }
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['items']) {
@@ -93,7 +132,7 @@ export class ScheduleComponent implements OnChanges {
           start: i.start,
           end: i.end,
           extendedProps: {
-            status: i.status,
+            status: i.status,                   // 'canceled' וכו'
             child_id: i.meta?.child_id,
             child_name: i.meta?.child_name,
             instructor_id: i.meta?.instructor_id,
@@ -111,11 +150,52 @@ export class ScheduleComponent implements OnChanges {
   changeView(view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay') {
     this.currentView = view;
     this.calendarApi.changeView(view);
+    // לגלול אחרי החלפת תצוגה (במידה וזה היום)
+    if ((view === 'timeGridDay' || view === 'timeGridWeek') && this.isToday(this.calendarApi.getDate())) {
+      setTimeout(() => this.calendarApi.scrollToTime(this.nowScroll()), 0);
+    }
   }
 
-  next() { this.calendarApi.next(); }
-  prev() { this.calendarApi.prev(); }
-  today() { this.calendarApi.today(); }
+  next()  { this.calendarApi.next();  }
+  prev()  { this.calendarApi.prev();  }
+  today() {
+    this.calendarApi.today();
+    // מיקוד מיידי לאחר "היום"
+    if (this.currentView === 'timeGridDay' || this.currentView === 'timeGridWeek') {
+      setTimeout(() => this.calendarApi.scrollToTime(this.nowScroll()), 0);
+    }
+  }
+
+isFullscreen = false;
+
+toggleFullscreen() {
+  this.isFullscreen = !this.isFullscreen;
+
+  // ננעל את גלילת הדף במסך מלא
+  document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
+
+  // להתאים את גובה הקלנדר
+  const api = this.calendarApi;
+  if (api) {
+    api.setOption('height', this.isFullscreen ? '100%' : 'auto');
+    setTimeout(() => {
+      api.updateSize();
+      // אם בתצוגת יום/שבוע והיום מוצג – גלילה לשעה הנוכחית
+      if ((this.currentView === 'timeGridDay' || this.currentView === 'timeGridWeek')) {
+        const d = api.getDate();
+        const t = new Date();
+        if (d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate()) {
+          api.scrollToTime(this.nowScroll ? this.nowScroll() : `${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}:00`);
+        }
+      }
+    }, 0);
+  }
 }
 
+// יציאה במסך מלא ע"י ESC
+@HostListener('document:keydown.escape')
+onEsc() {
+  if (this.isFullscreen) this.toggleFullscreen();
+}
 
+}
