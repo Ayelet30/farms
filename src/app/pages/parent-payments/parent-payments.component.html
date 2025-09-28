@@ -1,1 +1,54 @@
 
+<!-- app/billing/parent-payments.component.html -->
+<div class="card" *ngIf="!loading(); else loadingTpl">
+  <h2>אמצעי תשלום</h2>
+
+  <div class="profiles">
+    <div class="profile" *ngFor="let p of profiles()">
+      <div class="left">
+        <div class="brand">{{ p.brand || 'כרטיס' }}</div>
+        <div class="last4">•••• {{ p.last4 || '----' }}</div>
+        <div class="created">נוסף: {{ p.created_at }}</div>
+      </div>
+      <div class="right">
+        <button class="secondary" (click)="setDefault(p.id)" [disabled]="p.is_default">קבע כברירת מחדל</button>
+        <span *ngIf="p.is_default" class="badge">ברירת מחדל</span>
+        <button class="danger" (click)="deactivate(p.id)">השבת</button>
+      </div>
+    </div>
+
+    <div class="empty" *ngIf="profiles().length === 0">
+      אין אמצעי תשלום שמורים.
+    </div>
+  </div>
+
+  <div class="actions">
+    <button (click)="addPaymentMethod()" [disabled]="busyAdd()">הוסף אמצעי תשלום</button>
+  </div>
+
+  <hr />
+
+  <h3>חיוב חד-פעמי (בדיקה/ידני)</h3>
+  <label>סכום (אגורות)</label>
+  <input type="number" [(ngModel)]="amountAgorot" />
+  <button (click)="testCharge()" [disabled]="busyCharge()">בצע חיוב</button>
+
+  <hr />
+
+  <h3>היסטוריית חיובים</h3>
+  <div class="charges">
+    <div class="charge" *ngFor="let c of charges()">
+      <div>{{ c.created_at }}</div>
+      <div>{{ c.sumNis }}</div>
+      <div [class.ok]="c.status==='succeeded'" [class.fail]="c.status==='failed'">{{ c.status }}</div>
+      <div class="muted">#{{ c.provider_id || '-' }}</div>
+    </div>
+    <div class="empty" *ngIf="charges().length === 0">אין חיובים להצגה.</div>
+  </div>
+
+  <div class="error" *ngIf="error()">{{ error() }}</div>
+</div>
+
+<ng-template #loadingTpl>
+  <div class="card">טוען…</div>
+</ng-template>

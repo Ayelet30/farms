@@ -1,6 +1,9 @@
 import { Routes } from '@angular/router';
 import { RoleGuard } from './shared/guards/role-guard';
 import { LayoutComponent } from './layout/layout';
+import { ParentPaymentsComponent } from './pages/parent-payments/parent-payments.component';
+import { BillingSuccessComponent } from './billing/billing-success.component';
+import { BillingErrorComponent } from './billing/billing-error.component';
 
 
 export const routes: Routes = [
@@ -17,6 +20,8 @@ export const routes: Routes = [
       { path: 'schedule', loadComponent: () => import('./pages/parent-schedule/parent-schedule').then(m => m.ParentScheduleComponent) },
       { path: 'activity-summary', loadComponent: () => import('./pages/parent-activity-summary/parent-activity-summary').then(m => m.ParentActivitySummaryComponent) },
       { path: 'payments', loadComponent: () => import('./pages/parent-payments/parent-payments.component').then(m => m.ParentPaymentsComponent) },
+      { path: 'billing/success', component: BillingSuccessComponent },
+      { path: 'billing/error', component: BillingErrorComponent },
       { path: 'messages', loadComponent: () => import('./pages/parent-messages/parent-messages').then(m => m.ParentMessagesComponent) },
       { path: 'details', loadComponent: () => import('./pages/parent-details/parent-details').then(m => m.ParentDetailsComponent) },
       //   { path: '', redirectTo: 'children', pathMatch: 'full' }
