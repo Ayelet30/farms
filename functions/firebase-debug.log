@@ -1,0 +1,90 @@
+[debug] [2025-09-25T12:01:48.667Z] ----------------------------------------------------------------------
+[debug] [2025-09-25T12:01:48.670Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\user1\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js functions:secrets:set STRIPE_SECRET_KEY
+[debug] [2025-09-25T12:01:48.671Z] CLI Version:   14.9.0
+[debug] [2025-09-25T12:01:48.671Z] Platform:      win32
+[debug] [2025-09-25T12:01:48.671Z] Node Version:  v22.13.0
+[debug] [2025-09-25T12:01:48.671Z] Time:          Thu Sep 25 2025 15:01:48 GMT+0300 (שעון ישראל (קיץ))
+[debug] [2025-09-25T12:01:48.671Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-09-25T12:01:48.673Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2025-09-25T12:01:48.979Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-09-25T12:01:48.979Z] > authorizing via signed-in user (ayelethury@gmail.com)
+[debug] [2025-09-25T12:01:48.980Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-09-25T12:01:48.980Z] > authorizing via signed-in user (ayelethury@gmail.com)
+[debug] [2025-09-25T12:01:48.980Z] [iam] checking project bereshit-ac5d8 for permissions ["firebase.projects.get","secretmanager.secrets.create","secretmanager.secrets.get","secretmanager.secrets.update","secretmanager.versions.add"]
+[debug] [2025-09-25T12:01:48.981Z] Checked if tokens are valid: false, expires at: 1757357566050
+[debug] [2025-09-25T12:01:48.981Z] Checked if tokens are valid: false, expires at: 1757357566050
+[debug] [2025-09-25T12:01:48.982Z] > refreshing access token with scopes: []
+[debug] [2025-09-25T12:01:48.983Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2025-09-25T12:01:48.983Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-09-25T12:01:49.368Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2025-09-25T12:01:49.368Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-09-25T12:01:49.373Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions [none]
+[debug] [2025-09-25T12:01:49.373Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions x-goog-quota-user=projects/bereshit-ac5d8
+[debug] [2025-09-25T12:01:49.373Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions {"permissions":["firebase.projects.get","secretmanager.secrets.create","secretmanager.secrets.get","secretmanager.secrets.update","secretmanager.versions.add"]}
+[debug] [2025-09-25T12:01:49.655Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2025-09-25T12:01:49.655Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[debug] [2025-09-25T12:01:50.579Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions 200
+[debug] [2025-09-25T12:01:50.579Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions {"permissions":["firebase.projects.get","secretmanager.secrets.create","secretmanager.secrets.get","secretmanager.secrets.update","secretmanager.versions.add"]}
+[debug] [2025-09-25T12:01:50.580Z] Checked if tokens are valid: true, expires at: 1758805308368
+[debug] [2025-09-25T12:01:50.580Z] Checked if tokens are valid: true, expires at: 1758805308368
+[debug] [2025-09-25T12:01:50.580Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8 [none]
+[debug] [2025-09-25T12:01:50.823Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8 200
+[debug] [2025-09-25T12:01:50.823Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8 {"projectNumber":"313275026944","projectId":"bereshit-ac5d8","lifecycleState":"ACTIVE","name":"Bereshit","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2025-07-03T11:40:07.651729Z"}
+[debug] [2025-09-25T12:01:50.823Z] Checked if tokens are valid: true, expires at: 1758805308368
+[debug] [2025-09-25T12:01:50.824Z] Checked if tokens are valid: true, expires at: 1758805308368
+[debug] [2025-09-25T12:01:50.824Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets/STRIPE_SECRET_KEY [none]
+[debug] [2025-09-25T12:01:51.502Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets/STRIPE_SECRET_KEY 404
+[debug] [2025-09-25T12:01:51.502Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets/STRIPE_SECRET_KEY {"error":{"code":404,"message":"Secret [projects/313275026944/secrets/STRIPE_SECRET_KEY] not found.","status":"NOT_FOUND"}}
+[debug] [2025-09-25T12:01:51.503Z] Checked if tokens are valid: true, expires at: 1758805308368
+[debug] [2025-09-25T12:01:51.503Z] Checked if tokens are valid: true, expires at: 1758805308368
+[debug] [2025-09-25T12:01:51.503Z] >>> [apiv2][query] POST https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets secretId=STRIPE_SECRET_KEY
+[debug] [2025-09-25T12:01:51.504Z] >>> [apiv2][body] POST https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets {"name":"STRIPE_SECRET_KEY","replication":{"automatic":{}},"labels":{"firebase-managed":"functions"}}
+[debug] [2025-09-25T12:01:53.249Z] <<< [apiv2][status] POST https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets 200
+[debug] [2025-09-25T12:01:53.249Z] <<< [apiv2][body] POST https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets {"name":"projects/313275026944/secrets/STRIPE_SECRET_KEY","replication":{"automatic":{}},"createTime":"2025-09-25T12:01:51.513933Z","labels":{"firebase-managed":"functions"},"etag":"\"163f9eef566160\""}
+[debug] [2025-09-25T13:14:30.524Z] ExitPromptError: User force closed the prompt with SIGINT
+    at Interface.sigint (C:\Users\user1\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\@inquirer\core\dist\commonjs\lib\create-prompt.js:101:37)
+    at Interface.emit (node:events:524:28)
+    at Interface.emit (node:domain:489:12)
+    at [_ttyWrite] [as _ttyWrite] (node:internal/readline/interface:1124:18)
+    at ReadStream.onkeypress (node:internal/readline/interface:263:20)
+    at ReadStream.emit (node:events:536:35)
+    at ReadStream.emit (node:domain:489:12)
+    at emitKeys (node:internal/readline/utils:370:14)
+    at emitKeys.next (<anonymous>)
+    at ReadStream.onData (node:internal/readline/emitKeypressEvents:64:36)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2025-09-25T13:14:34.075Z] ----------------------------------------------------------------------
+[debug] [2025-09-25T13:14:34.078Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\user1\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js functions:secrets:set STRIPE_WEBHOOK_SECRET
+[debug] [2025-09-25T13:14:34.078Z] CLI Version:   14.9.0
+[debug] [2025-09-25T13:14:34.078Z] Platform:      win32
+[debug] [2025-09-25T13:14:34.078Z] Node Version:  v22.13.0
+[debug] [2025-09-25T13:14:34.078Z] Time:          Thu Sep 25 2025 16:14:34 GMT+0300 (שעון ישראל (קיץ))
+[debug] [2025-09-25T13:14:34.078Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-09-25T13:14:34.256Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-09-25T13:14:34.257Z] > authorizing via signed-in user (ayelethury@gmail.com)
+[debug] [2025-09-25T13:14:34.258Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-09-25T13:14:34.258Z] > authorizing via signed-in user (ayelethury@gmail.com)
+[debug] [2025-09-25T13:14:34.258Z] [iam] checking project bereshit-ac5d8 for permissions ["firebase.projects.get","secretmanager.secrets.create","secretmanager.secrets.get","secretmanager.secrets.update","secretmanager.versions.add"]
+[debug] [2025-09-25T13:14:34.259Z] Checked if tokens are valid: false, expires at: 1758805308368
+[debug] [2025-09-25T13:14:34.259Z] Checked if tokens are valid: false, expires at: 1758805308368
+[debug] [2025-09-25T13:14:34.259Z] > refreshing access token with scopes: []
+[debug] [2025-09-25T13:14:34.261Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2025-09-25T13:14:34.261Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-09-25T13:14:34.920Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2025-09-25T13:14:34.920Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-09-25T13:14:34.926Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions [none]
+[debug] [2025-09-25T13:14:34.926Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions x-goog-quota-user=projects/bereshit-ac5d8
+[debug] [2025-09-25T13:14:34.926Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions {"permissions":["firebase.projects.get","secretmanager.secrets.create","secretmanager.secrets.get","secretmanager.secrets.update","secretmanager.versions.add"]}
+[debug] [2025-09-25T13:14:36.126Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions 200
+[debug] [2025-09-25T13:14:36.127Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions {"permissions":["firebase.projects.get","secretmanager.secrets.create","secretmanager.secrets.get","secretmanager.secrets.update","secretmanager.versions.add"]}
+[debug] [2025-09-25T13:14:36.128Z] Checked if tokens are valid: true, expires at: 1758809673920
+[debug] [2025-09-25T13:14:36.128Z] Checked if tokens are valid: true, expires at: 1758809673920
+[debug] [2025-09-25T13:14:36.128Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8 [none]
+[debug] [2025-09-25T13:14:36.369Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8 200
+[debug] [2025-09-25T13:14:36.370Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8 {"projectNumber":"313275026944","projectId":"bereshit-ac5d8","lifecycleState":"ACTIVE","name":"Bereshit","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2025-07-03T11:40:07.651729Z"}
+[debug] [2025-09-25T13:14:36.371Z] Checked if tokens are valid: true, expires at: 1758809673920
+[debug] [2025-09-25T13:14:36.371Z] Checked if tokens are valid: true, expires at: 1758809673920
+[debug] [2025-09-25T13:14:36.371Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets/STRIPE_WEBHOOK_SECRET [none]

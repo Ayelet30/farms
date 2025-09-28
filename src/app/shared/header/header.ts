@@ -206,3 +206,4 @@ export class HeaderComponent implements OnInit {
     return init || 'F';
   }
 }
+

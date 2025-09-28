@@ -1,0 +1,20 @@
+<div class="card">
+<h2>תשלום מאובטח</h2>
+<label>מייל</label>
+<input [(ngModel)]="email" type="email" />
+
+
+<label>UID</label>
+<input [(ngModel)]="uid" />
+
+
+<label>Farm ID</label>
+<input [(ngModel)]="farmId" />
+
+
+<label>סכום (אגורות)</label>
+<input [(ngModel)]="amountAgorot" type="number" />
+
+
+<button (click)="pay()" [disabled]="processing()">לתשלום</button>
+</div>

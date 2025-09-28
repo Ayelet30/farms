@@ -15,10 +15,9 @@ export const routes: Routes = [
     children: [
       { path: 'children', loadComponent: () => import('./pages/parent-children/parent-children').then(m => m.ParentChildrenComponent) },
       { path: 'schedule', loadComponent: () => import('./pages/parent-schedule/parent-schedule').then(m => m.ParentScheduleComponent) },
-      { path: 'activity-summary',loadComponent: () =>import('./pages/parent-activity-summary/parent-activity-summary').then(m => m.ParentActivitySummaryComponent),},
-    //   { path: 'payments', loadComponent: () => import('./pages/parent/parent-payments/parent-payments.component').then(m => m.ParentPaymentsComponent) },
+      { path: 'activity-summary', loadComponent: () => import('./pages/parent-activity-summary/parent-activity-summary').then(m => m.ParentActivitySummaryComponent) },
+      { path: 'payments', loadComponent: () => import('./pages/parent-payments/parent-payments.component').then(m => m.ParentPaymentsComponent) },
       { path: 'messages', loadComponent: () => import('./pages/parent-messages/parent-messages').then(m => m.ParentMessagesComponent) },
-
       { path: 'details', loadComponent: () => import('./pages/parent-details/parent-details').then(m => m.ParentDetailsComponent) },
       //   { path: '', redirectTo: 'children', pathMatch: 'full' }
     ]
