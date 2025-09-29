@@ -81,6 +81,7 @@ export class SliderComponent implements OnInit {
           { path: 'secretary/regulations', label: 'ניהול תקנונים', icon: 'note' },
           { path: 'secretary/children', label: 'ילדים בחווה', icon: 'children' },
           { path: 'secretary/schedule',  label: 'לו״ז ומעקב',     icon: 'calendar' },
+          { path: 'secretary/messages', label: 'הודעות', icon: 'note' },
         ];
         break;
 
