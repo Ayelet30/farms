@@ -2,6 +2,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getAuth, signOut } from 'firebase/auth';
 import { ChildRow, ParentDetails, UserDetails } from '../Types/detailes.model';
+import type {
+  Message, MessageRecipient, Conversation, ConversationMessage
+} from '../models/messsage.model';
 
 /** ===================== RUNTIME CONFIG (בלי מפתחות בקוד) ===================== **/
 function readMeta(name: string): string | null {
@@ -748,5 +751,113 @@ export async function listParents(opts: ListParentsOpts = {}): Promise<{ rows: P
 
 
   return { rows: (data ?? []) as unknown as ParentRow[], count: count ?? null };
+}
+
+
+export async function listInbox(options?: {
+  status?: ('open'|'pending'|'closed')[]; search?: string | null; limit?: number; offset?: number;
+}): Promise<Conversation[]> {
+  const dbc = db(); // סכימת ה-tenant
+  let q = dbc.from('conversations')
+    .select('id, subject, status, updated_at, created_at, opened_by_parent_uid, tags')
+    .order('updated_at', { ascending: false });
+
+  if (options?.status?.length) q = q.in('status', options.status as any);
+  if (options?.search?.trim()) {
+    const s = `%${options.search.trim()}%`;
+    q = q.or(`subject.ilike.${s}`);
+  }
+  const { data, error } = await q.range(options?.offset ?? 0, (options?.offset ?? 0) + (options?.limit ?? 20) - 1);
+  if (error) throw error;
+
+  // obfuscation-light: אפשר להעשיר בשם הורה בלוקאפ מה-view אם יש
+  return (data ?? []) as unknown as Conversation[];
+}
+
+export async function getThread(conversationId: string): Promise<{ conv: Conversation | null; msgs: ConversationMessage[] }> {
+  const dbc = db();
+  const [{ data: conv }, { data: msgs, error: e2 }] = await Promise.all([
+    dbc.from('conversations').select('*').eq('id', conversationId).maybeSingle(),
+    dbc.from('conversation_messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true })
+  ]);
+  if (e2) throw e2;
+  return { conv: (conv as any) ?? null, msgs: (msgs ?? []) as unknown as ConversationMessage[] };
+}
+
+export async function replyToThread(conversationId: string, body_md: string): Promise<ConversationMessage> {
+  const dbc = db();
+  const me = await getCurrentUserDetails('uid, role_in_tenant', { cacheMs: 0 });
+  const senderRole = (me?.role_in_tenant as any) ?? 'secretary';
+  const { data, error } = await dbc.from('conversation_messages').insert({
+    conversation_id: conversationId,
+    body_md,
+    sender_role: senderRole,
+    sender_uid: getAuth().currentUser?.uid ?? 'unknown',
+    has_attachment: false
+  }).select().single();
+  if (error) throw error;
+  // עדכון סטטוס ל-pending (מחכה להורה)
+  await dbc.from('conversations').update({ status: 'pending' }).eq('id', conversationId);
+  return data as any;
+}
+
+export async function sendBroadcast(payload: {
+  subject?: string | null;
+  body_md: string;
+  channels: { inapp: boolean; email?: boolean; sms?: boolean };
+  audience: { type: 'all' | 'manual' | 'single'; parentUids?: string[]; singleUid?: string | null };
+  scheduled_at?: string | null;
+}): Promise<{ message: Message; recipients: number }> {
+  const dbc = db();
+  // 1) יצירת רשומת הודעה
+  const { data: msg, error: e1 } = await dbc.from('messages').insert({
+    subject: payload.subject ?? null,
+    body_md: payload.body_md,
+    channel_inapp: !!payload.channels.inapp,
+    channel_email: !!payload.channels.email,
+    channel_sms: !!payload.channels.sms,
+    audience_type: payload.audience.type,
+    audience_ref: payload.audience ?? null,
+    scheduled_at: payload.scheduled_at ?? null,
+    status: payload.scheduled_at ? 'scheduled' : 'sent'
+  }).select().single();
+  if (e1) throw e1;
+
+  // 2) בניית נמענים
+  let parentUids: string[] = [];
+  if (payload.audience.type === 'all') {
+    // כל ההורים הפעילים
+    const { data: parents } = await dbc.from('parents').select('uid').eq('is_active', true);
+    parentUids = (parents ?? []).map((p: any) => p.uid).filter(Boolean);
+  } else if (payload.audience.type === 'manual') {
+    parentUids = payload.audience.parentUids ?? [];
+  } else if (payload.audience.type === 'single' && payload.audience.singleUid) {
+    parentUids = [payload.audience.singleUid];
+  }
+  parentUids = Array.from(new Set(parentUids));
+
+  // 3) הזרקת recipients
+  if (parentUids.length) {
+    const rows = parentUids.map(uid => ({
+      message_id: (msg as any).id,
+      recipient_parent_uid: uid,
+      delivery_status: payload.scheduled_at ? 'pending' : 'sent'
+    }));
+    const { error: e2 } = await dbc.from('message_recipients').insert(rows);
+    if (e2) throw e2;
+  }
+
+  return { message: msg as any, recipients: parentUids.length };
+}
+
+export async function listSent(limit = 20, offset = 0): Promise<(Message & { recipients_count?: number })[]> {
+  const dbc = db();
+  const { data, error } = await dbc
+    .from('messages')
+    .select('id, subject, status, sent_at, scheduled_at, channel_inapp, channel_email, channel_sms', { count: 'exact' })
+    .order('sent_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (error) throw error;
+  return (data ?? []) as any[];
 }
 
