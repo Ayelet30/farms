@@ -6,7 +6,7 @@ import {
   dbTenant,
   getCurrentUserData,
   ensureTenantContextReady,
-} from '../../services/supabaseClient.service';
+} from '../../../services/supabaseClient.service';
 
 @Component({
   selector: 'app-parent-notes',
