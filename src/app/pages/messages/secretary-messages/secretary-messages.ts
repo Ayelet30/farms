@@ -12,7 +12,7 @@ type Tab = 'inbox' | 'compose' | 'sent';
   selector: 'app-secretary-notes',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './secretary-message.html',
+  templateUrl: './secretary-messages.html',
   styleUrls: ['./secretary-messages.css']
 })
 
@@ -24,7 +24,7 @@ export class SecretaryMessagesComponent implements OnInit {
   inbox = signal<Conversation[]>([]);
   activeConv = signal<Conversation | null>(null);
   thread = signal<ConversationMessage[]>([]);
-  replyText = signal('');
+  replyText: string = '';   
 
   // Compose
   compose = {
@@ -66,11 +66,11 @@ export class SecretaryMessagesComponent implements OnInit {
   }
 
   async sendReply() {
-    const txt = this.replyText().trim();
+    const txt = this.replyText.trim();
     if (!txt || !this.activeConv()) return;
     const msg = await replyToThread(this.activeConv()!.id, txt);
     this.thread.update(arr => [...arr, msg]);
-    this.replyText.set('');
+    this.replyText = '';
   }
 
   // Compose
