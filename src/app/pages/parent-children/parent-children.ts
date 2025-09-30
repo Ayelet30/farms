@@ -169,12 +169,10 @@ statusClass(st: string): string {
       return;
     }
 
-    // פתיחה
     this.selectedIds.add(id);
     this.ensureEditable(child);
   }
 
-  // כפתור X לסגירת הכרטיס בתצוגה
   closeCard(child: any) {
     const id = this.childId(child);
     if (!id) return;
@@ -183,12 +181,8 @@ statusClass(st: string): string {
     delete this.editables[id];
   }
 
-  // ל-trackBy בתבנית
   trackByChild = (_: number, item: any) => this.childId(item);
 
-  /* =========================
-     Editing (per-card)
-  ========================= */
   private ensureEditable(child: any) {
     const id = this.childId(child);
     if (!id) return;
@@ -208,32 +202,57 @@ statusClass(st: string): string {
   }
 
   async saveChild(child: any) {
-    const id = this.childId(child);
-     if (!id) {
+  const id = this.childId(child);
+  if (!id) {
     this.error = 'חסר מזהה ילד (child_uuid).';
     return;
   }
-    const model = this.editables[id];
 
-    const { error } = await dbTenant()
-      .from('children')
-      .update({
-        full_name: model.full_name,
-        birth_date: model.birth_date || null,
-        health_fund: model.health_fund || null,
-        medical_notes: model.medical_notes || null
-      })
-      .eq('child_uuid', id)
-      .select('child_uuid')
-      .single();
+  const model = this.editables[id];
 
-    if (!error) {
-      this.editing[id] = false;
-      this.showInfo('השינויים נשמרו בהצלחה');
-    } else {
-      this.error = error.message ?? 'שגיאה בשמירה';
-    }
+  const { error } = await dbTenant()
+    .from('children')
+    .update({
+      full_name: model.full_name,
+      birth_date: model.birth_date || null,
+      health_fund: model.health_fund || null,
+      medical_notes: model.medical_notes || null
+    })
+    .eq('child_uuid', id)
+    .select('child_uuid')
+    .single();
+
+  if (error) {
+    this.error = error.message ?? 'שגיאה בשמירה';
+    return;
   }
+
+  const idx = this.children.findIndex(c => this.childId(c) === id);
+  if (idx !== -1) {
+    const updated = {
+      ...this.children[idx],
+      full_name: model.full_name,
+      birth_date: model.birth_date || null,
+      health_fund: model.health_fund || null,
+      medical_notes: model.medical_notes || null
+    };
+
+    this.children = [
+      ...this.children.slice(0, idx),
+      updated,
+      ...this.children.slice(idx + 1)
+    ];
+
+    this.editables[id] = {
+      ...updated,
+      age: updated.birth_date ? this.getAge(updated.birth_date) : null
+    };
+  }
+
+  this.editing[id] = false;
+  this.showInfo('השינויים נשמרו בהצלחה');
+}
+
 
   cancelEdit(child: any) {
     const id = this.childId(child);
