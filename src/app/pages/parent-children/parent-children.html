@@ -44,6 +44,9 @@
           </h3>
 
           <span class="age-badge" *ngIf="c.birth_date">גיל: {{ getAge(c.birth_date) }} </span>
+            <span class="age-badge" *ngIf="c.health_fund">
+ {{ c.health_fund }}
+  </span>
         </div>
 
         <div class="actions">
