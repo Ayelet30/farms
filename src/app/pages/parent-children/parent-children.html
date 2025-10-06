@@ -6,14 +6,22 @@
 
   <!-- פס בחירה עליון + כפתור הוספה -->
   <div class="children-buttons" *ngIf="children.length > 0">
-    <button *ngFor="let child of children" (click)="toggleChildSelection(child)" class="child-chip"
-      [class.active]="hasSelected(child)" [class.status-disabled]="!isActiveChild(child)"
-      [class.limit-disabled]="isActiveChild(child) && !hasSelected(child) && selectedIds.size >= maxSelected"
-      [attr.aria-disabled]="(!isActiveChild(child) || (isActiveChild(child) && !hasSelected(child) && selectedIds.size >= maxSelected)) ? 'true' : null"
-      [attr.title]="!isActiveChild(child) ? 'הילד אינו פעיל' : (selectedIds.size >= maxSelected && !hasSelected(child) ? 'מקסימום 4 כרטיסים פתוחים' : null)"
-      type="button">
-      {{ child.full_name }}
-    </button>
+    <button *ngFor="let child of children"
+        (click)="toggleChildSelection(child)"
+        class="child-chip"
+        [class.active]="hasSelected(child)"
+        [class.status-disabled]="isDeletedStatus(child?.status)"
+        [class.limit-disabled]="!hasSelected(child) && selectedIds.size >= maxSelected && canOpenCardByStatus(child?.status)"
+        [attr.aria-disabled]="(!canOpenCardByStatus(child?.status) || (selectedIds.size >= maxSelected && !hasSelected(child))) ? 'true' : null"
+        [attr.title]="
+          isDeletedStatus(child?.status) ? 'הילד במצב Deleted' :
+          (selectedIds.size >= maxSelected && !hasSelected(child) ? 'מקסימום 4 כרטיסים פתוחים' : null)
+        "
+        type="button">
+  {{ child.full_name }}
+</button>
+
+
 
 
     <button (click)="addNewChild()" class="child-chip add-button" type="button">
@@ -128,12 +136,19 @@
             <span>היסטוריה</span>
           </button>
 
-          <button class="cta-btn primary" type="button" (click)="goToBooking(c)">
-            <svg class="icon" aria-hidden="true">
-              <use href="assets/icons/feather-slim.svg#calendar" />
-            </svg>
-            <span>הזמן תור</span>
-          </button>
+         <button class="cta-btn primary"
+        type="button"
+        (click)="goToBooking(c)"
+        [disabled]="!canBookByStatus(c?.status)"
+        [attr.aria-disabled]="!canBookByStatus(c?.status) ? 'true' : null"
+        [title]="!canBookByStatus(c?.status) ? (isPendingAdd(c?.status) ? 'ממתין לאישור הוספה – אי אפשר להזמין תור' : 'לא ניתן להזמין תור לסטטוס זה') : null">
+  <svg class="icon" aria-hidden="true">
+    <use href="assets/icons/feather-slim.svg#calendar" />
+  </svg>
+  <span>הזמן תור</span>
+</button>
+
+
         </div>
 
     </div>

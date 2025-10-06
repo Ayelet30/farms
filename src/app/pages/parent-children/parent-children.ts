@@ -20,6 +20,9 @@ type OccurrenceRow = {
 };
 type InstructorRow = { id_number: string; full_name: string | null };
 
+// ----- Status helpers (ENUM in English only) -----
+type ChildStatus = 'Active' | 'Pending Deletion Approval' | 'Pending Addition Approval' | 'Deleted';
+
 
 @Component({
   selector: 'app-parent-children',
@@ -107,18 +110,20 @@ statusClass(st: string): string {
       this.error = res.error;
       return;
     }
+const rows = (res.data ?? []).filter((r: any) => !this.isDeletedStatus(r.status)) as ChildRow[];
 
-    const rows = (res.data ?? []).filter((r: any) => r.status !== 'deleted') as ChildRow[];
     this.children = rows;
 
     // ברירת מחדל – מציג עד 4 פעילים ראשונים
     if (this.selectedIds.size === 0) {
-      const initial = rows.filter(r => r.status === 'active').slice(0, this.maxSelected);
-      this.selectedIds = new Set(
-        initial.map(r => this.childId(r)).filter(Boolean) as string[]
-      );
-      initial.forEach(c => this.ensureEditable(c));
-    }
+  const actives = rows.filter(r => this.isActiveStatus(r.status));
+  const pendings = rows.filter(r => !this.isActiveStatus(r.status) && !this.isDeletedStatus(r.status));
+  const initial = [...actives, ...pendings].slice(0, this.maxSelected);
+
+  this.selectedIds = new Set(initial.map(r => this.childId(r)).filter(Boolean) as string[]);
+  initial.forEach(c => this.ensureEditable(c));
+}
+
 
     await this.loadNextAppointments();
     await this.loadLastActivities();
@@ -142,18 +147,20 @@ statusClass(st: string): string {
   }
 
   isActiveChild(c: any): boolean {
-    return (c?.['status'] ?? '') === 'active';
-  }
+  return this.isActiveStatus(c?.['status']);
+}
+
 
   toggleChildSelection(child: any) {
     const id = this.childId(child);
     if (!id) return;
 
     // לא פעיל? הצגת הודעה בלבד
-    if (!this.isActiveChild(child)) {
-      this.showInfo('לא ניתן לפתוח את הכרטיס כי הילד אינו פעיל');
-      return;
-    }
+    if (!this.canOpenCardByStatus(child?.status)) {
+  this.showInfo('לא ניתן לפתוח את הכרטיסייה, הילד לא פעיל');
+  return;
+}
+
 
     // כבר פתוח → סגירה
     if (this.selectedIds.has(id)) {
@@ -408,7 +415,7 @@ statusClass(st: string): string {
       gender: '',
       health_fund: '',
       instructor: '',
-      status: 'waiting',
+status: 'Pending Addition Approval',
       medical_notes: ''
     };
     this.validationErrors = {};
@@ -433,7 +440,7 @@ statusClass(st: string): string {
       birth_date: this.newChild.birth_date,
       gender: this.newChild.gender,
       health_fund: this.newChild.health_fund,
-      status: 'waiting',
+status: 'Pending Addition Approval',
       parent_uid: parentUid,
       medical_notes: this.newChild.medical_notes || null
     };
@@ -481,10 +488,10 @@ statusClass(st: string): string {
   async deleteChild() {
     if (!this.pendingDeleteId) return;
 
-    const { error } = await dbTenant()
-      .from('children')
-      .update({ status: 'waiting' })
-      .eq('child_uuid', this.pendingDeleteId);
+   const { error } = await dbTenant()
+  .from('children')
+  .update({ status: 'Pending Deletion Approval' })
+  .eq('child_uuid', this.pendingDeleteId);
 
     if (!error) {
       this.selectedIds.delete(this.pendingDeleteId);
@@ -507,10 +514,19 @@ statusClass(st: string): string {
   ========================= */
 
   goToBooking(child: any) {
-    const id = this.childId(child);
-    if (!id) return;
-    this.router.navigate(['/parent-schedule'], { queryParams: { child: id } });
+  const id = this.childId(child);
+  if (!id) return;
+
+  if (!this.canBookByStatus(child?.status)) {
+    const msg = this.isPendingAdd(child?.status)
+      ? 'לא ניתן להזמין תור עד לאישור ההוספה'
+      : 'לא ניתן להזמין תור לסטטוס זה';
+    this.showInfo(msg);
+    return;
   }
+
+  this.router.navigate(['/parent-schedule'], { queryParams: { child: id } });
+}
 
   /* =========================
      Helpers (formatting & UX)
@@ -601,5 +617,25 @@ private async loadChildHistory(childId: string) {
 
   this.historyLoading = false;
 }
+// ===== Status helpers (public so template can call) =====
+public isActiveStatus = (st?: string | null): boolean =>
+  st === 'Active';
+
+public isPendingAdd = (st?: string | null): boolean =>
+  st === 'Pending Addition Approval';
+
+public isPendingDelete = (st?: string | null): boolean =>
+  st === 'Pending Deletion Approval';
+
+public isDeletedStatus = (st?: string | null): boolean =>
+  st === 'Deleted';
+
+// מותר לפתוח כרטיס? (הכול מלבד Deleted)
+public canOpenCardByStatus = (st?: string | null): boolean =>
+  !this.isDeletedStatus(st);
+
+// מותר להזמין תור? (Active או Pending Deletion Approval)
+public canBookByStatus = (st?: string | null): boolean =>
+  st === 'Active' || st === 'Pending Deletion Approval';
 
 }
