@@ -110,7 +110,7 @@ statusClass(st: string): string {
       this.error = res.error;
       return;
     }
-const rows = (res.data ?? []).filter((r: any) => !this.isDeletedStatus(r.status)) as ChildRow[];
+const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמחק)
 
     this.children = rows;
 
@@ -156,8 +156,8 @@ const rows = (res.data ?? []).filter((r: any) => !this.isDeletedStatus(r.status)
     if (!id) return;
 
     // לא פעיל? הצגת הודעה בלבד
-    if (!this.canOpenCardByStatus(child?.status)) {
-  this.showInfo('לא ניתן לפתוח את הכרטיסייה, הילד לא פעיל');
+   if (!this.canOpenCardByStatus(child?.status)) {
+  this.showInfo('ילד זה נמחק, פנה למזכירות');
   return;
 }
 
@@ -181,12 +181,19 @@ const rows = (res.data ?? []).filter((r: any) => !this.isDeletedStatus(r.status)
   }
 
   closeCard(child: any) {
-    const id = this.childId(child);
-    if (!id) return;
-    this.selectedIds.delete(id);
-    delete this.editing[id];
-    delete this.editables[id];
+  const id = this.childId(child);
+  if (!id) return;
+  this.selectedIds.delete(id);
+  delete this.editing[id];
+  delete this.editables[id];
+
+  // ניקוי הודעת הזמנה (אם קיימת)
+  if (this.bookingMsgTimers[id]) {
+    clearTimeout(this.bookingMsgTimers[id]);
+    delete this.bookingMsgTimers[id];
   }
+  delete this.bookingMsg[id];
+}
 
   trackByChild = (_: number, item: any) => this.childId(item);
 
@@ -280,7 +287,11 @@ const rows = (res.data ?? []).filter((r: any) => !this.isDeletedStatus(r.status)
 
   // “התור הבא” מכלול הילדים – מתוך lessons_occurrences
   private async loadNextAppointments(): Promise<void> {
-    const ids = this.children.map(c => this.childId(c)).filter(Boolean) as string[];
+    const ids = this.children
+  .filter(c => !this.isDeletedStatus(c.status))
+  .map(c => this.childId(c))
+  .filter(Boolean) as string[];
+
     if (!ids.length) return;
 
     this.nextAppointments = {};
@@ -336,7 +347,10 @@ const rows = (res.data ?? []).filter((r: any) => !this.isDeletedStatus(r.status)
 
   // “פעילות אחרונה” – מופע אחרון בעבר (הושלם/אושר)
   private async loadLastActivities(): Promise<void> {
-    const ids = this.children.map(c => this.childId(c)).filter(Boolean) as string[];
+const ids = this.children
+  .filter(c => !this.isDeletedStatus(c.status))
+  .map(c => this.childId(c))
+  .filter(Boolean) as string[];
     if (!ids.length) return;
 
     this.lastActivities = {};
@@ -512,19 +526,37 @@ status: 'Pending Addition Approval',
   /* =========================
      Navigation
   ========================= */
+// הודעת "הזמן תור" פר-כרטיס (child_uuid) + טיימר ניקוי
+public bookingMsg: Record<string, string | null> = {};
+private bookingMsgTimers: Record<string, any> = {};
 
-  goToBooking(child: any) {
+// הצגת הודעה בכרטיס מסוים, וניקוי אוטומטי אחרי ms
+public showCardMessage(childId: string, text: string, ms = 6000) {
+  if (!childId) return;
+  // נקה טיימר קודם אם קיים
+  if (this.bookingMsgTimers[childId]) {
+    clearTimeout(this.bookingMsgTimers[childId]);
+    delete this.bookingMsgTimers[childId];
+  }
+  this.bookingMsg[childId] = text;
+  this.bookingMsgTimers[childId] = setTimeout(() => {
+    this.bookingMsg[childId] = null;
+    delete this.bookingMsgTimers[childId];
+  }, ms);
+}
+
+goToBooking(child: any) {
   const id = this.childId(child);
   if (!id) return;
 
-  if (!this.canBookByStatus(child?.status)) {
-    const msg = this.isPendingAdd(child?.status)
-      ? 'לא ניתן להזמין תור עד לאישור ההוספה'
-      : 'לא ניתן להזמין תור לסטטוס זה';
-    this.showInfo(msg);
+  // אם מחכה לאישור הוספה
+  if (this.isPendingAdd(child?.status)) {
+    this.showCardMessage(id, 'הוספת הילד טרם אושרה');
     return;
   }
 
+
+  // ניווט
   this.router.navigate(['/parent-schedule'], { queryParams: { child: id } });
 }
 

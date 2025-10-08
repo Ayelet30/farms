@@ -6,7 +6,7 @@
 
   <!-- פס בחירה עליון + כפתור הוספה -->
   <div class="children-buttons" *ngIf="children.length > 0">
-    <button *ngFor="let child of children"
+   <button *ngFor="let child of children"
         (click)="toggleChildSelection(child)"
         class="child-chip"
         [class.active]="hasSelected(child)"
@@ -136,17 +136,19 @@
             <span>היסטוריה</span>
           </button>
 
-         <button class="cta-btn primary"
+        <button class="cta-btn primary"
         type="button"
         (click)="goToBooking(c)"
-        [disabled]="!canBookByStatus(c?.status)"
-        [attr.aria-disabled]="!canBookByStatus(c?.status) ? 'true' : null"
-        [title]="!canBookByStatus(c?.status) ? (isPendingAdd(c?.status) ? 'ממתין לאישור הוספה – אי אפשר להזמין תור' : 'לא ניתן להזמין תור לסטטוס זה') : null">
+        [attr.aria-disabled]="isPendingAdd(c?.status) ? 'true' : null"
+        [title]="isPendingAdd(c?.status) ? 'הוספת הילד טרם אושרה' : null">
   <svg class="icon" aria-hidden="true">
     <use href="assets/icons/feather-slim.svg#calendar" />
   </svg>
   <span>הזמן תור</span>
 </button>
+<span class="inline-note" *ngIf="bookingMsg[childId(c)]" dir="rtl">
+  {{ bookingMsg[childId(c)] }}
+</span>
 
 
         </div>
