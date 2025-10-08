@@ -50,6 +50,9 @@
             </svg>
             {{ c.full_name }}
           </h3>
+<span class="age-badge warn" *ngIf="isPendingDelete(c?.status)">
+  ממתין לאישור מחיקה
+</span>
 
           <span class="age-badge" *ngIf="c.birth_date">גיל: {{ getAge(c.birth_date) }} </span>
             <span class="age-badge" *ngIf="c.health_fund">
@@ -135,6 +138,17 @@
             </svg>
             <span>היסטוריה</span>
           </button>
+<button class="cta-btn warning-outline"
+        *ngIf="isPendingDelete(c?.status)"
+        type="button"
+        (click)="cancelDeletionRequest(c)"
+        [attr.aria-busy]="cancelDeletionRequestInFlight[childId(c)] ? 'true' : null"
+        [title]="'ביטול בקשת מחיקה'">
+  <svg class="icon" aria-hidden="true">
+    <use href="assets/icons/feather-slim.svg#rotate-ccw" />
+  </svg>
+  <span>ביטול בקשת מחיקה</span>
+</button>
 
         <button class="cta-btn primary"
         type="button"
