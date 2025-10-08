@@ -7,6 +7,7 @@ import { Router } from '@angular/router';
 import type { ChildRow } from '../../Types/detailes.model';
 import { dbTenant, fetchMyChildren, getCurrentUserData } from '../../services/supabaseClient.service';
 import { ChildConsentsComponent } from '../../consents/child-consents.component/child-consents.component';
+import { NgIf, NgForOf, NgClass, NgTemplateOutlet } from '@angular/common';
 
 /* =========================
    Types
@@ -27,7 +28,7 @@ type ChildStatus = 'Active' | 'Pending Deletion Approval' | 'Pending Addition Ap
 @Component({
   selector: 'app-parent-children',
   standalone: true,
-  imports: [CommonModule, FormsModule, ChildConsentsComponent],
+  imports: [CommonModule, FormsModule, ChildConsentsComponent ,  NgIf, NgForOf, NgClass, NgTemplateOutlet],
   templateUrl: './parent-children.html',
   styleUrls: ['./parent-children.css']
 })
@@ -560,6 +561,41 @@ goToBooking(child: any) {
   this.router.navigate(['/parent-schedule'], { queryParams: { child: id } });
 }
 
+//ביטול בקשת מחיקה
+public cancelDeletionRequestInFlight: Record<string, boolean> = {};
+
+public async cancelDeletionRequest(child: any) {
+  const id = this.childId(child);
+  if (!id) return;
+
+  this.cancelDeletionRequestInFlight[id] = true;
+
+  const { error } = await dbTenant()
+    .from('children')
+    .update({ status: 'Active' })
+    .eq('child_uuid', id)
+    .select('status')
+    .single();
+
+  this.cancelDeletionRequestInFlight[id] = false;
+
+  if (error) {
+    this.showCardMessage(id, 'שגיאה בביטול הבקשה. נסי שוב.');
+    return;
+  }
+
+  // עדכון לוקאלי במערך הילדים
+  const idx = this.children.findIndex(c => this.childId(c) === id);
+  if (idx !== -1) {
+    this.children = [
+      ...this.children.slice(0, idx),
+      { ...this.children[idx], status: 'Active' } as any,
+      ...this.children.slice(idx + 1)
+    ];
+  }
+
+  this.showCardMessage(id, 'בקשת המחיקה בוטלה');
+}
   /* =========================
      Helpers (formatting & UX)
   ========================= */
