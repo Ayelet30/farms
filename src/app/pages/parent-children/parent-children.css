@@ -542,3 +542,15 @@
   width: 14px;
   height: 14px;
 }
+.inline-note {
+  margin-inline-start: 10px;   /* רווח מימין לכפתור (ב־LTR זה שמאלה) */
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9a6a00;
+  background: #fff6e5;
+  border: 1px solid #f6e3b9;
+  border-radius: 10px;
+  align-self: center;
+  white-space: nowrap;
+}
