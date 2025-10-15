@@ -22,6 +22,8 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import heLocale from '@fullcalendar/core/locales/he';
 import { ScheduleItem } from '../../models/schedule-item.model';
+import { ChangeDetectorRef } from '@angular/core';
+
 
 @Component({
   selector: 'app-schedule',
@@ -95,23 +97,39 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
       };
     },
 
-    datesSet: (info: DatesSetArg) => {
-      this.ngZone.run(() => {
-        // עדכון כותרת
-        this.currentDate = info.view.title;
-        // בכל ניווט לתאריך שהוא היום – לגלול לשעה הנוכחית
-        // (רלוונטי לתצוגות timeGrid)
-        const api = this.calendarApi;
-        if (api && (info.view.type === 'timeGridDay' || info.view.type === 'timeGridWeek')) {
-          if (this.isToday(api.getDate())) {
-            setTimeout(() => api.scrollToTime(this.nowScroll()), 0);
-          }
+    // datesSet: (info: DatesSetArg) => {
+    //   this.ngZone.run(() => {
+    //     // עדכון כותרת
+    //     this.currentDate = info.view.title;
+    //     // בכל ניווט לתאריך שהוא היום – לגלול לשעה הנוכחית
+    //     // (רלוונטי לתצוגות timeGrid)
+    //     const api = this.calendarApi;
+    //     if (api && (info.view.type === 'timeGridDay' || info.view.type === 'timeGridWeek')) {
+    //       if (this.isToday(api.getDate())) {
+    //         setTimeout(() => api.scrollToTime(this.nowScroll()), 0);
+    //       }
+    //     }
+    //   });
+    // }
+     datesSet: (info: DatesSetArg) => {
+    // דחייה לטיק הבא – נמנע NG0100
+    setTimeout(() => {
+      this.currentDate = info.view.title;
+
+      // גלילה לשעה הנוכחית (לפי הקוד שלך)
+      const api = this.calendarApi;
+      if (api && (info.view.type === 'timeGridDay' || info.view.type === 'timeGridWeek')) {
+        if (this.isToday(api.getDate())) {
+          api.scrollToTime(this.nowScroll());
         }
-      });
-    }
+      }
+      // נטריע לאנגולר שסיימנו לעדכן
+      this.cdr.detectChanges();
+    }, 0);
+  }
   };
 
-  constructor(private ngZone: NgZone) {}
+  constructor(private ngZone: NgZone , private cdr: ChangeDetectorRef) {}
 
   ngAfterViewInit(): void {
     // ביטחון גם לאחר הרנדר הראשוני:

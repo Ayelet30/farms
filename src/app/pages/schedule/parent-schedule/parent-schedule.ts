@@ -74,7 +74,8 @@ endDate: string = '';
         .from('children')
         .select('child_uuid, full_name, status')
         .eq('parent_uid', parent.uid)
-        .eq('status', 'active');
+          .in('status', ['Active', 'Pending Deletion Approval']); 
+
 
       if (e2) { console.error('Error loading children:', e2); this.children = []; return; }
 
