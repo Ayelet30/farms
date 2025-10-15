@@ -25,6 +25,19 @@ endDate: string = '';
   selectedChildId: string = 'all';  
   dropdownOpen = false;
 
+private readonly PALETTE = [
+  '#C8E6C9', // ירוק פסטלי עדין 🌿
+  '#FFCDD2', // ורוד רך 🌸
+  '#D1C4E9', // סגול לילך פסטלי 💜
+  '#FFF9C4', // צהוב בהיר ☀️
+  '#B3E5FC', // תכלת רך 💧
+  '#FFE0B2', // כתום שמנת 🍊
+  '#F8BBD0', // ורוד עדין נוסף 🌷
+  '#DCEDC8', // ירוק ליים רך 🍃
+];
+
+private readonly COLOR_STORE_KEY = 'parentSchedule.childColors';
+private colorMap: Record<string, string> = {};
 
 
   async ngOnInit() {
@@ -34,9 +47,59 @@ endDate: string = '';
       this.filterLessons();
         this.selectedChildId = 'all';
   this.refresh();                  
-
-
   }
+private loadColorMap() {
+  try {
+    const raw = localStorage.getItem(this.COLOR_STORE_KEY);
+    this.colorMap = raw ? JSON.parse(raw) : {};
+  } catch {
+    this.colorMap = {};
+  }
+}
+
+private saveColorMap() {
+  try {
+    localStorage.setItem(this.COLOR_STORE_KEY, JSON.stringify(this.colorMap));
+  } catch { /* ignore quota errors */ }
+}
+private ensureColorsForChildren() {
+  // 1) טען מהמקומי אם טרם נטען
+  if (!this.colorMap || Object.keys(this.colorMap).length === 0) {
+    this.loadColorMap();
+  }
+
+  const ids = this.children.map(c => c.child_uuid);
+
+  // 2) ניקוי: מחיקת מזהים ישנים שלא קיימים יותר
+  for (const key of Object.keys(this.colorMap)) {
+    if (!ids.includes(key)) delete this.colorMap[key];
+  }
+
+  // 3) הקצאה: לכל ילד חדש מקצים צבע “פנוי” מהפלטה
+  // נסה למצוא צבע שלא בשימוש; אם אין — חזור על הפלטה בסבב
+  const used = new Set(Object.values(this.colorMap));
+  let nextIdx = 0;
+
+  for (const id of ids) {
+    if (this.colorMap[id]) continue; // כבר יש צבע
+
+    // חפש צבע פנוי
+    let chosen: string | undefined = undefined;
+    for (const clr of this.PALETTE) {
+      if (!used.has(clr)) { chosen = clr; break; }
+    }
+    // אם כל הפלטה תפוסה — קחי בתורו לפי nextIdx
+    if (!chosen) {
+      chosen = this.PALETTE[nextIdx % this.PALETTE.length];
+      nextIdx++;
+    }
+
+    this.colorMap[id] = chosen;
+    used.add(chosen);
+  }
+
+  this.saveColorMap();
+}
 
   getStartOfWeek(): string {
     const today = new Date();
@@ -80,6 +143,7 @@ endDate: string = '';
       if (e2) { console.error('Error loading children:', e2); this.children = []; return; }
 
     this.children = kids ?? [];
+
     // if (this.children.length > 0) {
     //   this.selectedChildId = this.children[0].child_uuid; 
     // }
@@ -184,11 +248,15 @@ this.lessons = rows.map((r: Lesson) => {
     return this.toLocalIso(eventDate);
   }
 
-  getColorForChild(child_id: string): string {
-    const index = this.children.findIndex(c => c.child_uuid === child_id);  
-  const colors = ['#d8f3dc', '#fbc4ab', '#cdb4db', '#b5ead7', '#ffdac1'];
-  return colors[(index >= 0 ? index : 0) % colors.length];
+ getColorForChild(child_id: string): string {
+  // קודם כול — מהמפה הקבועה
+  const fixed = this.colorMap?.[child_id];
+  if (fixed) return fixed;
+
+  const index = this.children.findIndex(c => c.child_uuid === child_id);
+  return this.PALETTE[(index >= 0 ? index : 0) % this.PALETTE.length];
 }
+
 
 selectChild(childId: string) {
   this.selectedChildId = childId;
