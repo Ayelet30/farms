@@ -96,6 +96,18 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
                </div>`
       };
     },
+     eventDidMount: (info) => {
+    // קראי את הצבע מהאירוע/extendedProps:
+    const bg = (info.event as any).backgroundColor || info.event.extendedProps['_bg'];
+    const br = (info.event as any).borderColor     || info.event.extendedProps['_border'] || bg;
+    if (bg) {
+      // חשוב: נצבע inline עם !important כדי לנצח רקע קבוע ב-CSS
+      info.el.style.setProperty('background-color', bg, 'important');
+      info.el.style.setProperty('border-color', br, 'important');
+      // אופציונלי: אם הטקסט כהה מדי/בהיר מדי – אפשר גם:
+      // info.el.style.setProperty('color', '#1f2937', 'important');
+    }
+  },
 
     // datesSet: (info: DatesSetArg) => {
     //   this.ngZone.run(() => {
@@ -149,6 +161,8 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
           title: i.title,
           start: i.start,
           end: i.end,
+          backgroundColor: (i as any).backgroundColor ?? (i as any).color,
+          borderColor: (i as any).borderColor ?? (i as any).color,
           extendedProps: {
             status: i.status,                   // 'canceled' וכו'
             child_id: i.meta?.child_id,
