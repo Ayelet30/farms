@@ -137,7 +137,7 @@ private ensureColorsForChildren() {
         .from('children')
         .select('child_uuid, full_name, status')
         .eq('parent_uid', parent.uid)
-          .in('status', ['Active', 'Pending Deletion Approval']); 
+          .in('status', ['Active', 'Pending Deletion Approval' , 'Deleted']); 
 
 
       if (e2) { console.error('Error loading children:', e2); this.children = []; return; }
