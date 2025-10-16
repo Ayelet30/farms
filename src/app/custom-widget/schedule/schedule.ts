@@ -46,6 +46,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
 
   @Output() eventClick = new EventEmitter<EventClickArg>();
   @Output() dateClick = new EventEmitter<string>();
+  @Output() viewRange = new EventEmitter<{ start: string; end: string }>();
 
   currentView = this.initialView;
   currentDate = '';
@@ -126,6 +127,14 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
      datesSet: (info: DatesSetArg) => {
     // דחייה לטיק הבא – נמנע NG0100
     setTimeout(() => {
+       const start = info.start;         // Date
+      const endExclusive = info.end;    // Date (exclusive)
+      const endInclusive = new Date(endExclusive);
+      endInclusive.setDate(endInclusive.getDate() - 1);
+
+      const toYMD = (d: Date) => d.toISOString().slice(0, 10);
+      this.viewRange.emit({ start: toYMD(start), end: toYMD(endInclusive) });
+
       this.currentDate = info.view.title;
 
       // גלילה לשעה הנוכחית (לפי הקוד שלך)
