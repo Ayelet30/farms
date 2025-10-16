@@ -1,268 +1,29 @@
-/* ===== Message to Office – Olive/Cream, RTL ===== */
-.message-container {
-  direction: rtl;
-  --bg-cream: #fffcf5;
-  --panel: #ffffff;
-  --ink: #2f3a28;
-  --ink-muted: #6e7462;
-  --line: #cfd7b9;
-  --olive-50: #f3f6e9;
-  --olive-100: #e8efd8;
-  --olive-300: #c7d1a9;
-  --olive-600: #748c40;
-  --olive-700: #5d7234;
-  --ok: #2f7d32;
-  --warn: #b45309;
-  --fail: #991b1b;
-
-  background: var(--panel);
-  border: 1.5px solid var(--line);
-  border-radius: 18px;
-  padding: 16px 18px;
-  box-shadow: 0 1px 0 rgba(0,0,0,.04);
-  color: var(--ink);
-  font-family: "Heebo", system-ui, Arial, sans-serif;
-}
-
-.message-container h2 {
-  margin: 0 0 12px;
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--ink);
-}
-
-/* ===== Form ===== */
-.message-container form {
-  display: grid;
-  gap: 12px;
-}
-
-.message-container label {
-  font-weight: 700;
-  color: var(--ink);
-  margin-bottom: 4px;
-  display: inline-block;
-}
-
-/* שדות */
-.message-container select,
-.message-container textarea {
-  width: 100%;
-  background: #fff;
-  border: 1.5px solid var(--line);
-  border-radius: 12px;
-  padding: 10px 12px;
-  color: var(--ink);
-  outline: none;
-  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
-}
-
-.message-container select:focus,
-.message-container textarea:focus {
-  border-color: var(--olive-600);
-  box-shadow: 0 0 0 3px rgba(116,140,64,.12);
-}
-
-.message-container textarea {
-  min-height: 140px;
-  resize: vertical;
-  line-height: 1.5;
-}
-
-/* מצב שגוי (Angular מוסיף מחלקות ng-invalid/ng-touched) */
-select.ng-invalid.ng-touched,
-textarea.ng-invalid.ng-touched {
-  border-color: #e11d48;
-  box-shadow: 0 0 0 3px rgba(225,29,72,.12);
-}
-
-/* כפתור שליחה – ראשי */
-.message-container button[type="submit"] {
-  align-self: start;
-  padding: 10px 16px;
-  border-radius: 9999px;
-  border: 1.5px solid var(--olive-600);
-  background: var(--olive-600);
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
-}
-.message-container button[type="submit"]:hover {
-  background: var(--olive-700);
-  border-color: var(--olive-700);
-}
-.message-container button[type="submit"]:disabled {
-  opacity: .55;
-  cursor: not-allowed;
-}
-
-/* הודעת אישור (toast קטן) */
-.message-container .confirmation {
-  margin-top: 10px;
-  background: #e7f6eb;
-  border: 1px solid #b7dfbf;
-  color: var(--ok);
-  border-radius: 12px;
-  padding: 10px 12px;
-  font-weight: 700;
-}
-
-/* כפתור היסטוריה – משני בקפסולה */
-.message-container .history-btn {
-  margin-top: 12px;
-  padding: 8px 14px;
-  border-radius: 9999px;
-  border: 1.5px solid var(--line);
-  background: #fff;
-  color: var(--ink);
-  font-weight: 700;
-  cursor: pointer;
-  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
-}
-.message-container .history-btn:hover {
-  background: var(--olive-50);
-  border-color: var(--olive-300);
-}
-
-/* ===== History Table ===== */
-.message-container .message-history {
-  margin-top: 12px;
-}
-
-.message-container .message-history table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  background: #fff;
-  border: 1.5px solid var(--line);
-  border-radius: 18px;
-  overflow: hidden;
-  box-shadow: 0 1px 0 rgba(0,0,0,.04);
-}
-
-.message-container .message-history thead th {
-  background: var(--olive-50);
-  color: var(--ink);
-  font-weight: 700;
-  text-align: right;
-  padding: 12px 14px;
-  border-bottom: 1.5px solid var(--line);
-  white-space: nowrap;
-}
-
-.message-container .message-history tbody td {
-  padding: 12px 14px;
-  color: var(--ink);
-  border-bottom: 1px solid #e9eddc;
-  text-align: right;
-  vertical-align: top;
-}
-
-.message-container .message-history thead th:not(:last-child),
-.message-container .message-history tbody td:not(:last-child) {
-  border-inline-end: 1px solid #eff3e4;
-}
-
-/* הובר עדין רק על התא */
-.message-container .message-history tbody td:hover {
-  background: var(--bg-cream);
-}
-
-/* עמודת תוכן – ריבוי שורות או קיצור אליפסות */
-.message-container .message-history tbody td:nth-child(3) {
-  max-width: 320px; /* להתאים לצורך */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;   /* שתי שורות */
-  -webkit-box-orient: vertical;
-  line-height: 1.4;
-}
-
-/* תגיות סטטוס */
-.message-container .message-history td span {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 9999px;
-  font-size: 12px;
-  font-weight: 700;
-  border: 1px solid transparent;
-}
-
-/* גוונים לפי מחלקות אפשריות שמוחזרות מפונקציית statusClass */
-.message-container .message-history td span.status-pending,
-.message-container .message-history td span.pending,
-.message-container .message-history td span.open {
-  background: #fff7ed;           /* כתמתם עדין */
-  color: #92400e;
-  border-color: #fed7aa;
-}
-
-.message-container .message-history td span.status-sent,
-.message-container .message-history td span.in_progress {
-  background: #eef6ff;           /* תכלת */
-  color: #1e40af;
-  border-color: #bfdbfe;
-}
-
-.message-container .message-history td span.status-closed,
-.message-container .message-history td span.done,
-.message-container .message-history td span.resolved {
-  background: #e7f6eb;           /* ירקרק */
-  color: var(--ok);
-  border-color: #b7dfbf;
-}
-
-.message-container .message-history td span.status-error,
-.message-container .message-history td span.failed {
-  background: #fde8e8;           /* אדמדם */
-  color: var(--fail);
-  border-color: #fecaca;
-}
-
-/* שורה אחרונה בלי תחתית */
-.message-container .message-history tbody tr:last-child td { border-bottom: none; }
-
-/* ===== מובייל – הופך רשומות לכרטיסים ===== */
-@media (max-width: 720px) {
-  .message-container .message-history table,
-  .message-container .message-history thead,
-  .message-container .message-history tbody,
-  .message-container .message-history th,
-  .message-container .message-history td,
-  .message-container .message-history tr { display: block; }
-
-  .message-container .message-history thead { display: none; }
-
-  .message-container .message-history tbody {
-    display: grid; gap: 12px;
-  }
-
-  .message-container .message-history tr {
-    background: var(--bg-cream);
-    border: 1.5px solid var(--line);
-    border-radius: 16px;
-    padding: 10px 12px;
-    box-shadow: 0 1px 0 rgba(0,0,0,.04);
-  }
-
-  .message-container .message-history td {
-    border: none !important;
-    padding: 6px 0;
-    display: grid;
-    grid-template-columns: 120px 1fr; /* תווית + ערך */
-    align-items: center;
-    gap: 8px;
-  }
-
-  .message-container .message-history td:nth-of-type(1)::before { content: "תאריך"; font-weight: 700; color: var(--ink-muted); }
-  .message-container .message-history td:nth-of-type(2)::before { content: "נושא";  font-weight: 700; color: var(--ink-muted); }
-  .message-container .message-history td:nth-of-type(3)::before { content: "תוכן"; font-weight: 700; color: var(--ink-muted); }
-  .message-container .message-history td:nth-of-type(4)::before { content: "סטטוס";font-weight: 700; color: var(--ink-muted); }
-
-  .message-container .message-history tbody td:nth-child(3) {
-    max-width: none;
-    -webkit-line-clamp: 3; /* קצת יותר מקום במובייל */
-  }
-}
+.page { padding: 12px; background:#fff; color:#0f172a; }
+.tabs { display:flex; gap:8px; margin:8px 0 16px; }
+.tabs button { border:1px solid #1d4ed8; color:#1d4ed8; background:#fff; padding:6px 10px; border-radius:8px; }
+.tabs button.active { background:#e0ecff; }
+.split { display:grid; grid-template-columns: 300px 1fr; gap:12px; }
+.list { border:1px solid #e5e7eb; border-radius:12px; overflow:auto; max-height:70vh; }
+.row { padding:10px; border-bottom:1px solid #eef2f7; cursor:pointer; }
+.row.active { background:#f1f5ff; }
+.title { font-weight:600; }
+.meta { display:flex; gap:8px; font-size:12px; color:#64748b; justify-content:space-between; }
+.badge { padding:2px 6px; border-radius:999px; border:1px solid #c7d2fe; }
+.badge.open { background:#ecfeff; }
+.badge.pending { background:#fff7ed; border-color:#fed7aa; }
+.badge.closed { background:#f1f5f9; }
+.thread { border:1px solid #e5e7eb; border-radius:12px; padding:12px; }
+.msg { border-top:1px dashed #e2e8f0; padding:10px 0; }
+.msg .meta { margin-bottom:6px; }
+.reply { display:flex; gap:8px; align-items:flex-start; margin-top:8px; }
+.reply textarea { width:100%; min-height:80px; border:1px solid #cbd5e1; border-radius:8px; padding:8px; }
+.reply button { white-space:nowrap; border:1px solid #1d4ed8; color:#fff; background:#1d4ed8; padding:8px 12px; border-radius:8px; }
+.empty { padding:16px; color:#64748b; }
+.form label { display:block; margin:8px 0; }
+.form input, .form textarea { width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:8px; }
+.form button { border:1px solid #1d4ed8; color:#fff; background:#1d4ed8; padding:8px 12px; border-radius:8px; }
+.toast { margin-inline-start:12px; color:#059669; }
+.ann { border:1px solid #e5e7eb; border-radius:12px; padding:10px; margin-bottom:10px; }
+.ann header { display:flex; justify-content:space-between; }
+.channels { color:#64748b; font-size:12px; margin-top:6px; }
+@media (max-width: 900px) { .split { grid-template-columns: 1fr; } }

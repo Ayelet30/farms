@@ -1,149 +1,201 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { getAuth } from 'firebase/auth';
+import { db, ensureTenantContextReady } from '../../../services/supabaseClient.service';
 
-import {
-  dbTenant,
-  getCurrentUserData,
-  ensureTenantContextReady,
-} from '../../../services/supabaseClient.service';
+
+type Tab = 'threads' | 'new' | 'announcements';
+
+type Conversation = {
+  id: string;
+  subject: string | null;
+  status: 'open' | 'pending' | 'closed';
+  opened_by_parent_uid: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type ConversationMessage = {
+  id: string;
+  conversation_id: string;
+  body_md: string;
+  sender_role: 'parent' | 'secretary' | 'instructor' | 'manager' | 'admin';
+  sender_uid: string | null;
+  created_at: string;
+};
+
+type Announcement = {
+  id: string;
+  subject: string | null;
+  body_md: string | null;
+  sent_at: string | null;
+  channel_inapp: boolean;
+  channel_email: boolean;
+  channel_sms: boolean;
+};
 
 @Component({
-  selector: 'app-parent-notes',
+  selector: 'app-parent-messages',
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './parent-messages.html',
   styleUrls: ['./parent-messages.css']
 })
 export class ParentMessagesComponent implements OnInit {
-  newNote = { subject: '', content: '' };
-  confirmationMessage = '';
-  showHistory = false;
-  noteHistory: any[] = [];
-  error: string | undefined;
+  tab = signal<Tab>('threads');
 
-  // ✅ if the column is sender_uid (שכיח מאוד במדיניות) – נעדכן גם כאן
-  private readonly MESSAGE_SELECT =
-    'id, title, content, to_role, date_sent, sent_by_uid, status';
+  // שיחות
+  loadingThreads = signal(false);
+  threads = signal<Conversation[]>([]);
+  activeConv = signal<Conversation | null>(null);
+  messages = signal<ConversationMessage[]>([]);
+  replyText = ''; // <-- לא signal כדי לעבוד עם ngModel
 
-  private userUid: string | null = null;
+  // פתיחת שיחה חדשה
+  newSubject = ''; // <-- לא signal
+  newBody = '';    // <-- לא signal
+  creating = signal(false);
+  toast = signal<string | null>(null);
+
+  // הודעות שידור
+  loadingAnn = signal(false);
+  announcements = signal<Announcement[]>([]);
 
   async ngOnInit() {
-    try {
-      // ✅ חובה לפני כל קריאות ל-DB של הטננט
-      await ensureTenantContextReady();
-
-      const user = await getCurrentUserData();
-      this.userUid = user?.uid ?? null;
-
-      await this.loadMessagesHistory();
-    } catch (e: any) {
-      console.error(e);
-      this.error = e?.message ?? 'שגיאה באתחול ההודעות';
-    }
+    await ensureTenantContextReady();
+    await Promise.all([this.loadThreads(), this.loadAnnouncements()]);
   }
 
-  async submitMessage() {
-    this.error = undefined;
+  private myUid(): string {
+    const uid = getAuth().currentUser?.uid;
+    if (!uid) throw new Error('No logged-in user');
+    return uid;
+  }
 
-    if (!this.newNote.subject || !this.newNote.content) return;
-    if (!this.userUid) {
-      this.error = 'משתמש לא מזוהה';
-      return;
-    }
-
+  async loadThreads() {
+    this.loadingThreads.set(true);
     try {
-      // ✅ נוודא שוב הקשר טננט (מקרי קצה של החלפת חווה/רענון)
-      await ensureTenantContextReady();
-
-      const dbc = dbTenant();
-
-      // ⬇⬇ שינוי קריטי: sent_by_uid → sender_uid כדי להתאים ל-RLS המקובל
-      const payload = {
-        title: this.newNote.subject,
-        content: this.newNote.content,
-        to_role: 'secretary',
-        sent_by_uid: this.userUid, 
-        date_sent: new Date().toISOString(),
-        status: 'received'
-      };
-
-      console.log('!!שליחת הודעה:!!', payload);
-
-      // המלצה: הפרדת insert מ-select כדי לזהות מקור חסימה
-      const ins = await dbc.from('messages').insert(payload);
-      if (ins.error) {
-        console.error('שגיאה בשליחת הודעה:', ins.error, { payload });
-        this.error = ins.error.message ?? 'אירעה שגיאה בשליחת ההודעה';
-        return;
+      const uid = this.myUid();
+      const { data, error } = await db()
+        .from('conversations')
+        .select('id, subject, status, opened_by_parent_uid, created_at, updated_at')
+        .eq('opened_by_parent_uid', uid)
+        .order('updated_at', { ascending: false });
+      if (error) throw error;
+      this.threads.set((data ?? []) as Conversation[]);
+      if (!this.activeConv() && this.threads().length) {
+        await this.openConversation(this.threads()[0]);
       }
-
-      this.confirmationMessage = 'הודעתך התקבלה. נעדכן אותך בהמשך.';
-      this.newNote = { subject: '', content: '' };
-      await this.loadMessagesHistory();
-
-    } catch (e: any) {
-      console.error('שגיאה בשליחת הודעה:', e);
-      this.error = e?.message ?? 'אירעה שגיאה בשליחת ההודעה';
+    } finally {
+      this.loadingThreads.set(false);
     }
   }
 
-  async loadMessagesHistory() {
-    if (!this.userUid) return;
+  async openConversation(c: Conversation) {
+    this.activeConv.set(c);
+    const { data, error } = await db()
+      .from('conversation_messages')
+      .select('*')
+      .eq('conversation_id', c.id)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    this.messages.set((data ?? []) as ConversationMessage[]);
+  }
 
+  async sendReply() {
+    const body = (this.replyText || '').trim();
+    if (!body || !this.activeConv()) return;
+    const uid = this.myUid();
+
+    const { data, error } = await db()
+      .from('conversation_messages')
+      .insert({
+        conversation_id: this.activeConv()!.id,
+        body_md: body,
+        sender_role: 'parent',
+        sender_uid: uid,
+        has_attachment: false
+      })
+      .select()
+      .single();
+    if (error) throw error;
+
+    // כשהורה עונה – נשאיר את הסטטוס open
+    await db().from('conversations')
+      .update({ status: 'open' })
+      .eq('id', this.activeConv()!.id);
+
+    this.messages.update(arr => [...arr, data as ConversationMessage]);
+    this.replyText = '';
+  }
+
+  async createConversation() {
+    if (!this.newBody.trim()) return;
+    this.creating.set(true);
     try {
-      await ensureTenantContextReady();
+      const uid = this.myUid();
+      const { data: conv, error: e1 } = await db()
+        .from('conversations')
+        .insert({
+          subject: this.newSubject.trim() || null,
+          status: 'open',
+          opened_by_parent_uid: uid
+        })
+        .select()
+        .single();
+      if (e1) throw e1;
 
-      const dbc = dbTenant();
-      const { data, error } = await dbc
+      const { error: e2 } = await db()
+        .from('conversation_messages')
+        .insert({
+          conversation_id: (conv as any).id,
+          body_md: this.newBody.trim(),
+          sender_role: 'parent',
+          sender_uid: uid,
+          has_attachment: false
+        });
+      if (e2) throw e2;
+
+      this.newSubject = '';
+      this.newBody = '';
+      this.toast.set('השיחה נפתחה ונשלחה');
+      setTimeout(() => this.toast.set(null), 3000);
+
+      await this.loadThreads();
+      const just = this.threads().find(t => t.id === (conv as any).id);
+      if (just) await this.openConversation(just);
+      this.tab.set('threads');
+    } finally {
+      this.creating.set(false);
+    }
+  }
+
+  async loadAnnouncements() {
+    this.loadingAnn.set(true);
+    try {
+      const uid = this.myUid();
+
+      // IDs של הודעות שקיבלתי
+      const { data: recs, error: e1 } = await db()
+        .from('message_recipients')
+        .select('message_id')
+        .eq('recipient_parent_uid', uid);
+      if (e1) throw e1;
+
+      const ids = Array.from(new Set((recs ?? []).map((r: any) => r.message_id))) as string[];
+      if (!ids.length) { this.announcements.set([]); return; }
+
+      const { data: msgs, error } = await db()
         .from('messages')
-        .select(this.MESSAGE_SELECT)
-        .order('date_sent', { ascending: false });
+        .select('id, subject, body_md, sent_at, channel_inapp, channel_email, channel_sms')
+        .in('id', ids)
+        .order('sent_at', { ascending: false });
+      if (error) throw error;
 
-      if (error) {
-        console.error('Error loading messages:', error);
-        this.error = error.message ?? 'שגיאה בטעינת היסטוריית ההודעות';
-        this.noteHistory = [];
-        return;
-      }
-
-      this.noteHistory = data ?? [];
-      this.error = undefined;
-
-    } catch (e: any) {
-      console.error('Error loading messages:', e);
-      this.error = e?.message ?? 'שגיאה בטעינת היסטוריית ההודעות';
-      this.noteHistory = [];
-    }
-  }
-
-  toggleHistory() {
-    this.showHistory = !this.showHistory;
-  }
-
-  getStatusLabel(status: string): string {
-    switch (status) {
-      case 'received':
-        return '⚪ התקבלה';
-      case 'in_progress':
-        return '🟡 בטיפול';
-      case 'resolved':
-        return '✅ טופלה';
-      default:
-        return status;
-    }
-  }
-
-  statusClass(status: string): string {
-    switch (status) {
-      case 'received':
-        return 'status-received';
-      case 'in_progress':
-        return 'status-in-progress';
-      case 'resolved':
-        return 'status-resolved';
-      default:
-        return '';
+      this.announcements.set((msgs ?? []) as Announcement[]);
+    } finally {
+      this.loadingAnn.set(false);
     }
   }
 }
