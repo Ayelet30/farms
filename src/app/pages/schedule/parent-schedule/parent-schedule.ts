@@ -24,19 +24,113 @@ endDate: string = '';
   items: ScheduleItem[] = []; 
   selectedChildId: string = 'all';  
   dropdownOpen = false;
+  private lastRange: { start: string; end: string } | null = null;
+  private rangeTimer?: any;
 
+private readonly PALETTE = [
+  '#C8E6C9', // ירוק פסטלי עדין 🌿
+  '#FFCDD2', // ורוד רך 🌸
+  '#D1C4E9', // סגול לילך פסטלי 💜
+  '#FFF9C4', // צהוב בהיר ☀️
+  '#B3E5FC', // תכלת רך 💧
+  '#FFE0B2', // כתום שמנת 🍊
+  '#F8BBD0', // ורוד עדין נוסף 🌷
+  '#DCEDC8', // ירוק ליים רך 🍃
+];
+
+private readonly COLOR_STORE_KEY = 'parentSchedule.childColors';
+private colorMap: Record<string, string> = {};
 
 
   async ngOnInit() {
-    await this.loadChildren();
-    await this.loadLessons();
-    this.setScheduleItems(); 
-      this.filterLessons();
-        this.selectedChildId = 'all';
-  this.refresh();                  
+   this.selectedChildId = 'all';             // לקבוע לפני טעינות
 
+  await this.loadChildren();                // קודם ילדים
 
+  // טווח התחלתי קטן עד שהלוח ישדר datesSet ראשון
+  const today = new Date();
+  const start = new Date(today); start.setDate(start.getDate() - 7);
+  const end   = new Date(today); end.setDate(end.getDate() + 35);
+
+  await this.loadLessons(this.toYMD(start), this.toYMD(end));  // טעינת שיעורים לטווח הראשוני
+  this.filterLessons();
+  this.setScheduleItems();
   }
+    private toYMD(d: Date) { return d.toISOString().slice(0,10); }
+    private defaultRange(): { start: string; end: string } {
+  const today = new Date();
+  const start = new Date(today); start.setDate(start.getDate() - 7);
+  const end   = new Date(today); end.setDate(end.getDate() + 35);
+  return { start: this.toYMD(start), end: this.toYMD(end) };
+}
+ onViewRange(range: { start: string; end: string }) {
+  clearTimeout(this.rangeTimer);
+
+  this.rangeTimer = setTimeout(() => {
+    // אם אין שינוי – לא נטען שוב
+    if (this.lastRange && this.lastRange.start === range.start && this.lastRange.end === range.end)
+      return;
+
+    // שומרים את הטווח הנוכחי
+    this.lastRange = range;
+
+    // טוענים מחדש את הנתונים לטווח הזה
+    this.refresh();
+  }, 150);
+}
+
+private loadColorMap() {
+  try {
+    const raw = localStorage.getItem(this.COLOR_STORE_KEY);
+    this.colorMap = raw ? JSON.parse(raw) : {};
+  } catch {
+    this.colorMap = {};
+  }
+}
+
+private saveColorMap() {
+  try {
+    localStorage.setItem(this.COLOR_STORE_KEY, JSON.stringify(this.colorMap));
+  } catch { /* ignore quota errors */ }
+}
+private ensureColorsForChildren() {
+  // 1) טען מהמקומי אם טרם נטען
+  if (!this.colorMap || Object.keys(this.colorMap).length === 0) {
+    this.loadColorMap();
+  }
+
+  const ids = this.children.map(c => c.child_uuid);
+
+  // 2) ניקוי: מחיקת מזהים ישנים שלא קיימים יותר
+  for (const key of Object.keys(this.colorMap)) {
+    if (!ids.includes(key)) delete this.colorMap[key];
+  }
+
+  // 3) הקצאה: לכל ילד חדש מקצים צבע “פנוי” מהפלטה
+  // נסה למצוא צבע שלא בשימוש; אם אין — חזור על הפלטה בסבב
+  const used = new Set(Object.values(this.colorMap));
+  let nextIdx = 0;
+
+  for (const id of ids) {
+    if (this.colorMap[id]) continue; // כבר יש צבע
+
+    // חפש צבע פנוי
+    let chosen: string | undefined = undefined;
+    for (const clr of this.PALETTE) {
+      if (!used.has(clr)) { chosen = clr; break; }
+    }
+    // אם כל הפלטה תפוסה — קחי בתורו לפי nextIdx
+    if (!chosen) {
+      chosen = this.PALETTE[nextIdx % this.PALETTE.length];
+      nextIdx++;
+    }
+
+    this.colorMap[id] = chosen;
+    used.add(chosen);
+  }
+
+  this.saveColorMap();
+}
 
   getStartOfWeek(): string {
     const today = new Date();
@@ -74,11 +168,13 @@ endDate: string = '';
         .from('children')
         .select('child_uuid, full_name, status')
         .eq('parent_uid', parent.uid)
-        .eq('status', 'active');
+          .in('status', ['Active', 'Pending Deletion Approval' , 'Deleted']); 
+
 
       if (e2) { console.error('Error loading children:', e2); this.children = []; return; }
 
     this.children = kids ?? [];
+
     // if (this.children.length > 0) {
     //   this.selectedChildId = this.children[0].child_uuid; 
     // }
@@ -87,81 +183,78 @@ endDate: string = '';
     this.children = [];
   }
 }
-async loadLessons() {
+
+ async loadLessons(startYmd: string, endYmd: string) {
   const dbc = dbTenant();
   const childIds = this.children.map(c => c.child_uuid);
   if (childIds.length === 0) { this.lessons = []; return; }
 
-    const today = new Date().toISOString().slice(0, 10);
-    const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  // ❗ רק קריאה אחת ל־DB
+  const { data, error } = await dbc
+    .from('lessons_occurrences')
+    .select('lesson_id, child_id, instructor_id, lesson_type, status, day_of_week, start_time, end_time, start_datetime, end_datetime, occur_date')
+    .in('child_id', childIds)
+    .gte('occur_date', startYmd)
+    .lte('occur_date', endYmd);
 
-    const { data, error } = await dbc
-      .from('lessons_occurrences')
-      .select('lesson_id, child_id, instructor_id, lesson_type, status, day_of_week, start_time, end_time, start_datetime, end_datetime')
-      .in('child_id', childIds)
-      .gte('occur_date', today)
-      .lte('occur_date', in8Weeks);
+  if (error) {
+    console.error('Error loading lesson occurrences:', error);
+    this.lessons = [];
+    return;
+  }
 
-    if (error) {
-      console.error('Error loading lesson occurrences:', error);
-      this.lessons = [];
-      return;
+  const rows = (data ?? []) as Lesson[];
+
+  // 🔸 שליפת שמות מדריכים
+  const instructorIds = Array.from(
+    new Set(
+      rows
+        .map((r: Lesson) => r.instructor_id)
+        .filter((x: string | null): x is string => !!x)
+    )
+  );
+
+  let instructorNameById: Record<string, string> = {};
+  if (instructorIds.length > 0) {
+    const { data: inst } = await dbc
+      .from('instructors')
+      .select('id_number, full_name')
+      .in('id_number', instructorIds);
+
+    const instRows = (inst ?? []) as { id_number: string; full_name: string }[];
+    const map: Record<string, string> = {};
+    for (const row of instRows) {
+      map[row.id_number] = row.full_name ?? '';
     }
+    instructorNameById = map;
+  }
 
-    const rows = (data ?? []) as Lesson[];
+  // 🔸 בניית רשימת השיעורים לתצוגה
+  this.lessons = rows.map((r: Lesson) => {
+    const startFallback = this.getLessonDateTime(r.day_of_week, r.start_time);
+    const endFallback = this.getLessonDateTime(r.day_of_week, r.end_time);
 
-    const instructorIds = Array.from(
-      new Set(
-        rows
-          .map((r: Lesson) => r.instructor_id)
-          .filter((x: string | null): x is string => !!x)
-      )
-    );
+    const start = this.isoWithTFallback(r.start_datetime, startFallback);
+    const end = this.isoWithTFallback(r.end_datetime, endFallback);
 
-    let instructorNameById: Record<string, string> = {};
-    if (instructorIds.length > 0) {
-      const { data: inst } = await dbc
-        .from('instructors')
-        .select('id_number, full_name')
-        .in('id_number', instructorIds);
+    const occurrenceKey = `${r.child_id}__${start}`;
 
-      const instRows = (inst ?? []) as { id_number: string; full_name: string }[];
-      const map: Record<string, string> = {};
-      for (const row of instRows) {
-        map[row.id_number] = row.full_name ?? '';
-      }
-      instructorNameById = map;
-    }
-
-this.lessons = rows.map((r: Lesson) => {
-  // חישובי תאריכים
-  const startFallback = this.getLessonDateTime(r.day_of_week, r.start_time);
-  const endFallback   = this.getLessonDateTime(r.day_of_week, r.end_time);
-
-  const start = this.isoWithTFallback(r.start_datetime, startFallback);
-  const end   = this.isoWithTFallback(r.end_datetime,   endFallback);
-
-  // מזהה ייחודי לכל מופע בלו״ז (ילד + התחלה)
-  const occurrenceKey = `${r.child_id}__${start}`;
-
-  return {
-    id: occurrenceKey,                          // ⟵ ייחודי עכשיו
-    child_id: r.child_id,
-    day_of_week: r.day_of_week,
-    start_time: r.start_time,
-    end_time: r.end_time,
-    lesson_type: r.lesson_type,
-    status: r.status,
-    instructor_id: r.instructor_id ?? '',
-    instructor_name: r.instructor_id ? (instructorNameById[r.instructor_id] ?? '') : '',
-    child_color: this.getColorForChild(r.child_id),
-    child_name: this.children.find(c => c.child_uuid === r.child_id)?.full_name || '',
-    start_datetime: start,
-    end_datetime: end,
-  } as Lesson;
-});
-
-
+    return {
+      id: occurrenceKey,
+      child_id: r.child_id,
+      day_of_week: r.day_of_week,
+      start_time: r.start_time,
+      end_time: r.end_time,
+      lesson_type: r.lesson_type,
+      status: r.status,
+      instructor_id: r.instructor_id ?? '',
+      instructor_name: r.instructor_id ? (instructorNameById[r.instructor_id] ?? '') : '',
+      child_color: this.getColorForChild(r.child_id),
+      child_name: this.children.find(c => c.child_uuid === r.child_id)?.full_name || '',
+      start_datetime: start,
+      end_datetime: end,
+    } as Lesson;
+  });
 }
 
   getLessonDateTime(dayName: string, timeStr: string): string {
@@ -183,11 +276,15 @@ this.lessons = rows.map((r: Lesson) => {
     return this.toLocalIso(eventDate);
   }
 
-  getColorForChild(child_id: string): string {
-    const index = this.children.findIndex(c => c.child_uuid === child_id);  
-  const colors = ['#d8f3dc', '#fbc4ab', '#cdb4db', '#b5ead7', '#ffdac1'];
-  return colors[(index >= 0 ? index : 0) % colors.length];
+ getColorForChild(child_id: string): string {
+  // קודם כול — מהמפה הקבועה
+  const fixed = this.colorMap?.[child_id];
+  if (fixed) return fixed;
+
+  const index = this.children.findIndex(c => c.child_uuid === child_id);
+  return this.PALETTE[(index >= 0 ? index : 0) % this.PALETTE.length];
 }
+
 
 selectChild(childId: string) {
   this.selectedChildId = childId;
@@ -208,12 +305,12 @@ toggleDropdown() { this.dropdownOpen = !this.dropdownOpen; }
   }
 
   refresh() {
-    this.loadLessons().then(() => {
-      this.filterLessons();
-      this.setScheduleItems();
-    });
-  }
-
+  const range = this.lastRange ?? this.defaultRange();
+  this.loadLessons(range.start, range.end).then(() => {
+    this.filterLessons();
+    this.setScheduleItems();
+  });
+}
   // מסננת את השיעורים לפי הילד הנבחר
 filterLessons() {
   this.filteredLessons = (this.selectedChildId === 'all' || !this.selectedChildId)

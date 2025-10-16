@@ -50,7 +50,7 @@ export class SecretaryMessagesComponent implements OnInit {
   inbox = signal<Conversation[]>([]);
   activeConv = signal<Conversation | null>(null);
   thread = signal<ConversationMessage[]>([]);
-  replyText = ''; // <-- לא signal
+  replyText: string = '';   
 
   // Compose (שידור)
   compose = {
@@ -108,27 +108,10 @@ export class SecretaryMessagesComponent implements OnInit {
   }
 
   async sendReply() {
-    const txt = (this.replyText || '').trim();
+    const txt = this.replyText.trim();
     if (!txt || !this.activeConv()) return;
-    const { data, error } = await db()
-      .from('conversation_messages')
-      .insert({
-        conversation_id: this.activeConv()!.id,
-        body_md: txt,
-        sender_role: 'secretary',
-        sender_uid: this.myUid(),
-        has_attachment: false
-      })
-      .select()
-      .single();
-    if (error) throw error;
-
-    // כשטיפול עובר להורה – נסמן pending
-    await db().from('conversations')
-      .update({ status: 'pending' })
-      .eq('id', this.activeConv()!.id);
-
-    this.thread.update(arr => [...arr, data as ConversationMessage]);
+    const msg = await replyToThread(this.activeConv()!.id, txt);
+    this.thread.update(arr => [...arr, msg]);
     this.replyText = '';
   }
 
