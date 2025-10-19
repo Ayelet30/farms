@@ -12,6 +12,10 @@ import {
   ViewEncapsulation,            // ← חדש
   AfterViewInit,                 // ← אם תרצי לגלול גם מיד אחרי רנדור ראשון
   HostListener
+  SimpleChanges,
+  ViewEncapsulation,            // ← חדש
+  AfterViewInit,                 // ← אם תרצי לגלול גם מיד אחרי רנדור ראשון
+  HostListener
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FullCalendarModule, FullCalendarComponent } from '@fullcalendar/angular';
@@ -23,8 +27,8 @@ import interactionPlugin from '@fullcalendar/interaction';
 import heLocale from '@fullcalendar/core/locales/he';
 import { ScheduleItem } from '../../models/schedule-item.model';
 import { ChangeDetectorRef } from '@angular/core';
-
-
+ 
+ 
 @Component({
   selector: 'app-schedule',
   standalone: true,
@@ -32,10 +36,13 @@ import { ChangeDetectorRef } from '@angular/core';
   templateUrl: './schedule.html',
   styleUrls: ['./schedule.scss'],
   encapsulation: ViewEncapsulation.None          // ← חשוב כדי שה-SCSS יחול על .fc
+  styleUrls: ['./schedule.scss'],
+  encapsulation: ViewEncapsulation.None          // ← חשוב כדי שה-SCSS יחול על .fc
 })
 export class ScheduleComponent implements OnChanges, AfterViewInit {
+export class ScheduleComponent implements OnChanges, AfterViewInit {
   @ViewChild('calendar') calendarComponent!: FullCalendarComponent;
-
+ 
   @Input() items: ScheduleItem[] = [];
   @Input() initialView: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay' = 'timeGridWeek';
   @Input() rtl = true;
@@ -43,14 +50,14 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   @Input() slotMinTime = '07:00:00';
   @Input() slotMaxTime = '21:00:00';
   @Input() allDaySlot = false;
-
+ 
   @Output() eventClick = new EventEmitter<EventClickArg>();
   @Output() dateClick = new EventEmitter<string>();
   @Output() viewRange = new EventEmitter<{ start: string; end: string }>();
-
+ 
   currentView = this.initialView;
   currentDate = '';
-
+ 
   // שעה נוכחית בפורמט FC (HH:MM:SS)
   private nowScroll(): string {
     const d = new Date();
@@ -63,7 +70,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
            d.getMonth() === t.getMonth() &&
            d.getDate() === t.getDate();
   }
-
+ 
   calendarOptions: CalendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
     initialView: this.initialView,
@@ -74,18 +81,21 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     slotMinTime: this.slotMinTime,
     slotMaxTime: this.slotMaxTime,
     allDaySlot: this.allDaySlot,
-
+ 
     nowIndicator: true,                     // ← אינדיקטור "עכשיו"
     scrollTime: this.nowScroll(),           // ← מיקוד ראשוני
     slotDuration: '00:30:00',
-
+ 
     events: [],
     dateClick: (info: DateClickArg) => this.dateClick.emit(info.dateStr),
     eventClick: (arg: EventClickArg) => this.eventClick.emit(arg),
-
+ 
     // צ'יפ/מבנה כרטיס לאירוע
     eventContent: (arg) => {
       const { event } = arg;
+      const status = event.extendedProps['status'] || '';                 // 'canceled'/'therapeutic' ...
+      const type   = event.extendedProps['type']   || '';                 // אופציונלי
+      const chip   = type ? `<span class="chip">${type}</span>` : '';
       const status = event.extendedProps['status'] || '';                 // 'canceled'/'therapeutic' ...
       const type   = event.extendedProps['type']   || '';                 // אופציונלי
       const chip   = type ? `<span class="chip">${type}</span>` : '';
@@ -93,6 +103,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
         html: `<div class="event-box ${status}">
                  <div class="time">${event.start?.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</div>
                  <div class="title">${event.title}</div>
+                 ${chip}
                  ${chip}
                </div>`
       };
@@ -109,7 +120,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
       // info.el.style.setProperty('color', '#1f2937', 'important');
     }
   },
-
+ 
     // datesSet: (info: DatesSetArg) => {
     //   this.ngZone.run(() => {
     //     // עדכון כותרת
@@ -131,12 +142,12 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
       const endExclusive = info.end;    // Date (exclusive)
       const endInclusive = new Date(endExclusive);
       endInclusive.setDate(endInclusive.getDate() - 1);
-
+ 
       const toYMD = (d: Date) => d.toISOString().slice(0, 10);
       this.viewRange.emit({ start: toYMD(start), end: toYMD(endInclusive) });
-
+ 
       this.currentDate = info.view.title;
-
+ 
       // גלילה לשעה הנוכחית (לפי הקוד שלך)
       const api = this.calendarApi;
       if (api && (info.view.type === 'timeGridDay' || info.view.type === 'timeGridWeek')) {
@@ -149,9 +160,9 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     }, 0);
   }
   };
-
+ 
   constructor(private ngZone: NgZone , private cdr: ChangeDetectorRef) {}
-
+ 
   ngAfterViewInit(): void {
     // ביטחון גם לאחר הרנדר הראשוני:
     setTimeout(() => {
@@ -160,7 +171,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
       }
     }, 0);
   }
-
+ 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['items']) {
       this.calendarOptions = {
@@ -172,7 +183,10 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
           end: i.end,
           backgroundColor: (i as any).backgroundColor ?? (i as any).color,
           borderColor: (i as any).borderColor ?? (i as any).color,
+          backgroundColor: (i as any).backgroundColor ?? (i as any).color,
+          borderColor: (i as any).borderColor ?? (i as any).color,
           extendedProps: {
+            status: i.status,                   // 'canceled' וכו'
             status: i.status,                   // 'canceled' וכו'
             child_id: i.meta?.child_id,
             child_name: i.meta?.child_name,
@@ -183,11 +197,11 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
       };
     }
   }
-
+ 
   get calendarApi() {
     return this.calendarComponent.getApi();
   }
-
+ 
   changeView(view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay') {
     this.currentView = view;
     this.calendarApi.changeView(view);
@@ -196,7 +210,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
       setTimeout(() => this.calendarApi.scrollToTime(this.nowScroll()), 0);
     }
   }
-
+ 
   next()  { this.calendarApi.next();  }
   prev()  { this.calendarApi.prev();  }
   today() {
@@ -206,15 +220,15 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
       setTimeout(() => this.calendarApi.scrollToTime(this.nowScroll()), 0);
     }
   }
-
+ 
 isFullscreen = false;
-
+ 
 toggleFullscreen() {
   this.isFullscreen = !this.isFullscreen;
-
+ 
   // ננעל את גלילת הדף במסך מלא
   document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
-
+ 
   // להתאים את גובה הקלנדר
   const api = this.calendarApi;
   if (api) {
@@ -232,11 +246,11 @@ toggleFullscreen() {
     }, 0);
   }
 }
-
+ 
 // יציאה במסך מלא ע"י ESC
 @HostListener('document:keydown.escape')
 onEsc() {
   if (this.isFullscreen) this.toggleFullscreen();
 }
-
+ 
 }
