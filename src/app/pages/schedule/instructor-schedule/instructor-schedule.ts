@@ -1,13 +1,34 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { dbTenant } from '../../../services/supabaseClient';
+import { dbTenant, supabase } from '../../../services/supabaseClient';
 import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import { ScheduleItem } from '../../../models/schedule-item.model';
 import { CurrentUserService } from '../../../core/auth/current-user.service';
 import { NoteComponent } from '../../Notes/note.component';
 import { Lesson } from '../../../models/lesson-schedule.model';
 import { EventClickArg } from '@fullcalendar/core';
+
+interface Child {
+  child_uuid: string;
+  instructor_id?: string;
+  parent_uid?: string;
+  full_name?: string;
+  instructor?: Instructor | null;
+  parent?: Parent | null;
+  [key: string]: any;
+}
+
+interface Instructor {
+  id_number: string;
+  full_name?: string;
+  [key: string]: any;
+}
+
+interface Parent {
+  id: string;
+  [key: string]: any;
+}
 
 @Component({
   selector: 'app-instructor-schedule',
@@ -16,12 +37,15 @@ import { EventClickArg } from '@fullcalendar/core';
   templateUrl: './instructor-schedule.html',
   styleUrls: ['./instructor-schedule.scss']
 })
-export class InstructorScheduleComponent implements OnInit {
-  children: any[] = [];
+export class InstructorScheduleComponent implements OnInit, AfterViewInit {
+  @ViewChild(ScheduleComponent) scheduleComp!: ScheduleComponent;
+
+  children: Child[] = [];
   lessons: Lesson[] = [];
   filteredLessons: Lesson[] = [];
-  selectedChild: any = null;
-  instructorId: string = "";
+  notes: any[] = [];
+  selectedChild: Child | null = null;
+  instructorId: string = '';
   items: ScheduleItem[] = [];
 
   constructor(
@@ -30,125 +54,209 @@ export class InstructorScheduleComponent implements OnInit {
   ) {}
 
   async ngOnInit() {
-    await this.loadChildren();
-    await this.loadLessons();
-    this.filterLessons();
-    this.setScheduleItems();
+    try {
+      const user = await this.cu.loadUserDetails();
+      if (!user) {
+        console.warn('⚠️ No active session or user details. Please sign in.');
+        return;
+      }
+      this.instructorId = String(user.id_number).trim();
+
+      await this.loadChildren();
+      if (this.children.length) {
+        const startYmd = new Date().toISOString().slice(0, 10);
+        const endDate = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000);
+        const endYmd = endDate.toISOString().slice(0, 10);
+        await this.loadLessons(startYmd, endYmd);
+        this.filterLessons();
+        this.setScheduleItems();
+        await this.loadNotes();
+      }
+    } catch (err) {
+      console.error('❌ Error initializing schedule:', err);
+    }
+  }
+
+  ngAfterViewInit() {
     this.cdr.detectChanges();
   }
 
-  async loadChildren() {
+  private async loadChildren() {
     try {
       const user = await this.cu.loadUserDetails();
-      if (!user) { this.children = []; return; }
+      if (!user?.id_number) {
+        this.children = [];
+        return;
+      }
 
-      this.instructorId = user.id_number!;
+      this.instructorId = String(user.id_number).trim();
       const dbc = dbTenant();
-      const { data: kids, error } = await dbc
+      if (!supabase) {
+        console.error('Supabase client not initialized');
+        return;
+      }
+
+      // Load children
+      const { data: kids, error: errKids } = await dbc
         .from('children')
         .select('*')
-        .eq('status', 'active');
+        .eq('status', 'Active')
+        .eq('instructor_id', this.instructorId);
 
-      if (error) { console.error(error); this.children = []; return; }
+      if (errKids) {
+        console.error('❌ Error loading children:', errKids);
+        this.children = [];
+        return;
+      }
 
-      this.children = kids ?? [];
+      const childList: Child[] = kids ?? [];
+
+      // Load instructors
+      const instructorIds: string[] = childList.map(c => c.instructor_id!).filter(Boolean);
+      const { data: instructorsData } = await dbc
+        .from('instructors')
+        .select('*')
+        .in('id_number', instructorIds);
+
+      const instructorsMap: Record<string, Instructor> = (instructorsData ?? []).reduce(
+        (acc: Record<string, Instructor>, i: Instructor) => {
+          acc[i.id_number] = i;
+          return acc;
+        },
+        {} as Record<string, Instructor>
+      );
+
+      // Load parents
+      const parentUids: string[] = childList.map(c => c.parent_uid!).filter(Boolean);
+      let parentsMap: Record<string, Parent> = {};
+      if (parentUids.length > 0) {
+        const { data: parentsData, error: errParents } = await supabase
+          .from('users')
+          .select('id, email, phone, full_name, created_at, last_sign_in_at')
+          .in('id', parentUids);
+
+        if (errParents) {
+          console.error('❌ Error loading parents:', errParents);
+        } else {
+          parentsMap = (parentsData ?? []).reduce((acc: Record<string, Parent>, p: any) => {
+            acc[p.id] = p;
+            return acc;
+          }, {} as Record<string, Parent>);
+        }
+      }
+
+      this.children = childList.map(c => ({
+        ...c,
+        instructor: c.instructor_id ? instructorsMap[c.instructor_id] ?? null : null,
+        parent: c.parent_uid ? parentsMap[c.parent_uid] ?? null : null
+      }));
+
+      console.log('✅ Loaded children with instructor and parent:', this.children);
+
     } catch (err) {
-      console.error(err);
+      console.error('❌ Exception in loadChildren:', err);
       this.children = [];
     }
   }
 
-  async loadLessons() {
+  private async loadLessons(startYmd: string, endYmd: string) {
     const dbc = dbTenant();
     const childIds = this.children.map(c => c.child_uuid);
     if (!childIds.length) { this.lessons = []; return; }
-
-    const today = new Date().toISOString().slice(0, 10);
-    const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 
     const { data, error } = await dbc
       .from('lessons_occurrences')
       .select('*')
       .in('child_id', childIds)
-      .gte('occur_date', today)
-      .lte('occur_date', in8Weeks);
+      .gte('occur_date', startYmd)
+      .lte('occur_date', endYmd);
 
-    if (error) { console.error(error); this.lessons = []; return; }
+    if (error) {
+      console.error('❌ Error loading lesson occurrences:', error);
+      this.lessons = [];
+      return;
+    }
 
-    this.lessons = (data ?? []).map((r: any) => ({
-      id: String(r.lesson_id),
-      child_id: r.child_id,
-      day_of_week: r.day_of_week,
-      start_time: r.start_time,
-      end_time: r.end_time,
-      lesson_type: r.lesson_type,
-      status: r.status,
-      instructor_id: r.instructor_id ?? '',
-      instructor_name: r.instructor_name ?? '',
-      child_color: this.getColorForChild(r.child_id),
-      child_name: this.children.find(c => c.child_uuid === r.child_id)?.full_name || '',
-      start_datetime: r.start_datetime,
-      end_datetime: r.end_datetime,
-    }));
+    const rows = (data ?? []) as Lesson[];
+
+    // Load instructor names
+    const instructorIds = Array.from(new Set(rows.map(r => r.instructor_id).filter(Boolean)));
+    let instructorNameById: Record<string, string> = {};
+    if (instructorIds.length) {
+      const { data: inst } = await dbc
+        .from('instructors')
+        .select('id_number, full_name')
+        .in('id_number', instructorIds);
+
+      instructorNameById = (inst ?? []).reduce((acc: Record<string, string>, row: any) => {
+        acc[row.id_number] = row.full_name ?? '';
+        return acc;
+      }, {} as Record<string, string>);
+    }
+
+    this.lessons = rows.map(r => {
+      const start = r.start_datetime || new Date().toISOString();
+      const end = r.end_datetime || new Date().toISOString();
+      return {
+        ...r,
+        start_datetime: start,
+        end_datetime: end,
+        instructor_name: r.instructor_id ? (instructorNameById[r.instructor_id] ?? '') : '',
+        child_color: this.getColorForChild(r.child_id),
+        child_name: this.children.find(c => c.child_uuid === r.child_id)?.full_name || ''
+      } as Lesson;
+    });
+
+    this.filterLessons();
+    this.setScheduleItems();
   }
 
-  filterLessons() {
+  private filterLessons() {
     this.filteredLessons = this.lessons.filter(l => l.instructor_id === this.instructorId);
   }
 
-  setScheduleItems() {
-    const src = this.filteredLessons.length ? this.filteredLessons : this.lessons;
-
-    this.items = src.map(lesson => {
-      const startFallback = this.getLessonDateTime(lesson.day_of_week, lesson.start_time);
-      const endFallback = this.getLessonDateTime(lesson.day_of_week, lesson.end_time);
-      const start = this.isoWithTFallback(lesson.start_datetime, startFallback);
-      const end = this.isoWithTFallback(lesson.end_datetime, endFallback);
-
-      return {
-        id: lesson.id,
-        title: `${lesson.lesson_type}${lesson.instructor_name ? ' עם ' + lesson.instructor_name : ''}`,
-        start,
-        end,
-        color: lesson.child_color,
-        meta: {
-          child_id: lesson.child_id,
-          child_name: lesson.child_name,
-          instructor_id: lesson.instructor_id,
-          instructor_name: lesson.instructor_name,
-          status: lesson.status
-        },
-        status: lesson.status
-      } satisfies ScheduleItem;
-    });
+  private setScheduleItems() {
+    const sourceLessons = this.filteredLessons.length ? this.filteredLessons : this.lessons;
+    this.items = sourceLessons.map(lesson => ({
+      id: lesson.id ?? `${lesson.child_id}__${lesson.start_datetime}`,
+      title: `${lesson.lesson_type}${lesson.instructor_name ? ' עם ' + lesson.instructor_name : ''}` || 'שיעור',
+      start: lesson.start_datetime,
+      end: lesson.end_datetime,
+      color: lesson.child_color || '#b5ead7',
+      meta: {
+        child_id: lesson.child_id,
+        child_name: lesson.child_name || 'לא ידוע',
+        instructor_id: lesson.instructor_id,
+        instructor_name: lesson.instructor_name,
+        status: lesson.status || 'לא ידוע'
+      },
+      status: lesson.status || 'לא ידוע'
+    } as ScheduleItem));
 
     this.cdr.detectChanges();
   }
 
-  getLessonDateTime(dayName: string, timeStr: string): string {
-    const dayMap: Record<string, number> = { 'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6 };
-    const today = new Date();
-    const targetDay = dayMap[dayName];
-    const diff = (targetDay - today.getDay() + 7) % 7;
+  private async loadNotes() {
+    try {
+      const dbc = dbTenant();
+      const { data: notes, error } = await dbc
+        .from('list_notes')
+        .select('*')
+        .order('id', { ascending: true });
 
-    const eventDate = new Date(today);
-    eventDate.setDate(today.getDate() + diff);
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    eventDate.setHours(hours, minutes, 0, 0);
-    return this.toLocalIso(eventDate);
+      if (error) {
+        console.error('❌ Error loading notes:', error);
+        this.notes = [];
+        return;
+      }
+      this.notes = notes ?? [];
+    } catch (err) {
+      console.error('❌ Exception in loadNotes:', err);
+      this.notes = [];
+    }
   }
 
-  private isoWithTFallback(s: string | undefined | null, fallbackIso: string): string {
-    if (s && s.trim() !== '') return s.includes('T') ? s : s.replace(' ', 'T');
-    return fallbackIso;
-  }
-
-  private toLocalIso(date: Date): string {
-    const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-  }
-
-  getColorForChild(child_id: string): string {
+  private getColorForChild(child_id: string): string {
     const index = this.children.findIndex(c => c.child_uuid === child_id);
     const colors = ['#d8f3dc', '#fbc4ab', '#cdb4db', '#b5ead7', '#ffdac1'];
     return colors[(index >= 0 ? index : 0) % colors.length];
@@ -156,18 +264,32 @@ export class InstructorScheduleComponent implements OnInit {
 
   onEventClick(arg: EventClickArg) {
     const childId = arg.event.extendedProps['child_id'];
-    const child = this.children.find(c => c.child_uuid === childId);
+    const calendarApi = this.scheduleComp.calendarApi;
 
-    if (!child) {
-      console.warn('לא נמצא ילד מתאים!', arg.event.extendedProps);
-      this.selectedChild = null;
-      return;
+    if (calendarApi.view.type === 'dayGridMonth') {
+      this.scheduleComp.changeView('timeGridWeek');
+      calendarApi.changeView('timeGridWeek', arg.event.start!);
     }
 
-    this.selectedChild = { ...child };
+    const child = this.children.find(c => c.child_uuid === childId);
+    this.selectedChild = child ? { ...child } : null;
+    this.cdr.detectChanges();
   }
 
   onDateClick(arg: any) {
-    console.log('תאריך נבחר:', arg.dateStr || arg.date);
+    const date = arg.date ?? arg.dateStr ?? new Date().toISOString();
+
+    const event = this.items.find(item => {
+      const eventDate = new Date(item.start).toISOString().slice(0, 10);
+      const clickedDate = new Date(date).toISOString().slice(0, 10);
+      return eventDate === clickedDate;
+    });
+
+    if (event) {
+      const childData = this.children.find(c => c.child_uuid === event.meta.child_id);
+      this.selectedChild = childData ? { ...childData } : null;
+    }
+
+    this.cdr.detectChanges();
   }
 }
