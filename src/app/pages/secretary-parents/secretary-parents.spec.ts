@@ -1,18 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { SecretaryParents } from './secretary-parents';
+import {SecretaryParentsComponent} from './secretary-parents';
 
 describe('SecretaryParents', () => {
-  let component: SecretaryParents;
-  let fixture: ComponentFixture<SecretaryParents>;
+  let component: SecretaryParentsComponent;
+  let fixture: ComponentFixture<SecretaryParentsComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [SecretaryParents]
+      imports: [SecretaryParentsComponent]
     })
     .compileComponents();
 
-    fixture = TestBed.createComponent(SecretaryParents);
+    fixture = TestBed.createComponent(SecretaryParentsComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });

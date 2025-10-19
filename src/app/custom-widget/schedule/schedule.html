@@ -1,20 +1,32 @@
-<!-- תפריט תצוגה -->
-<div class="card top-card">
-  <div class="view-buttons">
-    <button (click)="changeView('timeGridDay')" [class.active]="currentView === 'timeGridDay'">יומי</button>
-    <button (click)="changeView('timeGridWeek')" [class.active]="currentView === 'timeGridWeek'">שבועי</button>
-    <button (click)="changeView('dayGridMonth')" [class.active]="currentView === 'dayGridMonth'">חודשי</button>
-  </div>
-</div>
+<!-- עטיפה שמקבלת מחלקת fullscreen -->
+<div class="schedule-wrap" [class.fullscreen]="isFullscreen">
 
-<!-- ניווט -->
-<div class="card nav-card">
-  <div class="actions">
-    <button (click)="prev()">יום קודם</button>
-    <button (click)="today()">היום</button>
-    <button (click)="next()">יום הבא</button>
+  <!-- Toolbar יחיד -->
+  <div class="card calendar-toolbar">
+    <div class="view-buttons btn-group">
+      <button (click)="changeView('timeGridDay')"  [class.active]="currentView === 'timeGridDay'">יומי</button>
+      <button (click)="changeView('timeGridWeek')" [class.active]="currentView === 'timeGridWeek'">שבועי</button>
+      <button (click)="changeView('dayGridMonth')" [class.active]="currentView === 'dayGridMonth'">חודשי</button>
+    </div>
+
+    <div class="current-date">{{ currentDate }}</div>
+
+    <div class="actions btn-group">
+      <button (click)="prev()">קודם</button>
+      <button (click)="today()">היום</button>
+      <button (click)="next()">הבא</button>
+
+      <!-- כפתור מסך מלא / צמצם -->
+      <button class="fullscreen-btn" (click)="toggleFullscreen()">
+        {{ isFullscreen ? 'צמצם' : 'מסך מלא' }}
+      </button>
+    </div>
   </div>
-  <div class="current-date">{{ currentDate }}</div>
+
+  <!-- הקלנדר -->
+  <div class="bereshit-calendar calendar-host">
+    <full-calendar #calendar [options]="calendarOptions"></full-calendar>
+  </div>
 </div>
 
 <!-- FullCalendar -->

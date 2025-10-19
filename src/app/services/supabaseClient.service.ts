@@ -2,17 +2,44 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getAuth, signOut } from 'firebase/auth';
 import { ChildRow, ParentDetails, UserDetails } from '../Types/detailes.model';
+import type {
+  Message, MessageRecipient, Conversation, ConversationMessage
+} from '../models/messsage.model';
 
 /** ===================== RUNTIME CONFIG (בלי מפתחות בקוד) ===================== **/
 function readMeta(name: string): string | null {
+  if (typeof document === 'undefined') return null;
   const el = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
   return el?.content?.trim() || null;
 }
+
 function runtime(key: string): string | null {
-  const w = (window as any);
-  return (w.__RUNTIME__?.[key] ?? readMeta(`x-${key.toLowerCase().replace(/_/g, '-')}`) ??
-    (import.meta as any).env?.[key] ?? (process as any)?.env?.[key] ?? null)?.trim?.() || null;
+  const metaName = `x-${key.toLowerCase().replace(/_/g, '-')}`;
+  const maybeWindow = typeof window !== 'undefined' ? (window as any) : undefined;
+
+  let fromImportMeta: any = null;
+  try {
+    // יהיה זמין אם הבילדר תומך (Vite, וכו')
+    fromImportMeta = (import.meta as any)?.env?.[key] ?? null;
+  } catch { /* ignore */ }
+
+  let fromProcess: any = null;
+  try {
+    // יהיה זמין ב-SSR/Node
+    fromProcess = (process as any)?.env?.[key] ?? null;
+  } catch { /* ignore */ }
+
+  const val =
+    maybeWindow?.__RUNTIME__?.[key] ??
+    readMeta(metaName) ??
+    fromImportMeta ??
+    fromProcess ??
+    null;
+
+  return typeof val === 'string' ? val.trim() : val;
 }
+
+
 
 const SUPABASE_URL = runtime('SUPABASE_URL');
 const SUPABASE_ANON_KEY = runtime('SUPABASE_ANON_KEY');
@@ -109,6 +136,7 @@ export async function setTenantContext(ctx: TenantContext) {
     currentTenant = { ...ctx };
     authBearer = ctx.accessToken ?? null;
     supabase = makeClient();
+    clearDbCache(); 
     clearTimeout(refreshTimer);
     if (authBearer) scheduleTokenRefresh(authBearer);
     notifyTenantChange();                 // <-- הוספה
@@ -123,6 +151,7 @@ export async function clearTenantContext() {
   clearTimeout(refreshTimer);
   refreshTimer = null;
   supabase = makeClient();
+  clearDbCache(); 
   try { await supabase.auth.signOut(); } catch { }
   notifyTenantChange();                   // <-- הוספה
 }
@@ -394,6 +423,7 @@ export async function bootstrapSupabaseSession(tenantId?: string, roleInTenant?:
   const url = qs.toString() ? `${LOGIN_BOOTSTRAP_URL}?${qs}` : LOGIN_BOOTSTRAP_URL;
 
   const res = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` } });
+  console.log("@@@@@@@@@@@@", res)
   const raw = await res.text();
   let parsed: any = null; try { parsed = JSON.parse(raw); } catch { }
   if (!res.ok) throw new Error(parsed?.error || `loginBootstrap failed: ${res.status}`);
@@ -412,26 +442,39 @@ export async function bootstrapSupabaseSession(tenantId?: string, roleInTenant?:
   return data;
 }
 
-
-
 function scheduleTokenRefresh(jwt: string) {
   try {
     const body = jwt.split('.')[1] || '';
-    const { exp } = JSON.parse(atob(body));
+    const base64Decode = (b64: string) => {
+      if (typeof atob === 'function') return atob(b64);
+      if (typeof Buffer !== 'undefined') return Buffer.from(b64, 'base64').toString('utf-8');
+      throw new Error('No base64 decoder available');
+    };
+    const parsed = JSON.parse(base64Decode(body));
+    const exp = Number(parsed?.exp);
+    if (!exp || Number.isNaN(exp)) return;
+
     const msLeft = exp * 1000 - Date.now();
     const delay = Math.max(msLeft - 60_000, 10_000);
 
+    clearTimeout(refreshTimer);
     refreshTimer = setTimeout(async () => {
       try {
-        const tId = _lastBootstrap.tenantId ?? currentTenant?.id ?? localStorage.getItem('selectedTenant') ?? undefined;
+        const tId =
+          _lastBootstrap.tenantId ??
+          currentTenant?.id ??
+          (typeof localStorage !== 'undefined' ? localStorage.getItem('selectedTenant') ?? undefined : undefined);
         const rIn = _lastBootstrap.roleInTenant ?? currentRoleInTenant ?? undefined;
         await bootstrapSupabaseSession(tId, rIn);
       } catch (e) {
         console.warn('token refresh failed', e);
       }
     }, delay);
-  } catch { /* ignore */ }
+  } catch (e) {
+    console.debug('scheduleTokenRefresh skipped:', (e as any)?.message ?? e);
+  }
 }
+
 
 /** ===================== MEMBERSHIPS (multi-tenant) ===================== **/
 let membershipsCache: Membership[] = [];
@@ -569,52 +612,26 @@ export async function fetchCurrentParentDetails(
 
 /** ===================== CHILDREN API (per-tenant) ===================== **/
 export async function getMyChildren(
-  select = 'id, parent_uid, full_name'
+  select = 'id:child_uuid, full_name, gov_id, birth_date, parent_id:parent_uid, status'
 ): Promise<ChildRow[]> {
-  const fbUid = getAuth().currentUser?.uid;
-  if (!fbUid) throw new Error('No Firebase user');
-
-  const dbc = db(); // משתמש בסכימת הטננט הנוכחית
-
-  // ננסה קודם למצוא הורה בטבלת parents (מדויק יותר)
-  const parent = await getCurrentParentDetails('uid', { cacheMs: 0 }).catch(() => null);
-  if (parent?.uid) {
-    const { data, error } = await dbc
-      .from('children')
-      .select(select)
-      .eq('parent_uid', parent.uid)
-      .order('full_name', { ascending: true });
-
-    if (!error) return (data ?? []) as unknown as ChildRow[];
-
-    // אם יש שגיאה על עמודה/מדיניות — ניפול לפילטר לפי fbUid
-    const msg = (error as any)?.message || '';
-    const looksLikeBadColumn =
-      msg.includes('parent_id') ||
-      (error as any)?.code === 'PGRST302' ||
-      (error as any)?.code === 'PGRST301';
-    if (!looksLikeBadColumn) throw error;
-  }
-
-  // נפילה אחורה: פילטר ישיר לפי uid של המשתמש
+  await ensureTenantContextReady();
+  const dbc = db();               // לקוח סכימת הטננט
   const { data, error } = await dbc
     .from('children')
-    .select(select)
-    .eq('parent_uid', fbUid)
+    .select(select)               // <- כאן ה-alias-ים
     .order('full_name', { ascending: true });
-
   if (error) throw error;
   return (data ?? []) as unknown as ChildRow[];
 }
 
+
 export async function fetchMyChildren(
-  select = 'id, parent_uid, full_name'
+  select = 'id:child_uuid, full_name, gov_id, birth_date, parent_id:parent_uid, status'
 ): Promise<{ ok: boolean; data: ChildRow[]; error?: string }> {
   try {
     const data = await getMyChildren(select);
     return { ok: true, data };
   } catch (e: any) {
-    console.warn('getMyChildren error:', e);
     return { ok: false, data: [], error: e?.message ?? 'Unknown error' };
   }
 }
@@ -634,6 +651,7 @@ export async function ensureTenantContextReady(): Promise<void> {
 
   const stored = localStorage.getItem('selectedTenant');
   if (stored) {
+    console.log("!!!!!!!!!!!!", stored)
     await bootstrapSupabaseSession(stored, currentRoleInTenant ?? undefined);
     return;
   }
@@ -685,5 +703,161 @@ export async function insertAgreementAcceptance(opts: {
   if (error) throw error;
   return data;
 }
+// === Parents listing (per-tenant) ===
+export type ParentRow = {
+  id: string;
+  uid: string | null;
+  full_name: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: any;
+  is_active?: boolean | null;
+  created_at?: string | null;
+};
+export type ListParentsOpts = {
+  select?: string;
+  search?: string | null;
+  limit?: number;
+  offset?: number;
+  orderBy?: 'full_name' | 'created_at';
+  ascending?: boolean;
+};
 
+/** מחזיר את כל ההורים בחווה (כלומר בסכימת ה-tenant הנוכחי) */
+export async function listParents(opts: ListParentsOpts = {}): Promise<{ rows: ParentRow[]; count?: number | null }> {
+  const tenant = requireTenant();    
+
+  const dbc = db(tenant.schema);
+
+  const select = opts.select ?? 'uid, full_name,extra_notes, address, phone, email';
+  let q = dbc.from('parents').select(select, { count: 'exact' });
+
+  if (opts.search?.trim()) {
+    const s = `%${opts.search.trim()}%`;
+    q = q.or(`full_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
+  }
+
+  const orderBy = opts.orderBy ?? 'full_name';
+  const ascending = opts.ascending ?? true;
+  q = q.order(orderBy, { ascending });
+
+  const limit = Math.max(1, opts.limit ?? 50);
+  const offset = Math.max(0, opts.offset ?? 0);
+  q = q.range(offset, offset + limit - 1);
+
+  const { data, error, count } = await q;
+  
+  if (error) throw error;
+
+
+  return { rows: (data ?? []) as unknown as ParentRow[], count: count ?? null };
+}
+
+
+export async function listInbox(options?: {
+  status?: ('open'|'pending'|'closed')[]; search?: string | null; limit?: number; offset?: number;
+}): Promise<Conversation[]> {
+  const dbc = db(); // סכימת ה-tenant
+  let q = dbc.from('conversations')
+    .select('id, subject, status, updated_at, created_at, opened_by_parent_uid, tags')
+    .order('updated_at', { ascending: false });
+
+  if (options?.status?.length) q = q.in('status', options.status as any);
+  if (options?.search?.trim()) {
+    const s = `%${options.search.trim()}%`;
+    q = q.or(`subject.ilike.${s}`);
+  }
+  const { data, error } = await q.range(options?.offset ?? 0, (options?.offset ?? 0) + (options?.limit ?? 20) - 1);
+  if (error) throw error;
+
+  // obfuscation-light: אפשר להעשיר בשם הורה בלוקאפ מה-view אם יש
+  return (data ?? []) as unknown as Conversation[];
+}
+
+export async function getThread(conversationId: string): Promise<{ conv: Conversation | null; msgs: ConversationMessage[] }> {
+  const dbc = db();
+  const [{ data: conv }, { data: msgs, error: e2 }] = await Promise.all([
+    dbc.from('conversations').select('*').eq('id', conversationId).maybeSingle(),
+    dbc.from('conversation_messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true })
+  ]);
+  if (e2) throw e2;
+  return { conv: (conv as any) ?? null, msgs: (msgs ?? []) as unknown as ConversationMessage[] };
+}
+
+export async function replyToThread(conversationId: string, body_md: string): Promise<ConversationMessage> {
+  const dbc = db();
+  const me = await getCurrentUserDetails('uid, role_in_tenant', { cacheMs: 0 });
+  const senderRole = (me?.role_in_tenant as any) ?? 'secretary';
+  const { data, error } = await dbc.from('conversation_messages').insert({
+    conversation_id: conversationId,
+    body_md,
+    sender_role: senderRole,
+    sender_uid: getAuth().currentUser?.uid ?? 'unknown',
+    has_attachment: false
+  }).select().single();
+  if (error) throw error;
+  // עדכון סטטוס ל-pending (מחכה להורה)
+  await dbc.from('conversations').update({ status: 'pending' }).eq('id', conversationId);
+  return data as any;
+}
+
+export async function sendBroadcast(payload: {
+  subject?: string | null;
+  body_md: string;
+  channels: { inapp: boolean; email?: boolean; sms?: boolean };
+  audience: { type: 'all' | 'manual' | 'single'; parentUids?: string[]; singleUid?: string | null };
+  scheduled_at?: string | null;
+}): Promise<{ message: Message; recipients: number }> {
+  const dbc = db();
+  // 1) יצירת רשומת הודעה
+  const { data: msg, error: e1 } = await dbc.from('messages').insert({
+    subject: payload.subject ?? null,
+    body_md: payload.body_md,
+    channel_inapp: !!payload.channels.inapp,
+    channel_email: !!payload.channels.email,
+    channel_sms: !!payload.channels.sms,
+    audience_type: payload.audience.type,
+    audience_ref: payload.audience ?? null,
+    scheduled_at: payload.scheduled_at ?? null,
+    status: payload.scheduled_at ? 'scheduled' : 'sent'
+  }).select().single();
+  if (e1) throw e1;
+
+  // 2) בניית נמענים
+  let parentUids: string[] = [];
+  if (payload.audience.type === 'all') {
+    // כל ההורים הפעילים
+    const { data: parents } = await dbc.from('parents').select('uid').eq('is_active', true);
+    parentUids = (parents ?? []).map((p: any) => p.uid).filter(Boolean);
+  } else if (payload.audience.type === 'manual') {
+    parentUids = payload.audience.parentUids ?? [];
+  } else if (payload.audience.type === 'single' && payload.audience.singleUid) {
+    parentUids = [payload.audience.singleUid];
+  }
+  parentUids = Array.from(new Set(parentUids));
+
+  // 3) הזרקת recipients
+  if (parentUids.length) {
+    const rows = parentUids.map(uid => ({
+      message_id: (msg as any).id,
+      recipient_parent_uid: uid,
+      delivery_status: payload.scheduled_at ? 'pending' : 'sent'
+    }));
+    const { error: e2 } = await dbc.from('message_recipients').insert(rows);
+    if (e2) throw e2;
+  }
+
+  return { message: msg as any, recipients: parentUids.length };
+}
+
+export async function listSent(limit = 20, offset = 0): Promise<(Message & { recipients_count?: number })[]> {
+  const dbc = db();
+  const { data, error } = await dbc
+    .from('messages')
+    .select('id, subject, status, sent_at, scheduled_at, channel_inapp, channel_email, channel_sms', { count: 'exact' })
+    .order('sent_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (error) throw error;
+  return (data ?? []) as any[];
+}
 

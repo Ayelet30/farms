@@ -37,6 +37,7 @@ export class SliderComponent implements OnInit {
     this.syncBreakpoint();
   }
 
+
   @HostListener('window:resize')
   onResize() { this.syncBreakpoint(); }
 
@@ -48,8 +49,8 @@ export class SliderComponent implements OnInit {
           { path: 'parent/schedule', label: 'מערכת שיעורים', icon: 'calendar' },
           { path: 'parent/summary', label: 'סיכום פעילות', icon: 'receipt' },
           { path: 'parent/payments', label: 'אמצעי תשלום', icon: 'card' },
-          { path: 'parent/messages', label: 'הודעות למשרד', icon: 'note' },
-          { path: 'parent/details', label: 'הפרטים שלי', icon: 'user' },
+          { path: 'parent/messages', label: 'הודעות', icon: 'note' },
+          { path: 'parent/details',  label: 'הפרטים שלי',   icon: 'user' },
         ];
         break;
       case 'instructor':
@@ -64,6 +65,9 @@ export class SliderComponent implements OnInit {
         this.menuItems = [
           { path: 'secretary/parents', label: 'הורים בחווה', icon: 'user' },
           { path: 'secretary/regulations', label: 'ניהול תקנונים', icon: 'note' },
+          { path: 'secretary/children', label: 'ילדים בחווה', icon: 'children' },
+          { path: 'secretary/schedule',  label: 'לו״ז ומעקב',     icon: 'calendar' },
+          { path: 'secretary/messages', label: 'הודעות', icon: 'note' },
         ];
         break;
       case 'admin':

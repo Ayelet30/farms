@@ -5,8 +5,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import type { ChildRow } from '../../Types/detailes.model';
-import { dbTenant, fetchMyChildren, getCurrentUserData } from '../../services/supabaseClient';
+import { dbTenant, fetchMyChildren, getCurrentUserData } from '../../services/supabaseClient.service';
 import { ChildConsentsComponent } from '../../consents/child-consents.component/child-consents.component';
+import { NgIf, NgForOf, NgClass, NgTemplateOutlet } from '@angular/common';
 
 /* =========================
    Types
@@ -20,11 +21,14 @@ type OccurrenceRow = {
 };
 type InstructorRow = { id_number: string; full_name: string | null };
 
+// ----- Status helpers (ENUM in English only) -----
+type ChildStatus = 'Active' | 'Pending Deletion Approval' | 'Pending Addition Approval' | 'Deleted';
+
 
 @Component({
   selector: 'app-parent-children',
   standalone: true,
-  imports: [CommonModule, FormsModule, ChildConsentsComponent],
+  imports: [CommonModule, FormsModule, ChildConsentsComponent ,  NgIf, NgForOf, NgClass, NgTemplateOutlet],
   templateUrl: './parent-children.html',
   styleUrls: ['./parent-children.css']
 })
@@ -107,18 +111,20 @@ statusClass(st: string): string {
       this.error = res.error;
       return;
     }
+const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמחק)
 
-    const rows = (res.data ?? []).filter((r: any) => r.status !== 'deleted') as ChildRow[];
     this.children = rows;
 
     // ברירת מחדל – מציג עד 4 פעילים ראשונים
     if (this.selectedIds.size === 0) {
-      const initial = rows.filter(r => r.status === 'active').slice(0, this.maxSelected);
-      this.selectedIds = new Set(
-        initial.map(r => this.childId(r)).filter(Boolean) as string[]
-      );
-      initial.forEach(c => this.ensureEditable(c));
-    }
+  const actives = rows.filter(r => this.isActiveStatus(r.status));
+  const pendings = rows.filter(r => !this.isActiveStatus(r.status) && !this.isDeletedStatus(r.status));
+  const initial = [...actives, ...pendings].slice(0, this.maxSelected);
+
+  this.selectedIds = new Set(initial.map(r => this.childId(r)).filter(Boolean) as string[]);
+  initial.forEach(c => this.ensureEditable(c));
+}
+
 
     await this.loadNextAppointments();
     await this.loadLastActivities();
@@ -142,18 +148,20 @@ statusClass(st: string): string {
   }
 
   isActiveChild(c: any): boolean {
-    return (c?.['status'] ?? '') === 'active';
-  }
+  return this.isActiveStatus(c?.['status']);
+}
+
 
   toggleChildSelection(child: any) {
     const id = this.childId(child);
     if (!id) return;
 
     // לא פעיל? הצגת הודעה בלבד
-    if (!this.isActiveChild(child)) {
-      this.showInfo('לא ניתן לפתוח את הכרטיס כי הילד אינו פעיל');
-      return;
-    }
+   if (!this.canOpenCardByStatus(child?.status)) {
+  this.showInfo('ילד זה נמחק, פנה למזכירות');
+  return;
+}
+
 
     // כבר פתוח → סגירה
     if (this.selectedIds.has(id)) {
@@ -169,26 +177,27 @@ statusClass(st: string): string {
       return;
     }
 
-    // פתיחה
     this.selectedIds.add(id);
     this.ensureEditable(child);
   }
 
-  // כפתור X לסגירת הכרטיס בתצוגה
   closeCard(child: any) {
-    const id = this.childId(child);
-    if (!id) return;
-    this.selectedIds.delete(id);
-    delete this.editing[id];
-    delete this.editables[id];
-  }
+  const id = this.childId(child);
+  if (!id) return;
+  this.selectedIds.delete(id);
+  delete this.editing[id];
+  delete this.editables[id];
 
-  // ל-trackBy בתבנית
+  // ניקוי הודעת הזמנה (אם קיימת)
+  if (this.bookingMsgTimers[id]) {
+    clearTimeout(this.bookingMsgTimers[id]);
+    delete this.bookingMsgTimers[id];
+  }
+  delete this.bookingMsg[id];
+}
+
   trackByChild = (_: number, item: any) => this.childId(item);
 
-  /* =========================
-     Editing (per-card)
-  ========================= */
   private ensureEditable(child: any) {
     const id = this.childId(child);
     if (!id) return;
@@ -208,29 +217,57 @@ statusClass(st: string): string {
   }
 
   async saveChild(child: any) {
-    const id = this.childId(child);
-    if (!id) return;
-    const model = this.editables[id];
-
-    const { error } = await dbTenant()
-      .from('children')
-      .update({
-        full_name: model.full_name,
-        birth_date: model.birth_date || null,
-        health_fund: model.health_fund || null,
-        medical_notes: model.medical_notes || null
-      })
-      .eq('child_uuid', id)
-      .select('child_uuid')
-      .single();
-
-    if (!error) {
-      this.editing[id] = false;
-      this.showInfo('השינויים נשמרו בהצלחה');
-    } else {
-      this.error = error.message ?? 'שגיאה בשמירה';
-    }
+  const id = this.childId(child);
+  if (!id) {
+    this.error = 'חסר מזהה ילד (child_uuid).';
+    return;
   }
+
+  const model = this.editables[id];
+
+  const { error } = await dbTenant()
+    .from('children')
+    .update({
+      full_name: model.full_name,
+      birth_date: model.birth_date || null,
+      health_fund: model.health_fund || null,
+      medical_notes: model.medical_notes || null
+    })
+    .eq('child_uuid', id)
+    .select('child_uuid')
+    .single();
+
+  if (error) {
+    this.error = error.message ?? 'שגיאה בשמירה';
+    return;
+  }
+
+  const idx = this.children.findIndex(c => this.childId(c) === id);
+  if (idx !== -1) {
+    const updated = {
+      ...this.children[idx],
+      full_name: model.full_name,
+      birth_date: model.birth_date || null,
+      health_fund: model.health_fund || null,
+      medical_notes: model.medical_notes || null
+    };
+
+    this.children = [
+      ...this.children.slice(0, idx),
+      updated,
+      ...this.children.slice(idx + 1)
+    ];
+
+    this.editables[id] = {
+      ...updated,
+      age: updated.birth_date ? this.getAge(updated.birth_date) : null
+    };
+  }
+
+  this.editing[id] = false;
+  this.showInfo('השינויים נשמרו בהצלחה');
+}
+
 
   cancelEdit(child: any) {
     const id = this.childId(child);
@@ -251,7 +288,11 @@ statusClass(st: string): string {
 
   // “התור הבא” מכלול הילדים – מתוך lessons_occurrences
   private async loadNextAppointments(): Promise<void> {
-    const ids = this.children.map(c => this.childId(c)).filter(Boolean) as string[];
+    const ids = this.children
+  .filter(c => !this.isDeletedStatus(c.status))
+  .map(c => this.childId(c))
+  .filter(Boolean) as string[];
+
     if (!ids.length) return;
 
     this.nextAppointments = {};
@@ -307,7 +348,10 @@ statusClass(st: string): string {
 
   // “פעילות אחרונה” – מופע אחרון בעבר (הושלם/אושר)
   private async loadLastActivities(): Promise<void> {
-    const ids = this.children.map(c => this.childId(c)).filter(Boolean) as string[];
+const ids = this.children
+  .filter(c => !this.isDeletedStatus(c.status))
+  .map(c => this.childId(c))
+  .filter(Boolean) as string[];
     if (!ids.length) return;
 
     this.lastActivities = {};
@@ -386,7 +430,7 @@ statusClass(st: string): string {
       gender: '',
       health_fund: '',
       instructor: '',
-      status: 'waiting',
+status: 'Pending Addition Approval',
       medical_notes: ''
     };
     this.validationErrors = {};
@@ -411,7 +455,7 @@ statusClass(st: string): string {
       birth_date: this.newChild.birth_date,
       gender: this.newChild.gender,
       health_fund: this.newChild.health_fund,
-      status: 'waiting',
+status: 'Pending Addition Approval',
       parent_uid: parentUid,
       medical_notes: this.newChild.medical_notes || null
     };
@@ -459,10 +503,10 @@ statusClass(st: string): string {
   async deleteChild() {
     if (!this.pendingDeleteId) return;
 
-    const { error } = await dbTenant()
-      .from('children')
-      .update({ status: 'waiting' })
-      .eq('child_uuid', this.pendingDeleteId);
+   const { error } = await dbTenant()
+  .from('children')
+  .update({ status: 'Pending Deletion Approval' })
+  .eq('child_uuid', this.pendingDeleteId);
 
     if (!error) {
       this.selectedIds.delete(this.pendingDeleteId);
@@ -483,13 +527,75 @@ statusClass(st: string): string {
   /* =========================
      Navigation
   ========================= */
+// הודעת "הזמן תור" פר-כרטיס (child_uuid) + טיימר ניקוי
+public bookingMsg: Record<string, string | null> = {};
+private bookingMsgTimers: Record<string, any> = {};
 
-  goToBooking(child: any) {
-    const id = this.childId(child);
-    if (!id) return;
-    this.router.navigate(['/parent-schedule'], { queryParams: { child: id } });
+// הצגת הודעה בכרטיס מסוים, וניקוי אוטומטי אחרי ms
+public showCardMessage(childId: string, text: string, ms = 6000) {
+  if (!childId) return;
+  // נקה טיימר קודם אם קיים
+  if (this.bookingMsgTimers[childId]) {
+    clearTimeout(this.bookingMsgTimers[childId]);
+    delete this.bookingMsgTimers[childId];
+  }
+  this.bookingMsg[childId] = text;
+  this.bookingMsgTimers[childId] = setTimeout(() => {
+    this.bookingMsg[childId] = null;
+    delete this.bookingMsgTimers[childId];
+  }, ms);
+}
+
+goToBooking(child: any) {
+  const id = this.childId(child);
+  if (!id) return;
+
+  // אם מחכה לאישור הוספה
+  if (this.isPendingAdd(child?.status)) {
+    this.showCardMessage(id, 'הוספת הילד טרם אושרה');
+    return;
   }
 
+
+  // ניווט
+  this.router.navigate(['/parent-schedule'], { queryParams: { child: id } });
+}
+
+//ביטול בקשת מחיקה
+public cancelDeletionRequestInFlight: Record<string, boolean> = {};
+
+public async cancelDeletionRequest(child: any) {
+  const id = this.childId(child);
+  if (!id) return;
+
+  this.cancelDeletionRequestInFlight[id] = true;
+
+  const { error } = await dbTenant()
+    .from('children')
+    .update({ status: 'Active' })
+    .eq('child_uuid', id)
+    .select('status')
+    .single();
+
+  this.cancelDeletionRequestInFlight[id] = false;
+
+  if (error) {
+    this.showCardMessage(id, 'שגיאה בביטול הבקשה. נסי שוב.');
+    return;
+  }
+
+  // עדכון לוקאלי במערך הילדים
+  const idx = this.children.findIndex(c => this.childId(c) === id);
+  if (idx !== -1) {
+    this.children = [
+      ...this.children.slice(0, idx),
+      { ...this.children[idx], status: 'Active' } as any,
+      ...this.children.slice(idx + 1)
+    ];
+  }
+
+  this.showCardMessage(id, 'בקשת המחיקה בוטלה');
+}
   /* =========================
      Helpers (formatting & UX)
   ========================= */
@@ -579,5 +685,25 @@ private async loadChildHistory(childId: string) {
 
   this.historyLoading = false;
 }
+// ===== Status helpers (public so template can call) =====
+public isActiveStatus = (st?: string | null): boolean =>
+  st === 'Active';
+
+public isPendingAdd = (st?: string | null): boolean =>
+  st === 'Pending Addition Approval';
+
+public isPendingDelete = (st?: string | null): boolean =>
+  st === 'Pending Deletion Approval';
+
+public isDeletedStatus = (st?: string | null): boolean =>
+  st === 'Deleted';
+
+// מותר לפתוח כרטיס? (הכול מלבד Deleted)
+public canOpenCardByStatus = (st?: string | null): boolean =>
+  !this.isDeletedStatus(st);
+
+// מותר להזמין תור? (Active או Pending Deletion Approval)
+public canBookByStatus = (st?: string | null): boolean =>
+  st === 'Active' || st === 'Pending Deletion Approval';
 
 }

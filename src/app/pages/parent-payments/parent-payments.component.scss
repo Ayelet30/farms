@@ -1,0 +1,201 @@
+/* app/billing/parent-payments.component.scss */
+
+/* ===== Theme (גוונים כמו בתמונה) ===== */
+:host {
+  direction: rtl;
+  --bg-cream: #fffcf5;
+  --panel: #ffffff;
+  --ink: #2f3a28;            /* טקסט כהה */
+  --ink-muted: #6e7462;      /* טקסט משני */
+  --line: #cfd7b9;           /* קו/מסגרת ירקרק בהיר */
+  --olive-50: #f3f6e9;
+  --olive-100: #e8efd8;
+  --olive-300: #c7d1a9;
+  --olive-500: #8fa66a;
+  --olive-600: #748c40;      /* זית ראשי */
+  --olive-700: #5d7234;
+  --ok: #2f7d32;
+  --fail: #991b1b;
+  --danger: #c84f4f;
+}
+
+/* ===== כרטיס עמוד ===== */
+.card {
+  background: var(--panel);
+  border: 1.5px solid var(--line);
+  border-radius: 18px;
+  padding: 20px 22px;
+  box-shadow: 0 1px 0 rgba(0,0,0,.04);
+  color: var(--ink);
+}
+
+h2 {
+  margin: 0 0 14px;
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--ink);
+}
+
+/* ===== רשימת אמצעי תשלום ===== */
+.profiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.profile {
+  position: relative;
+  background: var(--bg-cream);
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: box-shadow .15s ease, border-color .15s ease, transform .05s ease;
+}
+
+.profile:hover {
+  border-color: var(--olive-300);
+  box-shadow: 0 2px 0 rgba(0,0,0,.03);
+  transform: translateY(-1px);
+}
+
+/* פס דקורטיבי דק כמו בכרטיסי הילדים */
+.profile::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--olive-300), var(--olive-100));
+}
+
+.profile .left { display: grid; gap: 2px; padding-inline-start: 4px; }
+.profile .left .brand {
+  font-weight: 700;
+  color: var(--ink);
+}
+.profile .left .last4 {
+  letter-spacing: .25em;
+  color: var(--ink-muted);
+}
+.profile .left .created {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+/* צד פעולות */
+.profile .right {
+  display: flex; gap: 8px; align-items: center;
+}
+
+/* תגית ברירת מחדל בסגנון פיל ירקרק */
+.badge {
+  background: var(--olive-50);
+  color: var(--olive-700);
+  border: 1px solid var(--olive-300);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ===== כפתורים ===== */
+button {
+  appearance: none;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--olive-600);
+  color: var(--olive-700);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+button:hover { background: var(--olive-50); }
+button:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Outline אפור עדין (ל"כברירת מחדל") */
+button.secondary {
+  border-color: #a5a9a1;
+  color: #3d3f39;
+}
+
+/* כפתור מסוכן – גבול אדום אבל עדין */
+button.danger {
+  border-color: var(--danger);
+  color: #b61f1f;
+}
+
+/* כפתור ראשי ממולא – כמו "הזמן תור" בתמונה */
+.actions { margin-top: 12px; }
+.actions > button {
+  background: var(--olive-600);
+  color: #fff;
+  border-color: var(--olive-600);
+  box-shadow: 0 2px 0 rgba(0,0,0,.06);
+}
+.actions > button:hover {
+  background: var(--olive-700);
+  border-color: var(--olive-700);
+}
+
+/* ===== הפרדות/כותרות משנה ===== */
+hr {
+  border: none;
+  border-top: 1px dashed var(--line);
+  margin: 18px 0;
+}
+h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* ===== קלט סכום ופעולת חיוב ===== */
+label { display: inline-block; margin-bottom: 6px; color: var(--ink); }
+input[type="number"] {
+  width: 200px;
+  background: #fff;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+input[type="number"]:focus {
+  border-color: var(--olive-500);
+  box-shadow: 0 0 0 3px rgba(116,140,64,.12);
+}
+
+/* ===== היסטוריית חיובים – "כרטיסי שורה" נקיים ===== */
+.charges { display: grid; gap: 10px; }
+.charge {
+  display: grid;
+  grid-template-columns: 1fr 110px 100px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+}
+.ok   { color: var(--ok);   font-weight: 700; }
+.fail { color: var(--fail); font-weight: 700; }
+.muted { color: var(--ink-muted); font-size: 12px; }
+
+/* הודעת שגיאה */
+.error { margin-top: 10px; color: var(--fail); }
+
+/* ===== רספונסיביות ===== */
+@media (max-width: 799px) {
+  .profiles { grid-template-columns: 1fr; }
+  .charge { grid-template-columns: 1fr 1fr; row-gap: 6px; }
+}

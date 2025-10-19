@@ -11,10 +11,11 @@ import {
   getFarmLogoUrl,
   getSelectedMembershipSync,
   logout as sbLogout,
-} from '../../services/supabaseClient';
+} from '../../services/supabaseClient.service';
+
 import { CurrentUserService } from '../../core/auth/current-user.service';
 import { TokensService } from '../../services/tokens.service';
-import type { Membership } from '../../services/supabaseClient';
+import type { Membership } from '../../services/supabaseClient.service';
 
 @Component({
   selector: 'app-header',
@@ -146,3 +147,4 @@ export class HeaderComponent implements OnInit {
     return init || 'F';
   }
 }
+

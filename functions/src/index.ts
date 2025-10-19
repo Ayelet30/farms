@@ -8,6 +8,8 @@
  */
 export * from "../loginBootstrap.js";
 
+export { createHostedPaymentUrl, tranzilaReturn, chargeByToken, cronMonthlyCharges } from './tranzila.js';
+
 
 
 

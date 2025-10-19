@@ -1,4 +1,4 @@
-import { Membership } from "../services/supabaseClient";
+import { Membership } from "../services/supabaseClient.service";
 
 export type ParentDetails = {
   id: string;
@@ -24,14 +24,12 @@ export interface UserDetails {
   selectedTenantId?: string | null; // ← אופ
 };
 
-export type ChildRow =
-  Record<string, string | null | undefined> & {
-    id: string;
-    parent_id: string;
-    full_name?: string | null;
-    first_name?: string | null;
-    last_name?: string | null;
-    class_id?: string | null;
-    grade?: string | null;
-    status?: 'active' | 'deleted' | null;
-  };
+export type ChildRow = {
+  id: string;
+  full_name: string | null;
+  gov_id?: string | null;
+  birth_date?: string | null;
+  parent_id?: string | null;
+  status?: string | null;
+};
+
