@@ -82,9 +82,9 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
     if (!childId) return;
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const currentUserId = user?.id;
-      if (!currentUserId) return;
+  const { data: { session } } = await supabase.auth.getSession();
+if (!session?.user?.id) { this.notes = []; return; }
+const currentUserId = session.user.id;
 
       const { data: notesData, error } = await dbc
         .from('list_notes')
@@ -156,9 +156,9 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
     if (!childId || !this.newNote.trim()) return;
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const currentUserId = user?.id;
-      if (!currentUserId) return;
+    const { data: { session } } = await supabase.auth.getSession();
+if (!session?.user?.id) return;
+const currentUserId = session.user.id;
 
       const { error } = await dbc.from('list_notes').insert([{
         content: this.newNote,
@@ -193,9 +193,10 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
     const supabase = getSupabaseClient();
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const currentUserId = user?.id;
-      if (!currentUserId) return;
+    const { data: { session } } = await supabase.auth.getSession();
+if (!session?.user?.id) return;
+const currentUserId = session.user.id;
+
 
       const { error } = await dbc.from('list_notes')
         .update({ content: newContent })
@@ -218,9 +219,9 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
     const supabase = getSupabaseClient();
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const currentUserId = user?.id;
-      if (!currentUserId) return;
+     const { data: { session } } = await supabase.auth.getSession();
+if (!session?.user?.id) return;
+const currentUserId = session.user.id;
 
       const { error } = await dbc.from('list_notes')
         .delete()

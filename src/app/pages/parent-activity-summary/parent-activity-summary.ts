@@ -63,6 +63,21 @@ export class ParentActivitySummaryComponent implements OnInit {
   month = signal<number>(new Date().getMonth() + 1);
   year  = signal<number>(new Date().getFullYear());
   monthLabel = computed(() => this.months.find(m => m.value === this.month())?.label ?? '');
+onChildChange(val: any) {
+  // נרמול: אם ריק/undefined/null או המחרוזת 'undefined'/'null' → undefined
+  const id =
+    val === '' || val == null || val === 'undefined' || val === 'null'
+      ? undefined
+      : String(val);
+
+  this.selectedChildId.set(id);
+
+  // אם רוצים שהסינון יתבצע גם בצד השרת:
+  this.refresh();
+}
+
+
+
 
   // --- Data ---
   rows = signal<ActivityRowView[]>([]);
@@ -89,44 +104,48 @@ export class ParentActivitySummaryComponent implements OnInit {
   }
 
   // --- Load rows for selected YEAR (and optionally child) ---
-  async refresh() {
+ async refresh() {
+  this.loading.set(true);
+  try {
+    const db = this.getDb();
+    const from = `${this.year()}-01-01`;
+    const to   = `${this.year()}-12-31`;
 
-    this.loading.set(true);
-    try {
-      const db = this.getDb();
-
-      const from = `${this.year()}-01-01`;
-const to   = `${this.year()}-12-31`;
-
-// אם יש לך פונקציה ב-public שמנתבת לסכימה לפי ה-JWT:
-const { data, error } = await db.rpc('get_parent_activity_from_view', {
-  p_from: from,
-  p_to: to,
-  p_child_ids: this.selectedChildId() ? [this.selectedChildId()] : null,
-});
-if (error) throw error;
-
-const hhmm = (t?: string) => (t ? t.slice(0, 5) : '');
-
-const list = ((data ?? []) as ActivityRowRPC[]).map(r => ({
-  date: r.occ_date,
-  time: `${hhmm(r.start_time)}–${hhmm(r.end_time)}`,
-  instructor: r.instructor_name || r.instructor_id || '',
-  child: r.child_name || '',
-  child_id: r.child_id,
-  status: r.status || null,
-  note: r.note_content || '',
-}));
-
-this.rows.set(list.sort((a, b) => a.date.localeCompare(b.date)));
-
-    } catch (e) {
-      console.error('refresh error:', e);
-      this.rows.set([]);
-    } finally {
-      this.loading.set(false);
+    // 🛡️ נרמול נוסף: לא שולחים לעולם "undefined" כמחרוזת
+    let cid = this.selectedChildId();
+    if (cid === '' || cid === 'undefined' || cid === 'null') {
+      cid = undefined;
     }
+
+    // אופציונלי: ודאי שזה נראה כמו UUID; אם לא — אל תשלחי
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const pChildIds = cid && uuidRe.test(cid) ? [cid] : null;
+
+    const { data, error } = await db.rpc('get_parent_activity_from_view', {
+      p_from: from,
+      p_to: to,
+      p_child_ids: pChildIds,   // ← לעולם null או [uuid תקין]
+    });
+    if (error) throw error;
+
+    const hhmm = (t?: string) => (t ? t.slice(0, 5) : '');
+    const list = ((data ?? []) as ActivityRowRPC[]).map(r => ({
+      date: r.occ_date,
+      time: `${hhmm(r.start_time)}–${hhmm(r.end_time)}`,
+      instructor: r.instructor_name || r.instructor_id || '',
+      child: r.child_name || '',
+      child_id: r.child_id,
+      status: r.status || null,
+      note: r.note_content || '',
+    }));
+    this.rows.set(list.sort((a, b) => a.date.localeCompare(b.date)));
+  } catch (e) {
+    console.error('refresh error:', e);
+    this.rows.set([]);
+  } finally {
+    this.loading.set(false);
   }
+}
 
   // --- Month view helpers ---
   
@@ -142,21 +161,26 @@ yearRows  = computed(() => this.filteredRows());      // כשהטאב 'year'/'al
 monthLessonsCount = computed(() =>
   this.filteredRows().filter(r => r.status !== 'בוטל').length
 );
+onYearChange(y: number) {
+  this.year.set(Number(y));
+  this.refresh(); // מביא מה-DB את כל השנה (בלי קשר לחודש)
+}
 
 // שורות מסוננות לפי הטאב/חודש/שנה/ילד
 filteredRows = computed(() => {
   const y = this.year();
   const m = this.month();
   const childId = this.selectedChildId();
-  const isMonth = this.tab() === 'month';
+const isMonth = this.tab() !== 'year';
 
-  const rows = this.rows() ?? []; // הגנה – אם אין עדיין נתונים
+  const rows = this.rows() ?? [];
   return rows.filter(r => {
     if (!r?.date) return false;
-    const d = new Date(r.date);
-    const okY = d.getFullYear() === y;
-    const okM = isMonth ? (d.getMonth() + 1) === m : true;
-    const okC = childId ? (r.child_id === childId) : true;
+    // 'YYYY-MM-DD' → מספרים
+    const [yy, mm] = r.date.split('-').map(n => Number(n));
+    const okY = yy === y;
+    const okM = isMonth ? (mm === m) : true;
+    const okC = childId ? (String(r.child_id) === String(childId)) : true;
     return okY && okM && okC;
   });
 });
