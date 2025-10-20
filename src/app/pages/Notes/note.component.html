@@ -5,13 +5,13 @@
         <mat-icon>person</mat-icon>
         פרטי הילד - {{ child?.full_name }}
       </mat-card-title>
-
       <button mat-icon-button class="close-button" (click)="onClose()">
         <mat-icon>close</mat-icon>
       </button>
     </mat-card-header>
 
     <mat-card-content #scrollable class="scrollable-content">
+      <!-- פרטים אישיים -->
       <section class="section personal-details">
         <h3>פרטים אישיים</h3>
         <div class="details-grid">
@@ -27,6 +27,7 @@
         </div>
       </section>
 
+      <!-- הערות רפואיות והתנהגותיות -->
       <section class="note-box medical-note">
         <h4>הערות רפואיות</h4>
         <p>{{ child?.medical_notes || 'לא ידועות אלרגיות' }}</p>
@@ -37,31 +38,53 @@
         <p>ילד שקט, צריך עידוד</p>
       </section>
 
-      <section class="note-box">
+      <!-- הערות שיעורים -->
+      <section class="note-box notes-section">
         <h4>הערות שיעורים ({{ notes.length }})</h4>
         <div class="notes-scroll">
-          <mat-list>
-            <mat-list-item *ngFor="let note of notes; trackBy: trackByNote">
-              <div class="note-item">
-                <div class="note-header">
-                  <b>{{ note.date | date:'dd.MM.yyyy' }}</b>
-                  <span *ngIf="note.instructor_uid">{{ note.instructor_uid }}</span>
-                </div>
-                <p>{{ note.content }}</p>
-                <div class="note-actions">
-                  <button mat-icon-button (click)="editNotePrompt(note)">
-                    <mat-icon>edit</mat-icon>
-                  </button>
-                  <button mat-icon-button color="warn" (click)="deleteNote(note.id)">
-                    <mat-icon>delete</mat-icon>
-                  </button>
-                </div>
-              </div>
-            </mat-list-item>
-          </mat-list>
+          <div *ngFor="let note of notes; trackBy: trackByNote" class="note-item">
+            <div class="note-header">
+              <b>{{ note.date | date:'dd.MM.yyyy' }}</b>
+              <span *ngIf="note.instructor_uid">{{ note.instructor_uid }}</span>
+            </div>
+            <div class="note-content">
+              <p>{{ note.content }}</p>
+            </div>
+            <div class="note-actions-wrapper">
+              <button mat-icon-button (click)="editNotePrompt(note)">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button color="warn" (click)="deleteNote(note.id)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
+      <!-- מלבן הערות מוכנות עם פילוח לפי קטגוריה -->
+      <section class="note-box prepared-notes">
+        <h4>הערות מוכנות</h4>
+
+        <div class="filter-buttons">
+          <button mat-stroked-button 
+                  *ngFor="let cat of categories"
+                  [color]="selectedCategory === cat ? 'primary' : ''"
+                  (click)="selectCategory(cat)">
+            {{ cat }}
+          </button>
+        </div>
+
+        <div class="prepared-list">
+          <div *ngFor="let rn of filteredReadyNotes()"
+               class="prepared-item"
+               (click)="addReadyNote(rn.content)">
+            {{ rn.content }}
+          </div>
+        </div>
+      </section>
+
+      <!-- הוספת הערה חדשה -->
       <section class="note-box">
         <h4>הוספת הערה חדשה</h4>
         <div class="note-form">

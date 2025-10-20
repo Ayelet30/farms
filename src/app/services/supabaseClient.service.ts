@@ -60,7 +60,7 @@ type BootstrapResp = {
 };
 
 /** ===================== STATE ===================== **/
-let supabase: SupabaseClient | null = null;
+export let supabase: SupabaseClient | null = null;
 let authBearer: string | null = null;
 let currentTenant: TenantContext | null = null;
 let currentFarmMeta: FarmMeta | null = null;
