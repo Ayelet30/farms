@@ -20,7 +20,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSelectModule } from '@angular/material/select';
 import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
-import { dbTenant, getSupabaseClient } from '../../services/supabaseClient';
+import { dbTenant, getSupabaseClient } from '../../services/supabaseClient.service';
 
 @Component({
   selector: 'app-note',
@@ -78,7 +78,7 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
   async loadNotes() {
     const dbc = dbTenant();
     const supabase = getSupabaseClient();
-    const childId = this.child?.child_uuid || this.child?.id;
+    const childId = this.child?.child_uuid || this.child?.uid;
     if (!childId) return;
 
     try {

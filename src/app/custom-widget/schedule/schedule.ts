@@ -1,4 +1,3 @@
-// schedule.component.ts
 import { CommonModule } from '@angular/common';
 import {
   Component,
@@ -8,10 +7,6 @@ import {
   ViewChild,
   NgZone,
   OnChanges,
-  SimpleChanges,
-  ViewEncapsulation,            // ← חדש
-  AfterViewInit,                 // ← אם תרצי לגלול גם מיד אחרי רנדור ראשון
-  HostListener
   SimpleChanges,
   ViewEncapsulation,            // ← חדש
   AfterViewInit,                 // ← אם תרצי לגלול גם מיד אחרי רנדור ראשון
@@ -36,10 +31,7 @@ import { ChangeDetectorRef } from '@angular/core';
   templateUrl: './schedule.html',
   styleUrls: ['./schedule.scss'],
   encapsulation: ViewEncapsulation.None          // ← חשוב כדי שה-SCSS יחול על .fc
-  styleUrls: ['./schedule.scss'],
-  encapsulation: ViewEncapsulation.None          // ← חשוב כדי שה-SCSS יחול על .fc
 })
-export class ScheduleComponent implements OnChanges, AfterViewInit {
 export class ScheduleComponent implements OnChanges, AfterViewInit {
   @ViewChild('calendar') calendarComponent!: FullCalendarComponent;
  
@@ -96,14 +88,10 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
       const status = event.extendedProps['status'] || '';                 // 'canceled'/'therapeutic' ...
       const type   = event.extendedProps['type']   || '';                 // אופציונלי
       const chip   = type ? `<span class="chip">${type}</span>` : '';
-      const status = event.extendedProps['status'] || '';                 // 'canceled'/'therapeutic' ...
-      const type   = event.extendedProps['type']   || '';                 // אופציונלי
-      const chip   = type ? `<span class="chip">${type}</span>` : '';
       return {
         html: `<div class="event-box ${status}">
                  <div class="time">${event.start?.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</div>
                  <div class="title">${event.title}</div>
-                 ${chip}
                  ${chip}
                </div>`
       };
@@ -183,10 +171,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
           end: i.end,
           backgroundColor: (i as any).backgroundColor ?? (i as any).color,
           borderColor: (i as any).borderColor ?? (i as any).color,
-          backgroundColor: (i as any).backgroundColor ?? (i as any).color,
-          borderColor: (i as any).borderColor ?? (i as any).color,
           extendedProps: {
-            status: i.status,                   // 'canceled' וכו'
             status: i.status,                   // 'canceled' וכו'
             child_id: i.meta?.child_id,
             child_name: i.meta?.child_name,
@@ -254,3 +239,4 @@ onEsc() {
 }
  
 }
+ 
