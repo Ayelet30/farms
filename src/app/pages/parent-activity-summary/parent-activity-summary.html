@@ -18,29 +18,36 @@
   <!-- Filters bar (matches screenshots) -->
   <section class="filters">
     <!-- Child -->
-    <div class="filter">
-      <label>כל הילדים</label>
-      <select [ngModel]="selectedChildId()" (ngModelChange)="selectedChildId.set($event || undefined)">
-        <option [ngValue]="undefined">כל הילדים</option>
-        <option *ngFor="let c of children()" [ngValue]="c.child_uuid">{{ c.full_name }}</option>
-      </select>
-    </div>
+   <div class="filter">
+  <label>ילד</label>
+ <select
+  [ngModel]="selectedChildId() ?? ''"
+  (ngModelChange)="onChildChange($event)">
+  <option value="">כל הילדים</option>
+  <option *ngFor="let c of children()" [value]="c.child_uuid">
+    {{ c.full_name }}
+  </option>
+</select>
 
-    <!-- Month -->
-    <div class="filter">
-      <label>חודש</label>
-      <select [ngModel]="month()" (ngModelChange)="month.set($event)">
-        <option *ngFor="let m of months" [ngValue]="m.value">{{ m.label }}</option>
-      </select>
-    </div>
+</div>
 
-    <!-- Year -->
-    <div class="filter">
-      <label>שנה</label>
-      <select [ngModel]="year()" (ngModelChange)="year.set($event)">
-        <option *ngFor="let y of years" [ngValue]="y">{{ y }}</option>
-      </select>
-    </div>
+ <!-- Month -->
+<div class="filter" *ngIf="tab()!=='year'">
+  <label>חודש</label>
+  <select [ngModel]="month()" (ngModelChange)="month.set($event)">
+    <option *ngFor="let m of months" [ngValue]="m.value">{{ m.label }}</option>
+  </select>
+</div>
+
+
+   <!-- Year -->
+<div class="filter">
+  <label>שנה</label>
+  <select [ngModel]="year()" (ngModelChange)="onYearChange($event)">
+    <option *ngFor="let y of years" [ngValue]="y">{{ y }}</option>
+  </select>
+</div>
+
   </section>
 
   <!-- MONTH VIEW -->
