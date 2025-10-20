@@ -47,7 +47,7 @@ export class SliderComponent implements OnInit {
         this.menuItems = [
           { path: 'parent/children', label: 'הילדים שלי', icon: 'children' },
           { path: 'parent/schedule', label: 'מערכת שיעורים', icon: 'calendar' },
-          { path: 'parent/summary', label: 'סיכום פעילות', icon: 'receipt' },
+          { path: 'parent/activity-summary',  label: 'סיכום פעילות', icon: 'receipt' },
           { path: 'parent/payments', label: 'אמצעי תשלום', icon: 'card' },
           { path: 'parent/messages', label: 'הודעות', icon: 'note' },
           { path: 'parent/details',  label: 'הפרטים שלי',   icon: 'user' },

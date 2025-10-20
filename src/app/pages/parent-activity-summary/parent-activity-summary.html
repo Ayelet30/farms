@@ -1,4 +1,5 @@
 <div class="activity-summary" dir="rtl">
+  <!-- Header + Actions -->
   <header class="head">
     <h1>סיכום פעילות</h1>
     <div class="actions">
@@ -7,76 +8,167 @@
     </div>
   </header>
 
-  <!-- Filters -->
-  <section class="filters">
-    <!-- Children picker -->
-    <div class="filter-group">
-      <label>בחירת ילדים</label>
+  <!-- Tabs -->
+  <nav class="tabs">
+    <button class="tab" [class.active]="tab()==='month'" (click)="tab.set('month')">📅 פרטי חודש</button>
+    <button class="tab" [class.active]="tab()==='year'"  (click)="tab.set('year')">📈 פרטי שנה</button>
+    <button class="tab" [class.active]="tab()==='all'"   (click)="tab.set('all')">📚 כל הפרטים</button>
+  </nav>
 
-      <div class="children-picker">
-        <button class="chip" (click)="selectAllChildren()">כל הילדים</button>
-        <button class="chip outline" (click)="clearChildren()">נקה</button>
+  <!-- Filters bar (matches screenshots) -->
+  <section class="filters">
+    <!-- Child -->
+    <div class="filter">
+      <label>כל הילדים</label>
+      <select [ngModel]="selectedChildId()" (ngModelChange)="selectedChildId.set($event || undefined)">
+        <option [ngValue]="undefined">כל הילדים</option>
+        <option *ngFor="let c of children()" [ngValue]="c.child_uuid">{{ c.full_name }}</option>
+      </select>
+    </div>
+
+    <!-- Month -->
+    <div class="filter">
+      <label>חודש</label>
+      <select [ngModel]="month()" (ngModelChange)="month.set($event)">
+        <option *ngFor="let m of months" [ngValue]="m.value">{{ m.label }}</option>
+      </select>
+    </div>
+
+    <!-- Year -->
+    <div class="filter">
+      <label>שנה</label>
+      <select [ngModel]="year()" (ngModelChange)="year.set($event)">
+        <option *ngFor="let y of years" [ngValue]="y">{{ y }}</option>
+      </select>
+    </div>
+  </section>
+
+  <!-- MONTH VIEW -->
+  <section *ngIf="tab()==='month'" class="panel">
+    <div class="panel-head">
+      <div class="title">סיכום חודשי – {{ monthLabel() }} / {{ year() }}</div>
+      <div class="muted">פירוט מלא של השיעורים בחודש זה</div>
+    </div>
+
+    <!-- Stat cards row -->
+    <div class="cards">
+      <div class="stat">
+        <div class="stat-title">שיעורים</div>
+        <div class="stat-value">{{ monthLessonsCount() }}</div>
       </div>
 
-      <div class="children-list">
-        <label *ngFor="let c of children()" class="child-item">
-          <input
-            type="checkbox"
-            [checked]="selectedChildIds().includes(c.child_uuid)"
-            (change)="onToggleChild(c, $any($event.target).checked)"
+      <div class="stat violet">
+        <div class="stat-title">בסבזוד כולל</div>
+        <div class="stat-value">₪{{ monthSubsidies() | number:'1.0-0':'he-IL' }}</div>
+      </div>
 
-          />
-          <span class="dot" [style.background]="c.color || '#8ebf6e'"></span>
-          <span>{{ c.full_name }}</span>
-        </label>
+      <div class="stat pink">
+        <div class="stat-title">הנחות</div>
+        <div class="stat-value">₪{{ monthDiscounts() | number:'1.0-0':'he-IL' }}</div>
+      </div>
+
+      <div class="stat green">
+        <div class="stat-title">סכום סופי</div>
+        <div class="stat-value">₪{{ monthTotal() | number:'1.0-0':'he-IL' }}</div>
       </div>
     </div>
 
-    <!-- Date range -->
-    <div class="filter-group">
-      <label>טווח תאריכים</label>
-      <div class="dates">
-       <input type="date"
-       [ngModel]="dateFrom()"
-       (ngModelChange)="dateFrom.set($event)" />
-
-<span class="sep">—</span>
-
-<input type="date"
-       [ngModel]="dateTo()"
-       (ngModelChange)="dateTo.set($event)" />
-
+    <!-- Monthly list -->
+    <div class="list">
+      <div class="lesson" *ngFor="let r of monthRows()">
+        <div class="row-head">
+          <div class="date">{{ r.date | date:'d.M.yyyy' }}</div>
+          <span class="badge success">רגיל</span>
+          <span class="spacer"></span>
+          <button class="icon-btn" title="צפייה">👁️</button>
+        </div>
+        <div class="row-body">
+          <div class="line"><b>מדריך:</b> {{ r.instructor || '—' }}</div>
+          <div class="line"><b>ילד:</b> {{ r.child }}</div>
+          <div class="line note" *ngIf="r.note"><b>הערה:</b> {{ r.note }}</div>
+        </div>
+        <div class="row-meta">
+          <span class="meta">מחיר בסיסי: ₪0</span>
+          <span class="meta">סבזוד: ₪0</span>
+          <span class="meta">הנחה: ₪0</span>
+          <span class="meta bold">לתשלום: ₪0</span>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- Table -->
-  <section class="table-wrap">
-    <table class="summary">
-      <thead>
-        <tr>
-          <th>תאריך</th>
-          <th>שעות</th>
-          <th>מדריך</th>
-          <th>ילד</th>
-          <th>הערת מדריך</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngIf="loading()">
-          <td colspan="5" class="muted">טוען…</td>
-        </tr>
-        <tr *ngIf="!loading() && rows().length === 0">
-          <td colspan="5" class="muted">אין נתונים לתקופה זו.</td>
-        </tr>
-        <tr *ngFor="let r of rows()">
-          <td>{{ r.date }}</td>
-          <td>{{ r.time }}</td>
-          <td>{{ r.instructor }}</td>
-          <td>{{ r.child }}</td>
-          <td class="note">{{ r.note }}</td>
-        </tr>
-      </tbody>
-    </table>
+  <!-- YEAR VIEW -->
+  <section *ngIf="tab()==='year'" class="panel">
+    <div class="panel-head">
+      <div class="title">סיכום שנתי – {{ year() }}</div>
+      <div class="muted">סקירה כללית של כל השיעורים והפעילויות בשנה</div>
+    </div>
+
+    <div class="cards">
+      <div class="stat"><div class="stat-title">שיעורים פעילים</div><div class="stat-value">{{ yearActive() }}</div></div>
+      <div class="stat pink"><div class="stat-title">ביטולים בתשלום</div><div class="stat-value">{{ yearCancelPaid() }}</div></div>
+      <div class="stat"><div class="stat-title">ביטולים ללא תשלום</div><div class="stat-value">{{ yearCancelFree() }}</div></div>
+      <div class="stat green"><div class="stat-title">סכום לתשלום</div><div class="stat-value">₪{{ yearTotal() | number:'1.0-0':'he-IL' }}</div></div>
+    </div>
+
+    <!-- Bar chart -->
+    <div class="bars">
+      <div class="bar-row" *ngFor="let b of yearBars()">
+        <div class="bar-label">{{ b.label }}</div>
+        <div class="bar-track"><div class="bar-fill" [style.width.%]="b.count * 6"></div></div>
+        <div class="bar-val">{{ b.count }}</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ALL DETAILS TABLE -->
+  <section *ngIf="tab()==='all'" class="panel">
+    <div class="panel-head space">
+      <div>
+        <div class="title">כל השיעורים</div>
+        <div class="muted">טבלת פירוט מלאה עם אפשרויות חיפוש וסינון</div>
+      </div>
+      <div class="export">
+        <button class="btn">📄 ייצוא PDF</button>
+        <button class="btn">🧾 ייצוא Excel</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="summary">
+        <thead>
+          <tr>
+            <th>תאריך</th>
+            <th>ילד</th>
+            <th>מדריך</th>
+            <th>סוג שיעור</th>
+            <th>מחיר בסיסי</th>
+            <th>סבזוד</th>
+            <th>הנחה</th>
+            <th>סכום לתשלום</th>
+            <th>סטטוס</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngIf="loading()">
+            <td colspan="9" class="muted">טוען…</td>
+          </tr>
+          <tr *ngIf="!loading() && yearRows().length === 0">
+            <td colspan="9" class="muted">אין נתונים</td>
+          </tr>
+          <tr *ngFor="let r of yearRows()">
+            <td>{{ r.date | date:'dd.MM.yyyy' }}</td>
+            <td>{{ r.child }}</td>
+            <td>{{ r.instructor }}</td>
+            <td>רגיל</td>
+            <td>₪0</td>
+            <td>₪0</td>
+            <td>₪0</td>
+            <td><b>₪0</b></td>
+            <td>שולם</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 </div>
