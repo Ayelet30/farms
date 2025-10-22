@@ -20,14 +20,15 @@
     <!-- Child -->
    <div class="filter">
   <label>ילד</label>
- <select
-  [ngModel]="selectedChildId() ?? ''"
-  (ngModelChange)="onChildChange($event)">
+ <select #childSel (change)="onChildChange(childSel.value)">
   <option value="">כל הילדים</option>
   <option *ngFor="let c of children()" [value]="c.child_uuid">
     {{ c.full_name }}
   </option>
 </select>
+
+
+
 
 </div>
 
