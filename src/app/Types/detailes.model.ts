@@ -9,6 +9,7 @@ export type ParentDetails = {
 };
 
 export interface UserDetails {
+  [x: string]: any;
   uid: string;
   full_name: string;
   id_number?: string | null;

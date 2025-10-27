@@ -60,7 +60,7 @@ type BootstrapResp = {
 };
 
 /** ===================== STATE ===================== **/
-let supabase: SupabaseClient | null = null;
+export let supabase: SupabaseClient | null = null;
 let authBearer: string | null = null;
 let currentTenant: TenantContext | null = null;
 let currentFarmMeta: FarmMeta | null = null;
@@ -299,27 +299,30 @@ export async function getCurrentUserDetails(
   const tenant = requireTenant();
   const fbUser = getAuth().currentUser;
 
+  
   if (!fbUser) throw new Error('No Firebase user is logged in.');
-
+  
   const ttl = options?.cacheMs ?? 60_000;
   const cacheKey = `${tenant.schema}|${fbUser.uid}|${select}`;
   if (userCache && userCache.key === cacheKey && userCache.expires > Date.now()) return userCache.data;
-
+  
   const dbcTenant = db();         // סכימת הטננט הנוכחית
   const dbcPublic = db('public');
-
+  
   // ננעלים לטננט הנבחר כדי לא להתבלבל בין חוות שונות
   const { targetTable, role, role_in_tenant, roleId, farmId, farmName } =
-    await resolveRoleAndFarm(dbcTenant, dbcPublic, fbUser.uid, { tenantId: tenant.id });
+  await resolveRoleAndFarm(dbcTenant, dbcPublic, fbUser.uid, { tenantId: tenant.id });
+  
+  console.log("!!!!!!", cacheKey);
 
   if (!targetTable) return null;
-
+  
   // במקום maybeSingle: מביאים את כל הרשומות עבור ה-uid ובוחרים אחת דטרמיניסטית
   const { data: rows, error } = await dbcTenant
-    .from(targetTable)
-    .select('*')                 // מביא * כדי שנוכל לדרג לפי שדות אם קיימים
-    .eq('uid', fbUser.uid);
-
+  .from(targetTable)
+  .select('*')                 // מביא * כדי שנוכל לדרג לפי שדות אם קיימים
+  .eq('uid', fbUser.uid);
+  
   if (error) throw error;
 
 

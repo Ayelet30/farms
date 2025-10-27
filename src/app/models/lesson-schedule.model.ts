@@ -1,4 +1,3 @@
-
 export interface Lesson {
   id: string;
   child_id: string;
@@ -14,4 +13,5 @@ export interface Lesson {
   // אופציונליים – מגיעים מה-View:
   start_datetime?: string;
   end_datetime?: string;
+  occur_date?: string;
 }

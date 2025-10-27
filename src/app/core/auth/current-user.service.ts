@@ -30,6 +30,7 @@ interface CurrentUser {
 
 @Injectable({ providedIn: 'root' })
 export class CurrentUserService {
+  [x: string]: any;
   private auth = inject(Auth);
   private platformId = inject(PLATFORM_ID);
 
