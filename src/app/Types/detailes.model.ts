@@ -26,6 +26,7 @@ export interface UserDetails {
 
 export type ChildRow = {
   id: string;
+  child_uuid?: string;
   full_name: string | null;
   gov_id?: string | null;
   birth_date?: string | null;

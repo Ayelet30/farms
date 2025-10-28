@@ -1,10 +1,16 @@
 import { bootstrapApplication, provideClientHydration } from '@angular/platform-browser';
+import { importProvidersFrom } from '@angular/core';
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+
 import { appConfig } from './app/app.config';
 import { App } from './app/app';
 
-// יבוא חד-פעמי שמאותחל אצלך (אם רלוונטי)
 import './app/core/firebase.client';
 
 bootstrapApplication(App, {
-  providers: [provideClientHydration(), ...appConfig.providers],
+  providers: [
+    provideClientHydration(),                
+    importProvidersFrom(BrowserAnimationsModule),
+    ...appConfig.providers,               
+  ],
 }).catch(err => console.error(err));

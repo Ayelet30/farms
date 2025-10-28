@@ -13,6 +13,7 @@ function readMeta(name: string): string | null {
   return el?.content?.trim() || null;
 }
 
+
 function runtime(key: string): string | null {
   const metaName = `x-${key.toLowerCase().replace(/_/g, '-')}`;
   const maybeWindow = typeof window !== 'undefined' ? (window as any) : undefined;
@@ -724,33 +725,13 @@ export type ListParentsOpts = {
 };
 
 /** מחזיר את כל ההורים בחווה (כלומר בסכימת ה-tenant הנוכחי) */
-export async function listParents(opts: ListParentsOpts = {}): Promise<{ rows: ParentRow[]; count?: number | null }> {
-  const tenant = requireTenant();    
-
-  const dbc = db(tenant.schema);
-
-  const select = opts.select ?? 'uid, full_name,extra_notes, address, phone, email';
-  let q = dbc.from('parents').select(select, { count: 'exact' });
-
-  if (opts.search?.trim()) {
-    const s = `%${opts.search.trim()}%`;
-    q = q.or(`full_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
-  }
-
-  const orderBy = opts.orderBy ?? 'full_name';
-  const ascending = opts.ascending ?? true;
-  q = q.order(orderBy, { ascending });
-
-  const limit = Math.max(1, opts.limit ?? 50);
-  const offset = Math.max(0, opts.offset ?? 0);
-  q = q.range(offset, offset + limit - 1);
-
-  const { data, error, count } = await q;
-  
+export async function listParents(): Promise<ParentRow[]> {
+  const { data, error } = await dbTenant()
+    .from('parents')
+    .select('uid, full_name, phone, email')
+    .order('full_name');
   if (error) throw error;
-
-
-  return { rows: (data ?? []) as unknown as ParentRow[], count: count ?? null };
+  return data ?? [];
 }
 
 
