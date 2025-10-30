@@ -14,8 +14,7 @@ import { DateClickArg } from '@fullcalendar/interaction';
   styleUrls: ['./parent-schedule.scss'],
   imports: [
     CommonModule,
-    ScheduleComponent,
-    NoteComponent
+    ScheduleComponent
   ]
 })
 export class ParentScheduleComponent implements OnInit {
