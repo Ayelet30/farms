@@ -44,7 +44,8 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   @Input() allDaySlot = false;
  
   @Output() eventClick = new EventEmitter<EventClickArg>();
-  @Output() dateClick = new EventEmitter<string>();
+  @Output() dateClick = new EventEmitter<DateClickArg>();
+
   @Output() viewRange = new EventEmitter<{ start: string; end: string }>();
  
   currentView = this.initialView;
@@ -73,29 +74,34 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     slotMinTime: this.slotMinTime,
     slotMaxTime: this.slotMaxTime,
     allDaySlot: this.allDaySlot,
+     displayEventTime: false, 
  
     nowIndicator: true,                     // ← אינדיקטור "עכשיו"
     scrollTime: this.nowScroll(),           // ← מיקוד ראשוני
     slotDuration: '00:30:00',
  
     events: [],
-    dateClick: (info: DateClickArg) => this.dateClick.emit(info.dateStr),
+  dateClick: (info: DateClickArg) => this.dateClick.emit(info),
+
     eventClick: (arg: EventClickArg) => this.eventClick.emit(arg),
  
     // צ'יפ/מבנה כרטיס לאירוע
-    eventContent: (arg) => {
-      const { event } = arg;
-      const status = event.extendedProps['status'] || '';                 // 'canceled'/'therapeutic' ...
-      const type   = event.extendedProps['type']   || '';                 // אופציונלי
-      const chip   = type ? `<span class="chip">${type}</span>` : '';
-      return {
-        html: `<div class="event-box ${status}">
-                 <div class="time">${event.start?.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</div>
-                 <div class="title">${event.title}</div>
-                 ${chip}
-               </div>`
-      };
-    },
+eventContent: (arg) => {
+  const { event } = arg;
+  const status = event.extendedProps['status'] || '';
+  const type   = event.extendedProps['type'] || '';
+  const chip   = type ? `<span class="chip">${type}</span>` : '';
+
+  // ❌ אל תציג שעה בתחילת האירוע
+  // ✅ רק שם הילד + סוג שיעור
+  return {
+    html: `<div class="event-box ${status}">
+             <div class="title">${event.title}</div>
+             ${chip}
+           </div>`
+  };
+},
+
      eventDidMount: (info) => {
     // קראי את הצבע מהאירוע/extendedProps:
     const bg = (info.event as any).backgroundColor || info.event.extendedProps['_bg'];
