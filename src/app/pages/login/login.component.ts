@@ -1,15 +1,13 @@
-
 // src/app/auth/login.component.ts
 import { Component, inject, Optional } from '@angular/core';
 import { Router } from '@angular/router';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Auth } from '@angular/fire/auth';
 import { CurrentUserService } from '../../core/auth/current-user.service';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { TokensService } from '../../services/tokens.service';
-import { sendPasswordResetEmail } from 'firebase/auth';
 
 @Component({
   selector: 'app-login',
@@ -25,8 +23,9 @@ export class LoginComponent {
   loading = false;
   isLoading = false;
   successMessage = '';
-  private auth = inject(Auth);
+  showPassword = false; // ← חדש: מצב הצגת סיסמה
 
+  private auth = inject(Auth);
 
   constructor(
     private router: Router,
@@ -54,31 +53,24 @@ export class LoginComponent {
     this.errorMessage = '';
     this.loading = true;
     try {
-      // 1) Firebase sign-in
       const cred = await signInWithEmailAndPassword(this.auth, this.email, this.password);
       const uid = cred.user.uid;
 
-      // 2) Hydration מלא של current-user (memberships + בחירה אוטו' אם אפשר + פרטים)
       const { selected } = await this.cuSvc.hydrateAfterLogin();
-
       console.log('selected', selected);
 
-      // 3) אם אין בחירה ונמצאו כמה שיוכים — נפתח דיאלוג בחירה
       const memberships = this.cuSvc.current?.memberships || [];
       let activeRole: string | null | undefined = selected?.role_in_tenant ?? this.cuSvc.current?.role;
       let activeFarm: string | null | undefined = selected?.farm?.schema_name;
 
-      //set tokens by farm
       this.tokens.restoreLasttokens(activeFarm);
 
-      // 4) ניווט לפי תפקיד (או '/home' אם עדיין אין)
       const target = this.routeByRole(activeRole);
       this.dialogRef?.close({ success: true, role: activeRole, target });
       await this.router.navigateByUrl(target);
 
-    } 
-    catch (e: any) {
-      console.error("???????????",e);
+    } catch (e: any) {
+      console.error("???????????", e);
       const code = e?.code || '';
       if (code === 'auth/invalid-credential') {
         this.errorMessage = 'שם משתמש או סיסמא שגויים';
@@ -93,7 +85,6 @@ export class LoginComponent {
     } finally {
       this.isLoading = false;
     }
-  
   }
 
   async forgotPassword(): Promise<void> {
@@ -107,7 +98,7 @@ export class LoginComponent {
 
     this.isLoading = true;
     try {
-      await sendPasswordResetEmail(this.auth, this.email /*, actionCodeSettings */);
+      await sendPasswordResetEmail(this.auth, this.email);
       this.successMessage = 'שלחנו קישור לאיפוס סיסמה לכתובת הדוא"ל שלך. בדקי את תיבת הדואר/ספאם.';
     } catch (e: any) {
       const code = e?.code || '';

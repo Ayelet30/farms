@@ -102,3 +102,42 @@ button:hover {
   color: #1b5e20;
   margin-top: 10px;
 }
+
+.password-wrapper {
+  position: relative;
+
+  input {
+    width: 100%;
+    border: 1px solid #a2b37c;
+    border-radius: 8px;
+    background-color: #f9faf6;
+    font-family: inherit;
+  }
+
+  .eye-btn {
+    position: absolute;
+    left: 8px; // בצד שמאל כי RTL
+    top: 15%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: end;
+
+    svg {
+      transition: opacity 0.2s ease;
+    }
+
+    &:hover svg {
+      opacity: 0.7;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #7a8b55;
+      border-radius: 6px;
+    }
+  }
+}
