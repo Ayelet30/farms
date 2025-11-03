@@ -1,5 +1,5 @@
-<div class="schedule-container">
-  <app-schedule
+<div class="schedule-container" *ngIf="!error; else errTpl">
+<app-schedule
     [items]="items"
     [initialView]="'timeGridWeek'"
     [rtl]="true"
@@ -8,12 +8,15 @@
     [allDaySlot]="false"
     (eventClick)="onEventClick($event)"
     (dateClick)="onDateClick($event)">
-  </app-schedule>
-
-  <!-- Overlay של כרטיס הילד -->
+</app-schedule>
+ 
   <app-note
     *ngIf="selectedChild"
     [child]="selectedChild"
     (close)="selectedChild = null">
-  </app-note>
+</app-note>
 </div>
+ 
+<ng-template #errTpl>
+<div class="error">{{ error }}</div>
+</ng-template>

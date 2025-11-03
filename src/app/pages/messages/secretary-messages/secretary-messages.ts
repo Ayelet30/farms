@@ -3,10 +3,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import type { Conversation, ConversationMessage, Message } from '../../../models/messsage.model';
-
 import { listInbox, getThread, replyToThread, sendBroadcast, listSent } from '../../../services/supabaseClient.service';
 
 type Tab = 'inbox' | 'compose' | 'sent';
+
 
 @Component({
   selector: 'app-secretary-notes',
@@ -15,6 +15,7 @@ type Tab = 'inbox' | 'compose' | 'sent';
   templateUrl: './secretary-messages.html',
   styleUrls: ['./secretary-messages.css']
 })
+
 export class SecretaryMessagesComponent implements OnInit {
   tab = signal<Tab>('inbox');
 
@@ -23,11 +24,7 @@ export class SecretaryMessagesComponent implements OnInit {
   inbox = signal<Conversation[]>([]);
   activeConv = signal<Conversation | null>(null);
   thread = signal<ConversationMessage[]>([]);
-  replyText = signal('');
-
-  // ✅ proxy לשימוש עם [(ngModel)]
-  get replyTextModel(): string { return this.replyText(); }
-  set replyTextModel(v: string) { this.replyText.set(v ?? ''); }
+  replyText: string = '';   
 
   // Compose
   compose = {
@@ -37,7 +34,7 @@ export class SecretaryMessagesComponent implements OnInit {
     channelEmail: false,
     channelSms: false,
     audienceType: 'all' as 'all' | 'manual' | 'single',
-    manualUids: '' as string,
+    manualUids: '' as string, // comma-separated
     singleUid: '' as string,
     scheduledAt: '' as string
   };
@@ -66,16 +63,14 @@ export class SecretaryMessagesComponent implements OnInit {
     this.activeConv.set(c);
     const { msgs } = await getThread(c.id);
     this.thread.set(msgs);
-    this.replyText.set('');
   }
 
   async sendReply() {
-    const txt = this.replyText().trim();
-    const conv = this.activeConv();
-    if (!txt || !conv) return;
-    const msg = await replyToThread(conv.id, txt);
+    const txt = this.replyText.trim();
+    if (!txt || !this.activeConv()) return;
+    const msg = await replyToThread(this.activeConv()!.id, txt);
     this.thread.update(arr => [...arr, msg]);
-    this.replyText.set('');
+    this.replyText = '';
   }
 
   // Compose
@@ -85,18 +80,12 @@ export class SecretaryMessagesComponent implements OnInit {
       const res = await sendBroadcast({
         subject: this.compose.subject?.trim() || null,
         body_md: this.compose.body.trim(),
-        channels: {
-          inapp: this.compose.channelInApp,
-          email: this.compose.channelEmail,
-          sms: this.compose.channelSms
-        },
-        audience:
-          this.compose.audienceType === 'all'
-            ? { type: 'all' }
-            : this.compose.audienceType === 'single'
-              ? { type: 'single', singleUid: this.compose.singleUid?.trim() || null }
-              : { type: 'manual', parentUids: (this.compose.manualUids || '')
-                    .split(',').map(s => s.trim()).filter(Boolean) },
+        channels: { inapp: this.compose.channelInApp, email: this.compose.channelEmail, sms: this.compose.channelSms },
+        audience: this.compose.audienceType === 'all'
+          ? { type: 'all' }
+          : this.compose.audienceType === 'single'
+            ? { type: 'single', singleUid: this.compose.singleUid?.trim() || null }
+            : { type: 'manual', parentUids: (this.compose.manualUids || '').split(',').map(s => s.trim()).filter(Boolean) },
         scheduled_at: this.compose.scheduledAt?.trim() || null
       });
       this.toast.set(`נשלח! הודעה ${res.message.id} ל-${res.recipients} נמענים`);

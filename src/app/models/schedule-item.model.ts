@@ -13,4 +13,3 @@ export interface ScheduleItem {
     instructor_name: string;
   };
 }
-

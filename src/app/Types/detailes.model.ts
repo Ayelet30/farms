@@ -9,6 +9,7 @@ export type ParentDetails = {
 };
 
 export interface UserDetails {
+  [x: string]: any;
   uid: string;
   full_name: string;
   id_number?: string | null;
@@ -26,7 +27,6 @@ export interface UserDetails {
 
 export type ChildRow = {
   id: string;
-  child_uuid?: string;
   full_name: string | null;
   gov_id?: string | null;
   birth_date?: string | null;
