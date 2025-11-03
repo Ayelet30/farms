@@ -1,39 +1,12 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { getAuth } from 'firebase/auth';
-import { db, ensureTenantContextReady, replyToThread } from '../../../services/supabaseClient.service';
+
+import type { Conversation, ConversationMessage, Message } from '../../../models/messsage.model';
+
+import { listInbox, getThread, replyToThread, sendBroadcast, listSent } from '../../../services/supabaseClient.service';
 
 type Tab = 'inbox' | 'compose' | 'sent';
-
-type Conversation = {
-  id: string;
-  subject: string | null;
-  status: 'open' | 'pending' | 'closed';
-  opened_by_parent_uid: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type ConversationMessage = {
-  id: string;
-  conversation_id: string;
-  body_md: string;
-  sender_role: 'parent' | 'secretary' | 'instructor' | 'manager' | 'admin';
-  sender_uid: string | null;
-  created_at: string;
-};
-
-type SentMsg = {
-  id: string;
-  subject: string | null;
-  status: 'scheduled' | 'sent' | 'failed';
-  sent_at: string | null;
-  scheduled_at: string | null;
-  channel_inapp: boolean;
-  channel_email: boolean;
-  channel_sms: boolean;
-};
 
 @Component({
   selector: 'app-secretary-messages',
@@ -50,14 +23,20 @@ export class SecretaryMessagesComponent implements OnInit {
   inbox = signal<Conversation[]>([]);
   activeConv = signal<Conversation | null>(null);
   thread = signal<ConversationMessage[]>([]);
-  replyText: string = '';   
+  replyText = signal('');
+
+  // ✅ proxy לשימוש עם [(ngModel)]
+  get replyTextModel(): string { return this.replyText(); }
+  set replyTextModel(v: string) { this.replyText.set(v ?? ''); }
 
   // Compose (שידור)
   compose = {
     subject: '',
     body: '',
-    channels: { inapp: true, email: false, sms: false },
-    audience: 'all' as 'all' | 'manual' | 'single',
+    channelInApp: true,
+    channelEmail: false,
+    channelSms: false,
+    audienceType: 'all' as 'all' | 'manual' | 'single',
     manualUids: '' as string,
     singleUid: '' as string,
     scheduledAt: '' as string
@@ -98,21 +77,18 @@ export class SecretaryMessagesComponent implements OnInit {
 
   async openConversation(c: Conversation) {
     this.activeConv.set(c);
-    const { data, error } = await db()
-      .from('conversation_messages')
-      .select('*')
-      .eq('conversation_id', c.id)
-      .order('created_at', { ascending: true });
-    if (error) throw error;
-    this.thread.set((data ?? []) as ConversationMessage[]);
+    const { msgs } = await getThread(c.id);
+    this.thread.set(msgs);
+    this.replyText.set('');
   }
 
   async sendReply() {
-    const txt = this.replyText.trim();
-    if (!txt || !this.activeConv()) return;
-    const msg = await replyToThread(this.activeConv()!.id, txt);
+    const txt = this.replyText().trim();
+    const conv = this.activeConv();
+    if (!txt || !conv) return;
+    const msg = await replyToThread(conv.id, txt);
     this.thread.update(arr => [...arr, msg]);
-    this.replyText = '';
+    this.replyText.set('');
   }
 
   // ===== Broadcast =====
@@ -123,44 +99,21 @@ export class SecretaryMessagesComponent implements OnInit {
       const { data: msg, error: e1 } = await db().from('messages').insert({
         subject: this.compose.subject?.trim() || null,
         body_md: this.compose.body.trim(),
-        channel_inapp: !!this.compose.channels.inapp,
-        channel_email: !!this.compose.channels.email,
-        channel_sms: !!this.compose.channels.sms,
-        audience_type: this.compose.audience,
-        audience_ref: this.compose.audience === 'all'
-          ? { type: 'all' }
-          : this.compose.audience === 'single'
-            ? { type: 'single', singleUid: this.compose.singleUid?.trim() || null }
-            : { type: 'manual', parentUids: (this.compose.manualUids || '').split(',').map(s => s.trim()).filter(Boolean) },
-        scheduled_at: this.compose.scheduledAt?.trim() || null,
-        status: this.compose.scheduledAt ? 'scheduled' : 'sent',
-        sent_at: this.compose.scheduledAt ? null : new Date().toISOString()
-      }).select().single();
-      if (e1) throw e1;
-
-      // 2) בניית נמענים
-      let parentUids: string[] = [];
-      if (this.compose.audience === 'all') {
-        const { data: parents } = await db().from('parents').select('uid').eq('is_active', true);
-        parentUids = (parents ?? []).map((p: any) => p.uid).filter(Boolean);
-      } else if (this.compose.audience === 'manual') {
-        parentUids = (this.compose.manualUids || '').split(',').map(s => s.trim()).filter(Boolean);
-      } else if (this.compose.audience === 'single' && this.compose.singleUid?.trim()) {
-        parentUids = [this.compose.singleUid.trim()];
-      }
-      parentUids = Array.from(new Set(parentUids));
-
-      if (parentUids.length) {
-        const rows = parentUids.map(uid => ({
-          message_id: (msg as any).id,
-          recipient_parent_uid: uid,
-          delivery_status: this.compose.scheduledAt ? 'pending' : 'sent'
-        }));
-        const { error: e2 } = await db().from('message_recipients').insert(rows);
-        if (e2) throw e2;
-      }
-
-      this.toast.set('נשלח!');
+        channels: {
+          inapp: this.compose.channelInApp,
+          email: this.compose.channelEmail,
+          sms: this.compose.channelSms
+        },
+        audience:
+          this.compose.audienceType === 'all'
+            ? { type: 'all' }
+            : this.compose.audienceType === 'single'
+              ? { type: 'single', singleUid: this.compose.singleUid?.trim() || null }
+              : { type: 'manual', parentUids: (this.compose.manualUids || '')
+                    .split(',').map(s => s.trim()).filter(Boolean) },
+        scheduled_at: this.compose.scheduledAt?.trim() || null
+      });
+      this.toast.set(`נשלח! הודעה ${res.message.id} ל-${res.recipients} נמענים`);
       this.compose.body = '';
       this.compose.subject = '';
       this.tab.set('sent');

@@ -1,196 +1,132 @@
-/* ===== Parent card – Olive/Cream, RTL ===== */
-:host {
-  direction: rtl;
-  --panel: #fff;
-  --bg-cream: #fffcf5;
-  --ink: #2f3a28;
-  --ink-muted: #6e7462;
-  --line: #cfd7b9;
-  --olive-50: #f3f6e9;
-  --olive-100: #e8efd8;
-  --olive-300: #c7d1a9;
-  --olive-600: #748c40;
-  --olive-700: #5d7234;
-  --danger: #c84f4f;
-  font-family: "Heebo", system-ui, Arial, sans-serif;
-  color: var(--ink);
-}
-
-/* כרטיס הורה */
-.child-card {
-  background: var(--panel);
-  border: 1.5px solid var(--line);
-  border-radius: 18px;
-  padding: 16px 18px;
-  box-shadow: 0 1px 0 rgba(0,0,0,.04);
-}
-
-/* כותרת + כפתורים */
-.child-header {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.child-header h3 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--ink);
-}
-
-.inline-message {
-  grid-column: 1 / -1;
-  background: var(--olive-50);
-  border: 1px solid var(--olive-300);
-  color: var(--ink);
+.parent-card {
+  background-color: #f9f8f8;
+  border: 2px solid #85649b;
   border-radius: 12px;
-  padding: 8px 10px;
-  font-weight: 700;
+  padding: 20px;
+  margin-bottom: 24px;
+  font-family: 'Segoe UI', sans-serif;
 }
 
-/* מצב עריכה – כותרת ניתנת לעריכה */
-.editable-title {
-  width: 100%;
-  border: 1.5px solid var(--line);
-  border-radius: 12px;
-  padding: 8px 10px;
-  font-weight: 800;
-  font-size: 18px;
-  color: var(--ink);
-  background: #fff;
-  outline: none;
-  transition: border-color .15s ease, box-shadow .15s ease;
-}
-.editable-title:focus {
-  border-color: var(--olive-600);
-  box-shadow: 0 0 0 3px rgba(116,140,64,.12);
+.parent-card h2 {
+  margin-top: 0;
+  color: #85649b;
+  font-size: 24px;
 }
 
-/* זוגות שדה:תוכן – מיושרים יפה בשתי עמודות */
-.child-card p {
-  display: grid;
-  grid-template-columns: 130px 1fr;
-  align-items: center;
-  gap: 8px;
-  margin: 8px 0;
-}
-.child-card p strong {
-  color: var(--ink);
-  font-weight: 800;
+.parent-card p {
+  margin: 6px 0;
+  font-size: 16px;
 }
 
-/* קלטים */
-.editable-input {
-  width: 100%;
-  border: 1.5px solid var(--line);
-  border-radius: 12px;
-  padding: 8px 10px;
-  background: #fff;
-  color: var(--ink);
-  outline: none;
-  transition: border-color .15s ease, box-shadow .15s ease;
-}
-.editable-input:focus {
-  border-color: var(--olive-600);
-  box-shadow: 0 0 0 3px rgba(116,140,64,.12);
-}
-
-/* הודעות שגיאה */
-.error-msg {
-  grid-column: 2 / -1;
-  margin-top: 4px;
-  font-size: 12px;
-  color: #b91c1c;
-}
-
-/* כפתורים */
-.button-group {
-  display: inline-flex;
-  gap: 8px;
-}
-.button-group .btn-edit,
-.button-group .btn-save,
-.button-group .btn-cancel {
-  appearance: none;
-  border-radius: 9999px;
-  padding: 8px 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
-}
-
-/* ערוך – משני */
-.btn-edit {
-  border: 1.5px solid var(--line);
-  background: #fff;
-  color: var(--ink);
-}
-.btn-edit:hover { background: var(--olive-50); border-color: var(--olive-300); }
-
-/* שמור – ראשי */
-.btn-save {
-  border: 1.5px solid var(--olive-600);
-  background: var(--olive-600);
-  color: #fff;
-}
-.btn-save:hover { background: var(--olive-700); border-color: var(--olive-700); }
-
-/* ביטול – סכנה עדינה */
-.btn-cancel {
-  border: 1.5px solid var(--danger);
-  color: #b61f1f;
-  background: #fff;
-}
-.btn-cancel:hover { background: #fdeaea; }
-
-/* ===== רשימת ילדים ===== */
-.children-list {
-  margin-top: 14px;
-  background: var(--panel);
-  border: 1.5px solid var(--line);
-  border-radius: 18px;
-  padding: 14px 16px;
-  box-shadow: 0 1px 0 rgba(0,0,0,.04);
-}
 .children-list h3 {
-  margin: 0 0 8px;
-  font-size: 18px;
-  font-weight: 800;
+  margin-bottom: 12px;
+  color: #4d3c77;
 }
+
 .children-list ul {
+  padding-right: 20px;
   list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: 8px;
 }
+
 .children-list li {
-  background: var(--bg-cream);
-  border: 1px solid var(--line);
+  background: #eee6f6;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.edit-form {
+  border: 2px solid #ccc;
+  padding: 16px;
+  border-radius: 8px;
+  background: #f7f7f7;
+}
+
+.edit-form label {
+  display: block;
+  margin-bottom: 12px;
+}
+.child-card {
+  border: 2px solid #8a9362;
   border-radius: 12px;
-  padding: 8px 10px;
+  padding: 16px;
+  margin-top: 20px;
+  background-color: #fdfdfd;
+  direction: rtl;
+}
+
+.child-header {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  justify-content: space-between;
+  align-items: center;
 }
-.children-list li strong { font-weight: 800; }
 
-/* הודעה כשאין ילדים */
-:host p { color: var(--ink); }
-
-/* ===== רספונסיביות ===== */
-@media (max-width: 640px) {
-  .child-header {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-  .button-group { justify-content: flex-start; }
-  .child-card p {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-  .error-msg { grid-column: 1 / -1; }
+.editable-title {
+  font-size: 20px;
+  font-weight: bold;
+  color: #6f754f;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 4px 10px;
+  margin-bottom: 8px;
 }
+
+.button-group {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-edit,
+.btn-save {
+  background-color: #8a9362;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.btn-edit:hover,
+.btn-save:hover {
+  background-color: #6f754f;
+}
+
+.btn-cancel {
+  background-color: #c84e4e;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.btn-cancel:hover {
+  background-color: #a83c3c;
+}
+
+.editable-input {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  min-width: 200px;
+  max-width: 100%;
+}
+
+.error-msg {
+  color: red;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.inline-message {
+  direction: rtl;
+  margin: 8px 0 12px;
+  color: #167516;      /* ירוק נעים */
+  font-weight: 600;
+}
+

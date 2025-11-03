@@ -1,0 +1,75 @@
+:host {
+  display: block;
+  width: 600px;
+  max-width: 95vw;
+  padding: 24px;
+  background: #ffffff;
+  border-radius: 0px;
+}
+
+/* עיצוב לטופס */
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* כותרות */
+label {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+/* שדות */
+input, textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #d3d3d3;
+  font-size: 15px;
+}
+
+textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+/* אזור העדפות */
+.prefs-box {
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  background: #fafafa;
+}
+
+/* כפתורים */
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+button {
+  padding: 10px 18px;
+  font-size: 15px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button.save {
+  background: #4CAF50;
+  color: white;
+}
+
+button.cancel {
+  background: #ccc;
+}
+
+.parent-dialog .mat-mdc-dialog-container .mdc-dialog__surface,
+.parent-dialog .mat-mdc-dialog-surface {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}

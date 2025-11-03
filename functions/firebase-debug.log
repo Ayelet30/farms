@@ -1,90 +1,97 @@
-[debug] [2025-09-25T12:01:48.667Z] ----------------------------------------------------------------------
-[debug] [2025-09-25T12:01:48.670Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\user1\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js functions:secrets:set STRIPE_SECRET_KEY
-[debug] [2025-09-25T12:01:48.671Z] CLI Version:   14.9.0
-[debug] [2025-09-25T12:01:48.671Z] Platform:      win32
-[debug] [2025-09-25T12:01:48.671Z] Node Version:  v22.13.0
-[debug] [2025-09-25T12:01:48.671Z] Time:          Thu Sep 25 2025 15:01:48 GMT+0300 (שעון ישראל (קיץ))
-[debug] [2025-09-25T12:01:48.671Z] ----------------------------------------------------------------------
+[debug] [2025-11-03T11:12:31.714Z] ----------------------------------------------------------------------
+[debug] [2025-11-03T11:12:31.717Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\user\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start --only functions
+[debug] [2025-11-03T11:12:31.717Z] CLI Version:   14.23.0
+[debug] [2025-11-03T11:12:31.717Z] Platform:      win32
+[debug] [2025-11-03T11:12:31.717Z] Node Version:  v22.19.0
+[debug] [2025-11-03T11:12:31.718Z] Time:          Mon Nov 03 2025 13:12:31 GMT+0200 (שעון ישראל (חורף))
+[debug] [2025-11-03T11:12:31.718Z] ----------------------------------------------------------------------
 [debug] 
-[debug] [2025-09-25T12:01:48.673Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
-[debug] [2025-09-25T12:01:48.979Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
-[debug] [2025-09-25T12:01:48.979Z] > authorizing via signed-in user (ayelethury@gmail.com)
-[debug] [2025-09-25T12:01:48.980Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
-[debug] [2025-09-25T12:01:48.980Z] > authorizing via signed-in user (ayelethury@gmail.com)
-[debug] [2025-09-25T12:01:48.980Z] [iam] checking project bereshit-ac5d8 for permissions ["firebase.projects.get","secretmanager.secrets.create","secretmanager.secrets.get","secretmanager.secrets.update","secretmanager.versions.add"]
-[debug] [2025-09-25T12:01:48.981Z] Checked if tokens are valid: false, expires at: 1757357566050
-[debug] [2025-09-25T12:01:48.981Z] Checked if tokens are valid: false, expires at: 1757357566050
-[debug] [2025-09-25T12:01:48.982Z] > refreshing access token with scopes: []
-[debug] [2025-09-25T12:01:48.983Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
-[debug] [2025-09-25T12:01:48.983Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
-[debug] [2025-09-25T12:01:49.368Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
-[debug] [2025-09-25T12:01:49.368Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
-[debug] [2025-09-25T12:01:49.373Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions [none]
-[debug] [2025-09-25T12:01:49.373Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions x-goog-quota-user=projects/bereshit-ac5d8
-[debug] [2025-09-25T12:01:49.373Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions {"permissions":["firebase.projects.get","secretmanager.secrets.create","secretmanager.secrets.get","secretmanager.secrets.update","secretmanager.versions.add"]}
-[debug] [2025-09-25T12:01:49.655Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
-[debug] [2025-09-25T12:01:49.655Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
-[debug] [2025-09-25T12:01:50.579Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions 200
-[debug] [2025-09-25T12:01:50.579Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions {"permissions":["firebase.projects.get","secretmanager.secrets.create","secretmanager.secrets.get","secretmanager.secrets.update","secretmanager.versions.add"]}
-[debug] [2025-09-25T12:01:50.580Z] Checked if tokens are valid: true, expires at: 1758805308368
-[debug] [2025-09-25T12:01:50.580Z] Checked if tokens are valid: true, expires at: 1758805308368
-[debug] [2025-09-25T12:01:50.580Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8 [none]
-[debug] [2025-09-25T12:01:50.823Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8 200
-[debug] [2025-09-25T12:01:50.823Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8 {"projectNumber":"313275026944","projectId":"bereshit-ac5d8","lifecycleState":"ACTIVE","name":"Bereshit","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2025-07-03T11:40:07.651729Z"}
-[debug] [2025-09-25T12:01:50.823Z] Checked if tokens are valid: true, expires at: 1758805308368
-[debug] [2025-09-25T12:01:50.824Z] Checked if tokens are valid: true, expires at: 1758805308368
-[debug] [2025-09-25T12:01:50.824Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets/STRIPE_SECRET_KEY [none]
-[debug] [2025-09-25T12:01:51.502Z] <<< [apiv2][status] GET https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets/STRIPE_SECRET_KEY 404
-[debug] [2025-09-25T12:01:51.502Z] <<< [apiv2][body] GET https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets/STRIPE_SECRET_KEY {"error":{"code":404,"message":"Secret [projects/313275026944/secrets/STRIPE_SECRET_KEY] not found.","status":"NOT_FOUND"}}
-[debug] [2025-09-25T12:01:51.503Z] Checked if tokens are valid: true, expires at: 1758805308368
-[debug] [2025-09-25T12:01:51.503Z] Checked if tokens are valid: true, expires at: 1758805308368
-[debug] [2025-09-25T12:01:51.503Z] >>> [apiv2][query] POST https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets secretId=STRIPE_SECRET_KEY
-[debug] [2025-09-25T12:01:51.504Z] >>> [apiv2][body] POST https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets {"name":"STRIPE_SECRET_KEY","replication":{"automatic":{}},"labels":{"firebase-managed":"functions"}}
-[debug] [2025-09-25T12:01:53.249Z] <<< [apiv2][status] POST https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets 200
-[debug] [2025-09-25T12:01:53.249Z] <<< [apiv2][body] POST https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets {"name":"projects/313275026944/secrets/STRIPE_SECRET_KEY","replication":{"automatic":{}},"createTime":"2025-09-25T12:01:51.513933Z","labels":{"firebase-managed":"functions"},"etag":"\"163f9eef566160\""}
-[debug] [2025-09-25T13:14:30.524Z] ExitPromptError: User force closed the prompt with SIGINT
-    at Interface.sigint (C:\Users\user1\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\@inquirer\core\dist\commonjs\lib\create-prompt.js:101:37)
-    at Interface.emit (node:events:524:28)
-    at Interface.emit (node:domain:489:12)
-    at [_ttyWrite] [as _ttyWrite] (node:internal/readline/interface:1124:18)
-    at ReadStream.onkeypress (node:internal/readline/interface:263:20)
-    at ReadStream.emit (node:events:536:35)
-    at ReadStream.emit (node:domain:489:12)
-    at emitKeys (node:internal/readline/utils:370:14)
-    at emitKeys.next (<anonymous>)
-    at ReadStream.onData (node:internal/readline/emitKeypressEvents:64:36)
-[error] 
-[error] Error: An unexpected error has occurred.
-[debug] [2025-09-25T13:14:34.075Z] ----------------------------------------------------------------------
-[debug] [2025-09-25T13:14:34.078Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\user1\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js functions:secrets:set STRIPE_WEBHOOK_SECRET
-[debug] [2025-09-25T13:14:34.078Z] CLI Version:   14.9.0
-[debug] [2025-09-25T13:14:34.078Z] Platform:      win32
-[debug] [2025-09-25T13:14:34.078Z] Node Version:  v22.13.0
-[debug] [2025-09-25T13:14:34.078Z] Time:          Thu Sep 25 2025 16:14:34 GMT+0300 (שעון ישראל (קיץ))
-[debug] [2025-09-25T13:14:34.078Z] ----------------------------------------------------------------------
-[debug] 
-[debug] [2025-09-25T13:14:34.256Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
-[debug] [2025-09-25T13:14:34.257Z] > authorizing via signed-in user (ayelethury@gmail.com)
-[debug] [2025-09-25T13:14:34.258Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
-[debug] [2025-09-25T13:14:34.258Z] > authorizing via signed-in user (ayelethury@gmail.com)
-[debug] [2025-09-25T13:14:34.258Z] [iam] checking project bereshit-ac5d8 for permissions ["firebase.projects.get","secretmanager.secrets.create","secretmanager.secrets.get","secretmanager.secrets.update","secretmanager.versions.add"]
-[debug] [2025-09-25T13:14:34.259Z] Checked if tokens are valid: false, expires at: 1758805308368
-[debug] [2025-09-25T13:14:34.259Z] Checked if tokens are valid: false, expires at: 1758805308368
-[debug] [2025-09-25T13:14:34.259Z] > refreshing access token with scopes: []
-[debug] [2025-09-25T13:14:34.261Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
-[debug] [2025-09-25T13:14:34.261Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
-[debug] [2025-09-25T13:14:34.920Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
-[debug] [2025-09-25T13:14:34.920Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
-[debug] [2025-09-25T13:14:34.926Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions [none]
-[debug] [2025-09-25T13:14:34.926Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions x-goog-quota-user=projects/bereshit-ac5d8
-[debug] [2025-09-25T13:14:34.926Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions {"permissions":["firebase.projects.get","secretmanager.secrets.create","secretmanager.secrets.get","secretmanager.secrets.update","secretmanager.versions.add"]}
-[debug] [2025-09-25T13:14:36.126Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions 200
-[debug] [2025-09-25T13:14:36.127Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8:testIamPermissions {"permissions":["firebase.projects.get","secretmanager.secrets.create","secretmanager.secrets.get","secretmanager.secrets.update","secretmanager.versions.add"]}
-[debug] [2025-09-25T13:14:36.128Z] Checked if tokens are valid: true, expires at: 1758809673920
-[debug] [2025-09-25T13:14:36.128Z] Checked if tokens are valid: true, expires at: 1758809673920
-[debug] [2025-09-25T13:14:36.128Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8 [none]
-[debug] [2025-09-25T13:14:36.369Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8 200
-[debug] [2025-09-25T13:14:36.370Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/bereshit-ac5d8 {"projectNumber":"313275026944","projectId":"bereshit-ac5d8","lifecycleState":"ACTIVE","name":"Bereshit","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2025-07-03T11:40:07.651729Z"}
-[debug] [2025-09-25T13:14:36.371Z] Checked if tokens are valid: true, expires at: 1758809673920
-[debug] [2025-09-25T13:14:36.371Z] Checked if tokens are valid: true, expires at: 1758809673920
-[debug] [2025-09-25T13:14:36.371Z] >>> [apiv2][query] GET https://secretmanager.googleapis.com/v1/projects/bereshit-ac5d8/secrets/STRIPE_WEBHOOK_SECRET [none]
+[debug] [2025-11-03T11:12:31.913Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] Failed to authenticate, have you run firebase login?
+[warn] !  emulators: You are not currently authenticated so some features may not work correctly. Please run firebase login to authenticate the CLI. 
+[info] i  emulators: Starting emulators: functions {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: functions"}}
+[debug] [2025-11-03T11:12:31.954Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-11-03T11:12:31.954Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"ui":[{"address":"127.0.0.1","family":"IPv4","port":4000},{"address":"::1","family":"IPv6","port":4000}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2025-11-03T11:12:31.957Z] Emulator locator file path: C:\Users\user\AppData\Local\Temp\hub-bereshit-ac5d8.json
+[debug] [2025-11-03T11:12:31.957Z] [hub] writing locator at C:\Users\user\AppData\Local\Temp\hub-bereshit-ac5d8.json
+[debug] [2025-11-03T11:12:31.970Z] [functions] Functions Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-11-03T11:12:31.970Z] [eventarc] Eventarc Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-11-03T11:12:31.970Z] [tasks] Cloud Tasks Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-11-03T11:12:31.970Z] late-assigned ports for functions and eventarc emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"ui":[{"address":"127.0.0.1","family":"IPv4","port":4000},{"address":"::1","family":"IPv6","port":4000}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"functions":[{"address":"127.0.0.1","family":"IPv4","port":5001}],"eventarc":[{"address":"127.0.0.1","family":"IPv4","port":9299}],"tasks":[{"address":"127.0.0.1","family":"IPv4","port":9499}]},"metadata":{"message":"late-assigned ports for functions and eventarc emulators"}}
+[warn] !  functions: The following emulators are not running, calls to these services from the Functions emulator will affect production: apphosting, auth, firestore, database, hosting, pubsub, storage, dataconnect {"metadata":{"emulator":{"name":"functions"},"message":"The following emulators are not running, calls to these services from the Functions emulator will affect production: \u001b[1mapphosting, auth, firestore, database, hosting, pubsub, storage, dataconnect\u001b[22m"}}
+[debug] [2025-11-03T11:12:31.973Z] No OAuth tokens found
+[debug] [2025-11-03T11:12:31.973Z] No OAuth tokens found
+[debug] [2025-11-03T11:12:31.973Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-11-03T11:12:31.974Z] Failed to get Admin SDK config for bereshit-ac5d8, falling back to cache Failed to get Admin SDK for Firebase project bereshit-ac5d8. Please make sure the project exists and your account has permission to access it. {"name":"FirebaseError","children":[],"exit":2,"message":"Failed to get Admin SDK for Firebase project bereshit-ac5d8. Please make sure the project exists and your account has permission to access it.","original":{"name":"FirebaseError","children":[],"exit":1,"message":"Failed to authenticate, have you run \u001b[1mfirebase login\u001b[22m?","original":{},"status":500},"status":500}
+[warn] !  functions: Unable to fetch project Admin SDK configuration, Admin SDK behavior in Cloud Functions emulator may be incorrect. {"metadata":{"emulator":{"name":"functions"},"message":"Unable to fetch project Admin SDK configuration, Admin SDK behavior in Cloud Functions emulator may be incorrect."}}
+[info] i  functions: Watching "C:\project\farms\functions" for Cloud Functions... {"metadata":{"emulator":{"name":"functions"},"message":"Watching \"C:\\project\\farms\\functions\" for Cloud Functions..."}}
+[debug] [2025-11-03T11:12:32.007Z] Validating nodejs source
+[warn] !  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+[debug] [2025-11-03T11:12:32.740Z] > [functions] package.json contents: {
+  "name": "functions",
+  "private": true,
+  "main": "lib/src/index.js",
+  "type": "module",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "lint": "eslint --ext .js,.ts .",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions,hosting",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "npm run build && firebase deploy --only functions:loginBootstrap --project bereshit-ac5d8,hosting",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.78.0",
+    "dotenv": "^17.2.2",
+    "firebase-admin": "^13.5.0",
+    "firebase-functions": "^6.4.0",
+    "jsonwebtoken": "^9.0.2",
+    "node-fetch": "^3.3.2",
+    "resend": "^6.4.0",
+    "stripe": "^16.12.0"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20.19.17",
+    "@types/node-fetch": "^2.6.13",
+    "@typescript-eslint/eslint-plugin": "^5.12.0",
+    "@typescript-eslint/parser": "^5.12.0",
+    "eslint": "^8.9.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-import": "^2.25.4",
+    "firebase-functions-test": "^3.1.0",
+    "typescript": "^5.9.2"
+  }
+}
+[debug] [2025-11-03T11:12:32.740Z] Building nodejs source
+[debug] [2025-11-03T11:12:32.741Z] Failed to find version of module node: reached end of search path C:\project\farms\functions\node_modules
+[warn] !  functions: Your requested "node" version "20" doesn't match your global version "22". Using node@22 from host. 
+[debug] [2025-11-03T11:12:32.743Z] Could not find functions.yaml. Must use http discovery
+[debug] [2025-11-03T11:12:32.753Z] Found firebase-functions binary at 'C:\project\farms\functions\node_modules\.bin\firebase-functions'
+[info] Serving at port 8012
+
+[debug] [2025-11-03T11:12:33.353Z] Got response from /__/functions.yaml {"endpoints":{"createParent":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["europe-west1"],"labels":{},"httpsTrigger":{},"entryPoint":"createParent"}},"specVersion":"v1alpha1","requiredAPIs":[],"extensions":{}}
+[info] +  functions: Loaded functions definitions from source: createParent. {"metadata":{"emulator":{"name":"functions"},"message":"Loaded functions definitions from source: createParent."}}
+[info] +  functions[europe-west1-createParent]: http function initialized (http://127.0.0.1:5001/bereshit-ac5d8/europe-west1/createParent). {"metadata":{"emulator":{"name":"functions"},"message":"\u001b[1mhttp\u001b[22m function initialized (http://127.0.0.1:5001/bereshit-ac5d8/europe-west1/createParent)."}}
+[debug] [2025-11-03T11:12:37.406Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[info] 
+┌─────────────────────────────────────────────────────────────┐
+│ ✔  All emulators ready! It is now safe to connect your app. │
+│ i  View Emulator UI at http://127.0.0.1:4000/               │
+└─────────────────────────────────────────────────────────────┘
+
+┌───────────┬────────────────┬─────────────────────────────────┐
+│ Emulator  │ Host:Port      │ View in Emulator UI             │
+├───────────┼────────────────┼─────────────────────────────────┤
+│ Functions │ 127.0.0.1:5001 │ http://127.0.0.1:4000/functions │
+└───────────┴────────────────┴─────────────────────────────────┘
+  Emulator Hub host: 127.0.0.1 port: 4400
+  Other reserved ports: 4500
+
+Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
+ 

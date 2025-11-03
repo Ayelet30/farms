@@ -1,3 +1,4 @@
+
 export interface Lesson {
   id: string;
   child_id: string;
@@ -12,5 +13,4 @@ export interface Lesson {
   child_name: string;
   start_datetime?: string;
   end_datetime?: string;
-  occur_date?: string;
 }
