@@ -841,4 +841,50 @@ export async function listSent(limit = 20, offset = 0): Promise<(Message & { rec
   if (error) throw error;
   return (data ?? []) as any[];
 }
+// ===== Create Parent (server-side via Edge Function) =====
+export async function createParent(payload: {
+  full_name: string;
+  email: string;
+  phone: string;
+  id_number: string;
+  address: string;
+  extra_notes: string;
+  message_preferences: string[];
+}): Promise<{ ok: true; uid: string }> {
+
+  const ctx = requireTenant(); // חשוב! יש אצלך
+  const body = {
+    full_name: payload.full_name,
+    email: payload.email,
+    phone: payload.phone,
+    id_number: payload.id_number,
+    address: payload.address,
+    extra_notes: payload.extra_notes,
+    message_preferences: payload.message_preferences,
+    tenant_id: ctx.id,         // השיוך לחווה
+    schema_name: ctx.schema    // הסכמה של הטננט
+  };
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  // @ts-ignore – אם יש משתנה מודולרי authBearer אצלכם
+  if (typeof authBearer === 'string' && authBearer) {
+    headers['Authorization'] = `Bearer ${authBearer}`;
+  }
+
+  const res = await fetch('/functions/v1/create-parent', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  let data: any = null;
+  try { data = await res.json(); } catch {}
+
+  if (!res.ok) {
+    throw new Error(data?.error || 'Failed to create parent');
+  }
+
+  return data as { ok: true; uid: string };
+}
+
 
