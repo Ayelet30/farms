@@ -1,8 +1,19 @@
-export interface InstructorScheduleItem {
+export interface ScheduleItem {
   id: string;
   title: string;
   start: string;
   end: string;
-  status?: 'active' | 'lesson' | 'free'; // אופציונלי
-  color?: string;
+  color: string;
+  status: 'ממתין לאישור' | 'אושר' | 'בוטל' | 'הושלם';
+  meta: {
+    lesson_id: string;
+    child_id: string;
+    child_name: string;
+    instructor_id: string;
+    instructor_name: string;
+    start_datetime: string;
+    occur_date: string;
+    status: 'ממתין לאישור' | 'אושר' | 'בוטל' | 'הושלם';
+    
+  };
 }

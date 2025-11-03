@@ -6,6 +6,7 @@ export interface ScheduleItem {
   color?: string;
   status: "ממתין לאישור" | "אושר" | "בוטל" | "הושלם"; // ← עדכון
   meta?: {
+    [x: string]: string;
     status: string;
     child_id: string;
     child_name: string;

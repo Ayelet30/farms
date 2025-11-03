@@ -1,14 +1,6 @@
 import {
-  Component,
-  Input,
-  Output,
-  EventEmitter,
-  OnInit,
-  ViewChild,
-  ElementRef,
-  AfterViewInit,
-  OnChanges,
-  SimpleChanges
+  Component, Input, Output, EventEmitter, OnInit,
+  ViewChild, ElementRef, AfterViewInit, OnChanges, SimpleChanges
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -22,237 +14,197 @@ import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
 import { dbTenant, getSupabaseClient } from '../../services/supabaseClient.service';
 
+type NoteVM = {
+  id: string | number;
+  display_text: string;
+  created_at?: string | null;
+  instructor_uid?: string | null;
+  category: 'general' | 'medical' | 'behavioral';
+  isEditing?: boolean;
+};
+
+type ReadyNote = { id: number | string; content: string };
+
 @Component({
   selector: 'app-note',
   templateUrl: './note.component.html',
   styleUrls: ['./note.component.scss'],
   standalone: true,
   imports: [
-    CommonModule,
-    FormsModule,
-    MatCardModule,
-    MatIconModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatButtonModule,
-    MatSelectModule,
-    MatListModule,
-    MatChipsModule
+    CommonModule, FormsModule,
+    MatCardModule, MatIconModule, MatFormFieldModule, MatInputModule,
+    MatButtonModule, MatSelectModule, MatListModule, MatChipsModule
   ]
 })
 export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
   @Input() child: any;
+  @Input() occurrence: any;
   @Output() close = new EventEmitter<void>();
-  @ViewChild('scrollable') scrollable!: ElementRef;
+  @ViewChild('scrollable') scrollable!: ElementRef<HTMLDivElement>;
 
-  notes: any[] = [];
+  private dbc = dbTenant();
+  private sb = getSupabaseClient();
+
+  // רשימות נפרדות
+  notesGeneral: NoteVM[] = [];
+  notesMedical: NoteVM[] = [];
+  notesBehavioral: NoteVM[] = [];
+
+  readyNotes: ReadyNote[] = [];
   newNote = '';
-  selectedCategory = 'כללי';
-  categories = ['כללי', 'רפואי', 'התנהגותי'];
-  readyNotes: any[] = [];
+  selectedCategory: 'general' = 'general';
 
-  ngOnInit() {
-    this.loadReadyNotes();
+  loadingNotes = false;
+  loadingReady = false;
+
+  async ngOnInit() {
+    await this.loadReadyNotes();
+    await this.loadNotes();
   }
 
   ngAfterViewInit() {
-    this.resetScroll();
-  }
-
-  ngOnChanges(changes: SimpleChanges) {
-    if (changes['child']?.currentValue) {
-      this.loadNotes();
-    }
-  }
-
-  onClose(): void {
-    this.close.emit();
-  }
-
-  resetScroll() {
-    if (this.scrollable?.nativeElement) {
+    if (this.scrollable?.nativeElement)
       this.scrollable.nativeElement.scrollTop = 0;
-    }
   }
 
+  async ngOnChanges(changes: SimpleChanges) {
+    if (changes['child']?.currentValue) await this.loadNotes();
+  }
+
+  onClose() { this.close.emit(); }
+  onBackdropClick(ev: MouseEvent) {
+    if (ev.target === ev.currentTarget) this.onClose();
+  }
+
+  trackByNote(_: number, n: NoteVM) { return n.id; }
+  trackByReady(_: number, r: ReadyNote) { return r.id; }
+
+  /** טעינת הערות מהשרת */
   async loadNotes() {
-    const dbc = dbTenant();
-    const supabase = getSupabaseClient();
-    const childId = this.child?.child_uuid || this.child?.uid;
-    if (!childId) return;
-
     try {
-  const { data: { session } } = await supabase.auth.getSession();
-if (!session?.user?.id) { this.notes = []; return; }
-const currentUserId = session.user.id;
+      const childId = this.child?.child_uuid;
+      if (!childId) return;
 
-      const { data: notesData, error } = await dbc
-        .from('list_notes')
-        .select('*')
+      this.loadingNotes = true;
+      const { data, error } = await this.dbc
+        .from('notes')
+        .select('id, content, instructor_uid, date, category')
         .eq('child_id', childId)
-        .eq('instructor_uid', currentUserId)
         .order('date', { ascending: false });
 
-      if (error) {
-        console.error('Error loading notes:', error);
-        this.notes = [];
-        return;
-      }
+      if (error) throw error;
 
-      this.notes = notesData ?? [];
+      const notes = (data ?? []).map((n: any) => ({
+        id: n.id,
+        display_text: n.content,
+        created_at: n.date ?? null,
+        instructor_uid: n.instructor_uid ?? null,
+        category: n.category ?? 'general',
+        isEditing: false
+      })) as NoteVM[];
 
-      if (!this.notes.length) {
-        this.notes = [{
-          id: 'demo-note',
-          content: 'אין הערות עדיין.',
-          date: new Date().toISOString().slice(0, 10),
-          child_id: childId,
-          instructor_uid: currentUserId
-        }];
-      }
-
-      this.resetScroll();
+      this.notesGeneral = notes.filter(n => n.category === 'general');
+      this.notesMedical = notes.filter(n => n.category === 'medical');
+      this.notesBehavioral = notes.filter(n => n.category === 'behavioral');
     } catch (err) {
-      console.error('Unexpected error loading notes:', err);
+      console.error('💥 Error loading notes:', err);
+      this.notesGeneral = this.notesMedical = this.notesBehavioral = [];
+    } finally {
+      this.loadingNotes = false;
     }
   }
 
+  /** טעינת הערות מוכנות */
   async loadReadyNotes() {
-    const dbc = dbTenant();
+    this.loadingReady = true;
     try {
-      const { data, error } = await dbc
+      const { data, error } = await this.dbc
         .from('list_notes')
-        .select('*')
-        .order('id', { ascending: true });
-
-      if (error) {
-        console.error('Error loading ready notes:', error);
-        this.readyNotes = [];
-        return;
-      }
-
-      this.readyNotes = data ?? [];
+        .select('id, note');
+      if (error) throw error;
+      this.readyNotes = (data ?? []).map((r: any) => ({
+        id: r.id,
+        content: r.note ?? ''
+      }));
     } catch (err) {
-      console.error('Unexpected error loading ready notes:', err);
+      console.error('💥 Error loading ready notes:', err);
+    } finally {
+      this.loadingReady = false;
     }
-  }
-
-  addReadyNote(note: string) {
-    this.newNote = note;
-  }
-
-  selectCategory(cat: string) {
-    this.selectedCategory = cat;
   }
 
   filteredReadyNotes() {
-    return this.readyNotes.filter(rn => rn.category === this.selectedCategory);
+    return this.readyNotes;
   }
 
+  addReadyNote(content: string) {
+    this.newNote = content;
+  }
+
+  /** הוספת הערה חדשה עם תאריך עדכני */
   async addNote() {
-    const dbc = dbTenant();
-    const supabase = getSupabaseClient();
-    const childId = this.child?.child_uuid || this.child?.id;
-    if (!childId || !this.newNote.trim()) return;
+    const childId = this.child?.child_uuid;
+    const content = this.newNote.trim();
+    if (!childId || !content) return;
+
+    const now = new Date().toISOString();
+    const newNoteObj: NoteVM = {
+      id: crypto.randomUUID(),
+      display_text: content,
+      created_at: now,
+      instructor_uid: (await this.sb.auth.getSession()).data?.session?.user?.id ?? null,
+      category: 'general'
+    };
 
     try {
-    const { data: { session } } = await supabase.auth.getSession();
-if (!session?.user?.id) return;
-const currentUserId = session.user.id;
+      const { error } = await this.dbc
+        .from('notes')
+        .insert([{
+          id: newNoteObj.id,
+          child_id: childId,
+          content,
+          date: now,
+          instructor_uid: newNoteObj.instructor_uid,
+          category: 'general'
+        }]);
 
-      const { error } = await dbc.from('list_notes').insert([{
-        content: this.newNote,
-        child_id: childId,
-        date: new Date().toISOString().slice(0, 10),
-        id: crypto.randomUUID(),
-        instructor_uid: currentUserId
-      }]);
+      if (error) throw error;
 
-      if (error) {
-        console.error('Error adding note:', error);
-        return;
-      }
-
+      // מוסיף מקומית את ההערה עם התאריך המעודכן בלי לרענן הכול
+      this.notesGeneral.unshift(newNoteObj);
       this.newNote = '';
-      await this.loadNotes();
-      this.scrollToBottom();
     } catch (err) {
-      console.error('Unexpected error adding note:', err);
+      console.error('💥 Failed to save note:', err);
     }
   }
 
-  async editNotePrompt(note: any) {
-    const newContent = prompt('ערוך את ההערה:', note.content);
-    if (newContent?.trim()) {
-      await this.editNote(note.id, newContent);
-    }
+  startEdit(note: NoteVM) {
+    note.isEditing = true;
   }
 
-  async editNote(noteId: string, newContent: string) {
-    const dbc = dbTenant();
-    const supabase = getSupabaseClient();
-
+  async saveEdit(note: NoteVM) {
     try {
-    const { data: { session } } = await supabase.auth.getSession();
-if (!session?.user?.id) return;
-const currentUserId = session.user.id;
-
-
-      const { error } = await dbc.from('list_notes')
-        .update({ content: newContent })
-        .eq('id', noteId)
-        .eq('instructor_uid', currentUserId);
-
-      if (error) {
-        console.error('Error editing note:', error);
-        return;
-      }
-
-      await this.loadNotes();
+      const { error } = await this.dbc
+        .from('notes')
+        .update({ content: note.display_text })
+        .eq('id', note.id);
+      if (error) throw error;
+      note.isEditing = false;
     } catch (err) {
-      console.error('Unexpected error editing note:', err);
+      console.error('💥 Failed to edit note:', err);
     }
   }
 
-  async deleteNote(noteId: string) {
-    const dbc = dbTenant();
-    const supabase = getSupabaseClient();
-
+  async deleteNote(noteId: string | number) {
     try {
-     const { data: { session } } = await supabase.auth.getSession();
-if (!session?.user?.id) return;
-const currentUserId = session.user.id;
-
-      const { error } = await dbc.from('list_notes')
+      const { error } = await this.dbc
+        .from('notes')
         .delete()
-        .eq('id', noteId)
-        .eq('instructor_uid', currentUserId);
-
-      if (error) {
-        console.error('Error deleting note:', error);
-        return;
-      }
-
-      await this.loadNotes();
+        .eq('id', noteId);
+      if (error) throw error;
+      this.notesGeneral = this.notesGeneral.filter(n => n.id !== noteId);
     } catch (err) {
-      console.error('Unexpected error deleting note:', err);
-    }
-  }
-
-  trackByNote(index: number, note: any) {
-    return note.id;
-  }
-
-  onBackdropClick(event: MouseEvent): void {
-    if (event.target === event.currentTarget) {
-      this.onClose();
-    }
-  }
-
-  scrollToBottom() {
-    const notesContainer = document.querySelector('.notes-scroll');
-    if (notesContainer) {
-      notesContainer.scrollTop = notesContainer.scrollHeight;
+      console.error('💥 Failed to delete note:', err);
     }
   }
 }

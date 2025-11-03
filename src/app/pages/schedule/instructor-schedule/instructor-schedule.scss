@@ -121,3 +121,154 @@
   padding: 10px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.2);
 }
+/* === סיכום יומי (Month View Overlay) === */
+.day-summary-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+}
+
+.day-summary-card {
+  background: #fff;
+  width: 320px;
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  direction: rtl;
+  text-align: right;
+  font-family: "Assistant", Arial, sans-serif;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.day-summary-card .hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+}
+
+.day-summary-card .hdr h4 {
+  margin: 0;
+  font-size: 18px;
+  color: #2c7be5;
+}
+
+.day-summary-card .hdr .x {
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+  color: #888;
+  transition: color 0.2s ease;
+}
+.day-summary-card .hdr .x:hover {
+  color: #333;
+}
+
+.day-summary-card .rows {
+  margin-top: 10px;
+}
+
+.day-summary-card .row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 15px;
+  border-bottom: 1px dashed #eee;
+}
+
+.day-summary-card .row:last-child {
+  border-bottom: none;
+}
+
+.day-summary-card .row span {
+  color: #555;
+}
+
+.day-summary-card .row b {
+  color: #000;
+}
+
+.day-summary-card .hint {
+  display: block;
+  margin-top: 10px;
+  text-align: center;
+  font-size: 13px;
+  color: #888;
+}
+::ng-deep .fc-daygrid-day {
+  position: relative;
+}
+
+::ng-deep .summary-event {
+  font-size: 11px !important;
+  line-height: 1.2;
+  color: #2e7d32 !important;
+  white-space: nowrap;
+  margin-top: 2px;
+  text-align: right;
+}
+
+::ng-deep .summary-event .fc-event-title {
+  white-space: normal !important;
+  overflow: visible !important;
+}
+::ng-deep .fc-timegrid-event .fc-event-main {
+  white-space: normal !important;
+  line-height: 1.3;
+  font-size: 13px;
+  direction: rtl;
+  text-align: right;
+  padding: 4px 6px;
+}
+
+::ng-deep .fc-timegrid-event {
+  border-right: 4px solid #2c7be5;
+  border-radius: 8px;
+  background: #e7f0ff;
+}
+::ng-deep .fc-timegrid-event .fc-event-main {
+  white-space: normal !important;
+  line-height: 1.3;
+  font-size: 13px;
+  direction: rtl;
+  text-align: right;
+  padding: 4px 6px;
+}
+
+::ng-deep .fc-timegrid-event {
+  border: none;
+  border-right: 4px solid #2c7be5;
+  border-radius: 8px;
+  background: #e7f0ff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+/* מסתיר את השעה שמופיעה בתחילת האירוע */
+/* schedule.scss */
+::ng-deep .fc-timegrid-event .fc-event-time,
+::ng-deep .fc-daygrid-event .fc-event-time {
+  display: none !important;
+}
+
+/* אפקט כניסה */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+::ng-deep .fc-event-time {
+  display: none !important;
+}
+

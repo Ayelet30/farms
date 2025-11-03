@@ -1,102 +1,191 @@
-:host {
+.note-overlay {
+  position: fixed;
+  inset: 0;
   display: flex;
   justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background: transparent !important;
+  align-items: flex-start;
+  background: rgba(0, 0, 0, 0.25);
+  z-index: 1000;
+  overflow-y: auto;
+  padding: 30px 0;
 }
 
+/* כרטיס עיקרי */
 .child-details-card {
   direction: rtl;
-  font-family: 'Arial', sans-serif;
+  background: #fff;
   border-radius: 12px;
-  background-color: #fff;
-  border: 1px solid #ddd;
-  width: 90%;
-  max-width: 480px;
-  min-height: 60vh;
-  max-height: 80vh;
+  width: 95%;
+  max-width: 420px; /* 🔹 רוחב מדויק כמו בפיגמה */
+  max-height: 85vh; /* 🔹 גלילה אנכית */
   display: flex;
   flex-direction: column;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  overflow: hidden;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.18);
+  border: none;
 }
 
 mat-card-header {
-  padding: 12px 16px;
+  padding: 14px 18px;
   border-bottom: 1px solid #eee;
   position: relative;
 }
 
 mat-card-title {
-  font-size: 16px;
-  font-weight: bold;
   display: flex;
   align-items: center;
   gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #222;
 }
 
 .close-button {
   position: absolute;
   top: 8px;
   left: 8px;
-  color: #888;
+  color: #777;
 }
 
+/* אזור גלילה */
 .scrollable-content {
-  padding: 12px 16px;
+  padding: 14px;
   overflow-y: auto;
+  background: #fcfcfc;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* שני בלוקים ראשיים */
+.child-section,
+.notes-section {
+  background: #fff;
+  border: 1px solid #ececec;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* בלוק עליון (רפואי/התנהגותי) */
+.child-section {
+  background: #fffef8;
+  border-color: #f1e8d8;
+}
+
+/* בלוק תחתון (שיעורים) */
+.notes-section {
+  background: #ffffff;
+  border-color: #e9e9e9;
+}
+
+/* כותרות משנה */
+.section.personal-details h3 {
+  font-size: 14px;
+  margin-bottom: 6px;
+  color: #444;
 }
 
 .details-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px 12px;
-  margin-bottom: 12px;
+  gap: 6px 10px;
+  font-size: 13px;
 }
 
+/* הערות רפואיות והתנהגותיות */
 .note-box {
   border-radius: 8px;
   padding: 8px 10px;
-  margin-bottom: 12px;
-  background-color: #fafafa;
+  margin: 0;
+  font-size: 13px;
+}
+
+.medical-note {
+  background-color: #fff4f4;
+  border: 1px solid #f4bdbd;
+}
+
+.emotional-note {
+  background-color: #f1f6ff;
+  border: 1px solid #c5d8ff;
+}
+
+/* הערות שיעורים */
+.general-notes,
+.new-note,
+.prepared-notes {
+  background: #fafafa;
   border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 8px 10px;
 }
 
-.medical-note { background-color: #ffecec; border: 1px solid #f5c2c7; }
-.emotional-note { background-color: #e8f0fe; border: 1px solid #c2dbff; }
-
-.notes-scroll {
-  max-height: 250px;
+/* ✅ הוספת גלילה פנימית רק לאזור הערות השיעורים */
+.general-notes {
+  max-height: 220px; /* גובה מוגבל */
   overflow-y: auto;
-  padding-right: 8px;
-
-  &::-webkit-scrollbar { width: 6px; }
-  &::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.3); border-radius: 3px; }
-  &::-webkit-scrollbar-track { background: transparent; }
 }
 
-.note-item { padding: 6px 0; border-bottom: 1px solid #eee; }
-.note-item:last-child { border-bottom: none; }
-.note-header { display: flex; justify-content: space-between; font-size: 12px; color: #666; }
-.note-content p { margin: 4px 0; font-size: 13px; color: #333; }
-.note-actions-wrapper { display: flex; gap: 4px; margin-top: 4px; }
-.note-form { display: flex; flex-direction: column; gap: 8px; }
+.general-notes::-webkit-scrollbar {
+  width: 6px;
+}
+.general-notes::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+.general-notes::-webkit-scrollbar-track {
+  background: transparent;
+}
 
-.note-overlay {
-  position: fixed;
-  top: 0; right: 0; bottom: 0; left: 0;
+/* פריטים */
+.note-item {
+  border-bottom: 1px solid #e6e6e6;
+  padding: 5px 0;
+}
+.note-item:last-child {
+  border-bottom: none;
+}
+
+/* טופס הוספת הערה */
+.note-form {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  background: transparent !important;
-  z-index: 1000;
-  overflow-y: auto;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.prepared-notes { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 10px; max-height: 200px; overflow-y: auto; }
-.prepared-list { display: flex; flex-direction: column; gap: 6px; }
-.prepared-item { padding: 6px 8px; background: #f7f7f7; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
-.prepared-item:hover { background: #eaeaea; }
+button[mat-raised-button] {
+  align-self: flex-start;
+  font-size: 13px;
+  height: 30px;
+}
 
-.filter-buttons { display: flex; gap: 6px; margin-bottom: 8px; }
+/* כפתורי הערות מוכנות */
+.filter-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+button[mat-stroked-button] {
+  font-size: 12px;
+  border-radius: 18px;
+  padding: 3px 8px;
+  line-height: 1.1;
+}
+
+/* גלילה כללית עדינה */
+.scrollable-content::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollable-content::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+.scrollable-content::-webkit-scrollbar-track {
+  background: transparent;
+}
