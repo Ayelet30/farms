@@ -1,13 +1,11 @@
 import { Component, OnInit, ChangeDetectorRef, ViewChild, AfterViewInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
 import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import { ScheduleItem } from '../../../models/schedule-item.model';
 import { CurrentUserService } from '../../../core/auth/current-user.service';
 import { dbTenant } from '../../../services/supabaseClient.service';
 import type { EventClickArg, DatesSetArg } from '@fullcalendar/core';
-
 import { NoteComponent } from '../../Notes/note.component';
 import { Lesson } from '../../../models/lesson-schedule.model';
 
@@ -45,7 +43,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
   @ViewChild(ScheduleComponent) scheduleComp!: ScheduleComponent;
 
   private cdr = inject(ChangeDetectorRef);
-  private cu  = inject(CurrentUserService);
+  private cu = inject(CurrentUserService);
 
   children: Child[] = [];
   lessons: Lesson[] = [];
@@ -69,8 +67,9 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
       }
       this.instructorId = String(user.id_number).trim();
 
-      const startYmd = ymd(new Date());
-      const endYmd = ymd(addDays(new Date(), 56));
+      // טווח כולל שיעורים אחורה וקדימה
+      const startYmd = ymd(addDays(new Date(), -14));
+      const endYmd = ymd(addDays(new Date(), 60));
 
       await this.loadLessonsForRange(startYmd, endYmd);
 
@@ -100,6 +99,9 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
         this.currentView = info.view.type;
         this.setScheduleItems();
       });
+
+      // תיקון קליק בתצוגת חודש גם על טקסט
+      calendarApi.on('dateClick', (event) => this.onDateClick(event));
     }
   }
 
@@ -134,7 +136,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
       : { data: [] as Parent[], error: null };
 
     if (errParents) throw errParents;
-    const parentsMap = new Map<string, Parent>((parentsData ?? []).map((p: { uid: any; }) => [p.uid, p]));
+    const parentsMap = new Map<string, Parent>((parentsData ?? []).map((p: { uid: string }) => [p.uid, p]));
 
     this.children = childList.map(c => ({
       ...c,
@@ -143,13 +145,12 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
     }));
   }
 
-  /** בונה את הנתונים לפי סוג התצוגה */
+  /** בונה את הנתונים לתצוגה */
   private setScheduleItems(): void {
     if (!this.scheduleComp?.calendarApi) return;
-
     const src = this.filteredLessons.length ? this.filteredLessons : this.lessons;
 
-    // תצוגת חודש – סיכום כללי
+    // תצוגת חודש
     if (this.currentView === 'dayGridMonth') {
       const grouped: Record<string, Lesson[]> = {};
       for (const l of src) {
@@ -159,58 +160,61 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
       }
 
       this.items = Object.entries(grouped).map(([day, lessons]) => {
-        const count = lessons.length;
         const regular = lessons.filter(l => l.lesson_type === 'רגיל').length;
         const makeup = lessons.filter(l => l.lesson_type === 'השלמה').length;
         const canceled = lessons.filter(l => l.status === 'בוטל').length;
+        const count = lessons.length;
 
-        const titleParts = [];
-        titleParts.push(`סה״כ ${count}`);
-        if (regular) titleParts.push(`${regular} רגיל`);
-        if (makeup) titleParts.push(`${makeup} השלמה`);
-        if (canceled) titleParts.push(`${canceled} בוטל`);
+        // מציג רק מה שקיים בפועל
+        const parts: string[] = [];
+        if (count) parts.push(`${count} שיעור${count > 1 ? 'ים' : ''}`);
+        if (regular) parts.push(`${regular} רגיל`);
+        if (makeup) parts.push(`${makeup} השלמה`);
+        if (canceled) parts.push(`${canceled} בוטל`);
 
         return {
           id: day,
-          title: titleParts.join(' | '),
+          title: parts.join(' | '),
           start: day,
           end: day,
           color: '#e8f5e9'
         } as ScheduleItem;
       });
 
-      console.log('📅 Month summary items:', this.items);
       this.cdr.detectChanges();
       return;
     }
 
-    // תצוגת יום/שבוע – פירוט מלא
+    // תצוגת יום/שבוע
     this.items = src.map(l => {
       const startISO = this.ensureIso(l.start_datetime, l.start_time, l.occur_date);
-      const endISO   = this.ensureIso(l.end_datetime, l.end_time, l.occur_date);
+      const endISO = this.ensureIso(l.end_datetime, l.end_time, l.occur_date);
+      const now = new Date();
 
       const child = this.children.find(c => c.child_uuid === l.child_id);
       const name = child?.full_name || '';
-      const age = child?.age ? `בן ${child.age}` : '';
+      const age = child?.age ? `(${child.age})` : '';
       const lessonType = l.lesson_type ? `שיעור ${l.lesson_type}` : 'שיעור';
 
       const startTime = (l.start_time || startISO.slice(11, 16)).replace(/:00$/, '');
-      const endTime   = (l.end_time   || endISO.slice(11, 16)).replace(/:00$/, '');
+      const endTime = (l.end_time || endISO.slice(11, 16)).replace(/:00$/, '');
       const timeRange = startTime && endTime ? `${startTime}–${endTime}` : '';
 
-      const title = `${name} ${age} — ${lessonType} ${timeRange}`.trim();
+      let color = '#b5ead7';
+      if (l.status === 'בוטל') color = '#ffcdd2';
+      else if (new Date(endISO) < now) color = '#e0e0e0';
 
       return {
-        id: String(l.id ?? `${l.child_id}__${startISO}`),
-        title,
+        id: `${(l as any)['lesson_id'] || 'noid'}_${l.child_id}_${l.occur_date}_${l.start_time || '00:00'}`,
+        title: `${name} ${age} — ${lessonType} ${timeRange}`.trim(),
         start: startISO,
         end: endISO,
-        color: l.child_color || '#b5ead7',
+        color,
         meta: {
           child_id: l.child_id,
           child_name: name,
           instructor_id: l.instructor_id,
-          instructor_name: l.instructor_name || '',
+          instructor_name: (l as any).instructor_name || '',
           status: l.status,
           lesson_type: lessonType
         },
@@ -218,7 +222,6 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
       } as ScheduleItem;
     });
 
-    console.log('📆 Week/day items:', this.items);
     this.cdr.detectChanges();
   }
 
@@ -240,22 +243,17 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
     this.cdr.detectChanges();
   }
 
-  /** לחיצה על יום בתצוגת חודש */
- onDateClick(event: any): void {
-  const api = this.scheduleComp?.calendarApi;
-  if (!api) return;
-
-  // נבדוק באיזה תצוגה אנחנו
-  if (api.view.type === 'dayGridMonth') {
-    // מעבר אוטומטי לתצוגת יום לאותו תאריך
-    api.changeView('timeGridDay', event.dateStr);
-  } else {
-    // אם כבר בתצוגת יום/שבוע – אפשר להציג את פרטי היום (או להשאיר ריק)
-    console.log('📅 נבחר תאריך בתצוגת יום/שבוע:', event.dateStr);
+  onDateClick(event: any): void {
+    const api = this.scheduleComp?.calendarApi;
+    if (!api) return;
+    if (api.view.type === 'dayGridMonth') {
+      api.changeView('timeGridDay', event.dateStr);
+    } else {
+      console.log('📅 נבחר תאריך בתצוגת יום/שבוע:', event.dateStr);
+    }
   }
 }
 
-}
 /* ---------- פונקציות עזר ---------- */
 function ymd(d: Date): string {
   return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())).toISOString().slice(0, 10);
