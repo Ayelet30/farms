@@ -14,16 +14,27 @@
 .child-details-card {
   direction: rtl;
   background: #fff;
+<<<<<<< HEAD
   border-radius: 14px;
   width: 90%;
   max-width: 440px;
   max-height: 85vh;
+=======
+  border-radius: 12px;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  padding: 0;
+  width: 90%;         
+  max-width: 480px;   
+  min-height: 60vh;   
+  max-height: 80vh;   
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+>>>>>>> dd12ecf4abe02ff5a0c704f495a047bc80f0f452
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.18);
-  border: none;
 }
+
 
 mat-card-header {
   padding: 14px 18px;
@@ -32,6 +43,9 @@ mat-card-header {
 }
 
 mat-card-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -44,7 +58,8 @@ mat-card-title {
   position: absolute;
   top: 8px;
   left: 8px;
-  color: #777;
+  color: #888;
+  z-index: 1;
 }
 
 /* אזור גלילה */
@@ -90,8 +105,22 @@ mat-card-title {
 .details-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px 10px;
-  font-size: 13px;
+  gap: 6px 12px;
+  margin-bottom: 12px;
+}
+
+.details-grid p {
+  margin: 0;
+  font-size: 14px;
+  color: #444;
+}
+
+.section h3,
+.section h4 {
+  margin: 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #222;
 }
 
 /* הערות רפואיות והתנהגותיות */
@@ -112,6 +141,7 @@ mat-card-title {
   border: 1px solid #c5d8ff;
 }
 
+<<<<<<< HEAD
 /* קיצור גובה המלבנים */
 .medical-note,
 .behavioral-note {
@@ -273,4 +303,89 @@ mat-card-title {
       }
     }
   }
+=======
+/* הערות שיעורים */
+.general-notes,
+.new-note,
+.prepared-notes {
+  background: #fafafa;
+  border: 1px solid #eee;
+}
+
+.medical-note {
+  background-color: #ffecec;
+  border: 1px solid #f5c2c7;
+}
+
+.emotional-note {
+  background-color: #e8f0fe;
+  border: 1px solid #c2dbff;
+}
+
+/* גלילה פנימית להערות שיעורים */
+.notes-scroll {
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.note-item {
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.note-item:last-child {
+  border-bottom: none;
+}
+
+.note-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #666;
+}
+
+.note-item p {
+  font-size: 13px;
+  margin: 4px 0;
+  color: #333;
+}
+
+.note-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.note-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+button {
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+/* 👇 האוברליי שקוף לגמרי */
+.note-overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: transparent !important; /* 👈 שקוף */
+  z-index: 1000;
+  overflow-y: auto;
+}
+
+/* 👇 גם ה-backdrop של Angular Material שקוף */
+::ng-deep .cdk-overlay-backdrop {
+  background: transparent !important;
+>>>>>>> dd12ecf4abe02ff5a0c704f495a047bc80f0f452
 }

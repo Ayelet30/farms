@@ -2,7 +2,7 @@ import {
   Component, Input, Output, EventEmitter, OnInit,
   ViewChild, ElementRef, AfterViewInit, OnChanges, SimpleChanges
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, NgIf, NgForOf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -12,6 +12,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSelectModule } from '@angular/material/select';
 import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
+<<<<<<< HEAD
 import { dbTenant, getSupabaseClient, getCurrentUserDetails } from '../../services/supabaseClient.service';
 
 type UUID = string;
@@ -31,6 +32,9 @@ interface ReadyNote {
   id: number | string;
   content: string;
 }
+=======
+import { db } from '../../services/supabaseClient.service';
+>>>>>>> dd12ecf4abe02ff5a0c704f495a047bc80f0f452
 
 @Component({
   selector: 'app-note',
@@ -38,9 +42,18 @@ interface ReadyNote {
   templateUrl: './note.component.html',
   styleUrls: ['./note.component.scss'],
   imports: [
-    CommonModule, FormsModule,
-    MatCardModule, MatIconModule, MatFormFieldModule, MatInputModule,
-    MatButtonModule, MatSelectModule, MatListModule, MatChipsModule
+    CommonModule,
+    NgIf,
+    NgForOf,
+    FormsModule,
+    MatCardModule,
+    MatIconModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatButtonModule,
+    MatSelectModule,
+    MatListModule,
+    MatChipsModule
   ]
 })
 export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
@@ -59,16 +72,15 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
   readyNotes: ReadyNote[] = [];
 
   newNote = '';
+<<<<<<< HEAD
   selectedCategory: Category = 'general';
   categories: Category[] = ['general', 'medical', 'behavioral'];
+=======
+  noteType = 'כללי';
+  selectedFile: File | null = null;
+>>>>>>> dd12ecf4abe02ff5a0c704f495a047bc80f0f452
 
-  loadingNotes = false;
-  loadingReady = false;
-
-  async ngOnInit() {
-    await this.loadReadyNotes();
-    await this.loadNotes();
-  }
+  ngOnInit() {}
 
   ngAfterViewInit() {
     if (this.scrollable?.nativeElement)
@@ -97,6 +109,7 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
 
   /** טעינת הערות מהשרת */
   async loadNotes() {
+<<<<<<< HEAD
     try {
       const childId = this.child?.child_uuid;
       if (!childId) return;
@@ -105,11 +118,25 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
       const { data, error } = await this.dbc
         .from('notes')
         .select('id, content, instructor_uid, instructor_name, date, category')
+=======
+    const childId = this.child?.child_uuid || this.child?.id;
+    if (!childId) return;
+
+    try {
+      const { data: notesData, error } = await db()
+        .from('notes')
+        .select('*')
+>>>>>>> dd12ecf4abe02ff5a0c704f495a047bc80f0f452
         .eq('child_id', childId)
         .order('date', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading notes:', error);
+        this.notes = [];
+        return;
+      }
 
+<<<<<<< HEAD
       const notes = (data ?? []).map((n: any) => ({
         id: n.id,
         display_text: n.content,
@@ -123,6 +150,19 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
       this.notesGeneral = notes.filter(n => n.category === 'general');
       this.notesMedical = notes.filter(n => n.category === 'medical');
       this.notesBehavioral = notes.filter(n => n.category === 'behavioral');
+=======
+      this.notes = notesData ?? [];
+      if (!this.notes.length) {
+        this.notes = [{
+          id: 'demo-note',
+          content: 'אין הערות עדיין.',
+          date: new Date().toISOString().slice(0, 10),
+          child_id: childId,
+          instructor_uid: 'demo'
+        }];
+      }
+      this.resetScroll();
+>>>>>>> dd12ecf4abe02ff5a0c704f495a047bc80f0f452
     } catch (err) {
       console.error('💥 Error loading notes:', err);
       this.notesGeneral = this.notesMedical = this.notesBehavioral = [];
@@ -131,25 +171,28 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
     }
   }
 
-  /** טעינת הערות מוכנות */
-  async loadReadyNotes() {
-    this.loadingReady = true;
+  /** הוספת הערה חדשה עם תאריך עדכני */
+  async addNote() {
+    const childId = this.child?.child_uuid || this.child?.id;
+    if (!this.newNote.trim() || !childId) return;
+
     try {
-      const { data, error } = await this.dbc
-        .from('list_notes')
-        .select('id, note');
-      if (error) throw error;
-      this.readyNotes = (data ?? []).map((r: any) => ({
-        id: r.id,
-        content: r.note ?? ''
-      }));
+      await db().from('notes').insert([{
+        content: this.newNote,
+        child_id: childId,
+        date: new Date().toISOString().slice(0, 10),
+        id: crypto.randomUUID()
+      }]);
+      this.newNote = '';
+      this.selectedFile = null;
+      this.noteType = 'כללי';
+      await this.loadNotes();
     } catch (err) {
-      console.error('💥 Error loading ready notes:', err);
-    } finally {
-      this.loadingReady = false;
+      console.error('Error adding note:', err);
     }
   }
 
+<<<<<<< HEAD
   filteredReadyNotes() {
     return this.readyNotes;
   }
@@ -203,26 +246,32 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
         this.notesBehavioral.unshift(newNoteObj);
 
       this.newNote = '';
+=======
+  async deleteNote(noteId: string) {
+    try {
+      const { error } = await db().from('notes').delete().eq('id', noteId);
+      if (!error) await this.loadNotes();
+>>>>>>> dd12ecf4abe02ff5a0c704f495a047bc80f0f452
     } catch (err) {
-      console.error('💥 Failed to save note:', err);
+      console.error('Error deleting note:', err);
     }
   }
 
   startEdit(note: NoteVM) { note.isEditing = true; }
 
-  async saveEdit(note: NoteVM) {
+  async editNote(noteId: string, newContent: string) {
     try {
-      const { error } = await this.dbc
+      const { error } = await db()
         .from('notes')
-        .update({ content: note.display_text })
-        .eq('id', note.id);
-      if (error) throw error;
-      note.isEditing = false;
+        .update({ content: newContent })
+        .eq('id', noteId);
+      if (!error) await this.loadNotes();
     } catch (err) {
-      console.error('💥 Failed to edit note:', err);
+      console.error('Error editing note:', err);
     }
   }
 
+<<<<<<< HEAD
   async deleteNote(noteId: string | number) {
     try {
       const { error } = await this.dbc
@@ -236,6 +285,15 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
       this.notesBehavioral = this.notesBehavioral.filter(n => n.id !== noteId);
     } catch (err) {
       console.error('💥 Failed to delete note:', err);
+=======
+  trackByNote(index: number, note: any) {
+    return note.id;
+  }
+
+  onBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
+      this.onClose();
+>>>>>>> dd12ecf4abe02ff5a0c704f495a047bc80f0f452
     }
   }
 }

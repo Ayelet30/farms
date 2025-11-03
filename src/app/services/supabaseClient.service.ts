@@ -13,6 +13,7 @@ function readMeta(name: string): string | null {
   return el?.content?.trim() || null;
 }
 
+
 function runtime(key: string): string | null {
   const metaName = `x-${key.toLowerCase().replace(/_/g, '-')}`;
   const maybeWindow = typeof window !== 'undefined' ? (window as any) : undefined;
@@ -60,7 +61,7 @@ type BootstrapResp = {
 };
 
 /** ===================== STATE ===================== **/
-export let supabase: SupabaseClient | null = null;
+let supabase: SupabaseClient | null = null;
 let authBearer: string | null = null;
 let currentTenant: TenantContext | null = null;
 let currentFarmMeta: FarmMeta | null = null;
@@ -299,30 +300,27 @@ export async function getCurrentUserDetails(
   const tenant = requireTenant();
   const fbUser = getAuth().currentUser;
 
-  
   if (!fbUser) throw new Error('No Firebase user is logged in.');
-  
+
   const ttl = options?.cacheMs ?? 60_000;
   const cacheKey = `${tenant.schema}|${fbUser.uid}|${select}`;
   if (userCache && userCache.key === cacheKey && userCache.expires > Date.now()) return userCache.data;
-  
+
   const dbcTenant = db();         // סכימת הטננט הנוכחית
   const dbcPublic = db('public');
-  
+
   // ננעלים לטננט הנבחר כדי לא להתבלבל בין חוות שונות
   const { targetTable, role, role_in_tenant, roleId, farmId, farmName } =
-  await resolveRoleAndFarm(dbcTenant, dbcPublic, fbUser.uid, { tenantId: tenant.id });
-  
-  console.log("!!!!!!", cacheKey);
+    await resolveRoleAndFarm(dbcTenant, dbcPublic, fbUser.uid, { tenantId: tenant.id });
 
   if (!targetTable) return null;
-  
+
   // במקום maybeSingle: מביאים את כל הרשומות עבור ה-uid ובוחרים אחת דטרמיניסטית
   const { data: rows, error } = await dbcTenant
-  .from(targetTable)
-  .select('*')                 // מביא * כדי שנוכל לדרג לפי שדות אם קיימים
-  .eq('uid', fbUser.uid);
-  
+    .from(targetTable)
+    .select('*')                 // מביא * כדי שנוכל לדרג לפי שדות אם קיימים
+    .eq('uid', fbUser.uid);
+
   if (error) throw error;
 
 
@@ -727,33 +725,13 @@ export type ListParentsOpts = {
 };
 
 /** מחזיר את כל ההורים בחווה (כלומר בסכימת ה-tenant הנוכחי) */
-export async function listParents(opts: ListParentsOpts = {}): Promise<{ rows: ParentRow[]; count?: number | null }> {
-  const tenant = requireTenant();    
-
-  const dbc = db(tenant.schema);
-
-  const select = opts.select ?? 'uid, full_name,extra_notes, address, phone, email';
-  let q = dbc.from('parents').select(select, { count: 'exact' });
-
-  if (opts.search?.trim()) {
-    const s = `%${opts.search.trim()}%`;
-    q = q.or(`full_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
-  }
-
-  const orderBy = opts.orderBy ?? 'full_name';
-  const ascending = opts.ascending ?? true;
-  q = q.order(orderBy, { ascending });
-
-  const limit = Math.max(1, opts.limit ?? 50);
-  const offset = Math.max(0, opts.offset ?? 0);
-  q = q.range(offset, offset + limit - 1);
-
-  const { data, error, count } = await q;
-  
+export async function listParents(): Promise<ParentRow[]> {
+  const { data, error } = await dbTenant()
+    .from('parents')
+    .select('uid, full_name, phone, email')
+    .order('full_name');
   if (error) throw error;
-
-
-  return { rows: (data ?? []) as unknown as ParentRow[], count: count ?? null };
+  return data ?? [];
 }
 
 
@@ -863,4 +841,50 @@ export async function listSent(limit = 20, offset = 0): Promise<(Message & { rec
   if (error) throw error;
   return (data ?? []) as any[];
 }
+// ===== Create Parent (server-side via Edge Function) =====
+export async function createParent(payload: {
+  full_name: string;
+  email: string;
+  phone: string;
+  id_number: string;
+  address: string;
+  extra_notes: string;
+  message_preferences: string[];
+}): Promise<{ ok: true; uid: string }> {
+
+  const ctx = requireTenant(); // חשוב! יש אצלך
+  const body = {
+    full_name: payload.full_name,
+    email: payload.email,
+    phone: payload.phone,
+    id_number: payload.id_number,
+    address: payload.address,
+    extra_notes: payload.extra_notes,
+    message_preferences: payload.message_preferences,
+    tenant_id: ctx.id,         // השיוך לחווה
+    schema_name: ctx.schema    // הסכמה של הטננט
+  };
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  // @ts-ignore – אם יש משתנה מודולרי authBearer אצלכם
+  if (typeof authBearer === 'string' && authBearer) {
+    headers['Authorization'] = `Bearer ${authBearer}`;
+  }
+
+  const res = await fetch('/functions/v1/create-parent', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  let data: any = null;
+  try { data = await res.json(); } catch {}
+
+  if (!res.ok) {
+    throw new Error(data?.error || 'Failed to create parent');
+  }
+
+  return data as { ok: true; uid: string };
+}
+
 

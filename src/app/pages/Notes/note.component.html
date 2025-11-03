@@ -3,13 +3,15 @@
     <mat-card-header>
       <mat-card-title>
         <mat-icon>person</mat-icon>
-        פרטי הילד - {{ child?.full_name || child?.name || '—' }}
+        פרטי הילד - {{ child?.full_name }}
       </mat-card-title>
+
       <button mat-icon-button class="close-button" (click)="onClose()">
         <mat-icon>close</mat-icon>
       </button>
     </mat-card-header>
 
+<<<<<<< HEAD
     <mat-card-content class="scrollable-content">
       <!-- === מסגרת עליונה === -->
       <div class="inner-section top">
@@ -109,4 +111,71 @@
       </button>
     </div>
   </section>
+=======
+    <mat-card-content #scrollable class="scrollable-content">
+      <section class="section personal-details">
+        <h3>פרטים אישיים</h3>
+        <div class="details-grid">
+          <div>
+            <p><b>שם:</b> {{ child?.full_name }}</p>
+            <p><b>גיל:</b> {{ child?.age || 'לא ידוע' }}</p>
+          </div>
+          <div>
+            <p><b>הורה:</b> {{ child?.parent_name || '-' }}</p>
+            <p><mat-icon inline>phone</mat-icon> {{ child?.phone || '-' }}</p>
+            <p><mat-icon inline>email</mat-icon> {{ child?.email || '-' }}</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="note-box medical-note">
+        <h4>הערות רפואיות</h4>
+        <p>{{ child?.medical_notes || 'לא ידועות אלרגיות' }}</p>
+      </section>
+
+      <section class="note-box emotional-note">
+        <h4>הערות התנהגותיות</h4>
+        <p>ילד שקט, צריך עידוד</p>
+      </section>
+
+      <section class="note-box">
+        <h4>הערות שיעורים ({{ notes.length }})</h4>
+        <div class="notes-scroll">
+          <mat-list>
+            <mat-list-item *ngFor="let note of notes; trackBy: trackByNote">
+              <div class="note-item">
+                <div class="note-header">
+                  <b>{{ note.date | date:'dd.MM.yyyy' }}</b>
+                  <span *ngIf="note.instructor_uid">{{ note.instructor_uid }}</span>
+                </div>
+                <p>{{ note.content }}</p>
+                <div class="note-actions">
+                  <button mat-icon-button (click)="editNotePrompt(note)">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button mat-icon-button color="warn" (click)="deleteNote(note.id)">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </div>
+              </div>
+            </mat-list-item>
+          </mat-list>
+        </div>
+      </section>
+
+      <section class="note-box">
+        <h4>הוספת הערה חדשה</h4>
+        <div class="note-form">
+          <mat-form-field appearance="fill" class="full-width">
+            <mat-label>כתוב הערה</mat-label>
+            <textarea matInput [(ngModel)]="newNote" rows="2"></textarea>
+          </mat-form-field>
+          <div class="actions">
+            <button mat-raised-button color="primary" (click)="addNote()">הוסף הערה</button>
+          </div>
+        </div>
+      </section>
+    </mat-card-content>
+  </mat-card>
+>>>>>>> dd12ecf4abe02ff5a0c704f495a047bc80f0f452
 </div>

@@ -1,57 +1,80 @@
-<div class="message-container">
-  <h2>📨 שלח הודעה למשרד</h2>
+<div class="page" dir="rtl">
+  <h2>מרכז הודעות להורה</h2>
 
-  <form (ngSubmit)="submitMessage()" #noteForm="ngForm">
-    <label for="subject">נושא</label>
-    <select id="subject" [(ngModel)]="newNote.subject" name="subject" required>
-      <option value="" disabled selected hidden>בחר נושא</option>
-      <option value="חיוב">חיוב</option>
-      <option value="לוח זמנים">לוח זמנים</option>
-      <option value="בקשה כללית">בקשה כללית</option>
-    </select>
+  <nav class="tabs">
+    <button [class.active]="tab()==='threads'" (click)="tab.set('threads'); loadThreads()">השיחות שלי</button>
+    <button [class.active]="tab()==='new'" (click)="tab.set('new')">פתחו שיחה חדשה</button>
+    <button [class.active]="tab()==='announcements'" (click)="tab.set('announcements'); loadAnnouncements()">הודעות מהחווה</button>
+  </nav>
 
-    <label for="content">תוכן ההודעה</label>
-    <textarea
-      id="content"
-      [(ngModel)]="newNote.content"
-      name="content"
-      maxlength="500"
-      required
-    ></textarea>
+  <!-- שיחות -->
+  <section *ngIf="tab()==='threads'">
+    <div class="split">
+      <aside class="list">
+        <div class="row" *ngFor="let c of threads()" (click)="openConversation(c)" [class.active]="activeConv()?.id===c.id">
+          <div class="title">{{c.subject || 'ללא נושא'}}</div>
+          <div class="meta">
+            <span class="badge" [class.open]="c.status==='open'" [class.pending]="c.status==='pending'" [class.closed]="c.status==='closed'">{{c.status}}</span>
+            <span class="time">{{c.updated_at | date:'short'}}</span>
+          </div>
+        </div>
+        <div *ngIf="loadingThreads()">טוען…</div>
+      </aside>
 
-    <button type="submit">שלח הודעה למשרד</button>
-  </form>
+      <main class="thread" *ngIf="activeConv(); else pickConv">
+        <header>
+          <h3>{{activeConv()?.subject || 'שיחה'}}</h3>
+        </header>
 
-  <div *ngIf="confirmationMessage" class="confirmation">
-    {{ confirmationMessage }}
-  </div>
+        <article class="msg" *ngFor="let m of messages()">
+          <div class="meta">
+            <strong>{{m.sender_role === 'parent' ? 'הורה' : 'צוות'}}</strong>
+            <small>{{m.created_at | date:'short'}}</small>
+          </div>
+          <div class="body" [innerHTML]="m.body_md"></div>
+        </article>
 
-  <button (click)="toggleHistory()" class="history-btn">
-    🔍 {{ showHistory ? 'הסתר את ההערות שנשלחו' : 'הצג את ההערות שנשלחו בעבר' }}
-  </button>
+        <footer class="reply">
+          <textarea [(ngModel)]="replyText" placeholder="כתבו תשובה…"></textarea>
+          <button (click)="sendReply()" [disabled]="!replyText.trim()">שליחה</button>
+        </footer>
+      </main>
 
-  <div *ngIf="showHistory" class="message-history">
-    <table>
-      <thead>
-        <tr>
-          <th>תאריך</th>
-          <th>נושא</th>
-          <th>תוכן</th>
-          <th>סטטוס</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let note of noteHistory">
-          <td>{{ note.date_sent | date: 'dd.MM.yy' }}</td>
-          <td>{{ note.title }}</td>
-          <td>{{ note.content.length > 20 ? (note.content | slice:0:20) + '...' : note.content }}</td>
-          <td>
-            <span [ngClass]="statusClass(note.status)">
-              {{ getStatusLabel(note.status) }}
-            </span>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+      <ng-template #pickConv>
+        <div class="empty">בחרו שיחה מרשימה</div>
+      </ng-template>
+    </div>
+  </section>
+
+  <!-- פתיחת שיחה -->
+  <section *ngIf="tab()==='new'" class="form">
+    <label>נושא
+      <input [(ngModel)]="newSubject" placeholder="נושא (אופציונלי)">
+    </label>
+
+    <label>תוכן ההודעה
+      <textarea [(ngModel)]="newBody" rows="6" placeholder="כתבו את פירוט הבקשה/שאלה"></textarea>
+    </label>
+
+    <button (click)="createConversation()" [disabled]="creating() || !newBody.trim()">פתחו שיחה</button>
+    <span class="toast" *ngIf="toast()">{{toast()}}</span>
+  </section>
+
+  <!-- הודעות שידור -->
+  <section *ngIf="tab()==='announcements'">
+    <div *ngIf="!announcements().length && !loadingAnn()">אין הודעות</div>
+    <article class="ann" *ngFor="let a of announcements()">
+      <header>
+        <strong>{{a.subject || 'ללא נושא'}}</strong>
+        <small>{{a.sent_at | date:'short'}}</small>
+      </header>
+      <div class="body" [innerHTML]="a.body_md"></div>
+      <footer class="channels">
+        <span *ngIf="a.channel_inapp">In-App</span>
+        <span *ngIf="a.channel_email"> · Email</span>
+        <span *ngIf="a.channel_sms"> · SMS</span>
+      </footer>
+    </article>
+    <div *ngIf="loadingAnn()">טוען…</div>
+  </section>
 </div>

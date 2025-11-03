@@ -1,3 +1,4 @@
+
 export interface Lesson {
   lesson_id: string; 
   [x: string]: any;
@@ -14,5 +15,4 @@ export interface Lesson {
   child_name: string;
   start_datetime?: string;
   end_datetime?: string;
-  occur_date?: string;
 }
