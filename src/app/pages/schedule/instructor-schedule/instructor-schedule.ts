@@ -1,14 +1,11 @@
 import { Component, OnInit, ChangeDetectorRef, ViewChild, AfterViewInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
-
 import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import { ScheduleItem } from '../../../models/schedule-item.model';
 import { CurrentUserService } from '../../../core/auth/current-user.service';
 import { dbTenant } from '../../../services/supabaseClient.service';
 import type { EventClickArg } from '@fullcalendar/core';
-
 import { NoteComponent } from '../../Notes/note.component';
 import { Lesson } from '../../../models/lesson-schedule.model';
 
@@ -48,7 +45,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
   @ViewChild(ScheduleComponent) scheduleComp!: ScheduleComponent;
 
   private cdr = inject(ChangeDetectorRef);
-  private cu  = inject(CurrentUserService);
+  private cu = inject(CurrentUserService);
 
   children: Child[] = [];
   lessons: Lesson[] = [];
@@ -64,7 +61,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
     try {
       this.loading = true;
 
-      // ✅ תיקון: בדיקת פרטי מדריך
+      // ✅ טעינת פרטי מדריך
       const user = await this.cu.loadUserDetails();
       if (!user?.id_number) {
         this.error = 'לא נמצאו פרטי מדריך. התחברי שוב.';
@@ -72,9 +69,9 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
       }
       this.instructorId = String(user.id_number).trim();
 
-
-      const startYmd = ymd(new Date());
-      const endYmd = ymd(addDays(new Date(), 56));
+      // טווח זמן
+      const startYmd = ymd(addDays(new Date(), -14));
+      const endYmd = ymd(addDays(new Date(), 60));
 
       await this.loadLessonsForRange(startYmd, endYmd);
 
@@ -86,8 +83,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
       }
 
       await this.loadChildrenAndRefs(childIds);
-
-      this.applyFilterAndBuildItems();
+      this.setScheduleItems();
 
     } catch (err: any) {
       console.error('❌ init error', err);
@@ -99,16 +95,17 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // מחכים שה-ViewChild וה-calendarApi יהיו מוכנים
+    // מחכים שה-calendarApi יהיה מוכן
     const interval = setInterval(() => {
       if (this.scheduleComp?.calendarApi) {
         clearInterval(interval);
-        console.log('Calendar API ready:', this.scheduleComp.calendarApi);
+        console.log('✅ Calendar API ready:', this.scheduleComp.calendarApi);
         this.setScheduleItems();
-      }
-    }, 50);
 
-    this.cdr.detectChanges();
+        // מאזין ללחיצות תאריכים
+        this.scheduleComp.calendarApi.on('dateClick', (event: any) => this.onDateClick(event));
+      }
+    }, 300);
   }
 
   private async loadLessonsForRange(startYmd: string, endYmd: string): Promise<void> {
@@ -143,25 +140,52 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
       : { data: [] as Parent[], error: null };
 
     if (errParents) throw errParents;
-     const parentsMap = new Map<string, Parent>((parentsData ?? []).map((p: { uid: any; }) => [p.uid, p]));
+
+    const parentsMap = new Map<string, Parent>((parentsData ?? []).map((p: { uid: string }) => [p.uid, p]));
 
     this.children = childList.map(c => ({
       ...c,
       age: c.birth_date ? calcAge(c.birth_date) : undefined,
       parent: c.parent_uid ? (parentsMap.get(c.parent_uid) ?? null) : null
     }));
-
-    this.lessons = this.lessons.map(l => ({
-      ...l,
-      child_name: this.childName(l.child_id),
-      child_color: colorFromId(l.child_id),
-      instructor_name: ''
-    }));
   }
 
-  private applyFilterAndBuildItems(): void {
-    this.filteredLessons = this.lessons.filter(l => l.instructor_id === this.instructorId);
-    this.setScheduleItems();
+  /** בונה אירועים ללוח */
+  private setScheduleItems(): void {
+    if (!this.scheduleComp?.calendarApi) {
+      console.warn('⚠️ Calendar API not ready yet');
+      return;
+    }
+
+    const src = this.filteredLessons.length ? this.filteredLessons : this.lessons;
+    const now = new Date();
+
+    this.items = src.map(l => {
+      const startISO = this.ensureIso(l.start_datetime, l.start_time, l.occur_date);
+      const endISO = this.ensureIso(l.end_datetime, l.end_time, l.occur_date);
+      const child = this.children.find(c => c.child_uuid === l.child_id);
+
+      let color = '#b5ead7';
+      if (l.status === 'בוטל') color = '#ffcdd2';
+      else if (new Date(endISO) < now) color = '#e0e0e0';
+
+      return {
+        id: `${l.lesson_id}_${l.child_id}_${l.occur_date}`,
+        title: `${child?.full_name ?? ''} (${child?.age ?? ''}) — ${l.lesson_type ?? ''}`,
+        start: startISO,
+        end: endISO,
+        color,
+        meta: {
+          child_id: l.child_id,
+          instructor_id: l.instructor_id,
+          status: l.status
+        },
+        status: l.status
+      } as ScheduleItem;
+    });
+
+    console.log('📆 Schedule items built:', this.items);
+    this.cdr.detectChanges();
   }
 
   private ensureIso(datetime?: string, time?: string, baseDate?: string | Date): string {
@@ -173,43 +197,6 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
       d.setHours(Number(hh) || 0, Number(mm) || 0, 0, 0);
     }
     return d.toISOString();
-  }
-
-  private setScheduleItems(): void {
-    if (!this.scheduleComp?.calendarApi) {
-      console.warn('Calendar API not ready yet, skipping items build');
-      return;
-    }
-
-    const src = this.filteredLessons.length ? this.filteredLessons : this.lessons;
-    this.items = src
-      .map(l => {
-        const startISO = this.ensureIso((l as any).start_datetime, (l as any).start_time, (l as any).occur_date);
-        const endISO   = this.ensureIso((l as any).end_datetime,   (l as any).end_time,   (l as any).occur_date);
-        return {
-          id: String(l.id ?? `${l.child_id}__${startISO}`),
-          title: l.lesson_type || 'שיעור',
-          start: startISO,
-          end: endISO,
-          color: l.child_color || '#b5ead7',
-          meta: {
-            child_id: l.child_id,
-            child_name: l.child_name || '',
-            instructor_id: l.instructor_id,
-            status: l.status
-          },
-          status: l.status
-        } as ScheduleItem;
-      })
-      .filter(it => !!it.start && !!it.end);
-
-    console.log('Schedule items built:', this.items);
-    this.cdr.detectChanges();
-  }
-
-  private childName(childId: string): string {
-    const child = this.children.find(c => c.child_uuid === childId);
-    return child?.full_name ?? '';
   }
 
   onEventClick(arg: EventClickArg): void {
@@ -225,22 +212,18 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
     this.cdr.detectChanges();
   }
 
-  onDateClick(raw: string | Date | { date?: Date; dateStr?: string }): void {
-    let d: Date;
-    if (typeof raw === 'string') d = new Date(raw);
-    else if (raw instanceof Date) d = raw;
-    else d = raw?.date ?? (raw?.dateStr ? new Date(raw.dateStr) : new Date());
-
-    const targetYmd = ymd(d);
-    const event = this.items.find(it => ymd(new Date(it.start)) === targetYmd);
-    if (event?.meta?.child_id) {
-      this.selectedChild = this.children.find(c => c.child_uuid === event?.meta?.child_id) ?? null;
-      this.cdr.detectChanges();
+  onDateClick(event: any): void {
+    const api = this.scheduleComp?.calendarApi;
+    if (!api) return;
+    if (api.view.type === 'dayGridMonth') {
+      api.changeView('timeGridDay', event.dateStr);
+    } else {
+      console.log('📅 נבחר תאריך:', event.dateStr);
     }
   }
 }
 
-// ---------------- helper functions ----------------
+/* ---------- פונקציות עזר ---------- */
 function ymd(d: Date): string {
   return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())).toISOString().slice(0, 10);
 }
@@ -258,11 +241,4 @@ function calcAge(isoDate: string): number {
   const m = t.getMonth() - b.getMonth();
   if (m < 0 || (m === 0 && t.getDate() < b.getDate())) age--;
   return age;
-}
-
-function colorFromId(id: string): string {
-  const palette = ['#d8f3dc','#fbc4ab','#cdb4db','#b5ead7','#ffdac1','#e0fbfc','#ffe5ec'];
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return palette[hash % palette.length];
 }
