@@ -542,3 +542,39 @@
   width: 14px;
   height: 14px;
 }
+.inline-note {
+  margin-inline-start: 10px;   /* רווח מימין לכפתור (ב־LTR זה שמאלה) */
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9a6a00;
+  background: #fff6e5;
+  border: 1px solid #f6e3b9;
+  border-radius: 10px;
+  align-self: center;
+  white-space: nowrap;
+}
+
+/* תגית אזהרה ליד גיל/קופה */
+.age-badge.warn {
+  background: #fff6e5;
+  border-color: #f6e3b9;
+  color: #9a6a00;
+}
+
+/* כפתור ביטול בקשת מחיקה – קונטור אזהרה */
+.cta-btn.warning-outline {
+  background: #fff;
+  border-color: #eab308;   /* גוון זהב-צהוב */
+  color: #7a5d00;
+}
+.cta-btn.warning-outline:hover {
+  background: #fffbea;
+  border-color: #d4a106;
+}
+
+/* מצב "בפעולה" לכפתור (מונע דאבל-קליק) */
+.cta-btn[aria-busy="true"] {
+  opacity: .6;
+  pointer-events: none;
+}

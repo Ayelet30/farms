@@ -21,20 +21,15 @@
   max-height: 85vh;
 =======
   border-radius: 12px;
-  background-color: #fff;
-  border: 1px solid #ddd;
-  padding: 0;
-  width: 90%;         
-  max-width: 480px;   
-  min-height: 60vh;   
-  max-height: 80vh;   
-  position: relative;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
->>>>>>> dd12ecf4abe02ff5a0c704f495a047bc80f0f452
+  width: 95%;
+  max-width: 420px; /* 🔹 רוחב מדויק כמו בפיגמה */
+  max-height: 85vh; /* 🔹 גלילה אנכית */
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.18);
+  border: none;
 }
-
 
 mat-card-header {
   padding: 14px 18px;
@@ -43,9 +38,6 @@ mat-card-header {
 }
 
 mat-card-title {
-  font-size: 16px;
-  font-weight: bold;
-  color: #333;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -58,8 +50,7 @@ mat-card-title {
   position: absolute;
   top: 8px;
   left: 8px;
-  color: #888;
-  z-index: 1;
+  color: #777;
 }
 
 /* אזור גלילה */
@@ -105,22 +96,8 @@ mat-card-title {
 .details-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px 12px;
-  margin-bottom: 12px;
-}
-
-.details-grid p {
-  margin: 0;
-  font-size: 14px;
-  color: #444;
-}
-
-.section h3,
-.section h4 {
-  margin: 8px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #222;
+  gap: 6px 10px;
+  font-size: 13px;
 }
 
 /* הערות רפואיות והתנהגותיות */
@@ -310,82 +287,72 @@ mat-card-title {
 .prepared-notes {
   background: #fafafa;
   border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 8px 10px;
 }
 
-.medical-note {
-  background-color: #ffecec;
-  border: 1px solid #f5c2c7;
-}
-
-.emotional-note {
-  background-color: #e8f0fe;
-  border: 1px solid #c2dbff;
-}
-
-/* גלילה פנימית להערות שיעורים */
-.notes-scroll {
-  max-height: 250px;
+/* ✅ הוספת גלילה פנימית רק לאזור הערות השיעורים */
+.general-notes {
+  max-height: 220px; /* גובה מוגבל */
   overflow-y: auto;
-  padding-right: 4px;
 }
 
+.general-notes::-webkit-scrollbar {
+  width: 6px;
+}
+.general-notes::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+.general-notes::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* פריטים */
 .note-item {
-  padding: 6px 0;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid #e6e6e6;
+  padding: 5px 0;
 }
-
 .note-item:last-child {
   border-bottom: none;
 }
 
-.note-header {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #666;
-}
-
-.note-item p {
-  font-size: 13px;
-  margin: 4px 0;
-  color: #333;
-}
-
-.note-actions {
-  display: flex;
-  gap: 4px;
-  margin-top: 4px;
-}
-
+/* טופס הוספת הערה */
 .note-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
-button {
+button[mat-raised-button] {
+  align-self: flex-start;
   font-size: 13px;
-  padding: 4px 10px;
-  border-radius: 6px;
+  height: 30px;
 }
 
-/* 👇 האוברליי שקוף לגמרי */
-.note-overlay {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
+/* כפתורי הערות מוכנות */
+.filter-buttons {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  background: transparent !important; /* 👈 שקוף */
-  z-index: 1000;
-  overflow-y: auto;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
 }
 
-/* 👇 גם ה-backdrop של Angular Material שקוף */
-::ng-deep .cdk-overlay-backdrop {
-  background: transparent !important;
->>>>>>> dd12ecf4abe02ff5a0c704f495a047bc80f0f452
+button[mat-stroked-button] {
+  font-size: 12px;
+  border-radius: 18px;
+  padding: 3px 8px;
+  line-height: 1.1;
+}
+
+/* גלילה כללית עדינה */
+.scrollable-content::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollable-content::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+.scrollable-content::-webkit-scrollbar-track {
+  background: transparent;
 }
