@@ -4,7 +4,7 @@ import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import { NoteComponent } from '../../Notes/note.component';
 import { ScheduleItem } from '../../../models/schedule-item.model';
 import { Lesson } from '../../../models/lesson-schedule.model';
-import { dbTenant } from '../../../services/supabaseClient.service';
+import { dbTenant } from '../../../services/legacy-compat';
 import { DateClickArg } from '@fullcalendar/interaction';
 
 @Component({

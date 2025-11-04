@@ -2,7 +2,7 @@ import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { getAuth } from 'firebase/auth';
-import { db, ensureTenantContextReady, replyToThread } from '../../../services/supabaseClient.service';
+import { db, ensureTenantContextReady, replyToThread } from '../../../services/legacy-compat';
 
 type Tab = 'inbox' | 'compose' | 'sent';
 

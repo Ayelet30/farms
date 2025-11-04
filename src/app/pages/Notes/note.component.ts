@@ -12,7 +12,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSelectModule } from '@angular/material/select';
 import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
-import { dbTenant, getSupabaseClient } from '../../services/supabaseClient.service';
+import { dbTenant, getSupabaseClient } from '../../services/legacy-compat';
 
 type NoteVM = {
   id: string | number;

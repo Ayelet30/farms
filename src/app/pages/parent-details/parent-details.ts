@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { dbTenant, getCurrentUserData } from '../../services/supabaseClient.service';
+import { dbTenant, getCurrentUserData } from '../../services/legacy-compat';
 import { OnDestroy } from '@angular/core';
 // ...
 

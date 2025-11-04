@@ -5,12 +5,15 @@ import { MatDialog } from '@angular/material/dialog';
 import { FormsModule } from '@angular/forms';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
 import {
-  listMembershipsForCurrentUser,
   getCurrentFarmMetaSync,
   getCurrentFarmLogoUrl,
   getFarmLogoUrl,
-  getSelectedMembershipSync,
   logout as sbLogout,
+} from '../../services/legacy-compat';
+
+import {
+  listMembershipsForCurrentUser,
+  getSelectedMembershipSync,
 } from '../../services/supabaseClient.service';
 
 import { CurrentUserService } from '../../core/auth/current-user.service';

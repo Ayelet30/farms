@@ -35,7 +35,6 @@ export class ParentPaymentsComponent {
   // אם יש לך CurrentUserService/tenant – אפשר להחליף את ה־@Input
   parentUid: string | undefined;
   parentEmail: string | undefined;
-  farmId: string | undefined;
 
   // לשימוש חד-פעמי עבור חיוב מבחן/חד פעמי
   amountAgorot = 0;
@@ -57,16 +56,15 @@ export class ParentPaymentsComponent {
      const cur = this.cu.current;            // מתוך CurrentUser
     const details = this.cu.snapshot;       // מתוך userDetails$
 
-    this.farmId = details?.farm_id !== undefined ? String(details.farm_id) : "";
-    this.parentUid = cur?.uid ?? '';
+     this.parentUid = cur?.uid ?? '';
     this.parentEmail = cur?.email ?? '';  
 
-    console.log('ParentPayments: uid=', this.parentUid, ' email=', this.parentEmail, ' farmId=', this.farmId);
+    console.log('ParentPayments: uid=', this.parentUid, ' email=', this.parentEmail);
   }
 
   async ngOnInit() {
     try {
-      if (!this.parentUid || !this.farmId) throw new Error('missing uid/farmId');
+      if (!this.parentUid ) throw new Error('missing uid');
       await this.refresh();
     } catch (e: any) {
       this.error.set(e.message ?? 'failed to init');
@@ -77,8 +75,8 @@ export class ParentPaymentsComponent {
 
   async refresh() {
     const [p, c] = await Promise.all([
-      this.pagos.listProfiles(this.parentUid!, this.farmId!),
-      this.pagos.listCharges(this.parentUid!, this.farmId!, 20)
+      this.pagos.listProfiles(this.parentUid!),
+      this.pagos.listCharges(this.parentUid!, 20)
     ]);
     this.profiles.set(
       p.map(x => ({
@@ -105,7 +103,7 @@ export class ParentPaymentsComponent {
   }
 
   async addPaymentMethod() {
-    if (!this.parentUid || !this.parentEmail || !this.farmId) return;
+    if (!this.parentUid || !this.parentEmail) return;
     try {
       this.busyAdd.set(true);
       const orderId = this.genOrderId();
@@ -113,7 +111,6 @@ export class ParentPaymentsComponent {
       const url = await this.tranzila.createHostedUrl({
         uid: this.parentUid,
         email: this.parentEmail,
-        farmId: this.farmId,
         amountAgorot: 100,
         orderId,
         successPath: '/billing/success',
@@ -131,7 +128,7 @@ export class ParentPaymentsComponent {
 
   async setDefault(profileId: string) {
     try {
-      await this.pagos.setDefault(profileId, this.parentUid!, this.farmId!);
+      await this.pagos.setDefault(profileId, this.parentUid!);
       await this.refresh();
     } catch (e: any) {
       this.error.set(e.message ?? 'Failed to set default');
@@ -153,7 +150,6 @@ export class ParentPaymentsComponent {
       this.busyCharge.set(true);
       await this.tranzila.chargeByToken({
         parentUid: this.parentUid!,
-        farmId: this.farmId!,
         amountAgorot: this.amountAgorot,
         currency: 'ILS'
       });

@@ -3,6 +3,9 @@ import { CommonModule } from '@angular/common';
 
 import {
   ensureTenantContextReady,
+}  from '../../services/legacy-compat';
+
+import {
   listParents,
   ParentRow,
 }  from '../../services/supabaseClient.service';
