@@ -1,6 +1,4 @@
 export interface Lesson {
-  lesson_id: string; 
-  [x: string]: any;
   id: string;
   child_id: string;
   day_of_week: string;

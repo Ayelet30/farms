@@ -2,6 +2,7 @@ import { Component, OnInit, ChangeDetectorRef, ViewChild, AfterViewInit, inject 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
+
 import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import { ScheduleItem } from '../../../models/schedule-item.model';
 import { CurrentUserService } from '../../../core/auth/current-user.service';
@@ -70,6 +71,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
         return;
       }
       this.instructorId = String(user.id_number).trim();
+
 
       const startYmd = ymd(new Date());
       const endYmd = ymd(addDays(new Date(), 56));
@@ -141,7 +143,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
       : { data: [] as Parent[], error: null };
 
     if (errParents) throw errParents;
-    const parentsMap = new Map<string, Parent>((parentsData ?? []).map((p: { uid: any; }) => [p.uid, p]));
+     const parentsMap = new Map<string, Parent>((parentsData ?? []).map((p: { uid: any; }) => [p.uid, p]));
 
     this.children = childList.map(c => ({
       ...c,

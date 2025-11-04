@@ -14,12 +14,6 @@
 .child-details-card {
   direction: rtl;
   background: #fff;
-<<<<<<< HEAD
-  border-radius: 14px;
-  width: 90%;
-  max-width: 440px;
-  max-height: 85vh;
-=======
   border-radius: 12px;
   width: 95%;
   max-width: 420px; /* 🔹 רוחב מדויק כמו בפיגמה */
@@ -64,29 +58,31 @@ mat-card-title {
   gap: 12px;
 }
 
-/* מסגרות פנימיות */
-.inner-section {
-  border-radius: 12px;
-  border: 1px solid #e3e3e3;
-  background: #ffffff;
-  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.03);
-  padding: 14px 16px;
+/* שני בלוקים ראשיים */
+.child-section,
+.notes-section {
+  background: #fff;
+  border: 1px solid #ececec;
+  border-radius: 10px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
-.inner-section.top {
-  background: #fffdf6;
-  border-color: #f2e4ca;
+/* בלוק עליון (רפואי/התנהגותי) */
+.child-section {
+  background: #fffef8;
+  border-color: #f1e8d8;
 }
 
-.inner-section.bottom {
+/* בלוק תחתון (שיעורים) */
+.notes-section {
   background: #ffffff;
-  border-color: #e3e3e3;
+  border-color: #e9e9e9;
 }
 
-/* פרטים אישיים */
+/* כותרות משנה */
 .section.personal-details h3 {
   font-size: 14px;
   margin-bottom: 6px;
@@ -104,183 +100,20 @@ mat-card-title {
 .note-box {
   border-radius: 8px;
   padding: 8px 10px;
+  margin: 0;
   font-size: 13px;
-  margin-bottom: 6px;
 }
 
 .medical-note {
-  background-color: #fff5f5;
+  background-color: #fff4f4;
   border: 1px solid #f4bdbd;
 }
 
-.behavioral-note {
+.emotional-note {
   background-color: #f1f6ff;
   border: 1px solid #c5d8ff;
 }
 
-<<<<<<< HEAD
-/* קיצור גובה המלבנים */
-.medical-note,
-.behavioral-note {
-  max-height: 110px;
-  overflow: hidden;
-}
-
-//* === הערות שיעורים === */
-/* === הערות שיעורים === */
-.general-note {
-  background: #fff;
-  border: 1px solid #e6e6e6;
-  border-radius: 12px;
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-
-  h4 {
-    font-size: 15px;
-    font-weight: 600;
-    margin-bottom: 4px;
-    color: #111;
-  }
-
-  /* כל הערה היא כרטיס */
-  .lesson-note-card {
-    background: #f9f9f9;
-    border: 1px solid #e0e0e0;
-    border-radius: 10px;
-    padding: 10px 14px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: 0.2s ease background;
-    direction: rtl;
-
-    &:hover {
-      background: #f5f5f5;
-    }
-
-    .note-text {
-      flex: 1;
-      text-align: right;
-      font-size: 14px;
-      color: #222;
-      line-height: 1.4;
-      margin: 0;
-      word-break: break-word;
-    }
-
-    .actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-right: 10px;
-
-      button {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 26px;
-        height: 26px;
-
-        mat-icon {
-          font-size: 18px;
-        }
-      }
-
-      .delete-btn mat-icon {
-        color: #e53935;
-      }
-
-      .edit-btn mat-icon {
-        color: #1976d2;
-      }
-    }
-  }
-
-  .note-meta {
-    font-size: 12px;
-    color: #777;
-    margin-top: -4px;
-    text-align: left;
-  }
-}
-
-/* === הוסף הערה חדשה === */
-.new-note {
-  background: #fff;
-  border: 1px solid #e6e6e6;
-  border-radius: 12px;
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-
-  h4 {
-    font-size: 15px;
-    font-weight: 600;
-    margin-bottom: 2px;
-    color: #111;
-  }
-
-  mat-form-field {
-    width: 100%;
-  }
-
-  textarea {
-    resize: vertical; /* ✅ ניתן להגדלה ולהקטנה */
-    border-radius: 8px !important;
-    font-size: 13px;
-    min-height: 70px;
-  }
-
-  button {
-    align-self: flex-start;
-    font-size: 13px;
-    border-radius: 18px;
-    padding: 4px 14px;
-    background: #fff0f4;
-    color: #c2185b;
-
-    &:hover {
-      background: #ffe6ec;
-    }
-  }
-}
-
-/* === הערות מוכנות === */
-.prepared-notes {
-  background: #fff;
-  border: 1px solid #e6e6e6;
-  border-radius: 12px;
-  padding: 18px;
-  margin-top: 14px;
-
-  h4 {
-    font-size: 15px;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: #111;
-  }
-
-  .filter-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-
-    button[mat-stroked-button] {
-      font-size: 13px;
-      border-radius: 20px;
-      padding: 6px 14px;
-      color: #d81b60;
-      border-color: #d81b60;
-
-      &:hover {
-        background: #fff0f4;
-      }
-    }
-  }
-=======
 /* הערות שיעורים */
 .general-notes,
 .new-note,

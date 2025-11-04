@@ -27,9 +27,9 @@ type ReadyNote = { id: number | string; content: string };
 
 @Component({
   selector: 'app-note',
-  standalone: true,
   templateUrl: './note.component.html',
   styleUrls: ['./note.component.scss'],
+  standalone: true,
   imports: [
     CommonModule, FormsModule,
     MatCardModule, MatIconModule, MatFormFieldModule, MatInputModule,
@@ -37,7 +37,6 @@ type ReadyNote = { id: number | string; content: string };
   ]
 })
 export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
-[x: string]: any;
   @Input() child: any;
   @Input() occurrence: any;
   @Output() close = new EventEmitter<void>();
@@ -46,11 +45,12 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
   private dbc = dbTenant();
   private sb = getSupabaseClient();
 
+  // רשימות נפרדות
   notesGeneral: NoteVM[] = [];
   notesMedical: NoteVM[] = [];
   notesBehavioral: NoteVM[] = [];
-  readyNotes: ReadyNote[] = [];
 
+  readyNotes: ReadyNote[] = [];
   newNote = '';
   selectedCategory: 'general' = 'general';
 
@@ -78,14 +78,6 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
 
   trackByNote(_: number, n: NoteVM) { return n.id; }
   trackByReady(_: number, r: ReadyNote) { return r.id; }
-
-  getCategoryLabel(cat: Category): string {
-    switch (cat) {
-      case 'medical': return 'רפואי';
-      case 'behavioral': return 'התנהגותי';
-      default: return 'כללי';
-    }
-  }
 
   /** טעינת הערות מהשרת */
   async loadNotes() {
@@ -186,7 +178,9 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
     }
   }
 
-  startEdit(note: NoteVM) { note.isEditing = true; }
+  startEdit(note: NoteVM) {
+    note.isEditing = true;
+  }
 
   async saveEdit(note: NoteVM) {
     try {
