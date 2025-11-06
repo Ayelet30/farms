@@ -5,7 +5,7 @@ import { getAuth, signOut } from 'firebase/auth';
 import { runtime } from './runtime';
 
 export type FarmMeta = { id: string; name: string; schema_name: string; logo_url?: string | null };
-export type TenantContext = { id: string; schema: string; accessToken?: string };
+export type TenantContext = { id: string; schema: string; accessToken?: string | null };
 export type RoleInTenant = 'parent' | 'instructor' | 'secretary' | 'manager' | 'admin' | 'coordinator';
 export type Membership = { tenant_id: string; role_in_tenant: RoleInTenant; farm: FarmMeta | null };
 
@@ -15,19 +15,28 @@ const SUPABASE_URL = runtime('SUPABASE_URL');
 const SUPABASE_ANON_KEY = runtime('SUPABASE_ANON_KEY');
 const LOGIN_BOOTSTRAP_URL = runtime('LOGIN_BOOTSTRAP_URL') ?? '/api/loginBootstrap';
 
+// מפתחות אחסון
+const LS_SELECTED_TENANT = 'selectedTenant';
+const LS_SELECTED_ROLE   = 'selectedRole';
+const LS_TENANT_CTX      = 'tenant_ctx';
+
 type TenantListener = (ctx: TenantContext | null) => void;
 
 @Injectable({ providedIn: 'root' })
 export class SupabaseTenantService {
   private supabase: SupabaseClient | null = null;
   private authBearer: string | null = null;
+
   private currentTenant: TenantContext | null = null;
   private currentFarmMeta: FarmMeta | null = null;
   private currentRoleInTenant: RoleInTenant | null = null;
+
   private refreshTimer: any = null;
 
   private baseClientRef: SupabaseClient | null = null;
-  private schemaClients: Record<string, any> = {};
+  // schemaClients holds schema-scoped clients returned by supabaseClient.schema(schema),
+  // which are Postgrest-like clients; infer the type from SupabaseClient.schema method.
+  private schemaClients: Record<string, ReturnType<SupabaseClient['schema']>> = {};
 
   private tenantListeners = new Set<TenantListener>();
   private ctxLock: Promise<void> | null = null;
@@ -35,7 +44,25 @@ export class SupabaseTenantService {
   private membershipsCache: Membership[] = [];
   private userCache: { key: string; data: any; expires: number } | null = null;
 
-  // ---------- public API (זה מה שנקרא מתוך legacy-compat) ----------
+  constructor() {
+    // אתחול מוקדם: ניסיון שיחזור הקשר מ־localStorage כדי לצמצם מרוץ
+    try {
+      const rawCtx = localStorage.getItem(LS_TENANT_CTX);
+      if (rawCtx) {
+        const parsed = JSON.parse(rawCtx) as TenantContext;
+        if (parsed?.id && parsed?.schema) {
+          this.currentTenant = parsed;
+          this.authBearer = parsed.accessToken ?? null;
+        }
+      }
+      const savedRole = localStorage.getItem(LS_SELECTED_ROLE);
+      this.currentRoleInTenant = (savedRole as RoleInTenant) ?? null;
+    } catch {}
+    // מכין לקוח בסיסי (עם או בלי Authorization) — יוחלף אוטומטית ב־setTenantContext()
+    this.supabase = this.makeClient();
+  }
+
+  // ---------- public API (הקריאות שהקוד משתמש בהן) ----------
 
   getSupabaseClient(): SupabaseClient {
     if (!this.supabase) this.supabase = this.makeClient();
@@ -47,44 +74,85 @@ export class SupabaseTenantService {
     return this.currentTenant;
   }
 
-  db(schema?: string) {
+  db(schema?: string): ReturnType<SupabaseClient['schema']> {
     const base = this.getSupabaseClient();
-    if (this.baseClientRef !== base) { this.baseClientRef = base; this.schemaClients = {}; }
-    const effectiveSchema = schema ?? this.requireTenant().schema;
-    if (!this.schemaClients[effectiveSchema]) this.schemaClients[effectiveSchema] = base.schema(effectiveSchema);
+    // אם הוחלף לקוח בסיס — מאפסים קאש סכימות
+    if (this.baseClientRef !== base) {
+      this.baseClientRef = base;
+      this.schemaClients = {};
+    }
+    const effectiveSchema: 'public' | string = schema ?? this.requireTenant().schema;
+    if (!this.schemaClients[effectiveSchema]) {
+      this.schemaClients[effectiveSchema] = base.schema(effectiveSchema);
+    }
     return this.schemaClients[effectiveSchema];
   }
   dbTenant = () => this.db();
   dbPublic = () => this.db('public');
+
   clearDbCache() { this.schemaClients = {}; }
 
   onTenantChange(cb: TenantListener): () => void {
     this.tenantListeners.add(cb);
+    // שדר מצב נוכחי מיד עם הרשמה (נוח ל־UI)
+    try { cb(this.currentTenant); } catch {}
     return () => this.tenantListeners.delete(cb);
   }
 
-  async setTenantContext(ctx: TenantContext) {
+  async setTenantContext(ctx: TenantContext): Promise<void> {
     const run = async () => {
-      this.currentTenant = { ...ctx };
-      this.authBearer = ctx.accessToken ?? null;
+      // נורמליזציה
+      const normalized: TenantContext = {
+        id: String(ctx.id),
+        schema: String(ctx.schema),
+        accessToken: ctx.accessToken ?? null
+      };
+      this.currentTenant = normalized;
+      this.authBearer = normalized.accessToken ?? null;
+
+      // שומר עותק ל־localStorage עבור התאוששות מוקדמת
+      try { localStorage.setItem(LS_TENANT_CTX, JSON.stringify(normalized)); } catch {}
+
+      // בונים לקוח חדש עם Authorization מתאים
       this.supabase = this.makeClient();
       this.clearDbCache();
+
+      // ניהול refresh
       clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
       if (this.authBearer) this.scheduleTokenRefresh(this.authBearer);
+
+      // מודיע למאזינים
       this.notifyTenantChange();
     };
     this.ctxLock = (this.ctxLock ?? Promise.resolve()).then(run);
     await this.ctxLock;
   }
 
-  async clearTenantContext() {
+  async clearTenantContext(): Promise<void> {
     this.currentTenant = null;
+    this.currentFarmMeta = null;
     this.authBearer = null;
+
+    // מנקים timers וקאשים
     clearTimeout(this.refreshTimer);
     this.refreshTimer = null;
-    this.supabase = this.makeClient();
     this.clearDbCache();
+    this.userCache = null;
+    this.membershipsCache = [];
+
+    // מנקים אחסון
+    try {
+      localStorage.removeItem(LS_TENANT_CTX);
+      localStorage.removeItem(LS_SELECTED_TENANT);
+      // את התפקיד שומרים רק אם תרצי (כאן מוחקים גם אותו):
+      localStorage.removeItem(LS_SELECTED_ROLE);
+    } catch {}
+
+    // בונים לקוח "נייטרלי"
+    this.supabase = this.makeClient();
     try { await this.supabase.auth.signOut(); } catch {}
+
     this.notifyTenantChange();
   }
 
@@ -92,6 +160,40 @@ export class SupabaseTenantService {
     await this.clearTenantContext();
     await signOut(getAuth());
   }
+
+  // services/supabase-tenant.service.ts (הוסיפי בתוך המחלקה)
+async findFarmByKey(key: string): Promise<FarmMeta | null> {
+  const dbc = this.dbPublic();
+
+  // אם זה UUID – נחפש ישירות לפי id
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key);
+  if (isUuid) {
+    const { data, error } = await dbc.from('farms')
+      .select('id, name, schema_name, logo_url')
+      .eq('id', key)
+      .maybeSingle();
+    if (error) throw error;
+    return (data as FarmMeta) ?? null;
+  }
+
+  // אחרת ננסה schema_name מדויק או name (ILike)
+  const { data, error } = await dbc.from('farms')
+    .select('id, name, schema_name, logo_url')
+    .or(`schema_name.eq.${key},name.ilike.${key}`)
+    .maybeSingle();
+  if (error) throw error;
+
+  // אם לא נמצא וזו לא חיפוש ILIKE (למשל name בלי אחוזים), ננסה עוד פעם עם %key%
+  if (!data && !key.includes('%')) {
+    const { data: alt } = await dbc.from('farms')
+      .select('id, name, schema_name, logo_url')
+      .ilike('name', `%${key}%`)
+      .limit(1)
+      .maybeSingle();
+    return (alt as FarmMeta) ?? null;
+  }
+  return (data as FarmMeta) ?? null;
+}
 
   // ---------- bootstrap / refresh ----------
 
@@ -107,33 +209,65 @@ export class SupabaseTenantService {
     const url = qs.toString() ? `${LOGIN_BOOTSTRAP_URL}?${qs}` : LOGIN_BOOTSTRAP_URL;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` } });
     const raw = await res.text();
-    let parsed: any = null; try { parsed = JSON.parse(raw); } catch {}
+    let parsed: any = null;
+    try { parsed = JSON.parse(raw); } catch {}
     if (!res.ok) throw new Error(parsed?.error || `loginBootstrap failed: ${res.status}`);
 
     const data = parsed as BootstrapResp;
     this.currentRoleInTenant = (data?.role_in_tenant as RoleInTenant) ?? roleInTenant ?? null;
 
+    // שומרים role כדי לשחזר בכניסה הבאה
+    try { if (this.currentRoleInTenant) localStorage.setItem(LS_SELECTED_ROLE, this.currentRoleInTenant); } catch {}
+
     if (tenantId || !this.currentTenant) {
       await this.setTenantContext({ id: data.farm.id, schema: data.farm.schema_name, accessToken: data.access_token });
       this.currentFarmMeta = data.farm;
     }
-    // טיפה ניקוי קאש כדי למנוע ערבוב
+
+    // נקה קאשים כדי לא לערבב הקשרים
     this.userCache = null;
     this.membershipsCache = [];
-    localStorage.setItem('selectedTenant', data.farm.id);
+
+    try { localStorage.setItem(LS_SELECTED_TENANT, data.farm.id); } catch {}
     return data;
   }
 
+  /**
+   * מבטיח שיש הקשר טננט טעון.
+   * 1) אם כבר קיים — חוזר מיד.
+   * 2) אם יש selectedTenant ב־LS — עושה bootstrap.
+   * 3) אחרת — טוען חברות ובוחר הראשונה.
+   */
   async ensureTenantContextReady(): Promise<void> {
     if (this.currentTenant?.schema) return;
-    const stored = localStorage.getItem('selectedTenant');
-    if (stored) { await this.bootstrapSupabaseSession(stored, this.currentRoleInTenant ?? undefined as any); return; }
+
+    // ניסיון שיחזור מוקדם (ctx מלא)
+    try {
+      const rawCtx = localStorage.getItem(LS_TENANT_CTX);
+      if (rawCtx) {
+        const parsed = JSON.parse(rawCtx) as TenantContext;
+        if (parsed?.id && parsed?.schema) {
+          await this.setTenantContext(parsed);
+          return;
+        }
+      }
+    } catch {}
+
+    // selectedTenant → bootstrap
+    const stored = localStorage.getItem(LS_SELECTED_TENANT);
+    if (stored) {
+      await this.bootstrapSupabaseSession(stored, this.currentRoleInTenant ?? undefined as any);
+      return;
+    }
+
+    // נ fallback: מעלה חברות ובוחרת
     const list = await this.listMembershipsForCurrentUser(true);
     if (!list.length) throw new Error('No memberships for current user');
     await this.selectMembership(list[0].tenant_id, list[0].role_in_tenant);
   }
 
   // ---------- meta / farms ----------
+
   getCurrentFarmMetaSync(): FarmMeta | null { return this.currentFarmMeta; }
 
   async getCurrentFarmMeta(opts?: { refresh?: boolean }): Promise<FarmMeta | null> {
@@ -141,16 +275,19 @@ export class SupabaseTenantService {
     if (!this.currentFarmMeta || opts?.refresh) this.currentFarmMeta = await this.getFarmMetaById(tenant.id);
     return this.currentFarmMeta;
   }
+
   async getCurrentFarmName(opts?: { refresh?: boolean }): Promise<string | null> {
-    const meta = await this.getCurrentFarmMeta(opts); return meta?.name ?? null;
+    const meta = await this.getCurrentFarmMeta(opts);
+    return meta?.name ?? null;
   }
 
   async getFarmMetaById(farmId: string): Promise<FarmMeta | null> {
-    const { data } = await this.getSupabaseClient()
+    const { data, error } = await this.getSupabaseClient()
       .from('farms')
       .select('id, name, schema_name, logo_url')
       .eq('id', farmId)
       .maybeSingle();
+    if (error) throw error;
     return (data as FarmMeta) ?? null;
   }
 
@@ -165,6 +302,7 @@ export class SupabaseTenantService {
     const url = (data?.logo_url || '').trim();
     return url || null;
   }
+
   async getFarmLogoUrl(farmIdOrSchema: string): Promise<string | null> {
     const { data, error } = await this.dbPublic()
       .from('farms')
@@ -177,6 +315,7 @@ export class SupabaseTenantService {
   }
 
   // ---------- memberships ----------
+
   clearMembershipCache() { this.membershipsCache = []; }
 
   async listMembershipsForCurrentUser(force = false): Promise<Membership[]> {
@@ -191,6 +330,7 @@ export class SupabaseTenantService {
       .eq('is_active', true);
 
     if (error) throw error;
+
     type RowTU = { tenant_id: string; role_in_tenant: RoleInTenant | null };
     const rows: RowTU[] = (data ?? []) as RowTU[];
 
@@ -220,7 +360,10 @@ export class SupabaseTenantService {
     if (!chosen) throw new Error('No memberships');
 
     let boot = await this.bootstrapSupabaseSession(tenantId, roleInTenant ?? chosen.role_in_tenant);
-    if (boot?.farm?.id !== tenantId) boot = await this.bootstrapSupabaseSession(tenantId, roleInTenant ?? chosen.role_in_tenant);
+    if (boot?.farm?.id !== tenantId) {
+      // ניסיון נוסף אם ה־backend החזיר חווה אחרת
+      boot = await this.bootstrapSupabaseSession(tenantId, roleInTenant ?? chosen.role_in_tenant);
+    }
 
     const normalized: Membership = {
       tenant_id: boot.farm.id,
@@ -234,19 +377,32 @@ export class SupabaseTenantService {
 
     this.currentFarmMeta = boot.farm;
     this.membershipsCache = list.map(m => (m.tenant_id === chosen.tenant_id || m.tenant_id === boot.farm.id) ? normalized : m);
-    localStorage.setItem('selectedTenant', normalized.tenant_id);
+
+    try {
+      localStorage.setItem(LS_SELECTED_TENANT, normalized.tenant_id);
+      localStorage.setItem(LS_SELECTED_ROLE, normalized.role_in_tenant);
+      localStorage.setItem(LS_TENANT_CTX, JSON.stringify({ id: normalized.tenant_id, schema: boot.farm.schema_name, accessToken: (this.currentTenant?.accessToken ?? null) }));
+    } catch {}
+
     return normalized;
   }
 
-  // ---------- user details (כולל בחירה דטרמיניסטית) ----------
+  // ---------- user details ----------
+
   async getCurrentUserData(): Promise<any> {
     const currentUser = getAuth().currentUser;
     if (!currentUser) return null;
-    const { data } = await this.getSupabaseClient().from('users').select('*').eq('uid', currentUser.uid).maybeSingle();
+    const { data, error } = await this.getSupabaseClient()
+      .from('users')
+      .select('*')
+      .eq('uid', currentUser.uid)
+      .maybeSingle();
+    if (error) throw error;
     return data ?? null;
   }
 
   private async resolveRoleAndFarm(uid: string, opts: { tenantId?: string | null, roleInTenant?: string | null } = {}) {
+    // tentantId עכשווי (אם יש), וגם מה שרוצים בכוח
     let ctxTenantId: string | null = null;
     try { ctxTenantId = this.requireTenant().id; } catch {}
 
@@ -275,6 +431,7 @@ export class SupabaseTenantService {
     let roleStr: string | null = role_in_tenant;
     let targetTable: string | null = null;
 
+    // חיפוש טבלת היעד לפי role (בטבלת טננט)
     if (roleId != null) {
       const { data: rr } = await this.db()
         .from('role')
@@ -292,6 +449,20 @@ export class SupabaseTenantService {
       if (rr2?.table) targetTable = rr2.table as string;
     }
 
+    // אם עדיין לא נמצא — ברוטפורס סביר (עובר על הטבלאות בטבלת role)
+    if (!targetTable) {
+      const { data: roles, error } = await this.db().from('role').select('table');
+      if (!error) {
+        for (const r of roles ?? []) {
+          const tbl = r.table as string;
+          if (!tbl) continue;
+          const { data } = await this.db().from(tbl).select('uid').eq('uid', uid).limit(1);
+          if (data && data.length) { targetTable = tbl; break; }
+        }
+      }
+    }
+
+    // שם חווה
     let farmName: string | null = null;
     if (farmId != null) {
       const { data: farm } = await this.dbPublic()
@@ -300,16 +471,6 @@ export class SupabaseTenantService {
         .eq('id', farmId)
         .maybeSingle();
       farmName = (farm?.name as string) ?? null;
-    }
-
-    if (!targetTable) {
-      const { data: roles } = await this.db().from('role').select('table');
-      for (const r of roles ?? []) {
-        const tbl = r.table as string;
-        if (!tbl) continue;
-        const { data } = await this.db().from(tbl).select('uid').eq('uid', uid).limit(1);
-        if (data && data.length) { targetTable = tbl; break; }
-      }
     }
 
     return { targetTable, role: roleStr ?? null, role_in_tenant, roleId, farmId, farmName };
@@ -380,6 +541,7 @@ export class SupabaseTenantService {
   }
 
   // ---------- parents / children ----------
+
   async getCurrentParentDetails(select = 'uid, full_name, id_number, address, phone, email'): Promise<any | null> {
     const tenant = this.requireTenant();
     const fbUser = getAuth().currentUser;
@@ -408,6 +570,7 @@ export class SupabaseTenantService {
   }
 
   // ---------- agreements ----------
+
   async rpcGetRequiredAgreements(childId: string, parentUid: string, activityTag?: string | null) {
     const tenant = this.requireTenant();
     const { data, error } = await this.getSupabaseClient().rpc('get_required_agreements', {
@@ -437,6 +600,7 @@ export class SupabaseTenantService {
   }
 
   // ---------- messaging ----------
+
   async listInbox(options?: { status?: ('open'|'pending'|'closed')[]; search?: string | null; limit?: number; offset?: number; }) {
     let q = this.db().from('conversations')
       .select('id, subject, status, updated_at, created_at, opened_by_parent_uid, tags')
@@ -453,13 +617,14 @@ export class SupabaseTenantService {
   }
 
   async getThread(conversationId: string) {
-    const [{ data: conv }, { data: msgs, error: e2 }] = await Promise.all([
+    const [{ data: conv, error: e1 }, { data: msgs, error: e2 }] = await Promise.all([
       this.db().from('conversations').select('*').eq('id', conversationId).maybeSingle(),
       this.db().from('conversation_messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true })
     ]);
+    if (e1) throw e1;
     if (e2) throw e2;
     return { conv: (conv as any) ?? null, msgs: (msgs ?? []) as any[] };
-    }
+  }
 
   async replyToThread(conversationId: string, body_md: string) {
     const me = await this.getCurrentUserDetails('uid, role_in_tenant', { cacheMs: 0 });
@@ -526,8 +691,8 @@ export class SupabaseTenantService {
     return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
         storageKey,
-        persistSession: false,
-        autoRefreshToken: false,
+        persistSession: false,       // אנחנו מנהלים את ה־JWT ידנית
+        autoRefreshToken: false,     // refresh ידני דרך scheduleTokenRefresh
         detectSessionInUrl: false,
         lock: async (_n, _t, fn) => await fn(),
       },
@@ -541,7 +706,9 @@ export class SupabaseTenantService {
   }
 
   private notifyTenantChange() {
-    for (const cb of this.tenantListeners) { try { cb(this.currentTenant); } catch {} }
+    for (const cb of this.tenantListeners) {
+      try { cb(this.currentTenant); } catch {}
+    }
   }
 
   private scheduleTokenRefresh(jwt: string) {
@@ -549,6 +716,8 @@ export class SupabaseTenantService {
       const body = jwt.split('.')[1] || '';
       const base64Decode = (b64: string) => {
         if (typeof atob === 'function') return atob(b64);
+        // ב־Node (טסטים)
+        // @ts-ignore
         if (typeof Buffer !== 'undefined') return Buffer.from(b64, 'base64').toString('utf-8');
         throw new Error('No base64 decoder available');
       };
@@ -557,11 +726,11 @@ export class SupabaseTenantService {
       if (!exp || Number.isNaN(exp)) return;
 
       const msLeft = exp * 1000 - Date.now();
-      const delay = Math.max(msLeft - 60_000, 10_000);
+      const delay = Math.max(msLeft - 60_000, 10_000); // רענון דקה לפני
       clearTimeout(this.refreshTimer);
       this.refreshTimer = setTimeout(async () => {
         try {
-          const tId = this.currentTenant?.id ?? localStorage.getItem('selectedTenant') ?? undefined;
+          const tId = this.currentTenant?.id ?? localStorage.getItem(LS_SELECTED_TENANT) ?? undefined;
           await this.bootstrapSupabaseSession(tId as any, this.currentRoleInTenant ?? undefined as any);
         } catch (e) {
           console.warn('token refresh failed', e);

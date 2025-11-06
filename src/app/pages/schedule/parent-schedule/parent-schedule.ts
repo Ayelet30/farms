@@ -1,23 +1,26 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import { NoteComponent } from '../../Notes/note.component';
 import { ScheduleItem } from '../../../models/schedule-item.model';
 import { Lesson } from '../../../models/lesson-schedule.model';
-import { dbTenant } from '../../../services/legacy-compat';
 import { DateClickArg } from '@fullcalendar/interaction';
+
+// ⬅️ שימוש ישיר בשירות
+import { SupabaseTenantService } from '../../../services/supabase-tenant.service';
 
 @Component({
   selector: 'app-parent-schedule',
   standalone: true,
   templateUrl: './parent-schedule.html',
   styleUrls: ['./parent-schedule.scss'],
-  imports: [
-    CommonModule,
-    ScheduleComponent
-  ]
+  imports: [CommonModule, ScheduleComponent]
 })
 export class ParentScheduleComponent implements OnInit {
+  private tenant = inject(SupabaseTenantService);
+  /** גטר “עצלן” ללקוח סכמת הטננט */
+  private db() { return this.tenant.dbTenant(); }
+
   items: ScheduleItem[] = [];
   error: string | null = null;
   daySummary: { dateIso: string; total: number; done: number; cancelled: number } | null = null;
@@ -28,9 +31,10 @@ export class ParentScheduleComponent implements OnInit {
   selectedChildId: string = 'all';
   children: any[] = [];
 
-  private dbc = dbTenant();
-
   async ngOnInit() {
+    // ❗ חובה לפני כל גישה ל-DB
+    await this.tenant.ensureTenantContextReady();
+
     await this.loadChildren();
     await this.loadSchedule();
   }
@@ -38,7 +42,7 @@ export class ParentScheduleComponent implements OnInit {
   /** טוען ילדים */
   async loadChildren() {
     try {
-      const { data, error } = await this.dbc
+      const { data, error } = await this.db()
         .from('children')
         .select('child_uuid, full_name, color')
         .order('full_name', { ascending: true });
@@ -53,13 +57,13 @@ export class ParentScheduleComponent implements OnInit {
   /** טוען שיעורים */
   async loadSchedule() {
     try {
-      const { data, error } = await this.dbc
+      const { data, error } = await this.db()
         .from('lessons')
         .select('*')
         .order('start_time', { ascending: true });
 
       if (error) throw error;
-      this.items = this.mapLessonsToItems(data as Lesson[]);
+      this.items = this.mapLessonsToItems((data ?? []) as Lesson[]);
     } catch (err) {
       console.error('❌ Error loading schedule:', err);
       this.error = 'שגיאה בטעינת מערכת השיעורים';
@@ -70,7 +74,7 @@ export class ParentScheduleComponent implements OnInit {
   private mapLessonsToItems(src: Lesson[]): ScheduleItem[] {
     return src.map((l: Lesson) => {
       const startISO = this.ensureIso(l.start_datetime, l.start_time, l.occur_date);
-      const endISO = this.ensureIso(l.end_datetime, l.end_time, l.occur_date);
+      const endISO   = this.ensureIso(l.end_datetime,   l.end_time,   l.occur_date);
 
       return {
         id: String(l.id ?? `${l.child_id}__${startISO}`),
@@ -100,7 +104,6 @@ export class ParentScheduleComponent implements OnInit {
     return new Date().toISOString();
   }
 
-  /** 🧩 פונקציות שהיו חסרות ערך החזרה */
   getColorForChild(childId: string): string {
     if (!childId || childId === 'all') return '#f3f6e9';
     const child = this.children.find(c => c.child_uuid === childId);
@@ -120,7 +123,7 @@ export class ParentScheduleComponent implements OnInit {
   selectChild(childId: string): void {
     this.selectedChildId = childId;
     this.dropdownOpen = false;
-    // אפשר להוסיף סינון כאן לפי הילד הנבחר
+    // כאן אפשר להפעיל סינון לפי ילד נבחר אם תרצי
   }
 
   onViewRange(event: { start: string; end: string }): void {
@@ -128,7 +131,6 @@ export class ParentScheduleComponent implements OnInit {
   }
 
   onDateClick(event: DateClickArg) {
-    console.log('🎯 dateClick event fired:', event);
     const dateIso = event.dateStr?.slice(0, 10);
     if (!dateIso) return;
     this.calculateDaySummary(dateIso);
