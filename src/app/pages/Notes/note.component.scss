@@ -1,3 +1,5 @@
+
+/* === רקע הצללה של החלונית === */
 .note-overlay {
   position: fixed;
   inset: 0;
@@ -10,182 +12,283 @@
   padding: 30px 0;
 }
 
-/* כרטיס עיקרי */
+/* === כרטיס הערות === */
 .child-details-card {
   direction: rtl;
-  background: #fff;
-  border-radius: 12px;
-  width: 95%;
-  max-width: 420px; /* 🔹 רוחב מדויק כמו בפיגמה */
-  max-height: 85vh; /* 🔹 גלילה אנכית */
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  width: 90%;
+  max-width: 460px;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.18);
-  border: none;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+  animation: fadeIn 0.25s ease;
 }
 
+/* כותרת עליונה */
 mat-card-header {
   padding: 14px 18px;
   border-bottom: 1px solid #eee;
-  position: relative;
-}
-
-mat-card-title {
+  background: linear-gradient(to left, #fffaf7, #fff);
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #222;
+  justify-content: space-between;
+
+  mat-card-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-primary);
+  }
+
+  .close-button {
+    color: #999;
+    transition: color 0.2s;
+    &:hover {
+      color: var(--color-accent);
+    }
+  }
 }
 
-.close-button {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  color: #777;
-}
-
-/* אזור גלילה */
+/* === תוכן מתגלגל === */
 .scrollable-content {
-  padding: 14px;
+  padding: 16px;
+  background: var(--color-surface-alt);
   overflow-y: auto;
-  background: #fcfcfc;
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-/* שני בלוקים ראשיים */
-.child-section,
-.notes-section {
-  background: #fff;
-  border: 1px solid #ececec;
-  border-radius: 10px;
-  padding: 12px 14px;
+/* === מסגרות פנימיות === */
+.inner-section {
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.03);
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+
+  &.top {
+    background: #fffdf7;
+    border-color: #f1e4c7;
+  }
+
+  &.bottom {
+    background: #fff;
+  }
 }
 
-/* בלוק עליון (רפואי/התנהגותי) */
-.child-section {
-  background: #fffef8;
-  border-color: #f1e8d8;
+/* === פרטים אישיים === */
+.section.personal-details {
+  h3 {
+    font-size: 14px;
+    margin-bottom: 6px;
+    color: var(--color-primary);
+  }
+
+  .details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 10px;
+    font-size: 13px;
+    color: var(--color-text);
+
+    mat-icon[inline] {
+      vertical-align: middle;
+      font-size: 16px;
+      margin-left: 4px;
+      color: var(--color-muted);
+    }
+  }
 }
 
-/* בלוק תחתון (שיעורים) */
-.notes-section {
-  background: #ffffff;
-  border-color: #e9e9e9;
-}
-
-/* כותרות משנה */
-.section.personal-details h3 {
-  font-size: 14px;
-  margin-bottom: 6px;
-  color: #444;
-}
-
-.details-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 10px;
-  font-size: 13px;
-}
-
-/* הערות רפואיות והתנהגותיות */
+/* === הערות קטגוריאליות === */
 .note-box {
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
   font-size: 13px;
+  margin-bottom: 8px;
+
+  h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
 }
 
 .medical-note {
-  background-color: #fff4f4;
-  border: 1px solid #f4bdbd;
+  background: #fff5f5;
+  border: 1px solid #f3b7b7;
 }
 
-.emotional-note {
-  background-color: #f1f6ff;
-  border: 1px solid #c5d8ff;
+.behavioral-note {
+  background: #f4f8ff;
+  border: 1px solid #c7d9ff;
 }
 
-/* הערות שיעורים */
-.general-notes,
-.new-note,
-.prepared-notes {
-  background: #fafafa;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  padding: 8px 10px;
-}
-
-/* ✅ הוספת גלילה פנימית רק לאזור הערות השיעורים */
-.general-notes {
-  max-height: 220px; /* גובה מוגבל */
-  overflow-y: auto;
-}
-
-.general-notes::-webkit-scrollbar {
-  width: 6px;
-}
-.general-notes::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.2);
-  border-radius: 3px;
-}
-.general-notes::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-/* פריטים */
-.note-item {
-  border-bottom: 1px solid #e6e6e6;
-  padding: 5px 0;
-}
-.note-item:last-child {
-  border-bottom: none;
-}
-
-/* טופס הוספת הערה */
-.note-form {
+/* === הערות שיעורים === */
+.general-note {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
+
+  .lesson-note-card {
+    background: var(--color-surface-alt);
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: 0.2s ease;
+
+    &:hover {
+      background: #f8f8f8;
+    }
+
+    .note-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+
+      .note-text {
+        flex: 1;
+        font-size: 14px;
+        color: var(--color-text);
+      }
+
+      .actions {
+        display: flex;
+        gap: 4px;
+
+        button {
+          width: 26px;
+          height: 26px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          transition: 0.2s;
+
+          mat-icon {
+            font-size: 18px;
+          }
+
+          &.edit-btn mat-icon {
+            color: #1976d2;
+          }
+
+          &.delete-btn mat-icon {
+            color: #d32f2f;
+          }
+        }
+      }
+    }
+
+    .note-meta {
+      font-size: 12px;
+      color: var(--color-muted);
+      text-align: left;
+    }
+  }
 }
 
-button[mat-raised-button] {
-  align-self: flex-start;
-  font-size: 13px;
-  height: 30px;
-}
-
-/* כפתורי הערות מוכנות */
-.filter-buttons {
+/* === הוספת הערה חדשה === */
+.new-note {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 18px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 6px;
+  flex-direction: column;
+  gap: 12px;
+
+  h4 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-primary);
+  }
+
+  mat-form-field {
+    width: 100%;
+  }
+
+  textarea {
+    font-size: 13px;
+    border-radius: 8px !important;
+  }
+
+  button {
+    align-self: flex-start;
+    font-size: 13px;
+    border-radius: 20px;
+    padding: 6px 14px;
+    background: var(--color-accent-light);
+    color: var(--color-accent);
+    border: none;
+
+    &:hover {
+      background: #f8e2de;
+    }
+  }
 }
 
-button[mat-stroked-button] {
-  font-size: 12px;
-  border-radius: 18px;
-  padding: 3px 8px;
-  line-height: 1.1;
+/* === הערות מוכנות === */
+.prepared-notes {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 18px;
+
+  h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--color-primary);
+  }
+
+  .filter-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    button[mat-stroked-button] {
+      font-size: 13px;
+      border-radius: 20px;
+      padding: 6px 14px;
+      color: var(--color-accent);
+      border-color: var(--color-accent);
+      transition: 0.2s;
+
+      &:hover {
+        background: var(--color-accent-light);
+      }
+    }
+  }
 }
 
-/* גלילה כללית עדינה */
-.scrollable-content::-webkit-scrollbar {
-  width: 6px;
-}
-.scrollable-content::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.2);
-  border-radius: 3px;
-}
-.scrollable-content::-webkit-scrollbar-track {
-  background: transparent;
+/* === אנימציה עדינה === */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

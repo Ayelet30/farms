@@ -14,22 +14,26 @@ import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
 import { dbTenant, getSupabaseClient } from '../../services/legacy-compat';
 
-type NoteVM = {
+interface NoteVM {
   id: string | number;
   display_text: string;
   created_at?: string | null;
   instructor_uid?: string | null;
-  category: 'general' | 'medical' | 'behavioral';
+  instructor_name?: string | null;
+  category: Category;
   isEditing?: boolean;
-};
+}
 
-type ReadyNote = { id: number | string; content: string };
+interface ReadyNote {
+  id: number | string;
+  content: string;
+}
 
 @Component({
   selector: 'app-note',
+  standalone: true,
   templateUrl: './note.component.html',
   styleUrls: ['./note.component.scss'],
-  standalone: true,
   imports: [
     CommonModule, FormsModule,
     MatCardModule, MatIconModule, MatFormFieldModule, MatInputModule,
@@ -37,6 +41,7 @@ type ReadyNote = { id: number | string; content: string };
   ]
 })
 export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
+[x: string]: any;
   @Input() child: any;
   @Input() occurrence: any;
   @Output() close = new EventEmitter<void>();
@@ -45,14 +50,14 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
   private dbc = dbTenant();
   private sb = getSupabaseClient();
 
-  // רשימות נפרדות
   notesGeneral: NoteVM[] = [];
   notesMedical: NoteVM[] = [];
   notesBehavioral: NoteVM[] = [];
-
   readyNotes: ReadyNote[] = [];
+
   newNote = '';
-  selectedCategory: 'general' = 'general';
+  selectedCategory: Category = 'general';
+  categories: Category[] = ['general', 'medical', 'behavioral'];
 
   loadingNotes = false;
   loadingReady = false;
@@ -79,16 +84,24 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
   trackByNote(_: number, n: NoteVM) { return n.id; }
   trackByReady(_: number, r: ReadyNote) { return r.id; }
 
+  getCategoryLabel(cat: Category): string {
+    switch (cat) {
+      case 'medical': return 'רפואי';
+      case 'behavioral': return 'התנהגותי';
+      default: return 'כללי';
+    }
+  }
+
   /** טעינת הערות מהשרת */
   async loadNotes() {
     try {
       const childId = this.child?.child_uuid;
       if (!childId) return;
-
       this.loadingNotes = true;
+
       const { data, error } = await this.dbc
         .from('notes')
-        .select('id, content, instructor_uid, date, category')
+        .select('id, content, instructor_uid, instructor_name, date, category')
         .eq('child_id', childId)
         .order('date', { ascending: false });
 
@@ -99,7 +112,8 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
         display_text: n.content,
         created_at: n.date ?? null,
         instructor_uid: n.instructor_uid ?? null,
-        category: n.category ?? 'general',
+        instructor_name: n.instructor_name ?? '—',
+        category: (n.category ?? 'general') as Category,
         isEditing: false
       })) as NoteVM[];
 
@@ -141,22 +155,29 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
     this.newNote = content;
   }
 
-  /** הוספת הערה חדשה עם תאריך עדכני */
+  /** הוספת הערה חדשה */
   async addNote() {
     const childId = this.child?.child_uuid;
     const content = this.newNote.trim();
     if (!childId || !content) return;
 
-    const now = new Date().toISOString();
-    const newNoteObj: NoteVM = {
-      id: crypto.randomUUID(),
-      display_text: content,
-      created_at: now,
-      instructor_uid: (await this.sb.auth.getSession()).data?.session?.user?.id ?? null,
-      category: 'general'
-    };
-
     try {
+      const instructor = await getCurrentUserDetails('uid, full_name, id_number');
+      if (!instructor?.uid) {
+        console.warn('⚠️ No instructor session found');
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const newNoteObj: NoteVM = {
+        id: crypto.randomUUID(),
+        display_text: content,
+        created_at: now,
+        instructor_uid: instructor.uid,
+        instructor_name: instructor.full_name ?? '—',
+        category: this.selectedCategory
+      };
+
       const { error } = await this.dbc
         .from('notes')
         .insert([{
@@ -165,22 +186,26 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
           content,
           date: now,
           instructor_uid: newNoteObj.instructor_uid,
-          category: 'general'
+          instructor_name: newNoteObj.instructor_name,
+          category: this.selectedCategory
         }]);
 
       if (error) throw error;
 
-      // מוסיף מקומית את ההערה עם התאריך המעודכן בלי לרענן הכול
-      this.notesGeneral.unshift(newNoteObj);
+      if (this.selectedCategory === 'general')
+        this.notesGeneral.unshift(newNoteObj);
+      else if (this.selectedCategory === 'medical')
+        this.notesMedical.unshift(newNoteObj);
+      else
+        this.notesBehavioral.unshift(newNoteObj);
+
       this.newNote = '';
     } catch (err) {
       console.error('💥 Failed to save note:', err);
     }
   }
 
-  startEdit(note: NoteVM) {
-    note.isEditing = true;
-  }
+  startEdit(note: NoteVM) { note.isEditing = true; }
 
   async saveEdit(note: NoteVM) {
     try {
@@ -202,7 +227,10 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
         .delete()
         .eq('id', noteId);
       if (error) throw error;
+
       this.notesGeneral = this.notesGeneral.filter(n => n.id !== noteId);
+      this.notesMedical = this.notesMedical.filter(n => n.id !== noteId);
+      this.notesBehavioral = this.notesBehavioral.filter(n => n.id !== noteId);
     } catch (err) {
       console.error('💥 Failed to delete note:', err);
     }
