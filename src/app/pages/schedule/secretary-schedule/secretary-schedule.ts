@@ -75,6 +75,7 @@ export class SecretaryScheduleComponent implements OnInit {
     if (error) { console.error(error); this.lessons = []; return; }
 
     this.lessons = (data ?? []).map((r: any) => ({
+      lesson_id: String(r.lesson_id),
       id: String(r.lesson_id),
       child_id: r.child_id,
       day_of_week: r.day_of_week,

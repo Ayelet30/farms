@@ -41,7 +41,7 @@ export class SecretaryParentsComponent implements OnInit {
     this.error = null;
     try {
       const result = await listParents();
-      this.parents = result.rows;
+      this.parents = result;
     } catch (e: any) {
       this.error = e.message || 'Failed to fetch parents.';
       console.error(e);

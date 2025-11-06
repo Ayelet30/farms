@@ -12,7 +12,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSelectModule } from '@angular/material/select';
 import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
-import { dbTenant, getSupabaseClient } from '../../services/legacy-compat';
+import { dbTenant, getSupabaseClient, getCurrentUserDetails } from '../../services/legacy-compat';
+
+// הוסיפי ליד שאר ה־types למעלה
+type Category = 'general' | 'medical' | 'behavioral';
 
 interface NoteVM {
   id: string | number;
@@ -58,7 +61,7 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
   newNote = '';
   selectedCategory: Category = 'general';
   categories: Category[] = ['general', 'medical', 'behavioral'];
-
+ 
   loadingNotes = false;
   loadingReady = false;
 

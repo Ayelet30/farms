@@ -56,7 +56,6 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
   currentView: string = 'timeGridWeek';
   loading = false;
   error: string | null = null;
-  currentView = 'timeGridWeek';
   currentDate = '';
   isFullscreen = false;
 
