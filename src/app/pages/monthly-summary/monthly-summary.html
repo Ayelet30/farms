@@ -1,0 +1,182 @@
+<div class="monthly" dir="rtl">
+  <!-- כותרת עליונה -->
+  <header class="topbar">
+    <h1 class="page-title">הסיכום החודשי שלי</h1>
+  </header>
+
+  <!-- בחירת חודש ושנה -->
+  <section class="filters-row">
+    <mat-select [(ngModel)]="year" (selectionChange)="onMonthChange()" class="year-select">
+      <mat-option *ngFor="let y of years" [value]="y">{{ y }}</mat-option>
+    </mat-select>
+
+    <mat-select [(ngModel)]="month" (selectionChange)="onMonthChange()" class="month-select">
+      <mat-option *ngFor="let m of months" [value]="m.v">{{ m.t }}</mat-option>
+    </mat-select>
+  </section>
+
+  <!-- כרטיסי KPI -->
+  <section class="kpis" *ngIf="!loading">
+    <mat-card class="kpi purple">
+      <mat-icon>schedule</mat-icon>
+      <div class="value">{{ kpis().workedHours }}</div>
+      <div class="label">שעות עבודה</div>
+    </mat-card>
+
+    <mat-card class="kpi red">
+      <mat-icon>cancel</mat-icon>
+      <div class="value">{{ kpis().canceled }}</div>
+      <div class="label">בוטלו</div>
+    </mat-card>
+
+    <mat-card class="kpi orange">
+      <mat-icon>error</mat-icon>
+      <div class="value">{{ kpis().pending }}</div>
+      <div class="label">ממתינים</div>
+    </mat-card>
+
+    <mat-card class="kpi green">
+      <mat-icon>check_circle</mat-icon>
+      <div class="value">{{ kpis().done }}</div>
+      <div class="label">בוצעו</div>
+    </mat-card>
+
+    <mat-card class="kpi yellow">
+      <mat-icon>trending_up</mat-icon>
+      <div class="value">{{ kpis().successPct }}%</div>
+      <div class="label">אחוז הצלחה</div>
+    </mat-card>
+
+    <mat-card class="kpi teal">
+      <mat-icon>groups</mat-icon>
+      <div class="value">{{ kpis().privCount }} / {{ kpis().groupCount }}</div>
+      <div class="label">פרטי / קבוצתי</div>
+    </mat-card>
+
+    <mat-card class="kpi blue">
+      <mat-icon>attach_money</mat-icon>
+      <div class="value">₪{{ kpis().income }}</div>
+      <div class="label">הכנסה חודשית</div>
+    </mat-card>
+  </section>
+
+  <!-- טבלת פירוט שיעורים -->
+  <section class="list-section" *ngIf="!loading">
+    <div class="list-header">
+      <mat-icon class="icon-title">calendar_month</mat-icon>
+      <h2>פירוט שיעורים</h2>
+    </div>
+
+    <!-- סינון וחיפוש -->
+    <div class="filters">
+      <mat-select [value]="typeFilter()" (selectionChange)="onTypeChange($event.value)">
+        <mat-option value="all">כל הסוגים</mat-option>
+        <mat-option value="regular">רגיל</mat-option>
+        <mat-option value="makeup">השלמה</mat-option>
+      </mat-select>
+
+      <mat-select [value]="statusFilter()" (selectionChange)="onStatusChange($event.value)">
+        <mat-option value="all">כל הסטטוסים</mat-option>
+        <mat-option value="done">בוצע</mat-option>
+        <mat-option value="approved">אושר</mat-option>
+        <mat-option value="pending">ממתין</mat-option>
+        <mat-option value="canceled">בוטל</mat-option>
+      </mat-select>
+
+      <div class="search">
+        <mat-icon>search</mat-icon>
+        <input
+          type="text"
+          [value]="search()"
+          (input)="onSearchChange($event)"
+          placeholder="חפש לפי שם תלמיד או סוג שיעור..." />
+        <button mat-icon-button *ngIf="search()" (click)="clearSearch()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    </div>
+
+    <!-- טבלה -->
+    <table mat-table [dataSource]="filteredLessons()" class="mat-elevation-z1">
+      <ng-container matColumnDef="date">
+        <th mat-header-cell *matHeaderCellDef>תאריך</th>
+        <td mat-cell *matCellDef="let l">{{ l.anchor_week_start }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="student">
+        <th mat-header-cell *matHeaderCellDef>תלמיד/ה</th>
+        <td mat-cell *matCellDef="let l">{{ l.child?.full_name || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="type">
+        <th mat-header-cell *matHeaderCellDef>סוג שיעור</th>
+        <td mat-cell *matCellDef="let l">{{ l.lesson_type || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>סטטוס</th>
+        <td mat-cell *matCellDef="let l">
+          <span class="chip" [ngClass]="l.status">{{ l.status || '—' }}</span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="start">
+        <th mat-header-cell *matHeaderCellDef>התחלה</th>
+        <td mat-cell *matCellDef="let l">{{ l.start_time || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="end">
+        <th mat-header-cell *matHeaderCellDef>סיום</th>
+        <td mat-cell *matCellDef="let l">{{ l.end_time || '—' }}</td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="['date','student','type','status','start','end']"></tr>
+      <tr mat-row *matRowDef="let row; columns: ['date','student','type','status','start','end'];"></tr>
+    </table>
+
+    <div class="empty" *ngIf="!filteredLessons().length">
+      אין רשומות תואמות לסינון הנוכחי.
+    </div>
+
+    <!-- כפתורי ייצוא -->
+    <div class="bottom-actions">
+      <button mat-stroked-button class="pdf-btn" (click)="exportPdf()">
+        <mat-icon>picture_as_pdf</mat-icon> ייצוא ל־PDF
+      </button>
+      <button mat-stroked-button class="excel-btn" (click)="exportExcel()">
+        <mat-icon>table_chart</mat-icon> ייצוא ל־Excel
+      </button>
+    </div>
+  </section>
+
+  <!-- תובנות חודשיות -->
+  <section class="insights-section" *ngIf="!loading">
+    <div class="insights-header">
+      <mat-icon>insights</mat-icon>
+      <h2>תובנות חודשיות</h2>
+    </div>
+
+    <ul class="insights-list">
+      <li>
+        <span class="label">סה"כ שיעורים:</span>
+        <span class="value highlight">{{ insights().totalLessons }}</span>
+      </li>
+      <li>
+        <span class="label">אחוז ביטולים:</span>
+        <span class="value red">{{ insights().cancelPct }}%</span>
+      </li>
+      <li>
+        <span class="label">אחוז הצלחה:</span>
+        <span class="value green">{{ insights().successPct }}%</span>
+      </li>
+      <li>
+        <span class="label">מספר תלמידים:</span>
+        <span class="value orange">{{ insights().newStudents }}</span>
+      </li>
+      <li>
+        <span class="label">הכנסה ממוצעת לשיעור:</span>
+        <span class="value highlight">₪{{ insights().avgIncome }}</span>
+      </li>
+    </ul>
+  </section>
+</div>
