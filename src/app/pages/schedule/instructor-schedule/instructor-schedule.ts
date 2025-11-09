@@ -112,7 +112,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
       .order('start_datetime', { ascending: true });
 
     if (error) throw error;
-    this.lessons = (data ?? []) as unknown as Lesson[];
+    this.lessons = (data ?? []) as Lesson[];
   }
 
   private async loadChildrenAndRefs(childIds: string[]): Promise<void> {

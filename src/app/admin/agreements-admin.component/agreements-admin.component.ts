@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { AgreementsAdminService } from '../../services/agreements-admin.service';
 import { ensureTenantContextReady, getCurrentFarmMetaSync } from '../../services/legacy-compat';
 import { CurrentUserService } from '../../core/auth/current-user.service';
-import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 
 @Component({
   selector: 'agreements-admin',

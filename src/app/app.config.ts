@@ -1,4 +1,4 @@
-import { ApplicationConfig, importProvidersFrom, provideBrowserGlobalErrorListeners, provideZoneChangeDetection, LOCALE_ID } from '@angular/core';
+import { ApplicationConfig, importProvidersFrom, provideBrowserGlobalErrorListeners, provideZoneChangeDetection } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { routes } from './app.routes';
@@ -48,7 +48,6 @@ export const appConfig: ApplicationConfig = {
           }
         ),
     },
-    {provide: LOCALE_ID, useValue: 'he-IL' },
 
     // אתחול משתמש קיים אצלך
     CURRENT_USER_INIT_PROVIDER,
