@@ -5,8 +5,9 @@ import { FormsModule } from '@angular/forms';
 import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import { ScheduleItem } from '../../../models/schedule-item.model';
 import { CurrentUserService } from '../../../core/auth/current-user.service';
-import { dbTenant } from '../../../services/supabaseClient.service';
+import { dbTenant } from '../../../services/legacy-compat';
 import type { EventClickArg, DatesSetArg } from '@fullcalendar/core';
+
 import { NoteComponent } from '../../Notes/note.component';
 import { Lesson } from '../../../models/lesson-schedule.model';
 
@@ -52,9 +53,9 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
   selectedChild: Child | null = null;
 
   instructorId = '';
+  currentView: string = 'timeGridWeek';
   loading = false;
   error: string | null = null;
-  currentView = 'timeGridWeek';
   currentDate = '';
   isFullscreen = false;
 

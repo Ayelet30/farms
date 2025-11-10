@@ -2,10 +2,10 @@ import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { getAuth } from 'firebase/auth';
-import { db, ensureTenantContextReady, replyToThread } from '../../../services/supabaseClient.service';
- 
+import { db, ensureTenantContextReady, replyToThread } from '../../../services/legacy-compat';
+
 type Tab = 'inbox' | 'compose' | 'sent';
- 
+
 type Conversation = {
   id: string;
   subject: string | null;
@@ -14,7 +14,7 @@ type Conversation = {
   created_at: string;
   updated_at: string;
 };
- 
+
 type ConversationMessage = {
   id: string;
   conversation_id: string;
@@ -23,7 +23,7 @@ type ConversationMessage = {
   sender_uid: string | null;
   created_at: string;
 };
- 
+
 type SentMsg = {
   id: string;
   subject: string | null;
@@ -34,7 +34,7 @@ type SentMsg = {
   channel_email: boolean;
   channel_sms: boolean;
 };
- 
+
 @Component({
   selector: 'app-secretary-messages',
   standalone: true,
@@ -44,14 +44,14 @@ type SentMsg = {
 })
 export class SecretaryMessagesComponent implements OnInit {
   tab = signal<Tab>('inbox');
- 
+
   // Inbox
   loadingInbox = signal(false);
   inbox = signal<Conversation[]>([]);
   activeConv = signal<Conversation | null>(null);
   thread = signal<ConversationMessage[]>([]);
-  replyText: string = '';  
- 
+  replyText: string = '';   
+
   // Compose (שידור)
   compose = {
     subject: '',
@@ -64,22 +64,22 @@ export class SecretaryMessagesComponent implements OnInit {
   };
   sending = signal(false);
   toast = signal<string | null>(null);
- 
+
   // Sent
   loadingSent = signal(false);
   sent = signal<SentMsg[]>([]);
- 
+
   async ngOnInit() {
     await ensureTenantContextReady();
     await this.loadInbox();
   }
- 
+
   private myUid(): string {
     const uid = getAuth().currentUser?.uid;
     if (!uid) throw new Error('No logged-in user');
     return uid;
   }
- 
+
   // ===== Inbox / Threads =====
   async loadInbox() {
     this.loadingInbox.set(true);
@@ -95,7 +95,7 @@ export class SecretaryMessagesComponent implements OnInit {
       this.loadingInbox.set(false);
     }
   }
- 
+
   async openConversation(c: Conversation) {
     this.activeConv.set(c);
     const { data, error } = await db()
@@ -106,7 +106,7 @@ export class SecretaryMessagesComponent implements OnInit {
     if (error) throw error;
     this.thread.set((data ?? []) as ConversationMessage[]);
   }
- 
+
   async sendReply() {
     const txt = this.replyText.trim();
     if (!txt || !this.activeConv()) return;
@@ -114,7 +114,7 @@ export class SecretaryMessagesComponent implements OnInit {
     this.thread.update(arr => [...arr, msg]);
     this.replyText = '';
   }
- 
+
   // ===== Broadcast =====
   async doSendBroadcast() {
     this.sending.set(true);
@@ -137,7 +137,7 @@ export class SecretaryMessagesComponent implements OnInit {
         sent_at: this.compose.scheduledAt ? null : new Date().toISOString()
       }).select().single();
       if (e1) throw e1;
- 
+
       // 2) בניית נמענים
       let parentUids: string[] = [];
       if (this.compose.audience === 'all') {
@@ -149,7 +149,7 @@ export class SecretaryMessagesComponent implements OnInit {
         parentUids = [this.compose.singleUid.trim()];
       }
       parentUids = Array.from(new Set(parentUids));
- 
+
       if (parentUids.length) {
         const rows = parentUids.map(uid => ({
           message_id: (msg as any).id,
@@ -159,7 +159,7 @@ export class SecretaryMessagesComponent implements OnInit {
         const { error: e2 } = await db().from('message_recipients').insert(rows);
         if (e2) throw e2;
       }
- 
+
       this.toast.set('נשלח!');
       this.compose.body = '';
       this.compose.subject = '';
@@ -172,7 +172,7 @@ export class SecretaryMessagesComponent implements OnInit {
       setTimeout(() => this.toast.set(null), 4000);
     }
   }
- 
+
   async loadSent() {
     this.loadingSent.set(true);
     try {
@@ -187,5 +187,3 @@ export class SecretaryMessagesComponent implements OnInit {
     }
   }
 }
- 
- 
