@@ -615,21 +615,26 @@ export async function fetchCurrentParentDetails(
 
 /** ===================== CHILDREN API (per-tenant) ===================== **/
 export async function getMyChildren(
-  select = 'id:child_uuid, full_name, gov_id, birth_date, parent_id:parent_uid, status'
+  select = 'child_uuid, full_name, gov_id, birth_date, parent_uid, status'
 ): Promise<ChildRow[]> {
   await ensureTenantContextReady();
-  const dbc = db();               // לקוח סכימת הטננט
+
+  const uid = (await getCurrentUserData())?.uid;
+  if (!uid) throw new Error('No Firebase user');
+
+  const dbc = db(); // סכימת ה-tenant הנוכחית
   const { data, error } = await dbc
     .from('children')
-    .select(select)               // <- כאן ה-alias-ים
+    .select(select)
+    .eq('parent_uid', uid)                   // ✅ סינון לפי ההורה המחובר
     .order('full_name', { ascending: true });
+
   if (error) throw error;
   return (data ?? []) as unknown as ChildRow[];
 }
 
-
 export async function fetchMyChildren(
-  select = 'id:child_uuid, full_name, gov_id, birth_date, parent_id:parent_uid, status'
+  select = 'child_uuid, full_name, gov_id, birth_date, parent_uid, status'
 ): Promise<{ ok: boolean; data: ChildRow[]; error?: string }> {
   try {
     const data = await getMyChildren(select);
@@ -638,6 +643,7 @@ export async function fetchMyChildren(
     return { ok: false, data: [], error: e?.message ?? 'Unknown error' };
   }
 }
+
 export async function fetchCurrentFarmName(
   opts?: { refresh?: boolean }
 ): Promise<{ ok: boolean; data: string | null; error?: string }> {

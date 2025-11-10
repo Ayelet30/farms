@@ -10,6 +10,7 @@ import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { dbTenant } from '../../services/supabaseClient.service';
+import { defineConfig } from 'vite';
 
 type UUID = string;
 type LessonStatus = 'ממתין לאישור' | 'אושר' | 'בוטל' | 'הושלם' | 'בוצע';
@@ -245,52 +246,66 @@ export class MonthlySummaryComponent implements OnInit {
   }
 
   async exportExcel() {
-    const rows = this.filteredLessons();
-    try {
-      const XLSX: any = await import('xlsx');
-      const exportRows = rows.map((r) => ({
-        'תאריך': r.anchor_week_start,
-        'תלמיד/ה': r.child?.full_name || '',
-        'סוג שיעור': r.lesson_type || '',
-        'סטטוס': r.status || '',
-        'שעת התחלה': r.start_time || '',
-        'שעת סיום': r.end_time || '',
-      }));
-      const ws = XLSX.utils.json_to_sheet(exportRows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Monthly');
-      XLSX.writeFile(wb, `monthly_${this.year}_${this.month}.xlsx`);
-    } catch {
-      alert('יש להתקין: npm i xlsx');
-    }
-  }
+  const rows = this.filteredLessons();
+  try {
+    const XLSXmod: any = await import('xlsx');
+    const XLSX = XLSXmod.default ?? XLSXmod; // תמיכה גם ב-CJS וגם ב-ESM
 
-  async exportPdf() {
-    const rows = this.filteredLessons();
-    try {
-      const jsPDF: any = (await import('jspdf')).default;
-      await import('jspdf-autotable');
+    const exportRows = rows.map((r) => ({
+      'תאריך': r.anchor_week_start,
+      'תלמיד/ה': r.child?.full_name ?? '',
+      'סוג שיעור': r.lesson_type ?? '',
+      'סטטוס': r.status ?? '',
+      'שעת התחלה': r.start_time ?? '',
+      'שעת סיום': r.end_time ?? '',
+    }));
 
-      const doc = new jsPDF({ orientation: 'landscape' });
-      doc.setFont('helvetica', 'normal');
-      const head = [['תאריך', 'תלמיד/ה', 'סוג שיעור', 'סטטוס', 'התחלה', 'סיום']];
-      const body = rows.map((r) => [
-        r.anchor_week_start,
-        r.child?.full_name || '',
-        r.lesson_type || '',
-        r.status || '',
-        r.start_time || '',
-        r.end_time || '',
-      ]);
-      (doc as any).autoTable({
-        head,
-        body,
-        styles: { halign: 'right' },
-        theme: 'grid',
-      });
-      doc.save(`monthly_${this.year}_${this.month}.pdf`);
-    } catch {
-      alert('חיש להתקין: npm i jspdf jspdf-autotable');
-    }
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Monthly');
+    XLSX.writeFile(wb, `monthly_${this.year}_${this.month}.xlsx`);
+  } catch (e) {
+    console.error(e);
+    alert('יש להתקין: npm i xlsx');
   }
 }
+
+ async exportPdf() {
+  const rows = this.filteredLessons();
+  try {
+    const { jsPDF } = await import('jspdf');
+    const autoTable = (await import('jspdf-autotable')).default;
+
+    const doc = new jsPDF({ orientation: 'landscape' });
+    // שימי לב: Helvetica המובנה לא תומך תמיד בעברית. אם תראי ג׳יבריש – ראי סעיף 4.
+
+    const head = [['תאריך', 'תלמיד/ה', 'סוג שיעור', 'סטטוס', 'התחלה', 'סיום']];
+    const body = rows.map((r) => [
+      r.anchor_week_start,
+      r.child?.full_name ?? '',
+      r.lesson_type ?? '',
+      r.status ?? '',
+      r.start_time ?? '',
+      r.end_time ?? '',
+    ]);
+
+    autoTable(doc, {
+      head,
+      body,
+      styles: { halign: 'right' }, // יישור לימין
+      theme: 'grid',
+      // אם תרצי כותרת:
+      // didDrawPage: (data) => { doc.setFontSize(14); doc.text(`סיכום חודשי ${this.month}/${this.year}`, doc.internal.pageSize.getWidth()-14, 14, { align: 'right' }); }
+    });
+
+    doc.save(`monthly_${this.year}_${this.month}.pdf`);
+  } catch (e) {
+    console.error(e);
+    alert('יש להתקין: npm i jspdf jspdf-autotable');
+  }
+}
+
+
+
+  }
+  

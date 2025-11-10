@@ -5,10 +5,6 @@ import { FormsModule } from '@angular/forms';
 
 import { MatDialog } from '@angular/material/dialog';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
-<<<<<<< HEAD
-=======
-
->>>>>>> e734bc93375cb004acaf4e1fdb689fc565350307
 import { CurrentUserService } from '../../core/auth/current-user.service';
 
 @Component({
@@ -33,11 +29,7 @@ export class SliderComponent implements OnInit {
   async ngOnInit() {
     await this.cu.waitUntilReady();
 
-<<<<<<< HEAD
-    // האזנה לשינויים בתפקיד
-=======
     // האזיני לשינויים בתפקיד והחליפי תפריט בהתאם
->>>>>>> e734bc93375cb004acaf4e1fdb689fc565350307
     this.cu.user$.subscribe(u => {
       const roleKey = (u?.role || '').toLowerCase();
       if (roleKey !== this.role) {
@@ -46,26 +38,11 @@ export class SliderComponent implements OnInit {
       }
     });
 
-<<<<<<< HEAD
-    // אתחול ראשוני
-=======
     // פעם ראשונה – קחי מהמצב הנוכחי
->>>>>>> e734bc93375cb004acaf4e1fdb689fc565350307
     const cur = this.cu.current;
     this.role = (cur?.role || '').toLowerCase();
     this.setMenuItemsByRole();
 
-<<<<<<< HEAD
-    this.syncBreakpoint();
-  }
-
-  @HostListener('window:resize')
-  onResize() {
-    this.syncBreakpoint();
-  }
-
-  /** בונה את התפריט לפי תפקיד המשתמש */
-=======
     // מצב רספונסיבי התחלתי
     this.syncBreakpoint();
   }
@@ -75,7 +52,6 @@ export class SliderComponent implements OnInit {
   onResize() { this.syncBreakpoint(); }
 
   /** בונה פריטי תפריט לפי תפקיד */
->>>>>>> e734bc93375cb004acaf4e1fdb689fc565350307
   private setMenuItemsByRole() {
     switch (this.role) {
       case 'parent':
@@ -124,36 +100,20 @@ export class SliderComponent implements OnInit {
     }
   }
 
-<<<<<<< HEAD
-  /** מעבר לנתיב שנבחר בתפריט */
-=======
->>>>>>> e734bc93375cb004acaf4e1fdb689fc565350307
   navigateTo(path: string) {
     this.router.navigate([path]);
     if (!this.isDesktop) this.menuCollapsed = true; // סגירה במובייל
   }
 
-<<<<<<< HEAD
-  /** בדיקה אם הנתיב פעיל */
-=======
->>>>>>> e734bc93375cb004acaf4e1fdb689fc565350307
   isActive(path: string): boolean {
     return this.router.url.includes(path);
   }
 
-<<<<<<< HEAD
-  /** פתיחה/סגירה של התפריט */
-=======
->>>>>>> e734bc93375cb004acaf4e1fdb689fc565350307
   toggleMenu(force?: boolean) {
     this.menuCollapsed = typeof force === 'boolean' ? force : !this.menuCollapsed;
   }
 
-<<<<<<< HEAD
-  /** התאמה למסכים רספונסיביים */
-=======
   /** קובע מצב רספונסיבי: בדסקטופ פתוח, במובייל סגור וצף */
->>>>>>> e734bc93375cb004acaf4e1fdb689fc565350307
   private syncBreakpoint() {
     this.isDesktop = window.matchMedia('(min-width: 1024px)').matches;
     this.menuCollapsed = !this.isDesktop;
