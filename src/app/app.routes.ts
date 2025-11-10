@@ -2,6 +2,10 @@
 import { Routes } from '@angular/router';
 import { RoleGuard } from './shared/guards/role-guard';
 import { TenantReadyGuard } from './shared/guards/tenant-ready.guard';
+import { LayoutComponent } from './layout/layout';
+import { ParentPaymentsComponent } from './pages/parent-payments/parent-payments.component';
+// import { BillingSuccessComponent } from './billing/billing-success.component';
+// import { BillingErrorComponent } from './billing/billing-error.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'home', pathMatch: 'full' },
@@ -30,6 +34,7 @@ export const routes: Routes = [
     data: { role: 'instructor' },
     children: [
       { path: 'schedule', loadComponent: () => import('./pages/schedule/instructor-schedule/instructor-schedule').then(m => m.InstructorScheduleComponent) },
+      { path: 'monthly-summary', loadComponent: () => import('./pages/monthly-summary/monthly-summary').then(m => m.MonthlySummaryComponent) }, // ✅ חדש
       { path: '', loadComponent: () => import('./pages/guide/guide.component').then(m => m.GuideComponent) }
     ]
   },
