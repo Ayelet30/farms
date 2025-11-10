@@ -1,34 +1,70 @@
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { dbTenant, getCurrentUserData } from '../../../services/legacy-compat';
+import {
+  dbTenant,
+  ensureTenantContextReady,
+  onTenantChange
+} from '../../../services/legacy-compat';
 import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import { ScheduleItem } from '../../../models/schedule-item.model';
 import { Lesson } from '../../../models/lesson-schedule.model';
-import { EventClickArg } from '@fullcalendar/core';
+import type { EventClickArg } from '@fullcalendar/core';
 import { CurrentUserService } from '../../../core/auth/current-user.service';
+
+type ChildRow = {
+  child_uuid: string;
+  full_name: string | null;
+  status?: string | null;
+};
 
 @Component({
   selector: 'app-secretary-schedule',
   standalone: true,
   imports: [CommonModule, FormsModule, ScheduleComponent],
   templateUrl: './secretary-schedule.html',
-  styleUrls: ['./secretary-schedule.css']
+  styleUrls: ['./secretary-schedule.css'],
 })
-export class SecretaryScheduleComponent implements OnInit {
-   children: any[] = [];
+export class SecretaryScheduleComponent implements OnInit, OnDestroy {
+  children: ChildRow[] = [];
   lessons: Lesson[] = [];
   filteredLessons: Lesson[] = [];
-  selectedChild: any = null;
-  instructorId: string = "";
+  selectedChild: ChildRow | null = null;
+
+  instructorId = '';
   items: ScheduleItem[] = [];
+  private unsubTenantChange: (() => void) | null = null;
 
-  constructor(
-    public cu: CurrentUserService,
-    private cdr: ChangeDetectorRef
-  ) {}
+  public cu = inject(CurrentUserService);
+  private cdr = inject(ChangeDetectorRef);
 
-  async ngOnInit() {
+  async ngOnInit(): Promise<void> {
+    try {
+      // ✅ חובה לפני כל dbTenant(): מבטיח שקיים הקשר טננט פעיל
+      await ensureTenantContextReady();
+
+      // רענון אוטומטי אם מחליפים חווה/טננט בזמן שהמסך פתוח
+      this.unsubTenantChange = onTenantChange(async () => {
+        await this.reloadAll();
+      });
+
+      // טוען זהות המשתמש (אחרי שיש קונטקסט)
+      const user = await this.cu.loadUserDetails();
+      this.instructorId = (user?.id_number ?? '').toString();
+
+      await this.reloadAll();
+    } catch (e) {
+      console.error('init error', e);
+    } finally {
+      this.cdr.detectChanges();
+    }
+  }
+
+  ngOnDestroy(): void {
+    try { this.unsubTenantChange?.(); } catch {}
+  }
+
+  private async reloadAll() {
     await this.loadChildren();
     await this.loadLessons();
     this.filterLessons();
@@ -36,138 +72,159 @@ export class SecretaryScheduleComponent implements OnInit {
     this.cdr.detectChanges();
   }
 
-  async loadChildren() {
+  /** ילדים פעילים – תומך ב-Active/active */
+  private async loadChildren(): Promise<void> {
     try {
-      const user = await this.cu.loadUserDetails();
-      if (!user) { this.children = []; return; }
-
-      this.instructorId = user.id_number!;
       const dbc = dbTenant();
-      const { data: kids, error } = await dbc
+      const { data, error } = await dbc
         .from('children')
-        .select('*')
-        .eq('status', 'active');
+        .select('child_uuid, full_name, status')
+        .in('status', ['Active', 'active']); // קשיחויות סטטוס
 
-      if (error) { console.error(error); this.children = []; return; }
-
-      this.children = kids ?? [];
+      if (error) throw error;
+      this.children = (data ?? []) as ChildRow[];
     } catch (err) {
-      console.error(err);
+      console.error('loadChildren failed', err);
       this.children = [];
     }
   }
 
-  async loadLessons() {
-    const dbc = dbTenant();
-    const childIds = this.children.map(c => c.child_uuid);
-    if (!childIds.length) { this.lessons = []; return; }
+  /** שיעורים לילדים שנמצאו, מהיום ועד 8 שבועות */
+  private async loadLessons(): Promise<void> {
+    try {
+      const childIds = this.children.map((c) => c.child_uuid).filter(Boolean);
+      if (!childIds.length) {
+        this.lessons = [];
+        return;
+      }
 
-    const today = new Date().toISOString().slice(0, 10);
-    const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+      const dbc = dbTenant();
+      const today = new Date().toISOString().slice(0, 10);
+      const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000)
+        .toISOString()
+        .slice(0, 10);
 
-    const { data, error } = await dbc
-      .from('lessons_occurrences')
-      .select('*')
-      .in('child_id', childIds)
-      .gte('occur_date', today)
-      .lte('occur_date', in8Weeks);
+      const { data, error } = await dbc
+        .from('lessons_occurrences')
+        .select(
+          'lesson_id, child_id, day_of_week, start_time, end_time, lesson_type, status, instructor_id, instructor_name, start_datetime, end_datetime, occur_date'
+        )
+        .in('child_id', childIds)
+        .gte('occur_date', today)
+        .lte('occur_date', in8Weeks)
+        .order('start_datetime', { ascending: true });
 
-    if (error) { console.error(error); this.lessons = []; return; }
+      if (error) throw error;
 
-    this.lessons = (data ?? []).map((r: any) => ({
-      lesson_id: String(r.lesson_id),
-      id: String(r.lesson_id),
-      child_id: r.child_id,
-      day_of_week: r.day_of_week,
-      start_time: r.start_time,
-      end_time: r.end_time,
-      lesson_type: r.lesson_type,
-      status: r.status,
-      instructor_id: r.instructor_id ?? '',
-      instructor_name: r.instructor_name ?? '',
-      child_color: this.getColorForChild(r.child_id),
-      child_name: this.children.find(c => c.child_uuid === r.child_id)?.full_name || '',
-      start_datetime: r.start_datetime,
-      end_datetime: r.end_datetime,
-    }));
+      const nameByChild = new Map(this.children.map((c) => [c.child_uuid, c.full_name ?? '']));
+      this.lessons = (data ?? []).map((r: any) => ({
+        lesson_id: String(r.lesson_id ?? ''),
+        id: String(r.lesson_id ?? ''),
+        child_id: r.child_id,
+        day_of_week: r.day_of_week,
+        start_time: r.start_time,
+        end_time: r.end_time,
+        lesson_type: r.lesson_type,
+        status: r.status,
+        instructor_id: r.instructor_id ?? '',
+        instructor_name: r.instructor_name ?? '',
+        child_color: this.getColorForChild(r.child_id),
+        child_name: nameByChild.get(r.child_id) || '',
+        start_datetime: r.start_datetime ?? null,
+        end_datetime: r.end_datetime ?? null,
+        occur_date: r.occur_date ?? null,
+      })) as unknown as Lesson[];
+    } catch (err) {
+      console.error('loadLessons failed', err);
+      this.lessons = [];
+    }
   }
 
-  filterLessons() {
-    this.filteredLessons = this.lessons.filter(l => l.instructor_id === this.instructorId);
+  /** אם ה-secretary מחוברת כמדריכה – יציג רק שלה. אחרת יציג הכל */
+  private filterLessons(): void {
+    const id = this.instructorId?.trim();
+    this.filteredLessons = id ? this.lessons.filter((l) => (l.instructor_id ?? '').toString() === id) : this.lessons;
   }
 
-  setScheduleItems() {
+  private setScheduleItems(): void {
     const src = this.filteredLessons.length ? this.filteredLessons : this.lessons;
 
-    this.items = src.map(lesson => {
-      const startFallback = this.getLessonDateTime(lesson.day_of_week, lesson.start_time);
-      const endFallback = this.getLessonDateTime(lesson.day_of_week, lesson.end_time);
-      const start = this.isoWithTFallback(lesson.start_datetime, startFallback);
-      const end = this.isoWithTFallback(lesson.end_datetime, endFallback);
+    this.items = src.map((lesson) => {
+      // בניית תאריכים/שעות אמינים
+      const start = this.ensureIso(
+        lesson.start_datetime as any,
+        lesson.start_time as any,
+        lesson.occur_date as any
+      );
+      const end = this.ensureIso(
+        lesson.end_datetime as any,
+        lesson.end_time as any,
+        lesson.occur_date as any
+      );
 
       return {
         id: lesson.id,
-        title: `${lesson.lesson_type}${lesson.instructor_name ? ' עם ' + lesson.instructor_name : ''}`,
+        title: `${lesson.lesson_type ?? ''}${lesson.instructor_name ? ' עם ' + lesson.instructor_name : ''}`,
         start,
         end,
-        color: lesson.child_color,
+        color: (lesson as any).child_color,
         meta: {
-          child_id: lesson.child_id,
-          child_name: lesson.child_name,
+          child_id: (lesson as any).child_id,
+          child_name: (lesson as any).child_name,
           instructor_id: lesson.instructor_id,
           instructor_name: lesson.instructor_name,
-          status: lesson.status
+          status: lesson.status,
         },
-        status: lesson.status
+        status: lesson.status,
       } satisfies ScheduleItem;
     });
-
-    this.cdr.detectChanges();
   }
 
-  getLessonDateTime(dayName: string, timeStr: string): string {
-    const dayMap: Record<string, number> = { 'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6 };
-    const today = new Date();
-    const targetDay = dayMap[dayName];
-    const diff = (targetDay - today.getDay() + 7) % 7;
+  private ensureIso(datetime?: string | null, time?: string | null, baseDate?: string | null): string {
+    // אם קיבלנו ISO מלא – מחזירים
+    if (datetime && typeof datetime === 'string' && datetime.includes('T')) return datetime;
 
-    const eventDate = new Date(today);
-    eventDate.setDate(today.getDate() + diff);
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    eventDate.setHours(hours, minutes, 0, 0);
-    return this.toLocalIso(eventDate);
-  }
+    // אם קיבלנו "YYYY-MM-DD HH:mm" – מתקנים ל-ISO
+    if (datetime && typeof datetime === 'string' && datetime.trim() !== '') {
+      return datetime.replace(' ', 'T');
+    }
 
-  private isoWithTFallback(s: string | undefined | null, fallbackIso: string): string {
-    if (s && s.trim() !== '') return s.includes('T') ? s : s.replace(' ', 'T');
-    return fallbackIso;
+    // fallback: מרכיבים מתאריך בסיס ושעה
+    const base = baseDate ? new Date(baseDate) : new Date();
+    const d = new Date(base);
+    if (time) {
+      const [hh, mm] = String(time).split(':').map((x) => parseInt(x, 10) || 0);
+      d.setHours(hh, mm, 0, 0);
+    }
+    return this.toLocalIso(d);
   }
 
   private toLocalIso(date: Date): string {
     const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+      date.getHours()
+    )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   }
 
-  getColorForChild(child_id: string): string {
-    const index = this.children.findIndex(c => c.child_uuid === child_id);
+  private getColorForChild(child_id: string): string {
+    const index = this.children.findIndex((c) => c.child_uuid === child_id);
     const colors = ['#d8f3dc', '#fbc4ab', '#cdb4db', '#b5ead7', '#ffdac1'];
     return colors[(index >= 0 ? index : 0) % colors.length];
   }
 
-  onEventClick(arg: EventClickArg) {
-    const childId = arg.event.extendedProps['child_id'];
-    const child = this.children.find(c => c.child_uuid === childId);
-
+  onEventClick(arg: EventClickArg): void {
+    const childId = arg.event.extendedProps['child_id'] as string | undefined;
+    const child = childId ? this.children.find((c) => c.child_uuid === childId) : null;
     if (!child) {
       console.warn('לא נמצא ילד מתאים!', arg.event.extendedProps);
       this.selectedChild = null;
       return;
     }
-
     this.selectedChild = { ...child };
+    this.cdr.detectChanges();
   }
 
-  onDateClick(arg: any) {
-    console.log('תאריך נבחר:', arg.dateStr || arg.date);
+  onDateClick(arg: any): void {
+    console.log('תאריך נבחר:', arg?.dateStr ?? arg?.date ?? arg);
   }
 }

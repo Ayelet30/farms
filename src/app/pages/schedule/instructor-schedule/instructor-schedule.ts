@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import { ScheduleItem } from '../../../models/schedule-item.model';
 import { CurrentUserService } from '../../../core/auth/current-user.service';
-import { dbTenant } from '../../../services/legacy-compat';
+import { dbTenant, ensureTenantContextReady, onTenantChange } from '../../../services/legacy-compat';
 import type { EventClickArg, DatesSetArg } from '@fullcalendar/core';
 
 import { NoteComponent } from '../../Notes/note.component';
@@ -60,35 +60,49 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
   isFullscreen = false;
 
   async ngOnInit(): Promise<void> {
-    try {
-      this.loading = true;
+  try {
+    this.loading = true;
 
-      const user = await this.cu.loadUserDetails();
-      if (!user?.id_number) {
-        this.error = 'לא נמצאו פרטי מדריך. התחברי שוב.';
-        return;
-      }
-      this.instructorId = String(user.id_number).trim();
+    // ✅ חייב לבוא ראשון: מוודא שיש tenant context פעיל (selectedTenant/localStorage או חברות ראשונה)
+    await ensureTenantContextReady();
 
+    // אופציונלי ונוח: אם מחליפים חווה תוך כדי — נטען מחדש
+    onTenantChange(() => {
       const startYmd = ymd(addDays(new Date(), -14));
       const endYmd = ymd(addDays(new Date(), 60));
+      this.loadLessonsForRange(startYmd, endYmd)
+        .then(() => this.setScheduleItems())
+        .catch(e => { console.error(e); this.error = e?.message ?? 'שגיאה'; })
+        .finally(() => this.cdr.detectChanges());
+    });
 
-      await this.loadLessonsForRange(startYmd, endYmd);
-
-      const childIds = Array.from(new Set(this.lessons.map(l => l.child_id))).filter(Boolean) as string[];
-      if (!childIds.length) return;
-
-      await this.loadChildrenAndRefs(childIds);
-      this.setScheduleItems();
-
-    } catch (err: any) {
-      console.error('❌ init error', err);
-      this.error = err?.message || 'שגיאה בטעינה';
-    } finally {
-      this.loading = false;
-      this.cdr.detectChanges();
+    // עכשיו בטוח לקרוא לשירותים שתלויים בטננט
+    const user = await this.cu.loadUserDetails();
+    if (!user?.id_number) {
+      this.error = 'לא נמצאו פרטי מדריך. התחברי שוב.';
+      return;
     }
+    this.instructorId = String(user.id_number).trim();
+
+    const startYmd = ymd(addDays(new Date(), -14));
+    const endYmd = ymd(addDays(new Date(), 60));
+
+    await this.loadLessonsForRange(startYmd, endYmd);
+
+    const childIds = Array.from(new Set(this.lessons.map(l => l.child_id))).filter(Boolean) as string[];
+    if (childIds.length) {
+      await this.loadChildrenAndRefs(childIds);
+    }
+
+    this.setScheduleItems();
+  } catch (err: any) {
+    console.error('❌ init error', err);
+    this.error = err?.message || 'שגיאה בטעינה';
+  } finally {
+    this.loading = false;
+    this.cdr.detectChanges();
   }
+}
 
   ngAfterViewInit(): void {
     const calendarApi = this.scheduleComp?.calendarApi;

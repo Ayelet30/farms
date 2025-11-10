@@ -42,8 +42,7 @@
     [slotMaxTime]="'21:00:00'"
     [allDaySlot]="false"
     (eventClick)="onEventClick($event)"
-    (dateClick)="onDateClick($event)"
-    (viewRange)="onViewRange($event)" 
+    (dateClick)="onDateClick($event.dateStr)"
 
   ></app-schedule>
 </div>

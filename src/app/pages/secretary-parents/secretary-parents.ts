@@ -40,7 +40,7 @@ export class SecretaryParentsComponent implements OnInit {
     this.isLoading = true;
     this.error = null;
     try {
-      const result = await listParents();
+      const { rows: result } = await listParents();
       this.parents = result;
     } catch (e: any) {
       this.error = e.message || 'Failed to fetch parents.';
