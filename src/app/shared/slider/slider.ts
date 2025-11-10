@@ -67,7 +67,7 @@ export class SliderComponent implements OnInit {
 
       case 'instructor':
         this.menuItems = [
-          { path: 'instructor/children', label: 'כל הילדים', icon: 'children' },
+          
           { path: 'instructor/schedule', label: 'לו״ז ומעקב', icon: 'calendar' },
           { path: 'instructor/activities', label: 'ניהול פעילויות', icon: 'user' },
           { path: 'instructor/notes', label: 'רשומות והערות', icon: 'note' },

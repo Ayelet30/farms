@@ -17,28 +17,10 @@
 
   <!-- כרטיסי KPI -->
   <section class="kpis" *ngIf="!loading">
-    <mat-card class="kpi purple">
-      <mat-icon>schedule</mat-icon>
-      <div class="value">{{ kpis().workedHours }}</div>
-      <div class="label">שעות עבודה</div>
-    </mat-card>
-
-    <mat-card class="kpi red">
-      <mat-icon>cancel</mat-icon>
-      <div class="value">{{ kpis().canceled }}</div>
-      <div class="label">בוטלו</div>
-    </mat-card>
-
-    <mat-card class="kpi orange">
-      <mat-icon>error</mat-icon>
-      <div class="value">{{ kpis().pending }}</div>
-      <div class="label">ממתינים</div>
-    </mat-card>
-
-    <mat-card class="kpi green">
-      <mat-icon>check_circle</mat-icon>
-      <div class="value">{{ kpis().done }}</div>
-      <div class="label">בוצעו</div>
+    <mat-card class="kpi teal">
+      <mat-icon>groups</mat-icon>
+      <div class="value">{{ kpis().privCount }} / {{ kpis().groupCount }}</div>
+      <div class="label">פרטי / קבוצתי</div>
     </mat-card>
 
     <mat-card class="kpi yellow">
@@ -47,10 +29,28 @@
       <div class="label">אחוז הצלחה</div>
     </mat-card>
 
-    <mat-card class="kpi teal">
-      <mat-icon>groups</mat-icon>
-      <div class="value">{{ kpis().privCount }} / {{ kpis().groupCount }}</div>
-      <div class="label">פרטי / קבוצתי</div>
+    <mat-card class="kpi green">
+      <mat-icon>check_circle</mat-icon>
+      <div class="value">{{ kpis().done }}</div>
+      <div class="label">בוצעו</div>
+    </mat-card>
+
+    <mat-card class="kpi orange">
+      <mat-icon>error</mat-icon>
+      <div class="value">{{ kpis().pending }}</div>
+      <div class="label">ממתינים</div>
+    </mat-card>
+
+    <mat-card class="kpi red">
+      <mat-icon>cancel</mat-icon>
+      <div class="value">{{ kpis().canceled }}</div>
+      <div class="label">בוטלו</div>
+    </mat-card>
+
+    <mat-card class="kpi purple">
+      <mat-icon>schedule</mat-icon>
+      <div class="value">{{ kpis().workedHours }}</div>
+      <div class="label">שעות עבודה</div>
     </mat-card>
 
     <mat-card class="kpi blue">

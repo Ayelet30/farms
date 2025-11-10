@@ -40,32 +40,38 @@
 
   /* כרטיסי KPI */
   .kpis {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 16px;
-    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: stretch;
+    gap: 18px;
+    margin: 30px 0;
 
     .kpi {
+      flex: 1 1 150px;
+      min-width: 150px;
+      max-width: 220px;
       display: flex;
       flex-direction: column;
-      align-items: flex-end;
+      align-items: center;
       justify-content: center;
-      padding: 16px;
+      padding: 18px;
       border-radius: 14px;
-      text-align: right;
+      text-align: center;
       color: #333;
       font-weight: 600;
       transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 
       mat-icon {
-        font-size: 28px;
-        margin-bottom: 6px;
-        align-self: flex-end;
+        font-size: 30px;
+        margin-bottom: 8px;
       }
 
       .value {
         font-size: 22px;
         font-weight: 700;
+        margin-bottom: 4px;
       }
 
       .label {
@@ -83,7 +89,7 @@
 
       &:hover {
         transform: translateY(-3px);
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
       }
     }
   }
@@ -318,7 +324,22 @@
   }
 
   /* רספונסיביות */
-  @media (max-width: 900px) {
+  @media (max-width: 1024px) {
+    .kpis {
+      justify-content: center;
+      .kpi {
+        flex: 1 1 45%;
+        max-width: 45%;
+      }
+    }
+  }
+
+  @media (max-width: 600px) {
+    .kpis .kpi {
+      flex: 1 1 100%;
+      max-width: 100%;
+    }
+
     .filters {
       flex-wrap: wrap;
 

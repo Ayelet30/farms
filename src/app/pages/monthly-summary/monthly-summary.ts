@@ -290,7 +290,7 @@ export class MonthlySummaryComponent implements OnInit {
       });
       doc.save(`monthly_${this.year}_${this.month}.pdf`);
     } catch {
-      alert('יש להתקין: npm i jspdf jspdf-autotable');
+      alert('חיש להתקין: npm i jspdf jspdf-autotable');
     }
   }
 }
