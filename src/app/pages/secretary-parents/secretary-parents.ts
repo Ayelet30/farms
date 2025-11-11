@@ -196,245 +196,517 @@
 
 // }
 import { Component, OnInit, ViewChild } from '@angular/core';
+
 import { CommonModule } from '@angular/common';
+
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
+
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-
+ 
 import {
+
   ensureTenantContextReady,
-}  from '../../services/legacy-compat';
 
-import {
-  listParents,
-  ParentRow,
-}  from '../../services/supabaseClient.service';
+  dbPublic,
 
+  dbTenant,
+
+} from '../../services/legacy-compat';
+ 
 import {
+
   AddParentDialogComponent,
+
   AddParentPayload
+
 } from './add-parent-dialog/add-parent-dialog.component';
-
+ 
 import { CreateUserService } from '../../services/create-user.service';
-
-
+ 
 type ParentRow = { uid: string; full_name: string; phone?: string; email?: string };
-
+ 
 interface ParentDetailsRow extends ParentRow {
+
   id_number?: string | null;
+
   address?: string | null;
+
   extra_notes?: string | null;
+
   message_preferences?: string[] | null;
+
 }
-
+ 
 @Component({
+
   selector: 'app-secretary-parents',
-   standalone: true,
-    imports: [CommonModule],
+
+  standalone: true,
+
+  imports: [CommonModule, MatSidenavModule, MatDialogModule],
+
   templateUrl: './secretary-parents.html',
+
   styleUrls: ['./secretary-parents.css'],
+
 })
+
 export class SecretaryParentsComponent implements OnInit {
+
   parents: ParentRow[] = [];
+
   isLoading = true;
+
   error: string | null = null;
-
+ 
   @ViewChild('drawer') drawer!: MatSidenav;
-
+ 
   selectedUid: string | null = null;
+
   drawerLoading = false;
+
   drawerParent: ParentDetailsRow | null = null;
-
+ 
   drawerChildren: Array<{
+
     child_uuid: string;
+
     full_name: string;
+
     gender?: string | null;
+
     status?: string | null;
+
     birth_date?: string | null;
+
     gov_id?: string | null;
+
   }> = [];
-
-  // החליפי אם יש לך שירות טוסטים
+ 
   toast: { error: (msg: string) => void } | any;
-
+ 
   constructor(
+
     private dialog: MatDialog,
+
     private createUserService: CreateUserService
+
   ) {}
+ 
+  async ngOnInit() {
 
-  async ngOnInit(): Promise<void> {
     try {
+
       await ensureTenantContextReady();
+
       await this.loadParents();
-    } catch (e: any) {
-      this.isLoading = false;
-      this.error = 'Failed to initialize tenant context: ' + e.message;
-      console.error(e);
-    }
-  }
 
-  async loadParents(): Promise<void> {
-    this.isLoading = true;
-    this.error = null;
-    try {
-      const { rows: result } = await listParents();
-      this.parents = result;
     } catch (e: any) {
-      this.error = e.message || 'Failed to fetch parents.';
+
+      this.error = e?.message || 'Failed to load parents';
+
       console.error(e);
+
     } finally {
-      this.drawerLoading = false;
+
+      this.isLoading = false;
+
     }
+
   }
+ 
+  /** טוען הורים מתוך סכימת הטננט הפעיל (לפי ההקשר שנקבע ב־ensureTenantContextReady) */
 
+  private async loadParents() {
+
+    this.isLoading = true;
+
+    this.error = null;
+
+    try {
+
+      const dbc = dbTenant();
+
+      const { data, error } = await dbc
+
+        .from('parents')
+
+        .select('uid, full_name, phone, email')
+
+        .order('full_name', { ascending: true });
+ 
+      if (error) throw error;
+
+      this.parents = (data ?? []) as ParentRow[];
+
+    } catch (e: any) {
+
+      this.error = e?.message || 'Failed to fetch parents.';
+
+      console.error(e);
+
+      this.parents = [];
+
+    } finally {
+
+      this.isLoading = false;
+
+    }
+
+  }
+ 
+  async openDetails(uid: string) {
+
+    this.selectedUid = uid?.trim();
+
+    this.drawerChildren = [];
+
+    this.drawer.open();
+
+    await this.loadDrawerData(this.selectedUid!);
+
+  }
+ 
+  closeDetails() {
+
+    this.drawer.close();
+
+    this.selectedUid = null;
+
+    this.drawerParent = null;
+
+    this.drawerChildren = [];
+
+  }
+ 
+  /** טוען פרטי הורה + ילדי ההורה מסכימת הטננט */
+
+  private async loadDrawerData(uid: string) {
+
+    this.drawerLoading = true;
+
+    try {
+
+      const db = dbTenant();
+ 
+      const { data: p, error: pErr } = await db
+
+        .from('parents')
+
+        .select('uid, full_name, id_number, phone, email, address, extra_notes, message_preferences')
+
+        .eq('uid', uid)
+
+        .single();
+
+      if (pErr) throw pErr;
+
+      this.drawerParent = p as any;
+ 
+      const { data: kids, error: kidsErr } = await db
+
+        .from('children')
+
+        .select('child_uuid, full_name, parent_uid, gender, status, birth_date, gov_id')
+
+        .eq('parent_uid', uid)
+
+        .order('full_name', { ascending: true });
+ 
+      if (kidsErr) throw kidsErr;
+
+      this.drawerChildren = kids ?? [];
+
+    } catch (e) {
+
+      console.error(e);
+
+      this.drawerChildren = [];
+
+    } finally {
+
+      this.drawerLoading = false;
+
+    }
+
+  }
+ 
   openAddParentDialog() {
+
     const ref = this.dialog.open(AddParentDialogComponent, {
+
       width: '700px',
+
       maxWidth: '90vw',
+
       height: '90vh',
+
       panelClass: 'parent-dialog'
+
     });
-
+ 
     ref.afterClosed().subscribe(async (payload?: AddParentPayload | any) => {
+
       if (!payload) return;
-
-      // לוודא הקשר טננט טעון
+ 
       await ensureTenantContextReady();
+ 
+      // 1) יצירת משתמש בפיירבייס → uid + סיסמה זמנית
 
-      // יצירת משתמש בפיירבייס לפי אימייל והחזרת uid + סיסמה זמנית
       try {
-        const { uid, tempPassword } =
-          await this.createUserService.createUserIfNotExists(payload.email);
-        payload.uid = uid;
-        payload.password = tempPassword;
-        console.log('Created Firebase user:', { uid, tempPassword });
-      } catch {
-        this.toast?.error?.(this.createUserService.errorMessage || 'שגיאה ביצירת משתמש');
-        return; // לא ממשיכים בלי uid תקין
-      }
 
-      // נתוני טננט/סכימה מה-LocalStorage 
+        const { uid, tempPassword } =
+
+          await this.createUserService.createUserIfNotExists(payload.email);
+
+        payload.uid = uid;
+
+        payload.password = tempPassword;
+
+        console.log('Created Firebase user:', { uid, tempPassword });
+
+      } catch {
+
+        this.toast?.error?.(this.createUserService.errorMessage || 'שגיאה ביצירת משתמש');
+
+        return;
+
+      }
+ 
+      // 2) פרטי טננט/סכימה (בהתאם למימוש שלך – אם אין צורך ב-schema_name, אפשר להסיר)
+
       const tenant_id = localStorage.getItem('selectedTenant') || '';
+
       const schema_name = localStorage.getItem('selectedSchema') || '';
 
-      if (!tenant_id || !schema_name) {
-        alert('לא נמצא tenant או schema. התחברי מחדש או בחרי חווה פעילה.');
-        return;
-      }
+      if (!tenant_id) {
 
-      // המרת prefs (צ׳קבוקסים) למערך
+        alert('לא נמצא tenant פעיל. התחברי מחדש או בחרי חווה פעילה.');
+
+        return;
+
+      }
+ 
+      // 3) המרת העדפות הודעות
+
       const message_preferences: string[] =
+
         Array.isArray(payload?.message_preferences) && payload.message_preferences.length
+
           ? payload.message_preferences
+
           : Object.keys(payload?.prefs ?? {}).filter((k: string) => !!payload.prefs[k]);
+ 
+      // 4) נרמול שדות
 
-      // נרמול שדות
       const body = {
+
         uid: (payload.uid ?? '').trim(),
+
         full_name: (payload.full_name ?? '').trim(),
+
         email: (payload.email ?? '').trim(),
+
         phone: (payload.phone ?? '').trim(),
+
         id_number: (payload.id_number ?? '').trim(),
+
         address: (payload.address ?? '').trim(),
+
         extra_notes: (payload.extra_notes ?? '').trim(),
+
         message_preferences: message_preferences.length ? message_preferences : ['inapp'],
+
         tenant_id,
+
         schema_name
+
       };
+ 
+      // 5) ולידציה בסיסית
 
-      // בדיקת שדות חובה
       const missing = ['full_name','email','phone','id_number','address'].filter(k => !(body as any)[k]);
+
       if (missing.length) {
+
         alert('שדות חובה חסרים: ' + missing.join(', '));
+
         return;
-      }
 
+      }
+ 
       try {
-        // 1) upsert ל-public.users
+
+        // ❶ users (public) – upsert לפי uid
+
         await this.createUserInSupabase(body.uid, body.email, body.phone);
+ 
+        // ❷ tenant_users (public) – שיוך לטננט כ-parent
 
-        // 2) שיוך לטננט ב-public.tenant_users
-        await this.createTenantUserInSupabase({ tenant_id, uid: body.uid });
+        await this.createTenantUserInSupabase({ tenant_id: body.tenant_id, uid: body.uid });
+ 
+        // ❸ parents (סכימת הטננט) – יצירת ההורה
 
-        // 3) יצירת ההורה בטבלת הטננט <schema>.parents
-        await this.createParentInSupabase(body);
+        await this.createParentInSupabase({
 
-        // רענון רשימת הורים
-        const res = await listParents();
-        this.parents = (res as any).rows ?? (res as any) ?? [];
+          uid: body.uid,
+
+          full_name: body.full_name,
+
+          email: body.email,
+
+          phone: body.phone,
+
+          id_number: body.id_number,
+
+          address: body.address,
+
+          extra_notes: body.extra_notes,
+
+          message_preferences: body.message_preferences
+
+        });
+ 
+        // רענון הרשימה מהטננט
+
+        await this.loadParents();
+
         alert('הורה נוצר בהצלחה ✅');
+
       } catch (e: any) {
+
         console.error(e);
+
         alert(e?.message ?? 'שגיאה בהוספת הורה ❌');
+
       }
+
     });
+
   }
-
+ 
   /** ================== Helpers: Inserts to Supabase ================== */
+ 
+  // public.users – upsert לפי uid (אימייל/טלפון)
 
-  // ❶ public.users – upsert לפי uid (שומר אימייל/טלפון)
   private async createUserInSupabase(uid: string, email: string, phone?: string | null): Promise<void> {
+
     const dbcPublic = dbPublic();
 
     const row = {
+
       uid: (uid || '').trim(),
+
       email: (email || '').trim(),
-      phone: (phone || '').trim() || null, // שמירה כ-null אם ריק
+
+      phone: (phone || '').trim() || null,
+
     };
 
     const { error } = await dbcPublic
+
       .from('users')
+
       .upsert(row, { onConflict: 'uid' });
 
     if (error) throw new Error(`users upsert failed: ${error.message}`);
-  }
 
-  // ❷ public.tenant_users – שיוך לטננט פעיל כ-parent
+  }
+ 
+  // public.tenant_users – שיוך לטננט פעיל כ-parent
+
   private async createTenantUserInSupabase(body: { tenant_id: string; uid: string }): Promise<void> {
+
     const dbcPublic = dbPublic();
+
     const { error } = await dbcPublic
+
       .from('tenant_users')
+
       .upsert(
+
         {
+
           tenant_id: body.tenant_id,
+
           uid: body.uid,
+
           role_in_tenant: 'parent',
+
           is_active: true
+
         },
+
         { onConflict: 'tenant_id,uid' }
+
       );
+
     if (error) throw new Error(`tenant_users upsert failed: ${error.message}`);
-  }
 
-  // ❸ <tenant>.parents – יצירת הורה בסכימת הטננט
+  }
+ 
+  // <tenant>.parents – יצירת הורה בסכימת הטננט
+
   private async createParentInSupabase(body: {
-    uid: string;
-    full_name: string;
-    email: string;
-    phone?: string | null;
-    id_number?: string | null;
-    address?: any;
-    extra_notes?: string | null;
-    message_preferences?: string[] | null;
-    is_active?: boolean | null;
-  }) {
-    const dbcTenant = dbTenant();
-    const { data, error } = await dbcTenant
-      .from('parents')
-      .insert({
-        uid: body.uid,
-        full_name: body.full_name,
-        email: body.email,
-        phone: body.phone ?? null,
-        id_number: body.id_number ?? null,
-        address: body.address ?? null,
-        extra_notes: body.extra_notes ?? null,
-        message_preferences: body.message_preferences?.length ? body.message_preferences : ['inapp'],
-        is_active: body.is_active ?? true
-      })
-      .select('id, uid, full_name, email, phone, created_at')
-      .single();
 
+    uid: string;
+
+    full_name: string;
+
+    email: string;
+
+    phone?: string | null;
+
+    id_number?: string | null;
+
+    address?: any;
+
+    extra_notes?: string | null;
+
+    message_preferences?: string[] | null;
+
+    is_active?: boolean | null;
+
+  }) {
+
+    const dbcTenant = dbTenant();
+
+    const { data, error } = await dbcTenant
+
+      .from('parents')
+
+      .insert({
+
+        uid: body.uid,
+
+        full_name: body.full_name,
+
+        email: body.email,
+
+        phone: body.phone ?? null,
+
+        id_number: body.id_number ?? null,
+
+        address: body.address ?? null,
+
+        extra_notes: body.extra_notes ?? null,
+
+        message_preferences: body.message_preferences?.length ? body.message_preferences : ['inapp'],
+
+        is_active: body.is_active ?? true
+
+      })
+
+      .select('id, uid, full_name, email, phone, created_at')
+
+      .single();
+ 
     if (error) throw new Error(`parents insert failed: ${error.message}`);
+
     return data;
+
   }
+
 }
+
+ 
