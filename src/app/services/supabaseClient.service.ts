@@ -869,4 +869,3 @@ export async function listSent(limit = 20, offset = 0): Promise<(Message & { rec
   if (error) throw error;
   return (data ?? []) as any[];
 }
-

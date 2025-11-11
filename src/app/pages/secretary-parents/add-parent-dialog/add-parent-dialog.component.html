@@ -1,0 +1,55 @@
+<h3 dir="rtl">הוספת הורה חדש</h3>
+
+<form [formGroup]="form" (ngSubmit)="submit()" dir="rtl">
+  <label>שם פרטי</label>
+  <input formControlName="first_name" />
+  <div class="err" *ngIf="form.controls['first_name']?.touched && form.controls['first_name']?.invalid">
+    חובה להזין שם פרטי (לפחות 2 תווים)
+  </div>
+
+  <label>שם משפחה</label>
+  <input formControlName="last_name" />
+  <div class="err" *ngIf="form.controls['last_name']?.touched && form.controls['last_name']?.invalid">
+    חובה להזין שם משפחה (לפחות 2 תווים)
+  </div>
+
+  <label>אימייל</label>
+  <input formControlName="email" />
+  <div class="err" *ngIf="form.controls['email']?.touched && form.controls['email']?.invalid">
+    חובה להזין אימייל תקין
+  </div>
+
+  <label>טלפון</label>
+  <input formControlName="phone"/>
+  <div class="err" *ngIf="form.controls['phone']?.touched && form.controls['phone']?.invalid">
+    חובה להזין טלפון
+  </div>
+
+  <label>תעודת זהות</label>
+  <input formControlName="id_number"/>
+  <div class="err" *ngIf="form.controls['id_number']?.touched && form.controls['id_number']?.invalid">
+    חובה להזין ת"ז
+  </div>
+
+  <label>כתובת</label>
+  <input formControlName="address"/>
+  <div class="err" *ngIf="form.controls['address']?.touched && form.controls['address']?.invalid">
+    חובה להזין כתובת
+  </div>
+
+  <label>הערות</label>
+  <textarea formControlName="extra_notes" rows="3"></textarea>
+
+  <fieldset formGroupName="prefs" style="margin-top:10px">
+    <legend>העדפות תקשורת</legend>
+    <label><input type="checkbox" formControlName="inapp" /> אפליקציה (חובה)</label>
+    <label><input type="checkbox" formControlName="email" /> אימייל</label>
+    <label><input type="checkbox" formControlName="sms" /> SMS</label>
+    <label><input type="checkbox" formControlName="whatsapp" /> וואטסאפ</label>
+  </fieldset>
+
+  <div class="actions">
+    <button type="button" class="cancel" (click)="cancel()">ביטול</button>
+    <button type="submit" class="save">שמור</button>
+  </div>
+</form>
