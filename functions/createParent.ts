@@ -74,6 +74,7 @@ export const createParent = onRequest(
       const username = email;
       // סיסמה זמנית
       const tempPassword = genTempPassword();
+    
 
       // 1) יצירת משתמש עם סיסמה זמנית (לא שולח שום מייל אוטומטי)
       const { data: created, error: createErr } = await supabase.auth.admin.createUser({
@@ -133,3 +134,8 @@ export const createParent = onRequest(
     }
   }
 );
+
+
+
+
+ 

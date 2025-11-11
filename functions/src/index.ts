@@ -6,7 +6,11 @@
  *
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
-export { createParent } from "./createParent.js";
+
+export * from "../loginBootstrap.js";
+
+
+export  *  from "../createParent.js";
 
 
 
