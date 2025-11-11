@@ -4,6 +4,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/app",
+    "skipLibCheck": true,
+
     "types": []
   },
   "include": [

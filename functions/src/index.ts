@@ -6,8 +6,9 @@
  *
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
-
 export * from "../loginBootstrap.js";
+
+export { createHostedPaymentUrl, tranzilaReturn, chargeByToken, cronMonthlyCharges } from './tranzila.js';
 
 
 export  *  from "../createParent.js";

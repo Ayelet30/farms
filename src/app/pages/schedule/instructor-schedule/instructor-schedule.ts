@@ -2,12 +2,11 @@ import { Component, OnInit, ChangeDetectorRef, ViewChild, AfterViewInit, inject 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-
 import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import { ScheduleItem } from '../../../models/schedule-item.model';
 import { CurrentUserService } from '../../../core/auth/current-user.service';
-import { dbTenant } from '../../../services/supabaseClient.service';
-import type { EventClickArg } from '@fullcalendar/core';
+import { dbTenant, ensureTenantContextReady, onTenantChange } from '../../../services/legacy-compat';
+import type { EventClickArg, DatesSetArg } from '@fullcalendar/core';
 
 import { NoteComponent } from '../../Notes/note.component';
 import { Lesson } from '../../../models/lesson-schedule.model';
@@ -18,14 +17,12 @@ interface Instructor {
   id_number: string;
   full_name?: string;
 }
-
 interface Parent {
   uid: string;
   full_name?: string;
   email?: string;
   phone?: string;
 }
-
 interface Child {
   child_uuid: UUID;
   full_name?: string;
@@ -48,72 +45,78 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
   @ViewChild(ScheduleComponent) scheduleComp!: ScheduleComponent;
 
   private cdr = inject(ChangeDetectorRef);
-  private cu  = inject(CurrentUserService);
+  private cu = inject(CurrentUserService);
 
   children: Child[] = [];
   lessons: Lesson[] = [];
-  filteredLessons: Lesson[] = [];
   items: ScheduleItem[] = [];
   selectedChild: Child | null = null;
 
   instructorId = '';
+  currentView: string = 'timeGridWeek';
   loading = false;
   error: string | null = null;
+  currentDate = '';
+  isFullscreen = false;
 
   async ngOnInit(): Promise<void> {
-    try {
-      this.loading = true;
+  try {
+    this.loading = true;
 
-      // ✅ תיקון: בדיקת פרטי מדריך
-      const user = await this.cu.loadUserDetails();
-      if (!user?.id_number) {
-        this.error = 'לא נמצאו פרטי מדריך. התחברי שוב.';
-        return;
-      }
-      this.instructorId = String(user.id_number).trim();
+    // ✅ חייב לבוא ראשון: מוודא שיש tenant context פעיל (selectedTenant/localStorage או חברות ראשונה)
+    await ensureTenantContextReady();
 
+    // אופציונלי ונוח: אם מחליפים חווה תוך כדי — נטען מחדש
+    onTenantChange(() => {
+      const startYmd = ymd(addDays(new Date(), -14));
+      const endYmd = ymd(addDays(new Date(), 60));
+      this.loadLessonsForRange(startYmd, endYmd)
+        .then(() => this.setScheduleItems())
+        .catch(e => { console.error(e); this.error = e?.message ?? 'שגיאה'; })
+        .finally(() => this.cdr.detectChanges());
+    });
 
-      const startYmd = ymd(new Date());
-      const endYmd = ymd(addDays(new Date(), 56));
-
-      await this.loadLessonsForRange(startYmd, endYmd);
-
-      const childIds = Array.from(new Set(this.lessons.map(l => l.child_id))).filter(Boolean) as string[];
-      if (!childIds.length) {
-        this.children = [];
-        this.items = [];
-        return;
-      }
-
-      await this.loadChildrenAndRefs(childIds);
-
-      this.applyFilterAndBuildItems();
-
-    } catch (err: any) {
-      console.error('❌ init error', err);
-      this.error = err?.message || 'שגיאה בטעינה';
-    } finally {
-      this.loading = false;
-      this.cdr.detectChanges();
+    // עכשיו בטוח לקרוא לשירותים שתלויים בטננט
+    const user = await this.cu.loadUserDetails();
+    if (!user?.id_number) {
+      this.error = 'לא נמצאו פרטי מדריך. התחברי שוב.';
+      return;
     }
+    this.instructorId = String(user.id_number).trim();
+
+    const startYmd = ymd(addDays(new Date(), -14));
+    const endYmd = ymd(addDays(new Date(), 60));
+
+    await this.loadLessonsForRange(startYmd, endYmd);
+
+    const childIds = Array.from(new Set(this.lessons.map(l => l.child_id))).filter(Boolean) as string[];
+    if (childIds.length) {
+      await this.loadChildrenAndRefs(childIds);
+    }
+
+    this.setScheduleItems();
+  } catch (err: any) {
+    console.error('❌ init error', err);
+    this.error = err?.message || 'שגיאה בטעינה';
+  } finally {
+    this.loading = false;
+    this.cdr.detectChanges();
   }
+}
 
   ngAfterViewInit(): void {
-    // מחכים שה-ViewChild וה-calendarApi יהיו מוכנים
-    const interval = setInterval(() => {
-      if (this.scheduleComp?.calendarApi) {
-        clearInterval(interval);
-        console.log('Calendar API ready:', this.scheduleComp.calendarApi);
+    const calendarApi = this.scheduleComp?.calendarApi;
+    if (calendarApi) {
+      calendarApi.on('datesSet', (info: DatesSetArg) => {
+        this.currentView = info.view.type;
+        this.currentDate = info.view.title;
         this.setScheduleItems();
-      }
-    }, 50);
-
-    this.cdr.detectChanges();
+      });
+    }
   }
 
   private async loadLessonsForRange(startYmd: string, endYmd: string): Promise<void> {
     const dbc = dbTenant();
-
     const { data, error } = await dbc
       .from('lessons_occurrences')
       .select('lesson_id, child_id, instructor_id, lesson_type, status, start_datetime, end_datetime, occur_date, start_time, end_time')
@@ -138,35 +141,91 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
     const childList: Child[] = (kids ?? []) as Child[];
 
     const parentUids = Array.from(new Set(childList.map(c => c.parent_uid!).filter(Boolean)));
-    const { data: parentsData, error: errParents } = parentUids.length
+    const { data: parentsData } = parentUids.length
       ? await dbc.from('parents').select('uid, full_name, email, phone').in('uid', parentUids)
-      : { data: [] as Parent[], error: null };
+      : { data: [] as Parent[] };
 
-    if (errParents) throw errParents;
-     const parentsMap = new Map<string, Parent>((parentsData ?? []).map((p: { uid: any; }) => [p.uid, p]));
+    const parentsMap = new Map<string, Parent>((parentsData ?? []).map((p: { uid: any; }) => [p.uid, p]));
 
     this.children = childList.map(c => ({
       ...c,
       age: c.birth_date ? calcAge(c.birth_date) : undefined,
-      parent: c.parent_uid ? (parentsMap.get(c.parent_uid) ?? null) : null
-    }));
-
-    this.lessons = this.lessons.map(l => ({
-      ...l,
-      child_name: this.childName(l.child_id),
-      child_color: colorFromId(l.child_id),
-      instructor_name: ''
+      parent: c.parent_uid ? parentsMap.get(c.parent_uid) ?? null : null
     }));
   }
 
-  private applyFilterAndBuildItems(): void {
-    this.filteredLessons = this.lessons.filter(l => l.instructor_id === this.instructorId);
-    this.setScheduleItems();
+  private setScheduleItems(): void {
+    if (!this.scheduleComp?.calendarApi) return;
+    const src = this.lessons;
+
+    if (this.currentView === 'dayGridMonth') {
+      const grouped: Record<string, Lesson[]> = {};
+      for (const l of src) {
+        const day = l.occur_date?.slice(0, 10) || l.start_datetime?.slice(0, 10);
+        if (!day) continue;
+        if (!grouped[day]) grouped[day] = [];
+        grouped[day].push(l);
+      }
+
+      this.items = Object.entries(grouped).map(([day, lessons]) => {
+        const count = lessons.length;
+        const regular = lessons.filter(l => l.lesson_type === 'רגיל').length;
+        const makeup = lessons.filter(l => l.lesson_type === 'השלמה').length;
+        const canceled = lessons.filter(l => l.status === 'בוטל').length;
+
+        const parts: string[] = [];
+        if (count) parts.push(`${count} שיעור${count > 1 ? 'ים' : ''}`);
+        if (regular) parts.push(`${regular} רגיל`);
+        if (makeup) parts.push(`${makeup} השלמה`);
+        if (canceled) parts.push(`${canceled} בוטל`);
+
+        return {
+          id: day,
+          title: parts.join(' | '),
+          start: day,
+          end: day,
+          color: '#e8f5e9'
+        } as ScheduleItem;
+      });
+
+      this.cdr.detectChanges();
+      return;
+    }
+
+    // תצוגת שבוע/יום
+    this.items = src.map(l => {
+      const startISO = this.ensureIso(l.start_datetime, l.start_time, l.occur_date);
+      const endISO = this.ensureIso(l.end_datetime, l.end_time, l.occur_date);
+      const child = this.children.find(c => c.child_uuid === l.child_id);
+
+      let color = '#b5ead7';
+      if (l.status === 'בוטל') color = '#ffcdd2';
+      else if (new Date(endISO) < new Date()) color = '#e0e0e0';
+
+      return {
+        id: `${l.lesson_id}_${l.child_id}_${l.occur_date}`,
+        title: `${child?.full_name || ''} (${child?.age ?? ''}) — ${l.lesson_type ?? ''}`,
+        start: startISO,
+        end: endISO,
+        color,
+        meta: {
+          child_id: l.child_id,
+          child_name: child?.full_name || '',
+          instructor_id: l.instructor_id,
+          instructor_name: '',
+          status: l.status,
+          lesson_type: l.lesson_type ?? ''
+        },
+        status: l.status
+      } as ScheduleItem;
+    });
+
+    this.cdr.detectChanges();
   }
 
   private ensureIso(datetime?: string, time?: string, baseDate?: string | Date): string {
     if (datetime) return datetime;
-    const base = typeof baseDate === 'string' ? new Date(baseDate) : (baseDate ?? new Date());
+    const base = typeof baseDate === 'string' ? new Date(baseDate) : baseDate ?? new Date();
     const d = new Date(base);
     if (time) {
       const [hh, mm] = time.split(':');
@@ -175,82 +234,46 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
     return d.toISOString();
   }
 
-  private setScheduleItems(): void {
-    if (!this.scheduleComp?.calendarApi) {
-      console.warn('Calendar API not ready yet, skipping items build');
-      return;
-    }
-
-    const src = this.filteredLessons.length ? this.filteredLessons : this.lessons;
-    this.items = src
-      .map(l => {
-        const startISO = this.ensureIso((l as any).start_datetime, (l as any).start_time, (l as any).occur_date);
-        const endISO   = this.ensureIso((l as any).end_datetime,   (l as any).end_time,   (l as any).occur_date);
-        return {
-          id: String(l.id ?? `${l.child_id}__${startISO}`),
-          title: l.lesson_type || 'שיעור',
-          start: startISO,
-          end: endISO,
-          color: l.child_color || '#b5ead7',
-          meta: {
-            child_id: l.child_id,
-            child_name: l.child_name || '',
-            instructor_id: l.instructor_id,
-            status: l.status
-          },
-          status: l.status
-        } as ScheduleItem;
-      })
-      .filter(it => !!it.start && !!it.end);
-
-    console.log('Schedule items built:', this.items);
-    this.cdr.detectChanges();
-  }
-
-  private childName(childId: string): string {
-    const child = this.children.find(c => c.child_uuid === childId);
-    return child?.full_name ?? '';
-  }
-
   onEventClick(arg: EventClickArg): void {
     const childId: string | undefined = arg.event.extendedProps['child_id'];
     if (!childId) return;
-
-    const api = this.scheduleComp?.calendarApi;
-    if (api?.view.type === 'dayGridMonth') {
-      api.changeView('timeGridWeek', arg.event.start!);
-    }
-
     this.selectedChild = this.children.find(c => c.child_uuid === childId) ?? null;
+    console.log('📌 נבחר ילד:', this.selectedChild);
     this.cdr.detectChanges();
   }
 
-  onDateClick(raw: string | Date | { date?: Date; dateStr?: string }): void {
-    let d: Date;
-    if (typeof raw === 'string') d = new Date(raw);
-    else if (raw instanceof Date) d = raw;
-    else d = raw?.date ?? (raw?.dateStr ? new Date(raw.dateStr) : new Date());
-
-    const targetYmd = ymd(d);
-    const event = this.items.find(it => ymd(new Date(it.start)) === targetYmd);
-    if (event?.meta?.child_id) {
-      this.selectedChild = this.children.find(c => c.child_uuid === event?.meta?.child_id) ?? null;
-      this.cdr.detectChanges();
+  onDateClick(event: any): void {
+    const api = this.scheduleComp?.calendarApi;
+    if (!api) return;
+    if (api.view.type === 'dayGridMonth') {
+      api.changeView('timeGridDay', event.dateStr);
     }
+  }
+
+  changeView(view: 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth') {
+    this.currentView = view;
+    this.scheduleComp.changeView(view);
+  }
+
+  next() { this.scheduleComp.next(); }
+  prev() { this.scheduleComp.prev(); }
+  today() { this.scheduleComp.today(); }
+
+  toggleFullscreen() {
+    this.isFullscreen = !this.isFullscreen;
+    document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
   }
 }
 
-// ---------------- helper functions ----------------
+/* ---------- פונקציות עזר ---------- */
 function ymd(d: Date): string {
   return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())).toISOString().slice(0, 10);
 }
-
 function addDays(d: Date, days: number): Date {
   const x = new Date(d);
   x.setDate(x.getDate() + days);
   return x;
 }
-
 function calcAge(isoDate: string): number {
   const b = new Date(isoDate);
   const t = new Date();
@@ -258,11 +281,4 @@ function calcAge(isoDate: string): number {
   const m = t.getMonth() - b.getMonth();
   if (m < 0 || (m === 0 && t.getDate() < b.getDate())) age--;
   return age;
-}
-
-function colorFromId(id: string): string {
-  const palette = ['#d8f3dc','#fbc4ab','#cdb4db','#b5ead7','#ffdac1','#e0fbfc','#ffe5ec'];
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return palette[hash % palette.length];
 }

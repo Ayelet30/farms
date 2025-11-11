@@ -13,7 +13,6 @@ function readMeta(name: string): string | null {
   return el?.content?.trim() || null;
 }
 
-
 function runtime(key: string): string | null {
   const metaName = `x-${key.toLowerCase().replace(/_/g, '-')}`;
   const maybeWindow = typeof window !== 'undefined' ? (window as any) : undefined;
@@ -61,7 +60,7 @@ type BootstrapResp = {
 };
 
 /** ===================== STATE ===================== **/
-let supabase: SupabaseClient | null = null;
+export let supabase: SupabaseClient | null = null;
 let authBearer: string | null = null;
 let currentTenant: TenantContext | null = null;
 let currentFarmMeta: FarmMeta | null = null;
@@ -300,27 +299,30 @@ export async function getCurrentUserDetails(
   const tenant = requireTenant();
   const fbUser = getAuth().currentUser;
 
+  
   if (!fbUser) throw new Error('No Firebase user is logged in.');
-
+  
   const ttl = options?.cacheMs ?? 60_000;
   const cacheKey = `${tenant.schema}|${fbUser.uid}|${select}`;
   if (userCache && userCache.key === cacheKey && userCache.expires > Date.now()) return userCache.data;
-
+  
   const dbcTenant = db();         // סכימת הטננט הנוכחית
   const dbcPublic = db('public');
-
+  
   // ננעלים לטננט הנבחר כדי לא להתבלבל בין חוות שונות
   const { targetTable, role, role_in_tenant, roleId, farmId, farmName } =
-    await resolveRoleAndFarm(dbcTenant, dbcPublic, fbUser.uid, { tenantId: tenant.id });
+  await resolveRoleAndFarm(dbcTenant, dbcPublic, fbUser.uid, { tenantId: tenant.id });
+  
+  console.log("!!!!!!", cacheKey);
 
   if (!targetTable) return null;
-
+  
   // במקום maybeSingle: מביאים את כל הרשומות עבור ה-uid ובוחרים אחת דטרמיניסטית
   const { data: rows, error } = await dbcTenant
-    .from(targetTable)
-    .select('*')                 // מביא * כדי שנוכל לדרג לפי שדות אם קיימים
-    .eq('uid', fbUser.uid);
-
+  .from(targetTable)
+  .select('*')                 // מביא * כדי שנוכל לדרג לפי שדות אם קיימים
+  .eq('uid', fbUser.uid);
+  
   if (error) throw error;
 
 
@@ -613,21 +615,26 @@ export async function fetchCurrentParentDetails(
 
 /** ===================== CHILDREN API (per-tenant) ===================== **/
 export async function getMyChildren(
-  select = 'id:child_uuid, full_name, gov_id, birth_date, parent_id:parent_uid, status'
+  select = 'child_uuid, full_name, gov_id, birth_date, parent_uid, status'
 ): Promise<ChildRow[]> {
   await ensureTenantContextReady();
-  const dbc = db();               // לקוח סכימת הטננט
+
+  const uid = (await getCurrentUserData())?.uid;
+  if (!uid) throw new Error('No Firebase user');
+
+  const dbc = db(); // סכימת ה-tenant הנוכחית
   const { data, error } = await dbc
     .from('children')
-    .select(select)               // <- כאן ה-alias-ים
+    .select(select)
+    .eq('parent_uid', uid)                   // ✅ סינון לפי ההורה המחובר
     .order('full_name', { ascending: true });
+
   if (error) throw error;
   return (data ?? []) as unknown as ChildRow[];
 }
 
-
 export async function fetchMyChildren(
-  select = 'id:child_uuid, full_name, gov_id, birth_date, parent_id:parent_uid, status'
+  select = 'child_uuid, full_name, gov_id, birth_date, parent_uid, status'
 ): Promise<{ ok: boolean; data: ChildRow[]; error?: string }> {
   try {
     const data = await getMyChildren(select);
@@ -636,6 +643,7 @@ export async function fetchMyChildren(
     return { ok: false, data: [], error: e?.message ?? 'Unknown error' };
   }
 }
+
 export async function fetchCurrentFarmName(
   opts?: { refresh?: boolean }
 ): Promise<{ ok: boolean; data: string | null; error?: string }> {
@@ -725,13 +733,33 @@ export type ListParentsOpts = {
 };
 
 /** מחזיר את כל ההורים בחווה (כלומר בסכימת ה-tenant הנוכחי) */
-export async function listParents(): Promise<ParentRow[]> {
-  const { data, error } = await dbTenant()
-    .from('parents')
-    .select('uid, full_name, phone, email')
-    .order('full_name');
+export async function listParents(opts: ListParentsOpts = {}): Promise<{ rows: ParentRow[]; count?: number | null }> {
+  const tenant = requireTenant();    
+
+  const dbc = db(tenant.schema);
+
+  const select = opts.select ?? 'uid, full_name,extra_notes, address, phone, email';
+  let q = dbc.from('parents').select(select, { count: 'exact' });
+
+  if (opts.search?.trim()) {
+    const s = `%${opts.search.trim()}%`;
+    q = q.or(`full_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
+  }
+
+  const orderBy = opts.orderBy ?? 'full_name';
+  const ascending = opts.ascending ?? true;
+  q = q.order(orderBy, { ascending });
+
+  const limit = Math.max(1, opts.limit ?? 50);
+  const offset = Math.max(0, opts.offset ?? 0);
+  q = q.range(offset, offset + limit - 1);
+
+  const { data, error, count } = await q;
+  
   if (error) throw error;
-  return data ?? [];
+
+
+  return { rows: (data ?? []) as unknown as ParentRow[], count: count ?? null };
 }
 
 

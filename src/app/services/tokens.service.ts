@@ -5,11 +5,9 @@ export class TokensService {
   private linkId = 'tenant-tokens';
   private currentKey?: string;
 
-  applytokens(tokensKey: string) {
-    console.log(tokensKey);
+  applyTokens(tokensKey: string) {
     if (!tokensKey || this.currentKey === tokensKey) return;
-
-    const href = this.resolveHref(tokensKey); 
+    const href = this.resolveHref(tokensKey);
     let linkEl = document.getElementById(this.linkId) as HTMLLinkElement | null;
     if (!linkEl) {
       linkEl = document.createElement('link');
@@ -17,19 +15,23 @@ export class TokensService {
       linkEl.rel = 'stylesheet';
       document.head.appendChild(linkEl);
     }
-
-
     linkEl.href = href;
     this.currentKey = tokensKey;
-    localStorage.setItem('tokensKey', tokensKey); // שחזור אוטומטי בטעינה הבאה
+    localStorage.setItem('tokensKey', tokensKey);
   }
 
-  restoreLasttokens(fallback: string = 'bereshit_farm') {
-    this.applytokens(fallback);
+  /** @deprecated השתמשי ב-applyTokens */
+  applytokens(tokensKey: string) { this.applyTokens(tokensKey); }
+
+  restoreLastTokens(fallback = 'bereshit_farm') {
+    const saved = localStorage.getItem('tokensKey') || fallback;
+    this.applyTokens(saved);
   }
+
+  /** @deprecated השתמשי ב-restoreLastTokens */
+  restoreLasttokens(fallback?: string) { this.restoreLastTokens(fallback); }
 
   private resolveHref(tokensKey: string): string {
-    // אם ה-baseHref שלך הוא '/', זה יחפש בשורש ה-dist:
     return new URL(`tokens-${tokensKey}.css`, document.baseURI).toString();
   }
 }

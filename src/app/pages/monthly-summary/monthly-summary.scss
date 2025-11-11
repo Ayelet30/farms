@@ -1,0 +1,375 @@
+.monthly {
+  direction: rtl;
+  text-align: right;
+  padding: 30px;
+  background: #fffdf7; // רקע שמנת רך
+  min-height: 100vh;
+  font-family: "Heebo", sans-serif;
+
+  /* כותרת עליונה */
+  .topbar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 25px;
+
+    .page-title {
+      font-size: 26px;
+      font-weight: 700;
+      color: #222;
+      text-align: right;
+    }
+  }
+
+  /* בחירת חודש ושנה */
+  .filters-row {
+    display: flex;
+    justify-content: flex-start;
+    gap: 10px;
+    margin-bottom: 25px;
+
+    mat-select {
+      width: 140px;
+      background: #f8f8f8;
+      border-radius: 8px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+    }
+  }
+
+  /* כרטיסי KPI */
+  .kpis {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: stretch;
+    gap: 18px;
+    margin: 30px 0;
+
+    .kpi {
+      flex: 1 1 150px;
+      min-width: 150px;
+      max-width: 220px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      border-radius: 14px;
+      text-align: center;
+      color: #333;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+
+      mat-icon {
+        font-size: 30px;
+        margin-bottom: 8px;
+      }
+
+      .value {
+        font-size: 22px;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+
+      .label {
+        font-size: 15px;
+        color: #555;
+      }
+
+      &.purple { background: #f2e7ff; color: #673ab7; }
+      &.red { background: #fde8e8; color: #c62828; }
+      &.orange { background: #fff4e1; color: #ef6c00; }
+      &.green { background: #e6f8ed; color: #2e7d32; }
+      &.yellow { background: #fffde7; color: #fbc02d; }
+      &.teal { background: #e0f7fa; color: #00796b; }
+      &.blue { background: #e3f2fd; color: #1565c0; }
+
+      &:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      }
+    }
+  }
+
+  /* אזור רשימת השיעורים */
+  .list-section {
+    margin-top: 40px;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    padding: 25px;
+    border: 1px solid #eee;
+    text-align: right;
+
+    .list-header {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-bottom: 20px;
+
+      .icon-title {
+        color: #22a12b;
+        font-size: 22px;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 600;
+        color: #222;
+      }
+    }
+
+    /* סינונים */
+    .filters {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 14px;
+      margin-bottom: 25px;
+      flex-wrap: wrap;
+
+      mat-select {
+        flex: 1;
+        min-width: 200px;
+        background: #f8f8f8;
+        border-radius: 10px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+      }
+
+      .search {
+        flex: 1;
+        max-width: 360px;
+        display: flex;
+        align-items: center;
+        background: #f8f8f8;
+        border-radius: 10px;
+        padding: 0 10px;
+        height: 44px;
+
+        mat-icon {
+          color: #555;
+          margin-left: 6px;
+          font-size: 20px;
+        }
+
+        input {
+          flex: 1;
+          border: none;
+          outline: none;
+          background: transparent;
+          font-size: 15px;
+          padding: 8px;
+          color: #333;
+
+          &::placeholder {
+            color: #888;
+          }
+        }
+      }
+    }
+
+    /* טבלה */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+
+      th, td {
+        text-align: right !important;
+        padding: 10px;
+      }
+
+      th {
+        background: #f6f6f6;
+        color: #333;
+        font-weight: 600;
+      }
+
+      td {
+        border-top: 1px solid #eee;
+      }
+
+      .chip {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 600;
+
+        &.אושר { background: #d4f8e8; color: #127a3b; }
+        &.בוטל { background: #fde8e8; color: #c62828; }
+        &.ממתין { background: #fff4e1; color: #ff9800; }
+        &.הושלם, &.בוצע { background: #d6f2ff; color: #0277bd; }
+      }
+    }
+
+    .empty {
+      text-align: center;
+      color: #777;
+      margin-top: 16px;
+      font-size: 15px;
+    }
+
+    /* כפתורי ייצוא */
+    .bottom-actions {
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+      gap: 12px;
+      margin-top: 25px;
+      padding-top: 15px;
+      border-top: 1px solid #eee;
+
+      button {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-weight: 500;
+        padding: 8px 16px;
+        background: #fffdf7;
+        color: #222;
+        transition: all 0.25s ease;
+
+        &:hover {
+          background: #f8f8f8;
+        }
+
+        &.pdf-btn {
+          color: #c2185b;
+          border-color: #f4c7d7;
+          &:hover { background: #fde7ef; }
+        }
+
+        &.excel-btn {
+          color: #2e7d32;
+          border-color: #bde3c2;
+          &:hover { background: #e9f9eb; }
+        }
+      }
+    }
+  }
+
+  /* תובנות חודשיות */
+  .insights-section {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    padding: 25px;
+    margin-top: 40px;
+    text-align: right;
+
+    .insights-header {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+
+      mat-icon {
+        color: #22a12b;
+        font-size: 22px;
+      }
+
+      h2 {
+        font-size: 22px;
+        font-weight: 600;
+        color: #222;
+        margin: 0;
+      }
+    }
+
+    .insights-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      font-size: 15.5px;
+      line-height: 2.1;
+
+      li {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 6px 0;
+        border-bottom: 1px solid #f3f3f3;
+
+        &:last-child {
+          border-bottom: none;
+        }
+
+        .label {
+          color: #444;
+          font-weight: 500;
+        }
+
+        .value {
+          font-weight: 700;
+
+          &.highlight { color: #1565c0; }
+          &.red { color: #c62828; }
+          &.orange { color: #ef6c00; }
+          &.green { color: #2e7d32; }
+        }
+      }
+    }
+  }
+
+  /* רספונסיביות */
+  @media (max-width: 1024px) {
+    .kpis {
+      justify-content: center;
+      .kpi {
+        flex: 1 1 45%;
+        max-width: 45%;
+      }
+    }
+  }
+
+  @media (max-width: 600px) {
+    .kpis .kpi {
+      flex: 1 1 100%;
+      max-width: 100%;
+    }
+
+    .filters {
+      flex-wrap: wrap;
+
+      .search {
+        max-width: 100%;
+        flex: 1 1 100%;
+      }
+    }
+
+    .bottom-actions {
+      flex-direction: column;
+      align-items: stretch;
+      button {
+        width: 100%;
+      }
+    }
+
+    .insights-section {
+      padding: 18px;
+
+      .insights-header {
+        justify-content: center;
+        text-align: center;
+      }
+
+      .insights-list li {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+      }
+    }
+  }
+}

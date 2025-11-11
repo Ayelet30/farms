@@ -202,10 +202,12 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
 import {
   ensureTenantContextReady,
-  dbTenant,
-  dbPublic,
-  listParents
-} from '../../services/supabaseClient.service';
+}  from '../../services/legacy-compat';
+
+import {
+  listParents,
+  ParentRow,
+}  from '../../services/supabaseClient.service';
 
 import {
   AddParentDialogComponent,
@@ -226,8 +228,8 @@ interface ParentDetailsRow extends ParentRow {
 
 @Component({
   selector: 'app-secretary-parents',
-  standalone: true,
-  imports: [CommonModule, MatSidenavModule, MatDialogModule],
+   standalone: true,
+    imports: [CommonModule],
   templateUrl: './secretary-parents.html',
   styleUrls: ['./secretary-parents.css'],
 })
@@ -259,56 +261,26 @@ export class SecretaryParentsComponent implements OnInit {
     private createUserService: CreateUserService
   ) {}
 
-  async ngOnInit() {
+  async ngOnInit(): Promise<void> {
     try {
       await ensureTenantContextReady();
-      const res = await listParents();
-      this.parents = (res as any).rows ?? (res as any) ?? [];
+      await this.loadParents();
     } catch (e: any) {
-      this.error = e?.message || 'Failed to load parents';
-    } finally {
       this.isLoading = false;
+      this.error = 'Failed to initialize tenant context: ' + e.message;
+      console.error(e);
     }
   }
 
-  async openDetails(uid: string) {
-    this.selectedUid = uid?.trim();
-    this.drawerChildren = [];
-    this.drawer.open();
-    await this.loadDrawerData(this.selectedUid!);
-  }
-
-  closeDetails() {
-    this.drawer.close();
-    this.selectedUid = null;
-    this.drawerParent = null;
-    this.drawerChildren = [];
-  }
-
-  private async loadDrawerData(uid: string) {
-    this.drawerLoading = true;
+  async loadParents(): Promise<void> {
+    this.isLoading = true;
+    this.error = null;
     try {
-      const db = dbTenant();
-
-      const { data: p, error: pErr } = await db
-        .from('parents')
-        .select('uid, full_name, id_number, phone, email, address, extra_notes, message_preferences')
-        .eq('uid', uid)
-        .single();
-      if (pErr) throw pErr;
-      this.drawerParent = p as any;
-
-      const cleanUid = uid?.trim();
-      const { data: kids, error: kidsErr } = await db
-        .from('children')
-        .select('child_uuid, full_name, parent_uid, gender, status')
-        .eq('parent_uid', cleanUid)
-        .order('full_name', { ascending: true });
-
-      if (kidsErr) throw kidsErr;
-      this.drawerChildren = kids ?? [];
-    } catch {
-      this.drawerChildren = [];
+      const { rows: result } = await listParents();
+      this.parents = result;
+    } catch (e: any) {
+      this.error = e.message || 'Failed to fetch parents.';
+      console.error(e);
     } finally {
       this.drawerLoading = false;
     }

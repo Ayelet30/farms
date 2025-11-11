@@ -7,7 +7,7 @@ export class TranzilaService {
   private http = inject(HttpClient);
 
   async createHostedUrl(params: {
-    uid: string; email: string; farmId: string;
+    uid: string; email: string;
     amountAgorot: number; orderId: string;
     successPath?: string; failPath?: string;
   }): Promise<string> {
@@ -17,7 +17,7 @@ export class TranzilaService {
   }
 
   async chargeByToken(params: {
-    parentUid: string; farmId: string; amountAgorot: number; currency?: string;
+    parentUid: string; amountAgorot: number; currency?: string;
   }): Promise<any> {
     return await this.http.post('/api/chargeByToken', params).toPromise();
   }

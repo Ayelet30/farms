@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "useDefineForClassFields": false,
+    "module": "es2022",
+    "moduleResolution": "node",
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": [],
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src"
+    ]
+  },
+ "include": [
+  "**/*.ts",
+  "**/*.d.ts"
+],
+"exclude": [
+  "dist",
+  "out-tsc"
+]
+
+}

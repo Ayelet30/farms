@@ -1,22 +1,14 @@
-<div class="schedule-container" *ngIf="!error; else errTpl">
-<app-schedule
+<div class="instructor-schedule">
+  <app-schedule
     [items]="items"
     [initialView]="'timeGridWeek'"
-    [rtl]="true"
-    [slotMinTime]="'07:00:00'"
-    [slotMaxTime]="'21:00:00'"
-    [allDaySlot]="false"
     (eventClick)="onEventClick($event)"
     (dateClick)="onDateClick($event)">
-</app-schedule>
- 
+  </app-schedule>
+
   <app-note
     *ngIf="selectedChild"
     [child]="selectedChild"
     (close)="selectedChild = null">
-</app-note>
+  </app-note>
 </div>
- 
-<ng-template #errTpl>
-<div class="error">{{ error }}</div>
-</ng-template>

@@ -63,7 +63,7 @@ export class LoginComponent {
       let activeRole: string | null | undefined = selected?.role_in_tenant ?? this.cuSvc.current?.role;
       let activeFarm: string | null | undefined = selected?.farm?.schema_name;
 
-      this.tokens.restoreLasttokens(activeFarm);
+      this.tokens.restoreLastTokens(activeFarm);
 
       const target = this.routeByRole(activeRole);
       this.dialogRef?.close({ success: true, role: activeRole, target });
