@@ -164,12 +164,13 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
     const content = this.newNote.trim();
     if (!childId || !content) return;
 
-    try {
-      const instructor = await getCurrentUserDetails('uid, full_name, id_number');
-      if (!instructor?.uid) {
-        console.warn('⚠️ No instructor session found');
-        return;
-      }
+  try {
+   const instructor = await getCurrentUserDetails('uid, first_name, last_name, id_number');
+    if (!instructor?.uid) {
+     console.warn('⚠️ No instructor session found');
+    return;
+  }
+
 
       const now = new Date().toISOString();
       const newNoteObj: NoteVM = {
@@ -177,7 +178,7 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
         display_text: content,
         created_at: now,
         instructor_uid: instructor.uid,
-        instructor_name: instructor.full_name ?? '—',
+        instructor_name: `${instructor.first_name ?? ''} ${instructor.last_name ?? ''}`.trim() || '—',
         category: this.selectedCategory
       };
 

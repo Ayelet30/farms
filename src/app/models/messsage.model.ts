@@ -28,7 +28,8 @@ export interface MessageRecipient {
   delivered_at?: string | null;
   read_at?: string | null;
   replied_at?: string | null;
-  parent_full_name?: string | null;   // לשימוש תצוגה
+  parent_first_name?: string | null; 
+   parent_last_name?: string | null;  // לשימוש תצוגה
 }
 
 export interface Conversation {
@@ -41,7 +42,8 @@ export interface Conversation {
   tags?: string[] | null;
   updated_at?: string | null;
   created_at?: string | null;
-  parent_full_name?: string | null;   // לשימוש תצוגה
+  parent_first_name?: string | null; 
+  parent_last_name?: string | null;   // לשימוש תצוגה
   parent_phone?: string | null;
 }
 

@@ -18,7 +18,8 @@
           (selectedIds.size >= maxSelected && !hasSelected(child) ? 'מקסימום 4 כרטיסים פתוחים' : null)
         "
         type="button">
-  {{ child.full_name }}
+{{ child.first_name }} {{ child.last_name }}
+
 </button>
 
 
@@ -48,7 +49,7 @@
             <svg class="icon" aria-hidden="true">
               <use href="assets/icons/feather-slim.svg#user" />
             </svg>
-            {{ c.full_name }}
+    {{ c.first_name }} {{ c.last_name }}
           </h3>
 <span class="age-badge warn" *ngIf="isPendingDelete(c?.status)">
   ממתין לאישור מחיקה
@@ -109,14 +110,21 @@
 
       <!-- פרטים ניתנים לעריכה -->
       <div class="editable-area" *ngIf="editing[childId(c)]">
-        <div class="form-row">
-          <label>שם מלא</label>
-          <input [(ngModel)]="editables[childId(c)].full_name" class="editable-input" />
-        </div>
-        <div class="form-row">
-          <label>תאריך לידה</label>
-          <input type="date" [(ngModel)]="editables[c.child_uuid!].birth_date" class="editable-input" />
-        </div>
+       <div class="form-row">
+       <label>שם פרטי</label>
+       <input [(ngModel)]="editables[childId(c)].first_name" class="editable-input" />
+       </div>
+
+      <div class="form-row">
+      <label>שם משפחה</label>
+      <input [(ngModel)]="editables[childId(c)].last_name" class="editable-input" />
+     </div>
+
+    <div class="form-row">
+    <label>תאריך לידה</label>
+    <input type="date" [(ngModel)]="editables[c.child_uuid!].birth_date" class="editable-input" />
+    </div>
+
         <div class="form-row">
           <label>קופת חולים</label>
           <select [(ngModel)]="editables[c.child_uuid!].health_fund" class="editable-input">
@@ -173,13 +181,20 @@
   <!-- טופס הוספת ילד חדש -->
   <div class="child-card" *ngIf="newChild">
     <h3>הוספת ילד חדש</h3>
-
-    <div class="form-field">
-      <label>שם מלא</label>
-      <input class="editable-input" [(ngModel)]="newChild.full_name" required />
-      <div *ngIf="validationErrors['full_name']" class="error-msg">{{ validationErrors['full_name'] }}</div>
-    </div>
-
+<div class="form-field">
+  <label>שם פרטי</label>
+  <input class="editable-input" [(ngModel)]="newChild.first_name" required />
+  <div *ngIf="validationErrors['first_name']" class="error-msg">
+    {{ validationErrors['first_name'] }}
+  </div>
+ </div>
+ <div class="form-field">
+  <label>שם משפחה</label>
+  <input class="editable-input" [(ngModel)]="newChild.last_name" required />
+  <div *ngIf="validationErrors['last_name']" class="error-msg">
+    {{ validationErrors['last_name'] }}
+  </div>
+</div>
     <div class="form-field">
       <label>תעודת זהות</label>
       <input class="editable-input" [(ngModel)]="newChild.gov_id" maxlength="9" pattern="[0-9]*" inputmode="numeric"

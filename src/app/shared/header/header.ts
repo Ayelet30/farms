@@ -76,7 +76,12 @@ export class HeaderComponent implements OnInit {
     this.isLoggedIn = !!cur;
     this.userRoleKey = (cur?.role || '').toLowerCase();
     this.userRole = this.roleHe[this.userRoleKey] || '';
-    this.userName = (details?.full_name || cur?.displayName || '') ?? '';
+    this.userName = (
+  `${details?.first_name ?? ''} ${details?.last_name ?? ''}`.trim() ||
+  cur?.displayName ||
+  ''
+) ?? '';
+
     this.farmName = (getCurrentFarmMetaSync()?.name || undefined);
     this.farmInitials = this.makeInitials(this.farmName || '');
   }

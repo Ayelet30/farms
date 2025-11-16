@@ -104,9 +104,12 @@
       </ng-container>
 
       <ng-container matColumnDef="student">
-        <th mat-header-cell *matHeaderCellDef>תלמיד/ה</th>
-        <td mat-cell *matCellDef="let l">{{ l.child?.full_name || '—' }}</td>
+      <th mat-header-cell *matHeaderCellDef>תלמיד/ה</th>
+      <td mat-cell *matCellDef="let l">
+        {{ l.child?.first_name }} {{ l.child?.last_name || '—' }}
+      </td>
       </ng-container>
+
 
       <ng-container matColumnDef="type">
         <th mat-header-cell *matHeaderCellDef>סוג שיעור</th>

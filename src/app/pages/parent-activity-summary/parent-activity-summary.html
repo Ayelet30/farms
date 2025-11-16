@@ -21,10 +21,10 @@
    <div class="filter">
   <label>ילד</label>
  <select #childSel (change)="onChildChange(childSel.value)">
-  <option value="">כל הילדים</option>
-  <option *ngFor="let c of children()" [value]="c.child_uuid">
-    {{ c.full_name }}
-  </option>
+<option value="">כל הילדים</option>
+<option *ngFor="let c of children()" [value]="c.child_uuid">
+  {{ c.first_name }} {{ c.last_name }}
+</option>
 </select>
 
 

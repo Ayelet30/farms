@@ -40,16 +40,19 @@
   <label>הערות</label>
   <textarea formControlName="extra_notes" rows="3"></textarea>
 
-  <fieldset formGroupName="prefs" style="margin-top:10px">
-    <legend>העדפות תקשורת</legend>
-    <label><input type="checkbox" formControlName="inapp" /> אפליקציה (חובה)</label>
-    <label><input type="checkbox" formControlName="email" /> אימייל</label>
-    <label><input type="checkbox" formControlName="sms" /> SMS</label>
-    <label><input type="checkbox" formControlName="whatsapp" /> וואטסאפ</label>
-  </fieldset>
+ <fieldset formGroupName="prefs" style="margin-top:10px">
+  <legend>העדפות תקשורת</legend>
+  <label>
+    <input type="checkbox" formControlName="inapp" />
+    אפליקציה (חובה)
+  </label>
+  <label><input type="checkbox" formControlName="email" /> אימייל</label>
+  <label><input type="checkbox" formControlName="sms" /> SMS</label>
+  <label><input type="checkbox" formControlName="whatsapp" /> וואטסאפ</label>
+</fieldset>
 
   <div class="actions">
-    <button type="button" class="cancel" (click)="cancel()">ביטול</button>
-    <button type="submit" class="save">שמור</button>
+    <button type="button" class="cancel" (click)="cancel()" [disabled]="submitting">ביטול</button>
+    <button type="submit" class="save" [disabled]="submitting">שמור</button>
   </div>
 </form>

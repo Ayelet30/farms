@@ -315,7 +315,8 @@ export class SupabaseTenantService {
     return { targetTable, role: roleStr ?? null, role_in_tenant, roleId, farmId, farmName };
   }
 
-  async getCurrentUserDetails(select = 'uid, full_name, id_number', options?: { cacheMs?: number }): Promise<any | null> {
+  async getCurrentUserDetails( select = 'uid, first_name, last_name, id_number',options?: { cacheMs?: number }): Promise<any | null>
+ {
     const tenant = this.requireTenant();
     const fbUser = getAuth().currentUser;
     if (!fbUser) throw new Error('No Firebase user is logged in.');
@@ -364,7 +365,8 @@ export class SupabaseTenantService {
     const address = rec.address ?? rec.adress ?? null;
     const result = {
       uid: rec.uid ?? fbUser.uid,
-      full_name: rec.full_name ?? null,
+      first_name: rec.first_name ?? null,
+     last_name:  rec.last_name  ?? null,
       id_number: rec.id_number ?? null,
       address,
       phone: rec.phone ?? null,
@@ -380,7 +382,7 @@ export class SupabaseTenantService {
   }
 
   // ---------- parents / children ----------
-  async getCurrentParentDetails(select = 'uid, full_name, id_number, address, phone, email'): Promise<any | null> {
+ async getCurrentParentDetails(select = 'uid, first_name, last_name, id_number, address, phone, email'): Promise<any | null> {
     const tenant = this.requireTenant();
     const fbUser = getAuth().currentUser;
     if (!fbUser) throw new Error('No Firebase user is logged in.');
@@ -397,15 +399,19 @@ export class SupabaseTenantService {
     return null;
   }
 
-  async getMyChildren(select = 'id:child_uuid, full_name, gov_id, birth_date, parent_id:parent_uid, status') {
-    await this.ensureTenantContextReady();
-    const { data, error } = await this.db()
-      .from('children')
-      .select(select)
-      .order('full_name', { ascending: true });
-    if (error) throw error;
-    return (data ?? []) as any[];
-  }
+  async getMyChildren(
+  select = 'id:child_uuid, first_name, last_name, gov_id, birth_date, parent_id:parent_uid, status'
+) {
+  await this.ensureTenantContextReady();
+  const { data, error } = await this.db()
+    .from('children')
+    .select(select)
+    .order('first_name', { ascending: true })
+    .order('last_name', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as any[];
+}
+
 
   // ---------- agreements ----------
   async rpcGetRequiredAgreements(childId: string, parentUid: string, activityTag?: string | null) {
@@ -417,24 +423,48 @@ export class SupabaseTenantService {
     return (data ?? []) as any[];
   }
 
-  async insertAgreementAcceptance(opts: {
-    versionId: string; parentUid: string; childId?: string | null;
-    fullNameSnapshot?: string | null; roleSnapshot?: string | null;
-    ip?: string | null; userAgent?: string | null; signaturePath?: string | null;
-  }) {
-    const { data, error } = await this.db().from('user_agreement_acceptances').insert({
-      agreement_version_id: opts.versionId,
-      parent_user_id: opts.parentUid,
-      child_id: opts.childId ?? null,
-      full_name_snapshot: opts.fullNameSnapshot ?? null,
-      role_snapshot: opts.roleSnapshot ?? 'parent',
-      ip: opts.ip ?? null,
-      user_agent: opts.userAgent ?? (typeof navigator !== 'undefined' ? navigator.userAgent : null),
-      signature_path: opts.signaturePath ?? null
-    }).select().single();
-    if (error) throw error;
-    return data;
-  }
+async insertAgreementAcceptance(opts: {
+  versionId: string;
+  parentUid: string;
+  childId?: string | null;
+  firstNameSnapshot?: string | null;
+  lastNameSnapshot?: string | null;
+  roleSnapshot?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
+  signaturePath?: string | null;
+}) {
+  
+  const splitFull = (full?: string | null) => {
+    const s = (full ?? '').trim().replace(/\s+/g, ' ');
+    if (!s) return { first: '', last: '' };
+    const parts = s.split(' ');
+    return parts.length === 1
+      ? { first: parts[0], last: '' }
+      : { first: parts[0], last: parts.slice(1).join(' ') };
+  };
+ const firstSnap = opts.firstNameSnapshot ?? null;
+const lastSnap  = opts.lastNameSnapshot  ?? null;
+ 
+  const { data, error } = await this.db().from('user_agreement_acceptances').insert({
+    agreement_version_id: opts.versionId,
+    parent_user_id: opts.parentUid,
+    child_id: opts.childId ?? null,
+
+    // שמות העמודות בטבלה:
+    first_name_snapshot: firstSnap,
+    last_name_snapshot:  lastSnap,
+
+    role_snapshot: opts.roleSnapshot ?? 'parent',
+    ip: opts.ip ?? null,
+    user_agent: opts.userAgent ?? (typeof navigator !== 'undefined' ? navigator.userAgent : null),
+    signature_path: opts.signaturePath ?? null,
+  }).select().single();
+
+  if (error) throw error;
+  return data;
+}
+
 
   // ---------- messaging ----------
   async listInbox(options?: { status?: ('open'|'pending'|'closed')[]; search?: string | null; limit?: number; offset?: number; }) {
