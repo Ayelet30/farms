@@ -13,13 +13,15 @@
       "./src"
     ]
   },
- "include": [
-  "**/*.ts",
-  "**/*.d.ts"
-],
-"exclude": [
-  "dist",
-  "out-tsc"
-]
 
+  "include": [
+    "**/*.ts",
+    "**/*.d.ts"
+  ],
+
+  "exclude": [
+    "dist",
+    "out-tsc",
+    "**/*.spec.ts"    
+  ]
 }

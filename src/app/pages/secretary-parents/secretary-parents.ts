@@ -342,6 +342,23 @@ openAddParentDialog() {
 
  
   /** ================== Helpers: Inserts to Supabase ================== */
+
+  private async getParentRoleId(): Promise<number> {
+  const dbcTenant = dbTenant();
+
+  const { data, error } = await dbcTenant
+    .from('role')
+    .select('id')
+    .eq('table', 'parents')  // אפשר גם description = 'הורה'
+    .maybeSingle();
+
+  if (error || !data?.id) {
+    console.error('getParentRoleId error', error);
+    throw new Error('לא הצלחתי למצוא role_id לתפקיד הורה בטננט הנוכחי');
+  }
+
+  return data.id as number;
+}
  
   // public.users – upsert לפי uid (אימייל/טלפון)
 
@@ -369,11 +386,14 @@ openAddParentDialog() {
 
   }
  
-  // public.tenant_users – שיוך לטננט פעיל כ-parent
+ 
 
   // public.tenant_users – שיוך לטננט פעיל כ-parent
 private async createTenantUserInSupabase(body: { tenant_id: string; uid: string }): Promise<void> {
   const dbcPublic = dbPublic();
+
+  // 🔹 לוקחים דינמית את ה-role_id מהחווה הנוכחית
+  const parentRoleId = await this.getParentRoleId();
 
   const { error } = await dbcPublic
     .from('tenant_users')
@@ -382,6 +402,7 @@ private async createTenantUserInSupabase(body: { tenant_id: string; uid: string 
         tenant_id: body.tenant_id,
         uid: body.uid,
         role_in_tenant: 'parent',
+        role_id: parentRoleId,
         is_active: true
       },
       {
@@ -394,69 +415,48 @@ private async createTenantUserInSupabase(body: { tenant_id: string; uid: string 
 
 
 
+
+
   private async createParentInSupabase(body: {
+  uid: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone?: string | null;
+  id_number?: string | null;
+  address?: any;
+  extra_notes?: string | null;
+  message_preferences?: string[] | null;
+  is_active?: boolean | null;
+}) {
+  const dbcTenant = dbTenant();
 
-    uid: string;
+  const { data, error } = await dbcTenant
+    .from('parents')
+    .insert({
+      uid: body.uid,
+      first_name: body.first_name,
+      last_name: body.last_name,
+      email: body.email,
+      phone: body.phone ?? null,
+      id_number: body.id_number ?? null,
+      address: body.address ?? null,
+      extra_notes: body.extra_notes ?? null,
+      message_preferences: body.message_preferences?.length
+        ? body.message_preferences
+        : ['inapp'],
+      is_active: body.is_active ?? true,
+    })
+    .select('*')      // ← שימי לב: **אין כאן id בכלל**
+    .single();
 
-    first_name: string;
-
-     last_name: string;
-
-    email: string;
-
-    phone?: string | null;
-
-    id_number?: string | null;
-
-    address?: any;
-
-    extra_notes?: string | null;
-
-    message_preferences?: string[] | null;
-
-    is_active?: boolean | null;
-
-  }) {
-
-    const dbcTenant = dbTenant();
-
-    const { data, error } = await dbcTenant
-
-      .from('parents')
-
-      .insert({
-
-        uid: body.uid,
-
-        first_name: body.first_name,
-
-        last_name: body.last_name,
-
-        email: body.email,
-
-        phone: body.phone ?? null,
-
-        id_number: body.id_number ?? null,
-
-        address: body.address ?? null,
-
-        extra_notes: body.extra_notes ?? null,
-
-        message_preferences: body.message_preferences?.length ? body.message_preferences : ['inapp'],
-
-        is_active: body.is_active ?? true
-
-      })
-
-      .select('id, uid, first_name,last_name, email, phone, created_at')
-
-      .single();
- 
-    if (error) throw new Error(`parents insert failed: ${error.message}`);
-
-    return data;
-
+  if (error) {
+    throw new Error(`parents insert failed: ${error.message}`);
   }
+
+  return data;
+}
+
 
 }
 
