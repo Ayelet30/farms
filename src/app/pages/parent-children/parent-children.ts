@@ -19,7 +19,12 @@ type OccurrenceRow = {
   status?: string | null;
   lesson_type?: 'רגיל' | 'השלמה' | string | null;
 };
-type InstructorRow = { id_number: string; full_name: string | null };
+type InstructorRow = { 
+  id_number: string; 
+  first_name: string | null; 
+  last_name: string | null; 
+};
+
 
 // ----- Status helpers (ENUM in English only) -----
 type ChildStatus = 'Active' | 'Pending Deletion Approval' | 'Pending Addition Approval' | 'Deleted';
@@ -84,9 +89,8 @@ statusClass(st: string): string {
      Private fields
   ========================= */
   private infoTimer: any;
-  private readonly CHILD_SELECT =
-    'child_uuid, gov_id, full_name, birth_date, gender, health_fund, instructor_id, parent_uid, status, medical_notes';
-
+private readonly CHILD_SELECT =
+  'child_uuid, gov_id, first_name, last_name, birth_date, gender, health_fund, instructor_id, parent_uid, status, medical_notes';
   constructor(private router: Router) {}
 
   /* =========================
@@ -100,7 +104,9 @@ statusClass(st: string): string {
     this.loading = true;
 
     const baseSelect =
-      this.CHILD_SELECT && this.CHILD_SELECT.trim().length ? this.CHILD_SELECT : 'child_uuid, full_name, status';
+    this.CHILD_SELECT && this.CHILD_SELECT.trim().length
+  ? this.CHILD_SELECT
+  : 'child_uuid, first_name, last_name, status';
     const hasStatus = /(^|,)\s*status\s*(,|$)/.test(baseSelect);
     const selectWithStatus = hasStatus ? baseSelect : `${baseSelect}, status`;
 
@@ -228,7 +234,8 @@ const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמ�
   const { error } = await dbTenant()
     .from('children')
     .update({
-      full_name: model.full_name,
+    first_name: model.first_name,
+    last_name: model.last_name,
       birth_date: model.birth_date || null,
       health_fund: model.health_fund || null,
       medical_notes: model.medical_notes || null
@@ -246,7 +253,8 @@ const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמ�
   if (idx !== -1) {
     const updated = {
       ...this.children[idx],
-      full_name: model.full_name,
+       first_name: model.first_name,
+       last_name: model.last_name,
       birth_date: model.birth_date || null,
       health_fund: model.health_fund || null,
       medical_notes: model.medical_notes || null
@@ -323,11 +331,14 @@ const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמ�
     if (instrIds.length) {
       const { data: instRaw } = await dbc
         .from('instructors')
-        .select('id_number, full_name')
+        .select('id_number, first_name, last_name')
         .in('id_number', instrIds);
 
       const inst = (instRaw ?? []) as InstructorRow[];
-      instructorNameById = Object.fromEntries(inst.map(i => [i.id_number, i.full_name ?? ''])) as Record<string, string>;
+    instructorNameById = Object.fromEntries(
+    inst.map(i => [i.id_number, `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()])
+    ) as Record<string, string>;
+
     }
 
     // הראשונה לכל ילד היא הקרובה ביותר
@@ -382,10 +393,13 @@ const ids = this.children
     if (instrIds.length) {
       const { data: instRaw } = await dbc
         .from('instructors')
-        .select('id_number, full_name')
+        .select('id_number, first_name, last_name')
         .in('id_number', instrIds);
       const inst = (instRaw ?? []) as InstructorRow[];
-      instructorNameById = Object.fromEntries(inst.map(i => [i.id_number, i.full_name ?? ''])) as Record<string, string>;
+      instructorNameById = Object.fromEntries(
+       inst.map(i => [i.id_number, `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()])
+      ) as Record<string, string>;
+
     }
 
     // הראשונה לכל ילד (לפי מיון יורד בזמן) היא האחרונה שבוצעה
@@ -422,25 +436,28 @@ const ids = this.children
   /* =========================
      CRUD – New Child
   ========================= */
-  addNewChild() {
-    this.newChild = {
-      gov_id: '',
-      full_name: '',
-      birth_date: '',
-      gender: '',
-      health_fund: '',
-      instructor: '',
-status: 'Pending Addition Approval',
-      medical_notes: ''
-    };
-    this.validationErrors = {};
-  }
+ addNewChild() {
+  this.newChild = {
+    gov_id: '',
+    first_name: '',
+    last_name: '',
+    birth_date: '',
+    gender: '',
+    health_fund: '',
+    instructor: '',
+    status: 'Pending Addition Approval',
+    medical_notes: ''
+  };
+  this.validationErrors = {};
+}
+
 
   async saveNewChild() {
     this.validationErrors = {};
 
     if (!/^\d{9}$/.test(this.newChild.gov_id || '')) this.validationErrors['gov_id'] = 'ת״ז חייבת להכיל בדיוק 9 ספרות';
-    if (!this.newChild.full_name) this.validationErrors['full_name'] = 'נא להזין שם מלא';
+    if (!this.newChild.first_name) {this.validationErrors['first_name'] = 'נא להזין שם פרטי';}
+    if (!this.newChild.last_name) {this.validationErrors['last_name'] = 'נא להזין שם משפחה';}
     if (!this.newChild.birth_date) this.validationErrors['birth_date'] = 'יש לבחור תאריך לידה';
     if (!this.newChild.gender) this.validationErrors['gender'] = 'יש לבחור מין';
     if (!this.newChild.health_fund) this.validationErrors['health_fund'] = 'יש לבחור קופת חולים';
@@ -451,11 +468,12 @@ status: 'Pending Addition Approval',
 
     const payload: any = {
       gov_id: this.newChild.gov_id,
-      full_name: this.newChild.full_name,
+      first_name: this.newChild.first_name,
+      last_name: this.newChild.last_name,
       birth_date: this.newChild.birth_date,
       gender: this.newChild.gender,
       health_fund: this.newChild.health_fund,
-status: 'Pending Addition Approval',
+      status: 'Pending Addition Approval',
       parent_uid: parentUid,
       medical_notes: this.newChild.medical_notes || null
     };
@@ -627,7 +645,7 @@ public async cancelDeletionRequest(child: any) {
   openHistory(child: any) {
   const id = this.childId(child);
   if (!id) return;
-  this.historyChildName = child.full_name || '';
+  this.historyChildName = `${child.first_name || ''} ${child.last_name || ''}`.trim();
   this.showHistory = true;
   this.loadChildHistory(id);
 }
@@ -666,10 +684,16 @@ private async loadChildHistory(childId: string) {
   if (instrIds.length) {
     const { data: instRaw } = await dbc
       .from('instructors')
-      .select('id_number, full_name')
+      .select('id_number, first_name, last_name')
       .in('id_number', instrIds);
-    const inst = (instRaw ?? []) as InstructorRow[];
-    nameById = Object.fromEntries(inst.map(i => [i.id_number, i.full_name ?? ''])) as Record<string, string>;
+      const inst = (instRaw ?? []) as InstructorRow[];
+      nameById = Object.fromEntries(
+      inst.map(i => [
+     i.id_number,
+    `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()
+  ])
+) as Record<string, string>;
+
   }
 
   this.historyItems = occs.map(o => {

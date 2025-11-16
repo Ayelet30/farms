@@ -14,7 +14,9 @@ import { CurrentUserService } from '../../../core/auth/current-user.service';
 
 type ChildRow = {
   child_uuid: string;
-  full_name: string | null;
+  first_name: string | null;
+ last_name: string | null;
+
   status?: string | null;
 };
 
@@ -78,7 +80,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       const dbc = dbTenant();
       const { data, error } = await dbc
         .from('children')
-        .select('child_uuid, full_name, status')
+        .select('child_uuid, first_name, last_name, status')
         .in('status', ['Active', 'active']); // קשיחויות סטטוס
 
       if (error) throw error;
@@ -107,8 +109,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       const { data, error } = await dbc
         .from('lessons_occurrences')
         .select(
-          'lesson_id, child_id, day_of_week, start_time, end_time, lesson_type, status, instructor_id, instructor_name, start_datetime, end_datetime, occur_date'
-        )
+        'lesson_id, child_id, day_of_week, start_time, end_time, lesson_type, status, instructor_id, instructor_name, start_datetime, end_datetime, occur_date')
         .in('child_id', childIds)
         .gte('occur_date', today)
         .lte('occur_date', in8Weeks)
@@ -116,7 +117,8 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
       if (error) throw error;
 
-      const nameByChild = new Map(this.children.map((c) => [c.child_uuid, c.full_name ?? '']));
+     const nameByChild = new Map(
+     this.children.map(c => [c.child_uuid, `${c.first_name ?? ''} ${c.last_name ?? ''}`]));
       this.lessons = (data ?? []).map((r: any) => ({
         lesson_id: String(r.lesson_id ?? ''),
         id: String(r.lesson_id ?? ''),

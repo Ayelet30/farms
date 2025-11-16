@@ -1,11 +1,11 @@
-
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { MatDialogRef } from '@angular/material/dialog';
 import { Component, ViewEncapsulation } from '@angular/core';
 
 export type AddParentPayload = {
-  full_name: string;
+  first_name: string;
+  last_name: string;
   email: string;
   phone?: string;
   id_number?: string;
@@ -22,51 +22,71 @@ export type AddParentPayload = {
   styleUrls: ['./add-parent-dialog.component.css'],
   encapsulation: ViewEncapsulation.None
 })
-
 export class AddParentDialogComponent {
   form!: FormGroup;
+  submitting = false; // בשביל [disabled]="submitting" ב-HTML
 
-  constructor(private fb: FormBuilder, private ref: MatDialogRef<AddParentDialogComponent>) {
+  constructor(
+    private fb: FormBuilder,
+    private ref: MatDialogRef<AddParentDialogComponent>
+  ) {
     this.form = this.fb.group({
-  full_name: ['', [Validators.required, Validators.minLength(2)]],
-  email: ['', [Validators.required, Validators.email]],
-  phone: ['', [Validators.required]],
-  id_number: ['', [Validators.required]],
-  address: ['', [Validators.required]],
-  extra_notes: ['', [Validators.required]],
-  prefs: this.fb.group({
-    inapp: [true],
-    email: [true],     
-    sms: [false],
-    whatsapp: [false],
-  })
-});
-
+      first_name: ['', [Validators.required, Validators.minLength(2)]],
+      last_name: ['', [Validators.required, Validators.minLength(2)]],
+      email: ['', [Validators.required, Validators.email]],
+      phone: ['', [Validators.required]],
+      id_number: ['', [Validators.required]],
+      address: ['', [Validators.required]],
+      extra_notes: [''],
+      prefs: this.fb.group({
+        inapp: [{ value: true, disabled: true }], // תמיד מסומן ואי אפשר לבטל
+        email: [false],
+        sms: [false],
+        whatsapp: [false],
+      })
+    });
   }
 
   submit() {
-  if (this.form.invalid) { 
-    this.form.markAllAsTouched(); 
-    return; 
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
+
+    // 🔔 פופ־אפ לפני שמירה
+    const ok = confirm('האם את בטוחה שברצונך לשמור את השינויים?');
+    if (!ok) return;
+
+    this.submitting = true;
+
+    const v = this.form.getRawValue() as any; // getRawValue כי inapp disabled
+    const prefsGroup = v.prefs || {};
+
+    // תמיד מוסיפים inapp
+    const prefs: string[] = ['inapp'];
+    ['email', 'sms', 'whatsapp'].forEach((k) => {
+      if (prefsGroup[k]) prefs.push(k);
+    });
+
+    const payload: AddParentPayload = {
+      first_name: v.first_name,
+      last_name: v.last_name,
+      email: v.email,
+      phone: v.phone || undefined,
+      id_number: v.id_number || undefined,
+      address: v.address || undefined,
+      extra_notes: v.extra_notes || undefined,
+      message_preferences: prefs,
+    };
+
+    this.ref.close(payload);
   }
 
-  const v = this.form.value as any;
-  const prefsGroup = v.prefs || {};
-  const prefs: string[] = Object.keys(prefsGroup).filter(k => !!prefsGroup[k]);
+  cancel() {
+    // 🔔 פופ־אפ ביטול
+    const ok = confirm('האם את בטוחה שברצונך לבטל את השינויים?');
+    if (!ok) return;
 
-  const payload: AddParentPayload = {
-    full_name: v.full_name,
-    email: v.email,
-    phone: v.phone || undefined,
-    id_number: v.id_number || undefined,
-    address: v.address || undefined,
-    extra_notes: v.extra_notes || undefined,
-    message_preferences: prefs.length ? prefs : ['inapp'],
-  };
-
-  this.ref.close(payload);
-}
-
-
-  cancel() { this.ref.close(); }
+    this.ref.close();
+  }
 }

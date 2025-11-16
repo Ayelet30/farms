@@ -26,12 +26,14 @@ ngOnDestroy() {
   isEditing = false;
   error?: string;
 
-  editableParent: any = {
-    full_name: '',
-    address: '',
-    phone: '',
-    email: ''
-  };
+ editableParent: any = {
+  first_name: '',
+  last_name: '',
+  address: '',
+  phone: '',
+  email: ''
+};
+
 
   phoneError = '';
   emailError = '';
@@ -41,12 +43,11 @@ private infoTimer: ReturnType<typeof setTimeout> | null = null;
 
   // SELECT מפורש
   private readonly PARENT_SELECT =
-  'uid, id_number, full_name, address, phone, email';
+  'uid, id_number, first_name, last_name, address, phone, email';
 
   private readonly CHILD_SELECT =
-    'child_uuid, full_name, gov_id, birth_date, gender, health_fund, status, medical_notes, parent_uid';
-
-  async ngOnInit() {
+ 'child_uuid, first_name, last_name, gov_id, birth_date, gender, health_fund, status, medical_notes, parent_uid';
+   async ngOnInit() {
     try {
       const user = await getCurrentUserData();
       if (!user?.uid) {
@@ -126,11 +127,13 @@ private showInfo(msg: string, ms = 5000) {
     this.emailError = '';
     this.error = undefined;
     this.editableParent = {
-      full_name: this.parent?.full_name ?? '',
-      address:   this.parent?.address ?? '',
-      phone:     this.parent?.phone ?? '',
-      email:     this.parent?.email ?? ''
-    };
+    first_name: this.parent?.first_name ?? '',
+    last_name:  this.parent?.last_name ?? '',
+    address:    this.parent?.address ?? '',
+    phone:      this.parent?.phone ?? '',
+    email:      this.parent?.email ?? ''
+   };
+
       this.infoMessage = null;   // ⬅️ הוספה
 
   }
@@ -165,15 +168,17 @@ private showInfo(msg: string, ms = 5000) {
     try {
       const dbc = dbTenant();
 
-      const { error } = await dbc
-        .from('parents')
-        .update({
-          full_name: this.editableParent.full_name,
-          address:   this.editableParent.address,
-          phone:     this.editableParent.phone,
-          email:     this.editableParent.email
-        })
-        .eq('uid', this.parent.uid);
+    const { error } = await dbc
+    .from('parents')
+    .update({
+    first_name: this.editableParent.first_name,
+    last_name:  this.editableParent.last_name,
+    address:    this.editableParent.address,
+    phone:      this.editableParent.phone,
+    email:      this.editableParent.email
+    })
+   .eq('uid', this.parent.uid);
+
 
       if (error) {
         this.error = error.message ?? 'שגיאה בשמירת פרטי ההורה';

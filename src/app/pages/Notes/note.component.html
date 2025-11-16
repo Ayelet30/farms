@@ -3,7 +3,7 @@
     <mat-card-header>
       <mat-card-title>
         <mat-icon>person</mat-icon>
-        פרטי הילד - {{ child?.full_name || child?.name || '—' }}
+       פרטי הילד - {{ (child?.first_name || '') + ' ' + (child?.last_name || '') || child?.name || '—' }}
       </mat-card-title>
       <button mat-icon-button class="close-button" (click)="onClose()">
         <mat-icon>close</mat-icon>
@@ -18,11 +18,11 @@
           <h3>פרטים אישיים</h3>
           <div class="details-grid">
             <div>
-              <p><b>שם:</b> {{ child?.full_name || '—' }}</p>
+            <p><b>שם:</b> {{ (child?.first_name || '') + ' ' + (child?.last_name || '') || '—' }}</p>
               <p><b>גיל:</b> {{ child?.age || 'לא ידוע' }}</p>
             </div>
             <div>
-              <p><b>הורה:</b> {{ child?.parent?.full_name || '-' }}</p>
+            <p><b>הורה:</b> {{ child?.parent?.first_name }} {{ child?.parent?.last_name || '-' }}</p>
               <p><mat-icon inline>phone</mat-icon> {{ child?.parent?.phone || '-' }}</p>
               <p><mat-icon inline>email</mat-icon> {{ child?.parent?.email || '-' }}</p>
             </div>

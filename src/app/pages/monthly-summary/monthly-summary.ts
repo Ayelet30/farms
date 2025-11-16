@@ -23,7 +23,10 @@ interface LessonRow {
   anchor_week_start: string;
   start_time?: string | null;
   end_time?: string | null;
-  child?: { full_name?: string | null };
+  child?: {
+    first_name?: string | null;
+    last_name?: string | null;
+  };
 }
 
 interface Kpis {
@@ -106,10 +109,11 @@ export class MonthlySummaryComponent implements OnInit {
         };
         if (!l.status || !map[statusF].includes(l.status)) return false;
       }
-      if (q) {
-        const hay = `${l.child?.full_name || ''} ${l.lesson_type || ''}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
+    if (q) {
+    const hay = `${l.child?.first_name || ''} ${l.child?.last_name || ''} ${l.lesson_type || ''}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+   }
+
       return true;
     });
   });
@@ -173,7 +177,7 @@ export class MonthlySummaryComponent implements OnInit {
 
       const { data, error } = await this.dbc
         .from('lessons')
-        .select(`id, lesson_type, status, anchor_week_start, start_time, end_time, child:children(full_name)`)
+        .select(`id, lesson_type, status, anchor_week_start, start_time, end_time, child:children(first_name, last_name)`)
         .gte('anchor_week_start', startDate)
         .lte('anchor_week_start', endDate)
         .order('anchor_week_start', { ascending: true });
@@ -225,7 +229,9 @@ export class MonthlySummaryComponent implements OnInit {
     const done = rows.filter(r => doneStatuses.includes(r.status || '')).length;
     const cancelPct = Math.round((canceled / total) * 100);
     const successPct = Math.round((done / total) * 100);
-    const uniqueStudents = new Set(rows.map(r => r.child?.full_name || '').filter(n => !!n));
+    const uniqueStudents = new Set(rows.map(r => `${r.child?.first_name || ''} ${r.child?.last_name || ''}`.trim()).filter(n => !!n)
+);
+
     const newStudents = uniqueStudents.size;
 
     let minutes = 0;
@@ -253,7 +259,7 @@ export class MonthlySummaryComponent implements OnInit {
 
     const exportRows = rows.map((r) => ({
       'תאריך': r.anchor_week_start,
-      'תלמיד/ה': r.child?.full_name ?? '',
+    'תלמיד/ה': `${r.child?.first_name || ''} ${r.child?.last_name || ''}`.trim(),
       'סוג שיעור': r.lesson_type ?? '',
       'סטטוס': r.status ?? '',
       'שעת התחלה': r.start_time ?? '',
@@ -282,7 +288,7 @@ export class MonthlySummaryComponent implements OnInit {
     const head = [['תאריך', 'תלמיד/ה', 'סוג שיעור', 'סטטוס', 'התחלה', 'סיום']];
     const body = rows.map((r) => [
       r.anchor_week_start,
-      r.child?.full_name ?? '',
+      `${r.child?.first_name || ''} ${r.child?.last_name || ''}`.trim(),
       r.lesson_type ?? '',
       r.status ?? '',
       r.start_time ?? '',

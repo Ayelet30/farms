@@ -3,7 +3,8 @@ import { Membership } from "../services/supabaseClient.service";
 export type ParentDetails = {
   id: string;
   uid: string;
-  full_name: string;
+  first_name: string;
+  last_name: string;
   phone?: string | null;
   email?: string | null;
 };
@@ -11,7 +12,8 @@ export type ParentDetails = {
 export interface UserDetails {
   [x: string]: any;
   uid: string;
-  full_name: string;
+  first_name: string;
+  last_name: string;
   id_number?: string | null;
   address?: string | null; // שימי לב: address
   phone?: string | null;
@@ -25,13 +27,14 @@ export interface UserDetails {
   selectedTenantId?: string | null; // ← אופ
 };
 
-export type ChildRow = {
-  id: string;
-  child_uuid?: string;
-  full_name: string | null;
-  gov_id?: string | null;
-  birth_date?: string | null;
-  parent_id?: string | null;
+export interface ChildRow {
+  child_uuid: string;
+  first_name: string;
+  last_name: string;
+  gender?: string | null;
   status?: string | null;
-};
+  birth_date?: string | null;
+  gov_id?: string | null;
+}
+
 

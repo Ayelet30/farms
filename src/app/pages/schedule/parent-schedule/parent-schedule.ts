@@ -18,7 +18,13 @@ import {
   imports: [CommonModule, ScheduleComponent],
 })
 export class ParentScheduleComponent implements OnInit {
-  children: Array<{ child_uuid: string; full_name: string; status?: string | null }> = [];
+  children: Array<{ 
+  child_uuid: string; 
+  first_name: string; 
+  last_name: string; 
+  status?: string | null; 
+}> = [];
+
   lessons: Lesson[] = [];
   filteredLessons: Lesson[] = [];
 
@@ -81,27 +87,33 @@ export class ParentScheduleComponent implements OnInit {
       }
 
       // ילדים פעילים (תמיכה ב-Active/active)
-      const { data: kids, error: e2 } = await dbc
-        .from('children')
-        .select('child_uuid, full_name, status')
-        .eq('parent_uid', parent.uid)
-        .in('status', ['Active']); // או רשימת ערכים חוקית אחרת מה־enum
-        
-console.log('children:',kids);
+ const { data: kids, error: e2 } = await dbc
+    .from('children')
+    .select('child_uuid, first_name, last_name, status')
+    .eq('parent_uid', parent.uid)
+    .in('status', ['Active']); // ← אפשר לשנות בהתאם לערכים שלך ב־enum
 
-      if (e2) { console.error('Error loading children:', e2); this.children = []; return; }
+  console.log('children:', kids);
 
-      this.children = (kids ?? []).map((k: { child_uuid: any; full_name: any; status: any; }) => ({
-        child_uuid: k.child_uuid,
-        full_name: k.full_name,
-        status: k.status ?? null
-      }));
-    } catch (err) {
-      console.error('Unexpected error loading children:', err);
-      this.children = [];
-    }
+  if (e2) {
+    console.error('Error loading children:', e2);
+    this.children = [];
+    return;
   }
 
+  this.children = (kids ?? []).map(
+    (k: { child_uuid?: any; first_name?: any; last_name?: any; status?: any }) => ({
+      child_uuid: String(k.child_uuid ?? ''),
+      first_name: String(k.first_name ?? ''),
+      last_name:  String(k.last_name ?? ''),
+      status: k.status ?? null,
+    })
+  );
+} catch (err) {
+  console.error('Unexpected error loading children:', err);
+  this.children = [];
+}
+}
   private async loadLessons() {
     const dbc = dbTenant();
     const childIds = this.children.map(c => c.child_uuid).filter(Boolean);
@@ -132,12 +144,15 @@ console.log('children:',kids);
     if (instructorIds.length) {
       const { data: inst } = await dbc
         .from('instructors')
-        .select('id_number, full_name')
+        .select('id_number, first_name, last_name')
         .in('id_number', instructorIds);
-      for (const row of (inst ?? []) as { id_number: string; full_name: string | null }[]) {
-        instructorNameById[row.id_number] = row.full_name ?? '';
-      }
+     for (const row of (inst ?? []) as { id_number: string; first_name: string | null; last_name: string | null }[]) {
+     const first = (row.first_name ?? '').trim();
+     const last  = (row.last_name ?? '').trim();
+    instructorNameById[row.id_number] = [first, last].filter(Boolean).join(' ');
+
     }
+  }   
 
     this.lessons = rows.map((r) => {
       const startFallback = this.getLessonDateTime(r.day_of_week, r.start_time);
@@ -159,7 +174,7 @@ console.log('children:',kids);
         instructor_id: r.instructor_id ?? '',
         instructor_name: r.instructor_id ? (instructorNameById[r.instructor_id] ?? '') : '',
         child_color: this.getColorForChild(r.child_id),
-        child_name: this.children.find(c => c.child_uuid === r.child_id)?.full_name || '',
+       child_name: `${this.children.find(c => c.child_uuid === r.child_id)?.first_name || ''} ${this.children.find(c => c.child_uuid === r.child_id)?.last_name || ''}`,
         start_datetime: start,
         end_datetime: end,
       } as Lesson;
@@ -198,7 +213,9 @@ console.log('children:',kids);
 
   getChildName(childId: string | null): string | null {
     if (!childId || childId === 'all') return null;
-    return this.children.find(c => c.child_uuid === childId)?.full_name || null;
+    const child = this.children.find(c => c.child_uuid === childId);
+    return child ? `${child.first_name} ${child.last_name}`.trim() || null : null;
+
   }
 
   toggleDropdown() { this.dropdownOpen = !this.dropdownOpen; }

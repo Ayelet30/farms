@@ -293,7 +293,7 @@ async function resolveRoleAndFarm(
 let userCache: { key: string; data: UserDetails; expires: number } | null = null;
 
 export async function getCurrentUserDetails(
-  select = 'uid, full_name, id_number',
+ select = 'uid, first_name, last_name, id_number',
   options?: { cacheMs?: number }
 ): Promise<UserDetails | null> {
   const tenant = requireTenant();
@@ -371,8 +371,9 @@ export async function getCurrentUserDetails(
 
   const result: UserDetails = {
     uid: rec.uid ?? fbUser.uid,
-    full_name: rec.full_name ?? null,
-    id_number: rec.id_number ?? null,
+   first_name: rec.first_name ?? null,
+    last_name:  rec.last_name  ?? null,
+ 
     address,
     phone: rec.phone ?? null,
     email: rec.email ?? null,
@@ -571,7 +572,7 @@ export async function selectMembership(tenantId: string, roleInTenant?: string):
 
 /** ===================== PARENT API (per-tenant) ===================== **/
 export async function getCurrentParentDetails(
-  select = 'uid, full_name, id_number, address, phone, email',
+  select = 'uid, first_name, last_name, id_number, address, phone, email',
   options?: { cacheMs?: number }
 ): Promise<ParentDetails | null> {
   const tenant = requireTenant(); // חייב להיות context פעיל
@@ -602,7 +603,7 @@ export async function getCurrentParentDetails(
 }
 
 export async function fetchCurrentParentDetails(
-  select = 'uid, full_name, phone, email, id_number, address',
+ select = 'uid, first_name, last_name, phone, email, id_number, address',
   options?: { cacheMs?: number }
 ): Promise<{ ok: boolean; data: ParentDetails | null; error?: string }> {
   try {
@@ -615,7 +616,7 @@ export async function fetchCurrentParentDetails(
 
 /** ===================== CHILDREN API (per-tenant) ===================== **/
 export async function getMyChildren(
-  select = 'child_uuid, full_name, gov_id, birth_date, parent_uid, status'
+ select = 'child_uuid, first_name, last_name, gov_id, birth_date, parent_uid, status'
 ): Promise<ChildRow[]> {
   await ensureTenantContextReady();
 
@@ -627,14 +628,15 @@ export async function getMyChildren(
     .from('children')
     .select(select)
     .eq('parent_uid', uid)                   // ✅ סינון לפי ההורה המחובר
-    .order('full_name', { ascending: true });
-
+    .order('first_name', { ascending: true })
+    .order('last_name', { ascending: true });
+ 
   if (error) throw error;
   return (data ?? []) as unknown as ChildRow[];
 }
 
 export async function fetchMyChildren(
-  select = 'child_uuid, full_name, gov_id, birth_date, parent_uid, status'
+select = 'child_uuid, first_name, last_name, gov_id, birth_date, parent_uid, status'
 ): Promise<{ ok: boolean; data: ChildRow[]; error?: string }> {
   try {
     const data = await getMyChildren(select);
@@ -693,30 +695,42 @@ export async function rpcGetRequiredAgreements(childId: string, parentUid: strin
   return (data ?? []) as RequiredAgreementRow[];
 }
 
-export async function insertAgreementAcceptance(opts: {
-  versionId: string; parentUid: string; childId?: string | null;
-  fullNameSnapshot?: string | null; roleSnapshot?: string | null;
-  ip?: string | null; userAgent?: string | null; signaturePath?: string | null;
+export async function insertAgreementAcceptance(
+  db: any,
+  opts: {
+  versionId: string;
+  parentUid: string;
+  childId?: string | null;
+  firstNameSnapshot?: string | null;
+  lastNameSnapshot?: string | null;
+  roleSnapshot?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
+  signaturePath?: string | null;
 }) {
-  const dbc = db();
-  const { data, error } = await dbc.from('user_agreement_acceptances').insert({
+  const { data, error } = await db().from('user_agreement_acceptances').insert({
     agreement_version_id: opts.versionId,
     parent_user_id: opts.parentUid,
     child_id: opts.childId ?? null,
-    full_name_snapshot: opts.fullNameSnapshot ?? null,
+    first_name_snapshot: opts.firstNameSnapshot ?? null,
+    last_name_snapshot: opts.lastNameSnapshot ?? null,
     role_snapshot: opts.roleSnapshot ?? 'parent',
     ip: opts.ip ?? null,
     user_agent: opts.userAgent ?? (typeof navigator !== 'undefined' ? navigator.userAgent : null),
     signature_path: opts.signaturePath ?? null
   }).select().single();
+
   if (error) throw error;
   return data;
 }
+
+
 // === Parents listing (per-tenant) ===
 export type ParentRow = {
   id: string;
   uid: string | null;
-  full_name: string | null;
+  first_name: string;
+  last_name: string;
   phone?: string | null;
   email?: string | null;
   address?: any;
@@ -728,7 +742,7 @@ export type ListParentsOpts = {
   search?: string | null;
   limit?: number;
   offset?: number;
-  orderBy?: 'full_name' | 'created_at';
+ orderBy?: 'first_name' | 'last_name' | 'created_at';
   ascending?: boolean;
 };
 
@@ -738,15 +752,14 @@ export async function listParents(opts: ListParentsOpts = {}): Promise<{ rows: P
 
   const dbc = db(tenant.schema);
 
-  const select = opts.select ?? 'uid, full_name,extra_notes, address, phone, email';
+  const select = opts.select ?? 'uid, first_name, last_name, extra_notes, address, phone, email';
   let q = dbc.from('parents').select(select, { count: 'exact' });
 
   if (opts.search?.trim()) {
     const s = `%${opts.search.trim()}%`;
-    q = q.or(`full_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
+  q = q.or(`first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
   }
-
-  const orderBy = opts.orderBy ?? 'full_name';
+const orderBy = opts.orderBy ?? 'last_name, first_name';
   const ascending = opts.ascending ?? true;
   q = q.order(orderBy, { ascending });
 

@@ -26,7 +26,7 @@
             (click)="selectChild(child.child_uuid)"
             [ngStyle]="{ 'background-color': getColorForChild(child.child_uuid) }">
           <span class="swatch"></span>
-          <span class="text">{{ child.full_name }}</span>
+          <span class="text">{{ child.first_name }} {{ child.last_name }}</span>
         </li>
       </ul>
     </div>

@@ -12,7 +12,9 @@ type ParentBrief = {
 
   uid: string;
 
-  full_name: string;
+   first_name: string;
+
+   last_name:string;
 
   phone: string | null;
 
@@ -24,7 +26,9 @@ type ChildDetails = {
 
   child_uuid?: string;
 
-  full_name?: string;
+  first_name?:string;
+
+  last_name?:string;
 
   parent_uid?: string | null;
 
@@ -116,7 +120,9 @@ export class SecretaryChildrenComponent implements OnInit {
 
           child_uuid,
 
-          full_name,
+          first_name,
+
+          last_name,
 
           parent_uid,
 
@@ -132,7 +138,7 @@ export class SecretaryChildrenComponent implements OnInit {
 
         `)
 
-        .order('full_name', { ascending: true });
+        .order(' first_name','last_name', { ascending: true });
  
       if (error) throw error;
 
@@ -196,7 +202,9 @@ export class SecretaryChildrenComponent implements OnInit {
 
           child_uuid,
 
-          full_name,
+           first_name,
+
+           last_name,
 
           gov_id,
 
@@ -232,7 +240,7 @@ export class SecretaryChildrenComponent implements OnInit {
 
           .from('parents')
 
-          .select('uid, full_name, phone, email')
+          .select('uid,first_name,last_name, phone, email')
 
           .eq('uid', c.parent_uid)
 

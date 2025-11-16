@@ -2,12 +2,13 @@
   <div class="child-header">
     <p *ngIf="infoMessage" class="inline-message" aria-live="polite">{{ infoMessage }}</p>
     <div *ngIf="!isEditing">
-      <h3>{{ parent.full_name }}</h3>
-    </div>
-    <div *ngIf="isEditing">
-      <input [(ngModel)]="editableParent.full_name" class="editable-title" />
-    </div>
+  <h3>{{ parent.first_name }} {{ parent.last_name }}</h3>
 
+    </div>
+   <div *ngIf="isEditing" class="editable-name">
+  <input [(ngModel)]="editableParent.first_name" class="editable-input" placeholder="שם פרטי" />
+  <input [(ngModel)]="editableParent.last_name" class="editable-input" placeholder="שם משפחה" />
+</div>
    <div class="button-group">
   <button *ngIf="!isEditing" (click)="isEditing = true" class="btn-edit">✏️ ערוך</button>
   <ng-container *ngIf="isEditing">
@@ -48,8 +49,8 @@
 <div *ngIf="!loading && visibleChildren.length > 0" class="children-list">
   <h3>🧒 הילדים שלי</h3>
   <ul>
-    <li *ngFor="let child of visibleChildren">
-      <strong>{{ child.full_name }}</strong> –
+  <li *ngFor="let child of visibleChildren">
+  <strong>{{ child.first_name }} {{ child.last_name }}</strong> –
       גיל: {{ getAge(child.birth_date) }} –
       סטטוס: {{ getStatusText(child.status) }}
     </li>

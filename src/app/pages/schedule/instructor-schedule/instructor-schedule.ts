@@ -15,17 +15,22 @@ type UUID = string;
 
 interface Instructor {
   id_number: string;
-  full_name?: string;
+  first_name?: string;
+  last_name?: string;
 }
+
 interface Parent {
   uid: string;
-  full_name?: string;
+  first_name?: string;
+  last_name?: string;
   email?: string;
   phone?: string;
 }
+
 interface Child {
   child_uuid: UUID;
-  full_name?: string;
+  first_name?: string;
+  last_name?: string;
   birth_date?: string;
   status?: 'Active' | 'Pending Addition Approval' | 'Pending Deletion Approval' | 'Deleted';
   parent_uid?: string;
@@ -33,6 +38,7 @@ interface Child {
   age?: number;
   parent?: Parent | null;
 }
+
 
 @Component({
   selector: 'app-instructor-schedule',
@@ -133,18 +139,21 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
     const dbc = dbTenant();
 
     const { data: kids, error: errKids } = await dbc
-      .from('children')
-      .select('child_uuid, full_name, birth_date, status, parent_uid, medical_notes')
-      .in('child_uuid', childIds);
+   .from('children')
+   .select('child_uuid, first_name, last_name, birth_date, status, parent_uid, medical_notes')
+   .in('child_uuid', childIds);
+
 
     if (errKids) throw errKids;
     const childList: Child[] = (kids ?? []) as Child[];
 
     const parentUids = Array.from(new Set(childList.map(c => c.parent_uid!).filter(Boolean)));
     const { data: parentsData } = parentUids.length
-      ? await dbc.from('parents').select('uid, full_name, email, phone').in('uid', parentUids)
-      : { data: [] as Parent[] };
-
+    ? await dbc
+      .from('parents')
+      .select('uid, first_name, last_name, email, phone')
+      .in('uid', parentUids)
+    : { data: [] as Parent[] };
     const parentsMap = new Map<string, Parent>((parentsData ?? []).map((p: { uid: any; }) => [p.uid, p]));
 
     this.children = childList.map(c => ({
@@ -204,13 +213,13 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
 
       return {
         id: `${l.lesson_id}_${l.child_id}_${l.occur_date}`,
-        title: `${child?.full_name || ''} (${child?.age ?? ''}) — ${l.lesson_type ?? ''}`,
+        title: `${child?.first_name || ''} ${child?.last_name || ''} (${child?.age ?? ''}) — ${l.lesson_type ?? ''}`,
         start: startISO,
         end: endISO,
         color,
         meta: {
           child_id: l.child_id,
-          child_name: child?.full_name || '',
+          child_name: `${child?.first_name || ''} ${child?.last_name || ''}`.trim(),
           instructor_id: l.instructor_id,
           instructor_name: '',
           status: l.status,

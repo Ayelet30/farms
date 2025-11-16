@@ -81,7 +81,7 @@ export class CurrentUserService {
     });
   }
 
-  async loadUserDetails(select = 'id_number, uid, full_name', cacheMs = 60_000) {
+  async loadUserDetails(select = 'id_number, uid, first_name,last_name', cacheMs = 60_000) {
     await this.waitUntilReady();
     const details = await getCurrentUserDetails(select, { cacheMs });
     this.setUserDetails(details);
@@ -145,21 +145,25 @@ export class CurrentUserService {
 
     // טען פרטי משתמש מהטננט (ללא cache כדי לקבל ערכים עדכניים)
     const details = picked
-      ? await this.loadUserDetails('uid, full_name, id_number, address, phone, email', 0)
+      ? await this.loadUserDetails('uid,first_name,last_name, id_number, address, phone, email', 0)
       : null;
 
     const farm = getCurrentFarmMetaSync();
 
     // מיזוג חכם: מה־details אם קיים, אחרת Firebase
-    this.setCurrent({
-      uid: fbUser.uid,
-      email: details?.email ?? fbUser.email ?? undefined,
-      displayName: details?.full_name ?? fbUser.displayName ?? undefined,
-      farmName: farm?.name,
-      role: (picked?.role_in_tenant ?? null) as any,
-      memberships,
-      selectedTenantId: picked?.tenant_id ?? null,
-    });
+  this.setCurrent({
+  uid: fbUser.uid,
+  email: details?.email ?? fbUser.email ?? undefined,
+  displayName:
+    ((details?.first_name ?? '') + ' ' + (details?.last_name ?? '')).trim() ||
+    fbUser.displayName ||
+    undefined,
+  farmName: farm?.name,
+  role: (picked?.role_in_tenant ?? null) as any,
+  memberships,
+  selectedTenantId: picked?.tenant_id ?? null,
+});
+
 
     // אם את מסתמכת על סכמה לטוקנים – עדכני גם כאן (לא רק ב־switchMembership)
     this.tokens.applytokens(farm?.schema_name || 'public');
@@ -175,7 +179,7 @@ export class CurrentUserService {
     this.setSelectedTenant(picked.tenant_id);
 
     // טען פרטים ללא cache
-    const details = await this.loadUserDetails('uid, full_name, id_number, address, phone, email', 0);
+    const details = await this.loadUserDetails('uid,first_name,last_name, id_number, address, phone, email', 0);
 
     this.setCurrent({
       uid: fbUser.uid,
