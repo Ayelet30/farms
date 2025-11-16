@@ -1,13 +1,7 @@
-// src/app/core/firebase.client.ts
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
-import { environment } from '../../environments/environment'; // ודאי שהנתיב נכון
+// firebase.client.ts
+import { getApp } from 'firebase/app';
+import { getAuth as _getAuth } from 'firebase/auth';
 
-// קונפיג מהקונסול של Firebase: Project settings → Your apps → SDK setup and config
-const firebaseConfig = environment.firebase;
-
-// אתחול חד-פעמי
-export const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
-
-// יצירת אובייקט Auth "קשור" לאפליקציה
-export const auth: Auth = getAuth(app);
+// לא מאתחלים פה! provideFirebaseApp עושה את זה באפליקציה
+export const app = () => getApp();          // ייזרק אם אין אפליקציה – טוב לדיבוג
+export const auth = () => _getAuth();       // מחזיר את ה-Auth של ה-Default App

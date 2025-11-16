@@ -1,10 +1,42 @@
-
 {
   "/api/loginBootstrap": {
     "target": "https://loginbootstrap-wxi37vbfra-ew.a.run.app",
     "changeOrigin": true,
     "secure": true,
     "pathRewrite": { "^/api/loginBootstrap$": "/" }
+  },
+  "/api/createHostedPaymentUrl": {
+    "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+    "changeOrigin": true,
+    "secure": true,
+    "pathRewrite":{ "^/api/createHostedPaymentUrl$": "/createHostedPaymentUrl" }
+  },
+  "/api/chargeByToken": {
+    "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+    "changeOrigin": true,
+    "secure": true,
+    "pathRewrite": { "^/api/chargeByToken": "/chargeByToken" }
+  },
+  "/api/tranzilaReturn": {
+    "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+    "changeOrigin": true,
+    "secure": true,
+    "pathRewrite": { "^/api/tranzilaReturn": "/tranzilaReturn" }
+  },
+
+  "/api/createTranzilaStandingOrder": {
+    "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+    "changeOrigin": true,
+    "secure": true,
+    "pathRewrite": { "^/api/createTranzilaStandingOrder": "/createTranzilaStandingOrder" }
+  },
+
+  "/api/tranzilaHandshake": {
+    "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+    "changeOrigin": true,
+    "secure": true,
+    "pathRewrite": {
+      "^/api/tranzilaHandshake$": "/tranzilaHandshakeHttp"
+    }
   }
 }
-

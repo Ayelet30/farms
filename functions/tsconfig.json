@@ -10,6 +10,6 @@
     "skipLibCheck": true,
     "lib": ["ES2022"]
   },
-  "include": ["src", "loginBootstrap.ts", "createParent.ts"]
+  "include": ["src", "loginBootstrap.ts", "createParent.ts", "tranzila.ts"]
 }
 
