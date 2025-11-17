@@ -4,6 +4,7 @@ import { RoleGuard } from './shared/guards/role-guard';
 import { TenantReadyGuard } from './shared/guards/tenant-ready.guard';
 import { LayoutComponent } from './layout/layout';
 import { ParentPaymentsComponent } from './pages/parent-payments/parent-payments.component';
+import { OneTimePaymentComponent } from './billing/one-time-payment/one-time-payment.component';
 // import { BillingSuccessComponent } from './billing/billing-success.component';
 // import { BillingErrorComponent } from './billing/billing-error.component';
 
@@ -11,6 +12,14 @@ export const routes: Routes = [
   { path: '', redirectTo: 'home', pathMatch: 'full' },
 
   { path: 'home', loadComponent: () => import('./pages/home/home.component').then(m => m.HomeComponent) },
+
+  {
+    path: 'checkout/ride/:productId',
+    component: OneTimePaymentComponent,
+  },
+
+  { path: 'booking/:type', loadComponent: () => import('./pages/booking/booking.component').then(m => m.BookingComponent) },
+
 
   {
     path: 'parent',

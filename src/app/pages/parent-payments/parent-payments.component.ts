@@ -48,6 +48,8 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
   private hfFields: HostedFieldsInstance | null = null;
   busyHosted = signal(false);
 
+  hostedOpen = signal(false);
+
   // לשימוש חד-פעמי עבור חיוב מבחן/חד פעמי
   amountAgorot = 0;
 
@@ -95,6 +97,15 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
     }
   }
 
+
+  openHostedModal() {
+    this.hostedOpen.set(true);
+  }
+
+  closeHostedModal() {
+    this.hostedOpen.set(false);
+  }
+  
   async refresh() {
     try {
       const [p, c] = await Promise.all([

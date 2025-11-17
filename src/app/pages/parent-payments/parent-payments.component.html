@@ -18,55 +18,14 @@
       </div>
     </div>
 
-    <h3>חיוב בכרטיס חדש (Hosted Fields)</h3>
-
-    <form id="hf_payment_form" (submit)="onHostedFormSubmit($event)">
-      <div class="row">
-        <label for="hf_amount">סכום (אגורות)</label>
-        <input
-          id="hf_amount"
-          type="number"
-          [(ngModel)]="hfAmountAgorot"
-          name="hf_amount"
-          min="1"
-        />
-      </div>
-
-      <div class="row">
-        <label for="credit_card_number">מספר כרטיס</label>
-        <div id="credit_card_number" class="hf-field"></div>
-        <div id="errors_for_number" class="error_message"></div>
-      </div>
-
-      <div class="row">
-        <label for="hf_cvv">CVV</label>
-        <div id="hf_cvv" class="hf-field"></div>
-        <div id="errors_for_CVV" class="error_message"></div>
-      </div>
-
-      <div class="row">
-        <label for="hf_expiry">תוקף (MM/YY)</label>
-        <div id="hf_expiry" class="hf-field"></div>
-        <div id="errors_for_expiry" class="error_message"></div>
-      </div>
-
-      <div class="row">
-        <label for="hf_email">אימייל</label>
-        <input
-          id="hf_email"
-          type="email"
-          [(ngModel)]="hfEmail"
-          name="hf_email"
-        />
-      </div>
-
-      <button type="submit" [disabled]="busyHosted()">חיוב בכרטיס חדש</button>
-    </form>
-
     <div class="empty" *ngIf="profiles().length === 0">
       אין אמצעי תשלום שמורים.
     </div>
   </div>
+
+   <button (click)="openHostedModal()" [disabled]="busyHosted()">
+    חיוב בכרטיס חדש
+  </button>
 
   <div class="actions">
     <button (click)="addPaymentMethod()" [disabled]="busyAdd()">הוסף אמצעי תשלום</button>
@@ -96,6 +55,59 @@
 
   <div class="error" *ngIf="error()">{{ error() }}</div>
 </div>
+<!-- -------- Modal של Hosted Fields -------- -->
+<div class="hf-backdrop" [class.is-open]="hostedOpen()">
+  <div class="hf-modal" dir="rtl">
+    <header class="hf-header">
+      <h3>חיוב בכרטיס חדש</h3>
+      <button type="button" class="hf-close" (click)="closeHostedModal()">✕</button>
+    </header>
+
+    <form id="hf_payment_form"
+          (submit)="onHostedFormSubmit($event)"
+          class="hf-form">
+
+      <div class="hf-grid">
+        <!-- סכום -->
+        <div class="hf-row">
+          <label for="hf_amount">סכום (אגורות)</label>
+          <input id="hf_amount"
+                 type="number"
+                 [(ngModel)]="hfAmountAgorot"
+                 name="hf_amount" />
+        </div>
+
+        <!-- מספר כרטיס -->
+        <div class="hf-row">
+          <label for="credit_card_number">מספר כרטיס</label>
+          <div id="credit_card_number" class="hf-field"></div>
+          <div id="errors_for_number" class="hf-error"></div>
+        </div>
+
+        <!-- CVV -->
+        <div class="hf-row">
+          <label for="hf_cvv">CVV</label>
+          <div id="hf_cvv" class="hf-field"></div>
+          <div id="errors_for_CVV" class="hf-error"></div>
+        </div>
+
+        <!-- תוקף -->
+        <div class="hf-row">
+          <label for="hf_expiry">תוקף (MM/YY)</label>
+          <div id="hf_expiry" class="hf-field"></div>
+          <div id="errors_for_expiry" class="hf-error"></div>
+        </div>
+      </div>
+
+      <div class="hf-actions">
+        <button type="submit" [disabled]="busyHosted()">
+          חיוב בכרטיס חדש
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 
 <ng-template #loadingTpl>
   <div class="card">טוען…</div>
