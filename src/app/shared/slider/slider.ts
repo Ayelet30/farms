@@ -58,6 +58,7 @@ export class SliderComponent implements OnInit {
         this.menuItems = [
           { path: 'parent/children', label: 'הילדים שלי', icon: 'children' },
           { path: 'parent/schedule', label: 'מערכת שיעורים', icon: 'calendar' },
+          { path: 'parent/appointment', label: 'זימון תורים', icon: 'settings' },
           { path: 'parent/activity-summary', label: 'סיכום פעילות', icon: 'receipt' },
           { path: 'parent/payments', label: 'אמצעי תשלום', icon: 'card' },
           { path: 'parent/messages', label: 'הודעות', icon: 'note' },
@@ -82,6 +83,7 @@ export class SliderComponent implements OnInit {
           { path: 'secretary/regulations', label: 'ניהול תקנונים', icon: 'note' },
           { path: 'secretary/children', label: 'ילדים בחווה', icon: 'children' },
           { path: 'secretary/schedule', label: 'לו״ז ומעקב', icon: 'calendar' },
+          { path: 'secretary/appointment', label: 'זימון תורים', icon: 'settings' },
           { path: 'secretary/messages', label: 'הודעות', icon: 'note' },
         ];
         break;

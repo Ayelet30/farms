@@ -15,18 +15,8 @@ import {
   type Membership,
 } from '../../services/supabaseClient.service';
 
-import type { UserDetails } from '../../Types/detailes.model';
+import type { CurrentUser, UserDetails } from '../../Types/detailes.model';
 import { TokensService } from '../../services/tokens.service';
-
-interface CurrentUser {
-  uid: string;
-  farmName?: string;
-  email?: string;
-  displayName?: string;
-  role: string | null;
-  memberships?: Membership[];
-  selectedTenantId?: string | null;
-}
 
 @Injectable({ providedIn: 'root' })
 export class CurrentUserService {

@@ -1,0 +1,274 @@
+.appt-wrapper {
+  max-width: 1100px;
+  margin: 0 auto;
+  direction: rtl;
+  font-family: var(--font-ui, inherit);
+}
+
+/* כרטיס כללי */
+.appt-card {
+  border: 2px solid #8a9362;
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: #fff;
+  color: var(--text-active, #2b2b2b);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, .06);
+  position: relative;
+}
+
+.appt-card h2,
+.appt-card h3,
+.appt-card h4 {
+  margin: 0 0 8px;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+/* שורת “ילד/ה” + מידע כללי */
+.appt-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+/* לייבלים ושדות – בסגנון הטפסים במערכת */
+.appt-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 220px;
+}
+
+.appt-field-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #586141;
+}
+
+.appt-select,
+.appt-input {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #cdd6bf;
+  font-size: 14px;
+  background: #f7f9f4;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+
+.appt-select:focus,
+.appt-input:focus {
+  outline: none;
+  border-color: #8a9362;
+  box-shadow: 0 0 0 2px rgba(138, 147, 98, 0.18);
+  background: #fff;
+}
+
+/* גריד אישורים */
+.approvals {
+  margin-top: 12px;
+}
+
+.approvals-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #2b2b2b;
+}
+
+.approvals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+}
+
+.approval-item {
+  border-radius: 12px;
+  border: 1px solid #cdd6bf;
+  padding: 8px 10px;
+  background: #f7f9f4;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .03s, box-shadow .15s;
+}
+
+.approval-item:hover {
+  background: #eef4e5;
+  border-color: #8a9362;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .06);
+}
+
+.approval-item.selected {
+  background: #8a9362;
+  border-color: #8a9362;
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .18);
+}
+
+.approval-item .line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.approval-item .line span {
+  opacity: .85;
+}
+
+.approval-item .line strong {
+  font-weight: 700;
+}
+
+/* טאבים – תואם cta-btn/צ'יפ */
+.appt-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 10px;
+  justify-content: center;
+}
+
+.appt-tab {
+  appearance: none;
+  border-radius: 999px;
+  border: 1.5px solid #cdd6bf;
+  background: #f7f9f4;
+  color: #2b2b2b;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .04);
+  transition: background .2s, border-color .2s, transform .03s, box-shadow .2s, color .2s;
+}
+
+.appt-tab:hover {
+  background: #eef4e5;
+  border-color: #8a9362;
+}
+
+.appt-tab.active {
+  background: #8a9362;
+  border-color: #8a9362;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .12);
+}
+
+/* שורות טופס פנימיות */
+.appt-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0;
+}
+
+/* כפתורי פעולה – תואם cta-btn */
+.appt-actions {
+  margin-top: 8px;
+}
+
+.appt-cta {
+  appearance: none;
+  border: 1.5px solid #8a9362;
+  background: #f7f9f4;
+  color: #2b2b2b;
+  border-radius: 12px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .04);
+  transition: background .2s, border-color .2s, transform .03s, box-shadow .2s, opacity .15s;
+}
+
+.appt-cta.primary {
+  background: #8a9362;
+  border-color: #8a9362;
+  color: #fff;
+}
+
+.appt-cta:hover {
+  background: #eef4e5;
+  border-color: #6f754f;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .08);
+}
+
+.appt-cta.primary:hover {
+  background: #6f754f;
+  border-color: #6f754f;
+}
+
+.appt-cta:disabled,
+.appt-cta[aria-disabled="true"] {
+  opacity: .6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* רשימות ה־slots – טבלה תואמת */
+.slots-list {
+  margin-top: 12px;
+}
+
+.slots-list h4 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.slots-list table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.slots-list th,
+.slots-list td {
+  padding: 6px 4px;
+  text-align: right;
+  border-bottom: 1px dashed #e5e7eb;
+}
+
+.slots-list th {
+  background: #f7f9f4;
+  font-weight: 700;
+  color: #586141;
+}
+
+.slots-list tr:last-child td {
+  border-bottom: none;
+}
+
+/* הודעות שגיאה / הצלחה תואמות לבאדג'ים */
+.error {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #a83c3c;
+  background: #fdecec;
+  border-radius: 10px;
+  padding: 4px 8px;
+  border: 1px solid #f2c0c0;
+}
+
+.success {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #286b2a;
+  background: #eef8ee;
+  border-radius: 10px;
+  padding: 4px 8px;
+  border: 1px solid #cbe8cb;
+}
+
+/* רספונסיבי */
+@media (max-width: 600px) {
+  .appt-card {
+    padding: 12px;
+  }
+
+  .appt-field-group {
+    min-width: 100%;
+  }
+}
