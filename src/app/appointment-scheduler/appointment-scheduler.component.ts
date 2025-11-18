@@ -101,14 +101,12 @@ export class AppointmentSchedulerComponent implements OnInit {
 }
 
   async ngOnInit(): Promise<void> {
-  // 1. אם הגיעו ילדים מהקומפוננטה ההורה → מצוין
   if (this.children && this.children.length > 0) {
     this.selectedChildId = this.children.length === 1 ? this.children[0].child_uuid : null;
     if (this.selectedChildId) await this.onChildChange();
     return;
   }
 
-  // 2. אם הועברו ילדים דרך query params → נטען אותם
   const qpChildren = this.route.snapshot.queryParamMap.get('children');
   if (qpChildren) {
     try {
@@ -121,28 +119,37 @@ export class AppointmentSchedulerComponent implements OnInit {
     }
   }
 
-  // 3. לא הגיעו ילדים → נטען לפי המשתמש המחובר
   await this.loadChildrenFromCurrentUser();
 }
 
 private async loadChildrenFromCurrentUser(): Promise<void> {
-  if (!this.user) return;
+  // אין צורך ב-this.user כאן בשביל הפילטר – RLS יטפל בהרשאות
+  const supa = dbTenant();
 
   const baseSelect =
     this.CHILD_SELECT && this.CHILD_SELECT.trim().length
-  ? this.CHILD_SELECT
-  : 'child_uuid, first_name, last_name, status';
-    const hasStatus = /(^|,)\s*status\s*(,|$)/.test(baseSelect);
-    const selectWithStatus = hasStatus ? baseSelect : `${baseSelect}, status`;
+      ? this.CHILD_SELECT
+      : 'child_uuid, first_name, last_name, status, instructor_id';
 
-    const { data, error } =  await fetchMyChildren(selectWithStatus);
+  const hasStatus = /(^|,)\s*status\s*(,|$)/.test(baseSelect);
+  const selectWithStatus = hasStatus ? baseSelect : `${baseSelect}, status`;
 
-  if (!error && data) {
-    this.children = data;
-    if (this.children.length === 1) {
-      this.selectedChildId = this.children[0].child_uuid;
-      await this.onChildChange();
-    }
+  const { data, error } = await supa
+    .from('children')              
+    .select(selectWithStatus)
+    .eq('status', 'Active')        // רק ילדים פעילים
+    .order('first_name', { ascending: true });
+
+  if (error) {
+    console.error('loadChildrenFromCurrentUser error', error);
+    return;
+  }
+
+  this.children = data ?? [];
+
+  if (this.children.length === 1) {
+    this.selectedChildId = this.children[0].child_uuid;
+    await this.onChildChange();
   }
 }
 
