@@ -1,5 +1,3 @@
-
-
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -7,11 +5,9 @@ import { Router } from '@angular/router';
 import type { ChildRow } from '../../Types/detailes.model';
 import { dbTenant, fetchMyChildren, getCurrentUserData } from '../../services/supabaseClient.service';
 import { ChildConsentsComponent } from '../../consents/child-consents.component/child-consents.component';
-import { NgIf, NgForOf, NgClass, NgTemplateOutlet } from '@angular/common';
+import { NgClass, NgTemplateOutlet } from '@angular/common';
 
-/* =========================
-   Types
-========================= */
+
 type OccurrenceRow = {
   child_id: string;
   start_datetime: string;
@@ -33,7 +29,7 @@ type ChildStatus = 'Active' | 'Pending Deletion Approval' | 'Pending Addition Ap
 @Component({
   selector: 'app-parent-children',
   standalone: true,
-  imports: [CommonModule, FormsModule, ChildConsentsComponent ,  NgIf, NgForOf, NgClass, NgTemplateOutlet],
+  imports: [CommonModule, FormsModule, ChildConsentsComponent, NgClass, NgTemplateOutlet],
   templateUrl: './parent-children.html',
   styleUrls: ['./parent-children.css']
 })
@@ -576,7 +572,7 @@ goToBooking(child: any) {
 
 
   // ניווט
-  this.router.navigate(['/parent-schedule'], { queryParams: { child: id } });
+  this.router.navigate(['parent/appointment'], { queryParams: { needApprove: true, childId: child?.child_uuid } });
 }
 
 //ביטול בקשת מחיקה

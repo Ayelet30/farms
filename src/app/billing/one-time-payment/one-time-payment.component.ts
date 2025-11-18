@@ -1,0 +1,214 @@
+import {
+  Component,
+  AfterViewInit,
+  OnInit,
+  signal,
+} from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+
+import { TranzilaService } from '../../services/tranzila.service';
+import { CurrentUserService } from '../../core/auth/current-user.service';
+import { BookingPayload } from '../../pages/booking/booking.component';
+
+declare const TzlaHostedFields: any;
+
+type HostedFieldsInstance = {
+  charge: (params: any, cb: (err: any, resp: any) => void) => void;
+  onEvent?: (eventName: string, cb: (...args: any[]) => void) => void;
+};
+
+type Product = {
+  id: string;
+  name: string;
+  amountAgorot: number;
+};
+
+@Component({
+  standalone: true,
+  selector: 'app-one-time-payment',
+  imports: [CommonModule, FormsModule],
+  templateUrl: './one-time-payment.component.html',
+  styleUrls: ['./one-time-payment.component.scss'],
+})
+export class OneTimePaymentComponent implements OnInit, AfterViewInit {
+  type = '';                           // western / therapy...
+
+  booking: BookingPayload | null = null;
+  product: Product | null = null;
+
+  private hfFields: HostedFieldsInstance | null = null;
+  busy = signal(false);
+  error = signal<string | null>(null);
+
+  parentEmail = '';
+  thtk: string | null = null;
+
+  private readonly allProducts: Product[] = [
+    { id: 'western', name: 'רכיבה מערבית', amountAgorot: 12000 },
+    { id: 'therapy', name: 'רכיבה טיפולית', amountAgorot: 15000 },
+  ];
+
+  constructor(
+    private route: ActivatedRoute,
+    private router: Router,
+    private tranzila: TranzilaService,
+    private cu: CurrentUserService,
+  ) {
+    const cur = this.cu.current;
+    this.parentEmail = cur?.email ?? '';
+  }
+
+  ngOnInit(): void {
+    this.type = this.route.snapshot.paramMap.get('productId') ?? 'western';
+
+    // state מה-booking
+    const state: any = history.state;
+    if (state?.booking) {
+      this.booking = state.booking as BookingPayload;
+    }
+
+    // fallback – אם מישהו הגיע ישירות ל-URL
+    this.product = this.allProducts.find(p => p.id === this.type) ?? null;
+
+    if (!this.booking && !this.product) {
+      this.error.set('מוצר לא נמצא');
+    }
+  }
+
+  get displayName(): string {
+    return this.booking?.productName || this.product?.name || 'תשלום חד־פעמי';
+  }
+
+  get amountAgorot(): number {
+    if (this.booking) return this.booking.amountAgorot;
+    if (this.product) return this.product.amountAgorot;
+    return 100; // fallback – 1 ₪
+  }
+
+  get amountNis(): string {
+    return (this.amountAgorot / 100).toFixed(2);
+  }
+
+  async ngAfterViewInit(): Promise<void> {
+    try {
+      const { thtk } = await this.tranzila.getHandshakeToken();
+      this.thtk = thtk;
+      this.initHostedFields();
+    } catch (e: any) {
+      console.error('[one-time] handshake error', e);
+      this.error.set(e?.message ?? 'שגיאה באתחול תשלום');
+    }
+  }
+
+  private initHostedFields() {
+    if (!TzlaHostedFields) {
+      console.error('TzlaHostedFields not found');
+      this.error.set('רכיב התשלום לא נטען');
+      return;
+    }
+
+    this.hfFields = TzlaHostedFields.create({
+      sandbox: false,
+      fields: {
+        credit_card_number: {
+          selector: '#ot_credit_card_number',
+          placeholder: '4580 4580 4580 4580',
+          tabindex: 1,
+        },
+        cvv: {
+          selector: '#ot_cvv',
+          placeholder: '123',
+          tabindex: 2,
+        },
+        expiry: {
+          selector: '#ot_expiry',
+          placeholder: '12/26',
+          version: '1',
+        },
+      },
+      styles: {
+        input: { height: 'auto', width: '100%' },
+        select: { height: 'auto', width: '100%' },
+      },
+    });
+
+    this.hfFields!.onEvent?.('validityChange', (ev: any) => {
+      console.log('[one-time HF validity]', ev);
+    });
+  }
+
+  onSubmit(ev: Event) {
+    ev.preventDefault();
+    this.charge();
+  }
+
+  async charge() {
+    if (!this.hfFields) {
+      this.error.set('שדות התשלום לא מוכנים');
+      return;
+    }
+    if (!this.thtk) {
+      this.error.set('אסימון תשלום (thtk) חסר');
+      return;
+    }
+
+    const amount = this.amountNis;
+    const terminalName = 'moachapp';
+
+    console.log('[one-time] charge', this.displayName, amount);
+
+    try {
+      this.busy.set(true);
+      this.error.set(null);
+
+      this.hfFields.charge(
+        {
+          terminal_name: terminalName,
+          amount,
+          thtk: this.thtk,
+          currency_code: 'ILS',
+          contact: this.booking?.fullName || this.parentEmail || undefined,
+          email: this.booking?.email || this.parentEmail || undefined,
+          requested_by_user: this.parentEmail || 'one-time-checkout',
+          response_language: 'hebrew',
+        },
+        (err: any, response: any) => {
+          console.log('[one-time HF] err=', err, 'resp=', response);
+
+          if (err && err.messages?.length) {
+            err.messages.forEach((msg: any) => {
+              const el = document.getElementById('ot_errors_for_' + msg.param);
+              if (el) el.textContent = msg.message;
+            });
+            this.error.set('שגיאה בפרטי הכרטיס');
+            this.busy.set(false);
+            return;
+          }
+
+          const tx = response?.transaction_response;
+          if (!tx || !tx.success) {
+            this.error.set(tx?.error || 'התשלום נכשל');
+            this.busy.set(false);
+            return;
+          }
+
+          this.busy.set(false);
+
+          // חזרה לדף ההזמנה עם הנתונים – שם תשמרי ל-DB
+          this.router.navigate(['/booking', this.type], {
+            state: {
+              booking: this.booking,
+              tx,
+            },
+          });
+        },
+      );
+    } catch (e: any) {
+      console.error('[one-time] charge error', e);
+      this.error.set(e?.message ?? 'שגיאה בביצוע החיוב');
+      this.busy.set(false);
+    }
+  }
+}

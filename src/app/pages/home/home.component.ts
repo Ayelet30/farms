@@ -25,5 +25,6 @@ export class HomeComponent {
 
   openBooking(type: string) {
     this.router.navigate(['/booking', type]);
+    
   }
 }

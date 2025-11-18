@@ -1,0 +1,78 @@
+<div class="otp-page" *ngIf="!error(); else errorTpl">
+  <div class="otp-card">
+    <h2>תשלום חד־פעמי</h2>
+
+    <div class="otp-summary">
+      <div class="otp-title">{{ displayName }}</div>
+      <div class="otp-amount">{{ amountNis }} ₪</div>
+    </div>
+
+    <form class="otp-form" (submit)="onSubmit($event)">
+      <div class="otp-page" *ngIf="!error(); else errorTpl">
+  <div class="otp-card">
+    <h2>תשלום חד־פעמי</h2>
+
+    <div class="otp-summary">
+      <div class="otp-title">{{ displayName }}</div>
+      <div class="otp-amount">{{ amountNis }} ₪</div>
+    </div>
+
+    <form class="otp-form" (submit)="onSubmit($event)">
+      <div class="otp-grid">
+        <div class="otp-row">
+          <label for="ot_credit_card_number">מספר כרטיס</label>
+          <div id="ot_credit_card_number" class="hf-field"></div>
+          <div id="ot_errors_for_number" class="hf-error"></div>
+        </div>
+
+        <div class="otp-row">
+          <label for="ot_cvv">CVV</label>
+          <div id="ot_cvv" class="hf-field"></div>
+          <div id="ot_errors_for_CVV" class="hf-error"></div>
+        </div>
+
+        <div class="otp-row">
+          <label for="ot_expiry">תוקף (MM/YY)</label>
+          <div id="ot_expiry" class="hf-field"></div>
+          <div id="ot_errors_for_expiry" class="hf-error"></div>
+        </div>
+      </div>
+
+      <div class="otp-actions">
+        <button type="submit" [disabled]="busy()">
+          אישור תשלום
+        </button>
+      </div>
+    </form>
+
+    <div class="otp-error" *ngIf="error()">
+      {{ error() }}
+    </div>
+  </div>
+</div>
+
+<ng-template #errorTpl>
+  <div class="otp-page">
+    <div class="otp-card">
+      <h2>שגיאה</h2>
+      <p>{{ error() || 'לא ניתן למצוא את פרטי המוצר.' }}</p>
+    </div>
+  </div>
+</ng-template>
+
+    </form>
+
+    <div class="otp-error" *ngIf="error()">
+      {{ error() }}
+    </div>
+  </div>
+</div>
+
+<ng-template #errorTpl>
+  <div class="otp-page">
+    <div class="otp-card">
+      <h2>שגיאה</h2>
+      <p>{{ error() || 'לא ניתן למצוא את פרטי המוצר.' }}</p>
+    </div>
+  </div>
+</ng-template>

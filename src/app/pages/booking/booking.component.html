@@ -1,1 +1,65 @@
-<p>booking works!</p>
+<div class="booking-page">
+  <div class="booking-card">
+    <h2>הזמנת {{ productName }}</h2>
+
+    <p class="booking-subtitle">
+      תשלום חד־פעמי בסך
+      <strong>{{ amountAgorot / 100 | number:'1.2-2' }} ₪</strong>
+    </p>
+
+    <form (ngSubmit)="onSubmit()" class="booking-form">
+      <div class="booking-grid">
+        <div class="field">
+          <label for="farm">בחרי חווה</label>
+          <select id="farm" [(ngModel)]="model.farmId" name="farmId">
+            <option value="" disabled>בחרי חווה...</option>
+            <option *ngFor="let f of farms" [value]="f.id">
+              {{ f.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="fullName">שם מלא</label>
+          <input
+            id="fullName"
+            type="text"
+            [(ngModel)]="model.fullName"
+            name="fullName"
+          />
+        </div>
+
+        <div class="field">
+          <label for="phone">טלפון</label>
+          <input
+            id="phone"
+            type="tel"
+            [(ngModel)]="model.phone"
+            name="phone"
+          />
+        </div>
+
+        <div class="field">
+          <label for="email">אימייל</label>
+          <input
+            id="email"
+            type="email"
+            [(ngModel)]="model.email"
+            name="email"
+          />
+        </div>
+      </div>
+
+      <div class="booking-actions">
+        <button type="submit" [disabled]="!canSubmit">
+          מעבר לתשלום
+        </button>
+      </div>
+    </form>
+
+    <div *ngIf="successMessage" class="booking-success">
+      {{ successMessage }}
+    </div>
+  </div>
+</div>
+

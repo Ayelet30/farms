@@ -1,0 +1,235 @@
+<div class="appt-wrapper" dir="rtl">
+  <!-- בחירת ילד + אישורים -->
+  <div class="appt-card">
+    <h2>זימון תורים</h2>
+
+    <div class="appt-header-row">
+      <div class="appt-field-group">
+        <span class="appt-field-label">ילד/ה</span>
+        <select
+          class="appt-select"
+          [(ngModel)]="selectedChildId"
+          (change)="onChildChange()"
+        >
+          <option [ngValue]="null">בחר/י ילד</option>
+          <option *ngFor="let c of children" [ngValue]="c.child_uuid">
+            {{ c.first_name }} {{ c.last_name }}
+          </option>
+        </select>
+      </div>
+    </div>
+
+    <div *ngIf="approvals.length > 0" class="approvals">
+      <div class="approvals-title">אישורי טיפול</div>
+      <div class="approvals-grid">
+        <div
+          *ngFor="let a of approvals"
+          class="approval-item"
+          [class.selected]="a.approval_id === selectedApprovalId"
+          (click)="selectedApprovalId = a.approval_id"
+        >
+          <div class="line">
+            <span>קופה:</span>
+            <strong>{{ a.health_fund || 'פרטי' }}</strong>
+          </div>
+          <div class="line">
+            <span>אישור:</span>
+            <strong>{{ a.approval_number || 'ללא' }}</strong>
+          </div>
+          <div class="line">
+            <span>יתרה:</span>
+            <strong>{{ a.remaining_lessons }}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- טאבים -->
+  <div class="appt-tabs">
+    <button
+      type="button"
+      class="appt-tab"
+      [class.active]="selectedTab === 'series'"
+      (click)="selectedTab = 'series'"
+    >
+      סדרת טיפולים
+    </button>
+    <button
+      type="button"
+      class="appt-tab"
+      [class.active]="selectedTab === 'makeup'"
+      (click)="selectedTab = 'makeup'"
+    >
+      שיעור השלמה
+    </button>
+  </div>
+
+  <!-- ======== טאב: סדרת טיפולים ======== -->
+  <div *ngIf="selectedTab === 'series'" class="appt-card">
+    <h3>סדרת טיפולים קבועה</h3>
+
+    <div class="appt-form-row">
+      <div class="appt-field-group">
+        <span class="appt-field-label">יום בשבוע</span>
+        <select class="appt-select" [(ngModel)]="seriesDayOfWeek">
+          <option [ngValue]="null">בחר/י יום</option>
+          <option *ngFor="let d of daysOfWeek" [ngValue]="d.value">
+            {{ d.label }}
+          </option>
+        </select>
+      </div>
+
+      <div class="appt-field-group">
+        <span class="appt-field-label">שעת התחלה</span>
+        <input
+          class="appt-input"
+          type="time"
+          [(ngModel)]="seriesStartTime"
+        />
+      </div>
+    </div>
+
+    <div class="appt-form-row">
+      <div class="appt-field-group">
+        <span class="appt-field-label">סוג תשלום</span>
+        <select
+          class="appt-select"
+          [(ngModel)]="paymentSourceForSeries"
+        >
+          <option value="health_fund">קופה (אם נבחר אישור)</option>
+          <option value="private">פרטי</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="appt-actions">
+      <button
+        type="button"
+        class="appt-cta primary"
+        (click)="searchRecurringSlots()"
+        [disabled]="loadingSeries || !selectedChildId"
+        [attr.aria-disabled]="loadingSeries || !selectedChildId ? 'true' : null"
+      >
+        {{ loadingSeries ? 'מחפש...' : 'חפש סדרות זמינות' }}
+      </button>
+    </div>
+
+    <p class="error" *ngIf="seriesError">{{ seriesError }}</p>
+    <p class="success" *ngIf="seriesCreatedMessage">
+      {{ seriesCreatedMessage }}
+    </p>
+
+    <div *ngIf="recurringSlots.length > 0" class="slots-list">
+      <h4>זמנים אפשריים</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>תאריך ראשון</th>
+            <th>שעה</th>
+            <th>מדריך</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let s of recurringSlots">
+            <td>{{ s.lesson_date }}</td>
+            <td>
+              {{ s.start_time | slice: 0:5 }}–{{
+                s.end_time | slice: 0:5
+              }}
+            </td>
+            <td>{{ s.instructor_id }}</td>
+            <td>
+              <button
+                type="button"
+                class="appt-cta"
+                (click)="createSeriesFromSlot(s)"
+              >
+                קבע סדרה
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ======== טאב: שיעור השלמה ======== -->
+  <div *ngIf="selectedTab === 'makeup'" class="appt-card">
+    <h3>שיעור השלמה</h3>
+
+    <div class="appt-form-row">
+      <div class="appt-field-group">
+        <span class="appt-field-label">מתאריך</span>
+        <input
+          class="appt-input"
+          type="date"
+          [(ngModel)]="makeupFromDate"
+        />
+      </div>
+
+      <div class="appt-field-group">
+        <span class="appt-field-label">עד תאריך</span>
+        <input
+          class="appt-input"
+          type="date"
+          [(ngModel)]="makeupToDate"
+        />
+      </div>
+    </div>
+
+    <div class="appt-actions">
+      <button
+        type="button"
+        class="appt-cta primary"
+        (click)="searchMakeupSlots()"
+        [disabled]="loadingMakeup || !selectedChildId"
+        [attr.aria-disabled]="loadingMakeup || !selectedChildId ? 'true' : null"
+      >
+        {{ loadingMakeup ? 'מחפש...' : 'חפש חורים להשלמה' }}
+      </button>
+    </div>
+
+    <p class="error" *ngIf="makeupError">{{ makeupError }}</p>
+    <p class="success" *ngIf="makeupCreatedMessage">
+      {{ makeupCreatedMessage }}
+    </p>
+
+    <div *ngIf="makeupSlots.length > 0" class="slots-list">
+      <h4>חורים זמינים</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>תאריך</th>
+            <th>שעה</th>
+            <th>מדריך</th>
+            <th>יתרה ב-slot</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let s of makeupSlots">
+            <td>{{ s.occur_date }}</td>
+            <td>
+              {{ s.start_time | slice: 0:5 }}–{{
+                s.end_time | slice: 0:5
+              }}
+            </td>
+            <td>{{ s.instructor_id }}</td>
+            <td>{{ s.remaining_capacity }}</td>
+            <td>
+              <button
+                type="button"
+                class="appt-cta"
+                (click)="bookMakeupSlot(s)"
+              >
+                קבע שיעור השלמה
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

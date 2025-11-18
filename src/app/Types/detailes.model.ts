@@ -1,5 +1,7 @@
 import { Membership } from "../services/supabaseClient.service";
 
+export type AppointmentMode = 'parent' | 'secretary';
+export type AppointmentTab = 'series' | 'makeup';
 export type ParentDetails = {
   id: string;
   uid: string;
@@ -8,6 +10,17 @@ export type ParentDetails = {
   phone?: string | null;
   email?: string | null;
 };
+
+export interface CurrentUser {
+  uid: string;
+  farmName?: string;
+  email?: string;
+  displayName?: string;
+  role: string | null;
+  memberships?: Membership[];
+  selectedTenantId?: string | null;
+}
+
 
 export interface UserDetails {
   [x: string]: any;
