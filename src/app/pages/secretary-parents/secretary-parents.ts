@@ -27,7 +27,7 @@ import {
  
 import { CreateUserService } from '../../services/create-user.service';
  
-type ParentRow = { uid: string; first_name: string;last_name: string; phone?: string; email?: string };
+type ParentRow = { uid: string; first_name: string;last_name: string; id_number?: string | null; phone?: string; email?: string };
  
 interface ParentDetailsRow extends ParentRow {
 
@@ -137,7 +137,7 @@ export class SecretaryParentsComponent implements OnInit {
 
         .from('parents')
 
-        .select('uid,first_name,last_name, phone, email')
+        .select('uid,first_name,last_name,id_number,phone,email')
 
         .order('first_name','last_name', { ascending: true });
  
@@ -243,32 +243,15 @@ openAddParentDialog() {
     maxWidth: '90vw',
     height: '90vh',
     panelClass: 'parent-dialog',
-    disableClose: true, // לא נסגר בלחיצה בחוץ
+    disableClose: true,
   });
 
   ref.afterClosed().subscribe(async (payload?: AddParentPayload | any) => {
-    // אם המשתמשת ביטלה (בכפתור ביטול בדיאלוג) – אין payload
     if (!payload) return;
 
     await ensureTenantContextReady();
 
-    // 1) יצירת משתמש בפיירבייס → uid + סיסמה זמנית
-    try {
-      const { uid, tempPassword } =
-        await this.createUserService.createUserIfNotExists(payload.email);
-
-      payload.uid = uid;
-      payload.password = tempPassword;
-      console.log('Created Firebase user:', { uid, tempPassword });
-    } catch {
-      const msg =
-        this.createUserService.errorMessage ||
-        'שגיאה ביצירת משתמש (ייתכן שהאימייל כבר קיים במערכת)';
-      alert(msg);
-      return;
-    }
-
-    // 2) פרטי טננט/סכימה
+    // 1) חווה / סכימה נוכחית
     const tenant_id = localStorage.getItem('selectedTenant') || '';
     const schema_name = localStorage.getItem('selectedSchema') || '';
 
@@ -276,6 +259,43 @@ openAddParentDialog() {
       alert('לא נמצא tenant פעיל. התחברי מחדש או בחרי חווה פעילה.');
       return;
     }
+
+    // 2) בדיקה אם המשתמש כבר קיים במערכת / בחווה
+    let uid = '';
+    let tempPassword = '';
+
+    try {
+      const exists = await this.checkIfParentExists(payload.email, tenant_id);
+      // exists = { existsInSystem, existsInTenant, uid }
+
+      // 2א) אם כבר קיים כהורה באותה חווה → שגיאה
+      if (exists.existsInTenant) {
+        alert('משתמש עם המייל הזה כבר קיים כהורה בחווה הנוכחית.');
+        return;
+      }
+
+      // 2ב) קיים במערכת (בכלל) אבל לא כהורה בחווה הזאת
+      if (exists.existsInSystem && exists.uid) {
+        uid = exists.uid;
+        tempPassword = ''; // לא מחלקים סיסמה חדשה, הוא כבר משתמש קיים
+      } else {
+        // 2ג) לא קיים בכלל במערכת → יוצרים משתמש חדש בפיירבייס
+        const res = await this.createUserService.createUserIfNotExists(payload.email);
+        uid = res.uid;
+        tempPassword = res.tempPassword;
+      }
+    } catch (e: any) {
+      const msg =
+        this.createUserService.errorMessage ||
+        e?.message ||
+        'שגיאה ביצירת / בדיקת המשתמש.';
+      alert(msg);
+      return;
+    }
+
+    // שמים את ה־uid וה־password (אם חדש) ב־payload
+    payload.uid = uid;
+    payload.password = tempPassword || '';
 
     // 3) העדפות הודעות
     const message_preferences: string[] =
@@ -288,7 +308,7 @@ openAddParentDialog() {
       uid: (payload.uid ?? '').trim(),
       first_name: (payload.first_name ?? '').trim(),
       last_name: (payload.last_name ?? '').trim(),
-      email: (payload.email ?? '').trim(),
+      email: (payload.email ?? '').trim().toLowerCase(),
       phone: (payload.phone ?? '').trim(),
       id_number: (payload.id_number ?? '').trim(),
       address: (payload.address ?? '').trim(),
@@ -298,7 +318,7 @@ openAddParentDialog() {
       schema_name,
     };
 
-    const missing = ['first_name','last_name','email','phone','id_number','address']
+    const missing = ['first_name', 'last_name', 'email', 'phone', 'id_number', 'address']
       .filter(k => !(body as any)[k]);
 
     if (missing.length) {
@@ -307,13 +327,16 @@ openAddParentDialog() {
     }
 
     try {
-      // ❶ users (public)
+      // 5) users (public) – upsert תמיד, גם אם המשתמש קיים
       await this.createUserInSupabase(body.uid, body.email, body.phone);
 
-      // ❷ tenant_users (public)
-      await this.createTenantUserInSupabase({ tenant_id: body.tenant_id, uid: body.uid });
+      // 6) tenant_users (public) – משייכים כהורה לחווה הנוכחית
+      await this.createTenantUserInSupabase({
+        tenant_id: body.tenant_id,
+        uid: body.uid,
+      });
 
-      // ❸ parents (tenant schema)
+      // 7) parents (tenant schema) – יצירת רשומת הורה בחווה הנוכחית
       await this.createParentInSupabase({
         uid: body.uid,
         first_name: body.first_name,
@@ -326,11 +349,10 @@ openAddParentDialog() {
         message_preferences: body.message_preferences,
       });
 
-      // רענון הרשימה
+      // 8) רענון הטבלה
       await this.loadParents();
 
-      // ✅ הודעת הצלחה מהאפיון
-      alert('הורה נוצר בהצלחה');
+      alert('הורה נוצר/שויך בהצלחה');
 
     } catch (e: any) {
       console.error(e);
@@ -338,6 +360,7 @@ openAddParentDialog() {
     }
   });
 }
+
 
 
  
@@ -360,7 +383,42 @@ openAddParentDialog() {
   return data.id as number;
 }
  
+
   // public.users – upsert לפי uid (אימייל/טלפון)
+
+  async checkIfParentExists(email: string, tenant_id: string) {
+  // 1) בדיקה אם המשתמש קיים בטבלת users (כל המערכת)
+  const { data: user, error: userErr } = await dbPublic()
+    .from('users')
+    .select('uid')
+    .eq('email', email.toLowerCase())
+    .maybeSingle();
+
+  if (userErr) throw userErr;
+
+  if (!user) {
+    return { existsInSystem: false, existsInTenant: false, uid: null };
+  }
+
+  // 2) בדיקה אם המשתמש קיים כ-parent באותה חווה
+  const { data: tenantUser, error: tenantErr } = await dbPublic()
+    .from('tenant_users')
+    .select('uid, role_in_tenant')
+    .eq('tenant_id', tenant_id)
+    .eq('uid', user.uid)
+    .maybeSingle();
+
+  if (tenantErr) throw tenantErr;
+
+  const existsInTenant = !!(tenantUser && tenantUser.role_in_tenant === 'parent');
+
+  return {
+    existsInSystem: true,
+    existsInTenant,
+    uid: user.uid
+  };
+}
+
 
   private async createUserInSupabase(uid: string, email: string, phone?: string | null): Promise<void> {
 
@@ -412,9 +470,6 @@ private async createTenantUserInSupabase(body: { tenant_id: string; uid: string 
 
   if (error) throw new Error(`tenant_users upsert failed: ${error.message}`);
 }
-
-
-
 
 
   private async createParentInSupabase(body: {
