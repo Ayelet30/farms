@@ -43,17 +43,14 @@ interface MakeupSlot {
 })
 export class AppointmentSchedulerComponent implements OnInit {
 
-  /** רשימת ילדים מגיעה מהקומפוננטה ההורה */
-  @Input() selectChild: string = "";
+needApprove: boolean = false;
+selectedChildId: string | null = null;
 
-  /** מצב – הורה או מזכירה (לוגים/סטטוס ב־origin) */
-  @Input() needApprove!: boolean;
 
   children: ChildRow[] = [];
 
   // מצב כללי
   selectedTab: AppointmentTab = 'series';
-  selectedChildId: string | null = null;
 
   // ---- נתוני אישורים (קופה/פרטי) ----
   approvals: ApprovalBalance[] = [];
@@ -101,43 +98,30 @@ export class AppointmentSchedulerComponent implements OnInit {
 }
 
   async ngOnInit(): Promise<void> {
-  if (this.children && this.children.length > 0) {
-    this.selectedChildId = this.children.length === 1 ? this.children[0].child_uuid : null;
-    if (this.selectedChildId) await this.onChildChange();
-    return;
+  // 1. קריאת פרמטרים מה־URL
+  const qp = this.route.snapshot.queryParamMap;
+
+  const needApproveParam = qp.get('needApprove');
+  this.needApprove = needApproveParam === 'true';
+
+  const qpChildId = qp.get('childId');
+  if (qpChildId) {
+    this.selectedChildId = qpChildId;    // ⬅⬅ שומרים את הילד שעבר בניווט
   }
 
-  const qpChildren = this.route.snapshot.queryParamMap.get('children');
-  if (qpChildren) {
-    try {
-      this.children = JSON.parse(qpChildren);
-      this.selectedChildId = this.children.length === 1 ? this.children[0].child_uuid : null;
-      if (this.selectedChildId) await this.onChildChange();
-      return;
-    } catch (e) {
-      console.error('invalid children param', e);
-    }
-  }
-
+  // 2. תמיד טוענים ילדים פעילים מהשרת (RLS יטפל בהורה/מזכירה)
   await this.loadChildrenFromCurrentUser();
 }
 
 private async loadChildrenFromCurrentUser(): Promise<void> {
-  // אין צורך ב-this.user כאן בשביל הפילטר – RLS יטפל בהרשאות
+  if (!this.user) return;
+
   const supa = dbTenant();
 
-  const baseSelect =
-    this.CHILD_SELECT && this.CHILD_SELECT.trim().length
-      ? this.CHILD_SELECT
-      : 'child_uuid, first_name, last_name, status, instructor_id';
-
-  const hasStatus = /(^|,)\s*status\s*(,|$)/.test(baseSelect);
-  const selectWithStatus = hasStatus ? baseSelect : `${baseSelect}, status`;
-
   const { data, error } = await supa
-    .from('children')              
-    .select(selectWithStatus)
-    .eq('status', 'Active')        // רק ילדים פעילים
+    .from('children')
+    .select('child_uuid, first_name, last_name, instructor_id, status')
+    .eq('status', 'Active')   // ⬅⬅ לשים לב ל-A גדולה לפי ה-enum
     .order('first_name', { ascending: true });
 
   if (error) {
@@ -147,7 +131,11 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
 
   this.children = data ?? [];
 
-  if (this.children.length === 1) {
+  // אם עבר childId בניווט והוא קיים ברשימת הילדים הפעילים:
+  if (this.selectedChildId && this.children.some(c => c.child_uuid === this.selectedChildId)) {
+    await this.onChildChange();     // ⬅⬅ טוען approvals וכו' לילד שהגיע מהכרטיסייה
+  } else if (!this.selectedChildId && this.children.length === 1) {
+    // אם לא עבר childId ויש רק ילד אחד – בוחרים אותו אוטומטית
     this.selectedChildId = this.children[0].child_uuid;
     await this.onChildChange();
   }

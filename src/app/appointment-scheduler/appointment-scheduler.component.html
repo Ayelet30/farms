@@ -12,9 +12,9 @@
           (change)="onChildChange()"
         >
           <option [ngValue]="null">בחר/י ילד</option>
-          <option *ngFor="let c of children" [ngValue]="c.child_uuid">
-            {{ c.first_name }} {{ c.last_name }}
-          </option>
+          <option *ngFor="let child of children" [ngValue]="child.child_uuid">
+    {{ child.first_name }} {{ child.last_name }}
+  </option>
         </select>
       </div>
     </div>
@@ -97,7 +97,7 @@
           class="appt-select"
           [(ngModel)]="paymentSourceForSeries"
         >
-          <option value="health_fund">קופה (אם נבחר אישור)</option>
+          <option value="health_fund">קופה</option>
           <option value="private">פרטי</option>
         </select>
       </div>
