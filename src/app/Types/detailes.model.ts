@@ -51,3 +51,13 @@ export interface ChildRow {
 }
 
 
+export interface InstructorRow {
+  instructor_uid: string;
+  full_name: string;
+
+  gender?: string | null;
+  certificate?: string | null;
+  about?: string | null;
+  education?: string | null;
+  phone?: string | null;
+}

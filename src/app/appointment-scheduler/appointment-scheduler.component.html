@@ -1,48 +1,85 @@
 <div class="appt-wrapper" dir="rtl">
   <!-- בחירת ילד + אישורים -->
   <div class="appt-card">
-    <h2>זימון תורים</h2>
+  <h2>זימון תורים</h2>
 
-    <div class="appt-header-row">
-      <div class="appt-field-group">
-        <span class="appt-field-label">ילד/ה</span>
-        <select
-          class="appt-select"
-          [(ngModel)]="selectedChildId"
-          (change)="onChildChange()"
-        >
-          <option [ngValue]="null">בחר/י ילד</option>
-          <option *ngFor="let c of children" [ngValue]="c.child_uuid">
-            {{ c.first_name }} {{ c.last_name }}
-          </option>
-        </select>
-      </div>
+  <div class="appt-header-row">
+    <!-- ילד/ה -->
+    <div class="appt-field-group">
+      <span class="appt-field-label">ילד/ה</span>
+      <select
+        class="appt-select"
+        [(ngModel)]="selectedChildId"
+        (change)="onChildChange()"
+      >
+        <option [ngValue]="null">בחר/י ילד</option>
+        <option *ngFor="let child of children" [ngValue]="child.child_uuid">
+          {{ child.first_name }} {{ child.last_name }}
+        </option>
+      </select>
     </div>
 
-    <div *ngIf="approvals.length > 0" class="approvals">
-      <div class="approvals-title">אישורי טיפול</div>
-      <div class="approvals-grid">
-        <div
-          *ngFor="let a of approvals"
-          class="approval-item"
-          [class.selected]="a.approval_id === selectedApprovalId"
-          (click)="selectedApprovalId = a.approval_id"
-        >
-          <div class="line">
-            <span>קופה:</span>
-            <strong>{{ a.health_fund || 'פרטי' }}</strong>
-          </div>
-          <div class="line">
-            <span>אישור:</span>
-            <strong>{{ a.approval_number || 'ללא' }}</strong>
-          </div>
-          <div class="line">
-            <span>יתרה:</span>
-            <strong>{{ a.remaining_lessons }}</strong>
-          </div>
-        </div>
-      </div>
+    <!-- מדריך -->
+    <div class="appt-field-group">
+      <span class="appt-field-label">מדריך</span>
+
+      <select
+  class="appt-select"
+  [(ngModel)]="selectedInstructorId"
+  (change)="showInstructorDetails = true"
+>
+  <option [ngValue]="null">בחר/י מדריך</option>
+  <option
+    *ngFor="let ins of instructors"
+    [ngValue]="ins.instructor_uid">
+    {{ ins.full_name }}
+  </option>
+</select>
+
     </div>
+  </div>
+    <!-- כרטיס מידע על המדריך שנבחר -->
+ <!-- כרטיס מידע על המדריך שנבחר -->
+<div *ngIf="selectedInstructor && showInstructorDetails" class="instructor-card">
+  <!-- כפתור איקס לסגירה -->
+  <button
+    type="button"
+    class="instructor-close"
+    (click)="showInstructorDetails = false"
+    aria-label="סגירת פרטי מדריך"
+  >
+    ✕
+  </button>
+
+  <div class="instructor-card-header">
+    <div class="instructor-name">
+      {{ selectedInstructor.full_name }}
+    </div>
+  </div>
+
+  <div class="instructor-line" *ngIf="selectedInstructor.gender">
+    <span class="label">מין:</span>
+    <span class="value">{{ selectedInstructor.gender }}</span>
+  </div>
+
+  <div class="instructor-line" *ngIf="selectedInstructor.certificate">
+    <span class="label">השכלה:</span>
+    <span class="value">{{ selectedInstructor.certificate }}</span>
+  </div>
+
+  <div class="instructor-line" *ngIf="selectedInstructor.phone">
+    <span class="label">טלפון:</span>
+    <span class="value">{{ selectedInstructor.phone }}</span>
+  </div>
+
+  <div class="instructor-about" *ngIf="selectedInstructor.about">
+    <span class="label">אודות:</span>
+    <p class="about-text">
+      {{ selectedInstructor.about }}
+    </p>
+  </div>
+  </div>
+
   </div>
 
   <!-- טאבים -->
@@ -97,7 +134,7 @@
           class="appt-select"
           [(ngModel)]="paymentSourceForSeries"
         >
-          <option value="health_fund">קופה (אם נבחר אישור)</option>
+          <option value="health_fund">קופה</option>
           <option value="private">פרטי</option>
         </select>
       </div>
