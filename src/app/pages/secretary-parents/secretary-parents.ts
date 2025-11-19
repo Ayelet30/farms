@@ -82,46 +82,64 @@ statusFilter: 'all' | 'active' | 'inactive' = 'all';
 childrenFilter: 'all' | 'active' | 'inactive' = 'all';
 // תפריט פתוח / סגור
 showSearchPanel = false;
-
+panelFocus: 'search' | 'filter' = 'search';
 // פתיחה/סגירה של חלונית החיפוש/סינון
-toggleSearchPanel(event?: MouseEvent) {
-  event?.stopPropagation();
+// לחיצה על כל השורה (בד"כ חיפוש)
+toggleSearchPanelFromBar() {
+  this.panelFocus = 'search';
   this.showSearchPanel = !this.showSearchPanel;
 }
 
-// סגירה אוטומטית בלחיצה מחוץ לשורת החיפוש/חלונית
+// לחיצה על האייקון של זכוכית מגדלת
+toggleFromSearchIcon(event: MouseEvent) {
+  event.stopPropagation();
+  this.panelFocus = 'search';
+  this.showSearchPanel = !this.showSearchPanel;
+}
+
+// לחיצה על האייקון של פילטר
+toggleFromFilterIcon(event: MouseEvent) {
+  event.stopPropagation();
+  this.panelFocus = 'filter';
+  this.showSearchPanel = !this.showSearchPanel;
+}
+
+// סגירה אוטומטית בלחיצה מחוץ לחלונית
 @HostListener('document:click')
 closeSearchPanelOnOutsideClick() {
   this.showSearchPanel = false;
 }
 
 
+
 // רשימת הורים אחרי חיפוש + סינון
 get filteredParents(): ParentRow[] {
   let rows = [...this.parents];
 
-  const q = this.searchText.trim();
-
+  // 1) חיפוש
+  const q = (this.searchText || '').trim().toLowerCase();
   if (q) {
-    if (this.searchMode === 'name') {
-      const lower = q.toLowerCase();
-      rows = rows.filter(p => {
-        const full = `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase();
-        return full.includes(lower);
-      });
-    } else if (this.searchMode === 'id') {
-      rows = rows.filter(p => (p.id_number || '').trim() === q);
-    }
+    rows = rows.filter(p => {
+      if (this.searchMode === 'name') {
+        const hay = `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase();
+        return hay.includes(q);
+      }
+
+      // חיפוש מדויק לפי ת"ז
+      const id = (p.id_number || '').toString().trim();
+      return id === q;
+    });
   }
 
-  // סינון לפי סטטוס הורה
-  if (this.statusFilter === 'active') {
-    rows = rows.filter(p => p.is_active !== false);
-  } else if (this.statusFilter === 'inactive') {
-    rows = rows.filter(p => p.is_active === false);
+  // 2) סינון לפי סטטוס הורה
+  if (this.statusFilter !== 'all') {
+    rows = rows.filter(p => {
+      const active = p.is_active !== false; // ברירת מחדל = פעיל
+      return this.statusFilter === 'active' ? active : !active;
+    });
   }
 
-  // סינון לפי ילדים
+  // 3) סינון לפי ילדים פעילים/לא פעילים
   if (this.childrenFilter === 'active') {
     rows = rows.filter(p => !!p.hasActiveChildren);
   } else if (this.childrenFilter === 'inactive') {
@@ -131,7 +149,7 @@ get filteredParents(): ParentRow[] {
   return rows;
 }
 
-
+// כפתור איפוס – מחזיר לברירות מחדל
 clearFilters() {
   this.searchText = '';
   this.searchMode = 'name';
@@ -139,7 +157,6 @@ clearFilters() {
   this.childrenFilter = 'all';
 }
 
-  
 
   isLoading = true;
 
@@ -180,7 +197,13 @@ clearFilters() {
     private createUserService: CreateUserService
 
   ) {}
- 
+  
+  toggleSearchPanel(event?: MouseEvent) {
+    if (event) {
+      event.stopPropagation();
+    }
+    this.showSearchPanel = !this.showSearchPanel;
+  }
   async ngOnInit() {
 
     try {
