@@ -1,11 +1,14 @@
 
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit, ViewChild,HostListener  } from '@angular/core';
 
 import { CommonModule } from '@angular/common';
 
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+
+import { FormsModule } from '@angular/forms';
+
  
 import {
 
@@ -27,7 +30,18 @@ import {
  
 import { CreateUserService } from '../../services/create-user.service';
  
-type ParentRow = { uid: string; first_name: string;last_name: string; id_number?: string | null; phone?: string; email?: string };
+type ParentRow = {
+  uid: string;
+  first_name: string;
+  last_name: string;
+  id_number?: string | null;
+  phone?: string;
+  email?: string;
+  is_active?: boolean | null;        // סטטוס הורה
+  hasActiveChildren?: boolean;       // יש ילדים פעילים
+  hasInactiveChildren?: boolean;     // יש ילדים לא פעילים
+};
+
  
 interface ParentDetailsRow extends ParentRow {
 
@@ -47,7 +61,7 @@ interface ParentDetailsRow extends ParentRow {
 
   standalone: true,
 
-  imports: [CommonModule, MatSidenavModule, MatDialogModule],
+  imports: [CommonModule,FormsModule,MatSidenavModule, MatDialogModule],
 
   templateUrl: './secretary-parents.html',
 
@@ -58,6 +72,74 @@ interface ParentDetailsRow extends ParentRow {
 export class SecretaryParentsComponent implements OnInit {
 
   parents: ParentRow[] = [];
+  
+// 🔍 ערך החיפוש הכללי
+searchText = '';
+// מצב חיפוש: לפי שם / לפי ת"ז
+searchMode: 'name' | 'id' = 'name';
+// סינון
+statusFilter: 'all' | 'active' | 'inactive' = 'all';
+childrenFilter: 'all' | 'active' | 'inactive' = 'all';
+// תפריט פתוח / סגור
+showSearchPanel = false;
+
+// פתיחה/סגירה של חלונית החיפוש/סינון
+toggleSearchPanel(event?: MouseEvent) {
+  event?.stopPropagation();
+  this.showSearchPanel = !this.showSearchPanel;
+}
+
+// סגירה אוטומטית בלחיצה מחוץ לשורת החיפוש/חלונית
+@HostListener('document:click')
+closeSearchPanelOnOutsideClick() {
+  this.showSearchPanel = false;
+}
+
+
+// רשימת הורים אחרי חיפוש + סינון
+get filteredParents(): ParentRow[] {
+  let rows = [...this.parents];
+
+  const q = this.searchText.trim();
+
+  if (q) {
+    if (this.searchMode === 'name') {
+      const lower = q.toLowerCase();
+      rows = rows.filter(p => {
+        const full = `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase();
+        return full.includes(lower);
+      });
+    } else if (this.searchMode === 'id') {
+      rows = rows.filter(p => (p.id_number || '').trim() === q);
+    }
+  }
+
+  // סינון לפי סטטוס הורה
+  if (this.statusFilter === 'active') {
+    rows = rows.filter(p => p.is_active !== false);
+  } else if (this.statusFilter === 'inactive') {
+    rows = rows.filter(p => p.is_active === false);
+  }
+
+  // סינון לפי ילדים
+  if (this.childrenFilter === 'active') {
+    rows = rows.filter(p => !!p.hasActiveChildren);
+  } else if (this.childrenFilter === 'inactive') {
+    rows = rows.filter(p => !!p.hasInactiveChildren);
+  }
+
+  return rows;
+}
+
+
+clearFilters() {
+  this.searchText = '';
+  this.searchMode = 'name';
+  this.statusFilter = 'all';
+  this.childrenFilter = 'all';
+}
+
+  
 
   isLoading = true;
 
@@ -123,43 +205,71 @@ export class SecretaryParentsComponent implements OnInit {
  
   /** טוען הורים מתוך סכימת הטננט הפעיל (לפי ההקשר שנקבע ב־ensureTenantContextReady) */
 
-  private async loadParents() {
+ private async loadParents() {
+  this.isLoading = true;
+  this.error = null;
 
-    this.isLoading = true;
+  try {
+    const dbc = dbTenant();
 
-    this.error = null;
+    // 1) מביאים הורים עם סטטוס is_active
+    const { data: parentsData, error: parentsErr } = await dbc
+      .from('parents')
+      .select('uid, first_name, last_name, id_number, phone, email, is_active')
+      .order('first_name', { ascending: true });
 
-    try {
+    if (parentsErr) throw parentsErr;
 
-      const dbc = dbTenant();
+    const parents = (parentsData ?? []) as ParentRow[];
 
-      const { data, error } = await dbc
+    // 2) מביאים את כל הילדים של כל ההורים – רק parent_uid + status
+    const { data: kidsData, error: kidsErr } = await dbc
+      .from('children')
+      .select('parent_uid, status');
 
-        .from('parents')
-
-        .select('uid,first_name,last_name,id_number,phone,email')
-
-        .order('first_name','last_name', { ascending: true });
- 
-      if (error) throw error;
-
-      this.parents = (data ?? []) as ParentRow[];
-
-    } catch (e: any) {
-
-      this.error = e?.message || 'Failed to fetch parents.';
-
-      console.error(e);
-
-      this.parents = [];
-
-    } finally {
-
-      this.isLoading = false;
-
+    if (kidsErr) {
+      console.error('children fetch error', kidsErr);
     }
 
+    const map = new Map<
+      string,
+      { hasActive: boolean; hasInactive: boolean }
+    >();
+
+    (kidsData ?? []).forEach((kid: any) => {
+      if (!kid.parent_uid) return;
+      const entry =
+        map.get(kid.parent_uid) || { hasActive: false, hasInactive: false };
+
+      const status = (kid.status || '').toString().toLowerCase();
+      if (status === 'active' || status === 'פעיל') {
+        entry.hasActive = true;
+      }
+      if (status === 'inactive' || status === 'לא פעיל') {
+        entry.hasInactive = true;
+      }
+
+      map.set(kid.parent_uid, entry);
+    });
+
+    // 3) מחברים את הנתונים להורה
+    this.parents = parents.map(p => {
+      const stats = map.get(p.uid) || { hasActive: false, hasInactive: false };
+      return {
+        ...p,
+        hasActiveChildren: stats.hasActive,
+        hasInactiveChildren: stats.hasInactive,
+      };
+    });
+  } catch (e: any) {
+    this.error = e?.message || 'Failed to fetch parents.';
+    console.error(e);
+    this.parents = [];
+  } finally {
+    this.isLoading = false;
   }
+}
+
  
   async openDetails(uid: string) {
 
