@@ -2,10 +2,23 @@ import { Component, Input, OnInit, signal, computed, effect } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant, fetchMyChildren } from '../services/supabaseClient.service';
-import { AppointmentMode, AppointmentTab, ChildRow, CurrentUser } from '../Types/detailes.model';
+import { AppointmentMode, AppointmentTab, ChildRow, CurrentUser , InstructorRow } from '../Types/detailes.model';
 import { CurrentUserService } from '../core/auth/current-user.service';
 import { ActivatedRoute } from '@angular/router';
 import { SELECTION_LIST } from '@angular/material/list';
+
+interface InstructorDbRow {
+  uid: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  accepts_makeup_others: boolean;
+  gender: string | null;
+  certificate: string | null;
+  about: string | null;
+  education: string | null;
+  phone: string | null;
+}
+
 
 
 interface ApprovalBalance {
@@ -45,6 +58,10 @@ export class AppointmentSchedulerComponent implements OnInit {
 
 needApprove: boolean = false;
 selectedChildId: string | null = null;
+instructors: InstructorRow[] = [];
+selectedInstructorId: string | null = null;
+loadingInstructors = false;
+showInstructorDetails = true;
 
 
   children: ChildRow[] = [];
@@ -62,6 +79,11 @@ selectedChildId: string | null = null;
   get selectedApproval(): ApprovalBalance | undefined {
     return this.approvals.find(a => a.approval_id === this.selectedApprovalId);
   }
+get selectedInstructor(): InstructorRow | undefined {
+  return this.instructors.find(
+    ins => ins.instructor_uid === this.selectedInstructorId
+  );
+}
 
   // ---- סדרת טיפולים ----
   daysOfWeek = [
@@ -109,6 +131,8 @@ selectedChildId: string | null = null;
     this.selectedChildId = qpChildId;    // ⬅⬅ שומרים את הילד שעבר בניווט
   }
 
+  await this.loadInstructors();
+
   // 2. תמיד טוענים ילדים פעילים מהשרת (RLS יטפל בהורה/מזכירה)
   await this.loadChildrenFromCurrentUser();
 }
@@ -140,7 +164,51 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
     await this.onChildChange();
   }
 }
+private async loadInstructors(): Promise<void> {
+  this.loadingInstructors = true;
+  const supa = dbTenant();
 
+  const { data, error } = await supa
+    .from('instructors')
+    .select(`
+      uid,
+      first_name,
+      last_name,
+      gender,
+      certificate,
+      about,
+      education,
+      phone,
+      accepts_makeup_others
+    `)
+    .eq('accepts_makeup_others', true)
+    .not('uid', 'is', null)
+    .order('first_name', { ascending: true }) as {
+      data: InstructorDbRow[] | null;
+      error: any;
+    };
+
+  if (error) {
+    console.error('loadInstructors error', error);
+    this.loadingInstructors = false;
+    return;
+  }
+
+  this.instructors =
+    (data ?? [])
+      .filter(ins => ins.uid)
+      .map((ins: InstructorDbRow) => ({
+        instructor_uid: ins.uid!,
+        full_name: `${ins.first_name ?? ''} ${ins.last_name ?? ''}`.trim(),
+        gender: ins.gender,
+        certificate: ins.certificate,
+        about: ins.about,
+        education: ins.education,
+        phone: ins.phone,
+      }));
+
+  this.loadingInstructors = false;
+}
 
   // =========================================
   //  שינוי ילד – טוען אישורים ומנקה מצבים
@@ -184,10 +252,13 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
     this.seriesCreatedMessage = null;
     this.recurringSlots = [];
 
-    if (!this.selectedChildId || !this.selectedApprovalId || this.seriesDayOfWeek === null) {
-      this.seriesError = 'יש לבחור ילד, אישור ויום בשבוע';
-      return;
-    }
+   if (!this.selectedChildId || !this.selectedApprovalId || 
+    this.seriesDayOfWeek === null || !this.selectedInstructorId) {
+
+  this.seriesError = 'יש לבחור ילד, אישור, יום בשבוע ומדריך';
+  return;
+}
+
 
     const startTime = this.seriesStartTime.includes(':')
       ? this.seriesStartTime + ':00'
@@ -195,12 +266,14 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
 
     this.loadingSeries = true;
     try {
-      const { data, error } = await dbTenant().rpc('find_recurring_slots', {
-        p_child_id: this.selectedChildId,
-        p_approval_id: this.selectedApprovalId,
-        p_day_of_week: this.seriesDayOfWeek,
-        p_start_time: startTime,
-      });
+     const { data, error } = await dbTenant().rpc('find_recurring_slots', {
+  p_child_id: this.selectedChildId,
+  p_approval_id: this.selectedApprovalId,
+  p_day_of_week: this.seriesDayOfWeek,
+  p_start_time: startTime,
+  p_instructor_id: this.selectedInstructorId    // ⬅⬅ חדש
+});
+
 
       if (error) {
         console.error(error);
@@ -237,7 +310,7 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
       .from('lessons')
       .insert({
         child_id: this.selectedChildId,
-        instructor_id: slot.instructor_id,
+        instructor_id: this.selectedInstructorId,
         lesson_type: 'רגיל',
         status: 'אושר',
         day_of_week: dayLabel,
@@ -281,18 +354,21 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
     this.makeupCreatedMessage = null;
     this.makeupSlots = [];
 
-    if (!this.selectedChildId || !this.makeupFromDate || !this.makeupToDate) {
-      this.makeupError = 'יש לבחור ילד וטווח תאריכים';
-      return;
-    }
+  if (!this.selectedChildId || !this.makeupFromDate || !this.makeupToDate || !this.selectedInstructorId) {
+  this.makeupError = 'יש לבחור ילד, מדריך וטווח תאריכים';
+  return;
+}
+
 
     this.loadingMakeup = true;
     try {
-      const { data, error } = await dbTenant().rpc('find_makeup_slots', {
-        p_child_id: this.selectedChildId,
-        p_from_date: this.makeupFromDate,
-        p_to_date: this.makeupToDate,
-      });
+    const { data, error } = await dbTenant().rpc('find_makeup_slots', {
+  p_child_id: this.selectedChildId,
+  p_from_date: this.makeupFromDate,
+  p_to_date: this.makeupToDate,
+  p_instructor_id: this.selectedInstructorId    // ⬅⬅ אם צריך
+});
+
 
       if (error) {
         console.error(error);

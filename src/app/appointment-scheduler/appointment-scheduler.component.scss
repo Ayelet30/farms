@@ -272,3 +272,98 @@
     min-width: 100%;
   }
 }
+.instructor-card {
+  margin-top: 10px;
+  border-radius: 12px;
+  border: 1px solid #cdd6bf;
+  background: #f7f9f4;
+  padding: 10px 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .04);
+}
+
+.instructor-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.instructor-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: #2b2b2b;
+}
+
+.instructor-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #8a9362;
+  color: #fff;
+}
+
+.instructor-line {
+  display: flex;
+  gap: 4px;
+  font-size: 13px;
+  margin: 2px 0;
+}
+
+.instructor-line .label {
+  font-weight: 600;
+  color: #586141;
+}
+
+.instructor-line .value {
+  flex: 1;
+}
+
+.instructor-about {
+  margin-top: 4px;
+}
+
+.instructor-about .label {
+  font-weight: 600;
+  font-size: 13px;
+  color: #586141;
+}
+
+.about-text {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.instructor-card {
+  position: relative;  // חשוב בשביל האיקס
+  margin-top: 10px;
+  border-radius: 12px;
+  border: 1px solid #cdd6bf;
+  background: #f7f9f4;
+  padding: 10px 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .04);
+}
+
+.instructor-close {
+  position: absolute;
+  top: -8px;
+  right: -11px; // תזוזה קלה שמאלה מהפינה
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid #cdd6bf;
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background .15s, border-color .15s, box-shadow .15s;
+}
+
+.instructor-close:hover {
+  background: #f0f3e7;
+  border-color: #8a9362;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .1);
+}
