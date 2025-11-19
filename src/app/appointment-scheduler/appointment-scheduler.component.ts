@@ -62,6 +62,8 @@ instructors: InstructorRow[] = [];
 selectedInstructorId: string | null = null;
 loadingInstructors = false;
 showInstructorDetails = true;
+noInstructorPreference = false;        
+
 
 
   children: ChildRow[] = [];
@@ -83,6 +85,13 @@ get selectedInstructor(): InstructorRow | undefined {
   return this.instructors.find(
     ins => ins.instructor_uid === this.selectedInstructorId
   );
+}
+onNoInstructorPreferenceChange(): void {
+  if (this.noInstructorPreference) {
+    // אם אין העדפה – מנקים מדריך ומסתירים כרטיס
+    this.selectedInstructorId = null;
+    this.showInstructorDetails = false;
+  }
 }
 
   // ---- סדרת טיפולים ----
@@ -247,33 +256,38 @@ private async loadInstructors(): Promise<void> {
   // =========================================
   //   חיפוש סדרות זמינות (find_recurring_slots)
   // =========================================
-  async searchRecurringSlots(): Promise<void> {
-    this.seriesError = null;
-    this.seriesCreatedMessage = null;
-    this.recurringSlots = [];
+ async searchRecurringSlots(): Promise<void> {
+  this.seriesError = null;
+  this.seriesCreatedMessage = null;
+  this.recurringSlots = [];
 
-   if (!this.selectedChildId || !this.selectedApprovalId || 
-    this.seriesDayOfWeek === null || !this.selectedInstructorId) {
+  if (!this.selectedChildId || !this.selectedApprovalId || this.seriesDayOfWeek === null) {
+    this.seriesError = 'יש לבחור ילד, אישור ויום בשבוע';
+    return;
+  }
 
-  this.seriesError = 'יש לבחור ילד, אישור, יום בשבוע ומדריך';
-  return;
-}
+  if (!this.noInstructorPreference && !this.selectedInstructorId) {
+    this.seriesError = 'יש לבחור מדריך או לסמן שאין העדפה';
+    return;
+  }
 
+  const startTime = this.seriesStartTime.includes(':')
+    ? this.seriesStartTime + ':00'
+    : this.seriesStartTime; // לוודא HH:MM:SS
 
-    const startTime = this.seriesStartTime.includes(':')
-      ? this.seriesStartTime + ':00'
-      : this.seriesStartTime; // לוודא HH:MM:SS
+  const instructorParam = this.noInstructorPreference
+    ? null
+    : this.selectedInstructorId;
 
     this.loadingSeries = true;
-    try {
-     const { data, error } = await dbTenant().rpc('find_recurring_slots', {
-  p_child_id: this.selectedChildId,
-  p_approval_id: this.selectedApprovalId,
-  p_day_of_week: this.seriesDayOfWeek,
-  p_start_time: startTime,
-  p_instructor_id: this.selectedInstructorId    // ⬅⬅ חדש
-});
-
+   try {
+    const { data, error } = await dbTenant().rpc('find_recurring_slots', {
+      p_child_id: this.selectedChildId,
+      p_approval_id: this.selectedApprovalId,
+      p_day_of_week: this.seriesDayOfWeek,
+      p_start_time: startTime,
+      p_instructor_id: instructorParam
+    });
 
       if (error) {
         console.error(error);
@@ -310,7 +324,9 @@ private async loadInstructors(): Promise<void> {
       .from('lessons')
       .insert({
         child_id: this.selectedChildId,
-        instructor_id: this.selectedInstructorId,
+instructor_id: this.noInstructorPreference
+  ? slot.instructor_id
+  : this.selectedInstructorId!,   
         lesson_type: 'רגיל',
         status: 'אושר',
         day_of_week: dayLabel,
@@ -354,11 +370,19 @@ private async loadInstructors(): Promise<void> {
     this.makeupCreatedMessage = null;
     this.makeupSlots = [];
 
-  if (!this.selectedChildId || !this.makeupFromDate || !this.makeupToDate || !this.selectedInstructorId) {
-  this.makeupError = 'יש לבחור ילד, מדריך וטווח תאריכים';
-  return;
-}
+ if (!this.selectedChildId || !this.makeupFromDate || !this.makeupToDate) {
+    this.makeupError = 'יש לבחור ילד וטווח תאריכים';
+    return;
+  }
 
+  if (!this.noInstructorPreference && !this.selectedInstructorId) {
+    this.makeupError = 'יש לבחור מדריך או לסמן שאין העדפה';
+    return;
+  }
+
+  const instructorParam = this.noInstructorPreference
+    ? null
+    : this.selectedInstructorId;
 
     this.loadingMakeup = true;
     try {
@@ -366,7 +390,7 @@ private async loadInstructors(): Promise<void> {
   p_child_id: this.selectedChildId,
   p_from_date: this.makeupFromDate,
   p_to_date: this.makeupToDate,
-  p_instructor_id: this.selectedInstructorId    // ⬅⬅ אם צריך
+  p_instructor_id: this.selectedInstructorId   
 });
 
 

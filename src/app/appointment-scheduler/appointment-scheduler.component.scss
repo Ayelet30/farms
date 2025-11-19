@@ -29,7 +29,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  align-items: center;
+  align-items: flex-end; // יישור תחתון של השדות
   margin-top: 6px;
 }
 
@@ -46,7 +46,24 @@
   font-weight: 600;
   color: #586141;
 }
+.instructor-select-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.no-pref {
+  font-size: 13px;
+  color: #586141;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
 
+.no-pref input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
 .appt-select,
 .appt-input {
   padding: 6px 10px;
@@ -366,4 +383,25 @@
   background: #f0f3e7;
   border-color: #8a9362;
   box-shadow: 0 1px 4px rgba(0, 0, 0, .1);
+}
+
+.appt-select.disabled,
+.appt-select:disabled {
+  background: #e5e8dd;
+  cursor: not-allowed;
+  color: #9ba18a;
+}
+.appt-checkbox {
+  margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #586141;
+}
+
+.appt-checkbox input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
 }
