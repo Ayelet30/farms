@@ -100,3 +100,53 @@ select {
     grid-template-columns: 1fr;
   }
 }
+
+.booking-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-direction: row-reverse;  /* רק הסדר משתנה */
+  direction: rtl;               /* נשאר RTL */
+}
+
+
+/* כפתור חזרה לדף הבית */
+.back-btn {
+  border-radius: 999px;
+  border: 1px solid var(--accent, #7a8b35);
+  background: #ffffff;
+  color: var(--accent, #566321);
+  padding: 4px 14px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  cursor: pointer;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
+}
+
+.back-btn:hover {
+  background-color: #f8f9f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+}
+
+.back-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.back-btn:focus-visible {
+  outline: 2px solid var(--accent, #7a8b35);
+  outline-offset: 2px;
+}
+

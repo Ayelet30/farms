@@ -3,14 +3,23 @@ import {
   AfterViewInit,
   OnInit,
   signal,
+  inject,          // ← להוסיף
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  MatDialogModule,
+  MatDialogRef,
+  MAT_DIALOG_DATA,
+} from '@angular/material/dialog';
+
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import { TranzilaService } from '../../services/tranzila.service';
 import { CurrentUserService } from '../../core/auth/current-user.service';
 import { BookingPayload } from '../../pages/booking/booking.component';
+import { CommonModule } from '@angular/common';
+
+
 
 declare const TzlaHostedFields: any;
 
@@ -28,13 +37,13 @@ type Product = {
 @Component({
   standalone: true,
   selector: 'app-one-time-payment',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MatDialogModule],
   templateUrl: './one-time-payment.component.html',
   styleUrls: ['./one-time-payment.component.scss'],
 })
 export class OneTimePaymentComponent implements OnInit, AfterViewInit {
-  type = '';                           // western / therapy...
 
+  type = '';
   booking: BookingPayload | null = null;
   product: Product | null = null;
 
@@ -42,7 +51,17 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
   busy = signal(false);
   error = signal<string | null>(null);
 
-  parentEmail = '';
+  // במקום constructor – הזרקות בעזרת inject()
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private tranzila = inject(TranzilaService);
+  private cu = inject(CurrentUserService);
+  private dialogRef = inject(MatDialogRef<OneTimePaymentComponent>, { optional: true });
+  private dialogData = inject(MAT_DIALOG_DATA, { optional: true }) as
+    | { booking?: BookingPayload }
+    | null;
+
+  parentEmail = this.cu.current?.email ?? '';
   thtk: string | null = null;
 
   private readonly allProducts: Product[] = [
@@ -50,23 +69,20 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
     { id: 'therapy', name: 'רכיבה טיפולית', amountAgorot: 15000 },
   ];
 
-  constructor(
-    private route: ActivatedRoute,
-    private router: Router,
-    private tranzila: TranzilaService,
-    private cu: CurrentUserService,
-  ) {
-    const cur = this.cu.current;
-    this.parentEmail = cur?.email ?? '';
-  }
 
-  ngOnInit(): void {
-    this.type = this.route.snapshot.paramMap.get('productId') ?? 'western';
+    ngOnInit(): void {
+    // 1. אם נפתח כדיאלוג – יש לנו booking ב-data
+    if (this.dialogData?.booking) {
+      this.booking = this.dialogData.booking;
+      this.type = this.booking.type;
+    } else {
+      // 2. מצב ניווט רגיל דרך ראוטר (כמו שהיה)
+      this.type = this.route.snapshot.paramMap.get('productId') ?? 'western';
 
-    // state מה-booking
-    const state: any = history.state;
-    if (state?.booking) {
-      this.booking = state.booking as BookingPayload;
+      const state: any = history.state;
+      if (state?.booking) {
+        this.booking = state.booking as BookingPayload;
+      }
     }
 
     // fallback – אם מישהו הגיע ישירות ל-URL
@@ -76,6 +92,7 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
       this.error.set('מוצר לא נמצא');
     }
   }
+
 
   get displayName(): string {
     return this.booking?.productName || this.product?.name || 'תשלום חד־פעמי';
@@ -102,49 +119,62 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
     }
   }
 
-  private initHostedFields() {
-    if (!TzlaHostedFields) {
-      console.error('TzlaHostedFields not found');
-      this.error.set('רכיב התשלום לא נטען');
-      return;
-    }
-
-    this.hfFields = TzlaHostedFields.create({
-      sandbox: false,
-      fields: {
-        credit_card_number: {
-          selector: '#ot_credit_card_number',
-          placeholder: '4580 4580 4580 4580',
-          tabindex: 1,
-        },
-        cvv: {
-          selector: '#ot_cvv',
-          placeholder: '123',
-          tabindex: 2,
-        },
-        expiry: {
-          selector: '#ot_expiry',
-          placeholder: '12/26',
-          version: '1',
-        },
-      },
-      styles: {
-        input: { height: 'auto', width: '100%' },
-        select: { height: 'auto', width: '100%' },
-      },
-    });
-
-    this.hfFields!.onEvent?.('validityChange', (ev: any) => {
-      console.log('[one-time HF validity]', ev);
-    });
+ private initHostedFields() {
+  if (!TzlaHostedFields) {
+    console.error('TzlaHostedFields not found');
+    this.error.set('רכיב התשלום לא נטען');
+    return;
   }
+
+  this.hfFields = TzlaHostedFields.create({
+    sandbox: false,
+    fields: {
+      credit_card_number: {
+        selector: '#ot_credit_card_number',
+        placeholder: '4580 4580 4580 4580',
+        tabindex: 1,
+      },
+      cvv: {
+        selector: '#ot_cvv',
+        placeholder: '123',
+        tabindex: 2,
+      },
+      expiry: {
+        selector: '#ot_expiry',
+        placeholder: '12/26',
+        version: '1',
+      },
+    },
+    styles: {
+      input: {
+        height: '38px',
+        'line-height': '38px',
+        padding: '0 8px',
+        'font-size': '15px',
+        'box-sizing': 'border-box',
+      },
+      select: {
+        height: '38px',
+        'line-height': '38px',
+        padding: '0 8px',
+        'font-size': '15px',
+        'box-sizing': 'border-box',
+      },
+    },
+  });
+
+  this.hfFields!.onEvent?.('validityChange', (ev: any) => {
+    console.log('[one-time HF validity]', ev);
+  });
+}
+
 
   onSubmit(ev: Event) {
     ev.preventDefault();
     this.charge();
   }
 
-  async charge() {
+    async charge() {
     if (!this.hfFields) {
       this.error.set('שדות התשלום לא מוכנים');
       return;
@@ -196,13 +226,18 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
 
           this.busy.set(false);
 
-          // חזרה לדף ההזמנה עם הנתונים – שם תשמרי ל-DB
-          this.router.navigate(['/booking', this.type], {
-            state: {
-              booking: this.booking,
-              tx,
-            },
-          });
+          if (this.dialogRef) {
+            // מצב חלון קופץ – נסגור ונחזיר את הטרנזילה למעלה
+            this.dialogRef.close(tx);
+          } else {
+            // מצב עמוד רגיל – כמו שהיה קודם
+            this.router.navigate(['/booking', this.type], {
+              state: {
+                booking: this.booking,
+                tx,
+              },
+            });
+          }
         },
       );
     } catch (e: any) {
@@ -211,4 +246,12 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
       this.busy.set(false);
     }
   }
+
+  onCancel() {
+    if (this.dialogRef) {
+      this.dialogRef.close(null);
+    }
+  }
+  
+
 }

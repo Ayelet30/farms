@@ -1,15 +1,9 @@
 <div class="otp-page" *ngIf="!error(); else errorTpl">
   <div class="otp-card">
-    <h2>תשלום חד־פעמי</h2>
+    <button type="button" class="otp-close" (click)="onCancel()">
+      ✕
+    </button>
 
-    <div class="otp-summary">
-      <div class="otp-title">{{ displayName }}</div>
-      <div class="otp-amount">{{ amountNis }} ₪</div>
-    </div>
-
-    <form class="otp-form" (submit)="onSubmit($event)">
-      <div class="otp-page" *ngIf="!error(); else errorTpl">
-  <div class="otp-card">
     <h2>תשלום חד־פעמי</h2>
 
     <div class="otp-summary">
@@ -54,23 +48,7 @@
 <ng-template #errorTpl>
   <div class="otp-page">
     <div class="otp-card">
-      <h2>שגיאה</h2>
-      <p>{{ error() || 'לא ניתן למצוא את פרטי המוצר.' }}</p>
-    </div>
-  </div>
-</ng-template>
-
-    </form>
-
-    <div class="otp-error" *ngIf="error()">
-      {{ error() }}
-    </div>
-  </div>
-</div>
-
-<ng-template #errorTpl>
-  <div class="otp-page">
-    <div class="otp-card">
+      <button type="button" class="otp-close" (click)="onCancel()">✕</button>
       <h2>שגיאה</h2>
       <p>{{ error() || 'לא ניתן למצוא את פרטי המוצר.' }}</p>
     </div>

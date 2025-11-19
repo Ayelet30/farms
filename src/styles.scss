@@ -14,3 +14,18 @@
 }
 html, body { font-family: var(--font-ui); }
 
+
+html, body { height: 100%; }
+body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+
+/* דיאלוג הורים – עטיפה חיצונית */
+.parent-dialog .mat-mdc-dialog-container .mdc-dialog__surface {
+  background: #fffef7;                     /* כמו מסך ההזמנה */
+  border-radius: 20px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+
+  max-height: calc(100vh - 80px);          /* רווח מלמעלה ומלמטה */
+  overflow: hidden;                        /* פינות מעוגלות נקיות */
+  padding: 20px 22px 22px !important;  /* רווח פנימי יפה */
+}
+
