@@ -3,44 +3,59 @@
   <div class="appt-card">
   <h2>זימון תורים</h2>
 
-  <div class="appt-header-row">
-    <!-- ילד/ה -->
-    <div class="appt-field-group">
-      <span class="appt-field-label">ילד/ה</span>
+ <div class="appt-header-row">
+  
+  <!-- טור ימין: בחירת ילד -->
+  <div class="appt-field-group child-group">
+    <span class="appt-field-label">ילד/ה</span>
+    <select
+      class="appt-select"
+      [(ngModel)]="selectedChildId"
+      (change)="onChildChange()"
+    >
+      <option [ngValue]="null">בחר/י ילד</option>
+      <option *ngFor="let child of children" [ngValue]="child.child_uuid">
+        {{ child.first_name }} {{ child.last_name }}
+      </option>
+    </select>
+  </div>
+
+  <!-- טור שמאל: מדריך + אין העדפה -->
+  <div class="appt-field-group instructor-group">
+    <span class="appt-field-label">מדריך</span>
+
+    <div class="instructor-select-row">
       <select
         class="appt-select"
-        [(ngModel)]="selectedChildId"
-        (change)="onChildChange()"
+        [(ngModel)]="selectedInstructorId"
+        (change)="showInstructorDetails = true"
+        [disabled]="noInstructorPreference"
       >
-        <option [ngValue]="null">בחר/י ילד</option>
-        <option *ngFor="let child of children" [ngValue]="child.child_uuid">
-          {{ child.first_name }} {{ child.last_name }}
+        <option [ngValue]="null">בחר/י מדריך</option>
+        <option
+          *ngFor="let ins of instructors"
+          [ngValue]="ins.instructor_uid">
+          {{ ins.full_name }}
         </option>
       </select>
-    </div>
 
-    <!-- מדריך -->
-    <div class="appt-field-group">
-      <span class="appt-field-label">מדריך</span>
-
-      <select
-  class="appt-select"
-  [(ngModel)]="selectedInstructorId"
-  (change)="showInstructorDetails = true"
->
-  <option [ngValue]="null">בחר/י מדריך</option>
-  <option
-    *ngFor="let ins of instructors"
-    [ngValue]="ins.instructor_uid">
-    {{ ins.full_name }}
-  </option>
-</select>
-
+      <!-- צ'קבוקס אין העדפה למדריך -->
+      <label class="no-pref">
+        <input
+          type="checkbox"
+          [(ngModel)]="noInstructorPreference"
+          (change)="onNoInstructorPreferenceChange()"
+        />
+        אין העדפה
+      </label>
     </div>
   </div>
+</div>
+
     <!-- כרטיס מידע על המדריך שנבחר -->
- <!-- כרטיס מידע על המדריך שנבחר -->
-<div *ngIf="selectedInstructor && showInstructorDetails" class="instructor-card">
+<div 
+  *ngIf="selectedInstructor && !noInstructorPreference && showInstructorDetails"
+class="instructor-card">
   <!-- כפתור איקס לסגירה -->
   <button
     type="button"
