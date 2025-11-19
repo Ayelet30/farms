@@ -200,8 +200,6 @@ export class SecretaryChildrenComponent implements OnInit {
 
         .select(`
 
-          child_uuid,
-
            first_name,
 
            last_name,
@@ -240,7 +238,7 @@ export class SecretaryChildrenComponent implements OnInit {
 
           .from('parents')
 
-          .select('uid,first_name,last_name, phone, email')
+          .select('first_name,last_name, phone, email')
 
           .eq('uid', c.parent_uid)
 

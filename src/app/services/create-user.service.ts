@@ -27,6 +27,8 @@ export class CreateUserService {
     getApps().find(a => a.name === 'admin-helper') ??
     initializeApp(environment.firebase, 'admin-helper');
 
+
+  // זו השורה שיוצרת מופע Authentication משני (secondary) של Firebase Auth, שמבוסס על ה־app המשני  (secondaryApp).
   private secondaryAuth: FbAuth = getAuth(this.secondaryApp);
 
   /** סיסמה זמנית באורך 8 תווים */
@@ -47,48 +49,50 @@ export class CreateUserService {
       if (!email) throw new Error('יש להזין כתובת אימייל');
       email = email.trim().toLowerCase();
 
-      // בדיקה אם המשתמש כבר קיים בפיירבייס
+      // 🔹 בדיקה אם כבר יש משתמש עם המייל הזה בפיירבייס
       const methods = await fetchSignInMethodsForEmail(this.secondaryAuth, email);
 
       if (methods?.length) {
-        // משתמש כבר קיים → ננסה לשלוף את ה-UID שלו מה-Supabase
-        const { data: existingUser, error } = await dbPublic()
+        // 👉 משתמש כבר קיים בפיירבייס
+        // מחפשים אותו בטבלת public.users לפי email
+        const { data, error } = await dbPublic()
           .from('users')
           .select('uid')
           .eq('email', email)
-          .single();
+          .maybeSingle();
 
-        if (error || !existingUser) {
-          throw new Error('משתמש קיים בפיירבייס אך לא נמצא בבסיס הנתונים.');
+        if (error || !data?.uid) {
+          console.error('Firebase user exists but missing in public.users', error);
+          throw new Error('משתמש עם המייל הזה כבר קיים, אבל לא נמצא בטבלת users.');
         }
 
-        // נחזיר את ה-UID הקיים, בלי ליצור סיסמה חדשה
-        return { uid: existingUser.uid, tempPassword: '' };
+        // מחזירים uid קיים, בלי סיסמה זמנית (לא שולחים מייל חדש)
+        return { uid: data.uid, tempPassword: '' };
       }
 
-      // משתמש לא קיים – ניצור חדש
+      // 🔹 משתמש לא קיים → יצירה בפיירבייס עם סיסמה זמנית
       const tempPassword = this.genTempPassword();
       const cred = await createUserWithEmailAndPassword(this.secondaryAuth, email, tempPassword);
       const uid = cred.user?.uid;
       if (!uid) throw new Error('לא התקבל UID מהשרת.');
 
-      // ננתק את הסשן המשני כדי לא לשבש את המזכירה
       await fbSignOut(this.secondaryAuth);
 
       return { uid, tempPassword };
     } catch (e: any) {
       const code = e?.code || '';
+
       if (code === 'auth/invalid-email') {
         this.errorMessage = 'כתובת דוא"ל לא תקינה.';
-      } else if (code === 'auth/operation-not-allowed') {
-        this.errorMessage = 'הרשמת אימייל/סיסמה אינה פעילה בפרויקט Firebase.';
-      } else if (code === 'auth/weak-password') {
-        this.errorMessage = 'הסיסמה חלשה מדי.';
       } else if (code === 'auth/network-request-failed') {
         this.errorMessage = 'שגיאת רשת. בדקי חיבור ונסי שוב.';
+      } else if (code === 'auth/email-already-in-use') {
+        // תיאורטית לא אמור להגיע לפה, כי טיפלנו בזה ב-methods?.length
+        this.errorMessage = 'המייל הזה כבר בשימוש במערכת.';
       } else {
         this.errorMessage = e?.message || 'אירעה שגיאה ביצירת המשתמש.';
       }
+
       throw e;
     } finally {
       this.loading = false;

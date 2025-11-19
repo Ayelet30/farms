@@ -1,13 +1,30 @@
 <div class="booking-page">
   <div class="booking-card">
-    <h2>הזמנת {{ productName }}</h2>
+
+    <div class="booking-header">
+      <button type="button" class="back-btn" (click)="goHome()">
+        חזרה לדף הבית ←
+      </button>
+
+
+      <h2>הזמנת {{ productName }}</h2>
+    </div>
 
     <p class="booking-subtitle">
       תשלום חד־פעמי בסך
       <strong>{{ amountAgorot / 100 | number:'1.2-2' }} ₪</strong>
     </p>
 
-    <form (ngSubmit)="onSubmit()" class="booking-form">
+    <!-- מצב טעינה / שגיאה של חוות -->
+    <div *ngIf="loadingFarms" class="booking-info">
+      טוען רשימת חוות...
+    </div>
+
+    <div *ngIf="farmsError" class="booking-error">
+      {{ farmsError }}
+    </div>
+
+    <form (ngSubmit)="onSubmit()" class="booking-form" *ngIf="!loadingFarms">
       <div class="booking-grid">
         <div class="field">
           <label for="farm">בחרי חווה</label>
@@ -21,37 +38,43 @@
 
         <div class="field">
           <label for="fullName">שם מלא</label>
-          <input
-            id="fullName"
-            type="text"
-            [(ngModel)]="model.fullName"
-            name="fullName"
-          />
+          <input id="fullName" type="text" [(ngModel)]="model.fullName" name="fullName" />
         </div>
 
         <div class="field">
           <label for="phone">טלפון</label>
-          <input
-            id="phone"
-            type="tel"
-            [(ngModel)]="model.phone"
-            name="phone"
-          />
+          <input id="phone" type="tel" [(ngModel)]="model.phone" name="phone" />
         </div>
 
         <div class="field">
           <label for="email">אימייל</label>
-          <input
-            id="email"
-            type="email"
-            [(ngModel)]="model.email"
-            name="email"
-          />
+          <input id="email" type="email" [(ngModel)]="model.email" name="email" />
+        </div>
+
+        <!-- שדות נוספים -->
+        <div class="field">
+          <label for="age">גיל הרוכב/ת</label>
+          <input id="age" type="number" min="0" [(ngModel)]="model.age" name="age" />
+        </div>
+
+        <div class="field">
+          <label for="weight">משקל (ק״ג)</label>
+          <input id="weight" type="number" min="0" [(ngModel)]="model.weightKg" name="weightKg" />
+        </div>
+
+        <div class="field">
+          <label for="height">גובה (ס״מ)</label>
+          <input id="height" type="number" min="0" [(ngModel)]="model.heightCm" name="heightCm" />
         </div>
       </div>
 
+      <div class="field field-notes">
+        <label for="notes">הערות נוספות (מצב רפואי, ניסיון רכיבה וכד׳)</label>
+        <textarea id="notes" rows="3" [(ngModel)]="model.notes" name="notes"></textarea>
+      </div>
+
       <div class="booking-actions">
-        <button type="submit" [disabled]="!canSubmit">
+        <button type="submit" [disabled]="!canSubmit || !farms.length">
           מעבר לתשלום
         </button>
       </div>
@@ -62,4 +85,3 @@
     </div>
   </div>
 </div>
-

@@ -82,16 +82,20 @@ h2 {
 .hf-field {
   border: 1px solid #c8ccb5;
   border-radius: 10px;
-  padding: 8px 10px;
+  padding: 0;                 /* שלא יוסיף עוד גובה */
   background: #f7f7f2;
-  min-height: 44px;
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
   display: flex;
   align-items: center;
+  overflow: hidden;           /* אם ה־iframe יתעקש להיות גבוה – נחתך */
+  box-sizing: border-box;
 }
 
 .hf-field iframe {
   width: 100%;
-  height: 26px;
+  height: 100% !important;    /* נכנס לגובה של ה-container */
 }
 
 .hf-error {
@@ -116,7 +120,162 @@ h2 {
 
 .otp-actions button:disabled {
   opacity: 0.5;
+  cursor: default;:host {
+  direction: rtl;
+}
+
+.otp-page {
+  display: flex;
+  justify-content: center;
+  padding: 32px 16px;
+}
+
+.otp-card {
+  width: min(100%, 720px);
+  background: var(--panel, #fff);
+  border-radius: 20px;
+  border: 1px solid var(--line, #e1e6d5);
+  padding: 24px 26px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .04);
+  position: relative; // לכפתור X
+}
+
+h2 {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.otp-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 20px;
+}
+
+.otp-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.otp-amount {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--olive-700, #5d7234);
+}
+
+.otp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.otp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.5rem;
+}
+
+/* מספר כרטיס בשורה מלאה */
+.otp-row:first-child {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 768px) {
+  .otp-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .otp-row:first-child {
+    grid-column: auto;
+  }
+}
+
+.otp-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.otp-row label {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* ======== כאן הקטנת השדות ======== */
+.hf-field {
+  border: 1px solid #c8ccb5;
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: #f7f7f2;
+  height: 40px;          /* גובה “טבעי” כמו אינפוט רגיל */
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.hf-field iframe {
+  width: 100%;
+  height: 100% !important;  /* מכריח את ה-hosted field להיכנס לגובה */
+}
+
+/* ================================== */
+
+.hf-error {
+  min-height: 18px;
+  font-size: 0.8rem;
+  color: #b3261e;
+}
+
+.otp-actions {
+  margin-top: 0.5rem;
+}
+
+.otp-actions button {
+  border-radius: 999px;
+  padding: 9px 22px;
+  border: 1px solid var(--olive-600, #748c40);
+  background: var(--olive-600, #748c40);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.otp-actions button:disabled {
+  opacity: 0.5;
   cursor: default;
+}
+
+.otp-error {
+  margin-top: 10px;
+  color: #b3261e;
+}
+
+/* כפתור X בפינה */
+
+.otp-close {
+  position: absolute;
+  top: 14px;
+  left: 16px;              /* אם את רוצה ימני – החליפי ל-right: 16px; */
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--olive-600, #748c40);
+  background: #f7f7f2;
+  color: var(--olive-700, #5d7234);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.otp-close:hover {
+  background: #eef1e3;
+}
+
 }
 
 .otp-error {
