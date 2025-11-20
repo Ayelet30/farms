@@ -3,7 +3,9 @@
     [items]="items"
     [initialView]="'timeGridWeek'"
     (eventClick)="onEventClick($event)"
-    (dateClick)="onDateClick($event)">
+    (dateClick)="onDateClick($event)"
+    (viewRange)="onViewRangeChange($event)"  
+  >
   </app-schedule>
 
   <app-note
