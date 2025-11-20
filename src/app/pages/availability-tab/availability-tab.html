@@ -1,0 +1,167 @@
+<div class="availability-page">
+
+  <!-- טוסט הצלחה -->
+  <div class="toast" *ngIf="toastMessage">
+    {{ toastMessage }}
+  </div>
+
+  <h1 class="page-title">העדפות זמינות והתראות</h1>
+  <p class="page-subtitle">
+    כאן אפשר להגדיר את הימים והשעות לשיבוץ שיעורים, וגם אילו התראות תרצי לקבל.
+  </p>
+
+  <div class="cards-layout">
+
+    <!-- כרטיס: זמינות שבועית -->
+    <section class="card availability-card">
+      <div class="card-header">
+        <h2>זמינות שבועית</h2>
+        <p class="card-subtitle">
+          לכל יום אפשר להגדיר כמה טווחי שעות. רק ימים פעילים יוצגו לשיבוץ.
+        </p>
+      </div>
+
+      <div class="days-list">
+
+        <div class="day-block" *ngFor="let day of days">
+
+          <!-- כותרת יום + toggle -->
+          <div class="day-header">
+            <div class="day-main">
+              <span class="day-name">{{ day.label }}</span>
+
+              <mat-slide-toggle
+                class="day-toggle"
+                [(ngModel)]="day.active"
+                (change)="toggleDay(day)">
+              </mat-slide-toggle>
+            </div>
+
+            <span class="badge" *ngIf="day.active">
+              {{ day.slots.length }} טווח{{ day.slots.length > 1 ? 'ים' : '' }}
+            </span>
+          </div>
+
+          <!-- טווחי שעות ליום -->
+          <div class="slots-wrapper" *ngIf="day.active">
+
+            <div class="slot-row" *ngFor="let slot of day.slots; let i = index">
+
+              <button
+                class="icon-button delete-btn"
+                (click)="removeSlot(day, i)">
+                <mat-icon>delete</mat-icon>
+              </button>
+
+              <div class="slot-box">
+
+                <div class="slot-field">
+                  <label>שעת התחלה</label>
+                  <div class="time-input">
+                    <mat-icon class="clock-icon">schedule</mat-icon>
+                    <input
+                      type="time"
+                      [(ngModel)]="slot.start"
+                      (change)="markDirty()" />
+                  </div>
+                </div>
+
+                <span class="dash">־</span>
+
+                <div class="slot-field">
+                  <label>שעת סיום</label>
+                  <div class="time-input">
+                    <mat-icon class="clock-icon">schedule</mat-icon>
+                    <input
+                      type="time"
+                      [(ngModel)]="slot.end"
+                      (change)="markDirty()" />
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <button class="link-button add-slot-btn" (click)="addSlot(day)">
+              <mat-icon>add</mat-icon>
+              הוסף טווח זמן
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="card-footer">
+        <button
+          class="primary-btn"
+          type="button"
+          (click)="saveAvailability()"
+          [disabled]="!isDirty">
+          💾 שמור זמינות
+        </button>
+      </div>
+    </section>
+
+    <!-- כרטיס: העדפות התראות -->
+    <section class="card notifications-card">
+      <div class="card-header">
+        <h2>העדפות התראות</h2>
+        <p class="card-subtitle">
+          בחרי אילו סוגי התראות תקבלי מהמערכת.
+        </p>
+      </div>
+
+      <div class="notif-list">
+
+        <div class="notif-row">
+          <div class="notif-texts">
+            <div class="notif-title">ביטול שיעור</div>
+            <div class="notif-desc">התראה כאשר שיעור מבוטל או נדחה.</div>
+          </div>
+
+          <label class="custom-toggle">
+            <input type="checkbox" [(ngModel)]="notif.cancelLesson" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="notif-row">
+          <div class="notif-texts">
+            <div class="notif-title">תזכורת לפני שיעור</div>
+            <div class="notif-desc">תזכורת לפני תחילת שיעור מתוכנן.</div>
+          </div>
+
+          <label class="custom-toggle">
+            <input type="checkbox" [(ngModel)]="notif.reminder" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="notif-row">
+          <div class="notif-texts">
+            <div class="notif-title">דוח חודשי במייל</div>
+            <div class="notif-desc">סיכום שעות ושיעורים בסוף כל חודש.</div>
+          </div>
+
+          <label class="custom-toggle">
+            <input type="checkbox" [(ngModel)]="notif.monthlyReport" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+      </div>
+
+      <div class="card-footer">
+        <button
+          class="primary-btn"
+          type="button"
+          (click)="saveNotifications()">
+          💾 שמור העדפות התראות
+        </button>
+      </div>
+    </section>
+
+  </div>
+</div>

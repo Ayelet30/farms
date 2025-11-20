@@ -2,7 +2,6 @@ import { Component, OnInit, HostListener, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-
 import { MatDialog } from '@angular/material/dialog';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
 import { CurrentUserService } from '../../core/auth/current-user.service';
@@ -21,7 +20,6 @@ export class SliderComponent implements OnInit {
 
   isDesktop = false;
   menuCollapsed = false;
-
   role = '';
   menuItems: Array<{ path: string; label: string; icon: string }> = [];
   error: string | undefined;
@@ -29,7 +27,7 @@ export class SliderComponent implements OnInit {
   async ngOnInit() {
     await this.cu.waitUntilReady();
 
-    // האזיני לשינויים בתפקיד והחליפי תפריט בהתאם
+    // האזנה לשינויים בתפקיד
     this.cu.user$.subscribe(u => {
       const roleKey = (u?.role || '').toLowerCase();
       if (roleKey !== this.role) {
@@ -38,20 +36,20 @@ export class SliderComponent implements OnInit {
       }
     });
 
-    // פעם ראשונה – קחי מהמצב הנוכחי
+    // אתחול ראשוני
     const cur = this.cu.current;
     this.role = (cur?.role || '').toLowerCase();
     this.setMenuItemsByRole();
 
-    // מצב רספונסיבי התחלתי
     this.syncBreakpoint();
   }
 
-
   @HostListener('window:resize')
-  onResize() { this.syncBreakpoint(); }
+  onResize() {
+    this.syncBreakpoint();
+  }
 
-  /** בונה פריטי תפריט לפי תפקיד */
+  /** בונה את התפריט לפי תפקיד המשתמש */
   private setMenuItemsByRole() {
     switch (this.role) {
       case 'parent':
@@ -68,19 +66,16 @@ export class SliderComponent implements OnInit {
 
       case 'instructor':
         this.menuItems = [
-          
           { path: 'instructor/schedule', label: 'לו״ז ומעקב', icon: 'calendar' },
-          { path: 'instructor/activities', label: 'ניהול פעילויות', icon: 'user' },
-          { path: 'instructor/notes', label: 'רשומות והערות', icon: 'note' },
-    { path: 'instructor/monthly-summary', label: 'סיכום חודשי', icon: 'bar_chart' },
-
+          { path: '/instructor/availability', label: 'העדפות זמינות', icon: 'clock' },
+          { path: 'instructor/monthly-summary', label: 'סיכום חודשי', icon: 'bar_chart' },
+          { path: 'instructor/settings', label: 'הגדרות', icon: 'settings' } // ✅ חדש
         ];
         break;
 
       case 'secretary':
         this.menuItems = [
           { path: 'secretary/parents', label: 'הורים בחווה', icon: 'user' },
-          { path: 'secretary/regulations', label: 'ניהול תקנונים', icon: 'note' },
           { path: 'secretary/children', label: 'ילדים בחווה', icon: 'children' },
           { path: 'secretary/schedule', label: 'לו״ז ומעקב', icon: 'calendar' },
           { path: 'secretary/appointment', label: 'זימון תורים', icon: 'settings' },
@@ -92,7 +87,7 @@ export class SliderComponent implements OnInit {
         this.menuItems = [
           { path: 'admin/users', label: 'ניהול משתמשים', icon: 'user' },
           { path: 'admin/logs', label: 'צפייה ביומנים', icon: 'calendar' },
-          { path: 'admin/settings', label: 'הגדרות מערכת', icon: 'note' },
+          { path: 'admin/settings', label: 'הגדרות מערכת', icon: 'settings' },
         ];
         break;
 
@@ -102,20 +97,23 @@ export class SliderComponent implements OnInit {
     }
   }
 
+  /** מעבר לנתיב שנבחר בתפריט */
   navigateTo(path: string) {
     this.router.navigate([path]);
     if (!this.isDesktop) this.menuCollapsed = true; // סגירה במובייל
   }
 
+  /** בדיקה אם הנתיב פעיל */
   isActive(path: string): boolean {
     return this.router.url.includes(path);
   }
 
+  /** פתיחה/סגירה של התפריט */
   toggleMenu(force?: boolean) {
     this.menuCollapsed = typeof force === 'boolean' ? force : !this.menuCollapsed;
   }
 
-  /** קובע מצב רספונסיבי: בדסקטופ פתוח, במובייל סגור וצף */
+  /** התאמה למסכים רספונסיביים */
   private syncBreakpoint() {
     this.isDesktop = window.matchMedia('(min-width: 1024px)').matches;
     this.menuCollapsed = !this.isDesktop;

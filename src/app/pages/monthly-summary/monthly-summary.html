@@ -1,4 +1,5 @@
 <div class="monthly" dir="rtl">
+
   <!-- כותרת עליונה -->
   <header class="topbar">
     <h1 class="page-title">הסיכום החודשי שלי</h1>
@@ -62,6 +63,7 @@
 
   <!-- טבלת פירוט שיעורים -->
   <section class="list-section" *ngIf="!loading">
+
     <div class="list-header">
       <mat-icon class="icon-title">calendar_month</mat-icon>
       <h2>פירוט שיעורים</h2>
@@ -98,11 +100,14 @@
 
     <!-- טבלה -->
     <table mat-table [dataSource]="filteredLessons()" class="mat-elevation-z1">
+
+      <!-- Date -->
       <ng-container matColumnDef="date">
         <th mat-header-cell *matHeaderCellDef>תאריך</th>
-        <td mat-cell *matCellDef="let l">{{ l.anchor_week_start }}</td>
+        <td mat-cell *matCellDef="let l">{{ l.occur_date || '—' }}</td>
       </ng-container>
 
+      <!-- Student -->
       <ng-container matColumnDef="student">
       <th mat-header-cell *matHeaderCellDef>תלמיד/ה</th>
       <td mat-cell *matCellDef="let l">
@@ -116,6 +121,7 @@
         <td mat-cell *matCellDef="let l">{{ l.lesson_type || '—' }}</td>
       </ng-container>
 
+      <!-- Status -->
       <ng-container matColumnDef="status">
         <th mat-header-cell *matHeaderCellDef>סטטוס</th>
         <td mat-cell *matCellDef="let l">
@@ -123,11 +129,13 @@
         </td>
       </ng-container>
 
+      <!-- Start time -->
       <ng-container matColumnDef="start">
         <th mat-header-cell *matHeaderCellDef>התחלה</th>
         <td mat-cell *matCellDef="let l">{{ l.start_time || '—' }}</td>
       </ng-container>
 
+      <!-- End time -->
       <ng-container matColumnDef="end">
         <th mat-header-cell *matHeaderCellDef>סיום</th>
         <td mat-cell *matCellDef="let l">{{ l.end_time || '—' }}</td>
@@ -143,13 +151,13 @@
 
     <!-- כפתורי ייצוא -->
     <div class="bottom-actions">
-      <button mat-stroked-button class="pdf-btn" (click)="exportPdf()">
-        <mat-icon>picture_as_pdf</mat-icon> ייצוא ל־PDF
-      </button>
+   
+
       <button mat-stroked-button class="excel-btn" (click)="exportExcel()">
         <mat-icon>table_chart</mat-icon> ייצוא ל־Excel
       </button>
     </div>
+
   </section>
 
   <!-- תובנות חודשיות -->
@@ -182,4 +190,5 @@
       </li>
     </ul>
   </section>
+
 </div>
