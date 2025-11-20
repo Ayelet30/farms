@@ -56,12 +56,64 @@ select{ padding:8px 10px; border:1px solid #d8e9d8; border-radius:10px; backgrou
 .row-meta{ display:flex; gap:10px; margin-top:8px; color:#364; }
 .row-meta .bold{ font-weight:800; }
 
-/* Year bars */
-.bars{ display:grid; gap:6px; margin-top:8px; }
-.bar-row{ display:grid; grid-template-columns: 80px 1fr 36px; gap:8px; align-items:center; }
-.bar-label{ color:#566; }
-.bar-track{ background:#eef5ee; border-radius:8px; height:12px; overflow:hidden; }
-.bar-fill{ height:100%; background:#2dbd6e; }
+/* Year bars – גרף עמודות אנכי */
+.bars {
+  margin-top: 16px;
+}
+
+/* קונטיינר אופקי */
+.bars-columns {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+/* כל חודש – עמודה אחת */
+.bars-col {
+  flex: 1;
+  min-width: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* המספר מעל העמודה */
+.bars-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2f6b3f;
+}
+
+/* המסגרת של העמודה */
+.bars-bar {
+  width: 70%;
+  max-width: 32px;
+  height: 120px; /* גובה מקסימלי לגרף */
+  border-radius: 999px;
+  background: #eef5ee;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+
+/* המילוי – צבע ירוק תואם אתר */
+.bars-bar-fill {
+  width: 100%;
+  background: linear-gradient(180deg, #2dbd6e, #67b07a);
+  border-radius: 999px;
+  transition: height 0.25s ease-out;
+}
+
+/* תווית חודש בתחתית */
+.bars-label {
+  font-size: 11px;
+  color: #566;
+  text-align: center;
+  white-space: nowrap;
+}
+
 
 /* Table (all details) */
 .table-wrap{ overflow:auto; }

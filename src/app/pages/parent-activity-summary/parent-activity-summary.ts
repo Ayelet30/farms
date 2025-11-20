@@ -245,12 +245,19 @@ if (!first && !last) {
   yearCancelFree = computed(() => 0);
   yearTotal      = computed(() => 0);
 
-  yearBars = computed(() => {
+   yearBars = computed(() => {
     const labels = this.months.map(m => m.label);
     const counts = Array(12).fill(0);
     this.yearRows().forEach(r => counts[new Date(r.date).getMonth()]++);
     return counts.map((c, i) => ({ label: labels[i], count: c }));
   });
+
+  // חדש – המקסימום לצורך גובה העמודה
+  maxYearCount = computed(() => {
+    const counts = this.yearBars().map(b => b.count);
+    return counts.length ? Math.max(...counts) : 0;
+  });
+
 
   // --- Export CSV ---
   exportCsv() {
