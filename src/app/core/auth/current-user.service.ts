@@ -51,6 +51,7 @@ export class CurrentUserService {
             const role = (row?.role ?? null) as string | null;
             this._user$.next({
               uid: fbUser.uid,
+              phone: row?.phone ?? undefined,
               email: fbUser.email ?? undefined,
               displayName: fbUser.displayName ?? undefined,
               role,
@@ -135,7 +136,7 @@ export class CurrentUserService {
 
     // טען פרטי משתמש מהטננט (ללא cache כדי לקבל ערכים עדכניים)
     const details = picked
-      ? await this.loadUserDetails('uid,first_name,last_name, id_number, address, phone, email', 0)
+      ? await this.loadUserDetails('uid,first_name,last_name, id_number, address, phone, email, id_number, first_name, last_name', 0)
       : null;
 
     const farm = getCurrentFarmMetaSync();
@@ -149,6 +150,10 @@ export class CurrentUserService {
     fbUser.displayName ||
     undefined,
   farmName: farm?.name,
+  id_number: details?.id_number ?? undefined,
+  first_name: details?.first_name ?? undefined,
+  last_name: details?.last_name ?? undefined,
+  phone: details?.phone ?? undefined,
   role: (picked?.role_in_tenant ?? null) as any,
   memberships,
   selectedTenantId: picked?.tenant_id ?? null,

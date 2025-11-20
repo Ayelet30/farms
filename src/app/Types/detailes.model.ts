@@ -13,6 +13,10 @@ export type ParentDetails = {
 
 export interface CurrentUser {
   uid: string;
+  id_number?: string;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
   farmName?: string;
   email?: string;
   displayName?: string;
@@ -54,7 +58,6 @@ export interface ChildRow {
 export interface InstructorRow {
   instructor_uid: string;
   full_name: string;
-
   gender?: string | null;
   certificate?: string | null;
   about?: string | null;

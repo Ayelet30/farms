@@ -313,8 +313,7 @@ export async function getCurrentUserDetails(
   const { targetTable, role, role_in_tenant, roleId, farmId, farmName } =
   await resolveRoleAndFarm(dbcTenant, dbcPublic, fbUser.uid, { tenantId: tenant.id });
   
-  console.log("!!!!!!", cacheKey);
-
+  
   if (!targetTable) return null;
   
   // במקום maybeSingle: מביאים את כל הרשומות עבור ה-uid ובוחרים אחת דטרמיניסטית
@@ -324,6 +323,7 @@ export async function getCurrentUserDetails(
   .eq('uid', fbUser.uid);
   
   if (error) throw error;
+  console.log("!!!!!!", rows, error);
 
 
   const list = (rows ?? []) as any[];
@@ -331,7 +331,9 @@ export async function getCurrentUserDetails(
 
   // פונקציית בחירה דטרמיניסטית כשיש כפילויות:
   const pickBest = (arr: any[]) => {
-    if (arr.length === 1) return arr[0];
+    if (arr.length === 1) {
+      return arr[0];
+    }
 
     // 1) is_active === true אם קיים
     let filtered = arr;
@@ -343,7 +345,7 @@ export async function getCurrentUserDetails(
     // 2) לפי updated_at אם קיים
     if (filtered.some(r => 'updated_at' in r && r.updated_at)) {
       filtered = [...filtered].sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
-      return filtered[0];
+       return filtered[0];
     }
 
     // 3) לפי created_at אם קיים
@@ -359,7 +361,7 @@ export async function getCurrentUserDetails(
         const bx = typeof b.id === 'number' ? b.id : parseInt(b.id, 10) || 0;
         return bx - ax;
       });
-      return filtered[0];
+       return filtered[0];
     }
 
     // 5)fallback: פשוט הראשונה בסדר קבוע
@@ -373,7 +375,7 @@ export async function getCurrentUserDetails(
     uid: rec.uid ?? fbUser.uid,
    first_name: rec.first_name ?? null,
     last_name:  rec.last_name  ?? null,
- 
+    id_number: rec.id_number ?? null,
     address,
     phone: rec.phone ?? null,
     email: rec.email ?? null,
