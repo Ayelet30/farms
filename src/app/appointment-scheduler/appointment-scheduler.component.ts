@@ -145,6 +145,13 @@ onNoInstructorPreferenceChange(): void {
   // 2. תמיד טוענים ילדים פעילים מהשרת (RLS יטפל בהורה/מזכירה)
   await this.loadChildrenFromCurrentUser();
 }
+onInstructorChange() {
+  if (this.selectedInstructorId === 'any') {
+    this.showInstructorDetails = false; // לא מציגים כרטיס מדריך
+  } else {
+    this.showInstructorDetails = true;  // כן מציגים כרטיס מדריך
+  }
+}
 
 private async loadChildrenFromCurrentUser(): Promise<void> {
   if (!this.user) return;
@@ -275,19 +282,22 @@ private async loadInstructors(): Promise<void> {
     ? this.seriesStartTime + ':00'
     : this.seriesStartTime; // לוודא HH:MM:SS
 
-  const instructorParam = this.noInstructorPreference
+ const instructorParam =
+  this.selectedInstructorId === 'any'
     ? null
     : this.selectedInstructorId;
+
 
     this.loadingSeries = true;
    try {
     const { data, error } = await dbTenant().rpc('find_recurring_slots', {
-      p_child_id: this.selectedChildId,
-      p_approval_id: this.selectedApprovalId,
-      p_day_of_week: this.seriesDayOfWeek,
-      p_start_time: startTime,
-      p_instructor_id: instructorParam
-    });
+  p_child_id: this.selectedChildId,
+  p_approval_id: this.selectedApprovalId,
+  p_day_of_week: this.seriesDayOfWeek,
+  p_start_time: startTime,
+  p_instructor_id: instructorParam
+});
+
 
       if (error) {
         console.error(error);
@@ -324,9 +334,10 @@ private async loadInstructors(): Promise<void> {
       .from('lessons')
       .insert({
         child_id: this.selectedChildId,
-instructor_id: this.noInstructorPreference
-  ? slot.instructor_id
-  : this.selectedInstructorId!,   
+instructor_id:
+  this.selectedInstructorId === 'any'
+    ? slot.instructor_id
+    : this.selectedInstructorId,
         lesson_type: 'רגיל',
         status: 'אושר',
         day_of_week: dayLabel,
@@ -380,7 +391,8 @@ instructor_id: this.noInstructorPreference
     return;
   }
 
-  const instructorParam = this.noInstructorPreference
+ const instructorParam =
+  this.selectedInstructorId === 'any'
     ? null
     : this.selectedInstructorId;
 
@@ -390,8 +402,9 @@ instructor_id: this.noInstructorPreference
   p_child_id: this.selectedChildId,
   p_from_date: this.makeupFromDate,
   p_to_date: this.makeupToDate,
-  p_instructor_id: this.selectedInstructorId   
+  p_instructor_id: instructorParam
 });
+
 
 
       if (error) {
@@ -417,7 +430,10 @@ instructor_id: this.noInstructorPreference
       .from('lessons')
       .insert({
         child_id: this.selectedChildId,
-        instructor_id: slot.instructor_id,
+instructor_id:
+  this.selectedInstructorId === 'any'
+    ? slot.instructor_id
+    : this.selectedInstructorId,
         lesson_type: 'השלמה',
         status: 'אושר',
         day_of_week: dayLabel,
