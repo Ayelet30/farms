@@ -290,6 +290,7 @@
   }
 }
 .instructor-card {
+  position: relative;
   margin-top: 10px;
   border-radius: 12px;
   border: 1px solid #cdd6bf;
@@ -297,12 +298,19 @@
   padding: 10px 12px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, .04);
 }
-
 .instructor-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 6px;
+}
+.instructor-card-body {
+  display: grid;
+  grid-template-columns: minmax(206px, 218px) 150px; /* ימין טקסט, שמאל תעודה */
+  justify-content: flex-start;   /* דוחף את הגריד לצד ימין של הכרטיס */
+  // column-gap: 48px;            /* המרחק בין הטקסט לתעודה */
+  align-items: flex-start;
+  // padding-inline: 24px 24px;   /* מרחק מהשוליים, גם ימין וגם שמאל */
 }
 
 .instructor-name {
@@ -404,4 +412,45 @@
   width: 14px;
   height: 14px;
   cursor: pointer;
+}
+
+
+.instructor-certificate .label {
+  font-weight: 600;
+  font-size: 13px;
+  color: #586141;
+  margin-top: 4px;
+}
+
+
+.certificate-thumb {
+  width: 70px;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #cdd6bf;
+  transition: transform .18s ease, box-shadow .18s ease;
+  transform-origin: top left;
+  position: relative;
+  z-index: 1;
+}
+
+.certificate-thumb:hover {
+  transform: scale(3);              /* הגדלה יותר משמעותית */
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .25);
+  z-index: 30;                      /* עולה מעל כל השכבות */
+}
+
+
+.certificate-link:hover {
+  color: #3f472e;
+}
+
+.instructor-cert-col .label {
+  font-weight: 600;
+  font-size: 13px;
+  color: #586141;
+  margin-bottom: 4px;
+  display: block;
+  text-align: right;
 }
