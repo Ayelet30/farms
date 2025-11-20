@@ -66,7 +66,7 @@
       </div>
 
       <div class="stat violet">
-        <div class="stat-title">בסבזוד כולל</div>
+        <div class="stat-title">סבסוד כולל</div>
         <div class="stat-value">₪{{ monthSubsidies() | number:'1.0-0':'he-IL' }}</div>
       </div>
 
@@ -97,7 +97,7 @@
         </div>
         <div class="row-meta">
           <span class="meta">מחיר בסיסי: ₪0</span>
-          <span class="meta">סבזוד: ₪0</span>
+          <span class="meta">סבסוד: ₪0</span>
           <span class="meta">הנחה: ₪0</span>
           <span class="meta bold">לתשלום: ₪0</span>
         </div>
@@ -119,14 +119,29 @@
       <div class="stat green"><div class="stat-title">סכום לתשלום</div><div class="stat-value">₪{{ yearTotal() | number:'1.0-0':'he-IL' }}</div></div>
     </div>
 
-    <!-- Bar chart -->
-    <div class="bars">
-      <div class="bar-row" *ngFor="let b of yearBars()">
-        <div class="bar-label">{{ b.label }}</div>
-        <div class="bar-track"><div class="bar-fill" [style.width.%]="b.count * 6"></div></div>
-        <div class="bar-val">{{ b.count }}</div>
+       <!-- Bar chart – גרף עמודות אנכי -->
+    <div class="bars bars-columns">
+      <div class="bars-col" *ngFor="let b of yearBars()">
+        <!-- מספר מעל העמודה (מופיע רק אם יש לפחות שיעור אחד) -->
+        <div class="bars-value" *ngIf="b.count > 0">
+          {{ b.count }}
+        </div>
+
+        <!-- העמודה עצמה -->
+        <div class="bars-bar">
+          <div
+            class="bars-bar-fill"
+            [style.height.%]="maxYearCount() ? (b.count / maxYearCount() * 100) : 0">
+          </div>
+        </div>
+
+        <!-- תווית חודש -->
+        <div class="bars-label">
+          {{ b.label }}
+        </div>
       </div>
     </div>
+
   </section>
 
   <!-- ALL DETAILS TABLE -->
@@ -151,7 +166,7 @@
             <th>מדריך</th>
             <th>סוג שיעור</th>
             <th>מחיר בסיסי</th>
-            <th>סבזוד</th>
+            <th>סבסוד</th>
             <th>הנחה</th>
             <th>סכום לתשלום</th>
             <th>סטטוס</th>

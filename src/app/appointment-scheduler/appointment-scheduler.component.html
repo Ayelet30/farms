@@ -25,29 +25,25 @@
     <span class="appt-field-label">מדריך</span>
 
     <div class="instructor-select-row">
-      <select
-        class="appt-select"
-        [(ngModel)]="selectedInstructorId"
-        (change)="showInstructorDetails = true"
-        [disabled]="noInstructorPreference"
-      >
-        <option [ngValue]="null">בחר/י מדריך</option>
-        <option
-          *ngFor="let ins of instructors"
-          [ngValue]="ins.instructor_uid">
-          {{ ins.full_name }}
-        </option>
-      </select>
+    <select
+  class="appt-select"
+  [(ngModel)]="selectedInstructorId"
+  (change)="onInstructorChange()"
+>
+  <option [ngValue]="null" disabled hidden>בחר/י מדריך</option>
 
-      <!-- צ'קבוקס אין העדפה למדריך -->
-      <label class="no-pref">
-        <input
-          type="checkbox"
-          [(ngModel)]="noInstructorPreference"
-          (change)="onNoInstructorPreferenceChange()"
-        />
-        אין העדפה
-      </label>
+  <!-- האופציה החדשה -->
+  <option [ngValue]="'any'">כל המדריכים</option>
+
+  <option
+    *ngFor="let ins of instructors"
+    [ngValue]="ins.instructor_uid"
+  >
+    {{ ins.full_name }}
+  </option>
+</select>
+
+      
     </div>
   </div>
 </div>
@@ -66,34 +62,46 @@ class="instructor-card">
     ✕
   </button>
 
-  <div class="instructor-card-header">
-    <div class="instructor-name">
-      {{ selectedInstructor.full_name }}
+ <div class="instructor-card-header">
+  <div class="instructor-name">
+    {{ selectedInstructor.full_name }}
+  </div>
+</div>
+
+<div class="instructor-card-body">
+  <!-- עמודת מידע טקסטואלי -->
+  <div class="instructor-info-col">
+    <div class="instructor-line" *ngIf="selectedInstructor.gender">
+      <span class="label">מין:</span>
+      <span class="value">{{ selectedInstructor.gender }}</span>
+    </div>
+
+    <div class="instructor-about" *ngIf="selectedInstructor.about">
+      <span class="label">אודות:</span>
+      <p class="about-text">
+        {{ selectedInstructor.about }}
+      </p>
     </div>
   </div>
 
-  <div class="instructor-line" *ngIf="selectedInstructor.gender">
-    <span class="label">מין:</span>
-    <span class="value">{{ selectedInstructor.gender }}</span>
-  </div>
+  <!-- עמודת תעודה -->
+   
+  <div class="instructor-cert-col"*ngIf="selectedInstructor.certificate">
+  <div class="label">תעודה:</div>
 
-  <div class="instructor-line" *ngIf="selectedInstructor.certificate">
-    <span class="label">השכלה:</span>
-    <span class="value">{{ selectedInstructor.certificate }}</span>
+    <a
+      [href]="selectedInstructor.certificate"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <img
+        [src]="selectedInstructor.certificate"
+        alt="תעודת מדריך"
+        class="certificate-thumb"
+      />
+    </a>
   </div>
-
-  <div class="instructor-line" *ngIf="selectedInstructor.phone">
-    <span class="label">טלפון:</span>
-    <span class="value">{{ selectedInstructor.phone }}</span>
-  </div>
-
-  <div class="instructor-about" *ngIf="selectedInstructor.about">
-    <span class="label">אודות:</span>
-    <p class="about-text">
-      {{ selectedInstructor.about }}
-    </p>
-  </div>
-  </div>
+</div>
 
   </div>
 
