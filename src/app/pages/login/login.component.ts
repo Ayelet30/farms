@@ -75,6 +75,8 @@ export class LoginComponent {
         this.errorMessage = 'שם משתמש או סיסמא שגויים';
       } else if (code === 'auth/invalid-email') {
         this.errorMessage = 'כתובת דוא"ל לא תקינה.';
+      } else if (code === 'auth/missing-password') {
+        this.errorMessage = 'יש להכניס סיסמא.';
       } else if (code === 'auth/too-many-requests') {
         this.errorMessage = 'נחסמו ניסיונות לזמן קצר. נסה שוב מאוחר יותר.';
       } else {
