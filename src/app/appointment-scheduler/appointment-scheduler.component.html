@@ -75,6 +75,7 @@ class="instructor-card">
       <span class="label">מין:</span>
       <span class="value">{{ selectedInstructor.gender }}</span>
     </div>
+    </div>
 
     <div class="instructor-about" *ngIf="selectedInstructor.about">
       <span class="label">אודות:</span>
@@ -82,7 +83,6 @@ class="instructor-card">
         {{ selectedInstructor.about }}
       </p>
     </div>
-  </div>
 
   <!-- עמודת תעודה -->
    
@@ -217,9 +217,45 @@ class="instructor-card">
 
   <!-- ======== טאב: שיעור השלמה ======== -->
   <div *ngIf="selectedTab === 'makeup'" class="appt-card">
+  
     <h3>שיעור השלמה</h3>
+    <!-- רשימת שיעורים שניתן להשלים לפי הגדרות חווה -->
+    <div class="slots-list">
+      <h4>שיעורים שניתן להשלים</h4>
 
-    <div class="appt-form-row">
+      <ng-container *ngIf="loadingMakeupCandidates">
+        <p>טוען שיעורים שניתן להשלים...</p>
+      </ng-container>
+
+      <ng-container *ngIf="!loadingMakeupCandidates && makeupCandidates.length > 0">
+        <table>
+          <thead>
+            <tr>
+              <th>תאריך</th>
+              <th>יום</th>
+              <th>שעה</th>
+              <th>מדריך</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let c of makeupCandidates">
+              <td>{{ c.occur_date }}</td>
+              <td>{{ c.day_of_week }}</td>
+              <td>
+                {{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}
+              </td>
+              <td>{{ c.instructor_id }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </ng-container>
+
+      <p *ngIf="!loadingMakeupCandidates && makeupCandidates.length === 0">
+        אין כרגע שיעורים שניתן להשלים בהתאם להגדרות החווה.
+      </p>
+    </div>
+
+    <!-- <div class="appt-form-row">
       <div class="appt-field-group">
         <span class="appt-field-label">מתאריך</span>
         <input
@@ -237,7 +273,7 @@ class="instructor-card">
           [(ngModel)]="makeupToDate"
         />
       </div>
-    </div>
+    </div> -->
 
     <div class="appt-actions">
       <button
