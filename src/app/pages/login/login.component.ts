@@ -1,13 +1,13 @@
-// src/app/auth/login.component.ts
 import { Component, inject, Optional } from '@angular/core';
 import { Router } from '@angular/router';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail, fetchSignInMethodsForEmail } from 'firebase/auth';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Auth } from '@angular/fire/auth';
 import { CurrentUserService } from '../../core/auth/current-user.service';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { TokensService } from '../../services/tokens.service';
+
 
 @Component({
   selector: 'app-login',
@@ -70,7 +70,6 @@ export class LoginComponent {
       await this.router.navigateByUrl(target);
 
     } catch (e: any) {
-      console.error("???????????", e);
       const code = e?.code || '';
       if (code === 'auth/invalid-credential') {
         this.errorMessage = 'שם משתמש או סיסמא שגויים';
@@ -87,33 +86,48 @@ export class LoginComponent {
     }
   }
 
-  async forgotPassword(): Promise<void> {
-    this.errorMessage = '';
-    this.successMessage = '';
+ async forgotPassword(): Promise<void> {
+  this.errorMessage = '';
+  this.successMessage = '';
 
-    if (!this.email) {
-      this.errorMessage = 'הכנס את כתובת הדוא"ל ואז לחצי "שכחתי סיסמה".';
+  if (!this.email) {
+    this.errorMessage = 'הכנס את כתובת הדוא"ל ואז לחצי "שכחתי סיסמה".';
+    return;
+  }
+
+  this.isLoading = true;
+
+  try {
+    // שלב 1: בדיקה אם יש בכלל משתמש עם המייל הזה
+    const methods = await fetchSignInMethodsForEmail(this.auth, this.email);
+
+    if (!methods || methods.length === 0) {
+      // אין משתמש כזה → לא שולחים מייל איפוס
+      this.errorMessage = 'לא נמצא משתמש עם כתובת הדוא"ל הזו.';
       return;
     }
 
-    this.isLoading = true;
-    try {
-      await sendPasswordResetEmail(this.auth, this.email);
-      this.successMessage = 'שלחנו קישור לאיפוס סיסמה לכתובת הדוא"ל שלך. בדקי את תיבת הדואר/ספאם.';
-    } catch (e: any) {
-      const code = e?.code || '';
-      if (code === 'auth/invalid-credential') {
-        this.errorMessage = 'לא נמצאה משתמש עם הדוא"ל הזה.';
-      } else if (code === 'auth/invalid-email') {
-        this.errorMessage = 'כתובת דוא"ל לא תקינה.';
-      } else if (code === 'auth/too-many-requests') {
-        this.errorMessage = 'נחסמו ניסיונות לזמן קצר. נסי שוב מאוחר יותר.';
-      } else {
-        this.errorMessage = 'אירעה שגיאה בשליחת מייל האיפוס.';
-        console.error(e);
-      }
-    } finally {
-      this.isLoading = false;
+    // שלב 2: שליחת מייל איפוס רק אם יש משתמש
+    await sendPasswordResetEmail(this.auth, this.email);
+    this.successMessage =
+      'שלחנו קישור לאיפוס סיסמה לכתובת הדוא"ל שלך. בדוק את תיבת הדואר/ספאם.';
+  } catch (e: any) {
+    const code = e?.code || '';
+
+    if (code === 'auth/user-not-found') {
+      // במקרה שמשום מה מגיע מהפיירבייס עצמו
+      this.errorMessage = 'לא נמצא משתמש עם כתובת הדוא"ל הזו.';
+    } else if (code === 'auth/invalid-email') {
+      this.errorMessage = 'כתובת דוא"ל לא תקינה.';
+    } else if (code === 'auth/too-many-requests') {
+      this.errorMessage = 'נחסמו ניסיונות לזמן קצר. נסי שוב מאוחר יותר.';
+    } else {
+      this.errorMessage = 'אירעה שגיאה בשליחת מייל האיפוס.';
+      console.error(e);
     }
+  } finally {
+    this.isLoading = false;
   }
+}
+
 }

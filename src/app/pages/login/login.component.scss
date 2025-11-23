@@ -118,6 +118,7 @@ button:hover {
     position: absolute;
     left: 8px; // בצד שמאל כי RTL
     top: 15%;
+    width: min-content;
     transform: translateY(-50%);
     background: transparent;
     border: none;
