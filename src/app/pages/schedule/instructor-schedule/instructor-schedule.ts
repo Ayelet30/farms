@@ -16,7 +16,7 @@ import {
   dbTenant,
   ensureTenantContextReady,
 } from '../../../services/legacy-compat';
-import type { EventClickArg, DatesSetArg } from '@fullcalendar/core';
+import type { EventClickArg } from '@fullcalendar/core';
 
 import { NoteComponent } from '../../Notes/note.component';
 import { Lesson } from '../../../models/lesson-schedule.model';
@@ -42,7 +42,11 @@ interface Child {
   first_name?: string;
   last_name?: string;
   birth_date?: string;
-  status?: 'Active' | 'Pending Addition Approval' | 'Pending Deletion Approval' | 'Deleted';
+  status?:
+    | 'Active'
+    | 'Pending Addition Approval'
+    | 'Pending Deletion Approval'
+    | 'Deleted';
   parent_uid?: string;
   medical_notes?: string | null;
   age?: number;
@@ -54,9 +58,9 @@ interface Child {
   standalone: true,
   imports: [CommonModule, FormsModule, ScheduleComponent, NoteComponent],
   templateUrl: './instructor-schedule.html',
-  styleUrls: ['./instructor-schedule.scss']
+  styleUrls: ['./instructor-schedule.scss'],
 })
-export class InstructorScheduleComponent implements OnInit, AfterViewInit {
+export class InstructorScheduleComponent implements OnInit {
   @ViewChild(ScheduleComponent) scheduleComp!: ScheduleComponent;
 
   private lastRange: { start: string; end: string } | null = null;
@@ -70,21 +74,16 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
   selectedChild: Child | null = null;
 
   instructorId = '';
-  currentView = 'timeGridWeek';
+  currentView: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay' = 'timeGridWeek';
   loading = false;
   error: string | null = null;
-  currentDate = '';
-  isFullscreen = false;
 
   async ngOnInit(): Promise<void> {
     try {
       this.loading = true;
 
-      // ✅ קודם כל – לוודא שיש הקשר טננט
       await ensureTenantContextReady();
 
-      // כעת מותר להשתמש ב־CurrentUserService וב־dbTenant
-      console.log('✅ טננט מוכן לשימוש');
       const user = await this.cu.loadUserDetails();
       if (!user?.id_number) {
         this.error = 'לא נמצאו פרטי מדריך. התחבר שוב.';
@@ -98,7 +97,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
       await this.loadLessonsForRange(startYmd, endYmd);
 
       const childIds = Array.from(
-        new Set(this.lessons.map((l) => l.child_id))
+        new Set(this.lessons.map((l) => l.child_id)),
       ).filter(Boolean) as string[];
 
       if (childIds.length) {
@@ -107,7 +106,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
 
       this.setScheduleItems();
     } catch (err: any) {
-      console.error('❌ init error', err);
+      console.error('init error', err);
       this.error = err?.message || 'שגיאה בטעינה';
     } finally {
       this.loading = false;
@@ -115,25 +114,12 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
     }
   }
 
-  ngAfterViewInit(): void {
-    const calendarApi = this.scheduleComp?.calendarApi;
-    if (calendarApi) {
-      calendarApi.on('datesSet', (info: DatesSetArg) => {
-        this.currentView = info.view.type;
-        this.currentDate = info.view.title;
-        this.setScheduleItems();
-      });
-    }
-  }
-
   /** ========= DB loaders ========= **/
 
   private async loadLessonsForRange(
     startYmd: string,
-    endYmd: string
+    endYmd: string,
   ): Promise<void> {
-    console.log('🔄 loadLessonsForRange', this.instructorId, startYmd, endYmd);
-
     if (!this.instructorId) {
       this.lessons = [];
       return;
@@ -155,14 +141,11 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
         occur_date,
         start_time,
         end_time
-      `
+      `,
       )
       .eq('instructor_id', this.instructorId)
       .gte('occur_date', startYmd)
       .lte('occur_date', endYmd);
-      // .order('start_datetime', { ascending: true });
-
-    console.log('📚 loaded lessons occurrences:', data, error);
 
     if (error) throw error;
     this.lessons = (data ?? []) as Lesson[];
@@ -182,7 +165,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
         status,
         parent_uid,
         medical_notes
-      `
+      `,
       )
       .in('child_uuid', childIds);
 
@@ -190,7 +173,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
     const childList: Child[] = (kids ?? []) as Child[];
 
     const parentUids = Array.from(
-      new Set(childList.map((c) => c.parent_uid!).filter(Boolean))
+      new Set(childList.map((c) => c.parent_uid!).filter(Boolean)),
     ) as string[];
 
     let parentsMap = new Map<string, Parent>();
@@ -203,7 +186,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
 
       if (!pErr && parentsData) {
         parentsMap = new Map<string, Parent>(
-          (parentsData as Parent[]).map((p) => [p.uid, p])
+          (parentsData as Parent[]).map((p) => [p.uid, p]),
         );
       }
     }
@@ -218,10 +201,9 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
   /** ========= View mapping ========= **/
 
   private setScheduleItems(): void {
-    if (!this.scheduleComp?.calendarApi) return;
     const src = this.lessons;
 
-    // תצוגת חודש – סיכום יומי
+    // חודש – סיכום יומי
     if (this.currentView === 'dayGridMonth') {
       const grouped: Record<string, Lesson[]> = {};
       for (const l of src) {
@@ -235,8 +217,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
       this.items = Object.entries(grouped).map(([day, lessons]) => {
         const count = lessons.length;
         const regular = lessons.filter((l) => l.lesson_type === 'רגיל').length;
-        const makeup =
-          lessons.filter((l) => l.lesson_type === 'השלמה').length;
+        const makeup = lessons.filter((l) => l.lesson_type === 'השלמה').length;
         const canceled = lessons.filter((l) => l.status === 'בוטל').length;
 
         const parts: string[] = [];
@@ -258,27 +239,38 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
       return;
     }
 
-    // תצוגת שבוע/יום – מופעים מלאים
+    // שבוע / יום – שיעורים מלאים
     this.items = src.map((l) => {
-      const startISO = this.ensureIso(l.start_datetime, l.start_time, l.occur_date);
-      const endISO = this.ensureIso(l.end_datetime, l.end_time, l.occur_date);
+      const startISO = this.ensureIso(
+        l.start_datetime,
+        l.start_time,
+        l.occur_date,
+      );
+      const endISO = this.ensureIso(
+        l.end_datetime,
+        l.end_time,
+        l.occur_date,
+      );
       const child = this.children.find((c) => c.child_uuid === l.child_id);
 
       let color = '#b5ead7';
       if (l.status === 'בוטל') color = '#ffcdd2';
       else if (new Date(endISO) < new Date()) color = '#e0e0e0';
 
+      const childName = `${child?.first_name || ''} ${
+        child?.last_name || ''
+      }`.trim();
+      const agePart = child?.age != null ? ` (${child.age})` : '';
+
       return {
         id: `${l.lesson_id}_${l.child_id}_${l.occur_date}`,
-        title: `${child?.first_name || ''} ${child?.last_name || ''} (${child?.age ?? ''}) — ${
-          l.lesson_type ?? ''
-        }`,
+        title: `${childName}${agePart} — ${l.lesson_type ?? ''}`,
         start: startISO,
         end: endISO,
         color,
         meta: {
           child_id: l.child_id,
-          child_name: `${child?.first_name || ''} ${child?.last_name || ''}`.trim(),
+          child_name: childName,
           instructor_id: l.instructor_id,
           instructor_name: '',
           status: l.status,
@@ -292,13 +284,15 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
   }
 
   private ensureIso(
-    datetime?: string,
-    time?: string,
-    baseDate?: string | Date
+    datetime?: string | null,
+    time?: string | null,
+    baseDate?: string | Date | null,
   ): string {
     if (datetime) return datetime;
     const base =
-      typeof baseDate === 'string' ? new Date(baseDate) : baseDate ?? new Date();
+      typeof baseDate === 'string'
+        ? new Date(baseDate)
+        : baseDate ?? new Date();
     const d = new Date(base);
     if (time) {
       const [hh, mm] = time.split(':');
@@ -307,55 +301,13 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
     return d.toISOString();
   }
 
-  async onViewRangeChange(range: { start: string; end: string }) {
-    try {
-      // אם עדיין אין מדריך – אין מה לטעון
-      if (!this.instructorId) {
-        return;
-      }
-
-      // אם הטווח לא השתנה – לחסוך קריאה מיותרת
-      if (
-        this.lastRange &&
-        this.lastRange.start === range.start &&
-        this.lastRange.end === range.end
-      ) {
-        return;
-      }
-      this.lastRange = range;
-
-      this.loading = true;
-      console.log('🔄 viewRange change:', range.start, '→', range.end);
-
-      // 1. טוענים שיעורים לטווח החדש
-      await this.loadLessonsForRange(range.start, range.end);
-
-      // 2. טוענים ילדים רלוונטיים
-      const childIds = Array.from(
-        new Set(this.lessons.map(l => l.child_id))
-      ).filter(Boolean) as string[];
-
-      if (childIds.length) {
-        await this.loadChildrenAndRefs(childIds);
-      }
-
-      // 3. מעדכנים את האירועים ביומן
-      this.setScheduleItems();
-    } catch (err: any) {
-      console.error('❌ viewRange error', err);
-      this.error = err?.message || 'שגיאה בטעינת השיעורים';
-    } finally {
-      this.loading = false;
-      this.cdr.detectChanges();
-    }
-  }
-
   /** ========= Events ========= **/
 
   onEventClick(arg: EventClickArg): void {
     const childId: string | undefined = arg.event.extendedProps['child_id'];
     if (!childId) return;
-    this.selectedChild = this.children.find((c) => c.child_uuid === childId) ?? null;
+    this.selectedChild =
+      this.children.find((c) => c.child_uuid === childId) ?? null;
     this.cdr.detectChanges();
   }
 
@@ -364,6 +316,53 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
     if (!api) return;
     if (api.view.type === 'dayGridMonth') {
       api.changeView('timeGridDay', event.dateStr);
+      this.currentView = 'timeGridDay';
+    }
+  }
+
+  async onViewRangeChange(range: {
+    start: string;
+    end: string;
+    viewType?: string;
+  }) {
+    try {
+      if (!this.instructorId) return;
+
+      // נעדכן currentView לפי סוג התצוגה של FullCalendar
+      const vt = range.viewType || '';
+      if (vt === 'dayGridMonth') this.currentView = 'dayGridMonth';
+      else if (vt === 'timeGridWeek') this.currentView = 'timeGridWeek';
+      else if (vt === 'timeGridDay' || vt === 'resourceTimeGridDay')
+        this.currentView = 'timeGridDay';
+
+      if (
+        this.lastRange &&
+        this.lastRange.start === range.start &&
+        this.lastRange.end === range.end
+      ) {
+        return;
+      }
+      this.lastRange = { start: range.start, end: range.end };
+
+      this.loading = true;
+
+      await this.loadLessonsForRange(range.start, range.end);
+
+      const childIds = Array.from(
+        new Set(this.lessons.map((l) => l.child_id)),
+      ).filter(Boolean) as string[];
+
+      if (childIds.length) {
+        await this.loadChildrenAndRefs(childIds);
+      }
+
+      this.setScheduleItems();
+    } catch (err: any) {
+      console.error('viewRange error', err);
+      this.error = err?.message || 'שגיאה בטעינת השיעורים';
+    } finally {
+      this.loading = false;
+      this.cdr.detectChanges();
     }
   }
 
@@ -383,8 +382,7 @@ export class InstructorScheduleComponent implements OnInit, AfterViewInit {
   }
 
   toggleFullscreen() {
-    this.isFullscreen = !this.isFullscreen;
-    document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
+    this.scheduleComp.toggleFullscreen(); // נעזר בפונקציה של הקומפוננטה הפנימית
   }
 }
 

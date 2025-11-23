@@ -4,13 +4,14 @@
     [initialView]="'timeGridWeek'"
     (eventClick)="onEventClick($event)"
     (dateClick)="onDateClick($event)"
-    (viewRange)="onViewRangeChange($event)"  
+    (viewRange)="onViewRangeChange($event)"
   >
   </app-schedule>
 
   <app-note
     *ngIf="selectedChild"
     [child]="selectedChild"
-    (close)="selectedChild = null">
+    (close)="selectedChild = null"
+  >
   </app-note>
 </div>

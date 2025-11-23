@@ -6,11 +6,15 @@ export interface ScheduleItem {
   color?: string;
   status: "ממתין לאישור" | "אושר" | "בוטל" | "הושלם"; // ← עדכון
   meta?: {
-    [x: string]: string;
+    [x: string]: string| undefined;
     status: string;
     child_id: string;
     child_name: string;
     instructor_id: string;
     instructor_name: string;
+
+    lesson_type?: string;
+    isSummaryDay?: string;
+    isSummarySlot?: string;
   };
 }
