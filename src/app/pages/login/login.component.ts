@@ -1,13 +1,19 @@
 import { Component, inject, Optional } from '@angular/core';
 import { Router } from '@angular/router';
-import { signInWithEmailAndPassword, sendPasswordResetEmail, fetchSignInMethodsForEmail } from 'firebase/auth';
+import {
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+} from 'firebase/auth';
+
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Auth } from '@angular/fire/auth';
 import { CurrentUserService } from '../../core/auth/current-user.service';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { TokensService } from '../../services/tokens.service';
+import { firstValueFrom } from 'rxjs'; 
 
+import { ResetPasswordConfirmDialogComponent } from './reset-password-confirm-dialog/reset-password-confirm-dialog.component';
 
 @Component({
   selector: 'app-login',
@@ -23,7 +29,7 @@ export class LoginComponent {
   loading = false;
   isLoading = false;
   successMessage = '';
-  showPassword = false; // ← חדש: מצב הצגת סיסמה
+  showPassword = false;
 
   private auth = inject(Auth);
 
@@ -88,44 +94,46 @@ export class LoginComponent {
     }
   }
 
- async forgotPassword(): Promise<void> {
+  async forgotPassword(): Promise<void> {
   this.errorMessage = '';
   this.successMessage = '';
 
-  if (!this.email) {
-    this.errorMessage = 'הכנס את כתובת הדוא"ל ואז לחצי "שכחתי סיסמה".';
+  const email = (this.email || '').trim();
+  if (!email) {
+    this.errorMessage = 'הכנס את כתובת הדוא"ל ואז לחץ "שכחתי סיסמה".';
     return;
   }
 
+  // שלב 1: פתיחת פופאפ אישור
+  const dialogRef = this.dialog.open(ResetPasswordConfirmDialogComponent, {
+    width: '360px',
+    data: { email },
+  });
+
+  const confirmed = await firstValueFrom(dialogRef.afterClosed());
+  if (!confirmed) {
+    return; // המשתמש בחר ביטול
+  }
+
+  // שלב 2: שליחת המייל
   this.isLoading = true;
 
   try {
-    // שלב 1: בדיקה אם יש בכלל משתמש עם המייל הזה
-    const methods = await fetchSignInMethodsForEmail(this.auth, this.email);
+    await sendPasswordResetEmail(this.auth, email);
 
-    if (!methods || methods.length === 0) {
-      // אין משתמש כזה → לא שולחים מייל איפוס
-      this.errorMessage = 'לא נמצא משתמש עם כתובת הדוא"ל הזו.';
-      return;
-    }
-
-    // שלב 2: שליחת מייל איפוס רק אם יש משתמש
-    await sendPasswordResetEmail(this.auth, this.email);
+    // הודעת הצלחה כללית (הנכונה מבחינה אבטחתית)
     this.successMessage =
-      'שלחנו קישור לאיפוס סיסמה לכתובת הדוא"ל שלך. בדוק את תיבת הדואר/ספאם.';
+      'אם קיים במערכת משתמש עם כתובת הדוא"ל הזו - נשלח אליו קישור לאיפוס סיסמה.';
   } catch (e: any) {
+    console.error('forgotPassword error:', e);
     const code = e?.code || '';
 
-    if (code === 'auth/user-not-found') {
-      // במקרה שמשום מה מגיע מהפיירבייס עצמו
-      this.errorMessage = 'לא נמצא משתמש עם כתובת הדוא"ל הזו.';
-    } else if (code === 'auth/invalid-email') {
+    if (code === 'auth/invalid-email') {
       this.errorMessage = 'כתובת דוא"ל לא תקינה.';
     } else if (code === 'auth/too-many-requests') {
-      this.errorMessage = 'נחסמו ניסיונות לזמן קצר. נסי שוב מאוחר יותר.';
+      this.errorMessage = 'נחסמו ניסיונות לזמן קצר. נסה שוב מאוחר יותר.';
     } else {
       this.errorMessage = 'אירעה שגיאה בשליחת מייל האיפוס.';
-      console.error(e);
     }
   } finally {
     this.isLoading = false;
