@@ -38,3 +38,14 @@
     </form>
   </div>
 </div>
+<div class="login-loading-overlay" *ngIf="isLoading">
+  <div class="login-loading-box">
+    <!-- אם יש לך Angular Material -->
+    <!-- <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner> -->
+
+    <!-- ספינר פשוט ב־CSS אם אין Material -->
+    <div class="spinner"></div>
+
+    <p>מתחברים לחווה...<br />נא להמתין רגע</p>
+  </div>
+</div>

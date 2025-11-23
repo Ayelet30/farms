@@ -56,43 +56,47 @@ export class LoginComponent {
   }
 
   async login() {
-    this.errorMessage = '';
-    this.loading = true;
-    try {
-      const cred = await signInWithEmailAndPassword(this.auth, this.email, this.password);
-      const uid = cred.user.uid;
+  this.errorMessage = '';
+  this.isLoading = true;   // ← מסך טעינה מתחיל
 
-      const { selected } = await this.cuSvc.hydrateAfterLogin();
-      console.log('selected', selected);
+  try {
+    const cred = await signInWithEmailAndPassword(this.auth, this.email, this.password);
+    const uid = cred.user.uid;
 
-      const memberships = this.cuSvc.current?.memberships || [];
-      let activeRole: string | null | undefined = selected?.role_in_tenant ?? this.cuSvc.current?.role;
-      let activeFarm: string | null | undefined = selected?.farm?.schema_name;
+    const { selected } = await this.cuSvc.hydrateAfterLogin();
+    console.log('selected', selected);
 
-      this.tokens.restoreLastTokens(activeFarm);
+    const memberships = this.cuSvc.current?.memberships || [];
+    let activeRole: string | null | undefined =
+      selected?.role_in_tenant ?? this.cuSvc.current?.role;
+    let activeFarm: string | null | undefined = selected?.farm?.schema_name;
 
-      const target = this.routeByRole(activeRole);
-      this.dialogRef?.close({ success: true, role: activeRole, target });
-      await this.router.navigateByUrl(target);
+    this.tokens.restoreLastTokens(activeFarm);
 
-    } catch (e: any) {
-      const code = e?.code || '';
-      if (code === 'auth/invalid-credential') {
-        this.errorMessage = 'שם משתמש או סיסמא שגויים';
-      } else if (code === 'auth/invalid-email') {
-        this.errorMessage = 'כתובת דוא"ל לא תקינה.';
-      } else if (code === 'auth/missing-password') {
-        this.errorMessage = 'יש להכניס סיסמא.';
-      } else if (code === 'auth/too-many-requests') {
-        this.errorMessage = 'נחסמו ניסיונות לזמן קצר. נסה שוב מאוחר יותר.';
-      } else {
-        this.errorMessage = 'אירעה שגיאה בכניסה למערכת אנא פנה לתמיכה.';
-        console.error(e);
-      }
-    } finally {
-      this.isLoading = false;
+    const target = this.routeByRole(activeRole);
+    this.dialogRef?.close({ success: true, role: activeRole, target });
+
+    // ממתינים שהניווט יסתיים לפני סיום הטעינה
+    await this.router.navigateByUrl(target);
+
+  } catch (e: any) {
+    const code = e?.code || '';
+    if (code === 'auth/invalid-credential') {
+      this.errorMessage = 'שם משתמש או סיסמא שגויים';
+    } else if (code === 'auth/invalid-email') {
+      this.errorMessage = 'כתובת דוא"ל לא תקינה.';
+    } else if (code === 'auth/missing-password') {
+      this.errorMessage = 'יש להכניס סיסמא.';
+    } else if (code === 'auth/too-many-requests') {
+      this.errorMessage = 'נחסמו ניסיונות לזמן קצר. נסה שוב מאוחר יותר.';
+    } else {
+      this.errorMessage = 'אירעה שגיאה בכניסה למערכת אנא פנה לתמיכה.';
+      console.error(e);
     }
+  } finally {
+    this.isLoading = false;   // ← הטעינה מסתיימת אחרי ניווט / שגיאה
   }
+}
 
   async forgotPassword(): Promise<void> {
   this.errorMessage = '';
