@@ -49,6 +49,8 @@ interface MakeupSlot {
   end_time: string;
   instructor_id: string;
   remaining_capacity: number;
+  instructor_name?: string | null; 
+
 }
 interface MakeupCandidate {
   lesson_id: string;
@@ -87,6 +89,7 @@ showInstructorDetails = true;
 noInstructorPreference = false;        
 
 
+displayedMakeupLessonsCount: number | null = null;
 
 children: ChildWithProfile[] = [];
 
@@ -99,6 +102,11 @@ children: ChildWithProfile[] = [];
   // ---- שיעורים שניתן להשלים (ביטולים לפי הגדרות חווה) ----
   makeupCandidates: MakeupCandidate[] = [];
   loadingMakeupCandidates = false;
+  selectedMakeupCandidate: MakeupCandidate | null = null;
+candidateSlots: MakeupSlot[] = [];
+loadingCandidateSlots = false;
+candidateSlotsError: string | null = null;
+
 
   private readonly CHILD_SELECT =
   'child_uuid, first_name, last_name, instructor_id';
@@ -122,14 +130,15 @@ onNoInstructorPreferenceChange(): void {
 }
 
   // ---- סדרת טיפולים ----
-  daysOfWeek = [
-    { value: 0, label: 'ראשון' },
-    { value: 1, label: 'שני' },
-    { value: 2, label: 'שלישי' },
-    { value: 3, label: 'רביעי' },
-    { value: 4, label: 'חמישי' },
-  ];
-
+ daysOfWeek = [
+  { value: 0, label: 'ראשון' },
+  { value: 1, label: 'שני' },
+  { value: 2, label: 'שלישי' },
+  { value: 3, label: 'רביעי' },
+  { value: 4, label: 'חמישי' },
+  { value: 5, label: 'שישי' },
+  { value: 6, label: 'שבת' },
+];
   seriesDayOfWeek: number | null = null;
   seriesStartTime = '16:00'; // קלט בצורת HH:MM
   paymentSourceForSeries: 'health_fund' | 'private' = 'health_fund';
@@ -158,6 +167,8 @@ onNoInstructorPreferenceChange(): void {
   async ngOnInit(): Promise<void> {
   // 1. קריאת פרמטרים מה־URL
   const qp = this.route.snapshot.queryParamMap;
+    await this.loadFarmSettings();
+
 
   const needApproveParam = qp.get('needApprove');
   this.needApprove = needApproveParam === 'true';
@@ -172,6 +183,119 @@ onNoInstructorPreferenceChange(): void {
   // 2. תמיד טוענים ילדים פעילים מהשרת (RLS יטפל בהורה/מזכירה)
   await this.loadChildrenFromCurrentUser();
 }
+
+async openHolesForCandidate(c: MakeupCandidate): Promise<void> {
+  if (!this.selectedChildId) {
+    this.candidateSlotsError = 'יש לבחור ילד';
+    return;
+  }
+
+  this.selectedMakeupCandidate = c;
+  this.candidateSlots = [];
+  this.candidateSlotsError = null;
+
+  // קביעה איזה מדריך לשלוח:
+  let instructorParam: string | null = null;
+
+  if (this.selectedInstructorId) {
+    if (this.selectedInstructorId === 'any') {
+      instructorParam = null; // כל המדריכים המתאימים
+    } else {
+      instructorParam = this.selectedInstructorId; // מדריך ספציפי
+    }
+  } else if (c.instructor_id) {
+    instructorParam = c.instructor_id; // ברירת מחדל: המדריך של השיעור המקורי
+  }
+
+  this.loadingCandidateSlots = true;
+    try {
+    const { data, error } = await dbTenant().rpc('find_makeup_slots_for_lesson', {
+      p_child_id: this.selectedChildId,
+      p_lesson_id: c.lesson_id,
+      p_occur_date: c.occur_date,
+      p_instructor_id: instructorParam
+    });
+
+    if (error) {
+      console.error('find_makeup_slots_for_lesson error', error);
+      this.candidateSlotsError = 'שגיאה בחיפוש חורים להשלמה לשיעור זה';
+      return;
+    }
+
+    const rawSlots = (data ?? []) as MakeupSlot[];
+
+    // מייצרים שיעורים של שעה מתוך כל חור
+    const expanded: MakeupSlot[] = [];
+
+    for (const hole of rawSlots) {
+      const oneHourSlots = this.generateLessonSlots(hole.start_time, hole.end_time);
+
+      for (const s of oneHourSlots) {
+        expanded.push({
+          ...hole,
+          start_time: s.from + ':00', // "08:00:00"
+          end_time:   s.to   + ':00', // "09:00:00"
+        });
+      }
+    }
+
+    // חיתוך לפי הגדרת החווה displayed_makeup_lessons_count
+    let finalSlots = expanded;
+
+    if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
+      finalSlots = expanded.slice(0, this.displayedMakeupLessonsCount);
+    }
+
+    this.candidateSlots = finalSlots;
+
+  } finally {
+    this.loadingCandidateSlots = false;
+  }
+
+}
+private async loadFarmSettings(): Promise<void> {
+  const supa = dbTenant();
+
+  const { data, error } = await supa
+    .from('farm_settings')
+    .select('displayed_makeup_lessons_count')
+    .limit(1)
+    .single();
+
+  if (error) {
+    console.error('loadFarmSettings error', error);
+    return;
+  }
+
+  this.displayedMakeupLessonsCount = data?.displayed_makeup_lessons_count ?? null;
+}
+
+generateLessonSlots(start: string, end: string): { from: string, to: string }[] {
+  const slots = [];
+
+  // חיתוך לפורמט HH:MM (שימוש ב-5 התווים הראשונים)
+  const startHHMM = start.substring(0, 5); // "08:00"
+  const endHHMM   = end.substring(0, 5);   // "12:00"
+
+  let current = new Date(`1970-01-01T${startHHMM}:00`);
+  const finish = new Date(`1970-01-01T${endHHMM}:00`);
+
+  while (current < finish) {
+    const next = new Date(current.getTime() + 60 * 60 * 1000); // שעה קדימה
+
+    if (next > finish) break; // לא לייצר סלוט מעבר לטווח
+
+    slots.push({
+      from: current.toTimeString().substring(0, 5),
+      to:   next.toTimeString().substring(0, 5),
+    });
+
+    current = next;
+  }
+
+  return slots;
+}
+
 onInstructorChange() {
   if (this.selectedInstructorId === 'any') {
     this.showInstructorDetails = false; // לא מציגים כרטיס מדריך
@@ -493,48 +617,6 @@ instructor_id:
   // =========================================
   //   חיפוש חורים להשלמות (find_makeup_slots)
   // =========================================
-  async searchMakeupSlots(): Promise<void> {
-    this.makeupError = null;
-    this.makeupCreatedMessage = null;
-    this.makeupSlots = [];
-
- if (!this.selectedChildId || !this.makeupFromDate || !this.makeupToDate) {
-    this.makeupError = 'יש לבחור ילד וטווח תאריכים';
-    return;
-  }
-
-  if (!this.noInstructorPreference && !this.selectedInstructorId) {
-    this.makeupError = 'יש לבחור מדריך או לסמן שאין העדפה';
-    return;
-  }
-
- const instructorParam =
-  this.selectedInstructorId === 'any'
-    ? null
-    : this.selectedInstructorId;
-
-    this.loadingMakeup = true;
-    try {
-    const { data, error } = await dbTenant().rpc('find_makeup_slots', {
-  p_child_id: this.selectedChildId,
-  p_from_date: this.makeupFromDate,
-  p_to_date: this.makeupToDate,
-  p_instructor_id: instructorParam
-});
-
-
-
-      if (error) {
-        console.error(error);
-        this.makeupError = 'שגיאה בחיפוש חורים להשלמה';
-        return;
-      }
-
-      this.makeupSlots = (data ?? []) as MakeupSlot[];
-    } finally {
-      this.loadingMakeup = false;
-    }
-  }
 
   // יצירת שיעור השלמה – יוצר lesson יחיד (repeat_weeks = 1)
   async bookMakeupSlot(slot: MakeupSlot): Promise<void> {
@@ -588,10 +670,13 @@ instructor_id:
   }
 
   private dayOfWeekLabelFromDate(dateStr: string): string {
-    const d = new Date(dateStr + 'T00:00:00');
-    const dow = d.getUTCDay(); // 0-6
-    return this.dayOfWeekLabel(dow);
-  }
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay(); // 0–6 לפי הזמן המקומי
+  return this.dayOfWeekLabel(dow);
+}
+getSlotDayLabel(dateStr: string): string {
+  return this.dayOfWeekLabelFromDate(dateStr);
+}
 
   /**
    * anchor_week_start = יום ראשון של השבוע של lesson_date

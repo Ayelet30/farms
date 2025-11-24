@@ -242,31 +242,76 @@ class="instructor-card">
 
       <ng-container *ngIf="!loadingMakeupCandidates && makeupCandidates.length > 0">
         <table>
-          <thead>
-            <tr>
-              <th>תאריך</th>
-              <th>יום</th>
-              <th>שעה</th>
-              <th>מדריך</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let c of makeupCandidates">
-              <td>{{ c.occur_date }}</td>
-              <td>{{ c.day_of_week }}</td>
-              <td>
-                {{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}
-              </td>
-              <td>{{ c.instructor_id }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </ng-container>
+  <thead>
+    <tr>
+      <th>תאריך</th>
+      <th>יום</th>
+      <th>שעה</th>
+      <th>מדריך</th>
+      <th></th> <!-- כפתור פעולה -->
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let c of makeupCandidates">
+      <td>{{ c.occur_date }}</td>
+      <td>{{ c.day_of_week }}</td>
+      <td>
+        {{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}
+      </td>
+      <td>{{ c.instructor_id }}</td>
+      <td>
+        <button
+          type="button"
+          class="appt-cta"
+          (click)="openHolesForCandidate(c)"
+        >
+          להשלמת שיעור זה
+        </button>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
-      <p *ngIf="!loadingMakeupCandidates && makeupCandidates.length === 0">
-        אין כרגע שיעורים שניתן להשלים בהתאם להגדרות החווה.
-      </p>
-    </div>
+      </ng-container>
+<!-- <div *ngIf="selectedMakeupCandidate && candidateSlots.length > 0" class="slots-list">
+  <h4>
+    חורים פנויים להשלמה עבור {{ selectedMakeupCandidate.occur_date }}
+  </h4>
+
+  <table>
+    <thead>
+      <tr>
+        <th>תאריך</th>
+        <th>שעה</th>
+        <th>מדריך</th>
+        <th>יתרה ב-slot</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let s of candidateSlots">
+        <td>{{ s.occur_date }}</td>
+        <td>
+          {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
+        </td>
+        <td>{{ s.instructor_id }}</td>
+        <td>{{ s.remaining_capacity }}</td>
+        <td>
+          <button
+            type="button"
+            class="appt-cta"
+            (click)="bookMakeupSlot(s)"
+          >
+            קבע שיעור השלמה
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p class="error" *ngIf="candidateSlotsError">{{ candidateSlotsError }}</p>
+    </div> -->
 
     <!-- <div class="appt-form-row">
       <div class="appt-field-group">
@@ -288,7 +333,7 @@ class="instructor-card">
       </div>
     </div> -->
 
-    <div class="appt-actions">
+    <!-- <div class="appt-actions">
       <button
         type="button"
         class="appt-cta primary"
@@ -298,47 +343,59 @@ class="instructor-card">
       >
         {{ loadingMakeup ? 'מחפש...' : 'חפש חורים להשלמה' }}
       </button>
-    </div>
+    </div> -->
 
     <p class="error" *ngIf="makeupError">{{ makeupError }}</p>
     <p class="success" *ngIf="makeupCreatedMessage">
       {{ makeupCreatedMessage }}
     </p>
 
-    <div *ngIf="makeupSlots.length > 0" class="slots-list">
-      <h4>חורים זמינים</h4>
-      <table>
-        <thead>
-          <tr>
-            <th>תאריך</th>
-            <th>שעה</th>
-            <th>מדריך</th>
-            <th>יתרה ב-slot</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let s of makeupSlots">
-            <td>{{ s.occur_date }}</td>
-            <td>
-              {{ s.start_time | slice: 0:5 }}–{{
-                s.end_time | slice: 0:5
-              }}
-            </td>
-            <td>{{ s.instructor_id }}</td>
-            <td>{{ s.remaining_capacity }}</td>
-            <td>
-              <button
-                type="button"
-                class="appt-cta"
-                (click)="bookMakeupSlot(s)"
-              >
-                קבע שיעור השלמה
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <div class="slots-list" *ngIf="selectedMakeupCandidate && candidateSlots.length > 0">
+  <h4>
+    חורים פנויים להשלמה עבור {{ selectedMakeupCandidate.occur_date }}
+  </h4>
+
+ <table>
+  <thead>
+    <tr>
+      <th>תאריך</th>
+      <th>יום</th>          <!-- ⬅ חדש -->
+      <th>שעה</th>
+      <th>מדריך</th>
+      <th>יתרה ב-slot</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let s of candidateSlots">
+      <td>{{ s.occur_date }}</td>
+      <td>{{ getSlotDayLabel(s.occur_date) }}</td> <!-- ⬅ חדש -->
+
+      <td>
+        {{ s.start_time | slice: 0:5 }}–{{ s.end_time | slice: 0:5 }}
+      </td>
+
+      <!-- שם מדריך, ואם אין – נופל חזרה ל-id -->
+      <td>{{ s.instructor_name || s.instructor_id }}</td>
+
+      <td>{{ s.remaining_capacity }}</td>
+      <td>
+        <button
+          type="button"
+          class="appt-cta"
+          (click)="bookMakeupSlot(s)"
+        >
+          קבע שיעור השלמה
+        </button>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+</div>
+
+<p *ngIf="loadingCandidateSlots">טוען חורים פנויים...</p>
+<p class="error" *ngIf="candidateSlotsError">{{ candidateSlotsError }}</p>
+
   </div>
 </div>
