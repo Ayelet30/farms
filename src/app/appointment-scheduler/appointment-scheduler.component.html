@@ -8,43 +8,56 @@
   <!-- טור ימין: בחירת ילד -->
   <div class="appt-field-group child-group">
     <span class="appt-field-label">ילד/ה</span>
-    <select
-      class="appt-select"
-      [(ngModel)]="selectedChildId"
-      (change)="onChildChange()"
-    >
-      <option [ngValue]="null">בחר/י ילד</option>
-      <option *ngFor="let child of children" [ngValue]="child.child_uuid">
-        {{ child.first_name }} {{ child.last_name }}
-      </option>
-    </select>
-  </div>
-
-  <!-- טור שמאל: מדריך + אין העדפה -->
-  <div class="appt-field-group instructor-group">
-    <span class="appt-field-label">מדריך</span>
-
-    <div class="instructor-select-row">
-    <select
+   <select
   class="appt-select"
-  [(ngModel)]="selectedInstructorId"
-  (change)="onInstructorChange()"
+  [(ngModel)]="selectedChildId"
+  (change)="onChildChange()"
 >
-  <option [ngValue]="null" disabled hidden>בחר/י מדריך</option>
+  <!-- placeholder: יופיע רק כשהשדה סגור -->
+  <option [ngValue]="null" disabled hidden>
+    בחר/י ילד
+  </option>
 
-  <!-- האופציה החדשה -->
-  <option [ngValue]="'any'">כל המדריכים</option>
-
-  <option
-    *ngFor="let ins of instructors"
-    [ngValue]="ins.instructor_uid"
-  >
-    {{ ins.full_name }}
+  <option *ngFor="let child of children" [ngValue]="child.child_uuid">
+    {{ child.first_name }} {{ child.last_name }}
   </option>
 </select>
 
-      
-    </div>
+  </div>
+
+  <div class="appt-field-group instructor-group">
+  <span class="appt-field-label">מדריך</span>
+
+  <div class="instructor-select-row">
+    <select
+      class="appt-select"
+      [ngClass]="{ disabled: !selectedChildId }"
+      [(ngModel)]="selectedInstructorId"
+      (change)="onInstructorChange()"
+      [disabled]="!selectedChildId"
+    >
+      <!-- placeholder: מוצג כטקסט כשהשדה סגור, לא מופיע ברשימה -->
+      <option [ngValue]="null" disabled hidden>
+        בחר/י מדריך
+      </option>
+
+      <!-- רק אם יש ילד נבחר – מציגים את אפשרויות המדריכים -->
+      <ng-container *ngIf="selectedChildId">
+        <option [ngValue]="'any'">
+          כל המדריכים
+        </option>
+
+        <option
+          *ngFor="let ins of instructors"
+          [ngValue]="ins.instructor_uid"
+        >
+          {{ ins.full_name }}
+        </option>
+      </ng-container>
+    </select>
+  </div>
+</div>
+
   </div>
 </div>
 

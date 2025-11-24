@@ -12,12 +12,16 @@ interface InstructorDbRow {
   first_name: string | null;
   last_name: string | null;
   accepts_makeup_others: boolean;
-  gender: string | null;
+  gender: string | null;             // מין המדריך עצמו (גם כנראה "זכר"/"נקבה")
   certificate: string | null;
   about: string | null;
   education: string | null;
   phone: string | null;
+  min_age_years: number | null;
+  max_age_years: number | null;
+  taught_child_genders: string[] | null; // ⬅️ "זכר"/"נקבה"
 }
+
 
 
 
@@ -55,6 +59,15 @@ interface MakeupCandidate {
   instructor_id: string | null;
   status: string;
 }
+type ChildWithProfile = ChildRow & {
+  gender?: string | null;       // "זכר" / "נקבה"
+  birth_date?: string | null;
+};
+type InstructorWithConstraints = InstructorRow & {
+  min_age_years?: number | null;
+  max_age_years?: number | null;
+  taught_child_genders?: string[] | null;
+};
 
 @Component({
   selector: 'app-appointment-scheduler',
@@ -67,7 +80,7 @@ export class AppointmentSchedulerComponent implements OnInit {
 
 needApprove: boolean = false;
 selectedChildId: string | null = null;
-instructors: InstructorRow[] = [];
+instructors: InstructorWithConstraints[] = [];
 selectedInstructorId: string | null = null;
 loadingInstructors = false;
 showInstructorDetails = true;
@@ -75,7 +88,7 @@ noInstructorPreference = false;
 
 
 
-  children: ChildRow[] = [];
+children: ChildWithProfile[] = [];
 
   // מצב כללי
   selectedTab: AppointmentTab = 'series';
@@ -93,11 +106,13 @@ noInstructorPreference = false;
   get selectedApproval(): ApprovalBalance | undefined {
     return this.approvals.find(a => a.approval_id === this.selectedApprovalId);
   }
-get selectedInstructor(): InstructorRow | undefined {
+get selectedInstructor(): InstructorWithConstraints | undefined {
   return this.instructors.find(
     ins => ins.instructor_uid === this.selectedInstructorId
   );
 }
+
+
 onNoInstructorPreferenceChange(): void {
   if (this.noInstructorPreference) {
     // אם אין העדפה – מנקים מדריך ומסתירים כרטיס
@@ -152,7 +167,7 @@ onNoInstructorPreferenceChange(): void {
     this.selectedChildId = qpChildId;    // ⬅⬅ שומרים את הילד שעבר בניווט
   }
 
-  await this.loadInstructors();
+  //await this.loadInstructors();
 
   // 2. תמיד טוענים ילדים פעילים מהשרת (RLS יטפל בהורה/מזכירה)
   await this.loadChildrenFromCurrentUser();
@@ -164,6 +179,26 @@ onInstructorChange() {
     this.showInstructorDetails = true;  // כן מציגים כרטיס מדריך
   }
 }
+private calcAgeYears(birthDateStr: string): number | null {
+  if (!birthDateStr) return null;
+
+  // birthDateStr מגיע מה־DB בפורמט YYYY-MM-DD
+  const birth = new Date(birthDateStr + 'T00:00:00');
+  if (isNaN(birth.getTime())) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  
+  const monthDiff = today.getMonth() - birth.getMonth();
+  const dayDiff = today.getDate() - birth.getDate();
+
+  // אם טרם הגענו ליום ההולדת השנה – להוריד שנה
+  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+    age--;
+  }
+
+  return age;
+}
 
 private async loadChildrenFromCurrentUser(): Promise<void> {
   if (!this.user) return;
@@ -172,8 +207,8 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
 
   const { data, error } = await supa
     .from('children')
-    .select('child_uuid, first_name, last_name, instructor_id, status')
-    .eq('status', 'Active')   // ⬅⬅ לשים לב ל-A גדולה לפי ה-enum
+    .select('child_uuid, first_name, last_name, instructor_id, status, gender, birth_date')
+    .eq('status', 'Active')
     .order('first_name', { ascending: true });
 
   if (error) {
@@ -181,19 +216,30 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
     return;
   }
 
-  this.children = data ?? [];
+  this.children = (data ?? []) as ChildWithProfile[];
 
   // אם עבר childId בניווט והוא קיים ברשימת הילדים הפעילים:
   if (this.selectedChildId && this.children.some(c => c.child_uuid === this.selectedChildId)) {
-    await this.onChildChange();     // ⬅⬅ טוען approvals וכו' לילד שהגיע מהכרטיסייה
+    await this.onChildChange();
   } else if (!this.selectedChildId && this.children.length === 1) {
-    // אם לא עבר childId ויש רק ילד אחד – בוחרים אותו אוטומטית
     this.selectedChildId = this.children[0].child_uuid;
     await this.onChildChange();
   }
 }
-private async loadInstructors(): Promise<void> {
+
+private async loadInstructorsForChild(childId: string): Promise<void> {
   this.loadingInstructors = true;
+  this.instructors = [];
+
+  const child = this.children.find(c => c.child_uuid === childId);
+  if (!child) {
+    this.loadingInstructors = false;
+    return;
+  }
+
+  const childGender = child.gender ?? null;        // "זכר"/"נקבה"
+  const childAgeYears = child.birth_date ? this.calcAgeYears(child.birth_date) : null;
+
   const supa = dbTenant();
 
   const { data, error } = await supa
@@ -207,7 +253,10 @@ private async loadInstructors(): Promise<void> {
       about,
       education,
       phone,
-      accepts_makeup_others
+      accepts_makeup_others,
+      min_age_years,
+      max_age_years,
+      taught_child_genders
     `)
     .eq('accepts_makeup_others', true)
     .not('uid', 'is', null)
@@ -217,23 +266,41 @@ private async loadInstructors(): Promise<void> {
     };
 
   if (error) {
-    console.error('loadInstructors error', error);
+    console.error('loadInstructorsForChild error', error);
     this.loadingInstructors = false;
     return;
   }
 
-  this.instructors =
-    (data ?? [])
-      .filter(ins => ins.uid)
-      .map((ins: InstructorDbRow) => ({
-        instructor_uid: ins.uid!,
-        full_name: `${ins.first_name ?? ''} ${ins.last_name ?? ''}`.trim(),
-        gender: ins.gender,
-        certificate: ins.certificate,
-        about: ins.about,
-        education: ins.education,
-        phone: ins.phone,
-      }));
+  const filtered = (data ?? []).filter(ins => {
+    if (!ins.uid) return false;
+
+    // סינון לפי גיל
+    if (childAgeYears != null) {
+      if (ins.min_age_years != null && childAgeYears < ins.min_age_years) return false;
+      if (ins.max_age_years != null && childAgeYears > ins.max_age_years) return false;
+    }
+
+    // סינון לפי מין הילד: "זכר"/"נקבה"
+    if (childGender && ins.taught_child_genders && ins.taught_child_genders.length > 0) {
+      if (!ins.taught_child_genders.includes(childGender)) return false;
+    }
+
+    // אם taught_child_genders ריק/NULL – נניח שהמדריך מתאים לכולם
+    return true;
+  });
+
+  this.instructors = filtered.map(ins => ({
+    instructor_uid: ins.uid!,
+    full_name: `${ins.first_name ?? ''} ${ins.last_name ?? ''}`.trim(),
+    gender: ins.gender,                    // יוצג כרגיל בכרטיס
+    certificate: ins.certificate,
+    about: ins.about,
+    education: ins.education,
+    phone: ins.phone,
+    min_age_years: ins.min_age_years,
+    max_age_years: ins.max_age_years,
+    taught_child_genders: ins.taught_child_genders,
+  }));
 
   this.loadingInstructors = false;
 }
@@ -242,37 +309,49 @@ private async loadInstructors(): Promise<void> {
   //  שינוי ילד – טוען אישורים ומנקה מצבים
   // =========================================
   async onChildChange(): Promise<void> {
-    this.seriesError = null;
-    this.makeupError = null;
-    this.seriesCreatedMessage = null;
-    this.makeupCreatedMessage = null;
-    this.recurringSlots = [];
-    this.makeupSlots = [];
-    this.approvals = [];
-    this.selectedApprovalId = null;
+  this.seriesError = null;
+  this.makeupError = null;
+  this.seriesCreatedMessage = null;
+  this.makeupCreatedMessage = null;
+  this.recurringSlots = [];
+  this.makeupSlots = [];
+  this.approvals = [];
+  this.selectedApprovalId = null;
 
-    if (!this.selectedChildId) return;
+  // איפוס בחירת מדריך בכל פעם שמחליפים ילד
+  this.selectedInstructorId = null;
+  this.showInstructorDetails = false;
+  this.noInstructorPreference = false;
 
-    const supa = dbTenant();
-    const { data, error } = await supa
-      .from('v_child_approval_balances')
-      .select('*')
-      .eq('child_id', this.selectedChildId)
-      .order('remaining_lessons', { ascending: false });
-
-    if (error) {
-      console.error(error);
-      this.seriesError = 'שגיאה בטעינת אישורי טיפול';
-      return;
-    }
-
-    this.approvals = data ?? [];
-    if (this.approvals.length > 0) {
-      this.selectedApprovalId = this.approvals[0].approval_id;
-    }
-        await this.loadMakeupCandidatesForChild();
-
+  if (!this.selectedChildId) {
+    this.instructors = [];
+    return;
   }
+
+  // ⬅️ כאן נטען מדריכים מתאימים לילד שנבחר
+  await this.loadInstructorsForChild(this.selectedChildId);
+
+  const supa = dbTenant();
+  const { data, error } = await supa
+    .from('v_child_approval_balances')
+    .select('*')
+    .eq('child_id', this.selectedChildId)
+    .order('remaining_lessons', { ascending: false });
+
+  if (error) {
+    console.error(error);
+    this.seriesError = 'שגיאה בטעינת אישורי טיפול';
+    return;
+  }
+
+  this.approvals = data ?? [];
+  if (this.approvals.length > 0) {
+    this.selectedApprovalId = this.approvals[0].approval_id;
+  }
+
+  await this.loadMakeupCandidatesForChild();
+}
+
   private async loadMakeupCandidatesForChild(): Promise<void> {
     if (!this.selectedChildId) return;
 
