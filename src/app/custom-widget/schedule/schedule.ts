@@ -67,6 +67,10 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
   }
 
+  private hasResources(): boolean {
+  return Array.isArray(this.resources) && this.resources.length > 0;
+}
+
   private isToday(d: Date) {
     const t = new Date();
     return (
@@ -77,13 +81,16 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   }
 
   /** אם יש resources – למפות את ה-View ל-resourceTimeGrid */
-  private mapView(view: ViewName): string {
-    if (view === 'timeGridDay' && this.resources && this.resources.length) {
+private mapView(view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'): string {
+  // אם יש resources (מזכירה) – יומי הופך ל-resourceTimeGridDay
+  if (view === 'timeGridDay' && this.hasResources()) {
     return 'resourceTimeGridDay';
   }
-  // שבועי נשאר timeGridWeek רגיל
+
+  // שבועי תמיד נשאר timeGridWeek רגיל
   return view;
-  }
+}
+
 
   calendarOptions: CalendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimeGridPlugin],
