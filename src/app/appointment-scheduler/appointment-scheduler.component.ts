@@ -20,6 +20,8 @@ interface InstructorDbRow {
   min_age_years: number | null;
   max_age_years: number | null;
   taught_child_genders: string[] | null; // ⬅️ "זכר"/"נקבה"
+    id_number: string;         
+
 }
 
 
@@ -43,7 +45,7 @@ interface RecurringSlot {
 }
 
 interface MakeupSlot {
-  lesson_id: string;
+ // lesson_id: string;
   occur_date: string;
   start_time: string;
   end_time: string;
@@ -66,6 +68,7 @@ type ChildWithProfile = ChildRow & {
   birth_date?: string | null;
 };
 type InstructorWithConstraints = InstructorRow & {
+  instructor_id?: string | null;       // 👈 ה-id_number מה-DB
   min_age_years?: number | null;
   max_age_years?: number | null;
   taught_child_genders?: string[] | null;
@@ -106,6 +109,8 @@ children: ChildWithProfile[] = [];
 candidateSlots: MakeupSlot[] = [];
 loadingCandidateSlots = false;
 candidateSlotsError: string | null = null;
+  makeupSearchFromDate: string | null = null;
+  makeupSearchToDate: string | null = null;
 
 
   private readonly CHILD_SELECT =
@@ -184,6 +189,75 @@ onNoInstructorPreferenceChange(): void {
   await this.loadChildrenFromCurrentUser();
 }
 
+// async openHolesForCandidate(c: MakeupCandidate): Promise<void> {
+//   if (!this.selectedChildId) {
+//     this.candidateSlotsError = 'יש לבחור ילד';
+//     return;
+//   }
+
+//   this.selectedMakeupCandidate = c;
+//   this.candidateSlots = [];
+//   this.candidateSlotsError = null;
+
+//   // קביעה איזה מדריך לשלוח:
+//   let instructorParam: string | null = null;
+
+//   if (this.selectedInstructorId) {
+//     if (this.selectedInstructorId === 'any') {
+//       instructorParam = null; // כל המדריכים המתאימים
+//     } else {
+//       instructorParam = this.selectedInstructorId; // מדריך ספציפי
+//     }
+//   } else if (c.instructor_id) {
+//     instructorParam = c.instructor_id; // ברירת מחדל: המדריך של השיעור המקורי
+//   }
+
+//   this.loadingCandidateSlots = true;
+//     try {
+//     const { data, error } = await dbTenant().rpc('find_makeup_slots_for_lesson', {
+//       p_child_id: this.selectedChildId,
+//       p_lesson_id: c.lesson_id,
+//       p_occur_date: c.occur_date,
+//       p_instructor_id: instructorParam
+//     });
+
+//     if (error) {
+//       console.error('find_makeup_slots_for_lesson error', error);
+//       this.candidateSlotsError = 'שגיאה בחיפוש חורים להשלמה לשיעור זה';
+//       return;
+//     }
+
+//     const rawSlots = (data ?? []) as MakeupSlot[];
+
+//     // מייצרים שיעורים של שעה מתוך כל חור
+//     const expanded: MakeupSlot[] = [];
+
+//     for (const hole of rawSlots) {
+//       const oneHourSlots = this.generateLessonSlots(hole.start_time, hole.end_time);
+
+//       for (const s of oneHourSlots) {
+//         expanded.push({
+//           ...hole,
+//           start_time: s.from + ':00', // "08:00:00"
+//           end_time:   s.to   + ':00', // "09:00:00"
+//         });
+//       }
+//     }
+
+//     // חיתוך לפי הגדרת החווה displayed_makeup_lessons_count
+//     let finalSlots = expanded;
+
+//     if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
+//       finalSlots = expanded.slice(0, this.displayedMakeupLessonsCount);
+//     }
+
+//     this.candidateSlots = finalSlots;
+
+//   } finally {
+//     this.loadingCandidateSlots = false;
+//   }
+
+// }
 async openHolesForCandidate(c: MakeupCandidate): Promise<void> {
   if (!this.selectedChildId) {
     this.candidateSlotsError = 'יש לבחור ילד';
@@ -194,65 +268,78 @@ async openHolesForCandidate(c: MakeupCandidate): Promise<void> {
   this.candidateSlots = [];
   this.candidateSlotsError = null;
 
-  // קביעה איזה מדריך לשלוח:
-  let instructorParam: string | null = null;
+  // אם עוד לא נבחר מדריך ידנית – ברירת מחדל: המדריך של השיעור המקורי
+  // if (!this.selectedInstructorId && c.instructor_id) {
+  //   this.selectedInstructorId = c.instructor_id;
+  // }
 
-  if (this.selectedInstructorId) {
-    if (this.selectedInstructorId === 'any') {
-      instructorParam = null; // כל המדריכים המתאימים
-    } else {
-      instructorParam = this.selectedInstructorId; // מדריך ספציפי
-    }
-  } else if (c.instructor_id) {
-    instructorParam = c.instructor_id; // ברירת מחדל: המדריך של השיעור המקורי
+  // טווח חיפוש לחורים (אפשר לשנות לימים אחרים אם תרצי)
+  this.makeupSearchFromDate = c.occur_date;
+  this.makeupSearchToDate = this.addDays(c.occur_date, 30); // לדוגמה: 30 יום קדימה
+
+  await this.loadCandidateSlots();
+}
+private async loadCandidateSlots(): Promise<void> {
+  if (!this.makeupSearchFromDate || !this.makeupSearchToDate) {
+    return;
   }
 
+  // ממירים מהערך של ה-select (uid או id_number) ל-id_number אמיתי מה-DB
+  let instructorParam: string | null = null;
+
+  if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
+    const sel = this.instructors.find(
+      i =>
+        i.instructor_uid === this.selectedInstructorId ||
+        i.instructor_id === this.selectedInstructorId
+    );
+
+    instructorParam = sel?.instructor_id ?? null;
+  }
+
+  console.log('🔍 find_makeup_slots_for_lesson params:', {
+    p_instructor_id: instructorParam,
+    p_from_date: this.makeupSearchFromDate,
+    p_to_date: this.makeupSearchToDate,
+  });
+
   this.loadingCandidateSlots = true;
-    try {
+  this.candidateSlotsError = null;
+
+  try {
     const { data, error } = await dbTenant().rpc('find_makeup_slots_for_lesson', {
-      p_child_id: this.selectedChildId,
-      p_lesson_id: c.lesson_id,
-      p_occur_date: c.occur_date,
-      p_instructor_id: instructorParam
+      p_instructor_id: instructorParam,
+      p_from_date: this.makeupSearchFromDate,
+      p_to_date: this.makeupSearchToDate,
     });
+
+
+    console.log('🔍 find_makeup_slots_for_lesson result:', { error, rows: data?.length });
 
     if (error) {
       console.error('find_makeup_slots_for_lesson error', error);
+      this.candidateSlots = [];
       this.candidateSlotsError = 'שגיאה בחיפוש חורים להשלמה לשיעור זה';
       return;
     }
 
-    const rawSlots = (data ?? []) as MakeupSlot[];
-
-    // מייצרים שיעורים של שעה מתוך כל חור
-    const expanded: MakeupSlot[] = [];
-
-    for (const hole of rawSlots) {
-      const oneHourSlots = this.generateLessonSlots(hole.start_time, hole.end_time);
-
-      for (const s of oneHourSlots) {
-        expanded.push({
-          ...hole,
-          start_time: s.from + ':00', // "08:00:00"
-          end_time:   s.to   + ':00', // "09:00:00"
-        });
-      }
-    }
-
-    // חיתוך לפי הגדרת החווה displayed_makeup_lessons_count
-    let finalSlots = expanded;
+    let slots = (data ?? []) as MakeupSlot[];
 
     if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
-      finalSlots = expanded.slice(0, this.displayedMakeupLessonsCount);
+      slots = slots.slice(0, this.displayedMakeupLessonsCount);
     }
 
-    this.candidateSlots = finalSlots;
+    this.candidateSlots = slots;
 
+    if (!this.candidateSlots.length) {
+      this.candidateSlotsError = 'לא נמצאו חורים למדריך זה';
+    }
   } finally {
     this.loadingCandidateSlots = false;
   }
-
 }
+
+
 private async loadFarmSettings(): Promise<void> {
   const supa = dbTenant();
 
@@ -296,13 +383,15 @@ generateLessonSlots(start: string, end: string): { from: string, to: string }[] 
   return slots;
 }
 
-onInstructorChange() {
-  if (this.selectedInstructorId === 'any') {
-    this.showInstructorDetails = false; // לא מציגים כרטיס מדריך
-  } else {
-    this.showInstructorDetails = true;  // כן מציגים כרטיס מדריך
+async onInstructorChange() {
+  this.showInstructorDetails = this.selectedInstructorId !== 'any';
+
+  // אם כבר נבחר שיעור להשלמה – נטען מחדש את החורים עבור המדריך החדש
+  if (this.selectedMakeupCandidate && this.makeupSearchFromDate && this.makeupSearchToDate) {
+    await this.loadCandidateSlots();
   }
 }
+
 private calcAgeYears(birthDateStr: string): number | null {
   if (!birthDateStr) return null;
 
@@ -367,8 +456,9 @@ private async loadInstructorsForChild(childId: string): Promise<void> {
   const supa = dbTenant();
 
   const { data, error } = await supa
-    .from('instructors')
-    .select(`
+  .from('instructors')
+  .select(`
+      id_number,
       uid,
       first_name,
       last_name,
@@ -381,7 +471,7 @@ private async loadInstructorsForChild(childId: string): Promise<void> {
       min_age_years,
       max_age_years,
       taught_child_genders
-    `)
+  `)
     .eq('accepts_makeup_others', true)
     .not('uid', 'is', null)
     .order('first_name', { ascending: true }) as {
@@ -413,18 +503,20 @@ private async loadInstructorsForChild(childId: string): Promise<void> {
     return true;
   });
 
-  this.instructors = filtered.map(ins => ({
-    instructor_uid: ins.uid!,
-    full_name: `${ins.first_name ?? ''} ${ins.last_name ?? ''}`.trim(),
-    gender: ins.gender,                    // יוצג כרגיל בכרטיס
-    certificate: ins.certificate,
-    about: ins.about,
-    education: ins.education,
-    phone: ins.phone,
-    min_age_years: ins.min_age_years,
-    max_age_years: ins.max_age_years,
-    taught_child_genders: ins.taught_child_genders,
-  }));
+this.instructors = filtered.map(ins => ({
+  instructor_uid: ins.uid!,                           // מה שה-select משתמש בו
+  instructor_id: ins.id_number,                       // 👈 id_number לטובת הקריאה ל-DB
+  full_name: `${ins.first_name ?? ''} ${ins.last_name ?? ''}`.trim(),
+  gender: ins.gender,
+  certificate: ins.certificate,
+  about: ins.about,
+  education: ins.education,
+  phone: ins.phone,
+  min_age_years: ins.min_age_years,
+  max_age_years: ins.max_age_years,
+  taught_child_genders: ins.taught_child_genders,
+}));
+
 
   this.loadingInstructors = false;
 }
@@ -691,4 +783,10 @@ getSlotDayLabel(dateStr: string): string {
     const dd = String(sunday.getUTCDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
   }
+    private addDays(dateStr: string, days: number): string {
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+
 }

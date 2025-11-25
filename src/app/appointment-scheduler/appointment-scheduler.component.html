@@ -252,24 +252,32 @@ class="instructor-card">
     </tr>
   </thead>
   <tbody>
-    <tr *ngFor="let c of makeupCandidates">
-      <td>{{ c.occur_date }}</td>
-      <td>{{ c.day_of_week }}</td>
-      <td>
-        {{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}
-      </td>
-      <td>{{ c.instructor_id }}</td>
-      <td>
-        <button
-          type="button"
-          class="appt-cta"
-          (click)="openHolesForCandidate(c)"
-        >
-          להשלמת שיעור זה
-        </button>
-      </td>
-    </tr>
-  </tbody>
+  <tr
+    *ngFor="let c of makeupCandidates"
+    [ngClass]="{
+      'makeup-row-selected':
+        selectedMakeupCandidate?.lesson_id === c.lesson_id &&
+        selectedMakeupCandidate?.occur_date === c.occur_date
+    }"
+  >
+    <td>{{ c.occur_date }}</td>
+    <td>{{ c.day_of_week }}</td>
+    <td>
+      {{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}
+    </td>
+    <td>{{ c.instructor_id }}</td>
+    <td>
+      <button
+        type="button"
+        class="appt-cta"
+        (click)="openHolesForCandidate(c)"
+      >
+        להשלמת שיעור זה
+      </button>
+    </td>
+  </tr>
+</tbody>
+
 </table>
 
       </ng-container>
@@ -362,7 +370,7 @@ class="instructor-card">
       <th>יום</th>          <!-- ⬅ חדש -->
       <th>שעה</th>
       <th>מדריך</th>
-      <th>יתרה ב-slot</th>
+      <th>מקומות פנויים לשיעור</th>
       <th></th>
     </tr>
   </thead>
