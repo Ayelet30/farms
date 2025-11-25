@@ -224,40 +224,6 @@
   box-shadow: none;
 }
 
-/* רשימות ה־slots – טבלה תואמת */
-.slots-list {
-  margin-top: 12px;
-}
-
-.slots-list h4 {
-  margin: 0 0 6px;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.slots-list table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.slots-list th,
-.slots-list td {
-  padding: 6px 4px;
-  text-align: right;
-  border-bottom: 1px dashed #e5e7eb;
-}
-
-.slots-list th {
-  background: #f7f9f4;
-  font-weight: 700;
-  color: #586141;
-}
-
-.slots-list tr:last-child td {
-  border-bottom: none;
-}
-
 /* הודעות שגיאה / הצלחה תואמות לבאדג'ים */
 .error {
   margin-top: 6px;

@@ -80,6 +80,7 @@ export class SliderComponent implements OnInit {
           { path: 'secretary/schedule', label: 'לו״ז ומעקב', icon: 'calendar' },
           { path: 'secretary/appointment', label: 'זימון תורים', icon: 'settings' },
           { path: 'secretary/messages', label: 'הודעות', icon: 'note' },
+          { path: 'secretary/requests', label: 'בקשות ואישורים', icon: 'note' },
         ];
         break;
 
