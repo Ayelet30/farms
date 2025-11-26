@@ -391,7 +391,7 @@ class="instructor-card">
         <button
           type="button"
           class="appt-cta"
-          (click)="bookMakeupSlot(s)"
+          (click)="requestMakeupFromSecretary(s)"
         >
           קבע שיעור השלמה
         </button>
@@ -406,4 +406,24 @@ class="instructor-card">
 <p class="error" *ngIf="candidateSlotsError">{{ candidateSlotsError }}</p>
 
   </div>
+  <ng-template #confirmMakeupDialog let-dialogRef="dialogRef">
+  <div dir="rtl" style="padding: 10px; max-width: 350px;">
+    <h3>אישור בקשת שיעור השלמה</h3>
+
+    <p>
+      האם את בטוחה שברצונך לבקש שיעור השלמה
+      לתאריך <b>{{ confirmData.newDate }}</b>
+      בשעות <b>{{ confirmData.newStart }}–{{ confirmData.newEnd }}</b>
+      במקום השיעור בתאריך
+      <b>{{ confirmData.oldDate }}</b>
+      בשעות <b>{{ confirmData.oldStart }}–{{ confirmData.oldEnd }}</b>?
+    </p>
+
+    <div style="display:flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+      <button mat-button (click)="dialogRef.close(false)">ביטול</button>
+      <button mat-raised-button color="primary" (click)="dialogRef.close(true)">אישור</button>
+    </div>
+  </div>
+</ng-template>
+
 </div>
