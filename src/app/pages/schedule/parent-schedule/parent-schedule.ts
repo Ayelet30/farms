@@ -7,23 +7,32 @@ import type { EventClickArg } from '@fullcalendar/core';
 import {
   dbTenant,
   ensureTenantContextReady,
-  getCurrentUserData
+  getCurrentUserData,
 } from '../../../services/legacy-compat';
+
+import {
+  MatDialog,
+  MatDialogModule,
+} from '@angular/material/dialog';
+import {
+  CancelLessonDialogComponent,
+  CancelLessonDialogData,
+} from './cancel-lesson-dialog/cancel-lesson-dialog.component';
 
 @Component({
   selector: 'app-parent-schedule',
   standalone: true,
   templateUrl: './parent-schedule.html',
   styleUrls: ['./parent-schedule.scss'],
-  imports: [CommonModule, ScheduleComponent],
+  imports: [CommonModule, ScheduleComponent, MatDialogModule],
 })
 export class ParentScheduleComponent implements OnInit {
-  children: Array<{ 
-  child_uuid: string; 
-  first_name: string; 
-  last_name: string; 
-  status?: string | null; 
-}> = [];
+  children: Array<{
+    child_uuid: string;
+    first_name: string;
+    last_name: string;
+    status?: string | null;
+  }> = [];
 
   lessons: Lesson[] = [];
   filteredLessons: Lesson[] = [];
@@ -36,11 +45,11 @@ export class ParentScheduleComponent implements OnInit {
   selectedChildId: string = 'all';
   dropdownOpen = false;
 
+  constructor(private dialog: MatDialog) {}
+
   async ngOnInit() {
-    // ✅ חובה לפני כל שימוש ב-DB
     await ensureTenantContextReady();
 
-    // אתחול טווח שבוע כברירת מחדל
     this.startDate = this.getStartOfWeek();
     this.endDate = this.getEndOfWeek();
 
@@ -52,8 +61,7 @@ export class ParentScheduleComponent implements OnInit {
 
   private getStartOfWeek(): string {
     const today = new Date();
-    // יום ראשון = 0, נרצה להתחיל מיום שני (1)
-    const diff = today.getDate() - today.getDay() + 1;
+    const diff = today.getDate() - today.getDay() + 1; // ראשון-שבת, נרצה שני
     const start = new Date(today);
     start.setDate(diff);
     return start.toISOString().slice(0, 10);
@@ -68,12 +76,14 @@ export class ParentScheduleComponent implements OnInit {
   private async loadChildren() {
     try {
       const user = await getCurrentUserData();
-      if (!user?.uid) { this.children = []; return; }
+      if (!user?.uid) {
+        this.children = [];
+        return;
+      }
 
       const dbc = dbTenant();
       console.log('Loading children for parent UID:', user.uid, user.name);
 
-      // וידוא הורה קיים
       const { data: parent, error: e1 } = await dbc
         .from('parents')
         .select('uid')
@@ -86,45 +96,68 @@ export class ParentScheduleComponent implements OnInit {
         return;
       }
 
-      // ילדים פעילים (תמיכה ב-Active/active)
- const { data: kids, error: e2 } = await dbc
-    .from('children')
-    .select('child_uuid, first_name, last_name, status')
-    .eq('parent_uid', parent.uid)
-    .in('status', ['Active']); // ← אפשר לשנות בהתאם לערכים שלך ב־enum
+      const { data: kids, error: e2 } = await dbc
+        .from('children')
+        .select('child_uuid, first_name, last_name, status')
+        .eq('parent_uid', parent.uid)
+        .in('status', ['Active']);
 
-  console.log('children:', kids);
+      console.log('children:', kids);
 
-  if (e2) {
-    console.error('Error loading children:', e2);
-    this.children = [];
-    return;
+      if (e2) {
+        console.error('Error loading children:', e2);
+        this.children = [];
+        return;
+      }
+
+      this.children = (kids ?? []).map(
+        (k: {
+          child_uuid?: any;
+          first_name?: any;
+          last_name?: any;
+          status?: any;
+        }) => ({
+          child_uuid: String(k.child_uuid ?? ''),
+          first_name: String(k.first_name ?? ''),
+          last_name: String(k.last_name ?? ''),
+          status: k.status ?? null,
+        })
+      );
+    } catch (err) {
+      console.error('Unexpected error loading children:', err);
+      this.children = [];
+    }
   }
 
-  this.children = (kids ?? []).map(
-    (k: { child_uuid?: any; first_name?: any; last_name?: any; status?: any }) => ({
-      child_uuid: String(k.child_uuid ?? ''),
-      first_name: String(k.first_name ?? ''),
-      last_name:  String(k.last_name ?? ''),
-      status: k.status ?? null,
-    })
-  );
-} catch (err) {
-  console.error('Unexpected error loading children:', err);
-  this.children = [];
-}
-}
   private async loadLessons() {
     const dbc = dbTenant();
-    const childIds = this.children.map(c => c.child_uuid).filter(Boolean);
-    if (!childIds.length) { this.lessons = []; return; }
+    const childIds = this.children.map((c) => c.child_uuid).filter(Boolean);
+    if (!childIds.length) {
+      this.lessons = [];
+      return;
+    }
 
     const today = new Date().toISOString().slice(0, 10);
-    const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
 
     const { data, error } = await dbc
       .from('lessons_occurrences')
-      .select('lesson_id, child_id, instructor_id, lesson_type, status, day_of_week, start_time, end_time, start_datetime, end_datetime')
+      .select(
+        `
+        lesson_id,
+        child_id,
+        instructor_id,
+        lesson_type,
+        status,
+        day_of_week,
+        start_time,
+        end_time,
+        start_datetime,
+        end_datetime
+      `
+      )
       .in('child_id', childIds)
       .gte('occur_date', today)
       .lte('occur_date', in8Weeks)
@@ -138,30 +171,47 @@ export class ParentScheduleComponent implements OnInit {
 
     const rows = (data ?? []) as Lesson[];
 
-    // מיפוי שמות מדריכים (אופציונלי, מביאים רק אם צריך)
-    const instructorIds = Array.from(new Set(rows.map(r => r.instructor_id).filter((x): x is string => !!x)));
+    const instructorIds = Array.from(
+      new Set(
+        rows
+          .map((r) => r.instructor_id)
+          .filter((x): x is string => !!x)
+      )
+    );
     let instructorNameById: Record<string, string> = {};
     if (instructorIds.length) {
       const { data: inst } = await dbc
         .from('instructors')
         .select('id_number, first_name, last_name')
         .in('id_number', instructorIds);
-     for (const row of (inst ?? []) as { id_number: string; first_name: string | null; last_name: string | null }[]) {
-     const first = (row.first_name ?? '').trim();
-     const last  = (row.last_name ?? '').trim();
-    instructorNameById[row.id_number] = [first, last].filter(Boolean).join(' ');
 
+      for (const row of (inst ??
+        []) as {
+        id_number: string;
+        first_name: string | null;
+        last_name: string | null;
+      }[]) {
+        const first = (row.first_name ?? '').trim();
+        const last = (row.last_name ?? '').trim();
+        instructorNameById[row.id_number] = [first, last]
+          .filter(Boolean)
+          .join(' ');
+      }
     }
-  }   
 
     this.lessons = rows.map((r) => {
-      const startFallback = this.getLessonDateTime(r.day_of_week, r.start_time);
-      const endFallback   = this.getLessonDateTime(r.day_of_week, r.end_time);
+      const startFallback = this.getLessonDateTime(
+        r.day_of_week,
+        r.start_time
+      );
+      const endFallback = this.getLessonDateTime(r.day_of_week, r.end_time);
 
       const start = this.isoWithTFallback(r.start_datetime, startFallback);
-      const end   = this.isoWithTFallback(r.end_datetime,   endFallback);
+      const end = this.isoWithTFallback(r.end_datetime, endFallback);
 
       const occurrenceKey = `${r.child_id}__${start}`;
+
+      const child = this.children.find((c) => c.child_uuid === r.child_id);
 
       return {
         id: occurrenceKey,
@@ -172,18 +222,29 @@ export class ParentScheduleComponent implements OnInit {
         lesson_type: r.lesson_type,
         status: r.status,
         instructor_id: r.instructor_id ?? '',
-        instructor_name: r.instructor_id ? (instructorNameById[r.instructor_id] ?? '') : '',
+        instructor_name: r.instructor_id
+          ? instructorNameById[r.instructor_id] ?? ''
+          : '',
         child_color: this.getColorForChild(r.child_id),
-       child_name: `${this.children.find(c => c.child_uuid === r.child_id)?.first_name || ''} ${this.children.find(c => c.child_uuid === r.child_id)?.last_name || ''}`,
+        child_name: `${child?.first_name || ''} ${
+          child?.last_name || ''
+        }`.trim(),
         start_datetime: start,
         end_datetime: end,
+        lesson_id: (r as any).lesson_id,
       } as Lesson;
     });
   }
 
   private getLessonDateTime(dayName: string, timeStr: string): string {
     const dayMap: Record<string, number> = {
-      'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6
+      ראשון: 0,
+      שני: 1,
+      שלישי: 2,
+      רביעי: 3,
+      חמישי: 4,
+      שישי: 5,
+      שבת: 6,
     };
     const today = new Date();
     const currentDay = today.getDay();
@@ -199,8 +260,8 @@ export class ParentScheduleComponent implements OnInit {
     return this.toLocalIso(eventDate);
   }
 
-   getColorForChild(child_id: string): string {
-    const index = this.children.findIndex(c => c.child_uuid === child_id);
+  getColorForChild(child_id: string): string {
+    const index = this.children.findIndex((c) => c.child_uuid === child_id);
     const colors = ['#d8f3dc', '#fbc4ab', '#cdb4db', '#b5ead7', '#ffdac1'];
     return colors[(index >= 0 ? index : 0) % colors.length];
   }
@@ -213,14 +274,17 @@ export class ParentScheduleComponent implements OnInit {
 
   getChildName(childId: string | null): string | null {
     if (!childId || childId === 'all') return null;
-    const child = this.children.find(c => c.child_uuid === childId);
+    const child = this.children.find((c) => c.child_uuid === childId);
     return child ? `${child.first_name} ${child.last_name}`.trim() || null : null;
-
   }
 
-  toggleDropdown() { this.dropdownOpen = !this.dropdownOpen; }
+  toggleDropdown() {
+    this.dropdownOpen = !this.dropdownOpen;
+  }
 
-  toggleView() { this.weekView = !this.weekView; }
+  toggleView() {
+    this.weekView = !this.weekView;
+  }
 
   refresh() {
     this.loadLessons().then(() => {
@@ -229,15 +293,17 @@ export class ParentScheduleComponent implements OnInit {
     });
   }
 
-  // סינון לפי הילד שנבחר
   private filterLessons() {
     this.filteredLessons =
-      (!this.selectedChildId || this.selectedChildId === 'all')
+      !this.selectedChildId || this.selectedChildId === 'all'
         ? this.lessons
-        : this.lessons.filter(l => l.child_id === this.selectedChildId);
+        : this.lessons.filter((l) => l.child_id === this.selectedChildId);
   }
 
-  private isoWithTFallback(s: string | undefined | null, fallbackIso: string): string {
+  private isoWithTFallback(
+    s: string | undefined | null,
+    fallbackIso: string
+  ): string {
     if (s && s.trim() !== '') {
       const v = s.trim();
       return v.includes('T') ? v : v.replace(' ', 'T');
@@ -247,107 +313,201 @@ export class ParentScheduleComponent implements OnInit {
 
   private toLocalIso(date: Date): string {
     const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
-      date.getHours()
-    )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+      date.getDate()
+    )}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
+      date.getSeconds()
+    )}`;
   }
 
   private setScheduleItems() {
-    const base = (this.filteredLessons?.length ? this.filteredLessons : this.lessons) || [];
+    const base =
+      (this.filteredLessons?.length ? this.filteredLessons : this.lessons) ||
+      [];
 
     const uniq = new Map<string, ScheduleItem>();
+
     for (const lesson of base) {
-      const startFallback = this.getLessonDateTime(lesson.day_of_week, lesson.start_time);
-      const endFallback   = this.getLessonDateTime(lesson.day_of_week, lesson.end_time);
+      const startFallback = this.getLessonDateTime(
+        lesson.day_of_week,
+        lesson.start_time
+      );
+      const endFallback = this.getLessonDateTime(
+        lesson.day_of_week,
+        lesson.end_time
+      );
 
       const start = this.isoWithTFallback(lesson.start_datetime, startFallback);
-      const end   = this.isoWithTFallback(lesson.end_datetime,   endFallback);
+      const end = this.isoWithTFallback(lesson.end_datetime, endFallback);
 
       if (!start || !end) continue;
       const startMs = Date.parse(start);
-      const endMs   = Date.parse(end);
-      if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) continue;
+      const endMs = Date.parse(end);
+      if (
+        Number.isNaN(startMs) ||
+        Number.isNaN(endMs) ||
+        endMs <= startMs
+      )
+        continue;
 
       const color = lesson.child_color || this.getColorForChild(lesson.child_id);
-      const childLabel = lesson.child_name || this.getChildName(lesson.child_id) || 'ילד';
-      const title =
-        `${childLabel} — ${lesson.lesson_type}` +
-        (lesson.instructor_name ? ` עם ${lesson.instructor_name}` : '');
+      const childLabel =
+        lesson.child_name || this.getChildName(lesson.child_id) || 'ילד';
 
-      const uid = `${lesson.id || 'occ'}__${lesson.child_id || 'child'}__${start}`;
+      const uid = `${
+        (lesson as any).lesson_id || lesson.id || 'occ'
+      }__${lesson.child_id || 'child'}__${start}`;
+
+      // האם מותר לבטל?
+      const canCancelFlag = this.canCancel(lesson as Lesson);
+      const lessonOccId =
+        (lesson as any).lesson_id || (lesson as any).id || uid;
+
       if (!uniq.has(uid)) {
         uniq.set(uid, {
           id: uid,
-          title,
+          title: childLabel,
           start,
           end,
           color,
+          status: lesson.status,
           meta: {
             status: lesson.status,
             child_id: lesson.child_id,
             child_name: lesson.child_name,
             instructor_id: lesson.instructor_id,
             instructor_name: lesson.instructor_name,
+            lesson_type: lesson.lesson_type,
+            canCancel: canCancelFlag,
+            lesson_occurrence_id: lessonOccId,
           },
-        } as ScheduleItem);
+        } as unknown as ScheduleItem);
       }
     }
 
-    this.items = Array.from(uniq.values()).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    this.items = Array.from(uniq.values()).sort(
+      (a, b) => Date.parse(a.start) - Date.parse(b.start)
+    );
   }
 
+  // 🔹 פופאפ + קריאה ל־RPC
   onEventClick(arg: EventClickArg) {
     const ev = arg.event;
-    const item: ScheduleItem = {
-      id: ev.id,
-      title: ev.title,
-      start: ev.start?.toISOString() ?? '',
-      end: ev.end?.toISOString() ?? '',
-      color: ev.backgroundColor,
-      status: ev.extendedProps['status'],
-      meta: {
-        child_id: ev.extendedProps['child_id'],
-        child_name: ev.extendedProps['child_name'],
-        instructor_id: ev.extendedProps['instructor_id'],
-        instructor_name: ev.extendedProps['instructor_name'],
-        status: ev.extendedProps['status'],
-      },
+    const ext: any = ev.extendedProps;
+
+    const data: CancelLessonDialogData = {
+      lessonId: ext['lesson_occurrence_id'] ?? ev.id,
+      childName: ext['child_name'] ?? ev.title ?? '',
+      instructorName: ext['instructor_name'] ?? '',
+      dateStr: ev.start
+        ? ev.start.toLocaleDateString('he-IL')
+        : '',
+      timeStr: ev.start
+        ? ev.start.toLocaleTimeString('he-IL', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : '',
+      lessonType: ext['lesson_type'] ?? '',
+      status: ext['status'] ?? '',
+      canCancel: !!ext['canCancel'],
     };
-    console.log('event clicked', item);
+
+    const dialogRef = this.dialog.open(CancelLessonDialogComponent, {
+      width: '420px',
+      data,
+      direction: 'rtl',
+    });
+
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result?.cancelRequested) {
+        this.handleCancelRequest(data.lessonId, result.reason);
+      }
+    });
   }
+
+  private async handleCancelRequest(lessonOccId: string, reason: string) {
+    try {
+      await ensureTenantContextReady();
+      const dbc = dbTenant();
+
+      const { error } = await dbc.rpc('parent_request_cancel_lesson', {
+        p_lesson_occurrence_id: lessonOccId,
+        p_reason: reason,
+      });
+
+      if (error) throw error;
+
+      // עדכון לוקאלי – סטטוס "בקשת ביטול"
+      this.markLessonAsPendingCancel(lessonOccId);
+      alert('בקשת הביטול נשלחה למזכירה.');
+    } catch (err) {
+      console.error('cancel request error', err);
+      alert('אירעה שגיאה בעת שליחת בקשת הביטול');
+    }
+  }
+
+private markLessonAsPendingCancel(lessonOccId: string) {
+  // עדכון lessons
+  this.lessons = this.lessons.map((l) =>
+    (l as any).lesson_id === lessonOccId
+      ? { ...l, status: 'בקשת ביטול' as any }
+      : l
+  );
+
+  // עדכון items
+  this.items = this.items.map((it) =>
+    (it.meta as any)?.['lesson_occurrence_id'] === lessonOccId
+      ? {
+          ...it,
+          status: 'בקשת ביטול' as any,
+          meta: { ...(it.meta as any), status: 'בקשת ביטול' },
+        }
+      : it
+  );
+}
 
   onDateClick(dateIso: string) {
     console.log('date clicked', dateIso);
   }
 
-  print() { window.print(); }
+  print() {
+    window.print();
+  }
 
-  canCancel(lesson: Lesson) { return lesson.status !== 'הושלם' && lesson.status !== 'בוטל'; }
-  canView(_lesson: Lesson) { return true; }
+  canCancel(lesson: Lesson) {
+    // אפשר לחדד את הכלל – כרגע לפי סטטוס בלבד
+    return lesson.status !== 'הושלם' && lesson.status !== 'בוטל';
+  }
+  canView(_lesson: Lesson) {
+    return true;
+  }
 
   cancelLesson(_lesson: Lesson) {
     const confirmed = confirm('האם לבטל את השיעור?');
     if (confirmed) {
-      // TODO: קריאת ביטול ל-Supabase
+      // (לא בשימוש יותר – עברנו לדיאלוג)
     }
   }
 
   viewDetails(_lesson: Lesson) {
-    // TODO: פתיחת דיאלוג מידע
     return;
   }
 
-  openCompletionDialog() {
-    // TODO: בחירת סלוטים להשלמה
-  }
+  openCompletionDialog() {}
 
   statusClass(status: string): string {
     switch (status) {
-      case 'אושר': return 'status-approved';
-      case 'בוטל': return 'status-cancelled';
-      case 'הושלם': return 'status-done';
-      case 'ממתין לאישור': return 'status-pending';
-      default: return '';
+      case 'אושר':
+        return 'status-approved';
+      case 'בוטל':
+        return 'status-cancelled';
+      case 'הושלם':
+        return 'status-done';
+      case 'ממתין לאישור':
+        return 'status-pending';
+      default:
+        return '';
     }
   }
 }

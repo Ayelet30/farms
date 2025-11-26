@@ -307,11 +307,13 @@ private async loadCandidateSlots(): Promise<void> {
   this.candidateSlotsError = null;
 
   try {
-    const { data, error } = await dbTenant().rpc('find_makeup_slots_for_lesson', {
-      p_instructor_id: instructorParam,
-      p_from_date: this.makeupSearchFromDate,
-      p_to_date: this.makeupSearchToDate,
-    });
+    const { data, error } = await dbTenant().rpc('find_makeup_slots_for_lesson_by_id_number', {
+  p_instructor_id: instructorParam,
+  p_from_date: this.makeupSearchFromDate,
+  p_to_date: this.makeupSearchToDate,
+});
+
+
 
 
     console.log('🔍 find_makeup_slots_for_lesson result:', { error, rows: data?.length });
@@ -712,47 +714,57 @@ instructor_id:
 
   // יצירת שיעור השלמה – יוצר lesson יחיד (repeat_weeks = 1)
   async bookMakeupSlot(slot: MakeupSlot): Promise<void> {
-    if (!this.selectedChildId) return;
+  if (!this.selectedChildId) return;
 
-    const dayLabel = this.dayOfWeekLabelFromDate(slot.occur_date);
-    const anchorWeekStart = this.calcAnchorWeekStart(slot.occur_date);
+  const dayLabel = this.dayOfWeekLabelFromDate(slot.occur_date);
+  const anchorWeekStart = this.calcAnchorWeekStart(slot.occur_date);
 
-    const { data, error } = await dbTenant()
-      .from('lessons')
-      .insert({
-        child_id: this.selectedChildId,
-instructor_id:
-  this.selectedInstructorId === 'any'
-    ? slot.instructor_id
-    : this.selectedInstructorId,
-        lesson_type: 'השלמה',
-        status: 'אושר',
-        day_of_week: dayLabel,
-        start_time: slot.start_time,
-        end_time: slot.end_time,
-        repeat_weeks: 1,
-        anchor_week_start: anchorWeekStart,
-        appointment_kind: 'therapy_makeup',
-        // אם יש אישור פעיל – אפשר לבחור אחד approvals ולהצמיד אותו:
-        approval_id: this.selectedApproval?.approval_id ?? null,
-        origin: this.user!.role === 'parent' ? 'parent' : 'secretary',
-        is_tentative: false,
-        capacity: 1,
-        current_booked: 1,
-        payment_source: this.selectedApproval ? 'health_fund' : 'private',
-      })
-      .select()
-      .single();
+  // נחליט מה ה-id_number שנכניס לשיעור
+  const instructorIdNumber =
+    this.selectedInstructorId === 'any'
+      ? slot.instructor_id
+      : (
+          this.instructors.find(i =>
+            i.instructor_uid === this.selectedInstructorId || // uid
+            i.instructor_id  === this.selectedInstructorId    // במקרה שכבר ת"ז
+          )?.instructor_id ?? slot.instructor_id              // fallback
+        );
 
-    if (error) {
-      console.error(error);
-      this.makeupError = 'שגיאה ביצירת שיעור ההשלמה';
-      return;
-    }
+  console.log('📌 booking makeup with instructorIdNumber:', instructorIdNumber);
 
-    this.makeupCreatedMessage = 'שיעור ההשלמה נוצר בהצלחה';
-    await this.onChildChange();
+  const { data, error } = await dbTenant()
+    .from('lessons')
+    .insert({
+      child_id: this.selectedChildId,
+      instructor_id: instructorIdNumber,  // ← שורה מתוקנת
+      lesson_type: 'השלמה',
+      status: 'אושר',
+      day_of_week: dayLabel,
+      start_time: slot.start_time,
+      end_time: slot.end_time,
+      repeat_weeks: 1,
+      anchor_week_start: anchorWeekStart,
+      appointment_kind: 'therapy_makeup',
+      approval_id: this.selectedApproval?.approval_id ?? null,
+      origin: this.user!.role === 'parent' ? 'parent' : 'secretary',
+      is_tentative: false,
+      capacity: 1,
+      current_booked: 1,
+      payment_source: this.selectedApproval ? 'health_fund' : 'private',
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    this.makeupError = 'שגיאה ביצירת שיעור ההשלמה';
+    return;
   }
+
+  this.makeupCreatedMessage = 'שיעור ההשלמה נוצר בהצלחה';
+  await this.onChildChange();
+}
+
 
   // =========================================
   //           עזרי תאריכים / ימים

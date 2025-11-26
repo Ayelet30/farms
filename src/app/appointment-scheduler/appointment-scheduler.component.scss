@@ -272,7 +272,7 @@
 }
 .instructor-card-body {
   display: grid;
-  grid-template-columns: minmax(206px, 218px) 150px; /* ימין טקסט, שמאל תעודה */
+  grid-template-columns: minmax(206px, 218px) 150px 150px; /* ימין טקסט, שמאל תעודה */
   justify-content: flex-start;   /* דוחף את הגריד לצד ימין של הכרטיס */
   // column-gap: 48px;            /* המרחק בין הטקסט לתעודה */
   align-items: flex-start;
