@@ -33,6 +33,7 @@ ngOnDestroy() {
   phone: '',
   email: ''
 };
+showConfirmDialog = false;
 
 
   phoneError = '';
@@ -112,6 +113,27 @@ private showInfo(msg: string, ms = 5000) {
   }, ms);
 }
 
+private validateParent(): boolean {
+  // ולידציה לטלפון
+  const phoneRegex = /^05\d{8}$/;
+  if (!phoneRegex.test(this.editableParent.phone || '')) {
+    this.phoneError = 'מספר טלפון לא תקין. יש להזין מספר סלולרי בן 10 ספרות המתחיל ב-05.';
+    return false;
+  } else {
+    this.phoneError = '';
+  }
+
+  // ולידציה לאימייל
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(this.editableParent.email || '')) {
+    this.emailError = 'כתובת מייל לא תקינה.';
+    return false;
+  } else {
+    this.emailError = '';
+  }
+
+  return true;
+}
 
 
   getAge(dateString: string): number {
@@ -145,53 +167,56 @@ private showInfo(msg: string, ms = 5000) {
     this.error = undefined;
     this.editableParent = { ...this.parent };
   }
+// בתוך ParentDetailsComponent
+
+onSaveClick() {
+  this.error = undefined;
+
+  // אם יש שגיאות – לא נפתח מודאל
+  if (!this.validateParent()) {
+    return;
+  }
+
+  this.showConfirmDialog = true;
+}
+confirmSave() {
+  this.showConfirmDialog = false;
+  this.saveParent();
+}
+
+cancelSaveDialog() {
+  this.showConfirmDialog = false;     // לסגור מודאל
+  this.cancelEdit();                  // ⬅️ לצאת ממצב עריכה ולהחזיר ערכים מקוריים
+}
+
 
   async saveParent() {
-    // ולידציה לטלפון
-    const phoneRegex = /^05\d{8}$/;
-    if (!phoneRegex.test(this.editableParent.phone || '')) {
-      this.phoneError = 'מספר טלפון לא תקין. יש להזין מספר סלולרי בן 10 ספרות המתחיל ב-05.';
-      return;
-    } else {
-      this.phoneError = '';
-    }
-
-    // ולידציה לאימייל
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(this.editableParent.email || '')) {
-      this.emailError = 'כתובת מייל לא תקינה.';
-      return;
-    } else {
-      this.emailError = '';
-    }
-
-    try {
-      const dbc = dbTenant();
+  try {
+    const dbc = dbTenant();
 
     const { error } = await dbc
-    .from('parents')
-    .update({
-    first_name: this.editableParent.first_name,
-    last_name:  this.editableParent.last_name,
-    address:    this.editableParent.address,
-    phone:      this.editableParent.phone,
-    email:      this.editableParent.email
-    })
-   .eq('uid', this.parent.uid);
+      .from('parents')
+      .update({
+        first_name: this.editableParent.first_name,
+        last_name:  this.editableParent.last_name,
+        address:    this.editableParent.address,
+        phone:      this.editableParent.phone,
+        email:      this.editableParent.email
+      })
+      .eq('uid', this.parent.uid);
 
-
-      if (error) {
-        this.error = error.message ?? 'שגיאה בשמירת פרטי ההורה';
-        return;
-      }
-
-      this.parent = { ...this.editableParent };
-      this.isEditing = false;
-      this.error = undefined;
-    } catch (e: any) {
-      this.error = e?.message ?? 'שגיאה לא צפויה בשמירה';
+    if (error) {
+      this.error = error.message ?? 'שגיאה בשמירת פרטי ההורה';
+      return;
     }
-    this.showInfo('פרטי ההורה נשמרו בהצלחה');  
 
+    this.parent = { ...this.editableParent };
+    this.isEditing = false;
+    this.error = undefined;
+    this.showInfo('פרטי ההורה נשמרו בהצלחה');
+  } catch (e: any) {
+    this.error = e?.message ?? 'שגיאה לא צפויה בשמירה';
   }
+}
+
 }
