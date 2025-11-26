@@ -6,6 +6,9 @@ import { AppointmentMode, AppointmentTab, ChildRow, CurrentUser , InstructorRow 
 import { CurrentUserService } from '../core/auth/current-user.service';
 import { ActivatedRoute } from '@angular/router';
 import { SELECTION_LIST } from '@angular/material/list';
+import { MatDialog } from '@angular/material/dialog';
+import { ViewChild, TemplateRef } from '@angular/core';
+
 
 interface InstructorDbRow {
   uid: string | null;
@@ -111,6 +114,17 @@ loadingCandidateSlots = false;
 candidateSlotsError: string | null = null;
   makeupSearchFromDate: string | null = null;
   makeupSearchToDate: string | null = null;
+  @ViewChild('confirmMakeupDialog') confirmMakeupDialog!: TemplateRef<any>;
+
+confirmData = {
+  newDate: '',
+  newStart: '',
+  newEnd: '',
+  oldDate: '',
+  oldStart: '',
+  oldEnd: '',
+};
+
 
 
   private readonly CHILD_SELECT =
@@ -164,8 +178,12 @@ onNoInstructorPreferenceChange(): void {
 
   constructor(
   private currentUser: CurrentUserService,
-  private route: ActivatedRoute
-) {
+  private route: ActivatedRoute,
+    private dialog: MatDialog
+
+  
+)
+ {
   this.user = this.currentUser.current;
 }
 
@@ -713,58 +731,119 @@ instructor_id:
   // =========================================
 
   // יצירת שיעור השלמה – יוצר lesson יחיד (repeat_weeks = 1)
-  async bookMakeupSlot(slot: MakeupSlot): Promise<void> {
-  if (!this.selectedChildId) return;
+//   async bookMakeupSlot(slot: MakeupSlot): Promise<void> {
+//   if (!this.selectedChildId) return;
 
-  const dayLabel = this.dayOfWeekLabelFromDate(slot.occur_date);
-  const anchorWeekStart = this.calcAnchorWeekStart(slot.occur_date);
+//   const dayLabel = this.dayOfWeekLabelFromDate(slot.occur_date);
+//   const anchorWeekStart = this.calcAnchorWeekStart(slot.occur_date);
 
-  // נחליט מה ה-id_number שנכניס לשיעור
-  const instructorIdNumber =
-    this.selectedInstructorId === 'any'
-      ? slot.instructor_id
-      : (
-          this.instructors.find(i =>
-            i.instructor_uid === this.selectedInstructorId || // uid
-            i.instructor_id  === this.selectedInstructorId    // במקרה שכבר ת"ז
-          )?.instructor_id ?? slot.instructor_id              // fallback
-        );
+//   // נחליט מה ה-id_number שנכניס לשיעור
+//   const instructorIdNumber =
+//     this.selectedInstructorId === 'any'
+//       ? slot.instructor_id
+//       : (
+//           this.instructors.find(i =>
+//             i.instructor_uid === this.selectedInstructorId || // uid
+//             i.instructor_id  === this.selectedInstructorId    // במקרה שכבר ת"ז
+//           )?.instructor_id ?? slot.instructor_id              // fallback
+//         );
 
-  console.log('📌 booking makeup with instructorIdNumber:', instructorIdNumber);
+//   console.log('📌 booking makeup with instructorIdNumber:', instructorIdNumber);
 
-  const { data, error } = await dbTenant()
-    .from('lessons')
-    .insert({
-      child_id: this.selectedChildId,
-      instructor_id: instructorIdNumber,  // ← שורה מתוקנת
-      lesson_type: 'השלמה',
-      status: 'אושר',
-      day_of_week: dayLabel,
-      start_time: slot.start_time,
-      end_time: slot.end_time,
-      repeat_weeks: 1,
-      anchor_week_start: anchorWeekStart,
-      appointment_kind: 'therapy_makeup',
-      approval_id: this.selectedApproval?.approval_id ?? null,
-      origin: this.user!.role === 'parent' ? 'parent' : 'secretary',
-      is_tentative: false,
-      capacity: 1,
-      current_booked: 1,
-      payment_source: this.selectedApproval ? 'health_fund' : 'private',
-    })
-    .select()
-    .single();
+//   const { data, error } = await dbTenant()
+//     .from('lessons')
+//     .insert({
+//       child_id: this.selectedChildId,
+//       instructor_id: instructorIdNumber,  // ← שורה מתוקנת
+//       lesson_type: 'השלמה',
+//       status: 'אושר',
+//       day_of_week: dayLabel,
+//       start_time: slot.start_time,
+//       end_time: slot.end_time,
+//       repeat_weeks: 1,
+//       anchor_week_start: anchorWeekStart,
+//       appointment_kind: 'therapy_makeup',
+//       approval_id: this.selectedApproval?.approval_id ?? null,
+//       origin: this.user!.role === 'parent' ? 'parent' : 'secretary',
+//       is_tentative: false,
+//       capacity: 1,
+//       current_booked: 1,
+//       payment_source: this.selectedApproval ? 'health_fund' : 'private',
+//     })
+//     .select()
+//     .single();
 
-  if (error) {
-    console.error(error);
-    this.makeupError = 'שגיאה ביצירת שיעור ההשלמה';
+//   if (error) {
+//     console.error(error);
+//     this.makeupError = 'שגיאה ביצירת שיעור ההשלמה';
+//     return;
+//   }
+
+//   this.makeupCreatedMessage = 'שיעור ההשלמה נוצר בהצלחה';
+//   await this.onChildChange();
+// }
+
+ // בקשת שיעור השלמה מהמזכירה – מכניסת רשומה ל-secretarial_requests
+async requestMakeupFromSecretary(slot: MakeupSlot): Promise<void> {
+  if (!this.selectedChildId || !this.user || !this.selectedMakeupCandidate) {
+    this.makeupError = 'חסר ילד או שיעור מקור להשלמה';
     return;
   }
 
-  this.makeupCreatedMessage = 'שיעור ההשלמה נוצר בהצלחה';
-  await this.onChildChange();
-}
+  // מידע חדש
+  this.confirmData.newDate  = slot.occur_date;
+  this.confirmData.newStart = slot.start_time.substring(0, 5);
+  this.confirmData.newEnd   = slot.end_time.substring(0, 5);
 
+  // מידע של השיעור המקורי
+  this.confirmData.oldDate  = this.selectedMakeupCandidate.occur_date;
+  this.confirmData.oldStart = this.selectedMakeupCandidate.start_time.substring(0, 5);
+  this.confirmData.oldEnd   = this.selectedMakeupCandidate.end_time.substring(0, 5);
+
+  // פתיחת דיאלוג
+  const dialogRef = this.dialog.open(this.confirmMakeupDialog, {
+  width: '380px',
+  disableClose: true,
+
+  data: {},                 // חובה להעביר משהו
+});
+
+dialogRef.componentInstance; // לא רלוונטי פה
+
+
+  dialogRef.afterClosed().subscribe(async confirmed => {
+    if (!confirmed) return;
+
+    const payload = {
+      requested_start_time: slot.start_time,
+      requested_end_time: slot.end_time,
+    };
+
+    const lessonOccId = this.selectedMakeupCandidate!.lesson_id;
+
+    const { error } = await dbTenant()
+      .from('secretarial_requests')
+      .insert({
+        request_type: 'MAKEUP_LESSON',
+        requested_by_uid: String(this.user!.uid),
+        requested_by_role: 'parent',
+        child_id: this.selectedChildId,
+        instructor_id: slot.instructor_id,
+        lesson_occ_id: lessonOccId,
+        from_date: slot.occur_date,
+        to_date: slot.occur_date,
+        payload
+      });
+
+    if (error) {
+      console.error(error);
+      this.makeupError = 'שגיאה בשליחת הבקשה';
+      return;
+    }
+
+    this.makeupCreatedMessage = 'בקשת ההשלמה נשלחה למזכירה ✔️';
+  });
+}
 
   // =========================================
   //           עזרי תאריכים / ימים
