@@ -12,7 +12,7 @@
    <div class="button-group">
   <button *ngIf="!isEditing" (click)="isEditing = true" class="btn-edit">✏️ ערוך</button>
   <ng-container *ngIf="isEditing">
-    <button (click)="saveParent()" class="btn-save">💾 שמור</button>
+<button (click)="onSaveClick()" class="btn-save">💾 שמור</button>
     <button (click)="cancelEdit()" class="btn-cancel">❌ ביטול</button>
   </ng-container>
 </div>
@@ -55,6 +55,20 @@
       סטטוס: {{ getStatusText(child.status) }}
     </li>
   </ul>
+</div>
+<div
+  *ngIf="showConfirmDialog"
+  class="modal-backdrop"
+>
+  <div class="modal-panel" role="dialog" aria-modal="true">
+    <h4>אישור שמירת שינויים</h4>
+    <p>האם את בטוחה שברצונך לשמור את השינויים בפרטי ההורה?</p>
+
+    <div class="modal-actions">
+      <button class="btn-save" (click)="confirmSave()">💾 שמור</button>
+      <button class="btn-cancel" (click)="cancelSaveDialog()">❌ ביטול</button>
+    </div>
+  </div>
 </div>
 
 

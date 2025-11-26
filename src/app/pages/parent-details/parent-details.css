@@ -84,7 +84,7 @@
 
 /* קלטים */
 .editable-input {
-  width: 100%;
+  width: 80%;
   border: 1.5px solid var(--line);
   border-radius: 12px;
   padding: 8px 10px;
@@ -193,4 +193,44 @@
     gap: 4px;
   }
   .error-msg { grid-column: 1 / -1; }
+}
+/* ===== מודאל אישור שמירה ===== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal-panel {
+  background: var(--panel);
+  border-radius: 16px;
+  padding: 16px 18px;
+  border: 1.5px solid var(--olive-300);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+  max-width: 360px;
+  width: 90%;
+  text-align: center;
+}
+
+.modal-panel h4 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.modal-panel p {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+.modal-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
 }
