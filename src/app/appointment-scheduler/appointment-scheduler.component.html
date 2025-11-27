@@ -141,26 +141,107 @@ class="instructor-card">
   <!-- ======== טאב: סדרת טיפולים ======== -->
   <div *ngIf="selectedTab === 'series'" class="appt-card">
     <h3>סדרת טיפולים קבועה</h3>
+<div class="appt-field-group">
+  <span class="appt-field-label">כמות שיעורים בסדרה</span>
+  <select
+    class="appt-select"
+    [(ngModel)]="seriesLessonCount"
+    (ngModelChange)="onSeriesLessonCountChange($event)"
+  >
+    <option [ngValue]="null" disabled hidden>
+      בחר/י כמות מפגשים
+    </option>
+
+    <option *ngFor="let n of seriesLessonCountOptions" [ngValue]="n">
+      {{ n }} מפגשים
+    </option>
+  </select>
+</div>
+
 
     <div class="appt-form-row">
       <div class="appt-field-group">
         <span class="appt-field-label">יום בשבוע</span>
-        <select class="appt-select" [(ngModel)]="seriesDayOfWeek">
-          <option [ngValue]="null">בחר/י יום</option>
-          <option *ngFor="let d of daysOfWeek" [ngValue]="d.value">
-            {{ d.label }}
-          </option>
-        </select>
+       <!-- קלנדר קטן לחיפוש סדרות -->
+<div class="series-calendar">
+  <div class="calendar-header">
+    <button type="button" (click)="goToPrevMonth()">&lt;</button>
+    <span>
+      {{ currentCalendarMonth + 1 }}/{{ currentCalendarYear }}
+    </span>
+    <button type="button" (click)="goToNextMonth()">&gt;</button>
+  </div>
+
+  <div class="calendar-grid">
+    <!-- כותרות ימים -->
+    <div class="calendar-day-name">א'</div>
+    <div class="calendar-day-name">ב'</div>
+    <div class="calendar-day-name">ג'</div>
+    <div class="calendar-day-name">ד'</div>
+    <div class="calendar-day-name">ה'</div>
+    <div class="calendar-day-name">ו'</div>
+    <div class="calendar-day-name">ש'</div>
+
+    <!-- הימים עצמם -->
+    <div
+      *ngFor="let d of seriesCalendarDays"
+      class="calendar-day"
+      [ngClass]="{
+        'not-current': !d.isCurrentMonth,
+        'has-slots': d.hasSlots,
+        'selected-day': d.date === selectedSeriesDate
+      }"
+      (click)="onSeriesCalendarDayClick(d)"
+    >
+      <span class="day-label" *ngIf="d.label">{{ d.label }}</span>
+      <span class="day-dot" *ngIf="d.hasSlots"></span>
+    </div>
+  </div>
+</div>
+
+<!-- שעות זמינות ביום שנבחר -->
+<div class="slots-list" *ngIf="selectedSeriesDate && selectedSeriesDaySlots.length">
+  <h4>שעות זמינות ליום {{ selectedSeriesDate }}</h4>
+
+  <table>
+    <thead>
+      <tr>
+        <th>שעה</th>
+        <th>מדריך</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let s of selectedSeriesDaySlots">
+        <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
+        <td>{{ s.instructor_id }}</td>
+        <td>
+          <button
+            type="button"
+            class="appt-cta"
+
+           (click)="requestSeriesFromSecretary()"
+
+          >
+            בקש סדרה במועד זה
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+
       </div>
 
-      <div class="appt-field-group">
+      <!-- <div class="appt-field-group">
         <span class="appt-field-label">שעת התחלה</span>
         <input
           class="appt-input"
           type="time"
           [(ngModel)]="seriesStartTime"
         />
-      </div>
+      </div> -->
     </div>
 
     <div class="appt-form-row">
@@ -176,18 +257,7 @@ class="instructor-card">
       </div>
     </div>
 
-    <div class="appt-actions">
-      <button
-        type="button"
-        class="appt-cta primary"
-        (click)="searchRecurringSlots()"
-        [disabled]="loadingSeries || !selectedChildId"
-        [attr.aria-disabled]="loadingSeries || !selectedChildId ? 'true' : null"
-      >
-        {{ loadingSeries ? 'מחפש...' : 'חפש סדרות זמינות' }}
-      </button>
-    </div>
-
+  
     <p class="error" *ngIf="seriesError">{{ seriesError }}</p>
     <p class="success" *ngIf="seriesCreatedMessage">
       {{ seriesCreatedMessage }}
