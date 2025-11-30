@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
@@ -19,6 +19,7 @@ import {
 import { CurrentUserService } from '../../core/auth/current-user.service';
 import { TokensService } from '../../services/tokens.service';
 import type { Membership } from '../../services/supabaseClient.service';
+
 
 @Component({
   selector: 'app-header',
@@ -62,33 +63,100 @@ export class HeaderComponent implements OnInit {
     coordinator: 'רכזת',
   };
 
-  async ngOnInit() {
-    await this.cu.waitUntilReady();
-    this.cu.user$.subscribe(() => this.rebindFromStores());
-    this.cu.userDetails$.subscribe(() => this.rebindFromStores());
-    await this.bootstrapMembershipsAndSelection();
+
+  isRoleMenuOpen = false;
+
+  // סגירת התפריט בכל קליק מחוץ לחץ
+  @HostListener('document:click')
+  onDocumentClick() {
+    this.isRoleMenuOpen = false;
+  }
+
+  toggleRoleMenu(event: MouseEvent) {
+    event.stopPropagation(); // שלא יסגור מיד מה־HostListener
+    if (this.memberships.length <= 1) return;
+    this.isRoleMenuOpen = !this.isRoleMenuOpen;
+  }
+
+  async onChooseMembership(m: Membership | null) {
+    if (!m) return;
+
+    const resp = await this.cu.switchMembership(m.tenant_id, m.role_in_tenant);
+    this.selected = m;
+    localStorage.setItem('selectedTenant', m.tenant_id);
+
+    const farm = getCurrentFarmMetaSync();
+    this.tokens.applytokens(farm?.schema_name || 'public');
+
+    this.rebindFromStores();
     await this.loadLogo();
+
+    const target = this.routeByRole(resp?.role || m.role_in_tenant);
+    await this.router.navigateByUrl(target);
+
+    // לסגור את הדרופדאון אחרי בחירה
+    this.isRoleMenuOpen = false;
   }
 
-  private rebindFromStores() {
-    const cur = this.cu.current;
-    const details = this.cu.snapshot;
-    this.isLoggedIn = !!cur;
-    this.userRoleKey = (cur?.role || '').toLowerCase();
-    this.userRole = this.roleHe[this.userRoleKey] || '';
-    this.userName = (
-  `${details?.first_name ?? ''} ${details?.last_name ?? ''}`.trim() ||
-  cur?.displayName ||
-  ''
-) ?? '';
+  async ngOnInit() {
+  await this.cu.waitUntilReady();
 
-    this.farmName = (getCurrentFarmMetaSync()?.name || undefined);
-    this.farmInitials = this.makeInitials(this.farmName || '');
+  this.cu.user$.subscribe((u) => {
+    this.memberships = u?.memberships ?? [];
+    this.selected =
+      this.memberships.find(m => m.tenant_id === u?.selectedTenantId) ||
+      this.memberships[0];
+
+    this.rebindFromStores();
+  });
+
+  this.cu.userDetails$.subscribe(() => this.rebindFromStores());
+
+  // אם ממש חייבים fallback – אז ורק אם אין memberships נמשוך מהשרת
+  if (!this.memberships.length) {
+    await this.bootstrapMembershipsAndSelection();
   }
+
+  await this.loadLogo();
+}
+
+
+ private rebindFromStores() {
+  const cur = this.cu.current;
+  const details = this.cu.snapshot;
+
+  this.isLoggedIn = !!cur;
+  this.userRoleKey = (cur?.role || '').toLowerCase();
+  this.userRole = this.roleHe[this.userRoleKey] || '';
+
+  this.userName = (
+    `${details?.first_name ?? ''} ${details?.last_name ?? ''}`.trim() ||
+    cur?.displayName ||
+    ''
+  ) ?? '';
+
+  // ===== FARM NAME RESOLUTION =====
+  const selectedTenantId =
+    cur?.selectedTenantId ||
+    this.selected?.tenant_id ||
+    localStorage.getItem('selectedTenant');
+
+  const selectedMembership =
+    this.memberships.find(m => m.tenant_id === selectedTenantId) ||
+    this.memberships[0];
+
+  this.farmName =
+    getCurrentFarmMetaSync()?.name ||
+    selectedMembership?.farm?.name ||
+    undefined;
+
+  this.farmInitials = this.makeInitials(this.farmName || '');
+}
+
 
   private async bootstrapMembershipsAndSelection() {
     try {
-      this.memberships = await listMembershipsForCurrentUser(true);
+      this.memberships = await listMembershipsForCurrentUser(false);
       const selectedSync = getSelectedMembershipSync();
       const savedId = localStorage.getItem('selectedTenant');
       const fromLs = this.memberships.find(m => m.tenant_id === savedId) || null;
@@ -98,21 +166,36 @@ export class HeaderComponent implements OnInit {
       }
     } catch {}
   }
+  
 
-  private async loadLogo() {
-    try {
-      const url = await getCurrentFarmLogoUrl();
-      if (url) { this.farmLogoUrl = url; return; }
-    } catch {}
-    const ctx = getCurrentFarmMetaSync();
-    const currentTenantId = ctx?.id || this.selected?.tenant_id || null;
-    const m = this.memberships.find(x => x.tenant_id === currentTenantId) || this.memberships[0];
-    const key = m?.farm?.id || m?.tenant_id || m?.farm?.schema_name || null;
-    if (key) {
-      try { this.farmLogoUrl = await getFarmLogoUrl(key); return; } catch {}
-    }
+ private async loadLogo() {
+  const cur = this.cu.current;
+  const ctx = getCurrentFarmMetaSync();
+
+  const currentTenantId =
+    ctx?.id ||
+    cur?.selectedTenantId ||
+    this.selected?.tenant_id ||
+    localStorage.getItem('selectedTenant');
+
+  const m =
+    this.memberships.find(x => x.tenant_id === currentTenantId) ||
+    this.memberships[0];
+
+  const key = m?.farm?.schema_name || m?.farm?.id || m?.tenant_id || null;
+
+  if (!key) {
+    this.farmLogoUrl = null;
+    return;
+  }
+
+  try {
+    this.farmLogoUrl = await getFarmLogoUrl(key);
+  } catch {
     this.farmLogoUrl = null;
   }
+}
+
 
   handleLoginLogout() {
     if (!this.isLoggedIn) { this.router.navigate(['/login']); return; }
@@ -136,23 +219,26 @@ export class HeaderComponent implements OnInit {
     this.router.navigate([target]);
   }
 
-  async onChooseMembership(m: Membership | null) {
-    if (!m) return;
-    const resp = await this.cu.switchMembership(m.tenant_id, m.role_in_tenant);
-    this.selected = m;
-    localStorage.setItem('selectedTenant', m.tenant_id);
-    const farm = getCurrentFarmMetaSync();
-    this.tokens.applytokens(farm?.schema_name || 'public');
-    this.rebindFromStores();
-    await this.loadLogo();
-    const target = this.routeByRole(resp?.role || m.role_in_tenant);
-    await this.router.navigateByUrl(target);
-  }
-
-  private makeInitials(name: string): string {
+    private makeInitials(name: string): string {
     const parts = (name || '').trim().split(/\s+/).slice(0, 2);
     const init = parts.map(p => p[0]?.toUpperCase() || '').join('');
     return init || 'F';
   }
+
+formatMembershipRole(m: Membership): string {
+  const key = (m.role_in_tenant || '').toLowerCase();
+  return this.roleHe[key] || m.role_in_tenant || '';
+}
+
+formatMembershipFarm(m: Membership): string {
+  return m.farm?.name || 'חווה ללא שם';
+}
+
+formatMembershipLabel(m: Membership | null | undefined): string {
+  if (!m) return '';
+  return `${this.formatMembershipRole(m)} · ${this.formatMembershipFarm(m)}`;
+}
+
+
 }
 

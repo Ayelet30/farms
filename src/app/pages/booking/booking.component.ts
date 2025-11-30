@@ -89,7 +89,7 @@ export class BookingComponent implements OnInit {
     if (state?.tx) {
       this.successMessage =
         'התשלום בוצע בהצלחה! מספר אסמכתא: ' +
-        (state.tx?.confirmation || state.tx?.index || '');
+        (state.tx?.transaction_id || state.tx?.auth_number || '');
       // כאן אפשר לשמור ל-DB:
       // this.saveBookingToDb(state.booking, state.tx);
     }
@@ -157,7 +157,7 @@ export class BookingComponent implements OnInit {
         // תשלום הצליח
         this.successMessage =
           'התשלום בוצע בהצלחה! מספר אסמכתא: ' +
-          (tx.confirmation || tx.index || '');
+          (tx.transaction_id  || tx.auth_number || '');
         // כאן אחר כך תוכלי לקרוא לשמירה ל-DB
       }
     });

@@ -274,14 +274,10 @@
   display: grid;
   grid-template-columns: minmax(206px, 218px) 150px 150px; /* ימין טקסט, שמאל תעודה */
   justify-content: flex-start;   /* דוחף את הגריד לצד ימין של הכרטיס */
-  // column-gap: 48px;            /* המרחק בין הטקסט לתעודה */
   align-items: flex-start;
-  // padding-inline: 24px 24px;   /* מרחק מהשוליים, גם ימין וגם שמאל */
 
   .instructor-card-body {
-  // display: flex;
-  flex-direction: row;       /* טקסט + תעודה בשורה אחת */
-  // justify-content: flex-end; /* הכל נדחף לכיוון ימין */
+  flex-direction: row;   
   align-items: flex-start;
   gap: 24px;                 /* רווח בין טקסט לתעודה */
   padding-inline: 24px;      /* קצת מרווח מהקצוות */

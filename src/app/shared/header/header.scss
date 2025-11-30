@@ -145,60 +145,99 @@
       }
     }
 
-    .parent-Role {
-      font-size: 12px;
+      .parent-name-text {
+    white-space: nowrap;
+  }
+  
+  .parent-Role {
+    padding-right: 50px;
+  }
+
+  .role-toggle-btn {
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    border: 1px solid var(--gold-soft);
+    background: rgba(255, 255, 255, 0.6);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, transform .06s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.95);
+      border-color: var(--gold-strong, var(--gold-soft));
+    }
+
+    &:active {
+      transform: translateY(1px);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--gold-soft);
+      outline-offset: 2px;
+    }
+
+    .chevron {
+      width: 8px;
+      height: 8px;
+      border-inline-start: 2px solid var(--text-strong);
+      border-block-start: 2px solid var(--text-strong);
+      transform: rotate(135deg); // חץ כלפי מטה
+      transition: transform .15s ease;
+    }
+
+    &.open .chevron {
+      transform: rotate(-45deg); // חץ כלפי מעלה
+    }
+  }
+
+  .role-menu {
+    position: absolute;
+    top: 130%;
+    inset-inline-end: 0;
+    padding: 6px;
+    list-style: none;
+    background: var(--cream-top);
+    border: 1px solid var(--gold-soft);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .12);
+    min-width: 220px;
+    z-index: 1000;
+  }
+
+  .role-menu li {
+    padding: 8px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    color: var(--text-strong);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.82rem;
+
+    &:hover {
+      background: var(--cream-bottom);
+    }
+
+    &.active {
+      background: rgba(0, 0, 0, .03);
+      font-weight: 600;
+    }
+
+    .role-line {
+      font-weight: 600;
+      font-size: 0.86rem;
+    }
+
+    .farm-line {
+      font-size: 0.76rem;
       color: var(--text-muted);
-      line-height: 1.15;
-      white-space: nowrap;
-      padding-inline-start: calc(var(--avatar) + var(--avatar-gap));
-
-      &::before {
-        content: "התפקיד: ";
-        color: var(--text-muted);
-        font-weight: 600;
-      }
     }
+  }
 
-    .role-switcher {
-      display: inline-block;
-      position: relative;
-      width: 14px;
-      height: 14px;
-      margin-inline-start: 2px;
-      vertical-align: middle;
-
-      &::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        margin: auto;
-        width: 8px;
-        height: 8px;
-        border-inline-end: 2px solid var(--text-strong);
-        border-block-end: 2px solid var(--text-strong);
-        transform: rotate(45deg);
-        transition: transform .15s ease, border-color .15s ease;
-      }
-
-      select {
-        position: absolute;
-        inset: -6px; 
-        opacity: 0;
-        appearance: none;
-        -webkit-appearance: none;
-        -moz-appearance: none;
-        background: transparent;
-        border: 0;
-        cursor: pointer;
-      }
-
-      &:has(select:focus-visible) {
-        outline: 2px solid var(--gold-soft);
-        outline-offset: 3px;
-      }
-      &:has(select:focus-visible)::after { transform: rotate(225deg); }
-      &:hover::after { border-color: var(--text-muted); }
-    }
 
     .auth-button {
       --padH: 4.8rem;
@@ -278,3 +317,233 @@
     color: var(--text-strong);
   }
 }
+
+
+  .parent-name-text {
+    white-space: nowrap;
+  }
+
+  .role-toggle-btn {
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    border: 1px solid var(--gold-soft);
+    background: rgba(255, 255, 255, 0.6);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, transform .06s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.95);
+      border-color: var(--gold-strong, var(--gold-soft));
+    }
+
+    &:active {
+      transform: translateY(1px);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--gold-soft);
+      outline-offset: 2px;
+    }
+
+    .chevron {
+      width: 8px;
+      height: 8px;
+      border-inline-start: 2px solid var(--text-strong);
+      border-block-start: 2px solid var(--text-strong);
+      transform: rotate(135deg); // חץ כלפי מטה
+      transition: transform .15s ease;
+    }
+
+    &.open .chevron {
+      transform: rotate(-45deg); // חץ כלפי מעלה
+    }
+  }
+
+  .role-menu {
+    position: absolute;
+    top: 130%;
+    inset-inline-end: 0;
+    padding: 6px;
+    list-style: none;
+    background: var(--cream-top);
+    border: 1px solid var(--gold-soft);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .12);
+    min-width: 220px;
+    z-index: 1000;
+  }
+
+  .role-menu li {
+    padding: 8px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    color: var(--text-strong);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.82rem;
+
+    &:hover {
+      background: var(--cream-bottom);
+    }
+
+    &.active {
+      background: rgba(0, 0, 0, .03);
+      font-weight: 600;
+    }
+
+    .role-line {
+      font-weight: 600;
+      font-size: 0.86rem;
+    }
+
+    .farm-line {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+    }
+  }
+
+  /* --------  טבלטים / מובייל בינוני -------- */
+@media (max-width: 900px) {
+  .site-header {
+    padding: 8px 10px;
+    min-height: 52px;
+  }
+
+  .site-header .farm-section {
+    grid-template-columns: 32px auto;
+  }
+
+  .site-header .farm-section .farm-logo {
+    width: 32px;
+    height: 32px;
+  }
+
+  .site-header .farm-section .farm-name {
+    font-size: 16px;
+  }
+
+  .site-header .farm-section .farm-note {
+    font-size: 12px;
+  }
+
+  .site-header .auth-section {
+    gap: 10px;
+  }
+
+  .site-header .auth-section .parent-name {
+    padding-inline-end: 10px;
+  }
+
+  .site-header .auth-section .auth-button {
+    min-width: 88px;
+    font-size: 0.86rem;
+  }
+}
+/* --------  מובייל אמיתי -------- */
+@media (max-width: 600px) {
+  .site-header {
+    padding: 6px 8px;
+    min-height: 48px;
+    gap: 6px;
+  }
+
+  /* סידור: לוגו וחווה בשורה, פרטי משתמש קומפקטיים */
+  .site-header .left-group {
+    flex: 1 1 auto;
+  }
+
+  .site-header .farm-section .farm-name {
+    font-size: 15px;
+  }
+
+  .site-header .farm-section .farm-note {
+    display: none; // פחות קריא במובייל, מפנה מקום
+  }
+
+  .site-header .auth-section {
+    gap: 6px;
+  }
+
+  .site-header .auth-section .parent-details {
+    --avatar: 28px;
+    --avatar-gap: 8px;
+  }
+
+  .site-header .auth-section .parent-name {
+    border-inline-end: none;
+    padding-inline-end: 0;
+    gap: 4px;
+  }
+
+  .site-header .auth-section .parent-name-text {
+    max-width: 110px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .site-header .auth-section .parent-Role {
+    font-size: 11px;
+    padding-inline-start: 0;
+  }
+
+  .site-header .auth-section .auth-button {
+    --padH: 1.2rem;
+    min-width: auto;
+    padding-inline: 0.8rem 1.8rem;
+    font-size: 0.8rem;
+  }
+
+  /* החץ – שיהיה טיפה גדול יותר למגע אצבע */
+  .site-header .role-toggle-btn {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* הדרופדאון – צף כמו כרטיס קטן מתחת לשם */
+  .site-header .role-menu {
+    top: 120%;
+    inset-inline-end: 0;
+    min-width: 190px;
+    max-width: 80vw;
+    padding: 4px;
+  }
+
+  .site-header .role-menu li {
+    padding: 8px 10px;
+  }
+
+  .site-header .role-menu .role-line {
+    font-size: 0.82rem;
+  }
+
+  .site-header .role-menu .farm-line {
+    font-size: 0.74rem;
+  }
+}
+@media (max-width: 400px) {
+  .site-header {
+    padding-inline: 6px;
+  }
+
+  .site-header .farm-section .farm-name {
+    font-size: 14px;
+  }
+
+  .site-header .auth-section .parent-name-text {
+    max-width: 90px;
+  }
+
+  .site-header .auth-section .auth-button {
+    padding-inline: 0.6rem 1.4rem;
+  }
+}
+
+
+

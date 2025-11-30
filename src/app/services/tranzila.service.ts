@@ -99,6 +99,18 @@ chargeOnce(body: {
   return this.http.post(`${this.base}/tranzilaCharge`, body);
 }
 
+recordOneTimePayment(body: {
+  parentUid: string;
+  amountAgorot: number;
+  tx: any;
+}) {
+  console.log('3333333333333333ranzilaService.recordOneTimePayment called with:', body);
+  return firstValueFrom(
+    this.http.post(`${this.base}/recordOneTimePayment`, body)
+  );
+}
+
+
 }
 
 
