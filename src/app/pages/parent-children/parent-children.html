@@ -266,17 +266,37 @@
     </div>
   </div>
 
-  <!-- דיאלוג עזיבה/מחיקה -->
-  <div class="dialog-overlay" *ngIf="showDeleteConfirm">
-    <div class="dialog-box">
-      <h3>האם את בטוחה שברצונך להסיר את הילד?</h3>
-      <div class="dialog-buttons">
-        <button class="btn-delete" (click)="deleteChild()" type="button">אישור</button>
-        <button class="btn-edit" (click)="cancelDelete()" type="button">ביטול</button>
-      </div>
+ <div class="overlay" *ngIf="showDeleteConfirm">
+  <div class="confirm-dialog" dir="rtl">
+    <h3>אישור עזיבת ילד</h3>
+
+    <p>
+      מחיקת ילד מהחווה מתבצעת רק לאחר אישור המזכירות.
+      מרגע שהמחיקה תאושר:
+    </p>
+    <ul>
+      <li>כל השיעורים הקבועים ושיעורי ההשלמה של הילד החל מעוד שבועיים יבוטלו במערכת.</li>
+      <li>השיעורים המתוכננים לשבועיים הקרובים יישארו בתוקף ותידרש עליהם תשלום כרגיל.</li>
+    </ul>
+
+    <p *ngIf="pendingDeleteLessonsCount !== null">
+      לילד זה נותרו כעת
+      <b>{{ pendingDeleteLessonsCount }}</b>
+      שיעורים פעילים בחווה.
+    </p>
+
+    <p *ngIf="pendingDeleteChildName">
+      האם ברצונך לשלוח בקשה למחיקת
+      <b>{{ pendingDeleteChildName }}</b>?
+    </p>
+
+    <div class="dialog-actions">
+      <button type="button" class="btn-cancel" (click)="cancelDelete()">לא</button>
+      <button type="button" class="btn-ok" (click)="deleteChild()">כן, שלחי בקשה למחיקה</button>
     </div>
   </div>
 </div>
+
 
 <!-- תבניות להצגת "התור הבא" ו"פעילות אחרונה" -->
 <ng-template #nextTpl let-next>
