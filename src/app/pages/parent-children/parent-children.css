@@ -578,3 +578,15 @@
   opacity: .6;
   pointer-events: none;
 }
+/* ריווח בין השדות בטופס הוספת ילד */
+.form-field {
+  margin-bottom: 14px; /* אפשר גם 16px אם תרצי יותר רווח */
+}
+
+/* ריווח קטן מבוקר גם לשדות input/select/textarea */
+.form-field .editable-input,
+.form-field textarea {
+  display: block;
+  width: 40%;
+  margin-top: 4px;
+}

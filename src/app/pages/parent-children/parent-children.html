@@ -179,7 +179,7 @@
   </div>
 
   <!-- טופס הוספת ילד חדש -->
-  <div class="child-card" *ngIf="newChild">
+  <div #newChildSection class="child-card" *ngIf="newChild">
     <h3>הוספת ילד חדש</h3>
 <div class="form-field">
   <label>שם פרטי</label>
@@ -232,7 +232,7 @@
       <textarea class="editable-input" [(ngModel)]="newChild.medical_notes" rows="3" maxlength="4000"></textarea>
     </div>
 
-    <child-consents tenantSchema="tenantSchema" parentUid = "parentUid" childId="childId" childName="childName"></child-consents>
+    <!-- <child-consents tenantSchema="tenantSchema" parentUid = "parentUid" childId="childId" childName="childName"></child-consents> -->
 
     <div class="button-group">
       <button class="btn-save" (click)="saveNewChild()" type="button">שמור</button>

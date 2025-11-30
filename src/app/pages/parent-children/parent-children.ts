@@ -3,9 +3,16 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import type { ChildRow } from '../../Types/detailes.model';
-import { dbTenant, fetchMyChildren, getCurrentUserData } from '../../services/supabaseClient.service';
-import { ChildConsentsComponent } from '../../consents/child-consents.component/child-consents.component';
+import { getCurrentUserData } from '../../services/supabaseClient.service';
+// import { ChildConsentsComponent } from '../../consents/child-consents.component/child-consents.component';
 import { NgClass, NgTemplateOutlet } from '@angular/common';
+//import { dbTenant } from '../../services/legacy-compat';
+import { dbTenant } from '../../services/legacy-compat';
+import { fetchMyChildren } from '../../services/supabaseClient.service';
+import { ViewChild, ElementRef } from '@angular/core';
+
+//import { SupabaseClient } from '@supabase/supabase-js';
+
 
 
 type OccurrenceRow = {
@@ -29,9 +36,10 @@ type ChildStatus = 'Active' | 'Pending Deletion Approval' | 'Pending Addition Ap
 @Component({
   selector: 'app-parent-children',
   standalone: true,
-  imports: [CommonModule, FormsModule, ChildConsentsComponent, NgClass, NgTemplateOutlet],
+  imports: [CommonModule, FormsModule, NgClass, NgTemplateOutlet],
   templateUrl: './parent-children.html',
-  styleUrls: ['./parent-children.css']
+  styleUrls: ['./parent-children.css'],
+ 
 })
 export class ParentChildrenComponent implements OnInit {
 
@@ -69,6 +77,7 @@ showHistory = false;
 historyLoading = false;
 historyChildName = '';
 historyItems: { date: string; time: string; instructor?: string; status: string; lesson_type?: string }[] = [];
+@ViewChild('newChildSection') newChildSection?: ElementRef<HTMLDivElement>;
 
 // תגית צבע לפי סטטוס להדפסה ב־[ngClass]
 statusClass(st: string): string {
@@ -445,6 +454,12 @@ const ids = this.children
     medical_notes: ''
   };
   this.validationErrors = {};
+  setTimeout(() => {
+    this.newChildSection?.nativeElement.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    });
+  }, 0);
 }
 
 
