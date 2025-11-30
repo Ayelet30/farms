@@ -3,7 +3,8 @@ import {
   AfterViewInit,
   OnInit,
   signal,
-  inject,          // ← להוסיף
+  inject,
+  input,          // ← להוסיף
 } from '@angular/core';
 import {
   MatDialogModule,
@@ -43,6 +44,8 @@ type Product = {
 })
 export class OneTimePaymentComponent implements OnInit, AfterViewInit {
 
+  tenantSchema: string | undefined = undefined;
+
   type = '';
   booking: BookingPayload | null = null;
   product: Product | null = null;
@@ -72,30 +75,32 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
   ];
 
 
-    ngOnInit(): void {
-      console.log('000000000',this.cu.current)  ;
-    // 1. אם נפתח כדיאלוג – יש לנו booking ב-data
-    if (this.dialogData?.booking) {
-      this.booking = this.dialogData.booking;
-      this.type = this.booking.type;
-    } else {
-      // 2. מצב ניווט רגיל דרך ראוטר (כמו שהיה)
-      this.type = this.route.snapshot.paramMap.get('productId') ?? 'western';
+     farmSchema: string | null = null;   // למשל 'bereshit_farm'
 
-      const state: any = history.state;
-      if (state?.booking) {
-        this.booking = state.booking as BookingPayload;
-      }
-    }
+  ngOnInit(): void {
+  console.log('000000000', this.dialogData?.booking);
 
-    // fallback – אם מישהו הגיע ישירות ל-URL
-    this.product = this.allProducts.find(p => p.id === this.type) ?? null;
+  if (this.dialogData?.booking) {
+    this.booking = this.dialogData.booking;
+    this.type = this.booking.type;
+    this.tenantSchema = this.booking.tenantSchema;   // 👈 כאן
+    console.log('111111111', this.tenantSchema);
+  } else {
+    this.type = this.route.snapshot.paramMap.get('type') ?? 'western';
 
-    if (!this.booking && !this.product) {
-      this.error.set('מוצר לא נמצא');
+    const state: any = history.state;
+    if (state?.booking) {
+      this.booking = state.booking as BookingPayload;
+      this.tenantSchema = this.booking.tenantSchema; // 👈 גם כאן
     }
   }
 
+  this.product = this.allProducts.find(p => p.id === this.type) ?? null;
+
+  if (!this.booking && !this.product) {
+    this.error.set('מוצר לא נמצא');
+  }
+}
 
   get displayName(): string {
     return this.booking?.productName || this.product?.name || 'תשלום חד־פעמי';
@@ -231,24 +236,22 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
     this.successTx = tx;
 
     // ✅ שליחת התשלום ל-DB
-    try {
-      const parentUid = this.cu.current?.uid ? this.cu.current.uid : "1111111111111111111111";
-      const farmId = this.booking?.farmId ?? (this.cu.current as any)?.farm_id;
+   try {
+  const parentUid = this.cu.current?.uid ?? null;
 
-      console.log('111111111 parentUid=',this.cu.current, parentUid, ' farmId=', farmId);
-      if (parentUid) {
-        await this.tranzila.recordOneTimePayment({
-          parentUid,
-          amountAgorot: this.amountAgorot,
-          tx,
-        });
-      } else {
-        console.warn('[one-time] no parentUid – לא נשמר ל-DB');
-      }
-    } catch (saveErr) {
-      console.error('[one-time] failed to save payment in DB', saveErr);
-      // אפשר להחליט אם להראות שגיאה קטנה, אבל לא נכשיל את תצוגת ההצלחה
-    }
+  if (!this.tenantSchema) {
+    console.error('[one-time] missing tenantSchema – לא יודעים לאיזו חווה לשמור');
+  } else {
+    await this.tranzila.recordOneTimePayment({
+      parentUid,
+      tenantSchema: this.tenantSchema,       // 👈 שם הסכמה לפונקציה בענן
+      amountAgorot: this.amountAgorot,
+      tx,
+    });
+  }
+} catch (saveErr) {
+  console.error('[one-time] failed to save payment in DB', saveErr);
+}
 
     this.busy.set(false);
 

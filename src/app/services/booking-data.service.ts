@@ -5,7 +5,9 @@ import { dbPublic } from '../services/supabaseClient.service';
 export type FarmOption = {
   id: string;
   name: string;
+  tenantSchema: string; // למשל 'bereshit_farm'
 };
+
 
 @Injectable({ providedIn: 'root' })
 export class BookingDataService {
@@ -20,9 +22,12 @@ export class BookingDataService {
       throw error;
     }
 
+    console.log('Farms data:', data);
+
     return (data ?? []).map((row: any) => ({
-      id: row.farm_id,
-      name: row.farm_name,
-    }));
+  id: row.farm_id,
+  name: row.farm_name,
+  tenantSchema: row.tenant_schema,  // 👈 לא schema_name
+}));
   }
 }

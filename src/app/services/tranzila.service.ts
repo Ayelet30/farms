@@ -100,15 +100,17 @@ chargeOnce(body: {
 }
 
 recordOneTimePayment(body: {
-  parentUid: string;
+  parentUid?: string | null;
+  tenantSchema: string;      // 'bereshit_farm' וכו'
   amountAgorot: number;
   tx: any;
 }) {
-  console.log('3333333333333333ranzilaService.recordOneTimePayment called with:', body);
+  console.log('3333333333 TranzilaService.recordOneTimePayment called with:', body);
   return firstValueFrom(
     this.http.post(`${this.base}/recordOneTimePayment`, body)
   );
 }
+
 
 
 }
