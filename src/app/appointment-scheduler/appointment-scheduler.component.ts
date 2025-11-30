@@ -46,6 +46,8 @@ interface RecurringSlot {
   start_time: string;    // HH:MM:SS
   end_time: string;      // HH:MM:SS
   instructor_id: string; // text
+  instructor_name?: string | null; 
+
 }
 
 interface MakeupSlot {
@@ -777,7 +779,17 @@ for (const s of sorted) {
   filtered.push(s);
 }
 
-this.recurringSlots = filtered;
+this.recurringSlots = filtered.map(s => {
+  const ins = this.instructors.find(i =>
+    i.instructor_id === s.instructor_id ||  // ת"ז
+    i.instructor_uid === s.instructor_id    // ליתר ביטחון
+  );
+
+  return {
+    ...s,
+    instructor_name: ins?.full_name ?? s.instructor_id, // אם לא נמצא – נשאיר ת"ז
+  };
+});
 this.mapRecurringSlotsToCalendar();
 
     if (!this.recurringSlots.length) {
