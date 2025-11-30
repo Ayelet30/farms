@@ -127,6 +127,7 @@ export const routes: Routes = [
           import('./pages/messages/secretary-messages/secretary-messages')
             .then(m => m.SecretaryMessagesComponent)
       },
+    
     ]
   },
 

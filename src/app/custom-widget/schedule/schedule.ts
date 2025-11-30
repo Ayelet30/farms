@@ -67,6 +67,10 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
   }
 
+  private hasResources(): boolean {
+  return Array.isArray(this.resources) && this.resources.length > 0;
+}
+
   private isToday(d: Date) {
     const t = new Date();
     return (
@@ -77,13 +81,16 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   }
 
   /** אם יש resources – למפות את ה-View ל-resourceTimeGrid */
-  private mapView(view: ViewName): string {
-    if (view === 'timeGridDay' && this.resources && this.resources.length) {
+private mapView(view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'): string {
+  // אם יש resources (מזכירה) – יומי הופך ל-resourceTimeGridDay
+  if (view === 'timeGridDay' && this.hasResources()) {
     return 'resourceTimeGridDay';
   }
-  // שבועי נשאר timeGridWeek רגיל
+
+  // שבועי תמיד נשאר timeGridWeek רגיל
   return view;
-  }
+}
+
 
   calendarOptions: CalendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimeGridPlugin],
@@ -145,8 +152,9 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
         .filter((s: string) => !!s);
 
       const childrenHtml = children
-        .map((name: string) => `<span class="child-name">${name}</span>`)
-        .join('<span class="child-sep"></span>`');
+  .map((name: string) => `<span class="child-name">${name}</span>`)
+  .join('<span class="child-sep"></span>');
+
 
       const type = event.extendedProps['lesson_type'] || '';
       const chip = type ? `<span class="chip">${type}</span>` : '';
@@ -226,40 +234,43 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     }, 0);
   }
 
-  ngOnChanges(changes: SimpleChanges) {
-    if (changes['items'] || changes['resources']) {
-      this.calendarOptions = {
-        ...this.calendarOptions,
-        events: this.items.map((i) => ({
-          id: i.id,
-          title: i.title,
-          start: i.start,
-          end: i.end,
-          backgroundColor: (i as any).backgroundColor ?? (i as any).color,
-          borderColor: (i as any).borderColor ?? (i as any).color,
-          resourceId: i.meta?.instructor_id || undefined,
-          extendedProps: {
-            status: i.status,
-            child_id: i.meta?.child_id,
-            child_name: i.meta?.child_name,
-            instructor_id: i.meta?.instructor_id,
-            instructor_name: i.meta?.instructor_name,
-            lesson_type: i.meta?.['lesson_type'],
-            children: i.meta?.['children'],
-            isSummaryDay: (i as any).meta?.isSummaryDay,
-            isSummarySlot: (i as any).meta?.isSummarySlot,
-            isInstructorHeader: (i as any).meta?.isInstructorHeader,
-          },
-        })),
-        resources: this.resources,
-      };
-    }
-
-    if (changes['initialView'] && changes['initialView'].currentValue) {
-      this.currentView = changes['initialView'].currentValue;
-      this.applyCurrentView();
-    }
+ ngOnChanges(changes: SimpleChanges) {
+  if (changes['items'] || changes['resources']) {
+    this.calendarOptions = {
+      ...this.calendarOptions,
+      events: this.items.map((i) => ({
+        id: i.id,
+        title: i.title,
+        start: i.start,
+        end: i.end,
+        backgroundColor: (i as any).backgroundColor ?? (i as any).color,
+        borderColor: (i as any).borderColor ?? (i as any).color,
+        resourceId: i.meta?.instructor_id || undefined,
+        extendedProps: {
+          status: i.status,
+          child_id: i.meta?.child_id,
+          child_name: i.meta?.child_name,
+          instructor_id: i.meta?.instructor_id,
+          instructor_name: i.meta?.instructor_name,
+          lesson_type: i.meta?.['lesson_type'],
+          children: i.meta?.['children'],
+          isSummaryDay: (i as any).meta?.isSummaryDay,
+          isSummarySlot: (i as any).meta?.isSummarySlot,
+          isInstructorHeader: (i as any).meta?.isInstructorHeader,
+          // 👇 החדשים בשביל ההורה
+          canCancel: (i as any).meta?.canCancel,
+          lesson_occurrence_id: (i as any).meta?.lesson_occurrence_id,
+        },
+      })),
+      resources: this.resources,
+    };
   }
+
+  if (changes['initialView'] && changes['initialView'].currentValue) {
+    this.currentView = changes['initialView'].currentValue;
+    this.applyCurrentView();
+  }
+}
 
   get calendarApi() {
     return this.calendarComponent?.getApi();

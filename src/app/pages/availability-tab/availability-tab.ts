@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -9,9 +9,17 @@ import { MatIconModule } from '@angular/material/icon';
 import { dbTenant } from '../../services/supabaseClient.service';
 import { getAuth } from 'firebase/auth';
 
+type LessonType = 'regular' | 'double' | 'single' | 'group' | 'both';
+
+interface BreakRange {
+  start: string;
+  end: string;
+}
+
 interface TimeSlot {
   start: string;
   end: string;
+  lessonType: LessonType;
 }
 
 interface DayAvailability {
@@ -19,6 +27,7 @@ interface DayAvailability {
   label: string;
   active: boolean;
   slots: TimeSlot[];
+  breaks: BreakRange[];
 }
 
 interface NotificationPrefs {
@@ -38,9 +47,11 @@ interface NotificationPrefs {
     MatSlideToggleModule,
     MatButtonModule,
     MatIconModule,
-  ]
+  ],
 })
 export class AvailabilityTabComponent implements OnInit {
+
+  constructor(private cdr: ChangeDetectorRef) {}
 
   userId: string | null = null;
   isDirty = false;
@@ -52,8 +63,25 @@ export class AvailabilityTabComponent implements OnInit {
     monthlyReport: false,
   };
 
+  // ⭐ סוגי שיעור
+  lessonTypeOptions: { value: LessonType; label: string }[] = [
+    { value: 'regular',  label: 'רגיל' },
+    { value: 'double',   label: 'כפול' },
+    { value: 'single',   label: 'יחידני' },
+    { value: 'group',    label: 'קבוצתי' },
+    { value: 'both',     label: 'גם וגם' },
+  ];
+
   toastMessage = '';
   private toastTimeout: any;
+
+  confirmData: {
+    parents: { name: string; child: string }[];
+  } | null = null;
+
+  pendingPayload: DayAvailability[] | null = null;
+
+  /* ================= lifecycle ================= */
 
   async ngOnInit() {
     await this.loadUserId();
@@ -61,7 +89,6 @@ export class AvailabilityTabComponent implements OnInit {
     await this.loadFromSupabase();
   }
 
-  /** מזהה משתמש מה־Firebase */
   async loadUserId() {
     const auth = getAuth();
     const user = auth.currentUser;
@@ -69,18 +96,26 @@ export class AvailabilityTabComponent implements OnInit {
     this.userId = user.uid;
   }
 
-  /** מצב פתיחה */
+  private defaultDay(key: string, label: string): DayAvailability {
+    return {
+      key,
+      label,
+      active: false,
+      slots: [],
+      breaks: [],
+    };
+  }
+
   loadDefaults() {
     this.days = [
-      { key: 'sun', label: 'ראשון', active: false, slots: [] },
-      { key: 'mon', label: 'שני', active: false, slots: [] },
-      { key: 'tue', label: 'שלישי', active: false, slots: [] },
-      { key: 'wed', label: 'רביעי', active: false, slots: [] },
-      { key: 'thu', label: 'חמישי', active: false, slots: [] },
+      this.defaultDay('sun', 'ראשון'),
+      this.defaultDay('mon', 'שני'),
+      this.defaultDay('tue', 'שלישי'),
+      this.defaultDay('wed', 'רביעי'),
+      this.defaultDay('thu', 'חמישי'),
     ];
   }
 
-  /** טעינה מה־Supabase */
   async loadFromSupabase() {
     if (!this.userId) return;
 
@@ -97,10 +132,34 @@ export class AvailabilityTabComponent implements OnInit {
       return;
     }
 
+    // זמינות קיימת
     if (data?.availability) {
       try {
-        this.days = JSON.parse(data.availability);
-      } catch {}
+        const raw = JSON.parse(data.availability) as any[];
+
+        this.days = raw.map((d: any) => {
+          const slots: TimeSlot[] = (d.slots || []).map((s: any) => ({
+            start: s.start || '08:00',
+            end: s.end || '17:00',
+            lessonType: (s.lessonType as LessonType) || 'regular',
+          }));
+
+          const breaks: BreakRange[] = (d.breaks || []).map((b: any) => ({
+            start: b.start || '',
+            end: b.end || '',
+          }));
+
+          return {
+            key: d.key,
+            label: d.label,
+            active: !!d.active,
+            slots,
+            breaks,
+          } as DayAvailability;
+        });
+      } catch (e) {
+        console.error('parse availability error', e);
+      }
     }
 
     if (data?.notify) {
@@ -108,7 +167,11 @@ export class AvailabilityTabComponent implements OnInit {
         this.notif = JSON.parse(data.notify);
       } catch {}
     }
+
+    this.cdr.detectChanges();
   }
+
+  /* ================= UI helpers ================= */
 
   markDirty() {
     this.isDirty = true;
@@ -116,16 +179,25 @@ export class AvailabilityTabComponent implements OnInit {
 
   toggleDay(day: DayAvailability) {
     if (day.active && day.slots.length === 0) {
-      day.slots.push({ start: '08:00', end: '17:00' });
+      day.slots.push({
+        start: '08:00',
+        end: '17:00',
+        lessonType: 'regular',
+      });
     }
     if (!day.active) {
       day.slots = [];
+      day.breaks = [];
     }
     this.markDirty();
   }
 
   addSlot(day: DayAvailability) {
-    day.slots.push({ start: '08:00', end: '17:00' });
+    day.slots.push({
+      start: '08:00',
+      end: '17:00',
+      lessonType: 'regular',
+    });
     this.markDirty();
   }
 
@@ -134,37 +206,101 @@ export class AvailabilityTabComponent implements OnInit {
     this.markDirty();
   }
 
-  /** שמירת זמינות */
+  addBreak(day: DayAvailability) {
+    if (!day.breaks) day.breaks = [];
+    day.breaks.push({ start: '', end: '' });
+    this.markDirty();
+  }
+
+  removeBreak(day: DayAvailability, index: number) {
+    day.breaks.splice(index, 1);
+    this.markDirty();
+  }
+
+  /* =============== SAVE (RPC + UPDATE) =============== */
+
   async saveAvailability() {
     if (!this.userId) return;
+
+    const payload: DayAvailability[] = this.days;
+    this.pendingPayload = payload;
+
+    const dbc = dbTenant();
+
+    console.log('📌 PAYLOAD:', payload);
+
+    const { data, error } = await dbc.rpc(
+      'public.get_conflicting_parents',
+      {
+        p_instructor_uid: this.userId,
+        new_availability: payload,
+      }
+    );
+
+    if (error) {
+      console.error('❌ RPC ERROR', error);
+      this.showToast('❌ שגיאה בבדיקת השינויים');
+      return;
+    }
+
+    if (data && data.length > 0) {
+      this.confirmData = {
+        parents: data.map((p: any) => ({
+          name: p.parent_name,
+          child: p.child_name,
+        })),
+      };
+      this.cdr.detectChanges();
+      return;
+    }
+
+    await this.applyUpdate();
+  }
+
+  cancelUpdate() {
+    this.confirmData = null;
+    this.pendingPayload = null;
+  }
+
+  async approveUpdate() {
+    this.confirmData = null;
+    await this.applyUpdate();
+  }
+
+  private async applyUpdate() {
+    if (!this.userId || !this.pendingPayload) return;
+
     const dbc = dbTenant();
 
     const { error } = await dbc
       .from('instructors')
       .update({
-        availability: JSON.stringify(this.days)
+        availability: JSON.stringify(this.pendingPayload),
       })
       .eq('uid', this.userId);
 
     if (error) {
       console.error(error);
-      this.showToast('❌ שגיאה בשמירת הזמינות');
+      this.showToast('❌ שגיאה בשמירה');
       return;
     }
 
+    this.pendingPayload = null;
     this.isDirty = false;
     this.showToast('✔ הזמינות נשמרה בהצלחה');
   }
 
-  /** שמירת התראות */
+  /* =============== notifications =============== */
+
   async saveNotifications() {
     if (!this.userId) return;
+
     const dbc = dbTenant();
 
     const { error } = await dbc
       .from('instructors')
       .update({
-        notify: JSON.stringify(this.notif)
+        notify: JSON.stringify(this.notif),
       })
       .eq('uid', this.userId);
 
@@ -177,13 +313,15 @@ export class AvailabilityTabComponent implements OnInit {
     this.showToast('✔ העדפות ההתראות נשמרו');
   }
 
-  /** טוסט */
+  /* =============== toast =============== */
+
   showToast(message: string) {
     this.toastMessage = message;
 
     clearTimeout(this.toastTimeout);
     this.toastTimeout = setTimeout(() => {
       this.toastMessage = '';
+      this.cdr.detectChanges();
     }, 2500);
   }
 }

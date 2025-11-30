@@ -87,3 +87,19 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 }
 
 
+/* FIX גלובלי לכל select */
+select {
+  background-color: #ffffff !important;   /* רקע */
+  color: #333 !important;                 /* טקסט */
+  border: 1px solid #ccc !important;
+  border-radius: 8px !important;
+  padding: 6px 10px !important;
+  appearance: auto !important;            /* מחזיר את חץ הבחירה */
+  -webkit-appearance: auto !important;
+  -moz-appearance: auto !important;
+}
+
+option {
+  background-color: #ffffff !important;
+  color: #333 !important;
+}
