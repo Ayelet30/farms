@@ -1,19 +1,13 @@
+// src/app/auth/login.component.ts
 import { Component, inject, Optional } from '@angular/core';
 import { Router } from '@angular/router';
-import {
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-} from 'firebase/auth';
-
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Auth } from '@angular/fire/auth';
 import { CurrentUserService } from '../../core/auth/current-user.service';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { TokensService } from '../../services/tokens.service';
-import { firstValueFrom } from 'rxjs'; 
-
-import { ResetPasswordConfirmDialogComponent } from './reset-password-confirm-dialog/reset-password-confirm-dialog.component';
 
 @Component({
   selector: 'app-login',
@@ -29,7 +23,7 @@ export class LoginComponent {
   loading = false;
   isLoading = false;
   successMessage = '';
-  showPassword = false;
+  showPassword = false; // ← חדש: מצב הצגת סיסמה
 
   private auth = inject(Auth);
 
@@ -56,92 +50,70 @@ export class LoginComponent {
   }
 
   async login() {
-  this.errorMessage = '';
-  this.isLoading = true;   // ← מסך טעינה מתחיל
+    this.errorMessage = '';
+    this.loading = true;
+    try {
+      const cred = await signInWithEmailAndPassword(this.auth, this.email, this.password);
+      const uid = cred.user.uid;
 
-  try {
-    const cred = await signInWithEmailAndPassword(this.auth, this.email, this.password);
-    const uid = cred.user.uid;
+      const { selected } = await this.cuSvc.hydrateAfterLogin();
+      console.log('selected', selected);
 
-    const { selected } = await this.cuSvc.hydrateAfterLogin();
-    console.log('selected', selected);
+      const memberships = this.cuSvc.current?.memberships || [];
+      let activeRole: string | null | undefined = selected?.role_in_tenant ?? this.cuSvc.current?.role;
+      let activeFarm: string | null | undefined = selected?.farm?.schema_name;
 
-    const memberships = this.cuSvc.current?.memberships || [];
-    let activeRole: string | null | undefined =
-      selected?.role_in_tenant ?? this.cuSvc.current?.role;
-    let activeFarm: string | null | undefined = selected?.farm?.schema_name;
+      this.tokens.restoreLastTokens(activeFarm);
 
-    this.tokens.restoreLastTokens(activeFarm);
+      const target = this.routeByRole(activeRole);
+      this.dialogRef?.close({ success: true, role: activeRole, target });
+      await this.router.navigateByUrl(target);
 
-    const target = this.routeByRole(activeRole);
-    this.dialogRef?.close({ success: true, role: activeRole, target });
-
-    // ממתינים שהניווט יסתיים לפני סיום הטעינה
-    await this.router.navigateByUrl(target);
-
-  } catch (e: any) {
-    const code = e?.code || '';
-    if (code === 'auth/invalid-credential') {
-      this.errorMessage = 'שם משתמש או סיסמא שגויים';
-    } else if (code === 'auth/invalid-email') {
-      this.errorMessage = 'כתובת דוא"ל לא תקינה.';
-    } else if (code === 'auth/missing-password') {
-      this.errorMessage = 'יש להכניס סיסמא.';
-    } else if (code === 'auth/too-many-requests') {
-      this.errorMessage = 'נחסמו ניסיונות לזמן קצר. נסה שוב מאוחר יותר.';
-    } else {
-      this.errorMessage = 'אירעה שגיאה בכניסה למערכת אנא פנה לתמיכה.';
-      console.error(e);
+    } catch (e: any) {
+      console.error("???????????", e);
+      const code = e?.code || '';
+      if (code === 'auth/invalid-credential') {
+        this.errorMessage = 'שם משתמש או סיסמא שגויים';
+      } else if (code === 'auth/invalid-email') {
+        this.errorMessage = 'כתובת דוא"ל לא תקינה.';
+      } else if (code === 'auth/too-many-requests') {
+        this.errorMessage = 'נחסמו ניסיונות לזמן קצר. נסה שוב מאוחר יותר.';
+      } else {
+        this.errorMessage = 'אירעה שגיאה בכניסה למערכת אנא פנה לתמיכה.';
+        console.error(e);
+      }
+    } finally {
+      this.isLoading = false;
     }
-  } finally {
-    this.isLoading = false;   // ← הטעינה מסתיימת אחרי ניווט / שגיאה
   }
-}
 
   async forgotPassword(): Promise<void> {
-  this.errorMessage = '';
-  this.successMessage = '';
+    this.errorMessage = '';
+    this.successMessage = '';
 
-  const email = (this.email || '').trim();
-  if (!email) {
-    this.errorMessage = 'הכנס את כתובת הדוא"ל ואז לחץ "שכחתי סיסמה".';
-    return;
-  }
-
-  // שלב 1: פתיחת פופאפ אישור
-  const dialogRef = this.dialog.open(ResetPasswordConfirmDialogComponent, {
-    width: '360px',
-    data: { email },
-  });
-
-  const confirmed = await firstValueFrom(dialogRef.afterClosed());
-  if (!confirmed) {
-    return; // המשתמש בחר ביטול
-  }
-
-  // שלב 2: שליחת המייל
-  this.isLoading = true;
-
-  try {
-    await sendPasswordResetEmail(this.auth, email);
-
-    // הודעת הצלחה כללית (הנכונה מבחינה אבטחתית)
-    this.successMessage =
-      'אם קיים במערכת משתמש עם כתובת הדוא"ל הזו - נשלח אליו קישור לאיפוס סיסמה.';
-  } catch (e: any) {
-    console.error('forgotPassword error:', e);
-    const code = e?.code || '';
-
-    if (code === 'auth/invalid-email') {
-      this.errorMessage = 'כתובת דוא"ל לא תקינה.';
-    } else if (code === 'auth/too-many-requests') {
-      this.errorMessage = 'נחסמו ניסיונות לזמן קצר. נסה שוב מאוחר יותר.';
-    } else {
-      this.errorMessage = 'אירעה שגיאה בשליחת מייל האיפוס.';
+    if (!this.email) {
+      this.errorMessage = 'הכנס את כתובת הדוא"ל ואז לחצי "שכחתי סיסמה".';
+      return;
     }
-  } finally {
-    this.isLoading = false;
-  }
-}
 
+    this.isLoading = true;
+    try {
+      await sendPasswordResetEmail(this.auth, this.email);
+      this.successMessage = 'שלחנו קישור לאיפוס סיסמה לכתובת הדוא"ל שלך. בדקי את תיבת הדואר/ספאם.';
+    } catch (e: any) {
+      const code = e?.code || '';
+      if (code === 'auth/invalid-credential') {
+        this.errorMessage = 'לא נמצאה משתמש עם הדוא"ל הזה.';
+      } else if (code === 'auth/invalid-email') {
+        this.errorMessage = 'כתובת דוא"ל לא תקינה.';
+      } else if (code === 'auth/too-many-requests') {
+        this.errorMessage = 'נחסמו ניסיונות לזמן קצר. נסי שוב מאוחר יותר.';
+      } else {
+        this.errorMessage = 'אירעה שגיאה בשליחת מייל האיפוס.';
+        console.error(e);
+      }
+    } finally {
+      this.isLoading = false;
+    }
+  }
 }

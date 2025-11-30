@@ -64,3 +64,52 @@ export interface InstructorRow {
   education?: string | null;
   phone?: string | null;
 }
+// models/secretarial-request.model.ts (או ליד הקומפוננטה)
+
+export type RequestType =
+  | 'CANCEL_OCCURRENCE'
+  | 'INSTRUCTOR_DAY_OFF'
+  | 'NEW_SERIES';
+
+export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED_BY_REQUESTER';
+
+export interface SecretarialRequestDbRow {
+  id: string;
+  request_type: RequestType;
+  status: RequestStatus;
+
+  requested_by_uid: string | null;
+  requested_by_role: string | null;
+
+  child_id: string | null;
+  instructor_id: string | null;
+  lesson_occ_id: string | null;
+
+  from_date: string | null;   // date
+  to_date: string | null;     // date
+
+  payload: any;               // jsonb
+
+  decided_by_uid: string | null;
+  decided_at: string | null;  // timestamptz
+  decision_note: string | null;
+
+  created_at: string;         // timestamptz
+}
+export interface UiRequest {
+  id: string;
+  requestType: RequestType;
+  status: RequestStatus;
+
+  summary: string;
+  requestedByName: string;
+  childName?: string;
+  instructorName?: string;
+
+  fromDate?: string | null;
+  toDate?: string | null;
+  createdAt: string;
+
+  payload: any;
+}
+

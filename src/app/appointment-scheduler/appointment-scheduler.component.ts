@@ -46,15 +46,6 @@ interface MakeupSlot {
   instructor_id: string;
   remaining_capacity: number;
 }
-interface MakeupCandidate {
-  lesson_id: string;
-  occur_date: string;
-  day_of_week: string;
-  start_time: string;
-  end_time: string;
-  instructor_id: string | null;
-  status: string;
-}
 
 @Component({
   selector: 'app-appointment-scheduler',
@@ -83,9 +74,6 @@ noInstructorPreference = false;
   // ---- נתוני אישורים (קופה/פרטי) ----
   approvals: ApprovalBalance[] = [];
   selectedApprovalId: string | null = null;
-  // ---- שיעורים שניתן להשלים (ביטולים לפי הגדרות חווה) ----
-  makeupCandidates: MakeupCandidate[] = [];
-  loadingMakeupCandidates = false;
 
   private readonly CHILD_SELECT =
   'child_uuid, first_name, last_name, instructor_id';
@@ -269,32 +257,6 @@ private async loadInstructors(): Promise<void> {
     this.approvals = data ?? [];
     if (this.approvals.length > 0) {
       this.selectedApprovalId = this.approvals[0].approval_id;
-    }
-        await this.loadMakeupCandidatesForChild();
-
-  }
-  private async loadMakeupCandidatesForChild(): Promise<void> {
-    if (!this.selectedChildId) return;
-
-    this.loadingMakeupCandidates = true;
-    this.makeupCandidates = [];
-    this.makeupError = null;
-
-    try {
-      const { data, error } = await dbTenant().rpc(
-        'get_child_makeup_candidates',
-        { _child_id: this.selectedChildId }
-      );
-
-      if (error) {
-        console.error('get_child_makeup_candidates error', error);
-        this.makeupError = 'שגיאה בטעינת שיעורים שניתן להשלים';
-        return;
-      }
-
-      this.makeupCandidates = (data ?? []) as MakeupCandidate[];
-    } finally {
-      this.loadingMakeupCandidates = false;
     }
   }
 

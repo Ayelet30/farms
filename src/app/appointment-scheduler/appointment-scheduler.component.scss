@@ -311,37 +311,6 @@
   // column-gap: 48px;            /* המרחק בין הטקסט לתעודה */
   align-items: flex-start;
   // padding-inline: 24px 24px;   /* מרחק מהשוליים, גם ימין וגם שמאל */
-
-  .instructor-card-body {
-  // display: flex;
-  flex-direction: row;       /* טקסט + תעודה בשורה אחת */
-  // justify-content: flex-end; /* הכל נדחף לכיוון ימין */
-  align-items: flex-start;
-  gap: 24px;                 /* רווח בין טקסט לתעודה */
-  padding-inline: 24px;      /* קצת מרווח מהקצוות */
-}
-
-}
-
-// .instructor-card-body {
-//   display: flex;
-//   flex-direction: row-reverse;  /* טקסט בצד ימין, תעודה משמאל אליו */
-//   align-items: flex-start;
-//   gap: 24px;                     /* מרווח בין טקסט לתעודה */
-//   padding-inline: 24px;          /* קצת מרווח מהקצוות */
-// }
-
-.instructor-info-col {
-  flex: 1 1 auto;        /* תופס את רוב הרוחב */
-  max-width: 65%;        /* שלא ידרוס את התעודה */
-  text-align: right;
-}
-
-.instructor-cert-col {
-  flex: 0 0 auto;        /* רוחב קבוע */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
 }
 
 .instructor-name {
@@ -388,8 +357,6 @@
   margin: 2px 0 0;
   font-size: 13px;
   line-height: 1.4;
-  word-break: break-word;      /* שובר מילים ארוכות בלי רווחים */
-  overflow-wrap: anywhere;     /* עוד הגנה */
 }
 .instructor-card {
   position: relative;  // חשוב בשביל האיקס

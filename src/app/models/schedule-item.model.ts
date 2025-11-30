@@ -12,7 +12,7 @@ export interface ScheduleItem {
     child_name: string;
     instructor_id: string;
     instructor_name: string;
-
+    canCancel?: string;
     lesson_type?: string;
     isSummaryDay?: string;
     isSummarySlot?: string;
