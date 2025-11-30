@@ -1,0 +1,221 @@
+<div class="farm-settings-page">
+  <div class="farm-settings-card">
+    <div class="card-header">
+      <h1>הגדרות חווה</h1>
+
+      <div class="status-area">
+        <span *ngIf="loading()" class="status-chip">טוען נתונים…</span>
+        <span *ngIf="saving()" class="status-chip saving">שומר…</span>
+        <span *ngIf="success()" class="status-chip success">
+          {{ success() }}
+        </span>
+        <span *ngIf="error()" class="status-chip error">
+          {{ error() }}
+        </span>
+      </div>
+    </div>
+
+    <form
+      *ngIf="settings() as s"
+      class="settings-form"
+      (ngSubmit)="save()"
+      autocomplete="off"
+    >
+      <!-- שעות פעילות -->
+      <section class="settings-section">
+        <h2>שעות פעילות החווה</h2>
+        <div class="fields-grid two-cols">
+          <label class="field">
+            <span class="field-label">שעת פתיחה</span>
+            <input
+              type="time"
+              [(ngModel)]="s.operating_hours_start"
+              name="operating_hours_start"
+              required
+            />
+          </label>
+
+          <label class="field">
+            <span class="field-label">שעת סגירה</span>
+            <input
+              type="time"
+              [(ngModel)]="s.operating_hours_end"
+              name="operating_hours_end"
+              required
+            />
+          </label>
+        </div>
+      </section>
+
+      <!-- שיעורים -->
+      <section class="settings-section">
+        <h2>הגדרות שיעורים</h2>
+        <div class="fields-grid three-cols">
+          <label class="field">
+            <span class="field-label">מס' שיעורים בסדרה</span>
+            <input
+              type="number"
+              min="1"
+              [(ngModel)]="s.lessons_count"
+              name="lessons_count"
+            />
+          </label>
+
+          <label class="field">
+            <span class="field-label">אורך שיעור (דקות)</span>
+            <input
+              type="number"
+              min="10"
+              [(ngModel)]="s.lesson_duration_minutes"
+              name="lesson_duration_minutes"
+            />
+          </label>
+
+          <label class="field">
+            <span class="field-label">מחיר שיעור רגיל (₪)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              [(ngModel)]="s.default_lesson_price"
+              name="default_lesson_price"
+            />
+          </label>
+        </div>
+
+        <div class="fields-grid three-cols">
+          <label class="field">
+            <span class="field-label">מקס' רוכבים בשיעור קבוצתי</span>
+            <input
+              type="number"
+              min="1"
+              [(ngModel)]="s.max_group_size"
+              name="max_group_size"
+            />
+          </label>
+
+          <label class="field">
+            <span class="field-label">מקס' שיעורים בשבוע לילד</span>
+            <input
+              type="number"
+              min="1"
+              [(ngModel)]="s.max_lessons_per_week_per_child"
+              name="max_lessons_per_week_per_child"
+            />
+          </label>
+
+          <label class="field toggle">
+            <span class="field-label">אפשר זימון שיעורים ע&quot;י הורים</span>
+            <input
+              type="checkbox"
+              [(ngModel)]="s.allow_online_booking"
+              name="allow_online_booking"
+            />
+          </label>
+        </div>
+      </section>
+
+      <!-- השלמות וביטולים -->
+      <section class="settings-section">
+        <h2>השלמות וביטולים</h2>
+        <div class="fields-grid three-cols">
+          <label class="field">
+            <span class="field-label">ימי אחורה להשלמות</span>
+            <input
+              type="number"
+              min="0"
+              [(ngModel)]="s.makeup_allowed_days_back"
+              name="makeup_allowed_days_back"
+            />
+          </label>
+
+          <label class="field">
+            <span class="field-label">מקס' השלמות בתקופה</span>
+            <input
+              type="number"
+              min="0"
+              [(ngModel)]="s.max_makeups_in_period"
+              name="max_makeups_in_period"
+            />
+          </label>
+
+          <label class="field">
+            <span class="field-label">גודל תקופה (ימים)</span>
+            <input
+              type="number"
+              min="1"
+              [(ngModel)]="s.makeups_period_days"
+              name="makeups_period_days"
+            />
+          </label>
+        </div>
+
+        <div class="fields-grid two-cols">
+          <label class="field">
+            <span class="field-label">מס' שיעורי השלמה להצגה</span>
+            <input
+              type="number"
+              min="1"
+              [(ngModel)]="s.displayed_makeup_lessons_count"
+              name="displayed_makeup_lessons_count"
+            />
+          </label>
+
+          <label class="field">
+            <span class="field-label">הפרש מינימלי בין ביטולים (שעות:דקות)</span>
+            <input
+              type="time"
+              [(ngModel)]="s.min_time_between_cancellations"
+              name="min_time_between_cancellations"
+            />
+          </label>
+        </div>
+      </section>
+
+      <!-- תשלומים ודמי רישום -->
+      <section class="settings-section">
+        <h2>תשלומים ודמי רישום</h2>
+        <div class="fields-grid three-cols">
+          <label class="field">
+            <span class="field-label">דמי רישום (₪)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              [(ngModel)]="s.registration_fee"
+              name="registration_fee"
+            />
+          </label>
+
+          <label class="field">
+            <span class="field-label">ביטוח תלמידים (₪ לשנה)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              [(ngModel)]="s.student_insurance_premiums"
+              name="student_insurance_premiums"
+            />
+          </label>
+
+          <div class="field readonly" *ngIf="s.updated_at">
+            <span class="field-label">עודכן לאחרונה</span>
+            <span class="readonly-value">
+              {{ s.updated_at | date: 'dd.MM.yyyy HH:mm' }}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button
+          type="submit"
+          class="primary-btn"
+          [disabled]="saving() || loading()"
+        >
+          שמירת הגדרות
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
