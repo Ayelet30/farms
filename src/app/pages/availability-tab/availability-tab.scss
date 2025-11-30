@@ -1,4 +1,4 @@
-:host {
+host {
   display: block;
 }
 
@@ -11,7 +11,7 @@
   font-family: "Heebo", sans-serif;
 }
 
-/* טוסט עליון */
+/* טוסט */
 .toast {
   position: fixed;
   top: 16px;
@@ -21,12 +21,13 @@
   color: #3c4a1e;
   border: 1px solid #d4e3b8;
   padding: 8px 16px;
-  border-radius: 999px;
+  border-radius: 50px;
   font-size: 14px;
   z-index: 1000;
   box-shadow: 0 4px 10px rgba(0,0,0,0.1);
 }
 
+/* כותרות */
 .page-title {
   font-size: 26px;
   font-weight: 700;
@@ -39,14 +40,13 @@
   margin-bottom: 20px;
 }
 
-/* פריסה של הכרטיסים */
+/* כרטיסים */
 .cards-layout {
   display: flex;
   flex-direction: column;
   gap: 22px;
 }
 
-/* כרטיס בסיסי */
 .card {
   background: #ffffff;
   border-radius: 16px;
@@ -54,47 +54,7 @@
   box-shadow: 0 3px 10px rgba(0,0,0,0.08);
 }
 
-.card-header h2 {
-  font-size: 20px;
-  font-weight: 700;
-  margin: 0 0 4px;
-  color: #222;
-}
-
-.card-subtitle {
-  font-size: 14px;
-  color: #777;
-  margin: 0 0 12px;
-}
-
-.card-footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 14px;
-}
-
-/* כפתורים */
-.primary-btn {
-  background: #8d9b3c;
-  color: #fff;
-  border: none;
-  border-radius: 999px;
-  padding: 8px 18px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: 0.2s;
-}
-
-.primary-btn:disabled {
-  background: #c7ce9a;
-  cursor: not-allowed;
-}
-
-.primary-btn:not(:disabled):hover {
-  background: #7c8a34;
-}
-
-/* === זמינות שבועית === */
+/* זמינות */
 .days-list {
   margin-top: 8px;
 }
@@ -102,10 +62,6 @@
 .day-block {
   padding: 12px 0;
   border-bottom: 1px solid #f0f0e0;
-
-  &:last-child {
-    border-bottom: none;
-  }
 }
 
 .day-header {
@@ -130,67 +86,57 @@
   background: #f5f6e3;
   color: #636b2a;
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: 50px;
   font-size: 12px;
 }
 
-/* מתג ירוק (Material v15+/MDC) */
-::ng-deep .availability-card .day-toggle.mat-mdc-slide-toggle.mat-primary {
-  --mdc-switch-selected-track-color: #8d9b3c;
-  --mdc-switch-selected-hover-track-color: #8d9b3c;
-  --mdc-switch-selected-focus-track-color: #8d9b3c;
-  --mdc-switch-selected-pressed-track-color: #8d9b3c;
-
-  --mdc-switch-selected-handle-color: #ffffff;
-  --mdc-switch-selected-hover-handle-color: #ffffff;
-  --mdc-switch-selected-focus-handle-color: #ffffff;
-  --mdc-switch-selected-pressed-handle-color: #ffffff;
-
-  --mdc-switch-unselected-track-color: #d0d0d0;
-  --mdc-switch-unselected-handle-color: #ffffff;
-}
-
+/* טווחי זמן */
 .slots-wrapper {
   margin-top: 10px;
-  padding: 10px 12px;
+  padding: 12px;
   background: #fafaf3;
   border-radius: 12px;
 }
 
-.slot-row {
+.slot-row,
+.break-row {
   display: flex;
+  flex-direction: row-reverse;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
+  gap: 14px;
+  margin-bottom: 14px;
 }
 
-.icon-button.delete-btn {
+.delete-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
-  color: #c0392b;
   cursor: pointer;
-  display: flex;
-  align-items: center;
+  color: #c0392b;
 }
 
-.slot-box {
+/* קופסה שמכילה את כל השדות */
+.slot-box,
+.break-box {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  flex: 1;
-  background: #ffffff;
+  gap: 14px;
+  background: white;
   border-radius: 10px;
   border: 1px solid #e2e2d5;
-  padding: 10px 12px;
+  padding: 10px 14px;
+  flex: 1;
 }
 
 .slot-field {
   display: flex;
   flex-direction: column;
+  min-width: 130px;
 }
 
 .slot-field label {
@@ -222,15 +168,14 @@
 }
 
 .dash {
-  font-size: 18px;
+  font-size: 20px;
   color: #777;
 }
 
-/* כפתור "הוסף טווח זמן" */
-.link-button.add-slot-btn {
+.add-slot-btn {
   margin-top: 8px;
-  border: none;
   background: transparent;
+  border: none;
   color: #6f7c31;
   font-size: 13px;
   display: inline-flex;
@@ -239,115 +184,26 @@
   cursor: pointer;
 }
 
-/* === העדפות התראות === */
-.notif-list {
-  margin-top: 10px;
+/* ⭐ מתקנים את בעיית ה-select שנעלם */
+.lesson-type-select {
+  min-width: 150px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background: #ffffff !important;
+  color: #333 !important;
+  font-size: 14px;
+  display: block !important;
+  height: 40px !important;
 }
 
-.notif-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 0;
-  border-bottom: 1px solid #f0f0e0;
-
-  &:last-child {
-    border-bottom: none;
-  }
-}
-
-.notif-texts {
-  max-width: 70%;
-}
-
-.notif-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 3px;
-}
-
-.notif-desc {
-  font-size: 13px;
-  color: #777;
-}
-
-/* toggle מותאם אישית להתראות */
-.custom-toggle {
-  position: relative;
-  width: 46px;
-  height: 24px;
-  display: inline-block;
-}
-
-.custom-toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.custom-toggle .slider {
-  position: absolute;
-  cursor: pointer;
+/* פופאפ אישור זמינות */
+.confirm-modal {
+  position: fixed;
   inset: 0;
-  background-color: #d0d0d0;
-  transition: 0.25s;
-  border-radius: 999px;
-}
-
-.custom-toggle .slider:before {
-  content: "";
-  position: absolute;
-  height: 20px;
-  width: 20px;
-  left: 2px;
-  top: 2px;
-  background-color: #ffffff;
-  border-radius: 50%;
-  transition: 0.25s;
-}
-
-.custom-toggle input:checked + .slider {
-  background-color: #8d9b3c;
-}
-
-.custom-toggle input:checked + .slider:before {
-  transform: translateX(20px);
-}
-
-/* רספונסיבי */
-@media (max-width: 768px) {
-  .availability-page {
-    padding: 16px;
-  }
-
-  .card {
-    padding: 18px;
-  }
-
-  .notif-texts {
-    max-width: 60%;
-  }
-}
-/* צבעי toggle מותאמים – רק עבור הכרטיס הזה */
-::ng-deep .availability-card .day-toggle.mat-mdc-slide-toggle {
-  /* צבע רקע (track) כשהמתג דולק */
-  --mdc-switch-selected-track-color: #8d9b3c;
-  --mdc-switch-selected-hover-track-color: #8d9b3c;
-  --mdc-switch-selected-focus-track-color: #8d9b3c;
-  --mdc-switch-selected-pressed-track-color: #8d9b3c;
-
-  /* 🎯 הכדור (handle) – זה מה שלא שינית! */
-  --mdc-switch-selected-handle-color: #ffffff;
-  --mdc-switch-selected-hover-handle-color: #ffffff;
-  --mdc-switch-selected-focus-handle-color: #ffffff;
-  --mdc-switch-selected-pressed-handle-color: #ffffff;
-
-  /* 🎯 צבע האייקון שבתוך הכדור */
-  --mdc-switch-selected-icon-color: #8d9b3c;
-
-  /* מצב לא דולק */
-  --mdc-switch-unselected-track-color: #d0d0d0;
-  --mdc-switch-unselected-handle-color: #ffffff;
-  --mdc-switch-unselected-icon-color: #777;
+  background: rgba(0,0,0,0.28);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 5000;
 }

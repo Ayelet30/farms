@@ -1,274 +1,242 @@
-.schedule-container {
-  font-family: Arial, sans-serif;
-  padding: 15px;
-}
-
-/* כרטיסים + כפתורים */
-.card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 10px;
-  margin-bottom: 10px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.view-buttons button,
-.actions button {
-  padding: 6px 12px;
-  margin: 0 4px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  background: #f1f1f1;
-}
-
-.view-buttons button.active {
-  background: #2c7be5;
-  color: #fff;
-}
-
-.current-date {
-  text-align: center;
-  font-weight: bold;
-  margin-top: 6px;
-}
-
-/* FullCalendar */
-::ng-deep .fc {
-  background: #fff;
-  border-radius: 10px;
-  padding: 8px;
-}
-
-::ng-deep .fc-event {
-  border: none !important;
-  padding: 0 !important;
-  background: transparent !important;
-}
-
-/* אירועים = מלבנים */
-.event-box {
-  padding: 5px 8px;
-  border-radius: 6px;
-  font-size: 13px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  cursor: pointer;
-}
-
-/* סטטוסים */
-.event-box.active {
-  background: #e5f9e7;
-  border-inline-start: 4px solid #3bb54a;
-}
-
-.event-box.lesson {
-  background: #e7f0ff;
-  border-inline-start: 4px solid #2c7be5;
-}
-
-.event-box.free {
-  background: #f9f9f9;
-  border-inline-start: 4px solid #aaa;
-}
-
-.event-box .time {
-  font-weight: bold;
-}
-
-.event-box .title {
-  margin: 2px 0;
-}
-.note-overlay {
-  position: absolute;  /* או fixed */
-  top: 20px;
-  right: 20px;
-  z-index: 1000;       /* מעל כל האלמנטים של לוח השנה */
-  background: #2d0c0c;
-  padding: 15px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-.note-overlay {
-  position: absolute;
-  top: 50px; /* אפשר לשנות לפי הצורך */
-  right: 50px;
-  width: 400px;
-  max-height: 600px;
-  overflow-y: auto;
-  background: #fff;
-  z-index: 1000;
-  border: 1px solid #ccc;
-  padding: 10px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-}
-
-.schedule-container {
-  position: relative; /* חשוב כדי שה-overlay יתייחס להורה */
-}
-
-
-
-.note-overlay {
-  position: absolute;
-  top: 50px;
-  right: 50px;
-  width: 400px;
-  max-height: 600px;
-  overflow-y: auto;
-  background: #fff;
-  z-index: 1000;
-  border: 1px solid #ccc;
-  padding: 10px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-}
-/* === סיכום יומי (Month View Overlay) === */
-.day-summary-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 3000;
-}
-
-.day-summary-card {
-  background: #fff;
-  width: 320px;
-  padding: 20px;
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+/* ============================
+   עטיפה כללית
+=============================== */
+.instructor-schedule {
   direction: rtl;
-  text-align: right;
-  font-family: "Assistant", Arial, sans-serif;
-  animation: fadeIn 0.2s ease-in-out;
-}
-
-.day-summary-card .hdr {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 6px;
-  margin-bottom: 10px;
-}
-
-.day-summary-card .hdr h4 {
-  margin: 0;
-  font-size: 18px;
-  color: #2c7be5;
-}
-
-.day-summary-card .hdr .x {
-  border: none;
-  background: transparent;
-  font-size: 18px;
-  cursor: pointer;
-  color: #888;
-  transition: color 0.2s ease;
-}
-.day-summary-card .hdr .x:hover {
-  color: #333;
-}
-
-.day-summary-card .rows {
-  margin-top: 10px;
-}
-
-.day-summary-card .row {
-  display: flex;
-  justify-content: space-between;
-  padding: 5px 0;
-  font-size: 15px;
-  border-bottom: 1px dashed #eee;
-}
-
-.day-summary-card .row:last-child {
-  border-bottom: none;
-}
-
-.day-summary-card .row span {
-  color: #555;
-}
-
-.day-summary-card .row b {
-  color: #000;
-}
-
-.day-summary-card .hint {
-  display: block;
-  margin-top: 10px;
-  text-align: center;
-  font-size: 13px;
-  color: #888;
-}
-::ng-deep .fc-daygrid-day {
+  font-family: "Heebo", sans-serif;
+  padding: 16px;
   position: relative;
 }
 
-::ng-deep .summary-event {
-  font-size: 11px !important;
-  line-height: 1.2;
-  color: #2e7d32 !important;
-  white-space: nowrap;
-  margin-top: 2px;
-  text-align: right;
+/* ============================
+   עטיפת לוח השנה (כולל מסך מלא)
+=============================== */
+.schedule-wrap {
+  background: #fffdf7;
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  transition: all .2s ease;
+
+  &.fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    border-radius: 0;
+    padding: 16px;
+    background: #f7f8f3;
+  }
 }
 
-::ng-deep .summary-event .fc-event-title {
-  white-space: normal !important;
-  overflow: visible !important;
-}
-::ng-deep .fc-timegrid-event .fc-event-main {
-  white-space: normal !important;
-  line-height: 1.3;
-  font-size: 13px;
-  direction: rtl;
-  text-align: right;
-  padding: 4px 6px;
+/* ============================
+   טולבר עליון (תצוגה/ניווט)
+=============================== */
+.calendar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #f2f4ea;
 }
 
-::ng-deep .fc-timegrid-event {
-  border-right: 4px solid #2c7be5;
+.btn-group {
+  display: flex;
+  gap: 4px;
+
+  button {
+    border: none;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #ffffff;
+    font-size: 13px;
+    cursor: pointer;
+
+    &.active {
+      background: #cdd8aa;
+      font-weight: 600;
+    }
+  }
+}
+
+.current-date {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* ============================
+   תפריט קליק ימני
+=============================== */
+.context-menu {
+  position: fixed;
+  background: #ffffff;
+  border: 1px solid #ccc;
   border-radius: 8px;
-  background: #e7f0ff;
-}
-::ng-deep .fc-timegrid-event .fc-event-main {
-  white-space: normal !important;
-  line-height: 1.3;
-  font-size: 13px;
-  direction: rtl;
-  text-align: right;
-  padding: 4px 6px;
+  z-index: 3000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
 }
 
-::ng-deep .fc-timegrid-event {
+.context-menu button {
+  padding: 10px;
   border: none;
-  border-right: 4px solid #2c7be5;
-  border-radius: 8px;
-  background: #e7f0ff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-}
-/* מסתיר את השעה שמופיעה בתחילת האירוע */
-/* schedule.scss */
-::ng-deep .fc-timegrid-event .fc-event-time,
-::ng-deep .fc-daygrid-event .fc-event-time {
-  display: none !important;
+  text-align: right;
+  background: #fff;
+  cursor: pointer;
 }
 
-/* אפקט כניסה */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
+.context-menu button:hover {
+  background: #f2f2f2;
+}
+
+/* ============================
+   מודאל טווח ימים/שעות
+=============================== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 3500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal {
+  background: #fff;
+  padding: 20px;
+  width: 360px;
+  max-width: 95%;
+  border-radius: 12px;
+  text-align: right;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+}
+
+.modal h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 16px;
+}
+
+.field-row {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  label {
+    font-size: 13px;
+    color: #4d4d4d;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+
+  input,
+  select,
+  textarea {
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    padding: 6px 8px;
+    font-family: inherit;
+    font-size: 13px;
   }
 }
 
-::ng-deep .fc-event-time {
-  display: none !important;
+.time-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+
+  > div {
+    flex: 1;
+  }
 }
 
+.modal textarea {
+  width: 100%;
+  height: 100px;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.modal-actions {
+  margin-top: 15px;
+  display: flex;
+  justify-content: space-between;
+
+  button {
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .confirm {
+    background: #4caf50;
+    color: #fff;
+  }
+
+  .cancel {
+    background: #ccc;
+  }
+}
+
+/* ============================
+   חלון אישור/דחייה למזכירה
+=============================== */
+.approval-menu {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #aaa;
+  padding: 15px;
+  border-radius: 12px;
+  z-index: 3600;
+  width: 260px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+
+  p {
+    margin: 6px 0;
+    font-size: 13px;
+  }
+
+  button {
+    margin-top: 8px;
+    width: 100%;
+    padding: 8px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .approve {
+    background: #4caf50;
+    color: white;
+  }
+
+  .reject {
+    background: #e53935;
+    color: white;
+  }
+
+  .cancel {
+    background: #ccc;
+  }
+}
+
+/* ============================
+   צביעת בקשות ביומן
+=============================== */
+.day-request-pending {
+  background-color: #fff3cd !important;
+}
+
+.day-request-approved {
+  background-color: #d4edda !important;
+}
+
+.day-request-rejected {
+  background-color: #f8d7da !important;
+}
