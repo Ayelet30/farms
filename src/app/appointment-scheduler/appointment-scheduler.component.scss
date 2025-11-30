@@ -536,3 +536,36 @@
   left: 50%;
   transform: translateX(-50%);
 }
+
+/* פריסה דו-עמודתית לקלנדר + שעות */
+.series-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+/* הקלנדר בעמודה ימין – רוחב קבוע ונמנע ממתיחה */
+.series-calendar {
+  flex: 0 0 260px; /* או 280px אם תרצי טיפה יותר רחב */
+}
+
+/* הטבלה של השעות – עמודה שמאל, תופסת את שאר הרוחב */
+.series-slots {
+  flex: 1;
+}
+
+/* במסכים צרים – לחזור לערימה אנכית אחת מתחת לשנייה */
+@media (max-width: 768px) {
+  .series-layout {
+    flex-direction: column;
+  }
+
+  .series-calendar {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+
+  .series-slots {
+    width: 100%;
+  }
+}
