@@ -71,8 +71,6 @@ export class LoginComponent {
       selected?.role_in_tenant ?? this.cuSvc.current?.role;
     let activeFarm: string | null | undefined = selected?.farm?.schema_name;
 
-    this.tokens.restoreLastTokens(activeFarm);
-
     const target = this.routeByRole(activeRole);
     this.dialogRef?.close({ success: true, role: activeRole, target });
 
