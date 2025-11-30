@@ -84,7 +84,7 @@
 
 /* קלטים */
 .editable-input {
-  width: 100%;
+  width: 80%;
   border: 1.5px solid var(--line);
   border-radius: 12px;
   padding: 8px 10px;
@@ -193,4 +193,94 @@
     gap: 4px;
   }
   .error-msg { grid-column: 1 / -1; }
+}
+/* ===== מודאל אישור שמירה ===== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal-panel {
+  background: var(--panel);
+  border-radius: 16px;
+  padding: 16px 18px;
+  border: 1.5px solid var(--olive-300);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+  max-width: 360px;
+  width: 90%;
+  text-align: center;
+}
+
+.modal-panel h4 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.modal-panel p {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+.modal-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+/* אזור דרכי התקשרות */
+.contact-methods {
+  margin-top: 10px;
+}
+
+.contact-methods strong {
+  display: inline-block;
+  margin-bottom: 6px;
+}
+
+/* קונטיינר הצ'יפים */
+.contact-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* צ'יפ בודד */
+.contact-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;          /* קפסולה */
+  background-color: #f7f6ef;     /* שמנת בהירה */
+  border: 1px solid #c6d5b3;     /* ירקרק עדין */
+  font-size: 0.88rem;
+  color: #344023;                /* ירוק כהה – כמו שאר הטקסטים */
+  white-space: nowrap;
+}
+
+/* צ'יפ ריק (אין העדפות) */
+.contact-tag-empty {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+/* מצב עריכה – צ'קבוקסים */
+.contact-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 4px;
+}
+
+.contact-checkboxes label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9rem;
 }

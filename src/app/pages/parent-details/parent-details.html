@@ -12,7 +12,7 @@
    <div class="button-group">
   <button *ngIf="!isEditing" (click)="isEditing = true" class="btn-edit">✏️ ערוך</button>
   <ng-container *ngIf="isEditing">
-    <button (click)="saveParent()" class="btn-save">💾 שמור</button>
+<button (click)="onSaveClick()" class="btn-save">💾 שמור</button>
     <button (click)="cancelEdit()" class="btn-cancel">❌ ביטול</button>
   </ng-container>
 </div>
@@ -43,6 +43,35 @@
     <div *ngIf="emailError" class="error-msg">{{ emailError }}</div>
   </ng-container>
 </p>
+<!-- דרכי התקשרות -->
+<div class="contact-methods">
+  <strong>דרכי התקשרות:</strong>
+
+  <!-- מצב תצוגה -->
+ <div *ngIf="!isEditing" class="contact-tags">
+  <span *ngIf="parent?.notify?.email" class="contact-tag">דוא"ל</span>
+  <span *ngIf="parent?.notify?.sms" class="contact-tag">SMS</span>
+  <span *ngIf="parent?.notify?.whatsapp" class="contact-tag">ווטסאפ</span>
+  <span *ngIf="!parent?.notify" class="contact-tag contact-tag-empty">אין העדפות</span>
+</div>
+
+
+  <!-- מצב עריכה -->
+  <div *ngIf="isEditing" class="contact-checkboxes">
+    <label>
+      <input type="checkbox" [(ngModel)]="editableParent.notify.email" />
+      דוא"ל
+    </label>
+    <label>
+      <input type="checkbox" [(ngModel)]="editableParent.notify.sms" />
+      SMS
+    </label>
+    <label>
+      <input type="checkbox" [(ngModel)]="editableParent.notify.whatsapp" />
+      ווטסאפ
+    </label>
+  </div>
+</div>
 
 </div>
 
@@ -55,6 +84,20 @@
       סטטוס: {{ getStatusText(child.status) }}
     </li>
   </ul>
+</div>
+<div
+  *ngIf="showConfirmDialog"
+  class="modal-backdrop"
+>
+  <div class="modal-panel" role="dialog" aria-modal="true">
+    <h4>אישור שמירת שינויים</h4>
+    <p>האם את בטוחה שברצונך לשמור את השינויים בפרטי ההורה?</p>
+
+    <div class="modal-actions">
+      <button class="btn-save" (click)="confirmSave()">💾 שמור</button>
+      <button class="btn-cancel" (click)="cancelSaveDialog()">❌ ביטול</button>
+    </div>
+  </div>
 </div>
 
 

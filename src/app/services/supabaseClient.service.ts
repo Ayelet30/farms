@@ -53,6 +53,8 @@ export type TenantContext = { id: string; schema: string; accessToken?: string }
 export type RoleInTenant = 'parent' | 'instructor' | 'secretary' | 'manager' | 'admin' | 'coordinator';
 export type Membership = { tenant_id: string; role_in_tenant: RoleInTenant; farm: FarmMeta | null };
 
+const farmMetaCache = new Map<string, FarmMeta | null>();
+
 type BootstrapResp = {
   access_token: string;
   farm: FarmMeta;
@@ -170,21 +172,43 @@ export async function getCurrentUserData(): Promise<any> {
 }
 
 export async function getFarmMetaById(farmId: string): Promise<FarmMeta | null> {
+  if (farmMetaCache.has(farmId)) return farmMetaCache.get(farmId) ?? null;
+
+  if (currentFarmMeta?.id === farmId) {
+    farmMetaCache.set(farmId, currentFarmMeta);
+    return currentFarmMeta;
+  }
+
   const { data } = await getSupabaseClient()
     .from('farms')
     .select('id, name, schema_name')
     .eq('id', farmId)
     .maybeSingle();
-  return (data as FarmMeta) ?? null;
+
+  const meta = (data as FarmMeta) ?? null;
+  farmMetaCache.set(farmId, meta);
+  return meta;
 }
 
 /** ===================== CACHES ===================== **/
 export function getCurrentFarmMetaSync(): FarmMeta | null { return currentFarmMeta; }
 export async function getCurrentFarmMeta(opts?: { refresh?: boolean }): Promise<FarmMeta | null> {
   const tenant = requireTenant();
-  if (!currentFarmMeta || opts?.refresh) currentFarmMeta = await getFarmMetaById(tenant.id);
+
+  // אם אין מטא, אם ביקשו refresh, או אם חסר name → נלך ל-DB
+  if (!currentFarmMeta || opts?.refresh || !currentFarmMeta.name) {
+    const fromDb = await getFarmMetaById(tenant.id);
+    if (fromDb) {
+      // מיזוג כדי לא לאבד logo_url או שדות אחרים שהגיעו מה-bootstrap
+      currentFarmMeta = { ...(currentFarmMeta ?? {}), ...fromDb };
+    } else {
+      currentFarmMeta = null;
+    }
+  }
+
   return currentFarmMeta;
 }
+
 export async function getCurrentFarmName(opts?: { refresh?: boolean }): Promise<string | null> {
   const meta = await getCurrentFarmMeta(opts); return meta?.name ?? null;
 }
@@ -532,6 +556,7 @@ export function getSelectedMembershipSync(): Membership | null {
 
 export async function selectMembership(tenantId: string, roleInTenant?: string): Promise<Membership> {
   const list = await listMembershipsForCurrentUser(true);
+  console.log("selectMembership", tenantId, roleInTenant, list);
   const chosen = list.find(m => m.tenant_id === tenantId) ?? list[0];
   if (!chosen) throw new Error('No memberships');
 
@@ -748,6 +773,27 @@ export type ListParentsOpts = {
   ascending?: boolean;
 };
 
+// ליד שאר ה־types למודולים של מזכירה
+export type SecretaryChargeRow = {
+  id: string;
+  parent_uid: string;
+  parent_name: string;
+  parent_phone: string | null;
+  parent_email: string | null;
+  amount: number;
+  method: 'one_time' | 'subscription';
+  date: string;                 // YYYY-MM-DD מהטבלה
+  invoice_url: string | null;
+  is_external: boolean;         // uid = 1111.. או ללא התאמת הורה
+};
+
+export type ListChargesForSecretaryOpts = {
+  search?: string | null;       // חיפוש לפי שם, טלפון, אימייל או UID
+  limit?: number;
+  offset?: number;
+};
+
+
 /** מחזיר את כל ההורים בחווה (כלומר בסכימת ה-tenant הנוכחי) */
 export async function listParents(opts: ListParentsOpts = {}): Promise<{ rows: ParentRow[]; count?: number | null }> {
   const tenant = requireTenant();    
@@ -883,4 +929,109 @@ export async function listSent(limit = 20, offset = 0): Promise<(Message & { rec
     .range(offset, offset + limit - 1);
   if (error) throw error;
   return (data ?? []) as any[];
+}
+
+export async function listAllChargesForSecretary(
+  opts: ListChargesForSecretaryOpts = {}
+): Promise<{ rows: SecretaryChargeRow[]; count: number | null }> {
+  await ensureTenantContextReady();
+  const tenant = requireTenant();
+  const dbc = db(tenant.schema);
+
+  const limit = Math.max(1, opts.limit ?? 50);
+  const offset = Math.max(0, opts.offset ?? 0);
+
+  // 1) מביאים תשלומים מהטבלה payments
+  const { data: payments, error, count } = await dbc
+    .from('payments')
+    .select('id, parent_uid, amount, date, method, invoice_url', { count: 'exact' })
+    .order('date', { ascending: false })
+    .order('id', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) throw error;
+
+  const rowsRaw = (payments ?? []) as any[];
+
+  if (!rowsRaw.length) {
+    return { rows: [], count: count ?? 0 };
+  }
+
+  // 2) מביאים את ההורים הרלוונטיים
+  const parentUids = Array.from(
+    new Set(rowsRaw.map(r => r.parent_uid).filter((x: string | null) => !!x))
+  );
+
+  let parentsByUid = new Map<string, ParentRow>();
+
+  if (parentUids.length) {
+    const { data: parents, error: pErr } = await dbc
+      .from('parents')
+      .select('uid, first_name, last_name, phone, email')
+      .in('uid', parentUids);
+
+    if (pErr) throw pErr;
+
+    for (const p of (parents ?? []) as any[]) {
+      parentsByUid.set(p.uid, {
+        id: p.id ?? '',
+        uid: p.uid ?? null,
+        first_name: p.first_name ?? '',
+        last_name: p.last_name ?? '',
+        phone: p.phone ?? null,
+        email: p.email ?? null,
+        address: p.address ?? null,
+        is_active: p.is_active ?? null,
+        created_at: p.created_at ?? null,
+      });
+    }
+  }
+
+  const EXTERNAL_UID = '1111111111111111111111';
+
+  // 3) מרכיבים שורות לתצוגה
+  let rows: SecretaryChargeRow[] = rowsRaw.map((p: any) => {
+    const parent = parentsByUid.get(p.parent_uid) ?? null;
+    const isExternal = p.parent_uid === EXTERNAL_UID || !parent;
+
+    const fullName = parent
+      ? `${parent.first_name ?? ''} ${parent.last_name ?? ''}`.trim() || '(ללא שם)'
+      : isExternal
+      ? 'משתמש חיצוני'
+      : '(לא נמצאו פרטי הורה)';
+
+    return {
+      id: p.id,
+      parent_uid: p.parent_uid,
+      parent_name: fullName,
+      parent_phone: parent?.phone ?? null,
+      parent_email: parent?.email ?? null,
+      amount: Number(p.amount) || 0,
+      method: p.method as 'one_time' | 'subscription',
+      date: p.date,
+      invoice_url: p.invoice_url ?? null,
+      is_external: isExternal,
+    };
+  });
+
+  // 4) חיפוש בצד לקוח (שם/טלפון/מייל/UID)
+  if (opts.search?.trim()) {
+    const needle = opts.search.trim();
+    const needleLower = needle.toLowerCase();
+
+    rows = rows.filter(r => {
+      const haystack = [
+        r.parent_name,
+        r.parent_phone ?? '',
+        r.parent_email ?? '',
+        r.parent_uid ?? '',
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(needleLower);
+    });
+  }
+
+  return { rows, count: count ?? null };
 }

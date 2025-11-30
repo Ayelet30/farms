@@ -46,6 +46,8 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
   type = '';
   booking: BookingPayload | null = null;
   product: Product | null = null;
+  successTx: any | null = null;
+
 
   private hfFields: HostedFieldsInstance | null = null;
   busy = signal(false);
@@ -71,6 +73,7 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
 
 
     ngOnInit(): void {
+      console.log('000000000',this.cu.current)  ;
     // 1. אם נפתח כדיאלוג – יש לנו booking ב-data
     if (this.dialogData?.booking) {
       this.booking = this.dialogData.booking;
@@ -194,57 +197,78 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
       this.error.set(null);
 
       this.hfFields.charge(
-        {
-          terminal_name: terminalName,
-          amount,
-          thtk: this.thtk,
-          currency_code: 'ILS',
-          contact: this.booking?.fullName || this.parentEmail || undefined,
-          email: this.booking?.email || this.parentEmail || undefined,
-          requested_by_user: this.parentEmail || 'one-time-checkout',
-          response_language: 'hebrew',
+  {
+    terminal_name: terminalName,
+    amount,
+    thtk: this.thtk,
+    currency_code: 'ILS',
+    contact: this.booking?.fullName || this.parentEmail || undefined,
+    email: this.booking?.email || this.parentEmail || undefined,
+    requested_by_user: this.parentEmail || 'one-time-checkout',
+    response_language: 'hebrew',
+  },
+  async (err: any, response: any) => {
+    console.log('[one-time HF] err=', err, 'resp=', response);
+
+    if (err && err.messages?.length) {
+      err.messages.forEach((msg: any) => {
+        const el = document.getElementById('ot_errors_for_' + msg.param);
+        if (el) el.textContent = msg.message;
+      });
+      this.error.set('שגיאה בפרטי הכרטיס');
+      this.busy.set(false);
+      return;
+    }
+
+    const tx = response?.transaction_response;
+    if (!tx || !tx.success) {
+      this.error.set(tx?.error || 'התשלום נכשל');
+      this.busy.set(false);
+      return;
+    }
+
+    // ✅ עדכון UI – הצגת חיווי הצלחה
+    this.successTx = tx;
+
+    // ✅ שליחת התשלום ל-DB
+    try {
+      const parentUid = this.cu.current?.uid ? this.cu.current.uid : "1111111111111111111111";
+      const farmId = this.booking?.farmId ?? (this.cu.current as any)?.farm_id;
+
+      console.log('111111111 parentUid=',this.cu.current, parentUid, ' farmId=', farmId);
+      if (parentUid) {
+        await this.tranzila.recordOneTimePayment({
+          parentUid,
+          amountAgorot: this.amountAgorot,
+          tx,
+        });
+      } else {
+        console.warn('[one-time] no parentUid – לא נשמר ל-DB');
+      }
+    } catch (saveErr) {
+      console.error('[one-time] failed to save payment in DB', saveErr);
+      // אפשר להחליט אם להראות שגיאה קטנה, אבל לא נכשיל את תצוגת ההצלחה
+    }
+
+    this.busy.set(false);
+
+    if (this.dialogRef) {
+      this.dialogRef.close(tx);
+    } else {
+      this.router.navigate(['/booking', this.type], {
+        state: {
+          booking: this.booking,
+          tx,
         },
-        (err: any, response: any) => {
-          console.log('[one-time HF] err=', err, 'resp=', response);
-
-          if (err && err.messages?.length) {
-            err.messages.forEach((msg: any) => {
-              const el = document.getElementById('ot_errors_for_' + msg.param);
-              if (el) el.textContent = msg.message;
-            });
-            this.error.set('שגיאה בפרטי הכרטיס');
-            this.busy.set(false);
-            return;
-          }
-
-          const tx = response?.transaction_response;
-          if (!tx || !tx.success) {
-            this.error.set(tx?.error || 'התשלום נכשל');
-            this.busy.set(false);
-            return;
-          }
-
-          this.busy.set(false);
-
-          if (this.dialogRef) {
-            // מצב חלון קופץ – נסגור ונחזיר את הטרנזילה למעלה
-            this.dialogRef.close(tx);
-          } else {
-            // מצב עמוד רגיל – כמו שהיה קודם
-            this.router.navigate(['/booking', this.type], {
-              state: {
-                booking: this.booking,
-                tx,
-              },
-            });
-          }
-        },
-      );
+      });
+    }
+  },
+);
     } catch (e: any) {
       console.error('[one-time] charge error', e);
-      this.error.set(e?.message ?? 'שגיאה בביצוע החיוב');
+      this.error.set(e?.message ?? 'שגיאה בתשלום');
       this.busy.set(false);
-    }
+    } 
   }
 
   onCancel() {

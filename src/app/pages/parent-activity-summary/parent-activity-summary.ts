@@ -31,6 +31,10 @@ interface ActivityRowRPC {
   lesson_type: string | null;
   status: string | null;
   note_content: string | null;
+   base_price?: number | null;
+  subsidy_amount?: number | null;
+  discount_amount?: number | null;
+  final_price?: number | null;
 }
 
 // ❷ שורות לתצוגה
@@ -42,6 +46,11 @@ interface ActivityRowView {
   child_id: string;               // לסינון
   status?: string | null;
   note: string;
+   lesson_type?: string | null;
+  base_price?: number | null;
+  subsidy?: number | null;
+  discount?: number | null;
+  pay_amount?: number | null;
 }
 
 // —— Helper: פיצול "שם מלא" לשם פרטי/משפחה במקרה הצורך ——
@@ -176,16 +185,45 @@ if (!first && !last) {
       });
       if (error) throw error;
 
-      const hhmm = (t?: string) => (t ? t.slice(0, 5) : '');
-      const list: ActivityRowView[] = ((data ?? []) as ActivityRowRPC[]).map(r => ({
-        date: r.occ_date,
-        time: `${hhmm(r.start_time)}–${hhmm(r.end_time)}`,
-        instructor: r.instructor_name || r.instructor_id || '',
-        child: r.child_name || '',
-        child_id: (r as any).child_id ?? (r as any).child_uuid,
-        status: r.status || null,
-        note: r.note_content || '',
-      }));
+ const hhmm = (t?: string) => (t ? t.slice(0, 5) : '');
+
+const list: ActivityRowView[] = ((data ?? []) as ActivityRowRPC[]).map(r => ({
+  date: r.occ_date,
+  time: `${hhmm(r.start_time)}-${hhmm(r.end_time)}`, // שינינו גם ל "-" פשוט
+  instructor: r.instructor_name || r.instructor_id || '',
+  child: r.child_name || '',
+  child_id: (r as any).child_id ?? (r as any).child_uuid,
+  status: r.status || null,
+  note: r.note_content || '',
+
+  // חדש:
+  lesson_type: r.lesson_type || null,
+
+  // שמות גמישים – תתאימי לשמות בפועל ב-RPC
+  base_price:
+    (r as any).base_price ??
+    (r as any).base_price_nis ??
+    null,
+
+  subsidy:
+    (r as any).subsidy_amount ??
+    (r as any).subsidy ??
+    (r as any).subsidy_nis ??
+    null,
+
+  discount:
+    (r as any).discount_amount ??
+    (r as any).discount ??
+    (r as any).discount_nis ??
+    null,
+
+  pay_amount:
+    (r as any).final_price ??
+    (r as any).amount_to_pay ??
+    (r as any).total_to_pay ??
+    null,
+}));
+
 
       this.rows.set(list.sort((a, b) => a.date.localeCompare(b.date)));
     } catch (e) {
@@ -260,14 +298,45 @@ if (!first && !last) {
 
 
   // --- Export CSV ---
-  exportCsv() {
-    const csv = [
-      ['תאריך', 'שעות', 'מדריך', 'ילד', 'הערת מדריך'],
-      ...this.yearRows().map(r => [r.date, r.time, r.instructor, r.child, (r.note ?? '').replace(/\n/g, ' ')])
-    ].map(row => row.map(cell => escapeCsv(cell ?? '')).join(',')).join('\n');
+ exportCsv() {
+  // נשתמש בשורות המסוננות לפי הטאב/שנה/חודש/ילד
+  const rows = this.filteredRows();
 
-    downloadText('activity-summary.csv', csv);
-  }
+  const header = [
+    'תאריך',
+    'ילד',
+    'מדריך',
+    'סוג שיעור',
+    'שעות',
+    'מחיר בסיסי',
+    'סבסוד',
+    // 'הנחה',
+    'סכום לתשלום',
+    'סטטוס',
+    'הערת מדריך',
+  ];
+
+  const body = rows.map(r => [
+    r.date || '',
+    r.child || '',
+    r.instructor || '',
+    r.lesson_type ?? '',
+    r.time || '',
+    r.base_price != null ? r.base_price.toString() : '',
+    r.subsidy    != null ? r.subsidy.toString()    : '',
+    r.discount   != null ? r.discount.toString()   : '',
+    r.pay_amount != null ? r.pay_amount.toString() : '',
+    r.status ?? '',
+    (r.note ?? '').replace(/\n/g, ' '),
+  ]);
+
+  const csv = [header, ...body]
+    .map(row => row.map(cell => escapeCsv(cell ?? '')).join(','))
+    .join('\n');
+
+  downloadText('activity-summary.csv', csv);
+}
+
 }
 
 // ===== Helpers =====
@@ -275,8 +344,18 @@ function escapeCsv(s: string) {
   return (s.includes('"') || s.includes(',') || s.includes('\n')) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 function downloadText(filename: string, content: string) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  // BOM ל-UTF-8
+  const BOM = '\uFEFF';
+
+  const blob = new Blob([BOM + content], {
+    type: 'text/csv;charset=utf-8;',
+  });
+
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
   URL.revokeObjectURL(url);
 }
+

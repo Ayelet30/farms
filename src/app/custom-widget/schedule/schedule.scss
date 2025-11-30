@@ -408,3 +408,97 @@
   pointer-events: none;
   opacity: .95;
 }
+/* ===== מובייל אמיתי (פלאפון) ===== */
+@media (max-width: 600px) {
+  .schedule-wrap {
+    gap: 8px;
+    --toolbar-space: 80px;
+  }
+
+  .schedule-wrap.fullscreen {
+    padding: 8px;
+  }
+
+  .card.calendar-toolbar {
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+
+  .calendar-toolbar {
+    grid-template-areas:
+      "date"
+      "views"
+      "nav";
+    grid-template-columns: 1fr;
+    row-gap: 6px;
+  }
+
+  .calendar-toolbar .current-date {
+    font-size: 14px;
+  }
+
+  .btn-group {
+    padding: 4px 6px;
+    gap: 4px;
+  }
+
+  .btn-group > button {
+    padding: 4px 10px;
+    font-size: 0.8rem;
+  }
+
+  .fullscreen-btn {
+    font-size: 0.78rem;
+  }
+
+  /* אם בונים מצב שהקבוצה רחבה מדי – אפשר לאפשר גלילה אופקית */
+  .calendar-toolbar .view-buttons,
+  .calendar-toolbar .actions {
+    max-width: 100%;
+    overflow-x: auto;
+    justify-self: center;
+  }
+
+  .calendar-toolbar .view-buttons::-webkit-scrollbar,
+  .calendar-toolbar .actions::-webkit-scrollbar {
+    height: 4px;
+  }
+}
+
+@media (max-width: 600px) {
+  .bereshit-calendar .fc {
+    --fc-slot-min-height: 2.2em;   /* סלוטים קצת נמוכים יותר */
+  }
+
+  .bereshit-calendar .fc .fc-col-header-cell-cushion {
+    padding: 6px 4px;
+    font-size: 0.8rem;
+  }
+
+  .bereshit-calendar .fc .fc-daygrid-day-frame {
+    margin: 4px;
+    padding: 6px;
+    min-height: 90px;
+    border-radius: 10px;
+  }
+
+  .bereshit-calendar .fc .fc-daygrid-day-number {
+    font-size: 0.8rem;
+  }
+
+  .bereshit-calendar .event-box {
+    padding: 0 6px;
+    font-size: 11px;
+    min-height: 20px;
+  }
+
+  .bereshit-calendar .chip {
+    font-size: 9px;
+    padding: 0 4px;
+  }
+
+  .calendar-host {
+    max-height: calc(100vh - 72px); // טיפה יותר מרווח למובייל
+  }
+}
+

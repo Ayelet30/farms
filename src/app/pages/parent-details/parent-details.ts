@@ -4,6 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { dbTenant, getCurrentUserData } from '../../services/legacy-compat';
 import { OnDestroy } from '@angular/core';
 // ...
+type ParentNotify = {
+  email?: boolean;
+  sms?: boolean;
+  whatsapp?: boolean;
+};
 
 
 @Component({
@@ -26,13 +31,21 @@ ngOnDestroy() {
   isEditing = false;
   error?: string;
 
- editableParent: any = {
+
+editableParent: any = {
   first_name: '',
   last_name: '',
   address: '',
   phone: '',
-  email: ''
+  email: '',
+  notify: {
+    email: true,
+    sms: false,
+    whatsapp: false,
+  } as ParentNotify,
 };
+
+showConfirmDialog = false;
 
 
   phoneError = '';
@@ -42,8 +55,9 @@ private infoTimer: ReturnType<typeof setTimeout> | null = null;
 
 
   // SELECT מפורש
-  private readonly PARENT_SELECT =
-  'uid, id_number, first_name, last_name, address, phone, email';
+ private readonly PARENT_SELECT =
+  'uid, id_number, first_name, last_name, address, phone, email, notify';
+
 
   private readonly CHILD_SELECT =
  'child_uuid, first_name, last_name, gov_id, birth_date, gender, health_fund, status, medical_notes, parent_uid';
@@ -72,7 +86,20 @@ private infoTimer: ReturnType<typeof setTimeout> | null = null;
       }
 
       this.parent = parentData;
-      this.editableParent = { ...parentData };
+
+this.editableParent = {
+  first_name: parentData.first_name ?? '',
+  last_name:  parentData.last_name ?? '',
+  address:    parentData.address ?? '',
+  phone:      parentData.phone ?? '',
+  email:      parentData.email ?? '',
+  notify: {
+    email:    parentData.notify?.email ?? true,
+    sms:      parentData.notify?.sms ?? false,
+    whatsapp: parentData.notify?.whatsapp ?? false,
+  } as ParentNotify,
+};
+
 
       // שליפת הילדים של ההורה
       const { data: childrenData, error: childrenError } = await dbc
@@ -112,6 +139,27 @@ private showInfo(msg: string, ms = 5000) {
   }, ms);
 }
 
+private validateParent(): boolean {
+  // ולידציה לטלפון
+  const phoneRegex = /^05\d{8}$/;
+  if (!phoneRegex.test(this.editableParent.phone || '')) {
+    this.phoneError = 'מספר טלפון לא תקין. יש להזין מספר סלולרי בן 10 ספרות המתחיל ב-05.';
+    return false;
+  } else {
+    this.phoneError = '';
+  }
+
+  // ולידציה לאימייל
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(this.editableParent.email || '')) {
+    this.emailError = 'כתובת מייל לא תקינה.';
+    return false;
+  } else {
+    this.emailError = '';
+  }
+
+  return true;
+}
 
 
   getAge(dateString: string): number {
@@ -122,21 +170,27 @@ private showInfo(msg: string, ms = 5000) {
   }
 
   enableEditing() {
-    this.isEditing = true;
-    this.phoneError = '';
-    this.emailError = '';
-    this.error = undefined;
-    this.editableParent = {
+  this.isEditing = true;
+  this.phoneError = '';
+  this.emailError = '';
+  this.error = undefined;
+
+  this.editableParent = {
     first_name: this.parent?.first_name ?? '',
     last_name:  this.parent?.last_name ?? '',
     address:    this.parent?.address ?? '',
     phone:      this.parent?.phone ?? '',
-    email:      this.parent?.email ?? ''
-   };
+    email:      this.parent?.email ?? '',
+    notify: {
+      email:    this.parent?.notify?.email ?? true,
+      sms:      this.parent?.notify?.sms ?? false,
+      whatsapp: this.parent?.notify?.whatsapp ?? false,
+    } as ParentNotify,
+  };
 
-      this.infoMessage = null;   // ⬅️ הוספה
+  this.infoMessage = null;
+}
 
-  }
 
   cancelEdit() {
     this.isEditing = false;
@@ -145,53 +199,58 @@ private showInfo(msg: string, ms = 5000) {
     this.error = undefined;
     this.editableParent = { ...this.parent };
   }
+// בתוך ParentDetailsComponent
+
+onSaveClick() {
+  this.error = undefined;
+
+  // אם יש שגיאות – לא נפתח מודאל
+  if (!this.validateParent()) {
+    return;
+  }
+
+  this.showConfirmDialog = true;
+}
+confirmSave() {
+  this.showConfirmDialog = false;
+  this.saveParent();
+}
+
+cancelSaveDialog() {
+  this.showConfirmDialog = false;     // לסגור מודאל
+  this.cancelEdit();                  // ⬅️ לצאת ממצב עריכה ולהחזיר ערכים מקוריים
+}
+
 
   async saveParent() {
-    // ולידציה לטלפון
-    const phoneRegex = /^05\d{8}$/;
-    if (!phoneRegex.test(this.editableParent.phone || '')) {
-      this.phoneError = 'מספר טלפון לא תקין. יש להזין מספר סלולרי בן 10 ספרות המתחיל ב-05.';
-      return;
-    } else {
-      this.phoneError = '';
-    }
+  try {
+    const dbc = dbTenant();
 
-    // ולידציה לאימייל
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(this.editableParent.email || '')) {
-      this.emailError = 'כתובת מייל לא תקינה.';
-      return;
-    } else {
-      this.emailError = '';
-    }
-
-    try {
-      const dbc = dbTenant();
-
-    const { error } = await dbc
-    .from('parents')
-    .update({
+   const { error } = await dbc
+  .from('parents')
+  .update({
     first_name: this.editableParent.first_name,
     last_name:  this.editableParent.last_name,
     address:    this.editableParent.address,
     phone:      this.editableParent.phone,
-    email:      this.editableParent.email
-    })
-   .eq('uid', this.parent.uid);
+    email:      this.editableParent.email,
+    notify:     this.editableParent.notify,  
+  })
+  .eq('uid', this.parent.uid);
 
 
-      if (error) {
-        this.error = error.message ?? 'שגיאה בשמירת פרטי ההורה';
-        return;
-      }
-
-      this.parent = { ...this.editableParent };
-      this.isEditing = false;
-      this.error = undefined;
-    } catch (e: any) {
-      this.error = e?.message ?? 'שגיאה לא צפויה בשמירה';
+    if (error) {
+      this.error = error.message ?? 'שגיאה בשמירת פרטי ההורה';
+      return;
     }
-    this.showInfo('פרטי ההורה נשמרו בהצלחה');  
 
+    this.parent = { ...this.editableParent };
+    this.isEditing = false;
+    this.error = undefined;
+    this.showInfo('פרטי ההורה נשמרו בהצלחה');
+  } catch (e: any) {
+    this.error = e?.message ?? 'שגיאה לא צפויה בשמירה';
   }
+}
+
 }

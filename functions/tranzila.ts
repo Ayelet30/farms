@@ -687,5 +687,125 @@ export const tranzilaHandshakeHttp = onRequest(
   },
 );
 
+type RecordPaymentArgs = {
+  sb: SupabaseClient;
+  parentUid: string;
+  farmId?: string;
+  amountAgorot: number;
+  currency?: string;
+  method: 'one_time' | 'subscription';
+  tx: {
+    transaction_id?: string;
+    amount?: string;
+    token?: string;
+    card_type_name?: string;
+    credit_card_last_4_digits?: string;
+  };
+  subscriptionId?: string | null;
+};
+
+async function recordPaymentInDb(args: RecordPaymentArgs) {
+  const {
+    sb,
+    parentUid,
+    farmId,
+    amountAgorot,
+    currency,
+    method,
+    tx,
+    subscriptionId,
+  } = args;
+
+  const amountNis = Number(amountAgorot) / 100;
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+  // 1) רישום ב-payments (למסכים שלך)
+  const paymentRow = withMaybeFarm(
+    {
+      parent_uid: parentUid,
+      amount: amountNis,
+      date: today,
+      method,              // 'one_time' / 'subscription'
+      invoice_url: null,
+    },
+    farmId,
+  );
+  await sb.from('payments').insert(paymentRow as any);
+
+  // 2) אם יש token – לעדכן/ליצור ב-payment_profiles
+  if (tx.token) {
+    const profileRow = withMaybeFarm(
+      {
+        parent_uid: parentUid,
+        brand: tx.card_type_name ?? null,
+        last4: tx.credit_card_last_4_digits ?? null,
+        token_ref: tx.token,
+        active: true,
+        is_default: true,
+      },
+      farmId,
+    );
+    await sb.from('payment_profiles').insert(profileRow as any);
+  }
+
+  // 3) אופציונלי: רישום גם ב-charges / קישור למנוי
+  if (subscriptionId) {
+    const chargeRow = withMaybeFarm(
+      {
+        subscription_id: subscriptionId,
+        parent_uid: parentUid,
+        amount_agorot: amountAgorot,
+        currency: (currency ?? 'ILS').toUpperCase(),
+        provider_id: tx.transaction_id ?? null,
+        status: 'succeeded',
+        error_message: null,
+      },
+      farmId,
+    );
+    await sb.from('charges').insert(chargeRow as any);
+  }
+}
+export const recordOneTimePayment = onRequest(
+  {
+    invoker: 'public',
+    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S],
+  },
+  async (req, res): Promise<void> => {
+    const sb = getSupabase();
+    try {
+      if (handleCors(req, res)) return;
+      if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+      }
+
+      const { parentUid, farmId, amountAgorot, tx } = req.body;
+
+      if (!parentUid || amountAgorot == null || !tx) {
+        res.status(400).json({ ok: false, error: 'missing parentUid/amountAgorot/tx' });
+        return;
+      }
+
+      await recordPaymentInDb({
+        sb,
+        parentUid,
+        farmId,
+        amountAgorot,
+        currency: 'ILS',
+        method: 'one_time',
+        tx,
+        subscriptionId: null,
+      });
+
+      res.json({ ok: true });
+    } catch (e: any) {
+      console.error('[recordOneTimePayment] error:', e);
+      res.status(500).json({ ok: false, error: e?.message ?? 'internal error' });
+    }
+  },
+);
+
+
+
 
 

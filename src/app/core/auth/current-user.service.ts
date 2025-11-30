@@ -7,6 +7,7 @@ import { BehaviorSubject, firstValueFrom, filter, take } from 'rxjs';
 
 import {
   clearTenantContext,
+  getCurrentFarmMeta,
   getCurrentFarmMetaSync,
   getCurrentUserData,
   getCurrentUserDetails,
@@ -117,79 +118,97 @@ export class CurrentUserService {
    * Hydration אחרי Login: טוען memberships, בוחר טננט (אם יש אחד או אם נשמר ב-localStorage),
    * מקים הקשר טננט, טוען פרטי משתמש, ומעדכן current-user באופן אטומי.
    */
-  // current-user.service.ts
-  async hydrateAfterLogin() {
-    await this.waitUntilReady();
-    const fbUser = this.auth.currentUser!;
-    const memberships = await listMembershipsForCurrentUser(true);
-    this.setMemberships(memberships);
+ async hydrateAfterLogin() {
+  await this.waitUntilReady();
+  const fbUser = this.auth.currentUser!;
 
-    const saved = localStorage.getItem('selectedTenant');
-    const toPick = memberships.find(m => m.tenant_id === saved)?.tenant_id
-      ?? (memberships[0]?.tenant_id ?? null);
+  const baseMemberships = await listMembershipsForCurrentUser(true);
 
-    let picked: Membership | null = null;
-    if (toPick) {
-      picked = await selectMembership(toPick, memberships.find(m => m.tenant_id === toPick)?.role_in_tenant);
-      this.setSelectedTenant(picked.tenant_id);
-    }
+  const saved = localStorage.getItem('selectedTenant');
+  const toPick =
+    baseMemberships.find(m => m.tenant_id === saved)?.tenant_id ??
+    (baseMemberships[0]?.tenant_id ?? null);
 
-    // טען פרטי משתמש מהטננט (ללא cache כדי לקבל ערכים עדכניים)
-    const details = picked
-      ? await this.loadUserDetails('uid,first_name,last_name, id_number, address, phone, email, id_number, first_name, last_name', 0)
-      : null;
-
-    const farm = getCurrentFarmMetaSync();
-
-    // מיזוג חכם: מה־details אם קיים, אחרת Firebase
-  this.setCurrent({
-  uid: fbUser.uid,
-  email: details?.email ?? fbUser.email ?? undefined,
-  displayName:
-    ((details?.first_name ?? '') + ' ' + (details?.last_name ?? '')).trim() ||
-    fbUser.displayName ||
-    undefined,
-  farmName: farm?.name,
-  id_number: details?.id_number ?? undefined,
-  first_name: details?.first_name ?? undefined,
-  last_name: details?.last_name ?? undefined,
-  phone: details?.phone ?? undefined,
-  role: (picked?.role_in_tenant ?? null) as any,
-  memberships,
-  selectedTenantId: picked?.tenant_id ?? null,
-});
-
-
-    // אם את מסתמכת על סכמה לטוקנים – עדכני גם כאן (לא רק ב־switchMembership)
-    this.tokens.applytokens(farm?.schema_name || 'public');
-
-    return { selected: picked, details };
-  }
-
-  async switchMembership(tenantId: string, roleInTenant?: string) {
-    await this.waitUntilReady();
-    const fbUser = this.auth.currentUser!;
-    const picked = await selectMembership(tenantId, roleInTenant);
-
+  let picked: Membership | null = null;
+  if (toPick) {
+    picked = await selectMembership(
+      toPick,
+      baseMemberships.find(m => m.tenant_id === toPick)?.role_in_tenant
+    );
     this.setSelectedTenant(picked.tenant_id);
-
-    // טען פרטים ללא cache
-    const details = await this.loadUserDetails('uid,first_name,last_name, id_number, address, phone, email', 0);
-
-    this.setCurrent({
-      uid: fbUser.uid,
-      role: picked.role_in_tenant as any,
-      memberships: this.current?.memberships,
-      selectedTenantId: picked.tenant_id,
-    });
-
-    // עדכון טוקנים/סכמה לשאר השירותים
-    const farm = getCurrentFarmMetaSync();
-    // אם יש לך TokensService:
-    this.tokens.applytokens(farm?.schema_name || 'public');
-
-
-    return { role: picked.role_in_tenant, details };
   }
+
+  const memberships = await listMembershipsForCurrentUser(false);
+  this.setMemberships(memberships);
+
+  const details = picked
+    ? await this.loadUserDetails(
+        'uid,first_name,last_name, id_number, address, phone, email, id_number, first_name, last_name',
+        0
+      )
+    : null;
+
+  const farmMeta = await getCurrentFarmMeta({ refresh: true });
+
+  this.setCurrent({
+    uid: fbUser.uid,
+    email: details?.email ?? fbUser.email ?? undefined,
+    displayName:
+      ((details?.first_name ?? '') + ' ' + (details?.last_name ?? '')).trim() ||
+      fbUser.displayName ||
+      undefined,
+    farmName: picked?.farm?.name,           // ⬅️ שם חווה כבר מההתחלה
+    id_number: details?.id_number ?? undefined,
+    first_name: details?.first_name ?? undefined,
+    last_name: details?.last_name ?? undefined,
+    phone: details?.phone ?? undefined,
+    role: (picked?.role_in_tenant ?? null) as any,
+    memberships,
+    selectedTenantId: picked?.tenant_id ?? null,
+  });
+
+console.log("111111111", farmMeta);
+  this.tokens.applytokens(picked?.farm?.schema_name || 'public');
+
+  return { selected: picked, details };
+}
+
+
+ async switchMembership(tenantId: string, roleInTenant?: string) {
+  await this.waitUntilReady();
+  const fbUser = this.auth.currentUser!;
+
+  const picked = await selectMembership(tenantId, roleInTenant);
+  console.log("switched to membership", fbUser, picked);
+
+  this.setSelectedTenant(picked.tenant_id);
+
+  // רשימת חברות מעודכנת (כולל farm.name לכל טננט)
+  const memberships = await listMembershipsForCurrentUser(false);
+  this.setMemberships(memberships);
+
+  // טען פרטים ללא cache
+  const details = await this.loadUserDetails(
+    'uid,first_name,last_name, id_number, address, phone, email',
+    0
+  );
+
+  // נוודא שיש לנו FarmMeta מלא (עם name)
+  const farmMeta = await getCurrentFarmMeta({ refresh: true });
+
+  this.setCurrent({
+    uid: fbUser.uid,
+    role: picked.role_in_tenant as any,
+    memberships,
+    selectedTenantId: picked.tenant_id,
+    // ⬅️ כאן הקסם – נשמור את שם החווה במשתמש
+    farmName: farmMeta?.name,
+  });
+
+  this.tokens.applytokens(farmMeta?.schema_name || 'public');
+
+  return { role: picked.role_in_tenant, details };
+}
+
 
 }

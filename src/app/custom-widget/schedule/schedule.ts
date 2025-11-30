@@ -24,6 +24,8 @@ import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import { ScheduleItem } from '../../models/schedule-item.model';
 import { ChangeDetectorRef } from '@angular/core';
 
+
+
 type ViewName = 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay';
 
 @Component({
@@ -59,6 +61,40 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   isFullscreen = false;
 
   constructor(private cdr: ChangeDetectorRef) {}
+
+  isMobile = false;
+
+  @HostListener('window:resize')
+  onResize() {
+    this.updateResponsiveView(false);
+  }
+
+  private updateResponsiveView(initial = false) {
+    const width = window.innerWidth;
+    const wasMobile = this.isMobile;
+    this.isMobile = width <= 768; // אפשר לשחק עם הסף
+
+    const api = this.calendarApi;
+    if (!api) return;
+
+    // רק אם יש שינוי אמיתי – נחליף View
+    if (this.isMobile !== wasMobile || initial) {
+      // במובייל – יומי, בדסקטופ – initialView / שבועי
+      const target: ViewName = this.isMobile ? 'timeGridDay' : this.initialView;
+      this.currentView = target;
+      const mapped = this.mapView(target);
+      api.changeView(mapped);
+
+      // בגלילה לשעה נוכחית כשצריך
+      if (
+        (target === 'timeGridDay' || target === 'timeGridWeek') &&
+        this.isToday(api.getDate())
+      ) {
+        setTimeout(() => api.scrollToTime(this.nowScroll()), 0);
+      }
+    }
+  }
+
 
   // שעה נוכחית (לגלילה אוטומטית)
   private nowScroll(): string {
@@ -230,7 +266,7 @@ private mapView(view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'): string {
 
   ngAfterViewInit(): void {
     setTimeout(() => {
-      this.applyCurrentView();
+      this.updateResponsiveView(true);
     }, 0);
   }
 

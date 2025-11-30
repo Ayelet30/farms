@@ -86,6 +86,81 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   padding: 20px 22px 22px !important;  /* רווח פנימי יפה */
 }
 
+.head{display:flex; align-items:center; gap:10px; margin-bottom:8px}
+
+.table{width:100%; border-collapse: collapse; margin-top:8px}
+    .table th,.table td{border-bottom:1px solid #e2e8f0; padding:6px}
+
+    /* רשימות ה־slots – טבלה תואמת */
+/* טבלאות בתוך slots-list – גם בזימון תורים וגם בבקשות */
+.slots-list {
+  margin-top: 12px;
+}
+
+.slots-list h4 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #2b2b2b;
+}
+
+.slots-list table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.slots-list thead tr {
+  background: #f7f9f4;
+}
+
+.slots-list th {
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #586141;
+  border-bottom: 1px solid #cdd6bf;
+  text-align: center;
+}
+
+.slots-list td {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #2b2b2b;
+  border-bottom: 1px solid #e1e6d5;
+  vertical-align: middle;
+}
+
+/* זברה עדינה */
+.slots-list tbody tr:nth-child(even) {
+  background: #f7f9f4;
+}
+
+/* hover לשורה */
+.slots-list tbody tr.clickable-row:hover {
+  background: #eef4e5;
+}
+
+/* יישור עמודות – פירוט לימין, אקשן שמאל */
+.slots-list td:nth-child(2),
+.slots-list th:nth-child(2) {
+  text-align: right;
+}
+
+.slots-list td:first-child,
+.slots-list th:first-child,
+.slots-list td:nth-child(4),
+.slots-list th:nth-child(4) {
+  text-align: center;
+}
+
+.slots-list td:last-child,
+.slots-list th:last-child {
+  text-align: left;
+}
+
 
 /* FIX גלובלי לכל select */
 select {

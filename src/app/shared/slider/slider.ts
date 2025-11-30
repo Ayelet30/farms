@@ -61,6 +61,7 @@ export class SliderComponent implements OnInit {
           { path: 'parent/payments', label: 'אמצעי תשלום', icon: 'card' },
           { path: 'parent/messages', label: 'הודעות', icon: 'note' },
           { path: 'parent/details', label: 'הפרטים שלי', icon: 'user' },
+          { path: 'parent/requests', label: 'בקשות ואישורים', icon: 'settings' } 
         ];
         break;
 
@@ -69,7 +70,8 @@ export class SliderComponent implements OnInit {
           { path: 'instructor/schedule', label: 'לו״ז ומעקב', icon: 'calendar' },
           { path: '/instructor/availability', label: 'העדפות זמינות', icon: 'clock' },
           { path: 'instructor/monthly-summary', label: 'סיכום חודשי', icon: 'bar_chart' },
-          { path: 'instructor/settings', label: 'הגדרות', icon: 'settings' } // ✅ חדש
+          { path: 'instructor/settings', label: 'הגדרות', icon: 'settings' },
+          { path: 'instructor/requests', label: 'בקשות ואישורים', icon: 'settings' } 
         ];
         break;
 
@@ -77,9 +79,13 @@ export class SliderComponent implements OnInit {
         this.menuItems = [
           { path: 'secretary/parents', label: 'הורים בחווה', icon: 'user' },
           { path: 'secretary/children', label: 'ילדים בחווה', icon: 'children' },
+          { path: 'secretary/instructors', label: 'מדריכים בחווה', icon: 'user' },
           { path: 'secretary/schedule', label: 'לו״ז ומעקב', icon: 'calendar' },
           { path: 'secretary/appointment', label: 'זימון תורים', icon: 'settings' },
           { path: 'secretary/messages', label: 'הודעות', icon: 'note' },
+          { path: 'secretary/requests', label: 'בקשות ואישורים', icon: 'note' },
+          { path: 'secretary/payments', label: 'תשלומים וחשבוניות', icon: 'card' },
+          { path: 'secretary/settings', label: 'הגדרות חווה', icon: 'settings' },
         ];
         break;
 

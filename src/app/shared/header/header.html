@@ -24,27 +24,42 @@
   </div>
 
   <!-- צד ימין: אזור הזדהות/מחליף תפקידים -->
-  <div class="auth-section" dir="rtl">
+ <div class="auth-section" dir="rtl">
     <div class="parent-details">
       <span *ngIf="userName" class="parent-name">
-        {{ userName }}
+        <span class="parent-name-text">
+          {{ userName }}
+        </span>
 
-        <ng-container *ngIf="(cu.user$ | async) as u; else noUser">
-          <div class="role-switcher" *ngIf="(u.memberships?.length ?? 0) > 1">
-            <select
-              [(ngModel)]="selected"
-              (ngModelChange)="onChooseMembership($event)"
+        <!-- חץ דרופדאון – רק אם יש יותר מחברות אחת -->
+        <ng-container *ngIf="memberships.length > 1">
+          <button
+            type="button"
+            class="role-toggle-btn"
+            (click)="toggleRoleMenu($event)"
+            [class.open]="isRoleMenuOpen"
+            aria-label="החלפת תפקיד"
+          >
+            <span class="chevron"></span>
+          </button>
+
+          <!-- חלונית בחירה -->
+          <ul class="role-menu" *ngIf="isRoleMenuOpen">
+            <li
+              *ngFor="let m of memberships"
+              (click)="onChooseMembership(m)"
+              [class.active]="m.tenant_id === selected?.tenant_id"
             >
-              <option *ngFor="let m of (u.memberships ?? [])" [ngValue]="m">
-                {{ m.farm?.name || m.tenant_id }} — {{ m.role_in_tenant }}
-              </option>
-            </select>
-          </div>
+              <div class="role-line">{{ formatMembershipRole(m) }}</div>
+              <div class="farm-line">{{ formatMembershipFarm(m) }}</div>
+            </li>
+          </ul>
         </ng-container>
-        <ng-template #noUser></ng-template>
       </span>
 
-      <span *ngIf="userRole" class="parent-Role">{{ userRole }}</span>
+      <span *ngIf="userRole" class="parent-Role">
+        {{ userRole }}
+      </span>
     </div>
 
     <button

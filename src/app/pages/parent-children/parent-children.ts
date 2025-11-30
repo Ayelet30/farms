@@ -3,9 +3,16 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import type { ChildRow } from '../../Types/detailes.model';
-import { dbTenant, fetchMyChildren, getCurrentUserData } from '../../services/supabaseClient.service';
-import { ChildConsentsComponent } from '../../consents/child-consents.component/child-consents.component';
+import { getCurrentUserData } from '../../services/supabaseClient.service';
+// import { ChildConsentsComponent } from '../../consents/child-consents.component/child-consents.component';
 import { NgClass, NgTemplateOutlet } from '@angular/common';
+//import { dbTenant } from '../../services/legacy-compat';
+import { dbTenant } from '../../services/legacy-compat';
+import { fetchMyChildren } from '../../services/supabaseClient.service';
+import { ViewChild, ElementRef } from '@angular/core';
+
+//import { SupabaseClient } from '@supabase/supabase-js';
+
 
 
 type OccurrenceRow = {
@@ -29,9 +36,10 @@ type ChildStatus = 'Active' | 'Pending Deletion Approval' | 'Pending Addition Ap
 @Component({
   selector: 'app-parent-children',
   standalone: true,
-  imports: [CommonModule, FormsModule, ChildConsentsComponent, NgClass, NgTemplateOutlet],
+  imports: [CommonModule, FormsModule, NgClass, NgTemplateOutlet],
   templateUrl: './parent-children.html',
-  styleUrls: ['./parent-children.css']
+  styleUrls: ['./parent-children.css'],
+ 
 })
 export class ParentChildrenComponent implements OnInit {
 
@@ -69,6 +77,12 @@ showHistory = false;
 historyLoading = false;
 historyChildName = '';
 historyItems: { date: string; time: string; instructor?: string; status: string; lesson_type?: string }[] = [];
+@ViewChild('newChildSection') newChildSection?: ElementRef<HTMLDivElement>;
+
+// לשימוש בדיאלוג
+pendingDeleteChildName: string | null = null;
+pendingDeleteLessonsCount: number | null = null;
+
 
 // תגית צבע לפי סטטוס להדפסה ב־[ngClass]
 statusClass(st: string): string {
@@ -445,55 +459,134 @@ const ids = this.children
     medical_notes: ''
   };
   this.validationErrors = {};
+  setTimeout(() => {
+    this.newChildSection?.nativeElement.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    });
+  }, 0);
 }
 
 
   async saveNewChild() {
-    this.validationErrors = {};
+  this.validationErrors = {};
 
-    if (!/^\d{9}$/.test(this.newChild.gov_id || '')) this.validationErrors['gov_id'] = 'ת״ז חייבת להכיל בדיוק 9 ספרות';
-    if (!this.newChild.first_name) {this.validationErrors['first_name'] = 'נא להזין שם פרטי';}
-    if (!this.newChild.last_name) {this.validationErrors['last_name'] = 'נא להזין שם משפחה';}
-    if (!this.newChild.birth_date) this.validationErrors['birth_date'] = 'יש לבחור תאריך לידה';
-    if (!this.newChild.gender) this.validationErrors['gender'] = 'יש לבחור מין';
-    if (!this.newChild.health_fund) this.validationErrors['health_fund'] = 'יש לבחור קופת חולים';
-    if (Object.keys(this.validationErrors).length > 0) return;
+  // 1) ולידציה
+  if (!/^\d{9}$/.test(this.newChild.gov_id || '')) {
+    this.validationErrors['gov_id'] = 'ת״ז חייבת להכיל בדיוק 9 ספרות';
+  }
+  if (!this.newChild.first_name) {
+    this.validationErrors['first_name'] = 'נא להזין שם פרטי';
+  }
+  if (!this.newChild.last_name) {
+    this.validationErrors['last_name'] = 'נא להזין שם משפחה';
+  }
+  if (!this.newChild.birth_date) {
+    this.validationErrors['birth_date'] = 'יש לבחור תאריך לידה';
+  }
+  if (!this.newChild.gender) {
+    this.validationErrors['gender'] = 'יש לבחור מין';
+  }
+  if (!this.newChild.health_fund) {
+    this.validationErrors['health_fund'] = 'יש לבחור קופת חולים';
+  }
 
-    const dbc = dbTenant();
-    const parentUid = (await getCurrentUserData())?.uid ?? null;
+  if (Object.keys(this.validationErrors).length > 0) {
+    return;
+  }
 
-    const payload: any = {
-      gov_id: this.newChild.gov_id,
-      first_name: this.newChild.first_name,
-      last_name: this.newChild.last_name,
-      birth_date: this.newChild.birth_date,
-      gender: this.newChild.gender,
-      health_fund: this.newChild.health_fund,
-      status: 'Pending Addition Approval',
-      parent_uid: parentUid,
-      medical_notes: this.newChild.medical_notes || null
-    };
+  const dbc = dbTenant();
+  const user = await getCurrentUserData();
+  const parentUid = user?.uid ?? null;
 
-    const { data: exists } = await dbc.from('children').select('gov_id').eq('gov_id', this.newChild.gov_id).maybeSingle();
-    if (exists) {
+  if (!parentUid) {
+    this.error = 'שגיאה: לא נמצאו פרטי הורה מחובר';
+    return;
+  }
+
+  // 2) בדיקה אם ת״ז כבר קיימת בילדים
+  const { data: exists, error: existsError } = await dbc
+    .from('children')
+    .select('gov_id')
+    .eq('gov_id', this.newChild.gov_id)
+    .maybeSingle();
+
+  if (existsError) {
+    this.error = existsError.message ?? 'שגיאה בבדיקת תעודת זהות';
+    return;
+  }
+
+  if (exists) {
+    this.validationErrors['gov_id'] = 'ת״ז זו כבר קיימת במערכת';
+    return;
+  }
+
+  // 3) הכנסת הילד לטבלת children (עם סטטוס Pending Addition Approval)
+  const childPayload: any = {
+    gov_id:        this.newChild.gov_id,
+    first_name:    this.newChild.first_name,
+    last_name:     this.newChild.last_name,
+    birth_date:    this.newChild.birth_date,
+    gender:        this.newChild.gender,
+    health_fund:   this.newChild.health_fund,
+    status:        'Pending Addition Approval',
+    parent_uid:    parentUid,
+    medical_notes: this.newChild.medical_notes || null
+  };
+
+  const {
+    data: insertedChild,
+    error: insertChildError
+  } = await dbc
+    .from('children')
+    .insert(childPayload)
+    .select('child_uuid, gov_id, first_name, last_name, birth_date, gender, health_fund, medical_notes, status, parent_uid')
+    .single();
+
+  if (insertChildError || !insertedChild) {
+    if ((insertChildError as any)?.code === '23505') {
       this.validationErrors['gov_id'] = 'ת״ז זו כבר קיימת במערכת';
       return;
     }
-
-    const { error } = await dbc.from('children').insert(payload);
-    if (error) {
-      if ((error as any).code === '23505') {
-        this.validationErrors['gov_id'] = 'ת״ז זו כבר קיימת במערכת';
-        return;
-      }
-      this.error = error.message ?? 'שגיאה בהוספה';
-      return;
-    }
-
-    await this.loadChildren();
-    this.newChild = null;
-    this.showInfo('הוספת הילד עברה לאישור מזכירה');
+    this.error = insertChildError?.message ?? 'שגיאה בהוספת הילד';
+    return;
   }
+
+  // 4) יצירת בקשה למזכירה בטבלת secretarial_requests
+  const secretarialPayload = {
+    request_type:      'ADD_CHILD',    // public.request_type
+    status:            'PENDING',      // public.request_status (אפשר להשמיט ולהשתמש ב-default)
+    requested_by_uid:  parentUid,      // text
+    requested_by_role: 'parent',       // public.tenant_role
+    child_id:          insertedChild.child_uuid, // uuid של הילד החדש
+    payload: {
+      gov_id:        insertedChild.gov_id,
+      first_name:    insertedChild.first_name,
+      last_name:     insertedChild.last_name,
+      birth_date:    insertedChild.birth_date,
+      gender:        insertedChild.gender,
+      health_fund:   insertedChild.health_fund,
+      medical_notes: insertedChild.medical_notes
+    }
+    // created_at – יש default now()
+  };
+
+  const { error: secretarialError } = await dbc
+    .from('secretarial_requests')
+    .insert(secretarialPayload);
+
+  if (secretarialError) {
+    console.error('שגיאה ביצירת בקשה למזכירה:', secretarialError);
+    // לא נכשיל את כל הפעולה כי הילד כבר במערכת, אבל נדווח:
+    this.showInfo('הילד נוסף למערכת, אך הייתה שגיאה בשליחת הבקשה למזכירה. אנא צרי קשר עם המשרד.');
+  } else {
+    this.showInfo('הילד נוסף וממתין לאישור מזכירה');
+  }
+
+  // 5) רענון רשימת הילדים וניקוי הטופס
+  await this.loadChildren();
+  this.newChild = null;
+}
 
   allowOnlyNumbers(event: KeyboardEvent) {
     if (!/^\d$/.test(event.key)) event.preventDefault();
@@ -507,35 +600,124 @@ const ids = this.children
   /* =========================
      Delete / Leave (logical)
   ========================= */
-  confirmDeleteChild(child: any) {
+  /* =========================
+     Delete / Leave (logical)
+  ========================= */
+  async confirmDeleteChild(child: any) {
+      console.log('🔴 confirmDeleteChild clicked', child);
+
     const id = this.childId(child);
     if (!id) return;
+
+    const dbc = dbTenant();
+    const nowIso = new Date().toISOString();
+
+    // סטייט לדיאלוג
     this.pendingDeleteId = id;
-    this.showDeleteConfirm = true;
+    this.pendingDeleteChildName = `${child.first_name || ''} ${child.last_name || ''}`.trim();
+    this.pendingDeleteLessonsCount = null;
+    this.showDeleteConfirm = true;  // << כבר פותח את החלונית
+  console.log('🔴 showDeleteConfirm set to', this.showDeleteConfirm);
+
+    // ספירת שיעורים עתידיים בילד הזה (לא מבוטלים)
+    const { data, error } = await dbc
+      .from('lessons_occurrences')
+      .select('lesson_id')
+      .eq('child_id', id)
+      .gte('start_datetime', nowIso)
+      .neq('status', 'בוטל');
+
+    if (error) {
+      console.error('שגיאה בספירת שיעורים לפני מחיקת ילד:', error);
+      this.pendingDeleteLessonsCount = null;
+      return;
+    }
+
+    this.pendingDeleteLessonsCount = (data ?? []).length;
   }
 
-  async deleteChild() {
+
+   async deleteChild() {
     if (!this.pendingDeleteId) return;
 
-   const { error } = await dbTenant()
-  .from('children')
-  .update({ status: 'Pending Deletion Approval' })
-  .eq('child_uuid', this.pendingDeleteId);
+    const childId = this.pendingDeleteId;
+    const dbc = dbTenant();
 
-    if (!error) {
-      this.selectedIds.delete(this.pendingDeleteId);
-      this.showDeleteConfirm = false;
-      this.pendingDeleteId = null;
-      await this.loadChildren();
-      this.showInfo('הבקשה להסרת הילד נשלחה למזכירה');
-    } else {
-      this.error = error.message ?? 'שגיאה במחיקה';
+    // מי ההורה?
+    const user = await getCurrentUserData();
+    const parentUid = user?.uid ?? null;
+
+    if (!parentUid) {
+      this.error = 'שגיאה: לא נמצאו פרטי הורה מחובר';
+      return;
     }
-  }
 
-  cancelDelete() {
+    // 1) עדכון סטטוס הילד ל־Pending Deletion Approval + שליפה לצורך payload
+    const {
+      data: updatedChild,
+      error: updateError,
+    } = await dbc
+      .from('children')
+      .update({ status: 'Pending Deletion Approval' })
+      .eq('child_uuid', childId)
+      .select(
+        'child_uuid, gov_id, first_name, last_name, birth_date, gender, health_fund, medical_notes, parent_uid'
+      )
+      .single();
+
+    if (updateError || !updatedChild) {
+      console.error('שגיאה בעדכון סטטוס הילד למחיקה:', updateError);
+      this.error = updateError?.message ?? 'שגיאה במחיקת הילד';
+      return;
+    }
+
+    // 2) יצירת בקשה למזכירה בטבלת secretarial_requests
+    const secretarialPayload: any = {
+      // אם ב-ENUM בבסיס נתונים זה כתוב אחרת (למשל DELET_CHILD) – תחליפי כאן
+      request_type: 'DELETE_CHILD',
+      status: 'PENDING',
+      requested_by_uid: parentUid,
+      requested_by_role: 'parent',
+      child_id: updatedChild.child_uuid,
+      payload: {
+        gov_id:        updatedChild.gov_id,
+        first_name:    updatedChild.first_name,
+        last_name:     updatedChild.last_name,
+        birth_date:    updatedChild.birth_date,
+        gender:        updatedChild.gender,
+        health_fund:   updatedChild.health_fund,
+        medical_notes: updatedChild.medical_notes,
+        remaining_lessons_count: this.pendingDeleteLessonsCount ?? null,
+      },
+      // created_at – מגיע מ-default של ה-DB
+    };
+
+    const { error: secretarialError } = await dbc
+      .from('secretarial_requests')
+      .insert(secretarialPayload);
+
+    if (secretarialError) {
+      console.error('שגיאה ביצירת בקשה למחיקת ילד במזכירות:', secretarialError);
+      this.showInfo('הבקשה להסרת הילד נרשמה חלקית – אנא צרי קשר עם המשרד לווידוא.');
+    } else {
+      this.showInfo('הבקשה להסרת הילד נשלחה למזכירה ותמתין לאישור.');
+    }
+
+    // 3) ניקוי סטייט ורענון
+    this.selectedIds.delete(childId);
     this.showDeleteConfirm = false;
     this.pendingDeleteId = null;
+    this.pendingDeleteChildName = null;
+    this.pendingDeleteLessonsCount = null;
+
+    await this.loadChildren();
+  }
+
+   cancelDelete() {
+    this.showDeleteConfirm = false;
+    this.pendingDeleteId = null;
+    this.pendingDeleteChildName = null;
+    this.pendingDeleteLessonsCount = null;
   }
 
   /* =========================

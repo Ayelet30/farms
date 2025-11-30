@@ -292,6 +292,7 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
           email: this.hfEmail || this.parentEmail,
           requested_by_user: this.parentEmail || 'smart-farm-parent',
           response_language: 'hebrew',
+          PARAM_3_4: 'MoachApp', 
           tokenize: true, // אם מוגדר במסוף
         },
         async (err: any, response: any) => {

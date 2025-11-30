@@ -59,11 +59,10 @@ export class LoginComponent {
       const { selected } = await this.cuSvc.hydrateAfterLogin();
       console.log('selected', selected);
 
-      const memberships = this.cuSvc.current?.memberships || [];
-      let activeRole: string | null | undefined = selected?.role_in_tenant ?? this.cuSvc.current?.role;
-      let activeFarm: string | null | undefined = selected?.farm?.schema_name;
-
-      this.tokens.restoreLastTokens(activeFarm);
+    const memberships = this.cuSvc.current?.memberships || [];
+    let activeRole: string | null | undefined =
+      selected?.role_in_tenant ?? this.cuSvc.current?.role;
+    let activeFarm: string | null | undefined = selected?.farm?.schema_name;
 
       const target = this.routeByRole(activeRole);
       this.dialogRef?.close({ success: true, role: activeRole, target });

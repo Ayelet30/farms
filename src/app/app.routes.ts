@@ -37,6 +37,12 @@ export const routes: Routes = [
       { path: 'payments', loadComponent: () => import('./pages/parent-payments/parent-payments.component').then(m => m.ParentPaymentsComponent) },
       { path: 'messages', loadComponent: () => import('./pages/messages/parent-messages/parent-messages').then(m => m.ParentMessagesComponent) },
       { path: 'details', loadComponent: () => import('./pages/parent-details/parent-details').then(m => m.ParentDetailsComponent) },
+      {
+        path: 'requests',
+        loadComponent: () =>
+          import('./secretarial-requests-page/secretarial-requests-page.component')
+            .then(m => m.SecretarialRequestsPageComponent)
+      },
     ]
   },
 
@@ -76,6 +82,12 @@ export const routes: Routes = [
           import('./pages/availability-tab/availability-tab')
             .then(m => m.AvailabilityTabComponent)
       },
+      {
+        path: 'requests',
+        loadComponent: () =>
+          import('./secretarial-requests-page/secretarial-requests-page.component')
+            .then(m => m.SecretarialRequestsPageComponent)
+      },
 
       {
         path: '',
@@ -103,6 +115,12 @@ export const routes: Routes = [
             .then(m => m.SecretaryParentsComponent)
       },
       {
+        path: 'instructors',
+        loadComponent: () =>
+          import('./pages/secretary-instructors/secretary-instructors.component')
+            .then(m => m.SecretaryInstructorsComponent)
+      },
+      {
         path: 'regulations',
         loadComponent: () =>
           import('./admin/agreements-admin.component/agreements-admin.component')
@@ -127,7 +145,24 @@ export const routes: Routes = [
           import('./pages/messages/secretary-messages/secretary-messages')
             .then(m => m.SecretaryMessagesComponent)
       },
-    
+      {
+        path: 'requests',
+        loadComponent: () =>
+          import('./secretarial-requests-page/secretarial-requests-page.component')
+            .then(m => m.SecretarialRequestsPageComponent)
+      },
+      {
+        path: 'payments',
+        loadComponent: () =>
+          import('./pages/secretary-payments/secretary-payments.component')
+            .then(m => m.SecretaryPaymentsComponent)
+      },
+      {
+        path: 'settings',
+        loadComponent: () =>
+          import('./pages/farm-settings/farm-settings.component')
+            .then(m => m.FarmSettingsComponent)
+      },
     ]
   },
 
