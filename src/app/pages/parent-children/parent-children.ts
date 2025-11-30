@@ -464,51 +464,124 @@ const ids = this.children
 
 
   async saveNewChild() {
-    this.validationErrors = {};
+  this.validationErrors = {};
 
-    if (!/^\d{9}$/.test(this.newChild.gov_id || '')) this.validationErrors['gov_id'] = 'ת״ז חייבת להכיל בדיוק 9 ספרות';
-    if (!this.newChild.first_name) {this.validationErrors['first_name'] = 'נא להזין שם פרטי';}
-    if (!this.newChild.last_name) {this.validationErrors['last_name'] = 'נא להזין שם משפחה';}
-    if (!this.newChild.birth_date) this.validationErrors['birth_date'] = 'יש לבחור תאריך לידה';
-    if (!this.newChild.gender) this.validationErrors['gender'] = 'יש לבחור מין';
-    if (!this.newChild.health_fund) this.validationErrors['health_fund'] = 'יש לבחור קופת חולים';
-    if (Object.keys(this.validationErrors).length > 0) return;
+  // 1) ולידציה
+  if (!/^\d{9}$/.test(this.newChild.gov_id || '')) {
+    this.validationErrors['gov_id'] = 'ת״ז חייבת להכיל בדיוק 9 ספרות';
+  }
+  if (!this.newChild.first_name) {
+    this.validationErrors['first_name'] = 'נא להזין שם פרטי';
+  }
+  if (!this.newChild.last_name) {
+    this.validationErrors['last_name'] = 'נא להזין שם משפחה';
+  }
+  if (!this.newChild.birth_date) {
+    this.validationErrors['birth_date'] = 'יש לבחור תאריך לידה';
+  }
+  if (!this.newChild.gender) {
+    this.validationErrors['gender'] = 'יש לבחור מין';
+  }
+  if (!this.newChild.health_fund) {
+    this.validationErrors['health_fund'] = 'יש לבחור קופת חולים';
+  }
 
-    const dbc = dbTenant();
-    const parentUid = (await getCurrentUserData())?.uid ?? null;
+  if (Object.keys(this.validationErrors).length > 0) {
+    return;
+  }
 
-    const payload: any = {
-      gov_id: this.newChild.gov_id,
-      first_name: this.newChild.first_name,
-      last_name: this.newChild.last_name,
-      birth_date: this.newChild.birth_date,
-      gender: this.newChild.gender,
-      health_fund: this.newChild.health_fund,
-      status: 'Pending Addition Approval',
-      parent_uid: parentUid,
-      medical_notes: this.newChild.medical_notes || null
-    };
+  const dbc = dbTenant();
+  const user = await getCurrentUserData();
+  const parentUid = user?.uid ?? null;
 
-    const { data: exists } = await dbc.from('children').select('gov_id').eq('gov_id', this.newChild.gov_id).maybeSingle();
-    if (exists) {
+  if (!parentUid) {
+    this.error = 'שגיאה: לא נמצאו פרטי הורה מחובר';
+    return;
+  }
+
+  // 2) בדיקה אם ת״ז כבר קיימת בילדים
+  const { data: exists, error: existsError } = await dbc
+    .from('children')
+    .select('gov_id')
+    .eq('gov_id', this.newChild.gov_id)
+    .maybeSingle();
+
+  if (existsError) {
+    this.error = existsError.message ?? 'שגיאה בבדיקת תעודת זהות';
+    return;
+  }
+
+  if (exists) {
+    this.validationErrors['gov_id'] = 'ת״ז זו כבר קיימת במערכת';
+    return;
+  }
+
+  // 3) הכנסת הילד לטבלת children (עם סטטוס Pending Addition Approval)
+  const childPayload: any = {
+    gov_id:        this.newChild.gov_id,
+    first_name:    this.newChild.first_name,
+    last_name:     this.newChild.last_name,
+    birth_date:    this.newChild.birth_date,
+    gender:        this.newChild.gender,
+    health_fund:   this.newChild.health_fund,
+    status:        'Pending Addition Approval',
+    parent_uid:    parentUid,
+    medical_notes: this.newChild.medical_notes || null
+  };
+
+  const {
+    data: insertedChild,
+    error: insertChildError
+  } = await dbc
+    .from('children')
+    .insert(childPayload)
+    .select('child_uuid, gov_id, first_name, last_name, birth_date, gender, health_fund, medical_notes, status, parent_uid')
+    .single();
+
+  if (insertChildError || !insertedChild) {
+    if ((insertChildError as any)?.code === '23505') {
       this.validationErrors['gov_id'] = 'ת״ז זו כבר קיימת במערכת';
       return;
     }
-
-    const { error } = await dbc.from('children').insert(payload);
-    if (error) {
-      if ((error as any).code === '23505') {
-        this.validationErrors['gov_id'] = 'ת״ז זו כבר קיימת במערכת';
-        return;
-      }
-      this.error = error.message ?? 'שגיאה בהוספה';
-      return;
-    }
-
-    await this.loadChildren();
-    this.newChild = null;
-    this.showInfo('הוספת הילד עברה לאישור מזכירה');
+    this.error = insertChildError?.message ?? 'שגיאה בהוספת הילד';
+    return;
   }
+
+  // 4) יצירת בקשה למזכירה בטבלת secretarial_requests
+  const secretarialPayload = {
+    request_type:      'ADD_CHILD',    // public.request_type
+    status:            'PENDING',      // public.request_status (אפשר להשמיט ולהשתמש ב-default)
+    requested_by_uid:  parentUid,      // text
+    requested_by_role: 'parent',       // public.tenant_role
+    child_id:          insertedChild.child_uuid, // uuid של הילד החדש
+    payload: {
+      gov_id:        insertedChild.gov_id,
+      first_name:    insertedChild.first_name,
+      last_name:     insertedChild.last_name,
+      birth_date:    insertedChild.birth_date,
+      gender:        insertedChild.gender,
+      health_fund:   insertedChild.health_fund,
+      medical_notes: insertedChild.medical_notes
+    }
+    // created_at – יש default now()
+  };
+
+  const { error: secretarialError } = await dbc
+    .from('secretarial_requests')
+    .insert(secretarialPayload);
+
+  if (secretarialError) {
+    console.error('שגיאה ביצירת בקשה למזכירה:', secretarialError);
+    // לא נכשיל את כל הפעולה כי הילד כבר במערכת, אבל נדווח:
+    this.showInfo('הילד נוסף למערכת, אך הייתה שגיאה בשליחת הבקשה למזכירה. אנא צרי קשר עם המשרד.');
+  } else {
+    this.showInfo('הילד נוסף וממתין לאישור מזכירה');
+  }
+
+  // 5) רענון רשימת הילדים וניקוי הטופס
+  await this.loadChildren();
+  this.newChild = null;
+}
 
   allowOnlyNumbers(event: KeyboardEvent) {
     if (!/^\d$/.test(event.key)) event.preventDefault();
