@@ -36,6 +36,7 @@ export interface CancelLessonDialogData {
     MatSelectModule,
   ],
   templateUrl: './cancel-lesson-dialog.component.html',
+  styleUrls: ['./cancel-lesson-dialog.component.scss'],
 })
 export class CancelLessonDialogComponent {
   reasonType: 'sick' | 'personal' | 'other' = 'sick';

@@ -1,0 +1,136 @@
+<div class="parent-dialog-root">
+  <div class="parent-header">
+    <button
+      type="button"
+      class="icon-close"
+      (click)="cancel()"
+      aria-label="סגירת חלון"
+    >
+      ×
+    </button>
+    <h3 class="parent-title" dir="rtl">הוספת מדריך חדש</h3>
+  </div>
+
+  <form [formGroup]="form" (ngSubmit)="submit()" dir="rtl">
+    <div class="form-grid">
+      <div class="field">
+        <label>שם פרטי</label>
+        <input formControlName="first_name" />
+        <div class="err">
+          <span
+            *ngIf="
+              form.controls['first_name']?.touched &&
+              form.controls['first_name']?.invalid
+            "
+          >
+            חובה להזין שם פרטי (לפחות 2 תווים)
+          </span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>שם משפחה</label>
+        <input formControlName="last_name" />
+        <div class="err">
+          <span
+            *ngIf="
+              form.controls['last_name']?.touched &&
+              form.controls['last_name']?.invalid
+            "
+          >
+            חובה להזין שם משפחה (לפחות 2 תווים)
+          </span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>אימייל</label>
+        <input formControlName="email" />
+        <div class="err">
+          <span
+            *ngIf="
+              form.controls['email']?.touched &&
+              form.controls['email']?.invalid
+            "
+          >
+            חובה להזין אימייל תקין
+          </span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>טלפון</label>
+        <input formControlName="phone" />
+        <div class="err">
+          <span
+            *ngIf="
+              form.controls['phone']?.touched &&
+              form.controls['phone']?.invalid
+            "
+          >
+            חובה להזין טלפון
+          </span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>תעודת זהות</label>
+        <input formControlName="id_number" />
+        <div class="err">
+          <span
+            *ngIf="
+              form.controls['id_number']?.touched &&
+              form.controls['id_number']?.invalid
+            "
+          >
+            חובה להזין ת"ז
+          </span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>כתובת</label>
+        <input formControlName="address" />
+      </div>
+
+      <div class="field">
+        <label>מין המדריך/ה</label>
+        <select formControlName="gender">
+          <option value="">לא צוין</option>
+          <option value="זכר">זכר</option>
+          <option value="נקבה">נקבה</option>
+          <option value="אחר">אחר</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>מס' רישיון מדריך</label>
+        <input formControlName="license_id" />
+      </div>
+
+      <div class="field">
+        <label>השכלה / קורסים</label>
+        <input formControlName="education" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label>על המדריך</label>
+      <textarea formControlName="about" rows="3"></textarea>
+    </div>
+
+    <div class="actions">
+      <button
+        type="button"
+        class="cancel"
+        (click)="cancel()"
+        [disabled]="submitting"
+      >
+        ביטול
+      </button>
+      <button type="submit" class="save" [disabled]="submitting">
+        שמור
+      </button>
+    </div>
+  </form>
+</div>
