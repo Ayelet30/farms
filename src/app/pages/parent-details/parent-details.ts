@@ -4,6 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { dbTenant, getCurrentUserData } from '../../services/legacy-compat';
 import { OnDestroy } from '@angular/core';
 // ...
+type ParentNotify = {
+  email?: boolean;
+  sms?: boolean;
+  whatsapp?: boolean;
+};
 
 
 @Component({
@@ -26,13 +31,20 @@ ngOnDestroy() {
   isEditing = false;
   error?: string;
 
- editableParent: any = {
+
+editableParent: any = {
   first_name: '',
   last_name: '',
   address: '',
   phone: '',
-  email: ''
+  email: '',
+  notify: {
+    email: true,
+    sms: false,
+    whatsapp: false,
+  } as ParentNotify,
 };
+
 showConfirmDialog = false;
 
 
@@ -43,8 +55,9 @@ private infoTimer: ReturnType<typeof setTimeout> | null = null;
 
 
   // SELECT מפורש
-  private readonly PARENT_SELECT =
-  'uid, id_number, first_name, last_name, address, phone, email';
+ private readonly PARENT_SELECT =
+  'uid, id_number, first_name, last_name, address, phone, email, notify';
+
 
   private readonly CHILD_SELECT =
  'child_uuid, first_name, last_name, gov_id, birth_date, gender, health_fund, status, medical_notes, parent_uid';
@@ -73,7 +86,20 @@ private infoTimer: ReturnType<typeof setTimeout> | null = null;
       }
 
       this.parent = parentData;
-      this.editableParent = { ...parentData };
+
+this.editableParent = {
+  first_name: parentData.first_name ?? '',
+  last_name:  parentData.last_name ?? '',
+  address:    parentData.address ?? '',
+  phone:      parentData.phone ?? '',
+  email:      parentData.email ?? '',
+  notify: {
+    email:    parentData.notify?.email ?? true,
+    sms:      parentData.notify?.sms ?? false,
+    whatsapp: parentData.notify?.whatsapp ?? false,
+  } as ParentNotify,
+};
+
 
       // שליפת הילדים של ההורה
       const { data: childrenData, error: childrenError } = await dbc
@@ -144,21 +170,27 @@ private validateParent(): boolean {
   }
 
   enableEditing() {
-    this.isEditing = true;
-    this.phoneError = '';
-    this.emailError = '';
-    this.error = undefined;
-    this.editableParent = {
+  this.isEditing = true;
+  this.phoneError = '';
+  this.emailError = '';
+  this.error = undefined;
+
+  this.editableParent = {
     first_name: this.parent?.first_name ?? '',
     last_name:  this.parent?.last_name ?? '',
     address:    this.parent?.address ?? '',
     phone:      this.parent?.phone ?? '',
-    email:      this.parent?.email ?? ''
-   };
+    email:      this.parent?.email ?? '',
+    notify: {
+      email:    this.parent?.notify?.email ?? true,
+      sms:      this.parent?.notify?.sms ?? false,
+      whatsapp: this.parent?.notify?.whatsapp ?? false,
+    } as ParentNotify,
+  };
 
-      this.infoMessage = null;   // ⬅️ הוספה
+  this.infoMessage = null;
+}
 
-  }
 
   cancelEdit() {
     this.isEditing = false;
@@ -194,16 +226,18 @@ cancelSaveDialog() {
   try {
     const dbc = dbTenant();
 
-    const { error } = await dbc
-      .from('parents')
-      .update({
-        first_name: this.editableParent.first_name,
-        last_name:  this.editableParent.last_name,
-        address:    this.editableParent.address,
-        phone:      this.editableParent.phone,
-        email:      this.editableParent.email
-      })
-      .eq('uid', this.parent.uid);
+   const { error } = await dbc
+  .from('parents')
+  .update({
+    first_name: this.editableParent.first_name,
+    last_name:  this.editableParent.last_name,
+    address:    this.editableParent.address,
+    phone:      this.editableParent.phone,
+    email:      this.editableParent.email,
+    notify:     this.editableParent.notify,  
+  })
+  .eq('uid', this.parent.uid);
+
 
     if (error) {
       this.error = error.message ?? 'שגיאה בשמירת פרטי ההורה';
