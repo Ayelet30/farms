@@ -245,7 +245,7 @@ class="instructor-card">
           <tbody>
             <tr *ngFor="let s of selectedSeriesDaySlots">
               <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
-              <td>{{ s.instructor_id }}</td>
+<td>{{ s.instructor_name || s.instructor_id }}</td>
               <td>
                 <button
                   type="button"
