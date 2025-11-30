@@ -460,3 +460,75 @@
 .makeup-row-selected td {
   font-weight: 600;
 }
+.series-calendar {
+  margin-top: 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fafafa;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+
+  button {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 16px;
+  }
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-day-name {
+  text-align: center;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.calendar-day {
+  height: 32px;
+  border-radius: 6px;
+  text-align: center;
+  line-height: 1;
+  font-size: 13px;
+  padding-top: 4px;
+  position: relative;
+  cursor: pointer;
+}
+
+.calendar-day.not-current {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.calendar-day.has-slots {
+  background: #e8f2ff;
+}
+
+.calendar-day.selected-day {
+  outline: 2px solid #3f51b5;
+}
+
+.day-label {
+  display: block;
+}
+
+.day-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2196f3; /* נקודה כחולה */
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+}

@@ -58,6 +58,7 @@ interface MakeupSlot {
 
 }
 interface MakeupCandidate {
+  lesson_occ_exception_id: string;   // ⬅ id מהטבלה lesson_occurrence_exceptions
   lesson_id: string;
   occur_date: string;
   day_of_week: string;
@@ -76,6 +77,12 @@ type InstructorWithConstraints = InstructorRow & {
   max_age_years?: number | null;
   taught_child_genders?: string[] | null;
 };
+interface SeriesCalendarDay {
+  date: string;        // 'YYYY-MM-DD'
+  label: number | null; // מספר היום בחודש או null לריבוע ריק
+  isCurrentMonth: boolean;
+  hasSlots: boolean;   // האם יש לפחות סדרה אחת שיכולה להתחיל בתאריך זה
+}
 
 @Component({
   selector: 'app-appointment-scheduler',
@@ -114,6 +121,22 @@ loadingCandidateSlots = false;
 candidateSlotsError: string | null = null;
   makeupSearchFromDate: string | null = null;
   makeupSearchToDate: string | null = null;
+ seriesLessonCount: number | null = null;
+
+seriesLessonCountOptions: number[] = Array.from({ length: 50 }, (_, i) => i + 1);
+// קלנדר לסדרה
+currentCalendarYear: number = new Date().getFullYear();
+currentCalendarMonth: number = new Date().getMonth(); // 0-11
+seriesCalendarDays: SeriesCalendarDay[] = [];
+
+// תאריכים → איזו רשימת סלוטים יש בכל יום
+calendarSlotsByDate: Record<string, RecurringSlot[]> = {};
+
+// בחירת יום בקלנדר
+selectedSeriesDate: string | null = null;
+selectedSeriesDaySlots: RecurringSlot[] = [];
+
+
   @ViewChild('confirmMakeupDialog') confirmMakeupDialog!: TemplateRef<any>;
 
 confirmData = {
@@ -205,6 +228,8 @@ onNoInstructorPreferenceChange(): void {
 
   // 2. תמיד טוענים ילדים פעילים מהשרת (RLS יטפל בהורה/מזכירה)
   await this.loadChildrenFromCurrentUser();
+    this.buildSeriesCalendar(this.currentCalendarYear, this.currentCalendarMonth);
+
 }
 
 // async openHolesForCandidate(c: MakeupCandidate): Promise<void> {
@@ -544,13 +569,28 @@ this.instructors = filtered.map(ins => ({
   // =========================================
   //  שינוי ילד – טוען אישורים ומנקה מצבים
   // =========================================
-  async onChildChange(): Promise<void> {
+ async onChildChange(): Promise<void> {
+  // איפוס הודעות ומצבים ישנים
   this.seriesError = null;
   this.makeupError = null;
   this.seriesCreatedMessage = null;
   this.makeupCreatedMessage = null;
+
+  // איפוס נתונים של סדרות
   this.recurringSlots = [];
+  this.selectedSeriesDate = null;
+  this.selectedSeriesDaySlots = [];
+  this.calendarSlotsByDate = {};
+  this.seriesCalendarDays = [];
+
+  // איפוס נתוני השלמות
   this.makeupSlots = [];
+  this.makeupCandidates = [];
+  this.selectedMakeupCandidate = null;
+  this.candidateSlots = [];
+  this.candidateSlotsError = null;
+
+  // איפוס אישורים (למרות שעכשיו לא משתמשים – שלא יישאר זבל ישן)
   this.approvals = [];
   this.selectedApprovalId = null;
 
@@ -559,33 +599,20 @@ this.instructors = filtered.map(ins => ({
   this.showInstructorDetails = false;
   this.noInstructorPreference = false;
 
+  // אם אין ילד – מנקים רשימת מדריכים ויוצאים
   if (!this.selectedChildId) {
     this.instructors = [];
     return;
   }
 
-  // ⬅️ כאן נטען מדריכים מתאימים לילד שנבחר
+  // טוענים מדריכים מתאימים לילד שנבחר
   await this.loadInstructorsForChild(this.selectedChildId);
 
-  const supa = dbTenant();
-  const { data, error } = await supa
-    .from('v_child_approval_balances')
-    .select('*')
-    .eq('child_id', this.selectedChildId)
-    .order('remaining_lessons', { ascending: false });
-
-  if (error) {
-    console.error(error);
-    this.seriesError = 'שגיאה בטעינת אישורי טיפול';
-    return;
-  }
-
-  this.approvals = data ?? [];
-  if (this.approvals.length > 0) {
-    this.selectedApprovalId = this.approvals[0].approval_id;
-  }
-
+  // טוענים שיעורים שניתן להשלים עבור הילד
   await this.loadMakeupCandidatesForChild();
+
+  // בונים מחדש קלנדר לסדרות עבור החודש הנוכחי (ריק עד שהורה ילחץ "חפש סדרות זמינות")
+  this.buildSeriesCalendar(this.currentCalendarYear, this.currentCalendarMonth);
 }
 
   private async loadMakeupCandidatesForChild(): Promise<void> {
@@ -616,13 +643,25 @@ this.instructors = filtered.map(ins => ({
   // =========================================
   //   חיפוש סדרות זמינות (find_recurring_slots)
   // =========================================
- async searchRecurringSlots(): Promise<void> {
+async searchRecurringSlots(): Promise<void> {
   this.seriesError = null;
   this.seriesCreatedMessage = null;
   this.recurringSlots = [];
+  this.selectedSeriesDate = null;
+  this.selectedSeriesDaySlots = [];
+  this.calendarSlotsByDate = {};
 
-  if (!this.selectedChildId || !this.selectedApprovalId || this.seriesDayOfWeek === null) {
-    this.seriesError = 'יש לבחור ילד, אישור ויום בשבוע';
+  // ✅ מוצאים את הילד לפי child_uuid אמיתי מתוך this.children
+  const child = this.children.find(c => c.child_uuid === this.selectedChildId);
+
+  if (!this.selectedChildId || !child) {
+    console.error('❌ selectedChildId is not a valid child_uuid:', this.selectedChildId, this.children);
+    this.seriesError = 'יש לבחור ילד מתוך הרשימה';
+    return;
+  }
+
+  if (!this.seriesLessonCount) {
+    this.seriesError = 'יש לבחור כמות שיעורים בסדרה';
     return;
   }
 
@@ -631,55 +670,130 @@ this.instructors = filtered.map(ins => ({
     return;
   }
 
-  const startTime = this.seriesStartTime.includes(':')
-    ? this.seriesStartTime + ':00'
-    : this.seriesStartTime; // לוודא HH:MM:SS
-
- const instructorParam =
-  this.selectedInstructorId === 'any'
-    ? null
-    : this.selectedInstructorId;
-
-
-    this.loadingSeries = true;
-   try {
-    const { data, error } = await dbTenant().rpc('find_recurring_slots', {
-  p_child_id: this.selectedChildId,
-  p_approval_id: this.selectedApprovalId,
-  p_day_of_week: this.seriesDayOfWeek,
-  p_start_time: startTime,
-  p_instructor_id: instructorParam
-});
-
-
-      if (error) {
-        console.error(error);
-        this.seriesError = 'שגיאה בחיפוש סדרות זמינות';
-        return;
-      }
-
-      this.recurringSlots = (data ?? []) as RecurringSlot[];
-    } finally {
-      this.loadingSeries = false;
-    }
+  // ממירים ל-id_number אמיתי של המדריך
+  let instructorParam: string | null = null;
+  if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
+    const sel = this.instructors.find(
+      i =>
+        i.instructor_uid === this.selectedInstructorId ||
+        i.instructor_id  === this.selectedInstructorId
+    );
+    instructorParam = sel?.instructor_id ?? null;
   }
 
-  // יצירת סדרה בפועל – insert ל-lessons (occurrences נוצרים מה-view)
-  async createSeriesFromSlot(slot: RecurringSlot): Promise<void> {
-    if (!this.selectedChildId) return;
+  const today = new Date();
+  const fromDate = today.toISOString().slice(0, 10);
+  const to = new Date();
+  to.setMonth(to.getMonth() + 3); // 3 חודשים קדימה
+  const toDate = to.toISOString().slice(0, 10);
 
-    const approval = this.selectedApproval;
-    if (!approval && this.paymentSourceForSeries === 'health_fund') {
-      this.seriesError = 'לא נבחר אישור טיפול';
+  const payload = {
+    p_child_id: child.child_uuid,           // 👈 כאן החלק הקריטי
+    p_lesson_count: this.seriesLessonCount,
+    p_instructor_id_number: instructorParam,
+    p_from_date: fromDate,
+    p_to_date: toDate,
+  };
+
+  console.log('🟣 calling find_series_starts with payload:', payload);
+
+  this.loadingSeries = true;
+  try {
+    const { data, error } = await dbTenant().rpc('find_series_starts', payload);
+
+    console.log('🟣 find_series_starts result', { error, rows: data?.length });
+
+    if (error) {
+      console.error('❌ find_series_starts error FULL:', error);
+      this.seriesError = 'שגיאה בחיפוש סדרות זמינות';
       return;
     }
 
-    // כמה שיעורים לשבץ – לפי יתרה באישור, או 1 כפרטי אם אין אישור
-    const repeatWeeks =
-      this.paymentSourceForSeries === 'health_fund' && approval
-        ? Math.max(1, approval.remaining_lessons)
-        : 12; // ברירת מחדל – 12 שבועות (אפשר לשנות למשתנה בטופס)
+    this.recurringSlots = (data ?? []) as RecurringSlot[];
 
+    this.mapRecurringSlotsToCalendar();
+
+    if (!this.recurringSlots.length) {
+      this.seriesError = 'לא נמצאו זמנים מתאימים לסדרה בטווח הקרוב';
+      return;
+    }
+
+    // קפיצה ליום הראשון הפנוי
+    const first = [...this.recurringSlots].sort((a, b) =>
+      a.lesson_date.localeCompare(b.lesson_date)
+    )[0];
+
+    if (first) {
+      const d = new Date(first.lesson_date + 'T00:00:00');
+      this.currentCalendarYear = d.getFullYear();
+      this.currentCalendarMonth = d.getMonth();
+
+      this.buildSeriesCalendar(this.currentCalendarYear, this.currentCalendarMonth);
+
+      this.selectedSeriesDate = first.lesson_date;
+      this.selectedSeriesDaySlots =
+        this.calendarSlotsByDate[first.lesson_date] ?? [];
+    }
+  } finally {
+    this.loadingSeries = false;
+  }
+}
+
+onSeriesLessonCountChange(val: number | null): void {
+  this.seriesLessonCount = val;
+
+  // איפוס תצוגה קודמת
+  this.recurringSlots = [];
+  this.calendarSlotsByDate = {};
+  this.seriesCalendarDays = [];
+  this.selectedSeriesDate = null;
+  this.selectedSeriesDaySlots = [];
+  this.seriesError = null;
+
+  if (!val) {
+    return;
+  }
+
+  // אם עדיין אין ילד נבחר – נחכה
+  if (
+    !this.selectedChildId ||
+    !this.children.some(c => c.child_uuid === this.selectedChildId)
+  ) {
+    console.log('⏳ seriesLessonCount selected but no valid child yet');
+    return;
+  }
+
+  // אם חייבים מדריך ולא נבחר – נחכה
+  if (!this.noInstructorPreference && !this.selectedInstructorId) {
+    console.log('⏳ seriesLessonCount selected but no instructor yet');
+    return;
+  }
+
+  // הכול מוכן – נריץ חיפוש
+  this.searchRecurringSlots();
+}
+
+  // יצירת סדרה בפועל – insert ל-lessons (occurrences נוצרים מה-view)
+  async createSeriesFromSlot(slot: RecurringSlot): Promise<void> {
+   if (!this.selectedChildId) return;
+
+  if (!this.seriesLessonCount) {
+    this.seriesError = 'יש לבחור כמות שיעורים בסדרה לפני קביעת הסדרה';
+    return;
+  }
+
+  const approval = this.selectedApproval;
+  if (!approval && this.paymentSourceForSeries === 'health_fund') {
+    this.seriesError = 'לא נבחר אישור טיפול';
+    return;
+  }
+
+  const baseCount = this.seriesLessonCount;
+
+  const repeatWeeks =
+    this.paymentSourceForSeries === 'health_fund' && approval
+      ? Math.min(baseCount, Math.max(1, approval.remaining_lessons))
+      : baseCount;
     const anchorWeekStart = this.calcAnchorWeekStart(slot.lesson_date);
     const dayLabel = this.dayOfWeekLabel(this.seriesDayOfWeek!);
 
@@ -784,6 +898,7 @@ instructor_id:
 // }
 
  // בקשת שיעור השלמה מהמזכירה – מכניסת רשומה ל-secretarial_requests
+// בקשת שיעור השלמה מהמזכירה – מכניס גם ל-secretarial_requests וגם ל-lessons
 async requestMakeupFromSecretary(slot: MakeupSlot): Promise<void> {
   if (!this.selectedChildId || !this.user || !this.selectedMakeupCandidate) {
     this.makeupError = 'חסר ילד או שיעור מקור להשלמה';
@@ -795,33 +910,36 @@ async requestMakeupFromSecretary(slot: MakeupSlot): Promise<void> {
   this.confirmData.newStart = slot.start_time.substring(0, 5);
   this.confirmData.newEnd   = slot.end_time.substring(0, 5);
 
-  // מידע של השיעור המקורי
+  // מידע של השיעור המקורי (הביטל/שאפשר להשלים אותו)
   this.confirmData.oldDate  = this.selectedMakeupCandidate.occur_date;
   this.confirmData.oldStart = this.selectedMakeupCandidate.start_time.substring(0, 5);
   this.confirmData.oldEnd   = this.selectedMakeupCandidate.end_time.substring(0, 5);
 
-  // פתיחת דיאלוג
+  // פתיחת דיאלוג אישור
   const dialogRef = this.dialog.open(this.confirmMakeupDialog, {
-  width: '380px',
-  disableClose: true,
-
-  data: {},                 // חובה להעביר משהו
-});
-
-dialogRef.componentInstance; // לא רלוונטי פה
-
+    width: '380px',
+    disableClose: true,
+    data: {},
+  });
 
   dialogRef.afterClosed().subscribe(async confirmed => {
     if (!confirmed) return;
 
+    this.makeupError = null;
+    this.makeupCreatedMessage = null;
+
+    const supa = dbTenant();
+
+    // 👇 זה אמור להיות ה-UID של השיעור מתוך lesson_occurrence_exceptions (id)
+    const lessonOccId = this.selectedMakeupCandidate!.lesson_id;
+
+    // קודם נכניס בקשה למזכירה
     const payload = {
       requested_start_time: slot.start_time,
       requested_end_time: slot.end_time,
     };
 
-    const lessonOccId = this.selectedMakeupCandidate!.lesson_id;
-
-    const { error } = await dbTenant()
+    const { error: reqError } = await supa
       .from('secretarial_requests')
       .insert({
         request_type: 'MAKEUP_LESSON',
@@ -832,17 +950,129 @@ dialogRef.componentInstance; // לא רלוונטי פה
         lesson_occ_id: lessonOccId,
         from_date: slot.occur_date,
         to_date: slot.occur_date,
-        payload
+        payload,
       });
 
-    if (error) {
-      console.error(error);
-      this.makeupError = 'שגיאה בשליחת הבקשה';
+    if (reqError) {
+      console.error(reqError);
+      this.makeupError = 'שגיאה בשליחת הבקשה למזכירה';
       return;
     }
 
-    this.makeupCreatedMessage = 'בקשת ההשלמה נשלחה למזכירה ✔️';
+    // 🔹 עכשיו נכניס את שיעור ההשלמה לטבלת lessons
+
+    // יום בשבוע לפי תאריך ההשלמה
+    const dayLabel = this.dayOfWeekLabelFromDate(slot.occur_date);
+
+    // בחירת ת"ז מדריך: אם נבחר מדריך ספציפי – לקחת ממנו את ה-id_number,
+    // אם לא – להשתמש ב-id שמגיע מה-slot (כמו מה-RPC)
+    const instructorIdNumber =
+      this.selectedInstructorId === 'any'
+        ? slot.instructor_id
+        : (
+            this.instructors.find(i =>
+              i.instructor_uid === this.selectedInstructorId ||  // uid
+              i.instructor_id  === this.selectedInstructorId     // כבר ת"ז
+            )?.instructor_id ?? slot.instructor_id               // fallback
+          );
+
+    // לפי הדרישה שלך: anchor_week_start = תאריך השיעור עצמו
+    const anchorDate = slot.occur_date;
+const baseLessonUid = this.selectedMakeupCandidate!.lesson_occ_exception_id ?? null;
+
+    const { error: lessonError } = await supa
+      .from('lessons')
+      .insert({
+        lesson_type: 'השלמה',              // ⬅️ lesson_type = השלמה
+        day_of_week: dayLabel,             // ⬅️ יום בשבוע מהתאריך
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        instructor_id: instructorIdNumber, // ⬅️ ת"ז של המדריך
+        status: 'ממתין לאישור',           // ⬅️ בהתאם ל-CHECK בטבלה
+        child_id: this.selectedChildId,    // ⬅️ ה-UUID של הילד
+        repeat_weeks: 1,                   // ⬅️ תמיד 1
+        anchor_week_start: anchorDate,     // ⬅️ תאריך השיעור השלמה
+        appointment_kind: 'therapy_makeup',// ⬅️ סוג התור
+        origin: 'parent',                  // ⬅️ מקור: הורה
+        base_lesson_uid: baseLessonUid,      // ⬅️ קישור ל-lesson_occurrence_exceptions.id
+        capacity: 1,
+        current_booked: 1,
+        payment_source: 'private',         // אם תרצי – אפשר לשנות ללוגיקה של קופה/פרטי
+      });
+
+    if (lessonError) {
+      console.error(lessonError);
+      this.makeupError = 'שגיאה בשמירת שיעור ההשלמה במערכת';
+      return;
+    }
+
+    this.makeupCreatedMessage =
+      'בקשת ההשלמה נשלחה למזכירה והשיעור נשמר במערכת ✔️';
+
+    // רענון הנתונים למסך (שיעורים שניתן להשלים, חורים, וכו')
+    await this.onChildChange();
   });
+}
+
+async requestSeriesFromSecretary(): Promise<void> {
+//   if (!this.selectedChildId || !this.user || !this.selectedMakeupCandidate) {
+//     this.makeupError = 'חסר ילד או שיעור מקור להשלמה';
+//     return;
+//   }
+
+//   // מידע חדש
+//   this.confirmData.newDate  = slot.occur_date;
+//   this.confirmData.newStart = slot.start_time.substring(0, 5);
+//   this.confirmData.newEnd   = slot.end_time.substring(0, 5);
+
+//   // מידע של השיעור המקורי
+//   this.confirmData.oldDate  = this.selectedMakeupCandidate.occur_date;
+//   this.confirmData.oldStart = this.selectedMakeupCandidate.start_time.substring(0, 5);
+//   this.confirmData.oldEnd   = this.selectedMakeupCandidate.end_time.substring(0, 5);
+
+//   // פתיחת דיאלוג
+//   const dialogRef = this.dialog.open(this.confirmMakeupDialog, {
+//   width: '380px',
+//   disableClose: true,
+
+//   data: {},                 
+// });
+
+// dialogRef.componentInstance; 
+
+
+//   dialogRef.afterClosed().subscribe(async confirmed => {
+//     if (!confirmed) return;
+
+//     const payload = {
+//       requested_start_time: slot.start_time,
+//       requested_end_time: slot.end_time,
+//     };
+
+//     const lessonOccId = this.selectedMakeupCandidate!.lesson_id;
+
+//     const { error } = await dbTenant()
+//       .from('secretarial_requests')
+//       .insert({
+//         request_type: 'MAKEUP_LESSON',
+//         requested_by_uid: String(this.user!.uid),
+//         requested_by_role: 'parent',
+//         child_id: this.selectedChildId,
+//         instructor_id: slot.instructor_id,
+//         lesson_occ_id: lessonOccId,
+//         from_date: slot.occur_date,
+//         to_date: slot.occur_date,
+//         payload
+//       });
+
+//     if (error) {
+//       console.error(error);
+//       this.makeupError = 'שגיאה בשליחת הבקשה';
+//       return;
+//     }
+
+//     this.makeupCreatedMessage = 'בקשת ההשלמה נשלחה למזכירה ✔️';
+//   });
 }
 
   // =========================================
@@ -879,5 +1109,79 @@ getSlotDayLabel(dateStr: string): string {
     d.setDate(d.getDate() + days);
     return d.toISOString().slice(0, 10);
   }
+private buildSeriesCalendar(year: number, month: number): void {
+  const firstDay = new Date(year, month, 1);
+  const firstDow = firstDay.getDay(); // 0=Sunday ... 6=Saturday
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const days: SeriesCalendarDay[] = [];
+
+  // ריבועים ריקים לפני היום הראשון של החודש
+  for (let i = 0; i < firstDow; i++) {
+    days.push({
+      date: '',
+      label: null,
+      isCurrentMonth: false,
+      hasSlots: false,
+    });
+  }
+
+  // הימים עצמם
+  for (let day = 1; day <= daysInMonth; day++) {
+    const yyyy = String(year);
+    const mm = String(month + 1).padStart(2, '0');
+    const dd = String(day).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+
+    days.push({
+      date: dateStr,
+      label: day,
+      isCurrentMonth: true,
+      hasSlots: !!this.calendarSlotsByDate[dateStr]?.length,
+    });
+  }
+
+  this.seriesCalendarDays = days;
+}
+private mapRecurringSlotsToCalendar(): void {
+  this.calendarSlotsByDate = {};
+
+  for (const slot of this.recurringSlots) {
+    const date = slot.lesson_date; // YYYY-MM-DD
+    if (!this.calendarSlotsByDate[date]) {
+      this.calendarSlotsByDate[date] = [];
+    }
+    this.calendarSlotsByDate[date].push(slot);
+  }
+
+  // אחרי שמיפינו מחדש – לבנות את הקלנדר לחודש הנוכחי
+  this.buildSeriesCalendar(this.currentCalendarYear, this.currentCalendarMonth);
+}
+goToPrevMonth(): void {
+  if (this.currentCalendarMonth === 0) {
+    this.currentCalendarMonth = 11;
+    this.currentCalendarYear -= 1;
+  } else {
+    this.currentCalendarMonth -= 1;
+  }
+  this.buildSeriesCalendar(this.currentCalendarYear, this.currentCalendarMonth);
+}
+
+goToNextMonth(): void {
+  if (this.currentCalendarMonth === 11) {
+    this.currentCalendarMonth = 0;
+    this.currentCalendarYear += 1;
+  } else {
+    this.currentCalendarMonth += 1;
+  }
+  this.buildSeriesCalendar(this.currentCalendarYear, this.currentCalendarMonth);
+}
+onSeriesCalendarDayClick(day: SeriesCalendarDay): void {
+  if (!day.isCurrentMonth || !day.date || !day.hasSlots) return;
+
+  this.selectedSeriesDate = day.date;
+  this.selectedSeriesDaySlots = this.calendarSlotsByDate[day.date] ?? [];
+}
+
 
 }
