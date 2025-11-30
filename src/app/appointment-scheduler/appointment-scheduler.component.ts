@@ -1,13 +1,14 @@
 import { Component, Input, OnInit, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { dbTenant, fetchMyChildren } from '../services/supabaseClient.service';
+import { dbTenant, fetchMyChildren , supabase } from '../services/supabaseClient.service';
 import { AppointmentMode, AppointmentTab, ChildRow, CurrentUser , InstructorRow } from '../Types/detailes.model';
 import { CurrentUserService } from '../core/auth/current-user.service';
 import { ActivatedRoute } from '@angular/router';
 import { SELECTION_LIST } from '@angular/material/list';
 import { MatDialog } from '@angular/material/dialog';
 import { ViewChild, TemplateRef } from '@angular/core';
+//import { console } from 'inspector';
 
 
 interface InstructorDbRow {
@@ -148,6 +149,20 @@ confirmData = {
   oldEnd: '',
 };
 
+referralFile: File | null = null;
+referralUploadError: string | null = null;
+
+
+
+seriesConfirmData = {
+  startDate: '',
+  endDate: '',
+  dayLabel: '',
+  startTime: '',
+  endTime: '',
+  instructorName: ''
+};
+
 
 
   private readonly CHILD_SELECT =
@@ -183,7 +198,7 @@ onNoInstructorPreferenceChange(): void {
 ];
   seriesDayOfWeek: number | null = null;
   seriesStartTime = '16:00'; // קלט בצורת HH:MM
-  paymentSourceForSeries: 'health_fund' | 'private' = 'health_fund';
+paymentSourceForSeries: 'health_fund' | 'private' | null = null;
 
   recurringSlots: RecurringSlot[] = [];
   loadingSeries = false;
@@ -330,15 +345,13 @@ private async loadCandidateSlots(): Promise<void> {
   // ממירים מהערך של ה-select (uid או id_number) ל-id_number אמיתי מה-DB
   let instructorParam: string | null = null;
 
-  if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
-    const sel = this.instructors.find(
-      i =>
-        i.instructor_uid === this.selectedInstructorId ||
-        i.instructor_id === this.selectedInstructorId
-    );
+if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
+  const sel = this.instructors.find(
+    i => i.instructor_uid === this.selectedInstructorId
+  );
+  instructorParam = sel?.instructor_id ?? null;  // זה ה-id_number (טקסט)
+}
 
-    instructorParam = sel?.instructor_id ?? null;
-  }
 
   console.log('🔍 find_makeup_slots_for_lesson params:', {
     p_instructor_id: instructorParam,
@@ -434,6 +447,14 @@ async onInstructorChange() {
   // אם כבר נבחר שיעור להשלמה – נטען מחדש את החורים עבור המדריך החדש
   if (this.selectedMakeupCandidate && this.makeupSearchFromDate && this.makeupSearchToDate) {
     await this.loadCandidateSlots();
+  }
+  if (
+    this.selectedTab === 'series' &&
+    this.seriesLessonCount &&
+    this.selectedChildId &&
+    this.children.some(c => c.child_uuid === this.selectedChildId)
+  ) {
+    await this.searchRecurringSlots();
   }
 }
 
@@ -688,18 +709,28 @@ async searchRecurringSlots(): Promise<void> {
   const toDate = to.toISOString().slice(0, 10);
 
   const payload = {
-    p_child_id: child.child_uuid,           // 👈 כאן החלק הקריטי
+    p_child_id: child.child_uuid,         
     p_lesson_count: this.seriesLessonCount,
     p_instructor_id_number: instructorParam,
     p_from_date: fromDate,
     p_to_date: toDate,
   };
 
-  console.log('🟣 calling find_series_starts with payload:', payload);
+console.log('🟣 calling find_series_starts with payload:', payload);
+console.log('🟣 payload types:', {
+  p_child_id: payload.p_child_id,
+  p_lesson_count: payload.p_lesson_count,
+  p_instructor_id_number: payload.p_instructor_id_number,
+  p_from_date: payload.p_from_date,
+  p_to_date: payload.p_to_date,
+});
+
 
   this.loadingSeries = true;
   try {
+    console.log("1111111111111"); 
     const { data, error } = await dbTenant().rpc('find_series_starts', payload);
+    console.log("2222222222"); 
 
     console.log('🟣 find_series_starts result', { error, rows: data?.length });
 
@@ -709,9 +740,45 @@ async searchRecurringSlots(): Promise<void> {
       return;
     }
 
-    this.recurringSlots = (data ?? []) as RecurringSlot[];
+   
+const raw = (data ?? []) as RecurringSlot[];
 
-    this.mapRecurringSlotsToCalendar();
+// קודם ממיינים לפי תאריך ואז שעה ואז מדריך,
+// כדי שה"ראשון בזמן" לכל תבנית יהיה באמת הראשון.
+const sorted = [...raw].sort((a, b) => {
+  const cmpDate = a.lesson_date.localeCompare(b.lesson_date);
+  if (cmpDate !== 0) return cmpDate;
+
+  const cmpTime = a.start_time.localeCompare(b.start_time);
+  if (cmpTime !== 0) return cmpTime;
+
+  return (a.instructor_id || '').localeCompare(b.instructor_id || '');
+});
+
+// כאן נשמור תבניות שכבר ראינו:
+// key = instructor_id | weekday(0–6) | HH:MM
+const seenPatterns = new Set<string>();
+const filtered: RecurringSlot[] = [];
+
+for (const s of sorted) {
+  const d = new Date(s.lesson_date + 'T00:00:00');
+  const weekday = d.getDay();                  // 0=ראשון ... 6=שבת
+  const startHHMM = s.start_time.substring(0, 5); // "11:00" מתוך "11:00:00"
+
+  const patternKey = `${s.instructor_id}|${weekday}|${startHHMM}`;
+
+  // אם כבר היה לפני זה אותו מדריך / אותו יום בשבוע / אותה שעה → מדלגים
+  if (seenPatterns.has(patternKey)) {
+    continue;
+  }
+
+  // אחרת – זו הפעם הראשונה לתבנית הזו → מוסיפים
+  seenPatterns.add(patternKey);
+  filtered.push(s);
+}
+
+this.recurringSlots = filtered;
+this.mapRecurringSlotsToCalendar();
 
     if (!this.recurringSlots.length) {
       this.seriesError = 'לא נמצאו זמנים מתאימים לסדרה בטווח הקרוב';
@@ -839,6 +906,27 @@ instructor_id:
     // אפשר לעדכן האישורים מה־view
     await this.onChildChange();
   }
+onReferralFileSelected(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0] ?? null;
+
+  this.referralUploadError = null;
+  this.referralFile = null;
+
+  if (!file) {
+    return;
+  }
+
+  // בדיקת גודל (נניח עד 5MB)
+  const maxSizeMb = 5;
+  if (file.size > maxSizeMb * 1024 * 1024) {
+    this.referralUploadError = `הקובץ גדול מדי (מעל ${maxSizeMb}MB)`;
+    return;
+  }
+
+  // אפשר להוסיף כאן בדיקת סוג קובץ אם תרצי (pdf / image)
+  this.referralFile = file;
+}
 
   // =========================================
   //   חיפוש חורים להשלמות (find_makeup_slots)
@@ -1014,65 +1102,147 @@ const baseLessonUid = this.selectedMakeupCandidate!.lesson_occ_exception_id ?? n
   });
 }
 
-async requestSeriesFromSecretary(): Promise<void> {
-//   if (!this.selectedChildId || !this.user || !this.selectedMakeupCandidate) {
-//     this.makeupError = 'חסר ילד או שיעור מקור להשלמה';
-//     return;
-//   }
+async requestSeriesFromSecretary(slot: RecurringSlot, dialogTpl: TemplateRef<any>): Promise<void> {
+  if (!this.selectedChildId || !this.user) {
+    this.seriesError = 'חסר ילד או משתמש מחובר';
+    return;
+  }
 
-//   // מידע חדש
-//   this.confirmData.newDate  = slot.occur_date;
-//   this.confirmData.newStart = slot.start_time.substring(0, 5);
-//   this.confirmData.newEnd   = slot.end_time.substring(0, 5);
+  if (!this.seriesLessonCount) {
+    this.seriesError = 'חסר מספר שיעורים בסדרה';
+    return;
+  }
 
-//   // מידע של השיעור המקורי
-//   this.confirmData.oldDate  = this.selectedMakeupCandidate.occur_date;
-//   this.confirmData.oldStart = this.selectedMakeupCandidate.start_time.substring(0, 5);
-//   this.confirmData.oldEnd   = this.selectedMakeupCandidate.end_time.substring(0, 5);
+  if (!this.paymentSourceForSeries) {
+    this.seriesError = 'יש לבחור סוג תשלום';
+    return;
+  }
 
-//   // פתיחת דיאלוג
-//   const dialogRef = this.dialog.open(this.confirmMakeupDialog, {
-//   width: '380px',
-//   disableClose: true,
+  if (this.paymentSourceForSeries === 'health_fund' && !this.referralFile) {
+    this.seriesError = 'לבקשה דרך קופה יש לצרף הפניה / התחייבות';
+    return;
+  }
 
-//   data: {},                 
-// });
+  // ---- חישוב תאריכים ----
+  const startDate = slot.lesson_date;
+  const weeks = this.seriesLessonCount - 1;
 
-// dialogRef.componentInstance; 
+  const endD = new Date(startDate + 'T00:00:00');
+  endD.setDate(endD.getDate() + weeks * 7);
+  const endDate = this.formatLocalDate(endD);
 
+  // ---- פרטי מדריך ----
+  let instructorIdNumber: string | null = null;
+  let instructorName = '';
 
-//   dialogRef.afterClosed().subscribe(async confirmed => {
-//     if (!confirmed) return;
+  if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
+    const selected = this.instructors.find(
+      i =>
+        i.instructor_uid === this.selectedInstructorId ||
+        i.instructor_id === this.selectedInstructorId
+    );
+    instructorIdNumber = selected?.instructor_id ?? slot.instructor_id;
+    instructorName = selected?.full_name ?? '';
+  } else {
+    instructorIdNumber = slot.instructor_id;
+    instructorName = slot.instructor_id;
+  }
 
-//     const payload = {
-//       requested_start_time: slot.start_time,
-//       requested_end_time: slot.end_time,
-//     };
+  const dayLabel = this.getSlotDayLabel(startDate);
+  const startTime = slot.start_time.substring(0, 5);
+  const endTime = slot.end_time.substring(0, 5);
 
-//     const lessonOccId = this.selectedMakeupCandidate!.lesson_id;
+  this.seriesConfirmData = {
+    startDate,
+    endDate,
+    dayLabel,
+    startTime,
+    endTime,
+    instructorName
+  };
 
-//     const { error } = await dbTenant()
-//       .from('secretarial_requests')
-//       .insert({
-//         request_type: 'MAKEUP_LESSON',
-//         requested_by_uid: String(this.user!.uid),
-//         requested_by_role: 'parent',
-//         child_id: this.selectedChildId,
-//         instructor_id: slot.instructor_id,
-//         lesson_occ_id: lessonOccId,
-//         from_date: slot.occur_date,
-//         to_date: slot.occur_date,
-//         payload
-//       });
+  const dialogRef = this.dialog.open(dialogTpl, {
+    width: '380px',
+    disableClose: true,
+    data: {},
+  });
 
-//     if (error) {
-//       console.error(error);
-//       this.makeupError = 'שגיאה בשליחת הבקשה';
-//       return;
-//     }
+  dialogRef.afterClosed().subscribe(async confirmed => {
+    if (!confirmed) return;
 
-//     this.makeupCreatedMessage = 'בקשת ההשלמה נשלחה למזכירה ✔️';
-//   });
+    this.seriesError = null;
+
+    const supa = dbTenant();
+
+   let referralUrl: string | null = null;
+
+if (this.referralFile) {
+  try {
+    const ext = this.referralFile.name.split('.').pop() || 'bin';
+    const filePath = `referrals/${this.selectedChildId}/${Date.now()}.${ext}`;
+
+    // ⬅ כאן משתמשים ב-supabase ולא ב-dbTenant()
+    const { data: uploadData, error: uploadError } = await supabase!
+      .storage
+      .from('referrals')
+      .upload(filePath, this.referralFile);
+
+    if (uploadError) {
+      console.error('referral upload error', uploadError);
+      this.seriesError = 'שגיאה בהעלאת המסמך. אפשר לנסות שוב או להמשיך ללא מסמך.';
+    } else {
+      const { data: publicData } = supabase!
+        .storage
+        .from('referrals')
+        .getPublicUrl(filePath);
+
+      referralUrl = publicData?.publicUrl ?? null;
+    }
+  } catch (e) {
+    console.error('referral upload exception', e);
+    this.seriesError = 'שגיאה בהעלאת המסמך. אפשר לנסות שוב או להמשיך ללא מסמך.';
+  }
+}
+    // 🔹 2) payload לבקשה למזכירה (כולל URL אם יש)
+    const payload: any = {
+      requested_start_time: startTime,
+      requested_end_time: endTime
+    };
+
+    if (referralUrl) {
+      payload.referral_url = referralUrl;
+    }
+
+  const { error } = await supa
+  .from('secretarial_requests')
+  .insert({
+    request_type: 'SERIES',
+    status: 'PENDING',
+    requested_by_uid: String(this.user!.uid),
+    requested_by_role: 'parent',
+    child_id: this.selectedChildId,
+    instructor_id: instructorIdNumber,
+    from_date: startDate,
+    to_date: endDate,
+    payload
+  });
+
+    if (error) {
+      console.error(error);
+      this.seriesError = 'שגיאה בשליחת בקשת הסדרה';
+      return;
+    }
+
+    // מרעננים את המסך
+    await this.onChildChange();
+
+    // מנקים קובץ שנבחר
+    this.referralFile = null;
+
+    // הודעת הצלחה + חזרה למסך הרגיל של זימון תור (אנחנו כבר שם, רק חיווי)
+    this.seriesCreatedMessage = 'בקשתך נשלחה למזכירה';
+    this.selectedTab = 'series';
+  });
 }
 
   // =========================================
@@ -1089,6 +1259,12 @@ async requestSeriesFromSecretary(): Promise<void> {
 }
 getSlotDayLabel(dateStr: string): string {
   return this.dayOfWeekLabelFromDate(dateStr);
+}
+private formatLocalDate(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
   /**
@@ -1181,6 +1357,35 @@ onSeriesCalendarDayClick(day: SeriesCalendarDay): void {
 
   this.selectedSeriesDate = day.date;
   this.selectedSeriesDaySlots = this.calendarSlotsByDate[day.date] ?? [];
+}
+get canChooseSeriesCount(): boolean {
+  // חייבים ילד
+  if (!this.selectedChildId) return false;
+
+  // אם חייבים מדריך ואין העדפה כלל – חובה שייבחר מדריך
+  if (!this.noInstructorPreference && !this.selectedInstructorId) {
+    return false;
+  }
+
+  // אחרת מותר לבחור כמות שיעורים
+  return true;
+}
+get canRequestSeries(): boolean {
+  // חייבים ילד
+  if (!this.selectedChildId) return false;
+
+  // חייבים כמות שיעורים
+  if (!this.seriesLessonCount) return false;
+
+  // חייבים סוג תשלום
+  if (!this.paymentSourceForSeries) return false;
+
+  // אם תשלום דרך קופה – חייב קובץ
+  if (this.paymentSourceForSeries === 'health_fund' && !this.referralFile) {
+    return false;
+  }
+
+  return true;
 }
 
 

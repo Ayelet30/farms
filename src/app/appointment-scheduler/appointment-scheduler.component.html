@@ -141,12 +141,33 @@ class="instructor-card">
   <!-- ======== טאב: סדרת טיפולים ======== -->
   <div *ngIf="selectedTab === 'series'" class="appt-card">
     <h3>סדרת טיפולים קבועה</h3>
+    <ng-template #confirmSeriesDialog let-dialogRef="dialogRef">
+    <div dir="rtl" style="padding: 10px; max-width: 350px;">
+      <h3>אישור בקשת סדרה</h3>
+
+      <p>
+        האם את בטוחה שברצונך לקבוע
+        סדרה שמתחילה בתאריך <b>{{ seriesConfirmData.startDate }}</b><br>
+        מסתיימת בתאריך <b>{{ seriesConfirmData.endDate }}</b><br>
+        ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
+        בשעה <b>{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</b><br>
+        עם המדריך <b>{{ seriesConfirmData.instructorName }}</b>?
+      </p>
+
+      <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+        <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
+        <button class="btn-ok" (click)="dialogRef.close(true)">כן</button>
+      </div>
+    </div>
+  </ng-template>
+
 <div class="appt-field-group">
   <span class="appt-field-label">כמות שיעורים בסדרה</span>
   <select
     class="appt-select"
     [(ngModel)]="seriesLessonCount"
     (ngModelChange)="onSeriesLessonCountChange($event)"
+    [disabled]="!canChooseSeriesCount"
   >
     <option [ngValue]="null" disabled hidden>
       בחר/י כמות מפגשים
@@ -156,105 +177,145 @@ class="instructor-card">
       {{ n }} מפגשים
     </option>
   </select>
+
+  <!-- הודעת עזרה קטנה מתחת לשדה -->
+  <small *ngIf="!canChooseSeriesCount" style="color:#888;">
+    יש לבחור ילד ומדריך לפני בחירת כמות שיעורים בסדרה
+  </small>
 </div>
 
+ <div class="appt-form-row">
+  <div class="appt-field-group">
+    <span class="appt-field-label">יום בשבוע</span>
 
-    <div class="appt-form-row">
-      <div class="appt-field-group">
-        <span class="appt-field-label">יום בשבוע</span>
-       <!-- קלנדר קטן לחיפוש סדרות -->
-<div class="series-calendar">
-  <div class="calendar-header">
-    <button type="button" (click)="goToPrevMonth()">&lt;</button>
-    <span>
-      {{ currentCalendarMonth + 1 }}/{{ currentCalendarYear }}
-    </span>
-    <button type="button" (click)="goToNextMonth()">&gt;</button>
-  </div>
+    <!-- פריסה דו-עמודתית: ימין קלנדר, שמאל שעות -->
+    <div class="series-layout">
+      <!-- קלנדר קטן לחיפוש סדרות -->
+      <div class="series-calendar">
+        <div class="calendar-header">
+          <button type="button" (click)="goToPrevMonth()">&lt;</button>
+          <span>
+            {{ currentCalendarMonth + 1 }}/{{ currentCalendarYear }}
+          </span>
+          <button type="button" (click)="goToNextMonth()">&gt;</button>
+        </div>
 
-  <div class="calendar-grid">
-    <!-- כותרות ימים -->
-    <div class="calendar-day-name">א'</div>
-    <div class="calendar-day-name">ב'</div>
-    <div class="calendar-day-name">ג'</div>
-    <div class="calendar-day-name">ד'</div>
-    <div class="calendar-day-name">ה'</div>
-    <div class="calendar-day-name">ו'</div>
-    <div class="calendar-day-name">ש'</div>
+        <div class="calendar-grid">
+          <!-- כותרות ימים -->
+          <div class="calendar-day-name">א'</div>
+          <div class="calendar-day-name">ב'</div>
+          <div class="calendar-day-name">ג'</div>
+          <div class="calendar-day-name">ד'</div>
+          <div class="calendar-day-name">ה'</div>
+          <div class="calendar-day-name">ו'</div>
+          <div class="calendar-day-name">ש'</div>
 
-    <!-- הימים עצמם -->
-    <div
-      *ngFor="let d of seriesCalendarDays"
-      class="calendar-day"
-      [ngClass]="{
-        'not-current': !d.isCurrentMonth,
-        'has-slots': d.hasSlots,
-        'selected-day': d.date === selectedSeriesDate
-      }"
-      (click)="onSeriesCalendarDayClick(d)"
-    >
-      <span class="day-label" *ngIf="d.label">{{ d.label }}</span>
-      <span class="day-dot" *ngIf="d.hasSlots"></span>
-    </div>
-  </div>
-</div>
-
-<!-- שעות זמינות ביום שנבחר -->
-<div class="slots-list" *ngIf="selectedSeriesDate && selectedSeriesDaySlots.length">
-  <h4>שעות זמינות ליום {{ selectedSeriesDate }}</h4>
-
-  <table>
-    <thead>
-      <tr>
-        <th>שעה</th>
-        <th>מדריך</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let s of selectedSeriesDaySlots">
-        <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
-        <td>{{ s.instructor_id }}</td>
-        <td>
-          <button
-            type="button"
-            class="appt-cta"
-
-           (click)="requestSeriesFromSecretary()"
-
+          <!-- הימים עצמם -->
+          <div
+            *ngFor="let d of seriesCalendarDays"
+            class="calendar-day"
+            [ngClass]="{
+              'not-current': !d.isCurrentMonth,
+              'has-slots': d.hasSlots,
+              'selected-day': d.date === selectedSeriesDate
+            }"
+            (click)="onSeriesCalendarDayClick(d)"
           >
-            בקש סדרה במועד זה
-          </button>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+            <span class="day-label" *ngIf="d.label">{{ d.label }}</span>
+            <span class="day-dot" *ngIf="d.hasSlots"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- שעות זמינות ביום שנבחר -->
+      <div
+        class="slots-list series-slots"
+        *ngIf="selectedSeriesDate && selectedSeriesDaySlots.length"
+      >
+        <h4>שעות זמינות ליום {{ selectedSeriesDate }}</h4>
+
+        <table>
+          <thead>
+            <tr>
+              <th>שעה</th>
+              <th>מדריך</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let s of selectedSeriesDaySlots">
+              <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
+              <td>{{ s.instructor_id }}</td>
+              <td>
+                <button
+                  type="button"
+                  class="appt-cta"
+                  (click)="requestSeriesFromSecretary(s, confirmSeriesDialog)"
+                  [disabled]="!canRequestSeries"
+                  [attr.aria-disabled]="!canRequestSeries ? 'true' : null"
+                >
+                  בקש סדרה במועד זה
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div> <!-- /series-layout -->
+  </div>
 </div>
 
+    <div class="appt-form-row">
+  <div class="appt-field-group">
+    <span class="appt-field-label">סוג תשלום</span>
+    <select
+      class="appt-select"
+      [(ngModel)]="paymentSourceForSeries"
+    >
+      <option [ngValue]="null" disabled hidden>
+        בחר/י סוג תשלום
+      </option>
+      <option value="health_fund">קופה</option>
+      <option value="private">פרטי</option>
+    </select>
 
-      </div>
+    <small *ngIf="!paymentSourceForSeries" style="color:#888;">
+      יש לבחור סוג תשלום לפני הזמנת הסדרה
+    </small>
 
-      <!-- <div class="appt-field-group">
-        <span class="appt-field-label">שעת התחלה</span>
-        <input
-          class="appt-input"
-          type="time"
-          [(ngModel)]="seriesStartTime"
-        />
-      </div> -->
+    <small
+      *ngIf="paymentSourceForSeries === 'health_fund' && !referralFile"
+      style="color:#888;"
+    >
+      לבקשה דרך קופה יש לצרף הפניה / התחייבות
+    </small>
+  </div>
+</div>
+<!-- העלאת הפניה / התחייבות – רק כשנבחר "קופה" -->
+<div class="appt-form-row" *ngIf="paymentSourceForSeries === 'health_fund'">
+  <div class="appt-field-group">
+    <span class="appt-field-label">העלאת הפניה / התחייבות</span>
+
+    <input
+      type="file"
+      class="appt-input"
+      (change)="onReferralFileSelected($event)"
+      accept=".pdf,image/*"
+    />
+
+    <!-- שם הקובץ שנבחר -->
+    <div *ngIf="referralFile" style="margin-top: 6px; font-size: 13px;">
+      הקובץ שנבחר: <b>{{ referralFile.name }}</b>
     </div>
 
-    <div class="appt-form-row">
-      <div class="appt-field-group">
-        <span class="appt-field-label">סוג תשלום</span>
-        <select
-          class="appt-select"
-          [(ngModel)]="paymentSourceForSeries"
-        >
-          <option value="health_fund">קופה</option>
-          <option value="private">פרטי</option>
-        </select>
-      </div>
+    <!-- שגיאה אם יש -->
+    <p class="error" *ngIf="referralUploadError">
+      {{ referralUploadError }}
+    </p>
+  </div>
+</div>
+
     </div>
 
   
@@ -263,7 +324,7 @@ class="instructor-card">
       {{ seriesCreatedMessage }}
     </p>
 
-    <div *ngIf="recurringSlots.length > 0" class="slots-list">
+    <!-- <div *ngIf="recurringSlots.length > 0" class="slots-list">
       <h4>זמנים אפשריים</h4>
       <table>
         <thead>
@@ -295,7 +356,7 @@ class="instructor-card">
           </tr>
         </tbody>
       </table>
-    </div>
+    </div> -->
   </div>
 
   <!-- ======== טאב: שיעור השלמה ======== -->
@@ -476,6 +537,26 @@ class="instructor-card">
 <p class="error" *ngIf="candidateSlotsError">{{ candidateSlotsError }}</p>
 
   </div>
+  <!-- <ng-template #confirmSeriesDialog let-dialogRef="dialogRef">
+  <div dir="rtl" style="padding: 10px; max-width: 350px;">
+    <h3>אישור בקשת סדרה</h3>
+
+    <p>
+      האם את בטוחה שברצונך לקבוע
+      סדרה שמתחילה בתאריך <b>{{ seriesConfirmData.startDate }}</b><br>
+      מסתיימת בתאריך <b>{{ seriesConfirmData.endDate }}</b><br>
+      ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
+      בשעה <b>{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</b><br>
+      עם המדריך <b>{{ seriesConfirmData.instructorName }}</b>?
+    </p>
+
+    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+      <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
+      <button class="btn-ok" (click)="dialogRef.close(true)">כן</button>
+    </div>
+  </div>
+</ng-template> -->
+
   <ng-template #confirmMakeupDialog let-dialogRef="dialogRef">
   <div dir="rtl" style="padding: 10px; max-width: 350px;">
     <h3>אישור בקשת שיעור השלמה</h3>
