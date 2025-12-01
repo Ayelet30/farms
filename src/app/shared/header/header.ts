@@ -46,7 +46,7 @@ export class HeaderComponent implements OnInit {
   selected?: Membership;
 
   private readonly homeRoutes: Record<string, string> = {
-    parent: '/parent/children',
+    parent: '/parent',
     instructor: '/instructor',
     secretary: '/secretary',
     admin: '/admin',

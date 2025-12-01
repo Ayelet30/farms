@@ -4,6 +4,7 @@ import { TenantReadyGuard } from './shared/guards/tenant-ready.guard';
 import { LayoutComponent } from './layout/layout';
 import { ParentPaymentsComponent } from './pages/parent-payments/parent-payments.component';
 import { OneTimePaymentComponent } from './billing/one-time-payment/one-time-payment.component';
+import { ParentHomeComponent } from './parent-home/parent-home';
 // import { BillingSuccessComponent } from './billing/billing-success.component';
 // import { BillingErrorComponent } from './billing/billing-error.component';
 
@@ -30,6 +31,7 @@ export const routes: Routes = [
     canActivate: [RoleGuard, TenantReadyGuard],
     data: { role: 'parent' },
     children: [
+      { path: '', component: ParentHomeComponent }, 
       { path: 'children', loadComponent: () => import('./pages/parent-children/parent-children').then(m => m.ParentChildrenComponent) },
       { path: 'schedule', loadComponent: () => import('./pages/schedule/parent-schedule/parent-schedule').then(m => m.ParentScheduleComponent) },
       { path: 'appointment', loadComponent: () => import('./appointment-scheduler/appointment-scheduler.component').then(m => m.AppointmentSchedulerComponent) },

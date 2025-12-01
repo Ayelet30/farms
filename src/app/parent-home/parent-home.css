@@ -1,0 +1,57 @@
+.parent-home {
+  padding: 24px;
+}
+
+.parent-home h1 {
+  margin-bottom: 8px;
+}
+
+.parent-home .subtitle {
+  margin-bottom: 24px;
+  font-size: 0.95rem;
+  color: #555;
+}
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.guide-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px 20px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.guide-card h2 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+}
+
+.guide-card p {
+  margin-bottom: 8px;
+}
+
+.guide-card ol,
+.guide-card ul {
+  padding-inline-start: 18px;
+  margin: 0 0 8px 0;
+}
+
+.guide-card button {
+  margin-top: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  background: #4c9a6a; /* ירקרק לדוגמה */
+  color: #fff;
+  font-size: 0.9rem;
+}
+.home-hint {
+  font-size: 0.85rem;
+  color: #777;
+}
