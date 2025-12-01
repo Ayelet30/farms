@@ -5,7 +5,7 @@
     {{ toastMessage }}
   </div>
 
-  <!-- פופאפ אישור זמינות -->
+  <!-- ⭐ פופאפ אישור זמינות ⭐ -->
   <div class="confirm-modal" *ngIf="confirmData">
     <div class="dialog">
 
@@ -19,19 +19,22 @@
         </div>
       </div>
 
-      <div class="yellow-box">
-        נמצאו <strong>{{ confirmData.parents.length }}</strong> הורים שהשינוי ישפיע עליהם.
-      </div>
+    <div class="yellow-box">
+  נמצאו <strong>{{ confirmData?.parents?.length || 0 }}</strong>
+  הורים שהשינוי ישפיע עליהם.
+</div>
 
-      <div class="parent-list">
-        <div class="parent-card" *ngFor="let p of confirmData.parents; let i = index">
-          <div class="index">{{ i + 1 }}</div>
-          <div>
-            <div class="parent-name">{{ p.name }}</div>
-            <div class="parent-sub">הורה של: {{ p.child }}</div>
-          </div>
-        </div>
-      </div>
+<div class="parent-list">
+  <div class="parent-card" 
+       *ngFor="let p of (confirmData?.parents || []); let i = index">
+    <div class="index">{{ i + 1 }}</div>
+    <div>
+      <div class="parent-name">{{ p.name }}</div>
+      <div class="parent-sub">הורה של: {{ p.child }}</div>
+    </div>
+  </div>
+</div>
+
 
       <div class="note-box">
         <img src="assets/icons/lightbulb.svg" class="note-icon" />
@@ -52,7 +55,9 @@
   <!-- ===== תוכן העמוד ===== -->
 
   <h1 class="page-title">העדפות זמינות והתראות</h1>
-  <p class="page-subtitle">הגדרת ימי עבודה, טווחי שעות, סוג שיעור והפסקות.</p>
+  <p class="page-subtitle">
+    הגדרת ימי עבודה, טווחי שעות, סוג שיעור והפסקות.
+  </p>
 
   <div class="cards-layout">
 
@@ -99,7 +104,6 @@
 
               <div class="slot-box">
 
-                <!-- שעת התחלה -->
                 <div class="slot-field">
                   <label>שעת התחלה</label>
                   <div class="time-input">
@@ -107,14 +111,13 @@
                     <input
                       type="time"
                       [(ngModel)]="slot.start"
-                      (change)="markDirty()"
+                      (change)="onSlotChange(day, slot)"
                     />
                   </div>
                 </div>
 
                 <span class="dash">־</span>
 
-                <!-- שעת סיום -->
                 <div class="slot-field">
                   <label>שעת סיום</label>
                   <div class="time-input">
@@ -122,18 +125,18 @@
                     <input
                       type="time"
                       [(ngModel)]="slot.end"
-                      (change)="markDirty()"
+                      (change)="onSlotChange(day, slot)"
                     />
                   </div>
                 </div>
 
-                <!-- ⭐ סוג שיעור (FIX: מוצג תמיד!) -->
+                <!-- ⭐ סוג שיעור -->
                 <div class="slot-field lesson-type">
                   <label>סוג שיעור</label>
                   <select
                     class="lesson-type-select"
                     [(ngModel)]="slot.lessonType"
-                    (change)="markDirty()"
+                    (change)="onSlotChange(day, slot)"
                   >
                     <option *ngFor="let opt of lessonTypeOptions" [value]="opt.value">
                       {{ opt.label }}
@@ -152,7 +155,7 @@
 
             <hr />
 
-            <!-- הפסקות -->
+            <!-- ⭐ הפסקות -->
             <div class="break-row" *ngFor="let br of day.breaks; let j = index">
 
               <button class="delete-btn" (click)="removeBreak(day, j)">
@@ -168,7 +171,7 @@
                     <input
                       type="time"
                       [(ngModel)]="br.start"
-                      (change)="markDirty()"
+                      (change)="onBreakChange(day, br)"
                     />
                   </div>
                 </div>
@@ -182,7 +185,7 @@
                     <input
                       type="time"
                       [(ngModel)]="br.end"
-                      (change)="markDirty()"
+                      (change)="onBreakChange(day, br)"
                     />
                   </div>
                 </div>

@@ -1,3 +1,4 @@
+/* -------------  IMPORTS ------------- */
 import {
   Component,
   OnInit,
@@ -9,20 +10,21 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
+import type { EventClickArg } from '@fullcalendar/core';
+
 import { ScheduleItem } from '../../../models/schedule-item.model';
+import { Lesson } from '../../../models/lesson-schedule.model';
+import { NoteComponent } from '../../Notes/note.component';
+
 import { CurrentUserService } from '../../../core/auth/current-user.service';
 import {
   dbTenant,
   ensureTenantContextReady,
 } from '../../../services/legacy-compat';
-import type { EventClickArg } from '@fullcalendar/core';
 
-import { NoteComponent } from '../../Notes/note.component';
-import { Lesson } from '../../../models/lesson-schedule.model';
-
+/* ------------ TYPES ------------ */
 type UUID = string;
 type CalendarView = 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth';
-
 type RequestType = 'holiday' | 'sick' | 'personal' | 'other';
 type RequestStatus = 'pending' | 'approved' | 'rejected';
 
@@ -39,20 +41,16 @@ interface Child {
   first_name?: string;
   last_name?: string;
   birth_date?: string;
-  status?:
-    | 'Active'
-    | 'Pending Addition Approval'
-    | 'Pending Deletion Approval'
-    | 'Deleted';
+  status?: string;
   parent_uid?: string;
   medical_notes?: string | null;
   age?: number;
   parent?: Parent | null;
 }
 
-/** ייצוג יומי של בקשה (יכול להיות חלק מטווח כמה ימים) */
+/** ייצוג יומי של בקשה */
 interface DayRequestRow {
-  id: string; // uuid מטבלת secretarial_requests
+  id: string;
   instructor_id: string;
   request_date: string; // YYYY-MM-DD
   request_type: RequestType;
@@ -60,6 +58,7 @@ interface DayRequestRow {
   note?: string | null;
 }
 
+/* ------------ COMPONENT ------------ */
 @Component({
   selector: 'app-instructor-schedule',
   standalone: true,
@@ -70,47 +69,46 @@ interface DayRequestRow {
 export class InstructorScheduleComponent implements OnInit {
   @ViewChild(ScheduleComponent) scheduleComp!: ScheduleComponent;
 
-  private lastRange: { start: string; end: string } | null = null;
-
   private cdr = inject(ChangeDetectorRef);
   private cu = inject(CurrentUserService);
 
-  children: Child[] = [];
-  lessons: Lesson[] = [];
-  items: ScheduleItem[] = [];
-  selectedChild: Child | null = null;
-
-  /** בקשות יומיות שנמשכו מה-DB (מורחב לפי ימים) */
-  dayRequests: DayRequestRow[] = [];
-
   instructorId = '';
-  currentView: CalendarView = 'timeGridWeek';
   loading = false;
   error: string | null = null;
+
+  currentView: CalendarView = 'timeGridWeek';
   currentDate = '';
   isFullscreen = false;
 
-  /** === UI: תפריט קליק ימני + מודאלים === */
+  lessons: Lesson[] = [];
+  children: Child[] = [];
+  items: ScheduleItem[] = [];
+  dayRequests: DayRequestRow[] = [];
+  selectedChild: Child | null = null;
+
+  private lastRange: { start: string; end: string } | null = null;
+
+  /* ------- תפריט קליק ימני ------- */
   contextMenu = {
     visible: false,
     x: 0,
     y: 0,
-    date: '' as string, // YYYY-MM-DD
+    date: '' as string,
   };
 
-  /** מודאל אחיד לטווח ימים/שעות */
+  /* ------- מודאל לטווח תאריכים ------- */
   rangeModal = {
     open: false,
-    from: '' as string,
-    to: '' as string,
+    from: '',
+    to: '',
     allDay: true,
-    fromTime: '' as string,
-    toTime: '' as string,
+    fromTime: '',
+    toTime: '',
     type: 'holiday' as RequestType,
     text: '',
   };
 
-  /** חלון אישור/דחייה (למזכירה/מנהל) */
+  /* ------- תפריט אישור/דחייה ------- */
   approvalMenu = {
     open: false,
     x: 0,
@@ -118,20 +116,15 @@ export class InstructorScheduleComponent implements OnInit {
     request: null as DayRequestRow | null,
   };
 
-  /** ================== lifecycle ================== */
-
+  /* ------------ INIT ------------ */
   async ngOnInit(): Promise<void> {
     try {
       this.loading = true;
-
       await ensureTenantContextReady();
 
       const user = await this.cu.loadUserDetails();
-      if (!user?.id_number) {
-        this.error = 'לא נמצאו פרטי מדריך. התחבר שוב.';
-        return;
-      }
-      this.instructorId = String(user.id_number).trim();
+      this.instructorId = String(user?.id_number || '').trim();
+      if (!this.instructorId) throw new Error('לא נמצא מזהה מדריך');
 
       const startYmd = ymd(addDays(new Date(), -14));
       const endYmd = ymd(addDays(new Date(), 60));
@@ -139,20 +132,19 @@ export class InstructorScheduleComponent implements OnInit {
       await this.loadLessonsForRange(startYmd, endYmd);
 
       const childIds = Array.from(
-        new Set(this.lessons.map((l) => l.child_id)),
-      ).filter(Boolean) as string[];
+        new Set(this.lessons.map((l) => l.child_id).filter(Boolean)),
+      ) as string[];
 
       if (childIds.length) {
         await this.loadChildrenAndRefs(childIds);
       }
 
-      // טעינת בקשות מה-secretarial_requests לטווח הראשוני
       await this.loadRequestsForRange(startYmd, endYmd);
 
       this.setScheduleItems();
       this.updateCurrentDateFromCalendar();
     } catch (err: any) {
-      console.error('init error', err);
+      console.error(err);
       this.error = err?.message || 'שגיאה בטעינה';
     } finally {
       this.loading = false;
@@ -160,17 +152,11 @@ export class InstructorScheduleComponent implements OnInit {
     }
   }
 
-  /** ========= DB loaders ========= **/
-
+  /* ------------ LOADERS ------------ */
   private async loadLessonsForRange(
     startYmd: string,
     endYmd: string,
   ): Promise<void> {
-    if (!this.instructorId) {
-      this.lessons = [];
-      return;
-    }
-
     const dbc = dbTenant();
 
     const { data, error } = await dbc
@@ -197,10 +183,10 @@ export class InstructorScheduleComponent implements OnInit {
     this.lessons = (data ?? []) as Lesson[];
   }
 
-  private async loadChildrenAndRefs(childIds: string[]): Promise<void> {
+  private async loadChildrenAndRefs(ids: string[]): Promise<void> {
     const dbc = dbTenant();
 
-    const { data: kids, error: errKids } = await dbc
+    const { data: kids, error } = await dbc
       .from('children')
       .select(
         `
@@ -213,47 +199,39 @@ export class InstructorScheduleComponent implements OnInit {
         medical_notes
       `,
       )
-      .in('child_uuid', childIds);
+      .in('child_uuid', ids);
 
-    if (errKids) throw errKids;
-    const childList: Child[] = (kids ?? []) as Child[];
+    if (error) throw error;
 
-    const parentUids = Array.from(
-      new Set(childList.map((c) => c.parent_uid!).filter(Boolean)),
+    const list = (kids ?? []) as Child[];
+
+    const parentIds = Array.from(
+      new Set(list.map((c) => c.parent_uid).filter(Boolean)),
     ) as string[];
 
-    let parentsMap = new Map<string, Parent>();
+    let map = new Map<string, Parent>();
 
-    if (parentUids.length) {
-      const { data: parentsData, error: pErr } = await dbc
+    if (parentIds.length) {
+      const { data: parentsData } = await dbc
         .from('parents')
         .select('uid, first_name, last_name, email, phone')
-        .in('uid', parentUids);
+        .in('uid', parentIds);
 
-      if (!pErr && parentsData) {
-        parentsMap = new Map<string, Parent>(
-          (parentsData as Parent[]).map((p) => [p.uid, p]),
-        );
-      }
+      const parents = (parentsData ?? []) as Parent[];
+      map = new Map<string, Parent>(parents.map((p) => [p.uid, p]));
     }
 
-    this.children = childList.map((c) => ({
+    this.children = list.map((c) => ({
       ...c,
       age: c.birth_date ? calcAge(c.birth_date) : undefined,
-      parent: c.parent_uid ? parentsMap.get(c.parent_uid) ?? null : null,
+      parent: c.parent_uid ? map.get(c.parent_uid) ?? null : null,
     }));
   }
 
-  /** טעינת בקשות מטבלת secretarial_requests לטווח תאריכים */
   private async loadRequestsForRange(
     startYmd: string,
     endYmd: string,
   ): Promise<void> {
-    if (!this.instructorId) {
-      this.dayRequests = [];
-      return;
-    }
-
     const dbc = dbTenant();
 
     const { data, error } = await dbc
@@ -274,37 +252,30 @@ export class InstructorScheduleComponent implements OnInit {
       .gte('from_date', startYmd)
       .lte('from_date', endYmd);
 
-    if (error) {
-      console.error('❌ loadRequests error', error);
-      throw error;
-    }
+    if (error) throw error;
 
     const rows = data ?? [];
-    this.dayRequests = rows.flatMap((r: any) => this.expandRequestRow(r));
-
-    console.log('📥 loaded dayRequests:', this.dayRequests);
+    this.dayRequests = rows.flatMap((row: any) => this.expandRequestRow(row));
   }
 
-  /** מרחיב רשומת בקשה לטווח ימים → לרשומות יומיות */
   private expandRequestRow(row: any): DayRequestRow[] {
     const res: DayRequestRow[] = [];
     if (!row.from_date) return res;
 
     const from = new Date(row.from_date);
-    const to = row.to_date ? new Date(row.to_date) : new Date(row.from_date);
+    const to = new Date(row.to_date || row.from_date);
 
-    const reqType = this.mapDbRequestType(row.payload?.category);
-    const status = this.mapDbStatus(row.status);
-    const note = row.payload?.note ?? row.decision_note ?? null;
+    const type: RequestType = this.mapDbRequestType(row.payload?.category);
+    const status: RequestStatus = this.mapDbStatus(row.status);
+    const note: string | null = row.payload?.note ?? row.decision_note ?? null;
 
     let d = new Date(from);
     while (d <= to) {
-      const dayStr = ymd(d);
       res.push({
         id: row.id,
         instructor_id: row.instructor_id,
-        request_date: dayStr,
-        request_type: reqType,
+        request_date: ymd(d),
+        request_type: type,
         status,
         note,
       });
@@ -314,44 +285,29 @@ export class InstructorScheduleComponent implements OnInit {
     return res;
   }
 
-  /** ========= View mapping ========= **/
-
+  /* ------------ ITEM MAPPING ------------ */
   private setScheduleItems(): void {
     const src = this.lessons;
 
-    // חודש – סיכום יומי
+    // תצוגה חודשית – סיכום יומי
     if (this.currentView === 'dayGridMonth') {
       const grouped: Record<string, Lesson[]> = {};
       for (const l of src) {
-        const day =
-          l.occur_date?.slice(0, 10) || l.start_datetime?.slice(0, 10);
+        const day = l.occur_date?.slice(0, 10);
         if (!day) continue;
         if (!grouped[day]) grouped[day] = [];
         grouped[day].push(l);
       }
 
-      this.items = Object.entries(grouped).map(([day, lessons]) => {
+      this.items = Object.entries(grouped).map(([day, arr]) => {
         const req = this.getRequestForDate(day);
 
-        const count = lessons.length;
-        const regular = lessons.filter((l) => l.lesson_type === 'רגיל').length;
-        const makeup = lessons.filter((l) => l.lesson_type === 'השלמה').length;
-        const canceled = lessons.filter((l) => l.status === 'בוטל').length;
-
         const parts: string[] = [];
-        if (count) parts.push(`${count} שיעור${count > 1 ? 'ים' : ''}`);
-        if (regular) parts.push(`${regular} רגיל`);
-        if (makeup) parts.push(`${makeup} השלמה`);
-        if (canceled) parts.push(`${canceled} בוטל`);
-
-        const classNames: string[] = [];
+        const count = arr.length;
+        parts.push(`${count} שיעור${count > 1 ? 'ים' : ''}`);
 
         if (req) {
-          const label = this.getRequestLabel(req.request_type);
-          parts.push(label);
-
-          const cls = this.getRequestClass(req.status);
-          if (cls) classNames.push(cls);
+          parts.push(this.getRequestLabel(req.request_type));
         }
 
         const item: ScheduleItem = {
@@ -360,12 +316,8 @@ export class InstructorScheduleComponent implements OnInit {
           start: day,
           end: day,
           color: '#ffffff',
-          status: 'הושלם',
+          status: 'summary' as any, // value ויזואלי בלבד
         };
-
-        if (classNames.length) {
-          (item as any).classNames = classNames;
-        }
 
         return item;
       });
@@ -374,7 +326,7 @@ export class InstructorScheduleComponent implements OnInit {
       return;
     }
 
-    // שבוע / יום – שיעורים מלאים
+    // תצוגת שבוע / יום – אירוע לכל שיעור
     this.items = src.map((l) => {
       const startISO = this.ensureIso(
         l.start_datetime,
@@ -386,50 +338,33 @@ export class InstructorScheduleComponent implements OnInit {
         l.end_time,
         l.occur_date,
       );
+
       const child = this.children.find((c) => c.child_uuid === l.child_id);
+      const name = `${child?.first_name || ''} ${
+        child?.last_name || ''
+      }`.trim();
+      const agePart = child?.age != null ? ` (${child.age})` : '';
 
       let color = '#b5ead7';
       if (l.status === 'בוטל') color = '#ffcdd2';
       else if (new Date(endISO) < new Date()) color = '#e0e0e0';
 
-      const dayKey =
-        l.occur_date?.slice(0, 10) ||
-        l.start_datetime?.slice(0, 10) ||
-        startISO.slice(0, 10);
-
-      const req = this.getRequestForDate(dayKey);
-      const classNames: string[] = [];
-
-      if (req) {
-        const cls = this.getRequestClass(req.status);
-        if (cls) classNames.push(cls);
-      }
-
-      const childName = `${child?.first_name || ''} ${
-        child?.last_name || ''
-      }`.trim();
-      const agePart = child?.age != null ? ` (${child.age})` : '';
-
       const item: ScheduleItem = {
         id: `${l.lesson_id}_${l.child_id}_${l.occur_date}`,
-        title: `${childName}${agePart} — ${l.lesson_type ?? ''}`.trim(),
+        title: `${name}${agePart} — ${l.lesson_type ?? ''}`.trim(),
         start: startISO,
         end: endISO,
         color,
         meta: {
           child_id: l.child_id,
-          child_name: childName,
+          child_name: name,
           instructor_id: l.instructor_id,
           instructor_name: '',
           status: l.status,
           lesson_type: l.lesson_type ?? '',
         },
-        status: l.status,
+        status: l.status as any,
       };
-
-      if (classNames.length) {
-        (item as any).classNames = classNames;
-      }
 
       return item;
     });
@@ -455,11 +390,9 @@ export class InstructorScheduleComponent implements OnInit {
     return d.toISOString();
   }
 
-  /** ========= Events ========= **/
-
+  /* ------------ EVENTS ------------ */
   onEventClick(arg: EventClickArg): void {
     const ext: any = arg.event.extendedProps || {};
-
     const childId: string | undefined = ext.child_id;
     if (!childId) return;
 
@@ -468,37 +401,38 @@ export class InstructorScheduleComponent implements OnInit {
     this.cdr.detectChanges();
   }
 
-  // משתמשים ב-any כדי לא להסתבך עם טיפוסים של FullCalendar / wrapper
-  onDateClick(arg: any): void {
-    const jsEvent: MouseEvent | undefined = arg?.jsEvent;
-    const dateStr: string | undefined = arg?.dateStr;
-
-    jsEvent?.preventDefault?.();
-
+  onDateClick(event: any): void {
     const api = this.scheduleComp?.calendarApi;
-    if (!api || !dateStr) return;
-
-    // מעבר מתצוגת חודש אל יום שנלחץ
+    if (!api) return;
     if (api.view.type === 'dayGridMonth') {
-      api.changeView('timeGridDay', dateStr);
+      api.changeView('timeGridDay', event.dateStr);
       this.currentView = 'timeGridDay';
       this.updateCurrentDateFromCalendar();
     }
   }
 
-  async onViewRangeChange(range: {
-    start: string;
-    end: string;
-    viewType?: string;
-  }) {
-    try {
-      if (!this.instructorId) return;
+  /** חתימה רחבה כדי לסתום את NG5 על Event */
+  onRightClickDay(e: any): void {
+    if (!e?.jsEvent || !e?.dateStr) return;
+    e.jsEvent.preventDefault();
 
+    this.contextMenu.visible = true;
+    this.contextMenu.x = e.jsEvent.clientX;
+    this.contextMenu.y = e.jsEvent.clientY;
+    this.contextMenu.date = e.dateStr.slice(0, 10);
+  }
+
+  closeContextMenu(): void {
+    this.contextMenu.visible = false;
+  }
+
+  /* ------------ שינוי טווח תצוגה ------------ */
+  async onViewRangeChange(range: any): Promise<void> {
+    try {
       const vt = range.viewType || '';
       if (vt === 'dayGridMonth') this.currentView = 'dayGridMonth';
       else if (vt === 'timeGridWeek') this.currentView = 'timeGridWeek';
-      else if (vt === 'timeGridDay' || vt === 'resourceTimeGridDay')
-        this.currentView = 'timeGridDay';
+      else this.currentView = 'timeGridDay';
 
       if (
         this.lastRange &&
@@ -508,18 +442,18 @@ export class InstructorScheduleComponent implements OnInit {
         this.updateCurrentDateFromCalendar();
         return;
       }
-      this.lastRange = { start: range.start, end: range.end };
 
+      this.lastRange = { start: range.start, end: range.end };
       this.loading = true;
 
       await this.loadLessonsForRange(range.start, range.end);
 
-      const childIds = Array.from(
-        new Set(this.lessons.map((l) => l.child_id)),
-      ).filter(Boolean) as string[];
+      const ids = Array.from(
+        new Set(this.lessons.map((l) => l.child_id).filter(Boolean)),
+      ) as string[];
 
-      if (childIds.length) {
-        await this.loadChildrenAndRefs(childIds);
+      if (ids.length) {
+        await this.loadChildrenAndRefs(ids);
       }
 
       await this.loadRequestsForRange(range.start, range.end);
@@ -535,54 +469,40 @@ export class InstructorScheduleComponent implements OnInit {
     }
   }
 
-  changeView(view: CalendarView) {
+  /* ------------ ניווט טולבר ------------ */
+  onToolbarChangeView(view: CalendarView): void {
     this.currentView = view;
-    this.scheduleComp.changeView(view);
-    this.updateCurrentDateFromCalendar();
+    if (this.scheduleComp?.calendarApi) {
+      this.scheduleComp.changeView(view);
+      this.updateCurrentDateFromCalendar();
+    }
   }
 
-  next() {
-    this.scheduleComp.next();
-    this.updateCurrentDateFromCalendar();
-  }
-
-  prev() {
+  onToolbarPrev(): void {
+    if (!this.scheduleComp) return;
     this.scheduleComp.prev();
     this.updateCurrentDateFromCalendar();
   }
 
-  today() {
+  onToolbarNext(): void {
+    if (!this.scheduleComp) return;
+    this.scheduleComp.next();
+    this.updateCurrentDateFromCalendar();
+  }
+
+  onToolbarToday(): void {
+    if (!this.scheduleComp) return;
     this.scheduleComp.today();
     this.updateCurrentDateFromCalendar();
   }
 
-  toggleMainFullscreen() {
+  toggleMainFullscreen(): void {
     this.isFullscreen = !this.isFullscreen;
+    this.scheduleComp.toggleFullscreen();
   }
 
-  /** ========= בקשות יומיות – לוגיקה ========= **/
-
-  /** קליק ימני על יום/אירוע – מגיע מ-ScheduleComponent */
-  onRightClickDay(e: any) {
-    const jsEvent: MouseEvent | undefined = e?.jsEvent;
-    const dateStr: string | undefined = e?.dateStr;
-
-    jsEvent?.preventDefault?.();
-
-    if (!jsEvent || !dateStr) return;
-
-    this.contextMenu.visible = true;
-    this.contextMenu.x = jsEvent.clientX;
-    this.contextMenu.y = jsEvent.clientY;
-    this.contextMenu.date = dateStr.slice(0, 10);
-  }
-
-  closeContextMenu() {
-    this.contextMenu.visible = false;
-  }
-
-  /** פתיחת בקשה מסוג מסוים מהתפריט – תמיד פותח מודאל טווח */
-  async openRequest(type: RequestType) {
+  /* ------------ REQUEST UI ------------ */
+  async openRequest(type: RequestType): Promise<void> {
     const date = this.contextMenu.date;
     this.closeContextMenu();
     if (!date) return;
@@ -597,12 +517,11 @@ export class InstructorScheduleComponent implements OnInit {
     this.rangeModal.text = '';
   }
 
-  closeRangeModal() {
+  closeRangeModal(): void {
     this.rangeModal.open = false;
   }
 
-  /** שליחת בקשת טווח ל-secretarial_requests */
-  async submitRange() {
+  async submitRange(): Promise<void> {
     const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
 
     if (!from || !to) {
@@ -637,7 +556,6 @@ export class InstructorScheduleComponent implements OnInit {
     }
   }
 
-  /** שמירת בקשת טווח בטבלת secretarial_requests */
   private async saveRangeRequest(
     fromDate: string,
     toDate: string,
@@ -653,7 +571,7 @@ export class InstructorScheduleComponent implements OnInit {
     const user = await this.cu.loadUserDetails();
 
     const payload: any = {
-      category: this.mapRequestTypeToDb(type), // HOLIDAY / SICK / PERSONAL / OTHER
+      category: this.mapRequestTypeToDb(type),
       note,
       allDay,
       fromTime,
@@ -663,10 +581,10 @@ export class InstructorScheduleComponent implements OnInit {
     const { data, error } = await dbc
       .from('secretarial_requests')
       .insert({
-        request_type: 'INSTRUCTOR_DAY_OFF', // enum מהטבלה שלך
+        request_type: 'INSTRUCTOR_DAY_OFF',
         status: 'PENDING',
         requested_by_uid: user?.uid,
-        requested_by_role: 'instructor', // tenant_role (lowercase)
+        requested_by_role: 'instructor',
         instructor_id: this.instructorId,
         child_id: null,
         lesson_occ_id: null,
@@ -686,8 +604,8 @@ export class InstructorScheduleComponent implements OnInit {
     this.cdr.detectChanges();
   }
 
-  /** לחיצה על יום בקשה – לפתוח חלון אישור/דחייה */
-  onClickRequest(dateStr: string, ev: MouseEvent) {
+  /* ------------ APPROVAL MENU ------------ */
+  onClickRequest(dateStr: string, ev: MouseEvent): void {
     ev.preventDefault();
     ev.stopPropagation();
 
@@ -700,21 +618,20 @@ export class InstructorScheduleComponent implements OnInit {
     this.approvalMenu.request = req;
   }
 
-  closeApprovalMenu() {
+  closeApprovalMenu(): void {
     this.approvalMenu.open = false;
     this.approvalMenu.request = null;
   }
 
-  async approveRequest() {
+  async approveRequest(): Promise<void> {
     await this.setRequestStatus('approved');
   }
 
-  async rejectRequest() {
+  async rejectRequest(): Promise<void> {
     await this.setRequestStatus('rejected');
   }
 
-  /** עדכון סטטוס בטבלת secretarial_requests + רישום ל-instructor_unavailability */
-  private async setRequestStatus(status: RequestStatus) {
+  private async setRequestStatus(status: RequestStatus): Promise<void> {
     const req = this.approvalMenu.request;
     if (!req) return;
 
@@ -742,7 +659,7 @@ export class InstructorScheduleComponent implements OnInit {
 
       if (error) throw error;
 
-      const updated = data as any;
+      const updated: any = data;
 
       this.dayRequests = this.dayRequests.map((r) =>
         r.id === updated.id
@@ -758,13 +675,8 @@ export class InstructorScheduleComponent implements OnInit {
           : r,
       );
 
-      // במקרה של אישור – ליצור רשומות ב-instructor_unavailability לטווח המלא
-      if (status === 'approved') {
-        await this.applyApprovedRequest(updated);
-      }
-
-      this.closeApprovalMenu();
       this.setScheduleItems();
+      this.closeApprovalMenu();
     } catch (err) {
       console.error('setRequestStatus error', err);
       this.error = 'שגיאה בעדכון סטטוס הבקשה';
@@ -772,71 +684,9 @@ export class InstructorScheduleComponent implements OnInit {
     }
   }
 
-  /** יצירת רשומות היעדרות ב-instructor_unavailability אחרי אישור בקשה */
-  private async applyApprovedRequest(secretReqRow: any) {
-    if (!secretReqRow) return;
-
-    try {
-      const dbc = dbTenant();
-
-      const fromDate = secretReqRow.from_date as string;
-      const toDate = (secretReqRow.to_date as string) || fromDate;
-
-      const payload = secretReqRow.payload || {};
-      const allDay = payload.allDay ?? true;
-      const fromTime = payload.fromTime || '00:00';
-      const toTime = payload.toTime || '23:59';
-      const note =
-        payload.note ||
-        secretReqRow.decision_note ||
-        this.getRequestLabel(this.mapDbRequestType(payload.category));
-
-      const inserts: any[] = [];
-
-      let d = new Date(fromDate);
-      const end = new Date(toDate);
-
-      while (d <= end) {
-        const dayStr = ymd(d);
-
-        const fromTs = allDay
-          ? `${dayStr}T00:00:00.000Z`
-          : `${dayStr}T${fromTime}:00.000Z`;
-        const toTs = allDay
-          ? `${dayStr}T23:59:59.999Z`
-          : `${dayStr}T${toTime}:00.000Z`;
-
-        inserts.push({
-          instructor_id_number: this.instructorId,
-          from_ts: fromTs,
-          to_ts: toTs,
-          reason: note,
-          all_day: allDay,
-        });
-
-        d.setDate(d.getDate() + 1);
-      }
-
-      const { error } = await dbc
-        .from('instructor_unavailability')
-        .insert(inserts);
-
-      if (error) {
-        console.error('applyApprovedRequest error', error);
-        this.error = 'שגיאה ברישום ההיעדרות';
-        this.cdr.detectChanges();
-      }
-    } catch (err) {
-      console.error('applyApprovedRequest error', err);
-      this.error = 'שגיאה ברישום ההיעדרות';
-      this.cdr.detectChanges();
-    }
-  }
-
-  /** === עזרי בקשות === */
-
-  private getRequestForDate(dateStr: string): DayRequestRow | undefined {
-    return this.dayRequests.find((r) => r.request_date === dateStr);
+  /* ------------ HELPERS ------------ */
+  private getRequestForDate(date: string): DayRequestRow | undefined {
+    return this.dayRequests.find((r) => r.request_date === date);
   }
 
   getRequestLabel(type: RequestType): string {
@@ -853,62 +703,38 @@ export class InstructorScheduleComponent implements OnInit {
     }
   }
 
-  private getRequestClass(status: RequestStatus): string | null {
-    switch (status) {
-      case 'pending':
-        return 'day-request-pending';
-      case 'approved':
-        return 'day-request-approved';
-      case 'rejected':
-        return 'day-request-rejected';
-      default:
-        return null;
-    }
+  private mapDbRequestType(x: string | null | undefined): RequestType {
+    const map: Record<string, RequestType> = {
+      HOLIDAY: 'holiday',
+      SICK: 'sick',
+      PERSONAL: 'personal',
+      OTHER: 'other',
+    };
+    const key = String(x ?? '').toUpperCase();
+    return map[key] ?? 'other';
   }
 
-  private mapRequestTypeToDb(type: RequestType): string {
-    switch (type) {
-      case 'holiday':
-        return 'HOLIDAY';
-      case 'sick':
-        return 'SICK';
-      case 'personal':
-        return 'PERSONAL';
-      case 'other':
-      default:
-        return 'OTHER';
-    }
+  private mapDbStatus(x: string | null | undefined): RequestStatus {
+    const map: Record<string, RequestStatus> = {
+      APPROVED: 'approved',
+      REJECTED: 'rejected',
+      PENDING: 'pending',
+    };
+    const key = String(x ?? '').toUpperCase();
+    return map[key] ?? 'pending';
   }
 
-  private mapDbRequestType(dbType: string | null | undefined): RequestType {
-    switch ((dbType || '').toUpperCase()) {
-      case 'HOLIDAY':
-        return 'holiday';
-      case 'SICK':
-        return 'sick';
-      case 'PERSONAL':
-        return 'personal';
-      case 'OTHER':
-      default:
-        return 'other';
-    }
+  private mapRequestTypeToDb(t: RequestType): string {
+    const map: Record<RequestType, string> = {
+      holiday: 'HOLIDAY',
+      sick: 'SICK',
+      personal: 'PERSONAL',
+      other: 'OTHER',
+    };
+    return map[t];
   }
 
-  private mapDbStatus(dbStatus: string): RequestStatus {
-    switch ((dbStatus || '').toUpperCase()) {
-      case 'APPROVED':
-        return 'approved';
-      case 'REJECTED':
-        return 'rejected';
-      case 'PENDING':
-      default:
-        return 'pending';
-    }
-  }
-
-  /** === טולבר – תצוגת תאריך === */
-
-  private updateCurrentDateFromCalendar() {
+  private updateCurrentDateFromCalendar(): void {
     const api = this.scheduleComp?.calendarApi;
     if (!api) return;
     this.currentDate = api.view?.title || '';
@@ -916,17 +742,19 @@ export class InstructorScheduleComponent implements OnInit {
   }
 }
 
-/* ---------- פונקציות עזר ---------- */
+/* ------------ UTILITIES ------------ */
 function ymd(d: Date): string {
   return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
     .toISOString()
     .slice(0, 10);
 }
+
 function addDays(d: Date, days: number): Date {
   const x = new Date(d);
   x.setDate(x.getDate() + days);
   return x;
 }
+
 function calcAge(isoDate: string): number {
   const b = new Date(isoDate);
   const t = new Date();

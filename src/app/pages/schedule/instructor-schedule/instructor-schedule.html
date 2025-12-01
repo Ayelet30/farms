@@ -1,25 +1,24 @@
 <div class="instructor-schedule" dir="rtl">
-  <!-- עטיפה למסך מלא + טולבר + לוח -->
   <div class="schedule-wrap" [class.fullscreen]="isFullscreen">
 
-    <!-- Toolbar -->
+    <!-- ▬▬▬ Toolbar ▬▬▬ -->
     <div class="card calendar-toolbar">
 
       <div class="view-buttons btn-group">
         <button
-          (click)="changeView('timeGridDay')"
+          (click)="onToolbarChangeView('timeGridDay')"
           [class.active]="currentView === 'timeGridDay'">
           יומי
         </button>
 
         <button
-          (click)="changeView('timeGridWeek')"
+          (click)="onToolbarChangeView('timeGridWeek')"
           [class.active]="currentView === 'timeGridWeek'">
           שבועי
         </button>
 
         <button
-          (click)="changeView('dayGridMonth')"
+          (click)="onToolbarChangeView('dayGridMonth')"
           [class.active]="currentView === 'dayGridMonth'">
           חודשי
         </button>
@@ -30,9 +29,9 @@
       </div>
 
       <div class="actions btn-group">
-        <button (click)="prev()">קודם</button>
-        <button (click)="today()">היום</button>
-        <button (click)="next()">הבא</button>
+        <button (click)="onToolbarPrev()">קודם</button>
+        <button (click)="onToolbarToday()">היום</button>
+        <button (click)="onToolbarNext()">הבא</button>
 
         <button class="fullscreen-btn" (click)="toggleMainFullscreen()">
           {{ isFullscreen ? 'צמצם' : 'מסך מלא' }}
@@ -41,7 +40,7 @@
 
     </div>
 
-    <!-- לוח השנה עצמו -->
+    <!-- ▬▬▬ לוח שנה ▬▬▬ -->
     <div class="bereshit-calendar calendar-host">
       <app-schedule
         [items]="items"
@@ -49,33 +48,32 @@
         (eventClick)="onEventClick($event)"
         (dateClick)="onDateClick($event)"
         (viewRange)="onViewRangeChange($event)"
-        (rightClickDay)="onRightClickDay($event)"
-      ></app-schedule>
+        (rightClickDay)="onRightClickDay($event)">
+      </app-schedule>
     </div>
 
   </div>
 
-  <!-- מסך הערות על ילד -->
+  <!-- ▬▬▬ הערות על ילד ▬▬▬ -->
   <app-note
     *ngIf="selectedChild"
     [child]="selectedChild"
-    (close)="selectedChild = null"
-  ></app-note>
+    (close)="selectedChild = null">
+  </app-note>
 
-  <!-- תפריט קליק ימני על יום/אירוע -->
+  <!-- ▬▬▬ תפריט קליק ימני ▬▬▬ -->
   <div
     class="context-menu"
     *ngIf="contextMenu.visible"
     [style.top.px]="contextMenu.y"
-    [style.left.px]="contextMenu.x"
-  >
+    [style.left.px]="contextMenu.x">
     <button (click)="openRequest('holiday')">בקשת יום חופש</button>
     <button (click)="openRequest('sick')">בקשת יום מחלה</button>
     <button (click)="openRequest('personal')">בקשה אישית</button>
     <button (click)="openRequest('other')">בקשה אחרת…</button>
   </div>
 
-  <!-- מודאל טווח ימים / שעות (אחיד לכל סוגי הבקשות) -->
+  <!-- ▬▬▬ מודאל טווח ימים/שעות ▬▬▬ -->
   <div class="modal-backdrop" *ngIf="rangeModal.open">
     <div class="modal">
       <h3>בקשת היעדרות</h3>
@@ -123,8 +121,8 @@
         <textarea
           [(ngModel)]="rangeModal.text"
           rows="3"
-          placeholder="כתוב/י סיבה לבקשה"
-        ></textarea>
+          placeholder="כתוב/י סיבה לבקשה">
+        </textarea>
       </div>
 
       <div class="modal-actions">
@@ -134,22 +132,14 @@
     </div>
   </div>
 
-  <!-- חלון אישור / דחייה (למזכירה / מנהל) -->
+  <!-- ▬▬▬ חלון אישור/דחייה ▬▬▬ -->
   <div
     class="approval-menu"
     *ngIf="approvalMenu.open"
     [style.top.px]="approvalMenu.y"
-    [style.left.px]="approvalMenu.x"
-  >
-    <p>
-      בקשה ליום:
-      <b>{{ approvalMenu.request?.request_date }}</b>
-    </p>
-
-    <p>
-      סוג בקשה:
-      {{ getRequestLabel(approvalMenu.request?.request_type!) }}
-    </p>
+    [style.left.px]="approvalMenu.x">
+    <p><b>{{ getRequestLabel(approvalMenu.request?.request_type!) }}</b></p>
+    <p>תאריך: {{ approvalMenu.request?.request_date }}</p>
 
     <p *ngIf="approvalMenu.request?.note">
       הערה: {{ approvalMenu.request?.note }}

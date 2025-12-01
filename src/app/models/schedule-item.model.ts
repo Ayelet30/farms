@@ -4,7 +4,7 @@ export interface ScheduleItem {
   start: string;
   end: string;
   color?: string;
-  status: "ממתין לאישור" | "אושר" | "בוטל" | "הושלם"; // ← עדכון
+  status: "ממתין לאישור" | "אושר" | "בוטל" | "הושלם"  | "summary"; // ← עדכון
   meta?: {
     [x: string]: string| undefined;
     status: string;

@@ -10,6 +10,8 @@ import {
   ViewEncapsulation,
   AfterViewInit,
   HostListener,
+  ChangeDetectorRef,
+  NgZone,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FullCalendarModule, FullCalendarComponent } from '@fullcalendar/angular';
@@ -22,9 +24,6 @@ import heLocale from '@fullcalendar/core/locales/he';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 
 import { ScheduleItem } from '../../models/schedule-item.model';
-import { ChangeDetectorRef } from '@angular/core';
-
-
 
 type ViewName = 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay';
 
@@ -55,46 +54,16 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     end: string;
     viewType: string;
   }>();
+  @Output() rightClickDay = new EventEmitter<{
+    jsEvent: MouseEvent;
+    dateStr: string;
+  }>(); // 👈 חדש – לקליק ימני
 
   currentView: ViewName = this.initialView;
   currentDate = '';
   isFullscreen = false;
 
-  constructor(private cdr: ChangeDetectorRef) {}
-
-  isMobile = false;
-
-  @HostListener('window:resize')
-  onResize() {
-    this.updateResponsiveView(false);
-  }
-
-  private updateResponsiveView(initial = false) {
-    const width = window.innerWidth;
-    const wasMobile = this.isMobile;
-    this.isMobile = width <= 768; // אפשר לשחק עם הסף
-
-    const api = this.calendarApi;
-    if (!api) return;
-
-    // רק אם יש שינוי אמיתי – נחליף View
-    if (this.isMobile !== wasMobile || initial) {
-      // במובייל – יומי, בדסקטופ – initialView / שבועי
-      const target: ViewName = this.isMobile ? 'timeGridDay' : this.initialView;
-      this.currentView = target;
-      const mapped = this.mapView(target);
-      api.changeView(mapped);
-
-      // בגלילה לשעה נוכחית כשצריך
-      if (
-        (target === 'timeGridDay' || target === 'timeGridWeek') &&
-        this.isToday(api.getDate())
-      ) {
-        setTimeout(() => api.scrollToTime(this.nowScroll()), 0);
-      }
-    }
-  }
-
+  constructor(private cdr: ChangeDetectorRef, private ngZone: NgZone) {}
 
   // שעה נוכחית (לגלילה אוטומטית)
   private nowScroll(): string {
@@ -104,8 +73,8 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   }
 
   private hasResources(): boolean {
-  return Array.isArray(this.resources) && this.resources.length > 0;
-}
+    return Array.isArray(this.resources) && this.resources.length > 0;
+  }
 
   private isToday(d: Date) {
     const t = new Date();
@@ -117,16 +86,15 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   }
 
   /** אם יש resources – למפות את ה-View ל-resourceTimeGrid */
-private mapView(view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'): string {
-  // אם יש resources (מזכירה) – יומי הופך ל-resourceTimeGridDay
-  if (view === 'timeGridDay' && this.hasResources()) {
-    return 'resourceTimeGridDay';
+  private mapView(view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'): string {
+    // אם יש resources (מזכירה) – יומי הופך ל-resourceTimeGridDay
+    if (view === 'timeGridDay' && this.hasResources()) {
+      return 'resourceTimeGridDay';
+    }
+
+    // שבועי תמיד נשאר timeGridWeek רגיל
+    return view;
   }
-
-  // שבועי תמיד נשאר timeGridWeek רגיל
-  return view;
-}
-
 
   calendarOptions: CalendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimeGridPlugin],
@@ -145,8 +113,30 @@ private mapView(view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'): string {
     events: [],
     resources: [],
 
+    // 👇 קליק שמאלי רגיל
     dateClick: (info: DateClickArg) => this.dateClick.emit(info),
     eventClick: (arg: EventClickArg) => this.eventClick.emit(arg),
+
+    // 👇 קליק ימני על יום (בתצוגת חודש / יום / שבוע)
+    dayCellDidMount: (info) => {
+      const dateStr = info.date.toISOString().slice(0, 10);
+
+      // אם בעתיד תעבירי classNames ליום – להחיל אותם על ה-frame הפנימי
+      const classes = info.el.classList;
+      const fcFrame = info.el.querySelector('.fc-daygrid-day-frame');
+      if (fcFrame && classes.length > 0) {
+        classes.forEach((cls) => fcFrame.classList.add(cls));
+      }
+
+      info.el.addEventListener('contextmenu', (ev: MouseEvent) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+
+        this.ngZone.run(() => {
+          this.rightClickDay.emit({ jsEvent: ev, dateStr });
+        });
+      });
+    },
 
     eventContent: (arg) => {
       const { event } = arg;
@@ -188,9 +178,8 @@ private mapView(view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'): string {
         .filter((s: string) => !!s);
 
       const childrenHtml = children
-  .map((name: string) => `<span class="child-name">${name}</span>`)
-  .join('<span class="child-sep"></span>');
-
+        .map((name: string) => `<span class="child-name">${name}</span>`)
+        .join('<span class="child-sep"></span>');
 
       const type = event.extendedProps['lesson_type'] || '';
       const chip = type ? `<span class="chip">${type}</span>` : '';
@@ -207,6 +196,7 @@ private mapView(view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'): string {
       };
     },
 
+    // 👇 צביעת אירועים + קליק ימני על אירוע (אותו תפריט כמו על יום)
     eventClassNames: (arg) => {
       const classes: string[] = [];
       const status = arg.event.extendedProps['status'];
@@ -218,6 +208,25 @@ private mapView(view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'): string {
       if (isSummaryDay || isSummarySlot) classes.push('summary-event');
       if (isHeader) classes.push('inst-header');
       return classes;
+    },
+
+    eventDidMount: (info) => {
+      // מחיל classNames שנשלחים מבחוץ
+      (info.event.classNames || []).forEach((cls) => {
+        info.el.classList.add(cls);
+      });
+
+      // קליק ימני על אירוע – נפתח תפריט לפי תאריך השיעור
+      info.el.addEventListener('contextmenu', (ev: MouseEvent) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+
+        const dateStr = info.event.startStr.slice(0, 10);
+
+        this.ngZone.run(() => {
+          this.rightClickDay.emit({ jsEvent: ev, dateStr });
+        });
+      });
     },
 
     datesSet: (info: DatesSetArg) => {
@@ -266,47 +275,47 @@ private mapView(view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'): string {
 
   ngAfterViewInit(): void {
     setTimeout(() => {
-      this.updateResponsiveView(true);
+      this.applyCurrentView();
     }, 0);
   }
 
- ngOnChanges(changes: SimpleChanges) {
-  if (changes['items'] || changes['resources']) {
-    this.calendarOptions = {
-      ...this.calendarOptions,
-      events: this.items.map((i) => ({
-        id: i.id,
-        title: i.title,
-        start: i.start,
-        end: i.end,
-        backgroundColor: (i as any).backgroundColor ?? (i as any).color,
-        borderColor: (i as any).borderColor ?? (i as any).color,
-        resourceId: i.meta?.instructor_id || undefined,
-        extendedProps: {
-          status: i.status,
-          child_id: i.meta?.child_id,
-          child_name: i.meta?.child_name,
-          instructor_id: i.meta?.instructor_id,
-          instructor_name: i.meta?.instructor_name,
-          lesson_type: i.meta?.['lesson_type'],
-          children: i.meta?.['children'],
-          isSummaryDay: (i as any).meta?.isSummaryDay,
-          isSummarySlot: (i as any).meta?.isSummarySlot,
-          isInstructorHeader: (i as any).meta?.isInstructorHeader,
-          // 👇 החדשים בשביל ההורה
-          canCancel: (i as any).meta?.canCancel,
-          lesson_occurrence_id: (i as any).meta?.lesson_occurrence_id,
-        },
-      })),
-      resources: this.resources,
-    };
-  }
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['items'] || changes['resources']) {
+      this.calendarOptions = {
+        ...this.calendarOptions,
+        events: this.items.map((i) => ({
+          id: i.id,
+          title: i.title,
+          start: i.start,
+          end: i.end,
+          backgroundColor: (i as any).backgroundColor ?? (i as any).color,
+          borderColor: (i as any).borderColor ?? (i as any).color,
+          resourceId: i.meta?.instructor_id || undefined,
+          extendedProps: {
+            status: i.status,
+            child_id: i.meta?.child_id,
+            child_name: i.meta?.child_name,
+            instructor_id: i.meta?.instructor_id,
+            instructor_name: i.meta?.instructor_name,
+            lesson_type: i.meta?.['lesson_type'],
+            children: i.meta?.['children'],
+            isSummaryDay: (i as any).meta?.isSummaryDay,
+            isSummarySlot: (i as any).meta?.isSummarySlot,
+            isInstructorHeader: (i as any).meta?.isInstructorHeader,
+            // 👇 החדשים בשביל ההורה
+            canCancel: (i as any).meta?.canCancel,
+            lesson_occurrence_id: (i as any).meta?.lesson_occurrence_id,
+          },
+        })),
+        resources: this.resources,
+      };
+    }
 
-  if (changes['initialView'] && changes['initialView'].currentValue) {
-    this.currentView = changes['initialView'].currentValue;
-    this.applyCurrentView();
+    if (changes['initialView'] && changes['initialView'].currentValue) {
+      this.currentView = changes['initialView'].currentValue;
+      this.applyCurrentView();
+    }
   }
-}
 
   get calendarApi() {
     return this.calendarComponent?.getApi();
