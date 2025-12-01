@@ -19,6 +19,12 @@ type ChildRow = {
 
   status?: string | null;
 };
+type InstructorRow = {
+  uid: string;
+  first_name: string | null;
+  last_name: string | null;
+  status?: string | null;
+};
 
 @Component({
   selector: 'app-secretary-schedule',
@@ -35,6 +41,9 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
   instructorId = '';
   items: ScheduleItem[] = [];
+   instructors: InstructorRow[] = [];              // 👈 הוספה חדשה
+  private nameByInstructor = new Map<string, string>(); // 👈 מפה id → שם
+
   private unsubTenantChange: (() => void) | null = null;
 
   public cu = inject(CurrentUserService);
@@ -68,6 +77,8 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
   private async reloadAll() {
     await this.loadChildren();
+      await this.loadInstructors();  // 👈 חדש
+
     await this.loadLessons();
     this.filterLessons();
     this.setScheduleItems();
@@ -81,7 +92,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       const { data, error } = await dbc
         .from('children')
         .select('child_uuid, first_name, last_name, status')
-        .in('status', ['Active', 'active']); // קשיחויות סטטוס
+      .eq('status', 'Active'); 
 
       if (error) throw error;
       this.children = (data ?? []) as ChildRow[];
@@ -109,7 +120,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       const { data, error } = await dbc
         .from('lessons_occurrences')
         .select(
-        'lesson_id, child_id, day_of_week, start_time, end_time, lesson_type, status, instructor_id, instructor_name, start_datetime, end_datetime, occur_date')
+        'lesson_id, child_id, day_of_week, start_time, end_time, lesson_type, status, instructor_id, start_datetime, end_datetime, occur_date')
         .in('child_id', childIds)
         .gte('occur_date', today)
         .lte('occur_date', in8Weeks)
@@ -147,6 +158,31 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     const id = this.instructorId?.trim();
     this.filteredLessons = id ? this.lessons.filter((l) => (l.instructor_id ?? '').toString() === id) : this.lessons;
   }
+private async loadInstructors(): Promise<void> {
+  try {
+    const dbc = dbTenant();
+    const { data, error } = await dbc
+      .from('instructors') // 👈 שם הטבלה אצלך בסופבייס
+  .select('uid, first_name, last_name, status')
+      .eq('status', 'Active'); // או 'active' לפי מה שיש אצלך
+
+    if (error) throw error;
+    this.instructors = (data ?? []) as InstructorRow[];
+
+    // בונים מפת id → "שם מלא"
+  this.nameByInstructor = new Map(
+  this.instructors.map(i => [
+    String(i.uid),
+    `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()
+  ])
+);
+
+  } catch (err) {
+    console.error('loadInstructors failed', err);
+    this.instructors = [];
+    this.nameByInstructor = new Map();
+  }
+}
 
   private setScheduleItems(): void {
     const src = this.filteredLessons.length ? this.filteredLessons : this.lessons;
