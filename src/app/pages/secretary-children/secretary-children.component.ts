@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit, ViewChild, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 
@@ -10,6 +10,7 @@ import {
   AddChildDialogComponent,
   AddChildPayload,
 } from './add-child-dialog/add-child-dialog.component';
+import { FormsModule } from '@angular/forms';
 
 type ParentBrief = {
   uid: string;
@@ -37,9 +38,9 @@ type ChildDetails = {
 @Component({
   selector: 'app-secretary-children',
   standalone: true,
-  imports: [CommonModule, MatSidenavModule, MatDialogModule],
+  imports: [CommonModule, FormsModule, MatSidenavModule, MatDialogModule],
   templateUrl: './secretary-children.component.html',
-  styleUrls: ['./secretary-children.component.css'], // ✅ רק הקובץ הזה!
+  styleUrls: ['./secretary-children.component.css'],
 })
 export class SecretaryChildrenComponent implements OnInit {
   children: ChildRow[] = [];
@@ -51,6 +52,14 @@ export class SecretaryChildrenComponent implements OnInit {
   selectedId: string | null = null;
   drawerLoading = false;
   drawerChild: ChildDetails | null = null;
+
+  // 🔍 חיפוש / סינון – כמו בטבלת הורים
+  searchText = '';
+  searchMode: 'name' | 'id' = 'name';
+  statusFilter: 'all' | 'active' | 'inactive' = 'all';
+  parentFilter: 'all' | 'withParent' | 'withoutParent' = 'all';
+  showSearchPanel = false;
+  panelFocus: 'search' | 'filter' = 'search';
 
   constructor(private dialog: MatDialog) {}
 
@@ -103,6 +112,72 @@ export class SecretaryChildrenComponent implements OnInit {
     } finally {
       this.isLoading = false;
     }
+  }
+
+  /** רשימת ילדים אחרי חיפוש + סינון */
+  get filteredChildren(): ChildRow[] {
+    let rows = [...this.children];
+
+    const q = (this.searchText || '').trim().toLowerCase();
+    if (q) {
+      rows = rows.filter((c: any) => {
+        if (this.searchMode === 'name') {
+          const hay = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
+          return hay.includes(q);
+        }
+
+        const id = (c.gov_id || '').toString().trim();
+        return id === q;
+      });
+    }
+
+    // סינון לפי סטטוס ילד
+    if (this.statusFilter !== 'all') {
+      rows = rows.filter((c: any) => {
+        const status = (c.status || '').toString().toLowerCase();
+        const active = status === 'active' || status === 'פעיל';
+        return this.statusFilter === 'active' ? active : !active;
+      });
+    }
+
+    // סינון לפי שיוך להורה
+    if (this.parentFilter === 'withParent') {
+      rows = rows.filter((c: any) => !!c.parent_uid);
+    } else if (this.parentFilter === 'withoutParent') {
+      rows = rows.filter((c: any) => !c.parent_uid);
+    }
+
+    return rows;
+  }
+
+  // פתיחה/סגירה של חלונית החיפוש/סינון
+  toggleSearchPanelFromBar() {
+    this.panelFocus = 'search';
+    this.showSearchPanel = !this.showSearchPanel;
+  }
+
+  toggleFromSearchIcon(event: MouseEvent) {
+    event.stopPropagation();
+    this.panelFocus = 'search';
+    this.showSearchPanel = !this.showSearchPanel;
+  }
+
+  toggleFromFilterIcon(event: MouseEvent) {
+    event.stopPropagation();
+    this.panelFocus = 'filter';
+    this.showSearchPanel = !this.showSearchPanel;
+  }
+
+  @HostListener('document:click')
+  closeSearchPanelOnOutsideClick() {
+    this.showSearchPanel = false;
+  }
+
+  clearFilters() {
+    this.searchText = '';
+    this.searchMode = 'name';
+    this.statusFilter = 'all';
+    this.parentFilter = 'all';
   }
 
   async openDetails(id?: string) {
@@ -167,7 +242,7 @@ export class SecretaryChildrenComponent implements OnInit {
 
         if (error) throw error;
 
-        // מוסיפים את הילד החדש לרשימה (אפשר גם לקרוא ל-loadChildren)
+        // מוסיפים את הילד החדש לרשימה
         this.children = [...this.children, data as ChildRow];
       } catch (e: any) {
         console.error(e);
