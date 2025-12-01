@@ -689,8 +689,8 @@ export const tranzilaHandshakeHttp = onRequest(
 
 type RecordPaymentArgs = {
   sb: SupabaseClient;
-  parentUid: string;
-  farmId?: string;
+  tenantSchema: string;                 // ← שם הסכימה: bereshit_farm וכו'
+  parentUid?: string | null;
   amountAgorot: number;
   currency?: string;
   method: 'one_time' | 'subscription';
@@ -707,8 +707,8 @@ type RecordPaymentArgs = {
 async function recordPaymentInDb(args: RecordPaymentArgs) {
   const {
     sb,
+    tenantSchema,
     parentUid,
-    farmId,
     amountAgorot,
     currency,
     method,
@@ -717,54 +717,72 @@ async function recordPaymentInDb(args: RecordPaymentArgs) {
   } = args;
 
   const amountNis = Number(amountAgorot) / 100;
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const today = new Date().toISOString().slice(0, 10);
 
-  // 1) רישום ב-payments (למסכים שלך)
-  const paymentRow = withMaybeFarm(
-    {
-      parent_uid: parentUid,
-      amount: amountNis,
-      date: today,
-      method,              // 'one_time' / 'subscription'
-      invoice_url: null,
-    },
-    farmId,
-  );
-  await sb.from('payments').insert(paymentRow as any);
+  // לעבוד ישירות על סכימת החווה
+  const sbTenant = sb.schema(tenantSchema);
 
-  // 2) אם יש token – לעדכן/ליצור ב-payment_profiles
-  if (tx.token) {
-    const profileRow = withMaybeFarm(
-      {
-        parent_uid: parentUid,
-        brand: tx.card_type_name ?? null,
-        last4: tx.credit_card_last_4_digits ?? null,
-        token_ref: tx.token,
-        active: true,
-        is_default: true,
-      },
-      farmId,
-    );
-    await sb.from('payment_profiles').insert(profileRow as any);
+  // 1) payments – בלי farm_id, כי הטבלה כבר בתוך הסכימה של החווה
+  const paymentRow = {
+    parent_uid: parentUid ?? null,   // באנונימי זה יכול להיות null
+    amount: amountNis,
+    date: today,
+    method,
+    invoice_url: null,
+  };
+
+  const { error: payErr } = await sbTenant
+    .from('payments')
+    .insert(paymentRow as any);
+
+  if (payErr) {
+    console.error('[recordPaymentInDb] payments insert error:', payErr);
+    throw new Error('failed to insert into payments');
   }
 
-  // 3) אופציונלי: רישום גם ב-charges / קישור למנוי
+  // 2) payment_profiles – גם הם בתוך סכימת החווה
+  if (tx.token) {
+    const profileRow = {
+      parent_uid: parentUid ?? null,
+      brand: tx.card_type_name ?? null,
+      last4: tx.credit_card_last_4_digits ?? null,
+      token_ref: tx.token,
+      active: true,
+      is_default: true,
+    };
+
+    const { error: profErr } = await sbTenant
+      .from('payment_profiles')
+      .insert(profileRow as any);
+
+    if (profErr) {
+      console.error('[recordPaymentInDb] payment_profiles insert error:', profErr);
+    }
+  }
+
+  // 3) אם זה מנוי – וגם טבלת charges היא בתוך סכימת החווה
   if (subscriptionId) {
-    const chargeRow = withMaybeFarm(
-      {
-        subscription_id: subscriptionId,
-        parent_uid: parentUid,
-        amount_agorot: amountAgorot,
-        currency: (currency ?? 'ILS').toUpperCase(),
-        provider_id: tx.transaction_id ?? null,
-        status: 'succeeded',
-        error_message: null,
-      },
-      farmId,
-    );
-    await sb.from('charges').insert(chargeRow as any);
+    const chargeRow = {
+      subscription_id: subscriptionId,
+      parent_uid: parentUid ?? null,
+      amount_agorot: amountAgorot,
+      currency: (currency ?? 'ILS').toUpperCase(),
+      provider_id: tx.transaction_id ?? null,
+      status: 'succeeded',
+      error_message: null,
+    };
+
+    const { error: chargeErr } = await sbTenant
+      .from('charges')
+      .insert(chargeRow as any);
+
+    if (chargeErr) {
+      console.error('[recordPaymentInDb] charges insert error:', chargeErr);
+    }
   }
 }
+
+
 export const recordOneTimePayment = onRequest(
   {
     invoker: 'public',
@@ -779,17 +797,25 @@ export const recordOneTimePayment = onRequest(
         return;
       }
 
-      const { parentUid, farmId, amountAgorot, tx } = req.body;
+      const { parentUid, tenantSchema, amountAgorot, tx } = req.body as {
+        parentUid?: string | null;
+        tenantSchema: string;
+        amountAgorot: number;
+        tx: any;
+      };
 
-      if (!parentUid || amountAgorot == null || !tx) {
-        res.status(400).json({ ok: false, error: 'missing parentUid/amountAgorot/tx' });
+      if (!tenantSchema || amountAgorot == null || !tx) {
+        res.status(400).json({
+          ok: false,
+          error: 'missing tenantSchema/amountAgorot/tx',
+        });
         return;
       }
 
       await recordPaymentInDb({
         sb,
-        parentUid,
-        farmId,
+        tenantSchema,
+        parentUid: parentUid ?? null,
         amountAgorot,
         currency: 'ILS',
         method: 'one_time',
@@ -800,10 +826,13 @@ export const recordOneTimePayment = onRequest(
       res.json({ ok: true });
     } catch (e: any) {
       console.error('[recordOneTimePayment] error:', e);
-      res.status(500).json({ ok: false, error: e?.message ?? 'internal error' });
+      res
+        .status(500)
+        .json({ ok: false, error: e?.message ?? 'internal error' });
     }
   },
 );
+
 
 
 

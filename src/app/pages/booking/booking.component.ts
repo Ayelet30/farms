@@ -17,11 +17,12 @@ export type BookingPayload = {
   email: string;
   amountAgorot: number;  // כרגע 1 ₪ קבוע
 
-  // שדות חדשים
   age?: number | null;
   weightKg?: number | null;
   heightCm?: number | null;
   notes?: string | null;
+
+  tenantSchema?: string;
 };
 
 @Component({
@@ -124,44 +125,47 @@ export class BookingComponent implements OnInit {
     );
   }
 
-    onSubmit(): void {
-    if (!this.canSubmit) return;
+  onSubmit(): void {
+  if (!this.canSubmit) return;
 
-    const farm = this.farms.find(f => f.id === this.model.farmId);
-    if (!farm) return;
+  const farm = this.farms.find(f => f.id === this.model.farmId);
+  if (!farm) return;
+  console.log('Selected farm:', farm);
 
-    const booking: BookingPayload = {
-      type: this.type,
-      productName: this.productName,
-      farmId: farm.id,
-      farmName: farm.name,
-      fullName: this.model.fullName,
-      phone: this.model.phone,
-      email: this.model.email,
-      amountAgorot: this.amountAgorot,
-      age: this.model.age,
-      weightKg: this.model.weightKg,
-      heightCm: this.model.heightCm,
-      notes: this.model.notes,
-    };
+  const booking: BookingPayload = {
+    type: this.type,
+    productName: this.productName,
+    farmId: farm.id,
+    farmName: farm.name,
+    fullName: this.model.fullName,
+    phone: this.model.phone,
+    email: this.model.email,
+    amountAgorot: this.amountAgorot,
+    age: this.model.age,
+    weightKg: this.model.weightKg,
+    heightCm: this.model.heightCm,
+    notes: this.model.notes,
 
-    const dialogRef = this.dialog.open(OneTimePaymentComponent, {
-      width: '480px',
-      maxWidth: '95vw',
-      disableClose: true,
-      data: { booking },
-    });
+    // 👈 כאן עובר שם הסכמה
+    tenantSchema: farm.tenantSchema,
+  };
 
-    dialogRef.afterClosed().subscribe(tx => {
-      if (tx) {
-        // תשלום הצליח
-        this.successMessage =
-          'התשלום בוצע בהצלחה! מספר אסמכתא: ' +
-          (tx.transaction_id  || tx.auth_number || '');
-        // כאן אחר כך תוכלי לקרוא לשמירה ל-DB
-      }
-    });
-  }
+  const dialogRef = this.dialog.open(OneTimePaymentComponent, {
+    width: '480px',
+    maxWidth: '95vw',
+    disableClose: true,
+    data: { booking },   // שם הסכמה כבר בפנים
+  });
+
+  dialogRef.afterClosed().subscribe(tx => {
+    if (tx) {
+      this.successMessage =
+        'התשלום בוצע בהצלחה! מספר אסמכתא: ' +
+        (tx.transaction_id  || tx.auth_number || '');
+    }
+  });
+}
+
 
   goHome(): void {
     // להתאים לנתיב ה"בית" אצלך – אם זה '/', תכתבי this.router.navigate(['/']);

@@ -3,6 +3,7 @@
   margin: 0 auto;
   direction: rtl;
   font-family: var(--font-ui, inherit);
+  padding: 16px 12px;
 }
 
 /* כרטיס כללי */
@@ -39,6 +40,7 @@
   flex-direction: column;
   gap: 4px;
   min-width: 220px;
+  flex: 1 1 1;
 }
 
 .appt-field-label {
@@ -46,11 +48,13 @@
   font-weight: 600;
   color: #586141;
 }
+
 .instructor-select-row {
   display: flex;
   align-items: center;
   gap: 12px;
 }
+
 .no-pref {
   font-size: 13px;
   color: #586141;
@@ -64,6 +68,7 @@
   height: 16px;
   cursor: pointer;
 }
+
 .appt-select,
 .appt-input {
   padding: 6px 10px;
@@ -72,6 +77,7 @@
   font-size: 14px;
   background: #f7f9f4;
   transition: border-color .15s, box-shadow .15s, background .15s;
+  width: 100%;
 }
 
 .appt-select:focus,
@@ -142,6 +148,7 @@
   gap: 8px;
   margin: 14px 0 10px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .appt-tab {
@@ -174,8 +181,7 @@
 .appt-form-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin: 8px 0;
+  gap: 30px;
 }
 
 /* כפתורי פעולה – תואם cta-btn */
@@ -198,6 +204,7 @@
   cursor: pointer;
   box-shadow: 0 1px 0 rgba(0, 0, 0, .04);
   transition: background .2s, border-color .2s, transform .03s, box-shadow .2s, opacity .15s;
+  white-space: nowrap;
 }
 
 .appt-cta.primary {
@@ -245,16 +252,8 @@
   border: 1px solid #cbe8cb;
 }
 
-/* רספונסיבי */
-@media (max-width: 600px) {
-  .appt-card {
-    padding: 12px;
-  }
+/* ===== כרטיס מדריך ===== */
 
-  .appt-field-group {
-    min-width: 100%;
-  }
-}
 .instructor-card {
   position: relative;
   margin-top: 10px;
@@ -264,43 +263,29 @@
   padding: 10px 12px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, .04);
 }
+
 .instructor-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 6px;
 }
+
 .instructor-card-body {
-  display: grid;
-  grid-template-columns: minmax(206px, 218px) 150px 150px; /* ימין טקסט, שמאל תעודה */
-  justify-content: flex-start;   /* דוחף את הגריד לצד ימין של הכרטיס */
+  display: flex;
+  flex-direction: row-reverse;   // טקסט בימין, תעודה משמאל
   align-items: flex-start;
-
-  .instructor-card-body {
-  flex-direction: row;   
-  align-items: flex-start;
-  gap: 24px;                 /* רווח בין טקסט לתעודה */
-  padding-inline: 24px;      /* קצת מרווח מהקצוות */
+  gap: 24px;
 }
-
-}
-
-// .instructor-card-body {
-//   display: flex;
-//   flex-direction: row-reverse;  /* טקסט בצד ימין, תעודה משמאל אליו */
-//   align-items: flex-start;
-//   gap: 24px;                     /* מרווח בין טקסט לתעודה */
-//   padding-inline: 24px;          /* קצת מרווח מהקצוות */
-// }
 
 .instructor-info-col {
-  flex: 1 1 auto;        /* תופס את רוב הרוחב */
-  max-width: 65%;        /* שלא ידרוס את התעודה */
+  flex: 1 1 auto;
+  max-width: 65%;
   text-align: right;
 }
 
 .instructor-cert-col {
-  flex: 0 0 auto;        /* רוחב קבוע */
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -350,21 +335,14 @@
   margin: 2px 0 0;
   font-size: 13px;
   line-height: 1.4;
-}
-.instructor-card {
-  position: relative;  // חשוב בשביל האיקס
-  margin-top: 10px;
-  border-radius: 12px;
-  border: 1px solid #cdd6bf;
-  background: #f7f9f4;
-  padding: 10px 12px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .04);
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .instructor-close {
   position: absolute;
   top: -8px;
-  right: -11px; // תזוזה קלה שמאלה מהפינה
+  right: -11px;
   width: 22px;
   height: 22px;
   border-radius: 999px;
@@ -392,6 +370,7 @@
   cursor: not-allowed;
   color: #9ba18a;
 }
+
 .appt-checkbox {
   margin-top: 4px;
   display: inline-flex;
@@ -407,14 +386,12 @@
   cursor: pointer;
 }
 
-
 .instructor-certificate .label {
   font-weight: 600;
   font-size: 13px;
   color: #586141;
   margin-top: 4px;
 }
-
 
 .certificate-thumb {
   width: 70px;
@@ -429,11 +406,10 @@
 }
 
 .certificate-thumb:hover {
-  transform: scale(3);              /* הגדלה יותר משמעותית */
+  transform: scale(3);
   box-shadow: 0 6px 16px rgba(0, 0, 0, .25);
-  z-index: 30;                      /* עולה מעל כל השכבות */
+  z-index: 30;
 }
-
 
 .certificate-link:hover {
   color: #3f472e;
@@ -448,9 +424,9 @@
   text-align: right;
 }
 
-// שורה נבחרת בטבלת "שיעורים שניתן להשלים"
+/* שורה נבחרת בטבלת "שיעורים שניתן להשלים" */
 .makeup-row-selected {
-  background: #f7f9f3;              // רקע עדין בירקרק
+  background: #f7f9f3;
   box-shadow: inset 0 0 0 2px #8a9362;
   transition: background 0.2s ease, box-shadow 0.2s ease;
 }
@@ -458,6 +434,9 @@
 .makeup-row-selected td {
   font-weight: 600;
 }
+
+/* ===== קלנדר סדרות ===== */
+
 .series-calendar {
   margin-top: 12px;
   border: 1px solid #d0d0d0;
@@ -524,7 +503,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #2196f3; /* נקודה כחולה */
+  background: #2196f3;
   position: absolute;
   bottom: 4px;
   left: 50%;
@@ -534,32 +513,165 @@
 /* פריסה דו-עמודתית לקלנדר + שעות */
 .series-layout {
   display: flex;
-  gap: 24px;
+  gap: 80px;
   align-items: flex-start;
 }
 
-/* הקלנדר בעמודה ימין – רוחב קבוע ונמנע ממתיחה */
+/* הקלנדר בעמודה ימין – רוחב קבוע */
 .series-calendar {
-  flex: 0 0 260px; /* או 280px אם תרצי טיפה יותר רחב */
+  flex: 0 0 260px;
+  
 }
 
-/* הטבלה של השעות – עמודה שמאל, תופסת את שאר הרוחב */
+/* הטבלה של השעות – עמודה שמאל */
 .series-slots {
   flex: 1;
 }
 
-/* במסכים צרים – לחזור לערימה אנכית אחת מתחת לשנייה */
+/* ===== טבלאות ===== */
+
+.slots-list {
+  margin-top: 10px;
+  overflow-x: auto;   /* גלילה אופקית במובייל */
+}
+
+.slots-list table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.slots-list th,
+.slots-list td {
+  padding: 6px 4px;
+  text-align: right;
+  border-bottom: 1px solid #e2e5d8;
+}
+
+.slots-list th {
+  font-weight: 600;
+  color: #586141;
+}
+
+/* ===== רספונסיבי – טאבלטים ומובייל ===== */
+
+@media (max-width: 900px) {
+  .appt-wrapper {
+    padding: 12px 8px;
+  }
+
+  .appt-card {
+    padding: 12px 10px;
+  }
+
+  .appt-form-row {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .series-layout {
+    gap: 24px;
+  }
+}
+
 @media (max-width: 768px) {
+  .appt-header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .appt-field-group {
+    min-width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .instructor-card-body {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .instructor-info-col,
+  .instructor-cert-col {
+    max-width: 100%;
+    align-items: flex-start;
+  }
+
+  .certificate-thumb {
+    width: 90px;
+    height: 90px;
+  }
+
   .series-layout {
     flex-direction: column;
   }
 
-  .series-calendar {
+  .series-calendar,
+  .series-slots {
+    width: 95%;
     flex: 0 0 auto;
-    width: 100%;
   }
 
-  .series-slots {
-    width: 100%;
+  .appt-tab {
+    flex: 1 1 48%;
+    text-align: center;
   }
 }
+
+@media (max-width: 480px) {
+  .appt-card {
+    padding: 10px 8px;
+    border-radius: 12px;
+  }
+
+  .appt-tab {
+    flex: 1 1 100%;
+  }
+
+  .appt-cta {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .slots-list table {
+    font-size: 13px;
+  }
+}
+/* לוודא שכל ה־inputs/ selects לא בורחים מהכרטיס */
+.appt-select,
+.appt-input {
+  width: 100%;
+  max-width: 250px;
+  box-sizing: border-box;
+}
+
+/* במיוחד ל־input type="file" */
+.appt-field-group input[type="file"] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.file-name {
+  margin-top: 6px;
+  font-size: 13px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 480px) {
+  .appt-card {
+    padding: 10px 8px;
+  }
+
+  .appt-field-group {
+    min-width: 100%;
+  }
+
+  .series-calendar {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+
