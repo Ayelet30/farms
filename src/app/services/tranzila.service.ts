@@ -99,17 +99,23 @@ chargeOnce(body: {
   return this.http.post(`${this.base}/tranzilaCharge`, body);
 }
 
-recordOneTimePayment(body: {
+// tranzila.service.ts
+recordOneTimePayment(args: {
   parentUid?: string | null;
-  tenantSchema: string;      // 'bereshit_farm' וכו'
+  tenantSchema?: string | null;
   amountAgorot: number;
   tx: any;
+  email?: string | null;
+  fullName?: string | null;
 }) {
-  console.log('3333333333 TranzilaService.recordOneTimePayment called with:', body);
+  console.log('3333333333 TranzilaService.recordOneTimePayment called with:', args);
   return firstValueFrom(
-    this.http.post(`${this.base}/recordOneTimePayment`, body)
+    this.http.post('/api/recordOneTimePayment', args)
   );
 }
+
+
+
 
 
 

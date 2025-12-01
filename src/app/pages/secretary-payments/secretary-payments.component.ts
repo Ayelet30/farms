@@ -8,7 +8,10 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-import { listAllChargesForSecretary, SecretaryChargeRow } from '../../services/supabaseClient.service';
+import {
+  listAllChargesForSecretary,
+  SecretaryChargeRow,
+} from '../../services/supabaseClient.service';
 
 @Component({
   selector: 'app-secretary-payments',
@@ -18,20 +21,22 @@ import { listAllChargesForSecretary, SecretaryChargeRow } from '../../services/s
   styleUrls: ['./secretary-payments.component.scss'],
 })
 export class SecretaryPaymentsComponent implements OnInit {
+  // נתונים
   rows = signal<SecretaryChargeRow[]>([]);
   totalCount = signal<number | null>(null);
 
+  // סטטוסים
   loading = signal(false);
   error = signal<string | null>(null);
 
-  // פילטרים
-  searchTerm = signal('');
+  // חיפוש / עימוד
+  searchTerm = signal('');    // ערך אמיתי
   pageSize = 50;
   pageIndex = signal(0);
 
-  // סיכומים
+  // סכום בעמוד
   pageTotalAmount = computed(() =>
-    this.rows().reduce((sum, r) => sum + (r.amount || 0), 0),
+    this.rows().reduce((sum, r) => sum + (r.amount || 0), 0)
   );
 
   constructor() {}
@@ -40,7 +45,7 @@ export class SecretaryPaymentsComponent implements OnInit {
     await this.loadPage();
   }
 
-  async loadPage() {
+  private async loadPage() {
     try {
       this.loading.set(true);
       this.error.set(null);
@@ -61,7 +66,8 @@ export class SecretaryPaymentsComponent implements OnInit {
     }
   }
 
-  async onSearchChange() {
+  async onSearchChange(term: string) {
+    this.searchTerm.set(term);
     this.pageIndex.set(0);
     await this.loadPage();
   }

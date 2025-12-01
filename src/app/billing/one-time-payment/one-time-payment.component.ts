@@ -242,11 +242,16 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
   if (!this.tenantSchema) {
     console.error('[one-time] missing tenantSchema – לא יודעים לאיזו חווה לשמור');
   } else {
+    const email = this.booking?.email || this.parentEmail || null;
+    const fullName = this.booking?.fullName || this.booking?.productName || null;
+
     await this.tranzila.recordOneTimePayment({
       parentUid,
-      tenantSchema: this.tenantSchema,       // 👈 שם הסכמה לפונקציה בענן
+      tenantSchema: this.tenantSchema,     
       amountAgorot: this.amountAgorot,
       tx,
+      email,
+      fullName,
     });
   }
 } catch (saveErr) {
