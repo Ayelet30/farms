@@ -412,22 +412,38 @@ export class AvailabilityTabComponent implements OnInit {
 
   /* =============== EVENTS =============== */
 
-  public onSlotChange(day: DayAvailability, slot: TimeSlot): void {
-    if (!this.validateInsideFarmHours(slot.start, slot.end)) {
-      this.showToast(
-        `⛔ השיעור חייב להיות בין ${this.farmStart} ל־${this.farmEnd}`,
-      );
-      slot.start = this.farmStart;
-      slot.end = this.farmEnd;
-    }
+public onSlotChange(day: DayAvailability, slot: TimeSlot): void {
+  let s = this.timeToMinutes(slot.start);
+  let e = this.timeToMinutes(slot.end);
+  const fs = this.timeToMinutes(this.farmStart);
+  const fe = this.timeToMinutes(this.farmEnd);
 
-    if (!this.validateLessonDuration(slot)) {
-      this.showToast('⛔ משך השיעור לא תואם את סוג השיעור / אורך השיעור');
-    }
-
-    this.mergeSlots(day);
-    this.markDirty();
+  // קלמפ לגבולות החווה – לא מאפס ליום שלם
+  if (s < fs) {
+    s = fs;
+    slot.start = this.farmStart;
   }
+  if (e > fe) {
+    e = fe;
+    slot.end = this.farmEnd;
+  }
+
+  // אם יצא שהתחלה >= סוף – מזיזים סוף לפי משך שיעור
+  if (s >= e) {
+    e = s + this.lessonDuration;
+    if (e > fe) e = fe;
+    slot.end = this.minutesToTime(e);
+  }
+
+  // עדיין בודקים חפיפות ומשך שיעור
+  if (!this.validateLessonDuration(slot)) {
+    this.showToast('⛔ משך השיעור לא תואם את סוג השיעור / אורך השיעור');
+  }
+
+  this.mergeSlots(day);
+  this.markDirty();
+}
+
 
   public onBreakChange(day: DayAvailability, br: BreakRange): void {
     this.validateBreakRange(day, br);

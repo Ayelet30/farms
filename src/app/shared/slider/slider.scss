@@ -305,3 +305,46 @@
 .side-menu .i-note {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cpath d='M8 9h8M8 13h8'/%3E%3C/svg%3E");
 }
+
+/* קיים – משאירים: calendar, user, settings, children, receipt, card, note */
+
+/* הודעות (מעטפה) */
+.side-menu .i-messages {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3Cpath d='M4 7l8 6 8-6'/%3E%3C/svg%3E");
+}
+
+/* שעון – זמינות */
+.side-menu .i-clock {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8'/%3E%3Cpath d='M12 8v4l3 2'/%3E%3C/svg%3E");
+}
+
+/* בר צ'רט – סיכומים וגרפים */
+.side-menu .i-bar_chart {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19V9'/%3E%3Cpath d='M10 19V5'/%3E%3Cpath d='M16 19v-7'/%3E%3Cpath d='M3 19h18'/%3E%3C/svg%3E");
+}
+
+/* יומן עם פלוס – זימון תורים */
+.side-menu .i-calendar_plus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 9.5h18'/%3E%3Cpath d='M8 3v3M16 3v3'/%3E%3Cpath d='M12 12v5M9.5 14.5h5'/%3E%3C/svg%3E");
+}
+
+/* צ'קליסט – בקשות ואישורים */
+.side-menu .i-checklist {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cpath d='M8 8l1.2 1.2L11 7.4'/%3E%3Cpath d='M8 13l1.2 1.2L11 12.4'/%3E%3Cpath d='M13 9h4M13 14h4'/%3E%3C/svg%3E");
+}
+
+/* קבוצה – הורים / משתמשים */
+.side-menu .i-parents,
+.side-menu .i-users {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='9' cy='9' r='2.8'/%3E%3Ccircle cx='16' cy='10' r='2.3'/%3E%3Cpath d='M3.8 19c1.4-2.8 3.2-4.1 5.2-4.1s3.8 1.3 5.2 4.1'/%3E%3Cpath d='M13.6 18.7c.6-1.6 1.7-2.7 3.1-2.7 1.1 0 2.1.6 2.9 1.9'/%3E%3C/svg%3E");
+}
+
+/* מדריך – אדם עם כובע/תג */
+.side-menu .i-instructor {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='8' r='3'/%3E%3Cpath d='M6 19c1.8-3 3.8-4.5 6-4.5s4.2 1.5 6 4.5'/%3E%3Cpath d='M9 5h6l-1-2H10z'/%3E%3C/svg%3E");
+}
+
+/* לוגים – דוח עם שעון */
+.side-menu .i-logs {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='12' height='18' rx='2'/%3E%3Cpath d='M8 8h4M8 12h3'/%3E%3Ccircle cx='17' cy='17' r='3'/%3E%3Cpath d='M17 15.5v1.7l1.3.8'/%3E%3C/svg%3E");
+}

@@ -19,14 +19,17 @@
       </svg>
     </button>
 
+    <!-- side-menu.html -->
     <ul>
       <li *ngFor="let item of menuItems"
           (click)="navigateTo(item.path)"
-          [class.active]="isActive(item.path)">
+          [class.active]="isActive(item.path)"
+          [attr.title]="menuCollapsed ? item.label : null">
         <span class="icon" [ngClass]="'i-' + item.icon"></span>
         <span class="label" *ngIf="!menuCollapsed">{{ item.label }}</span>
       </li>
     </ul>
+
   </nav>
 
   <!-- שכבת כיסוי במובייל -->

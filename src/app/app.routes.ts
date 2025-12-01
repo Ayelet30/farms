@@ -67,8 +67,12 @@ export const routes: Routes = [
       {
         path: 'monthly-summary',
         loadComponent: () =>
-          import('./pages/monthly-summary/monthly-summary')
-            .then(m => m.MonthlySummaryComponent)
+        import('./pages/monthly-summary/monthly-summary')
+          .then(m => m.MonthlySummaryComponent),
+          data: {
+            monthlyTitle: 'הסיכום החודשי שלי',
+            yearlyTitle: 'הסיכום השנתי שלי',
+          },
       },
       {
         path: 'settings',
@@ -147,6 +151,16 @@ export const routes: Routes = [
           import('./pages/messages/secretary-messages/secretary-messages')
             .then(m => m.SecretaryMessagesComponent)
       },
+      {
+        path: 'monthly-summary',
+        loadComponent: () =>
+        import('./pages/monthly-summary/monthly-summary')
+          .then(m => m.MonthlySummaryComponent),
+          data: {
+            monthlyTitle: 'הסיכום החודשי של החווה',
+            yearlyTitle: 'הסיכום השנתי של החווה',
+          },
+        },
       {
         path: 'requests',
         loadComponent: () =>
