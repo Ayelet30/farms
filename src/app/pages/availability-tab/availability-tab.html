@@ -1,23 +1,73 @@
 <div class="availability-page">
 
-  <!-- טוסט הצלחה -->
+  <!-- טוסט -->
   <div class="toast" *ngIf="toastMessage">
     {{ toastMessage }}
   </div>
 
+  <!-- ⭐ פופאפ אישור זמינות ⭐ -->
+  <div class="confirm-modal" *ngIf="confirmData">
+    <div class="dialog">
+
+      <button class="close-btn" (click)="cancelUpdate()">×</button>
+
+      <div class="header-row">
+        <img src="assets/icons/warning.svg" class="warn-icon" />
+        <div>
+          <h2 class="title">אישור שינויים בזמינות</h2>
+          <p class="subtitle">ייתכן ששיעורים קיימים ייפגעו</p>
+        </div>
+      </div>
+
+    <div class="yellow-box">
+  נמצאו <strong>{{ confirmData.parents.length || 0 }}</strong>
+  הורים שהשינוי ישפיע עליהם.
+</div>
+
+<div class="parent-list">
+  <div class="parent-card" 
+       *ngFor="let p of (confirmData?.parents || []); let i = index">
+    <div class="index">{{ i + 1 }}</div>
+    <div>
+      <div class="parent-name">{{ p.name }}</div>
+      <div class="parent-sub">הורה של: {{ p.child }}</div>
+    </div>
+  </div>
+</div>
+
+
+      <div class="note-box">
+        <img src="assets/icons/lightbulb.svg" class="note-icon" />
+        המזכירה תקבל התראה ותתאם מול ההורים תאריכים חלופיים.
+      </div>
+
+      <div class="actions">
+        <button class="cancel" (click)="cancelUpdate()">ביטול</button>
+        <button class="approve" (click)="approveUpdate()">
+          <img src="assets/icons/save.svg" class="approve-icon" />
+          אישור ושמירה
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== תוכן העמוד ===== -->
+
   <h1 class="page-title">העדפות זמינות והתראות</h1>
   <p class="page-subtitle">
-    כאן אפשר להגדיר את הימים והשעות לשיבוץ שיעורים, וגם אילו התראות תרצי לקבל.
+    הגדרת ימי עבודה, טווחי שעות, סוג שיעור והפסקות.
   </p>
 
   <div class="cards-layout">
 
-    <!-- כרטיס: זמינות שבועית -->
+    <!-- זמינות שבועית -->
     <section class="card availability-card">
+
       <div class="card-header">
         <h2>זמינות שבועית</h2>
         <p class="card-subtitle">
-          לכל יום אפשר להגדיר כמה טווחי שעות. רק ימים פעילים יוצגו לשיבוץ.
+          יש לבחור ימים פעילים ולהגדיר טווחי שעות, סוג שיעור והפסקות.
         </p>
       </div>
 
@@ -25,31 +75,30 @@
 
         <div class="day-block" *ngFor="let day of days">
 
-          <!-- כותרת יום + toggle -->
+          <!-- כותרת יום -->
           <div class="day-header">
+
             <div class="day-main">
               <span class="day-name">{{ day.label }}</span>
 
               <mat-slide-toggle
-                class="day-toggle"
                 [(ngModel)]="day.active"
                 (change)="toggleDay(day)">
               </mat-slide-toggle>
             </div>
 
             <span class="badge" *ngIf="day.active">
-              {{ day.slots.length }} טווח{{ day.slots.length > 1 ? 'ים' : '' }}
+              {{ day.slots.length }} טווחים
             </span>
           </div>
 
-          <!-- טווחי שעות ליום -->
+          <!-- טווחי זמן + הפסקות -->
           <div class="slots-wrapper" *ngIf="day.active">
 
+            <!-- טווחי השיעור -->
             <div class="slot-row" *ngFor="let slot of day.slots; let i = index">
 
-              <button
-                class="icon-button delete-btn"
-                (click)="removeSlot(day, i)">
+              <button class="delete-btn" (click)="removeSlot(day, i)">
                 <mat-icon>delete</mat-icon>
               </button>
 
@@ -62,7 +111,8 @@
                     <input
                       type="time"
                       [(ngModel)]="slot.start"
-                      (change)="markDirty()" />
+                      (change)="onSlotChange(day, slot)"
+                    />
                   </div>
                 </div>
 
@@ -75,42 +125,98 @@
                     <input
                       type="time"
                       [(ngModel)]="slot.end"
-                      (change)="markDirty()" />
+                      (change)="onSlotChange(day, slot)"
+                    />
                   </div>
+                </div>
+
+                <!-- ⭐ סוג שיעור -->
+                <div class="slot-field lesson-type">
+                  <label>סוג שיעור</label>
+                  <select
+                    class="lesson-type-select"
+                    [(ngModel)]="slot.lessonType"
+                    (change)="onSlotChange(day, slot)"
+                  >
+                    <option *ngFor="let opt of lessonTypeOptions" [value]="opt.value">
+                      {{ opt.label }}
+                    </option>
+                  </select>
                 </div>
 
               </div>
             </div>
 
-            <button class="link-button add-slot-btn" (click)="addSlot(day)">
+            <!-- כפתור הוספת טווח זמן -->
+            <button class="add-slot-btn" (click)="addSlot(day)">
               <mat-icon>add</mat-icon>
               הוסף טווח זמן
             </button>
 
-          </div>
+            <hr />
 
+            <!-- ⭐ הפסקות -->
+            <div class="break-row" *ngFor="let br of day.breaks; let j = index">
+
+              <button class="delete-btn" (click)="removeBreak(day, j)">
+                <mat-icon>delete</mat-icon>
+              </button>
+
+              <div class="break-box">
+
+                <div class="slot-field">
+                  <label>הפסקה מתחילה</label>
+                  <div class="time-input">
+                    <mat-icon class="clock-icon">schedule</mat-icon>
+                    <input
+                      type="time"
+                      [(ngModel)]="br.start"
+                      (change)="onBreakChange(day, br)"
+                    />
+                  </div>
+                </div>
+
+                <span class="dash">־</span>
+
+                <div class="slot-field">
+                  <label>הפסקה מסתיימת</label>
+                  <div class="time-input">
+                    <mat-icon class="clock-icon">schedule</mat-icon>
+                    <input
+                      type="time"
+                      [(ngModel)]="br.end"
+                      (change)="onBreakChange(day, br)"
+                    />
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+            <!-- כפתור הוספת הפסקה -->
+            <button class="add-slot-btn" (click)="addBreak(day)">
+              <mat-icon>add</mat-icon>
+              הוסף הפסקה
+            </button>
+
+          </div>
         </div>
 
       </div>
 
       <div class="card-footer">
-        <button
-          class="primary-btn"
-          type="button"
-          (click)="saveAvailability()"
-          [disabled]="!isDirty">
-          💾 שמור זמינות
+        <button class="primary-btn" (click)="saveAvailability()" [disabled]="!isDirty">
+          שמור זמינות
         </button>
       </div>
     </section>
 
-    <!-- כרטיס: העדפות התראות -->
+    <!-- התראות -->
     <section class="card notifications-card">
+
       <div class="card-header">
         <h2>העדפות התראות</h2>
-        <p class="card-subtitle">
-          בחרי אילו סוגי התראות תקבלי מהמערכת.
-        </p>
       </div>
 
       <div class="notif-list">
@@ -118,7 +224,7 @@
         <div class="notif-row">
           <div class="notif-texts">
             <div class="notif-title">ביטול שיעור</div>
-            <div class="notif-desc">התראה כאשר שיעור מבוטל או נדחה.</div>
+            <div class="notif-desc">התראה כאשר שיעור מבוטל.</div>
           </div>
 
           <label class="custom-toggle">
@@ -129,8 +235,8 @@
 
         <div class="notif-row">
           <div class="notif-texts">
-            <div class="notif-title">תזכורת לפני שיעור</div>
-            <div class="notif-desc">תזכורת לפני תחילת שיעור מתוכנן.</div>
+            <div class="notif-title">תזכורת</div>
+            <div class="notif-desc">התראה לפני שיעור.</div>
           </div>
 
           <label class="custom-toggle">
@@ -141,8 +247,8 @@
 
         <div class="notif-row">
           <div class="notif-texts">
-            <div class="notif-title">דוח חודשי במייל</div>
-            <div class="notif-desc">סיכום שעות ושיעורים בסוף כל חודש.</div>
+            <div class="notif-title">דוח חודשי</div>
+            <div class="notif-desc">נשלח אלייך במייל.</div>
           </div>
 
           <label class="custom-toggle">
@@ -154,14 +260,13 @@
       </div>
 
       <div class="card-footer">
-        <button
-          class="primary-btn"
-          type="button"
-          (click)="saveNotifications()">
-          💾 שמור העדפות התראות
+        <button class="primary-btn" (click)="saveNotifications()">
+          שמור העדפות התראות
         </button>
       </div>
+
     </section>
 
   </div>
+
 </div>
