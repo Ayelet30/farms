@@ -54,7 +54,27 @@ interface ParentDetailsRow extends ParentRow {
   message_preferences?: string[] | null;
 
 }
- 
+ type ParentFile = {
+  id: string;
+  file_name: string;
+  file_url: string;
+  created_at?: string | null;
+};
+
+type ParentInvoice = {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+};
+
+type PaymentSummary = {
+  totalPaid: number;
+  outstanding: number;
+  upcoming?: number | null;
+};
+
+
 @Component({
 
   selector: 'app-secretary-parents',

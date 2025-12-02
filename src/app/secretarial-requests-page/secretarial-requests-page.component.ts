@@ -1,12 +1,22 @@
-import { Component, OnInit, signal, computed, inject } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-
 import { MatSidenavModule } from '@angular/material/sidenav';
-import { ensureTenantContextReady, dbTenant } from '../services/legacy-compat';
-import { RequestStatus, RequestType, SecretarialRequestDbRow, UiRequest } from '../Types/detailes.model';
+
+import {
+  ensureTenantContextReady,
+  dbTenant,
+} from '../services/legacy-compat';
+
+import {
+  RequestStatus,
+  RequestType,
+  SecretarialRequestDbRow,
+  UiRequest,
+} from '../Types/detailes.model';
+
 import { CurrentUserService } from '../core/auth/current-user.service';
 
 @Component({
@@ -17,10 +27,27 @@ import { CurrentUserService } from '../core/auth/current-user.service';
   styleUrls: ['./secretarial-requests-page.component.css'],
 })
 export class SecretarialRequestsPageComponent implements OnInit {
-
   private cu = inject(CurrentUserService);
-  curentUser = this.cu.current;
-  
+  curentUser = this.cu.current;  // CurrentUser | null
+
+  // ===== עזרי רול =====
+  /** אם אצלך הרול האמיתי יושב ב-role_in_tenant – תחליפי לכאן */
+  private get currentRole(): string | null {
+    return (this.curentUser as any)?.role_in_tenant ?? this.curentUser?.role ?? null;
+  }
+
+  get isSecretary(): boolean {
+    return this.currentRole === 'secretary';
+  }
+
+  get isParent(): boolean {
+    return this.currentRole === 'parent';
+  }
+
+  get isInstructor(): boolean {
+    return this.currentRole === 'instructor';
+  }
+
   // פילטרים
   statusFilter = signal<RequestStatus | 'ALL'>('PENDING');
   dateFrom: string | null = null;
@@ -35,25 +62,39 @@ export class SecretarialRequestsPageComponent implements OnInit {
   loadError = signal<string | null>(null);
 
   // צד ימין – פרטי בקשה
-  detailsOpened = false;                 // אם תרצי להשתמש בזה בעתיד
+  detailsOpened = false;
   selectedRequest: UiRequest | null = null;
   indexOfRowSelected: number | null = null;
 
-    get filteredRequestsList(): UiRequest[] {
-    const list = this.allRequests();      // סיגנל
-    const status = this.statusFilter();   // סיגנל
+  // ===== רשימה מסוננת כולל רול =====
+  get filteredRequestsList(): UiRequest[] {
+    const list = this.allRequests();
+    const status = this.statusFilter();
     const term = this.searchTerm.trim().toLowerCase();
     const type = this.typeFilter;
     const from = this.dateFrom ? new Date(this.dateFrom) : null;
     const to = this.dateTo ? new Date(this.dateTo) : null;
 
+    const myUid = this.curentUser?.uid ?? null;
+
     return list.filter((r) => {
+      // --- הורה/מדריך: רואים רק את הבקשות של עצמם ---
+      if (!this.isSecretary) {
+        if (!myUid) return false;
+        if (r.requesterUid !== myUid) return false;
+      }
+
+      // --- פילטר סטטוס ---
       if (status !== 'ALL' && r.status !== status) return false;
+
+      // --- פילטר סוג בקשה ---
       if (type !== 'ALL' && r.requestType !== type) return false;
 
+      // --- פילטר תאריכים לפי createdAt ---
       if (from || to) {
         const created = new Date(r.createdAt);
         if (from && created < from) return false;
+
         if (to) {
           const toEnd = new Date(to);
           toEnd.setHours(23, 59, 59, 999);
@@ -61,6 +102,7 @@ export class SecretarialRequestsPageComponent implements OnInit {
         }
       }
 
+      // --- חיפוש חופשי ---
       if (term) {
         const haystack = (
           (r.summary ?? '') +
@@ -80,7 +122,6 @@ export class SecretarialRequestsPageComponent implements OnInit {
   }
 
   async ngOnInit() {
-
     await this.loadRequestsFromDb();
   }
 
@@ -92,17 +133,16 @@ export class SecretarialRequestsPageComponent implements OnInit {
     this.loadError.set(null);
 
     try {
-  await ensureTenantContextReady();
-  const db = dbTenant();
+      await ensureTenantContextReady();
+      const db = dbTenant();
 
-  const res = await db
-    .from('secretarial_requests')
-    .select('*')
-    .order('created_at', { ascending: false });
+      const res = await db
+        .from('secretarial_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  const data = res.data as SecretarialRequestDbRow[] | null;
-  const error = res.error;
-
+      const data = res.data as SecretarialRequestDbRow[] | null;
+      const error = res.error;
 
       if (error) throw error;
 
@@ -121,7 +161,6 @@ export class SecretarialRequestsPageComponent implements OnInit {
   private mapRowToUi(row: SecretarialRequestDbRow): UiRequest {
     const p = row.payload || {};
 
-    // מנסים לשלוף פרטים נוחים מה-payload; אם אין – נ fallback
     const requestedByName =
       p.requested_by_name || p.parent_name || p.user_name || '—';
     const childName = p.child_name || null;
@@ -131,15 +170,17 @@ export class SecretarialRequestsPageComponent implements OnInit {
       id: row.id,
       requestType: row.request_type,
       status: row.status,
-      createdAt: row.created_at,
-
-      fromDate: row.from_date,
-      toDate: row.to_date,
 
       summary: this.buildSummary(row, p),
       requestedByName,
       childName: childName || undefined,
       instructorName: instructorName || undefined,
+
+      fromDate: row.from_date,
+      toDate: row.to_date,
+      createdAt: row.created_at,
+
+      requesterUid: row.requested_by_uid,   // ← משיכה מהטבלה
 
       payload: row.payload,
     };
@@ -167,7 +208,7 @@ export class SecretarialRequestsPageComponent implements OnInit {
   }
 
   // --------------------------------------------------
-  // אינטראקציה עם הטבלה + כרטיס פרטים
+  // אינטראקציה + סטטוסים
   // --------------------------------------------------
   clearFilters() {
     this.dateFrom = null;
@@ -177,7 +218,7 @@ export class SecretarialRequestsPageComponent implements OnInit {
     this.statusFilter.set('PENDING');
   }
 
-    openDetails(row: UiRequest) {
+  openDetails(row: UiRequest) {
     this.selectedRequest = row;
     this.indexOfRowSelected = this.filteredRequestsList.indexOf(row);
     this.detailsOpened = true;
@@ -197,12 +238,14 @@ export class SecretarialRequestsPageComponent implements OnInit {
         return 'status-chip approved';
       case 'REJECTED':
         return 'status-chip rejected';
+      case 'CANCELLED_BY_REQUESTER':
+        return 'status-chip cancelled';
       default:
         return 'status-chip';
     }
   }
 
-    getStatusLabel(status: RequestStatus): string {
+  getStatusLabel(status: RequestStatus): string {
     switch (status) {
       case 'PENDING':
         return 'ממתין';
@@ -210,6 +253,8 @@ export class SecretarialRequestsPageComponent implements OnInit {
         return 'מאושר';
       case 'REJECTED':
         return 'נדחה';
+      case 'CANCELLED_BY_REQUESTER':
+        return 'בוטל ע״י המבקש/ת';
       default:
         return status;
     }
@@ -241,55 +286,79 @@ export class SecretarialRequestsPageComponent implements OnInit {
     }
   }
 
-  // אישור בקשה (כרגע עבור CANCEL_OCCURRENCE)
-async approveSelected() {
-  const current = this.selectedRequest;
-  if (!current) return;
+  // ===== פעולות לפי רול =====
 
-  const db = dbTenant();
-  const { data, error } = await db.rpc('approve_secretarial_cancel_request', {
-    p_request_id: current.id,
-    p_decided_by_uid: this.curentUser!.uid,
-    p_decision_note: null,
-  });
+  // אישור בקשה – רק מזכירה
+  async approveSelected() {
+    if (!this.isSecretary) return;
 
-  if (error) {
-    console.error(error);
-    // אפשר להראות הודעת שגיאה מתחת לכפתורים
-    return;
+    const current = this.selectedRequest;
+    if (!current) return;
+
+    const db = dbTenant();
+    const { error } = await db.rpc('approve_secretarial_cancel_request', {
+      p_request_id: current.id,
+      p_decided_by_uid: this.curentUser!.uid,
+      p_decision_note: null,
+    });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    await this.loadRequestsFromDb();
+    this.selectedRequest = null;
   }
 
-  // רענון הרשימה
-  await this.loadRequestsFromDb();
-  this.selectedRequest = null;
-}
+  // דחייה – רק מזכירה
+  async rejectSelected() {
+    if (!this.isSecretary) return;
 
+    const current = this.selectedRequest;
+    if (!current) return;
 
-// דחייה
-async rejectSelected() {
-  const current = this.selectedRequest;
-  if (!current) return;
+    const db = dbTenant();
+    const { error } = await db.rpc('reject_secretarial_request', {
+      p_request_id: current.id,
+      p_decided_by_uid: this.curentUser!.uid,
+      p_decision_note: null,
+    });
 
-  const db = dbTenant();
-  const { data, error } = await db.rpc('reject_secretarial_request', {
-    p_request_id: current.id,
-    p_decided_by_uid: this.curentUser!.uid ,
-    p_decision_note: null,
-  });
+    if (error) {
+      console.error(error);
+      return;
+    }
 
-  if (error) {
-    console.error(error);
-    return;
+    await this.loadRequestsFromDb();
   }
 
-  await this.loadRequestsFromDb();
-}
+  // ביטול ע"י המבקש – הורה / מדריך
+  async cancelSelected() {
+    const current = this.selectedRequest;
+    if (!current || !this.curentUser) return;
+    if (this.isSecretary) return;                 // מזכירה לא מבטלת ככה
+    if (current.status !== 'PENDING') return;     // מבטלים רק ממתינים
 
-reloadRequests() {
-  // לא מנקים פילטרים – רק טוענים מחדש מה־DB
-  this.loadRequestsFromDb();
-}
+    const db = dbTenant();
 
+    // אפשר גם RPC ייעודי – כרגע UPDATE ישיר
+    const { error } = await db
+      .from('secretarial_requests')
+      .update({ status: 'CANCELLED_BY_REQUESTER' })
+      .eq('id', current.id)
+      .eq('requested_by_uid', this.curentUser.uid);  // הגנה צד-קליינט
 
+    if (error) {
+      console.error(error);
+      return;
+    }
 
+    await this.loadRequestsFromDb();
+    this.selectedRequest = null;
+  }
+
+  reloadRequests() {
+    this.loadRequestsFromDb();
+  }
 }

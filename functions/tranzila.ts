@@ -6,6 +6,11 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import * as crypto from 'crypto';
 import fetch from 'node-fetch';
+import * as admin from 'firebase-admin';
+import { getStorage } from 'firebase-admin/storage';
+import nodemailer from 'nodemailer';
+import PDFDocument from 'pdfkit';
+
 
 // ===== Global options =====
 setGlobalOptions({
@@ -27,6 +32,16 @@ const TRANZILA_SECRET_S = defineSecret('TRANZILA_SECRET');
 const TRANZILA_TERMINAL_NAME_S = defineSecret('TRANZILA_TERMINAL_NAME');
 const TRANZILA_PW_S = defineSecret('TRANZILA_PW');
 
+const mailTransport = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false, 
+  auth: {
+    user: "ayelethury@gmail.com", 
+    pass: "jlmb ezch pkrs ifce",
+  }  ,
+});
+
 
 // Helper: prefer secret at runtime (Cloud), else process.env (local)
 const envOrSecret = (s: ReturnType<typeof defineSecret>, name: string) =>
@@ -39,6 +54,17 @@ function getSupabase(): SupabaseClient {
   if (!url || !key) throw new Error('Missing Supabase credentials');
   return createClient(url, key);
 }
+
+function getSupabaseForTenant(schema?: string | null): SupabaseClient {
+  const url = envOrSecret(SUPABASE_URL_S, 'SUPABASE_URL');
+  const key = envOrSecret(SUPABASE_KEY_S, 'SUPABASE_SERVICE_KEY');
+  if (!url || !key) throw new Error('Missing Supabase credentials');
+
+  return createClient(url, key, {
+    db: { schema: schema || 'public' },
+  }) as SupabaseClient;
+}
+
 
 // ===== Utils =====
 function toTranzilaCurrency(code?: string): string {
@@ -689,8 +715,9 @@ export const tranzilaHandshakeHttp = onRequest(
 
 type RecordPaymentArgs = {
   sb: SupabaseClient;
-  tenantSchema: string;                 // ← שם הסכימה: bereshit_farm וכו'
-  parentUid?: string | null;
+  tenantSchema: string;       // 👈 להוסיף
+  parentUid: string | null;
+  farmId?: string;
   amountAgorot: number;
   currency?: string;
   method: 'one_time' | 'subscription';
@@ -703,6 +730,8 @@ type RecordPaymentArgs = {
   };
   subscriptionId?: string | null;
 };
+
+
 
 async function recordPaymentInDb(args: RecordPaymentArgs) {
   const {
@@ -719,68 +748,40 @@ async function recordPaymentInDb(args: RecordPaymentArgs) {
   const amountNis = Number(amountAgorot) / 100;
   const today = new Date().toISOString().slice(0, 10);
 
-  // לעבוד ישירות על סכימת החווה
-  const sbTenant = sb.schema(tenantSchema);
+  const sbTenant = sb; // כי יצרת אותו כבר עם schema=tenantSchema ב-getSupabaseForTenant
 
-  // 1) payments – בלי farm_id, כי הטבלה כבר בתוך הסכימה של החווה
   const paymentRow = {
-    parent_uid: parentUid ?? null,   // באנונימי זה יכול להיות null
+    parent_uid: parentUid ?? null,
     amount: amountNis,
     date: today,
     method,
     invoice_url: null,
   };
 
-  const { error: payErr } = await sbTenant
+  const { data: inserted, error: payErr } = await sbTenant
     .from('payments')
-    .insert(paymentRow as any);
+    .insert(paymentRow as any)
+    .select('id')
+    .single();
 
   if (payErr) {
     console.error('[recordPaymentInDb] payments insert error:', payErr);
-    throw new Error('failed to insert into payments');
+    throw new Error(payErr.message);
   }
 
-  // 2) payment_profiles – גם הם בתוך סכימת החווה
-  if (tx.token) {
-    const profileRow = {
-      parent_uid: parentUid ?? null,
-      brand: tx.card_type_name ?? null,
-      last4: tx.credit_card_last_4_digits ?? null,
-      token_ref: tx.token,
-      active: true,
-      is_default: true,
-    };
+  const paymentId = inserted.id as string;
 
-    const { error: profErr } = await sbTenant
-      .from('payment_profiles')
-      .insert(profileRow as any);
+  // ... payment_profiles + charges כמו שכבר כתבת ...
 
-    if (profErr) {
-      console.error('[recordPaymentInDb] payment_profiles insert error:', profErr);
-    }
-  }
-
-  // 3) אם זה מנוי – וגם טבלת charges היא בתוך סכימת החווה
-  if (subscriptionId) {
-    const chargeRow = {
-      subscription_id: subscriptionId,
-      parent_uid: parentUid ?? null,
-      amount_agorot: amountAgorot,
-      currency: (currency ?? 'ILS').toUpperCase(),
-      provider_id: tx.transaction_id ?? null,
-      status: 'succeeded',
-      error_message: null,
-    };
-
-    const { error: chargeErr } = await sbTenant
-      .from('charges')
-      .insert(chargeRow as any);
-
-    if (chargeErr) {
-      console.error('[recordPaymentInDb] charges insert error:', chargeErr);
-    }
-  }
+  return paymentId; // 👈 מחזירים את המזהה
 }
+
+
+
+
+// ===================================================================
+// recordOneTimePayment – רישום תשלום חד-פעמי ב-DB
+// ===================================================================
 
 
 export const recordOneTimePayment = onRequest(
@@ -789,7 +790,6 @@ export const recordOneTimePayment = onRequest(
     secrets: [SUPABASE_URL_S, SUPABASE_KEY_S],
   },
   async (req, res): Promise<void> => {
-    const sb = getSupabase();
     try {
       if (handleCors(req, res)) return;
       if (req.method !== 'POST') {
@@ -797,25 +797,36 @@ export const recordOneTimePayment = onRequest(
         return;
       }
 
-      const { parentUid, tenantSchema, amountAgorot, tx } = req.body as {
+      const { parentUid, tenantSchema, amountAgorot, tx, email, fullName } = req.body as {
         parentUid?: string | null;
-        tenantSchema: string;
+        tenantSchema?: string | null;
         amountAgorot: number;
         tx: any;
+        email?: string | null;
+        fullName?: string | null;
       };
 
-      if (!tenantSchema || amountAgorot == null || !tx) {
-        res.status(400).json({
-          ok: false,
-          error: 'missing tenantSchema/amountAgorot/tx',
-        });
+      if (amountAgorot == null || !tx) {
+        res.status(400).json({ ok: false, error: 'missing amountAgorot/tx' });
         return;
       }
 
-      await recordPaymentInDb({
-        sb,
+      console.log('[recordOneTimePayment] body =', {
+        parentUid,
         tenantSchema,
+        amountAgorot,
+        hasTx: !!tx,
+        email,
+        fullName,
+      });
+
+      const sb = getSupabaseForTenant(tenantSchema);
+
+      const paymentId = await recordPaymentInDb({
+        sb,
+        tenantSchema: tenantSchema || 'bereshit_farm',
         parentUid: parentUid ?? null,
+        farmId: undefined,
         amountAgorot,
         currency: 'ILS',
         method: 'one_time',
@@ -823,15 +834,140 @@ export const recordOneTimePayment = onRequest(
         subscriptionId: null,
       });
 
+      // אחרי שהשורה נשמרה – מנפיקים קבלה ושולחים מייל
+      if (email) {
+        await generateAndSendReceipt({
+          sb,
+          tenantSchema,
+          paymentId,
+          email,
+          fullName: fullName || null,
+          amountAgorot,
+          tx,
+        });
+      }
+
       res.json({ ok: true });
     } catch (e: any) {
       console.error('[recordOneTimePayment] error:', e);
-      res
-        .status(500)
-        .json({ ok: false, error: e?.message ?? 'internal error' });
+      res.status(500).json({ ok: false, error: e?.message ?? 'internal error' });
     }
   },
 );
+
+async function generateAndSendReceipt(args: {
+  sb: SupabaseClient;
+  tenantSchema?: string | null;
+  paymentId: string;
+  email: string;
+  fullName: string | null;
+  amountAgorot: number;
+  tx: any;
+}) {
+  const { sb, tenantSchema, paymentId, email, fullName, amountAgorot, tx } = args;
+
+  const amountNis = (amountAgorot / 100).toFixed(2);
+  const dateStr = new Date().toLocaleDateString('he-IL');
+
+  // 1) יצירת PDF בזיכרון
+  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  const chunks: Buffer[] = [];
+
+  doc.on('data', (chunk) => chunks.push(chunk));
+  const pdfPromise = new Promise<Buffer>((resolve) => {
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+  });
+
+  doc.fontSize(20).text('קבלה על תשלום', { align: 'center' });
+  doc.moveDown();
+
+  doc.fontSize(12).text(`תאריך: ${dateStr}`);
+  doc.text(`מספר תשלום: ${paymentId}`);
+  if (fullName) doc.text(`שם לקוח: ${fullName}`);
+  doc.text(`אימייל: ${email}`);
+  doc.moveDown();
+
+  doc.text(`סכום: ${amountNis} ₪`);
+  doc.text(`אמצעי תשלום: כרטיס אשראי`);
+  if (tx?.transaction_id) {
+    doc.text(`אסמכתא: ${tx.transaction_id}`);
+  }
+  if (tx?.credit_card_last_4_digits) {
+    doc.text(`4 ספרות אחרונות: **** ${tx.credit_card_last_4_digits}`);
+  }
+
+  doc.end();
+  const pdfBuffer = await pdfPromise;
+
+  // 2) העלאה ל-Supabase Storage לבאקט: bereshit-payments-invoices
+  const BUCKET_NAME = 'bereshit-payments-invoices';
+  const filePath = `receipts/${tenantSchema || 'public'}/${paymentId}.pdf`;
+
+  console.log('[generateAndSendReceipt] uploading to Supabase', {
+    bucket: BUCKET_NAME,
+    filePath,
+  });
+
+  const { error: uploadErr } = await sb.storage
+    .from(BUCKET_NAME)
+    .upload(filePath, pdfBuffer, {
+      contentType: 'application/pdf',
+      upsert: true,
+    });
+
+  if (uploadErr) {
+    console.error('[generateAndSendReceipt] upload error:', uploadErr);
+    throw new Error(uploadErr.message);
+  }
+
+  // 3) URL פומבי מהבאקט (כמו בקוד של instructor-image)
+  const { data: publicData } = sb.storage
+    .from(BUCKET_NAME)
+    .getPublicUrl(filePath);
+
+  const url = (publicData as any).publicUrl + '?v=' + Date.now();
+
+  // 4) עדכון ה־URL ב-DB
+  await sb
+    .from('payments')
+    .update({ invoice_url: url })
+    .eq('id', paymentId);
+
+  // 5) שליחת המייל עם הקבלה
+  const subject = 'קבלה על תשלום';
+  const html = `
+    <div dir="rtl">
+      <p>שלום ${fullName || ''},</p>
+      <p>תודה על התשלום.</p>
+      <p><strong>סכום:</strong> ${amountNis} ₪</p>
+      <p><strong>תאריך:</strong> ${dateStr}</p>
+      <p><strong>מספר תשלום:</strong> ${paymentId}</p>
+      <p>מצורפת קבלה בקובץ PDF.</p>
+    </div>
+  `;
+
+  await mailTransport.sendMail({
+    to: email,
+    from: '"חוות בראשית" <no-reply@your-domain>',
+    subject,
+    html,
+    attachments: [
+      {
+        filename: `receipt-${paymentId}.pdf`,
+        content: pdfBuffer,
+      },
+    ],
+  });
+
+  console.log('[generateAndSendReceipt] receipt sent & url saved', {
+    paymentId,
+    url,
+  });
+}
+
+
+
+
 
 
 

@@ -110,6 +110,22 @@ export interface UiRequest {
   toDate?: string | null;
   createdAt: string;
 
+  requesterUid: string | null;  // ← חשוב להוספת סינון לפי משתמש
   payload: any;
+}
+
+
+export interface SecretaryChargeRow {
+  id: string;
+  parent_uid: string | null;
+  amount: number;
+  date: string; // YYYY-MM-DD מ־Supabase
+  method: 'one_time' | 'subscription' | null;
+  invoice_url: string | null;
+
+  parent_name: string | null;
+  parent_phone: string | null;
+  parent_email: string | null;
+  is_external: boolean;
 }
 

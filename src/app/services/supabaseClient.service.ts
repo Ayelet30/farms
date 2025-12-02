@@ -931,107 +931,36 @@ export async function listSent(limit = 20, offset = 0): Promise<(Message & { rec
   return (data ?? []) as any[];
 }
 
-export async function listAllChargesForSecretary(
-  opts: ListChargesForSecretaryOpts = {}
-): Promise<{ rows: SecretaryChargeRow[]; count: number | null }> {
-  await ensureTenantContextReady();
-  const tenant = requireTenant();
-  const dbc = db(tenant.schema);
+export async function listAllChargesForSecretary(opts: {
+  limit: number;
+  offset: number;
+  search: string | null;
+}): Promise<{ rows: SecretaryChargeRow[]; count: number | null }> {
+  const { limit, offset, search } = opts;
 
-  const limit = Math.max(1, opts.limit ?? 50);
-  const offset = Math.max(0, opts.offset ?? 0);
-
-  // 1) מביאים תשלומים מהטבלה payments
-  const { data: payments, error, count } = await dbc
-    .from('payments')
-    .select('id, parent_uid, amount, date, method, invoice_url', { count: 'exact' })
+  let query = dbTenant()
+    .from('v_secretary_payments') // ה־VIEW שבנינו
+    .select('*', { count: 'exact' })
     .order('date', { ascending: false })
-    .order('id', { ascending: false })
     .range(offset, offset + limit - 1);
 
-  if (error) throw error;
-
-  const rowsRaw = (payments ?? []) as any[];
-
-  if (!rowsRaw.length) {
-    return { rows: [], count: count ?? 0 };
+  if (search) {
+    // חיפוש לפי שם, טלפון, מייל או UID
+    const s = `%${search}%`;
+    query = query.or(
+      `parent_name.ilike.${s},parent_phone.ilike.${s},parent_email.ilike.${s},parent_uid.ilike.${s}`
+    );
   }
 
-  // 2) מביאים את ההורים הרלוונטיים
-  const parentUids = Array.from(
-    new Set(rowsRaw.map(r => r.parent_uid).filter((x: string | null) => !!x))
-  );
+  const { data, error, count } = await query;
 
-  let parentsByUid = new Map<string, ParentRow>();
-
-  if (parentUids.length) {
-    const { data: parents, error: pErr } = await dbc
-      .from('parents')
-      .select('uid, first_name, last_name, phone, email')
-      .in('uid', parentUids);
-
-    if (pErr) throw pErr;
-
-    for (const p of (parents ?? []) as any[]) {
-      parentsByUid.set(p.uid, {
-        id: p.id ?? '',
-        uid: p.uid ?? null,
-        first_name: p.first_name ?? '',
-        last_name: p.last_name ?? '',
-        phone: p.phone ?? null,
-        email: p.email ?? null,
-        address: p.address ?? null,
-        is_active: p.is_active ?? null,
-        created_at: p.created_at ?? null,
-      });
-    }
+  if (error) {
+    console.error('[listAllChargesForSecretary] error', error);
+    throw error;
   }
 
-  const EXTERNAL_UID = '1111111111111111111111';
-
-  // 3) מרכיבים שורות לתצוגה
-  let rows: SecretaryChargeRow[] = rowsRaw.map((p: any) => {
-    const parent = parentsByUid.get(p.parent_uid) ?? null;
-    const isExternal = p.parent_uid === EXTERNAL_UID || !parent;
-
-    const fullName = parent
-      ? `${parent.first_name ?? ''} ${parent.last_name ?? ''}`.trim() || '(ללא שם)'
-      : isExternal
-      ? 'משתמש חיצוני'
-      : '(לא נמצאו פרטי הורה)';
-
-    return {
-      id: p.id,
-      parent_uid: p.parent_uid,
-      parent_name: fullName,
-      parent_phone: parent?.phone ?? null,
-      parent_email: parent?.email ?? null,
-      amount: Number(p.amount) || 0,
-      method: p.method as 'one_time' | 'subscription',
-      date: p.date,
-      invoice_url: p.invoice_url ?? null,
-      is_external: isExternal,
-    };
-  });
-
-  // 4) חיפוש בצד לקוח (שם/טלפון/מייל/UID)
-  if (opts.search?.trim()) {
-    const needle = opts.search.trim();
-    const needleLower = needle.toLowerCase();
-
-    rows = rows.filter(r => {
-      const haystack = [
-        r.parent_name,
-        r.parent_phone ?? '',
-        r.parent_email ?? '',
-        r.parent_uid ?? '',
-      ]
-        .join(' ')
-        .toLowerCase();
-
-      return haystack.includes(needleLower);
-    });
-  }
-
-  return { rows, count: count ?? null };
+  return {
+    rows: (data as SecretaryChargeRow[]) ?? [],
+    count: count ?? null,
+  };
 }

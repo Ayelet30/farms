@@ -1,7 +1,13 @@
-import { Component, OnInit, computed, signal } from '@angular/core';
+// app/.../monthly-summary.component.ts
+import {
+  Component,
+  OnInit,
+  computed,
+  signal,
+  Input,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
 
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -11,7 +17,6 @@ import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { dbTenant } from '../../services/supabaseClient.service';
-
 
 // ===============================
 //       TYPE DEFINITIONS
@@ -37,6 +42,21 @@ interface LessonRow {
   child_full_name?: string | null;
 }
 
+interface PaymentRow {
+  amount: number | null;
+  date: string | null;
+  parent_uid?: string | null;
+  method?: string | null;
+  invoice_url?: string | null;
+}
+
+interface CancelExceptionRow {
+  occur_date?: string | null;
+  status?: string | null;  // בדרך כלל "בוטל"
+  lesson_id?: UUID | null;
+  note?: string | null;
+}
+
 interface Insights {
   totalLessons: number;
   cancelPct: number;
@@ -56,9 +76,8 @@ interface Kpis {
   income: number;
 }
 
-
 // ===============================
-//        COMPONENT START
+//        COMPONENT
 // ===============================
 @Component({
   selector: 'app-monthly-summary',
@@ -79,6 +98,13 @@ interface Kpis {
 export class MonthlySummaryComponent implements OnInit {
   private dbc = dbTenant();
 
+  /** כותרות – אפשר להחליף במסך חווה */
+  @Input() monthlyTitle = 'הסיכום החודשי שלי';
+  @Input() yearlyTitle = 'הסיכום השנתי שלי';
+
+  /** מצב: חודשי / שנתי */
+  mode = signal<'month' | 'year'>('month');
+
   years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
   months = [
     { v: 1, t: 'ינואר' }, { v: 2, t: 'פברואר' }, { v: 3, t: 'מרץ' },
@@ -91,13 +117,16 @@ export class MonthlySummaryComponent implements OnInit {
   month = new Date().getMonth() + 1;
   loading = false;
 
+  // פילטרים
   typeFilter = signal<'all' | 'regular' | 'makeup'>('all');
   statusFilter = signal<'all' | 'pending' | 'approved' | 'canceled' | 'done'>('all');
   search = signal('');
 
-
   // DATA
   lessons = signal<LessonRow[]>([]);
+  payments = signal<PaymentRow[]>([]);
+  cancelExceptions = signal<CancelExceptionRow[]>([]);
+
   insights = signal<Insights>({
     totalLessons: 0,
     cancelPct: 0,
@@ -105,7 +134,6 @@ export class MonthlySummaryComponent implements OnInit {
     newStudents: 0,
     avgIncome: 0,
   });
-
 
   // ===============================
   //      FILTERED LESSONS
@@ -121,7 +149,7 @@ export class MonthlySummaryComponent implements OnInit {
       approved: ['אושר'],
       canceled: ['בוטל'],
       done: ['הושלם', 'בוצע', 'אושר'],
-      all: []
+      all: [],
     };
 
     return rows.filter((l) => {
@@ -141,13 +169,20 @@ export class MonthlySummaryComponent implements OnInit {
     });
   });
 
-
   // ===============================
   //            KPIs
   // ===============================
   kpis = computed<Kpis>(() => {
     const all = this.lessons();
-    if (!all.length) {
+    const cancels = this.cancelExceptions();
+    const payRows = this.payments();
+
+    const income = payRows.reduce(
+      (sum, p) => sum + (p.amount ?? 0),
+      0
+    );
+
+    if (!all.length && !cancels.length) {
       return {
         workedHours: '0:00',
         canceled: 0,
@@ -156,14 +191,16 @@ export class MonthlySummaryComponent implements OnInit {
         successPct: 0,
         privCount: 0,
         groupCount: 0,
-        income: 0,
+        income,
       };
     }
 
     const doneStatuses = ['הושלם', 'בוצע', 'אושר'];
     const done = all.filter((l) => l.status && doneStatuses.includes(l.status));
-    const canceled = all.filter((l) => l.status === 'בוטל');
     const pending = all.filter((l) => l.status === 'ממתין לאישור');
+    const canceledInLessons = all.filter((l) => l.status === 'בוטל').length;
+    const canceledByExceptions = cancels.length;
+    const canceled = canceledInLessons + canceledByExceptions;
 
     let minutes = 0;
     for (const l of done) {
@@ -174,59 +211,111 @@ export class MonthlySummaryComponent implements OnInit {
       }
     }
 
-    const workedHours = `${Math.floor(minutes / 60)}:${(minutes % 60).toString().padStart(2, '0')}`;
+    const workedHours = `${Math.floor(minutes / 60)}:${(minutes % 60)
+      .toString()
+      .padStart(2, '0')}`;
+
+    const totalForSuccess = all.length + canceledByExceptions; // שיעורים + ביטולים מטבלת חריגות
+    const successPct =
+      totalForSuccess > 0
+        ? Math.round((done.length / totalForSuccess) * 100)
+        : 0;
 
     return {
       workedHours,
-      canceled: canceled.length,
+      canceled,
       done: done.length,
       pending: pending.length,
-      successPct: Math.round((done.length / all.length) * 100),
+      successPct,
       privCount: all.filter((l) => l.lesson_type === 'רגיל').length,
       groupCount: all.filter((l) => l.lesson_type === 'השלמה').length,
-      income: Math.round((minutes / 60) * 120),
+      income,
     };
   });
-
 
   // ===============================
   //        LOAD DATA
   // ===============================
-  ngOnInit() { this.load(); }
+  ngOnInit() {
+    this.load();
+  }
 
   async load() {
     this.loading = true;
     try {
-      const monthStart = new Date(this.year, this.month - 1, 1)
-        .toISOString().slice(0, 10);
-      const monthEnd = new Date(this.year, this.month, 0)
-        .toISOString().slice(0, 10);
+      let from: string;
+      let to: string;
 
-      const { data, error } = await this.dbc
-        .from('lessons_with_children')
-        .select('*')
-        .gte('occur_date', monthStart)
-        .lte('occur_date', monthEnd)
-        .order('occur_date', { ascending: true });
+      if (this.mode() === 'month') {
+        const monthStart = new Date(this.year, this.month - 1, 1);
+        const monthEnd = new Date(this.year, this.month, 0);
+        from = monthStart.toISOString().slice(0, 10);
+        to = monthEnd.toISOString().slice(0, 10);
+      } else {
+        const yearStart = new Date(this.year, 0, 1);
+        const yearEnd = new Date(this.year, 11, 31);
+        from = yearStart.toISOString().slice(0, 10);
+        to = yearEnd.toISOString().slice(0, 10);
+      }
 
-      if (error) throw error;
+      // טוענים שלוש טבלאות במקביל
+      const [
+        { data: lessonsData, error: lessonsErr },
+        { data: paymentsData, error: paymentsErr },
+        { data: cancelsData, error: cancelsErr },
+      ] = await Promise.all([
+        this.dbc
+          .from('lessons_with_children')
+          .select('*')
+          .gte('occur_date', from)
+          .lte('occur_date', to)
+          .order('occur_date', { ascending: true }),
 
-      this.lessons.set(data || []);
-      this.computeInsights(data || []);
+        this.dbc
+          .from('payments')
+          .select('amount,date,parent_uid,method,invoice_url')
+          .gte('date', from)
+          .lte('date', to),
+
+        this.dbc
+          .from('lesson_occurrence_exceptions')
+          .select('occur_date,status,lesson_id,note')
+          .gte('occur_date', from)
+          .lte('occur_date', to),
+      ]);
+
+      if (lessonsErr) throw lessonsErr;
+      if (paymentsErr) throw paymentsErr;
+      if (cancelsErr) throw cancelsErr;
+
+      this.lessons.set((lessonsData ?? []) as LessonRow[]);
+      this.payments.set((paymentsData ?? []) as PaymentRow[]);
+      this.cancelExceptions.set((cancelsData ?? []) as CancelExceptionRow[]);
+
+      this.computeInsights(this.lessons());
     } catch (err) {
-      console.error('❌ load monthly summary failed', err);
+      console.error('❌ load summary failed', err);
       alert('שגיאה בטעינת נתונים');
     } finally {
       this.loading = false;
     }
   }
 
-
   // ===============================
   //       COMPUTE INSIGHTS
   // ===============================
   computeInsights(rows: LessonRow[]) {
-    if (!rows.length) {
+    const cancels = this.cancelExceptions();
+    const payRows = this.payments();
+
+    const incomeSum = payRows.reduce(
+      (sum, p) => sum + (p.amount ?? 0),
+      0
+    );
+
+    const total = rows.length + cancels.length;
+
+    if (!total) {
       this.insights.set({
         totalLessons: 0,
         cancelPct: 0,
@@ -237,11 +326,12 @@ export class MonthlySummaryComponent implements OnInit {
       return;
     }
 
-    const total = rows.length;
+    const canceledInLessons = rows.filter((r) => r.status === 'בוטל').length;
+    const canceledByExceptions = cancels.length;
+    const canceledCount = canceledInLessons + canceledByExceptions;
 
-    const canceledCount = rows.filter(r => r.status === 'בוטל').length;
     const doneStatuses = ['הושלם', 'בוצע', 'אושר'];
-    const doneCount = rows.filter(r =>
+    const doneCount = rows.filter((r) =>
       doneStatuses.includes((r.status ?? '') as LessonStatus)
     ).length;
 
@@ -250,22 +340,17 @@ export class MonthlySummaryComponent implements OnInit {
 
     const uniqueStudents = new Set(
       rows
-        .map(r => `${r.child?.first_name || ''} ${r.child?.last_name || ''}`.trim())
-        .filter(n => !!n)
+        .map(
+          (r) =>
+            `${r.child?.first_name || ''} ${r.child?.last_name || ''}`.trim()
+        )
+        .filter((n) => !!n)
     );
 
     const newStudents = uniqueStudents.size;
 
-    let minutes = 0;
-    for (const l of rows) {
-      if (l.start_time && l.end_time) {
-        const s = new Date(`1970-01-01T${l.start_time}`);
-        const e = new Date(`1970-01-01T${l.end_time}`);
-        minutes += (e.getTime() - s.getTime()) / 60000;
-      }
-    }
-
-    const avgIncome = Math.round(((minutes / 60) * 120) / total);
+    const avgIncome =
+      total > 0 ? Math.round(incomeSum / total) : 0;
 
     this.insights.set({
       totalLessons: total,
@@ -279,11 +364,31 @@ export class MonthlySummaryComponent implements OnInit {
   // ===============================
   //        FILTER EVENTS
   // ===============================
-  onMonthChange() { this.load(); }
-  onYearChange() { this.load(); }
-  onTypeChange(v: any) { this.typeFilter.set(v); }
-  onStatusChange(v: any) { this.statusFilter.set(v); }
-  onSearchChange(e: any) { this.search.set(e.target.value); }
+  setMode(m: 'month' | 'year') {
+    if (this.mode() === m) return;
+    this.mode.set(m);
+    this.load();
+  }
+
+  onMonthChange() {
+    this.load();
+  }
+
+  onYearChange() {
+    this.load();
+  }
+
+  onTypeChange(v: any) {
+    this.typeFilter.set(v);
+  }
+
+  onStatusChange(v: any) {
+    this.statusFilter.set(v);
+  }
+
+  onSearchChange(e: any) {
+    this.search.set(e.target.value);
+  }
 
   clearSearch() {
     this.search.set('');
@@ -303,7 +408,9 @@ export class MonthlySummaryComponent implements OnInit {
 
       const exportRows = rows.map((r) => ({
         'תאריך שיעור': r.occur_date ?? '',
-        'תלמיד/ה':  `${r.child?.first_name || ''} ${r.child?.last_name || ''}`.trim(),
+        'תלמיד/ה': `${r.child?.first_name || ''} ${
+          r.child?.last_name || ''
+        }`.trim(),
         'סוג שיעור': r.lesson_type ?? '',
         'סטטוס': r.status ?? '',
         'שעת התחלה': r.start_time ?? '',
@@ -312,17 +419,18 @@ export class MonthlySummaryComponent implements OnInit {
 
       const ws = XLSX.utils.json_to_sheet(exportRows);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Monthly');
-      XLSX.writeFile(wb, `monthly_${this.year}_${this.month}.xlsx`);
+      const sheetName = this.mode() === 'month' ? 'Monthly' : 'Yearly';
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+      const fileName =
+        this.mode() === 'month'
+          ? `monthly_${this.year}_${this.month}.xlsx`
+          : `yearly_${this.year}.xlsx`;
+
+      XLSX.writeFile(wb, fileName);
     } catch (e) {
       console.error(e);
       alert('יש להתקין: npm i xlsx');
     }
   }
-
-  // ===============================
-  //        PDF EXPORT
-  // ===============================
- 
-
 }

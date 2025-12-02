@@ -1,202 +1,612 @@
-host {
+:host {
   display: block;
-}
-
-/* עמוד כללי */
-.availability-page {
   direction: rtl;
-  text-align: right;
-  padding: 24px;
-  background: #fffdf7;
-  font-family: "Heebo", sans-serif;
+  font-family: inherit;
 }
-
-/* טוסט */
+ 
+.availability-page {
+  background: var(--bg, #f6f7f2);
+  min-height: 100vh;
+  padding: 24px 32px 40px;
+  box-sizing: border-box;
+}
+ 
+/* ============= טוסט ============= */
+ 
 .toast {
   position: fixed;
-  top: 16px;
+  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  background: #f0f7e2;
-  color: #3c4a1e;
-  border: 1px solid #d4e3b8;
-  padding: 8px 16px;
-  border-radius: 50px;
+  background: #2f3b22;
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 999px;
   font-size: 14px;
-  z-index: 1000;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  z-index: 80;
 }
-
-/* כותרות */
-.page-title {
-  font-size: 26px;
-  font-weight: 700;
-  color: #222;
-  margin-bottom: 4px;
-}
-
-.page-subtitle {
-  color: #777;
-  margin-bottom: 20px;
-}
-
-/* כרטיסים */
-.cards-layout {
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-}
-
-.card {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 22px 24px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-}
-
-/* זמינות */
-.days-list {
-  margin-top: 8px;
-}
-
-.day-block {
-  padding: 12px 0;
-  border-bottom: 1px solid #f0f0e0;
-}
-
-.day-header {
+ 
+/* ============= פופאפ אישור ============= */
+ 
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 22, 5, 0.35);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  z-index: 90;
 }
-
+ 
+.confirm-dialog {
+  position: relative;
+  width: min(580px, 100% - 32px);
+  background: var(--panel, #fff);
+  border-radius: 20px;
+  padding: 24px 24px 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
+}
+ 
+.icon-btn.close {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+}
+ 
+.dialog-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+ 
+.icon-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+ 
+.icon-circle.warning {
+  background: #fff4e5;
+}
+ 
+.icon-circle img {
+  width: 22px;
+  height: 22px;
+}
+ 
+.dialog-titles h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+}
+ 
+.dialog-titles p {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+}
+ 
+.dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+ 
+.impact-box {
+  background: #fff8d8;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+ 
+.parent-list {
+  max-height: 180px;
+  overflow-y: auto;
+  border-radius: 12px;
+  border: 1px solid var(--line, #e1e6d5);
+  background: #fafbf6;
+}
+ 
+.parent-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #eef0e5;
+ 
+  &:last-child {
+    border-bottom: none;
+  }
+}
+ 
+.index-pill {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #e2ead5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #31401b;
+}
+ 
+.parent-text {
+  display: flex;
+  flex-direction: column;
+}
+ 
+.parent-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+ 
+.parent-sub {
+  font-size: 13px;
+  color: #777;
+}
+ 
+.note-box {
+  background: #f3f5eb;
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: #555;
+}
+ 
+.note-icon {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+ 
+.dialog-actions {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+}
+ 
+/* ============= כפתורים כלליים ============= */
+ 
+.btn {
+  border-radius: 999px;
+  padding: 8px 18px;
+  border: 1px solid transparent;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+ 
+.btn.full {
+  width: 100%;
+  justify-content: center;
+}
+ 
+.btn-icon {
+  width: 16px;
+  height: 16px;
+}
+ 
+.btn.primary {
+  background: var(--primary, #4b6b2f);
+  border-color: var(--primary, #4b6b2f);
+  color: #fff;
+}
+ 
+.btn.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+ 
+.btn.secondary {
+  background: #fff;
+  border-color: var(--line, #d9e0c8);
+  color: #334018;
+}
+ 
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: #555;
+}
+ 
+.icon-btn {
+  border: none;
+  background: #f3f5eb;
+  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+ 
+.icon-btn.danger {
+  background: #fff1f0;
+  color: #b3261e;
+}
+ 
+/* ============= כותרת עמוד ============= */
+ 
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 12px;
+}
+ 
+.page-header h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+}
+ 
+.page-header p {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+}
+ 
+/* ============= לייאאוט כרטיסים ============= */
+ 
+.cards-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+ 
+.card {
+  background: var(--panel, #fff);
+  border-radius: 18px;
+  border: 1px solid var(--line, #e1e6d5);
+  padding: 16px 18px 18px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+}
+ 
+.card-header h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+}
+ 
+.card-header p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #777;
+}
+ 
+.card-footer {
+  margin-top: 12px;
+}
+ 
+/* ============= זמינות שבועית ============= */
+ 
+.days-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+ 
+.day-card {
+  border-radius: 14px;
+  border: 1px solid #edf1dd;
+  background: #fafbf7;
+  padding: 10px 12px;
+}
+ 
+.day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+ 
 .day-main {
   display: flex;
   align-items: center;
   gap: 10px;
 }
-
+ 
 .day-name {
-  font-size: 17px;
   font-weight: 600;
-  color: #333;
 }
-
-.badge {
-  background: #f5f6e3;
-  color: #636b2a;
-  padding: 3px 10px;
-  border-radius: 50px;
+ 
+.day-badge {
   font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e6efe0;
+  color: #31401b;
 }
-
-/* טווחי זמן */
-.slots-wrapper {
-  margin-top: 10px;
-  padding: 12px;
-  background: #fafaf3;
-  border-radius: 12px;
-}
-
-.slot-row,
-.break-row {
-  display: flex;
-  flex-direction: row-reverse;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 14px;
-}
-
-.delete-btn {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: #c0392b;
-}
-
-/* קופסה שמכילה את כל השדות */
-.slot-box,
-.break-box {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 14px;
-  background: white;
-  border-radius: 10px;
-  border: 1px solid #e2e2d5;
-  padding: 10px 14px;
-  flex: 1;
-}
-
-.slot-field {
+ 
+.day-body {
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
-  min-width: 130px;
+  gap: 8px;
 }
-
-.slot-field label {
-  font-size: 11px;
-  color: #777;
-  margin-bottom: 3px;
+ 
+.slot-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
 }
-
+ 
+.slot-box {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+ 
+.slot-field {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+ 
+/* בדסקטופ – שלושת השדות בשורה אחת */
+@media (min-width: 900px) {
+  .slot-box {
+    flex-wrap: nowrap;
+  }
+}
+ 
+/* הפסקות – שני שדות בשורה */
+.break-row .slot-box {
+  flex-wrap: wrap;
+}
+ 
+@media (min-width: 900px) {
+  .break-row .slot-box {
+    flex-wrap: nowrap;
+  }
+}
+ 
+ 
+.lesson-type {
+  min-width: 0;
+}
+ 
 .time-input {
   display: flex;
   align-items: center;
-  background: #f5f5f0;
-  border-radius: 8px;
-  padding: 4px 8px;
+  gap: 4px;
+  border-radius: 999px;
+  border: 1px solid #dfe5d2;
+  background: #fff;
+  padding: 2px 10px;
 }
-
-.time-input input[type="time"] {
+ 
+.time-input input {
   border: none;
   background: transparent;
-  font-size: 14px;
-  width: 90px;
+  font-size: 13px;
+  width: 100%;
   outline: none;
 }
-
+ 
 .clock-icon {
   font-size: 18px;
-  margin-left: 4px;
-  color: #888;
+  opacity: 0.7;
 }
-
+ 
 .dash {
-  font-size: 20px;
-  color: #777;
+  align-self: center;
+  font-size: 18px;
+  color: #999;
 }
-
-.add-slot-btn {
-  margin-top: 8px;
-  background: transparent;
+ 
+.select {
+  width: 100%;
+  border-radius: 999px;
+  border: 1px solid #dfe5d2;
+  background: #fff;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+ 
+.section-separator {
   border: none;
-  color: #6f7c31;
+  border-top: 1px dashed #dde3d0;
+  margin: 4px 0 2px;
+}
+ 
+.break-row .slot-box {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+ 
+/* כפתורי הוספה */
+ 
+.link-btn {
+  border: none;
+  background: transparent;
+  color: var(--primary, #4b6b2f);
   font-size: 13px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   cursor: pointer;
+  padding: 2px 0;
 }
-
-/* ⭐ select */
-.lesson-type-select {
-  min-width: 150px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  background: #ffffff !important;
-  color: #333 !important;
+ 
+.link-btn mat-icon {
+  font-size: 18px;
+}
+ 
+/* ============= התראות ============= */
+ 
+.notif-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+ 
+.notif-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eef1e2;
+ 
+  &:last-child {
+    border-bottom: none;
+  }
+}
+ 
+.notif-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+ 
+.notif-title {
   font-size: 14px;
-  display: block !important;
-  height: 40px !important;
+  font-weight: 500;
 }
-
+ 
+.notif-desc {
+  font-size: 12px;
+  color: #777;
+}
+ 
+/* סוויץ' מותאם */
+ 
+.custom-toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  display: inline-block;
+}
+ 
+.custom-toggle input {
+  display: none;
+}
+ 
+.custom-toggle .slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #d7ddcc;
+  transition: 0.2s;
+}
+ 
+.custom-toggle .slider::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  top: 3px;
+  right: 3px;
+  transition: 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+ 
+.custom-toggle input:checked + .slider {
+  background: var(--primary, #4b6b2f);
+}
+ 
+.custom-toggle input:checked + .slider::before {
+  transform: translateX(-18px);
+}
+ 
+/* ============= רספונסיביות ============= */
+ 
+.mobile-only {
+  display: none;
+}
+ 
+@media (max-width: 1024px) {
+  .cards-layout {
+    grid-template-columns: 1fr;
+  }
+ 
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+ 
+  .page-header .btn.primary {
+    display: none;
+  }
+ 
+  .mobile-only {
+    display: block;
+  }
+ 
+  .slot-box {
+    grid-template-columns: 1fr;
+  }
+ 
+  .break-row .slot-box {
+    grid-template-columns: 1fr;
+  }
+}
+ 
+@media (max-width: 768px) {
+  .availability-page {
+    padding: 16px 12px 24px;
+  }
+ 
+  .cards-layout {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+ 
+  .card {
+    padding: 12px 12px 14px;
+  }
+ 
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+ 
+  .page-header .btn.primary {
+    width: 100%;
+    justify-content: center;
+  }
+ 
+  .slot-row {
+    align-items: stretch;
+  }
+ 
+  .slot-box {
+    flex-direction: column;
+  }
+ 
+  .break-row .slot-box {
+    flex-direction: column;
+  }
+ 
+  .mobile-only {
+    display: block;
+  }
+}
+ 
+ 
 /* ============================= */
 /* ⭐⭐⭐ פופאפ אישור שינויים ⭐⭐⭐ */
 /* ============================= */
@@ -575,3 +985,4 @@ host {
   background-repeat: no-repeat;
   display: inline-block;
 }
+
