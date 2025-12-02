@@ -6,56 +6,55 @@
   </div>
 
   <!-- פופאפ אישור שינויים -->
-  <div class="overlay" *ngIf="confirmData">
+  <div class="overlay" *ngIf="confirmData as cd">
     <div class="confirm-dialog">
 
+      <!-- כפתור סגירה -->
       <button class="icon-btn close" (click)="cancelUpdate()">×</button>
 
-      <div class="header-row">
-        <span class="warn-icon"></span>
-        <div>
-          <h2 class="title">אישור שינויים בזמינות</h2>
-          <p class="subtitle">ייתכן ששיעורים קיימים ייפגעו</p>
+      <!-- כותרת -->
+      <div class="dialog-header">
+        <div class="icon-circle warning">
+          <img src="assets/icons/warning.svg" alt="" />
+        </div>
+
+        <div class="dialog-titles">
+          <h2>אישור שינויים בזמינות</h2>
+          <p>השינויים משפיעים על שיעורים מתוכננים</p>
         </div>
       </div>
 
-      <div class="yellow-box">
-        נמצאו <strong>{{ confirmData.parents.length || 0 }}</strong>
-        הורים שהשינוי ישפיע עליהם.
+      <!-- תיבת אזהרה (כמה הורים) -->
+      <div class="impact-box">
+        השינויים ישפיעו על
+        <strong>{{ cd.parentsCount }}</strong>
+        הורים.
       </div>
 
-      <div class="parent-list">
-        <div class="parent-card"
-             *ngFor="let p of (confirmData?.parents || []); let i = index">
-          <div class="index">{{ i + 1 }}</div>
-          <div>
+      <!-- רשימת הורים -->
+      <div class="parent-list" *ngIf="cd.parents.length">
+        <div
+          class="parent-row"
+          *ngFor="let p of cd.parents; let i = index"
+        >
+          <div class="index-pill">{{ i + 1 }}</div>
+
+          <div class="parent-text">
             <div class="parent-name">{{ p.name }}</div>
-            <div class="parent-sub">הורה של: {{ p.child }}</div>
+            <div class="parent-sub">הורה של {{ p.child }}</div>
           </div>
         </div>
       </div>
-        <div class="parent-list" *ngIf="confirmData?.parents?.length">
-          <div class="parent-row" *ngFor="let p of confirmData?.parents; let i = index">
-            <div class="index-pill">{{ i + 1 }}</div>
-            <div class="parent-text">
-              <div class="parent-name">{{ p.name }}</div>
-              <div class="parent-sub">הורה של {{ p.child }}</div>
-            </div>
-          </div>
-        </div>
 
+      <!-- הערה למטה -->
       <div class="note-box">
-        <span class="note-icon"></span>
-        המזכירה תקבל התראה ותתאם מול ההורים תאריכים חלופיים.
-        <div class="note-box">
-          <img src="assets/icons/lightbulb.svg" alt="" class="note-icon" />
-          <span>
-            המזכירה תקבל התראה ותתאם מול ההורים תאריכים חלופיים לפני שינוי בפועל של שיעורים.
-          </span>
-        </div>
-
+        <img src="assets/icons/lightbulb.svg" alt="" class="note-icon" />
+        <span>
+          המזכירה תקבל התראה ותתאם מול ההורים תאריכים חלופיים לפני שינוי בפועל של שיעורים.
+        </span>
       </div>
 
+      <!-- כפתורי פעולה -->
       <div class="dialog-actions">
         <button class="btn ghost" (click)="cancelUpdate()">ביטול</button>
         <button class="btn primary" (click)="approveUpdate()">
@@ -125,7 +124,11 @@
                   <label>שעת התחלה</label>
                   <div class="time-input">
                     <mat-icon class="clock-icon">schedule</mat-icon>
-                    <input type="time" [(ngModel)]="slot.start" (change)="onSlotChange(day, slot)" />
+                    <input
+                      type="time"
+                      [(ngModel)]="slot.start"
+                      (change)="onSlotChange(day, slot)"
+                    />
                   </div>
                 </div>
 
@@ -133,14 +136,25 @@
                   <label>שעת סיום</label>
                   <div class="time-input">
                     <mat-icon class="clock-icon">schedule</mat-icon>
-                    <input type="time" [(ngModel)]="slot.end" (change)="onSlotChange(day, slot)" />
+                    <input
+                      type="time"
+                      [(ngModel)]="slot.end"
+                      (change)="onSlotChange(day, slot)"
+                    />
                   </div>
                 </div>
 
                 <div class="slot-field lesson-type">
                   <label>סוג שיעור</label>
-                  <select class="select" [(ngModel)]="slot.lessonType" (change)="onSlotChange(day, slot)">
-                    <option *ngFor="let opt of lessonTypeOptions" [value]="opt.value">
+                  <select
+                    class="select"
+                    [(ngModel)]="slot.lessonType"
+                    (change)="onSlotChange(day, slot)"
+                  >
+                    <option
+                      *ngFor="let opt of lessonTypeOptions"
+                      [value]="opt.value"
+                    >
                       {{ opt.label }}
                     </option>
                   </select>
@@ -169,7 +183,11 @@
                   <label>הפסקה מתחילה</label>
                   <div class="time-input">
                     <mat-icon class="clock-icon">schedule</mat-icon>
-                    <input type="time" [(ngModel)]="br.start" (change)="onBreakChange(day, br)" />
+                    <input
+                      type="time"
+                      [(ngModel)]="br.start"
+                      (change)="onBreakChange(day, br)"
+                    />
                   </div>
                 </div>
 
@@ -179,7 +197,11 @@
                   <label>הפסקה מסתיימת</label>
                   <div class="time-input">
                     <mat-icon class="clock-icon">schedule</mat-icon>
-                    <input type="time" [(ngModel)]="br.end" (change)="onBreakChange(day, br)" />
+                    <input
+                      type="time"
+                      [(ngModel)]="br.end"
+                      (change)="onBreakChange(day, br)"
+                    />
                   </div>
                 </div>
 
