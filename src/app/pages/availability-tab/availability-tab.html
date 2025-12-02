@@ -12,39 +12,38 @@
       <button class="close-btn" (click)="cancelUpdate()">×</button>
 
       <div class="header-row">
-        <img src="assets/icons/warning.svg" class="warn-icon" />
+        <span class="warn-icon"></span>
         <div>
           <h2 class="title">אישור שינויים בזמינות</h2>
           <p class="subtitle">ייתכן ששיעורים קיימים ייפגעו</p>
         </div>
       </div>
 
-    <div class="yellow-box">
-  נמצאו <strong>{{ confirmData?.parents?.length || 0 }}</strong>
-  הורים שהשינוי ישפיע עליהם.
-</div>
+      <div class="yellow-box">
+        נמצאו <strong>{{ confirmData?.parents?.length || 0 }}</strong>
+        הורים שהשינוי ישפיע עליהם.
+      </div>
 
-<div class="parent-list">
-  <div class="parent-card" 
-       *ngFor="let p of (confirmData?.parents || []); let i = index">
-    <div class="index">{{ i + 1 }}</div>
-    <div>
-      <div class="parent-name">{{ p.name }}</div>
-      <div class="parent-sub">הורה של: {{ p.child }}</div>
-    </div>
-  </div>
-</div>
-
+      <div class="parent-list">
+        <div class="parent-card"
+             *ngFor="let p of (confirmData?.parents || []); let i = index">
+          <div class="index">{{ i + 1 }}</div>
+          <div>
+            <div class="parent-name">{{ p.name }}</div>
+            <div class="parent-sub">הורה של: {{ p.child }}</div>
+          </div>
+        </div>
+      </div>
 
       <div class="note-box">
-        <img src="assets/icons/lightbulb.svg" class="note-icon" />
+        <span class="note-icon"></span>
         המזכירה תקבל התראה ותתאם מול ההורים תאריכים חלופיים.
       </div>
 
       <div class="actions">
         <button class="cancel" (click)="cancelUpdate()">ביטול</button>
         <button class="approve" (click)="approveUpdate()">
-          <img src="assets/icons/save.svg" class="approve-icon" />
+          <span class="approve-icon"></span>
           אישור ושמירה
         </button>
       </div>
@@ -75,7 +74,6 @@
 
         <div class="day-block" *ngFor="let day of days">
 
-          <!-- כותרת יום -->
           <div class="day-header">
 
             <div class="day-main">
@@ -92,10 +90,8 @@
             </span>
           </div>
 
-          <!-- טווחי זמן + הפסקות -->
           <div class="slots-wrapper" *ngIf="day.active">
 
-            <!-- טווחי השיעור -->
             <div class="slot-row" *ngFor="let slot of day.slots; let i = index">
 
               <button class="delete-btn" (click)="removeSlot(day, i)">
@@ -130,7 +126,6 @@
                   </div>
                 </div>
 
-                <!-- ⭐ סוג שיעור -->
                 <div class="slot-field lesson-type">
                   <label>סוג שיעור</label>
                   <select
@@ -147,7 +142,6 @@
               </div>
             </div>
 
-            <!-- כפתור הוספת טווח זמן -->
             <button class="add-slot-btn" (click)="addSlot(day)">
               <mat-icon>add</mat-icon>
               הוסף טווח זמן
@@ -155,7 +149,6 @@
 
             <hr />
 
-            <!-- ⭐ הפסקות -->
             <div class="break-row" *ngFor="let br of day.breaks; let j = index">
 
               <button class="delete-btn" (click)="removeBreak(day, j)">
@@ -194,7 +187,6 @@
 
             </div>
 
-            <!-- כפתור הוספת הפסקה -->
             <button class="add-slot-btn" (click)="addBreak(day)">
               <mat-icon>add</mat-icon>
               הוסף הפסקה

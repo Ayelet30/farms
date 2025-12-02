@@ -1,4 +1,3 @@
-// availability-tab.ts
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -52,12 +51,9 @@ interface NotificationPrefs {
   ],
 })
 export class AvailabilityTabComponent implements OnInit {
-  constructor(
-    private cdr: ChangeDetectorRef,
-    private farmSettings: FarmSettingsService
-  ) {}
 
   public userId: string | null = null;
+  public instructorIdNumber: string | null = null;   // ⭐ נוספו
   public isDirty = false;
 
   public days: DayAvailability[] = [];
@@ -67,18 +63,16 @@ export class AvailabilityTabComponent implements OnInit {
     monthlyReport: false,
   };
 
-  // הגדרות חווה (ברירת מחדל, נטענות מה-DB)
-  public farmStart: string = '08:00';
-  public farmEnd: string = '17:00';
+  public farmStart = '08:00';
+  public farmEnd = '17:00';
   public lessonDuration = 60;
 
-  // סוגי שיעור
-  public lessonTypeOptions: { value: LessonType; label: string }[] = [
+  public lessonTypeOptions = [
     { value: 'regular', label: 'רגיל' },
     { value: 'double', label: 'כפול' },
     { value: 'single', label: 'יחידני' },
     { value: 'group', label: 'קבוצתי' },
-    { value: 'both', label: 'גם וגם' },
+    { value: 'both', label: 'גם וגם' }
   ];
 
   public toastMessage = '';
@@ -90,123 +84,95 @@ export class AvailabilityTabComponent implements OnInit {
 
   private pendingPayload: DayAvailability[] | null = null;
 
-  /* ================= lifecycle ================= */
+  constructor(
+    private cdr: ChangeDetectorRef,
+    private farmSettings: FarmSettingsService
+  ) {}
 
-  public async ngOnInit(): Promise<void> {
+  async ngOnInit() {
     await this.loadUserId();
     await this.loadFarmSettings();
     this.loadDefaults();
     await this.loadFromSupabase();
   }
 
-  private async loadUserId(): Promise<void> {
+  private async loadUserId() {
     const auth = getAuth();
-    const user = auth.currentUser;
-    if (user) {
-      this.userId = user.uid;
-    }
+    this.userId = auth.currentUser?.uid || null;
   }
 
-  private async loadFarmSettings(): Promise<void> {
+  private async loadFarmSettings() {
     try {
       const settings = await this.farmSettings.loadSettings();
       if (!settings) return;
 
-      if (settings.operating_hours_start) {
+      if (settings.operating_hours_start)
         this.farmStart = settings.operating_hours_start.slice(0, 5);
-      }
-      if (settings.operating_hours_end) {
+
+      if (settings.operating_hours_end)
         this.farmEnd = settings.operating_hours_end.slice(0, 5);
-      }
-      if (settings.lesson_duration_minutes) {
+
+      if (settings.lesson_duration_minutes)
         this.lessonDuration = settings.lesson_duration_minutes;
-      }
+
     } catch (e) {
-      console.error('Farm settings load error', e);
+      console.error(e);
     }
   }
 
   private defaultDay(key: string, label: string): DayAvailability {
-    return {
-      key,
-      label,
-      active: false,
-      slots: [],
-      breaks: [],
-    };
+    return { key, label, active: false, slots: [], breaks: [] };
   }
 
-  private loadDefaults(): void {
+  private loadDefaults() {
     this.days = [
       this.defaultDay('sun', 'ראשון'),
       this.defaultDay('mon', 'שני'),
       this.defaultDay('tue', 'שלישי'),
       this.defaultDay('wed', 'רביעי'),
-      this.defaultDay('thu', 'חמישי'),
+      this.defaultDay('thu', 'חמישי')
     ];
   }
 
-  private async loadFromSupabase(): Promise<void> {
+  private async loadFromSupabase() {
     if (!this.userId) return;
 
     const dbc = dbTenant();
 
-    const { data, error } = await dbc
+    const { data } = await dbc
       .from('instructors')
-      .select('availability, notify')
+      .select('availability, notify, id_number')  // ⭐ נוספה שליפה של id_number
       .eq('uid', this.userId)
       .maybeSingle();
 
-    if (error) {
-      console.warn('LOAD ERROR:', error);
-      return;
+    // ⭐ שומר את מספר המדריך האמיתי (המתאים לטבלת השיעורים)
+    if (data?.id_number) {
+      this.instructorIdNumber = data.id_number;
     }
 
-    // זמינות קיימת
     if (data?.availability) {
       try {
-        const raw = JSON.parse(data.availability) as any[];
-
-        this.days = raw.map((d: any) => ({
-          key: d.key,
-          label: d.label,
-          active: !!d.active,
-          slots: (d.slots || []).map((s: any) => ({
-            start: s.start || this.farmStart,
-            end: s.end || this.farmEnd,
-            lessonType: (s.lessonType as LessonType) || 'regular',
-          })),
-          breaks: (d.breaks || []).map((b: any) => ({
-            start: b.start || '',
-            end: b.end || '',
-          })),
-        }));
-      } catch (e) {
-        console.error('parse availability error', e);
-      }
+        const raw = JSON.parse(data.availability);
+        this.days = raw;
+      } catch {}
     }
 
     if (data?.notify) {
       try {
-        this.notif =
-          typeof data.notify === 'string'
-            ? JSON.parse(data.notify)
-            : data.notify;
-      } catch {
-        // מתעלמים משגיאת parse
-      }
+        this.notif = typeof data.notify === 'string'
+          ? JSON.parse(data.notify)
+          : data.notify;
+      } catch {}
     }
 
     this.cdr.detectChanges();
   }
 
-  /* ================= UI helpers ================= */
-
-  public markDirty(): void {
+  markDirty() {
     this.isDirty = true;
   }
 
-  public toggleDay(day: DayAvailability): void {
+  toggleDay(day: DayAvailability) {
     if (day.active && day.slots.length === 0) {
       day.slots.push({
         start: this.farmStart,
@@ -214,14 +180,16 @@ export class AvailabilityTabComponent implements OnInit {
         lessonType: 'regular',
       });
     }
+
     if (!day.active) {
       day.slots = [];
       day.breaks = [];
     }
+
     this.markDirty();
   }
 
-  public addSlot(day: DayAvailability): void {
+  addSlot(day: DayAvailability) {
     day.slots.push({
       start: this.farmStart,
       end: this.farmEnd,
@@ -231,94 +199,78 @@ export class AvailabilityTabComponent implements OnInit {
     this.markDirty();
   }
 
-  public removeSlot(day: DayAvailability, index: number): void {
-    day.slots.splice(index, 1);
+  removeSlot(day: DayAvailability, i: number) {
+    day.slots.splice(i, 1);
     this.markDirty();
   }
 
-  public addBreak(day: DayAvailability): void {
+  addBreak(day: DayAvailability) {
     day.breaks.push({ start: this.farmStart, end: this.farmStart });
     this.markDirty();
   }
 
-  public removeBreak(day: DayAvailability, index: number): void {
-    day.breaks.splice(index, 1);
+  removeBreak(day: DayAvailability, i: number) {
+    day.breaks.splice(i, 1);
     this.markDirty();
   }
 
-  /* ================= time helpers ================= */
-
-  private timeToMinutes(time: string): number {
-    if (!time) return 0;
-    const [h, m] = time.split(':').map((x) => Number(x) || 0);
+  private timeToMinutes(t: string) {
+    const [h, m] = t.split(':').map(Number);
     return h * 60 + m;
   }
 
-  private minutesToTime(mins: number): string {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-  }
-
-  private validateInsideFarmHours(start: string, end: string): boolean {
+  private validateInsideFarmHours(start: string, end: string) {
     const s = this.timeToMinutes(start);
     const e = this.timeToMinutes(end);
     const fs = this.timeToMinutes(this.farmStart);
     const fe = this.timeToMinutes(this.farmEnd);
-    return s >= fs && e <= fe && s < e;
+    return s >= fs && e <= fe && e > s;
   }
 
-  private validateLessonDuration(slot: TimeSlot): boolean {
+  private validateLessonDuration(slot: TimeSlot) {
     const start = this.timeToMinutes(slot.start);
     const end = this.timeToMinutes(slot.end);
     const dur = end - start;
 
     if (dur <= 0) return false;
-
-    if (slot.lessonType === 'double') {
+    if (slot.lessonType === 'double')
       return dur === this.lessonDuration * 2;
-    }
 
-    // כל שאר הסוגים לפחות שיעור אחד
     return dur >= this.lessonDuration;
   }
 
-  private validateNoSlotOverlap(day: DayAvailability): boolean {
+  private validateNoSlotOverlap(day: DayAvailability) {
     const sorted = [...day.slots].sort(
-      (a, b) => this.timeToMinutes(a.start) - this.timeToMinutes(b.start),
+      (a, b) => this.timeToMinutes(a.start) - this.timeToMinutes(b.start)
     );
 
     for (let i = 0; i < sorted.length - 1; i++) {
-      const curEnd = this.timeToMinutes(sorted[i].end);
-      const nextStart = this.timeToMinutes(sorted[i + 1].start);
-      if (nextStart < curEnd) {
+      if (this.timeToMinutes(sorted[i + 1].start) <
+          this.timeToMinutes(sorted[i].end)) {
         return false;
       }
     }
     return true;
   }
 
-  private mergeSlots(day: DayAvailability): void {
-    if (!day.slots || day.slots.length <= 1) return;
+  private mergeSlots(day: DayAvailability) {
+    if (day.slots.length <= 1) return;
 
-    const slots = [...day.slots].sort(
-      (a, b) => this.timeToMinutes(a.start) - this.timeToMinutes(b.start),
+    const sorted = [...day.slots].sort(
+      (a, b) => this.timeToMinutes(a.start) - this.timeToMinutes(b.start)
     );
 
     const merged: TimeSlot[] = [];
-    let current: TimeSlot = { ...slots[0] };
+    let current = { ...sorted[0] };
 
-    for (let i = 1; i < slots.length; i++) {
-      const next = slots[i];
-
-      // מאחדים רק אם אותו סוג והם חופפים או נצמדים
+    for (let i = 1; i < sorted.length; i++) {
+      const next = sorted[i];
       if (
         current.lessonType === next.lessonType &&
         this.timeToMinutes(next.start) <= this.timeToMinutes(current.end)
       ) {
-        if (this.timeToMinutes(next.end) > this.timeToMinutes(current.end)) {
+        if (this.timeToMinutes(next.end) > this.timeToMinutes(current.end))
           current.end = next.end;
-        }
       } else {
         merged.push(current);
         current = { ...next };
@@ -329,176 +281,71 @@ export class AvailabilityTabComponent implements OnInit {
     day.slots = merged;
   }
 
-  private validateBreakRange(day: DayAvailability, br: BreakRange): boolean {
-    if (!this.validateInsideFarmHours(br.start, br.end)) {
-      this.showToast(
-        `⛔ הפסקה חייבת להיות בין ${this.farmStart} ל־${this.farmEnd}`,
-      );
-      return false;
-    }
-
-    const bStart = this.timeToMinutes(br.start);
-    const bEnd = this.timeToMinutes(br.end);
-    const dur = bEnd - bStart;
-
-    if (dur <= 0) {
-      this.showToast('⛔ שעת התחלה חייבת להיות לפני שעת סיום בהפסקה');
-      return false;
-    }
-
-    // לא יותר מ־2 שיעורים
-    if (dur > this.lessonDuration * 2) {
-      this.showToast('⛔ הפסקה לא יכולה להיות ארוכה ממשך 2 שיעורים');
-      return false;
-    }
-
-    // לא חופף לשיעור
-    for (const s of day.slots) {
-      const sStart = this.timeToMinutes(s.start);
-      const sEnd = this.timeToMinutes(s.end);
-      if (bStart < sEnd && sStart < bEnd) {
-        this.showToast('⛔ אי אפשר לשים הפסקה על גבי שיעור קיים');
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  private validateDaySlots(day: DayAvailability): boolean {
-    for (const slot of day.slots) {
-      if (!this.validateInsideFarmHours(slot.start, slot.end)) {
-        this.showToast(
-          `⛔ השיעורים ביום ${day.label} חייבים להיות בין ${this.farmStart} ל־${this.farmEnd}`,
-        );
-        return false;
-      }
-
-      if (!this.validateLessonDuration(slot)) {
-        this.showToast(
-          `⛔ משך השיעור ביום ${day.label} לא תואם את סוג השיעור / אורך השיעור`,
-        );
-        return false;
-      }
-    }
-
-    if (!this.validateNoSlotOverlap(day)) {
-      this.showToast(
-        `⛔ אי אפשר לקבוע שני שיעורים חופפים באותו יום (${day.label})`,
-      );
-      return false;
-    }
-
-    return true;
-  }
-
-  private validateDayBreaks(day: DayAvailability): boolean {
-    for (const br of day.breaks) {
-      if (!this.validateBreakRange(day, br)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  private validateAllDays(): boolean {
-    for (const day of this.days) {
-      if (!day.active) continue;
-      if (!this.validateDaySlots(day)) return false;
-      if (!this.validateDayBreaks(day)) return false;
-    }
-    return true;
-  }
-
-  /* =============== EVENTS =============== */
-
-  public onSlotChange(day: DayAvailability, slot: TimeSlot): void {
+  public onSlotChange(day: DayAvailability, slot: TimeSlot) {
     if (!this.validateInsideFarmHours(slot.start, slot.end)) {
-      this.showToast(
-        `⛔ השיעור חייב להיות בין ${this.farmStart} ל־${this.farmEnd}`,
-      );
+      this.showToast(`⛔ השיעור חייב להיות בין ${this.farmStart} ל-${this.farmEnd}`);
       slot.start = this.farmStart;
       slot.end = this.farmEnd;
     }
 
     if (!this.validateLessonDuration(slot)) {
-      this.showToast('⛔ משך השיעור לא תואם את סוג השיעור / אורך השיעור');
+      this.showToast('⛔ משך השיעור לא תואם את סוג השיעור');
     }
 
     this.mergeSlots(day);
     this.markDirty();
   }
 
-  public onBreakChange(day: DayAvailability, br: BreakRange): void {
-    this.validateBreakRange(day, br);
+  public onBreakChange(day: DayAvailability, br: BreakRange) {
     this.markDirty();
   }
 
-  /* =============== SAVE (RPC + UPDATE) =============== */
+  /* ================= SAVE ================= */
 
- public async saveAvailability() {
-  if (!this.userId) return;
+  public async saveAvailability() {
+    if (!this.userId || !this.instructorIdNumber) return;   // ⭐ חייב id_number
 
-  const payload = this.days;
-  this.pendingPayload = payload;
+    this.pendingPayload = this.days;
 
-  const dbc = dbTenant();
-
-  // ⬅️ מביאים את שם הסכמה של הטננט
-  const tenant = localStorage.getItem("selectedTenant");
-  let schema = "public";
-
-  try {
-    if (tenant) {
-      const t = JSON.parse(tenant);
-      if (t.schema) schema = t.schema;
+    const dbc = dbTenant();
+    // בדיקת התנגשויות
+    const { data, error } = await dbc.rpc('get_conflicting_parents', {
+      p_instructor_id: this.instructorIdNumber   // ⭐ השימוש הנכון
+    });
+    
+console.log("📌 DATA FROM RPC:", data);
+console.log("📌 ERROR:", error);
+    if (error) {
+      console.error(error);
+      this.showToast('❌ שגיאה בבדיקת שינויים');
+      return;
     }
-  } catch {}
 
-  console.log("📌 Calling RPC:", `${schema}.get_conflicting_parents`);
-
- const supa = dbTenant();
-
-// קריאה מאולצת לסכמה PUBLIC בלי קשר לטננט
-const { data, error } = await supa
-  .schema('public')
-  .rpc('get_conflicting_parents', {
-    p_instructor_uid: this.userId,
-    new_availability: payload
-  });
-
-  if (error) {
-    console.error("❌ RPC ERROR", error);
-    this.showToast("❌ שגיאה בבדיקת השינויים");
-    return;
-  }
-
-  if (data && data.length > 0) {
-    this.confirmData = {
-      parents: data.map((p: any) => ({
-        name: p.parent_name,
-        child: p.child_name,
-      })),
-    };
-    this.cdr.detectChanges();
-    return;
-  }
-
-  await this.applyUpdate();
+   if (data?.length > 0) {
+  this.confirmData = {
+    parents: data.map((row: any) => ({
+      name: row.parent_name ?? '—',
+      child: row.child_name ?? '—',
+    })),
+  };
+  return;
 }
 
 
-  public cancelUpdate(): void {
+    await this.applyUpdate();
+  }
+
+  public cancelUpdate() {
     this.confirmData = null;
     this.pendingPayload = null;
   }
 
-  public async approveUpdate(): Promise<void> {
+  public async approveUpdate() {
     this.confirmData = null;
     await this.applyUpdate();
   }
 
-  private async applyUpdate(): Promise<void> {
+  private async applyUpdate() {
     if (!this.userId || !this.pendingPayload) return;
 
     const dbc = dbTenant();
@@ -518,12 +365,10 @@ const { data, error } = await supa
 
     this.pendingPayload = null;
     this.isDirty = false;
-    this.showToast('✔ הזמינות נשמרה בהצלחה');
+    this.showToast('✔ נשמר בהצלחה');
   }
 
-  /* =============== NOTIFICATIONS =============== */
-
-  public async saveNotifications(): Promise<void> {
+  public async saveNotifications() {
     if (!this.userId) return;
 
     const dbc = dbTenant();
@@ -541,14 +386,11 @@ const { data, error } = await supa
       return;
     }
 
-    this.showToast('✔ העדפות ההתראות נשמרו');
+    this.showToast('✔ ההתראות נשמרו');
   }
 
-  /* =============== TOAST =============== */
-
-  public showToast(msg: string): void {
+  showToast(msg: string) {
     this.toastMessage = msg;
-
     clearTimeout(this.toastTimeout);
     this.toastTimeout = setTimeout(() => {
       this.toastMessage = '';
