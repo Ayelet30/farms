@@ -165,16 +165,36 @@ export class SupabaseTenantService {
     const url = (data?.logo_url || '').trim();
     return url || null;
   }
-  async getFarmLogoUrl(farmIdOrSchema: string): Promise<string | null> {
-    const { data, error } = await this.dbPublic()
-      .from('farms')
-      .select('logo_url')
-      .or(`id.eq.${farmIdOrSchema},schema_name.eq.${farmIdOrSchema}`)
-      .maybeSingle();
-    if (error) throw error;
-    const url = (data?.logo_url || '').trim();
-    return url || null;
-  }
+  // async getFarmLogoUrl(farmIdOrSchema: string): Promise<string | null> {
+  //   const { data, error } = await this.dbPublic()
+  //     .from('farms')
+  //     .select('logo_url')
+  //     .or(`id.eq.${farmIdOrSchema},schema_name.eq.${farmIdOrSchema}`)
+  //     .maybeSingle();
+  //   if (error) throw error;
+  //   const url = (data?.logo_url || '').trim();
+  //   return url || null;
+  // }
+async getFarmLogoUrl(farmIdOrSchema: string): Promise<string | null> {
+  const baseQuery = this.dbPublic()
+    .from('farms')
+    .select('logo_url');
+
+  // בדיקה פשוטה אם זה נראה כמו UUID
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    .test(farmIdOrSchema);
+
+  const query = isUuid
+    ? baseQuery.eq('id', farmIdOrSchema)
+    : baseQuery.eq('schema_name', farmIdOrSchema);
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) throw error;
+
+  const url = (data?.logo_url || '').trim();
+  return url || null;
+}
 
   // ---------- memberships ----------
   clearMembershipCache() { this.membershipsCache = []; }
