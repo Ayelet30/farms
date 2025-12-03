@@ -650,6 +650,12 @@ this.instructors = filtered.map(ins => ({
         'get_child_makeup_candidates',
         { _child_id: this.selectedChildId }
       );
+console.log('🔍 get_child_makeup_candidates RPC:', {
+      child: this.selectedChildId,
+      error,
+      rows: data?.length,
+      sample: data?.[0]
+    });
 
       if (error) {
         console.error('get_child_makeup_candidates error', error);
@@ -718,7 +724,6 @@ async searchRecurringSlots(): Promise<void> {
     p_to_date: toDate,
   };
 
-console.log('🟣 calling find_series_starts with payload:', payload);
 console.log('🟣 payload types:', {
   p_child_id: payload.p_child_id,
   p_lesson_count: payload.p_lesson_count,
@@ -730,14 +735,10 @@ console.log('🟣 payload types:', {
 
   this.loadingSeries = true;
   try {
-    console.log("1111111111111"); 
     const { data, error } = await dbTenant().rpc('find_series_starts', payload);
-    console.log("2222222222"); 
 
-    console.log('🟣 find_series_starts result', { error, rows: data?.length });
 
     if (error) {
-      console.error('❌ find_series_starts error FULL:', error);
       this.seriesError = 'שגיאה בחיפוש סדרות זמינות';
       return;
     }

@@ -618,3 +618,45 @@ host {
     display: block;
   }
 }
+/* ============================= */
+/* ⭐ אייקונים במקום SVG         */
+/* ============================= */
+
+.icon-circle img {
+  display: none; /* מסתיר את ה-SVG שלא עובד בנטפרי */
+}
+
+.icon-circle::before {
+  font-family: 'Material Icons';
+  content: "warning"; /* אייקון אזהרה */
+  font-size: 22px;
+  color: #D67900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* תיבת הערה – מחליפה את lightbulb.svg */
+.note-icon {
+  display: none;
+}
+
+.note-box::before {
+  font-family: 'Material Icons';
+  content: "lightbulb";
+  font-size: 20px;
+  margin-top: 1px;
+  opacity: 0.8;
+}
+
+/* אייקון שמירה בכפתור */
+.btn.primary .btn-icon {
+  display: none;
+}
+
+.btn.primary::before {
+  font-family: 'Material Icons';
+  content: "save";
+  font-size: 18px;
+  margin-left: 4px;
+}
