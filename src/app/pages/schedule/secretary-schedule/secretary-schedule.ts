@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, OnDestroy, inject, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -11,16 +11,18 @@ import { ScheduleItem } from '../../../models/schedule-item.model';
 import { Lesson } from '../../../models/lesson-schedule.model';
 import type { EventClickArg } from '@fullcalendar/core';
 import { CurrentUserService } from '../../../core/auth/current-user.service';
+import { NoteComponent } from '../../Notes/note.component';
 
 type ChildRow = {
   child_uuid: string;
   first_name: string | null;
- last_name: string | null;
-
+  last_name: string | null;
+  birth_date?: string | null;
   status?: string | null;
 };
+
 type InstructorRow = {
-  uid: string;
+  id_number: string;
   first_name: string | null;
   last_name: string | null;
   status?: string | null;
@@ -29,20 +31,34 @@ type InstructorRow = {
 @Component({
   selector: 'app-secretary-schedule',
   standalone: true,
-  imports: [CommonModule, FormsModule, ScheduleComponent],
+  imports: [CommonModule, FormsModule, ScheduleComponent, NoteComponent],
   templateUrl: './secretary-schedule.html',
   styleUrls: ['./secretary-schedule.css'],
 })
 export class SecretaryScheduleComponent implements OnInit, OnDestroy {
+  @ViewChild(ScheduleComponent) scheduleCmp!: ScheduleComponent;
+
   children: ChildRow[] = [];
   lessons: Lesson[] = [];
   filteredLessons: Lesson[] = [];
   selectedChild: ChildRow | null = null;
 
+  instructors: InstructorRow[] = [];
+  selectedInstructorIds: string[] = [];
+
+  instructorResources: { id: string; title: string }[] = [];
+
   instructorId = '';
   items: ScheduleItem[] = [];
-   instructors: InstructorRow[] = [];              // 👈 הוספה חדשה
-  private nameByInstructor = new Map<string, string>(); // 👈 מפה id → שם
+
+  isFullscreen = false;
+
+  currentRange: { start: string; end: string; viewType: string } | null = null;
+  currentViewType: 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth' = 'timeGridDay';
+
+  private childAgeById = new Map<string, string>();
+
+  weekInstructorStats: { instructor_id: string; instructor_name: string; totalLessons: number }[] = [];
 
   private unsubTenantChange: (() => void) | null = null;
 
@@ -51,15 +67,12 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     try {
-      // ✅ חובה לפני כל dbTenant(): מבטיח שקיים הקשר טננט פעיל
       await ensureTenantContextReady();
 
-      // רענון אוטומטי אם מחליפים חווה/טננט בזמן שהמסך פתוח
       this.unsubTenantChange = onTenantChange(async () => {
         await this.reloadAll();
       });
 
-      // טוען זהות המשתמש (אחרי שיש קונטקסט)
       const user = await this.cu.loadUserDetails();
       this.instructorId = (user?.id_number ?? '').toString();
 
@@ -75,61 +88,221 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     try { this.unsubTenantChange?.(); } catch {}
   }
 
+
+private hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    hash = hash & hash; // להפוך ל-32bit
+  }
+  return Math.abs(hash);
+}
+
+private rebuildInstructorResources(): void {
+  // אם לא מסומן כלום – נתייחס כאילו כולם מסומנים
+  const activeIds =
+    this.selectedInstructorIds.length
+      ? this.selectedInstructorIds
+      : this.instructors.map(i => i.id_number);
+
+  this.instructorResources = this.instructors
+    .filter(i => activeIds.includes(i.id_number))
+    .map(i => ({
+      id: i.id_number,
+      title: `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim(),
+    }));
+}
+
+
   private async reloadAll() {
     await this.loadChildren();
-      await this.loadInstructors();  // 👈 חדש
-
-    await this.loadLessons();
+    await this.loadInstructors();
+    await this.loadLessons(this.currentRange ?? undefined);
     this.filterLessons();
     this.setScheduleItems();
+    this.buildWeekStats();
     this.cdr.detectChanges();
   }
 
-  /** ילדים פעילים – תומך ב-Active/active */
+  toggleFullscreen() {
+    this.isFullscreen = !this.isFullscreen;
+    document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
+  }
+
+  /** ילדים פעילים */
   private async loadChildren(): Promise<void> {
     try {
       const dbc = dbTenant();
       const { data, error } = await dbc
-        .from('children')
-        .select('child_uuid, first_name, last_name, status')
-      .eq('status', 'Active'); 
+  .from('children')
+  .select('child_uuid, first_name, last_name, birth_date, status')
+  .in('status', ['Active']);
+
 
       if (error) throw error;
+
       this.children = (data ?? []) as ChildRow[];
     } catch (err) {
       console.error('loadChildren failed', err);
       this.children = [];
     }
+      this.childAgeById = new Map(
+  this.children.map(c => [c.child_uuid, this.calcChildAge(c.birth_date ?? null)])
+);
+
+
   }
 
-  /** שיעורים לילדים שנמצאו, מהיום ועד 8 שבועות */
-  private async loadLessons(): Promise<void> {
+private calcChildAge(birthDate: string | null): string {
+  if (!birthDate) return '';
+  const d = new Date(birthDate);
+  if (isNaN(d.getTime())) return '';
+  const now = new Date();
+  let years = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) years--;
+  return years > 0 ? years.toString() : '';
+}
+
+  private async loadInstructors(): Promise<void> {
     try {
-      const childIds = this.children.map((c) => c.child_uuid).filter(Boolean);
+      const dbc = dbTenant();
+      const { data, error } = await dbc
+        .from('instructors')
+        .select('id_number, first_name, last_name, status')
+        .in('status', ['Active']);
+
+      if (error) throw error;
+
+      this.instructors = (data ?? []) as InstructorRow[];
+
+      // ברירת מחדל – אם המשתמש גם מדריך, מסמנים אותו, אחרת כולם
+      if (!this.selectedInstructorIds.length) {
+        if (this.instructorId) {
+          this.selectedInstructorIds = [this.instructorId];
+          this.instructorResources = this.instructors.map(i => ({
+  id: i.id_number,
+  title: `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()
+}));
+
+this.instructors = (data ?? []) as InstructorRow[];
+
+// ברירת מחדל לבחירה
+if (!this.selectedInstructorIds.length) {
+  if (this.instructorId) {
+    this.selectedInstructorIds = [this.instructorId];
+  } else {
+    this.selectedInstructorIds = this.instructors.map(i => i.id_number);
+  }
+}
+
+// 👇 חדש
+this.rebuildInstructorResources();
+
+
+        } else {
+          this.selectedInstructorIds = this.instructors.map(i => i.id_number);
+        }
+      }
+    } catch (err) {
+      console.error('loadInstructors failed', err);
+      this.instructors = [];
+    }
+    
+  }
+
+  get isAllInstructorsSelected(): boolean {
+    return (
+      this.instructors.length > 0 &&
+      this.selectedInstructorIds.length === this.instructors.map(i => i.id_number).length
+    );
+  }
+
+  toggleAllInstructors() {
+  if (this.isAllInstructorsSelected) {
+    this.selectedInstructorIds = [];
+  } else {
+    this.selectedInstructorIds = this.instructors.map(i => i.id_number);
+  }
+
+  this.rebuildInstructorResources();  // 👈
+  this.filterLessons();
+  this.setScheduleItems();
+  this.buildWeekStats();
+}
+
+
+  toggleInstructor(id: string) {
+  if (this.selectedInstructorIds.includes(id)) {
+    this.selectedInstructorIds = this.selectedInstructorIds.filter(x => x !== id);
+  } else {
+    this.selectedInstructorIds = [...this.selectedInstructorIds, id];
+  }
+
+  this.rebuildInstructorResources();  // 👈 חשוב
+  this.filterLessons();
+  this.setScheduleItems();
+  this.buildWeekStats();
+}
+
+
+  async onViewRange(range: { start: string; end: string; viewType: string }) {
+    this.currentRange = range;
+    this.currentViewType = range.viewType as any;
+
+    await this.loadLessons({ start: range.start, end: range.end });
+    this.filterLessons();
+    this.setScheduleItems();
+    this.buildWeekStats();
+    this.cdr.detectChanges();
+  }
+
+  private async loadLessons(
+    range?: { start: string; end: string }
+  ): Promise<void> {
+    try {
+      const childIds = this.children.map(c => c.child_uuid).filter(Boolean);
       if (!childIds.length) {
         this.lessons = [];
         return;
       }
 
       const dbc = dbTenant();
+
       const today = new Date().toISOString().slice(0, 10);
       const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000)
         .toISOString()
         .slice(0, 10);
 
+      const from = range?.start ?? today;
+      const to = range?.end ?? in8Weeks;
+
       const { data, error } = await dbc
         .from('lessons_occurrences')
         .select(
-        'lesson_id, child_id, day_of_week, start_time, end_time, lesson_type, status, instructor_id, start_datetime, end_datetime, occur_date')
+          'lesson_id, child_id, day_of_week, start_time, end_time, lesson_type, status, instructor_id, start_datetime, end_datetime, occur_date'
+        )
         .in('child_id', childIds)
-        .gte('occur_date', today)
-        .lte('occur_date', in8Weeks)
+        .gte('occur_date', from)
+        .lte('occur_date', to)
         .order('start_datetime', { ascending: true });
 
       if (error) throw error;
 
-     const nameByChild = new Map(
-     this.children.map(c => [c.child_uuid, `${c.first_name ?? ''} ${c.last_name ?? ''}`]));
+      const nameByChild = new Map(
+        this.children.map(c => [
+          c.child_uuid,
+          `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim()
+        ])
+      );
+
+      const instructorNameById = new Map(
+        this.instructors.map(i => [
+          i.id_number,
+          `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()
+        ])
+      );
+
       this.lessons = (data ?? []).map((r: any) => ({
         lesson_id: String(r.lesson_id ?? ''),
         id: String(r.lesson_id ?? ''),
@@ -140,7 +313,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
         lesson_type: r.lesson_type,
         status: r.status,
         instructor_id: r.instructor_id ?? '',
-        instructor_name: r.instructor_name ?? '',
+        instructor_name: instructorNameById.get(r.instructor_id) || '',
         child_color: this.getColorForChild(r.child_id),
         child_name: nameByChild.get(r.child_id) || '',
         start_datetime: r.start_datetime ?? null,
@@ -153,81 +326,233 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** אם ה-secretary מחוברת כמדריכה – יציג רק שלה. אחרת יציג הכל */
+  /** סינון שיעורים לפי מדריכים מסומנים + טווח תצוגה */
   private filterLessons(): void {
-    const id = this.instructorId?.trim();
-    this.filteredLessons = id ? this.lessons.filter((l) => (l.instructor_id ?? '').toString() === id) : this.lessons;
-  }
-private async loadInstructors(): Promise<void> {
-  try {
-    const dbc = dbTenant();
-    const { data, error } = await dbc
-      .from('instructors') // 👈 שם הטבלה אצלך בסופבייס
-  .select('uid, first_name, last_name, status')
-      .eq('status', 'Active'); // או 'active' לפי מה שיש אצלך
+    let src = [...this.lessons];
 
-    if (error) throw error;
-    this.instructors = (data ?? []) as InstructorRow[];
+    if (!this.selectedInstructorIds.length) {
+      if (this.instructorId) {
+        this.selectedInstructorIds = [this.instructorId];
+      } else {
+        this.selectedInstructorIds = this.instructors.map(i => i.id_number);
+      }
+    }
 
-    // בונים מפת id → "שם מלא"
-  this.nameByInstructor = new Map(
-  this.instructors.map(i => [
-    String(i.uid),
-    `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()
-  ])
-);
+    const selected = this.selectedInstructorIds.filter(Boolean);
 
-  } catch (err) {
-    console.error('loadInstructors failed', err);
-    this.instructors = [];
-    this.nameByInstructor = new Map();
-  }
-}
-
-  private setScheduleItems(): void {
-    const src = this.filteredLessons.length ? this.filteredLessons : this.lessons;
-
-    this.items = src.map((lesson) => {
-      // בניית תאריכים/שעות אמינים
-      const start = this.ensureIso(
-        lesson.start_datetime as any,
-        lesson.start_time as any,
-        lesson.occur_date as any
+    if (selected.length) {
+      src = src.filter(l =>
+        selected.includes((l.instructor_id ?? '').toString())
       );
-      const end = this.ensureIso(
-        lesson.end_datetime as any,
-        lesson.end_time as any,
-        lesson.occur_date as any
-      );
+    }
 
-      return {
-        id: lesson.id,
-        title: `${lesson.lesson_type ?? ''}${lesson.instructor_name ? ' עם ' + lesson.instructor_name : ''}`,
+    if (this.currentRange) {
+      const { start, end } = this.currentRange;
+      src = src.filter(l => {
+        const d =
+          (l as any).occur_date ||
+          ((l as any).start_datetime
+            ? (l as any).start_datetime.slice(0, 10)
+            : '');
+        if (!d) return true;
+        return d >= start && d <= end;
+      });
+    }
+
+    this.filteredLessons = src;
+  }
+
+ private setScheduleItems(): void {
+  const src = this.filteredLessons;
+  if (!src?.length) {
+    this.items = [];
+    return;
+  }
+
+  const getDate = (l: any): string | null => {
+    if (l.occur_date) return l.occur_date;
+    if (l.start_datetime) return String(l.start_datetime).slice(0, 10);
+    return null;
+  };
+
+ const makeLessonEvent = (lesson: any): ScheduleItem => {
+  const start = this.ensureIso(
+    lesson.start_datetime as any,
+    lesson.start_time as any,
+    lesson.occur_date as any
+  );
+  const end = this.ensureIso(
+    lesson.end_datetime as any,
+    lesson.end_time as any,
+    lesson.occur_date as any
+  );
+
+  const childName = lesson.child_name ?? '';
+  const lessonType = lesson.lesson_type ?? '';
+  const age = this.childAgeById.get(lesson.child_id) || '';
+  const childDisplay = age ? `${childName} (${age})` : childName;
+
+  return {
+    id: lesson.id,
+    title: childDisplay,
+    start,
+    end,
+    color: lesson.child_color,
+    status: lesson.status,
+    meta: {
+      status: lesson.status ?? '',
+      child_id: lesson.child_id,
+      child_name: childDisplay,
+      instructor_id: lesson.instructor_id,
+      instructor_name: lesson.instructor_name,
+      lesson_type: lessonType,
+      children: childDisplay,    // 👈 זה מה שיוצג בכרטיסייה
+    },
+  } as ScheduleItem;
+};
+
+  // ===== חודשי – כמו שהיה =====
+  if (this.currentViewType === 'dayGridMonth') {
+    const perDay = new Map<string, number>();
+
+    src.forEach(l => {
+      const d = getDate(l);
+      if (!d) return;
+      perDay.set(d, (perDay.get(d) || 0) + 1);
+    });
+
+    this.items = Array.from(perDay.entries()).map(([date, count]) => ({
+      id: `sum-day-${date}`,
+      title: `${count} שיעורים`,
+      start: `${date}T00:00:00`,
+      end: `${date}T23:59:59`,
+      color: 'transparent',
+      status: 'אושר',
+      meta: {
+        status: '',
+        child_id: '',
+        child_name: '',
+        instructor_id: '',
+        instructor_name: '',
+        lesson_type: 'summary-day',
+        isSummaryDay: '1',
+      },
+    })) as any;
+
+    return;
+  }
+
+  // ===== שבוע – טבלת מדריכים × ימים =====
+// ===== תצוגת שבוע – סיכום לכל מדריך בכל יום (אחד מתחת לשני) =====
+if (this.currentViewType === 'timeGridWeek') {
+  type Key = string; // date|instructor_id
+
+  const perDayInstructor = new Map<Key, {
+    date: string;
+    instructor_id: string;
+    instructor_name: string;
+    count: number;
+  }>();
+
+  const getDate = (l: any): string | null => {
+    if (l.occur_date) return l.occur_date;
+    if (l.start_datetime) return String(l.start_datetime).slice(0, 10);
+    return null;
+  };
+
+  // אוספים: כמה שיעורים יש לכל מדריך בכל יום
+  for (const l of src) {
+    const d = getDate(l);
+    if (!d) continue;
+
+    const instId = (l as any).instructor_id || '';
+    const instName = (l as any).instructor_name || 'ללא מדריך';
+    const key: Key = `${d}|${instId}`;
+
+    if (!perDayInstructor.has(key)) {
+      perDayInstructor.set(key, {
+        date: d,
+        instructor_id: instId,
+        instructor_name: instName,
+        count: 0,
+      });
+    }
+    perDayInstructor.get(key)!.count++;
+  }
+
+  const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
+
+  // ממירים למבנה לפי יום → [סיכומים]
+  const perDate = new Map<string, {
+    date: string;
+    instructor_id: string;
+    instructor_name: string;
+    count: number;
+  }[]>();
+
+  for (const g of perDayInstructor.values()) {
+    if (!perDate.has(g.date)) perDate.set(g.date, []);
+    perDate.get(g.date)!.push(g);
+  }
+
+  const result: ScheduleItem[] = [];
+
+  for (const [date, groups] of perDate.entries()) {
+    // שיהיה מסודר לפי שם מדריך
+    groups.sort((a, b) =>
+      a.instructor_name.localeCompare(b.instructor_name, 'he')
+    );
+
+    groups.forEach((g, idxInDay) => {
+      // כל מדריך שעה אחרת – 7, 8, 9, ...
+      const baseHour = 7;
+      const startHour = baseHour + idxInDay;
+      const endHour = startHour;
+
+      const start = `${date}T${pad(startHour)}:00:00`;
+      const end   = `${date}T${pad(endHour)}:50:00`;
+
+      result.push({
+        id: `sum-week-${date}-${g.instructor_id}`,
+        title: `${g.instructor_name} · ${g.count} שיעורים`,
         start,
         end,
-        color: (lesson as any).child_color,
+        status: 'אושר',
         meta: {
-          child_id: (lesson as any).child_id,
-          child_name: (lesson as any).child_name,
-          instructor_id: lesson.instructor_id,
-          instructor_name: lesson.instructor_name,
-          status: lesson.status,
+          status: '',
+          child_id: '',
+          child_name: '',
+          instructor_id: g.instructor_id,
+          instructor_name: g.instructor_name,
+          lesson_type: 'summary-week',
+          isSummarySlot: '1',
         },
-        status: lesson.status,
-      } satisfies ScheduleItem;
+      } as ScheduleItem);
     });
   }
 
+  this.items = result;
+  return;
+}
+  // ===== יום – בשעה 07:00 שם המדריך, ובשעות – כרטיסיות ילדים (עם גיל) =====
+  // ===== יום – מדריך בשורה ב-07:00, ובשעות כרטיסייה אחת לכל שיעור (גם כפול) =====
+if (this.currentViewType === 'timeGridDay') {
+  this.items = src.map(makeLessonEvent);
+  return;
+
+}
+
+  // ברירת מחדל (אם יהיה View נוסף) – אירוע לכל שיעור
+  this.items = src.map(makeLessonEvent);
+}
+
   private ensureIso(datetime?: string | null, time?: string | null, baseDate?: string | null): string {
-    // אם קיבלנו ISO מלא – מחזירים
     if (datetime && typeof datetime === 'string' && datetime.includes('T')) return datetime;
 
-    // אם קיבלנו "YYYY-MM-DD HH:mm" – מתקנים ל-ISO
     if (datetime && typeof datetime === 'string' && datetime.trim() !== '') {
       return datetime.replace(' ', 'T');
     }
 
-    // fallback: מרכיבים מתאריך בסיס ושעה
     const base = baseDate ? new Date(baseDate) : new Date();
     const d = new Date(base);
     if (time) {
@@ -263,6 +588,43 @@ private async loadInstructors(): Promise<void> {
   }
 
   onDateClick(arg: any): void {
-    console.log('תאריך נבחר:', arg?.dateStr ?? arg?.date ?? arg);
+    const dateStr = arg?.dateStr ??
+      (arg?.date ? arg.date.toISOString().slice(0, 10) : '');
+
+    if (!dateStr) return;
+
+    if (this.currentViewType === 'dayGridMonth' || this.currentViewType === 'timeGridWeek') {
+      if (this.scheduleCmp) {
+        this.scheduleCmp.goToDay(dateStr);
+      }
+      return;
+    }
+
+    console.log('תאריך נבחר:', dateStr);
+  }
+
+  private buildWeekStats(): void {
+    if (this.currentViewType !== 'timeGridWeek') {
+      this.weekInstructorStats = [];
+      return;
+    }
+
+    const stats = new Map<string, { instructor_id: string; instructor_name: string; totalLessons: number }>();
+
+    for (const l of this.filteredLessons) {
+      const id = (l as any).instructor_id || '';
+      if (!id) continue;
+      const key = id;
+      const name = (l as any).instructor_name || id;
+
+      if (!stats.has(key)) {
+        stats.set(key, { instructor_id: id, instructor_name: name, totalLessons: 0 });
+      }
+      stats.get(key)!.totalLessons++;
+    }
+
+    this.weekInstructorStats = Array.from(stats.values()).sort((a, b) =>
+      a.instructor_name.localeCompare(b.instructor_name, 'he')
+    );
   }
 }

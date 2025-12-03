@@ -45,7 +45,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   @Input() slotMinTime = '07:00:00';
   @Input() slotMaxTime = '21:00:00';
   @Input() allDaySlot = false;
-  @Input() resources: any[] = []; // למזכירה – רשימת מדריכים כ-resources
+  @Input() resources: any[] = [];
 
   @Output() eventClick = new EventEmitter<EventClickArg>();
   @Output() dateClick = new EventEmitter<DateClickArg>();
@@ -57,7 +57,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   @Output() rightClickDay = new EventEmitter<{
     jsEvent: MouseEvent;
     dateStr: string;
-  }>(); // 👈 חדש – לקליק ימני
+  }>(); 
 
   currentView: ViewName = this.initialView;
   currentDate = '';
@@ -72,11 +72,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
   }
 
-  private hasResources(): boolean {
-    return Array.isArray(this.resources) && this.resources.length > 0;
-  }
-
-  private isToday(d: Date) {
+   private isToday(d: Date) {
     const t = new Date();
     return (
       d.getFullYear() === t.getFullYear() &&
@@ -86,15 +82,14 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   }
 
   /** אם יש resources – למפות את ה-View ל-resourceTimeGrid */
-  private mapView(view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'): string {
-    // אם יש resources (מזכירה) – יומי הופך ל-resourceTimeGridDay
-    if (view === 'timeGridDay' && this.hasResources()) {
-      return 'resourceTimeGridDay';
-    }
-
-    // שבועי תמיד נשאר timeGridWeek רגיל
-    return view;
+  private mapView(view: ViewName): string {
+    if (view === 'timeGridDay' && this.resources && this.resources.length) {
+    return 'resourceTimeGridDay';
   }
+  // שבועי נשאר timeGridWeek רגיל
+  return view;
+  }
+
 
   calendarOptions: CalendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimeGridPlugin],
@@ -198,17 +193,33 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
 
     // 👇 צביעת אירועים + קליק ימני על אירוע (אותו תפריט כמו על יום)
     eventClassNames: (arg) => {
-      const classes: string[] = [];
-      const status = arg.event.extendedProps['status'];
-      const isSummaryDay = arg.event.extendedProps['isSummaryDay'];
-      const isSummarySlot = arg.event.extendedProps['isSummarySlot'];
-      const isHeader = arg.event.extendedProps['isInstructorHeader'];
+  const classes: string[] = [];
+  const status = arg.event.extendedProps['status'];
+  const isSummaryDay = arg.event.extendedProps['isSummaryDay'];
+  const isSummarySlot = arg.event.extendedProps['isSummarySlot'];
+  const isHeader = arg.event.extendedProps['isInstructorHeader'];
 
-      if (status === 'canceled') classes.push('canceled');
-      if (isSummaryDay || isSummarySlot) classes.push('summary-event');
-      if (isHeader) classes.push('inst-header');
-      return classes;
-    },
+  if (isSummaryDay || isSummarySlot) classes.push('summary-event');
+  if (isHeader) classes.push('inst-header');
+
+  const s = (typeof status === 'string' ? status.trim() : '').toUpperCase();
+
+  // כאן תתאימי למחרוזות שהגדרת ב־DB
+  if (s === 'בוטל' || s === 'מבוטל' || s === 'CANCELED') {
+    classes.push('status-canceled');
+  } else if (s === 'אושר' || s === 'APPROVED') {
+    classes.push('status-approved');
+  } else if (
+    s === 'ממתין לאישור' ||
+    s === 'ממתין לאישור מזכירה' ||
+    s === 'PENDING'
+  ) {
+    classes.push('status-pending');
+  }
+
+  return classes;
+},
+
 
     eventDidMount: (info) => {
       // מחיל classNames שנשלחים מבחוץ
@@ -280,42 +291,48 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   }
 
   ngOnChanges(changes: SimpleChanges) {
-    if (changes['items'] || changes['resources']) {
-      this.calendarOptions = {
-        ...this.calendarOptions,
-        events: this.items.map((i) => ({
-          id: i.id,
-          title: i.title,
-          start: i.start,
-          end: i.end,
-          backgroundColor: (i as any).backgroundColor ?? (i as any).color,
-          borderColor: (i as any).borderColor ?? (i as any).color,
-          resourceId: i.meta?.instructor_id || undefined,
-          extendedProps: {
-            status: i.status,
-            child_id: i.meta?.child_id,
-            child_name: i.meta?.child_name,
-            instructor_id: i.meta?.instructor_id,
-            instructor_name: i.meta?.instructor_name,
-            lesson_type: i.meta?.['lesson_type'],
-            children: i.meta?.['children'],
-            isSummaryDay: (i as any).meta?.isSummaryDay,
-            isSummarySlot: (i as any).meta?.isSummarySlot,
-            isInstructorHeader: (i as any).meta?.isInstructorHeader,
-            // 👇 החדשים בשביל ההורה
-            canCancel: (i as any).meta?.canCancel,
-            lesson_occurrence_id: (i as any).meta?.lesson_occurrence_id,
-          },
-        })),
-        resources: this.resources,
-      };
-    }
-
-    if (changes['initialView'] && changes['initialView'].currentValue) {
-      this.currentView = changes['initialView'].currentValue;
-      this.applyCurrentView();
-    }
+  if (changes['resources']) {
+    console.log('ScheduleComponent got resources:', this.resources);
+    // אחרי שמגיעים resources – לעדכן את ה־View למצב resource*
+    setTimeout(() => this.applyCurrentView(), 0);
   }
+
+  if (changes['items'] || changes['resources']) {
+    this.calendarOptions = {
+      ...this.calendarOptions,
+      events: this.items.map((i) => ({
+        id: i.id,
+        title: i.title,
+        start: i.start,
+        end: i.end,
+        backgroundColor: (i as any).backgroundColor ?? (i as any).color,
+        borderColor: (i as any).borderColor ?? (i as any).color,
+        resourceId: i.meta?.instructor_id || undefined,
+        extendedProps: {
+          status: i.status,
+          child_id: i.meta?.child_id,
+          child_name: i.meta?.child_name,
+          instructor_id: i.meta?.instructor_id,
+          instructor_name: i.meta?.instructor_name,
+          lesson_type: i.meta?.['lesson_type'],
+          children: i.meta?.['children'],
+          isSummaryDay: (i as any).meta?.isSummaryDay,
+          isSummarySlot: (i as any).meta?.isSummarySlot,
+          isInstructorHeader: (i as any).meta?.isInstructorHeader,
+          canCancel: (i as any).meta?.canCancel,
+          lesson_occurrence_id: (i as any).meta?.lesson_occurrence_id,
+        },
+      })),
+      resources: this.resources,
+    };
+  }
+
+  if (changes['initialView'] && changes['initialView'].currentValue) {
+    this.currentView = changes['initialView'].currentValue;
+    this.applyCurrentView();
+  }
+}
+
 
   get calendarApi() {
     return this.calendarComponent?.getApi();
