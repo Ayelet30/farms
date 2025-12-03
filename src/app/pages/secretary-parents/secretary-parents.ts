@@ -136,19 +136,30 @@ closeSearchPanelOnOutsideClick() {
 get filteredParents(): ParentRow[] {
   let rows = [...this.parents];
 
-  // 1) חיפוש
-  const q = (this.searchText || '').trim().toLowerCase();
-  if (q) {
-    rows = rows.filter(p => {
-      if (this.searchMode === 'name') {
+  // טקסט גולמי מהאינפוט
+  const raw = (this.searchText || '').trim();
+
+  if (raw) {
+    if (this.searchMode === 'name') {
+      // חיפוש חופשי לפי שם
+      const q = raw.toLowerCase();
+      rows = rows.filter(p => {
         const hay = `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase();
         return hay.includes(q);
-      }
+      });
+    } else {
+      // 🔎 מצב חיפוש לפי ת"ז – "מתחיל ב..." תוך כדי הקלדה
+      const qId = raw.replace(/\s/g, ''); // מסירים רווחים מהקלדה
 
-      // חיפוש מדויק לפי ת"ז
-      const id = (p.id_number || '').toString().trim();
-      return id === q;
-    });
+      rows = rows.filter(p => {
+        const id = (p.id_number || '')
+          .toString()
+          .replace(/\s/g, ''); // גם כאן בלי רווחים
+
+        // מספיק שה־id יתחיל במה שהוקלד עד עכשיו
+        return qId !== '' && id.startsWith(qId);
+      });
+    }
   }
 
   // 2) סינון לפי סטטוס הורה
@@ -168,6 +179,7 @@ get filteredParents(): ParentRow[] {
 
   return rows;
 }
+
 
 // כפתור איפוס – מחזיר לברירות מחדל
 clearFilters() {

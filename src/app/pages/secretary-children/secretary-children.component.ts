@@ -114,41 +114,51 @@ export class SecretaryChildrenComponent implements OnInit {
     }
   }
 
-  /** רשימת ילדים אחרי חיפוש + סינון */
-  get filteredChildren(): ChildRow[] {
-    let rows = [...this.children];
+/** רשימת ילדים אחרי חיפוש + סינון */
+get filteredChildren(): ChildRow[] {
+  let rows = [...this.children];
 
-    const q = (this.searchText || '').trim().toLowerCase();
-    if (q) {
+  const raw = (this.searchText || '').trim();
+
+  if (raw) {
+    if (this.searchMode === 'name') {
+      const q = raw.toLowerCase();
       rows = rows.filter((c: any) => {
-        if (this.searchMode === 'name') {
-          const hay = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
-          return hay.includes(q);
-        }
+        const hay = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
+        return hay.includes(q);
+      });
+    } else {
+      // 🔎 חיפוש לפי ת"ז – כל עוד הת"ז *מתחילה* במה שהוקלד
+      const qId = raw.replace(/\s/g, '');
 
-        const id = (c.gov_id || '').toString().trim();
-        return id === q;
+      rows = rows.filter((c: any) => {
+        const id = (c.gov_id || '')
+          .toString()
+          .replace(/\s/g, '');
+        return qId !== '' && id.startsWith(qId);
       });
     }
-
-    // סינון לפי סטטוס ילד
-    if (this.statusFilter !== 'all') {
-      rows = rows.filter((c: any) => {
-        const status = (c.status || '').toString().toLowerCase();
-        const active = status === 'active' || status === 'פעיל';
-        return this.statusFilter === 'active' ? active : !active;
-      });
-    }
-
-    // סינון לפי שיוך להורה
-    if (this.parentFilter === 'withParent') {
-      rows = rows.filter((c: any) => !!c.parent_uid);
-    } else if (this.parentFilter === 'withoutParent') {
-      rows = rows.filter((c: any) => !c.parent_uid);
-    }
-
-    return rows;
   }
+
+  // סינון לפי סטטוס ילד
+  if (this.statusFilter !== 'all') {
+    rows = rows.filter((c: any) => {
+      const status = (c.status || '').toString().toLowerCase();
+      const active = status === 'active' || status === 'פעיל';
+      return this.statusFilter === 'active' ? active : !active;
+    });
+  }
+
+  // סינון לפי שיוך להורה
+  if (this.parentFilter === 'withParent') {
+    rows = rows.filter((c: any) => !!c.parent_uid);
+  } else if (this.parentFilter === 'withoutParent') {
+    rows = rows.filter((c: any) => !c.parent_uid);
+  }
+
+  return rows;
+}
+
 
   // פתיחה/סגירה של חלונית החיפוש/סינון
   toggleSearchPanelFromBar() {
