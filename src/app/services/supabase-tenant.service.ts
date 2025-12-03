@@ -165,16 +165,18 @@ export class SupabaseTenantService {
     const url = (data?.logo_url || '').trim();
     return url || null;
   }
-  async getFarmLogoUrl(farmIdOrSchema: string): Promise<string | null> {
-    const { data, error } = await this.dbPublic()
-      .from('farms')
-      .select('logo_url')
-      .or(`id.eq.${farmIdOrSchema},schema_name.eq.${farmIdOrSchema}`)
-      .maybeSingle();
-    if (error) throw error;
-    const url = (data?.logo_url || '').trim();
-    return url || null;
-  }
+async getFarmLogoUrl(schemaName: string): Promise<string | null> {
+  const { data, error } = await this.dbPublic()
+    .from('farms')
+    .select('logo_url')
+    .eq('schema_name', schemaName)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  const url = (data?.logo_url || '').trim();
+  return url || null;
+}
 
   // ---------- memberships ----------
   clearMembershipCache() { this.membershipsCache = []; }

@@ -18,10 +18,11 @@ import { registerLocaleData } from '@angular/common';
 import localeHe from '@angular/common/locales/he';
 
 // ✅ טוקנים גלובליים (מגדירים לוקל ומטבע ברירת מחדל)
-import { LOCALE_ID, DEFAULT_CURRENCY_CODE } from '@angular/core';
+import { LOCALE_ID, DEFAULT_CURRENCY_CODE, isDevMode } from '@angular/core';
 
 // יבוא חד-פעמי שמאותחל אצלך (אם רלוונטי)
 import './app/core/firebase.client';
+import { provideServiceWorker } from '@angular/service-worker';
 
 // רישום נתוני הלוקל פעם אחת לפני ה-bootstrap
 registerLocaleData(localeHe);
@@ -31,6 +32,12 @@ bootstrapApplication(App, {
     provideClientHydration(),
     { provide: LOCALE_ID, useValue: 'he' },
     { provide: DEFAULT_CURRENCY_CODE, useValue: 'ILS' },
-    ...appConfig.providers,
+    ...appConfig.providers, provideServiceWorker('ngsw-worker.js', {
+            enabled: !isDevMode(),
+            registrationStrategy: 'registerWhenStable:30000'
+          }), provideServiceWorker('ngsw-worker.js', {
+            enabled: !isDevMode(),
+            registrationStrategy: 'registerWhenStable:30000'
+          }),
   ],
 }).catch(err => console.error(err));

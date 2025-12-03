@@ -110,8 +110,10 @@ export interface UiRequest {
   toDate?: string | null;
   createdAt: string;
 
+  requesterUid: string | null;  // ← חשוב להוספת סינון לפי משתמש
   payload: any;
 }
+
 
 export interface SecretaryChargeRow {
   id: string;

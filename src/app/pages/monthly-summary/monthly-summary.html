@@ -2,19 +2,50 @@
 
   <!-- כותרת עליונה -->
   <header class="topbar">
-    <h1 class="page-title">הסיכום החודשי שלי</h1>
+    <h1 class="page-title">
+      {{ mode() === 'month' ? monthlyTitle : yearlyTitle }}
+    </h1>
   </header>
 
-  <!-- בחירת חודש ושנה -->
+  <!-- בחירת חודש/שנה + מצב חודשי/שנתי -->
   <section class="filters-row">
-    <mat-select [(ngModel)]="year" (selectionChange)="onMonthChange()" class="year-select">
+
+    <!-- טוגל חודשי/שנתי -->
+    <div class="mode-toggle">
+      <button
+        mat-stroked-button
+        [class.active]="mode() === 'month'"
+        (click)="setMode('month')">
+        חודשי
+      </button>
+
+      <button
+        mat-stroked-button
+        [class.active]="mode() === 'year'"
+        (click)="setMode('year')">
+        שנתי
+      </button>
+    </div>
+
+    <!-- בחירת שנה -->
+    <mat-select [(ngModel)]="year" (selectionChange)="onYearChange()" class="year-select">
       <mat-option *ngFor="let y of years" [value]="y">{{ y }}</mat-option>
     </mat-select>
 
-    <mat-select [(ngModel)]="month" (selectionChange)="onMonthChange()" class="month-select">
+    <!-- בחירת חודש – רק במצב חודשי -->
+    <mat-select
+      *ngIf="mode() === 'month'"
+      [(ngModel)]="month"
+      (selectionChange)="onMonthChange()"
+      class="month-select">
       <mat-option *ngFor="let m of months" [value]="m.v">{{ m.t }}</mat-option>
     </mat-select>
   </section>
+
+  <!-- ספינר טעינה -->
+  <div class="loading-container" *ngIf="loading">
+    <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
+  </div>
 
   <!-- כרטיסי KPI -->
   <section class="kpis" *ngIf="!loading">
@@ -33,7 +64,9 @@
     <mat-card class="kpi green">
       <mat-icon>check_circle</mat-icon>
       <div class="value">{{ kpis().done }}</div>
-      <div class="label">בוצעו</div>
+      <div class="label">
+        {{ mode() === 'month' ? 'שיעורים שבוצעו החודש' : 'שיעורים שבוצעו השנה' }}
+      </div>
     </mat-card>
 
     <mat-card class="kpi orange">
@@ -51,13 +84,17 @@
     <mat-card class="kpi purple">
       <mat-icon>schedule</mat-icon>
       <div class="value">{{ kpis().workedHours }}</div>
-      <div class="label">שעות עבודה</div>
+      <div class="label">
+        {{ mode() === 'month' ? 'שעות עבודה בחודש' : 'שעות עבודה בשנה' }}
+      </div>
     </mat-card>
 
     <mat-card class="kpi blue">
       <mat-icon>attach_money</mat-icon>
       <div class="value">₪{{ kpis().income }}</div>
-      <div class="label">הכנסה חודשית</div>
+      <div class="label">
+        {{ mode() === 'month' ? 'הכנסה חודשית (משוערת)' : 'הכנסה שנתית (משוערת)' }}
+      </div>
     </mat-card>
   </section>
 
@@ -66,7 +103,9 @@
 
     <div class="list-header">
       <mat-icon class="icon-title">calendar_month</mat-icon>
-      <h2>פירוט שיעורים</h2>
+      <h2>
+        {{ mode() === 'month' ? 'פירוט שיעורים לחודש הנבחר' : 'פירוט שיעורים לשנה הנבחרת' }}
+      </h2>
     </div>
 
     <!-- סינון וחיפוש -->
@@ -102,44 +141,83 @@
     <table mat-table [dataSource]="filteredLessons()" class="mat-elevation-z1">
 
       <!-- Date -->
-      <ng-container matColumnDef="date">
-        <th mat-header-cell *matHeaderCellDef>תאריך</th>
-        <td mat-cell *matCellDef="let l">{{ l.occur_date || '—' }}</td>
-      </ng-container>
+     <!-- Date -->
+<ng-container matColumnDef="date">
+  <th mat-header-cell *matHeaderCellDef>תאריך</th>
+  <td
+    mat-cell
+    *matCellDef="let l"
+    class="responsive-cell"
+    data-label="תאריך"
+  >
+    {{ l.occur_date || '—' }}
+  </td>
+</ng-container>
 
-      <!-- Student -->
-      <ng-container matColumnDef="student">
-      <th mat-header-cell *matHeaderCellDef>תלמיד/ה</th>
-      <td mat-cell *matCellDef="let l">
-        {{ l.child?.first_name }} {{ l.child?.last_name || '—' }}
-      </td>
-      </ng-container>
+<!-- Student -->
+<ng-container matColumnDef="student">
+  <th mat-header-cell *matHeaderCellDef>תלמיד/ה</th>
+  <td
+    mat-cell
+    *matCellDef="let l"
+    class="responsive-cell"
+    data-label="תלמיד/ה"
+  >
+    {{ l.child?.first_name }} {{ l.child?.last_name || '—' }}
+  </td>
+</ng-container>
 
+<!-- Type -->
+<ng-container matColumnDef="type">
+  <th mat-header-cell *matHeaderCellDef>סוג שיעור</th>
+  <td
+    mat-cell
+    *matCellDef="let l"
+    class="responsive-cell"
+    data-label="סוג שיעור"
+  >
+    {{ l.lesson_type || '—' }}
+  </td>
+</ng-container>
 
-      <ng-container matColumnDef="type">
-        <th mat-header-cell *matHeaderCellDef>סוג שיעור</th>
-        <td mat-cell *matCellDef="let l">{{ l.lesson_type || '—' }}</td>
-      </ng-container>
+<!-- Status -->
+<ng-container matColumnDef="status">
+  <th mat-header-cell *matHeaderCellDef>סטטוס</th>
+  <td
+    mat-cell
+    *matCellDef="let l"
+    class="responsive-cell"
+    data-label="סטטוס"
+  >
+    <span class="chip" [ngClass]="l.status">{{ l.status || '—' }}</span>
+  </td>
+</ng-container>
 
-      <!-- Status -->
-      <ng-container matColumnDef="status">
-        <th mat-header-cell *matHeaderCellDef>סטטוס</th>
-        <td mat-cell *matCellDef="let l">
-          <span class="chip" [ngClass]="l.status">{{ l.status || '—' }}</span>
-        </td>
-      </ng-container>
+<!-- Start -->
+<ng-container matColumnDef="start">
+  <th mat-header-cell *matHeaderCellDef>התחלה</th>
+  <td
+    mat-cell
+    *matCellDef="let l"
+    class="responsive-cell"
+    data-label="התחלה"
+  >
+    {{ l.start_time || '—' }}
+  </td>
+</ng-container>
 
-      <!-- Start time -->
-      <ng-container matColumnDef="start">
-        <th mat-header-cell *matHeaderCellDef>התחלה</th>
-        <td mat-cell *matCellDef="let l">{{ l.start_time || '—' }}</td>
-      </ng-container>
-
-      <!-- End time -->
-      <ng-container matColumnDef="end">
-        <th mat-header-cell *matHeaderCellDef>סיום</th>
-        <td mat-cell *matCellDef="let l">{{ l.end_time || '—' }}</td>
-      </ng-container>
+<!-- End -->
+<ng-container matColumnDef="end">
+  <th mat-header-cell *matHeaderCellDef>סיום</th>
+  <td
+    mat-cell
+    *matCellDef="let l"
+    class="responsive-cell"
+    data-label="סיום"
+  >
+    {{ l.end_time || '—' }}
+  </td>
+</ng-container>
 
       <tr mat-header-row *matHeaderRowDef="['date','student','type','status','start','end']"></tr>
       <tr mat-row *matRowDef="let row; columns: ['date','student','type','status','start','end'];"></tr>
@@ -151,25 +229,28 @@
 
     <!-- כפתורי ייצוא -->
     <div class="bottom-actions">
-   
-
       <button mat-stroked-button class="excel-btn" (click)="exportExcel()">
-        <mat-icon>table_chart</mat-icon> ייצוא ל־Excel
+        <mat-icon>table_chart</mat-icon>
+        {{ mode() === 'month' ? 'ייצוא חודשי ל־Excel' : 'ייצוא שנתי ל־Excel' }}
       </button>
     </div>
 
   </section>
 
-  <!-- תובנות חודשיות -->
+  <!-- תובנות חודשיות/שנתיות -->
   <section class="insights-section" *ngIf="!loading">
     <div class="insights-header">
       <mat-icon>insights</mat-icon>
-      <h2>תובנות חודשיות</h2>
+      <h2>
+        {{ mode() === 'month' ? 'תובנות חודשיות' : 'תובנות שנתיות' }}
+      </h2>
     </div>
 
     <ul class="insights-list">
       <li>
-        <span class="label">סה"כ שיעורים:</span>
+        <span class="label">
+          {{ mode() === 'month' ? 'סה״כ שיעורים בחודש:' : 'סה״כ שיעורים בשנה:' }}
+        </span>
         <span class="value highlight">{{ insights().totalLessons }}</span>
       </li>
       <li>
@@ -181,11 +262,15 @@
         <span class="value green">{{ insights().successPct }}%</span>
       </li>
       <li>
-        <span class="label">מספר תלמידים:</span>
+        <span class="label">
+          {{ mode() === 'month' ? 'מספר תלמידים פעילים החודש:' : 'מספר תלמידים שונים בשנה:' }}
+        </span>
         <span class="value orange">{{ insights().newStudents }}</span>
       </li>
       <li>
-        <span class="label">הכנסה ממוצעת לשיעור:</span>
+        <span class="label">
+          {{ mode() === 'month' ? 'הכנסה ממוצעת לשיעור:' : 'הכנסה ממוצעת לשיעור בשנה:' }}
+        </span>
         <span class="value highlight">₪{{ insights().avgIncome }}</span>
       </li>
     </ul>

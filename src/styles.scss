@@ -14,63 +14,67 @@
 }
 html, body { font-family: var(--font-ui); }
 
-/* צבע רקע כשהמתג פעיל */
-.mdc-switch--selected .mdc-switch__track {
-  background: #93A33D !important;   /* הירוק של האתר */
-  opacity: 1 !important;
-}
+// /* צבע רקע כשהמתג פעיל */
+// .mdc-switch--selected .mdc-switch__track {
+//   background: #93A33D !important;   /* הירוק של האתר */
+//   opacity: 1 !important;
+// }
 
-/* צבע הכדור כשהמתג פעיל */
-.mdc-switch--selected .mdc-switch__handle {
-  background: #93A33D !important;
-}
+// /* צבע הכדור כשהמתג פעיל */
+// .mdc-switch--selected .mdc-switch__handle {
+//   background: #93A33D !important;
+// }
 
-/* הצל של הכדור כשהמתג פעיל */
-.mdc-switch--selected .mdc-switch__shadow {
-  background: #93A33D !important;
-  box-shadow: 0 0 6px rgba(147, 163, 61, 0.6) !important;
-}
-/* --- תיקון מלא לצבע המתג --- */
-.mdc-switch--selected .mdc-switch__track {
-  background-color: #9DB142 !important;   // ירוק בהיר כמו האתר
-  border-color: #9DB142 !important;
-  opacity: 1 !important;
-}
+// .mdc-switch--selected .mdc-switch__track::after {
+//   background: #ffffff !important;   /* האייקון בתוך הכדור */
+// }
 
-.mdc-switch__track {
-  background-color: #c9c9c9 !important;   // אפור כשהמתג כבוי
-  opacity: 1 !important;
-}
+// /* הצל של הכדור כשהמתג פעיל */
+// .mdc-switch--selected .mdc-switch__shadow {
+//   background: #93A33D !important;
+//   box-shadow: 0 0 6px rgba(147, 163, 61, 0.6) !important;
+// }
+// /* --- תיקון מלא לצבע המתג --- */
+// .mdc-switch--selected .mdc-switch__track {
+//   background-color: #9DB142 !important;   // ירוק בהיר כמו האתר
+//   border-color: #9DB142 !important;
+//   opacity: 1 !important;
+// }
 
-.mdc-switch--selected .mdc-switch__handle {
-  background-color: #7a8b55 !important;   // הירוק הכהה של הכפתור
-}
+// .mdc-switch__track {
+//   background-color: #c9c9c9 !important;   // אפור כשהמתג כבוי
+//   opacity: 1 !important;
+// }
 
-.mdc-switch__handle {
-  background-color: #ffffff !important; 
-}
-/* צבעי toggle מותאמים – רק עבור הכרטיס הזה */
-::ng-deep .availability-card .day-toggle.mat-mdc-slide-toggle {
-  /* צבע רקע (track) כשהמתג דולק */
-  --mdc-switch-selected-track-color: #8d9b3c;
-  --mdc-switch-selected-hover-track-color: #8d9b3c;
-  --mdc-switch-selected-focus-track-color: #8d9b3c;
-  --mdc-switch-selected-pressed-track-color: #8d9b3c;
+// .mdc-switch--selected .mdc-switch__handle {
+//   background-color: #7a8b55 !important;   // הירוק הכהה של הכפתור
+// }
 
-  /* 🎯 הכדור (handle) – זה מה שלא שינית! */
-  --mdc-switch-selected-handle-color: #ffffff;
-  --mdc-switch-selected-hover-handle-color: #ffffff;
-  --mdc-switch-selected-focus-handle-color: #ffffff;
-  --mdc-switch-selected-pressed-handle-color: #ffffff;
+// .mdc-switch__handle {
+//   background-color: #ffffff !important; 
+// }
+// /* צבעי toggle מותאמים – רק עבור הכרטיס הזה */
+// ::ng-deep .availability-card .day-toggle.mat-mdc-slide-toggle {
+//   /* צבע רקע (track) כשהמתג דולק */
+//   --mdc-switch-selected-track-color: #8d9b3c;
+//   --mdc-switch-selected-hover-track-color: #8d9b3c;
+//   --mdc-switch-selected-focus-track-color: #8d9b3c;
+//   --mdc-switch-selected-pressed-track-color: #8d9b3c;
 
-  /* 🎯 צבע האייקון שבתוך הכדור */
-  --mdc-switch-selected-icon-color: #8d9b3c;
+//   /* 🎯 הכדור (handle) – זה מה שלא שינית! */
+//   --mdc-switch-selected-handle-color: #ffffff;
+//   --mdc-switch-selected-hover-handle-color: #ffffff;
+//   --mdc-switch-selected-focus-handle-color: #ffffff;
+//   --mdc-switch-selected-pressed-handle-color: #ffffff;
 
-  /* מצב לא דולק */
-  --mdc-switch-unselected-track-color: #d0d0d0;
-  --mdc-switch-unselected-handle-color: #ffffff;
-  --mdc-switch-unselected-icon-color: #777;
-}
+//   /* 🎯 צבע האייקון שבתוך הכדור */
+//   --mdc-switch-selected-icon-color: #8d9b3c;
+
+//   /* מצב לא דולק */
+//   --mdc-switch-unselected-track-color: #d0d0d0;
+//   --mdc-switch-unselected-handle-color: #ffffff;
+//   --mdc-switch-unselected-icon-color: #777;
+// }
 
 html, body { height: 100%; }
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
