@@ -10,6 +10,7 @@ import { NgClass, NgTemplateOutlet } from '@angular/common';
 import { dbTenant } from '../../services/legacy-compat';
 import { fetchMyChildren } from '../../services/supabaseClient.service';
 import { ViewChild, ElementRef } from '@angular/core';
+import { AddChildWizardComponent } from '../add-child-wizard/add-child-wizard.component';
 
 //import { SupabaseClient } from '@supabase/supabase-js';
 
@@ -36,7 +37,7 @@ type ChildStatus = 'Active' | 'Pending Deletion Approval' | 'Pending Addition Ap
 @Component({
   selector: 'app-parent-children',
   standalone: true,
-  imports: [CommonModule, FormsModule, NgClass, NgTemplateOutlet],
+  imports: [CommonModule, FormsModule, NgClass, NgTemplateOutlet, AddChildWizardComponent],
   templateUrl: './parent-children.html',
   styleUrls: ['./parent-children.css'],
  
@@ -71,6 +72,8 @@ export class ParentChildrenComponent implements OnInit {
   // מחיקה/עזיבה
   showDeleteConfirm = false;
   pendingDeleteId: string | null = null;
+
+  showAddChildWizard = false;
 
   // ---- History modal state ----
 showHistory = false;
@@ -367,6 +370,21 @@ const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמ�
     }
   }
 
+    openAddChildWizard() {
+    this.showAddChildWizard = true;
+  }
+
+  handleChildAddedFromWizard() {
+    // ריענון רשימת הילדים אחרי סיום אשף
+    this.loadChildren();
+    this.showAddChildWizard = false;
+  }
+
+  handleWizardClosed() {
+    this.showAddChildWizard = false;
+  }
+
+
   // “פעילות אחרונה” – מופע אחרון בעבר (הושלם/אושר)
   private async loadLastActivities(): Promise<void> {
 const ids = this.children
@@ -443,163 +461,6 @@ const ids = this.children
     return id ? this.lastActivities[id] ?? null : null;
   }
 
-  /* =========================
-     CRUD – New Child
-  ========================= */
- addNewChild() {
-  this.newChild = {
-    gov_id: '',
-    first_name: '',
-    last_name: '',
-    birth_date: '',
-    gender: '',
-    health_fund: '',
-    instructor: '',
-    status: 'Pending Addition Approval',
-    medical_notes: ''
-  };
-  this.validationErrors = {};
-  setTimeout(() => {
-    this.newChildSection?.nativeElement.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start'
-    });
-  }, 0);
-}
-
-
-  async saveNewChild() {
-  this.validationErrors = {};
-
-  // 1) ולידציה
-  if (!/^\d{9}$/.test(this.newChild.gov_id || '')) {
-    this.validationErrors['gov_id'] = 'ת״ז חייבת להכיל בדיוק 9 ספרות';
-  }
-  if (!this.newChild.first_name) {
-    this.validationErrors['first_name'] = 'נא להזין שם פרטי';
-  }
-  if (!this.newChild.last_name) {
-    this.validationErrors['last_name'] = 'נא להזין שם משפחה';
-  }
-  if (!this.newChild.birth_date) {
-    this.validationErrors['birth_date'] = 'יש לבחור תאריך לידה';
-  }
-  if (!this.newChild.gender) {
-    this.validationErrors['gender'] = 'יש לבחור מין';
-  }
-  if (!this.newChild.health_fund) {
-    this.validationErrors['health_fund'] = 'יש לבחור קופת חולים';
-  }
-
-  if (Object.keys(this.validationErrors).length > 0) {
-    return;
-  }
-
-  const dbc = dbTenant();
-  const user = await getCurrentUserData();
-  const parentUid = user?.uid ?? null;
-
-  if (!parentUid) {
-    this.error = 'שגיאה: לא נמצאו פרטי הורה מחובר';
-    return;
-  }
-
-  // 2) בדיקה אם ת״ז כבר קיימת בילדים
-  const { data: exists, error: existsError } = await dbc
-    .from('children')
-    .select('gov_id')
-    .eq('gov_id', this.newChild.gov_id)
-    .maybeSingle();
-
-  if (existsError) {
-    this.error = existsError.message ?? 'שגיאה בבדיקת תעודת זהות';
-    return;
-  }
-
-  if (exists) {
-    this.validationErrors['gov_id'] = 'ת״ז זו כבר קיימת במערכת';
-    return;
-  }
-
-  // 3) הכנסת הילד לטבלת children (עם סטטוס Pending Addition Approval)
-  const childPayload: any = {
-    gov_id:        this.newChild.gov_id,
-    first_name:    this.newChild.first_name,
-    last_name:     this.newChild.last_name,
-    birth_date:    this.newChild.birth_date,
-    gender:        this.newChild.gender,
-    health_fund:   this.newChild.health_fund,
-    status:        'Pending Addition Approval',
-    parent_uid:    parentUid,
-    medical_notes: this.newChild.medical_notes || null
-  };
-
-  const {
-    data: insertedChild,
-    error: insertChildError
-  } = await dbc
-    .from('children')
-    .insert(childPayload)
-    .select('child_uuid, gov_id, first_name, last_name, birth_date, gender, health_fund, medical_notes, status, parent_uid')
-    .single();
-
-  if (insertChildError || !insertedChild) {
-    if ((insertChildError as any)?.code === '23505') {
-      this.validationErrors['gov_id'] = 'ת״ז זו כבר קיימת במערכת';
-      return;
-    }
-    this.error = insertChildError?.message ?? 'שגיאה בהוספת הילד';
-    return;
-  }
-
-  // 4) יצירת בקשה למזכירה בטבלת secretarial_requests
-  const secretarialPayload = {
-    request_type:      'ADD_CHILD',    // public.request_type
-    status:            'PENDING',      // public.request_status (אפשר להשמיט ולהשתמש ב-default)
-    requested_by_uid:  parentUid,      // text
-    requested_by_role: 'parent',       // public.tenant_role
-    child_id:          insertedChild.child_uuid, // uuid של הילד החדש
-    payload: {
-      gov_id:        insertedChild.gov_id,
-      first_name:    insertedChild.first_name,
-      last_name:     insertedChild.last_name,
-      birth_date:    insertedChild.birth_date,
-      gender:        insertedChild.gender,
-      health_fund:   insertedChild.health_fund,
-      medical_notes: insertedChild.medical_notes
-    }
-    // created_at – יש default now()
-  };
-
-  const { error: secretarialError } = await dbc
-    .from('secretarial_requests')
-    .insert(secretarialPayload);
-
-  if (secretarialError) {
-    console.error('שגיאה ביצירת בקשה למזכירה:', secretarialError);
-    // לא נכשיל את כל הפעולה כי הילד כבר במערכת, אבל נדווח:
-    this.showInfo('הילד נוסף למערכת, אך הייתה שגיאה בשליחת הבקשה למזכירה. אנא צרי קשר עם המשרד.');
-  } else {
-    this.showInfo('הילד נוסף וממתין לאישור מזכירה');
-  }
-
-  // 5) רענון רשימת הילדים וניקוי הטופס
-  await this.loadChildren();
-  this.newChild = null;
-}
-
-  allowOnlyNumbers(event: KeyboardEvent) {
-    if (!/^\d$/.test(event.key)) event.preventDefault();
-  }
-
-  cancelNewChild() {
-    this.newChild = null;
-    this.validationErrors = {};
-  }
-
-  /* =========================
-     Delete / Leave (logical)
-  ========================= */
   /* =========================
      Delete / Leave (logical)
   ========================= */

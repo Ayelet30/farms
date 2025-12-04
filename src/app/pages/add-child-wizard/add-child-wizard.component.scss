@@ -1,0 +1,291 @@
+.wizard-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 2rem 1rem;
+  z-index: 2000;
+  overflow-y: auto;
+}
+
+.wizard-dialog {
+  background: #f9f7f3; // קרם בהיר כמו האתר
+  border-radius: 24px;
+  max-width: 900px;
+  width: 100%;
+  margin: auto;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
+  position: relative;
+  padding: 1.75rem 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.close-btn {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  border: none;
+  background: transparent;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.wizard-header {
+  margin-top: 0.75rem;
+
+  h2 {
+    margin: 0 0 0.25rem;
+    font-size: 1.4rem;
+  }
+
+  .wizard-subtitle {
+    margin: 0 0 0.75rem;
+    font-size: 0.9rem;
+    color: #6e6a5b;
+  }
+}
+
+.steps-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.step-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid #dcd5c1;
+  font-size: 0.8rem;
+  color: #7b755f;
+  background: #f4f0e5;
+
+  &.active {
+    border-color: #9f7a3c;
+    background: #fff;
+    color: #514329;
+    font-weight: 600;
+  }
+
+  &.done {
+    border-color: #7aa27e;
+    background: #f0f7f0;
+    color: #355337;
+  }
+}
+
+.step-number {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.wizard-body {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 1.25rem 1.5rem;
+  max-height: 65vh;
+  overflow-y: auto;
+}
+
+.step-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.step-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.step-hint {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #7a7464;
+}
+
+.step-hint.small {
+  font-size: 0.8rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+
+  label {
+    font-size: 0.8rem;
+    color: #514329;
+  }
+}
+
+.autism-function {
+  margin: 0.25rem 0 0.1rem 0;
+  padding-right: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: #514329;
+}
+
+
+.form-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.editable-input,
+textarea,
+select,
+input[type='date'],
+input[type='number'] {
+  border-radius: 10px;
+  border: 1px solid #ddd3bc;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.86rem;
+  background: #fbfaf6;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.error-banner {
+  background: #ffe9e5;
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  color: #7b1c1c;
+  margin-bottom: 0.5rem;
+}
+
+.error-msg {
+  font-size: 0.75rem;
+  color: #b33939;
+}
+
+.medical-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 1rem;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.86rem;
+  color: #514329;
+}
+
+.check-row.big {
+  margin-top: 0.5rem;
+}
+
+.rules-box {
+  border-radius: 12px;
+  border: 1px solid #e1d5bd;
+  background: #fbf7ee;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.84rem;
+  color: #5d5644;
+
+  ul {
+    margin: 0 0 0.4rem;
+    padding-inline-start: 1.1rem;
+  }
+}
+
+.rules-link {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.wizard-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.btn {
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.86rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 90px;
+
+  &.primary {
+    background: #9f7a3c;
+    border-color: #9f7a3c;
+    color: #fff;
+  }
+
+  &.secondary {
+    background: #f4f0e5;
+    border-color: #dcd5c1;
+    color: #5d5644;
+  }
+
+  &.ghost {
+    background: transparent;
+    border-color: transparent;
+    color: #7a7464;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+/* מובייל */
+@media (max-width: 768px) {
+  .wizard-dialog {
+    padding: 1.25rem 1rem 1rem;
+    border-radius: 18px;
+  }
+
+  .steps-bar {
+    flex-direction: column;
+  }
+
+  .form-grid,
+  .medical-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
