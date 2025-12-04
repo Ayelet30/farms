@@ -30,21 +30,56 @@ export class AddParentDialogComponent {
     private fb: FormBuilder,
     private ref: MatDialogRef<AddParentDialogComponent>
   ) {
-    this.form = this.fb.group({
-      first_name: ['', [Validators.required, Validators.minLength(2)]],
-      last_name: ['', [Validators.required, Validators.minLength(2)]],
-      email: ['', [Validators.required, Validators.email]],
-      phone: ['', [Validators.required]],
-      id_number: ['', [Validators.required]],
-      address: ['', [Validators.required]],
-      extra_notes: [''],
-      prefs: this.fb.group({
-        inapp: [{ value: true, disabled: true }], // תמיד מסומן ואי אפשר לבטל
-        email: [false],
-        sms: [false],
-        whatsapp: [false],
-      })
-    });
+   this.form = this.fb.group({
+  first_name: [
+    '',
+    [
+      Validators.required,
+      Validators.minLength(2),
+      Validators.pattern(/^[A-Za-z\u0590-\u05FF\s]+$/) // רק אותיות עברית/אנגלית
+    ]
+  ],
+  last_name: [
+    '',
+    [
+      Validators.required,
+      Validators.minLength(2),
+      Validators.pattern(/^[A-Za-z\u0590-\u05FF\s]+$/)
+    ]
+  ],
+  email: [
+    '',
+    [
+      Validators.required,
+      Validators.email
+    ]
+  ],
+  phone: [
+    '',
+    [
+      Validators.required,
+      Validators.pattern(/^05\d{8}$/) // טלפון ישראלי
+    ]
+  ],
+  id_number: [
+    '',
+    [
+      Validators.required,
+      Validators.pattern(/^\d{9}$/) // רק ספרות — 9 תווים
+    ]
+  ],
+  address: ['', Validators.required],
+
+  extra_notes: [''],
+
+  prefs: this.fb.group({
+    inapp: [{ value: true, disabled: true }], 
+    email: [false],
+    sms: [false],
+    whatsapp: [false],
+  })
+});
+
   }
 
   submit() {
@@ -53,7 +88,6 @@ export class AddParentDialogComponent {
       return;
     }
 
-    // 🔔 פופ־אפ לפני שמירה
     const ok = confirm('האם את בטוחה שברצונך לשמור את השינויים?');
     if (!ok) return;
 
@@ -62,20 +96,19 @@ export class AddParentDialogComponent {
     const v = this.form.getRawValue() as any; // getRawValue כי inapp disabled
     const prefsGroup = v.prefs || {};
 
-    // תמיד מוסיפים inapp
     const prefs: string[] = ['inapp'];
     ['email', 'sms', 'whatsapp'].forEach((k) => {
       if (prefsGroup[k]) prefs.push(k);
     });
 
     const payload: AddParentPayload = {
-      first_name: v.first_name,
-      last_name: v.last_name,
-      email: v.email,
-      phone: v.phone || undefined,
-      id_number: v.id_number || undefined,
-      address: v.address || undefined,
-      extra_notes: v.extra_notes || undefined,
+      first_name: v.first_name.trim(),
+      last_name: v.last_name.trim(),
+      email: v.email.trim(),
+      phone: v.phone?.trim() || undefined,
+      id_number: v.id_number?.trim() || undefined,
+      address: v.address?.trim() || undefined,
+      extra_notes: v.extra_notes?.trim() || undefined,
       message_preferences: prefs,
     };
 
@@ -83,7 +116,6 @@ export class AddParentDialogComponent {
   }
 
   cancel() {
-    // 🔔 פופ־אפ ביטול
     const ok = confirm('האם את בטוחה שברצונך לבטל את השינויים?');
     if (!ok) return;
 

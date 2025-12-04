@@ -12,6 +12,8 @@ import {
 } from './add-child-dialog/add-child-dialog.component';
 import { FormsModule } from '@angular/forms';
 
+import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+
 type ParentBrief = {
   uid: string;
   first_name: string;
@@ -38,7 +40,7 @@ type ChildDetails = {
 @Component({
   selector: 'app-secretary-children',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSidenavModule, MatDialogModule],
+  imports: [CommonModule, FormsModule, MatSidenavModule, ReactiveFormsModule, MatDialogModule],
   templateUrl: './secretary-children.component.html',
   styleUrls: ['./secretary-children.component.css'],
 })
@@ -53,6 +55,11 @@ export class SecretaryChildrenComponent implements OnInit {
   drawerLoading = false;
   drawerChild: ChildDetails | null = null;
 
+  // 🌟 חדש – עריכת ילד במגירה
+  childForm!: FormGroup;
+  editMode = false;
+  private originalChild: ChildDetails | null = null;
+
   // 🔍 חיפוש / סינון – כמו בטבלת הורים
   searchText = '';
   searchMode: 'name' | 'id' = 'name';
@@ -61,7 +68,10 @@ export class SecretaryChildrenComponent implements OnInit {
   showSearchPanel = false;
   panelFocus: 'search' | 'filter' = 'search';
 
-  constructor(private dialog: MatDialog) {}
+  constructor(
+    private dialog: MatDialog,
+    private fb: FormBuilder,
+  ) {}
 
   async ngOnInit(): Promise<void> {
     try {
@@ -114,51 +124,50 @@ export class SecretaryChildrenComponent implements OnInit {
     }
   }
 
-/** רשימת ילדים אחרי חיפוש + סינון */
-get filteredChildren(): ChildRow[] {
-  let rows = [...this.children];
+  /** רשימת ילדים אחרי חיפוש + סינון */
+  get filteredChildren(): ChildRow[] {
+    let rows = [...this.children];
 
-  const raw = (this.searchText || '').trim();
+    const raw = (this.searchText || '').trim();
 
-  if (raw) {
-    if (this.searchMode === 'name') {
-      const q = raw.toLowerCase();
+    if (raw) {
+      if (this.searchMode === 'name') {
+        const q = raw.toLowerCase();
+        rows = rows.filter((c: any) => {
+          const hay = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
+          return hay.includes(q);
+        });
+      } else {
+        // 🔎 חיפוש לפי ת"ז – כל עוד הת"ז *מתחילה* במה שהוקלד
+        const qId = raw.replace(/\s/g, '');
+
+        rows = rows.filter((c: any) => {
+          const id = (c.gov_id || '')
+            .toString()
+            .replace(/\s/g, '');
+          return qId !== '' && id.startsWith(qId);
+        });
+      }
+    }
+
+    // סינון לפי סטטוס ילד
+    if (this.statusFilter !== 'all') {
       rows = rows.filter((c: any) => {
-        const hay = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
-        return hay.includes(q);
-      });
-    } else {
-      // 🔎 חיפוש לפי ת"ז – כל עוד הת"ז *מתחילה* במה שהוקלד
-      const qId = raw.replace(/\s/g, '');
-
-      rows = rows.filter((c: any) => {
-        const id = (c.gov_id || '')
-          .toString()
-          .replace(/\s/g, '');
-        return qId !== '' && id.startsWith(qId);
+        const status = (c.status || '').toString().toLowerCase();
+        const active = status === 'active' || status === 'פעיל';
+        return this.statusFilter === 'active' ? active : !active;
       });
     }
+
+    // סינון לפי שיוך להורה
+    if (this.parentFilter === 'withParent') {
+      rows = rows.filter((c: any) => !!c.parent_uid);
+    } else if (this.parentFilter === 'withoutParent') {
+      rows = rows.filter((c: any) => !c.parent_uid);
+    }
+
+    return rows;
   }
-
-  // סינון לפי סטטוס ילד
-  if (this.statusFilter !== 'all') {
-    rows = rows.filter((c: any) => {
-      const status = (c.status || '').toString().toLowerCase();
-      const active = status === 'active' || status === 'פעיל';
-      return this.statusFilter === 'active' ? active : !active;
-    });
-  }
-
-  // סינון לפי שיוך להורה
-  if (this.parentFilter === 'withParent') {
-    rows = rows.filter((c: any) => !!c.parent_uid);
-  } else if (this.parentFilter === 'withoutParent') {
-    rows = rows.filter((c: any) => !c.parent_uid);
-  }
-
-  return rows;
-}
-
 
   // פתיחה/סגירה של חלונית החיפוש/סינון
   toggleSearchPanelFromBar() {
@@ -202,6 +211,9 @@ get filteredChildren(): ChildRow[] {
     this.drawer.close();
     this.selectedId = null;
     this.drawerChild = null;
+    this.editMode = false;
+    this.childForm = undefined as any;
+    this.originalChild = null;
   }
 
   /** פתיחת דיאלוג הוספת ילד/ה חדש/ה */
@@ -273,6 +285,7 @@ get filteredChildren(): ChildRow[] {
         .from('children')
         .select(
           `
+           child_uuid,
            first_name,
            last_name,
            gov_id,
@@ -296,7 +309,7 @@ get filteredChildren(): ChildRow[] {
       if (c?.parent_uid) {
         const { data: p, error: pErr } = await db
           .from('parents')
-          .select('first_name,last_name, phone, email')
+          .select('uid, first_name,last_name, phone, email')
           .eq('uid', c.parent_uid)
           .maybeSingle();
 
@@ -305,6 +318,7 @@ get filteredChildren(): ChildRow[] {
 
       // 3) שמירה לתצוגה
       this.drawerChild = { ...(c as ChildDetails), parent };
+      this.buildChildForm(this.drawerChild);
     } catch (e) {
       console.error('loadDrawerData error:', e);
       this.drawerChild = null;
@@ -312,4 +326,98 @@ get filteredChildren(): ChildRow[] {
       this.drawerLoading = false;
     }
   }
+
+
+/** בונה טופס עריכה מתוך פרטי הילד שבמגירה */
+private buildChildForm(child: ChildDetails) {
+  this.childForm = this.fb.group({
+    // שם מלא / ת"ז / תאריך לידה / מין – לא לעריכה, לכן לא שמנו בטופס
+    health_fund: [child.health_fund ?? null],
+    status: [child.status ?? null],
+    medical_notes: [child.medical_notes ?? null],
+    behavior_notes: [child.behavior_notes ?? null],
+  });
+
+  this.originalChild = { ...child };
+  this.editMode = false;
+}
+
+
+  /** כניסה למצב עריכה במגירת הילד */
+  enterEditModeChild() {
+  if (!this.drawerChild || !this.childForm) return;
+  this.editMode = true;
+}
+
+
+  /** ביטול עריכה – חזרה לערכים המקוריים */
+  cancelChildEdit() {
+    if (!this.originalChild) {
+      this.editMode = false;
+      return;
+    }
+    this.buildChildForm(this.originalChild);
+    this.editMode = false;
+  }
+
+  /** שמירת השינויים – PATCH רק על שדות ששונו */
+async saveChildEdits() {
+  if (!this.drawerChild || !this.childForm || !this.selectedId) return;
+
+  const raw = this.childForm.getRawValue();
+
+  // רק השדות שמותר לערוך לפי האפיון
+  const fieldsToCompare: (keyof ChildDetails)[] = [
+    'health_fund',
+    'status',
+    'medical_notes',
+    'behavior_notes',
+  ];
+
+  const delta: Partial<ChildDetails> = {};
+
+  for (const key of fieldsToCompare) {
+    const oldVal = (this.originalChild as any)?.[key] ?? null;
+    const newVal = (raw as any)?.[key] ?? null;
+    if (oldVal !== newVal) {
+      (delta as any)[key] = newVal;
+    }
+  }
+
+  // אם אין שינוי – לא שולחים PATCH
+  if (Object.keys(delta).length === 0) {
+    this.editMode = false;
+    return;
+  }
+
+  try {
+    const db = dbTenant();
+
+    const { error } = await db
+      .from('children')
+      .update(delta)
+      .eq('child_uuid', this.selectedId);
+
+    if (error) throw error;
+
+    // מעדכן את האובייקט במגירה
+    this.drawerChild = {
+      ...(this.drawerChild as ChildDetails),
+      ...delta,
+    };
+    this.originalChild = { ...this.drawerChild };
+
+    // מעדכן גם את הרשימה בטבלה
+    this.children = this.children.map(c =>
+      (c as any).child_uuid === this.selectedId
+        ? { ...c, ...delta }
+        : c
+    );
+
+    this.editMode = false;
+  } catch (e: any) {
+    console.error(e);
+    alert('שמירת השינויים נכשלה: ' + (e?.message ?? e));
+  }
+}
 }
