@@ -1,6 +1,13 @@
 <div class="children-container" dir="rtl">
   <div *ngIf="loading">טוען...</div>
-  <div *ngIf="!loading && children.length === 0">אין ילדים להצגה.</div>
+  <div *ngIf="!loading && children.length === 0">
+    <button (click)="openAddChildWizard()" class="child-chip add-button" type="button">
+  <svg class="icon" aria-hidden="true">
+    <use href="assets/icons/feather-slim.svg#plus" />
+  </svg>
+  <span>הוסף ילד</span>
+</button>
+  </div>
 
   <div *ngIf="infoMessage" class="info-banner">{{ infoMessage }}</div>
 
