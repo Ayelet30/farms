@@ -15,4 +15,7 @@ export interface Lesson {
   start_datetime?: string;
   end_datetime?: string;
   occur_date?: string;
+  horse_name?: string | null;
+  arena_name?: string | null;
+
 }

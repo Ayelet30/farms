@@ -75,6 +75,13 @@
   background: #f7f7f7;
 }
 
+.calendar-toolbar .actions .assign-btn {
+  font-weight: 600;
+  border-radius: 999px;
+  padding-inline: 12px;
+}
+
+
 /* ===== רספונסיביות טולבר ===== */
 @media (max-width: 900px) {
   .calendar-toolbar {
@@ -96,6 +103,25 @@
     padding: 6px;
   }
 }
+
+.event-box .resource-line {
+  margin-top: 2px;
+  font-size: 0.75rem;
+  opacity: 0.9;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.event-box .horse-label,
+.event-box .arena-label {
+  white-space: nowrap;
+}
+
+.event-box .resource-line .sep {
+  opacity: 0.6;
+}
+
 
 /* ===== מסך מלא ===== */
 .schedule-wrap {

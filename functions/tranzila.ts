@@ -948,7 +948,7 @@ async function generateAndSendReceipt(args: {
 
   await mailTransport.sendMail({
     to: email,
-    from: '"חוות בראשית" <no-reply@your-domain>',
+    from: '"חוות בראשית" <no-reply@smart-farm>',
     subject,
     html,
     attachments: [

@@ -54,7 +54,14 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   isFullscreen = false;
 
   currentRange: { start: string; end: string; viewType: string } | null = null;
-  currentViewType: 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth' = 'timeGridDay';
+  currentViewType:
+  | 'timeGridDay'
+  | 'timeGridWeek'
+  | 'dayGridMonth'
+  | 'resourceTimeGridDay'
+  | 'resourceTimeGridWeek' = 'timeGridDay';
+
+  autoAssignLoading = false;
 
   private childAgeById = new Map<string, string>();
 
@@ -257,74 +264,110 @@ this.rebuildInstructorResources();
     this.cdr.detectChanges();
   }
 
-  private async loadLessons(
-    range?: { start: string; end: string }
-  ): Promise<void> {
-    try {
-      const childIds = this.children.map(c => c.child_uuid).filter(Boolean);
-      if (!childIds.length) {
-        this.lessons = [];
-        return;
-      }
+private async loadLessons(
+  range?: { start: string; end: string }
+): Promise<void> {
+  try {
+    const childIds = this.children.map(c => c.child_uuid).filter(Boolean);
+    if (!childIds.length) {
+      this.lessons = [];
+      return;
+    }
 
-      const dbc = dbTenant();
+    const dbc = dbTenant();
 
-      const today = new Date().toISOString().slice(0, 10);
-      const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000)
-        .toISOString()
-        .slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
 
-      const from = range?.start ?? today;
-      const to = range?.end ?? in8Weeks;
+    const from = range?.start ?? today;
+    const to   = range?.end   ?? in8Weeks;
 
-      const { data, error } = await dbc
-        .from('lessons_occurrences')
-        .select(
-          'lesson_id, child_id, day_of_week, start_time, end_time, lesson_type, status, instructor_id, start_datetime, end_datetime, occur_date'
-        )
-        .in('child_id', childIds)
-        .gte('occur_date', from)
-        .lte('occur_date', to)
-        .order('start_datetime', { ascending: true });
+    // 1) השיעורים עצמם (כמו שהיה)
+    const { data: occData, error: err1 } = await dbc
+      .from('lessons_occurrences')
+      .select(
+        'lesson_id, child_id, day_of_week, start_time, end_time, lesson_type, status, instructor_id, start_datetime, end_datetime, occur_date'
+      )
+      .in('child_id', childIds)
+      .gte('occur_date', from)
+      .lte('occur_date', to)
+      .order('start_datetime', { ascending: true });
 
-      if (error) throw error;
+    if (err1) throw err1;
 
-      const nameByChild = new Map(
-        this.children.map(c => [
-          c.child_uuid,
-          `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim()
-        ])
-      );
+    // 2) משאבי סוס+מגרש לפי אותו טווח
+    const { data: resData, error: err2 } = await dbc
+      .from('lessons_with_children')
+      .select('lesson_id, occur_date, horse_name, arena_name')
+      .in('child_id', childIds)
+      .gte('occur_date', from)
+      .lte('occur_date', to);
 
-      const instructorNameById = new Map(
-        this.instructors.map(i => [
-          i.id_number,
-          `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()
-        ])
-      );
+    if (err2) throw err2;
 
-      this.lessons = (data ?? []).map((r: any) => ({
+    // 3) בניית Map לפי (lesson_id + occur_date)
+    const resourceByKey = new Map<
+      string,
+      { horse_name: string | null; arena_name: string | null }
+    >();
+
+    for (const row of resData ?? []) {
+      const key = `${row.lesson_id}::${row.occur_date}`;
+      resourceByKey.set(key, {
+        horse_name: row.horse_name ?? null,
+        arena_name: row.arena_name ?? null,
+      });
+    }
+
+    // 4) מיפוי לשיעורים + הוספת horse/arena מה-Map
+    const nameByChild = new Map(
+      this.children.map(c => [
+        c.child_uuid,
+        `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim(),
+      ])
+    );
+
+    const instructorNameById = new Map(
+      this.instructors.map(i => [
+        i.id_number,
+        `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim(),
+      ])
+    );
+
+    this.lessons = (occData ?? []).map((r: any) => {
+      const key = `${r.lesson_id}::${r.occur_date}`;
+      const res = resourceByKey.get(key);
+
+      return {
         lesson_id: String(r.lesson_id ?? ''),
-        id: String(r.lesson_id ?? ''),
-        child_id: r.child_id,
+        id:        String(r.lesson_id ?? ''),
+        child_id:  r.child_id,
         day_of_week: r.day_of_week,
-        start_time: r.start_time,
-        end_time: r.end_time,
+        start_time:  r.start_time,
+        end_time:    r.end_time,
         lesson_type: r.lesson_type,
-        status: r.status,
-        instructor_id: r.instructor_id ?? '',
+        status:      r.status,
+        instructor_id:   r.instructor_id ?? '',
         instructor_name: instructorNameById.get(r.instructor_id) || '',
         child_color: this.getColorForChild(r.child_id),
-        child_name: nameByChild.get(r.child_id) || '',
+        child_name:  nameByChild.get(r.child_id) || '',
         start_datetime: r.start_datetime ?? null,
-        end_datetime: r.end_datetime ?? null,
-        occur_date: r.occur_date ?? null,
-      })) as unknown as Lesson[];
-    } catch (err) {
-      console.error('loadLessons failed', err);
-      this.lessons = [];
-    }
+        end_datetime:   r.end_datetime ?? null,
+        occur_date:     r.occur_date ?? null,
+
+        // 👇 עכשיו באמת מגיע מהנתונים של ה-view
+        horse_name: res?.horse_name ?? null,
+        arena_name: res?.arena_name ?? null,
+      } as Lesson;
+    });
+  } catch (err) {
+    console.error('loadLessons failed', err);
+    this.lessons = [];
   }
+}
+
 
   /** סינון שיעורים לפי מדריכים מסומנים + טווח תצוגה */
   private filterLessons(): void {
@@ -406,7 +449,9 @@ this.rebuildInstructorResources();
       instructor_id: lesson.instructor_id,
       instructor_name: lesson.instructor_name,
       lesson_type: lessonType,
-      children: childDisplay,    // 👈 זה מה שיוצג בכרטיסייה
+      children: childDisplay,   
+      horse_name: lesson.horse_name,
+      arena_name: lesson.arena_name,
     },
   } as ScheduleItem;
 };
@@ -627,4 +672,49 @@ if (this.currentViewType === 'timeGridDay') {
       a.instructor_name.localeCompare(b.instructor_name, 'he')
     );
   }
+
+  async autoAssignForCurrentDay(): Promise<void> {
+  // רק בתצוגת יום, ובלוח של המזכירה
+  if (
+    !this.currentRange ||
+    !(
+      this.currentViewType === 'timeGridDay' ||
+      this.currentViewType === 'resourceTimeGridDay'
+    )
+  ) {
+    return;
+  }
+
+  const day = this.currentRange.start; // start==end בתצוגת יום
+  if (!day) return;
+
+  if (this.autoAssignLoading) return;
+  this.autoAssignLoading = true;
+
+  try {
+    const dbc = dbTenant();
+
+    const { data, error } = await dbc.rpc(
+      'auto_assign_horses_and_arenas',
+      { p_date: day } // טיפוס DATE ב-Postgres
+    );
+
+    if (error) throw error;
+
+    // אחרי השיבוץ – לטעון מחדש את השיעורים של היום
+    await this.loadLessons({ start: day, end: day });
+    this.filterLessons();
+    this.setScheduleItems();
+    this.buildWeekStats();
+    this.cdr.detectChanges();
+
+    alert('שובצו סוסים ומגרשים לשיעורים של היום. ניתן לערוך שיעור-שיעור בממשק המתאים.');
+  } catch (e: any) {
+    console.error('autoAssignForCurrentDay failed', e);
+    alert('שיבוץ סוסים ומגרשים נכשל: ' + (e?.message ?? e));
+  } finally {
+    this.autoAssignLoading = false;
+  }
+}
+
 }

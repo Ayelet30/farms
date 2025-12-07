@@ -47,6 +47,11 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   @Input() allDaySlot = false;
   @Input() resources: any[] = [];
 
+  // למעלה, אחרי שאר ה-@Input
+@Input() enableAutoAssign = false;
+@Output() autoAssignRequested = new EventEmitter<void>();
+
+
   @Output() eventClick = new EventEmitter<EventClickArg>();
   @Output() dateClick = new EventEmitter<DateClickArg>();
   @Output() viewRange = new EventEmitter<{
@@ -134,62 +139,79 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     },
 
     eventContent: (arg) => {
-      const { event } = arg;
-      const status = event.extendedProps['status'] || '';
-      const isSummaryDay = !!event.extendedProps['isSummaryDay'];
-      const isSummarySlot = !!event.extendedProps['isSummarySlot'];
-      const isInstructorHeader = !!event.extendedProps['isInstructorHeader'];
+  const { event } = arg;
+  const status = event.extendedProps['status'] || '';
+  const isSummaryDay = !!event.extendedProps['isSummaryDay'];
+  const isSummarySlot = !!event.extendedProps['isSummarySlot'];
+  const isInstructorHeader = !!event.extendedProps['isInstructorHeader'];
 
-      // סיכומי חודש/שבוע
-      if (isSummaryDay || isSummarySlot) {
-        return {
-          html: `
-            <div class="event-box summary">
-              <div class="title">${event.title}</div>
-            </div>
-          `,
-        };
-      }
+  // סיכומי חודש/שבוע
+  if (isSummaryDay || isSummarySlot) {
+    return {
+      html: `
+        <div class="event-box summary">
+          <div class="title">${event.title}</div>
+        </div>
+      `,
+    };
+  }
 
-      // כותרת מדריך
-      if (isInstructorHeader) {
-        return {
-          html: `
-            <div class="event-box instructor-header">
-              <div class="instructor-line">${event.title}</div>
-            </div>
-          `,
-        };
-      }
+  // כותרת מדריך
+  if (isInstructorHeader) {
+    return {
+      html: `
+        <div class="event-box instructor-header">
+          <div class="instructor-line">${event.title}</div>
+        </div>
+      `,
+    };
+  }
 
-      // כרטיסיית שיעור – ילדים + סוג
-      const childrenStr =
-        event.extendedProps['children'] ||
-        event.extendedProps['child_name'] ||
-        '';
-      const children = childrenStr
-        .split('|')
-        .map((s: string) => s.trim())
-        .filter((s: string) => !!s);
+  // כרטיסיית שיעור – ילדים + סוג
+  const childrenStr =
+    event.extendedProps['children'] ||
+    event.extendedProps['child_name'] ||
+    '';
+  const children = childrenStr
+    .split('|')
+    .map((s: string) => s.trim())
+    .filter((s: string) => !!s);
 
-      const childrenHtml = children
-        .map((name: string) => `<span class="child-name">${name}</span>`)
-        .join('<span class="child-sep"></span>');
+  const childrenHtml = children
+    .map((name: string) => `<span class="child-name">${name}</span>`)
+    .join('<span class="child-sep"></span>');
 
-      const type = event.extendedProps['lesson_type'] || '';
-      const chip = type ? `<span class="chip">${type}</span>` : '';
+  const type = event.extendedProps['lesson_type'] || '';
+  const chip = type ? `<span class="chip">${type}</span>` : '';
 
-      return {
-        html: `
-          <div class="event-box ${status}">
-            <div class="children-line">
-              ${childrenHtml}
-            </div>
-            ${chip}
-          </div>
-        `,
-      };
-    },
+  // 👇 חדשים – סוס ומגרש
+  const horse = event.extendedProps['horse_name'] || '';
+  const arena = event.extendedProps['arena_name'] || '';
+
+  const resourcesHtml =
+    horse || arena
+      ? `
+        <div class="resource-line">
+          ${horse ? `<span class="horse-label">עם ${horse}</span>` : ''}
+          ${horse && arena ? '<span class="sep">·</span>' : ''}
+          ${arena ? `<span class="arena-label">ב${arena}</span>` : ''}
+        </div>
+      `
+      : '';
+
+  return {
+    html: `
+      <div class="event-box ${status}">
+        <div class="children-line">
+          ${childrenHtml}
+        </div>
+        ${resourcesHtml}
+        ${chip}
+      </div>
+    `,
+  };
+},
+
 
     // 👇 צביעת אירועים + קליק ימני על אירוע (אותו תפריט כמו על יום)
     eventClassNames: (arg) => {
@@ -321,6 +343,8 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
           isInstructorHeader: (i as any).meta?.isInstructorHeader,
           canCancel: (i as any).meta?.canCancel,
           lesson_occurrence_id: (i as any).meta?.lesson_occurrence_id,
+           horse_name: (i as any).meta?.horse_name,
+    arena_name: (i as any).meta?.arena_name,
         },
       })),
       resources: this.resources,
@@ -353,6 +377,13 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
       setTimeout(() => api.scrollToTime(this.nowScroll()), 0);
     }
   }
+
+  // בתוך המחלקה ScheduleComponent
+onAutoAssignClick() {
+  if (!this.enableAutoAssign) return;
+  this.autoAssignRequested.emit();
+}
+
 
   changeView(view: ViewName) {
     this.currentView = view;
