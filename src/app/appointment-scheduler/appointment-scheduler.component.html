@@ -162,7 +162,10 @@
           ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
           בשעה <b>{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</b><br>
           עם המדריך <b>{{ seriesConfirmData.instructorName }}</b>?
+    ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
+
         </p>
+
 
         <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
           <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
@@ -540,7 +543,10 @@
         במקום השיעור בתאריך
         <b>{{ confirmData.oldDate }}</b>
         בשעות <b>{{ confirmData.oldStart }}–{{ confirmData.oldEnd }}</b>?
+    ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
+
       </p>
+     
 
       <div style="display:flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
         <button mat-button (click)="dialogRef.close(false)">ביטול</button>

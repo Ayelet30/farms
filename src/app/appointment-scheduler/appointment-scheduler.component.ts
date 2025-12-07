@@ -230,6 +230,8 @@ paymentSourceForSeries: 'health_fund' | 'private' | null = null;
   makeupError: string | null = null;
   makeupCreatedMessage: string | null = null;
   user: CurrentUser | null = null;
+  hoursBeforeCancel: number | null = null;
+
 
   constructor(
   private currentUser: CurrentUserService,
@@ -420,7 +422,7 @@ private async loadFarmSettings(): Promise<void> {
 
   const { data, error } = await supa
     .from('farm_settings')
-    .select('displayed_makeup_lessons_count')
+    .select('displayed_makeup_lessons_count , hours_before_cancel_lesson')
     .limit(1)
     .single();
 
@@ -430,6 +432,8 @@ private async loadFarmSettings(): Promise<void> {
   }
 
   this.displayedMakeupLessonsCount = data?.displayed_makeup_lessons_count ?? null;
+    this.hoursBeforeCancel = data?.hours_before_cancel_lesson ?? null;
+
 }
 
 generateLessonSlots(start: string, end: string): { from: string, to: string }[] {
