@@ -1,13 +1,23 @@
-import { Component, OnInit, ViewChild, HostListener } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  ViewChild,
+  HostListener,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 
 import { ensureTenantContextReady, dbTenant } from '../../services/legacy-compat';
-import type { AddChildPayload, ChildRow } from '../../Types/detailes.model';
+import type { ChildRow } from '../../Types/detailes.model';
 
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { FormsModule } from '@angular/forms';
-import { AddChildWizardComponent } from "../add-child-wizard/add-child-wizard.component";
+import {
+  FormsModule,
+  ReactiveFormsModule,
+  FormBuilder,
+  FormGroup,
+} from '@angular/forms';
+import { AddChildWizardComponent } from '../add-child-wizard/add-child-wizard.component';
 
 type ParentBrief = {
   uid: string;
@@ -38,16 +48,21 @@ type HorseLite = {
   is_active: boolean;
 };
 
-
 @Component({
   selector: 'app-secretary-children',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSidenavModule, MatDialogModule, AddChildWizardComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    MatSidenavModule,
+    MatDialogModule,
+    AddChildWizardComponent,
+  ],
   templateUrl: './secretary-children.component.html',
   styleUrls: ['./secretary-children.component.css'],
 })
 export class SecretaryChildrenComponent implements OnInit {
-
   children: ChildRow[] = [];
   isLoading = true;
   error: string | null = null;
@@ -58,7 +73,12 @@ export class SecretaryChildrenComponent implements OnInit {
   drawerLoading = false;
   drawerChild: ChildDetails | null = null;
 
-  // 🔍 חיפוש / סינון – כמו בטבלת הורים
+  // --- טופס עריכת ילד במגירה ---
+  childForm: FormGroup | null = null;
+  editMode = false;
+  private originalChild: ChildDetails | null = null;
+
+  // --- חיפוש / סינון ---
   searchText = '';
   searchMode: 'name' | 'id' = 'name';
   statusFilter: 'all' | 'active' | 'inactive' = 'all';
@@ -67,15 +87,17 @@ export class SecretaryChildrenComponent implements OnInit {
   panelFocus: 'search' | 'filter' = 'search';
   showAddChildWizard = false;
 
-    // ===== סוסים מתאימים לילדים =====
-  horses: HorseLite[] = [];                        // כל הסוסים בחווה
-  childHorses: Record<string, string[]> = {};      // child_uuid -> [horse_id, ...]
-  savingChildHorses: Record<string, boolean> = {}; // child_uuid -> isSaving
+  // --- סוסים לילדים ---
+  horses: HorseLite[] = [];
+  childHorses: Record<string, string[]> = {};
+  savingChildHorses: Record<string, boolean> = {};
 
+  constructor(
+    private dialog: MatDialog,
+    private fb: FormBuilder,
+  ) {}
 
-  constructor(private dialog: MatDialog) {}
-
-    async ngOnInit(): Promise<void> {
+  async ngOnInit(): Promise<void> {
     try {
       await ensureTenantContextReady();
       await this.loadChildren();
@@ -87,7 +109,6 @@ export class SecretaryChildrenComponent implements OnInit {
       console.error(e);
     }
   }
-
 
   /** טוען את כל הילדים בסכימת הטננט הפעיל */
   async loadChildren(): Promise<void> {
@@ -123,8 +144,56 @@ export class SecretaryChildrenComponent implements OnInit {
       this.children = [];
       console.error(e);
     } finally {
-    await this.loadHorsesAndChildMapping();
       this.isLoading = false;
+      await this.loadHorsesAndChildMapping();
+    }
+  }
+
+  /** טוען סוסים ומיפוי child_horses */
+  private async loadHorsesAndChildMapping(): Promise<void> {
+    try {
+      const db = dbTenant();
+
+      // כל הסוסים
+      const { data: horsesData, error: horsesErr } = await db
+        .from('horses')
+        .select('id, name, is_active')
+        .order('name', { ascending: true });
+
+      if (horsesErr) {
+        console.error('loadHorses error:', horsesErr);
+        this.horses = [];
+      } else {
+        this.horses = (horsesData ?? []) as HorseLite[];
+      }
+
+      // מיפוי סוסים לכל ילד קיים
+      const childIds = this.children
+        .map(c => (c as any).child_uuid)
+        .filter(Boolean) as string[];
+
+      if (!childIds.length) return;
+
+      const { data: mappingData, error: mapErr } = await db
+        .from('child_horses')
+        .select('child_id, horse_id')
+        .in('child_id', childIds);
+
+      if (mapErr) {
+        console.error('loadChildHorses mapping error:', mapErr);
+        return;
+      }
+
+      const mapping: Record<string, string[]> = {};
+      for (const row of mappingData ?? []) {
+        const cid = (row as any).child_id as string;
+        const hid = (row as any).horse_id as string;
+        if (!mapping[cid]) mapping[cid] = [];
+        if (!mapping[cid].includes(hid)) mapping[cid].push(hid);
+      }
+      this.childHorses = mapping;
+    } catch (e) {
+      console.error('loadHorsesAndChildMapping fatal:', e);
     }
   }
 
@@ -132,20 +201,24 @@ export class SecretaryChildrenComponent implements OnInit {
   get filteredChildren(): ChildRow[] {
     let rows = [...this.children];
 
-    const q = (this.searchText || '').trim().toLowerCase();
-    if (q) {
-      rows = rows.filter((c: any) => {
-        if (this.searchMode === 'name') {
+    const raw = (this.searchText || '').trim();
+
+    if (raw) {
+      if (this.searchMode === 'name') {
+        const q = raw.toLowerCase();
+        rows = rows.filter((c: any) => {
           const hay = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
           return hay.includes(q);
-        }
-
-        const id = (c.gov_id || '').toString().trim();
-        return id === q;
-      });
+        });
+      } else {
+        const qId = raw.replace(/\s/g, '');
+        rows = rows.filter((c: any) => {
+          const id = (c.gov_id || '').toString().replace(/\s/g, '');
+          return qId !== '' && id.startsWith(qId);
+        });
+      }
     }
 
-    // סינון לפי סטטוס ילד
     if (this.statusFilter !== 'all') {
       rows = rows.filter((c: any) => {
         const status = (c.status || '').toString().toLowerCase();
@@ -154,7 +227,6 @@ export class SecretaryChildrenComponent implements OnInit {
       });
     }
 
-    // סינון לפי שיוך להורה
     if (this.parentFilter === 'withParent') {
       rows = rows.filter((c: any) => !!c.parent_uid);
     } else if (this.parentFilter === 'withoutParent') {
@@ -206,14 +278,14 @@ export class SecretaryChildrenComponent implements OnInit {
     this.drawer.close();
     this.selectedId = null;
     this.drawerChild = null;
+    this.editMode = false;
+    this.childForm = null;
+    this.originalChild = null;
   }
 
-  /** פתיחת דיאלוג הוספת ילד/ה חדש/ה */
- // SecretaryChildrenComponent
-openAddChildDialog() {
-  this.showAddChildWizard = true;
-}
-
+  openAddChildDialog() {
+    this.showAddChildWizard = true;
+  }
 
   /** טוען פרטי ילד והורה למגירה */
   private async loadDrawerData(id: string) {
@@ -222,11 +294,11 @@ openAddChildDialog() {
     try {
       const db = dbTenant();
 
-      // 1) פרטי הילד
       const { data: c, error: cErr } = await db
         .from('children')
         .select(
           `
+           child_uuid,
            first_name,
            last_name,
            gov_id,
@@ -244,22 +316,20 @@ openAddChildDialog() {
 
       if (cErr) throw cErr;
 
-      // 2) פרטי ההורה
       let parent: ParentBrief | null = null;
 
       if (c?.parent_uid) {
         const { data: p, error: pErr } = await db
           .from('parents')
-          .select('first_name,last_name, phone, email')
+          .select('uid, first_name,last_name, phone, email')
           .eq('uid', c.parent_uid)
           .maybeSingle();
 
         if (!pErr && p) parent = p as ParentBrief;
       }
 
-      // 3) שמירה לתצוגה
-      this.drawerChild = { ...(c as ChildDetails), parent };
-      this.drawerChild.child_uuid = id;
+      this.drawerChild = { ...(c as ChildDetails), parent, child_uuid: id };
+      this.buildChildForm(this.drawerChild);
     } catch (e) {
       console.error('loadDrawerData error:', e);
       this.drawerChild = null;
@@ -268,119 +338,161 @@ openAddChildDialog() {
     }
   }
 
-   handleChildAddedFromWizard() {
-    // ריענון רשימת הילדים אחרי סיום אשף
+  /** בונה טופס עריכה מתוך פרטי הילד שבמגירה */
+  private buildChildForm(child: ChildDetails) {
+    this.childForm = this.fb.group({
+      health_fund: [child.health_fund ?? null],
+      status: [child.status ?? null],
+      medical_notes: [child.medical_notes ?? null],
+      behavior_notes: [child.behavior_notes ?? null],
+    });
+
+    this.originalChild = { ...child };
+    this.editMode = false;
+  }
+
+  /** כניסה למצב עריכה במגירת הילד */
+  enterEditModeChild() {
+    if (!this.drawerChild || !this.childForm) return;
+    this.editMode = true;
+  }
+
+  /** ביטול עריכה – חזרה לערכים המקוריים */
+  cancelChildEdit() {
+    if (!this.originalChild) {
+      this.editMode = false;
+      return;
+    }
+    this.buildChildForm(this.originalChild);
+    this.editMode = false;
+  }
+
+  /** שמירת השינויים – PATCH רק על שדות ששונו */
+  async saveChildEdits() {
+    if (!this.drawerChild || !this.childForm || !this.selectedId) return;
+
+    const raw = this.childForm.getRawValue();
+
+    const fieldsToCompare: (keyof ChildDetails)[] = [
+      'health_fund',
+      'status',
+      'medical_notes',
+      'behavior_notes',
+    ];
+
+    const delta: Partial<ChildDetails> = {};
+
+    for (const key of fieldsToCompare) {
+      const oldVal = (this.originalChild as any)?.[key] ?? null;
+      const newVal = (raw as any)?.[key] ?? null;
+      if (oldVal !== newVal) {
+        (delta as any)[key] = newVal;
+      }
+    }
+
+    if (Object.keys(delta).length === 0) {
+      this.editMode = false;
+      return;
+    }
+
+    try {
+      const db = dbTenant();
+
+      const { error } = await db
+        .from('children')
+        .update(delta)
+        .eq('child_uuid', this.selectedId);
+
+      if (error) throw error;
+
+      this.drawerChild = {
+        ...(this.drawerChild as ChildDetails),
+        ...delta,
+      };
+      this.originalChild = { ...this.drawerChild };
+
+      this.children = this.children.map(c =>
+        (c as any).child_uuid === this.selectedId
+          ? { ...c, ...delta }
+          : c,
+      );
+
+      this.editMode = false;
+    } catch (e: any) {
+      console.error(e);
+      alert('שמירת השינויים נכשלה: ' + (e?.message ?? e));
+    }
+  }
+
+  /** האם לילד יש סוס מסוים */
+  childHasHorse(childId: string | undefined, horseId: string): boolean {
+    if (!childId) return false;
+    const list = this.childHorses[childId] || [];
+    return list.includes(horseId);
+  }
+
+  /** רשימת שמות סוסים לתצוגה */
+  horseNamesForChild(childId: string | undefined): string {
+    if (!childId) return '';
+    const ids = this.childHorses[childId] || [];
+    if (!ids.length) return '';
+    const nameById = new Map(this.horses.map(h => [h.id, h.name]));
+    return ids
+      .map(id => nameById.get(id))
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  /** הוספה/הסרה של סוס לילד */
+  async toggleChildHorse(
+    childId: string | undefined,
+    horseId: string,
+    checked: boolean,
+  ) {
+    if (!childId) return;
+    const key = childId;
+    this.savingChildHorses[key] = true;
+
+    const db = dbTenant();
+
+    try {
+      const current = new Set(this.childHorses[key] || []);
+
+      if (checked) {
+        if (!current.has(horseId)) {
+          const { error } = await db
+            .from('child_horses')
+            .insert({ child_id: childId, horse_id: horseId });
+          if (error) throw error;
+          current.add(horseId);
+        }
+      } else {
+        if (current.has(horseId)) {
+          const { error } = await db
+            .from('child_horses')
+            .delete()
+            .eq('child_id', childId)
+            .eq('horse_id', horseId);
+          if (error) throw error;
+          current.delete(horseId);
+        }
+      }
+
+      this.childHorses[key] = Array.from(current);
+    } catch (e) {
+      console.error('toggleChildHorse error:', e);
+      alert('שמירת התאמת הסוס נכשלה');
+    } finally {
+      this.savingChildHorses[key] = false;
+    }
+  }
+
+  handleChildAddedFromWizard() {
     this.loadChildren();
     this.showAddChildWizard = false;
   }
-closeWizard() {
+
+  closeWizard() {
     this.showAddChildWizard = false;
   }
-
-    // טענת רשימת סוסים + מיפוי ילד–סוסים
-  private async loadHorsesAndChildMapping(): Promise<void> {
-    const db = dbTenant();
-
-    // 1) סוסים
-    const { data: horsesData, error: horsesError } = await db
-      .from('horses')
-      .select('id, name, is_active')
-      .order('name', { ascending: true });
-
-    if (horsesError) {
-      console.error('שגיאה בטעינת סוסים:', horsesError);
-      this.horses = [];
-    } else {
-      const list = (horsesData ?? []) as HorseLite[];
-      this.horses = list; // אם תרצי רק פעילים: list.filter(h => h.is_active)
-    }
-
-    // 2) מיפוי מילד לסוסים (child_horses)
-    const childIds = this.children
-      .map(c => c.child_uuid)
-      .filter(Boolean) as string[];
-
-    if (!childIds.length) {
-      this.childHorses = {};
-      return;
-    }
-
-    const { data: chData, error: chError } = await db
-      .from('child_horses')
-      .select('child_id, horse_id')
-      .in('child_id', childIds);
-
-    if (chError) {
-      console.error('שגיאה בטעינת child_horses:', chError);
-      this.childHorses = {};
-      return;
-    }
-
-    const mapping: Record<string, string[]> = {};
-    for (const row of (chData ?? []) as { child_id: string; horse_id: string }[]) {
-      if (!mapping[row.child_id]) mapping[row.child_id] = [];
-      mapping[row.child_id].push(row.horse_id);
-    }
-    this.childHorses = mapping;
-  }
-
-    // מחזיר איזה סוסים משויכים לילד מסוים
-  childHorsesFor(childId: string | undefined | null): string[] {
-    if (!childId) return [];
-    return this.childHorses[childId] ?? [];
-  }
-
-  // האם לסוס מסוים יש התאמה לילד?
-  childHasHorse(childId: string | undefined | null, horseId: string): boolean {
-    return this.childHorsesFor(childId).includes(horseId);
-  }
-
-  // הוספה/הסרה של התאמה ילד–סוס
-  async toggleChildHorse(
-    childUid: string | undefined | null,
-    horseId: string,
-    checked: boolean
-  ): Promise<void> {
-    console.log("@@@@@@@@@@@", childUid, horseId, checked);
-    if (!childUid) return;
-
-    const db = dbTenant();
-    this.savingChildHorses[childUid] = true;
-
-    if (checked) {
-      // הוספת קשר
-      const { error } = await db
-        .from('child_horses')
-        .insert({ child_id: childUid, horse_id: horseId });
-
-      if (error) {
-        console.error('שגיאה בהוספת סוס לילד:', error);
-        // אפשר להוסיף הודעת שגיאה אם תרצי
-      } else {
-        const set = new Set(this.childHorses[childUid] ?? []);
-        set.add(horseId);
-        this.childHorses[childUid] = Array.from(set);
-      }
-    } else {
-      // הסרת קשר
-      const { error } = await db
-        .from('child_horses')
-        .delete()
-        .eq('child_id', childUid)
-        .eq('horse_id', horseId);
-
-      if (error) {
-        console.error('שגיאה בהסרת סוס מילד:', error);
-      } else {
-        const set = new Set(this.childHorses[childUid] ?? []);
-        set.delete(horseId);
-        this.childHorses[childUid] = Array.from(set);
-      }
-    }
-
-    this.savingChildHorses[childUid] = false;
-  }
-
-
-
 }

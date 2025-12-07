@@ -674,4 +674,44 @@
   }
 }
 
+.search-option {
+  // כדי שהאינפוט יתפוס את כל הרוחב
+  padding: 4px 8px;
+}
+
+.search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #ffffff;
+  color: #000000;        // טקסט שחור וברור
+  font-size: 14px;
+}
+
+.search-input::placeholder {
+  color: #999999;        // placeholder אפור עדין
+}
+
+.search-option .mat-mdc-option-text {
+  width: 100%;
+}
+
+.search-option input[matInput] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+}
+.search-option {
+  cursor: default;
+
+  input[matInput] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px 8px;
+    background: #ffffff;
+    color: #000000; // לוודא שרואים את מה שמקלידים
+  }
+}
 
