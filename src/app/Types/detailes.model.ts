@@ -69,7 +69,11 @@ export interface InstructorRow {
 export type RequestType =
   | 'CANCEL_OCCURRENCE'
   | 'INSTRUCTOR_DAY_OFF'
-  | 'NEW_SERIES';
+  | 'NEW_SERIES'
+  | 'ADD_CHILD'
+  | 'DELETE_CHILD'
+  | 'MAKEUP_LESSON'
+  | 'OTHER_REQUEST';
 
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED_BY_REQUESTER';
 
@@ -128,4 +132,17 @@ export interface SecretaryChargeRow {
   parent_email: string | null;
   is_external: boolean;
 }
+
+export type AddChildPayload = {
+  first_name: string;
+  last_name: string;
+  parent_uid: string;
+  gov_id?: string;
+  birth_date?: string;
+  gender?: string;
+  health_fund?: string;
+  status?: string;
+  medical_notes?: string;
+  behavior_notes?: string;
+};
 
