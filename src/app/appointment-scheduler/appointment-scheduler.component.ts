@@ -61,6 +61,8 @@ interface MakeupSlot {
   instructor_id: string;
   remaining_capacity: number;
   instructor_name?: string | null; 
+  lesson_type_mode?: 'double_only' | 'both' | 'double or both' | 'break' | null;
+
 
 }
 interface MakeupCandidate {
@@ -1513,6 +1515,17 @@ get canRequestSeries(): boolean {
   }
 
   return true;
+}
+getLessonTypeLabel(slot: MakeupSlot): string {
+  console.log(slot.lesson_type_mode); 
+  switch (slot.lesson_type_mode) {
+    case 'both':
+      return 'זוגי'
+    case 'double or both':
+      return 'זוגי';
+    default:
+      return 'יחיד';
+  }
 }
 
 

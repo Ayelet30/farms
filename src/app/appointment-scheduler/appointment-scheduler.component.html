@@ -480,7 +480,7 @@
             <th>יום</th> <!-- ⬅ חדש -->
             <th>שעה</th>
             <th>מדריך</th>
-            <th>מקומות פנויים לשיעור</th>
+<th>סוג שיעור</th>
             <th></th>
           </tr>
         </thead>
@@ -496,7 +496,8 @@
             <!-- שם מדריך, ואם אין – נופל חזרה ל-id -->
             <td>{{ s.instructor_name || s.instructor_id }}</td>
 
-            <td>{{ s.remaining_capacity }}</td>
+
+<td>{{ getLessonTypeLabel(s) }}</td>
             <td>
               <button type="button" class="appt-cta" (click)="requestMakeupFromSecretary(s)">
                 קבע שיעור השלמה
