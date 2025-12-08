@@ -182,3 +182,50 @@ option {
   background-color: #ffffff !important;
   color: #333 !important;
 }
+
+/* גלילה מעודנת לכל אזור שנגלל */
+.slider,
+.content-area {
+  scrollbar-width: thin;                    /* Firefox */
+  scrollbar-color: #9ea889 transparent;     /* צבע ידית + רקע */
+}
+
+/* WebKit (Chrome / Edge / Safari) */
+.slider::-webkit-scrollbar,
+.content-area::-webkit-scrollbar {
+  width: 8px;              /* עובי */
+}
+
+.slider::-webkit-scrollbar-track,
+.content-area::-webkit-scrollbar-track {
+  background: transparent; /* או #f4f6f3 אם תרצי */
+}
+
+.slider::-webkit-scrollbar-thumb,
+.content-area::-webkit-scrollbar-thumb {
+  background-color: #9ea889;   /* צבע ידית */
+  border-radius: 999px;        /* עגול יפה */
+  border: 2px solid transparent; /* קצת “אוויר” מסביב */
+  background-clip: content-box;
+}
+
+.slider::-webkit-scrollbar-thumb:hover,
+.content-area::-webkit-scrollbar-thumb:hover {
+  background-color: #7f8b5d;
+}
+@media (max-width: 600px) {
+  .slider,
+  .content-area {
+    scrollbar-width: auto;
+  }
+
+  .slider::-webkit-scrollbar,
+  .content-area::-webkit-scrollbar {
+    width: 0;  /* או להשאיר 6px – לפי מה שנוח */
+  }
+}
+html, body {
+  height: 100%;
+  overflow: hidden;  /* שרק אזורי התוכן יגללו, לא כל הדף */
+}
+
