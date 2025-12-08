@@ -112,7 +112,7 @@ export class LoginComponent {
 
   const email = (this.email || '').trim();
   if (!email) {
-    this.errorMessage = 'הכנס את כתובת הדוא"ל ואז לחץ "שכחתי סיסמה".';
+    this.errorMessage = 'הכנס את כתובת הדוא"ל ואז לחץ "שכחתי סיסמא".';
     return;
   }
 
@@ -135,7 +135,7 @@ export class LoginComponent {
 
     // הודעת הצלחה כללית (הנכונה מבחינה אבטחתית)
     this.successMessage =
-      'אם קיים במערכת משתמש עם כתובת הדוא"ל הזו - נשלח אליו קישור לאיפוס סיסמה.';
+      'אם קיים במערכת משתמש עם כתובת הדוא"ל הזו - נשלח אליו קישור לאיפוס סיסמא.';
   } catch (e: any) {
     console.error('forgotPassword error:', e);
     const code = e?.code || '';
