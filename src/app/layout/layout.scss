@@ -1,0 +1,95 @@
+@use '../../styles/tokens/bereshit_farm-tokens' as *;
+
+/* קונטיינר כללי */
+.body-layout {
+  display: flex;
+  min-height: 100vh;
+  direction: rtl;
+  background-color: var(--panel-bg);
+  padding-top: var(--header-h);   /* דוחף את כל ה-layout מתחת להדר */
+}
+
+/* ===== HEADER קבוע ===== */
+.header {
+  position: fixed;
+  top: 0;
+  inset-inline: 0;
+  height: var(--header-h);
+  z-index: 1000;
+}
+/* ===== SLIDER בסיס ===== */
+.slider {
+  position: fixed;
+  top: var(--header-h);
+  bottom: 0;
+  inset-inline-start: 0;
+  width: var(--sidebar-wide);
+  overflow-y: auto;
+  padding-inline-start: 6px;
+  box-sizing: border-box;
+  z-index: 900;              /* כדי שיהיה מעל התוכן */
+}
+
+
+/* ===== תוכן ראשי ===== */
+.main-content {
+  flex: 1;
+  /* אין margin-top – זה כבר בא מה-padding של body-layout */
+  margin-inline-start: var(--sidebar-wide);
+  min-height: calc(100vh - var(--header-h));
+  background-color: #fffef9;
+  position: relative;
+  z-index: 1;                 /* מתחת לסיידר */
+}
+
+.content-area {
+  height: calc(100vh - var(--header-h));
+  overflow-y: auto;
+  padding: 40px 30px;
+  padding-inline-end: 6px;
+  box-sizing: border-box;
+}
+
+/* כשהתפריט סגור בדסקטופ – להקטין את ה-slider ולהזיז את התוכן בהתאם */
+@media (min-width: 1024px) {
+  .body-layout:has(.side-menu.collapsed) .slider {
+    width: var(--sidebar-rail);            /* 64px – רק איקונים */
+  }
+
+  .body-layout:has(.side-menu.collapsed) .main-content {
+    margin-inline-start: var(--sidebar-rail);
+  }
+
+  /* וכשהוא פתוח – ודאי שאנחנו ברוחב המלא */
+  .body-layout:has(.side-menu:not(.collapsed)) .slider {
+    width: var(--sidebar-wide);            /* 240px */
+  }
+
+  .body-layout:has(.side-menu:not(.collapsed)) .main-content {
+    margin-inline-start: var(--sidebar-wide);
+  }
+}
+
+
+@media (max-width: 1024px) {
+  .slider {
+        width: 100px;
+        height: 88%;
+  }
+
+  .main-content {
+    margin-inline-start: 100px;
+  }
+}
+
+@media (max-width: 600px) {
+  .slider {
+    width: var(--sidebar-rail);
+  }
+
+  .main-content {
+    margin-inline-start: var(--sidebar-rail);
+  }
+}
+
+
