@@ -9,6 +9,9 @@ import { SELECTION_LIST } from '@angular/material/list';
 import { MatDialog } from '@angular/material/dialog';
 import { ViewChild, TemplateRef } from '@angular/core';
 //import { console } from 'inspector';
+import { MatSelect, MatSelectModule } from '@angular/material/select';
+import { MatInputModule } from '@angular/material/input';
+
 
 
 interface InstructorDbRow {
@@ -58,6 +61,8 @@ interface MakeupSlot {
   instructor_id: string;
   remaining_capacity: number;
   instructor_name?: string | null; 
+  lesson_type_mode?: 'double_only' | 'both' | 'double or both' | 'break' | null;
+
 
 }
 interface MakeupCandidate {
@@ -90,7 +95,10 @@ interface SeriesCalendarDay {
 @Component({
   selector: 'app-appointment-scheduler',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule,
+    FormsModule,
+    MatSelectModule,
+    MatInputModule],
   templateUrl: './appointment-scheduler.component.html',
   styleUrls: ['./appointment-scheduler.component.scss'],
 })
@@ -141,6 +149,10 @@ selectedSeriesDaySlots: RecurringSlot[] = [];
 
 
   @ViewChild('confirmMakeupDialog') confirmMakeupDialog!: TemplateRef<any>;
+  @ViewChild('childSelect') childSelect!: MatSelect;
+  @ViewChild('instructorSelect') instructorSelect!: MatSelect;
+
+
 
 confirmData = {
   newDate: '',
@@ -164,6 +176,11 @@ seriesConfirmData = {
   endTime: '',
   instructorName: ''
 };
+filteredChildren: ChildWithProfile[] = [];
+childSearchTerm: string = '';
+
+filteredInstructors: InstructorWithConstraints[] = [];
+instructorSearchTerm: string = '';
 
 
 
@@ -215,6 +232,8 @@ paymentSourceForSeries: 'health_fund' | 'private' | null = null;
   makeupError: string | null = null;
   makeupCreatedMessage: string | null = null;
   user: CurrentUser | null = null;
+  hoursBeforeCancel: number | null = null;
+
 
   constructor(
   private currentUser: CurrentUserService,
@@ -405,7 +424,7 @@ private async loadFarmSettings(): Promise<void> {
 
   const { data, error } = await supa
     .from('farm_settings')
-    .select('displayed_makeup_lessons_count')
+    .select('displayed_makeup_lessons_count , hours_before_cancel_lesson')
     .limit(1)
     .single();
 
@@ -415,6 +434,8 @@ private async loadFarmSettings(): Promise<void> {
   }
 
   this.displayedMakeupLessonsCount = data?.displayed_makeup_lessons_count ?? null;
+    this.hoursBeforeCancel = data?.hours_before_cancel_lesson ?? null;
+
 }
 
 generateLessonSlots(start: string, end: string): { from: string, to: string }[] {
@@ -498,6 +519,9 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
   }
 
   this.children = (data ?? []) as ChildWithProfile[];
+  this.filteredChildren = [...this.children];
+this.childSearchTerm = '';
+
 
   // אם עבר childId בניווט והוא קיים ברשימת הילדים הפעילים:
   if (this.selectedChildId && this.children.some(c => c.child_uuid === this.selectedChildId)) {
@@ -584,9 +608,76 @@ this.instructors = filtered.map(ins => ({
   max_age_years: ins.max_age_years,
   taught_child_genders: ins.taught_child_genders,
 }));
+this.filteredInstructors = [...this.instructors];
+this.instructorSearchTerm = '';
 
 
   this.loadingInstructors = false;
+}
+selectFirstChildFromSearch(event: any): void {
+  event.preventDefault();
+  event.stopPropagation();
+
+  // אם אין תוצאות – לא עושים כלום
+  if (!this.filteredChildren.length) {
+    return;
+  }
+
+  const first = this.filteredChildren[0];
+
+  // לבחור את הילד הראשון
+  this.selectedChildId = first.child_uuid;
+
+  // לאפס את שורת החיפוש ולהחזיר את כל הילדים
+  this.childSearchTerm = '';
+  this.filterChildren();
+
+  // לסגור את הדרופ-דאון אם יש רפרנס
+  if (this.childSelect) {
+    this.childSelect.close();
+  }
+
+  // להריץ את כל הלוגיקה של שינוי ילד
+  this.onChildChange();
+}
+selectFirstInstructorFromSearch(event: any): void {
+  // לא לגלול / לא לסגור את הדרופ-דאון
+  if (event?.preventDefault) {
+    event.preventDefault();
+  }
+  if (event?.stopPropagation) {
+    event.stopPropagation();
+  }
+
+  if (!this.filteredInstructors.length) {
+    return;
+  }
+
+  const first = this.filteredInstructors[0];
+
+  // בוחרים את המדריך הראשון מהרשימה המסוננת
+  this.selectedInstructorId = first.instructor_uid;
+
+  // סוגרים את הדרופ-דאון
+  if (this.instructorSelect) {
+    this.instructorSelect.close();
+  }
+
+  // מאפסים את שורת החיפוש ומחזירים את כל הרשימה
+  this.instructorSearchTerm = '';
+  this.filteredInstructors = [...this.instructors];
+
+  // מריצים את הלוגיקה הרגילה של שינוי מדריך
+  this.onInstructorChange();
+}
+
+async onChildSelected(): Promise<void> {
+  // איפוס שורת החיפוש אחרי בחירה
+  this.childSearchTerm = '';
+  this.filteredChildren = [...this.children];
+
+  // הלוגיקה הקיימת שלך
+  await this.onChildChange();
 }
 
   // =========================================
@@ -637,6 +728,31 @@ this.instructors = filtered.map(ins => ({
   // בונים מחדש קלנדר לסדרות עבור החודש הנוכחי (ריק עד שהורה ילחץ "חפש סדרות זמינות")
   this.buildSeriesCalendar(this.currentCalendarYear, this.currentCalendarMonth);
 }
+filterChildren(): void {
+  const term = this.childSearchTerm.trim().toLowerCase();
+  if (!term) {
+    this.filteredChildren = [...this.children];
+    return;
+  }
+
+  this.filteredChildren = this.children.filter(c =>
+    `${c.first_name ?? ''} ${c.last_name ?? ''}`
+      .toLowerCase()
+      .includes(term)
+  );
+}
+
+filterInstructors(): void {
+  const term = this.instructorSearchTerm.trim().toLowerCase();
+  if (!term) {
+    this.filteredInstructors = [...this.instructors];
+    return;
+  }
+
+  this.filteredInstructors = this.instructors.filter(ins =>
+    `${ins.full_name ?? ''}`.toLowerCase().includes(term)
+  );
+}
 
   private async loadMakeupCandidatesForChild(): Promise<void> {
     if (!this.selectedChildId) return;
@@ -650,6 +766,12 @@ this.instructors = filtered.map(ins => ({
         'get_child_makeup_candidates',
         { _child_id: this.selectedChildId }
       );
+console.log('🔍 get_child_makeup_candidates RPC:', {
+      child: this.selectedChildId,
+      error,
+      rows: data?.length,
+      sample: data?.[0]
+    });
 
       if (error) {
         console.error('get_child_makeup_candidates error', error);
@@ -718,7 +840,6 @@ async searchRecurringSlots(): Promise<void> {
     p_to_date: toDate,
   };
 
-console.log('🟣 calling find_series_starts with payload:', payload);
 console.log('🟣 payload types:', {
   p_child_id: payload.p_child_id,
   p_lesson_count: payload.p_lesson_count,
@@ -730,14 +851,10 @@ console.log('🟣 payload types:', {
 
   this.loadingSeries = true;
   try {
-    console.log("1111111111111"); 
     const { data, error } = await dbTenant().rpc('find_series_starts', payload);
-    console.log("2222222222"); 
 
-    console.log('🟣 find_series_starts result', { error, rows: data?.length });
 
     if (error) {
-      console.error('❌ find_series_starts error FULL:', error);
       this.seriesError = 'שגיאה בחיפוש סדרות זמינות';
       return;
     }
@@ -1228,7 +1345,7 @@ if (this.referralFile) {
   const { error } = await supa
   .from('secretarial_requests')
   .insert({
-    request_type: 'SERIES',
+    request_type: 'NEW_SERIES',
     status: 'PENDING',
     requested_by_uid: String(this.user!.uid),
     requested_by_role: 'parent',
@@ -1398,6 +1515,17 @@ get canRequestSeries(): boolean {
   }
 
   return true;
+}
+getLessonTypeLabel(slot: MakeupSlot): string {
+  console.log(slot.lesson_type_mode); 
+  switch (slot.lesson_type_mode) {
+    case 'both':
+      return 'זוגי'
+    case 'double or both':
+      return 'זוגי';
+    default:
+      return 'יחיד';
+  }
 }
 
 

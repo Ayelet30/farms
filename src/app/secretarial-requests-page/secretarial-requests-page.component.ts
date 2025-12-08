@@ -19,6 +19,18 @@ import {
 
 import { CurrentUserService } from '../core/auth/current-user.service';
 
+// שם ה־RPC שאמור לרוץ עבור כל סוג בקשה בעת "אישור"
+const APPROVE_RPC_BY_TYPE: Partial<Record<RequestType, string>> = {
+  CANCEL_OCCURRENCE: 'approve_secretarial_cancel_request',
+  ADD_CHILD: 'approve_add_child_request',      // ← הפונקציה שכתבנו לילד חדש
+  DELETE_CHILD: 'approve_delete_child_request',// ← כשתכתבי אותה
+  MAKEUP_LESSON: 'approve_makeup_lesson_request', // דוגמה
+  INSTRUCTOR_DAY_OFF: 'approve_instructor_day_off_request',
+  NEW_SERIES: 'approve_new_series_request',
+  // ... תמשיכי לפי מה שיש לך ב־DB
+};
+
+
 @Component({
   selector: 'app-secretarial-requests-page',
   standalone: true,
@@ -202,8 +214,14 @@ export class SecretarialRequestsPageComponent implements OnInit {
         );
       case 'NEW_SERIES':
         return p.summary || 'בקשה לפתיחת סדרת שיעורים';
+      case 'ADD_CHILD':
+        return p.summary || 'בקשה להוספת ילד למערכת'; 
+      case 'DELETE_CHILD':
+        return p.summary || 'בקשה למחיקת ילד מהמערכת';
+      case 'MAKEUP_LESSON':
+        return p.summary || 'בקשה לשיעור פיצוי';
       default:
-        return p.summary || 'בקשה';
+        return p.summary || 'כללי';
     }
   }
 
@@ -286,30 +304,42 @@ export class SecretarialRequestsPageComponent implements OnInit {
     }
   }
 
+  hasApproveRpc(type: RequestType): boolean {
+    console.log('hasApproveRpc check for type:', type, 'result:', !!APPROVE_RPC_BY_TYPE[type]); 
+  return !!APPROVE_RPC_BY_TYPE[type];
+}
+
+
   // ===== פעולות לפי רול =====
 
   // אישור בקשה – רק מזכירה
-  async approveSelected() {
-    if (!this.isSecretary) return;
+ async approveSelected() {
+  if (!this.isSecretary) return;
 
-    const current = this.selectedRequest;
-    if (!current) return;
+  const current = this.selectedRequest;
+  if (!current) return;
 
-    const db = dbTenant();
-    const { error } = await db.rpc('approve_secretarial_cancel_request', {
-      p_request_id: current.id,
-      p_decided_by_uid: this.curentUser!.uid,
-      p_decision_note: null,
-    });
+  const rpcName = APPROVE_RPC_BY_TYPE[current.requestType];
+  if (!rpcName) return;   // ← כאן ההגנה המוחלטת
 
-    if (error) {
-      console.error(error);
-      return;
-    }
+  const db = dbTenant();
+  const { error } = await db.rpc(rpcName, {
+    p_request_id: current.id,
+    p_decided_by_uid: this.curentUser!.uid,
+    p_decision_note: null,
+  });
 
-    await this.loadRequestsFromDb();
-    this.selectedRequest = null;
+  if (error) {
+    console.error(error);
+    alert('שגיאה באישור הבקשה');
+    return;
   }
+
+  await this.loadRequestsFromDb();
+  this.selectedRequest = null;
+}
+
+
 
   // דחייה – רק מזכירה
   async rejectSelected() {

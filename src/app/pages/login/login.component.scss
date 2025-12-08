@@ -36,7 +36,7 @@ label {
 }
 
 input {
-  width: 100%;
+  width: 92%;
   padding: 10px;
   margin-top: 5px;
   border: 1px solid #a2b37c;
@@ -45,12 +45,19 @@ input {
   font-family: inherit;
 }
 
-button {
-  width: 100%;
-  margin-top: 20px;
-  padding: 12px;
+.actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 10px;
+  justify-content: flex-start; // מיושר לשמאל (ב־RTL זה עדיין הצד השמאלי)
+}
+
+.actions button[type="submit"] {
+  width: auto;           // לא לוקח את כל הרוחב
+  padding: 8px 20px;     // קצת יותר קטן
   background-color: #7a8b55;
-  color: white;
+  color: #fff;
   border: none;
   border-radius: 8px;
   font-weight: bold;
@@ -58,9 +65,10 @@ button {
   transition: background-color 0.3s ease;
 }
 
-button:hover {
+.actions button[type="submit"]:hover {
   background-color: #5e6f3c;
 }
+
 
 .error-message {
   color: darkred;
@@ -74,6 +82,7 @@ button:hover {
 
 .actions {
   display: flex;
+  justify-content: flex-end;
   gap: 12px;
   align-items: center;
   margin-top: 10px;
@@ -107,7 +116,7 @@ button:hover {
   position: relative;
 
   input {
-    width: 100%;
+    width: 92%;
     border: 1px solid #a2b37c;
     border-radius: 8px;
     background-color: #f9faf6;
@@ -117,7 +126,7 @@ button:hover {
   .eye-btn {
     position: absolute;
     left: 8px; // בצד שמאל כי RTL
-    top: 15%;
+    top: 55%;
     width: min-content;
     transform: translateY(-50%);
     background: transparent;

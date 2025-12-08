@@ -165,16 +165,18 @@ export class SupabaseTenantService {
     const url = (data?.logo_url || '').trim();
     return url || null;
   }
-  async getFarmLogoUrl(farmIdOrSchema: string): Promise<string | null> {
-    const { data, error } = await this.dbPublic()
-      .from('farms')
-      .select('logo_url')
-      .or(`id.eq.${farmIdOrSchema},schema_name.eq.${farmIdOrSchema}`)
-      .maybeSingle();
-    if (error) throw error;
-    const url = (data?.logo_url || '').trim();
-    return url || null;
-  }
+async getFarmLogoUrl(schemaName: string): Promise<string | null> {
+  const { data, error } = await this.dbPublic()
+    .from('farms')
+    .select('logo_url')
+    .eq('schema_name', schemaName)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  const url = (data?.logo_url || '').trim();
+  return url || null;
+}
 
   // ---------- memberships ----------
   clearMembershipCache() { this.membershipsCache = []; }
@@ -215,28 +217,52 @@ export class SupabaseTenantService {
   }
 
   async selectMembership(tenantId: string, roleInTenant?: RoleInTenant): Promise<Membership> {
-    const list = await this.listMembershipsForCurrentUser(true);
-    const chosen = list.find(m => m.tenant_id === tenantId) ?? list[0];
-    if (!chosen) throw new Error('No memberships');
+  const list = await this.listMembershipsForCurrentUser(true);
 
-    let boot = await this.bootstrapSupabaseSession(tenantId, roleInTenant ?? chosen.role_in_tenant);
-    if (boot?.farm?.id !== tenantId) boot = await this.bootstrapSupabaseSession(tenantId, roleInTenant ?? chosen.role_in_tenant);
+  // ❌ היה:
+  // const chosen = list.find(m => m.tenant_id === tenantId) ?? list[0];
 
-    const normalized: Membership = {
-      tenant_id: boot.farm.id,
-      role_in_tenant: (boot.role_in_tenant as RoleInTenant) ?? chosen.role_in_tenant,
-      farm: boot.farm,
-    };
+  // ✅ אותו רעיון – tenant + role
+  const chosen =
+    list.find(m =>
+      m.tenant_id === tenantId &&
+      (!roleInTenant || m.role_in_tenant === roleInTenant)
+    ) ??
+    list.find(m => m.tenant_id === tenantId) ??
+    list[0];
 
-    this.clearDbCache();
-    this.userCache = null;
-    this.clearMembershipCache();
+  if (!chosen) throw new Error('No memberships');
 
-    this.currentFarmMeta = boot.farm;
-    this.membershipsCache = list.map(m => (m.tenant_id === chosen.tenant_id || m.tenant_id === boot.farm.id) ? normalized : m);
-    localStorage.setItem('selectedTenant', normalized.tenant_id);
-    return normalized;
+  let boot = await this.bootstrapSupabaseSession(tenantId, roleInTenant ?? chosen.role_in_tenant);
+
+  if (boot?.farm?.id !== tenantId) {
+    boot = await this.bootstrapSupabaseSession(tenantId, roleInTenant ?? chosen.role_in_tenant);
   }
+
+  const normalized: Membership = {
+    tenant_id: boot.farm.id,
+    role_in_tenant: (boot.role_in_tenant as RoleInTenant) ?? chosen.role_in_tenant,
+    farm: boot.farm,
+  };
+
+  this.clearDbCache();
+  this.userCache = null;
+  this.clearMembershipCache();
+
+  this.currentFarmMeta = boot.farm;
+
+  // ✅ לעדכן רק את אותו membership
+  this.membershipsCache = list.map(m =>
+    m.tenant_id === chosen.tenant_id &&
+    m.role_in_tenant === chosen.role_in_tenant
+      ? normalized
+      : m
+  );
+
+  localStorage.setItem('selectedTenant', normalized.tenant_id);
+  return normalized;
+}
+
 
   // ---------- user details (כולל בחירה דטרמיניסטית) ----------
   async getCurrentUserData(): Promise<any> {

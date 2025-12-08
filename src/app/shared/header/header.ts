@@ -168,21 +168,10 @@ export class HeaderComponent implements OnInit {
   }
   
 
- private async loadLogo() {
-  const cur = this.cu.current;
+
+private async loadLogo() {
   const ctx = getCurrentFarmMetaSync();
-
-  const currentTenantId =
-    ctx?.id ||
-    cur?.selectedTenantId ||
-    this.selected?.tenant_id ||
-    localStorage.getItem('selectedTenant');
-
-  const m =
-    this.memberships.find(x => x.tenant_id === currentTenantId) ||
-    this.memberships[0];
-
-  const key = m?.farm?.schema_name || m?.farm?.id || m?.tenant_id || null;
+  const key = ctx?.schema_name;
 
   if (!key) {
     this.farmLogoUrl = null;
@@ -195,7 +184,6 @@ export class HeaderComponent implements OnInit {
     this.farmLogoUrl = null;
   }
 }
-
 
   handleLoginLogout() {
     if (!this.isLoggedIn) { this.router.navigate(['/login']); return; }
@@ -231,7 +219,8 @@ formatMembershipRole(m: Membership): string {
 }
 
 formatMembershipFarm(m: Membership): string {
-  return m.farm?.name || 'חווה ללא שם';
+  const ctxName = getCurrentFarmMetaSync()?.name;
+  return m.farm?.name || ctxName || 'חווה ללא שם';
 }
 
 formatMembershipLabel(m: Membership | null | undefined): string {

@@ -6,45 +6,91 @@
     <div class="appt-header-row">
 
       <!-- טור ימין: בחירת ילד -->
-      <div class="appt-field-group child-group">
-        <span class="appt-field-label">ילד/ה</span>
-        <select class="appt-select" [(ngModel)]="selectedChildId" (change)="onChildChange()">
-          <!-- placeholder: יופיע רק כשהשדה סגור -->
-          <option [ngValue]="null" disabled hidden>
-            בחר/י ילד
-          </option>
+  <div class="appt-field-group child-group">
+  <span class="appt-field-label">ילד/ה</span>
 
-          <option *ngFor="let child of children" [ngValue]="child.child_uuid">
-            {{ child.first_name }} {{ child.last_name }}
-          </option>
-        </select>
+ <mat-select
+  #childSelect
+  class="appt-select"
+  [(ngModel)]="selectedChildId"
+  (selectionChange)="onChildChange()"
+  [disabled]="!children.length"
+  placeholder="בחר/י ילד"
+>
+  <!-- שורת חיפוש -->
+<mat-option
+  class="search-option"
+  (click)="$event.stopPropagation()"
+  (mousedown)="$event.stopPropagation()"
+>
+  <input
+    matInput
+    type="text"
+    placeholder="חיפוש לפי שם ילד/ה..."
+    [(ngModel)]="childSearchTerm"
+    (ngModelChange)="filterChildren()"
+    (keydown.enter)="selectFirstChildFromSearch($event)"
+    (click)="$event.stopPropagation()"
+    class="search-input"
+  />
+</mat-option>
 
-      </div>
+  <!-- אופציות -->
+  <mat-option
+    *ngFor="let child of filteredChildren"
+    [value]="child.child_uuid"
+  >
+    {{ child.first_name }} {{ child.last_name }}
+  </mat-option>
+</mat-select>
 
-      <div class="appt-field-group instructor-group">
-        <span class="appt-field-label">מדריך</span>
+</div>
 
-        <div class="instructor-select-row">
-          <select class="appt-select" [ngClass]="{ disabled: !selectedChildId }" [(ngModel)]="selectedInstructorId"
-            (change)="onInstructorChange()" [disabled]="!selectedChildId">
-            <!-- placeholder: מוצג כטקסט כשהשדה סגור, לא מופיע ברשימה -->
-            <option [ngValue]="null" disabled hidden>
-              בחר/י מדריך
-            </option>
+ <div class="appt-field-group instructor-group">
+  <span class="appt-field-label">מדריך</span>
 
-            <!-- רק אם יש ילד נבחר – מציגים את אפשרויות המדריכים -->
-            <ng-container *ngIf="selectedChildId">
-              <option [ngValue]="'any'">
-                כל המדריכים
-              </option>
+  <mat-select
+    #instructorSelect
+    class="appt-select"
+    [ngClass]="{ disabled: !selectedChildId }"
+    [(ngModel)]="selectedInstructorId"
+    (selectionChange)="onInstructorChange()"
+    [disabled]="!selectedChildId"
+    placeholder="בחר/י מדריך"
+  >
+    <!-- שורת חיפוש -->
+    <mat-option
+      class="search-option"
+      (click)="$event.stopPropagation()"
+      (mousedown)="$event.stopPropagation()"
+    >
+      <input
+        matInput
+        type="text"
+        placeholder="חיפוש לפי שם מדריך..."
+        [(ngModel)]="instructorSearchTerm"
+        (ngModelChange)="filterInstructors()"
+        (keydown.enter)="selectFirstInstructorFromSearch($event)"
+        (click)="$event.stopPropagation()"
+        class="search-input"
+      />
+    </mat-option>
 
-              <option *ngFor="let ins of instructors" [ngValue]="ins.instructor_uid">
-                {{ ins.full_name }}
-              </option>
-            </ng-container>
-          </select>
-        </div>
-      </div>
+    <!-- אופציה של "כל המדריכים" -->
+    <mat-option value="any">
+      כל המדריכים
+    </mat-option>
+
+    <!-- אופציות – רשימה מסוננת -->
+    <mat-option
+      *ngFor="let ins of filteredInstructors"
+      [value]="ins.instructor_uid"
+    >
+      {{ ins.full_name }}
+    </mat-option>
+  </mat-select>
+</div>
+
 
     </div>
   </div>
@@ -116,7 +162,10 @@
           ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
           בשעה <b>{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</b><br>
           עם המדריך <b>{{ seriesConfirmData.instructorName }}</b>?
+    ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
+
         </p>
+
 
         <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
           <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
@@ -402,7 +451,7 @@
       </div>
     </div>
 
-    <!-- <div class="appt-actions">
+    <<div class="appt-actions">
       <button
         type="button"
         class="appt-cta primary"
@@ -431,7 +480,7 @@
             <th>יום</th> <!-- ⬅ חדש -->
             <th>שעה</th>
             <th>מדריך</th>
-            <th>מקומות פנויים לשיעור</th>
+<th>סוג שיעור</th>
             <th></th>
           </tr>
         </thead>
@@ -447,7 +496,8 @@
             <!-- שם מדריך, ואם אין – נופל חזרה ל-id -->
             <td>{{ s.instructor_name || s.instructor_id }}</td>
 
-            <td>{{ s.remaining_capacity }}</td>
+
+<td>{{ getLessonTypeLabel(s) }}</td>
             <td>
               <button type="button" class="appt-cta" (click)="requestMakeupFromSecretary(s)">
                 קבע שיעור השלמה
@@ -494,7 +544,10 @@
         במקום השיעור בתאריך
         <b>{{ confirmData.oldDate }}</b>
         בשעות <b>{{ confirmData.oldStart }}–{{ confirmData.oldEnd }}</b>?
+    ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
+
       </p>
+     
 
       <div style="display:flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
         <button mat-button (click)="dialogRef.close(false)">ביטול</button>
