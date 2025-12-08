@@ -13,6 +13,26 @@ interface Horse {
   min_break_minutes: number;
   is_active: boolean;
   notes?: string | null;
+
+  last_shoeing_date?: string | null;
+  next_shoeing_date?: string | null;
+
+  last_vaccination_date?: string | null;
+  next_vaccination_date?: string | null;
+
+  last_teeth_date?: string | null;
+  next_teeth_date?: string | null;
+}
+
+type AlertKind = 'shoeing' | 'vaccination' | 'teeth';
+
+interface HorseAlert {
+  horseId: string;
+  horseName: string;
+  kind: AlertKind;
+  dueDate: string;    // ISO date string
+  overdue: boolean;
+  daysDiff: number;   // חיובי = ימים לעתיד, שלילי = איחור
 }
 
 @Component({
@@ -27,8 +47,13 @@ export class SecretaryHorsesComponent implements OnInit {
   editing: Horse | null = null;
   horseToDelete: Horse | null = null;
 
+  alerts: HorseAlert[] = [];
+
   loading = false;
   error: string | null = null;
+
+  // 👈 כמה ימים קדימה נציג התראות
+  readonly ALERT_HORIZON_DAYS = 30;
 
   async ngOnInit(): Promise<void> {
     await this.loadHorses();
@@ -47,9 +72,14 @@ export class SecretaryHorsesComponent implements OnInit {
     if (error) {
       console.error('Failed to load horses', error);
       this.error = 'אירעה שגיאה בטעינת הסוסים.';
+      this.horses = [];
     } else if (data) {
       this.horses = data as Horse[];
+    } else {
+      this.horses = [];
     }
+
+    this.buildAlerts(); // אחרי הטעינה
 
     this.loading = false;
   }
@@ -65,6 +95,13 @@ export class SecretaryHorsesComponent implements OnInit {
       min_break_minutes: 15,
       is_active: true,
       notes: null,
+
+      last_shoeing_date: null,
+      next_shoeing_date: null,
+      last_vaccination_date: null,
+      next_vaccination_date: null,
+      last_teeth_date: null,
+      next_teeth_date: null,
     };
   }
 
@@ -114,6 +151,13 @@ export class SecretaryHorsesComponent implements OnInit {
           min_break_minutes: payload.min_break_minutes,
           is_active: payload.is_active,
           notes: payload.notes,
+
+          last_shoeing_date: payload.last_shoeing_date,
+          next_shoeing_date: payload.next_shoeing_date,
+          last_vaccination_date: payload.last_vaccination_date,
+          next_vaccination_date: payload.next_vaccination_date,
+          last_teeth_date: payload.last_teeth_date,
+          next_teeth_date: payload.next_teeth_date,
         })
         .eq('id', payload.id);
 
@@ -134,6 +178,13 @@ export class SecretaryHorsesComponent implements OnInit {
           min_break_minutes: payload.min_break_minutes,
           is_active: payload.is_active,
           notes: payload.notes,
+
+          last_shoeing_date: payload.last_shoeing_date,
+          next_shoeing_date: payload.next_shoeing_date,
+          last_vaccination_date: payload.last_vaccination_date,
+          next_vaccination_date: payload.next_vaccination_date,
+          last_teeth_date: payload.last_teeth_date,
+          next_teeth_date: payload.next_teeth_date,
         });
 
       if (error) {
@@ -173,5 +224,72 @@ export class SecretaryHorsesComponent implements OnInit {
 
     this.horseToDelete = null;
     await this.loadHorses();
+  }
+
+  // ===== התראות טיפולים =====
+
+  private parseDate(d: string | null | undefined): Date | null {
+    if (!d) return null;
+    const dt = new Date(d);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+
+  private daysBetween(a: Date, b: Date): number {
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const diff = a.getTime() - b.getTime();
+    return Math.round(diff / msPerDay);
+  }
+
+  private buildAlerts(): void {
+    const alerts: HorseAlert[] = [];
+    const today = new Date();
+
+    for (const h of this.horses) {
+      if (!h.id) continue;
+
+      const addAlert = (kind: AlertKind, dateStr?: string | null) => {
+        const due = this.parseDate(dateStr ?? null);
+        if (!due) return;
+
+        const daysDiff = this.daysBetween(due, today); // חיובי = עתיד, שלילי = עבר
+
+        // לא מציגים דברים רחוקים מדי
+        if (daysDiff > this.ALERT_HORIZON_DAYS) return;
+
+        const alert: HorseAlert = {
+          horseId: h.id!,
+          horseName: h.name,
+          kind,
+          dueDate: due.toISOString(),
+          overdue: daysDiff < 0,
+          daysDiff,
+        };
+        alerts.push(alert);
+      };
+
+      addAlert('shoeing', h.next_shoeing_date);
+      addAlert('vaccination', h.next_vaccination_date);
+      addAlert('teeth', h.next_teeth_date);
+    }
+
+    // מיון: קודם באיחור, אח"כ לפי תאריך
+    this.alerts = alerts.sort((a, b) => {
+      if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
+      return a.dueDate.localeCompare(b.dueDate);
+    });
+  }
+
+  // להמרת סוג ההתראה לטקסט יפה
+  kindLabel(kind: AlertKind): string {
+    switch (kind) {
+      case 'shoeing':
+        return 'פרזול';
+      case 'vaccination':
+        return 'חיסון';
+      case 'teeth':
+        return 'שיניים';
+      default:
+        return '';
+    }
   }
 }
