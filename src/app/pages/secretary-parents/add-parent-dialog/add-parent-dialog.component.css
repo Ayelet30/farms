@@ -260,4 +260,12 @@ button:disabled {
   border-bottom: 2px solid #ffffff;
   transform: rotate(45deg);
 }
+/* שדה הערות בדיאלוג הוספת הורה */
+.parent-dialog-root textarea[formControlName="extra_notes"] {
+  width: 100%;
+  min-height: 80px;      /* גובה התחלתי נוח */
+  max-height: 180px;     /* לא לגדול מעבר לזה */
+  resize: none;          /* לבטל אפשרות גרירה של הפינה */
+  overflow-y: auto;      /* אם יש הרבה טקסט – יופיע סקרול פנימי */
+}
 

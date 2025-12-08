@@ -14,55 +14,51 @@
   <form [formGroup]="form" (ngSubmit)="submit()" dir="rtl">
     <div class="form-grid">
       <!-- שם פרטי -->
-     <div class="field">
-  <label>שם פרטי</label>
-  <input formControlName="first_name" />
-  <div class="err" *ngIf="form.controls['first_name']?.touched && form.controls['first_name']?.invalid">
+      <div class="field">
+        <label>שם פרטי</label>
+        <input formControlName="first_name" maxlength="15" />
+        <div class="err" *ngIf="form.controls['first_name']?.touched && form.controls['first_name']?.invalid">
 
-    <!-- לא כתבו כלום -->
-    <span *ngIf="form.controls['first_name']?.errors?.['required']">
-      חובה להזין שם פרטי
-    </span>
+          <span *ngIf="form.controls['first_name']?.errors?.['required']">
+            חובה להזין שם פרטי
+          </span>
 
-    <!-- כתבו פחות משני תווים -->
-    <span *ngIf="form.controls['first_name']?.errors?.['minlength']">
-      שם פרטי חייב להכיל לפחות 2 תווים
-    </span>
+          <span *ngIf="form.controls['first_name']?.errors?.['minlength']">
+            שם פרטי חייב להכיל לפחות 2 תווים
+          </span>
 
-    <!-- כתבו מספרים / תווים לא אותיות -->
-    <span *ngIf="form.controls['first_name']?.errors?.['pattern']">
-      שם פרטי יכול להכיל רק אותיות (עברית או אנגלית)
-    </span>
+          <span *ngIf="form.controls['first_name']?.errors?.['pattern']">
+            שם פרטי יכול להכיל רק אותיות (עברית או אנגלית)
+          </span>
 
-  </div>
-</div>
-
+        </div>
+      </div>
 
       <!-- שם משפחה -->
-   <div class="field">
-  <label>שם משפחה</label>
-  <input formControlName="last_name" />
-  <div class="err" *ngIf="form.controls['last_name']?.touched && form.controls['last_name']?.invalid">
+      <div class="field">
+        <label>שם משפחה</label>
+        <input formControlName="last_name" maxlength="20" />
+        <div class="err" *ngIf="form.controls['last_name']?.touched && form.controls['last_name']?.invalid">
 
-    <span *ngIf="form.controls['last_name']?.errors?.['required']">
-      חובה להזין שם משפחה
-    </span>
+          <span *ngIf="form.controls['last_name']?.errors?.['required']">
+            חובה להזין שם משפחה
+          </span>
 
-    <span *ngIf="form.controls['last_name']?.errors?.['minlength']">
-      שם משפחה חייב להכיל לפחות 2 תווים
-    </span>
+          <span *ngIf="form.controls['last_name']?.errors?.['minlength']">
+            שם משפחה חייב להכיל לפחות 2 תווים
+          </span>
 
-    <span *ngIf="form.controls['last_name']?.errors?.['pattern']">
-      שם משפחה יכול להכיל רק אותיות (עברית או אנגלית)
-    </span>
+          <span *ngIf="form.controls['last_name']?.errors?.['pattern']">
+            שם משפחה יכול להכיל רק אותיות (עברית או אנגלית)
+          </span>
 
-  </div>
-</div>
+        </div>
+      </div>
 
       <!-- אימייל -->
       <div class="field">
         <label>אימייל</label>
-        <input formControlName="email" type="email" />
+        <input formControlName="email" type="email" maxlength="60" />
         <div class="err">
           <span
             *ngIf="
@@ -76,46 +72,43 @@
       </div>
 
       <!-- טלפון -->
-<div class="field">
-  <label>טלפון</label>
-  <input formControlName="phone" type="tel" />
-  <div class="err" *ngIf="form.controls['phone']?.touched && form.controls['phone']?.invalid">
+      <div class="field">
+        <label>טלפון</label>
+        <input formControlName="phone" type="tel" maxlength="10" />
+        <div class="err" *ngIf="form.controls['phone']?.touched && form.controls['phone']?.invalid">
 
-    <span *ngIf="form.controls['phone']?.errors?.['required']">
-      חובה להזין טלפון
-    </span>
+          <span *ngIf="form.controls['phone']?.errors?.['required']">
+            חובה להזין טלפון
+          </span>
 
-    <span *ngIf="form.controls['phone']?.errors?.['pattern']">
-      מספר טלפון חייב להיות בפורמט 05XXXXXXXX (10 ספרות)
-    </span>
+          <span *ngIf="form.controls['phone']?.errors?.['pattern']">
+            מספר טלפון חייב להיות בפורמט 05XXXXXXXX (10 ספרות)
+          </span>
 
-  </div>
-</div>
-
+        </div>
+      </div>
 
       <!-- תעודת זהות -->
-<div class="field">
-  <label>תעודת זהות</label>
-  <input formControlName="id_number" />
-  <div class="err" *ngIf="form.controls['id_number']?.touched && form.controls['id_number']?.invalid">
+      <div class="field">
+        <label>תעודת זהות</label>
+        <input formControlName="id_number" maxlength="9" />
+        <div class="err" *ngIf="form.controls['id_number']?.touched && form.controls['id_number']?.invalid">
 
-    <span *ngIf="form.controls['id_number']?.errors?.['required']">
-      חובה להזין ת"ז
-    </span>
+          <span *ngIf="form.controls['id_number']?.errors?.['required']">
+            חובה להזין ת"ז
+          </span>
 
-    <span *ngIf="form.controls['id_number']?.errors?.['pattern']">
-      ת"ז חייבת להכיל 9 ספרות (ספרות בלבד)
-    </span>
+          <span *ngIf="form.controls['id_number']?.errors?.['pattern']">
+            ת"ז חייבת להכיל 9 ספרות (ספרות בלבד)
+          </span>
 
-  </div>
-</div>
-
-
+        </div>
+      </div>
 
       <!-- כתובת -->
       <div class="field">
         <label>כתובת</label>
-        <input formControlName="address" />
+        <input formControlName="address" maxlength="60" />
         <div class="err">
           <span
             *ngIf="
@@ -132,7 +125,11 @@
     <!-- הערות -->
     <div class="field">
       <label>הערות</label>
-      <textarea formControlName="extra_notes" rows="3"></textarea>
+      <textarea
+        formControlName="extra_notes"
+        rows="3"
+        maxlength="300"
+      ></textarea>
     </div>
 
     <!-- העדפות תקשורת -->

@@ -1,7 +1,16 @@
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
+import {
+  ReactiveFormsModule,
+  FormBuilder,
+  Validators,
+  FormGroup,
+} from '@angular/forms';
 import { MatDialogRef } from '@angular/material/dialog';
-import { Component, ViewEncapsulation } from '@angular/core';
+import {
+  Component,
+  ViewEncapsulation,
+  OnInit,           
+} from '@angular/core';
 
 export type AddParentPayload = {
   first_name: string;
@@ -20,9 +29,9 @@ export type AddParentPayload = {
   imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './add-parent-dialog.component.html',
   styleUrls: ['./add-parent-dialog.component.css'],
-  encapsulation: ViewEncapsulation.None
+  encapsulation: ViewEncapsulation.None,
 })
-export class AddParentDialogComponent {
+export class AddParentDialogComponent implements OnInit {  // ✅ חדש: implements OnInit
   form!: FormGroup;
   submitting = false; // בשביל [disabled]="submitting" ב-HTML
 
@@ -30,56 +39,75 @@ export class AddParentDialogComponent {
     private fb: FormBuilder,
     private ref: MatDialogRef<AddParentDialogComponent>
   ) {
-   this.form = this.fb.group({
-  first_name: [
-    '',
-    [
-      Validators.required,
-      Validators.minLength(2),
-      Validators.pattern(/^[A-Za-z\u0590-\u05FF\s]+$/) // רק אותיות עברית/אנגלית
-    ]
-  ],
-  last_name: [
-    '',
-    [
-      Validators.required,
-      Validators.minLength(2),
-      Validators.pattern(/^[A-Za-z\u0590-\u05FF\s]+$/)
-    ]
-  ],
-  email: [
-    '',
-    [
-      Validators.required,
-      Validators.email
-    ]
-  ],
-  phone: [
-    '',
-    [
-      Validators.required,
-      Validators.pattern(/^05\d{8}$/) // טלפון ישראלי
-    ]
-  ],
-  id_number: [
-    '',
-    [
-      Validators.required,
-      Validators.pattern(/^\d{9}$/) // רק ספרות — 9 תווים
-    ]
-  ],
-  address: ['', Validators.required],
+    this.form = this.fb.group({
+      first_name: [
+        '',
+        [
+          Validators.required,
+          Validators.minLength(2),
+          Validators.maxLength(15), // 👈 שם פרטי עד 15 תווים
+          Validators.pattern(/^[A-Za-z\u0590-\u05FF\s]+$/), // עברית/אנגלית בלבד
+        ],
+      ],
+      last_name: [
+        '',
+        [
+          Validators.required,
+          Validators.minLength(2),
+          Validators.maxLength(20), // 👈 שם משפחה עד 20 תווים
+          Validators.pattern(/^[A-Za-z\u0590-\u05FF\s]+$/),
+        ],
+      ],
+      email: [
+        '',
+        [
+          Validators.required,
+          Validators.email,
+          Validators.maxLength(60), // 👈 אימייל עד 60 תווים
+        ],
+      ],
+      phone: [
+        '',
+        [
+          Validators.required,
+          Validators.pattern(/^05\d{8}$/), // טלפון ישראלי 05XXXXXXXX
+          // regex כבר מבטיח 10 ספרות
+        ],
+      ],
+      id_number: [
+        '',
+        [
+          Validators.required,
+          Validators.pattern(/^\d{9}$/), // 9 ספרות בלבד
+        ],
+      ],
+      address: [
+        '',
+        [
+          Validators.required,
+          Validators.maxLength(60), // 👈 כתובת עד 60 תווים
+        ],
+      ],
+      extra_notes: [
+        '',
+        [
+          Validators.maxLength(300), // 👈 הערות עד 300 תווים
+        ],
+      ],
+      prefs: this.fb.group({
+        inapp: [{ value: true, disabled: true }],
+        email: [false],
+        sms: [false],
+        whatsapp: [false],
+      }),
+    });
+  }
 
-  extra_notes: [''],
-
-  prefs: this.fb.group({
-    inapp: [{ value: true, disabled: true }], 
-    email: [false],
-    sms: [false],
-    whatsapp: [false],
-  })
-});
-
+  // ✅ חדש: חיבור הקליק מחוץ לחלון לאותה לוגיקת ביטול
+  ngOnInit(): void {
+    this.ref.backdropClick().subscribe(() => {
+      this.cancel(); // יתנהג כמו לחיצה על "ביטול"
+    });
   }
 
   submit() {
