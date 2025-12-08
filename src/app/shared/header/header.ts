@@ -219,7 +219,8 @@ formatMembershipRole(m: Membership): string {
 }
 
 formatMembershipFarm(m: Membership): string {
-  return m.farm?.name || 'חווה ללא שם';
+  const ctxName = getCurrentFarmMetaSync()?.name;
+  return m.farm?.name || ctxName || 'חווה ללא שם';
 }
 
 formatMembershipLabel(m: Membership | null | undefined): string {

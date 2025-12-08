@@ -172,34 +172,49 @@ export async function getCurrentUserData(): Promise<any> {
 }
 
 export async function getFarmMetaById(farmId: string): Promise<FarmMeta | null> {
-  if (farmMetaCache.has(farmId)) return farmMetaCache.get(farmId) ?? null;
+  const cached = farmMetaCache.get(farmId);
 
-  if (currentFarmMeta?.id === farmId) {
-    farmMetaCache.set(farmId, currentFarmMeta);
-    return currentFarmMeta;
+  // ✅ אם יש בקאש וגם יש name – מחזירים
+  if (cached && cached.name) {
+    return cached;
   }
 
-  const { data } = await getSupabaseClient()
+  // אחרת נביא מה-DB (כולל name)
+  const { data, error } = await getSupabaseClient()
     .from('farms')
-    .select('id, name, schema_name')
+    .select('id, name, schema_name, logo_url')
     .eq('id', farmId)
     .maybeSingle();
 
-  const meta = (data as FarmMeta) ?? null;
-  farmMetaCache.set(farmId, meta);
-  return meta;
+  if (error) {
+    console.error('[getFarmMetaById] error', error);
+  }
+
+  const dbMeta = (data as FarmMeta) ?? null;
+
+  // אם כבר היה cached בלי name – נמזג כדי לא לאבד logo_url וכו'
+  const merged = dbMeta
+    ? { ...(cached ?? {}), ...dbMeta }
+    : cached ?? null;
+
+  if (merged) {
+    farmMetaCache.set(farmId, merged);
+  } else {
+    farmMetaCache.delete(farmId);
+  }
+
+  return merged;
 }
+
 
 /** ===================== CACHES ===================== **/
 export function getCurrentFarmMetaSync(): FarmMeta | null { return currentFarmMeta; }
 export async function getCurrentFarmMeta(opts?: { refresh?: boolean }): Promise<FarmMeta | null> {
   const tenant = requireTenant();
 
-  // אם אין מטא, אם ביקשו refresh, או אם חסר name → נלך ל-DB
   if (!currentFarmMeta || opts?.refresh || !currentFarmMeta.name) {
     const fromDb = await getFarmMetaById(tenant.id);
     if (fromDb) {
-      // מיזוג כדי לא לאבד logo_url או שדות אחרים שהגיעו מה-bootstrap
       currentFarmMeta = { ...(currentFarmMeta ?? {}), ...fromDb };
     } else {
       currentFarmMeta = null;
@@ -557,40 +572,47 @@ export function getSelectedMembershipSync(): Membership | null {
 export async function selectMembership(tenantId: string, roleInTenant?: string): Promise<Membership> {
   const list = await listMembershipsForCurrentUser(true);
   console.log("selectMembership", tenantId, roleInTenant, list);
-  const chosen = list.find(m => m.tenant_id === tenantId) ?? list[0];
+
+  // ✅ תקני: לבחור לפי tenant + role אם אפשר
+  const chosen =
+    list.find(m =>
+      m.tenant_id === tenantId &&
+      (!roleInTenant || m.role_in_tenant === roleInTenant as any)
+    ) ??
+    list.find(m => m.tenant_id === tenantId) ??
+    list[0];
+
   if (!chosen) throw new Error('No memberships');
 
-  // בקשה לשרת עם tenant + role
-  let boot = await bootstrapSupabaseSession(tenantId, roleInTenant);
+  let boot = await bootstrapSupabaseSession(tenantId, roleInTenant ?? chosen.role_in_tenant);
 
-  // אם חזר טננט אחר ממה שביקשנו — ננסה פעם נוספת באופן מפורש
   if (boot?.farm?.id !== tenantId) {
     console.warn('server returned different tenant; retrying once...', { asked: tenantId, got: boot?.farm?.id });
-    boot = await bootstrapSupabaseSession(tenantId, roleInTenant);
+    boot = await bootstrapSupabaseSession(tenantId, roleInTenant ?? chosen.role_in_tenant);
   }
 
-  // נרמל לפי התשובה האחרונה מהשרת (היא הקובעת)
   const normalized: Membership = {
     tenant_id: boot.farm.id,
     role_in_tenant: (boot.role_in_tenant as RoleInTenant) ?? chosen.role_in_tenant,
     farm: boot.farm,
   };
 
-  // ניקה caches כדי שלא יישארו נתונים מהחווה הקודמת
   clearDbCache();
-  userCache = null as any;   // <-- אם המשתנה בקובץ הוא local, אל תשכחי לעדכן את שמו
-
+  userCache = null as any;
   clearMembershipCache();
 
-
   currentFarmMeta = boot.farm;
+
+  // ✅ מעדכנים רק את הממברשיפ שבאמת בחרנו (tenant + role)
   membershipsCache = list.map(m =>
-    (m.tenant_id === chosen.tenant_id || m.tenant_id === boot.farm.id) ? normalized : m
+    m.tenant_id === chosen.tenant_id &&
+    m.role_in_tenant === chosen.role_in_tenant
+      ? normalized
+      : m
   );
 
   _lastBootstrap = { tenantId: normalized.tenant_id, roleInTenant: normalized.role_in_tenant };
   currentRoleInTenant = normalized.role_in_tenant;
-
 
   localStorage.setItem('selectedTenant', normalized.tenant_id);
   return normalized;
