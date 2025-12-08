@@ -56,6 +56,8 @@ export class LoginComponent {
   }
 
   async login() {
+    this.errorMessage = "";
+    this.successMessage = "";
     if(!this.email){
       this.errorMessage = 'יש להכניס שם משתמש';
       return;
