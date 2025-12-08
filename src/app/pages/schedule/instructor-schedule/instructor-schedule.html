@@ -58,7 +58,11 @@
   <app-note
     *ngIf="selectedChild"
     [child]="selectedChild"
-    (close)="selectedChild = null">
+    [occurrence]="selectedOccurrence"
+    [attendanceStatus]="attendanceStatus"
+    [role]="currentUserRole"
+    [enforceNoteForPresence]="true"
+    (close)="onCloseNote()">
   </app-note>
 
   <!-- ▬▬▬ תפריט קליק ימני ▬▬▬ -->
