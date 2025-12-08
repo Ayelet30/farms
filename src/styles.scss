@@ -229,3 +229,11 @@ html, body {
   overflow: hidden;  /* שרק אזורי התוכן יגללו, לא כל הדף */
 }
 
+mat-icon, i.material-icons {
+  font-family: 'Material Icons' !important;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  display: inline-block;
+}
