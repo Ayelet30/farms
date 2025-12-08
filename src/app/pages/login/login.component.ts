@@ -56,6 +56,14 @@ export class LoginComponent {
   }
 
   async login() {
+    if(!this.email){
+      this.errorMessage = 'יש להכניס שם משתמש';
+      return;
+    }
+    else if(!this.password){
+      this.errorMessage = 'יש להכניס סיסמא';
+      return;
+    }
   this.errorMessage = '';
   this.isLoading = true;   // ← מסך טעינה מתחיל
 
