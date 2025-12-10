@@ -3,110 +3,251 @@
     <mat-card-header>
       <mat-card-title>
         <mat-icon>person</mat-icon>
-       פרטי הילד - {{ (child?.first_name || '') + ' ' + (child?.last_name || '') || child?.name || '—' }}
+        פרטי הילד –
+        {{
+          (child?.first_name || '') + ' ' + (child?.last_name || '') ||
+            child?.name ||
+            '—'
+        }}
       </mat-card-title>
+
       <button mat-icon-button class="close-button" (click)="onClose()">
         <mat-icon>close</mat-icon>
       </button>
     </mat-card-header>
 
-    <mat-card-content class="scrollable-content">
-      <!-- === מסגרת עליונה === -->
+    <mat-card-content class="scrollable-content" #scrollable>
+
+      <!-- === מסגרת עליונה — פרטים אישיים והערות רפואיות/התנהגותיות === -->
       <div class="inner-section top">
-        <!-- פרטים אישיים -->
         <section class="section personal-details">
           <h3>פרטים אישיים</h3>
           <div class="details-grid">
             <div>
-            <p><b>שם:</b> {{ (child?.first_name || '') + ' ' + (child?.last_name || '') || '—' }}</p>
+              <p>
+                <b>שם:</b>
+                {{
+                  (child?.first_name || '') + ' ' + (child?.last_name || '') ||
+                    '—'
+                }}
+              </p>
               <p><b>גיל:</b> {{ child?.age || 'לא ידוע' }}</p>
             </div>
             <div>
-            <p><b>הורה:</b> {{ child?.parent?.first_name }} {{ child?.parent?.last_name || '-' }}</p>
-              <p><mat-icon inline>phone</mat-icon> {{ child?.parent?.phone || '-' }}</p>
-              <p><mat-icon inline>email</mat-icon> {{ child?.parent?.email || '-' }}</p>
+              <p>
+                <b>הורה:</b>
+                {{ child?.parent?.first_name }}
+                {{ child?.parent?.last_name || '-' }}
+              </p>
+              <p>
+                <mat-icon inline>phone</mat-icon>
+                {{ child?.parent?.phone || '-' }}
+              </p>
+              <p>
+                <mat-icon inline>email</mat-icon>
+                {{ child?.parent?.email || '-' }}
+              </p>
             </div>
           </div>
         </section>
 
         <!-- הערות רפואיות -->
-       <!-- הערות רפואיות -->
-<section class="note-box medical-note">
-  <h4>הערות רפואיות</h4>
-  <div *ngIf="notesMedical.length; else noMedical">
-    <div *ngFor="let note of notesMedical; trackBy: trackByNote" class="note-item">
-      <div class="note-line">
-        <p class="note-text">{{ note.display_text }}</p>
-        <!-- ❌ אין actions כאן -->
-      </div>
-    </div>
-  </div>
-  <ng-template #noMedical><p>אין הערות רפואיות.</p></ng-template>
-</section>
+        <section class="note-box medical-note">
+          <h4>הערות רפואיות</h4>
+          <div *ngIf="notesMedical.length; else noMedical">
+            <div
+              *ngFor="let note of notesMedical; trackBy: trackByNote"
+              class="note-item"
+            >
+              <div class="note-line">
+                <p class="note-text">{{ note.display_text }}</p>
+              </div>
+            </div>
+          </div>
+          <ng-template #noMedical><p>אין הערות רפואיות.</p></ng-template>
+        </section>
 
-<!-- הערות התנהגותיות -->
-<section class="note-box behavioral-note">
-  <h4>הערות התנהגותיות</h4>
-  <div *ngIf="notesBehavioral.length; else noBehavioral">
-    <div *ngFor="let note of notesBehavioral; trackBy: trackByNote" class="note-item">
-      <div class="note-line">
-        <p class="note-text">{{ note.display_text }}</p>
-        <!-- ❌ אין actions כאן -->
+        <!-- הערות התנהגותיות -->
+        <section class="note-box behavioral-note">
+          <h4>הערות התנהגותיות</h4>
+          <div *ngIf="notesBehavioral.length; else noBehavioral">
+            <div
+              *ngFor="let note of notesBehavioral; trackBy: trackByNote"
+              class="note-item"
+            >
+              <div class="note-line">
+                <p class="note-text">{{ note.display_text }}</p>
+              </div>
+            </div>
+          </div>
+          <ng-template #noBehavioral><p>אין הערות התנהגותיות.</p></ng-template>
+        </section>
       </div>
-    </div>
-  </div>
-  <ng-template #noBehavioral><p>אין הערות התנהגותיות.</p></ng-template>
-</section>
 
-      </div>
+      <!-- === מסגרת תחתונה — הערות שיעורים + נוכחות === -->
+      <div class="inner-section bottom">
 
-      <!-- === מסגרת תחתונה === -->
-    <!-- === מסגרת תחתונה === -->
-<!-- === מסגרת תחתונה === -->
-<div class="inner-section bottom">
-  <!-- הערות שיעורים -->
-  <section class="note-box general-note">
-    <h4>הערות שיעורים</h4>
-    <div *ngIf="notesGeneral.length; else noGeneral" class="notes-list">
-      <div *ngFor="let note of notesGeneral; trackBy: trackByNote" class="lesson-note-card">
-        <div class="note-row">
-          <p class="note-text">{{ note.display_text }}</p>
-          <div class="actions">
-            <button mat-icon-button class="edit-btn" (click)="startEdit(note)">
-              <mat-icon>edit</mat-icon>
-            </button>
-            <button mat-icon-button class="delete-btn" (click)="deleteNote(note.id)">
-              <mat-icon>delete</mat-icon>
+        <!-- הערות שיעורים -->
+        <section class="note-box general-note">
+          <h4>הערות שיעורים</h4>
+
+          <div *ngIf="notesGeneral.length; else noGeneral" class="notes-list">
+            <div
+              *ngFor="let note of notesGeneral; trackBy: trackByNote"
+              class="lesson-note-card"
+            >
+              <div class="note-row">
+                <div
+                  class="note-text-wrapper"
+                  *ngIf="!note.isEditing; else editNoteTpl"
+                >
+                  <p class="note-text">{{ note.display_text }}</p>
+                </div>
+
+                <ng-template #editNoteTpl>
+                  <textarea
+                    class="edit-textarea"
+                    [(ngModel)]="note.display_text"
+                    rows="2"
+                  ></textarea>
+                </ng-template>
+
+                <div class="actions" *ngIf="canEditNotes">
+                  <button
+                    mat-icon-button
+                    class="edit-btn"
+                    *ngIf="!note.isEditing"
+                    (click)="startEdit(note)"
+                  >
+                    <mat-icon>edit</mat-icon>
+                  </button>
+
+                  <button
+                    mat-icon-button
+                    class="save-btn"
+                    *ngIf="note.isEditing"
+                    (click)="saveEdit(note)"
+                  >
+                    <mat-icon>check</mat-icon>
+                  </button>
+
+                  <button
+                    mat-icon-button
+                    class="delete-btn"
+                    (click)="deleteNote(note.id)"
+                  >
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </div>
+              </div>
+
+              <div class="note-meta">
+                נכתב ע"י {{ note.instructor_name }} •
+                {{ note.created_at | date: 'dd.MM.yyyy HH:mm' }}
+              </div>
+            </div>
+          </div>
+
+          <ng-template #noGeneral><p>אין הערות שיעורים.</p></ng-template>
+
+          <!-- הודעות שגיאה לנוכחות -->
+          <div class="presence-error" *ngIf="mustChooseAttendance">
+            חובה לבחור נוכחות (הגיע / לא הגיע) לפני סגירת הכרטיסייה.
+          </div>
+
+          <div
+            class="presence-error"
+            *ngIf="!mustChooseAttendance && mustFillNoteForPresent"
+          >
+            אם הילד סומן "הגיע" – חובה למלא לפחות הערת שיעור אחת.
+          </div>
+        </section>
+
+        <!-- הוסף הערה -->
+        <section class="note-box new-note" *ngIf="canEditNotes">
+          <h4>הוסף הערה חדשה</h4>
+          <mat-form-field appearance="fill" class="full-width">
+            <mat-label>כתוב הערה</mat-label>
+            <textarea
+              matInput
+              [(ngModel)]="newNote"
+              rows="2"
+              resize="vertical"
+            ></textarea>
+          </mat-form-field>
+
+          <button mat-raised-button color="primary" (click)="addNote()">
+            הוסף הערה
+          </button>
+        </section>
+
+        <!-- הערות מוכנות -->
+        <section class="note-box prepared-notes" *ngIf="canEditNotes">
+          <h4>הערות מוכנות</h4>
+          <div class="filter-buttons">
+            <button
+              *ngFor="let rn of filteredReadyNotes(); trackBy: trackByReady"
+              mat-stroked-button
+              color="accent"
+              (click)="addReadyNote(rn.content)"
+            >
+              {{ rn.content }}
             </button>
           </div>
-        </div>
-        <div class="note-meta">
-          נכתב ע"י {{ note.instructor_name }} • {{ note.created_at | date:'dd.MM.yyyy HH:mm' }}
-        </div>
+        </section>
+
+        <!-- === נוכחות — הועבר לכאן (לתחתית) === -->
+        <section class="note-box attendance-box" *ngIf="occurrence && canEditNotes">
+          <h4>נוכחות</h4>
+          <div class="attendance-buttons">
+            <button
+              mat-stroked-button
+              type="button"
+              [class.active]="attendanceStatus === 'present'"
+              (click)="setAttendance('present')"
+            >
+              הגיע
+            </button>
+
+            <button
+              mat-stroked-button
+              type="button"
+              [class.active]="attendanceStatus === 'absent'"
+              (click)="setAttendance('absent')"
+            >
+              לא הגיע
+            </button>
+
+            <button
+              mat-icon-button
+              type="button"
+              class="clear-attendance"
+              *ngIf="attendanceStatus"
+              (click)="setAttendance(null)"
+            >
+              <mat-icon>clear</mat-icon>
+            </button>
+          </div>
+        </section>
+
+        <!-- נוכחות — תצוגה בלבד -->
+        <section class="note-box attendance-box" *ngIf="occurrence && !canEditNotes">
+          <h4>נוכחות</h4>
+          <p>
+            <b>נוכחות:</b>
+            <span class="attendance" [ngClass]="attendanceStatus">
+              {{
+                attendanceStatus === 'present'
+                  ? 'הגיע'
+                  : attendanceStatus === 'absent'
+                  ? 'לא הגיע'
+                  : '—'
+              }}
+            </span>
+          </p>
+        </section>
+
       </div>
-    </div>
-    <ng-template #noGeneral><p>אין הערות שיעורים.</p></ng-template>
-  </section>
-
-  <!-- הוספת הערה חדשה -->
-  <section class="note-box new-note">
-    <h4>הוסף הערה חדשה</h4>
-    <mat-form-field appearance="fill" class="full-width">
-      <mat-label>כתוב הערה</mat-label>
-      <textarea matInput [(ngModel)]="newNote" rows="2" resize="vertical"></textarea>
-    </mat-form-field>
-    <button mat-raised-button color="primary" (click)="addNote()">הוסף הערה</button>
-  </section>
-
-  <!-- הערות מוכנות -->
-  <section class="note-box prepared-notes">
-    <h4>הערות מוכנות</h4>
-    <div class="filter-buttons">
-      <button *ngFor="let rn of filteredReadyNotes(); trackBy: trackByReady"
-              mat-stroked-button color="accent"
-              (click)="addReadyNote(rn.content)">
-        {{ rn.content }}
-      </button>
-    </div>
-  </section>
+    </mat-card-content>
+  </mat-card>
 </div>

@@ -1360,7 +1360,7 @@ if (this.referralFile) {
   const { error } = await supa
   .from('secretarial_requests')
   .insert({
-    request_type: 'SERIES',
+    request_type: 'NEW_SERIES',
     status: 'PENDING',
     requested_by_uid: String(this.user!.uid),
     requested_by_role: 'parent',

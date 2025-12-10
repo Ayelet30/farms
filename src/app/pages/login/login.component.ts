@@ -56,6 +56,16 @@ export class LoginComponent {
   }
 
   async login() {
+    this.errorMessage = "";
+    this.successMessage = "";
+    if(!this.email){
+      this.errorMessage = 'יש להכניס שם משתמש';
+      return;
+    }
+    else if(!this.password){
+      this.errorMessage = 'יש להכניס סיסמא';
+      return;
+    }
   this.errorMessage = '';
   this.isLoading = true;   // ← מסך טעינה מתחיל
 
@@ -102,7 +112,7 @@ export class LoginComponent {
 
   const email = (this.email || '').trim();
   if (!email) {
-    this.errorMessage = 'הכנס את כתובת הדוא"ל ואז לחץ "שכחתי סיסמה".';
+    this.errorMessage = 'הכנס את כתובת הדוא"ל ואז לחץ "שכחתי סיסמא".';
     return;
   }
 
@@ -125,7 +135,7 @@ export class LoginComponent {
 
     // הודעת הצלחה כללית (הנכונה מבחינה אבטחתית)
     this.successMessage =
-      'אם קיים במערכת משתמש עם כתובת הדוא"ל הזו - נשלח אליו קישור לאיפוס סיסמה.';
+      'אם קיים במערכת משתמש עם כתובת הדוא"ל הזו - נשלח אליו קישור לאיפוס סיסמא.';
   } catch (e: any) {
     console.error('forgotPassword error:', e);
     const code = e?.code || '';

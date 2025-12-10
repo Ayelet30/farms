@@ -4,16 +4,21 @@ export interface ScheduleItem {
   start: string;
   end: string;
   color?: string;
-  status: "ממתין לאישור" | "אושר" | "בוטל" | "הושלם"  | "summary"; // ← עדכון
+
+  status: "ממתין לאישור" | "אושר" | "בוטל" | "הושלם" | "summary";
+
   meta?: {
-    [x: string]: string| undefined;
-    status: string;
-    child_id: string;
-    child_name: string;
-    instructor_id: string;
-    instructor_name: string;
+    [x: string]: string | undefined;
+
+    status?: string;
+    child_id?: string;
+    child_name?: string;
+    instructor_id?: string;
+    instructor_name?: string;
+
     canCancel?: string;
     lesson_type?: string;
+
     isSummaryDay?: string;
     isSummarySlot?: string;
   };
