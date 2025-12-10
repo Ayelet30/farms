@@ -182,3 +182,21 @@ option {
   background-color: #ffffff !important;
   color: #333 !important;
 }
+
+/* tooltip כללי – הכיתה שמוגדרת ב-matTooltipClass */
+.custom-tooltip {
+  background-color: #ecf3ec;         /* רקע כהה-ירקרק במקום שחור */
+  color: #f7fbea;                    /* טקסט בהיר */
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: right;                 /* עברית */
+  box-shadow: 0 4px 10px rgba(175, 15, 15, 0.2);
+}
+
+/* כדי לדרוס את הסגנון הפנימי של Angular Material (גרסת MDC) */
+.custom-tooltip.mdc-tooltip__surface {
+  background-color: #d5ddd5;
+  color: #f7fbea;
+}

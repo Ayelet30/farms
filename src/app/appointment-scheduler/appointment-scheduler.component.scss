@@ -714,4 +714,31 @@
     color: #000000; // לוודא שרואים את מה שמקלידים
   }
 }
+/* שורה של השיעור שבוטל שנבחר למילוי מקום */
+.occupancy-row-selected {
+  box-shadow: 0 0 0 2px #84b16a inset;
+}
+
+/* שורה של הסלוט שנבחר בפועל */
+.occupancy-slot-selected {
+  background: #f6fff2;
+  // box-shadow: 0 0 0 2px #5f9f55 inset;
+}
+
+/* לשמור על אותו סגנון כמו שאר הטבלאות */
+.occupancy-slots table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.occupancy-slots th,
+.occupancy-slots td {
+  padding: 8px 12px;
+  text-align: center;
+}
+
+.occupancy-slots thead {
+  background: #f7faef;
+  border-bottom: 1px solid #d3e0c2;
+}
 
