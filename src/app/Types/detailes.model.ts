@@ -1,7 +1,7 @@
 import { Membership } from "../services/supabaseClient.service";
 
 export type AppointmentMode = 'parent' | 'secretary';
-export type AppointmentTab = 'series' | 'makeup';
+export type AppointmentTab = 'series' | 'makeup' | 'occupancy';
 export type ParentDetails = {
   id: string;
   uid: string;

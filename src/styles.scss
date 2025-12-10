@@ -183,57 +183,20 @@ option {
   color: #333 !important;
 }
 
-/* גלילה מעודנת לכל אזור שנגלל */
-.slider,
-.content-area {
-  scrollbar-width: thin;                    /* Firefox */
-  scrollbar-color: #9ea889 transparent;     /* צבע ידית + רקע */
+/* tooltip כללי – הכיתה שמוגדרת ב-matTooltipClass */
+.custom-tooltip {
+  background-color: #ecf3ec;         /* רקע כהה-ירקרק במקום שחור */
+  color: #f7fbea;                    /* טקסט בהיר */
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: right;                 /* עברית */
+  box-shadow: 0 4px 10px rgba(175, 15, 15, 0.2);
 }
 
-/* WebKit (Chrome / Edge / Safari) */
-.slider::-webkit-scrollbar,
-.content-area::-webkit-scrollbar {
-  width: 8px;              /* עובי */
-}
-
-.slider::-webkit-scrollbar-track,
-.content-area::-webkit-scrollbar-track {
-  background: transparent; /* או #f4f6f3 אם תרצי */
-}
-
-.slider::-webkit-scrollbar-thumb,
-.content-area::-webkit-scrollbar-thumb {
-  background-color: #9ea889;   /* צבע ידית */
-  border-radius: 999px;        /* עגול יפה */
-  border: 2px solid transparent; /* קצת “אוויר” מסביב */
-  background-clip: content-box;
-}
-
-.slider::-webkit-scrollbar-thumb:hover,
-.content-area::-webkit-scrollbar-thumb:hover {
-  background-color: #7f8b5d;
-}
-@media (max-width: 600px) {
-  .slider,
-  .content-area {
-    scrollbar-width: auto;
-  }
-
-  .slider::-webkit-scrollbar,
-  .content-area::-webkit-scrollbar {
-    width: 0;  /* או להשאיר 6px – לפי מה שנוח */
-  }
-}
-html, body {
-  height: 100%;
-  overflow: hidden;  /* שרק אזורי התוכן יגללו, לא כל הדף */
-}
-
-mat-icon, i.material-icons {
-  font-family: 'Material Icons' !important;
-  font-weight: normal;
-  font-style: normal;
-  font-size: 24px;
-  line-height: 1;
-  display: inline-block;
+/* כדי לדרוס את הסגנון הפנימי של Angular Material (גרסת MDC) */
+.custom-tooltip.mdc-tooltip__surface {
+  background-color: #d5ddd5;
+  color: #f7fbea;
 }
