@@ -10,6 +10,7 @@ import {
   OnChanges,
   SimpleChanges,
 } from '@angular/core';
+
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -23,12 +24,12 @@ import { MatChipsModule } from '@angular/material/chips';
 
 import {
   dbTenant,
-  getSupabaseClient,
   getCurrentUserDetails,
 } from '../../services/legacy-compat';
 
 type Category = 'general' | 'medical' | 'behavioral';
 type AttendanceStatus = 'present' | 'absent' | null;
+
 type RoleInTenant =
   | 'parent'
   | 'instructor'
@@ -50,6 +51,30 @@ interface NoteVM {
 interface ReadyNote {
   id: number | string;
   content: string;
+}
+
+interface LessonDetails {
+  lesson_id: string;
+  start_time?: string | null;
+  end_time?: string | null;
+  lesson_type?: string | null;
+  status?: string | null;
+  horse_id?: string | null;
+  horse_name?: string | null;
+  arena_id?: string | null;
+  arena_name?: string | null;
+}
+
+interface HorseOption {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
+interface ArenaOption {
+  id: string;
+  name: string;
+  isActive: boolean;
 }
 
 @Component({
@@ -75,9 +100,7 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
   @Input() occurrence: any;
 
   @Input() attendanceStatus: AttendanceStatus = null;
-
   @Input() role: RoleInTenant | null = null;
-
   @Input() enforceNoteForPresence = true;
 
   @Output() attendanceChange = new EventEmitter<AttendanceStatus>();
@@ -86,12 +109,10 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
   @ViewChild('scrollable') scrollable!: ElementRef<HTMLDivElement>;
 
   private dbc = dbTenant();
-  private sb = getSupabaseClient();
 
   notesGeneral: NoteVM[] = [];
   notesMedical: NoteVM[] = [];
   notesBehavioral: NoteVM[] = [];
-
   readyNotes: ReadyNote[] = [];
 
   newNote = '';
@@ -100,35 +121,62 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
   mustChooseAttendance = false;
   mustFillNoteForPresent = false;
 
+  lessonDetails: LessonDetails | null = null;
+
+  horses: HorseOption[] = [];
+  arenas: ArenaOption[] = [];
+
+  // ------------ PERMISSIONS ------------
   get canEditNotes(): boolean {
-    if (!this.role) return true;
     return this.role === 'instructor' || this.role === 'secretary';
   }
 
-  // ----------------------------------------------------------
-  // INIT + DEBUG
-  // ----------------------------------------------------------
-  async ngOnInit() {
+  get canEditLessonResources(): boolean {
+    return this.role === 'instructor' || this.role === 'secretary';
+  }
 
-    console.log('%c[INIT] START DEBUG OCCURRENCE', 'color: orange; font-size: 16px; font-weight: bold;');
+  // ------------ HELPERS ------------
+  getTimeString(value: any): string {
+    if (!value) return '';
+    if (typeof value === 'string') return value.substring(0, 5);
+    return '';
+  }
 
-    console.log('%c[INIT] occurrence object →', 'color: purple; font-weight:bold;', this.occurrence);
+  private extractDate(raw: any): string | null {
+    if (!raw) return null;
 
-    if (this.occurrence) {
-      console.log('%c[INIT] occurrence keys →', 'color: brown; font-weight:bold;', Object.keys(this.occurrence));
-
-      console.log('%c[INIT] occurrence.lesson_id →', 'color: red; font-size:14px;', this.occurrence.lesson_id);
-      console.log('%c[INIT] occurrence.id →', 'color: red;', this.occurrence.id);
-      console.log('%c[INIT] occurrence.lesson?.id →', 'color: red;', this.occurrence?.lesson?.id);
-      console.log('%c[INIT] occurrence.extendedProps →', 'color: blue;', this.occurrence.extendedProps);
-      console.log('%c[INIT] extendedProps.lesson_id →', 'color: blue;', this.occurrence?.extendedProps?.lesson_id);
+    if (typeof raw === 'string') {
+      return raw.substring(0, 10);
     }
 
-    console.log('%c[INIT] END DEBUG OCCURRENCE', 'color: orange; font-size: 16px; font-weight: bold;');
+    if (raw instanceof Date) {
+      return raw.toISOString().substring(0, 10);
+    }
 
+    try {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) return d.toISOString().substring(0, 10);
+    } catch {}
+
+    return null;
+  }
+
+  private getOccurrenceDateForDb(): string | null {
+    return this.extractDate(
+      this.occurrence?.occur_date ||
+        this.occurrence?.date ||
+        this.occurrence?.start ||
+        this.occurrence?.start_time
+    );
+  }
+
+  // ------------ INIT ------------
+  async ngOnInit() {
     await this.loadReadyNotes();
     await this.loadNotes();
-    await this.loadAttendance();
+    await this.loadHorses();
+    await this.loadArenas();
+    await this.loadLessonDetails();
     this.recalcPresenceFlags();
   }
 
@@ -139,22 +187,341 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
   }
 
   async ngOnChanges(changes: SimpleChanges) {
-    if (changes['child']?.currentValue) {
-      await this.loadNotes();
-      await this.loadAttendance();
+    if (changes['occurrence'] && !changes['occurrence'].firstChange) {
+      console.log('Occurrence changed → Reload lesson details');
+      await this.loadLessonDetails();
     }
-    if (changes['attendanceStatus']) {
+
+    if (changes['child'] && !changes['child'].firstChange) {
+      await this.loadNotes();
+    }
+
+    if (changes['attendanceStatus'] && !changes['attendanceStatus'].firstChange) {
       this.recalcPresenceFlags();
     }
   }
 
-  // ----------------------------------------------------------
-  // CLOSE LOGIC
-  // ----------------------------------------------------------
+  // ------------ LOAD LESSON DETAILS ------------
+  async loadLessonDetails() {
+    console.log('[OCCURRENCE RECEIVED]', this.occurrence);
+
+    this.lessonDetails = null;
+
+    const lessonId = this.occurrence?.lesson_id;
+    const occurDate = this.getOccurrenceDateForDb();
+
+    console.log('[OCCURRENCE DATE]', occurDate);
+
+    if (!lessonId || !occurDate) return;
+
+    try {
+      const { data: rows } = await this.dbc
+        .from('lessons_with_children')
+        .select('lesson_id, start_time, end_time, lesson_type, status')
+        .eq('lesson_id', lessonId)
+        .limit(1);
+
+      const base = rows?.[0] ?? null;
+      if (!base) return;
+
+      const { data: res } = await this.dbc
+        .from('lesson_resources')
+        .select('horse_id, arena_id')
+        .eq('lesson_id', lessonId)
+        .eq('occur_date', occurDate)
+        .limit(1);
+
+      const horseId = res?.[0]?.horse_id ?? null;
+      const arenaId = res?.[0]?.arena_id ?? null;
+
+      let horseName: string | null = null;
+      let arenaName: string | null = null;
+
+      if (horseId) {
+        const { data } = await this.dbc
+          .from('horses')
+          .select('name')
+          .eq('id', horseId)
+          .limit(1);
+
+        horseName = data?.[0]?.name ?? null;
+      }
+
+      if (arenaId) {
+        const { data } = await this.dbc
+          .from('arenas')
+          .select('name')
+          .eq('id', arenaId)
+          .limit(1);
+
+        arenaName = data?.[0]?.name ?? null;
+      }
+
+      this.lessonDetails = {
+        lesson_id: lessonId,
+        start_time: base.start_time ?? null,
+        end_time: base.end_time ?? null,
+        lesson_type: base.lesson_type ?? null,
+        status: base.status ?? null,
+        horse_id: horseId,
+        horse_name: horseName,
+        arena_id: arenaId,
+        arena_name: arenaName,
+      };
+
+      console.log('[LESSON DETAILS LOADED]', this.lessonDetails);
+    } catch (err) {
+      console.error('loadLessonDetails failed:', err);
+    }
+  }
+
+  // ------------ HORSES + ARENAS ------------
+  async loadHorses() {
+    const { data } = await this.dbc.from('horses').select('id, name, is_active');
+
+    this.horses = (data ?? []).map((h: { id: any; name: any; is_active: any; }) => ({
+      id: h.id,
+      name: h.name,
+      isActive: h.is_active,
+    }));
+  }
+
+  async loadArenas() {
+    const { data } = await this.dbc.from('arenas').select('id, name, is_active');
+
+    this.arenas = (data ?? []).map((a: { id: any; name: any; is_active: any; }) => ({
+      id: a.id,
+      name: a.name,
+      isActive: a.is_active,
+    }));
+  }
+
+  // ------------ UPDATE HORSE ------------
+  async onHorseChange(newHorseId: string | null) {
+    if (!this.canEditLessonResources || !this.lessonDetails) return;
+
+    const lessonId = this.lessonDetails.lesson_id;
+    const occurDate = this.getOccurrenceDateForDb();
+    if (!lessonId || !occurDate) return;
+
+    await this.dbc.from('lesson_resources').upsert(
+      {
+        lesson_id: lessonId,
+        occur_date: occurDate,
+        horse_id: newHorseId,
+        arena_id: this.lessonDetails.arena_id ?? null,
+      },
+      { onConflict: 'lesson_id,occur_date' }
+    );
+
+    const horse = this.horses.find(h => h.id === newHorseId);
+
+    this.lessonDetails.horse_id = newHorseId;
+    this.lessonDetails.horse_name = horse?.name ?? null;
+  }
+
+  // ------------ UPDATE ARENA ------------
+  async onArenaChange(newArenaId: string | null) {
+    if (!this.canEditLessonResources || !this.lessonDetails) return;
+
+    const lessonId = this.lessonDetails.lesson_id;
+    const occurDate = this.getOccurrenceDateForDb();
+    if (!lessonId || !occurDate) return;
+
+    await this.dbc.from('lesson_resources').upsert(
+      {
+        lesson_id: lessonId,
+        occur_date: occurDate,
+        horse_id: this.lessonDetails.horse_id ?? null,
+        arena_id: newArenaId,
+      },
+      { onConflict: 'lesson_id,occur_date' }
+    );
+
+    const arena = this.arenas.find(a => a.id === newArenaId);
+
+    this.lessonDetails.arena_id = newArenaId;
+    this.lessonDetails.arena_name = arena?.name ?? null;
+  }
+
+  // ------------ ATTENDANCE HELPERS ------------
+  private hasAnyNote(): boolean {
+    return (
+      this.notesGeneral.length +
+        this.notesMedical.length +
+        this.notesBehavioral.length >
+      0
+    );
+  }
+
+  async setAttendance(status: AttendanceStatus) {
+    if (!this.canEditNotes) return;
+
+    this.attendanceStatus = status;
+    this.attendanceChange.emit(status);
+    this.recalcPresenceFlags();
+  }
+
+  private recalcPresenceFlags() {
+    this.mustChooseAttendance =
+      this.enforceNoteForPresence && !this.attendanceStatus;
+
+    this.mustFillNoteForPresent =
+      this.enforceNoteForPresence &&
+      this.attendanceStatus === 'present' &&
+      !this.hasAnyNote();
+  }
+
+  // ------------ NOTES CRUD ------------
+  async loadNotes() {
+    const childId = this.child?.child_uuid;
+    if (!childId) return;
+
+    const { data } = await this.dbc
+      .from('notes')
+      .select('id, content, instructor_uid, instructor_name, date, category')
+      .eq('child_id', childId)
+      .order('date', { ascending: false });
+
+    const notes = (data ?? []).map((n: { id: any; content: any; date: any; instructor_uid: any; instructor_name: any; category: any; }) => ({
+      id: n.id,
+      display_text: n.content,
+      created_at: n.date,
+      instructor_uid: n.instructor_uid,
+      instructor_name: n.instructor_name ?? '—',
+      category: n.category ?? 'general',
+      isEditing: false,
+    }));
+
+    this.notesGeneral = notes.filter((n: { category: string; }) => n.category === 'general');
+    this.notesMedical = notes.filter((n: { category: string; }) => n.category === 'medical');
+    this.notesBehavioral = notes.filter((n: { category: string; }) => n.category === 'behavioral');
+
+    this.recalcPresenceFlags();
+  }
+
+  async loadReadyNotes() {
+    const { data } = await this.dbc.from('list_notes').select('id, note');
+
+    this.readyNotes = (data ?? []).map((n: { id: any; note: any; }) => ({
+      id: n.id,
+      content: n.note,
+    }));
+  }
+
+  addReadyNote(content: string) {
+    if (this.canEditNotes) {
+      this.newNote = content;
+    }
+  }
+
+  async addNote() {
+    if (!this.canEditNotes) return;
+
+    const content = this.newNote.trim();
+    if (!content) return;
+
+    const childId = this.child?.child_uuid;
+    if (!childId) return;
+
+    const instructor = await getCurrentUserDetails(
+      'uid, first_name, last_name'
+    );
+
+    const now = new Date().toISOString();
+    const id = crypto.randomUUID();
+
+    await this.dbc.from('notes').insert([
+      {
+        id,
+        child_id: childId,
+        content,
+        date: now,
+        instructor_uid: instructor?.uid ?? null,
+        instructor_name:
+          `${instructor?.first_name ?? ''} ${instructor?.last_name ?? ''}`.trim(),
+        category: this.selectedCategory,
+      },
+    ]);
+
+    const note: NoteVM = {
+      id,
+      display_text: content,
+      created_at: now,
+      instructor_uid: instructor?.uid ?? null,
+      instructor_name:
+        `${instructor?.first_name ?? ''} ${instructor?.last_name ?? ''}`.trim(),
+      category: this.selectedCategory,
+    };
+
+    if (note.category === 'general') this.notesGeneral.unshift(note);
+    else if (note.category === 'medical') this.notesMedical.unshift(note);
+    else this.notesBehavioral.unshift(note);
+
+    this.newNote = '';
+    this.recalcPresenceFlags();
+  }
+
+  startEdit(note: NoteVM) {
+    if (this.canEditNotes) note.isEditing = true;
+  }
+
+  async saveEdit(note: NoteVM) {
+    if (!this.canEditNotes) return;
+
+    await this.dbc
+      .from('notes')
+      .update({ content: note.display_text })
+      .eq('id', note.id);
+
+    note.isEditing = false;
+  }
+
+  async deleteNote(id: string | number) {
+    if (!this.canEditNotes) return;
+
+    await this.dbc.from('notes').delete().eq('id', id);
+
+    this.notesGeneral =
+      this.notesGeneral.filter(n => n.id !== id);
+    this.notesMedical =
+      this.notesMedical.filter(n => n.id !== id);
+    this.notesBehavioral =
+      this.notesBehavioral.filter(n => n.id !== id);
+
+    this.recalcPresenceFlags();
+  }
+
+  // ------------ TRACKBY ------------
+  trackByReady(i: number, item: ReadyNote) {
+    return item.id;
+  }
+
+  trackByNote(i: number, item: NoteVM) {
+    return item.id;
+  }
+
+  trackByHorse(i: number, item: HorseOption) {
+    return item.id;
+  }
+
+  trackByArena(i: number, item: ArenaOption) {
+    return item.id;
+  }
+
+  // ===========================================
+  // BACKDROP + CLOSE HANDLERS   <-- החלק שהיה חסר
+  // ===========================================
+
+  onBackdropClick(event: MouseEvent) {
+    if (event.target === event.currentTarget) {
+      this.onClose();
+    }
+  }
+
   onClose() {
     if (this.enforceNoteForPresence && !this.attendanceStatus) {
       this.mustChooseAttendance = true;
-      this.mustFillNoteForPresent = false;
       return;
     }
 
@@ -163,277 +530,10 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
       this.attendanceStatus === 'present' &&
       !this.hasAnyNote()
     ) {
-      this.mustChooseAttendance = false;
       this.mustFillNoteForPresent = true;
       return;
     }
 
-    this.mustChooseAttendance = false;
-    this.mustFillNoteForPresent = false;
     this.close.emit();
-  }
-
-  onBackdropClick(ev: MouseEvent) {
-    if (ev.target === ev.currentTarget) this.onClose();
-  }
-
-  // ----------------------------------------------------------
-  // ATTENDANCE CLICK + DEBUG
-  // ----------------------------------------------------------
-  async setAttendance(status: AttendanceStatus) {
-    if (!this.canEditNotes) return;
-
-    console.log('%c[CLICK] setAttendance called with:', 'color: green; font-weight:bold;', status);
-
-    this.attendanceStatus = status;
-    this.attendanceChange.emit(status);
-
-    await this.saveAttendance(status);
-
-    this.recalcPresenceFlags();
-  }
-
-  private recalcPresenceFlags() {
-    if (!this.enforceNoteForPresence) {
-      this.mustChooseAttendance = false;
-      this.mustFillNoteForPresent = false;
-      return;
-    }
-
-    this.mustChooseAttendance = !this.attendanceStatus;
-    this.mustFillNoteForPresent = this.attendanceStatus === 'present' && !this.hasAnyNote();
-  }
-
-  private hasAnyNote(): boolean {
-    return (
-      this.notesGeneral.length > 0 ||
-      this.notesMedical.length > 0 ||
-      this.notesBehavioral.length > 0
-    );
-  }
-
-  // ----------------------------------------------------------
-  // SAVE ATTENDANCE + DEBUG
-  // ----------------------------------------------------------
-  async saveAttendance(status: AttendanceStatus) {
-    if (!this.child || !this.occurrence) {
-      console.log('%c[SAVE] Missing child or occurrence → abort', 'color:red;');
-      return;
-    }
-
-    const present = status === 'present';
-
-    console.log('%c[SAVE] status received =', 'color: blue;', status);
-    console.log('%c[SAVE] converted present =', 'color: blue; font-weight:bold;', present);
-
-    console.log('%c[SAVE] child_id =', 'color: blue;', this.child.child_uuid);
-    console.log('%c[SAVE] occurrence.lesson_id =', 'color: blue;', this.occurrence.lesson_id);
-
-    try {
-      const { data: existing } = await this.dbc
-        .from('attendance')
-        .select('id')
-        .eq('child_id', this.child.child_uuid)
-        .eq('activity_id', this.occurrence.lesson_id)
-        .maybeSingle();
-
-      console.log('%c[SAVE] existing attendance row:', 'color: teal;', existing);
-
-      if (existing) {
-        console.log('%c[SAVE] Updating existing row', 'color: orange; font-weight:bold;');
-        await this.dbc.from('attendance').update({ present }).eq('id', existing.id);
-      } else {
-        console.log('%c[SAVE] Creating new row', 'color: orange; font-weight:bold;');
-        await this.dbc.from('attendance').insert([
-          {
-            id: crypto.randomUUID(),
-            child_id: this.child.child_uuid,
-            activity_id: this.occurrence.lesson_id,
-            present,
-          },
-        ]);
-      }
-
-      console.log('%c[SAVE] DONE', 'color: green; font-weight:bold;');
-    } catch (err) {
-      console.error('[SAVE] Attendance update failed:', err);
-    }
-  }
-
-  // ----------------------------------------------------------
-  // LOAD ATTENDANCE + DEBUG
-  // ----------------------------------------------------------
-  async loadAttendance() {
-    if (!this.child || !this.occurrence) return;
-
-    console.log('%c[LOAD] loading attendance for:', 'color: brown;', this.child.child_uuid, this.occurrence.lesson_id);
-
-    try {
-      const { data } = await this.dbc
-        .from('attendance')
-        .select('present')
-        .eq('child_id', this.child.child_uuid)
-        .eq('activity_id', this.occurrence.lesson_id)
-        .maybeSingle();
-
-      console.log('%c[LOAD] attendance row =', 'color: brown;', data);
-
-      if (data) {
-        this.attendanceStatus = data.present ? 'present' : 'absent';
-      }
-    } catch (err) {
-      console.error('[LOAD] Attendance load failed:', err);
-    }
-  }
-
-  // ----------------------------------------------------------
-  // NOTES LOADING ETC.
-  // ----------------------------------------------------------
-  async loadNotes() {
-    try {
-      const childId = this.child?.child_uuid;
-      if (!childId) return;
-
-      const { data, error } = await this.dbc
-        .from('notes')
-        .select('id, content, instructor_uid, instructor_name, date, category')
-        .eq('child_id', childId)
-        .order('date', { ascending: false });
-
-      if (error) throw error;
-
-      const notes = (data ?? []).map((n: any) => ({
-        id: n.id,
-        display_text: n.content,
-        created_at: n.date,
-        instructor_uid: n.instructor_uid,
-        instructor_name: n.instructor_name ?? '—',
-        category: (n.category ?? 'general') as Category,
-        isEditing: false,
-      }));
-
-      this.notesGeneral = notes.filter((n: { category: string; }) => n.category === 'general');
-      this.notesMedical = notes.filter((n: { category: string; }) => n.category === 'medical');
-      this.notesBehavioral = notes.filter((n: { category: string; }) => n.category === 'behavioral');
-
-      this.recalcPresenceFlags();
-    } catch (err) {
-      console.error('Error loading notes:', err);
-    }
-  }
-
-  async loadReadyNotes() {
-    try {
-      const { data, error } = await this.dbc.from('list_notes').select('id, note');
-      if (error) throw error;
-
-      this.readyNotes = (data ?? []).map((r: any) => ({
-        id: r.id,
-        content: r.note,
-      }));
-    } catch (err) {
-      console.error('Error loading ready notes:', err);
-    }
-  }
-
-  filteredReadyNotes() {
-    return this.readyNotes;
-  }
-
-  addReadyNote(content: string) {
-    if (!this.canEditNotes) return;
-    this.newNote = content;
-  }
-
-  async addNote() {
-    if (!this.canEditNotes) return;
-
-    const content = this.newNote.trim();
-    const childId = this.child?.child_uuid;
-    if (!content || !childId) return;
-
-    try {
-      const instructor = await getCurrentUserDetails('uid, first_name, last_name');
-      const now = new Date().toISOString();
-      const id = crypto.randomUUID();
-
-      const newNote: NoteVM = {
-        id,
-        display_text: content,
-        created_at: now,
-        instructor_uid: instructor?.uid,
-        instructor_name: `${instructor?.first_name ?? ''} ${instructor?.last_name ?? ''}`.trim(),
-        category: this.selectedCategory,
-      };
-
-      const { error } = await this.dbc.from('notes').insert([
-        {
-          id,
-          child_id: childId,
-          content,
-          date: now,
-          instructor_uid: newNote.instructor_uid,
-          instructor_name: newNote.instructor_name,
-          category: this.selectedCategory,
-        },
-      ]);
-
-      if (error) throw error;
-
-      if (this.selectedCategory === 'general') this.notesGeneral.unshift(newNote);
-      else if (this.selectedCategory === 'medical') this.notesMedical.unshift(newNote);
-      else this.notesBehavioral.unshift(newNote);
-
-      this.newNote = '';
-      this.recalcPresenceFlags();
-    } catch (err) {
-      console.error('Create note failed:', err);
-    }
-  }
-
-  startEdit(note: NoteVM) {
-    if (!this.canEditNotes) return;
-    note.isEditing = true;
-  }
-
-  async saveEdit(note: NoteVM) {
-    if (!this.canEditNotes) return;
-
-    try {
-      const { error } = await this.dbc.from('notes').update({ content: note.display_text }).eq('id', note.id);
-      if (error) throw error;
-
-      note.isEditing = false;
-    } catch (err) {
-      console.error('Edit note failed:', err);
-    }
-  }
-
-  async deleteNote(noteId: string | number) {
-    if (!this.canEditNotes) return;
-
-    try {
-      const { error } = await this.dbc.from('notes').delete().eq('id', noteId);
-      if (error) throw error;
-
-      this.notesGeneral = this.notesGeneral.filter((n) => n.id !== noteId);
-      this.notesMedical = this.notesMedical.filter((n) => n.id !== noteId);
-      this.notesBehavioral = this.notesBehavioral.filter((n) => n.id !== noteId);
-
-      this.recalcPresenceFlags();
-    } catch (err) {
-      console.error('Delete note failed:', err);
-    }
-  }
-
-  // ----------------------------------------------------------
-  // TRACK BY
-  // ----------------------------------------------------------
-  trackByReady(index: number, item: ReadyNote) {
-    return item.id;
-  }
-
-  trackByNote(index: number, item: NoteVM) {
-    return item.id;
   }
 }

@@ -1,3 +1,9 @@
+/* === צבעים תקינים וברורים === */
+:host {
+  --note-text-color: #2f3b22;     /* טקסט ראשי כהה */
+  --note-muted-color: #6b7760;    /* טקסט משני */
+}
+
 /* === רקע הצללה של החלונית === */
 .note-overlay {
   position: fixed;
@@ -42,7 +48,7 @@ mat-card-header {
     gap: 6px;
     font-size: 15px;
     font-weight: 600;
-    color: var(--color-primary);
+    color: var(--note-text-color);
   }
 
   .close-button {
@@ -90,22 +96,74 @@ mat-card-header {
 .section.lesson-details {
   h3 {
     font-size: 14px;
-    margin-bottom: 6px;
-    color: var(--color-primary);
+    margin-bottom: 8px;
+    color: var(--note-text-color);
   }
 
-  .details-grid {
+  /* טקסט שלא נראה — עכשיו ברור */
+  .lesson-meta-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px 10px;
     font-size: 13px;
-    color: var(--color-text);
+    color: var(--note-text-color);
+    margin-bottom: 10px;
   }
 
-  .lesson-right-col {
+  .detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    .label {
+      font-size: 11px;
+      color: var(--note-muted-color);
+    }
+
+    .value {
+      font-size: 13px;
+      font-weight: 500;
+    }
+  }
+
+  .lesson-resources-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    align-items: flex-end;
+  }
+
+  .field {
     display: flex;
     flex-direction: column;
     gap: 4px;
+
+    label {
+      font-size: 11px;
+      color: var(--note-muted-color);
+    }
+
+    .readonly-value {
+      font-size: 13px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: #f5f5f5;
+      border: 1px solid #e0e0e0;
+      color: var(--note-text-color);
+    }
+
+    mat-form-field {
+      width: 100%;
+    }
+
+    ::ng-deep .mat-mdc-select-trigger {
+      font-size: 13px;
+    }
+  }
+
+  .option-note {
+    font-size: 11px;
+    opacity: 0.8;
   }
 
   .attendance-row {
@@ -113,7 +171,7 @@ mat-card-header {
     align-items: center;
     gap: 6px;
     font-size: 13px;
-    margin-top: 4px;
+    margin-top: 10px;
   }
 
   .attendance-buttons {
@@ -143,41 +201,9 @@ mat-card-header {
       }
     }
   }
-
-  .attendance.present {
-    color: #2e7d32;
-  }
-
-  .attendance.absent {
-    color: #d32f2f;
-  }
 }
 
-/* === פרטים אישיים === */
-.section.personal-details {
-  h3 {
-    font-size: 14px;
-    margin-bottom: 6px;
-    color: var(--color-primary);
-  }
-
-  .details-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px 10px;
-    font-size: 13px;
-    color: var(--color-text);
-
-    mat-icon[inline] {
-      vertical-align: middle;
-      font-size: 16px;
-      margin-left: 4px;
-      color: var(--color-muted);
-    }
-  }
-}
-
-/* === הערות קטגוריאליות === */
+/* === הערות === */
 .note-box {
   border-radius: 10px;
   padding: 10px 12px;
@@ -201,7 +227,7 @@ mat-card-header {
   border: 1px solid #c7d9ff;
 }
 
-/* === הערות שיעורים === */
+/* === הערות כלליות === */
 .general-note {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -210,6 +236,13 @@ mat-card-header {
   display: flex;
   flex-direction: column;
   gap: 12px;
+
+  h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--note-text-color);
+  }
 
   .lesson-note-card {
     background: var(--color-surface-alt);
@@ -234,7 +267,18 @@ mat-card-header {
       .note-text {
         flex: 1;
         font-size: 14px;
-        color: var(--color-text);
+        color: var(--note-text-color);
+        white-space: pre-wrap;
+      }
+
+      textarea {
+        flex: 1;
+        font-size: 13px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        resize: vertical;
+        min-height: 60px;
       }
 
       .actions {
@@ -267,7 +311,7 @@ mat-card-header {
 
     .note-meta {
       font-size: 12px;
-      color: var(--color-muted);
+      color: var(--note-muted-color);
       text-align: left;
     }
   }
@@ -286,7 +330,7 @@ mat-card-header {
   h4 {
     font-size: 15px;
     font-weight: 600;
-    color: var(--color-primary);
+    color: var(--note-text-color);
   }
 
   mat-form-field {
@@ -324,7 +368,7 @@ mat-card-header {
     font-size: 15px;
     font-weight: 600;
     margin-bottom: 8px;
-    color: var(--color-primary);
+    color: var(--note-text-color);
   }
 
   .filter-buttons {
@@ -358,7 +402,7 @@ mat-card-header {
   color: #e65100;
 }
 
-/* === אנימציה עדינה === */
+/* === אנימציה === */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -367,5 +411,85 @@ mat-card-header {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* === רספונסיביות === */
+@media (max-width: 600px) {
+  .note-overlay {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .child-details-card {
+    width: 100%;
+    max-width: none;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .scrollable-content {
+    padding: 12px;
+  }
+
+  .section.lesson-details .lesson-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .section.lesson-details .lesson-resources-row {
+    grid-template-columns: 1fr;
+  }
+}
+.section.lesson-details {
+  /* ...הקיים שלך נשאר... */
+
+  .resources-grid {
+    margin-top: 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 10px;
+
+    mat-form-field {
+      width: 100%;
+    }
+
+    .readonly-value {
+      font-size: 13px;
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: #fafafa;
+      border: 1px solid #e0e0e0;
+    }
+
+    .option-note {
+      font-size: 11px;
+      color: var(--color-muted);
+      margin-right: 4px;
+    }
+  }
+}
+/* שורה של פרטי שיעור */
+.lesson-details {
+  .lesson-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 10px;
+
+    .col {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+
+      .resource-field {
+        width: 100%;
+      }
+    }
+  }
+
+  .label {
+    margin-bottom: -4px;
+    font-size: 13px;
   }
 }

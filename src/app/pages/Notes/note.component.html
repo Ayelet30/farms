@@ -1,5 +1,7 @@
 <div class="note-overlay" (click)="onBackdropClick($event)">
   <mat-card class="child-details-card" (click)="$event.stopPropagation()">
+    
+    <!-- Header -->
     <mat-card-header>
       <mat-card-title>
         <mat-icon>person</mat-icon>
@@ -18,8 +20,118 @@
 
     <mat-card-content class="scrollable-content" #scrollable>
 
-      <!-- === מסגרת עליונה — פרטים אישיים והערות רפואיות/התנהגותיות === -->
+      <!-- ======================= TOP SECTION ======================= -->
       <div class="inner-section top">
+
+        <!-- 🔵 פרטי שיעור + סוס + מגרש (תיקון מלא) -->
+      <section class="section lesson-details" *ngIf="lessonDetails">
+  <h3>פרטי שיעור</h3>
+
+  <!-- תאריך השיעור -->
+  <p class="lesson-date">
+    <b>תאריך:</b>
+    {{
+      occurrence?.occur_date ||
+      occurrence?.date ||
+      occurrence?.start ||
+      occurrence?.start_time
+        | date:'dd/MM/yyyy'
+    }}
+  </p>
+
+  <!-- שורה 1: שעה + סוג שיעור + סטטוס -->
+  <div class="details-grid">
+    <div>
+      <p>
+        <b>שעה:</b>
+        {{ getTimeString(lessonDetails.start_time) }} –
+        {{ getTimeString(lessonDetails.end_time) }}
+      </p>
+      <p *ngIf="lessonDetails.lesson_type">
+        <b>סוג שיעור:</b> {{ lessonDetails.lesson_type }}
+      </p>
+    </div>
+
+    <div class="lesson-right-col">
+      <p>
+        <b>סטטוס:</b>
+        {{ lessonDetails.status || '—' }}
+      </p>
+    </div>
+  </div>
+
+
+          <!-- שורה 2 -->
+          <div class="lesson-row bottom">
+
+            <!-- סוס -->
+            <div class="col">
+              <p class="label"><b>סוס:</b></p>
+
+              <ng-container *ngIf="canEditLessonResources; else horseReadOnly">
+                <mat-form-field appearance="outline" class="resource-field">
+                  <mat-select
+                    placeholder="בחר סוס"
+                    [(ngModel)]="lessonDetails.horse_id"
+                    (ngModelChange)="onHorseChange($event)"
+                  >
+                    <mat-option [value]="null">— ללא סוס —</mat-option>
+
+                    <mat-option
+                      *ngFor="let h of horses; trackBy: trackByHorse"
+                      [value]="h.id"
+                      [disabled]="!h.isActive"
+                    >
+                      {{ h.name }}
+                      <span *ngIf="!h.isActive">— לא פעיל</span>
+                    </mat-option>
+                  </mat-select>
+                </mat-form-field>
+              </ng-container>
+
+              <ng-template #horseReadOnly>
+                <div class="readonly-value">
+                  {{ lessonDetails.horse_name || '—' }}
+                </div>
+              </ng-template>
+            </div>
+
+            <!-- מגרש -->
+            <div class="col">
+              <p class="label"><b>מגרש:</b></p>
+
+              <ng-container *ngIf="canEditLessonResources; else arenaReadOnly">
+                <mat-form-field appearance="outline" class="resource-field">
+                  <mat-select
+                    placeholder="בחר מגרש"
+                    [(ngModel)]="lessonDetails.arena_id"
+                    (ngModelChange)="onArenaChange($event)"
+                  >
+                    <mat-option [value]="null">— ללא מגרש —</mat-option>
+
+                    <mat-option
+                      *ngFor="let a of arenas; trackBy: trackByArena"
+                      [value]="a.id"
+                      [disabled]="!a.isActive"
+                    >
+                      {{ a.name }}
+                      <span *ngIf="!a.isActive">— לא פעיל</span>
+                    </mat-option>
+                  </mat-select>
+                </mat-form-field>
+              </ng-container>
+
+              <ng-template #arenaReadOnly>
+                <div class="readonly-value">
+                  {{ lessonDetails.arena_name || '—' }}
+                </div>
+              </ng-template>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- Personal -->
         <section class="section personal-details">
           <h3>פרטים אישיים</h3>
           <div class="details-grid">
@@ -51,7 +163,7 @@
           </div>
         </section>
 
-        <!-- הערות רפואיות -->
+        <!-- Medical notes -->
         <section class="note-box medical-note">
           <h4>הערות רפואיות</h4>
           <div *ngIf="notesMedical.length; else noMedical">
@@ -67,9 +179,10 @@
           <ng-template #noMedical><p>אין הערות רפואיות.</p></ng-template>
         </section>
 
-        <!-- הערות התנהגותיות -->
+        <!-- Behavioral notes -->
         <section class="note-box behavioral-note">
           <h4>הערות התנהגותיות</h4>
+
           <div *ngIf="notesBehavioral.length; else noBehavioral">
             <div
               *ngFor="let note of notesBehavioral; trackBy: trackByNote"
@@ -80,14 +193,16 @@
               </div>
             </div>
           </div>
+
           <ng-template #noBehavioral><p>אין הערות התנהגותיות.</p></ng-template>
         </section>
+
       </div>
 
-      <!-- === מסגרת תחתונה — הערות שיעורים + נוכחות === -->
+      <!-- ======================= BOTTOM SECTION ======================= -->
       <div class="inner-section bottom">
 
-        <!-- הערות שיעורים -->
+        <!-- Lesson notes -->
         <section class="note-box general-note">
           <h4>הערות שיעורים</h4>
 
@@ -113,29 +228,15 @@
                 </ng-template>
 
                 <div class="actions" *ngIf="canEditNotes">
-                  <button
-                    mat-icon-button
-                    class="edit-btn"
-                    *ngIf="!note.isEditing"
-                    (click)="startEdit(note)"
-                  >
+                  <button mat-icon-button class="edit-btn" *ngIf="!note.isEditing" (click)="startEdit(note)">
                     <mat-icon>edit</mat-icon>
                   </button>
 
-                  <button
-                    mat-icon-button
-                    class="save-btn"
-                    *ngIf="note.isEditing"
-                    (click)="saveEdit(note)"
-                  >
+                  <button mat-icon-button class="save-btn" *ngIf="note.isEditing" (click)="saveEdit(note)">
                     <mat-icon>check</mat-icon>
                   </button>
 
-                  <button
-                    mat-icon-button
-                    class="delete-btn"
-                    (click)="deleteNote(note.id)"
-                  >
+                  <button mat-icon-button class="delete-btn" (click)="deleteNote(note.id)">
                     <mat-icon>delete</mat-icon>
                   </button>
                 </div>
@@ -150,7 +251,6 @@
 
           <ng-template #noGeneral><p>אין הערות שיעורים.</p></ng-template>
 
-          <!-- הודעות שגיאה לנוכחות -->
           <div class="presence-error" *ngIf="mustChooseAttendance">
             חובה לבחור נוכחות (הגיע / לא הגיע) לפני סגירת הכרטיסייה.
           </div>
@@ -163,17 +263,13 @@
           </div>
         </section>
 
-        <!-- הוסף הערה -->
+        <!-- Add note -->
         <section class="note-box new-note" *ngIf="canEditNotes">
           <h4>הוסף הערה חדשה</h4>
+
           <mat-form-field appearance="fill" class="full-width">
             <mat-label>כתוב הערה</mat-label>
-            <textarea
-              matInput
-              [(ngModel)]="newNote"
-              rows="2"
-              resize="vertical"
-            ></textarea>
+            <textarea matInput [(ngModel)]="newNote" rows="2"></textarea>
           </mat-form-field>
 
           <button mat-raised-button color="primary" (click)="addNote()">
@@ -181,12 +277,13 @@
           </button>
         </section>
 
-        <!-- הערות מוכנות -->
+        <!-- Ready-made notes -->
         <section class="note-box prepared-notes" *ngIf="canEditNotes">
           <h4>הערות מוכנות</h4>
+
           <div class="filter-buttons">
             <button
-              *ngFor="let rn of filteredReadyNotes(); trackBy: trackByReady"
+              *ngFor="let rn of readyNotes; trackBy: trackByReady"
               mat-stroked-button
               color="accent"
               (click)="addReadyNote(rn.content)"
@@ -196,41 +293,26 @@
           </div>
         </section>
 
-        <!-- === נוכחות — הועבר לכאן (לתחתית) === -->
+        <!-- Attendance (edit) -->
         <section class="note-box attendance-box" *ngIf="occurrence && canEditNotes">
           <h4>נוכחות</h4>
+
           <div class="attendance-buttons">
-            <button
-              mat-stroked-button
-              type="button"
-              [class.active]="attendanceStatus === 'present'"
-              (click)="setAttendance('present')"
-            >
+            <button mat-stroked-button [class.active]="attendanceStatus === 'present'" (click)="setAttendance('present')">
               הגיע
             </button>
 
-            <button
-              mat-stroked-button
-              type="button"
-              [class.active]="attendanceStatus === 'absent'"
-              (click)="setAttendance('absent')"
-            >
+            <button mat-stroked-button [class.active]="attendanceStatus === 'absent'" (click)="setAttendance('absent')">
               לא הגיע
             </button>
 
-            <button
-              mat-icon-button
-              type="button"
-              class="clear-attendance"
-              *ngIf="attendanceStatus"
-              (click)="setAttendance(null)"
-            >
+            <button mat-icon-button *ngIf="attendanceStatus" class="clear-attendance" (click)="setAttendance(null)">
               <mat-icon>clear</mat-icon>
             </button>
           </div>
         </section>
 
-        <!-- נוכחות — תצוגה בלבד -->
+        <!-- Attendance (read-only) -->
         <section class="note-box attendance-box" *ngIf="occurrence && !canEditNotes">
           <h4>נוכחות</h4>
           <p>
@@ -248,6 +330,7 @@
         </section>
 
       </div>
+
     </mat-card-content>
   </mat-card>
 </div>
