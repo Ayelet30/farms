@@ -11,6 +11,8 @@ import { ViewChild, TemplateRef } from '@angular/core';
 //import { console } from 'inspector';
 import { MatSelect, MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
+import { MatTooltipModule } from '@angular/material/tooltip';
+
 
 
 
@@ -91,6 +93,18 @@ interface SeriesCalendarDay {
   isCurrentMonth: boolean;
   hasSlots: boolean;   // האם יש לפחות סדרה אחת שיכולה להתחיל בתאריך זה
 }
+interface OccupancyCandidate {
+  lesson_occ_exception_id: string;
+  lesson_id: string;
+  occur_date: string;
+  day_of_week: string;
+  start_time: string;
+  end_time: string;
+  instructor_id: string | null;   // 👈 חשוב!
+  instructor_name?: string | null;
+  status: string;
+}
+
 
 @Component({
   selector: 'app-appointment-scheduler',
@@ -98,7 +112,8 @@ interface SeriesCalendarDay {
   imports: [CommonModule,
     FormsModule,
     MatSelectModule,
-    MatInputModule],
+    MatInputModule , 
+    MatTooltipModule],
   templateUrl: './appointment-scheduler.component.html',
   styleUrls: ['./appointment-scheduler.component.scss'],
 })
@@ -147,6 +162,34 @@ calendarSlotsByDate: Record<string, RecurringSlot[]> = {};
 selectedSeriesDate: string | null = null;
 selectedSeriesDaySlots: RecurringSlot[] = [];
 
+occupancyCandidates: OccupancyCandidate[] = [];
+loadingOccupancyCandidates = false;
+occupancyError: string | null = null;
+// בחירה של שיעור שנפתח למילוי מקום
+selectedOccupancyCandidate: OccupancyCandidate | null = null;
+
+// סלוטים פנויים עבור מילוי מקום
+occupancySlots: MakeupSlot[] = [];
+loadingOccupancySlots = false;
+occupancySlotsError: string | null = null;
+selectedOccupancySlot: MakeupSlot | null = null;
+
+// שיעורי מילוי מקום
+
+occupancyCreatedMessage: string | null = null;
+
+@ViewChild('confirmOccupancyDialog') confirmOccupancyDialog!: TemplateRef<any>;
+
+occupancyConfirmData = {
+  newDate: '',
+  newStart: '',
+  newEnd: '',
+  newInstructorName: '',
+  oldDate: '',
+  oldStart: '',
+  oldEnd: '',
+  oldInstructorName: ''
+};
 
   @ViewChild('confirmMakeupDialog') confirmMakeupDialog!: TemplateRef<any>;
   @ViewChild('childSelect') childSelect!: MatSelect;
@@ -373,13 +416,6 @@ if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
   instructorParam = sel?.instructor_id ?? null;  // זה ה-id_number (טקסט)
 }
 
-
-  console.log('🔍 find_makeup_slots_for_lesson params:', {
-    p_instructor_id: instructorParam,
-    p_from_date: this.makeupSearchFromDate,
-    p_to_date: this.makeupSearchToDate,
-  });
-
   this.loadingCandidateSlots = true;
   this.candidateSlotsError = null;
 
@@ -393,7 +429,6 @@ if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
 
 
 
-    console.log('🔍 find_makeup_slots_for_lesson result:', { error, rows: data?.length });
 
     if (error) {
       console.error('find_makeup_slots_for_lesson error', error);
@@ -724,6 +759,8 @@ async onChildSelected(): Promise<void> {
 
   // טוענים שיעורים שניתן להשלים עבור הילד
   await this.loadMakeupCandidatesForChild();
+await this.loadOccupancyCandidatesForChild();   // 👈 חדש
+
 
   // בונים מחדש קלנדר לסדרות עבור החודש הנוכחי (ריק עד שהורה ילחץ "חפש סדרות זמינות")
   this.buildSeriesCalendar(this.currentCalendarYear, this.currentCalendarMonth);
@@ -766,12 +803,7 @@ filterInstructors(): void {
         'get_child_makeup_candidates',
         { _child_id: this.selectedChildId }
       );
-console.log('🔍 get_child_makeup_candidates RPC:', {
-      child: this.selectedChildId,
-      error,
-      rows: data?.length,
-      sample: data?.[0]
-    });
+
 
       if (error) {
         console.error('get_child_makeup_candidates error', error);
@@ -784,6 +816,54 @@ console.log('🔍 get_child_makeup_candidates RPC:', {
       this.loadingMakeupCandidates = false;
     }
   }
+private async loadOccupancyCandidatesForChild(): Promise<void> {
+  if (!this.selectedChildId) return;
+
+  this.loadingOccupancyCandidates = true;
+  this.occupancyError = null;
+  this.occupancyCandidates = [];
+
+  try {
+    const { data, error } = await dbTenant().rpc(
+      'get_child_occupancy_candidates',
+      { _child_id: this.selectedChildId }
+    );
+
+    
+    if (error) {
+      console.error('get_child_occupancy_candidates error', error);
+      this.occupancyError = 'שגיאה בטעינת שיעורים למילוי מקום';
+      return;
+    }
+
+    const raw = (data ?? []) as OccupancyCandidate[];
+
+    // מעשירות בשם מדריך מתוך this.instructors
+    this.occupancyCandidates = raw.map(o => {
+      const ins = this.instructors.find(i =>
+        i.instructor_id === o.instructor_id ||
+        i.instructor_uid === o.instructor_id
+      );
+
+      return {
+        ...o,
+        instructor_name: ins?.full_name ?? null,
+      };
+    });
+  } finally {
+    this.loadingOccupancyCandidates = false;
+  }
+}
+getInstructorNameById(id: string | null | undefined): string {
+  if (!id) return '';
+  const ins = this.instructors.find(i =>
+    i.instructor_id === id || i.instructor_uid === id
+  );
+  return ins?.full_name ?? id; // fallback: ת"ז אם לא נמצא
+}
+showAvailableOccupancyLessons(o: OccupancyCandidate) {
+  // navigation / dialog logic here
+}
 
   // =========================================
   //   חיפוש סדרות זמינות (find_recurring_slots)
@@ -840,13 +920,6 @@ async searchRecurringSlots(): Promise<void> {
     p_to_date: toDate,
   };
 
-console.log('🟣 payload types:', {
-  p_child_id: payload.p_child_id,
-  p_lesson_count: payload.p_lesson_count,
-  p_instructor_id_number: payload.p_instructor_id_number,
-  p_from_date: payload.p_from_date,
-  p_to_date: payload.p_to_date,
-});
 
 
   this.loadingSeries = true;
@@ -955,13 +1028,11 @@ onSeriesLessonCountChange(val: number | null): void {
     !this.selectedChildId ||
     !this.children.some(c => c.child_uuid === this.selectedChildId)
   ) {
-    console.log('⏳ seriesLessonCount selected but no valid child yet');
     return;
   }
 
   // אם חייבים מדריך ולא נבחר – נחכה
   if (!this.noInstructorPreference && !this.selectedInstructorId) {
-    console.log('⏳ seriesLessonCount selected but no instructor yet');
     return;
   }
 
@@ -1057,64 +1128,8 @@ onReferralFileSelected(event: Event): void {
   this.referralFile = file;
 }
 
-  // =========================================
-  //   חיפוש חורים להשלמות (find_makeup_slots)
-  // =========================================
+ 
 
-  // יצירת שיעור השלמה – יוצר lesson יחיד (repeat_weeks = 1)
-//   async bookMakeupSlot(slot: MakeupSlot): Promise<void> {
-//   if (!this.selectedChildId) return;
-
-//   const dayLabel = this.dayOfWeekLabelFromDate(slot.occur_date);
-//   const anchorWeekStart = this.calcAnchorWeekStart(slot.occur_date);
-
-//   // נחליט מה ה-id_number שנכניס לשיעור
-//   const instructorIdNumber =
-//     this.selectedInstructorId === 'any'
-//       ? slot.instructor_id
-//       : (
-//           this.instructors.find(i =>
-//             i.instructor_uid === this.selectedInstructorId || // uid
-//             i.instructor_id  === this.selectedInstructorId    // במקרה שכבר ת"ז
-//           )?.instructor_id ?? slot.instructor_id              // fallback
-//         );
-
-//   console.log('📌 booking makeup with instructorIdNumber:', instructorIdNumber);
-
-//   const { data, error } = await dbTenant()
-//     .from('lessons')
-//     .insert({
-//       child_id: this.selectedChildId,
-//       instructor_id: instructorIdNumber,  // ← שורה מתוקנת
-//       lesson_type: 'השלמה',
-//       status: 'אושר',
-//       day_of_week: dayLabel,
-//       start_time: slot.start_time,
-//       end_time: slot.end_time,
-//       repeat_weeks: 1,
-//       anchor_week_start: anchorWeekStart,
-//       appointment_kind: 'therapy_makeup',
-//       approval_id: this.selectedApproval?.approval_id ?? null,
-//       origin: this.user!.role === 'parent' ? 'parent' : 'secretary',
-//       is_tentative: false,
-//       capacity: 1,
-//       current_booked: 1,
-//       payment_source: this.selectedApproval ? 'health_fund' : 'private',
-//     })
-//     .select()
-//     .single();
-
-//   if (error) {
-//     console.error(error);
-//     this.makeupError = 'שגיאה ביצירת שיעור ההשלמה';
-//     return;
-//   }
-
-//   this.makeupCreatedMessage = 'שיעור ההשלמה נוצר בהצלחה';
-//   await this.onChildChange();
-// }
-
- // בקשת שיעור השלמה מהמזכירה – מכניסת רשומה ל-secretarial_requests
 // בקשת שיעור השלמה מהמזכירה – מכניס גם ל-secretarial_requests וגם ל-lessons
 async requestMakeupFromSecretary(slot: MakeupSlot): Promise<void> {
   if (!this.selectedChildId || !this.user || !this.selectedMakeupCandidate) {
@@ -1517,7 +1532,6 @@ get canRequestSeries(): boolean {
   return true;
 }
 getLessonTypeLabel(slot: MakeupSlot): string {
-  console.log(slot.lesson_type_mode); 
   switch (slot.lesson_type_mode) {
     case 'both':
       return 'זוגי'
@@ -1527,6 +1541,203 @@ getLessonTypeLabel(slot: MakeupSlot): string {
       return 'יחיד';
   }
 }
+private async loadOccupancySlotsForCandidate(
+  cand: OccupancyCandidate
+): Promise<void> {
+  this.loadingOccupancySlots = true;
+  this.occupancySlotsError = null;
+  this.occupancySlots = [];
+  this.selectedOccupancySlot = null;
+
+  try {
+    // טווח חיפוש – אפשר לשנות, לדוגמה 30 ימים קדימה
+    const fromDate = cand.occur_date;
+    const toDate = this.addDays(cand.occur_date, 30);
+
+    const { data, error } = await dbTenant().rpc(
+      'find_makeup_slots_for_lesson_by_id_number',
+      {
+        p_instructor_id: cand.instructor_id, // id_number של המדריך
+        p_from_date: fromDate,
+        p_to_date: toDate,
+      }
+    );
+
+   
+    if (error) {
+      console.error('find_makeup_slots_for_lesson_by_id_number error', error);
+      this.occupancySlotsError = 'שגיאה בחיפוש שיעורים למילוי מקום';
+      return;
+    }
+
+    let slots = (data ?? []) as MakeupSlot[];
+
+    // אם את רוצה להגביל לכמות מקסימלית כמו ב־displayedMakeupLessonsCount:
+    if (
+      this.displayedMakeupLessonsCount != null &&
+      this.displayedMakeupLessonsCount > 0
+    ) {
+      slots = slots.slice(0, this.displayedMakeupLessonsCount);
+    }
+
+    this.occupancySlots = slots;
+
+    if (!this.occupancySlots.length) {
+      this.occupancySlotsError = 'לא נמצאו שיעורים פנויים למילוי מקום.';
+    }
+  } finally {
+    this.loadingOccupancySlots = false;
+  }
+}
+async openOccupancySlotsForCandidate(c: MakeupCandidate): Promise<void> {
+  if (!this.selectedChildId) {
+    this.occupancyError = 'יש לבחור ילד';
+    return;
+  }
+
+  this.selectedOccupancyCandidate = c;
+  this.occupancySlots = [];
+  this.occupancyError = null;
+
+  // טווח חיפוש לחורים (בדומה להשלמות)
+  const from = c.occur_date;
+  const to = this.addDays(c.occur_date, 30);
+
+  // כאן את משתמשת בדיוק ב-find_makeup_slots_for_lesson_by_id_number
+  // כמו ב־loadCandidateSlots, רק שממלאת ל-occupancySlots במקום candidateSlots.
+  let instructorParam: string | null = null;
+
+  if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
+    const sel = this.instructors.find(i => i.instructor_uid === this.selectedInstructorId);
+    instructorParam = sel?.instructor_id ?? null;
+  }
+
+  const { data, error } = await dbTenant().rpc('find_makeup_slots_for_lesson_by_id_number', {
+    p_instructor_id: instructorParam,
+    p_from_date: from,
+    p_to_date: to,
+  });
+
+  if (error) {
+    console.error('find_makeup_slots_for_lesson_by_id_number error (occupancy)', error);
+    this.occupancyError = 'שגיאה בטעינת חורים למילוי מקום';
+    return;
+  }
+
+  this.occupancySlots = (data ?? []) as MakeupSlot[];
+
+  if (!this.occupancySlots.length) {
+    this.occupancyError = 'לא נמצאו חורים מתאימים למילוי מקום';
+  }
+}
+
+selectOccupancySlot(slot: MakeupSlot): void {
+  this.selectedOccupancySlot = slot;
+}
+async selectAndRequestOccupancySlot(slot: MakeupSlot): Promise<void> {
+  if (!this.selectedChildId || !this.user || !this.selectedOccupancyCandidate) {
+    this.occupancyError = 'חסר ילד או שיעור מילוי מקום שנבחר';
+    return;
+  }
+
+  // נתוני השיעור החדש (מילוי מקום)
+  this.occupancyConfirmData.newDate  = slot.occur_date;
+  this.occupancyConfirmData.newStart = slot.start_time.substring(0, 5);
+  this.occupancyConfirmData.newEnd   = slot.end_time.substring(0, 5);
+  this.occupancyConfirmData.newInstructorName =
+    slot.instructor_name || this.selectedInstructor?.full_name || slot.instructor_id;
+
+  // נתוני השיעור המקורי שבוטל – מתוך ה-candidate שנבחר
+  const orig = this.selectedOccupancyCandidate;
+// נניח שיש לך:
+const c = this.selectedOccupancyCandidate!;
+
+// שם המדריך הישן (זה שביטל את השיעור)
+const oldInstructorName =
+  c.instructor_name ||               // אם יש שם מלא
+  c.instructor_id  ||               // אחרת ניפול לת"ז
+  '';
+
+// שם המדריך החדש (של שיעור המילוי מקום)
+const newInstructorName =
+  slot.instructor_name ||           // אם חישבנו שם מלא ב-RPC
+  slot.instructor_id  ||           // fallback לת"ז
+  '';
+
+this.occupancyConfirmData.oldInstructorName = oldInstructorName;
+this.occupancyConfirmData.newInstructorName = newInstructorName;
+
+  this.occupancyConfirmData.oldDate  = orig.occur_date;
+  this.occupancyConfirmData.oldStart = orig.start_time.substring(0, 5);
+  this.occupancyConfirmData.oldEnd   = orig.end_time.substring(0, 5);
+  
+  const dialogRef = this.dialog.open(this.confirmOccupancyDialog, {
+    width: '380px',
+    disableClose: true,
+    data: {},
+  });
+
+  dialogRef.afterClosed().subscribe(async confirmed => {
+    if (!confirmed) return;
+
+    this.occupancyError = null;
+    this.occupancyCreatedMessage = null;
+
+    const supa = dbTenant();
+
+    // ה-UID של השיעור המקורי אותו משלימים (מתוך ה-view)
+    const lessonOccId = this.selectedOccupancyCandidate!.lesson_id;
+    // אם ה-view מחזיר lesson_occ_exception_id שאת רוצה להשתמש בו, תחליפי כאן.
+
+    const payload = {
+      requested_start_time: slot.start_time,
+      requested_end_time: slot.end_time,
+    };
+
+    const { error } = await supa
+      .from('secretarial_requests')
+      .insert({
+        request_type: 'FILL_IN',
+        status: 'PENDING',
+        requested_by_uid: String(this.user!.uid),
+        requested_by_role: 'parent',
+        child_id: this.selectedChildId,
+        instructor_id: slot.instructor_id,      // המדריך של השיעור החדש
+        lesson_occ_id: lessonOccId,             // השיעור המקורי (view)
+        from_date: slot.occur_date,
+        to_date: slot.occur_date,
+        payload,
+      });
+
+    if (error) {
+      console.error('FILL_IN request error', error);
+      this.occupancyError = 'שגיאה בשליחת בקשת מילוי מקום למזכירה';
+      return;
+    }
+
+    this.occupancyCreatedMessage =
+      'בקשת מילוי המקום נשלחה למזכירה ✔️';
+
+    // אם את רוצה – לרענן את השיעורים שמחפשים מילוי מקום
+    await this.onChildChange();
+  });
+}
+
+async requestOccupancyFromSecretary(slot: any): Promise<void> {
+  const { error } = await dbTenant().rpc('request_occupancy_lesson', {
+    p_child_id: this.selectedChildId,
+    p_instructor_id: slot.instructor_id,
+    p_occur_date: slot.occur_date,
+    p_start_time: slot.start_time,
+    p_end_time: slot.end_time
+  });
+
+  if (error) {
+    console.error('request_occupancy_lesson error:', error);
+    throw error;
+  }
+}
+
 
 
 }
