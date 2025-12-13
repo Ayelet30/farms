@@ -9,6 +9,7 @@ import {
   AfterViewInit,
   OnChanges,
   SimpleChanges,
+  inject,
 } from '@angular/core';
 
 import { CommonModule } from '@angular/common';
@@ -22,10 +23,10 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
 
-import {
-  dbTenant,
-  getCurrentUserDetails,
-} from '../../services/legacy-compat';
+import { dbTenant, getCurrentUserDetails } from '../../services/legacy-compat';
+import { CurrentUserService } from '../../core/auth/current-user.service';
+
+/* ===================== TYPES ===================== */
 
 type Category = 'general' | 'medical' | 'behavioral';
 type AttendanceStatus = 'present' | 'absent' | null;
@@ -39,7 +40,7 @@ type RoleInTenant =
   | 'coordinator';
 
 interface NoteVM {
-  id: string | number;
+  id: string;
   display_text: string;
   created_at?: string | null;
   instructor_uid?: string | null;
@@ -49,7 +50,7 @@ interface NoteVM {
 }
 
 interface ReadyNote {
-  id: number | string;
+  id: string;
   content: string;
 }
 
@@ -77,6 +78,8 @@ interface ArenaOption {
   isActive: boolean;
 }
 
+/* ===================== COMPONENT ===================== */
+
 @Component({
   selector: 'app-note',
   standalone: true,
@@ -95,12 +98,15 @@ interface ArenaOption {
     MatChipsModule,
   ],
 })
-export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
+export class NoteComponent
+  implements OnInit, AfterViewInit, OnChanges
+{
+  /* ===================== INPUT / OUTPUT ===================== */
+
   @Input() child: any;
   @Input() occurrence: any;
-
   @Input() attendanceStatus: AttendanceStatus = null;
-  @Input() role: RoleInTenant | null = null;
+  //@Input() role: RoleInTenant | null = null;
   @Input() enforceNoteForPresence = true;
 
   @Output() attendanceChange = new EventEmitter<AttendanceStatus>();
@@ -108,11 +114,16 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
 
   @ViewChild('scrollable') scrollable!: ElementRef<HTMLDivElement>;
 
+  /* ===================== STATE ===================== */
+
   private dbc = dbTenant();
+  private cu = inject(CurrentUserService);
+
 
   notesGeneral: NoteVM[] = [];
   notesMedical: NoteVM[] = [];
   notesBehavioral: NoteVM[] = [];
+
   readyNotes: ReadyNote[] = [];
 
   newNote = '';
@@ -126,225 +137,65 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
   horses: HorseOption[] = [];
   arenas: ArenaOption[] = [];
 
-  // ------------ PERMISSIONS ------------
+  role: string | undefined;
+
+
+  /* ===================== PERMISSIONS ===================== */
+
   get canEditNotes(): boolean {
-    return this.role === 'instructor' || this.role === 'secretary';
+    console.log("!!!!!!!!!!!!!!!!!!!!!!!!!", this.role);
+     return this.role === 'instructor' || this.role === 'secretary';
   }
 
   get canEditLessonResources(): boolean {
     return this.role === 'instructor' || this.role === 'secretary';
   }
 
-  // ------------ HELPERS ------------
-  getTimeString(value: any): string {
-    if (!value) return '';
-    if (typeof value === 'string') return value.substring(0, 5);
-    return '';
-  }
+  /* ===================== LIFECYCLE ===================== */
 
-  private extractDate(raw: any): string | null {
-    if (!raw) return null;
-
-    if (typeof raw === 'string') {
-      return raw.substring(0, 10);
-    }
-
-    if (raw instanceof Date) {
-      return raw.toISOString().substring(0, 10);
-    }
-
-    try {
-      const d = new Date(raw);
-      if (!isNaN(d.getTime())) return d.toISOString().substring(0, 10);
-    } catch {}
-
-    return null;
-  }
-
-  private getOccurrenceDateForDb(): string | null {
-    return this.extractDate(
-      this.occurrence?.occur_date ||
-        this.occurrence?.date ||
-        this.occurrence?.start ||
-        this.occurrence?.start_time
-    );
-  }
-
-  // ------------ INIT ------------
   async ngOnInit() {
-    await this.loadReadyNotes();
-    await this.loadNotes();
-    await this.loadHorses();
-    await this.loadArenas();
-    await this.loadLessonDetails();
+
+    this.role = this.cu.current?.role ?? undefined ;
+    await Promise.all([
+      this.loadReadyNotes(),
+      this.loadNotes(),
+      this.loadHorses(),
+      this.loadArenas(),
+      this.loadLessonDetails(),
+    ]);
     this.recalcPresenceFlags();
   }
 
   ngAfterViewInit() {
-    if (this.scrollable?.nativeElement) {
-      this.scrollable.nativeElement.scrollTop = 0;
-    }
+    this.scrollable?.nativeElement.scrollTo({ top: 0 });
   }
 
   async ngOnChanges(changes: SimpleChanges) {
     if (changes['occurrence'] && !changes['occurrence'].firstChange) {
-      console.log('Occurrence changed → Reload lesson details');
       await this.loadLessonDetails();
     }
-
     if (changes['child'] && !changes['child'].firstChange) {
       await this.loadNotes();
     }
-
-    if (changes['attendanceStatus'] && !changes['attendanceStatus'].firstChange) {
+    if (changes['attendanceStatus']) {
       this.recalcPresenceFlags();
     }
   }
 
-  // ------------ LOAD LESSON DETAILS ------------
-  async loadLessonDetails() {
-    console.log('[OCCURRENCE RECEIVED]', this.occurrence);
+  /* ===================== HELPERS ===================== */
 
-    this.lessonDetails = null;
-
-    const lessonId = this.occurrence?.lesson_id;
-    const occurDate = this.getOccurrenceDateForDb();
-
-    console.log('[OCCURRENCE DATE]', occurDate);
-
-    if (!lessonId || !occurDate) return;
-
-    try {
-      const { data: rows } = await this.dbc
-        .from('lessons_with_children')
-        .select('lesson_id, start_time, end_time, lesson_type, status')
-        .eq('lesson_id', lessonId)
-        .limit(1);
-
-      const base = rows?.[0] ?? null;
-      if (!base) return;
-
-      const { data: res } = await this.dbc
-        .from('lesson_resources')
-        .select('horse_id, arena_id')
-        .eq('lesson_id', lessonId)
-        .eq('occur_date', occurDate)
-        .limit(1);
-
-      const horseId = res?.[0]?.horse_id ?? null;
-      const arenaId = res?.[0]?.arena_id ?? null;
-
-      let horseName: string | null = null;
-      let arenaName: string | null = null;
-
-      if (horseId) {
-        const { data } = await this.dbc
-          .from('horses')
-          .select('name')
-          .eq('id', horseId)
-          .limit(1);
-
-        horseName = data?.[0]?.name ?? null;
-      }
-
-      if (arenaId) {
-        const { data } = await this.dbc
-          .from('arenas')
-          .select('name')
-          .eq('id', arenaId)
-          .limit(1);
-
-        arenaName = data?.[0]?.name ?? null;
-      }
-
-      this.lessonDetails = {
-        lesson_id: lessonId,
-        start_time: base.start_time ?? null,
-        end_time: base.end_time ?? null,
-        lesson_type: base.lesson_type ?? null,
-        status: base.status ?? null,
-        horse_id: horseId,
-        horse_name: horseName,
-        arena_id: arenaId,
-        arena_name: arenaName,
-      };
-
-      console.log('[LESSON DETAILS LOADED]', this.lessonDetails);
-    } catch (err) {
-      console.error('loadLessonDetails failed:', err);
-    }
+  getTimeString(v?: string | null): string {
+    return v ? v.substring(0, 5) : '';
   }
 
-  // ------------ HORSES + ARENAS ------------
-  async loadHorses() {
-    const { data } = await this.dbc.from('horses').select('id, name, is_active');
-
-    this.horses = (data ?? []).map((h: { id: any; name: any; is_active: any; }) => ({
-      id: h.id,
-      name: h.name,
-      isActive: h.is_active,
-    }));
+  private getOccurDate(): string | null {
+    const raw =
+      this.occurrence?.occur_date ||
+      this.occurrence?.date ||
+      this.occurrence?.start;
+    return raw ? String(raw).substring(0, 10) : null;
   }
 
-  async loadArenas() {
-    const { data } = await this.dbc.from('arenas').select('id, name, is_active');
-
-    this.arenas = (data ?? []).map((a: { id: any; name: any; is_active: any; }) => ({
-      id: a.id,
-      name: a.name,
-      isActive: a.is_active,
-    }));
-  }
-
-  // ------------ UPDATE HORSE ------------
-  async onHorseChange(newHorseId: string | null) {
-    if (!this.canEditLessonResources || !this.lessonDetails) return;
-
-    const lessonId = this.lessonDetails.lesson_id;
-    const occurDate = this.getOccurrenceDateForDb();
-    if (!lessonId || !occurDate) return;
-
-    await this.dbc.from('lesson_resources').upsert(
-      {
-        lesson_id: lessonId,
-        occur_date: occurDate,
-        horse_id: newHorseId,
-        arena_id: this.lessonDetails.arena_id ?? null,
-      },
-      { onConflict: 'lesson_id,occur_date' }
-    );
-
-    const horse = this.horses.find(h => h.id === newHorseId);
-
-    this.lessonDetails.horse_id = newHorseId;
-    this.lessonDetails.horse_name = horse?.name ?? null;
-  }
-
-  // ------------ UPDATE ARENA ------------
-  async onArenaChange(newArenaId: string | null) {
-    if (!this.canEditLessonResources || !this.lessonDetails) return;
-
-    const lessonId = this.lessonDetails.lesson_id;
-    const occurDate = this.getOccurrenceDateForDb();
-    if (!lessonId || !occurDate) return;
-
-    await this.dbc.from('lesson_resources').upsert(
-      {
-        lesson_id: lessonId,
-        occur_date: occurDate,
-        horse_id: this.lessonDetails.horse_id ?? null,
-        arena_id: newArenaId,
-      },
-      { onConflict: 'lesson_id,occur_date' }
-    );
-
-    const arena = this.arenas.find(a => a.id === newArenaId);
-
-    this.lessonDetails.arena_id = newArenaId;
-    this.lessonDetails.arena_name = arena?.name ?? null;
-  }
-
-  // ------------ ATTENDANCE HELPERS ------------
   private hasAnyNote(): boolean {
     return (
       this.notesGeneral.length +
@@ -354,9 +205,88 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
     );
   }
 
-  async setAttendance(status: AttendanceStatus) {
-    if (!this.canEditNotes) return;
+  /* ===================== LESSON ===================== */
 
+  async loadLessonDetails() {
+    const lessonId = this.occurrence?.lesson_id;
+    const occurDate = this.getOccurDate();
+    if (!lessonId || !occurDate) return;
+
+    const { data } = await this.dbc
+      .from('lessons_with_children')
+      .select('*')
+      .eq('lesson_id', lessonId)
+      .eq('occur_date', occurDate)
+      .limit(1);
+
+    const r = data?.[0];
+    if (!r) return;
+
+    this.lessonDetails = {
+      lesson_id: lessonId,
+      start_time: r.start_time,
+      end_time: r.end_time,
+      lesson_type: r.lesson_type,
+      status: r.status,
+      horse_id: r.horse_id,
+      horse_name: r.horse_name,
+      arena_id: r.arena_id,
+      arena_name: r.arena_name,
+    };
+  }
+
+  /* ===================== HORSES / ARENAS ===================== */
+
+  async loadHorses() {
+    const { data } = await this.dbc.from('horses').select('id,name,is_active');
+    this.horses = data?.map((h: { id: any; name: any; is_active: any; }) => ({
+      id: h.id,
+      name: h.name,
+      isActive: h.is_active,
+    })) ?? [];
+  }
+
+  async loadArenas() {
+    const { data } = await this.dbc.from('arenas').select('id,name,is_active');
+    this.arenas = data?.map((a: { id: any; name: any; is_active: any; }) => ({
+      id: a.id,
+      name: a.name,
+      isActive: a.is_active,
+    })) ?? [];
+  }
+
+  async onHorseChange(horseId: string | null) {
+    if (!this.lessonDetails) return;
+
+    await this.dbc.from('lesson_resources').upsert({
+      lesson_id: this.lessonDetails.lesson_id,
+      occur_date: this.getOccurDate(),
+      horse_id: horseId,
+      arena_id: this.lessonDetails.arena_id,
+    });
+
+    const h = this.horses.find(x => x.id === horseId);
+    this.lessonDetails.horse_name = h?.name ?? null;
+  }
+
+  async onArenaChange(arenaId: string | null) {
+    if (!this.lessonDetails) return;
+
+    await this.dbc.from('lesson_resources').upsert({
+      lesson_id: this.lessonDetails.lesson_id,
+      occur_date: this.getOccurDate(),
+      horse_id: this.lessonDetails.horse_id,
+      arena_id: arenaId,
+    });
+
+    const a = this.arenas.find(x => x.id === arenaId);
+    this.lessonDetails.arena_name = a?.name ?? null;
+  }
+
+  /* ===================== ATTENDANCE ===================== */
+
+  setAttendance(status: AttendanceStatus) {
+    if (!this.canEditNotes) return;
     this.attendanceStatus = status;
     this.attendanceChange.emit(status);
     this.recalcPresenceFlags();
@@ -372,26 +302,28 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
       !this.hasAnyNote();
   }
 
-  // ------------ NOTES CRUD ------------
+  /* ===================== NOTES ===================== */
+
   async loadNotes() {
     const childId = this.child?.child_uuid;
     if (!childId) return;
 
     const { data } = await this.dbc
       .from('notes')
-      .select('id, content, instructor_uid, instructor_name, date, category')
+      .select('*')
       .eq('child_id', childId)
       .order('date', { ascending: false });
 
-    const notes = (data ?? []).map((n: { id: any; content: any; date: any; instructor_uid: any; instructor_name: any; category: any; }) => ({
-      id: n.id,
-      display_text: n.content,
-      created_at: n.date,
-      instructor_uid: n.instructor_uid,
-      instructor_name: n.instructor_name ?? '—',
-      category: n.category ?? 'general',
-      isEditing: false,
-    }));
+    const notes =
+      data?.map((n: { id: any; content: any; date: any; instructor_uid: any; instructor_name: any; category: any; }) => ({
+        id: n.id,
+        display_text: n.content,
+        created_at: n.date,
+        instructor_uid: n.instructor_uid,
+        instructor_name: n.instructor_name ?? '—',
+        category: n.category ?? 'general',
+        isEditing: false,
+      })) ?? [];
 
     this.notesGeneral = notes.filter((n: { category: string; }) => n.category === 'general');
     this.notesMedical = notes.filter((n: { category: string; }) => n.category === 'medical');
@@ -401,139 +333,76 @@ export class NoteComponent implements OnInit, AfterViewInit, OnChanges {
   }
 
   async loadReadyNotes() {
-    const { data } = await this.dbc.from('list_notes').select('id, note');
-
-    this.readyNotes = (data ?? []).map((n: { id: any; note: any; }) => ({
+    const { data } = await this.dbc.from('list_notes').select('id,note');
+    this.readyNotes = data?.map((n: { id: any; note: any; }) => ({
       id: n.id,
       content: n.note,
-    }));
+    })) ?? [];
   }
 
+  /** ✅ הפונקציה שהייתה חסרה */
   addReadyNote(content: string) {
-    if (this.canEditNotes) {
-      this.newNote = content;
-    }
+    if (!this.canEditNotes) return;
+    this.newNote = content;
   }
 
   async addNote() {
-    if (!this.canEditNotes) return;
+    if (!this.canEditNotes || !this.newNote.trim()) return;
 
-    const content = this.newNote.trim();
-    if (!content) return;
-
-    const childId = this.child?.child_uuid;
-    if (!childId) return;
-
-    const instructor = await getCurrentUserDetails(
-      'uid, first_name, last_name'
-    );
-
-    const now = new Date().toISOString();
-    const id = crypto.randomUUID();
-
-    await this.dbc.from('notes').insert([
-      {
-        id,
-        child_id: childId,
-        content,
-        date: now,
-        instructor_uid: instructor?.uid ?? null,
-        instructor_name:
-          `${instructor?.first_name ?? ''} ${instructor?.last_name ?? ''}`.trim(),
-        category: this.selectedCategory,
-      },
-    ]);
+    const user = await getCurrentUserDetails('uid,first_name,last_name');
 
     const note: NoteVM = {
-      id,
-      display_text: content,
-      created_at: now,
-      instructor_uid: instructor?.uid ?? null,
-      instructor_name:
-        `${instructor?.first_name ?? ''} ${instructor?.last_name ?? ''}`.trim(),
+      id: crypto.randomUUID(),
+      display_text: this.newNote.trim(),
+      created_at: new Date().toISOString(),
+      instructor_uid: user?.uid ?? null,
+      instructor_name: `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim(),
       category: this.selectedCategory,
     };
 
-    if (note.category === 'general') this.notesGeneral.unshift(note);
-    else if (note.category === 'medical') this.notesMedical.unshift(note);
-    else this.notesBehavioral.unshift(note);
+    await this.dbc.from('notes').insert({
+      id: note.id,
+      child_id: this.child.child_uuid,
+      content: note.display_text,
+      date: note.created_at,
+      instructor_uid: note.instructor_uid,
+      instructor_name: note.instructor_name,
+      category: note.category,
+    });
 
+    this.notesGeneral.unshift(note);
     this.newNote = '';
     this.recalcPresenceFlags();
   }
 
-  startEdit(note: NoteVM) {
-    if (this.canEditNotes) note.isEditing = true;
+  startEdit(n: NoteVM) {
+    if (this.canEditNotes) n.isEditing = true;
   }
 
-  async saveEdit(note: NoteVM) {
-    if (!this.canEditNotes) return;
-
-    await this.dbc
-      .from('notes')
-      .update({ content: note.display_text })
-      .eq('id', note.id);
-
-    note.isEditing = false;
+  async saveEdit(n: NoteVM) {
+    await this.dbc.from('notes').update({ content: n.display_text }).eq('id', n.id);
+    n.isEditing = false;
   }
 
-  async deleteNote(id: string | number) {
-    if (!this.canEditNotes) return;
-
+  async deleteNote(id: string) {
     await this.dbc.from('notes').delete().eq('id', id);
-
-    this.notesGeneral =
-      this.notesGeneral.filter(n => n.id !== id);
-    this.notesMedical =
-      this.notesMedical.filter(n => n.id !== id);
-    this.notesBehavioral =
-      this.notesBehavioral.filter(n => n.id !== id);
-
-    this.recalcPresenceFlags();
+    this.notesGeneral = this.notesGeneral.filter(n => n.id !== id);
   }
 
-  // ------------ TRACKBY ------------
-  trackByReady(i: number, item: ReadyNote) {
-    return item.id;
-  }
+  /* ===================== TRACK BY ===================== */
 
-  trackByNote(i: number, item: NoteVM) {
-    return item.id;
-  }
+  trackByReady(_: number, i: ReadyNote) { return i.id; }
+  trackByNote(_: number, i: NoteVM) { return i.id; }
+  trackByHorse(_: number, i: HorseOption) { return i.id; }
+  trackByArena(_: number, i: ArenaOption) { return i.id; }
 
-  trackByHorse(i: number, item: HorseOption) {
-    return item.id;
-  }
+  /* ===================== CLOSE ===================== */
 
-  trackByArena(i: number, item: ArenaOption) {
-    return item.id;
-  }
-
-  // ===========================================
-  // BACKDROP + CLOSE HANDLERS   <-- החלק שהיה חסר
-  // ===========================================
-
-  onBackdropClick(event: MouseEvent) {
-    if (event.target === event.currentTarget) {
-      this.onClose();
-    }
+  onBackdropClick(e: MouseEvent) {
+    if (e.target === e.currentTarget) this.onClose();
   }
 
   onClose() {
-    if (this.enforceNoteForPresence && !this.attendanceStatus) {
-      this.mustChooseAttendance = true;
-      return;
-    }
-
-    if (
-      this.enforceNoteForPresence &&
-      this.attendanceStatus === 'present' &&
-      !this.hasAnyNote()
-    ) {
-      this.mustFillNoteForPresent = true;
-      return;
-    }
-
     this.close.emit();
   }
 }
