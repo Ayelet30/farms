@@ -79,13 +79,12 @@ export class AvailabilityTabComponent implements OnInit {
   public farmEnd = '17:00';
   public lessonDuration = 60;
 
- public lessonTypeOptions = [
-  { value: 'double_only', label: 'שיעור כפול בלבד' },
-  { value: 'both', label: 'גם וגם' },
-  { value: 'double or both', label: 'כפול או גם וגם' },
-  { value: 'break', label: 'הפסקה' },
-];
-
+  public lessonTypeOptions = [
+    { value: 'double_only', label: 'שיעור כפול בלבד' },
+    { value: 'both', label: 'גם וגם' },
+    { value: 'double or both', label: 'כפול או גם וגם' },
+    { value: 'break', label: 'הפסקה' },
+  ];
 
   public toastMessage = '';
   private toastTimeout: any;
@@ -220,9 +219,50 @@ export class AvailabilityTabComponent implements OnInit {
     return h * 60 + m;
   }
 
+  private addMinutesToTime(time: string, minutes: number): string {
+    const [h, m] = time.split(':').map((x) => Number(x) || 0);
+    const base = new Date(2000, 0, 1, h, m + minutes);
+    const hh = String(base.getHours()).padStart(2, '0');
+    const mm = String(base.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+
+  private getSortedSlots(day: DayAvailability): TimeSlot[] {
+    return [...day.slots].sort(
+      (a, b) => this.timeToMinutes(a.start) - this.timeToMinutes(b.start),
+    );
+  }
+
   private mapDayKeyToNumber(key: string): number {
     const map: any = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
     return map[key] ?? 0;
+  }
+
+  /**
+   * דואג שאין חפיפות ושכל טווח "נלחץ" בין הקודם לבא אחריו
+   */
+  private enforceSlotOrderConstraints(day: DayAvailability, slot: TimeSlot) {
+    const sorted = this.getSortedSlots(day);
+    const index = sorted.indexOf(slot);
+
+    const prev = index > 0 ? sorted[index - 1] : null;
+    const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
+
+    // תיקוף מול הטווח הקודם
+    if (prev && this.timeToMinutes(slot.start) < this.timeToMinutes(prev.end)) {
+      slot.start = prev.end;
+      this.showToast(
+        '⛔ שעת התחלה של טווח חייבת להיות אחרי סיום הטווח הקודם באותו היום',
+      );
+    }
+
+    // תיקוף מול הטווח הבא
+    if (next && this.timeToMinutes(slot.end) > this.timeToMinutes(next.start)) {
+      slot.end = next.start;
+      this.showToast(
+        '⛔ שעת סיום של טווח חייבת להיות לפני תחילת הטווח הבא באותו היום',
+      );
+    }
   }
 
   /* ============================ DAY TOGGLE ============================ */
@@ -259,9 +299,26 @@ export class AvailabilityTabComponent implements OnInit {
       return;
     }
 
+    // טווח חדש – תמיד אחרי הטווח האחרון
+    const sorted = this.getSortedSlots(day);
+
+    let start = this.farmStart;
+    if (sorted.length > 0) {
+      const last = sorted[sorted.length - 1];
+      start = last.end;
+    }
+
+    const end = this.addMinutesToTime(start, this.lessonDuration);
+
+    // אם הטווח החדש יוצא מחוץ לשעות פעילות החווה – לא מוסיפים
+    if (this.timeToMinutes(end) > this.timeToMinutes(this.farmEnd)) {
+      this.showToast('⛔ אין מקום להוסיף עוד טווח ביום זה בתוך שעות הפעילות');
+      return;
+    }
+
     day.slots.push({
-      start: this.farmStart,
-      end: this.farmEnd,
+      start,
+      end,
       lessonType: 'regular',
       isNew: true,
     });
@@ -301,10 +358,14 @@ export class AvailabilityTabComponent implements OnInit {
     }
 
     if (!slot.start || !slot.end) return;
+
     if (this.timeToMinutes(slot.end) <= this.timeToMinutes(slot.start)) {
       this.showToast('⛔ שעת סיום חייבת להיות אחרי שעת התחלה');
       return;
     }
+
+    // מוודא שהטווח לא נכנס לתוך הטווח הקודם/הבא
+    this.enforceSlotOrderConstraints(day, slot);
 
     if (slot.isNew) {
       this.markDirty();
@@ -328,7 +389,6 @@ export class AvailabilityTabComponent implements OnInit {
   }
 
   onBreakChange(day: DayAvailability, br: BreakRange) {
-    // כרגע לא עושים ולידציה, רק מסמנים שיש שינוי
     console.log('⏱ break changed:', { day: day.key, break: br });
     this.markDirty();
   }
@@ -416,153 +476,140 @@ export class AvailabilityTabComponent implements OnInit {
 
   /* ============================ APPLY SAVE ============================ */
 
-  /* ============================
- *   MAIN SAVE FUNCTION
- * ============================ */
-private async applySave() {
-  console.log("🚀 applySave() STARTED");
+  private async applySave() {
+    console.log('🚀 applySave() STARTED');
 
-  if (!this.userId || !this.instructorIdNumber) {
-    console.warn("⛔ Missing userId or instructorIdNumber", {
-      userId: this.userId,
-      instructorIdNumber: this.instructorIdNumber
-    });
-    return;
-  }
-
-  const dbc = dbTenant();
-
-  try {
-    /* -----------------------------
-     * 1) Save JSON to instructors
-     * ----------------------------- */
-    console.log("📦 Saving JSON availability → instructors");
-    console.log("DATA:", JSON.stringify(this.days, null, 2));
-
-    await dbc
-      .from('instructors')
-      .update({ availability: JSON.stringify(this.days) })
-      .eq('uid', this.userId);
-
-    /* -----------------------------
-     * 2) DELETE removed slots
-     * ----------------------------- */
-    console.log("🗑 Deleted slots list:", this.deletedSlots);
-
-    for (const del of this.deletedSlots) {
-      const dow = this.mapDayKeyToNumber(del.dayKey);
-
-      console.log("📤 DELETE PAYLOAD:", {
-        instructor_id_number: this.instructorIdNumber,
-        day_of_week: dow,
-        start_time: del.start
+    if (!this.userId || !this.instructorIdNumber) {
+      console.warn('⛔ Missing userId or instructorIdNumber', {
+        userId: this.userId,
+        instructorIdNumber: this.instructorIdNumber,
       });
-
-      const { error } = await dbc
-        .from('instructor_weekly_availability')
-        .delete()
-        .eq('instructor_id_number', this.instructorIdNumber)
-        .eq('day_of_week', dow)
-        .eq('start_time', del.start);
-
-      if (error) {
-        console.error("❌ DELETE ERROR:", error);
-      }
+      return;
     }
 
-    /* -----------------------------
-     * 3) INSERT / UPDATE slots
-     * ----------------------------- */
-    console.log("⏱ Processing slots for INSERT/UPDATE");
+    const dbc = dbTenant();
 
-    for (const day of this.days || []) {
-      const dow = this.mapDayKeyToNumber(day.key);
-      if (!day.active || !Array.isArray(day.slots)) continue;
+    try {
+      /* 1) Save JSON to instructors */
+      console.log('📦 Saving JSON availability → instructors');
+      console.log('DATA:', JSON.stringify(this.days, null, 2));
 
-      for (const slot of day.slots) {
-        if (!slot.start || !slot.end) continue;
+      await dbc
+        .from('instructors')
+        .update({ availability: JSON.stringify(this.days) })
+        .eq('uid', this.userId);
 
-        /* -------- INSERT -------- */
-        if (slot.isNew) {
-          const payload = {
-            instructor_id_number: this.instructorIdNumber,
-            day_of_week: dow,
-            start_time: slot.start,
-            end_time: slot.end,
-            lesson_type_mode: slot.lessonType ?? null,
-          };
+      /* 2) DELETE removed slots */
+      console.log('🗑 Deleted slots list:', this.deletedSlots);
 
-          console.log("📤 INSERT PAYLOAD:", payload);
+      for (const del of this.deletedSlots) {
+        const dow = this.mapDayKeyToNumber(del.dayKey);
 
-          const { error } = await dbc
-            .from('instructor_weekly_availability')
-            .insert(payload);
+        console.log('📤 DELETE PAYLOAD:', {
+          instructor_id_number: this.instructorIdNumber,
+          day_of_week: dow,
+          start_time: del.start,
+        });
 
-          if (error) {
-            console.error("❌ INSERT ERROR:", error);
-          } else {
-            console.log("✔ INSERT OK");
-          }
+        const { error } = await dbc
+          .from('instructor_weekly_availability')
+          .delete()
+          .eq('instructor_id_number', this.instructorIdNumber)
+          .eq('day_of_week', dow)
+          .eq('start_time', del.start);
 
-          slot.isNew = false;
-          slot.originalStart = slot.start;
-          slot.originalEnd = slot.end;
-          slot.wasUpdated = false;
-
-          continue;
-        }
-
-        /* -------- UPDATE -------- */
-        if (slot.wasUpdated) {
-          const originalStart = slot.originalStart ?? slot.start;
-
-          const payload = {
-            start_time: slot.start,
-            end_time: slot.end,
-            lesson_type_mode: slot.lessonType ?? null,
-          };
-
-          console.log("📤 UPDATE PAYLOAD:", {
-            instructor_id_number: this.instructorIdNumber,
-            day_of_week: dow,
-            original_start: originalStart,
-            new_values: payload
-          });
-
-          const { error } = await dbc
-            .from('instructor_weekly_availability')
-            .update(payload)
-            .eq('instructor_id_number', this.instructorIdNumber)
-            .eq('day_of_week', dow)
-            .eq('start_time', originalStart);
-
-          if (error) {
-            console.error("❌ UPDATE ERROR:", error);
-          } else {
-            console.log("✔ UPDATE OK");
-          }
-
-          slot.originalStart = slot.start;
-          slot.originalEnd = slot.end;
-          slot.wasUpdated = false;
+        if (error) {
+          console.error('❌ DELETE ERROR:', error);
         }
       }
+
+      /* 3) INSERT / UPDATE slots */
+      console.log('⏱ Processing slots for INSERT/UPDATE');
+
+      for (const day of this.days || []) {
+        const dow = this.mapDayKeyToNumber(day.key);
+        if (!day.active || !Array.isArray(day.slots)) continue;
+
+        for (const slot of day.slots) {
+          if (!slot.start || !slot.end) continue;
+
+          /* INSERT */
+          if (slot.isNew) {
+            const payload = {
+              instructor_id_number: this.instructorIdNumber,
+              day_of_week: dow,
+              start_time: slot.start,
+              end_time: slot.end,
+              lesson_type_mode: slot.lessonType ?? null,
+            };
+
+            console.log('📤 INSERT PAYLOAD:', payload);
+
+            const { error } = await dbc
+              .from('instructor_weekly_availability')
+              .insert(payload);
+
+            if (error) {
+              console.error('❌ INSERT ERROR:', error);
+            } else {
+              console.log('✔ INSERT OK');
+            }
+
+            slot.isNew = false;
+            slot.originalStart = slot.start;
+            slot.originalEnd = slot.end;
+            slot.wasUpdated = false;
+
+            continue;
+          }
+
+          /* UPDATE */
+          if (slot.wasUpdated) {
+            const originalStart = slot.originalStart ?? slot.start;
+
+            const payload = {
+              start_time: slot.start,
+              end_time: slot.end,
+              lesson_type_mode: slot.lessonType ?? null,
+            };
+
+            console.log('📤 UPDATE PAYLOAD:', {
+              instructor_id_number: this.instructorIdNumber,
+              day_of_week: dow,
+              original_start: originalStart,
+              new_values: payload,
+            });
+
+            const { error } = await dbc
+              .from('instructor_weekly_availability')
+              .update(payload)
+              .eq('instructor_id_number', this.instructorIdNumber)
+              .eq('day_of_week', dow)
+              .eq('start_time', originalStart);
+
+            if (error) {
+              console.error('❌ UPDATE ERROR:', error);
+            } else {
+              console.log('✔ UPDATE OK');
+            }
+
+            slot.originalStart = slot.start;
+            slot.originalEnd = slot.end;
+            slot.wasUpdated = false;
+          }
+        }
+      }
+
+      this.deletedSlots = [];
+      this.isDirty = false;
+
+      console.log('🎉 applySave() COMPLETED SUCCESSFULLY');
+      this.showToast('✔ הזמינות נשמרה וננעלה לעריכה');
+    } catch (err) {
+      console.error('🔥 GLOBAL applySave EXCEPTION:', err);
+      this.showToast('❌ שגיאה בשמירת הזמינות');
     }
-
-    /* -----------------------------
-     * Reset flags
-     * ----------------------------- */
-    this.deletedSlots = [];
-    this.isDirty = false;
-
-    console.log("🎉 applySave() COMPLETED SUCCESSFULLY");
-    this.showToast('✔ הזמינות נשמרה וננעלה לעריכה');
-
-  } catch (err) {
-    console.error("🔥 GLOBAL applySave EXCEPTION:", err);
-    this.showToast('❌ שגיאה בשמירת הזמינות');
   }
-}
 
   /* ============================ PARENTS IMPACT POPUP ============================ */
 
