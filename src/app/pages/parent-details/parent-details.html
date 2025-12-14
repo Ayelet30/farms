@@ -36,6 +36,12 @@
 </p>
 
 <p>
+  <strong>יום חיוב חודשי:</strong>
+  {{ parent?.billing_day_of_month }} -       ניתן לשינוי ע״י מזכירה בלבד      
+</p>
+
+
+<p>
   <strong>דוא"ל:</strong>
   <span *ngIf="!isEditing">{{ parent.email || '-' }}</span>
   <ng-container *ngIf="isEditing">
