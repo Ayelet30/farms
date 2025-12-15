@@ -95,7 +95,7 @@
       border: 1px solid #e2ddcf;
       box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
       color: #333;
-      transition: box-shadow 0.2s ease, transform 0.2s ease;
+      transition: box-shadow 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 
       mat-icon {
         font-size: 22px;
@@ -119,6 +119,157 @@
         box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
       }
     }
+
+    /* הקוביות לחיצות + נבחרות */
+    .kpi.clickable {
+      cursor: pointer;
+
+      &.selected {
+        box-shadow: 0 0 0 2px rgba(124, 140, 96, 0.45);
+        background: #f0f5e6;
+
+        mat-icon {
+          color: #5f7044;
+        }
+      }
+    }
+  }
+
+  /* טוגל תצוגה: גרפים / דוחות */
+  .view-mode-toggle {
+    margin-top: -6px;
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: flex-start;
+
+    .view-toggle-inner {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #fdfbf6;
+      border-radius: 999px;
+      padding: 4px 10px;
+      border: 1px solid #e2ddcf;
+    }
+
+    .view-label {
+      font-size: 13px;
+      color: #6a7155;
+      margin-right: 4px;
+    }
+
+    button {
+      border-radius: 999px;
+      padding: 3px 12px;
+      font-size: 13px;
+      border-color: transparent;
+      background: transparent;
+      color: #555c42;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+
+      mat-icon {
+        font-size: 18px;
+      }
+
+      &.active {
+        background: #7c8c60;
+        color: #fff;
+        box-shadow: 0 0 0 1px rgba(124, 140, 96, 0.35);
+      }
+    }
+
+    .charts-disabled-hint {
+      font-size: 12px;
+      color: #8b8f7a;
+      margin-right: 8px;
+    }
+  }
+
+  /* אזור גרפים – קו עם נקודות */
+  .charts-section {
+    margin-top: 4px;
+    background: #fdfbf6;
+    border-radius: 24px;
+    border: 1px solid #e2ddcf;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.04);
+    padding: 20px 22px;
+
+    .charts-header {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-bottom: 8px;
+
+      mat-icon {
+        color: #7c8c60;
+        font-size: 20px;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        color: #303827;
+      }
+    }
+
+    .charts-subtitle {
+      font-size: 13px;
+      color: #7b8267;
+      margin-bottom: 16px;
+    }
+
+    .simple-chart {
+      background: #fffdf8;
+      border-radius: 18px;
+      border: 1px solid #e4ded1;
+      padding: 8px 10px 0;
+    }
+
+    .line-chart {
+      width: 100%;
+      height: 220px;
+    }
+
+    .axis {
+      stroke: #eee4d3;
+      stroke-width: 2;
+    }
+
+    .line {
+      fill: none;
+      stroke: #7c8c60;
+      stroke-width: 2.5;
+    }
+
+    .dot {
+      fill: #7c8c60;
+      stroke: #fdfbf6;
+      stroke-width: 1;
+    }
+
+    .x-label {
+      font-size: 11px;
+      fill: #6f765c;
+      text-anchor: middle;
+    }
+
+    .y-label {
+      font-size: 11px;
+      fill: #6f765c;
+      text-anchor: end;
+    }
+
+    .no-chart-data {
+      text-align: center;
+      padding: 16px 0;
+      font-size: 14px;
+      color: #8b8f7a;
+    }
   }
 
   /* אזור רשימת השיעורים */
@@ -134,9 +285,15 @@
     .list-header {
       display: flex;
       align-items: center;
-      justify-content: flex-end;
+      justify-content: space-between;
       gap: 8px;
       margin-bottom: 16px;
+
+      .title-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
 
       .icon-title {
         color: #7c8c60;
@@ -149,19 +306,54 @@
         font-weight: 600;
         color: #303827;
       }
+
+      .excel-btn-header {
+        border-radius: 999px;
+        font-weight: 500;
+        padding: 6px 18px;
+        background: #fdfbf5;
+        border: 1px solid #c8cfb3;
+        color: #556341;
+        font-size: 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+
+        mat-icon {
+          font-size: 18px;
+        }
+
+        &:hover {
+          background: #7c8c60;
+          color: #fff;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+        }
+      }
     }
 
-    /* סינונים */
+    /* סינונים – הגרסה החדשה */
     .filters {
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       justify-content: flex-start;
-      gap: 10px;
+      gap: 16px;
       margin-bottom: 18px;
       flex-wrap: wrap;
 
+      .filter-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 180px;
+      }
+
+      .filter-label {
+        font-size: 12px;
+        color: #6a7155;
+      }
+
       mat-select {
-        flex: 0 0 190px;
         background: #fbf8f0;
         border-radius: 999px;
         height: 38px;
@@ -173,9 +365,13 @@
         }
       }
 
+      .search-field {
+        flex: 1;
+        min-width: 260px;
+      }
+
       .search {
         flex: 1;
-        max-width: 360px;
         display: flex;
         align-items: center;
         background: #fbf8f0;
@@ -207,6 +403,23 @@
         button {
           width: 32px;
           height: 32px;
+        }
+      }
+    }
+
+    /* מובייל – הסינונים אחד על השני */
+    @media (max-width: 600px) {
+      .filters {
+        flex-direction: column;
+        align-items: stretch;
+
+        .filter-field {
+          width: 100%;
+          min-width: 100%;
+        }
+
+        .search-field .search {
+          max-width: 100%;
         }
       }
     }
@@ -277,7 +490,6 @@
         }
       }
 
-      /* כפתור "פרטים" אם קיים בעמודה */
       .details-btn {
         border-radius: 999px;
         padding: 2px 12px;
@@ -300,45 +512,6 @@
       color: #8b8f7a;
       margin-top: 16px;
       font-size: 14px;
-    }
-
-    /* כפתורי ייצוא */
-    .bottom-actions {
-      display: flex;
-      justify-content: flex-start;
-      align-items: center;
-      gap: 10px;
-      margin-top: 18px;
-      padding-top: 14px;
-      border-top: 1px solid #e1dbcf;
-
-      button {
-        border-radius: 999px;
-        font-weight: 500;
-        padding: 6px 18px;
-        background: #fdfbf5;
-        border: 1px solid #c8cfb3;
-        color: #556341;
-        font-size: 14px;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
-
-        mat-icon {
-          font-size: 18px;
-        }
-
-        &:hover {
-          background: #7c8c60;
-          color: #fff;
-          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-        }
-
-        &.excel-btn {
-          // אם תרצי צבע שונה לאקסל – אפשר להחמיר כאן
-        }
-      }
     }
   }
 
@@ -414,7 +587,6 @@
     }
   }
 
-  /* רספונסיביות */
   /* רספונסיביות לטאבלט */
   @media (max-width: 1024px) {
     .kpis {
@@ -431,6 +603,7 @@
 
     .topbar {
       justify-content: center;
+
       .page-title {
         font-size: 20px;
       }
@@ -458,23 +631,16 @@
       }
     }
 
-    .list-section {
+    .charts-section {
       padding: 14px;
 
-      .filters {
-        flex-direction: column;
-        align-items: stretch;
-
-        mat-select {
-          flex: 1 1 auto;
-          width: 100%;
-        }
-
-        .search {
-          max-width: 100%;
-          flex: 1 1 100%;
-        }
+      .simple-chart {
+        min-height: 160px;
       }
+    }
+
+    .list-section {
+      padding: 14px;
 
       /* טבלה הופכת לכרטיסים */
       table,
@@ -524,15 +690,6 @@
         font-size: 12px;
         margin-left: 6px;
       }
-
-      .bottom-actions {
-        flex-direction: column;
-        align-items: stretch;
-        button {
-          width: 100%;
-          justify-content: center;
-        }
-      }
     }
 
     .insights-section {
@@ -550,7 +707,3 @@
     }
   }
 }
-
-
-
-

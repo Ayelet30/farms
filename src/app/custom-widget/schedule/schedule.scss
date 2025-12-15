@@ -75,6 +75,13 @@
   background: #f7f7f7;
 }
 
+.calendar-toolbar .actions .assign-btn {
+  font-weight: 600;
+  border-radius: 999px;
+  padding-inline: 12px;
+}
+
+
 /* ===== רספונסיביות טולבר ===== */
 @media (max-width: 900px) {
   .calendar-toolbar {
@@ -96,6 +103,25 @@
     padding: 6px;
   }
 }
+
+.event-box .resource-line {
+  margin-top: 2px;
+  font-size: 0.75rem;
+  opacity: 0.9;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.event-box .horse-label,
+.event-box .arena-label {
+  white-space: nowrap;
+}
+
+.event-box .resource-line .sep {
+  opacity: 0.6;
+}
+
 
 /* ===== מסך מלא ===== */
 .schedule-wrap {
@@ -209,6 +235,39 @@
   font-size: 12px;
   box-shadow: 0 1px 0 rgba(0,0,0,.04);
 }
+/* סטטוס מאושר – ירוק */
+.bereshit-calendar .fc-event.status-approved .event-box {
+  background: #e8f5e9;       /* ירוק בהיר */
+  border-color: #66bb6a;
+}
+
+/* סטטוס מבוטל – אדום */
+.bereshit-calendar .fc-event.status-canceled .event-box {
+  background: #ffebee;       /* אדום בהיר */
+  border-color: #e53935;
+}
+
+/* סטטוס ממתין – כתום */
+.bereshit-calendar .fc-event.status-pending .event-box {
+  background: #fff3e0;       /* כתום בהיר */
+  border-color: #fb8c00;
+}
+
+.bereshit-calendar .fc-event.status-approved .event-box,
+.bereshit-calendar .fc-event.status-approved .event-box * {
+  color: #1b5e20;
+}
+
+.bereshit-calendar .fc-event.status-canceled .event-box,
+.bereshit-calendar .fc-event.status-canceled .event-box * {
+  color: #b71c1c;
+}
+
+.bereshit-calendar .fc-event.status-pending .event-box,
+.bereshit-calendar .fc-event.status-pending .event-box * {
+  color: #e65100;
+}
+
 
 /* קומפקט מובייל לסרגל FC */
 @media (max-width: 900px) {
@@ -408,6 +467,45 @@
   pointer-events: none;
   opacity: .95;
 }
+
+.instructor-filter {
+  margin-bottom: 12px;
+}
+
+.instructor-filter .filter-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 6px;
+  color: #2f3a28;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-list .tag {
+  border-radius: 999px;
+  border: 1px solid #cfd7b9;
+  background: #fff;
+  padding: 4px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: .2s;
+  color: #4b5540;
+}
+
+.tag-list .tag:hover {
+  background: #f3f6e9;
+}
+
+.tag-list .tag.active {
+  background: #748c40;
+  border-color: #748c40;
+  color: #fff;
+}
+
 /* ===== מובייל אמיתי (פלאפון) ===== */
 @media (max-width: 600px) {
   .schedule-wrap {

@@ -3,7 +3,7 @@ import { Component, Input, effect, signal, OnInit, AfterViewInit } from '@angula
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranzilaService } from '../../services/tranzila.service';
-import { PaymentsService } from '../../services/payments.service';
+import { PaymentsService, type PaymentProfile, type ChargeRow } from '../../services/payments.service';
 import { Router } from '@angular/router';
 import { CurrentUserService } from '../../core/auth/current-user.service';
 import { TokensService } from '../../services/tokens.service';
@@ -107,35 +107,40 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
   }
   
   async refresh() {
-    try {
-      const [p, c] = await Promise.all([
-        this.pagos.listProfiles(this.parentUid),
-        this.pagos.listCharges(this.parentUid, 20),
-      ]);
+  try {
+    const [p, c] = await Promise.all([
+      this.pagos.listProfiles(this.parentUid),
+      // במקום listCharges הישן או listCreditsForParent –
+      // משתמשים בפונקציה החדשה מהשירות:
+      this.pagos.listProviderCharges(this.parentUid, 20),
+    ]);
 
-      this.profiles.set(
-        p.map((x) => ({
-          id: x.id,
-          brand: x.brand,
-          last4: x.last4,
-          is_default: x.is_default,
-          created_at: new Date(x.created_at).toLocaleString('he-IL'),
-        })),
-      );
+    // פרופילים (כרטיסים)
+    this.profiles.set(
+      p.map((x: PaymentProfile) => ({
+        id: x.id,
+        brand: x.brand,
+        last4: x.last4,
+        is_default: x.is_default,
+        created_at: new Date(x.created_at).toLocaleString('he-IL'),
+      })),
+    );
 
-      this.charges.set(
-        c.map((x) => ({
-          id: x.id,
-          sumNis: (x.amount_agorot / 100).toFixed(2) + ' ₪',
-          status: x.status,
-          provider_id: x.provider_id,
-          created_at: new Date(x.created_at).toLocaleString('he-IL'),
-        })),
-      );
-    } catch (e: any) {
-      this.error.set(e?.message ?? 'load failed');
-    }
+    // חיובים שבוצעו
+    this.charges.set(
+      c.map((x: ChargeRow) => ({
+        id: x.id,
+        sumNis: (x.amount_agorot / 100).toFixed(2) + ' ₪',
+        status: x.status,
+        provider_id: x.provider_id,
+        created_at: new Date(x.created_at).toLocaleString('he-IL'),
+      })),
+    );
+  } catch (e: any) {
+    this.error.set(e?.message ?? 'load failed');
   }
+}
+
 
   private genOrderId(): string {
     try {

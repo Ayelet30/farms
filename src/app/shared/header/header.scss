@@ -11,6 +11,7 @@
   border-bottom: 1px solid var(--gold-soft);
   position: relative;
   isolation: isolate;
+  z-index: 1000;
 
   > .auth-section { order: 1; }   /* ימין */
   > .farm-section { order: 2; }   /* שמאל */
@@ -194,48 +195,7 @@
     }
   }
 
-  .role-menu {
-    position: absolute;
-    top: 130%;
-    inset-inline-end: 0;
-    padding: 6px;
-    list-style: none;
-    background: var(--cream-top);
-    border: 1px solid var(--gold-soft);
-    border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, .12);
-    min-width: 220px;
-    z-index: 1000;
-  }
 
-  .role-menu li {
-    padding: 8px 10px;
-    border-radius: 10px;
-    cursor: pointer;
-    color: var(--text-strong);
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    font-size: 0.82rem;
-
-    &:hover {
-      background: var(--cream-bottom);
-    }
-
-    &.active {
-      background: rgba(0, 0, 0, .03);
-      font-weight: 600;
-    }
-
-    .role-line {
-      font-weight: 600;
-      font-size: 0.86rem;
-    }
-
-    .farm-line {
-      font-size: 0.76rem;
-      color: var(--text-muted);
-    }
   }
 
 
@@ -294,30 +254,6 @@
     }
   }
 
-  .role-menu {
-    position: absolute;
-    margin-top: 6px;
-    padding: 6px;
-    list-style: none;
-    background: var(--cream-top);
-    border: 1px solid var(--gold-soft);
-    border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, .12);
-    min-width: 220px;
-    z-index: 1000;
-  }
-  .role-menu li {
-    padding: 10px 12px;
-    border-radius: 10px;
-    cursor: pointer;
-    color: var(--text-strong);
-  }
-  .role-menu li:hover {
-    background: var(--cream-bottom);
-    color: var(--text-strong);
-  }
-}
-
 
   .parent-name-text {
     white-space: nowrap;
@@ -366,7 +302,7 @@
 
   .role-menu {
     position: absolute;
-    top: 130%;
+    top: 80%;
     inset-inline-end: 0;
     padding: 6px;
     list-style: none;
@@ -375,7 +311,7 @@
     border-radius: 12px;
     box-shadow: 0 8px 30px rgba(0, 0, 0, .12);
     min-width: 220px;
-    z-index: 1000;
+    z-index: 500;
   }
 
   .role-menu li {

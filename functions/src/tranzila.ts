@@ -3,19 +3,12 @@ import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { setGlobalOptions } from 'firebase-functions/v2';
 import * as crypto from 'crypto';
 import fetch from 'node-fetch';
 import * as admin from 'firebase-admin';
 import { getStorage } from 'firebase-admin/storage';
 import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
-
-
-// ===== Global options =====
-setGlobalOptions({
-  region: 'us-central1',
-});
 
 // ===== Local env for emulator only =====
 import * as dotenv from 'dotenv';
@@ -55,7 +48,7 @@ function getSupabase(): SupabaseClient {
   return createClient(url, key);
 }
 
-function getSupabaseForTenant(schema?: string | null): SupabaseClient {
+export function getSupabaseForTenant(schema?: string | null): SupabaseClient {
   const url = envOrSecret(SUPABASE_URL_S, 'SUPABASE_URL');
   const key = envOrSecret(SUPABASE_KEY_S, 'SUPABASE_SERVICE_KEY');
   if (!url || !key) throw new Error('Missing Supabase credentials');
@@ -948,7 +941,7 @@ async function generateAndSendReceipt(args: {
 
   await mailTransport.sendMail({
     to: email,
-    from: '"חוות בראשית" <no-reply@your-domain>',
+    from: '"חוות בראשית" <no-reply@smart-farm>',
     subject,
     html,
     attachments: [

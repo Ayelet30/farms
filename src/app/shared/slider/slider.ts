@@ -81,12 +81,15 @@ private setMenuItemsByRole() {
         { path: 'secretary/parents',         label: 'הורים בחווה',       icon: 'parents' },
         { path: 'secretary/children',        label: 'ילדים בחווה',       icon: 'children' },
         { path: 'secretary/instructors',     label: 'מדריכים בחווה',     icon: 'instructor' },
+        { path: 'secretary/horses',        label: 'סוסים בחווה',       icon: 'hors' },
+        { path: 'secretary/arenas',     label: 'מגרשים בחווה',     icon: 'arena' },
         { path: 'secretary/schedule',        label: 'לו״ז ומעקב',        icon: 'calendar' },
         { path: 'secretary/appointment',     label: 'זימון תורים',       icon: 'calendar_plus' },
         { path: 'secretary/messages',        label: 'הודעות',            icon: 'messages' },
         { path: 'secretary/monthly-summary', label: 'סיכום וגרפים',      icon: 'bar_chart' },
         { path: 'secretary/requests',        label: 'בקשות ואישורים',    icon: 'checklist' },
         { path: 'secretary/payments',        label: 'תשלומים וחשבוניות', icon: 'card' },
+        { path: 'secretary/billing',        label: 'ניהול חיובים',       icon: 'billing' },
         { path: 'secretary/settings',        label: 'הגדרות חווה',       icon: 'settings' },
       ];
       break;

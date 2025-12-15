@@ -6,90 +6,50 @@
     <div class="appt-header-row">
 
       <!-- טור ימין: בחירת ילד -->
-  <div class="appt-field-group child-group">
-  <span class="appt-field-label">ילד/ה</span>
+      <div class="appt-field-group child-group">
+        <span class="appt-field-label">ילד/ה</span>
 
- <mat-select
-  #childSelect
-  class="appt-select"
-  [(ngModel)]="selectedChildId"
-  (selectionChange)="onChildChange()"
-  [disabled]="!children.length"
-  placeholder="בחר/י ילד"
->
-  <!-- שורת חיפוש -->
-<mat-option
-  class="search-option"
-  (click)="$event.stopPropagation()"
-  (mousedown)="$event.stopPropagation()"
->
-  <input
-    matInput
-    type="text"
-    placeholder="חיפוש לפי שם ילד/ה..."
-    [(ngModel)]="childSearchTerm"
-    (ngModelChange)="filterChildren()"
-    (keydown.enter)="selectFirstChildFromSearch($event)"
-    (click)="$event.stopPropagation()"
-    class="search-input"
-  />
-</mat-option>
+        <mat-select #childSelect class="appt-select" [(ngModel)]="selectedChildId" (selectionChange)="onChildChange()"
+          [disabled]="!children.length" placeholder="בחר/י ילד">
+          <!-- שורת חיפוש -->
+          <mat-option class="search-option" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()">
+            <input matInput type="text" placeholder="חיפוש לפי שם ילד/ה..." [(ngModel)]="childSearchTerm"
+              (ngModelChange)="filterChildren()" (keydown.enter)="selectFirstChildFromSearch($event)"
+              (click)="$event.stopPropagation()" class="search-input" />
+          </mat-option>
 
-  <!-- אופציות -->
-  <mat-option
-    *ngFor="let child of filteredChildren"
-    [value]="child.child_uuid"
-  >
-    {{ child.first_name }} {{ child.last_name }}
-  </mat-option>
-</mat-select>
+          <!-- אופציות -->
+          <mat-option *ngFor="let child of filteredChildren" [value]="child.child_uuid">
+            {{ child.first_name }} {{ child.last_name }}
+          </mat-option>
+        </mat-select>
 
-</div>
+      </div>
 
- <div class="appt-field-group instructor-group">
-  <span class="appt-field-label">מדריך</span>
+      <div class="appt-field-group instructor-group">
+        <span class="appt-field-label">מדריך</span>
 
-  <mat-select
-    #instructorSelect
-    class="appt-select"
-    [ngClass]="{ disabled: !selectedChildId }"
-    [(ngModel)]="selectedInstructorId"
-    (selectionChange)="onInstructorChange()"
-    [disabled]="!selectedChildId"
-    placeholder="בחר/י מדריך"
-  >
-    <!-- שורת חיפוש -->
-    <mat-option
-      class="search-option"
-      (click)="$event.stopPropagation()"
-      (mousedown)="$event.stopPropagation()"
-    >
-      <input
-        matInput
-        type="text"
-        placeholder="חיפוש לפי שם מדריך..."
-        [(ngModel)]="instructorSearchTerm"
-        (ngModelChange)="filterInstructors()"
-        (keydown.enter)="selectFirstInstructorFromSearch($event)"
-        (click)="$event.stopPropagation()"
-        class="search-input"
-      />
-    </mat-option>
+        <mat-select #instructorSelect class="appt-select" [ngClass]="{ disabled: !selectedChildId }"
+          [(ngModel)]="selectedInstructorId" (selectionChange)="onInstructorChange()" [disabled]="!selectedChildId"
+          placeholder="בחר/י מדריך">
+          <!-- שורת חיפוש -->
+          <mat-option class="search-option" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()">
+            <input matInput type="text" placeholder="חיפוש לפי שם מדריך..." [(ngModel)]="instructorSearchTerm"
+              (ngModelChange)="filterInstructors()" (keydown.enter)="selectFirstInstructorFromSearch($event)"
+              (click)="$event.stopPropagation()" class="search-input" />
+          </mat-option>
 
-    <!-- אופציה של "כל המדריכים" -->
-    <mat-option value="any">
-      כל המדריכים
-    </mat-option>
+          <!-- אופציה של "כל המדריכים" -->
+          <mat-option value="any">
+            כל המדריכים
+          </mat-option>
 
-    <!-- אופציות – רשימה מסוננת -->
-    <mat-option
-      *ngFor="let ins of filteredInstructors"
-      [value]="ins.instructor_uid"
-    >
-      {{ ins.full_name }}
-    </mat-option>
-  </mat-select>
-</div>
+          <!-- אופציות – רשימה מסוננת -->
+          <mat-option *ngFor="let ins of filteredInstructors" [value]="ins.instructor_uid">
+            {{ ins.full_name }}
+          </mat-option>
+        </mat-select>
+      </div>
 
 
     </div>
@@ -190,7 +150,7 @@
           ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
           בשעה <b>{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</b><br>
           עם המדריך <b>{{ seriesConfirmData.instructorName }}</b>?
-    ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
+          ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
 
         </p>
 
@@ -221,43 +181,43 @@
         </small>
       </div>
       <div class="appt-form-row">
-        <div class="appt-field-group">
-          <span class="appt-field-label">סוג תשלום</span>
-          <select class="appt-select" [(ngModel)]="paymentSourceForSeries">
-            <option [ngValue]="null" disabled hidden>
-              בחר/י סוג תשלום
-            </option>
-            <option value="health_fund">קופה</option>
-            <option value="private">פרטי</option>
-          </select>
+        <div class="appt-form-row">
+          <div class="appt-field-group">
+            <span class="appt-field-label">מסלול תשלום</span>
+            <select class="appt-select" [(ngModel)]="selectedPaymentPlanId">
+              <option [ngValue]="null" disabled hidden>
+                בחר/י מסלול תשלום
+              </option>
+              <option *ngFor="let plan of paymentPlans" [ngValue]="plan.id">
+                {{ plan.name }}
+                <ng-container *ngIf="plan.customer_amount != null">
+                  – {{ plan.customer_amount | number:'1.0-0' }} ₪ לשיעור
+                </ng-container>
+              </option>
+            </select>
 
-          <small *ngIf="!paymentSourceForSeries" style="color:#888;">
-            יש לבחור סוג תשלום לפני הזמנת הסדרה
-          </small>
+            <small *ngIf="!selectedPaymentPlanId" style="color:#888;">
+              יש לבחור מסלול תשלום לפני הזמנת הסדרה
+            </small>
 
-          <small *ngIf="paymentSourceForSeries === 'health_fund' && !referralFile" style="color:#888;">
-            לבקשה דרך קופה יש לצרף הפניה / התחייבות
-          </small>
-        </div>
-      </div>
-
-      <!-- העלאת הפניה / התחייבות – רק כשנבחר "קופה" -->
-      <div class="appt-form-row" *ngIf="paymentSourceForSeries === 'health_fund'">
-        <div class="appt-field-group">
-          <span class="appt-field-label">העלאת הפניה / התחייבות</span>
-
-          <input type="file" class="appt-input" (change)="onReferralFileSelected($event)" accept=".pdf,image/*" />
-
-          <!-- שם הקובץ שנבחר -->
-          <div *ngIf="referralFile" class="file-name">
-            הקובץ שנבחר: <b>{{ referralFile.name }}</b>
+            <small *ngIf="selectedPaymentPlan?.require_docs_at_booking"
+              style="color:#888; display:block; margin-top:4px;">
+              למסלול זה נדרשים מסמכים:
+              {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}
+            </small>
           </div>
+        </div>
 
-
-          <!-- שגיאה אם יש -->
-          <p class="error" *ngIf="referralUploadError">
-            {{ referralUploadError }}
-          </p>
+        <!-- העלאת מסמך רק אם המסלול דורש -->
+        <div class="appt-form-row" *ngIf="selectedPaymentPlan?.require_docs_at_booking">
+          <div class="appt-field-group">
+            <span class="appt-field-label">העלאת מסמך למסלול</span>
+            <input type="file" class="appt-input" (change)="onReferralFileSelected($event)" accept=".pdf,image/*" />
+            <div *ngIf="referralFile" class="file-name">
+              הקובץ שנבחר: <b>{{ referralFile.name }}</b>
+            </div>
+            <p class="error" *ngIf="referralUploadError">{{ referralUploadError }}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -265,80 +225,80 @@
       <div class="appt-field-group">
         <span class="appt-field-label">יום תחילת סדרה בשבוע</span>
 
-        <!-- פריסה דו-עמודתית: ימין קלנדר, שמאל שעות -->
-        <div class="series-layout">
-          <!-- קלנדר קטן לחיפוש סדרות -->
-          <div class="series-calendar">
-            <div class="calendar-header">
-              <button type="button" (click)="goToPrevMonth()">&lt;</button>
-              <span>
-                {{ currentCalendarMonth + 1 }}/{{ currentCalendarYear }}
-              </span>
-              <button type="button" (click)="goToNextMonth()">&gt;</button>
-            </div>
+          <!-- פריסה דו-עמודתית: ימין קלנדר, שמאל שעות -->
+          <div class="series-layout">
+            <!-- קלנדר קטן לחיפוש סדרות -->
+            <div class="series-calendar">
+              <div class="calendar-header">
+                <button type="button" (click)="goToPrevMonth()">&lt;</button>
+                <span>
+                  {{ currentCalendarMonth + 1 }}/{{ currentCalendarYear }}
+                </span>
+                <button type="button" (click)="goToNextMonth()">&gt;</button>
+              </div>
 
-            <div class="calendar-grid">
-              <!-- כותרות ימים -->
-              <div class="calendar-day-name">א'</div>
-              <div class="calendar-day-name">ב'</div>
-              <div class="calendar-day-name">ג'</div>
-              <div class="calendar-day-name">ד'</div>
-              <div class="calendar-day-name">ה'</div>
-              <div class="calendar-day-name">ו'</div>
-              <div class="calendar-day-name">ש'</div>
+              <div class="calendar-grid">
+                <!-- כותרות ימים -->
+                <div class="calendar-day-name">א'</div>
+                <div class="calendar-day-name">ב'</div>
+                <div class="calendar-day-name">ג'</div>
+                <div class="calendar-day-name">ד'</div>
+                <div class="calendar-day-name">ה'</div>
+                <div class="calendar-day-name">ו'</div>
+                <div class="calendar-day-name">ש'</div>
 
-              <!-- הימים עצמם -->
-              <div *ngFor="let d of seriesCalendarDays" class="calendar-day" [ngClass]="{
+                <!-- הימים עצמם -->
+                <div *ngFor="let d of seriesCalendarDays" class="calendar-day" [ngClass]="{
               'not-current': !d.isCurrentMonth,
               'has-slots': d.hasSlots,
               'selected-day': d.date === selectedSeriesDate
             }" (click)="onSeriesCalendarDayClick(d)">
-                <span class="day-label" *ngIf="d.label">{{ d.label }}</span>
-                <span class="day-dot" *ngIf="d.hasSlots"></span>
+                  <span class="day-label" *ngIf="d.label">{{ d.label }}</span>
+                  <span class="day-dot" *ngIf="d.hasSlots"></span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- שעות זמינות ביום שנבחר -->
-          <div class="slots-list series-slots" *ngIf="selectedSeriesDate && selectedSeriesDaySlots.length">
-            <h4>שעות זמינות ליום {{ selectedSeriesDate }}</h4>
+            <!-- שעות זמינות ביום שנבחר -->
+            <div class="slots-list series-slots" *ngIf="selectedSeriesDate && selectedSeriesDaySlots.length">
+              <h4>שעות זמינות ליום {{ selectedSeriesDate }}</h4>
 
-            <table>
-              <thead>
-                <tr>
-                  <th>שעה</th>
-                  <th>מדריך</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let s of selectedSeriesDaySlots">
-                  <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
-                  <td>{{ s.instructor_name || s.instructor_id }}</td>
-                  <td>
-                    <button type="button" class="appt-cta" (click)="requestSeriesFromSecretary(s, confirmSeriesDialog)"
-                      [disabled]="!canRequestSeries" [attr.aria-disabled]="!canRequestSeries ? 'true' : null">
-                      בקש סדרה במועד זה
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>שעה</th>
+                    <th>מדריך</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let s of selectedSeriesDaySlots">
+                    <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
+                    <td>{{ s.instructor_name || s.instructor_id }}</td>
+                    <td>
+                      <button type="button" class="appt-cta" (click)="onSeriesSlotChosen(s, confirmSeriesDialog)"
+                        [disabled]="!canRequestSeries" [attr.aria-disabled]="!canRequestSeries ? 'true' : null">
+                        בקש סדרה במועד זה
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
-        </div> <!-- /series-layout -->
+          </div> <!-- /series-layout -->
+        </div>
       </div>
+
     </div>
 
-  </div>
 
+    <p class="error" *ngIf="seriesError">{{ seriesError }}</p>
+    <p class="success" *ngIf="seriesCreatedMessage">
+      {{ seriesCreatedMessage }}
+    </p>
 
-  <p class="error" *ngIf="seriesError">{{ seriesError }}</p>
-  <p class="success" *ngIf="seriesCreatedMessage">
-    {{ seriesCreatedMessage }}
-  </p>
-
-  <!-- <div *ngIf="recurringSlots.length > 0" class="slots-list">
+    <!-- <div *ngIf="recurringSlots.length > 0" class="slots-list">
       <h4>זמנים אפשריים</h4>
       <table>
         <thead>
@@ -478,40 +438,43 @@
   </p>
 </div>
 
-<!-- ======== טאב: שיעור השלמה ======== -->
+ <!-- ======== טאב: שיעור השלמה ======== -->
 <div *ngIf="selectedTab === 'makeup'" class="appt-card">
-
   <h3>שיעור השלמה</h3>
-  <!-- רשימת שיעורים שניתן להשלים לפי הגדרות חווה -->
+
+  <!-- רשימת שיעורים שניתן להשלים -->
   <div class="slots-list">
+    <h4>שיעורים שניתן להשלים</h4>
 
     <ng-container *ngIf="loadingMakeupCandidates">
       <p>טוען שיעורים שניתן להשלים...</p>
     </ng-container>
 
     <ng-container *ngIf="!loadingMakeupCandidates && makeupCandidates.length > 0">
-      <table>
+      <table class="appt-table makeup-table">
         <thead>
           <tr>
             <th>תאריך</th>
             <th>יום</th>
             <th>שעה</th>
             <th>מדריך</th>
-            <th></th> <!-- כפתור פעולה -->
+            <th></th>
           </tr>
         </thead>
+
         <tbody>
-          <tr *ngFor="let c of makeupCandidates" [ngClass]="{
-      'makeup-row-selected':
-        selectedMakeupCandidate?.lesson_id === c.lesson_id &&
-        selectedMakeupCandidate?.occur_date === c.occur_date
-    }">
+          <tr
+            *ngFor="let c of makeupCandidates"
+            [ngClass]="{
+              'makeup-row-selected':
+                selectedMakeupCandidate?.lesson_id === c.lesson_id &&
+                selectedMakeupCandidate?.occur_date === c.occur_date
+            }"
+          >
             <td>{{ c.occur_date }}</td>
             <td>{{ c.day_of_week }}</td>
-            <td>
-              {{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}
-            </td>
-            <td>{{ c.instructor_id }}</td>
+            <td>{{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}</td>
+            <td>{{ getInstructorNameById(c.instructor_id) }}</td>
             <td>
               <button type="button" class="appt-cta" (click)="openHolesForCandidate(c)">
                 להשלמת שיעור זה
@@ -519,152 +482,54 @@
             </td>
           </tr>
         </tbody>
-
       </table>
-
     </ng-container>
-    <!-- <div *ngIf="selectedMakeupCandidate && candidateSlots.length > 0" class="slots-list">
-  <h4>
-    חורים פנויים להשלמה עבור {{ selectedMakeupCandidate.occur_date }}
-  </h4>
 
-  <table>
-    <thead>
-      <tr>
-        <th>תאריך</th>
-        <th>שעה</th>
-        <th>מדריך</th>
-        <th>יתרה ב-slot</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let s of candidateSlots">
-        <td>{{ s.occur_date }}</td>
-        <td>
-          {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
-        </td>
-        <td>{{ s.instructor_id }}</td>
-        <td>{{ s.remaining_capacity }}</td>
-        <td>
-          <button
-            type="button"
-            class="appt-cta"
-            (click)="bookMakeupSlot(s)"
-          >
-            קבע שיעור השלמה
-          </button>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-
-<p class="error" *ngIf="candidateSlotsError">{{ candidateSlotsError }}</p>
-    </div> -->
-
-    <!-- <div class="appt-form-row">
-      <div class="appt-field-group">
-        <span class="appt-field-label">מתאריך</span>
-        <input
-          class="appt-input"
-          type="date"
-          [(ngModel)]="makeupFromDate"
-        />
-      </div>
-
-      <div class="appt-field-group">
-        <span class="appt-field-label">עד תאריך</span>
-        <input
-          class="appt-input"
-          type="date"
-          [(ngModel)]="makeupToDate"
-        />
-      </div>
-    </div>
-
-    <<div class="appt-actions">
-      <button
-        type="button"
-        class="appt-cta primary"
-        (click)="searchMakeupSlots()"
-        [disabled]="loadingMakeup || !selectedChildId"
-        [attr.aria-disabled]="loadingMakeup || !selectedChildId ? 'true' : null"
-      >
-        {{ loadingMakeup ? 'מחפש...' : 'חפש חורים להשלמה' }}
-      </button>
-    </div> -->
-
-    <p class="error" *ngIf="makeupError">{{ makeupError }}</p>
-    <p class="success" *ngIf="makeupCreatedMessage">
-      {{ makeupCreatedMessage }}
+    <p class="empty-text" *ngIf="!loadingMakeupCandidates && !makeupCandidates.length">
+      אין כרגע שיעורים שניתן להשלים.
     </p>
 
-    <div class="slots-list" *ngIf="selectedMakeupCandidate && candidateSlots.length > 0">
-      <h4>
-        חורים פנויים להשלמה עבור {{ selectedMakeupCandidate.occur_date }}
-      </h4>
+    <p class="error" *ngIf="makeupError">{{ makeupError }}</p>
+    <p class="success" *ngIf="makeupCreatedMessage">{{ makeupCreatedMessage }}</p>
+  </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>תאריך</th>
-            <th>יום</th> <!-- ⬅ חדש -->
-            <th>שעה</th>
-            <th>מדריך</th>
-<th>סוג שיעור</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let s of candidateSlots">
-            <td>{{ s.occur_date }}</td>
-            <td>{{ getSlotDayLabel(s.occur_date) }}</td> 
+  <!-- חורים פנויים עבור השיעור שנבחר -->
+  <div class="slots-list" *ngIf="selectedMakeupCandidate && candidateSlots.length > 0">
+    <h4>חורים פנויים להשלמה עבור {{ selectedMakeupCandidate.occur_date }}</h4>
 
-            <td>
-              {{ s.start_time | slice: 0:5 }}–{{ s.end_time | slice: 0:5 }}
-            </td>
+    <table class="appt-table">
+      <thead>
+        <tr>
+          <th>תאריך</th>
+          <th>יום</th>
+          <th>שעה</th>
+          <th>מדריך</th>
+          <th>סוג שיעור</th>
+          <th></th>
+        </tr>
+      </thead>
 
-            <!-- שם מדריך, ואם אין – נופל חזרה ל-id -->
-            <td>{{ s.instructor_name || s.instructor_id }}</td>
-
-
-<td>{{ getLessonTypeLabel(s) }}</td>
-            <td>
-              <button type="button" class="appt-cta" (click)="requestMakeupFromSecretary(s)">
-                קבע שיעור השלמה
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-    </div>
+      <tbody>
+        <tr *ngFor="let s of candidateSlots">
+          <td>{{ s.occur_date }}</td>
+          <td>{{ getSlotDayLabel(s.occur_date) }}</td>
+          <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
+          <td>{{ s.instructor_name || s.instructor_id }}</td>
+          <td>{{ getLessonTypeLabel(s) }}</td>
+          <td>
+            <button type="button" class="appt-cta" (click)="onMakeupSlotChosen(s)">
+              קבע שיעור השלמה
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
 
     <p *ngIf="loadingCandidateSlots">טוען חורים פנויים...</p>
     <p class="error" *ngIf="candidateSlotsError">{{ candidateSlotsError }}</p>
-
   </div>
-  <!-- <ng-template #confirmSeriesDialog let-dialogRef="dialogRef">
-  <div dir="rtl" style="padding: 10px; max-width: 350px;">
-    <h3>אישור בקשת סדרה</h3>
 
-    <p>
-      האם את בטוחה שברצונך לקבוע
-      סדרה שמתחילה בתאריך <b>{{ seriesConfirmData.startDate }}</b><br>
-      מסתיימת בתאריך <b>{{ seriesConfirmData.endDate }}</b><br>
-      ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
-      בשעה <b>{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</b><br>
-      עם המדריך <b>{{ seriesConfirmData.instructorName }}</b>?
-    </p>
-
-    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
-      <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
-      <button class="btn-ok" (click)="dialogRef.close(true)">כן</button>
-    </div>
-  </div>
-</ng-template> -->
-
+  <!-- דיאלוג אישור להורה -->
   <ng-template #confirmMakeupDialog let-dialogRef="dialogRef">
     <div dir="rtl" style="padding: 10px; max-width: 350px;">
       <h3>אישור בקשת שיעור השלמה</h3>
@@ -676,10 +541,8 @@
         במקום השיעור בתאריך
         <b>{{ confirmData.oldDate }}</b>
         בשעות <b>{{ confirmData.oldStart }}–{{ confirmData.oldEnd }}</b>?
-    ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
-
+        ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
       </p>
-     
 
       <div style="display:flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
         <button mat-button (click)="dialogRef.close(false)">ביטול</button>
@@ -687,33 +550,27 @@
       </div>
     </div>
   </ng-template>
-
 </div>
+
+<!-- דיאלוג אישור מילוי מקום -->
 <ng-template #confirmOccupancyDialog let-dialogRef="dialogRef">
   <div dir="rtl" style="padding: 10px; max-width: 380px;">
     <h3>אישור קביעת שיעור מילוי מקום</h3>
 
     <p>
       האם את בטוחה שברצונך לקבוע שיעור מילוי מקום
-      בתאריך
-      <b>{{ occupancyConfirmData.newDate }}</b>
-      בשעות
-      <b>{{ occupancyConfirmData.newStart }}–{{ occupancyConfirmData.newEnd }}</b>
-      עם המדריך
-      <b>{{ occupancyConfirmData.newInstructorName }}</b><br>
+      בתאריך <b>{{ occupancyConfirmData.newDate }}</b>
+      בשעות <b>{{ occupancyConfirmData.newStart }}–{{ occupancyConfirmData.newEnd }}</b>
+      עם המדריך <b>{{ occupancyConfirmData.newInstructorName }}</b><br>
       במקום השיעור שהיה בתאריך
       <b>{{ occupancyConfirmData.oldDate }}</b>
-      בשעות
-      <b>{{ occupancyConfirmData.oldStart }}–{{ occupancyConfirmData.oldEnd }}</b>
-      עם המדריך
-      <b>{{ occupancyConfirmData.oldInstructorName }}</b>?
+      בשעות <b>{{ occupancyConfirmData.oldStart }}–{{ occupancyConfirmData.oldEnd }}</b>
+      עם המדריך <b>{{ occupancyConfirmData.oldInstructorName }}</b>?
     </p>
 
     <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 20px;">
       <button mat-button (click)="dialogRef.close(false)">ביטול</button>
-      <button mat-raised-button color="primary" (click)="dialogRef.close(true)">
-        אישור
-      </button>
+      <button mat-raised-button color="primary" (click)="dialogRef.close(true)">אישור</button>
     </div>
   </div>
 </ng-template>

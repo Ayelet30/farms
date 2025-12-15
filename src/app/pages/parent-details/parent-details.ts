@@ -56,7 +56,7 @@ private infoTimer: ReturnType<typeof setTimeout> | null = null;
 
   // SELECT מפורש
  private readonly PARENT_SELECT =
-  'uid, id_number, first_name, last_name, address, phone, email, notify';
+  'uid, id_number, first_name, last_name, address, phone, email, notify, billing_day_of_month';
 
 
   private readonly CHILD_SELECT =
