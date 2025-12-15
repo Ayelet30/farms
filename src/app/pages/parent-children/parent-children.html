@@ -83,11 +83,18 @@
               </svg>
             </button>
 
-            <button class="icon-btn danger" type="button" (click)="confirmDeleteChild(c)" aria-label="מחיקה">
-              <svg class="icon" aria-hidden="true">
-                <use href="assets/icons/feather-slim.svg#trash" />
-              </svg>
-            </button>
+          <button
+  *ngIf="!editing[childId(c)]"
+  class="icon-btn danger"
+  type="button"
+  (click)="confirmDeleteChild(c)"
+  aria-label="מחיקה"
+>
+  <svg class="icon" aria-hidden="true">
+    <use href="assets/icons/feather-slim.svg#trash" />
+  </svg>
+</button>
+
             <button *ngIf="editing[childId(c)]" class="icon-btn" type="button"
           (click)="cancelEdit(c)" aria-label="ביטול" title="ביטול">
     <svg class="icon" aria-hidden="true"><use href="assets/icons/feather-slim.svg#rotate-ccw" />

@@ -647,3 +647,10 @@
   background: #2e7d32;
   color: #fff;
 }
+.cards-grid {
+  align-items: start;   /* במקום stretch (ברירת מחדל) */
+}
+
+.child-card {
+  align-self: start;    /* ביטוח נוסף לכל כרטיס */
+}
