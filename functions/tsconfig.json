@@ -11,5 +11,7 @@
     "lib": ["ES2022"],
     "types": ["node", "jasmine"]
   },
-  "include": ["src", "loginBootstrap.ts", "createParent.ts", "tranzila.ts"]
+  "include": ["src/**/*.ts"]
 }
+
+

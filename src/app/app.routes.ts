@@ -186,6 +186,12 @@ export const routes: Routes = [
             .then(m => m.SecretaryPaymentsComponent)
       },
       {
+        path: 'billing',
+        loadComponent: () =>
+          import('./pages/secretary-parent-billing/secretary-parent-billing.component')
+            .then(m => m.SecretaryParentBillingComponent)
+      },
+      {
         path: 'settings',
         loadComponent: () =>
           import('./pages/farm-settings/farm-settings.component')

@@ -6,9 +6,19 @@
  *
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
-export * from "../loginBootstrap.js";
 
-export { createHostedPaymentUrl, tranzilaReturn, chargeByToken, cronMonthlyCharges, createTranzilaStandingOrder, tranzilaHandshakeHttp , recordOneTimePayment  } from '../tranzila.js';
+import { setGlobalOptions } from 'firebase-functions/v2';
+
+// ===== Global options =====
+setGlobalOptions({
+  region: 'us-central1',
+});
+
+export * from "./loginBootstrap.js";
+
+export * from "./dailyBilling.js";
+
+export { createHostedPaymentUrl, tranzilaReturn, chargeByToken, cronMonthlyCharges, createTranzilaStandingOrder, tranzilaHandshakeHttp , recordOneTimePayment  } from './tranzila.js';
 
 
 //export  *  from "../createParent.js";

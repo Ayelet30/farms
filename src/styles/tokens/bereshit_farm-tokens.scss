@@ -1,33 +1,46 @@
 /* tokens — load per farm as a separate bundle */
 :root {
   /* Palette */
-  --cream-top:    #fffdf7;
+  --cream-top: #fffdf7;
   --cream-bottom: #fbf7ee;
-  --gold:         #d1b16a;
-  --gold-soft:    #e9ddbb;
+  --gold: #d1b16a;
+  --gold-soft: #e9ddbb;
   --green-accent: #2f5e35;
-  --text-strong:  #1f1c16;
-  --text-muted:   #837a66;
+  --text-strong: #1f1c16;
+  --text-muted: #837a66;
 
   /* UI Colors */
-  --panel-bg:     #f7f4ec;  /* רקע פנל */
-  --panel-bg-2:   #efe9d4;  /* איזורי עזר */
-  --text:         #6f7650;  /* טקסט רגיל */
-  --text-active:  #505c38;  /* טקסט פריט פעיל */
-  --muted:        #94a079;  /* טקסט חלש/אייקונים */
-  --accent:       #6b7d47;  /* ירוק דומיננטי למסגרות */
-  --divider:      #e6dcc1;  /* קו מפריד */
-  --chip-active:  #e8e1c8;  /* רקע פריט פעיל */
+  --panel-bg: #f7f4ec;
+  /* רקע פנל */
+  --panel-bg-2: #efe9d4;
+  /* איזורי עזר */
+  --text: #6f7650;
+  /* טקסט רגיל */
+  --text-active: #505c38;
+  /* טקסט פריט פעיל */
+  --muted: #94a079;
+  /* טקסט חלש/אייקונים */
+  --accent: #6b7d47;
+  /* ירוק דומיננטי למסגרות */
+  --divider: #e6dcc1;
+  /* קו מפריד */
+  --chip-active: #e8e1c8;
+  /* רקע פריט פעיל */
 
   /* Sizes */
-  --width-open:   272px;
+  --width-open: 272px;
   --width-closed: 72px;
-  --item-h:       52px;
-  --radius:       12px;
+  --item-h: 52px;
+  --radius: 12px;
+
+  --header-h: 80px;
+  --sidebar-wide: 240px;
+  --sidebar-rail: 95px;
 
 
   --text-strong: #0f172a;
 }
+
 /* ============================
    🌿 Theme - Mach Atarim Farm
    ============================ */
@@ -37,9 +50,11 @@
   --color-bg: #f8f6f2;
   --color-surface: #ffffff;
   --color-surface-alt: #fbfaf7;
-  --color-primary: #676a3f; /* ירוק זית כהה */
+  --color-primary: #676a3f;
+  /* ירוק זית כהה */
   --color-primary-light: #9da26e;
-  --color-accent: #c27b6b; /* ורוד־חום עדין */
+  --color-accent: #c27b6b;
+  /* ורוד־חום עדין */
   --color-accent-light: #e4bfb6;
   --color-border: #e2e0da;
   --color-text: #3a3a3a;
@@ -50,7 +65,10 @@
 }
 
 /* 🧱 טיפוגרפיה */
-body, button, input, textarea {
+body,
+button,
+input,
+textarea {
   font-family: 'Heebo', 'Assistant', Arial, sans-serif;
   color: var(--color-text);
   background-color: var(--color-bg);
@@ -58,16 +76,20 @@ body, button, input, textarea {
 }
 
 /* 🧩 כפתורים כלליים */
-button, .mat-mdc-button, .mat-mdc-raised-button {
+button,
+.mat-mdc-button,
+.mat-mdc-raised-button {
   font-weight: 500;
   border-radius: 8px;
   transition: all 0.2s ease;
 }
 
-button[color="primary"], .mat-mdc-button[color="primary"] {
+button[color="primary"],
+.mat-mdc-button[color="primary"] {
   background-color: var(--color-primary);
   color: #fff;
 }
+
 button[color="primary"]:hover {
   background-color: var(--color-primary-light);
 }
@@ -77,6 +99,7 @@ button[color="accent"] {
   border: 1px solid var(--color-accent);
   background-color: #fff;
 }
+
 button[color="accent"]:hover {
   background-color: var(--color-accent-light);
 }
@@ -101,7 +124,8 @@ mat-card:hover {
 }
 
 /* כותרת כרטיס */
-.app-card-header, mat-card-header {
+.app-card-header,
+mat-card-header {
   border-bottom: 1px solid #eee;
   padding-bottom: 6px;
   margin-bottom: 10px;
@@ -109,7 +133,8 @@ mat-card:hover {
   justify-content: space-between;
   align-items: center;
 
-  h3, mat-card-title {
+  h3,
+  mat-card-title {
     font-size: 15px;
     font-weight: 600;
     color: var(--color-primary);
@@ -117,7 +142,8 @@ mat-card:hover {
 }
 
 /* תוכן כרטיס */
-.app-card-content, mat-card-content {
+.app-card-content,
+mat-card-content {
   font-size: 13.5px;
   color: var(--color-text);
 }
@@ -152,6 +178,7 @@ mat-card:hover {
 /* כפתור מחיקה */
 .delete-btn {
   color: var(--color-error);
+
   &:hover {
     background-color: #fdecea;
   }

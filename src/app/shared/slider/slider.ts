@@ -89,6 +89,7 @@ private setMenuItemsByRole() {
         { path: 'secretary/monthly-summary', label: 'סיכום וגרפים',      icon: 'bar_chart' },
         { path: 'secretary/requests',        label: 'בקשות ואישורים',    icon: 'checklist' },
         { path: 'secretary/payments',        label: 'תשלומים וחשבוניות', icon: 'card' },
+        { path: 'secretary/billing',        label: 'ניהול חיובים',       icon: 'billing' },
         { path: 'secretary/settings',        label: 'הגדרות חווה',       icon: 'settings' },
       ];
       break;

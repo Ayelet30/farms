@@ -9,6 +9,6 @@ import { SliderComponent } from '../shared/slider/slider';
   standalone: true,
   imports: [CommonModule, RouterModule, HeaderComponent, SliderComponent],
   templateUrl: './layout.html',
-  styleUrls: ['./layout.css']
+  styleUrls: ['./layout.scss']
 })
 export class LayoutComponent {}

@@ -5,6 +5,12 @@
     {{ toastMessage }}
   </div>
 
+  <!-- באנר נעילת זמינות -->
+  <div class="locked-banner" *ngIf="!allowEdit">
+    <strong>הזמינות נעולה לעריכה.</strong>
+    <span>כדי לערוך את הזמינות יש לבקש מהמזכירה שתפתח את האפשרות.</span>
+  </div>
+
   <!-- פופאפ אישור שינויים -->
   <div class="overlay" *ngIf="confirmData">
     <div class="confirm-dialog">
@@ -12,18 +18,14 @@
       <!-- כפתור סגירה -->
       <button class="icon-btn close" (click)="cancelUpdate()">×</button>
 
-      <!-- כותרת -->
       <div class="dialog-header">
-
         <div class="icon-circle warning">
-
-          <!-- ⚠ אייקון אזהרה מעוצב -->
+          <!-- אייקון -->
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="12" r="11" fill="#FFF4E5"/>
             <path d="M12 7v7" stroke="#C26400" stroke-width="2" stroke-linecap="round"/>
             <circle cx="12" cy="17" r="1.6" fill="#C26400"/>
           </svg>
-
         </div>
 
         <div class="dialog-titles">
@@ -32,60 +34,74 @@
         </div>
       </div>
 
-      <!-- תיבת אזהרה (כמה הורים) -->
       <div class="impact-box" *ngIf="confirmData">
         נמצאו
         <strong>{{ confirmData.parentsCount }}</strong>
         הורים שהשינוי ישפיע עליהם.
       </div>
 
-      <!-- רשימת הורים -->
       <div class="parent-list" *ngIf="confirmData?.parents?.length">
         <div class="parent-row" *ngFor="let p of confirmData.parents; let i = index">
-
           <div class="index-pill">{{ i + 1 }}</div>
 
           <div class="parent-text">
             <div class="parent-name">{{ p.name }}</div>
             <div class="parent-sub">הורה של {{ p.child }}</div>
           </div>
-
         </div>
       </div>
 
-      <!-- הערה למטה -->
       <div class="note-box">
-
-        <!-- 💡 אייקון נורה עדין -->
         <svg class="note-icon" width="18" height="18" viewBox="0 0 24 24" fill="none">
           <circle cx="12" cy="12" r="11" fill="#FFFBE6"/>
-          <path d="M12 6a4 4 0 0 0-2 7.5V16h4v-2.5A4 4 0 0 0 12 6Z" 
+          <path d="M12 6a4 4 0 0 0-2 7.5V16h4v-2.5A4 4 0 0 0 12 6Z"
                 stroke="#D28A00" stroke-width="1.8" stroke-linecap="round"/>
           <path d="M10 17h4" stroke="#D28A00" stroke-width="2" stroke-linecap="round"/>
         </svg>
 
         <span>
-          המזכירה תקבל התראה ותתאם מול ההורים תאריכים חלופיים לפני שינוי בפועל של שיעורים.
+          המזכירה תקבל התראה ותתאם מול ההורים לפני שינוי בפועל של שיעורים.
         </span>
       </div>
 
-      <!-- כפתורי פעולה -->
       <div class="dialog-actions">
-
         <button class="btn ghost" (click)="cancelUpdate()">ביטול</button>
-
         <button class="btn primary" (click)="approveUpdate()">
-
-          <!-- 💾 אייקון שמירה -->
-          <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="3" width="14" height="14" rx="2" fill="#E6F2DD"/>
-            <path d="M7 3h7v5H7V3Z" fill="#4B6B2F"/>
-            <path d="M9 13h6v4H9v-4Z" fill="#4B6B2F"/>
-          </svg>
-
           אישור ושמירה
         </button>
+      </div>
 
+    </div>
+  </div>
+
+  <!-- פופאפ נעילת עריכה ראשונית -->
+  <div class="overlay" *ngIf="lockConfirm">
+    <div class="confirm-dialog">
+
+      <button class="icon-btn close" (click)="cancelLockConfirm()">×</button>
+
+      <div class="dialog-header">
+        <div class="icon-circle warning">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="11" fill="#FFF4E5"/>
+            <path d="M12 7v7" stroke="#C26400" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="12" cy="17" r="1.6" fill="#C26400"/>
+          </svg>
+        </div>
+
+        <div class="dialog-titles">
+          <h2>נעילת עריכת זמינות</h2>
+          <p>לאחר שמירה, עריכת זמינות תתאפשר רק דרך המזכירה.</p>
+        </div>
+      </div>
+
+      <div class="impact-box">
+        האם להמשיך ולנעול את עריכת הזמינות?
+      </div>
+
+      <div class="dialog-actions">
+        <button class="btn ghost" (click)="cancelLockConfirm()">ביטול</button>
+        <button class="btn primary" (click)="confirmLockAndSave()">אישור ושמירה</button>
       </div>
 
     </div>
@@ -108,9 +124,8 @@
 
   <main class="cards-layout">
 
-    <!-- כרטיס: זמינות שבועית -->
+    <!-- כרטיס זמינות -->
     <section class="card availability-card">
-
       <div class="card-header">
         <h2>זמינות שבועית</h2>
         <p>בחרי ימי עבודה, הוסיפי טווחי שעות ושייכי להם סוגי שיעורים והפסקות.</p>
@@ -125,8 +140,12 @@
               <span class="day-name">{{ day.label }}</span>
 
               <label class="custom-toggle">
-                <input type="checkbox" [(ngModel)]="day.active" (change)="toggleDay(day)" />
-                <span class="slider"></span>
+                <input
+                  type="checkbox"
+                  [(ngModel)]="day.active"
+                  (change)="toggleDay(day)"
+                />
+                <span class="slider" [class.disabled]="!allowEdit"></span>
               </label>
             </div>
 
@@ -140,7 +159,11 @@
             <!-- טווחי שיעור -->
             <div class="slot-row" *ngFor="let slot of day.slots; let i = index">
 
-              <button class="icon-btn danger" (click)="removeSlot(day, i)">
+              <button
+                class="icon-btn danger"
+                (click)="removeSlot(day, i)"
+                [class.disabled]="!allowEdit"
+              >
                 <mat-icon>delete</mat-icon>
               </button>
 
@@ -154,6 +177,7 @@
                       type="time"
                       [(ngModel)]="slot.start"
                       (blur)="onSlotChange(day, slot)"
+                      [disabled]="!allowEdit"
                     />
                   </div>
                 </div>
@@ -166,6 +190,7 @@
                       type="time"
                       [(ngModel)]="slot.end"
                       (blur)="onSlotChange(day, slot)"
+                      [disabled]="!allowEdit"
                     />
                   </div>
                 </div>
@@ -176,6 +201,7 @@
                     class="select"
                     [(ngModel)]="slot.lessonType"
                     (change)="onSlotChange(day, slot)"
+                    [disabled]="!allowEdit"
                   >
                     <option *ngFor="let opt of lessonTypeOptions" [value]="opt.value">
                       {{ opt.label }}
@@ -186,14 +212,19 @@
               </div>
             </div>
 
-            <button class="link-btn" type="button" (click)="addSlot(day)">
+            <button
+              class="link-btn"
+              type="button"
+              (click)="addSlot(day)"
+              [class.disabled]="!allowEdit"
+            >
               <mat-icon>add</mat-icon>
               הוספת טווח זמן חדש
             </button>
 
             <hr class="section-separator" />
 
-            <!-- הפסקות -->
+            <!-- הפסקות – תמיד מותר לערוך -->
             <div class="slot-row break-row" *ngFor="let br of day.breaks; let j = index">
 
               <button class="icon-btn danger" (click)="removeBreak(day, j)">
@@ -249,9 +280,8 @@
 
     </section>
 
-    <!-- כרטיס: העדפות התראות -->
+    <!-- כרטיס התראות -->
     <section class="card notifications-card">
-
       <div class="card-header">
         <h2>העדפות התראות</h2>
         <p>בחירה אילו התראות לקבל מהמערכת.</p>

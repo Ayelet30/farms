@@ -7,12 +7,12 @@
       <input type="email" id="email" [(ngModel)]="email" name="email" required autocomplete="username"
         inputmode="email" />
 
-      <label for="password">סיסמה</label>
+      <label for="password">סיסמא</label>
       <div class="password-wrapper">
         <input [type]="showPassword ? 'text' : 'password'" id="password" [(ngModel)]="password" name="password"
           required />
         <button type="button" class="eye-btn" (click)="showPassword = !showPassword"
-          [attr.aria-label]="showPassword ? 'הסתר סיסמה' : 'הצג סיסמה'">
+          [attr.aria-label]="showPassword ? 'הסתר סיסמא' : 'הצג סיסמא'">
           <svg *ngIf="!showPassword" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22">
             <path fill="#5e6f3c"
               d="M12 5c-7 0-11 7-11 7s4 7 11 7 11-7 11-7-4-7-11-7zm0 12a5 5 0 1 1 .001-10.001A5 5 0 0 1 12 17zm0-2.5a2.5 2.5 0 1 0 0-5.001 2.5 2.5 0 0 0 0 5z" />
@@ -30,7 +30,7 @@
       </div>
 
       <button type="button" class="link-button" (click)="forgotPassword()" [disabled]="isLoading">
-        שכחתי סיסמה
+        שכחתי סיסמא
       </button>
 
       <div *ngIf="errorMessage" class="error-message">{{ errorMessage }}</div>

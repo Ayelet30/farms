@@ -23,6 +23,7 @@ type ParentRow = {
   first_name: string;
   last_name: string;
   id_number?: string | null;
+  billing_day_of_month?: number | null;
   phone?: string;
   email?: string;
   is_active?: boolean | null;        // סטטוס הורה
@@ -320,7 +321,7 @@ export class SecretaryParentsComponent implements OnInit {
       const { data: p, error: pErr } = await db
         .from('parents')
         .select(
-          'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences'
+          'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month'
         )
         .eq('uid', uid)
         .single();
@@ -365,6 +366,8 @@ export class SecretaryParentsComponent implements OnInit {
 
       phone: [parent.phone ?? '', [Validators.required]],
       email: [parent.email ?? '', [Validators.email]],
+      billing_day: [parent.billing_day_of_month ?? 10, [Validators.required, Validators.min(1), Validators.max(28)]],
+
 
       address: [parent.address ?? ''],
       extra_notes: [parent.extra_notes ?? ''],
@@ -394,6 +397,7 @@ export class SecretaryParentsComponent implements OnInit {
       this.buildParentForm(this.originalParent);
     }
   }
+  
 
   /** שמירת שינויים – PATCH רק על מה שהשתנה */
   async saveParentEdits() {
@@ -412,6 +416,7 @@ export class SecretaryParentsComponent implements OnInit {
       'phone',
       'email',
       'address',
+      'billing_day_of_month',
       'extra_notes',
       'message_preferences'
     ];

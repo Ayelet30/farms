@@ -11,6 +11,7 @@
   border-bottom: 1px solid var(--gold-soft);
   position: relative;
   isolation: isolate;
+  z-index: 1000;
 
   > .auth-section { order: 1; }   /* ימין */
   > .farm-section { order: 2; }   /* שמאל */
@@ -301,7 +302,7 @@
 
   .role-menu {
     position: absolute;
-    top: 130%;
+    top: 80%;
     inset-inline-end: 0;
     padding: 6px;
     list-style: none;

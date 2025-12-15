@@ -1,5 +1,14 @@
+/* ================================================= */
+/* 🎨 צבעים כלליים                                  */
+/* ================================================= */
+:host {
+  --note-text-color: #2f3b22;
+  --note-muted-color: #6b7760;
+}
 
-/* === רקע הצללה של החלונית === */
+/* ================================================= */
+/* 🧱 Overlay                                        */
+/* ================================================= */
 .note-overlay {
   position: fixed;
   inset: 0;
@@ -12,7 +21,9 @@
   padding: 30px 0;
 }
 
-/* === כרטיס הערות === */
+/* ================================================= */
+/* 🧾 כרטיס ראשי                                     */
+/* ================================================= */
 .child-details-card {
   direction: rtl;
   background: var(--color-surface);
@@ -20,7 +31,7 @@
   border-radius: 14px;
   width: 90%;
   max-width: 460px;
-  max-height: 85vh;
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -28,7 +39,9 @@
   animation: fadeIn 0.25s ease;
 }
 
-/* כותרת עליונה */
+/* ================================================= */
+/* 🧠 Header                                         */
+/* ================================================= */
 mat-card-header {
   padding: 14px 18px;
   border-bottom: 1px solid #eee;
@@ -43,19 +56,13 @@ mat-card-header {
     gap: 6px;
     font-size: 15px;
     font-weight: 600;
-    color: var(--color-primary);
-  }
-
-  .close-button {
-    color: #999;
-    transition: color 0.2s;
-    &:hover {
-      color: var(--color-accent);
-    }
+    color: var(--note-text-color);
   }
 }
 
-/* === תוכן מתגלגל === */
+/* ================================================= */
+/* 📜 תוכן מתגלגל                                   */
+/* ================================================= */
 .scrollable-content {
   padding: 16px;
   background: var(--color-surface-alt);
@@ -66,16 +73,17 @@ mat-card-header {
   gap: 16px;
 }
 
-/* === מסגרות פנימיות === */
+/* ================================================= */
+/* 📦 Sections פנימיים                              */
+/* ================================================= */
 .inner-section {
   border-radius: 14px;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
-  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.03);
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 
   &.top {
     background: #fffdf7;
@@ -83,46 +91,136 @@ mat-card-header {
   }
 
   &.bottom {
-    background: #fff;
+    background: #ffffff;
   }
 }
 
-/* === פרטים אישיים === */
-.section.personal-details {
+/* ================================================= */
+/* 📅 פרטי שיעור                                    */
+/* ================================================= */
+.section.lesson-details {
   h3 {
     font-size: 14px;
-    margin-bottom: 6px;
-    color: var(--color-primary);
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--note-text-color);
   }
 
-  .details-grid {
+  .lesson-meta-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 6px 10px;
+    gap: 10px;
     font-size: 13px;
-    color: var(--color-text);
+  }
 
-    mat-icon[inline] {
-      vertical-align: middle;
-      font-size: 16px;
-      margin-left: 4px;
-      color: var(--color-muted);
+  .detail-item {
+    display: flex;
+    flex-direction: column;
+
+    .label {
+      font-size: 11px;
+      color: var(--note-muted-color);
     }
   }
 }
 
-/* === הערות קטגוריאליות === */
-.note-box {
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 13px;
-  margin-bottom: 8px;
+/* ================================================= */
+/* 🐎 סוס + מגרש                                    */
+/* ================================================= */
+.resources-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
 
-  h4 {
-    font-size: 14px;
+.resource-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  label {
+    font-size: 12px;
     font-weight: 600;
-    margin-bottom: 6px;
+    color: var(--note-muted-color);
   }
+
+  .readonly-value {
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: #fafafa;
+    border: 1px solid #dcdcdc;
+    font-size: 14px;
+    color: #2f3b22;
+  }
+}
+
+/* ================================================= */
+/* 🎯 mat-select – עיצוב אחיד ויציב                  */
+/* ================================================= */
+:host ::ng-deep .child-details-card .mat-mdc-form-field {
+  width: 100%;
+}
+
+/* מבטל לגמרי outline */
+:host ::ng-deep .child-details-card
+.mdc-notched-outline,
+:host ::ng-deep .child-details-card
+.mdc-notched-outline__leading,
+:host ::ng-deep .child-details-card
+.mdc-notched-outline__trailing,
+:host ::ng-deep .child-details-card
+.mdc-notched-outline__notch {
+  display: none !important;
+}
+
+/* הקופסה עצמה */
+:host ::ng-deep .child-details-card .mat-mdc-form-field-flex {
+  min-height: 44px;
+  padding: 6px 10px !important;
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #d8d8d8;
+  display: flex;
+  align-items: center;
+  transition: border-color 0.2s ease;
+}
+
+/* hover */
+:host ::ng-deep .child-details-card
+.mat-mdc-form-field:hover .mat-mdc-form-field-flex {
+  border-color: #b5b5b5;
+}
+
+/* focus */
+:host ::ng-deep .child-details-card
+.mdc-text-field--focused .mat-mdc-form-field-flex {
+  border-color: #8fa25a;
+  box-shadow: 0 0 0 3px rgba(143, 162, 90, 0.2);
+}
+
+/* טקסט */
+:host ::ng-deep .child-details-card .mat-mdc-select-value {
+  font-size: 14px;
+  color: #2f3b22;
+}
+
+/* חץ */
+:host ::ng-deep .child-details-card .mat-mdc-select-arrow {
+  color: #6b7760;
+}
+
+/* ================================================= */
+/* 📝 הערות                                          */
+/* ================================================= */
+.note-box {
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 13px;
+}
+
+.general-note {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 
 .medical-note {
@@ -135,160 +233,32 @@ mat-card-header {
   border: 1px solid #c7d9ff;
 }
 
-/* === הערות שיעורים === */
-.general-note {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-
-  .lesson-note-card {
-    background: var(--color-surface-alt);
-    border: 1px solid #e0e0e0;
-    border-radius: 10px;
-    padding: 10px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    transition: 0.2s ease;
-
-    &:hover {
-      background: #f8f8f8;
-    }
-
-    .note-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-
-      .note-text {
-        flex: 1;
-        font-size: 14px;
-        color: var(--color-text);
-      }
-
-      .actions {
-        display: flex;
-        gap: 4px;
-
-        button {
-          width: 26px;
-          height: 26px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 50%;
-          transition: 0.2s;
-
-          mat-icon {
-            font-size: 18px;
-          }
-
-          &.edit-btn mat-icon {
-            color: #1976d2;
-          }
-
-          &.delete-btn mat-icon {
-            color: #d32f2f;
-          }
-        }
-      }
-    }
-
-    .note-meta {
-      font-size: 12px;
-      color: var(--color-muted);
-      text-align: left;
-    }
-  }
-}
-
-/* === הוספת הערה חדשה === */
-.new-note {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-
-  h4 {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--color-primary);
-  }
-
-  mat-form-field {
-    width: 100%;
-  }
-
-  textarea {
-    font-size: 13px;
-    border-radius: 8px !important;
-  }
-
-  button {
-    align-self: flex-start;
-    font-size: 13px;
-    border-radius: 20px;
-    padding: 6px 14px;
-    background: var(--color-accent-light);
-    color: var(--color-accent);
-    border: none;
-
-    &:hover {
-      background: #f8e2de;
-    }
-  }
-}
-
-/* === הערות מוכנות === */
-.prepared-notes {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 18px;
-
-  h4 {
-    font-size: 15px;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: var(--color-primary);
-  }
-
-  .filter-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-
-    button[mat-stroked-button] {
-      font-size: 13px;
-      border-radius: 20px;
-      padding: 6px 14px;
-      color: var(--color-accent);
-      border-color: var(--color-accent);
-      transition: 0.2s;
-
-      &:hover {
-        background: var(--color-accent-light);
-      }
-    }
-  }
-}
-
-/* === אנימציה עדינה === */
+/* ================================================= */
+/* ✨ אנימציה                                       */
+/* ================================================= */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-8px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* ================================================= */
+/* 📱 רספונסיביות                                  */
+/* ================================================= */
+@media (max-width: 600px) {
+  .child-details-card {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .lesson-meta-grid,
+  .resources-grid {
+    grid-template-columns: 1fr;
   }
 }
