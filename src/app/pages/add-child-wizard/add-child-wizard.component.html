@@ -38,31 +38,39 @@
           בחרי הורה אחראי ומלאי את פרטי הילד כפי שמופיעים בתעודת הזהות.
         </p>
 
-        <!-- הורה אחראי – רק למזכירה -->
-        <div class="form-field full-width" *ngIf="isSecretaryMode">
-          <label>הורה אחראי</label>
-          <select class="editable-input" [(ngModel)]="selectedParentUid">
-            <option value="" disabled hidden>בחר/י הורה</option>
-            <option *ngFor="let p of parents" [value]="p.uid">
-              {{ p.first_name }} {{ p.last_name }} -
-              {{ p.id_number || 'ללא ת״ז' }}
-            </option>
-          </select>
-          <div class="error-msg" *ngIf="validationErrors['parent_uid']">
-            {{ validationErrors['parent_uid'] }}
-          </div>
-          <div class="error-msg" *ngIf="parentsError">{{ parentsError }}</div>
-          <div class="step-hint small" *ngIf="parentsLoading">טוען הורים…</div>
-        </div>
+      <!-- הורה אחראי – רק למזכירה -->
+<div class="form-field full-width" *ngIf="isSecretaryMode">
+  <label>הורה אחראי</label>
 
-        <div class="form-grid">
-          <div class="form-field">
-            <label>שם פרטי</label>
-            <input class="editable-input" [(ngModel)]="child.first_name" />
-            <div class="error-msg" *ngIf="validationErrors['first_name']">
-              {{ validationErrors['first_name'] }}
-            </div>
-          </div>
+  <!-- שדה טקסט עם אפשרות הקלדה חופשית + רשימת הצעות -->
+<input
+  class="editable-input"
+  type="text"
+  [(ngModel)]="parentInputText"
+  (ngModelChange)="onParentInputChange($event)"
+  placeholder="התחילי להקליד שם או תעודת זהות…"
+  list="parentsList"
+/>
+
+  <!-- רשימת ההצעות שנשענת על formatParentOption -->
+  <datalist id="parentsList">
+    <option *ngFor="let p of parents" [value]="formatParentOption(p)"></option>
+  </datalist>
+
+  <div class="error-msg" *ngIf="validationErrors['parent_uid']">
+    {{ validationErrors['parent_uid'] }}
+  </div>
+  <div class="error-msg" *ngIf="parentsError">{{ parentsError }}</div>
+  <div class="step-hint small" *ngIf="parentsLoading">טוען הורים…</div>
+</div>
+ <div class="form-grid">
+ <div class="form-field">
+ <label>שם פרטי</label>
+ <input class="editable-input" [(ngModel)]="child.first_name" />
+ <div class="error-msg" *ngIf="validationErrors['first_name']">
+   {{ validationErrors['first_name'] }}
+  </div>
+ </div>
 
           <div class="form-field">
             <label>שם משפחה</label>
@@ -163,8 +171,6 @@
               </div>
             </div>
           </div>
-
-
           <label class="check-row">
             <input type="checkbox" [(ngModel)]="medical.physicalDisability" />
             <span>מוגבלות פיזית</span>

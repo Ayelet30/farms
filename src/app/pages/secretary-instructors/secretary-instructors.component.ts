@@ -31,6 +31,14 @@ type InstructorRow = {
   allow_availability_edit?: boolean | null;
 };
 
+interface InstructorWeeklyAvailabilityRow {
+  instructor_id_number: string;
+  day_of_week: number;          // 0-6 (ראשון-שבת)
+  start_time: string | null;    // 'HH:MM:SS'
+  end_time: string | null;      // 'HH:MM:SS'
+  lesson_type_mode: string | null; // 'both' | 'double_only' | 'double or both' | 'break'
+}
+
 interface InstructorDetailsRow extends InstructorRow {
   address?: string | null;
   license_id?: string | null;
@@ -47,10 +55,11 @@ interface InstructorDetailsRow extends InstructorRow {
 
   // ✅ השדות החדשים:
   birth_date?: string | null;        // מגיע מ-Supabase כ-'YYYY-MM-DD'
-  work_day?: string | null;          // לדוגמה: "ראשון"
-  work_start_time?: string | null;   // 'HH:MM' או 'HH:MM:SS'
-  work_end_time?: string | null;     // 'HH:MM' או 'HH:MM:SS'
+
 }
+
+
+
 
 @Component({
   selector: 'app-secretary-instructors',
@@ -61,6 +70,36 @@ interface InstructorDetailsRow extends InstructorRow {
 })
 export class SecretaryInstructorsComponent implements OnInit {
   instructors: InstructorRow[] = [];
+
+  // לו"ז שבועי במגירה (מצב תצוגה)
+  drawerAvailability: InstructorWeeklyAvailabilityRow[] = [];
+
+  // לו"ז שבועי במצב עריכה
+  editAvailability: InstructorWeeklyAvailabilityRow[] = [];
+ 
+    dayOfWeekToLabel(d?: number | null): string {
+    switch (d) {
+      case 0: return 'ראשון';
+      case 1: return 'שני';
+      case 2: return 'שלישי';
+      case 3: return 'רביעי';
+      case 4: return 'חמישי';
+      case 5: return 'שישי';
+      case 6: return 'צאת שבת';
+      default: return '—';
+    }
+  }
+
+  lessonTypeLabel(mode?: string | null): string {
+    switch (mode) {
+      case 'both': return 'בודד או זוגי';
+      case 'double_only': return 'זוגי בלבד';
+      case 'double or both': return 'זוגי או גם וגם';
+      case 'break': return 'הפסקה';
+      default: return '—';
+    }
+  }
+
 
   // ======= מצב עריכה במגירה =======
   editMode = false;
@@ -193,11 +232,10 @@ export class SecretaryInstructorsComponent implements OnInit {
     this.isLoading = true;
     this.error = null;
 
-    try {
-      const dbcTenant = dbTenant();
-
-      // 1) מביאים מדריכים מהטננט – בלי להסתמך על email/phone
-     const { data, error } = await dbcTenant
+  try {
+  const dbcTenant = dbTenant();
+   // 1) מביאים מדריכים מהטננט – בלי להסתמך על email/phone
+  const { data, error } = await dbcTenant
   .from('instructors')
   .select(
     `
@@ -274,10 +312,13 @@ export class SecretaryInstructorsComponent implements OnInit {
     this.drawerInstructor = null;
     this.editMode = false;
     this.editModel = null;
+    this.drawerAvailability = [];
+    this.editAvailability = [];
 
     this.drawer.open();
     await this.loadDrawerData(this.selectedIdNumber!);
   }
+
 
   closeDetails() {
     this.drawer.close();
@@ -291,7 +332,7 @@ private async loadDrawerData(id_number: string) {
   this.drawerLoading = true;
 
   try {
-    const dbcTenant = dbTenant(); // ← שורה חשובה!
+    const dbcTenant = dbTenant();
 
     const { data, error } = await dbcTenant
       .from('instructors')
@@ -317,10 +358,7 @@ private async loadDrawerData(id_number: string) {
         notify,
         accepts_makeup_others,
         allow_availability_edit,
-        birth_date,
-        work_day,
-        work_start_time,
-        work_end_time
+        birth_date
       `)
       .eq('id_number', id_number)
       .maybeSingle();
@@ -329,12 +367,14 @@ private async loadDrawerData(id_number: string) {
     if (!data) {
       this.drawerInstructor = null;
       this.editModel = null;
+      this.drawerAvailability = [];
+      this.editAvailability = [];
       return;
     }
 
     let ins = data as InstructorDetailsRow;
 
-    // אם יש uid – נשלים טלפון/מייל מ-public.users
+    // ---- אם יש uid – להשלים טלפון/מייל מ-public.users ----
     const uid = (ins.uid || '').trim();
     if (uid) {
       const dbcPublic = dbPublic();
@@ -353,8 +393,8 @@ private async loadDrawerData(id_number: string) {
       }
     }
 
+    // להציב את המדריך במגירה + מודל לעריכה
     this.drawerInstructor = ins;
-
     this.editMode = false;
     this.editModel = {
       ...ins,
@@ -362,14 +402,36 @@ private async loadDrawerData(id_number: string) {
         ? [...ins.taught_child_genders]
         : [],
     };
+
+    // ---- לטעון לו"ז שבועי מהטבלה instructor_weekly_availability ----
+    const { data: avail, error: availErr } = await dbcTenant
+      .from('instructor_weekly_availability')
+      .select(
+        'instructor_id_number, day_of_week, start_time, end_time, lesson_type_mode'
+      )
+      .eq('instructor_id_number', id_number)
+      .order('day_of_week');
+
+    if (availErr) {
+      console.error('availability error', availErr);
+      this.drawerAvailability = [];
+      this.editAvailability = [];
+    } else {
+      this.drawerAvailability = (avail ?? []) as InstructorWeeklyAvailabilityRow[];
+      this.editAvailability = this.drawerAvailability.map(a => ({ ...a }));
+    }
+    // -------------------------------------------------------------
   } catch (e) {
     console.error(e);
     this.drawerInstructor = null;
     this.editModel = null;
+    this.drawerAvailability = [];
+    this.editAvailability = [];
   } finally {
     this.drawerLoading = false;
   }
 }
+
 
 
   // ======= מצב עריכה במגירה =======
@@ -473,10 +535,9 @@ private async loadDrawerData(id_number: string) {
 
     this.savingEdit = true;
 
-    try {
-      const dbcTenant = dbTenant();
-
-      const updates: any = {
+  try {
+  const dbcTenant = dbTenant();
+  const updates: any = {
   first_name: m.first_name.trim(),
   last_name: m.last_name.trim(),
   phone,
@@ -491,10 +552,6 @@ private async loadDrawerData(id_number: string) {
   allow_availability_edit: m.allow_availability_edit ?? null,
   taught_child_genders: m.taught_child_genders ?? null,
 
-  // ✅ שדות זמני עבודה
-  work_day: m.work_day?.trim() || null,
-  work_start_time: m.work_start_time || null,
-  work_end_time: m.work_end_time || null,
 };
 
 

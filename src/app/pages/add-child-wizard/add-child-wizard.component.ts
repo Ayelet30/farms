@@ -45,7 +45,6 @@ interface ParentOption {
   templateUrl: './add-child-wizard.component.html',
   styleUrls: ['./add-child-wizard.component.scss'],
 })
-
 export class AddChildWizardComponent implements OnInit {
   /** מצב: הורה / מזכירה */
   @Input() mode: WizardMode = 'parent';
@@ -107,22 +106,30 @@ export class AddChildWizardComponent implements OnInit {
   parentsError: string | null = null;
   selectedParentUid: string | null = null;
 
-   
- private farmSettings = inject(FarmSettingsService);
+  // *** טקסט שמופיע בשדה בחירת ההורה (לחיפוש לייב) ***
+  parentInputText = '';
 
-registrationFeeAgorot: number | null = null;
-registrationFeeLoaded = false;
+  private farmSettings = inject(FarmSettingsService);
 
-async ngOnInit() {
+  registrationFeeAgorot: number | null = null;
+  registrationFeeLoaded = false;
+
+  async ngOnInit() {
+    // קודם נטען את דמי ההרשמה מה-DB
     await this.loadRegistrationFeeFromDb();
 
+    // אם האשף פתוח במצב מזכירה – נטעין גם את רשימת ההורים
+    if (this.isSecretaryMode) {
+      await this.loadParentsForSecretary();
+    }
+
+    // בסוף נבנה את רשימת השלבים לפי המצב (הורה / מזכירות + דמי הרשמה)
     this.rebuildSteps();
   }
 
-get hasRegistrationFee(): boolean {
-  return (this.registrationFeeAgorot ?? 0) > 0;
-}
-
+  get hasRegistrationFee(): boolean {
+    return (this.registrationFeeAgorot ?? 0) > 0;
+  }
 
   private async loadRegistrationFeeFromDb(): Promise<void> {
     try {
@@ -137,8 +144,6 @@ get hasRegistrationFee(): boolean {
         console.error('load farm_settings error', error);
         this.registrationFeeAgorot = 0;
       } else {
-        // אם שמרת את הסכום באגורות – זה כבר מספר מלא (למשל 12000)
-        // אם זה בשקלים – עדיין זה יעבוד, רק הת"נאי >0 זהה
         this.registrationFeeAgorot = (data as any)?.registration_fee ?? 0;
       }
     } catch (e) {
@@ -200,6 +205,9 @@ get hasRegistrationFee(): boolean {
     this.parentsError = null;
 
     try {
+      // לוודא שהטננט / סכימה נטענו
+      await ensureTenantContextReady();
+
       const dbc = dbTenant();
       const { data, error } = await dbc
         .from('parents')
@@ -210,13 +218,48 @@ get hasRegistrationFee(): boolean {
       if (error) throw error;
 
       this.parents = (data ?? []) as ParentOption[];
+
+      // 🟩 חדש – אם קיבלנו presetParentUid / או שכבר יש selectedParentUid,
+      // נמלא את השדה הטקסטואלי בטקסט היפה
+      const uidToUse = this.selectedParentUid || this.presetParentUid;
+      if (uidToUse) {
+        const match = this.parents.find(p => p.uid === uidToUse);
+        if (match) {
+          this.selectedParentUid = match.uid;
+          this.parentInputText = this.formatParentOption(match);
+        }
+      }
     } catch (e: any) {
       console.error(e);
+      this.parents = [];
       this.parentsError = e?.message ?? 'שגיאה בטעינת רשימת ההורים';
     } finally {
       this.parentsLoading = false;
     }
   }
+
+
+
+  // ===== פורמט להורה + סנכרון טקסט לשדה =====
+
+  // פונקציה שמרכיבה טקסט יפה להורה (שם + ת"ז)
+  formatParentOption(p: ParentOption): string {
+    const name = `${p.first_name || ''} ${p.last_name || ''}`.trim();
+    const id = p.id_number || '';
+    return id ? `${name} - ${id}` : name || '(ללא שם)';
+  }
+
+onParentInputChange(value: string) {
+  this.parentInputText = value;
+  const lower = (value || '').toLowerCase().trim();
+
+  const match = this.parents.find(p =>
+    this.formatParentOption(p).toLowerCase() === lower
+  );
+
+  this.selectedParentUid = match ? match.uid : null;
+}
+
 
   /* ---------- ניווט ---------- */
 
