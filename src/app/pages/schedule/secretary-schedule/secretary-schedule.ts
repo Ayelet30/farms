@@ -62,6 +62,8 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   | 'resourceTimeGridWeek' = 'timeGridDay';
 
   autoAssignLoading = false;
+  selectedOccurrence: any = null;
+
 
   private childAgeById = new Map<string, string>();
 
@@ -621,16 +623,59 @@ if (this.currentViewType === 'timeGridDay') {
   }
 
   onEventClick(arg: EventClickArg): void {
-    const childId = arg.event.extendedProps['child_id'] as string | undefined;
-    const child = childId ? this.children.find((c) => c.child_uuid === childId) : null;
-    if (!child) {
-      console.warn('לא נמצא ילד מתאים!', arg.event.extendedProps);
-      this.selectedChild = null;
-      return;
-    }
-    this.selectedChild = { ...child };
-    this.cdr.detectChanges();
+  const ext: any = arg.event.extendedProps || {};
+  const meta: any = ext.meta || ext;
+
+  const childId =
+    meta.child_id ||
+    ext.child_id ||
+    null;
+
+  if (!childId) {
+    console.warn('❌ secretary onEventClick – no child_id', ext);
+    this.selectedChild = null;
+    this.selectedOccurrence = null;
+    return;
   }
+
+  const child =
+    this.children.find(c => c.child_uuid === childId) ?? null;
+
+  this.selectedChild = child ? { ...child } : null;
+
+  // 🔑 lesson_id – לוקחים מה-meta או מה-id של האירוע
+  let lessonId: string | null =
+    meta.lesson_id ?? null;
+
+  if (!lessonId && arg.event.id) {
+    lessonId = String(arg.event.id);
+  }
+
+  // 🔑 occur_date
+  const occurDate =
+    meta.occur_date ??
+    (arg.event.start
+      ? arg.event.start.toISOString().slice(0, 10)
+      : null);
+
+  this.selectedOccurrence = {
+    lesson_id: lessonId,
+    child_id: childId,
+    occur_date: occurDate,
+    status: meta.status ?? null,
+    lesson_type: meta.lesson_type ?? null,
+    start: arg.event.start,
+    end: arg.event.end,
+  };
+
+  console.log(
+    '%c[SECRETARY EVENT CLICK] selectedOccurrence →',
+    'color: green; font-weight: bold;',
+    this.selectedOccurrence
+  );
+
+  this.cdr.detectChanges();
+}
 
   onDateClick(arg: any): void {
     const dateStr = arg?.dateStr ??

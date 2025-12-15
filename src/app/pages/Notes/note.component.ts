@@ -188,13 +188,20 @@ export class NoteComponent
     return v ? v.substring(0, 5) : '';
   }
 
-  private getOccurDate(): string | null {
-    const raw =
-      this.occurrence?.occur_date ||
-      this.occurrence?.date ||
-      this.occurrence?.start;
-    return raw ? String(raw).substring(0, 10) : null;
-  }
+ private getOccurDate(): string | null {
+  const raw =
+    this.occurrence?.occur_date ||
+    this.occurrence?.date ||
+    this.occurrence?.start;
+
+  if (!raw) return null;
+
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return null;
+
+  return d.toISOString().substring(0, 10); // YYYY-MM-DD
+}
+
 
   private hasAnyNote(): boolean {
     return (
@@ -206,34 +213,95 @@ export class NoteComponent
   }
 
   /* ===================== LESSON ===================== */
+async loadLessonDetails() {
+  console.log('--- loadLessonDetails START ---');
 
-  async loadLessonDetails() {
-    const lessonId = this.occurrence?.lesson_id;
-    const occurDate = this.getOccurDate();
-    if (!lessonId || !occurDate) return;
+  const lessonId = this.occurrence?.lesson_id;
+  const occurDate = this.getOccurDate();
 
-    const { data } = await this.dbc
-      .from('lessons_with_children')
-      .select('*')
-      .eq('lesson_id', lessonId)
-      .eq('occur_date', occurDate)
-      .limit(1);
+  console.log('occurrence:', this.occurrence);
+  console.log('lessonId:', lessonId);
+  console.log('occurDate:', occurDate);
 
-    const r = data?.[0];
-    if (!r) return;
-
-    this.lessonDetails = {
-      lesson_id: lessonId,
-      start_time: r.start_time,
-      end_time: r.end_time,
-      lesson_type: r.lesson_type,
-      status: r.status,
-      horse_id: r.horse_id,
-      horse_name: r.horse_name,
-      arena_id: r.arena_id,
-      arena_name: r.arena_name,
-    };
+  if (!lessonId || !occurDate) {
+    console.warn('❌ חסר lessonId או occurDate');
+    this.lessonDetails = null;
+    return;
   }
+
+  /* ============================= */
+  /* 1️⃣ ניסיון טעינה מה־VIEW */
+  /* ============================= */
+
+  const { data: viewData, error: viewError } = await this.dbc
+    .from('lessons_with_children')
+    .select('*')
+    .eq('lesson_id', lessonId)
+    .eq('occur_date', occurDate)
+    .maybeSingle();
+
+  console.log('lessons_with_children result:', viewData);
+  console.log('lessons_with_children error:', viewError);
+
+  /* ============================= */
+  /* 2️⃣ טעינת סוס + מגרש מהטבלה */
+  /* ============================= */
+
+  const { data: resData, error: resError } = await this.dbc
+    .from('lesson_resources')
+    .select('horse_id, arena_id')
+    .eq('lesson_id', lessonId)
+    .eq('occur_date', occurDate)
+    .maybeSingle();
+
+  console.log('lesson_resources result:', resData);
+  console.log('lesson_resources error:', resError);
+
+  if (!viewData && !resData) {
+    console.warn('❌ לא נמצאו נתוני שיעור בכלל');
+    this.lessonDetails = null;
+    return;
+  }
+
+  const horseId = resData?.horse_id ?? viewData?.horse_id ?? null;
+  const arenaId = resData?.arena_id ?? viewData?.arena_id ?? null;
+
+  console.log('resolved horseId:', horseId);
+  console.log('resolved arenaId:', arenaId);
+
+  const horseName =
+    this.horses.find(h => h.id === horseId)?.name ??
+    viewData?.horse_name ??
+    null;
+
+  const arenaName =
+    this.arenas.find(a => a.id === arenaId)?.name ??
+    viewData?.arena_name ??
+    null;
+
+  console.log('resolved horseName:', horseName);
+  console.log('resolved arenaName:', arenaName);
+
+  /* ============================= */
+  /* 3️⃣ בניית האובייקט הסופי */
+  /* ============================= */
+
+  this.lessonDetails = {
+    lesson_id: lessonId,
+    start_time: viewData?.start_time ?? null,
+    end_time: viewData?.end_time ?? null,
+    lesson_type: viewData?.lesson_type ?? null,
+    status: viewData?.status ?? null,
+    horse_id: horseId,
+    horse_name: horseName,
+    arena_id: arenaId,
+    arena_name: arenaName,
+  };
+
+  console.log('✅ FINAL lessonDetails:', this.lessonDetails);
+  console.log('--- loadLessonDetails END ---');
+}
+
 
   /* ===================== HORSES / ARENAS ===================== */
 

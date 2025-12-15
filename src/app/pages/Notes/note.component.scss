@@ -1,226 +1,163 @@
-/* ================================================= */
-/* 🎨 צבעים כלליים                                  */
-/* ================================================= */
 :host {
-  --note-text-color: #2f3b22;
-  --note-muted-color: #6b7760;
+  direction: rtl;
+  display: block;
 }
 
-/* ================================================= */
-/* 🧱 Overlay                                        */
-/* ================================================= */
+/* ===== Overlay + Card ===== */
+
 .note-overlay {
   position: fixed;
   inset: 0;
+  background: rgba(0, 0, 0, 0.25);
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  background: rgba(0, 0, 0, 0.25);
+  padding: 32px 0;
   z-index: 1000;
-  overflow-y: auto;
-  padding: 30px 0;
 }
 
-/* ================================================= */
-/* 🧾 כרטיס ראשי                                     */
-/* ================================================= */
 .child-details-card {
-  direction: rtl;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
   width: 90%;
   max-width: 460px;
   max-height: 90vh;
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
-  animation: fadeIn 0.25s ease;
 }
 
-/* ================================================= */
-/* 🧠 Header                                         */
-/* ================================================= */
-mat-card-header {
-  padding: 14px 18px;
-  border-bottom: 1px solid #eee;
-  background: linear-gradient(to left, #fffaf7, #fff);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  mat-card-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--note-text-color);
-  }
-}
-
-/* ================================================= */
-/* 📜 תוכן מתגלגל                                   */
-/* ================================================= */
 .scrollable-content {
   padding: 16px;
-  background: var(--color-surface-alt);
   overflow-y: auto;
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-/* ================================================= */
-/* 📦 Sections פנימיים                              */
-/* ================================================= */
+/* ===== Sections ===== */
+
 .inner-section {
-  border-radius: 14px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
+  border-radius: 16px;
   padding: 16px;
+  background: #fffef8;
   display: flex;
   flex-direction: column;
   gap: 16px;
-
-  &.top {
-    background: #fffdf7;
-    border-color: #f1e4c7;
-  }
-
-  &.bottom {
-    background: #ffffff;
-  }
 }
 
-/* ================================================= */
-/* 📅 פרטי שיעור                                    */
-/* ================================================= */
-.section.lesson-details {
-  h3 {
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: var(--note-text-color);
-  }
-
-  .lesson-meta-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    font-size: 13px;
-  }
-
-  .detail-item {
-    display: flex;
-    flex-direction: column;
-
-    .label {
-      font-size: 11px;
-      color: var(--note-muted-color);
-    }
-  }
+.inner-section.top {
+  background: #fffdf5;
 }
 
-/* ================================================= */
-/* 🐎 סוס + מגרש                                    */
-/* ================================================= */
-.resources-grid {
+.inner-section.bottom {
+  background: #ffffff;
+}
+
+/* ===== Attendance ===== */
+
+.attendance-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.attendance-btn {
+  flex: 1;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid #d0d0d0;
+  background: #fff;
+  cursor: pointer;
+}
+
+.attendance-btn.active {
+  background: #e7f0d4;
+  border-color: #7fa04a;
+}
+
+/* ===== Lesson Meta ===== */
+
+.lesson-meta-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
-.resource-field {
+.meta-chip {
+  border: 1px solid #e2e2e2;
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.meta-chip .label {
+  font-size: 11px;
+  color: #8a8a8a;
+}
+
+.meta-chip .value {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ===== Resources ===== */
+
+.resources-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.resource-box {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-
-  label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--note-muted-color);
-  }
-
-  .readonly-value {
-    padding: 8px 10px;
-    border-radius: 10px;
-    background: #fafafa;
-    border: 1px solid #dcdcdc;
-    font-size: 14px;
-    color: #2f3b22;
-  }
+  gap: 6px;
 }
 
-/* ================================================= */
-/* 🎯 mat-select – עיצוב אחיד ויציב                  */
-/* ================================================= */
-:host ::ng-deep .child-details-card .mat-mdc-form-field {
-  width: 100%;
-}
-
-/* מבטל לגמרי outline */
-:host ::ng-deep .child-details-card
-.mdc-notched-outline,
-:host ::ng-deep .child-details-card
-.mdc-notched-outline__leading,
-:host ::ng-deep .child-details-card
-.mdc-notched-outline__trailing,
-:host ::ng-deep .child-details-card
-.mdc-notched-outline__notch {
-  display: none !important;
-}
-
-/* הקופסה עצמה */
-:host ::ng-deep .child-details-card .mat-mdc-form-field-flex {
-  min-height: 44px;
-  padding: 6px 10px !important;
-  background: #ffffff;
-  border-radius: 10px;
-  border: 1px solid #d8d8d8;
-  display: flex;
-  align-items: center;
-  transition: border-color 0.2s ease;
-}
-
-/* hover */
-:host ::ng-deep .child-details-card
-.mat-mdc-form-field:hover .mat-mdc-form-field-flex {
-  border-color: #b5b5b5;
-}
-
-/* focus */
-:host ::ng-deep .child-details-card
-.mdc-text-field--focused .mat-mdc-form-field-flex {
-  border-color: #8fa25a;
-  box-shadow: 0 0 0 3px rgba(143, 162, 90, 0.2);
-}
-
-/* טקסט */
-:host ::ng-deep .child-details-card .mat-mdc-select-value {
-  font-size: 14px;
-  color: #2f3b22;
-}
-
-/* חץ */
-:host ::ng-deep .child-details-card .mat-mdc-select-arrow {
+.resource-label {
+  font-size: 13px;
+  font-weight: 600;
   color: #6b7760;
 }
 
-/* ================================================= */
-/* 📝 הערות                                          */
-/* ================================================= */
+/* הקופסה שאנחנו שולטים עליה */
+.resource-select {
+  width: 100%;
+  height: 48px;
+  background: #f3f4f6;
+  border-radius: 18px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+/* mat-select */
+:host ::ng-deep .resource-select-inner {
+  width: 100%;
+}
+
+:host ::ng-deep .resource-select-inner .mat-mdc-select-trigger {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  direction: rtl;
+}
+
+:host ::ng-deep .resource-select-inner .mat-mdc-select-value {
+  font-size: 14px;
+}
+
+:host ::ng-deep .resource-select-inner .mat-mdc-select-arrow-wrapper {
+  margin-right: 6px;
+}
+
+/* ===== Notes ===== */
+
 .note-box {
   border-radius: 12px;
   padding: 14px;
-  font-size: 13px;
-}
-
-.general-note {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
 }
 
 .medical-note {
@@ -233,32 +170,22 @@ mat-card-header {
   border: 1px solid #c7d9ff;
 }
 
-/* ================================================= */
-/* ✨ אנימציה                                       */
-/* ================================================= */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.general-note {
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
 }
 
-/* ================================================= */
-/* 📱 רספונסיביות                                  */
-/* ================================================= */
+/* ===== Mobile ===== */
+
 @media (max-width: 600px) {
+  .lesson-meta-grid,
+  .resources-grid {
+    grid-template-columns: 1fr;
+  }
+
   .child-details-card {
     width: 100%;
     max-height: 100vh;
     border-radius: 0;
-  }
-
-  .lesson-meta-grid,
-  .resources-grid {
-    grid-template-columns: 1fr;
   }
 }
