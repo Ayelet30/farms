@@ -6,15 +6,25 @@ import { AppointmentMode, AppointmentTab, ChildRow, CurrentUser , InstructorRow 
 import { CurrentUserService } from '../core/auth/current-user.service';
 import { ActivatedRoute } from '@angular/router';
 import { SELECTION_LIST } from '@angular/material/list';
-import { MatDialog } from '@angular/material/dialog';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { ViewChild, TemplateRef } from '@angular/core';
 //import { console } from 'inspector';
 import { MatSelect, MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatButtonModule } from '@angular/material/button';
 
 
-
+interface PaymentPlan {
+  id: string;
+  name: string;
+  lesson_price: number | null;
+  subsidy_amount: number | null;
+  customer_amount: number | null;
+  require_docs_at_booking: boolean;
+  required_docs: string[] | null;
+  funding_source_id: string | null;
+}
 
 interface InstructorDbRow {
   uid: string | null;
@@ -113,7 +123,9 @@ interface OccupancyCandidate {
     FormsModule,
     MatSelectModule,
     MatInputModule , 
-    MatTooltipModule],
+    MatTooltipModule,
+    MatButtonModule,
+    MatDialogModule,],
   templateUrl: './appointment-scheduler.component.html',
   styleUrls: ['./appointment-scheduler.component.scss'],
 })
@@ -196,7 +208,7 @@ occupancyConfirmData = {
   @ViewChild('instructorSelect') instructorSelect!: MatSelect;
 
   paymentPlans: PaymentPlan[] = [];
-selectedPaymentPlanId: string | null = null;
+  selectedPaymentPlanId: string | null = null;
 
 get selectedPaymentPlan(): PaymentPlan | null {
   return this.paymentPlans.find(p => p.id === this.selectedPaymentPlanId) ?? null;
@@ -1181,7 +1193,72 @@ onReferralFileSelected(event: Event): void {
   this.referralFile = file;
 }
 
- 
+   // =========================================
+  //   חיפוש חורים להשלמות (find_makeup_slots)
+  // =========================================
+
+  // יצירת שיעור השלמה – יוצר lesson יחיד (repeat_weeks = 1)
+  async bookMakeupSlot(slot: MakeupSlot): Promise<void> {
+  if (!this.selectedChildId) return;
+
+  const dayLabel = this.dayOfWeekLabelFromDate(slot.occur_date);
+  const anchorWeekStart = this.calcAnchorWeekStart(slot.occur_date);
+
+  // נחליט מה ה-id_number שנכניס לשיעור
+  const instructorIdNumber =
+    this.selectedInstructorId === 'any'
+      ? slot.instructor_id
+      : (
+          this.instructors.find(i =>
+            i.instructor_uid === this.selectedInstructorId || // uid
+            i.instructor_id  === this.selectedInstructorId    // במקרה שכבר ת"ז
+          )?.instructor_id ?? slot.instructor_id              // fallback
+        );
+
+  console.log('📌 booking makeup with instructorIdNumber:', instructorIdNumber);
+
+  const { data, error } = await dbTenant()
+    .from('lessons')
+    .insert({
+      child_id: this.selectedChildId,
+      instructor_id: instructorIdNumber,  // ← שורה מתוקנת
+      lesson_type: 'השלמה',
+      status: 'אושר',
+      day_of_week: dayLabel,
+      start_time: slot.start_time,
+      end_time: slot.end_time,
+      repeat_weeks: 1,
+      anchor_week_start: anchorWeekStart,
+      appointment_kind: 'therapy_makeup',
+      approval_id: this.selectedApproval?.approval_id ?? null,
+      origin: this.user!.role === 'parent' ? 'parent' : 'secretary',
+      is_tentative: false,
+      capacity: 1,
+      current_booked: 1,
+      payment_source: this.selectedApproval ? 'health_fund' : 'private',
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    this.makeupError = 'שגיאה ביצירת שיעור ההשלמה';
+    return;
+  }
+
+  this.makeupCreatedMessage = 'שיעור ההשלמה נוצר בהצלחה';
+  await this.onChildChange();
+}
+
+async onMakeupSlotChosen(slot: MakeupSlot): Promise<void> {
+  if (this.isSecretary) {
+    // מזכירה – קובעת שיעור מיד
+    await this.bookMakeupSlot(slot);
+  } else {
+    // הורה – שולח בקשה למזכירה (הפונקציה הקיימת שלך)
+    await this.requestMakeupFromSecretary(slot);
+  }
+}
 
 // בקשת שיעור השלמה מהמזכירה – מכניס גם ל-secretarial_requests וגם ל-lessons
 async requestMakeupFromSecretary(slot: MakeupSlot): Promise<void> {
@@ -1653,7 +1730,7 @@ private async loadOccupancySlotsForCandidate(
     this.loadingOccupancySlots = false;
   }
 }
-async openOccupancySlotsForCandidate(c: MakeupCandidate): Promise<void> {
+async openOccupancySlotsForCandidate(c: OccupancyCandidate): Promise<void> {
   if (!this.selectedChildId) {
     this.occupancyError = 'יש לבחור ילד';
     return;
@@ -1661,39 +1738,48 @@ async openOccupancySlotsForCandidate(c: MakeupCandidate): Promise<void> {
 
   this.selectedOccupancyCandidate = c;
   this.occupancySlots = [];
+  this.occupancySlotsError = null;
   this.occupancyError = null;
 
-  // טווח חיפוש לחורים (בדומה להשלמות)
   const from = c.occur_date;
   const to = this.addDays(c.occur_date, 30);
 
-  // כאן את משתמשת בדיוק ב-find_makeup_slots_for_lesson_by_id_number
-  // כמו ב־loadCandidateSlots, רק שממלאת ל-occupancySlots במקום candidateSlots.
-  let instructorParam: string | null = null;
+  // אצלך ב-RPC מצפים ל-id_number, לכן נוודא שזה באמת id_number
+  const instructorParam = c.instructor_id ?? null;
 
-  if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
-    const sel = this.instructors.find(i => i.instructor_uid === this.selectedInstructorId);
-    instructorParam = sel?.instructor_id ?? null;
-  }
+  this.loadingOccupancySlots = true;
+  try {
+    const { data, error } = await dbTenant().rpc(
+      'find_makeup_slots_for_lesson_by_id_number',
+      {
+        p_instructor_id: instructorParam,
+        p_from_date: from,
+        p_to_date: to,
+      }
+    );
 
-  const { data, error } = await dbTenant().rpc('find_makeup_slots_for_lesson_by_id_number', {
-    p_instructor_id: instructorParam,
-    p_from_date: from,
-    p_to_date: to,
-  });
+    if (error) {
+      console.error('find_makeup_slots_for_lesson_by_id_number error (occupancy)', error);
+      this.occupancySlotsError = 'שגיאה בטעינת שיעורים זמינים למילוי מקום';
+      return;
+    }
 
-  if (error) {
-    console.error('find_makeup_slots_for_lesson_by_id_number error (occupancy)', error);
-    this.occupancyError = 'שגיאה בטעינת חורים למילוי מקום';
-    return;
-  }
+    let slots = (data ?? []) as MakeupSlot[];
 
-  this.occupancySlots = (data ?? []) as MakeupSlot[];
+    if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
+      slots = slots.slice(0, this.displayedMakeupLessonsCount);
+    }
 
-  if (!this.occupancySlots.length) {
-    this.occupancyError = 'לא נמצאו חורים מתאימים למילוי מקום';
+    this.occupancySlots = slots;
+
+    if (!this.occupancySlots.length) {
+      this.occupancySlotsError = 'לא נמצאו שיעורים פנויים למילוי מקום';
+    }
+  } finally {
+    this.loadingOccupancySlots = false;
   }
 }
+
 
 selectOccupancySlot(slot: MakeupSlot): void {
   this.selectedOccupancySlot = slot;

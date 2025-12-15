@@ -333,261 +333,139 @@
     </div> -->
   </div>
 
-  <!-- ======== טאב: שיעור השלמה ======== -->
-  <div *ngIf="selectedTab === 'makeup'" class="appt-card">
-
-    <h3>שיעור השלמה</h3>
-    <!-- רשימת שיעורים שניתן להשלים לפי הגדרות חווה -->
-    <div class="slots-list">
-      <h4>שיעורים שניתן להשלים</h4>
+ <!-- ======== טאב: שיעור השלמה ======== -->
+<div *ngIf="selectedTab === 'makeup'" class="appt-card">
   <h3>שיעור השלמה</h3>
-  <!-- רשימת שיעורים שניתן להשלים לפי הגדרות חווה -->
+
+  <!-- רשימת שיעורים שניתן להשלים -->
   <div class="slots-list">
+    <h4>שיעורים שניתן להשלים</h4>
 
-      <ng-container *ngIf="loadingMakeupCandidates">
-        <p>טוען שיעורים שניתן להשלים...</p>
-      </ng-container>
+    <ng-container *ngIf="loadingMakeupCandidates">
+      <p>טוען שיעורים שניתן להשלים...</p>
+    </ng-container>
 
-      <ng-container *ngIf="!loadingMakeupCandidates && makeupCandidates.length > 0">
-        <table>
-          <thead>
-            <tr>
-              <th>תאריך</th>
-              <th>יום</th>
-              <th>שעה</th>
-              <th>מדריך</th>
-              <th></th> <!-- כפתור פעולה -->
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let c of makeupCandidates" [ngClass]="{
-      'makeup-row-selected':
-        selectedMakeupCandidate?.lesson_id === c.lesson_id &&
-        selectedMakeupCandidate?.occur_date === c.occur_date
-    }">
-              <td>{{ c.occur_date }}</td>
-              <td>{{ c.day_of_week }}</td>
-              <td>
-                {{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}
-              </td>
-              <td>{{ c.instructor_id }}</td>
-              <td>
-                <button type="button" class="appt-cta" (click)="openHolesForCandidate(c)">
-                  להשלמת שיעור זה
-                </button>
-              </td>
-            </tr>
-          </tbody>
-
-        </table>
-
-      </ng-container>
-      <!-- <div *ngIf="selectedMakeupCandidate && candidateSlots.length > 0" class="slots-list">
-  <h4>
-    חורים פנויים להשלמה עבור {{ selectedMakeupCandidate.occur_date }}
-  </h4>
-
-  <table>
-    <thead>
-      <tr>
-        <th>תאריך</th>
-        <th>שעה</th>
-        <th>מדריך</th>
-        <th>יתרה ב-slot</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let s of candidateSlots">
-        <td>{{ s.occur_date }}</td>
-        <td>
-          {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
-        </td>
-        <td>{{ s.instructor_id }}</td>
-        <td>{{ s.remaining_capacity }}</td>
-        <td>
-          <button
-            type="button"
-            class="appt-cta"
-            (click)="bookMakeupSlot(s)"
-          >
-            קבע שיעור השלמה
-          </button>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-
-<p class="error" *ngIf="candidateSlotsError">{{ candidateSlotsError }}</p>
-    </div> -->
-
-      <!-- <div class="appt-form-row">
-      <div class="appt-field-group">
-        <span class="appt-field-label">מתאריך</span>
-        <input
-          class="appt-input"
-          type="date"
-          [(ngModel)]="makeupFromDate"
-        />
-      </div>
-
-      <div class="appt-field-group">
-        <span class="appt-field-label">עד תאריך</span>
-        <input
-          class="appt-input"
-          type="date"
-          [(ngModel)]="makeupToDate"
-        />
-      </div>
-    </div>
-
-    <<div class="appt-actions">
-      <button
-        type="button"
-        class="appt-cta primary"
-        (click)="searchMakeupSlots()"
-        [disabled]="loadingMakeup || !selectedChildId"
-        [attr.aria-disabled]="loadingMakeup || !selectedChildId ? 'true' : null"
-      >
-        {{ loadingMakeup ? 'מחפש...' : 'חפש חורים להשלמה' }}
-      </button>
-    </div> -->
-
-      <p class="error" *ngIf="makeupError">{{ makeupError }}</p>
-      <p class="success" *ngIf="makeupCreatedMessage">
-        {{ makeupCreatedMessage }}
-      </p>
-
-      <div class="slots-list" *ngIf="selectedMakeupCandidate && candidateSlots.length > 0">
-        <h4>
-          חורים פנויים להשלמה עבור {{ selectedMakeupCandidate.occur_date }}
-        </h4>
-
-        <table>
-          <thead>
-            <tr>
-              <th>תאריך</th>
-              <th>יום</th> <!-- ⬅ חדש -->
-              <th>שעה</th>
-              <th>מדריך</th>
-              <th>סוג שיעור</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let s of candidateSlots">
-              <td>{{ s.occur_date }}</td>
-              <td>{{ getSlotDayLabel(s.occur_date) }}</td> <!-- ⬅ חדש -->
-      <table>
+    <ng-container *ngIf="!loadingMakeupCandidates && makeupCandidates.length > 0">
+      <table class="appt-table makeup-table">
         <thead>
           <tr>
             <th>תאריך</th>
-            <th>יום</th> <!-- ⬅ חדש -->
+            <th>יום</th>
             <th>שעה</th>
             <th>מדריך</th>
-<th>סוג שיעור</th>
             <th></th>
           </tr>
         </thead>
+
         <tbody>
-          <tr *ngFor="let s of candidateSlots">
-            <td>{{ s.occur_date }}</td>
-            <td>{{ getSlotDayLabel(s.occur_date) }}</td> 
+          <tr
+            *ngFor="let c of makeupCandidates"
+            [ngClass]="{
+              'makeup-row-selected':
+                selectedMakeupCandidate?.lesson_id === c.lesson_id &&
+                selectedMakeupCandidate?.occur_date === c.occur_date
+            }"
+          >
+            <td>{{ c.occur_date }}</td>
+            <td>{{ c.day_of_week }}</td>
+            <td>{{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}</td>
+            <td>{{ getInstructorNameById(c.instructor_id) }}</td>
+            <td>
+              <button type="button" class="appt-cta" (click)="openHolesForCandidate(c)">
+                להשלמת שיעור זה
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </ng-container>
 
-              <td>
-                {{ s.start_time | slice: 0:5 }}–{{ s.end_time | slice: 0:5 }}
-              </td>
-
-              <!-- שם מדריך, ואם אין – נופל חזרה ל-id -->
-              <td>{{ s.instructor_name || s.instructor_id }}</td>
-
-
-              <td>{{ getLessonTypeLabel(s) }}</td>
-              <td>
-                <button type="button" class="appt-cta" (click)="onMakeupSlotChosen(s)">
-                  קבע שיעור השלמה
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-      </div>
-
-      <p *ngIf="loadingCandidateSlots">טוען חורים פנויים...</p>
-      <p class="error" *ngIf="candidateSlotsError">{{ candidateSlotsError }}</p>
-
-    </div>
-    <!-- <ng-template #confirmSeriesDialog let-dialogRef="dialogRef">
-  <div dir="rtl" style="padding: 10px; max-width: 350px;">
-    <h3>אישור בקשת סדרה</h3>
-
-    <p>
-      האם את בטוחה שברצונך לקבוע
-      סדרה שמתחילה בתאריך <b>{{ seriesConfirmData.startDate }}</b><br>
-      מסתיימת בתאריך <b>{{ seriesConfirmData.endDate }}</b><br>
-      ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
-      בשעה <b>{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</b><br>
-      עם המדריך <b>{{ seriesConfirmData.instructorName }}</b>?
+    <p class="empty-text" *ngIf="!loadingMakeupCandidates && !makeupCandidates.length">
+      אין כרגע שיעורים שניתן להשלים.
     </p>
 
-    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
-      <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
-      <button class="btn-ok" (click)="dialogRef.close(true)">כן</button>
-    </div>
+    <p class="error" *ngIf="makeupError">{{ makeupError }}</p>
+    <p class="success" *ngIf="makeupCreatedMessage">{{ makeupCreatedMessage }}</p>
   </div>
-</ng-template> -->
 
-    <ng-template #confirmMakeupDialog let-dialogRef="dialogRef">
-      <div dir="rtl" style="padding: 10px; max-width: 350px;">
-        <h3>אישור בקשת שיעור השלמה</h3>
+  <!-- חורים פנויים עבור השיעור שנבחר -->
+  <div class="slots-list" *ngIf="selectedMakeupCandidate && candidateSlots.length > 0">
+    <h4>חורים פנויים להשלמה עבור {{ selectedMakeupCandidate.occur_date }}</h4>
 
-        <p>
-          האם את בטוחה שברצונך לבקש שיעור השלמה
-          לתאריך <b>{{ confirmData.newDate }}</b>
-          בשעות <b>{{ confirmData.newStart }}–{{ confirmData.newEnd }}</b>
-          במקום השיעור בתאריך
-          <b>{{ confirmData.oldDate }}</b>
-          בשעות <b>{{ confirmData.oldStart }}–{{ confirmData.oldEnd }}</b>?
-          ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
+    <table class="appt-table">
+      <thead>
+        <tr>
+          <th>תאריך</th>
+          <th>יום</th>
+          <th>שעה</th>
+          <th>מדריך</th>
+          <th>סוג שיעור</th>
+          <th></th>
+        </tr>
+      </thead>
 
-        </p>
+      <tbody>
+        <tr *ngFor="let s of candidateSlots">
+          <td>{{ s.occur_date }}</td>
+          <td>{{ getSlotDayLabel(s.occur_date) }}</td>
+          <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
+          <td>{{ s.instructor_name || s.instructor_id }}</td>
+          <td>{{ getLessonTypeLabel(s) }}</td>
+          <td>
+            <button type="button" class="appt-cta" (click)="onMakeupSlotChosen(s)">
+              קבע שיעור השלמה
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
 
+    <p *ngIf="loadingCandidateSlots">טוען חורים פנויים...</p>
+    <p class="error" *ngIf="candidateSlotsError">{{ candidateSlotsError }}</p>
+  </div>
 
-        <div style="display:flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
-          <button mat-button (click)="dialogRef.close(false)">ביטול</button>
-          <button mat-raised-button color="primary" (click)="dialogRef.close(true)">אישור</button>
-        </div>
+  <!-- דיאלוג אישור להורה -->
+  <ng-template #confirmMakeupDialog let-dialogRef="dialogRef">
+    <div dir="rtl" style="padding: 10px; max-width: 350px;">
+      <h3>אישור בקשת שיעור השלמה</h3>
+
+      <p>
+        האם את בטוחה שברצונך לבקש שיעור השלמה
+        לתאריך <b>{{ confirmData.newDate }}</b>
+        בשעות <b>{{ confirmData.newStart }}–{{ confirmData.newEnd }}</b>
+        במקום השיעור בתאריך
+        <b>{{ confirmData.oldDate }}</b>
+        בשעות <b>{{ confirmData.oldStart }}–{{ confirmData.oldEnd }}</b>?
+        ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
+      </p>
+
+      <div style="display:flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+        <button mat-button (click)="dialogRef.close(false)">ביטול</button>
+        <button mat-raised-button color="primary" (click)="dialogRef.close(true)">אישור</button>
       </div>
-    </ng-template>
-
+    </div>
+  </ng-template>
 </div>
+
+<!-- דיאלוג אישור מילוי מקום -->
 <ng-template #confirmOccupancyDialog let-dialogRef="dialogRef">
   <div dir="rtl" style="padding: 10px; max-width: 380px;">
     <h3>אישור קביעת שיעור מילוי מקום</h3>
 
     <p>
       האם את בטוחה שברצונך לקבוע שיעור מילוי מקום
-      בתאריך
-      <b>{{ occupancyConfirmData.newDate }}</b>
-      בשעות
-      <b>{{ occupancyConfirmData.newStart }}–{{ occupancyConfirmData.newEnd }}</b>
-      עם המדריך
-      <b>{{ occupancyConfirmData.newInstructorName }}</b><br>
+      בתאריך <b>{{ occupancyConfirmData.newDate }}</b>
+      בשעות <b>{{ occupancyConfirmData.newStart }}–{{ occupancyConfirmData.newEnd }}</b>
+      עם המדריך <b>{{ occupancyConfirmData.newInstructorName }}</b><br>
       במקום השיעור שהיה בתאריך
       <b>{{ occupancyConfirmData.oldDate }}</b>
-      בשעות
-      <b>{{ occupancyConfirmData.oldStart }}–{{ occupancyConfirmData.oldEnd }}</b>
-      עם המדריך
-      <b>{{ occupancyConfirmData.oldInstructorName }}</b>?
+      בשעות <b>{{ occupancyConfirmData.oldStart }}–{{ occupancyConfirmData.oldEnd }}</b>
+      עם המדריך <b>{{ occupancyConfirmData.oldInstructorName }}</b>?
     </p>
 
     <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 20px;">
       <button mat-button (click)="dialogRef.close(false)">ביטול</button>
-      <button mat-raised-button color="primary" (click)="dialogRef.close(true)">
-        אישור
-      </button>
+      <button mat-raised-button color="primary" (click)="dialogRef.close(true)">אישור</button>
     </div>
   </div>
 </ng-template>
@@ -600,6 +478,93 @@
     <ng-container *ngIf="loadingOccupancyCandidates">
       <p>טוען שיעורים שמחפשים מילוי מקום...</p>
     </ng-container>
+
+    <ng-container *ngIf="!loadingOccupancyCandidates && occupancyCandidates.length > 0">
+      <table class="appt-table occupancy-table">
+        <thead>
+          <tr>
+            <th>תאריך</th>
+            <th>יום</th>
+            <th>שעה</th>
+            <th>מדריך</th>
+            <th>סטטוס</th>
+            <th></th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr
+            *ngFor="let o of occupancyCandidates"
+            [ngClass]="{
+              'occupancy-row-selected':
+                selectedOccupancyCandidate?.lesson_id === o.lesson_id &&
+                selectedOccupancyCandidate?.occur_date === o.occur_date
+            }"
+          >
+            <td>{{ o.occur_date }}</td>
+            <td>{{ o.day_of_week }}</td>
+            <td>{{ o.start_time | slice:0:5 }}–{{ o.end_time | slice:0:5 }}</td>
+            <td>{{ o.instructor_name || o.instructor_id }}</td>
+            <td>{{ o.status }}</td>
+            <td>
+              <button type="button" class="appt-cta" (click)="openOccupancySlotsForCandidate(o)">
+                הצג שיעורים זמינים
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </ng-container>
+
+    <p class="empty-text" *ngIf="!loadingOccupancyCandidates && !occupancyCandidates.length">
+      אין כרגע שיעורים שמחפשים מילוי מקום.
+    </p>
+
+    <p class="error" *ngIf="occupancyError">{{ occupancyError }}</p>
+    <p class="success" *ngIf="occupancyCreatedMessage">{{ occupancyCreatedMessage }}</p>
+  </div>
+
+  <!-- סלוטים לשיעורי מילוי מקום עבור הקנדידט שנבחר -->
+  <div class="slots-list occupancy-slots" *ngIf="selectedOccupancyCandidate && occupancySlots.length > 0">
+    <h4>שיעורים זמינים למילוי מקום עבור {{ selectedOccupancyCandidate.occur_date }}</h4>
+
+    <table class="appt-table">
+      <thead>
+        <tr>
+          <th>תאריך</th>
+          <th>יום</th>
+          <th>שעה</th>
+          <th>מדריך</th>
+          <th>סוג שיעור</th>
+          <th>יתרה ב-slot</th>
+          <th></th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr *ngFor="let s of occupancySlots">
+          <td>{{ s.occur_date }}</td>
+          <td>{{ getSlotDayLabel(s.occur_date) }}</td>
+          <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
+          <td>{{ s.instructor_name || s.instructor_id }}</td>
+          <td>{{ getLessonTypeLabel(s) }}</td>
+          <td>{{ s.remaining_capacity }}</td>
+          <td>
+            <button type="button" class="appt-cta" (click)="selectAndRequestOccupancySlot(s)">
+              קבע שיעור מילוי מקום
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p *ngIf="loadingOccupancySlots">טוען שיעורים למילוי מקום...</p>
+    <p class="error" *ngIf="occupancySlotsError">{{ occupancySlotsError }}</p>
+  </div>
+</div>
+
+
+<!-- ======== טאב: מילוי מקום ======== -->
 
     <ng-container *ngIf="!loadingOccupancyCandidates && occupancyCandidates.length > 0">
       <table class="appt-table occupancy-table">
@@ -650,7 +615,6 @@
       אין כרגע שיעורים שמחפשים מילוי מקום.
     </p>
   </div>
-</div>
 <div
   class="slots-list occupancy-slots"
   *ngIf="selectedOccupancyCandidate && occupancySlots.length > 0"
