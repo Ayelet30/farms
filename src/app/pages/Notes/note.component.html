@@ -154,15 +154,15 @@
           </div>
         </div>
 
-      <div class="note-meta">
-  נכתב ע"י
-  {{
-    note.instructor_uid
-      ? note.instructor_name
-      : 'מזכירה'
-  }}
-  • {{ note.created_at | date:'dd.MM.yyyy HH:mm' }}
-</div>
+     <div class="note-meta">
+    נכתב ע"י
+    {{
+      n.instructor_uid
+        ? n.instructor_name
+        : 'מזכירה'
+    }}
+    • {{ n.created_at | date:'dd.MM.yyyy HH:mm' }}
+  </div>
 
       </div>
     </div>
