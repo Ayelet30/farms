@@ -17,10 +17,7 @@ import { Lesson } from '../../../models/lesson-schedule.model';
 import { NoteComponent } from '../../Notes/note.component';
 
 import { CurrentUserService } from '../../../core/auth/current-user.service';
-import {
-  dbTenant,
-  ensureTenantContextReady,
-} from '../../../services/legacy-compat';
+import { dbTenant, ensureTenantContextReady } from '../../../services/legacy-compat';
 
 /* ------------ TYPES ------------ */
 type UUID = string;
@@ -149,10 +146,15 @@ export class InstructorScheduleComponent implements OnInit {
       const startYmd = ymd(addDays(new Date(), -14));
       const endYmd = ymd(addDays(new Date(), 60));
 
+      console.log('[INIT] range', { startYmd, endYmd, instructorId: this.instructorId });
+
       await this.loadLessonsForRange(startYmd, endYmd);
 
+      // ✅ חדש: טעינת סוס+מגרש והזרקה לתוך lessons
+      await this.loadLessonResourcesForRange(startYmd, endYmd);
+
       const childIds = Array.from(
-        new Set(this.lessons.map((l) => l.child_id).filter(Boolean)),
+        new Set(this.lessons.map((l: any) => l.child_id).filter(Boolean)),
       ) as string[];
 
       if (childIds.length) {
@@ -164,7 +166,7 @@ export class InstructorScheduleComponent implements OnInit {
       this.setScheduleItems();
       this.updateCurrentDateFromCalendar();
     } catch (err: any) {
-      console.error(err);
+      console.error('[INIT ERROR]', err);
       this.error = err?.message || 'שגיאה בטעינה';
     } finally {
       this.loading = false;
@@ -173,11 +175,11 @@ export class InstructorScheduleComponent implements OnInit {
   }
 
   /* ------------ LOADERS ------------ */
-  private async loadLessonsForRange(
-    startYmd: string,
-    endYmd: string,
-  ): Promise<void> {
+
+  private async loadLessonsForRange(startYmd: string, endYmd: string): Promise<void> {
     const dbc = dbTenant();
+
+    console.log('[LOAD LESSONS]', { startYmd, endYmd });
 
     const { data, error } = await dbc
       .from('lessons_occurrences')
@@ -201,6 +203,68 @@ export class InstructorScheduleComponent implements OnInit {
 
     if (error) throw error;
     this.lessons = (data ?? []) as Lesson[];
+
+    console.log('[LOAD LESSONS] count', this.lessons.length);
+  }
+
+  /**
+   * ✅ חדש: טעינת horse_name + arena_name מתוך view שעובד אצל המזכירה:
+   * lessons_with_children (רק עמודות קיימות!)
+   *
+   * חשוב:
+   * - לא מבקשים child_name / start_datetime וכו' כדי לא לקבל 42703
+   * - ממפים לפי (lesson_id + occur_date)
+   */
+  private async loadLessonResourcesForRange(startYmd: string, endYmd: string): Promise<void> {
+    try {
+      if (!this.lessons?.length) return;
+
+      const dbc = dbTenant();
+
+      const lessonIds = Array.from(
+        new Set(this.lessons.map((l: any) => l.lesson_id).filter(Boolean)),
+      ) as string[];
+
+      if (!lessonIds.length) return;
+
+      console.log('[LOAD RESOURCES]', { startYmd, endYmd, lessonIds: lessonIds.length });
+
+      const { data: resData, error } = await dbc
+        .from('lessons_with_children')
+        .select('lesson_id, occur_date, horse_name, arena_name')
+        .in('lesson_id', lessonIds)
+        .gte('occur_date', startYmd)
+        .lte('occur_date', endYmd);
+
+      if (error) throw error;
+
+      const resourceByKey = new Map<string, { horse_name: string | null; arena_name: string | null }>();
+
+      for (const row of (resData ?? []) as any[]) {
+        const key = `${row.lesson_id}::${String(row.occur_date).slice(0, 10)}`;
+        resourceByKey.set(key, {
+          horse_name: row.horse_name ?? null,
+          arena_name: row.arena_name ?? null,
+        });
+      }
+
+      // מזריקים לתוך lessons כדי ש-setScheduleItems יוכל לשים meta
+      this.lessons = this.lessons.map((l: any) => {
+        const key = `${l.lesson_id}::${String(l.occur_date).slice(0, 10)}`;
+        const res = resourceByKey.get(key);
+
+        return {
+          ...l,
+          horse_name: res?.horse_name ?? null,
+          arena_name: res?.arena_name ?? null,
+        } as any;
+      });
+
+      console.log('[LOAD RESOURCES] merged into lessons');
+    } catch (err) {
+      console.error('[LOAD RESOURCES ERROR]', err);
+      // לא מפילים את המסך אם המשאבים לא זמינים
+    }
   }
 
   private async loadChildrenAndRefs(ids: string[]): Promise<void> {
@@ -248,10 +312,7 @@ export class InstructorScheduleComponent implements OnInit {
     }));
   }
 
-  private async loadRequestsForRange(
-    startYmd: string,
-    endYmd: string,
-  ): Promise<void> {
+  private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<void> {
     const dbc = dbTenant();
 
     const { data, error } = await dbc
@@ -348,21 +409,11 @@ export class InstructorScheduleComponent implements OnInit {
 
     // תצוגת שבוע / יום – אירוע לכל שיעור
     this.items = src.map((l: any) => {
-      const startISO = this.ensureIso(
-        l.start_datetime,
-        l.start_time,
-        l.occur_date,
-      );
-      const endISO = this.ensureIso(
-        l.end_datetime,
-        l.end_time,
-        l.occur_date,
-      );
+      const startISO = this.ensureIso(l.start_datetime, l.start_time, l.occur_date);
+      const endISO = this.ensureIso(l.end_datetime, l.end_time, l.occur_date);
 
       const child = this.children.find((c) => c.child_uuid === l.child_id);
-      const name = `${child?.first_name || ''} ${
-        child?.last_name || ''
-      }`.trim();
+      const name = `${child?.first_name || ''} ${child?.last_name || ''}`.trim();
       const agePart = child?.age != null ? ` (${child.age})` : '';
 
       const lessonTypeLabel = this.formatLessonType(l.lesson_type);
@@ -371,9 +422,17 @@ export class InstructorScheduleComponent implements OnInit {
       if (l.status === 'בוטל') color = '#ffcdd2';
       else if (new Date(endISO) < new Date()) color = '#e0e0e0';
 
+      // ✅ חדש: טקסט סוס+מגרש (לא חובה – אבל עוזר לראות בלוז)
+      const horse = l.horse_name ? `🐴 ${l.horse_name}` : '';
+      const arena = l.arena_name ? `🏟 ${l.arena_name}` : '';
+      const resourcesText = [horse, arena].filter(Boolean).join(' | ');
+
+      const titleBase = `${name}${agePart} — ${lessonTypeLabel}`.trim();
+      const title = resourcesText ? `${titleBase}\n${resourcesText}` : titleBase;
+
       const item: ScheduleItem = {
         id: `${l.lesson_id}_${l.child_id}_${l.occur_date}`,
-        title: `${name}${agePart} — ${lessonTypeLabel}`.trim(),
+        title,
         start: startISO,
         end: endISO,
         color,
@@ -384,7 +443,13 @@ export class InstructorScheduleComponent implements OnInit {
           instructor_name: '',
           status: l.status,
           lesson_type: lessonTypeLabel,
-        },
+
+          // ✅ חדש: מעבירים ל-UI/NoteComponent
+          horse_name: l.horse_name ?? null,
+          arena_name: l.arena_name ?? null,
+          occur_date: (l.occur_date ?? '').slice(0, 10),
+          lesson_id: l.lesson_id,
+        } as any,
         status: l.status as any,
       };
 
@@ -413,28 +478,18 @@ export class InstructorScheduleComponent implements OnInit {
   }
 
   /* ------------ EVENTS ------------ */
-  /* ------------ EVENTS ------------ */
   onEventClick(arg: EventClickArg): void {
-    // ================ DEBUG חזק ================
-    console.log(
-      '%c[EVENT CLICK] full event →',
-      'color: orange; font-size: 14px; font-weight: bold;',
-      arg.event
-    );
-    console.log(
-      '%c[EVENT CLICK] extendedProps →',
-      'color: blue; font-weight: bold;',
-      arg.event.extendedProps
-    );
+    console.log('%c[EVENT CLICK] full event →', 'color: orange; font-weight:bold;', arg.event);
+    console.log('%c[EVENT CLICK] extendedProps →', 'color: blue; font-weight:bold;', arg.event.extendedProps);
 
-    const ext: any = arg.event.extendedProps || {};
-    const raw: any = ext.raw || ext.meta || ext;
+    // ✅ TS4111-safe: משתמשים בגישה עם ['meta']
+    const ext: any = (arg.event as any).extendedProps || {};
+    const meta: any = ext['meta'] || ext; // <<--- חשוב
 
-    console.log('%c[EVENT CLICK] raw →', 'color: purple;', raw);
+    console.log('%c[EVENT CLICK] meta →', 'color: purple;', meta);
 
-    // ננסה להביא child_id מכל מקום אפשרי
     const childId: string | undefined =
-      raw.child_id || ext.child_id || raw.child_uuid;
+      meta.child_id || ext.child_id || meta.child_uuid;
 
     console.log('%c[EVENT CLICK] childId →', 'color: teal;', childId);
 
@@ -443,63 +498,50 @@ export class InstructorScheduleComponent implements OnInit {
       return;
     }
 
-    // ננסה למצוא lesson_id מכל מקור אפשרי
-    let lessonId: string | null =
-      raw.lesson_id ??
-      ext.lesson_id ??
-      null;
+    // lesson_id אמיתי: מה-meta או חילוץ מה-id
+    let lessonId: string | null = meta.lesson_id ?? ext.lesson_id ?? null;
 
-    // אם עדיין אין – ננסה לחלץ מה-id של האירוע (בנינו אותו כ: lessonId_childId_occurDate)
-    const eventId = String(arg.event.id || '');
+    const eventId = String((arg.event as any).id || '');
     console.log('%c[EVENT CLICK] event.id →', 'color: brown;', eventId);
 
     if (!lessonId && eventId.includes('_')) {
       lessonId = eventId.split('_')[0] || null;
-      console.log(
-        '%c[EVENT CLICK] lessonId recovered from event.id →',
-        'color: red; font-weight:bold;',
-        lessonId
-      );
-    } else {
-      console.log(
-        '%c[EVENT CLICK] lessonId from raw/ext →',
-        'color: red; font-weight:bold;',
-        lessonId
-      );
+      console.log('%c[EVENT CLICK] lessonId recovered from event.id →', 'color: red; font-weight:bold;', lessonId);
     }
 
     const lessonTypeLabel =
-      raw.lesson_type ||
+      meta.lesson_type ||
       ext.lesson_type ||
-      this.formatLessonType(raw.lesson_type);
+      this.formatLessonType(meta.lesson_type);
 
     // הילד לכרטיסייה
     this.selectedChild =
       this.children.find((c) => c.child_uuid === childId) ?? null;
 
-    // אוקורנס – נשלח ל-NoteComponent
+    // occurrence ל-NoteComponent
     this.selectedOccurrence = {
-      lesson_id: lessonId,  // ⭐ עכשיו צריך להגיע ערך אמיתי
+      lesson_id: lessonId,
       child_id: childId,
-      status: raw.status ?? ext.status ?? null,
+      occur_date: meta.occur_date ?? (arg.event.start ? arg.event.start.toISOString().slice(0, 10) : null),
+
+      status: meta.status ?? ext.status ?? null,
       lesson_type: lessonTypeLabel,
       start: arg.event.start,
       end: arg.event.end,
+
+      // ✅ חדש: משאבים
+      horse_name: meta.horse_name ?? null,
+      arena_name: meta.arena_name ?? null,
     };
 
-    console.log(
-      '%c[EVENT CLICK] selectedOccurrence →',
-      'color: green; font-weight:bold;',
-      this.selectedOccurrence
-    );
+    console.log('%c[EVENT CLICK] selectedOccurrence →', 'color: green; font-weight:bold;', this.selectedOccurrence);
 
-    // מיפוי לסטטוס נוכחות (אם יש כזה במטא)
     const attendanceRaw = String(
-      raw.attendance_status ??
+      meta.attendance_status ??
         ext.attendance_status ??
-        raw.status ??
+        meta.status ??
         ext.status ??
-        ''
+        '',
     ).toLowerCase();
 
     if (attendanceRaw === 'present' || attendanceRaw === 'הגיע') {
@@ -513,7 +555,6 @@ export class InstructorScheduleComponent implements OnInit {
     this.cdr.detectChanges();
   }
 
-
   onDateClick(event: any): void {
     const api = this.scheduleComp?.calendarApi;
     if (!api) return;
@@ -524,7 +565,6 @@ export class InstructorScheduleComponent implements OnInit {
     }
   }
 
-  /** חתימה רחבה כדי לסתום את NG על Event */
   onRightClickDay(e: any): void {
     if (!e?.jsEvent || !e?.dateStr) return;
     e.jsEvent.preventDefault();
@@ -542,6 +582,8 @@ export class InstructorScheduleComponent implements OnInit {
   /* ------------ שינוי טווח תצוגה ------------ */
   async onViewRangeChange(range: any): Promise<void> {
     try {
+      console.log('[VIEW RANGE]', range);
+
       const vt = range.viewType || '';
       if (vt === 'dayGridMonth') this.currentView = 'dayGridMonth';
       else if (vt === 'timeGridWeek') this.currentView = 'timeGridWeek';
@@ -560,6 +602,9 @@ export class InstructorScheduleComponent implements OnInit {
       this.loading = true;
 
       await this.loadLessonsForRange(range.start, range.end);
+
+      // ✅ חדש: לטעון משאבים שוב לפי הטווח החדש
+      await this.loadLessonResourcesForRange(range.start, range.end);
 
       const ids = Array.from(
         new Set(this.lessons.map((l: any) => l.child_id).filter(Boolean)),
@@ -847,39 +892,38 @@ export class InstructorScheduleComponent implements OnInit {
     return map[t];
   }
 
- private formatLessonType(val: any, lesson?: any): string {
-  if (!val) return 'ניסיון'; // ברירת מחדל במקום NULL
+  private formatLessonType(val: any, lesson?: any): string {
+    if (!val) return 'ניסיון';
 
-  const v = String(val).toUpperCase();
+    const v = String(val).toUpperCase();
 
-  switch (v) {
-    case 'REGULAR':
-      // אם יש חזרתיות → להציג חלק מסדרה
-      if (lesson?.repeat_weeks && lesson?.week_index >= 0) {
-        const part = lesson.week_index + 1;
-        const total = lesson.repeat_weeks;
-        return `רגיל (חלק ${part} מתוך ${total})`;
-      }
-      return 'שיעור רגיל';
+    switch (v) {
+      case 'REGULAR':
+        if (lesson?.repeat_weeks && lesson?.week_index >= 0) {
+          const part = lesson.week_index + 1;
+          const total = lesson.repeat_weeks;
+          return `רגיל (חלק ${part} מתוך ${total})`;
+        }
+        return 'שיעור רגיל';
 
-    case 'MAKEUP':
-      return 'השלמה';
+      case 'MAKEUP':
+        return 'השלמה';
 
-    case 'NISAYON':
-      return 'ניסיון';
+      case 'NISAYON':
+        return 'ניסיון';
 
-    case 'SERIES':
-      if (lesson?.repeat_weeks && lesson?.week_index >= 0) {
-        const part = lesson.week_index + 1;
-        const total = lesson.repeat_weeks;
-        return `רגיל (חלק ${part} מתוך ${total})`;
-      }
-      return 'רגיל';
+      case 'SERIES':
+        if (lesson?.repeat_weeks && lesson?.week_index >= 0) {
+          const part = lesson.week_index + 1;
+          const total = lesson.repeat_weeks;
+          return `רגיל (חלק ${part} מתוך ${total})`;
+        }
+        return 'רגיל';
 
-    default:
-      return val;
+      default:
+        return val;
+    }
   }
-}
 
   private updateCurrentDateFromCalendar(): void {
     const api = this.scheduleComp?.calendarApi;
