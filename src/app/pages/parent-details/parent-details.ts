@@ -18,6 +18,7 @@ type ParentNotify = {
   templateUrl: './parent-details.html',
   styleUrls: ['./parent-details.css']
 })
+
 export class ParentDetailsComponent implements OnInit, OnDestroy  {
 
 ngOnDestroy() {
@@ -114,7 +115,7 @@ this.editableParent = {
       }
 
       this.children = childrenData ?? [];
-      this.visibleChildren = this.children.filter(c => c.status !== 'deleted');
+      this.visibleChildren = this.children.filter(c => c.status !== 'Deleted');
     } catch (e: any) {
       this.error = e?.message ?? 'שגיאה לא צפויה';
     } finally {
@@ -124,11 +125,20 @@ this.editableParent = {
 
   getStatusText(status: string): string {
     switch (status) {
-      case 'active':   return 'פעיל';
-      case 'waiting':  return 'ממתין לאישור מזכירה';
-      case 'deleted':  return 'נמחק';
-      default:         return 'לא ידוע';
-    }
+       case 'Active':
+      return 'פעיל';
+
+    case 'Pending Addition Approval':
+      return 'ממתין לאישור הוספת ילד';
+
+    case 'Pending Deletion Approval':
+      return 'ממתין לאישור מחיקה';
+
+    case 'Deleted':
+      return 'נמחק';
+
+    default:
+      return 'לא ידוע';}
   }
 private showInfo(msg: string, ms = 5000) {
   this.infoMessage = msg;
