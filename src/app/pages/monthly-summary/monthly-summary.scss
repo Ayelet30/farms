@@ -85,7 +85,7 @@
     .kpi {
       flex: 1 1 160px;
       min-width: 150px;
-      max-width: 210px;
+      max-width: 150px;
       display: flex;
       flex-direction: column;
       align-items: flex-start;
@@ -591,8 +591,8 @@
   @media (max-width: 1024px) {
     .kpis {
       .kpi {
-        flex: 1 1 45%;
-        max-width: 45%;
+        flex: 1 1 30%;
+        max-width: 30%;
       }
     }
   }
