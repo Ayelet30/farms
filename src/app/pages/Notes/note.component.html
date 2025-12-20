@@ -30,7 +30,8 @@
       <mat-card-content class="scrollable-content">
 
         <!-- ================= TOP ================= -->
-        <div class="inner-section top">
+       <div class="inner-section top lesson-details">
+
 
           <!-- נוכחות -->
           <section *ngIf="occurrence && canEditNotes">
@@ -91,9 +92,13 @@
             </div>
 
             <div class="lesson-resources-row">
-              <mat-form-field appearance="fill" class="resource-field">
-                <mat-label>סוס</mat-label>
-                <mat-select [(ngModel)]="lessonDetails.horse_id">
+            <mat-form-field appearance="fill" class="resource-field no-floating">
+  <mat-select
+    placeholder="סוס"
+    [(ngModel)]="lessonDetails.horse_id"
+    (selectionChange)="onHorseChange($event.value)"
+    [disabled]="!canEditLessonResources">
+
                   <mat-option [value]="null">— ללא סוס —</mat-option>
                   <mat-option *ngFor="let h of horses" [value]="h.id">
                     {{ h.name }}
@@ -160,7 +165,8 @@
                     class="edit-btn"
                     *ngIf="!note.isEditing"
                     (click)="startEdit(note)">
-                    <mat-icon>edit</mat-icon>
+                   <mat-icon>drive_file_rename_outline</mat-icon>
+
                   </button>
 
                   <button

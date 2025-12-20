@@ -130,7 +130,18 @@ export class NoteComponent implements OnInit, OnChanges {
 
   newNote = '';
 
-  lessonDetails: LessonDetails | null = null;
+lessonDetails: LessonDetails = {
+  lesson_id: '',
+  start_time: null,
+  end_time: null,
+  lesson_type: null,
+  status: null,
+  horse_id: null,
+  horse_name: null,
+  arena_id: null,
+  arena_name: null,
+};
+
 
   horses: HorseOption[] = [];
   arenas: ArenaOption[] = [];
@@ -175,21 +186,27 @@ showCloseWarning: any;
 
   /* ===================== LIFECYCLE ===================== */
 
-  async ngOnInit() {
-    await Promise.all([
-      this.loadHorses(),
-      this.loadArenas(),
-      this.loadReadyNotes(),
-      this.loadNotes(),
-      this.loadLessonDetails(),
-    ]);
+ async ngOnInit() {
+  // 1️⃣ טעינת נתונים בסיסיים – חייבים לפני פרטי שיעור
+  await this.loadHorses();
+  await this.loadArenas();
+  await this.loadReadyNotes();
 
-    this.resetCloseWarnings();
+  // 2️⃣ עכשיו אפשר לטעון נתונים שתלויים בזה
+  await this.loadLessonDetails();
+  await this.loadNotes();
 
-    queueMicrotask(() => {
-      this.scrollable?.nativeElement?.scrollTo({ top: 0 });
-    });
-  }
+  // 3️⃣ איפוס התראות סגירה
+  this.resetCloseWarnings();
+
+  // 4️⃣ גלילה לראש הכרטיס (אחרי רינדור)
+  queueMicrotask(() => {
+    if (this.scrollable?.nativeElement) {
+      this.scrollable.nativeElement.scrollTo({ top: 0 });
+    }
+  });
+}
+
 
   async ngOnChanges(changes: SimpleChanges) {
     if (changes['occurrence'] && !changes['occurrence'].firstChange) {
@@ -238,51 +255,43 @@ showCloseWarning: any;
 
   /* ===================== LESSON DETAILS ===================== */
 
-  async loadLessonDetails() {
-    this.lessonDetails = null;
+async loadLessonDetails() {
+  const lessonId = this.occurrence?.lesson_id;
+  const occurDate = this.getOccurDateForDb();
+  if (!lessonId || !occurDate) return;
 
-    const lessonId = this.occurrence?.lesson_id;
-    const occurDate = this.getOccurDateForDb();
-    if (!lessonId || !occurDate) return;
+  const { data: baseData } = await this.dbc
+    .from('lessons_with_children')
+    .select('lesson_id,start_time,end_time,lesson_type,status')
+    .eq('lesson_id', lessonId)
+    .limit(1);
 
-    // base (ללא תלות בילד)
-    const { data: baseData } = await this.dbc
-      .from('lessons_with_children')
-      .select('lesson_id,start_time,end_time,lesson_type,status')
-      .eq('lesson_id', lessonId)
-      .limit(1);
+  const base = baseData?.[0];
+  if (!base) return;
 
-    const base = baseData?.[0];
-    if (!base) return;
+  const { data: resData } = await this.dbc
+    .from('lesson_resources')
+    .select('horse_id,arena_id')
+    .eq('lesson_id', lessonId)
+    .eq('occur_date', occurDate)
+    .limit(1);
 
-    // resources
-    const { data: resData } = await this.dbc
-      .from('lesson_resources')
-      .select('horse_id,arena_id')
-      .eq('lesson_id', lessonId)
-      .eq('occur_date', occurDate)
-      .limit(1);
+  const horseId = resData?.[0]?.horse_id ?? null;
+  const arenaId = resData?.[0]?.arena_id ?? null;
 
-    const horseId: string | null = resData?.[0]?.horse_id ?? null;
-    const arenaId: string | null = resData?.[0]?.arena_id ?? null;
+  this.lessonDetails.lesson_id = lessonId;
+this.lessonDetails.start_time = base.start_time ?? null;
+this.lessonDetails.end_time = base.end_time ?? null;
+this.lessonDetails.lesson_type = base.lesson_type ?? null;
+this.lessonDetails.status = base.status ?? null;
+this.lessonDetails.horse_id = horseId;
+this.lessonDetails.horse_name =
+  horseId ? this.horses.find(h => h.id === horseId)?.name ?? null : null;
+this.lessonDetails.arena_id = arenaId;
+this.lessonDetails.arena_name =
+  arenaId ? this.arenas.find(a => a.id === arenaId)?.name ?? null : null;
 
-    const horseName =
-      horseId ? this.horses.find(h => h.id === horseId)?.name ?? null : null;
-    const arenaName =
-      arenaId ? this.arenas.find(a => a.id === arenaId)?.name ?? null : null;
-
-    this.lessonDetails = {
-      lesson_id: lessonId,
-      start_time: base.start_time ?? null,
-      end_time: base.end_time ?? null,
-      lesson_type: base.lesson_type ?? null,
-      status: base.status ?? null,
-      horse_id: horseId,
-      horse_name: horseName,
-      arena_id: arenaId,
-      arena_name: arenaName,
-    };
-  }
+}
 
   /* ===================== HORSES / ARENAS ===================== */
 

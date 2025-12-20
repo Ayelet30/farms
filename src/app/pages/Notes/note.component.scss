@@ -545,3 +545,400 @@ mat-icon {
 :host ::ng-deep .resource-field .mdc-line-ripple {
   display: none;
 }
+/* ===== TOP: נוכחות + פרטי שיעור ===== */
+.inner-section.top.lesson-details {
+  gap: 16px;
+}
+
+/* כותרות */
+.inner-section.top.lesson-details h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--note-text-color);
+  margin-bottom: 6px;
+}
+
+/* ===== נוכחות ===== */
+.attendance-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+
+  button {
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 13px;
+    min-width: 70px;
+  }
+
+  button.active {
+    background: #e8f5e9;
+    border-color: #43a047;
+    color: #2e7d32;
+  }
+}
+
+/* ===== גריד פרטי שיעור ===== */
+.lesson-meta-grid {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+}
+
+.lesson-meta-grid .detail-item {
+  background: #fafafa;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+/* ===== סוס / מגרש ===== */
+.lesson-resources-row {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+/* רספונסיבי */
+@media (max-width: 600px) {
+  .lesson-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* ===== פרטי שיעור – מראה אינפורמטיבי ===== */
+.lesson-meta-grid {
+  background: transparent;
+  border: none;
+  padding: 0;
+  gap: 8px 10px;
+}
+
+.lesson-meta-grid .detail-item {
+  background: #fff;
+  border: 1px solid #eee4cf;
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+.lesson-meta-grid .label {
+  font-size: 11px;
+  letter-spacing: 0.2px;
+}
+
+.lesson-meta-grid .value {
+  font-size: 14px;
+  font-weight: 600;
+}
+/* ===== אזור סוס / מגרש ===== */
+.lesson-resources-row {
+  margin-top: 6px;
+  background: #fffaf2;
+  border: 1px dashed #e8d9b8;
+  border-radius: 16px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+:host ::ng-deep .resource-field .mat-mdc-text-field-wrapper {
+  background: #ffffff !important;
+  border-radius: 999px !important;
+  border: 1px solid #e6dcc7;
+}
+
+:host ::ng-deep .resource-field .mat-mdc-select-trigger {
+  font-size: 14px;
+  font-weight: 500;
+}
+/* =================================================
+   FIX TOP SECTION ONLY – בלי לפגוע בשאר העיצוב
+   ================================================= */
+
+/* עטיפה כללית */
+.inner-section.top.lesson-details {
+  gap: 16px;
+}
+
+/* ---------- נוכחות ---------- */
+.inner-section.top.lesson-details .attendance-actions {
+  justify-content: center;
+  gap: 12px;
+}
+
+.inner-section.top.lesson-details .attendance-actions button {
+  min-width: 90px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  border: 1px solid #d8d2c4;
+  background: #fff;
+}
+
+.inner-section.top.lesson-details .attendance-actions button.active {
+  background: #eaf5ec;
+  border-color: #6fbf73;
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+/* ---------- פרטי שיעור ---------- */
+.inner-section.top.lesson-details .lesson-meta-grid {
+  background: transparent;
+  border: none;
+  padding: 0;
+  gap: 10px 12px;
+}
+
+.inner-section.top.lesson-details .detail-item {
+  background: #fff;
+  border: 1px solid #eee4cf;
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+/* היררכיה נכונה */
+.inner-section.top.lesson-details .detail-item .label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--note-text-color);
+}
+
+.inner-section.top.lesson-details .detail-item .value {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--note-muted-color);
+}
+
+/* ---------- סוס / מגרש ---------- */
+.inner-section.top.lesson-details .lesson-resources-row {
+  background: #fff;
+  border: 1px solid #eee4cf;
+  border-radius: 16px;
+  padding: 14px;
+}
+
+/* ---------- mat-select רק כאן ---------- */
+:host ::ng-deep
+.inner-section.top.lesson-details
+.resource-field
+.mat-mdc-text-field-wrapper {
+  background: #fff !important;
+  border-radius: 999px !important;
+  border: 1px solid #e6dcc7;
+}
+
+/* label באמצע האליפסה */
+:host ::ng-deep
+.inner-section.top.lesson-details
+.resource-field
+.mat-mdc-floating-label {
+  top: 50% !important;
+  transform: translateY(-50%) scale(1) !important;
+}
+
+/* label עולה כשיש ערך */
+:host ::ng-deep
+.inner-section.top.lesson-details
+.resource-field.mat-mdc-form-field-should-float
+.mat-mdc-floating-label {
+  top: 6px !important;
+  transform: scale(0.75) !important;
+}
+/* =================================================
+   ביטול floating label – סוס / מגרש בלבד
+   ================================================= */
+
+/* לא להרים את ה-label */
+:host ::ng-deep
+.inner-section.top.lesson-details
+.resource-field.mat-mdc-form-field
+.mat-mdc-floating-label {
+  top: 50% !important;
+  transform: translateY(-50%) scale(1) !important;
+}
+
+/* גם כשהשדה בפוקוס או עם ערך – לא לעלות */
+:host ::ng-deep
+.inner-section.top.lesson-details
+.resource-field.mat-mdc-form-field.mat-form-field-should-float
+.mat-mdc-floating-label,
+:host ::ng-deep
+.inner-section.top.lesson-details
+.resource-field.mat-mdc-form-field.mat-focused
+.mat-mdc-floating-label {
+  top: 50% !important;
+  transform: translateY(-50%) scale(1) !important;
+}
+/* =========================
+   FIX Material Icons
+   ========================= */
+
+mat-icon {
+  font-family: 'Material Icons' !important;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+/* כפתורי אייקון */
+button[mat-icon-button] {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* עריכה */
+button.edit-btn {
+  background: #eef3ff;
+}
+
+button.edit-btn mat-icon {
+  color: #1976d2;
+}
+
+/* מחיקה */
+button.delete-btn {
+  background: #fff0f0;
+}
+
+button.delete-btn mat-icon {
+  color: #d32f2f;
+}
+
+/* hover עדין */
+button[mat-icon-button]:hover {
+  filter: brightness(0.95);
+}
+/* =========================
+   FIX edit icon specifically
+   ========================= */
+
+button.edit-btn mat-icon {
+  font-size: 18px !important;
+  line-height: 18px !important;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* =========================
+   טקסט שחור אחיד בכל הכרטסת
+   ========================= */
+
+/* טקסט כללי */
+.child-details-card,
+.child-details-card h3,
+.child-details-card h4,
+.child-details-card .label,
+.child-details-card .value,
+.child-details-card p,
+.child-details-card span {
+  color: #1f1f1f; /* שחור רך, לא צורב */
+}
+
+/* נוכחות – טקסט בכפתורים */
+.attendance-actions button {
+  color: #1f1f1f;
+}
+
+/* נוכחות פעילה – להשאיר רקע ירקרק אבל טקסט שחור */
+.attendance-actions button.active {
+  color: #1f1f1f;
+}
+
+/* הערות מוכנות – טקסט בכפתורים */
+.prepared-notes button[mat-stroked-button] {
+  color: #1f1f1f;
+}
+
+/* מטא של הערות (שם + תאריך) */
+.lesson-note-card .note-meta {
+  color: #1f1f1f;
+}
+/* =========================
+   הערות מוכנות – רק האליפסה שמנת
+   ========================= */
+
+.prepared-notes {
+  background: transparent; /* חשוב – לא לצבוע את המלבן */
+}
+
+/* האליפסה של כל הערה */
+.prepared-notes button[mat-stroked-button] {
+  background: #fffaf2;        /* שמנת */
+  border: 1px solid #e6dcc7;  /* מסגרת עדינה */
+  color: #1f1f1f;             /* טקסט שחור */
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 13px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+/* hover עדין */
+.prepared-notes button[mat-stroked-button]:hover {
+  background: #f3ecd9;        /* שמנת מעט כהה יותר */
+  border-color: #d8cfae;
+}
+/* =========================
+   הוספת הערה חדשה – שמנת + ירוק זית
+   ========================= */
+
+/* כל הבלוק */
+.new-note {
+  background: #fffdf7;           /* שמנת בהירה */
+  border: 1px solid #e6dcc7;
+  border-radius: 16px;
+}
+
+/* שדה הטקסט */
+:host ::ng-deep
+.new-note .mat-mdc-text-field-wrapper {
+  background: #fffaf2 !important; /* שמנת */
+  border-radius: 14px !important;
+  border: 1px solid #e6dcc7;
+}
+
+/* הטקסט בפנים */
+:host ::ng-deep
+.new-note textarea,
+:host ::ng-deep
+.new-note .mat-mdc-input-element {
+  color: #1f1f1f; /* שחור */
+  font-size: 14px;
+}
+
+/* label */
+:host ::ng-deep
+.new-note .mat-mdc-floating-label {
+  color: #556b2f; /* ירוק זית */
+}
+
+/* כפתור הוספה */
+.new-note button {
+  background: #e6ecd8;          /* ירוק זית בהיר */
+  color: #2f3b22;               /* ירוק זית כהה */
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 13px;
+  border: 1px solid #c8d2b3;
+  box-shadow: none;
+}
+
+/* hover */
+.new-note button:hover {
+  background: #dce5c8;
+}

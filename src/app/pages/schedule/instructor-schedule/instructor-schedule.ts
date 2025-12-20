@@ -487,83 +487,92 @@ if (!row.payload?.category) return res;
   }
 
   /* ------------ EVENTS ------------ */
-  onEventClick(arg: EventClickArg): void {
-    
-    console.log('%c[EVENT CLICK] full event →', 'color: orange; font-weight:bold;', arg.event);
-    console.log('%c[EVENT CLICK] extendedProps →', 'color: blue; font-weight:bold;', arg.event.extendedProps);
+onEventClick(arg: EventClickArg): void {
+  const evAny: any = arg.event;
+  const eventId = String(evAny?.id || '');
 
-    // ✅ TS4111-safe: משתמשים בגישה עם ['meta']
-    const ext: any = (arg.event as any).extendedProps || {};
-    const meta: any = ext['meta'] || ext; // <<--- חשוב
+  // ✅ 1) לחיצה על סיכום חודשי → לעבור ליום הזה (כמו לחיצה על הרקע) + לטעון שיעורים
+  if (eventId.startsWith('summary_')) {
+    const day = eventId.replace('summary_', '').slice(0, 10);
 
-    console.log('%c[EVENT CLICK] meta →', 'color: purple;', meta);
+    // ניקוי כרטיסייה פתוחה (אם יש)
+    this.selectedChild = null;
+    this.selectedOccurrence = null;
+    this.attendanceStatus = null;
 
-    const childId: string | undefined =
-      meta.child_id || ext.child_id || meta.child_uuid;
-
-    console.log('%c[EVENT CLICK] childId →', 'color: teal;', childId);
-
-    if (!childId) {
-      console.warn('[EVENT CLICK] no child_id found, aborting');
-      return;
-    }
-
-    // lesson_id אמיתי: מה-meta או חילוץ מה-id
-    let lessonId: string | null = meta.lesson_id ?? ext.lesson_id ?? null;
-
-    const eventId = String((arg.event as any).id || '');
-    console.log('%c[EVENT CLICK] event.id →', 'color: brown;', eventId);
-
-    if (!lessonId && eventId.includes('_')) {
-      lessonId = eventId.split('_')[0] || null;
-      console.log('%c[EVENT CLICK] lessonId recovered from event.id →', 'color: red; font-weight:bold;', lessonId);
-    }
-
-    const lessonTypeLabel =
-      meta.lesson_type ||
-      ext.lesson_type ||
-      this.formatLessonType(meta.lesson_type);
-
-    // הילד לכרטיסייה
-    this.selectedChild =
-      this.children.find((c) => c.child_uuid === childId) ?? null;
-
-    // occurrence ל-NoteComponent
-    this.selectedOccurrence = {
-      lesson_id: lessonId,
-      child_id: childId,
-      occur_date: meta.occur_date ?? (arg.event.start ? arg.event.start.toISOString().slice(0, 10) : null),
-
-      status: meta.status ?? ext.status ?? null,
-      lesson_type: lessonTypeLabel,
-      start: arg.event.start,
-      end: arg.event.end,
-
-      // ✅ חדש: משאבים
-      horse_name: meta.horse_name ?? null,
-      arena_name: meta.arena_name ?? null,
-    };
-
-    console.log('%c[EVENT CLICK] selectedOccurrence →', 'color: green; font-weight:bold;', this.selectedOccurrence);
-
-    const attendanceRaw = String(
-      meta.attendance_status ??
-        ext.attendance_status ??
-        meta.status ??
-        ext.status ??
-        '',
-    ).toLowerCase();
-
-    if (attendanceRaw === 'present' || attendanceRaw === 'הגיע') {
-      this.attendanceStatus = 'present';
-    } else if (attendanceRaw === 'absent' || attendanceRaw === 'לא הגיע') {
-      this.attendanceStatus = 'absent';
-    } else {
-      this.attendanceStatus = null;
-    }
+    // קריטי: להשתמש ב-goToDay כדי ש-FullCalendar יפעיל datesSet → viewRange → loadLessons
+    this.currentView = 'timeGridDay';
+    this.scheduleComp?.goToDay(day);
 
     this.cdr.detectChanges();
+    return;
   }
+
+  // ✅ 2) לחיצה על שיעור רגיל → לפתוח כרטסת ילד (כמו בקוד המקורי)
+  const extProps: any = evAny?.extendedProps || {};
+  const metaProps: any = extProps['meta'] || extProps;
+
+  const childId: string | undefined =
+    metaProps.child_id || extProps.child_id || metaProps.child_uuid;
+
+  if (!childId) {
+    console.warn('[EVENT CLICK] no child_id found, aborting', { extProps, metaProps });
+    return;
+  }
+
+  // lesson_id אמיתי: מה-meta או חילוץ מה-id
+  let lessonId: string | null = metaProps.lesson_id ?? extProps.lesson_id ?? null;
+  if (!lessonId && eventId.includes('_')) {
+    lessonId = eventId.split('_')[0] || null;
+  }
+
+  const lessonTypeLabel =
+    metaProps.lesson_type ||
+    extProps.lesson_type ||
+    this.formatLessonType(metaProps.lesson_type);
+
+  // הילד לכרטיסייה
+  this.selectedChild =
+    this.children.find((c) => c.child_uuid === childId) ?? null;
+
+  // occurrence ל-NoteComponent
+  this.selectedOccurrence = {
+    lesson_id: lessonId,
+    child_id: childId,
+    occur_date:
+      metaProps.occur_date ??
+      (arg.event.start ? arg.event.start.toISOString().slice(0, 10) : null),
+
+    status: metaProps.status ?? extProps.status ?? null,
+    lesson_type: lessonTypeLabel,
+    start: arg.event.start,
+    end: arg.event.end,
+
+    // משאבים
+    horse_name: metaProps.horse_name ?? null,
+    arena_name: metaProps.arena_name ?? null,
+  };
+
+  // נוכחות
+  const attendanceRaw = String(
+    metaProps.attendance_status ??
+      extProps.attendance_status ??
+      metaProps.status ??
+      extProps.status ??
+      '',
+  ).toLowerCase();
+
+  if (attendanceRaw === 'present' || attendanceRaw === 'הגיע') {
+    this.attendanceStatus = 'present';
+  } else if (attendanceRaw === 'absent' || attendanceRaw === 'לא הגיע') {
+    this.attendanceStatus = 'absent';
+  } else {
+    this.attendanceStatus = null;
+  }
+
+  this.cdr.detectChanges();
+}
+
 
   onDateClick(event: any): void {
     const api = this.scheduleComp?.calendarApi;
