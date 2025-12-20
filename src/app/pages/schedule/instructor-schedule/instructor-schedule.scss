@@ -240,3 +240,36 @@
 .day-request-rejected {
   background-color: #f8d7da !important;
 }
+/* ===== סיכום חודשי – כמו מזכירה ===== */
+:host ::ng-deep .fc-daygrid-event.summary {
+  background: var(--olive-50);
+  border: 1.5px solid var(--olive-300);
+  border-radius: 12px;
+  padding: 6px 10px;
+  margin: 4px 0;
+  box-shadow: 0 1px 0 rgba(0,0,0,.04);
+}
+
+/* טקסט */
+:host ::ng-deep .fc-daygrid-event.summary .fc-event-title {
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 13px;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+/* ריחוף – כמו אצל המזכירה */
+:host ::ng-deep .fc-daygrid-event.summary:hover {
+  border-color: var(--olive-600);
+  background: #fff;
+}
+
+/* מובייל */
+@media (max-width: 520px) {
+  :host ::ng-deep .fc-daygrid-event.summary {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+}

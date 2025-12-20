@@ -312,36 +312,41 @@ export class InstructorScheduleComponent implements OnInit {
     }));
   }
 
-  private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<void> {
-    const dbc = dbTenant();
+private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<void> {
+  const dbc = dbTenant();
 
-    const { data, error } = await dbc
-      .from('secretarial_requests')
-      .select(
-        `
-        id,
-        instructor_id,
-        request_type,
-        status,
-        from_date,
-        to_date,
-        payload,
-        decision_note
-      `,
-      )
-      .eq('instructor_id', this.instructorId)
-      .gte('from_date', startYmd)
-      .lte('from_date', endYmd);
+  const { data, error } = await dbc
+    .from('secretarial_requests')
+    .select(
+      `
+      id,
+      instructor_id,
+      request_type,
+      status,
+      from_date,
+      to_date,
+      payload,
+      decision_note
+    `,
+    )
+    .eq('instructor_id', this.instructorId)
+    .eq('request_type', 'INSTRUCTOR_DAY_OFF') // ✅ הכי חשוב! רק בקשות חופש אמיתיות
+    // ✅ טווח חופף: בקשה שנוגעת לטווח התצוגה גם אם התחילה לפני
+    .lte('from_date', endYmd)
+    .gte('to_date', startYmd);
 
-    if (error) throw error;
+  if (error) throw error;
 
-    const rows = data ?? [];
-    this.dayRequests = rows.flatMap((row: any) => this.expandRequestRow(row));
-  }
+  const rows = data ?? [];
+  this.dayRequests = rows.flatMap((row: any) => this.expandRequestRow(row));
+}
+
 
   private expandRequestRow(row: any): DayRequestRow[] {
     const res: DayRequestRow[] = [];
     if (!row.from_date) return res;
+// ✅ אם אין category – זו לא בקשת חופש תקינה, לא להציג בלוח
+if (!row.payload?.category) return res;
 
     const from = new Date(row.from_date);
     const to = new Date(row.to_date || row.from_date);
@@ -392,12 +397,16 @@ export class InstructorScheduleComponent implements OnInit {
         }
 
         const item: ScheduleItem = {
-          id: day,
+          id: `summary_${day}`,
           title: parts.join(' | '),
           start: day,
           end: day,
-          color: '#ffffff',
+          color: 'transparent', 
           status: 'summary',
+    meta: {
+    isSummaryDay: 'true', // ✅ string ולא boolean
+  },
+
         };
 
         return item;
@@ -479,6 +488,7 @@ export class InstructorScheduleComponent implements OnInit {
 
   /* ------------ EVENTS ------------ */
   onEventClick(arg: EventClickArg): void {
+    
     console.log('%c[EVENT CLICK] full event →', 'color: orange; font-weight:bold;', arg.event);
     console.log('%c[EVENT CLICK] extendedProps →', 'color: blue; font-weight:bold;', arg.event.extendedProps);
 
@@ -580,52 +590,59 @@ export class InstructorScheduleComponent implements OnInit {
   }
 
   /* ------------ שינוי טווח תצוגה ------------ */
-  async onViewRangeChange(range: any): Promise<void> {
-    try {
-      console.log('[VIEW RANGE]', range);
+ async onViewRangeChange(range: any): Promise<void> {
+  try {
+    console.log('[VIEW RANGE RAW]', range);
 
-      const vt = range.viewType || '';
-      if (vt === 'dayGridMonth') this.currentView = 'dayGridMonth';
-      else if (vt === 'timeGridWeek') this.currentView = 'timeGridWeek';
-      else this.currentView = 'timeGridDay';
+    const vt = range.viewType || '';
+    if (vt === 'dayGridMonth') this.currentView = 'dayGridMonth';
+    else if (vt === 'timeGridWeek') this.currentView = 'timeGridWeek';
+    else this.currentView = 'timeGridDay';
 
-      if (
-        this.lastRange &&
-        this.lastRange.start === range.start &&
-        this.lastRange.end === range.end
-      ) {
-        this.updateCurrentDateFromCalendar();
-        return;
-      }
+    const startYmd = toYmd(range.start);
+    const endYmd = toYmd(range.end);
+function toYmd(val: string | Date): string {
+  const d = typeof val === 'string' ? new Date(val) : val;
+  return ymd(d);
+}
 
-      this.lastRange = { start: range.start, end: range.end };
-      this.loading = true;
+    console.log('[VIEW RANGE YMD]', { startYmd, endYmd });
 
-      await this.loadLessonsForRange(range.start, range.end);
-
-      // ✅ חדש: לטעון משאבים שוב לפי הטווח החדש
-      await this.loadLessonResourcesForRange(range.start, range.end);
-
-      const ids = Array.from(
-        new Set(this.lessons.map((l: any) => l.child_id).filter(Boolean)),
-      ) as string[];
-
-      if (ids.length) {
-        await this.loadChildrenAndRefs(ids);
-      }
-
-      await this.loadRequestsForRange(range.start, range.end);
-
-      this.setScheduleItems();
+    if (
+      this.lastRange &&
+      this.lastRange.start === startYmd &&
+      this.lastRange.end === endYmd
+    ) {
       this.updateCurrentDateFromCalendar();
-    } catch (err: any) {
-      console.error('viewRange error', err);
-      this.error = err?.message || 'שגיאה בטעינת השיעורים';
-    } finally {
-      this.loading = false;
-      this.cdr.detectChanges();
+      return;
     }
+
+    this.lastRange = { start: startYmd, end: endYmd };
+    this.loading = true;
+
+    await this.loadLessonsForRange(startYmd, endYmd);
+    await this.loadLessonResourcesForRange(startYmd, endYmd);
+
+    const ids = Array.from(
+      new Set(this.lessons.map((l: any) => l.child_id).filter(Boolean)),
+    ) as string[];
+
+    if (ids.length) {
+      await this.loadChildrenAndRefs(ids);
+    }
+
+    await this.loadRequestsForRange(startYmd, endYmd);
+
+    this.setScheduleItems();
+    this.updateCurrentDateFromCalendar();
+  } catch (err: any) {
+    console.error('viewRange error', err);
+    this.error = err?.message || 'שגיאה בטעינת השיעורים';
+  } finally {
+    this.loading = false;
+    this.cdr.detectChanges();
   }
+}
 
   /* ------------ ניווט טולבר ------------ */
   onToolbarChangeView(view: CalendarView): void {
