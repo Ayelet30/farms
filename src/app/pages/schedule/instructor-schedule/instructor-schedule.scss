@@ -106,6 +106,8 @@
 }
 
 .modal {
+  height: -webkit-fill-available;
+  margin-top: 70px;
   background: #fff;
   padding: 20px;
   width: 360px;

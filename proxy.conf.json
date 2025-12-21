@@ -39,12 +39,20 @@
       "^/api/tranzilaHandshake$": "/tranzilaHandshakeHttp"
     }
   },
-  "/api/recordOneTimePayment": {
+  "/api/recordOneTimePayment": { 
     "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
     "changeOrigin": true,
     "secure": true,
     "pathRewrite": {
       "^/api/recordOneTimePayment$": "/recordOneTimePayment"
+    }
+  },
+  "/api/savePaymentMethod": { 
+    "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+    "changeOrigin": true,
+    "secure": true,
+    "pathRewrite": {
+      "^/api/savePaymentMethod$": "/savePaymentMethod"
     }
   }
 }

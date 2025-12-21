@@ -1,3 +1,4 @@
+/* add-child-wizard.component.scss */
 .wizard-overlay {
   position: fixed;
   inset: 0;
@@ -11,7 +12,7 @@
 }
 
 .wizard-dialog {
-  background: #f9f7f3; // קרם בהיר כמו האתר
+  background: #f9f7f3;
   border-radius: 24px;
   max-width: 900px;
   width: 100%;
@@ -137,23 +138,6 @@
   }
 }
 
-.autism-function {
-  margin: 0.25rem 0 0.1rem 0;
-  padding-right: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.radio-row {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.82rem;
-  color: #514329;
-}
-
-
 .form-field.full-width {
   grid-column: 1 / -1;
 }
@@ -183,6 +167,15 @@ textarea {
   margin-bottom: 0.5rem;
 }
 
+.ok-banner {
+  background: #f0f7f0;
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.85rem;
+  color: #355337;
+  border: 1px solid #cfe3cf;
+}
+
 .error-msg {
   font-size: 0.75rem;
   color: #b33939;
@@ -204,6 +197,22 @@ textarea {
 
 .check-row.big {
   margin-top: 0.5rem;
+}
+
+.autism-function {
+  margin: 0.25rem 0 0.1rem 0;
+  padding-right: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: #514329;
 }
 
 .rules-box {
@@ -271,7 +280,12 @@ textarea {
   }
 }
 
-/* מובייל */
+.inline-link {
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 @media (max-width: 768px) {
   .wizard-dialog {
     padding: 1.25rem 1rem 1rem;
@@ -287,5 +301,3 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
-
-

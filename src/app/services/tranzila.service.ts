@@ -10,6 +10,7 @@ type CreateHostedUrlParams = {
   orderId: string;        // את יכולה לייצר אצלך: `${uid}-${Date.now()}`
   successPath?: string;   // לדוג': '/payments/success'
   failPath?: string;      // לדוג': '/payments/error'
+  tenantSchema?: string | null;
 };
 
 type CreateHostedUrlResponse = { url: string };
@@ -82,6 +83,21 @@ export class TranzilaService {
     return res.url;
   }
 
+  savePaymentMethod(args: {
+  parentUid: string;
+  tenantSchema: string;
+  token: string;
+  last4?: string | null;
+  brand?: string | null;
+  expiryMonth?: string | null;
+  expiryYear?: string | null;
+}) {
+  return firstValueFrom(
+    this.http.post(`${this.base}/savePaymentMethod`, args)
+  );
+}
+
+
   async chargeByToken(params: ChargeByTokenParams): Promise<any> {
     return firstValueFrom(this.http.post(`${this.base}/chargeByToken`, params));
   }
@@ -91,6 +107,7 @@ export class TranzilaService {
     this.http.get<{ thtk: string }>('/api/tranzilaHandshake', {})
   );
 }
+
 chargeOnce(body: {
   amountAgorot: number;
   card: { card_number: string; expire_month: number; expire_year: number; cvv: string; card_holder_id?: string; card_holder_name?: string; };

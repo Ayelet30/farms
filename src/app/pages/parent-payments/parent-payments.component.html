@@ -1,113 +1,153 @@
-<!-- app/billing/parent-payments.component.html -->
-<div class="card" *ngIf="!loading(); else loadingTpl">
-  <h2>אמצעי תשלום</h2>
+<!-- src/app/pages/parent-payments/parent-payments.component.html -->
 
-  <div class="profiles">
-    <div class="profile" *ngFor="let p of profiles()">
-      <div class="left">
-        <div class="brand">{{ p.brand || 'כרטיס' }}</div>
-        <div class="last4">•••• {{ p.last4 || '----' }}</div>
-        <div class="created">נוסף: {{ p.created_at }}</div>
-      </div>
-      <div class="right">
-        <button class="secondary" (click)="setDefault(p.id)" [disabled]="p.is_default">
-          קבע כברירת מחדל
-        </button>
-        <span *ngIf="p.is_default" class="badge">ברירת מחדל</span>
-        <button class="danger" (click)="deactivate(p.id)">השבת</button>
-      </div>
-    </div>
+<div class="card" *ngIf="!loading(); else loadingTpl" dir="rtl">
+  <div class="top-row">
+    <h2 class="title">אמצעי תשלום</h2>
 
-    <div class="empty" *ngIf="profiles().length === 0">
-      אין אמצעי תשלום שמורים.
-    </div>
+    <!-- נשאר למעלה בימין -->
+    <button class="btn primary" type="button" (click)="openAddCardModal()">
+      הוספת כרטיס חדש
+    </button>
   </div>
 
-   <button (click)="openHostedModal()" [disabled]="busyHosted()">
-    חיוב בכרטיס חדש
-  </button>
-
-  <div class="actions">
-    <button (click)="addPaymentMethod()" [disabled]="busyAdd()">הוסף אמצעי תשלום</button>
-  </div>
-
-  <hr />
-
-  <h3>חיוב חד-פעמי (בדיקה/ידני)</h3>
-  <label>סכום (אגורות)</label>
-  <input type="number" [(ngModel)]="amountAgorot" />
-  <button (click)="testCharge()" [disabled]="busyCharge()">בצע חיוב</button>
-
-  <hr />
-
-  <h3>היסטוריית חיובים</h3>
-  <div class="charges">
-    <div class="charge" *ngFor="let c of charges()">
-      <div>{{ c.created_at }}</div>
-      <div>{{ c.sumNis }}</div>
-      <div [class.ok]="c.status === 'succeeded'" [class.fail]="c.status === 'failed'">
-        {{ c.status }}
-      </div>
-      <div class="muted">#{{ c.provider_id || '-' }}</div>
-    </div>
-    <div class="empty" *ngIf="charges().length === 0">אין חיובים להצגה.</div>
-  </div>
-
+  <!-- הודעת שגיאה כללית -->
   <div class="error" *ngIf="error()">{{ error() }}</div>
-</div>
-<!-- -------- Modal של Hosted Fields -------- -->
-<div class="hf-backdrop" [class.is-open]="hostedOpen()">
-  <div class="hf-modal" dir="rtl">
-    <header class="hf-header">
-      <h3>חיוב בכרטיס חדש</h3>
-      <button type="button" class="hf-close" (click)="closeHostedModal()">✕</button>
-    </header>
 
-    <form id="hf_payment_form"
-          (submit)="onHostedFormSubmit($event)"
-          class="hf-form">
+  <!-- ===================== כרטיסים שמורים ===================== -->
+  <div class="section">
+    <div class="section-title">כרטיסים שמורים</div>
+
+    <div class="profiles" *ngIf="profiles().length; else noProfiles">
+      <div class="profile" *ngFor="let p of profiles(); trackBy: trackById">
+        <div class="left">
+          <div class="brand">{{ p.brand || 'כרטיס' }}</div>
+          <div class="last4">•••• {{ p.last4 || '----' }}</div>
+          <div class="created">
+            נוסף: {{ p.created_at }}
+            <span class="muted" *ngIf="p.expiry_month && p.expiry_year">
+              · תוקף: {{ p.expiry_month }}/{{ p.expiry_year }}
+            </span>
+          </div>
+        </div>
+
+        <div class="right">
+          <button
+            class="btn secondary"
+            type="button"
+            (click)="setDefault(p.id)"
+            [disabled]="p.is_default"
+          >
+            קבע כברירת מחדל
+          </button>
+
+          <span *ngIf="p.is_default" class="badge">ברירת מחדל</span>
+        </div>
+      </div>
+    </div>
+
+    <ng-template #noProfiles>
+      <div class="empty">אין אמצעי תשלום שמורים.</div>
+    </ng-template>
+
+    <div class="hint">
+      אין אפשרות להסיר כרטיסים. ניתן רק להגדיר ברירת מחדל.
+      אם החיוב בכרטיס ברירת המחדל נכשל – המערכת תנסה את הבא בתור.
+    </div>
+  </div>
+
+  <!-- ===================== חשבוניות ===================== -->
+  <div class="section">
+    <div class="section-title">חשבוניות (חשבונית מס / קבלה)</div>
+
+    <div class="invoices" *ngIf="invoices().length; else noInvoices">
+      <div class="invoice" *ngFor="let inv of invoices(); trackBy: trackById">
+        <div class="inv-date">{{ inv.date }}</div>
+        <div class="inv-amount">{{ inv.amountNis }}</div>
+        <div class="inv-method muted">{{ inv.method || '-' }}</div>
+        <a class="btn ghost" [href]="inv.invoice_url" target="_blank" rel="noopener">
+          פתיחה
+        </a>
+      </div>
+    </div>
+
+    <ng-template #noInvoices>
+      <div class="empty">אין חשבוניות להצגה.</div>
+    </ng-template>
+  </div>
+
+  <!-- ===================== היסטוריית חיובים ===================== -->
+  <div class="section">
+    <div class="section-title">היסטוריית חיובים (שולמו)</div>
+
+    <div class="charges" *ngIf="charges().length; else noCharges">
+      <div class="charge" *ngFor="let c of charges(); trackBy: trackById">
+        <div class="c-date">{{ c.created_at }}</div>
+        <div class="c-sum">{{ c.sumNis }}</div>
+        <div class="c-status ok">{{ c.status }}</div>
+        <div class="c-prov muted">#{{ c.provider_id || '-' }}</div>
+      </div>
+    </div>
+
+    <ng-template #noCharges>
+      <div class="empty">אין חיובים להצגה.</div>
+    </ng-template>
+
+    <div class="hint">
+      לא מוצגים חיובי טיוטה (draft).
+    </div>
+  </div>
+</div>
+
+<!-- ===================== מודל צף: הוספת כרטיס חדש ===================== -->
+<div class="modal-backdrop" [class.is-open]="addCardOpen()">
+  <div class="modal" dir="rtl" role="dialog" aria-modal="true" aria-label="הוספת כרטיס חדש">
+    <div class="modal-header">
+      <div class="modal-title">הוספת כרטיס חדש</div>
+      <button class="icon-btn" type="button" (click)="closeAddCardModal()" [disabled]="savingToken()">
+        ✕
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <div class="hint">
+        הכרטיס יישמר לשימוש עתידי. בפועל לא יתבצע חיוב כאן (אימות טוקן בלבד).
+      </div>
 
       <div class="hf-grid">
-        <!-- סכום -->
-        <div class="hf-row">
-          <label for="hf_amount">סכום (אגורות)</label>
-          <input id="hf_amount"
-                 type="number"
-                 [(ngModel)]="hfAmountAgorot"
-                 name="hf_amount" />
+        <div class="hf-box">
+          <label>מספר כרטיס</label>
+          <div id="pm_credit_card_number"></div>
+          <div class="hf-error" id="pm_errors_for_credit_card_number"></div>
         </div>
 
-        <!-- מספר כרטיס -->
-        <div class="hf-row">
-          <label for="credit_card_number">מספר כרטיס</label>
-          <div id="credit_card_number" class="hf-field"></div>
-          <div id="errors_for_number" class="hf-error"></div>
+        <div class="hf-box">
+          <label>תוקף</label>
+          <div id="pm_expiry"></div>
+          <div class="hf-error" id="pm_errors_for_expiry"></div>
         </div>
 
-        <!-- CVV -->
-        <div class="hf-row">
-          <label for="hf_cvv">CVV</label>
-          <div id="hf_cvv" class="hf-field"></div>
-          <div id="errors_for_CVV" class="hf-error"></div>
-        </div>
-
-        <!-- תוקף -->
-        <div class="hf-row">
-          <label for="hf_expiry">תוקף (MM/YY)</label>
-          <div id="hf_expiry" class="hf-field"></div>
-          <div id="errors_for_expiry" class="hf-error"></div>
+        <div class="hf-box">
+          <label>CVV</label>
+          <div id="pm_cvv"></div>
+          <div class="hf-error" id="pm_errors_for_cvv"></div>
         </div>
       </div>
 
-      <div class="hf-actions">
-        <button type="submit" [disabled]="busyHosted()">
-          חיוב בכרטיס חדש
-        </button>
-      </div>
-    </form>
+      <div class="error-banner" *ngIf="tokenError()">{{ tokenError() }}</div>
+      <div class="ok-banner" *ngIf="tokenSaved()">אמצעי תשלום נשמר בהצלחה ✅</div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn ghost" type="button" (click)="closeAddCardModal()" [disabled]="savingToken()">
+        ביטול
+      </button>
+
+      <button class="btn primary" type="button" (click)="tokenizeAndSaveCard()" [disabled]="savingToken()">
+        {{ savingToken() ? 'שומר…' : 'שמירת אמצעי תשלום' }}
+      </button>
+    </div>
   </div>
 </div>
-
 
 <ng-template #loadingTpl>
   <div class="card">טוען…</div>

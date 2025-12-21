@@ -202,16 +202,16 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
       this.error.set(null);
 
       this.hfFields.charge(
-  {
-    terminal_name: terminalName,
-    amount,
-    thtk: this.thtk,
-    currency_code: 'ILS',
-    contact: this.booking?.fullName || this.parentEmail || undefined,
-    email: this.booking?.email || this.parentEmail || undefined,
-    requested_by_user: this.parentEmail || 'one-time-checkout',
-    response_language: 'hebrew',
-  },
+        {
+          terminal_name: terminalName,
+          amount,
+          thtk: this.thtk,
+          currency_code: 'ILS',
+          contact: this.booking?.fullName || this.parentEmail || undefined,
+          email: this.booking?.email || this.parentEmail || undefined,
+          requested_by_user: this.parentEmail || 'one-time-checkout',
+          response_language: 'hebrew',
+        },
   async (err: any, response: any) => {
     console.log('[one-time HF] err=', err, 'resp=', response);
 
