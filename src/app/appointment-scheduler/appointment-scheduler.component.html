@@ -28,7 +28,11 @@
 
       <div class="appt-field-group instructor-group">
         <span class="appt-field-label">מדריך</span>
-
+<div
+  class="field-wrap"
+  [class.is-disabled]="!selectedChildId"
+  (click)="!selectedChildId && showUiHint('instructor', missingInstructorMsg)"
+>
         <mat-select #instructorSelect class="appt-select" [ngClass]="{ disabled: !selectedChildId }"
           [(ngModel)]="selectedInstructorId" (selectionChange)="onInstructorChange()" [disabled]="!selectedChildId"
           placeholder="בחר/י מדריך">
@@ -49,6 +53,8 @@
             {{ ins.full_name }}
           </mat-option>
         </mat-select>
+          <small class="hint" *ngIf="uiHint['instructor']">{{ uiHint['instructor'] }}</small>
+
       </div>
 
 
@@ -99,40 +105,58 @@
   </div>
 
  <div class="appt-tabs">
-  <button
-    type="button"
-    class="appt-tab"
-    [class.active]="selectedTab === 'series'"
-    (click)="selectedTab = 'series'"
-    matTooltip="קביעת סדרת טיפולים קבועה באותו יום ושעה (למשל כל חמישי 16:00)"
-    matTooltipPosition="above"
-    matTooltipClass="custom-tooltip"
 
-  >
-    סדרת טיפולים
-  </button>
+  <!-- Series -->
+  <div class="tab-wrap" (click)="onTabClick('series')">
+    <button
+      type="button"
+      class="appt-tab"
+      [class.active]="selectedTab === 'series'"
+      [class.tab-disabled]="tabsLocked"
+      matTooltip="קביעת סדרת טיפולים קבועה באותו יום ושעה (למשל כל חמישי 16:00)"
+      matTooltipPosition="above"
+      matTooltipClass="custom-tooltip"
+      [matTooltipDisabled]="tabsLocked"
+    >
+      סדרת טיפולים
+    </button>
+  </div>
 
-  <button
-    type="button"
-    class="appt-tab"
-    [class.active]="selectedTab === 'makeup'"
-    (click)="selectedTab = 'makeup'"
-    matTooltip="מציאת חורים פנויים לשיעורי השלמה על חשבון שיעורים שבוטלו לפי הגדרות החווה"
-    matTooltipPosition="above"
-  >
-    שיעור השלמה
-  </button>
+  <!-- Makeup -->
+  <div class="tab-wrap" (click)="onTabClick('makeup')">
+    <button
+      type="button"
+      class="appt-tab"
+      [class.active]="selectedTab === 'makeup'"
+      [class.tab-disabled]="tabsLocked"
+      matTooltip="מציאת חורים פנויים לשיעורי השלמה על חשבון שיעורים שבוטלו לפי הגדרות החווה"
+      matTooltipPosition="above"
+      [matTooltipDisabled]="tabsLocked"
+    >
+      שיעור השלמה
+    </button>
+  </div>
 
-  <button
-    type="button"
-    class="appt-tab"
-    [class.active]="selectedTab === 'occupancy'"
-    (click)="selectedTab = 'occupancy'"
-    matTooltip="שיעורים שבוטלו על ידי מדריך וזמינים למילוי מקום"
-    matTooltipPosition="above"
-  >
-    מילוי מקום
-  </button>
+  <!-- Occupancy -->
+  <div class="tab-wrap" (click)="onTabClick('occupancy')">
+    <button
+      type="button"
+      class="appt-tab"
+      [class.active]="selectedTab === 'occupancy'"
+      [class.tab-disabled]="tabsLocked"
+      matTooltip="שיעורים שבוטלו על ידי מדריך וזמינים למילוי מקום"
+      matTooltipPosition="above"
+      [matTooltipDisabled]="tabsLocked"
+    >
+      מילוי מקום
+    </button>
+  </div>
+
+</div>
+
+<!-- הודעה רק אחרי ניסיון לחיצה על טאבים נעולים -->
+<small class="hint" *ngIf="uiHint['tab']">{{ uiHint['tab'] }}</small>
+
 </div>
 
 
@@ -164,6 +188,11 @@
     <div class="appt-form-row">
       <div class="appt-field-group">
         <span class="appt-field-label">כמות שיעורים בסדרה</span>
+        <div
+  class="field-wrap"
+  [class.is-disabled]="!canChooseSeriesCount"
+  (click)="!canChooseSeriesCount && showUiHint('seriesCount', missingSeriesCountMsg)"
+>
         <select class="appt-select" [(ngModel)]="seriesLessonCount" (ngModelChange)="onSeriesLessonCountChange($event)"
           [disabled]="!canChooseSeriesCount">
           <option [ngValue]="null" disabled hidden>
@@ -175,36 +204,50 @@
           </option>
         </select>
 
-        <!-- הודעת עזרה קטנה מתחת לשדה -->
-        <small *ngIf="!canChooseSeriesCount" style="color:#888;">
-          יש לבחור ילד ומדריך לפני בחירת כמות שיעורים בסדרה
-        </small>
+        <small class="hint" *ngIf="uiHint['seriesCount']">{{ uiHint['seriesCount'] }}</small>
+
       </div>
+      
       <div class="appt-form-row">
         <div class="appt-form-row">
           <div class="appt-field-group">
-            <span class="appt-field-label">מסלול תשלום</span>
-            <select class="appt-select" [(ngModel)]="selectedPaymentPlanId">
-              <option [ngValue]="null" disabled hidden>
-                בחר/י מסלול תשלום
-              </option>
-              <option *ngFor="let plan of paymentPlans" [ngValue]="plan.id">
-                {{ plan.name }}
-                <ng-container *ngIf="plan.customer_amount != null">
-                  – {{ plan.customer_amount | number:'1.0-0' }} ₪ לשיעור
-                </ng-container>
-              </option>
-            </select>
+         <span class="appt-field-label">מסלול תשלום</span>
 
-            <small *ngIf="!selectedPaymentPlanId" style="color:#888;">
-              יש לבחור מסלול תשלום לפני הזמנת הסדרה
-            </small>
+<div
+  class="field-wrap"
+  [class.is-disabled]="paymentLocked"
+  (click)="paymentLocked && showUiHint('payment', missingPaymentPlanMsg)"
+>
+  <select
+    class="appt-select"
+    [(ngModel)]="selectedPaymentPlanId"
+    [disabled]="paymentLocked"
+  >
+    <option [ngValue]="null" disabled hidden>
+      בחר/י מסלול תשלום
+    </option>
 
-            <small *ngIf="selectedPaymentPlan?.require_docs_at_booking"
-              style="color:#888; display:block; margin-top:4px;">
-              למסלול זה נדרשים מסמכים:
-              {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}
-            </small>
+    <option *ngFor="let plan of paymentPlans" [ngValue]="plan.id">
+      {{ plan.name }}
+      <ng-container *ngIf="plan.customer_amount != null">
+        – {{ plan.customer_amount | number:'1.0-0' }} ₪ לשיעור
+      </ng-container>
+    </option>
+  </select>
+
+  <!-- ההודעה תופיע רק אחרי ניסיון לחיצה על נעול -->
+  <small class="hint" *ngIf="uiHint['payment']">{{ uiHint['payment'] }}</small>
+
+  <!-- זה נשאר רגיל: מסמכים נדרשים למסלול (זה כן יכול להופיע אחרי שבחרו מסלול) -->
+  <small
+    *ngIf="selectedPaymentPlan?.require_docs_at_booking"
+    style="color:#888; display:block; margin-top:4px;"
+  >
+    למסלול זה נדרשים מסמכים:
+    {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}
+  </small>
+</div>
+
           </div>
         </div>
 

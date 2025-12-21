@@ -1888,6 +1888,63 @@ async requestOccupancyFromSecretary(slot: any): Promise<void> {
   }
 }
 
+uiHint: Record<string, string | null> = {};
+private uiHintTimers: Record<string, any> = {};
+
+showUiHint(key: string, msg: string, ms = 99999) {
+  if (this.uiHintTimers[key]) clearTimeout(this.uiHintTimers[key]);
+  this.uiHint[key] = msg;
+  this.uiHintTimers[key] = setTimeout(() => {
+    this.uiHint[key] = null;
+    delete this.uiHintTimers[key];
+  }, ms);
+}
+
+get missingChildMsg() {
+  return 'יש לבחור ילד/ה קודם';
+}
+
+get missingInstructorMsg() {
+  return !this.selectedChildId ? 'יש לבחור ילד/ה לפני בחירת מדריך' : '';
+}
+
+
+get missingSeriesCountMsg() {
+  if (!this.selectedChildId) return 'יש לבחור ילד/ה לפני בחירת כמות שיעורים';
+  if (!this.selectedInstructorId) return 'יש לבחור מדריך לפני בחירת כמות שיעורים';
+  return '';
+}
+
+get missingPaymentPlanMsg() {
+  if (!this.selectedChildId) return 'יש לבחור ילד/ה לפני בחירת מסלול תשלום';
+  if (!this.selectedInstructorId) return 'יש לבחור מדריך לפני בחירת מסלול תשלום';
+  if (!this.seriesLessonCount) return 'יש לבחור כמות שיעורים בסדרה לפני מסלול תשלום';
+  return '';
+}
+
+
+
+get paymentLocked(): boolean {
+  return !this.selectedChildId || !this.selectedInstructorId || !this.seriesLessonCount;
+}
+
+get tabsLocked(): boolean {
+  return !this.selectedChildId || !this.selectedInstructorId;
+}
+
+get missingTabMsg(): string {
+  if (!this.selectedChildId) return 'יש לבחור ילד/ה לפני בחירת טאב';
+  if (!this.selectedInstructorId) return 'יש לבחור מדריך (או "כל המדריכים") לפני בחירת טאב';
+  return '';
+}
+
+onTabClick(tab: 'series' | 'makeup' | 'occupancy') {
+  if (this.tabsLocked) {
+    this.showUiHint('tab', this.missingTabMsg);
+    return;
+  }
+  this.selectedTab = tab;
+}
 
 
 }

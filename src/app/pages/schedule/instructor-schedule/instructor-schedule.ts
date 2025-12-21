@@ -17,10 +17,7 @@ import { Lesson } from '../../../models/lesson-schedule.model';
 import { NoteComponent } from '../../Notes/note.component';
 
 import { CurrentUserService } from '../../../core/auth/current-user.service';
-import {
-  dbTenant,
-  ensureTenantContextReady,
-} from '../../../services/legacy-compat';
+import { dbTenant, ensureTenantContextReady } from '../../../services/legacy-compat';
 
 /* ------------ TYPES ------------ */
 type UUID = string;
@@ -149,10 +146,15 @@ export class InstructorScheduleComponent implements OnInit {
       const startYmd = ymd(addDays(new Date(), -14));
       const endYmd = ymd(addDays(new Date(), 60));
 
+      console.log('[INIT] range', { startYmd, endYmd, instructorId: this.instructorId });
+
       await this.loadLessonsForRange(startYmd, endYmd);
 
+      // ✅ חדש: טעינת סוס+מגרש והזרקה לתוך lessons
+      await this.loadLessonResourcesForRange(startYmd, endYmd);
+
       const childIds = Array.from(
-        new Set(this.lessons.map((l) => l.child_id).filter(Boolean)),
+        new Set(this.lessons.map((l: any) => l.child_id).filter(Boolean)),
       ) as string[];
 
       if (childIds.length) {
@@ -164,7 +166,7 @@ export class InstructorScheduleComponent implements OnInit {
       this.setScheduleItems();
       this.updateCurrentDateFromCalendar();
     } catch (err: any) {
-      console.error(err);
+      console.error('[INIT ERROR]', err);
       this.error = err?.message || 'שגיאה בטעינה';
     } finally {
       this.loading = false;
@@ -173,11 +175,11 @@ export class InstructorScheduleComponent implements OnInit {
   }
 
   /* ------------ LOADERS ------------ */
-  private async loadLessonsForRange(
-    startYmd: string,
-    endYmd: string,
-  ): Promise<void> {
+
+  private async loadLessonsForRange(startYmd: string, endYmd: string): Promise<void> {
     const dbc = dbTenant();
+
+    console.log('[LOAD LESSONS]', { startYmd, endYmd });
 
     const { data, error } = await dbc
       .from('lessons_occurrences')
@@ -201,6 +203,68 @@ export class InstructorScheduleComponent implements OnInit {
 
     if (error) throw error;
     this.lessons = (data ?? []) as Lesson[];
+
+    console.log('[LOAD LESSONS] count', this.lessons.length);
+  }
+
+  /**
+   * ✅ חדש: טעינת horse_name + arena_name מתוך view שעובד אצל המזכירה:
+   * lessons_with_children (רק עמודות קיימות!)
+   *
+   * חשוב:
+   * - לא מבקשים child_name / start_datetime וכו' כדי לא לקבל 42703
+   * - ממפים לפי (lesson_id + occur_date)
+   */
+  private async loadLessonResourcesForRange(startYmd: string, endYmd: string): Promise<void> {
+    try {
+      if (!this.lessons?.length) return;
+
+      const dbc = dbTenant();
+
+      const lessonIds = Array.from(
+        new Set(this.lessons.map((l: any) => l.lesson_id).filter(Boolean)),
+      ) as string[];
+
+      if (!lessonIds.length) return;
+
+      console.log('[LOAD RESOURCES]', { startYmd, endYmd, lessonIds: lessonIds.length });
+
+      const { data: resData, error } = await dbc
+        .from('lessons_with_children')
+        .select('lesson_id, occur_date, horse_name, arena_name')
+        .in('lesson_id', lessonIds)
+        .gte('occur_date', startYmd)
+        .lte('occur_date', endYmd);
+
+      if (error) throw error;
+
+      const resourceByKey = new Map<string, { horse_name: string | null; arena_name: string | null }>();
+
+      for (const row of (resData ?? []) as any[]) {
+        const key = `${row.lesson_id}::${String(row.occur_date).slice(0, 10)}`;
+        resourceByKey.set(key, {
+          horse_name: row.horse_name ?? null,
+          arena_name: row.arena_name ?? null,
+        });
+      }
+
+      // מזריקים לתוך lessons כדי ש-setScheduleItems יוכל לשים meta
+      this.lessons = this.lessons.map((l: any) => {
+        const key = `${l.lesson_id}::${String(l.occur_date).slice(0, 10)}`;
+        const res = resourceByKey.get(key);
+
+        return {
+          ...l,
+          horse_name: res?.horse_name ?? null,
+          arena_name: res?.arena_name ?? null,
+        } as any;
+      });
+
+      console.log('[LOAD RESOURCES] merged into lessons');
+    } catch (err) {
+      console.error('[LOAD RESOURCES ERROR]', err);
+      // לא מפילים את המסך אם המשאבים לא זמינים
+    }
   }
 
   private async loadChildrenAndRefs(ids: string[]): Promise<void> {
@@ -248,39 +312,41 @@ export class InstructorScheduleComponent implements OnInit {
     }));
   }
 
-  private async loadRequestsForRange(
-    startYmd: string,
-    endYmd: string,
-  ): Promise<void> {
-    const dbc = dbTenant();
+private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<void> {
+  const dbc = dbTenant();
 
-    const { data, error } = await dbc
-      .from('secretarial_requests')
-      .select(
-        `
-        id,
-        instructor_id,
-        request_type,
-        status,
-        from_date,
-        to_date,
-        payload,
-        decision_note
-      `,
-      )
-      .eq('instructor_id', this.instructorId)
-      .gte('from_date', startYmd)
-      .lte('from_date', endYmd);
+  const { data, error } = await dbc
+    .from('secretarial_requests')
+    .select(
+      `
+      id,
+      instructor_id,
+      request_type,
+      status,
+      from_date,
+      to_date,
+      payload,
+      decision_note
+    `,
+    )
+    .eq('instructor_id', this.instructorId)
+    .eq('request_type', 'INSTRUCTOR_DAY_OFF') // ✅ הכי חשוב! רק בקשות חופש אמיתיות
+    // ✅ טווח חופף: בקשה שנוגעת לטווח התצוגה גם אם התחילה לפני
+    .lte('from_date', endYmd)
+    .gte('to_date', startYmd);
 
-    if (error) throw error;
+  if (error) throw error;
 
-    const rows = data ?? [];
-    this.dayRequests = rows.flatMap((row: any) => this.expandRequestRow(row));
-  }
+  const rows = data ?? [];
+  this.dayRequests = rows.flatMap((row: any) => this.expandRequestRow(row));
+}
+
 
   private expandRequestRow(row: any): DayRequestRow[] {
     const res: DayRequestRow[] = [];
     if (!row.from_date) return res;
+// ✅ אם אין category – זו לא בקשת חופש תקינה, לא להציג בלוח
+if (!row.payload?.category) return res;
 
     const from = new Date(row.from_date);
     const to = new Date(row.to_date || row.from_date);
@@ -331,12 +397,16 @@ export class InstructorScheduleComponent implements OnInit {
         }
 
         const item: ScheduleItem = {
-          id: day,
+          id: `summary_${day}`,
           title: parts.join(' | '),
           start: day,
           end: day,
-          color: '#ffffff',
+          color: 'transparent', 
           status: 'summary',
+    meta: {
+    isSummaryDay: 'true', // ✅ string ולא boolean
+  },
+
         };
 
         return item;
@@ -348,21 +418,11 @@ export class InstructorScheduleComponent implements OnInit {
 
     // תצוגת שבוע / יום – אירוע לכל שיעור
     this.items = src.map((l: any) => {
-      const startISO = this.ensureIso(
-        l.start_datetime,
-        l.start_time,
-        l.occur_date,
-      );
-      const endISO = this.ensureIso(
-        l.end_datetime,
-        l.end_time,
-        l.occur_date,
-      );
+      const startISO = this.ensureIso(l.start_datetime, l.start_time, l.occur_date);
+      const endISO = this.ensureIso(l.end_datetime, l.end_time, l.occur_date);
 
       const child = this.children.find((c) => c.child_uuid === l.child_id);
-      const name = `${child?.first_name || ''} ${
-        child?.last_name || ''
-      }`.trim();
+      const name = `${child?.first_name || ''} ${child?.last_name || ''}`.trim();
       const agePart = child?.age != null ? ` (${child.age})` : '';
 
       const lessonTypeLabel = this.formatLessonType(l.lesson_type);
@@ -371,9 +431,17 @@ export class InstructorScheduleComponent implements OnInit {
       if (l.status === 'בוטל') color = '#ffcdd2';
       else if (new Date(endISO) < new Date()) color = '#e0e0e0';
 
+      // ✅ חדש: טקסט סוס+מגרש (לא חובה – אבל עוזר לראות בלוז)
+      const horse = l.horse_name ? `🐴 ${l.horse_name}` : '';
+      const arena = l.arena_name ? `🏟 ${l.arena_name}` : '';
+      const resourcesText = [horse, arena].filter(Boolean).join(' | ');
+
+      const titleBase = `${name}${agePart} — ${lessonTypeLabel}`.trim();
+      const title = resourcesText ? `${titleBase}\n${resourcesText}` : titleBase;
+
       const item: ScheduleItem = {
         id: `${l.lesson_id}_${l.child_id}_${l.occur_date}`,
-        title: `${name}${agePart} — ${lessonTypeLabel}`.trim(),
+        title,
         start: startISO,
         end: endISO,
         color,
@@ -384,7 +452,13 @@ export class InstructorScheduleComponent implements OnInit {
           instructor_name: '',
           status: l.status,
           lesson_type: lessonTypeLabel,
-        },
+
+          // ✅ חדש: מעבירים ל-UI/NoteComponent
+          horse_name: l.horse_name ?? null,
+          arena_name: l.arena_name ?? null,
+          occur_date: (l.occur_date ?? '').slice(0, 10),
+          lesson_id: l.lesson_id,
+        } as any,
         status: l.status as any,
       };
 
@@ -413,105 +487,91 @@ export class InstructorScheduleComponent implements OnInit {
   }
 
   /* ------------ EVENTS ------------ */
-  /* ------------ EVENTS ------------ */
-  onEventClick(arg: EventClickArg): void {
-    // ================ DEBUG חזק ================
-    console.log(
-      '%c[EVENT CLICK] full event →',
-      'color: orange; font-size: 14px; font-weight: bold;',
-      arg.event
-    );
-    console.log(
-      '%c[EVENT CLICK] extendedProps →',
-      'color: blue; font-weight: bold;',
-      arg.event.extendedProps
-    );
+onEventClick(arg: EventClickArg): void {
+  const evAny: any = arg.event;
+  const eventId = String(evAny?.id || '');
 
-    const ext: any = arg.event.extendedProps || {};
-    const raw: any = ext.raw || ext.meta || ext;
+  // ✅ 1) לחיצה על סיכום חודשי → לעבור ליום הזה (כמו לחיצה על הרקע) + לטעון שיעורים
+  if (eventId.startsWith('summary_')) {
+    const day = eventId.replace('summary_', '').slice(0, 10);
 
-    console.log('%c[EVENT CLICK] raw →', 'color: purple;', raw);
+    // ניקוי כרטיסייה פתוחה (אם יש)
+    this.selectedChild = null;
+    this.selectedOccurrence = null;
+    this.attendanceStatus = null;
 
-    // ננסה להביא child_id מכל מקום אפשרי
-    const childId: string | undefined =
-      raw.child_id || ext.child_id || raw.child_uuid;
-
-    console.log('%c[EVENT CLICK] childId →', 'color: teal;', childId);
-
-    if (!childId) {
-      console.warn('[EVENT CLICK] no child_id found, aborting');
-      return;
-    }
-
-    // ננסה למצוא lesson_id מכל מקור אפשרי
-    let lessonId: string | null =
-      raw.lesson_id ??
-      ext.lesson_id ??
-      null;
-
-    // אם עדיין אין – ננסה לחלץ מה-id של האירוע (בנינו אותו כ: lessonId_childId_occurDate)
-    const eventId = String(arg.event.id || '');
-    console.log('%c[EVENT CLICK] event.id →', 'color: brown;', eventId);
-
-    if (!lessonId && eventId.includes('_')) {
-      lessonId = eventId.split('_')[0] || null;
-      console.log(
-        '%c[EVENT CLICK] lessonId recovered from event.id →',
-        'color: red; font-weight:bold;',
-        lessonId
-      );
-    } else {
-      console.log(
-        '%c[EVENT CLICK] lessonId from raw/ext →',
-        'color: red; font-weight:bold;',
-        lessonId
-      );
-    }
-
-    const lessonTypeLabel =
-      raw.lesson_type ||
-      ext.lesson_type ||
-      this.formatLessonType(raw.lesson_type);
-
-    // הילד לכרטיסייה
-    this.selectedChild =
-      this.children.find((c) => c.child_uuid === childId) ?? null;
-
-    // אוקורנס – נשלח ל-NoteComponent
-    this.selectedOccurrence = {
-      lesson_id: lessonId,  // ⭐ עכשיו צריך להגיע ערך אמיתי
-      child_id: childId,
-      status: raw.status ?? ext.status ?? null,
-      lesson_type: lessonTypeLabel,
-      start: arg.event.start,
-      end: arg.event.end,
-    };
-
-    console.log(
-      '%c[EVENT CLICK] selectedOccurrence →',
-      'color: green; font-weight:bold;',
-      this.selectedOccurrence
-    );
-
-    // מיפוי לסטטוס נוכחות (אם יש כזה במטא)
-    const attendanceRaw = String(
-      raw.attendance_status ??
-        ext.attendance_status ??
-        raw.status ??
-        ext.status ??
-        ''
-    ).toLowerCase();
-
-    if (attendanceRaw === 'present' || attendanceRaw === 'הגיע') {
-      this.attendanceStatus = 'present';
-    } else if (attendanceRaw === 'absent' || attendanceRaw === 'לא הגיע') {
-      this.attendanceStatus = 'absent';
-    } else {
-      this.attendanceStatus = null;
-    }
+    // קריטי: להשתמש ב-goToDay כדי ש-FullCalendar יפעיל datesSet → viewRange → loadLessons
+    this.currentView = 'timeGridDay';
+    this.scheduleComp?.goToDay(day);
 
     this.cdr.detectChanges();
+    return;
   }
+
+  // ✅ 2) לחיצה על שיעור רגיל → לפתוח כרטסת ילד (כמו בקוד המקורי)
+  const extProps: any = evAny?.extendedProps || {};
+  const metaProps: any = extProps['meta'] || extProps;
+
+  const childId: string | undefined =
+    metaProps.child_id || extProps.child_id || metaProps.child_uuid;
+
+  if (!childId) {
+    console.warn('[EVENT CLICK] no child_id found, aborting', { extProps, metaProps });
+    return;
+  }
+
+  // lesson_id אמיתי: מה-meta או חילוץ מה-id
+  let lessonId: string | null = metaProps.lesson_id ?? extProps.lesson_id ?? null;
+  if (!lessonId && eventId.includes('_')) {
+    lessonId = eventId.split('_')[0] || null;
+  }
+
+  const lessonTypeLabel =
+    metaProps.lesson_type ||
+    extProps.lesson_type ||
+    this.formatLessonType(metaProps.lesson_type);
+
+  // הילד לכרטיסייה
+  this.selectedChild =
+    this.children.find((c) => c.child_uuid === childId) ?? null;
+
+  // occurrence ל-NoteComponent
+  this.selectedOccurrence = {
+    lesson_id: lessonId,
+    child_id: childId,
+    occur_date:
+      metaProps.occur_date ??
+      (arg.event.start ? arg.event.start.toISOString().slice(0, 10) : null),
+
+    status: metaProps.status ?? extProps.status ?? null,
+    lesson_type: lessonTypeLabel,
+    start: arg.event.start,
+    end: arg.event.end,
+
+    // משאבים
+    horse_name: metaProps.horse_name ?? null,
+    arena_name: metaProps.arena_name ?? null,
+  };
+
+  // נוכחות
+  const attendanceRaw = String(
+    metaProps.attendance_status ??
+      extProps.attendance_status ??
+      metaProps.status ??
+      extProps.status ??
+      '',
+  ).toLowerCase();
+
+  if (attendanceRaw === 'present' || attendanceRaw === 'הגיע') {
+    this.attendanceStatus = 'present';
+  } else if (attendanceRaw === 'absent' || attendanceRaw === 'לא הגיע') {
+    this.attendanceStatus = 'absent';
+  } else {
+    this.attendanceStatus = null;
+  }
+
+  this.cdr.detectChanges();
+}
 
 
   onDateClick(event: any): void {
@@ -524,7 +584,6 @@ export class InstructorScheduleComponent implements OnInit {
     }
   }
 
-  /** חתימה רחבה כדי לסתום את NG על Event */
   onRightClickDay(e: any): void {
     if (!e?.jsEvent || !e?.dateStr) return;
     e.jsEvent.preventDefault();
@@ -540,47 +599,59 @@ export class InstructorScheduleComponent implements OnInit {
   }
 
   /* ------------ שינוי טווח תצוגה ------------ */
-  async onViewRangeChange(range: any): Promise<void> {
-    try {
-      const vt = range.viewType || '';
-      if (vt === 'dayGridMonth') this.currentView = 'dayGridMonth';
-      else if (vt === 'timeGridWeek') this.currentView = 'timeGridWeek';
-      else this.currentView = 'timeGridDay';
+ async onViewRangeChange(range: any): Promise<void> {
+  try {
+    console.log('[VIEW RANGE RAW]', range);
 
-      if (
-        this.lastRange &&
-        this.lastRange.start === range.start &&
-        this.lastRange.end === range.end
-      ) {
-        this.updateCurrentDateFromCalendar();
-        return;
-      }
+    const vt = range.viewType || '';
+    if (vt === 'dayGridMonth') this.currentView = 'dayGridMonth';
+    else if (vt === 'timeGridWeek') this.currentView = 'timeGridWeek';
+    else this.currentView = 'timeGridDay';
 
-      this.lastRange = { start: range.start, end: range.end };
-      this.loading = true;
+    const startYmd = toYmd(range.start);
+    const endYmd = toYmd(range.end);
+function toYmd(val: string | Date): string {
+  const d = typeof val === 'string' ? new Date(val) : val;
+  return ymd(d);
+}
 
-      await this.loadLessonsForRange(range.start, range.end);
+    console.log('[VIEW RANGE YMD]', { startYmd, endYmd });
 
-      const ids = Array.from(
-        new Set(this.lessons.map((l: any) => l.child_id).filter(Boolean)),
-      ) as string[];
-
-      if (ids.length) {
-        await this.loadChildrenAndRefs(ids);
-      }
-
-      await this.loadRequestsForRange(range.start, range.end);
-
-      this.setScheduleItems();
+    if (
+      this.lastRange &&
+      this.lastRange.start === startYmd &&
+      this.lastRange.end === endYmd
+    ) {
       this.updateCurrentDateFromCalendar();
-    } catch (err: any) {
-      console.error('viewRange error', err);
-      this.error = err?.message || 'שגיאה בטעינת השיעורים';
-    } finally {
-      this.loading = false;
-      this.cdr.detectChanges();
+      return;
     }
+
+    this.lastRange = { start: startYmd, end: endYmd };
+    this.loading = true;
+
+    await this.loadLessonsForRange(startYmd, endYmd);
+    await this.loadLessonResourcesForRange(startYmd, endYmd);
+
+    const ids = Array.from(
+      new Set(this.lessons.map((l: any) => l.child_id).filter(Boolean)),
+    ) as string[];
+
+    if (ids.length) {
+      await this.loadChildrenAndRefs(ids);
+    }
+
+    await this.loadRequestsForRange(startYmd, endYmd);
+
+    this.setScheduleItems();
+    this.updateCurrentDateFromCalendar();
+  } catch (err: any) {
+    console.error('viewRange error', err);
+    this.error = err?.message || 'שגיאה בטעינת השיעורים';
+  } finally {
+    this.loading = false;
+    this.cdr.detectChanges();
   }
+}
 
   /* ------------ ניווט טולבר ------------ */
   onToolbarChangeView(view: CalendarView): void {
@@ -847,39 +918,38 @@ export class InstructorScheduleComponent implements OnInit {
     return map[t];
   }
 
- private formatLessonType(val: any, lesson?: any): string {
-  if (!val) return 'ניסיון'; // ברירת מחדל במקום NULL
+  private formatLessonType(val: any, lesson?: any): string {
+    if (!val) return 'ניסיון';
 
-  const v = String(val).toUpperCase();
+    const v = String(val).toUpperCase();
 
-  switch (v) {
-    case 'REGULAR':
-      // אם יש חזרתיות → להציג חלק מסדרה
-      if (lesson?.repeat_weeks && lesson?.week_index >= 0) {
-        const part = lesson.week_index + 1;
-        const total = lesson.repeat_weeks;
-        return `רגיל (חלק ${part} מתוך ${total})`;
-      }
-      return 'שיעור רגיל';
+    switch (v) {
+      case 'REGULAR':
+        if (lesson?.repeat_weeks && lesson?.week_index >= 0) {
+          const part = lesson.week_index + 1;
+          const total = lesson.repeat_weeks;
+          return `רגיל (חלק ${part} מתוך ${total})`;
+        }
+        return 'שיעור רגיל';
 
-    case 'MAKEUP':
-      return 'השלמה';
+      case 'MAKEUP':
+        return 'השלמה';
 
-    case 'NISAYON':
-      return 'ניסיון';
+      case 'NISAYON':
+        return 'ניסיון';
 
-    case 'SERIES':
-      if (lesson?.repeat_weeks && lesson?.week_index >= 0) {
-        const part = lesson.week_index + 1;
-        const total = lesson.repeat_weeks;
-        return `רגיל (חלק ${part} מתוך ${total})`;
-      }
-      return 'רגיל';
+      case 'SERIES':
+        if (lesson?.repeat_weeks && lesson?.week_index >= 0) {
+          const part = lesson.week_index + 1;
+          const total = lesson.repeat_weeks;
+          return `רגיל (חלק ${part} מתוך ${total})`;
+        }
+        return 'רגיל';
 
-    default:
-      return val;
+      default:
+        return val;
+    }
   }
-}
 
   private updateCurrentDateFromCalendar(): void {
     const api = this.scheduleComp?.calendarApi;
