@@ -408,7 +408,7 @@
       }"
     >
       <td>{{ o.occur_date }}</td>
-      <td>{{ o.day_of_week }}</td>
+<td>{{ getSlotDayLabel(o.occur_date) }}</td>
       <td>{{ o.start_time | slice: 0:5 }}–{{ o.end_time | slice: 0:5 }}</td>
       <td>{{ o.instructor_name || o.instructor_id }}</td>
       <td>{{ o.status }}</td>
@@ -435,16 +435,14 @@
     </p>
   </div>
 </div>
-<div
-  class="slots-list occupancy-slots"
-  *ngIf="selectedOccupancyCandidate && occupancySlots.length > 0"
->
+<div class="slots-list occupancy-slots"
+     *ngIf="selectedTab === 'occupancy' && selectedOccupancyCandidate">
   <h4>
     שיעורים זמינים למילוי מקום עבור
     {{ selectedOccupancyCandidate.occur_date }}
   </h4>
 
-  <table>
+  <table *ngIf="occupancySlots.length > 0">
     <thead>
       <tr>
         <th>תאריך</th>
@@ -452,32 +450,35 @@
         <th>שעה</th>
         <th>מדריך</th>
         <th>סוג שיעור</th>
-        <th>יתרה ב-slot</th>
         <th></th>
       </tr>
     </thead>
 
-  <tbody>
-    <tr *ngFor="let s of occupancySlots">
-      <td>{{ s.occur_date }}</td>
-      <td>{{ getSlotDayLabel(s.occur_date) }}</td>
-      <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
-      <td>{{ s.instructor_name || s.instructor_id }}</td>
-      <td>{{ getLessonTypeLabel(s) }}</td>
-      <td>
-        <button type="button"
-                class="appt-cta"
-                (click)="selectAndRequestOccupancySlot(s)">
-          קבע שיעור מילוי מקום
-        </button>
-      </td>
-    </tr>
-  </tbody>
+    <tbody>
+      <tr *ngFor="let s of occupancySlots">
+        <td>{{ s.occur_date }}</td>
+        <td>{{ getSlotDayLabel(s.occur_date) }}</td>
+        <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
+        <td>{{ s.instructor_name || s.instructor_id }}</td>
+        <td>{{ getLessonTypeLabel(s) }}</td>
+        <td>
+          <button type="button" class="appt-cta" (click)="selectAndRequestOccupancySlot(s)">
+            קבע שיעור מילוי מקום
+          </button>
+        </td>
+      </tr>
+    </tbody>
   </table>
 
   <p *ngIf="loadingOccupancySlots">טוען שיעורים למילוי מקום...</p>
-  <p class="error" *ngIf="occupancySlotsError">
-    {{ occupancySlotsError }}
+
+  <p class="error" *ngIf="occupancySlotsError">{{ occupancySlotsError }}</p>
+
+  <p
+    class="empty-text"
+    *ngIf="!loadingOccupancySlots && !occupancySlotsError && occupancySlots.length === 0"
+  >
+    אין זמינות למילוי מקום בטווח שנבחר.
   </p>
 </div>
 
