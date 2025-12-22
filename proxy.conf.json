@@ -54,5 +54,13 @@
     "pathRewrite": {
       "^/api/savePaymentMethod$": "/savePaymentMethod"
     }
+  },
+  "/api/chargeSelectedChargesForParent": { 
+    "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+    "changeOrigin": true,
+    "secure": true,
+    "pathRewrite": {
+      "^/api/chargeSelectedChargesForParent$": "/chargeSelectedChargesForParent"
+    }
   }
 }

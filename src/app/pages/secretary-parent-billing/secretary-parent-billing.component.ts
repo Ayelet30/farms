@@ -4,20 +4,19 @@ import {
   OnInit,
   signal,
   computed,
+  inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-import {
-  createParentCredit,
-  chargeSelectedParentCharges,
-} from '../../services/supabaseClient.service';
+import { createParentCredit, getCurrentFarmMetaSync } from '../../services/supabaseClient.service';
 
 import {
   PaymentsService,
   ParentChargeRow,
 } from '../../services/payments.service';
 import { dbTenant } from '../../services/supabaseClient.service';
+import { TranzilaService } from '../../services/tranzila.service';
 
 @Component({
   selector: 'app-secretary-parent-billing',
@@ -27,6 +26,9 @@ import { dbTenant } from '../../services/supabaseClient.service';
   styleUrls: ['./secretary-parent-billing.component.scss'],
 })
 export class SecretaryParentBillingComponent implements OnInit {
+
+  private tranzila = inject(TranzilaService);
+  
   // === פילטרים ===
   parentNameFilter = signal<string>('');
 
@@ -203,35 +205,39 @@ export class SecretaryParentBillingComponent implements OnInit {
 
   // === חיוב חיובים נבחרים ===
 
-  async chargeSelected() {
-    if (!this.anySelected()) return;
+ async chargeSelected() {
+  if (!this.anySelected()) return;
 
-    const parentUid = this.selectedParentUid();
-    if (!parentUid) {
-      this.error.set(
-        'ניתן לחייב בבת אחת רק הורה אחד. ודאי שכל החיובים הנבחרים שייכים לאותו הורה.'
-      );
-      return;
-    }
-
-    try {
-      this.loading.set(true);
-      this.error.set(null);
-
-      const ids = Array.from(this.selectedChargeIds());
-      await chargeSelectedParentCharges({
-        parentUid,
-        chargeIds: ids,
-      });
-
-      await this.loadCharges();
-    } catch (e: any) {
-      console.error('[ParentBilling] chargeSelected error', e);
-      this.error.set(e?.message ?? 'שגיאה בחיוב החיובים הנבחרים');
-    } finally {
-      this.loading.set(false);
-    }
+  const parentUid = this.selectedParentUid();
+  if (!parentUid) {
+    this.error.set('ניתן לחייב בבת אחת רק הורה אחד...');
+    return;
   }
+
+  try {
+    this.loading.set(true);
+    this.error.set(null);
+
+    const ids = Array.from(this.selectedChargeIds());
+
+     const farm = getCurrentFarmMetaSync();
+    const schema = farm?.schema_name ?? undefined;
+
+    await this.tranzila.chargeSelectedParentCharges({
+      tenantSchema: schema?? farm?.schema_name ?? 'public',
+      parentUid,
+      chargeIds: ids,
+      secretaryEmail: 'ayelethury@gmail.com', // או מהמזכירה המחוברת
+    });
+
+    await this.loadCharges();
+  } catch (e: any) {
+    this.error.set(e?.message ?? 'שגיאה בחיוב');
+  } finally {
+    this.loading.set(false);
+  }
+}
+
 
   // === זיכוי הורה ===
 

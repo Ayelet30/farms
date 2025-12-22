@@ -70,6 +70,9 @@ export interface TranzilaChargeResponse {
 
 @Injectable({ providedIn: 'root' })
 export class TranzilaService {
+  chargeSelectedParentCharges(arg0: { tenantSchema: string; parentUid: string; chargeIds: string[]; secretaryEmail: string; }) {
+    throw new Error('Method not implemented.');
+  }
   private http = inject(HttpClient);
   // אם יש לך פרוקסי ב־Angular: '/api/**' → לפונקציות/שרת
   private readonly base = '/api';
@@ -97,6 +100,16 @@ export class TranzilaService {
   );
 }
 
+chargeSelectedChargesForParent(args: {
+  parentUid: string;
+  tenantSchema: string; 
+  secretaryEmail: string;
+  chargeIds: string[];
+}) {
+  return firstValueFrom(
+    this.http.post(`${this.base}/chargeSelectedChargesForParent`, args)
+  );
+}
 
   async chargeByToken(params: ChargeByTokenParams): Promise<any> {
     return firstValueFrom(this.http.post(`${this.base}/chargeByToken`, params));

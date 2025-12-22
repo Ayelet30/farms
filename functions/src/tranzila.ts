@@ -719,6 +719,372 @@ async function recordPaymentInDb(args: RecordPaymentArgs) {
   return paymentId; // 👈 מחזירים את המזהה
 }
 
+/** ===== Tranzila token charge attempt ===== */
+async function chargeViaTranzilaToken(args: {
+  supplier: string;
+  password: string;
+  token: string;
+  amountAgorot: number;
+}): Promise<{
+  ok: boolean;
+  provider_id: string | null;
+  raw: Record<string, string>;
+  error?: string;
+}> {
+  const { supplier, password, token, amountAgorot } = args;
+
+  const sum = (Number(amountAgorot) / 100).toFixed(2);
+  const url = new URL('https://secure5.tranzila.com/cgi-bin/tranzila71u.cgi');
+
+  const body = new URLSearchParams({
+    supplier,
+    password,
+    sum,
+    currency: '1',      // ILS
+    tranmode: 'V',
+    cred_type: '8',     // token
+    TranzilaTK: token,
+  });
+
+  const resp = await fetch(url.toString(), { method: 'POST', body });
+  const text = await resp.text();
+
+  const kv: Record<string, string> = Object.fromEntries(
+    text.split('&').map((p) => {
+      const [k, v] = p.split('=');
+      return [k, v ?? ''];
+    }),
+  );
+
+  const ok = kv['Response'] === '000';
+  const providerId =
+    kv['index'] ?? kv['ConfirmationCode'] ?? kv['ConfNum'] ?? null;
+
+  return ok
+    ? { ok: true, provider_id: providerId, raw: kv }
+    : {
+        ok: false,
+        provider_id: providerId,
+        raw: kv,
+        error: kv['Error'] ?? kv['message'] ?? 'Tranzila charge failed',
+      };
+}
+
+/** ===== Receipt: PDF -> Storage -> update payments.invoice_url ===== */
+async function generateAndAttachReceiptUrlOnly(args: {
+  sb: SupabaseClient;
+  tenantSchema: string;
+  paymentId: string;
+  amountAgorot: number;
+  tx: any;
+}) {
+  const { sb, tenantSchema, paymentId, amountAgorot, tx } = args;
+
+  const amountNis = (amountAgorot / 100).toFixed(2);
+  const dateStr = new Date().toLocaleDateString('he-IL');
+
+  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  const chunks: Buffer[] = [];
+
+  doc.on('data', (c) => chunks.push(c));
+  const pdfPromise = new Promise<Buffer>((resolve) => {
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+  });
+
+  doc.fontSize(20).text('קבלה על תשלום', { align: 'center' });
+  doc.moveDown();
+  doc.fontSize(12).text(`תאריך: ${dateStr}`);
+  doc.text(`מספר תשלום: ${paymentId}`);
+  doc.moveDown();
+  doc.text(`סכום: ${amountNis} ₪`);
+  if (tx?.transaction_id) doc.text(`אסמכתא: ${tx.transaction_id}`);
+  if (tx?.credit_card_last_4_digits)
+    doc.text(`4 ספרות אחרונות: **** ${tx.credit_card_last_4_digits}`);
+  if (tx?.card_type_name) doc.text(`סוג כרטיס: ${tx.card_type_name}`);
+
+  doc.end();
+  const pdfBuffer = await pdfPromise;
+
+  const BUCKET_NAME = 'bereshit-payments-invoices';
+  const filePath = `receipts/${tenantSchema}/${paymentId}.pdf`;
+
+  const { error: uploadErr } = await sb.storage
+    .from(BUCKET_NAME)
+    .upload(filePath, pdfBuffer, {
+      contentType: 'application/pdf',
+      upsert: true,
+    });
+
+  if (uploadErr) throw new Error(uploadErr.message);
+
+  const { data: publicData } = sb.storage
+    .from(BUCKET_NAME)
+    .getPublicUrl(filePath);
+
+  const url = (publicData as any).publicUrl + '?v=' + Date.now();
+
+  await sb.from('payments').update({ invoice_url: url }).eq('id', paymentId);
+}
+
+/** ===== mail to secretary on failures ===== */
+async function sendSecretaryFailuresEmail(args: {
+  to: string;
+  tenantSchema: string;
+  parentUid: string;
+  failures: Array<{
+    chargeId: string;
+    amountAgorot: number;
+    error: string;
+  }>;
+}) {
+  const { to, tenantSchema, parentUid, failures } = args;
+
+  const rows = failures
+    .map(
+      (f) => `
+      <tr>
+        <td>${f.chargeId}</td>
+        <td>${(f.amountAgorot / 100).toFixed(2)} ₪</td>
+        <td>${escapeHtml(f.error)}</td>
+      </tr>
+    `,
+    )
+    .join('');
+
+  const html = `
+    <div dir="rtl">
+      <h3>כשלון סליקה – חיובים שלא הושלמו</h3>
+      <p><b>חווה:</b> ${tenantSchema}</p>
+      <p><b>הורה:</b> ${parentUid}</p>
+      <p>ניסינו לחייב בכל הכרטיסים הפעילים ולא הצלחנו בחיובים הבאים:</p>
+      <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse">
+        <thead>
+          <tr><th>Charge ID</th><th>סכום</th><th>שגיאה</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+
+  await mailTransport.sendMail({
+    to,
+    from: '"Smart-Farm Billing" <no-reply@smart-farm>',
+    subject: 'כשלון סליקה – חיובים שלא הושלמו',
+    html,
+  });
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * ===================================================================
+ * chargeSelectedChargesForParent
+ * ===================================================================
+ * מקבל: tenantSchema, parentUid, chargeIds[], secretaryEmail
+ * מחייב כל חיוב לפי token של ההורה:
+ * - מנסה default -> ואז כרטיסים אחרים
+ * - בהצלחה: updates charges + inserts payments + generates receipt url
+ * - בכשלון בכל הכרטיסים: מסמן failed + שולח מייל למזכירה
+ */
+export const chargeSelectedChargesForParent = onRequest(
+  {
+    invoker: 'public',
+    secrets: [
+      SUPABASE_URL_S,
+      SUPABASE_KEY_S,
+      TRANZILA_SUPPLIER_S,
+      TRANZILA_PASSWORD_S,
+    ],
+  },
+  async (req, res) => {
+    try {
+      if (handleCors(req, res)) return;
+      if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+      }
+
+      const { tenantSchema, parentUid, chargeIds, secretaryEmail } = req.body as {
+        tenantSchema: string;
+        parentUid: string;
+        chargeIds: string[];
+        secretaryEmail?: string | null;
+      };
+
+      if (!tenantSchema || !parentUid || !Array.isArray(chargeIds) || !chargeIds.length) {
+        res.status(400).json({ ok: false, error: 'missing tenantSchema/parentUid/chargeIds' });
+        return;
+      }
+
+      const sb = getSupabaseForTenant(tenantSchema);
+
+      // 1) כרטיסים פעילים (default ראשון)
+      const { data: profiles, error: pErr } = await sb
+        .from('payment_profiles')
+        .select('id, token_ref, last4, brand, is_default, created_at')
+        .eq('parent_uid', parentUid)
+        .eq('active', true)
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (pErr) throw pErr;
+      if (!profiles?.length) {
+        res.status(400).json({ ok: false, error: 'no active payment profiles for parent' });
+        return;
+      }
+
+      // 2) חיובים
+      const { data: charges, error: cErr } = await sb
+        .from('charges')
+        .select('id,parent_uid,amount_agorot,currency,status,description,billing_month')
+        .in('id', chargeIds)
+        .eq('parent_uid', parentUid);
+
+      if (cErr) throw cErr;
+
+      const byId = new Map((charges ?? []).map((c: any) => [c.id, c]));
+      const missing = chargeIds.filter((id) => !byId.has(id));
+      if (missing.length) {
+        res.status(404).json({ ok: false, error: `charges not found: ${missing.join(',')}` });
+        return;
+      }
+
+      const supplier =
+        envOrSecret(TRANZILA_SUPPLIER_S, 'TRANZILA_SUPPLIER') ||
+        process.env.TRANZILA_SUPPLIER_ID;
+      const password = envOrSecret(TRANZILA_PASSWORD_S, 'TRANZILA_PASSWORD');
+      if (!supplier || !password) {
+        res.status(500).json({ ok: false, error: 'Missing Tranzila supplier/password' });
+        return;
+      }
+
+      const results: any[] = [];
+      const failuresForMail: Array<{ chargeId: string; amountAgorot: number; error: string }> = [];
+
+      for (const chargeId of chargeIds) {
+        const ch: any = byId.get(chargeId);
+
+        // אם כבר שולם - מדלגים
+        if (String(ch.status) === 'paid' || String(ch.status) === 'succeeded') {
+          results.push({ chargeId, skipped: true, reason: 'already_paid' });
+          continue;
+        }
+
+        const amountAgorot = Number(ch.amount_agorot ?? 0);
+        if (!Number.isFinite(amountAgorot) || amountAgorot <= 0) {
+          results.push({ chargeId, skipped: true, reason: 'amount_is_zero' });
+          continue;
+        }
+
+        // מנסים על כל הכרטיסים
+        let charged = false;
+        let usedProfile: any = null;
+        let providerId: string | null = null;
+        let lastErrMsg = 'charge failed';
+
+        for (const prof of profiles) {
+          const attempt = await chargeViaTranzilaToken({
+            supplier: String(supplier),
+            password: String(password),
+            token: String(prof.token_ref),
+            amountAgorot,
+          });
+
+          if (attempt.ok) {
+            charged = true;
+            usedProfile = prof;
+            providerId = attempt.provider_id;
+            break;
+          } else {
+            lastErrMsg = attempt.error || 'charge failed';
+          }
+        }
+
+        if (!charged) {
+          await sb
+            .from('charges')
+            .update({ status: 'failed', updated_at: new Date().toISOString() })
+            .eq('id', chargeId);
+
+          failuresForMail.push({ chargeId, amountAgorot, error: lastErrMsg });
+          results.push({ ok: false, chargeId, error: lastErrMsg });
+          continue;
+        }
+
+        // הצלחה: עדכון charge
+        await sb
+          .from('charges')
+          .update({
+            status: 'paid', // <= להתאים ל-UI שלך
+            provider_id: providerId,
+            profile_id: usedProfile?.id ?? null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', chargeId);
+
+        // insert payment (עם charge_id!)
+        const amountNis = amountAgorot / 100;
+        const today = new Date().toISOString().slice(0, 10);
+
+        const { data: payInserted, error: payErr } = await sb
+          .from('payments')
+          .insert({
+            parent_uid: parentUid,
+            amount: amountNis,
+            date: today,
+            method: 'one_time',
+            invoice_url: null,
+            charge_id: chargeId,
+          } as any)
+          .select('id')
+          .single();
+
+        if (payErr) throw payErr;
+
+        // קבלה -> storage -> payments.invoice_url
+        await generateAndAttachReceiptUrlOnly({
+          sb,
+          tenantSchema,
+          paymentId: String(payInserted.id),
+          amountAgorot,
+          tx: {
+            transaction_id: providerId,
+            credit_card_last_4_digits: usedProfile?.last4,
+            card_type_name: usedProfile?.brand,
+          },
+        });
+
+        results.push({
+          ok: true,
+          chargeId,
+          paymentId: payInserted.id,
+          provider_id: providerId,
+          profile_id: usedProfile?.id,
+          last4: usedProfile?.last4,
+          brand: usedProfile?.brand,
+        });
+      }
+
+      // מייל מזכירה על כשלונות
+      if (failuresForMail.length && secretaryEmail) {
+        await sendSecretaryFailuresEmail({
+          to: secretaryEmail,
+          tenantSchema,
+          parentUid,
+          failures: failuresForMail,
+        });
+      }
+
+      res.json({ ok: true, results, failedCount: failuresForMail.length });
+    } catch (e: any) {
+      console.error('[chargeSelectedChargesForParent] error:', e);
+      res.status(500).json({ ok: false, error: e?.message ?? 'internal error' });
+    }
+  },
+);
+
 
 
 
