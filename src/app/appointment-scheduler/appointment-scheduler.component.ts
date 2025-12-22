@@ -55,15 +55,25 @@ interface ApprovalBalance {
   used_lessons_calc: number;
   remaining_lessons: number;
 }
+export type ISODate = string;
 
-interface RecurringSlot {
-  lesson_date: string;   // YYYY-MM-DD
-  start_time: string;    // HH:MM:SS
-  end_time: string;      // HH:MM:SS
-  instructor_id: string; // text
-  instructor_name?: string | null; 
-
+export interface RecurringSlotWithSkips {
+  lesson_date: ISODate;
+  start_time: string;
+  end_time: string;
+  instructor_id: string | null;         // ← חשוב!
+  instructor_name?: string;             // ← לא null (או תעשי גם null)
+  skipped_dates: ISODate[];             // ← מה-DB
 }
+
+// interface RecurringSlot {
+//   lesson_date: string;   // YYYY-MM-DD
+//   start_time: string;    // HH:MM:SS
+//   end_time: string;      // HH:MM:SS
+//   instructor_id: string; // text
+//   instructor_name?: string | null; 
+
+// }
 
 interface MakeupSlot {
  // lesson_id: string;
@@ -129,6 +139,7 @@ interface OccupancyCandidate {
   templateUrl: './appointment-scheduler.component.html',
   styleUrls: ['./appointment-scheduler.component.scss'],
 })
+
 export class AppointmentSchedulerComponent implements OnInit {
 
 needApprove: boolean = false;
@@ -168,11 +179,11 @@ currentCalendarMonth: number = new Date().getMonth(); // 0-11
 seriesCalendarDays: SeriesCalendarDay[] = [];
 
 // תאריכים → איזו רשימת סלוטים יש בכל יום
-calendarSlotsByDate: Record<string, RecurringSlot[]> = {};
+calendarSlotsByDate: Record<string, RecurringSlotWithSkips[]> = {};
 
 // בחירת יום בקלנדר
 selectedSeriesDate: string | null = null;
-selectedSeriesDaySlots: RecurringSlot[] = [];
+selectedSeriesDaySlots: RecurringSlotWithSkips[] = [];
 
 occupancyCandidates: OccupancyCandidate[] = [];
 loadingOccupancyCandidates = false;
@@ -285,7 +296,7 @@ onNoInstructorPreferenceChange(): void {
   seriesStartTime = '16:00'; // קלט בצורת HH:MM
 paymentSourceForSeries: 'health_fund' | 'private' | null = null;
 
-  recurringSlots: RecurringSlot[] = [];
+  recurringSlots: RecurringSlotWithSkips[] = [];
   loadingSeries = false;
   seriesError: string | null = null;
   seriesCreatedMessage: string | null = null;
@@ -1016,17 +1027,21 @@ async searchRecurringSlots(): Promise<void> {
 
 
   this.loadingSeries = true;
+  console.log('RPC payload', payload);
+
   try {
-    const { data, error } = await dbTenant().rpc('find_series_starts', payload);
+const { data, error } = await dbTenant().rpc('find_series_slots_with_skips', payload);
 
 
     if (error) {
       this.seriesError = 'שגיאה בחיפוש סדרות זמינות';
       return;
     }
+console.log('RPC data sample:', data?.[0]);
+console.log('skipped sample:', (data?.[0] as any)?.skipped_dates);
 
    
-const raw = (data ?? []) as RecurringSlot[];
+const raw = (data ?? []) as RecurringSlotWithSkips[];
 
 // קודם ממיינים לפי תאריך ואז שעה ואז מדריך,
 // כדי שה"ראשון בזמן" לכל תבנית יהיה באמת הראשון.
@@ -1043,7 +1058,7 @@ const sorted = [...raw].sort((a, b) => {
 // כאן נשמור תבניות שכבר ראינו:
 // key = instructor_id | weekday(0–6) | HH:MM
 const seenPatterns = new Set<string>();
-const filtered: RecurringSlot[] = [];
+const filtered: RecurringSlotWithSkips[] = [];
 
 for (const s of sorted) {
   const d = new Date(s.lesson_date + 'T00:00:00');
@@ -1064,15 +1079,18 @@ for (const s of sorted) {
 
 this.recurringSlots = filtered.map(s => {
   const ins = this.instructors.find(i =>
-    i.instructor_id === s.instructor_id ||  // ת"ז
-    i.instructor_uid === s.instructor_id    // ליתר ביטחון
+    i.instructor_id === s.instructor_id ||
+    i.instructor_uid === s.instructor_id
   );
 
   return {
     ...s,
-    instructor_name: ins?.full_name ?? s.instructor_id, // אם לא נמצא – נשאיר ת"ז
+    instructor_name: ins?.full_name ?? (s.instructor_id ?? undefined),
+    // אם את רוצה תמיד מחרוזת:
+    // instructor_name: ins?.full_name ?? (s.instructor_id ?? 'לא ידוע'),
   };
 });
+
 this.mapRecurringSlotsToCalendar();
 
     if (!this.recurringSlots.length) {
@@ -1135,7 +1153,7 @@ onSeriesLessonCountChange(val: number | null): void {
 
   // יצירת סדרה בפועל – insert ל-lessons (occurrences נוצרים מה-view)
   // יצירת סדרה בפועל – insert ל-lessons (occurrences נוצרים מה-view)
-async createSeriesFromSlot(slot: RecurringSlot): Promise<void> {
+async createSeriesFromSlot(slot: RecurringSlotWithSkips ): Promise<void> {
   if (!this.selectedChildId) return;
 
   if (!this.seriesLessonCount) {
@@ -1438,7 +1456,7 @@ get isSecretary(): boolean {
   return this.user?.role === 'secretary';
 }
 
-async onSeriesSlotChosen(slot: RecurringSlot, dialogTpl: TemplateRef<any>): Promise<void> {
+async onSeriesSlotChosen(slot: RecurringSlotWithSkips , dialogTpl: TemplateRef<any>): Promise<void> {
   if (this.isSecretary) {
     // מזכירה – קובעת מיד, בלי בקשה
     await this.createSeriesFromSlot(slot);
@@ -1449,7 +1467,7 @@ async onSeriesSlotChosen(slot: RecurringSlot, dialogTpl: TemplateRef<any>): Prom
 }
 
 
-async requestSeriesFromSecretary(slot: RecurringSlot, dialogTpl: TemplateRef<any>): Promise<void> {
+async requestSeriesFromSecretary(slot: RecurringSlotWithSkips , dialogTpl: TemplateRef<any>): Promise<void> {
    if (!this.selectedChildId || !this.user) {
     this.seriesError = 'חסר ילד או משתמש מחובר';
     return;
@@ -1472,12 +1490,17 @@ async requestSeriesFromSecretary(slot: RecurringSlot, dialogTpl: TemplateRef<any
   }
 
   // ---- חישוב תאריכים ----
-  const startDate = slot.lesson_date;
-  const weeks = this.seriesLessonCount - 1;
+console.log('skipped_dates', slot.skipped_dates);
 
-  const endD = new Date(startDate + 'T00:00:00');
-  endD.setDate(endD.getDate() + weeks * 7);
-  const endDate = this.formatLocalDate(endD);
+// כמה שבועות בפועל עד השיעור האחרון (כולל דילוגים)
+  const startDate = slot.lesson_date;
+const skipsCount = (slot.skipped_dates?.length ?? 0);
+const totalWeeksForward = (this.seriesLessonCount - 1) + skipsCount;
+
+const endD = new Date(startDate + 'T00:00:00');
+endD.setDate(endD.getDate() + totalWeeksForward * 7);
+const endDate = this.formatLocalDate(endD);
+
 
   // ---- פרטי מדריך ----
   let instructorIdNumber: string | null = null;
@@ -1493,7 +1516,7 @@ async requestSeriesFromSecretary(slot: RecurringSlot, dialogTpl: TemplateRef<any
     instructorName = selected?.full_name ?? '';
   } else {
     instructorIdNumber = slot.instructor_id;
-    instructorName = slot.instructor_id;
+instructorName = slot.instructor_id ?? 'ללא העדפה';
   }
 
   const dayLabel = this.getSlotDayLabel(startDate);
@@ -1554,7 +1577,9 @@ if (this.referralFile) {
     // 🔹 2) payload לבקשה למזכירה (כולל URL אם יש)
     const payload: any = {
       requested_start_time: startTime,
-      requested_end_time: endTime
+      requested_end_time: endTime, 
+        skipped_dates: slot.skipped_dates ?? [],
+
     };
 
     if (referralUrl) {
