@@ -942,3 +942,371 @@ button.edit-btn mat-icon {
 .new-note button:hover {
   background: #dce5c8;
 }
+/* =========================
+   RESPONSIVE – Mobile & Narrow screens
+   ========================= */
+
+@media (max-width: 768px) {
+
+  /* הכרטיס עצמו */
+  .child-details-card {
+    width: 100%;
+    max-width: none;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  /* תוכן פנימי */
+  .scrollable-content {
+    padding: 12px;
+    gap: 14px;
+  }
+
+  /* אזורים פנימיים */
+  .inner-section {
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  /* נוכחות – כפתורים אחד מתחת לשני */
+  .attendance-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .attendance-actions button {
+    width: 100%;
+  }
+
+  /* פרטי שיעור – עמודה אחת */
+  .lesson-meta-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px;
+  }
+
+  /* סוס / מגרש – אחד מתחת לשני */
+  .lesson-resources-row {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+
+  /* mat-select / textarea – גובה נוח לאצבע */
+  :host ::ng-deep
+  .resource-field .mat-mdc-form-field-infix,
+  :host ::ng-deep
+  .new-note textarea {
+    min-height: 48px;
+  }
+
+  /* הערות מוכנות – עטיפה טובה */
+  .prepared-notes button[mat-stroked-button] {
+    width: 100%;
+    text-align: center;
+  }
+}
+/* ===============================
+   ✅ RESPONSIVE FIX – MOBILE FIRST
+   =============================== */
+
+@media (max-width: 768px) {
+
+  /* ביטול תחושת "קופסה בתוך מסך" */
+  .note-overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .child-details-card {
+    width: 100%;
+    max-width: none;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  /* גלילה אחת בלבד */
+  .scrollable-content {
+    padding: 14px;
+    gap: 14px;
+  }
+
+  /* =====================
+     נוכחות – כפתורים
+     ===================== */
+  .attendance-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+
+    button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
+  /* =====================
+     פרטי שיעור – גריד
+     ===================== */
+  .lesson-meta-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .lesson-meta-grid .detail-item {
+    padding: 12px 14px;
+  }
+
+  /* =====================
+     סוס / מגרש
+     ===================== */
+  .lesson-resources-row {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  :host ::ng-deep .resource-field {
+    width: 100%;
+  }
+
+  /* mat-select כאליפסה מלאה */
+  :host ::ng-deep .resource-field .mat-mdc-text-field-wrapper {
+    border-radius: 999px !important;
+    min-height: 48px;
+  }
+
+  :host ::ng-deep .resource-field .mat-mdc-form-field-infix {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* =====================
+     הערות מוכנות – כפתורים
+     ===================== */
+  .prepared-notes .filter-buttons {
+    flex-direction: column;
+    gap: 10px;
+
+    button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
+  /* =====================
+     הערות שיעור
+     ===================== */
+  .lesson-note-card {
+    padding: 12px;
+  }
+
+  .lesson-note-card .note-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .lesson-note-card .actions {
+    justify-content: flex-end;
+  }
+}
+@media (max-width: 768px) {
+  .note-overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .child-details-card {
+    width: 100%;
+    max-width: none;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .scrollable-content {
+    padding: 14px 12px;
+    overflow-y: auto;
+  }
+}
+/* ===== אייקוני פעולה – עיצוב נקי ויציב ===== */
+.actions button.mat-icon-button {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+  background: #eef4ff; /* כחול עדין / אפשר לשנות */
+  padding: 0;
+}
+
+/* האייקון עצמו */
+.actions button.mat-icon-button mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* צבעים לפי פעולה */
+.actions .edit-btn {
+  background: #e9f1ff;
+
+  mat-icon {
+    color: #2563eb;
+  }
+}
+
+.actions .delete-btn {
+  background: #fdecec;
+
+  mat-icon {
+    color: #d32f2f;
+  }
+}
+
+.actions .save-btn {
+  background: #e7f6ee;
+
+  mat-icon {
+    color: #2e7d32;
+  }
+}
+/* ===== איקון עריכה – ללא מסגרת, ללא פוקוס, ללא צל ===== */
+.icon-circle {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: #e9f1ff; /* או הצבע שאת רוצה */
+}
+
+/* גם במצבי אינטראקציה */
+.icon-circle:focus,
+.icon-circle:focus-visible,
+.icon-circle:active {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+@media (max-width: 768px) {
+
+  .note-overlay {
+    position: fixed;
+    inset: 0;
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .child-details-card {
+    width: 100%;
+    max-width: none;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  mat-card-header {
+    flex-shrink: 0;
+  }
+
+  .scrollable-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 12px;
+  }
+}
+/* רווח ספציפי בין סטטוס לאושר */
+.lesson-meta-grid .detail-item {
+  margin-bottom: 6px; /* רווח עדין */
+}
+
+/* ואם את רוצה רווח קצת יותר מורגש */
+.lesson-meta-grid .detail-item:last-child {
+  margin-bottom: 0; /* שלא ייווצר רווח מיותר בסוף */
+}
+/* רווח אחרי שדה סטטוס */
+.lesson-meta-grid .detail-item:nth-child(4) {
+  margin-bottom: 12px;
+}
+/* רווח בין פרטי שיעור (grid) לבין סטטוס */
+.lesson-meta-grid {
+  margin-bottom: 14px;
+}
+/* האייקון לא תופס קליקים */
+mat-icon {
+  pointer-events: none;
+}
+/* ===== פרטי ילד ===== */
+
+.child-details {
+  margin-bottom: 24px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.child-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.child-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fffaf3;
+  border: 1px solid #f0e4d4;
+  border-radius: 14px;
+  padding: 10px 12px;
+
+  mat-icon {
+    color: #9c7c47;
+    font-size: 22px;
+  }
+
+  .label {
+    display: block;
+    font-size: 12px;
+    color: #7a6a55;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  .value {
+    font-size: 14px;
+    font-weight: 400;
+    color: #2f2a24;
+  }
+}
+
+.child-item.full-width {
+  grid-column: span 2;
+}
+
+/* רספונסיבי */
+@media (max-width: 480px) {
+  .child-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .child-item.full-width {
+    grid-column: span 1;
+  }
+}

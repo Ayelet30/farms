@@ -84,6 +84,9 @@ export class InstructorScheduleComponent implements OnInit {
 
   currentView: CalendarView = 'timeGridWeek';
   currentDate = '';
+   
+
+
   isFullscreen = false;
 
   lessons: Lesson[] = [];

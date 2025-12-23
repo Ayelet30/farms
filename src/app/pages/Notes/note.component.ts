@@ -77,6 +77,15 @@ interface ArenaOption {
   name: string;
   isActive: boolean;
 }
+interface ChildDetails {
+  child_uuid: string;
+  first_name: string | null;
+  last_name: string | null;
+  birth_date: string | null;
+  parent_name: string | null;
+  parent_phone: string | null;
+  parent_email: string | null;
+}
 
 /* ===================== COMPONENT ===================== */
 
@@ -101,7 +110,10 @@ interface ArenaOption {
 export class NoteComponent implements OnInit, OnChanges {
   /* ===================== INPUT / OUTPUT ===================== */
 
-  @Input() child: any;
+ @Input() child!: { child_uuid: string };
+
+childDetails: ChildDetails | null = null;
+
   @Input() occurrence: any;
 
   /** אם מועבר מבחוץ (לא חובה) */
@@ -188,6 +200,7 @@ showCloseWarning: any;
 
  async ngOnInit() {
   // 1️⃣ טעינת נתונים בסיסיים – חייבים לפני פרטי שיעור
+  await this.loadChildDetails();
   await this.loadHorses();
   await this.loadArenas();
   await this.loadReadyNotes();
@@ -212,9 +225,12 @@ showCloseWarning: any;
     if (changes['occurrence'] && !changes['occurrence'].firstChange) {
       await this.loadLessonDetails();
     }
-    if (changes['child'] && !changes['child'].firstChange) {
-      await this.loadNotes();
-    }
+  if (changes['child']) {
+  await this.loadChildDetails();
+  await this.loadNotes();
+}
+
+
     if (changes['attendanceStatus'] && !changes['attendanceStatus'].firstChange) {
       // שינוי מבחוץ – לא “מחייב” הערה חדשה אוטומטית
       this.resetCloseWarnings();
@@ -222,6 +238,55 @@ showCloseWarning: any;
   }
 
   /* ===================== HELPERS ===================== */
+  get childName(): string {
+  return (
+    this.occurrence?.child_full_name ||
+    `${this.childDetails?.first_name ?? ''} ${this.childDetails?.last_name ?? ''}`.trim() ||
+    '—'
+  );
+}
+getChildAge(birthDate: string | null): number | null {
+  if (!birthDate) return null;
+
+  const birth = new Date(birthDate);
+  const today = new Date();
+
+  let age = today.getFullYear() - birth.getFullYear();
+
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+
+  return age;
+}
+
+private hasAnyNote(): boolean {
+  return (
+    this.notesGeneral.length +
+      this.notesMedical.length +
+      this.notesBehavioral.length >
+    0
+  );
+}
+
+private recalcPresenceFlags() {
+  // ❌ אם אי אפשר לסמן נוכחות בזמן הזה – לא מציגים שום אזהרה
+  if (!this.canMarkAttendanceNow()) {
+    this.mustChooseAttendance = false;
+    this.mustFillNoteForPresent = false;
+    return;
+  }
+
+  this.mustChooseAttendance =
+    this.enforceNoteForPresence && !this.attendanceStatus;
+
+  this.mustFillNoteForPresent =
+    this.enforceNoteForPresence &&
+    this.attendanceStatus === 'present' &&
+    !this.hasAnyNote();
+}
+
 
   getTimeString(v?: string | null): string {
     return v ? String(v).substring(0, 5) : '';
@@ -252,45 +317,122 @@ showCloseWarning: any;
         this.occurrence?.start_time
     );
   }
+canMarkAttendanceNow(): boolean {
+  if (!this.occurrence || !this.lessonDetails?.start_time) {
+    return false;
+  }
+
+  const occurDate = this.getOccurDateForDb();
+  if (!occurDate) return false;
+
+  const lessonDate = new Date(
+    `${occurDate}T${this.lessonDetails.start_time}`
+  );
+
+  const now = new Date();
+  const oneHourAhead = new Date(now.getTime() + 60 * 60 * 1000);
+
+  // ❌ שיעור עתידי מעבר לשעה קדימה
+  if (lessonDate > oneHourAhead) {
+    return false;
+  }
+
+  // ✅ עבר / היום / עד שעה קדימה
+  return true;
+}
 
   /* ===================== LESSON DETAILS ===================== */
+async loadChildDetails() {
+  const childUuid = this.child?.child_uuid;
+  if (!childUuid) return;
+
+  // 1) הילד (לפי child_uuid, לא id)
+  const { data: childData, error } = await this.dbc
+    .from('children')
+    .select('child_uuid, first_name, last_name, birth_date, parent_uid')
+    .eq('child_uuid', childUuid)
+    .maybeSingle();
+
+  if (error || !childData) {
+    console.error('[NOTE] failed loading child', error);
+    return;
+  }
+
+  // 2) הורה (אם יש parent_uid)
+  let parentName: string | null = null;
+  let parentPhone: string | null = null;
+  let parentEmail: string | null = null;
+
+  if (childData.parent_uid) {
+    const { data: parent, error: pErr } = await this.dbc
+      .from('parents')
+      .select('uid, first_name, last_name, email, phone')
+      .eq('uid', childData.parent_uid)
+      .maybeSingle();
+
+    if (!pErr && parent) {
+      parentName = `${parent.first_name ?? ''} ${parent.last_name ?? ''}`.trim() || null;
+      parentPhone = parent.phone ?? null;
+      parentEmail = parent.email ?? null;
+    }
+  }
+
+  this.childDetails = {
+    child_uuid: childUuid,
+    first_name: childData.first_name ?? null,
+    last_name: childData.last_name ?? null,
+    birth_date: childData.birth_date ?? null,
+    parent_name: parentName,
+    parent_phone: parentPhone,
+    parent_email: parentEmail,
+  };
+}
+
 
 async loadLessonDetails() {
   const lessonId = this.occurrence?.lesson_id;
   const occurDate = this.getOccurDateForDb();
+
   if (!lessonId || !occurDate) return;
 
-  const { data: baseData } = await this.dbc
+  // --- קריאה מה-VIEW (כמו בקוד המקורי) ---
+  const { data, error } = await this.dbc
     .from('lessons_with_children')
-    .select('lesson_id,start_time,end_time,lesson_type,status')
-    .eq('lesson_id', lessonId)
-    .limit(1);
-
-  const base = baseData?.[0];
-  if (!base) return;
-
-  const { data: resData } = await this.dbc
-    .from('lesson_resources')
-    .select('horse_id,arena_id')
+    .select(`
+      lesson_id,
+      start_time,
+      end_time,
+      lesson_type,
+      status,
+      horse_id,
+      horse_name,
+      arena_id,
+      arena_name
+    `)
     .eq('lesson_id', lessonId)
     .eq('occur_date', occurDate)
     .limit(1);
 
-  const horseId = resData?.[0]?.horse_id ?? null;
-  const arenaId = resData?.[0]?.arena_id ?? null;
+  if (error) {
+    console.error('[loadLessonDetails] view error', error);
+    return;
+  }
 
-  this.lessonDetails.lesson_id = lessonId;
-this.lessonDetails.start_time = base.start_time ?? null;
-this.lessonDetails.end_time = base.end_time ?? null;
-this.lessonDetails.lesson_type = base.lesson_type ?? null;
-this.lessonDetails.status = base.status ?? null;
-this.lessonDetails.horse_id = horseId;
-this.lessonDetails.horse_name =
-  horseId ? this.horses.find(h => h.id === horseId)?.name ?? null : null;
-this.lessonDetails.arena_id = arenaId;
-this.lessonDetails.arena_name =
-  arenaId ? this.arenas.find(a => a.id === arenaId)?.name ?? null : null;
+  const row = data?.[0];
+  if (!row) return;
 
+  // --- מיפוי ל-lessonDetails (בלי לגעת בטבלה) ---
+  this.lessonDetails = {
+    lesson_id: row.lesson_id,
+    start_time: row.start_time ?? null,
+    end_time: row.end_time ?? null,
+    lesson_type: row.lesson_type ?? null,
+    status: row.status ?? null,
+    horse_id: row.horse_id ?? null,
+    horse_name: row.horse_name ?? null,
+    arena_id: row.arena_id ?? null,
+    arena_name: row.arena_name ?? null,
+  };
 }
 
   /* ===================== HORSES / ARENAS ===================== */
@@ -358,25 +500,101 @@ this.lessonDetails.arena_name =
   }
 
   /* ===================== ATTENDANCE ===================== */
+private async saveAttendance(status: AttendanceStatus | null) {
+  const lessonId = this.occurrence?.lesson_id;
+  const occurDate = this.getOccurDateForDb();
+  const childId = this.child?.child_uuid;
 
-  setAttendance(status: AttendanceStatus) {
-    if (!this.canEditNotes) return;
+  console.log('[ATTENDANCE] input', {
+    lessonId,
+    occurDate,
+    childId,
+    status,
+  });
 
-    this.attendanceStatus = status;
-    this.attendanceChange.emit(status);
-
-    // ✅ רק אם “הגיע” -> חובה הערה חדשה
-    if (this.enforceNoteForPresence && status === 'present') {
-      this.mustAddNewNoteForPresent = true;
-    }
-
-    // אם עברו ל“לא הגיע” או ביטלו -> לא מחייבים הערה חדשה
-    if (status !== 'present') {
-      this.mustAddNewNoteForPresent = false;
-    }
-
-    this.resetCloseWarnings();
+  if (!lessonId || !occurDate || !childId) {
+    console.error('[ATTENDANCE] missing PK', {
+      lessonId,
+      occurDate,
+      childId,
+    });
+    return;
   }
+
+  const user = await getCurrentUserDetails('uid, role');
+  console.log('[ATTENDANCE] user', user);
+
+  /** ניקוי נוכחות */
+  if (!status) {
+    console.log('[ATTENDANCE] delete');
+
+    const { error } = await this.dbc
+      .from('lesson_attendance')
+      .delete()
+      .eq('lesson_id', lessonId)
+      .eq('occur_date', occurDate)
+      .eq('child_id', childId);
+
+    if (error) {
+      console.error('[ATTENDANCE] delete error', error);
+    }
+
+    return;
+  }
+
+  /** שמירה */
+  const payload = {
+    lesson_id: lessonId,
+    child_id: childId,
+    occur_date: occurDate,
+
+    attendance_status: status,
+
+    // ❗❗❗ כאן היה הבאג
+    marked_by_uid: null,              // UUID בלבד → NULL
+    marked_by_id: user?.uid ?? null,  // Firebase UID → TEXT
+
+    marked_by_role: user?.role ?? null,
+    marked_at: new Date().toISOString(),
+    note: null,
+  };
+
+  console.log('[ATTENDANCE] upsert payload', payload);
+
+  const { error } = await this.dbc
+    .from('lesson_attendance')
+    .upsert(payload, {
+      onConflict: 'lesson_id,child_id,occur_date',
+    });
+
+  if (error) {
+    console.error('[ATTENDANCE] upsert error', error);
+  } else {
+    console.log('[ATTENDANCE] saved OK');
+  }
+}
+
+
+
+async setAttendance(status: AttendanceStatus) {
+  if (!this.canEditNotes) return;
+
+  if (!this.canMarkAttendanceNow()) {
+    console.warn('[ATTENDANCE] blocked – future lesson');
+    return;
+  }
+
+  this.attendanceStatus = status;
+  this.attendanceChange.emit(status);
+
+  await this.saveAttendance(status);
+  this.recalcPresenceFlags();
+
+  
+}
+clearAttendance(): void {
+  this.setAttendance(null);
+}
 
   /* ===================== NOTES ===================== */
 
@@ -524,26 +742,32 @@ this.lessonDetails.arena_name =
   }
 
   onClose() {
-    if (!this.enforceNoteForPresence) {
-      this.close.emit();
-      return;
-    }
-
-    // חובה לבחור נוכחות לפני סגירה
-    if (!this.attendanceStatus) {
-      this.mustChooseAttendance = true;
-      this.mustFillNoteForPresent = false;
-      return;
-    }
-
-    // אם "הגיע" -> חובה הערה חדשה
-    if (this.attendanceStatus === 'present' && this.mustAddNewNoteForPresent) {
-      this.mustChooseAttendance = false;
-      this.mustFillNoteForPresent = true;
-      return;
-    }
-
-    // אם "לא הגיע" -> מותר לסגור גם בלי הערה
+  // ✅ אם אי אפשר לסמן נוכחות בזמן הזה — סוגרים בלי אזהרות
+  if (!this.canMarkAttendanceNow()) {
     this.close.emit();
+    return;
   }
+
+  if (!this.enforceNoteForPresence) {
+    this.close.emit();
+    return;
+  }
+
+  // חובה לבחור נוכחות
+  if (!this.attendanceStatus) {
+    this.mustChooseAttendance = true;
+    this.mustFillNoteForPresent = false;
+    return;
+  }
+
+  // הגיע → חובה הערה
+  if (this.attendanceStatus === 'present' && this.mustAddNewNoteForPresent) {
+    this.mustChooseAttendance = false;
+    this.mustFillNoteForPresent = true;
+    return;
+  }
+
+  this.close.emit();
+}
+
 }
