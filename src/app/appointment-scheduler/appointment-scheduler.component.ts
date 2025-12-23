@@ -336,9 +336,12 @@ timeRangeOccupancyRateDays = 30;
   this.needApprove = needApproveParam === 'true';
 
   const qpChildId = qp.get('childId');
-  if (qpChildId) {
-    this.selectedChildId = qpChildId;    // ⬅⬅ שומרים את הילד שעבר בניווט
-  }
+const isUuid = (v: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+
+if (qpChildId && isUuid(qpChildId)) {
+  this.selectedChildId = qpChildId;
+}
 
   //await this.loadInstructors();
 
@@ -913,8 +916,9 @@ filterInstructors(): void {
         return;
       }
 
-      this.makeupCandidates = (data ?? []) as MakeupCandidate[];
-      this.applyInstructorFilterToLists();
+     this.makeupCandidatesAll = (data ?? []) as MakeupCandidate[];  
+this.applyInstructorFilterToLists();                     
+
 
     } finally {
       this.loadingMakeupCandidates = false;
@@ -1394,7 +1398,16 @@ async requestMakeupFromSecretary(slot: MakeupSlot): Promise<void> {
       return;
     }
 
-    // 🔹 עכשיו נכניס את שיעור ההשלמה לטבלת lessons
+const excId = this.selectedMakeupCandidate!.lesson_occ_exception_id;
+
+const { error: updErr } = await supa
+  .from('lesson_occurrence_exceptions')
+  .update({ status: 'נשלחה בקשה להשלמה' })
+  .eq('id', excId);
+
+if (updErr) {
+  console.error('lesson_occurrence_exceptions update error (MAKEUP)', updErr);
+}
 
     // יום בשבוע לפי תאריך ההשלמה
     const dayLabel = this.dayOfWeekLabelFromDate(slot.occur_date);
@@ -1415,31 +1428,31 @@ async requestMakeupFromSecretary(slot: MakeupSlot): Promise<void> {
     const anchorDate = slot.occur_date;
 const baseLessonUid = this.selectedMakeupCandidate!.lesson_occ_exception_id ?? null;
 
-    const { error: lessonError } = await supa
-      .from('lessons')
-      .insert({
-        lesson_type: 'השלמה',              // ⬅️ lesson_type = השלמה
-        day_of_week: dayLabel,             // ⬅️ יום בשבוע מהתאריך
-        start_time: slot.start_time,
-        end_time: slot.end_time,
-        instructor_id: instructorIdNumber, // ⬅️ ת"ז של המדריך
-        status: 'ממתין לאישור',           // ⬅️ בהתאם ל-CHECK בטבלה
-        child_id: this.selectedChildId,    // ⬅️ ה-UUID של הילד
-        repeat_weeks: 1,                   // ⬅️ תמיד 1
-        anchor_week_start: anchorDate,     // ⬅️ תאריך השיעור השלמה
-        appointment_kind: 'therapy_makeup',// ⬅️ סוג התור
-        origin: 'parent',                  // ⬅️ מקור: הורה
-        base_lesson_uid: baseLessonUid,      // ⬅️ קישור ל-lesson_occurrence_exceptions.id
-        capacity: 1,
-        current_booked: 1,
-        payment_source: 'private',         // אם תרצי – אפשר לשנות ללוגיקה של קופה/פרטי
-      });
+    // const { error: lessonError } = await supa
+    //   .from('lessons')
+    //   .insert({
+    //     lesson_type: 'השלמה',              // ⬅️ lesson_type = השלמה
+    //     day_of_week: dayLabel,             // ⬅️ יום בשבוע מהתאריך
+    //     start_time: slot.start_time,
+    //     end_time: slot.end_time,
+    //     instructor_id: instructorIdNumber, // ⬅️ ת"ז של המדריך
+    //     status: 'ממתין לאישור',           // ⬅️ בהתאם ל-CHECK בטבלה
+    //     child_id: this.selectedChildId,    // ⬅️ ה-UUID של הילד
+    //     repeat_weeks: 1,                   // ⬅️ תמיד 1
+    //     anchor_week_start: anchorDate,     // ⬅️ תאריך השיעור השלמה
+    //     appointment_kind: 'therapy_makeup',// ⬅️ סוג התור
+    //     origin: 'parent',                  // ⬅️ מקור: הורה
+    //     base_lesson_uid: baseLessonUid,      // ⬅️ קישור ל-lesson_occurrence_exceptions.id
+    //     capacity: 1,
+    //     current_booked: 1,
+    //     payment_source: 'private',         // אם תרצי – אפשר לשנות ללוגיקה של קופה/פרטי
+    //   });
 
-    if (lessonError) {
-      console.error(lessonError);
-      this.makeupError = 'שגיאה בשמירת שיעור ההשלמה במערכת';
-      return;
-    }
+    // if (lessonError) {
+    //   console.error(lessonError);
+    //   this.makeupError = 'שגיאה בשמירת שיעור ההשלמה במערכת';
+    //   return;
+    // }
 
     this.makeupCreatedMessage =
       'בקשת ההשלמה נשלחה למזכירה ✔️';
@@ -1625,7 +1638,7 @@ if (this.referralFile) {
     return this.daysOfWeek.find(d => d.value === value)?.label ?? '';
   }
 
-  private dayOfWeekLabelFromDate(dateStr: string): string {
+  dayOfWeekLabelFromDate(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00');
   const dow = d.getDay(); // 0–6 לפי הזמן המקומי
   return this.dayOfWeekLabel(dow);
@@ -1786,8 +1799,6 @@ private async loadOccupancySlotsForCandidate(
         p_to_date: toDate,
       }
     );
-
-   
     if (error) {
       console.error('find_makeup_slots_for_lesson_by_id_number error', error);
       this.occupancySlotsError = 'שגיאה בחיפוש שיעורים למילוי מקום';
@@ -1964,6 +1975,17 @@ this.occupancyConfirmData.newInstructorName = newInstructorName;
       this.occupancyError = 'שגיאה בשליחת בקשת מילוי מקום למזכירה';
       return;
     }
+const excId = this.selectedOccupancyCandidate!.lesson_occ_exception_id;
+
+const { error: updErr } = await supa
+  .from('lesson_occurrence_exceptions')
+  .update({ status: 'נשלחה בקשה למילוי מקום' })
+  .eq('id', excId);
+
+if (updErr) {
+  console.error('lesson_occurrence_exceptions update error (FILL_IN)', updErr);
+  // לא חייבים להפיל הכל – אבל כן להציג הודעה אם תרצי
+}
 
     this.occupancyCreatedMessage =
       'בקשת מילוי המקום נשלחה למזכירה ✔️';
