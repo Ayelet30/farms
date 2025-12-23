@@ -516,7 +516,7 @@
             }"
           >
             <td>{{ c.occur_date }}</td>
-            <td>{{ c.day_of_week }}</td>
+            <td>{{  dayOfWeekLabelFromDate(c.occur_date)  }}</td>
             <td>{{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}</td>
             <td>{{ getInstructorNameById(c.instructor_id) }}</td>
             <td>
