@@ -1,12 +1,22 @@
-// app/billing/parent-payments.component.ts
-import { Component, Input, effect, signal, OnInit, AfterViewInit } from '@angular/core';
+// src/app/pages/parent-payments/parent-payments.component.ts
+import { Component, OnInit, AfterViewInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranzilaService } from '../../services/tranzila.service';
 import { PaymentsService, type PaymentProfile, type ChargeRow } from '../../services/payments.service';
-import { Router } from '@angular/router';
 import { CurrentUserService } from '../../core/auth/current-user.service';
-import { TokensService } from '../../services/tokens.service';
+import {
+  dbTenant,
+  ensureTenantContextReady,
+  getCurrentFarmMetaSync,
+} from '../../services/supabaseClient.service';
+
+declare const TzlaHostedFields: any;
+
+type HostedFieldsInstance = {
+  charge: (params: any, cb: (err: any, resp: any) => void) => void;
+  onEvent?: (eventName: string, cb: (...args: any[]) => void) => void;
+};
 
 type ProfileVM = {
   id: string;
@@ -14,6 +24,8 @@ type ProfileVM = {
   last4: string | null;
   is_default: boolean;
   created_at: string;
+  expiry_month?: number | null;
+  expiry_year?: number | null;
 };
 
 type ChargeVM = {
@@ -24,12 +36,17 @@ type ChargeVM = {
   provider_id: string | null;
 };
 
-declare const TzlaHostedFields: any;
-
-type HostedFieldsInstance = {
-  charge: (params: any, cb: (err: any, resp: any) => void) => void;
-  onEvent?: (eventName: string, cb: (...args: any[]) => void) => void;
+type InvoiceVM = {
+  id: string;
+  amountNis: string;
+  date: string;
+  invoice_url: string;
+  method: string | null;
 };
+
+type SavePaymentMethodResult =
+  | { ok: true; is_default: boolean }
+  | { ok: false; error: string };
 
 @Component({
   selector: 'app-parent-payments',
@@ -39,47 +56,51 @@ type HostedFieldsInstance = {
   styleUrls: ['./parent-payments.component.scss'],
 })
 export class ParentPaymentsComponent implements OnInit, AfterViewInit {
-  // נשאר כמו אצלך – רק ודאויות אתחול לטובת strict
   parentUid: string = '';
   parentEmail: string = '';
 
-  hfAmountAgorot = 0;
-  hfEmail = '';
-  private hfFields: HostedFieldsInstance | null = null;
-  busyHosted = signal(false);
-
-  hostedOpen = signal(false);
-
-  // לשימוש חד-פעמי עבור חיוב מבחן/חד פעמי
-  amountAgorot = 0;
-
   loading = signal(true);
-  busyAdd = signal(false);
-  busyCharge = signal(false);
+  error = signal<string | null>(null);
+
+  // נתונים
   profiles = signal<ProfileVM[]>([]);
   charges = signal<ChargeVM[]>([]);
-  error = signal<string | null>(null);
+  invoices = signal<InvoiceVM[]>([]);
+
+  // ===== מודל הוספת כרטיס (Hosted Fields + טוקן) =====
+  addCardOpen = signal(false);
+  savingToken = signal(false);
+  tokenSaved = signal(false);
+  tokenError = signal<string | null>(null);
+
+  private hfAdd: HostedFieldsInstance | null = null;
+  private thtkAdd: string | null = null;
+
+  private savedToken: {
+    token: string;
+    last4: string | null;
+    brand: string | null;
+    expiryMonth?: string | null;
+    expiryYear?: string | null;
+  } | null = null;
+
+  // דגל כדי לא לנסות לאתחל HF לפני שהמודל נפתח וה-DOM קיים
+  private hfInitTried = false;
 
   constructor(
     private tranzila: TranzilaService,
     private pagos: PaymentsService,
-    private _router: Router, // נשמר (גם אם לא בשימוש כעת)
     private cu: CurrentUserService,
-    private _tokens: TokensService, // נשמר (גם אם לא בשימוש כעת)
   ) {
     const cur = this.cu.current;
-    const details = this.cu.snapshot;
-
     this.parentUid = cur?.uid ?? '';
     this.parentEmail = cur?.email ?? '';
-
-    console.log('ParentPayments: uid=', this.parentUid, ' email=', this.parentEmail);
   }
 
   async ngOnInit() {
     try {
       if (!this.parentUid) throw new Error('missing uid');
-      await this.refresh();
+      await this.refreshAll();
     } catch (e: any) {
       this.error.set(e?.message ?? 'failed to init');
     } finally {
@@ -88,249 +109,300 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
   }
 
   async ngAfterViewInit() {
-    try {
-      // קורא לפונקציה בענן כדי לקבל thtk
-      const { thtk } = await this.tranzila.getHandshakeToken();
-      this.initHostedFields(thtk);
-    } catch (e) {
-      console.error('[HF] init error', e);
-    }
+    // לא מאתחלים HostedFields כאן — רק כשפותחים את המודל
   }
 
-
-  openHostedModal() {
-    this.hostedOpen.set(true);
-  }
-
-  closeHostedModal() {
-    this.hostedOpen.set(false);
-  }
-  
-  async refresh() {
-  try {
-    const [p, c] = await Promise.all([
-      this.pagos.listProfiles(this.parentUid),
-      // במקום listCharges הישן או listCreditsForParent –
-      // משתמשים בפונקציה החדשה מהשירות:
-      this.pagos.listProviderCharges(this.parentUid, 20),
+  // =========================
+  // טעינות
+  // =========================
+  async refreshAll() {
+    await Promise.all([
+      this.refreshProfilesAndCharges(),
+      this.refreshInvoices(),
     ]);
-
-    // פרופילים (כרטיסים)
-    this.profiles.set(
-      p.map((x: PaymentProfile) => ({
-        id: x.id,
-        brand: x.brand,
-        last4: x.last4,
-        is_default: x.is_default,
-        created_at: new Date(x.created_at).toLocaleString('he-IL'),
-      })),
-    );
-
-    // חיובים שבוצעו
-    this.charges.set(
-      c.map((x: ChargeRow) => ({
-        id: x.id,
-        sumNis: (x.amount_agorot / 100).toFixed(2) + ' ₪',
-        status: x.status,
-        provider_id: x.provider_id,
-        created_at: new Date(x.created_at).toLocaleString('he-IL'),
-      })),
-    );
-  } catch (e: any) {
-    this.error.set(e?.message ?? 'load failed');
-  }
-}
-
-
-  private genOrderId(): string {
-    try {
-      // @ts-ignore
-      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        // @ts-ignore
-        return 'ord_' + crypto.randomUUID();
-      }
-    } catch {}
-    return 'ord_' + Math.random().toString(36).slice(2) + '_' + Date.now();
   }
 
-  async addPaymentMethod() {
-    if (!this.parentUid || !this.parentEmail) return;
+  private async refreshProfilesAndCharges() {
     try {
-      this.busyAdd.set(true);
-      const orderId = this.genOrderId();
+      const [p, c] = await Promise.all([
+        this.pagos.listProfiles(this.parentUid),
+        this.pagos.listProviderCharges(this.parentUid, 50),
+      ]);
 
-      const url = await this.tranzila.createHostedUrl({
-        uid: this.parentUid,
-        email: this.parentEmail,
-        amountAgorot: 100, // 1.00 ₪ – טוקניזציה/אימות לפי ההגדרה במסוף
-        orderId,
-        successPath: '/billing/success',
-        failPath: '/billing/error',
+      this.profiles.set(
+        (p ?? []).map((x: PaymentProfile) => ({
+          id: x.id,
+          brand: x.brand,
+          last4: x.last4,
+          is_default: x.is_default,
+          created_at: new Date(x.created_at).toLocaleString('he-IL'),
+          // אם יש בשירות/טבלה:
+          expiry_month: (x as any).expiry_month ?? null,
+          expiry_year: (x as any).expiry_year ?? null,
+        })),
+      );
+
+      // ✅ לא להראות טיוטות/לא משולמים
+      const filtered = (c ?? []).filter((x: ChargeRow) => {
+        const st = String(x.status ?? '').toLowerCase();
+        return st === 'succeeded' || st === 'paid' || st === 'success';
       });
 
-      window.location.href = url;
+      this.charges.set(
+        filtered.map((x: ChargeRow) => ({
+          id: x.id,
+          sumNis: (Number(x.amount_agorot) / 100).toFixed(2) + ' ₪',
+          status: x.status,
+          provider_id: x.provider_id ?? null,
+          created_at: new Date(x.created_at).toLocaleString('he-IL'),
+        })),
+      );
     } catch (e: any) {
-      this.error.set(e?.message ?? 'Failed to open Tranzila hosted');
-    } finally {
-      this.busyAdd.set(false);
+      this.error.set(e?.message ?? 'load failed');
     }
   }
 
+  // חשבוניות מהטבלה bereshit_farm.payments (invoice_url)
+  private async refreshInvoices() {
+    try {
+      const dbc = dbTenant();
+      const { data, error } = await dbc
+        .from('payments')
+        .select('id, amount, date, method, invoice_url')
+        .eq('parent_uid', this.parentUid)
+        .not('invoice_url', 'is', null)
+        .order('date', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      const rows = (data ?? []) as any[];
+
+      this.invoices.set(
+        rows.map((r) => ({
+          id: String(r.id),
+          amountNis: Number(r.amount ?? 0).toFixed(2) + ' ₪',
+          date: r.date ? new Date(r.date).toLocaleDateString('he-IL') : '-',
+          invoice_url: String(r.invoice_url),
+          method: r.method ?? null,
+        })),
+      );
+    } catch (e: any) {
+      // לא חוסמים מסך אם אין הרשאות/טבלה — פשוט לא מציגים
+      console.error('[invoices] load failed', e);
+      this.invoices.set([]);
+    }
+  }
+
+  // =========================
+  // ברירת מחדל
+  // =========================
   async setDefault(profileId: string) {
     try {
       await this.pagos.setDefault(profileId, this.parentUid);
-      await this.refresh();
+      await this.refreshProfilesAndCharges();
     } catch (e: any) {
       this.error.set(e?.message ?? 'Failed to set default');
     }
   }
 
-  async deactivate(profileId: string) {
+  // =========================
+  // מודל הוספת כרטיס
+  // =========================
+  openAddCardModal() {
+    this.addCardOpen.set(true);
+    this.tokenError.set(null);
+    this.tokenSaved.set(false);
+    this.savedToken = null;
+
+    // לאחר פתיחת מודל: ה-DOM קיים → אפשר לאתחל HF
+    queueMicrotask(() => this.ensureAddHostedFieldsReady());
+  }
+
+  closeAddCardModal() {
+    if (this.savingToken()) return;
+    this.addCardOpen.set(false);
+  }
+
+  private async ensureAddHostedFieldsReady() {
+    if (this.hfAdd) return;
+    if (this.hfInitTried) return;
+    this.hfInitTried = true;
+
     try {
-      await this.pagos.deactivate(profileId);
-      await this.refresh();
-    } catch (e: any) {
-      this.error.set(e?.message ?? 'Failed to deactivate');
-    }
-  }
+      const { thtk } = await this.tranzila.getHandshakeToken();
+      this.thtkAdd = thtk;
 
-  async testCharge() {
-    if (!this.amountAgorot || this.amountAgorot <= 0) {
-      this.error.set('אנא הזיני סכום באגורות גדול מ-0');
-      return;
-    }
-    try {
-      this.busyCharge.set(true);
-      await this.tranzila.chargeByToken({
-        parentUid: this.parentUid,
-        amountAgorot: this.amountAgorot,
-        currency: 'ILS',
-      });
-      await this.refresh();
-    } catch (e: any) {
-      this.error.set(e?.message ?? 'Charge failed');
-    } finally {
-      this.busyCharge.set(false);
-    }
-  }
-
-  private initHostedFields(thtk: string) {
-    if (!TzlaHostedFields) {
-      console.error('TzlaHostedFields global not found');
-      return;
-    }
-
-    this.hfFields = TzlaHostedFields.create({
-      sandbox: false,
-      fields: {
-        credit_card_number: {
-          selector: '#credit_card_number',
-          placeholder: '4580 4580 4580 4580',
-          tabindex: 1,
-        },
-        cvv: {
-          selector: '#hf_cvv',
-          placeholder: '123',
-          tabindex: 2,
-        },
-        expiry: {
-          selector: '#hf_expiry',
-          placeholder: '12/26',
-          version: '1',
-        },
-      },
-      styles: {
-        input: { height: 'auto', width: '100%' },
-        select: { height: 'auto', width: '100%' },
-      },
-    });
-
-    this.hfFields!.onEvent?.('validityChange', (ev: any) => {
-      console.log('[HF validity]', ev);
-    });
-
-    // נשמור את ה-thtk שקיבלנו מהHandshake
-    (this.hfFields as any)._thtk = thtk;
-  }
-
-  onHostedFormSubmit(ev: Event) {
-    console.log('!!!!!!!! form submit');
-    ev.preventDefault();
-    this.directChargeWithHosted();
-  }
-
-  async directChargeWithHosted() {
-    if (!this.hfFields) {
-      console.error('Hosted fields not initialized');
-      this.error.set('שדה כרטיס אשראי לא מוכן');
-      return;
-    }
-    if (!this.hfAmountAgorot || this.hfAmountAgorot <= 0) {
-      console.error('Invalid amount');
-      this.error.set('אנא הזיני סכום באגורות גדול מ-0');
-      return;
-    }
-
-    console.log('[directChargeWithHosted] amountAgorot=', this.hfAmountAgorot);
-    try {
-      this.busyHosted.set(true);
-
-      const amount = (this.hfAmountAgorot / 100).toFixed(2); // ₪
-      const thtk = (this.hfFields as any)._thtk;
-      console.log('[HF charge] amount=', amount, ' thtk=', thtk);
-      if (!thtk) {
-        throw new Error('Handshake token (thtk) missing');
+      if (!TzlaHostedFields) {
+        this.tokenError.set('רכיב התשלום לא נטען');
+        return;
       }
 
-      const terminalName = 'moachapp'; // ← שם המסוף שלך
-
-      this.hfFields.charge(
-        {
-          // חובה לפי התיעוד
-          terminal_name: terminalName,
-          amount,
-          thtk,
-
-          // אופציונלי
-          currency_code: 'ILS',
-          contact: this.hfEmail || this.parentEmail,
-          email: this.hfEmail || this.parentEmail,
-          requested_by_user: this.parentEmail || 'smart-farm-parent',
-          response_language: 'hebrew',
-          PARAM_3_4: 'MoachApp', 
-          tokenize: true, // אם מוגדר במסוף
+      this.hfAdd = TzlaHostedFields.create({
+        sandbox: false,
+        fields: {
+          credit_card_number: {
+            selector: '#pm_credit_card_number',
+            placeholder: '4580 4580 4580 4580',
+            tabindex: 1,
+          },
+          cvv: {
+            selector: '#pm_cvv',
+            placeholder: '123',
+            tabindex: 2,
+          },
+          expiry: {
+            selector: '#pm_expiry',
+            placeholder: '12/26',
+            version: '1',
+          },
         },
-        async (err: any, response: any) => {
-          console.log('[HF charge] err=', err, ' response=', response);
+        styles: {
+          input: {
+            height: '38px',
+            'line-height': '38px',
+            padding: '0 8px',
+            'font-size': '15px',
+            'box-sizing': 'border-box',
+          },
+          select: {
+            height: '38px',
+            'line-height': '38px',
+            padding: '0 8px',
+            'font-size': '15px',
+            'box-sizing': 'border-box',
+          },
+        },
+      });
 
-          if (err && err.messages?.length) {
+      this.hfAdd?.onEvent?.('validityChange', () => {});
+    } catch (e: any) {
+      console.error('[pm] HF init error', e);
+      this.tokenError.set(e?.message ?? 'שגיאה באתחול שדות האשראי');
+    }
+  }
+
+  // אותו tokenize כמו באשף הוספת ילד
+  async tokenizeAndSaveCard() {
+    this.tokenError.set(null);
+
+    if (!this.hfAdd || !this.thtkAdd) {
+      this.tokenError.set('שדות התשלום לא מוכנים');
+      return;
+    }
+    if (!this.parentUid) {
+      this.tokenError.set('לא זוהה הורה מחובר');
+      return;
+    }
+
+    await ensureTenantContextReady();
+    const farm = getCurrentFarmMetaSync();
+    const tenantSchema = farm?.schema_name ?? undefined;
+    if (!tenantSchema) {
+      this.tokenError.set('לא זוהתה סכמת חווה');
+      return;
+    }
+
+    // ניקוי שגיאות HF
+    ['credit_card_number', 'expiry', 'cvv'].forEach((k) => {
+      const el = document.getElementById('pm_errors_for_' + k);
+      if (el) el.textContent = '';
+    });
+
+    this.savingToken.set(true);
+    this.tokenSaved.set(false);
+
+    const terminalName = 'moachapp';
+    const amount = '1.00'; // verify
+
+    this.hfAdd.charge(
+      {
+        terminal_name: terminalName,
+        thtk: this.thtkAdd,
+        currency_code: 'ILS',
+        amount,
+        txn_type: 'verify',
+        verify_mode: 2,
+        response_language: 'hebrew',
+        requested_by_user: 'parent-payments-tokenize',
+        email: this.parentEmail || undefined,
+        contact: this.parentEmail || undefined,
+      },
+      async (err: any, response: any) => {
+        try {
+          if (err?.messages?.length) {
             err.messages.forEach((msg: any) => {
-              const el = document.getElementById('errors_for_' + msg.param);
+              const el = document.getElementById('pm_errors_for_' + msg.param);
               if (el) el.textContent = msg.message;
             });
-            this.error.set('שגיאה בנתוני הכרטיס');
-            this.busyHosted.set(false);
+            this.tokenError.set('שגיאה בפרטי הכרטיס');
             return;
           }
 
           const tx = response?.transaction_response;
-          if (!tx || !tx.success) {
-            this.error.set(tx?.error || 'התשלום נכשל');
-            this.busyHosted.set(false);
+          if (!tx?.success) {
+            this.tokenError.set(tx?.error || 'שמירת אמצעי תשלום נכשלה');
             return;
           }
 
-          // כאן יש tx + token אם tokenize=true – אפשר לשמור בשרת
+          const token = tx?.token;
+          if (!token) {
+            this.tokenError.set('לא התקבל טוקן מהסליקה');
+            return;
+          }
 
-          await this.refresh();
-          this.error.set(null);
-          this.busyHosted.set(false);
-        },
-      );
-    } catch (e: any) {
-      console.error('[directChargeWithHosted] error', e);
-      this.error.set(e?.message ?? 'HF charge failed');
-      this.busyHosted.set(false);
-    }
+          const last4 =
+            tx?.credit_card_last_4_digits ??
+            tx?.last_4 ??
+            (tx?.card_mask ? String(tx.card_mask).slice(-4) : null);
+
+          const brand = tx?.card_type_name ?? tx?.card_type ?? null;
+
+          this.savedToken = {
+            token: String(token),
+            last4: last4 ? String(last4) : null,
+            brand: brand ? String(brand) : null,
+            expiryMonth: tx?.expiry_month ?? null,
+            expiryYear: tx?.expiry_year ?? null,
+          };
+
+          // ✅ שמירה בשרת (Cloud Function) — עם טיפוס שפותח את שגיאת TS2339
+          const resultUnknown = await this.tranzila.savePaymentMethod({
+            parentUid: this.parentUid,
+            tenantSchema,
+            token: this.savedToken.token,
+            last4: this.savedToken.last4,
+            brand: this.savedToken.brand,
+            expiryMonth: this.savedToken.expiryMonth,
+            expiryYear: this.savedToken.expiryYear,
+          });
+
+          const result = resultUnknown as SavePaymentMethodResult;
+
+          if (result && result.ok === false) {
+            this.tokenError.set(result.error ?? 'שגיאה בשמירת אמצעי תשלום במערכת');
+            return;
+          }
+
+          this.tokenSaved.set(true);
+
+          // רענון מסך
+          await this.refreshProfilesAndCharges();
+
+          // סגירה אוטומטית אחרי הצלחה
+          this.closeAddCardModal();
+        } catch (e: any) {
+          console.error('[tokenizeAndSaveCard] save error', e);
+          this.tokenError.set(e?.message ?? 'שגיאה בשמירת אמצעי תשלום במערכת');
+        } finally {
+          this.savingToken.set(false);
+        }
+      },
+    );
+  }
+
+  // עזר קטן
+  trackById(_i: number, x: { id: string }) {
+    return x.id;
   }
 }

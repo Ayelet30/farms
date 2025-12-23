@@ -1,3 +1,4 @@
+<!-- add-child-wizard.component.html -->
 <div class="wizard-overlay">
   <div class="wizard-dialog" dir="rtl">
     <button class="close-btn" type="button" (click)="close()" aria-label="סגירת חלון">
@@ -7,14 +8,15 @@
     <!-- כותרת עליונה + פס שלבים -->
     <div class="wizard-header">
       <h2>{{ headerTitle }}</h2>
-      <p class="wizard-subtitle">
-        {{ headerSubtitle }}
-      </p>
-
+      <p class="wizard-subtitle">{{ headerSubtitle }}</p>
 
       <div class="steps-bar">
-        <div *ngFor="let s of steps; index as i" class="step-pill" [class.active]="i === stepIndex"
-          [class.done]="i < stepIndex">
+        <div
+          *ngFor="let s of steps; index as i"
+          class="step-pill"
+          [class.active]="i === stepIndex"
+          [class.done]="i < stepIndex"
+        >
           <span class="step-number">{{ i + 1 }}</span>
           <span class="step-label">{{ s }}</span>
         </div>
@@ -31,46 +33,44 @@
       <div *ngIf="stepIndex === 0" class="step-pane">
         <h3 class="step-title">פרטי הילד/ה</h3>
         <p class="step-hint" *ngIf="isParentMode">
-          מלאי את הפרטים כפי שמופיעים בתעודת הזהות. ניתן לעדכן פרטים מסוימים גם לאחר
-          ההרשמה.
+          מלאי את הפרטים כפי שמופיעים בתעודת הזהות. ניתן לעדכן פרטים מסוימים גם לאחר ההרשמה.
         </p>
         <p class="step-hint" *ngIf="isSecretaryMode">
           בחרי הורה אחראי ומלאי את פרטי הילד כפי שמופיעים בתעודת הזהות.
         </p>
 
-      <!-- הורה אחראי – רק למזכירה -->
-<div class="form-field full-width" *ngIf="isSecretaryMode">
-  <label>הורה אחראי</label>
+        <!-- הורה אחראי – רק למזכירה -->
+        <div class="form-field full-width" *ngIf="isSecretaryMode">
+          <label>הורה אחראי</label>
 
-  <!-- שדה טקסט עם אפשרות הקלדה חופשית + רשימת הצעות -->
-<input
-  class="editable-input"
-  type="text"
-  [(ngModel)]="parentInputText"
-  (ngModelChange)="onParentInputChange($event)"
-  placeholder="התחילי להקליד שם או תעודת זהות…"
-  list="parentsList"
-/>
+          <input
+            class="editable-input"
+            type="text"
+            [(ngModel)]="parentInputText"
+            (ngModelChange)="onParentInputChange($event)"
+            placeholder="התחילי להקליד שם או תעודת זהות…"
+            list="parentsList"
+          />
 
-  <!-- רשימת ההצעות שנשענת על formatParentOption -->
-  <datalist id="parentsList">
-    <option *ngFor="let p of parents" [value]="formatParentOption(p)"></option>
-  </datalist>
+          <datalist id="parentsList">
+            <option *ngFor="let p of parents" [value]="formatParentOption(p)"></option>
+          </datalist>
 
-  <div class="error-msg" *ngIf="validationErrors['parent_uid']">
-    {{ validationErrors['parent_uid'] }}
-  </div>
-  <div class="error-msg" *ngIf="parentsError">{{ parentsError }}</div>
-  <div class="step-hint small" *ngIf="parentsLoading">טוען הורים…</div>
-</div>
- <div class="form-grid">
- <div class="form-field">
- <label>שם פרטי</label>
- <input class="editable-input" [(ngModel)]="child.first_name" />
- <div class="error-msg" *ngIf="validationErrors['first_name']">
-   {{ validationErrors['first_name'] }}
-  </div>
- </div>
+          <div class="error-msg" *ngIf="validationErrors['parent_uid']">
+            {{ validationErrors['parent_uid'] }}
+          </div>
+          <div class="error-msg" *ngIf="parentsError">{{ parentsError }}</div>
+          <div class="step-hint small" *ngIf="parentsLoading">טוען הורים…</div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-field">
+            <label>שם פרטי</label>
+            <input class="editable-input" [(ngModel)]="child.first_name" />
+            <div class="error-msg" *ngIf="validationErrors['first_name']">
+              {{ validationErrors['first_name'] }}
+            </div>
+          </div>
 
           <div class="form-field">
             <label>שם משפחה</label>
@@ -82,8 +82,14 @@
 
           <div class="form-field">
             <label>תעודת זהות</label>
-            <input class="editable-input" maxlength="9" pattern="[0-9]*" inputmode="numeric"
-              (keypress)="allowOnlyNumbers($event)" [(ngModel)]="child.gov_id" />
+            <input
+              class="editable-input"
+              maxlength="9"
+              pattern="[0-9]*"
+              inputmode="numeric"
+              (keypress)="allowOnlyNumbers($event)"
+              [(ngModel)]="child.gov_id"
+            />
             <div class="error-msg" *ngIf="validationErrors['gov_id']">
               {{ validationErrors['gov_id'] }}
             </div>
@@ -98,9 +104,9 @@
           </div>
 
           <div class="form-field">
-            <label>מין</label>
+            <label>מגדר</label>
             <select class="editable-input" [(ngModel)]="child.gender">
-              <option value="" disabled hidden>בחר/י מין</option>
+              <option value="" disabled hidden>בחר/י</option>
               <option value="זכר">זכר</option>
               <option value="נקבה">נקבה</option>
             </select>
@@ -113,9 +119,7 @@
             <label>קופת חולים</label>
             <select class="editable-input" [(ngModel)]="child.health_fund">
               <option value="" disabled hidden>בחר/י קופה</option>
-              <option *ngFor="let fund of healthFunds" [value]="fund">
-                {{ fund }}
-              </option>
+              <option *ngFor="let fund of healthFunds" [value]="fund">{{ fund }}</option>
             </select>
             <div class="error-msg" *ngIf="validationErrors['health_fund']">
               {{ validationErrors['health_fund'] }}
@@ -125,7 +129,12 @@
 
         <div class="form-field full-width">
           <label>הערות כלליות / רגישויות</label>
-          <textarea rows="3" class="editable-input" [(ngModel)]="child.medical_notes_free" maxlength="4000"></textarea>
+          <textarea
+            rows="3"
+            class="editable-input"
+            [(ngModel)]="child.medical_notes_free"
+            maxlength="4000"
+          ></textarea>
         </div>
       </div>
 
@@ -133,8 +142,7 @@
       <div *ngIf="stepIndex === 1" class="step-pane">
         <h3 class="step-title">שאלון רפואי קצר</h3>
         <p class="step-hint">
-          המידע נשמר בסודיות מלאה ומשמש את הצוות להתאמת הטיפול והבטיחות. סמני כל סעיף
-          שרלוונטי לילד/ה.
+          המידע נשמר בסודיות מלאה ומשמש את הצוות להתאמת הטיפול והבטיחות. סמני כל סעיף שרלוונטי לילד/ה.
         </p>
 
         <div class="medical-grid">
@@ -154,7 +162,6 @@
               <span>על הרצף האוטיסטי</span>
             </label>
 
-            <!-- בחירת התפקוד – מופיע רק אם הרצף מסומן -->
             <div class="autism-function" *ngIf="medical.autismSpectrum">
               <label class="radio-row">
                 <input type="radio" name="autismFunction" [value]="'low'" [(ngModel)]="medical.autismFunction" />
@@ -171,6 +178,7 @@
               </div>
             </div>
           </div>
+
           <label class="check-row">
             <input type="checkbox" [(ngModel)]="medical.physicalDisability" />
             <span>מוגבלות פיזית</span>
@@ -189,17 +197,20 @@
 
         <div class="form-field full-width">
           <label>פרטים נוספים שחשוב שנדע</label>
-          <textarea rows="3" class="editable-input" [(ngModel)]="medical.other"
-            placeholder="אבחנות רשמיות, תרופות קבועות, רגישויות מיוחדות ועוד…"></textarea>
+          <textarea
+            rows="3"
+            class="editable-input"
+            [(ngModel)]="medical.other"
+            placeholder="אבחנות רשמיות, תרופות קבועות, רגישויות מיוחדות ועוד…"
+          ></textarea>
         </div>
       </div>
 
-      <!-- שלב 3: תקנון -->
+      <!-- שלב 3: תקנון (רק הורה) -->
       <div *ngIf="stepIndex === 2 && isParentMode" class="step-pane">
         <h3 class="step-title">אישור תקנון החווה</h3>
         <p class="step-hint">
-          להמשך ההרשמה נדרש אישור תקנון החווה. ניתן לפתוח את התקנון המלא בעמוד נפרד,
-          ולסמן כאן שאישרת.
+          להמשך ההרשמה נדרש אישור תקנון החווה. ניתן לפתוח את התקנון המלא בעמוד נפרד, ולסמן כאן שאישרת.
         </p>
 
         <div class="rules-box">
@@ -208,18 +219,14 @@
             <li>היעדרות משיעור יש לעדכן לפי הנהלי ההשלמות של החווה.</li>
             <li>התשלום מתבצע חודשי, בהתאם לתנאי התשלום שסוכמו עם החווה.</li>
           </ul>
-          <p class="rules-link">
-            התקנון המלא מופיע בעמוד "תקנון החווה" באתר.
-          </p>
+          <p class="rules-link">התקנון המלא מופיע בעמוד "תקנון החווה" באתר.</p>
         </div>
 
         <label class="check-row big">
           <input type="checkbox" [(ngModel)]="termsAccepted" />
           <span>קראתי את תקנון החווה ואני מאשר/ת את תנאי ההשתתפות.</span>
         </label>
-        <div class="error-msg" *ngIf="validationErrors['terms']">
-          {{ validationErrors['terms'] }}
-        </div>
+        <div class="error-msg" *ngIf="validationErrors['terms']">{{ validationErrors['terms'] }}</div>
 
         <div class="form-field">
           <label>שם מלא לחתימה דיגיטלית</label>
@@ -230,56 +237,69 @@
         </div>
       </div>
 
-      <!-- שלב 4: תשלום הרשמה -->
-      <div *ngIf="stepIndex === 3 && isParentMode" class="step-pane">
-        <h3 class="step-title">תשלום הרשמה באשראי</h3>
-        <p class="step-hint">
-          בשלב זה מוזנים פרטי התשלום. החיוב בפועל יתבצע רק לאחר שהמזכירה תאשר את
-          ההרשמה. הנתונים נשמרים בצורה מאובטחת במערכת הסליקה של החווה.
-        </p>
+      <!-- שלב 4: אמצעי תשלום (רק הורה ורק אם registration_fee > 0) -->
+      <div *ngIf="stepIndex === paymentStepIndex && isParentMode" class="step-pane">
+        <h3 class="step-title">אמצעי תשלום</h3>
 
-        <div class="form-grid">
-          <div class="form-field">
-            <label>יום בחודש לחיוב</label>
-            <select class="editable-input" [(ngModel)]="payment.chargeDay">
-              <option [ngValue]="null" disabled hidden>בחר/י יום</option>
-              <option *ngFor="let d of [].constructor(28); let i = index" [value]="i + 1">
-                {{ i + 1 }}
-              </option>
-            </select>
-            <div class="error-msg" *ngIf="validationErrors['chargeDay']">
-              {{ validationErrors['chargeDay'] }}
+        <p class="step-hint" *ngIf="loadingPaymentProfile">טוען אמצעי תשלום…</p>
+
+        <!-- יש כרטיס שמור -->
+        <div *ngIf="!loadingPaymentProfile && hasSavedPaymentProfile" class="ok-banner">
+          יש לך כבר אמצעי תשלום שמור במערכת ✅<br />
+          דמי רישום (לאחר אישור מזכירה) והתשלום החודשי ייגבו מכרטיס שמסתיים ב־
+          <b>{{ savedPaymentProfile?.last4 }}</b>.
+          <div class="step-hint small" style="margin-top: 8px;">
+            כדי לשנות את הכרטיס יש לשלוח בקשה דרך
+            <b><a class="inline-link" routerLink="/parent/payments">אמצעי תשלום</a></b>.
+          </div>
+          <p class="step-hint small" style="margin-top: 8px;">
+            * החיוב בפועל יבוצע רק לאחר אישור המזכירה.
+          </p>
+        </div>
+
+        <!-- אין כרטיס שמור -->
+        <div *ngIf="!loadingPaymentProfile && !hasSavedPaymentProfile">
+          <div class="form-grid">
+            <div class="form-field">
+              <label>סכום דמי הרשמה (₪)</label>
+              <input type="number" class="editable-input" [(ngModel)]="payment.registrationAmount" min="0" />
+              <div class="error-msg" *ngIf="validationErrors['registrationAmount']">
+                {{ validationErrors['registrationAmount'] }}
+              </div>
             </div>
-          </div>
 
-          <div class="form-field">
-            <label>סכום דמי הרשמה (₪)</label>
-            <input type="number" class="editable-input" [(ngModel)]="payment.registrationAmount" min="0" />
-          </div>
-
-          <div class="form-field">
-            <label>ת״ז בעל/ת הכרטיס</label>
-            <input class="editable-input" maxlength="9" pattern="[0-9]*" inputmode="numeric"
-              (keypress)="allowOnlyNumbers($event)" [(ngModel)]="payment.cardHolderId" />
-            <div class="error-msg" *ngIf="validationErrors['cardHolderId']">
-              {{ validationErrors['cardHolderId'] }}
+            <div class="hf-box">
+              <label>מספר כרטיס</label>
+              <div id="reg_credit_card_number"></div>
+              <div class="error-msg" id="reg_errors_for_credit_card_number"></div>
             </div>
-          </div>
 
-          <div class="form-field">
-            <label>4 ספרות אחרונות של הכרטיס</label>
-            <input class="editable-input" maxlength="4" pattern="[0-9]*" inputmode="numeric"
-              (keypress)="allowOnlyNumbers($event)" [(ngModel)]="payment.cardLast4" />
-            <div class="error-msg" *ngIf="validationErrors['cardLast4']">
-              {{ validationErrors['cardLast4'] }}
+            <div class="hf-box">
+              <label>תוקף</label>
+              <div id="reg_expiry"></div>
+              <div class="error-msg" id="reg_errors_for_expiry"></div>
+            </div>
+
+            <div class="hf-box">
+              <label>CVV</label>
+              <div id="reg_cvv"></div>
+              <div class="error-msg" id="reg_errors_for_cvv"></div>
+            </div>
+
+            <button class="btn primary" type="button" (click)="tokenizeCard()" [disabled]="savingToken">
+              {{ savingToken ? 'שומר…' : 'שמירת אמצעי תשלום' }}
+            </button>
+
+            <div *ngIf="tokenSaved" class="ok-banner">אמצעי תשלום נשמר בהצלחה ✅</div>
+            <div *ngIf="tokenError" class="error-banner">{{ tokenError }}</div>
+
+            <p class="step-hint small">* החיוב בפועל יבוצע רק לאחר אישור המזכירה.</p>
+
+            <div class="error-msg" *ngIf="validationErrors['token']">
+              {{ validationErrors['token'] }}
             </div>
           </div>
         </div>
-
-        <p class="step-hint small">
-          * מערכת החיוב של החווה (טרנזילה / ספק אחר) תבצע את החיוב ביום שנקבע
-          <strong>רק לאחר אישור המזכירה</strong>. עד אז זהו אמצעי חיוב מוכן בלבד.
-        </p>
       </div>
     </div>
 
@@ -291,20 +311,21 @@
 
       <div class="spacer"></div>
 
-      <button class="btn ghost" type="button" (click)="close()" [disabled]="saving">
-        ביטול
-      </button>
+      <button class="btn ghost" type="button" (click)="close()" [disabled]="saving">ביטול</button>
 
-      <button *ngIf="stepIndex < steps.length - 1" class="btn primary" type="button" (click)="nextStep()"
-        [disabled]="saving">
+      <button *ngIf="stepIndex < steps.length - 1" class="btn primary" type="button" (click)="nextStep()" [disabled]="saving">
         המשך
       </button>
 
-      <button *ngIf="stepIndex === steps.length - 1" class="btn primary" type="button" (click)="completeWizard()"
-        [attr.aria-busy]="saving ? 'true' : null">
+      <button
+        *ngIf="stepIndex === steps.length - 1"
+        class="btn primary"
+        type="button"
+        (click)="completeWizard()"
+        [attr.aria-busy]="saving ? 'true' : null"
+      >
         {{ saving ? 'שומר…' : finishButtonLabel }}
       </button>
-
     </div>
   </div>
 </div>

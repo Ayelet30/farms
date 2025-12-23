@@ -419,33 +419,63 @@ export class ParentScheduleComponent implements OnInit {
       direction: 'rtl',
     });
 
-    dialogRef.afterClosed().subscribe((result) => {
-      if (result?.cancelRequested) {
-        this.handleCancelRequest(data.lessonId, result.reason);
-      }
-    });
+   dialogRef.afterClosed().subscribe((result) => {
+  if (result?.cancelRequested) {
+    const startIso = ev.start
+      ? ev.start.toISOString()
+      : '';
+
+    this.handleCancelRequest(
+      data.lessonId,     // lesson_id
+      result.reason,     // סיבת הביטול
+      startIso           // start_datetime
+    );
+  }
+});
+
   }
 
-  private async handleCancelRequest(lessonOccId: string, reason: string) {
-    try {
-      await ensureTenantContextReady();
-      const dbc = dbTenant();
 
-      const { error } = await dbc.rpc('parent_request_cancel_lesson', {
-        p_lesson_occurrence_id: lessonOccId,
+  private async handleCancelRequest(
+  lessonId: string,
+  reason: string,
+  startDateTimeIso: string
+) {
+  try {
+    await ensureTenantContextReady();
+
+    const user = await getCurrentUserData(); // יש לך כבר בפרויקט
+    if (!user?.uid) throw new Error('Missing user uid');
+
+    const dbc = dbTenant();
+
+    const occurDateIso = startDateTimeIso ? startDateTimeIso.slice(0, 10) : '';
+    if (!occurDateIso) throw new Error('Missing occur date');
+
+    const { error } = await dbc
+      .schema('bereshit_farm')
+      .rpc('parent_request_cancel_lesson', {
+        p_requested_by_uid: String(user.uid),
+        p_lesson_id: lessonId,
+        p_occur_date: occurDateIso,
         p_reason: reason,
       });
 
-      if (error) throw error;
+    if (error) throw error;
 
-      // עדכון לוקאלי – סטטוס "בקשת ביטול"
-      this.markLessonAsPendingCancel(lessonOccId);
-      alert('בקשת הביטול נשלחה למזכירה.');
-    } catch (err) {
-      console.error('cancel request error', err);
-      alert('אירעה שגיאה בעת שליחת בקשת הביטול');
-    }
+    this.markLessonAsPendingCancel(lessonId);
+    alert('בקשת הביטול נשלחה למזכירה.');
+  } catch (err) {
+    console.error('cancel request error', err);
+    alert('אירעה שגיאה בעת שליחת בקשת הביטול');
   }
+}
+
+  
+
+
+
+
 
 private markLessonAsPendingCancel(lessonOccId: string) {
   // עדכון lessons

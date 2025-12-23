@@ -321,6 +321,7 @@ export class MonthlySummaryComponent implements OnInit {
   // ===============================
   ngOnInit() {
     this.load();
+    
   }
 
   async load() {
@@ -350,8 +351,8 @@ export class MonthlySummaryComponent implements OnInit {
         to = yearEnd.toISOString().slice(0, 10);
       }
 
-      // ✅ מקור הנתונים: ה-view שעובד ומכיל שמות מדריכים (לפי התמונות)
-      const lessonsViewName = 'monthly_lessons_report_v2';
+      // ✅ מקור הנתונים: ה-view שעובד ומכיל שמות מדריכים
+      const lessonsViewName = 'lessons_occurrences';
 
       const [
         { data: lessonsData, error: lessonsErr },

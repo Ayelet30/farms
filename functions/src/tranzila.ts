@@ -156,28 +156,34 @@ export const createHostedPaymentUrl = onRequest(
 
       const successUrl = buildUrl(baseRaw, successPath ?? '/billing/success');
       const errorUrl = buildUrl(baseRaw, failPath ?? '/billing/error');
+      const tenantSchema = req.body.tenantSchema || null;
       const sumNis = (amount / 100).toFixed(2);
 
       const hpp = new URL(
         `https://direct.tranzila.com/${supplier}/tranDirect.asp`,
       );
       const params = new URLSearchParams({
-        supplier,
-        sum: sumNis,
-        currency: '1',
-        orderid: String(orderId),
-        contact: email,
-        email,
-        cred_type: '1', // tokenize
-        tranmode: 'AK',
-        success_url: successUrl,
-        error_url: errorUrl,
-        custom_uid: uid,
-        ...(farmId ? { custom_farm: farmId } : {}),
-      });
-      hpp.search = params.toString();
+      supplier,
+      sum: sumNis,
+      currency: '1',
+      orderid: String(orderId),
 
-      res.json({ url: hpp.toString() });
+      tranmode: 'AK',
+      cred_type: '1',          // tokenization
+
+      contact: email,
+      email,
+
+      success_url: successUrl,
+      error_url: errorUrl,
+
+      custom_uid: uid,
+      custom_schema: tenantSchema,
+    });
+
+    hpp.search = params.toString();
+    res.json({ url: hpp.toString() });
+
       return;
     } catch (e: any) {
       console.error('[createHostedPaymentUrl] error:', e);
@@ -196,15 +202,15 @@ export const tranzilaReturn = onRequest(
     invoker: 'public',
     secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_SUPPLIER_S, TRANZILA_PASSWORD_S, PUBLIC_BASE_URL_S],
   },
-  async (req, res): Promise<void> => {
-    const sb = getSupabase();
+  async (req, res) => {
     try {
       if (handleCors(req, res)) return;
 
-      const { orderid, custom_uid, custom_farm } =
+      const { orderid, custom_uid, custom_schema } =
         req.query as Record<string, string | undefined>;
-      if (!orderid || !custom_uid) {
-        res.status(400).send('Missing orderid/custom_uid');
+
+      if (!orderid || !custom_uid || !custom_schema) {
+        res.status(400).send('Missing orderid/custom_uid/custom_schema');
         return;
       }
 
@@ -213,22 +219,21 @@ export const tranzilaReturn = onRequest(
         process.env.TRANZILA_SUPPLIER_ID;
       const password = envOrSecret(TRANZILA_PASSWORD_S, 'TRANZILA_PASSWORD');
       const appBase = envOrSecret(PUBLIC_BASE_URL_S, 'PUBLIC_BASE_URL');
+
       if (!supplier || !password || !appBase) {
-        res
-          .status(500)
-          .send('Missing TRANZILA_SUPPLIER/PASSWORD or PUBLIC_BASE_URL');
+        res.status(500).send('Missing supplier/password/public base');
         return;
       }
 
-      const qUrl = new URL(
-        'https://secure5.tranzila.com/cgi-bin/tranzila71u.cgi',
-      );
+      // 1) Query לטרנזילה לקבלת הטוקן
+      const qUrl = new URL('https://secure5.tranzila.com/cgi-bin/tranzila71u.cgi');
       const qParams = new URLSearchParams({
         supplier,
         password,
         tranmode: 'Q',
         orderid: String(orderid),
       });
+
       const r = await fetch(qUrl.toString(), { method: 'POST', body: qParams });
       const text = await r.text();
 
@@ -244,42 +249,56 @@ export const tranzilaReturn = onRequest(
       const brand = kv['cardtype'] ?? null;
 
       if (!token) {
-        console.error('[tranzilaReturn] no token in response:', text);
+        console.error('[tranzilaReturn] token missing. raw=', text);
         res.status(400).send('Token not found');
         return;
       }
 
+      const schema = String(custom_schema);
       const parentUid = String(custom_uid);
-      const farmId = custom_farm ? String(custom_farm) : undefined;
 
-      const insertObj = withMaybeFarm(
-        {
-          parent_uid: parentUid,
-          tranzila_token: token,
-          tranzila_supplier: supplier,
-          last4,
-          brand,
-          active: true,
-        },
-        farmId,
-      );
+      const sbTenant = getSupabaseForTenant(schema);
 
-      const { error: insErr } = await sb
+      // 2) האם כבר יש default פעיל?
+      const { data: existingDefault, error: defErr } = await sbTenant
         .from('payment_profiles')
-        .insert(insertObj as any);
-      if (insErr) console.error('[tranzilaReturn] insert error:', insErr);
+        .select('id')
+        .eq('parent_uid', parentUid)
+        .eq('active', true)
+        .eq('is_default', true)
+        .limit(1);
 
-      const successUrl = buildUrl(
-        appBase,
-        `/billing/success?orderid=${encodeURIComponent(String(orderid))}`,
-      );
-      res.redirect(302, successUrl);
+      if (defErr) {
+        console.error('[tranzilaReturn] default query error:', defErr);
+      }
+
+      const shouldBeDefault = !(existingDefault?.length);
+
+      // 3) שמירה
+      const { error: insErr } = await sbTenant.from('payment_profiles').insert({
+        parent_uid: parentUid,
+        token_ref: String(token),
+        last4,
+        brand,
+        active: true,
+        is_default: shouldBeDefault,
+      });
+
+      if (insErr) {
+        console.error('[tranzilaReturn] insert error:', insErr);
+        res.status(500).send('Failed to save token');
+        return;
+      }
+
+      // 4) Redirect חזרה
+      res.redirect(302, buildUrl(appBase, '/billing/success'));
     } catch (e: any) {
       console.error('[tranzilaReturn] error:', e);
-      res.status(500).send('Failed to capture token');
+      res.status(500).send('Failed');
     }
   },
 );
+
 
 // ===================================================================
 // chargeByToken – חיוב לפי טוקן ששמור ב-DB
@@ -289,8 +308,7 @@ export const chargeByToken = onRequest(
     invoker: 'public',
     secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_SUPPLIER_S, TRANZILA_PASSWORD_S],
   },
-  async (req, res): Promise<void> => {
-    const sb = getSupabase();
+  async (req, res) => {
     try {
       if (handleCors(req, res)) return;
       if (req.method !== 'POST') {
@@ -298,72 +316,82 @@ export const chargeByToken = onRequest(
         return;
       }
 
-      const { parentUid, amountAgorot, currency, farmId } = req.body as {
-        parentUid: string;
-        amountAgorot: number;
-        currency?: string;
-        farmId?: string;
-      };
 
-      if (!parentUid || amountAgorot == null) {
-        res
-          .status(400)
-          .json({ error: 'missing fields (parentUid/amountAgorot)' });
+      const { tenantSchema, chargeId } = req.body as { tenantSchema: string; chargeId: string };
+      if (!tenantSchema || !chargeId) {
+        res.status(400).json({ ok: false, error: 'missing tenantSchema/chargeId' });
         return;
       }
 
-      const q = sb
+      const sb = getSupabaseForTenant(tenantSchema);
+
+      // 1) שליפת החיוב
+      const { data: ch, error: chErr } = await sb
+        .from('charges')
+        .select('id,parent_uid,amount_agorot,currency,status,billing_month,description')
+        .eq('id', chargeId)
+        .single();
+
+      if (chErr || !ch){
+         res.status(404).json({ ok: false, error: 'charge not found' });
+         return;
+      }
+
+      // (לא חובה אבל מומלץ) לא לסלוק אם כבר succeeded
+      if (String(ch.status) === 'succeeded') {
+        res.json({ ok: true, skipped: true, reason: 'already_succeeded' });
+        return;
+      }
+
+      // 2) פרופיל ברירת מחדל פעיל
+      const { data: prof, error: pErr } = await sb
         .from('payment_profiles')
-        .select('*')
-        .eq('parent_uid', parentUid)
+        .select('id,token_ref')
+        .eq('parent_uid', ch.parent_uid)
         .eq('active', true)
-        .limit(1);
-      if (farmId) q.eq('farm_id', farmId);
-      const { data: profiles, error } = await q;
-      if (error) {
-        console.error('[chargeByToken] profile query error:', error);
-        res.status(500).json({ error: 'profile query failed' });
-        return;
-      }
-      if (!profiles?.length) {
-        res.status(404).json({ error: 'No active token' });
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (pErr || !prof?.token_ref) {
+        // עדכון סטטוס “failed” או “no_token” לבחירתך
+        await sb.from('charges').update({
+          status: 'failed',
+          updated_at: new Date().toISOString(),
+        }).eq('id', chargeId);
+
+        res.status(404).json({ ok: false, error: 'no active token' });
         return;
       }
 
-      const { tranzila_token, tranzila_supplier } = profiles[0] as any;
-
-      const supplier = String(
-        tranzila_supplier ||
-          envOrSecret(TRANZILA_SUPPLIER_S, 'TRANZILA_SUPPLIER') ||
-          process.env.TRANZILA_SUPPLIER_ID ||
-          '',
-      );
+      // 3) סליקה מול טרנזילה
+      const supplier =
+        envOrSecret(TRANZILA_SUPPLIER_S, 'TRANZILA_SUPPLIER') ||
+        process.env.TRANZILA_SUPPLIER_ID;
       const password = envOrSecret(TRANZILA_PASSWORD_S, 'TRANZILA_PASSWORD');
+
       if (!supplier || !password) {
-        res
-          .status(500)
-          .json({ error: 'Missing TRANZILA_SUPPLIER/PASSWORD' });
+        res.status(500).json({ ok: false, error: 'Missing supplier/password' });
         return;
       }
 
-      const sum = (Number(amountAgorot) / 100).toFixed(2);
-      const tranzilaCurrency = toTranzilaCurrency(currency);
+      const sum = (Number(ch.amount_agorot) / 100).toFixed(2);
+      const url = new URL('https://secure5.tranzila.com/cgi-bin/tranzila71u.cgi');
 
-      const url = new URL(
-        'https://secure5.tranzila.com/cgi-bin/tranzila71u.cgi',
-      );
       const body = new URLSearchParams({
-        supplier,
-        password,
+        supplier: String(supplier),
+        password: String(password),
         sum,
-        currency: tranzilaCurrency,
+        currency: '1',        // ILS
         tranmode: 'V',
-        cred_type: '8',
-        TranzilaTK: String(tranzila_token),
+        cred_type: '8',       // token
+        TranzilaTK: String(prof.token_ref),
       });
 
       const resp = await fetch(url.toString(), { method: 'POST', body });
       const text = await resp.text();
+
       const kv: Record<string, string> = Object.fromEntries(
         text.split('&').map((p) => {
           const [k, v] = p.split('=');
@@ -372,161 +400,83 @@ export const chargeByToken = onRequest(
       );
 
       const success = kv['Response'] === '000';
-      const providerId =
-        kv['index'] ?? kv['ConfirmationCode'] ?? kv['ConfNum'] ?? null;
+      const providerId = kv['index'] ?? kv['ConfirmationCode'] ?? kv['ConfNum'] ?? null;
 
-      const chargeInsert = withMaybeFarm(
-        {
-          subscription_id: null,
-          parent_uid: parentUid,
-          amount_agorot: amountAgorot,
-          currency: (currency ?? 'ILS').toUpperCase(),
-          provider_id: providerId,
-          status: success ? 'succeeded' : 'failed',
-          error_message: success ? null : text,
-        },
-        farmId,
-      );
+      // 4) עדכון שורת charge
+      await sb.from('charges').update({
+        status: success ? 'succeeded' : 'failed',
+        provider_id: providerId,
+        profile_id: prof.id,
+        updated_at: new Date().toISOString(),
+      }).eq('id', chargeId);
 
-      await sb.from('charges').insert(chargeInsert as any);
-
-      res.json({ ok: success, providerRaw: kv });
+      res.json({ ok: success, provider_id: providerId, raw: kv });
+      return;
     } catch (e: any) {
       console.error('[chargeByToken] error:', e);
-      res
-        .status(500)
-        .json({ error: e?.message ?? 'internal error' });
+      res.status(500).json({ ok: false, error: e?.message ?? 'internal error' });
     }
   },
 );
 
-// ===================================================================
-// cronMonthlyCharges – חיובים חודשיים אוטומטיים
-// ===================================================================
-export const cronMonthlyCharges = onSchedule(
-  {
-    schedule: '0 3 * * *',
-    timeZone: 'Etc/UTC',
-    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_SUPPLIER_S, TRANZILA_PASSWORD_S],
-  },
-  async () => {
-    const sb = getSupabase();
+export const savePaymentProfileFromTx = onRequest(
+  { invoker: 'public', secrets: [SUPABASE_URL_S, SUPABASE_KEY_S] },
+  async (req, res): Promise<void> => {
     try {
-      const now = new Date().toISOString();
-      const { data: due, error } = await sb
-        .from('subscriptions')
-        .select('*')
+      if (handleCors(req, res)) return;
+      if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+
+      const { tenantSchema, parentUid, tx } = req.body as {
+        tenantSchema?: string | null;
+        parentUid: string;
+        tx: any;
+      };
+
+      if (!parentUid || !tx?.token) {
+        res.status(400).json({ ok:false, error:'missing parentUid/tx.token' });
+        return;
+      }
+
+      const sb = getSupabaseForTenant(tenantSchema);
+
+      // האם יש default פעיל?
+      const { data: existingDefault } = await sb
+        .from('payment_profiles')
+        .select('id')
+        .eq('parent_uid', parentUid)
         .eq('active', true)
-        .lte('next_charge_at', now);
+        .eq('is_default', true)
+        .limit(1);
 
-      if (error) {
-        console.error('[cronMonthlyCharges] select error:', error);
-        return;
-      }
-      if (!due?.length) {
-        console.log('[cronMonthlyCharges] nothing due');
-        return;
-      }
+      const shouldBeDefault = !(existingDefault?.length);
 
-      for (const sub of due) {
-        try {
-          const {
-            parent_uid,
-            amount_agorot,
-            currency,
-            id,
-            interval_months,
-            farm_id,
-          } = sub as any;
+      const last4 = tx.credit_card_last_4_digits ?? tx.last4 ?? null;
+      const brand = tx.card_type_name ?? tx.brand ?? null;
 
-          const q = sb
-            .from('payment_profiles')
-            .select('*')
-            .eq('parent_uid', parent_uid)
-            .eq('active', true)
-            .limit(1);
-          if (farm_id) q.eq('farm_id', farm_id);
-          const { data: profiles } = await q;
-          if (!profiles?.length) {
-            console.warn(
-              `[cronMonthlyCharges] no token for uid=${parent_uid} farm=${
-                farm_id ?? '-'
-              }`,
-            );
-            continue;
-          }
+      const { data: inserted, error } = await sb
+        .from('payment_profiles')
+        .insert({
+          parent_uid: parentUid,
+          token_ref: String(tx.token),
+          last4,
+          brand,
+          active: true,
+          is_default: shouldBeDefault,
+        })
+        .select('id')
+        .single();
 
-          const { tranzila_token, tranzila_supplier } = profiles[0] as any;
-          const supplier = String(
-            tranzila_supplier ||
-              envOrSecret(TRANZILA_SUPPLIER_S, 'TRANZILA_SUPPLIER') ||
-              process.env.TRANZILA_SUPPLIER_ID ||
-              '',
-          );
-          const password = envOrSecret(
-            TRANZILA_PASSWORD_S,
-            'TRANZILA_PASSWORD',
-          );
-          const sum = (Number(amount_agorot) / 100).toFixed(2);
-          const tranzilaCurrency = toTranzilaCurrency(currency);
+      if (error) { res.status(500).json({ ok:false, error:error.message }); return; }
 
-          const url = new URL(
-            'https://secure5.tranzila.com/cgi-bin/tranzila71u.cgi',
-          );
-          const body = new URLSearchParams();
-          body.set('supplier', supplier);
-          body.set('password', password!);
-          body.set('sum', sum);
-          body.set('currency', tranzilaCurrency);
-          body.set('tranmode', 'V');
-          body.set('cred_type', '8');
-          body.set('TranzilaTK', String(tranzila_token));
-
-          const resp = await fetch(url.toString(), { method: 'POST', body });
-          const text = await resp.text();
-          const kv: Record<string, string> = Object.fromEntries(
-            text.split('&').map((p) => {
-              const [k, v] = p.split('=');
-              return [k, v ?? ''];
-            }),
-          );
-
-          const success = kv['Response'] === '000';
-          const providerId =
-            kv['index'] ?? kv['ConfirmationCode'] ?? kv['ConfNum'] ?? null;
-
-          const insertCharge = withMaybeFarm(
-            {
-              subscription_id: id,
-              parent_uid,
-              amount_agorot: amount_agorot,
-              currency: (currency ?? 'ILS').toUpperCase(),
-              provider_id: providerId,
-              status: success ? 'succeeded' : 'failed',
-              error_message: success ? null : text,
-            },
-            farm_id,
-          );
-
-          await sb.from('charges').insert(insertCharge as any);
-
-          const next = new Date();
-          next.setMonth(next.getMonth() + (interval_months ?? 1));
-          await sb
-            .from('subscriptions')
-            .update({ next_charge_at: next.toISOString() })
-            .eq('id', id);
-        } catch (inner) {
-          console.error('[cronMonthlyCharges] single sub error:', inner);
-        }
-      }
-
-      console.log('[cronMonthlyCharges] processed:', due.length);
-    } catch (e: any) {
-      console.error('[cronMonthlyCharges] error:', e);
+      res.json({ ok:true, profileId: inserted.id });
+    } catch (e:any) {
+      console.error('[savePaymentProfileFromTx] error', e);
+      res.status(500).json({ ok:false, error: e?.message ?? 'internal error' });
     }
-  },
+  }
 );
+
+
 
 // ===================================================================
 // Helper משותף ל-API v2 (standing order + handshake Hosted Fields)
@@ -958,12 +908,98 @@ async function generateAndSendReceipt(args: {
   });
 }
 
+export const savePaymentMethod = onRequest(
+  {
+    invoker: 'public',
+    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S],
+  },
+  async (req, res): Promise<void> => {
+    try {
+      if (handleCors(req, res)) return;
+
+      if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+      }
+
+      const { parentUid, tenantSchema, token, last4, brand, expiryMonth, expiryYear } = req.body as any;
+
+      if (!tenantSchema || !parentUid || !token) {
+        res.status(400).json({ ok: false, error: 'missing tenantSchema/parentUid/token' });
+        return;
+      }
+
+      const sb = getSupabaseForTenant(String(tenantSchema));
+
+      // האם כבר יש default פעיל?
+      const { data: existingDefault, error: defErr } = await sb
+        .from('payment_profiles')
+        .select('id')
+        .eq('parent_uid', String(parentUid))
+        .eq('active', true)
+        .eq('is_default', true)
+        .limit(1);
+
+      if (defErr) {
+        console.error('[savePaymentMethod] default query error', defErr);
+      }
+
+      const shouldBeDefault = !(existingDefault?.length);
+
+      const expMonth = normalizeExpiryMonth(expiryMonth);
+    const expYear  = normalizeExpiryYear(expiryYear);
+
+    const { error: insErr } = await sb
+      .from('payment_profiles')
+      .upsert(
+        {
+          parent_uid: String(parentUid),
+          token_ref: String(token),
+          last4: last4 ?? null,
+          brand: brand ?? null,
+          expiry_month: expMonth,
+          expiry_year: expYear,
+          active: true,
+          is_default: shouldBeDefault,
+        },
+        { onConflict: 'parent_uid,token_ref' },
+      );
 
 
+      if (insErr) {
+        console.error('[savePaymentMethod] upsert error', insErr);
+        res.status(500).json({ ok: false, error: insErr.message });
+        return;
+      }
 
+      res.json({ ok: true, is_default: shouldBeDefault });
+      return;
+    } catch (e: any) {
+      console.error('[savePaymentMethod] error', e);
+      res.status(500).json({ ok: false, error: e?.message ?? 'internal error' });
+      return;
+    }
+  },
+);
 
+function normalizeExpiryYear(y: any): number | null {
+  if (y === null || y === undefined || y === '') return null;
+  const n = Number(y);
+  if (!Number.isFinite(n)) return null;
 
+  // כבר שנה מלאה
+  if (n >= 1000) return n;
 
+  // YY -> YYYY (נניח 2000-2099)
+  if (n >= 0 && n <= 99) return 2000 + n;
 
+  return null;
+}
 
-
+function normalizeExpiryMonth(m: any): number | null {
+  if (m === null || m === undefined || m === '') return null;
+  const n = Number(m);
+  if (!Number.isFinite(n)) return null;
+  if (n < 1 || n > 12) return null;
+  return n;
+}
