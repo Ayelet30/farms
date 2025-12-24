@@ -55,14 +55,17 @@
   </div>
 
   <!-- ▬▬▬ הערות על ילד ▬▬▬ -->
-  <app-note
-    *ngIf="selectedChild"
-    [child]="selectedChild"
-    [occurrence]="selectedOccurrence"
-    [attendanceStatus]="attendanceStatus"
-    [enforceNoteForPresence]="true"
-    (close)="onCloseNote()">
-  </app-note>
+ <app-note
+  *ngIf="selectedChild"
+  [child]="selectedChild"
+  [occurrence]="selectedOccurrence"
+  [attendanceStatus]="attendanceStatus"
+  [role]="currentUserRole"
+  [enforceNoteForPresence]="true"
+  (attendanceChange)="attendanceStatus = $event"
+  (close)="onCloseNote()">
+</app-note>
+
 
   <!-- ▬▬▬ תפריט קליק ימני ▬▬▬ -->
   <div

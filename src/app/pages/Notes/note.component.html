@@ -7,13 +7,20 @@
         <mat-card-title>
           <mat-icon>person</mat-icon>
           פרטי הילד –
-          {{ (child?.first_name || '') + ' ' + (child?.last_name || '') || child?.name || '—' }}
+       {{ (childDetails?.first_name || '') + ' ' + (childDetails?.last_name || '') || '—' }}
+
         </mat-card-title>
 
         <button mat-icon-button class="close-button" (click)="onClose()">
           <mat-icon>close</mat-icon>
         </button>
       </mat-card-header>
+<button
+  mat-icon-button
+  *ngIf="attendanceStatus"
+  (click)="clearAttendance()">
+  <mat-icon>clear</mat-icon>
+</button>
 
       <!-- WARNINGS -->
       <div class="presence-error top-warning" *ngIf="mustChooseAttendance">
@@ -28,6 +35,64 @@
 
       <!-- CONTENT -->
       <mat-card-content class="scrollable-content">
+<!-- ================= פרטי ילד ================= -->
+<!-- ================= פרטי ילד ================= -->
+<section class="child-details" *ngIf="childDetails">
+
+  <h3 class="section-title">
+    <mat-icon>person</mat-icon>
+    פרטי הילד
+  </h3>
+
+  <div class="child-grid">
+
+    <div class="child-item">
+      <mat-icon>badge</mat-icon>
+      <div>
+        <span class="label">שם</span>
+        <span class="value">
+          {{ childDetails.first_name }} {{ childDetails.last_name }}
+        </span>
+      </div>
+    </div>
+
+    <div class="child-item" *ngIf="childDetails.birth_date">
+      <mat-icon>cake</mat-icon>
+      <div>
+        <span class="label">גיל</span>
+        <span class="value">
+          {{ getChildAge(childDetails.birth_date) }}
+        </span>
+      </div>
+    </div>
+
+    <div class="child-item" *ngIf="childDetails.parent_name">
+      <mat-icon>supervisor_account</mat-icon>
+      <div>
+        <span class="label">הורה</span>
+        <span class="value">{{ childDetails.parent_name }}</span>
+      </div>
+    </div>
+
+    <div class="child-item" *ngIf="childDetails.parent_phone">
+      <mat-icon>phone</mat-icon>
+      <div>
+        <span class="label">טלפון</span>
+        <span class="value">{{ childDetails.parent_phone }}</span>
+      </div>
+    </div>
+
+    <div class="child-item full-width" *ngIf="childDetails.parent_email">
+      <mat-icon>email</mat-icon>
+      <div>
+        <span class="label">אימייל</span>
+        <span class="value">{{ childDetails.parent_email }}</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
 
         <!-- ================= TOP ================= -->
        <div class="inner-section top lesson-details">
@@ -38,24 +103,26 @@
             <h3>נוכחות</h3>
 
             <div class="attendance-actions">
-              <button
-                mat-stroked-button
-                [class.active]="attendanceStatus === 'present'"
-                (click)="setAttendance('present')">
-                הגיע
-              </button>
+             <button
+  mat-stroked-button
+  [disabled]="!canMarkAttendanceNow()"
+  (click)="setAttendance('present')">
+  הגיע
+</button>
 
-              <button
-                mat-stroked-button
-                [class.active]="attendanceStatus === 'absent'"
-                (click)="setAttendance('absent')">
-                לא הגיע
-              </button>
+<button
+  mat-stroked-button
+  [disabled]="!canMarkAttendanceNow()"
+  (click)="setAttendance('absent')">
+  לא הגיע
+</button>
+
 
               <button
                 mat-icon-button
                 *ngIf="attendanceStatus"
-                (click)="setAttendance(null)">
+               (click)="clearAttendance()"
+>
                 <mat-icon>clear</mat-icon>
               </button>
             </div>
@@ -108,7 +175,11 @@
 
               <mat-form-field appearance="fill" class="resource-field">
                 <mat-label>מגרש</mat-label>
-                <mat-select [(ngModel)]="lessonDetails.arena_id">
+                <mat-select
+  [(ngModel)]="lessonDetails.arena_id"
+  (selectionChange)="onArenaChange($event.value)"
+  [disabled]="!canEditLessonResources">
+
                   <mat-option [value]="null">— ללא מגרש —</mat-option>
                   <mat-option *ngFor="let a of arenas" [value]="a.id">
                     {{ a.name }}
@@ -160,14 +231,9 @@
                 </ng-template>
 
                 <div class="actions" *ngIf="canEditNotes">
-                  <button
-                    mat-icon-button
-                    class="edit-btn"
-                    *ngIf="!note.isEditing"
-                    (click)="startEdit(note)">
-                   <mat-icon>drive_file_rename_outline</mat-icon>
-
-                  </button>
+                 <button class="icon-circle edit-btn" type="button">
+  <mat-icon aria-hidden="true">edit</mat-icon>
+</button>
 
                   <button
                     mat-icon-button
