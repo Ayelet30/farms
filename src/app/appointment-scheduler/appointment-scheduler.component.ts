@@ -1376,6 +1376,7 @@ async requestMakeupFromSecretary(slot: MakeupSlot): Promise<void> {
     const payload = {
       requested_start_time: slot.start_time,
       requested_end_time: slot.end_time,
+
     };
 
     const { error: reqError } = await supa
@@ -1591,7 +1592,7 @@ if (this.referralFile) {
     const payload: any = {
       requested_start_time: startTime,
       requested_end_time: endTime, 
-        skipped_dates: slot.skipped_dates ?? [],
+  skipped_dates: (slot.skipped_dates ?? []).map(d => String(d)), // לוודא שזה string
 
     };
 
@@ -1778,55 +1779,55 @@ getLessonTypeLabel(slot: MakeupSlot): string {
       return 'יחיד';
   }
 }
-private async loadOccupancySlotsForCandidate(
-  cand: OccupancyCandidate
-): Promise<void> {
-  this.loadingOccupancySlots = true;
-  this.occupancySlotsError = null;
-  this.occupancySlots = [];
-  this.selectedOccupancySlot = null;
+// private async loadOccupancySlotsForCandidate(
+//   cand: OccupancyCandidate
+// ): Promise<void> {
+//   this.loadingOccupancySlots = true;
+//   this.occupancySlotsError = null;
+//   this.occupancySlots = [];
+//   this.selectedOccupancySlot = null;
 
-  try {
-    // טווח חיפוש – אפשר לשנות, לדוגמה 30 ימים קדימה
-    const fromDate = cand.occur_date;
-    const toDate = this.addDays(cand.occur_date, 30);
+//   try {
+//     // טווח חיפוש – אפשר לשנות, לדוגמה 30 ימים קדימה
+//     const fromDate = cand.occur_date;
+//     const toDate = this.addDays(cand.occur_date, 30);
 
-    const { data, error } = await dbTenant().rpc(
-      'find_makeup_slots_for_lesson_by_id_number',
-      {
-        p_instructor_id: cand.instructor_id, // id_number של המדריך
-        p_from_date: fromDate,
-        p_to_date: toDate,
-      }
-    );
-    if (error) {
-      console.error('find_makeup_slots_for_lesson_by_id_number error', error);
-      this.occupancySlotsError = 'שגיאה בחיפוש שיעורים למילוי מקום';
-      return;
-    }
+//     const { data, error } = await dbTenant().rpc(
+//       'find_makeup_slots_for_lesson_by_id_number',
+//       {
+//         p_instructor_id: cand.instructor_id, // id_number של המדריך
+//         p_from_date: fromDate,
+//         p_to_date: toDate,
+//       }
+//     );
+//     if (error) {
+//       console.error('find_makeup_slots_for_lesson_by_id_number error', error);
+//       this.occupancySlotsError = 'שגיאה בחיפוש שיעורים למילוי מקום';
+//       return;
+//     }
 
-    let slots = (data ?? []) as MakeupSlot[];
+//     let slots = (data ?? []) as MakeupSlot[];
 
-    // אם את רוצה להגביל לכמות מקסימלית כמו ב־displayedMakeupLessonsCount:
-    if (
-      this.displayedMakeupLessonsCount != null &&
-      this.displayedMakeupLessonsCount > 0
-    ) {
-      slots = slots.slice(0, this.displayedMakeupLessonsCount);
-    }
+//     // אם את רוצה להגביל לכמות מקסימלית כמו ב־displayedMakeupLessonsCount:
+//     if (
+//       this.displayedMakeupLessonsCount != null &&
+//       this.displayedMakeupLessonsCount > 0
+//     ) {
+//       slots = slots.slice(0, this.displayedMakeupLessonsCount);
+//     }
 
-    this.occupancySlots = slots;
-const rangeDays = this.timeRangeOccupancyRateDays ?? 30;
+//     this.occupancySlots = slots;
+// const rangeDays = this.timeRangeOccupancyRateDays ?? 30;
 
-    if (!this.occupancySlots.length) {
-this.occupancySlotsError =
-  `לא נמצאו שיעורים פנויים למילוי מקום בטווח של ${rangeDays} ימים ` +
-  `מתאריך השיעור המקורי.`;
-    }
-  } finally {
-    this.loadingOccupancySlots = false;
-  }
-}
+//     if (!this.occupancySlots.length) {
+// this.occupancySlotsError =
+//   `לא נמצאו שיעורים פנויים למילוי מקום בטווח של ${rangeDays} ימים ` +
+//   `מתאריך השיעור המקורי.`;
+//     }
+//   } finally {
+//     this.loadingOccupancySlots = false;
+//   }
+// }
 async openOccupancySlotsForCandidate(c: OccupancyCandidate): Promise<void> {
     console.log('[openOccupancySlotsForCandidate] clicked', c);
 
@@ -1840,11 +1841,11 @@ async openOccupancySlotsForCandidate(c: OccupancyCandidate): Promise<void> {
   this.occupancySlotsError = null;
   this.occupancyError = null;
 
- const from = c.occur_date;
-const to = this.addDays(
-  c.occur_date,
-  this.timeRangeOccupancyRateDays
-);
+ const lessonDate = c.occur_date;
+
+const from = this.startOfWeekSunday(lessonDate);          // ראשון של אותו שבוע
+const dow  = this.getDowSunday0(lessonDate);              // 0=ראשון ... 6=שבת
+const to   = this.addDays(from, 7 + dow);                 // אותו יום בשבוע הבא
 
 
 const instructorParam = this.getSelectedInstructorIdNumberOrNull();
@@ -1853,20 +1854,19 @@ const instructorParam = this.getSelectedInstructorIdNumberOrNull();
   this.loadingOccupancySlots = true;
   try {
     const { data, error } = await dbTenant().rpc(
-      'find_makeup_slots_for_lesson_by_id_number',
+      'find_makeup_slots_week_to_week',
       {
         p_instructor_id: instructorParam,
-        p_from_date: from,
-        p_to_date: to,
+        p_lesson_date: c.occur_date,
+
       }
     );
 const rangeDays = this.timeRangeOccupancyRateDays ?? 30;
 
   
     if (error) {
-      console.error('find_makeup_slots_for_lesson_by_id_number error (occupancy)', error);
-      this.occupancySlotsError =  `לא נמצאו שיעורים פנויים למילוי מקום בטווח של ${rangeDays} ימים ` +
-  `מתאריך השיעור המקורי.`;
+      console.error('find_makeup_slots_week_to_week error (occupancy)', error);
+      this.occupancySlotsError =    `לא נמצאו שיעורים פנויים למילוי מקום בטווח השבועי (מיום ראשון של אותו שבוע ועד אותו יום בשבוע הבא).`;
       return;
     }
 
@@ -1890,6 +1890,29 @@ this.occupancySlotsError =
 private sameCandidate(a: { lesson_id: string; occur_date: string }, b: { lesson_id: string; occur_date: string }) {
   return a.lesson_id === b.lesson_id && a.occur_date === b.occur_date;
 }
+private toDateOnly(d: string | Date): Date {
+  // אם מגיע מה-DB כ-YYYY-MM-DD – זה הכי בטוח
+  return (d instanceof Date) ? new Date(d.getFullYear(), d.getMonth(), d.getDate())
+                            : new Date(d + 'T00:00:00');
+}
+
+// 0=Sunday ... 6=Saturday
+private getDowSunday0(d: string | Date): number {
+  return this.toDateOnly(d).getDay();
+}
+
+private startOfWeekSunday(d: string | Date): string {
+  const dt = this.toDateOnly(d);
+  const dow = dt.getDay(); // 0=Sun
+  dt.setDate(dt.getDate() - dow); // חזרה ליום ראשון
+  return dt.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+// private addDays(dateStr: string, days: number): string {
+//   const dt = new Date(dateStr + 'T00:00:00');
+//   dt.setDate(dt.getDate() + days);
+//   return dt.toISOString().slice(0, 10);
+// }
 
 
 selectOccupancySlot(slot: MakeupSlot): void {
