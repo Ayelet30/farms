@@ -186,84 +186,93 @@
       </div>
     </ng-template>
     <div class="appt-form-row">
-      <div class="appt-field-group">
-        <span class="appt-field-label">כמות שיעורים בסדרה</span>
-        <div
-  class="field-wrap"
-  [class.is-disabled]="!canChooseSeriesCount"
-  (click)="!canChooseSeriesCount && showUiHint('seriesCount', missingSeriesCountMsg)"
->
-        <select class="appt-select" [(ngModel)]="seriesLessonCount" (ngModelChange)="onSeriesLessonCountChange($event)"
-          [disabled]="!canChooseSeriesCount">
-          <option [ngValue]="null" disabled hidden>
-            בחר/י כמות מפגשים
-          </option>
+     <div class="appt-field-group">
+  <span class="appt-field-label">כמות שיעורים בסדרה</span>
 
-          <option *ngFor="let n of seriesLessonCountOptions" [ngValue]="n">
-            {{ n }} מפגשים
-          </option>
-        </select>
-
-        <small class="hint" *ngIf="uiHint['seriesCount']">{{ uiHint['seriesCount'] }}</small>
-
-      </div>
-      
-      <div class="appt-form-row">
-        <div class="appt-form-row">
-          <div class="appt-field-group">
-         <span class="appt-field-label">מסלול תשלום</span>
-
-<div
-  class="field-wrap"
-  [class.is-disabled]="paymentLocked"
-  (click)="paymentLocked && showUiHint('payment', missingPaymentPlanMsg)"
->
-  <select
-    class="appt-select"
-    [(ngModel)]="selectedPaymentPlanId"
-    [disabled]="paymentLocked"
+  <div
+    class="field-wrap"
+    [class.is-disabled]="!canChooseSeriesCount || isOpenEndedSeries"
+    (click)="(!canChooseSeriesCount || isOpenEndedSeries) && showUiHint('seriesCount', isOpenEndedSeries ? 'מסומן ללא הגבלה – אין צורך לבחור כמות' : missingSeriesCountMsg)"
   >
-    <option [ngValue]="null" disabled hidden>
-      בחר/י מסלול תשלום
-    </option>
+    <select
+      class="appt-select"
+      [(ngModel)]="seriesLessonCount"
+      (ngModelChange)="onSeriesLessonCountChange($event)"
+      [disabled]="!canChooseSeriesCount || isOpenEndedSeries"
+    >
+      <option [ngValue]="null" disabled hidden>
+        בחר/י כמות מפגשים
+      </option>
 
-    <option *ngFor="let plan of paymentPlans" [ngValue]="plan.id">
-      {{ plan.name }}
-      <ng-container *ngIf="plan.customer_amount != null">
-        – {{ plan.customer_amount | number:'1.0-0' }} ₪ לשיעור
-      </ng-container>
-    </option>
-  </select>
+      <option *ngFor="let n of seriesLessonCountOptions" [ngValue]="n">
+        {{ n }} מפגשים
+      </option>
+    </select>
 
-  <!-- ההודעה תופיע רק אחרי ניסיון לחיצה על נעול -->
-  <small class="hint" *ngIf="uiHint['payment']">{{ uiHint['payment'] }}</small>
+    <small class="hint" *ngIf="uiHint['seriesCount']">{{ uiHint['seriesCount'] }}</small>
+  </div>
 
-  <!-- זה נשאר רגיל: מסמכים נדרשים למסלול (זה כן יכול להופיע אחרי שבחרו מסלול) -->
-  <small
-    *ngIf="selectedPaymentPlan?.require_docs_at_booking"
-    style="color:#888; display:block; margin-top:4px;"
-  >
-    למסלול זה נדרשים מסמכים:
-    {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}
-  </small>
+  <!-- שורה של "ללא הגבלה" -->
+  <label class="unlimited-row">
+    <input
+      type="checkbox"
+      [(ngModel)]="isOpenEndedSeries"
+      (change)="onUnlimitedSeriesToggle()"
+    />
+    סדרה ללא הגבלת שיעורים
+  </label>
 </div>
 
-          </div>
-        </div>
+<!-- מסלול תשלום -->
+<div class="appt-field-group">
+  <span class="appt-field-label">מסלול תשלום</span>
 
-        <!-- העלאת מסמך רק אם המסלול דורש -->
-        <div class="appt-form-row" *ngIf="selectedPaymentPlan?.require_docs_at_booking">
-          <div class="appt-field-group">
-            <span class="appt-field-label">העלאת מסמך למסלול</span>
-            <input type="file" class="appt-input" (change)="onReferralFileSelected($event)" accept=".pdf,image/*" />
-            <div *ngIf="referralFile" class="file-name">
-              הקובץ שנבחר: <b>{{ referralFile.name }}</b>
-            </div>
-            <p class="error" *ngIf="referralUploadError">{{ referralUploadError }}</p>
-          </div>
-        </div>
-      </div>
+  <div
+    class="field-wrap"
+    [class.is-disabled]="paymentLocked"
+    (click)="paymentLocked && showUiHint('payment', missingPaymentPlanMsg)"
+  >
+    <select
+      class="appt-select"
+      [(ngModel)]="selectedPaymentPlanId"
+      [disabled]="paymentLocked"
+    >
+      <option [ngValue]="null" disabled hidden>
+        בחר/י מסלול תשלום
+      </option>
+
+      <option *ngFor="let plan of paymentPlans" [ngValue]="plan.id">
+        {{ plan.name }}
+        <ng-container *ngIf="plan.customer_amount != null">
+          – {{ plan.customer_amount | number:'1.0-0' }} ₪ לשיעור
+        </ng-container>
+      </option>
+    </select>
+
+    <small class="hint" *ngIf="uiHint['payment']">{{ uiHint['payment'] }}</small>
+
+    <small
+      *ngIf="selectedPaymentPlan?.require_docs_at_booking"
+      style="color:#888; display:block; margin-top:4px;"
+    >
+      למסלול זה נדרשים מסמכים:
+      {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}
+    </small>
+  </div>
+</div>
+
+<!-- העלאת מסמך רק אם המסלול דורש -->
+<div class="appt-form-row" *ngIf="selectedPaymentPlan?.require_docs_at_booking">
+  <div class="appt-field-group">
+    <span class="appt-field-label">העלאת מסמך למסלול</span>
+    <input type="file" class="appt-input" (change)="onReferralFileSelected($event)" accept=".pdf,image/*" />
+    <div *ngIf="referralFile" class="file-name">
+      הקובץ שנבחר: <b>{{ referralFile.name }}</b>
     </div>
+    <p class="error" *ngIf="referralUploadError">{{ referralUploadError }}</p>
+  </div>
+</div>
+
     <div class="appt-form-row">
       <div class="appt-field-group">
         <span class="appt-field-label">יום תחילת סדרה בשבוע</span>
