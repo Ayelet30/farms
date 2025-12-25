@@ -198,6 +198,12 @@ loadingOccupancySlots = false;
 occupancySlotsError: string | null = null;
 selectedOccupancySlot: MakeupSlot | null = null;
 
+isOpenEndedSeries = false;
+seriesSearchHorizonDays = 90; // fallback
+
+get hasSeriesCountOrOpenEnded(): boolean {
+  return this.isOpenEndedSeries || !!this.seriesLessonCount;
+}
 // שיעורי מילוי מקום
 
 occupancyCreatedMessage: string | null = null;
@@ -545,13 +551,31 @@ private applyInstructorFilterToLists(): void {
   // כי אין פילטר על הרשימה הזו.
 }
 
+onSeriesUnlimitedChange(): void {
+  if (this.isOpenEndedSeries
+) {
+    this.seriesLessonCount = null; // אין כמות
+  }
+  // לאפס תוצאות קודמות
+  this.recurringSlots = [];
+  this.calendarSlotsByDate = {};
+  this.seriesCalendarDays = [];
+  this.selectedSeriesDate = null;
+  this.selectedSeriesDaySlots = [];
+  this.seriesError = null;
+
+  // אם יש ילד + מדריך/any (או noInstructorPreference) -> להריץ חיפוש
+  if (this.selectedChildId && (this.noInstructorPreference || this.selectedInstructorId)) {
+    this.searchRecurringSlots();
+  }
+}
 
 private async loadFarmSettings(): Promise<void> {
   const supa = dbTenant();
 
   const { data, error } = await supa
     .from('farm_settings')
-    .select('displayed_makeup_lessons_count , hours_before_cancel_lesson , time_range_occupancy_rate_days')
+    .select('displayed_makeup_lessons_count , hours_before_cancel_lesson , time_range_occupancy_rate_days , series_search_horizon_days')
     .limit(1)
     .single();
 
@@ -994,10 +1018,11 @@ async searchRecurringSlots(): Promise<void> {
     return;
   }
 
-  if (!this.seriesLessonCount) {
-    this.seriesError = 'יש לבחור כמות שיעורים בסדרה';
-    return;
-  }
+  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
+  this.seriesError = 'יש לבחור כמות שיעורים בסדרה';
+  return;
+}
+
 
   if (!this.noInstructorPreference && !this.selectedInstructorId) {
     this.seriesError = 'יש לבחור מדריך או לסמן שאין העדפה';
@@ -1017,10 +1042,17 @@ async searchRecurringSlots(): Promise<void> {
 
   const today = new Date();
   const fromDate = today.toISOString().slice(0, 10);
-  const to = new Date();
-  to.setMonth(to.getMonth() + 3); // 3 חודשים קדימה
-  const toDate = to.toISOString().slice(0, 10);
-
+  // ✅ רגיל: 3 חודשים קדימה | ללא הגבלה: לפי series_search_horizon_days
+  let toDate: string;
+  if (this.isOpenEndedSeries) {
+    const to = new Date();
+    to.setDate(to.getDate() + (this.seriesSearchHorizonDays ?? 90));
+    toDate = to.toISOString().slice(0, 10);
+  } else {
+    const to = new Date();
+    to.setMonth(to.getMonth() + 3);
+    toDate = to.toISOString().slice(0, 10);
+  }
   const payload = {
     p_child_id: child.child_uuid,         
     p_lesson_count: this.seriesLessonCount,
@@ -1032,19 +1064,47 @@ async searchRecurringSlots(): Promise<void> {
 
 
   this.loadingSeries = true;
-  console.log('RPC payload', payload);
 
-  try {
-const { data, error } = await dbTenant().rpc('find_series_slots_with_skips', payload);
+try {
+  let data: any[] | null = null;
+  let error: any = null;
 
+  if (this.isOpenEndedSeries) {
+    // 🔹 קריאה לפונקציה החדשה מה-DB
+    const payloadUnlimited = {
+      p_child_id: child.child_uuid,
+      p_instructor_id_number: instructorParam,
+      p_from_date: fromDate,
+    };
 
-    if (error) {
-      this.seriesError = 'שגיאה בחיפוש סדרות זמינות';
-      return;
-    }
+    ({ data, error } = await dbTenant().rpc(
+      'find_open_ended_series_slots_with_skips',
+      payloadUnlimited
+    ));
+  } else {
+    // 🔹 קריאה לפונקציה הישנה (עם כמות שיעורים)
+    const payloadRegular = {
+      p_child_id: child.child_uuid,
+      p_lesson_count: this.seriesLessonCount,
+      p_instructor_id_number: instructorParam,
+      p_from_date: fromDate,
+      p_to_date: toDate,
+    };
 
-   
-const raw = (data ?? []) as RecurringSlotWithSkips[];
+    ({ data, error } = await dbTenant().rpc(
+      'find_series_slots_with_skips',
+      payloadRegular
+    ));
+  }
+
+  if (error) {
+    console.error(error);
+    this.seriesError = 'שגיאה בחיפוש סדרות זמינות';
+    return;
+  }
+
+  const raw = (data ?? []) as RecurringSlotWithSkips[];
+
 
 // קודם ממיינים לפי תאריך ואז שעה ואז מדריך,
 // כדי שה"ראשון בזמן" לכל תבנית יהיה באמת הראשון.
@@ -1486,10 +1546,10 @@ async requestSeriesFromSecretary(slot: RecurringSlotWithSkips , dialogTpl: Templ
     return;
   }
 
-  if (!this.seriesLessonCount) {
-    this.seriesError = 'חסר מספר שיעורים בסדרה';
-    return;
-  }
+  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
+  this.seriesError = 'חסר מספר שיעורים בסדרה';
+  return;
+}
 
   if (!this.selectedPaymentPlanId) {
     this.seriesError = 'יש לבחור מסלול תשלום';
@@ -1506,15 +1566,26 @@ async requestSeriesFromSecretary(slot: RecurringSlotWithSkips , dialogTpl: Templ
 console.log('skipped farm:', (slot as any)?.skipped_by_farm_days_off);
 console.log('skipped instr:', (slot as any)?.skipped_by_instructor_unavailability);
 
-// כמה שבועות בפועל עד השיעור האחרון (כולל דילוגים)
-  const startDate = slot.lesson_date;
-const skipsCount = (slot.skipped_by_farm_days_off?.length ?? 0) + (slot.skipped_by_instructor_unavailability?.length ?? 0);
-const totalWeeksForward = (this.seriesLessonCount - 1) + skipsCount;
+const startDate = slot.lesson_date;
 
-const endD = new Date(startDate + 'T00:00:00');
-endD.setDate(endD.getDate() + totalWeeksForward * 7);
-const endDate = this.formatLocalDate(endD);
+let endDate: string;
 
+if (this.isOpenEndedSeries) {
+  // בדיאלוג אין צורך "עד תאריך", אבל אם את רוצה עדיין להציג "טווח בדיקה"
+  const endD = new Date(startDate + 'T00:00:00');
+  endD.setDate(endD.getDate() + this.seriesSearchHorizonDays);
+  endDate = this.formatLocalDate(endD);
+} else {
+  const skipsCount =
+    (slot.skipped_by_farm_days_off?.length ?? 0) +
+    (slot.skipped_by_instructor_unavailability?.length ?? 0);
+
+  const totalWeeksForward = (this.seriesLessonCount! - 1) + skipsCount;
+
+  const endD = new Date(startDate + 'T00:00:00');
+  endD.setDate(endD.getDate() + totalWeeksForward * 7);
+  endDate = this.formatLocalDate(endD);
+}
 
   // ---- פרטי מדריך ----
   let instructorIdNumber: string | null = null;
@@ -1590,15 +1661,14 @@ if (this.referralFile) {
 }
    
 
-    const payload: any = {
+  const payload: any = {
   requested_start_time: startTime,
-  requested_end_time: endTime,
+  // requested_end_time: endTime,
+  is_open_ended: this.isOpenEndedSeries,
+  series_search_horizon_days: this.seriesSearchHorizonDays,
 
-  // 🔹 דילוגים בגלל חופש חווה – לא ניתנים להשלמה
-  skipped_farm_dates: (slot.skipped_by_farm_days_off ?? []).map(d => String(d)),
-
-  // 🔹 דילוגים בגלל אי זמינות מדריך – כן חריגים, לא ניתנים להשלמה
-  skipped_instructor_dates: (slot.skipped_by_instructor_unavailability ?? []).map(d => String(d)),
+  skipped_farm_dates: (slot.skipped_by_farm_days_off ?? []).map(String),
+  skipped_instructor_dates: (slot.skipped_by_instructor_unavailability ?? []).map(String),
 };
 
 
@@ -1765,7 +1835,7 @@ get canChooseSeriesCount(): boolean {
 }
 get canRequestSeries(): boolean {
   if (!this.selectedChildId) return false;
-  if (!this.seriesLessonCount) return false;
+  if (!this.hasSeriesCountOrOpenEnded) return false;
   if (!this.selectedPaymentPlanId) return false;
 
   if (this.selectedPaymentPlan?.require_docs_at_booking && !this.referralFile) {
@@ -1773,6 +1843,7 @@ get canRequestSeries(): boolean {
   }
   return true;
 }
+
 
 
 getLessonTypeLabel(slot: MakeupSlot): string {
@@ -2073,15 +2144,16 @@ get missingSeriesCountMsg() {
 get missingPaymentPlanMsg() {
   if (!this.selectedChildId) return 'יש לבחור ילד/ה לפני בחירת מסלול תשלום';
   if (!this.selectedInstructorId) return 'יש לבחור מדריך לפני בחירת מסלול תשלום';
-  if (!this.seriesLessonCount) return 'יש לבחור כמות שיעורים בסדרה לפני מסלול תשלום';
+  if (!this.hasSeriesCountOrOpenEnded) return 'יש לבחור כמות שיעורים או לסמן "ללא הגבלה" לפני מסלול תשלום';
   return '';
 }
 
 
 
 get paymentLocked(): boolean {
-  return !this.selectedChildId || !this.selectedInstructorId || !this.seriesLessonCount;
+  return !this.selectedChildId || !this.selectedInstructorId || !this.hasSeriesCountOrOpenEnded;
 }
+
 
 get tabsLocked(): boolean {
   return !this.selectedChildId || !this.selectedInstructorId;
@@ -2099,6 +2171,50 @@ onTabClick(tab: 'series' | 'makeup' | 'occupancy') {
     return;
   }
   this.selectedTab = tab;
+}
+onOpenEndedSeriesToggle(checked: boolean): void {
+  this.isOpenEndedSeries = checked;
+
+  // אם בחרו "ללא הגבלה" – לא צריך מספר
+  if (checked) {
+    this.seriesLessonCount = null;
+  }
+
+  // איפוס תצוגה קודמת
+  this.recurringSlots = [];
+  this.calendarSlotsByDate = {};
+  this.seriesCalendarDays = [];
+  this.selectedSeriesDate = null;
+  this.selectedSeriesDaySlots = [];
+  this.seriesError = null;
+
+  // אם הכל מוכן – תריצי חיפוש (לפונקציה המתאימה)
+  if (this.selectedChildId && (this.noInstructorPreference || this.selectedInstructorId)) {
+    this.searchRecurringSlots();
+  }
+}
+
+onUnlimitedSeriesToggle(): void {
+  // אם סימנו ללא הגבלה – מבטלים כמות
+  if (this.isOpenEndedSeries) {
+    this.seriesLessonCount = null;
+  }
+
+  // איפוס תצוגה
+  this.recurringSlots = [];
+  this.calendarSlotsByDate = {};
+  this.seriesCalendarDays = [];
+  this.selectedSeriesDate = null;
+  this.selectedSeriesDaySlots = [];
+  this.seriesError = null;
+
+  // אם יש תנאים בסיסיים – להריץ חיפוש
+  if (
+    this.selectedChildId &&
+    (this.noInstructorPreference || this.selectedInstructorId) // יש מדריך או אין העדפה
+  ) {
+    this.searchRecurringSlots();
+  }
 }
 
 
