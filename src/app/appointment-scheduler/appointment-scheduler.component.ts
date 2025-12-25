@@ -63,7 +63,8 @@ export interface RecurringSlotWithSkips {
   end_time: string;
   instructor_id: string | null;         // ← חשוב!
   instructor_name?: string;             // ← לא null (או תעשי גם null)
-  skipped_dates: ISODate[];             // ← מה-DB
+skipped_by_farm_days_off: ISODate[];
+skipped_by_instructor_unavailability: ISODate[];
 }
 
 // interface RecurringSlot {
@@ -1041,8 +1042,6 @@ const { data, error } = await dbTenant().rpc('find_series_slots_with_skips', pay
       this.seriesError = 'שגיאה בחיפוש סדרות זמינות';
       return;
     }
-console.log('RPC data sample:', data?.[0]);
-console.log('skipped sample:', (data?.[0] as any)?.skipped_dates);
 
    
 const raw = (data ?? []) as RecurringSlotWithSkips[];
@@ -1504,11 +1503,12 @@ async requestSeriesFromSecretary(slot: RecurringSlotWithSkips , dialogTpl: Templ
   }
 
   // ---- חישוב תאריכים ----
-console.log('skipped_dates', slot.skipped_dates);
+console.log('skipped farm:', (slot as any)?.skipped_by_farm_days_off);
+console.log('skipped instr:', (slot as any)?.skipped_by_instructor_unavailability);
 
 // כמה שבועות בפועל עד השיעור האחרון (כולל דילוגים)
   const startDate = slot.lesson_date;
-const skipsCount = (slot.skipped_dates?.length ?? 0);
+const skipsCount = (slot.skipped_by_farm_days_off?.length ?? 0) + (slot.skipped_by_instructor_unavailability?.length ?? 0);
 const totalWeeksForward = (this.seriesLessonCount - 1) + skipsCount;
 
 const endD = new Date(startDate + 'T00:00:00');
@@ -1588,13 +1588,19 @@ if (this.referralFile) {
     this.seriesError = 'שגיאה בהעלאת המסמך. אפשר לנסות שוב או להמשיך ללא מסמך.';
   }
 }
-    // 🔹 2) payload לבקשה למזכירה (כולל URL אם יש)
-    const payload: any = {
-      requested_start_time: startTime,
-      requested_end_time: endTime, 
-  skipped_dates: (slot.skipped_dates ?? []).map(d => String(d)), // לוודא שזה string
+   
 
-    };
+    const payload: any = {
+  requested_start_time: startTime,
+  requested_end_time: endTime,
+
+  // 🔹 דילוגים בגלל חופש חווה – לא ניתנים להשלמה
+  skipped_farm_dates: (slot.skipped_by_farm_days_off ?? []).map(d => String(d)),
+
+  // 🔹 דילוגים בגלל אי זמינות מדריך – כן חריגים, לא ניתנים להשלמה
+  skipped_instructor_dates: (slot.skipped_by_instructor_unavailability ?? []).map(d => String(d)),
+};
+
 
     if (referralUrl) {
       payload.referral_url = referralUrl;
