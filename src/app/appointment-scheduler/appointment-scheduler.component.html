@@ -341,39 +341,7 @@
       {{ seriesCreatedMessage }}
     </p>
 
-    <!-- <div *ngIf="recurringSlots.length > 0" class="slots-list">
-      <h4>זמנים אפשריים</h4>
-      <table>
-        <thead>
-          <tr>
-            <th>תאריך ראשון</th>
-            <th>שעה</th>
-            <th>מדריך</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let s of recurringSlots">
-            <td>{{ s.lesson_date }}</td>
-            <td>
-              {{ s.start_time | slice: 0:5 }}–{{
-                s.end_time | slice: 0:5
-              }}
-            </td>
-            <td>{{ s.instructor_id }}</td>
-            <td>
-              <button
-                type="button"
-                class="appt-cta"
-                (click)="createSeriesFromSlot(s)"
-              >
-                קבע סדרה
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div> -->
+  
 </div>
 
 <!-- ======== טאב: מילוי מקום ======== -->
@@ -393,7 +361,7 @@
       <th>יום</th>
       <th>שעה</th>
       <th>מדריך</th>
-      <th>סטטוס</th>
+      <!-- <th>סטטוס</th> -->
       <th></th>
     </tr>
   </thead>
@@ -411,7 +379,7 @@
 <td>{{ getSlotDayLabel(o.occur_date) }}</td>
       <td>{{ o.start_time | slice: 0:5 }}–{{ o.end_time | slice: 0:5 }}</td>
       <td>{{ o.instructor_name || o.instructor_id }}</td>
-      <td>{{ o.status }}</td>
+      <!-- <td>{{ o.status }}</td> -->
       <td>
         <button
           type="button"
@@ -484,11 +452,10 @@
 
  <!-- ======== טאב: שיעור השלמה ======== -->
 <div *ngIf="selectedTab === 'makeup'" class="appt-card">
-  <h3>שיעור השלמה</h3>
+  <h3>שיעורים שמחפשים השלמה </h3>
 
   <!-- רשימת שיעורים שניתן להשלים -->
   <div class="slots-list">
-    <h4>שיעורים שניתן להשלים</h4>
 
     <ng-container *ngIf="loadingMakeupCandidates">
       <p>טוען שיעורים שניתן להשלים...</p>
