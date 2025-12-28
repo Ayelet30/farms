@@ -10,21 +10,44 @@ import { dbTenant } from '../../services/supabaseClient.service';
 import { getAuth } from 'firebase/auth';
 import { FarmSettingsService } from '../../services/farm-settings.service';
 
-type LessonType = 'regular' | 'double' | 'single' | 'group' | 'both';
+/* ===================== TYPES ===================== */
 
-interface BreakRange {
+type UUID = string;
+interface TimeSlot {
   start: string;
   end: string;
+  ridingTypeId: string | null;
+
+  isNew?: boolean;
+  wasUpdated?: boolean;
+
+  originalStart?: string;
+  originalEnd?: string;
+
+  prevStart?: string;
+  prevEnd?: string;
+  prevRidingTypeId?: UUID | null;
+
+  /** 👇 חדש */
+  flashError?: boolean;
 }
 
 interface TimeSlot {
   start: string;
   end: string;
-  lessonType: LessonType;
+
+  /** ✅ DB reference */
+   ridingTypeId: string | null; 
+
   isNew?: boolean;
   wasUpdated?: boolean;
   originalStart?: string;
   originalEnd?: string;
+
+  /** UX – לשמור ערכים לפני עריכה */
+  prevStart?: string;
+  prevEnd?: string;
+  prevRidingTypeId?: UUID | null;
 }
 
 interface DayAvailability {
@@ -32,7 +55,15 @@ interface DayAvailability {
   label: string;
   active: boolean;
   slots: TimeSlot[];
-  breaks: BreakRange[];
+}
+interface RidingType {
+  id: string;
+  code: string;
+  name: string;
+  default_duration_min: number | null;
+  max_participants: number | null;
+  description: string | null;
+  active: boolean;
 }
 
 interface NotificationPrefs {
@@ -44,6 +75,15 @@ interface NotificationPrefs {
 interface ConfirmData {
   parents: { name: string; child: string }[];
   parentsCount: number;
+}
+
+interface RidingTypeOption {
+  id: UUID;
+  label: string;
+  min_participants: number;
+  max_participants: number;
+  is_active: boolean;
+  sort_order: number;
 }
 
 @Component({
@@ -62,10 +102,14 @@ interface ConfirmData {
 export class AvailabilityTabComponent implements OnInit {
   public userId: string | null = null;
   public instructorIdNumber: string | null = null;
+public ridingTypes: RidingType[] = [];
 
   public allowEdit = true;
   public isDirty = false;
   public lockConfirm = false;
+
+  /** אם יש לך farm_id במערכת – נטען מה farm settings */
+  public farmId: UUID | null = null;
 
   public days: DayAvailability[] = [];
 
@@ -79,12 +123,8 @@ export class AvailabilityTabComponent implements OnInit {
   public farmEnd = '17:00';
   public lessonDuration = 60;
 
-  public lessonTypeOptions = [
-    { value: 'double_only', label: 'שיעור כפול בלבד' },
-    { value: 'both', label: 'גם וגם' },
-    { value: 'double or both', label: 'כפול או גם וגם' },
-    { value: 'break', label: 'הפסקה' },
-  ];
+  /** ✅ נטען מהטבלה */
+  public ridingTypeOptions: RidingTypeOption[] = [];
 
   public toastMessage = '';
   private toastTimeout: any;
@@ -104,14 +144,55 @@ export class AvailabilityTabComponent implements OnInit {
   async ngOnInit() {
     await this.loadUserId();
     await this.loadInstructorRecord();
-    await this.loadFarmSettings();
+    await this.loadFarmSettings();       // כולל farmId + שעות פעילות
+    await this.loadRidingTypes();    
+        // נטען מה DB
     this.loadDefaultsIfEmpty();
+    this.ensureSlotsHaveDefaults();   
+    console.log('RIDING TYPES COUNT:', this.ridingTypes.length);
+console.log('RIDING TYPES:', this.ridingTypes);
+   // default riding type אם חסר
   }
 
   private async loadUserId() {
     const auth = getAuth();
     this.userId = auth.currentUser?.uid ?? null;
   }
+
+private async loadRidingTypes() {
+  const { data, error } = await dbTenant()
+    .schema('bereshit_farm')
+    .from('riding_types')
+    .select(`
+      id,
+      code,
+      name,
+      default_duration_min,
+      max_participants,
+      description,
+      active
+    `)
+    .eq('active', true)
+    .order('name');
+
+  if (error) {
+    console.error('❌ loadRidingTypes error:', error);
+    this.showToast('שגיאה בטעינת סוגי רכיבה');
+    return;
+  }
+
+  this.ridingTypes = data || [];
+
+  // ⬅️ זה החלק החשוב ל־HTML
+  this.ridingTypeOptions = this.ridingTypes.map(rt => ({
+    id: rt.id,
+    label: rt.name,
+    min_participants: 1,
+    max_participants: rt.max_participants ?? 1,
+    is_active: rt.active,
+    sort_order: 0,
+  }));
+}
 
   private async loadInstructorRecord() {
     if (!this.userId) return;
@@ -142,7 +223,26 @@ export class AvailabilityTabComponent implements OnInit {
             ? JSON.parse(data.availability)
             : data.availability;
 
-        if (Array.isArray(raw)) this.days = raw;
+        if (Array.isArray(raw)) {
+          // התאמה אחורה: אם היה lessonType בעבר – לא נשתמש בזה
+          this.days = raw.map((d: any) => ({
+            key: d.key,
+            label: d.label,
+            active: !!d.active,
+            slots: (d.slots || []).map((s: any) => ({
+              start: s.start,
+              end: s.end,
+              ridingTypeId: s.ridingTypeId ?? s.riding_type_id ?? null,
+              isNew: !!s.isNew,
+              wasUpdated: !!s.wasUpdated,
+              originalStart: s.originalStart ?? s.start,
+              originalEnd: s.originalEnd ?? s.end,
+              prevStart: s.start,
+              prevEnd: s.end,
+              prevRidingTypeId: s.ridingTypeId ?? s.riding_type_id ?? null,
+            })),
+          }));
+        }
       } catch (e) {
         console.error('Failed to parse availability JSON', e);
       }
@@ -165,6 +265,9 @@ export class AvailabilityTabComponent implements OnInit {
       const settings = await this.farmSettings.loadSettings();
       if (!settings) return;
 
+      // אם אצלך settings כולל farm_id
+      if ((settings as any).farm_id) this.farmId = (settings as any).farm_id;
+
       if (settings.operating_hours_start)
         this.farmStart = settings.operating_hours_start.slice(0, 5);
 
@@ -178,6 +281,7 @@ export class AvailabilityTabComponent implements OnInit {
     }
   }
 
+ 
   private loadDefaultsIfEmpty() {
     if (this.days && this.days.length > 0) return;
 
@@ -186,7 +290,6 @@ export class AvailabilityTabComponent implements OnInit {
       label,
       active: false,
       slots: [],
-      breaks: [],
     });
 
     this.days = [
@@ -196,6 +299,21 @@ export class AvailabilityTabComponent implements OnInit {
       mk('wed', 'רביעי'),
       mk('thu', 'חמישי'),
     ];
+  }
+
+  /** אם אין ridingTypeId בטווחים קיימים – ננסה לשים default ראשון */
+  private ensureSlotsHaveDefaults() {
+    const defaultTypeId = this.ridingTypeOptions?.[0]?.id ?? null;
+    for (const day of this.days || []) {
+      for (const s of day.slots || []) {
+        if (!s.ridingTypeId) s.ridingTypeId = defaultTypeId;
+        s.prevStart = s.start;
+        s.prevEnd = s.end;
+        s.prevRidingTypeId = s.ridingTypeId;
+        s.originalStart ??= s.start;
+        s.originalEnd ??= s.end;
+      }
+    }
   }
 
   /* ============================ HELPERS ============================ */
@@ -228,7 +346,7 @@ export class AvailabilityTabComponent implements OnInit {
   }
 
   private getSortedSlots(day: DayAvailability): TimeSlot[] {
-    return [...day.slots].sort(
+    return [...(day.slots || [])].sort(
       (a, b) => this.timeToMinutes(a.start) - this.timeToMinutes(b.start),
     );
   }
@@ -238,32 +356,42 @@ export class AvailabilityTabComponent implements OnInit {
     return map[key] ?? 0;
   }
 
-  /**
-   * דואג שאין חפיפות ושכל טווח "נלחץ" בין הקודם לבא אחריו
-   */
-  private enforceSlotOrderConstraints(day: DayAvailability, slot: TimeSlot) {
-    const sorted = this.getSortedSlots(day);
-    const index = sorted.indexOf(slot);
+  private hasOverlap(day: DayAvailability, slot: TimeSlot): boolean {
+    const start = this.timeToMinutes(slot.start);
+    const end = this.timeToMinutes(slot.end);
+    if (!start || !end) return false;
 
-    const prev = index > 0 ? sorted[index - 1] : null;
-    const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
-
-    // תיקוף מול הטווח הקודם
-    if (prev && this.timeToMinutes(slot.start) < this.timeToMinutes(prev.end)) {
-      slot.start = prev.end;
-      this.showToast(
-        '⛔ שעת התחלה של טווח חייבת להיות אחרי סיום הטווח הקודם באותו היום',
-      );
+    for (const other of day.slots || []) {
+      if (other === slot) continue;
+      const os = this.timeToMinutes(other.start);
+      const oe = this.timeToMinutes(other.end);
+      if (start < oe && end > os) return true;
     }
-
-    // תיקוף מול הטווח הבא
-    if (next && this.timeToMinutes(slot.end) > this.timeToMinutes(next.start)) {
-      slot.end = next.start;
-      this.showToast(
-        '⛔ שעת סיום של טווח חייבת להיות לפני תחילת הטווח הבא באותו היום',
-      );
-    }
+    return false;
   }
+
+  /** ✅ חובה לקיים בגלל ה-HTML */
+  onSlotFocus(slot: TimeSlot) {
+    slot.prevStart = slot.start;
+    slot.prevEnd = slot.end;
+    slot.prevRidingTypeId = slot.ridingTypeId ?? null;
+     this.cdr.detectChanges(); 
+  }
+
+  private revertSlot(slot: TimeSlot) {
+    if (slot.prevStart != null) slot.start = slot.prevStart;
+    if (slot.prevEnd != null) slot.end = slot.prevEnd;
+    slot.ridingTypeId = slot.prevRidingTypeId ?? slot.ridingTypeId ?? null;
+  }
+private flashSlotError(slot: TimeSlot) {
+  slot.flashError = true;
+  this.cdr.detectChanges();
+
+  setTimeout(() => {
+    slot.flashError = false;
+    this.cdr.detectChanges();
+  }, 700);
+}
 
   /* ============================ DAY TOGGLE ============================ */
 
@@ -275,17 +403,19 @@ export class AvailabilityTabComponent implements OnInit {
     }
 
     if (day.active && day.slots.length === 0) {
-      day.slots.push({
+      const defaultTypeId = this.ridingTypeOptions?.[0]?.id ?? null;
+      const s: TimeSlot = {
         start: this.farmStart,
-        end: this.farmEnd,
-        lessonType: 'regular',
+        end: this.addMinutesToTime(this.farmStart, this.lessonDuration),
+        ridingTypeId: defaultTypeId,
         isNew: true,
-      });
+      };
+      this.onSlotFocus(s);
+      day.slots.push(s);
     }
 
     if (!day.active) {
       day.slots = [];
-      day.breaks = [];
     }
 
     this.markDirty();
@@ -299,30 +429,29 @@ export class AvailabilityTabComponent implements OnInit {
       return;
     }
 
-    // טווח חדש – תמיד אחרי הטווח האחרון
     const sorted = this.getSortedSlots(day);
-
     let start = this.farmStart;
-    if (sorted.length > 0) {
-      const last = sorted[sorted.length - 1];
-      start = last.end;
-    }
+
+    if (sorted.length > 0) start = sorted[sorted.length - 1].end;
 
     const end = this.addMinutesToTime(start, this.lessonDuration);
 
-    // אם הטווח החדש יוצא מחוץ לשעות פעילות החווה – לא מוסיפים
     if (this.timeToMinutes(end) > this.timeToMinutes(this.farmEnd)) {
       this.showToast('⛔ אין מקום להוסיף עוד טווח ביום זה בתוך שעות הפעילות');
       return;
     }
 
-    day.slots.push({
+    const defaultTypeId = this.ridingTypeOptions?.[0]?.id ?? null;
+
+    const s: TimeSlot = {
       start,
       end,
-      lessonType: 'regular',
+      ridingTypeId: defaultTypeId,
       isNew: true,
-    });
+    };
+    this.onSlotFocus(s);
 
+    day.slots.push(s);
     this.markDirty();
   }
 
@@ -359,13 +488,46 @@ export class AvailabilityTabComponent implements OnInit {
 
     if (!slot.start || !slot.end) return;
 
+    // 1) סיום אחרי התחלה
     if (this.timeToMinutes(slot.end) <= this.timeToMinutes(slot.start)) {
       this.showToast('⛔ שעת סיום חייבת להיות אחרי שעת התחלה');
+        this.flashSlotError(slot); 
+      this.revertSlot(slot);
       return;
     }
 
-    // מוודא שהטווח לא נכנס לתוך הטווח הקודם/הבא
-    this.enforceSlotOrderConstraints(day, slot);
+    // 2) בתוך שעות פעילות
+    if (this.timeToMinutes(slot.start) < this.timeToMinutes(this.farmStart)) {
+      this.showToast('⛔ שעת התחלה לא יכולה להיות לפני תחילת יום בחווה');
+      this.revertSlot(slot);
+        this.flashSlotError(slot); 
+      return;
+    }
+    if (this.timeToMinutes(slot.end) > this.timeToMinutes(this.farmEnd)) {
+      this.showToast('⛔ שעת סיום לא יכולה להיות אחרי סיום יום בחווה');
+        this.flashSlotError(slot); 
+      this.revertSlot(slot);
+      return;
+    }
+
+    // 3) חפיפות (בלי תיקון אוטומטי!)
+    if (this.hasOverlap(day, slot)) {
+      this.showToast('⛔ יש חפיפה בין הטווח הזה לטווח אחר באותו היום');
+      this.revertSlot(slot);
+      return;
+    }
+
+    // 4) חייב לבחור סוג רכיבה
+    if (!slot.ridingTypeId) {
+      this.showToast('⛔ חובה לבחור סוג רכיבה');
+      this.revertSlot(slot);
+      return;
+    }
+
+    // תקין → מעדכנים prev
+    slot.prevStart = slot.start;
+    slot.prevEnd = slot.end;
+    slot.prevRidingTypeId = slot.ridingTypeId;
 
     if (slot.isNew) {
       this.markDirty();
@@ -373,23 +535,6 @@ export class AvailabilityTabComponent implements OnInit {
     }
 
     slot.wasUpdated = true;
-    this.markDirty();
-  }
-
-  /* ============================ BREAKS ============================ */
-
-  addBreak(day: DayAvailability) {
-    day.breaks.push({ start: this.farmStart, end: this.farmStart });
-    this.markDirty();
-  }
-
-  removeBreak(day: DayAvailability, j: number) {
-    day.breaks.splice(j, 1);
-    this.markDirty();
-  }
-
-  onBreakChange(day: DayAvailability, br: BreakRange) {
-    console.log('⏱ break changed:', { day: day.key, break: br });
     this.markDirty();
   }
 
@@ -432,7 +577,6 @@ export class AvailabilityTabComponent implements OnInit {
   /* ============================ SAVE FLOW ============================ */
 
   async saveAvailability() {
-    console.log('▶ saveAvailability() called');
     if (!this.allowEdit) {
       this.showToast('הזמינות נעולה לעריכה. כדי לערוך יש לפנות למזכירה.');
       return;
@@ -443,17 +587,14 @@ export class AvailabilityTabComponent implements OnInit {
       return;
     }
 
-    console.log('✔ Opening lockConfirm popup');
     this.lockConfirm = true;
   }
 
   cancelLockConfirm() {
-    console.log('❌ cancelLockConfirm(): popup closed');
     this.lockConfirm = false;
   }
 
   async confirmLockAndSave() {
-    console.log('▶ confirmLockAndSave(): popup confirmed');
     this.lockConfirm = false;
 
     await this.lockAvailabilityEdit();
@@ -462,6 +603,7 @@ export class AvailabilityTabComponent implements OnInit {
 
   private async lockAvailabilityEdit() {
     if (!this.userId) return;
+
     try {
       await dbTenant()
         .from('instructors')
@@ -477,39 +619,20 @@ export class AvailabilityTabComponent implements OnInit {
   /* ============================ APPLY SAVE ============================ */
 
   private async applySave() {
-    console.log('🚀 applySave() STARTED');
-
-    if (!this.userId || !this.instructorIdNumber) {
-      console.warn('⛔ Missing userId or instructorIdNumber', {
-        userId: this.userId,
-        instructorIdNumber: this.instructorIdNumber,
-      });
-      return;
-    }
+    if (!this.userId || !this.instructorIdNumber) return;
 
     const dbc = dbTenant();
 
     try {
-      /* 1) Save JSON to instructors */
-      console.log('📦 Saving JSON availability → instructors');
-      console.log('DATA:', JSON.stringify(this.days, null, 2));
-
+      // 1) Save JSON to instructors (לגיבוי UI)
       await dbc
         .from('instructors')
         .update({ availability: JSON.stringify(this.days) })
         .eq('uid', this.userId);
 
-      /* 2) DELETE removed slots */
-      console.log('🗑 Deleted slots list:', this.deletedSlots);
-
+      // 2) DELETE removed slots
       for (const del of this.deletedSlots) {
         const dow = this.mapDayKeyToNumber(del.dayKey);
-
-        console.log('📤 DELETE PAYLOAD:', {
-          instructor_id_number: this.instructorIdNumber,
-          day_of_week: dow,
-          start_time: del.start,
-        });
 
         const { error } = await dbc
           .from('instructor_weekly_availability')
@@ -518,67 +641,54 @@ export class AvailabilityTabComponent implements OnInit {
           .eq('day_of_week', dow)
           .eq('start_time', del.start);
 
-        if (error) {
-          console.error('❌ DELETE ERROR:', error);
-        }
+        if (error) console.error('❌ DELETE ERROR:', error);
       }
 
-      /* 3) INSERT / UPDATE slots */
-      console.log('⏱ Processing slots for INSERT/UPDATE');
-
+      // 3) INSERT / UPDATE slots
       for (const day of this.days || []) {
         const dow = this.mapDayKeyToNumber(day.key);
         if (!day.active || !Array.isArray(day.slots)) continue;
 
         for (const slot of day.slots) {
-          if (!slot.start || !slot.end) continue;
+          if (!slot.start || !slot.end || !slot.ridingTypeId) continue;
 
-          /* INSERT */
+          // INSERT
           if (slot.isNew) {
             const payload = {
               instructor_id_number: this.instructorIdNumber,
               day_of_week: dow,
               start_time: slot.start,
               end_time: slot.end,
-              lesson_type_mode: slot.lessonType ?? null,
+              riding_type_id: slot.ridingTypeId,
             };
-
-            console.log('📤 INSERT PAYLOAD:', payload);
 
             const { error } = await dbc
               .from('instructor_weekly_availability')
               .insert(payload);
 
-            if (error) {
-              console.error('❌ INSERT ERROR:', error);
-            } else {
-              console.log('✔ INSERT OK');
-            }
+            if (error) console.error('❌ INSERT ERROR:', error);
 
             slot.isNew = false;
             slot.originalStart = slot.start;
             slot.originalEnd = slot.end;
             slot.wasUpdated = false;
 
+            slot.prevStart = slot.start;
+            slot.prevEnd = slot.end;
+            slot.prevRidingTypeId = slot.ridingTypeId;
+
             continue;
           }
 
-          /* UPDATE */
+          // UPDATE
           if (slot.wasUpdated) {
             const originalStart = slot.originalStart ?? slot.start;
 
             const payload = {
               start_time: slot.start,
               end_time: slot.end,
-              lesson_type_mode: slot.lessonType ?? null,
+              riding_type_id: slot.ridingTypeId,
             };
-
-            console.log('📤 UPDATE PAYLOAD:', {
-              instructor_id_number: this.instructorIdNumber,
-              day_of_week: dow,
-              original_start: originalStart,
-              new_values: payload,
-            });
 
             const { error } = await dbc
               .from('instructor_weekly_availability')
@@ -587,15 +697,15 @@ export class AvailabilityTabComponent implements OnInit {
               .eq('day_of_week', dow)
               .eq('start_time', originalStart);
 
-            if (error) {
-              console.error('❌ UPDATE ERROR:', error);
-            } else {
-              console.log('✔ UPDATE OK');
-            }
+            if (error) console.error('❌ UPDATE ERROR:', error);
 
             slot.originalStart = slot.start;
             slot.originalEnd = slot.end;
             slot.wasUpdated = false;
+
+            slot.prevStart = slot.start;
+            slot.prevEnd = slot.end;
+            slot.prevRidingTypeId = slot.ridingTypeId;
           }
         }
       }
@@ -603,10 +713,9 @@ export class AvailabilityTabComponent implements OnInit {
       this.deletedSlots = [];
       this.isDirty = false;
 
-      console.log('🎉 applySave() COMPLETED SUCCESSFULLY');
       this.showToast('✔ הזמינות נשמרה וננעלה לעריכה');
     } catch (err) {
-      console.error('🔥 GLOBAL applySave EXCEPTION:', err);
+      console.error('🔥 applySave EXCEPTION:', err);
       this.showToast('❌ שגיאה בשמירת הזמינות');
     }
   }
@@ -614,13 +723,11 @@ export class AvailabilityTabComponent implements OnInit {
   /* ============================ PARENTS IMPACT POPUP ============================ */
 
   cancelUpdate() {
-    console.log('❌ cancelUpdate(): close parents popup');
     this.confirmData = null;
     this.pendingPayload = null;
   }
 
   async approveUpdate() {
-    console.log('✔ approveUpdate(): save after parents popup');
     this.confirmData = null;
     await this.applySave();
   }
@@ -628,19 +735,14 @@ export class AvailabilityTabComponent implements OnInit {
   /* ============================ NOTIFICATIONS ============================ */
 
   public async saveNotifications() {
-    console.log('🔔 saveNotifications() called');
-
     if (!this.userId) return;
 
-    const dbc = dbTenant();
-
     try {
-      await dbc
+      await dbTenant()
         .from('instructors')
         .update({ notify: JSON.stringify(this.notif) })
         .eq('uid', this.userId);
 
-      console.log('✔ Notifications saved:', this.notif);
       this.showToast('✔ העדפות ההתראה נשמרו');
     } catch (err) {
       console.error('❌ saveNotifications error:', err);

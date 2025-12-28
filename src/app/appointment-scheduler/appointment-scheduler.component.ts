@@ -63,7 +63,8 @@ export interface RecurringSlotWithSkips {
   end_time: string;
   instructor_id: string | null;         // ← חשוב!
   instructor_name?: string;             // ← לא null (או תעשי גם null)
-  skipped_dates: ISODate[];             // ← מה-DB
+skipped_by_farm_days_off: ISODate[];
+skipped_by_instructor_unavailability: ISODate[];
 }
 
 // interface RecurringSlot {
@@ -197,6 +198,12 @@ loadingOccupancySlots = false;
 occupancySlotsError: string | null = null;
 selectedOccupancySlot: MakeupSlot | null = null;
 
+isOpenEndedSeries = false;
+seriesSearchHorizonDays = 90; // fallback
+
+get hasSeriesCountOrOpenEnded(): boolean {
+  return this.isOpenEndedSeries || !!this.seriesLessonCount;
+}
 // שיעורי מילוי מקום
 
 occupancyCreatedMessage: string | null = null;
@@ -544,13 +551,31 @@ private applyInstructorFilterToLists(): void {
   // כי אין פילטר על הרשימה הזו.
 }
 
+onSeriesUnlimitedChange(): void {
+  if (this.isOpenEndedSeries
+) {
+    this.seriesLessonCount = null; // אין כמות
+  }
+  // לאפס תוצאות קודמות
+  this.recurringSlots = [];
+  this.calendarSlotsByDate = {};
+  this.seriesCalendarDays = [];
+  this.selectedSeriesDate = null;
+  this.selectedSeriesDaySlots = [];
+  this.seriesError = null;
+
+  // אם יש ילד + מדריך/any (או noInstructorPreference) -> להריץ חיפוש
+  if (this.selectedChildId && (this.noInstructorPreference || this.selectedInstructorId)) {
+    this.searchRecurringSlots();
+  }
+}
 
 private async loadFarmSettings(): Promise<void> {
   const supa = dbTenant();
 
   const { data, error } = await supa
     .from('farm_settings')
-    .select('displayed_makeup_lessons_count , hours_before_cancel_lesson , time_range_occupancy_rate_days')
+    .select('displayed_makeup_lessons_count , hours_before_cancel_lesson , time_range_occupancy_rate_days , series_search_horizon_days')
     .limit(1)
     .single();
 
@@ -993,10 +1018,11 @@ async searchRecurringSlots(): Promise<void> {
     return;
   }
 
-  if (!this.seriesLessonCount) {
-    this.seriesError = 'יש לבחור כמות שיעורים בסדרה';
-    return;
-  }
+  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
+  this.seriesError = 'יש לבחור כמות שיעורים בסדרה';
+  return;
+}
+
 
   if (!this.noInstructorPreference && !this.selectedInstructorId) {
     this.seriesError = 'יש לבחור מדריך או לסמן שאין העדפה';
@@ -1016,10 +1042,17 @@ async searchRecurringSlots(): Promise<void> {
 
   const today = new Date();
   const fromDate = today.toISOString().slice(0, 10);
-  const to = new Date();
-  to.setMonth(to.getMonth() + 3); // 3 חודשים קדימה
-  const toDate = to.toISOString().slice(0, 10);
-
+  // ✅ רגיל: 3 חודשים קדימה | ללא הגבלה: לפי series_search_horizon_days
+  let toDate: string;
+  if (this.isOpenEndedSeries) {
+    const to = new Date();
+    to.setDate(to.getDate() + (this.seriesSearchHorizonDays ?? 90));
+    toDate = to.toISOString().slice(0, 10);
+  } else {
+    const to = new Date();
+    to.setMonth(to.getMonth() + 3);
+    toDate = to.toISOString().slice(0, 10);
+  }
   const payload = {
     p_child_id: child.child_uuid,         
     p_lesson_count: this.seriesLessonCount,
@@ -1031,21 +1064,47 @@ async searchRecurringSlots(): Promise<void> {
 
 
   this.loadingSeries = true;
-  console.log('RPC payload', payload);
 
-  try {
-const { data, error } = await dbTenant().rpc('find_series_slots_with_skips', payload);
+try {
+  let data: any[] | null = null;
+  let error: any = null;
 
+  if (this.isOpenEndedSeries) {
+    // 🔹 קריאה לפונקציה החדשה מה-DB
+    const payloadUnlimited = {
+      p_child_id: child.child_uuid,
+      p_instructor_id_number: instructorParam,
+      p_from_date: fromDate,
+    };
 
-    if (error) {
-      this.seriesError = 'שגיאה בחיפוש סדרות זמינות';
-      return;
-    }
-console.log('RPC data sample:', data?.[0]);
-console.log('skipped sample:', (data?.[0] as any)?.skipped_dates);
+    ({ data, error } = await dbTenant().rpc(
+      'find_open_ended_series_slots_with_skips',
+      payloadUnlimited
+    ));
+  } else {
+    // 🔹 קריאה לפונקציה הישנה (עם כמות שיעורים)
+    const payloadRegular = {
+      p_child_id: child.child_uuid,
+      p_lesson_count: this.seriesLessonCount,
+      p_instructor_id_number: instructorParam,
+      p_from_date: fromDate,
+      p_to_date: toDate,
+    };
 
-   
-const raw = (data ?? []) as RecurringSlotWithSkips[];
+    ({ data, error } = await dbTenant().rpc(
+      'find_series_slots_with_skips',
+      payloadRegular
+    ));
+  }
+
+  if (error) {
+    console.error(error);
+    this.seriesError = 'שגיאה בחיפוש סדרות זמינות';
+    return;
+  }
+
+  const raw = (data ?? []) as RecurringSlotWithSkips[];
+
 
 // קודם ממיינים לפי תאריך ואז שעה ואז מדריך,
 // כדי שה"ראשון בזמן" לכל תבנית יהיה באמת הראשון.
@@ -1376,6 +1435,7 @@ async requestMakeupFromSecretary(slot: MakeupSlot): Promise<void> {
     const payload = {
       requested_start_time: slot.start_time,
       requested_end_time: slot.end_time,
+
     };
 
     const { error: reqError } = await supa
@@ -1486,10 +1546,10 @@ async requestSeriesFromSecretary(slot: RecurringSlotWithSkips , dialogTpl: Templ
     return;
   }
 
-  if (!this.seriesLessonCount) {
-    this.seriesError = 'חסר מספר שיעורים בסדרה';
-    return;
-  }
+  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
+  this.seriesError = 'חסר מספר שיעורים בסדרה';
+  return;
+}
 
   if (!this.selectedPaymentPlanId) {
     this.seriesError = 'יש לבחור מסלול תשלום';
@@ -1503,17 +1563,29 @@ async requestSeriesFromSecretary(slot: RecurringSlotWithSkips , dialogTpl: Templ
   }
 
   // ---- חישוב תאריכים ----
-console.log('skipped_dates', slot.skipped_dates);
+console.log('skipped farm:', (slot as any)?.skipped_by_farm_days_off);
+console.log('skipped instr:', (slot as any)?.skipped_by_instructor_unavailability);
 
-// כמה שבועות בפועל עד השיעור האחרון (כולל דילוגים)
-  const startDate = slot.lesson_date;
-const skipsCount = (slot.skipped_dates?.length ?? 0);
-const totalWeeksForward = (this.seriesLessonCount - 1) + skipsCount;
+const startDate = slot.lesson_date;
 
-const endD = new Date(startDate + 'T00:00:00');
-endD.setDate(endD.getDate() + totalWeeksForward * 7);
-const endDate = this.formatLocalDate(endD);
+let endDate: string;
 
+if (this.isOpenEndedSeries) {
+  // בדיאלוג אין צורך "עד תאריך", אבל אם את רוצה עדיין להציג "טווח בדיקה"
+  const endD = new Date(startDate + 'T00:00:00');
+  endD.setDate(endD.getDate() + this.seriesSearchHorizonDays);
+  endDate = this.formatLocalDate(endD);
+} else {
+  const skipsCount =
+    (slot.skipped_by_farm_days_off?.length ?? 0) +
+    (slot.skipped_by_instructor_unavailability?.length ?? 0);
+
+  const totalWeeksForward = (this.seriesLessonCount! - 1) + skipsCount;
+
+  const endD = new Date(startDate + 'T00:00:00');
+  endD.setDate(endD.getDate() + totalWeeksForward * 7);
+  endDate = this.formatLocalDate(endD);
+}
 
   // ---- פרטי מדריך ----
   let instructorIdNumber: string | null = null;
@@ -1587,13 +1659,18 @@ if (this.referralFile) {
     this.seriesError = 'שגיאה בהעלאת המסמך. אפשר לנסות שוב או להמשיך ללא מסמך.';
   }
 }
-    // 🔹 2) payload לבקשה למזכירה (כולל URL אם יש)
-    const payload: any = {
-      requested_start_time: startTime,
-      requested_end_time: endTime, 
-        skipped_dates: slot.skipped_dates ?? [],
+   
 
-    };
+  const payload: any = {
+  requested_start_time: startTime,
+  // requested_end_time: endTime,
+  is_open_ended: this.isOpenEndedSeries,
+  series_search_horizon_days: this.seriesSearchHorizonDays,
+
+  skipped_farm_dates: (slot.skipped_by_farm_days_off ?? []).map(String),
+  skipped_instructor_dates: (slot.skipped_by_instructor_unavailability ?? []).map(String),
+};
+
 
     if (referralUrl) {
       payload.referral_url = referralUrl;
@@ -1758,7 +1835,7 @@ get canChooseSeriesCount(): boolean {
 }
 get canRequestSeries(): boolean {
   if (!this.selectedChildId) return false;
-  if (!this.seriesLessonCount) return false;
+  if (!this.hasSeriesCountOrOpenEnded) return false;
   if (!this.selectedPaymentPlanId) return false;
 
   if (this.selectedPaymentPlan?.require_docs_at_booking && !this.referralFile) {
@@ -1766,6 +1843,7 @@ get canRequestSeries(): boolean {
   }
   return true;
 }
+
 
 
 getLessonTypeLabel(slot: MakeupSlot): string {
@@ -1778,55 +1856,55 @@ getLessonTypeLabel(slot: MakeupSlot): string {
       return 'יחיד';
   }
 }
-private async loadOccupancySlotsForCandidate(
-  cand: OccupancyCandidate
-): Promise<void> {
-  this.loadingOccupancySlots = true;
-  this.occupancySlotsError = null;
-  this.occupancySlots = [];
-  this.selectedOccupancySlot = null;
+// private async loadOccupancySlotsForCandidate(
+//   cand: OccupancyCandidate
+// ): Promise<void> {
+//   this.loadingOccupancySlots = true;
+//   this.occupancySlotsError = null;
+//   this.occupancySlots = [];
+//   this.selectedOccupancySlot = null;
 
-  try {
-    // טווח חיפוש – אפשר לשנות, לדוגמה 30 ימים קדימה
-    const fromDate = cand.occur_date;
-    const toDate = this.addDays(cand.occur_date, 30);
+//   try {
+//     // טווח חיפוש – אפשר לשנות, לדוגמה 30 ימים קדימה
+//     const fromDate = cand.occur_date;
+//     const toDate = this.addDays(cand.occur_date, 30);
 
-    const { data, error } = await dbTenant().rpc(
-      'find_makeup_slots_for_lesson_by_id_number',
-      {
-        p_instructor_id: cand.instructor_id, // id_number של המדריך
-        p_from_date: fromDate,
-        p_to_date: toDate,
-      }
-    );
-    if (error) {
-      console.error('find_makeup_slots_for_lesson_by_id_number error', error);
-      this.occupancySlotsError = 'שגיאה בחיפוש שיעורים למילוי מקום';
-      return;
-    }
+//     const { data, error } = await dbTenant().rpc(
+//       'find_makeup_slots_for_lesson_by_id_number',
+//       {
+//         p_instructor_id: cand.instructor_id, // id_number של המדריך
+//         p_from_date: fromDate,
+//         p_to_date: toDate,
+//       }
+//     );
+//     if (error) {
+//       console.error('find_makeup_slots_for_lesson_by_id_number error', error);
+//       this.occupancySlotsError = 'שגיאה בחיפוש שיעורים למילוי מקום';
+//       return;
+//     }
 
-    let slots = (data ?? []) as MakeupSlot[];
+//     let slots = (data ?? []) as MakeupSlot[];
 
-    // אם את רוצה להגביל לכמות מקסימלית כמו ב־displayedMakeupLessonsCount:
-    if (
-      this.displayedMakeupLessonsCount != null &&
-      this.displayedMakeupLessonsCount > 0
-    ) {
-      slots = slots.slice(0, this.displayedMakeupLessonsCount);
-    }
+//     // אם את רוצה להגביל לכמות מקסימלית כמו ב־displayedMakeupLessonsCount:
+//     if (
+//       this.displayedMakeupLessonsCount != null &&
+//       this.displayedMakeupLessonsCount > 0
+//     ) {
+//       slots = slots.slice(0, this.displayedMakeupLessonsCount);
+//     }
 
-    this.occupancySlots = slots;
-const rangeDays = this.timeRangeOccupancyRateDays ?? 30;
+//     this.occupancySlots = slots;
+// const rangeDays = this.timeRangeOccupancyRateDays ?? 30;
 
-    if (!this.occupancySlots.length) {
-this.occupancySlotsError =
-  `לא נמצאו שיעורים פנויים למילוי מקום בטווח של ${rangeDays} ימים ` +
-  `מתאריך השיעור המקורי.`;
-    }
-  } finally {
-    this.loadingOccupancySlots = false;
-  }
-}
+//     if (!this.occupancySlots.length) {
+// this.occupancySlotsError =
+//   `לא נמצאו שיעורים פנויים למילוי מקום בטווח של ${rangeDays} ימים ` +
+//   `מתאריך השיעור המקורי.`;
+//     }
+//   } finally {
+//     this.loadingOccupancySlots = false;
+//   }
+// }
 async openOccupancySlotsForCandidate(c: OccupancyCandidate): Promise<void> {
     console.log('[openOccupancySlotsForCandidate] clicked', c);
 
@@ -1840,11 +1918,11 @@ async openOccupancySlotsForCandidate(c: OccupancyCandidate): Promise<void> {
   this.occupancySlotsError = null;
   this.occupancyError = null;
 
- const from = c.occur_date;
-const to = this.addDays(
-  c.occur_date,
-  this.timeRangeOccupancyRateDays
-);
+ const lessonDate = c.occur_date;
+
+const from = this.startOfWeekSunday(lessonDate);          // ראשון של אותו שבוע
+const dow  = this.getDowSunday0(lessonDate);              // 0=ראשון ... 6=שבת
+const to   = this.addDays(from, 7 + dow);                 // אותו יום בשבוע הבא
 
 
 const instructorParam = this.getSelectedInstructorIdNumberOrNull();
@@ -1853,20 +1931,19 @@ const instructorParam = this.getSelectedInstructorIdNumberOrNull();
   this.loadingOccupancySlots = true;
   try {
     const { data, error } = await dbTenant().rpc(
-      'find_makeup_slots_for_lesson_by_id_number',
+      'find_makeup_slots_week_to_week',
       {
         p_instructor_id: instructorParam,
-        p_from_date: from,
-        p_to_date: to,
+        p_lesson_date: c.occur_date,
+
       }
     );
 const rangeDays = this.timeRangeOccupancyRateDays ?? 30;
 
   
     if (error) {
-      console.error('find_makeup_slots_for_lesson_by_id_number error (occupancy)', error);
-      this.occupancySlotsError =  `לא נמצאו שיעורים פנויים למילוי מקום בטווח של ${rangeDays} ימים ` +
-  `מתאריך השיעור המקורי.`;
+      console.error('find_makeup_slots_week_to_week error (occupancy)', error);
+      this.occupancySlotsError =    `לא נמצאו שיעורים פנויים למילוי מקום בטווח השבועי (מיום ראשון של אותו שבוע ועד אותו יום בשבוע הבא).`;
       return;
     }
 
@@ -1890,6 +1967,29 @@ this.occupancySlotsError =
 private sameCandidate(a: { lesson_id: string; occur_date: string }, b: { lesson_id: string; occur_date: string }) {
   return a.lesson_id === b.lesson_id && a.occur_date === b.occur_date;
 }
+private toDateOnly(d: string | Date): Date {
+  // אם מגיע מה-DB כ-YYYY-MM-DD – זה הכי בטוח
+  return (d instanceof Date) ? new Date(d.getFullYear(), d.getMonth(), d.getDate())
+                            : new Date(d + 'T00:00:00');
+}
+
+// 0=Sunday ... 6=Saturday
+private getDowSunday0(d: string | Date): number {
+  return this.toDateOnly(d).getDay();
+}
+
+private startOfWeekSunday(d: string | Date): string {
+  const dt = this.toDateOnly(d);
+  const dow = dt.getDay(); // 0=Sun
+  dt.setDate(dt.getDate() - dow); // חזרה ליום ראשון
+  return dt.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+// private addDays(dateStr: string, days: number): string {
+//   const dt = new Date(dateStr + 'T00:00:00');
+//   dt.setDate(dt.getDate() + days);
+//   return dt.toISOString().slice(0, 10);
+// }
 
 
 selectOccupancySlot(slot: MakeupSlot): void {
@@ -2044,15 +2144,16 @@ get missingSeriesCountMsg() {
 get missingPaymentPlanMsg() {
   if (!this.selectedChildId) return 'יש לבחור ילד/ה לפני בחירת מסלול תשלום';
   if (!this.selectedInstructorId) return 'יש לבחור מדריך לפני בחירת מסלול תשלום';
-  if (!this.seriesLessonCount) return 'יש לבחור כמות שיעורים בסדרה לפני מסלול תשלום';
+  if (!this.hasSeriesCountOrOpenEnded) return 'יש לבחור כמות שיעורים או לסמן "ללא הגבלה" לפני מסלול תשלום';
   return '';
 }
 
 
 
 get paymentLocked(): boolean {
-  return !this.selectedChildId || !this.selectedInstructorId || !this.seriesLessonCount;
+  return !this.selectedChildId || !this.selectedInstructorId || !this.hasSeriesCountOrOpenEnded;
 }
+
 
 get tabsLocked(): boolean {
   return !this.selectedChildId || !this.selectedInstructorId;
@@ -2070,6 +2171,50 @@ onTabClick(tab: 'series' | 'makeup' | 'occupancy') {
     return;
   }
   this.selectedTab = tab;
+}
+onOpenEndedSeriesToggle(checked: boolean): void {
+  this.isOpenEndedSeries = checked;
+
+  // אם בחרו "ללא הגבלה" – לא צריך מספר
+  if (checked) {
+    this.seriesLessonCount = null;
+  }
+
+  // איפוס תצוגה קודמת
+  this.recurringSlots = [];
+  this.calendarSlotsByDate = {};
+  this.seriesCalendarDays = [];
+  this.selectedSeriesDate = null;
+  this.selectedSeriesDaySlots = [];
+  this.seriesError = null;
+
+  // אם הכל מוכן – תריצי חיפוש (לפונקציה המתאימה)
+  if (this.selectedChildId && (this.noInstructorPreference || this.selectedInstructorId)) {
+    this.searchRecurringSlots();
+  }
+}
+
+onUnlimitedSeriesToggle(): void {
+  // אם סימנו ללא הגבלה – מבטלים כמות
+  if (this.isOpenEndedSeries) {
+    this.seriesLessonCount = null;
+  }
+
+  // איפוס תצוגה
+  this.recurringSlots = [];
+  this.calendarSlotsByDate = {};
+  this.seriesCalendarDays = [];
+  this.selectedSeriesDate = null;
+  this.selectedSeriesDaySlots = [];
+  this.seriesError = null;
+
+  // אם יש תנאים בסיסיים – להריץ חיפוש
+  if (
+    this.selectedChildId &&
+    (this.noInstructorPreference || this.selectedInstructorId) // יש מדריך או אין העדפה
+  ) {
+    this.searchRecurringSlots();
+  }
 }
 
 

@@ -122,7 +122,30 @@ childDetails: ChildDetails | null = null;
   /** אם true – אוכפים חובת נוכחות + חובת הערה לפי הכללים */
   @Input() enforceNoteForPresence = true;
 
-  @Input() attendanceStatus: AttendanceStatus = null;
+private _attendanceStatus: AttendanceStatus = null;
+ private presentMarkedNow: boolean = false;
+
+
+
+@Input()
+set attendanceStatus(v: AttendanceStatus) {
+  console.log('[ATT INPUT] from parent:', v, 'current:', this._attendanceStatus);
+
+  // ⛔ לא לדרוס ערך שכבר נטען מה־DB ע"י null מההורה
+  if (v === null && this._attendanceStatus !== null) {
+    console.log('[ATT INPUT] ignored null override');
+    return;
+  }
+
+  if (v !== undefined) {
+    this._attendanceStatus = v;
+    this.recalcPresenceFlags();
+  }
+}
+
+get attendanceStatus(): AttendanceStatus {
+  return this._attendanceStatus;
+}
 
   @Output() attendanceChange = new EventEmitter<AttendanceStatus>();
   @Output() close = new EventEmitter<void>();
@@ -167,10 +190,12 @@ lessonDetails: LessonDetails = {
    * - רק אם attendanceStatus === 'present'
    * - מתאפס אחרי addNote()
    */
-  private mustAddNewNoteForPresent = false;
+ 
 showCloseWarning: any;
 
   /* ===================== PERMISSIONS ===================== */
+// ✅ האם כבר נוספה הערה אחרי סימון "הגיע" (בסשן הנוכחי)
+
 
   private effectiveRole(): RoleInTenant | null {
     if (this.role) return this.role;
@@ -207,6 +232,7 @@ showCloseWarning: any;
 
   // 2️⃣ עכשיו אפשר לטעון נתונים שתלויים בזה
   await this.loadLessonDetails();
+  await this.loadAttendance(); 
   await this.loadNotes();
 
   // 3️⃣ איפוס התראות סגירה
@@ -224,9 +250,11 @@ showCloseWarning: any;
   async ngOnChanges(changes: SimpleChanges) {
     if (changes['occurrence'] && !changes['occurrence'].firstChange) {
       await this.loadLessonDetails();
+       await this.loadAttendance(); 
     }
   if (changes['child']) {
   await this.loadChildDetails();
+    await this.loadAttendance(); 
   await this.loadNotes();
 }
 
@@ -236,6 +264,10 @@ showCloseWarning: any;
       this.resetCloseWarnings();
     }
   }
+
+
+
+  
 
   /* ===================== HELPERS ===================== */
   get childName(): string {
@@ -270,8 +302,12 @@ private hasAnyNote(): boolean {
   );
 }
 
+
+  // אם יש "הגיע" מה-DB:
+  // אם כבר יש לפחות הערה אחת לילד -> לא לדרוש שוב
+
+
 private recalcPresenceFlags() {
-  // ❌ אם אי אפשר לסמן נוכחות בזמן הזה – לא מציגים שום אזהרה
   if (!this.canMarkAttendanceNow()) {
     this.mustChooseAttendance = false;
     this.mustFillNoteForPresent = false;
@@ -286,7 +322,6 @@ private recalcPresenceFlags() {
     this.attendanceStatus === 'present' &&
     !this.hasAnyNote();
 }
-
 
   getTimeString(v?: string | null): string {
     return v ? String(v).substring(0, 5) : '';
@@ -387,7 +422,37 @@ async loadChildDetails() {
     parent_email: parentEmail,
   };
 }
+async loadAttendance() {
+  const lessonId = this.occurrence?.lesson_id;
+  const occurDate = this.getOccurDateForDb();
+  const childId = this.child?.child_uuid;
 
+  if (!lessonId || !occurDate || !childId) return;
+
+  const { data } = await this.dbc
+    .from('lesson_attendance')
+    .select('attendance_status')
+    .eq('lesson_id', lessonId)
+    .eq('occur_date', occurDate)
+    .eq('child_id', childId)
+    .maybeSingle();
+
+  const raw = (data?.attendance_status ?? '').toString().trim();
+
+  const mapped: AttendanceStatus =
+    raw === 'הגיע' || raw === 'present'
+      ? 'present'
+      : raw === 'לא הגיע' || raw === 'absent'
+      ? 'absent'
+      : null;
+
+  this._attendanceStatus = mapped;
+
+  // ✅ זה לא סימון חדש → אין חובת הערה
+this.presentMarkedNow = false;
+
+  this.recalcPresenceFlags();
+}
 
 async loadLessonDetails() {
   const lessonId = this.occurrence?.lesson_id;
@@ -395,45 +460,52 @@ async loadLessonDetails() {
 
   if (!lessonId || !occurDate) return;
 
-  // --- קריאה מה-VIEW (כמו בקוד המקורי) ---
-  const { data, error } = await this.dbc
-    .from('lessons_with_children')
-    .select(`
-      lesson_id,
-      start_time,
-      end_time,
-      lesson_type,
-      status,
-      horse_id,
-      horse_name,
-      arena_id,
-      arena_name
-    `)
-    .eq('lesson_id', lessonId)
-    .eq('occur_date', occurDate)
-    .limit(1);
+  /* 1️⃣ נתוני השיעור */
+  const { data: lesson, error: lessonErr } = await this.dbc
+    .from('lessons')
+    .select('id, start_time, end_time, lesson_type, status')
+    .eq('id', lessonId)
+    .maybeSingle();
 
-  if (error) {
-    console.error('[loadLessonDetails] view error', error);
+  if (lessonErr || !lesson) {
+    console.error('[loadLessonDetails] lesson error', lessonErr);
     return;
   }
 
-  const row = data?.[0];
-  if (!row) return;
+  /* 2️⃣ סוס + מגרש */
+  const { data: res } = await this.dbc
+    .from('lesson_resources')
+    .select('horse_id, arena_id')
+    .eq('lesson_id', lessonId)
+    .eq('occur_date', occurDate)
+    .maybeSingle();
 
-  // --- מיפוי ל-lessonDetails (בלי לגעת בטבלה) ---
+  /* 3️⃣ שמות */
+  let horseName: string | null = null;
+  let arenaName: string | null = null;
+
+  if (res?.horse_id) {
+    horseName = this.horses.find(h => h.id === res.horse_id)?.name ?? null;
+  }
+
+  if (res?.arena_id) {
+    arenaName = this.arenas.find(a => a.id === res.arena_id)?.name ?? null;
+  }
+
+  /* 4️⃣ מיפוי ל-UI */
   this.lessonDetails = {
-    lesson_id: row.lesson_id,
-    start_time: row.start_time ?? null,
-    end_time: row.end_time ?? null,
-    lesson_type: row.lesson_type ?? null,
-    status: row.status ?? null,
-    horse_id: row.horse_id ?? null,
-    horse_name: row.horse_name ?? null,
-    arena_id: row.arena_id ?? null,
-    arena_name: row.arena_name ?? null,
+    lesson_id: lesson.id,
+    start_time: lesson.start_time,
+    end_time: lesson.end_time,
+    lesson_type: lesson.lesson_type,
+    status: lesson.status,
+    horse_id: res?.horse_id ?? null,
+    horse_name: horseName,
+    arena_id: res?.arena_id ?? null,
+    arena_name: arenaName,
   };
 }
+
 
   /* ===================== HORSES / ARENAS ===================== */
 
@@ -548,7 +620,9 @@ private async saveAttendance(status: AttendanceStatus | null) {
     child_id: childId,
     occur_date: occurDate,
 
-    attendance_status: status,
+attendance_status: status,
+
+
 
     // ❗❗❗ כאן היה הבאג
     marked_by_uid: null,              // UUID בלבד → NULL
@@ -578,20 +652,27 @@ private async saveAttendance(status: AttendanceStatus | null) {
 
 async setAttendance(status: AttendanceStatus) {
   if (!this.canEditNotes) return;
+  if (!this.canMarkAttendanceNow()) return;
 
-  if (!this.canMarkAttendanceNow()) {
-    console.warn('[ATTENDANCE] blocked – future lesson');
-    return;
-  }
+  const prev = this._attendanceStatus;
 
   this.attendanceStatus = status;
   this.attendanceChange.emit(status);
 
+  // ✅ רק מעבר ל־present עכשיו
+  if (status === 'present' && prev !== 'present') {
+    this.presentMarkedNow = true;
+  }
+
+  // ❌ לא הגיע – אין חובת הערה
+  if (status !== 'present') {
+    this.presentMarkedNow = false;
+  }
+
   await this.saveAttendance(status);
   this.recalcPresenceFlags();
-
-  
 }
+
 clearAttendance(): void {
   this.setAttendance(null);
 }
@@ -639,60 +720,45 @@ clearAttendance(): void {
   }
 
   async addNote() {
-    if (!this.canEditNotes) return;
+  if (!this.canEditNotes) return;
 
-    const content = this.newNote.trim();
-    if (!content) return;
+  const content = this.newNote.trim();
+  if (!content) return;
 
-    const childId = this.child?.child_uuid;
-    if (!childId) return;
+  const childId = this.child?.child_uuid;
+  if (!childId) return;
 
-    const now = new Date().toISOString();
-    const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const id = crypto.randomUUID();
 
-    const u = await getCurrentUserDetails('uid,first_name,last_name');
+  const u = await getCurrentUserDetails('uid,first_name,last_name');
 
-    const role = this.effectiveRole();
+  await this.dbc.from('notes').insert([{
+    id,
+    child_id: childId,
+    content,
+    date: now,
+    instructor_uid: u?.uid ?? null,
+    instructor_name: `${u?.first_name ?? ''} ${u?.last_name ?? ''}`.trim(),
+    category: 'general',
+  }]);
 
-    // ✅ מדריך: נשמור uid+name
-    // ✅ מזכירה: נשמור null/null כדי שה־HTML יציג "מזכירה"
-    const isSecretary = role === 'secretary';
+  this.notesGeneral.unshift({
+    id,
+    display_text: content,
+    created_at: now,
+    instructor_uid: u?.uid ?? null,
+    instructor_name: `${u?.first_name ?? ''} ${u?.last_name ?? ''}`.trim(),
+    category: 'general',
+  });
 
-    const instructorUid: string | null = isSecretary ? null : (u?.uid ?? null);
-    const fullName = `${u?.first_name ?? ''} ${u?.last_name ?? ''}`.trim();
-    const instructorName: string | null = isSecretary ? null : (fullName || null);
+  this.newNote = '';
 
-    const category: Category = 'general'; // ✅ הורדנו קטגוריה בהוספת הערה
+  // ✅ הערה נוספה → אפשר לסגור
+  this.presentMarkedNow = false;
+  this.resetCloseWarnings();
+}
 
-    await this.dbc.from('notes').insert([
-      {
-        id,
-        child_id: childId,
-        content,
-        date: now,
-        instructor_uid: instructorUid,
-        instructor_name: instructorName,
-        category,
-      },
-    ]);
-
-    const note: NoteVM = {
-      id,
-      display_text: content,
-      created_at: now,
-      instructor_uid: instructorUid,
-      instructor_name: instructorName,
-      category,
-      isEditing: false,
-    };
-
-    this.notesGeneral.unshift(note);
-    this.newNote = '';
-
-    // ✅ הוסיפו הערה חדשה -> אפשר לסגור גם אם “הגיע”
-    this.mustAddNewNoteForPresent = false;
-    this.resetCloseWarnings();
-  }
 
   startEdit(note: NoteVM) {
     if (!this.canEditNotes) return;
@@ -731,6 +797,27 @@ clearAttendance(): void {
   }
 
   /* ===================== CLOSE / WARNINGS ===================== */
+ 
+
+private canCloseNow(): boolean {
+  if (!this.enforceNoteForPresence) return true;
+  if (!this.canMarkAttendanceNow()) return true;
+
+  if (!this.attendanceStatus) {
+    this.mustChooseAttendance = true;
+    this.mustFillNoteForPresent = false;
+    return false;
+  }
+
+  // ❗ חובת הערה רק אם סומן "הגיע" עכשיו
+  if (this.attendanceStatus === 'present' && this.presentMarkedNow) {
+    this.mustChooseAttendance = false;
+    this.mustFillNoteForPresent = true;
+    return false;
+  }
+
+  return true;
+}
 
   private resetCloseWarnings() {
     this.mustChooseAttendance = false;
@@ -738,36 +825,22 @@ clearAttendance(): void {
   }
 
   onBackdropClick(event: MouseEvent) {
-    if (event.target === event.currentTarget) this.onClose();
-  }
+  if (event.target !== event.currentTarget) return;
+  this.tryClose();
+}
 
-  onClose() {
-  // ✅ אם אי אפשר לסמן נוכחות בזמן הזה — סוגרים בלי אזהרות
-  if (!this.canMarkAttendanceNow()) {
-    this.close.emit();
+tryClose() {
+  console.log('[CLOSE] tryClose called');
+
+  if (!this.canCloseNow()) {
+    console.log('[CLOSE] blocked');
     return;
   }
 
-  if (!this.enforceNoteForPresence) {
-    this.close.emit();
-    return;
-  }
-
-  // חובה לבחור נוכחות
-  if (!this.attendanceStatus) {
-    this.mustChooseAttendance = true;
-    this.mustFillNoteForPresent = false;
-    return;
-  }
-
-  // הגיע → חובה הערה
-  if (this.attendanceStatus === 'present' && this.mustAddNewNoteForPresent) {
-    this.mustChooseAttendance = false;
-    this.mustFillNoteForPresent = true;
-    return;
-  }
-
+  console.log('[CLOSE] allowed');
   this.close.emit();
 }
+
+
 
 }

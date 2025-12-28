@@ -15,12 +15,10 @@
   <div class="overlay" *ngIf="confirmData">
     <div class="confirm-dialog">
 
-      <!-- כפתור סגירה -->
       <button class="icon-btn close" (click)="cancelUpdate()">×</button>
 
       <div class="dialog-header">
         <div class="icon-circle warning">
-          <!-- אייקון -->
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="12" r="11" fill="#FFF4E5"/>
             <path d="M12 7v7" stroke="#C26400" stroke-width="2" stroke-linecap="round"/>
@@ -35,15 +33,12 @@
       </div>
 
       <div class="impact-box" *ngIf="confirmData">
-        נמצאו
-        <strong>{{ confirmData.parentsCount }}</strong>
-        הורים שהשינוי ישפיע עליהם.
+        נמצאו <strong>{{ confirmData.parentsCount }}</strong> הורים שהשינוי ישפיע עליהם.
       </div>
 
       <div class="parent-list" *ngIf="confirmData?.parents?.length">
         <div class="parent-row" *ngFor="let p of confirmData.parents; let i = index">
           <div class="index-pill">{{ i + 1 }}</div>
-
           <div class="parent-text">
             <div class="parent-name">{{ p.name }}</div>
             <div class="parent-sub">הורה של {{ p.child }}</div>
@@ -58,17 +53,12 @@
                 stroke="#D28A00" stroke-width="1.8" stroke-linecap="round"/>
           <path d="M10 17h4" stroke="#D28A00" stroke-width="2" stroke-linecap="round"/>
         </svg>
-
-        <span>
-          המזכירה תקבל התראה ותתאם מול ההורים לפני שינוי בפועל של שיעורים.
-        </span>
+        <span>המזכירה תקבל התראה ותתאם מול ההורים לפני שינוי בפועל של שיעורים.</span>
       </div>
 
       <div class="dialog-actions">
         <button class="btn ghost" (click)="cancelUpdate()">ביטול</button>
-        <button class="btn primary" (click)="approveUpdate()">
-          אישור ושמירה
-        </button>
+        <button class="btn primary" (click)="approveUpdate()">אישור ושמירה</button>
       </div>
 
     </div>
@@ -95,9 +85,7 @@
         </div>
       </div>
 
-      <div class="impact-box">
-        האם להמשיך ולנעול את עריכת הזמינות?
-      </div>
+      <div class="impact-box">האם להמשיך ולנעול את עריכת הזמינות?</div>
 
       <div class="dialog-actions">
         <button class="btn ghost" (click)="cancelLockConfirm()">ביטול</button>
@@ -112,9 +100,7 @@
   <header class="page-header">
     <div>
       <h1>העדפות זמינות והתראות</h1>
-      <p>
-        הגדרת ימי עבודה, טווחי שעות, סוג שיעור והפסקות, יחד עם העדפות התראה אישיות.
-      </p>
+      <p>הגדרת ימי עבודה, טווחי שעות וסוג רכיבה לכל טווח.</p>
     </div>
 
     <button class="btn primary" (click)="saveAvailability()" [disabled]="!isDirty">
@@ -128,7 +114,7 @@
     <section class="card availability-card">
       <div class="card-header">
         <h2>זמינות שבועית</h2>
-        <p>בחרי ימי עבודה, הוסיפי טווחי שעות ושייכי להם סוגי שיעורים והפסקות.</p>
+        <p>בחרי ימי עבודה, הוסיפי טווחי שעות ושייכי להם סוגי רכיבה.</p>
       </div>
 
       <div class="days-list">
@@ -173,12 +159,16 @@
                   <label>שעת התחלה</label>
                   <div class="time-input">
                     <mat-icon class="clock-icon">schedule</mat-icon>
-                    <input
-                      type="time"
-                      [(ngModel)]="slot.start"
-                      (blur)="onSlotChange(day, slot)"
-                      [disabled]="!allowEdit"
-                    />
+                   <input
+  type="time"
+  [(ngModel)]="slot.start"
+  [min]="farmStart"
+  [max]="slot.end || farmEnd"
+  (focus)="onSlotFocus(slot)"
+  (change)="onSlotChange(day, slot)"
+/>
+
+
                   </div>
                 </div>
 
@@ -186,27 +176,38 @@
                   <label>שעת סיום</label>
                   <div class="time-input">
                     <mat-icon class="clock-icon">schedule</mat-icon>
-                    <input
-                      type="time"
-                      [(ngModel)]="slot.end"
-                      (blur)="onSlotChange(day, slot)"
-                      [disabled]="!allowEdit"
-                    />
+                 <input
+  type="time"
+  [(ngModel)]="slot.end"
+  [min]="slot.start || farmStart"
+  [max]="farmEnd"
+  (focus)="onSlotFocus(slot)"
+  (change)="onSlotChange(day, slot)"
+/>
+
+
                   </div>
                 </div>
 
                 <div class="slot-field lesson-type">
-                  <label>סוג שיעור</label>
-                  <select
-                    class="select"
-                    [(ngModel)]="slot.lessonType"
-                    (change)="onSlotChange(day, slot)"
-                    [disabled]="!allowEdit"
-                  >
-                    <option *ngFor="let opt of lessonTypeOptions" [value]="opt.value">
-                      {{ opt.label }}
-                    </option>
-                  </select>
+                  <label>סוג רכיבה</label>
+                <select
+  class="select"
+  [(ngModel)]="slot.ridingTypeId"
+  (change)="onSlotChange(day, slot)"
+  [disabled]="!allowEdit"
+>
+  <option value="">בחר סוג רכיבה</option>
+
+  <option
+    *ngFor="let rt of ridingTypes"
+    [value]="rt.id"
+  >
+    {{ rt.name }}
+  </option>
+</select>
+
+
                 </div>
 
               </div>
@@ -220,51 +221,6 @@
             >
               <mat-icon>add</mat-icon>
               הוספת טווח זמן חדש
-            </button>
-
-            <hr class="section-separator" />
-
-            <!-- הפסקות – תמיד מותר לערוך -->
-            <div class="slot-row break-row" *ngFor="let br of day.breaks; let j = index">
-
-              <button class="icon-btn danger" (click)="removeBreak(day, j)">
-                <mat-icon>delete</mat-icon>
-              </button>
-
-              <div class="slot-box">
-
-                <div class="slot-field">
-                  <label>הפסקה מתחילה</label>
-                  <div class="time-input">
-                    <mat-icon class="clock-icon">schedule</mat-icon>
-                    <input
-                      type="time"
-                      [(ngModel)]="br.start"
-                      (blur)="onBreakChange(day, br)"
-                    />
-                  </div>
-                </div>
-
-                <span class="dash">־</span>
-
-                <div class="slot-field">
-                  <label>הפסקה מסתיימת</label>
-                  <div class="time-input">
-                    <mat-icon class="clock-icon">schedule</mat-icon>
-                    <input
-                      type="time"
-                      [(ngModel)]="br.end"
-                      (blur)="onBreakChange(day, br)"
-                    />
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
-            <button class="link-btn" type="button" (click)="addBreak(day)">
-              <mat-icon>add</mat-icon>
-              הוספת הפסקה
             </button>
 
           </div>
@@ -336,5 +292,4 @@
     </section>
 
   </main>
-
 </div>
