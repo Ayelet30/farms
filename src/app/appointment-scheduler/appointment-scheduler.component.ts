@@ -63,8 +63,8 @@ export interface RecurringSlotWithSkips {
   end_time: string;
   instructor_id: string | null;         // ← חשוב!
   instructor_name?: string;             // ← לא null (או תעשי גם null)
-skipped_by_farm_days_off: ISODate[];
-skipped_by_instructor_unavailability: ISODate[];
+skipped_farm_days_off: ISODate[];
+skipped_instructor_unavailability: ISODate[];
 }
 
 // interface RecurringSlot {
@@ -588,6 +588,8 @@ private async loadFarmSettings(): Promise<void> {
     this.hoursBeforeCancel = data?.hours_before_cancel_lesson ?? null;
     this.timeRangeOccupancyRateDays =
   data?.time_range_occupancy_rate_days ?? 30;
+  this.seriesSearchHorizonDays = data?.series_search_horizon_days ?? 90;
+
 
 
 }
@@ -1102,7 +1104,6 @@ try {
     this.seriesError = 'שגיאה בחיפוש סדרות זמינות';
     return;
   }
-
   const raw = (data ?? []) as RecurringSlotWithSkips[];
 
 
@@ -1563,8 +1564,20 @@ async requestSeriesFromSecretary(slot: RecurringSlotWithSkips , dialogTpl: Templ
   }
 
   // ---- חישוב תאריכים ----
-console.log('skipped farm:', (slot as any)?.skipped_by_farm_days_off);
-console.log('skipped instr:', (slot as any)?.skipped_by_instructor_unavailability);
+  console.log('CLICKED slot', {
+  lesson_date: slot.lesson_date,
+  start: slot.start_time,
+  end: slot.end_time,
+  instr: slot.instructor_id,
+  skippedFarm: slot.skipped_farm_days_off,
+  skippedInstr: slot.skipped_instructor_unavailability,
+});
+
+  console.log('slot keys:', Object.keys(slot as any));
+console.log('slot raw:', slot);
+
+console.log('skipped farm:', (slot as any)?.skipped_farm_days_off);
+console.log('skipped instr:', (slot as any)?.skipped_instructor_unavailability);
 
 const startDate = slot.lesson_date;
 
@@ -1577,8 +1590,8 @@ if (this.isOpenEndedSeries) {
   endDate = this.formatLocalDate(endD);
 } else {
   const skipsCount =
-    (slot.skipped_by_farm_days_off?.length ?? 0) +
-    (slot.skipped_by_instructor_unavailability?.length ?? 0);
+    (slot.skipped_farm_days_off?.length ?? 0) +
+    (slot.skipped_instructor_unavailability?.length ?? 0);
 
   const totalWeeksForward = (this.seriesLessonCount! - 1) + skipsCount;
 
@@ -1667,8 +1680,8 @@ if (this.referralFile) {
   is_open_ended: this.isOpenEndedSeries,
   series_search_horizon_days: this.seriesSearchHorizonDays,
 
-  skipped_farm_dates: (slot.skipped_by_farm_days_off ?? []).map(String),
-  skipped_instructor_dates: (slot.skipped_by_instructor_unavailability ?? []).map(String),
+  skipped_farm_dates: (slot.skipped_farm_days_off ?? []).map(String),
+  skipped_instructor_dates: (slot.skipped_instructor_unavailability ?? []).map(String),
 };
 
 
