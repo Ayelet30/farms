@@ -167,16 +167,19 @@
       <div dir="rtl" style="padding: 10px; max-width: 350px;">
         <h3>אישור בקשת סדרה</h3>
 
-        <p>
-          האם את בטוחה שברצונך לקבוע
-          סדרה שמתחילה בתאריך <b>{{ seriesConfirmData.startDate }}</b><br>
-          מסתיימת בתאריך <b>{{ seriesConfirmData.endDate }}</b><br>
-          ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
-          בשעה <b>{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</b><br>
-          עם המדריך <b>{{ seriesConfirmData.instructorName }}</b>?
-          ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
+       <p>
+  האם את בטוחה שברצונך לקבוע
+  סדרה שמתחילה בתאריך <b>{{ seriesConfirmData.startDate }}</b><br>
 
-        </p>
+  <ng-container *ngIf="!isOpenEndedSeries">
+    מסתיימת בתאריך <b>{{ seriesConfirmData.endDate }}</b><br>
+  </ng-container>
+
+  ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
+  בשעה <b>{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</b><br>
+  עם המדריך <b>{{ seriesConfirmData.instructorName }}</b>?
+  ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
+</p>
 
 
         <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
