@@ -1310,3 +1310,24 @@ mat-icon {
     grid-column: span 1;
   }
 }
+.attendance-actions button.active {
+  background: #2f3b22;
+  color: #fff;
+  border-color: #2f3b22;
+}
+.attendance-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.attendance-actions button.active {
+  background-color: #4caf50; /* ירוק הגיע */
+  color: white;
+  border-color: #4caf50;
+}
+
+.attendance-actions button.active.absent {
+  background-color: #f44336; /* אדום לא הגיע */
+  color: white;
+  border-color: #f44336;
+}

@@ -1,5 +1,6 @@
 <div class="note-wrapper">
-  <div class="note-overlay" (click)="onBackdropClick($event)">
+<div class="note-overlay" (click)="onBackdropClick($event)">
+
     <mat-card class="child-details-card" (click)="$event.stopPropagation()">
 
       <!-- HEADER -->
@@ -11,9 +12,11 @@
 
         </mat-card-title>
 
-        <button mat-icon-button class="close-button" (click)="onClose()">
-          <mat-icon>close</mat-icon>
-        </button>
+     <button mat-icon-button class="close-button" (click)="tryClose()">
+  <mat-icon>close</mat-icon>
+</button>
+
+
       </mat-card-header>
 <button
   mat-icon-button
@@ -105,17 +108,22 @@
             <div class="attendance-actions">
              <button
   mat-stroked-button
-  [disabled]="!canMarkAttendanceNow()"
+ [disabled]="!canMarkAttendanceNow() && !attendanceStatus"
+
+  [class.active]="attendanceStatus === 'present'"
   (click)="setAttendance('present')">
   הגיע
 </button>
 
 <button
   mat-stroked-button
+  class="absent"
   [disabled]="!canMarkAttendanceNow()"
+  [class.active]="attendanceStatus === 'absent'"
   (click)="setAttendance('absent')">
   לא הגיע
 </button>
+
 
 
               <button
