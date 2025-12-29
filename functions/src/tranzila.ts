@@ -961,27 +961,59 @@ export const chargeSelectedChargesForParent = onRequest(
           continue;
         }
 
-        // הצלחה: עדכון charge
-        await sb
-          .from('charges')
-          .update({
-            status: 'paid',
-            provider_id: providerId,
-            profile_id: usedProfile?.id ?? null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', chargeId);
+        //להוסיף בקשת חשבונית מטרנזילה שוהם 
+        //שליחה במייל להורה - שוהם 
+        // שוהם - שמירת חשבונית בענן לפי תקיית חווה+ תקיית
+       // הצלחה: עדכון charge
+await sb
+  .from('charges')
+  .update({
+    status: 'paid',
+    provider_id: providerId,
+    profile_id: usedProfile?.id ?? null,
+    updated_at: new Date().toISOString(),
+  })
+  .eq('id', chargeId);
 
-        // (אופציונלי) insert payments כמו שיש לך כבר – לא נוגע אצלך כדי לא לפרק.
-        results.push({
-          ok: true,
-          chargeId,
-          provider_id: providerId,
-          profile_id: usedProfile?.id,
-          last4: usedProfile?.last4,
-          brand: usedProfile?.brand,
-        });
-      }
+// ✅ 1) INSERT ל-payments
+const amountNis = Number(amountAgorot) / 100;
+const today = new Date().toISOString().slice(0, 10);
+
+const { data: payRow, error: payErr } = await sb
+  .from('payments')
+  .insert({
+    parent_uid: parentUid,
+    amount: amountNis,
+    date: today,
+    method: 'charge',      // או 'monthly' / 'token' איך שמתאים לך
+    invoice_url: null, //שוהם - לאחר יצירת חשבונית להוסיף URL
+    charge_id: chargeId,   // חשוב!
+  })
+  .select('id')
+  .single();
+
+if (payErr) {
+  console.error('[chargeSelectedChargesForParent] payments insert error:', payErr);
+  // אם את רוצה לא להפיל סליקה שכבר הצליחה, אפשר רק ללוג ולהמשיך
+  // אבל עדיף להחזיר שגיאה כדי שתדעי לתקן.
+  throw new Error(payErr.message);
+}
+
+const paymentId = payRow.id as string;
+
+// ✅ 2) יצירת PDF + העלאה + עדכון invoice_url
+await generateAndAttachReceiptUrlOnly({
+  sb,
+  tenantSchema,
+  paymentId,
+  amountAgorot,
+  tx: {
+    transaction_id: providerId,
+    credit_card_last_4_digits: usedProfile?.last4,
+    card_type_name: usedProfile?.brand,
+  },
+});
+}
 
       res.json({ ok: true, results });
     } catch (e: any) {
