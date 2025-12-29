@@ -125,12 +125,14 @@
       <div class="editable-area" *ngIf="editing[childId(c)]">
        <div class="form-row">
        <label>שם פרטי</label>
-       <input [(ngModel)]="editables[childId(c)].first_name" class="editable-input" />
+       <input [(ngModel)]="editables[childId(c)].first_name" class="editable-input" maxlength="15"
+  pattern="^[^\d]{1,15}$"/>
        </div>
 
       <div class="form-row">
       <label>שם משפחה</label>
-      <input [(ngModel)]="editables[childId(c)].last_name" class="editable-input" />
+      <input [(ngModel)]="editables[childId(c)].last_name" class="editable-input" maxlength="15"
+  pattern="^[^\d]{1,15}$"/>
      </div>
 
     <div class="form-row">
