@@ -276,3 +276,62 @@
     font-size: 12px;
   }
 }
+/* ============================
+   עיצוב אירועי לוז (event-box)
+=============================== */
+
+:host ::ng-deep .bereshit-calendar .event-box {
+  display: flex;
+  align-items: center;
+
+  /* ❌ היה space-between */
+  justify-content: flex-start;
+  gap: 6px;
+
+  width: 100%;
+  min-height: 24px;
+  padding: 0 8px;
+
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.2;
+
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* שיעור מבוטל – מראה קומפקטי */
+:host ::ng-deep .bereshit-calendar .event-box.status-canceled {
+  justify-content: center;
+  opacity: 0.85;
+}
+/* יום חופש – רקע */
+.fc .farm-day-off {
+  background-color: rgba(200, 0, 0, 0.15) !important;
+  border: none !important;
+}
+
+/* טקסט הסיבה */
+.fc-event-title {
+  font-weight: 600;
+  color: #7a0000;
+}
+.farm-off-full_day {
+  background-color: rgba(180, 0, 0, 0.18);
+}
+
+.farm-off-half_day {
+  background-color: rgba(255, 140, 0, 0.18);
+}
+
+.farm-off-hours {
+  background-color: rgba(255, 193, 7, 0.25);
+}
+.fc .farm-day-off {
+  background-color: rgba(255, 183, 77, 0.35) !important;
+  border: none !important;
+}

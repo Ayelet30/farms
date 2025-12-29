@@ -24,6 +24,7 @@ import heLocale from '@fullcalendar/core/locales/he';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 
 import { ScheduleItem } from '../../models/schedule-item.model';
+import type { EventInput } from '@fullcalendar/core';
 
 type ViewName = 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay';
 
@@ -107,6 +108,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     slotMaxTime: '21:00:00',
     allDaySlot: false,
     displayEventTime: false,
+    eventDisplay: 'block', 
     nowIndicator: true,
     scrollTime: '07:00:00',
     slotDuration: '00:30:00',
@@ -144,6 +146,16 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   const isSummaryDay = !!event.extendedProps['isSummaryDay'];
   const isSummarySlot = !!event.extendedProps['isSummarySlot'];
   const isInstructorHeader = !!event.extendedProps['isInstructorHeader'];
+// 🏖 חופשת חווה – טקסט
+if (event.extendedProps['isFarmDayOff']) {
+  return {
+    html: `
+      <div class="event-box farm-day-off-text">
+        ${event.title}
+      </div>
+    `,
+  };
+}
 
   // סיכומי חודש/שבוע
   if (isSummaryDay || isSummarySlot) {
@@ -201,7 +213,9 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
 
   return {
     html: `
-      <div class="event-box ${status}">
+     <div class="event-box">
+
+
         <div class="children-line">
           ${childrenHtml}
         </div>
@@ -227,9 +241,10 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   const s = (typeof status === 'string' ? status.trim() : '').toUpperCase();
 
   // כאן תתאימי למחרוזות שהגדרת ב־DB
-  if (s === 'בוטל' || s === 'מבוטל' || s === 'CANCELED') {
-    classes.push('status-canceled');
-  } else if (s === 'אושר' || s === 'APPROVED') {
+ if (['בוטל', 'מבוטל', 'CANCELED', 'CANCELLED'].includes(s)) {
+  classes.push('status-canceled');
+}
+ else if (s === 'אושר' || s === 'APPROVED') {
     classes.push('status-approved');
   } else if (
     s === 'ממתין לאישור' ||
@@ -243,25 +258,52 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
 },
 
 
-    eventDidMount: (info) => {
-      // מחיל classNames שנשלחים מבחוץ
-      (info.event.classNames || []).forEach((cls) => {
-        info.el.classList.add(cls);
-      });
+   eventDidMount: (info: any) => {
+  // ===== TOOLTIP =====
+  const meta =
+    info.event.extendedProps?.meta ??
+    info.event.extendedProps;
 
-      // קליק ימני על אירוע – נפתח תפריט לפי תאריך השיעור
-      info.el.addEventListener('contextmenu', (ev: MouseEvent) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+  let tooltipText = '';
 
-        const dateStr = info.event.startStr.slice(0, 10);
+  // 🏖 חופשת חווה
+  if (meta?.isFarmDayOff === true || meta?.isFarmDayOff === 'true') {
+    tooltipText = meta.reason
+      ? `חופשת חווה:\n${meta.reason}`
+      : 'חופשת חווה';
+  }
 
-        this.ngZone.run(() => {
-          this.rightClickDay.emit({ jsEvent: ev, dateStr });
-        });
-      });
-    },
+  // 📅 סיכום יום / חודש
+  if (meta?.isSummaryDay === true || meta?.isSummaryDay === 'true') {
+    tooltipText = info.event.title;
+  }
 
+  if (tooltipText) {
+    info.el.setAttribute('title', tooltipText);
+    info.el.classList.add('has-tooltip');
+  }
+  // ===================
+
+  // החלת classNames
+  (info.event.classNames || []).forEach((cls: string) => {
+    info.el.classList.add(cls);
+  });
+
+  // קליק ימני על אירוע
+  info.el.addEventListener('contextmenu', (ev: MouseEvent) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+
+    const dateStr = info.event.startStr.slice(0, 10);
+
+    this.ngZone.run(() => {
+      this.rightClickDay.emit({ jsEvent: ev, dateStr });
+    });
+  });
+},
+
+
+ 
     datesSet: (info: DatesSetArg) => {
       setTimeout(() => {
         const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
@@ -320,33 +362,73 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   }
 
   if (changes['items'] || changes['resources']) {
+  console.log(
+    'SCHEDULE ITEMS:',
+    this.items.map(i => ({ id: i.id, status: i.status, title: i.title }))
+  );
+
     this.calendarOptions = {
       ...this.calendarOptions,
-      events: this.items.map((i) => ({
+   events: this.items.flatMap<EventInput>((i) => {
+
+
+  // ===== חופשת חווה =====
+if (i.meta?.['isFarmDayOff'] === 'true') {
+
+    return [
+      // 1️⃣ רקע – צובע את כל היום / שעות
+      {
+        id: i.id + '_bg',
+        start: i.start,
+        end: i.end,
+        display: 'background',
+        backgroundColor: '#FFE0B2',
+        overlap: false,
+      },
+
+      // 2️⃣ טקסט – הסיבה
+      {
         id: i.id,
         title: i.title,
         start: i.start,
         end: i.end,
-        backgroundColor: (i as any).backgroundColor ?? (i as any).color,
-        borderColor: (i as any).borderColor ?? (i as any).color,
-        resourceId: i.meta?.instructor_id || undefined,
+        color: '#FB8C00',
+        textColor: '#4E342E',
         extendedProps: {
-          status: i.status,
-          child_id: i.meta?.child_id,
-          child_name: i.meta?.child_name,
-          instructor_id: i.meta?.instructor_id,
-          instructor_name: i.meta?.instructor_name,
-          lesson_type: i.meta?.['lesson_type'],
-          children: i.meta?.['children'],
-          isSummaryDay: (i as any).meta?.isSummaryDay,
-          isSummarySlot: (i as any).meta?.isSummarySlot,
-          isInstructorHeader: (i as any).meta?.isInstructorHeader,
-          canCancel: (i as any).meta?.canCancel,
-          lesson_occurrence_id: (i as any).meta?.lesson_occurrence_id,
-           horse_name: (i as any).meta?.horse_name,
-    arena_name: (i as any).meta?.arena_name,
+          isFarmDayOff: true,
         },
-      })),
+      },
+    ];
+  }
+
+  // ===== אירוע רגיל =====
+  return {
+    id: i.id,
+    title: i.title,
+    start: i.start,
+    end: i.end,
+    backgroundColor: i.color,
+    borderColor: i.color,
+    resourceId: i.meta?.instructor_id || undefined,
+    extendedProps: {
+      status: i.status,
+      child_id: i.meta?.child_id,
+      child_name: i.meta?.child_name,
+      instructor_id: i.meta?.instructor_id,
+      instructor_name: i.meta?.instructor_name,
+      lesson_type: i.meta?.['lesson_type'],
+      children: i.meta?.['children'],
+      isSummaryDay: i.meta?.isSummaryDay,
+      isSummarySlot: i.meta?.isSummarySlot,
+      isInstructorHeader: i.meta?.['isInstructorHeader'],
+
+    horse_name: i.meta?.['horse_name'],
+arena_name: i.meta?.['arena_name'],
+
+    },
+  };
+}),
+
       resources: this.resources,
     };
   }

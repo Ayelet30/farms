@@ -246,6 +246,9 @@
   background: #ffebee;       /* אדום בהיר */
   border-color: #e53935;
 }
+.bereshit-calendar .fc-event.status-canceled .event-box {
+  min-height: 24px;
+}
 
 /* סטטוס ממתין – כתום */
 .bereshit-calendar .fc-event.status-pending .event-box {
@@ -367,6 +370,7 @@
   padding: 0 !important;
   background: transparent !important;
   border: none !important;
+  min-height: 28px; 
 }
 
 /* ריווח אנכי בין אירועים באותה שעה */
@@ -456,7 +460,8 @@
 
 /* ===== אירוע מבוטל – קו אלכסוני ===== */
 .bereshit-calendar .fc .fc-event.canceled::after,
-.bereshit-calendar .event-box.canceled::after {
+.bereshit-calendar .event-box.status-canceled::after
+{
   content: "";
   position: absolute;
   left: 6%;
@@ -600,3 +605,93 @@
   }
 }
 
+/* 🔥 חובה – לאפשר גובה לאירוע מבוטל */
+.bereshit-calendar .fc-timegrid-event.status-canceled {
+  min-height: 32px !important;
+}
+
+/* 🔥 לוודא שהתוכן הפנימי נראה */
+.bereshit-calendar .fc-timegrid-event.status-canceled .event-box {
+  display: flex !important;
+  min-height: 24px;
+}
+/* ===========================
+   FIX: FullCalendar timeGrid
+   =========================== */
+
+/* לא להעלים את ה-event עצמו */
+.bereshit-calendar .fc-timegrid-event {
+  padding: 2px 4px !important;
+  background: transparent !important;
+  border: none !important;
+  min-height: auto !important;   /* ← קריטי */
+}
+
+/* ריווח בין אירועים */
+.bereshit-calendar .fc-timegrid-col-events .fc-timegrid-event-harness {
+  padding: 2px 4px;
+  margin-bottom: 4px;
+}
+
+/* מבנה כרטיס האירוע */
+.bereshit-calendar .event-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+
+  border-radius: 999px;
+  font-size: 12px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, .06);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+}
+
+/* ===========================
+   🔥 מבוטל – חייב להיות נראה
+   =========================== */
+.bereshit-calendar .fc-timegrid-event.status-canceled {
+  min-height: 36px !important;
+}
+
+.bereshit-calendar .fc-timegrid-event.status-canceled .event-box {
+  display: flex !important;
+  min-height: 28px;
+  background: #ffebee;
+  border-color: #e53935;
+}
+
+/* קו אלכסוני למבוטל */
+.bereshit-calendar .fc-timegrid-event.status-canceled::after {
+  content: "";
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: 50%;
+  border-top: 2px solid #e53935;
+  transform: rotate(-12deg);
+  pointer-events: none;
+}
+/* =========================
+   חופשת חווה – תצוגת חודש
+   ========================= */
+
+.fc-daygrid-event.farm-day-off {
+  white-space: normal !important;   /* מאפשר ירידת שורה */
+  line-height: 1.2;
+}
+
+.fc-daygrid-event.farm-day-off .fc-event-title {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  word-break: break-word;
+}
+
+/* אם היום קטן – לתת לו קצת יותר גובה */
+.fc-daygrid-day-events {
+  max-height: none;
+}
