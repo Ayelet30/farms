@@ -93,3 +93,61 @@
 }
 
 
+:root{
+  --menu-open: 280px;
+  --menu-closed: 64px;
+  --header-h: 80px;
+}
+
+/* קונטיינר */
+.body-layout{
+  --menu-w: var(--menu-open);
+  display: flex;
+  min-height: 100vh;
+  direction: rtl;
+  background-color: var(--panel-bg);
+  padding-top: var(--header-h);
+}
+
+.body-layout.menu-collapsed{
+  --menu-w: var(--menu-closed);
+}
+
+/* הסיידר */
+.slider{
+  position: fixed;
+  top: var(--header-h);
+  bottom: 0;
+  inset-inline-start: 0;
+  width: var(--menu-w);
+  overflow-y: auto;
+  box-sizing: border-box;
+  z-index: 900;
+}
+
+/* התוכן */
+.main-content{
+  flex: 1;
+  margin-inline-start: var(--menu-w);
+  min-height: calc(100vh - var(--header-h));
+  background-color: #fffef9;
+  position: relative;
+  z-index: 1;
+}
+
+.content-area{
+  height: calc(100vh - var(--header-h));
+  overflow-y: auto;
+  padding: 40px 30px;
+  box-sizing: border-box;
+}
+
+/* מובייל */
+@media (max-width: 1024px){
+  .body-layout{ --menu-w: 100px; }
+  .body-layout.menu-collapsed{ --menu-w: 100px; }
+}
+
+@media (max-width: 600px){
+  .body-layout{ --menu-w: 100px; }
+}

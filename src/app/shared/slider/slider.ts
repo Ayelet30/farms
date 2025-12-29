@@ -1,4 +1,4 @@
-import { Component, OnInit, HostListener, inject } from '@angular/core';
+import { Component, OnInit, HostListener, inject, EventEmitter, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -14,6 +14,9 @@ import { CurrentUserService } from '../../core/auth/current-user.service';
   styleUrls: ['./slider.scss']
 })
 export class SliderComponent implements OnInit {
+
+  @Output() collapsedChange = new EventEmitter<boolean>();
+    
   private router = inject(Router);
   private dialog = inject(MatDialog);
   private cu = inject(CurrentUserService);
@@ -23,6 +26,7 @@ export class SliderComponent implements OnInit {
   role = '';
   menuItems: Array<{ path: string; label: string; icon: string }> = [];
   error: string | undefined;
+ 
 
   async ngOnInit() {
     await this.cu.waitUntilReady();
@@ -121,8 +125,9 @@ private setMenuItemsByRole() {
   }
 
   /** פתיחה/סגירה של התפריט */
-  toggleMenu(force?: boolean) {
+   toggleMenu(force?: boolean) {
     this.menuCollapsed = typeof force === 'boolean' ? force : !this.menuCollapsed;
+    this.collapsedChange.emit(this.menuCollapsed);
   }
 
   /** התאמה למסכים רספונסיביים */
