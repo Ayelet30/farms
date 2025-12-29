@@ -1,10 +1,11 @@
+
 <div class="header">
   <app-header></app-header>
 </div>
 
-<div class="body-layout">
+<div class="body-layout" [class.menu-collapsed]="menuCollapsed">
   <div class="slider">
-    <app-slider></app-slider>
+    <app-slider (collapsedChange)="onCollapsedChange($event)"></app-slider>
   </div>
 
   <div class="main-content">

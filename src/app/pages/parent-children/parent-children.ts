@@ -243,6 +243,14 @@ const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמ�
   }
 
   const model = this.editables[id];
+const firstErr = this.validateChildName(model.first_name, 'שם פרטי');
+const lastErr  = this.validateChildName(model.last_name, 'שם משפחה');
+
+if (firstErr || lastErr) {
+  // אפשר הודעה בכרטיס או באנר כללי
+  this.showCardMessage(id, firstErr ?? lastErr ?? 'שגיאה בטופס');
+  return;
+}
 
   const { error } = await dbTenant()
     .from('children')
@@ -465,8 +473,10 @@ const ids = this.children
      Delete / Leave (logical)
   ========================= */
   async confirmDeleteChild(child: any) {
-      console.log('🔴 confirmDeleteChild clicked', child);
-
+     if (this.isPendingDelete(child?.status)) {
+    this.showInfo('כבר נשלחה בקשת מחיקה עבור ילד זה וממתינה לאישור המזכירות.');
+    return;
+  }
     const id = this.childId(child);
     if (!id) return;
 
@@ -478,7 +488,6 @@ const ids = this.children
     this.pendingDeleteChildName = `${child.first_name || ''} ${child.last_name || ''}`.trim();
     this.pendingDeleteLessonsCount = null;
     this.showDeleteConfirm = true;  // << כבר פותח את החלונית
-  console.log('🔴 showDeleteConfirm set to', this.showDeleteConfirm);
 
     // ספירת שיעורים עתידיים בילד הזה (לא מבוטלים)
     const { data, error } = await dbc
@@ -627,32 +636,55 @@ public async cancelDeletionRequest(child: any) {
 
   this.cancelDeletionRequestInFlight[id] = true;
 
-  const { error } = await dbTenant()
+  // 1) מחזירים את הילד ל-Active
+  const { data: updatedChild, error: childErr } = await dbTenant()
     .from('children')
     .update({ status: 'Active' })
     .eq('child_uuid', id)
     .select('status')
     .single();
 
-  this.cancelDeletionRequestInFlight[id] = false;
-
-  if (error) {
+  if (childErr) {
+    this.cancelDeletionRequestInFlight[id] = false;
     this.showCardMessage(id, 'שגיאה בביטול הבקשה. נסי שוב.');
     return;
   }
 
-  // עדכון לוקאלי במערך הילדים
+  // 2) מסמנים את בקשת המזכירות כ-בוטלה ע"י המבקש
+  // חשוב: child_id הוא UUID בטבלה, אז כאן חייב להיות UUID אמיתי (child_uuid)
+  const { error: reqErr } = await dbTenant()
+    .from('secretarial_requests')
+    .update({
+      status: 'CANCELLED_BY_REQUESTER',
+      decided_at: new Date().toISOString(),
+      decision_note: 'בוטל על ידי המבקש'
+    })
+    .eq('child_id', id)
+    .eq('request_type', 'DELETE_CHILD')           // ⬅️ תעדכני לערך האמיתי אצלך
+    .in('status', ['PENDING'])     // ⬅️ תעדכני לסטטוסים הפתוחים אצלך
+    .is('decided_at', null);                      // כדי לא לדרוס החלטות קיימות
+
+  this.cancelDeletionRequestInFlight[id] = false;
+
+  if (reqErr) {
+    // הילד כבר חזר ל-Active, אז זו הודעת אזהרה נפרדת
+    this.showCardMessage(id, 'הבקשה בוטלה לילד, אבל עדכון סטטוס הבקשה למזכירות נכשל.');
+    return;
+  }
+
+  // 3) עדכון לוקאלי
   const idx = this.children.findIndex(c => this.childId(c) === id);
   if (idx !== -1) {
     this.children = [
       ...this.children.slice(0, idx),
-      { ...this.children[idx], status: 'Active' } as any,
+      { ...this.children[idx], status: updatedChild.status } as any,
       ...this.children.slice(idx + 1)
     ];
   }
 
   this.showCardMessage(id, 'בקשת המחיקה בוטלה');
 }
+
   /* =========================
      Helpers (formatting & UX)
   ========================= */
@@ -768,5 +800,14 @@ public canOpenCardByStatus = (st?: string | null): boolean =>
 // מותר להזמין תור? (Active או Pending Deletion Approval)
 public canBookByStatus = (st?: string | null): boolean =>
   st === 'Active' || st === 'Pending Deletion Approval';
+private validateChildName(value: string, label: string): string | null {
+  const v = (value ?? '').trim();
+
+  if (!v) return `${label} הוא שדה חובה`;
+  if (v.length > 15) return `${label} יכול להכיל עד 15 תווים`;
+  if (/\d/.test(v)) return `${label} לא יכול להכיל מספרים`;
+
+  return null;
+}
 
 }

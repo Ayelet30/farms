@@ -1,4 +1,4 @@
-// app/.../monthly-summary.component.ts
+// app/pages/monthly-summary/monthly-summary.component.ts
 import {
   Component,
   OnInit,
@@ -25,6 +25,30 @@ type UUID = string;
 type LessonStatus = 'ממתין לאישור' | 'אושר' | 'בוטל' | 'הושלם' | 'בוצע';
 type LessonType = 'רגיל' | 'השלמה';
 
+// שורה מתוך ה-VIEW ב־Supabase
+type MonthlyReportRow = {
+  lesson_id?: UUID | null;
+  lesson_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+
+  status?: string | null;
+  child_name?: string | null;
+  instructor_name?: string | null;
+
+  // 👇 הוספה:
+  riding_type_code?: string | null;
+  riding_type_name?: string | null;
+  // אופציונלי להמשך
+  approval_id?: UUID | null;
+  is_cancellation?: boolean | null;
+  is_makeup_target?: boolean | null;
+  lesson_type?: string | null;
+  child_id?: UUID | null;
+  instructor_id?: string | number | null;
+  lesson_price_agorot?: number | null;
+};
+
 interface LessonRow {
   lesson_id: UUID;
   child_id?: UUID;
@@ -39,25 +63,27 @@ interface LessonRow {
   occur_date?: string | null;
   anchor_week_start?: string;
 
-  // יש לנו לפעמים child כ־json (תלוי ב־view)
+  //  הוספה:
+  riding_type_code?: string | null;
+  riding_type_name?: string | null;
+  riding_type?: string | null;
+
   child?: {
     first_name?: string | null;
     last_name?: string | null;
   } | null;
 
-  // שדות שטוחים מה־view (אם קיימים)
   child_first_name?: string | null;
   child_last_name?: string | null;
   child_full_name?: string | null;
 
-  // מדריך
   instructor_uid?: string | null;
   instructor_first_name?: string | null;
   instructor_last_name?: string | null;
 
-  /** שם מדריך שישמש למסך ולחיפוש */
   instructor_name?: string | null;
 }
+
 
 interface PaymentRow {
   amount: number | null;
@@ -127,7 +153,6 @@ export interface ChartPoint {
   ],
 })
 export class MonthlySummaryComponent implements OnInit {
-  // ✅ חשוב: מאתחלים מיד! (זה הפתרון ל-getSession undefined)
   private dbc = dbTenant();
 
   // --- הגדרות בסיס לגרף ---
@@ -195,14 +220,57 @@ export class MonthlySummaryComponent implements OnInit {
     avgIncome: 0,
   });
 
+  // ===============================
+  //   Helpers for new VIEW rows
+  // ===============================
+  private timeFromTs(ts: string | null | undefined): string | null {
+    if (!ts) return null;
+    const part = ts.includes('T') ? ts.split('T')[1] : ts.split(' ')[1];
+    if (!part) return null;
+    return part.slice(0, 5); // HH:MM
+  }
+
+  private deriveStatus(raw: MonthlyReportRow): LessonStatus | null {
+    const s = (raw.status || '').trim();
+    if (
+      s === 'אושר' ||
+      s === 'בוטל' ||
+      s === 'ממתין לאישור' ||
+      s === 'הושלם' ||
+      s === 'בוצע'
+    ) {
+      return s as LessonStatus;
+    }
+
+    if (raw.is_cancellation) return 'בוטל';
+    if (raw.approval_id) return 'אושר';
+    return 'ממתין לאישור';
+  }
+
+  private deriveLessonType(raw: MonthlyReportRow): LessonType | null {
+    const t = (raw.lesson_type || '').trim();
+    if (t === 'רגיל' || t === 'השלמה') return t as LessonType;
+
+    if (raw.is_makeup_target) return 'השלמה';
+    return 'רגיל';
+  }
+
+  // ===============================
+  //    UI helper classes
+  // ===============================
   statusClass(status: LessonStatus | null | undefined): string {
     switch (status) {
-      case 'אושר': return 'status-approved';
-      case 'בוטל': return 'status-canceled';
-      case 'ממתין לאישור': return 'status-pending';
+      case 'אושר':
+        return 'status-approved';
+      case 'בוטל':
+        return 'status-canceled';
+      case 'ממתין לאישור':
+        return 'status-pending';
       case 'הושלם':
-      case 'בוצע': return 'status-done';
-      default: return 'status-default';
+      case 'בוצע':
+        return 'status-done';
+      default:
+        return 'status-default';
     }
   }
 
@@ -216,7 +284,7 @@ export class MonthlySummaryComponent implements OnInit {
     return Array.from(set).sort();
   });
 
-  filteredLessons = computed(() => {
+  filteredLessons = computed<LessonRow[]>(() => {
     const q = (this.search() || '').trim().toLowerCase();
     const type = this.typeFilter();
     const statusF = this.statusFilter();
@@ -231,27 +299,31 @@ export class MonthlySummaryComponent implements OnInit {
       all: [],
     };
 
-    return rows.filter((l) => {
+    return rows.filter((l: LessonRow) => {
+      // סוג שיעור
       if (type === 'regular' && l.lesson_type !== 'רגיל') return false;
       if (type === 'makeup' && l.lesson_type !== 'השלמה') return false;
 
+      // סטטוס
       if (statusF !== 'all') {
         const allowed = map[statusF];
         if (!l.status || !allowed.includes(l.status)) return false;
       }
 
+      // מדריך
       if (instructorF !== 'all') {
         const instName = (l.instructor_name || '').trim();
         if (instName !== instructorF) return false;
       }
 
+      // חיפוש טקסט חופשי
       if (q) {
         const childName =
           (l.child_full_name || '').trim() ||
           `${l.child_first_name || ''} ${l.child_last_name || ''}`.trim() ||
           `${l.child?.first_name || ''} ${l.child?.last_name || ''}`.trim();
 
-        const hay = `${childName} ${l.lesson_type || ''} ${l.instructor_name || ''}`.toLowerCase();
+        const hay = `${childName} ${l.lesson_type || ''} ${l.riding_type || ''} ${l.instructor_name || ''}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
 
@@ -267,7 +339,10 @@ export class MonthlySummaryComponent implements OnInit {
     const cancels = this.cancelExceptions();
     const payRows = this.payments();
 
-    const income = payRows.reduce((sum, p) => sum + (p.amount ?? 0), 0);
+    const income = payRows.reduce(
+      (sum: number, p: PaymentRow) => sum + (p.amount ?? 0),
+      0
+    );
 
     if (!all.length && !cancels.length) {
       return {
@@ -283,10 +358,16 @@ export class MonthlySummaryComponent implements OnInit {
     }
 
     const doneStatuses: LessonStatus[] = ['הושלם', 'בוצע', 'אושר'];
-    const done = all.filter((l) => l.status && doneStatuses.includes(l.status));
-    const pending = all.filter((l) => l.status === 'ממתין לאישור');
+    const done = all.filter(
+      (l: LessonRow) => l.status && doneStatuses.includes(l.status)
+    );
+    const pending = all.filter(
+      (l: LessonRow) => l.status === 'ממתין לאישור'
+    );
 
-    const canceledInLessons = all.filter((l) => l.status === 'בוטל').length;
+    const canceledInLessons = all.filter(
+      (l: LessonRow) => l.status === 'בוטל'
+    ).length;
     const canceledByExceptions = cancels.length;
     const canceled = canceledInLessons + canceledByExceptions;
 
@@ -299,10 +380,13 @@ export class MonthlySummaryComponent implements OnInit {
       }
     }
 
-    const workedHours = `${Math.floor(minutes / 60)}:${(minutes % 60).toString().padStart(2, '0')}`;
+    const workedHours = `${Math.floor(minutes / 60)}:${(minutes % 60)
+      .toString()
+      .padStart(2, '0')}`;
 
     const totalForSuccess = all.length + canceledByExceptions;
-    const successPct = totalForSuccess > 0 ? Math.round((done.length / totalForSuccess) * 100) : 0;
+    const successPct =
+      totalForSuccess > 0 ? Math.round((done.length / totalForSuccess) * 100) : 0;
 
     return {
       workedHours,
@@ -310,8 +394,8 @@ export class MonthlySummaryComponent implements OnInit {
       done: done.length,
       pending: pending.length,
       successPct,
-      privCount: all.filter((l) => l.lesson_type === 'רגיל').length,
-      groupCount: all.filter((l) => l.lesson_type === 'השלמה').length,
+      privCount: all.filter((l: LessonRow) => l.lesson_type === 'רגיל').length,
+      groupCount: all.filter((l: LessonRow) => l.lesson_type === 'השלמה').length,
       income,
     };
   });
@@ -319,21 +403,12 @@ export class MonthlySummaryComponent implements OnInit {
   // ===============================
   //        LOAD DATA
   // ===============================
-  ngOnInit() {
+  ngOnInit(): void {
     this.load();
-    
   }
 
-  async load() {
+  async load(): Promise<void> {
     this.loading = true;
-
-    // ✅ debug שלא מפיל את המסך
-    try {
-      const sessionRes = await this.dbc.auth.getSession();
-      console.log('SESSION 👉', sessionRes.data?.session);
-    } catch (e) {
-      console.warn('getSession failed (non-blocking):', e);
-    }
 
     try {
       let from: string;
@@ -351,20 +426,19 @@ export class MonthlySummaryComponent implements OnInit {
         to = yearEnd.toISOString().slice(0, 10);
       }
 
-      // ✅ מקור הנתונים: ה-view שעובד ומכיל שמות מדריכים
-      const lessonsViewName = 'lessons_occurrences';
+      const lessonsViewName = 'lessons_schedule_view';
 
       const [
-        { data: lessonsData, error: lessonsErr },
+        { data: rawLessons, error: lessonsErr },
         { data: paymentsData, error: paymentsErr },
         { data: cancelsData, error: cancelsErr },
       ] = await Promise.all([
         this.dbc
           .from(lessonsViewName)
           .select('*')
-          .gte('occur_date', from)
-          .lte('occur_date', to)
-          .order('occur_date', { ascending: true }),
+          .gte('lesson_date', from)
+          .lte('lesson_date', to)
+          .order('lesson_date', { ascending: true }),
 
         this.dbc
           .from('payments')
@@ -383,33 +457,56 @@ export class MonthlySummaryComponent implements OnInit {
       if (paymentsErr) throw paymentsErr;
       if (cancelsErr) throw cancelsErr;
 
-      // ✅ normalize לפי שדות שמגיעים מה-view + fallback ל-json אם קיים
-      const normalizedLessons: LessonRow[] = (lessonsData ?? []).map((raw: any) => {
-        const childFull =
-          (raw.child_full_name || '').trim() ||
-          `${raw.child_first_name || ''} ${raw.child_last_name || ''}`.trim() ||
-          `${raw.child?.first_name || ''} ${raw.child?.last_name || ''}`.trim();
+      const rows = (rawLessons ?? []) as MonthlyReportRow[];
 
-        const instructorFull =
-          (raw.instructor_name || '').trim() ||
-          `${raw.instructor_first_name || ''} ${raw.instructor_last_name || ''}`.trim() ||
-          `${raw.instructor?.first_name || ''} ${raw.instructor?.last_name || ''}`.trim();
+ const normalizedLessons: LessonRow[] = rows.map(
+  (raw: MonthlyReportRow): LessonRow => {
+    const childFull = (raw.child_name || '').trim() || null;
+    const instructorName = (raw.instructor_name || '').trim() || null;
 
-        return {
-          ...raw,
-          child: raw.child ?? null,
-          child_full_name: childFull || null,
-          instructor_name: instructorFull || null,
-        } as LessonRow;
-      });
+    const lessonType = this.deriveLessonType(raw);
+    const status = this.deriveStatus(raw);
+
+    // נוסיף שדה אחד נוח שמעדיף שם, ואם אין – קוד
+    const ridingType =
+      (raw.riding_type_name || '').trim() ||
+      (raw.riding_type_code || '').trim() ||
+      null;
+
+    return {
+      lesson_id: (raw.lesson_id ?? '') as UUID,
+      occur_date: raw.lesson_date ?? null,
+
+      start_time: raw.start_time ? raw.start_time.slice(0, 5) : null,
+      end_time: raw.end_time ? raw.end_time.slice(0, 5) : null,
+
+      lesson_type: lessonType,
+      status,
+
+      // 👇 חדשים: שמירה של שלושת השדות
+      riding_type_code: raw.riding_type_code ?? null,
+      riding_type_name: raw.riding_type_name ?? null,
+      riding_type: ridingType,
+
+      child_full_name: childFull,
+      child_first_name: null,
+      child_last_name: null,
+
+      instructor_name: instructorName,
+    };
+  }
+);
+
+
 
       this.lessons.set(normalizedLessons);
       this.payments.set((paymentsData ?? []) as PaymentRow[]);
-      this.cancelExceptions.set((cancelsData ?? []) as CancelExceptionRow[]);
+      this.cancelExceptions.set(
+        (cancelsData ?? []) as CancelExceptionRow[]
+      );
 
       this.computeInsights(this.lessons());
       this.buildCharts();
-
     } catch (err: any) {
       console.error('❌ load summary failed', err);
       alert('שגיאה בטעינת נתונים: ' + (err?.message || 'ראה קונסול בדפדפן'));
@@ -421,11 +518,14 @@ export class MonthlySummaryComponent implements OnInit {
   // ===============================
   //       COMPUTE INSIGHTS
   // ===============================
-  computeInsights(rows: LessonRow[]) {
+  computeInsights(rows: LessonRow[]): void {
     const cancels = this.cancelExceptions();
     const payRows = this.payments();
 
-    const incomeSum = payRows.reduce((sum, p) => sum + (p.amount ?? 0), 0);
+    const incomeSum = payRows.reduce(
+      (sum: number, p: PaymentRow) => sum + (p.amount ?? 0),
+      0
+    );
     const total = rows.length + cancels.length;
 
     if (!total) {
@@ -439,20 +539,30 @@ export class MonthlySummaryComponent implements OnInit {
       return;
     }
 
-    const canceledInLessons = rows.filter((r) => r.status === 'בוטל').length;
+    const canceledInLessons = rows.filter(
+      (r: LessonRow) => r.status === 'בוטל'
+    ).length;
     const canceledByExceptions = cancels.length;
     const canceledCount = canceledInLessons + canceledByExceptions;
 
     const doneStatuses: LessonStatus[] = ['הושלם', 'בוצע', 'אושר'];
-    const doneCount = rows.filter((r) => doneStatuses.includes((r.status ?? '') as LessonStatus)).length;
+    const doneCount = rows.filter((r: LessonRow) =>
+      doneStatuses.includes((r.status ?? '') as LessonStatus)
+    ).length;
 
     const cancelPct = Math.round((canceledCount / total) * 100);
     const successPct = Math.round((doneCount / total) * 100);
 
     const uniqueStudents = new Set(
       rows
-        .map((r) => (r.child_full_name || `${r.child_first_name || ''} ${r.child_last_name || ''}`.trim()).trim())
-        .filter((n) => !!n)
+        .map((r: LessonRow) =>
+          (
+            r.child_full_name ||
+            `${r.child_first_name || ''} ${r.child_last_name || ''}`.trim()
+          )
+            .trim()
+        )
+        .filter((n: string) => !!n)
     );
 
     const newStudents = uniqueStudents.size;
@@ -470,7 +580,7 @@ export class MonthlySummaryComponent implements OnInit {
   // ===============================
   //        FILTER EVENTS
   // ===============================
-  setMode(m: 'month' | 'year') {
+  setMode(m: 'month' | 'year'): void {
     if (this.mode() === m) return;
     this.mode.set(m);
 
@@ -481,16 +591,32 @@ export class MonthlySummaryComponent implements OnInit {
     this.load();
   }
 
-  onMonthChange() { this.load(); }
-  onYearChange() { this.load(); }
+  onMonthChange(): void {
+    this.load();
+  }
 
-  onTypeChange(v: any) { this.typeFilter.set(v); }
-  onStatusChange(v: any) { this.statusFilter.set(v); }
-  onInstructorChange(v: any) { this.instructorFilter.set(v); }
+  onYearChange(): void {
+    this.load();
+  }
 
-  onSearchChange(e: any) { this.search.set(e.target.value); }
+  onTypeChange(v: 'all' | 'regular' | 'makeup'): void {
+    this.typeFilter.set(v);
+  }
 
-  clearSearch() {
+  onStatusChange(v: 'all' | 'pending' | 'approved' | 'canceled' | 'done'): void {
+    this.statusFilter.set(v);
+  }
+
+  onInstructorChange(v: string): void {
+    this.instructorFilter.set(v);
+  }
+
+  onSearchChange(e: Event): void {
+    const target = e.target as HTMLInputElement;
+    this.search.set(target.value);
+  }
+
+  clearSearch(): void {
     this.search.set('');
     this.typeFilter.set('all');
     this.statusFilter.set('all');
@@ -500,22 +626,30 @@ export class MonthlySummaryComponent implements OnInit {
   // ===============================
   //        EXCEL EXPORT
   // ===============================
-  async exportExcel() {
+  async exportExcel(): Promise<void> {
     const rows = this.filteredLessons();
 
     try {
       const XLSXmod: any = await import('xlsx');
       const XLSX = XLSXmod.default ?? XLSXmod;
 
-      const exportRows = rows.map((r) => ({
-        'תאריך שיעור': r.occur_date ?? '',
-        'תלמיד/ה': (r.child_full_name || `${r.child_first_name || ''} ${r.child_last_name || ''}`.trim() || '').trim(),
-        'מדריך/ה': r.instructor_name ?? '',
-        'סוג שיעור': r.lesson_type ?? '',
-        'סטטוס': r.status ?? '',
-        'שעת התחלה': r.start_time ?? '',
-        'שעת סיום': r.end_time ?? '',
-      }));
+     const exportRows = rows.map((r: LessonRow) => ({
+  'תאריך שיעור': r.occur_date ?? '',
+  'תלמיד/ה':
+    (
+      r.child_full_name ||
+      `${r.child_first_name || ''} ${r.child_last_name || ''}`.trim() ||
+      ''
+    ).trim(),
+  'מדריך/ה': r.instructor_name ?? '',
+  'סוג שיעור': r.lesson_type ?? '',
+  // 👇 חדש:
+  'סוג רכיבה': r.riding_type ?? '',
+  סטטוס: r.status ?? '',
+  'שעת התחלה': r.start_time ?? '',
+  'שעת סיום': r.end_time ?? '',
+}));
+
 
       const ws = XLSX.utils.json_to_sheet(exportRows);
       const wb = XLSX.utils.book_new();
@@ -537,7 +671,7 @@ export class MonthlySummaryComponent implements OnInit {
   // ===============================
   //      CHARTS & KPI VIEW
   // ===============================
-  private buildCharts() {
+  private buildCharts(): void {
     const lessons = this.lessons();
     const cancels = this.cancelExceptions();
     const pays = this.payments();
@@ -565,9 +699,18 @@ export class MonthlySummaryComponent implements OnInit {
       canceledByMonth[d.getMonth()]++;
     }
 
-    this.kpiCharts.done = this.months.map((m) => ({ label: m.t, value: doneByMonth[m.v - 1] ?? 0 }));
-    this.kpiCharts.pending = this.months.map((m) => ({ label: m.t, value: pendingByMonth[m.v - 1] ?? 0 }));
-    this.kpiCharts.canceled = this.months.map((m) => ({ label: m.t, value: canceledByMonth[m.v - 1] ?? 0 }));
+    this.kpiCharts.done = this.months.map((m) => ({
+      label: m.t,
+      value: doneByMonth[m.v - 1] ?? 0,
+    }));
+    this.kpiCharts.pending = this.months.map((m) => ({
+      label: m.t,
+      value: pendingByMonth[m.v - 1] ?? 0,
+    }));
+    this.kpiCharts.canceled = this.months.map((m) => ({
+      label: m.t,
+      value: canceledByMonth[m.v - 1] ?? 0,
+    }));
 
     this.kpiCharts.priv_vs_group = [
       { label: 'פרטי', value: k.privCount },
@@ -580,7 +723,10 @@ export class MonthlySummaryComponent implements OnInit {
       { label: 'סה״כ שעות', value: this.parseHoursToNumber(k.workedHours) },
     ];
 
-    const totalIncome = pays.reduce((sum, p) => sum + (p.amount ?? 0), 0);
+    const totalIncome = pays.reduce(
+      (sum: number, p: PaymentRow) => sum + (p.amount ?? 0),
+      0
+    );
     this.kpiCharts.income = [{ label: 'סה״כ', value: totalIncome }];
   }
 
@@ -592,11 +738,11 @@ export class MonthlySummaryComponent implements OnInit {
     return h + m / 60;
   }
 
-  onKpiClick(key: KpiKey) {
+  onKpiClick(key: KpiKey): void {
     this.selectedKpi = key;
   }
 
-  setViewMode(mode: 'charts' | 'reports') {
+  setViewMode(mode: 'charts' | 'reports'): void {
     if (mode === 'charts' && this.mode() === 'month') return;
     this.viewMode = mode;
   }
@@ -639,13 +785,20 @@ export class MonthlySummaryComponent implements OnInit {
 
   kpiLabel(key: KpiKey): string {
     switch (key) {
-      case 'priv_vs_group': return 'פרטי מול קבוצתי';
-      case 'success_pct': return 'אחוז הצלחה';
-      case 'done': return 'שיעורים שבוצעו';
-      case 'pending': return 'ממתינים';
-      case 'canceled': return 'בוטלו';
-      case 'worked_hours': return 'שעות עבודה';
-      case 'income': return 'הכנסה';
+      case 'priv_vs_group':
+        return 'פרטי מול קבוצתי';
+      case 'success_pct':
+        return 'אחוז הצלחה';
+      case 'done':
+        return 'שיעורים שבוצעו';
+      case 'pending':
+        return 'ממתינים';
+      case 'canceled':
+        return 'בוטלו';
+      case 'worked_hours':
+        return 'שעות עבודה';
+      case 'income':
+        return 'הכנסה';
     }
   }
 }

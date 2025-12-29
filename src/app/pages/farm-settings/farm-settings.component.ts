@@ -9,35 +9,29 @@ type UUID = string;
 interface FarmSettings {
   id?: UUID;
 
-  // שעות פעילות
-  operating_hours_start: string | null; // time (HH:MM)
-  operating_hours_end: string | null;   // time (HH:MM)
+  operating_hours_start: string | null;
+  operating_hours_end: string | null;
 
-  // שיעורים
-  lessons_count: number | null;             // כמות שיעורים בסדרה
-  lesson_duration_minutes: number | null;   // אורך שיעור בדקות
-  default_lesson_price: number | null;      // מחיר שיעור רגיל
+  lessons_count: number | null;
+  lesson_duration_minutes: number | null;
+  default_lesson_price: number | null;
 
-  // השלמות וביטולים
-  makeup_allowed_days_back: number | null;      // כמה ימים אחורה אפשר להירשם להשלמה
-  max_makeups_in_period: number | null;         // מקס' השלמות בתקופה
-  makeups_period_days: number | null;           // גודל תקופה (ימים)
-  displayed_makeup_lessons_count: number | null;// כמות שיעורי השלמה להצגה
-  min_time_between_cancellations: string | null;// interval – HH:MM
+  makeup_allowed_days_back: number | null;
+  max_makeups_in_period: number | null;
+  makeups_period_days: number | null;
+  displayed_makeup_lessons_count: number | null;
+  min_time_between_cancellations: string | null;
 
-  // תשלומים
-  registration_fee: number | null;             // דמי רישום
-  student_insurance_premiums: number | null;   // ביטוח תלמידים
+  registration_fee: number | null;
+  student_insurance_premiums: number | null;
 
-  // הגדרות נוספות
-  max_group_size?: number | null;               // מקס' רוכבים בקבוצה
+  max_group_size?: number | null;
   max_lessons_per_week_per_child?: number | null;
-  allow_online_booking?: boolean | null;        // האם לאפשר זימון עצמי להורים
+  allow_online_booking?: boolean | null;
 
   updated_at?: string | null;
 }
 
-// גורם מימון
 interface FundingSource {
   id: UUID;
   name: string;
@@ -45,7 +39,6 @@ interface FundingSource {
   is_active: boolean;
 }
 
-// מסלול תשלום
 interface PaymentPlan {
   id?: UUID;
   name: string;
@@ -57,8 +50,7 @@ interface PaymentPlan {
   require_docs_at_booking: boolean;
   is_active?: boolean;
 
-  // שדות עזר בצד לקוח בלבד – לא קיימים ב־DB
-  newVersionDate?: string | null;       // 'YYYY-MM-DD'
+  newVersionDate?: string | null;
   newVersionPrice?: number | null;
   newVersionSubsidy?: number | null;
 
@@ -67,10 +59,25 @@ interface PaymentPlan {
 
 interface PaymentPlanPriceVersion {
   id: UUID;
-  valid_from: string;        // 'YYYY-MM-DD'
+  valid_from: string;
   lesson_price: number;
   subsidy_amount: number;
   customer_amount: number;
+}
+
+type DayType = 'FULL_DAY' | 'PARTIAL_DAY';
+
+interface FarmDayOff {
+  id?: UUID;
+  start_date: string;
+  end_date: string;
+  all_day: boolean;          // UI
+  start_time: string | null; // HH:MM
+  end_time: string | null;   // HH:MM
+  reason: string;
+  is_active: boolean;
+  created_at?: string;
+  day_type?: DayType;        // DB
 }
 
 @Component({
@@ -83,26 +90,21 @@ interface PaymentPlanPriceVersion {
 export class FarmSettingsComponent implements OnInit {
   private supabase = dbTenant();
 
-  // מצב כללי
   loading = signal(false);
   saving = signal(false);
   error = signal<string | null>(null);
   success = signal<string | null>(null);
 
-  // הגדרות חווה קיימות
   settings = signal<FarmSettings | null>(null);
 
-  // ==== UI חדש למסלולים / גורמי מימון ====
   showNewFundingForm = signal(false);
   showNewPlanForm = signal(false);
   editingFundingId = signal<UUID | null>(null);
   editingPlanId = signal<UUID | null>(null);
 
-  // גורמי מימון
   fundingSources = signal<FundingSource[]>([]);
   newFundingSourceName = signal<string>('');
 
-  // מסלולי תשלום
   paymentPlans = signal<PaymentPlan[]>([]);
   newPlan: PaymentPlan = {
     name: '',
@@ -112,6 +114,43 @@ export class FarmSettingsComponent implements OnInit {
     required_docs: [],
     require_docs_at_booking: true,
   };
+
+  // ====== ימים מיוחדים / ימי חופש ======
+  showSpecialDaysModal = signal(false);
+  daysOff = signal<FarmDayOff[]>([]);
+  specialDayForm = signal<FarmDayOff>({
+    start_date: '',
+    end_date: '',
+    all_day: true,
+    start_time: null,
+    end_time: null,
+    reason: '',
+    is_active: true,
+  });
+  // === ולידציות לימים מיוחדים (UI) ===
+dateRangeError = signal<string | null>(null);
+specialDaysTouched = signal(false);
+
+private validateSpecialDayDateRange(form: FarmDayOff): void {
+  // איפוס
+  this.dateRangeError.set(null);
+
+  if (!form.start_date || !form.end_date) return;
+
+  // YYYY-MM-DD => אפשר להשוות מחרוזות (אותו פורמט)
+  if (form.end_date < form.start_date) {
+    this.dateRangeError.set('״עד תאריך״ לא יכול להיות קטן מ־״מתאריך״.');
+  }
+}
+
+// עדכון הפונקציה הקיימת שלך:
+patchSpecialDayForm(patch: Partial<FarmDayOff>): void {
+  const next = { ...this.specialDayForm(), ...patch };
+  this.specialDayForm.set(next);
+
+  // ברגע שמשנים תאריכים - נחשב ולידציה
+  this.validateSpecialDayDateRange(next);
+}
 
   async ngOnInit(): Promise<void> {
     this.loading.set(true);
@@ -123,6 +162,7 @@ export class FarmSettingsComponent implements OnInit {
         this.loadSettings(),
         this.loadFundingSources(),
         this.loadPaymentPlans(),
+        this.loadFarmDaysOff(),
       ]);
     } catch (e) {
       console.error(e);
@@ -132,7 +172,174 @@ export class FarmSettingsComponent implements OnInit {
     }
   }
 
-  // ========== הגדרות חווה קיימות ==========
+  // ================= ימים מיוחדים =================
+
+openSpecialDays(): void {
+  const today = new Date().toISOString().slice(0, 10);
+
+  this.specialDaysTouched.set(false);
+  this.dateRangeError.set(null);
+
+  this.specialDayForm.set({
+    start_date: today,
+    end_date: today,
+    all_day: true,
+    start_time: null,
+    end_time: null,
+    reason: '',
+    is_active: true,
+  });
+
+  this.showSpecialDaysModal.set(true);
+}
+
+
+  closeSpecialDaysModal(): void {
+    this.showSpecialDaysModal.set(false);
+  }
+
+
+  onToggleAllDay(value: boolean): void {
+    const cur = this.specialDayForm();
+    if (value) {
+      this.specialDayForm.set({
+        ...cur,
+        all_day: true,
+        start_time: null,
+        end_time: null,
+      });
+    } else {
+      this.specialDayForm.set({
+        ...cur,
+        all_day: false,
+        start_time: cur.start_time ?? (this.settings()?.operating_hours_start ?? '08:00'),
+        end_time: cur.end_time ?? (this.settings()?.operating_hours_end ?? '20:00'),
+      });
+    }
+  }
+
+  private async loadFarmDaysOff(): Promise<void> {
+    const { data, error } = await this.supabase
+      .from('farm_days_off9')
+      .select('*')
+      .eq('is_active', true)
+      .order('start_date', { ascending: false });
+
+    if (error) {
+      console.error('loadFarmDaysOff error', error);
+      this.error.set('לא ניתן לטעון ימי חופש');
+      return;
+    }
+
+    const list: FarmDayOff[] = (data || []).map((r: any) => ({
+      id: r.id,
+      start_date: r.start_date,
+      end_date: r.end_date,
+      all_day: r.day_type === 'FULL_DAY',
+      start_time: r.start_time ? r.start_time.slice(0, 5) : null,
+      end_time: r.end_time ? r.end_time.slice(0, 5) : null,
+      reason: r.reason ?? '',
+      is_active: r.is_active ?? true,
+      day_type: r.day_type as DayType,
+      created_at: r.created_at,
+    }));
+
+    this.daysOff.set(list);
+  }
+
+  async saveSpecialDay(): Promise<void> {
+   const f = this.specialDayForm();
+
+    this.specialDaysTouched.set(true);
+    this.validateSpecialDayDateRange(f);
+
+    if (this.dateRangeError()) {
+    return;
+   }
+
+    
+
+    if (!f.start_date || !f.end_date) {
+      alert('חובה למלא "מתאריך" ו-"עד תאריך".');
+      return;
+    }
+    if (!f.reason?.trim()) {
+      alert('חובה למלא סיבה.');
+      return;
+    }
+
+    if (!f.all_day) {
+      if (!f.start_time || !f.end_time) {
+        alert('כשזה לא "כל היום" חובה למלא שעות התחלה/סיום.');
+        return;
+      }
+      if (f.end_time <= f.start_time) {
+        alert('שעת סיום חייבת להיות אחרי שעת התחלה.');
+        return;
+      }
+    }
+
+    const payload: any = {
+      start_date: f.start_date,
+      end_date: f.end_date,
+      day_type: f.all_day ? 'FULL_DAY' : 'PARTIAL_DAY',
+      start_time: f.all_day ? null : (f.start_time?.length === 5 ? f.start_time + ':00' : f.start_time),
+      end_time: f.all_day ? null : (f.end_time?.length === 5 ? f.end_time + ':00' : f.end_time),
+      reason: f.reason.trim(),
+      is_active: true,
+    };
+
+    try {
+      this.saving.set(true);
+      this.error.set(null);
+      this.success.set(null);
+
+      const { error } = await this.supabase.from('farm_days_off9').insert(payload);
+
+      if (error) {
+        console.error('saveSpecialDay error', error);
+        this.error.set('שמירת יום מיוחד נכשלה.');
+        return;
+      }
+
+      this.success.set('יום מיוחד נשמר בהצלחה.');
+      await this.loadFarmDaysOff();
+      this.closeSpecialDaysModal();
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  async deactivateDayOff(day: FarmDayOff): Promise<void> {
+    if (!day.id) return;
+
+    const ok = confirm('לבטל (להפוך ללא פעיל) את היום המיוחד הזה?');
+    if (!ok) return;
+
+    try {
+      this.saving.set(true);
+      this.error.set(null);
+      this.success.set(null);
+
+      const { error } = await this.supabase
+        .from('farm_days_off9')
+        .update({ is_active: false })
+        .eq('id', day.id);
+
+      if (error) {
+        console.error('deactivateDayOff error', error);
+        this.error.set('ביטול יום מיוחד נכשל.');
+        return;
+      }
+
+      await this.loadFarmDaysOff();
+      this.success.set('יום מיוחד בוטל.');
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  // ================= הגדרות חווה =================
 
   private async loadSettings(): Promise<void> {
     const { data, error } = await this.supabase
@@ -158,7 +365,6 @@ export class FarmSettingsComponent implements OnInit {
       };
       this.settings.set(s);
     } else {
-      // ברירת מחדל כשאין רשומה
       this.settings.set({
         operating_hours_start: '08:00',
         operating_hours_end: '20:00',
@@ -192,21 +398,10 @@ export class FarmSettingsComponent implements OnInit {
       updated_at: new Date().toISOString(),
     };
 
-    // time + interval כ-HH:MM:SS
-    if (payload.operating_hours_start?.length === 5) {
-      payload.operating_hours_start = payload.operating_hours_start + ':00';
-    }
-    if (payload.operating_hours_end?.length === 5) {
-      payload.operating_hours_end = payload.operating_hours_end + ':00';
-    }
-    if (payload.min_time_between_cancellations?.length === 5) {
-      payload.min_time_between_cancellations =
-        payload.min_time_between_cancellations + ':00';
-    }
-
-    if (!payload.id) {
-      delete payload.id;
-    }
+    if (payload.operating_hours_start?.length === 5) payload.operating_hours_start += ':00';
+    if (payload.operating_hours_end?.length === 5) payload.operating_hours_end += ':00';
+    if (payload.min_time_between_cancellations?.length === 5) payload.min_time_between_cancellations += ':00';
+    if (!payload.id) delete payload.id;
 
     const { data, error } = await this.supabase
       .from('farm_settings')
@@ -235,8 +430,9 @@ export class FarmSettingsComponent implements OnInit {
     this.saving.set(false);
   }
 
-  // ========== גורמי מימון ==========
- private async loadFundingSources(): Promise<void> {
+  // ================= גורמי מימון =================
+
+  private async loadFundingSources(): Promise<void> {
     const { data, error } = await this.supabase
       .from('funding_sources')
       .select('*')
@@ -257,13 +453,12 @@ export class FarmSettingsComponent implements OnInit {
   }
 
   startEditFunding(fs: FundingSource): void {
-    if (fs.is_system) return; // לא נערוך גורם מערכת
+    if (fs.is_system) return;
     this.editingFundingId.set(fs.id);
   }
 
   cancelEditFunding(): void {
     this.editingFundingId.set(null);
-    // כדי לנקות שינויים שלא נשמרו
     this.loadFundingSources();
   }
 
@@ -289,16 +484,11 @@ export class FarmSettingsComponent implements OnInit {
   }
 
   async updateFundingSource(fs: FundingSource): Promise<void> {
-    if (fs.is_system) {
-      return;
-    }
+    if (fs.is_system) return;
 
     const { data, error } = await this.supabase
       .from('funding_sources')
-      .update({
-        name: fs.name,
-        is_active: fs.is_active,
-      })
+      .update({ name: fs.name, is_active: fs.is_active })
       .eq('id', fs.id)
       .select()
       .single();
@@ -309,10 +499,7 @@ export class FarmSettingsComponent implements OnInit {
       return;
     }
 
-    const list = this.fundingSources().map(f =>
-      f.id === fs.id ? (data as FundingSource) : f
-    );
-    this.fundingSources.set(list);
+    this.fundingSources.set(this.fundingSources().map(f => (f.id === fs.id ? (data as FundingSource) : f)));
     this.editingFundingId.set(null);
   }
 
@@ -325,10 +512,7 @@ export class FarmSettingsComponent implements OnInit {
     const confirmed = confirm(`למחוק את גורם המימון "${fs.name}"?`);
     if (!confirmed) return;
 
-    const { error } = await this.supabase
-      .from('funding_sources')
-      .delete()
-      .eq('id', fs.id);
+    const { error } = await this.supabase.from('funding_sources').delete().eq('id', fs.id);
 
     if (error) {
       console.error('delete funding_source error', error);
@@ -339,40 +523,38 @@ export class FarmSettingsComponent implements OnInit {
     this.fundingSources.set(this.fundingSources().filter(f => f.id !== fs.id));
   }
 
-  // ========= מסלולי תשלום =========
+  // ================= מסלולי תשלום =================
 
-private async loadPaymentPlans(): Promise<void> {
-  const { data, error } = await this.supabase
-    .from('payment_plans')
-    .select(`
-      *,
-      payment_plan_prices (
-        id,
-        valid_from,
-        lesson_price,
-        subsidy_amount,
-        customer_amount
-      )
-    `)
-    .order('name', { ascending: true });
+  private async loadPaymentPlans(): Promise<void> {
+    const { data, error } = await this.supabase
+      .from('payment_plans')
+      .select(`
+        *,
+        payment_plan_prices (
+          id,
+          valid_from,
+          lesson_price,
+          subsidy_amount,
+          customer_amount
+        )
+      `)
+      .order('name', { ascending: true });
 
-  if (error) {
-    console.error('load payment_plans error', error);
-    this.error.set('לא ניתן לטעון מסלולי תשלום.');
-    return;
+    if (error) {
+      console.error('load payment_plans error', error);
+      this.error.set('לא ניתן לטעון מסלולי תשלום.');
+      return;
+    }
+
+    const plans: PaymentPlan[] = (data || []).map((p: any) => ({
+      ...p,
+      required_docs: p.required_docs || [],
+      require_docs_at_booking: p.require_docs_at_booking ?? true,
+      versions: (p.payment_plan_prices || []) as PaymentPlanPriceVersion[],
+    }));
+
+    this.paymentPlans.set(plans);
   }
-
-  const plans: PaymentPlan[] = (data || []).map((p: any) => ({
-    ...p,
-    required_docs: p.required_docs || [],
-    require_docs_at_booking: p.require_docs_at_booking ?? true,
-    versions: (p.payment_plan_prices || []) as PaymentPlanPriceVersion[],
-  }));
-
-  this.paymentPlans.set(plans);
-}
-
-
 
   toggleNewPlanForm(): void {
     this.showNewPlanForm.set(!this.showNewPlanForm());
@@ -388,20 +570,12 @@ private async loadPaymentPlans(): Promise<void> {
     this.loadPaymentPlans();
   }
 
-  // טקסט -> מערך קבצים למסלול קיים
   onDocsTextChange(plan: PaymentPlan, value: string): void {
-    plan.required_docs = value
-      .split('\n')
-      .map(v => v.trim())
-      .filter(v => !!v);
+    plan.required_docs = value.split('\n').map(v => v.trim()).filter(Boolean);
   }
 
-  // טקסט -> מערך קבצים למסלול חדש
   onNewPlanDocsChange(value: string): void {
-    this.newPlan.required_docs = value
-      .split('\n')
-      .map(v => v.trim())
-      .filter(v => !!v);
+    this.newPlan.required_docs = value.split('\n').map(v => v.trim()).filter(Boolean);
   }
 
   private normalizePlanForSave(plan: PaymentPlan): any {
@@ -418,7 +592,6 @@ private async loadPaymentPlans(): Promise<void> {
 
   async addPaymentPlan(): Promise<void> {
     const p = this.newPlan;
-
     if (!p.name || p.lesson_price == null) {
       alert('חובה למלא שם מסלול ומחיר לשיעור.');
       return;
@@ -426,11 +599,7 @@ private async loadPaymentPlans(): Promise<void> {
 
     const payload = this.normalizePlanForSave(p);
 
-    const { data, error } = await this.supabase
-      .from('payment_plans')
-      .insert(payload)
-      .select()
-      .single();
+    const { data, error } = await this.supabase.from('payment_plans').insert(payload).select().single();
 
     if (error) {
       console.error('add payment_plan error', error);
@@ -469,10 +638,7 @@ private async loadPaymentPlans(): Promise<void> {
       return;
     }
 
-    const list = this.paymentPlans().map(p =>
-      p.id === plan.id ? (data as PaymentPlan) : p
-    );
-    this.paymentPlans.set(list);
+    this.paymentPlans.set(this.paymentPlans().map(p => (p.id === plan.id ? (data as PaymentPlan) : p)));
     this.editingPlanId.set(null);
   }
 
@@ -482,10 +648,7 @@ private async loadPaymentPlans(): Promise<void> {
     const confirmed = confirm(`למחוק את מסלול התשלום "${plan.name}"?`);
     if (!confirmed) return;
 
-    const { error } = await this.supabase
-      .from('payment_plans')
-      .delete()
-      .eq('id', plan.id);
+    const { error } = await this.supabase.from('payment_plans').delete().eq('id', plan.id);
 
     if (error) {
       console.error('delete payment_plan error', error);
@@ -496,12 +659,10 @@ private async loadPaymentPlans(): Promise<void> {
     this.paymentPlans.set(this.paymentPlans().filter(p => p.id !== plan.id));
   }
 
-  // חישוב תשלום לקוח בצד לקוח (לתצוגה בלבד)
   getCustomerAmount(plan: PaymentPlan): number {
     const lp = plan.lesson_price ?? 0;
     const sub = plan.subsidy_amount ?? 0;
-    const val = lp - sub;
-    return val < 0 ? 0 : val;
+    return Math.max(0, lp - sub);
   }
 
   getFundingName(id: UUID | null): string {
@@ -515,57 +676,49 @@ private async loadPaymentPlans(): Promise<void> {
   }
 
   async savePlanPriceVersion(plan: PaymentPlan): Promise<void> {
-  if (!plan.id) return;
+    if (!plan.id) return;
 
-  const date = plan.newVersionDate;
-  const price = plan.newVersionPrice;
-  const subsidy = plan.newVersionSubsidy ?? 0;
+    const date = plan.newVersionDate;
+    const price = plan.newVersionPrice;
+    const subsidy = plan.newVersionSubsidy ?? 0;
 
-  if (!date) {
-    alert('חובה לבחור תאריך תחולה לשינוי המחיר.');
-    return;
-  }
+    if (!date) {
+      alert('חובה לבחור תאריך תחולה לשינוי המחיר.');
+      return;
+    }
+    if (price == null) {
+      alert('חובה למלא מחיר חדש לשיעור.');
+      return;
+    }
 
-  if (price == null) {
-    alert('חובה למלא מחיר חדש לשיעור.');
-    return;
-  }
+    try {
+      this.saving.set(true);
+      this.error.set(null);
+      this.success.set(null);
 
-  try {
-    this.saving.set(true);
-    this.error.set(null);
-    this.success.set(null);
-
-    const { data, error } = await this.supabase.rpc(
-      'create_payment_plan_price_version',
-      {
+      const { data, error } = await this.supabase.rpc('create_payment_plan_price_version', {
         p_plan_id: plan.id,
         p_valid_from: date,
         p_lesson_price: price,
         p_subsidy_amount: subsidy,
+      });
+
+      if (error) {
+        console.error('savePlanPriceVersion error', error);
+        this.error.set('שמירת שינוי המחיר נכשלה. נסי שוב.');
+        return;
       }
-    );
 
-    if (error) {
-      console.error('savePlanPriceVersion error', error);
-      this.error.set('שמירת שינוי המחיר נכשלה. נסי שוב.');
-      return;
+      plan.lesson_price = data.lesson_price;
+      plan.subsidy_amount = data.subsidy_amount;
+      plan.newVersionDate = null;
+      plan.newVersionPrice = null;
+      plan.newVersionSubsidy = null;
+
+      this.success.set('שינוי המחיר נשמר ונוספה היסטוריה חדשה.');
+      await this.loadPaymentPlans();
+    } finally {
+      this.saving.set(false);
     }
-
-    // מעדכנת את אובייקט המסלול בצד לקוח על בסיס מה שחזר מה־DB
-    plan.lesson_price = data.lesson_price;
-    plan.subsidy_amount = data.subsidy_amount;
-
-    // איפוס שדות העזר
-    plan.newVersionDate = null;
-    plan.newVersionPrice = null;
-    plan.newVersionSubsidy = null;
-
-    this.success.set('שינוי המחיר נשמר ונוספה היסטוריה חדשה.');
-  } finally {
-    this.saving.set(false);
   }
 }
-
-}
-

@@ -1055,27 +1055,6 @@ export async function createParentCredit(input: {
   }
 }
 
-
-
-///////////חיוב חיובים נבחרים
-
-export async function chargeSelectedParentCharges(args: {
-  parentUid: string;
-  chargeIds: string[];
-}): Promise<void> {
-  if (!args.chargeIds.length) return;
-
-  const { error } = await getSupabaseClient().rpc('charge_selected_parent_charges', {
-    parent_uid: args.parentUid,
-    charge_ids: args.chargeIds,
-  });
-
-  if (error) {
-    console.error('[chargeSelectedParentCharges] error', error);
-    throw error;
-  }
-}
-
 export async function listChargesForBilling(opts: {
   parentUid?: string | null;
 }): Promise<ParentChargeRow[]> {

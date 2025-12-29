@@ -167,16 +167,19 @@
       <div dir="rtl" style="padding: 10px; max-width: 350px;">
         <h3>אישור בקשת סדרה</h3>
 
-        <p>
-          האם את בטוחה שברצונך לקבוע
-          סדרה שמתחילה בתאריך <b>{{ seriesConfirmData.startDate }}</b><br>
-          מסתיימת בתאריך <b>{{ seriesConfirmData.endDate }}</b><br>
-          ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
-          בשעה <b>{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</b><br>
-          עם המדריך <b>{{ seriesConfirmData.instructorName }}</b>?
-          ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
+       <p>
+  האם את בטוחה שברצונך לקבוע
+  סדרה שמתחילה בתאריך <b>{{ seriesConfirmData.startDate }}</b><br>
 
-        </p>
+  <ng-container *ngIf="!isOpenEndedSeries">
+    מסתיימת בתאריך <b>{{ seriesConfirmData.endDate }}</b><br>
+  </ng-container>
+
+  ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
+  בשעה <b>{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</b><br>
+  עם המדריך <b>{{ seriesConfirmData.instructorName }}</b>?
+  ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
+</p>
 
 
         <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
@@ -328,10 +331,16 @@
                     <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
                     <td>{{ s.instructor_name || s.instructor_id }}</td>
                     <td>
-                      <button type="button" class="appt-cta" (click)="onSeriesSlotChosen(s, confirmSeriesDialog)"
-                        [disabled]="!canRequestSeries" [attr.aria-disabled]="!canRequestSeries ? 'true' : null">
-                        בקש סדרה במועד זה
-                      </button>
+                     <button
+  type="button"
+  class="appt-cta"
+  (click)="onSeriesSlotChosen(s, confirmSeriesDialog)"
+  [disabled]="!canRequestSeries || isPastSeriesSlot(selectedSeriesDate, s.start_time)"
+  [attr.aria-disabled]="(!canRequestSeries || isPastSeriesSlot(selectedSeriesDate, s.start_time)) ? 'true' : null"
+>
+  בקש סדרה במועד זה
+</button>
+
                     </td>
                   </tr>
                 </tbody>

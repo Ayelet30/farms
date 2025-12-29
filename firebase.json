@@ -27,7 +27,7 @@
         "headers": [
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; frame-src https://hf.tranzila.com; script-src 'self' https://hf.tranzila.com 'unsafe-inline'; connect-src 'self' https://api.tranzila.com https://hf.tranzila.com; style-src 'self' 'unsafe-inline';"
+            "value": "default-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://firebaseinstallations.googleapis.com https://api.tranzila.com https://hf.tranzila.com https://*.supabase.co; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://www.google.com; style-src 'self' 'unsafe-inline'; frame-src 'self' https://hf.tranzila.com;"
           }
         ]
       },
@@ -42,6 +42,26 @@
       }
     ],
     "rewrites": [
+      {
+        "source": "/api/chargeSelectedChargesForParent",
+        "function": "chargeSelectedChargesForParent"
+      },
+      {
+        "source": "/api/createHostedPaymentUrl",
+        "function": "createHostedPaymentUrl"
+      },
+      {
+        "source": "/api/tranzilaHandshakeHttp",
+        "function": "tranzilaHandshakeHttp"
+      },
+      {
+        "source": "/api/recordOneTimePayment",
+        "function": "recordOneTimePayment"
+      },
+      {
+        "source": "/api/savePaymentMethod",
+        "function": "savePaymentMethod"
+      },
       {
         "source": "/api/**",
         "function": "loginBootstrap"

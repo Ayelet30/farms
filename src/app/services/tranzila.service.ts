@@ -15,11 +15,6 @@ type CreateHostedUrlParams = {
 
 type CreateHostedUrlResponse = { url: string };
 
-type ChargeByTokenParams = {
-  parentUid: string;
-  amountAgorot: number;   // 12000 = 120.00 ₪
-  currency?: string;      // ברירת מחדל: 'ILS'
-};
 
 export interface TranzilaChargeDirectRequest {
   amountAgorot: number;
@@ -70,6 +65,16 @@ export interface TranzilaChargeResponse {
 
 @Injectable({ providedIn: 'root' })
 export class TranzilaService {
+
+  async chargeSelectedParentCharges(arg0: { tenantSchema: string; parentUid: string; chargeIds: string[]; secretaryEmail: string; })
+  : Promise<CreateHostedUrlResponse> {
+    console.log('chargeSelectedParentCharges method called with:', arg0); 
+    const res = await firstValueFrom(
+      this.http.post<CreateHostedUrlResponse>(`${this.base}/chargeSelectedChargesForParent`, arg0) 
+    );
+    if (!res) throw new Error('Missing hosted payment URL');
+    return res;
+  }
   private http = inject(HttpClient);
   // אם יש לך פרוקסי ב־Angular: '/api/**' → לפונקציות/שרת
   private readonly base = '/api';
@@ -98,9 +103,19 @@ export class TranzilaService {
 }
 
 
-  async chargeByToken(params: ChargeByTokenParams): Promise<any> {
-    return firstValueFrom(this.http.post(`${this.base}/chargeByToken`, params));
-  }
+chargeSelectedChargesForParent(args: {
+  parentUid: string;
+  tenantSchema: string;
+  secretaryEmail: string;
+  chargeIds: string[];
+}) {
+  return firstValueFrom(
+    this.http.post<{ ok: boolean; results: any[]; failedCount: number }>(
+      `${this.base}/chargeSelectedChargesForParent`,
+      args
+    )
+  );
+}
 
   getHandshakeToken(): Promise<{ thtk: string }> {
   return firstValueFrom(

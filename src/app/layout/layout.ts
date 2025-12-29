@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, EventEmitter, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HeaderComponent } from '../shared/header/header';
@@ -11,4 +11,12 @@ import { SliderComponent } from '../shared/slider/slider';
   templateUrl: './layout.html',
   styleUrls: ['./layout.scss']
 })
-export class LayoutComponent {}
+// layout.ts
+export class LayoutComponent {
+  menuCollapsed = false;
+
+  onCollapsedChange(v: boolean) {
+    this.menuCollapsed = v;
+  }
+}
+

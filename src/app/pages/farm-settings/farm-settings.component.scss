@@ -507,5 +507,100 @@ input[type='time'] {
     font-weight: 600;
   }
 }
+/* ===== מודאל ===== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 24, 10, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 1000;
+}
+
+.modal-card {
+  width: min(720px, 100%);
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #e1e6d5;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  padding: 14px 14px 16px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #364018;
+}
+
+.x-btn {
+  border: 1px solid #d7dcc5;
+  background: #f7f8ef;
+  color: #5e6a35;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  cursor: pointer;
+
+  &:hover {
+    background: #eef0e3;
+  }
+}
+
+/* ===== רשימת ימים מיוחדים בתוך הסקשן ===== */
+.special-days-list {
+  margin-top: 12px;
+  border-radius: 14px;
+  border: 1px solid #ecefdd;
+  background: #ffffff;
+  padding: 10px 12px;
+}
+
+.special-days-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4a5523;
+  margin-bottom: 8px;
+}
+
+.special-days-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 8px;
+  border-top: 1px solid #f2f3e4;
+
+  &:first-of-type {
+    border-top: none;
+  }
+}
+
+.special-days-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.special-days-dates {
+  font-size: 12px;
+  color: #394120;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.special-days-reason {
+  font-size: 12px;
+  color: #606548;
+}
 
 

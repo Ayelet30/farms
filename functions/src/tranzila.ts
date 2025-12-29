@@ -17,13 +17,22 @@ dotenv.config({ path: '.env.local' });
 // ===== Secrets =====
 const SUPABASE_URL_S = defineSecret('SUPABASE_URL');
 const SUPABASE_KEY_S = defineSecret('SUPABASE_SERVICE_KEY');
-const TRANZILA_SUPPLIER_S = defineSecret('TRANZILA_SUPPLIER');
-const TRANZILA_PASSWORD_S = defineSecret('TRANZILA_PASSWORD');
-const PUBLIC_BASE_URL_S = defineSecret('PUBLIC_BASE_URL');
+
+// טרנזילה - שמות סודות (את הערכים עצמם מנהלים ב-Firebase Secrets)
+const TRANZILA_PASSWORD_S = defineSecret('TRANZILA_PASSWORD'); // סיסמת מסוף רגיל
+const TRANZILA_PASSWORD_TOKEN_S = defineSecret('TRANZILA_PASSWORD_TOKEN'); // סיסמת מסוף טוקנים
+
+// אם את משתמשת גם ב-APP_KEY/SECRET לחתימה (לפי הקוד שהיה אצלך)
 const TRANZILA_APP_KEY_S = defineSecret('TRANZILA_APP_KEY');
 const TRANZILA_SECRET_S = defineSecret('TRANZILA_SECRET');
+
+const TRANZILA_SUPPLIER_S = defineSecret('TRANZILA_SUPPLIER');
+const PUBLIC_BASE_URL_S = defineSecret('PUBLIC_BASE_URL');
 const TRANZILA_TERMINAL_NAME_S = defineSecret('TRANZILA_TERMINAL_NAME');
 const TRANZILA_PW_S = defineSecret('TRANZILA_PW');
+
+
+
 
 const mailTransport = nodemailer.createTransport({
   host: "smtp.gmail.com",
@@ -48,6 +57,7 @@ function getSupabase(): SupabaseClient {
   return createClient(url, key);
 }
 
+// ===== Supabase client factory (per tenant schema) =====
 export function getSupabaseForTenant(schema?: string | null): SupabaseClient {
   const url = envOrSecret(SUPABASE_URL_S, 'SUPABASE_URL');
   const key = envOrSecret(SUPABASE_KEY_S, 'SUPABASE_SERVICE_KEY');
@@ -57,6 +67,77 @@ export function getSupabaseForTenant(schema?: string | null): SupabaseClient {
     db: { schema: schema || 'public' },
   }) as SupabaseClient;
 }
+
+// ===================================================================
+// Billing Terminals: load default terminal from DB
+// ===================================================================
+type BillingTerminalRow = {
+  id: string;
+  provider: string;              // 'tranzila'
+  terminal_name: string;         // מסוף רגיל (ל-hosted/tokenize וכו')
+  tok_terminal_name: string;     // מסוף טוקנים (לחיוב ע"י token)
+  mode: string;                  // 'prod' / 'test'
+  is_default: boolean;
+  active: boolean;
+
+  // בטבלה נשמר "שם הסוד" ולא הסיסמה עצמה
+  secret_key_charge: string | null;        // לדוגמה: 'TRANZILA_PASSWORD'
+  secret_key_charge_token: string | null;  // לדוגמה: 'TRANZILA_PASSWORD_TOKEN'
+};
+
+async function loadDefaultBillingTerminal(args: {
+  sbTenant: SupabaseClient;
+  provider?: string;        // 'tranzila'
+  mode?: string;            // 'prod'
+}): Promise<BillingTerminalRow> {
+  const { sbTenant, provider = 'tranzila', mode = 'prod' } = args;
+
+  const { data, error } = await sbTenant
+    .from('billing_terminals')
+    .select(
+      'id,provider,terminal_name,tok_terminal_name,display_name,mode,is_default,active,secret_key_charge,secret_key_charge_token',
+    )
+    .eq('provider', provider)
+    .eq('mode', mode)
+    .eq('active', true)
+    .order('is_default', { ascending: false })
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(`billing_terminals query failed: ${error.message}`);
+  if (!data) throw new Error('No active billing terminal configured');
+
+  return data as BillingTerminalRow;
+}
+
+// ===================================================================
+// Resolve secret by "key name" stored in DB (NO passwords in DB)
+// ===================================================================
+function resolveTranzilaSecretByKeyName(keyName: string | null | undefined): string {
+  const k = String(keyName ?? '').trim();
+  if (!k) throw new Error('Missing secret key name in billing_terminals');
+
+  // פה עושים מיפוי “שם סוד” -> secret בפועל
+  switch (k) {
+    case 'TRANZILA_PASSWORD': {
+      const v = envOrSecret(TRANZILA_PASSWORD_S, 'TRANZILA_PASSWORD');
+      if (!v) throw new Error('Missing secret: TRANZILA_PASSWORD');
+      return v;
+    }
+    case 'TRANZILA_PASSWORD_TOKEN': {
+      const v = envOrSecret(TRANZILA_PASSWORD_TOKEN_S, 'TRANZILA_PASSWORD_TOKEN');
+      if (!v) throw new Error('Missing secret: TRANZILA_PASSWORD_TOKEN');
+      return v;
+    }
+    default:
+      throw new Error(`Unknown secret key name: ${k}`);
+  }
+}
+
+
+
+
 
 
 // ===== Utils =====
@@ -80,7 +161,9 @@ function buildUrl(baseRaw: string, path: string) {
   return new URL(p, base).toString();
 }
 
-/** Common CORS / OPTIONS handler */
+// ===================================================================
+// CORS helper
+// ===================================================================
 function handleCors(req: any, res: any): boolean {
   if (req.method === 'OPTIONS') {
     res.set('Access-Control-Allow-Origin', '*');
@@ -195,229 +278,148 @@ export const createHostedPaymentUrl = onRequest(
 );
 
 // ===================================================================
-// tranzilaReturn – קבלת הטוקן מחזרת HPP
-// ===================================================================
-export const tranzilaReturn = onRequest(
-  {
-    invoker: 'public',
-    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_SUPPLIER_S, TRANZILA_PASSWORD_S, PUBLIC_BASE_URL_S],
-  },
-  async (req, res) => {
-    try {
-      if (handleCors(req, res)) return;
-
-      const { orderid, custom_uid, custom_schema } =
-        req.query as Record<string, string | undefined>;
-
-      if (!orderid || !custom_uid || !custom_schema) {
-        res.status(400).send('Missing orderid/custom_uid/custom_schema');
-        return;
-      }
-
-      const supplier =
-        envOrSecret(TRANZILA_SUPPLIER_S, 'TRANZILA_SUPPLIER') ||
-        process.env.TRANZILA_SUPPLIER_ID;
-      const password = envOrSecret(TRANZILA_PASSWORD_S, 'TRANZILA_PASSWORD');
-      const appBase = envOrSecret(PUBLIC_BASE_URL_S, 'PUBLIC_BASE_URL');
-
-      if (!supplier || !password || !appBase) {
-        res.status(500).send('Missing supplier/password/public base');
-        return;
-      }
-
-      // 1) Query לטרנזילה לקבלת הטוקן
-      const qUrl = new URL('https://secure5.tranzila.com/cgi-bin/tranzila71u.cgi');
-      const qParams = new URLSearchParams({
-        supplier,
-        password,
-        tranmode: 'Q',
-        orderid: String(orderid),
-      });
-
-      const r = await fetch(qUrl.toString(), { method: 'POST', body: qParams });
-      const text = await r.text();
-
-      const kv: Record<string, string> = Object.fromEntries(
-        text.split('&').map((p) => {
-          const [k, v] = p.split('=');
-          return [k, v ?? ''];
-        }),
-      );
-
-      const token = kv['TranzilaTK'];
-      const last4 = kv['ccno']?.slice(-4) ?? null;
-      const brand = kv['cardtype'] ?? null;
-
-      if (!token) {
-        console.error('[tranzilaReturn] token missing. raw=', text);
-        res.status(400).send('Token not found');
-        return;
-      }
-
-      const schema = String(custom_schema);
-      const parentUid = String(custom_uid);
-
-      const sbTenant = getSupabaseForTenant(schema);
-
-      // 2) האם כבר יש default פעיל?
-      const { data: existingDefault, error: defErr } = await sbTenant
-        .from('payment_profiles')
-        .select('id')
-        .eq('parent_uid', parentUid)
-        .eq('active', true)
-        .eq('is_default', true)
-        .limit(1);
-
-      if (defErr) {
-        console.error('[tranzilaReturn] default query error:', defErr);
-      }
-
-      const shouldBeDefault = !(existingDefault?.length);
-
-      // 3) שמירה
-      const { error: insErr } = await sbTenant.from('payment_profiles').insert({
-        parent_uid: parentUid,
-        token_ref: String(token),
-        last4,
-        brand,
-        active: true,
-        is_default: shouldBeDefault,
-      });
-
-      if (insErr) {
-        console.error('[tranzilaReturn] insert error:', insErr);
-        res.status(500).send('Failed to save token');
-        return;
-      }
-
-      // 4) Redirect חזרה
-      res.redirect(302, buildUrl(appBase, '/billing/success'));
-    } catch (e: any) {
-      console.error('[tranzilaReturn] error:', e);
-      res.status(500).send('Failed');
-    }
-  },
-);
-
-
-// ===================================================================
 // chargeByToken – חיוב לפי טוקן ששמור ב-DB
 // ===================================================================
-export const chargeByToken = onRequest(
-  {
-    invoker: 'public',
-    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_SUPPLIER_S, TRANZILA_PASSWORD_S],
-  },
-  async (req, res) => {
-    try {
-      if (handleCors(req, res)) return;
-      if (req.method !== 'POST') {
-        res.status(405).send('Method Not Allowed');
-        return;
-      }
+// ===================================================================
+// Charge by token (NEW endpoint): /v1/transaction/credit_card/create
+// ===================================================================
+function buildTranzilaAuthV2() {
+  const appKey = envOrSecret(TRANZILA_APP_KEY_S, 'TRANZILA_APP_KEY');
+  const secret = envOrSecret(TRANZILA_SECRET_S, 'TRANZILA_SECRET'); // זה ה-"secret" בדוגמה שלהם
+  if (!appKey || !secret) throw new Error('Missing Tranzila API keys (APP_KEY/SECRET)');
+
+  // לפי הדוגמה: timestamp בשניות
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+
+  // nonce קבוע 40 תווים. אפשר גם לשמור קבוע בקונפיג,
+  // אבל לרוב עובד גם אקראי כל בקשה כל עוד 40 תווים:
+  const nonce = crypto.randomBytes(20).toString('hex'); // 40 chars
+
+  // CryptoJS.HmacSHA256(app_key, secret + timestamp + nonce).toString(Hex)
+  const key = `${secret}${timestamp}${nonce}`;
+  const accessToken = crypto
+    .createHmac('sha256', key)     // key = secret+timestamp+nonce
+    .update(appKey)               // message = app_key
+    .digest('hex');               // hex!
+
+  return { appKey, timestamp, nonce, accessToken };
+}
+type TranzilaApiResponse = {
+  success?: boolean;
+  status?: string;
+  response_code?: string;
+  error_code?: number | string;
+  message?: string;
+  error?: string;
+  error_message?: string;
+
+  transaction_id?: string | number;
+  confirmation_code?: string | number;
+  index?: string | number;
+};
+
+function isObj(x: unknown): x is Record<string, any> {
+  return !!x && typeof x === 'object';
+}
 
 
-      const { tenantSchema, chargeId } = req.body as { tenantSchema: string; chargeId: string };
-      if (!tenantSchema || !chargeId) {
-        res.status(400).json({ ok: false, error: 'missing tenantSchema/chargeId' });
-        return;
-      }
+async function chargeByToken(args: {
+  terminalName: string;
+  token: string;
+  amountAgorot: number;
+  description?: string | null;
+  expiryMonth?: number | null;
+  expiryYear?: number | null;
+}): Promise<{ ok: boolean; provider_id: string | null; raw: any; error?: string; }> {
 
-      const sb = getSupabaseForTenant(tenantSchema);
+  const { terminalName, token, amountAgorot, description } = args;
 
-      // 1) שליפת החיוב
-      const { data: ch, error: chErr } = await sb
-        .from('charges')
-        .select('id,parent_uid,amount_agorot,currency,status,billing_month,description')
-        .eq('id', chargeId)
-        .single();
+  const expMonth = toTranzilaExpireMonth(args.expiryMonth);
+  const expYearYY = toTranzilaExpireYearYY(args.expiryYear);
 
-      if (chErr || !ch){
-         res.status(404).json({ ok: false, error: 'charge not found' });
-         return;
-      }
+  // ✅ אם טרנזילה דורשים תוקף (לפי הדוגמה שלהם) – לא להמשיך בלי זה
+  if (!expMonth || expYearYY === null) {
+    return {
+      ok: false,
+      provider_id: null,
+      raw: { local_error: 'missing_expiry' },
+      error: 'Missing expire_month/expire_year for token charge (Tranzila schema requires it)',
+    };
+  }
 
-      // (לא חובה אבל מומלץ) לא לסלוק אם כבר succeeded
-      if (String(ch.status) === 'succeeded') {
-        res.json({ ok: true, skipped: true, reason: 'already_succeeded' });
-        return;
-      }
+  const amountNis = Number(amountAgorot) / 100;
+  const sum = Number.isFinite(amountNis) ? Number(amountNis.toFixed(2)) : 0;
 
-      // 2) פרופיל ברירת מחדל פעיל
-      const { data: prof, error: pErr } = await sb
-        .from('payment_profiles')
-        .select('id,token_ref')
-        .eq('parent_uid', ch.parent_uid)
-        .eq('active', true)
-        .order('is_default', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+  const url = 'https://api.tranzila.com/v1/transaction/credit_card/create';
 
-      if (pErr || !prof?.token_ref) {
-        // עדכון סטטוס “failed” או “no_token” לבחירתך
-        await sb.from('charges').update({
-          status: 'failed',
-          updated_at: new Date().toISOString(),
-        }).eq('id', chargeId);
+  const body: any = {
+    terminal_name: terminalName,
+    txn_currency_code: 'ILS',
+    txn_type: 'debit',
+    payment_plan: 1,
 
-        res.status(404).json({ ok: false, error: 'no active token' });
-        return;
-      }
+    card_number: String(token),
 
-      // 3) סליקה מול טרנזילה
-      const supplier =
-        envOrSecret(TRANZILA_SUPPLIER_S, 'TRANZILA_SUPPLIER') ||
-        process.env.TRANZILA_SUPPLIER_ID;
-      const password = envOrSecret(TRANZILA_PASSWORD_S, 'TRANZILA_PASSWORD');
+    // ✅ חובה בסכימה שלהם
+    expire_month: expMonth,
+    expire_year: expYearYY,
 
-      if (!supplier || !password) {
-        res.status(500).json({ ok: false, error: 'Missing supplier/password' });
-        return;
-      }
+    items: [
+      {
+        code: '1',
+        name: description ? String(description).slice(0, 60) : '',
+        unit_price: sum,
+        type: 'I',
+        units_number: 1,
+        unit_type: 1,
+        price_type: 'G',
+        currency_code: 'ILS',
+      },
+    ],
+  };
 
-      const sum = (Number(ch.amount_agorot) / 100).toFixed(2);
-      const url = new URL('https://secure5.tranzila.com/cgi-bin/tranzila71u.cgi');
+  const auth = buildTranzilaAuthV2();
 
-      const body = new URLSearchParams({
-        supplier: String(supplier),
-        password: String(password),
-        sum,
-        currency: '1',        // ILS
-        tranmode: 'V',
-        cred_type: '8',       // token
-        TranzilaTK: String(prof.token_ref),
-      });
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-tranzila-api-app-key': auth.appKey,
+    'X-tranzila-api-request-time': auth.timestamp,
+    'X-tranzila-api-nonce': auth.nonce,
+    'X-tranzila-api-access-token': auth.accessToken,
+  };
 
-      const resp = await fetch(url.toString(), { method: 'POST', body });
-      const text = await resp.text();
+  const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
 
-      const kv: Record<string, string> = Object.fromEntries(
-        text.split('&').map((p) => {
-          const [k, v] = p.split('=');
-          return [k, v ?? ''];
-        }),
-      );
+  const ct = resp.headers.get('content-type') || '';
+  const raw = ct.includes('application/json') ? await resp.json() : await resp.text();
 
-      const success = kv['Response'] === '000';
-      const providerId = kv['index'] ?? kv['ConfirmationCode'] ?? kv['ConfNum'] ?? null;
+ const json = isObj(raw) ? (raw as any) : null;
+const tr = isObj(json?.transaction_result) ? (json!.transaction_result as any) : null;
 
-      // 4) עדכון שורת charge
-      await sb.from('charges').update({
-        status: success ? 'succeeded' : 'failed',
-        provider_id: providerId,
-        profile_id: prof.id,
-        updated_at: new Date().toISOString(),
-      }).eq('id', chargeId);
+// ✅ קביעת הצלחה לפי המבנה האמיתי שחוזר מטרנזילה
+const ok =
+  (json?.error_code === 0 && String(json?.message).toLowerCase() === 'success') ||
+  (tr?.processor_response_code === '000') ||
+  (Number(tr?.transaction_resource) === 0);
 
-      res.json({ ok: success, provider_id: providerId, raw: kv });
-      return;
-    } catch (e: any) {
-      console.error('[chargeByToken] error:', e);
-      res.status(500).json({ ok: false, error: e?.message ?? 'internal error' });
-    }
-  },
-);
+// ✅ מזהה עסקה
+const providerId =
+  (tr?.transaction_id ?? tr?.ConfirmationCode ?? tr?.auth_number ?? null) != null
+    ? String(tr?.transaction_id ?? tr?.ConfirmationCode ?? tr?.auth_number)
+    : null;
+
+if (ok) return { ok: true, provider_id: providerId, raw };
+
+// אם לא ok — להוציא הודעת שגיאה הגיונית
+const errMsg =
+  tr?.processor_response_code
+    ? `processor_response_code=${tr.processor_response_code}`
+    : (json?.error ?? json?.error_message ?? json?.message ?? 'charge failed');
+
+return { ok: false, provider_id: providerId, raw, error: errMsg };
+}
+
+
 
 export const savePaymentProfileFromTx = onRequest(
   { invoker: 'public', secrets: [SUPABASE_URL_S, SUPABASE_KEY_S] },
@@ -477,103 +479,34 @@ export const savePaymentProfileFromTx = onRequest(
 );
 
 
-
 // ===================================================================
-// Helper משותף ל-API v2 (standing order + handshake Hosted Fields)
+// Tranzila Auth (HMAC) - לפי הקוד שהיה אצלך (app_key + secret)
 // ===================================================================
 function buildTranzilaAuth() {
   const appKey = envOrSecret(TRANZILA_APP_KEY_S, 'TRANZILA_APP_KEY');
   const secret = envOrSecret(TRANZILA_SECRET_S, 'TRANZILA_SECRET');
-  if (!appKey || !secret) throw new Error('Missing Tranzila API keys');
+  if (!appKey || !secret) throw new Error('Missing Tranzila API keys (APP_KEY/SECRET)');
 
-  const requestTime = Date.now().toString();
-  const nonce = crypto.randomBytes(20).toString('hex'); // 40 hex
+  // טרנזילה רוצים UNIX בשניות
+  const requestTime = Math.floor(Date.now() / 1000).toString();
 
-  const message = `${secret}${requestTime}${nonce}`;
-  const accessToken = crypto
-    .createHmac('sha256', appKey)
-    .update(message)
-    .digest('base64');
+  // הם כתבו "פרמטר קבוע בעל 40 תווים"
+  // אפשר קבוע קונפיגורציוני (לא חובה סודי)
+  const nonce =
+    envOrSecret(defineSecret('TRANZILA_NONCE') as any, 'TRANZILA_NONCE') ||
+    '949ea362891adfe9085057c4560ef1142cbe9893'; // 40 תווים
+
+  if (nonce.length !== 40) throw new Error('TRANZILA_NONCE must be exactly 40 chars');
+
+  // לפי הדוגמה: HMAC_SHA256(app_key, secret + timestamp + nonce) -> HEX
+  const key = `${secret}${requestTime}${nonce}`;
+  const accessToken = crypto.createHmac('sha256', key).update(appKey).digest('hex');
 
   return { appKey, requestTime, nonce, accessToken };
 }
 
-// ===================================================================
-// createTranzilaStandingOrder – יצירת הוראת קבע ב-API v2
-// ===================================================================
-export const createTranzilaStandingOrder = onRequest(
-  {
-    invoker: 'public',
-    secrets: [TRANZILA_APP_KEY_S, TRANZILA_SECRET_S],
-  },
-  async (req, res) => {
-    try {
-      if (req.method !== 'POST') {
-        res.status(405).send('Method Not Allowed');
-        return;
-      }
 
-      const bodyFromClient = req.body as any;
-      console.log(
-        '[createTranzilaStandingOrder] incoming body:',
-        bodyFromClient,
-      );
 
-      const { appKey, requestTime, nonce, accessToken } = buildTranzilaAuth();
-      const apiUrl = 'https://api.tranzila.com/v2/sto/create';
-
-      const resp = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'X-tranzila-api-app-key': appKey,
-          'X-tranzila-api-request-time': requestTime,
-          'X-tranzila-api-nonce': nonce,
-          'X-tranzila-api-access-token': accessToken,
-        },
-        body: JSON.stringify(bodyFromClient),
-      });
-
-      const text = await resp.text();
-      let json: any;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        json = null;
-      }
-
-      console.log(
-        '[createTranzilaStandingOrder] status =',
-        resp.status,
-        'body =',
-        text,
-      );
-
-      if (!resp.ok) {
-        res.status(resp.status).json({
-          ok: false,
-          error: 'Tranzila API error',
-          status: resp.status,
-          body: json ?? text,
-        });
-        return;
-      }
-
-      res.json({
-        ok: true,
-        tranzila: json ?? text,
-      });
-    } catch (e: any) {
-      console.error('[createTranzilaStandingOrder] error:', e);
-      res
-        .status(500)
-        .json({ ok: false, error: e?.message ?? 'internal error' });
-    }
-  },
-);
-
-// ===================================================================
 // tranzilaHandshakeHttp – Handshake v1 שמחזיר thtk ל-Hosted Fields
 // ===================================================================
 export const tranzilaHandshakeHttp = onRequest(
@@ -594,10 +527,6 @@ export const tranzilaHandshakeHttp = onRequest(
         process.env.TRANZILA_TERMINAL_NAME;
       const password = envOrSecret(TRANZILA_PW_S, 'TRANZILA_PW');
 
-      console.log('[tranzilaHandshakeHttp] supplier=', supplier);
-      console.log('[tranzilaHandshakeHttp] password=', password);
-
-
       if (!supplier || !password) {
         res
           .status(500)
@@ -613,17 +542,9 @@ export const tranzilaHandshakeHttp = onRequest(
       url.searchParams.set('sum', sum);
       url.searchParams.set('TranzilaPW', password);
 
-      console.log('[tranzilaHandshakeHttp] calling', url.toString());
 
       const resp = await fetch(url.toString(), { method: 'GET' });
       const text = await resp.text();
-
-      console.log(
-        '[tranzilaHandshakeHttp] status =',
-        resp.status,
-        'body =',
-        text,
-      );
 
       // התשובה מגיעה כ-query string, למשל:
       // "thtk=XXXX&Response=000&..."
@@ -719,6 +640,389 @@ async function recordPaymentInDb(args: RecordPaymentArgs) {
   return paymentId; // 👈 מחזירים את המזהה
 }
 
+/** ===== Tranzila token charge attempt ===== */
+async function chargeViaTranzilaToken(args: {
+  supplier: string;
+  password: string;
+  token: string;
+  amountAgorot: number;
+  orderid?: string;
+}): Promise<{
+  ok: boolean;
+  provider_id: string | null;
+  raw: Record<string, string>;
+  error?: string;
+}> {
+  const { supplier, password, token, amountAgorot, orderid } = args;
+
+  const sum = (Number(amountAgorot) / 100).toFixed(2);
+
+  // ✅ זה ה-URL של חיוב טוקן (CGI)
+  const url = 'https://secure5.tranzila.com/cgi-bin/tranzila71u.cgi';
+
+  const body = new URLSearchParams({
+    supplier: String(supplier),
+    password: String(password),
+    sum,
+    currency: '1',          // ILS
+    tranmode: 'V',          // חיוב
+    cred_type: '8',         // token
+    TranzilaTK: String(token),
+
+    // מומלץ מאוד:
+    orderid: orderid ?? `charge_${Date.now()}`,
+  });
+
+  let text = '';
+  try {
+    const resp = await fetch(url, { method: 'POST', body });
+    text = await resp.text();
+
+  } catch (e: any) {
+    console.error('[chargeViaTranzilaToken] fetch failed', e);
+    return { ok: false, provider_id: null, raw: {}, error: e?.message ?? 'fetch failed' };
+  }
+
+  const kv: Record<string, string> = Object.fromEntries(
+    text.split('&').map((p) => {
+      const [k, v] = p.split('=');
+      return [k, v ?? ''];
+    }),
+  );
+
+  const ok = kv['Response'] === '000';
+  const providerId = kv['index'] ?? kv['ConfirmationCode'] ?? kv['ConfNum'] ?? null;
+
+  return ok
+    ? { ok: true, provider_id: providerId, raw: kv }
+    : { ok: false, provider_id: providerId, raw: kv, error: kv['Error'] ?? kv['message'] ?? kv['err'] ?? 'charge failed' };
+}
+
+
+/** ===== Receipt: PDF -> Storage -> update payments.invoice_url ===== */
+async function generateAndAttachReceiptUrlOnly(args: {
+  sb: SupabaseClient;
+  tenantSchema: string;
+  paymentId: string;
+  amountAgorot: number;
+  tx: any;
+}) {
+  const { sb, tenantSchema, paymentId, amountAgorot, tx } = args;
+
+  const amountNis = (amountAgorot / 100).toFixed(2);
+  const dateStr = new Date().toLocaleDateString('he-IL');
+
+  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  const chunks: Buffer[] = [];
+
+  doc.on('data', (c) => chunks.push(c));
+  const pdfPromise = new Promise<Buffer>((resolve) => {
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+  });
+
+  doc.fontSize(20).text('קבלה על תשלום', { align: 'center' });
+  doc.moveDown();
+  doc.fontSize(12).text(`תאריך: ${dateStr}`);
+  doc.text(`מספר תשלום: ${paymentId}`);
+  doc.moveDown();
+  doc.text(`סכום: ${amountNis} ₪`);
+  if (tx?.transaction_id) doc.text(`אסמכתא: ${tx.transaction_id}`);
+  if (tx?.credit_card_last_4_digits)
+    doc.text(`4 ספרות אחרונות: **** ${tx.credit_card_last_4_digits}`);
+  if (tx?.card_type_name) doc.text(`סוג כרטיס: ${tx.card_type_name}`);
+
+  doc.end();
+  const pdfBuffer = await pdfPromise;
+
+  const BUCKET_NAME = 'bereshit-payments-invoices';
+  const filePath = `receipts/${tenantSchema}/${paymentId}.pdf`;
+
+  const { error: uploadErr } = await sb.storage
+    .from(BUCKET_NAME)
+    .upload(filePath, pdfBuffer, {
+      contentType: 'application/pdf',
+      upsert: true,
+    });
+
+  if (uploadErr) throw new Error(uploadErr.message);
+
+  const { data: publicData } = sb.storage
+    .from(BUCKET_NAME)
+    .getPublicUrl(filePath);
+
+  const url = (publicData as any).publicUrl + '?v=' + Date.now();
+
+  await sb.from('payments').update({ invoice_url: url }).eq('id', paymentId);
+}
+
+/** ===== mail to secretary on failures ===== */
+async function sendSecretaryFailuresEmail(args: {
+  to: string;
+  tenantSchema: string;
+  parentUid: string;
+  failures: Array<{
+    chargeId: string;
+    amountAgorot: number;
+    error: string;
+  }>;
+}) {
+  const { to, tenantSchema, parentUid, failures } = args;
+
+  const rows = failures
+    .map(
+      (f) => `
+      <tr>
+        <td>${f.chargeId}</td>
+        <td>${(f.amountAgorot / 100).toFixed(2)} ₪</td>
+        <td>${escapeHtml(f.error)}</td>
+      </tr>
+    `,
+    )
+    .join('');
+
+  const html = `
+    <div dir="rtl">
+      <h3>כשלון סליקה – חיובים שלא הושלמו</h3>
+      <p><b>חווה:</b> ${tenantSchema}</p>
+      <p><b>הורה:</b> ${parentUid}</p>
+      <p>ניסינו לחייב בכל הכרטיסים הפעילים ולא הצלחנו בחיובים הבאים:</p>
+      <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse">
+        <thead>
+          <tr><th>Charge ID</th><th>סכום</th><th>שגיאה</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+
+  await mailTransport.sendMail({
+    to,
+    from: '"Smart-Farm Billing" <no-reply@smart-farm>',
+    subject: 'כשלון סליקה – חיובים שלא הושלמו',
+    html,
+  });
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * ===================================================================
+ * chargeSelectedChargesForParent
+ * ===================================================================
+ * מקבל: tenantSchema, parentUid, chargeIds[], secretaryEmail
+ * מחייב כל חיוב לפי token של ההורה:
+ * - מנסה default -> ואז כרטיסים אחרים
+ * - בהצלחה: updates charges + inserts payments + generates receipt url
+ * - בכשלון בכל הכרטיסים: מסמן failed + שולח מייל למזכירה
+ */
+export const chargeSelectedChargesForParent = onRequest(
+  {
+    invoker: 'public',
+    secrets: [
+      SUPABASE_URL_S,
+      SUPABASE_KEY_S,
+
+      // סודות טרנזילה (אל תורידי – צריך שיהיו זמינים ב-runtime)
+      TRANZILA_PASSWORD_S,
+      TRANZILA_PASSWORD_TOKEN_S,
+      TRANZILA_APP_KEY_S,
+      TRANZILA_SECRET_S,
+    ],
+  },
+  async (req, res) => {
+    try {
+      if (handleCors(req, res)) return;
+      if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+      }
+
+      const { tenantSchema, parentUid, chargeIds } = req.body as {
+        tenantSchema: string;
+        parentUid: string;
+        chargeIds: string[];
+        secretaryEmail?: string | null;
+      };
+
+      if (!tenantSchema || !parentUid || !Array.isArray(chargeIds) || !chargeIds.length) {
+        res.status(400).json({ ok: false, error: 'missing tenantSchema/parentUid/chargeIds' });
+        return;
+      }
+
+      const sb = getSupabaseForTenant(tenantSchema);
+
+
+      // A) טוענים מסוף ברירת מחדל מהסכמה של החווה (זה מה שחסר אצלך עכשיו)
+      const terminal = await loadDefaultBillingTerminal({ sbTenant: sb, provider: 'tranzila', mode: 'prod' });
+
+      if (!terminal.tok_terminal_name) {
+        res.status(500).json({ ok: false, error: 'tok_terminal_name not configured in billing_terminals' });
+        return;
+      }
+
+      const tokenTerminalPassword = resolveTranzilaSecretByKeyName(terminal.secret_key_charge_token);
+    
+      // B) טוענים כרטיסים פעילים של ההורה + החיובים
+
+      // 1) כרטיסים פעילים (default ראשון)
+      const { data: profiles, error: pErr } = await sb
+        .from('payment_profiles')
+        .select('id, token_ref, last4, brand, is_default, created_at, expiry_month, expiry_year')
+
+        .eq('parent_uid', parentUid)
+        .eq('active', true)
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (pErr) throw pErr;
+      if (!profiles?.length) {
+        res.status(400).json({ ok: false, error: 'no active payment profiles for parent' });
+        return;
+      }
+
+      // 2) חיובים + יתרות
+      const { data: charges, error: cErr } = await sb
+        .from('charges')
+        .select('id,parent_uid,status,description')
+        .in('id', chargeIds)
+        .eq('parent_uid', parentUid);
+
+      if (cErr) throw cErr;
+
+      const { data: amounts, error: aErr } = await sb
+        .from('v_parent_charges')
+        .select('id,parent_uid,remaining_agorot')
+        .in('id', chargeIds)
+        .eq('parent_uid', parentUid);
+
+      if (aErr) throw aErr;
+
+      const byId = new Map((charges ?? []).map((c: any) => [c.id, c]));
+      const missing = chargeIds.filter((id) => !byId.has(id));
+      if (missing.length) {
+        res.status(404).json({ ok: false, error: `charges not found: ${missing.join(',')}` });
+        return;
+      }
+
+      const results: any[] = [];
+
+      for (const chargeId of chargeIds) {
+        const ch: any = byId.get(chargeId);
+        const amtRow = (amounts ?? []).find((a: any) => a.id === chargeId);
+        const amountAgorot = Number(amtRow?.remaining_agorot ?? 0);
+
+        // כבר שולם/אין יתרה
+        if (String(ch.status) === 'paid' || String(ch.status) === 'succeeded') {
+          results.push({ chargeId, skipped: true, reason: 'already_paid' });
+          continue;
+        }
+        if (!Number.isFinite(amountAgorot) || amountAgorot <= 0) {
+          results.push({ chargeId, skipped: true, reason: 'amount_is_zero' });
+          continue;
+        }
+
+        // ניסיונות חיוב על כל הטוקנים הפעילים
+        let charged = false;
+        let usedProfile: any = null;
+        let providerId: string | null = null;
+        let lastErrMsg = 'charge failed';
+
+        for (const prof of profiles) {
+          const orderId = `ch_${chargeId}_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
+
+          const attempt = await chargeByToken({
+          terminalName: terminal.tok_terminal_name ?? terminal.terminal_name,
+          token: String(prof.token_ref),
+          amountAgorot,
+          description: ch.description ?? 'Monthly charge',
+          expiryMonth: (prof as any).expiry_month,
+          expiryYear:  (prof as any).expiry_year,
+        });
+
+          if (attempt.ok) {
+            charged = true;
+            usedProfile = prof;
+            providerId = attempt.provider_id;
+            break;
+          } else {
+            lastErrMsg = attempt.error || 'charge failed';
+          }
+        }
+
+        if (!charged) {
+          await sb
+            .from('charges')
+            .update({ status: 'failed', updated_at: new Date().toISOString() })
+            .eq('id', chargeId);
+
+          results.push({ ok: false, chargeId, error: lastErrMsg });
+          continue;
+        }
+
+        //להוסיף בקשת חשבונית מטרנזילה שוהם 
+        //שליחה במייל להורה - שוהם 
+        // שוהם - שמירת חשבונית בענן לפי תקיית חווה+ תקיית
+       // הצלחה: עדכון charge
+await sb
+  .from('charges')
+  .update({
+    status: 'paid',
+    provider_id: providerId,
+    profile_id: usedProfile?.id ?? null,
+    updated_at: new Date().toISOString(),
+  })
+  .eq('id', chargeId);
+
+// ✅ 1) INSERT ל-payments
+const amountNis = Number(amountAgorot) / 100;
+const today = new Date().toISOString().slice(0, 10);
+
+const { data: payRow, error: payErr } = await sb
+  .from('payments')
+  .insert({
+    parent_uid: parentUid,
+    amount: amountNis,
+    date: today,
+    method: 'charge',      // או 'monthly' / 'token' איך שמתאים לך
+    invoice_url: null, //שוהם - לאחר יצירת חשבונית להוסיף URL
+    charge_id: chargeId,   // חשוב!
+  })
+  .select('id')
+  .single();
+
+if (payErr) {
+  console.error('[chargeSelectedChargesForParent] payments insert error:', payErr);
+  // אם את רוצה לא להפיל סליקה שכבר הצליחה, אפשר רק ללוג ולהמשיך
+  // אבל עדיף להחזיר שגיאה כדי שתדעי לתקן.
+  throw new Error(payErr.message);
+}
+
+const paymentId = payRow.id as string;
+
+// ✅ 2) יצירת PDF + העלאה + עדכון invoice_url
+await generateAndAttachReceiptUrlOnly({
+  sb,
+  tenantSchema,
+  paymentId,
+  amountAgorot,
+  tx: {
+    transaction_id: providerId,
+    credit_card_last_4_digits: usedProfile?.last4,
+    card_type_name: usedProfile?.brand,
+  },
+});
+}
+
+      res.json({ ok: true, results });
+    } catch (e: any) {
+      console.error('[chargeSelectedChargesForParent] error:', e);
+      res.status(500).json({ ok: false, error: e?.message ?? 'internal error' });
+    }
+  },
+);
+
 
 
 
@@ -753,15 +1057,6 @@ export const recordOneTimePayment = onRequest(
         res.status(400).json({ ok: false, error: 'missing amountAgorot/tx' });
         return;
       }
-
-      console.log('[recordOneTimePayment] body =', {
-        parentUid,
-        tenantSchema,
-        amountAgorot,
-        hasTx: !!tx,
-        email,
-        fullName,
-      });
 
       const sb = getSupabaseForTenant(tenantSchema);
 
@@ -901,11 +1196,6 @@ async function generateAndSendReceipt(args: {
       },
     ],
   });
-
-  console.log('[generateAndSendReceipt] receipt sent & url saved', {
-    paymentId,
-    url,
-  });
 }
 
 export const savePaymentMethod = onRequest(
@@ -1003,3 +1293,25 @@ function normalizeExpiryMonth(m: any): number | null {
   if (n < 1 || n > 12) return null;
   return n;
 }
+function toTranzilaExpireYearYY(y: any): number | null {
+  if (y === null || y === undefined || y === '') return null;
+  const n = Number(y);
+  if (!Number.isFinite(n)) return null;
+
+  // אם שמור YYYY (2029) -> YY (29)
+  if (n >= 1000) return n % 100;
+
+  // אם כבר YY
+  if (n >= 0 && n <= 99) return n;
+
+  return null;
+}
+
+function toTranzilaExpireMonth(m: any): number | null {
+  if (m === null || m === undefined || m === '') return null;
+  const n = Number(m);
+  if (!Number.isFinite(n)) return null;
+  if (n < 1 || n > 12) return null;
+  return n;
+}
+
