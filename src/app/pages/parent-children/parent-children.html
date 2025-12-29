@@ -84,7 +84,7 @@
             </button>
 
           <button
-  *ngIf="!editing[childId(c)]"
+  *ngIf="!editing[childId(c)] && !isPendingDelete(c?.status)"
   class="icon-btn danger"
   type="button"
   (click)="confirmDeleteChild(c)"

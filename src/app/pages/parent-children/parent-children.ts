@@ -465,8 +465,10 @@ const ids = this.children
      Delete / Leave (logical)
   ========================= */
   async confirmDeleteChild(child: any) {
-      console.log('🔴 confirmDeleteChild clicked', child);
-
+     if (this.isPendingDelete(child?.status)) {
+    this.showInfo('כבר נשלחה בקשת מחיקה עבור ילד זה וממתינה לאישור המזכירות.');
+    return;
+  }
     const id = this.childId(child);
     if (!id) return;
 
@@ -478,7 +480,6 @@ const ids = this.children
     this.pendingDeleteChildName = `${child.first_name || ''} ${child.last_name || ''}`.trim();
     this.pendingDeleteLessonsCount = null;
     this.showDeleteConfirm = true;  // << כבר פותח את החלונית
-  console.log('🔴 showDeleteConfirm set to', this.showDeleteConfirm);
 
     // ספירת שיעורים עתידיים בילד הזה (לא מבוטלים)
     const { data, error } = await dbc
