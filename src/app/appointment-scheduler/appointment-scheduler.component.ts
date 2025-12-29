@@ -375,75 +375,7 @@ private async loadPaymentPlans(): Promise<void> {
 }
 
 
-// async openHolesForCandidate(c: MakeupCandidate): Promise<void> {
-//   if (!this.selectedChildId) {
-//     this.candidateSlotsError = 'יש לבחור ילד';
-//     return;
-//   }
 
-//   this.selectedMakeupCandidate = c;
-//   this.candidateSlots = [];
-//   this.candidateSlotsError = null;
-
-//   // קביעה איזה מדריך לשלוח:
-//   let instructorParam: string | null = null;
-
-//   if (this.selectedInstructorId) {
-//     if (this.selectedInstructorId === 'any') {
-//       instructorParam = null; // כל המדריכים המתאימים
-//     } else {
-//       instructorParam = this.selectedInstructorId; // מדריך ספציפי
-//     }
-//   } else if (c.instructor_id) {
-//     instructorParam = c.instructor_id; // ברירת מחדל: המדריך של השיעור המקורי
-//   }
-
-//   this.loadingCandidateSlots = true;
-//     try {
-//     const { data, error } = await dbTenant().rpc('find_makeup_slots_for_lesson', {
-//       p_child_id: this.selectedChildId,
-//       p_lesson_id: c.lesson_id,
-//       p_occur_date: c.occur_date,
-//       p_instructor_id: instructorParam
-//     });
-
-//     if (error) {
-//       console.error('find_makeup_slots_for_lesson error', error);
-//       this.candidateSlotsError = 'שגיאה בחיפוש חורים להשלמה לשיעור זה';
-//       return;
-//     }
-
-//     const rawSlots = (data ?? []) as MakeupSlot[];
-
-//     // מייצרים שיעורים של שעה מתוך כל חור
-//     const expanded: MakeupSlot[] = [];
-
-//     for (const hole of rawSlots) {
-//       const oneHourSlots = this.generateLessonSlots(hole.start_time, hole.end_time);
-
-//       for (const s of oneHourSlots) {
-//         expanded.push({
-//           ...hole,
-//           start_time: s.from + ':00', // "08:00:00"
-//           end_time:   s.to   + ':00', // "09:00:00"
-//         });
-//       }
-//     }
-
-//     // חיתוך לפי הגדרת החווה displayed_makeup_lessons_count
-//     let finalSlots = expanded;
-
-//     if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
-//       finalSlots = expanded.slice(0, this.displayedMakeupLessonsCount);
-//     }
-
-//     this.candidateSlots = finalSlots;
-
-//   } finally {
-//     this.loadingCandidateSlots = false;
-//   }
-
-// }
 async openHolesForCandidate(c: MakeupCandidate): Promise<void> {
   if (!this.selectedChildId) {
     this.candidateSlotsError = 'יש לבחור ילד';
@@ -2228,6 +2160,34 @@ onUnlimitedSeriesToggle(): void {
   ) {
     this.searchRecurringSlots();
   }
+}
+private isSameLocalDate(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate();
+}
+
+/**
+ * dateStr: 'YYYY-MM-DD'
+ * startTime: 'HH:mm' או 'HH:mm:ss'
+ * מחזיר true אם זה "היום" והשעה כבר עברה/שווה לעכשיו
+ */
+isPastSeriesSlot(dateStr: string, startTime: string): boolean {
+  if (!dateStr || !startTime) return false;
+
+  const now = new Date();
+
+  // בונים תאריך לוקאלי (לא UTC)
+  const [yy, mm, dd] = dateStr.split('-').map(Number);
+  const [hh, mi] = startTime.slice(0, 5).split(':').map(Number);
+
+  const slotStart = new Date(yy, mm - 1, dd, hh, mi, 0, 0);
+
+  // אם זה לא היום — לא חוסמים
+  if (!this.isSameLocalDate(slotStart, now)) return false;
+
+  // אם זה היום — חוסמים כל מה ש<= עכשיו
+  return slotStart.getTime() <= now.getTime();
 }
 
 
