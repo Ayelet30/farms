@@ -243,6 +243,14 @@ const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמ�
   }
 
   const model = this.editables[id];
+const firstErr = this.validateChildName(model.first_name, 'שם פרטי');
+const lastErr  = this.validateChildName(model.last_name, 'שם משפחה');
+
+if (firstErr || lastErr) {
+  // אפשר הודעה בכרטיס או באנר כללי
+  this.showCardMessage(id, firstErr ?? lastErr ?? 'שגיאה בטופס');
+  return;
+}
 
   const { error } = await dbTenant()
     .from('children')
@@ -465,8 +473,10 @@ const ids = this.children
      Delete / Leave (logical)
   ========================= */
   async confirmDeleteChild(child: any) {
-      console.log('🔴 confirmDeleteChild clicked', child);
-
+     if (this.isPendingDelete(child?.status)) {
+    this.showInfo('כבר נשלחה בקשת מחיקה עבור ילד זה וממתינה לאישור המזכירות.');
+    return;
+  }
     const id = this.childId(child);
     if (!id) return;
 
@@ -478,7 +488,6 @@ const ids = this.children
     this.pendingDeleteChildName = `${child.first_name || ''} ${child.last_name || ''}`.trim();
     this.pendingDeleteLessonsCount = null;
     this.showDeleteConfirm = true;  // << כבר פותח את החלונית
-  console.log('🔴 showDeleteConfirm set to', this.showDeleteConfirm);
 
     // ספירת שיעורים עתידיים בילד הזה (לא מבוטלים)
     const { data, error } = await dbc
@@ -791,5 +800,14 @@ public canOpenCardByStatus = (st?: string | null): boolean =>
 // מותר להזמין תור? (Active או Pending Deletion Approval)
 public canBookByStatus = (st?: string | null): boolean =>
   st === 'Active' || st === 'Pending Deletion Approval';
+private validateChildName(value: string, label: string): string | null {
+  const v = (value ?? '').trim();
+
+  if (!v) return `${label} הוא שדה חובה`;
+  if (v.length > 15) return `${label} יכול להכיל עד 15 תווים`;
+  if (/\d/.test(v)) return `${label} לא יכול להכיל מספרים`;
+
+  return null;
+}
 
 }
