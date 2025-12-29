@@ -105,7 +105,6 @@ async function loadDefaultBillingTerminal(args: {
     .limit(1)
     .maybeSingle();
 
-    console.log('!!!!!!!!!![loadDefaultBillingTerminal] terminal data:', data);
   if (error) throw new Error(`billing_terminals query failed: ${error.message}`);
   if (!data) throw new Error('No active billing terminal configured');
 
@@ -284,142 +283,143 @@ export const createHostedPaymentUrl = onRequest(
 // ===================================================================
 // Charge by token (NEW endpoint): /v1/transaction/credit_card/create
 // ===================================================================
+function buildTranzilaAuthV2() {
+  const appKey = envOrSecret(TRANZILA_APP_KEY_S, 'TRANZILA_APP_KEY');
+  const secret = envOrSecret(TRANZILA_SECRET_S, 'TRANZILA_SECRET'); // זה ה-"secret" בדוגמה שלהם
+  if (!appKey || !secret) throw new Error('Missing Tranzila API keys (APP_KEY/SECRET)');
+
+  // לפי הדוגמה: timestamp בשניות
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+
+  // nonce קבוע 40 תווים. אפשר גם לשמור קבוע בקונפיג,
+  // אבל לרוב עובד גם אקראי כל בקשה כל עוד 40 תווים:
+  const nonce = crypto.randomBytes(20).toString('hex'); // 40 chars
+
+  // CryptoJS.HmacSHA256(app_key, secret + timestamp + nonce).toString(Hex)
+  const key = `${secret}${timestamp}${nonce}`;
+  const accessToken = crypto
+    .createHmac('sha256', key)     // key = secret+timestamp+nonce
+    .update(appKey)               // message = app_key
+    .digest('hex');               // hex!
+
+  return { appKey, timestamp, nonce, accessToken };
+}
+type TranzilaApiResponse = {
+  success?: boolean;
+  status?: string;
+  response_code?: string;
+  error_code?: number | string;
+  message?: string;
+  error?: string;
+  error_message?: string;
+
+  transaction_id?: string | number;
+  confirmation_code?: string | number;
+  index?: string | number;
+};
+
+function isObj(x: unknown): x is Record<string, any> {
+  return !!x && typeof x === 'object';
+}
+
+
 async function chargeByToken(args: {
-  terminalName: string;     // tok_terminal_name
-  terminalPassword: string; // secret value
+  terminalName: string;
   token: string;
   amountAgorot: number;
-  orderId: string;          // unique per transaction (also good for DCdisable)
   description?: string | null;
-}): Promise<{
-  ok: boolean;
-  provider_id: string | null;
-  raw: any;
-  error?: string;
-}> {
-  const { terminalName, terminalPassword, token, amountAgorot, orderId, description } = args;
+  expiryMonth?: number | null;
+  expiryYear?: number | null;
+}): Promise<{ ok: boolean; provider_id: string | null; raw: any; error?: string; }> {
+
+  const { terminalName, token, amountAgorot, description } = args;
+
+  const expMonth = toTranzilaExpireMonth(args.expiryMonth);
+  const expYearYY = toTranzilaExpireYearYY(args.expiryYear);
+
+  // ✅ אם טרנזילה דורשים תוקף (לפי הדוגמה שלהם) – לא להמשיך בלי זה
+  if (!expMonth || expYearYY === null) {
+    return {
+      ok: false,
+      provider_id: null,
+      raw: { local_error: 'missing_expiry' },
+      error: 'Missing expire_month/expire_year for token charge (Tranzila schema requires it)',
+    };
+  }
 
   const amountNis = Number(amountAgorot) / 100;
   const sum = Number.isFinite(amountNis) ? Number(amountNis.toFixed(2)) : 0;
 
-  // מניעת כפילויות (DCdisable) - ערך ייחודי
-  const dcdisableValue = orderId;
-
   const url = 'https://api.tranzila.com/v1/transaction/credit_card/create';
 
-  // ⚠️ שימי לב: לפי מה שכתבת מטרנזילה - המסוף הטוקנים לא דורש cvv / ת"ז.
-  // אנחנו שולחים token + items.
-  const body = {
-  terminal_name: terminalName,
-  txn_currency_code: 'ILS',
-  txn_type: 'debit',
+  const body: any = {
+    terminal_name: terminalName,
+    txn_currency_code: 'ILS',
+    txn_type: 'debit',
+    payment_plan: 1,
 
-  // טוקן נכנס ב-card_number לפי הדוגמה שלהם
-  card_number: token,
+    card_number: String(token),
 
-  payment_plan: 1,
+    // ✅ חובה בסכימה שלהם
+    expire_month: expMonth,
+    expire_year: expYearYY,
 
-  user_defined_fields: [
-    { name: 'DCdisable', value: dcdisableValue },
-    { name: 'orderId', value: orderId },
-  ],
+    items: [
+      {
+        code: '1',
+        name: description ? String(description).slice(0, 60) : '',
+        unit_price: sum,
+        type: 'I',
+        units_number: 1,
+        unit_type: 1,
+        price_type: 'G',
+        currency_code: 'ILS',
+      },
+    ],
+  };
 
-  items: [
-    {
-      code: '1',
-      name: description ? String(description).slice(0, 60) : '',
-      unit_price: sum,
-      type: 'I',
-      units_number: 1,
-      unit_type: 1,
-      price_type: 'G',
-      currency_code: 'ILS',
-    },
-  ],
-
-  response_language: 'english',
-};
-
-
-  // חתימה (כמו שהיה לך) - אם החשבון שלך מוגדר לעבוד עם זה
-  const auth = buildTranzilaAuth();
+  const auth = buildTranzilaAuthV2();
 
   const headers: Record<string, string> = {
-  'Content-Type': 'application/json',
+    'Content-Type': 'application/json',
+    'X-tranzila-api-app-key': auth.appKey,
+    'X-tranzila-api-request-time': auth.timestamp,
+    'X-tranzila-api-nonce': auth.nonce,
+    'X-tranzila-api-access-token': auth.accessToken,
+  };
 
-  'X-tranzila-api-app-key': auth.appKey,
-  'X-tranzila-api-request-time': auth.requestTime,
-  'X-tranzila-api-nonce': auth.nonce,
-  'X-tranzila-api-access-token': auth.accessToken,
-};
+  const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
 
+  const ct = resp.headers.get('content-type') || '';
+  const raw = ct.includes('application/json') ? await resp.json() : await resp.text();
 
-  let json: any = null;
-  let text: string | null = null;
+ const json = isObj(raw) ? (raw as any) : null;
+const tr = isObj(json?.transaction_result) ? (json!.transaction_result as any) : null;
 
-  try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    });
+// ✅ קביעת הצלחה לפי המבנה האמיתי שחוזר מטרנזילה
+const ok =
+  (json?.error_code === 0 && String(json?.message).toLowerCase() === 'success') ||
+  (tr?.processor_response_code === '000') ||
+  (Number(tr?.transaction_resource) === 0);
 
-    const ct = resp.headers.get('content-type') || '';
-    if (ct.includes('application/json')) {
-      json = await resp.json();
-    } else {
-      text = await resp.text();
-    }
+// ✅ מזהה עסקה
+const providerId =
+  (tr?.transaction_id ?? tr?.ConfirmationCode ?? tr?.auth_number ?? null) != null
+    ? String(tr?.transaction_id ?? tr?.ConfirmationCode ?? tr?.auth_number)
+    : null;
 
-    console.log('[chargeByToken] http', {
-      status: resp.status,
-      ok: resp.ok,
-      bodyPreview: text?.slice(0, 200) || JSON.stringify(json).slice(0, 200),
-      tokenLast4: token.slice(-4),
-      sum,
-    });
+if (ok) return { ok: true, provider_id: providerId, raw };
 
+// אם לא ok — להוציא הודעת שגיאה הגיונית
+const errMsg =
+  tr?.processor_response_code
+    ? `processor_response_code=${tr.processor_response_code}`
+    : (json?.error ?? json?.error_message ?? json?.message ?? 'charge failed');
 
-    // הצלחה: אצלם לרוב success=true / Response=000 / או status
-    const ok =
-      !!json?.success ||
-      json?.Response === '000' ||
-      json?.response_code === '000' ||
-      json?.status === 'approved';
-
-    const providerId =
-      json?.transaction_id ??
-      json?.transaction_response?.transaction_id ??
-      json?.confirmation_code ??
-      json?.index ??
-      null;
-      console.log('??????[chargeByToken] parsed', {
-        ok,
-        providerId,
-        json,
-        text,
-      }); 
-
-    if (ok) return { ok: true, provider_id: providerId, raw: json ?? text };
-
-    const errMsg =
-      json?.error ||
-      json?.message ||
-      json?.transaction_response?.error ||
-      (typeof text === 'string' ? text.slice(0, 300) : 'charge failed');
-      console.log('??????[chargeByToken] failed', {
-        ok,
-        providerId,
-        json,
-        text,
-      }); 
-
-
-    return { ok: false, provider_id: providerId, raw: json ?? text, error: errMsg };
-  } catch (e: any) {
-    return { ok: false, provider_id: null, raw: null, error: e?.message ?? 'fetch failed' };
-  }
+return { ok: false, provider_id: providerId, raw, error: errMsg };
 }
+
+
 
 export const savePaymentProfileFromTx = onRequest(
   { invoker: 'public', secrets: [SUPABASE_URL_S, SUPABASE_KEY_S] },
@@ -527,10 +527,6 @@ export const tranzilaHandshakeHttp = onRequest(
         process.env.TRANZILA_TERMINAL_NAME;
       const password = envOrSecret(TRANZILA_PW_S, 'TRANZILA_PW');
 
-      console.log('[tranzilaHandshakeHttp] supplier=', supplier);
-      console.log('[tranzilaHandshakeHttp] password=', password);
-
-
       if (!supplier || !password) {
         res
           .status(500)
@@ -546,17 +542,9 @@ export const tranzilaHandshakeHttp = onRequest(
       url.searchParams.set('sum', sum);
       url.searchParams.set('TranzilaPW', password);
 
-      console.log('[tranzilaHandshakeHttp] calling', url.toString());
 
       const resp = await fetch(url.toString(), { method: 'GET' });
       const text = await resp.text();
-
-      console.log(
-        '[tranzilaHandshakeHttp] status =',
-        resp.status,
-        'body =',
-        text,
-      );
 
       // התשובה מגיעה כ-query string, למשל:
       // "thtk=XXXX&Response=000&..."
@@ -690,13 +678,6 @@ async function chargeViaTranzilaToken(args: {
     const resp = await fetch(url, { method: 'POST', body });
     text = await resp.text();
 
-    console.log('[chargeViaTranzilaToken] http', {
-      status: resp.status,
-      ok: resp.ok,
-      bodyPreview: text.slice(0, 200),
-      tokenLast4: token.slice(-4),
-      sum,
-    });
   } catch (e: any) {
     console.error('[chargeViaTranzilaToken] fetch failed', e);
     return { ok: false, provider_id: null, raw: {}, error: e?.message ?? 'fetch failed' };
@@ -711,14 +692,6 @@ async function chargeViaTranzilaToken(args: {
 
   const ok = kv['Response'] === '000';
   const providerId = kv['index'] ?? kv['ConfirmationCode'] ?? kv['ConfNum'] ?? null;
-
-  console.log('[chargeViaTranzilaToken] parsed', {
-    Response: kv['Response'],
-    Error: kv['Error'],
-    err: kv['err'],
-    message: kv['message'],
-    providerId,
-  });
 
   return ok
     ? { ok: true, provider_id: providerId, raw: kv }
@@ -879,12 +852,10 @@ export const chargeSelectedChargesForParent = onRequest(
       }
 
       const sb = getSupabaseForTenant(tenantSchema);
-      console.log('!!!!!!!!!![chargeSelectedChargesForParent] tenantSchema:', tenantSchema);
+
 
       // A) טוענים מסוף ברירת מחדל מהסכמה של החווה (זה מה שחסר אצלך עכשיו)
       const terminal = await loadDefaultBillingTerminal({ sbTenant: sb, provider: 'tranzila', mode: 'prod' });
-
-      console.log('!!!!!!!!!![chargeSelectedChargesForParent] using terminal:', terminal.id);
 
       if (!terminal.tok_terminal_name) {
         res.status(500).json({ ok: false, error: 'tok_terminal_name not configured in billing_terminals' });
@@ -892,14 +863,14 @@ export const chargeSelectedChargesForParent = onRequest(
       }
 
       const tokenTerminalPassword = resolveTranzilaSecretByKeyName(terminal.secret_key_charge_token);
-      console.log('!!!!!!!!!![chargeSelectedChargesForParent] resolved token terminal password', tokenTerminalPassword);
-
+    
       // B) טוענים כרטיסים פעילים של ההורה + החיובים
 
       // 1) כרטיסים פעילים (default ראשון)
       const { data: profiles, error: pErr } = await sb
         .from('payment_profiles')
-        .select('id, token_ref, last4, brand, is_default, created_at')
+        .select('id, token_ref, last4, brand, is_default, created_at, expiry_month, expiry_year')
+
         .eq('parent_uid', parentUid)
         .eq('active', true)
         .order('is_default', { ascending: false })
@@ -961,15 +932,14 @@ export const chargeSelectedChargesForParent = onRequest(
         for (const prof of profiles) {
           const orderId = `ch_${chargeId}_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
 
-          console.log('@@@@@@@@@@@@@', terminal.tok_terminal_name, tokenTerminalPassword, prof.token_ref, amountAgorot, orderId);
           const attempt = await chargeByToken({
-            terminalName: terminal.tok_terminal_name,
-            terminalPassword: tokenTerminalPassword,
-            token: String(prof.token_ref),
-            amountAgorot,
-            orderId,
-            description: ch.description ?? 'Monthly charge',
-          });
+          terminalName: terminal.tok_terminal_name ?? terminal.terminal_name,
+          token: String(prof.token_ref),
+          amountAgorot,
+          description: ch.description ?? 'Monthly charge',
+          expiryMonth: (prof as any).expiry_month,
+          expiryYear:  (prof as any).expiry_year,
+        });
 
           if (attempt.ok) {
             charged = true;
@@ -1055,15 +1025,6 @@ export const recordOneTimePayment = onRequest(
         res.status(400).json({ ok: false, error: 'missing amountAgorot/tx' });
         return;
       }
-
-      console.log('[recordOneTimePayment] body =', {
-        parentUid,
-        tenantSchema,
-        amountAgorot,
-        hasTx: !!tx,
-        email,
-        fullName,
-      });
 
       const sb = getSupabaseForTenant(tenantSchema);
 
@@ -1203,11 +1164,6 @@ async function generateAndSendReceipt(args: {
       },
     ],
   });
-
-  console.log('[generateAndSendReceipt] receipt sent & url saved', {
-    paymentId,
-    url,
-  });
 }
 
 export const savePaymentMethod = onRequest(
@@ -1305,3 +1261,25 @@ function normalizeExpiryMonth(m: any): number | null {
   if (n < 1 || n > 12) return null;
   return n;
 }
+function toTranzilaExpireYearYY(y: any): number | null {
+  if (y === null || y === undefined || y === '') return null;
+  const n = Number(y);
+  if (!Number.isFinite(n)) return null;
+
+  // אם שמור YYYY (2029) -> YY (29)
+  if (n >= 1000) return n % 100;
+
+  // אם כבר YY
+  if (n >= 0 && n <= 99) return n;
+
+  return null;
+}
+
+function toTranzilaExpireMonth(m: any): number | null {
+  if (m === null || m === undefined || m === '') return null;
+  const n = Number(m);
+  if (!Number.isFinite(n)) return null;
+  if (n < 1 || n > 12) return null;
+  return n;
+}
+
