@@ -64,6 +64,8 @@ export class SecretaryParentBillingComponent implements OnInit {
   creditRelatedChargeId = signal<string | null>(null);
 
   detailsCredits = signal<any[]>([]);
+  private thtk: string | null = null;
+
 
 
   constructor(private payments: PaymentsService) {}
@@ -136,6 +138,8 @@ export class SecretaryParentBillingComponent implements OnInit {
   }
 
   async loadCharges() {
+    const { thtk } = await this.tranzila.getHandshakeToken();
+      this.thtk = thtk;
     try {
       this.loading.set(true);
       this.error.set(null);
@@ -206,6 +210,7 @@ export class SecretaryParentBillingComponent implements OnInit {
   // === חיוב חיובים נבחרים ===
 
  async chargeSelected() {
+  console.log("!!!!!!!!!!!");
   if (!this.anySelected()) return;
 
   const parentUid = this.selectedParentUid();
@@ -222,8 +227,8 @@ export class SecretaryParentBillingComponent implements OnInit {
 
      const farm = getCurrentFarmMetaSync();
     const schema = farm?.schema_name ?? undefined;
-
-    await this.tranzila.chargeSelectedParentCharges({
+    console.log('Charging parent charges', { parentUid, ids, schema });
+    await this.tranzila.chargeSelectedChargesForParent({
       tenantSchema: schema?? farm?.schema_name ?? 'public',
       parentUid,
       chargeIds: ids,
