@@ -627,32 +627,55 @@ public async cancelDeletionRequest(child: any) {
 
   this.cancelDeletionRequestInFlight[id] = true;
 
-  const { error } = await dbTenant()
+  // 1) מחזירים את הילד ל-Active
+  const { data: updatedChild, error: childErr } = await dbTenant()
     .from('children')
     .update({ status: 'Active' })
     .eq('child_uuid', id)
     .select('status')
     .single();
 
-  this.cancelDeletionRequestInFlight[id] = false;
-
-  if (error) {
+  if (childErr) {
+    this.cancelDeletionRequestInFlight[id] = false;
     this.showCardMessage(id, 'שגיאה בביטול הבקשה. נסי שוב.');
     return;
   }
 
-  // עדכון לוקאלי במערך הילדים
+  // 2) מסמנים את בקשת המזכירות כ-בוטלה ע"י המבקש
+  // חשוב: child_id הוא UUID בטבלה, אז כאן חייב להיות UUID אמיתי (child_uuid)
+  const { error: reqErr } = await dbTenant()
+    .from('secretarial_requests')
+    .update({
+      status: 'CANCELLED_BY_REQUESTER',
+      decided_at: new Date().toISOString(),
+      decision_note: 'בוטל על ידי המבקש'
+    })
+    .eq('child_id', id)
+    .eq('request_type', 'DELETE_CHILD')           // ⬅️ תעדכני לערך האמיתי אצלך
+    .in('status', ['PENDING'])     // ⬅️ תעדכני לסטטוסים הפתוחים אצלך
+    .is('decided_at', null);                      // כדי לא לדרוס החלטות קיימות
+
+  this.cancelDeletionRequestInFlight[id] = false;
+
+  if (reqErr) {
+    // הילד כבר חזר ל-Active, אז זו הודעת אזהרה נפרדת
+    this.showCardMessage(id, 'הבקשה בוטלה לילד, אבל עדכון סטטוס הבקשה למזכירות נכשל.');
+    return;
+  }
+
+  // 3) עדכון לוקאלי
   const idx = this.children.findIndex(c => this.childId(c) === id);
   if (idx !== -1) {
     this.children = [
       ...this.children.slice(0, idx),
-      { ...this.children[idx], status: 'Active' } as any,
+      { ...this.children[idx], status: updatedChild.status } as any,
       ...this.children.slice(idx + 1)
     ];
   }
 
   this.showCardMessage(id, 'בקשת המחיקה בוטלה');
 }
+
   /* =========================
      Helpers (formatting & UX)
   ========================= */
