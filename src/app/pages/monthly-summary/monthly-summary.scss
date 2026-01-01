@@ -252,6 +252,27 @@
       stroke-width: 1;
     }
 
+    /* ✅ תוספת – קווים ונקודות לפרטי / קבוצתי */
+    .line-priv {
+      @extend .line;
+      stroke: #7c8c60; // ירקרק
+    }
+
+    .line-group {
+      @extend .line;
+      stroke: #c89a3d; // זהב-צהוב
+    }
+
+    .dot-priv {
+      @extend .dot;
+      fill: #7c8c60;
+    }
+
+    .dot-group {
+      @extend .dot;
+      fill: #c89a3d;
+    }
+
     .x-label {
       font-size: 11px;
       fill: #6f765c;
@@ -454,6 +475,10 @@
 
       tr.mat-mdc-row:hover td {
         background: #f6f1e7;
+      }
+            // שורה שהיא המשך של אותו שיעור – בלי קו מפריד מעל
+      tr.same-lesson-row td {
+        border-top: none !important;
       }
 
       /* תגיות סטטוס */
