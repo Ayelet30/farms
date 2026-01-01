@@ -264,7 +264,7 @@
             class="dot dot-group"
             [attr.cx]="getPointX(i, privVsGroupCharts().group.length)"
             [attr.cy]="getPointYWithMax(
-              privVsGroupCharts().group[i]?.value || 0,
+              privVsGroupCharts().group[i]!.value || 0,
               maxPrivVsGroupValue()
             )"
             r="3.5"
