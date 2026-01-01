@@ -220,7 +220,7 @@ openSpecialDays(): void {
 
   private async loadFarmDaysOff(): Promise<void> {
     const { data, error } = await this.supabase
-      .from('farm_days_off9')
+      .from('farm_days_off')
       .select('*')
       .eq('is_active', true)
       .order('start_date', { ascending: false });
