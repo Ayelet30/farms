@@ -135,21 +135,22 @@
       </div>
     </mat-card>
 
-    <mat-card
-      class="kpi blue clickable"
-      [class.selected]="selectedKpi === 'income'"
-      (click)="onKpiClick('income')"
-    >
-      <mat-icon>attach_money</mat-icon>
-      <div class="value">₪{{ kpis().income }}</div>
-      <div class="label">
-        {{
-          mode() === 'month'
-            ? 'הכנסה חודשית (משוערת)'
-            : 'הכנסה שנתית (משוערת)'
-        }}
-      </div>
-    </mat-card>
+<mat-card
+  class="kpi blue clickable"
+  [class.selected]="selectedKpi === 'income'"
+  (click)="onKpiClick('income')"
+>
+  <mat-icon>attach_money</mat-icon>
+  <div class="value">₪{{ kpis().income }}</div>
+  <div class="label">
+    {{
+      mode() === 'month'
+        ? 'הכנסה בחודש (עד עכשיו)'
+        : 'הכנסה בשנה (עד עכשיו)'
+    }}
+  </div>
+</mat-card>
+
   </section>
 
   <!-- טוגל תצוגה: גרפים / דוחות -->
@@ -183,21 +184,29 @@
   </section>
 
   <!-- תצוגת גרפים -->
-  <section class="charts-section" *ngIf="!loading && viewMode === 'charts'">
-    <div class="charts-header">
-      <mat-icon>insights</mat-icon>
-      <h2>
-        {{ mode() === 'month' ? 'גרף חודשי – ' : 'גרף שנתי – ' }}
-        {{ kpiLabel(selectedKpi) }}
-      </h2>
-    </div>
+<section class="charts-section" *ngIf="!loading && viewMode === 'charts'">
+  <div class="charts-header">
+    <mat-icon>insights</mat-icon>
+    <h2>
+      {{ mode() === 'month' ? 'גרף חודשי – ' : 'גרף שנתי – ' }}
+      {{ kpiLabel(selectedKpi) }}
+    </h2>
+  </div>
 
-    <div class="charts-subtitle">
-      הגרף מציג את התפתחות המדד הנבחר כדי לאפשר לחווה לזהות
-      מגמות של צמיחה או נסיגה.
-    </div>
+  <div class="charts-subtitle">
+    הגרף מציג את התפתחות המדד הנבחר כדי לאפשר לחווה לזהות מגמות של צמיחה או נסיגה.
+  </div>
 
-    <div class="simple-chart" *ngIf="selectedChart().length; else noChartData">
+  <!-- 🔹 מקרה מיוחד: פרטי / קבוצתי – שני קווים -->
+  <ng-container *ngIf="selectedKpi === 'priv_vs_group'; else singleSeriesBlock">
+    <div
+      class="simple-chart"
+      *ngIf="
+        privVsGroupCharts().priv.length ||
+        privVsGroupCharts().group.length;
+        else noChartData
+      "
+    >
       <svg
         class="line-chart"
         viewBox="0 0 600 220"
@@ -207,16 +216,106 @@
         <line class="axis" x1="40" y1="20" x2="40" y2="170"></line>
         <line class="axis" x1="40" y1="170" x2="580" y2="170"></line>
 
-        <!-- תוויות Y (0 ומקסימום) -->
+        <!-- תוויות Y -->
+        <text class="y-label" x="32" y="175">0</text>
+        <text class="y-label" x="32" y="30">
+          {{ maxPrivVsGroupValue() }}
+        </text>
+
+        <!-- קו פרטי -->
+        <polyline
+          class="line line-priv"
+          [attr.points]="
+            buildPolylineFor(
+              privVsGroupCharts().priv,
+              maxPrivVsGroupValue()
+            )
+          "
+        ></polyline>
+
+        <!-- קו קבוצתי -->
+        <polyline
+          class="line line-group"
+          [attr.points]="
+            buildPolylineFor(
+              privVsGroupCharts().group,
+              maxPrivVsGroupValue()
+            )
+          "
+        ></polyline>
+
+        <!-- נקודות + תוויות חודשים -->
+        <g
+          *ngFor="let p of privVsGroupCharts().priv; index as i"
+        >
+          <!-- נקודת פרטי -->
+          <circle
+            class="dot dot-priv"
+            [attr.cx]="getPointX(i, privVsGroupCharts().priv.length)"
+            [attr.cy]="getPointYWithMax(
+              privVsGroupCharts().priv[i].value,
+              maxPrivVsGroupValue()
+            )"
+            r="3.5"
+          ></circle>
+
+          <!-- נקודת קבוצתי -->
+          <circle
+            class="dot dot-group"
+            [attr.cx]="getPointX(i, privVsGroupCharts().group.length)"
+            [attr.cy]="getPointYWithMax(
+              privVsGroupCharts().group[i]?.value || 0,
+              maxPrivVsGroupValue()
+            )"
+            r="3.5"
+          ></circle>
+
+          <!-- תווית חודש -->
+          <text
+            class="x-label"
+            [attr.x]="getPointX(i, privVsGroupCharts().priv.length)"
+            y="190"
+          >
+            {{ p.label }}
+          </text>
+        </g>
+
+        <!-- מקרא קטן -->
+        <g>
+          <circle class="dot dot-priv" cx="520" cy="32" r="3.5"></circle>
+          <text class="x-label" x="510" y="36">פרטי</text>
+
+          <circle class="dot dot-group" cx="470" cy="32" r="3.5"></circle>
+          <text class="x-label" x="460" y="36">קבוצתי</text>
+        </g>
+      </svg>
+    </div>
+  </ng-container>
+
+  <!-- 🔹 ברירת מחדל: KPI רגיל עם קו אחד -->
+  <ng-template #singleSeriesBlock>
+    <div
+      class="simple-chart"
+      *ngIf="selectedChart().length; else noChartData"
+    >
+      <svg
+        class="line-chart"
+        viewBox="0 0 600 220"
+        preserveAspectRatio="none"
+      >
+        <line class="axis" x1="40" y1="20" x2="40" y2="170"></line>
+        <line class="axis" x1="40" y1="170" x2="580" y2="170"></line>
+
         <text class="y-label" x="32" y="175">0</text>
         <text class="y-label" x="32" y="30">
           {{ maxChartValue() }}
         </text>
 
-        <!-- קו הגרף -->
-        <polyline class="line" [attr.points]="buildPolyline()"></polyline>
+        <polyline
+          class="line"
+          [attr.points]="buildPolyline()"
+        ></polyline>
 
-        <!-- נקודות + תוויות חודשים -->
         <g *ngFor="let p of selectedChart(); index as i">
           <circle
             class="dot"
@@ -235,13 +334,15 @@
         </g>
       </svg>
     </div>
+  </ng-template>
 
-    <ng-template #noChartData>
-      <div class="no-chart-data">
-        אין נתונים להצגה עבור המדד הנבחר.
-      </div>
-    </ng-template>
-  </section>
+  <ng-template #noChartData>
+    <div class="no-chart-data">
+      אין נתונים להצגה עבור המדד הנבחר.
+    </div>
+  </ng-template>
+</section>
+
 
   <!-- טבלת פירוט שיעורים – מצב דוחות -->
   <section class="list-section" *ngIf="!loading && viewMode === 'reports'">
@@ -462,10 +563,11 @@
         ]"
       ></tr>
 
-      <tr
+           <tr
         mat-row
         *matRowDef="
           let row;
+          let i = index;
           columns: [
             'date',
             'student',
@@ -477,7 +579,9 @@
             'end'
           ]
         "
+        [ngClass]="{ 'same-lesson-row': isSameLessonAsPrev(i) }"
       ></tr>
+
     </table>
 
     <div class="empty" *ngIf="!filteredLessons().length">
