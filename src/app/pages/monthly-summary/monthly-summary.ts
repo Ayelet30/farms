@@ -949,6 +949,47 @@ export class MonthlySummaryComponent implements OnInit {
 
     return this.isSameLesson(rows[index], rows[index - 1]);
   }
+
+  // מפתח קבוצה: מדריך + תאריך + התחלה + סיום
+private groupKey(l: LessonRow | null | undefined): string {
+  if (!l) return '';
+  return [
+    (l.occur_date || '').trim(),
+    (l.start_time || '').trim(),
+    (l.end_time || '').trim(),
+    (l.instructor_name || '').trim(),
+  ].join('|');
+}
+
+private isSameGroup(a?: LessonRow, b?: LessonRow): boolean {
+  if (!a || !b) return false;
+  return this.groupKey(a) === this.groupKey(b);
+}
+
+// האם זו השורה הראשונה בקבוצה
+isGroupFirst(index: number): boolean {
+  const rows = this.filteredLessons();
+  if (index <= 0) return true;
+  return !this.isSameGroup(rows[index], rows[index - 1]);
+}
+
+// האם זו שורה המשך (לא ראשונה) בקבוצה
+isGroupContinuation(index: number): boolean {
+  const rows = this.filteredLessons();
+  if (index <= 0 || index >= rows.length) return false;
+  return this.isSameGroup(rows[index], rows[index - 1]);
+}
+isGroupLast(index: number): boolean {
+  const rows = this.filteredLessons();
+  if (index < 0 || index >= rows.length - 1) return true;
+  return !this.isSameGroup(rows[index], rows[index + 1]);
+}
+
+isGroupMiddle(index: number): boolean {
+  return !this.isGroupFirst(index) && !this.isGroupLast(index);
+}
+
+
 }
 
  
