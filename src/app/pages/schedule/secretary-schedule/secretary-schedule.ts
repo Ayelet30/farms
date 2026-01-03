@@ -73,6 +73,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
   public cu = inject(CurrentUserService);
   private cdr = inject(ChangeDetectorRef);
+  occurrence: any;
 
   async ngOnInit(): Promise<void> {
     try {
@@ -288,10 +289,26 @@ private async loadLessons(
 
     // 1) השיעורים עצמם (כמו שהיה)
     const { data: occData, error: err1 } = await dbc
-      .from('lessons_occurrences')
-      .select(
-        'lesson_id, child_id, day_of_week, start_time, end_time, lesson_type, status, instructor_id, start_datetime, end_datetime, occur_date'
-      )
+  .from('lessons_occurrences')
+.select(`
+  lesson_id,
+  child_id,
+  day_of_week,
+  start_time,
+  end_time,
+  lesson_type,
+  status,
+  instructor_id,
+  start_datetime,
+  end_datetime,
+  occur_date,
+
+  lesson_occurrence_exceptions (
+    status,
+    is_makeup_allowed
+  )
+`)
+
       .in('child_id', childIds)
       .gte('occur_date', from)
       .lte('occur_date', to)
@@ -339,6 +356,15 @@ private async loadLessons(
     );
 
     this.lessons = (occData ?? []).map((r: any) => {
+      const ex = r.lesson_occurrence_exceptions;
+const finalStatus =
+  ex?.status === 'בוטל'
+    ? 'בוטל'
+    : r.status;
+
+const isMakeupAllowed =
+  ex?.is_makeup_allowed ?? false;
+
       const key = `${r.lesson_id}::${r.occur_date}`;
       const res = resourceByKey.get(key);
 
@@ -358,7 +384,7 @@ private async loadLessons(
         start_datetime: r.start_datetime ?? null,
         end_datetime:   r.end_datetime ?? null,
         occur_date:     r.occur_date ?? null,
-
+  is_makeup_allowed: isMakeupAllowed,
         // 👇 עכשיו באמת מגיע מהנתונים של ה-view
         horse_name: res?.horse_name ?? null,
         arena_name: res?.arena_name ?? null,
@@ -454,6 +480,9 @@ private async loadLessons(
       children: childDisplay,   
       horse_name: lesson.horse_name,
       arena_name: lesson.arena_name,
+        lesson_id: lesson.lesson_id,          // זה ה-UUID של השיעור
+  occur_date: lesson.occur_date,        // YYYY-MM-DD
+  is_makeup_allowed: lesson['is_makeup_allowed'] ?? false, 
     },
   } as ScheduleItem;
 };
@@ -644,8 +673,8 @@ if (this.currentViewType === 'timeGridDay') {
   this.selectedChild = child ? { ...child } : null;
 
   // 🔑 lesson_id – לוקחים מה-meta או מה-id של האירוע
-  let lessonId: string | null =
-    meta.lesson_id ?? null;
+let lessonId: string | null = meta.lesson_id ?? null;
+
 
   if (!lessonId && arg.event.id) {
     lessonId = String(arg.event.id);
@@ -666,6 +695,7 @@ if (this.currentViewType === 'timeGridDay') {
     lesson_type: meta.lesson_type ?? null,
     start: arg.event.start,
     end: arg.event.end,
+    is_makeup_allowed: !!meta.is_makeup_allowed,
   };
 
   console.log(
@@ -759,6 +789,48 @@ if (this.currentViewType === 'timeGridDay') {
     alert('שיבוץ סוסים ומגרשים נכשל: ' + (e?.message ?? e));
   } finally {
     this.autoAssignLoading = false;
+  }
+}
+async onToggleMakeupAllowed(checked: boolean) {
+  try {
+    await ensureTenantContextReady();
+
+    const lessonId = this.occurrence?.lesson_id;
+    const occurDate = this.occurrence?.occur_date;
+
+    if (!lessonId || !occurDate) {
+      console.warn('❌ Missing lesson_id / occur_date', this.occurrence);
+      return;
+    }
+
+    const dbc = dbTenant();
+
+    const { error } = await dbc
+      .schema('bereshit_farm')
+      .from('lesson_occurrence_exceptions')
+      .upsert(
+        {
+          lesson_id: lessonId,
+          occur_date: occurDate,
+          status: 'בוטל',                // חייב לפי CHECK
+          is_makeup_allowed: checked,
+          canceller_role: 'secretary',
+          cancelled_at: new Date().toISOString(),
+        },
+        { onConflict: 'lesson_id,occur_date' }
+      );
+
+    if (error) throw error;
+
+    // ✅ עדכון מיידי ב-UI
+    this.occurrence = {
+      ...this.occurrence,
+      is_makeup_allowed: checked,
+    };
+
+  } catch (e) {
+    console.error('toggle makeup failed', e);
+    alert('שגיאה בעדכון "ניתן להשלמה"');
   }
 }
 
