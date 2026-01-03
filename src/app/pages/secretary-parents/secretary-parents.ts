@@ -17,6 +17,7 @@ import {
 } from './add-parent-dialog/add-parent-dialog.component';
 
 import { CreateUserService } from '../../services/create-user.service';
+import { MailService } from '../../services/mail.service';
 
 type ParentRow = {
   uid: string;
@@ -114,10 +115,12 @@ export class SecretaryParentsComponent implements OnInit {
   ];
 
   constructor(
-    private dialog: MatDialog,
-    private createUserService: CreateUserService,
-    private fb: FormBuilder, // 🌟 form builder לטופס עריכה
-  ) {}
+  private dialog: MatDialog,
+  private createUserService: CreateUserService,
+  private fb: FormBuilder,
+  private mailService: MailService,
+) {}
+
 
   // ================== חיפוש + סינון ==================
 
@@ -590,11 +593,42 @@ export class SecretaryParentsComponent implements OnInit {
         // 8) רענון הטבלה
         await this.loadParents();
 
-        alert('הורה נוצר/שויך בהצלחה');
+        // 9) שליחת מייל לנרשם
+        const tenantSchema = schema_name; // מה-localStorage שהבאת קודם
+        const fullName = `${body.first_name} ${body.last_name}`.trim();
+
+        const isNewUser = !!payload.password; // אם קיבלת tempPassword -> נוצר משתמש חדש
+        const subject = 'ברוכים הבאים לחווה';
+        const html = isNewUser
+          ? `
+            <div dir="rtl">
+              <p>שלום ${fullName},</p>
+              <p>נרשמת בהצלחה לחווה.</p>
+              <p><b>פרטי התחברות:</b></p>
+              <p>אימייל: ${body.email}</p>
+              <p>סיסמה זמנית: <b>${payload.password}</b></p>
+              <p>מומלץ להחליף סיסמה לאחר התחברות.</p>
+            </div>`
+          : `
+            <div dir="rtl">
+              <p>שלום ${fullName},</p>
+              <p>שויכת בהצלחה כהורה לחווה.</p>
+              <p>אפשר להתחבר עם החשבון הקיים שלך.</p>
+            </div>`;
+
+        await this.mailService.sendEmail({
+          tenantSchema,
+          to: body.email,
+          subject,
+          html,
+        });
+
+        alert('הורה נוצר/שויך בהצלחה + נשלח מייל');
       } catch (e: any) {
         console.error(e);
         alert(e?.message ?? 'שגיאה - המערכת לא הצליחה להוסיף הורה');
       }
+
     });
   }
 

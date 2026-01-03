@@ -1,0 +1,288 @@
+.page{
+  min-height: 100vh;
+  background: #fffef7;
+  padding: 24px 12px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.parent-dialog-root{
+  width: 100%;
+  max-width: 760px;
+}
+
+
+/* כותרת + X */
+.parent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.parent-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #262626;
+}
+
+.icon-close {
+  border-radius: 999px;
+  border: 1px solid var(--accent, #7a8b35);
+  background: #ffffff;
+  color: var(--accent, #7a8b35);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.05s ease;
+}
+
+.icon-close:hover {
+  background: #f8f9f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* טופס */
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* גריד כמו בטופס ההזמנה */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+}
+
+/* לייבלים */
+label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-bottom: 3px;
+  color: #444;
+}
+
+/* שדות */
+input,
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 11px;
+  border-radius: 999px;
+  border: 1px solid #d8ddc4;
+  background: #fdfdf5;
+  font-size: 0.95rem;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+textarea {
+  border-radius: 14px;
+  min-height: 70px;
+  resize: vertical;
+}
+
+input:focus,
+textarea:focus {
+  border-color: var(--accent, #7a8b35);
+  box-shadow: 0 0 0 1px rgba(122, 139, 53, 0.2);
+  background: #ffffff;
+}
+
+/* הודעות שגיאה */
+.err {
+  min-height: 16px;        /* ← גובה קבוע כדי שלא יזיז כלום */
+  font-size: 0.78rem;
+  color: #b3261e;
+  margin-top: 2px;
+  line-height: 1.1;
+}
+
+
+.prefs-box {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid #e1e6d5;
+  background: #fbfbf4;
+
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+
+/* הכותרת של הקופסה – שורה מלאה */
+.prefs-box legend {
+  flex: 0 0 100%;
+  padding: 0 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #555;
+}
+
+/* כל לייבל – חצי שורה (2 בשורה) */
+.prefs-box label {
+  flex: 0 0 calc(50% - 12px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  margin-top: 0;
+}
+
+/* במובייל – אחד מתחת לשני */
+@media (max-width: 600px) {
+  .prefs-box label {
+    flex: 0 0 100%;
+  }
+}
+
+/* כפתורים – כמו "מעבר לתשלום" */
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.actions button {
+  border-radius: 999px;
+  padding: 7px 18px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+/* שמירה – כפתור ראשי */
+button.save {
+  background: var(--accent, #7a8b35);
+  color: #ffffff;
+  border-color: var(--accent, #7a8b35);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+button.save:hover:not(:disabled) {
+  background: #6a7a2f;
+}
+
+/* ביטול – לבן עם מסגרת */
+button.cancel {
+  background: #ffffff;
+  color: var(--accent, #7a8b35);
+  border-color: var(--accent, #7a8b35);
+}
+
+button.cancel:hover:not(:disabled) {
+  background: #f7f8ee;
+}
+
+/* disabled */
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* רספונסיביות – בנייד טור אחד */
+@media (max-width: 600px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* חובה: שיהיה position: relative על הצ'קבוקס עצמו */
+.prefs-box input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  
+  width: 18px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid #c1c7aa;
+  background: #fffef7;
+  margin: 0;
+  position: relative;     /* ← חשוב לסימון ה-V */
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+  background-color 0.15s ease,
+  border-color 0.15s ease,
+  box-shadow 0.15s ease;
+}
+
+.prefs-box input[type='checkbox']:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(122, 139, 53, 0.4);
+}
+
+.prefs-box input[type='checkbox']:checked {
+  background: var(--accent, #7a8b35);
+  border-color: var(--accent, #7a8b35);
+}
+
+/* V מדויק וקטן */
+.prefs-box input[type='checkbox']:checked::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 6px;           /* אפשר לשחק בין 5–7 אם צריך */
+  width: 5px;
+  height: 9px;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  transform: rotate(45deg);
+}
+/* שדה הערות בדיאלוג הוספת הורה */
+.parent-dialog-root textarea[formControlName="extra_notes"] {
+  width: 100%;
+  min-height: 80px;      /* גובה התחלתי נוח */
+  max-height: 180px;     /* לא לגדול מעבר לזה */
+  resize: none;          /* לבטל אפשרות גרירה של הפינה */
+  overflow-y: auto;      /* אם יש הרבה טקסט – יופיע סקרול פנימי */
+}
+
+
+.success {
+  background: #f1f6e6;
+  border: 1px solid #d8ddc4;
+  padding: 12px 14px;
+  border-radius: 14px;
+  color: #2a2a2a;
+  line-height: 1.35;
+}
+.errBox {
+  background: #fff3f2;
+  border: 1px solid #f3c1bd;
+  padding: 10px 12px;
+  border-radius: 14px;
+  color: #b3261e;
+}

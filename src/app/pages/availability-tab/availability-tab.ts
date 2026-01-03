@@ -167,7 +167,8 @@ private async loadRidingTypes() {
       id,
       code,
       name,
-      default_duration_min,
+      spacial_duration,
+      min_participants,
       max_participants,
       description,
       active
