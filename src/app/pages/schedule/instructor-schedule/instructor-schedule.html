@@ -15,5 +15,15 @@
 
   </div>
 
-  <!-- שאר הקובץ נשאר אותו דבר -->
+  <!-- 🔴 כאן! כרטסת הילד -->
+  <app-note
+    *ngIf="selectedChild && selectedOccurrence"
+    [child]="selectedChild"
+    [occurrence]="selectedOccurrence"
+    [attendanceStatus]="attendanceStatus"
+    [role]="currentUserRole"
+    (attendanceChange)="attendanceStatus = $event"
+    (close)="onCloseNote()">
+  </app-note>
+
 </div>

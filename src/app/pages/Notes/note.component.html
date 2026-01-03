@@ -162,12 +162,15 @@
                 </span>
               </div>
 
-              <div class="detail-item">
-                <span class="label">שעה</span>
-                <span class="value">
-                  {{ lessonDetails.start_time }} – {{ lessonDetails.end_time }}
-                </span>
-              </div>
+          <div class="detail-item">
+  <span class="label">שעה</span>
+  <span class="value">
+    {{ lessonDetails.start_time?.slice(0,5) }}
+    –
+    {{ lessonDetails.end_time?.slice(0,5) }}
+  </span>
+</div>
+
 
               <div class="detail-item">
                 <span class="label">סוג שיעור</span>
