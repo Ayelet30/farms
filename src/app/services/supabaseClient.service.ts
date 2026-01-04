@@ -362,7 +362,6 @@ export async function getCurrentUserDetails(
   .eq('uid', fbUser.uid);
   
   if (error) throw error;
-  console.log("!!!!!!", rows, error);
 
 
   const list = (rows ?? []) as any[];
@@ -468,7 +467,6 @@ export async function bootstrapSupabaseSession(tenantId?: string, roleInTenant?:
   const url = qs.toString() ? `${LOGIN_BOOTSTRAP_URL}?${qs}` : LOGIN_BOOTSTRAP_URL;
 
   const res = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` } });
-  console.log("@@@@@@@@@@@@", res)
   const raw = await res.text();
   let parsed: any = null; try { parsed = JSON.parse(raw); } catch { }
   if (!res.ok) throw new Error(parsed?.error || `loginBootstrap failed: ${res.status}`);
@@ -711,7 +709,6 @@ export async function ensureTenantContextReady(): Promise<void> {
 
   const stored = localStorage.getItem('selectedTenant');
   if (stored) {
-    console.log("!!!!!!!!!!!!", stored)
     await bootstrapSupabaseSession(stored, currentRoleInTenant ?? undefined);
     return;
   }

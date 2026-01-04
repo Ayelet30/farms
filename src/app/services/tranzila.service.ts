@@ -68,7 +68,6 @@ export class TranzilaService {
 
   async chargeSelectedParentCharges(arg0: { tenantSchema: string; parentUid: string; chargeIds: string[]; secretaryEmail: string; })
   : Promise<CreateHostedUrlResponse> {
-    console.log('chargeSelectedParentCharges method called with:', arg0); 
     const res = await firstValueFrom(
       this.http.post<CreateHostedUrlResponse>(`${this.base}/chargeSelectedChargesForParent`, arg0) 
     );
@@ -80,7 +79,6 @@ export class TranzilaService {
   private readonly base = '/api';
 
   async createHostedUrl(params: CreateHostedUrlParams): Promise<string> {
-    console.log('TranzilaService.createHostedUrl called with:', params);
     const res = await firstValueFrom(
       this.http.post<CreateHostedUrlResponse>(`${this.base}/createHostedPaymentUrl`, params)
     );
@@ -140,7 +138,6 @@ recordOneTimePayment(args: {
   email?: string | null;
   fullName?: string | null;
 }) {
-  console.log('3333333333 TranzilaService.recordOneTimePayment called with:', args);
   return firstValueFrom(
     this.http.post('/api/recordOneTimePayment', args)
   );
