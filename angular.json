@@ -31,6 +31,11 @@
                 "inject": false
               },
               {
+                "input": "src/styles/tokens/tokens-moach_atarim_app.scss",
+                "bundleName": "tokens-moach_atarim_app",
+                "inject": false
+              },
+              {
                 "input": "src/styles/tokens/toranto_farm-tokens.scss",
                 "bundleName": "tokens-toranto_farm",
                 "inject": false
