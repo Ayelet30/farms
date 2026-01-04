@@ -47,6 +47,8 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   @Input() slotMaxTime = '21:00:00';
   @Input() allDaySlot = false;
   @Input() resources: any[] = [];
+  @Input() showToolbar = true;
+
 
   // למעלה, אחרי שאר ה-@Input
 @Input() enableAutoAssign = false;
@@ -178,7 +180,7 @@ if (event.extendedProps['isFarmDayOff']) {
       `,
     };
   }
-
+  const title = event.title || ''; 
   // כרטיסיית שיעור – ילדים + סוג
   const childrenStr =
     event.extendedProps['children'] ||
@@ -211,19 +213,24 @@ if (event.extendedProps['isFarmDayOff']) {
       `
       : '';
 
-  return {
-    html: `
-     <div class="event-box">
+return {
+  html: `
+   <div class="event-box">
 
-
-        <div class="children-line">
-          ${childrenHtml}
-        </div>
-        ${resourcesHtml}
-        ${chip}
+      <div class="title-line">
+        ${title}
       </div>
-    `,
-  };
+
+      <div class="children-line">
+        ${childrenHtml}
+      </div>
+
+      ${resourcesHtml}
+      ${chip}
+    </div>
+  `,
+};
+
 },
 
 

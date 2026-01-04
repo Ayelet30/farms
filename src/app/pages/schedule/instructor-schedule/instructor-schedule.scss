@@ -335,3 +335,12 @@
   background-color: rgba(255, 183, 77, 0.35) !important;
   border: none !important;
 }
+/* חופשת חווה – טקסט */
+.fc .farm-day-off-text,
+.fc .event-box,
+.fc .summary,
+.fc .instructor-header {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

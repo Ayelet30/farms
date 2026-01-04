@@ -18,6 +18,12 @@ export const routes: Routes = [
     component: OneTimePaymentComponent,
   },
 
+ {
+  path: 'register/:farm',
+  loadComponent: () => import('./parent-signup/parent-signup.component').then(m => m.ParentPublicSignupComponent)
+ },
+
+
   { path: 'booking/:type', loadComponent: () => import('./pages/booking/booking.component').then(m => m.BookingComponent) },
 
 
