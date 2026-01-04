@@ -15,6 +15,66 @@ import {
   listAllChargesForSecretary,
   SecretaryChargeRow,
 } from '../../services/supabaseClient.service';
+function writeInvoiceLoadingPage(win: Window) {
+  win.document.open();
+  win.document.write(`
+    <!DOCTYPE html>
+    <html lang="he">
+      <head>
+        <meta charset="UTF-8" />
+        <title>מפיקים חשבונית…</title>
+        <style>
+          body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f6f7f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            direction: rtl;
+          }
+          .box {
+            background: white;
+            padding: 32px 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,.1);
+            text-align: center;
+          }
+          .spinner {
+            width: 48px;
+            height: 48px;
+            border: 5px solid #ddd;
+            border-top-color: #4f6bed;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+          }
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+          h2 {
+            margin: 0 0 8px;
+            font-size: 20px;
+          }
+          p {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="box">
+          <div class="spinner"></div>
+          <h2>מפיקים חשבונית</h2>
+          <p>אנא המתיני מספר שניות…</p>
+        </div>
+      </body>
+    </html>
+  `);
+  win.document.close();
+}
 
 @Component({
   selector: 'app-secretary-payments',
@@ -23,6 +83,7 @@ import {
   templateUrl: './secretary-payments.component.html',
   styleUrls: ['./secretary-payments.component.scss'],
 })
+
 export class SecretaryPaymentsComponent implements OnInit {
   // נתונים
   rows = signal<SecretaryChargeRow[]>([]);
@@ -121,37 +182,12 @@ invoiceLoading = new Set<string>(); // paymentId
   return this.tenantSvc.requireTenant().schema; // למשל: "bereshit_farm"
 }
 
-//   async createOrFetchInvoice(r: any) {
-//     console.log('[UI] invoice button clicked', { paymentId: r?.id });
-
-//  try {
-//     r._invLoading = true;
-
-//     const tenantSchema = await this.getTenantSchemaOrThrow();
-
-
-//     const resp = await fetch(
-//       'https://ensuretranzilainvoiceforpayment-wxi37vbfra-uc.a.run.app',
-//       {
-//         method: 'POST',
-//         headers: { 'Content-Type': 'application/json' },
-// body: JSON.stringify({ tenantSchema, paymentId: r.id, debugOnly: true }),
-//       }
-//     );
-//     const json = await resp.json();
-//     if (!resp.ok || !json.ok) throw new Error(json.error || 'failed');
-
-//     r.invoice_url = json.url;
-//     window.open(json.url, '_blank', 'noopener,noreferrer');
-//   } finally {
-//     r._invLoading = false;
-//   }
-// }
 async createOrFetchInvoice(r: any) {
-  console.log('[UI] invoice button clicked', { paymentId: r?.id });
-
+const win = window.open('about:blank', '_blank');
+  if (win) {
+    writeInvoiceLoadingPage(win); // 👈 מסך טעינה
+  }
   // ✅ לפתוח בלי noopener/noreferrer כדי שתישאר שליטה על הטאב
-  const win = window.open('about:blank', '_blank');
 
   try {
     r._invLoading = true;
