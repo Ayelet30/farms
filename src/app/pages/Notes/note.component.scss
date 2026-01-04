@@ -1331,3 +1331,125 @@ mat-icon {
   color: white;
   border-color: #f44336;
 }
+.early-attendance-hint {
+  margin-top: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #6b6b6b;
+  background: #f5f5f5;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.early-attendance-hint .info-icon {
+  font-size: 18px;
+  opacity: 0.7;
+}
+.makeup-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 12px 14px;
+  margin: 12px 0;
+
+  border-radius: 12px;
+  border: 1px solid #e0e0e0;
+  background: #fafafa;
+
+  transition: background 0.2s ease, border-color 0.2s ease;
+
+  &:has(mat-slide-toggle.mat-checked) {
+    background: #eef7ee;
+    border-color: #9ccc9c;
+  }
+}
+
+.makeup-text {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.makeup-icon {
+  color: #4caf50;
+  font-size: 22px;
+}
+
+.makeup-card .title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #2e2e2e;
+}
+
+.makeup-card .subtitle {
+  font-size: 12px;
+  color: #6f6f6f;
+}
+.makeup-card {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f9f6ef; // קרם עדין
+  border: 1px solid #e6dcc8;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.makeup-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  mat-icon {
+    color: #8a6d3b;
+    font-size: 22px;
+  }
+}
+
+.makeup-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+
+  .title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #3a3a3a;
+  }
+
+  .subtitle {
+    font-size: 12px;
+    color: #7a7a7a;
+  }
+}
+/* מצב ON – ירוק בהיר */
+::ng-deep .mat-slide-toggle.mat-checked .mat-slide-toggle-bar {
+  background-color: #cfe9d6 !important; /* ירוק בהיר */
+}
+
+::ng-deep .mat-slide-toggle.mat-checked .mat-slide-toggle-thumb {
+  background-color: #4caf50 !important; /* ירוק רגוע */
+}
+
+/* מצב OFF – אפור רך */
+::ng-deep .mat-slide-toggle .mat-slide-toggle-bar {
+  background-color: #e0e0e0;
+}
+
+::ng-deep .mat-slide-toggle .mat-slide-toggle-thumb {
+  background-color: #bdbdbd;
+}
+::ng-deep .mat-slide-toggle-thumb {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+::ng-deep .mat-slide-toggle-bar {
+  height: 22px;
+  border-radius: 12px;
+}

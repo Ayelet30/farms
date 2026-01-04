@@ -1,12 +1,9 @@
 // functions/src/index.ts
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
-import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import * as crypto from 'crypto';
 import fetch from 'node-fetch';
-import * as admin from 'firebase-admin';
-import { getStorage } from 'firebase-admin/storage';
 import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
 
@@ -505,7 +502,145 @@ function buildTranzilaAuth() {
   return { appKey, requestTime, nonce, accessToken };
 }
 
+type TranzilaCreateDocResponse = {
+  status_code: number;
+  status_msg: string;
+  enquiry_key?: string;
+  document?: {
+    id?: string;          // document_id
+    number?: string;      // document number
+    retrieval_key?: string;
+  };
+};
+//חדש שהוספתי
+async function tranzilaCreateDocument(args: {
+  terminalName: string;
+  documentDate: string; // yyyy-mm-dd
+  clientName?: string | null;
+  clientEmail?: string | null;
+  totalNis: number;     // 100.25
+  paymentMethod: number; // 1 cc, 4 bank, 10 other...
+  description: string;
+  txnindex?: number | null; // אם יש לך מספר עסקה מספרי
+}): Promise<{ documentId: string; retrievalKey: string; documentNumber?: string | null; raw: any; }> {
 
+  const auth = buildTranzilaAuth();
+
+  const url = 'https://billing5.tranzila.com/api/documents_db/create_document';
+
+  const body: any = {
+    terminal_name: args.terminalName,
+    document_date: args.documentDate,
+    document_type: 'IR',
+    document_language: 'heb',
+    response_language: 'eng',
+    document_currency_code: 'ILS',
+    action: 1,
+    vat_percent: 17,
+
+    client_name: args.clientName ?? undefined,
+    client_email: args.clientEmail ?? undefined,
+
+    // שורה אחת של פריט — הכי פשוט ומספיק לרוב המקרים
+    items: [
+      {
+        type: 'I',
+        name: args.description.slice(0, 60),
+        unit_price: Number(args.totalNis.toFixed(2)),
+        units_number: 1,
+        unit_type: 1,
+        price_type: 'G',
+        currency_code: 'ILS',
+        to_doc_currency_exchange_rate: 1,
+      },
+    ],
+
+    payments: [
+      {
+        payment_method: args.paymentMethod,
+        payment_date: args.documentDate,
+        amount: Number(args.totalNis.toFixed(2)),
+        currency_code: 'ILS',
+      },
+    ],
+  };
+
+  if (args.txnindex != null) body.txnindex = args.txnindex;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-tranzila-api-app-key': auth.appKey,
+    'X-tranzila-api-request-time': auth.requestTime,
+    'X-tranzila-api-nonce': auth.nonce,
+    'X-tranzila-api-access-token': auth.accessToken,
+  };
+
+  const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+  const raw = await resp.json() as TranzilaCreateDocResponse;
+
+  if (!resp.ok) throw new Error(`Tranzila create_document HTTP ${resp.status}`);
+
+  if (raw.status_code !== 0 || !raw.document?.id || !raw.document?.retrieval_key) {
+    throw new Error(`Tranzila create_document failed: ${raw.status_code} ${raw.status_msg}`);
+  }
+
+  return {
+    documentId: String(raw.document.id),
+    retrievalKey: String(raw.document.retrieval_key),
+    documentNumber: raw.document.number ? String(raw.document.number) : null,
+    raw,
+  };
+}
+
+async function tranzilaFetchPdfByRetrievalKey(retrievalKey: string): Promise<Buffer> {
+  const url = `https://my.tranzila.com/api/get_financial_document/${encodeURIComponent(retrievalKey)}`;
+
+  const resp = await fetch(url, { method: 'GET' });
+  if (!resp.ok) throw new Error(`Tranzila get_financial_document HTTP ${resp.status}`);
+
+  const ct = resp.headers.get('content-type') || '';
+  // בהצלחה זה אמור להיות PDF; בכשלון טרנזילה לפעמים מחזירים HTML
+  const ab = await resp.arrayBuffer();
+  const buf = Buffer.from(ab);
+
+  if (!ct.includes('pdf')) {
+    // נסיון לזהות "HTML error" ולא לשמור אותו כ-PDF
+    const head = buf.slice(0, 200).toString('utf8').toLowerCase();
+    if (head.includes('<html') || head.includes('error')) {
+      throw new Error('Tranzila returned HTML error instead of PDF (bad retrieval_key?)');
+    }
+  }
+
+  return buf;
+}
+async function uploadInvoicePdfAndAttachUrl(args: {
+  sb: SupabaseClient;
+  tenantSchema: string;
+  paymentId: string;
+  pdfBuffer: Buffer;
+}) {
+  const { sb, tenantSchema, paymentId, pdfBuffer } = args;
+
+  const BUCKET_NAME = 'bereshit-payments-invoices';
+  const filePath = `invoices/${tenantSchema}/${paymentId}.pdf`;
+
+  const { error: uploadErr } = await sb.storage
+    .from(BUCKET_NAME)
+    .upload(filePath, pdfBuffer, { contentType: 'application/pdf', upsert: true });
+
+  if (uploadErr) throw new Error(uploadErr.message);
+
+  const { data: publicData } = sb.storage.from(BUCKET_NAME).getPublicUrl(filePath);
+  const url = (publicData as any).publicUrl + '?v=' + Date.now();
+
+  await sb.from('payments').update({
+    invoice_url: url,
+    invoice_status: 'ready',
+    invoice_updated_at: new Date().toISOString(),
+  }).eq('id', paymentId);
+
+  return url;
+}
 
 // tranzilaHandshakeHttp – Handshake v1 שמחזיר thtk ל-Hosted Fields
 // ===================================================================

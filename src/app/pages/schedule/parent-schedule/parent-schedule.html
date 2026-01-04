@@ -47,7 +47,12 @@
       </ul>
     </div>
   </div>
-
+  <div
+    class="next-cancel-note"
+    *ngIf="nextCanceledLessonNote"
+  >
+    {{ nextCanceledLessonNote }}
+  </div>
   <app-schedule
     [items]="items"
     [initialView]="'timeGridWeek'"

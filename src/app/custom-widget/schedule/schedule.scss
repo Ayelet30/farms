@@ -695,3 +695,12 @@
 .fc-daygrid-day-events {
   max-height: none;
 }
+/* חופשת חווה – טקסט */
+.fc .farm-day-off-text,
+.fc .event-box,
+.fc .summary,
+.fc .instructor-header {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

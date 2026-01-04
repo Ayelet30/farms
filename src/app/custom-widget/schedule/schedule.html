@@ -1,5 +1,6 @@
 <div class="schedule-wrap" [class.fullscreen]="isFullscreen">
-  <div class="card calendar-toolbar">
+ <div class="card calendar-toolbar" *ngIf="showToolbar">
+
     <div class="view-buttons btn-group">
       <button (click)="changeView('timeGridDay')" [class.active]="currentView === 'timeGridDay'">
         יומי
