@@ -736,6 +736,8 @@ if (!Number.isFinite(netILS) || netILS <= 0) {
         "X-tranzila-api-access-token": auth.accessToken,
       };
 const documentDate = new Date().toISOString().slice(0, 10);
+const paymentDate =
+  payment.date ?? documentDate; // fallback רק אם משום מה אין
 const vatPercent = vatPercentByDate(documentDate);
 const payload: any = {
   terminal_name: terminal.terminal_name,
@@ -759,7 +761,7 @@ client_email: parentEmail ?? undefined,
   payments: [
     {
       payment_method: 10,
-      payment_date: documentDate,
+      payment_date: paymentDate,
       amount: netILS, // ✅ הנטו אחרי זיכויים
       currency_code: "ILS",
       other_description: "Charged externally",
