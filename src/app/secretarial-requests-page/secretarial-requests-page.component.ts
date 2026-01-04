@@ -31,6 +31,7 @@ const APPROVE_RPC_BY_TYPE: Partial<Record<RequestType, string>> = {
 };
 
 
+
 @Component({
   selector: 'app-secretarial-requests-page',
   standalone: true,
@@ -304,42 +305,109 @@ export class SecretarialRequestsPageComponent implements OnInit {
     }
   }
 
-  hasApproveRpc(type: RequestType): boolean {
-    console.log('hasApproveRpc check for type:', type, 'result:', !!APPROVE_RPC_BY_TYPE[type]); 
-  return !!APPROVE_RPC_BY_TYPE[type];
+hasApproveRpc(type: RequestType): boolean {
+  console.log('hasApproveRpc', type, APPROVE_RPC_BY_TYPE[type]);
+
+  if (type === 'PARENT_SIGNUP') {
+    return true;
+  }
+
+  if (APPROVE_RPC_BY_TYPE[type]) {
+    return true;
+  }
+
+  return false;
+}
+
+private getTenantId(): string | null {
+  return localStorage.getItem('selectedTenant');
+}
+
+private getSchema(): string {
+  // tokensKey אצלך הוא שם schema בפועל (bereshit_farm וכו')
+  return localStorage.getItem('tokensKey') || 'bereshit_farm';
 }
 
 
-  // ===== פעולות לפי רול =====
-
-  // אישור בקשה – רק מזכירה
- async approveSelected() {
+async approveSelected() {
   if (!this.isSecretary) return;
 
   const current = this.selectedRequest;
   if (!current) return;
 
-  const rpcName = APPROVE_RPC_BY_TYPE[current.requestType];
-  if (!rpcName) return;   // ← כאן ההגנה המוחלטת
+  // --- PARENT_SIGNUP: פונקציית ענן ---
+  if (current.requestType === 'PARENT_SIGNUP') {
+    try {
+      const idToken = await this.cu.getIdToken(true); // true=ריענון – עוזר אם יש טוקן ישן
+      const schema = this.getSchema();
+      const tenant_id = this.getTenantId();
 
-  const db = dbTenant();
-  const { error } = await db.rpc(rpcName, {
-    p_request_id: current.id,
-    p_decided_by_uid: this.curentUser!.uid,
-    p_decision_note: null,
-  });
+      if (!tenant_id) {
+        alert('חסר tenant_id (selectedTenant). תעשי ריענון/בחירת חווה מחדש.');
+        return;
+      }
 
-  if (error) {
-    console.error(error);
-    alert('שגיאה באישור הבקשה');
-    return;
+      const resp = await fetch('/api/approveParentSignupRequest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          schema,
+          requestId: current.id,
+          tenant_id,
+        }),
+      });
+
+      // אל תיפלי על JSON כשזו שגיאה:
+      const ct = resp.headers.get('content-type') || '';
+      const out: any = ct.includes('application/json')
+        ? await resp.json()
+        : await resp.text();
+
+      if (!resp.ok) {
+        const msg =
+          typeof out === 'string'
+            ? out
+            : (out?.message || out?.error || `approve failed (${resp.status})`);
+        throw new Error(msg);
+      }
+
+      await this.loadRequestsFromDb();
+      this.selectedRequest = null;
+      return;
+    } catch (e: any) {
+      console.error('approve PARENT_SIGNUP failed', e);
+      alert(e?.message || 'שגיאה באישור בקשת הרשמה');
+      return;
+    }
   }
 
-  await this.loadRequestsFromDb();
-  this.selectedRequest = null;
+  console.log({ schema: this.getSchema(), tenant_id: this.getTenantId(), uid: this.cu.current?.uid });
+
+
+  // --- שאר הסוגים: RPC בסופאבייס ---
+  const rpcName = APPROVE_RPC_BY_TYPE[current.requestType];
+  if (!rpcName) return;
+
+  try {
+    const db = dbTenant();
+    const { error } = await db.rpc(rpcName, {
+      p_request_id: current.id,
+      p_decided_by_uid: this.curentUser!.uid,
+      p_decision_note: null,
+    });
+
+    if (error) throw error;
+
+    await this.loadRequestsFromDb();
+    this.selectedRequest = null;
+  } catch (err: any) {
+    console.error(err);
+    alert('שגיאה באישור הבקשה');
+  }
 }
-
-
 
   // דחייה – רק מזכירה
   async rejectSelected() {

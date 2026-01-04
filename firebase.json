@@ -43,6 +43,22 @@
     ],
     "rewrites": [
       {
+        "source": "/api/sendEmail",
+        "function": "sendEmail"
+      },
+      {
+        "source": "/api/approveParentSignupRequest",
+        "function": "approveParentSignupRequest"
+      },
+      {
+        "source": "/api/publicCreateParentSignupRequest",
+        "function": "publicCreateParentSignupRequest"
+      },
+      {
+        "source": "/api/approveParentSignupRequest",
+        "function": "approveParentSignupRequest"
+      },
+      {
         "source": "/api/chargeSelectedChargesForParent",
         "function": "chargeSelectedChargesForParent"
       },

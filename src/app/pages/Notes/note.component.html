@@ -106,39 +106,52 @@
 
             <h3>נוכחות</h3>
 
-            <div class="attendance-actions">
-             <button
-  mat-stroked-button
- [disabled]="!canMarkAttendanceNow() && !attendanceStatus"
+<div class="attendance-actions">
 
-  [class.active]="attendanceStatus === 'present'"
-  (click)="setAttendance('present')">
-  הגיע
-</button>
+  <!-- אזהרה -->
+  <div
+    class="presence-error top-warning"
+    *ngIf="showEarlyAttendanceWarning">
+    לא ניתן להכניס נוכחות מוקדם כל־כך
+  </div>
 
-<button
-  mat-stroked-button
-  class="absent"
-  [disabled]="!canMarkAttendanceNow()"
-  [class.active]="attendanceStatus === 'absent'"
-  (click)="setAttendance('absent')">
-  לא הגיע
-</button>
+  <!-- הגיע -->
+  <div (click)="onAttendanceAttempt()">
+    <button
+      mat-stroked-button
+      [disabled]="!canMarkAttendanceNow()"
+      [class.active]="attendanceStatus === 'present'"
+      (click)="setAttendance('present')">
+      הגיע
+    </button>
+  </div>
 
+  <!-- לא הגיע -->
+  <div (click)="onAttendanceAttempt()">
+    <button
+      mat-stroked-button
+      class="absent"
+      [disabled]="!canMarkAttendanceNow()"
+      [class.active]="attendanceStatus === 'absent'"
+      (click)="setAttendance('absent')">
+      לא הגיע
+    </button>
+  </div>
 
+  <!-- ניקוי -->
+  <button
+    mat-icon-button
+    *ngIf="attendanceStatus"
+    (click)="clearAttendance()">
+    <mat-icon>clear</mat-icon>
+  </button>
 
-              <button
-                mat-icon-button
-                *ngIf="attendanceStatus"
-               (click)="clearAttendance()"
->
-                <mat-icon>clear</mat-icon>
-              </button>
-            </div>
-          </section>
+</div>
 
-          <!-- פרטי שיעור -->
-          <section *ngIf="lessonDetails">
+</section> <!-- ✅ סגירה של נוכחות -->
+
+<!-- פרטי שיעור -->
+<section *ngIf="lessonDetails">
             <h3>פרטי שיעור</h3>
 
             <div class="lesson-meta-grid">
@@ -149,17 +162,39 @@
                 </span>
               </div>
 
-              <div class="detail-item">
-                <span class="label">שעה</span>
-                <span class="value">
-                  {{ lessonDetails.start_time }} – {{ lessonDetails.end_time }}
-                </span>
-              </div>
+          <div class="detail-item">
+  <span class="label">שעה</span>
+  <span class="value">
+    {{ lessonDetails.start_time?.slice(0,5) }}
+    –
+    {{ lessonDetails.end_time?.slice(0,5) }}
+  </span>
+</div>
+
 
               <div class="detail-item">
                 <span class="label">סוג שיעור</span>
                 <span class="value">{{ lessonDetails.lesson_type || '—' }}</span>
               </div>
+<!-- 🔁 מזכירה: ניתן להשלמה *ngIf="lessonDetails?.status === 'בוטל' && canEditMakeupAllowed"-->
+ 
+<div class="makeup-card">
+  <div class="makeup-header">
+    <mat-icon>cached</mat-icon>
+    <div class="makeup-text">
+      <div class="title">שיעור מבוטל</div>
+      <div class="subtitle">ניתן לאפשר השלמת שיעור לילד</div>
+    </div>
+  </div>
+
+  <mat-slide-toggle
+    color="primary"
+    [(ngModel)]="lessonDetails.is_makeup_allowed"
+    (ngModelChange)="onMakeupAllowedChange($event)">
+    ניתן להשלמה
+  </mat-slide-toggle>
+</div>
+
 
               <div class="detail-item">
                 <span class="label">סטטוס</span>

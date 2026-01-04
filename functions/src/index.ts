@@ -18,6 +18,12 @@ export * from "./loginBootstrap.js";
 
 export * from "./dailyBilling.js";
 
+export * from "./publicSignup.js";
+
+export * from './email';
+
+
+
 export { createHostedPaymentUrl, tranzilaHandshakeHttp , recordOneTimePayment , savePaymentMethod ,chargeSelectedChargesForParent } from './tranzila.js';
 export {
   ensureTranzilaInvoiceForPayment

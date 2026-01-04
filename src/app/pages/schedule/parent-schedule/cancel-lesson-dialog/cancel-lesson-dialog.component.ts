@@ -21,6 +21,7 @@ export interface CancelLessonDialogData {
   lessonType?: string | null;
   status?: string | null;
   canCancel: boolean;
+    isMakeupAllowed?: boolean;
 }
 
 @Component({

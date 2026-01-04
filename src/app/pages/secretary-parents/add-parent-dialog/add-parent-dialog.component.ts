@@ -116,7 +116,7 @@ export class AddParentDialogComponent implements OnInit {  // ✅ חדש: implem
       return;
     }
 
-    const ok = confirm('האם את בטוחה שברצונך לשמור את השינויים?');
+    const ok = confirm('האם אתה בטוח שברצונך לשמור את השינויים?');
     if (!ok) return;
 
     this.submitting = true;
@@ -144,7 +144,7 @@ export class AddParentDialogComponent implements OnInit {  // ✅ חדש: implem
   }
 
   cancel() {
-    const ok = confirm('האם את בטוחה שברצונך לבטל את השינויים?');
+    const ok = confirm('האם אתה בטוח שברצונך לבטל את השינויים?');
     if (!ok) return;
 
     this.ref.close();
