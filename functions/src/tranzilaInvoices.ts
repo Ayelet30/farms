@@ -431,8 +431,19 @@ type ParentRow = {
 };
 
 type LessonBillingItemRow = {
-  occur_date: string; // YYYY-MM-DD
-  amount_agorot: number; // integer
+  occur_date: string;
+  child_id: string;          // uuid as string
+  unit_price_agorot: number;
+  quantity: number;
+  amount_agorot: number;
+};
+
+type ParentCreditRow = {
+  id: string;
+  amount_agorot: number;
+  reason: string;
+  related_charge_id: string | null;
+  created_at: string | null;
 };
 
 // ===== Helpers =====
@@ -491,6 +502,11 @@ async function loadDefaultBillingTerminal(sbTenant: SupabaseClient): Promise<Bil
 function safeFullName(first?: string | null, last?: string | null) {
   const s = [first, last].filter(Boolean).join(" ").trim();
   return s || "הורה";
+}
+function buildClientCompanyBlock(fullName: string, idNumber?: string | null) {
+  const lines = [fullName];
+  if (idNumber) lines.push(idNumber); // או `ת"ז: ${idNumber}` אם את רוצה שיופיע טקסט
+  return lines.join("\n");
 }
 
 export const ensureTranzilaInvoiceForPayment = onRequest(
@@ -572,7 +588,15 @@ if (!lockRow) {
   res.status(409).json({ ok: false, error: "invoice request already in progress" });
   return;
 }
+if (!payment.charge_id) {
+  await sb.from("payments").update({
+    invoice_status: "failed",
+    invoice_updated_at: new Date().toISOString(),
+  }).eq("id", paymentId);
 
+  res.status(400).json({ ok: false, error: "payment has no charge_id - cannot build invoice details" });
+  return;
+}
       console.log(`[ensureInvoice][${rid}] payment loaded`, {
         id: payment.id,
         amount: payment.amount,
@@ -616,36 +640,88 @@ if (!lockRow) {
         parentEmail = pr?.email ?? null;
       }
 
-      // ===== 3) Load lesson billing item (only if charge_id exists) =====
-      let lbi: LessonBillingItemRow | null = null;
+      // ===== 3) Load ALL lesson billing items for this charge =====
+const { data: lbiRows, error: lbiErr } = await sb
+  .from("lesson_billing_items")
+  .select("occur_date, child_id, unit_price_agorot, quantity, amount_agorot")
+  .eq("charge_id", payment.charge_id)
+  .order("occur_date", { ascending: true });
 
-      if (payment.charge_id) {
-        const { data: lbiData, error: lbiErr } = await sb
-          .from("lesson_billing_items")
-          .select("occur_date, amount_agorot")
-          .eq("charge_id", payment.charge_id)
-          .order("occur_date", { ascending: true })
-          .limit(1)
-          .maybeSingle();
+if (lbiErr) throw new Error(`lesson_billing_items query failed: ${lbiErr.message}`);
+const lessons = (lbiRows ?? []) as LessonBillingItemRow[];
+// ===== Load children names for all child_id in lessons =====
+const childIds = Array.from(new Set(lessons.map((r) => r.child_id).filter(Boolean)));
 
-        if (lbiErr) throw new Error(`lesson_billing_items query failed: ${lbiErr.message}`);
-        lbi = (lbiData as LessonBillingItemRow) ?? null;
-      }
+let childNameById = new Map<string, string>();
 
-      // פירוט: רק תאריך שיעור
-      const lessonDateText = lbi?.occur_date ? `שיעור בתאריך ${lbi.occur_date}` : "שיעור";
+if (childIds.length) {
+  const { data: childRows, error: chErr } = await sb
+    .from("children")
+    .select("child_uuid, first_name, last_name")
+    .in("child_uuid", childIds);
 
-      // סכום אמת (עדיפות ל־agorot אם קיים)
-      const totalAgorot =
-        lbi?.amount_agorot != null
-          ? Number(lbi.amount_agorot)
-          : Math.round(Number(payment.amount ?? 0) * 100);
+  if (chErr) throw new Error(`children query failed: ${chErr.message}`);
 
-      const totalILS = Math.round(totalAgorot) / 100;
+  for (const c of childRows ?? []) {
+    const full = [c.first_name, c.last_name].filter(Boolean).join(" ").trim();
+    childNameById.set(c.child_uuid, full || "ילד/ה");
+  }
+}
 
-      if (!Number.isFinite(totalILS) || totalILS <= 0) {
-        throw new Error(`invalid amount calculated: totalILS=${totalILS}, totalAgorot=${totalAgorot}`);
-      }
+if (!lessons.length) {
+  await sb.from("payments").update({
+    invoice_status: "failed",
+    invoice_updated_at: new Date().toISOString(),
+  }).eq("id", paymentId);
+
+  res.status(400).json({ ok: false, error: "no lesson_billing_items found for this charge_id" });
+  return;
+}
+// ===== 4) Load credits related to this charge (optional) =====
+const { data: creditRows, error: cErr } = await sb
+  .from("parent_credits")
+  .select("id, amount_agorot, reason, related_charge_id, created_at")
+  .eq("related_charge_id", payment.charge_id);
+
+// אופציונלי מומלץ אם תמיד יש parent_uid:
+if (cErr) throw new Error(`parent_credits query failed: ${cErr.message}`);
+const credits = (creditRows ?? []) as ParentCreditRow[];
+// ===== Build invoice line items (lessons + credits) =====
+const lessonItems = lessons.map((r) => {
+  const lineILS = Number((Number(r.amount_agorot) / 100).toFixed(2));
+  const childName = childNameById.get(r.child_id) ?? "ילד/ה";
+  return {
+    name: `שיעור - ${childName} - ${r.occur_date}`,
+    unit_price: lineILS,
+    units_number: 1,
+    unit_type: 1,
+    currency_code: "ILS",
+  };
+});
+
+const creditItems = credits.map((c) => {
+  const lineILS = Number((-Math.abs(Number(c.amount_agorot)) / 100).toFixed(2));
+  return {
+    name: `זיכוי: ${c.reason}`,
+    unit_price: lineILS,
+    units_number: 1,
+    unit_type: 1,
+    currency_code: "ILS",
+  };
+});
+
+const items = [...lessonItems, ...creditItems];
+
+// סכומים באגורות
+const lessonsAg = lessons.reduce((s, r) => s + Number(r.amount_agorot || 0), 0);
+const creditsAg = credits.reduce((s, c) => s + Math.abs(Number(c.amount_agorot || 0)), 0);
+
+const netAg = lessonsAg - creditsAg;
+const netILS = Number((netAg / 100).toFixed(2));
+
+if (!Number.isFinite(netILS) || netILS <= 0) {
+  throw new Error(`invalid net amount: lessonsAg=${lessonsAg}, creditsAg=${creditsAg}, netAg=${netAg}`);
+}
 
       // ===== 4) Load terminal =====
       const terminal = await loadDefaultBillingTerminal(sb);
@@ -659,17 +735,8 @@ if (!lockRow) {
         "X-tranzila-api-nonce": auth.nonce,
         "X-tranzila-api-access-token": auth.accessToken,
       };
-
- const documentDate = payment.date ?? new Date().toISOString().slice(0, 10);
+const documentDate = new Date().toISOString().slice(0, 10);
 const vatPercent = vatPercentByDate(documentDate);
-
-const grossAg =
-  lbi?.amount_agorot != null
-    ? Number(lbi.amount_agorot)
-    : Math.round(Number(payment.amount ?? 0) * 100);
-
-const grossILS = Number((grossAg / 100).toFixed(2));
-
 const payload: any = {
   terminal_name: terminal.terminal_name,
   document_date: documentDate,
@@ -680,28 +747,20 @@ const payload: any = {
 
   vat_percent: vatPercent,
 
-  client_name: parentFullName,
-  client_id: parentIdNumber ?? undefined,
-  client_email: parentEmail ?? undefined,
+ client_company: buildClientCompanyBlock(parentFullName, parentIdNumber),
+client_email: parentEmail ?? undefined,
 
-  // ✅ item as GROSS
-  items: [
-    {
-      name: lessonDateText,
-      // price_type לא לשלוח בכלל כרגע
-      unit_price: grossILS,
-      units_number: 1,
-      unit_type: 1,
-      currency_code: "ILS",
-    },
-  ],
+// // חשוב: לא לשלוח client_name ולא client_id בכלל
+// client_name: undefined,
+// client_id: undefined,
 
-  // ✅ payment must match items total
+  items, // ✅ כל השורות (שיעורים + זיכויים)
+
   payments: [
     {
       payment_method: 10,
       payment_date: documentDate,
-      amount: grossILS,
+      amount: netILS, // ✅ הנטו אחרי זיכויים
       currency_code: "ILS",
       other_description: "Charged externally",
     },
@@ -709,20 +768,19 @@ const payload: any = {
 
   response_language: "eng",
 };
+const itemsSumILS = Number(
+  items.reduce((s, it) => s + Number(it.unit_price) * Number(it.units_number ?? 1), 0).toFixed(2)
+);
 
-console.log(`[ensureInvoice][${rid}] payload check`, {
-  item_net: payload.items[0].unit_price,
+console.log(`[ensureInvoice][${rid}] totals`, {
+  lessonsAg,
+  creditsAg,
+  netAg,
+  itemsCount: items.length,
+  itemsSumILS,
+  paymentAmount: payload.payments[0].amount,
   vat_percent: payload.vat_percent,
-  payment_amount: payload.payments[0].amount,
 });
-
-      console.log(`[ensureInvoice][${rid}] sums check`, {
-        totalAgorot,
-        totalILS,
-        itemSum: payload.items?.[0]?.unit_price,
-        paymentSum: payload.payments?.[0]?.amount,
-        vat_percent: payload.vat_percent,
-      });
 
       const resp = await fetch("https://billing5.tranzila.com/api/documents_db/create_document", {
         method: "POST",
@@ -824,8 +882,22 @@ console.log(`[ensureInvoice][${rid}] payload check`, {
         url,
       });
     } catch (e: any) {
-      console.error(`[ensureInvoice][${rid}] error:`, e);
-      res.status(500).json({ ok: false, error: e?.message ?? "internal error" });
+  console.error(`[ensureInvoice][${rid}] error:`, e);
+
+  // אל תשאירי generating תקוע (אם כבר ננעל)
+  try {
+    const { tenantSchema, paymentId } = (req.body ?? {}) as any;
+    if (tenantSchema && paymentId) {
+      const sb2 = getSupabaseForTenant(tenantSchema);
+      await sb2.from("payments").update({
+        invoice_status: "failed",
+        invoice_updated_at: new Date().toISOString(),
+      }).eq("id", paymentId);
     }
+  } catch {}
+
+  res.status(500).json({ ok: false, error: e?.message ?? "internal error" });
+}
+
   }
 );
