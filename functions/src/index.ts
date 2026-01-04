@@ -19,7 +19,9 @@ export * from "./loginBootstrap.js";
 export * from "./dailyBilling.js";
 
 export { createHostedPaymentUrl, tranzilaHandshakeHttp , recordOneTimePayment , savePaymentMethod ,chargeSelectedChargesForParent } from './tranzila.js';
-
+export {
+  ensureTranzilaInvoiceForPayment
+} from './tranzilaInvoices.js';
 
 //export  *  from "../createParent.js";
 

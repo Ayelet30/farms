@@ -43,5 +43,11 @@
     "pathRewrite": {
       "^/api/chargeSelectedChargesForParent$": "/chargeSelectedChargesForParent"
     }
+  }, 
+  "/api/ensureTranzilaInvoiceForPayment": {
+    "target": "https://ensuretranzilainvoiceforpayment-wxi37vbfra-uc.a.run.app",
+    "changeOrigin": true,
+    "secure": true,
+    "pathRewrite": { "^/api/ensureTranzilaInvoiceForPayment$": "/" }
   }
 }

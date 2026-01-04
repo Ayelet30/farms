@@ -7,6 +7,9 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+// import { TranzilaInvoicesService } from '../../services/tranzila-invoices.service';
+// import { getCurrentUserData } from '../../services/supabaseClient.service';
+import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 
 import {
   listAllChargesForSecretary,
@@ -37,12 +40,22 @@ export class SecretaryPaymentsComponent implements OnInit {
   // סכום בעמוד
   pageTotalAmount = computed(() =>
     this.rows().reduce((sum, r) => sum + (r.amount || 0), 0)
-  );
 
-  constructor() {}
+  
+  );
+tenantSchema: string | null = null;
+
+  constructor(
+  private tenantSvc: SupabaseTenantService,
+
+  ) {
+    
+  }
+invoiceLoading = new Set<string>(); // paymentId
 
   async ngOnInit() {
     await this.loadPage();
+  
   }
 
   private async loadPage() {
@@ -103,4 +116,91 @@ export class SecretaryPaymentsComponent implements OnInit {
   formatAmount(amount: number): string {
     return `${amount.toFixed(2)} ₪`;
   }
+  private async getTenantSchemaOrThrow(): Promise<string> {
+  await this.tenantSvc.ensureTenantContextReady();
+  return this.tenantSvc.requireTenant().schema; // למשל: "bereshit_farm"
+}
+
+//   async createOrFetchInvoice(r: any) {
+//     console.log('[UI] invoice button clicked', { paymentId: r?.id });
+
+//  try {
+//     r._invLoading = true;
+
+//     const tenantSchema = await this.getTenantSchemaOrThrow();
+
+
+//     const resp = await fetch(
+//       'https://ensuretranzilainvoiceforpayment-wxi37vbfra-uc.a.run.app',
+//       {
+//         method: 'POST',
+//         headers: { 'Content-Type': 'application/json' },
+// body: JSON.stringify({ tenantSchema, paymentId: r.id, debugOnly: true }),
+//       }
+//     );
+//     const json = await resp.json();
+//     if (!resp.ok || !json.ok) throw new Error(json.error || 'failed');
+
+//     r.invoice_url = json.url;
+//     window.open(json.url, '_blank', 'noopener,noreferrer');
+//   } finally {
+//     r._invLoading = false;
+//   }
+// }
+async createOrFetchInvoice(r: any) {
+  console.log('[UI] invoice button clicked', { paymentId: r?.id });
+
+  // ✅ לפתוח בלי noopener/noreferrer כדי שתישאר שליטה על הטאב
+  const win = window.open('about:blank', '_blank');
+
+  try {
+    r._invLoading = true;
+
+    const tenantSchema = await this.getTenantSchemaOrThrow();
+
+    const resp = await fetch(
+      'https://ensuretranzilainvoiceforpayment-wxi37vbfra-uc.a.run.app',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantSchema, paymentId: r.id }),
+      }
+    );
+
+    const raw = await resp.text();
+    let json: any = null;
+    try { json = JSON.parse(raw); } catch {}
+
+    if (!resp.ok || !json?.ok) {
+      if (win) win.close();
+      throw new Error(json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+    }
+
+    const url = json.url as string;
+    if (!url) {
+      if (win) win.close();
+      throw new Error(`missing url in response: ${raw?.slice(0, 300)}`);
+    }
+
+    r.invoice_url = url;
+
+    // ✅ הגנה מפני reverse-tabnabbing בלי לאבד שליטה בטאב
+    try {
+      (win as any).opener = null;
+    } catch {}
+
+    // ✅ עדיף replace כדי לא להשאיר "about:blank" בהיסטוריה
+    if (win) {
+      win.location.replace(url);
+      win.focus?.();
+    } else {
+      // fallback אם popup נחסם
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+
+  } finally {
+    r._invLoading = false;
+  }
+}
+
 }
