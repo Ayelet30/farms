@@ -291,6 +291,40 @@
       font-size: 14px;
       color: #8b8f7a;
     }
+        .chart-legend {
+      display: flex;
+      justify-content: flex-end;
+      gap: 16px;
+      margin-top: 6px;
+      font-size: 13px;
+      color: #6f765c;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .legend-dot-priv {
+      background: #7c8c60; // אותו ירוק של הקו הפרטי
+    }
+
+    .legend-dot-group {
+      background: #c89a3d; // אותו זהב של הקו הקבוצתי
+    }
+
+    .legend-label {
+      font-weight: 500;
+    }
+
   }
 
   /* אזור רשימת השיעורים */
