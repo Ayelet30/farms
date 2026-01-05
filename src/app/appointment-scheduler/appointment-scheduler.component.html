@@ -236,10 +236,11 @@
     (click)="paymentLocked && showUiHint('payment', missingPaymentPlanMsg)"
   >
     <select
-      class="appt-select"
-      [(ngModel)]="selectedPaymentPlanId"
-      [disabled]="paymentLocked"
-    >
+  class="appt-select"
+  [(ngModel)]="selectedPaymentPlanId"
+  (ngModelChange)="onPaymentPlanChange($event)"
+>
+
       <option [ngValue]="null" disabled hidden>
         בחר/י מסלול תשלום
       </option>
