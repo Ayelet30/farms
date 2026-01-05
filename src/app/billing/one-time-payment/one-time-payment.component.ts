@@ -78,13 +78,11 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
      farmSchema: string | null = null;   // למשל 'bereshit_farm'
 
   ngOnInit(): void {
-  console.log('000000000', this.dialogData?.booking);
 
   if (this.dialogData?.booking) {
     this.booking = this.dialogData.booking;
     this.type = this.booking.type;
     this.tenantSchema = this.booking.tenantSchema;   // 👈 כאן
-    console.log('111111111', this.tenantSchema);
   } else {
     this.type = this.route.snapshot.paramMap.get('type') ?? 'western';
 
@@ -172,7 +170,6 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
   });
 
   this.hfFields!.onEvent?.('validityChange', (ev: any) => {
-    console.log('[one-time HF validity]', ev);
   });
 }
 

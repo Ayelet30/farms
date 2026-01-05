@@ -1,6 +1,5 @@
-import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
-import { LayoutComponent } from "./layout/layout";
+import { Component, inject, OnInit } from '@angular/core';
+import { Router, RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
@@ -8,6 +7,14 @@ import { LayoutComponent } from "./layout/layout";
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
-export class App {
-  protected title = 'chavat-bereshit';
+export class App implements OnInit {
+  private router = inject(Router);
+  protected title = 'Smart Farm';
+
+  constructor() {}
+
+  ngOnInit(): void {
+    // כל טעינה/רענון -> חוזרים לבית (מחליף את ה-URL כדי שלא "יחזור אחורה" לנתיב הישן)
+    this.router.navigateByUrl('/', { replaceUrl: true });
+  }
 }

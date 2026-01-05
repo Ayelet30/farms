@@ -719,8 +719,6 @@ let lessonId: string | null = meta.lesson_id ?? null;
       }
       return;
     }
-
-    console.log('תאריך נבחר:', dateStr);
   }
 
   private buildWeekStats(): void {

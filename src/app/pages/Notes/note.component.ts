@@ -618,7 +618,6 @@ async loadLessonDetails() {
     this.lessonDetails.arena_name = arena?.name ?? null;
   }
 async onMakeupAllowedChange(newVal: boolean) {
- console.log("!!!!!!!!!!!!!",  this.lessonDetails?.status,this.canEditMakeupAllowed);
   if (!this.canEditNotes) return;           // רק מזכירה/מדריך
   const r = this.effectiveRole();
   if (r !== 'secretary' && r !== 'manager' && r !== 'admin') return; // אם את רוצה רק מזכירה

@@ -109,7 +109,6 @@ const relevant = this.filteredLessons
     return da - db;
   });
 
-console.log('🟨 relevant canceled lessons:', relevant);
 
   if (!relevant.length) {
     this.nextCanceledLessonNote = null;
@@ -148,7 +147,6 @@ this.nextCanceledLessonNote =
       }
 
       const dbc = dbTenant();
-      console.log('Loading children for parent UID:', user.uid, user.name);
 
       const { data: parent, error: e1 } = await dbc
         .from('parents')
@@ -167,8 +165,6 @@ this.nextCanceledLessonNote =
         .select('child_uuid, first_name, last_name, status')
         .eq('parent_uid', parent.uid)
         .in('status', ['Active']);
-
-      console.log('children:', kids);
 
       if (e2) {
         console.error('Error loading children:', e2);
@@ -603,7 +599,6 @@ private markLessonAsPendingCancel(lessonOccId: string) {
 }
 
   onDateClick(dateIso: string) {
-    console.log('date clicked', dateIso);
   }
 
   print() {

@@ -210,7 +210,6 @@ export class SecretaryParentBillingComponent implements OnInit {
   // === חיוב חיובים נבחרים ===
 
  async chargeSelected() {
-  console.log("!!!!!!!!!!!");
   if (!this.anySelected()) return;
 
   const parentUid = this.selectedParentUid();
@@ -397,7 +396,6 @@ detailsCreditsTotalAgorot = computed(() => {
     if (error) throw error;
 
     const list = parents ?? [];
-    console.log('🟣 runbilling start', { day, billingDate, count: list.length });
 
     // לעבור אחד-אחד ולהפעיל RPC
     let ok = 0;
@@ -414,11 +412,9 @@ detailsCreditsTotalAgorot = computed(() => {
         console.error(`❌ parent ${p.uid} failed`, rpcError);
       } else {
         ok++;
-        console.log(`✅ created charge for ${p.uid}`);
       }
     }
 
-    console.log('🟢 runbilling done', { ok, failed });
 
     // רענון מסך החיובים (כדי לראות את מה שנוצר)
     await this.loadCharges();
