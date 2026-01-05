@@ -2221,6 +2221,17 @@ private showErrorToast(message: string) {
     panelClass: ['appt-snackbar-error'],
   });
 }
+onPaymentPlanChange(planId: string | null) {
+  this.selectedPaymentPlanId = planId;
+
+  const plan = this.paymentPlans.find(p => p.id === planId);
+
+  if (!plan?.require_docs_at_booking) {
+    // ❗ מנקים קובץ כי הוא לא רלוונטי יותר
+    this.referralFile = null;
+    this.referralUploadError = null;
+  }
+}
 
 
 }
