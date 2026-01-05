@@ -31,8 +31,8 @@
                 "inject": false
               },
               {
-                "input": "src/styles/tokens/tokens-moach_atarim_app.scss",
-                "bundleName": "tokens-moach_atarim_app",
+                "input": "src/styles/tokens/tokens-moacha_atarim_app.scss",
+                "bundleName": "tokens-moacha_atarim_app",
                 "inject": false
               },
               {
