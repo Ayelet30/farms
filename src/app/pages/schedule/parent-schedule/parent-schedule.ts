@@ -4,6 +4,15 @@ import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import type { ScheduleItem } from '../../../models/schedule-item.model';
 import type { Lesson } from '../../../models/lesson-schedule.model';
 import type { EventClickArg } from '@fullcalendar/core';
+import { MatTooltipModule } from '@angular/material/tooltip';
+imports: [
+  CommonModule,
+  ScheduleComponent,
+  MatDialogModule,
+  MatTooltipModule
+]
+
+
 import {
   dbTenant,
   ensureTenantContextReady,
@@ -26,6 +35,7 @@ import {
   styleUrls: ['./parent-schedule.scss'],
   imports: [CommonModule, ScheduleComponent, MatDialogModule],
 })
+
 export class ParentScheduleComponent implements OnInit {
   children: Array<{
     child_uuid: string;
@@ -33,6 +43,7 @@ export class ParentScheduleComponent implements OnInit {
     last_name: string;
     status?: string | null;
   }> = [];
+nextCanceledLessonNote: string | null = null;
 
   lessons: Lesson[] = [];
   filteredLessons: Lesson[] = [];
@@ -57,15 +68,69 @@ export class ParentScheduleComponent implements OnInit {
     await this.loadLessons();
     this.filterLessons();
     this.setScheduleItems();
+    this.calcNextCanceledLesson();
+
   }
 
-  private getStartOfWeek(): string {
-    const today = new Date();
-    const diff = today.getDate() - today.getDay() + 1; // ראשון-שבת, נרצה שני
-    const start = new Date(today);
-    start.setDate(diff);
-    return start.toISOString().slice(0, 10);
+ private getStartOfWeek(): string {
+  const today = new Date();
+  const diff = today.getDate() - today.getDay() + 1; // ראשון
+  const start = new Date(today);
+  start.setDate(diff);
+  return start.toISOString().slice(0, 10);
+}
+private calcNextCanceledLesson() {
+  console.log('🟦 calcNextCanceledLesson called');
+console.log('🟦 filteredLessons:', this.filteredLessons);
+
+  const now = new Date();
+const relevant = this.filteredLessons
+  .filter((l: Lesson) => {
+    const status = String(l.status || '').trim();
+    const canceledStatuses = [
+      'בוטל',
+      'מבוטל',
+      'בקשת ביטול',
+      'ממתין לאישור',
+      'ממתין לאישור מזכירה'
+    ];
+
+    if (!canceledStatuses.includes(status)) return false;
+    if (!l.start_datetime) return false;
+
+    const start = new Date(l.start_datetime);
+    if (isNaN(start.getTime())) return false;
+
+    return start > now;   // 🔹 רק עתידי
+  })
+  .sort((a: Lesson, b: Lesson) => {
+    const da = new Date(a.start_datetime!).getTime();
+    const db = new Date(b.start_datetime!).getTime();
+    return da - db;
+  });
+
+
+  if (!relevant.length) {
+    this.nextCanceledLessonNote = null;
+    return;
   }
+
+  const lesson = relevant[0];
+
+const childName = lesson.child_name || 'הילד';
+
+const date = new Date(lesson.start_datetime!);
+const formattedDate = date.toLocaleDateString('he-IL', {
+  weekday: 'long',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});
+
+this.nextCanceledLessonNote =
+  `${childName} – השיעור הקרוב בוטל בתאריך ${formattedDate}`;
+}
+
 
   private getEndOfWeek(): string {
     const start = new Date(this.getStartOfWeek());
@@ -82,7 +147,6 @@ export class ParentScheduleComponent implements OnInit {
       }
 
       const dbc = dbTenant();
-      console.log('Loading children for parent UID:', user.uid, user.name);
 
       const { data: parent, error: e1 } = await dbc
         .from('parents')
@@ -101,8 +165,6 @@ export class ParentScheduleComponent implements OnInit {
         .select('child_uuid, first_name, last_name, status')
         .eq('parent_uid', parent.uid)
         .in('status', ['Active']);
-
-      console.log('children:', kids);
 
       if (e2) {
         console.error('Error loading children:', e2);
@@ -137,31 +199,38 @@ export class ParentScheduleComponent implements OnInit {
       return;
     }
 
-    const today = new Date().toISOString().slice(0, 10);
-    const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000)
-      .toISOString()
-      .slice(0, 10);
+ const fromDate = new Date(Date.now() - 8 * 7 * 24 * 3600 * 1000)
+  .toISOString()
+  .slice(0, 10);
 
-    const { data, error } = await dbc
-      .from('lessons_occurrences')
-      .select(
-        `
-        lesson_id,
-        child_id,
-        instructor_id,
-        lesson_type,
-        status,
-        day_of_week,
-        start_time,
-        end_time,
-        start_datetime,
-        end_datetime
-      `
-      )
-      .in('child_id', childIds)
-      .gte('occur_date', today)
-      .lte('occur_date', in8Weeks)
-      .order('start_datetime', { ascending: true });
+const toDate = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000)
+  .toISOString()
+  .slice(0, 10);
+
+
+  const { data, error } = await dbc
+  .from('lessons_occurrences')
+  .select(`
+    lesson_id,
+    child_id,
+    instructor_id,
+    lesson_type,
+    status,
+    day_of_week,
+    start_time,
+    end_time,
+    start_datetime,
+    end_datetime,
+
+    lesson_occurrence_exceptions (
+      is_makeup_allowed
+    )
+  `)
+  .in('child_id', childIds)
+ .gte('occur_date', fromDate)
+.lte('occur_date', toDate)
+
+  .order('start_datetime', { ascending: true });
 
     if (error) {
       console.error('Error loading lesson occurrences:', error);
@@ -198,42 +267,55 @@ export class ParentScheduleComponent implements OnInit {
           .join(' ');
       }
     }
+this.lessons = rows.map((r) => {
 
-    this.lessons = rows.map((r) => {
-      const startFallback = this.getLessonDateTime(
-        r.day_of_week,
-        r.start_time
-      );
-      const endFallback = this.getLessonDateTime(r.day_of_week, r.end_time);
+ const exceptions = (r as any).lesson_occurrence_exceptions as any[] | null;
 
-      const start = this.isoWithTFallback(r.start_datetime, startFallback);
-      const end = this.isoWithTFallback(r.end_datetime, endFallback);
+const isMakeupAllowed =
+  exceptions && exceptions.length > 0
+    ? exceptions[0].is_makeup_allowed ?? null
+    : null;
 
-      const occurrenceKey = `${r.child_id}__${start}`;
+  const startFallback = this.getLessonDateTime(
+    r.day_of_week,
+    r.start_time
+  );
 
-      const child = this.children.find((c) => c.child_uuid === r.child_id);
+  const endFallback = this.getLessonDateTime(
+    r.day_of_week,
+    r.end_time
+  );
 
-      return {
-        id: occurrenceKey,
-        child_id: r.child_id,
-        day_of_week: r.day_of_week,
-        start_time: r.start_time,
-        end_time: r.end_time,
-        lesson_type: r.lesson_type,
-        status: r.status,
-        instructor_id: r.instructor_id ?? '',
-        instructor_name: r.instructor_id
-          ? instructorNameById[r.instructor_id] ?? ''
-          : '',
-        child_color: this.getColorForChild(r.child_id),
-        child_name: `${child?.first_name || ''} ${
-          child?.last_name || ''
-        }`.trim(),
-        start_datetime: start,
-        end_datetime: end,
-        lesson_id: (r as any).lesson_id,
-      } as Lesson;
-    });
+  const start = this.isoWithTFallback(r.start_datetime, startFallback);
+  const end = this.isoWithTFallback(r.end_datetime, endFallback);
+
+  const occurrenceKey = `${r.child_id}__${start}`;
+
+  const child = this.children.find((c) => c.child_uuid === r.child_id);
+
+  return {
+    id: occurrenceKey,
+    child_id: r.child_id,
+    day_of_week: r.day_of_week,
+    start_time: r.start_time,
+    end_time: r.end_time,
+    lesson_type: r.lesson_type,
+    status: r.status,
+    instructor_id: r.instructor_id ?? '',
+    instructor_name: r.instructor_id
+      ? instructorNameById[r.instructor_id] ?? ''
+      : '',
+    child_color: this.getColorForChild(r.child_id),
+    child_name: `${child?.first_name || ''} ${child?.last_name || ''}`.trim(),
+    start_datetime: start,
+    end_datetime: end,
+    lesson_id: (r as any).lesson_id,
+
+    // ✅ זה השדה שמעניין אותנו
+    is_makeup_allowed: isMakeupAllowed,
+  } as Lesson;
+});
+
   }
 
   private getLessonDateTime(dayName: string, timeStr: string): string {
@@ -290,6 +372,8 @@ export class ParentScheduleComponent implements OnInit {
     this.loadLessons().then(() => {
       this.filterLessons();
       this.setScheduleItems();
+       this.calcNextCanceledLesson(); 
+      this.items = [...this.items];
     });
   }
 
@@ -353,6 +437,18 @@ export class ParentScheduleComponent implements OnInit {
       const color = lesson.child_color || this.getColorForChild(lesson.child_id);
       const childLabel =
         lesson.child_name || this.getChildName(lesson.child_id) || 'ילד';
+let displayTitle = childLabel;
+
+if (lesson.status === 'בוטל') {
+  if (lesson['is_makeup_allowed'] === true) {
+  displayTitle = `🔁 ${childLabel} (להשלמה)`;
+} else if (lesson['is_makeup_allowed'] === false) {
+  displayTitle = `❌ ${childLabel} (לא להשלמה)`;
+} else {
+  displayTitle = `❌ ${childLabel} (בוטל)`;
+}
+
+}
 
       const uid = `${
         (lesson as any).lesson_id || lesson.id || 'occ'
@@ -366,7 +462,7 @@ export class ParentScheduleComponent implements OnInit {
       if (!uniq.has(uid)) {
         uniq.set(uid, {
           id: uid,
-          title: childLabel,
+           title: displayTitle, 
           start,
           end,
           color,
@@ -380,6 +476,10 @@ export class ParentScheduleComponent implements OnInit {
             lesson_type: lesson.lesson_type,
             canCancel: canCancelFlag,
             lesson_occurrence_id: lessonOccId,
+            displayTitle,
+             is_makeup_allowed: lesson['is_makeup_allowed'],
+             
+
           },
         } as unknown as ScheduleItem);
       }
@@ -411,6 +511,7 @@ export class ParentScheduleComponent implements OnInit {
       lessonType: ext['lesson_type'] ?? '',
       status: ext['status'] ?? '',
       canCancel: !!ext['canCancel'],
+       isMakeupAllowed: !!ext['is_makeup_allowed'],
     };
 
     const dialogRef = this.dialog.open(CancelLessonDialogComponent, {
@@ -498,7 +599,6 @@ private markLessonAsPendingCancel(lessonOccId: string) {
 }
 
   onDateClick(dateIso: string) {
-    console.log('date clicked', dateIso);
   }
 
   print() {
@@ -540,4 +640,7 @@ private markLessonAsPendingCancel(lessonOccId: string) {
         return '';
     }
   }
+  
 }
+
+

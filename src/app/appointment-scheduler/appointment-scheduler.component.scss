@@ -780,3 +780,14 @@
 
 .tab-wrap { display: inline-block; } /* כדי שהעטיפה תהיה קליקבילית */
 .appt-tab.tab-disabled { opacity: .55; cursor: not-allowed; pointer-events: none; } /* הקליק עובר ל-tab-wrap */
+:host ::ng-deep .appt-snackbar-success .mdc-snackbar__surface {
+  background: #e7f6ea;
+  border: 1px solid #a8d5b1;
+  color: #1f5e2b;
+}
+
+:host ::ng-deep .appt-snackbar-error .mdc-snackbar__surface {
+  background: #fdecec;
+  border: 1px solid #f3b2b2;
+  color: #7a1c1c;
+}

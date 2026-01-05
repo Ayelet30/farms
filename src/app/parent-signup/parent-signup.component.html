@@ -1,0 +1,96 @@
+<div class="page">
+    <div class="parent-dialog-root" dir="rtl">
+
+        <div class="parent-dialog-root" dir="rtl">
+            <div class="parent-header">
+                <h3 class="parent-title">הרשמה להורים –-- חוות בראשית</h3>
+            </div>
+
+            <div class="success" *ngIf="done">
+                הפרטים נקלטו בהצלחה ✅<br />
+                הבקשה נשלחה למזכירות לאישור, נחזור אליכם בהקדם.
+            </div>
+
+            <div class="errBox" *ngIf="errorMsg && !done">{{ errorMsg }}</div>
+
+            <form [formGroup]="form" (ngSubmit)="submit()" *ngIf="!done">
+                <div class="form-grid">
+                    <div class="field">
+                        <label>שם פרטי</label>
+                        <input formControlName="first_name" maxlength="15" />
+                        <div class="err"
+                            *ngIf="form.controls['first_name']?.touched && form.controls['first_name']?.invalid">
+                            <span *ngIf="form.controls['first_name']?.errors?.['required']">חובה להזין שם פרטי</span>
+                            <span *ngIf="form.controls['first_name']?.errors?.['minlength']">לפחות 2 תווים</span>
+                            <span *ngIf="form.controls['first_name']?.errors?.['pattern']">אותיות בלבד</span>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label>שם משפחה</label>
+                        <input formControlName="last_name" maxlength="20" />
+                        <div class="err"
+                            *ngIf="form.controls['last_name']?.touched && form.controls['last_name']?.invalid">
+                            <span *ngIf="form.controls['last_name']?.errors?.['required']">חובה להזין שם משפחה</span>
+                            <span *ngIf="form.controls['last_name']?.errors?.['minlength']">לפחות 2 תווים</span>
+                            <span *ngIf="form.controls['last_name']?.errors?.['pattern']">אותיות בלבד</span>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label>אימייל</label>
+                        <input formControlName="email" type="email" maxlength="60" />
+                        <div class="err" *ngIf="form.controls['email']?.touched && form.controls['email']?.invalid">
+                            חובה להזין אימייל תקין
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label>טלפון</label>
+                        <input formControlName="phone" type="tel" maxlength="10" />
+                        <div class="err" *ngIf="form.controls['phone']?.touched && form.controls['phone']?.invalid">
+                            מספר טלפון חייב להיות בפורמט 05XXXXXXXX
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label>תעודת זהות</label>
+                        <input formControlName="id_number" maxlength="9" />
+                        <div class="err"
+                            *ngIf="form.controls['id_number']?.touched && form.controls['id_number']?.invalid">
+                            ת"ז חייבת להכיל 9 ספרות
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label>כתובת</label>
+                        <input formControlName="address" maxlength="60" />
+                        <div class="err" *ngIf="form.controls['address']?.touched && form.controls['address']?.invalid">
+                            חובה להזין כתובת
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>הערות</label>
+                    <textarea formControlName="extra_notes" rows="3" maxlength="300"></textarea>
+                </div>
+
+                <fieldset formGroupName="prefs" class="prefs-box">
+                    <legend>העדפות תקשורת</legend>
+
+                    <label><input type="checkbox" formControlName="inapp" /> אפליקציה (חובה)</label>
+                    <label><input type="checkbox" formControlName="email" /> אימייל</label>
+                    <label><input type="checkbox" formControlName="sms" /> SMS</label>
+                    <label><input type="checkbox" formControlName="whatsapp" /> וואטסאפ</label>
+                </fieldset>
+
+                <div class="actions">
+                    <button type="submit" class="save" [disabled]="submitting">
+                        {{ submitting ? 'שולח...' : 'שליחת בקשה' }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

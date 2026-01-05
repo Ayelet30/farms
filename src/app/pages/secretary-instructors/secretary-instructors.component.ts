@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MailService } from '../../services/mail.service';
+
 
 import {
   ensureTenantContextReady,
@@ -127,7 +129,8 @@ export class SecretaryInstructorsComponent implements OnInit {
 
   constructor(
     private dialog: MatDialog,
-    private createUserService: CreateUserService
+    private createUserService: CreateUserService,
+    private mailService: MailService
   ) {}
 
   // ======= לוגיקה לחיפוש/סינון =======
@@ -595,12 +598,14 @@ private async loadDrawerData(id_number: string) {
 
       // ריענון טבלה
       await this.loadInstructors();
+      
     } catch (e: any) {
       console.error(e);
       alert(e?.message || 'שמירת פרטי המדריך נכשלה');
     } finally {
       this.savingEdit = false;
     }
+    
   }
 
   // ======= דיאלוג הוספת מדריך =======
@@ -703,7 +708,7 @@ private async loadDrawerData(id_number: string) {
           uid: body.uid,
           first_name: body.first_name,
           last_name: body.last_name,
-            email: body.email,  
+          email: body.email,
           phone: body.phone,
           id_number: body.id_number,
           address: body.address,
@@ -714,11 +719,32 @@ private async loadDrawerData(id_number: string) {
         });
 
         await this.loadInstructors();
+
+        // ✅ מייל למדריך/ה – כאן יש לך גישה ל-body ול-payload
+        const fullName = `${body.first_name} ${body.last_name}`.trim();
+        const subject = 'נפתחה עבורך גישה למערכת';
+        const html = `
+          <div dir="rtl">
+            <p>שלום ${fullName},</p>
+            <p>נוספת למערכת כמדריך/ה בחווה.</p>
+            ${payload.password ? `<p><b>סיסמה זמנית:</b> ${payload.password}</p>` : ''}
+            <p>התחברות עם האימייל הזה: <b>${body.email}</b></p>
+          </div>
+        `;
+
+        this.mailService.sendEmail({
+          tenantSchema: body.schema_name, // זה ה־selectedSchema שלך
+          to: body.email,
+          subject,
+          html,
+        }).catch(err => console.error('send instructor email failed', err));
+
         alert('מדריך נוצר/שויך בהצלחה');
       } catch (e: any) {
         console.error(e);
         alert(e?.message ?? 'שגיאה - המערכת לא הצליחה להוסיף מדריך');
       }
+
     });
   }
 

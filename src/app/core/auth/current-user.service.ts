@@ -21,7 +21,7 @@ import { TokensService } from '../../services/tokens.service';
 
 @Injectable({ providedIn: 'root' })
 export class CurrentUserService {
-  [x: string]: any;
+
   private auth = inject(Auth);
   private platformId = inject(PLATFORM_ID);
 
@@ -210,5 +210,13 @@ console.log("111111111", farmMeta);
   return { role: picked.role_in_tenant, details };
 }
 
+async getIdToken(forceRefresh = false): Promise<string> {
+  await this.waitUntilReady();
+
+  const fbUser = this.auth.currentUser;
+  if (!fbUser) throw new Error('Not authenticated');
+
+  return fbUser.getIdToken(forceRefresh);
+}
 
 }

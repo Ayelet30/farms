@@ -1,3 +1,18 @@
+/* ===== Material table overrides (שים מחוץ ל-.monthly וללא קינון בתוך table) ===== */
+:host ::ng-deep .mat-mdc-table .mat-mdc-cell {
+  border-bottom: none !important;
+}
+
+/* אם את רוצה לבטל רק בשורות “בקבוצה” */
+:host ::ng-deep .mat-mdc-table tr.group-not-last-row > td.mat-mdc-cell {
+  border-bottom: none !important;
+}
+
+/* וגם ליתר ביטחון – אם הקו יושב על השורה */
+:host ::ng-deep .mat-mdc-table tr.group-not-last-row.mdc-data-table__row {
+  border-bottom: none !important;
+}
+
 .monthly {
   direction: rtl;
   text-align: right;
@@ -510,10 +525,38 @@
       tr.mat-mdc-row:hover td {
         background: #f6f1e7;
       }
-            // שורה שהיא המשך של אותו שיעור – בלי קו מפריד מעל
+
+      // שורה שהיא המשך של אותו שיעור – בלי קו מפריד מעל
       tr.same-lesson-row td {
         border-top: none !important;
       }
+
+      // שורה שהיא המשך של אותו שיעור – בלי קו מפריד מעל + יותר צפוף
+      tr.group-cont-row td {
+        border-top: none !important;
+        padding-top: 4px;
+        padding-bottom: 4px;
+      }
+
+      // תצוגה “ריקה” בשורות המשך (כדי לא למשוך תשומת לב)
+      .empty-repeat {
+        opacity: 0;
+        user-select: none;
+      }
+
+      /* ✅ ביטול הקו שמגיע מ-Angular Material (row border-bottom) */
+      :host ::ng-deep .mat-mdc-table .mdc-data-table__row.group-not-last-row {
+        border-bottom: none !important;
+      }
+
+      /* ✅ ביטול כל “קו עליון” לשורות המשך (למקרה שנשאר משהו) */
+      :host ::ng-deep .mat-mdc-table .mdc-data-table__row.group-cont-row td {
+        border-top: none !important;
+        padding-top: 4px;
+        padding-bottom: 4px;
+      }
+
+
 
       /* תגיות סטטוס */
       .chip {
@@ -547,7 +590,62 @@
           background: #e2f2ff;
           color: #3b6a8f;
         }
+
       }
+
+      /* ====== MatSelect dropdown panel styling ====== */
+      :host ::ng-deep .mat-mdc-select-panel {
+        background: #fffdf8;
+        border: 1px solid #e4ded1;
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.10);
+        padding: 6px 0;
+        margin-top: 6px;
+      }
+
+      /* אופציה */
+      :host ::ng-deep .mat-mdc-option {
+        font-family: "Heebo", sans-serif;
+        font-size: 14px;
+        color: #424737;
+        min-height: 42px;
+      }
+
+      /* Hover */
+      :host ::ng-deep .mat-mdc-option:hover:not(.mdc-list-item--disabled) {
+        background: #f6f1e7;
+      }
+
+      /* Selected */
+      :host ::ng-deep .mat-mdc-option.mdc-list-item--selected {
+        background: #f0f5e6 !important;
+      }
+
+      /* הטקסט באופציה selected */
+      :host ::ng-deep .mat-mdc-option.mdc-list-item--selected .mdc-list-item__primary-text {
+        color: #303827;
+        font-weight: 700;
+      }
+
+      /* האייקון ✔ */
+      :host ::ng-deep .mat-mdc-option .mat-pseudo-checkbox {
+        --mat-minimal-pseudo-checkbox-selected-checkmark-color: #7c8c60;
+      }
+
+      /* סקרול יפה */
+      :host ::ng-deep .mat-mdc-select-panel::-webkit-scrollbar {
+        width: 10px;
+      }
+
+      :host ::ng-deep .mat-mdc-select-panel::-webkit-scrollbar-thumb {
+        background: #d9d1c2;
+        border-radius: 10px;
+      }
+
+      :host ::ng-deep .mat-mdc-select-panel::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
 
       .details-btn {
         border-radius: 999px;
@@ -573,6 +671,7 @@
       font-size: 14px;
     }
   }
+  
 
   /* תובנות חודשיות/שנתיות */
   .insights-section {
@@ -632,12 +731,15 @@
           &.highlight {
             color: #345d94;
           }
+
           &.red {
             color: #b63c34;
           }
+
           &.orange {
             color: #b08029;
           }
+
           &.green {
             color: #446b40;
           }
@@ -655,6 +757,8 @@
       }
     }
   }
+
+  
 
   /* רספונסיביות למובייל – עד פלאפון */
   @media (max-width: 600px) {

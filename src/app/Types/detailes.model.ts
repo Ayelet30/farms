@@ -73,7 +73,8 @@ export type RequestType =
   | 'ADD_CHILD'
   | 'DELETE_CHILD'
   | 'MAKEUP_LESSON'
-  | 'OTHER_REQUEST';
+  | 'OTHER_REQUEST'
+  | 'PARENT_SIGNUP';
 
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED_BY_REQUESTER';
 

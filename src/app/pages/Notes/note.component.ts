@@ -9,7 +9,9 @@ import {
   ViewChild,
   ElementRef,
   inject,
+  
 } from '@angular/core';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -24,6 +26,8 @@ import { MatChipsModule } from '@angular/material/chips';
 
 import { dbTenant, getCurrentUserDetails } from '../../services/legacy-compat';
 import { CurrentUserService } from '../../core/auth/current-user.service';
+
+
 
 /* ===================== TYPES ===================== */
 
@@ -64,6 +68,8 @@ interface LessonDetails {
   horse_name?: string | null;
   arena_id?: string | null;
   arena_name?: string | null;
+    is_makeup_allowed?: boolean | null;
+      isCancelled?: boolean;
 }
 
 interface HorseOption {
@@ -105,6 +111,7 @@ interface ChildDetails {
     MatSelectModule,
     MatListModule,
     MatChipsModule,
+     MatSlideToggleModule, 
   ],
 })
 export class NoteComponent implements OnInit, OnChanges {
@@ -125,6 +132,9 @@ childDetails: ChildDetails | null = null;
 private _attendanceStatus: AttendanceStatus = null;
  private presentMarkedNow: boolean = false;
 
+// ⚠️ אזהרה – ניסיון סימון נוכחות מוקדם מדי
+showEarlyAttendanceWarning = false;
+private earlyAttendanceTimer: any = null;
 
 
 @Input()
@@ -210,6 +220,10 @@ showCloseWarning: any;
     ];
     return allowed.includes(raw as RoleInTenant) ? (raw as RoleInTenant) : null;
   }
+get canEditMakeupAllowed(): boolean {
+  const r = this.effectiveRole();
+  return r === 'secretary' || r === 'manager' || r === 'admin';
+}
 
   get canEditNotes(): boolean {
     const r = this.effectiveRole();
@@ -375,6 +389,22 @@ canMarkAttendanceNow(): boolean {
   // ✅ עבר / היום / עד שעה קדימה
   return true;
 }
+onAttendanceAttempt(): void {
+  if (this.canMarkAttendanceNow()) {
+    this.showEarlyAttendanceWarning = false;
+    return;
+  }
+
+  this.showEarlyAttendanceWarning = true;
+
+  if (this.earlyAttendanceTimer) {
+    clearTimeout(this.earlyAttendanceTimer);
+  }
+
+  this.earlyAttendanceTimer = setTimeout(() => {
+    this.showEarlyAttendanceWarning = false;
+  }, 3000);
+}
 
   /* ===================== LESSON DETAILS ===================== */
 async loadChildDetails() {
@@ -457,55 +487,72 @@ this.presentMarkedNow = false;
 async loadLessonDetails() {
   const lessonId = this.occurrence?.lesson_id;
   const occurDate = this.getOccurDateForDb();
-
   if (!lessonId || !occurDate) return;
 
-  /* 1️⃣ נתוני השיעור */
-  const { data: lesson, error: lessonErr } = await this.dbc
+  /** 1️⃣ נתוני שיעור */
+  const { data: lesson, error: lessonError } = await this.dbc
     .from('lessons')
     .select('id, start_time, end_time, lesson_type, status')
     .eq('id', lessonId)
     .maybeSingle();
 
-  if (lessonErr || !lesson) {
-    console.error('[loadLessonDetails] lesson error', lessonErr);
+  if (lessonError || !lesson) {
+    console.error('[loadLessonDetails] lesson error', lessonError);
     return;
   }
 
-  /* 2️⃣ סוס + מגרש */
-  const { data: res } = await this.dbc
+  /** 2️⃣ סוס + מגרש */
+  const { data: resources } = await this.dbc
     .from('lesson_resources')
     .select('horse_id, arena_id')
     .eq('lesson_id', lessonId)
     .eq('occur_date', occurDate)
     .maybeSingle();
 
-  /* 3️⃣ שמות */
   let horseName: string | null = null;
   let arenaName: string | null = null;
 
-  if (res?.horse_id) {
-    horseName = this.horses.find(h => h.id === res.horse_id)?.name ?? null;
+  if (resources?.horse_id) {
+    horseName =
+      this.horses.find(h => h.id === resources.horse_id)?.name ?? null;
   }
 
-  if (res?.arena_id) {
-    arenaName = this.arenas.find(a => a.id === res.arena_id)?.name ?? null;
+  if (resources?.arena_id) {
+    arenaName =
+      this.arenas.find(a => a.id === resources.arena_id)?.name ?? null;
   }
 
-  /* 4️⃣ מיפוי ל-UI */
+  /** 3️⃣ חריג – השלמה */
+  const { data: exception, error: excError } = await this.dbc
+    .schema('bereshit_farm')
+    .from('lesson_occurrence_exceptions')
+    .select('is_makeup_allowed')
+    .eq('lesson_id', lessonId)
+    .eq('occur_date', occurDate)
+    .maybeSingle();
+
+
+
+  if (excError) {
+    console.error('[loadLessonDetails] exception error', excError);
+  }
+
+  /** 4️⃣ מיפוי ל-UI */
   this.lessonDetails = {
     lesson_id: lesson.id,
     start_time: lesson.start_time,
     end_time: lesson.end_time,
     lesson_type: lesson.lesson_type,
-    status: lesson.status,
-    horse_id: res?.horse_id ?? null,
+  status: this.occurrence?.status ?? lesson.status,
+
+    horse_id: resources?.horse_id ?? null,
     horse_name: horseName,
-    arena_id: res?.arena_id ?? null,
+    arena_id: resources?.arena_id ?? null,
     arena_name: arenaName,
+    is_makeup_allowed: exception?.is_makeup_allowed ?? false,
+
   };
 }
-
 
   /* ===================== HORSES / ARENAS ===================== */
 
@@ -570,6 +617,35 @@ async loadLessonDetails() {
     this.lessonDetails.arena_id = newArenaId;
     this.lessonDetails.arena_name = arena?.name ?? null;
   }
+async onMakeupAllowedChange(newVal: boolean) {
+  if (!this.canEditNotes) return;           // רק מזכירה/מדריך
+  const r = this.effectiveRole();
+  if (r !== 'secretary' && r !== 'manager' && r !== 'admin') return; // אם את רוצה רק מזכירה
+
+  const lessonId = this.occurrence?.lesson_id;
+  const occurDate = this.getOccurDateForDb();
+  if (!lessonId || !occurDate) return;
+
+  const { error } = await this.dbc
+    .schema('bereshit_farm')
+    .from('lesson_occurrence_exceptions')
+    .upsert(
+      {
+        lesson_id: lessonId,
+        occur_date: occurDate,
+        is_makeup_allowed: newVal,
+         status: 'בוטל', // 👈 זה החיבור החסר
+      },
+      { onConflict: 'lesson_id,occur_date' }
+    );
+
+  if (error) {
+    console.error('[onMakeupAllowedChange] upsert error', error);
+    return;
+  }
+
+  this.lessonDetails.is_makeup_allowed = newVal;
+}
 
   /* ===================== ATTENDANCE ===================== */
 private async saveAttendance(status: AttendanceStatus | null) {
