@@ -13,6 +13,8 @@ import { MatSelect, MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonModule } from '@angular/material/button';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+
 
 
 interface PaymentPlan {
@@ -136,7 +138,8 @@ interface OccupancyCandidate {
     MatInputModule , 
     MatTooltipModule,
     MatButtonModule,
-    MatDialogModule,],
+    MatDialogModule,
+  MatSnackBarModule],
   templateUrl: './appointment-scheduler.component.html',
   styleUrls: ['./appointment-scheduler.component.scss'],
 })
@@ -322,7 +325,9 @@ paymentSourceForSeries: 'health_fund' | 'private' | null = null;
   constructor(
   private currentUser: CurrentUserService,
   private route: ActivatedRoute,
-    private dialog: MatDialog
+  private dialog: MatDialog, 
+  private snackBar: MatSnackBar
+
 
   
 )
@@ -1234,9 +1239,9 @@ async createSeriesFromSlot(slot: RecurringSlotWithSkips ): Promise<void> {
     this.seriesError = 'שגיאה ביצירת הסדרה';
     return;
   }
+this.showSuccessToast('הסדרה נוצרה בהצלחה ✔️');
+await this.onChildChange();
 
-  this.seriesCreatedMessage = 'הסדרה נוצרה בהצלחה';
-  await this.onChildChange();
 }
 
 
@@ -1634,22 +1639,25 @@ if (this.referralFile) {
     to_date: endDate,
     payload
   });
+if (error) {
+  console.error(error);
+  this.seriesError = 'שגיאה בשליחת בקשת הסדרה';
+  this.showErrorToast(this.seriesError);
+  return;
+}
 
-    if (error) {
-      console.error(error);
-      this.seriesError = 'שגיאה בשליחת בקשת הסדרה';
-      return;
-    }
+// מרעננים
+await this.onChildChange();
 
-    // מרעננים את המסך
-    await this.onChildChange();
+// מנקים קובץ
+this.referralFile = null;
 
-    // מנקים קובץ שנבחר
-    this.referralFile = null;
+// הודעת הצלחה “נראית”
+this.showSuccessToast('בקשתך נשלחה למזכירה ✔️');
 
-    // הודעת הצלחה + חזרה למסך הרגיל של זימון תור (אנחנו כבר שם, רק חיווי)
-    this.seriesCreatedMessage = 'בקשתך נשלחה למזכירה';
-    this.selectedTab = 'series';
+this.selectedTab = 'series';
+
+  
   });
 }
 
@@ -2188,6 +2196,25 @@ isPastSeriesSlot(dateStr: string, startTime: string): boolean {
 
   // אם זה היום — חוסמים כל מה ש<= עכשיו
   return slotStart.getTime() <= now.getTime();
+}
+private showSuccessToast(message: string) {
+  this.snackBar.open(message, 'סגירה', {
+    duration: 4500,
+    verticalPosition: 'top',
+    horizontalPosition: 'center',
+    direction: 'rtl',
+    panelClass: ['appt-snackbar-success'],
+  });
+}
+
+private showErrorToast(message: string) {
+  this.snackBar.open(message, 'סגירה', {
+    duration: 5500,
+    verticalPosition: 'top',
+    horizontalPosition: 'center',
+    direction: 'rtl',
+    panelClass: ['appt-snackbar-error'],
+  });
 }
 
 
