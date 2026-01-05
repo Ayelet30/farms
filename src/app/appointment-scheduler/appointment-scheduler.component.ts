@@ -1536,23 +1536,28 @@ if (this.isOpenEndedSeries) {
   endD.setDate(endD.getDate() + totalWeeksForward * 7);
   endDate = this.formatLocalDate(endD);
 }
+// ---- פרטי מדריך ----
+let instructorIdNumber: string | null = null;
+let instructorName = '';
 
-  // ---- פרטי מדריך ----
-  let instructorIdNumber: string | null = null;
-  let instructorName = '';
+if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
+  // נבחר מדריך ספציפי בדרופדאון
+  const selected = this.instructors.find(
+    i =>
+      i.instructor_uid === this.selectedInstructorId ||
+      i.instructor_id === this.selectedInstructorId
+  );
 
-  if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
-    const selected = this.instructors.find(
-      i =>
-        i.instructor_uid === this.selectedInstructorId ||
-        i.instructor_id === this.selectedInstructorId
-    );
-    instructorIdNumber = selected?.instructor_id ?? slot.instructor_id;
-    instructorName = selected?.full_name ?? '';
-  } else {
-    instructorIdNumber = slot.instructor_id;
-instructorName = slot.instructor_id ?? 'ללא העדפה';
-  }
+  instructorIdNumber = selected?.instructor_id ?? slot.instructor_id ?? null;
+  instructorName = selected?.full_name ?? '';
+} else {
+  // "כל המדריכים" / לא נבחר ספציפית – השם צריך להגיע מה-slot.instructor_id (שהוא id_number)
+  instructorIdNumber = slot.instructor_id ?? null;
+
+  const ins = this.instructors.find(i => i.instructor_id === instructorIdNumber);
+  instructorName = ins?.full_name ?? 'ללא העדפה';
+}
+
 
   const dayLabel = this.getSlotDayLabel(startDate);
   const startTime = slot.start_time.substring(0, 5);
