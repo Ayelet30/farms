@@ -14,14 +14,14 @@ export class ParentPublicSignupComponent {
   submitting = false;
   done = false;
   errorMsg = '';
-  farmCode = 'bereshitfarm';
+  farmCode = 'bereshit_farm';
 
   form!: FormGroup;
 
   constructor(private fb: FormBuilder, private route: ActivatedRoute) {
     console.log('REGISTER farmCode=', this.farmCode);
 
-    this.farmCode = (this.route.snapshot.paramMap.get('farm') || 'bereshitfarm').toLowerCase();
+    this.farmCode = (this.route.snapshot.paramMap.get('farm') || 'bereshit_farm').toLowerCase();
 
     this.form = this.fb.group({
       first_name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(15), Validators.pattern(/^[A-Za-z\u0590-\u05FF\s]+$/)]],

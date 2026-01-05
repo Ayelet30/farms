@@ -570,7 +570,7 @@ private async loadDrawerData(id_number: string) {
       // עדכון users (מייל/טלפון) אם יש uid
       const uid = (this.drawerInstructor.uid || '').trim();
       if (uid) {
-        await this.createUserInSupabase(uid, email, phone);
+        await this.createUserInSupabase(uid, email,"instructor", phone);
       }
 
       const updated = (data as InstructorDetailsRow) || {
@@ -695,7 +695,7 @@ private async loadDrawerData(id_number: string) {
 
       try {
         // users
-        await this.createUserInSupabase(body.uid, body.email, body.phone);
+        await this.createUserInSupabase(body.uid, body.email, "instructor", body.phone);
 
         // tenant_users
         await this.createTenantUserInSupabase({
@@ -802,6 +802,7 @@ private async loadDrawerData(id_number: string) {
   private async createUserInSupabase(
     uid: string,
     email: string,
+    role: string,
     phone?: string | null
   ): Promise<void> {
     const dbcPublic = dbPublic();
@@ -809,6 +810,7 @@ private async loadDrawerData(id_number: string) {
     const row = {
       uid: (uid || '').trim(),
       email: (email || '').trim(),
+      role: (role || '').trim(),
       phone: (phone || '').trim() || null,
     };
 

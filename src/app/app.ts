@@ -14,7 +14,13 @@ export class App implements OnInit {
   constructor() {}
 
   ngOnInit(): void {
-    // כל טעינה/רענון -> חוזרים לבית (מחליף את ה-URL כדי שלא "יחזור אחורה" לנתיב הישן)
+    const path = window.location.pathname.replace(/^\/+/, ''); // בלי /
+    const isRegister = path.startsWith('register/');           // register/:farm
+
+    // אם זה קישור חיצוני ל- register/:farm — לא עושים redirect
+    if (isRegister) return;
+
+    // אחרת: כל רענון/טעינה -> בית
     this.router.navigateByUrl('/', { replaceUrl: true });
   }
 }
