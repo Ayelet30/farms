@@ -13,6 +13,8 @@ import { MatSelect, MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonModule } from '@angular/material/button';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+
 
 
 interface PaymentPlan {
@@ -136,7 +138,8 @@ interface OccupancyCandidate {
     MatInputModule , 
     MatTooltipModule,
     MatButtonModule,
-    MatDialogModule,],
+    MatDialogModule,
+  MatSnackBarModule],
   templateUrl: './appointment-scheduler.component.html',
   styleUrls: ['./appointment-scheduler.component.scss'],
 })
@@ -322,7 +325,9 @@ paymentSourceForSeries: 'health_fund' | 'private' | null = null;
   constructor(
   private currentUser: CurrentUserService,
   private route: ActivatedRoute,
-    private dialog: MatDialog
+  private dialog: MatDialog, 
+  private snackBar: MatSnackBar
+
 
   
 )
@@ -1234,9 +1239,9 @@ async createSeriesFromSlot(slot: RecurringSlotWithSkips ): Promise<void> {
     this.seriesError = 'שגיאה ביצירת הסדרה';
     return;
   }
+this.showSuccessToast('הסדרה נוצרה בהצלחה ✔️');
+await this.onChildChange();
 
-  this.seriesCreatedMessage = 'הסדרה נוצרה בהצלחה';
-  await this.onChildChange();
 }
 
 
@@ -1531,23 +1536,28 @@ if (this.isOpenEndedSeries) {
   endD.setDate(endD.getDate() + totalWeeksForward * 7);
   endDate = this.formatLocalDate(endD);
 }
+// ---- פרטי מדריך ----
+let instructorIdNumber: string | null = null;
+let instructorName = '';
 
-  // ---- פרטי מדריך ----
-  let instructorIdNumber: string | null = null;
-  let instructorName = '';
+if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
+  // נבחר מדריך ספציפי בדרופדאון
+  const selected = this.instructors.find(
+    i =>
+      i.instructor_uid === this.selectedInstructorId ||
+      i.instructor_id === this.selectedInstructorId
+  );
 
-  if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
-    const selected = this.instructors.find(
-      i =>
-        i.instructor_uid === this.selectedInstructorId ||
-        i.instructor_id === this.selectedInstructorId
-    );
-    instructorIdNumber = selected?.instructor_id ?? slot.instructor_id;
-    instructorName = selected?.full_name ?? '';
-  } else {
-    instructorIdNumber = slot.instructor_id;
-instructorName = slot.instructor_id ?? 'ללא העדפה';
-  }
+  instructorIdNumber = selected?.instructor_id ?? slot.instructor_id ?? null;
+  instructorName = selected?.full_name ?? '';
+} else {
+  // "כל המדריכים" / לא נבחר ספציפית – השם צריך להגיע מה-slot.instructor_id (שהוא id_number)
+  instructorIdNumber = slot.instructor_id ?? null;
+
+  const ins = this.instructors.find(i => i.instructor_id === instructorIdNumber);
+  instructorName = ins?.full_name ?? 'ללא העדפה';
+}
+
 
   const dayLabel = this.getSlotDayLabel(startDate);
   const startTime = slot.start_time.substring(0, 5);
@@ -1634,22 +1644,25 @@ if (this.referralFile) {
     to_date: endDate,
     payload
   });
+if (error) {
+  console.error(error);
+  this.seriesError = 'שגיאה בשליחת בקשת הסדרה';
+  this.showErrorToast(this.seriesError);
+  return;
+}
 
-    if (error) {
-      console.error(error);
-      this.seriesError = 'שגיאה בשליחת בקשת הסדרה';
-      return;
-    }
+// מרעננים
+await this.onChildChange();
 
-    // מרעננים את המסך
-    await this.onChildChange();
+// מנקים קובץ
+this.referralFile = null;
 
-    // מנקים קובץ שנבחר
-    this.referralFile = null;
+// הודעת הצלחה “נראית”
+this.showSuccessToast('בקשתך נשלחה למזכירה ✔️');
 
-    // הודעת הצלחה + חזרה למסך הרגיל של זימון תור (אנחנו כבר שם, רק חיווי)
-    this.seriesCreatedMessage = 'בקשתך נשלחה למזכירה';
-    this.selectedTab = 'series';
+this.selectedTab = 'series';
+
+  
   });
 }
 
@@ -2188,6 +2201,36 @@ isPastSeriesSlot(dateStr: string, startTime: string): boolean {
 
   // אם זה היום — חוסמים כל מה ש<= עכשיו
   return slotStart.getTime() <= now.getTime();
+}
+private showSuccessToast(message: string) {
+  this.snackBar.open(message, 'סגירה', {
+    duration: 4500,
+    verticalPosition: 'top',
+    horizontalPosition: 'center',
+    direction: 'rtl',
+    panelClass: ['appt-snackbar-success'],
+  });
+}
+
+private showErrorToast(message: string) {
+  this.snackBar.open(message, 'סגירה', {
+    duration: 5500,
+    verticalPosition: 'top',
+    horizontalPosition: 'center',
+    direction: 'rtl',
+    panelClass: ['appt-snackbar-error'],
+  });
+}
+onPaymentPlanChange(planId: string | null) {
+  this.selectedPaymentPlanId = planId;
+
+  const plan = this.paymentPlans.find(p => p.id === planId);
+
+  if (!plan?.require_docs_at_booking) {
+    // ❗ מנקים קובץ כי הוא לא רלוונטי יותר
+    this.referralFile = null;
+    this.referralUploadError = null;
+  }
 }
 
 

@@ -803,7 +803,9 @@ export type SecretaryChargeRow = {
   method: 'one_time' | 'subscription';
   date: string;                 // YYYY-MM-DD מהטבלה
   invoice_url: string | null;
-  is_external: boolean;         // uid = 1111.. או ללא התאמת הורה
+  is_external: boolean;   
+   invoice_status?: string | null;
+  tranzila_invoice_url?: string | null;      // uid = 1111.. או ללא התאמת הורה
 };
 
 export type ParentChargeRow = {

@@ -508,6 +508,45 @@ function buildClientCompanyBlock(fullName: string, idNumber?: string | null) {
   if (idNumber) lines.push(idNumber); // או `ת"ז: ${idNumber}` אם את רוצה שיופיע טקסט
   return lines.join("\n");
 }
+function monthYearFolder(yyyy_mm_dd: string) {
+  const m = yyyy_mm_dd.slice(5, 7); // "04"
+  const y = yyyy_mm_dd.slice(0, 4); // "2025"
+  return `${m}-${y}`;               // "04-2025"
+}
+
+async function saveInvoicePdfToSupabase(params: {
+  sb: SupabaseClient;
+  tenantSchema: string;
+  paymentId: string;
+  invoiceUrl: string;   // Tranzila PDF endpoint
+  paymentDate: string;  // YYYY-MM-DD (payments.date)
+}) {
+  const { sb, tenantSchema, paymentId, invoiceUrl, paymentDate } = params;
+
+  // 1) download PDF from Tranzila
+  const pdfResp = await fetch(invoiceUrl);
+  if (!pdfResp.ok) throw new Error(`failed to fetch invoice pdf: HTTP ${pdfResp.status}`);
+
+  const pdfBuffer = Buffer.from(await pdfResp.arrayBuffer());
+
+  // 2) build path לפי חודש-שנה של תאריך תשלום
+  const bucket = "payments-invoices";
+  const monthYear = monthYearFolder(paymentDate);
+  const path = `${tenantSchema}/invoices/${monthYear}/${paymentId}.pdf`;
+
+  // 3) upload to Supabase Storage
+  const { error: uploadErr } = await sb.storage
+    .from(bucket)
+    .upload(path, pdfBuffer, {
+      contentType: "application/pdf",
+      upsert: true, // אם מפיקים שוב – ידרוס ולא ייכשל
+    });
+
+  if (uploadErr) throw new Error(`supabase storage upload failed: ${uploadErr.message}`);
+
+  return { bucket, path };
+}
+
 
 export const ensureTranzilaInvoiceForPayment = onRequest(
   {
@@ -582,6 +621,7 @@ if (!lockRow) {
   if (pay2?.tranzila_retrieval_key) {
     const url = `https://my.tranzila.com/api/get_financial_document/${pay2.tranzila_retrieval_key}`;
     res.json({ ok: true, from_cache: true, retrieval_key: pay2.tranzila_retrieval_key, url });
+   
     return;
   }
 
@@ -736,8 +776,9 @@ if (!Number.isFinite(netILS) || netILS <= 0) {
         "X-tranzila-api-access-token": auth.accessToken,
       };
 const documentDate = new Date().toISOString().slice(0, 10);
-const paymentDate =
-  payment.date ?? documentDate; // fallback רק אם משום מה אין
+const paymentDate = payment.date ?? documentDate;
+
+
 const vatPercent = vatPercentByDate(documentDate);
 const payload: any = {
   terminal_name: terminal.terminal_name,
@@ -846,6 +887,14 @@ console.log(`[ensureInvoice][${rid}] totals`, {
       }
 
       const url = `https://my.tranzila.com/api/get_financial_document/${retrievalKey}`;
+// ===== Save PDF to Supabase Storage =====
+const stored = await saveInvoicePdfToSupabase({
+  sb,
+  tenantSchema,
+  paymentId,
+  invoiceUrl: url,
+  paymentDate, // ✅ חשוב: לפי payments.date
+});
 
       if (debugOnly) {
         res.json({
@@ -861,19 +910,22 @@ console.log(`[ensureInvoice][${rid}] totals`, {
       }
 
       // ===== 6) Persist to payments =====
-      const { error: uErr } = await sb
-        .from("payments")
-        .update({
-          tranzila_document_id: documentId,
-          tranzila_document_number: documentNumber,
-          tranzila_retrieval_key: retrievalKey,
-          invoice_status: "ready",
-          invoice_updated_at: new Date().toISOString(),
-          tranzila_invoice_url: url,
-        })
-        .eq("id", paymentId);
+   const { error: uErr } = await sb
+  .from("payments")
+  .update({
+    tranzila_document_id: documentId,
+    tranzila_document_number: documentNumber,
+    tranzila_retrieval_key: retrievalKey,
+    invoice_status: "ready",
+    invoice_updated_at: new Date().toISOString(),
+    tranzila_invoice_url: url,
 
-      if (uErr) throw new Error(`payments update failed: ${uErr.message}`);
+    invoice_storage_bucket: stored.bucket,
+    invoice_storage_path: stored.path,
+  })
+  .eq("id", paymentId);
+
+if (uErr) throw new Error(`payments update failed: ${uErr.message}`);
 
       res.json({
         ok: true,

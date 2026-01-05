@@ -131,6 +131,7 @@
       [class.tab-disabled]="tabsLocked"
       matTooltip="מציאת חורים פנויים לשיעורי השלמה על חשבון שיעורים שבוטלו לפי הגדרות החווה"
       matTooltipPosition="above"
+      matTooltipClass="custom-tooltip"
       [matTooltipDisabled]="tabsLocked"
     >
       שיעור השלמה
@@ -146,6 +147,7 @@
       [class.tab-disabled]="tabsLocked"
       matTooltip="שיעורים שבוטלו על ידי מדריך וזמינים למילוי מקום"
       matTooltipPosition="above"
+      matTooltipClass="custom-tooltip"
       [matTooltipDisabled]="tabsLocked"
     >
       מילוי מקום
@@ -236,10 +238,11 @@
     (click)="paymentLocked && showUiHint('payment', missingPaymentPlanMsg)"
   >
     <select
-      class="appt-select"
-      [(ngModel)]="selectedPaymentPlanId"
-      [disabled]="paymentLocked"
-    >
+  class="appt-select"
+  [(ngModel)]="selectedPaymentPlanId"
+  (ngModelChange)="onPaymentPlanChange($event)"
+>
+
       <option [ngValue]="null" disabled hidden>
         בחר/י מסלול תשלום
       </option>
