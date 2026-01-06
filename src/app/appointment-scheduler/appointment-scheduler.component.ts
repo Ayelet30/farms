@@ -85,8 +85,15 @@ interface MakeupSlot {
   end_time: string;
   instructor_id: string;
   remaining_capacity: number;
+
+  riding_type_id?: string | null;
+  riding_type_code?: string | null;
+  riding_type_name?: string | null;
+  max_participants?: number | null;
+
   instructor_name?: string | null; 
-  lesson_type_mode?: 'double_only' | 'both' | 'double or both' | 'break' | null;
+  // lesson_type_mode?: 'double_only' | 'both' | 'double or both' | 'break' | null;
+
 
 
 }
@@ -1805,14 +1812,16 @@ get canRequestSeries(): boolean {
 
 
 getLessonTypeLabel(slot: MakeupSlot): string {
-  switch (slot.lesson_type_mode) {
-    case 'both':
-      return 'זוגי'
-    case 'double or both':
-      return 'זוגי';
-    default:
-      return 'יחיד';
-  }
+    return slot.riding_type_name ?? 'שיעור';
+
+  // switch (slot.lesson_type_mode) {
+  //   case 'both':
+  //     return 'זוגי'
+  //   case 'double or both':
+  //     return 'זוגי';
+  //   default:
+  //     return 'יחיד';
+  // }
 }
 // private async loadOccupancySlotsForCandidate(
 //   cand: OccupancyCandidate
