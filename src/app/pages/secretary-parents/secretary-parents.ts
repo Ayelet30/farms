@@ -569,7 +569,7 @@ export class SecretaryParentsComponent implements OnInit {
 
       try {
         // 5) users (public) – upsert תמיד, גם אם המשתמש קיים
-        await this.createUserInSupabase(body.uid, body.email, body.phone);
+        await this.createUserInSupabase(body.uid, body.email,"parent", body.phone);
 
         // 6) tenant_users (public) – משייכים כהורה לחווה הנוכחית
         await this.createTenantUserInSupabase({
@@ -685,12 +685,13 @@ export class SecretaryParentsComponent implements OnInit {
     };
   }
 
-  private async createUserInSupabase(uid: string, email: string, phone?: string | null): Promise<void> {
+  private async createUserInSupabase(uid: string, email: string,role: string, phone?: string | null): Promise<void> {
     const dbcPublic = dbPublic();
 
     const row = {
       uid: (uid || '').trim(),
       email: (email || '').trim(),
+      role: (role || '').trim(),
       phone: (phone || '').trim() || null,
     };
 

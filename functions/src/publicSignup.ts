@@ -327,7 +327,7 @@ export const approveParentSignupRequest = onRequest(
       // 3) upsert ל-public.users
       const { error: upUsersErr } = await sb
         .from('users')
-        .upsert({ uid, email, phone: phone || null }, { onConflict: 'uid' });
+        .upsert({ uid, email, role: "parent", phone: phone || null }, { onConflict: 'uid' });
 
       if (upUsersErr) throw new Error(`public.users upsert failed: ${upUsersErr.message}`);
 

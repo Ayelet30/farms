@@ -599,8 +599,7 @@ export class SecretaryInstructorsComponent implements OnInit {
       // עדכון users (מייל/טלפון) אם יש uid
       const uid = (this.drawerInstructor.uid || '').trim();
       if (uid) {
-        console.log('[INSTRUCTORS] saveEditFromDrawer updating public.users for uid:', uid);
-        await this.createUserInSupabase(uid, email, phone);
+        await this.createUserInSupabase(uid, email,"instructor", phone);
       }
 
       const updated = (data as InstructorDetailsRow) || {
@@ -744,9 +743,8 @@ export class SecretaryInstructorsComponent implements OnInit {
       }
 
       try {
-        console.log('[ADD INSTRUCTOR] upsert public.users', body.uid, body.email, body.phone);
-        await this.createUserInSupabase(body.uid, body.email, body.phone);
-        console.log('[ADD INSTRUCTOR] DONE public.users');
+        // users
+        await this.createUserInSupabase(body.uid, body.email, "instructor", body.phone);
 
         console.log('[ADD INSTRUCTOR] upsert public.tenant_users', body.tenant_id, body.uid);
         await this.createTenantUserInSupabase({
@@ -876,6 +874,7 @@ export class SecretaryInstructorsComponent implements OnInit {
   private async createUserInSupabase(
     uid: string,
     email: string,
+    role: string,
     phone?: string | null
   ): Promise<void> {
     const dbcPublic = dbPublic();
@@ -883,6 +882,7 @@ export class SecretaryInstructorsComponent implements OnInit {
     const row = {
       uid: (uid || '').trim(),
       email: (email || '').trim(),
+      role: (role || '').trim(),
       phone: (phone || '').trim() || null,
     };
 

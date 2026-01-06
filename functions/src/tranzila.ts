@@ -621,7 +621,7 @@ async function uploadInvoicePdfAndAttachUrl(args: {
 }) {
   const { sb, tenantSchema, paymentId, pdfBuffer } = args;
 
-  const BUCKET_NAME = 'bereshit-payments-invoices';
+  const BUCKET_NAME = 'payments-invoices';
   const filePath = `invoices/${tenantSchema}/${paymentId}.pdf`;
 
   const { error: uploadErr } = await sb.storage
@@ -869,7 +869,7 @@ async function generateAndAttachReceiptUrlOnly(args: {
   doc.end();
   const pdfBuffer = await pdfPromise;
 
-  const BUCKET_NAME = 'bereshit-payments-invoices';
+  const BUCKET_NAME = 'payments-invoices';
   const filePath = `receipts/${tenantSchema}/${paymentId}.pdf`;
 
   const { error: uploadErr } = await sb.storage
@@ -1272,8 +1272,8 @@ async function generateAndSendReceipt(args: {
   doc.end();
   const pdfBuffer = await pdfPromise;
 
-  // 2) העלאה ל-Supabase Storage לבאקט: bereshit-payments-invoices
-  const BUCKET_NAME = 'bereshit-payments-invoices';
+  // 2) העלאה ל-Supabase Storage לבאקט: payments-invoices
+  const BUCKET_NAME = 'payments-invoices';
   const filePath = `receipts/${tenantSchema || 'public'}/${paymentId}.pdf`;
 
   console.log('[generateAndSendReceipt] uploading to Supabase', {
