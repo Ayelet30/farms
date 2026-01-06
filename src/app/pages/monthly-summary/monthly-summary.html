@@ -143,72 +143,62 @@
     <div class="charts-subtitle">
       הגרף מציג את התפתחות המדד הנבחר כדי לאפשר לחווה לזהות מגמות של צמיחה או נסיגה.
     </div>
- 
-    <!-- 🔹 מקרה מיוחד: פרטי / קבוצתי – שני קווים -->
-    <ng-container *ngIf="selectedKpi === 'priv_vs_group'; else singleSeriesBlock">
-      <div class="simple-chart" *ngIf="
-        privVsGroupCharts().priv.length ||
-        privVsGroupCharts().group.length;
-        else noChartData
-      ">
-        <svg class="line-chart" viewBox="0 0 600 220" preserveAspectRatio="none">
-          <!-- צירי X/Y -->
-          <line class="axis" x1="40" y1="20" x2="40" y2="170"></line>
-          <line class="axis" x1="40" y1="170" x2="580" y2="170"></line>
- 
-          <!-- תוויות Y -->
-          <text class="y-label" x="32" y="175">0</text>
-          <text class="y-label" x="32" y="30">
-            {{ maxPrivVsGroupValue() }}
-          </text>
- 
-          <!-- קו פרטי -->
-          <polyline class="line line-priv" [attr.points]="
-            buildPolylineFor(
-              privVsGroupCharts().priv,
-              maxPrivVsGroupValue()
-            )
-          "></polyline>
- 
-          <!-- קו קבוצתי -->
-          <polyline class="line line-group" [attr.points]="
-            buildPolylineFor(
-              privVsGroupCharts().group,
-              maxPrivVsGroupValue()
-            )
-          "></polyline>
- 
-          <!-- נקודות + תוויות חודשים -->
-          <g *ngFor="let p of privVsGroupCharts().priv; index as i">
-            <!-- נקודת פרטי -->
-            <circle class="dot dot-priv" [attr.cx]="getPointX(i, privVsGroupCharts().priv.length)" [attr.cy]="getPointYWithMax(
-              privVsGroupCharts().priv[i].value,
-              maxPrivVsGroupValue()
-            )" r="3.5"></circle>
- 
-            <!-- נקודת קבוצתי -->
-            <circle class="dot dot-group" [attr.cx]="getPointX(i, privVsGroupCharts().group.length)" [attr.cy]="getPointYWithMax(
-              privVsGroupCharts().group[i]!.value || 0,
-              maxPrivVsGroupValue()
-            )" r="3.5"></circle>
- 
-            <!-- תווית חודש -->
-            <text class="x-label" [attr.x]="getPointX(i, privVsGroupCharts().priv.length)" y="190">
-              {{ p.label }}
-            </text>
-          </g>
- 
-          <!-- מקרא קטן -->
-          <g>
-            <circle class="dot dot-priv" cx="520" cy="32" r="3.5"></circle>
-            <text class="x-label" x="510" y="36">פרטי</text>
- 
-            <circle class="dot dot-group" cx="470" cy="32" r="3.5"></circle>
-            <text class="x-label" x="460" y="36">קבוצתי</text>
-          </g>
-        </svg>
-      </div>
-    </ng-container>
+ <!-- 🔹 מקרה מיוחד: פרטי / קבוצתי – שתי נקודות על אותו ציר -->
+<ng-container *ngIf="selectedKpi === 'priv_vs_group'; else singleSeriesBlock">
+  <div class="simple-chart" *ngIf="totalPrivate || totalGroup; else noChartData">
+    <svg class="line-chart" viewBox="0 0 600 220" preserveAspectRatio="none">
+  <!-- צירי X/Y -->
+<line class="axis" x1="40" y1="20" x2="40" y2="170"></line>
+<line class="axis" x1="40" y1="170" x2="580" y2="170"></line>
+
+<!-- תוויות על ציר Y: 0, המספר הקטן (13), המספר הגדול (36) -->
+<text class="y-label" x="32" y="175">0</text>
+
+<!-- האמצעי – המינימום החיובי, למשל 13 -->
+<text class="y-label" x="32" y="105">
+  {{ minPrivGroup }}
+</text>
+
+<!-- העליון – המקסימום, למשל 36 -->
+<text class="y-label" x="32" y="30">
+  {{ maxPrivGroup }}
+</text>
+
+
+      <!-- קו שמחבר בין שתי הנקודות -->
+      <polyline
+        class="line"
+        [attr.points]="
+          220 + ',' + getPointYWithMax(totalPrivate, maxPrivGroup) + ' ' +
+          420 + ',' + getPointYWithMax(totalGroup, maxPrivGroup)
+        "
+      ></polyline>
+
+      <!-- נקודה 'פרטי' -->
+      <circle
+        class="dot dot-priv"
+        [attr.cx]="220"
+        [attr.cy]="getPointYWithMax(totalPrivate, maxPrivGroup)"
+        r="4"
+      ></circle>
+      <text class="x-label" x="220" y="190" text-anchor="middle">
+        פרטי
+      </text>
+
+      <!-- נקודה 'קבוצתי' -->
+      <circle
+        class="dot dot-group"
+        [attr.cx]="420"
+        [attr.cy]="getPointYWithMax(totalGroup, maxPrivGroup)"
+        r="4"
+      ></circle>
+      <text class="x-label" x="420" y="190" text-anchor="middle">
+        קבוצתי
+      </text>
+    </svg>
+  </div>
+</ng-container>
+
  
     <!-- 🔹 ברירת מחדל: KPI רגיל עם קו אחד -->
     <ng-template #singleSeriesBlock>
