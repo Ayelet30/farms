@@ -9,7 +9,7 @@
 }
 
 /* ============================
-   עטיפת לוח השנה (כולל מסך מלא)
+   עטיפת לוח השנה
 =============================== */
 .schedule-wrap {
   background: #fffdf7;
@@ -25,12 +25,11 @@
     border-radius: 0;
     padding: 16px;
     background: #f7f8f3;
-    padding-top: 85px;
   }
 }
 
 /* ============================
-   טולבר עליון (תצוגה/ניווט)
+   טולבר
 =============================== */
 .calendar-toolbar {
   display: flex;
@@ -94,7 +93,7 @@
 }
 
 /* ============================
-   מודאל טווח ימים/שעות
+   BACKDROP – רק אחד!
 =============================== */
 .modal-backdrop {
   position: fixed;
@@ -106,17 +105,23 @@
   justify-content: center;
 }
 
+/* ============================
+   MODAL – המקורית (מתוקנת)
+=============================== */
 .modal {
-  height: -webkit-fill-available;
-  margin-top: 70px;
   background: #fff;
   padding: 20px;
   width: 360px;
   max-width: 95%;
+  max-height: calc(100vh - 40px); /* ⭐ מונע חיתוך */
+  overflow-y: auto;               /* ⭐ גלילה פנימית */
   border-radius: 12px;
   text-align: right;
   box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+
+  margin-top: 20px; /* ⭐ מרחיק מהחלק העליון */
 }
+
 
 .modal h3 {
   margin-top: 0;
@@ -124,6 +129,9 @@
   font-size: 16px;
 }
 
+/* ============================
+   שדות
+=============================== */
 .field-row {
   margin-bottom: 12px;
   display: flex;
@@ -148,7 +156,6 @@
 
 .time-row {
   display: flex;
-  justify-content: space-between;
   gap: 10px;
 
   > div {
@@ -159,36 +166,38 @@
 .modal textarea {
   width: 100%;
   height: 100px;
-  padding: 8px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-}
-
-.modal-actions {
-  margin-top: 15px;
-  display: flex;
-  justify-content: space-between;
-
-  button {
-    border: none;
-    border-radius: 6px;
-    padding: 8px 16px;
-    font-size: 13px;
-    cursor: pointer;
-  }
-
-  .confirm {
-    background: #4caf50;
-    color: #fff;
-  }
-
-  .cancel {
-    background: #ccc;
-  }
 }
 
 /* ============================
-   חלון אישור/דחייה למזכירה
+   כפתורים
+=============================== */
+.modal-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.modal-actions button {
+  min-width: 80px;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.modal-actions .confirm {
+  background: #4caf50;
+  color: #fff;
+}
+
+.modal-actions .cancel {
+  background: #ccc;
+}
+
+/* ============================
+   אישור / דחייה
 =============================== */
 .approval-menu {
   position: fixed;
@@ -199,148 +208,56 @@
   z-index: 3600;
   width: 260px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-
-  p {
-    margin: 6px 0;
-    font-size: 13px;
-  }
-
-  button {
-    margin-top: 8px;
-    width: 100%;
-    padding: 8px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-
-  .approve {
-    background: #4caf50;
-    color: white;
-  }
-
-  .reject {
-    background: #e53935;
-    color: white;
-  }
-
-  .cancel {
-    background: #ccc;
-  }
 }
 
 /* ============================
-   צביעת בקשות ביומן
+   צביעת בקשות
 =============================== */
-.day-request-pending {
-  background-color: #fff3cd !important;
-}
+.day-request-pending { background-color: #fff3cd !important; }
+.day-request-approved { background-color: #d4edda !important; }
+.day-request-rejected { background-color: #f8d7da !important; }
 
-.day-request-approved {
-  background-color: #d4edda !important;
-}
-
-.day-request-rejected {
-  background-color: #f8d7da !important;
-}
-/* ===== סיכום חודשי – כמו מזכירה ===== */
+/* ============================
+   סיכום חודשי
+=============================== */
 :host ::ng-deep .fc-daygrid-event.summary {
   background: var(--olive-50);
   border: 1.5px solid var(--olive-300);
   border-radius: 12px;
   padding: 6px 10px;
-  margin: 4px 0;
-  box-shadow: 0 1px 0 rgba(0,0,0,.04);
 }
 
-/* טקסט */
-:host ::ng-deep .fc-daygrid-event.summary .fc-event-title {
-  color: var(--ink);
-  font-weight: 700;
-  font-size: 13px;
-  text-align: center;
-  white-space: normal;
-  line-height: 1.2;
-}
-
-/* ריחוף – כמו אצל המזכירה */
-:host ::ng-deep .fc-daygrid-event.summary:hover {
-  border-color: var(--olive-600);
-  background: #fff;
-}
-
-/* מובייל */
-@media (max-width: 520px) {
-  :host ::ng-deep .fc-daygrid-event.summary {
-    padding: 4px 8px;
-    font-size: 12px;
-  }
-}
 /* ============================
-   עיצוב אירועי לוז (event-box)
+   אירועי לוז
 =============================== */
-
 :host ::ng-deep .bereshit-calendar .event-box {
   display: flex;
   align-items: center;
-
-  /* ❌ היה space-between */
-  justify-content: flex-start;
   gap: 6px;
-
-  width: 100%;
-  min-height: 24px;
   padding: 0 8px;
-
+  min-height: 24px;
   border-radius: 999px;
   font-size: 12px;
-  line-height: 1.2;
-
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-
-  white-space: nowrap;
-  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.06);
 }
 
-/* שיעור מבוטל – מראה קומפקטי */
-:host ::ng-deep .bereshit-calendar .event-box.status-canceled {
-  justify-content: center;
-  opacity: 0.85;
-}
-/* יום חופש – רקע */
-.fc .farm-day-off {
-  background-color: rgba(200, 0, 0, 0.15) !important;
-  border: none !important;
-}
-
-/* טקסט הסיבה */
-.fc-event-title {
-  font-weight: 600;
-  color: #7a0000;
-}
-.farm-off-full_day {
-  background-color: rgba(180, 0, 0, 0.18);
-}
-
-.farm-off-half_day {
-  background-color: rgba(255, 140, 0, 0.18);
-}
-
-.farm-off-hours {
-  background-color: rgba(255, 193, 7, 0.25);
-}
+/* ============================
+   חופשת חווה
+=============================== */
 .fc .farm-day-off {
   background-color: rgba(255, 183, 77, 0.35) !important;
   border: none !important;
 }
-/* חופשת חווה – טקסט */
-.fc .farm-day-off-text,
-.fc .event-box,
-.fc .summary,
-.fc .instructor-header {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* ===== תיקון מיקום מודאל – לא צמוד למעלה ===== */
+.modal-backdrop {
+  align-items: flex-start;   /* במקום center */
+  padding-top: 64px;         /* ריווח מהחלק העליון */
+}
+
+/* רספונסיבי – מובייל */
+@media (max-width: 600px) {
+  .modal-backdrop {
+    padding-top: 48px;
+  }
 }

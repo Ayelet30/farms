@@ -116,6 +116,9 @@ farmDaysOff: any[] = [];
     y: 0,
     date: '' as string,
   };
+// 🔔 הורים שנפגעים מהחופש
+affectedParents: Parent[] = [];
+showAffectedParentsPopup = false;
 
   /* ------- מודאל לטווח תאריכים ------- */
   rangeModal = {
@@ -791,6 +794,12 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
     this.scheduleComp.next();
     this.updateCurrentDateFromCalendar();
   }
+cancelAffectedPopup(): void {
+  this.showAffectedParentsPopup = false;
+  // אם את רוצה גם להחזיר את המודאל:
+  this.rangeModal.open = true;
+  this.cdr.detectChanges();
+}
 
   onToolbarToday(): void {
     if (!this.scheduleComp) return;
@@ -804,6 +813,46 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
   }
 
   /* ------------ REQUEST UI ------------ */
+ async submitRange(): Promise<void> {
+  console.log('🟡 submitRange called');
+
+  const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
+
+  if (!from || !to) {
+    this.error = 'חובה לבחור מתאריך ועד תאריך';
+    return;
+  }
+
+  // ✅ כמו פעם – בדיקה על השיעורים שכבר נטענו
+const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
+console.log('🟠 hasLessonsInRangeFromDb', hasLessons);
+
+
+  if (hasLessons) {
+    // סוגרים את מודאל הבקשה
+    this.rangeModal.open = false;
+
+    // פותחים פופאפ אזהרה
+    this.showAffectedParentsPopup = true;
+    this.cdr.detectChanges();
+    return; // ⛔ לא שומרים עדיין
+  }
+
+  // אם אין שיעורים – שומרים רגיל
+  await this.saveRangeRequest(
+    from,
+    to,
+    allDay,
+    allDay ? null : fromTime,
+    allDay ? null : toTime,
+    type,
+    text?.trim() || null,
+  );
+
+  this.rangeModal.open = false;
+}
+
+
   async openRequest(type: RequestType): Promise<void> {
     const date = this.contextMenu.date;
     this.closeContextMenu();
@@ -822,89 +871,102 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
   closeRangeModal(): void {
     this.rangeModal.open = false;
   }
+ private hasLessonsInRange(from: string, to: string): boolean {
+  return this.lessons.some(l => {
+    const d = l.occur_date?.slice(0, 10);
+    return d && d >= from && d <= to;
+  });
+}
 
-  async submitRange(): Promise<void> {
-    const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
+private async hasLessonsInRangeFromDb(from: string, to: string): Promise<boolean> {
+  const dbc = dbTenant();
 
-    if (!from || !to) {
-      this.error = 'חובה לבחור מתאריך ועד תאריך';
-      this.cdr.detectChanges();
-      return;
-    }
+  const { data, error } = await dbc
+    .from('lessons_occurrences')
+  .select('lesson_id')
 
-    if (!allDay && (!fromTime || !toTime)) {
-      this.error = 'לחסימה לפי שעות – חובה למלא משעה ועד שעה';
-      this.cdr.detectChanges();
-      return;
-    }
+    .eq('instructor_id', this.instructorId)
+    .gte('occur_date', from)
+    .lte('occur_date', to)
+    .limit(1);
 
-    try {
-      await this.saveRangeRequest(
-        from,
-        to,
-        allDay,
-        allDay ? null : fromTime,
-        allDay ? null : toTime,
-        type,
-        text.trim() || null,
-      );
-
-      this.rangeModal.open = false;
-      this.rangeModal.text = '';
-    } catch (err) {
-      console.error('submitRange error', err);
-      this.error = 'שגיאה בשמירת הבקשה';
-      this.cdr.detectChanges();
-    }
+  if (error) {
+    console.error('hasLessonsInRangeFromDb error', error);
+    return false;
   }
 
-  private async saveRangeRequest(
-    fromDate: string,
-    toDate: string,
-    allDay: boolean,
-    fromTime: string | null,
-    toTime: string | null,
-    type: RequestType,
-    note: string | null,
-  ): Promise<void> {
-    if (!this.instructorId) return;
+  return (data?.length ?? 0) > 0;
+}
 
-    const dbc = dbTenant();
-    const user = await this.cu.loadUserDetails();
 
-    const payload: any = {
-      category: this.mapRequestTypeToDb(type),
-      note,
-      allDay,
-      fromTime,
-      toTime,
-    };
 
-    const { data, error } = await dbc
-      .from('secretarial_requests')
-      .insert({
-        request_type: 'INSTRUCTOR_DAY_OFF',
-        status: 'PENDING',
-        requested_by_uid: user?.uid,
-        requested_by_role: 'instructor',
-        instructor_id: this.instructorId,
-        child_id: null,
-        lesson_occ_id: null,
-        from_date: fromDate,
-        to_date: toDate,
-        payload,
-      })
-      .select()
-      .single();
 
-    if (error) throw error;
+async confirmSaveAfterWarning(): Promise<void> {
+  this.showAffectedParentsPopup = false;
 
-    const expanded = this.expandRequestRow(data);
-    this.dayRequests.push(...expanded);
+  const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
 
-    this.setScheduleItems();
-    this.cdr.detectChanges();
+  await this.saveRangeRequest(
+    from,
+    to,
+    allDay,
+    allDay ? null : fromTime,
+    allDay ? null : toTime,
+    type,
+    text?.trim() || null,
+  );
+
+  this.rangeModal.open = false;
+}
+
+ private async saveRangeRequest(
+  fromDate: string,
+  toDate: string,
+  allDay: boolean,
+  fromTime: string | null,
+  toTime: string | null,
+  type: RequestType,
+  note: string | null,
+): Promise<void> {
+  if (!this.instructorId) return;
+
+  const dbc = dbTenant();
+  const user = await this.cu.loadUserDetails();
+
+  if (!user?.uid) {
+    throw new Error('missing user uid');
   }
+
+  // 🔴 בדיוק כמו המקור – בלי שדות מיותרים
+  const payload = {
+    category: this.mapRequestTypeToDb(type),
+    note: note ?? null,
+  };
+
+  const { data, error } = await dbc
+    .from('secretarial_requests')
+    .insert({
+      request_type: 'INSTRUCTOR_DAY_OFF',
+      status: 'PENDING',
+      requested_by_uid: user.uid,
+      requested_by_role: 'instructor',
+      instructor_id: this.instructorId,
+      from_date: fromDate,
+      to_date: toDate,
+      payload,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('SAVE REQUEST ERROR', error);
+    throw error;
+  }
+
+  this.dayRequests.push(...this.expandRequestRow(data));
+  this.setScheduleItems();
+  this.cdr.detectChanges();
+}
 
   /* ------------ APPROVAL MENU ------------ */
   onClickRequest(dateStr: string, ev: MouseEvent): void {
