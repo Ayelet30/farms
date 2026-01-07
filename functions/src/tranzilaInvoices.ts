@@ -7,6 +7,8 @@ import { defineSecret } from "firebase-functions/params";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import * as crypto from "crypto";
 import fetch from "node-fetch";
+import nodemailer from "nodemailer";
+
 
 // ===== Secrets =====
 const SUPABASE_URL_S = defineSecret("SUPABASE_URL");
@@ -76,6 +78,19 @@ type ParentCreditRow = {
 };
 
 // ===== Helpers =====
+async function getFarmNameBySchema(tenantSchema: string): Promise<string> {
+  const sbPublic = getSupabaseForTenant("public");
+
+  const { data, error } = await sbPublic
+    .from("farms")
+    .select("name")
+    .eq("schema_name", tenantSchema)
+    .maybeSingle();
+
+  if (error) throw new Error(`farms query failed: ${error.message}`);
+  return (data?.name as string) || "החווה";
+}
+
 function envOrSecret(s: ReturnType<typeof defineSecret>, name: string) {
   return s.value() || process.env[name];
 }
@@ -174,6 +189,54 @@ async function saveInvoicePdfToSupabase(params: {
   if (uploadErr) throw new Error(`supabase storage upload failed: ${uploadErr.message}`);
 
   return { bucket, path };
+}
+const mailTransport = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  auth: {
+    user: "ayelethury@gmail.com",
+    pass: "jlmb ezch pkrs ifce",
+  },
+});
+async function sendInvoiceEmail(params: {
+  sb: SupabaseClient;
+  bucket: string;
+  path: string;
+  to: string;
+  parentName: string;
+  farmName: string;
+  documentNumber?: string | null;
+}) {
+const { sb, bucket, path, to, parentName, farmName, documentNumber } = params;
+
+  // 1) הורדת ה-PDF מה-Storage
+  const { data, error } = await sb.storage.from(bucket).download(path);
+  if (error) throw new Error(`Failed to download invoice PDF: ${error.message}`);
+  if (!data) throw new Error("Invoice PDF is empty");
+
+  const buffer = Buffer.from(await data.arrayBuffer());
+
+  // 2) שליחת מייל
+  await mailTransport.sendMail({
+    from: `<ayelethury@gmail.com>`,
+    to,
+    subject: `חשבונית ${documentNumber ?? ""}`.trim(),
+    html: `
+      <div dir="rtl" style="font-family: Arial, sans-serif">
+        <p>שלום ${parentName},</p>
+        <p>מצורפת החשבונית עבור התשלום שבוצע.</p>
+    <p>תודה,<br/>חוות ${farmName}</p>
+      </div>
+    `,
+    attachments: [
+      {
+        filename: `invoice-${documentNumber ?? "payment"}.pdf`,
+        content: buffer,
+        contentType: "application/pdf",
+      },
+    ],
+  });
 }
 
 
@@ -582,6 +645,30 @@ const stored = await saveInvoicePdfToSupabase({
     invoice_storage_path: stored.path,
   })
   .eq("id", paymentId);
+// ===== Send invoice email to parent =====
+const farmName = await getFarmNameBySchema(tenantSchema);
+
+try {
+  if (parentEmail) {
+   await sendInvoiceEmail({
+  sb,
+  bucket: stored.bucket,
+  path: stored.path,
+  to: parentEmail,
+  parentName: parentFullName,
+  farmName,
+  documentNumber,
+});
+
+  } else {
+    console.log(`[ensureInvoice][${rid}] No parent email – skipping invoice email`);
+  }
+} catch (err: any) {
+  console.error(
+    `[ensureInvoice][${rid}] Failed to send invoice email`,
+    err?.message || err
+  );
+}
 
 if (uErr) throw new Error(`payments update failed: ${uErr.message}`);
 
