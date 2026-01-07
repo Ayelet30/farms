@@ -319,13 +319,14 @@
 
             <!-- שעות זמינות ביום שנבחר -->
             <div class="slots-list series-slots" *ngIf="selectedSeriesDate && selectedSeriesDaySlots.length">
-              <h4>שעות זמינות ליום {{ selectedSeriesDate }}</h4>
+              <h4>שעות זמינות ליום {{ selectedSeriesDate }} להתחלת סדרה</h4>
 
               <table>
                 <thead>
                   <tr>
                     <th>שעה</th>
                     <th>מדריך</th>
+                    <th>סוג שיעור</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -333,23 +334,25 @@
                   <tr *ngFor="let s of selectedSeriesDaySlots">
                     <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
                     <td>{{ s.instructor_name || s.instructor_id }}</td>
+<td>{{ s.riding_type_name || '—' }}</td>
+
                     <td>
-                <span
-  class="tooltip-wrap"
-  [matTooltip]="getSeriesDisabledTooltip(s)"
-  matTooltipPosition="above"
-  [matTooltipDisabled]="!isSeriesDisabled(s)"
->
-  <button
-    type="button"
-    class="appt-cta"
-    (click)="onSeriesSlotChosen(s, confirmSeriesDialog)"
-    [disabled]="isSeriesDisabled(s)"
-    [attr.aria-disabled]="isSeriesDisabled(s) ? 'true' : null"
-  >
-    בקש סדרה במועד זה
-  </button>
-</span>
+               <span
+          class="tooltip-wrap"
+          [matTooltip]="getSeriesDisabledTooltip(s)"
+          matTooltipPosition="above"
+          [matTooltipDisabled]="!isSeriesDisabled(s)"
+        >
+          <button
+            type="button"
+            class="appt-cta"
+            (click)="onSeriesSlotChosen(s, confirmSeriesDialog)"
+            [disabled]="isSeriesDisabled(s)"
+            [attr.aria-disabled]="isSeriesDisabled(s) ? 'true' : null"
+          >
+            בקש סדרה במועד זה
+          </button>
+        </span>
 
 
 
