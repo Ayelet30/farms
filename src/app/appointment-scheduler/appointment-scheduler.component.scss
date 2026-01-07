@@ -797,3 +797,6 @@
   border: 1px solid #f3b2b2;
   color: #7a1c1c;
 }
+.tooltip-wrap {
+  display: inline-block; // חשוב כדי שהעטיפה תקבל hover
+}
