@@ -2155,6 +2155,31 @@ onTabClick(tab: 'series' | 'makeup' | 'occupancy') {
 
   this.selectedTab = tab;
 }
+isSeriesDisabled(slot: any): boolean {
+  return (
+    (this.selectedSeriesDate &&
+      this.isPastSeriesSlot(this.selectedSeriesDate, slot.start_time)) ||
+    !this.canRequestSeries
+  );
+}
+
+
+getSeriesDisabledTooltip(slot: any): string {
+  if (
+    this.selectedSeriesDate &&
+    this.isPastSeriesSlot(this.selectedSeriesDate, slot.start_time)
+  ) {
+    return 'לא ניתן להתחיל סדרה זו היום בשעה זו כי השעה חלפה';
+  }
+
+  if (!this.canRequestSeries) {
+    return 'נדרש לבחור מסלול תשלום לפני בקשת סדרה';
+  }
+
+  return '';
+}
+
+
 onOpenEndedSeriesToggle(checked: boolean): void {
   this.isOpenEndedSeries = checked;
 
