@@ -84,22 +84,27 @@
         </div>
       </div>
 
-      <div class="instructor-about" *ngIf="selectedInstructor.about">
-        <span class="label">אודות:</span>
-        <p class="about-text">
-          {{ selectedInstructor.about }}
-        </p>
-      </div>
+     <div class="instructor-line" *ngIf="selectedInstructor.about">
+  <span class="label">אודות:</span>
+  <span class="value about-text">
+    {{ selectedInstructor.about }}
+  </span>
+</div>
 
-      <!-- עמודת תעודה -->
 
-      <div class="instructor-cert-col" *ngIf="selectedInstructor.certificate">
-        <div class="label">תעודה:</div>
 
-        <a [href]="selectedInstructor.certificate" target="_blank" rel="noopener noreferrer">
-          <img [src]="selectedInstructor.certificate" alt="תעודת מדריך" class="certificate-thumb" />
-        </a>
-      </div>
+<div class="instructor-cert-col" *ngIf="selectedInstructor?.certificate?.trim() as cert">
+  <div class="instructor-line">
+    <span class="label">תעודה:</span>
+    <span class="value">
+      <a [href]="cert" target="_blank" rel="noopener noreferrer">
+        <img [src]="cert" alt="תעודת מדריך" class="certificate-thumb" />
+      </a>
+    </span>
+  </div>
+</div>
+
+
     </div>
 
   </div>
