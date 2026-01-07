@@ -63,20 +63,15 @@ export interface RecurringSlotWithSkips {
   lesson_date: ISODate;
   start_time: string;
   end_time: string;
-  instructor_id: string | null;         // ← חשוב!
+  instructor_id: string | null;         
   instructor_name?: string;             // ← לא null (או תעשי גם null)
 skipped_farm_days_off: ISODate[];
 skipped_instructor_unavailability: ISODate[];
+ riding_type_id?: string | null;     
+  riding_type_name?: string | null;   
 }
 
-// interface RecurringSlot {
-//   lesson_date: string;   // YYYY-MM-DD
-//   start_time: string;    // HH:MM:SS
-//   end_time: string;      // HH:MM:SS
-//   instructor_id: string; // text
-//   instructor_name?: string | null; 
 
-// }
 
 interface MakeupSlot {
  // lesson_id: string;
@@ -92,13 +87,12 @@ interface MakeupSlot {
   max_participants?: number | null;
 
   instructor_name?: string | null; 
-  // lesson_type_mode?: 'double_only' | 'both' | 'double or both' | 'break' | null;
 
 
 
 }
 interface MakeupCandidate {
-  lesson_occ_exception_id: string;   // ⬅ id מהטבלה lesson_occurrence_exceptions
+  lesson_occ_exception_id: string;  
   lesson_id: string;
   occur_date: string;
   day_of_week: string;
@@ -1032,6 +1026,9 @@ try {
       'find_open_ended_series_slots_with_skips',
       payloadUnlimited
     ));
+
+
+
   } else {
     // 🔹 קריאה לפונקציה הישנה (עם כמות שיעורים)
     const payloadRegular = {
@@ -1048,12 +1045,24 @@ try {
     ));
   }
 
+
   if (error) {
     console.error(error);
     this.seriesError = 'שגיאה בחיפוש סדרות זמינות';
     return;
   }
-  const raw = (data ?? []) as RecurringSlotWithSkips[];
+ //const raw = (data ?? []) as RecurringSlotWithSkips[];
+
+const raw: RecurringSlotWithSkips[] = (data ?? []).map((r: any) => ({
+  lesson_date: r.lesson_date,
+  start_time: r.start_time,
+  end_time: r.end_time,
+  instructor_id: r.instructor_id ?? null,
+  skipped_farm_days_off: r.skipped_farm_days_off ?? [],
+  skipped_instructor_unavailability: r.skipped_instructor_unavailability ?? [],
+  riding_type_id: r.riding_type_id ?? null,
+  riding_type_name: r.riding_type_name ?? null,
+}));
 
 
 // קודם ממיינים לפי תאריך ואז שעה ואז מדריך,
@@ -1303,7 +1312,7 @@ onReferralFileSelected(event: Event): void {
           )?.instructor_id ?? slot.instructor_id              // fallback
         );
 
-  console.log('📌 booking makeup with instructorIdNumber:', instructorIdNumber);
+
 
   const { data, error } = await dbTenant()
     .from('lessons')
@@ -1514,22 +1523,7 @@ async requestSeriesFromSecretary(slot: RecurringSlotWithSkips , dialogTpl: Templ
     return;
   }
 
-  // ---- חישוב תאריכים ----
-  console.log('CLICKED slot', {
-  lesson_date: slot.lesson_date,
-  start: slot.start_time,
-  end: slot.end_time,
-  instr: slot.instructor_id,
-  skippedFarm: slot.skipped_farm_days_off,
-  skippedInstr: slot.skipped_instructor_unavailability,
-});
-
-  console.log('slot keys:', Object.keys(slot as any));
-console.log('slot raw:', slot);
-
-console.log('skipped farm:', (slot as any)?.skipped_farm_days_off);
-console.log('skipped instr:', (slot as any)?.skipped_instructor_unavailability);
-
+ 
 const startDate = slot.lesson_date;
 
 let endDate: string;
@@ -1880,7 +1874,6 @@ getLessonTypeLabel(slot: MakeupSlot): string {
 //   }
 // }
 async openOccupancySlotsForCandidate(c: OccupancyCandidate): Promise<void> {
-    console.log('[openOccupancySlotsForCandidate] clicked', c);
 
   if (!this.selectedChildId) {
     this.occupancyError = 'יש לבחור ילד';
