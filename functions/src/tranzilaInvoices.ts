@@ -414,14 +414,16 @@ let childNameById = new Map<string, string>();
 if (childIds.length) {
   const { data: childRows, error: chErr } = await sb
     .from("children")
-    .select("child_uuid, first_name, last_name")
+.select("child_uuid, first_name, last_name, gov_id")
     .in("child_uuid", childIds);
 
   if (chErr) throw new Error(`children query failed: ${chErr.message}`);
 
   for (const c of childRows ?? []) {
     const full = [c.first_name, c.last_name].filter(Boolean).join(" ").trim();
-    childNameById.set(c.child_uuid, full || "ילד/ה");
+const govId = (c.gov_id ?? "").trim();
+const label = govId ? `${full} (${govId})` : full;
+childNameById.set(c.child_uuid, label || "ילד/ה");
   }
 }
 
