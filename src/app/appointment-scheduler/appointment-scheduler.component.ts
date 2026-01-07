@@ -565,6 +565,10 @@ generateLessonSlots(start: string, end: string): { from: string, to: string }[] 
 }
 
 async onInstructorChange() {
+   this.clearUiHint('instructor');
+  this.clearUiHint('tab');        // כי tabsLocked תלוי במדריך
+  this.clearUiHint('seriesCount'); // כי זה תלוי במדריך
+  this.clearUiHint('payment');     // כי זה תלוי במדריך
   this.showInstructorDetails = this.selectedInstructorId !== 'any';
 
   // ✅ זה ישפיע רק על makeupCandidates (ולא על occupancyCandidates)
@@ -795,10 +799,11 @@ async onChildSelected(): Promise<void> {
   // =========================================
  async onChildChange(): Promise<void> {
   // איפוס הודעות ומצבים ישנים
-  this.seriesError = null;
-  this.makeupError = null;
-  this.seriesCreatedMessage = null;
-  this.makeupCreatedMessage = null;
+  this.clearUiHint('child');
+  this.clearUiHint('instructor');
+  this.clearUiHint('tab');
+  this.clearUiHint('seriesCount');
+  this.clearUiHint('payment');
 
   // איפוס נתונים של סדרות
   this.recurringSlots = [];
@@ -1128,6 +1133,8 @@ this.mapRecurringSlotsToCalendar();
 }
 
 onSeriesLessonCountChange(val: number | null): void {
+    this.clearUiHint('seriesCount');
+
   this.seriesLessonCount = val;
 
   // איפוס תצוגה קודמת
@@ -2084,13 +2091,20 @@ async requestOccupancyFromSecretary(slot: any): Promise<void> {
 uiHint: Record<string, string | null> = {};
 private uiHintTimers: Record<string, any> = {};
 
-showUiHint(key: string, msg: string, ms = 99999) {
+showUiHint(key: string, msg: string, ms = 3500) {
   if (this.uiHintTimers[key]) clearTimeout(this.uiHintTimers[key]);
   this.uiHint[key] = msg;
   this.uiHintTimers[key] = setTimeout(() => {
     this.uiHint[key] = null;
     delete this.uiHintTimers[key];
   }, ms);
+}
+clearUiHint(key: string) {
+  if (this.uiHintTimers[key]) {
+    clearTimeout(this.uiHintTimers[key]);
+    delete this.uiHintTimers[key];
+  }
+  this.uiHint[key] = null;
 }
 
 get missingChildMsg() {
@@ -2137,6 +2151,8 @@ onTabClick(tab: 'series' | 'makeup' | 'occupancy') {
     this.showUiHint('tab', this.missingTabMsg);
     return;
   }
+    this.clearUiHint('tab');
+
   this.selectedTab = tab;
 }
 onOpenEndedSeriesToggle(checked: boolean): void {
@@ -2162,6 +2178,8 @@ onOpenEndedSeriesToggle(checked: boolean): void {
 }
 
 onUnlimitedSeriesToggle(): void {
+    this.clearUiHint('seriesCount');
+
   // אם סימנו ללא הגבלה – מבטלים כמות
   if (this.isOpenEndedSeries) {
     this.seriesLessonCount = null;
@@ -2231,6 +2249,8 @@ private showErrorToast(message: string) {
   });
 }
 onPaymentPlanChange(planId: string | null) {
+    this.clearUiHint('payment');
+
   this.selectedPaymentPlanId = planId;
 
   const plan = this.paymentPlans.find(p => p.id === planId);
