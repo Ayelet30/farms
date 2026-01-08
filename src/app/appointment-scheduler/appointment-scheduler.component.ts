@@ -1629,12 +1629,11 @@ if (this.referralFile) {
   // requested_end_time: endTime,
   is_open_ended: this.isOpenEndedSeries,
   series_search_horizon_days: this.seriesSearchHorizonDays,
-
   skipped_farm_dates: (slot.skipped_farm_days_off ?? []).map(String),
   skipped_instructor_dates: (slot.skipped_instructor_unavailability ?? []).map(String),
+  payment_plan_id: this.selectedPaymentPlanId,
+
 };
-
-
     if (referralUrl) {
       payload.referral_url = referralUrl;
     }
