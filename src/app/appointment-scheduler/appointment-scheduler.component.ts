@@ -128,6 +128,18 @@ interface OccupancyCandidate {
   instructor_name?: string | null;
   status: string;
 }
+interface CreateSeriesWithValidationResult {
+  ok: boolean;
+  deny_reason: string | null;
+  lesson_id: string | null;
+  approval_id: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  skipped_farm_days_off: string[] | null;
+  skipped_instructor_unavailability: string[] | null;
+}
 
 
 @Component({
@@ -204,6 +216,7 @@ selectedOccupancySlot: MakeupSlot | null = null;
 
 isOpenEndedSeries = false;
 seriesSearchHorizonDays = 90; // fallback
+referralUrl: string | null = null;
 
 get hasSeriesCountOrOpenEnded(): boolean {
   return this.isOpenEndedSeries || !!this.seriesLessonCount;
@@ -1175,97 +1188,231 @@ onSeriesLessonCountChange(val: number | null): void {
   this.searchRecurringSlots();
 }
 
-  // יצירת סדרה בפועל – insert ל-lessons (occurrences נוצרים מה-view)
-  // יצירת סדרה בפועל – insert ל-lessons (occurrences נוצרים מה-view)
-async createSeriesFromSlot(slot: RecurringSlotWithSkips ): Promise<void> {
+//   // יצירת סדרה בפועל – insert ל-lessons (occurrences נוצרים מה-view)
+async createSeriesFromSlot(slot: RecurringSlotWithSkips): Promise<void> {
   if (!this.selectedChildId) return;
 
-  if (!this.seriesLessonCount) {
+  // ✅ אם "ללא הגבלה" מותר בלי כמות, אחרת חובה כמות
+  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
     this.seriesError = 'יש לבחור כמות שיעורים בסדרה לפני קביעת הסדרה';
+    this.showErrorToast(this.seriesError);
     return;
   }
 
-  // גם למזכירה חייב להיות מסלול תשלום
+  // ✅ חייב מסלול תשלום
   if (!this.selectedPaymentPlanId) {
     this.seriesError = 'יש לבחור מסלול תשלום';
+    this.showErrorToast(this.seriesError);
     return;
   }
 
-  const approval = this.selectedApproval;
-  if (!approval && this.paymentSourceForSeries === 'health_fund') {
-    this.seriesError = 'לא נבחר אישור טיפול';
-    return;
-  }
-
-  const baseCount = this.seriesLessonCount;
-
-  const repeatWeeks =
-    this.paymentSourceForSeries === 'health_fund' && approval
-      ? Math.min(baseCount, Math.max(1, approval.remaining_lessons))
-      : baseCount;
-
-  // ⬅ יום ראשון של השבוע לפי תאריך השיעור הראשון
-  const anchorWeekStart = this.calcAnchorWeekStart(slot.lesson_date);
-
-  // ⬅ יום בשבוע מחושב מהתאריך (לא מ-seriesDayOfWeek הריק)
-  const dayLabel = this.dayOfWeekLabelFromDate(slot.lesson_date);
-
-  // ⬅ לוודא שאנחנו מכניסים id_number לפי ה־FK ולא uid
+  // ✅ ת"ז מדריך (id_number) - לפי הבחירה או לפי הסלוט
   let instructorIdNumber: string | null = null;
-
   if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
     const selected = this.instructors.find(i =>
       i.instructor_uid === this.selectedInstructorId ||
-      i.instructor_id  === this.selectedInstructorId
+      i.instructor_id === this.selectedInstructorId
     );
-    instructorIdNumber = selected?.instructor_id ?? slot.instructor_id;
+    instructorIdNumber = selected?.instructor_id ?? slot.instructor_id ?? null;
   } else {
-    // "כל המדריכים" או לא נבחר – נשען על מה שחוזר מה-RPC
-    instructorIdNumber = slot.instructor_id;
+    instructorIdNumber = slot.instructor_id ?? null;
   }
 
-  const { data, error } = await dbTenant()
-    .from('lessons')
-    .insert({
-      child_id: this.selectedChildId,
-      instructor_id: instructorIdNumber,
-      lesson_type: 'סידרה',
-      status: 'אושר',
-      day_of_week: dayLabel,                // ⬅ עכשיו ערך תקין: "ראשון"/"שני"...
-      start_time: slot.start_time,
-      end_time: slot.end_time,
-      repeat_weeks: repeatWeeks,
-      anchor_week_start: anchorWeekStart,
-      appointment_kind: 'therapy_series',
-      approval_id:
-        this.paymentSourceForSeries === 'health_fund' && approval
-          ? approval.approval_id
-          : null,
-      origin: this.user!.role === 'parent' ? 'parent' : 'secretary',
-      is_tentative: false,
-      capacity: 1,
-      current_booked: 1,
-      payment_source:
-        this.paymentSourceForSeries === 'health_fund' && approval
-          ? 'health_fund'
-          : 'private',
-
-      // ⬅ ניו מסלול תשלום
-      payment_plan_id: this.selectedPaymentPlanId,
-      // payment_docs_url: ... // נוסיף כשנסגור לוגיקת העלאה גם למזכירה
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error(error);
-    this.seriesError = 'שגיאה ביצירת הסדרה';
+  if (!instructorIdNumber) {
+    this.seriesError = 'חסר מדריך (ת"ז) לקביעת הסדרה';
+    this.showErrorToast(this.seriesError);
     return;
   }
-this.showSuccessToast('הסדרה נוצרה בהצלחה ✔️');
-await this.onChildChange();
 
+  // ✅ uid של מדריך (ל־health_approvals.instructor_uid)
+  const instructorUid = this.instructors.find(i => i.instructor_id === instructorIdNumber)?.instructor_uid ?? null;
+  if (!instructorUid) {
+    this.seriesError = 'חסר instructor_uid עבור המדריך שנבחר';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+  // ✅ riding_type_id חובה לפי החתימה שבנינו
+  const ridingTypeId = slot.riding_type_id ?? null;
+  if (!ridingTypeId) {
+    this.seriesError = 'חסר סוג שיעור (riding_type_id) בסלוט שנבחר';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+const maxParticipants = await this.getMaxParticipantsByRidingTypeId(ridingTypeId);
+
+  // ✅ מקור תשלום
+  const paymentSource: 'health_fund' | 'private' =
+    this.paymentSourceForSeries === 'health_fund' ? 'health_fund' : 'private';
+
+  // ✅ אם זה קופה – צריך approval (אלא אם את תומכת ביצירת אישור חדש דרך המזכירה; כרגע נשען על selectedApproval)
+  const approval = this.selectedApproval;
+  const existingApprovalId =
+    paymentSource === 'health_fund' ? (approval?.approval_id ?? null) : null;
+
+  if (paymentSource === 'health_fund' && !existingApprovalId) {
+    this.seriesError = 'לא נבחר אישור טיפול לקופה';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+ // const paymentSource: 'health_fund' | 'private' = /* מה שנבחר */;
+//const existingApprovalId: string | null = /* אם נבחר אישור קיים, אחרת null */;
+
+const rpcPayload: any = {
+  // ===== חובה =====
+  p_child_id: this.selectedChildId,
+  p_instructor_id_number: instructorIdNumber,
+  p_instructor_uid: instructorUid,
+  p_series_start_date: slot.lesson_date,
+  p_start_time: slot.start_time,
+  p_riding_type_id: ridingTypeId,
+  p_payment_plan_id: this.selectedPaymentPlanId,
+  p_payment_source: paymentSource,
+  p_is_open_ended: this.isOpenEndedSeries,
+
+  // ===== אופציונלי =====
+  p_repeat_weeks: this.isOpenEndedSeries ? null : this.seriesLessonCount,
+  p_series_search_horizon_days: this.seriesSearchHorizonDays ?? 90,
+
+  // אם יש אישור קיים (רק בקופה)
+  p_existing_approval_id: paymentSource === 'health_fund' ? existingApprovalId : null,
+
+  // שדות ליצירת אישור חדש (רק אם קופה + אין אישור קיים)
+  p_referral_url:
+  paymentSource === 'health_fund' && !existingApprovalId ? (this.referralUrl ?? null) : null,
+
+// ✅ לבטל לגמרי את אלה כדי שלא יהיו שגיאות קומפילציה:
+p_health_fund: null,
+p_approval_number: null,
+p_total_lessons: null,
+
+  p_origin: this.user?.role === 'parent' ? 'parent' : 'secretary',
+  p_max_participants: maxParticipants
+
+};
+
+  this.loadingSeries = true;
+  this.seriesError = null;
+
+  try {
+    const { data, error } = await dbTenant().rpc(
+      'create_series_with_validation',
+      rpcPayload
+    );
+
+    if (error) {
+      console.error('create_series_with_validation error', error);
+      this.seriesError = 'שגיאה ביצירת הסדרה';
+      this.showErrorToast(this.seriesError);
+      return;
+    }
+
+    const res = (Array.isArray(data) ? data[0] : data) as CreateSeriesWithValidationResult | null;
+
+    if (!res?.ok) {
+      const msg = res?.deny_reason || 'לא ניתן ליצור סדרה (ולידציה נכשלה)';
+      this.seriesError = msg;
+      this.showErrorToast(msg);
+      return;
+    }
+
+    this.showSuccessToast('הסדרה נוצרה בהצלחה ✔️');
+    await this.onChildChange();
+  } finally {
+    this.loadingSeries = false;
+  }
 }
+
+// async createSeriesFromSlot(slot: RecurringSlotWithSkips ): Promise<void> {
+//   if (!this.selectedChildId) return;
+
+//   if (!this.seriesLessonCount) {
+//     this.seriesError = 'יש לבחור כמות שיעורים בסדרה לפני קביעת הסדרה';
+//     return;
+//   }
+
+//   // גם למזכירה חייב להיות מסלול תשלום
+//   if (!this.selectedPaymentPlanId) {
+//     this.seriesError = 'יש לבחור מסלול תשלום';
+//     return;
+//   }
+
+//   const approval = this.selectedApproval;
+//   if (!approval && this.paymentSourceForSeries === 'health_fund') {
+//     this.seriesError = 'לא נבחר אישור טיפול';
+//     return;
+//   }
+
+//   const baseCount = this.seriesLessonCount;
+
+//   const repeatWeeks =
+//     this.paymentSourceForSeries === 'health_fund' && approval
+//       ? Math.min(baseCount, Math.max(1, approval.remaining_lessons))
+//       : baseCount;
+
+//   // ⬅ יום ראשון של השבוע לפי תאריך השיעור הראשון
+//   const anchorWeekStart = this.calcAnchorWeekStart(slot.lesson_date);
+
+//   // ⬅ יום בשבוע מחושב מהתאריך (לא מ-seriesDayOfWeek הריק)
+//   const dayLabel = this.dayOfWeekLabelFromDate(slot.lesson_date);
+
+//   // ⬅ לוודא שאנחנו מכניסים id_number לפי ה־FK ולא uid
+//   let instructorIdNumber: string | null = null;
+
+//   if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
+//     const selected = this.instructors.find(i =>
+//       i.instructor_uid === this.selectedInstructorId ||
+//       i.instructor_id  === this.selectedInstructorId
+//     );
+//     instructorIdNumber = selected?.instructor_id ?? slot.instructor_id;
+//   } else {
+//     // "כל המדריכים" או לא נבחר – נשען על מה שחוזר מה-RPC
+//     instructorIdNumber = slot.instructor_id;
+//   }
+
+//   const { data, error } = await dbTenant()
+//     .from('lessons')
+//     .insert({
+//       child_id: this.selectedChildId,
+//       instructor_id: instructorIdNumber,
+//       lesson_type: 'סידרה',
+//       status: 'אושר',
+//       day_of_week: dayLabel,                // ⬅ עכשיו ערך תקין: "ראשון"/"שני"...
+//       start_time: slot.start_time,
+//       end_time: slot.end_time,
+//       repeat_weeks: repeatWeeks,
+//       anchor_week_start: anchorWeekStart,
+//       appointment_kind: 'therapy_series',
+//       approval_id:
+//         this.paymentSourceForSeries === 'health_fund' && approval
+//           ? approval.approval_id
+//           : null,
+//       origin: this.user!.role === 'parent' ? 'parent' : 'secretary',
+//       is_tentative: false,
+//       capacity: 1,
+//       current_booked: 1,
+//       payment_source:
+//         this.paymentSourceForSeries === 'health_fund' && approval
+//           ? 'health_fund'
+//           : 'private',
+
+//       // ⬅ ניו מסלול תשלום
+//       payment_plan_id: this.selectedPaymentPlanId,
+//       // payment_docs_url: ... // נוסיף כשנסגור לוגיקת העלאה גם למזכירה
+//     })
+//     .select()
+//     .single();
+
+//   if (error) {
+//     console.error(error);
+//     this.seriesError = 'שגיאה ביצירת הסדרה';
+//     return;
+//   }
+// this.showSuccessToast('הסדרה נוצרה בהצלחה ✔️');
+// await this.onChildChange();
+
+// }
 
 
 onReferralFileSelected(event: Event): void {
@@ -1616,6 +1763,11 @@ if (this.referralFile) {
         .getPublicUrl(filePath);
 
       referralUrl = publicData?.publicUrl ?? null;
+      this.referralUrl = referralUrl;
+if (!this.referralFile) {
+  this.referralUrl = null;
+}
+
     }
   } catch (e) {
     console.error('referral upload exception', e);
@@ -1803,7 +1955,8 @@ get canRequestSeries(): boolean {
   if (!this.hasSeriesCountOrOpenEnded) return false;
   if (!this.selectedPaymentPlanId) return false;
 
-  if (this.selectedPaymentPlan?.require_docs_at_booking && !this.referralFile) {
+  // ✅ רק הורה חייב מסמך
+  if (!this.isSecretary && this.selectedPaymentPlan?.require_docs_at_booking && !this.referralFile) {
     return false;
   }
   return true;
@@ -2277,6 +2430,20 @@ onPaymentPlanChange(planId: string | null) {
     this.referralFile = null;
     this.referralUploadError = null;
   }
+}
+private async getMaxParticipantsByRidingTypeId(ridingTypeId: string): Promise<number> {
+  const { data, error } = await dbTenant()
+    .from('riding_types')
+    .select('max_participants')
+    .eq('id', ridingTypeId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('getMaxParticipantsByRidingTypeId error', error);
+    return 1; // fallback בטוח
+  }
+
+  return (data?.max_participants ?? 1);
 }
 
 
