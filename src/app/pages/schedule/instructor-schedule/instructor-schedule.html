@@ -88,25 +88,64 @@
 </div>
 
 <!-- ✅ פופאפ הורים מושפעים (חייב להיות OUTSIDE ל-rangeModal.open) -->
-<div class="modal-backdrop" *ngIf="showAffectedParentsPopup">
-  <div class="modal">
-    <h3>שימו לב</h3>
+<!-- פופאפ הורים מושפעים – בדיוק כמו בהעדפות זמינות -->
+<div class="overlay" *ngIf="showAffectedParentsPopup">
+  <div class="confirm-dialog">
 
-    <p>בקשת החופש תשפיע על ההורים הבאים:</p>
+    <button class="icon-btn close" (click)="cancelAffectedPopup()">×</button>
 
-    <ul>
-      <li *ngFor="let p of affectedParents">
-        {{ p.first_name }} {{ p.last_name }} – {{ p.phone }}
-      </li>
-    </ul>
+    <div class="dialog-header">
+      <div class="icon-circle warning">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="11" fill="#FFF4E5"/>
+          <path d="M12 7v7" stroke="#C26400" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="12" cy="17" r="1.6" fill="#C26400"/>
+        </svg>
+      </div>
 
-    <div class="modal-actions">
-      <button class="cancel" (click)="cancelAffectedPopup()">
+      <div class="dialog-titles">
+        <h2>אישור בקשת חופש</h2>
+        <p>בקשת החופש משפיעה על שיעורים מתוכננים</p>
+      </div>
+    </div>
+
+    <div class="impact-box">
+      נמצאו <strong>{{ affectedParents.length }}</strong> הורים שהשינוי ישפיע עליהם.
+    </div>
+
+    <div class="parent-list" *ngIf="affectedParents?.length">
+      <div
+        class="parent-row"
+        *ngFor="let p of affectedParents; let i = index"
+      >
+        <div class="index-pill">{{ i + 1 }}</div>
+        <div class="parent-text">
+          <div class="parent-name">
+            {{ p.first_name }} {{ p.last_name }}
+          </div>
+          <div class="parent-sub">
+            {{ p.phone }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note-box">
+      <span>
+        המזכירה תקבל התראה ותתאם מול ההורים לפני שינוי בפועל של שיעורים.
+      </span>
+    </div>
+
+    <div class="dialog-actions">
+      <button class="btn ghost" (click)="cancelAffectedPopup()">
         ביטול
       </button>
-      <button class="confirm" (click)="confirmSaveAfterWarning()">
-        המשך
+      <button class="btn primary" (click)="confirmSaveAfterWarning()">
+        אישור והמשך
       </button>
     </div>
+
   </div>
 </div>
+
+

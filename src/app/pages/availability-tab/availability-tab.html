@@ -11,7 +11,7 @@
     <span>כדי לערוך את הזמינות יש לבקש מהמזכירה שתפתח את האפשרות.</span>
   </div>
 
-  <!-- פופאפ אישור שינויים -->
+  <!-- פופאפ אישור שינויים (רק מספר הורים, בלי שמות) -->
   <div class="overlay" *ngIf="confirmData">
     <div class="confirm-dialog">
 
@@ -32,18 +32,8 @@
         </div>
       </div>
 
-      <div class="impact-box" *ngIf="confirmData">
+      <div class="impact-box">
         נמצאו <strong>{{ confirmData.parentsCount }}</strong> הורים שהשינוי ישפיע עליהם.
-      </div>
-
-      <div class="parent-list" *ngIf="confirmData?.parents?.length">
-        <div class="parent-row" *ngFor="let p of confirmData.parents; let i = index">
-          <div class="index-pill">{{ i + 1 }}</div>
-          <div class="parent-text">
-            <div class="parent-name">{{ p.name }}</div>
-            <div class="parent-sub">הורה של {{ p.child }}</div>
-          </div>
-        </div>
       </div>
 
       <div class="note-box">
@@ -130,6 +120,7 @@
                   type="checkbox"
                   [(ngModel)]="day.active"
                   (change)="toggleDay(day)"
+                  [disabled]="!allowEdit || !isFarmWorkingDay(day.key)"
                 />
                 <span class="slider" [class.disabled]="!allowEdit"></span>
               </label>
@@ -149,64 +140,70 @@
                 class="icon-btn danger"
                 (click)="removeSlot(day, i)"
                 [class.disabled]="!allowEdit"
+                [disabled]="!allowEdit"
               >
                 <mat-icon>delete</mat-icon>
               </button>
 
               <div class="slot-box">
+<div class="time-error" *ngIf="slot.flashError">
+  שעת התחלה לא יכולה להיות מאוחרת משעת הסיום
+</div>
 
+                <!-- התחלה -->
                 <div class="slot-field">
                   <label>שעת התחלה</label>
                   <div class="time-input">
                     <mat-icon class="clock-icon">schedule</mat-icon>
-                   <input
-  type="time"
-  [(ngModel)]="slot.start"
-  [min]="farmStart"
-  [max]="slot.end || farmEnd"
-  (focus)="onSlotFocus(slot)"
-  (change)="onSlotChange(day, slot)"
-/>
+                    <input
+                      type="time"
+                      [(ngModel)]="slot.start"
+                      [min]="farmStart"
+                      [max]="slot.end || farmEnd"
+                      (focus)="onSlotFocus(slot)"
+                     (ngModelChange)="onTimeTyping(day, slot)"
 
-
+                      (blur)="onTimeBlur(day, slot)"
+                      [disabled]="!allowEdit"
+                    />
                   </div>
                 </div>
 
+                <!-- סיום -->
                 <div class="slot-field">
                   <label>שעת סיום</label>
                   <div class="time-input">
                     <mat-icon class="clock-icon">schedule</mat-icon>
-                 <input
-  type="time"
-  [(ngModel)]="slot.end"
-  [min]="slot.start || farmStart"
-  [max]="farmEnd"
-  (focus)="onSlotFocus(slot)"
-  (change)="onSlotChange(day, slot)"
-/>
-
-
+                    <input
+                      type="time"
+                      [(ngModel)]="slot.end"
+                      [min]="slot.start || farmStart"
+                      [max]="farmEnd"
+                      (focus)="onSlotFocus(slot)"
+                      (ngModelChange)="markDirty()"
+                      (blur)="onTimeBlur(day, slot)"
+                      [disabled]="!allowEdit"
+                    />
                   </div>
                 </div>
 
+                <!-- סוג רכיבה -->
                 <div class="slot-field lesson-type">
-                  <label>סוג רכיבה</label>
-                <select
+                  <label>סוג שיעור</label>
+
+                  <select
   class="select"
   [(ngModel)]="slot.ridingTypeId"
-  (change)="onSlotChange(day, slot)"
+  (change)="onRidingTypeChange(day, slot)"
   [disabled]="!allowEdit"
+  [class.placeholder]="!slot.ridingTypeId"
 >
-  <option value="">בחר סוג רכיבה</option>
+  <option [ngValue]="null">בחר סוג רכיבה</option>
 
-  <option
-    *ngFor="let rt of ridingTypes"
-    [value]="rt.id"
-  >
+  <option *ngFor="let rt of ridingTypes" [ngValue]="rt.id">
     {{ rt.name }}
   </option>
 </select>
-
 
                 </div>
 
@@ -218,6 +215,7 @@
               type="button"
               (click)="addSlot(day)"
               [class.disabled]="!allowEdit"
+              [disabled]="!allowEdit"
             >
               <mat-icon>add</mat-icon>
               הוספת טווח זמן חדש
@@ -252,8 +250,8 @@
           </div>
 
           <label class="custom-toggle">
-            <input type="checkbox" [(ngModel)]="notif.cancelLesson" />
-            <span class="slider"></span>
+            <input type="checkbox" [(ngModel)]="notif.cancelLesson" [disabled]="!allowEdit" />
+            <span class="slider" [class.disabled]="!allowEdit"></span>
           </label>
         </div>
 
@@ -264,8 +262,8 @@
           </div>
 
           <label class="custom-toggle">
-            <input type="checkbox" [(ngModel)]="notif.reminder" />
-            <span class="slider"></span>
+            <input type="checkbox" [(ngModel)]="notif.reminder" [disabled]="!allowEdit" />
+            <span class="slider" [class.disabled]="!allowEdit"></span>
           </label>
         </div>
 
@@ -276,15 +274,15 @@
           </div>
 
           <label class="custom-toggle">
-            <input type="checkbox" [(ngModel)]="notif.monthlyReport" />
-            <span class="slider"></span>
+            <input type="checkbox" [(ngModel)]="notif.monthlyReport" [disabled]="!allowEdit" />
+            <span class="slider" [class.disabled]="!allowEdit"></span>
           </label>
         </div>
 
       </div>
 
       <div class="card-footer">
-        <button class="btn secondary full" (click)="saveNotifications()">
+        <button class="btn secondary full" (click)="saveNotifications()" [disabled]="!userId">
           שמור העדפות התראות
         </button>
       </div>

@@ -704,38 +704,66 @@ const isCancelled =
     }
   }
 
-  onRightClickDay(e: any): void {
-    if (!e?.jsEvent || !e?.dateStr) return;
-    e.jsEvent.preventDefault();
+onRightClickDay(e: any): void {
+  if (!e?.jsEvent) return;
 
-    this.contextMenu.visible = true;
-    this.contextMenu.x = e.jsEvent.clientX;
-    this.contextMenu.y = e.jsEvent.clientY;
-    this.contextMenu.date = e.dateStr.slice(0, 10);
+  e.jsEvent.preventDefault();
+  e.jsEvent.stopPropagation();
+
+  let localYmd: string | null = null;
+
+  // 🟢 עדיפות ל-Date אמיתי
+  if (e.date instanceof Date && !isNaN(e.date.getTime())) {
+    const d = e.date;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    localYmd = `${y}-${m}-${day}`;
   }
 
-  closeContextMenu(): void {
-    this.contextMenu.visible = false;
+  // 🟡 fallback בטוח
+  if (!localYmd && typeof e.dateStr === 'string') {
+    localYmd = e.dateStr.slice(0, 10);
   }
+
+  if (!localYmd) {
+    console.warn('[rightClickDay] no valid date', e);
+    return;
+  }
+
+  this.contextMenu.visible = true;
+  this.contextMenu.x = e.jsEvent.clientX;
+  this.contextMenu.y = e.jsEvent.clientY;
+  this.contextMenu.date = localYmd;
+
+  this.cdr.detectChanges();
+}
+
+
 
   /* ------------ שינוי טווח תצוגה ------------ */
- async onViewRangeChange(range: any): Promise<void> {
+async onViewRangeChange(range: any): Promise<void> {
   try {
-    console.log('[VIEW RANGE RAW]', range);
-
     const vt = range.viewType || '';
     if (vt === 'dayGridMonth') this.currentView = 'dayGridMonth';
     else if (vt === 'timeGridWeek') this.currentView = 'timeGridWeek';
     else this.currentView = 'timeGridDay';
 
-    const startYmd = toYmd(range.start);
-    const endYmd = toYmd(range.end);
-function toYmd(val: string | Date): string {
-  const d = typeof val === 'string' ? new Date(val) : val;
-  return ymd(d);
+   if (!range?.start || !range?.end) {
+  console.warn('[viewRange] missing start/end', range);
+  return;
 }
 
+const startYmd = ymd(new Date(range.start));
+
+// end של FullCalendar הוא יום *אחרי* הטווח → מחזירים יום אחד אחורה
+const endDate = new Date(range.end);
+endDate.setDate(endDate.getDate() - 1);
+const endYmd = ymd(endDate);
+
     console.log('[VIEW RANGE YMD]', { startYmd, endYmd });
+
+
 
     if (
       this.lastRange &&
@@ -796,10 +824,18 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
   }
 cancelAffectedPopup(): void {
   this.showAffectedParentsPopup = false;
-  // אם את רוצה גם להחזיר את המודאל:
-  this.rangeModal.open = true;
+
+  // ❌ למחוק:
+  // this.rangeModal.open = true;
+
+  // אופציונלי – ניקוי שדות
+  this.rangeModal.from = '';
+  this.rangeModal.to = '';
+  this.rangeModal.text = '';
+
   this.cdr.detectChanges();
 }
+
 
   onToolbarToday(): void {
     if (!this.scheduleComp) return;
@@ -831,9 +867,15 @@ console.log('🟠 hasLessonsInRangeFromDb', hasLessons);
   if (hasLessons) {
     // סוגרים את מודאל הבקשה
     this.rangeModal.open = false;
+ this.loadAffectedParentsFromSchedule(from, to);
 
-    // פותחים פופאפ אזהרה
-    this.showAffectedParentsPopup = true;
+if (this.affectedParents.length > 0) {
+  this.rangeModal.open = false;
+  this.showAffectedParentsPopup = true;
+  this.cdr.detectChanges();
+  return;
+}
+
     this.cdr.detectChanges();
     return; // ⛔ לא שומרים עדיין
   }
@@ -851,11 +893,15 @@ console.log('🟠 hasLessonsInRangeFromDb', hasLessons);
 
   this.rangeModal.open = false;
 }
+closeContextMenu(): void {
+  this.contextMenu.visible = false;
+}
 
 
   async openRequest(type: RequestType): Promise<void> {
     const date = this.contextMenu.date;
     this.closeContextMenu();
+    
     if (!date) return;
 
     this.rangeModal.open = true;
@@ -897,6 +943,29 @@ private async hasLessonsInRangeFromDb(from: string, to: string): Promise<boolean
 
   return (data?.length ?? 0) > 0;
 }
+private loadAffectedParentsFromSchedule(from: string, to: string): void {
+  const impacted = new Map<string, Parent>();
+
+  for (const lesson of this.lessons) {
+    const day = lesson.occur_date?.slice(0, 10);
+    if (!day) continue;
+    if (day < from || day > to) continue;
+
+    // מדלגים על מבוטלים
+    const status = String(lesson.status ?? '').toLowerCase();
+    if (status.includes('בוטל') || status.includes('cancel')) continue;
+
+    const child = this.children.find(c => c.child_uuid === lesson.child_id);
+    const parent = child?.parent;
+
+    if (parent && parent.uid) {
+      impacted.set(parent.uid, parent);
+    }
+  }
+
+  this.affectedParents = Array.from(impacted.values());
+}
+
 
 
 
@@ -1250,10 +1319,12 @@ private addMinutes(time: string, mins: number): string {
 
 /* ------------ UTILITIES ------------ */
 function ymd(d: Date): string {
-  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-    .toISOString()
-    .slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
+
 
 function addDays(d: Date, days: number): Date {
   const x = new Date(d);
