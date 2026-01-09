@@ -135,9 +135,17 @@ export class AvailabilityTabComponent implements OnInit {
   /* ===================== FARM SETTINGS ===================== */
 
   private async loadFarmSettings() {
+    
     try {
       const settings = (await this.farmSettingsService.loadSettings()) as FarmSettings | null;
       if (!settings) return;
+if (Array.isArray(settings.working_days)) {
+  this.farmWorkingDays = this.normalizeWorkingDays(settings.working_days);
+  console.log('🏡 farmWorkingDays normalized:', this.farmWorkingDays);
+}
+console.log('🏡 SETTINGS:', settings);
+console.log('🏡 working_days:', settings?.working_days);
+console.log('🏡 farmWorkingDays used:', this.farmWorkingDays);
 
       if (settings.farm_id) this.farmId = settings.farm_id;
 
@@ -227,17 +235,20 @@ this.ridingTypes.sort((a, b) => {
 
   /* ===================== DAYS ===================== */
 
-  private loadDefaultsIfEmpty() {
-    if (this.days.length) return;
+ private loadDefaultsIfEmpty() {
+  if (this.days.length) return;
 
-    this.days = [
-      { key: 'sun', label: 'ראשון', active: false, slots: [] },
-      { key: 'mon', label: 'שני', active: false, slots: [] },
-      { key: 'tue', label: 'שלישי', active: false, slots: [] },
-      { key: 'wed', label: 'רביעי', active: false, slots: [] },
-      { key: 'thu', label: 'חמישי', active: false, slots: [] },
-    ];
-  }
+  this.days = [
+    { key: 'sun', label: 'ראשון', active: false, slots: [] },
+    { key: 'mon', label: 'שני', active: false, slots: [] },
+    { key: 'tue', label: 'שלישי', active: false, slots: [] },
+    { key: 'wed', label: 'רביעי', active: false, slots: [] },
+    { key: 'thu', label: 'חמישי', active: false, slots: [] },
+    { key: 'fri', label: 'שישי', active: false, slots: [] },
+    { key: 'sat', label: 'שבת', active: false, slots: [] },
+  ];
+}
+
 onTimeTyping(day: DayAvailability, slot: TimeSlot) {
   if (!this.allowEdit) return;
 
@@ -256,6 +267,17 @@ onTimeTyping(day: DayAvailability, slot: TimeSlot) {
 
     slot.flashError = false;
   }
+}
+private normalizeWorkingDays(days: number[]): number[] {
+  // אם כבר 1-7
+  const has7 = days.includes(7);
+  const has0 = days.includes(0);
+
+  if (has7 && !has0) return days;         // 1-7
+  if (has0 && !has7) return days.map(d => d === 0 ? 7 : d); // 0-6 -> 1-7
+
+  // fallback: לא נוגעים
+  return days;
 }
 
   private ensureSlotsHaveDefaults() {
