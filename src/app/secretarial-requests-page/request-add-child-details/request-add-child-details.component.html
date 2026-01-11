@@ -1,0 +1,71 @@
+<div class="req" *ngIf="details() as d; else loadingTpl">
+  <div class="title">הוספת ילד/ה</div>
+
+  <div class="grid">
+    <div class="box"><span class="k">הורה:</span><span class="v">{{ d.parent_name || d.parent_uid }}</span></div>
+    <div class="box"><span class="k">נוצר:</span><span class="v">{{ d.created_at | date:'dd/MM/yyyy HH:mm' }}</span></div>
+
+    <div class="box"><span class="k">שם ילד/ה:</span><span class="v">{{ d.child_name || '—' }}</span></div>
+    <div class="box"><span class="k">ת״ז:</span><span class="v">{{ d.gov_id || '—' }}</span></div>
+
+    <div class="box"><span class="k">גיל:</span><span class="v">{{ d.age_years ?? '—' }}</span></div>
+    <div class="box"><span class="k">מין:</span><span class="v">{{ d.gender || '—' }}</span></div>
+
+    <div class="box"><span class="k">קופת חולים:</span><span class="v">{{ d.health_fund || '—' }}</span></div>
+    <div class="box"><span class="k">תאריך לידה:</span><span class="v">{{ d.birth_date | date:'dd/MM/yyyy' }}</span></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">דגשים רפואיים</div>
+
+    <div class="chips" *ngIf="medicalTags.length; else noFlags">
+      <span class="chip" *ngFor="let t of medicalTags">{{ t }}</span>
+    </div>
+
+    <ng-template #noFlags>
+      <div class="muted">לא סומנו דגשים מיוחדים.</div>
+    </ng-template>
+
+    <div class="notes" *ngIf="(d.medical_notes || '').trim()">
+      <div class="k">הערות רפואיות / רגישויות:</div>
+      <div class="v">{{ d.medical_notes }}</div>
+    </div>
+  </div>
+
+  <div class="section" *ngIf="d.terms_signed_name || d.terms_accepted_at">
+    <div class="sec-title">תקנון</div>
+    <div class="row">
+      <span class="k">חתימה:</span>
+      <span class="v">{{ d.terms_signed_name || '—' }}</span>
+      <span class="sep">·</span>
+      <span class="k">אושר:</span>
+      <span class="v">{{ d.terms_accepted_at | date:'dd/MM/yyyy HH:mm' }}</span>
+    </div>
+  </div>
+
+  <div class="section" *ngIf="d.registration_amount">
+    <div class="sec-title">דמי הרשמה</div>
+    <div class="row">
+      <span class="k">סכום:</span>
+      <span class="v">{{ d.registration_amount }} ₪</span>
+      <span class="sep">·</span>
+      <span class="k">כרטיס:</span>
+      <span class="v" *ngIf="d.card_last4">**** {{ d.card_last4 }}</span>
+      <span class="v" *ngIf="!d.card_last4">—</span>
+    </div>
+  </div>
+
+  <div class="note">
+    <label>הערה להחלטה (אופציונלי)</label>
+    <textarea [(ngModel)]="decisionNote" rows="2" placeholder="הערה פנימית / להורה..."></textarea>
+  </div>
+
+  <div class="actions">
+    <button class="btn reject" (click)="reject()" [disabled]="loading()">דחייה</button>
+    <button class="btn approve" (click)="approve()" [disabled]="loading()">אישור</button>
+  </div>
+</div>
+
+<ng-template #loadingTpl>
+  <div class="loading">טוען פרטים...</div>
+</ng-template>

@@ -1,0 +1,47 @@
+<div class="page" dir="rtl">
+  <header class="top">
+    <h1>בקשות לסדרות</h1>
+    <button class="btn" (click)="reload()" [disabled]="loading()">רענון</button>
+  </header>
+
+  <div class="err" *ngIf="error()">{{ error() }}</div>
+  <div class="empty" *ngIf="!loading() && rows().length === 0">אין בקשות ממתינות</div>
+
+  <section class="list" *ngIf="rows().length > 0">
+    <article class="card" *ngFor="let r of rows()">
+      <div class="row">
+        <div class="label">תאריך התחלה</div>
+        <div class="val">{{ r.series_start_date }}</div>
+      </div>
+
+      <div class="row">
+        <div class="label">שעה</div>
+        <div class="val">{{ r.start_time }}</div>
+      </div>
+
+      <div class="row">
+        <div class="label">סוג</div>
+        <div class="val">
+          {{ r.is_open_ended ? 'ללא הגבלה' : ('מוגבל (' + (r.repeat_weeks ?? 0) + ' שבועות)') }}
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="label">מקור תשלום</div>
+        <div class="val">{{ r.payment_source }}</div>
+      </div>
+
+      <textarea
+        class="note"
+        [(ngModel)]="noteById[r.id]"
+        placeholder="הערה למזכירה / סיבה לדחייה (חובה בדחייה)"
+      ></textarea>
+
+      <!-- ✅ כפתורים רק במקום אחד (בסוף הכרטיס) -->
+      <div class="actions">
+        <button class="btn approve" (click)="approve(r)" [disabled]="loading()">אישור</button>
+        <button class="btn reject" (click)="reject(r)" [disabled]="loading()">דחייה</button>
+      </div>
+    </article>
+  </section>
+</div>

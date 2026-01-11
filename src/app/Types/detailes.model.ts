@@ -119,6 +119,37 @@ export interface UiRequest {
   payload: any;
 }
 
+export interface NewSeriesDetails {
+  request_id: string;
+  created_at: string;
+  requested_by_uid: string;
+  requested_by_name: string | null;
+
+  child_id: string;
+  child_name: string | null;
+
+  instructor_id_number: string;
+  instructor_name: string | null;
+
+  series_start_date: string;   // anchor
+  start_time: string;
+  end_time: string;
+
+  repeat_weeks: number | null;
+  is_open_ended: boolean;
+  max_participants: number | null;
+
+  riding_type_id: string | null;
+  riding_type_name: string | null;
+
+  can_create: boolean;
+  deny_reason: string | null;
+
+  skipped_farm_days_off: string[];          // date strings
+  skipped_instructor_unavailability: string[];
+};
+
+
 
 export interface SecretaryChargeRow {
   id: string;
