@@ -187,6 +187,35 @@
   עם המדריך <b>{{ seriesConfirmData.instructorName }}</b>?
   ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
 </p>
+<!-- פירוט דילוגים בסדרה -->
+<div
+  style="margin-top:12px"
+  *ngIf="seriesConfirmData.skippedFarm.length || seriesConfirmData.skippedInstructor.length"
+>
+  <div style="font-weight:700; margin-bottom:6px;">
+    דילוגים בסדרה:
+  </div>
+
+  <!-- ימי חופש חווה -->
+  <div *ngIf="seriesConfirmData.skippedFarm.length">
+    <div style="font-weight:600;">ימי חופש חווה:</div>
+    <ul style="margin:6px 18px;">
+      <li *ngFor="let d of seriesConfirmData.skippedFarm">
+        {{ d }}
+      </li>
+    </ul>
+  </div>
+
+  <!-- אי זמינות מדריך -->
+  <div *ngIf="seriesConfirmData.skippedInstructor.length">
+    <div style="font-weight:600;">אי זמינות מדריך:</div>
+    <ul style="margin:6px 18px;">
+      <li *ngFor="let d of seriesConfirmData.skippedInstructor">
+        {{ d }}
+      </li>
+    </ul>
+  </div>
+</div>
 
 
         <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">

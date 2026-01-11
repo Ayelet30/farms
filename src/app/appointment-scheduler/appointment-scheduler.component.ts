@@ -272,8 +272,12 @@ seriesConfirmData = {
   dayLabel: '',
   startTime: '',
   endTime: '',
-  instructorName: ''
+  instructorName: '',
+  instructorIdNumber: null as string | null,   // ✅ חדש (נוח לשימוש)
+  skippedFarm: [] as string[],
+  skippedInstructor: [] as string[],
 };
+
 filteredChildren: ChildWithProfile[] = [];
 childSearchTerm: string = '';
 
@@ -439,11 +443,13 @@ if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
   this.candidateSlotsError = null;
 
   try {
-    const { data, error } = await dbTenant().rpc('find_makeup_slots_for_lesson_by_id_number', {
-  p_instructor_id: instructorParam,
+   const { data, error } = await dbTenant().rpc('find_makeup_slots_for_lesson_by_id_number', {
+  p_child_id: this.selectedChildId,          // ✅ חדש
+  p_instructor_id: instructorParam,         // יכול להיות null = כל המדריכים
   p_from_date: this.makeupSearchFromDate,
   p_to_date: this.makeupSearchToDate,
 });
+
 
 
 
@@ -1031,15 +1037,14 @@ try {
     // 🔹 קריאה לפונקציה החדשה מה-DB
     const payloadUnlimited = {
       p_child_id: child.child_uuid,
-      p_instructor_id_number: instructorParam,
       p_from_date: fromDate,
+      p_instructor_id_number: instructorParam
     };
 
     ({ data, error } = await dbTenant().rpc(
       'find_open_ended_series_slots_with_skips',
       payloadUnlimited
     ));
-
 
 
   } else {
@@ -1637,98 +1642,30 @@ get isSecretary(): boolean {
   return this.user?.role === 'secretary';
 }
 
-async onSeriesSlotChosen(slot: RecurringSlotWithSkips , dialogTpl: TemplateRef<any>): Promise<void> {
-  if (this.isSecretary) {
-    // מזכירה – קובעת מיד, בלי בקשה
-    await this.createSeriesFromSlot(slot);
-  } else {
-    // הורה – בקשה למזכירה כרגיל
-    await this.requestSeriesFromSecretary(slot, dialogTpl);
-  }
-}
-
-
-async requestSeriesFromSecretary(slot: RecurringSlotWithSkips , dialogTpl: TemplateRef<any>): Promise<void> {
-   if (!this.selectedChildId || !this.user) {
+async onSeriesSlotChosen(slot: RecurringSlotWithSkips, dialogTpl: TemplateRef<any>): Promise<void> {
+  if (!this.selectedChildId || !this.user) {
     this.seriesError = 'חסר ילד או משתמש מחובר';
+    this.showErrorToast(this.seriesError);
     return;
   }
 
   if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
-  this.seriesError = 'חסר מספר שיעורים בסדרה';
-  return;
-}
+    this.seriesError = 'חסר מספר שיעורים בסדרה';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
 
   if (!this.selectedPaymentPlanId) {
     this.seriesError = 'יש לבחור מסלול תשלום';
+    this.showErrorToast(this.seriesError);
     return;
   }
 
-  const plan = this.selectedPaymentPlan!;
-  if (plan.require_docs_at_booking && !this.referralFile) {
-    this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
-    return;
-  }
-
- 
-const startDate = slot.lesson_date;
-
-let endDate: string;
-
-if (this.isOpenEndedSeries) {
-  // בדיאלוג אין צורך "עד תאריך", אבל אם את רוצה עדיין להציג "טווח בדיקה"
-  const endD = new Date(startDate + 'T00:00:00');
-  endD.setDate(endD.getDate() + this.seriesSearchHorizonDays);
-  endDate = this.formatLocalDate(endD);
-} else {
-  const skipsCount =
-    (slot.skipped_farm_days_off?.length ?? 0) +
-    (slot.skipped_instructor_unavailability?.length ?? 0);
-
-  const totalWeeksForward = (this.seriesLessonCount! - 1) + skipsCount;
-
-  const endD = new Date(startDate + 'T00:00:00');
-  endD.setDate(endD.getDate() + totalWeeksForward * 7);
-  endDate = this.formatLocalDate(endD);
-}
-// ---- פרטי מדריך ----
-let instructorIdNumber: string | null = null;
-let instructorName = '';
-
-if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
-  // נבחר מדריך ספציפי בדרופדאון
-  const selected = this.instructors.find(
-    i =>
-      i.instructor_uid === this.selectedInstructorId ||
-      i.instructor_id === this.selectedInstructorId
-  );
-
-  instructorIdNumber = selected?.instructor_id ?? slot.instructor_id ?? null;
-  instructorName = selected?.full_name ?? '';
-} else {
-  // "כל המדריכים" / לא נבחר ספציפית – השם צריך להגיע מה-slot.instructor_id (שהוא id_number)
-  instructorIdNumber = slot.instructor_id ?? null;
-
-  const ins = this.instructors.find(i => i.instructor_id === instructorIdNumber);
-  instructorName = ins?.full_name ?? 'ללא העדפה';
-}
-
-
-  const dayLabel = this.getSlotDayLabel(startDate);
-  const startTime = slot.start_time.substring(0, 5);
-  const endTime = slot.end_time.substring(0, 5);
-
-  this.seriesConfirmData = {
-    startDate,
-    endDate,
-    dayLabel,
-    startTime,
-    endTime,
-    instructorName
-  };
+  // ✅ ממלא את seriesConfirmData כולל skips
+  this.buildSeriesConfirmData(slot);
 
   const dialogRef = this.dialog.open(dialogTpl, {
-    width: '380px',
+    width: '420px',
     disableClose: true,
     data: {},
   });
@@ -1738,91 +1675,197 @@ if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
 
     this.seriesError = null;
 
-    const supa = dbTenant();
-
-   let referralUrl: string | null = null;
-
-if (this.referralFile) {
-  try {
-    const ext = this.referralFile.name.split('.').pop() || 'bin';
-    const filePath = `referrals/${this.selectedChildId}/${Date.now()}.${ext}`;
-
-    // ⬅ כאן משתמשים ב-supabase ולא ב-dbTenant()
-    const { data: uploadData, error: uploadError } = await supabase!
-      .storage
-      .from('referrals')
-      .upload(filePath, this.referralFile);
-
-    if (uploadError) {
-      console.error('referral upload error', uploadError);
-      this.seriesError = 'שגיאה בהעלאת המסמך. אפשר לנסות שוב או להמשיך ללא מסמך.';
+    if (this.isSecretary) {
+      // ✅ מזכירה: אחרי אישור – קובעים בפועל
+      await this.createSeriesFromSlot(slot);
     } else {
-      const { data: publicData } = supabase!
-        .storage
-        .from('referrals')
-        .getPublicUrl(filePath);
-
-      referralUrl = publicData?.publicUrl ?? null;
-      this.referralUrl = referralUrl;
-if (!this.referralFile) {
-  this.referralUrl = null;
-}
-
+      // ✅ הורה: אחרי אישור – שולחים בקשה (כולל העלאת מסמך אם צריך)
+      await this.submitSeriesRequestToSecretary(slot);
     }
-  } catch (e) {
-    console.error('referral upload exception', e);
-    this.seriesError = 'שגיאה בהעלאת המסמך. אפשר לנסות שוב או להמשיך ללא מסמך.';
-  }
+  });
 }
+
+
+
+// async requestSeriesFromSecretary(slot: RecurringSlotWithSkips , dialogTpl: TemplateRef<any>): Promise<void> {
+//    if (!this.selectedChildId || !this.user) {
+//     this.seriesError = 'חסר ילד או משתמש מחובר';
+//     return;
+//   }
+
+//   if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
+//   this.seriesError = 'חסר מספר שיעורים בסדרה';
+//   return;
+// }
+
+//   if (!this.selectedPaymentPlanId) {
+//     this.seriesError = 'יש לבחור מסלול תשלום';
+//     return;
+//   }
+
+//   const plan = this.selectedPaymentPlan!;
+//   if (plan.require_docs_at_booking && !this.referralFile) {
+//     this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
+//     return;
+//   }
+
+ 
+// const startDate = slot.lesson_date;
+
+// let endDate: string;
+
+// if (this.isOpenEndedSeries) {
+//   // בדיאלוג אין צורך "עד תאריך", אבל אם את רוצה עדיין להציג "טווח בדיקה"
+//   const endD = new Date(startDate + 'T00:00:00');
+//   endD.setDate(endD.getDate() + this.seriesSearchHorizonDays);
+//   endDate = this.formatLocalDate(endD);
+// } else {
+//   const skipsCount =
+//     (slot.skipped_farm_days_off?.length ?? 0) +
+//     (slot.skipped_instructor_unavailability?.length ?? 0);
+
+//   const totalWeeksForward = (this.seriesLessonCount! - 1) + skipsCount;
+
+//   const endD = new Date(startDate + 'T00:00:00');
+//   endD.setDate(endD.getDate() + totalWeeksForward * 7);
+//   endDate = this.formatLocalDate(endD);
+// }
+// // ---- פרטי מדריך ----
+// let instructorIdNumber: string | null = null;
+// let instructorName = '';
+
+// if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
+//   // נבחר מדריך ספציפי בדרופדאון
+//   const selected = this.instructors.find(
+//     i =>
+//       i.instructor_uid === this.selectedInstructorId ||
+//       i.instructor_id === this.selectedInstructorId
+//   );
+
+//   instructorIdNumber = selected?.instructor_id ?? slot.instructor_id ?? null;
+//   instructorName = selected?.full_name ?? '';
+// } else {
+//   // "כל המדריכים" / לא נבחר ספציפית – השם צריך להגיע מה-slot.instructor_id (שהוא id_number)
+//   instructorIdNumber = slot.instructor_id ?? null;
+
+//   const ins = this.instructors.find(i => i.instructor_id === instructorIdNumber);
+//   instructorName = ins?.full_name ?? 'ללא העדפה';
+// }
+
+
+//   const dayLabel = this.getSlotDayLabel(startDate);
+//   const startTime = slot.start_time.substring(0, 5);
+//   const endTime = slot.end_time.substring(0, 5);
+
+//   this.seriesConfirmData = {
+//     startDate,
+//     endDate,
+//     dayLabel,
+//     startTime,
+//     endTime,
+//     instructorName
+//   };
+
+//   const dialogRef = this.dialog.open(dialogTpl, {
+//     width: '380px',
+//     disableClose: true,
+//     data: {},
+//   });
+
+//   dialogRef.afterClosed().subscribe(async confirmed => {
+//     if (!confirmed) return;
+
+//     this.seriesError = null;
+
+//     const supa = dbTenant();
+
+//    let referralUrl: string | null = null;
+
+// if (this.referralFile) {
+//   try {
+//     const ext = this.referralFile.name.split('.').pop() || 'bin';
+//     const filePath = `referrals/${this.selectedChildId}/${Date.now()}.${ext}`;
+
+//     // ⬅ כאן משתמשים ב-supabase ולא ב-dbTenant()
+//     const { data: uploadData, error: uploadError } = await supabase!
+//       .storage
+//       .from('referrals')
+//       .upload(filePath, this.referralFile);
+
+//     if (uploadError) {
+//       console.error('referral upload error', uploadError);
+//       this.seriesError = 'שגיאה בהעלאת המסמך. אפשר לנסות שוב או להמשיך ללא מסמך.';
+//     } else {
+//       const { data: publicData } = supabase!
+//         .storage
+//         .from('referrals')
+//         .getPublicUrl(filePath);
+
+//       referralUrl = publicData?.publicUrl ?? null;
+//       this.referralUrl = referralUrl;
+// if (!this.referralFile) {
+//   this.referralUrl = null;
+// }
+
+//     }
+//   } catch (e) {
+//     console.error('referral upload exception', e);
+//     this.seriesError = 'שגיאה בהעלאת המסמך. אפשר לנסות שוב או להמשיך ללא מסמך.';
+//   }
+// }
    
 
-  const payload: any = {
-  requested_start_time: startTime,
-  // requested_end_time: endTime,
-  is_open_ended: this.isOpenEndedSeries,
-  series_search_horizon_days: this.seriesSearchHorizonDays,
-  skipped_farm_dates: (slot.skipped_farm_days_off ?? []).map(String),
-  skipped_instructor_dates: (slot.skipped_instructor_unavailability ?? []).map(String),
-  payment_plan_id: this.selectedPaymentPlanId,
+//   const payload: any = {
+//   requested_start_time: startTime,
+//   // requested_end_time: endTime,
+//   is_open_ended: this.isOpenEndedSeries,
+//   series_search_horizon_days: this.seriesSearchHorizonDays,
+//   skipped_farm_dates: (slot.skipped_farm_days_off ?? []).map(String),
+//   skipped_instructor_dates: (slot.skipped_instructor_unavailability ?? []).map(String),
+//   payment_plan_id: this.selectedPaymentPlanId,
 
-};
-    if (referralUrl) {
-      payload.referral_url = referralUrl;
-    }
+// };
+//     if (referralUrl) {
+//       payload.referral_url = referralUrl;
+//     }
 
-  const { error } = await supa
-  .from('secretarial_requests')
-  .insert({
-    request_type: 'NEW_SERIES',
-    status: 'PENDING',
-    requested_by_uid: String(this.user!.uid),
-    requested_by_role: 'parent',
-    child_id: this.selectedChildId,
-    instructor_id: instructorIdNumber,
-    from_date: startDate,
-    to_date: endDate,
-    payload
-  });
-if (error) {
-  console.error(error);
-  this.seriesError = 'שגיאה בשליחת בקשת הסדרה';
-  this.showErrorToast(this.seriesError);
-  return;
-}
+//   const { error } = await supa
+//   .from('secretarial_requests')
+//   .insert({
+//     request_type: 'NEW_SERIES',
+//     status: 'PENDING',
+//     requested_by_uid: String(this.user!.uid),
+//     requested_by_role: 'parent',
+//     child_id: this.selectedChildId,
+//     instructor_id: instructorIdNumber,
+//     from_date: startDate,
+//     to_date: endDate,
+//     payload
+//   });
+// if (error) {
+//   console.error(error);
+//   this.seriesError = 'שגיאה בשליחת בקשת הסדרה';
+//   this.showErrorToast(this.seriesError);
+//   return;
+// }
 
-// מרעננים
-await this.onChildChange();
+// // מרעננים
+// await this.onChildChange();
 
-// מנקים קובץ
-this.referralFile = null;
+// // מנקים קובץ
+// this.referralFile = null;
 
-// הודעת הצלחה “נראית”
-this.showSuccessToast('בקשתך נשלחה למזכירה ✔️');
+// // הודעת הצלחה “נראית”
+// this.showSuccessToast('בקשתך נשלחה למזכירה ✔️');
 
-this.selectedTab = 'series';
+// this.selectedTab = 'series';
 
   
-  });
+//   });
+// }
+async requestSeriesFromSecretary(slot: RecurringSlotWithSkips, dialogTpl: TemplateRef<any>): Promise<void> {
+  // נשאר רק בשביל תאימות – אבל בפועל onSeriesSlotChosen כבר עושה את זה
+  await this.onSeriesSlotChosen(slot, dialogTpl);
 }
 
   // =========================================
@@ -2049,14 +2092,15 @@ const instructorParam = this.getSelectedInstructorIdNumberOrNull();
 
   this.loadingOccupancySlots = true;
   try {
-    const { data, error } = await dbTenant().rpc(
-      'find_makeup_slots_week_to_week',
-      {
-        p_instructor_id: instructorParam,
-        p_lesson_date: c.occur_date,
+   const { data, error } = await dbTenant().rpc(
+  'find_makeup_slots_week_to_week',
+  {
+    p_child_id: this.selectedChildId,        // ✅ חדש
+    p_instructor_id: instructorParam,        // null = כל המדריכים
+    p_lesson_date: c.occur_date,
+  }
+);
 
-      }
-    );
 const rangeDays = this.timeRangeOccupancyRateDays ?? 30;
 
   
@@ -2445,6 +2489,203 @@ private async getMaxParticipantsByRidingTypeId(ridingTypeId: string): Promise<nu
 
   return (data?.max_participants ?? 1);
 }
+private requireSelectedChildId(): string {
+  if (!this.selectedChildId) {
+    throw new Error('selectedChildId is required');
+  }
+  return this.selectedChildId;
+}
+private buildSeriesConfirmData(slot: RecurringSlotWithSkips): {
+  startDate: string;
+  endDate: string;
+  instructorIdNumber: string | null;
+  instructorName: string;
+  startTime: string;
+  endTime: string;
+} {
+  const startDate = slot.lesson_date;
 
+  let endDate: string;
+  if (this.isOpenEndedSeries) {
+    const endD = new Date(startDate + 'T00:00:00');
+    endD.setDate(endD.getDate() + (this.seriesSearchHorizonDays ?? 90));
+    endDate = this.formatLocalDate(endD);
+  } else {
+    const skipsCount =
+      (slot.skipped_farm_days_off?.length ?? 0) +
+      (slot.skipped_instructor_unavailability?.length ?? 0);
+
+    const totalWeeksForward = (this.seriesLessonCount! - 1) + skipsCount;
+
+    const endD = new Date(startDate + 'T00:00:00');
+    endD.setDate(endD.getDate() + totalWeeksForward * 7);
+    endDate = this.formatLocalDate(endD);
+  }
+
+  // ---- פרטי מדריך ----
+  let instructorIdNumber: string | null = null;
+  let instructorName = '';
+
+  if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
+    const selected = this.instructors.find(
+      i =>
+        i.instructor_uid === this.selectedInstructorId ||
+        i.instructor_id === this.selectedInstructorId
+    );
+
+    instructorIdNumber = selected?.instructor_id ?? slot.instructor_id ?? null;
+    instructorName = selected?.full_name ?? '';
+  } else {
+    instructorIdNumber = slot.instructor_id ?? null;
+    const ins = this.instructors.find(i => i.instructor_id === instructorIdNumber);
+    instructorName = ins?.full_name ?? 'ללא העדפה';
+  }
+
+  const dayLabel = this.getSlotDayLabel(startDate);
+  const startTime = slot.start_time.substring(0, 5);
+  const endTime = slot.end_time.substring(0, 5);
+
+  // ממלאים את המודל לדיאלוג (כולל skips)
+  this.seriesConfirmData = {
+    startDate,
+    endDate,
+    dayLabel,
+    startTime,
+    endTime,
+    instructorName,
+    instructorIdNumber,
+    skippedFarm: (slot.skipped_farm_days_off ?? []).map(String),
+    skippedInstructor: (slot.skipped_instructor_unavailability ?? []).map(String),
+  };
+
+  return { startDate, endDate, instructorIdNumber, instructorName, startTime, endTime };
+}
+private async submitSeriesRequestToSecretary(slot: RecurringSlotWithSkips): Promise<void> {
+  if (!this.selectedChildId || !this.user) {
+    this.seriesError = 'חסר ילד או משתמש מחובר';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
+    this.seriesError = 'חסר מספר שיעורים בסדרה';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+  if (!this.selectedPaymentPlanId) {
+    this.seriesError = 'יש לבחור מסלול תשלום';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+  const plan = this.selectedPaymentPlan!;
+  if (plan.require_docs_at_booking && !this.referralFile) {
+    this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+  // נבנה (וממילא מעדכן seriesConfirmData כולל skips)
+  const built = this.buildSeriesConfirmData(slot);
+
+  const supa = dbTenant();
+
+  // ===== העלאת מסמך: רק להורה, ורק אם קיים =====
+  let referralUrl: string | null = null;
+
+  if (this.referralFile) {
+    try {
+      const ext = this.referralFile.name.split('.').pop() || 'bin';
+      const filePath = `referrals/${this.selectedChildId}/${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase!
+        .storage
+        .from('referrals')
+        .upload(filePath, this.referralFile);
+
+      if (uploadError) {
+        console.error('referral upload error', uploadError);
+        this.seriesError = 'שגיאה בהעלאת המסמך. אפשר לנסות שוב.';
+        this.showErrorToast(this.seriesError);
+        return;
+      }
+
+      const { data: publicData } = supabase!
+        .storage
+        .from('referrals')
+        .getPublicUrl(filePath);
+
+      referralUrl = publicData?.publicUrl ?? null;
+      this.referralUrl = referralUrl;
+    } catch (e) {
+      console.error('referral upload exception', e);
+      this.seriesError = 'שגיאה בהעלאת המסמך. אפשר לנסות שוב.';
+      this.showErrorToast(this.seriesError);
+      return;
+    }
+  } else {
+    this.referralUrl = null;
+  }
+
+  // ===== payload לבקשה =====
+  const payload: any = {
+    requested_start_time: built.startTime,
+    is_open_ended: this.isOpenEndedSeries,
+    series_search_horizon_days: this.seriesSearchHorizonDays,
+    skipped_farm_dates: (slot.skipped_farm_days_off ?? []).map(String),
+    skipped_instructor_dates: (slot.skipped_instructor_unavailability ?? []).map(String),
+    payment_plan_id: this.selectedPaymentPlanId,
+  };
+
+  if (referralUrl) {
+    payload.referral_url = referralUrl;
+  }
+
+  const { error } = await supa
+    .from('secretarial_requests')
+    .insert({
+      request_type: 'NEW_SERIES',
+      status: 'PENDING',
+      requested_by_uid: String(this.user!.uid),
+      requested_by_role: 'parent',
+      child_id: this.selectedChildId,
+      instructor_id: built.instructorIdNumber,
+      from_date: built.startDate,
+      to_date: built.endDate,
+      payload
+    });
+
+  if (error) {
+    console.error(error);
+    this.seriesError = 'שגיאה בשליחת בקשת הסדרה';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+  // מרעננים ומנקים
+  await this.onChildChange();
+  this.referralFile = null;
+
+  this.showSuccessToast('בקשתך נשלחה למזכירה ✔️');
+  this.selectedTab = 'series';
+}
+
+// private fillSeriesConfirmData(slot: RecurringSlotWithSkips, startDate: string, endDate: string, instructorName: string) {
+//   const dayLabel = this.getSlotDayLabel(startDate);
+//   const startTime = slot.start_time.substring(0, 5);
+//   const endTime = slot.end_time.substring(0, 5);
+
+//   this.seriesConfirmData = {
+//     startDate,
+//     endDate,
+//     dayLabel,
+//     startTime,
+//     endTime,
+//     instructorName,
+//     skippedFarm: (slot.skipped_farm_days_off ?? []).map(String),
+//     skippedInstructor: (slot.skipped_instructor_unavailability ?? []).map(String),
+//   };
+// }
 
 }
