@@ -131,4 +131,5 @@ private getDayOffTitle(): string {
     : `${name} – יום חופש בין ${from} עד ${to}`;
 }
 
+
 }

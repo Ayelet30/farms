@@ -1,0 +1,17 @@
+.req { display:flex; flex-direction:column; gap:12px; }
+.req-title { font-weight:900; font-size:16px; color:#1f3a2a; }
+
+.grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+.box { background:#fff; border:1px solid #dfe7d7; border-radius:12px; padding:10px; }
+.box.wide { grid-column: 1 / -1; }
+.k { color:#586141; font-weight:800; margin-left:8px; }
+.v { color:#1f3a2a; font-weight:700; }
+
+.note textarea { width:100%; border:1px solid #cdd6bf; border-radius:12px; padding:10px; }
+
+.actions { display:flex; gap:8px; justify-content:flex-end; }
+.btn { border-radius:10px; padding:8px 14px; font-weight:900; border:1.5px solid #8a9362; }
+.btn.approve { background:#8a9362; color:#fff; }
+.btn.reject { background:#fde2e2; border-color:#b91c1c; color:#b91c1c; }
+
+.loading { padding:10px; font-weight:800; color:#586141; }

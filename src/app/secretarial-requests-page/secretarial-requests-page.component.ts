@@ -6,6 +6,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { RequestInstructorDayOffDetailsComponent } from './request-instructor-day-off-details/request-instructor-day-off-details.component';
+import { RequestCancelOccurrenceDetailsComponent } from './request-cancel-occurrence-details/request-cancel-occurrence-details.component';
+//import { RequestNewSeriesDetailsComponent } from './request-new-series-details/request-new-series-details.component';
+//import { RequestMakeupLessonDetailsComponent } from './request-makeup-lesson-details/request-makeup-lesson-details.component';
 
 
 import {
@@ -55,7 +58,9 @@ typeFilter: 'ALL' | RequestType = 'ALL';  // במקום היוניון המצו�
 private sanitizer = inject(DomSanitizer);
 REQUEST_DETAILS_COMPONENT: Record<string, any> = {
   INSTRUCTOR_DAY_OFF: RequestInstructorDayOffDetailsComponent,
-  // NEW_SERIES: ..., CANCEL_OCCURRENCE: ...
+  CANCEL_OCCURRENCE: RequestCancelOccurrenceDetailsComponent,
+  //NEW_SERIES: RequestNewSeriesDetailsComponent,
+  //MAKEUP_LESSON: RequestMakeupLessonDetailsComponent,
 };
 noSelection: any;
 
