@@ -7,7 +7,32 @@ export interface FarmSettings {
   operating_hours_start?: string | null;
   operating_hours_end?: string | null;
   lesson_duration_minutes?: number | null;
+
+  // NEW
+  monthly_billing_day?: number | null;
+  timezone?: string | null;
+  working_days?: number[] | null;
+  time_slot_minutes?: number | null;
+
+  cancel_before_hours?: number | null;
+  late_cancel_policy?: 'CHARGE_FULL' | 'CHARGE_PARTIAL' | 'NO_CHARGE' | 'NO_MAKEUP' | null;
+  late_cancel_fee_amount?: number | null;
+  late_cancel_fee_percent?: number | null;
+
+  makeup_allowed_days_ahead?: number | null;
+  attendance_default?: 'ASSUME_ATTENDED' | 'ASSUME_ABSENT' | 'REQUIRE_MARKING' | null;
+
+  send_lesson_reminder?: boolean | null;
+  reminder_hours_before?: number | null;
+  reminder_channel?: 'EMAIL' | 'SMS' | 'APP' | null;
+  quiet_hours_start?: string | null;
+  quiet_hours_end?: string | null;
+
+  enable_discounts?: boolean | null;
+  late_payment_fee?: number | null;
+  interest_percent_monthly?: number | null;
 }
+
 
 @Injectable({ providedIn: 'root' })
 export class FarmSettingsService {

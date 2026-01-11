@@ -1,9 +1,12 @@
-import { Component, OnInit, signal, inject } from '@angular/core';
+import { Component, OnInit, signal, inject, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSidenavModule } from '@angular/material/sidenav';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { RequestInstructorDayOffDetailsComponent } from './request-instructor-day-off-details/request-instructor-day-off-details.component';
+
 
 import {
   ensureTenantContextReady,
@@ -31,7 +34,6 @@ const APPROVE_RPC_BY_TYPE: Partial<Record<RequestType, string>> = {
 };
 
 
-
 @Component({
   selector: 'app-secretarial-requests-page',
   standalone: true,
@@ -40,8 +42,28 @@ const APPROVE_RPC_BY_TYPE: Partial<Record<RequestType, string>> = {
   styleUrls: ['./secretarial-requests-page.component.css'],
 })
 export class SecretarialRequestsPageComponent implements OnInit {
+
+  @Input() onApproved?: (e: any) => void;
+  @Input() onRejected?: (e: any) => void;
+  @Input() onError?: (e: any) => void;
+
   private cu = inject(CurrentUserService);
   curentUser = this.cu.current;  // CurrentUser | null
+
+  dateFilterMode: 'CREATED_AT' | 'REQUEST_WINDOW' = 'CREATED_AT';
+typeFilter: 'ALL' | RequestType = 'ALL';  // במקום היוניון המצומצם שהיה לך
+private sanitizer = inject(DomSanitizer);
+REQUEST_DETAILS_COMPONENT: Record<string, any> = {
+  INSTRUCTOR_DAY_OFF: RequestInstructorDayOffDetailsComponent,
+  // NEW_SERIES: ..., CANCEL_OCCURRENCE: ...
+};
+noSelection: any;
+
+getDetailsComponent(type: string) {
+  return this.REQUEST_DETAILS_COMPONENT[type] || null;
+}
+
+
 
   // ===== עזרי רול =====
   /** אם אצלך הרול האמיתי יושב ב-role_in_tenant – תחליפי לכאן */
@@ -61,13 +83,73 @@ export class SecretarialRequestsPageComponent implements OnInit {
     return this.currentRole === 'instructor';
   }
 
+  getPayloadText(r: UiRequest, key: string): string | null {
+  const p: any = r.payload || {};
+  const v = p?.[key];
+  if (v === undefined || v === null) return null;
+  if (typeof v === 'string') return v;
+  return String(v);
+}
+
+getOccurDate(r: UiRequest): string {
+  const p: any = r.payload || {};
+  const d = p.occur_date || r.fromDate || r.createdAt;
+  try {
+    return new Date(d).toLocaleDateString('he-IL');
+  } catch {
+    return String(d ?? '—');
+  }
+}
+
+getFileUrls(r: UiRequest): string[] {
+  const p: any = r.payload || {};
+  const urls: string[] = [];
+
+  // 1) keys שמסתיימים ב _url / url
+  for (const k of Object.keys(p)) {
+    const v = p[k];
+    if (typeof v === 'string' && this.looksLikeUrl(v) && (k.toLowerCase().endsWith('url') || k.toLowerCase().endsWith('_url'))) {
+      urls.push(v);
+    }
+  }
+
+  // 2) מערכים נפוצים: attachments / files
+  const arrCandidates = [p.attachments, p.files];
+  for (const a of arrCandidates) {
+    if (Array.isArray(a)) {
+      for (const it of a) {
+        if (typeof it === 'string' && this.looksLikeUrl(it)) urls.push(it);
+        if (it?.url && typeof it.url === 'string') urls.push(it.url);
+      }
+    }
+  }
+
+  // ייחוד
+  return Array.from(new Set(urls));
+}
+
+looksLikeUrl(v: string): boolean {
+  return /^https?:\/\/\S+$/i.test(v);
+}
+
+isImageUrl(u: string): boolean {
+  return /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(u);
+}
+
+isPdfUrl(u: string): boolean {
+  return /\.pdf(\?.*)?$/i.test(u);
+}
+
+safeUrl(u: string): SafeResourceUrl {
+  return this.sanitizer.bypassSecurityTrustResourceUrl(u);
+}
+
+
   // פילטרים
   statusFilter = signal<RequestStatus | 'ALL'>('PENDING');
   dateFrom: string | null = null;
   dateTo: string | null = null;
   searchTerm = '';
-  typeFilter: 'ALL' | 'CANCEL_OCCURRENCE' | 'INSTRUCTOR_DAY_OFF' | 'NEW_SERIES' =
-    'ALL';
 
   // נתונים
   private allRequests = signal<UiRequest[]>([]);
@@ -104,16 +186,24 @@ export class SecretarialRequestsPageComponent implements OnInit {
       if (type !== 'ALL' && r.requestType !== type) return false;
 
       // --- פילטר תאריכים לפי createdAt ---
-      if (from || to) {
-        const created = new Date(r.createdAt);
-        if (from && created < from) return false;
+     // --- פילטר תאריכים ---
+if (from || to) {
+  // מה מסננים? createdAt או from/to של הבקשה עצמה
+  const startEnd =
+    this.dateFilterMode === 'CREATED_AT'
+      ? { start: new Date(r.createdAt), end: new Date(r.createdAt) }
+      : this.getRequestWindow(r);
 
-        if (to) {
-          const toEnd = new Date(to);
-          toEnd.setHours(23, 59, 59, 999);
-          if (created > toEnd) return false;
-        }
-      }
+  const start = startEnd.start;
+  const end = startEnd.end;
+
+  if (from && end < from) return false; // כל הטווח לפני from
+  if (to) {
+    const toEnd = new Date(to);
+    toEnd.setHours(23, 59, 59, 999);
+    if (start > toEnd) return false; // כל הטווח אחרי to
+  }
+}
 
       // --- חיפוש חופשי ---
       if (term) {
@@ -134,6 +224,26 @@ export class SecretarialRequestsPageComponent implements OnInit {
     });
   }
 
+  private getRequestWindow(r: UiRequest): { start: Date; end: Date } {
+  // 1) אם יש fromDate/toDate בטבלה – זה המלך
+  const fd = r.fromDate ? new Date(r.fromDate) : null;
+  const td = r.toDate ? new Date(r.toDate) : null;
+
+  if (fd && td) return { start: fd, end: td };
+  if (fd && !td) return { start: fd, end: fd };
+
+  // 2) נפילה ל-payload (למשל occur_date בביטול שיעור)
+  const p: any = r.payload || {};
+  const occur = p.occur_date ? new Date(p.occur_date) : null;
+
+  if (occur) return { start: occur, end: occur };
+
+  // 3) fallback: createdAt
+  const c = new Date(r.createdAt);
+  return { start: c, end: c };
+}
+
+
   async ngOnInit() {
     await this.loadRequestsFromDb();
   }
@@ -150,7 +260,7 @@ export class SecretarialRequestsPageComponent implements OnInit {
       const db = dbTenant();
 
       const res = await db
-        .from('secretarial_requests')
+        .from('v_secretarial_requests')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -171,33 +281,25 @@ export class SecretarialRequestsPageComponent implements OnInit {
     }
   }
 
-  private mapRowToUi(row: SecretarialRequestDbRow): UiRequest {
-    const p = row.payload || {};
+private mapRowToUi(row: any): UiRequest {
+  return {
+    id: row.id,
+    requestType: row.request_type,
+    status: row.status,
 
-    const requestedByName =
-      p.requested_by_name || p.parent_name || p.user_name || '—';
-    const childName = p.child_name || null;
-    const instructorName = p.instructor_name || null;
+    summary: this.buildSummary(row, row.payload || {}),
+    requestedByName: row.requested_by_name || '—',
+    childName: row.child_name || undefined,
+    instructorName: row.instructor_name || undefined,
 
-    return {
-      id: row.id,
-      requestType: row.request_type,
-      status: row.status,
+    fromDate: row.from_date,
+    toDate: row.to_date,
+    createdAt: row.created_at,
 
-      summary: this.buildSummary(row, p),
-      requestedByName,
-      childName: childName || undefined,
-      instructorName: instructorName || undefined,
-
-      fromDate: row.from_date,
-      toDate: row.to_date,
-      createdAt: row.created_at,
-
-      requesterUid: row.requested_by_uid,   // ← משיכה מהטבלה
-
-      payload: row.payload,
-    };
-  }
+    requesterUid: row.requested_by_uid,
+    payload: row.payload,
+  };
+}
 
   private buildSummary(row: SecretarialRequestDbRow, p: any): string {
     switch (row.request_type) {
@@ -459,4 +561,35 @@ async approveSelected() {
   reloadRequests() {
     this.loadRequestsFromDb();
   }
+
+  private patchRequestStatus(requestId: string, newStatus: RequestStatus) {
+  const arr = this.allRequests();
+  const idx = arr.findIndex(x => x.id === requestId);
+  if (idx === -1) return;
+
+  const updated = [...arr];
+  updated[idx] = { ...updated[idx], status: newStatus };
+  this.allRequests.set(updated);
+
+  // אם כרגע את בטאב "ממתינים" – הבקשה תיעלם מיד
+  if (this.statusFilter() === 'PENDING') {
+    this.selectedRequest = null;
+    this.detailsOpened = false;
+    this.indexOfRowSelected = null;
+  }
+}
+
+onChildApproved(e: { requestId: string; newStatus: 'APPROVED' }) {
+  this.patchRequestStatus(e.requestId, 'APPROVED'); // מסיר מ"ממתינים" מיד
+}
+
+onChildRejected(e: { requestId: string; newStatus: 'REJECTED' }) {
+  this.patchRequestStatus(e.requestId, 'REJECTED');
+}
+
+ onChildError(msg: string) {
+//   this.toast(msg, 'error');
+}
+
+
 }
