@@ -6,7 +6,6 @@ import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MailService } from '../../services/mail.service';
 
-
 import {
   ensureTenantContextReady,
   dbPublic,
@@ -57,11 +56,7 @@ interface InstructorDetailsRow extends InstructorRow {
 
   // ✅ השדות החדשים:
   birth_date?: string | null;        // מגיע מ-Supabase כ-'YYYY-MM-DD'
-
 }
-
-
-
 
 @Component({
   selector: 'app-secretary-instructors',
@@ -78,8 +73,8 @@ export class SecretaryInstructorsComponent implements OnInit {
 
   // לו"ז שבועי במצב עריכה
   editAvailability: InstructorWeeklyAvailabilityRow[] = [];
- 
-    dayOfWeekToLabel(d?: number | null): string {
+
+  dayOfWeekToLabel(d?: number | null): string {
     switch (d) {
       case 0: return 'ראשון';
       case 1: return 'שני';
@@ -101,7 +96,6 @@ export class SecretaryInstructorsComponent implements OnInit {
       default: return '—';
     }
   }
-
 
   // ======= מצב עריכה במגירה =======
   editMode = false;
@@ -220,14 +214,18 @@ export class SecretaryInstructorsComponent implements OnInit {
   // ======= lifecycle =======
 
   async ngOnInit() {
+    console.log('[INSTRUCTORS] ngOnInit start');
     try {
       await ensureTenantContextReady();
+      console.log('[INSTRUCTORS] tenant context ready');
       await this.loadInstructors();
+      console.log('[INSTRUCTORS] loadInstructors finished, count =', this.instructors.length);
     } catch (e: any) {
-      console.error(e);
+      console.error('[INSTRUCTORS] ngOnInit error:', e);
       this.error = e?.message || 'Failed to load instructors';
     } finally {
       this.isLoading = false;
+      console.log('[INSTRUCTORS] ngOnInit end');
     }
   }
 
@@ -235,26 +233,30 @@ export class SecretaryInstructorsComponent implements OnInit {
     this.isLoading = true;
     this.error = null;
 
-  try {
-  const dbcTenant = dbTenant();
-   // 1) מביאים מדריכים מהטננט – בלי להסתמך על email/phone
-  const { data, error } = await dbcTenant
-  .from('instructors')
-  .select(
-    `
-    id_number,
-    uid,
-    first_name,
-    last_name,
-    phone,
-    status,
-    gender,
-    accepts_makeup_others,
-    allow_availability_edit
-    `
-  )
-  .order('first_name', { ascending: true });
+    console.log('[INSTRUCTORS] loadInstructors() called');
+    try {
+      const dbcTenant = dbTenant();
+      console.log('[INSTRUCTORS] querying tenant.instructors...');
 
+      // 1) מביאים מדריכים מהטננט – בלי להסתמך על email/phone
+      const { data, error } = await dbcTenant
+        .from('instructors')
+        .select(
+          `
+          id_number,
+          uid,
+          first_name,
+          last_name,
+          phone,
+          status,
+          gender,
+          accepts_makeup_others,
+          allow_availability_edit
+          `
+        )
+        .order('first_name', { ascending: true });
+
+      console.log('[INSTRUCTORS] query instructors result:', { error, rows: data?.length });
 
       if (error) throw error;
 
@@ -269,14 +271,20 @@ export class SecretaryInstructorsComponent implements OnInit {
         ),
       ];
 
+      console.log('[INSTRUCTORS] collected uids:', uids);
+
       let usersMap = new Map<string, { email: string | null; phone: string | null }>();
 
       if (uids.length) {
         const dbcPublic = dbPublic();
+        console.log('[INSTRUCTORS] querying public.users for uids');
+
         const { data: usersData, error: usersErr } = await dbcPublic
           .from('users')
           .select('uid, email, phone')
           .in('uid', uids);
+
+        console.log('[INSTRUCTORS] public.users result:', { error: usersErr, rows: usersData?.length });
 
         if (usersErr) throw usersErr;
 
@@ -299,18 +307,23 @@ export class SecretaryInstructorsComponent implements OnInit {
           phone: user?.phone ?? i.phone ?? null,
         };
       });
+
+      console.log('[INSTRUCTORS] final instructors length:', this.instructors.length);
+
     } catch (e: any) {
-      console.error(e);
+      console.error('[INSTRUCTORS] loadInstructors error:', e);
       this.error = e?.message || 'Failed to fetch instructors.';
       this.instructors = [];
     } finally {
       this.isLoading = false;
+      console.log('[INSTRUCTORS] loadInstructors() finished');
     }
   }
 
   // ======= מגירת פרטים =======
 
   async openDetails(id_number: string) {
+    console.log('[INSTRUCTORS] openDetails for id_number:', id_number);
     this.selectedIdNumber = id_number?.trim();
     this.drawerInstructor = null;
     this.editMode = false;
@@ -322,8 +335,8 @@ export class SecretaryInstructorsComponent implements OnInit {
     await this.loadDrawerData(this.selectedIdNumber!);
   }
 
-
   closeDetails() {
+    console.log('[INSTRUCTORS] closeDetails');
     this.drawer.close();
     this.selectedIdNumber = null;
     this.drawerInstructor = null;
@@ -331,115 +344,125 @@ export class SecretaryInstructorsComponent implements OnInit {
     this.editMode = false;
   }
 
-private async loadDrawerData(id_number: string) {
-  this.drawerLoading = true;
+  private async loadDrawerData(id_number: string) {
+    this.drawerLoading = true;
+    console.log('[INSTRUCTORS] loadDrawerData start for id_number:', id_number);
 
-  try {
-    const dbcTenant = dbTenant();
+    try {
+      const dbcTenant = dbTenant();
 
-    const { data, error } = await dbcTenant
-      .from('instructors')
-      .select(`
-        id_number,
-        uid,
-        first_name,
-        last_name,
-        phone,
-        status,
-        gender,
-        address,
-        license_id,
-        about,
-        education,
-        ages,
-        taught_child_genders,
-        default_lesson_duration_min,
-        min_age_years,
-        max_age_years,
-        certificate,
-        photo_url,
-        notify,
-        accepts_makeup_others,
-        allow_availability_edit,
-        birth_date
-      `)
-      .eq('id_number', id_number)
-      .maybeSingle();
+      const { data, error } = await dbcTenant
+        .from('instructors')
+        .select(`
+          id_number,
+          uid,
+          first_name,
+          last_name,
+          phone,
+          status,
+          gender,
+          address,
+          license_id,
+          about,
+          education,
+          ages,
+          taught_child_genders,
+          default_lesson_duration_min,
+          min_age_years,
+          max_age_years,
+          certificate,
+          photo_url,
+          notify,
+          accepts_makeup_others,
+          allow_availability_edit,
+          birth_date
+        `)
+        .eq('id_number', id_number)
+        .maybeSingle();
 
-    if (error) throw error;
-    if (!data) {
+      console.log('[INSTRUCTORS] loadDrawerData instructors query:', { error, hasData: !!data });
+
+      if (error) throw error;
+      if (!data) {
+        this.drawerInstructor = null;
+        this.editModel = null;
+        this.drawerAvailability = [];
+        this.editAvailability = [];
+        return;
+      }
+
+      let ins = data as InstructorDetailsRow;
+
+      // ---- אם יש uid – להשלים טלפון/מייל מ-public.users ----
+      const uid = (ins.uid || '').trim();
+      if (uid) {
+        const dbcPublic = dbPublic();
+        console.log('[INSTRUCTORS] loadDrawerData querying public.users for uid:', uid);
+
+        const { data: user, error: userErr } = await dbcPublic
+          .from('users')
+          .select('email, phone')
+          .eq('uid', uid)
+          .maybeSingle();
+
+        console.log('[INSTRUCTORS] loadDrawerData public.users result:', { error: userErr, hasUser: !!user });
+
+        if (!userErr && user) {
+          ins = {
+            ...ins,
+            email: user.email ?? ins.email ?? null,
+            phone: user.phone ?? ins.phone ?? null,
+          };
+        }
+      }
+
+      // להציב את המדריך במגירה + מודל לעריכה
+      this.drawerInstructor = ins;
+      this.editMode = false;
+      this.editModel = {
+        ...ins,
+        taught_child_genders: ins.taught_child_genders
+          ? [...ins.taught_child_genders]
+          : [],
+      };
+
+      // ---- לטעון לו"ז שבועי מהטבלה instructor_weekly_availability ----
+      console.log('[INSTRUCTORS] loadDrawerData querying instructor_weekly_availability');
+
+      const { data: avail, error: availErr } = await dbcTenant
+        .from('instructor_weekly_availability')
+        .select(
+          'instructor_id_number, day_of_week, start_time, end_time, lesson_type_mode'
+        )
+        .eq('instructor_id_number', id_number)
+        .order('day_of_week');
+
+      console.log('[INSTRUCTORS] loadDrawerData availability result:', { error: availErr, rows: avail?.length });
+
+      if (availErr) {
+        console.error('availability error', availErr);
+        this.drawerAvailability = [];
+        this.editAvailability = [];
+      } else {
+        this.drawerAvailability = (avail ?? []) as InstructorWeeklyAvailabilityRow[];
+        this.editAvailability = this.drawerAvailability.map(a => ({ ...a }));
+      }
+    } catch (e) {
+      console.error('[INSTRUCTORS] loadDrawerData error:', e);
       this.drawerInstructor = null;
       this.editModel = null;
       this.drawerAvailability = [];
       this.editAvailability = [];
-      return;
+    } finally {
+      this.drawerLoading = false;
+      console.log('[INSTRUCTORS] loadDrawerData finished for id_number:', id_number);
     }
-
-    let ins = data as InstructorDetailsRow;
-
-    // ---- אם יש uid – להשלים טלפון/מייל מ-public.users ----
-    const uid = (ins.uid || '').trim();
-    if (uid) {
-      const dbcPublic = dbPublic();
-      const { data: user, error: userErr } = await dbcPublic
-        .from('users')
-        .select('email, phone')
-        .eq('uid', uid)
-        .maybeSingle();
-
-      if (!userErr && user) {
-        ins = {
-          ...ins,
-          email: user.email ?? ins.email ?? null,
-          phone: user.phone ?? ins.phone ?? null,
-        };
-      }
-    }
-
-    // להציב את המדריך במגירה + מודל לעריכה
-    this.drawerInstructor = ins;
-    this.editMode = false;
-    this.editModel = {
-      ...ins,
-      taught_child_genders: ins.taught_child_genders
-        ? [...ins.taught_child_genders]
-        : [],
-    };
-
-    // ---- לטעון לו"ז שבועי מהטבלה instructor_weekly_availability ----
-    const { data: avail, error: availErr } = await dbcTenant
-      .from('instructor_weekly_availability')
-      .select(
-        'instructor_id_number, day_of_week, start_time, end_time, lesson_type_mode'
-      )
-      .eq('instructor_id_number', id_number)
-      .order('day_of_week');
-
-    if (availErr) {
-      console.error('availability error', availErr);
-      this.drawerAvailability = [];
-      this.editAvailability = [];
-    } else {
-      this.drawerAvailability = (avail ?? []) as InstructorWeeklyAvailabilityRow[];
-      this.editAvailability = this.drawerAvailability.map(a => ({ ...a }));
-    }
-    // -------------------------------------------------------------
-  } catch (e) {
-    console.error(e);
-    this.drawerInstructor = null;
-    this.editModel = null;
-    this.drawerAvailability = [];
-    this.editAvailability = [];
-  } finally {
-    this.drawerLoading = false;
   }
-}
-
-
 
   // ======= מצב עריכה במגירה =======
 
   startEditFromDrawer() {
+    console.log('[INSTRUCTORS] startEditFromDrawer');
     if (!this.drawerInstructor) return;
     this.editMode = true;
     this.editModel = {
@@ -464,6 +487,7 @@ private async loadDrawerData(id_number: string) {
   }
 
   cancelEditFromDrawer() {
+    console.log('[INSTRUCTORS] cancelEditFromDrawer');
     if (this.hasUnsavedChanges()) {
       const ok = confirm('את/ה בטוח/ה שאת/ה רוצה לבטל את השינויים?');
       if (!ok) return;
@@ -502,6 +526,7 @@ private async loadDrawerData(id_number: string) {
     if (!this.drawerInstructor || !this.editModel) return;
 
     const m = this.editModel;
+    console.log('[INSTRUCTORS] saveEditFromDrawer called with model:', m);
 
     // ולידציה – שדות חובה
     const missing: string[] = [];
@@ -511,52 +536,54 @@ private async loadDrawerData(id_number: string) {
     if (!m.email?.trim()) missing.push('אימייל');
 
     if (missing.length) {
+      console.warn('[INSTRUCTORS] saveEditFromDrawer missing required fields:', missing);
       alert('שדות חובה חסרים: ' + missing.join(', '));
       return;
     }
 
-     // טלפון ישראלי
-  const rawPhone = (m.phone ?? '').trim();
-  const phoneRe = /^0(5\d|[2-9])\d{7}$/;
+    // טלפון ישראלי
+    const rawPhone = (m.phone ?? '').trim();
+    const phoneRe = /^0(5\d|[2-9])\d{7}$/;
 
-  if (!rawPhone || !phoneRe.test(rawPhone)) {
-    alert('טלפון לא תקין. בדקי קידומת ומספר (10 ספרות).');
-    return;
-  }
-  const phone = rawPhone;
+    if (!rawPhone || !phoneRe.test(rawPhone)) {
+      console.warn('[INSTRUCTORS] saveEditFromDrawer invalid phone:', rawPhone);
+      alert('טלפון לא תקין. בדקי קידומת ומספר (10 ספרות).');
+      return;
+    }
+    const phone = rawPhone;
 
-  // אימייל
-  const rawEmail = (m.email ?? '').trim().toLowerCase();
-  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // אימייל
+    const rawEmail = (m.email ?? '').trim().toLowerCase();
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  if (!rawEmail || !emailRe.test(rawEmail)) {
-    alert('אימייל לא תקין.');
-    return;
-  }
-  const email = rawEmail;
-
+    if (!rawEmail || !emailRe.test(rawEmail)) {
+      console.warn('[INSTRUCTORS] saveEditFromDrawer invalid email:', rawEmail);
+      alert('אימייל לא תקין.');
+      return;
+    }
+    const email = rawEmail;
 
     this.savingEdit = true;
 
-  try {
-  const dbcTenant = dbTenant();
-  const updates: any = {
-  first_name: m.first_name.trim(),
-  last_name: m.last_name.trim(),
-  phone,
-  address: m.address?.trim() || null,
-  license_id: m.license_id?.trim() || null,
-  education: m.education?.trim() || null,
-  about: m.about?.trim() || null,
-  default_lesson_duration_min: m.default_lesson_duration_min ?? null,
-  min_age_years: m.min_age_years ?? null,
-  max_age_years: m.max_age_years ?? null,
-  accepts_makeup_others: m.accepts_makeup_others ?? null,
-  allow_availability_edit: m.allow_availability_edit ?? null,
-  taught_child_genders: m.taught_child_genders ?? null,
+    try {
+      const dbcTenant = dbTenant();
+      const updates: any = {
+        first_name: m.first_name.trim(),
+        last_name: m.last_name.trim(),
+        phone,
+        address: m.address?.trim() || null,
+        license_id: m.license_id?.trim() || null,
+        education: m.education?.trim() || null,
+        about: m.about?.trim() || null,
+        default_lesson_duration_min: m.default_lesson_duration_min ?? null,
+        min_age_years: m.min_age_years ?? null,
+        max_age_years: m.max_age_years ?? null,
+        accepts_makeup_others: m.accepts_makeup_others ?? null,
+        allow_availability_edit: m.allow_availability_edit ?? null,
+        taught_child_genders: m.taught_child_genders ?? null,
+      };
 
-};
-
+      console.log('[INSTRUCTORS] saveEditFromDrawer performing update:', updates);
 
       const { data, error } = await dbcTenant
         .from('instructors')
@@ -564,6 +591,8 @@ private async loadDrawerData(id_number: string) {
         .eq('id_number', this.drawerInstructor.id_number)
         .select('*')
         .maybeSingle();
+
+      console.log('[INSTRUCTORS] saveEditFromDrawer update result:', { error, data });
 
       if (error) throw error;
 
@@ -597,20 +626,21 @@ private async loadDrawerData(id_number: string) {
       this.editMode = false;
 
       // ריענון טבלה
+      console.log('[INSTRUCTORS] saveEditFromDrawer reloading instructors...');
       await this.loadInstructors();
-      
     } catch (e: any) {
-      console.error(e);
+      console.error('[INSTRUCTORS] saveEditFromDrawer error:', e);
       alert(e?.message || 'שמירת פרטי המדריך נכשלה');
     } finally {
       this.savingEdit = false;
+      console.log('[INSTRUCTORS] saveEditFromDrawer finished');
     }
-    
   }
 
   // ======= דיאלוג הוספת מדריך =======
 
   openAddInstructorDialog() {
+    console.log('[ADD INSTRUCTOR] openAddInstructorDialog called');
     const ref = this.dialog.open(AddInstructorDialogComponent, {
       width: '700px',
       maxWidth: '90vw',
@@ -620,12 +650,22 @@ private async loadDrawerData(id_number: string) {
     });
 
     ref.afterClosed().subscribe(async (payload?: AddInstructorPayload | any) => {
-      if (!payload) return;
+      console.log('[ADD INSTRUCTOR] dialog closed, payload:', payload);
+      if (!payload) {
+        console.log('[ADD INSTRUCTOR] dialog closed with no payload (cancel)');
+        return;
+      }
 
       await ensureTenantContextReady();
+      console.log('[ADD INSTRUCTOR] tenant context ready inside add dialog');
 
       const tenant_id = localStorage.getItem('selectedTenant') || '';
       const schema_name = localStorage.getItem('selectedSchema') || '';
+
+      console.log('[ADD INSTRUCTOR] tenant info from localStorage:', {
+        tenant_id,
+        schema_name,
+      });
 
       if (!tenant_id) {
         alert('לא נמצא tenant פעיל. התחברי מחדש או בחרי חווה פעילה.');
@@ -636,10 +676,12 @@ private async loadDrawerData(id_number: string) {
       let tempPassword = '';
 
       try {
+        console.log('[ADD INSTRUCTOR] checking if instructor exists by email:', payload.email);
         const exists = await this.checkIfInstructorExists(
           payload.email,
           tenant_id
         );
+        console.log('[ADD INSTRUCTOR] checkIfInstructorExists result:', exists);
 
         if (exists.existsInTenant) {
           alert('מדריך עם המייל הזה כבר קיים בחווה הנוכחית.');
@@ -647,16 +689,20 @@ private async loadDrawerData(id_number: string) {
         }
 
         if (exists.existsInSystem && exists.uid) {
+          console.log('[ADD INSTRUCTOR] user exists in system with uid, no new firebase user', exists.uid);
           uid = exists.uid;
           tempPassword = '';
         } else {
+          console.log('[ADD INSTRUCTOR] creating firebase user via createUserIfNotExists');
           const res = await this.createUserService.createUserIfNotExists(
             payload.email
           );
+          console.log('[ADD INSTRUCTOR] createUserIfNotExists result:', res);
           uid = res.uid;
           tempPassword = res.tempPassword;
         }
       } catch (e: any) {
+        console.error('[ADD INSTRUCTOR] error in user creation/check:', e);
         const msg =
           this.createUserService.errorMessage ||
           e?.message ||
@@ -684,11 +730,14 @@ private async loadDrawerData(id_number: string) {
         schema_name,
       };
 
+      console.log('[ADD INSTRUCTOR] built body for insert:', body);
+
       const missing = ['first_name', 'last_name', 'email', 'phone', 'id_number'].filter(
         (k) => !(body as any)[k]
       );
 
       if (missing.length) {
+        console.warn('[ADD INSTRUCTOR] missing required fields:', missing);
         alert('שדות חובה חסרים: ' + missing.join(', '));
         return;
       }
@@ -697,14 +746,21 @@ private async loadDrawerData(id_number: string) {
         // users
         await this.createUserInSupabase(body.uid, body.email, "instructor", body.phone);
 
-        // tenant_users
+        console.log('[ADD INSTRUCTOR] upsert public.tenant_users', body.tenant_id, body.uid);
         await this.createTenantUserInSupabase({
           tenant_id: body.tenant_id,
           uid: body.uid,
         });
+        console.log('[ADD INSTRUCTOR] DONE tenant_users');
 
-        // instructors (tenant)
-        await this.createInstructorInSupabase({
+        console.log('[ADD INSTRUCTOR] insert tenant.instructors', {
+          uid: body.uid,
+          first_name: body.first_name,
+          last_name: body.last_name,
+          phone: body.phone,
+          id_number: body.id_number,
+        });
+        const instructorRow = await this.createInstructorInSupabase({
           uid: body.uid,
           first_name: body.first_name,
           last_name: body.last_name,
@@ -717,8 +773,11 @@ private async loadDrawerData(id_number: string) {
           education: body.education,
           about: body.about,
         });
+        console.log('[ADD INSTRUCTOR] DONE instructors insert:', instructorRow);
 
+        console.log('[ADD INSTRUCTOR] reloading instructors list...');
         await this.loadInstructors();
+        console.log('[ADD INSTRUCTOR] DONE loadInstructors, count =', this.instructors.length);
 
         // ✅ מייל למדריך/ה – כאן יש לך גישה ל-body ול-payload
         const fullName = `${body.first_name} ${body.last_name}`.trim();
@@ -732,30 +791,35 @@ private async loadDrawerData(id_number: string) {
           </div>
         `;
 
-        this.mailService.sendEmail({
-          tenantSchema: body.schema_name, // זה ה־selectedSchema שלך
-          to: body.email,
-          subject,
-          html,
-        }).catch(err => console.error('send instructor email failed', err));
+        this.mailService
+          .sendEmail({
+            tenantSchema: body.schema_name, // זה ה־selectedSchema שלך
+            to: body.email,
+            subject,
+            html,
+          })
+          .catch((err) => console.error('send instructor email failed', err));
 
         alert('מדריך נוצר/שויך בהצלחה');
       } catch (e: any) {
-        console.error(e);
+        console.error('[ADD INSTRUCTOR] ERROR:', e);
         alert(e?.message ?? 'שגיאה - המערכת לא הצליחה להוסיף מדריך');
       }
-
     });
   }
 
   // ======= Helpers =======
 
   async checkIfInstructorExists(email: string, tenant_id: string) {
+    console.log('[ADD INSTRUCTOR] checkIfInstructorExists start:', { email, tenant_id });
+
     const { data: user, error: userErr } = await dbPublic()
       .from('users')
       .select('uid')
       .eq('email', email.toLowerCase())
       .maybeSingle();
+
+    console.log('[ADD INSTRUCTOR] checkIfInstructorExists users result:', { user, userErr });
 
     if (userErr) throw userErr;
 
@@ -770,29 +834,37 @@ private async loadDrawerData(id_number: string) {
       .eq('uid', user.uid)
       .maybeSingle();
 
+    console.log('[ADD INSTRUCTOR] checkIfInstructorExists tenant_users result:', { tenantUser, tenantErr });
+
     if (tenantErr) throw tenantErr;
 
     const existsInTenant =
       !!tenantUser && tenantUser.role_in_tenant === 'instructor';
 
-    return {
+    const result = {
       existsInSystem: true,
       existsInTenant,
       uid: user.uid,
     };
+
+    console.log('[ADD INSTRUCTOR] checkIfInstructorExists final result:', result);
+    return result;
   }
 
   private async getInstructorRoleId(): Promise<number> {
     const dbcTenant = dbTenant();
 
+    console.log('[ADD INSTRUCTOR] getInstructorRoleId querying role table for "instructors"');
     const { data, error } = await dbcTenant
       .from('role')
       .select('id')
       .eq('table', 'instructors')
       .maybeSingle();
 
+    console.log('[ADD INSTRUCTOR] getInstructorRoleId result:', { data, error });
+
     if (error || !data?.id) {
-      console.error('getInstructorRoleId error', error);
+      console.error('getInstructorRoleId error', error, data);
       throw new Error('לא הצלחתי למצוא role_id לתפקיד מדריך בטננט הנוכחי');
     }
 
@@ -814,11 +886,18 @@ private async loadDrawerData(id_number: string) {
       phone: (phone || '').trim() || null,
     };
 
+    console.log('[ADD INSTRUCTOR] createUserInSupabase upsert row:', row);
+
     const { error } = await dbcPublic
       .from('users')
       .upsert(row, { onConflict: 'uid' });
 
-    if (error) throw new Error(`users upsert failed: ${error.message}`);
+    if (error) {
+      console.error('[ADD INSTRUCTOR] users upsert failed:', error);
+      throw new Error(`users upsert failed: ${error.message}`);
+    }
+
+    console.log('[ADD INSTRUCTOR] createUserInSupabase success');
   }
 
   private async createTenantUserInSupabase(body: {
@@ -827,6 +906,8 @@ private async loadDrawerData(id_number: string) {
   }): Promise<void> {
     const dbcPublic = dbPublic();
     const instructorRoleId = await this.getInstructorRoleId();
+
+    console.log('[ADD INSTRUCTOR] createTenantUserInSupabase body:', body, 'roleId:', instructorRoleId);
 
     const { error } = await dbcPublic
       .from('tenant_users')
@@ -843,14 +924,19 @@ private async loadDrawerData(id_number: string) {
         }
       );
 
-    if (error) throw new Error(`tenant_users upsert failed: ${error.message}`);
+    if (error) {
+      console.error('[ADD INSTRUCTOR] tenant_users upsert failed:', error);
+      throw new Error(`tenant_users upsert failed: ${error.message}`);
+    }
+
+    console.log('[ADD INSTRUCTOR] createTenantUserInSupabase success');
   }
 
   private async createInstructorInSupabase(body: {
     uid: string;
     first_name: string;
     last_name: string;
-    email?: string; 
+    email?: string;
     phone?: string | null;
     id_number?: string | null;
     address?: string | null;
@@ -860,6 +946,8 @@ private async loadDrawerData(id_number: string) {
     about?: string | null;
   }) {
     const dbcTenant = dbTenant();
+
+    console.log('[ADD INSTRUCTOR] createInstructorInSupabase INSERT body:', body);
 
     const { data, error } = await dbcTenant
       .from('instructors')
@@ -881,7 +969,10 @@ private async loadDrawerData(id_number: string) {
       .select('*')
       .single();
 
+    console.log('[ADD INSTRUCTOR] createInstructorInSupabase result:', { error, data });
+
     if (error) {
+      console.error('[ADD INSTRUCTOR] instructors insert failed:', error);
       throw new Error(`instructors insert failed: ${error.message}`);
     }
 

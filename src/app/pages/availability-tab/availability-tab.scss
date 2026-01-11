@@ -673,3 +673,13 @@ host {
   75% { transform: translateX(-2px); }
   100% { transform: translateX(0); }
 }
+.placeholder-option {
+  font-weight: 700;
+  color: #c47f00; // זהב רך
+}
+.time-error {
+  color: #c62828;
+  font-size: 13px;
+  margin-top: 4px;
+  font-weight: 600;
+}

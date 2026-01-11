@@ -116,6 +116,9 @@ farmDaysOff: any[] = [];
     y: 0,
     date: '' as string,
   };
+// 🔔 הורים שנפגעים מהחופש
+affectedParents: Parent[] = [];
+showAffectedParentsPopup = false;
 
   /* ------- מודאל לטווח תאריכים ------- */
   rangeModal = {
@@ -701,38 +704,66 @@ const isCancelled =
     }
   }
 
-  onRightClickDay(e: any): void {
-    if (!e?.jsEvent || !e?.dateStr) return;
-    e.jsEvent.preventDefault();
+onRightClickDay(e: any): void {
+  if (!e?.jsEvent) return;
 
-    this.contextMenu.visible = true;
-    this.contextMenu.x = e.jsEvent.clientX;
-    this.contextMenu.y = e.jsEvent.clientY;
-    this.contextMenu.date = e.dateStr.slice(0, 10);
+  e.jsEvent.preventDefault();
+  e.jsEvent.stopPropagation();
+
+  let localYmd: string | null = null;
+
+  // 🟢 עדיפות ל-Date אמיתי
+  if (e.date instanceof Date && !isNaN(e.date.getTime())) {
+    const d = e.date;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    localYmd = `${y}-${m}-${day}`;
   }
 
-  closeContextMenu(): void {
-    this.contextMenu.visible = false;
+  // 🟡 fallback בטוח
+  if (!localYmd && typeof e.dateStr === 'string') {
+    localYmd = e.dateStr.slice(0, 10);
   }
+
+  if (!localYmd) {
+    console.warn('[rightClickDay] no valid date', e);
+    return;
+  }
+
+  this.contextMenu.visible = true;
+  this.contextMenu.x = e.jsEvent.clientX;
+  this.contextMenu.y = e.jsEvent.clientY;
+  this.contextMenu.date = localYmd;
+
+  this.cdr.detectChanges();
+}
+
+
 
   /* ------------ שינוי טווח תצוגה ------------ */
- async onViewRangeChange(range: any): Promise<void> {
+async onViewRangeChange(range: any): Promise<void> {
   try {
-    console.log('[VIEW RANGE RAW]', range);
-
     const vt = range.viewType || '';
     if (vt === 'dayGridMonth') this.currentView = 'dayGridMonth';
     else if (vt === 'timeGridWeek') this.currentView = 'timeGridWeek';
     else this.currentView = 'timeGridDay';
 
-    const startYmd = toYmd(range.start);
-    const endYmd = toYmd(range.end);
-function toYmd(val: string | Date): string {
-  const d = typeof val === 'string' ? new Date(val) : val;
-  return ymd(d);
+   if (!range?.start || !range?.end) {
+  console.warn('[viewRange] missing start/end', range);
+  return;
 }
 
+const startYmd = ymd(new Date(range.start));
+
+// end של FullCalendar הוא יום *אחרי* הטווח → מחזירים יום אחד אחורה
+const endDate = new Date(range.end);
+endDate.setDate(endDate.getDate() - 1);
+const endYmd = ymd(endDate);
+
     console.log('[VIEW RANGE YMD]', { startYmd, endYmd });
+
+
 
     if (
       this.lastRange &&
@@ -791,6 +822,20 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
     this.scheduleComp.next();
     this.updateCurrentDateFromCalendar();
   }
+cancelAffectedPopup(): void {
+  this.showAffectedParentsPopup = false;
+
+  // ❌ למחוק:
+  // this.rangeModal.open = true;
+
+  // אופציונלי – ניקוי שדות
+  this.rangeModal.from = '';
+  this.rangeModal.to = '';
+  this.rangeModal.text = '';
+
+  this.cdr.detectChanges();
+}
+
 
   onToolbarToday(): void {
     if (!this.scheduleComp) return;
@@ -804,9 +849,59 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
   }
 
   /* ------------ REQUEST UI ------------ */
+ async submitRange(): Promise<void> {
+  console.log('🟡 submitRange called');
+
+  const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
+
+  if (!from || !to) {
+    this.error = 'חובה לבחור מתאריך ועד תאריך';
+    return;
+  }
+
+  // ✅ כמו פעם – בדיקה על השיעורים שכבר נטענו
+const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
+console.log('🟠 hasLessonsInRangeFromDb', hasLessons);
+
+
+  if (hasLessons) {
+    // סוגרים את מודאל הבקשה
+    this.rangeModal.open = false;
+ this.loadAffectedParentsFromSchedule(from, to);
+
+if (this.affectedParents.length > 0) {
+  this.rangeModal.open = false;
+  this.showAffectedParentsPopup = true;
+  this.cdr.detectChanges();
+  return;
+}
+
+    this.cdr.detectChanges();
+    return; // ⛔ לא שומרים עדיין
+  }
+
+  // אם אין שיעורים – שומרים רגיל
+  await this.saveRangeRequest(
+    from,
+    to,
+    allDay,
+    allDay ? null : fromTime,
+    allDay ? null : toTime,
+    type,
+    text?.trim() || null,
+  );
+
+  this.rangeModal.open = false;
+}
+closeContextMenu(): void {
+  this.contextMenu.visible = false;
+}
+
+
   async openRequest(type: RequestType): Promise<void> {
     const date = this.contextMenu.date;
     this.closeContextMenu();
+    
     if (!date) return;
 
     this.rangeModal.open = true;
@@ -822,89 +917,125 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
   closeRangeModal(): void {
     this.rangeModal.open = false;
   }
+ private hasLessonsInRange(from: string, to: string): boolean {
+  return this.lessons.some(l => {
+    const d = l.occur_date?.slice(0, 10);
+    return d && d >= from && d <= to;
+  });
+}
 
-  async submitRange(): Promise<void> {
-    const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
+private async hasLessonsInRangeFromDb(from: string, to: string): Promise<boolean> {
+  const dbc = dbTenant();
 
-    if (!from || !to) {
-      this.error = 'חובה לבחור מתאריך ועד תאריך';
-      this.cdr.detectChanges();
-      return;
-    }
+  const { data, error } = await dbc
+    .from('lessons_occurrences')
+  .select('lesson_id')
 
-    if (!allDay && (!fromTime || !toTime)) {
-      this.error = 'לחסימה לפי שעות – חובה למלא משעה ועד שעה';
-      this.cdr.detectChanges();
-      return;
-    }
+    .eq('instructor_id', this.instructorId)
+    .gte('occur_date', from)
+    .lte('occur_date', to)
+    .limit(1);
 
-    try {
-      await this.saveRangeRequest(
-        from,
-        to,
-        allDay,
-        allDay ? null : fromTime,
-        allDay ? null : toTime,
-        type,
-        text.trim() || null,
-      );
+  if (error) {
+    console.error('hasLessonsInRangeFromDb error', error);
+    return false;
+  }
 
-      this.rangeModal.open = false;
-      this.rangeModal.text = '';
-    } catch (err) {
-      console.error('submitRange error', err);
-      this.error = 'שגיאה בשמירת הבקשה';
-      this.cdr.detectChanges();
+  return (data?.length ?? 0) > 0;
+}
+private loadAffectedParentsFromSchedule(from: string, to: string): void {
+  const impacted = new Map<string, Parent>();
+
+  for (const lesson of this.lessons) {
+    const day = lesson.occur_date?.slice(0, 10);
+    if (!day) continue;
+    if (day < from || day > to) continue;
+
+    // מדלגים על מבוטלים
+    const status = String(lesson.status ?? '').toLowerCase();
+    if (status.includes('בוטל') || status.includes('cancel')) continue;
+
+    const child = this.children.find(c => c.child_uuid === lesson.child_id);
+    const parent = child?.parent;
+
+    if (parent && parent.uid) {
+      impacted.set(parent.uid, parent);
     }
   }
 
-  private async saveRangeRequest(
-    fromDate: string,
-    toDate: string,
-    allDay: boolean,
-    fromTime: string | null,
-    toTime: string | null,
-    type: RequestType,
-    note: string | null,
-  ): Promise<void> {
-    if (!this.instructorId) return;
+  this.affectedParents = Array.from(impacted.values());
+}
 
-    const dbc = dbTenant();
-    const user = await this.cu.loadUserDetails();
 
-    const payload: any = {
-      category: this.mapRequestTypeToDb(type),
-      note,
-      allDay,
-      fromTime,
-      toTime,
-    };
 
-    const { data, error } = await dbc
-      .from('secretarial_requests')
-      .insert({
-        request_type: 'INSTRUCTOR_DAY_OFF',
-        status: 'PENDING',
-        requested_by_uid: user?.uid,
-        requested_by_role: 'instructor',
-        instructor_id: this.instructorId,
-        child_id: null,
-        lesson_occ_id: null,
-        from_date: fromDate,
-        to_date: toDate,
-        payload,
-      })
-      .select()
-      .single();
 
-    if (error) throw error;
 
-    const expanded = this.expandRequestRow(data);
-    this.dayRequests.push(...expanded);
+async confirmSaveAfterWarning(): Promise<void> {
+  this.showAffectedParentsPopup = false;
 
-    this.setScheduleItems();
-    this.cdr.detectChanges();
+  const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
+
+  await this.saveRangeRequest(
+    from,
+    to,
+    allDay,
+    allDay ? null : fromTime,
+    allDay ? null : toTime,
+    type,
+    text?.trim() || null,
+  );
+
+  this.rangeModal.open = false;
+}
+
+ private async saveRangeRequest(
+  fromDate: string,
+  toDate: string,
+  allDay: boolean,
+  fromTime: string | null,
+  toTime: string | null,
+  type: RequestType,
+  note: string | null,
+): Promise<void> {
+  if (!this.instructorId) return;
+
+  const dbc = dbTenant();
+  const user = await this.cu.loadUserDetails();
+
+  if (!user?.uid) {
+    throw new Error('missing user uid');
   }
+
+  // 🔴 בדיוק כמו המקור – בלי שדות מיותרים
+  const payload = {
+    category: this.mapRequestTypeToDb(type),
+    note: note ?? null,
+  };
+
+  const { data, error } = await dbc
+    .from('secretarial_requests')
+    .insert({
+      request_type: 'INSTRUCTOR_DAY_OFF',
+      status: 'PENDING',
+      requested_by_uid: user.uid,
+      requested_by_role: 'instructor',
+      instructor_id: this.instructorId,
+      from_date: fromDate,
+      to_date: toDate,
+      payload,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('SAVE REQUEST ERROR', error);
+    throw error;
+  }
+
+  this.dayRequests.push(...this.expandRequestRow(data));
+  this.setScheduleItems();
+  this.cdr.detectChanges();
+}
 
   /* ------------ APPROVAL MENU ------------ */
   onClickRequest(dateStr: string, ev: MouseEvent): void {
@@ -1188,10 +1319,12 @@ private addMinutes(time: string, mins: number): string {
 
 /* ------------ UTILITIES ------------ */
 function ymd(d: Date): string {
-  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-    .toISOString()
-    .slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
+
 
 function addDays(d: Date, days: number): Date {
   const x = new Date(d);

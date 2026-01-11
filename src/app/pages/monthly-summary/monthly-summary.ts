@@ -1,4 +1,3 @@
-// app/pages/monthly-summary/monthly-summary.component.ts
 import {
   Component,
   OnInit,
@@ -39,7 +38,7 @@ type MonthlyReportRow = {
   // 👇 הוספה:
   riding_type_code?: string | null;
   riding_type_name?: string | null;
-  // אופציונלי להמשך
+
   approval_id?: UUID | null;
   is_cancellation?: boolean | null;
   is_makeup_target?: boolean | null;
@@ -131,6 +130,7 @@ export interface ChartPoint {
   label: string;
   value: number;
 }
+
 interface LessonOccurrenceRow {
   occur_date: string | null;
   status: string | null;
@@ -413,18 +413,65 @@ export class MonthlySummaryComponent implements OnInit {
         ? Math.round((done.length / totalForSuccess) * 100)
         : 0;
 
+    // === ספירת פרטי / לא־פרטי לפי סוג הרכיבה מה־view ===
+    let privCount = 0;
+    let groupCount = 0;
+
+    for (const l of all) {
+      const code = (l.riding_type_code || '').trim().toLowerCase();
+      const name = (l.riding_type_name || '').trim();
+
+      // אם אין בכלל סוג רכיבה – מדלגים
+      if (!code && !name) continue;
+
+      // פרטי = code 'private' או שהשם בעברית מכיל "פרטי"
+      const isPrivate = code === 'private' || name.includes('פרטי');
+
+      if (isPrivate) {
+        // סופרים מספר שיעורים (לא לפי max_participants)
+        privCount++;
+      } else {
+        // כל השאר – לא פרטי (קבוצתי/זוגי וכו')
+        groupCount++;
+      }
+    }
+
     return {
       workedHours,
       canceled,
       done: done.length,
-      pending: pendingCount, // 👈 כאן
+      pending: pendingCount,
       successPct,
-      privCount: all.filter((l: LessonRow) => l.lesson_type === 'רגיל').length,
-      groupCount: all.filter((l: LessonRow) => l.lesson_type === 'השלמה')
-        .length,
+      privCount,
+      groupCount,
       income,
     };
   });
+
+  // ===============================
+  //   DERIVED TOTALS FOR CHART
+  // ===============================
+
+  // סכום שנתי של פרטי / קבוצתי – לפי ה-KPI
+  get totalPrivate(): number {
+    return this.kpis().privCount || 0;
+  }
+
+  get totalGroup(): number {
+    return this.kpis().groupCount || 0;
+  }
+
+  // מקסימום לשני הקווים ביחד – נוח לשימוש מה־HTML
+  get maxPrivGroup(): number {
+    return this.maxPrivVsGroupValue();
+  }
+    // המספר השני על הציר – המינימום החיובי מבין פרטי / לא-פרטי
+  get minPrivGroup(): number {
+    const vals = [this.totalPrivate, this.totalGroup].filter((v) => v > 0);
+    if (!vals.length) return 0;
+    return Math.min(...vals);
+  }
+
 
   // ===============================
   //        LOAD DATA
@@ -481,7 +528,7 @@ export class MonthlySummaryComponent implements OnInit {
           .gte('occur_date', from)
           .lte('occur_date', to),
 
-        // 👇 כאן טבלת ה-lessons_occurrences
+        // טבלת ה-lessons_occurrences
         this.dbc
           .from('lessons_occurrences')
           .select('occur_date,status,lesson_id')
@@ -504,7 +551,7 @@ export class MonthlySummaryComponent implements OnInit {
           const lessonType = this.deriveLessonType(raw);
           const status = this.deriveStatus(raw);
 
-          // נוסיף שדה אחד נוח שמעדיף שם, ואם אין – קוד
+          // שדה נוח שמעדיף שם, ואם אין – קוד
           const ridingType =
             (raw.riding_type_name || '').trim() ||
             (raw.riding_type_code || '').trim() ||
@@ -520,7 +567,6 @@ export class MonthlySummaryComponent implements OnInit {
             lesson_type: lessonType,
             status,
 
-            // 👇 חדשים: שמירה של שלושת השדות
             riding_type_code: raw.riding_type_code ?? null,
             riding_type_name: raw.riding_type_name ?? null,
             riding_type: ridingType,
@@ -678,7 +724,6 @@ export class MonthlySummaryComponent implements OnInit {
           ).trim(),
         'מדריך/ה': r.instructor_name ?? '',
         'סוג שיעור': r.lesson_type ?? '',
-        // 👇 חדש:
         'סוג רכיבה': r.riding_type ?? '',
         סטטוס: r.status ?? '',
         'שעת התחלה': r.start_time ?? '',
@@ -710,7 +755,7 @@ export class MonthlySummaryComponent implements OnInit {
     const cancels = this.cancelExceptions();
     const pays = this.payments();
     const k = this.kpis();
-    const occs = this.occurrences(); // 👈 פה נשתמש לממתינים
+    const occs = this.occurrences(); // לממתינים בלבד
 
     const doneStatuses: LessonStatus[] = ['הושלם', 'בוצע', 'אושר'];
 
@@ -719,11 +764,11 @@ export class MonthlySummaryComponent implements OnInit {
     const pendingByMonth = Array(12).fill(0);
     const canceledByMonth = Array(12).fill(0);
     const minutesByMonth = Array(12).fill(0); // שעות עבודה
-    const incomeByMonth = Array(12).fill(0); // הכנסות
-    const privByMonth = Array(12).fill(0); // שיעורי פרטי
-    const groupByMonth = Array(12).fill(0); // שיעורי קבוצתי
+    const incomeByMonth = Array(12).fill(0);  // הכנסות
+    const privByMonth = Array(12).fill(0);    // שיעורים פרטיים
+    const groupByMonth = Array(12).fill(0);   // שיעורים לא-פרטיים
 
-    // ---- שיעורים / פרטי / קבוצתי / שעות עבודה ----
+    // ---- DONE / CANCELED / שעות עבודה + פרטי/קבוצתי – לפי lessons_schedule_view ----
     for (const l of lessons) {
       if (!l.occur_date) continue;
       const d = new Date(l.occur_date);
@@ -731,11 +776,10 @@ export class MonthlySummaryComponent implements OnInit {
 
       const m = d.getMonth(); // 0–11
 
-      // DONE / CANCELED (שימי לב: פה כבר לא סופרים pending)
+      // 1. סטטוס – בוצעו / בוטלו
       if (l.status && doneStatuses.includes(l.status)) {
         doneByMonth[m]++;
 
-        // שעות עבודה רק לשיעורים שבוצעו
         if (l.start_time && l.end_time) {
           const s = new Date(`1970-01-01T${l.start_time}`);
           const e = new Date(`1970-01-01T${l.end_time}`);
@@ -745,19 +789,33 @@ export class MonthlySummaryComponent implements OnInit {
         canceledByMonth[m]++;
       }
 
-      // פרטי / קבוצתי – לפי riding_type_name / code
-      const rt =
-        (l.riding_type_name || '').trim() ||
-        (l.riding_type_code || '').trim();
+      // 2. פרטי / לא-פרטי לפי סוג רכיבה
+      const code = (l.riding_type_code || '').trim().toLowerCase();
+      const name = (l.riding_type_name || '').trim();
 
-      if (rt.includes('פרטי')) {
-        privByMonth[m]++;
-      } else if (rt.includes('קבוצתי')) {
-        groupByMonth[m]++;
+      if (!code && !name) continue;
+
+      const isPrivate =
+        code === 'private' ||
+        name.includes('פרטי');
+
+      if (isPrivate) {
+        privByMonth[m]++;   // שיעור פרטי אחד
+      } else {
+        groupByMonth[m]++;  // שיעור לא-פרטי אחד
       }
     }
 
-    // ---- ממתינים – אך ורק מטבלת lessons_occurrences ----
+    // === הופכים את הספירה לחודשית לספירה מצטברת שנתית ===
+    const privCumulativeByMonth = [...privByMonth];
+    const groupCumulativeByMonth = [...groupByMonth];
+
+    for (let i = 1; i < 12; i++) {
+      privCumulativeByMonth[i] += privCumulativeByMonth[i - 1];
+      groupCumulativeByMonth[i] += groupCumulativeByMonth[i - 1];
+    }
+
+    // ---- ממתינים – מטבלת lessons_occurrences ----
     for (const o of occs) {
       if (!o.occur_date) continue;
       const d = new Date(o.occur_date);
@@ -769,7 +827,7 @@ export class MonthlySummaryComponent implements OnInit {
       }
     }
 
-    // ביטולים שמגיעים מטבלת lesson_occurrence_exceptions
+    // ביטולים מתוך exceptions
     for (const c of cancels) {
       if (!c.occur_date) continue;
       const d = new Date(c.occur_date);
@@ -778,7 +836,7 @@ export class MonthlySummaryComponent implements OnInit {
       canceledByMonth[m]++;
     }
 
-    // ---- הכנסות לפי חודשים – מטבלת payments ----
+    // הכנסות לפי חודשים – מטבלת payments
     for (const p of pays) {
       if (!p.date || p.amount == null) continue;
       const d = new Date(p.date);
@@ -786,6 +844,12 @@ export class MonthlySummaryComponent implements OnInit {
       const m = d.getMonth();
       incomeByMonth[m] += p.amount;
     }
+
+    // ===== גרף קטן של הקובייה: פרטי / לא-פרטי =====
+    this.kpiCharts.priv_vs_group = [
+      { label: 'פרטי',    value: k.privCount },
+      { label: 'לא פרטי', value: k.groupCount },
+    ];
 
     // ===== גרפים של KPI =====
 
@@ -795,7 +859,7 @@ export class MonthlySummaryComponent implements OnInit {
       value: doneByMonth[m.v - 1] ?? 0,
     }));
 
-    // ממתינים – עכשיו מה-lessons_occurrences
+    // ממתינים
     this.kpiCharts.pending = this.months.map((m) => ({
       label: m.t,
       value: pendingByMonth[m.v - 1] ?? 0,
@@ -807,15 +871,30 @@ export class MonthlySummaryComponent implements OnInit {
       value: canceledByMonth[m.v - 1] ?? 0,
     }));
 
-    // פרטי מול קבוצתי – שני קווים (כמו שכבר הכנת)
-    const privSeries = this.months.map((m) => ({
-      label: m.t,
-      value: privByMonth[m.v - 1] ?? 0,
-    }));
-    const groupSeries = this.months.map((m) => ({
-      label: m.t,
-      value: groupByMonth[m.v - 1] ?? 0,
-    }));
+    // פרטי מול קבוצתי – הגרף השנתי הגדול עם שני קווים (מצטבר)
+    const privSeries: ChartPoint[] = [];
+    const groupSeries: ChartPoint[] = [];
+
+    let privRunning = 0;
+    let groupRunning = 0;
+
+    for (const m of this.months) {
+      const idx = m.v - 1; // 0–11
+
+      privRunning += privByMonth[idx] ?? 0;
+      groupRunning += groupByMonth[idx] ?? 0;
+
+      privSeries.push({
+        label: m.t,
+        value: privRunning,
+      });
+
+      groupSeries.push({
+        label: m.t,
+        value: groupRunning,
+      });
+    }
+
     this.privVsGroupCharts.set({ priv: privSeries, group: groupSeries });
 
     // אחוז הצלחה – סה"כ
@@ -909,7 +988,7 @@ export class MonthlySummaryComponent implements OnInit {
     return (point.value / max) * 100;
   }
 
-   kpiLabel(key: KpiKey): string {
+  kpiLabel(key: KpiKey): string {
     switch (key) {
       case 'priv_vs_group':
         return 'פרטי מול קבוצתי';
@@ -937,60 +1016,52 @@ export class MonthlySummaryComponent implements OnInit {
   ): boolean {
     if (!a || !b) return false;
     if (!a.lesson_id || !b.lesson_id) return false;
-
-    // אותו שיעור בדיוק (אותו lesson_id)
     return a.lesson_id === b.lesson_id;
   }
 
-  // האם השורה הנוכחית היא המשך של השיעור בשורה הקודמת
   isSameLessonAsPrev(index: number): boolean {
     const rows = this.filteredLessons();
     if (index <= 0 || index >= rows.length) return false;
-
     return this.isSameLesson(rows[index], rows[index - 1]);
   }
 
   // מפתח קבוצה: מדריך + תאריך + התחלה + סיום
-private groupKey(l: LessonRow | null | undefined): string {
-  if (!l) return '';
-  return [
-    (l.occur_date || '').trim(),
-    (l.start_time || '').trim(),
-    (l.end_time || '').trim(),
-    (l.instructor_name || '').trim(),
-  ].join('|');
+  private groupKey(l: LessonRow | null | undefined): string {
+    if (!l) return '';
+    return [
+      (l.occur_date || '').trim(),
+      (l.start_time || '').trim(),
+      (l.end_time || '').trim(),
+      (l.instructor_name || '').trim(),
+    ].join('|');
+  }
+
+  private isSameGroup(a?: LessonRow, b?: LessonRow): boolean {
+    if (!a || !b) return false;
+    return this.groupKey(a) === this.groupKey(b);
+  }
+
+  // האם זו השורה הראשונה בקבוצה
+  isGroupFirst(index: number): boolean {
+    const rows = this.filteredLessons();
+    if (index <= 0) return true;
+    return !this.isSameGroup(rows[index], rows[index - 1]);
+  }
+
+  // האם זו שורה המשך (לא ראשונה)
+  isGroupContinuation(index: number): boolean {
+    const rows = this.filteredLessons();
+    if (index <= 0 || index >= rows.length) return false;
+    return this.isSameGroup(rows[index], rows[index - 1]);
+  }
+
+  isGroupLast(index: number): boolean {
+    const rows = this.filteredLessons();
+    if (index < 0 || index >= rows.length - 1) return true;
+    return !this.isSameGroup(rows[index], rows[index + 1]);
+  }
+
+  isGroupMiddle(index: number): boolean {
+    return !this.isGroupFirst(index) && !this.isGroupLast(index);
+  }
 }
-
-private isSameGroup(a?: LessonRow, b?: LessonRow): boolean {
-  if (!a || !b) return false;
-  return this.groupKey(a) === this.groupKey(b);
-}
-
-// האם זו השורה הראשונה בקבוצה
-isGroupFirst(index: number): boolean {
-  const rows = this.filteredLessons();
-  if (index <= 0) return true;
-  return !this.isSameGroup(rows[index], rows[index - 1]);
-}
-
-// האם זו שורה המשך (לא ראשונה) בקבוצה
-isGroupContinuation(index: number): boolean {
-  const rows = this.filteredLessons();
-  if (index <= 0 || index >= rows.length) return false;
-  return this.isSameGroup(rows[index], rows[index - 1]);
-}
-isGroupLast(index: number): boolean {
-  const rows = this.filteredLessons();
-  if (index < 0 || index >= rows.length - 1) return true;
-  return !this.isSameGroup(rows[index], rows[index + 1]);
-}
-
-isGroupMiddle(index: number): boolean {
-  return !this.isGroupFirst(index) && !this.isGroupLast(index);
-}
-
-
-}
-
- 
-
