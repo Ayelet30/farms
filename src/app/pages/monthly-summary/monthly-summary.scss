@@ -110,7 +110,7 @@
       border: 1px solid #e2ddcf;
       box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
       color: #333;
-      transition: box-shadow 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+      transition: box-shadow 0.2s ease, transform 0.2s ease;
 
       mat-icon {
         font-size: 22px;
@@ -250,11 +250,13 @@
       height: 220px;
     }
 
+    /* צירים */
     .axis {
-      stroke: #eee4d3;
-      stroke-width: 2;
+      stroke: #9aa085;
+      stroke-width: 1.5;
     }
 
+    /* קו בסיסי */
     .line {
       fill: none;
       stroke: #7c8c60;
@@ -267,15 +269,15 @@
       stroke-width: 1;
     }
 
-    /* ✅ תוספת – קווים ונקודות לפרטי / קבוצתי */
+    /* ✅ פרטי / לא פרטי */
     .line-priv {
       @extend .line;
-      stroke: #7c8c60; // ירקרק
+      stroke: #7c8c60; // ירוק
     }
 
     .line-group {
       @extend .line;
-      stroke: #c89a3d; // זהב-צהוב
+      stroke: #c89a3d; // זהב/כתום
     }
 
     .dot-priv {
@@ -306,11 +308,14 @@
       font-size: 14px;
       color: #8b8f7a;
     }
-        .chart-legend {
+
+    /* ✅ מקרא (Legend) */
+    .legend {
       display: flex;
       justify-content: flex-end;
       gap: 16px;
-      margin-top: 6px;
+      margin-top: 8px;
+      padding: 0 8px 10px;
       font-size: 13px;
       color: #6f765c;
     }
@@ -328,18 +333,14 @@
       display: inline-block;
     }
 
-    .legend-dot-priv {
-      background: #7c8c60; // אותו ירוק של הקו הפרטי
+    /* ✅ ההוספה החשובה: צבעים לנקודות legend */
+    .legend-dot.priv {
+      background: #7c8c60;
     }
 
-    .legend-dot-group {
-      background: #c89a3d; // אותו זהב של הקו הקבוצתי
+    .legend-dot.group {
+      background: #c89a3d;
     }
-
-    .legend-label {
-      font-weight: 500;
-    }
-
   }
 
   /* אזור רשימת השיעורים */
@@ -526,19 +527,12 @@
         background: #f6f1e7;
       }
 
-      // שורה שהיא המשך של אותו שיעור – בלי קו מפריד מעל
-      tr.same-lesson-row td {
-        border-top: none !important;
-      }
-
-      // שורה שהיא המשך של אותו שיעור – בלי קו מפריד מעל + יותר צפוף
       tr.group-cont-row td {
         border-top: none !important;
         padding-top: 4px;
         padding-bottom: 4px;
       }
 
-      // תצוגה “ריקה” בשורות המשך (כדי לא למשוך תשומת לב)
       .empty-repeat {
         opacity: 0;
         user-select: none;
@@ -549,14 +543,12 @@
         border-bottom: none !important;
       }
 
-      /* ✅ ביטול כל “קו עליון” לשורות המשך (למקרה שנשאר משהו) */
+      /* ✅ ביטול כל “קו עליון” לשורות המשך */
       :host ::ng-deep .mat-mdc-table .mdc-data-table__row.group-cont-row td {
         border-top: none !important;
         padding-top: 4px;
         padding-bottom: 4px;
       }
-
-
 
       /* תגיות סטטוס */
       .chip {
@@ -569,28 +561,6 @@
         font-weight: 600;
         min-width: 64px;
         text-align: center;
-
-        &.אושר {
-          background: #e4f4df;
-          color: #446b40;
-        }
-
-        &.בוטל {
-          background: #fde6e4;
-          color: #b63c34;
-        }
-
-        &.ממתין {
-          background: #fff0d8;
-          color: #b08029;
-        }
-
-        &.הושלם,
-        &.בוצע {
-          background: #e2f2ff;
-          color: #3b6a8f;
-        }
-
       }
 
       /* ====== MatSelect dropdown panel styling ====== */
@@ -603,7 +573,6 @@
         margin-top: 6px;
       }
 
-      /* אופציה */
       :host ::ng-deep .mat-mdc-option {
         font-family: "Heebo", sans-serif;
         font-size: 14px;
@@ -611,28 +580,25 @@
         min-height: 42px;
       }
 
-      /* Hover */
       :host ::ng-deep .mat-mdc-option:hover:not(.mdc-list-item--disabled) {
         background: #f6f1e7;
       }
 
-      /* Selected */
       :host ::ng-deep .mat-mdc-option.mdc-list-item--selected {
         background: #f0f5e6 !important;
       }
 
-      /* הטקסט באופציה selected */
-      :host ::ng-deep .mat-mdc-option.mdc-list-item--selected .mdc-list-item__primary-text {
+      :host ::ng-deep
+        .mat-mdc-option.mdc-list-item--selected
+        .mdc-list-item__primary-text {
         color: #303827;
         font-weight: 700;
       }
 
-      /* האייקון ✔ */
       :host ::ng-deep .mat-mdc-option .mat-pseudo-checkbox {
         --mat-minimal-pseudo-checkbox-selected-checkmark-color: #7c8c60;
       }
 
-      /* סקרול יפה */
       :host ::ng-deep .mat-mdc-select-panel::-webkit-scrollbar {
         width: 10px;
       }
@@ -645,7 +611,6 @@
       :host ::ng-deep .mat-mdc-select-panel::-webkit-scrollbar-track {
         background: transparent;
       }
-
 
       .details-btn {
         border-radius: 999px;
@@ -671,7 +636,6 @@
       font-size: 14px;
     }
   }
-  
 
   /* תובנות חודשיות/שנתיות */
   .insights-section {
@@ -758,8 +722,6 @@
     }
   }
 
-  
-
   /* רספונסיביות למובייל – עד פלאפון */
   @media (max-width: 600px) {
     padding: 16px;
@@ -805,7 +767,6 @@
     .list-section {
       padding: 14px;
 
-      /* טבלה הופכת לכרטיסים */
       table,
       thead,
       tbody,

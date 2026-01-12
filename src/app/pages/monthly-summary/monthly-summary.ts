@@ -168,11 +168,10 @@ export class MonthlySummaryComponent implements OnInit {
     group: [],
   });
 
-  // --- הגדרות בסיס לגרף ---
-  private readonly axisLeft = 40;
-  private readonly axisRight = 580;
-  private readonly axisTop = 20;
-  private readonly axisBottom = 170;
+readonly axisLeft = 40;
+readonly axisRight = 580;
+readonly axisTop = 20;
+readonly axisBottom = 170;
 
   @Input() monthlyTitle = 'הסיכום החודשי שלי';
   @Input() yearlyTitle = 'הסיכום השנתי שלי';
@@ -211,6 +210,20 @@ export class MonthlySummaryComponent implements OnInit {
     worked_hours: [],
     income: [],
   };
+  maxIndex(series: 'priv' | 'group'): number {
+  const s = series === 'priv' ? this.privVsGroupCharts().priv : this.privVsGroupCharts().group;
+  if (!s.length) return -1;
+
+  let maxI = 0;
+  for (let i = 1; i < s.length; i++) {
+    if (s[i].value > s[maxI].value) maxI = i;
+  }
+  return maxI;
+}
+
+isMaxIndex(series: 'priv' | 'group', index: number): boolean {
+  return index === this.maxIndex(series);
+}
 
   // ===============================
   //           FILTERS
@@ -471,6 +484,40 @@ export class MonthlySummaryComponent implements OnInit {
     if (!vals.length) return 0;
     return Math.min(...vals);
   }
+  // מקסימום לכל קו בנפרד
+get maxPriv(): number {
+  const s = this.privVsGroupCharts().priv;
+  return s.length ? Math.max(...s.map(p => p.value)) : 0;
+}
+
+get maxGroupSeries(): number {
+  const s = this.privVsGroupCharts().group;
+  return s.length ? Math.max(...s.map(p => p.value)) : 0;
+}
+
+// כל ערכי הסימון בציר Y (0 + כל מקסימום ייחודי + מינימום חיובי אם תרצי)
+get yTicksPrivGroup(): number[] {
+  const ticks = new Set<number>();
+  ticks.add(0);
+
+  const a = this.maxPriv;
+  const b = this.maxGroupSeries;
+
+  if (a > 0) ticks.add(a);
+  if (b > 0) ticks.add(b);
+
+  // אם עדיין את רוצה גם “מינימום חיובי” כאמצעי:
+  const min = this.minPrivGroup;
+  if (min > 0 && min !== a && min !== b) ticks.add(min);
+
+  // סדר מלמעלה למטה לא חובה, אבל נוח
+  return Array.from(ticks).sort((x, y) => x - y);
+}
+isMaxPoint(series: 'priv' | 'group', value: number): boolean {
+  return series === 'priv'
+    ? value === this.maxPriv
+    : value === this.maxGroupSeries;
+}
 
 
   // ===============================
