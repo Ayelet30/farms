@@ -178,23 +178,42 @@
               </div>
 <!-- 🔁 מזכירה: ניתן להשלמה *ngIf="lessonDetails?.status === 'בוטל' && canEditMakeupAllowed"-->
  
-<div class="makeup-card">
+<div
+  class="makeup-card"
+  *ngIf="lessonDetails?.status === 'בוטל'">
+
   <div class="makeup-header">
     <mat-icon>cached</mat-icon>
     <div class="makeup-text">
       <div class="title">שיעור מבוטל</div>
-      <div class="subtitle">ניתן לאפשר השלמת שיעור לילד</div>
+      <div class="subtitle">
+        {{ lessonDetails.is_makeup_allowed
+            ? 'שיעור זה מזכה בהשלמה'
+            : 'שיעור זה אינו מזכה בהשלמה' }}
+      </div>
     </div>
   </div>
 
+  <!-- 🟢 רק מזכירה/אדמין -->
   <mat-slide-toggle
+    *ngIf="canEditMakeupAllowed"
     color="primary"
     [(ngModel)]="lessonDetails.is_makeup_allowed"
     (ngModelChange)="onMakeupAllowedChange($event)">
     ניתן להשלמה
   </mat-slide-toggle>
-</div>
 
+  <!-- 🔒 מדריך / הורה – תצוגה בלבד -->
+  <div
+    *ngIf="!canEditMakeupAllowed"
+    class="readonly-makeup">
+    <mat-icon>
+      {{ lessonDetails.is_makeup_allowed ? 'check_circle' : 'cancel' }}
+    </mat-icon>
+    {{ lessonDetails.is_makeup_allowed ? 'להשלמה' : 'לא להשלמה' }}
+  </div>
+
+</div>
 
               <div class="detail-item">
                 <span class="label">סטטוס</span>

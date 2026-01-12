@@ -199,8 +199,11 @@ if (event.extendedProps['isFarmDayOff']) {
   const chip = type ? `<span class="chip">${type}</span>` : '';
 
   // 👇 חדשים – סוס ומגרש
-  const horse = event.extendedProps['horse_name'] || '';
-  const arena = event.extendedProps['arena_name'] || '';
+const meta = event.extendedProps['meta'] || event.extendedProps;
+
+const horse = meta?.horse_name || '';
+const arena = meta?.arena_name || '';
+
 
   const resourcesHtml =
     horse || arena
@@ -369,10 +372,12 @@ return {
   }
 
   if (changes['items'] || changes['resources']) {
-  console.log(
-    'SCHEDULE ITEMS:',
-    this.items.map(i => ({ id: i.id, status: i.status, title: i.title }))
-  );
+console.log('SCHEDULE ITEMS META SAMPLE:', this.items.slice(0,5).map(i => ({
+  id: i.id,
+  horse: i.meta?.['horse_name'],
+  arena: i.meta?.['arena_name'],
+  meta: i.meta
+})));
 
     this.calendarOptions = {
       ...this.calendarOptions,
