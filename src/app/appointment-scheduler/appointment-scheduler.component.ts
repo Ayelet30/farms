@@ -63,20 +63,15 @@ export interface RecurringSlotWithSkips {
   lesson_date: ISODate;
   start_time: string;
   end_time: string;
-  instructor_id: string | null;         // ← חשוב!
+  instructor_id: string | null;         
   instructor_name?: string;             // ← לא null (או תעשי גם null)
 skipped_farm_days_off: ISODate[];
 skipped_instructor_unavailability: ISODate[];
+ riding_type_id?: string | null;     
+  riding_type_name?: string | null;   
 }
 
-// interface RecurringSlot {
-//   lesson_date: string;   // YYYY-MM-DD
-//   start_time: string;    // HH:MM:SS
-//   end_time: string;      // HH:MM:SS
-//   instructor_id: string; // text
-//   instructor_name?: string | null; 
 
-// }
 
 interface MakeupSlot {
  // lesson_id: string;
@@ -85,13 +80,19 @@ interface MakeupSlot {
   end_time: string;
   instructor_id: string;
   remaining_capacity: number;
+
+  riding_type_id?: string | null;
+  riding_type_code?: string | null;
+  riding_type_name?: string | null;
+  max_participants?: number | null;
+
   instructor_name?: string | null; 
-  lesson_type_mode?: 'double_only' | 'both' | 'double or both' | 'break' | null;
+
 
 
 }
 interface MakeupCandidate {
-  lesson_occ_exception_id: string;   // ⬅ id מהטבלה lesson_occurrence_exceptions
+  lesson_occ_exception_id: string;  
   lesson_id: string;
   occur_date: string;
   day_of_week: string;
@@ -126,6 +127,18 @@ interface OccupancyCandidate {
   instructor_id: string | null;   // 👈 חשוב!
   instructor_name?: string | null;
   status: string;
+}
+interface CreateSeriesWithValidationResult {
+  ok: boolean;
+  deny_reason: string | null;
+  lesson_id: string | null;
+  approval_id: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  skipped_farm_days_off: string[] | null;
+  skipped_instructor_unavailability: string[] | null;
 }
 
 
@@ -203,6 +216,7 @@ selectedOccupancySlot: MakeupSlot | null = null;
 
 isOpenEndedSeries = false;
 seriesSearchHorizonDays = 90; // fallback
+referralUrl: string | null = null;
 
 get hasSeriesCountOrOpenEnded(): boolean {
   return this.isOpenEndedSeries || !!this.seriesLessonCount;
@@ -558,6 +572,10 @@ generateLessonSlots(start: string, end: string): { from: string, to: string }[] 
 }
 
 async onInstructorChange() {
+   this.clearUiHint('instructor');
+  this.clearUiHint('tab');        // כי tabsLocked תלוי במדריך
+  this.clearUiHint('seriesCount'); // כי זה תלוי במדריך
+  this.clearUiHint('payment');     // כי זה תלוי במדריך
   this.showInstructorDetails = this.selectedInstructorId !== 'any';
 
   // ✅ זה ישפיע רק על makeupCandidates (ולא על occupancyCandidates)
@@ -788,10 +806,11 @@ async onChildSelected(): Promise<void> {
   // =========================================
  async onChildChange(): Promise<void> {
   // איפוס הודעות ומצבים ישנים
-  this.seriesError = null;
-  this.makeupError = null;
-  this.seriesCreatedMessage = null;
-  this.makeupCreatedMessage = null;
+  this.clearUiHint('child');
+  this.clearUiHint('instructor');
+  this.clearUiHint('tab');
+  this.clearUiHint('seriesCount');
+  this.clearUiHint('payment');
 
   // איפוס נתונים של סדרות
   this.recurringSlots = [];
@@ -1020,6 +1039,9 @@ try {
       'find_open_ended_series_slots_with_skips',
       payloadUnlimited
     ));
+
+
+
   } else {
     // 🔹 קריאה לפונקציה הישנה (עם כמות שיעורים)
     const payloadRegular = {
@@ -1036,12 +1058,24 @@ try {
     ));
   }
 
+
   if (error) {
     console.error(error);
     this.seriesError = 'שגיאה בחיפוש סדרות זמינות';
     return;
   }
-  const raw = (data ?? []) as RecurringSlotWithSkips[];
+ //const raw = (data ?? []) as RecurringSlotWithSkips[];
+
+const raw: RecurringSlotWithSkips[] = (data ?? []).map((r: any) => ({
+  lesson_date: r.lesson_date,
+  start_time: r.start_time,
+  end_time: r.end_time,
+  instructor_id: r.instructor_id ?? null,
+  skipped_farm_days_off: r.skipped_farm_days_off ?? [],
+  skipped_instructor_unavailability: r.skipped_instructor_unavailability ?? [],
+  riding_type_id: r.riding_type_id ?? null,
+  riding_type_name: r.riding_type_name ?? null,
+}));
 
 
 // קודם ממיינים לפי תאריך ואז שעה ואז מדריך,
@@ -1121,6 +1155,8 @@ this.mapRecurringSlotsToCalendar();
 }
 
 onSeriesLessonCountChange(val: number | null): void {
+    this.clearUiHint('seriesCount');
+
   this.seriesLessonCount = val;
 
   // איפוס תצוגה קודמת
@@ -1152,97 +1188,231 @@ onSeriesLessonCountChange(val: number | null): void {
   this.searchRecurringSlots();
 }
 
-  // יצירת סדרה בפועל – insert ל-lessons (occurrences נוצרים מה-view)
-  // יצירת סדרה בפועל – insert ל-lessons (occurrences נוצרים מה-view)
-async createSeriesFromSlot(slot: RecurringSlotWithSkips ): Promise<void> {
+//   // יצירת סדרה בפועל – insert ל-lessons (occurrences נוצרים מה-view)
+async createSeriesFromSlot(slot: RecurringSlotWithSkips): Promise<void> {
   if (!this.selectedChildId) return;
 
-  if (!this.seriesLessonCount) {
+  // ✅ אם "ללא הגבלה" מותר בלי כמות, אחרת חובה כמות
+  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
     this.seriesError = 'יש לבחור כמות שיעורים בסדרה לפני קביעת הסדרה';
+    this.showErrorToast(this.seriesError);
     return;
   }
 
-  // גם למזכירה חייב להיות מסלול תשלום
+  // ✅ חייב מסלול תשלום
   if (!this.selectedPaymentPlanId) {
     this.seriesError = 'יש לבחור מסלול תשלום';
+    this.showErrorToast(this.seriesError);
     return;
   }
 
-  const approval = this.selectedApproval;
-  if (!approval && this.paymentSourceForSeries === 'health_fund') {
-    this.seriesError = 'לא נבחר אישור טיפול';
-    return;
-  }
-
-  const baseCount = this.seriesLessonCount;
-
-  const repeatWeeks =
-    this.paymentSourceForSeries === 'health_fund' && approval
-      ? Math.min(baseCount, Math.max(1, approval.remaining_lessons))
-      : baseCount;
-
-  // ⬅ יום ראשון של השבוע לפי תאריך השיעור הראשון
-  const anchorWeekStart = this.calcAnchorWeekStart(slot.lesson_date);
-
-  // ⬅ יום בשבוע מחושב מהתאריך (לא מ-seriesDayOfWeek הריק)
-  const dayLabel = this.dayOfWeekLabelFromDate(slot.lesson_date);
-
-  // ⬅ לוודא שאנחנו מכניסים id_number לפי ה־FK ולא uid
+  // ✅ ת"ז מדריך (id_number) - לפי הבחירה או לפי הסלוט
   let instructorIdNumber: string | null = null;
-
   if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
     const selected = this.instructors.find(i =>
       i.instructor_uid === this.selectedInstructorId ||
-      i.instructor_id  === this.selectedInstructorId
+      i.instructor_id === this.selectedInstructorId
     );
-    instructorIdNumber = selected?.instructor_id ?? slot.instructor_id;
+    instructorIdNumber = selected?.instructor_id ?? slot.instructor_id ?? null;
   } else {
-    // "כל המדריכים" או לא נבחר – נשען על מה שחוזר מה-RPC
-    instructorIdNumber = slot.instructor_id;
+    instructorIdNumber = slot.instructor_id ?? null;
   }
 
-  const { data, error } = await dbTenant()
-    .from('lessons')
-    .insert({
-      child_id: this.selectedChildId,
-      instructor_id: instructorIdNumber,
-      lesson_type: 'סידרה',
-      status: 'אושר',
-      day_of_week: dayLabel,                // ⬅ עכשיו ערך תקין: "ראשון"/"שני"...
-      start_time: slot.start_time,
-      end_time: slot.end_time,
-      repeat_weeks: repeatWeeks,
-      anchor_week_start: anchorWeekStart,
-      appointment_kind: 'therapy_series',
-      approval_id:
-        this.paymentSourceForSeries === 'health_fund' && approval
-          ? approval.approval_id
-          : null,
-      origin: this.user!.role === 'parent' ? 'parent' : 'secretary',
-      is_tentative: false,
-      capacity: 1,
-      current_booked: 1,
-      payment_source:
-        this.paymentSourceForSeries === 'health_fund' && approval
-          ? 'health_fund'
-          : 'private',
-
-      // ⬅ ניו מסלול תשלום
-      payment_plan_id: this.selectedPaymentPlanId,
-      // payment_docs_url: ... // נוסיף כשנסגור לוגיקת העלאה גם למזכירה
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error(error);
-    this.seriesError = 'שגיאה ביצירת הסדרה';
+  if (!instructorIdNumber) {
+    this.seriesError = 'חסר מדריך (ת"ז) לקביעת הסדרה';
+    this.showErrorToast(this.seriesError);
     return;
   }
-this.showSuccessToast('הסדרה נוצרה בהצלחה ✔️');
-await this.onChildChange();
 
+  // ✅ uid של מדריך (ל־health_approvals.instructor_uid)
+  const instructorUid = this.instructors.find(i => i.instructor_id === instructorIdNumber)?.instructor_uid ?? null;
+  if (!instructorUid) {
+    this.seriesError = 'חסר instructor_uid עבור המדריך שנבחר';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+  // ✅ riding_type_id חובה לפי החתימה שבנינו
+  const ridingTypeId = slot.riding_type_id ?? null;
+  if (!ridingTypeId) {
+    this.seriesError = 'חסר סוג שיעור (riding_type_id) בסלוט שנבחר';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+const maxParticipants = await this.getMaxParticipantsByRidingTypeId(ridingTypeId);
+
+  // ✅ מקור תשלום
+  const paymentSource: 'health_fund' | 'private' =
+    this.paymentSourceForSeries === 'health_fund' ? 'health_fund' : 'private';
+
+  // ✅ אם זה קופה – צריך approval (אלא אם את תומכת ביצירת אישור חדש דרך המזכירה; כרגע נשען על selectedApproval)
+  const approval = this.selectedApproval;
+  const existingApprovalId =
+    paymentSource === 'health_fund' ? (approval?.approval_id ?? null) : null;
+
+  if (paymentSource === 'health_fund' && !existingApprovalId) {
+    this.seriesError = 'לא נבחר אישור טיפול לקופה';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+ // const paymentSource: 'health_fund' | 'private' = /* מה שנבחר */;
+//const existingApprovalId: string | null = /* אם נבחר אישור קיים, אחרת null */;
+
+const rpcPayload: any = {
+  // ===== חובה =====
+  p_child_id: this.selectedChildId,
+  p_instructor_id_number: instructorIdNumber,
+  p_instructor_uid: instructorUid,
+  p_series_start_date: slot.lesson_date,
+  p_start_time: slot.start_time,
+  p_riding_type_id: ridingTypeId,
+  p_payment_plan_id: this.selectedPaymentPlanId,
+  p_payment_source: paymentSource,
+  p_is_open_ended: this.isOpenEndedSeries,
+
+  // ===== אופציונלי =====
+  p_repeat_weeks: this.isOpenEndedSeries ? null : this.seriesLessonCount,
+  p_series_search_horizon_days: this.seriesSearchHorizonDays ?? 90,
+
+  // אם יש אישור קיים (רק בקופה)
+  p_existing_approval_id: paymentSource === 'health_fund' ? existingApprovalId : null,
+
+  // שדות ליצירת אישור חדש (רק אם קופה + אין אישור קיים)
+  p_referral_url:
+  paymentSource === 'health_fund' && !existingApprovalId ? (this.referralUrl ?? null) : null,
+
+// ✅ לבטל לגמרי את אלה כדי שלא יהיו שגיאות קומפילציה:
+p_health_fund: null,
+p_approval_number: null,
+p_total_lessons: null,
+
+  p_origin: this.user?.role === 'parent' ? 'parent' : 'secretary',
+  p_max_participants: maxParticipants
+
+};
+
+  this.loadingSeries = true;
+  this.seriesError = null;
+
+  try {
+    const { data, error } = await dbTenant().rpc(
+      'create_series_with_validation',
+      rpcPayload
+    );
+
+    if (error) {
+      console.error('create_series_with_validation error', error);
+      this.seriesError = 'שגיאה ביצירת הסדרה';
+      this.showErrorToast(this.seriesError);
+      return;
+    }
+
+    const res = (Array.isArray(data) ? data[0] : data) as CreateSeriesWithValidationResult | null;
+
+    if (!res?.ok) {
+      const msg = res?.deny_reason || 'לא ניתן ליצור סדרה (ולידציה נכשלה)';
+      this.seriesError = msg;
+      this.showErrorToast(msg);
+      return;
+    }
+
+    this.showSuccessToast('הסדרה נוצרה בהצלחה ✔️');
+    await this.onChildChange();
+  } finally {
+    this.loadingSeries = false;
+  }
 }
+
+// async createSeriesFromSlot(slot: RecurringSlotWithSkips ): Promise<void> {
+//   if (!this.selectedChildId) return;
+
+//   if (!this.seriesLessonCount) {
+//     this.seriesError = 'יש לבחור כמות שיעורים בסדרה לפני קביעת הסדרה';
+//     return;
+//   }
+
+//   // גם למזכירה חייב להיות מסלול תשלום
+//   if (!this.selectedPaymentPlanId) {
+//     this.seriesError = 'יש לבחור מסלול תשלום';
+//     return;
+//   }
+
+//   const approval = this.selectedApproval;
+//   if (!approval && this.paymentSourceForSeries === 'health_fund') {
+//     this.seriesError = 'לא נבחר אישור טיפול';
+//     return;
+//   }
+
+//   const baseCount = this.seriesLessonCount;
+
+//   const repeatWeeks =
+//     this.paymentSourceForSeries === 'health_fund' && approval
+//       ? Math.min(baseCount, Math.max(1, approval.remaining_lessons))
+//       : baseCount;
+
+//   // ⬅ יום ראשון של השבוע לפי תאריך השיעור הראשון
+//   const anchorWeekStart = this.calcAnchorWeekStart(slot.lesson_date);
+
+//   // ⬅ יום בשבוע מחושב מהתאריך (לא מ-seriesDayOfWeek הריק)
+//   const dayLabel = this.dayOfWeekLabelFromDate(slot.lesson_date);
+
+//   // ⬅ לוודא שאנחנו מכניסים id_number לפי ה־FK ולא uid
+//   let instructorIdNumber: string | null = null;
+
+//   if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
+//     const selected = this.instructors.find(i =>
+//       i.instructor_uid === this.selectedInstructorId ||
+//       i.instructor_id  === this.selectedInstructorId
+//     );
+//     instructorIdNumber = selected?.instructor_id ?? slot.instructor_id;
+//   } else {
+//     // "כל המדריכים" או לא נבחר – נשען על מה שחוזר מה-RPC
+//     instructorIdNumber = slot.instructor_id;
+//   }
+
+//   const { data, error } = await dbTenant()
+//     .from('lessons')
+//     .insert({
+//       child_id: this.selectedChildId,
+//       instructor_id: instructorIdNumber,
+//       lesson_type: 'סידרה',
+//       status: 'אושר',
+//       day_of_week: dayLabel,                // ⬅ עכשיו ערך תקין: "ראשון"/"שני"...
+//       start_time: slot.start_time,
+//       end_time: slot.end_time,
+//       repeat_weeks: repeatWeeks,
+//       anchor_week_start: anchorWeekStart,
+//       appointment_kind: 'therapy_series',
+//       approval_id:
+//         this.paymentSourceForSeries === 'health_fund' && approval
+//           ? approval.approval_id
+//           : null,
+//       origin: this.user!.role === 'parent' ? 'parent' : 'secretary',
+//       is_tentative: false,
+//       capacity: 1,
+//       current_booked: 1,
+//       payment_source:
+//         this.paymentSourceForSeries === 'health_fund' && approval
+//           ? 'health_fund'
+//           : 'private',
+
+//       // ⬅ ניו מסלול תשלום
+//       payment_plan_id: this.selectedPaymentPlanId,
+//       // payment_docs_url: ... // נוסיף כשנסגור לוגיקת העלאה גם למזכירה
+//     })
+//     .select()
+//     .single();
+
+//   if (error) {
+//     console.error(error);
+//     this.seriesError = 'שגיאה ביצירת הסדרה';
+//     return;
+//   }
+// this.showSuccessToast('הסדרה נוצרה בהצלחה ✔️');
+// await this.onChildChange();
+
+// }
 
 
 onReferralFileSelected(event: Event): void {
@@ -1289,7 +1459,7 @@ onReferralFileSelected(event: Event): void {
           )?.instructor_id ?? slot.instructor_id              // fallback
         );
 
-  console.log('📌 booking makeup with instructorIdNumber:', instructorIdNumber);
+
 
   const { data, error } = await dbTenant()
     .from('lessons')
@@ -1500,22 +1670,7 @@ async requestSeriesFromSecretary(slot: RecurringSlotWithSkips , dialogTpl: Templ
     return;
   }
 
-  // ---- חישוב תאריכים ----
-  console.log('CLICKED slot', {
-  lesson_date: slot.lesson_date,
-  start: slot.start_time,
-  end: slot.end_time,
-  instr: slot.instructor_id,
-  skippedFarm: slot.skipped_farm_days_off,
-  skippedInstr: slot.skipped_instructor_unavailability,
-});
-
-  console.log('slot keys:', Object.keys(slot as any));
-console.log('slot raw:', slot);
-
-console.log('skipped farm:', (slot as any)?.skipped_farm_days_off);
-console.log('skipped instr:', (slot as any)?.skipped_instructor_unavailability);
-
+ 
 const startDate = slot.lesson_date;
 
 let endDate: string;
@@ -1608,6 +1763,11 @@ if (this.referralFile) {
         .getPublicUrl(filePath);
 
       referralUrl = publicData?.publicUrl ?? null;
+      this.referralUrl = referralUrl;
+if (!this.referralFile) {
+  this.referralUrl = null;
+}
+
     }
   } catch (e) {
     console.error('referral upload exception', e);
@@ -1621,12 +1781,11 @@ if (this.referralFile) {
   // requested_end_time: endTime,
   is_open_ended: this.isOpenEndedSeries,
   series_search_horizon_days: this.seriesSearchHorizonDays,
-
   skipped_farm_dates: (slot.skipped_farm_days_off ?? []).map(String),
   skipped_instructor_dates: (slot.skipped_instructor_unavailability ?? []).map(String),
+  payment_plan_id: this.selectedPaymentPlanId,
+
 };
-
-
     if (referralUrl) {
       payload.referral_url = referralUrl;
     }
@@ -1796,7 +1955,8 @@ get canRequestSeries(): boolean {
   if (!this.hasSeriesCountOrOpenEnded) return false;
   if (!this.selectedPaymentPlanId) return false;
 
-  if (this.selectedPaymentPlan?.require_docs_at_booking && !this.referralFile) {
+  // ✅ רק הורה חייב מסמך
+  if (!this.isSecretary && this.selectedPaymentPlan?.require_docs_at_booking && !this.referralFile) {
     return false;
   }
   return true;
@@ -1805,14 +1965,16 @@ get canRequestSeries(): boolean {
 
 
 getLessonTypeLabel(slot: MakeupSlot): string {
-  switch (slot.lesson_type_mode) {
-    case 'both':
-      return 'זוגי'
-    case 'double or both':
-      return 'זוגי';
-    default:
-      return 'יחיד';
-  }
+    return slot.riding_type_name ?? 'שיעור';
+
+  // switch (slot.lesson_type_mode) {
+  //   case 'both':
+  //     return 'זוגי'
+  //   case 'double or both':
+  //     return 'זוגי';
+  //   default:
+  //     return 'יחיד';
+  // }
 }
 // private async loadOccupancySlotsForCandidate(
 //   cand: OccupancyCandidate
@@ -1864,7 +2026,6 @@ getLessonTypeLabel(slot: MakeupSlot): string {
 //   }
 // }
 async openOccupancySlotsForCandidate(c: OccupancyCandidate): Promise<void> {
-    console.log('[openOccupancySlotsForCandidate] clicked', c);
 
   if (!this.selectedChildId) {
     this.occupancyError = 'יש לבחור ילד';
@@ -2075,13 +2236,20 @@ async requestOccupancyFromSecretary(slot: any): Promise<void> {
 uiHint: Record<string, string | null> = {};
 private uiHintTimers: Record<string, any> = {};
 
-showUiHint(key: string, msg: string, ms = 99999) {
+showUiHint(key: string, msg: string, ms = 3500) {
   if (this.uiHintTimers[key]) clearTimeout(this.uiHintTimers[key]);
   this.uiHint[key] = msg;
   this.uiHintTimers[key] = setTimeout(() => {
     this.uiHint[key] = null;
     delete this.uiHintTimers[key];
   }, ms);
+}
+clearUiHint(key: string) {
+  if (this.uiHintTimers[key]) {
+    clearTimeout(this.uiHintTimers[key]);
+    delete this.uiHintTimers[key];
+  }
+  this.uiHint[key] = null;
 }
 
 get missingChildMsg() {
@@ -2128,8 +2296,35 @@ onTabClick(tab: 'series' | 'makeup' | 'occupancy') {
     this.showUiHint('tab', this.missingTabMsg);
     return;
   }
+    this.clearUiHint('tab');
+
   this.selectedTab = tab;
 }
+isSeriesDisabled(slot: any): boolean {
+  return (
+    (this.selectedSeriesDate &&
+      this.isPastSeriesSlot(this.selectedSeriesDate, slot.start_time)) ||
+    !this.canRequestSeries
+  );
+}
+
+
+getSeriesDisabledTooltip(slot: any): string {
+  if (
+    this.selectedSeriesDate &&
+    this.isPastSeriesSlot(this.selectedSeriesDate, slot.start_time)
+  ) {
+    return 'לא ניתן להתחיל סדרה זו היום בשעה זו כי השעה חלפה';
+  }
+
+  if (!this.canRequestSeries) {
+    return 'נדרש לבחור מסלול תשלום לפני בקשת סדרה';
+  }
+
+  return '';
+}
+
+
 onOpenEndedSeriesToggle(checked: boolean): void {
   this.isOpenEndedSeries = checked;
 
@@ -2153,6 +2348,8 @@ onOpenEndedSeriesToggle(checked: boolean): void {
 }
 
 onUnlimitedSeriesToggle(): void {
+    this.clearUiHint('seriesCount');
+
   // אם סימנו ללא הגבלה – מבטלים כמות
   if (this.isOpenEndedSeries) {
     this.seriesLessonCount = null;
@@ -2222,6 +2419,8 @@ private showErrorToast(message: string) {
   });
 }
 onPaymentPlanChange(planId: string | null) {
+    this.clearUiHint('payment');
+
   this.selectedPaymentPlanId = planId;
 
   const plan = this.paymentPlans.find(p => p.id === planId);
@@ -2231,6 +2430,20 @@ onPaymentPlanChange(planId: string | null) {
     this.referralFile = null;
     this.referralUploadError = null;
   }
+}
+private async getMaxParticipantsByRidingTypeId(ridingTypeId: string): Promise<number> {
+  const { data, error } = await dbTenant()
+    .from('riding_types')
+    .select('max_participants')
+    .eq('id', ridingTypeId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('getMaxParticipantsByRidingTypeId error', error);
+    return 1; // fallback בטוח
+  }
+
+  return (data?.max_participants ?? 1);
 }
 
 

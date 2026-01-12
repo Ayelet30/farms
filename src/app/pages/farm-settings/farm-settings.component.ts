@@ -5,6 +5,10 @@ import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/supabaseClient.service';
 
 type UUID = string;
+type LateCancelPolicy = 'CHARGE_FULL' | 'CHARGE_PARTIAL' | 'NO_CHARGE' | 'NO_MAKEUP';
+type AttendanceDefault = 'ASSUME_ATTENDED' | 'ASSUME_ABSENT' | 'REQUIRE_MARKING';
+type ReminderChannel = 'EMAIL' | 'SMS' | 'APP';
+
 
 interface FarmSettings {
   id?: UUID;
@@ -12,15 +16,44 @@ interface FarmSettings {
   operating_hours_start: string | null;
   operating_hours_end: string | null;
 
-  lessons_count: number | null;
+  office_hours_start: string | null;
+office_hours_end: string | null;
+
+
+  default_lessons_per_series: number | null;
   lesson_duration_minutes: number | null;
   default_lesson_price: number | null;
 
   makeup_allowed_days_back: number | null;
+  makeup_allowed_days_ahead: number | null;          // NEW
   max_makeups_in_period: number | null;
   makeups_period_days: number | null;
   displayed_makeup_lessons_count: number | null;
   min_time_between_cancellations: string | null;
+
+
+  cancel_before_hours: number | null;                // NEW
+  late_cancel_policy: LateCancelPolicy | null;       // NEW
+  late_cancel_fee_amount: number | null;             // NEW
+  late_cancel_fee_percent: number | null;            // NEW
+
+  attendance_default: AttendanceDefault | null;       // NEW
+
+  monthly_billing_day: number | null;                // NEW (1..28)
+
+  working_days: number[] | null;                     // NEW [1..7]
+  time_slot_minutes: number | null;                  // NEW
+  timezone: string | null;                           // NEW
+
+  send_lesson_reminder: boolean | null;              // NEW
+  reminder_hours_before: number | null;              // NEW
+  reminder_channel: ReminderChannel | null;          // NEW
+  quiet_hours_start: string | null;                  // NEW (HH:MM)
+  quiet_hours_end: string | null;                    // NEW (HH:MM)
+
+  enable_discounts: boolean | null;                  // NEW
+  late_payment_fee: number | null;                   // NEW
+  interest_percent_monthly: number | null;           // NEW
 
   registration_fee: number | null;
   student_insurance_premiums: number | null;
@@ -88,6 +121,9 @@ interface FarmDayOff {
   styleUrls: ['./farm-settings.component.scss'],
 })
 export class FarmSettingsComponent implements OnInit {
+
+  private readonly SETTINGS_SINGLETON_ID = '00000000-0000-0000-0000-000000000001';
+
   private supabase = dbTenant();
 
   loading = signal(false);
@@ -96,6 +132,8 @@ export class FarmSettingsComponent implements OnInit {
   success = signal<string | null>(null);
 
   settings = signal<FarmSettings | null>(null);
+
+  officeHoursError = signal<string | null>(null);
 
   showNewFundingForm = signal(false);
   showNewPlanForm = signal(false);
@@ -294,7 +332,7 @@ openSpecialDays(): void {
       this.error.set(null);
       this.success.set(null);
 
-      const { error } = await this.supabase.from('farm_days_off9').insert(payload);
+      const { error } = await this.supabase.from('farm_days_off').insert(payload);
 
       if (error) {
         console.error('saveSpecialDay error', error);
@@ -322,7 +360,7 @@ openSpecialDays(): void {
       this.success.set(null);
 
       const { error } = await this.supabase
-        .from('farm_days_off9')
+        .from('farm_days_off')
         .update({ is_active: false })
         .eq('id', day.id);
 
@@ -341,12 +379,13 @@ openSpecialDays(): void {
 
   // ================= הגדרות חווה =================
 
-  private async loadSettings(): Promise<void> {
+    private async loadSettings(): Promise<void> {
     const { data, error } = await this.supabase
-      .from('farm_settings')
-      .select('*')
-      .limit(1)
-      .maybeSingle();
+    .from('farm_settings')
+    .select('*')
+    .eq('id', this.SETTINGS_SINGLETON_ID)
+    .maybeSingle();
+
 
     if (error) {
       console.error('load farm_settings error', error);
@@ -355,39 +394,90 @@ openSpecialDays(): void {
     }
 
     if (data) {
-      const s: FarmSettings = {
-        ...data,
-        operating_hours_start: data.operating_hours_start?.slice(0, 5) ?? '08:00',
-        operating_hours_end: data.operating_hours_end?.slice(0, 5) ?? '20:00',
-        min_time_between_cancellations: data.min_time_between_cancellations
-          ? data.min_time_between_cancellations.slice(0, 5)
-          : '00:00',
-      };
-      this.settings.set(s);
-    } else {
-      this.settings.set({
-        operating_hours_start: '08:00',
-        operating_hours_end: '20:00',
-        lessons_count: 12,
-        lesson_duration_minutes: 60,
-        default_lesson_price: 150,
-        makeup_allowed_days_back: 30,
-        max_makeups_in_period: 8,
-        makeups_period_days: 30,
-        displayed_makeup_lessons_count: 3,
-        min_time_between_cancellations: '12:00',
-        registration_fee: null,
-        student_insurance_premiums: null,
-        max_group_size: 6,
-        max_lessons_per_week_per_child: 2,
-        allow_online_booking: true,
-      });
-    }
-  }
+  const s: FarmSettings = {
+    ...data,
+
+    operating_hours_start: data.operating_hours_start?.slice(0, 5) ?? '08:00',
+    operating_hours_end: data.operating_hours_end?.slice(0, 5) ?? '20:00',
+
+    office_hours_start: data.office_hours_start?.slice(0, 5) ?? '08:30',
+office_hours_end: data.office_hours_end?.slice(0, 5) ?? '16:00',
+
+
+    min_time_between_cancellations: data.min_time_between_cancellations
+      ? data.min_time_between_cancellations.slice(0, 5)
+      : '00:00',
+
+    quiet_hours_start: data.quiet_hours_start ? String(data.quiet_hours_start).slice(0, 5) : null,
+    quiet_hours_end: data.quiet_hours_end ? String(data.quiet_hours_end).slice(0, 5) : null,
+
+    working_days: (data.working_days ?? null) as any,
+    timezone: data.timezone ?? 'Asia/Jerusalem',
+    time_slot_minutes: data.time_slot_minutes ?? 15,
+  };
+
+  this.settings.set(s);
+} else {
+  this.settings.set({
+    operating_hours_start: '08:00',
+    operating_hours_end: '20:00',
+
+    office_hours_start: '08:30',
+office_hours_end: '16:00',
+
+
+    default_lessons_per_series: 12,
+    lesson_duration_minutes: 60,
+    default_lesson_price: 150,
+
+    makeup_allowed_days_back: 30,
+    makeup_allowed_days_ahead: 30,          // NEW
+    max_makeups_in_period: 8,
+    makeups_period_days: 30,
+    displayed_makeup_lessons_count: 3,
+    min_time_between_cancellations: '12:00',
+
+    cancel_before_hours: 24,                 // NEW
+    late_cancel_policy: 'CHARGE_FULL',       // NEW
+    late_cancel_fee_amount: null,            // NEW
+    late_cancel_fee_percent: null,           // NEW
+
+    attendance_default: 'REQUIRE_MARKING',   // NEW
+
+    monthly_billing_day: 10,                 // NEW (תבחרי מה מתאים)
+
+    working_days: [1, 2, 3, 4, 5],           // NEW (א-ה)
+    time_slot_minutes: 15,                   // NEW
+    timezone: 'Asia/Jerusalem',              // NEW
+
+    send_lesson_reminder: true,              // NEW
+    reminder_hours_before: 24,               // NEW
+    reminder_channel: 'APP',                 // NEW
+    quiet_hours_start: '22:00',              // NEW
+    quiet_hours_end: '07:00',                // NEW (שימי לב: אם את רוצה לילה שחוצה חצות — נראה בהמשך הערה)
+
+    enable_discounts: false,                 // NEW
+    late_payment_fee: null,                  // NEW
+    interest_percent_monthly: null,          // NEW
+
+    registration_fee: null,
+    student_insurance_premiums: null,
+
+    max_group_size: 6,
+    max_lessons_per_week_per_child: 2,
+    allow_online_booking: true,
+  });
+}
+ }
 
   async saveSettings(): Promise<void> {
     const current = this.settings();
     if (!current) return;
+
+    if (!this.validateOfficeHours()) {
+  this.error.set('לא ניתן לשמור: יש שגיאה בשעות פעילות המשרד.');
+  return;
+}
 
     this.saving.set(true);
     this.error.set(null);
@@ -399,15 +489,22 @@ openSpecialDays(): void {
     };
 
     if (payload.operating_hours_start?.length === 5) payload.operating_hours_start += ':00';
-    if (payload.operating_hours_end?.length === 5) payload.operating_hours_end += ':00';
-    if (payload.min_time_between_cancellations?.length === 5) payload.min_time_between_cancellations += ':00';
-    if (!payload.id) delete payload.id;
+if (payload.operating_hours_end?.length === 5) payload.operating_hours_end += ':00';
+if (payload.min_time_between_cancellations?.length === 5) payload.min_time_between_cancellations += ':00';
+if (payload.quiet_hours_start?.length === 5) payload.quiet_hours_start += ':00';
+if (payload.quiet_hours_end?.length === 5) payload.quiet_hours_end += ':00';
+if (payload.office_hours_start?.length === 5) payload.office_hours_start += ':00';
+if (payload.office_hours_end?.length === 5) payload.office_hours_end += ':00';
 
-    const { data, error } = await this.supabase
-      .from('farm_settings')
-      .upsert(payload, { onConflict: 'id' })
-      .select()
-      .single();
+
+    payload.id = current.id ?? this.SETTINGS_SINGLETON_ID;
+
+const { data, error } = await this.supabase
+  .from('farm_settings')
+  .upsert(payload, { onConflict: 'id' })
+  .select()
+  .single();
+
 
     if (error) {
       console.error('save farm_settings error', error);
@@ -420,6 +517,9 @@ openSpecialDays(): void {
       ...data,
       operating_hours_start: data.operating_hours_start?.slice(0, 5) ?? null,
       operating_hours_end: data.operating_hours_end?.slice(0, 5) ?? null,
+      office_hours_start: data.office_hours_start?.slice(0, 5) ?? null,
+office_hours_end: data.office_hours_end?.slice(0, 5) ?? null,
+
       min_time_between_cancellations: data.min_time_between_cancellations
         ? data.min_time_between_cancellations.slice(0, 5)
         : null,
@@ -447,6 +547,26 @@ openSpecialDays(): void {
 
     this.fundingSources.set((data || []) as FundingSource[]);
   }
+
+  onOfficeHoursChanged(): void {
+  // מריצה ולידציה מחדש בזמן עריכה
+  this.validateOfficeHours();
+}
+
+isUnlimitedLessonsPerWeek(): boolean {
+  const s = this.settings();
+  return !s || s.max_lessons_per_week_per_child == null;
+}
+
+setUnlimitedLessonsPerWeek(checked: boolean): void {
+  const s = this.settings();
+  if (!s) return;
+
+  this.settings.set({
+    ...s,
+    max_lessons_per_week_per_child: checked ? null : (s.max_lessons_per_week_per_child ?? 2),
+  });
+}
 
   toggleNewFundingForm(): void {
     this.showNewFundingForm.set(!this.showNewFundingForm());
@@ -590,6 +710,28 @@ openSpecialDays(): void {
     };
   }
 
+  private validateOfficeHours(): boolean {
+  this.officeHoursError.set(null);
+
+  const s = this.settings();
+  if (!s) return true;
+
+  const start = s.office_hours_start;
+  const end = s.office_hours_end;
+
+  // אם אחת מהשעות ריקה – לא נחסום (אפשר להחליט אחרת)
+  if (!start || !end) return true;
+
+  // "HH:MM" אפשר להשוות כמחרוזת (פורמט קבוע)
+  if (end <= start) {
+    this.officeHoursError.set('שעת סגירה של המשרד חייבת להיות אחרי שעת הפתיחה.');
+    return false;
+  }
+
+  return true;
+}
+
+
   async addPaymentPlan(): Promise<void> {
     const p = this.newPlan;
     if (!p.name || p.lesson_price == null) {
@@ -721,4 +863,48 @@ openSpecialDays(): void {
       this.saving.set(false);
     }
   }
+  // ===== Working days (1..7): 1=Sunday ... 7=Saturday =====
+isWorkingDayChecked(day: number): boolean {
+  const s = this.settings();
+  const arr = s?.working_days ?? [];
+  return Array.isArray(arr) ? arr.includes(day) : false;
+}
+
+toggleWorkingDay(day: number, checked: boolean): void {
+  const s = this.settings();
+  if (!s) return;
+
+  const cur = Array.isArray(s.working_days) ? [...s.working_days] : [];
+  const next = checked
+    ? Array.from(new Set([...cur, day]))
+    : cur.filter(d => d !== day);
+
+  next.sort((a, b) => a - b);
+
+  this.settings.set({
+    ...s,
+    working_days: next,
+  });
+}
+
+setWorkingDaysWeekdaysOnly(): void {
+  const s = this.settings();
+  if (!s) return;
+
+  this.settings.set({
+    ...s,
+    working_days: [1, 2, 3, 4, 5], // א-ה (א=1)
+  });
+}
+
+setWorkingDaysAllWeek(): void {
+  const s = this.settings();
+  if (!s) return;
+
+  this.settings.set({
+    ...s,
+    working_days: [1, 2, 3, 4, 5, 6, 7],
+  });
+}
+
 }

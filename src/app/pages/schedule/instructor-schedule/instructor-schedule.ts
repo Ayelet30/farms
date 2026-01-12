@@ -116,13 +116,17 @@ farmDaysOff: any[] = [];
     y: 0,
     date: '' as string,
   };
+// 🔔 הורים שנפגעים מהחופש
+affectedParents: Parent[] = [];
+showAffectedParentsPopup = false;
 
   /* ------- מודאל לטווח תאריכים ------- */
   rangeModal = {
     open: false,
     from: '',
     to: '',
-    allDay: true,
+  allDay: false,
+
     fromTime: '',
     toTime: '',
     type: 'holiday' as RequestType,
@@ -394,41 +398,61 @@ if (!row.payload?.category) return res;
   /* ------------ ITEM MAPPING ------------ */
   private setScheduleItems(): void {
     // 🔑 שיעורים תקינים (לא חופפים לחופשת חווה)
-  const validLessons = this.lessons.filter((l: any) => {
-    const baseDate = String(l.occur_date).slice(0, 10);
+const validLessons = this.lessons.filter((l: any) => {
+  const baseDate = String(l.occur_date).slice(0, 10);
 
-    const startISO = l.start_datetime
-      ? l.start_datetime
-      : this.ensureLocalIso(l.start_time, baseDate);
+  const startISO = l.start_datetime
+    ? l.start_datetime
+    : this.ensureLocalIso(l.start_time, baseDate);
 
-    const endISO = l.end_datetime
-      ? l.end_datetime
-      : this.ensureLocalIso(l.end_time, baseDate);
+  const endISO = l.end_datetime
+    ? l.end_datetime
+    : this.ensureLocalIso(l.end_time, baseDate);
 
-    return !this.isLessonBlockedByFarmOff(
-      new Date(startISO),
-      new Date(endISO)
-    );
-  });
+  // ⛔ חופשת חווה
+  if (this.isLessonBlockedByFarmOff(new Date(startISO), new Date(endISO))) {
+    return false;
+  }
+
+  // ⛔ חופשת מדריך
+  if (this.isLessonBlockedByInstructorOff(baseDate)) {
+    return false;
+  }
+
+  return true;
+});
 
 
     // תצוגה חודשית – סיכום יומי
     if (this.currentView === 'dayGridMonth') {
       const grouped: Record<string, Lesson[]> = {};
-  for (const l of validLessons) {
+for (const l of this.lessons) {
+  const day = (l as any).occur_date?.slice(0, 10);
+  if (!day) continue;
 
+  // ⛔ חופשת מדריך → לא סופרים שיעורים ביום הזה
+  if (this.isLessonBlockedByInstructorOff(day)) continue;
 
+  // ⛔ חופשת חווה
+  const startISO = l.start_datetime
+    ? l.start_datetime
+    : this.ensureLocalIso(l.start_time, day);
 
+  const endISO = l.end_datetime
+    ? l.end_datetime
+    : this.ensureLocalIso(l.end_time, day);
 
+  if (this.isLessonBlockedByFarmOff(new Date(startISO), new Date(endISO))) continue;
 
-        const day = (l as any).occur_date?.slice(0, 10);
-        if (!day) continue;
-        if (!grouped[day]) grouped[day] = [];
-        grouped[day].push(l);
-      }
+  if (!grouped[day]) grouped[day] = [];
+  grouped[day].push(l);
+}
+
 
       this.items = Object.entries(grouped).map(([day, arr]) => {
-        const req = this.getRequestForDate(day);
+const req = this.dayRequests.find(
+  r => r.request_date === day && r.status === 'approved'
+);
 
         const parts: string[] = [];
         const count = arr.length;
@@ -444,6 +468,7 @@ if (!row.payload?.category) return res;
           start: day,
           end: day,
           color: 'transparent', 
+          
           status: 'summary',
     meta: {
     isSummaryDay: 'true', // ✅ string ולא boolean
@@ -454,7 +479,10 @@ if (!row.payload?.category) return res;
         return item;
       });
 const farmOffItems = this.farmDaysOffToItems();
-this.items = [...this.items, ...farmOffItems];
+const instructorOffItems = this.instructorDaysOffToItems();
+
+this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
+
 console.log('📅 FINAL ITEMS', this.items);
 console.log(
   '🏖 FARM DAYS OFF ITEMS',
@@ -485,7 +513,18 @@ this.items = srcForDayWeek
     const end = new Date(endISO);
 
     // ❌ אם השיעור חופף לחופשת חווה – לא להציג אותו
-    return !this.isLessonBlockedByFarmOff(start, end);
+   // ⛔ חופשת חווה
+if (this.isLessonBlockedByFarmOff(start, end)) {
+  return false;
+}
+
+// ⛔ חופשת מדריך
+if (this.isLessonBlockedByInstructorOff(baseDate)) {
+  return false;
+}
+
+return true;
+
   })
   .map((l: any) => {
 
@@ -533,12 +572,8 @@ else if (new Date(endISO) < new Date()) color = '#e0e0e0';
 
 
       // ✅ חדש: טקסט סוס+מגרש (לא חובה – אבל עוזר לראות בלוז)
-      const horse = l.horse_name ? `🐴 ${l.horse_name}` : '';
-      const arena = l.arena_name ? `🏟 ${l.arena_name}` : '';
-      const resourcesText = [horse, arena].filter(Boolean).join(' | ');
+const title = `${name}${agePart} — ${lessonTypeLabel}`.trim();
 
-      const titleBase = `${name}${agePart} — ${lessonTypeLabel}`.trim();
-      const title = resourcesText ? `${titleBase}\n${resourcesText}` : titleBase;
 
       const item: ScheduleItem = {
         id: `${l.lesson_id}_${l.child_id}_${l.occur_date}`,
@@ -547,6 +582,8 @@ else if (new Date(endISO) < new Date()) color = '#e0e0e0';
         end: endISO,
         
         color,
+
+ 
         meta: {
           child_id: l.child_id,
           child_name: name,
@@ -567,7 +604,10 @@ else if (new Date(endISO) < new Date()) color = '#e0e0e0';
       return item;
     });
 const farmOffItems = this.farmDaysOffToItems();
-this.items = [...this.items, ...farmOffItems];
+const instructorOffItems = this.instructorDaysOffToItems();
+
+this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
+
     this.cdr.detectChanges();
   }
  
@@ -701,38 +741,66 @@ const isCancelled =
     }
   }
 
-  onRightClickDay(e: any): void {
-    if (!e?.jsEvent || !e?.dateStr) return;
-    e.jsEvent.preventDefault();
+onRightClickDay(e: any): void {
+  if (!e?.jsEvent) return;
 
-    this.contextMenu.visible = true;
-    this.contextMenu.x = e.jsEvent.clientX;
-    this.contextMenu.y = e.jsEvent.clientY;
-    this.contextMenu.date = e.dateStr.slice(0, 10);
+  e.jsEvent.preventDefault();
+  e.jsEvent.stopPropagation();
+
+  let localYmd: string | null = null;
+
+  // 🟢 עדיפות ל-Date אמיתי
+  if (e.date instanceof Date && !isNaN(e.date.getTime())) {
+    const d = e.date;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    localYmd = `${y}-${m}-${day}`;
   }
 
-  closeContextMenu(): void {
-    this.contextMenu.visible = false;
+  // 🟡 fallback בטוח
+  if (!localYmd && typeof e.dateStr === 'string') {
+    localYmd = e.dateStr.slice(0, 10);
   }
+
+  if (!localYmd) {
+    console.warn('[rightClickDay] no valid date', e);
+    return;
+  }
+
+  this.contextMenu.visible = true;
+  this.contextMenu.x = e.jsEvent.clientX;
+  this.contextMenu.y = e.jsEvent.clientY;
+  this.contextMenu.date = localYmd;
+
+  this.cdr.detectChanges();
+}
+
+
 
   /* ------------ שינוי טווח תצוגה ------------ */
- async onViewRangeChange(range: any): Promise<void> {
+async onViewRangeChange(range: any): Promise<void> {
   try {
-    console.log('[VIEW RANGE RAW]', range);
-
     const vt = range.viewType || '';
     if (vt === 'dayGridMonth') this.currentView = 'dayGridMonth';
     else if (vt === 'timeGridWeek') this.currentView = 'timeGridWeek';
     else this.currentView = 'timeGridDay';
 
-    const startYmd = toYmd(range.start);
-    const endYmd = toYmd(range.end);
-function toYmd(val: string | Date): string {
-  const d = typeof val === 'string' ? new Date(val) : val;
-  return ymd(d);
+   if (!range?.start || !range?.end) {
+  console.warn('[viewRange] missing start/end', range);
+  return;
 }
 
+const startYmd = ymd(new Date(range.start));
+
+// end של FullCalendar הוא יום *אחרי* הטווח → מחזירים יום אחד אחורה
+const endDate = new Date(range.end);
+endDate.setDate(endDate.getDate() - 1);
+const endYmd = ymd(endDate);
+
     console.log('[VIEW RANGE YMD]', { startYmd, endYmd });
+
+
 
     if (
       this.lastRange &&
@@ -791,6 +859,20 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
     this.scheduleComp.next();
     this.updateCurrentDateFromCalendar();
   }
+cancelAffectedPopup(): void {
+  this.showAffectedParentsPopup = false;
+
+  // ❌ למחוק:
+  // this.rangeModal.open = true;
+
+  // אופציונלי – ניקוי שדות
+  this.rangeModal.from = '';
+  this.rangeModal.to = '';
+  this.rangeModal.text = '';
+
+  this.cdr.detectChanges();
+}
+
 
   onToolbarToday(): void {
     if (!this.scheduleComp) return;
@@ -804,9 +886,59 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
   }
 
   /* ------------ REQUEST UI ------------ */
+ async submitRange(): Promise<void> {
+  console.log('🟡 submitRange called');
+
+  const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
+
+  if (!from || !to) {
+    this.error = 'חובה לבחור מתאריך ועד תאריך';
+    return;
+  }
+
+  // ✅ כמו פעם – בדיקה על השיעורים שכבר נטענו
+const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
+console.log('🟠 hasLessonsInRangeFromDb', hasLessons);
+
+
+  if (hasLessons) {
+    // סוגרים את מודאל הבקשה
+    this.rangeModal.open = false;
+ this.loadAffectedParentsFromSchedule(from, to);
+
+if (this.affectedParents.length > 0) {
+  this.rangeModal.open = false;
+  this.showAffectedParentsPopup = true;
+  this.cdr.detectChanges();
+  return;
+}
+
+    this.cdr.detectChanges();
+    return; // ⛔ לא שומרים עדיין
+  }
+
+  // אם אין שיעורים – שומרים רגיל
+  await this.saveRangeRequest(
+    from,
+    to,
+    allDay,
+    allDay ? null : fromTime,
+    allDay ? null : toTime,
+    type,
+    text?.trim() || null,
+  );
+
+  this.rangeModal.open = false;
+}
+closeContextMenu(): void {
+  this.contextMenu.visible = false;
+}
+
+
   async openRequest(type: RequestType): Promise<void> {
     const date = this.contextMenu.date;
     this.closeContextMenu();
+    
     if (!date) return;
 
     this.rangeModal.open = true;
@@ -822,89 +954,125 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
   closeRangeModal(): void {
     this.rangeModal.open = false;
   }
+ private hasLessonsInRange(from: string, to: string): boolean {
+  return this.lessons.some(l => {
+    const d = l.occur_date?.slice(0, 10);
+    return d && d >= from && d <= to;
+  });
+}
 
-  async submitRange(): Promise<void> {
-    const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
+private async hasLessonsInRangeFromDb(from: string, to: string): Promise<boolean> {
+  const dbc = dbTenant();
 
-    if (!from || !to) {
-      this.error = 'חובה לבחור מתאריך ועד תאריך';
-      this.cdr.detectChanges();
-      return;
-    }
+  const { data, error } = await dbc
+    .from('lessons_occurrences')
+  .select('lesson_id')
 
-    if (!allDay && (!fromTime || !toTime)) {
-      this.error = 'לחסימה לפי שעות – חובה למלא משעה ועד שעה';
-      this.cdr.detectChanges();
-      return;
-    }
+    .eq('instructor_id', this.instructorId)
+    .gte('occur_date', from)
+    .lte('occur_date', to)
+    .limit(1);
 
-    try {
-      await this.saveRangeRequest(
-        from,
-        to,
-        allDay,
-        allDay ? null : fromTime,
-        allDay ? null : toTime,
-        type,
-        text.trim() || null,
-      );
+  if (error) {
+    console.error('hasLessonsInRangeFromDb error', error);
+    return false;
+  }
 
-      this.rangeModal.open = false;
-      this.rangeModal.text = '';
-    } catch (err) {
-      console.error('submitRange error', err);
-      this.error = 'שגיאה בשמירת הבקשה';
-      this.cdr.detectChanges();
+  return (data?.length ?? 0) > 0;
+}
+private loadAffectedParentsFromSchedule(from: string, to: string): void {
+  const impacted = new Map<string, Parent>();
+
+  for (const lesson of this.lessons) {
+    const day = lesson.occur_date?.slice(0, 10);
+    if (!day) continue;
+    if (day < from || day > to) continue;
+
+    // מדלגים על מבוטלים
+    const status = String(lesson.status ?? '').toLowerCase();
+    if (status.includes('בוטל') || status.includes('cancel')) continue;
+
+    const child = this.children.find(c => c.child_uuid === lesson.child_id);
+    const parent = child?.parent;
+
+    if (parent && parent.uid) {
+      impacted.set(parent.uid, parent);
     }
   }
 
-  private async saveRangeRequest(
-    fromDate: string,
-    toDate: string,
-    allDay: boolean,
-    fromTime: string | null,
-    toTime: string | null,
-    type: RequestType,
-    note: string | null,
-  ): Promise<void> {
-    if (!this.instructorId) return;
+  this.affectedParents = Array.from(impacted.values());
+}
 
-    const dbc = dbTenant();
-    const user = await this.cu.loadUserDetails();
 
-    const payload: any = {
-      category: this.mapRequestTypeToDb(type),
-      note,
-      allDay,
-      fromTime,
-      toTime,
-    };
 
-    const { data, error } = await dbc
-      .from('secretarial_requests')
-      .insert({
-        request_type: 'INSTRUCTOR_DAY_OFF',
-        status: 'PENDING',
-        requested_by_uid: user?.uid,
-        requested_by_role: 'instructor',
-        instructor_id: this.instructorId,
-        child_id: null,
-        lesson_occ_id: null,
-        from_date: fromDate,
-        to_date: toDate,
-        payload,
-      })
-      .select()
-      .single();
 
-    if (error) throw error;
 
-    const expanded = this.expandRequestRow(data);
-    this.dayRequests.push(...expanded);
+async confirmSaveAfterWarning(): Promise<void> {
+  this.showAffectedParentsPopup = false;
 
-    this.setScheduleItems();
-    this.cdr.detectChanges();
+  const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
+
+  await this.saveRangeRequest(
+    from,
+    to,
+    allDay,
+    allDay ? null : fromTime,
+    allDay ? null : toTime,
+    type,
+    text?.trim() || null,
+  );
+
+  this.rangeModal.open = false;
+}
+
+ private async saveRangeRequest(
+  fromDate: string,
+  toDate: string,
+  allDay: boolean,
+  fromTime: string | null,
+  toTime: string | null,
+  type: RequestType,
+  note: string | null,
+): Promise<void> {
+  if (!this.instructorId) return;
+
+  const dbc = dbTenant();
+  const user = await this.cu.loadUserDetails();
+
+  if (!user?.uid) {
+    throw new Error('missing user uid');
   }
+
+  // 🔴 בדיוק כמו המקור – בלי שדות מיותרים
+  const payload = {
+    category: this.mapRequestTypeToDb(type),
+    note: note ?? null,
+  };
+
+  const { data, error } = await dbc
+    .from('secretarial_requests')
+    .insert({
+      request_type: 'INSTRUCTOR_DAY_OFF',
+      status: 'PENDING',
+      requested_by_uid: user.uid,
+      requested_by_role: 'instructor',
+      instructor_id: this.instructorId,
+      from_date: fromDate,
+      to_date: toDate,
+      payload,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('SAVE REQUEST ERROR', error);
+    throw error;
+  }
+
+  this.dayRequests.push(...this.expandRequestRow(data));
+  this.setScheduleItems();
+  this.cdr.detectChanges();
+}
 
   /* ------------ APPROVAL MENU ------------ */
   onClickRequest(dateStr: string, ev: MouseEvent): void {
@@ -1013,12 +1181,78 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
     return lessonStart < offEnd && lessonEnd > offStart;
   });
 }
+private isLessonBlockedByInstructorOff(lessonDate: string): boolean {
+  if (!this.lastRange) return false;
+
+  // היום לא בטווח שמוצג – אל תחסום
+  if (lessonDate < this.lastRange.start || lessonDate > this.lastRange.end) {
+    return false;
+  }
+
+  return (this.dayRequests ?? []).some(r =>
+    r.status === 'approved' &&
+    r.request_date === lessonDate
+  );
+}
+
 
 
   private addOneDayYmd(dateYmd: string): string {
   const d = new Date(dateYmd + 'T00:00:00');
   d.setDate(d.getDate() + 1);
   return d.toISOString().slice(0, 10);
+}
+private instructorDaysOffToItems(): ScheduleItem[] {
+  return (this.dayRequests ?? [])
+    .filter(r => r.status === 'approved')
+    .map(r => {
+
+      let bg = '#e5e7eb';
+      let text = '#374151';
+
+      switch (r.request_type) {
+        case 'holiday':
+          bg = '#fef3c7';   // 🏖 צהוב
+          text = '#92400e';
+          break;
+        case 'sick':
+          bg = '#ffe4e6';   // 🩺 ורוד
+          text = '#9f1239';
+          break;
+        case 'personal':
+          bg = '#ede9fe';  // 👤 סגול
+          text = '#5b21b6';
+          break;
+        default:
+          bg = '#e5e7eb';  // אפור
+          text = '#374151';
+      }
+
+      const start = `${r.request_date}T00:00:00`;
+      const end   = `${r.request_date}T23:59:59`;
+
+      return {
+        id: `instructor_off_${r.id}_${r.request_date}`,
+        title: `⛔ ${this.getRequestLabel(r.request_type)}`,
+        start,
+        end,
+        allDay: false,
+
+        display: 'block',
+        overlap: false,
+
+        color: bg,
+        textColor: text,
+
+        classNames: ['instructor-day-off'],
+        status: 'instructor_day_off' as any,
+        meta: {
+          isInstructorDayOff: 'true',
+          request_type: r.request_type,
+          note: r.note ?? null,
+        } as any,
+      };
+    });
 }
 
 private farmDaysOffToItems(): ScheduleItem[] {
@@ -1188,10 +1422,12 @@ private addMinutes(time: string, mins: number): string {
 
 /* ------------ UTILITIES ------------ */
 function ymd(d: Date): string {
-  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-    .toISOString()
-    .slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
+
 
 function addDays(d: Date, days: number): Date {
   const x = new Date(d);

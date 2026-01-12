@@ -732,7 +732,7 @@ type RecordPaymentArgs = {
 
 
 
-async function recordPaymentInDb(args: RecordPaymentArgs) {
+async function recordPaymentInDb(args: { sb?: any; tenantSchema?: any; parentUid?: any; farmId?: undefined; amountAgorot?: any; currency?: any; method?: any; tx?: any; subscriptionId?: any; payment_method?: any; payment_profile_id?: any; }) {
   const {
     sb,
     tenantSchema,
@@ -742,7 +742,13 @@ async function recordPaymentInDb(args: RecordPaymentArgs) {
     method,
     tx,
     subscriptionId,
+
+    // ✅ חדש:
+    payment_method,
+    payment_profile_id,
   } = args;
+
+
 
   const amountNis = Number(amountAgorot) / 100;
   const today = new Date().toISOString().slice(0, 10);
@@ -750,12 +756,17 @@ async function recordPaymentInDb(args: RecordPaymentArgs) {
   const sbTenant = sb; // כי יצרת אותו כבר עם schema=tenantSchema ב-getSupabaseForTenant
 
   const paymentRow = {
-    parent_uid: parentUid ?? null,
-    amount: amountNis,
-    date: today,
-    method,
-    invoice_url: null,
-  };
+  parent_uid: parentUid ?? null,
+  amount: amountNis,
+  date: today,
+  method,
+  invoice_url: null,
+
+  // ✅ החדש:
+  payment_method: args.payment_method ?? 'credit_card',
+  payment_profile_id: args.payment_profile_id ?? null,
+};
+
 
   const { data: inserted, error: payErr } = await sbTenant
     .from('payments')
@@ -1120,12 +1131,21 @@ const { data: payRow, error: payErr } = await sb
     parent_uid: parentUid,
     amount: amountNis,
     date: today,
-    method: 'charge',      // או 'monthly' / 'token' איך שמתאים לך
-    invoice_url: null, //שוהם - לאחר יצירת חשבונית להוסיף URL
-    charge_id: chargeId,   // חשוב!
+
+    // סוג פעולה פנימי אצלך (one_time/charge וכו')
+    method: 'charge',
+
+    // ✅ החדש לפי הטבלה שלך:
+    payment_method: 'credit_card',            // enum public.payment_method
+    payment_profile_id: usedProfile?.id ?? null,
+
+    // אופציונלי: לשמור גם last4/brand אין לך בעמודות כרגע, אז לא.
+    invoice_url: null,
+    charge_id: chargeId,
   })
   .select('id')
   .single();
+
 
 if (payErr) {
   console.error('[chargeSelectedChargesForParent] payments insert error:', payErr);

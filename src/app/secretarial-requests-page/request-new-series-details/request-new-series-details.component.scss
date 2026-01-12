@@ -1,0 +1,14 @@
+.page { padding: 16px; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.list { display: grid; gap: 12px; margin-top: 12px; }
+.card { background: #fff; border: 1px solid #e6e6e6; border-radius: 12px; padding: 12px; }
+.row { display: grid; grid-template-columns: 110px 1fr; gap: 10px; padding: 4px 0; }
+.label { opacity: .7; }
+.note { width: 100%; min-height: 64px; margin-top: 10px; padding: 10px; border-radius: 10px; border: 1px solid #e6e6e6; }
+.actions { display: flex; gap: 10px; margin-top: 10px; }
+.btn { padding: 10px 14px; border-radius: 10px; border: 1px solid #d0d0d0; background: #fff; cursor: pointer; }
+.btn:disabled { opacity: .6; cursor: not-allowed; }
+.approve { border-color: #2e7d32; }
+.reject { border-color: #c62828; }
+.err { color: #c62828; margin-top: 10px; }
+.empty { opacity: .7; margin-top: 18px; }

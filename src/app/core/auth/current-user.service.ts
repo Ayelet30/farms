@@ -167,7 +167,6 @@ export class CurrentUserService {
     selectedTenantId: picked?.tenant_id ?? null,
   });
 
-console.log("111111111", farmMeta);
   this.tokens.applytokens(picked?.farm?.schema_name || 'public');
 
   return { selected: picked, details };

@@ -1,0 +1,51 @@
+<div class="req">
+  <div class="req-head">
+    <div class="req-title">יום חופש מדריך</div>
+
+    <div class="meta">
+      <div><b>מדריך:</b> {{ request.instructorName || '—' }}</div>
+      <div><b>טווח:</b> {{ request.fromDate | date:'dd/MM/yyyy' }} – {{ (request.toDate || request.fromDate) | date:'dd/MM/yyyy' }}</div>
+      <div><b>מבקש/ת:</b> {{ request.requestedByName || '—' }}</div>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <label>הערה להחלטה (אופציונלי)</label>
+    <textarea [(ngModel)]="decisionNote" rows="2" placeholder="למדריך / לתיעוד..."></textarea>
+  </div>
+
+  <div class="impact">
+    <div class="impact-title">
+      שיעורים שיתבטלו באישור ({{ impactRows().length }})
+      <button class="mini" (click)="loadImpact()" [disabled]="loadingImpact()">רענון רשימה</button>
+    </div>
+
+    <div *ngIf="loadingImpact()">טוען...</div>
+
+    <table *ngIf="!loadingImpact() && impactRows().length">
+      <thead>
+        <tr>
+          <th>תאריך</th>
+          <th>שעה</th>
+          <th>ילד/ה</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let x of impactRows()">
+          <td>{{ x.occur_date | date:'dd/MM/yyyy' }}</td>
+          <td>{{ x.start_time }} - {{ x.end_time }}</td>
+          <td>{{ x.child_name || '—' }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="empty" *ngIf="!loadingImpact() && !impactRows().length">
+      לא נמצאו שיעורים שיושפעו בטווח הזה.
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn reject" (click)="reject()">דחייה</button>
+    <button class="btn approve" (click)="approve()" [disabled]="loadingImpact()">אישור</button>
+  </div>
+</div>
