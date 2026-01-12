@@ -1447,56 +1447,149 @@ onReferralFileSelected(event: Event): void {
   // =========================================
 
   // יצירת שיעור השלמה – יוצר lesson יחיד (repeat_weeks = 1)
-  async bookMakeupSlot(slot: MakeupSlot): Promise<void> {
-  if (!this.selectedChildId) return;
+//   async bookMakeupSlot(slot: MakeupSlot): Promise<void> {
+//   if (!this.selectedChildId) return;
 
-  const dayLabel = this.dayOfWeekLabelFromDate(slot.occur_date);
-  const anchorWeekStart = this.calcAnchorWeekStart(slot.occur_date);
+//   const dayLabel = this.dayOfWeekLabelFromDate(slot.occur_date);
+//   const anchorWeekStart = this.calcAnchorWeekStart(slot.occur_date);
 
-  // נחליט מה ה-id_number שנכניס לשיעור
-  const instructorIdNumber =
-    this.selectedInstructorId === 'any'
-      ? slot.instructor_id
-      : (
-          this.instructors.find(i =>
-            i.instructor_uid === this.selectedInstructorId || // uid
-            i.instructor_id  === this.selectedInstructorId    // במקרה שכבר ת"ז
-          )?.instructor_id ?? slot.instructor_id              // fallback
-        );
+//   // נחליט מה ה-id_number שנכניס לשיעור
+//   const instructorIdNumber =
+//     this.selectedInstructorId === 'any'
+//       ? slot.instructor_id
+//       : (
+//           this.instructors.find(i =>
+//             i.instructor_uid === this.selectedInstructorId || // uid
+//             i.instructor_id  === this.selectedInstructorId    // במקרה שכבר ת"ז
+//           )?.instructor_id ?? slot.instructor_id              // fallback
+//         );
 
 
 
-  const { data, error } = await dbTenant()
-    .from('lessons')
-    .insert({
-      child_id: this.selectedChildId,
-      instructor_id: instructorIdNumber,  // ← שורה מתוקנת
-      lesson_type: 'השלמה',
-      status: 'אושר',
-      day_of_week: dayLabel,
-      start_time: slot.start_time,
-      end_time: slot.end_time,
-      repeat_weeks: 1,
-      anchor_week_start: anchorWeekStart,
-      appointment_kind: 'therapy_makeup',
-      approval_id: this.selectedApproval?.approval_id ?? null,
-      origin: this.user!.role === 'parent' ? 'parent' : 'secretary',
-      is_tentative: false,
-      capacity: 1,
-      current_booked: 1,
-      payment_source: this.selectedApproval ? 'health_fund' : 'private',
-    })
-    .select()
-    .single();
+//   const { data, error } = await dbTenant()
+//     .from('lessons')
+//     .insert({
+//       child_id: this.selectedChildId,
+//       instructor_id: instructorIdNumber,  // ← שורה מתוקנת
+//       lesson_type: 'השלמה',
+//       status: 'אושר',
+//       day_of_week: dayLabel,
+//       start_time: slot.start_time,
+//       end_time: slot.end_time,
+//       repeat_weeks: 1,
+//       anchor_week_start: anchorWeekStart,
+//       appointment_kind: 'therapy_makeup',
+//       approval_id: this.selectedApproval?.approval_id ?? null,
+//       origin: this.user!.role === 'parent' ? 'parent' : 'secretary',
+//       is_tentative: false,
+//       capacity: 1,
+//       current_booked: 1,
+//       payment_source: this.selectedApproval ? 'health_fund' : 'private',
+//     })
+//     .select()
+//     .single();
 
-  if (error) {
-    console.error(error);
-    this.makeupError = 'שגיאה ביצירת שיעור ההשלמה';
+//   if (error) {
+//     console.error(error);
+//     this.makeupError = 'שגיאה ביצירת שיעור ההשלמה';
+//     return;
+//   }
+
+//   this.makeupCreatedMessage = 'שיעור ההשלמה נוצר בהצלחה';
+//   await this.onChildChange();
+// }
+async bookMakeupSlot(slot: MakeupSlot): Promise<void> {
+  if (!this.selectedChildId || !this.selectedMakeupCandidate) {
+    this.makeupError = 'חסר ילד או שיעור מקור להשלמה';
     return;
   }
 
-  this.makeupCreatedMessage = 'שיעור ההשלמה נוצר בהצלחה';
-  await this.onChildChange();
+  // ===== 1) למלא נתונים לדיאלוג (כמו בהורה) =====
+  this.confirmData.newDate  = slot.occur_date;
+  this.confirmData.newStart = slot.start_time.substring(0, 5);
+  this.confirmData.newEnd   = slot.end_time.substring(0, 5);
+
+  this.confirmData.oldDate  = this.selectedMakeupCandidate.occur_date;
+  this.confirmData.oldStart = this.selectedMakeupCandidate.start_time.substring(0, 5);
+  this.confirmData.oldEnd   = this.selectedMakeupCandidate.end_time.substring(0, 5);
+
+  // ===== 2) לפתוח את אותו דיאלוג בדיוק =====
+  const dialogRef = this.dialog.open(this.confirmMakeupDialog, {
+    width: '380px',
+    disableClose: true,
+    data: {},
+  });
+
+  dialogRef.afterClosed().subscribe(async confirmed => {
+  if (!confirmed) return;
+
+  if (!this.selectedMakeupCandidate) {
+    this.showErrorToast('השיעור המקורי להשלמה אינו זמין יותר');
+    return;
+  }
+    // ===== 3) רק אם אישרה - ממשיכים לקביעה בפועל =====
+    // (כאן זה הקוד שהיה לך כבר – הוספתי אותו פנימה)
+
+    const instructorIdNumber =
+      this.selectedInstructorId === 'any'
+        ? slot.instructor_id
+        : (
+            this.instructors.find(i =>
+              i.instructor_uid === this.selectedInstructorId ||
+              i.instructor_id  === this.selectedInstructorId
+            )?.instructor_id ?? slot.instructor_id
+          );
+
+    const instructorUid =
+      this.instructors.find(i => i.instructor_id === instructorIdNumber)
+        ?.instructor_uid ?? null;
+
+    if (!instructorUid) {
+      this.makeupError = 'לא נמצא instructor_uid למדריך שנבחר';
+      return;
+    }
+
+    const baseLessonUid = this.selectedMakeupCandidate.lesson_occ_exception_id;
+
+    try {
+      const { data, error } = await dbTenant().rpc(
+        'book_makeup_lesson_with_validation',
+        {
+          p_child_id: this.selectedChildId,
+          p_instructor_id_number: instructorIdNumber,
+          p_instructor_uid: instructorUid,
+          p_occur_date: slot.occur_date,
+          p_start_time: slot.start_time,
+          p_end_time: slot.end_time,
+          p_base_lesson_uid: baseLessonUid,
+
+          p_payment_source: this.selectedApproval ? 'health_fund' : 'private',
+          p_approval_id: this.selectedApproval?.approval_id ?? null,
+          p_payment_plan_id: this.selectedPaymentPlanId ?? null,
+          p_riding_type_id: slot.riding_type_id ?? null,
+          p_capacity: slot.max_participants ?? 1,
+          p_current_booked: 1
+        }
+      );
+
+      if (error) {
+        console.error(error);
+        if (error.message?.includes('Slot is no longer available')) {
+          this.showErrorToast('השיעור כבר נתפס, יש לרענן את הרשימה');
+        } else {
+          this.showErrorToast('שגיאה בקביעת שיעור ההשלמה');
+        }
+        return;
+      }
+
+      this.showSuccessToast('שיעור ההשלמה נקבע בהצלחה ✔️');
+      await this.onChildChange();
+
+    } catch (e) {
+      console.error(e);
+      this.showErrorToast('שגיאה בלתי צפויה בקביעת שיעור ההשלמה');
+    }
+  });
 }
 
 async onMakeupSlotChosen(slot: MakeupSlot): Promise<void> {
