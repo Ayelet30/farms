@@ -497,9 +497,10 @@
         <td>{{ s.instructor_name || s.instructor_id }}</td>
         <td>{{ getLessonTypeLabel(s) }}</td>
         <td>
-          <button type="button" class="appt-cta" (click)="selectAndRequestOccupancySlot(s)">
-            קבע שיעור מילוי מקום
-          </button>
+         <button type="button" class="appt-cta" (click)="onOccupancySlotChosen(s)">
+  קבע שיעור מילוי מקום
+</button>
+
         </td>
       </tr>
     </tbody>
