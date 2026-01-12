@@ -137,6 +137,19 @@ interface LessonOccurrenceRow {
   lesson_id?: UUID | null;
 }
 
+/**
+ * ✅ NEW: Occurrences with attendance (to fix: Property 'occWithAttendance' does not exist)
+ * חשוב: אם בשטח העמודות נקראות אחרת ב-view שלך, תשני רק את ה-select ב-load.
+ */
+interface OccWithAttendanceRow {
+  occur_date: string | null;
+  status: string | null;
+  lesson_id?: UUID | null;
+  is_cancellation?: boolean | null;
+  attendance_status?: string | null;
+  lesson_type?: string | null;
+}
+
 // ===============================
 //        COMPONENT
 // ===============================
@@ -168,10 +181,10 @@ export class MonthlySummaryComponent implements OnInit {
     group: [],
   });
 
-readonly axisLeft = 40;
-readonly axisRight = 580;
-readonly axisTop = 20;
-readonly axisBottom = 170;
+  readonly axisLeft = 40;
+  readonly axisRight = 580;
+  readonly axisTop = 20;
+  readonly axisBottom = 170;
 
   @Input() monthlyTitle = 'הסיכום החודשי שלי';
   @Input() yearlyTitle = 'הסיכום השנתי שלי';
@@ -210,20 +223,24 @@ readonly axisBottom = 170;
     worked_hours: [],
     income: [],
   };
+
   maxIndex(series: 'priv' | 'group'): number {
-  const s = series === 'priv' ? this.privVsGroupCharts().priv : this.privVsGroupCharts().group;
-  if (!s.length) return -1;
+    const s =
+      series === 'priv'
+        ? this.privVsGroupCharts().priv
+        : this.privVsGroupCharts().group;
+    if (!s.length) return -1;
 
-  let maxI = 0;
-  for (let i = 1; i < s.length; i++) {
-    if (s[i].value > s[maxI].value) maxI = i;
+    let maxI = 0;
+    for (let i = 1; i < s.length; i++) {
+      if (s[i].value > s[maxI].value) maxI = i;
+    }
+    return maxI;
   }
-  return maxI;
-}
 
-isMaxIndex(series: 'priv' | 'group', index: number): boolean {
-  return index === this.maxIndex(series);
-}
+  isMaxIndex(series: 'priv' | 'group', index: number): boolean {
+    return index === this.maxIndex(series);
+  }
 
   // ===============================
   //           FILTERS
@@ -240,6 +257,9 @@ isMaxIndex(series: 'priv' | 'group', index: number): boolean {
   payments = signal<PaymentRow[]>([]);
   cancelExceptions = signal<CancelExceptionRow[]>([]);
   occurrences = signal<LessonOccurrenceRow[]>([]);
+
+  // ✅ NEW signal (fixes TS2339)
+  occWithAttendance = signal<OccWithAttendanceRow[]>([]);
 
   insights = signal<Insights>({
     totalLessons: 0,
@@ -260,9 +280,7 @@ isMaxIndex(series: 'priv' | 'group', index: number): boolean {
   }
 
   private countPendingOccurrences(rows: LessonOccurrenceRow[]): number {
-    return rows.filter(
-      (o) => (o.status || '').trim() === 'ממתין לאישור'
-    ).length;
+    return rows.filter((o) => (o.status || '').trim() === 'ממתין לאישור').length;
   }
 
   private deriveStatus(raw: MonthlyReportRow): LessonStatus | null {
@@ -358,9 +376,9 @@ isMaxIndex(series: 'priv' | 'group', index: number): boolean {
           `${l.child_first_name || ''} ${l.child_last_name || ''}`.trim() ||
           `${l.child?.first_name || ''} ${l.child?.last_name || ''}`.trim();
 
-        const hay = `${childName} ${l.lesson_type || ''} ${
-          l.riding_type || ''
-        } ${l.instructor_name || ''}`.toLowerCase();
+        const hay = `${childName} ${l.lesson_type || ''} ${l.riding_type || ''} ${
+          l.instructor_name || ''
+        }`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
 
@@ -396,14 +414,10 @@ isMaxIndex(series: 'priv' | 'group', index: number): boolean {
     }
 
     const doneStatuses: LessonStatus[] = ['הושלם', 'בוצע', 'אושר'];
-    const done = all.filter(
-      (l: LessonRow) => l.status && doneStatuses.includes(l.status)
-    );
+    const done = all.filter((l: LessonRow) => l.status && doneStatuses.includes(l.status));
     const pendingCount = this.countPendingOccurrences(occs);
 
-    const canceledInLessons = all.filter(
-      (l: LessonRow) => l.status === 'בוטל'
-    ).length;
+    const canceledInLessons = all.filter((l: LessonRow) => l.status === 'בוטל').length;
     const canceledByExceptions = cancels.length;
     const canceled = canceledInLessons + canceledByExceptions;
 
@@ -421,10 +435,7 @@ isMaxIndex(series: 'priv' | 'group', index: number): boolean {
       .padStart(2, '0')}`;
 
     const totalForSuccess = all.length + canceledByExceptions;
-    const successPct =
-      totalForSuccess > 0
-        ? Math.round((done.length / totalForSuccess) * 100)
-        : 0;
+    const successPct = totalForSuccess > 0 ? Math.round((done.length / totalForSuccess) * 100) : 0;
 
     // === ספירת פרטי / לא־פרטי לפי סוג הרכיבה מה־view ===
     let privCount = 0;
@@ -434,19 +445,12 @@ isMaxIndex(series: 'priv' | 'group', index: number): boolean {
       const code = (l.riding_type_code || '').trim().toLowerCase();
       const name = (l.riding_type_name || '').trim();
 
-      // אם אין בכלל סוג רכיבה – מדלגים
       if (!code && !name) continue;
 
-      // פרטי = code 'private' או שהשם בעברית מכיל "פרטי"
       const isPrivate = code === 'private' || name.includes('פרטי');
 
-      if (isPrivate) {
-        // סופרים מספר שיעורים (לא לפי max_participants)
-        privCount++;
-      } else {
-        // כל השאר – לא פרטי (קבוצתי/זוגי וכו')
-        groupCount++;
-      }
+      if (isPrivate) privCount++;
+      else groupCount++;
     }
 
     return {
@@ -464,8 +468,6 @@ isMaxIndex(series: 'priv' | 'group', index: number): boolean {
   // ===============================
   //   DERIVED TOTALS FOR CHART
   // ===============================
-
-  // סכום שנתי של פרטי / קבוצתי – לפי ה-KPI
   get totalPrivate(): number {
     return this.kpis().privCount || 0;
   }
@@ -474,51 +476,45 @@ isMaxIndex(series: 'priv' | 'group', index: number): boolean {
     return this.kpis().groupCount || 0;
   }
 
-  // מקסימום לשני הקווים ביחד – נוח לשימוש מה־HTML
   get maxPrivGroup(): number {
     return this.maxPrivVsGroupValue();
   }
-    // המספר השני על הציר – המינימום החיובי מבין פרטי / לא-פרטי
+
   get minPrivGroup(): number {
     const vals = [this.totalPrivate, this.totalGroup].filter((v) => v > 0);
     if (!vals.length) return 0;
     return Math.min(...vals);
   }
-  // מקסימום לכל קו בנפרד
-get maxPriv(): number {
-  const s = this.privVsGroupCharts().priv;
-  return s.length ? Math.max(...s.map(p => p.value)) : 0;
-}
 
-get maxGroupSeries(): number {
-  const s = this.privVsGroupCharts().group;
-  return s.length ? Math.max(...s.map(p => p.value)) : 0;
-}
+  get maxPriv(): number {
+    const s = this.privVsGroupCharts().priv;
+    return s.length ? Math.max(...s.map((p) => p.value)) : 0;
+  }
 
-// כל ערכי הסימון בציר Y (0 + כל מקסימום ייחודי + מינימום חיובי אם תרצי)
-get yTicksPrivGroup(): number[] {
-  const ticks = new Set<number>();
-  ticks.add(0);
+  get maxGroupSeries(): number {
+    const s = this.privVsGroupCharts().group;
+    return s.length ? Math.max(...s.map((p) => p.value)) : 0;
+  }
 
-  const a = this.maxPriv;
-  const b = this.maxGroupSeries;
+  get yTicksPrivGroup(): number[] {
+    const ticks = new Set<number>();
+    ticks.add(0);
 
-  if (a > 0) ticks.add(a);
-  if (b > 0) ticks.add(b);
+    const a = this.maxPriv;
+    const b = this.maxGroupSeries;
 
-  // אם עדיין את רוצה גם “מינימום חיובי” כאמצעי:
-  const min = this.minPrivGroup;
-  if (min > 0 && min !== a && min !== b) ticks.add(min);
+    if (a > 0) ticks.add(a);
+    if (b > 0) ticks.add(b);
 
-  // סדר מלמעלה למטה לא חובה, אבל נוח
-  return Array.from(ticks).sort((x, y) => x - y);
-}
-isMaxPoint(series: 'priv' | 'group', value: number): boolean {
-  return series === 'priv'
-    ? value === this.maxPriv
-    : value === this.maxGroupSeries;
-}
+    const min = this.minPrivGroup;
+    if (min > 0 && min !== a && min !== b) ticks.add(min);
 
+    return Array.from(ticks).sort((x, y) => x - y);
+  }
+
+  isMaxPoint(series: 'priv' | 'group', value: number): boolean {
+    return series === 'priv' ? value === this.maxPriv : value === this.maxGroupSeries;
+  }
 
   // ===============================
   //        LOAD DATA
@@ -553,6 +549,8 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
         { data: paymentsData, error: paymentsErr },
         { data: cancelsData, error: cancelsErr },
         { data: occurrencesData, error: occErr },
+        // ✅ NEW: load occ with attendance
+        { data: occAttData, error: occAttErr },
       ] = await Promise.all([
         this.dbc
           .from(lessonsViewName)
@@ -575,10 +573,16 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
           .gte('occur_date', from)
           .lte('occur_date', to),
 
-        // טבלת ה-lessons_occurrences
         this.dbc
           .from('lessons_occurrences')
           .select('occur_date,status,lesson_id')
+          .gte('occur_date', from)
+          .lte('occur_date', to),
+
+        // ✅ השם של ה-view שהוספת (אם אצלך נקרא אחרת - תעדכני כאן)
+        this.dbc
+          .from('lessons_occurrences_with_attendance')
+          .select('occur_date,status,lesson_id,is_cancellation,attendance_status,lesson_type')
           .gte('occur_date', from)
           .lte('occur_date', to),
       ]);
@@ -587,6 +591,7 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
       if (paymentsErr) throw paymentsErr;
       if (cancelsErr) throw cancelsErr;
       if (occErr) throw occErr;
+      if (occAttErr) throw occAttErr;
 
       const rows = (rawLessons ?? []) as MonthlyReportRow[];
 
@@ -598,7 +603,6 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
           const lessonType = this.deriveLessonType(raw);
           const status = this.deriveStatus(raw);
 
-          // שדה נוח שמעדיף שם, ואם אין – קוד
           const ridingType =
             (raw.riding_type_name || '').trim() ||
             (raw.riding_type_code || '').trim() ||
@@ -630,9 +634,12 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
       this.lessons.set(normalizedLessons);
       this.payments.set((paymentsData ?? []) as PaymentRow[]);
       this.cancelExceptions.set((cancelsData ?? []) as CancelExceptionRow[]);
-      this.occurrences.set(
-        (occurrencesData ?? []) as LessonOccurrenceRow[]
-      );
+      this.occurrences.set((occurrencesData ?? []) as LessonOccurrenceRow[]);
+      // ✅ NEW
+      this.occWithAttendance.set((occAttData ?? []) as OccWithAttendanceRow[]);
+      console.log('occAttData len =', (occAttData ?? []).length);
+      console.log('occAttData sample =', (occAttData ?? [])[0]);
+ 
 
       this.computeInsights(this.lessons());
       this.buildCharts();
@@ -651,10 +658,7 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
     const cancels = this.cancelExceptions();
     const payRows = this.payments();
 
-    const incomeSum = payRows.reduce(
-      (sum: number, p: PaymentRow) => sum + (p.amount ?? 0),
-      0
-    );
+    const incomeSum = payRows.reduce((sum: number, p: PaymentRow) => sum + (p.amount ?? 0), 0);
     const total = rows.length + cancels.length;
 
     if (!total) {
@@ -668,9 +672,7 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
       return;
     }
 
-    const canceledInLessons = rows.filter(
-      (r: LessonRow) => r.status === 'בוטל'
-    ).length;
+    const canceledInLessons = rows.filter((r: LessonRow) => r.status === 'בוטל').length;
     const canceledByExceptions = cancels.length;
     const canceledCount = canceledInLessons + canceledByExceptions;
 
@@ -763,12 +765,11 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
 
       const exportRows = rows.map((r: LessonRow) => ({
         'תאריך שיעור': r.occur_date ?? '',
-        'תלמיד/ה':
-          (
-            r.child_full_name ||
-            `${r.child_first_name || ''} ${r.child_last_name || ''}`.trim() ||
-            ''
-          ).trim(),
+        'תלמיד/ה': (
+          r.child_full_name ||
+          `${r.child_first_name || ''} ${r.child_last_name || ''}`.trim() ||
+          ''
+        ).trim(),
         'מדריך/ה': r.instructor_name ?? '',
         'סוג שיעור': r.lesson_type ?? '',
         'סוג רכיבה': r.riding_type ?? '',
@@ -804,26 +805,35 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
     const k = this.kpis();
     const occs = this.occurrences(); // לממתינים בלבד
 
+    // ✅ NEW: Occurrences with attendance (for monthly success_pct)
+    const occAtt = this.occWithAttendance();
+console.log('occAtt len =', occAtt.length);
+console.log('occAtt sample =', occAtt[0]);
+
+const uniqStatus = Array.from(new Set(occAtt.map(x => (x.status ?? '').trim()))).filter(Boolean);
+const uniqAtt = Array.from(new Set(occAtt.map(x => (x.attendance_status ?? '').trim()))).filter(Boolean);
+
+console.log('uniq occAtt.status:', uniqStatus);
+console.log('uniq occAtt.attendance_status:', uniqAtt);
+
     const doneStatuses: LessonStatus[] = ['הושלם', 'בוצע', 'אושר'];
 
-    // מערכים לכל חודש (0–11)
     const doneByMonth = Array(12).fill(0);
     const pendingByMonth = Array(12).fill(0);
     const canceledByMonth = Array(12).fill(0);
-    const minutesByMonth = Array(12).fill(0); // שעות עבודה
-    const incomeByMonth = Array(12).fill(0);  // הכנסות
-    const privByMonth = Array(12).fill(0);    // שיעורים פרטיים
-    const groupByMonth = Array(12).fill(0);   // שיעורים לא-פרטיים
+    const minutesByMonth = Array(12).fill(0);
+    const incomeByMonth = Array(12).fill(0);
+    const privByMonth = Array(12).fill(0);
+    const groupByMonth = Array(12).fill(0);
 
-    // ---- DONE / CANCELED / שעות עבודה + פרטי/קבוצתי – לפי lessons_schedule_view ----
+    // ---- DONE / CANCELED / שעות עבודה + פרטי/קבוצתי ----
     for (const l of lessons) {
       if (!l.occur_date) continue;
       const d = new Date(l.occur_date);
       if (isNaN(d.getTime())) continue;
 
-      const m = d.getMonth(); // 0–11
+      const m = d.getMonth();
 
-      // 1. סטטוס – בוצעו / בוטלו
       if (l.status && doneStatuses.includes(l.status)) {
         doneByMonth[m]++;
 
@@ -836,30 +846,15 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
         canceledByMonth[m]++;
       }
 
-      // 2. פרטי / לא-פרטי לפי סוג רכיבה
       const code = (l.riding_type_code || '').trim().toLowerCase();
       const name = (l.riding_type_name || '').trim();
 
       if (!code && !name) continue;
 
-      const isPrivate =
-        code === 'private' ||
-        name.includes('פרטי');
+      const isPrivate = code === 'private' || name.includes('פרטי');
 
-      if (isPrivate) {
-        privByMonth[m]++;   // שיעור פרטי אחד
-      } else {
-        groupByMonth[m]++;  // שיעור לא-פרטי אחד
-      }
-    }
-
-    // === הופכים את הספירה לחודשית לספירה מצטברת שנתית ===
-    const privCumulativeByMonth = [...privByMonth];
-    const groupCumulativeByMonth = [...groupByMonth];
-
-    for (let i = 1; i < 12; i++) {
-      privCumulativeByMonth[i] += privCumulativeByMonth[i - 1];
-      groupCumulativeByMonth[i] += groupCumulativeByMonth[i - 1];
+      if (isPrivate) privByMonth[m]++;
+      else groupByMonth[m]++;
     }
 
     // ---- ממתינים – מטבלת lessons_occurrences ----
@@ -883,7 +878,7 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
       canceledByMonth[m]++;
     }
 
-    // הכנסות לפי חודשים – מטבלת payments
+    // הכנסות לפי חודשים – payments
     for (const p of pays) {
       if (!p.date || p.amount == null) continue;
       const d = new Date(p.date);
@@ -892,33 +887,82 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
       incomeByMonth[m] += p.amount;
     }
 
-    // ===== גרף קטן של הקובייה: פרטי / לא-פרטי =====
+    // ✅ SUCCESS % חודשי לפי occWithAttendance
+const scheduledByMonth = Array(12).fill(0);
+const performedByMonth = Array(12).fill(0);
+
+const norm = (v: string | null | undefined) => (v ?? '').trim().toLowerCase();
+
+// סטטוסים שנחשבים “בוצע” במערכת שלך
+const doneByStatus = new Set(['בוצע', 'הושלם', 'אושר']);
+
+// attendance אפשריים (הוספתי עברית + אנגלית)
+const doneByAttendance = new Set([
+  'present', 'attended', 'arrived', 'done',
+  'נוכח', 'נוכחת', 'הגיע', 'הגיעה', 'נכח', 'נוכחות',
+]);
+
+for (const o of occAtt) {
+  if (!o.occur_date) continue;
+
+  const d = new Date(o.occur_date);
+  if (isNaN(d.getTime())) continue;
+
+  const m = d.getMonth();
+
+  const sRaw = (o.status ?? '').trim();
+  const s = sRaw;               // סטטוס בעברית (לא עושה lower כדי להשוות בסט)
+  const a = norm(o.attendance_status);
+
+  // ❌ לא סופרים ביטולים ב“נקבע”
+  if (o.is_cancellation) continue;
+  if (s === 'בוטל') continue;
+
+  // נקבע
+  scheduledByMonth[m]++;
+
+  // בוצע בפועל
+  const isDone =
+    doneByStatus.has(s) ||
+    doneByAttendance.has(a) ||
+    a.includes('נוכח') ||
+    a.includes('הגיע');
+
+  if (isDone) performedByMonth[m]++;
+}
+
+this.kpiCharts.success_pct = this.months.map((mm) => {
+  const idx = mm.v - 1;
+  const scheduled = scheduledByMonth[idx] || 0;
+  const performed = performedByMonth[idx] || 0;
+  const pct = scheduled > 0 ? Math.round((performed / scheduled) * 100) : 0;
+  return { label: mm.t, value: pct };
+});
+
+
+    // ===== גרף קטן: פרטי / לא-פרטי =====
     this.kpiCharts.priv_vs_group = [
-      { label: 'פרטי',    value: k.privCount },
+      { label: 'פרטי', value: k.privCount },
       { label: 'לא פרטי', value: k.groupCount },
     ];
 
     // ===== גרפים של KPI =====
-
-    // שיעורים שבוצעו
     this.kpiCharts.done = this.months.map((m) => ({
       label: m.t,
       value: doneByMonth[m.v - 1] ?? 0,
     }));
 
-    // ממתינים
     this.kpiCharts.pending = this.months.map((m) => ({
       label: m.t,
       value: pendingByMonth[m.v - 1] ?? 0,
     }));
 
-    // בוטלו
     this.kpiCharts.canceled = this.months.map((m) => ({
       label: m.t,
       value: canceledByMonth[m.v - 1] ?? 0,
     }));
 
-    // פרטי מול קבוצתי – הגרף השנתי הגדול עם שני קווים (מצטבר)
+    // פרטי מול קבוצתי – מצטבר
     const privSeries: ChartPoint[] = [];
     const groupSeries: ChartPoint[] = [];
 
@@ -926,34 +970,22 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
     let groupRunning = 0;
 
     for (const m of this.months) {
-      const idx = m.v - 1; // 0–11
+      const idx = m.v - 1;
 
       privRunning += privByMonth[idx] ?? 0;
       groupRunning += groupByMonth[idx] ?? 0;
 
-      privSeries.push({
-        label: m.t,
-        value: privRunning,
-      });
-
-      groupSeries.push({
-        label: m.t,
-        value: groupRunning,
-      });
+      privSeries.push({ label: m.t, value: privRunning });
+      groupSeries.push({ label: m.t, value: groupRunning });
     }
 
     this.privVsGroupCharts.set({ priv: privSeries, group: groupSeries });
 
-    // אחוז הצלחה – סה"כ
-    this.kpiCharts.success_pct = [{ label: 'סה״כ', value: k.successPct }];
-
-    // שעות עבודה בשנה – לפי חודשים (שעות כמשהו עשרוני)
     this.kpiCharts.worked_hours = this.months.map((m) => ({
       label: m.t,
       value: (minutesByMonth[m.v - 1] || 0) / 60,
     }));
 
-    // הכנסה שנתית – לפי חודשים
     this.kpiCharts.income = this.months.map((m) => ({
       label: m.t,
       value: incomeByMonth[m.v - 1] ?? 0,
@@ -974,7 +1006,6 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
     return data.reduce((m, p) => (p.value > m ? p.value : m), 0);
   }
 
-  // מקסימום לשני קווים יחד (פרטי + קבוצתי)
   maxPrivVsGroupValue(): number {
     const series = this.privVsGroupCharts();
     const allPoints = [...series.priv, ...series.group];
@@ -982,25 +1013,17 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
     return allPoints.reduce((m, p) => (p.value > m ? p.value : m), 0);
   }
 
-  // חישוב Y עם מקסימום שמקבלים מבחוץ (לגרף מרובה–קווים)
   getPointYWithMax(value: number, max: number): number {
     const safeMax = max || 1;
     const plotHeight = this.axisBottom - this.axisTop;
     return this.axisBottom - (value / safeMax) * plotHeight;
   }
 
-  // בניית polyline לסדרה אחת (משתמשים בה פעמיים – פרטי + קבוצתי)
   buildPolylineFor(series: ChartPoint[], max: number): string {
     const total = series.length;
     if (!total) return '';
     return series
-      .map(
-        (p, i) =>
-          `${this.getPointX(i, total)},${this.getPointYWithMax(
-            p.value,
-            max
-          )}`
-      )
+      .map((p, i) => `${this.getPointX(i, total)},${this.getPointYWithMax(p.value, max)}`)
       .join(' ');
   }
 
@@ -1019,9 +1042,7 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
   buildPolyline(): string {
     const data = this.selectedChart();
     const total = data.length;
-    return data
-      .map((p, i) => `${this.getPointX(i, total)},${this.getPointY(p.value)}`)
-      .join(' ');
+    return data.map((p, i) => `${this.getPointX(i, total)},${this.getPointY(p.value)}`).join(' ');
   }
 
   selectedChart(): ChartPoint[] {
@@ -1055,12 +1076,47 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
         return '';
     }
   }
+// mini sparkline לקוביות KPI (120x34)
+miniPolyline(key: KpiKey): string {
+  const data = this.kpiCharts[key] ?? [];
+  if (!data.length) return '';
 
-  // === קיבוץ שורות של אותו שיעור בטבלה ===
-  private isSameLesson(
-    a: LessonRow | undefined,
-    b: LessonRow | undefined
-  ): boolean {
+  const w = 120;
+  const h = 34;
+  const pad = 2;
+
+  // כדי לתמוך גם בסדרות שיכולות להיות 0/שליליות (למשל אם בעתיד יהיה)
+  let min = Infinity;
+  let max = -Infinity;
+  for (const p of data) {
+    const v = Number(p.value) || 0;
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+
+  // אם הכל אותו דבר (או אין max תקין) – נמנע מחלוקה ב-0
+  const range = Math.max(max - min, 1);
+
+  const denom = Math.max(data.length - 1, 1);
+
+  return data
+    .map((p, i) => {
+      const v = Number(p.value) || 0;
+
+      const x = (i / denom) * (w - pad * 2) + pad;
+
+      // נורמליזציה ל-0..1 לפי min/max
+      const t = (v - min) / range;
+
+      // SVG y הפוך (למעלה זה 0)
+      const y = (h - pad) - t * (h - pad * 2);
+
+      return `${x},${y}`;
+    })
+    .join(' ');
+}
+
+  private isSameLesson(a: LessonRow | undefined, b: LessonRow | undefined): boolean {
     if (!a || !b) return false;
     if (!a.lesson_id || !b.lesson_id) return false;
     return a.lesson_id === b.lesson_id;
@@ -1072,7 +1128,6 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
     return this.isSameLesson(rows[index], rows[index - 1]);
   }
 
-  // מפתח קבוצה: מדריך + תאריך + התחלה + סיום
   private groupKey(l: LessonRow | null | undefined): string {
     if (!l) return '';
     return [
@@ -1088,14 +1143,12 @@ isMaxPoint(series: 'priv' | 'group', value: number): boolean {
     return this.groupKey(a) === this.groupKey(b);
   }
 
-  // האם זו השורה הראשונה בקבוצה
   isGroupFirst(index: number): boolean {
     const rows = this.filteredLessons();
     if (index <= 0) return true;
     return !this.isSameGroup(rows[index], rows[index - 1]);
   }
 
-  // האם זו שורה המשך (לא ראשונה)
   isGroupContinuation(index: number): boolean {
     const rows = this.filteredLessons();
     if (index <= 0 || index >= rows.length) return false;
