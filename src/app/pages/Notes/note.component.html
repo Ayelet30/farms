@@ -146,21 +146,47 @@
             </div>
           </div>
 
-          <mat-slide-toggle color="primary" [(ngModel)]="lessonDetails.is_makeup_allowed"
-            (ngModelChange)="onMakeupAllowedChange($event)">
-            ניתן להשלמה
-          </mat-slide-toggle>
-        </div>
+  <!-- 🟢 רק מזכירה/אדמין -->
+  <mat-slide-toggle
+    *ngIf="canEditMakeupAllowed"
+    color="primary"
+    [(ngModel)]="lessonDetails.is_makeup_allowed"
+    (ngModelChange)="onMakeupAllowedChange($event)">
+    ניתן להשלמה
+  </mat-slide-toggle>
 
-        <div class="resources">
-          <mat-form-field appearance="fill" class="resource-field">
-            <mat-label>סוס</mat-label>
-            <mat-select [(ngModel)]="lessonDetails.horse_id" (selectionChange)="onHorseChange($event.value)"
-              [disabled]="!canEditLessonResources">
-              <mat-option [value]="null">— ללא סוס —</mat-option>
-              <mat-option *ngFor="let h of horses" [value]="h.id">{{ h.name }}</mat-option>
-            </mat-select>
-          </mat-form-field>
+  <!-- 🔒 מדריך / הורה – תצוגה בלבד -->
+  <div
+    *ngIf="!canEditMakeupAllowed"
+    class="readonly-makeup">
+    <mat-icon>
+      {{ lessonDetails.is_makeup_allowed ? 'check_circle' : 'cancel' }}
+    </mat-icon>
+    {{ lessonDetails.is_makeup_allowed ? 'להשלמה' : 'לא להשלמה' }}
+  </div>
+
+</div>
+
+              <div class="detail-item">
+                <span class="label">סטטוס</span>
+                <span class="value">{{ lessonDetails.status || '—' }}</span>
+              </div>
+            </div>
+
+            <div class="lesson-resources-row">
+            <mat-form-field appearance="fill" class="resource-field no-floating">
+  <mat-select
+    placeholder="סוס"
+    [(ngModel)]="lessonDetails.horse_id"
+    (selectionChange)="onHorseChange($event.value)"
+    [disabled]="!canEditLessonResources">
+
+                  <mat-option [value]="null">— ללא סוס —</mat-option>
+                  <mat-option *ngFor="let h of horses" [value]="h.id">
+                    {{ h.name }}
+                  </mat-option>
+                </mat-select>
+              </mat-form-field>
 
           <mat-form-field appearance="fill" class="resource-field">
             <mat-label>מגרש</mat-label>

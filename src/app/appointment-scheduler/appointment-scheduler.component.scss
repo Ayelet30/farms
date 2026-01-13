@@ -800,3 +800,15 @@
 .tooltip-wrap {
   display: inline-block; // חשוב כדי שהעטיפה תקבל hover
 }
+/* טווח שעות תמיד יוצג LTR גם בתוך RTL */
+.time-range {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+  white-space: nowrap;
+}
+.ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block; /* עוזר לבידוד */
+}

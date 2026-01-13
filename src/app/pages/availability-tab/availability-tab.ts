@@ -370,7 +370,7 @@ private normalizeWorkingDays(days: number[]): number[] {
 
     // חפיפות
     if (this.hasOverlap(day, slot)) {
-      this.toast('יש חפיפה עם טווח זמן אחר באותו יום');
+      this.toast('שעת התחלה לא יכולה להיות מוקדמת משעת סיום קודמת');
       this.revert(slot);
       return;
     }
@@ -637,7 +637,10 @@ private normalizeWorkingDays(days: number[]): number[] {
 
       for (const oldSlot of oldDay.slots) {
         const stillExists = newDay.slots.some(
-          s => s.start === oldSlot.start && s.end === oldSlot.end
+          s =>
+  this.toMin(this.normalizeTime(s.start)) === this.toMin(this.normalizeTime(oldSlot.start)) &&
+  this.toMin(this.normalizeTime(s.end))   === this.toMin(this.normalizeTime(oldSlot.end))
+
         );
 
         if (!stillExists) {

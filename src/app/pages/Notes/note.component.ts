@@ -617,6 +617,7 @@ async loadLessonDetails() {
     this.lessonDetails.arena_id = newArenaId;
     this.lessonDetails.arena_name = arena?.name ?? null;
   }
+  //CHECKDHCECK
 async onMakeupAllowedChange(newVal: boolean) {
   if (!this.canEditNotes) return;           // רק מזכירה/מדריך
   const r = this.effectiveRole();

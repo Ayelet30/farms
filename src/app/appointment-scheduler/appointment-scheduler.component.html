@@ -167,63 +167,90 @@
 </div>
 
 
-  <!-- ======== טאב: סדרת טיפולים ======== -->
-  <div *ngIf="selectedTab === 'series'" class="appt-card">
-    <h3>סדרת טיפולים קבועה</h3>
-    <ng-template #confirmSeriesDialog let-dialogRef="dialogRef">
-      <div dir="rtl" style="padding: 10px; max-width: 350px;">
-        <h3>אישור בקשת סדרה</h3>
+<!-- דיאלוג סדרה - מזכירה (עם דילוגים) -->
+<ng-template #confirmSeriesDialogSecretary let-dialogRef="dialogRef">
+  <div dir="rtl" style="padding: 10px; max-width: 350px;">
+    <h3>אישור בקשת סדרה</h3>
 
-       <p>
-  האם את בטוחה שברצונך לקבוע
-  סדרה שמתחילה בתאריך <b>{{ seriesConfirmData.startDate }}</b><br>
+    סדרה שמתחילה בתאריך
+    <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy'}}</span></b><br>
 
-  <ng-container *ngIf="!isOpenEndedSeries">
-    מסתיימת בתאריך <b>{{ seriesConfirmData.endDate }}</b><br>
-  </ng-container>
+    <ng-container *ngIf="!isOpenEndedSeries">
+      מסתיימת בתאריך
+      <b><span class="ltr">{{ seriesConfirmData.endDate | date:'dd-MM-yyyy'}}</span></b><br>
+    </ng-container>
 
-  ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
-  בשעה <b>{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</b><br>
-  עם המדריך <b>{{ seriesConfirmData.instructorName }}</b>?
-  ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
-</p>
-<!-- פירוט דילוגים בסדרה -->
-<div
-  style="margin-top:12px"
-  *ngIf="seriesConfirmData.skippedFarm.length || seriesConfirmData.skippedInstructor.length"
->
-  <div style="font-weight:700; margin-bottom:6px;">
-    דילוגים בסדרה:
-  </div>
+    ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
 
-  <!-- ימי חופש חווה -->
-  <div *ngIf="seriesConfirmData.skippedFarm.length">
-    <div style="font-weight:600;">ימי חופש חווה:</div>
-    <ul style="margin:6px 18px;">
-      <li *ngFor="let d of seriesConfirmData.skippedFarm">
-        {{ d }}
-      </li>
-    </ul>
-  </div>
+    בשעה
+    <b><span class="ltr time-range">{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</span></b>
 
-  <!-- אי זמינות מדריך -->
-  <div *ngIf="seriesConfirmData.skippedInstructor.length">
-    <div style="font-weight:600;">אי זמינות מדריך:</div>
-    <ul style="margin:6px 18px;">
-      <li *ngFor="let d of seriesConfirmData.skippedInstructor">
-        {{ d }}
-      </li>
-    </ul>
-  </div>
-</div>
-
-
-        <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
-          <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
-          <button class="btn-ok" (click)="dialogRef.close(true)">כן</button>
-        </div>
+    <!-- פירוט דילוגים בסדרה -->
+    <div
+      style="margin-top:12px"
+      *ngIf="seriesConfirmData.skippedFarm.length || seriesConfirmData.skippedInstructor.length"
+    >
+      <div style="font-weight:700; margin-bottom:6px;">
+        דילוגים בסדרה:
       </div>
-    </ng-template>
+
+      <!-- ימי חופש חווה -->
+      <div *ngIf="seriesConfirmData.skippedFarm.length">
+        <div style="font-weight:600;">ימי חופש חווה:</div>
+        <ul style="margin:6px 18px;">
+          <li *ngFor="let d of seriesConfirmData.skippedFarm">{{ d }}</li>
+        </ul>
+      </div>
+
+      <!-- אי זמינות מדריך -->
+      <div *ngIf="seriesConfirmData.skippedInstructor.length">
+        <div style="font-weight:600;">אי זמינות מדריך:</div>
+        <ul style="margin:6px 18px;">
+          <li *ngFor="let d of seriesConfirmData.skippedInstructor">{{ d }}</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+      <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
+      <button class="btn-ok" (click)="dialogRef.close(true)">כן</button>
+    </div>
+  </div>
+</ng-template>
+
+
+<!-- דיאלוג סדרה - הורה (בלי דילוגים) -->
+<ng-template #confirmSeriesDialogParent let-dialogRef="dialogRef">
+  <div dir="rtl" style="padding: 10px; max-width: 350px;">
+    <h3>אישור הזמנת סדרה</h3>
+
+    האם אתה בטוח שברצונך להזמין סדרה שמתחילה בתאריך
+<b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy' }}</span></b>
+
+    <ng-container *ngIf="!isOpenEndedSeries">
+      ומסתיימת בתאריך
+      <b><span class="ltr">{{ seriesConfirmData.endDate | date:'dd-MM-yyyy'}}</span></b>
+    </ng-container>
+
+    <br />
+
+    בשעות
+    <b><span class="ltr time-range">{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</span></b>
+
+    בימי <b>{{ seriesConfirmData.dayLabel }}</b>
+
+    <ng-container *ngIf="seriesConfirmData.instructorName">
+      <br />
+      עם המדריך/ה <b>{{ seriesConfirmData.instructorName }}</b>
+    </ng-container>
+
+    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+      <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
+      <button class="btn-ok" (click)="dialogRef.close(true)">כן</button>
+    </div>
+  </div>
+</ng-template>
+
     <div class="appt-form-row">
      <div class="appt-field-group">
   <span class="appt-field-label">כמות שיעורים בסדרה</span>
@@ -366,7 +393,11 @@
                 </thead>
                 <tbody>
                   <tr *ngFor="let s of selectedSeriesDaySlots">
-                    <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
+<td>
+  <span class="time-range">
+    {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
+  </span>
+</td>
                     <td>{{ s.instructor_name || s.instructor_id }}</td>
 <td>{{ s.riding_type_name || '—' }}</td>
 
@@ -380,7 +411,7 @@
           <button
             type="button"
             class="appt-cta"
-            (click)="onSeriesSlotChosen(s, confirmSeriesDialog)"
+            (click)="onSeriesSlotChosen(s)"
             [disabled]="isSeriesDisabled(s)"
             [attr.aria-disabled]="isSeriesDisabled(s) ? 'true' : null"
           >
@@ -444,7 +475,11 @@
     >
       <td>{{ o.occur_date }}</td>
 <td>{{ getSlotDayLabel(o.occur_date) }}</td>
-      <td>{{ o.start_time | slice: 0:5 }}–{{ o.end_time | slice: 0:5 }}</td>
+<td>
+  <span class="time-range">
+    {{ o.start_time | slice:0:5 }}–{{ o.end_time | slice:0:5 }}
+  </span>
+</td>
       <td>{{ o.instructor_name || o.instructor_id }}</td>
       <!-- <td>{{ o.status }}</td> -->
       <td>
@@ -493,13 +528,18 @@
       <tr *ngFor="let s of occupancySlots">
         <td>{{ s.occur_date }}</td>
         <td>{{ getSlotDayLabel(s.occur_date) }}</td>
-        <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
+<td>
+  <span class="time-range">
+    {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
+  </span>
+</td>
         <td>{{ s.instructor_name || s.instructor_id }}</td>
         <td>{{ getLessonTypeLabel(s) }}</td>
         <td>
-          <button type="button" class="appt-cta" (click)="selectAndRequestOccupancySlot(s)">
-            קבע שיעור מילוי מקום
-          </button>
+         <button type="button" class="appt-cta" (click)="onOccupancySlotChosen(s)">
+  קבע שיעור מילוי מקום
+</button>
+
         </td>
       </tr>
     </tbody>
@@ -551,7 +591,11 @@
           >
             <td>{{ c.occur_date }}</td>
             <td>{{  dayOfWeekLabelFromDate(c.occur_date)  }}</td>
-            <td>{{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}</td>
+<td>
+  <span class="time-range">
+    {{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}
+  </span>
+</td>
             <td>{{ getInstructorNameById(c.instructor_id) }}</td>
             <td>
               <button type="button" class="appt-cta" (click)="openHolesForCandidate(c)">
@@ -591,7 +635,11 @@
         <tr *ngFor="let s of candidateSlots">
           <td>{{ s.occur_date }}</td>
           <td>{{ getSlotDayLabel(s.occur_date) }}</td>
-          <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
+<td>
+  <span class="time-range">
+    {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
+  </span>
+</td>
           <td>{{ s.instructor_name || s.instructor_id }}</td>
           <td>{{ getLessonTypeLabel(s) }}</td>
           <td>
@@ -615,9 +663,9 @@
       <p>
         האם את בטוחה שברצונך לבקש שיעור השלמה
         לתאריך <b>{{ confirmData.newDate }}</b>
-        בשעות <b>{{ confirmData.newStart }}–{{ confirmData.newEnd }}</b>
+בשעות <b><span class="time-range">{{ confirmData.newStart | date:'dd-MM-yyyy'}}–{{ confirmData.newEnd | date:'dd-MM-yyyy'}}</span></b>
         במקום השיעור בתאריך
-        <b>{{ confirmData.oldDate }}</b>
+        <b>{{ confirmData.oldDate | date:'dd-MM-yyyy' }}</b>
         בשעות <b>{{ confirmData.oldStart }}–{{ confirmData.oldEnd }}</b>?
         ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
       </p>
@@ -631,12 +679,36 @@
 </div>
 
 <!-- דיאלוג אישור מילוי מקום -->
-<ng-template #confirmOccupancyDialog let-dialogRef="dialogRef">
+<!-- דיאלוג הורה (בקשה למזכירה) -->
+<ng-template #confirmOccupancyParentDialog let-dialogRef="dialogRef">
+  <div dir="rtl" style="padding: 10px; max-width: 380px;">
+    <h3>אישור בקשת מילוי מקום</h3>
+
+    <p>
+      האם את בטוחה שברצונך <b>לבקש</b> מילוי מקום
+      בתאריך <b>{{ occupancyConfirmData.newDate | date:'dd-MM-yyyy'}}</b>
+      בשעות <b>{{ occupancyConfirmData.newStart | date:'dd-MM-yyyy'}}–{{ occupancyConfirmData.newEnd | date:'dd-MM-yyyy'}}</b>
+      עם המדריך <b>{{ occupancyConfirmData.newInstructorName }}</b><br>
+      במקום השיעור שהיה בתאריך
+      <b>{{ occupancyConfirmData.oldDate | date:'dd-MM-yyyy'}}</b>
+      בשעות <b>{{ occupancyConfirmData.oldStart }}–{{ occupancyConfirmData.oldEnd }}</b>
+      עם המדריך <b>{{ occupancyConfirmData.oldInstructorName }}</b>?
+    </p>
+
+    <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 20px;">
+      <button mat-button (click)="dialogRef.close(false)">ביטול</button>
+      <button mat-raised-button color="primary" (click)="dialogRef.close(true)">שליחת בקשה</button>
+    </div>
+  </div>
+</ng-template>
+
+<!-- דיאלוג מזכירה (קביעה בפועל) -->
+<ng-template #confirmOccupancySecretaryDialog let-dialogRef="dialogRef">
   <div dir="rtl" style="padding: 10px; max-width: 380px;">
     <h3>אישור קביעת שיעור מילוי מקום</h3>
 
     <p>
-      האם את בטוחה שברצונך לקבוע שיעור מילוי מקום
+      האם את בטוחה שברצונך <b>לקבוע</b> שיעור מילוי מקום
       בתאריך <b>{{ occupancyConfirmData.newDate }}</b>
       בשעות <b>{{ occupancyConfirmData.newStart }}–{{ occupancyConfirmData.newEnd }}</b>
       עם המדריך <b>{{ occupancyConfirmData.newInstructorName }}</b><br>
@@ -648,7 +720,7 @@
 
     <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 20px;">
       <button mat-button (click)="dialogRef.close(false)">ביטול</button>
-      <button mat-raised-button color="primary" (click)="dialogRef.close(true)">אישור</button>
+      <button mat-raised-button color="primary" (click)="dialogRef.close(true)">אישור קביעה</button>
     </div>
   </div>
 </ng-template>

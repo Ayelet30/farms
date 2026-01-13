@@ -125,7 +125,8 @@ showAffectedParentsPopup = false;
     open: false,
     from: '',
     to: '',
-    allDay: true,
+  allDay: false,
+
     fromTime: '',
     toTime: '',
     type: 'holiday' as RequestType,
@@ -397,41 +398,61 @@ if (!row.payload?.category) return res;
   /* ------------ ITEM MAPPING ------------ */
   private setScheduleItems(): void {
     // 🔑 שיעורים תקינים (לא חופפים לחופשת חווה)
-  const validLessons = this.lessons.filter((l: any) => {
-    const baseDate = String(l.occur_date).slice(0, 10);
+const validLessons = this.lessons.filter((l: any) => {
+  const baseDate = String(l.occur_date).slice(0, 10);
 
-    const startISO = l.start_datetime
-      ? l.start_datetime
-      : this.ensureLocalIso(l.start_time, baseDate);
+  const startISO = l.start_datetime
+    ? l.start_datetime
+    : this.ensureLocalIso(l.start_time, baseDate);
 
-    const endISO = l.end_datetime
-      ? l.end_datetime
-      : this.ensureLocalIso(l.end_time, baseDate);
+  const endISO = l.end_datetime
+    ? l.end_datetime
+    : this.ensureLocalIso(l.end_time, baseDate);
 
-    return !this.isLessonBlockedByFarmOff(
-      new Date(startISO),
-      new Date(endISO)
-    );
-  });
+  // ⛔ חופשת חווה
+  if (this.isLessonBlockedByFarmOff(new Date(startISO), new Date(endISO))) {
+    return false;
+  }
+
+  // ⛔ חופשת מדריך
+  if (this.isLessonBlockedByInstructorOff(baseDate)) {
+    return false;
+  }
+
+  return true;
+});
 
 
     // תצוגה חודשית – סיכום יומי
     if (this.currentView === 'dayGridMonth') {
       const grouped: Record<string, Lesson[]> = {};
-  for (const l of validLessons) {
+for (const l of this.lessons) {
+  const day = (l as any).occur_date?.slice(0, 10);
+  if (!day) continue;
 
+  // ⛔ חופשת מדריך → לא סופרים שיעורים ביום הזה
+  if (this.isLessonBlockedByInstructorOff(day)) continue;
 
+  // ⛔ חופשת חווה
+  const startISO = l.start_datetime
+    ? l.start_datetime
+    : this.ensureLocalIso(l.start_time, day);
 
+  const endISO = l.end_datetime
+    ? l.end_datetime
+    : this.ensureLocalIso(l.end_time, day);
 
+  if (this.isLessonBlockedByFarmOff(new Date(startISO), new Date(endISO))) continue;
 
-        const day = (l as any).occur_date?.slice(0, 10);
-        if (!day) continue;
-        if (!grouped[day]) grouped[day] = [];
-        grouped[day].push(l);
-      }
+  if (!grouped[day]) grouped[day] = [];
+  grouped[day].push(l);
+}
+
 
       this.items = Object.entries(grouped).map(([day, arr]) => {
-        const req = this.getRequestForDate(day);
+const req = this.dayRequests.find(
+  r => r.request_date === day && r.status === 'approved'
+);
 
         const parts: string[] = [];
         const count = arr.length;
@@ -447,6 +468,7 @@ if (!row.payload?.category) return res;
           start: day,
           end: day,
           color: 'transparent', 
+          
           status: 'summary',
     meta: {
     isSummaryDay: 'true', // ✅ string ולא boolean
@@ -457,7 +479,10 @@ if (!row.payload?.category) return res;
         return item;
       });
 const farmOffItems = this.farmDaysOffToItems();
-this.items = [...this.items, ...farmOffItems];
+const instructorOffItems = this.instructorDaysOffToItems();
+
+this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
+
 console.log('📅 FINAL ITEMS', this.items);
 console.log(
   '🏖 FARM DAYS OFF ITEMS',
@@ -488,7 +513,18 @@ this.items = srcForDayWeek
     const end = new Date(endISO);
 
     // ❌ אם השיעור חופף לחופשת חווה – לא להציג אותו
-    return !this.isLessonBlockedByFarmOff(start, end);
+   // ⛔ חופשת חווה
+if (this.isLessonBlockedByFarmOff(start, end)) {
+  return false;
+}
+
+// ⛔ חופשת מדריך
+if (this.isLessonBlockedByInstructorOff(baseDate)) {
+  return false;
+}
+
+return true;
+
   })
   .map((l: any) => {
 
@@ -536,12 +572,8 @@ else if (new Date(endISO) < new Date()) color = '#e0e0e0';
 
 
       // ✅ חדש: טקסט סוס+מגרש (לא חובה – אבל עוזר לראות בלוז)
-      const horse = l.horse_name ? `🐴 ${l.horse_name}` : '';
-      const arena = l.arena_name ? `🏟 ${l.arena_name}` : '';
-      const resourcesText = [horse, arena].filter(Boolean).join(' | ');
+const title = `${name}${agePart} — ${lessonTypeLabel}`.trim();
 
-      const titleBase = `${name}${agePart} — ${lessonTypeLabel}`.trim();
-      const title = resourcesText ? `${titleBase}\n${resourcesText}` : titleBase;
 
       const item: ScheduleItem = {
         id: `${l.lesson_id}_${l.child_id}_${l.occur_date}`,
@@ -550,6 +582,8 @@ else if (new Date(endISO) < new Date()) color = '#e0e0e0';
         end: endISO,
         
         color,
+
+ 
         meta: {
           child_id: l.child_id,
           child_name: name,
@@ -570,7 +604,10 @@ else if (new Date(endISO) < new Date()) color = '#e0e0e0';
       return item;
     });
 const farmOffItems = this.farmDaysOffToItems();
-this.items = [...this.items, ...farmOffItems];
+const instructorOffItems = this.instructorDaysOffToItems();
+
+this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
+
     this.cdr.detectChanges();
   }
  
@@ -1144,12 +1181,78 @@ async confirmSaveAfterWarning(): Promise<void> {
     return lessonStart < offEnd && lessonEnd > offStart;
   });
 }
+private isLessonBlockedByInstructorOff(lessonDate: string): boolean {
+  if (!this.lastRange) return false;
+
+  // היום לא בטווח שמוצג – אל תחסום
+  if (lessonDate < this.lastRange.start || lessonDate > this.lastRange.end) {
+    return false;
+  }
+
+  return (this.dayRequests ?? []).some(r =>
+    r.status === 'approved' &&
+    r.request_date === lessonDate
+  );
+}
+
 
 
   private addOneDayYmd(dateYmd: string): string {
   const d = new Date(dateYmd + 'T00:00:00');
   d.setDate(d.getDate() + 1);
   return d.toISOString().slice(0, 10);
+}
+private instructorDaysOffToItems(): ScheduleItem[] {
+  return (this.dayRequests ?? [])
+    .filter(r => r.status === 'approved')
+    .map(r => {
+
+      let bg = '#e5e7eb';
+      let text = '#374151';
+
+      switch (r.request_type) {
+        case 'holiday':
+          bg = '#fef3c7';   // 🏖 צהוב
+          text = '#92400e';
+          break;
+        case 'sick':
+          bg = '#ffe4e6';   // 🩺 ורוד
+          text = '#9f1239';
+          break;
+        case 'personal':
+          bg = '#ede9fe';  // 👤 סגול
+          text = '#5b21b6';
+          break;
+        default:
+          bg = '#e5e7eb';  // אפור
+          text = '#374151';
+      }
+
+      const start = `${r.request_date}T00:00:00`;
+      const end   = `${r.request_date}T23:59:59`;
+
+      return {
+        id: `instructor_off_${r.id}_${r.request_date}`,
+        title: `⛔ ${this.getRequestLabel(r.request_type)}`,
+        start,
+        end,
+        allDay: false,
+
+        display: 'block',
+        overlap: false,
+
+        color: bg,
+        textColor: text,
+
+        classNames: ['instructor-day-off'],
+        status: 'instructor_day_off' as any,
+        meta: {
+          isInstructorDayOff: 'true',
+          request_type: r.request_type,
+          note: r.note ?? null,
+        } as any,
+      };
+    });
 }
 
 private farmDaysOffToItems(): ScheduleItem[] {
