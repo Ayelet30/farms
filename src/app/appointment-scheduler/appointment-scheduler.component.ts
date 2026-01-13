@@ -2103,64 +2103,9 @@ get canRequestSeries(): boolean {
 getLessonTypeLabel(slot: MakeupSlot): string {
     return slot.riding_type_name ?? 'שיעור';
 
-  // switch (slot.lesson_type_mode) {
-  //   case 'both':
-  //     return 'זוגי'
-  //   case 'double or both':
-  //     return 'זוגי';
-  //   default:
-  //     return 'יחיד';
-  // }
+  
 }
-// private async loadOccupancySlotsForCandidate(
-//   cand: OccupancyCandidate
-// ): Promise<void> {
-//   this.loadingOccupancySlots = true;
-//   this.occupancySlotsError = null;
-//   this.occupancySlots = [];
-//   this.selectedOccupancySlot = null;
 
-//   try {
-//     // טווח חיפוש – אפשר לשנות, לדוגמה 30 ימים קדימה
-//     const fromDate = cand.occur_date;
-//     const toDate = this.addDays(cand.occur_date, 30);
-
-//     const { data, error } = await dbTenant().rpc(
-//       'find_makeup_slots_for_lesson_by_id_number',
-//       {
-//         p_instructor_id: cand.instructor_id, // id_number של המדריך
-//         p_from_date: fromDate,
-//         p_to_date: toDate,
-//       }
-//     );
-//     if (error) {
-//       console.error('find_makeup_slots_for_lesson_by_id_number error', error);
-//       this.occupancySlotsError = 'שגיאה בחיפוש שיעורים למילוי מקום';
-//       return;
-//     }
-
-//     let slots = (data ?? []) as MakeupSlot[];
-
-//     // אם את רוצה להגביל לכמות מקסימלית כמו ב־displayedMakeupLessonsCount:
-//     if (
-//       this.displayedMakeupLessonsCount != null &&
-//       this.displayedMakeupLessonsCount > 0
-//     ) {
-//       slots = slots.slice(0, this.displayedMakeupLessonsCount);
-//     }
-
-//     this.occupancySlots = slots;
-// const rangeDays = this.timeRangeOccupancyRateDays ?? 30;
-
-//     if (!this.occupancySlots.length) {
-// this.occupancySlotsError =
-//   `לא נמצאו שיעורים פנויים למילוי מקום בטווח של ${rangeDays} ימים ` +
-//   `מתאריך השיעור המקורי.`;
-//     }
-//   } finally {
-//     this.loadingOccupancySlots = false;
-//   }
-// }
 async openOccupancySlotsForCandidate(c: OccupancyCandidate): Promise<void> {
 
   if (!this.selectedChildId) {
@@ -2188,8 +2133,8 @@ const instructorParam = this.getSelectedInstructorIdNumberOrNull();
    const { data, error } = await dbTenant().rpc(
   'find_makeup_slots_week_to_week',
   {
-    p_child_id: this.selectedChildId,        // ✅ חדש
-    p_instructor_id: instructorParam,        // null = כל המדריכים
+    p_child_id: this.selectedChildId,        
+    p_instructor_id: instructorParam,       
     p_lesson_date: c.occur_date,
   }
 );
@@ -2241,11 +2186,6 @@ private startOfWeekSunday(d: string | Date): string {
   return dt.toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
-// private addDays(dateStr: string, days: number): string {
-//   const dt = new Date(dateStr + 'T00:00:00');
-//   dt.setDate(dt.getDate() + days);
-//   return dt.toISOString().slice(0, 10);
-// }
 
 
 selectOccupancySlot(slot: MakeupSlot): void {
@@ -2446,9 +2386,7 @@ async bookOccupancySlotAsSecretary(slot: MakeupSlot): Promise<void> {
           p_capacity: slot.max_participants ?? 1,
           p_current_booked: 1,
 
-          // אם השארת דיפולט ב-DB אפשר למחוק:
-          // p_status: 'אושר',
-          // p_origin: 'secretary',
+     
         }
       );
 
@@ -2463,7 +2401,6 @@ async bookOccupancySlotAsSecretary(slot: MakeupSlot): Promise<void> {
       }
 
       const newLessonId = data as string;
-      console.log('new occupancy lesson id:', newLessonId);
 
       this.showSuccessToast('שיעור מילוי מקום נקבע בהצלחה ✔️');
 

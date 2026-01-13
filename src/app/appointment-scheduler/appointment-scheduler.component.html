@@ -183,7 +183,7 @@
   </ng-container>
 
   ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
-  בשעה <b>{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</b><br>
+בשעה <b><span class="time-range">{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</span></b>
   עם המדריך <b>{{ seriesConfirmData.instructorName }}</b>?
   ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
 </p>
@@ -366,7 +366,11 @@
                 </thead>
                 <tbody>
                   <tr *ngFor="let s of selectedSeriesDaySlots">
-                    <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
+<td>
+  <span class="time-range">
+    {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
+  </span>
+</td>
                     <td>{{ s.instructor_name || s.instructor_id }}</td>
 <td>{{ s.riding_type_name || '—' }}</td>
 
@@ -444,7 +448,11 @@
     >
       <td>{{ o.occur_date }}</td>
 <td>{{ getSlotDayLabel(o.occur_date) }}</td>
-      <td>{{ o.start_time | slice: 0:5 }}–{{ o.end_time | slice: 0:5 }}</td>
+<td>
+  <span class="time-range">
+    {{ o.start_time | slice:0:5 }}–{{ o.end_time | slice:0:5 }}
+  </span>
+</td>
       <td>{{ o.instructor_name || o.instructor_id }}</td>
       <!-- <td>{{ o.status }}</td> -->
       <td>
@@ -493,7 +501,11 @@
       <tr *ngFor="let s of occupancySlots">
         <td>{{ s.occur_date }}</td>
         <td>{{ getSlotDayLabel(s.occur_date) }}</td>
-        <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
+<td>
+  <span class="time-range">
+    {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
+  </span>
+</td>
         <td>{{ s.instructor_name || s.instructor_id }}</td>
         <td>{{ getLessonTypeLabel(s) }}</td>
         <td>
@@ -552,7 +564,11 @@
           >
             <td>{{ c.occur_date }}</td>
             <td>{{  dayOfWeekLabelFromDate(c.occur_date)  }}</td>
-            <td>{{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}</td>
+<td>
+  <span class="time-range">
+    {{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}
+  </span>
+</td>
             <td>{{ getInstructorNameById(c.instructor_id) }}</td>
             <td>
               <button type="button" class="appt-cta" (click)="openHolesForCandidate(c)">
@@ -592,7 +608,11 @@
         <tr *ngFor="let s of candidateSlots">
           <td>{{ s.occur_date }}</td>
           <td>{{ getSlotDayLabel(s.occur_date) }}</td>
-          <td>{{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}</td>
+<td>
+  <span class="time-range">
+    {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
+  </span>
+</td>
           <td>{{ s.instructor_name || s.instructor_id }}</td>
           <td>{{ getLessonTypeLabel(s) }}</td>
           <td>
@@ -616,7 +636,7 @@
       <p>
         האם את בטוחה שברצונך לבקש שיעור השלמה
         לתאריך <b>{{ confirmData.newDate }}</b>
-        בשעות <b>{{ confirmData.newStart }}–{{ confirmData.newEnd }}</b>
+בשעות <b><span class="time-range">{{ confirmData.newStart }}–{{ confirmData.newEnd }}</span></b>
         במקום השיעור בתאריך
         <b>{{ confirmData.oldDate }}</b>
         בשעות <b>{{ confirmData.oldStart }}–{{ confirmData.oldEnd }}</b>?
