@@ -807,3 +807,8 @@
   display: inline-block;
   white-space: nowrap;
 }
+.ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block; /* עוזר לבידוד */
+}
