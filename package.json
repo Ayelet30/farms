@@ -39,6 +39,7 @@
     "@fullcalendar/resource-common": "^5.11.5",
     "@fullcalendar/resource-timegrid": "^6.1.19",
     "@fullcalendar/timegrid": "^6.1.19",
+    "@hebcal/core": "^6.0.8",
     "@stripe/stripe-js": "^7.9.0",
     "@supabase/supabase-js": "^2.57.4",
     "angular-calendar": "^0.31.1",
