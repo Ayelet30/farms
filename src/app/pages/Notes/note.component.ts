@@ -749,10 +749,6 @@ async setAttendance(status: AttendanceStatus) {
   this.recalcPresenceFlags();
 }
 
-clearAttendance(): void {
-  this.setAttendance(null);
-}
-
   /* ===================== NOTES ===================== */
 
   async loadNotes() {

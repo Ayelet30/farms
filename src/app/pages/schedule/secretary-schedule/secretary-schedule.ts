@@ -767,6 +767,9 @@ let lessonId: string | null = meta.lesson_id ?? null;
   try {
     const dbc = dbTenant();
 
+    const p_date = String(day).slice(0, 10); // YYYY-MM-DD
+
+
     const { data, error } = await dbc.rpc(
       'auto_assign_horses_and_arenas',
       { p_date: day } // טיפוס DATE ב-Postgres
