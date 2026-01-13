@@ -226,6 +226,14 @@ get hasSeriesCountOrOpenEnded(): boolean {
 occupancyCreatedMessage: string | null = null;
 
 @ViewChild('confirmOccupancyDialog') confirmOccupancyDialog!: TemplateRef<any>;
+@ViewChild('confirmOccupancyParentDialog') confirmOccupancyParentDialog!: TemplateRef<any>;
+@ViewChild('confirmOccupancySecretaryDialog') confirmOccupancySecretaryDialog!: TemplateRef<any>;
+@ViewChild('confirmSeriesDialogSecretary') confirmSeriesDialogSecretary!: TemplateRef<any>;
+@ViewChild('confirmSeriesDialogParent') confirmSeriesDialogParent!: TemplateRef<any>;
+
+private getSeriesDialogTpl(): TemplateRef<any> {
+  return this.isSecretary ? this.confirmSeriesDialogSecretary : this.confirmSeriesDialogParent;
+}
 
 occupancyConfirmData = {
   newDate: '',
@@ -1735,7 +1743,7 @@ get isSecretary(): boolean {
   return this.user?.role === 'secretary';
 }
 
-async onSeriesSlotChosen(slot: RecurringSlotWithSkips, dialogTpl: TemplateRef<any>): Promise<void> {
+async onSeriesSlotChosen(slot: RecurringSlotWithSkips): Promise<void> {
   if (!this.selectedChildId || !this.user) {
     this.seriesError = 'חסר ילד או משתמש מחובר';
     this.showErrorToast(this.seriesError);
@@ -1756,26 +1764,26 @@ async onSeriesSlotChosen(slot: RecurringSlotWithSkips, dialogTpl: TemplateRef<an
 
   // ✅ ממלא את seriesConfirmData כולל skips
   this.buildSeriesConfirmData(slot);
+const dialogTpl = this.getSeriesDialogTpl();
 
-  const dialogRef = this.dialog.open(dialogTpl, {
-    width: '420px',
-    disableClose: true,
-    data: {},
-  });
+const dialogRef = this.dialog.open(dialogTpl, {
+  width: '420px',
+  disableClose: true,
+  data: {},
+});
 
-  dialogRef.afterClosed().subscribe(async confirmed => {
-    if (!confirmed) return;
+dialogRef.afterClosed().subscribe(async confirmed => {
+  if (!confirmed) return;
 
-    this.seriesError = null;
+  this.seriesError = null;
 
-    if (this.isSecretary) {
-      // ✅ מזכירה: אחרי אישור – קובעים בפועל
-      await this.createSeriesFromSlot(slot);
-    } else {
-      // ✅ הורה: אחרי אישור – שולחים בקשה (כולל העלאת מסמך אם צריך)
-      await this.submitSeriesRequestToSecretary(slot);
-    }
-  });
+  if (this.isSecretary) {
+    await this.createSeriesFromSlot(slot);
+  } else {
+    await this.submitSeriesRequestToSecretary(slot);
+  }
+});
+
 }
 
 
@@ -1958,7 +1966,7 @@ async onSeriesSlotChosen(slot: RecurringSlotWithSkips, dialogTpl: TemplateRef<an
 // }
 async requestSeriesFromSecretary(slot: RecurringSlotWithSkips, dialogTpl: TemplateRef<any>): Promise<void> {
   // נשאר רק בשביל תאימות – אבל בפועל onSeriesSlotChosen כבר עושה את זה
-  await this.onSeriesSlotChosen(slot, dialogTpl);
+  await this.onSeriesSlotChosen(slot);
 }
 
   // =========================================
@@ -2228,11 +2236,8 @@ this.occupancyConfirmData.newInstructorName = newInstructorName;
   this.occupancyConfirmData.oldStart = orig.start_time.substring(0, 5);
   this.occupancyConfirmData.oldEnd   = orig.end_time.substring(0, 5);
   
-  const dialogRef = this.dialog.open(this.confirmOccupancyDialog, {
-    width: '380px',
-    disableClose: true,
-    data: {},
-  });
+ const dialogRef = this.openOccupancyConfirmDialog(false);
+
 
   dialogRef.afterClosed().subscribe(async confirmed => {
     if (!confirmed) return;
@@ -2326,11 +2331,8 @@ async bookOccupancySlotAsSecretary(slot: MakeupSlot): Promise<void> {
   this.occupancyConfirmData.oldEnd   = c.end_time.substring(0, 5);
   this.occupancyConfirmData.oldInstructorName = oldInstructorName;
 
-  const dialogRef = this.dialog.open(this.confirmOccupancyDialog, {
-    width: '380px',
-    disableClose: true,
-    data: {},
-  });
+  const dialogRef = this.openOccupancyConfirmDialog(true);
+
 
   dialogRef.afterClosed().subscribe(async (confirmed: boolean) => {
     if (!confirmed) return;
@@ -2845,5 +2847,16 @@ private async submitSeriesRequestToSecretary(slot: RecurringSlotWithSkips): Prom
 //     skippedInstructor: (slot.skipped_instructor_unavailability ?? []).map(String),
 //   };
 // }
+private openOccupancyConfirmDialog(isSecretary: boolean) {
+  const tpl = isSecretary
+    ? this.confirmOccupancySecretaryDialog
+    : this.confirmOccupancyParentDialog;
+
+  return this.dialog.open(tpl, {
+    width: '380px',
+    disableClose: true,
+    data: {},
+  });
+}
 
 }
