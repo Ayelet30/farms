@@ -655,7 +655,7 @@ export class MonthlySummaryComponent implements OnInit {
       this.loading = false;
     }
   }
-
+//jvjkh
   // ===============================
   //       COMPUTE INSIGHTS
   // ===============================
