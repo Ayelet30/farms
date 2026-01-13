@@ -2520,7 +2520,7 @@ getSeriesDisabledTooltip(slot: any): string {
   }
 
   if (!this.canRequestSeries) {
-    return 'נדרש לבחור מסלול תשלום לפני בקשת סדרה';
+    return 'נדרש לבחור מסלול תשלום / לצרף הפניה לפני בקשת סדרה';
   }
 
   return '';
