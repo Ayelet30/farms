@@ -102,7 +102,11 @@ export class ParentActivitySummaryComponent implements OnInit {
 
   onChildChange(val: string | null) {
     const v = (val ?? '').trim();
-    this.selectedChildId.set(v ? v : undefined);
+const uuidRe =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  // אם זה לא UUID → לא נכניס ל-selectedChildId
+  this.selectedChildId.set(v && uuidRe.test(v) ? v : undefined);
     this.refresh();
   }
 
@@ -120,16 +124,16 @@ export class ParentActivitySummaryComponent implements OnInit {
     const kids: ChildItem[] = (data ?? [])
       .map((r: any) => {
         const uuid =
-          r.child_uuid ??
-          r.child_id ??
-          r.uuid ??
-          r.id ??
-          r.id_number ??
-          r.childUuid ??
-          r.childId ??
-          null;
+  r.child_uuid ??
+  r.child_id ??
+  r.childUuid ??
+  r.childId ??
+  null;
+  const uuidRe =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-        if (!uuid) return null;
+if (!uuid || !uuidRe.test(String(uuid))) return null;
+
 
         // ננסה קודם כל לקחת שדות first_name / last_name ישירות מהנתונים
 let first = (r.first_name || '').trim();
@@ -162,6 +166,7 @@ if (!first && !last) {
       .filter((k: ChildItem | null): k is ChildItem => !!k && !!k.child_uuid);
 
     this.children.set(kids);
+
     this.selectedChildId.set(undefined); // ברירת מחדל: כל הילדים
   }
 
@@ -173,16 +178,27 @@ if (!first && !last) {
       const from = `${this.year()}-01-01`;
       const to   = `${this.year()}-12-31`;
 
-      let cid = this.selectedChildId();
-      if (cid) cid = cid.trim();
-      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      const pChildIds: string[] | null = cid && uuidRe.test(cid) ? [cid] : null;
+      // let cid = this.selectedChildId();
+      // if (cid) cid = cid.trim();
+      // const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      // const pChildIds: string[] | null = cid && uuidRe.test(cid) ? [cid] : null;
 
-      const { data, error } = await db.rpc('get_parent_activity_from_view', {
-        p_from: from,
-        p_to: to,
-        p_child_ids: pChildIds, // ← תמיד null או [uuid תקין]
-      });
+const cid = (this.selectedChildId() ?? '').trim();
+
+const uuidRe =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const pChildIds: string[] | null =
+  cid && uuidRe.test(cid) ? [cid] : null;
+console.log('selectedChildId =', this.selectedChildId());
+console.log('p_child_ids =', pChildIds);
+
+   const { data, error } = await db.rpc('get_parent_activity_from_view', {
+  p_from: from,
+  p_to: to,
+  p_child_ids: pChildIds, // ← תמיד רשימה, לא null
+});
+
       if (error) throw error;
 
  const hhmm = (t?: string) => (t ? t.slice(0, 5) : '');
@@ -192,7 +208,7 @@ const list: ActivityRowView[] = ((data ?? []) as ActivityRowRPC[]).map(r => ({
   time: `${hhmm(r.start_time)}-${hhmm(r.end_time)}`, // שינינו גם ל "-" פשוט
   instructor: r.instructor_name || r.instructor_id || '',
   child: r.child_name || '',
-  child_id: (r as any).child_id ?? (r as any).child_uuid,
+child_id: r.child_id,
   status: r.status || null,
   note: r.note_content || '',
 
