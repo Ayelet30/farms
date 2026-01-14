@@ -41,6 +41,16 @@
   </select>
 </div>
 
+<div class="filter">
+  <label>סוג שיעור</label>
+ <select (change)="selectedRidingTypeId.set($any($event.target).value || undefined)">
+  <option value="">כל סוגי השיעורים</option>
+  <option *ngFor="let rt of ridingTypeOptions()" [value]="rt.id">
+    {{ rt.name }}
+  </option>
+</select>
+
+</div>
 
    <!-- Year -->
 <div class="filter">
