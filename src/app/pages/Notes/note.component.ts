@@ -524,7 +524,6 @@ async loadLessonDetails() {
 
   /** 3️⃣ חריג – השלמה */
   const { data: exception, error: excError } = await this.dbc
-    .schema('bereshit_farm')
     .from('lesson_occurrence_exceptions')
     .select('is_makeup_allowed')
     .eq('lesson_id', lessonId)
@@ -628,7 +627,6 @@ async onMakeupAllowedChange(newVal: boolean) {
   if (!lessonId || !occurDate) return;
 
   const { error } = await this.dbc
-    .schema('bereshit_farm')
     .from('lesson_occurrence_exceptions')
     .upsert(
       {

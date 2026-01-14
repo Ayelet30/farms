@@ -554,7 +554,6 @@ if (lesson.status === 'בוטל') {
     if (!occurDateIso) throw new Error('Missing occur date');
 
     const { error } = await dbc
-      .schema('bereshit_farm')
       .rpc('parent_request_cancel_lesson', {
         p_requested_by_uid: String(user.uid),
         p_lesson_id: lessonId,

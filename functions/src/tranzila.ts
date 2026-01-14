@@ -1217,7 +1217,7 @@ export const recordOneTimePayment = onRequest(
 
       const paymentId = await recordPaymentInDb({
         sb,
-        tenantSchema: tenantSchema || 'bereshit_farm',
+        tenantSchema: tenantSchema ,
         parentUid: parentUid ?? null,
         farmId: undefined,
         amountAgorot,

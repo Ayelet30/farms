@@ -75,7 +75,7 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
   ];
 
 
-     farmSchema: string | null = null;   // למשל 'bereshit_farm'
+     farmSchema: string | null = null; 
 
   ngOnInit(): void {
 

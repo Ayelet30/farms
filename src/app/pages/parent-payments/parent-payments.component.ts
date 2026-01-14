@@ -161,8 +161,6 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
       this.error.set(e?.message ?? 'load failed');
     }
   }
-
-  // חשבוניות מהטבלה bereshit_farm.payments (invoice_url)
   private async refreshInvoices() {
     try {
       const dbc = dbTenant();

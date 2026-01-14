@@ -231,7 +231,6 @@ async function sendMail(to: string, subject: string, html: string, text?: string
   });
 }
 
-// Body: { schema: "bereshit_farm", requestId: "uuid", tenant_id?: "uuid" }
 export const approveParentSignupRequest = onRequest(
   {
     region: 'us-central1',
@@ -263,7 +262,7 @@ export const approveParentSignupRequest = onRequest(
         const decidedBy = await requireSecretary(req, sb, tenant_id);
 
 
-      const schema = normStr(req.body?.schema, 60);      // "bereshit_farm"
+      const schema = normStr(req.body?.schema, 60);     
       const requestId = normStr(req.body?.requestId, 80); // uuid
       if (!schema || !requestId) {
         res.status(400).json({ error: 'Missing schema/requestId' });

@@ -179,7 +179,7 @@ invoiceLoading = new Set<string>(); // paymentId
   }
   private async getTenantSchemaOrThrow(): Promise<string> {
   await this.tenantSvc.ensureTenantContextReady();
-  return this.tenantSvc.requireTenant().schema; // למשל: "bereshit_farm"
+  return this.tenantSvc.requireTenant().schema;
 }
 
 async createOrFetchInvoice(r: any) {

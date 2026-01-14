@@ -5,7 +5,7 @@ import { dbPublic } from '../services/supabaseClient.service';
 export type FarmOption = {
   id: string;
   name: string;
-  tenantSchema: string; // למשל 'bereshit_farm'
+  tenantSchema: string; 
 };
 
 

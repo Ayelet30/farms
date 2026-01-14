@@ -807,7 +807,6 @@ async onToggleMakeupAllowed(checked: boolean) {
     const dbc = dbTenant();
 
     const { error } = await dbc
-      .schema('bereshit_farm')
       .from('lesson_occurrence_exceptions')
       .upsert(
         {

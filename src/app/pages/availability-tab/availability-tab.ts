@@ -170,7 +170,6 @@ console.log('🏡 farmWorkingDays used:', this.farmWorkingDays);
 
   private async loadRidingTypes() {
     const { data, error } = await dbTenant()
-      .schema('bereshit_farm')
       .from('riding_types')
       .select('id, code, name, max_participants, active')
       .eq('active', true)
