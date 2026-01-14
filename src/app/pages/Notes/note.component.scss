@@ -321,6 +321,24 @@
 .resource-field {
   width: 100%;
 }
+.resources-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .resources-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* אם את רוצה ללא floating label גם במגרש */
+.resource-field.no-floating mat-label {
+  display: none;
+}
+
 
 /* make-up */
 .makeup-card {

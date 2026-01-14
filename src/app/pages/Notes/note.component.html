@@ -21,19 +21,24 @@
               <mat-icon>schedule</mat-icon>
               {{ lessonDetails.start_time?.slice(0,5) }}–{{ lessonDetails.end_time?.slice(0,5) }}
             </span>
-            <span class="att-chip" *ngIf="attendanceStatus" [class.present]="attendanceStatus === 'present'"
+
+            <span class="dot">•</span>
+
+            <!-- Attendance chip -->
+            <span
+              class="att-chip"
+              *ngIf="attendanceStatus"
+              [class.present]="attendanceStatus === 'present'"
               [class.absent]="attendanceStatus === 'absent'">
+
               <mat-icon>{{ attendanceStatus === 'present' ? 'check_circle' : 'cancel' }}</mat-icon>
               {{ attendanceStatus === 'present' ? 'הגיע' : 'לא הגיע' }}
             </span>
-
-            <span class="dot">•</span>
 
             <span class="att-chip empty" *ngIf="!attendanceStatus && canEditNotes">
               <mat-icon>help</mat-icon>
               נוכחות
             </span>
-
           </div>
         </div>
       </div>
@@ -42,7 +47,6 @@
         <button mat-icon-button class="icon-btn close" (click)="tryClose()" title="סגור">
           <mat-icon>close</mat-icon>
         </button>
-
       </div>
     </div>
 
@@ -97,7 +101,7 @@
         </div>
       </section>
 
-      <!-- ATTENDANCE -->
+      <!-- ATTENDANCE (only if not chosen yet) -->
       <section class="block" *ngIf="occurrence && canEditNotes && !occurrence?.isCancelled && !attendanceStatus">
         <div class="block-title">
           <mat-icon>how_to_reg</mat-icon>
@@ -105,13 +109,19 @@
         </div>
 
         <div class="segmented" (click)="onAttendanceAttempt()">
-          <button mat-stroked-button class="seg" [disabled]="!canMarkAttendanceNow()"
-            [class.active]="attendanceStatus === 'present'" (click)="setAttendance('present')">
+          <button
+            mat-stroked-button
+            class="seg"
+            [disabled]="!canMarkAttendanceNow()"
+            (click)="setAttendance('present')">
             הגיע
           </button>
 
-          <button mat-stroked-button class="seg danger" [disabled]="!canMarkAttendanceNow()"
-            [class.active]="attendanceStatus === 'absent'" (click)="setAttendance('absent')">
+          <button
+            mat-stroked-button
+            class="seg danger"
+            [disabled]="!canMarkAttendanceNow()"
+            (click)="setAttendance('absent')">
             לא הגיע
           </button>
         </div>
@@ -137,7 +147,7 @@
         </div>
 
         <!-- CANCELLED / MAKEUP -->
-        <div class="makeup-card" *ngIf="lessonDetails?.status === 'בוטל' && canEditMakeupAllowed">
+        <div class="makeup-card" *ngIf="lessonDetails?.status === 'בוטל'">
           <div class="mk-left">
             <mat-icon>cached</mat-icon>
             <div>
@@ -146,51 +156,40 @@
             </div>
           </div>
 
-  <!-- 🟢 רק מזכירה/אדמין -->
-  <mat-slide-toggle
-    *ngIf="canEditMakeupAllowed"
-    color="primary"
-    [(ngModel)]="lessonDetails.is_makeup_allowed"
-    (ngModelChange)="onMakeupAllowedChange($event)">
-    ניתן להשלמה
-  </mat-slide-toggle>
+          <!-- 🟢 עריכה רק למזכירה/מנהל/אדמין -->
+          <mat-slide-toggle
+            *ngIf="canEditMakeupAllowed"
+            color="primary"
+            [(ngModel)]="lessonDetails.is_makeup_allowed"
+            (ngModelChange)="onMakeupAllowedChange($event)">
+            ניתן להשלמה
+          </mat-slide-toggle>
 
-  <!-- 🔒 מדריך / הורה – תצוגה בלבד -->
-  <div
-    *ngIf="!canEditMakeupAllowed"
-    class="readonly-makeup">
-    <mat-icon>
-      {{ lessonDetails.is_makeup_allowed ? 'check_circle' : 'cancel' }}
-    </mat-icon>
-    {{ lessonDetails.is_makeup_allowed ? 'להשלמה' : 'לא להשלמה' }}
-  </div>
+          <!-- 🔒 תצוגה בלבד לאחרים -->
+          <div *ngIf="!canEditMakeupAllowed" class="readonly-makeup">
+            <mat-icon>{{ lessonDetails.is_makeup_allowed ? 'check_circle' : 'cancel' }}</mat-icon>
+            {{ lessonDetails.is_makeup_allowed ? 'להשלמה' : 'לא להשלמה' }}
+          </div>
+        </div>
 
-</div>
+        <!-- RESOURCES -->
+        <div class="resources-grid">
+          <mat-form-field appearance="fill" class="resource-field no-floating">
+            <mat-select
+              placeholder="סוס"
+              [(ngModel)]="lessonDetails.horse_id"
+              (selectionChange)="onHorseChange($event.value)"
+              [disabled]="!canEditLessonResources">
+              <mat-option [value]="null">— ללא סוס —</mat-option>
+              <mat-option *ngFor="let h of horses" [value]="h.id">{{ h.name }}</mat-option>
+            </mat-select>
+          </mat-form-field>
 
-              <div class="detail-item">
-                <span class="label">סטטוס</span>
-                <span class="value">{{ lessonDetails.status || '—' }}</span>
-              </div>
-            </div>
-
-            <div class="lesson-resources-row">
-            <mat-form-field appearance="fill" class="resource-field no-floating">
-  <mat-select
-    placeholder="סוס"
-    [(ngModel)]="lessonDetails.horse_id"
-    (selectionChange)="onHorseChange($event.value)"
-    [disabled]="!canEditLessonResources">
-
-                  <mat-option [value]="null">— ללא סוס —</mat-option>
-                  <mat-option *ngFor="let h of horses" [value]="h.id">
-                    {{ h.name }}
-                  </mat-option>
-                </mat-select>
-              </mat-form-field>
-
-          <mat-form-field appearance="fill" class="resource-field">
-            <mat-label>מגרש</mat-label>
-            <mat-select [(ngModel)]="lessonDetails.arena_id" (selectionChange)="onArenaChange($event.value)"
+          <mat-form-field appearance="fill" class="resource-field no-floating">
+            <mat-select
+              placeholder="מגרש"
+              [(ngModel)]="lessonDetails.arena_id"
+              (selectionChange)="onArenaChange($event.value)"
               [disabled]="!canEditLessonResources">
               <mat-option [value]="null">— ללא מגרש —</mat-option>
               <mat-option *ngFor="let a of arenas" [value]="a.id">{{ a.name }}</mat-option>
@@ -288,14 +287,17 @@
       </section>
 
       <!-- READY NOTES -->
-      <section class="block" *ngIf="canEditNotes && readyNotes!.length">
+      <section class="block" *ngIf="canEditNotes && (readyNotes!.length || 0) > 0">
         <div class="block-title">
           <mat-icon>auto_awesome</mat-icon>
           <span>הערות מוכנות</span>
         </div>
 
         <div class="chips">
-          <button mat-stroked-button class="chip" *ngFor="let rn of readyNotes; trackBy: trackByReady"
+          <button
+            mat-stroked-button
+            class="chip"
+            *ngFor="let rn of readyNotes; trackBy: trackByReady"
             (click)="addReadyNote(rn.content)">
             {{ rn.content }}
           </button>

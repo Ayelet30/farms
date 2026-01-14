@@ -1,7 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { AppointmentSchedulerComponent } from './appointment-scheduler.component';
-import { beforeEach, describe, it } from 'node:test';
 
 describe('AppointmentScheduler', () => {
   let component: AppointmentSchedulerComponent;
