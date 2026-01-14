@@ -35,6 +35,9 @@ interface ActivityRowRPC {
   subsidy_amount?: number | null;
   discount_amount?: number | null;
   final_price?: number | null;
+    riding_type_id?: string | null;
+  riding_type_name?: string | null;
+
 }
 
 // ❷ שורות לתצוגה
@@ -51,6 +54,9 @@ interface ActivityRowView {
   subsidy?: number | null;
   discount?: number | null;
   pay_amount?: number | null;
+    riding_type_id?: string | null;
+  riding_type_name?: string | null;
+
 }
 
 // —— Helper: פיצול "שם מלא" לשם פרטי/משפחה במקרה הצורך ——
@@ -78,6 +84,7 @@ export class ParentActivitySummaryComponent implements OnInit {
   // --- Filter state (single-select child, month, year) ---
   children = signal<ChildItem[]>([]);
   selectedChildId = signal<string | undefined>(undefined);
+selectedRidingTypeId = signal<string | undefined>(undefined);
 
   readonly months = [
     { value: 1, label: 'ינואר' }, { value: 2, label: 'פברואר' }, { value: 3, label: 'מרץ' },
@@ -95,8 +102,32 @@ export class ParentActivitySummaryComponent implements OnInit {
   rows = signal<ActivityRowView[]>([]);
   loading = signal<boolean>(false);
 
+ridingTypeOptions = computed(() => {
+  const map = new Map<string, string>();
+  for (const r of this.rows()) {
+    const id = (r.riding_type_id ?? '').trim();
+    const name = (r.riding_type_name ?? '').trim();
+    console.log(name+"!!!!!!!!!!!!!1"); 
+    if (id) map.set(id, name || id);
+  }
+  return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+});
+ridingTypes = signal<{id:string; name:string}[]>([]);
+
+private async loadRidingTypes() {
+  const db = this.getDb();
+  const { data, error } = await db.from('riding_types').select('id,name').order('name');
+  if (error) throw error;
+  this.ridingTypes.set((data ?? []).map((x:any)=>({id:String(x.id), name:String(x.name)})));
+}
+
+onRidingTypeChange(val: string) {
+  this.selectedRidingTypeId.set((val ?? '').trim());
+}
+
   async ngOnInit() {
     await this.loadChildren();
+    await this.loadRidingTypes();
     await this.refresh();
   }
 
@@ -214,6 +245,9 @@ child_id: r.child_id,
 
   // חדש:
   lesson_type: r.lesson_type || null,
+  riding_type_id: (r as any).riding_type_id ?? null,
+riding_type_name: (r as any).riding_type_name ?? null,
+
 
   // שמות גמישים – תתאימי לשמות בפועל ב-RPC
   base_price:
@@ -238,10 +272,12 @@ child_id: r.child_id,
     (r as any).amount_to_pay ??
     (r as any).total_to_pay ??
     null,
+    
 }));
 
 
       this.rows.set(list.sort((a, b) => a.date.localeCompare(b.date)));
+
     } catch (e) {
       console.error('refresh error:', e);
       this.rows.set([]);
@@ -271,27 +307,34 @@ child_id: r.child_id,
   }
 
   // שורות מסוננות לפי טאב/חודש/שנה/ילד
-  filteredRows = computed(() => {
-    const y = this.year();
-    const m = this.month();
-    const tab = this.tab();
-    const childId = (this.selectedChildId() ?? '').trim().toLowerCase();
+ filteredRows = computed(() => {
+  const y = this.year();
+  const m = this.month();
+  const tab = this.tab();
+  const childId = (this.selectedChildId() ?? '').trim().toLowerCase();
+  const ridingTypeId = this.selectedRidingTypeId();
 
-    const isMonth = tab === 'month';
+  const isMonth = tab === 'month';
 
-    const rows = this.rows() ?? [];
-    return rows.filter(r => {
-      if (!r?.date) return false;
-      const [yy, mm] = r.date.split('-').map(Number);
-      const okY = yy === y;
-      const okM = isMonth ? (mm === m) : true;
+  return (this.rows() ?? []).filter(r => {
+    if (!r?.date) return false;
 
-      const rid = (r.child_id ?? '').toString().trim().toLowerCase();
-      const okC = childId ? (rid === childId) : true;
+    const [yy, mm] = r.date.split('-').map(Number);
+    const okY = yy === y;
+    const okM = isMonth ? (mm === m) : true;
 
-      return okY && okM && okC;
-    });
+    const okChild = childId
+      ? r.child_id?.toLowerCase() === childId
+      : true;
+
+    const okRidingType = ridingTypeId
+      ? r.riding_type_id === ridingTypeId
+      : true;
+
+    return okY && okM && okChild && okRidingType;
   });
+});
+
 
   // TODO: להחליף לנתוני סטטוס אמיתיים כשיהיו
   yearActive     = computed(() => this.yearRows().length);
