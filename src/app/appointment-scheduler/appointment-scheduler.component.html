@@ -10,7 +10,8 @@
         <span class="appt-field-label">ילד/ה</span>
 
         <mat-select #childSelect class="appt-select" [(ngModel)]="selectedChildId" (selectionChange)="onChildChange()"
-          [disabled]="!children.length" placeholder="בחר/י ילד">
+        [disabled]="childrenLoading || !children.length"
+   placeholder="בחר/י ילד">
           <!-- שורת חיפוש -->
           <mat-option class="search-option" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()">
             <input matInput type="text" placeholder="חיפוש לפי שם ילד/ה..." [(ngModel)]="childSearchTerm"
