@@ -36,6 +36,9 @@ interface ActivityRowRPC {
   subsidy_amount?: number | null;
   discount_amount?: number | null;
   final_price?: number | null;
+    riding_type_id?: string | null;
+  riding_type_name?: string | null;
+
 }
 
 // ❷ שורות לתצוגה
@@ -52,6 +55,9 @@ interface ActivityRowView {
   subsidy?: number | null;
   discount?: number | null;
   pay_amount?: number | null;
+    riding_type_id?: string | null;
+  riding_type_name?: string | null;
+
 }
 
 // —— Helper: פיצול "שם מלא" לשם פרטי/משפחה במקרה הצורך ——
@@ -89,6 +95,7 @@ export class ParentActivitySummaryComponent implements OnInit {
   // --- Filter state (single-select child, month, year) ---
   children = signal<ChildItem[]>([]);
   selectedChildId = signal<string | undefined>(undefined);
+selectedRidingTypeId = signal<string | undefined>(undefined);
 
   readonly months = [
     { value: 1, label: 'ינואר' }, { value: 2, label: 'פברואר' }, { value: 3, label: 'מרץ' },
@@ -106,14 +113,42 @@ export class ParentActivitySummaryComponent implements OnInit {
   rows = signal<ActivityRowView[]>([]);
   loading = signal<boolean>(false);
 
+ridingTypeOptions = computed(() => {
+  const map = new Map<string, string>();
+  for (const r of this.rows()) {
+    const id = (r.riding_type_id ?? '').trim();
+    const name = (r.riding_type_name ?? '').trim();
+    console.log(name+"!!!!!!!!!!!!!1"); 
+    if (id) map.set(id, name || id);
+  }
+  return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+});
+ridingTypes = signal<{id:string; name:string}[]>([]);
+
+private async loadRidingTypes() {
+  const db = this.getDb();
+  const { data, error } = await db.from('riding_types').select('id,name').order('name');
+  if (error) throw error;
+  this.ridingTypes.set((data ?? []).map((x:any)=>({id:String(x.id), name:String(x.name)})));
+}
+
+onRidingTypeChange(val: string) {
+  this.selectedRidingTypeId.set((val ?? '').trim());
+}
+
   async ngOnInit() {
     await this.loadChildren();
+    await this.loadRidingTypes();
     await this.refresh();
   }
 
   onChildChange(val: string | null) {
     const v = (val ?? '').trim();
-    this.selectedChildId.set(v ? v : undefined);
+const uuidRe =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  // אם זה לא UUID → לא נכניס ל-selectedChildId
+  this.selectedChildId.set(v && uuidRe.test(v) ? v : undefined);
     this.refresh();
   }
 
@@ -133,16 +168,16 @@ export class ParentActivitySummaryComponent implements OnInit {
     const kids: ChildItem[] = (data ?? [])
       .map((r: any) => {
         const uuid =
-          r.child_uuid ??
-          r.child_id ??
-          r.uuid ??
-          r.id ??
-          r.id_number ??
-          r.childUuid ??
-          r.childId ??
-          null;
+  r.child_uuid ??
+  r.child_id ??
+  r.childUuid ??
+  r.childId ??
+  null;
+  const uuidRe =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-        if (!uuid) return null;
+if (!uuid || !uuidRe.test(String(uuid))) return null;
+
 
         // ננסה קודם כל לקחת שדות first_name / last_name ישירות מהנתונים
 let first = (r.first_name || '').trim();
@@ -175,6 +210,7 @@ if (!first && !last) {
       .filter((k: ChildItem | null): k is ChildItem => !!k && !!k.child_uuid);
 
     this.children.set(kids);
+
     this.selectedChildId.set(undefined); // ברירת מחדל: כל הילדים
   }
 
@@ -186,16 +222,27 @@ if (!first && !last) {
       const from = `${this.year()}-01-01`;
       const to   = `${this.year()}-12-31`;
 
-      let cid = this.selectedChildId();
-      if (cid) cid = cid.trim();
-      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      const pChildIds: string[] | null = cid && uuidRe.test(cid) ? [cid] : null;
+      // let cid = this.selectedChildId();
+      // if (cid) cid = cid.trim();
+      // const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      // const pChildIds: string[] | null = cid && uuidRe.test(cid) ? [cid] : null;
 
-      const { data, error } = await db.rpc('get_parent_activity_from_view', {
-        p_from: from,
-        p_to: to,
-        p_child_ids: pChildIds, // ← תמיד null או [uuid תקין]
-      });
+const cid = (this.selectedChildId() ?? '').trim();
+
+const uuidRe =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const pChildIds: string[] | null =
+  cid && uuidRe.test(cid) ? [cid] : null;
+console.log('selectedChildId =', this.selectedChildId());
+console.log('p_child_ids =', pChildIds);
+
+   const { data, error } = await db.rpc('get_parent_activity_from_view', {
+  p_from: from,
+  p_to: to,
+  p_child_ids: pChildIds, // ← תמיד רשימה, לא null
+});
+
       if (error) throw error;
 
  const hhmm = (t?: string) => (t ? t.slice(0, 5) : '');
@@ -205,12 +252,15 @@ const list: ActivityRowView[] = ((data ?? []) as ActivityRowRPC[]).map(r => ({
   time: `${hhmm(r.start_time)}-${hhmm(r.end_time)}`, // שינינו גם ל "-" פשוט
   instructor: r.instructor_name || r.instructor_id || '',
   child: r.child_name || '',
-  child_id: (r as any).child_id ?? (r as any).child_uuid,
+child_id: r.child_id,
   status: r.status || null,
   note: r.note_content || '',
 
   // חדש:
   lesson_type: r.lesson_type || null,
+  riding_type_id: (r as any).riding_type_id ?? null,
+riding_type_name: (r as any).riding_type_name ?? null,
+
 
   // שמות גמישים – תתאימי לשמות בפועל ב-RPC
   base_price:
@@ -235,10 +285,12 @@ const list: ActivityRowView[] = ((data ?? []) as ActivityRowRPC[]).map(r => ({
     (r as any).amount_to_pay ??
     (r as any).total_to_pay ??
     null,
+    
 }));
 
 
       this.rows.set(list.sort((a, b) => a.date.localeCompare(b.date)));
+
     } catch (e) {
       console.error('refresh error:', e);
       this.rows.set([]);
@@ -268,27 +320,34 @@ const list: ActivityRowView[] = ((data ?? []) as ActivityRowRPC[]).map(r => ({
   }
 
   // שורות מסוננות לפי טאב/חודש/שנה/ילד
-  filteredRows = computed(() => {
-    const y = this.year();
-    const m = this.month();
-    const tab = this.tab();
-    const childId = (this.selectedChildId() ?? '').trim().toLowerCase();
+ filteredRows = computed(() => {
+  const y = this.year();
+  const m = this.month();
+  const tab = this.tab();
+  const childId = (this.selectedChildId() ?? '').trim().toLowerCase();
+  const ridingTypeId = this.selectedRidingTypeId();
 
-    const isMonth = tab === 'month';
+  const isMonth = tab === 'month';
 
-    const rows = this.rows() ?? [];
-    return rows.filter(r => {
-      if (!r?.date) return false;
-      const [yy, mm] = r.date.split('-').map(Number);
-      const okY = yy === y;
-      const okM = isMonth ? (mm === m) : true;
+  return (this.rows() ?? []).filter(r => {
+    if (!r?.date) return false;
 
-      const rid = (r.child_id ?? '').toString().trim().toLowerCase();
-      const okC = childId ? (rid === childId) : true;
+    const [yy, mm] = r.date.split('-').map(Number);
+    const okY = yy === y;
+    const okM = isMonth ? (mm === m) : true;
 
-      return okY && okM && okC;
-    });
+    const okChild = childId
+      ? r.child_id?.toLowerCase() === childId
+      : true;
+
+    const okRidingType = ridingTypeId
+      ? r.riding_type_id === ridingTypeId
+      : true;
+
+    return okY && okM && okChild && okRidingType;
   });
+});
+
 
   // TODO: להחליף לנתוני סטטוס אמיתיים כשיהיו
   yearActive     = computed(() => this.yearRows().length);
