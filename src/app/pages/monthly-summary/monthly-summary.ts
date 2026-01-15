@@ -1098,6 +1098,7 @@ export class MonthlySummaryComponent implements OnInit {
       this.clean(l.instructor_name),
     ].join('|');
   }
+  
 
   private isSameGroup(a?: LessonRow, b?: LessonRow): boolean {
     if (!a || !b) return false;
