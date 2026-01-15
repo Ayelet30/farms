@@ -19,7 +19,6 @@ export class ParentPublicSignupComponent {
   form!: FormGroup;
 
   constructor(private fb: FormBuilder, private route: ActivatedRoute) {
-    console.log('REGISTER farmCode=', this.farmCode);
 
     this.farmCode = (this.route.snapshot.paramMap.get('farm') || 'bereshit_farm').toLowerCase();
 

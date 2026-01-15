@@ -192,7 +192,6 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
     const amount = this.amountNis;
     const terminalName = 'moachapp';
 
-    console.log('[one-time] charge', this.displayName, amount);
 
     try {
       this.busy.set(true);
@@ -210,7 +209,6 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
           response_language: 'hebrew',
         },
   async (err: any, response: any) => {
-    console.log('[one-time HF] err=', err, 'resp=', response);
 
     if (err && err.messages?.length) {
       err.messages.forEach((msg: any) => {

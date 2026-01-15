@@ -1296,10 +1296,7 @@ async function generateAndSendReceipt(args: {
   const BUCKET_NAME = 'payments-invoices';
   const filePath = `receipts/${tenantSchema || 'public'}/${paymentId}.pdf`;
 
-  console.log('[generateAndSendReceipt] uploading to Supabase', {
-    bucket: BUCKET_NAME,
-    filePath,
-  });
+  
 
   const { error: uploadErr } = await sb.storage
     .from(BUCKET_NAME)

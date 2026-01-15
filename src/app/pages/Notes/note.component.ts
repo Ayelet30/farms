@@ -139,11 +139,9 @@ private earlyAttendanceTimer: any = null;
 
 @Input()
 set attendanceStatus(v: AttendanceStatus) {
-  console.log('[ATT INPUT] from parent:', v, 'current:', this._attendanceStatus);
 
   // ⛔ לא לדרוס ערך שכבר נטען מה־DB ע"י null מההורה
   if (v === null && this._attendanceStatus !== null) {
-    console.log('[ATT INPUT] ignored null override');
     return;
   }
 
@@ -652,12 +650,7 @@ private async saveAttendance(status: AttendanceStatus | null) {
   const occurDate = this.getOccurDateForDb();
   const childId = this.child?.child_uuid;
 
-  console.log('[ATTENDANCE] input', {
-    lessonId,
-    occurDate,
-    childId,
-    status,
-  });
+  
 
   if (!lessonId || !occurDate || !childId) {
     console.error('[ATTENDANCE] missing PK', {
@@ -669,11 +662,9 @@ private async saveAttendance(status: AttendanceStatus | null) {
   }
 
   const user = await getCurrentUserDetails('uid, role');
-  console.log('[ATTENDANCE] user', user);
 
   /** ניקוי נוכחות */
   if (!status) {
-    console.log('[ATTENDANCE] delete');
 
     const { error } = await this.dbc
       .from('lesson_attendance')
@@ -708,7 +699,6 @@ attendance_status: status,
     note: null,
   };
 
-  console.log('[ATTENDANCE] upsert payload', payload);
 
   const { error } = await this.dbc
     .from('lesson_attendance')
@@ -719,7 +709,6 @@ attendance_status: status,
   if (error) {
     console.error('[ATTENDANCE] upsert error', error);
   } else {
-    console.log('[ATTENDANCE] saved OK');
   }
 }
 
@@ -901,14 +890,11 @@ private canCloseNow(): boolean {
 }
 
 tryClose() {
-  console.log('[CLOSE] tryClose called');
 
   if (!this.canCloseNow()) {
-    console.log('[CLOSE] blocked');
     return;
   }
 
-  console.log('[CLOSE] allowed');
   this.close.emit();
 }
 

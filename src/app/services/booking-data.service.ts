@@ -22,7 +22,6 @@ export class BookingDataService {
       throw error;
     }
 
-    console.log('Farms data:', data);
 
     return (data ?? []).map((row: any) => ({
   id: row.farm_id,

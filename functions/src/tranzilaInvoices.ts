@@ -261,7 +261,6 @@ export const ensureTranzilaInvoiceForPayment = onRequest(
         debugOnly?: boolean;
       };
 
-      console.log(`[ensureInvoice][${rid}] start`, { tenantSchema, paymentId, debugOnly: !!debugOnly });
 
       if (!tenantSchema || !paymentId) {
         res.status(400).json({ ok: false, error: "missing tenantSchema/paymentId" });
@@ -354,14 +353,7 @@ if (!payment.charge_id) {
   res.status(400).json({ ok: false, error: "payment has no charge_id - cannot build invoice details" });
   return;
 }
-      console.log(`[ensureInvoice][${rid}] payment loaded`, {
-        id: payment.id,
-        amount: payment.amount,
-        date: payment.date,
-        parent_uid: payment.parent_uid,
-        charge_id: payment.charge_id,
-        has_retrieval_key: !!payment.tranzila_retrieval_key,
-      });
+      
 
       // Cache hit
       if (payment.tranzila_retrieval_key) {
@@ -538,15 +530,7 @@ const itemsSumILS = Number(
   items.reduce((s, it) => s + Number(it.unit_price) * Number(it.units_number ?? 1), 0).toFixed(2)
 );
 
-console.log(`[ensureInvoice][${rid}] totals`, {
-  lessonsAg,
-  creditsAg,
-  netAg,
-  itemsCount: items.length,
-  itemsSumILS,
-  paymentAmount: payload.payments[0].amount,
-  vat_percent: payload.vat_percent,
-});
+
 
       const resp = await fetch("https://billing5.tranzila.com/api/documents_db/create_document", {
         method: "POST",
@@ -562,14 +546,7 @@ console.log(`[ensureInvoice][${rid}] totals`, {
         // keep raw
       }
 
-      console.log(`[ensureInvoice][${rid}] tranzila http response`, {
-        status: resp.status,
-        ok: resp.ok,
-        has_json: !!json,
-        status_code: json?.status_code,
-        status_msg: json?.status_msg,
-      });
-
+      
       if (!resp.ok) {
         res.status(500).json({ ok: false, error: `tranzila http ${resp.status}`, raw: json ?? raw });
         return;
@@ -663,7 +640,6 @@ try {
 });
 
   } else {
-    console.log(`[ensureInvoice][${rid}] No parent email – skipping invoice email`);
   }
 } catch (err: any) {
   console.error(

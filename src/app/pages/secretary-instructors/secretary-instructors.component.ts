@@ -214,18 +214,14 @@ export class SecretaryInstructorsComponent implements OnInit {
   // ======= lifecycle =======
 
   async ngOnInit() {
-    console.log('[INSTRUCTORS] ngOnInit start');
     try {
       await ensureTenantContextReady();
-      console.log('[INSTRUCTORS] tenant context ready');
       await this.loadInstructors();
-      console.log('[INSTRUCTORS] loadInstructors finished, count =', this.instructors.length);
     } catch (e: any) {
       console.error('[INSTRUCTORS] ngOnInit error:', e);
       this.error = e?.message || 'Failed to load instructors';
     } finally {
       this.isLoading = false;
-      console.log('[INSTRUCTORS] ngOnInit end');
     }
   }
 
@@ -233,10 +229,8 @@ export class SecretaryInstructorsComponent implements OnInit {
     this.isLoading = true;
     this.error = null;
 
-    console.log('[INSTRUCTORS] loadInstructors() called');
     try {
       const dbcTenant = dbTenant();
-      console.log('[INSTRUCTORS] querying tenant.instructors...');
 
       // 1) מביאים מדריכים מהטננט – בלי להסתמך על email/phone
       const { data, error } = await dbcTenant
@@ -256,7 +250,6 @@ export class SecretaryInstructorsComponent implements OnInit {
         )
         .order('first_name', { ascending: true });
 
-      console.log('[INSTRUCTORS] query instructors result:', { error, rows: data?.length });
 
       if (error) throw error;
 
@@ -271,20 +264,17 @@ export class SecretaryInstructorsComponent implements OnInit {
         ),
       ];
 
-      console.log('[INSTRUCTORS] collected uids:', uids);
 
       let usersMap = new Map<string, { email: string | null; phone: string | null }>();
 
       if (uids.length) {
         const dbcPublic = dbPublic();
-        console.log('[INSTRUCTORS] querying public.users for uids');
 
         const { data: usersData, error: usersErr } = await dbcPublic
           .from('users')
           .select('uid, email, phone')
           .in('uid', uids);
 
-        console.log('[INSTRUCTORS] public.users result:', { error: usersErr, rows: usersData?.length });
 
         if (usersErr) throw usersErr;
 
@@ -308,7 +298,6 @@ export class SecretaryInstructorsComponent implements OnInit {
         };
       });
 
-      console.log('[INSTRUCTORS] final instructors length:', this.instructors.length);
 
     } catch (e: any) {
       console.error('[INSTRUCTORS] loadInstructors error:', e);
@@ -316,14 +305,12 @@ export class SecretaryInstructorsComponent implements OnInit {
       this.instructors = [];
     } finally {
       this.isLoading = false;
-      console.log('[INSTRUCTORS] loadInstructors() finished');
     }
   }
 
   // ======= מגירת פרטים =======
 
   async openDetails(id_number: string) {
-    console.log('[INSTRUCTORS] openDetails for id_number:', id_number);
     this.selectedIdNumber = id_number?.trim();
     this.drawerInstructor = null;
     this.editMode = false;
@@ -336,7 +323,6 @@ export class SecretaryInstructorsComponent implements OnInit {
   }
 
   closeDetails() {
-    console.log('[INSTRUCTORS] closeDetails');
     this.drawer.close();
     this.selectedIdNumber = null;
     this.drawerInstructor = null;
@@ -346,7 +332,6 @@ export class SecretaryInstructorsComponent implements OnInit {
 
   private async loadDrawerData(id_number: string) {
     this.drawerLoading = true;
-    console.log('[INSTRUCTORS] loadDrawerData start for id_number:', id_number);
 
     try {
       const dbcTenant = dbTenant();
@@ -380,7 +365,6 @@ export class SecretaryInstructorsComponent implements OnInit {
         .eq('id_number', id_number)
         .maybeSingle();
 
-      console.log('[INSTRUCTORS] loadDrawerData instructors query:', { error, hasData: !!data });
 
       if (error) throw error;
       if (!data) {
@@ -397,7 +381,6 @@ export class SecretaryInstructorsComponent implements OnInit {
       const uid = (ins.uid || '').trim();
       if (uid) {
         const dbcPublic = dbPublic();
-        console.log('[INSTRUCTORS] loadDrawerData querying public.users for uid:', uid);
 
         const { data: user, error: userErr } = await dbcPublic
           .from('users')
@@ -405,7 +388,6 @@ export class SecretaryInstructorsComponent implements OnInit {
           .eq('uid', uid)
           .maybeSingle();
 
-        console.log('[INSTRUCTORS] loadDrawerData public.users result:', { error: userErr, hasUser: !!user });
 
         if (!userErr && user) {
           ins = {
@@ -427,7 +409,6 @@ export class SecretaryInstructorsComponent implements OnInit {
       };
 
       // ---- לטעון לו"ז שבועי מהטבלה instructor_weekly_availability ----
-      console.log('[INSTRUCTORS] loadDrawerData querying instructor_weekly_availability');
 
       const { data: avail, error: availErr } = await dbcTenant
         .from('instructor_weekly_availability')
@@ -437,7 +418,6 @@ export class SecretaryInstructorsComponent implements OnInit {
         .eq('instructor_id_number', id_number)
         .order('day_of_week');
 
-      console.log('[INSTRUCTORS] loadDrawerData availability result:', { error: availErr, rows: avail?.length });
 
       if (availErr) {
         console.error('availability error', availErr);
@@ -455,14 +435,12 @@ export class SecretaryInstructorsComponent implements OnInit {
       this.editAvailability = [];
     } finally {
       this.drawerLoading = false;
-      console.log('[INSTRUCTORS] loadDrawerData finished for id_number:', id_number);
     }
   }
 
   // ======= מצב עריכה במגירה =======
 
   startEditFromDrawer() {
-    console.log('[INSTRUCTORS] startEditFromDrawer');
     if (!this.drawerInstructor) return;
     this.editMode = true;
     this.editModel = {
@@ -487,7 +465,6 @@ export class SecretaryInstructorsComponent implements OnInit {
   }
 
   cancelEditFromDrawer() {
-    console.log('[INSTRUCTORS] cancelEditFromDrawer');
     if (this.hasUnsavedChanges()) {
       const ok = confirm('את/ה בטוח/ה שאת/ה רוצה לבטל את השינויים?');
       if (!ok) return;
@@ -526,7 +503,6 @@ export class SecretaryInstructorsComponent implements OnInit {
     if (!this.drawerInstructor || !this.editModel) return;
 
     const m = this.editModel;
-    console.log('[INSTRUCTORS] saveEditFromDrawer called with model:', m);
 
     // ולידציה – שדות חובה
     const missing: string[] = [];
@@ -583,7 +559,6 @@ export class SecretaryInstructorsComponent implements OnInit {
         taught_child_genders: m.taught_child_genders ?? null,
       };
 
-      console.log('[INSTRUCTORS] saveEditFromDrawer performing update:', updates);
 
       const { data, error } = await dbcTenant
         .from('instructors')
@@ -592,7 +567,6 @@ export class SecretaryInstructorsComponent implements OnInit {
         .select('*')
         .maybeSingle();
 
-      console.log('[INSTRUCTORS] saveEditFromDrawer update result:', { error, data });
 
       if (error) throw error;
 
@@ -626,21 +600,18 @@ export class SecretaryInstructorsComponent implements OnInit {
       this.editMode = false;
 
       // ריענון טבלה
-      console.log('[INSTRUCTORS] saveEditFromDrawer reloading instructors...');
       await this.loadInstructors();
     } catch (e: any) {
       console.error('[INSTRUCTORS] saveEditFromDrawer error:', e);
       alert(e?.message || 'שמירת פרטי המדריך נכשלה');
     } finally {
       this.savingEdit = false;
-      console.log('[INSTRUCTORS] saveEditFromDrawer finished');
     }
   }
 
   // ======= דיאלוג הוספת מדריך =======
 
   openAddInstructorDialog() {
-    console.log('[ADD INSTRUCTOR] openAddInstructorDialog called');
     const ref = this.dialog.open(AddInstructorDialogComponent, {
       width: '700px',
       maxWidth: '90vw',
@@ -650,22 +621,16 @@ export class SecretaryInstructorsComponent implements OnInit {
     });
 
     ref.afterClosed().subscribe(async (payload?: AddInstructorPayload | any) => {
-      console.log('[ADD INSTRUCTOR] dialog closed, payload:', payload);
       if (!payload) {
-        console.log('[ADD INSTRUCTOR] dialog closed with no payload (cancel)');
         return;
       }
 
       await ensureTenantContextReady();
-      console.log('[ADD INSTRUCTOR] tenant context ready inside add dialog');
 
       const tenant_id = localStorage.getItem('selectedTenant') || '';
       const schema_name = localStorage.getItem('selectedSchema') || '';
 
-      console.log('[ADD INSTRUCTOR] tenant info from localStorage:', {
-        tenant_id,
-        schema_name,
-      });
+    
 
       if (!tenant_id) {
         alert('לא נמצא tenant פעיל. התחברי מחדש או בחרי חווה פעילה.');
@@ -676,12 +641,10 @@ export class SecretaryInstructorsComponent implements OnInit {
       let tempPassword = '';
 
       try {
-        console.log('[ADD INSTRUCTOR] checking if instructor exists by email:', payload.email);
         const exists = await this.checkIfInstructorExists(
           payload.email,
           tenant_id
         );
-        console.log('[ADD INSTRUCTOR] checkIfInstructorExists result:', exists);
 
         if (exists.existsInTenant) {
           alert('מדריך עם המייל הזה כבר קיים בחווה הנוכחית.');
@@ -689,15 +652,12 @@ export class SecretaryInstructorsComponent implements OnInit {
         }
 
         if (exists.existsInSystem && exists.uid) {
-          console.log('[ADD INSTRUCTOR] user exists in system with uid, no new firebase user', exists.uid);
           uid = exists.uid;
           tempPassword = '';
         } else {
-          console.log('[ADD INSTRUCTOR] creating firebase user via createUserIfNotExists');
           const res = await this.createUserService.createUserIfNotExists(
             payload.email
           );
-          console.log('[ADD INSTRUCTOR] createUserIfNotExists result:', res);
           uid = res.uid;
           tempPassword = res.tempPassword;
         }
@@ -730,7 +690,6 @@ export class SecretaryInstructorsComponent implements OnInit {
         schema_name,
       };
 
-      console.log('[ADD INSTRUCTOR] built body for insert:', body);
 
       const missing = ['first_name', 'last_name', 'email', 'phone', 'id_number'].filter(
         (k) => !(body as any)[k]
@@ -746,20 +705,12 @@ export class SecretaryInstructorsComponent implements OnInit {
         // users
         await this.createUserInSupabase(body.uid, body.email, "instructor", body.phone);
 
-        console.log('[ADD INSTRUCTOR] upsert public.tenant_users', body.tenant_id, body.uid);
         await this.createTenantUserInSupabase({
           tenant_id: body.tenant_id,
           uid: body.uid,
         });
-        console.log('[ADD INSTRUCTOR] DONE tenant_users');
 
-        console.log('[ADD INSTRUCTOR] insert tenant.instructors', {
-          uid: body.uid,
-          first_name: body.first_name,
-          last_name: body.last_name,
-          phone: body.phone,
-          id_number: body.id_number,
-        });
+       
         const instructorRow = await this.createInstructorInSupabase({
           uid: body.uid,
           first_name: body.first_name,
@@ -773,11 +724,8 @@ export class SecretaryInstructorsComponent implements OnInit {
           education: body.education,
           about: body.about,
         });
-        console.log('[ADD INSTRUCTOR] DONE instructors insert:', instructorRow);
 
-        console.log('[ADD INSTRUCTOR] reloading instructors list...');
         await this.loadInstructors();
-        console.log('[ADD INSTRUCTOR] DONE loadInstructors, count =', this.instructors.length);
 
         // ✅ מייל למדריך/ה – כאן יש לך גישה ל-body ול-payload
         const fullName = `${body.first_name} ${body.last_name}`.trim();
@@ -811,7 +759,6 @@ export class SecretaryInstructorsComponent implements OnInit {
   // ======= Helpers =======
 
   async checkIfInstructorExists(email: string, tenant_id: string) {
-    console.log('[ADD INSTRUCTOR] checkIfInstructorExists start:', { email, tenant_id });
 
     const { data: user, error: userErr } = await dbPublic()
       .from('users')
@@ -819,7 +766,6 @@ export class SecretaryInstructorsComponent implements OnInit {
       .eq('email', email.toLowerCase())
       .maybeSingle();
 
-    console.log('[ADD INSTRUCTOR] checkIfInstructorExists users result:', { user, userErr });
 
     if (userErr) throw userErr;
 
@@ -834,7 +780,6 @@ export class SecretaryInstructorsComponent implements OnInit {
       .eq('uid', user.uid)
       .maybeSingle();
 
-    console.log('[ADD INSTRUCTOR] checkIfInstructorExists tenant_users result:', { tenantUser, tenantErr });
 
     if (tenantErr) throw tenantErr;
 
@@ -847,21 +792,18 @@ export class SecretaryInstructorsComponent implements OnInit {
       uid: user.uid,
     };
 
-    console.log('[ADD INSTRUCTOR] checkIfInstructorExists final result:', result);
     return result;
   }
 
   private async getInstructorRoleId(): Promise<number> {
     const dbcTenant = dbTenant();
 
-    console.log('[ADD INSTRUCTOR] getInstructorRoleId querying role table for "instructors"');
     const { data, error } = await dbcTenant
       .from('role')
       .select('id')
       .eq('table', 'instructors')
       .maybeSingle();
 
-    console.log('[ADD INSTRUCTOR] getInstructorRoleId result:', { data, error });
 
     if (error || !data?.id) {
       console.error('getInstructorRoleId error', error, data);
@@ -886,7 +828,6 @@ export class SecretaryInstructorsComponent implements OnInit {
       phone: (phone || '').trim() || null,
     };
 
-    console.log('[ADD INSTRUCTOR] createUserInSupabase upsert row:', row);
 
     const { error } = await dbcPublic
       .from('users')
@@ -897,7 +838,6 @@ export class SecretaryInstructorsComponent implements OnInit {
       throw new Error(`users upsert failed: ${error.message}`);
     }
 
-    console.log('[ADD INSTRUCTOR] createUserInSupabase success');
   }
 
   private async createTenantUserInSupabase(body: {
@@ -907,7 +847,6 @@ export class SecretaryInstructorsComponent implements OnInit {
     const dbcPublic = dbPublic();
     const instructorRoleId = await this.getInstructorRoleId();
 
-    console.log('[ADD INSTRUCTOR] createTenantUserInSupabase body:', body, 'roleId:', instructorRoleId);
 
     const { error } = await dbcPublic
       .from('tenant_users')
@@ -929,7 +868,6 @@ export class SecretaryInstructorsComponent implements OnInit {
       throw new Error(`tenant_users upsert failed: ${error.message}`);
     }
 
-    console.log('[ADD INSTRUCTOR] createTenantUserInSupabase success');
   }
 
   private async createInstructorInSupabase(body: {
@@ -947,7 +885,6 @@ export class SecretaryInstructorsComponent implements OnInit {
   }) {
     const dbcTenant = dbTenant();
 
-    console.log('[ADD INSTRUCTOR] createInstructorInSupabase INSERT body:', body);
 
     const { data, error } = await dbcTenant
       .from('instructors')
@@ -969,7 +906,6 @@ export class SecretaryInstructorsComponent implements OnInit {
       .select('*')
       .single();
 
-    console.log('[ADD INSTRUCTOR] createInstructorInSupabase result:', { error, data });
 
     if (error) {
       console.error('[ADD INSTRUCTOR] instructors insert failed:', error);

@@ -92,7 +92,6 @@ export class CurrentUserService {
   }
 
   setSelectedTenant(tenantId: string | null) {
-    console.log("setSelectedTenant", tenantId);
     const cur = this._user$.value; if (!cur) return;
     this._user$.next({ ...cur, selectedTenantId: tenantId });
     if (tenantId) localStorage.setItem('selectedTenant', tenantId);
@@ -178,7 +177,6 @@ export class CurrentUserService {
   const fbUser = this.auth.currentUser!;
 
   const picked = await selectMembership(tenantId, roleInTenant);
-  console.log("switched to membership", fbUser, picked);
 
   this.setSelectedTenant(picked.tenant_id);
 

@@ -473,7 +473,6 @@ async openHolesForCandidate(c: MakeupCandidate): Promise<void> {
     this.candidateSlotsError = 'יש לבחור ילד';
     return;
   }
-console.log('!!!!!!!!!!!!1 להשלמה ');
   this.selectedMakeupCandidate = c;
   this.candidateSlots = [];
   this.candidateSlotsError = null;
