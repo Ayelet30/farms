@@ -2,9 +2,10 @@ import { Component, OnInit, ChangeDetectionStrategy, signal, computed } from '@a
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-// עדכני נתיבים לפי הפרויקט שלך
-import { dbTenant } from '../../services/legacy-compat';
-import { fetchMyChildren } from '../../services/supabaseClient.service';
+import * as legacyCompat from '../../services/legacy-compat';
+
+import * as sb from '../../services/supabaseClient.service';
+
 
 interface ChildRow {
   child_uuid: string;
@@ -62,6 +63,16 @@ function splitName(full: string): { first: string; last: string } {
   return { first: parts[0], last: parts.slice(1).join(' ') };
 }
 
+// ✅ Wrapper שניתן למוקק בטסטים (mutable)
+export const ParentActivityDeps = {
+  dbTenant: () => {
+    const maybe = (legacyCompat as any).dbTenant;
+    return typeof maybe === 'function' ? maybe() : maybe;
+  },
+  fetchMyChildren: () => (sb as any).fetchMyChildren(),
+};
+
+
 @Component({
   selector: 'app-parent-activity-summary',
   standalone: true,
@@ -107,15 +118,17 @@ export class ParentActivitySummaryComponent implements OnInit {
   }
 
   /** תאימות ל-dbTenant כפונקציה/אובייקט */
-  private getDb(): any {
-    const maybe = dbTenant as any;
-    return typeof maybe === 'function' ? maybe() : maybe;
-  }
+ private getDb(): any {
+  return ParentActivityDeps.dbTenant();
+}
+
+
+
 
   // --- טעינת ילדים לחשבון ההורה הנוכחי ---
   private async loadChildren() {
-    const res = (await fetchMyChildren()) as any;
-    const data: any[] = Array.isArray(res) ? res : (res?.data ?? []);
+    const res = await ParentActivityDeps.fetchMyChildren();
+  const data: any[] = Array.isArray(res) ? res : (res?.data ?? []);
 
     const kids: ChildItem[] = (data ?? [])
       .map((r: any) => {

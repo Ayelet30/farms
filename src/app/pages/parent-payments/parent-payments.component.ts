@@ -10,6 +10,8 @@ import {
   ensureTenantContextReady,
   getCurrentFarmMetaSync,
 } from '../../services/supabaseClient.service';
+import { TenantBootstrapService } from '../../services/tenant-bootstrap.service';
+import { ParentPaymentsDbService } from '../../services/parent-payments-db.service';
 
 declare const TzlaHostedFields: any;
 
@@ -91,7 +93,9 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
     private tranzila: TranzilaService,
     private pagos: PaymentsService,
     private cu: CurrentUserService,
-  ) {
+    private tenantBoot: TenantBootstrapService,
+    private ppDb: ParentPaymentsDbService,
+    ) {
     const cur = this.cu.current;
     this.parentUid = cur?.uid ?? '';
     this.parentEmail = cur?.email ?? '';
@@ -163,7 +167,8 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
   }
   private async refreshInvoices() {
     try {
-      const dbc = dbTenant();
+      const dbc = this.ppDb.db();
+
       const { data, error } = await dbc
         .from('payments')
         .select('id, amount, date, method, invoice_url')
@@ -293,8 +298,9 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
       return;
     }
 
-    await ensureTenantContextReady();
-    const farm = getCurrentFarmMetaSync();
+    await this.tenantBoot.ensureReady();
+    const farm = this.tenantBoot.getFarmMetaSync();
+
     const tenantSchema = farm?.schema_name ?? undefined;
     if (!tenantSchema) {
       this.tokenError.set('לא זוהתה סכמת חווה');

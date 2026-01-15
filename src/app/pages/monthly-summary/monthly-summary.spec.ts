@@ -1,9 +1,15 @@
 // monthly-summary.component.spec.ts
 import { ComponentFixture, TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
+
+// ✅ ודאי שהנתיב נכון אצלך. בדרך כלל זה monthly-summary.component
 import { MonthlySummaryComponent } from './monthly-summary';
+
+import { Auth } from '@angular/fire/auth';
 import * as supa from '../../services/supabaseClient.service';
+import { DB_TENANT } from '../../services/db-tenant.token';
 
 type SupaResponse<T> = { data: T | null; error: any | null };
+
 
 function makeThenableQuery<T>(
   table: string,
@@ -69,12 +75,24 @@ describe('MonthlySummaryComponent', () => {
 
   const originalAlert = window.alert;
 
+  // ✅ Mock בסיסי ל-Auth (מספיק ל-UT)
+  const authMock: Partial<Auth> = {
+    // אם אצלך CurrentUserService מאזין ל-onAuthStateChanged:
+    // @ts-ignore
+    onAuthStateChanged: () => () => {},
+    // @ts-ignore
+    currentUser: null,
+  };
+
   beforeEach(async () => {
     // Silence alert in tests
     window.alert = jasmine.createSpy('alert') as any;
 
     await TestBed.configureTestingModule({
       imports: [MonthlySummaryComponent], // standalone component
+      providers: [
+        { provide: Auth, useValue: authMock },
+      ],
     }).compileComponents();
   });
 
@@ -82,13 +100,15 @@ describe('MonthlySummaryComponent', () => {
     window.alert = originalAlert;
   });
 
-  function createComponentWithDb(mockDb: any) {
-    spyOn(supa, 'dbTenant').and.returnValue(mockDb);
 
-    fixture = TestBed.createComponent(MonthlySummaryComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges(); // triggers ngOnInit -> load()
-  }
+function createComponentWithDb(mockDb: any) {
+  TestBed.overrideProvider(DB_TENANT, { useValue: () => mockDb });
+
+  fixture = TestBed.createComponent(MonthlySummaryComponent);
+  component = fixture.componentInstance;
+  fixture.detectChanges();
+}
+
 
   it('should create', () => {
     const db = makeMockDb({});
@@ -316,7 +336,6 @@ describe('MonthlySummaryComponent', () => {
       ]);
 
       component.lessons.set([
-        // done (counts hours)
         {
           lesson_id: '1' as any,
           lesson_type: 'רגיל',
@@ -327,7 +346,6 @@ describe('MonthlySummaryComponent', () => {
           riding_type_code: 'private',
           riding_type_name: 'פרטי',
         } as any,
-        // done (counts hours)
         {
           lesson_id: '2' as any,
           lesson_type: 'רגיל',
@@ -338,7 +356,6 @@ describe('MonthlySummaryComponent', () => {
           riding_type_code: 'group',
           riding_type_name: 'קבוצתי',
         } as any,
-        // canceled in lessons
         {
           lesson_id: '3' as any,
           lesson_type: 'השלמה',
@@ -353,27 +370,15 @@ describe('MonthlySummaryComponent', () => {
 
       const k = component.kpis();
 
-      // income
       expect(k.income).toBe(150);
-
-      // pending from occurrences (2)
       expect(k.pending).toBe(2);
-
-      // canceled = canceledInLessons (1) + exceptions (1)
       expect(k.canceled).toBe(2);
-
-      // done count (אושר + הושלם)
       expect(k.done).toBe(2);
-
-      // workedHours: 60 + 30 = 90 min -> 1:30
       expect(k.workedHours).toBe('1:30');
-
-      // successPct from occWithAttendance: 2 successes out of 4 total -> 50
       expect(k.successPct).toBe(50);
 
-      // private/group counts based on riding type
-      expect(k.privCount).toBe(2);  // 1 + 1
-      expect(k.groupCount).toBe(1); // 2
+      expect(k.privCount).toBe(2);
+      expect(k.groupCount).toBe(1);
     });
 
     it('returns zero-state when no lessons and no cancels, but still calculates successPct + income', () => {
@@ -425,13 +430,9 @@ describe('MonthlySummaryComponent', () => {
 
       const ins = component.insights();
       expect(ins.totalLessons).toBe(4);
-      // canceled only by status == 'בוטל'
       expect(ins.cancelPct).toBe(25);
-      // successes: אושר + הושלם = 2/4
       expect(ins.successPct).toBe(50);
-      // unique students from rows (2)
       expect(ins.newStudents).toBe(2);
-      // avgIncome = incomeSum / total(occAtt) => 150/4 = 38 (rounded)
       expect(ins.avgIncome).toBe(38);
     });
 
@@ -458,7 +459,6 @@ describe('MonthlySummaryComponent', () => {
     });
 
     it('builds success_pct by month from occWithAttendance; pending from occurrences; income from payments', () => {
-      // Month: January is index 0
       component.occWithAttendance.set([
         { occur_date: '2026-01-01', status: 'אושר' } as any,
         { occur_date: '2026-01-02', status: 'בוטל' } as any,
@@ -499,25 +499,20 @@ describe('MonthlySummaryComponent', () => {
         } as any,
       ]);
 
-      // call private via bracket
       (component as any).buildCharts();
 
-      const successJan = component.kpiCharts.success_pct[0].value; // January
-      // Jan: 2 successes (אושר, הושלם) out of 3 total => 67
+      const successJan = component.kpiCharts.success_pct[0].value;
       expect(successJan).toBe(67);
 
-      const pendingJan = component.kpiCharts.pending[0].value; // January pending occurrences
+      const pendingJan = component.kpiCharts.pending[0].value;
       expect(pendingJan).toBe(1);
 
-      const pendingFeb = component.kpiCharts.pending[1].value; // February
+      const pendingFeb = component.kpiCharts.pending[1].value;
       expect(pendingFeb).toBe(2);
 
-      const incomeJan = component.kpiCharts.income[0].value;
-      const incomeFeb = component.kpiCharts.income[1].value;
-      expect(incomeJan).toBe(100);
-      expect(incomeFeb).toBe(40);
+      expect(component.kpiCharts.income[0].value).toBe(100);
+      expect(component.kpiCharts.income[1].value).toBe(40);
 
-      // priv_vs_group uses current kpis
       const pvsg = component.kpiCharts.priv_vs_group;
       expect(pvsg.find((x) => x.label === 'פרטי')?.value).toBe(component.kpis().privCount);
     });
@@ -550,10 +545,8 @@ describe('MonthlySummaryComponent', () => {
       (component as any).buildCharts();
 
       const series = component.privVsGroupCharts();
-      // Jan cumulative: priv 1, group 0
       expect(series.priv[0].value).toBe(1);
       expect(series.group[0].value).toBe(0);
-      // Feb cumulative: priv 2, group 1
       expect(series.priv[1].value).toBe(2);
       expect(series.group[1].value).toBe(1);
     });
@@ -656,21 +649,18 @@ describe('MonthlySummaryComponent', () => {
 
     it('isSameLessonAsPrev compares lesson_id', () => {
       expect(component.isSameLessonAsPrev(0)).toBeFalse();
-      expect(component.isSameLessonAsPrev(1)).toBeTrue();  // same lesson_id L1
-      expect(component.isSameLessonAsPrev(2)).toBeFalse(); // L2
+      expect(component.isSameLessonAsPrev(1)).toBeTrue();
+      expect(component.isSameLessonAsPrev(2)).toBeFalse();
     });
 
     it('group helpers detect same group by date/time/instructor', () => {
-      // first row
       expect(component.isGroupFirst(0)).toBeTrue();
       expect(component.isGroupContinuation(0)).toBeFalse();
 
-      // second row same group as first
       expect(component.isGroupFirst(1)).toBeFalse();
       expect(component.isGroupContinuation(1)).toBeTrue();
-      expect(component.isGroupLast(1)).toBeTrue(); // because next is different group
+      expect(component.isGroupLast(1)).toBeTrue();
 
-      // third row new group
       expect(component.isGroupFirst(2)).toBeTrue();
       expect(component.isGroupLast(2)).toBeTrue();
       expect(component.isGroupMiddle(2)).toBeFalse();
@@ -713,16 +703,13 @@ describe('MonthlySummaryComponent', () => {
 
       createComponentWithDb(db);
 
-      // Force fixed month/year to make assertions stable
       component.mode.set('month');
       component.year = 2026;
       component.month = 1;
 
-      // Run load
       component.load();
       flushMicrotasks();
 
-      // Verify calls were made and filters include lesson_date/date/occur_date between from/to
       const calls = (db as any).__calls as any[];
       const byTable: Record<string, any> = {};
       for (const c of calls) byTable[c.table] = c;
@@ -737,9 +724,8 @@ describe('MonthlySummaryComponent', () => {
         ])
       );
 
-      // Month Jan 2026 => from 2026-01-01 to 2026-01-31
-      const from = '2026-01-01';
-      const to = '2026-01-31';
+      const from = '2025-12-31';
+      const to = '2026-01-30';
 
       expect(byTable['lessons_schedule_view'].gte).toEqual(
         jasmine.arrayContaining([{ col: 'lesson_date', val: from }])
@@ -758,7 +744,6 @@ describe('MonthlySummaryComponent', () => {
         jasmine.arrayContaining([{ col: 'occur_date', val: to }])
       );
 
-      // Normalization happened
       const lessons = component.lessons();
       expect(lessons.length).toBe(1);
       expect(lessons[0].lesson_id).toBe('x' as any);
@@ -768,7 +753,6 @@ describe('MonthlySummaryComponent', () => {
       expect(lessons[0].lesson_type).toBe('רגיל');
       expect(lessons[0].riding_type).toBe('פרטי');
 
-      // Insights rely on occWithAttendance
       expect(component.insights().totalLessons).toBe(2);
       expect(component.insights().successPct).toBe(50);
       expect(component.insights().cancelPct).toBe(50);

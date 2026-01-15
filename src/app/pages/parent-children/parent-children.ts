@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import type { ChildRow } from '../../Types/detailes.model';
 import { getCurrentUserData } from '../../services/supabaseClient.service';
-// import { ChildConsentsComponent } from '../../consents/child-consents.component/child-consents.component';
 import { NgClass, NgTemplateOutlet } from '@angular/common';
 //import { dbTenant } from '../../services/legacy-compat';
 import { dbTenant } from '../../services/legacy-compat';

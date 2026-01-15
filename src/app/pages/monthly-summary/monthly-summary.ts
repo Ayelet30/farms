@@ -4,6 +4,7 @@ import {
   computed,
   signal,
   Input,
+  inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -16,6 +17,7 @@ import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { dbTenant } from '../../services/supabaseClient.service';
+import { DB_TENANT } from '../../services/db-tenant.token';
 
 // ===============================
 //       TYPE DEFINITIONS
@@ -169,7 +171,10 @@ interface OccWithAttendanceRow {
   ],
 })
 export class MonthlySummaryComponent implements OnInit {
-  private dbc = dbTenant();
+  
+  // בתוך הקומפוננטה:
+  private dbTenant = inject(DB_TENANT);
+  private dbc = this.dbTenant();
 
   // אחרי kpiCharts:
   privVsGroupCharts = signal<{

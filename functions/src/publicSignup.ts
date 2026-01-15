@@ -110,7 +110,7 @@ export const publicCreateParentSignupRequest = onRequest(
 
       // מיפוי farmCode -> schema (אצלך זה כבר multi-tenant; כאן אני עושה allowlist פשוט)
       // אם רק בראשית: פשוט תקבעי schema קבוע.
-      const schema = farmCode === 'bereshit' ? 'bereshit_farm' : '';
+      const schema = farmCode === 'bereshit' ? 'bereshit_farm' : farmCode === 'bereshitfarm' ? 'bereshit_farm' : farmCode === 'bereshit_farm' ? 'bereshit_farm' : '';
       if (!schema){
         res.status(400).json({ error: 'Unknown farmCode' }); 
         return;   
