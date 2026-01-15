@@ -698,12 +698,7 @@ let lessonId: string | null = meta.lesson_id ?? null;
     is_makeup_allowed: !!meta.is_makeup_allowed,
   };
 
-  console.log(
-    '%c[SECRETARY EVENT CLICK] selectedOccurrence →',
-    'color: green; font-weight: bold;',
-    this.selectedOccurrence
-  );
-
+  
   this.cdr.detectChanges();
 }
 

@@ -74,7 +74,6 @@ export class LoginComponent {
     const uid = cred.user.uid;
 
     const { selected } = await this.cuSvc.hydrateAfterLogin();
-    console.log('selected', selected);
 
     const memberships = this.cuSvc.current?.memberships || [];
     let activeRole: string | null | undefined =

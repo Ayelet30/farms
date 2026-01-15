@@ -572,7 +572,6 @@ export function getSelectedMembershipSync(): Membership | null {
 
 export async function selectMembership(tenantId: string, roleInTenant?: string): Promise<Membership> {
   const list = await listMembershipsForCurrentUser(true);
-  console.log("selectMembership", tenantId, roleInTenant, list);
 
   // ✅ תקני: לבחור לפי tenant + role אם אפשר
   const chosen =

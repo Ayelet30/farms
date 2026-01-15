@@ -226,7 +226,6 @@ export class SecretaryParentBillingComponent implements OnInit {
 
      const farm = getCurrentFarmMetaSync();
     const schema = farm?.schema_name ?? undefined;
-    console.log('Charging parent charges', { parentUid, ids, schema });
     await this.tranzila.chargeSelectedChargesForParent({
       tenantSchema: schema?? farm?.schema_name ?? 'public',
       parentUid,
