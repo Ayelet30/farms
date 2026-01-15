@@ -32,12 +32,14 @@ interface ActivityRowRPC {
   lesson_type: string | null;
   status: string | null;
   note_content: string | null;
-   base_price?: number | null;
+  base_price?: number | null;
   subsidy_amount?: number | null;
   discount_amount?: number | null;
   final_price?: number | null;
-    riding_type_id?: string | null;
+  riding_type_id?: string | null;
   riding_type_name?: string | null;
+  charge_id?: string | null;
+  charge_status?: string | null;
 
 }
 
@@ -50,13 +52,16 @@ interface ActivityRowView {
   child_id: string;               // לסינון
   status?: string | null;
   note: string;
-   lesson_type?: string | null;
+  lesson_type?: string | null;
   base_price?: number | null;
   subsidy?: number | null;
   discount?: number | null;
   pay_amount?: number | null;
-    riding_type_id?: string | null;
+  riding_type_id?: string | null;
   riding_type_name?: string | null;
+  charge_id?: string | null;
+  charge_status?: string | null;
+
 
 }
 
@@ -67,6 +72,34 @@ function splitName(full: string): { first: string; last: string } {
   const parts = s.split(' ');
   if (parts.length === 1) return { first: parts[0], last: '' };
   return { first: parts[0], last: parts.slice(1).join(' ') };
+}
+type ChargeStatusCode =
+  | 'paid'
+  | 'pending'
+  | 'failed'
+  | 'canceled'
+  | 'refunded'
+  | 'void'
+  | 'created'
+  | 'open'
+  | string; // כדי לא להישבר אם יגיע ערך חדש
+
+const CHARGE_STATUS_HE: Record<string, string> = {
+  paid: 'שולם',
+  pending: 'בהמתנה',
+  failed: 'נכשל',
+  canceled: 'בוטל',
+  refunded: 'זוכה',
+  void: 'בוטל',
+  created: 'נוצר',
+  open: 'פתוח',
+  'לא חויב': 'לא חויב', // אם אצלך כבר מגיע בעברית לפעמים
+};
+
+function toHebrewChargeStatus(code: string | null | undefined): string {
+  const s = (code ?? '').trim();
+  if (!s) return 'לא חויב';
+  return CHARGE_STATUS_HE[s] ?? s; // אם לא מכירים את הערך – מציגים כמו שהוא
 }
 
 // ✅ Wrapper שניתן למוקק בטסטים (mutable)
@@ -96,6 +129,8 @@ export class ParentActivitySummaryComponent implements OnInit {
   children = signal<ChildItem[]>([]);
   selectedChildId = signal<string | undefined>(undefined);
 selectedRidingTypeId = signal<string | undefined>(undefined);
+selectedChargeStatus = signal<string | undefined>(undefined);
+
 
   readonly months = [
     { value: 1, label: 'ינואר' }, { value: 2, label: 'פברואר' }, { value: 3, label: 'מרץ' },
@@ -118,12 +153,20 @@ ridingTypeOptions = computed(() => {
   for (const r of this.rows()) {
     const id = (r.riding_type_id ?? '').trim();
     const name = (r.riding_type_name ?? '').trim();
-    console.log(name+"!!!!!!!!!!!!!1"); 
     if (id) map.set(id, name || id);
   }
   return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
 });
 ridingTypes = signal<{id:string; name:string}[]>([]);
+chargeStatusOptions = computed(() => {
+  const set = new Set<string>();
+  for (const r of this.rows()) {
+    const s = (r.charge_status ?? '').trim();
+
+    if (s) set.add(s);
+  }
+  return Array.from(set).sort();
+});
 
 private async loadRidingTypes() {
   const db = this.getDb();
@@ -213,19 +256,16 @@ if (!first && !last) {
 
     this.selectedChildId.set(undefined); // ברירת מחדל: כל הילדים
   }
+private refreshSeq = 0;
 
   // --- Load rows for selected YEAR (and optionally child) ---
   async refresh() {
+    const seq = ++this.refreshSeq;
     this.loading.set(true);
     try {
       const db = this.getDb();
       const from = `${this.year()}-01-01`;
       const to   = `${this.year()}-12-31`;
-
-      // let cid = this.selectedChildId();
-      // if (cid) cid = cid.trim();
-      // const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      // const pChildIds: string[] | null = cid && uuidRe.test(cid) ? [cid] : null;
 
 const cid = (this.selectedChildId() ?? '').trim();
 
@@ -234,16 +274,14 @@ const uuidRe =
 
 const pChildIds: string[] | null =
   cid && uuidRe.test(cid) ? [cid] : null;
-console.log('selectedChildId =', this.selectedChildId());
-console.log('p_child_ids =', pChildIds);
 
    const { data, error } = await db.rpc('get_parent_activity_from_view', {
   p_from: from,
   p_to: to,
   p_child_ids: pChildIds, // ← תמיד רשימה, לא null
 });
-
-      if (error) throw error;
+    if (seq !== this.refreshSeq) return; // ✅ תוצאה ישנה — מתעלמים
+    if (error) throw error;
 
  const hhmm = (t?: string) => (t ? t.slice(0, 5) : '');
 
@@ -256,12 +294,12 @@ child_id: r.child_id,
   status: r.status || null,
   note: r.note_content || '',
 
-  // חדש:
   lesson_type: r.lesson_type || null,
   riding_type_id: (r as any).riding_type_id ?? null,
 riding_type_name: (r as any).riding_type_name ?? null,
 
-
+charge_id: (r as any).charge_id ?? null,
+charge_status: toHebrewChargeStatus(r.charge_status),
   // שמות גמישים – תתאימי לשמות בפועל ב-RPC
   base_price:
     (r as any).base_price ??
@@ -292,10 +330,11 @@ riding_type_name: (r as any).riding_type_name ?? null,
       this.rows.set(list.sort((a, b) => a.date.localeCompare(b.date)));
 
     } catch (e) {
+       if (seq === this.refreshSeq) {
       console.error('refresh error:', e);
-      this.rows.set([]);
+      this.rows.set([]);}
     } finally {
-      this.loading.set(false);
+    if (seq === this.refreshSeq) this.loading.set(false);
     }
   }
 
@@ -315,9 +354,11 @@ riding_type_name: (r as any).riding_type_name ?? null,
   );
 
   onYearChange(y: number) {
-    this.year.set(Number(y));
-    this.refresh();
-  }
+  this.year.set(Number(y));
+  this.rows.set([]);          // ✅ מנקה תצוגה
+  this.loading.set(true);
+  this.refresh();
+}
 
   // שורות מסוננות לפי טאב/חודש/שנה/ילד
  filteredRows = computed(() => {
@@ -326,6 +367,7 @@ riding_type_name: (r as any).riding_type_name ?? null,
   const tab = this.tab();
   const childId = (this.selectedChildId() ?? '').trim().toLowerCase();
   const ridingTypeId = this.selectedRidingTypeId();
+const payStatus = (this.selectedChargeStatus() ?? '').trim();
 
   const isMonth = tab === 'month';
 
@@ -343,8 +385,10 @@ riding_type_name: (r as any).riding_type_name ?? null,
     const okRidingType = ridingTypeId
       ? r.riding_type_id === ridingTypeId
       : true;
-
-    return okY && okM && okChild && okRidingType;
+const okPay = payStatus
+  ? (r.charge_status ?? '').trim() === payStatus
+  : true;
+    return okY && okM && okChild && okRidingType && okPay;
   });
 });
 
