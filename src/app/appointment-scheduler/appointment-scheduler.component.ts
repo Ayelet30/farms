@@ -2956,5 +2956,15 @@ private openOccupancyConfirmDialog(isSecretary: boolean) {
     data: {},
   });
 }
+get canShowSeriesCalendar(): boolean {
+  // חייבים לבחור ילד
+  if (!this.selectedChildId) return false;
+
+  // חייבים לבחור מדריך (או any)
+  if (!this.selectedInstructorId) return false;
+
+  // ורק אחרי שבוחרים כמות שיעורים או "ללא הגבלה"
+  return this.hasSeriesCountOrOpenEnded;
+}
 
 }
