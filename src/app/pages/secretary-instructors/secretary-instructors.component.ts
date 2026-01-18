@@ -224,6 +224,26 @@ export class SecretaryInstructorsComponent implements OnInit {
       this.isLoading = false;
     }
   }
+  // ✅ אפשרויות סטטוס (ערך שנשמר בדאטאבייס + תצוגה)
+statusOptions = [
+  { value: 'Active', label: 'פעיל' },
+  { value: 'Inactive', label: 'לא פעיל' },
+] as const;
+
+private normalizeStatus(input: string | null | undefined): 'Active' | 'Inactive' {
+  const s = (input ?? '').trim().toLowerCase();
+
+  if (s === 'active' || s === 'פעיל' || s === 'פעילה') return 'Active';
+  if (s === 'inactive' || s === 'לא פעיל' || s === 'לא פעילה') return 'Inactive';
+
+  // ברירת מחדל (כדי לא לשמור "טקסט חופשי" לא צפוי)
+  return 'Active';
+}
+statusLabel(s?: string | null): string {
+  if (!s) return '—';
+  const v = this.normalizeStatus(s);
+  return v === 'Active' ? 'פעיל' : 'לא פעיל';
+}
 
   private async loadInstructors() {
     this.isLoading = true;
@@ -441,6 +461,7 @@ export class SecretaryInstructorsComponent implements OnInit {
   // ======= מצב עריכה במגירה =======
 
   startEditFromDrawer() {
+    console.log('[INSTRUCTORS] startEditFromDrawer');
     if (!this.drawerInstructor) return;
     this.editMode = true;
     this.editModel = {
@@ -503,6 +524,7 @@ export class SecretaryInstructorsComponent implements OnInit {
     if (!this.drawerInstructor || !this.editModel) return;
 
     const m = this.editModel;
+    console.log('[INSTRUCTORS] saveEditFromDrawer called with model:', m);
 
     // ולידציה – שדות חובה
     const missing: string[] = [];
@@ -547,6 +569,7 @@ export class SecretaryInstructorsComponent implements OnInit {
         first_name: m.first_name.trim(),
         last_name: m.last_name.trim(),
         phone,
+        status: this.normalizeStatus(m.status), 
         address: m.address?.trim() || null,
         license_id: m.license_id?.trim() || null,
         education: m.education?.trim() || null,
@@ -589,13 +612,14 @@ export class SecretaryInstructorsComponent implements OnInit {
         phone,
       };
 
-      // להכין מודל לעריכה הבאה
-      this.editModel = {
-        ...this.drawerInstructor,
-        taught_child_genders: this.drawerInstructor.taught_child_genders
-          ? [...this.drawerInstructor.taught_child_genders]
-          : [],
-      };
+    this.editModel = {
+   ...this.drawerInstructor,
+   status: this.normalizeStatus(this.drawerInstructor.status), // ✅
+   taught_child_genders: this.drawerInstructor.taught_child_genders
+    ? [...this.drawerInstructor.taught_child_genders]
+    : [],
+};
+
 
       this.editMode = false;
 

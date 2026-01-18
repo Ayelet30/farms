@@ -6,6 +6,7 @@ import * as crypto from 'crypto';
 import fetch from 'node-fetch';
 import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
+import { ensureTranzilaInvoiceForPaymentInternal } from './tranzilaInvoices';
 
 // ===== Local env for emulator only =====
 import * as dotenv from 'dotenv';
@@ -1157,17 +1158,32 @@ if (payErr) {
 const paymentId = payRow.id as string;
 
 // ✅ 2) יצירת PDF + העלאה + עדכון invoice_url
-await generateAndAttachReceiptUrlOnly({
-  sb,
-  tenantSchema,
-  paymentId,
-  amountAgorot,
-  tx: {
-    transaction_id: providerId,
-    credit_card_last_4_digits: usedProfile?.last4,
-    card_type_name: usedProfile?.brand,
-  },
-});
+// await generateAndAttachReceiptUrlOnly({
+//   sb,
+//   tenantSchema,
+//   paymentId,
+//   amountAgorot,
+//   tx: {
+//     transaction_id: providerId,
+//     credit_card_last_4_digits: usedProfile?.last4,
+//     card_type_name: usedProfile?.brand,
+//   },
+// });
+try {
+  await ensureTranzilaInvoiceForPaymentInternal({
+    tenantSchema,
+    paymentId,
+  });
+} catch (err: any) {
+  console.error('[invoice after charge] failed', err?.message || err);
+
+  // לא מפילים סליקה – רק מסמנים שהחשבונית נכשלה
+  await sb.from('payments').update({
+    invoice_status: 'failed',
+    invoice_updated_at: new Date().toISOString(),
+  }).eq('id', paymentId);
+}
+
 }
 
       res.json({ ok: true, results });
