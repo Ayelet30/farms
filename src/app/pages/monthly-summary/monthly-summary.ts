@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HDate } from '@hebcal/core';
 
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -16,8 +17,11 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
-import { dbTenant } from '../../services/supabaseClient.service';
 import { DB_TENANT } from '../../services/db-tenant.token';
+
+// ✅ חשוב: client שיש לו auth.getUser()
+// אם אצלך הקובץ/הפונקציה נקראים אחרת — החליפי פה בלבד
+import { dbPublic } from '../../services/legacy-compat';
 
 // ===============================
 //       TYPE DEFINITIONS
@@ -36,6 +40,9 @@ type MonthlyReportRow = {
   status?: string | null;
   child_name?: string | null;
   instructor_name?: string | null;
+
+  // ✅ חדש: כדי לסנן למדריך לפי uid
+  instructor_uid?: string | null;
 
   // 👇 הוספה:
   riding_type_code?: string | null;
@@ -78,7 +85,9 @@ interface LessonRow {
   child_last_name?: string | null;
   child_full_name?: string | null;
 
+  // ✅ חדש: מגיע מה-view
   instructor_uid?: string | null;
+
   instructor_first_name?: string | null;
   instructor_last_name?: string | null;
 
@@ -171,10 +180,12 @@ interface OccWithAttendanceRow {
   ],
 })
 export class MonthlySummaryComponent implements OnInit {
-  
   // בתוך הקומפוננטה:
-  private dbTenant = inject(DB_TENANT);
-  private dbc = this.dbTenant();
+  private dbTenantFactory = inject(DB_TENANT);
+  private dbc = this.dbTenantFactory(); // ✅ דאטה בלבד (אין auth)
+
+  // ✅ auth client נפרד (עם auth.getUser)
+  private authc = dbPublic();
 
   // אחרי kpiCharts:
   privVsGroupCharts = signal<{
@@ -289,6 +300,11 @@ export class MonthlySummaryComponent implements OnInit {
     return rows.filter((o) => this.clean(o.status) === 'ממתין לאישור').length;
   }
 
+  // ✅ החליפי למנגנון הרשאות אמיתי אצלך (roles/guards/service)
+  private isInstructor(): boolean {
+    return window.location.pathname.includes('instructor');
+  }
+
   // ✅ FIX: בלי "בוצע" (כי אין אצלך כזה סטטוס)
   private deriveStatus(raw: MonthlyReportRow): LessonStatus | null {
     const s = this.clean(raw.status);
@@ -365,7 +381,7 @@ export class MonthlySummaryComponent implements OnInit {
         if (!l.status || !allowed.includes(l.status)) return false;
       }
 
-      // מדריך
+      // מדריך (לפי שם)
       if (instructorF !== 'all') {
         const instName = this.clean(l.instructor_name);
         if (instName !== instructorF) return false;
@@ -375,12 +391,16 @@ export class MonthlySummaryComponent implements OnInit {
       if (q) {
         const childName =
           this.clean(l.child_full_name) ||
-          `${this.clean(l.child_first_name)} ${this.clean(l.child_last_name)}`.trim() ||
-          `${this.clean(l.child?.first_name)} ${this.clean(l.child?.last_name)}`.trim();
+          `${this.clean(l.child_first_name)} ${this.clean(
+            l.child_last_name
+          )}`.trim() ||
+          `${this.clean(l.child?.first_name)} ${this.clean(
+            l.child?.last_name
+          )}`.trim();
 
-        const hay = `${childName} ${l.lesson_type || ''} ${l.riding_type || ''} ${
-          l.instructor_name || ''
-        }`.toLowerCase();
+        const hay = `${childName} ${l.lesson_type || ''} ${
+          l.riding_type || ''
+        } ${l.instructor_name || ''}`.toLowerCase();
 
         if (!hay.includes(q)) return false;
       }
@@ -409,9 +429,12 @@ export class MonthlySummaryComponent implements OnInit {
       const s = this.clean(o.status);
       return s === 'אושר' || s === 'הושלם';
     }).length;
+
     const totalForSuccess = occAtt.length; // כולל ממתין/בוטל וכו'
     const successPct =
-      totalForSuccess > 0 ? Math.round((successCount / totalForSuccess) * 100) : 0;
+      totalForSuccess > 0
+        ? Math.round((successCount / totalForSuccess) * 100)
+        : 0;
 
     if (!all.length && !cancels.length) {
       return {
@@ -433,7 +456,9 @@ export class MonthlySummaryComponent implements OnInit {
 
     const pendingCount = this.countPendingOccurrences(occs);
 
-    const canceledInLessons = all.filter((l: LessonRow) => l.status === 'בוטל').length;
+    const canceledInLessons = all.filter(
+      (l: LessonRow) => l.status === 'בוטל'
+    ).length;
     const canceledByExceptions = cancels.length;
     const canceled = canceledInLessons + canceledByExceptions;
 
@@ -470,7 +495,7 @@ export class MonthlySummaryComponent implements OnInit {
       canceled,
       done: done.length,
       pending: pendingCount,
-      successPct, // ✅ עכשיו הקוביה תציג אותו היגיון כמו הגרף
+      successPct,
       privCount,
       groupCount,
       income,
@@ -556,7 +581,31 @@ export class MonthlySummaryComponent implements OnInit {
         to = yearEnd.toISOString().slice(0, 10);
       }
 
+      // ✅ מביאים uid של המשתמש המחובר
+      const {
+        data: { user },
+        error: userErr,
+      } = await this.authc.auth.getUser();
+      if (userErr) throw userErr;
+      if (!user) throw new Error('אין משתמש מחובר');
+      const uid = user.id;
+
       const lessonsViewName = 'lessons_schedule_view';
+
+      // ✅ בניית query לשיעורים + סינון רק אם זה מסך מדריכה
+      let lessonsQuery = this.dbc
+        .from(lessonsViewName)
+        .select('*')
+        .gte('lesson_date', from)
+        .lte('lesson_date', to)
+        .order('lesson_date', { ascending: true })
+        .order('start_time', { ascending: true })
+        .order('instructor_name', { ascending: true });
+
+      // ✅ זה הסינון שאת ביקשת:
+      if (this.isInstructor()) {
+        lessonsQuery = lessonsQuery.eq('instructor_uid', uid);
+      }
 
       const [
         { data: rawLessons, error: lessonsErr },
@@ -565,14 +614,7 @@ export class MonthlySummaryComponent implements OnInit {
         { data: occurrencesData, error: occErr },
         { data: occAttData, error: occAttErr },
       ] = await Promise.all([
-        this.dbc
-          .from(lessonsViewName)
-          .select('*')
-          .gte('lesson_date', from)
-          .lte('lesson_date', to)
-          .order('lesson_date', { ascending: true })
-          .order('start_time', { ascending: true })
-          .order('instructor_name', { ascending: true }),
+        lessonsQuery,
 
         this.dbc
           .from('payments')
@@ -641,6 +683,9 @@ export class MonthlySummaryComponent implements OnInit {
             child_last_name: null,
 
             instructor_name: instructorName,
+
+            // ✅ חדש:
+            instructor_uid: raw.instructor_uid ?? null,
           };
         }
       );
@@ -651,7 +696,7 @@ export class MonthlySummaryComponent implements OnInit {
       this.occurrences.set((occurrencesData ?? []) as LessonOccurrenceRow[]);
       this.occWithAttendance.set((occAttData ?? []) as OccWithAttendanceRow[]);
 
-      this.computeInsights(this.lessons()); // ✅ now uses occWithAttendance for successPct
+      this.computeInsights(this.lessons());
       this.buildCharts();
     } catch (err: any) {
       console.error('❌ load summary failed', err);
@@ -660,7 +705,7 @@ export class MonthlySummaryComponent implements OnInit {
       this.loading = false;
     }
   }
-//CHECKCHECKCHECK
+
   // ===============================
   //       COMPUTE INSIGHTS
   // ===============================
@@ -693,8 +738,9 @@ export class MonthlySummaryComponent implements OnInit {
       return s === 'אושר' || s === 'הושלם';
     }).length;
 
-    // ביטולים: אם את רוצה לפי status בלבד:
-    const canceledCount = occAtt.filter((o) => this.clean(o.status) === 'בוטל').length;
+    const canceledCount = occAtt.filter(
+      (o) => this.clean(o.status) === 'בוטל'
+    ).length;
 
     const cancelPct = Math.round((canceledCount / total) * 100);
     const successPct = Math.round((successCount / total) * 100);
@@ -704,7 +750,9 @@ export class MonthlySummaryComponent implements OnInit {
         .map((r: LessonRow) =>
           (
             r.child_full_name ||
-            `${this.clean(r.child_first_name)} ${this.clean(r.child_last_name)}`.trim()
+            `${this.clean(r.child_first_name)} ${this.clean(
+              r.child_last_name
+            )}`.trim()
           ).trim()
         )
         .filter((n: string) => !!n)
@@ -782,7 +830,9 @@ export class MonthlySummaryComponent implements OnInit {
         'תאריך שיעור': r.occur_date ?? '',
         'תלמיד/ה': (
           r.child_full_name ||
-          `${this.clean(r.child_first_name)} ${this.clean(r.child_last_name)}`.trim() ||
+          `${this.clean(r.child_first_name)} ${this.clean(
+            r.child_last_name
+          )}`.trim() ||
           ''
         ).trim(),
         'מדריך/ה': r.instructor_name ?? '',
@@ -998,7 +1048,10 @@ export class MonthlySummaryComponent implements OnInit {
     const total = series.length;
     if (!total) return '';
     return series
-      .map((p, i) => `${this.getPointX(i, total)},${this.getPointYWithMax(p.value, max)}`)
+      .map(
+        (p, i) =>
+          `${this.getPointX(i, total)},${this.getPointYWithMax(p.value, max)}`
+      )
       .join(' ');
   }
 
@@ -1017,7 +1070,9 @@ export class MonthlySummaryComponent implements OnInit {
   buildPolyline(): string {
     const data = this.selectedChart();
     const total = data.length;
-    return data.map((p, i) => `${this.getPointX(i, total)},${this.getPointY(p.value)}`).join(' ');
+    return data
+      .map((p, i) => `${this.getPointX(i, total)},${this.getPointY(p.value)}`)
+      .join(' ');
   }
 
   selectedChart(): ChartPoint[] {
@@ -1077,7 +1132,7 @@ export class MonthlySummaryComponent implements OnInit {
         const v = Number(p.value) || 0;
         const x = (i / denom) * (w - pad * 2) + pad;
         const t = (v - min) / range;
-        const y = (h - pad) - t * (h - pad * 2);
+        const y = h - pad - t * (h - pad * 2);
         return `${x},${y}`;
       })
       .join(' ');
