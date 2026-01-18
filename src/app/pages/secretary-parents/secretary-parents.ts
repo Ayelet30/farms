@@ -3,7 +3,12 @@ import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { FormsModule } from '@angular/forms';
-import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import {
+  ReactiveFormsModule,
+  FormBuilder,
+  FormGroup,
+  Validators,
+} from '@angular/forms';
 
 import {
   ensureTenantContextReady,
@@ -27,16 +32,15 @@ type ParentRow = {
   billing_day_of_month?: number | null;
   phone?: string;
   email?: string;
-  is_active?: boolean | null;        // סטטוס הורה
-  hasActiveChildren?: boolean;       // יש ילדים פעילים
-  hasInactiveChildren?: boolean;     // יש ילדים לא פעילים
+  is_active?: boolean | null; // סטטוס הורה
+  hasActiveChildren?: boolean; // יש ילדים פעילים
+  hasInactiveChildren?: boolean; // יש ילדים לא פעילים
 };
 
 interface ParentDetailsRow extends ParentRow {
   address?: string | null;
   extra_notes?: string | null;
   message_preferences?: string[] | null;
-   
 }
 
 type ParentFile = {
@@ -62,7 +66,13 @@ type PaymentSummary = {
 @Component({
   selector: 'app-secretary-parents',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, MatSidenavModule, MatDialogModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    MatSidenavModule,
+    MatDialogModule,
+  ],
   templateUrl: './secretary-parents.html',
   styleUrls: ['./secretary-parents.css'],
 })
@@ -115,12 +125,11 @@ export class SecretaryParentsComponent implements OnInit {
   ];
 
   constructor(
-  private dialog: MatDialog,
-  private createUserService: CreateUserService,
-  private fb: FormBuilder,
-  private mailService: MailService,
-) {}
-
+    private dialog: MatDialog,
+    private createUserService: CreateUserService,
+    private fb: FormBuilder,
+    private mailService: MailService,
+  ) {}
 
   // ================== חיפוש + סינון ==================
 
@@ -170,10 +179,7 @@ export class SecretaryParentsComponent implements OnInit {
         const qId = raw.replace(/\s/g, ''); // מסירים רווחים מהקלדה
 
         rows = rows.filter(p => {
-          const id = (p.id_number || '')
-            .toString()
-            .replace(/\s/g, ''); // גם כאן בלי רווחים
-
+          const id = (p.id_number || '').toString().replace(/\s/g, ''); // גם כאן בלי רווחים
           // מספיק שה־id יתחיל במה שהוקלד עד עכשיו
           return qId !== '' && id.startsWith(qId);
         });
@@ -238,7 +244,7 @@ export class SecretaryParentsComponent implements OnInit {
       // 1) מביאים הורים עם סטטוס is_active
       const { data: parentsData, error: parentsErr } = await dbc
         .from('parents')
-        .select('uid, first_name, last_name, id_number, phone, email, is_active')
+        .select('uid, first_name, last_name, id_number, phone, email, is_active, billing_day_of_month')
         .order('first_name', { ascending: true });
 
       if (parentsErr) throw parentsErr;
@@ -254,23 +260,15 @@ export class SecretaryParentsComponent implements OnInit {
         console.error('children fetch error', kidsErr);
       }
 
-      const map = new Map<
-        string,
-        { hasActive: boolean; hasInactive: boolean }
-      >();
+      const map = new Map<string, { hasActive: boolean; hasInactive: boolean }>();
 
       (kidsData ?? []).forEach((kid: any) => {
         if (!kid.parent_uid) return;
-        const entry =
-          map.get(kid.parent_uid) || { hasActive: false, hasInactive: false };
+        const entry = map.get(kid.parent_uid) || { hasActive: false, hasInactive: false };
 
         const status = (kid.status || '').toString().toLowerCase();
-        if (status === 'active' || status === 'פעיל') {
-          entry.hasActive = true;
-        }
-        if (status === 'inactive' || status === 'לא פעיל') {
-          entry.hasInactive = true;
-        }
+        if (status === 'active' || status === 'פעיל') entry.hasActive = true;
+        if (status === 'inactive' || status === 'לא פעיל') entry.hasInactive = true;
 
         map.set(kid.parent_uid, entry);
       });
@@ -296,13 +294,22 @@ export class SecretaryParentsComponent implements OnInit {
   // ================== מגירה – פתיחה/סגירה ==================
 
   async openDetails(uid: string) {
-    this.selectedUid = uid?.trim();
+    const cleanUid = (uid || '').trim();
+
+    if (!cleanUid) {
+      alert('שגיאה: uid ריק. לא ניתן לפתוח פרטי הורה.');
+      return;
+    }
+
+    this.selectedUid = cleanUid;
     this.drawerChildren = [];
     this.editMode = false;
     this.originalParent = null;
 
+    console.log('[PARENTS] openDetails uid=', this.selectedUid);
+
     this.drawer.open();
-    await this.loadDrawerData(this.selectedUid!);
+    await this.loadDrawerData(this.selectedUid);
   }
 
   closeDetails() {
@@ -320,16 +327,27 @@ export class SecretaryParentsComponent implements OnInit {
 
     try {
       const db = dbTenant();
+      const cleanUid = (uid || '').trim();
+
+      console.log('[PARENTS] loadDrawerData uid=', cleanUid);
 
       const { data: p, error: pErr } = await db
         .from('parents')
         .select(
           'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month'
         )
-        .eq('uid', uid)
-        .single();
+        .eq('uid', cleanUid)
+        .maybeSingle();
 
       if (pErr) throw pErr;
+
+      if (!p) {
+        this.drawerParent = null;
+        this.originalParent = null;
+        this.drawerChildren = [];
+        alert('לא נמצאה רשומת הורה עבור המשתמש הזה (uid לא קיים בטבלת parents).');
+        return;
+      }
 
       this.drawerParent = p as ParentDetailsRow;
 
@@ -342,7 +360,7 @@ export class SecretaryParentsComponent implements OnInit {
       const { data: kids, error: kidsErr } = await db
         .from('children')
         .select('child_uuid, first_name, last_name, parent_uid, gender, status, birth_date, gov_id')
-        .eq('parent_uid', uid)
+        .eq('parent_uid', cleanUid)
         .order('first_name', { ascending: true });
 
       if (kidsErr) throw kidsErr;
@@ -352,6 +370,7 @@ export class SecretaryParentsComponent implements OnInit {
       console.error(e);
       this.drawerChildren = [];
       this.drawerParent = null;
+      this.originalParent = null;
     } finally {
       this.drawerLoading = false;
     }
@@ -361,27 +380,30 @@ export class SecretaryParentsComponent implements OnInit {
 
   private buildParentForm(parent: ParentDetailsRow) {
     this.parentForm = this.fb.group({
-      full_name: [{
-        value: `${parent.first_name || ''} ${parent.last_name || ''}`.trim(),
-        disabled: true,
-      }],
+      full_name: [
+        {
+          value: `${parent.first_name || ''} ${parent.last_name || ''}`.trim(),
+          disabled: true,
+        },
+      ],
       id_number: [{ value: parent.id_number ?? '', disabled: true }],
 
       phone: [parent.phone ?? '', [Validators.required]],
       email: [parent.email ?? '', [Validators.email]],
-      billing_day: [parent.billing_day_of_month ?? 10, [Validators.required, Validators.min(1), Validators.max(28)]],
-
+      billing_day: [
+        parent.billing_day_of_month ?? 10,
+        [Validators.required, Validators.min(1), Validators.max(28)],
+      ],
 
       address: [parent.address ?? ''],
       extra_notes: [parent.extra_notes ?? ''],
 
       message_preferences: [
-        (parent.message_preferences && parent.message_preferences.length
+        parent.message_preferences && parent.message_preferences.length
           ? parent.message_preferences
-          : ['inapp']),
+          : ['inapp'],
         [Validators.required],
       ],
-
     });
   }
 
@@ -400,7 +422,6 @@ export class SecretaryParentsComponent implements OnInit {
       this.buildParentForm(this.originalParent);
     }
   }
-  
 
   /** שמירת שינויים – PATCH רק על מה שהשתנה */
   async saveParentEdits() {
@@ -413,26 +434,26 @@ export class SecretaryParentsComponent implements OnInit {
 
     const formValue = this.parentForm.getRawValue();
 
-    // בונים diff – רק שדות שניתנים לעריכה
+    // ✅ בניית changes בצורה נכונה (כולל יום חיוב)
     const changes: any = {};
-    const fieldsToCompare: (keyof ParentDetailsRow | string)[] = [
-      'phone',
-      'email',
-      'address',
-      'billing_day_of_month',
-      'extra_notes',
-      'message_preferences'
-    ];
 
-    for (const field of fieldsToCompare) {
-      const newVal = (formValue as any)[field];
-      const oldVal = (this.originalParent as any)[field];
+    if (formValue.phone !== this.originalParent.phone) changes.phone = formValue.phone;
+    if (formValue.email !== this.originalParent.email) changes.email = formValue.email;
+    if (formValue.address !== this.originalParent.address) changes.address = formValue.address;
+    if (formValue.extra_notes !== this.originalParent.extra_notes) changes.extra_notes = formValue.extra_notes;
 
-      const equal = JSON.stringify(newVal) === JSON.stringify(oldVal);
-      if (!equal) {
-        changes[field] = newVal;
-      }
+    if (
+      JSON.stringify(formValue.message_preferences) !==
+      JSON.stringify(this.originalParent.message_preferences)
+    ) {
+      changes.message_preferences = formValue.message_preferences;
     }
+
+    // billing_day (form) -> billing_day_of_month (db)
+  const newBillingDay = Number(formValue.billing_day);
+
+    const oldBillingDay = this.originalParent.billing_day_of_month ?? 10;
+    if (newBillingDay !== oldBillingDay) changes.billing_day_of_month = newBillingDay;
 
     // אם אין שינוי – לא שולחים PATCH
     if (Object.keys(changes).length === 0) {
@@ -442,29 +463,37 @@ export class SecretaryParentsComponent implements OnInit {
 
     try {
       const db = dbTenant();
+      const cleanUid = (this.selectedUid || '').trim();
+
+      console.log('[PARENTS] saveParentEdits uid=', cleanUid, 'changes=', changes);
 
       const { data, error } = await db
         .from('parents')
         .update(changes)
-        .eq('uid', this.selectedUid)
+        .eq('uid', cleanUid)
         .select(
-          'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences'
+          'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month'
         )
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+
+      if (!data) {
+        throw new Error('עדכון נכשל: לא נמצא הורה עם ה-uid הזה (ייתכן selectedUid לא נכון).');
+      }
 
       this.drawerParent = data as ParentDetailsRow;
       this.originalParent = structuredClone(this.drawerParent);
 
       // עדכון השורה בטבלה
       this.parents = this.parents.map(p =>
-        p.uid === this.selectedUid
+        p.uid === cleanUid
           ? {
               ...p,
               phone: this.drawerParent!.phone,
               email: this.drawerParent!.email,
               id_number: this.drawerParent!.id_number,
+              billing_day_of_month: this.drawerParent!.billing_day_of_month,
             }
           : p,
       );
@@ -507,7 +536,6 @@ export class SecretaryParentsComponent implements OnInit {
 
       try {
         const exists = await this.checkIfParentExists(payload.email, tenant_id);
-        // exists = { existsInSystem, existsInTenant, uid }
 
         // 2א) אם כבר קיים כהורה באותה חווה → שגיאה
         if (exists.existsInTenant) {
@@ -518,7 +546,7 @@ export class SecretaryParentsComponent implements OnInit {
         // 2ב) קיים במערכת (בכלל) אבל לא כהורה בחווה הזאת
         if (exists.existsInSystem && exists.uid) {
           uid = exists.uid;
-          tempPassword = ''; // לא מחלקים סיסמה חדשה, הוא כבר משתמש קיים
+          tempPassword = '';
         } else {
           // 2ג) לא קיים בכלל במערכת → יוצרים משתמש חדש בפיירבייס
           const res = await this.createUserService.createUserIfNotExists(payload.email);
@@ -527,14 +555,11 @@ export class SecretaryParentsComponent implements OnInit {
         }
       } catch (e: any) {
         const msg =
-          this.createUserService.errorMessage ||
-          e?.message ||
-          'שגיאה ביצירת / בדיקת המשתמש.';
+          this.createUserService.errorMessage || e?.message || 'שגיאה ביצירת / בדיקת המשתמש.';
         alert(msg);
         return;
       }
 
-      // שמים את ה־uid וה־password (אם חדש) ב־payload
       payload.uid = uid;
       payload.password = tempPassword || '';
 
@@ -559,8 +584,9 @@ export class SecretaryParentsComponent implements OnInit {
         schema_name,
       };
 
-      const missing = ['first_name', 'last_name', 'email', 'phone', 'id_number', 'address']
-        .filter(k => !(body as any)[k]);
+      const missing = ['first_name', 'last_name', 'email', 'phone', 'id_number', 'address'].filter(
+        k => !(body as any)[k],
+      );
 
       if (missing.length) {
         alert('שדות חובה חסרים: ' + missing.join(', '));
@@ -569,7 +595,7 @@ export class SecretaryParentsComponent implements OnInit {
 
       try {
         // 5) users (public) – upsert תמיד, גם אם המשתמש קיים
-        await this.createUserInSupabase(body.uid, body.email,"parent", body.phone);
+        await this.createUserInSupabase(body.uid, body.email, 'parent', body.phone);
 
         // 6) tenant_users (public) – משייכים כהורה לחווה הנוכחית
         await this.createTenantUserInSupabase({
@@ -577,7 +603,7 @@ export class SecretaryParentsComponent implements OnInit {
           uid: body.uid,
         });
 
-        // 7) parents (tenant schema) – יצירת רשומת הורה בחווה הנוכחית
+        // 7) parents (tenant schema) – יצירת/עדכון רשומת הורה בחווה הנוכחית
         await this.createParentInSupabase({
           uid: body.uid,
           first_name: body.first_name,
@@ -594,10 +620,10 @@ export class SecretaryParentsComponent implements OnInit {
         await this.loadParents();
 
         // 9) שליחת מייל לנרשם
-        const tenantSchema = schema_name; // מה-localStorage שהבאת קודם
+        const tenantSchema = schema_name;
         const fullName = `${body.first_name} ${body.last_name}`.trim();
 
-        const isNewUser = !!payload.password; // אם קיבלת tempPassword -> נוצר משתמש חדש
+        const isNewUser = !!payload.password;
         const subject = 'ברוכים הבאים לחווה';
         const html = isNewUser
           ? `
@@ -628,7 +654,6 @@ export class SecretaryParentsComponent implements OnInit {
         console.error(e);
         alert(e?.message ?? 'שגיאה - המערכת לא הצליחה להוסיף הורה');
       }
-
     });
   }
 
@@ -640,7 +665,7 @@ export class SecretaryParentsComponent implements OnInit {
     const { data, error } = await dbcTenant
       .from('role')
       .select('id')
-      .eq('table', 'parents')  // אפשר גם description = 'הורה'
+      .eq('table', 'parents')
       .maybeSingle();
 
     if (error || !data?.id) {
@@ -681,11 +706,16 @@ export class SecretaryParentsComponent implements OnInit {
     return {
       existsInSystem: true,
       existsInTenant,
-      uid: user.uid
+      uid: user.uid,
     };
   }
 
-  private async createUserInSupabase(uid: string, email: string,role: string, phone?: string | null): Promise<void> {
+  private async createUserInSupabase(
+    uid: string,
+    email: string,
+    role: string,
+    phone?: string | null,
+  ): Promise<void> {
     const dbcPublic = dbPublic();
 
     const row = {
@@ -695,9 +725,7 @@ export class SecretaryParentsComponent implements OnInit {
       phone: (phone || '').trim() || null,
     };
 
-    const { error } = await dbcPublic
-      .from('users')
-      .upsert(row, { onConflict: 'uid' });
+    const { error } = await dbcPublic.from('users').upsert(row, { onConflict: 'uid' });
 
     if (error) throw new Error(`users upsert failed: ${error.message}`);
   }
@@ -709,20 +737,18 @@ export class SecretaryParentsComponent implements OnInit {
     // 🔹 לוקחים דינמית את ה-role_id מהחווה הנוכחית
     const parentRoleId = await this.getParentRoleId();
 
-    const { error } = await dbcPublic
-      .from('tenant_users')
-      .upsert(
-        {
-          tenant_id: body.tenant_id,
-          uid: body.uid,
-          role_in_tenant: 'parent',
-          role_id: parentRoleId,
-          is_active: true
-        },
-        {
-          onConflict: 'tenant_id,uid,role_in_tenant'
-        }
-      );
+    const { error } = await dbcPublic.from('tenant_users').upsert(
+      {
+        tenant_id: body.tenant_id,
+        uid: body.uid,
+        role_in_tenant: 'parent',
+        role_id: parentRoleId,
+        is_active: true,
+      },
+      {
+        onConflict: 'tenant_id,uid,role_in_tenant',
+      },
+    );
 
     if (error) throw new Error(`tenant_users upsert failed: ${error.message}`);
   }
@@ -741,27 +767,29 @@ export class SecretaryParentsComponent implements OnInit {
   }) {
     const dbcTenant = dbTenant();
 
+    const row = {
+      uid: (body.uid || '').trim(),
+      first_name: body.first_name,
+      last_name: body.last_name,
+      email: body.email,
+      phone: body.phone ?? null,
+      id_number: body.id_number ?? null,
+      address: body.address ?? null,
+      extra_notes: body.extra_notes ?? null,
+      message_preferences: body.message_preferences?.length
+        ? body.message_preferences
+        : ['inapp'],
+      is_active: body.is_active ?? true,
+    };
+
     const { data, error } = await dbcTenant
       .from('parents')
-      .insert({
-        uid: body.uid,
-        first_name: body.first_name,
-        last_name: body.last_name,
-        email: body.email,
-        phone: body.phone ?? null,
-        id_number: body.id_number ?? null,
-        address: body.address ?? null,
-        extra_notes: body.extra_notes ?? null,
-        message_preferences: body.message_preferences?.length
-          ? body.message_preferences
-          : ['inapp'],
-        is_active: body.is_active ?? true,
-      })
+      .upsert(row, { onConflict: 'uid' })
       .select('*')
       .single();
 
     if (error) {
-      throw new Error(`parents insert failed: ${error.message}`);
+      throw new Error(`parents upsert failed: ${error.message}`);
     }
 
     return data;
