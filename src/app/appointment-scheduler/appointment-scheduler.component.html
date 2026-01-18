@@ -347,7 +347,7 @@
         <span class="appt-field-label">יום תחילת סדרה בשבוע</span>
 
           <!-- פריסה דו-עמודתית: ימין קלנדר, שמאל שעות -->
-          <div class="series-layout">
+<div class="series-layout" *ngIf="canShowSeriesCalendar; else seriesCalendarLocked">
             <!-- קלנדר קטן לחיפוש סדרות -->
             <div class="series-calendar">
               <div class="calendar-header">
@@ -430,6 +430,12 @@
             </div>
 
           </div> <!-- /series-layout -->
+          <ng-template #seriesCalendarLocked>
+  <div class="empty-text" style="margin-top:10px;">
+    כדי לראות זמינות – בחרי כמות שיעורים בסדרה או סמני “סדרה ללא הגבלת שיעורים”.
+  </div>
+</ng-template>
+
         </div>
       </div>
 
