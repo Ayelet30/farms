@@ -4,6 +4,8 @@ import * as admin from 'firebase-admin';
 import { google } from 'googleapis';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { decryptRefreshToken } from './crypto-gmail';
+import * as crypto from 'crypto';
+
 
 if (!admin.apps.length) admin.initializeApp();
 
@@ -13,6 +15,8 @@ const SUPABASE_KEY_S = defineSecret('SUPABASE_SERVICE_KEY');
 const GMAIL_CLIENT_ID_S = defineSecret('GMAIL_CLIENT_ID');
 const GMAIL_CLIENT_SECRET_S = defineSecret('GMAIL_CLIENT_SECRET');
 const GMAIL_MASTER_KEY_S = defineSecret('GMAIL_MASTER_KEY');
+const INTERNAL_CALL_SECRET_S = defineSecret('INTERNAL_CALL_SECRET');
+
 
 /** CORS */
 const ALLOWED_ORIGINS = new Set<string>([
@@ -64,6 +68,8 @@ function asArray(x: any): string[] {
 function looksLikeEmail(s: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
+
+
 
 async function requireAuth(req: any) {
   const auth = req.headers.authorization || '';
@@ -164,15 +170,40 @@ export const sendEmailGmail = onRequest(
       GMAIL_CLIENT_ID_S,
       GMAIL_CLIENT_SECRET_S,
       GMAIL_MASTER_KEY_S,
+      INTERNAL_CALL_SECRET_S
     ],
   },
   async (req, res) => {
     if (applyCors(req, res)) return;
 
+    function timingSafeEq(a: string, b: string) {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
+
+function isInternalCall(req: any): boolean {
+  const secret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
+  if (!secret) return false;
+
+  const got = String(req.headers['x-internal-secret'] || '');
+  return !!(got && timingSafeEq(got, secret));
+}
+
+
     try {
       if (req.method !== 'POST') return void res.status(405).json({ error: 'Method not allowed' });
 
-      const decoded = await requireAuth(req);
+      
+
+      let decoded: any = null;
+      if (!isInternalCall(req)) {
+        decoded = await requireAuth(req); // נשאר כמו שהיה
+      } else {
+        decoded = { uid: 'INTERNAL' }; // לצרכי audit
+}
+
 
       const body = req.body || {};
       const tenantSchema = normStr(body.tenantSchema, 120);
