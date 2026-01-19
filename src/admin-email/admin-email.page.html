@@ -1,0 +1,72 @@
+<h2>ניהול מיילים – ADMIN</h2>
+
+<section>
+  <h3>בחירת חווה</h3>
+  <input [(ngModel)]="tenantSchema" placeholder="tenantSchema">
+</section>
+
+<hr>
+
+<section>
+  <h3>חיבור Gmail לחווה</h3>
+  <input [(ngModel)]="senderEmail" placeholder="כתובת Gmail">
+  <textarea [(ngModel)]="refreshToken" placeholder="Refresh Token"></textarea>
+  <button (click)="connectGmail()">חבר Gmail</button>
+</section>
+
+<hr>
+
+<div dir="rtl" style="max-width: 560px; padding: 16px;">
+  <h2>ADMIN - אימיילים</h2>
+
+  <label>Tenant Schema</label>
+  <input [(ngModel)]="tenantSchema" placeholder="bereshit_farm" />
+
+  <hr />
+
+  <h3>חיבור Gmail</h3>
+  <label>Sender Email</label>
+  <input [(ngModel)]="senderEmail" placeholder="example@gmail.com" />
+
+  <label>Refresh Token</label>
+  <input [(ngModel)]="refreshToken" placeholder="refresh token..." />
+
+  <button (click)="connectGmail()">חבר Gmail</button>
+
+  <hr />
+
+  <h3>שליחת מייל בדיקה</h3>
+  <label>To</label>
+  <input [(ngModel)]="testTo" placeholder="to@gmail.com" />
+
+  <label>Subject</label>
+  <input [(ngModel)]="testSubject" />
+
+  <label>
+    <input type="checkbox" [(ngModel)]="useHtml" />
+    לשלוח כ-HTML
+  </label>
+
+  <div *ngIf="useHtml; else textTpl">
+    <label>HTML</label>
+    <textarea [(ngModel)]="testHtml" rows="4"></textarea>
+  </div>
+
+  <ng-template #textTpl>
+    <label>Text</label>
+    <textarea [(ngModel)]="testText" rows="4"></textarea>
+  </ng-template>
+
+  <div style="margin-top: 12px;">
+    <label>מצורפים (עד 5):</label>
+    <input type="file" multiple (change)="onFilesSelected($event)" />
+    <div *ngIf="attachments?.length">
+      <div *ngFor="let a of attachments; let i = index">
+        {{ a.filename }} <button type="button" (click)="removeAttachment(i)">הסר</button>
+      </div>
+    </div>
+  </div>
+
+  <button style="margin-top: 12px;" (click)="sendTestMail()">שלח בדיקה</button>
+</div>
+

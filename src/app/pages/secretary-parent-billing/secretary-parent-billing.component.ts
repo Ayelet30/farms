@@ -403,16 +403,26 @@ detailsCreditsTotalAgorot = computed(() => {
     let ok = 0;
     let failed = 0;
 
-    for (const p of list) {
-      const { error: rpcError } = await dbTenant().rpc('create_monthly_charge_for_parent', {
-        p_parent_uid: p.uid,
-        p_billing_date: billingDate,
-      });
+    const { data: jwtDbg, error: jwtErr } = await dbTenant().rpc('debug_jwt');
+  console.log('debug_jwt', { jwtDbg, jwtErr });
 
-      if (rpcError) {
-        failed++;
-        console.error(`❌ parent ${p.uid} failed`, rpcError);
-      } else {
+
+    for (const p of list) {
+const { data, error: rpcError } = await dbTenant().rpc('create_monthly_charge_for_parent', {
+  p_parent_uid: p.uid,
+  p_billing_date: billingDate,
+});
+
+if (rpcError) {
+  console.error('RPC failed', {
+    message: rpcError.message,
+    code: rpcError.code,
+    details: rpcError.details,
+    hint: rpcError.hint,
+  });
+}
+
+else {
         ok++;
       }
     }

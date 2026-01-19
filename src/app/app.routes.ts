@@ -214,7 +214,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/admin/admin.component').then(m => m.AdminComponent),
     canActivate: [RoleGuard, TenantReadyGuard],
-    data: { role: 'admin' }
+    data: { role: 'admin' },
+    children: [
+      {
+        path: 'email',
+        loadComponent: () =>
+          import('../admin-email/admin-email.page').then(m => m.AdminEmailPage)
+      },
+
+    ]
   },
 
   /* ------------------------------------
