@@ -66,6 +66,7 @@ export class SecretaryParentBillingComponent implements OnInit {
   detailsCredits = signal<any[]>([]);
   private thtk: string | null = null;
 
+invoiceExtraText = '';
 
 
   constructor(private payments: PaymentsService) {}
@@ -230,7 +231,9 @@ export class SecretaryParentBillingComponent implements OnInit {
       tenantSchema: schema?? farm?.schema_name ?? 'public',
       parentUid,
       chargeIds: ids,
-      secretaryEmail: 'ayelethury@gmail.com', // או מהמזכירה המחוברת
+      secretaryEmail: 'ayelethury@gmail.com', 
+      invoiceExtraText: this.invoiceExtraText?.trim() || null, 
+// או מהמזכירה המחוברת
     });
 
     await this.loadCharges();

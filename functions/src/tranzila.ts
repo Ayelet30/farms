@@ -986,11 +986,13 @@ export const chargeSelectedChargesForParent = onRequest(
         return;
       }
 
-      const { tenantSchema, parentUid, chargeIds } = req.body as {
+      const { tenantSchema, parentUid, chargeIds , invoiceExtraText } = req.body as {
         tenantSchema: string;
         parentUid: string;
         chargeIds: string[];
         secretaryEmail?: string | null;
+        invoiceExtraText?: string | null; // ✅ חדש
+
       };
 
       if (!tenantSchema || !parentUid || !Array.isArray(chargeIds) || !chargeIds.length) {
@@ -1173,6 +1175,8 @@ try {
   await ensureTranzilaInvoiceForPaymentInternal({
     tenantSchema,
     paymentId,
+    extraLineText: (invoiceExtraText ?? '').trim() || null, // ✅ חדש
+
   });
 } catch (err: any) {
   console.error('[invoice after charge] failed', err?.message || err);
