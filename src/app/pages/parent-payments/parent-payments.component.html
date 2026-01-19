@@ -74,28 +74,6 @@
       <div class="empty">אין חשבוניות להצגה.</div>
     </ng-template>
   </div>
-
-  <!-- ===================== היסטוריית חיובים ===================== -->
-  <div class="section">
-    <div class="section-title">היסטוריית חיובים (שולמו)</div>
-
-    <div class="charges" *ngIf="charges().length; else noCharges">
-      <div class="charge" *ngFor="let c of charges(); trackBy: trackById">
-        <div class="c-date">{{ c.created_at }}</div>
-        <div class="c-sum">{{ c.sumNis }}</div>
-        <div class="c-status ok">{{ c.status }}</div>
-        <div class="c-prov muted">#{{ c.provider_id || '-' }}</div>
-      </div>
-    </div>
-
-    <ng-template #noCharges>
-      <div class="empty">אין חיובים להצגה.</div>
-    </ng-template>
-
-    <div class="hint">
-      לא מוצגים חיובי טיוטה (draft).
-    </div>
-  </div>
 </div>
 
 <!-- ===================== מודל צף: הוספת כרטיס חדש ===================== -->
