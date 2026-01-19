@@ -1,0 +1,29 @@
+.req { display:flex; flex-direction:column; gap:12px; }
+.req-title { font-weight:800; font-size:16px; color:#1f3a2a; }
+
+.meta { display:flex; flex-direction:column; gap:4px; color:#586141; font-weight:600; }
+
+.note-box textarea {
+  width:100%;
+  border:1px solid #cdd6bf;
+  border-radius:10px;
+  padding:8px;
+  background:#fff;
+}
+
+.actions { display:flex; gap:8px; justify-content:flex-end; }
+.btn { border-radius:10px; padding:8px 14px; font-weight:800; border:1.5px solid #8a9362; cursor:pointer; }
+.btn.approve { background:#8a9362; color:#fff; }
+.btn.reject { background:#fde2e2; border-color:#b91c1c; color:#b91c1c; }
+
+.err { padding:10px; border-radius:10px; background:#fde2e2; color:#b91c1c; font-weight:800; border:1px solid #f1b1b1; }
+
+.raw summary { cursor:pointer; color:#586141; font-weight:800; }
+.raw pre {
+  margin-top:8px;
+  border:1px solid #cdd6bf;
+  border-radius:12px;
+  background:#f7f9f4;
+  padding:10px;
+  overflow:auto;
+}

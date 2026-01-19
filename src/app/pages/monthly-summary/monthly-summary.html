@@ -53,7 +53,10 @@
 
   <!-- ספינר טעינה -->
   <div class="loading-container" *ngIf="loading">
-    <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
+    <mat-progress-spinner
+      mode="indeterminate"
+      diameter="40"
+    ></mat-progress-spinner>
   </div>
 
   <!-- כרטיסי KPI לחיצים -->
@@ -124,11 +127,7 @@
       <mat-icon>schedule</mat-icon>
       <div class="value">{{ kpis().workedHours }}</div>
       <div class="label">
-        {{
-          mode() === 'month'
-            ? 'שעות עבודה בחודש'
-            : 'שעות עבודה בשנה'
-        }}
+        {{ mode() === 'month' ? 'שעות עבודה בחודש' : 'שעות עבודה בשנה' }}
       </div>
     </mat-card>
 
@@ -195,7 +194,9 @@
     </div>
 
     <!-- 🔹 מקרה מיוחד: פרטי / קבוצתי – שני קווים לאורך חודשי השנה -->
-    <ng-container *ngIf="selectedKpi === 'priv_vs_group'; else singleSeriesBlock">
+    <ng-container
+      *ngIf="selectedKpi === 'priv_vs_group'; else singleSeriesBlock"
+    >
       <div
         class="simple-chart"
         *ngIf="
@@ -205,7 +206,6 @@
         "
       >
         <svg class="line-chart" viewBox="0 0 600 220" preserveAspectRatio="none">
-
           <!-- ציר Y -->
           <line
             class="axis axis-y"
@@ -224,27 +224,22 @@
             [attr.y2]="axisBottom"
           ></line>
 
-          <!-- תוויות על ציר Y: 0 + מקסימום פרטי + מקסימום לא-פרטי (+ מינימום חיובי אם יש) -->
-          <g *ngFor="let t of yTicksPrivGroup">
-            <text
-              class="y-label"
-              x="32"
-              [attr.y]="getPointYWithMax(t, maxPrivGroup) + 4"
-            >
-              {{ t }}
-            </text>
-          </g>
+          <!-- ✅ תוויות Y מינימליות (כדי לא להיות תלויים ב-yTicksPrivGroup) -->
+          <text class="y-label" x="32" [attr.y]="axisBottom + 4">0</text>
+          <text class="y-label" x="32" [attr.y]="axisTop + 10">
+            {{ maxPrivVsGroupValue() }}
+          </text>
 
           <!-- קו לפרטי -->
           <polyline
             class="line line-priv"
-            [attr.points]="buildPolylineFor(privVsGroupCharts().priv, maxPrivGroup)"
+            [attr.points]="buildPolylineFor(privVsGroupCharts().priv, maxPrivVsGroupValue())"
           ></polyline>
 
           <!-- קו ללא-פרטי -->
           <polyline
             class="line line-group"
-            [attr.points]="buildPolylineFor(privVsGroupCharts().group, maxPrivGroup)"
+            [attr.points]="buildPolylineFor(privVsGroupCharts().group, maxPrivVsGroupValue())"
           ></polyline>
 
           <g *ngFor="let p of privVsGroupCharts().priv; index as i">
@@ -252,10 +247,8 @@
             <circle
               class="dot dot-priv"
               [attr.cx]="getPointX(i, privVsGroupCharts().priv.length)"
-              [attr.cy]="getPointYWithMax(p.value, maxPrivGroup)"
-           [attr.r]="3.5"
-
-
+              [attr.cy]="getPointYWithMax(p.value, maxPrivVsGroupValue())"
+              [attr.r]="3.5"
             ></circle>
 
             <!-- נקודה ללא-פרטי (רק אם קיימת נקודה מקבילה) -->
@@ -263,10 +256,8 @@
               <circle
                 class="dot dot-group"
                 [attr.cx]="getPointX(i, privVsGroupCharts().group.length)"
-                [attr.cy]="getPointYWithMax(g.value, maxPrivGroup)"
-           [attr.r]="3.5"
-
-
+                [attr.cy]="getPointYWithMax(g.value, maxPrivVsGroupValue())"
+                [attr.r]="3.5"
               ></circle>
             </ng-container>
 
@@ -286,18 +277,17 @@
           </g>
         </svg>
 
-       <div class="legend">
-  <span class="legend-item">
-    <span class="legend-dot priv"></span>
-    פרטי
-  </span>
+        <div class="legend">
+          <span class="legend-item">
+            <span class="legend-dot priv"></span>
+            פרטי
+          </span>
 
-  <span class="legend-item">
-    <span class="legend-dot group"></span>
-    לא פרטי
-  </span>
-</div>
-
+          <span class="legend-item">
+            <span class="legend-dot group"></span>
+            לא פרטי
+          </span>
+        </div>
       </div>
     </ng-container>
 
@@ -356,11 +346,7 @@
       <!-- כפתור ייצוא בראש העמוד -->
       <button mat-stroked-button class="excel-btn-header" (click)="exportExcel()">
         <mat-icon>table_chart</mat-icon>
-        {{
-          mode() === 'month'
-            ? 'ייצוא חודשי ל־Excel'
-            : 'ייצוא שנתי ל־Excel'
-        }}
+        {{ mode() === 'month' ? 'ייצוא חודשי ל־Excel' : 'ייצוא שנתי ל־Excel' }}
       </button>
     </div>
 
@@ -569,11 +555,7 @@
     <ul class="insights-list">
       <li>
         <span class="label">
-          {{
-            mode() === 'month'
-              ? 'סה״כ שיעורים בחודש:'
-              : 'סה״כ שיעורים בשנה:'
-          }}
+          {{ mode() === 'month' ? 'סה״כ שיעורים בחודש:' : 'סה״כ שיעורים בשנה:' }}
         </span>
         <span class="value highlight">
           {{ insights().totalLessons }}
@@ -593,11 +575,7 @@
       </li>
       <li>
         <span class="label">
-          {{
-            mode() === 'month'
-              ? 'מספר תלמידים פעילים החודש:'
-              : 'מספר תלמידים שונים בשנה:'
-          }}
+          {{ mode() === 'month' ? 'מספר תלמידים פעילים החודש:' : 'מספר תלמידים שונים בשנה:' }}
         </span>
         <span class="value orange">
           {{ insights().newStudents }}
@@ -605,11 +583,7 @@
       </li>
       <li>
         <span class="label">
-          {{
-            mode() === 'month'
-              ? 'הכנסה ממוצעת לשיעור:'
-              : 'הכנסה ממוצעת לשיעור בשנה:'
-          }}
+          {{ mode() === 'month' ? 'הכנסה ממוצעת לשיעור:' : 'הכנסה ממוצעת לשיעור בשנה:' }}
         </span>
         <span class="value highlight">
           ₪{{ insights().avgIncome }}
