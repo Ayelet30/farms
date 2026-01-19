@@ -169,27 +169,26 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
     try {
       const dbc = this.ppDb.db();
 
-      const { data, error } = await dbc
-        .from('payments')
-        .select('id, amount, date, method, invoice_url')
-        .eq('parent_uid', this.parentUid)
-        .not('invoice_url', 'is', null)
-        .order('date', { ascending: false })
-        .limit(100);
-
+    const { data, error } = await dbc
+  .from('payments')
+  .select('id, amount, date, method, tranzila_invoice_url')
+  .eq('parent_uid', this.parentUid)
+  .not('tranzila_invoice_url', 'is', null)
+  .order('date', { ascending: false })
+  .limit(100);
       if (error) throw error;
 
       const rows = (data ?? []) as any[];
 
-      this.invoices.set(
-        rows.map((r) => ({
-          id: String(r.id),
-          amountNis: Number(r.amount ?? 0).toFixed(2) + ' ₪',
-          date: r.date ? new Date(r.date).toLocaleDateString('he-IL') : '-',
-          invoice_url: String(r.invoice_url),
-          method: r.method ?? null,
-        })),
-      );
+    this.invoices.set(
+  rows.map((r) => ({
+    id: String(r.id),
+    amountNis: Number(r.amount ?? 0).toFixed(2) + ' ₪',
+    date: r.date ? new Date(r.date).toLocaleDateString('he-IL') : '-',
+    invoice_url: String(r.tranzila_invoice_url), // <-- כאן
+    method: r.method ?? null,
+  })),
+);
     } catch (e: any) {
       // לא חוסמים מסך אם אין הרשאות/טבלה — פשוט לא מציגים
       console.error('[invoices] load failed', e);
