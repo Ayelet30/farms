@@ -948,6 +948,8 @@ export const ensureTranzilaInvoiceForPayment = onRequest(
 export async function ensureTranzilaInvoiceForPaymentInternal(args: {
   tenantSchema: string;
   paymentId: string;
+  extraLineText?: string | null; // ✅ חדש
+
 }): Promise<{
   ok: boolean;
   from_cache: boolean;
@@ -958,6 +960,7 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
   public_invoice_url: string | null;
 }> {
   const { tenantSchema, paymentId } = args;
+const extra = (args.extraLineText ?? '').trim();
 
   const sb = getSupabaseForTenant(tenantSchema);
   const rid = crypto.randomBytes(6).toString("hex");
@@ -1123,6 +1126,15 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
   });
 
   const items = [...lessonItems, ...creditItems];
+if (extra) {
+  items.push({
+    name: extra.slice(0, 60),
+    unit_price: 0,
+    units_number: 1,
+    unit_type: 1,
+    currency_code: "ILS",
+  });
+}
 
   const lessonsAg = lessons.reduce((s, r) => s + Number(r.amount_agorot || 0), 0);
   const creditsAg = credits.reduce((s, c) => s + Math.abs(Number(c.amount_agorot || 0)), 0);
