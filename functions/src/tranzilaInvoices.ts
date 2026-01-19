@@ -3,7 +3,9 @@ import { defineSecret } from "firebase-functions/params";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import * as crypto from "crypto";
 import fetch from "node-fetch";
-import nodemailer from "nodemailer";
+// import nodemailer from "nodemailer";
+import { sendInvoiceEmailViaGmailCF } from "./send-invoice-email-gmail"; 
+
 
 
 // ===== Secrets =====
@@ -11,6 +13,7 @@ const SUPABASE_URL_S = defineSecret("SUPABASE_URL");
 const SUPABASE_KEY_S = defineSecret("SUPABASE_SERVICE_KEY");
 const TRANZILA_APP_KEY_S = defineSecret("TRANZILA_APP_KEY");
 const TRANZILA_SECRET_S = defineSecret("TRANZILA_SECRET");
+const INTERNAL_CALL_SECRET_S = defineSecret("INTERNAL_CALL_SECRET");
 
 
 function vatPercentByDate(docDate: string) {
@@ -186,58 +189,58 @@ async function saveInvoicePdfToSupabase(params: {
 
   return { bucket, path };
 }
-const mailTransport = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  auth: {
-    user: "ayelethury@gmail.com",
-    pass: "jlmb ezch pkrs ifce",
-  },
-});
-async function sendInvoiceEmail(params: {
-  sb: SupabaseClient;
-  bucket: string;
-  path: string;
-  to: string;
-  parentName: string;
-  farmName: string;
-  documentNumber?: string | null;
-}) {
-const { sb, bucket, path, to, parentName, farmName, documentNumber } = params;
+// const mailTransport = nodemailer.createTransport({
+//   host: "smtp.gmail.com",
+//   port: 587,
+//   secure: false,
+//   auth: {
+//     user: "ayelethury@gmail.com",
+//     pass: "jlmb ezch pkrs ifce",
+//   },
+// });
+// async function sendInvoiceEmail(params: {
+//   sb: SupabaseClient;
+//   bucket: string;
+//   path: string;
+//   to: string;
+//   parentName: string;
+//   farmName: string;
+//   documentNumber?: string | null;
+// }) {
+// const { sb, bucket, path, to, parentName, farmName, documentNumber } = params;
 
-  // 1) הורדת ה-PDF מה-Storage
-  const { data, error } = await sb.storage.from(bucket).download(path);
-  if (error) throw new Error(`Failed to download invoice PDF: ${error.message}`);
-  if (!data) throw new Error("Invoice PDF is empty");
+//   // 1) הורדת ה-PDF מה-Storage
+//   const { data, error } = await sb.storage.from(bucket).download(path);
+//   if (error) throw new Error(`Failed to download invoice PDF: ${error.message}`);
+//   if (!data) throw new Error("Invoice PDF is empty");
 
-  const buffer = Buffer.from(await data.arrayBuffer());
+//   const buffer = Buffer.from(await data.arrayBuffer());
 
-  // 2) שליחת מייל
-  await mailTransport.sendMail({
-    from: `<ayelethury@gmail.com>`,
-    to,
-    subject: `חשבונית ${documentNumber ?? ""}`.trim(),
-    html: `
-      <div dir="rtl" style="font-family: Arial, sans-serif">
-        <p>שלום ${parentName},</p>
-        <p>מצורפת החשבונית עבור התשלום שבוצע.</p>
-    <p>תודה,<br/>חוות ${farmName}</p>
-      </div>
-    `,
-    attachments: [
-      {
-        filename: `invoice-${documentNumber ?? "payment"}.pdf`,
-        content: buffer,
-        contentType: "application/pdf",
-      },
-    ],
-  });
-}
+//   // 2) שליחת מייל
+//   await mailTransport.sendMail({
+//     from: `<ayelethury@gmail.com>`,
+//     to,
+//     subject: `חשבונית ${documentNumber ?? ""}`.trim(),
+//     html: `
+//       <div dir="rtl" style="font-family: Arial, sans-serif">
+//         <p>שלום ${parentName},</p>
+//         <p>מצורפת החשבונית עבור התשלום שבוצע.</p>
+//     <p>תודה,<br/>חוות ${farmName}</p>
+//       </div>
+//     `,
+//     attachments: [
+//       {
+//         filename: `invoice-${documentNumber ?? "payment"}.pdf`,
+//         content: buffer,
+//         contentType: "application/pdf",
+//       },
+//     ],
+//   });
+// }
 export const ensureTranzilaInvoiceForPayment = onRequest(
   {
     invoker: "public",
-    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_APP_KEY_S, TRANZILA_SECRET_S],
+    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_APP_KEY_S, TRANZILA_SECRET_S, INTERNAL_CALL_SECRET_S],
   },
   async (req, res) => {
     try {
@@ -564,22 +567,51 @@ if (extra) {
   if (uErr) throw new Error(`payments update failed: ${uErr.message}`);
 
   // ===== send email =====
-  try {
-    if (parentEmail) {
-      const farmName = await getFarmNameBySchema(tenantSchema);
-      await sendInvoiceEmail({
-        sb,
-        bucket: stored.bucket,
-        path: stored.path,
-        to: parentEmail,
-        parentName: parentFullName,
-        farmName,
-        documentNumber,
-      });
-    }
-  } catch (err: any) {
-    console.error(`[ensureInvoiceInternal][${rid}] mail failed`, err?.message || err);
+  // try {
+  //   if (parentEmail) {
+  //     const farmName = await getFarmNameBySchema(tenantSchema);
+  //     await sendInvoiceEmail({
+  //       sb,
+  //       bucket: stored.bucket,
+  //       path: stored.path,
+  //       to: parentEmail,
+  //       parentName: parentFullName,
+  //       farmName,
+  //       documentNumber,
+  //     });
+  //   }
+  // } catch (err: any) {
+  //   console.error(`[ensureInvoiceInternal][${rid}] mail failed`, err?.message || err);
+  // }
+try {
+  if (parentEmail) {
+    const farmName = await getFarmNameBySchema(tenantSchema);
+
+    const internalCallSecret =
+      INTERNAL_CALL_SECRET_S.value() || process.env.INTERNAL_CALL_SECRET;
+    if (!internalCallSecret) throw new Error("Missing INTERNAL_CALL_SECRET");
+
+    const SEND_EMAIL_GMAIL_URL =
+      "https://us-central1-bereshit-ac5d8.cloudfunctions.net/sendEmailGmail";
+
+    await sendInvoiceEmailViaGmailCF({
+      sb,
+      bucket: stored.bucket,
+      path: stored.path,
+
+      to: parentEmail,
+      parentName: parentFullName,
+      farmName,
+      documentNumber,
+
+      tenantSchema,
+      sendEmailGmailUrl: SEND_EMAIL_GMAIL_URL,
+      internalCallSecret,
+    });
   }
+} catch (err: any) {
+  console.error(`[ensureInvoiceInternal][${rid}] mail failed`, err?.message || err);
+}
 
   return {
     ok: true,
@@ -590,4 +622,4 @@ if (extra) {
     tranzila_pdf_url: tranzilaPdfUrl,
     public_invoice_url: publicInvoiceUrl,
   };
-}
+  }
