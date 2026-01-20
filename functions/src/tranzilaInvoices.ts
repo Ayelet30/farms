@@ -1,13 +1,11 @@
-
-
-
-
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import * as crypto from "crypto";
 import fetch from "node-fetch";
-import nodemailer from "nodemailer";
+// import nodemailer from "nodemailer";
+import { sendInvoiceEmailViaGmailCF } from "./send-invoice-email-gmail"; 
+
 
 
 // ===== Secrets =====
@@ -15,6 +13,7 @@ const SUPABASE_URL_S = defineSecret("SUPABASE_URL");
 const SUPABASE_KEY_S = defineSecret("SUPABASE_SERVICE_KEY");
 const TRANZILA_APP_KEY_S = defineSecret("TRANZILA_APP_KEY");
 const TRANZILA_SECRET_S = defineSecret("TRANZILA_SECRET");
+const INTERNAL_CALL_SECRET_S = defineSecret("INTERNAL_CALL_SECRET");
 
 
 function vatPercentByDate(docDate: string) {
@@ -190,491 +189,437 @@ async function saveInvoicePdfToSupabase(params: {
 
   return { bucket, path };
 }
-const mailTransport = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  auth: {
-    user: "ayelethury@gmail.com",
-    pass: "jlmb ezch pkrs ifce",
-  },
-});
-async function sendInvoiceEmail(params: {
-  sb: SupabaseClient;
-  bucket: string;
-  path: string;
-  to: string;
-  parentName: string;
-  farmName: string;
-  documentNumber?: string | null;
-}) {
-const { sb, bucket, path, to, parentName, farmName, documentNumber } = params;
+// const mailTransport = nodemailer.createTransport({
+//   host: "smtp.gmail.com",
+//   port: 587,
+//   secure: false,
+//   auth: {
+//     user: "ayelethury@gmail.com",
+//     pass: "jlmb ezch pkrs ifce",
+//   },
+// });
+// async function sendInvoiceEmail(params: {
+//   sb: SupabaseClient;
+//   bucket: string;
+//   path: string;
+//   to: string;
+//   parentName: string;
+//   farmName: string;
+//   documentNumber?: string | null;
+// }) {
+// const { sb, bucket, path, to, parentName, farmName, documentNumber } = params;
 
-  // 1) הורדת ה-PDF מה-Storage
-  const { data, error } = await sb.storage.from(bucket).download(path);
-  if (error) throw new Error(`Failed to download invoice PDF: ${error.message}`);
-  if (!data) throw new Error("Invoice PDF is empty");
+//   // 1) הורדת ה-PDF מה-Storage
+//   const { data, error } = await sb.storage.from(bucket).download(path);
+//   if (error) throw new Error(`Failed to download invoice PDF: ${error.message}`);
+//   if (!data) throw new Error("Invoice PDF is empty");
 
-  const buffer = Buffer.from(await data.arrayBuffer());
+//   const buffer = Buffer.from(await data.arrayBuffer());
 
-  // 2) שליחת מייל
-  await mailTransport.sendMail({
-    from: `<ayelethury@gmail.com>`,
-    to,
-    subject: `חשבונית ${documentNumber ?? ""}`.trim(),
-    html: `
-      <div dir="rtl" style="font-family: Arial, sans-serif">
-        <p>שלום ${parentName},</p>
-        <p>מצורפת החשבונית עבור התשלום שבוצע.</p>
-    <p>תודה,<br/>חוות ${farmName}</p>
-      </div>
-    `,
-    attachments: [
-      {
-        filename: `invoice-${documentNumber ?? "payment"}.pdf`,
-        content: buffer,
-        contentType: "application/pdf",
-      },
-    ],
-  });
-}
-
-
+//   // 2) שליחת מייל
+//   await mailTransport.sendMail({
+//     from: `<ayelethury@gmail.com>`,
+//     to,
+//     subject: `חשבונית ${documentNumber ?? ""}`.trim(),
+//     html: `
+//       <div dir="rtl" style="font-family: Arial, sans-serif">
+//         <p>שלום ${parentName},</p>
+//         <p>מצורפת החשבונית עבור התשלום שבוצע.</p>
+//     <p>תודה,<br/>חוות ${farmName}</p>
+//       </div>
+//     `,
+//     attachments: [
+//       {
+//         filename: `invoice-${documentNumber ?? "payment"}.pdf`,
+//         content: buffer,
+//         contentType: "application/pdf",
+//       },
+//     ],
+//   });
+// }
 export const ensureTranzilaInvoiceForPayment = onRequest(
   {
     invoker: "public",
-    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_APP_KEY_S, TRANZILA_SECRET_S],
+    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_APP_KEY_S, TRANZILA_SECRET_S, INTERNAL_CALL_SECRET_S],
   },
   async (req, res) => {
-    const rid = crypto.randomBytes(6).toString("hex");
     try {
       if (handleCors(req, res)) return;
+      if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
 
-      if (req.method !== "POST") {
-        res.status(405).send("Method Not Allowed");
-        return;
-      }
-
-      const { tenantSchema, paymentId, debugOnly } = req.body as {
-        tenantSchema: string;
-        paymentId: string;
-        debugOnly?: boolean;
-      };
-
-
+      const { tenantSchema, paymentId } = req.body as any;
       if (!tenantSchema || !paymentId) {
         res.status(400).json({ ok: false, error: "missing tenantSchema/paymentId" });
         return;
       }
 
-      const sb = getSupabaseForTenant(tenantSchema);
-
-      // ===== 1) Load payment =====
-      const { data: pay, error: pErr } = await sb
-        .from("payments")
-        .select("id, amount, date, parent_uid, charge_id, tranzila_retrieval_key, tranzila_document_id, tranzila_document_number , invoice_status, payment_profile_id")
-        .eq("id", paymentId)
-        .maybeSingle();
-
-      if (pErr) throw new Error(`payments select failed: ${pErr.message}`);
-      if (!pay) {
-        res.status(404).json({ ok: false, error: "payment not found" });
-        return;
-      }
-
-      const payment = pay as PaymentRow;
-      let paymentMethodText = "אשראי"; // ברירת מחדל (כמו היום)
-let ccLast4: string | undefined;
-
-if (payment.payment_profile_id) {
-  const { data: prof, error: profErr } = await sb
-    .from("payment_profiles")
-    .select("id, brand, last4")
-    .eq("id", payment.payment_profile_id)
-    .maybeSingle();
-
-  if (profErr) throw new Error(`payment_profiles query failed: ${profErr.message}`);
-
-  const ppr = prof as PaymentProfileRow | null;
-    ccLast4 = (ppr?.last4 ?? "").trim().slice(-4);
-
-
-  if (ppr?.last4) {
-    const brand = (ppr.brand || "כרטיס").trim();
-    paymentMethodText = `${brand} ****${ppr.last4}`;
-  } else if (ppr) {
-    // יש פרופיל אבל אין last4
-    paymentMethodText = ppr.brand?.trim() || "כרטיס אשראי";
+      const out = await ensureTranzilaInvoiceForPaymentInternal({ tenantSchema, paymentId });
+      res.json(out);
+    } catch (e: any) {
+      console.error("[ensureTranzilaInvoiceForPayment] error:", e);
+      res.status(500).json({ ok: false, error: e?.message ?? "internal error" });
+    }
   }
-}
+);
 
-// אם כבר במצב generating - לא מייצרים שוב
-if ((payment as any).invoice_status === 'generating') {
-  res.status(409).json({ ok: false, error: 'invoice is generating, try again in a moment' });
-  return;
-}
 
-// נסמן generating רק אם אין retrieval_key
-const { data: lockRow, error: lockErr } = await sb
-  .from('payments')
-  .update({ invoice_status: 'generating', invoice_updated_at: new Date().toISOString() })
-  .eq('id', paymentId)
-  .is('tranzila_retrieval_key', null)     // חשוב!
-  .select('id')
-  .maybeSingle();
 
-if (lockErr) throw new Error(`lock update failed: ${lockErr.message}`);
+export async function ensureTranzilaInvoiceForPaymentInternal(args: {
+  tenantSchema: string;
+  paymentId: string;
+  extraLineText?: string | null; // ✅ חדש
 
-// אם לא ננעל -> כנראה שמישהו אחר כבר שמר retrieval_key או התחיל
-if (!lockRow) {
-  // נטען שוב ונחזיר cache אם כבר נוצר
-  const { data: pay2 } = await sb
+}): Promise<{
+  ok: boolean;
+  from_cache: boolean;
+  document_id: string | number | null;
+  document_number: string | null;
+  retrieval_key: string;
+  tranzila_pdf_url: string;
+  public_invoice_url: string | null;
+}> {
+  const { tenantSchema, paymentId } = args;
+const extra = (args.extraLineText ?? '').trim();
+
+  const sb = getSupabaseForTenant(tenantSchema);
+  const rid = crypto.randomBytes(6).toString("hex");
+
+  // ===== 1) Load payment =====
+  const { data: pay, error: pErr } = await sb
     .from("payments")
-    .select("tranzila_retrieval_key, tranzila_document_id, tranzila_document_number")
+    .select("id, amount, date, parent_uid, charge_id, tranzila_retrieval_key, tranzila_document_id, tranzila_document_number , invoice_status, payment_profile_id, invoice_url, invoice_storage_bucket, invoice_storage_path")
     .eq("id", paymentId)
     .maybeSingle();
 
-  if (pay2?.tranzila_retrieval_key) {
-    const url = `https://my.tranzila.com/api/get_financial_document/${pay2.tranzila_retrieval_key}`;
-    res.json({ ok: true, from_cache: true, retrieval_key: pay2.tranzila_retrieval_key, url });
-   
-    return;
+  if (pErr) throw new Error(`payments select failed: ${pErr.message}`);
+  if (!pay) throw new Error("payment not found");
+
+  const payment = pay as PaymentRow;
+
+  // Cache hit
+  if (payment.tranzila_retrieval_key) {
+    const url = `https://my.tranzila.com/api/get_financial_document/${payment.tranzila_retrieval_key}`;
+    return {
+      ok: true,
+      from_cache: true,
+      document_id: payment.tranzila_document_id ?? null,
+      document_number: payment.tranzila_document_number ?? null,
+      retrieval_key: payment.tranzila_retrieval_key,
+      tranzila_pdf_url: url,
+      public_invoice_url: (payment as any).invoice_url ?? null,
+    };
   }
 
-  res.status(409).json({ ok: false, error: "invoice request already in progress" });
-  return;
-}
-if (!payment.charge_id) {
-  await sb.from("payments").update({
-    invoice_status: "failed",
-    invoice_updated_at: new Date().toISOString(),
-  }).eq("id", paymentId);
-
-  res.status(400).json({ ok: false, error: "payment has no charge_id - cannot build invoice details" });
-  return;
-}
-      
-
-      // Cache hit
-      if (payment.tranzila_retrieval_key) {
-        const url = `https://my.tranzila.com/api/get_financial_document/${payment.tranzila_retrieval_key}`;
-        res.json({
-          ok: true,
-          from_cache: true,
-          document_id: payment.tranzila_document_id ?? null,
-          document_number: payment.tranzila_document_number ?? null,
-          retrieval_key: payment.tranzila_retrieval_key,
-          url,
-        });
-        return;
-      }
-
-      // ===== 2) Load parent (from tenant parents table) =====
-      let parentFullName = "הורה";
-      let parentIdNumber: string | null = null;
-      let parentEmail: string | null = null;
-
-      if (payment.parent_uid) {
-        const { data: parent, error: parentErr } = await sb
-          .from("parents")
-          .select("uid, first_name, last_name, id_number, email")
-          .eq("uid", payment.parent_uid)
-          .maybeSingle();
-
-        if (parentErr) throw new Error(`parents query failed: ${parentErr.message}`);
-
-        const pr = parent as ParentRow | null;
-        parentFullName = safeFullName(pr?.first_name, pr?.last_name);
-        parentIdNumber = pr?.id_number ?? null;
-        parentEmail = pr?.email ?? null;
-      }
-
-      // ===== 3) Load ALL lesson billing items for this charge =====
-const { data: lbiRows, error: lbiErr } = await sb
-  .from("lesson_billing_items")
-  .select("occur_date, child_id, unit_price_agorot, quantity, amount_agorot")
-  .eq("charge_id", payment.charge_id)
-  .order("occur_date", { ascending: true });
-
-if (lbiErr) throw new Error(`lesson_billing_items query failed: ${lbiErr.message}`);
-const lessons = (lbiRows ?? []) as LessonBillingItemRow[];
-// ===== Load children names for all child_id in lessons =====
-const childIds = Array.from(new Set(lessons.map((r) => r.child_id).filter(Boolean)));
-
-let childNameById = new Map<string, string>();
-
-if (childIds.length) {
-  const { data: childRows, error: chErr } = await sb
-    .from("children")
-.select("child_uuid, first_name, last_name, gov_id")
-    .in("child_uuid", childIds);
-
-  if (chErr) throw new Error(`children query failed: ${chErr.message}`);
-
-  for (const c of childRows ?? []) {
-    const full = [c.first_name, c.last_name].filter(Boolean).join(" ").trim();
-const govId = (c.gov_id ?? "").trim();
-const label = govId ? `${full} (${govId})` : full;
-childNameById.set(c.child_uuid, label || "ילד/ה");
+  // מניעת כפילויות
+  if ((payment as any).invoice_status === "generating") {
+    throw new Error("invoice is generating, try again in a moment");
   }
-}
 
-if (!lessons.length) {
-  await sb.from("payments").update({
-    invoice_status: "failed",
-    invoice_updated_at: new Date().toISOString(),
-  }).eq("id", paymentId);
+  const { data: lockRow, error: lockErr } = await sb
+    .from("payments")
+    .update({ invoice_status: "generating", invoice_updated_at: new Date().toISOString() })
+    .eq("id", paymentId)
+    .is("tranzila_retrieval_key", null)
+    .select("id")
+    .maybeSingle();
 
-  res.status(400).json({ ok: false, error: "no lesson_billing_items found for this charge_id" });
-  return;
-}
-// ===== 4) Load credits related to this charge (optional) =====
-const { data: creditRows, error: cErr } = await sb
-  .from("parent_credits")
-  .select("id, amount_agorot, reason, related_charge_id, created_at")
-  .eq("related_charge_id", payment.charge_id);
+  if (lockErr) throw new Error(`lock update failed: ${lockErr.message}`);
+  if (!lockRow) {
+    const { data: pay2 } = await sb
+      .from("payments")
+      .select("tranzila_retrieval_key, tranzila_document_id, tranzila_document_number, invoice_url")
+      .eq("id", paymentId)
+      .maybeSingle();
 
-// אופציונלי מומלץ אם תמיד יש parent_uid:
-if (cErr) throw new Error(`parent_credits query failed: ${cErr.message}`);
-const credits = (creditRows ?? []) as ParentCreditRow[];
-// ===== Build invoice line items (lessons + credits) =====
-const lessonItems = lessons.map((r) => {
-  const lineILS = Number((Number(r.amount_agorot) / 100).toFixed(2));
-  const childName = childNameById.get(r.child_id) ?? "ילד/ה";
-  return {
-    name: `שיעור - ${childName} - ${r.occur_date}`,
-    unit_price: lineILS,
-    units_number: 1,
-    unit_type: 1,
-    currency_code: "ILS",
-  };
-});
-
-const creditItems = credits.map((c) => {
-  const lineILS = Number((-Math.abs(Number(c.amount_agorot)) / 100).toFixed(2));
-  return {
-    name: `זיכוי: ${c.reason}`,
-    unit_price: lineILS,
-    units_number: 1,
-    unit_type: 1,
-    currency_code: "ILS",
-  };
-});
-
-const items = [...lessonItems, ...creditItems];
-
-// סכומים באגורות
-const lessonsAg = lessons.reduce((s, r) => s + Number(r.amount_agorot || 0), 0);
-const creditsAg = credits.reduce((s, c) => s + Math.abs(Number(c.amount_agorot || 0)), 0);
-
-const netAg = lessonsAg - creditsAg;
-const netILS = Number((netAg / 100).toFixed(2));
-
-if (!Number.isFinite(netILS) || netILS <= 0) {
-  throw new Error(`invalid net amount: lessonsAg=${lessonsAg}, creditsAg=${creditsAg}, netAg=${netAg}`);
-}
-
-      // ===== 4) Load terminal =====
-      const terminal = await loadDefaultBillingTerminal(sb);
-
-      // ===== 5) Tranzila create_document =====
-      const auth = buildTranzilaAuth();
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "X-tranzila-api-app-key": auth.appKey,
-        "X-tranzila-api-request-time": auth.requestTime,
-        "X-tranzila-api-nonce": auth.nonce,
-        "X-tranzila-api-access-token": auth.accessToken,
+    if (pay2?.tranzila_retrieval_key) {
+      const url = `https://my.tranzila.com/api/get_financial_document/${pay2.tranzila_retrieval_key}`;
+      return {
+        ok: true,
+        from_cache: true,
+        document_id: pay2.tranzila_document_id ?? null,
+        document_number: pay2.tranzila_document_number ?? null,
+        retrieval_key: pay2.tranzila_retrieval_key,
+        tranzila_pdf_url: url,
+        public_invoice_url: (pay2 as any).invoice_url ?? null,
       };
-const documentDate = new Date().toISOString().slice(0, 10);
-const paymentDate = payment.date ?? documentDate;
-const paymentMethodCode = payment.payment_profile_id ? 1 : 10;
-const paymentMethodDescription = payment.payment_profile_id ? "כרטיס אשראי" : "אחר";
+    }
 
+    throw new Error("invoice request already in progress");
+  }
 
-const vatPercent = vatPercentByDate(documentDate);
-const payload: any = {
-  terminal_name: terminal.terminal_name,
-  document_date: documentDate,
-  document_type: "IR",
-  document_language: "heb",
-  document_currency_code: "ILS",
-  action: 1,
+  if (!payment.charge_id) {
+    await sb.from("payments").update({
+      invoice_status: "failed",
+      invoice_updated_at: new Date().toISOString(),
+    }).eq("id", paymentId);
+    throw new Error("payment has no charge_id - cannot build invoice details");
+  }
 
-  vat_percent: vatPercent,
+  // ===== payment_profile -> last4 =====
+  let ccLast4: string | undefined;
+  if (payment.payment_profile_id) {
+    const { data: prof, error: profErr } = await sb
+      .from("payment_profiles")
+      .select("id, brand, last4")
+      .eq("id", payment.payment_profile_id)
+      .maybeSingle();
+    if (profErr) throw new Error(`payment_profiles query failed: ${profErr.message}`);
+    ccLast4 = (prof?.last4 ?? "").trim().slice(-4) || undefined;
+  }
 
- client_company: buildClientCompanyBlock(parentFullName, parentIdNumber),
-client_email: parentEmail ?? undefined,
+  // ===== 2) Load parent =====
+  let parentFullName = "הורה";
+  let parentIdNumber: string | null = null;
+  let parentEmail: string | null = null;
 
-// // חשוב: לא לשלוח client_name ולא client_id בכלל
-// client_name: undefined,
-// client_id: undefined,
+  if (payment.parent_uid) {
+    const { data: parent, error: parentErr } = await sb
+      .from("parents")
+      .select("uid, first_name, last_name, id_number, email")
+      .eq("uid", payment.parent_uid)
+      .maybeSingle();
+    if (parentErr) throw new Error(`parents query failed: ${parentErr.message}`);
 
-  items, // ✅ כל השורות (שיעורים + זיכויים)
+    const pr = parent as ParentRow | null;
+    parentFullName = safeFullName(pr?.first_name, pr?.last_name);
+    parentIdNumber = pr?.id_number ?? null;
+    parentEmail = pr?.email ?? null;
+  }
 
-  payments: [
-    {
-  payment_method: 1,          // ✅ כרטיס אשראי (עמודת "אמצעי תשלום" תפסיק להיות "אחר")
-    payment_date: paymentDate,
-    amount: netILS,
-    currency_code: "ILS",
+  // ===== 3) lesson items =====
+  const { data: lbiRows, error: lbiErr } = await sb
+    .from("lesson_billing_items")
+    .select("occur_date, child_id, unit_price_agorot, quantity, amount_agorot")
+    .eq("charge_id", payment.charge_id)
+    .order("occur_date", { ascending: true });
 
-    cc_last_4_digits: ccLast4 || undefined, // ✅ 3649
-    cc_credit_term: 1,       
-    },
-  ],
+  if (lbiErr) throw new Error(`lesson_billing_items query failed: ${lbiErr.message}`);
+  const lessons = (lbiRows ?? []) as LessonBillingItemRow[];
 
-  response_language: "eng",
-};
-const itemsSumILS = Number(
-  items.reduce((s, it) => s + Number(it.unit_price) * Number(it.units_number ?? 1), 0).toFixed(2)
-);
+  if (!lessons.length) {
+    await sb.from("payments").update({
+      invoice_status: "failed",
+      invoice_updated_at: new Date().toISOString(),
+    }).eq("id", paymentId);
+    throw new Error("no lesson_billing_items found for this charge_id");
+  }
 
+  // children names
+  const childIds = Array.from(new Set(lessons.map((r) => r.child_id).filter(Boolean)));
+  const childNameById = new Map<string, string>();
 
+  if (childIds.length) {
+    const { data: childRows, error: chErr } = await sb
+      .from("children")
+      .select("child_uuid, first_name, last_name, gov_id")
+      .in("child_uuid", childIds);
 
-      const resp = await fetch("https://billing5.tranzila.com/api/documents_db/create_document", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
+    if (chErr) throw new Error(`children query failed: ${chErr.message}`);
 
-      const raw = await resp.text();
-      let json: any = null;
-      try {
-        json = JSON.parse(raw);
-      } catch {
-        // keep raw
-      }
+    for (const c of childRows ?? []) {
+      const full = [c.first_name, c.last_name].filter(Boolean).join(" ").trim();
+      const govId = (c.gov_id ?? "").trim();
+      const label = govId ? `${full} (${govId})` : full;
+      childNameById.set(c.child_uuid, label || "ילד/ה");
+    }
+  }
 
-      
-      if (!resp.ok) {
-        res.status(500).json({ ok: false, error: `tranzila http ${resp.status}`, raw: json ?? raw });
-        return;
-      }
+  // credits
+  const { data: creditRows, error: cErr } = await sb
+    .from("parent_credits")
+    .select("id, amount_agorot, reason, related_charge_id, created_at")
+    .eq("related_charge_id", payment.charge_id);
 
-      if (!json || String(json.status_code) !== "0") {
-  res.status(500).json({
-    ok: false,
-    error: `tranzila create_document failed (${json?.status_code ?? "no_code"}): ${json?.status_msg ?? "no_msg"}`,
-    raw: json ?? raw,
+  if (cErr) throw new Error(`parent_credits query failed: ${cErr.message}`);
+  const credits = (creditRows ?? []) as ParentCreditRow[];
+
+  const lessonItems = lessons.map((r) => {
+    const lineILS = Number((Number(r.amount_agorot) / 100).toFixed(2));
+    const childName = childNameById.get(r.child_id) ?? "ילד/ה";
+    return { name: `שיעור - ${childName} - ${r.occur_date}`, unit_price: lineILS, units_number: 1, unit_type: 1, currency_code: "ILS" };
   });
-  await sb.from("payments").update({
-  invoice_status: "failed",
-  invoice_updated_at: new Date().toISOString(),
-}).eq("id", paymentId);
 
-  return;
+  const creditItems = credits.map((c) => {
+    const lineILS = Number((-Math.abs(Number(c.amount_agorot)) / 100).toFixed(2));
+    return { name: `זיכוי: ${c.reason}`, unit_price: lineILS, units_number: 1, unit_type: 1, currency_code: "ILS" };
+  });
+
+  const items = [...lessonItems, ...creditItems];
+if (extra) {
+  items.push({
+    name: extra.slice(0, 60),
+    unit_price: 0,
+    units_number: 1,
+    unit_type: 1,
+    currency_code: "ILS",
+  });
 }
 
+  const lessonsAg = lessons.reduce((s, r) => s + Number(r.amount_agorot || 0), 0);
+  const creditsAg = credits.reduce((s, c) => s + Math.abs(Number(c.amount_agorot || 0)), 0);
+  const netAg = lessonsAg - creditsAg;
+  const netILS = Number((netAg / 100).toFixed(2));
 
-      const documentId = json?.document?.id ?? null;
-      const documentNumber = json?.document?.number ?? null;
+  if (!Number.isFinite(netILS) || netILS <= 0) throw new Error("invalid net amount");
 
-      const retrievalKey =
-        json?.retrieval_key ??
-        json?.document?.retrieval_key ??
-        json?.document?.retrievalKey ??
-        json?.retrievalKey ??
-        null;
+  // ===== 4) terminal =====
+  const terminal = await loadDefaultBillingTerminal(sb);
 
-      if (!retrievalKey) {
-        res.status(500).json({
-          ok: false,
-          error: "missing retrieval_key from tranzila",
-          raw: json ?? raw,
-        });
-        return;
-      }
+  // ===== 5) Tranzila create_document =====
+  const auth = buildTranzilaAuth();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-tranzila-api-app-key": auth.appKey,
+    "X-tranzila-api-request-time": auth.requestTime,
+    "X-tranzila-api-nonce": auth.nonce,
+    "X-tranzila-api-access-token": auth.accessToken,
+  };
 
-      const url = `https://my.tranzila.com/api/get_financial_document/${retrievalKey}`;
-// ===== Save PDF to Supabase Storage =====
-const stored = await saveInvoicePdfToSupabase({
-  sb,
-  tenantSchema,
-  paymentId,
-  invoiceUrl: url,
-  paymentDate, // ✅ חשוב: לפי payments.date
-});
+  const documentDate = new Date().toISOString().slice(0, 10);
+  const paymentDate = payment.date ?? documentDate;
+  const vatPercent = vatPercentByDate(documentDate);
 
-      if (debugOnly) {
-        res.json({
-          ok: true,
-          debugOnly: true,
-          from_cache: false,
-          document_id: documentId,
-          document_number: documentNumber,
-          retrieval_key: retrievalKey,
-          url,
-        });
-        return;
-      }
+  const payload: any = {
+    terminal_name: terminal.terminal_name,
+    document_date: documentDate,
+    document_type: "IR",
+    document_language: "heb",
+    document_currency_code: "ILS",
+    action: 1,
+    vat_percent: vatPercent,
+    client_company: buildClientCompanyBlock(parentFullName, parentIdNumber),
+    client_email: parentEmail ?? undefined,
+    items,
+    payments: [
+      {
+        payment_method: 1,
+        payment_date: paymentDate,
+        amount: netILS,
+        currency_code: "ILS",
+        cc_last_4_digits: ccLast4 || undefined,
+        cc_credit_term: 1,
+      },
+    ],
+    response_language: "eng",
+  };
 
-      // ===== 6) Persist to payments =====
-   const { error: uErr } = await sb
-  .from("payments")
-  .update({
-    tranzila_document_id: documentId,
-    tranzila_document_number: documentNumber,
-    tranzila_retrieval_key: retrievalKey,
-    invoice_status: "ready",
-    invoice_updated_at: new Date().toISOString(),
-    tranzila_invoice_url: url,
+  const resp = await fetch("https://billing5.tranzila.com/api/documents_db/create_document", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
 
-    invoice_storage_bucket: stored.bucket,
-    invoice_storage_path: stored.path,
-  })
-  .eq("id", paymentId);
-// ===== Send invoice email to parent =====
-const farmName = await getFarmNameBySchema(tenantSchema);
+  const rawText = await resp.text();
+  let json: any = null;
+  try { json = JSON.parse(rawText); } catch {}
 
+  if (!resp.ok || !json || String(json.status_code) !== "0") {
+    await sb.from("payments").update({
+      invoice_status: "failed",
+      invoice_updated_at: new Date().toISOString(),
+    }).eq("id", paymentId);
+
+    throw new Error(`tranzila create_document failed: ${json?.status_msg ?? rawText}`);
+  }
+
+  const documentId = json?.document?.id ?? null;
+  const documentNumber = json?.document?.number ?? null;
+
+  const retrievalKey =
+    json?.retrieval_key ??
+    json?.document?.retrieval_key ??
+    json?.retrievalKey ??
+    null;
+
+  if (!retrievalKey) throw new Error("missing retrieval_key from tranzila");
+
+  const tranzilaPdfUrl = `https://my.tranzila.com/api/get_financial_document/${retrievalKey}`;
+
+  // ===== Save PDF to storage =====
+  const stored = await saveInvoicePdfToSupabase({
+    sb,
+    tenantSchema,
+    paymentId,
+    invoiceUrl: tranzilaPdfUrl,
+    paymentDate,
+  });
+
+  // ===== public url =====
+  const { data: pub } = sb.storage.from(stored.bucket).getPublicUrl(stored.path);
+  const publicInvoiceUrl = (pub as any).publicUrl + "?v=" + Date.now();
+
+  // ===== update payments =====
+  const { error: uErr } = await sb
+    .from("payments")
+    .update({
+      invoice_url: publicInvoiceUrl,
+      invoice_status: "ready",
+      invoice_updated_at: new Date().toISOString(),
+      tranzila_document_id: documentId,
+      tranzila_document_number: documentNumber,
+      tranzila_retrieval_key: retrievalKey,
+      tranzila_invoice_url: tranzilaPdfUrl,
+      invoice_storage_bucket: stored.bucket,
+      invoice_storage_path: stored.path,
+    })
+    .eq("id", paymentId);
+
+  if (uErr) throw new Error(`payments update failed: ${uErr.message}`);
+
+  // ===== send email =====
+  // try {
+  //   if (parentEmail) {
+  //     const farmName = await getFarmNameBySchema(tenantSchema);
+  //     await sendInvoiceEmail({
+  //       sb,
+  //       bucket: stored.bucket,
+  //       path: stored.path,
+  //       to: parentEmail,
+  //       parentName: parentFullName,
+  //       farmName,
+  //       documentNumber,
+  //     });
+  //   }
+  // } catch (err: any) {
+  //   console.error(`[ensureInvoiceInternal][${rid}] mail failed`, err?.message || err);
+  // }
 try {
   if (parentEmail) {
-   await sendInvoiceEmail({
-  sb,
-  bucket: stored.bucket,
-  path: stored.path,
-  to: parentEmail,
-  parentName: parentFullName,
-  farmName,
-  documentNumber,
-});
+    const farmName = await getFarmNameBySchema(tenantSchema);
 
-  } else {
+    const internalCallSecret =
+      INTERNAL_CALL_SECRET_S.value() || process.env.INTERNAL_CALL_SECRET;
+    if (!internalCallSecret) throw new Error("Missing INTERNAL_CALL_SECRET");
+
+    const SEND_EMAIL_GMAIL_URL =
+      "https://us-central1-bereshit-ac5d8.cloudfunctions.net/sendEmailGmail";
+
+    await sendInvoiceEmailViaGmailCF({
+      sb,
+      bucket: stored.bucket,
+      path: stored.path,
+
+      to: parentEmail,
+      parentName: parentFullName,
+      farmName,
+      documentNumber,
+
+      tenantSchema,
+      sendEmailGmailUrl: SEND_EMAIL_GMAIL_URL,
+      internalCallSecret,
+    });
   }
 } catch (err: any) {
-  console.error(
-    `[ensureInvoice][${rid}] Failed to send invoice email`,
-    err?.message || err
-  );
+  console.error(`[ensureInvoiceInternal][${rid}] mail failed`, err?.message || err);
 }
 
-if (uErr) throw new Error(`payments update failed: ${uErr.message}`);
-
-      res.json({
-        ok: true,
-        from_cache: false,
-        document_id: documentId,
-        document_number: documentNumber,
-        retrieval_key: retrievalKey,
-        url,
-      });
-    } catch (e: any) {
-  console.error(`[ensureInvoice][${rid}] error:`, e);
-
-  // אל תשאירי generating תקוע (אם כבר ננעל)
-  try {
-    const { tenantSchema, paymentId } = (req.body ?? {}) as any;
-    if (tenantSchema && paymentId) {
-      const sb2 = getSupabaseForTenant(tenantSchema);
-      await sb2.from("payments").update({
-        invoice_status: "failed",
-        invoice_updated_at: new Date().toISOString(),
-      }).eq("id", paymentId);
-    }
-  } catch {}
-
-  res.status(500).json({ ok: false, error: e?.message ?? "internal error" });
-}
-
+  return {
+    ok: true,
+    from_cache: false,
+    document_id: documentId,
+    document_number: documentNumber ? String(documentNumber) : null,
+    retrieval_key: String(retrievalKey),
+    tranzila_pdf_url: tranzilaPdfUrl,
+    public_invoice_url: publicInvoiceUrl,
+  };
   }
-);

@@ -1,0 +1,30 @@
+<div class="req" dir="rtl">
+  <div class="req-head">
+    <div class="req-title">הוספת הורה חדש</div>
+
+    <div class="meta">
+      <div><b>שם מלא:</b> {{ fullName }}</div>
+      <div><b>טלפון:</b> {{ parentMeta.phone || '—' }}</div>
+      <div><b>אימייל:</b> {{ parentMeta.email || '—' }}</div>
+      <div><b>ת.ז:</b> {{ parentMeta.id_number || '—' }}</div>
+      <div><b>כתובת:</b> {{ parentMeta.address || '—' }}</div>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <label>הערה להחלטה (אופציונלי)</label>
+    <textarea [(ngModel)]="decisionNote" rows="2" placeholder="לתיעוד / למזכירות..."></textarea>
+  </div>
+
+  <div class="actions" *ngIf="isSecretary">
+    <button class="btn reject" (click)="reject()" [disabled]="loading()">
+      דחייה
+    </button>
+    <button class="btn approve" (click)="approve()" [disabled]="loading()">
+      אישור
+    </button>
+  </div>
+
+  <div class="err" *ngIf="errText()">{{ errText() }}</div>
+
+</div>

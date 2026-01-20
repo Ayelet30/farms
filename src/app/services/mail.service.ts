@@ -5,7 +5,7 @@ import { getAuth } from 'firebase/auth';
 export class MailService {
   // שימי את ה-URL של הפונקציה שלך
   private readonly endpoint =
-    'https://us-central1-bereshit-ac5d8.cloudfunctions.net/sendEmail';
+    'https://us-central1-bereshit-ac5d8.cloudfunctions.net/sendEmailGmail';
 
   async sendEmail(args: {
     tenantSchema: string;
