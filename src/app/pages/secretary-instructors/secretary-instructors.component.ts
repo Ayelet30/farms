@@ -605,7 +605,6 @@ async loadRidingTypes() {
     try {
       const dbcTenant = dbTenant();
       const updates: any = {
-          status: m.status ?? null, 
         first_name: m.first_name.trim(),
         last_name: m.last_name.trim(),
         phone,

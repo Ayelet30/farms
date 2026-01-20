@@ -762,3 +762,16 @@ host {
   font-size: 13px;
   color: #c44;
 }
+.availability-card.locked {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.locked-banner {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #fff4e5;
+  border: 1px solid #f0c36d;
+  padding: 12px;
+  margin-bottom: 12px;
+}
