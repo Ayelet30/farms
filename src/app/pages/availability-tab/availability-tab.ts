@@ -226,6 +226,12 @@ this.ridingTypes.sort((a, b) => {
       this.days = raw;
       
       this.originalDays = JSON.parse(JSON.stringify(this.days));
+      for (const day of this.days) {
+  if (!day.slots || day.slots.length === 0) {
+    day.active = false;
+  }
+}
+
     }
 
     if (data.notify) {
@@ -394,12 +400,6 @@ addSlot(day: DayAvailability) {
   /* ===================== SAVE ===================== */
 
   async saveAvailability() {
-    if (this.days.some(d =>
-  d.active && d.slots.some(s => s.hasError)
-)) {
-  this.toast('יש שגיאות בטווחי השעות');
-  return;
-}
 
     // ולידציה בסיסית לפני שמירה (כולל חובה לבחור רכיבה)
     for (const day of this.days) {
@@ -539,6 +539,14 @@ if (rpcError) {
   this.isDirty = false;
   this.toast('✔ הזמינות נשמרה');
   this.originalDays = JSON.parse(JSON.stringify(this.days));
+  // ניקוי שגיאות ויזואליות אחרי שמירה מוצלחת
+for (const day of this.days) {
+  for (const slot of day.slots) {
+    slot.hasError = false;
+    slot.errorMessage = null;
+  }
+}
+
 }
 
 
