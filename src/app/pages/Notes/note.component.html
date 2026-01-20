@@ -26,15 +26,19 @@
 </button>
 
       <!-- WARNINGS -->
-      <div class="presence-error top-warning" *ngIf="mustChooseAttendance">
-        חובה לבחור נוכחות (הגיע / לא הגיע) לפני סגירת הכרטיסייה.
-      </div>
+<!-- WARNINGS -->
+<div
+  class="presence-error top-warning"
+  *ngIf="!occurrence?.isCancelled && mustChooseAttendance">
+  חובה לבחור נוכחות (הגיע / לא הגיע) לפני סגירת הכרטיסייה.
+</div>
 
-      <div
-        class="presence-error top-warning"
-        *ngIf="!mustChooseAttendance && mustFillNoteForPresent">
-        לאחר סימון "הגיע" – חובה להוסיף הערה חדשה לפני סגירת הכרטיסייה.
-      </div>
+<div
+  class="presence-error top-warning"
+  *ngIf="!occurrence?.isCancelled && !mustChooseAttendance && mustFillNoteForPresent">
+  לאחר סימון "הגיע" – חובה להוסיף הערה חדשה לפני סגירת הכרטיסייה.
+</div>
+
 
       <!-- CONTENT -->
       <mat-card-content class="scrollable-content">
@@ -180,7 +184,7 @@
  
 <div
   class="makeup-card"
-  *ngIf="lessonDetails?.status === 'בוטל'">
+  *ngIf="lessonDetails?.status === 'בוטל' && canEditMakeupAllowed">
 
   <div class="makeup-header">
     <mat-icon>cached</mat-icon>

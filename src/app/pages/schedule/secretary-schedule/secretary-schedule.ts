@@ -79,6 +79,14 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     try {
       await ensureTenantContextReady();
 
+const { data: ridingTypes } = await dbTenant()
+  .from('riding_types')
+  .select('id, name');
+
+this.ridingTypes = ridingTypes || [];
+
+      await ensureTenantContextReady();
+
       this.unsubTenantChange = onTenantChange(async () => {
         await this.reloadAll();
       });
@@ -111,9 +119,11 @@ private hashString(str: string): number {
 private rebuildInstructorResources(): void {
   // אם לא מסומן כלום – נתייחס כאילו כולם מסומנים
   const activeIds =
-    this.selectedInstructorIds.length
-      ? this.selectedInstructorIds
-      : this.instructors.map(i => i.id_number);
+  this.selectedInstructorIds.length
+    ? this.selectedInstructorIds
+    : this.instructors
+        .filter(i => i.status === 'Active')
+        .map(i => i.id_number);
 
   this.instructorResources = this.instructors
     .filter(i => activeIds.includes(i.id_number))
@@ -173,14 +183,15 @@ private calcChildAge(birthDate: string | null): string {
   if (m < 0 || (m === 0 && now.getDate() < d.getDate())) years--;
   return years > 0 ? years.toString() : '';
 }
+ridingTypes: { id: string; name: string }[] = [];
 
   private async loadInstructors(): Promise<void> {
     try {
       const dbc = dbTenant();
       const { data, error } = await dbc
-        .from('instructors')
-        .select('id_number, first_name, last_name, status')
-        .in('status', ['Active']);
+  .from('instructors')
+  .select('id_number, first_name, last_name, status');   // ✔ בלי סינון
+
 
       if (error) throw error;
 
@@ -202,9 +213,12 @@ if (!this.selectedInstructorIds.length) {
   if (this.instructorId) {
     this.selectedInstructorIds = [this.instructorId];
   } else {
-    this.selectedInstructorIds = this.instructors.map(i => i.id_number);
+    this.selectedInstructorIds = this.instructors
+      .filter(i => i.status === 'Active')
+      .map(i => i.id_number);
   }
 }
+
 
 // 👇 חדש
 this.rebuildInstructorResources();
@@ -232,7 +246,10 @@ this.rebuildInstructorResources();
   if (this.isAllInstructorsSelected) {
     this.selectedInstructorIds = [];
   } else {
-    this.selectedInstructorIds = this.instructors.map(i => i.id_number);
+this.selectedInstructorIds = this.instructors
+  .filter(i => i.status === 'Active')
+  .map(i => i.id_number);
+
   }
 
   this.rebuildInstructorResources();  // 👈
@@ -376,12 +393,13 @@ const isMakeupAllowed =
         start_time:  r.start_time,
         end_time:    r.end_time,
         lesson_type: r.lesson_type,
-        status:      r.status,
+      
         instructor_id:   r.instructor_id ?? '',
         instructor_name: instructorNameById.get(r.instructor_id) || '',
         child_color: this.getColorForChild(r.child_id),
         child_name:  nameByChild.get(r.child_id) || '',
         start_datetime: r.start_datetime ?? null,
+          status: finalStatus,   // 🔥 חובה
         end_datetime:   r.end_datetime ?? null,
         occur_date:     r.occur_date ?? null,
   is_makeup_allowed: isMakeupAllowed,
@@ -400,14 +418,16 @@ const isMakeupAllowed =
   /** סינון שיעורים לפי מדריכים מסומנים + טווח תצוגה */
   private filterLessons(): void {
     let src = [...this.lessons];
+if (!this.selectedInstructorIds.length) {
+  if (this.instructorId) {
+    this.selectedInstructorIds = [this.instructorId];
+  } else {
+    this.selectedInstructorIds = this.instructors
+      .filter(i => i.status === 'Active')
+      .map(i => i.id_number);
+  }
+}
 
-    if (!this.selectedInstructorIds.length) {
-      if (this.instructorId) {
-        this.selectedInstructorIds = [this.instructorId];
-      } else {
-        this.selectedInstructorIds = this.instructors.map(i => i.id_number);
-      }
-    }
 
     const selected = this.selectedInstructorIds.filter(Boolean);
 
@@ -687,16 +707,24 @@ let lessonId: string | null = meta.lesson_id ?? null;
       ? arg.event.start.toISOString().slice(0, 10)
       : null);
 
-  this.selectedOccurrence = {
-    lesson_id: lessonId,
-    child_id: childId,
-    occur_date: occurDate,
-    status: meta.status ?? null,
-    lesson_type: meta.lesson_type ?? null,
-    start: arg.event.start,
-    end: arg.event.end,
-    is_makeup_allowed: !!meta.is_makeup_allowed,
-  };
+  const rawStatus = String(meta.status ?? '').toLowerCase();
+const isCancelled =
+  rawStatus.includes('בוטל') ||
+  rawStatus.includes('מבוטל') ||
+  rawStatus.includes('cancel');
+
+this.selectedOccurrence = {
+  lesson_id: lessonId,
+  child_id: childId,
+  occur_date: occurDate,
+  status: meta.status ?? null,
+  lesson_type: meta.lesson_type ?? null,
+  start: arg.event.start,
+  end: arg.event.end,
+  is_makeup_allowed: !!meta.is_makeup_allowed,
+  isCancelled, // 👈 קריטי
+};
+
 
   console.log(
     '%c[SECRETARY EVENT CLICK] selectedOccurrence →',
@@ -804,7 +832,7 @@ async onToggleMakeupAllowed(checked: boolean) {
     const dbc = dbTenant();
 
     const { error } = await dbc
-      .schema('bereshit_farm')
+   
       .from('lesson_occurrence_exceptions')
       .upsert(
         {

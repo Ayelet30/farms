@@ -8,6 +8,8 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { dbPublic } from '../../../services/legacy-compat';
+
 
 import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import type { EventClickArg } from '@fullcalendar/core';
@@ -62,6 +64,8 @@ interface DayRequestRow {
   request_type: RequestType;
   status: RequestStatus;
   note?: string | null;
+
+  sick_note_file_path?: string | null;
 }
 
 /* ------------ COMPONENT ------------ */
@@ -85,6 +89,7 @@ export class InstructorScheduleComponent implements OnInit {
   currentView: CalendarView = 'timeGridWeek';
   currentDate = '';
    
+selectedSickFile: File | null = null;
 
 
   isFullscreen = false;
@@ -749,17 +754,8 @@ onRightClickDay(e: any): void {
 
   let localYmd: string | null = null;
 
-  // 🟢 עדיפות ל-Date אמיתי
-  if (e.date instanceof Date && !isNaN(e.date.getTime())) {
-    const d = e.date;
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    localYmd = `${y}-${m}-${day}`;
-  }
-
-  // 🟡 fallback בטוח
-  if (!localYmd && typeof e.dateStr === 'string') {
+  // ✅ הדרך הנכונה
+  if (typeof e.dateStr === 'string') {
     localYmd = e.dateStr.slice(0, 10);
   }
 
@@ -775,6 +771,7 @@ onRightClickDay(e: any): void {
 
   this.cdr.detectChanges();
 }
+
 
 
 
@@ -934,6 +931,10 @@ closeContextMenu(): void {
   this.contextMenu.visible = false;
 }
 
+onSickFileSelected(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  this.selectedSickFile = input.files?.[0] ?? null;
+}
 
   async openRequest(type: RequestType): Promise<void> {
     const date = this.contextMenu.date;
@@ -1025,6 +1026,37 @@ async confirmSaveAfterWarning(): Promise<void> {
   this.rangeModal.open = false;
 }
 
+
+private async uploadSickFile(
+  file: File,
+  requestId: string
+): Promise<string> {
+
+  const sb = dbPublic();
+  if (!sb || !sb.storage) {
+    throw new Error('Supabase public client not initialized');
+  }
+
+  const ext = file.name.split('.').pop();
+  if (!ext) {
+    throw new Error('Invalid file extension');
+  }
+
+  const path = `instructor_${this.instructorId}/request_${requestId}.${ext}`;
+
+  const { error } = await sb.storage
+    .from('sick_notes')
+    .upload(path, file, { upsert: true });
+
+  if (error) {
+    console.error('UPLOAD SICK FILE ERROR', error);
+    throw error;
+  }
+
+  return path;
+}
+
+
  private async saveRangeRequest(
   fromDate: string,
   toDate: string,
@@ -1068,6 +1100,19 @@ async confirmSaveAfterWarning(): Promise<void> {
     console.error('SAVE REQUEST ERROR', error);
     throw error;
   }
+// 🩺 אם זו בקשת מחלה ויש קובץ – מעלים אותו
+if (type === 'sick' && this.selectedSickFile) {
+  const path = await this.uploadSickFile(
+    this.selectedSickFile,
+    data.id
+  );
+
+  await dbc
+    .from('secretarial_requests')
+    .update({ sick_note_file_path: path })
+    .eq('id', data.id);
+}
+this.selectedSickFile = null;
 
   this.dayRequests.push(...this.expandRequestRow(data));
   this.setScheduleItems();

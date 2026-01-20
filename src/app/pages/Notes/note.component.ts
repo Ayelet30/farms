@@ -322,11 +322,19 @@ private hasAnyNote(): boolean {
 
 
 private recalcPresenceFlags() {
+  // ⛔ שיעור מבוטל – אין שום חובת נוכחות
+  if (this.occurrence?.isCancelled) {
+    this.mustChooseAttendance = false;
+    this.mustFillNoteForPresent = false;
+    return;
+  }
+
   if (!this.canMarkAttendanceNow()) {
     this.mustChooseAttendance = false;
     this.mustFillNoteForPresent = false;
     return;
   }
+
 
   this.mustChooseAttendance =
     this.enforceNoteForPresence && !this.attendanceStatus;
@@ -358,18 +366,31 @@ private recalcPresenceFlags() {
     return d.toISOString().substring(0, 10);
   }
 
-  private getOccurDateForDb(): string | null {
-    return this.extractDate(
-      this.occurrence?.occur_date ||
-        this.occurrence?.date ||
-        this.occurrence?.start ||
-        this.occurrence?.start_time
-    );
+ private getOccurDateForDb(): string | null {
+  const d = this.occurrence?.occur_date;
+  if (!d) return null;
+
+  // אם כבר YYYY-MM-DD
+  if (typeof d === 'string' && d.length >= 10) {
+    return d.substring(0, 10);
   }
+
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return null;
+
+  return dt.toISOString().slice(0, 10);
+}
+
 canMarkAttendanceNow(): boolean {
   if (!this.occurrence || !this.lessonDetails?.start_time) {
     return false;
   }
+
+  // ⛔ שיעור מבוטל – אין נוכחות בכלל
+  if (this.occurrence?.isCancelled) {
+    return false;
+  }
+
 
   const occurDate = this.getOccurDateForDb();
   if (!occurDate) return false;
@@ -523,13 +544,15 @@ async loadLessonDetails() {
   }
 
   /** 3️⃣ חריג – השלמה */
-  const { data: exception, error: excError } = await this.dbc
-    .schema('bereshit_farm')
-    .from('lesson_occurrence_exceptions')
-    .select('is_makeup_allowed')
-    .eq('lesson_id', lessonId)
-    .eq('occur_date', occurDate)
-    .maybeSingle();
+
+
+const { data: exception, error: excError } = await this.dbc
+  .from('lesson_occurrence_exceptions')
+  .select('is_makeup_allowed')
+  .eq('lesson_id', lessonId)
+  .eq('occur_date', occurDate)   // חייב להיות YYYY-MM-DD בלבד
+  .maybeSingle();
+
 
 
 
@@ -544,6 +567,8 @@ async loadLessonDetails() {
     end_time: lesson.end_time,
     lesson_type: lesson.lesson_type,
   status: this.occurrence?.status ?? lesson.status,
+
+    isCancelled: this.occurrence?.isCancelled === true,
 
     horse_id: resources?.horse_id ?? null,
     horse_name: horseName,
@@ -619,34 +644,30 @@ async loadLessonDetails() {
   }
   //CHECKDHCECK
 async onMakeupAllowedChange(newVal: boolean) {
-  if (!this.canEditNotes) return;           // רק מזכירה/מדריך
+  if (!this.canEditNotes) return;
+ 
   const r = this.effectiveRole();
-  if (r !== 'secretary' && r !== 'manager' && r !== 'admin') return; // אם את רוצה רק מזכירה
-
+  if (r !== 'secretary' && r !== 'manager' && r !== 'admin') return;
+ 
   const lessonId = this.occurrence?.lesson_id;
   const occurDate = this.getOccurDateForDb();
   if (!lessonId || !occurDate) return;
-
-  const { error } = await this.dbc
-    .schema('bereshit_farm')
+ 
+  const { error } = await dbTenant()
     .from('lesson_occurrence_exceptions')
-    .upsert(
-      {
-        lesson_id: lessonId,
-        occur_date: occurDate,
-        is_makeup_allowed: newVal,
-         status: 'בוטל', // 👈 זה החיבור החסר
-      },
-      { onConflict: 'lesson_id,occur_date' }
-    );
-
+    .update({ is_makeup_allowed: newVal })
+    .eq('lesson_id', lessonId)
+    .eq('occur_date', occurDate);
+ 
   if (error) {
-    console.error('[onMakeupAllowedChange] upsert error', error);
+    console.error('[onMakeupAllowedChange] update error', error);
     return;
   }
-
+ 
   this.lessonDetails.is_makeup_allowed = newVal;
 }
+ 
+
 
   /* ===================== ATTENDANCE ===================== */
 private async saveAttendance(status: AttendanceStatus | null) {

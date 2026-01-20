@@ -145,27 +145,23 @@
                 <mat-icon>delete</mat-icon>
               </button>
 
-              <div class="slot-box">
-<div class="time-error" *ngIf="slot.flashError">
-  שעת התחלה לא יכולה להיות מאוחרת משעת הסיום
-</div>
+             <div class="slot-box" [class.error]="slot.hasError">
+
+
 
                 <!-- התחלה -->
                 <div class="slot-field">
                   <label>שעת התחלה</label>
                   <div class="time-input">
                     <mat-icon class="clock-icon">schedule</mat-icon>
-                    <input
-                      type="time"
-                      [(ngModel)]="slot.start"
-                      [min]="farmStart"
-                      [max]="slot.end || farmEnd"
-                      (focus)="onSlotFocus(slot)"
-                     (ngModelChange)="onTimeTyping(day, slot)"
-
-                      (blur)="onTimeBlur(day, slot)"
-                      [disabled]="!allowEdit"
-                    />
+<input
+  type="time"
+  [(ngModel)]="slot.start"
+  (focus)="onSlotFocus(slot)"
+  (ngModelChange)="onTimeChange(day, slot)"
+  (blur)="onTimeBlur(day, slot)"
+  [disabled]="!allowEdit"
+/>
                   </div>
                 </div>
 
@@ -174,17 +170,16 @@
                   <label>שעת סיום</label>
                   <div class="time-input">
                     <mat-icon class="clock-icon">schedule</mat-icon>
-                    <input
-                      type="time"
-                      [(ngModel)]="slot.end"
-                      [min]="slot.start || farmStart"
-                      [max]="farmEnd"
-                      (focus)="onSlotFocus(slot)"
-                      (ngModelChange)="markDirty()"
-                      (blur)="onTimeBlur(day, slot)"
-                      [disabled]="!allowEdit"
-                    />
+<input
+  type="time"
+  [(ngModel)]="slot.end"
+  (focus)="onSlotFocus(slot)"
+  (ngModelChange)="onTimeChange(day, slot)"
+  (blur)="onTimeBlur(day, slot)"
+  [disabled]="!allowEdit"
+/>
                   </div>
+                  
                 </div>
 
                 <!-- סוג רכיבה -->
@@ -204,10 +199,13 @@
     {{ rt.name }}
   </option>
 </select>
-
+  <div class="slot-error" *ngIf="slot.hasError">
+    {{ slot.errorMessage }}
+  </div>
                 </div>
 
               </div>
+              
             </div>
 
             <button

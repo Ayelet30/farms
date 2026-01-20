@@ -683,3 +683,82 @@ host {
   margin-top: 4px;
   font-weight: 600;
 }
+.time-input.error {
+  border: 1.5px solid #d64545;
+  background: #fff5f5;
+}
+
+.time-input.error input {
+  color: #b71c1c;
+}
+
+.time-error-tooltip {
+  position: absolute;
+  bottom: -22px;
+  right: 0;
+  background: #d64545;
+  color: white;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 10;
+}
+.time-slot.error input {
+  border-color: #e53935;
+}
+
+.error-text {
+  color: #e53935;
+  font-size: 12px;
+  margin-top: 4px;
+}
+/* מצב שגיאה לטווח */
+.slot-box.error {
+  border: 1.5px solid #d32f2f;
+  background: #fff6f6;
+}
+
+/* שדות שעה אדומים */
+.slot-box.error input[type="time"],
+.slot-box.error select {
+  border-color: #d32f2f !important;
+  background-color: #fffafa;
+}
+
+/* אייקון שעון אדום */
+.slot-box.error .clock-icon {
+  color: #d32f2f;
+}
+.error-icon {
+  color: #d32f2f;
+  font-size: 20px;
+  cursor: help;
+  margin-top: 6px;
+}
+.slot-box.error {
+  border: 1px solid #c62828;
+}
+
+.slot-error {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #c62828;
+}
+.slot-box {
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fff;
+}
+
+.slot-box.error {
+  border-color: #f2b8b5;   // אדום עדין
+  background: #fffafa;    // רקע ממש בהיר
+}
+
+.slot-error {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #c44;
+}

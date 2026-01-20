@@ -268,12 +268,14 @@ return {
 },
 
 
-   eventDidMount: (info: any) => {
+  eventDidMount: (info: any) => {
+  console.log('🎯 eventDidMount', info.event.title, info.event.extendedProps);
+
   // ===== TOOLTIP =====
   const meta =
     info.event.extendedProps?.meta ??
     info.event.extendedProps;
-
+console.log('🧪 META', meta);
   let tooltipText = '';
 
   // 🏖 חופשת חווה
@@ -291,7 +293,13 @@ return {
   if (tooltipText) {
     info.el.setAttribute('title', tooltipText);
     info.el.classList.add('has-tooltip');
+    console.log('✅ tooltip set:', meta.cancelBlockReason);
   }
+    // 🚫 חסימת ביטול – הסבר
+  if (meta?.cancelBlockReason) {
+    tooltipText = meta.cancelBlockReason;
+  }
+
   // ===================
 
   // החלת classNames
@@ -423,6 +431,8 @@ if (i.meta?.['isFarmDayOff'] === 'true') {
     borderColor: i.color,
     resourceId: i.meta?.instructor_id || undefined,
     extendedProps: {
+  lesson_id: i.meta?.['lesson_id'],
+ meta: i.meta, 
       status: i.status,
       child_id: i.meta?.child_id,
       child_name: i.meta?.child_name,
@@ -430,6 +440,7 @@ if (i.meta?.['isFarmDayOff'] === 'true') {
       instructor_name: i.meta?.instructor_name,
       lesson_type: i.meta?.['lesson_type'],
       children: i.meta?.['children'],
+        occur_date: i.meta?.['occur_date'],
       isSummaryDay: i.meta?.isSummaryDay,
       isSummarySlot: i.meta?.isSummarySlot,
       isInstructorHeader: i.meta?.['isInstructorHeader'],
