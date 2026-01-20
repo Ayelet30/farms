@@ -159,7 +159,6 @@ showAffectedParentsPopup = false;
       const startYmd = ymd(addDays(new Date(), -14));
       const endYmd = ymd(addDays(new Date(), 60));
 
-      console.log('[INIT] range', { startYmd, endYmd, instructorId: this.instructorId });
 
       await this.loadLessonsForRange(startYmd, endYmd);
 
@@ -216,7 +215,6 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
   if (error) throw error;
 
   this.lessons = data ?? [];
-  console.log('[LOAD LESSONS]', this.lessons);
 }
 
   /**
@@ -235,7 +233,6 @@ private async loadLessonResourcesForRange(startYmd: string, endYmd: string): Pro
   const lessonIds = [...new Set(this.lessons.map((l: any) => l.lesson_id))];
   if (!lessonIds.length) return;
 
-  console.log('[LOAD RESOURCES]', { lessonIds, startYmd, endYmd });
 
   const { data, error } = await dbc
     .from('lessons_with_children')
@@ -265,7 +262,6 @@ private async loadLessonResourcesForRange(startYmd: string, endYmd: string): Pro
     };
   });
 
-  console.log('[LOAD RESOURCES] merged into lessons');
 }
 
 
@@ -338,7 +334,6 @@ private async loadFarmDaysOffForRange(startYmd: string, endYmd: string): Promise
   if (error) throw error;
 
   this.farmDaysOff = data ?? [];
-  console.log('[LOAD FARM DAYS OFF]', this.farmDaysOff);
 }
 
 private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<void> {
@@ -488,11 +483,6 @@ const instructorOffItems = this.instructorDaysOffToItems();
 
 this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
 
-console.log('📅 FINAL ITEMS', this.items);
-console.log(
-  '🏖 FARM DAYS OFF ITEMS',
-  this.items.filter(i => String(i.id).startsWith('farm_off_'))
-);
 
       this.cdr.detectChanges();
       return;
@@ -533,13 +523,6 @@ return true;
   })
   .map((l: any) => {
 
-console.log('🔍 RAW LESSON:', {
-  lesson_id: l.lesson_id,
-  status: l.status,
-  occur_date: l.occur_date,
-  start_datetime: l.start_datetime,
-  start_time: l.start_time,
-});
 
 const rawStatus = String(l.status ?? '').trim();
 const upperStatus = rawStatus.toUpperCase();
@@ -795,7 +778,6 @@ const endDate = new Date(range.end);
 endDate.setDate(endDate.getDate() - 1);
 const endYmd = ymd(endDate);
 
-    console.log('[VIEW RANGE YMD]', { startYmd, endYmd });
 
 
 
@@ -884,7 +866,6 @@ cancelAffectedPopup(): void {
 
   /* ------------ REQUEST UI ------------ */
  async submitRange(): Promise<void> {
-  console.log('🟡 submitRange called');
 
   const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
 
@@ -895,7 +876,6 @@ cancelAffectedPopup(): void {
 
   // ✅ כמו פעם – בדיקה על השיעורים שכבר נטענו
 const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
-console.log('🟠 hasLessonsInRangeFromDb', hasLessons);
 
 
   if (hasLessons) {

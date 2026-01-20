@@ -1,40 +1,46 @@
 import { onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import * as admin from 'firebase-admin';
-import nodemailer from 'nodemailer';
+import { google } from 'googleapis';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { decryptRefreshToken } from './crypto-gmail';
+import * as crypto from 'crypto';
+
 
 if (!admin.apps.length) admin.initializeApp();
 
-// ===== Secrets =====
+// ===== Secrets (קבועים לכל פרויקט) =====
 const SUPABASE_URL_S = defineSecret('SUPABASE_URL');
 const SUPABASE_KEY_S = defineSecret('SUPABASE_SERVICE_KEY');
+const GMAIL_CLIENT_ID_S = defineSecret('GMAIL_CLIENT_ID');
+const GMAIL_CLIENT_SECRET_S = defineSecret('GMAIL_CLIENT_SECRET');
+const GMAIL_MASTER_KEY_S = defineSecret('GMAIL_MASTER_KEY');
+const INTERNAL_CALL_SECRET_S = defineSecret('INTERNAL_CALL_SECRET');
 
-const SMTP_HOST_S = defineSecret('SMTP_HOST');
-const SMTP_PORT_S = defineSecret('SMTP_PORT'); // "587"
 
-// הסודות האפשריים לסיסמאות מייל (שמות סודות אמיתיים ב-Firebase Secrets)
-const SMTP_PASS_S = defineSecret('SMTP_PASS');
-
-// אופציונלי: אם יש לך עוד חוות/דומיינים עם סיסמא אחרת
-// const SMTP_PASS_FARM2_S = defineSecret('SMTP_PASS_FARM2');
-
+/** CORS */
 const ALLOWED_ORIGINS = new Set<string>([
   'https://smart-farm.org',
   'https://bereshit-ac5d8.web.app',
+  'https://bereshit-ac5d8.firebaseapp.com',
   'http://localhost:4200',
+  'https://localhost:4200',
 ]);
 
-function cors(req: any, res: any) {
-  const origin = req.headers.origin || '';
-  if (ALLOWED_ORIGINS.has(origin)) {
+function applyCors(req: any, res: any): boolean {
+  const origin = String(req.headers.origin || '');
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
+  } else {
+    res.setHeader('Vary', 'Origin');
   }
+
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Requested-With');
+
   if (req.method === 'OPTIONS') {
-    res.status(204).send('');
+    res.status(204).end();
     return true;
   }
   return false;
@@ -62,6 +68,9 @@ function asArray(x: any): string[] {
 function looksLikeEmail(s: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
+
+
+
 async function requireAuth(req: any) {
   const auth = req.headers.authorization || '';
   const m = auth.match(/^Bearer (.+)$/);
@@ -69,62 +78,78 @@ async function requireAuth(req: any) {
   return admin.auth().verifyIdToken(m[1]);
 }
 
-/** ===== DB: farm_settings mail config ===== */
-type FarmMailSettings = {
-  main_mail: string | null;
-  secret_mail_password: string | null; // לדוגמה: 'SMTP_PASS'
-  // אם תרצי בהמשך גם:
-  // smtp_host?: string | null;
-  // smtp_port?: number | null;
-};
-
-async function loadFarmMailSettings(args: {
-  sbTenant: SupabaseClient;
-}): Promise<FarmMailSettings> {
-  const { sbTenant } = args;
-
-  const { data, error } = await sbTenant
-    .from('farm_settings')
-    .select('main_mail, secret_mail_password')
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw new Error(`farm_settings query failed: ${error.message}`);
-  if (!data) throw new Error('No farm_settings row found');
-
-  return {
-    main_mail: (data as any).main_mail ?? null,
-    secret_mail_password: (data as any).secret_mail_password ?? null,
-  };
+// ===== MIME helpers =====
+function toBase64Url(buf: Buffer) {
+  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/** ===== Resolve secret by "key name" stored in DB ===== */
-function resolveMailPasswordByKeyName(keyName: string | null | undefined): string {
-  const k = String(keyName ?? '').trim();
-  if (!k) throw new Error('Missing secret_mail_password in farm_settings');
+function buildRawEmail(args: {
+  from: string;
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  text?: string;
+  html?: string;
+  replyTo?: string;
+  attachments?: Array<{ filename: string; contentType?: string; content: Buffer }>;
+}) {
+  const boundary = `----=_Part_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
-  switch (k) {
-    case 'SMTP_PASS': {
-      const v = envOrSecret(SMTP_PASS_S, 'SMTP_PASS');
-      if (!v) throw new Error('Missing secret: SMTP_PASS');
-      return v;
+  const headers: string[] = [
+    `From: ${args.from}`,
+    `To: ${args.to.join(', ')}`,
+    args.cc?.length ? `Cc: ${args.cc.join(', ')}` : '',
+    args.bcc?.length ? `Bcc: ${args.bcc.join(', ')}` : '',
+    `Subject: ${encodeSubjectUtf8(args.subject)}`,
+    args.replyTo ? `Reply-To: ${args.replyTo}` : '',
+    'MIME-Version: 1.0',
+  ].filter(Boolean);
+
+  const hasAttachments = (args.attachments?.length || 0) > 0;
+
+  if (!hasAttachments) {
+    if (args.html) {
+      headers.push('Content-Type: text/html; charset="UTF-8"');
+      return toBase64Url(Buffer.from(headers.join('\r\n') + '\r\n\r\n' + args.html, 'utf8'));
+    } else {
+      headers.push('Content-Type: text/plain; charset="UTF-8"');
+      return toBase64Url(Buffer.from(headers.join('\r\n') + '\r\n\r\n' + (args.text || ''), 'utf8'));
     }
-    // case 'SMTP_PASS_PSAGOT': {
-    //   const v = envOrSecret(SMTP_PASS_PSAGOT_S, 'SMTP_PASS_PSAGOT');
-    //   if (!v) throw new Error('Missing secret: SMTP_PASS_PSAGOT');
-    //   return v;
-    // }
-    default:
-      throw new Error(`Unknown mail secret key name: ${k}`);
   }
-}
 
+  headers.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
+
+  const parts: string[] = [];
+  const bodyContent =
+    args.html
+      ? `Content-Type: text/html; charset="UTF-8"\r\n\r\n${args.html}`
+      : `Content-Type: text/plain; charset="UTF-8"\r\n\r\n${args.text || ''}`;
+
+  parts.push(`--${boundary}\r\n${bodyContent}\r\n`);
+
+  for (const a of args.attachments || []) {
+    const ct = a.contentType || 'application/octet-stream';
+    const b64 = a.content.toString('base64');
+    parts.push(
+      `--${boundary}\r\n` +
+      `Content-Type: ${ct}; name="${a.filename}"\r\n` +
+      `Content-Disposition: attachment; filename="${a.filename}"\r\n` +
+      `Content-Transfer-Encoding: base64\r\n\r\n` +
+      `${b64}\r\n`
+    );
+  }
+
+  parts.push(`--${boundary}--`);
+
+  const raw = headers.join('\r\n') + '\r\n\r\n' + parts.join('');
+  return toBase64Url(Buffer.from(raw, 'utf8'));
+}
 
 /**
  * Body schema:
  * {
- *   tenantSchema: string,            // חובה כדי לדעת מאיזה farm_settings לקרוא
+ *   tenantSchema: string,
  *   to: string | string[],
  *   subject: string,
  *   text?: string,
@@ -135,50 +160,55 @@ function resolveMailPasswordByKeyName(keyName: string | null | undefined): strin
  *   attachments?: Array<{ filename: string, contentBase64: string, contentType?: string }>
  * }
  */
-export const sendEmail = onRequest(
+export const sendEmailGmail = onRequest(
   {
     region: 'us-central1',
+    // timeoutSeconds: 60, // אם תרצי להגדיל ל-2 דקות אפשר לשים 120
     secrets: [
       SUPABASE_URL_S,
       SUPABASE_KEY_S,
-      SMTP_HOST_S,
-      SMTP_PORT_S,
-      SMTP_PASS_S,
-
-      // אם הוספת עוד סודות למיפוי – חייבים להוסיף גם פה:
-      // SMTP_PASS_FARM2_S,
+      GMAIL_CLIENT_ID_S,
+      GMAIL_CLIENT_SECRET_S,
+      GMAIL_MASTER_KEY_S,
+      INTERNAL_CALL_SECRET_S
     ],
   },
   async (req, res) => {
-    try {
-      if (cors(req, res)) return;
-      if (req.method !== 'POST') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-      }
+    if (applyCors(req, res)) return;
 
-      const decoded = await requireAuth(req);
+    function timingSafeEq(a: string, b: string) {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
+
+function isInternalCall(req: any): boolean {
+  const secret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
+  if (!secret) return false;
+
+  const got = String(req.headers['x-internal-secret'] || '');
+  return !!(got && timingSafeEq(got, secret));
+}
+
+
+    try {
+      if (req.method !== 'POST') return void res.status(405).json({ error: 'Method not allowed' });
+
+      
+
+      let decoded: any = null;
+      if (!isInternalCall(req)) {
+        decoded = await requireAuth(req); // נשאר כמו שהיה
+      } else {
+        decoded = { uid: 'INTERNAL' }; // לצרכי audit
+}
+
 
       const body = req.body || {};
       const tenantSchema = normStr(body.tenantSchema, 120);
-      if (!tenantSchema) {
-        res.status(400).json({ error: 'Missing "tenantSchema"' });
-        return;
-      }
+      if (!tenantSchema) return void res.status(400).json({ error: 'Missing "tenantSchema"' });
 
-      // 1) טוענים הגדרות מייל מהחווה
-      const sbTenant = getSupabaseForTenant(tenantSchema);
-      const mailCfg = await loadFarmMailSettings({ sbTenant });
-
-      const smtpUser = normStr(mailCfg.main_mail, 200);
-      if (!smtpUser || !looksLikeEmail(smtpUser)) {
-        res.status(500).json({ error: 'Invalid or missing main_mail in farm_settings' });
-        return;
-      }
-
-      const smtpPass = resolveMailPasswordByKeyName(mailCfg.secret_mail_password);
-
-      // 2) ולידציות לתוכן המייל
       const to = asArray(body.to).map(s => s.trim()).filter(Boolean);
       const cc = asArray(body.cc).map(s => s.trim()).filter(Boolean);
       const bcc = asArray(body.bcc).map(s => s.trim()).filter(Boolean);
@@ -194,17 +224,48 @@ export const sendEmail = onRequest(
       if (![...to, ...cc, ...bcc].every(looksLikeEmail)) {
         return void res.status(400).json({ error: 'Invalid email in to/cc/bcc' });
       }
+      if (replyTo && !looksLikeEmail(replyTo)) {
+        return void res.status(400).json({ error: 'Invalid replyTo' });
+      }
 
-      // 3) מצורפים
+      // קריאה מהחווה: שולח + refresh token מוצפן
+      const sbTenant = getSupabaseForTenant(tenantSchema);
+
+      const { data: fs, error: fsErr } = await sbTenant
+        .from('farm_settings')
+        .select('main_mail, gmail_refresh_token_enc, gmail_refresh_token_iv, gmail_refresh_token_tag')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (fsErr) throw new Error(`farm_settings query failed: ${fsErr.message}`);
+      if (!fs?.main_mail || !looksLikeEmail(fs.main_mail)) {
+        throw new Error('farm_settings.main_mail missing/invalid');
+      }
+      if (!fs.gmail_refresh_token_enc || !fs.gmail_refresh_token_iv || !fs.gmail_refresh_token_tag) {
+        throw new Error('Gmail refresh token not connected for this farm');
+      }
+
+      const masterKey = envOrSecret(GMAIL_MASTER_KEY_S, 'GMAIL_MASTER_KEY');
+      if (!masterKey) throw new Error('Missing GMAIL_MASTER_KEY');
+
+      const refreshToken = decryptRefreshToken(
+        fs.gmail_refresh_token_enc,
+        fs.gmail_refresh_token_iv,
+        fs.gmail_refresh_token_tag,
+        masterKey
+      );
+
+
+      // מצורפים
       const rawAtt = Array.isArray(body.attachments) ? body.attachments : [];
       if (rawAtt.length > 5) return void res.status(400).json({ error: 'Too many attachments (max 5)' });
 
       const attachments = rawAtt.map((a: any) => {
-        const filename = normStr(a?.filename, 120) || 'file';
+        const filename = normStr(a?.filename, 180) || 'file';
         const contentBase64 = String(a?.contentBase64 || '');
-        if (!contentBase64) throw new Error('Attachment missing contentBase64');
-        if (contentBase64.length > 4_000_000) throw new Error(`Attachment too large: ${filename}`);
-
+        if (!contentBase64) throw new Error(`Attachment missing contentBase64: ${filename}`);
+        if (contentBase64.length > 6_000_000) throw new Error(`Attachment too large: ${filename}`);
         return {
           filename,
           content: Buffer.from(contentBase64, 'base64'),
@@ -212,24 +273,17 @@ export const sendEmail = onRequest(
         };
       });
 
-      const host = envOrSecret(SMTP_HOST_S, 'SMTP_HOST');
-      const port = Number(envOrSecret(SMTP_PORT_S, 'SMTP_PORT') || '587');
-      if (!host) throw new Error('Missing SMTP_HOST');
-      if (!Number.isFinite(port)) throw new Error('Invalid SMTP_PORT');
+      // Gmail OAuth
+      const clientId = envOrSecret(GMAIL_CLIENT_ID_S, 'GMAIL_CLIENT_ID');
+      const clientSecret = envOrSecret(GMAIL_CLIENT_SECRET_S, 'GMAIL_CLIENT_SECRET');
+      if (!clientId || !clientSecret) throw new Error('Missing Gmail CLIENT_ID/CLIENT_SECRET');
 
+      const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+      oauth2Client.setCredentials({ refresh_token: refreshToken });
+      const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-      // 4) Transporter לפי DB (user/pass) + secrets (host/port)
-      const transporter = nodemailer.createTransport({
-        host: host,
-        port: port,
-        secure: false,
-        auth: { user: smtpUser, pass: smtpPass },
-      });
-
-      const from = `Smart Farm <${smtpUser}>`;
-
-      const info = await transporter.sendMail({
-        from,
+      const raw = buildRawEmail({
+        from: `Smart Farm <${fs.main_mail}>`,
         to,
         cc: cc.length ? cc : undefined,
         bcc: bcc.length ? bcc : undefined,
@@ -238,17 +292,29 @@ export const sendEmail = onRequest(
         html: html || undefined,
         replyTo,
         attachments: attachments.length ? attachments : undefined,
-        headers: {
-          'X-App': 'smart-farm',
-          'X-Sent-By': decoded.uid,
-          'X-Tenant': tenantSchema,
-        },
       });
 
-      res.status(200).json({ ok: true, messageId: info.messageId });
+      const r = await gmail.users.messages.send({
+        userId: 'me',
+        requestBody: { raw },
+      });
+
+      return void res.status(200).json({
+        ok: true,
+        gmailMessageId: r.data.id,
+        threadId: r.data.threadId,
+        tenant: tenantSchema,
+        sentBy: decoded.uid,
+        from: fs.main_mail,
+      });
     } catch (e: any) {
-      console.error('sendEmail error', e);
-      res.status(500).json({ error: 'Internal error', message: e?.message || String(e) });
+      console.error('sendEmailGmail error', e);
+      return void res.status(500).json({ error: 'Internal error', message: e?.message || String(e) });
     }
   }
 );
+function encodeSubjectUtf8(subject: string) {
+  const b64 = Buffer.from(subject, 'utf8').toString('base64');
+  return `=?UTF-8?B?${b64}?=`;
+}
+

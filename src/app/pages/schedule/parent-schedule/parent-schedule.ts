@@ -86,8 +86,6 @@ constructor(private dialog: MatDialog) {}
   return start.toISOString().slice(0, 10);
 }
 private calcNextCanceledLesson() {
-  console.log('🟦 calcNextCanceledLesson called');
-console.log('🟦 filteredLessons:', this.filteredLessons);
 
   const now = new Date();
 const relevant = this.filteredLessons

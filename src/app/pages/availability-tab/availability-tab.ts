@@ -145,11 +145,7 @@ export class AvailabilityTabComponent implements OnInit {
       if (!settings) return;
 if (Array.isArray(settings.working_days)) {
   this.farmWorkingDays = this.normalizeWorkingDays(settings.working_days);
-  console.log('🏡 farmWorkingDays normalized:', this.farmWorkingDays);
 }
-console.log('🏡 SETTINGS:', settings);
-console.log('🏡 working_days:', settings?.working_days);
-console.log('🏡 farmWorkingDays used:', this.farmWorkingDays);
 
       if (settings.farm_id) this.farmId = settings.farm_id;
 
@@ -175,7 +171,6 @@ console.log('🏡 farmWorkingDays used:', this.farmWorkingDays);
 
   private async loadRidingTypes() {
     const { data, error } = await dbTenant()
-    
       .from('riding_types')
       .select('id, code, name, max_participants, active')
       .eq('active', true)

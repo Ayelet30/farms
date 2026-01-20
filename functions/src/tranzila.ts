@@ -6,6 +6,7 @@ import * as crypto from 'crypto';
 import fetch from 'node-fetch';
 import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
+import { ensureTranzilaInvoiceForPaymentInternal } from './tranzilaInvoices';
 
 // ===== Local env for emulator only =====
 import * as dotenv from 'dotenv';
@@ -985,11 +986,13 @@ export const chargeSelectedChargesForParent = onRequest(
         return;
       }
 
-      const { tenantSchema, parentUid, chargeIds } = req.body as {
+      const { tenantSchema, parentUid, chargeIds , invoiceExtraText } = req.body as {
         tenantSchema: string;
         parentUid: string;
         chargeIds: string[];
         secretaryEmail?: string | null;
+        invoiceExtraText?: string | null; // ✅ חדש
+
       };
 
       if (!tenantSchema || !parentUid || !Array.isArray(chargeIds) || !chargeIds.length) {
@@ -1157,17 +1160,34 @@ if (payErr) {
 const paymentId = payRow.id as string;
 
 // ✅ 2) יצירת PDF + העלאה + עדכון invoice_url
-await generateAndAttachReceiptUrlOnly({
-  sb,
-  tenantSchema,
-  paymentId,
-  amountAgorot,
-  tx: {
-    transaction_id: providerId,
-    credit_card_last_4_digits: usedProfile?.last4,
-    card_type_name: usedProfile?.brand,
-  },
-});
+// await generateAndAttachReceiptUrlOnly({
+//   sb,
+//   tenantSchema,
+//   paymentId,
+//   amountAgorot,
+//   tx: {
+//     transaction_id: providerId,
+//     credit_card_last_4_digits: usedProfile?.last4,
+//     card_type_name: usedProfile?.brand,
+//   },
+// });
+try {
+  await ensureTranzilaInvoiceForPaymentInternal({
+    tenantSchema,
+    paymentId,
+    extraLineText: (invoiceExtraText ?? '').trim() || null, // ✅ חדש
+
+  });
+} catch (err: any) {
+  console.error('[invoice after charge] failed', err?.message || err);
+
+  // לא מפילים סליקה – רק מסמנים שהחשבונית נכשלה
+  await sb.from('payments').update({
+    invoice_status: 'failed',
+    invoice_updated_at: new Date().toISOString(),
+  }).eq('id', paymentId);
+}
+
 }
 
       res.json({ ok: true, results });
@@ -1217,7 +1237,7 @@ export const recordOneTimePayment = onRequest(
 
       const paymentId = await recordPaymentInDb({
         sb,
-        tenantSchema: tenantSchema || 'bereshit_farm',
+        tenantSchema: tenantSchema ,
         parentUid: parentUid ?? null,
         farmId: undefined,
         amountAgorot,
@@ -1296,10 +1316,7 @@ async function generateAndSendReceipt(args: {
   const BUCKET_NAME = 'payments-invoices';
   const filePath = `receipts/${tenantSchema || 'public'}/${paymentId}.pdf`;
 
-  console.log('[generateAndSendReceipt] uploading to Supabase', {
-    bucket: BUCKET_NAME,
-    filePath,
-  });
+  
 
   const { error: uploadErr } = await sb.storage
     .from(BUCKET_NAME)

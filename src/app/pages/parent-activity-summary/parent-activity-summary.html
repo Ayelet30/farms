@@ -25,6 +25,7 @@
 <option *ngFor="let c of children()" [value]="c.child_uuid">
   {{ c.first_name }} {{ c.last_name }}
 </option>
+
 </select>
 
 
@@ -40,6 +41,25 @@
   </select>
 </div>
 
+<div class="filter">
+  <label>סוג שיעור</label>
+ <select (change)="selectedRidingTypeId.set($any($event.target).value || undefined)">
+  <option value="">כל סוגי השיעורים</option>
+  <option *ngFor="let rt of ridingTypeOptions()" [value]="rt.id">
+    {{ rt.name }}
+  </option>
+</select>
+
+</div>
+<div class="filter">
+  <label>סטטוס תשלום</label>
+  <select (change)="selectedChargeStatus.set($any($event.target).value || undefined)">
+    <option value="">כל הסטטוסים</option>
+    <option *ngFor="let s of chargeStatusOptions()" [value]="s">
+      {{ s }}
+    </option>
+  </select>
+</div>
 
    <!-- Year -->
 <div class="filter">

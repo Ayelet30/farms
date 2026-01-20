@@ -1,4 +1,5 @@
-<div class="farm-settings-page">
+<!-- src/app/pages/farm-settings/farm-settings.component.html -->
+<div class="farm-settings-page" dir="rtl">
   <div class="farm-settings-card">
     <div class="card-header">
       <h1>הגדרות חווה</h1>
@@ -11,145 +12,121 @@
       </div>
     </div>
 
+    <!-- =================== FORM SETTINGS =================== -->
     <form *ngIf="settings() as s" class="settings-form" (ngSubmit)="saveSettings()" autocomplete="off">
-      <!-- שעות פעילות -->
+      <!-- =================== שעות פעילות לפי יום =================== -->
       <section class="settings-section">
-        <div class="subsection-header">
-          <h2>שעות פעילות החווה</h2>
-
-          <button type="button" class="icon-btn" (click)="openSpecialDays()">
-            <span class="plus-icon">+</span>
-            <span>ימים מיוחדים</span>
+        <div class="subsection-header accordion">
+          <button type="button" class="accordion-toggle" (click)="toggleWorkingHoursExpanded()"
+            [attr.aria-expanded]="workingHoursExpanded()">
+            <span class="chev" [class.open]="workingHoursExpanded()">▾</span>
+            <h2>שעות פעילות לפי יום</h2>
           </button>
-        </div>
-
-        <div class="fields-grid two-cols">
-          <label class="field">
-            <span class="field-label">שעת פתיחה</span>
-            <input type="time" [(ngModel)]="s.operating_hours_start" name="operating_hours_start" required />
-          </label>
-
-          <label class="field">
-            <span class="field-label">שעת סגירה</span>
-            <input type="time" [(ngModel)]="s.operating_hours_end" name="operating_hours_end" required />
-          </label>
-        </div>
-        <!-- שעות פעילות המשרד -->
-        <div class="subsection-header" style="margin-top: 14px;">
-          <h2 style="margin: 0;">שעות פעילות המשרד</h2>
-        </div>
-
-        <div class="fields-grid two-cols">
-          <label class="field">
-            <span class="field-label">שעת פתיחה (משרד)</span>
-            <input type="time" [(ngModel)]="s.office_hours_start" name="office_hours_start"
-              (ngModelChange)="onOfficeHoursChanged()" />
-          </label>
-
-          <label class="field">
-            <span class="field-label">שעת סגירה (משרד)</span>
-            <input type="time" [(ngModel)]="s.office_hours_end" name="office_hours_end"
-              (ngModelChange)="onOfficeHoursChanged()" />
-          </label>
-        </div>
-        <div class="inline-error" *ngIf="officeHoursError()">
-          {{ officeHoursError() }}
-        </div>
-
-
-
-        <!-- ===== ימי עבודה בשבוע (NEW) ===== -->
-        <div class="subsection-header" style="margin-top: 14px;">
-          <h2 style="margin: 0;">ימי עבודה בשבוע</h2>
 
           <div class="inline-actions">
-            <button type="button" class="ghost-btn" (click)="setWorkingDaysWeekdaysOnly()">
-              א–ה
-            </button>
-            <button type="button" class="ghost-btn" (click)="setWorkingDaysAllWeek()">
-              כל השבוע
+            <button type="button" class="primary-btn" (click)="saveWorkingHours()"
+              [disabled]="saving() || loading() || !!workingHoursError()">
+              שמירת שעות לפי יום
             </button>
           </div>
-        </div>
-
-        <div class="working-days">
-          <label class="day-pill">
-            <input type="checkbox" [checked]="isWorkingDayChecked(1)"
-              (change)="toggleWorkingDay(1, $any($event.target).checked)" />
-            <span class="pill-label">א׳</span>
-          </label>
-
-          <label class="day-pill">
-            <input type="checkbox" [checked]="isWorkingDayChecked(2)"
-              (change)="toggleWorkingDay(2, $any($event.target).checked)" />
-            <span class="pill-label">ב׳</span>
-          </label>
-
-          <label class="day-pill">
-            <input type="checkbox" [checked]="isWorkingDayChecked(3)"
-              (change)="toggleWorkingDay(3, $any($event.target).checked)" />
-            <span class="pill-label">ג׳</span>
-          </label>
-
-          <label class="day-pill">
-            <input type="checkbox" [checked]="isWorkingDayChecked(4)"
-              (change)="toggleWorkingDay(4, $any($event.target).checked)" />
-            <span class="pill-label">ד׳</span>
-          </label>
-
-          <label class="day-pill">
-            <input type="checkbox" [checked]="isWorkingDayChecked(5)"
-              (change)="toggleWorkingDay(5, $any($event.target).checked)" />
-            <span class="pill-label">ה׳</span>
-          </label>
-
-          <!-- אופציונלי -->
-          <label class="day-pill">
-            <input type="checkbox" [checked]="isWorkingDayChecked(6)"
-              (change)="toggleWorkingDay(6, $any($event.target).checked)" />
-            <span class="pill-label">ו׳</span>
-          </label>
-
-          <label class="day-pill">
-            <input type="checkbox" [checked]="isWorkingDayChecked(7)"
-              (change)="toggleWorkingDay(7, $any($event.target).checked)" />
-            <span class="pill-label">ש׳</span>
-          </label>
         </div>
 
         <small class="field-hint">
-          ימים אלו קובעים מתי ניתן לקבוע שיעורים, ולידציות בלו״ז וחישובי מערכת.
+          כאן מגדירים בפועל שעות פעילות חווה/משרד לכל יום. "משרד" אופציונלי, אבל אם מגדירים – חייב להיות בתוך טווח
+          "חווה".
         </small>
-        <!-- ===== סוף ימי עבודה בשבוע ===== -->
 
-        <section class="settings-section" *ngIf="settings() as s">
-          <h2>לוח שנה ושעות</h2>
+        <div class="inline-error" *ngIf="workingHoursError()">
+          {{ workingHoursError() }}
+        </div>
 
-          <div class="fields-grid three-cols">
-            <label class="field">
-              <span class="field-label">גרנולריות זמן (דקות)</span>
-              <input type="number" min="5" step="5" [(ngModel)]="s.time_slot_minutes" name="time_slot_minutes" />
-              <small class="field-hint">לדוגמה 15 כדי ליישר שעות בלו״ז ובוולידציות.</small>
-            </label>
+        <div *ngIf="workingHoursExpanded()">
+          <div class="list-block" *ngIf="workingHours().length; else noWorkingHours">
+            <div class="list-header-row">
+              <span class="col-main">יום</span>
+              <span class="col-secondary">פתוח</span>
+              <span class="col-secondary">חווה</span>
+              <span class="col-secondary">משרד</span>
+            </div>
 
-            <label class="field">
-              <span class="field-label">אזור זמן</span>
-              <input type="text" [(ngModel)]="s.timezone" name="timezone" placeholder="Asia/Jerusalem" />
-              <small class="field-hint">חשוב ל-cron / Cloud Functions.</small>
-            </label>
+            <div class="list-row" *ngFor="let r of workingHours(); trackBy: trackByDay">
+              <div class="col-main">
+                {{ getHebDayLabel(r.day_of_week) }}
+              </div>
+
+              <div class="col-secondary mini-toggle">
+                <input type="checkbox" [(ngModel)]="r.is_open" name="wh_open_{{r.day_of_week}}"
+                  (ngModelChange)="onWorkingHoursChanged()" />
+              </div>
+
+              <div class="col-secondary range">
+                <input type="time" [(ngModel)]="r.farm_start" name="wh_farm_start_{{r.day_of_week}}"
+                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursChanged()" />
+                <span class="sep">–</span>
+                <input type="time" [(ngModel)]="r.farm_end" name="wh_farm_end_{{r.day_of_week}}" [disabled]="!r.is_open"
+                  (ngModelChange)="onWorkingHoursChanged()" />
+              </div>
+
+              <div class="col-secondary range">
+                <input type="time" [(ngModel)]="r.office_start" name="wh_office_start_{{r.day_of_week}}"
+                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursChanged()" />
+                <span class="sep">–</span>
+                <input type="time" [(ngModel)]="r.office_end" name="wh_office_end_{{r.day_of_week}}"
+                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursChanged()" />
+              </div>
+            </div>
           </div>
-        </section>
 
+          <ng-template #noWorkingHours>
+            <div class="empty-state">
+              לא נמצאו שעות לפי יום. ודאי שקיימת טבלה farm_working_hours (או הריצי seed).
+              <button type="button" class="text-btn" (click)="loadWorkingHours()">רענון</button>
+            </div>
+          </ng-template>
+        </div>
+      </section>
 
-        <!-- רשימת ימים מיוחדים קיימים -->
-        <div class="special-days-list" *ngIf="daysOff().length">
-          <div class="special-days-title">ימים מיוחדים שהוגדרו</div>
+      <!-- לוח שנה ושעות -->
+      <section class="settings-section">
+        <h2>לוח שנה ושעות</h2>
 
+        <div class="fields-grid three-cols">
+          <label class="field">
+            <span class="field-label">גרנולריות זמן (דקות)</span>
+            <input type="number" min="5" step="5" [(ngModel)]="s.time_slot_minutes" name="time_slot_minutes" />
+            <small class="field-hint">לדוגמה 15 כדי ליישר שעות בלו״ז ובוולידציות.</small>
+          </label>
+
+          <label class="field">
+            <span class="field-label">אזור זמן</span>
+            <input type="text" [(ngModel)]="s.timezone" name="timezone" placeholder="Asia/Jerusalem" />
+            <small class="field-hint">חשוב ל-cron / Cloud Functions.</small>
+          </label>
+        </div>
+      </section>
+
+      <!-- ימים מיוחדים -->
+      <section class="settings-section">
+        <div class="subsection-header">
+          <h2>ימים מיוחדים</h2>
+
+          <button type="button" class="icon-btn" (click)="openSpecialDays()">
+            <span class="plus-icon">+</span>
+            <span>הוספה</span>
+          </button>
+        </div>
+
+        <div class="special-days-list" *ngIf="daysOff().length; else noDaysOff">
           <div class="special-days-row" *ngFor="let d of daysOff()">
             <div class="special-days-main">
               <div class="special-days-dates">
                 {{ d.start_date | date:'dd/MM/yyyy' }} -
                 {{ d.end_date | date:'dd/MM/yyyy' }}
+
+                <span class="meta-chip">
+                  {{ d.recurrence === 'YEARLY' ? 'שנתי' : 'חד פעמי' }}
+                </span>
+
                 <span class="meta-chip">
                   {{
                   d.all_day
@@ -157,16 +134,22 @@
                   : ('החווה עובדת: ' + d.start_time + ' - ' + d.end_time)
                   }}
                 </span>
+
+                <span class="meta-chip" *ngIf="d.notify_parents_before">
+                  הודעה להורים: {{ d.notify_days_before ?? 1 }} ימים לפני
+                </span>
               </div>
 
               <div class="special-days-reason">{{ d.reason }}</div>
             </div>
 
-            <button type="button" class="text-btn danger" (click)="deactivateDayOff(d)">
-              ביטול
-            </button>
+            <button type="button" class="text-btn danger" (click)="deactivateDayOff(d)">ביטול</button>
           </div>
         </div>
+
+        <ng-template #noDaysOff>
+          <div class="empty-state">עדיין אין ימים מיוחדים.</div>
+        </ng-template>
       </section>
 
       <!-- שיעורים -->
@@ -174,10 +157,23 @@
         <h2>הגדרות שיעורים</h2>
 
         <div class="fields-grid three-cols">
-          <label class="field">
-            <span class="field-label">מס' שיעורים בסדרה</span>
-            <input type="number" min="1" [(ngModel)]="s.default_lessons_per_series" name="default_lessons_per_series" />
-          </label>
+          <!-- מס' שיעורים בסדרה + ללא הגבלה -->
+          <div class="field">
+            <div class="row-between">
+              <span class="field-label">מס' שיעורים בסדרה (ברירת מחדל)</span>
+
+              <label class="mini-toggle">
+                <input type="checkbox" [checked]="isUnlimitedDefaultLessonsPerSeries()"
+                  (change)="setUnlimitedDefaultLessonsPerSeries($any($event.target).checked)" />
+                <span>ללא הגבלה</span>
+              </label>
+            </div>
+
+            <input type="number" min="1" [(ngModel)]="s.default_lessons_per_series" name="default_lessons_per_series"
+              [disabled]="isUnlimitedDefaultLessonsPerSeries()"
+              [placeholder]="isUnlimitedDefaultLessonsPerSeries() ? 'ללא הגבלה' : ''" />
+          </div>
+
 
           <label class="field">
             <span class="field-label">אורך שיעור (דקות)</span>
@@ -198,10 +194,10 @@
 
           <!-- מקס שיעורים בשבוע + ללא הגבלה -->
           <div class="field">
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <div class="row-between">
               <span class="field-label">מקס' שיעורים בשבוע לילד</span>
 
-              <label style="display:flex; align-items:center; gap:8px; font-size:13px;">
+              <label class="mini-toggle">
                 <input type="checkbox" [checked]="isUnlimitedLessonsPerWeek()"
                   (change)="setUnlimitedLessonsPerWeek($any($event.target).checked)" />
                 <span>ללא הגבלה</span>
@@ -220,9 +216,8 @@
         </div>
       </section>
 
-
-      <!-- השלמות וביטולים -->
-      <section class="settings-section" *ngIf="settings() as s">
+      <!-- ביטולים / השלמות / נוכחות -->
+      <section class="settings-section">
         <h2>ביטולים / השלמות / נוכחות</h2>
 
         <div class="fields-grid three-cols">
@@ -232,17 +227,22 @@
           </label>
 
           <label class="field">
+            <span class="field-label">ימי השלמה קדימה</span>
+            <input type="number" min="0" [(ngModel)]="s.makeup_allowed_days_ahead" name="makeup_allowed_days_ahead" />
+          </label>
+
+          <label class="field">
             <span class="field-label">מקס' השלמות בתקופה</span>
             <input type="number" min="0" [(ngModel)]="s.max_makeups_in_period" name="max_makeups_in_period" />
           </label>
+        </div>
 
+        <div class="fields-grid three-cols">
           <label class="field">
             <span class="field-label">גודל תקופה (ימים)</span>
             <input type="number" min="1" [(ngModel)]="s.makeups_period_days" name="makeups_period_days" />
           </label>
-        </div>
 
-        <div class="fields-grid two-cols">
           <label class="field">
             <span class="field-label">מס' שיעורי השלמה להצגה</span>
             <input type="number" min="1" [(ngModel)]="s.displayed_makeup_lessons_count"
@@ -254,8 +254,6 @@
             <input type="time" [(ngModel)]="s.min_time_between_cancellations" name="min_time_between_cancellations" />
           </label>
         </div>
-
-
 
         <div class="fields-grid three-cols">
           <label class="field">
@@ -274,8 +272,12 @@
           </label>
 
           <label class="field">
-            <span class="field-label">ימי השלמה קדימה</span>
-            <input type="number" min="0" [(ngModel)]="s.makeup_allowed_days_ahead" name="makeup_allowed_days_ahead" />
+            <span class="field-label">ברירת מחדל לנוכחות</span>
+            <select [(ngModel)]="s.attendance_default" name="attendance_default">
+              <option [ngValue]="'ASSUME_ATTENDED'">נחשב “הגיע” אם לא סומן</option>
+              <option [ngValue]="'ASSUME_ABSENT'">נחשב “לא הגיע” אם לא סומן</option>
+              <option [ngValue]="'REQUIRE_MARKING'">חובה סימון</option>
+            </select>
           </label>
         </div>
 
@@ -291,19 +293,11 @@
             <input type="number" min="0" max="100" step="0.5" [(ngModel)]="s.late_cancel_fee_percent"
               name="late_cancel_fee_percent" />
           </label>
-
-          <label class="field">
-            <span class="field-label">ברירת מחדל לנוכחות</span>
-            <select [(ngModel)]="s.attendance_default" name="attendance_default">
-              <option [ngValue]="'ASSUME_ATTENDED'">נחשב “הגיע” אם לא סומן</option>
-              <option [ngValue]="'ASSUME_ABSENT'">נחשב “לא הגיע” אם לא סומן</option>
-              <option [ngValue]="'REQUIRE_MARKING'">חובה סימון</option>
-            </select>
-          </label>
         </div>
       </section>
 
-      <section class="settings-section" *ngIf="settings() as s">
+      <!-- תזכורות והתראות -->
+      <section class="settings-section">
         <h2>תזכורות והתראות</h2>
 
         <div class="fields-grid three-cols">
@@ -343,7 +337,45 @@
         </div>
       </section>
 
-      <section class="settings-section" *ngIf="settings() as s">
+      <!-- התראות מערכת -->
+      <section class="settings-section">
+        <h2>התראות מערכת</h2>
+
+        <div class="fields-grid three-cols">
+          <label class="field toggle">
+            <span class="field-label">להציע שיעור השלמה כשיש ביטול</span>
+            <input type="checkbox" [(ngModel)]="s.suggest_makeup_on_cancel" name="suggest_makeup_on_cancel" />
+          </label>
+
+          <label class="field toggle">
+            <span class="field-label">תזכורת עם אישור הגעה</span>
+            <input type="checkbox" [(ngModel)]="s.reminder_require_confirmation" name="reminder_require_confirmation"
+              [disabled]="!s.send_lesson_reminder" />
+          </label>
+
+          <label class="field toggle">
+            <span class="field-label">לאפשר ביטול מתוך תזכורת</span>
+            <input type="checkbox" [(ngModel)]="s.reminder_allow_cancel_link" name="reminder_allow_cancel_link"
+              [disabled]="!s.send_lesson_reminder" />
+          </label>
+        </div>
+
+        <div class="fields-grid three-cols" style="margin-top:10px;">
+          <label class="field toggle">
+            <span class="field-label">לשלוח הודעה להורים לפני חופש חווה</span>
+            <input type="checkbox" [(ngModel)]="s.notify_before_farm_closure" name="notify_before_farm_closure" />
+          </label>
+
+          <label class="field">
+            <span class="field-label">כמה שעות לפני</span>
+            <input type="number" min="1" step="1" [(ngModel)]="s.notify_before_farm_closure_hours"
+              name="notify_before_farm_closure_hours" [disabled]="!s.notify_before_farm_closure" />
+          </label>
+        </div>
+      </section>
+
+      <!-- חיובים / הנחות / קנסות -->
+      <section class="settings-section">
         <h2>חיובים / הנחות / קנסות</h2>
 
         <div class="fields-grid three-cols">
@@ -365,14 +397,19 @@
           </label>
 
           <label class="field">
+            <span class="field-label">אחרי כמה ימים נחשב פיגור</span>
+            <input type="number" min="0" step="1" [(ngModel)]="s.late_payment_grace_days"
+              name="late_payment_grace_days" />
+            <small class="field-hint">0 = פיגור מיידי, 7 = שבוע חסד.</small>
+          </label>
+
+          <label class="field">
             <span class="field-label">ריבית חודשית (%)</span>
             <input type="number" min="0" max="100" step="0.1" [(ngModel)]="s.interest_percent_monthly"
               name="interest_percent_monthly" />
           </label>
         </div>
       </section>
-
-
 
       <!-- תשלומים ודמי רישום -->
       <section class="settings-section">
@@ -402,7 +439,7 @@
       </div>
     </form>
 
-    <!-- ========== מסלולי תשלום ========== -->
+    <!-- =================== מסלולי תשלום =================== -->
     <section class="settings-section">
       <div class="subsection-header">
         <h2>מסלולי תשלום</h2>
@@ -413,7 +450,6 @@
         </button>
       </div>
 
-      <!-- חלון נפתח – טופס מסלול חדש -->
       <div class="inline-panel" *ngIf="showNewPlanForm()">
         <div class="fields-grid three-cols">
           <div class="field">
@@ -445,7 +481,7 @@
             <label class="field-label">דרישת מסמכים</label>
             <textarea rows="3" name="newPlanDocs" [ngModel]="getDocsText(newPlan)"
               (ngModelChange)="onNewPlanDocsChange($event)"></textarea>
-            <small class="field-hint">כל שורה = סוג קובץ (למשל: התחייבות קופה, אישור זכאות)</small>
+            <small class="field-hint">כל שורה = סוג קובץ</small>
           </div>
 
           <div class="field toggle">
@@ -460,7 +496,6 @@
         </div>
       </div>
 
-      <!-- רשימת מסלולים קיימים -->
       <div class="list-block" *ngIf="paymentPlans().length; else noPlans">
         <div class="list-header-row">
           <span class="col-main">מסלול</span>
@@ -507,7 +542,6 @@
           </div>
         </div>
 
-        <!-- פנל עריכה למסלול נבחר -->
         <ng-container *ngFor="let p of paymentPlans()">
           <div class="inline-panel" *ngIf="editingPlanId() === p.id">
             <div class="panel-title">עריכת מסלול – {{ p.name }}</div>
@@ -596,7 +630,9 @@
               <button type="button" class="ghost-btn" (click)="updatePaymentPlan(p)">
                 שמירת שינויים כלליים במסלול
               </button>
-              <button type="button" class="ghost-btn" (click)="cancelEditPlan()">ביטול</button>
+              <button type="button" class="ghost-btn" (click)="cancelEditPlan()">
+                ביטול
+              </button>
             </div>
           </div>
         </ng-container>
@@ -610,7 +646,7 @@
       </ng-template>
     </section>
 
-    <!-- ========== גורמי מימון ========== -->
+    <!-- =================== גורמי מימון =================== -->
     <section class="settings-section">
       <div class="subsection-header">
         <h2>גורמי מימון</h2>
@@ -703,15 +739,40 @@
       </ng-template>
     </section>
 
-    <!-- ===== מודאל ימים מיוחדים ===== -->
+    <!-- =================== מודאל ימים מיוחדים (לועזי בלבד) =================== -->
     <div class="modal-backdrop" *ngIf="showSpecialDaysModal()" (click)="closeSpecialDaysModal()">
       <div class="modal-card" (click)="$event.stopPropagation()">
         <div class="modal-header">
-          <div class="modal-title">ימים מיוחדים</div>
+          <div class="modal-title">יום מיוחד</div>
           <button type="button" class="x-btn" (click)="closeSpecialDaysModal()">✕</button>
         </div>
 
         <div class="fields-grid two-cols">
+          <label class="field">
+            <span class="field-label">סוג תאריך</span>
+            <select [ngModel]="specialDayForm().calendar_kind" (ngModelChange)="setCalendarKind($event)">
+              <option [ngValue]="'GREGORIAN'">לועזי</option>
+              <option [ngValue]="'HEBREW'">עברי</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field-label">חזרתיות</span>
+            <select [ngModel]="specialDayForm().recurrence"
+              (ngModelChange)="patchSpecialDayForm({ recurrence: $event })">
+              <option [ngValue]="'ONCE'">חד פעמי</option>
+              <option [ngValue]="'YEARLY'">שנתי</option>
+            </select>
+          </label>
+        </div>
+        <label class="field toggle">
+          <span class="field-label">כל היום</span>
+          <input type="checkbox" [ngModel]="specialDayForm().all_day"
+            (ngModelChange)="patchSpecialDayForm({ all_day: $event })" />
+        </label>
+
+
+        <div class="fields-grid two-cols" *ngIf="specialDayForm().calendar_kind !== 'HEBREW'">
           <label class="field">
             <span class="field-label">מתאריך</span>
             <input type="date" [ngModel]="specialDayForm().start_date"
@@ -723,12 +784,50 @@
             <input type="date" [ngModel]="specialDayForm().end_date"
               (ngModelChange)="patchSpecialDayForm({ end_date: $event })" />
           </label>
+        </div>
 
-          <label class="field toggle">
-            <span class="field-label">כל היום</span>
-            <input type="checkbox" [ngModel]="specialDayForm().all_day" (ngModelChange)="onToggleAllDay($event)" />
+        <div class="fields-grid two-cols" *ngIf="specialDayForm().calendar_kind === 'HEBREW'">
+          <label class="field">
+            <span class="field-label">מתאריך (עברי)</span>
+            <div class="row-between" style="gap:10px;">
+              <select style="flex:1" [ngModel]="specialDayForm().hebrew_month"
+                (ngModelChange)="patchSpecialDayForm({ hebrew_month: $event }); syncHebrewToGregorianDates()">
+                <option [ngValue]="null">חודש</option>
+                <option *ngFor="let m of hebrewMonths" [ngValue]="m.value">{{ m.label }}</option>
+              </select>
+
+              <select style="width:110px" [ngModel]="specialDayForm().hebrew_day"
+                (ngModelChange)="patchSpecialDayForm({ hebrew_day: $event }); syncHebrewToGregorianDates()">
+                <option [ngValue]="null">יום</option>
+                <option *ngFor="let d of hebrewDays" [ngValue]="d">{{ d }}</option>
+              </select>
+            </div>
+
+            <small class="field-hint">לועזי (מחושב): {{ specialDayForm().start_date }}</small>
+          </label>
+
+          <label class="field">
+            <span class="field-label">עד תאריך (עברי)</span>
+            <div class="row-between" style="gap:10px;">
+              <select style="flex:1" [ngModel]="specialDayForm().hebrew_end_month"
+                (ngModelChange)="patchSpecialDayForm({ hebrew_end_month: $event }); syncHebrewToGregorianDates()">
+                <option [ngValue]="null">חודש</option>
+                <option *ngFor="let m of hebrewMonths" [ngValue]="m.value">{{ m.label }}</option>
+              </select>
+
+              <select style="width:110px" [ngModel]="specialDayForm().hebrew_end_day"
+                (ngModelChange)="patchSpecialDayForm({ hebrew_end_day: $event }); syncHebrewToGregorianDates()">
+                <option [ngValue]="null">יום</option>
+                <option *ngFor="let d of hebrewDays" [ngValue]="d">{{ d }}</option>
+              </select>
+            </div>
+
+            <small class="field-hint">לועזי (מחושב): {{ specialDayForm().end_date }}</small>
           </label>
         </div>
+
+
+        <div class="inline-error" *ngIf="dateRangeError()">{{ dateRangeError() }}</div>
 
         <div class="inline-panel inline-panel-open" *ngIf="!specialDayForm().all_day">
           <div class="panel-title">החווה עובדת</div>
@@ -753,6 +852,21 @@
           <input type="text" placeholder="לדוגמה: חופשת פסח" [ngModel]="specialDayForm().reason"
             (ngModelChange)="patchSpecialDayForm({ reason: $event })" />
         </label>
+
+        <div class="fields-grid two-cols" style="margin-top:10px;">
+          <label class="field toggle">
+            <span class="field-label">לשלוח הודעה להורים לפני החופש</span>
+            <input type="checkbox" [ngModel]="specialDayForm().notify_parents_before"
+              (ngModelChange)="patchSpecialDayForm({ notify_parents_before: $event })" />
+          </label>
+
+          <label class="field">
+            <span class="field-label">כמה ימים לפני</span>
+            <input type="number" min="0" step="1" [ngModel]="specialDayForm().notify_days_before"
+              (ngModelChange)="patchSpecialDayForm({ notify_days_before: $event })"
+              [disabled]="!specialDayForm().notify_parents_before" />
+          </label>
+        </div>
 
         <div class="panel-actions">
           <button type="button" class="primary-btn" (click)="saveSpecialDay()" [disabled]="saving()">

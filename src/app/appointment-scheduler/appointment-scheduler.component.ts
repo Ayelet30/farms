@@ -14,6 +14,12 @@ import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { getMyChildren } from '../services/supabaseClient.service';
+import { onTenantChange } from '../services/supabaseClient.service';
+import {
+  fetchActiveChildrenForTenant,
+  getCurrentRoleInTenantSync,
+} from '../services/supabaseClient.service';
 
 
 
@@ -158,6 +164,7 @@ interface CreateSeriesWithValidationResult {
 })
 
 export class AppointmentSchedulerComponent implements OnInit {
+private unsubTenantChange?: () => void;
 
 needApprove: boolean = false;
 selectedChildId: string | null = null;
@@ -226,6 +233,14 @@ get hasSeriesCountOrOpenEnded(): boolean {
 occupancyCreatedMessage: string | null = null;
 
 @ViewChild('confirmOccupancyDialog') confirmOccupancyDialog!: TemplateRef<any>;
+@ViewChild('confirmOccupancyParentDialog') confirmOccupancyParentDialog!: TemplateRef<any>;
+@ViewChild('confirmOccupancySecretaryDialog') confirmOccupancySecretaryDialog!: TemplateRef<any>;
+@ViewChild('confirmSeriesDialogSecretary') confirmSeriesDialogSecretary!: TemplateRef<any>;
+@ViewChild('confirmSeriesDialogParent') confirmSeriesDialogParent!: TemplateRef<any>;
+
+private getSeriesDialogTpl(): TemplateRef<any> {
+  return this.isSecretary ? this.confirmSeriesDialogSecretary : this.confirmSeriesDialogParent;
+}
 
 occupancyConfirmData = {
   newDate: '',
@@ -249,7 +264,8 @@ get selectedPaymentPlan(): PaymentPlan | null {
   return this.paymentPlans.find(p => p.id === this.selectedPaymentPlanId) ?? null;
 }
 
-
+childrenLoading = false;
+childrenError: string | null = null;
 
 
 confirmData = {
@@ -354,31 +370,84 @@ paymentSourceForSeries: 'health_fund' | 'private' | null = null;
 }
 // ברירת מחדל למקרה קצה
 timeRangeOccupancyRateDays = 30;
+private unsubTenant?: () => void;
 
-  async ngOnInit(): Promise<void> {
-  // 1. קריאת פרמטרים מה־URL
+//   async ngOnInit(): Promise<void> {
+//   // 1. קריאת פרמטרים מה־URL
+//   const qp = this.route.snapshot.queryParamMap;
+//     await this.loadFarmSettings();
+//     await this.loadPaymentPlans();
+    
+//  this.unsubTenant = onTenantChange(async () => {
+//     // כל פעם שמחליפים membership/role וטוקן מתעדכן
+//     await this.loadChildrenFromCurrentUser();
+//   });
+
+//   // טעינה ראשונית
+//   this.loadChildrenFromCurrentUser();
+
+//   const needApproveParam = qp.get('needApprove');
+//   this.needApprove = needApproveParam === 'true';
+
+//   const qpChildId = qp.get('childId');
+// const isUuid = (v: string) =>
+//   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+
+// if (qpChildId && isUuid(qpChildId)) {
+//   this.selectedChildId = qpChildId;
+// }
+
+//   //await this.loadInstructors();
+
+//   // 2. תמיד טוענים ילדים פעילים מהשרת (RLS יטפל בהורה/מזכירה)
+//   await this.loadChildrenFromCurrentUser();
+//     this.buildSeriesCalendar(this.currentCalendarYear, this.currentCalendarMonth);
+
+// }
+// ngOnDestroy() {
+//   this.unsubTenant?.();
+// }
+async ngOnInit(): Promise<void> {
+  // 1) קריאת פרמטרים מה-URL
   const qp = this.route.snapshot.queryParamMap;
-    await this.loadFarmSettings();
-    await this.loadPaymentPlans();
-
 
   const needApproveParam = qp.get('needApprove');
   this.needApprove = needApproveParam === 'true';
 
   const qpChildId = qp.get('childId');
-const isUuid = (v: string) =>
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+  const isUuid = (v: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 
-if (qpChildId && isUuid(qpChildId)) {
-  this.selectedChildId = qpChildId;
+  if (qpChildId && isUuid(qpChildId)) {
+    this.selectedChildId = qpChildId;
+  } else {
+    this.selectedChildId = null;
+  }
+
+  // 2) טעינות שאינן תלויות בילדים
+  await this.loadFarmSettings();
+  await this.loadPaymentPlans();
+
+  // 3) האזנה להחלפת membership/role (טעינה מחדש + איפוס)
+  this.unsubTenant = onTenantChange(async () => {
+    // איפוס כדי למנוע מצב שיש childId ישן שלא קיים ברול החדש
+    this.selectedChildId = null;
+    this.children = [];
+    this.filteredChildren = [];
+    this.childSearchTerm = '';
+
+    await this.loadChildrenFromCurrentUser();
+  });
+
+  // 4) טעינה ראשונית של ילדים (פעם אחת בלבד)
+  await this.loadChildrenFromCurrentUser();
+
+  // 5) בניית קלנדר אחרי שיש לנו ילדים/בחירה (אם אצלך זה תלוי בזה)
+  this.buildSeriesCalendar(this.currentCalendarYear, this.currentCalendarMonth);
 }
 
-  //await this.loadInstructors();
-
-  // 2. תמיד טוענים ילדים פעילים מהשרת (RLS יטפל בהורה/מזכירה)
-  await this.loadChildrenFromCurrentUser();
-    this.buildSeriesCalendar(this.currentCalendarYear, this.currentCalendarMonth);
-
+ngOnDestroy() {
+  this.unsubTenant?.();
 }
 
 private async loadPaymentPlans(): Promise<void> {
@@ -404,7 +473,6 @@ async openHolesForCandidate(c: MakeupCandidate): Promise<void> {
     this.candidateSlotsError = 'יש לבחור ילד';
     return;
   }
-
   this.selectedMakeupCandidate = c;
   this.candidateSlots = [];
   this.candidateSlotsError = null;
@@ -449,11 +517,6 @@ if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
   p_from_date: this.makeupSearchFromDate,
   p_to_date: this.makeupSearchToDate,
 });
-
-
-
-
-
 
     if (error) {
       console.error('find_makeup_slots_for_lesson error', error);
@@ -629,28 +692,72 @@ private calcAgeYears(birthDateStr: string): number | null {
   return age;
 }
 
+// private async loadChildrenFromCurrentUser(): Promise<void> {
+//   if (!this.user) return;
+
+//   const supa = dbTenant();
+
+//   const { data, error } = await supa
+//     .from('children')
+//     .select('child_uuid, first_name, last_name, instructor_id, status, gender, birth_date')
+//     .eq('status', 'Active')
+//     .order('first_name', { ascending: true });
+
+//   if (error) {
+//     console.error('loadChildrenFromCurrentUser error', error);
+//     return;
+//   }
+
+//   this.children = (data ?? []) as ChildWithProfile[];
+//   this.filteredChildren = [...this.children];
+// this.childSearchTerm = '';
+
+
+//   // אם עבר childId בניווט והוא קיים ברשימת הילדים הפעילים:
+//   if (this.selectedChildId && this.children.some(c => c.child_uuid === this.selectedChildId)) {
+//     await this.onChildChange();
+//   } else if (!this.selectedChildId && this.children.length === 1) {
+//     this.selectedChildId = this.children[0].child_uuid;
+//     await this.onChildChange();
+//   }
+// }
 private async loadChildrenFromCurrentUser(): Promise<void> {
   if (!this.user) return;
 
-  const supa = dbTenant();
+  this.childrenLoading = true;
+  this.childrenError = null;
 
-  const { data, error } = await supa
-    .from('children')
-    .select('child_uuid, first_name, last_name, instructor_id, status, gender, birth_date')
-    .eq('status', 'Active')
-    .order('first_name', { ascending: true });
+  const baseSelect =
+    'child_uuid, first_name, last_name, instructor_id, status, gender, birth_date';
 
-  if (error) {
-    console.error('loadChildrenFromCurrentUser error', error);
+  // כמו אצלך: אם בטעות מישהו ישלח select בלי status, נוסיף
+  const hasStatus = /(^|,)\s*status\s*(,|$)/.test(baseSelect);
+  const selectWithStatus = hasStatus ? baseSelect : `${baseSelect}, status`;
+
+  const role = getCurrentRoleInTenantSync();
+
+  const res =
+    role === 'parent'
+      ? await fetchMyChildren(selectWithStatus)
+      : await fetchActiveChildrenForTenant(selectWithStatus);
+
+  this.childrenLoading = false;
+
+  if (!res.ok) {
+    this.childrenError = res.error ?? 'שגיאה בטעינת ילדים';
+    this.children = [];
+    this.filteredChildren = [];
     return;
   }
 
-  this.children = (data ?? []) as ChildWithProfile[];
+  // בעמוד זימון תור את רוצה רק Active בכל מקרה
+  const rows = (res.data ?? []).filter(r => (r as any).status === 'Active');
+
+  this.children = rows as unknown as ChildWithProfile[];
   this.filteredChildren = [...this.children];
-this.childSearchTerm = '';
+  this.childSearchTerm = '';
 
-
-  // אם עבר childId בניווט והוא קיים ברשימת הילדים הפעילים:
+  // בחירה אוטומטית כמו שהיה לך
   if (this.selectedChildId && this.children.some(c => c.child_uuid === this.selectedChildId)) {
     await this.onChildChange();
   } else if (!this.selectedChildId && this.children.length === 1) {
@@ -658,7 +765,6 @@ this.childSearchTerm = '';
     await this.onChildChange();
   }
 }
-
 private async loadInstructorsForChild(childId: string): Promise<void> {
   this.loadingInstructors = true;
   this.instructors = [];
@@ -1735,7 +1841,7 @@ get isSecretary(): boolean {
   return this.user?.role === 'secretary';
 }
 
-async onSeriesSlotChosen(slot: RecurringSlotWithSkips, dialogTpl: TemplateRef<any>): Promise<void> {
+async onSeriesSlotChosen(slot: RecurringSlotWithSkips): Promise<void> {
   if (!this.selectedChildId || !this.user) {
     this.seriesError = 'חסר ילד או משתמש מחובר';
     this.showErrorToast(this.seriesError);
@@ -1756,26 +1862,26 @@ async onSeriesSlotChosen(slot: RecurringSlotWithSkips, dialogTpl: TemplateRef<an
 
   // ✅ ממלא את seriesConfirmData כולל skips
   this.buildSeriesConfirmData(slot);
+const dialogTpl = this.getSeriesDialogTpl();
 
-  const dialogRef = this.dialog.open(dialogTpl, {
-    width: '420px',
-    disableClose: true,
-    data: {},
-  });
+const dialogRef = this.dialog.open(dialogTpl, {
+  width: '420px',
+  disableClose: true,
+  data: {},
+});
 
-  dialogRef.afterClosed().subscribe(async confirmed => {
-    if (!confirmed) return;
+dialogRef.afterClosed().subscribe(async confirmed => {
+  if (!confirmed) return;
 
-    this.seriesError = null;
+  this.seriesError = null;
 
-    if (this.isSecretary) {
-      // ✅ מזכירה: אחרי אישור – קובעים בפועל
-      await this.createSeriesFromSlot(slot);
-    } else {
-      // ✅ הורה: אחרי אישור – שולחים בקשה (כולל העלאת מסמך אם צריך)
-      await this.submitSeriesRequestToSecretary(slot);
-    }
-  });
+  if (this.isSecretary) {
+    await this.createSeriesFromSlot(slot);
+  } else {
+    await this.submitSeriesRequestToSecretary(slot);
+  }
+});
+
 }
 
 
@@ -1958,7 +2064,7 @@ async onSeriesSlotChosen(slot: RecurringSlotWithSkips, dialogTpl: TemplateRef<an
 // }
 async requestSeriesFromSecretary(slot: RecurringSlotWithSkips, dialogTpl: TemplateRef<any>): Promise<void> {
   // נשאר רק בשביל תאימות – אבל בפועל onSeriesSlotChosen כבר עושה את זה
-  await this.onSeriesSlotChosen(slot, dialogTpl);
+  await this.onSeriesSlotChosen(slot);
 }
 
   // =========================================
@@ -2228,11 +2334,8 @@ this.occupancyConfirmData.newInstructorName = newInstructorName;
   this.occupancyConfirmData.oldStart = orig.start_time.substring(0, 5);
   this.occupancyConfirmData.oldEnd   = orig.end_time.substring(0, 5);
   
-  const dialogRef = this.dialog.open(this.confirmOccupancyDialog, {
-    width: '380px',
-    disableClose: true,
-    data: {},
-  });
+ const dialogRef = this.openOccupancyConfirmDialog(false);
+
 
   dialogRef.afterClosed().subscribe(async confirmed => {
     if (!confirmed) return;
@@ -2326,11 +2429,8 @@ async bookOccupancySlotAsSecretary(slot: MakeupSlot): Promise<void> {
   this.occupancyConfirmData.oldEnd   = c.end_time.substring(0, 5);
   this.occupancyConfirmData.oldInstructorName = oldInstructorName;
 
-  const dialogRef = this.dialog.open(this.confirmOccupancyDialog, {
-    width: '380px',
-    disableClose: true,
-    data: {},
-  });
+  const dialogRef = this.openOccupancyConfirmDialog(true);
+
 
   dialogRef.afterClosed().subscribe(async (confirmed: boolean) => {
     if (!confirmed) return;
@@ -2845,5 +2945,26 @@ private async submitSeriesRequestToSecretary(slot: RecurringSlotWithSkips): Prom
 //     skippedInstructor: (slot.skipped_instructor_unavailability ?? []).map(String),
 //   };
 // }
+private openOccupancyConfirmDialog(isSecretary: boolean) {
+  const tpl = isSecretary
+    ? this.confirmOccupancySecretaryDialog
+    : this.confirmOccupancyParentDialog;
+
+  return this.dialog.open(tpl, {
+    width: '380px',
+    disableClose: true,
+    data: {},
+  });
+}
+get canShowSeriesCalendar(): boolean {
+  // חייבים לבחור ילד
+  if (!this.selectedChildId) return false;
+
+  // חייבים לבחור מדריך (או any)
+  if (!this.selectedInstructorId) return false;
+
+  // ורק אחרי שבוחרים כמות שיעורים או "ללא הגבלה"
+  return this.hasSeriesCountOrOpenEnded;
+}
 
 }

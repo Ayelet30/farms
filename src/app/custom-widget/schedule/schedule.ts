@@ -374,18 +374,12 @@ console.log('🧪 META', meta);
 
   ngOnChanges(changes: SimpleChanges) {
   if (changes['resources']) {
-    console.log('ScheduleComponent got resources:', this.resources);
     // אחרי שמגיעים resources – לעדכן את ה־View למצב resource*
     setTimeout(() => this.applyCurrentView(), 0);
   }
 
   if (changes['items'] || changes['resources']) {
-console.log('SCHEDULE ITEMS META SAMPLE:', this.items.slice(0,5).map(i => ({
-  id: i.id,
-  horse: i.meta?.['horse_name'],
-  arena: i.meta?.['arena_name'],
-  meta: i.meta
-})));
+
 
     this.calendarOptions = {
       ...this.calendarOptions,

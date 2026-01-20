@@ -1,4 +1,3 @@
-// src/app/core/services/agreements.service.ts
 import { Injectable, inject } from '@angular/core';
 import { SupabaseClient } from '@supabase/supabase-js';
 
@@ -19,33 +18,25 @@ export interface RequiredAgreement {
 export class AgreementsService {
   private supabase = inject(SupabaseClient);
 
-  /**
-   * מחזיר רשימת תקנונים נדרשים לילד + האם כבר אושרו (דרך RPC ציבורית).
-   */
   async getRequiredForChild(tenantSchema: string, childId: string, parentUid: string, activityTag?: string) {
-    const { data, error } = await this.supabase
-      .rpc('get_required_agreements', {
-        tenant_schema: tenantSchema,
-        child: childId,
-        parent: parentUid,
-        activity_tag: activityTag ?? null
-      });
+    const { data, error } = await this.supabase.rpc('get_required_agreements', {
+      tenant_schema: tenantSchema,
+      child: childId,
+      parent: parentUid,
+      activity_tag: activityTag ?? null
+    });
 
     if (error) throw error;
     return (data || []) as RequiredAgreement[];
   }
 
-  /**
-   * רישום אישור/חתימה לגרסה ספציפית (פר-ילד).
-   * אם שומרת גם חתימה כקובץ: העלי ל-Storage וקבעי signature_path.
-   */
   async acceptAgreement(tenantSchema: string, payload: {
     versionId: string;
     parentUid: string;
-    childId?: string | null;           // per_child: חובה
+    childId?: string | null;
     firstNameSnapshot?: string | null;
-   lastNameSnapshot?: string | null;
-    roleSnapshot?: string | null;      // 'parent'
+    lastNameSnapshot?: string | null;
+    roleSnapshot?: string | null;
     ip?: string | null;
     userAgent?: string | null;
     signaturePath?: string | null;
@@ -57,7 +48,7 @@ export class AgreementsService {
         agreement_version_id: payload.versionId,
         parent_user_id: payload.parentUid,
         child_id: payload.childId ?? null,
-       first_name_snapshot: payload.firstNameSnapshot ?? null,
+        first_name_snapshot: payload.firstNameSnapshot ?? null,
         last_name_snapshot: payload.lastNameSnapshot ?? null,
         role_snapshot: payload.roleSnapshot ?? 'parent',
         ip: payload.ip ?? null,

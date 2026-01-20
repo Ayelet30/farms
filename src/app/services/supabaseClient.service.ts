@@ -170,6 +170,9 @@ export async function getCurrentUserData(): Promise<any> {
   const { data } = await getSupabaseClient().from('users').select('*').eq('uid', currentUser.uid).maybeSingle();
   return data ?? null;
 }
+export function getCurrentRoleInTenantSync(): RoleInTenant | null {
+  return (currentRoleInTenant as RoleInTenant) ?? null;
+}
 
 export async function getFarmMetaById(farmId: string): Promise<FarmMeta | null> {
   const cached = farmMetaCache.get(farmId);
@@ -569,7 +572,6 @@ export function getSelectedMembershipSync(): Membership | null {
 
 export async function selectMembership(tenantId: string, roleInTenant?: string): Promise<Membership> {
   const list = await listMembershipsForCurrentUser(true);
-  console.log("selectMembership", tenantId, roleInTenant, list);
 
   // ✅ תקני: לבחור לפי tenant + role אם אפשר
   const chosen =
@@ -688,6 +690,25 @@ select = 'child_uuid, first_name, last_name, gov_id, birth_date, parent_uid, sta
   try {
     const data = await getMyChildren(select);
     return { ok: true, data };
+  } catch (e: any) {
+    return { ok: false, data: [], error: e?.message ?? 'Unknown error' };
+  }
+}
+export async function fetchActiveChildrenForTenant(
+  select = 'child_uuid, first_name, last_name, instructor_id, status, gender, birth_date'
+): Promise<{ ok: boolean; data: ChildRow[]; error?: string }> {
+  try {
+    await ensureTenantContextReady();
+
+    const { data, error } = await dbTenant()
+      .from('children')
+      .select(select)
+      .eq('status', 'Active')
+      .order('first_name', { ascending: true })
+      .order('last_name', { ascending: true });
+
+    if (error) throw error;
+    return { ok: true, data: (data ?? []) as unknown as ChildRow[] };
   } catch (e: any) {
     return { ok: false, data: [], error: e?.message ?? 'Unknown error' };
   }

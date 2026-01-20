@@ -7,7 +7,6 @@ export const RoleGuard: CanActivateFn = (route, state) => {
   const cuSvc = inject(CurrentUserService);
   const user = cuSvc.current;
 
-  console.log(user);
 
 
   if (!user) {

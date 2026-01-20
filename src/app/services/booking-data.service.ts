@@ -5,7 +5,7 @@ import { dbPublic } from '../services/supabaseClient.service';
 export type FarmOption = {
   id: string;
   name: string;
-  tenantSchema: string; // למשל 'bereshit_farm'
+  tenantSchema: string; 
 };
 
 
@@ -22,7 +22,6 @@ export class BookingDataService {
       throw error;
     }
 
-    console.log('Farms data:', data);
 
     return (data ?? []).map((row: any) => ({
   id: row.farm_id,

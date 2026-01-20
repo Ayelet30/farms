@@ -66,14 +66,14 @@ export interface TranzilaChargeResponse {
 @Injectable({ providedIn: 'root' })
 export class TranzilaService {
 
-  async chargeSelectedParentCharges(arg0: { tenantSchema: string; parentUid: string; chargeIds: string[]; secretaryEmail: string; })
-  : Promise<CreateHostedUrlResponse> {
-    const res = await firstValueFrom(
-      this.http.post<CreateHostedUrlResponse>(`${this.base}/chargeSelectedChargesForParent`, arg0) 
-    );
-    if (!res) throw new Error('Missing hosted payment URL');
-    return res;
-  }
+  // async chargeSelectedParentCharges(arg0: { tenantSchema: string; parentUid: string; chargeIds: string[]; secretaryEmail: string; })
+  // : Promise<CreateHostedUrlResponse> {
+  //   const res = await firstValueFrom(
+  //     this.http.post<CreateHostedUrlResponse>(`${this.base}/chargeSelectedChargesForParent`, arg0) 
+  //   );
+  //   if (!res) throw new Error('Missing hosted payment URL');
+  //   return res;
+  // }
   private http = inject(HttpClient);
   // אם יש לך פרוקסי ב־Angular: '/api/**' → לפונקציות/שרת
   private readonly base = '/api';
@@ -106,6 +106,9 @@ chargeSelectedChargesForParent(args: {
   tenantSchema: string;
   secretaryEmail: string;
   chargeIds: string[];
+  invoiceExtraText?: string | null; 
+
+  
 }) {
   return firstValueFrom(
     this.http.post<{ ok: boolean; results: any[]; failedCount: number }>(

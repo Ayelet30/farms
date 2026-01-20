@@ -66,6 +66,7 @@ export class SecretaryParentBillingComponent implements OnInit {
   detailsCredits = signal<any[]>([]);
   private thtk: string | null = null;
 
+invoiceExtraText = '';
 
 
   constructor(private payments: PaymentsService) {}
@@ -226,12 +227,13 @@ export class SecretaryParentBillingComponent implements OnInit {
 
      const farm = getCurrentFarmMetaSync();
     const schema = farm?.schema_name ?? undefined;
-    console.log('Charging parent charges', { parentUid, ids, schema });
     await this.tranzila.chargeSelectedChargesForParent({
       tenantSchema: schema?? farm?.schema_name ?? 'public',
       parentUid,
       chargeIds: ids,
-      secretaryEmail: 'ayelethury@gmail.com', // או מהמזכירה המחוברת
+      secretaryEmail: 'ayelethury@gmail.com', 
+      invoiceExtraText: this.invoiceExtraText?.trim() || null, 
+// או מהמזכירה המחוברת
     });
 
     await this.loadCharges();
@@ -401,16 +403,26 @@ detailsCreditsTotalAgorot = computed(() => {
     let ok = 0;
     let failed = 0;
 
-    for (const p of list) {
-      const { error: rpcError } = await dbTenant().rpc('create_monthly_charge_for_parent', {
-        p_parent_uid: p.uid,
-        p_billing_date: billingDate,
-      });
+    const { data: jwtDbg, error: jwtErr } = await dbTenant().rpc('debug_jwt');
+  console.log('debug_jwt', { jwtDbg, jwtErr });
 
-      if (rpcError) {
-        failed++;
-        console.error(`❌ parent ${p.uid} failed`, rpcError);
-      } else {
+
+    for (const p of list) {
+const { data, error: rpcError } = await dbTenant().rpc('create_monthly_charge_for_parent', {
+  p_parent_uid: p.uid,
+  p_billing_date: billingDate,
+});
+
+if (rpcError) {
+  console.error('RPC failed', {
+    message: rpcError.message,
+    code: rpcError.code,
+    details: rpcError.details,
+    hint: rpcError.hint,
+  });
+}
+
+else {
         ok++;
       }
     }

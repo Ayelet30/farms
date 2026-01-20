@@ -10,6 +10,8 @@ import {
   ensureTenantContextReady,
   getCurrentFarmMetaSync,
 } from '../../services/supabaseClient.service';
+import { TenantBootstrapService } from '../../services/tenant-bootstrap.service';
+import { ParentPaymentsDbService } from '../../services/parent-payments-db.service';
 
 declare const TzlaHostedFields: any;
 
@@ -91,7 +93,9 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
     private tranzila: TranzilaService,
     private pagos: PaymentsService,
     private cu: CurrentUserService,
-  ) {
+    private tenantBoot: TenantBootstrapService,
+    private ppDb: ParentPaymentsDbService,
+    ) {
     const cur = this.cu.current;
     this.parentUid = cur?.uid ?? '';
     this.parentEmail = cur?.email ?? '';
@@ -161,32 +165,30 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
       this.error.set(e?.message ?? 'load failed');
     }
   }
-
-  // חשבוניות מהטבלה bereshit_farm.payments (invoice_url)
   private async refreshInvoices() {
     try {
-      const dbc = dbTenant();
-      const { data, error } = await dbc
-        .from('payments')
-        .select('id, amount, date, method, invoice_url')
-        .eq('parent_uid', this.parentUid)
-        .not('invoice_url', 'is', null)
-        .order('date', { ascending: false })
-        .limit(100);
+      const dbc = this.ppDb.db();
 
+    const { data, error } = await dbc
+  .from('payments')
+  .select('id, amount, date, method, tranzila_invoice_url')
+  .eq('parent_uid', this.parentUid)
+  .not('tranzila_invoice_url', 'is', null)
+  .order('date', { ascending: false })
+  .limit(100);
       if (error) throw error;
 
       const rows = (data ?? []) as any[];
 
-      this.invoices.set(
-        rows.map((r) => ({
-          id: String(r.id),
-          amountNis: Number(r.amount ?? 0).toFixed(2) + ' ₪',
-          date: r.date ? new Date(r.date).toLocaleDateString('he-IL') : '-',
-          invoice_url: String(r.invoice_url),
-          method: r.method ?? null,
-        })),
-      );
+    this.invoices.set(
+  rows.map((r) => ({
+    id: String(r.id),
+    amountNis: Number(r.amount ?? 0).toFixed(2) + ' ₪',
+    date: r.date ? new Date(r.date).toLocaleDateString('he-IL') : '-',
+    invoice_url: String(r.tranzila_invoice_url), // <-- כאן
+    method: r.method ?? null,
+  })),
+);
     } catch (e: any) {
       // לא חוסמים מסך אם אין הרשאות/טבלה — פשוט לא מציגים
       console.error('[invoices] load failed', e);
@@ -295,8 +297,9 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
       return;
     }
 
-    await ensureTenantContextReady();
-    const farm = getCurrentFarmMetaSync();
+    await this.tenantBoot.ensureReady();
+    const farm = this.tenantBoot.getFarmMetaSync();
+
     const tenantSchema = farm?.schema_name ?? undefined;
     if (!tenantSchema) {
       this.tokenError.set('לא זוהתה סכמת חווה');

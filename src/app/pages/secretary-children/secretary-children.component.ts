@@ -139,7 +139,6 @@ export class SecretaryChildrenComponent implements OnInit {
       if (error) throw error;
 
       this.children = (data ?? []) as ChildRow[];
-      console.log('Loaded children:', this.children, dbc.url);
     } catch (e: any) {
       this.error = e?.message ?? 'Failed to fetch children.';
       this.children = [];

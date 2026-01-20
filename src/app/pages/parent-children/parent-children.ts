@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import type { ChildRow } from '../../Types/detailes.model';
 import { getCurrentUserData } from '../../services/supabaseClient.service';
-// import { ChildConsentsComponent } from '../../consents/child-consents.component/child-consents.component';
 import { NgClass, NgTemplateOutlet } from '@angular/common';
 //import { dbTenant } from '../../services/legacy-compat';
 import { dbTenant } from '../../services/legacy-compat';
@@ -367,14 +366,25 @@ if (firstErr || lastErr) {
       const cid = o.child_id;
       if (!cid || this.nextAppointments[cid]) continue;
 
-      const dt = new Date(o.start_datetime);
-      this.nextAppointments[cid] = {
-        date: this.fmtDateHe(dt),
-        time: this.fmtTimeHe(dt),
-        instructor: instructorNameById[o.instructor_id ?? ''],
-        isToday: this.isSameLocalDate(dt, new Date()),
-        _ts: dt.getTime()
-      };
+  
+const ts = this.occTs(o.start_datetime);
+if (!Number.isFinite(ts)) continue;
+
+if (ts < Date.now()) {
+  // עבר כבר (גם אם ה-DB החזיר אותו) -> מדלגים וממשיכים לחפש את הבא
+  continue;
+}
+
+const dt = new Date(ts);
+this.nextAppointments[cid] = {
+  date: this.fmtDateHe(dt),
+  time: this.fmtTimeHe(dt),
+  instructor: instructorNameById[o.instructor_id ?? ''],
+  isToday: this.isSameLocalDate(dt, new Date()),
+  _ts: ts
+};
+
+
     }
   }
 
@@ -443,15 +453,20 @@ const ids = this.children
       const cid = o.child_id;
       if (!cid || this.lastActivities[cid]) continue;
 
-      const dt = new Date(o.start_datetime);
-      const instr = instructorNameById[o.instructor_id ?? ''] || undefined;
+     const ts = this.occTs(o.start_datetime);
+if (!Number.isFinite(ts)) continue;
 
-      this.lastActivities[cid] = {
-        date: this.fmtDateHe(dt),
-        time: this.fmtTimeHe(dt),
-        instructor: instr,
-        pendingCompletion: o.status !== 'הושלם'
-      };
+// "פעילות אחרונה" חייב להיות באמת בעבר
+if (ts > Date.now()) continue;
+
+const dt = new Date(ts);
+this.lastActivities[cid] = {
+  date: this.fmtDateHe(dt),
+  time: this.fmtTimeHe(dt),
+  instructor: instructorNameById[o.instructor_id ?? ''] || undefined,
+  pendingCompletion: o.status !== 'הושלם'
+};
+
     }
   }
 
@@ -808,6 +823,17 @@ private validateChildName(value: string, label: string): string | null {
   if (/\d/.test(v)) return `${label} לא יכול להכיל מספרים`;
 
   return null;
+}
+private occTs(start_datetime: string): number {
+  if (!start_datetime) return NaN;
+
+  // אם יש Z או offset (+02:00 / -05:00) – זה כבר "מודע זמן"
+  const hasTz = /([zZ]|[+\-]\d{2}:\d{2})$/.test(start_datetime);
+
+  // אם אין tz, נניח שהמחרוזת היא UTC ונוסיף Z (מונע סטייה של שעתיים)
+  const iso = hasTz ? start_datetime : `${start_datetime}Z`;
+
+  return new Date(iso).getTime();
 }
 
 }

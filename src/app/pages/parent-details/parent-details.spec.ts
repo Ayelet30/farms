@@ -1,18 +1,23 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { ParentDetails } from './parent-details';
+import { ParentDetailsComponent } from './parent-details';
+import { initializeApp, provideFirebaseApp } from '@angular/fire/app';
+import { environment } from '../../../environments/environment';
+import { getAuth, provideAuth } from '@angular/fire/auth';
 
 describe('ParentDetails', () => {
-  let component: ParentDetails;
-  let fixture: ComponentFixture<ParentDetails>;
+  let component: ParentDetailsComponent;
+  let fixture: ComponentFixture<ParentDetailsComponent>;
 
   beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [ParentDetails]
-    })
-    .compileComponents();
+  await TestBed.configureTestingModule({
+    providers: [
+      provideFirebaseApp(() => initializeApp(environment.firebase)),
+      provideAuth(() => getAuth()),
+    ],
+  }).compileComponents();
 
-    fixture = TestBed.createComponent(ParentDetails);
+    fixture = TestBed.createComponent(ParentDetailsComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });

@@ -179,7 +179,7 @@ invoiceLoading = new Set<string>(); // paymentId
   }
   private async getTenantSchemaOrThrow(): Promise<string> {
   await this.tenantSvc.ensureTenantContextReady();
-  return this.tenantSvc.requireTenant().schema; // למשל: "bereshit_farm"
+  return this.tenantSvc.requireTenant().schema;
 }
 
 async createOrFetchInvoice(r: any) {
@@ -190,7 +190,7 @@ const win = window.open('about:blank', '_blank');
   // ✅ לפתוח בלי noopener/noreferrer כדי שתישאר שליטה על הטאב
 
   try {
-    r._invLoading = true;
+  this.invoiceLoading.add(r.id);
 
     const tenantSchema = await this.getTenantSchemaOrThrow();
 
@@ -219,6 +219,8 @@ const win = window.open('about:blank', '_blank');
     }
 
     r.invoice_url = url;
+    r.invoice_status = 'ready'; // כדי שהכפתור יתחלף מיד ללינק
+
 
     // ✅ הגנה מפני reverse-tabnabbing בלי לאבד שליטה בטאב
     try {
@@ -229,13 +231,16 @@ const win = window.open('about:blank', '_blank');
     if (win) {
       win.location.replace(url);
       win.focus?.();
+      
+      await this.loadPage();
+
     } else {
       // fallback אם popup נחסם
       window.open(url, '_blank', 'noopener,noreferrer');
     }
 
   } finally {
-    r._invLoading = false;
+    this.invoiceLoading.delete(r.id);
   }
 }
 

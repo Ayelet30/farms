@@ -130,7 +130,6 @@ export class BookingComponent implements OnInit {
 
   const farm = this.farms.find(f => f.id === this.model.farmId);
   if (!farm) return;
-  console.log('Selected farm:', farm);
 
   const booking: BookingPayload = {
     type: this.type,

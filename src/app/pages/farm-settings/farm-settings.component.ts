@@ -3,12 +3,18 @@ import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/supabaseClient.service';
+import { HDate } from '@hebcal/core';
+
 
 type UUID = string;
+
 type LateCancelPolicy = 'CHARGE_FULL' | 'CHARGE_PARTIAL' | 'NO_CHARGE' | 'NO_MAKEUP';
 type AttendanceDefault = 'ASSUME_ATTENDED' | 'ASSUME_ABSENT' | 'REQUIRE_MARKING';
-type ReminderChannel = 'EMAIL' | 'SMS' | 'APP';
+type ReminderChannel = 'EMAIL' | 'SMS' | 'APP' | 'WHATSAPP';
 
+type CalendarKind = 'GREGORIAN' | 'HEBREW';
+type RecurrenceKind = 'ONCE' | 'YEARLY';
+type DayType = 'FULL_DAY' | 'PARTIAL_DAY';
 
 interface FarmSettings {
   id?: UUID;
@@ -17,43 +23,50 @@ interface FarmSettings {
   operating_hours_end: string | null;
 
   office_hours_start: string | null;
-office_hours_end: string | null;
-
+  office_hours_end: string | null;
 
   default_lessons_per_series: number | null;
   lesson_duration_minutes: number | null;
   default_lesson_price: number | null;
 
   makeup_allowed_days_back: number | null;
-  makeup_allowed_days_ahead: number | null;          // NEW
+  makeup_allowed_days_ahead: number | null;
   max_makeups_in_period: number | null;
   makeups_period_days: number | null;
   displayed_makeup_lessons_count: number | null;
   min_time_between_cancellations: string | null;
 
+  cancel_before_hours: number | null;
+  late_cancel_policy: LateCancelPolicy | null;
+  late_cancel_fee_amount: number | null;
+  late_cancel_fee_percent: number | null;
 
-  cancel_before_hours: number | null;                // NEW
-  late_cancel_policy: LateCancelPolicy | null;       // NEW
-  late_cancel_fee_amount: number | null;             // NEW
-  late_cancel_fee_percent: number | null;            // NEW
+  attendance_default: AttendanceDefault | null;
 
-  attendance_default: AttendanceDefault | null;       // NEW
+  monthly_billing_day: number | null;
 
-  monthly_billing_day: number | null;                // NEW (1..28)
+  working_days: number[] | null;
+  time_slot_minutes: number | null;
+  timezone: string | null;
 
-  working_days: number[] | null;                     // NEW [1..7]
-  time_slot_minutes: number | null;                  // NEW
-  timezone: string | null;                           // NEW
+  send_lesson_reminder: boolean | null;
+  reminder_hours_before: number | null;
+  reminder_channel: ReminderChannel | null;
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
 
-  send_lesson_reminder: boolean | null;              // NEW
-  reminder_hours_before: number | null;              // NEW
-  reminder_channel: ReminderChannel | null;          // NEW
-  quiet_hours_start: string | null;                  // NEW (HH:MM)
-  quiet_hours_end: string | null;                    // NEW (HH:MM)
+  enable_discounts: boolean | null;
+  late_payment_fee: number | null;
+  interest_percent_monthly: number | null;
 
-  enable_discounts: boolean | null;                  // NEW
-  late_payment_fee: number | null;                   // NEW
-  interest_percent_monthly: number | null;           // NEW
+  late_payment_grace_days?: number | null;
+
+  notify_before_farm_closure?: boolean | null;
+  notify_before_farm_closure_hours?: number | null;
+
+  suggest_makeup_on_cancel?: boolean | null;
+  reminder_require_confirmation?: boolean | null;
+  reminder_allow_cancel_link?: boolean | null;
 
   registration_fee: number | null;
   student_insurance_premiums: number | null;
@@ -72,6 +85,14 @@ interface FundingSource {
   is_active: boolean;
 }
 
+interface PaymentPlanPriceVersion {
+  id: UUID;
+  valid_from: string;
+  lesson_price: number;
+  subsidy_amount: number;
+  customer_amount: number;
+}
+
 interface PaymentPlan {
   id?: UUID;
   name: string;
@@ -83,6 +104,7 @@ interface PaymentPlan {
   require_docs_at_booking: boolean;
   is_active?: boolean;
 
+  // UI-only
   newVersionDate?: string | null;
   newVersionPrice?: number | null;
   newVersionSubsidy?: number | null;
@@ -90,27 +112,49 @@ interface PaymentPlan {
   versions?: PaymentPlanPriceVersion[];
 }
 
-interface PaymentPlanPriceVersion {
-  id: UUID;
-  valid_from: string;
-  lesson_price: number;
-  subsidy_amount: number;
-  customer_amount: number;
-}
-
-type DayType = 'FULL_DAY' | 'PARTIAL_DAY';
-
 interface FarmDayOff {
   id?: UUID;
-  start_date: string;
-  end_date: string;
-  all_day: boolean;          // UI
-  start_time: string | null; // HH:MM
-  end_time: string | null;   // HH:MM
+
+  // לועזי
+  start_date: string | null;
+  end_date: string | null;
+
+  // UI
+  all_day: boolean;
+  start_time: string | null;
+  end_time: string | null;
+
   reason: string;
   is_active: boolean;
+
   created_at?: string;
-  day_type?: DayType;        // DB
+
+  day_type?: DayType;
+  recurrence?: RecurrenceKind;
+
+  // NEW: סוג לוח + שדות עבריים
+  calendar_kind?: CalendarKind;
+
+  hebrew_day?: number | null;        // 1..30
+  hebrew_month?: number | null;      // 1..13 (לפי Hebcal)
+  hebrew_end_day?: number | null;
+  hebrew_end_month?: number | null;
+
+  notify_parents_before?: boolean;
+  notify_days_before?: number | null;
+}
+
+
+interface FarmWorkingHours {
+  id?: UUID;
+  day_of_week: number; // 1..7
+  is_open: boolean;
+
+  farm_start: string | null;   // "HH:MM"
+  farm_end: string | null;
+
+  office_start: string | null;
+  office_end: string | null;
 }
 
 @Component({
@@ -121,9 +165,7 @@ interface FarmDayOff {
   styleUrls: ['./farm-settings.component.scss'],
 })
 export class FarmSettingsComponent implements OnInit {
-
   private readonly SETTINGS_SINGLETON_ID = '00000000-0000-0000-0000-000000000001';
-
   private supabase = dbTenant();
 
   loading = signal(false);
@@ -133,8 +175,11 @@ export class FarmSettingsComponent implements OnInit {
 
   settings = signal<FarmSettings | null>(null);
 
-  officeHoursError = signal<string | null>(null);
+  // Accordion hours
+  workingHoursExpanded = signal(true);
+  workingHoursError = signal<string | null>(null);
 
+  // ====== Funding & Plans ======
   showNewFundingForm = signal(false);
   showNewPlanForm = signal(false);
   editingFundingId = signal<UUID | null>(null);
@@ -151,9 +196,112 @@ export class FarmSettingsComponent implements OnInit {
     funding_source_id: null,
     required_docs: [],
     require_docs_at_booking: true,
+    is_active: true,
   };
 
-  // ====== ימים מיוחדים / ימי חופש ======
+  // ===== Hebrew months (Hebcal) =====
+hebrewMonths = [
+  { value: 1, label: 'תשרי' },
+  { value: 2, label: 'חשוון' },
+  { value: 3, label: 'כסלו' },
+  { value: 4, label: 'טבת' },
+  { value: 5, label: 'שבט' },
+  { value: 6, label: 'אדר' },
+  { value: 7, label: 'אדר ב' },
+  { value: 8, label: 'ניסן' },
+  { value: 9, label: 'אייר' },
+  { value: 10, label: 'סיון' },
+  { value: 11, label: 'תמוז' },
+  { value: 12, label: 'אב' },    
+  { value: 13, label: 'אלול' },  
+];
+
+hebrewDays = Array.from({ length: 30 }, (_, i) => i + 1);
+
+private toIsoDate(d: Date): string {
+  // yyyy-mm-dd
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** מחזיר את התאריך הלועזי הקרוב (מהיום והלאה) עבור יום/חודש עברי */
+private nextGregorianFromHebrew(heDay: number, heMonth: number): string {
+  const today = new Date();
+  const hToday = new HDate(today);
+  let hy = hToday.getFullYear();
+
+  // ניסיון לשנה העברית הנוכחית:
+  let g = new HDate(heDay, heMonth, hy).greg();
+  // אם כבר עבר - נזוז לשנה הבאה
+  if (g < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+    hy += 1;
+    g = new HDate(heDay, heMonth, hy).greg();
+  }
+  return this.toIsoDate(g);
+}
+
+/** כשעוברים למצב עברי / משנים יום-חודש עברי -> מסנכרנים start_date/end_date לתצוגה + שמירה */
+syncHebrewToGregorianDates(): void {
+  const f = this.specialDayForm();
+  if (f.calendar_kind !== 'HEBREW') return;
+
+  const sd = f.hebrew_day ?? null;
+  const sm = f.hebrew_month ?? null;
+  const ed = f.hebrew_end_day ?? sd;
+  const em = f.hebrew_end_month ?? sm;
+
+  if (!sd || !sm) return;
+
+  const start = this.nextGregorianFromHebrew(sd, sm);
+  const end = (ed && em) ? this.nextGregorianFromHebrew(ed, em) : start;
+
+  this.specialDayForm.set({
+    ...f,
+    start_date: start,
+    end_date: end,
+    hebrew_end_day: ed,
+    hebrew_end_month: em,
+  });
+
+  this.validateSpecialDayDateRange(this.specialDayForm());
+}
+
+setCalendarKind(kind: CalendarKind): void {
+  const f = this.specialDayForm();
+
+  if (kind === 'GREGORIAN') {
+    this.specialDayForm.set({
+      ...f,
+      calendar_kind: 'GREGORIAN',
+      hebrew_day: null,
+      hebrew_month: null,
+      hebrew_end_day: null,
+      hebrew_end_month: null,
+    });
+    return;
+  }
+
+  // kind === 'HEBREW'
+  const todayIso = new Date().toISOString().slice(0, 10);
+  this.specialDayForm.set({
+    ...f,
+    calendar_kind: 'HEBREW',
+    recurrence: f.recurrence ?? 'YEARLY', // טבעי לעברי
+    start_date: f.start_date || todayIso,
+    end_date: f.end_date || todayIso,
+    hebrew_day: f.hebrew_day ?? 10,
+    hebrew_month: f.hebrew_month ?? 7, // ברירת מחדל תשרי
+    hebrew_end_day: f.hebrew_end_day ?? f.hebrew_day ?? 10,
+    hebrew_end_month: f.hebrew_end_month ?? f.hebrew_month ?? 7,
+  });
+
+  this.syncHebrewToGregorianDates();
+}
+
+
+  // ====== ימים מיוחדים (לועזי בלבד) ======
   showSpecialDaysModal = signal(false);
   daysOff = signal<FarmDayOff[]>([]);
   specialDayForm = signal<FarmDayOff>({
@@ -164,32 +312,17 @@ export class FarmSettingsComponent implements OnInit {
     end_time: null,
     reason: '',
     is_active: true,
+    recurrence: 'ONCE',
+    notify_parents_before: false,
+    notify_days_before: 1,
   });
-  // === ולידציות לימים מיוחדים (UI) ===
-dateRangeError = signal<string | null>(null);
-specialDaysTouched = signal(false);
 
-private validateSpecialDayDateRange(form: FarmDayOff): void {
-  // איפוס
-  this.dateRangeError.set(null);
+  dateRangeError = signal<string | null>(null);
 
-  if (!form.start_date || !form.end_date) return;
+  // ====== שעות לפי יום ======
+  workingHours = signal<FarmWorkingHours[]>([]);
 
-  // YYYY-MM-DD => אפשר להשוות מחרוזות (אותו פורמט)
-  if (form.end_date < form.start_date) {
-    this.dateRangeError.set('״עד תאריך״ לא יכול להיות קטן מ־״מתאריך״.');
-  }
-}
-
-// עדכון הפונקציה הקיימת שלך:
-patchSpecialDayForm(patch: Partial<FarmDayOff>): void {
-  const next = { ...this.specialDayForm(), ...patch };
-  this.specialDayForm.set(next);
-
-  // ברגע שמשנים תאריכים - נחשב ולידציה
-  this.validateSpecialDayDateRange(next);
-}
-
+  // ================================
   async ngOnInit(): Promise<void> {
     this.loading.set(true);
     this.error.set(null);
@@ -201,7 +334,15 @@ patchSpecialDayForm(patch: Partial<FarmDayOff>): void {
         this.loadFundingSources(),
         this.loadPaymentPlans(),
         this.loadFarmDaysOff(),
+        this.loadWorkingHours(),
       ]);
+
+      // אם אין שום רשומות – נבנה 7 ימים כדי שהמסך לא ייראה "ריק"
+      if (!this.workingHours().length) {
+        this.workingHours.set(this.buildEmptyWorkingHours());
+      }
+
+      this.onWorkingHoursChanged();
     } catch (e) {
       console.error(e);
       this.error.set('שגיאה בטעינת הנתונים.');
@@ -210,48 +351,250 @@ patchSpecialDayForm(patch: Partial<FarmDayOff>): void {
     }
   }
 
-  // ================= ימים מיוחדים =================
+  // =============================
+  // Helpers
+  // =============================
+  toggleWorkingHoursExpanded(): void {
+    this.workingHoursExpanded.set(!this.workingHoursExpanded());
+  }
 
-openSpecialDays(): void {
-  const today = new Date().toISOString().slice(0, 10);
+  trackByDay = (_: number, r: FarmWorkingHours) => r.day_of_week;
 
-  this.specialDaysTouched.set(false);
-  this.dateRangeError.set(null);
+  getHebDayLabel(d: number): string {
+    switch (d) {
+      case 1: return 'א׳';
+      case 2: return 'ב׳';
+      case 3: return 'ג׳';
+      case 4: return 'ד׳';
+      case 5: return 'ה׳';
+      case 6: return 'ו׳';
+      case 7: return 'ש׳';
+      default: return String(d);
+    }
+  }
 
-  this.specialDayForm.set({
-    start_date: today,
-    end_date: today,
-    all_day: true,
-    start_time: null,
-    end_time: null,
-    reason: '',
-    is_active: true,
-  });
+  private t5(v: any): string | null {
+    if (v == null) return null;
+    const s = String(v);
+    return s.length >= 5 ? s.slice(0, 5) : s;
+  }
 
-  this.showSpecialDaysModal.set(true);
-}
+  private timeToDb(t: string | null): string | null {
+    if (!t) return null;
+    return t.length === 5 ? `${t}:00` : t;
+  }
 
+  // =============================
+  // Working Hours (per day)
+  // =============================
+  async loadWorkingHours(): Promise<void> {
+    const { data, error } = await this.supabase
+      .from('farm_working_hours')
+      .select('*')
+      .order('day_of_week', { ascending: true });
+
+    if (error) {
+      console.error('loadWorkingHours error', error);
+      // לא נכשיל את כל העמוד
+      return;
+    }
+
+    const list: FarmWorkingHours[] = (data || []).map((r: any) => ({
+      id: r.id,
+      day_of_week: r.day_of_week,
+      is_open: r.is_open ?? true,
+      farm_start: this.t5(r.farm_start),
+      farm_end: this.t5(r.farm_end),
+      office_start: this.t5(r.office_start),
+      office_end: this.t5(r.office_end),
+    }));
+
+    this.workingHours.set(list);
+  }
+
+  private buildEmptyWorkingHours(): FarmWorkingHours[] {
+    const s = this.settings();
+    const defFarmStart = s?.operating_hours_start ?? '08:00';
+    const defFarmEnd = s?.operating_hours_end ?? '20:00';
+
+    // משרד: נעדיף ריק כדי לא לחייב
+    const defOfficeStart = s?.office_hours_start ?? null;
+    const defOfficeEnd = s?.office_hours_end ?? null;
+
+    const arr: FarmWorkingHours[] = [];
+    for (let d = 1; d <= 7; d++) {
+      arr.push({
+        day_of_week: d,
+        is_open: true,
+        farm_start: defFarmStart,
+        farm_end: defFarmEnd,
+        office_start: defOfficeStart,
+        office_end: defOfficeEnd,
+      });
+    }
+    return arr;
+  }
+
+  onWorkingHoursChanged(): void {
+    this.workingHoursError.set(this.validateAllWorkingHours());
+  }
+
+  private validateAllWorkingHours(): string | null {
+    const rows = this.workingHours();
+
+    for (const r of rows) {
+      const msg = this.validateWorkingHoursRow(r);
+      if (msg) return msg;
+    }
+    return null;
+  }
+
+  private validateWorkingHoursRow(r: FarmWorkingHours): string | null {
+    if (!r.is_open) return null;
+
+    const day = this.getHebDayLabel(r.day_of_week);
+
+    // חווה: חייבים שניהם
+    if (!r.farm_start || !r.farm_end) {
+      return `חסר טווח שעות חווה ליום ${day}.`;
+    }
+    if (r.farm_end <= r.farm_start) {
+      return `בשעות חווה: שעת סיום חייבת להיות אחרי שעת התחלה ביום ${day}.`;
+    }
+
+    // משרד: אם אחד מלא -> שניהם חובה
+    const hasOfficeAny = !!r.office_start || !!r.office_end;
+    if (hasOfficeAny && (!r.office_start || !r.office_end)) {
+      return `בשעות משרד: אם מילאת התחלה/סיום – חייבים למלא את שניהם ביום ${day}.`;
+    }
+
+    // משרד: התחלה לפני סיום
+    if (r.office_start && r.office_end && r.office_end <= r.office_start) {
+      return `בשעות משרד: שעת סיום חייבת להיות אחרי שעת התחלה ביום ${day}.`;
+    }
+
+    // משרד בתוך חווה
+    if (r.office_start && r.office_end) {
+      if (r.office_start < r.farm_start || r.office_end > r.farm_end) {
+        return `בשעות משרד: טווח המשרד חייב להיות בתוך טווח החווה ביום ${day}.`;
+      }
+    }
+
+    return null;
+  }
+
+  async saveWorkingHours(): Promise<void> {
+    const rows = this.workingHours().length ? this.workingHours() : this.buildEmptyWorkingHours();
+
+    // ולידציה
+    const err = this.validateAllWorkingHours();
+    this.workingHoursError.set(err);
+    if (err) {
+      this.error.set(err);
+      return;
+    }
+
+    const payload = rows.map(r => ({
+      id: r.id,
+      day_of_week: r.day_of_week,
+      is_open: !!r.is_open,
+      farm_start: this.timeToDb(r.farm_start),
+      farm_end: this.timeToDb(r.farm_end),
+      office_start: this.timeToDb(r.office_start),
+      office_end: this.timeToDb(r.office_end),
+    }));
+
+    try {
+      this.saving.set(true);
+      this.error.set(null);
+      this.success.set(null);
+
+      const { error } = await this.supabase
+        .from('farm_working_hours')
+        .upsert(payload, { onConflict: 'day_of_week' });
+
+      if (error) {
+        console.error('saveWorkingHours error', error);
+        this.error.set('שמירת שעות לפי יום נכשלה.');
+        return;
+      }
+
+      this.success.set('שעות לפי יום נשמרו בהצלחה.');
+      await this.loadWorkingHours();
+      this.onWorkingHoursChanged();
+
+      // אופציונלי: סנכרון working_days לפי is_open
+      const s = this.settings();
+      if (s) {
+        const openDays = rows.filter(x => x.is_open).map(x => x.day_of_week).sort((a, b) => a - b);
+        this.settings.set({ ...s, working_days: openDays });
+      }
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  // =============================
+  // Special Days (days off) - לועזי בלבד
+  // =============================
+  private validateSpecialDayDateRange(form: FarmDayOff): void {
+    this.dateRangeError.set(null);
+    if (!form.start_date || !form.end_date) return;
+
+    // YYYY-MM-DD => השוואה כמחרוזת
+    if (form.end_date < form.start_date) {
+      this.dateRangeError.set('״עד תאריך״ לא יכול להיות קטן מ־״מתאריך״.');
+    }
+  }
+
+  patchSpecialDayForm(patch: Partial<FarmDayOff>): void {
+    const next = { ...this.specialDayForm(), ...patch };
+    this.specialDayForm.set(next);
+    this.validateSpecialDayDateRange(next);
+  }
+
+  openSpecialDays(): void {
+    const today = new Date().toISOString().slice(0, 10);
+    this.dateRangeError.set(null);
+
+    this.specialDayForm.set({
+  start_date: today,
+  end_date: today,
+  all_day: true,
+  start_time: null,
+  end_time: null,
+  reason: '',
+  is_active: true,
+  recurrence: 'ONCE',
+  notify_parents_before: false,
+  notify_days_before: 1,
+
+  calendar_kind: 'GREGORIAN',
+  hebrew_day: null,
+  hebrew_month: null,
+  hebrew_end_day: null,
+  hebrew_end_month: null,
+});
+
+
+    this.showSpecialDaysModal.set(true);
+  }
 
   closeSpecialDaysModal(): void {
     this.showSpecialDaysModal.set(false);
   }
 
-
   onToggleAllDay(value: boolean): void {
     const cur = this.specialDayForm();
     if (value) {
-      this.specialDayForm.set({
-        ...cur,
-        all_day: true,
-        start_time: null,
-        end_time: null,
-      });
+      this.specialDayForm.set({ ...cur, all_day: true, start_time: null, end_time: null });
     } else {
+      const s = this.settings();
       this.specialDayForm.set({
         ...cur,
         all_day: false,
-        start_time: cur.start_time ?? (this.settings()?.operating_hours_start ?? '08:00'),
-        end_time: cur.end_time ?? (this.settings()?.operating_hours_end ?? '20:00'),
+        start_time: cur.start_time ?? (s?.operating_hours_start ?? '08:00'),
+        end_time: cur.end_time ?? (s?.operating_hours_end ?? '20:00'),
       });
     }
   }
@@ -261,7 +604,7 @@ openSpecialDays(): void {
       .from('farm_days_off')
       .select('*')
       .eq('is_active', true)
-      .order('start_date', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('loadFarmDaysOff error', error);
@@ -271,38 +614,38 @@ openSpecialDays(): void {
 
     const list: FarmDayOff[] = (data || []).map((r: any) => ({
       id: r.id,
-      start_date: r.start_date,
-      end_date: r.end_date,
-      all_day: r.day_type === 'FULL_DAY',
-      start_time: r.start_time ? r.start_time.slice(0, 5) : null,
-      end_time: r.end_time ? r.end_time.slice(0, 5) : null,
+      start_date: r.start_date ?? null,
+      end_date: r.end_date ?? null,
+
+      all_day: (r.day_type ?? 'FULL_DAY') === 'FULL_DAY',
+      start_time: r.start_time ? String(r.start_time).slice(0, 5) : null,
+      end_time: r.end_time ? String(r.end_time).slice(0, 5) : null,
+
       reason: r.reason ?? '',
       is_active: r.is_active ?? true,
       day_type: r.day_type as DayType,
       created_at: r.created_at,
+
+      recurrence: (r.recurrence ?? 'ONCE') as RecurrenceKind,
+      notify_parents_before: r.notify_parents_before ?? false,
+      notify_days_before: r.notify_days_before ?? 1,
     }));
 
     this.daysOff.set(list);
   }
 
   async saveSpecialDay(): Promise<void> {
-   const f = this.specialDayForm();
-
-    this.specialDaysTouched.set(true);
+    const f = this.specialDayForm();
     this.validateSpecialDayDateRange(f);
+    if (this.dateRangeError()) return;
 
-    if (this.dateRangeError()) {
-    return;
-   }
-
-    
+    if (!f.reason?.trim()) {
+      alert('חובה למלא סיבה.');
+      return;
+    }
 
     if (!f.start_date || !f.end_date) {
       alert('חובה למלא "מתאריך" ו-"עד תאריך".');
-      return;
-    }
-    if (!f.reason?.trim()) {
-      alert('חובה למלא סיבה.');
       return;
     }
 
@@ -317,14 +660,42 @@ openSpecialDays(): void {
       }
     }
 
+    const isHebrew = (f.calendar_kind ?? 'GREGORIAN') === 'HEBREW';
+
+// אם עברי – ודאי שיש יום+חודש והמרה ללועזי קיימת
+if (isHebrew) {
+  if (!f.hebrew_day || !f.hebrew_month) {
+    alert('חובה לבחור תאריך עברי (חודש + יום).');
+    return;
+  }
+  // מסנכרנים שוב ליתר ביטחון
+  this.syncHebrewToGregorianDates();
+}
+
+
     const payload: any = {
-      start_date: f.start_date,
-      end_date: f.end_date,
-      day_type: f.all_day ? 'FULL_DAY' : 'PARTIAL_DAY',
-      start_time: f.all_day ? null : (f.start_time?.length === 5 ? f.start_time + ':00' : f.start_time),
-      end_time: f.all_day ? null : (f.end_time?.length === 5 ? f.end_time + ':00' : f.end_time),
       reason: f.reason.trim(),
       is_active: true,
+
+      recurrence: f.recurrence ?? 'ONCE',
+
+      notify_parents_before: !!f.notify_parents_before,
+      notify_days_before: f.notify_parents_before ? (f.notify_days_before ?? 1) : null,
+
+      day_type: f.all_day ? 'FULL_DAY' : 'PARTIAL_DAY',
+      start_time: f.all_day ? null : this.timeToDb(f.start_time),
+      end_time: f.all_day ? null : this.timeToDb(f.end_time),
+
+      start_date: f.start_date,
+      end_date: f.end_date,
+
+      calendar_kind: isHebrew ? 'HEBREW' : 'GREGORIAN',
+
+hebrew_day: isHebrew ? (f.hebrew_day ?? null) : null,
+hebrew_month: isHebrew ? (f.hebrew_month ?? null) : null,
+hebrew_end_day: isHebrew ? (f.hebrew_end_day ?? f.hebrew_day ?? null) : null,
+hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : null,
+
     };
 
     try {
@@ -377,15 +748,15 @@ openSpecialDays(): void {
     }
   }
 
-  // ================= הגדרות חווה =================
-
-    private async loadSettings(): Promise<void> {
+  // =============================
+  // Farm Settings
+  // =============================
+  private async loadSettings(): Promise<void> {
     const { data, error } = await this.supabase
-    .from('farm_settings')
-    .select('*')
-    .eq('id', this.SETTINGS_SINGLETON_ID)
-    .maybeSingle();
-
+      .from('farm_settings')
+      .select('*')
+      .eq('id', this.SETTINGS_SINGLETON_ID)
+      .maybeSingle();
 
     if (error) {
       console.error('load farm_settings error', error);
@@ -394,90 +765,107 @@ openSpecialDays(): void {
     }
 
     if (data) {
-  const s: FarmSettings = {
-    ...data,
+      const s: FarmSettings = {
+        ...data,
 
-    operating_hours_start: data.operating_hours_start?.slice(0, 5) ?? '08:00',
-    operating_hours_end: data.operating_hours_end?.slice(0, 5) ?? '20:00',
+        operating_hours_start: this.t5(data.operating_hours_start) ?? '08:00',
+        operating_hours_end: this.t5(data.operating_hours_end) ?? '20:00',
 
-    office_hours_start: data.office_hours_start?.slice(0, 5) ?? '08:30',
-office_hours_end: data.office_hours_end?.slice(0, 5) ?? '16:00',
+        office_hours_start: this.t5(data.office_hours_start) ?? '08:30',
+        office_hours_end: this.t5(data.office_hours_end) ?? '16:00',
 
+        min_time_between_cancellations: data.min_time_between_cancellations
+          ? String(data.min_time_between_cancellations).slice(0, 5)
+          : '00:00',
 
-    min_time_between_cancellations: data.min_time_between_cancellations
-      ? data.min_time_between_cancellations.slice(0, 5)
-      : '00:00',
+        quiet_hours_start: data.quiet_hours_start ? String(data.quiet_hours_start).slice(0, 5) : null,
+        quiet_hours_end: data.quiet_hours_end ? String(data.quiet_hours_end).slice(0, 5) : null,
 
-    quiet_hours_start: data.quiet_hours_start ? String(data.quiet_hours_start).slice(0, 5) : null,
-    quiet_hours_end: data.quiet_hours_end ? String(data.quiet_hours_end).slice(0, 5) : null,
+        working_days: (data.working_days ?? null) as any,
+        timezone: data.timezone ?? 'Asia/Jerusalem',
+        time_slot_minutes: data.time_slot_minutes ?? 15,
 
-    working_days: (data.working_days ?? null) as any,
-    timezone: data.timezone ?? 'Asia/Jerusalem',
-    time_slot_minutes: data.time_slot_minutes ?? 15,
-  };
+        late_payment_grace_days: data.late_payment_grace_days ?? 0,
+        notify_before_farm_closure: data.notify_before_farm_closure ?? false,
+        notify_before_farm_closure_hours: data.notify_before_farm_closure_hours ?? 24,
+        suggest_makeup_on_cancel: data.suggest_makeup_on_cancel ?? true,
+        reminder_require_confirmation: data.reminder_require_confirmation ?? false,
+        reminder_allow_cancel_link: data.reminder_allow_cancel_link ?? false,
+      };
 
-  this.settings.set(s);
-} else {
-  this.settings.set({
-    operating_hours_start: '08:00',
-    operating_hours_end: '20:00',
+      this.settings.set(s);
+      return;
+    }
 
-    office_hours_start: '08:30',
-office_hours_end: '16:00',
+    // Defaults when no row exists
+    this.settings.set({
+      operating_hours_start: '08:00',
+      operating_hours_end: '20:00',
 
+      office_hours_start: '08:30',
+      office_hours_end: '16:00',
 
-    default_lessons_per_series: 12,
-    lesson_duration_minutes: 60,
-    default_lesson_price: 150,
+      default_lessons_per_series: 12,
+      lesson_duration_minutes: 60,
+      default_lesson_price: 150,
 
-    makeup_allowed_days_back: 30,
-    makeup_allowed_days_ahead: 30,          // NEW
-    max_makeups_in_period: 8,
-    makeups_period_days: 30,
-    displayed_makeup_lessons_count: 3,
-    min_time_between_cancellations: '12:00',
+      makeup_allowed_days_back: 30,
+      makeup_allowed_days_ahead: 30,
+      max_makeups_in_period: 8,
+      makeups_period_days: 30,
+      displayed_makeup_lessons_count: 3,
+      min_time_between_cancellations: '12:00',
 
-    cancel_before_hours: 24,                 // NEW
-    late_cancel_policy: 'CHARGE_FULL',       // NEW
-    late_cancel_fee_amount: null,            // NEW
-    late_cancel_fee_percent: null,           // NEW
+      cancel_before_hours: 24,
+      late_cancel_policy: 'CHARGE_FULL',
+      late_cancel_fee_amount: null,
+      late_cancel_fee_percent: null,
 
-    attendance_default: 'REQUIRE_MARKING',   // NEW
+      attendance_default: 'REQUIRE_MARKING',
 
-    monthly_billing_day: 10,                 // NEW (תבחרי מה מתאים)
+      monthly_billing_day: 10,
 
-    working_days: [1, 2, 3, 4, 5],           // NEW (א-ה)
-    time_slot_minutes: 15,                   // NEW
-    timezone: 'Asia/Jerusalem',              // NEW
+      working_days: [1, 2, 3, 4, 5],
+      time_slot_minutes: 15,
+      timezone: 'Asia/Jerusalem',
 
-    send_lesson_reminder: true,              // NEW
-    reminder_hours_before: 24,               // NEW
-    reminder_channel: 'APP',                 // NEW
-    quiet_hours_start: '22:00',              // NEW
-    quiet_hours_end: '07:00',                // NEW (שימי לב: אם את רוצה לילה שחוצה חצות — נראה בהמשך הערה)
+      send_lesson_reminder: true,
+      reminder_hours_before: 24,
+      reminder_channel: 'APP',
+      quiet_hours_start: '22:00',
+      quiet_hours_end: '07:00',
 
-    enable_discounts: false,                 // NEW
-    late_payment_fee: null,                  // NEW
-    interest_percent_monthly: null,          // NEW
+      enable_discounts: false,
+      late_payment_fee: null,
+      interest_percent_monthly: null,
 
-    registration_fee: null,
-    student_insurance_premiums: null,
+      late_payment_grace_days: 7,
 
-    max_group_size: 6,
-    max_lessons_per_week_per_child: 2,
-    allow_online_booking: true,
-  });
-}
- }
+      notify_before_farm_closure: true,
+      notify_before_farm_closure_hours: 24,
+
+      suggest_makeup_on_cancel: true,
+      reminder_require_confirmation: false,
+      reminder_allow_cancel_link: true,
+
+      registration_fee: null,
+      student_insurance_premiums: null,
+
+      max_group_size: 6,
+      max_lessons_per_week_per_child: 2,
+      allow_online_booking: true,
+    });
+  }
 
   async saveSettings(): Promise<void> {
     const current = this.settings();
     if (!current) return;
 
+    // ולידציה בסיסית: שעות משרד הגיוניות (אם יש)
     if (!this.validateOfficeHours()) {
-  this.error.set('לא ניתן לשמור: יש שגיאה בשעות פעילות המשרד.');
-  return;
-}
+      this.error.set('לא ניתן לשמור: יש שגיאה בשעות פעילות המשרד.');
+      return;
+    }
 
     this.saving.set(true);
     this.error.set(null);
@@ -486,25 +874,23 @@ office_hours_end: '16:00',
     const payload: any = {
       ...current,
       updated_at: new Date().toISOString(),
+      id: current.id ?? this.SETTINGS_SINGLETON_ID,
     };
 
-    if (payload.operating_hours_start?.length === 5) payload.operating_hours_start += ':00';
-if (payload.operating_hours_end?.length === 5) payload.operating_hours_end += ':00';
-if (payload.min_time_between_cancellations?.length === 5) payload.min_time_between_cancellations += ':00';
-if (payload.quiet_hours_start?.length === 5) payload.quiet_hours_start += ':00';
-if (payload.quiet_hours_end?.length === 5) payload.quiet_hours_end += ':00';
-if (payload.office_hours_start?.length === 5) payload.office_hours_start += ':00';
-if (payload.office_hours_end?.length === 5) payload.office_hours_end += ':00';
+    // normalize time fields to HH:MM:SS
+    payload.operating_hours_start = this.timeToDb(payload.operating_hours_start);
+    payload.operating_hours_end = this.timeToDb(payload.operating_hours_end);
+    payload.office_hours_start = this.timeToDb(payload.office_hours_start);
+    payload.office_hours_end = this.timeToDb(payload.office_hours_end);
+    payload.min_time_between_cancellations = this.timeToDb(payload.min_time_between_cancellations);
+    payload.quiet_hours_start = this.timeToDb(payload.quiet_hours_start);
+    payload.quiet_hours_end = this.timeToDb(payload.quiet_hours_end);
 
-
-    payload.id = current.id ?? this.SETTINGS_SINGLETON_ID;
-
-const { data, error } = await this.supabase
-  .from('farm_settings')
-  .upsert(payload, { onConflict: 'id' })
-  .select()
-  .single();
-
+    const { data, error } = await this.supabase
+      .from('farm_settings')
+      .upsert(payload, { onConflict: 'id' })
+      .select()
+      .single();
 
     if (error) {
       console.error('save farm_settings error', error);
@@ -515,14 +901,13 @@ const { data, error } = await this.supabase
 
     const s: FarmSettings = {
       ...data,
-      operating_hours_start: data.operating_hours_start?.slice(0, 5) ?? null,
-      operating_hours_end: data.operating_hours_end?.slice(0, 5) ?? null,
-      office_hours_start: data.office_hours_start?.slice(0, 5) ?? null,
-office_hours_end: data.office_hours_end?.slice(0, 5) ?? null,
-
-      min_time_between_cancellations: data.min_time_between_cancellations
-        ? data.min_time_between_cancellations.slice(0, 5)
-        : null,
+      operating_hours_start: this.t5(data.operating_hours_start),
+      operating_hours_end: this.t5(data.operating_hours_end),
+      office_hours_start: this.t5(data.office_hours_start),
+      office_hours_end: this.t5(data.office_hours_end),
+      min_time_between_cancellations: data.min_time_between_cancellations ? String(data.min_time_between_cancellations).slice(0, 5) : null,
+      quiet_hours_start: data.quiet_hours_start ? String(data.quiet_hours_start).slice(0, 5) : null,
+      quiet_hours_end: data.quiet_hours_end ? String(data.quiet_hours_end).slice(0, 5) : null,
     };
 
     this.settings.set(s);
@@ -530,8 +915,20 @@ office_hours_end: data.office_hours_end?.slice(0, 5) ?? null,
     this.saving.set(false);
   }
 
-  // ================= גורמי מימון =================
+  private validateOfficeHours(): boolean {
+    const s = this.settings();
+    if (!s) return true;
 
+    const start = s.office_hours_start;
+    const end = s.office_hours_end;
+
+    if (!start || !end) return true;
+    return end > start;
+  }
+
+  // =============================
+  // Funding Sources
+  // =============================
   private async loadFundingSources(): Promise<void> {
     const { data, error } = await this.supabase
       .from('funding_sources')
@@ -547,26 +944,6 @@ office_hours_end: data.office_hours_end?.slice(0, 5) ?? null,
 
     this.fundingSources.set((data || []) as FundingSource[]);
   }
-
-  onOfficeHoursChanged(): void {
-  // מריצה ולידציה מחדש בזמן עריכה
-  this.validateOfficeHours();
-}
-
-isUnlimitedLessonsPerWeek(): boolean {
-  const s = this.settings();
-  return !s || s.max_lessons_per_week_per_child == null;
-}
-
-setUnlimitedLessonsPerWeek(checked: boolean): void {
-  const s = this.settings();
-  if (!s) return;
-
-  this.settings.set({
-    ...s,
-    max_lessons_per_week_per_child: checked ? null : (s.max_lessons_per_week_per_child ?? 2),
-  });
-}
 
   toggleNewFundingForm(): void {
     this.showNewFundingForm.set(!this.showNewFundingForm());
@@ -625,7 +1002,7 @@ setUnlimitedLessonsPerWeek(checked: boolean): void {
 
   async deleteFundingSource(fs: FundingSource): Promise<void> {
     if (fs.is_system) {
-      alert('אי אפשר למחוק גורם מימון מערכת (כללית/מכבי/מאוחדת).');
+      alert('אי אפשר למחוק גורם מימון מערכת.');
       return;
     }
 
@@ -643,8 +1020,9 @@ setUnlimitedLessonsPerWeek(checked: boolean): void {
     this.fundingSources.set(this.fundingSources().filter(f => f.id !== fs.id));
   }
 
-  // ================= מסלולי תשלום =================
-
+  // =============================
+  // Payment Plans
+  // =============================
   private async loadPaymentPlans(): Promise<void> {
     const { data, error } = await this.supabase
       .from('payment_plans')
@@ -710,28 +1088,6 @@ setUnlimitedLessonsPerWeek(checked: boolean): void {
     };
   }
 
-  private validateOfficeHours(): boolean {
-  this.officeHoursError.set(null);
-
-  const s = this.settings();
-  if (!s) return true;
-
-  const start = s.office_hours_start;
-  const end = s.office_hours_end;
-
-  // אם אחת מהשעות ריקה – לא נחסום (אפשר להחליט אחרת)
-  if (!start || !end) return true;
-
-  // "HH:MM" אפשר להשוות כמחרוזת (פורמט קבוע)
-  if (end <= start) {
-    this.officeHoursError.set('שעת סגירה של המשרד חייבת להיות אחרי שעת הפתיחה.');
-    return false;
-  }
-
-  return true;
-}
-
-
   async addPaymentPlan(): Promise<void> {
     const p = this.newPlan;
     if (!p.name || p.lesson_price == null) {
@@ -741,7 +1097,11 @@ setUnlimitedLessonsPerWeek(checked: boolean): void {
 
     const payload = this.normalizePlanForSave(p);
 
-    const { data, error } = await this.supabase.from('payment_plans').insert(payload).select().single();
+    const { data, error } = await this.supabase
+      .from('payment_plans')
+      .insert(payload)
+      .select()
+      .single();
 
     if (error) {
       console.error('add payment_plan error', error);
@@ -749,8 +1109,7 @@ setUnlimitedLessonsPerWeek(checked: boolean): void {
       return;
     }
 
-    this.paymentPlans.set([...this.paymentPlans(), data as PaymentPlan]);
-
+    await this.loadPaymentPlans(); // כדי לקבל גם versions נכונים
     this.newPlan = {
       name: '',
       lesson_price: null,
@@ -758,6 +1117,7 @@ setUnlimitedLessonsPerWeek(checked: boolean): void {
       funding_source_id: null,
       required_docs: [],
       require_docs_at_booking: true,
+      is_active: true,
     };
     this.showNewPlanForm.set(false);
   }
@@ -767,12 +1127,10 @@ setUnlimitedLessonsPerWeek(checked: boolean): void {
 
     const payload = this.normalizePlanForSave(plan);
 
-    const { data, error } = await this.supabase
+    const { error } = await this.supabase
       .from('payment_plans')
       .update(payload)
-      .eq('id', plan.id)
-      .select()
-      .single();
+      .eq('id', plan.id);
 
     if (error) {
       console.error('update payment_plan error', error);
@@ -780,8 +1138,8 @@ setUnlimitedLessonsPerWeek(checked: boolean): void {
       return;
     }
 
-    this.paymentPlans.set(this.paymentPlans().map(p => (p.id === plan.id ? (data as PaymentPlan) : p)));
     this.editingPlanId.set(null);
+    await this.loadPaymentPlans();
   }
 
   async deletePaymentPlan(plan: PaymentPlan): Promise<void> {
@@ -798,7 +1156,7 @@ setUnlimitedLessonsPerWeek(checked: boolean): void {
       return;
     }
 
-    this.paymentPlans.set(this.paymentPlans().filter(p => p.id !== plan.id));
+    await this.loadPaymentPlans();
   }
 
   getCustomerAmount(plan: PaymentPlan): number {
@@ -838,7 +1196,7 @@ setUnlimitedLessonsPerWeek(checked: boolean): void {
       this.error.set(null);
       this.success.set(null);
 
-      const { data, error } = await this.supabase.rpc('create_payment_plan_price_version', {
+      const { error } = await this.supabase.rpc('create_payment_plan_price_version', {
         p_plan_id: plan.id,
         p_valid_from: date,
         p_lesson_price: price,
@@ -851,60 +1209,49 @@ setUnlimitedLessonsPerWeek(checked: boolean): void {
         return;
       }
 
-      plan.lesson_price = data.lesson_price;
-      plan.subsidy_amount = data.subsidy_amount;
-      plan.newVersionDate = null;
-      plan.newVersionPrice = null;
-      plan.newVersionSubsidy = null;
-
       this.success.set('שינוי המחיר נשמר ונוספה היסטוריה חדשה.');
       await this.loadPaymentPlans();
+
+      // סוגרים עריכה
+      this.editingPlanId.set(null);
     } finally {
       this.saving.set(false);
     }
   }
-  // ===== Working days (1..7): 1=Sunday ... 7=Saturday =====
-isWorkingDayChecked(day: number): boolean {
-  const s = this.settings();
-  const arr = s?.working_days ?? [];
-  return Array.isArray(arr) ? arr.includes(day) : false;
-}
 
-toggleWorkingDay(day: number, checked: boolean): void {
-  const s = this.settings();
-  if (!s) return;
+  // =============================
+  // Unlimited lessons per week
+  // =============================
+  isUnlimitedLessonsPerWeek(): boolean {
+    const s = this.settings();
+    return !s || s.max_lessons_per_week_per_child == null;
+  }
 
-  const cur = Array.isArray(s.working_days) ? [...s.working_days] : [];
-  const next = checked
-    ? Array.from(new Set([...cur, day]))
-    : cur.filter(d => d !== day);
+  setUnlimitedLessonsPerWeek(checked: boolean): void {
+    const s = this.settings();
+    if (!s) return;
 
-  next.sort((a, b) => a - b);
+    this.settings.set({
+      ...s,
+      max_lessons_per_week_per_child: checked ? null : (s.max_lessons_per_week_per_child ?? 2),
+    });
+  }
 
-  this.settings.set({
-    ...s,
-    working_days: next,
-  });
-}
+    // =============================
+  // Unlimited default lessons per series
+  // =============================
+  isUnlimitedDefaultLessonsPerSeries(): boolean {
+    const s = this.settings();
+    return !s || s.default_lessons_per_series == null;
+  }
 
-setWorkingDaysWeekdaysOnly(): void {
-  const s = this.settings();
-  if (!s) return;
+  setUnlimitedDefaultLessonsPerSeries(checked: boolean): void {
+    const s = this.settings();
+    if (!s) return;
 
-  this.settings.set({
-    ...s,
-    working_days: [1, 2, 3, 4, 5], // א-ה (א=1)
-  });
-}
-
-setWorkingDaysAllWeek(): void {
-  const s = this.settings();
-  if (!s) return;
-
-  this.settings.set({
-    ...s,
-    working_days: [1, 2, 3, 4, 5, 6, 7],
-  });
-}
-
+    this.settings.set({
+      ...s,
+      default_lessons_per_series: checked ? null : (s.default_lessons_per_series ?? 12),
+    });
+  }
 }

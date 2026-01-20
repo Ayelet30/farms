@@ -2,8 +2,9 @@ import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AgreementsAdminService } from '../../services/agreements-admin.service';
-import { ensureTenantContextReady, getCurrentFarmMetaSync } from '../../services/legacy-compat';
 import { CurrentUserService } from '../../core/auth/current-user.service';
+import { TenantBootstrapService } from '../../services/tenant-bootstrap.service';
+
 
 @Component({
   selector: 'agreements-admin',
@@ -17,9 +18,11 @@ export class AgreementsAdminComponent implements OnInit {
   tenantSchema?: string; // ייקבע אחרי bootstrap
 
   constructor(
-    private cuSvc: CurrentUserService,
-    private svc: AgreementsAdminService
-  ) {}
+  private cuSvc: CurrentUserService,
+  private svc: AgreementsAdminService,
+  private tenantBoot: TenantBootstrapService
+) {}
+
 
   agreements = signal<any[]>([]);
   busy = signal(false);
@@ -49,9 +52,10 @@ export class AgreementsAdminComponent implements OnInit {
 
   async ngOnInit() {
     try {
-      await ensureTenantContextReady();                // מוודא שיש טננט פעיל + JWT
-      const farm = getCurrentFarmMetaSync();
+      await this.tenantBoot.ensureReady();
+      const farm = this.tenantBoot.getFarmMetaSync();
       this.tenantSchema = farm?.schema_name ?? undefined;
+
       if (!this.tenantSchema) throw new Error('Tenant schema not set');
       await this.refresh();
     } catch (e) {

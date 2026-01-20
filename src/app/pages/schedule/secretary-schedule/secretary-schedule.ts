@@ -707,31 +707,24 @@ let lessonId: string | null = meta.lesson_id ?? null;
       ? arg.event.start.toISOString().slice(0, 10)
       : null);
 
-  const rawStatus = String(meta.status ?? '').toLowerCase();
+       const rawStatus = String(meta.status ?? '').toLowerCase();
 const isCancelled =
   rawStatus.includes('בוטל') ||
   rawStatus.includes('מבוטל') ||
   rawStatus.includes('cancel');
 
-this.selectedOccurrence = {
-  lesson_id: lessonId,
-  child_id: childId,
-  occur_date: occurDate,
-  status: meta.status ?? null,
-  lesson_type: meta.lesson_type ?? null,
-  start: arg.event.start,
-  end: arg.event.end,
-  is_makeup_allowed: !!meta.is_makeup_allowed,
-  isCancelled, // 👈 קריטי
-};
+  this.selectedOccurrence = {
+    lesson_id: lessonId,
+    child_id: childId,
+    occur_date: occurDate,
+    status: meta.status ?? null,
+    lesson_type: meta.lesson_type ?? null,
+    start: arg.event.start,
+    end: arg.event.end,
+    is_makeup_allowed: !!meta.is_makeup_allowed,
+  };
 
-
-  console.log(
-    '%c[SECRETARY EVENT CLICK] selectedOccurrence →',
-    'color: green; font-weight: bold;',
-    this.selectedOccurrence
-  );
-
+  
   this.cdr.detectChanges();
 }
 
@@ -795,6 +788,9 @@ this.selectedOccurrence = {
   try {
     const dbc = dbTenant();
 
+    const p_date = String(day).slice(0, 10); // YYYY-MM-DD
+
+
     const { data, error } = await dbc.rpc(
       'auto_assign_horses_and_arenas',
       { p_date: day } // טיפוס DATE ב-Postgres
@@ -832,7 +828,6 @@ async onToggleMakeupAllowed(checked: boolean) {
     const dbc = dbTenant();
 
     const { error } = await dbc
-   
       .from('lesson_occurrence_exceptions')
       .upsert(
         {
