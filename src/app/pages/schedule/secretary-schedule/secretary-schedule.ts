@@ -12,6 +12,8 @@ import { Lesson } from '../../../models/lesson-schedule.model';
 import type { EventClickArg } from '@fullcalendar/core';
 import { CurrentUserService } from '../../../core/auth/current-user.service';
 import { NoteComponent } from '../../Notes/note.component';
+import { UiDialogService } from '../../../services/ui-dialog.service';
+
 
 type ChildRow = {
   child_uuid: string;
@@ -70,6 +72,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   weekInstructorStats: { instructor_id: string; instructor_name: string; totalLessons: number }[] = [];
 
   private unsubTenantChange: (() => void) | null = null;
+private ui = inject(UiDialogService);
 
   public cu = inject(CurrentUserService);
   private cdr = inject(ChangeDetectorRef);
@@ -779,10 +782,17 @@ let lessonId: string | null = meta.lesson_id ?? null;
     this.buildWeekStats();
     this.cdr.detectChanges();
 
-    alert('שובצו סוסים ומגרשים לשיעורים של היום. ניתן לערוך שיעור-שיעור בממשק המתאים.');
+  await this.ui.alert(
+    'שובצו סוסים ומגרשים לשיעורים של היום. ניתן לערוך שיעור-שיעור בממשק המתאים.',
+    'הצלחה'
+  );
   } catch (e: any) {
     console.error('autoAssignForCurrentDay failed', e);
-    alert('שיבוץ סוסים ומגרשים נכשל: ' + (e?.message ?? e));
+   await this.ui.alert(
+    'שיבוץ סוסים ומגרשים נכשל: ' + (e?.message ?? e),
+    'שגיאה'
+  );
+
   } finally {
     this.autoAssignLoading = false;
   }
@@ -825,7 +835,8 @@ async onToggleMakeupAllowed(checked: boolean) {
 
   } catch (e) {
     console.error('toggle makeup failed', e);
-    alert('שגיאה בעדכון "ניתן להשלמה"');
+     await this.ui.alert('שגיאה בעדכון "ניתן להשלמה"', 'שגיאה');
+
   }
 }
 

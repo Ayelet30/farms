@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, signal, Input, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { UiDialogService } from '../../services/ui-dialog.service';
 
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -163,6 +164,8 @@ interface OccWithAttendanceRow {
 })
 export class MonthlySummaryComponent implements OnInit {
   private dbTenantFactory = inject(DB_TENANT);
+  private ui = inject(UiDialogService);
+
   private dbc = this.dbTenantFactory();
 
   // ✅ Safe debug logger: runs only on localhost/dev and never prints sensitive payloads
@@ -283,11 +286,11 @@ export class MonthlySummaryComponent implements OnInit {
     return window.location.pathname.includes('instructor');
   }
 
-  private getFirebaseUid(): string {
-    const fbUser = getAuth().currentUser;
-    if (!fbUser) throw new Error('אין משתמש מחובר (Firebase)');
-    return fbUser.uid;
-  }
+ private getFirebaseUidOrNull(): string | null {
+  const fbUser = getAuth().currentUser;
+  return fbUser?.uid ?? null;
+}
+
 
   private deriveStatus(raw: MonthlyReportRow): LessonStatus | null {
     const s = this.clean(raw.status);
@@ -488,7 +491,8 @@ export class MonthlySummaryComponent implements OnInit {
       }
 
       // 🔒 no printing uid
-      const uid = this.getFirebaseUid();
+      const uid = this.getFirebaseUidOrNull();
+
 
       const lessonsViewName = 'lessons_schedule_view';
 
@@ -501,9 +505,14 @@ export class MonthlySummaryComponent implements OnInit {
         .order('start_time', { ascending: true })
         .order('instructor_name', { ascending: true });
 
-      if (this.isInstructor()) {
-        lessonsQuery = lessonsQuery.eq('instructor_uid', uid);
-      }
+     if (this.isInstructor()) {
+  if (!uid) {
+    await this.ui.alert('לא נמצא משתמש מחובר. התחברי מחדש.', 'שגיאה');
+    return;
+  }
+  lessonsQuery = lessonsQuery.eq('instructor_uid', uid);
+}
+
 
       const [
         { data: rawLessons, error: lessonsErr },
@@ -602,8 +611,12 @@ export class MonthlySummaryComponent implements OnInit {
     } catch (err: any) {
       // 🔒 no raw data in error logs
       // eslint-disable-next-line no-console
-      console.error('❌ load summary failed', err?.message || err);
-      alert('שגיאה בטעינת נתונים: ' + (err?.message || 'ראה קונסול בדפדפן'));
+     console.error('❌ load summary failed', err?.message || err);
+     await this.ui.alert(
+     'שגיאה בטעינת נתונים: ' + (err?.message || 'בדקי קונסול בדפדפן'),
+     'שגיאה'
+    );
+
     } finally {
       this.loading = false;
     }
@@ -748,7 +761,11 @@ async exportExcel(): Promise<void> {
   } catch (e: any) {
     // בלי הדפסת דאטה
     console.error('exportExcel failed:', e?.message || e);
-    alert('כדי לייצא לאקסל צריך להתקין: npm i xlsx');
+   await this.ui.alert(
+  'כדי לייצא לאקסל צריך להתקין את הספריה xlsx (npm i xlsx).',
+  'חסר התקנה'
+);
+
   }
 }
   // ===============================

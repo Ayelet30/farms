@@ -6,7 +6,8 @@ import {
   FormGroup,
 } from '@angular/forms';
 import { MatDialogRef } from '@angular/material/dialog';
-import { Component, ViewEncapsulation } from '@angular/core';
+import { Component, ViewEncapsulation, inject } from '@angular/core';
+import { UiDialogService } from '../../../services/ui-dialog.service';
 
 export type AddInstructorPayload = {
   first_name: string;
@@ -15,7 +16,7 @@ export type AddInstructorPayload = {
   phone?: string;
   id_number: string;
   address?: string;
-  gender?: string;       // "זכר" / "נקבה" / אחר
+  gender?: string; // "זכר" / "נקבה" / אחר
   license_id?: string;
   education?: string;
   about?: string;
@@ -30,6 +31,8 @@ export type AddInstructorPayload = {
   encapsulation: ViewEncapsulation.None,
 })
 export class AddInstructorDialogComponent {
+  private ui = inject(UiDialogService);
+
   form!: FormGroup;
   submitting = false;
 
@@ -44,20 +47,27 @@ export class AddInstructorDialogComponent {
       phone: ['', [Validators.required]],
       id_number: ['', [Validators.required]],
       address: [''],
-      gender: [''],      // לא חובה
-      license_id: [''],  // רישיון מדריך
-      education: [''],   // השכלה / קורסים
-      about: [''],       // טקסט חופשי
+      gender: [''],
+      license_id: [''],
+      education: [''],
+      about: [''],
     });
   }
 
-  submit() {
+  async submit(): Promise<void> {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      await this.ui.alert('יש שדות חסרים/לא תקינים. בדקי את הטופס.', 'שגיאה בטופס');
       return;
     }
 
-    const ok = confirm('להוסיף את המדריך למערכת?');
+    const ok = await this.ui.confirm({
+      title: 'הוספת מדריך',
+      message: 'להוסיף את המדריך למערכת?',
+      okText: 'אישור',
+      cancelText: 'ביטול',
+      showCancel: true,
+    });
     if (!ok) return;
 
     this.submitting = true;
@@ -80,8 +90,14 @@ export class AddInstructorDialogComponent {
     this.ref.close(payload);
   }
 
-  cancel() {
-    const ok = confirm('לבטל ללא שמירה?');
+  async cancel(): Promise<void> {
+    const ok = await this.ui.confirm({
+      title: 'ביטול',
+      message: 'לבטל ללא שמירה?',
+      okText: 'כן, לבטל',
+      cancelText: 'חזרה',
+      showCancel: true,
+    });
     if (!ok) return;
 
     this.ref.close();

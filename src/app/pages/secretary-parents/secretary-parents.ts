@@ -3,12 +3,14 @@ import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { FormsModule } from '@angular/forms';
+import { UiDialogService } from '../../services/ui-dialog.service';
 import {
   ReactiveFormsModule,
   FormBuilder,
   FormGroup,
   Validators,
 } from '@angular/forms';
+import { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
 
 import {
   ensureTenantContextReady,
@@ -123,13 +125,54 @@ export class SecretaryParentsComponent implements OnInit {
     { value: 'email', label: 'אימייל' },
     { value: 'sms', label: 'SMS' },
   ];
+  // מנקה רווחים/מקפים/סוגריים
+private normalizePhone(raw: any): string {
+  return String(raw ?? '').replace(/[^\d+]/g, ''); // משאיר ספרות ו-+
+}
 
-  constructor(
-    private dialog: MatDialog,
-    private createUserService: CreateUserService,
-    private fb: FormBuilder,
-    private mailService: MailService,
-  ) {}
+// ולידטור לטלפון ישראלי
+private israelPhoneValidator(): ValidatorFn {
+  return (control: AbstractControl): ValidationErrors | null => {
+    const raw = control.value;
+    if (raw == null || raw === '') return null; // required מטופל בנפרד
+
+    const val = this.normalizePhone(raw);
+
+    // 1) אם יש אותיות/תווים לא חוקיים (אחרי ניקוי לא אמור לקרות, אבל אם כן)
+    // כאן אנחנו גם חוסמים כל דבר שהוא לא ספרות או + בתחילת מספר
+    if (!/^\+?\d+$/.test(val)) {
+      return { phoneDigitsOnly: true };
+    }
+
+    // 2) תמיכה ב-+972
+    if (val.startsWith('+972')) {
+      const rest = val.slice(4); // אחרי +972
+      // חייב להתחיל ב-5 ואז 8 ספרות (סה"כ 9 אחרי 972)
+      if (!/^5\d{8}$/.test(rest)) return { ilPhone: true };
+      return null;
+    }
+
+    // 3) תמיכה ב-972 בלי +
+    if (val.startsWith('972')) {
+      const rest = val.slice(3);
+      if (!/^5\d{8}$/.test(rest)) return { ilPhone: true };
+      return null;
+    }
+
+    // 4) מספר ישראלי מקומי 05XXXXXXXX
+    if (/^05\d{8}$/.test(val)) return null;
+
+    return { ilPhone: true };
+  };
+}
+
+constructor(
+  private ui: UiDialogService,
+  private dialog: MatDialog,
+  private createUserService: CreateUserService,
+  private fb: FormBuilder,
+  private mailService: MailService,
+) {}
 
   // ================== חיפוש + סינון ==================
 
@@ -158,7 +201,6 @@ export class SecretaryParentsComponent implements OnInit {
   closeSearchPanelOnOutsideClick() {
     this.showSearchPanel = false;
   }
-
   // רשימת הורים אחרי חיפוש + סינון
   get filteredParents(): ParentRow[] {
     let rows = [...this.parents];
@@ -297,8 +339,9 @@ export class SecretaryParentsComponent implements OnInit {
     const cleanUid = (uid || '').trim();
 
     if (!cleanUid) {
-      alert('שגיאה: uid ריק. לא ניתן לפתוח פרטי הורה.');
+      await this.ui.alert('שגיאה: uid ריק. לא ניתן לפתוח פרטי הורה.', 'שגיאה');
       return;
+
     }
 
     this.selectedUid = cleanUid;
@@ -345,8 +388,9 @@ export class SecretaryParentsComponent implements OnInit {
         this.drawerParent = null;
         this.originalParent = null;
         this.drawerChildren = [];
-        alert('לא נמצאה רשומת הורה עבור המשתמש הזה (uid לא קיים בטבלת parents).');
-        return;
+       await this.ui.alert('לא נמצאה רשומת הורה עבור המשתמש הזה (uid לא קיים בטבלת parents).', 'לא נמצא');
+       return;
+
       }
 
       this.drawerParent = p as ParentDetailsRow;
@@ -375,6 +419,7 @@ export class SecretaryParentsComponent implements OnInit {
       this.drawerLoading = false;
     }
   }
+  
 
   // ================== עריכה inline במגירה ==================
 
@@ -388,7 +433,14 @@ export class SecretaryParentsComponent implements OnInit {
       ],
       id_number: [{ value: parent.id_number ?? '', disabled: true }],
 
-      phone: [parent.phone ?? '', [Validators.required]],
+      phone: [
+  parent.phone ?? '',
+  [
+    Validators.required,
+    this.israelPhoneValidator(), // ✅ ישראלי + רק מספרים
+  ],
+],
+
       email: [parent.email ?? '', [Validators.email]],
       billing_day: [
         parent.billing_day_of_month ?? 10,
@@ -501,7 +553,8 @@ export class SecretaryParentsComponent implements OnInit {
       this.editMode = false;
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || 'שמירת השינויים נכשלה');
+      await this.ui.alert(e?.message || 'שמירת השינויים נכשלה', 'שמירה נכשלה');
+
     }
   }
 
@@ -526,8 +579,9 @@ export class SecretaryParentsComponent implements OnInit {
       const schema_name = localStorage.getItem('selectedSchema') || '';
 
       if (!tenant_id) {
-        alert('לא נמצא tenant פעיל. התחברי מחדש או בחרי חווה פעילה.');
-        return;
+       await this.ui.alert('לא נמצא tenant פעיל. התחברי מחדש או בחרי חווה פעילה.', 'שגיאה');
+       return;
+
       }
 
       // 2) בדיקה אם המשתמש כבר קיים במערכת / בחווה
@@ -539,8 +593,9 @@ export class SecretaryParentsComponent implements OnInit {
 
         // 2א) אם כבר קיים כהורה באותה חווה → שגיאה
         if (exists.existsInTenant) {
-          alert('משתמש עם המייל הזה כבר קיים כהורה בחווה הנוכחית.');
-          return;
+         await this.ui.alert('משתמש עם המייל הזה כבר קיים כהורה בחווה הנוכחית.', 'שגיאה');
+         return;
+
         }
 
         // 2ב) קיים במערכת (בכלל) אבל לא כהורה בחווה הזאת
@@ -556,9 +611,9 @@ export class SecretaryParentsComponent implements OnInit {
       } catch (e: any) {
         const msg =
           this.createUserService.errorMessage || e?.message || 'שגיאה ביצירת / בדיקת המשתמש.';
-        alert(msg);
-        return;
-      }
+          await this.ui.alert(msg, 'שגיאה');
+          return;
+       }
 
       payload.uid = uid;
       payload.password = tempPassword || '';
@@ -589,8 +644,8 @@ export class SecretaryParentsComponent implements OnInit {
       );
 
       if (missing.length) {
-        alert('שדות חובה חסרים: ' + missing.join(', '));
-        return;
+       await this.ui.alert('שדות חובה חסרים: ' + missing.join(', '), 'חסרים פרטים');
+       return;
       }
 
       try {
@@ -649,13 +704,16 @@ export class SecretaryParentsComponent implements OnInit {
           html,
         });
 
-        alert('הורה נוצר/שויך בהצלחה + נשלח מייל');
+       await this.ui.alert('הורה נוצר/שויך בהצלחה + נשלח מייל', 'הצלחה');
+
       } catch (e: any) {
         console.error(e);
-        alert(e?.message ?? 'שגיאה - המערכת לא הצליחה להוסיף הורה');
+        await this.ui.alert(e?.message ?? 'שגיאה - המערכת לא הצליחה להוסיף הורה', 'שגיאה');
+
       }
     });
   }
+  
 
   /** ================== Helpers: Inserts to Supabase ================== */
 
