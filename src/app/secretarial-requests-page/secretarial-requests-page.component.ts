@@ -12,6 +12,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Subscription } from 'rxjs';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { ViewChild } from '@angular/core';
+import { MatSidenav } from '@angular/material/sidenav';
 
 
 import {
@@ -34,6 +37,7 @@ import { RequestCancelOccurrenceDetailsComponent } from './request-cancel-occurr
 import { RequestAddChildDetailsComponent } from './request-add-child-details/request-add-child-details.component';
 import { SecretarialSeriesRequestsComponent } from './request-new-series-details/request-new-series-details.component';
 import { request } from 'http';
+import { RequestAddParentDetailsComponent } from './request-add-parent-details/request-add-parent-details.component';
 
 // שם ה־RPC שאמור לרוץ עבור כל סוג בקשה בעת "אישור"
 const APPROVE_RPC_BY_TYPE: Partial<Record<RequestType, string>> = {
@@ -43,6 +47,7 @@ const APPROVE_RPC_BY_TYPE: Partial<Record<RequestType, string>> = {
   MAKEUP_LESSON: 'approve_makeup_lesson_request',
   INSTRUCTOR_DAY_OFF: 'approve_instructor_day_off_request',
   NEW_SERIES: 'approve_new_series_request',
+  PARENT_SIGNUP: 'approve_parent_signup_request',
 };
 
 type ToastKind = 'success' | 'error' | 'info';
@@ -64,6 +69,11 @@ export class SecretarialRequestsPageComponent implements OnInit {
   private cu = inject(CurrentUserService);
   private sanitizer = inject(DomSanitizer);
   private detailsSubs: Subscription[] = [];
+  private bo = inject(BreakpointObserver);
+
+  isMobile = signal(false);
+
+  @ViewChild('detailsDrawer') detailsDrawer?: MatSidenav;
 
   onChildApprovedBound = (e: any) => this.onChildApproved(e);
 onChildRejectedBound = (e: any) => this.onChildRejected(e);
@@ -93,6 +103,7 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
     CANCEL_OCCURRENCE: RequestCancelOccurrenceDetailsComponent,
     ADD_CHILD: RequestAddChildDetailsComponent,
     NEW_SERIES: SecretarialSeriesRequestsComponent, 
+    PARENT_SIGNUP: RequestAddParentDetailsComponent,
   };
 
   getDetailsComponent(type: string) {
@@ -218,8 +229,19 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
   }
 
   async ngOnInit() {
+    this.bo.observe(['(max-width: 900px)']).subscribe(r => {
+      const mobile = r.matches;
+      this.isMobile.set(mobile);
+
+      // כשעוברים לדסקטופ - לא להשאיר drawer פתוח
+      if (!mobile) {
+        this.detailsDrawer?.close();
+      }
+    });
+
     await this.loadRequestsFromDb();
   }
+  
 
   // --------------------------------------------------
   // טעינה מה־DB
@@ -261,7 +283,7 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
       status: row.status,
 
       summary: this.buildSummary(row as SecretarialRequestDbRow, row.payload || {}),
-      requestedByName: row.requested_by_name || '—',
+      requestedByName: this.getRequesterDisplay(row),
       childName: row.child_name || undefined,
       instructorName: row.instructor_name || undefined,
 
@@ -288,10 +310,30 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
         return p.summary || 'בקשה למחיקת ילד מהמערכת';
       case 'MAKEUP_LESSON':
         return p.summary || 'בקשה לשיעור פיצוי';
+      case 'PARENT_SIGNUP':
+        return p.summary || 'בקשה להרשמת הורה למערכת';
       default:
         return p.summary || 'כללי';
     }
   }
+
+  private getRequesterDisplay(row: any): string {
+  const uid = row.requested_by_uid;
+  if (uid != "PUBLIC" && String(uid).trim()) return String(uid);
+
+  // אחרת: ננסה לחלץ שם מה-payload (במיוחד ל-PARENT_SIGNUP)
+  const p: any = row.payload ?? {};
+
+  // השדות אצלך בפועל בשורש
+  const first = (p.first_name ?? p.firstName ?? p?.parent?.first_name ?? p?.parent?.firstName ?? '').toString().trim();
+  const last  = (p.last_name  ?? p.lastName  ?? p?.parent?.last_name  ?? p?.parent?.lastName  ?? '').toString().trim();
+
+  const full = `${first} ${last}`.trim();
+  if (full) return full;
+
+  return '—';
+}
+
 
   // --------------------------------------------------
   // UI actions
@@ -350,6 +392,9 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
       case 'INSTRUCTOR_DAY_OFF': return 'יום חופש מדריך';
       case 'NEW_SERIES': return 'סדרת שיעורים';
       case 'ADD_CHILD': return 'הוספת ילד/ה';
+      case 'DELETE_CHILD': return 'מחיקת ילד/ה';
+      case 'MAKEUP_LESSON': return 'שיעור פיצוי';
+      case 'PARENT_SIGNUP': return 'הרשמת הורה';
       default: return type;
     }
   }
@@ -360,6 +405,9 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
       case 'INSTRUCTOR_DAY_OFF': return 'beach_access';
       case 'NEW_SERIES': return 'repeat';
       case 'ADD_CHILD': return 'person_add';
+      case 'DELETE_CHILD': return 'person_remove';
+      case 'MAKEUP_LESSON': return 'school';
+      case 'PARENT_SIGNUP': return 'person';
       default: return 'help';
     }
   }

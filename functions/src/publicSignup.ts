@@ -3,6 +3,9 @@ import { defineSecret } from 'firebase-functions/params';
 import * as admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
+
+
 
 if (!admin.apps.length) admin.initializeApp();
 
@@ -15,6 +18,7 @@ const SMTP_PORT_S = defineSecret('SMTP_PORT');
 const SMTP_USER_S = defineSecret('SMTP_USER');
 const SMTP_PASS_S = defineSecret('SMTP_PASS');
 const MAIL_FROM_S = defineSecret('MAIL_FROM');
+const INTERNAL_CALL_SECRET_S = defineSecret('INTERNAL_CALL_SECRET');
 
 // ===== CORS allowlist (האפליקציה שלך) =====
 const ALLOWED_ORIGINS = new Set<string>([
@@ -231,6 +235,52 @@ async function sendMail(to: string, subject: string, html: string, text?: string
   });
 }
 
+const envOrSecret = (s: ReturnType<typeof defineSecret>, name: string) =>
+  s.value() || process.env[name];
+
+async function callSendEmailGmail(args: {
+  tenantSchema: string;
+  to: string[];
+  subject: string;
+  html?: string;
+  text?: string;
+  attachments?: Array<{ filename: string; contentType?: string; content: Buffer }>;
+}) {
+  const internalSecret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
+  if (!internalSecret) throw new Error('Missing INTERNAL_CALL_SECRET');
+
+  const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/sendEmailGmail';
+
+  const body: any = {
+    tenantSchema: args.tenantSchema,
+    to: args.to,
+    subject: args.subject,
+    html: args.html,
+    text: args.text,
+    attachments: (args.attachments || []).map(a => ({
+      filename: a.filename,
+      contentType: a.contentType,
+      contentBase64: a.content.toString('base64'),
+    })),
+  };
+
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-internal-secret': internalSecret,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const json = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    throw new Error(`sendEmailGmail failed: ${r.status} ${JSON.stringify(json)}`);
+  }
+  return json;
+}
+
+
 export const approveParentSignupRequest = onRequest(
   {
     region: 'us-central1',
@@ -242,6 +292,8 @@ export const approveParentSignupRequest = onRequest(
       SMTP_USER_S,
       SMTP_PASS_S,
       MAIL_FROM_S,
+      INTERNAL_CALL_SECRET_S,
+
     ],
   },
   async (req, res) => {
@@ -426,7 +478,13 @@ export const approveParentSignupRequest = onRequest(
           </div>
         `;
 
-      await sendMail(email, subject, html);
+      await callSendEmailGmail({
+              tenantSchema: schema,   // אצלך זה שם הסכמה של החווה
+              to: [email],
+              subject,
+              html,
+            });
+
 
       res.status(200).json({ ok: true, uid, tempPasswordSent: !!tempPassword });
     } catch (e: any) {

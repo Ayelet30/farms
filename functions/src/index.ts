@@ -15,6 +15,7 @@ setGlobalOptions({
 });
 
 import { decryptRefreshToken } from './crypto-gmail';
+export { connectGmailForFarm } from './connectGmailForFarm.js';
 
 
 export * from "./loginBootstrap.js";
