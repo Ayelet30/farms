@@ -2,6 +2,8 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/supabaseClient.service';
+import { inject } from '@angular/core';
+import { UiDialogService } from '../../services/ui-dialog.service';
 
 interface Arena {
   id?: string;
@@ -21,7 +23,8 @@ interface Arena {
 export class SecretaryArenasComponent implements OnInit {
   arenas: Arena[] = [];
   editing: Arena | null = null;
-  arenaToDelete: Arena | null = null;
+
+  private ui = inject(UiDialogService);
 
   loading = false;
   error: string | null = null;
@@ -129,31 +132,31 @@ export class SecretaryArenasComponent implements OnInit {
     await this.loadArenas();
   }
 
-  // פתיחת דיאלוג מחיקה
-  confirmDelete(arena: Arena): void {
-    this.arenaToDelete = arena;
+ async confirmDelete(arena: Arena): Promise<void> {
+  const ok = await this.ui.confirm({
+    title: 'מחיקת מגרש',
+    message: `האם למחוק את המגרש "${arena.name}"?`,
+    okText: 'כן, למחוק',
+    cancelText: 'ביטול',
+    showCancel: true,
+  });
+
+  if (!ok) return;
+
+  if (!arena.id) {
+    await this.ui.alert('לא נמצא מזהה למגרש (id).', 'שגיאה');
+    return;
   }
 
-  // מחיקת מגרש אחרי אישור
-  async deleteArenaConfirmed(): Promise<void> {
-    if (!this.arenaToDelete || !this.arenaToDelete.id) {
-      this.arenaToDelete = null;
-      return;
-    }
+  try {
+    const { error } = await dbTenant().from('arenas').delete().eq('id', arena.id);
+    if (error) throw error;
 
-    const id = this.arenaToDelete.id;
-
-    const { error } = await dbTenant()
-      .from('arenas')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Failed to delete arena', error);
-      this.error = 'אירעה שגיאה במחיקת המגרש.';
-    }
-
-    this.arenaToDelete = null;
     await this.loadArenas();
+    await this.ui.alert('המגרש נמחק בהצלחה.', 'הצלחה');
+  } catch (e: any) {
+    console.error('Failed to delete arena', e);
+    await this.ui.alert('אירעה שגיאה במחיקת המגרש: ' + (e?.message ?? 'שגיאה'), 'שגיאה');
   }
+}
 }

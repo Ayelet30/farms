@@ -1,10 +1,10 @@
 // src/app/pages/farm-settings/farm-settings.component.ts
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/supabaseClient.service';
 import { HDate } from '@hebcal/core';
-
+import { UiDialogService } from '../../services/ui-dialog.service';
 
 type UUID = string;
 
@@ -115,7 +115,7 @@ interface PaymentPlan {
 interface FarmDayOff {
   id?: UUID;
 
-  // לועזי
+  // Gregorian (db)
   start_date: string | null;
   end_date: string | null;
 
@@ -132,11 +132,11 @@ interface FarmDayOff {
   day_type?: DayType;
   recurrence?: RecurrenceKind;
 
-  // NEW: סוג לוח + שדות עבריים
+  // Calendar kind + Hebrew fields
   calendar_kind?: CalendarKind;
 
-  hebrew_day?: number | null;        // 1..30
-  hebrew_month?: number | null;      // 1..13 (לפי Hebcal)
+  hebrew_day?: number | null; // 1..30
+  hebrew_month?: number | null; // 1..13 (Hebcal)
   hebrew_end_day?: number | null;
   hebrew_end_month?: number | null;
 
@@ -144,13 +144,12 @@ interface FarmDayOff {
   notify_days_before?: number | null;
 }
 
-
 interface FarmWorkingHours {
   id?: UUID;
   day_of_week: number; // 1..7
   is_open: boolean;
 
-  farm_start: string | null;   // "HH:MM"
+  farm_start: string | null; // "HH:MM"
   farm_end: string | null;
 
   office_start: string | null;
@@ -167,6 +166,7 @@ interface FarmWorkingHours {
 export class FarmSettingsComponent implements OnInit {
   private readonly SETTINGS_SINGLETON_ID = '00000000-0000-0000-0000-000000000001';
   private supabase = dbTenant();
+  private ui = inject(UiDialogService);
 
   loading = signal(false);
   saving = signal(false);
@@ -200,108 +200,25 @@ export class FarmSettingsComponent implements OnInit {
   };
 
   // ===== Hebrew months (Hebcal) =====
-hebrewMonths = [
-  { value: 1, label: 'תשרי' },
-  { value: 2, label: 'חשוון' },
-  { value: 3, label: 'כסלו' },
-  { value: 4, label: 'טבת' },
-  { value: 5, label: 'שבט' },
-  { value: 6, label: 'אדר' },
-  { value: 7, label: 'אדר ב' },
-  { value: 8, label: 'ניסן' },
-  { value: 9, label: 'אייר' },
-  { value: 10, label: 'סיון' },
-  { value: 11, label: 'תמוז' },
-  { value: 12, label: 'אב' },    
-  { value: 13, label: 'אלול' },  
-];
+  hebrewMonths = [
+    { value: 1, label: 'תשרי' },
+    { value: 2, label: 'חשוון' },
+    { value: 3, label: 'כסלו' },
+    { value: 4, label: 'טבת' },
+    { value: 5, label: 'שבט' },
+    { value: 6, label: 'אדר' },
+    { value: 7, label: 'אדר ב' },
+    { value: 8, label: 'ניסן' },
+    { value: 9, label: 'אייר' },
+    { value: 10, label: 'סיון' },
+    { value: 11, label: 'תמוז' },
+    { value: 12, label: 'אב' },
+    { value: 13, label: 'אלול' },
+  ];
 
-hebrewDays = Array.from({ length: 30 }, (_, i) => i + 1);
+  hebrewDays = Array.from({ length: 30 }, (_, i) => i + 1);
 
-private toIsoDate(d: Date): string {
-  // yyyy-mm-dd
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-/** מחזיר את התאריך הלועזי הקרוב (מהיום והלאה) עבור יום/חודש עברי */
-private nextGregorianFromHebrew(heDay: number, heMonth: number): string {
-  const today = new Date();
-  const hToday = new HDate(today);
-  let hy = hToday.getFullYear();
-
-  // ניסיון לשנה העברית הנוכחית:
-  let g = new HDate(heDay, heMonth, hy).greg();
-  // אם כבר עבר - נזוז לשנה הבאה
-  if (g < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-    hy += 1;
-    g = new HDate(heDay, heMonth, hy).greg();
-  }
-  return this.toIsoDate(g);
-}
-
-/** כשעוברים למצב עברי / משנים יום-חודש עברי -> מסנכרנים start_date/end_date לתצוגה + שמירה */
-syncHebrewToGregorianDates(): void {
-  const f = this.specialDayForm();
-  if (f.calendar_kind !== 'HEBREW') return;
-
-  const sd = f.hebrew_day ?? null;
-  const sm = f.hebrew_month ?? null;
-  const ed = f.hebrew_end_day ?? sd;
-  const em = f.hebrew_end_month ?? sm;
-
-  if (!sd || !sm) return;
-
-  const start = this.nextGregorianFromHebrew(sd, sm);
-  const end = (ed && em) ? this.nextGregorianFromHebrew(ed, em) : start;
-
-  this.specialDayForm.set({
-    ...f,
-    start_date: start,
-    end_date: end,
-    hebrew_end_day: ed,
-    hebrew_end_month: em,
-  });
-
-  this.validateSpecialDayDateRange(this.specialDayForm());
-}
-
-setCalendarKind(kind: CalendarKind): void {
-  const f = this.specialDayForm();
-
-  if (kind === 'GREGORIAN') {
-    this.specialDayForm.set({
-      ...f,
-      calendar_kind: 'GREGORIAN',
-      hebrew_day: null,
-      hebrew_month: null,
-      hebrew_end_day: null,
-      hebrew_end_month: null,
-    });
-    return;
-  }
-
-  // kind === 'HEBREW'
-  const todayIso = new Date().toISOString().slice(0, 10);
-  this.specialDayForm.set({
-    ...f,
-    calendar_kind: 'HEBREW',
-    recurrence: f.recurrence ?? 'YEARLY', // טבעי לעברי
-    start_date: f.start_date || todayIso,
-    end_date: f.end_date || todayIso,
-    hebrew_day: f.hebrew_day ?? 10,
-    hebrew_month: f.hebrew_month ?? 7, // ברירת מחדל תשרי
-    hebrew_end_day: f.hebrew_end_day ?? f.hebrew_day ?? 10,
-    hebrew_end_month: f.hebrew_end_month ?? f.hebrew_month ?? 7,
-  });
-
-  this.syncHebrewToGregorianDates();
-}
-
-
-  // ====== ימים מיוחדים (לועזי בלבד) ======
+  // ====== Special days ======
   showSpecialDaysModal = signal(false);
   daysOff = signal<FarmDayOff[]>([]);
   specialDayForm = signal<FarmDayOff>({
@@ -315,11 +232,17 @@ setCalendarKind(kind: CalendarKind): void {
     recurrence: 'ONCE',
     notify_parents_before: false,
     notify_days_before: 1,
+
+    calendar_kind: 'GREGORIAN',
+    hebrew_day: null,
+    hebrew_month: null,
+    hebrew_end_day: null,
+    hebrew_end_month: null,
   });
 
   dateRangeError = signal<string | null>(null);
 
-  // ====== שעות לפי יום ======
+  // ====== Working hours per day ======
   workingHours = signal<FarmWorkingHours[]>([]);
 
   // ================================
@@ -337,7 +260,6 @@ setCalendarKind(kind: CalendarKind): void {
         this.loadWorkingHours(),
       ]);
 
-      // אם אין שום רשומות – נבנה 7 ימים כדי שהמסך לא ייראה "ריק"
       if (!this.workingHours().length) {
         this.workingHours.set(this.buildEmptyWorkingHours());
       }
@@ -345,6 +267,7 @@ setCalendarKind(kind: CalendarKind): void {
       this.onWorkingHoursChanged();
     } catch (e) {
       console.error(e);
+      await this.ui.alert('שגיאה בטעינת הנתונים.', 'שגיאה');
       this.error.set('שגיאה בטעינת הנתונים.');
     } finally {
       this.loading.set(false);
@@ -384,6 +307,90 @@ setCalendarKind(kind: CalendarKind): void {
     return t.length === 5 ? `${t}:00` : t;
   }
 
+  private toIsoDate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  /** מחזיר את התאריך הלועזי הקרוב (מהיום והלאה) עבור יום/חודש עברי */
+  private nextGregorianFromHebrew(heDay: number, heMonth: number): string {
+    const today = new Date();
+    const hToday = new HDate(today);
+    let hy = hToday.getFullYear();
+
+    let g = new HDate(heDay, heMonth, hy).greg();
+
+    // אם כבר עבר - נזוז לשנה הבאה
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    if (g < startOfToday) {
+      hy += 1;
+      g = new HDate(heDay, heMonth, hy).greg();
+    }
+
+    return this.toIsoDate(g);
+  }
+
+  /** סנכרון עברי->לועזי (start_date/end_date) כדי לשמור DB תקין */
+  syncHebrewToGregorianDates(): void {
+    const f = this.specialDayForm();
+    if ((f.calendar_kind ?? 'GREGORIAN') !== 'HEBREW') return;
+
+    const sd = f.hebrew_day ?? null;
+    const sm = f.hebrew_month ?? null;
+    const ed = f.hebrew_end_day ?? sd;
+    const em = f.hebrew_end_month ?? sm;
+
+    if (!sd || !sm) return;
+
+    const start = this.nextGregorianFromHebrew(sd, sm);
+    const end = ed && em ? this.nextGregorianFromHebrew(ed, em) : start;
+
+    const next: FarmDayOff = {
+      ...f,
+      start_date: start,
+      end_date: end,
+      hebrew_end_day: ed,
+      hebrew_end_month: em,
+    };
+
+    this.specialDayForm.set(next);
+    this.validateSpecialDayDateRange(next);
+  }
+
+  setCalendarKind(kind: CalendarKind): void {
+    const f = this.specialDayForm();
+
+    if (kind === 'GREGORIAN') {
+      this.specialDayForm.set({
+        ...f,
+        calendar_kind: 'GREGORIAN',
+        hebrew_day: null,
+        hebrew_month: null,
+        hebrew_end_day: null,
+        hebrew_end_month: null,
+      });
+      return;
+    }
+
+    const todayIso = new Date().toISOString().slice(0, 10);
+
+    this.specialDayForm.set({
+      ...f,
+      calendar_kind: 'HEBREW',
+      recurrence: f.recurrence ?? 'YEARLY', // טבעי לעברי
+      start_date: f.start_date || todayIso,
+      end_date: f.end_date || todayIso,
+      hebrew_day: f.hebrew_day ?? 10,
+      hebrew_month: f.hebrew_month ?? 1, // תשרי (לפי המערך שלך)
+      hebrew_end_day: f.hebrew_end_day ?? f.hebrew_day ?? 10,
+      hebrew_end_month: f.hebrew_end_month ?? f.hebrew_month ?? 1,
+    });
+
+    this.syncHebrewToGregorianDates();
+  }
+
   // =============================
   // Working Hours (per day)
   // =============================
@@ -395,7 +402,6 @@ setCalendarKind(kind: CalendarKind): void {
 
     if (error) {
       console.error('loadWorkingHours error', error);
-      // לא נכשיל את כל העמוד
       return;
     }
 
@@ -417,7 +423,6 @@ setCalendarKind(kind: CalendarKind): void {
     const defFarmStart = s?.operating_hours_start ?? '08:00';
     const defFarmEnd = s?.operating_hours_end ?? '20:00';
 
-    // משרד: נעדיף ריק כדי לא לחייב
     const defOfficeStart = s?.office_hours_start ?? null;
     const defOfficeEnd = s?.office_hours_end ?? null;
 
@@ -441,7 +446,6 @@ setCalendarKind(kind: CalendarKind): void {
 
   private validateAllWorkingHours(): string | null {
     const rows = this.workingHours();
-
     for (const r of rows) {
       const msg = this.validateWorkingHoursRow(r);
       if (msg) return msg;
@@ -486,10 +490,10 @@ setCalendarKind(kind: CalendarKind): void {
   async saveWorkingHours(): Promise<void> {
     const rows = this.workingHours().length ? this.workingHours() : this.buildEmptyWorkingHours();
 
-    // ולידציה
     const err = this.validateAllWorkingHours();
     this.workingHoursError.set(err);
     if (err) {
+      await this.ui.alert(err, 'שגיאה');
       this.error.set(err);
       return;
     }
@@ -515,11 +519,14 @@ setCalendarKind(kind: CalendarKind): void {
 
       if (error) {
         console.error('saveWorkingHours error', error);
+        await this.ui.alert('שמירת שעות לפי יום נכשלה.', 'שגיאה');
         this.error.set('שמירת שעות לפי יום נכשלה.');
         return;
       }
 
       this.success.set('שעות לפי יום נשמרו בהצלחה.');
+      await this.ui.alert('שעות לפי יום נשמרו בהצלחה.', 'הצלחה');
+
       await this.loadWorkingHours();
       this.onWorkingHoursChanged();
 
@@ -535,13 +542,11 @@ setCalendarKind(kind: CalendarKind): void {
   }
 
   // =============================
-  // Special Days (days off) - לועזי בלבד
+  // Special Days
   // =============================
   private validateSpecialDayDateRange(form: FarmDayOff): void {
     this.dateRangeError.set(null);
     if (!form.start_date || !form.end_date) return;
-
-    // YYYY-MM-DD => השוואה כמחרוזת
     if (form.end_date < form.start_date) {
       this.dateRangeError.set('״עד תאריך״ לא יכול להיות קטן מ־״מתאריך״.');
     }
@@ -558,24 +563,23 @@ setCalendarKind(kind: CalendarKind): void {
     this.dateRangeError.set(null);
 
     this.specialDayForm.set({
-  start_date: today,
-  end_date: today,
-  all_day: true,
-  start_time: null,
-  end_time: null,
-  reason: '',
-  is_active: true,
-  recurrence: 'ONCE',
-  notify_parents_before: false,
-  notify_days_before: 1,
+      start_date: today,
+      end_date: today,
+      all_day: true,
+      start_time: null,
+      end_time: null,
+      reason: '',
+      is_active: true,
+      recurrence: 'ONCE',
+      notify_parents_before: false,
+      notify_days_before: 1,
 
-  calendar_kind: 'GREGORIAN',
-  hebrew_day: null,
-  hebrew_month: null,
-  hebrew_end_day: null,
-  hebrew_end_month: null,
-});
-
+      calendar_kind: 'GREGORIAN',
+      hebrew_day: null,
+      hebrew_month: null,
+      hebrew_end_day: null,
+      hebrew_end_month: null,
+    });
 
     this.showSpecialDaysModal.set(true);
   }
@@ -629,6 +633,12 @@ setCalendarKind(kind: CalendarKind): void {
       recurrence: (r.recurrence ?? 'ONCE') as RecurrenceKind,
       notify_parents_before: r.notify_parents_before ?? false,
       notify_days_before: r.notify_days_before ?? 1,
+
+      calendar_kind: (r.calendar_kind ?? 'GREGORIAN') as CalendarKind,
+      hebrew_day: r.hebrew_day ?? null,
+      hebrew_month: r.hebrew_month ?? null,
+      hebrew_end_day: r.hebrew_end_day ?? null,
+      hebrew_end_month: r.hebrew_end_month ?? null,
     }));
 
     this.daysOff.set(list);
@@ -636,42 +646,42 @@ setCalendarKind(kind: CalendarKind): void {
 
   async saveSpecialDay(): Promise<void> {
     const f = this.specialDayForm();
-    this.validateSpecialDayDateRange(f);
-    if (this.dateRangeError()) return;
+   this.validateSpecialDayDateRange(f);
+if (this.dateRangeError()) {
+  await this.ui.alert(this.dateRangeError()!, 'שגיאה');
+  return;
+}
 
     if (!f.reason?.trim()) {
-      alert('חובה למלא סיבה.');
+      await this.ui.alert('חובה למלא סיבה.', 'חסר שדה');
       return;
     }
 
     if (!f.start_date || !f.end_date) {
-      alert('חובה למלא "מתאריך" ו-"עד תאריך".');
+      await this.ui.alert('חובה למלא "מתאריך" ו-"עד תאריך".', 'חסר שדה');
       return;
     }
 
     if (!f.all_day) {
       if (!f.start_time || !f.end_time) {
-        alert('כשזה לא "כל היום" חובה למלא שעות התחלה/סיום.');
+        await this.ui.alert('כשזה לא "כל היום" חובה למלא שעות התחלה/סיום.', 'חסר שדה');
         return;
       }
       if (f.end_time <= f.start_time) {
-        alert('שעת סיום חייבת להיות אחרי שעת התחלה.');
+        await this.ui.alert('שעת סיום חייבת להיות אחרי שעת התחלה.', 'שגיאה');
         return;
       }
     }
 
     const isHebrew = (f.calendar_kind ?? 'GREGORIAN') === 'HEBREW';
 
-// אם עברי – ודאי שיש יום+חודש והמרה ללועזי קיימת
-if (isHebrew) {
-  if (!f.hebrew_day || !f.hebrew_month) {
-    alert('חובה לבחור תאריך עברי (חודש + יום).');
-    return;
-  }
-  // מסנכרנים שוב ליתר ביטחון
-  this.syncHebrewToGregorianDates();
-}
-
+    if (isHebrew) {
+      if (!f.hebrew_day || !f.hebrew_month) {
+        await this.ui.alert('חובה לבחור תאריך עברי (חודש + יום).', 'חסר שדה');
+        return;
+      }
+      this.syncHebrewToGregorianDates();
+    }
 
     const payload: any = {
       reason: f.reason.trim(),
@@ -686,16 +696,14 @@ if (isHebrew) {
       start_time: f.all_day ? null : this.timeToDb(f.start_time),
       end_time: f.all_day ? null : this.timeToDb(f.end_time),
 
-      start_date: f.start_date,
-      end_date: f.end_date,
+      start_date: this.specialDayForm().start_date,
+      end_date: this.specialDayForm().end_date,
 
       calendar_kind: isHebrew ? 'HEBREW' : 'GREGORIAN',
-
-hebrew_day: isHebrew ? (f.hebrew_day ?? null) : null,
-hebrew_month: isHebrew ? (f.hebrew_month ?? null) : null,
-hebrew_end_day: isHebrew ? (f.hebrew_end_day ?? f.hebrew_day ?? null) : null,
-hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : null,
-
+      hebrew_day: isHebrew ? (this.specialDayForm().hebrew_day ?? null) : null,
+      hebrew_month: isHebrew ? (this.specialDayForm().hebrew_month ?? null) : null,
+      hebrew_end_day: isHebrew ? (this.specialDayForm().hebrew_end_day ?? this.specialDayForm().hebrew_day ?? null) : null,
+      hebrew_end_month: isHebrew ? (this.specialDayForm().hebrew_end_month ?? this.specialDayForm().hebrew_month ?? null) : null,
     };
 
     try {
@@ -707,11 +715,15 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
 
       if (error) {
         console.error('saveSpecialDay error', error);
+        await this.ui.alert('שמירת יום מיוחד נכשלה.', 'שגיאה');
         this.error.set('שמירת יום מיוחד נכשלה.');
+        
         return;
       }
 
       this.success.set('יום מיוחד נשמר בהצלחה.');
+      await this.ui.alert('יום מיוחד נשמר בהצלחה.', 'הצלחה');
+
       await this.loadFarmDaysOff();
       this.closeSpecialDaysModal();
     } finally {
@@ -722,7 +734,13 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
   async deactivateDayOff(day: FarmDayOff): Promise<void> {
     if (!day.id) return;
 
-    const ok = confirm('לבטל (להפוך ללא פעיל) את היום המיוחד הזה?');
+    const ok = await this.ui.confirm({
+      title: 'ביטול יום מיוחד',
+      message: 'לבטל (להפוך ללא פעיל) את היום המיוחד הזה?',
+      okText: 'כן, לבטל',
+      cancelText: 'ביטול',
+      showCancel: true,
+    });
     if (!ok) return;
 
     try {
@@ -737,11 +755,13 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
 
       if (error) {
         console.error('deactivateDayOff error', error);
+        await this.ui.alert('ביטול יום מיוחד נכשל.', 'שגיאה');
         this.error.set('ביטול יום מיוחד נכשל.');
         return;
       }
 
       await this.loadFarmDaysOff();
+      await this.ui.alert('יום מיוחד בוטל.', 'הצלחה');
       this.success.set('יום מיוחד בוטל.');
     } finally {
       this.saving.set(false);
@@ -861,8 +881,8 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
     const current = this.settings();
     if (!current) return;
 
-    // ולידציה בסיסית: שעות משרד הגיוניות (אם יש)
     if (!this.validateOfficeHours()) {
+      await this.ui.alert('יש שגיאה בשעות פעילות המשרד.', 'שגיאה');
       this.error.set('לא ניתן לשמור: יש שגיאה בשעות פעילות המשרד.');
       return;
     }
@@ -877,7 +897,6 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
       id: current.id ?? this.SETTINGS_SINGLETON_ID,
     };
 
-    // normalize time fields to HH:MM:SS
     payload.operating_hours_start = this.timeToDb(payload.operating_hours_start);
     payload.operating_hours_end = this.timeToDb(payload.operating_hours_end);
     payload.office_hours_start = this.timeToDb(payload.office_hours_start);
@@ -894,6 +913,7 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
 
     if (error) {
       console.error('save farm_settings error', error);
+      await this.ui.alert('שמירת ההגדרות נכשלה. נסי שוב.', 'שגיאה');
       this.error.set('שמירת ההגדרות נכשלה. נסי שוב.');
       this.saving.set(false);
       return;
@@ -912,6 +932,8 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
 
     this.settings.set(s);
     this.success.set('ההגדרות נשמרו בהצלחה.');
+    await this.ui.alert('ההגדרות נשמרו בהצלחה.', 'הצלחה');
+
     this.saving.set(false);
   }
 
@@ -1002,11 +1024,17 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
 
   async deleteFundingSource(fs: FundingSource): Promise<void> {
     if (fs.is_system) {
-      alert('אי אפשר למחוק גורם מימון מערכת.');
+      await this.ui.alert('אי אפשר למחוק גורם מימון מערכת.', 'שגיאה');
       return;
     }
 
-    const confirmed = confirm(`למחוק את גורם המימון "${fs.name}"?`);
+    const confirmed = await this.ui.confirm({
+      title: 'מחיקת גורם מימון',
+      message: `למחוק את גורם המימון "${fs.name}"?`,
+      okText: 'כן, למחוק',
+      cancelText: 'ביטול',
+      showCancel: true,
+    });
     if (!confirmed) return;
 
     const { error } = await this.supabase.from('funding_sources').delete().eq('id', fs.id);
@@ -1014,10 +1042,12 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
     if (error) {
       console.error('delete funding_source error', error);
       this.error.set('מחיקת גורם המימון נכשלה.');
+      await this.ui.alert('מחיקת גורם המימון נכשלה.', 'שגיאה');
       return;
     }
 
     this.fundingSources.set(this.fundingSources().filter(f => f.id !== fs.id));
+    await this.ui.alert('גורם המימון נמחק.', 'הצלחה');
   }
 
   // =============================
@@ -1091,25 +1121,22 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
   async addPaymentPlan(): Promise<void> {
     const p = this.newPlan;
     if (!p.name || p.lesson_price == null) {
-      alert('חובה למלא שם מסלול ומחיר לשיעור.');
+      await this.ui.alert('חובה למלא שם מסלול ומחיר לשיעור.', 'חסר שדה');
       return;
     }
 
     const payload = this.normalizePlanForSave(p);
 
-    const { data, error } = await this.supabase
-      .from('payment_plans')
-      .insert(payload)
-      .select()
-      .single();
+    const { error } = await this.supabase.from('payment_plans').insert(payload);
 
     if (error) {
       console.error('add payment_plan error', error);
       this.error.set('לא ניתן להוסיף מסלול תשלום.');
+      await this.ui.alert('לא ניתן להוסיף מסלול תשלום.', 'שגיאה');
       return;
     }
 
-    await this.loadPaymentPlans(); // כדי לקבל גם versions נכונים
+    await this.loadPaymentPlans();
     this.newPlan = {
       name: '',
       lesson_price: null,
@@ -1120,6 +1147,8 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
       is_active: true,
     };
     this.showNewPlanForm.set(false);
+
+    await this.ui.alert('מסלול התשלום נוסף.', 'הצלחה');
   }
 
   async updatePaymentPlan(plan: PaymentPlan): Promise<void> {
@@ -1135,17 +1164,25 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
     if (error) {
       console.error('update payment_plan error', error);
       this.error.set('עדכון מסלול תשלום נכשל.');
+      await this.ui.alert('עדכון מסלול תשלום נכשל.', 'שגיאה');
       return;
     }
 
     this.editingPlanId.set(null);
     await this.loadPaymentPlans();
+    await this.ui.alert('מסלול התשלום עודכן.', 'הצלחה');
   }
 
   async deletePaymentPlan(plan: PaymentPlan): Promise<void> {
     if (!plan.id) return;
 
-    const confirmed = confirm(`למחוק את מסלול התשלום "${plan.name}"?`);
+    const confirmed = await this.ui.confirm({
+      title: 'מחיקת מסלול תשלום',
+      message: `למחוק את מסלול התשלום "${plan.name}"?`,
+      okText: 'כן, למחוק',
+      cancelText: 'ביטול',
+      showCancel: true,
+    });
     if (!confirmed) return;
 
     const { error } = await this.supabase.from('payment_plans').delete().eq('id', plan.id);
@@ -1153,10 +1190,12 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
     if (error) {
       console.error('delete payment_plan error', error);
       this.error.set('מחיקת מסלול התשלום נכשלה.');
+      await this.ui.alert('מחיקת מסלול התשלום נכשלה.', 'שגיאה');
       return;
     }
 
     await this.loadPaymentPlans();
+    await this.ui.alert('מסלול התשלום נמחק.', 'הצלחה');
   }
 
   getCustomerAmount(plan: PaymentPlan): number {
@@ -1183,11 +1222,11 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
     const subsidy = plan.newVersionSubsidy ?? 0;
 
     if (!date) {
-      alert('חובה לבחור תאריך תחולה לשינוי המחיר.');
+      await this.ui.alert('חובה לבחור תאריך תחולה לשינוי המחיר.', 'חסר שדה');
       return;
     }
     if (price == null) {
-      alert('חובה למלא מחיר חדש לשיעור.');
+      await this.ui.alert('חובה למלא מחיר חדש לשיעור.', 'חסר שדה');
       return;
     }
 
@@ -1206,13 +1245,14 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
       if (error) {
         console.error('savePlanPriceVersion error', error);
         this.error.set('שמירת שינוי המחיר נכשלה. נסי שוב.');
+        await this.ui.alert('שמירת שינוי המחיר נכשלה. נסי שוב.', 'שגיאה');
         return;
       }
 
       this.success.set('שינוי המחיר נשמר ונוספה היסטוריה חדשה.');
-      await this.loadPaymentPlans();
+      await this.ui.alert('שינוי המחיר נשמר ונוספה היסטוריה חדשה.', 'הצלחה');
 
-      // סוגרים עריכה
+      await this.loadPaymentPlans();
       this.editingPlanId.set(null);
     } finally {
       this.saving.set(false);
@@ -1220,7 +1260,7 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
   }
 
   // =============================
-  // Unlimited lessons per week
+  // Unlimited toggles
   // =============================
   isUnlimitedLessonsPerWeek(): boolean {
     const s = this.settings();
@@ -1237,9 +1277,6 @@ hebrew_end_month: isHebrew ? (f.hebrew_end_month ?? f.hebrew_month ?? null) : nu
     });
   }
 
-    // =============================
-  // Unlimited default lessons per series
-  // =============================
   isUnlimitedDefaultLessonsPerSeries(): boolean {
     const s = this.settings();
     return !s || s.default_lessons_per_series == null;
