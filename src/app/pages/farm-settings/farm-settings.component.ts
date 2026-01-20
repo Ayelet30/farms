@@ -77,6 +77,12 @@ interface FarmSettings {
 
   updated_at?: string | null;
 }
+type ListNoteId = number;
+
+interface ListNote {
+  id: ListNoteId;
+  note: string;
+}
 
 interface FundingSource {
   id: UUID;
@@ -165,8 +171,32 @@ interface FarmWorkingHours {
 })
 export class FarmSettingsComponent implements OnInit {
   private readonly SETTINGS_SINGLETON_ID = '00000000-0000-0000-0000-000000000001';
-  private supabase = dbTenant();
+  private get supabase() {
+  return dbTenant();
+}
+
   private ui = inject(UiDialogService);
+
+  // ====== Structured Notes (list_notes) ======
+  listNotes = signal<ListNote[]>([]);
+  showNewListNoteForm = signal(false);
+  editingListNoteId = signal<ListNoteId | null>(null);
+
+  newListNoteText = signal<string>('');
+  listNotesExpanded = signal(true);  
+
+  toggleListNotesExpanded(): void {
+  const next = !this.listNotesExpanded();
+  this.listNotesExpanded.set(next);
+
+  // אופציונלי - כשסוגרים, נסגור גם טופס/עריכה כדי שלא יישאר פתוח
+  if (!next) {
+    this.showNewListNoteForm.set(false);
+    this.editingListNoteId.set(null);
+    this.newListNoteText.set('');
+  }
+}
+
 
   loading = signal(false);
   saving = signal(false);
@@ -258,6 +288,7 @@ export class FarmSettingsComponent implements OnInit {
         this.loadPaymentPlans(),
         this.loadFarmDaysOff(),
         this.loadWorkingHours(),
+        this.loadListNotes(),
       ]);
 
       if (!this.workingHours().length) {
@@ -1291,4 +1322,145 @@ if (this.dateRangeError()) {
       default_lessons_per_series: checked ? null : (s.default_lessons_per_series ?? 12),
     });
   }
+// =============================
+// Structured Notes (list_notes)
+// =============================
+async loadListNotes(): Promise<void> {
+  try {
+    const { data, error } = await this.supabase
+      .schema('moacha_atarim_app')
+      .from('list_notes')
+      .select('id, note')
+      .order('id', { ascending: true });
+
+    if (error) {
+      console.error('loadListNotes error', error);
+      this.error.set('לא ניתן לטעון הערות מובנות.');
+      return;
+    }
+
+    this.listNotes.set((data ?? []) as ListNote[]);
+  } catch (e) {
+    console.error('loadListNotes exception', e);
+    this.error.set('לא ניתן לטעון הערות מובנות.');
+  }
 }
+
+toggleNewListNoteForm(): void {
+  const next = !this.showNewListNoteForm();
+  this.showNewListNoteForm.set(next);
+  if (!next) this.newListNoteText.set('');
+}
+
+startEditListNote(n: ListNote): void {
+  this.editingListNoteId.set(n.id);
+}
+
+cancelEditListNote(): void {
+  this.editingListNoteId.set(null);
+  this.loadListNotes();
+}
+
+async addListNote(): Promise<void> {
+  const note = this.newListNoteText().trim();
+  if (!note) {
+    await this.ui.alert('חובה לכתוב הודעה.', 'חסר שדה');
+    return;
+  }
+  if (note.length > 250) {
+    await this.ui.alert('אורך ההודעה מוגבל ל־250 תווים.', 'שגיאה');
+    return;
+  }
+
+  try {
+    const { data, error } = await this.supabase
+      .schema('moacha_atarim_app')
+      .from('list_notes')
+      .insert({ note })
+      .select('id, note')
+      .single();
+
+    if (error) {
+      console.error('addListNote error', error);
+      await this.ui.alert('הוספת הודעה נכשלה.', 'שגיאה');
+      return;
+    }
+
+    this.listNotes.set([...this.listNotes(), data as ListNote]);
+    this.newListNoteText.set('');
+    this.showNewListNoteForm.set(false);
+  } catch (e) {
+    console.error('addListNote exception', e);
+    await this.ui.alert('הוספת הודעה נכשלה.', 'שגיאה');
+  }
+}
+
+async updateListNote(n: ListNote): Promise<void> {
+  const note = (n.note ?? '').trim();
+  if (!note) {
+    await this.ui.alert('הודעה לא יכולה להיות ריקה.', 'שגיאה');
+    return;
+  }
+  if (note.length > 250) {
+    await this.ui.alert('אורך ההודעה מוגבל ל־250 תווים.', 'שגיאה');
+    return;
+  }
+
+  try {
+    const { data, error } = await this.supabase
+      .schema('moacha_atarim_app')
+      .from('list_notes')
+      .update({ note })
+      .eq('id', n.id)
+      .select('id, note')
+      .single();
+
+    if (error) {
+      console.error('updateListNote error', error);
+      await this.ui.alert('עדכון הודעה נכשל.', 'שגיאה');
+      return;
+    }
+
+    this.listNotes.set(this.listNotes().map(x => (x.id === n.id ? (data as ListNote) : x)));
+    this.editingListNoteId.set(null);
+    await this.ui.alert('ההודעה עודכנה.', 'הצלחה');
+  } catch (e) {
+    console.error('updateListNote exception', e);
+    await this.ui.alert('עדכון הודעה נכשל.', 'שגיאה');
+  }
+}
+
+async deleteListNote(n: ListNote): Promise<void> {
+  const ok = await this.ui.confirm({
+    title: 'מחיקת הודעה מובנית',
+    message: `למחוק את ההודעה הזו?\n\n"${n.note}"`,
+    okText: 'כן, למחוק',
+    cancelText: 'ביטול',
+    showCancel: true,
+  });
+  if (!ok) return;
+
+  try {
+    const { error } = await this.supabase
+      .schema('moacha_atarim_app')
+      .from('list_notes')
+      .delete()
+      .eq('id', n.id);
+
+    if (error) {
+      console.error('deleteListNote error', error);
+      await this.ui.alert('מחיקת הודעה נכשלה.', 'שגיאה');
+      return;
+    }
+
+    this.listNotes.set(this.listNotes().filter(x => x.id !== n.id));
+    await this.ui.alert('ההודעה נמחקה.', 'הצלחה');
+  } catch (e) {
+    console.error('deleteListNote exception', e);
+    await this.ui.alert('מחיקת הודעה נכשלה.', 'שגיאה');
+  }
+   this.listNotes.set(this.listNotes().filter(x => x.id !== n.id));
+  await this.ui.alert('ההודעה נמחקה.', 'הצלחה');
+}
+}
+
