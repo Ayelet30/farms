@@ -1,47 +1,92 @@
-<div class="page" dir="rtl">
+<div class="page" dir="rtl" *ngIf="request as r">
   <header class="top">
-    <h1>בקשות לסדרות</h1>
-    <button class="btn" (click)="reload()" [disabled]="loading()">רענון</button>
+    <h1>בקשה לפתיחת סדרה</h1>
   </header>
 
-  <div class="err" *ngIf="error()">{{ error() }}</div>
-  <div class="empty" *ngIf="!loading() && rows().length === 0">אין בקשות ממתינות</div>
+  <article class="card">
 
-  <section class="list" *ngIf="rows().length > 0">
-    <article class="card" *ngFor="let r of rows()">
-      <div class="row">
-        <div class="label">תאריך התחלה</div>
-        <div class="val">{{ r.series_start_date }}</div>
+    <!-- תאריכים מהטבלה -->
+    <div class="row">
+      <div class="label">תאריך התחלה</div>
+      <div class="val">{{ startDate }}</div>
+    </div>
+
+    <div class="row" *ngIf="!isOpenEnded">
+      <div class="label">תאריך סיום</div>
+      <div class="val">{{ endDate }}</div>
+    </div>
+
+    <!-- שעת התחלה מה-payload -->
+    <div class="row">
+      <div class="label">שעת התחלה מבוקשת</div>
+      <div class="val">{{ requestedStartTime }}</div>
+    </div>
+
+    <div class="row">
+      <div class="label">סוג סדרה</div>
+      <div class="val">{{ isOpenEnded ? 'ללא הגבלה' : 'מוגבלת' }}</div>
+    </div>
+
+    <!-- payment_plan -->
+    <div class="row">
+      <div class="label">אמצעי תשלום</div>
+      <div class="val">{{ paymentPlanName() }}</div>
+    </div>
+
+    <!-- horizon -->
+    <div class="row">
+      <div class="label">חלון בדיקה (ימים)</div>
+      <div class="val">{{ seriesSearchHorizonDays }}</div>
+    </div>
+
+    <!-- skipped farm dates -->
+    <div class="row">
+      <div class="label">דילוגים (ימי חופש חווה)</div>
+      <div class="val" *ngIf="skippedFarmDates.length; else noFarmSkips">
+        <ul class="list-inline">
+          <li *ngFor="let d of skippedFarmDates">{{ d }}</li>
+        </ul>
       </div>
+      <ng-template #noFarmSkips>—</ng-template>
+    </div>
 
-      <div class="row">
-        <div class="label">שעה</div>
-        <div class="val">{{ r.start_time }}</div>
+    <!-- skipped instructor dates -->
+    <div class="row">
+      <div class="label">דילוגים (אי-זמינות מדריך)</div>
+      <div class="val" *ngIf="skippedInstructorDates.length; else noInstructorSkips">
+        <ul class="list-inline">
+          <li *ngFor="let d of skippedInstructorDates">{{ d }}</li>
+        </ul>
       </div>
+      <ng-template #noInstructorSkips>—</ng-template>
+    </div>
 
-      <div class="row">
-        <div class="label">סוג</div>
-        <div class="val">
-          {{ r.is_open_ended ? 'ללא הגבלה' : ('מוגבל (' + (r.repeat_weeks ?? 0) + ' שבועות)') }}
-        </div>
+    <!-- referral -->
+    <div class="row">
+      <div class="label">קובץ הפניה</div>
+      <div class="val">
+        <ng-container *ngIf="referralUrl; else noReferral">
+          <a [href]="referralUrl" target="_blank" rel="noopener">פתיחת קובץ הפניה</a>
+        </ng-container>
+        <ng-template #noReferral>—</ng-template>
       </div>
+    </div>
 
-      <div class="row">
-        <div class="label">מקור תשלום</div>
-        <div class="val">{{ r.payment_source }}</div>
-      </div>
+    <textarea
+      class="note"
+      [(ngModel)]="note"
+      placeholder="הערה למזכירה / סיבה לדחייה (חובה בדחייה)">
+    </textarea>
 
-      <textarea
-        class="note"
-        [(ngModel)]="noteById[r.id]"
-        placeholder="הערה למזכירה / סיבה לדחייה (חובה בדחייה)"
-      ></textarea>
+    <div class="actions">
+      <button class="btn approve" (click)="approveSelected()" [disabled]="loading()">
+        אישור
+      </button>
 
-      <!-- ✅ כפתורים רק במקום אחד (בסוף הכרטיס) -->
-      <div class="actions">
-        <button class="btn approve" (click)="approve(r)" [disabled]="loading()">אישור</button>
-        <button class="btn reject" (click)="reject(r)" [disabled]="loading()">דחייה</button>
-      </div>
-    </article>
-  </section>
+      <button class="btn reject" (click)="rejectSelected()" [disabled]="loading()">
+        דחייה
+      </button>
+    </div>
+
+  </article>
 </div>
