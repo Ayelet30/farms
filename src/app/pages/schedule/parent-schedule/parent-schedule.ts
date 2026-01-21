@@ -5,6 +5,8 @@ import type { ScheduleItem } from '../../../models/schedule-item.model';
 import type { Lesson } from '../../../models/lesson-schedule.model';
 import type { EventClickArg } from '@fullcalendar/core';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { UiDialogService } from '../../../services/ui-dialog.service';
+
 imports: [
   CommonModule,
   ScheduleComponent,
@@ -56,7 +58,7 @@ nextCanceledLessonNote: string | null = null;
   selectedChildId: string = 'all';
   dropdownOpen = false;
 
-  constructor(private dialog: MatDialog) {}
+  constructor(private dialog: MatDialog,private ui: UiDialogService) {}
 
   async ngOnInit() {
     await ensureTenantContextReady();
@@ -562,10 +564,10 @@ if (lesson.status === 'בוטל') {
     if (error) throw error;
 
     this.markLessonAsPendingCancel(lessonId);
-    alert('בקשת הביטול נשלחה למזכירה.');
+   this.ui.alert('בקשת הביטול נשלחה למזכירה.');
   } catch (err) {
     console.error('cancel request error', err);
-    alert('אירעה שגיאה בעת שליחת בקשת הביטול');
+   this.ui.alert('אירעה שגיאה בעת שליחת בקשת הביטול');
   }
 }
 
@@ -611,10 +613,15 @@ private markLessonAsPendingCancel(lessonOccId: string) {
   }
 
   cancelLesson(_lesson: Lesson) {
-    const confirmed = confirm('האם לבטל את השיעור?');
-    if (confirmed) {
-      // (לא בשימוש יותר – עברנו לדיאלוג)
-    }
+    const confirmed = this.ui.confirm(
+      {
+    title: 'ביטול שיעור',
+    message: `האם לבטל את השיעור ""?`,
+    okText: 'כן, לבטל',
+    cancelText: 'ביטול',
+    showCancel: true,
+  });
+
   }
 
   viewDetails(_lesson: Lesson) {

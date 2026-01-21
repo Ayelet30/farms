@@ -126,9 +126,27 @@ export function db(schema?: string) {
   const effectiveSchema = schema ?? requireTenant().schema;
   if (!_schemaClients[effectiveSchema]) _schemaClients[effectiveSchema] = base.schema(effectiveSchema);
   return _schemaClients[effectiveSchema];
+}let _dbTenantImpl = () => db();
+let _dbPublicImpl = () => db('public');
+
+export function dbTenant() {
+  return _dbTenantImpl();
 }
-export const dbTenant = () => db();
-export const dbPublic = () => db('public');
+
+export function dbPublic() {
+  return _dbPublicImpl();
+}
+
+// לטסטים בלבד:
+export function setDbTenantForTests(fn: () => any) {
+  _dbTenantImpl = fn;
+}
+
+export function resetDbForTests() {
+  _dbTenantImpl = () => db();
+  _dbPublicImpl = () => db('public');
+}
+
 export function clearDbCache() { _schemaClients = {}; }
 
 let _ctxLock: Promise<void> | null = null;

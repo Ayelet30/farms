@@ -4,6 +4,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/app",
+        "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "skipLibCheck": true,
 
     "types": []

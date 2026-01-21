@@ -576,3 +576,66 @@
   .list-row .col-secondary:nth-child(4){ grid-column: 1 / -1; }
   .range input[type="time"]{ width: 100%; }
 }
+/* ===== Structured Notes rows ===== */
+.notes-header,
+.notes-row{
+  grid-template-columns: 1fr 180px !important;
+}
+
+.note-edit-input{
+  width: 100%;
+  border: 1px solid var(--sf-border-2);
+  border-radius: 14px;
+  padding: 10px 12px;
+  font: inherit;
+  background: #fff;
+  color: var(--sf-text);
+  outline: none;
+
+  &:focus{
+    border-color: rgba(127, 139, 78, .85);
+    box-shadow: var(--sf-focus);
+  }
+}
+
+@media (max-width: 980px){
+  .notes-header,
+  .notes-row{
+    grid-template-columns: 1fr !important;
+  }
+
+  .notes-row .col-actions{
+    justify-content: flex-end;
+    display:flex;
+    gap:10px;
+    padding-top: 8px;
+  }
+}
+/* ===== Accordion title (Structured Notes) ===== */
+.accordion .accordion-toggle{
+  align-items: center;
+}
+
+.accordion-title{
+  font-size: 18px;        /* ✅ גדול יותר */
+  font-weight: 950;       /* ✅ מודגש חזק */
+  color: var(--sf-text);  /* טקסט ירוק כהה */
+  letter-spacing: .2px;
+}
+
+.accordion-sub{
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--sf-text-soft);
+  opacity: .85;
+}
+.accordion-title{
+  font-size: 20px; 
+  font-weight: 950;
+  color: var(--sf-text);
+  padding-right: 6px;
+  border-right: 4px solid rgba(127, 139, 78, .55); /* פס זית */
+}
+
