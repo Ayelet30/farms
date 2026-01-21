@@ -9,8 +9,7 @@ import { SeriesRequestsService } from '../../services/series-requests.service';
 import { getCurrentUserData } from '../../services/supabaseClient.service';
 
 // חשוב: זה הטיפוס שאת מעבירה מהדף הראשי
-import { UiRequest } from '../../Types/detailes.model';
-
+import type { UiRequest } from '../../Types/detailes.model';
 @Component({
   selector: 'app-secretarial-series-requests',
   standalone: true,
