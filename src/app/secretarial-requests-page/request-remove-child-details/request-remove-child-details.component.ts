@@ -54,9 +54,9 @@ export class RequestRemoveChildDetailsComponent {
   // ===== פעולות (סימולציה בלבד, ללא DB) =====
    async approveSimulate() {
     try {
-      const ok = window.await.this.confirm(
-        'לא מתבצעת מחיקה בדאטאבייס.\nרק סימון UI כ"מאושר".\nלהמשיך?'
-      );
+     // const ok = window.await.this.confirm(
+     //   'לא מתבצעת מחיקה בדאטאבייס.\nרק סימון UI כ"מאושר".\nלהמשיך?'
+    //  );
       if (!ok) return;
 
       const e = { requestId: this.request.id, newStatus: 'APPROVED' as const };
