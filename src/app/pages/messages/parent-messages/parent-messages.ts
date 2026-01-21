@@ -3,10 +3,13 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { getAuth } from 'firebase/auth';
 import { db, ensureTenantContextReady } from '../../../services/legacy-compat';
-
+import { dbTenant } from '../../../services/supabaseClient.service';
 
 type Tab = 'threads' | 'new' | 'announcements';
-
+type FarmSettingsContact = {
+  main_phone: string | null;
+  main_mail: string | null;
+};
 type Conversation = {
   id: string;
   subject: string | null;
@@ -33,6 +36,23 @@ type Announcement = {
   channel_inapp: boolean;
   channel_email: boolean;
   channel_sms: boolean;
+};
+
+type WorkingHourRow = {
+  day_of_week: number; // 1..7
+  is_open: boolean; // חווה
+  is_offical_open: boolean; // משרד
+  farm_start: string | null;
+  farm_end: string | null;
+  office_start: string | null;
+  office_end: string | null;
+};
+
+type WorkingHourVm = WorkingHourRow & {
+  dayLabel: string;
+  isAnyOpen: boolean;
+  farmRangeText: string;
+  officeRangeText: string;
 };
 
 @Component({
@@ -62,10 +82,128 @@ export class ParentMessagesComponent implements OnInit {
   loadingAnn = signal(false);
   announcements = signal<Announcement[]>([]);
 
+   farmSettings: FarmSettingsContact | null = null;
+    workingHours = signal<WorkingHourVm[]>([]);
+
+
+  // אופציונלי: אם תרצי להציג ספינר/שגיאה
+  loading = signal<boolean>(false);
+  errorMsg = signal<string | null>(null);
+
+ 
   async ngOnInit() {
+  await Promise.all([
+      this.loadFarmSettingsContact(),
+      this.loadWorkingHours(),
+    ]);
     await ensureTenantContextReady();
     await Promise.all([this.loadThreads(), this.loadAnnouncements()]);
   }
+  private async loadWorkingHours(): Promise<void> {
+    try {
+      const dbc = await dbTenant();
+
+   const { data, error } = await dbc
+  .from('farm_working_hours')
+  .select('day_of_week,is_open,is_offical_open,farm_start,farm_end,office_start,office_end')
+  .order('day_of_week', { ascending: true });
+
+if (error) throw error;
+
+const rows = (data ?? []) as WorkingHourRow[];
+
+this.workingHours.set(
+  rows.map((r) => {
+    const isAnyOpen = !!(r.is_open || r.is_offical_open);
+
+    return {
+      ...r,
+      dayLabel: this.dayLabel(r.day_of_week),
+      isAnyOpen,
+
+      // חווה נשלטת ע"י is_open
+      farmRangeText: r.is_open ? this.rangeText(r.farm_start, r.farm_end) : '—',
+
+      // משרד נשלט ע"י is_offical_open
+      officeRangeText: r.is_offical_open
+        ? this.rangeText(r.office_start, r.office_end)
+        : '—',
+    };
+  })
+);
+
+    } catch (e: any) {
+      console.error('Failed to load farm_working_hours:', e);
+      // לא חייבים להפיל את כל הדף — אפשר פשוט לא להציג טבלה
+    }
+   }
+    private dayLabel(d: number): string {
+    // 1..7 לפי הטבלה שלך
+    switch (d) {
+      case 1: return 'ראשון';
+      case 2: return 'שני';
+      case 3: return 'שלישי';
+      case 4: return 'רביעי';
+      case 5: return 'חמישי';
+      case 6: return 'שישי';
+      case 7: return 'שבת';
+      default: return `יום ${d}`;
+    }
+  }
+
+  private rangeText(start: string | null, end: string | null): string {
+    if (!start || !end) return 'לא עודכן';
+    return `${this.hhmm(start)}–${this.hhmm(end)}`;
+    // שימי לב: זה מציג HH:MM ולא HH:MM:SS
+  }
+
+  private hhmm(t: string): string {
+    // "HH:MM:SS" -> "HH:MM"
+    return t.slice(0, 5);
+  }
+
+private async loadFarmSettingsContact(): Promise<void> {
+    this.loading.set(true);
+    this.errorMsg.set(null);
+
+    try {
+      const dbc = await dbTenant();
+
+      // אם בטבלה יש רק שורה אחת - single() מעולה.
+      // אם יש מצב ליותר משורה - אנחנו לוקחים "הכי מעודכן"
+      const { data, error } = await dbc
+        .from('farm_settings')
+        .select('main_phone, main_mail, updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      this.farmSettings = {
+        main_phone: data?.main_phone ?? null,
+        main_mail: data?.main_mail ?? null,
+      };
+    } catch (e: any) {
+      console.error('Failed to load farm_settings contact:', e);
+      this.farmSettings = { main_phone: null, main_mail: null };
+      this.errorMsg.set('לא הצלחנו לטעון את פרטי יצירת הקשר. נסי שוב מאוחר יותר.');
+    } finally {
+      this.loading.set(false);
+    }
+  }
+  todayDow = signal<number>(this.jsToDbDow(new Date().getDay())); 
+// getDay(): 0=Sunday ... 6=Saturday
+// אצלך בטבלה: 1..7 (ראשון=1 ... שבת=7)
+
+isToday(dow: number): boolean {
+  return dow === this.todayDow();
+}
+
+private jsToDbDow(js: number): number {
+  // 0 (Sun) -> 1, 1 (Mon) -> 2 ... 6 (Sat) -> 7
+  return js + 1;
+}
 
   private myUid(): string {
     const uid = getAuth().currentUser?.uid;
