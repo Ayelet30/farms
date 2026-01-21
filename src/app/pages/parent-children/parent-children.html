@@ -161,8 +161,7 @@
           <span>חתימה על תקנון</span>
         </button>
 
-        <button type="button" class="inline-note linklike" *ngIf="isChildTermsSigned(childId(c))"
-          (click)="openSignedTerms(c)" title="צפייה בתקנון החתום">
+        <button type="button" class="btn" (click)="openSignedTerms(c)" [disabled]="loadingSigned()">
           תקנון חתום ✅
         </button>
 
@@ -286,3 +285,34 @@
   <app-child-terms-sign *ngIf="showTermsSign && termsSignChildId" [childId]="termsSignChildId!"
     [childName]="termsSignChildName || ''" (signed)="onTermsSigned()"
     (closed)="closeTermsSign()"></app-child-terms-sign>
+
+    <!-- Popup -->
+<div class="popup-backdrop" *ngIf="signedOpen()" (click)="closeSignedPopup()">
+  <div class="popup" (click)="$event.stopPropagation()">
+    <div class="popup-head">
+      <div class="title">תקנון חתום</div>
+
+      <div class="actions">
+        <a *ngIf="signedDocUrlRaw()"
+           class="btn-link"
+           [href]="signedDocUrlRaw()!"
+           target="_blank"
+           rel="noopener">
+          פתיחה בלשונית חדשה
+        </a>
+
+        <button type="button" class="btn" (click)="closeSignedPopup()">סגור</button>
+      </div>
+    </div>
+
+    <div class="popup-body" *ngIf="signedDocUrlSafe(); else noSigned">
+      <iframe class="pdf-frame" [src]="signedDocUrlSafe()"></iframe>
+    </div>
+
+    <ng-template #noSigned>
+      <div class="empty">
+        עדיין אין תקנון חתום לילד הזה.
+      </div>
+    </ng-template>
+  </div>
+</div>
