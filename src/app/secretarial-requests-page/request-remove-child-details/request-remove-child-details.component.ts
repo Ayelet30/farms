@@ -57,7 +57,7 @@ export class RequestRemoveChildDetailsComponent {
      // const ok = window.await.this.confirm(
      //   'לא מתבצעת מחיקה בדאטאבייס.\nרק סימון UI כ"מאושר".\nלהמשיך?'
     //  );
-      if (!ok) return;
+     // if (!ok) return;
 
       const e = { requestId: this.request.id, newStatus: 'APPROVED' as const };
       this.approved.emit(e);
