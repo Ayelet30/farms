@@ -64,7 +64,7 @@ private setMenuItemsByRole() {
         { path: 'parent/appointment',       label: 'זימון תורים',       icon: 'calendar_plus' },
         { path: 'parent/activity-summary',  label: 'סיכום פעילות',      icon: 'receipt' },
         { path: 'parent/payments',          label: 'אמצעי תשלום',       icon: 'card' },
-        { path: 'parent/messages',          label: 'הודעות',            icon: 'messages' },
+        { path: 'parent/messages',          label: 'יצירת קשר',            icon: 'messages' },
         { path: 'parent/details',           label: 'הפרטים שלי',        icon: 'user' },
         { path: 'parent/requests',          label: 'בקשות ואישורים',    icon: 'checklist' }
       ];
@@ -89,7 +89,7 @@ private setMenuItemsByRole() {
         { path: 'secretary/arenas',     label: 'מגרשים בחווה',     icon: 'arena' },
         { path: 'secretary/schedule',        label: 'לו״ז ומעקב',        icon: 'calendar' },
         { path: 'secretary/appointment',     label: 'זימון תורים',       icon: 'calendar_plus' },
-        { path: 'secretary/messages',        label: 'הודעות',            icon: 'messages' },
+        { path: 'secretary/messages',        label: 'יצירת קשר',            icon: 'messages' },
         { path: 'secretary/monthly-summary', label: 'סיכום וגרפים',      icon: 'bar_chart' },
         { path: 'secretary/requests',        label: 'בקשות ואישורים',    icon: 'checklist' },
         { path: 'secretary/payments',        label: 'תשלומים וחשבוניות', icon: 'card' },
