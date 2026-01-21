@@ -7,9 +7,6 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import * as fontkitModule from '@pdf-lib/fontkit';
 
-
-
-
 type FarmDoc = {
   id: string;
   title: string;

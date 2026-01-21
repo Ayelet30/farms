@@ -117,6 +117,8 @@ export interface UiRequest {
 
   requesterUid: string | null;  // ← חשוב להוספת סינון לפי משתמש
   payload: any;
+  childId?: string | null;
+  instructorId?: string | null;
 }
 
 export interface NewSeriesDetails {

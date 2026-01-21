@@ -293,6 +293,9 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
 
       requesterUid: row.requested_by_uid,
       payload: row.payload,
+      childId: row.child_id ?? null,
+instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
+
     };
   }
 
@@ -348,17 +351,30 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
     this.statusFilter.set('PENDING');
   }
 
+  
   openDetails(row: UiRequest) {
-    this.selectedRequest = row;
-    this.indexOfRowSelected = this.filteredRequestsList.indexOf(row);
-    this.detailsOpened = true;
-  }
+  this.selectedRequest = row;
+  this.indexOfRowSelected = this.filteredRequestsList.indexOf(row);
+  this.detailsOpened = true;
 
-  closeDetails() {
-    this.detailsOpened = false;
-    this.indexOfRowSelected = null;
-    this.selectedRequest = null;
+  // ✅ במובייל לפתוח את הדראור
+  if (this.isMobile()) {
+    this.detailsDrawer?.open();
   }
+}
+
+
+  
+  closeDetails() {
+  this.detailsOpened = false;
+  this.indexOfRowSelected = null;
+  this.selectedRequest = null;
+
+  if (this.isMobile()) {
+    this.detailsDrawer?.close();
+  }
+}
+
 
   reloadRequests() {
     this.loadRequestsFromDb();
