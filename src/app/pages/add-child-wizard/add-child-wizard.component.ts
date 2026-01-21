@@ -436,6 +436,9 @@ export class AddChildWizardComponent implements OnInit {
         return;
       }
 
+      await dbTenant().rpc('create_child_terms_requirement', { p_child_id: insertedChild.child_uuid });
+
+
       // במצב הורה – יוצרים גם בקשה למזכירה
       if (this.isParentMode) {
         const cardLast4 = this.savedPaymentProfile?.last4 ?? this.savedToken?.last4 ?? null;
