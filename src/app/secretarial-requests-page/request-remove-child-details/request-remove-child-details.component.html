@@ -1,0 +1,68 @@
+<div class="wrap" dir="rtl">
+  <div class="head">
+    <div class="title">
+      <mat-icon class="ico">person_remove</mat-icon>
+      פרטי בקשה להסרת ילד/ה
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="k">שם ילד/ה</div>
+      <div class="v strong">{{ childFullName() }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">ת״ז</div>
+      <div class="v">{{ payload().gov_id || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">תאריך לידה</div>
+      <div class="v">{{ payload().birth_date || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">מגדר</div>
+      <div class="v">{{ payload().gender || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">קופת חולים</div>
+      <div class="v">{{ payload().health_fund || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">שיעורים שנותרו</div>
+      <div class="v">{{ payload().remaining_lessons_count ?? '—' }}</div>
+    </div>
+
+    <div class="row" *ngIf="reason()">
+      <div class="k">סיבה / פירוט</div>
+      <div class="v">{{ reason() }}</div>
+    </div>
+
+    <div class="row" *ngIf="payload().medical_notes">
+      <div class="k">הערות רפואיות</div>
+      <div class="v">{{ payload().medical_notes }}</div>
+    </div>
+
+<div class="meta">
+  <div><span class="mk">נוצר:</span> {{ request?.createdAt | date:'dd/MM/yyyy HH:mm' }}</div>
+</div>
+
+<div class="actions" *ngIf="request?.status === 'PENDING'">
+  <button mat-stroked-button type="button" class="action reject" (click)="rejectSimulate()">
+    דחייה
+  </button>
+
+  <button mat-flat-button type="button" class="action approve" (click)="approveSimulate()">
+    אישור
+  </button>
+</div>
+
+
+  <div class="note" *ngIf="request?.status !== 'PENDING'">
+    הבקשה כבר לא במצב “ממתין”, לכן אין כפתורי פעולה.
+  </div>
+</div>
