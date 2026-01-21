@@ -322,7 +322,8 @@ instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
 
   private getRequesterDisplay(row: any): string {
   const uid = row.requested_by_uid;
-  if (uid != "PUBLIC" && String(uid).trim()) return String(uid);
+  const name = row.requested_by_name;
+  if (uid != "PUBLIC" && String(uid).trim()) return String(name);
 
   // אחרת: ננסה לחלץ שם מה-payload (במיוחד ל-PARENT_SIGNUP)
   const p: any = row.payload ?? {};

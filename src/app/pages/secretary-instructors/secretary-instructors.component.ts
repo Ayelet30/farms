@@ -1,6 +1,7 @@
 import { Component, OnInit, ViewChild, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { UiDialogService } from '../../services/ui-dialog.service';
 
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -120,12 +121,13 @@ export class SecretaryInstructorsComponent implements OnInit {
   selectedIdNumber: string | null = null;
   drawerLoading = false;
   drawerInstructor: InstructorDetailsRow | null = null;
+constructor(
+  private ui: UiDialogService,
+  private dialog: MatDialog,
+  private createUserService: CreateUserService,
+  private mailService: MailService
+) {}
 
-  constructor(
-    private dialog: MatDialog,
-    private createUserService: CreateUserService,
-    private mailService: MailService
-  ) {}
 
   // ======= לוגיקה לחיפוש/סינון =======
 
@@ -485,11 +487,17 @@ statusLabel(s?: string | null): string {
     return a !== b;
   }
 
-  cancelEditFromDrawer() {
+  async  cancelEditFromDrawer() {
     if (this.hasUnsavedChanges()) {
-      const ok = confirm('את/ה בטוח/ה שאת/ה רוצה לבטל את השינויים?');
-      if (!ok) return;
-    }
+     const ok = await this.ui.confirm({
+  title: 'אישור ביטול',
+  message: 'את בטוחה שתרצי לבטל את השינויים?',
+  okText: 'כן, לבטל',
+  cancelText: 'לא',
+  showCancel: true,
+});
+if (!ok) return;
+ }
 
     if (this.drawerInstructor) {
       this.editModel = {
@@ -535,8 +543,9 @@ statusLabel(s?: string | null): string {
 
     if (missing.length) {
       console.warn('[INSTRUCTORS] saveEditFromDrawer missing required fields:', missing);
-      alert('שדות חובה חסרים: ' + missing.join(', '));
+      await this.ui.alert('שדות חובה חסרים: ' + missing.join(', '), 'חסרים פרטים');
       return;
+
     }
 
     // טלפון ישראלי
@@ -545,8 +554,8 @@ statusLabel(s?: string | null): string {
 
     if (!rawPhone || !phoneRe.test(rawPhone)) {
       console.warn('[INSTRUCTORS] saveEditFromDrawer invalid phone:', rawPhone);
-      alert('טלפון לא תקין. בדקי קידומת ומספר (10 ספרות).');
-      return;
+     await this.ui.alert('טלפון לא תקין. בדקי קידומת ומספר (10 ספרות).', 'שגיאת טלפון');
+     return;
     }
     const phone = rawPhone;
 
@@ -556,8 +565,8 @@ statusLabel(s?: string | null): string {
 
     if (!rawEmail || !emailRe.test(rawEmail)) {
       console.warn('[INSTRUCTORS] saveEditFromDrawer invalid email:', rawEmail);
-      alert('אימייל לא תקין.');
-      return;
+       await this.ui.alert('אימייל לא תקין.', 'שגיאת אימייל');
+       return;
     }
     const email = rawEmail;
 
@@ -627,7 +636,8 @@ statusLabel(s?: string | null): string {
       await this.loadInstructors();
     } catch (e: any) {
       console.error('[INSTRUCTORS] saveEditFromDrawer error:', e);
-      alert(e?.message || 'שמירת פרטי המדריך נכשלה');
+      await this.ui.alert(e?.message || 'שמירת פרטי המדריך נכשלה', 'שמירה נכשלה');
+
     } finally {
       this.savingEdit = false;
     }
@@ -657,8 +667,9 @@ statusLabel(s?: string | null): string {
     
 
       if (!tenant_id) {
-        alert('לא נמצא tenant פעיל. התחברי מחדש או בחרי חווה פעילה.');
-        return;
+       await this.ui.alert('לא נמצא tenant פעיל. התחברי מחדש או בחרי חווה פעילה.', 'שגיאה');
+       return;
+
       }
 
       let uid = '';
@@ -671,8 +682,8 @@ statusLabel(s?: string | null): string {
         );
 
         if (exists.existsInTenant) {
-          alert('מדריך עם המייל הזה כבר קיים בחווה הנוכחית.');
-          return;
+        await this.ui.alert('מדריך עם המייל הזה כבר קיים בחווה הנוכחית.', 'שגיאה');
+        return;
         }
 
         if (exists.existsInSystem && exists.uid) {
@@ -691,8 +702,9 @@ statusLabel(s?: string | null): string {
           this.createUserService.errorMessage ||
           e?.message ||
           'שגיאה ביצירת / בדיקת המשתמש.';
-        alert(msg);
+        await this.ui.alert(msg, 'שגיאה');
         return;
+
       }
 
       payload.uid = uid;
@@ -721,8 +733,9 @@ statusLabel(s?: string | null): string {
 
       if (missing.length) {
         console.warn('[ADD INSTRUCTOR] missing required fields:', missing);
-        alert('שדות חובה חסרים: ' + missing.join(', '));
-        return;
+       await this.ui.alert('שדות חובה חסרים: ' + missing.join(', '), 'חסרים פרטים');
+       return;
+
       }
 
       try {
@@ -771,12 +784,11 @@ statusLabel(s?: string | null): string {
             html,
           })
           .catch((err) => console.error('send instructor email failed', err));
+          await this.ui.alert('מדריך נוצר/שויך בהצלחה', 'הצלחה');
 
-        alert('מדריך נוצר/שויך בהצלחה');
       } catch (e: any) {
         console.error('[ADD INSTRUCTOR] ERROR:', e);
-        alert(e?.message ?? 'שגיאה - המערכת לא הצליחה להוסיף מדריך');
-      }
+        await this.ui.alert(e?.message ?? 'שגיאה - המערכת לא הצליחה להוסיף מדריך', 'שגיאה'); }
     });
   }
 

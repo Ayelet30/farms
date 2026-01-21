@@ -2,40 +2,36 @@
   <div *ngIf="loading">טוען...</div>
   <div *ngIf="!loading && children.length === 0">
     <button (click)="openAddChildWizard()" class="child-chip add-button" type="button">
-  <svg class="icon" aria-hidden="true">
-    <use href="assets/icons/feather-slim.svg#plus" />
-  </svg>
-  <span>הוסף ילד</span>
-</button>
+      <svg class="icon" aria-hidden="true">
+        <use href="assets/icons/feather-slim.svg#plus" />
+      </svg>
+      <span>הוסף ילד</span>
+    </button>
   </div>
 
   <div *ngIf="infoMessage" class="info-banner">{{ infoMessage }}</div>
 
   <!-- פס בחירה עליון + כפתור הוספה -->
   <div class="children-buttons" *ngIf="children.length > 0">
-   <button *ngFor="let child of children"
-        (click)="toggleChildSelection(child)"
-        class="child-chip"
-        [class.active]="hasSelected(child)"
-        [class.status-disabled]="isDeletedStatus(child?.status)"
-        [class.limit-disabled]="!hasSelected(child) && selectedIds.size >= maxSelected && canOpenCardByStatus(child?.status)"
-        [attr.aria-disabled]="(!canOpenCardByStatus(child?.status) || (selectedIds.size >= maxSelected && !hasSelected(child))) ? 'true' : null"
-        [attr.title]="
+    <button *ngFor="let child of children" (click)="toggleChildSelection(child)" class="child-chip"
+      [class.active]="hasSelected(child)" [class.status-disabled]="isDeletedStatus(child?.status)"
+      [class.limit-disabled]="!hasSelected(child) && selectedIds.size >= maxSelected && canOpenCardByStatus(child?.status)"
+      [attr.aria-disabled]="(!canOpenCardByStatus(child?.status) || (selectedIds.size >= maxSelected && !hasSelected(child))) ? 'true' : null"
+      [attr.title]="
           isDeletedStatus(child?.status) ? 'הילד במצב Deleted' :
           (selectedIds.size >= maxSelected && !hasSelected(child) ? 'מקסימום 4 כרטיסים פתוחים' : null)
-        "
-        type="button">
-{{ child.first_name }} {{ child.last_name }}
+        " type="button">
+      {{ child.first_name }} {{ child.last_name }}
 
-</button>
+    </button>
 
 
-<button (click)="openAddChildWizard()" class="child-chip add-button" type="button">
-  <svg class="icon" aria-hidden="true">
-    <use href="assets/icons/feather-slim.svg#plus" />
-  </svg>
-  <span>הוסף ילד</span>
-</button>
+    <button (click)="openAddChildWizard()" class="child-chip add-button" type="button">
+      <svg class="icon" aria-hidden="true">
+        <use href="assets/icons/feather-slim.svg#plus" />
+      </svg>
+      <span>הוסף ילד</span>
+    </button>
 
 
   </div>
@@ -55,16 +51,16 @@
             <svg class="icon" aria-hidden="true">
               <use href="assets/icons/feather-slim.svg#user" />
             </svg>
-    {{ c.first_name }} {{ c.last_name }}
+            {{ c.first_name }} {{ c.last_name }}
           </h3>
-<span class="age-badge warn" *ngIf="isPendingDelete(c?.status)">
-  ממתין לאישור מחיקה
-</span>
+          <span class="age-badge warn" *ngIf="isPendingDelete(c?.status)">
+            ממתין לאישור מחיקה
+          </span>
 
           <span class="age-badge" *ngIf="c.birth_date">גיל: {{ getAge(c.birth_date) }} </span>
-            <span class="age-badge" *ngIf="c.health_fund">
- {{ c.health_fund }}
-  </span>
+          <span class="age-badge" *ngIf="c.health_fund">
+            {{ c.health_fund }}
+          </span>
         </div>
 
         <div class="actions">
@@ -83,23 +79,19 @@
               </svg>
             </button>
 
-          <button
-  *ngIf="!editing[childId(c)] && !isPendingDelete(c?.status)"
-  class="icon-btn danger"
-  type="button"
-  (click)="confirmDeleteChild(c)"
-  aria-label="מחיקה"
->
-  <svg class="icon" aria-hidden="true">
-    <use href="assets/icons/feather-slim.svg#trash" />
-  </svg>
-</button>
+            <button *ngIf="!editing[childId(c)] && !isPendingDelete(c?.status)" class="icon-btn danger" type="button"
+              (click)="confirmDeleteChild(c)" aria-label="מחיקה">
+              <svg class="icon" aria-hidden="true">
+                <use href="assets/icons/feather-slim.svg#trash" />
+              </svg>
+            </button>
 
-            <button *ngIf="editing[childId(c)]" class="icon-btn" type="button"
-          (click)="cancelEdit(c)" aria-label="ביטול" title="ביטול">
-    <svg class="icon" aria-hidden="true"><use href="assets/icons/feather-slim.svg#rotate-ccw" />
-</svg>
-  </button>
+            <button *ngIf="editing[childId(c)]" class="icon-btn" type="button" (click)="cancelEdit(c)"
+              aria-label="ביטול" title="ביטול">
+              <svg class="icon" aria-hidden="true">
+                <use href="assets/icons/feather-slim.svg#rotate-ccw" />
+              </svg>
+            </button>
           </div>
 
         </div>
@@ -123,22 +115,22 @@
 
       <!-- פרטים ניתנים לעריכה -->
       <div class="editable-area" *ngIf="editing[childId(c)]">
-       <div class="form-row">
-       <label>שם פרטי</label>
-       <input [(ngModel)]="editables[childId(c)].first_name" class="editable-input" maxlength="15"
-  pattern="^[^\d]{1,15}$"/>
-       </div>
+        <div class="form-row">
+          <label>שם פרטי</label>
+          <input [(ngModel)]="editables[childId(c)].first_name" class="editable-input" maxlength="15"
+            pattern="^[^\d]{1,15}$" />
+        </div>
 
-      <div class="form-row">
-      <label>שם משפחה</label>
-      <input [(ngModel)]="editables[childId(c)].last_name" class="editable-input" maxlength="15"
-  pattern="^[^\d]{1,15}$"/>
-     </div>
+        <div class="form-row">
+          <label>שם משפחה</label>
+          <input [(ngModel)]="editables[childId(c)].last_name" class="editable-input" maxlength="15"
+            pattern="^[^\d]{1,15}$" />
+        </div>
 
-    <div class="form-row">
-    <label>תאריך לידה</label>
-    <input type="date" [(ngModel)]="editables[c.child_uuid!].birth_date" class="editable-input" />
-    </div>
+        <div class="form-row">
+          <label>תאריך לידה</label>
+          <input type="date" [(ngModel)]="editables[c.child_uuid!].birth_date" class="editable-input" />
+        </div>
 
         <div class="form-row">
           <label>קופת חולים</label>
@@ -154,41 +146,49 @@
       </div>
 
       <!-- קישורים נוספים -->
-        <div class="links-row">
-          <button class="cta-btn" type="button" (click)="openHistory(c)">
-            <svg class="icon" aria-hidden="true">
-              <use href="assets/icons/feather-slim.svg#book-open" />
-            </svg>
-            <span>היסטוריה</span>
-          </button>
-<button class="cta-btn warning-outline"
-        *ngIf="isPendingDelete(c?.status)"
-        type="button"
-        (click)="cancelDeletionRequest(c)"
-        [attr.aria-busy]="cancelDeletionRequestInFlight[childId(c)] ? 'true' : null"
-        [title]="'ביטול בקשת מחיקה'">
-  <svg class="icon" aria-hidden="true">
-    <use href="assets/icons/feather-slim.svg#rotate-ccw" />
-  </svg>
-  <span>ביטול בקשת מחיקה</span>
-</button>
+      <div class="links-row">
+        <button class="cta-btn" type="button" (click)="openHistory(c)">
+          <svg class="icon" aria-hidden="true">
+            <use href="assets/icons/feather-slim.svg#book-open" />
+          </svg>
+          <span>היסטוריה</span>
+        </button>
+        <button class="cta-btn" type="button" (click)="openTermsSign(c)" *ngIf="!isChildTermsSigned(childId(c))"
+          title="נדרש לחתום על תקנון עבור ילד זה">
+          <svg class="icon" aria-hidden="true">
+            <use href="assets/icons/feather-slim.svg#file-text" />
+          </svg>
+          <span>חתימה על תקנון</span>
+        </button>
 
-        <button class="cta-btn primary"
-        type="button"
-        (click)="goToBooking(c)"
-        [attr.aria-disabled]="isPendingAdd(c?.status) ? 'true' : null"
-        [title]="isPendingAdd(c?.status) ? 'הוספת הילד טרם אושרה' : null">
-  <svg class="icon" aria-hidden="true">
-    <use href="assets/icons/feather-slim.svg#calendar" />
-  </svg>
-  <span>הזמן תור</span>
-</button>
-<span class="inline-note" *ngIf="bookingMsg[childId(c)]" dir="rtl">
-  {{ bookingMsg[childId(c)] }}
-</span>
+        <button type="button" class="inline-note linklike" *ngIf="isChildTermsSigned(childId(c))"
+          (click)="openSignedTerms(c)" title="צפייה בתקנון החתום">
+          תקנון חתום ✅
+        </button>
+
+        <button class="cta-btn warning-outline" *ngIf="isPendingDelete(c?.status)" type="button"
+          (click)="cancelDeletionRequest(c)"
+          [attr.aria-busy]="cancelDeletionRequestInFlight[childId(c)] ? 'true' : null" [title]="'ביטול בקשת מחיקה'">
+          <svg class="icon" aria-hidden="true">
+            <use href="assets/icons/feather-slim.svg#rotate-ccw" />
+          </svg>
+          <span>ביטול בקשת מחיקה</span>
+        </button>
+
+        <button class="cta-btn primary" type="button" (click)="goToBooking(c)"
+          [attr.aria-disabled]="isPendingAdd(c?.status) ? 'true' : null"
+          [title]="isPendingAdd(c?.status) ? 'הוספת הילד טרם אושרה' : null">
+          <svg class="icon" aria-hidden="true">
+            <use href="assets/icons/feather-slim.svg#calendar" />
+          </svg>
+          <span>הזמן תור</span>
+        </button>
+        <span class="inline-note" *ngIf="bookingMsg[childId(c)]" dir="rtl">
+          {{ bookingMsg[childId(c)] }}
+        </span>
 
 
-        </div>
+      </div>
 
     </div>
   </div>
@@ -220,69 +220,69 @@
     </div>
   </div>
 
- <div class="overlay" *ngIf="showDeleteConfirm">
-  <div class="confirm-dialog" dir="rtl">
-    <h3>אישור עזיבת ילד</h3>
+  <div class="overlay" *ngIf="showDeleteConfirm">
+    <div class="confirm-dialog" dir="rtl">
+      <h3>אישור עזיבת ילד</h3>
 
-    <p>
-      מחיקת ילד מהחווה מתבצעת רק לאחר אישור המזכירות.
-      מרגע שהמחיקה תאושר:
-    </p>
-    <ul>
-      <li>כל השיעורים הקבועים ושיעורי ההשלמה של הילד החל מעוד שבועיים יבוטלו במערכת.</li>
-      <li>השיעורים המתוכננים לשבועיים הקרובים יישארו בתוקף ותידרש עליהם תשלום כרגיל.</li>
-    </ul>
+      <p>
+        מחיקת ילד מהחווה מתבצעת רק לאחר אישור המזכירות.
+        מרגע שהמחיקה תאושר:
+      </p>
+      <ul>
+        <li>כל השיעורים הקבועים ושיעורי ההשלמה של הילד החל מעוד שבועיים יבוטלו במערכת.</li>
+        <li>השיעורים המתוכננים לשבועיים הקרובים יישארו בתוקף ותידרש עליהם תשלום כרגיל.</li>
+      </ul>
 
-    <p *ngIf="pendingDeleteLessonsCount !== null">
-      לילד זה נותרו כעת
-      <b>{{ pendingDeleteLessonsCount }}</b>
-      שיעורים פעילים בחווה.
-    </p>
+      <p *ngIf="pendingDeleteLessonsCount !== null">
+        לילד זה נותרו כעת
+        <b>{{ pendingDeleteLessonsCount }}</b>
+        שיעורים פעילים בחווה.
+      </p>
 
-    <p *ngIf="pendingDeleteChildName">
-      האם ברצונך לשלוח בקשה למחיקת
-      <b>{{ pendingDeleteChildName }}</b>?
-    </p>
+      <p *ngIf="pendingDeleteChildName">
+        האם ברצונך לשלוח בקשה למחיקת
+        <b>{{ pendingDeleteChildName }}</b>?
+      </p>
 
-    <div class="dialog-actions">
-      <button type="button" class="btn-cancel" (click)="cancelDelete()">לא</button>
-      <button type="button" class="btn-ok" (click)="deleteChild()">כן, שלחי בקשה למחיקה</button>
+      <div class="dialog-actions">
+        <button type="button" class="btn-cancel" (click)="cancelDelete()">לא</button>
+        <button type="button" class="btn-ok" (click)="deleteChild()">כן, שלחי בקשה למחיקה</button>
+      </div>
     </div>
   </div>
-</div>
 
 
-<!-- תבניות להצגת "התור הבא" ו"פעילות אחרונה" -->
-<ng-template #nextTpl let-next>
-  <div class="row" *ngIf="next; else noNext">
-    <span class="today-flag" *ngIf="next.isToday"><strong>היום!</strong>&nbsp;</span>
-    <span class="val">
-      {{ next.date }} • {{ next.time }}
-      <ng-container *ngIf="next.instructor"> • עם {{ next.instructor }}</ng-container>
-    </span>
-  </div>
-  <ng-template #noNext>
-    <div class="muted">אין תורים להצגה</div>
+  <!-- תבניות להצגת "התור הבא" ו"פעילות אחרונה" -->
+  <ng-template #nextTpl let-next>
+    <div class="row" *ngIf="next; else noNext">
+      <span class="today-flag" *ngIf="next.isToday"><strong>היום!</strong>&nbsp;</span>
+      <span class="val">
+        {{ next.date }} • {{ next.time }}
+        <ng-container *ngIf="next.instructor"> • עם {{ next.instructor }}</ng-container>
+      </span>
+    </div>
+    <ng-template #noNext>
+      <div class="muted">אין תורים להצגה</div>
+    </ng-template>
   </ng-template>
-</ng-template>
 
 
-<ng-template #lastTpl let-last>
-  <div class="row" *ngIf="last; else noLast">
-    <span class="val">
-      {{ last.date }} • {{ last.time }}
-      <ng-container *ngIf="last.instructor"> • עם {{ last.instructor }}</ng-container>
-      <span class="muted" *ngIf="last.pendingCompletion"> — טרם מעודכן כי הושלם</span>
-    </span>
-  </div>
-  <ng-template #noLast>
-    <div class="muted">אין פעילות להצגה</div>
+  <ng-template #lastTpl let-last>
+    <div class="row" *ngIf="last; else noLast">
+      <span class="val">
+        {{ last.date }} • {{ last.time }}
+        <ng-container *ngIf="last.instructor"> • עם {{ last.instructor }}</ng-container>
+        <span class="muted" *ngIf="last.pendingCompletion"> — טרם מעודכן כי הושלם</span>
+      </span>
+    </div>
+    <ng-template #noLast>
+      <div class="muted">אין פעילות להצגה</div>
+    </ng-template>
   </ng-template>
-</ng-template>
 
-<app-add-child-wizard
-  *ngIf="showAddChildWizard"
-  (childAdded)="handleChildAddedFromWizard()"
-  (closed)="handleWizardClosed()"
->
-</app-add-child-wizard>
+  <app-add-child-wizard *ngIf="showAddChildWizard" (childAdded)="handleChildAddedFromWizard()"
+    (closed)="handleWizardClosed()">
+  </app-add-child-wizard>
+  <app-child-terms-sign *ngIf="showTermsSign && termsSignChildId" [childId]="termsSignChildId!"
+    [childName]="termsSignChildName || ''" (signed)="onTermsSigned()"
+    (closed)="closeTermsSign()"></app-child-terms-sign>

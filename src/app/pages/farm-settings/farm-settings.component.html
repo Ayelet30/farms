@@ -15,78 +15,7 @@
     <!-- =================== FORM SETTINGS =================== -->
     <form *ngIf="settings() as s" class="settings-form" (ngSubmit)="saveSettings()" autocomplete="off">
       <!-- =================== שעות פעילות לפי יום =================== -->
-      <section class="settings-section">
-        <div class="subsection-header accordion">
-          <button type="button" class="accordion-toggle" (click)="toggleWorkingHoursExpanded()"
-            [attr.aria-expanded]="workingHoursExpanded()">
-            <span class="chev" [class.open]="workingHoursExpanded()">▾</span>
-            <h2>שעות פעילות לפי יום</h2>
-          </button>
-
-          <div class="inline-actions">
-            <button type="button" class="primary-btn" (click)="saveWorkingHours()"
-              [disabled]="saving() || loading() || !!workingHoursError()">
-              שמירת שעות לפי יום
-            </button>
-          </div>
-        </div>
-
-        <small class="field-hint">
-          כאן מגדירים בפועל שעות פעילות חווה/משרד לכל יום. "משרד" אופציונלי, אבל אם מגדירים – חייב להיות בתוך טווח
-          "חווה".
-        </small>
-
-        <div class="inline-error" *ngIf="workingHoursError()">
-          {{ workingHoursError() }}
-        </div>
-
-        <div *ngIf="workingHoursExpanded()">
-          <div class="list-block" *ngIf="workingHours().length; else noWorkingHours">
-            <div class="list-header-row">
-              <span class="col-main">יום</span>
-              <span class="col-secondary">פתוח</span>
-              <span class="col-secondary">חווה</span>
-              <span class="col-secondary">משרד</span>
-            </div>
-
-            <div class="list-row" *ngFor="let r of workingHours(); trackBy: trackByDay">
-              <div class="col-main">
-                {{ getHebDayLabel(r.day_of_week) }}
-              </div>
-
-              <div class="col-secondary mini-toggle">
-                <input type="checkbox" [(ngModel)]="r.is_open" name="wh_open_{{r.day_of_week}}"
-                  (ngModelChange)="onWorkingHoursChanged()" />
-              </div>
-
-              <div class="col-secondary range">
-                <input type="time" [(ngModel)]="r.farm_start" name="wh_farm_start_{{r.day_of_week}}"
-                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursChanged()" />
-                <span class="sep">–</span>
-                <input type="time" [(ngModel)]="r.farm_end" name="wh_farm_end_{{r.day_of_week}}" [disabled]="!r.is_open"
-                  (ngModelChange)="onWorkingHoursChanged()" />
-              </div>
-
-              <div class="col-secondary range">
-                <input type="time" [(ngModel)]="r.office_start" name="wh_office_start_{{r.day_of_week}}"
-                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursChanged()" />
-                <span class="sep">–</span>
-                <input type="time" [(ngModel)]="r.office_end" name="wh_office_end_{{r.day_of_week}}"
-                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursChanged()" />
-              </div>
-            </div>
-          </div>
-
-          <ng-template #noWorkingHours>
-            <div class="empty-state">
-              לא נמצאו שעות לפי יום. ודאי שקיימת טבלה farm_working_hours (או הריצי seed).
-              <button type="button" class="text-btn" (click)="loadWorkingHours()">רענון</button>
-            </div>
-          </ng-template>
-        </div>
-      </section>
-
-      <!-- לוח שנה ושעות -->
+<!-- לוח שנה ושעות -->
       <section class="settings-section">
         <h2>לוח שנה ושעות</h2>
 
@@ -433,8 +362,104 @@
           </div>
         </div>
       </section>
+<!-- הערות מובנות -->
+<section class="settings-section">
+  <div class="subsection-header accordion">
 
-      <div class="actions">
+    <button
+      type="button"
+      class="accordion-toggle"
+      (click)="toggleListNotesExpanded()"
+      [attr.aria-expanded]="listNotesExpanded()"
+    >
+      <span class="chev" [class.open]="listNotesExpanded()">❯</span>
+      <span class="accordion-title">הערות מובנות</span>
+      <span class="accordion-sub">לחצי לפתיחה / סגירה</span>
+    </button>
+
+    <button
+      type="button"
+      class="icon-btn"
+      (click)="toggleNewListNoteForm()"
+      [disabled]="!listNotesExpanded()"
+    >
+      <span class="plus-icon">+</span>
+      <span>הוספת הודעה</span>
+    </button>
+  </div>
+  <!-- ✅ כל התוכן חייב להיות פה -->
+  <ng-container *ngIf="listNotesExpanded()">
+
+    <!-- טופס הוספה -->
+    <div class="inline-panel" *ngIf="showNewListNoteForm()">
+      <div class="panel-title">הוספת הודעה חדשה</div>
+
+      <label class="field">
+        <span class="field-label">תוכן ההודעה</span>
+        <input
+          type="text"
+          [ngModel]="newListNoteText()"
+          (ngModelChange)="newListNoteText.set($event)"
+          name="new_list_note"
+          placeholder="לדוגמה: התקדמת יפה"
+          maxlength="250"
+        />
+        <small class="field-hint">עד 250 תווים</small>
+      </label>
+
+      <div class="panel-actions">
+        <button type="button" class="primary-btn" (click)="addListNote()">שמירה</button>
+        <button type="button" class="ghost-btn" (click)="toggleNewListNoteForm()">ביטול</button>
+      </div>
+    </div>
+
+    <!-- רשימה -->
+    <div class="list-block" *ngIf="listNotes().length; else noListNotes">
+      <div class="list-header-row notes-header">
+        <span class="col-main">הודעה</span>
+      </div>
+
+      <div class="list-row notes-row" *ngFor="let n of listNotes()">
+        <ng-container *ngIf="editingListNoteId() !== n.id; else editNoteRow">
+          <div class="col-main">
+            <div class="list-title">{{ n.note }}</div>
+          </div>
+
+          <div class="col-actions">
+            <button type="button" class="text-btn" (click)="startEditListNote(n)">עריכה</button>
+            <button type="button" class="text-btn danger" (click)="deleteListNote(n)">מחיקה</button>
+          </div>
+        </ng-container>
+
+        <ng-template #editNoteRow>
+          <div class="col-main">
+            <input
+              class="note-edit-input"
+              type="text"
+              [(ngModel)]="n.note"
+              name="edit_note_{{n.id}}"
+              maxlength="250"
+            />
+          </div>
+
+          <div class="col-actions">
+            <button type="button" class="text-btn" (click)="updateListNote(n)">שמירה</button>
+            <button type="button" class="text-btn" (click)="cancelEditListNote()">ביטול</button>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+
+    <ng-template #noListNotes>
+      <div class="empty-state">
+        עדיין אין הודעות מובנות.
+        <button type="button" class="text-btn" (click)="toggleNewListNoteForm()">הוספת הודעה ראשונה</button>
+      </div>
+    </ng-template>
+
+  </ng-container>
+</section>
+<div class="actions">
         <button type="submit" class="primary-btn" [disabled]="saving() || loading()">שמירת הגדרות</button>
       </div>
     </form>

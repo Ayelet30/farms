@@ -92,6 +92,19 @@
   color: #5f6640;
 }
 
+.inline-note.linklike{
+  cursor: pointer;
+  background: #fff6e5;
+}
+
+.inline-note.linklike:hover{
+  filter: brightness(0.98);
+}
+
+.inline-note.linklike:active{
+  transform: translateY(1px);
+}
+
 .cards-grid {
   display: grid;
   grid-template-columns: 1fr;

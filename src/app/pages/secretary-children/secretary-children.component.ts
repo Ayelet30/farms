@@ -6,9 +6,9 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
-
 import { ensureTenantContextReady, dbTenant } from '../../services/legacy-compat';
 import type { ChildRow } from '../../Types/detailes.model';
+import { UiDialogService } from '../../services/ui-dialog.service';
 
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import {
@@ -18,7 +18,6 @@ import {
   FormGroup,
 } from '@angular/forms';
 import { AddChildWizardComponent } from '../add-child-wizard/add-child-wizard.component';
-
 type ParentBrief = {
   uid: string;
   first_name: string;
@@ -51,14 +50,16 @@ type HorseLite = {
 @Component({
   selector: 'app-secretary-children',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    MatSidenavModule,
-    MatDialogModule,
-    AddChildWizardComponent,
-  ],
+ imports: [
+  CommonModule,
+  FormsModule,
+  ReactiveFormsModule,
+  MatSidenavModule,
+  MatDialogModule,
+  AddChildWizardComponent,
+  
+],
+
   templateUrl: './secretary-children.component.html',
   styleUrls: ['./secretary-children.component.css'],
 })
@@ -92,10 +93,13 @@ export class SecretaryChildrenComponent implements OnInit {
   childHorses: Record<string, string[]> = {};
   savingChildHorses: Record<string, boolean> = {};
 
+
+
   constructor(
-    private dialog: MatDialog,
-    private fb: FormBuilder,
-  ) {}
+  private ui: UiDialogService,
+  private fb: FormBuilder,
+) {}
+
 
   async ngOnInit(): Promise<void> {
     try {
@@ -196,7 +200,7 @@ export class SecretaryChildrenComponent implements OnInit {
       console.error('loadHorsesAndChildMapping fatal:', e);
     }
   }
-
+  
   /** רשימת ילדים אחרי חיפוש + סינון */
   get filteredChildren(): ChildRow[] {
     let rows = [...this.children];
@@ -420,9 +424,12 @@ export class SecretaryChildrenComponent implements OnInit {
       this.editMode = false;
     } catch (e: any) {
       console.error(e);
-      alert('שמירת השינויים נכשלה: ' + (e?.message ?? e));
+   await this.ui.alert('שמירת השינויים נכשלה: ' + (e?.message ?? e), 'שמירה נכשלה');
+
+
     }
   }
+  
 
   /** האם לילד יש סוס מסוים */
   childHasHorse(childId: string | undefined, horseId: string): boolean {
@@ -481,7 +488,9 @@ export class SecretaryChildrenComponent implements OnInit {
       this.childHorses[key] = Array.from(current);
     } catch (e) {
       console.error('toggleChildHorse error:', e);
-      alert('שמירת התאמת הסוס נכשלה');
+      await this.ui.alert('שמירת התאמת הסוס נכשלה', 'שמירה נכשלה');
+
+
     } finally {
       this.savingChildHorses[key] = false;
     }
