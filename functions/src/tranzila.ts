@@ -7,6 +7,12 @@ import fetch from 'node-fetch';
 import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
 import { ensureTranzilaInvoiceForPaymentInternal } from './tranzilaInvoices';
+import {
+  GMAIL_CLIENT_ID_S,
+  GMAIL_CLIENT_SECRET_S,
+  GMAIL_MASTER_KEY_S,
+} from "./gmail/email-core";
+
 
 // ===== Local env for emulator only =====
 import * as dotenv from 'dotenv';
@@ -976,6 +982,9 @@ export const chargeSelectedChargesForParent = onRequest(
       TRANZILA_PASSWORD_TOKEN_S,
       TRANZILA_APP_KEY_S,
       TRANZILA_SECRET_S,
+      GMAIL_CLIENT_ID_S,
+      GMAIL_CLIENT_SECRET_S,
+      GMAIL_MASTER_KEY_S,
     ],
   },
   async (req, res) => {
