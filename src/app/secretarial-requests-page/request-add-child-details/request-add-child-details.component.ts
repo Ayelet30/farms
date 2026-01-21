@@ -1,8 +1,9 @@
 import { Component, Input, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { dbTenant } from '../../services/legacy-compat';
+import { dbTenant, getSupabaseClient } from '../../services/legacy-compat';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 type AddChildDetails = {
   request_id: string;
@@ -37,6 +38,10 @@ type AddChildDetails = {
 
   registration_amount: number | null;
   card_last4: string | null;
+
+  // ✅ חדש - מגיע מה-RPC
+  signed_pdf_bucket: string | null;
+  signed_pdf_path: string | null;
 };
 
 type ToastKind = 'success' | 'error' | 'info';
@@ -49,7 +54,7 @@ type ToastKind = 'success' | 'error' | 'info';
   styleUrls: ['./request-add-child-details.component.scss'],
 })
 export class RequestAddChildDetailsComponent implements OnInit {
-  @Input({ required: true }) request!: any;      // UiRequest
+  @Input({ required: true }) request!: any; // UiRequest
   @Input({ required: true }) decidedByUid!: string;
 
   @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
@@ -58,10 +63,17 @@ export class RequestAddChildDetailsComponent implements OnInit {
 
   private db = dbTenant();
   private snack = inject(MatSnackBar);
+  private sanitizer = inject(DomSanitizer);
 
   loading = signal(false);
   details = signal<AddChildDetails | null>(null);
   decisionNote = '';
+
+  // ===== Signed Terms popup =====
+  signedOpen = signal(false);
+  loadingSigned = signal(false);
+  signedDocUrlRaw = signal<string | null>(null);
+  signedDocUrlSafe = signal<SafeResourceUrl | null>(null);
 
   async ngOnInit() {
     await this.loadDetails();
@@ -74,7 +86,9 @@ export class RequestAddChildDetailsComponent implements OnInit {
         p_request_id: this.request.id,
       });
       if (error) throw error;
-      this.details.set((data?.[0] ?? null) as AddChildDetails | null);
+
+      const row = (data?.[0] ?? null) as AddChildDetails | null;
+      this.details.set(row);
     } catch (e: any) {
       console.error(e);
       const msg = e?.message || 'שגיאה בטעינת פרטי הבקשה';
@@ -99,6 +113,46 @@ export class RequestAddChildDetailsComponent implements OnInit {
     return tags;
   }
 
+  // ===== תקנון חתום: פתיחה/סגירה =====
+  async openSignedTerms() {
+    const d = this.details();
+    if (!d?.child_id) return;
+
+    this.loadingSigned.set(true);
+    this.signedDocUrlRaw.set(null);
+    this.signedDocUrlSafe.set(null);
+
+    try {
+      const bucket = d.signed_pdf_bucket ?? null;
+      const path = d.signed_pdf_path ?? null;
+
+      if (!bucket || !path) {
+        this.signedOpen.set(true);
+        return;
+      }
+
+      const client = getSupabaseClient();
+      const { data: pub } = client.storage.from(bucket).getPublicUrl(path);
+      let url = pub?.publicUrl ?? null;
+
+      // cache-bust כדי שלא ייתקע על גרסה ישנה
+      if (url) url = `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+
+      this.signedDocUrlRaw.set(url);
+      this.signedDocUrlSafe.set(url ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null);
+      this.signedOpen.set(true);
+    } catch (e: any) {
+      console.error(e);
+      this.toast(e?.message ?? 'שגיאה בפתיחת תקנון חתום', 'error');
+    } finally {
+      this.loadingSigned.set(false);
+    }
+  }
+
+  closeSignedPopup() {
+    this.signedOpen.set(false);
+  }
+
   async approve() {
     if (this.loading()) return;
     this.loading.set(true);
@@ -117,9 +171,6 @@ export class RequestAddChildDetailsComponent implements OnInit {
       const msg = `אישרת הוספת ${child}. הודעה נשלחה ${parent}.`;
 
       this.toast(msg, 'success');
-
-      // TODO: הודעה להורה (כשתכתבי)
-      // await this.db.rpc('notify_parent_add_child_approved', { p_request_id: this.request.id });
 
       this.onApproved?.({
         requestId: this.request.id,
@@ -154,9 +205,6 @@ export class RequestAddChildDetailsComponent implements OnInit {
       const msg = `דחית בקשת הוספת ${child}. הודעה נשלחה ברגעים אלה.`;
 
       this.toast(msg, 'info');
-
-      // TODO: הודעה להורה
-      // await this.db.rpc('notify_parent_add_child_rejected', { p_request_id: this.request.id });
 
       this.onRejected?.({
         requestId: this.request.id,
