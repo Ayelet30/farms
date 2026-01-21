@@ -13,10 +13,11 @@
 
 .wizard-dialog {
   background: #f9f7f3;
+  margin-top: 90px;
+  margin-right: 230px;
   border-radius: 24px;
   max-width: 900px;
   width: 100%;
-  margin: auto;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
   position: relative;
   padding: 1.75rem 2rem 1.5rem;
@@ -288,8 +289,14 @@ textarea {
 
 @media (max-width: 768px) {
   .wizard-dialog {
+    max-width: 388px;
+    margin-right: 90px;
     padding: 1.25rem 1rem 1rem;
     border-radius: 18px;
+  }
+  .slider{
+        top: 49px;
+        width: 90px;
   }
 
   .steps-bar {

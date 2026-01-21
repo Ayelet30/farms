@@ -3,17 +3,22 @@ import { defineSecret } from "firebase-functions/params";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import * as crypto from "crypto";
 import fetch from "node-fetch";
-// import nodemailer from "nodemailer";
-import { sendInvoiceEmailViaGmailCF } from "./send-invoice-email-gmail"; 
+import {
+  sendEmailCore,
+  SUPABASE_URL_S,
+  SUPABASE_KEY_S,
+  GMAIL_CLIENT_ID_S,
+  GMAIL_CLIENT_SECRET_S,
+  GMAIL_MASTER_KEY_S,
+} from "./gmail/email-core";
 
 
 
 // ===== Secrets =====
-const SUPABASE_URL_S = defineSecret("SUPABASE_URL");
-const SUPABASE_KEY_S = defineSecret("SUPABASE_SERVICE_KEY");
+
 const TRANZILA_APP_KEY_S = defineSecret("TRANZILA_APP_KEY");
 const TRANZILA_SECRET_S = defineSecret("TRANZILA_SECRET");
-const INTERNAL_CALL_SECRET_S = defineSecret("INTERNAL_CALL_SECRET");
+
 
 
 function vatPercentByDate(docDate: string) {
@@ -189,60 +194,23 @@ async function saveInvoicePdfToSupabase(params: {
 
   return { bucket, path };
 }
-// const mailTransport = nodemailer.createTransport({
-//   host: "smtp.gmail.com",
-//   port: 587,
-//   secure: false,
-//   auth: {
-//     user: "ayelethury@gmail.com",
-//     pass: "jlmb ezch pkrs ifce",
-//   },
-// });
-// async function sendInvoiceEmail(params: {
-//   sb: SupabaseClient;
-//   bucket: string;
-//   path: string;
-//   to: string;
-//   parentName: string;
-//   farmName: string;
-//   documentNumber?: string | null;
-// }) {
-// const { sb, bucket, path, to, parentName, farmName, documentNumber } = params;
 
-//   // 1) הורדת ה-PDF מה-Storage
-//   const { data, error } = await sb.storage.from(bucket).download(path);
-//   if (error) throw new Error(`Failed to download invoice PDF: ${error.message}`);
-//   if (!data) throw new Error("Invoice PDF is empty");
-
-//   const buffer = Buffer.from(await data.arrayBuffer());
-
-//   // 2) שליחת מייל
-//   await mailTransport.sendMail({
-//     from: `<ayelethury@gmail.com>`,
-//     to,
-//     subject: `חשבונית ${documentNumber ?? ""}`.trim(),
-//     html: `
-//       <div dir="rtl" style="font-family: Arial, sans-serif">
-//         <p>שלום ${parentName},</p>
-//         <p>מצורפת החשבונית עבור התשלום שבוצע.</p>
-//     <p>תודה,<br/>חוות ${farmName}</p>
-//       </div>
-//     `,
-//     attachments: [
-//       {
-//         filename: `invoice-${documentNumber ?? "payment"}.pdf`,
-//         content: buffer,
-//         contentType: "application/pdf",
-//       },
-//     ],
-//   });
-// }
 export const ensureTranzilaInvoiceForPayment = onRequest(
   {
     invoker: "public",
-    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_APP_KEY_S, TRANZILA_SECRET_S, INTERNAL_CALL_SECRET_S],
+    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_APP_KEY_S, TRANZILA_SECRET_S , GMAIL_CLIENT_ID_S,
+  GMAIL_CLIENT_SECRET_S,
+  GMAIL_MASTER_KEY_S,],
   },
+  
   async (req, res) => {
+    console.log("[ensureTranzilaInvoiceForPayment] secrets check:", {
+  masterLen: (GMAIL_MASTER_KEY_S.value() || "").length,
+  clientIdLen: (GMAIL_CLIENT_ID_S.value() || "").length,
+  clientSecretLen: (GMAIL_CLIENT_SECRET_S.value() || "").length,
+  hasSupabaseUrl: !!SUPABASE_URL_S.value(),
+});
+
     try {
       if (handleCors(req, res)) return;
       if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
@@ -252,6 +220,8 @@ export const ensureTranzilaInvoiceForPayment = onRequest(
         res.status(400).json({ ok: false, error: "missing tenantSchema/paymentId" });
         return;
       }
+console.log("[ensureTranzilaInvoiceForPayment] revision check", new Date().toISOString());
+console.log("GMAIL_MASTER_KEY length (handler):", (GMAIL_MASTER_KEY_S.value() || "").length);
 
       const out = await ensureTranzilaInvoiceForPaymentInternal({ tenantSchema, paymentId });
       res.json(out);
@@ -278,6 +248,8 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
   tranzila_pdf_url: string;
   public_invoice_url: string | null;
 }> {
+  console.log("GMAIL_MASTER_KEY length:", (GMAIL_MASTER_KEY_S.value() || "").length);
+
   const { tenantSchema, paymentId } = args;
 const extra = (args.extraLineText ?? '').trim();
 
@@ -384,6 +356,8 @@ const extra = (args.extraLineText ?? '').trim();
     parentFullName = safeFullName(pr?.first_name, pr?.last_name);
     parentIdNumber = pr?.id_number ?? null;
     parentEmail = pr?.email ?? null;
+    console.log("P:" +parentEmail+"!!!!"); 
+    console.log("PR:" +pr +"!!!!!!!1"); 
   }
 
   // ===== 3) lesson items =====
@@ -566,47 +540,40 @@ if (extra) {
 
   if (uErr) throw new Error(`payments update failed: ${uErr.message}`);
 
-  // ===== send email =====
-  // try {
-  //   if (parentEmail) {
-  //     const farmName = await getFarmNameBySchema(tenantSchema);
-  //     await sendInvoiceEmail({
-  //       sb,
-  //       bucket: stored.bucket,
-  //       path: stored.path,
-  //       to: parentEmail,
-  //       parentName: parentFullName,
-  //       farmName,
-  //       documentNumber,
-  //     });
-  //   }
-  // } catch (err: any) {
-  //   console.error(`[ensureInvoiceInternal][${rid}] mail failed`, err?.message || err);
-  // }
+  
 try {
+  console.log("PARENT-EMAIL:" +parentEmail+"!!!!!!!!11"); 
   if (parentEmail) {
     const farmName = await getFarmNameBySchema(tenantSchema);
 
-    const internalCallSecret =
-      INTERNAL_CALL_SECRET_S.value() || process.env.INTERNAL_CALL_SECRET;
-    if (!internalCallSecret) throw new Error("Missing INTERNAL_CALL_SECRET");
+    // 1) הורדת PDF מה-storage
+    const { data, error } = await sb.storage.from(stored.bucket).download(stored.path);
+    if (error) throw new Error(`Failed to download invoice PDF: ${error.message}`);
+    if (!data) throw new Error("Invoice PDF is empty");
 
-    const SEND_EMAIL_GMAIL_URL =
-      "https://us-central1-bereshit-ac5d8.cloudfunctions.net/sendEmailGmail";
+    const pdfBuffer = Buffer.from(await data.arrayBuffer());
+console.log("לפני sendemailcore !!!!!!!!111"); 
 
-    await sendInvoiceEmailViaGmailCF({
-      sb,
-      bucket: stored.bucket,
-      path: stored.path,
-
-      to: parentEmail,
-      parentName: parentFullName,
-      farmName,
-      documentNumber,
-
+    // 2) שליחה דרך core (בלי HTTP)
+    await sendEmailCore({     
       tenantSchema,
-      sendEmailGmailUrl: SEND_EMAIL_GMAIL_URL,
-      internalCallSecret,
+      to: [parentEmail],
+      subject: `חשבונית ${documentNumber ?? ""}`.trim(),
+      html: `
+        <div dir="rtl" style="font-family: Arial, sans-serif">
+          <p>שלום ${parentFullName},</p>
+          <p>מצורפת החשבונית עבור התשלום שבוצע.</p>
+          <p>תודה,<br/>חוות ${farmName}</p>
+        </div>
+      `.trim(),
+      attachments: [
+        {
+          filename: `invoice-${documentNumber ?? "payment"}.pdf`,
+          contentType: "application/pdf",
+          content: pdfBuffer,     // ✅ Buffer (לא base64)
+        },
+      ],
+      fromName: "Smart Farm",
     });
   }
 } catch (err: any) {

@@ -3,13 +3,15 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import type { ChildRow } from '../../Types/detailes.model';
-import { getCurrentUserData } from '../../services/supabaseClient.service';
+import { getCurrentUserData, getSupabaseClient } from '../../services/supabaseClient.service';
 import { NgClass, NgTemplateOutlet } from '@angular/common';
 //import { dbTenant } from '../../services/legacy-compat';
 import { dbTenant } from '../../services/legacy-compat';
 import { fetchMyChildren } from '../../services/supabaseClient.service';
 import { ViewChild, ElementRef } from '@angular/core';
 import { AddChildWizardComponent } from '../add-child-wizard/add-child-wizard.component';
+import { ChildTermsSignComponent } from '../child-terms-sign/child-terms-sign.component';
+
 
 //import { SupabaseClient } from '@supabase/supabase-js';
 
@@ -36,7 +38,7 @@ type ChildStatus = 'Active' | 'Pending Deletion Approval' | 'Pending Addition Ap
 @Component({
   selector: 'app-parent-children',
   standalone: true,
-  imports: [CommonModule, FormsModule, NgClass, NgTemplateOutlet, AddChildWizardComponent],
+  imports: [CommonModule, FormsModule, NgClass, NgTemplateOutlet, AddChildWizardComponent, ChildTermsSignComponent],
   templateUrl: './parent-children.html',
   styleUrls: ['./parent-children.css'],
  
@@ -73,6 +75,13 @@ export class ParentChildrenComponent implements OnInit {
   pendingDeleteId: string | null = null;
 
   showAddChildWizard = false;
+
+  //חתימת תקנון
+  termsStatusByChild: Record<string, { is_signed: boolean; signed_at: string | null; required_version: number | null }> = {};
+showTermsSign = false;
+termsSignChildId: string | null = null;
+termsSignChildName: string | null = null;
+
 
   // ---- History modal state ----
 showHistory = false;
@@ -132,6 +141,8 @@ private readonly CHILD_SELECT =
 const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמחק)
 
     this.children = rows;
+    await this.loadTermsStatuses();
+
 
     // ברירת מחדל – מציג עד 4 פעילים ראשונים
     if (this.selectedIds.size === 0) {
@@ -835,5 +846,92 @@ private occTs(start_datetime: string): number {
 
   return new Date(iso).getTime();
 }
+
+async loadTermsStatuses() {
+  try {
+    const { data, error } = await dbTenant().rpc('get_my_children_terms_status');
+    if (error) throw error;
+
+    const rows = (data ?? []) as any[];
+    const map: any = {};
+    for (const r of rows) {
+      map[String(r.child_id)] = {
+        is_signed: !!r.is_signed,
+        signed_at: r.signed_at ?? null,
+        required_version: r.required_version ?? null
+      };
+    }
+    this.termsStatusByChild = map;
+  } catch (e) {
+    console.error('loadTermsStatuses failed', e);
+    // לא חוסמים UI של הילדים בגלל זה
+  }
+}
+
+isChildTermsSigned(childId: string): boolean {
+  return !!this.termsStatusByChild?.[childId]?.is_signed;
+}
+
+openTermsSign(child: any) {
+  const id = this.childId(child);
+  if (!id) return;
+  this.termsSignChildId = id;
+  this.termsSignChildName = `${child.first_name || ''} ${child.last_name || ''}`.trim();
+  this.showTermsSign = true;
+}
+
+onTermsSigned() {
+  // רענון סטטוסים בלבד
+  this.loadTermsStatuses();
+  this.showTermsSign = false;
+  this.termsSignChildId = null;
+  this.termsSignChildName = null;
+}
+
+closeTermsSign() {
+  this.showTermsSign = false;
+  this.termsSignChildId = null;
+  this.termsSignChildName = null;
+}
+
+async openSignedTerms(child: any) {
+  const childId = this.childId(child);
+  if (!childId) return;
+
+  try {
+    const dbc = dbTenant();
+
+    const { data, error } = await dbc.rpc('get_signed_terms_url', { p_child_id: childId });
+    if (error) throw error;
+
+    if (!data) {
+      this.showCardMessage(childId, 'לא נמצא תקנון חתום להצגה');
+      return;
+    }
+
+    const [bucket, path] = String(data).split('|');
+    if (!bucket || !path) {
+      this.showCardMessage(childId, 'קישור התקנון החתום לא תקין');
+      return;
+    }
+
+    // בונים public url דרך supabase storage
+    const client = getSupabaseClient();
+    const { data: pub } = client.storage.from(bucket).getPublicUrl(path);
+    const url = pub?.publicUrl ?? null;
+
+    if (!url) {
+      this.showCardMessage(childId, 'לא הצלחתי ליצור קישור לתקנון החתום');
+      return;
+    }
+
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } catch (e: any) {
+    console.error('openSignedTerms failed', e);
+    this.showCardMessage(childId, e?.message ?? 'שגיאה בפתיחת התקנון החתום');
+  }
+}
+
+
 
 }
