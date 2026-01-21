@@ -130,21 +130,51 @@ private async loadPaymentPlanName() {
   }
 }
 
-  async approveSelected() {
-  if (!this.request?.id) return;
+async approveSelected() {
+  if (!this.request) return;
 
   try {
     this.loading.set(true);
 
     const uid = await this.resolveDeciderUid();
-    if (!uid) {
-      throw new Error('לא נמצא משתמש מאשר (uid)');
-    }
+    if (!uid) throw new Error('לא נמצא משתמש מאשר (uid)');
 
-    const note = this.note.trim();
+    await ensureTenantContextReady();
+    const db = dbTenant();
 
-    const res = await this.api.approve(this.request.id, uid, note);
-    const first = Array.isArray(res) ? res[0] : res;
+    const p: any = this.request.payload ?? {};
+const instructorIdNumber = this.request.instructorId; // מה-row בטבלה
+if (!instructorIdNumber) throw new Error('חסר instructor_id_number בבקשה');
+
+const instructorUid = await this.getInstructorUidByIdNumber(instructorIdNumber);
+if (!instructorUid) throw new Error('למדריך אין uid במערכת');
+    // ⚠️ חשוב: fromDate/toDate מגיעים מהטבלה secretarial_requests אצלך (לא מה-payload)
+    const params = {
+     p_child_id: this.request.childId ?? null,
+      p_instructor_id_number: instructorIdNumber,
+  p_instructor_uid: instructorUid,
+      p_series_start_date: this.request.fromDate ?? null,
+      p_start_time: p.requested_start_time ?? null,
+      p_is_open_ended: !!p.is_open_ended,
+      p_repeat_weeks: p.repeat_weeks ?? null,                   
+      p_series_search_horizon_days: p.series_search_horizon_days ?? 90,
+      p_max_participants: 1,
+      p_payment_source: p.payment_source ?? null,              
+      p_existing_approval_id: null,
+      p_payment_plan_id: p.payment_plan_id ?? null,
+      p_health_fund: p.health_fund ?? null,
+      p_approval_number: p.approval_number ?? null,
+      p_total_lessons: p.total_lessons ?? null,
+      p_referral_url: p.referral_url ?? null,
+
+      p_riding_type_id: p.riding_type_id ?? null,
+      p_origin: "secretary",
+    };
+
+    const { data, error } = await db.rpc('create_series_with_validation', params);
+    if (error) throw error;
+
+    const first = Array.isArray(data) ? data[0] : data;
 
     if (!first?.ok) {
       const msg = `לא ניתן לאשר: ${first?.deny_reason ?? 'unknown'}`;
@@ -153,21 +183,49 @@ private async loadPaymentPlanName() {
       alert(msg);
       return;
     }
+await ensureTenantContextReady();
 
+// ✅ עדכון סטטוס הבקשה רק אם עדיין PENDING
+const { data: upd, error: updErr } = await db
+  .from('secretarial_requests')
+  .update({
+    status: 'APPROVED',
+    decided_by_uid: uid,
+    decision_note: this.note || null,
+    decided_at: new Date().toISOString(), // (אם תרצי server time נדבר על זה)
+  })
+  .eq('id', this.request.id)
+  .eq('status', 'PENDING')
+  .select('id,status')
+  .maybeSingle();
+
+if (updErr) throw updErr;
+
+if (!upd) {
+  // כלומר או שלא הייתה בקשה כזו, או שכבר לא PENDING (מישהו אישר/דחה לפני)
+  throw new Error('הבקשה כבר לא במצב ממתין (ייתכן שכבר עודכנה).');
+}
+
+    // ✅ אם הצליח – פה יש לך lesson_id / approval_id וכו’
+    // אבל שימי לב: create_series_with_validation לא מעדכנת סטטוס של secretarial_requests!
+    // אם את רוצה שהבקשה תיעלם – חייבים update לטבלה או RPC נוסף.
+    // כרגע רק נעדכן UI
     const payload = { requestId: this.request.id, newStatus: 'APPROVED' as const };
     this.approved.emit(payload);
     this.onApproved?.(payload);
+
   } catch (e: any) {
     const msg = e?.message ?? 'שגיאה באישור';
     this.error.emit(msg);
-    this.onError?.({ requestId: this.request.id, message: msg, raw: e });
+    this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
     alert(msg);
   } finally {
     this.loading.set(false);
   }
 }
 
-  async rejectSelected() {
+
+async rejectSelected() {
   if (!this.request?.id) return;
 
   const note = this.note.trim();
@@ -180,23 +238,59 @@ private async loadPaymentPlanName() {
     this.loading.set(true);
 
     const uid = await this.resolveDeciderUid();
-    if (!uid) {
-      throw new Error('לא נמצא משתמש מאשר (uid)');
-    }
+    if (!uid) throw new Error('לא נמצא משתמש מאשר (uid)');
 
-    await this.api.reject(this.request.id, uid, note);
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    // ✅ עדכון סטטוס רק אם עדיין PENDING
+    const { data, error } = await db
+      .from('secretarial_requests')
+      .update({
+        status: 'REJECTED',
+        decided_by_uid: uid,
+        decision_note: note,
+        decided_at: new Date().toISOString(),
+      })
+      .eq('id', this.request.id)
+      .eq('status', 'PENDING')
+      .select('id,status')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      alert('הבקשה כבר לא במצב ממתין (ייתכן שכבר עודכנה).');
+      return;
+    }
 
     const payload = { requestId: this.request.id, newStatus: 'REJECTED' as const };
     this.rejected.emit(payload);
     this.onRejected?.(payload);
+
   } catch (e: any) {
     const msg = e?.message ?? 'שגיאה בדחייה';
     this.error.emit(msg);
-    this.onError?.({ requestId: this.request.id, message: msg, raw: e });
+    this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
     alert(msg);
   } finally {
     this.loading.set(false);
   }
 }
+
+private async getInstructorUidByIdNumber(idNumber: string): Promise<string | null> {
+  await ensureTenantContextReady();
+  const db = dbTenant();
+
+  const { data, error } = await db
+    .from('instructors')
+    .select('uid')
+    .eq('id_number', idNumber)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data?.uid ?? null;
+}
+
 
 }
