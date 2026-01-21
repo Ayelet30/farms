@@ -14,8 +14,7 @@ setGlobalOptions({
   region: 'us-central1',
 });
 
-import { decryptRefreshToken } from './crypto-gmail';
-export { connectGmailForFarm } from './connectGmailForFarm.js';
+export { connectGmailForFarm } from './connectGmailForFarm';
 
 
 export * from "./loginBootstrap.js";
@@ -24,7 +23,6 @@ export * from "./dailyBilling.js";
 
 export * from "./publicSignup.js";
 
-export * from './email';
 
 
 
@@ -32,6 +30,7 @@ export { createHostedPaymentUrl, tranzilaHandshakeHttp , recordOneTimePayment , 
 export {
   ensureTranzilaInvoiceForPayment
 } from './tranzilaInvoices.js';
+export { sendEmailGmail } from './email';
 
 //export  *  from "../createParent.js";
 
