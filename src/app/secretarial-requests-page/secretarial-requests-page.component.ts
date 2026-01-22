@@ -15,6 +15,8 @@ import { Subscription } from 'rxjs';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { ViewChild } from '@angular/core';
 import { MatSidenav } from '@angular/material/sidenav';
+import { RequestRemoveChildDetailsComponent } from './request-remove-child-details/request-remove-child-details.component';
+
 
 
 import {
@@ -102,6 +104,7 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
     INSTRUCTOR_DAY_OFF: RequestInstructorDayOffDetailsComponent,
     CANCEL_OCCURRENCE: RequestCancelOccurrenceDetailsComponent,
     ADD_CHILD: RequestAddChildDetailsComponent,
+    DELETE_CHILD: RequestRemoveChildDetailsComponent,
     NEW_SERIES: SecretarialSeriesRequestsComponent, 
     PARENT_SIGNUP: RequestAddParentDetailsComponent,
   };
