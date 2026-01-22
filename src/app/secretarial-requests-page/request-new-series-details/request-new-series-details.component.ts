@@ -25,8 +25,8 @@ import type { UiRequest } from '../../Types/detailes.model';
 export class SecretarialSeriesRequestsComponent {
   private api = inject(SeriesRequestsService);
 async ngOnInit() {
-  await this.loadPaymentPlanName();
-  await this.loadInstructorName();
+  // await this.loadPaymentPlanName();
+  // await this.loadInstructorName();
 
 }
 
@@ -40,6 +40,15 @@ set request(v: UiRequest) {
   // ✅ איפוס טקסט והודעות כשעוברים לבקשה אחרת
   this.note = '';
   this.clearMessages();
+   this.loading.set(false);
+
+  // 2) איפוס נתונים שמגיעים מטעינות async
+  this.paymentPlanName.set('טוען...');
+  this.instructorName.set('טוען...');
+
+  // 3) טעינה מחדש לפי הבקשה החדשה
+  void this.loadPaymentPlanName();
+  void this.loadInstructorName();
 }
 
 get request(): UiRequest {
@@ -405,5 +414,31 @@ private async loadInstructorName() {
   }
 }
 
+get startWeekdayName(): string {
+  const d = this.parseDateOnly(this.startDate);
+  if (!d) return '—';
+
+  // יום בשבוע בעברית (ראשון..שבת)
+  const names = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  return names[d.getDay()];
+}
+
+private parseDateOnly(value: string): Date | null {
+  if (!value || value === '—') return null;
+
+  // אם זה כבר YYYY-MM-DD (הכי נפוץ אצלך)
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (m) {
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const da = Number(m[3]);
+    const dt = new Date(y, mo, da); // לוקאלי, בלי timezone בעיות
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+
+  // fallback למקרים אחרים
+  const dt = new Date(value);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
 
 }
