@@ -26,10 +26,25 @@ export class SecretarialSeriesRequestsComponent {
   private api = inject(SeriesRequestsService);
 async ngOnInit() {
   await this.loadPaymentPlanName();
+  await this.loadInstructorName();
+
 }
 
   // ✅ הבקשה שנבחרה מהדף הראשי
-  @Input({ required: true }) request!: UiRequest;
+private _request!: UiRequest;
+
+@Input({ required: true })
+set request(v: UiRequest) {
+  this._request = v;
+
+  // ✅ איפוס טקסט והודעות כשעוברים לבקשה אחרת
+  this.note = '';
+  this.clearMessages();
+}
+
+get request(): UiRequest {
+  return this._request;
+}
 
   // ✅ מי מאשר (מגיע מהדף הראשי)
   @Input() decidedByUid?: string | null;
@@ -46,6 +61,7 @@ async ngOnInit() {
 
   loading = signal(false);
 paymentPlanName = signal<string>('טוען...');
+instructorName = signal<string>('טוען...');
 private dialog = inject(MatDialog);
 private snack = inject(MatSnackBar);
 successMsg = signal<string | null>(null);
@@ -153,6 +169,8 @@ async approveSelected() {
 
     const uid = await this.resolveDeciderUid();
     if (!uid) throw new Error('לא נמצא משתמש מאשר (uid)');
+const ok = await this.confirmApprove();
+if (!ok) return;
 
     await ensureTenantContextReady();
     const db = dbTenant();
@@ -163,6 +181,12 @@ if (!instructorIdNumber) throw new Error('חסר instructor_id_number בבקשה
 
 const instructorUid = await this.getInstructorUidByIdNumber(instructorIdNumber);
 if (!instructorUid) throw new Error('למדריך אין uid במערכת');
+const isOpenEnded = !!p.is_open_ended;
+
+const repeatWeeks =
+  isOpenEnded
+    ? null
+    : Number(p.repeat_weeks);
     // ⚠️ חשוב: fromDate/toDate מגיעים מהטבלה secretarial_requests אצלך (לא מה-payload)
     const params = {
      p_child_id: this.request.childId ?? null,
@@ -171,7 +195,7 @@ if (!instructorUid) throw new Error('למדריך אין uid במערכת');
       p_series_start_date: this.request.fromDate ?? null,
       p_start_time: p.requested_start_time ?? null,
       p_is_open_ended: !!p.is_open_ended,
-      p_repeat_weeks: p.repeat_weeks ?? null,                   
+      p_repeat_weeks: repeatWeeks,                   
       p_series_search_horizon_days: p.series_search_horizon_days ?? 90,
       p_max_participants: 1,
       p_payment_source: p.payment_source ?? null,              
@@ -185,6 +209,7 @@ if (!instructorUid) throw new Error('למדריך אין uid במערכת');
       p_riding_type_id: p.riding_type_id ?? null,
       p_origin: "secretary",
     };
+    
 
     const { data, error } = await db.rpc('create_series_with_validation', params);
     if (error) throw error;
@@ -252,6 +277,11 @@ async rejectSelected() {
   this.clearMessages();
 
   if (!this.request?.id) return;
+   const note = this.note.trim();
+  if (!note) {
+    this.errorMsg.set('חובה למלא סיבה לפני דחיית בקשה');
+    return;
+  }
 
   try {
     this.loading.set(true);
@@ -271,7 +301,7 @@ if (!ok) return; // חוזר למצב הקודם, לא עושה כלום
       .update({
         status: 'REJECTED',
         decided_by_uid: uid,
-        decision_note: note || null,   // ✅ אם ריק נשמור null
+        decision_note: note , 
         decided_at: new Date().toISOString(),
       })
       .eq('id', this.request.id)
@@ -333,6 +363,46 @@ private async confirmReject(): Promise<boolean> {
   });
 
   return !!(await firstValueFrom(ref.afterClosed()));
+}
+private async confirmApprove(): Promise<boolean> {
+  const ref = this.dialog.open(ConfirmDialogComponent, {
+    panelClass: 'ui-confirm-dialog',
+    backdropClass: 'ui-confirm-backdrop',
+    data: {
+      title: 'אישור בקשה',
+      message: 'האם את/ה בטוח/ה שברצונך לאשר את הבקשה?',
+    },
+  });
+
+  return !!(await firstValueFrom(ref.afterClosed()));
+}
+private async loadInstructorName() {
+  const idNumber = this.request?.instructorId; // אצלך זה id_number
+  if (!idNumber) {
+    this.instructorName.set('—');
+    return;
+  }
+
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const { data, error } = await db
+      .from('instructors')
+      .select('first_name,last_name,id_number')
+      .eq('id_number', idNumber)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    const full =
+      `${data?.first_name ?? ''} ${data?.last_name ?? ''}`.trim();
+
+    this.instructorName.set(full || data?.id_number || 'לא נמצא');
+  } catch (e) {
+    console.error('loadInstructorName failed', e);
+    this.instructorName.set('שגיאה בטעינה');
+  }
 }
 
 

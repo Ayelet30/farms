@@ -2889,6 +2889,8 @@ private async submitSeriesRequestToSecretary(slot: RecurringSlotWithSkips): Prom
   // ===== payload לבקשה =====
   const payload: any = {
     requested_start_time: built.startTime,
+      repeat_weeks: this.isOpenEndedSeries ? null : this.seriesLessonCount,
+
     is_open_ended: this.isOpenEndedSeries,
     series_search_horizon_days: this.seriesSearchHorizonDays,
     skipped_farm_dates: (slot.skipped_farm_days_off ?? []).map(String),
