@@ -5,11 +5,17 @@
 
   <article class="card">
 
-    <!-- תאריכים מהטבלה -->
-    <div class="row">
-      <div class="label">תאריך התחלה</div>
-      <div class="val">{{ startDate }}</div>
-    </div>
+<!-- יום בשבוע -->
+<div class="row">
+  <div class="label">יום בשבוע</div>
+  <div class="val">{{ startWeekdayName }}</div>
+</div>
+
+<!-- תאריך התחלה -->
+<div class="row">
+  <div class="label">תאריך התחלה</div>
+  <div class="val">{{ startDate }}</div>
+</div>
 
     <div class="row" *ngIf="!isOpenEnded">
       <div class="label">תאריך סיום</div>
@@ -39,7 +45,7 @@
 
     <!-- payment_plan -->
     <div class="row">
-      <div class="label">אמצעי תשלום</div>
+      <div class="label"> מסלול תשלום</div>
       <div class="val">{{ paymentPlanName() }}</div>
     </div>
 
