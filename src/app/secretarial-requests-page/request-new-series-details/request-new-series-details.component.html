@@ -42,6 +42,15 @@
   <div class="label">מספר שיעורים</div>
   <div class="val">{{ repeatWeeks }}</div>
 </div>
+<div class="row">
+  <div class="label">סוג שיעור</div>
+  <div class="val">
+    {{ ridingTypeName() }}
+    <ng-container *ngIf="lessonTypeMode()">
+      • {{ lessonTypeMode() }}
+    </ng-container>
+  </div>
+</div>
 
     <!-- payment_plan -->
     <div class="row">
@@ -89,6 +98,44 @@
         <ng-template #noReferral>—</ng-template>
       </div>
     </div>
+
+<!-- מציגים בלוק רק אם יש ילדים -->
+<div *ngIf="existingParticipants().length" class="card subtle">
+
+  <!-- capacity מוצג רק אם קיים -->
+  <div class="row" *ngIf="participantsCapacity() as cap">
+    <div class="label">שיבוץ קיים</div>
+    <div class="val">
+      {{ cap.current }} / {{ cap.max }}
+    </div>
+  </div>
+
+  <table class="mini-table">
+   <thead>
+  <tr>
+    <th>שם</th>
+    <th class="col-gender">מין</th>
+    <th class="col-age">גיל</th>
+    <th>הערות</th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr *ngFor="let c of existingParticipants()">
+    <td>{{ c.first_name }} {{ c.last_name }}</td>
+    <td class="col-gender">{{ c.gender || '—' }}</td>
+    <td class="col-age">{{ calcAge(c.birth_date) }}</td>
+    <td class="notes-cell">
+      <span *ngIf="c.medical_notes">🩺 {{ c.medical_notes }}</span>
+      <span *ngIf="c.behavior_notes">⚠ {{ c.behavior_notes }}</span>
+    </td>
+  </tr>
+</tbody>
+
+  </table>
+
+</div>
+
 
     <textarea
       class="note"

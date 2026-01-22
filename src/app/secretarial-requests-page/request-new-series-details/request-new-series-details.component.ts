@@ -32,6 +32,8 @@ async ngOnInit() {
 
   // ✅ הבקשה שנבחרה מהדף הראשי
 private _request!: UiRequest;
+ridingTypeName = signal<string>('טוען...');
+lessonTypeMode = signal<string | null>(null);
 
 @Input({ required: true })
 set request(v: UiRequest) {
@@ -49,6 +51,16 @@ set request(v: UiRequest) {
   // 3) טעינה מחדש לפי הבקשה החדשה
   void this.loadPaymentPlanName();
   void this.loadInstructorName();
+  this.ridingTypeName.set('טוען...');
+this.lessonTypeMode.set(null);
+
+void this.loadLessonTypeFromAvailability();
+this.existingParticipants.set([]);
+this.participantsCapacity.set(null);
+
+void this.loadExistingParticipants();
+
+
 }
 
 get request(): UiRequest {
@@ -75,6 +87,8 @@ private dialog = inject(MatDialog);
 private snack = inject(MatSnackBar);
 successMsg = signal<string | null>(null);
 errorMsg = signal<string | null>(null);
+existingParticipants = signal<any[]>([]);
+participantsCapacity = signal<{ current: number; max: number } | null>(null);
 
 private clearMessages() {
   this.successMsg.set(null);
@@ -191,6 +205,15 @@ if (!instructorIdNumber) throw new Error('חסר instructor_id_number בבקשה
 const instructorUid = await this.getInstructorUidByIdNumber(instructorIdNumber);
 if (!instructorUid) throw new Error('למדריך אין uid במערכת');
 const isOpenEnded = !!p.is_open_ended;
+const ridingTypeId = p.riding_type_id ?? null;
+const maxParticipants = await this.getMaxParticipantsForRidingType(ridingTypeId);
+const normalizeTime = (t: string) => {
+  const s = (t ?? '').trim();
+  if (!s) return null;
+  return s.length === 5 ? `${s}:00` : s; // "09:00" -> "09:00:00"
+};
+
+const startTime = normalizeTime(this.requestedStartTime);
 
 const repeatWeeks =
   isOpenEnded
@@ -202,11 +225,11 @@ const repeatWeeks =
       p_instructor_id_number: instructorIdNumber,
   p_instructor_uid: instructorUid,
       p_series_start_date: this.request.fromDate ?? null,
-      p_start_time: p.requested_start_time ?? null,
+      p_start_time: startTime,
       p_is_open_ended: !!p.is_open_ended,
       p_repeat_weeks: repeatWeeks,                   
       p_series_search_horizon_days: p.series_search_horizon_days ?? 90,
-      p_max_participants: 1,
+      p_max_participants: maxParticipants,
       p_payment_source: p.payment_source ?? null,              
       p_existing_approval_id: null,
       p_payment_plan_id: p.payment_plan_id ?? null,
@@ -219,6 +242,7 @@ const repeatWeeks =
       p_origin: "secretary",
     };
     
+
 
     const { data, error } = await db.rpc('create_series_with_validation', params);
     if (error) throw error;
@@ -439,6 +463,146 @@ private parseDateOnly(value: string): Date | null {
   // fallback למקרים אחרים
   const dt = new Date(value);
   return Number.isNaN(dt.getTime()) ? null : dt;
+}
+private async loadLessonTypeFromAvailability() {
+  const instructorId = this.request?.instructorId; // id_number
+  const dateStr = this.startDate;                  // YYYY-MM-DD
+  const t = this.requestedStartTime;               // "15:30"
+
+  if (!instructorId || !dateStr || dateStr === '—' || !t || t === '—') {
+    this.ridingTypeName.set('—');
+    this.lessonTypeMode.set(null);
+    return;
+  }
+
+  const d = this.parseDateOnly(dateStr);
+  if (!d) {
+    this.ridingTypeName.set('—');
+    this.lessonTypeMode.set(null);
+    return;
+  }
+
+  // שימי לב: אצלך day_of_week הוא 0..6, וב-JS getDay() גם 0..6 (ראשון=0)
+  const dow = d.getDay();
+
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    // מחפשים טווח שבו start_time <= t < end_time
+    // לוקחים את ה-slot "הכי ספציפי" (start_time הכי מאוחר שמתאים) כדי להימנע מחפיפות
+    const { data, error } = await db
+      .from('instructor_weekly_availability')
+      .select(`
+        start_time,
+        end_time,
+        lesson_type_mode,
+        riding_types:lesson_ridding_type ( name )
+      `)
+      .eq('instructor_id_number', instructorId)
+      .eq('day_of_week', dow)
+      .lte('start_time', t)
+      .gt('end_time', t) // end_time > t  (כלומר t בתוך הטווח)
+      .order('start_time', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    const name = (data as any)?.riding_types?.name ?? null;
+    this.ridingTypeName.set(name ?? 'לא נמצא');
+    this.lessonTypeMode.set((data as any)?.lesson_type_mode ?? null);
+  } catch (e) {
+    console.error('loadLessonTypeFromAvailability failed', e);
+    this.ridingTypeName.set('שגיאה בטעינה');
+    this.lessonTypeMode.set(null);
+  }
+}
+private async loadExistingParticipants() {
+  const instructorId = this.request?.instructorId;
+  const startTime = this.requestedStartTime;
+  const ridingTypeId = this.p?.riding_type_id;
+
+  const dayName = this.startWeekdayName; // כבר חישבת בעברית
+
+  if (!instructorId || !startTime || !dayName) {
+    return;
+  }
+
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+console.log('participants args', {
+  instructorId: this.request?.instructorId,
+  startDate: this.startDate,
+  dayName: this.startWeekdayName,
+  startTime: this.requestedStartTime,
+  ridingTypeId: this.p?.riding_type_id,
+});
+    const { data, error } = await db.rpc(
+      'get_existing_lesson_participants',
+      {
+        p_instructor_id: instructorId,
+        p_day_of_week: dayName,
+        p_start_time: startTime,
+        p_riding_type_id: ridingTypeId ?? null,
+      }
+    );
+console.log('RPC raw data:', data);
+console.log('RPC typeof data:', typeof data);
+console.log('RPC isArray:', Array.isArray(data));
+if (Array.isArray(data)) {
+  console.log('RPC length:', data.length);
+  console.log('RPC first row:', data[0]);
+}
+
+    if (error) throw error;
+    if (!data || !data.length) return;
+
+    this.existingParticipants.set(data);
+
+
+    this.participantsCapacity.set({
+      current: data[0].current_count,
+      max: data[0].max_participants,
+    });
+
+  } catch (e) {
+    console.error('loadExistingParticipants failed', e);
+    this.existingParticipants.set([]);
+    this.participantsCapacity.set(null);
+  }
+}
+calcAge(birthDate: string | null): string {
+  if (!birthDate) return '—';
+  const b = new Date(birthDate);
+  const today = new Date();
+  let age = today.getFullYear() - b.getFullYear();
+  const m = today.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+  return age.toString();
+}
+private async getMaxParticipantsForRidingType(ridingTypeId: string | null | undefined): Promise<number> {
+  // ברירת מחדל: פרטי
+  if (!ridingTypeId) return 1;
+
+  await ensureTenantContextReady();
+  const db = dbTenant();
+
+  const { data, error } = await db
+    .from('riding_types')
+    .select('max_participants, active')
+    .eq('id', ridingTypeId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  // אם לא נמצא / לא פעיל / null -> 1
+  const max = data?.active === false ? null : data?.max_participants;
+  const n = Number(max);
+
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  return Math.floor(n);
 }
 
 }
