@@ -15,6 +15,115 @@
     <!-- =================== FORM SETTINGS =================== -->
     <form *ngIf="settings() as s" class="settings-form" (ngSubmit)="saveSettings()" autocomplete="off">
       <!-- =================== שעות פעילות לפי יום =================== -->
+<section class="settings-section">
+  <div class="subsection-header accordion">
+
+    <button
+      type="button"
+      class="accordion-toggle"
+      (click)="toggleWorkingHoursExpanded()"
+      [attr.aria-expanded]="workingHoursExpanded()"
+    >
+      <span class="chev" [class.open]="workingHoursExpanded()">▾</span>
+      <h2>שעות פעילות לפי יום</h2>
+    </button>
+
+    <div class="inline-actions">
+      <button
+        type="button"
+        class="primary-btn"
+        (click)="saveWorkingHours()"
+        [disabled]="saving() || loading() || !!workingHoursError()"
+      >
+        שמירת שעות לפי יום
+      </button>
+    </div>
+  </div>
+
+  <small class="field-hint">
+    כאן מגדירים בפועל שעות פעילות חווה/משרד לכל יום.
+    "משרד" אופציונלי, אבל אם מגדירים – חייב להיות בתוך טווח "חווה".
+  </small>
+
+  <div class="inline-error" *ngIf="workingHoursError()">
+    {{ workingHoursError() }}
+  </div>
+
+  <div *ngIf="workingHoursExpanded()">
+
+    <div class="list-block" *ngIf="workingHours().length; else noWorkingHours">
+
+      <div class="list-header-row">
+        <span class="col-main">יום</span>
+        <span class="col-secondary">פתוח</span>
+        <span class="col-secondary">חווה</span>
+        <span class="col-secondary">משרד</span>
+      </div>
+
+      <div class="list-row" *ngFor="let r of workingHours(); trackBy: trackByDay">
+
+        <div class="col-main">
+          {{ getHebDayLabel(r.day_of_week) }}
+        </div>
+
+        <div class="col-secondary mini-toggle">
+          <input
+            type="checkbox"
+            [(ngModel)]="r.is_open"
+            name="wh_open_{{r.day_of_week}}"
+            (ngModelChange)="onWorkingHoursChanged()"
+          />
+        </div>
+
+        <div class="col-secondary range">
+          <input
+            type="time"
+            [(ngModel)]="r.farm_start"
+            name="wh_farm_start_{{r.day_of_week}}"
+            [disabled]="!r.is_open"
+            (ngModelChange)="onWorkingHoursChanged()"
+          />
+          <span class="sep">–</span>
+          <input
+            type="time"
+            [(ngModel)]="r.farm_end"
+            name="wh_farm_end_{{r.day_of_week}}"
+            [disabled]="!r.is_open"
+            (ngModelChange)="onWorkingHoursChanged()"
+          />
+        </div>
+
+        <div class="col-secondary range">
+          <input
+            type="time"
+            [(ngModel)]="r.office_start"
+            name="wh_office_start_{{r.day_of_week}}"
+            [disabled]="!r.is_open"
+            (ngModelChange)="onWorkingHoursChanged()"
+          />
+          <span class="sep">–</span>
+          <input
+            type="time"
+            [(ngModel)]="r.office_end"
+            name="wh_office_end_{{r.day_of_week}}"
+            [disabled]="!r.is_open"
+            (ngModelChange)="onWorkingHoursChanged()"
+          />
+        </div>
+
+      </div>
+    </div>
+
+    <ng-template #noWorkingHours>
+      <div class="empty-state">
+        לא נמצאו שעות לפי יום. ודאי שקיימת טבלה farm_working_hours (או הריצי seed).
+        <button type="button" class="text-btn" (click)="loadWorkingHours()">רענון</button>
+      </div>
+    </ng-template>
+
+  </div>
+</section>
+
 <!-- לוח שנה ושעות -->
       <section class="settings-section">
         <h2>לוח שנה ושעות</h2>
