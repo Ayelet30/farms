@@ -32,10 +32,49 @@
       <div class="v">{{ payload().health_fund || '—' }}</div>
     </div>
 
+    <!-- ✅ שיעורים שנותרו + טבלת פירוט -->
     <div class="row">
       <div class="k">שיעורים שנותרו</div>
-      <div class="v">{{ payload().remaining_lessons_count ?? '—' }}</div>
+      <div class="v">
+        <span *ngIf="loadingRemaining()">טוען…</span>
+        <span *ngIf="!loadingRemaining()">{{ remainingLessons().length }}</span>
+      </div>
     </div>
+
+    <div class="remain-error" *ngIf="remainingError()">
+      {{ remainingError() }}
+    </div>
+
+    <div class="remain-empty"
+      *ngIf="!loadingRemaining() && !remainingError() && remainingLessons().length === 0">
+      אין שיעורים עתידיים לילד/ה.
+    </div>
+
+    <div class="remain-box" *ngIf="!loadingRemaining() && remainingLessons().length > 0">
+      <div class="remain-head">
+        <div>מדריך</div>
+        <div>יום</div>
+        <div>שעה</div>
+        <div>סוג</div>
+        <div>תאריך</div>
+      </div>
+
+      <div class="remain-row" *ngFor="let r of remainingLessons()">
+        <div class="cell">{{ r.instructorName }}</div>
+        <div class="cell">{{ r.dayOfWeek }}</div>
+        <div class="cell">{{ r.timeRange }}</div>
+        <div class="cell">{{ r.lessonType }}</div>
+
+        <!-- תאריך מוצג רק אם לא סדרה -->
+        <div class="cell">
+          <ng-container *ngIf="r.occurDate; else dash">
+            {{ r.occurDate | date:'dd/MM/yyyy' }}
+          </ng-container>
+          <ng-template #dash>—</ng-template>
+        </div>
+      </div>
+    </div>
+    <!-- ✅ סוף פירוט שיעורים -->
 
     <div class="row" *ngIf="reason()">
       <div class="k">סיבה / פירוט</div>
@@ -47,22 +86,22 @@
       <div class="v">{{ payload().medical_notes }}</div>
     </div>
 
-<div class="meta">
-  <div><span class="mk">נוצר:</span> {{ request?.createdAt | date:'dd/MM/yyyy HH:mm' }}</div>
-</div>
+    <div class="meta">
+      <div><span class="mk">נוצר:</span> {{ request?.createdAt | date:'dd/MM/yyyy HH:mm' }}</div>
+    </div>
 
-<div class="actions" *ngIf="request?.status === 'PENDING'">
-  <button mat-stroked-button type="button" class="action reject" (click)="rejectSimulate()">
-    דחייה
-  </button>
+    <div class="actions" *ngIf="request?.status === 'PENDING'">
+      <button mat-stroked-button type="button" class="action reject" (click)="rejectSimulate()">
+        דחייה
+      </button>
 
-  <button mat-flat-button type="button" class="action approve" (click)="approveSimulate()">
-    אישור
-  </button>
-</div>
+      <button mat-flat-button type="button" class="action approve" (click)="approveSimulate()">
+        אישור
+      </button>
+    </div>
 
-
-  <div class="note" *ngIf="request?.status !== 'PENDING'">
-    הבקשה כבר לא במצב “ממתין”, לכן אין כפתורי פעולה.
+    <div class="note" *ngIf="request?.status !== 'PENDING'">
+      הבקשה כבר לא במצב “ממתין”, לכן אין כפתורי פעולה.
+    </div>
   </div>
 </div>
