@@ -1,23 +1,27 @@
-<div class="req">
+<div class="req" *ngIf="req() as r">
   <div class="req-head">
     <div class="req-title">יום חופש מדריך</div>
 
     <div class="meta">
-      <div><b>מדריך:</b> {{ request.instructorName || '—' }}</div>
-      <div><b>טווח:</b> {{ request.fromDate | date:'dd/MM/yyyy' }} – {{ (request.toDate || request.fromDate) | date:'dd/MM/yyyy' }}</div>
-      <div><b>מבקש/ת:</b> {{ request.requestedByName || '—' }}</div>
+      <div><b>מדריך:</b> {{ r.instructorName || '—' }}</div>
+      <div><b>טווח:</b> {{ r.fromDate | date:'dd/MM/yyyy' }} – {{ (r.toDate || r.fromDate) | date:'dd/MM/yyyy' }}</div>
+      <div><b>מבקש/ת:</b> {{ r.requestedByName || '—' }}</div>
     </div>
   </div>
 
   <div class="note-box">
     <label>הערה להחלטה (אופציונלי)</label>
-    <textarea [(ngModel)]="decisionNote" rows="2" placeholder="למדריך / לתיעוד..."></textarea>
+    <textarea
+      [ngModel]="decisionNote()"
+      (ngModelChange)="decisionNote.set($event)"
+      rows="2"
+      placeholder="למדריך / לתיעוד..."></textarea>
   </div>
 
   <div class="impact">
     <div class="impact-title">
-      שיעורים שיתבטלו באישור ({{ impactRows().length }})
-      <button class="mini" (click)="loadImpact()" [disabled]="loadingImpact()">רענון רשימה</button>
+      שיעורים שיתבטלו באישור ({{ impactCount() }})
+      <button class="mini" type="button" (click)="loadImpact()" [disabled]="loadingImpact()">רענון רשימה</button>
     </div>
 
     <div *ngIf="loadingImpact()">טוען...</div>
@@ -45,7 +49,7 @@
   </div>
 
   <div class="actions">
-    <button class="btn reject" (click)="reject()">דחייה</button>
-    <button class="btn approve" (click)="approve()" [disabled]="loadingImpact()">אישור</button>
+    <button class="btn reject" type="button" (click)="reject()" [disabled]="loading()">דחייה</button>
+    <button class="btn approve" type="button" (click)="approve()" [disabled]="loading() || loadingImpact()">אישור</button>
   </div>
 </div>

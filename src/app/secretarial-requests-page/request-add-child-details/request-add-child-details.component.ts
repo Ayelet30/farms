@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, inject, signal } from '@angular/core';
+import { Component, Input, OnChanges, OnInit, SimpleChanges, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant, getSupabaseClient } from '../../services/legacy-compat';
@@ -53,7 +53,7 @@ type ToastKind = 'success' | 'error' | 'info';
   templateUrl: './request-add-child-details.component.html',
   styleUrls: ['./request-add-child-details.component.scss'],
 })
-export class RequestAddChildDetailsComponent implements OnInit {
+export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
   @Input({ required: true }) request!: any; // UiRequest
   @Input({ required: true }) decidedByUid!: string;
 
@@ -79,6 +79,17 @@ export class RequestAddChildDetailsComponent implements OnInit {
     await this.loadDetails();
   }
 
+  async ngOnChanges(changes: SimpleChanges) {
+    if (changes['request'] && !changes['request'].firstChange) {
+      const prev = changes['request'].previousValue?.id;
+      const curr = changes['request'].currentValue?.id;
+
+      if (prev !== curr) {
+        await this.loadDetails();
+      }
+    }
+  }
+
   async loadDetails() {
     this.loading.set(true);
     try {
@@ -89,6 +100,7 @@ export class RequestAddChildDetailsComponent implements OnInit {
 
       const row = (data?.[0] ?? null) as AddChildDetails | null;
       this.details.set(row);
+      console.log('details:', this.details);
     } catch (e: any) {
       console.error(e);
       const msg = e?.message || 'שגיאה בטעינת פרטי הבקשה';

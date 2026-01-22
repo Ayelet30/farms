@@ -6,7 +6,7 @@ import {
   Output,
   computed,
   signal,
-  OnInit,
+  effect,
 } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -26,12 +26,6 @@ type OccRow = {
   instructor_id: string;
 };
 
-type LessonMeta = {
-  id: string;
-  series_id: string | null;
-  appointment_kind: string | null;
-};
-
 type InstructorMeta = {
   id_number: string;
   first_name: string | null;
@@ -43,7 +37,6 @@ type RemainingLessonVM = {
   dayOfWeek: string;
   timeRange: string;
   lessonType: string;
-  // תאריך יוצג רק אם זה לא סדרה (אחרת יהיה null)
   occurDate: string | null;
   status: string;
 };
@@ -55,57 +48,79 @@ type RemainingLessonVM = {
   templateUrl: './request-remove-child-details.component.html',
   styleUrls: ['./request-remove-child-details.component.css'],
 })
-export class RequestRemoveChildDetailsComponent implements OnInit {
-  @Input({ required: true }) request!: UiRequest;
+export class RequestRemoveChildDetailsComponent {
+
+  // ✅ signal פנימי שמחזיק את הבקשה
+  private _req = signal<UiRequest | null>(null);
+
+  // ✅ זה ה-Input היחיד (אין שדה בשם request בכלל)
+  @Input({ required: true })
+  set request(value: UiRequest) {
+    this._req.set(value);
+  }
+
+  // ✅ זה מה שמשתמשים בו בקוד ובתבנית: req()
+  readonly req = this._req;
+
   @Input() decidedByUid?: string;
 
-  // תמיכה גם ב-callbacks
+  // callbacks אם צריך
   @Input() onApproved?: (e: any) => void;
   @Input() onRejected?: (e: any) => void;
   @Input() onError?: (e: any) => void;
 
-  // תמיכה גם ב-EventEmitters
+  // outputs
   @Output() approved = new EventEmitter<{ requestId: string; newStatus: 'APPROVED' }>();
   @Output() rejected = new EventEmitter<{ requestId: string; newStatus: 'REJECTED' }>();
   @Output() error = new EventEmitter<string>();
 
-  // חילוץ payload בטוח
-  payload = computed(() => (this.request?.payload ?? {}) as any);
+  // ✅ payload מטופס כ-any כדי לא לקבל "{}"
+  payload = computed<any>(() => this.req()?.payload ?? {});
 
   childFullName = computed(() => {
+    const r = this.req();
     const p = this.payload();
+
     const first = (p.first_name ?? p.firstName ?? '').toString().trim();
-    const last = (p.last_name ?? p.lastName ?? '').toString().trim();
+    const last  = (p.last_name  ?? p.lastName  ?? '').toString().trim();
     const full = `${first} ${last}`.trim();
-    return full || this.request?.childName || '—';
+
+    return full || r?.childName || '—';
   });
 
   reason = computed(() => {
+    const r = this.req();
     const p = this.payload();
+
     return (
       p.reason ??
       p.delete_reason ??
       p.summary ??
-      this.request?.summary ??
+      r?.summary ??
       ''
-    )
-      .toString()
-      .trim();
+    ).toString().trim();
   });
 
-  // ===== שיעורים שנותרו (תצוגה) =====
+  // ===== שיעורים שנותרו =====
   loadingRemaining = signal(false);
   remainingError = signal<string | null>(null);
   remainingLessons = signal<RemainingLessonVM[]>([]);
 
-  ngOnInit(): void {
-    // טוען אוטומטית כשפותחים את פרטי הבקשה
-    void this.loadRemainingLessons();
+  // כדי למנוע “תשובה ישנה” שנכנסת אחרי החלפה מהירה של בקשה
+  private runToken = 0;
+
+  constructor() {
+    effect(() => {
+      const id = this.req()?.id;
+      if (!id) return;
+      void this.loadRemainingLessons();
+    });
   }
 
   private getChildId(): string | null {
-    // אצלך ב-mapRowToUi יש childId
-    return this.request?.childId ?? this.payload()?.child_id ?? null;
+    const r = this.req();
+    const p = this.payload();
+    return r?.childId ?? p.child_id ?? null;
   }
 
   private todayIso(): string {
@@ -113,18 +128,16 @@ export class RequestRemoveChildDetailsComponent implements OnInit {
   }
 
   private fmtTime(t: string | null | undefined): string {
-    if (!t) return '—';
-    return t.slice(0, 5); // HH:MM
+    return t ? t.slice(0, 5) : '—';
   }
 
-  private fullName(first: string | null, last: string | null): string {
-    const f = (first ?? '').trim();
-    const l = (last ?? '').trim();
-    const full = `${f} ${l}`.trim();
-    return full || '—';
+  private fullName(first: string | null | undefined, last: string | null | undefined): string {
+    return `${(first ?? '').trim()} ${(last ?? '').trim()}`.trim() || '—';
   }
 
   async loadRemainingLessons() {
+    const token = ++this.runToken;
+
     const childId = this.getChildId();
     if (!childId) {
       this.remainingError.set('חסר childId בבקשה ולכן אי אפשר להביא שיעורים.');
@@ -139,7 +152,6 @@ export class RequestRemoveChildDetailsComponent implements OnInit {
       await ensureTenantContextReady();
       const db = dbTenant();
 
-      // 1) שליפה מה-view lessons_occurrences
       const { data: occData, error: occErr } = await db
         .from('lessons_occurrences')
         .select('lesson_id, occur_date, day_of_week, start_time, end_time, lesson_type, status, instructor_id')
@@ -150,6 +162,7 @@ export class RequestRemoveChildDetailsComponent implements OnInit {
         .order('start_time', { ascending: true });
 
       if (occErr) throw occErr;
+      if (token !== this.runToken) return;
 
       const occ = (occData ?? []) as OccRow[];
       if (!occ.length) {
@@ -157,26 +170,6 @@ export class RequestRemoveChildDetailsComponent implements OnInit {
         return;
       }
 
-      // 2) מביאים meta על השיעור מ-lessons (כדי לדעת אם סדרה)
-      const lessonIds = Array.from(new Set(occ.map(o => o.lesson_id).filter(Boolean)));
-
-      const { data: lessonsData, error: lessonsErr } = await db
-        .from('lessons')
-        .select('id, series_id, appointment_kind')
-        .in('id', lessonIds);
-
-      if (lessonsErr) throw lessonsErr;
-
-      const lessonsMap = new Map<string, LessonMeta>();
-      (lessonsData ?? []).forEach((l: any) => {
-        lessonsMap.set(l.id, {
-          id: l.id,
-          series_id: l.series_id ?? null,
-          appointment_kind: l.appointment_kind ?? null,
-        });
-      });
-
-      // 3) מביאים שמות מדריכים (לפי instructor_id / id_number)
       const instructorIds = Array.from(new Set(occ.map(o => o.instructor_id).filter(Boolean)));
 
       const { data: instData, error: instErr } = await db
@@ -185,6 +178,7 @@ export class RequestRemoveChildDetailsComponent implements OnInit {
         .in('id_number', instructorIds);
 
       if (instErr) throw instErr;
+      if (token !== this.runToken) return;
 
       const instMap = new Map<string, InstructorMeta>();
       (instData ?? []).forEach((i: any) => {
@@ -195,61 +189,51 @@ export class RequestRemoveChildDetailsComponent implements OnInit {
         });
       });
 
-      // 4) בניית ViewModel למסך
       const vm: RemainingLessonVM[] = occ.map((o) => {
-        const meta = lessonsMap.get(o.lesson_id);
-        const isSeries =
-          !!meta?.series_id || meta?.appointment_kind === 'therapy_series';
-
         const ins = instMap.get(o.instructor_id);
-
         return {
-          instructorName: this.fullName(ins?.first_name ?? null, ins?.last_name ?? null),
+          instructorName: this.fullName(ins?.first_name, ins?.last_name),
           dayOfWeek: o.day_of_week || '—',
           timeRange: `${this.fmtTime(o.start_time)}–${this.fmtTime(o.end_time)}`,
           lessonType: o.lesson_type ?? '—',
-          occurDate: isSeries ? null : o.occur_date,
+          occurDate: o.occur_date,
           status: o.status,
         };
       });
 
+      if (token !== this.runToken) return;
       this.remainingLessons.set(vm);
+
     } catch (err: any) {
+      if (token !== this.runToken) return;
       console.error('loadRemainingLessons failed', err);
       this.remainingError.set(err?.message ?? 'שגיאה בשליפת שיעורים שנותרו');
       this.remainingLessons.set([]);
     } finally {
+      if (token !== this.runToken) return;
       this.loadingRemaining.set(false);
     }
   }
 
-  // ===== פעולות (נשאר סימולציה כמו שביקשת) =====
-  async approveSimulate() {
-    try {
-      const e = { requestId: this.request.id, newStatus: 'APPROVED' as const };
-      this.approved.emit(e);
-      this.onApproved?.(e);
-    } catch (err: any) {
-      const msg = err?.message ?? 'שגיאה באישור (סימולציה)';
-      this.error.emit(msg);
-      this.onError?.({ requestId: this.request?.id, message: msg, raw: err });
-    }
+  // ===== פעולות =====
+  approveSimulate() {
+    const r = this.req();
+    if (!r) return;
+
+    const e = { requestId: r.id, newStatus: 'APPROVED' as const };
+    this.approved.emit(e);
+    this.onApproved?.(e);
   }
 
   rejectSimulate() {
-    try {
-      const ok = window.confirm(
-        'לא מתבצעת מחיקה בדאטאבייס.\nרק סימון UI כ"נדחה".\nלהמשיך?'
-      );
-      if (!ok) return;
+    const r = this.req();
+    if (!r) return;
 
-      const e = { requestId: this.request.id, newStatus: 'REJECTED' as const };
-      this.rejected.emit(e);
-      this.onRejected?.(e);
-    } catch (err: any) {
-      const msg = err?.message ?? 'שגיאה בדחייה (סימולציה)';
-      this.error.emit(msg);
-      this.onError?.({ requestId: this.request?.id, message: msg, raw: err });
-    }
+    const ok = window.confirm('לא מתבצעת מחיקה בדאטאבייס.\nרק סימון UI כ"נדחה".\nלהמשיך?');
+    if (!ok) return;
+
+    const e = { requestId: r.id, newStatus: 'REJECTED' as const };
+    this.rejected.emit(e);
+    this.onRejected?.(e);
   }
 }
