@@ -7,13 +7,18 @@ import { ensureTenantContextReady, dbTenant } from '../../services/legacy-compat
 
 import { SeriesRequestsService } from '../../services/series-requests.service';
 import { getCurrentUserData } from '../../services/supabaseClient.service';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { firstValueFrom } from 'rxjs';
+import { ConfirmDialogComponent } from './confirm-dialog.component';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+
 
 // חשוב: זה הטיפוס שאת מעבירה מהדף הראשי
 import type { UiRequest } from '../../Types/detailes.model';
 @Component({
   selector: 'app-secretarial-series-requests',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule , MatDialogModule , MatSnackBarModule],
   templateUrl: './request-new-series-details.component.html',
   styleUrls: ['./request-new-series-details.component.scss'],
 })
@@ -41,6 +46,15 @@ async ngOnInit() {
 
   loading = signal(false);
 paymentPlanName = signal<string>('טוען...');
+private dialog = inject(MatDialog);
+private snack = inject(MatSnackBar);
+successMsg = signal<string | null>(null);
+errorMsg = signal<string | null>(null);
+
+private clearMessages() {
+  this.successMsg.set(null);
+  this.errorMsg.set(null);
+}
 
   // הערה אחת לבקשה הנוכחית
   note = '';
@@ -130,6 +144,8 @@ private async loadPaymentPlanName() {
 }
 
 async approveSelected() {
+  this.clearMessages();
+
   if (!this.request) return;
 
   try {
@@ -210,45 +226,52 @@ if (!upd) {
     // אם את רוצה שהבקשה תיעלם – חייבים update לטבלה או RPC נוסף.
     // כרגע רק נעדכן UI
     const payload = { requestId: this.request.id, newStatus: 'APPROVED' as const };
+      this.snack.open('הבקשה אושרה בהצלחה', 'סגור', {
+  duration: 2500,
+  panelClass: ['snack-success'],
+  direction: 'rtl',
+});
     this.approved.emit(payload);
     this.onApproved?.(payload);
 
   } catch (e: any) {
     const msg = e?.message ?? 'שגיאה באישור';
+  
+
     this.error.emit(msg);
     this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
-    alert(msg);
+this.errorMsg.set(msg);
   } finally {
     this.loading.set(false);
   }
 }
 
 
-async rejectSelected() {
-  if (!this.request?.id) return;
 
-  const note = this.note.trim();
-  if (!note) {
-    alert('כדי לדחות חייבים לכתוב סיבת דחייה קצרה');
-    return;
-  }
+async rejectSelected() {
+  this.clearMessages();
+
+  if (!this.request?.id) return;
 
   try {
     this.loading.set(true);
 
     const uid = await this.resolveDeciderUid();
     if (!uid) throw new Error('לא נמצא משתמש מאשר (uid)');
+const ok = await this.confirmReject();
+if (!ok) return; // חוזר למצב הקודם, לא עושה כלום
 
     await ensureTenantContextReady();
     const db = dbTenant();
 
-    // ✅ עדכון סטטוס רק אם עדיין PENDING
+    const note = this.note.trim(); // יכול להיות גם ''
+
     const { data, error } = await db
       .from('secretarial_requests')
       .update({
         status: 'REJECTED',
         decided_by_uid: uid,
-        decision_note: note,
+        decision_note: note || null,   // ✅ אם ריק נשמור null
         decided_at: new Date().toISOString(),
       })
       .eq('id', this.request.id)
@@ -264,14 +287,23 @@ async rejectSelected() {
     }
 
     const payload = { requestId: this.request.id, newStatus: 'REJECTED' as const };
+     this.snack.open('הבקשה נדחתה בהצלחה', 'סגור', {
+  duration: 2500,
+  panelClass: ['snack-reject'],
+  direction: 'rtl',
+  horizontalPosition: 'center',
+  verticalPosition: 'top',
+});
+
     this.rejected.emit(payload);
     this.onRejected?.(payload);
 
   } catch (e: any) {
     const msg = e?.message ?? 'שגיאה בדחייה';
+ 
     this.error.emit(msg);
     this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
-    alert(msg);
+this.errorMsg.set(msg);
   } finally {
     this.loading.set(false);
   }
@@ -289,6 +321,18 @@ private async getInstructorUidByIdNumber(idNumber: string): Promise<string | nul
 
   if (error) throw error;
   return data?.uid ?? null;
+}
+private async confirmReject(): Promise<boolean> {
+  const ref = this.dialog.open(ConfirmDialogComponent, {
+    panelClass: 'ui-confirm-dialog',
+    backdropClass: 'ui-confirm-backdrop',
+    data: {
+      title: 'דחיית בקשה',
+      message: 'האם את/ה בטוח/ה שברצונך לדחות את הבקשה?',
+    },
+  });
+
+  return !!(await firstValueFrom(ref.afterClosed()));
 }
 
 
