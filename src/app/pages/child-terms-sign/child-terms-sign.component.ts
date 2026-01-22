@@ -142,8 +142,10 @@ const now = new Date();
 const signedLine =
   `נחתם דיגיטלית בתאריך ${now.toLocaleDateString('he-IL')} ${now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })} • ` +
   `שם החותם: ${this.signedName.trim()} • ילד: ${this.childName}`;
+  console.log('Signed line to add to PDF:', signedLine);
 
-const signedBytes = await this.buildSignedPdfFromStorage(doc.storage_bucket, doc.storage_path, signedLine);
+const signedBytes = await this.buildSignedPdf(originalUrl, this.signedName, this.childName);
+console.log('Signed PDF built, size in bytes:', signedBytes.length);
 
 // קבעי bucket נפרד למסמכים חתומים
 const signedBucket = 'signed-docs';
@@ -190,26 +192,70 @@ if (attachErr) throw attachErr;
 }
 
 
-  private async buildSignedPdfFromStorage(bucket: string, path: string, signedLine: string): Promise<Uint8Array> {
-  const originalBytes = await this.fetchPdfBytesViaStorage(bucket, path);
+private async buildSignedPdf(originalPdfUrl: string, signedName: string, childName: string): Promise<Uint8Array> {
+  const pdfBytes = await fetch(originalPdfUrl).then(r => r.arrayBuffer());
+  const pdfDoc = await PDFDocument.load(pdfBytes);
 
-  const pdfDoc = await PDFDocument.load(originalBytes);
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  pdfDoc.registerFontkit((fontkitModule as any).default ?? (fontkitModule as any));
 
-  const page0 = pdfDoc.getPages()[0];
-  const { width } = page0.getSize();
+  // פונט עברי
+  const fontBytes = await fetch('/assets/fonts/Assistant.ttf').then(r => r.arrayBuffer());
+  const hebFont = await pdfDoc.embedFont(fontBytes, { subset: true });
 
-  page0.drawText(signedLine, {
-    x: 24,
-    y: 18,
-    size: 10,
-    font,
-    color: rgb(0.35, 0.35, 0.35),
-    maxWidth: width - 48,
-  });
+  const pages = pdfDoc.getPages();
+
+  // כיווניות
+  const RLM = '\u200F';
+  const LRM = '\u200E';
+
+  // תאריך/שעה בפורמט יציב שלא מתהפך
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  // LRM סביב החלק הלועזי כדי שלא יתהפך
+  const dateTime = `${LRM}${dateStr} ${timeStr}${LRM}`;
+
+  // שתי שורות קצרות (יותר יפה, ופחות בעיות רוחב)
+  const line1 = `${RLM}נחתם דיגיטלית בתאריך: ${dateTime}`;
+  const line2 = `${RLM}שם החותם: ${signedName.trim()} • ילד: ${childName}`;
+
+  const fontSize = 9;
+  const marginX = 24;
+  const lineGap = 12; // מרווח בין שורות
+  const bottomPadding = 18; // כמה מעל התחתית
+
+  for (const page of pages) {
+    const { width } = page.getSize();
+
+    // שתי שורות בתחתית כל עמוד
+    const y2 = bottomPadding;
+    const y1 = y2 + lineGap;
+
+    page.drawText(line1, {
+      x: marginX,
+      y: y1,
+      size: fontSize,
+      font: hebFont,
+      color: rgb(0.35, 0.35, 0.35),
+      maxWidth: width - marginX * 2,
+    });
+
+    page.drawText(line2, {
+      x: marginX,
+      y: y2,
+      size: fontSize,
+      font: hebFont,
+      color: rgb(0.35, 0.35, 0.35),
+      maxWidth: width - marginX * 2,
+    });
+  }
 
   return await pdfDoc.save();
 }
+
 
 
 private async uploadSignedPdf(bytes: Uint8Array, bucket: string, path: string): Promise<void> {

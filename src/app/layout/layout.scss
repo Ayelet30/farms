@@ -3,7 +3,6 @@
 /* קונטיינר כללי */
 .body-layout {
   display: flex;
-  min-height: 100vh;
   direction: rtl;
   background-color: var(--panel-bg);
   padding-top: var(--header-h);   /* דוחף את כל ה-layout מתחת להדר */
@@ -30,6 +29,52 @@
   z-index: 900;              /* כדי שיהיה מעל התוכן */
   background-color: inherit
 }
+
+/* ===== Slider scrollbar – ירוק זית ===== */
+.slider{
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  /* Firefox – מוסתר כברירת מחדל */
+  scrollbar-width: none;
+  scrollbar-gutter: stable;
+}
+
+/* Chrome / Edge / Safari – מוסתר כברירת מחדל */
+.slider::-webkit-scrollbar{
+  width: 0;
+  height: 0;
+}
+
+/* הופעה בהובר / פוקוס */
+.slider:hover,
+.slider:focus-within{
+  scrollbar-width: thin; /* Firefox */
+}
+
+/* WebKit בהובר */
+.slider:hover::-webkit-scrollbar,
+.slider:focus-within::-webkit-scrollbar{
+  width: 8px;
+}
+
+.slider:hover::-webkit-scrollbar-track,
+.slider:focus-within::-webkit-scrollbar-track{
+  background: transparent;
+}
+
+.slider:hover::-webkit-scrollbar-thumb,
+.slider:focus-within::-webkit-scrollbar-thumb{
+  background: rgba(138, 147, 98, 0.45); /* 🫒 ירוק זית */
+  border-radius: 999px;
+}
+
+.slider:hover::-webkit-scrollbar-thumb:hover,
+.slider:focus-within::-webkit-scrollbar-thumb:hover{
+  background: rgba(138, 147, 98, 0.75); /* זית כהה יותר */
+}
+
+
 
 
 /* ===== תוכן ראשי ===== */
@@ -104,7 +149,6 @@
 .body-layout{
   --menu-w: var(--menu-open);
   display: flex;
-  min-height: 100vh;
   direction: rtl;
   background-color: var(--panel-bg);
   padding-top: var(--header-h);

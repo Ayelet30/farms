@@ -7,13 +7,18 @@ import { ensureTenantContextReady, dbTenant } from '../../services/legacy-compat
 
 import { SeriesRequestsService } from '../../services/series-requests.service';
 import { getCurrentUserData } from '../../services/supabaseClient.service';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { firstValueFrom } from 'rxjs';
+import { ConfirmDialogComponent } from './confirm-dialog.component';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+
 
 // חשוב: זה הטיפוס שאת מעבירה מהדף הראשי
 import type { UiRequest } from '../../Types/detailes.model';
 @Component({
   selector: 'app-secretarial-series-requests',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule , MatDialogModule , MatSnackBarModule],
   templateUrl: './request-new-series-details.component.html',
   styleUrls: ['./request-new-series-details.component.scss'],
 })
@@ -21,10 +26,25 @@ export class SecretarialSeriesRequestsComponent {
   private api = inject(SeriesRequestsService);
 async ngOnInit() {
   await this.loadPaymentPlanName();
+  await this.loadInstructorName();
+
 }
 
   // ✅ הבקשה שנבחרה מהדף הראשי
-  @Input({ required: true }) request!: UiRequest;
+private _request!: UiRequest;
+
+@Input({ required: true })
+set request(v: UiRequest) {
+  this._request = v;
+
+  // ✅ איפוס טקסט והודעות כשעוברים לבקשה אחרת
+  this.note = '';
+  this.clearMessages();
+}
+
+get request(): UiRequest {
+  return this._request;
+}
 
   // ✅ מי מאשר (מגיע מהדף הראשי)
   @Input() decidedByUid?: string | null;
@@ -41,6 +61,16 @@ async ngOnInit() {
 
   loading = signal(false);
 paymentPlanName = signal<string>('טוען...');
+instructorName = signal<string>('טוען...');
+private dialog = inject(MatDialog);
+private snack = inject(MatSnackBar);
+successMsg = signal<string | null>(null);
+errorMsg = signal<string | null>(null);
+
+private clearMessages() {
+  this.successMsg.set(null);
+  this.errorMsg.set(null);
+}
 
   // הערה אחת לבקשה הנוכחית
   note = '';
@@ -130,6 +160,8 @@ private async loadPaymentPlanName() {
 }
 
 async approveSelected() {
+  this.clearMessages();
+
   if (!this.request) return;
 
   try {
@@ -137,6 +169,8 @@ async approveSelected() {
 
     const uid = await this.resolveDeciderUid();
     if (!uid) throw new Error('לא נמצא משתמש מאשר (uid)');
+const ok = await this.confirmApprove();
+if (!ok) return;
 
     await ensureTenantContextReady();
     const db = dbTenant();
@@ -147,6 +181,12 @@ if (!instructorIdNumber) throw new Error('חסר instructor_id_number בבקשה
 
 const instructorUid = await this.getInstructorUidByIdNumber(instructorIdNumber);
 if (!instructorUid) throw new Error('למדריך אין uid במערכת');
+const isOpenEnded = !!p.is_open_ended;
+
+const repeatWeeks =
+  isOpenEnded
+    ? null
+    : Number(p.repeat_weeks);
     // ⚠️ חשוב: fromDate/toDate מגיעים מהטבלה secretarial_requests אצלך (לא מה-payload)
     const params = {
      p_child_id: this.request.childId ?? null,
@@ -155,7 +195,7 @@ if (!instructorUid) throw new Error('למדריך אין uid במערכת');
       p_series_start_date: this.request.fromDate ?? null,
       p_start_time: p.requested_start_time ?? null,
       p_is_open_ended: !!p.is_open_ended,
-      p_repeat_weeks: p.repeat_weeks ?? null,                   
+      p_repeat_weeks: repeatWeeks,                   
       p_series_search_horizon_days: p.series_search_horizon_days ?? 90,
       p_max_participants: 1,
       p_payment_source: p.payment_source ?? null,              
@@ -169,6 +209,7 @@ if (!instructorUid) throw new Error('למדריך אין uid במערכת');
       p_riding_type_id: p.riding_type_id ?? null,
       p_origin: "secretary",
     };
+    
 
     const { data, error } = await db.rpc('create_series_with_validation', params);
     if (error) throw error;
@@ -210,26 +251,35 @@ if (!upd) {
     // אם את רוצה שהבקשה תיעלם – חייבים update לטבלה או RPC נוסף.
     // כרגע רק נעדכן UI
     const payload = { requestId: this.request.id, newStatus: 'APPROVED' as const };
+      this.snack.open('הבקשה אושרה בהצלחה', 'סגור', {
+  duration: 2500,
+  panelClass: ['snack-success'],
+  direction: 'rtl',
+});
     this.approved.emit(payload);
     this.onApproved?.(payload);
 
   } catch (e: any) {
     const msg = e?.message ?? 'שגיאה באישור';
+  
+
     this.error.emit(msg);
     this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
-    alert(msg);
+this.errorMsg.set(msg);
   } finally {
     this.loading.set(false);
   }
 }
 
 
-async rejectSelected() {
-  if (!this.request?.id) return;
 
-  const note = this.note.trim();
+async rejectSelected() {
+  this.clearMessages();
+
+  if (!this.request?.id) return;
+   const note = this.note.trim();
   if (!note) {
-    alert('כדי לדחות חייבים לכתוב סיבת דחייה קצרה');
+    this.errorMsg.set('חובה למלא סיבה לפני דחיית בקשה');
     return;
   }
 
@@ -238,17 +288,20 @@ async rejectSelected() {
 
     const uid = await this.resolveDeciderUid();
     if (!uid) throw new Error('לא נמצא משתמש מאשר (uid)');
+const ok = await this.confirmReject();
+if (!ok) return; // חוזר למצב הקודם, לא עושה כלום
 
     await ensureTenantContextReady();
     const db = dbTenant();
 
-    // ✅ עדכון סטטוס רק אם עדיין PENDING
+    const note = this.note.trim(); // יכול להיות גם ''
+
     const { data, error } = await db
       .from('secretarial_requests')
       .update({
         status: 'REJECTED',
         decided_by_uid: uid,
-        decision_note: note,
+        decision_note: note , 
         decided_at: new Date().toISOString(),
       })
       .eq('id', this.request.id)
@@ -264,14 +317,23 @@ async rejectSelected() {
     }
 
     const payload = { requestId: this.request.id, newStatus: 'REJECTED' as const };
+     this.snack.open('הבקשה נדחתה בהצלחה', 'סגור', {
+  duration: 2500,
+  panelClass: ['snack-reject'],
+  direction: 'rtl',
+  horizontalPosition: 'center',
+  verticalPosition: 'top',
+});
+
     this.rejected.emit(payload);
     this.onRejected?.(payload);
 
   } catch (e: any) {
     const msg = e?.message ?? 'שגיאה בדחייה';
+ 
     this.error.emit(msg);
     this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
-    alert(msg);
+this.errorMsg.set(msg);
   } finally {
     this.loading.set(false);
   }
@@ -289,6 +351,58 @@ private async getInstructorUidByIdNumber(idNumber: string): Promise<string | nul
 
   if (error) throw error;
   return data?.uid ?? null;
+}
+private async confirmReject(): Promise<boolean> {
+  const ref = this.dialog.open(ConfirmDialogComponent, {
+    panelClass: 'ui-confirm-dialog',
+    backdropClass: 'ui-confirm-backdrop',
+    data: {
+      title: 'דחיית בקשה',
+      message: 'האם את/ה בטוח/ה שברצונך לדחות את הבקשה?',
+    },
+  });
+
+  return !!(await firstValueFrom(ref.afterClosed()));
+}
+private async confirmApprove(): Promise<boolean> {
+  const ref = this.dialog.open(ConfirmDialogComponent, {
+    panelClass: 'ui-confirm-dialog',
+    backdropClass: 'ui-confirm-backdrop',
+    data: {
+      title: 'אישור בקשה',
+      message: 'האם את/ה בטוח/ה שברצונך לאשר את הבקשה?',
+    },
+  });
+
+  return !!(await firstValueFrom(ref.afterClosed()));
+}
+private async loadInstructorName() {
+  const idNumber = this.request?.instructorId; // אצלך זה id_number
+  if (!idNumber) {
+    this.instructorName.set('—');
+    return;
+  }
+
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const { data, error } = await db
+      .from('instructors')
+      .select('first_name,last_name,id_number')
+      .eq('id_number', idNumber)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    const full =
+      `${data?.first_name ?? ''} ${data?.last_name ?? ''}`.trim();
+
+    this.instructorName.set(full || data?.id_number || 'לא נמצא');
+  } catch (e) {
+    console.error('loadInstructorName failed', e);
+    this.instructorName.set('שגיאה בטעינה');
+  }
 }
 
 

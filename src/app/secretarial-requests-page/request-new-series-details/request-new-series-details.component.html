@@ -15,6 +15,11 @@
       <div class="label">תאריך סיום</div>
       <div class="val">{{ endDate }}</div>
     </div>
+<!-- מדריך -->
+<div class="row">
+  <div class="label">מדריך</div>
+  <div class="val">{{ instructorName() }}</div>
+</div>
 
     <!-- שעת התחלה מה-payload -->
     <div class="row">
@@ -26,6 +31,11 @@
       <div class="label">סוג סדרה</div>
       <div class="val">{{ isOpenEnded ? 'ללא הגבלה' : 'מוגבלת' }}</div>
     </div>
+<!-- מספר שיעורים (רק אם מוגבלת) -->
+<div class="row" *ngIf="!isOpenEnded">
+  <div class="label">מספר שיעורים</div>
+  <div class="val">{{ repeatWeeks }}</div>
+</div>
 
     <!-- payment_plan -->
     <div class="row">
@@ -34,10 +44,12 @@
     </div>
 
     <!-- horizon -->
-    <div class="row">
-      <div class="label">חלון בדיקה (ימים)</div>
-      <div class="val">{{ seriesSearchHorizonDays }}</div>
-    </div>
+    <!-- horizon (רק ללא הגבלה) -->
+<div class="row" *ngIf="isOpenEnded">
+  <div class="label">חלון בדיקה (ימים)</div>
+  <div class="val">{{ seriesSearchHorizonDays }}</div>
+</div>
+
 
     <!-- skipped farm dates -->
     <div class="row">
@@ -77,15 +89,23 @@
       [(ngModel)]="note"
       placeholder="הערה למזכירה / סיבה לדחייה (חובה בדחייה)">
     </textarea>
+    <div class="hint error" *ngIf="!note.trim() && !loading()">
+  חובה למלא סיבה לפני דחיית בקשה
+</div>
+
 
     <div class="actions">
       <button class="btn approve" (click)="approveSelected()" [disabled]="loading()">
         אישור
       </button>
 
-      <button class="btn reject" (click)="rejectSelected()" [disabled]="loading()">
-        דחייה
-      </button>
+    <button
+  class="btn reject"
+  (click)="rejectSelected()"
+  [disabled]="loading() || !note.trim()">
+  דחייה
+</button>
+
     </div>
 
   </article>

@@ -261,4 +261,30 @@ option {
   font-weight: 800 !important;
   min-width: 96px;
 }
+/* הצלחה – ירוק עדין */
+.snack-success {
+  background: #6f7e3f !important; /* הירוק של האתר */
+  color: #fff !important;
+  font-weight: 700;
+  border-radius: 14px;
+}
 
+/* דחייה – אדום עדין */
+.snack-reject {
+  background: #c62828 !important;
+  color: #fff !important;
+  font-weight: 700;
+  border-radius: 14px;
+}
+
+/* כפתור "סגור" */
+.mat-mdc-snack-bar-action {
+  color: #fff !important;
+  font-weight: 800;
+}
+
+
+.cdk-overlay-container,
+.cdk-overlay-pane {
+  z-index: 99999 !important;
+}

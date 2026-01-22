@@ -11,11 +11,8 @@ import { fetchMyChildren } from '../../services/supabaseClient.service';
 import { ViewChild, ElementRef } from '@angular/core';
 import { AddChildWizardComponent } from '../add-child-wizard/add-child-wizard.component';
 import { ChildTermsSignComponent } from '../child-terms-sign/child-terms-sign.component';
-
-
-//import { SupabaseClient } from '@supabase/supabase-js';
-
-
+import { computed, signal } from '@angular/core';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 type OccurrenceRow = {
   child_id: string;
@@ -82,6 +79,12 @@ showTermsSign = false;
 termsSignChildId: string | null = null;
 termsSignChildName: string | null = null;
 
+signedOpen = signal(false);
+loadingSigned = signal(false);
+
+signedDocUrlRaw = signal<string | null>(null);
+signedDocUrlSafe = signal<SafeResourceUrl | null>(null);
+
 
   // ---- History modal state ----
 showHistory = false;
@@ -112,7 +115,15 @@ statusClass(st: string): string {
   private infoTimer: any;
 private readonly CHILD_SELECT =
   'child_uuid, gov_id, first_name, last_name, birth_date, gender, health_fund, instructor_id, parent_uid, status, medical_notes';
-  constructor(private router: Router) {}
+ 
+  /* =========================
+     Constructor
+  ========================= */
+ constructor(
+  private router: Router,
+  private sanitizer: DomSanitizer
+) {}
+
 
   /* =========================
      Lifecycle
@@ -895,43 +906,60 @@ closeTermsSign() {
 }
 
 async openSignedTerms(child: any) {
-  const childId = this.childId(child);
-  if (!childId) return;
+  this.error = undefined;
+
+  const cid = this.childId(child); // <-- UUID אמיתי
+  if (!cid) return void (this.error = 'חסר childId');
+
+  this.loadingSigned.set(true);
 
   try {
     const dbc = dbTenant();
+    const client = getSupabaseClient();
 
-    const { data, error } = await dbc.rpc('get_signed_terms_url', { p_child_id: childId });
+    const { data, error } = await dbc
+      .from('child_terms_signatures')
+      .select('signed_pdf_bucket, signed_pdf_path')
+      .eq('child_id', cid)              // ✅ נסי קודם ככה
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    console.log('Received signed terms signature data:', data, 'error:', error);
+
     if (error) throw error;
 
-    if (!data) {
-      this.showCardMessage(childId, 'לא נמצא תקנון חתום להצגה');
-      return;
-    }
+    const bucket = data?.signed_pdf_bucket ?? null;
+    const path = data?.signed_pdf_path ?? null;
+    console.log('Signed terms bucket:', bucket, 'path:', path);
 
-    const [bucket, path] = String(data).split('|');
     if (!bucket || !path) {
-      this.showCardMessage(childId, 'קישור התקנון החתום לא תקין');
+      this.signedDocUrlRaw.set(null);
+      this.signedDocUrlSafe.set(null);
+      this.signedOpen.set(true);
       return;
     }
 
-    // בונים public url דרך supabase storage
-    const client = getSupabaseClient();
     const { data: pub } = client.storage.from(bucket).getPublicUrl(path);
-    const url = pub?.publicUrl ?? null;
+    let url = pub?.publicUrl ?? null;
 
-    if (!url) {
-      this.showCardMessage(childId, 'לא הצלחתי ליצור קישור לתקנון החתום');
-      return;
-    }
+    if (url) url = `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
 
-    window.open(url, '_blank', 'noopener,noreferrer');
+    this.signedDocUrlRaw.set(url);
+    this.signedDocUrlSafe.set(url ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null);
+    this.signedOpen.set(true);
   } catch (e: any) {
-    console.error('openSignedTerms failed', e);
-    this.showCardMessage(childId, e?.message ?? 'שגיאה בפתיחת התקנון החתום');
+    console.error(e);
+    this.error = e?.message ?? 'שגיאה בפתיחת תקנון חתום';
+  } finally {
+    this.loadingSigned.set(false);
   }
 }
 
 
+closeSignedPopup() {
+  this.signedOpen.set(false);
+}
 
 }
+

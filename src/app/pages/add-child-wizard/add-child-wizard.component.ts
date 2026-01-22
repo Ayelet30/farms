@@ -3,14 +3,20 @@ import { Component, EventEmitter, Output, Input, OnInit, inject } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 import {
   dbTenant,
   ensureTenantContextReady,
   getCurrentFarmMetaSync,
   getCurrentUserData,
+  getSupabaseClient, // ✅ חשוב (אם אין אצלך – תגידי ואיתן לך גרסה לפי השירות שלך)
 } from '../../services/supabaseClient.service';
+
 import { TranzilaService } from '../../services/tranzila.service';
+
+import { PDFDocument, rgb } from 'pdf-lib';
+import * as fontkitModule from '@pdf-lib/fontkit';
 
 type ChildStatus =
   | 'Active'
@@ -50,6 +56,15 @@ type PaymentProfileSummary = {
   expiry_year: number | null;
 };
 
+type FarmDoc = {
+  id: string;
+  title: string;
+  version: number;
+  storage_bucket: string;
+  storage_path: string;
+  published_at: string;
+};
+
 declare const TzlaHostedFields: any;
 
 type HostedFieldsInstance = {
@@ -72,8 +87,25 @@ export class AddChildWizardComponent implements OnInit {
   @Output() childAdded = new EventEmitter<void>();
 
   private tranzila = inject(TranzilaService);
+  private sanitizer = inject(DomSanitizer);
 
-  // ===== תשלום (Hosted Fields + שמירת טוקן) =====
+  // =========================
+  // ===== תקנון (Parent) =====
+  // =========================
+  termsLoading = false;
+  termsSaving = false;
+  termsError: string | null = null;
+
+  activeTermsDoc: FarmDoc | null = null;
+  termsUrlRaw: string | null = null;
+  termsUrlSafe: SafeResourceUrl | null = null;
+
+  termsAccepted = false;
+  termsSignature = '';
+
+  // =========================
+  // ===== תשלום =====
+  // =========================
   private hfReg: HostedFieldsInstance | null = null;
   private thtkReg: string | null = null;
 
@@ -89,7 +121,6 @@ export class AddChildWizardComponent implements OnInit {
     expiryYear?: string | null;
   } | null = null;
 
-  // כרטיס שמור מהטבלה
   loadingPaymentProfile = false;
   savedPaymentProfile: PaymentProfileSummary | null = null;
 
@@ -105,21 +136,19 @@ export class AddChildWizardComponent implements OnInit {
 
   validationErrors: Record<string, string> = {};
 
-  // ===== דמי הרשמה (מ-farm_settings.registration_fee באגורות) =====
+  // ===== דמי הרשמה =====
   registrationFeeAgorot: number | null = null;
 
   get hasRegistrationFee(): boolean {
     return (this.registrationFeeAgorot ?? 0) > 0;
   }
 
-  // שלב תשלום קיים רק להורה ורק אם registration_fee > 0
   get paymentStepIndex(): number {
     if (!this.isParentMode || !this.hasRegistrationFee) return -1;
-    // parent: פרטי ילד(0), רפואי(1), תקנון(2), תשלום(3)
-    return 3;
+    return 3; // parent: child(0), medical(1), terms(2), payment(3)
   }
 
-  // ===== מצב/טקסטים =====
+  // ===== מצב =====
   get isParentMode() {
     return this.mode === 'parent';
   }
@@ -167,11 +196,6 @@ export class AddChildWizardComponent implements OnInit {
     autismFunction: null,
   };
 
-  // תקנון (רק הורה)
-  termsAccepted = false;
-  termsSignature = '';
-
-  // תשלום
   payment: PaymentInfo = { registrationAmount: null };
 
   // ===== הורים (למזכירה) =====
@@ -186,6 +210,11 @@ export class AddChildWizardComponent implements OnInit {
 
     if (this.isSecretaryMode) {
       await this.loadParentsForSecretary();
+    }
+
+    // ✅ במצב הורה – נטען תקנון פעיל מהאחסון כבר בכניסה
+    if (this.isParentMode) {
+      await this.loadActiveTermsDocFromDbAndStorage();
     }
 
     // אם הורה ויש שלב תשלום — נביא כרטיס שמור כדי לדלג על Hosted Fields
@@ -218,13 +247,63 @@ export class AddChildWizardComponent implements OnInit {
 
       this.registrationFeeAgorot = (data as any)?.registration_fee ?? 0;
 
-      // ברירת מחדל להצגה: אם יש דמי הרשמה – למלא בשקלים
       if (this.hasRegistrationFee) {
         this.payment.registrationAmount = Math.round((this.registrationFeeAgorot ?? 0) / 100);
       }
     } catch (e) {
       console.error('loadRegistrationFeeFromDb failed', e);
       this.registrationFeeAgorot = 0;
+    }
+  }
+
+  // =========================================
+  // ===== תקנון: טעינה מ-farm_documents =====
+  // =========================================
+  private async loadActiveTermsDocFromDbAndStorage(): Promise<void> {
+    this.termsLoading = true;
+    this.termsError = null;
+    this.activeTermsDoc = null;
+    this.termsUrlRaw = null;
+    this.termsUrlSafe = null;
+
+    try {
+      await ensureTenantContextReady();
+      const dbc = dbTenant();
+
+      const { data, error } = await dbc
+        .from('farm_documents')
+        .select('id, title, version, storage_bucket, storage_path, published_at')
+        .eq('doc_type', 'TERMS')
+        .eq('is_active', true)
+        .order('published_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) {
+        this.termsError = 'לא נמצא תקנון פעיל בחווה';
+        return;
+      }
+
+      this.activeTermsDoc = data as any;
+
+      const bucket = (data as any).storage_bucket as string;
+      const path = (data as any).storage_path as string;
+
+      const client = getSupabaseClient();
+      const { data: pub } = client.storage.from(bucket).getPublicUrl(path);
+      const url = pub?.publicUrl ?? null;
+
+      this.termsUrlRaw = url;
+      this.termsUrlSafe = url ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null;
+
+      if (!url) this.termsError = 'לא הצלחתי לייצר קישור לתקנון';
+    } catch (e: any) {
+      console.error(e);
+      this.termsError = e?.message ?? 'שגיאה בטעינת התקנון';
+    } finally {
+      this.termsLoading = false;
     }
   }
 
@@ -285,7 +364,6 @@ export class AddChildWizardComponent implements OnInit {
       this.stepIndex++;
     }
 
-    // אם נכנסנו לשלב התשלום ורק אם אין כרטיס שמור — לאתחל Hosted Fields
     if (
       this.isParentMode &&
       this.stepIndex === this.paymentStepIndex &&
@@ -343,6 +421,17 @@ export class AddChildWizardComponent implements OnInit {
   }
 
   private validateTerms() {
+    if (this.termsLoading) {
+      this.validationErrors['terms_loading'] = 'התקנון עדיין נטען…';
+      this.error = 'התקנון עדיין נטען…';
+      return;
+    }
+    if (!this.activeTermsDoc || !this.termsUrlRaw) {
+      this.validationErrors['terms_missing'] = 'לא נמצא תקנון פעיל';
+      this.error = 'לא נמצא תקנון פעיל';
+      return;
+    }
+
     if (!this.termsAccepted) this.validationErrors['terms'] = 'יש לאשר את התקנון לפני המשך';
     if (!this.termsSignature.trim()) this.validationErrors['signature'] = 'נא להזין שם לחתימה דיגיטלית';
   }
@@ -355,7 +444,6 @@ export class AddChildWizardComponent implements OnInit {
       this.validationErrors['registrationAmount'] = 'נא להזין סכום דמי הרשמה';
     }
 
-    // אם יש כרטיס שמור — לא דורשים טוקניזציה
     if (!this.hasSavedPaymentProfile && !this.tokenSaved) {
       this.validationErrors['token'] = 'יש לשמור אמצעי תשלום לפני המשך';
       this.error = 'יש ללחוץ על "שמירת אמצעי תשלום" לפני המשך';
@@ -403,7 +491,6 @@ export class AddChildWizardComponent implements OnInit {
       }
 
       const medicalNotesCombined = this.buildMedicalNotes();
-
       const status: ChildStatus = this.isParentMode ? 'Pending Addition Approval' : 'Active';
 
       const childPayload: any = {
@@ -436,8 +523,16 @@ export class AddChildWizardComponent implements OnInit {
         return;
       }
 
-      await dbTenant().rpc('create_child_terms_requirement', { p_child_id: insertedChild.child_uuid });
+      // יוצרים דרישת תקנון (כמו אצלך)
+      await dbc.rpc('create_child_terms_requirement', { p_child_id: insertedChild.child_uuid });
 
+      // ✅ במצב הורה: אחרי יצירת הילד — חותמים ושומרים PDF חתום
+      if (this.isParentMode) {
+        await this.signAndAttachTermsPdfAfterChildInsert({
+          childId: insertedChild.child_uuid,
+          childName: `${insertedChild.first_name} ${insertedChild.last_name}`.trim(),
+        });
+      }
 
       // במצב הורה – יוצרים גם בקשה למזכירה
       if (this.isParentMode) {
@@ -462,6 +557,8 @@ export class AddChildWizardComponent implements OnInit {
               accepted: this.termsAccepted,
               signed_name: this.termsSignature.trim(),
               accepted_at: new Date().toISOString(),
+              document_id: this.activeTermsDoc?.id ?? null,
+              document_version: this.activeTermsDoc?.version ?? null,
             },
             registration_payment: this.hasRegistrationFee
               ? {
@@ -507,8 +604,143 @@ export class AddChildWizardComponent implements OnInit {
     if (this.medical.cognitiveDisability) lines.push('מוגבלות קוגניטיבית');
     if (this.medical.emotionalIssues) lines.push('קשיים רגשיים');
     if ((this.medical.other || '').trim()) lines.push(`אחר: ${(this.medical.other || '').trim()}`);
-    if ((this.child.medical_notes_free || '').trim()) lines.push(`הערות נוספות: ${(this.child.medical_notes_free || '').trim()}`);
+    if ((this.child.medical_notes_free || '').trim())
+      lines.push(`הערות נוספות: ${(this.child.medical_notes_free || '').trim()}`);
     return lines.join(' | ');
+  }
+
+  // ============================================================
+  // ===== חתימה + בניית PDF חתום + העלאה + attach ל-DB =====
+  // ============================================================
+  private async signAndAttachTermsPdfAfterChildInsert(args: {
+    childId: string;
+    childName: string;
+  }): Promise<void> {
+    // ולידציות קשיחות (כדי שלא יווצר ילד בלי מסמך חתום)
+    if (!this.activeTermsDoc) throw new Error('חסר מסמך תקנון פעיל');
+    if (!this.termsUrlRaw) throw new Error('חסר קישור לתקנון');
+    if (!this.termsAccepted) throw new Error('יש לאשר את התקנון');
+    if (!this.termsSignature.trim()) throw new Error('חסר שם לחתימה');
+
+    this.termsSaving = true;
+    this.termsError = null;
+
+    try {
+      const dbc = dbTenant();
+      const userAgent = navigator.userAgent || null;
+
+      const { error } = await dbc.rpc('sign_child_terms', {
+        p_child_id: args.childId,
+        p_signed_name: this.termsSignature.trim(),
+        p_signature_svg: null,
+        p_signature_text: this.termsSignature.trim(),
+        p_user_agent: userAgent,
+        p_ip: null,
+      });
+
+      if (error) throw error;
+
+      const signedBytes = await this.buildSignedPdf(
+        this.termsUrlRaw,
+        this.termsSignature.trim(),
+        args.childName
+      );
+
+      const signedBucket = 'signed-docs';
+
+      // path לפי storage_path של התקנון הפעיל
+      const doc = this.activeTermsDoc;
+      const baseDir = doc.storage_path.replace(/\/[^\/]+$/, ''); // remove filename
+      const path = `${baseDir}/signed/${args.childId}/terms_v${doc.version}.pdf`;
+
+      await this.uploadSignedPdf(signedBytes, signedBucket, path);
+
+      const { error: attachErr } = await dbc.rpc('attach_signed_terms_pdf', {
+        p_child_id: args.childId,
+        p_document_id: doc.id,
+        p_bucket: signedBucket,
+        p_path: path,
+      });
+      if (attachErr) throw attachErr;
+    } catch (e: any) {
+      console.error('[signAndAttachTermsPdfAfterChildInsert] error', e);
+      this.termsError = e?.message ?? 'שגיאה בחתימה/שמירת התקנון';
+      throw e; // חשוב כדי לעצור את ה-flow אם את רוצה שהכל יהיה עקבי
+    } finally {
+      this.termsSaving = false;
+    }
+  }
+
+  private async buildSignedPdf(originalPdfUrl: string, signedName: string, childName: string): Promise<Uint8Array> {
+    const pdfBytes = await fetch(originalPdfUrl).then((r) => r.arrayBuffer());
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+
+    pdfDoc.registerFontkit((fontkitModule as any).default ?? (fontkitModule as any));
+
+    const fontBytes = await fetch('/assets/fonts/Assistant.ttf').then((r) => r.arrayBuffer());
+    const hebFont = await pdfDoc.embedFont(fontBytes, { subset: true });
+
+    const pages = pdfDoc.getPages();
+
+    const RLM = '\u200F';
+    const LRM = '\u200E';
+
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+
+    const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const dateTime = `${LRM}${dateStr} ${timeStr}${LRM}`;
+
+    const line1 = `${RLM}נחתם דיגיטלית בתאריך: ${dateTime}`;
+    const line2 = `${RLM}שם החותם: ${signedName} • ילד: ${childName}`;
+
+    const fontSize = 9;
+    const marginX = 24;
+    const lineGap = 12;
+    const bottomPadding = 18;
+
+    for (const page of pages) {
+      const { width } = page.getSize();
+
+      const y2 = bottomPadding;
+      const y1 = y2 + lineGap;
+
+      page.drawText(line1, {
+        x: marginX,
+        y: y1,
+        size: fontSize,
+        font: hebFont,
+        color: rgb(0.35, 0.35, 0.35),
+        maxWidth: width - marginX * 2,
+      });
+
+      page.drawText(line2, {
+        x: marginX,
+        y: y2,
+        size: fontSize,
+        font: hebFont,
+        color: rgb(0.35, 0.35, 0.35),
+        maxWidth: width - marginX * 2,
+      });
+    }
+
+    return await pdfDoc.save();
+  }
+
+  private async uploadSignedPdf(bytes: Uint8Array, bucket: string, path: string): Promise<void> {
+    const client = getSupabaseClient();
+
+    const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    const file = new Blob([ab], { type: 'application/pdf' });
+
+    const { error } = await client.storage.from(bucket).upload(path, file, {
+      upsert: true,
+      contentType: 'application/pdf',
+      cacheControl: '3600',
+    });
+
+    if (error) throw error;
   }
 
   // ===== תשלום =====
@@ -529,7 +761,7 @@ export class AddChildWizardComponent implements OnInit {
       this.savedPaymentProfile = (data as any) ?? null;
 
       if (this.hasSavedPaymentProfile) {
-        this.tokenSaved = true; // מאפשר מעבר שלב בלי “שמירת אמצעי תשלום”
+        this.tokenSaved = true;
         this.tokenError = null;
       }
     } catch (e) {
@@ -556,21 +788,9 @@ export class AddChildWizardComponent implements OnInit {
       this.hfReg = TzlaHostedFields.create({
         sandbox: false,
         fields: {
-          credit_card_number: {
-            selector: '#reg_credit_card_number',
-            placeholder: '4580 4580 4580 4580',
-            tabindex: 1,
-          },
-          cvv: {
-            selector: '#reg_cvv',
-            placeholder: '123',
-            tabindex: 2,
-          },
-          expiry: {
-            selector: '#reg_expiry',
-            placeholder: '12/26',
-            version: '1',
-          },
+          credit_card_number: { selector: '#reg_credit_card_number', placeholder: '4580 4580 4580 4580', tabindex: 1 },
+          cvv: { selector: '#reg_cvv', placeholder: '123', tabindex: 2 },
+          expiry: { selector: '#reg_expiry', placeholder: '12/26', version: '1' },
         },
       });
 
@@ -605,7 +825,6 @@ export class AddChildWizardComponent implements OnInit {
       return;
     }
 
-    // ניקוי שגיאות שדות
     ['credit_card_number', 'expiry', 'cvv'].forEach((k) => {
       const el = document.getElementById('reg_errors_for_' + k);
       if (el) el.textContent = '';
@@ -615,7 +834,7 @@ export class AddChildWizardComponent implements OnInit {
     this.tokenSaved = false;
 
     const terminalName = 'moachapp';
-    const amount = '1.00'; // verify
+    const amount = '1.00';
 
     this.hfReg.charge(
       {
@@ -679,7 +898,6 @@ export class AddChildWizardComponent implements OnInit {
           });
 
           this.tokenSaved = true;
-          // אחרי שמירה – נביא את הפרופיל שוב, כדי להציג הודעה/last4 מהטבלה
           await this.loadSavedPaymentProfileForParent(parentUid);
         } catch (e: any) {
           console.error('[tokenizeCard] save error', e);
