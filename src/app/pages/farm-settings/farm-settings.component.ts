@@ -1454,13 +1454,17 @@ async deleteListNote(n: ListNote): Promise<void> {
     }
 
     this.listNotes.set(this.listNotes().filter(x => x.id !== n.id));
+
+    // אם מחקת את ההודעה שאת עורכת כרגע — תצאי ממצב עריכה
+    if (this.editingListNoteId() === n.id) {
+      this.editingListNoteId.set(null);
+    }
+
     await this.ui.alert('ההודעה נמחקה.', 'הצלחה');
   } catch (e) {
     console.error('deleteListNote exception', e);
     await this.ui.alert('מחיקת הודעה נכשלה.', 'שגיאה');
   }
-   this.listNotes.set(this.listNotes().filter(x => x.id !== n.id));
-  await this.ui.alert('ההודעה נמחקה.', 'הצלחה');
 }
 }
 
