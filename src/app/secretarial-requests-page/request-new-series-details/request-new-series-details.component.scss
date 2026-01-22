@@ -12,3 +12,90 @@
 .reject { border-color: #c62828; }
 .err { color: #c62828; margin-top: 10px; }
 .empty { opacity: .7; margin-top: 18px; }
+.mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 14px;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.mini-table thead {
+  background: #f5f7fa;
+}
+
+.mini-table th,
+.mini-table td {
+  white-space: normal;        // מאפשר ירידת שורה
+  word-break: break-word;     // שוברת מילים ארוכות
+  overflow-wrap: anywhere;    // שובר גם מחרוזות בלי רווחים
+  vertical-align: top;        // שהטקסט יתחיל למעלה
+}
+
+.mini-table th {
+  font-weight: 600;
+  color: #333;
+  border-left: 1px solid #e6e8eb;
+}
+
+.mini-table td {
+  color: #444;
+  border-left: 1px solid #f0f1f3;
+}
+
+.mini-table th:last-child,
+.mini-table td:last-child {
+  border-left: none;
+}
+
+/* zebra rows */
+.mini-table tbody tr:nth-child(even) {
+  background: #fafbfc;
+}
+
+/* hover */
+.mini-table tbody tr:hover {
+  background: #eef5ff;
+}
+
+/* אייקונים בהערות */
+.mini-table td span {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 13px;
+  white-space: normal;
+}
+.card.subtle {
+  background: #f9fafb;
+  border: 1px solid #e6e8eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.card.subtle .row {
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+/* שלא ישבר "מין" ו"גיל" */
+.mini-table th.col-gender,
+.mini-table td.col-gender,
+.mini-table th.col-age,
+.mini-table td.col-age {
+  white-space: nowrap;     // לא לשבור לאותיות
+  word-break: normal;
+  overflow-wrap: normal;
+  text-align: center;      // נראה יותר טוב לעמודות קצרות
+  width: 72px;             // אפשר לשנות
+  min-width: 72px;
+}
+
+/* טיפה פחות לעמודת גיל אם בא לך */
+.mini-table th.col-age,
+.mini-table td.col-age {
+  width: 60px;
+  min-width: 60px;
+}
