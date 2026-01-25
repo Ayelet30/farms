@@ -129,6 +129,29 @@
           </ng-template>
         </div>
       </div>
+<!-- כתובת -->
+<div class="contact-item">
+  <div class="contact-icon" aria-hidden="true">📍</div>
+
+  <div class="contact-content">
+    <div class="contact-label">כתובת</div>
+
+    <ng-container *ngIf="farmSettings?.main_address as addr; else noAddr">
+      <div class="contact-value">{{ addr }}</div>
+
+      <!-- אופציונלי ניווט -->
+      <a class="contact-hint"
+         [href]="buildMapsUrl(addr)"
+         target="_blank" rel="noopener">
+        ניווט במפות
+      </a>
+    </ng-container>
+
+    <ng-template #noAddr>
+      <div class="contact-value muted">לא עודכנה כתובת במערכת</div>
+    </ng-template>
+  </div>
+</div>
 
     </div>
 
