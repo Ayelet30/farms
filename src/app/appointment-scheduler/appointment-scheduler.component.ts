@@ -2662,7 +2662,7 @@ onOpenEndedSeriesToggle(checked: boolean): void {
 }
 
 onUnlimitedSeriesToggle(): void {
-    this.clearUiHint('seriesCount');
+  this.clearUiHint('seriesCount');
 
   // אם סימנו ללא הגבלה – מבטלים כמות
   if (this.isOpenEndedSeries) {
@@ -2678,13 +2678,11 @@ onUnlimitedSeriesToggle(): void {
   this.seriesError = null;
 
   // אם יש תנאים בסיסיים – להריץ חיפוש
-  if (
-    this.selectedChildId &&
-    (this.noInstructorPreference || this.selectedInstructorId) // יש מדריך או אין העדפה
-  ) {
+  if (this.selectedChildId && (this.noInstructorPreference || this.selectedInstructorId)) {
     this.searchRecurringSlots();
   }
 }
+
 private isSameLocalDate(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear()
     && a.getMonth() === b.getMonth()
