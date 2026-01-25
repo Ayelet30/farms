@@ -65,7 +65,8 @@
 
         <div class="actions">
           <div class="actions">
-            <button *ngIf="!editing[childId(c)]" class="icon-btn" type="button" (click)="startEdit(c)"
+<button *ngIf="!editing[childId(c)] && !isPendingAdd(c?.status)"
+             class="icon-btn" type="button" (click)="startEdit(c)"
               aria-label="עריכה">
               <svg class="icon" aria-hidden="true">
                 <use href="assets/icons/feather-slim.svg#edit" />
