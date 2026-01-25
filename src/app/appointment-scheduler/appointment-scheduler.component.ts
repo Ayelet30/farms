@@ -924,6 +924,18 @@ async onChildSelected(): Promise<void> {
   this.clearUiHint('seriesCount');
   this.clearUiHint('payment');
 
+  this.seriesLessonCount = null;
+  this.isOpenEndedSeries = false;
+  this.paymentSourceForSeries = null;
+
+  this.selectedPaymentPlanId = null;
+this.seriesCreatedMessage = null;
+  this.seriesError = null;
+  // ✅ איפוס קובץ/קישור הפניה
+  this.referralFile = null;
+  this.referralUrl = null;
+  this.referralUploadError = null;
+
   // איפוס נתונים של סדרות
   this.recurringSlots = [];
   this.selectedSeriesDate = null;
