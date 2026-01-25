@@ -7,9 +7,9 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-// import { TranzilaInvoicesService } from '../../services/tranzila-invoices.service';
-// import { getCurrentUserData } from '../../services/supabaseClient.service';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
+import { ActivatedRoute } from '@angular/router';
+
 
 import {
   listAllChargesForSecretary,
@@ -108,16 +108,23 @@ tenantSchema: string | null = null;
 
   constructor(
   private tenantSvc: SupabaseTenantService,
+    private route: ActivatedRoute
 
   ) {
     
   }
 invoiceLoading = new Set<string>(); // paymentId
 
-  async ngOnInit() {
-    await this.loadPage();
-  
+async ngOnInit() {
+  const parentUid = this.route.snapshot.queryParamMap.get('parentUid');
+
+  if (parentUid) {
+    this.searchTerm.set(parentUid);
+    this.pageIndex.set(0);
   }
+
+  await this.loadPage();
+}
 
   private async loadPage() {
     try {
