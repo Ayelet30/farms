@@ -512,7 +512,7 @@ if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
 
   try {
    const { data, error } = await dbTenant().rpc('find_makeup_slots_for_lesson_by_id_number', {
-  p_child_id: this.selectedChildId,          // ✅ חדש
+  p_child_id: this.selectedChildId,          
   p_instructor_id: instructorParam,         // יכול להיות null = כל המדריכים
   p_from_date: this.makeupSearchFromDate,
   p_to_date: this.makeupSearchToDate,

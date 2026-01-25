@@ -9,6 +9,8 @@ type Tab = 'threads' | 'new' | 'announcements';
 type FarmSettingsContact = {
   main_phone: string | null;
   main_mail: string | null;
+  main_address: string | null;
+
 };
 type Conversation = {
   id: string;
@@ -173,7 +175,7 @@ private async loadFarmSettingsContact(): Promise<void> {
       // אם יש מצב ליותר משורה - אנחנו לוקחים "הכי מעודכן"
       const { data, error } = await dbc
         .from('farm_settings')
-        .select('main_phone, main_mail, updated_at')
+        .select('main_phone, main_mail, main_address , updated_at')
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -183,10 +185,12 @@ private async loadFarmSettingsContact(): Promise<void> {
       this.farmSettings = {
         main_phone: data?.main_phone ?? null,
         main_mail: data?.main_mail ?? null,
+         main_address: data?.main_address ?? null,
+
       };
     } catch (e: any) {
       console.error('Failed to load farm_settings contact:', e);
-      this.farmSettings = { main_phone: null, main_mail: null };
+      this.farmSettings = { main_phone: null, main_mail: null , main_address: null};
       this.errorMsg.set('לא הצלחנו לטעון את פרטי יצירת הקשר. נסי שוב מאוחר יותר.');
     } finally {
       this.loading.set(false);
@@ -336,4 +340,8 @@ private jsToDbDow(js: number): number {
       this.loadingAnn.set(false);
     }
   }
+  buildMapsUrl(addr: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
+}
+
 }
