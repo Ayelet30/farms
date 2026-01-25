@@ -43,6 +43,8 @@ interface InstructorWeeklyAvailabilityRow {
 
 
 interface InstructorDetailsRow extends InstructorRow {
+  non_therapy_riding_types?: string[] | null;
+
   address?: string | null;
   license_id?: string | null;
   about?: string | null;
@@ -255,6 +257,17 @@ statusLabel(s?: string | null): string {
   const v = this.normalizeStatus(s);
   return v === 'Active' ? 'פעיל' : 'לא פעיל';
 }
+getNotifyLabel(notify: any): string {
+  if (!notify) return '—';
+
+  const labels: string[] = [];
+  if (notify.email) labels.push('דוא״ל');
+  if (notify.sms) labels.push('SMS');
+  if (notify.whatsapp) labels.push('WhatsApp');
+  if (notify.voice) labels.push('קולית');
+
+  return labels.length ? labels.join(', ') : '—';
+}
 
   private async loadInstructors() {
     this.isLoading = true;
@@ -322,11 +335,12 @@ statusLabel(s?: string | null): string {
         const key = (i.uid || '').trim();
         const user = key ? usersMap.get(key) : undefined;
 
-        return {
-          ...i,
-          email: user?.email ?? i.email ?? null,
-          phone: user?.phone ?? i.phone ?? null,
-        };
+   return {
+  ...i,
+  email: user?.email ?? i.email ?? null,
+  phone: i.phone ?? user?.phone ?? null,
+};
+
       });
 
 
@@ -341,13 +355,16 @@ statusLabel(s?: string | null): string {
 
   // ======= מגירת פרטים =======
 async loadRidingTypes() {
+    console.log('👉 loadRidingTypes called');
   console.log('RIDING TYPES', this.ridingTypes);
 
   const dbc = dbTenant();
 
-  const { data, error } = await dbc
-    .from('riding_types')
-    .select('id, name');
+const { data, error } = await dbc
+  .from('riding_types')
+  .select('id, name, code')
+  .neq('code', 'break');
+
 
   if (error) {
     console.error('failed loading riding types', error);
@@ -381,6 +398,15 @@ async loadRidingTypes() {
     this.editModel = null;
     this.editMode = false;
   }
+getNonTherapyRidingTypesLabel(ins: InstructorDetailsRow | null): string {
+  if (!ins?.non_therapy_riding_types?.length) {
+    return '—';
+  }
+
+  return ins.non_therapy_riding_types
+    .map(id => this.ridingTypeName(id))
+    .join(', ');
+}
 
   private async loadDrawerData(id_number: string) {
     this.drawerLoading = true;
@@ -412,7 +438,9 @@ async loadRidingTypes() {
           notify,
           accepts_makeup_others,
           allow_availability_edit,
-          birth_date
+          birth_date,
+          non_therapy_riding_types
+
         `)
         .eq('id_number', id_number)
         .maybeSingle();
@@ -428,6 +456,7 @@ async loadRidingTypes() {
       }
 
       let ins = data as InstructorDetailsRow;
+// ✅ תיקון להצגת תאריך לידה במצב קריאה
 
       // ---- אם יש uid – להשלים טלפון/מייל מ-public.users ----
       const uid = (ins.uid || '').trim();
@@ -445,7 +474,8 @@ async loadRidingTypes() {
           ins = {
             ...ins,
             email: user.email ?? ins.email ?? null,
-            phone: user.phone ?? ins.phone ?? null,
+     phone: ins.phone || user.phone || null,
+
           };
         }
       }
@@ -499,17 +529,33 @@ async loadRidingTypes() {
 
   // ======= מצב עריכה במגירה =======
 
-  startEditFromDrawer() {
-    console.log('[INSTRUCTORS] startEditFromDrawer');
-    if (!this.drawerInstructor) return;
-    this.editMode = true;
-    this.editModel = {
-      ...this.drawerInstructor,
-      taught_child_genders: this.drawerInstructor.taught_child_genders
-        ? [...this.drawerInstructor.taught_child_genders]
-        : [],
-    };
+async startEditFromDrawer() {
+  if (!this.drawerInstructor) return;
+
+  if (!this.ridingTypes.length) {
+    await this.loadRidingTypes();
   }
+
+  const ins = this.drawerInstructor; // ✅ זה החסר
+
+  this.editMode = true;
+  this.editModel = {
+    ...ins,
+    notify: ins.notify ?? {
+      email: false,
+      sms: false,
+      whatsapp: false,
+      voice: false,
+    },
+    taught_child_genders: ins.taught_child_genders
+      ? [...ins.taught_child_genders]
+      : [],
+    non_therapy_riding_types: ins.non_therapy_riding_types
+      ? [...ins.non_therapy_riding_types]
+      : [],
+  };
+}
+
 
   private hasUnsavedChanges(): boolean {
     if (!this.drawerInstructor || !this.editModel) return false;
@@ -613,12 +659,21 @@ async loadRidingTypes() {
         license_id: m.license_id?.trim() || null,
         education: m.education?.trim() || null,
         about: m.about?.trim() || null,
+          birth_date: m.birth_date ?? null, 
+          notify: m.notify ?? {
+    email: false,
+    sms: false,
+    whatsapp: false,
+    voice: false,
+  },
         default_lesson_duration_min: m.default_lesson_duration_min ?? null,
         min_age_years: m.min_age_years ?? null,
         max_age_years: m.max_age_years ?? null,
         accepts_makeup_others: m.accepts_makeup_others ?? null,
         allow_availability_edit: m.allow_availability_edit ?? null,
         taught_child_genders: m.taught_child_genders ?? null,
+        non_therapy_riding_types: m.non_therapy_riding_types ?? [],
+
       };
 
 
@@ -820,6 +875,24 @@ async loadRidingTypes() {
   }
 
   // ======= Helpers =======
+onRidingTypeChange(id: string, checked: boolean) {
+  if (!this.editModel) return;
+
+  let arr = this.editModel.non_therapy_riding_types || [];
+
+  if (checked) {
+    if (!arr.includes(id)) {
+      arr = [...arr, id];
+    }
+  } else {
+    arr = arr.filter(x => x !== id);
+  }
+
+  this.editModel = {
+    ...this.editModel,
+    non_therapy_riding_types: arr,
+  };
+}
 
   async checkIfInstructorExists(email: string, tenant_id: string) {
 

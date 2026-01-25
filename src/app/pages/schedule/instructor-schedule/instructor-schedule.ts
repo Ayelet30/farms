@@ -8,8 +8,9 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { dbPublic } from '../../../services/legacy-compat';
 
+
+import { supabase } from '../../../services/supabaseClient.service';
 
 import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import type { EventClickArg } from '@fullcalendar/core';
@@ -19,7 +20,8 @@ import { Lesson } from '../../../models/lesson-schedule.model';
 import { NoteComponent } from '../../Notes/note.component';
 
 import { CurrentUserService } from '../../../core/auth/current-user.service';
-import { dbTenant, ensureTenantContextReady } from '../../../services/legacy-compat';
+import { dbPublic,dbTenant, ensureTenantContextReady } from '../../../services/legacy-compat';
+
 
 /* ------------ TYPES ------------ */
 type UUID = string;
@@ -91,6 +93,8 @@ export class InstructorScheduleComponent implements OnInit {
    
 selectedSickFile: File | null = null;
 
+// 🔒 קובץ מחלה שנשמר בלי קשר ל-UI / פופאפים
+private pendingSickFile: File | null = null;
 
   isFullscreen = false;
 
@@ -879,6 +883,7 @@ const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
 
 
   if (hasLessons) {
+      const preservedFile = this.selectedSickFile;
     // סוגרים את מודאל הבקשה
     this.rangeModal.open = false;
  this.loadAffectedParentsFromSchedule(from, to);
@@ -886,6 +891,7 @@ const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
 if (this.affectedParents.length > 0) {
   this.rangeModal.open = false;
   this.showAffectedParentsPopup = true;
+    (this as any)._preservedSickFile = preservedFile; 
   this.cdr.detectChanges();
   return;
 }
@@ -904,6 +910,8 @@ if (this.affectedParents.length > 0) {
     type,
     text?.trim() || null,
   );
+this.selectedSickFile = null;
+this.pendingSickFile = null;
 
   this.rangeModal.open = false;
 }
@@ -913,8 +921,12 @@ closeContextMenu(): void {
 
 onSickFileSelected(event: Event): void {
   const input = event.target as HTMLInputElement;
-  this.selectedSickFile = input.files?.[0] ?? null;
+  const file = input.files?.[0] ?? null;
+  console.log('📎 FILE SELECTED:', file);
+  this.selectedSickFile = file;   // לצורך UI
+  this.pendingSickFile = file;    // 🔒 לשמירה אמיתית
 }
+
 
   async openRequest(type: RequestType): Promise<void> {
     const date = this.contextMenu.date;
@@ -989,11 +1001,14 @@ private loadAffectedParentsFromSchedule(from: string, to: string): void {
 
 
 async confirmSaveAfterWarning(): Promise<void> {
+  this.selectedSickFile = (this as any)._preservedSickFile ?? null;
+  this.pendingSickFile = this.selectedSickFile;
   this.showAffectedParentsPopup = false;
 
   const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
 
   await this.saveRangeRequest(
+    
     from,
     to,
     allDay,
@@ -1002,6 +1017,10 @@ async confirmSaveAfterWarning(): Promise<void> {
     type,
     text?.trim() || null,
   );
+console.log('🧪 BEFORE IF', {
+  type,
+  pending: this.pendingSickFile,
+});
 
   this.rangeModal.open = false;
 }
@@ -1012,9 +1031,8 @@ private async uploadSickFile(
   requestId: string
 ): Promise<string> {
 
-  const sb = dbPublic();
-  if (!sb || !sb.storage) {
-    throw new Error('Supabase public client not initialized');
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized');
   }
 
   const ext = file.name.split('.').pop();
@@ -1024,7 +1042,7 @@ private async uploadSickFile(
 
   const path = `instructor_${this.instructorId}/request_${requestId}.${ext}`;
 
-  const { error } = await sb.storage
+  const { error } = await supabase.storage
     .from('sick_notes')
     .upload(path, file, { upsert: true });
 
@@ -1038,6 +1056,7 @@ private async uploadSickFile(
 
 
  private async saveRangeRequest(
+  
   fromDate: string,
   toDate: string,
   allDay: boolean,
@@ -1047,6 +1066,10 @@ private async uploadSickFile(
   note: string | null,
 ): Promise<void> {
   if (!this.instructorId) return;
+console.log('🧪 SAVE RANGE');
+console.log('TYPE:', type);
+console.log('PENDING FILE:', this.pendingSickFile);
+
 
   const dbc = dbTenant();
   const user = await this.cu.loadUserDetails();
@@ -1081,9 +1104,10 @@ private async uploadSickFile(
     throw error;
   }
 // 🩺 אם זו בקשת מחלה ויש קובץ – מעלים אותו
-if (type === 'sick' && this.selectedSickFile) {
+if (this.pendingSickFile) {
+
   const path = await this.uploadSickFile(
-    this.selectedSickFile,
+    this.pendingSickFile,
     data.id
   );
 
@@ -1092,7 +1116,9 @@ if (type === 'sick' && this.selectedSickFile) {
     .update({ sick_note_file_path: path })
     .eq('id', data.id);
 }
-this.selectedSickFile = null;
+console.log('SICK FILE:', this.pendingSickFile);
+
+
 
   this.dayRequests.push(...this.expandRequestRow(data));
   this.setScheduleItems();
