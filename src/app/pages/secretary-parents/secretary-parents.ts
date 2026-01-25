@@ -4,6 +4,7 @@ import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { FormsModule } from '@angular/forms';
 import { UiDialogService } from '../../services/ui-dialog.service';
+import { ActivatedRoute } from '@angular/router';
 import {
   ReactiveFormsModule,
   FormBuilder,
@@ -11,7 +12,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
-
+import { RouterModule } from '@angular/router';
 import {
   ensureTenantContextReady,
   dbPublic,
@@ -74,6 +75,7 @@ type PaymentSummary = {
     ReactiveFormsModule,
     MatSidenavModule,
     MatDialogModule,
+    RouterModule,
   ],
   templateUrl: './secretary-parents.html',
   styleUrls: ['./secretary-parents.css'],
@@ -172,6 +174,7 @@ constructor(
   private createUserService: CreateUserService,
   private fb: FormBuilder,
   private mailService: MailService,
+  private route: ActivatedRoute,
 ) {}
 
   // ================== חיפוש + סינון ==================
@@ -262,19 +265,18 @@ constructor(
   }
 
   // ================== lifecycle ==================
-
-  async ngOnInit() {
-    try {
-      await ensureTenantContextReady();
-      await this.loadParents();
-    } catch (e: any) {
-      this.error = e?.message || 'Failed to load parents';
-      console.error(e);
-    } finally {
-      this.isLoading = false;
-    }
+async ngOnInit() {
+  try {
+    await ensureTenantContextReady();
+    await this.loadParents();
+  } catch (e: any) {
+    this.error = e?.message || 'Failed to load parents';
+    console.error(e);
+  } finally {
+    this.isLoading = false;
   }
-
+}
+ 
   /** טוען הורים מתוך סכימת הטננט הפעיל (לפי ההקשר שנקבע ב־ensureTenantContextReady) */
   private async loadParents() {
     this.isLoading = true;

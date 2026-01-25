@@ -10,6 +10,7 @@ import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { ensureTenantContextReady, dbTenant, getSupabaseClient } from '../../services/legacy-compat';
 import type { ChildRow } from '../../Types/detailes.model';
 import { UiDialogService } from '../../services/ui-dialog.service';
+import { Router, RouterModule } from '@angular/router';
 
 import { MatDialog, MatDialogModule, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import {
@@ -68,6 +69,7 @@ type TermsSignatureRow = {
     MatSidenavModule,
     MatDialogModule,
     AddChildWizardComponent,
+    RouterModule,
   ],
   templateUrl: './secretary-children.component.html',
   styleUrls: ['./secretary-children.component.css'],
@@ -113,6 +115,7 @@ export class SecretaryChildrenComponent implements OnInit {
     private fb: FormBuilder,
     private dialog: MatDialog,
     private sanitizer: DomSanitizer,
+      private router: Router,
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -127,6 +130,18 @@ export class SecretaryChildrenComponent implements OnInit {
       console.error(e);
     }
   }
+goToParentPaymentsFromChild() {
+  const parentUid = this.drawerChild?.parent_uid;
+  if (!parentUid) {
+    this.ui.alert('לילד הזה אין הורה משויך, לכן אין אפשרות לסנן תשלומים.', 'תשלומים');
+    return;
+  }
+
+  
+  this.router.navigate(['/secretary/payments'], {
+    queryParams: { parentUid },
+  });
+}
 
   /** Guard: תמיד לוודא טננט לפני DB */
   private async dbc() {
