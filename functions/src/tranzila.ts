@@ -7,6 +7,7 @@ import fetch from 'node-fetch';
 import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
 import { ensureTranzilaInvoiceForPaymentInternal } from './tranzilaInvoices';
+import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import {
   GMAIL_CLIENT_ID_S,
   GMAIL_CLIENT_SECRET_S,
@@ -30,10 +31,7 @@ const TRANZILA_PASSWORD_TOKEN_S = defineSecret('TRANZILA_PASSWORD_TOKEN'); // ס
 const TRANZILA_APP_KEY_S = defineSecret('TRANZILA_APP_KEY');
 const TRANZILA_SECRET_S = defineSecret('TRANZILA_SECRET');
 
-const TRANZILA_SUPPLIER_S = defineSecret('TRANZILA_SUPPLIER');
 const PUBLIC_BASE_URL_S = defineSecret('PUBLIC_BASE_URL');
-const TRANZILA_TERMINAL_NAME_S = defineSecret('TRANZILA_TERMINAL_NAME');
-const TRANZILA_PW_S = defineSecret('TRANZILA_PW');
 
 
 
@@ -50,6 +48,8 @@ const mailTransport = nodemailer.createTransport({
 
 
 // Helper: prefer secret at runtime (Cloud), else process.env (local)
+
+
 const envOrSecret = (s: ReturnType<typeof defineSecret>, name: string) =>
   s.value() || process.env[name];
 
@@ -72,6 +72,22 @@ export function getSupabaseForTenant(schema?: string | null): SupabaseClient {
   }) as SupabaseClient;
 }
 
+const sm = new SecretManagerServiceClient();
+const secretCache = new Map<string, string>();
+
+async function accessSecret(resourceName: string): Promise<string> {
+  const key = String(resourceName || '').trim();
+  if (!key) throw new Error('Missing secret resource name');
+  if (secretCache.has(key)) return secretCache.get(key)!;
+
+  const [version] = await sm.accessSecretVersion({ name: key });
+  const val = version.payload?.data?.toString('utf8') ?? '';
+  if (!val) throw new Error(`Secret empty: ${key}`);
+
+  secretCache.set(key, val);
+  return val;
+}
+
 // ===================================================================
 // Billing Terminals: load default terminal from DB
 // ===================================================================
@@ -88,6 +104,42 @@ type BillingTerminalRow = {
   secret_key_charge: string | null;        // לדוגמה: 'TRANZILA_PASSWORD'
   secret_key_charge_token: string | null;  // לדוגמה: 'TRANZILA_PASSWORD_TOKEN'
 };
+
+type TranzilaTenantConfig = {
+  terminalName: string;         // לחיוב/Hosted/Handshake
+  tokTerminalName: string;      // לחיוב טוקן
+  passwordCharge: string;       // סיסמת מסוף רגיל
+  passwordToken: string;        // סיסמת מסוף טוקנים (אם יש)
+};
+
+async function getTranzilaConfigForTenant(args: {
+  tenantSchema: string;
+  mode?: 'prod' | 'sandbox';
+}): Promise<TranzilaTenantConfig> {
+  const { tenantSchema, mode = 'prod' } = args;
+
+  const sbTenant = getSupabaseForTenant(tenantSchema);
+
+  const t = await loadDefaultBillingTerminal({
+    sbTenant,
+    provider: 'tranzila',
+    mode,
+  });
+
+  if (!t.terminal_name) throw new Error('billing_terminals.terminal_name missing');
+  if (!t.tok_terminal_name) throw new Error('billing_terminals.tok_terminal_name missing');
+
+  // כאן הקסם: DB מחזיר resourceName של secret manager
+  const passwordCharge = await accessSecret(t.secret_key_charge!);
+  const passwordToken = await accessSecret(t.secret_key_charge_token!);
+
+  return {
+    terminalName: t.terminal_name,
+    tokTerminalName: t.tok_terminal_name,
+    passwordCharge,
+    passwordToken,
+  };
+}
 
 async function loadDefaultBillingTerminal(args: {
   sbTenant: SupabaseClient;
@@ -114,34 +166,6 @@ async function loadDefaultBillingTerminal(args: {
 
   return data as BillingTerminalRow;
 }
-
-// ===================================================================
-// Resolve secret by "key name" stored in DB (NO passwords in DB)
-// ===================================================================
-function resolveTranzilaSecretByKeyName(keyName: string | null | undefined): string {
-  const k = String(keyName ?? '').trim();
-  if (!k) throw new Error('Missing secret key name in billing_terminals');
-
-  // פה עושים מיפוי “שם סוד” -> secret בפועל
-  switch (k) {
-    case 'TRANZILA_PASSWORD': {
-      const v = envOrSecret(TRANZILA_PASSWORD_S, 'TRANZILA_PASSWORD');
-      if (!v) throw new Error('Missing secret: TRANZILA_PASSWORD');
-      return v;
-    }
-    case 'TRANZILA_PASSWORD_TOKEN': {
-      const v = envOrSecret(TRANZILA_PASSWORD_TOKEN_S, 'TRANZILA_PASSWORD_TOKEN');
-      if (!v) throw new Error('Missing secret: TRANZILA_PASSWORD_TOKEN');
-      return v;
-    }
-    default:
-      throw new Error(`Unknown secret key name: ${k}`);
-  }
-}
-
-
-
-
 
 
 // ===== Utils =====
@@ -186,7 +210,7 @@ function handleCors(req: any, res: any): boolean {
 export const createHostedPaymentUrl = onRequest(
   {
     invoker: 'public',
-    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_SUPPLIER_S, TRANZILA_PASSWORD_S, PUBLIC_BASE_URL_S],
+    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, PUBLIC_BASE_URL_S],
   },
   async (req, res): Promise<void> => {
     try {
@@ -228,14 +252,8 @@ export const createHostedPaymentUrl = onRequest(
         return;
       }
 
-      const supplier =
-        envOrSecret(TRANZILA_SUPPLIER_S, 'TRANZILA_SUPPLIER') ||
-        process.env.TRANZILA_SUPPLIER_ID;
       const baseRaw = envOrSecret(PUBLIC_BASE_URL_S, 'PUBLIC_BASE_URL');
-      if (!supplier) {
-        res.status(500).json({ error: 'Missing TRANZILA_SUPPLIER(_ID)' });
-        return;
-      }
+     
       if (!baseRaw) {
         res.status(500).json({ error: 'Missing PUBLIC_BASE_URL' });
         return;
@@ -243,12 +261,21 @@ export const createHostedPaymentUrl = onRequest(
 
       const successUrl = buildUrl(baseRaw, successPath ?? '/billing/success');
       const errorUrl = buildUrl(baseRaw, failPath ?? '/billing/error');
-      const tenantSchema = req.body.tenantSchema || null;
       const sumNis = (amount / 100).toFixed(2);
 
-      const hpp = new URL(
-        `https://direct.tranzila.com/${supplier}/tranDirect.asp`,
-      );
+      const tenantSchema = String(req.body.tenantSchema ?? '').trim();
+      if (!tenantSchema) { res.status(400).json({ error:'missing tenantSchema' }); return; }
+
+      const cfg = await getTranzilaConfigForTenant({ tenantSchema, mode: 'prod' });
+
+      const supplier = cfg.terminalName; 
+
+      if (!supplier) {
+              res.status(500).json({ error: 'Missing TRANZILA_SUPPLIER(_ID)' });
+              return;
+            }
+      const hpp = new URL(`https://direct.tranzila.com/${supplier}/tranDirect.asp`);
+
       const params = new URLSearchParams({
       supplier,
       sum: sumNis,
@@ -620,76 +647,34 @@ async function tranzilaFetchPdfByRetrievalKey(retrievalKey: string): Promise<Buf
 
   return buf;
 }
-async function uploadInvoicePdfAndAttachUrl(args: {
-  sb: SupabaseClient;
-  tenantSchema: string;
-  paymentId: string;
-  pdfBuffer: Buffer;
-}) {
-  const { sb, tenantSchema, paymentId, pdfBuffer } = args;
-
-  const BUCKET_NAME = 'payments-invoices';
-  const filePath = `invoices/${tenantSchema}/${paymentId}.pdf`;
-
-  const { error: uploadErr } = await sb.storage
-    .from(BUCKET_NAME)
-    .upload(filePath, pdfBuffer, { contentType: 'application/pdf', upsert: true });
-
-  if (uploadErr) throw new Error(uploadErr.message);
-
-  const { data: publicData } = sb.storage.from(BUCKET_NAME).getPublicUrl(filePath);
-  const url = (publicData as any).publicUrl + '?v=' + Date.now();
-
-  await sb.from('payments').update({
-    invoice_url: url,
-    invoice_status: 'ready',
-    invoice_updated_at: new Date().toISOString(),
-  }).eq('id', paymentId);
-
-  return url;
-}
 
 // tranzilaHandshakeHttp – Handshake v1 שמחזיר thtk ל-Hosted Fields
 // ===================================================================
 export const tranzilaHandshakeHttp = onRequest(
   {
     invoker: 'public',
-    secrets: [TRANZILA_TERMINAL_NAME_S, TRANZILA_PASSWORD_S, TRANZILA_PW_S],
+    // מספיק Supabase כדי לקרוא billing_terminals
+    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S],
   },
   async (req, res): Promise<void> => {
     try {
       if (handleCors(req, res)) return;
-      if (req.method !== 'GET') {
-        res.status(405).send('Method Not Allowed');
-        return;
-      }
+      if (req.method !== 'GET') { res.status(405).send('Method Not Allowed'); return; }
 
-      const supplier =
-        envOrSecret(TRANZILA_TERMINAL_NAME_S, 'TRANZILA_TERMINAL_NAME') ||
-        process.env.TRANZILA_TERMINAL_NAME;
-      const password = envOrSecret(TRANZILA_PW_S, 'TRANZILA_PW');
+      const tenantSchema = String(req.query.tenantSchema ?? '').trim();
+      if (!tenantSchema) { res.status(400).json({ ok:false, error:'missing tenantSchema' }); return; }
 
-      if (!supplier || !password) {
-        res
-          .status(500)
-          .json({ ok: false, error: 'Missing TRANZILA_SUPPLIER/PASSWORD' });
-        return;
-      }
+      const cfg = await getTranzilaConfigForTenant({ tenantSchema, mode: 'prod' });
 
-      // סכום לבדיקה – אפשר 1 (ש"ח אחד) או מה שתבחרי
       const sum = '1';
-
       const url = new URL('https://api.tranzila.com/v1/handshake/create');
-      url.searchParams.set('supplier', supplier);
+      url.searchParams.set('supplier', cfg.terminalName);
       url.searchParams.set('sum', sum);
-      url.searchParams.set('TranzilaPW', password);
-
+      url.searchParams.set('TranzilaPW', cfg.passwordCharge); // לרוב זה מסוף רגיל ל-hosted fields
 
       const resp = await fetch(url.toString(), { method: 'GET' });
       const text = await resp.text();
 
-      // התשובה מגיעה כ-query string, למשל:
-      // "thtk=XXXX&Response=000&..."
       const kv: Record<string, string> = Object.fromEntries(
         text.split('&').map((p) => {
           const [k, v] = p.split('=');
@@ -698,26 +683,20 @@ export const tranzilaHandshakeHttp = onRequest(
       );
 
       const thtk = kv['thtk'];
-
       if (!resp.ok || !thtk) {
-        res.status(resp.status || 500).json({
-          ok: false,
-          error: 'Failed to get thtk from Tranzila',
-          body: kv,
-        });
+        res.status(resp.status || 500).json({ ok:false, error:'Failed to get thtk', body: kv });
         return;
       }
 
-      // מה שאנחנו צריכים ל-Hosted Fields בצד ה-Client
-      res.json({ thtk });
+      // ✅ מחזירים גם terminal_name כדי שהקליינט לא ישים "moachapp"
+      res.json({ thtk, terminal_name: cfg.terminalName });
     } catch (err: any) {
       console.error('[tranzilaHandshakeHttp] error:', err);
-      res
-        .status(500)
-        .json({ ok: false, error: err?.message || 'internal error' });
+      res.status(500).json({ ok:false, error: err?.message || 'internal error' });
     }
   },
 );
+
 
 type RecordPaymentArgs = {
   sb: SupabaseClient;
@@ -1020,7 +999,8 @@ export const chargeSelectedChargesForParent = onRequest(
         return;
       }
 
-      const tokenTerminalPassword = resolveTranzilaSecretByKeyName(terminal.secret_key_charge_token);
+      const tokenTerminalPassword = await accessSecret(terminal.secret_key_charge_token!);
+
     
       // B) טוענים כרטיסים פעילים של ההורה + החיובים
 

@@ -116,7 +116,7 @@ export class OneTimePaymentComponent implements OnInit, AfterViewInit {
 
   async ngAfterViewInit(): Promise<void> {
     try {
-      const { thtk } = await this.tranzila.getHandshakeToken();
+      const { thtk } = await this.tranzila.getHandshakeToken(this.tenantSchema || '');
       this.thtk = thtk;
       this.initHostedFields();
     } catch (e: any) {

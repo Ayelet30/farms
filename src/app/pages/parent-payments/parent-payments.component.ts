@@ -232,7 +232,14 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
     this.hfInitTried = true;
 
     try {
-      const { thtk } = await this.tranzila.getHandshakeToken();
+      const farm = getCurrentFarmMetaSync();
+      const tenantSchema = farm?.schema_name ?? null;
+      if (!tenantSchema) {
+        this.tokenError.set('לא זוהה סכמת חווה');
+        return;
+      }
+
+      const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema);
       this.thtkAdd = thtk;
 
       if (!TzlaHostedFields) {
