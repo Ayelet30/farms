@@ -777,7 +777,14 @@ export class AddChildWizardComponent implements OnInit {
     this.tokenError = null;
 
     try {
-      const { thtk } = await this.tranzila.getHandshakeToken();
+      const farm = getCurrentFarmMetaSync();
+      const tenantSchema = farm?.schema_name ?? null;
+      if (!tenantSchema) {
+        this.tokenError = 'לא זוהה סכמת חווה';
+        return;
+      }
+
+      const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema);
       this.thtkReg = thtk;
 
       if (!TzlaHostedFields) {

@@ -42,6 +42,7 @@ export const routes: Routes = [
       { path: 'schedule', loadComponent: () => import('./pages/schedule/parent-schedule/parent-schedule').then(m => m.ParentScheduleComponent) },
       { path: 'appointment', loadComponent: () => import('./appointment-scheduler/appointment-scheduler.component').then(m => m.AppointmentSchedulerComponent) },
       { path: 'activity-summary', loadComponent: () => import('./pages/parent-activity-summary/parent-activity-summary').then(m => m.ParentActivitySummaryComponent) },
+      { path: 'waitlist', loadComponent: () => import('./waitlist/waitlist-my.page').then(m => m.WaitlistMyPage) },
       { path: 'payments', loadComponent: () => import('./pages/parent-payments/parent-payments.component').then(m => m.ParentPaymentsComponent) },
       { path: 'messages', loadComponent: () => import('./pages/messages/parent-messages/parent-messages').then(m => m.ParentMessagesComponent) },
       { path: 'details', loadComponent: () => import('./pages/parent-details/parent-details').then(m => m.ParentDetailsComponent) },
@@ -168,6 +169,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./pages/messages/secretary-messages/secretary-messages')
             .then(m => m.SecretaryMessagesComponent)
+      },
+      {
+        path: 'waitlist',
+        loadComponent: () =>
+          import('./waitlist/waitlist-board.page')
+            .then(m => m.WaitlistBoardPage)
       },
       {
         path: 'monthly-summary',

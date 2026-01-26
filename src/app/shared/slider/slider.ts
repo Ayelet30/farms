@@ -62,11 +62,12 @@ private setMenuItemsByRole() {
         { path: 'parent/children',          label: 'הילדים שלי',        icon: 'children' },
         { path: 'parent/schedule',          label: 'מערכת שיעורים',     icon: 'calendar' },
         { path: 'parent/appointment',       label: 'זימון תורים',       icon: 'calendar_plus' },
-        { path: 'parent/activity-summary',  label: 'סיכום פעילות',      icon: 'receipt' },
         { path: 'parent/payments',          label: 'אמצעי תשלום',       icon: 'card' },
+        { path: 'parent/requests',          label: 'בקשות ואישורים',    icon: 'checklist' },
         { path: 'parent/messages',          label: 'יצירת קשר',            icon: 'messages' },
+        { path: 'parent/waitlist',         label: 'רשימת המתנה',      icon: 'waitlist' },
         { path: 'parent/details',           label: 'הפרטים שלי',        icon: 'user' },
-        { path: 'parent/requests',          label: 'בקשות ואישורים',    icon: 'checklist' }
+        { path: 'parent/activity-summary',  label: 'סיכום פעילות',      icon: 'receipt' },
       ];
       break;
 
@@ -89,6 +90,7 @@ private setMenuItemsByRole() {
         { path: 'secretary/arenas',     label: 'מגרשים בחווה',     icon: 'arena' },
         { path: 'secretary/schedule',        label: 'לו״ז ומעקב',        icon: 'calendar' },
         { path: 'secretary/appointment',     label: 'זימון תורים',       icon: 'calendar_plus' },
+        { path: 'secretary/waitlist',        label: 'רשימת המתנה',      icon: 'waitlist' },
         { path: 'secretary/messages',        label: 'יצירת קשר',            icon: 'messages' },
         { path: 'secretary/monthly-summary', label: 'סיכום וגרפים',      icon: 'bar_chart' },
         { path: 'secretary/requests',        label: 'בקשות ואישורים',    icon: 'checklist' },

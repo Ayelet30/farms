@@ -679,7 +679,8 @@
       <p>
         האם את בטוחה שברצונך לבקש שיעור השלמה
         לתאריך <b>{{ confirmData.newDate }}</b>
-בשעות <b><span class="time-range">{{ confirmData.newStart | date:'dd-MM-yyyy'}}–{{ confirmData.newEnd | date:'dd-MM-yyyy'}}</span></b>
+בשעות <b><span class="time-range">{{ confirmData.newStart }}–{{ confirmData.newEnd }}</span></b>
+
         במקום השיעור בתאריך
         <b>{{ confirmData.oldDate | date:'dd-MM-yyyy' }}</b>
         בשעות <b>{{ confirmData.oldStart }}–{{ confirmData.oldEnd }}</b>?
@@ -695,7 +696,7 @@
 </div>
 
 <!-- דיאלוג אישור מילוי מקום -->
-<!-- דיאלוג הורה (בקשה למזכירה) -->
++<!-- דיאלוג הורה (בקשה למזכירה) -->
 <ng-template #confirmOccupancyParentDialog let-dialogRef="dialogRef">
   <div dir="rtl" style="padding: 10px; max-width: 380px;">
     <h3>אישור בקשת מילוי מקום</h3>
