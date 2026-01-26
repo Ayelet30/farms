@@ -390,23 +390,16 @@
   &.inactive{ opacity: .65; }
 }
 
-.range{
-  display:flex;
-  align-items:center;
-  gap:8px;
-
-  input[type="time"]{
-    width: 125px;
-    padding: 8px 10px;
-    border-radius: 14px;
-  }
-
-  .sep{
-    opacity:.6;
-    font-weight: 900;
-    color: var(--sf-text-soft);
-  }
-}
+// .range{
+//   display:flex;
+//   align-items:center;
+//   gap:8px;
+//   .sep{
+//     opacity:.6;
+//     font-weight: 900;
+//     color: var(--sf-text-soft);
+//   }
+// }
 
 /* ========== Empty State ========== */
 .empty-state{
@@ -638,4 +631,181 @@
   padding-right: 6px;
   border-right: 4px solid rgba(127, 139, 78, .55); /* פס זית */
 }
+/* ===== Working Hours time inputs: EXACT pill like screenshot ===== */
+.list-row .col-secondary{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
+.list-row .sep{
+  opacity: .6;
+  font-weight: 900;
+  color: var(--sf-text-soft);
+}
+
+/* רק לשעות לפי יום */
+.wh-time{
+  box-sizing: border-box;
+  width: 128px;            /* דומה לצילום */
+  height: 40px;            /* גובה גלולה */
+  padding: 0 14px;         /* בלי “שומן” למעלה/למטה */
+  border-radius: 999px;    /* גלולה */
+  border: 2px solid #1f1f1f; /* שחור כמו בצילום */
+  background: #fff;
+  color: #1f1f1f;
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
+
+/* מצב focus (שלא יקפוץ למסגרת ירוקה עבה) */
+.wh-time:focus{
+  box-shadow: none;
+  border-color: #1f1f1f;
+}
+
+/* disabled כמו בצילום (אפור עדין) */
+.wh-time:disabled{
+  background: #eef0e6;
+  border-color: rgba(31,31,31,.35);
+  color: rgba(31,31,31,.55);
+  cursor: not-allowed;
+}
+
+/* אייקון שעון כמו בצילום */
+.wh-time::-webkit-calendar-picker-indicator{
+  opacity: 1;
+  cursor: pointer;
+}
+
+.list-row .col-secondary:nth-child(3),
+.list-row .col-secondary:nth-child(5){
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+}
+/* ===========================
+   Working Hours - EXACT PILL LOOK (like old screenshot)
+   =========================== */
+
+/* grid יציב שלא שובֵר */
+.list-header-row,
+.list-row{
+  grid-template-columns: 90px 80px 1fr 90px 1fr; /* כמו שהגדרת */
+  align-items: center;
+}
+
+/* חשוב: כדי ש-grid לא “יחנוק” ילדים ויגרום לשבירות מוזרות */
+.list-row > *,
+.list-header-row > *{
+  min-width: 0;
+}
+
+/* תא של שעות: תמיד בשורה אחת, מיושר יפה */
+.list-row .time-col{
+  display: flex;
+  align-items: center;
+  justify-content: center;   /* מרכז כמו בצילום הראשון */
+  gap: 10px;
+  flex-wrap: nowrap;         /* ❗ לא לשבור שורה */
+  white-space: nowrap;
+}
+
+/* המפריד – באמצע, עדין */
+.list-row .time-col .sep{
+  display: inline-block;
+  margin: 0 2px;
+  opacity: .6;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* הגלולה עצמה (קטנה כמו פעם) */
+.list-row .time-col input[type="time"].wh-time{
+  width: 112px;              /* ❗ קטן יותר כדי שלא ייפול שורה */
+  height: 38px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 2px solid rgba(31, 42, 31, .85);  /* מסגרת כהה כמו בצילום הראשון */
+  background: #fff !important;
+  color: #111;
+  font: inherit;
+  font-weight: 700;
+  box-sizing: border-box;
+
+  /* שומר על מראה “נקי” */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* פוקוס – כמו שהיה (מסגרת + glow עדין) */
+.list-row .time-col input[type="time"].wh-time:focus{
+  outline: none;
+  border-color: rgba(31, 42, 31, .95);
+  box-shadow: 0 0 0 4px rgba(127, 139, 78, .18);
+}
+
+/* disabled – אפור/קרמי עדין כמו בצילום */
+.list-row .time-col input[type="time"].wh-time:disabled{
+  background: #f1f2ea !important;
+  color: rgba(31, 42, 31, .55);
+  border-color: rgba(199, 204, 183, .95);
+  cursor: not-allowed;
+}
+
+/* כרום: מרכז את הטקסט בתוך input time */
+.list-row .time-col input[type="time"].wh-time::-webkit-datetime-edit{
+  padding: 0;
+}
+.list-row .time-col input[type="time"].wh-time::-webkit-datetime-edit-fields-wrapper{
+  display: flex;
+  justify-content: center;
+}
+/* ✅ Working Hours checkboxes – same green + same size */
+.list-block .wh-check{
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 2px solid rgba(199, 204, 183, .95);
+  background: #fff;
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease, transform .06s ease;
+}
+
+.list-block .wh-check:active{
+  transform: translateY(1px);
+}
+
+.list-block .wh-check::before{
+  content: "";
+  width: 9px;
+  height: 5px;
+  border-left: 3px solid #fff;
+  border-bottom: 3px solid #fff;
+  transform: rotate(-45deg);
+  opacity: 0;
+  margin-top: -1px;
+}
+
+.list-block .wh-check:checked{
+  background: var(--sf-olive);
+  border-color: rgba(103, 115, 63, .35);
+}
+
+.list-block .wh-check:checked::before{
+  opacity: 1;
+}
+
+.list-block .wh-check:disabled{
+  background: #eef0e6;
+  border-color: rgba(199, 204, 183, .9);
+  cursor: not-allowed;
+  opacity: .75;
+}
