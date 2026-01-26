@@ -81,9 +81,10 @@
         דחייה
       </button>
 
-      <button mat-flat-button type="button" class="action approve" (click)="approveSimulate()">
-        אישור
-      </button>
+    <button mat-flat-button type="button" class="action approve" (click)="approve()">
+  אישור
+</button>
+
     </div>
 
     <div class="note" *ngIf="req()?.status !== 'PENDING'">
