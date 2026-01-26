@@ -2319,35 +2319,27 @@ async selectAndRequestOccupancySlot(slot: MakeupSlot): Promise<void> {
   this.occupancyConfirmData.newDate  = slot.occur_date;
   this.occupancyConfirmData.newStart = slot.start_time.substring(0, 5);
   this.occupancyConfirmData.newEnd   = slot.end_time.substring(0, 5);
-  this.occupancyConfirmData.newInstructorName =
-    slot.instructor_name || this.selectedInstructor?.full_name || slot.instructor_id;
 
-  // נתוני השיעור המקורי שבוטל – מתוך ה-candidate שנבחר
-  const orig = this.selectedOccupancyCandidate;
-// נניח שיש לך:
-const c = this.selectedOccupancyCandidate!;
+  const c = this.selectedOccupancyCandidate;
 
-// שם המדריך הישן (זה שביטל את השיעור)
-const oldInstructorName =
-  c.instructor_name ||               // אם יש שם מלא
-  c.instructor_id  ||               // אחרת ניפול לת"ז
-  '';
+  const oldInstructorName =
+    c.instructor_name ||
+    c.instructor_id ||
+    '';
 
-// שם המדריך החדש (של שיעור המילוי מקום)
-const newInstructorName =
-  slot.instructor_name ||           // אם חישבנו שם מלא ב-RPC
-  slot.instructor_id  ||           // fallback לת"ז
-  '';
+  const newInstructorName =
+    slot.instructor_name ||
+    slot.instructor_id ||
+    '';
 
-this.occupancyConfirmData.oldInstructorName = oldInstructorName;
-this.occupancyConfirmData.newInstructorName = newInstructorName;
+  this.occupancyConfirmData.oldInstructorName = oldInstructorName;
+  this.occupancyConfirmData.newInstructorName = newInstructorName;
 
-  this.occupancyConfirmData.oldDate  = orig.occur_date;
-  this.occupancyConfirmData.oldStart = orig.start_time.substring(0, 5);
-  this.occupancyConfirmData.oldEnd   = orig.end_time.substring(0, 5);
-  
- const dialogRef = this.openOccupancyConfirmDialog(false);
+  this.occupancyConfirmData.oldDate  = c.occur_date;
+  this.occupancyConfirmData.oldStart = c.start_time.substring(0, 5);
+  this.occupancyConfirmData.oldEnd   = c.end_time.substring(0, 5);
 
+  const dialogRef = this.openOccupancyConfirmDialog(false);
 
   dialogRef.afterClosed().subscribe(async confirmed => {
     if (!confirmed) return;
@@ -2355,60 +2347,75 @@ this.occupancyConfirmData.newInstructorName = newInstructorName;
     this.occupancyError = null;
     this.occupancyCreatedMessage = null;
 
-    const supa = dbTenant();
+    try {
+      const supa = dbTenant();
 
-    // ה-UID של השיעור המקורי אותו משלימים (מתוך ה-view)
-    const lessonOccId = this.selectedOccupancyCandidate!.lesson_id;
-    // אם ה-view מחזיר lesson_occ_exception_id שאת רוצה להשתמש בו, תחליפי כאן.
+      // השיעור המקורי שבוטל (כמו שאת עושה כבר)
+      const lessonOccId = this.selectedOccupancyCandidate!.lesson_id;
 
-    const payload = {
-      requested_start_time: slot.start_time,
-      requested_end_time: slot.end_time,
-    };
+      const payload = {
+        requested_start_time: slot.start_time,
+        requested_end_time: slot.end_time,
+      };
 
-    const { error } = await supa
-      .from('secretarial_requests')
-      .insert({
-        request_type: 'FILL_IN',
-        status: 'PENDING',
-        requested_by_uid: String(this.user!.uid),
-        requested_by_role: 'parent',
-        child_id: this.selectedChildId,
-        instructor_id: slot.instructor_id,      // המדריך של השיעור החדש
-        lesson_occ_id: lessonOccId,             // השיעור המקורי (view)
-        from_date: slot.occur_date,
-        to_date: slot.occur_date,
-        payload,
-      });
+      // 1) יצירת בקשה למזכירה
+      const { error: reqErr } = await supa
+        .from('secretarial_requests')
+        .insert({
+          request_type: 'FILL_IN',
+          status: 'PENDING',
+          requested_by_uid: String(this.user!.uid),
+          requested_by_role: 'parent',
+          child_id: this.selectedChildId,
+          instructor_id: slot.instructor_id, // המדריך של השיעור החדש
+          lesson_occ_id: lessonOccId,        // השיעור המקורי (view)
+          from_date: slot.occur_date,
+          to_date: slot.occur_date,
+          payload,
+        });
 
-    if (error) {
-      console.error('FILL_IN request error', error);
-      this.occupancyError = 'שגיאה בשליחת בקשת מילוי מקום למזכירה';
-      return;
+      if (reqErr) {
+        console.error('FILL_IN request error', reqErr);
+        this.occupancyError = 'שגיאה בשליחת בקשת מילוי מקום למזכירה';
+        this.showErrorToast(this.occupancyError);
+        return;
+      }
+
+      // 2) עדכון החריגה של השיעור המקורי
+      const excId = this.selectedOccupancyCandidate!.lesson_occ_exception_id;
+
+      const { error: updErr } = await supa
+        .from('lesson_occurrence_exceptions')
+        .update({ status: 'נשלחה בקשה למילוי מקום' })
+        .eq('id', excId);
+
+      if (updErr) {
+        console.error('lesson_occurrence_exceptions update error (FILL_IN)', updErr);
+        // לא מפיל את כל הפעולה—הבקשה כבר נשלחה
+      }
+
+      // 3) UI
+      this.showSuccessToast('בקשת מילוי מקום נשלחה למזכירה ✔️');
+
+      // אופציונלי: להוריד מהרשימה המקומית כדי שיראה מייד
+      this.occupancyCandidates = this.occupancyCandidates.filter(x =>
+        !(x.lesson_id === c.lesson_id && x.occur_date === c.occur_date)
+      );
+
+      this.selectedOccupancyCandidate = null;
+      this.occupancySlots = [];
+      this.selectedOccupancySlot = null;
+
+      await this.onChildChange();
+
+    } catch (e) {
+      console.error(e);
+      this.occupancyError = 'שגיאה בלתי צפויה בשליחת בקשת מילוי מקום';
+      this.showErrorToast(this.occupancyError);
     }
-const excId = this.selectedOccupancyCandidate!.lesson_occ_exception_id;
-
-const { error: updErr } = await supa
-  .from('lesson_occurrence_exceptions')
-  .update({ status: 'נשלחה בקשה למילוי מקום' })
-  .eq('id', excId);
-
-if (updErr) {
-  console.error('lesson_occurrence_exceptions update error (FILL_IN)', updErr);
-  // לא חייבים להפיל הכל – אבל כן להציג הודעה אם תרצי
-}
-
-    this.occupancyCreatedMessage =
-      'בקשת מילוי המקום נשלחה למזכירה ✔️';
-      this.occupancyCandidates = this.occupancyCandidates.filter(x => !this.sameCandidate(x, this.selectedOccupancyCandidate!));
-this.selectedOccupancyCandidate = null;
-this.occupancySlots = [];
-
-
-    // אם את רוצה – לרענן את השיעורים שמחפשים מילוי מקום
-    //await this.onChildChange();
   });
 }
+
 async onOccupancySlotChosen(slot: MakeupSlot): Promise<void> {
   // תתאימי לפי איך את מחזיקה תפקיד אצלך (role / isSecretary וכו')
   const isSecretary = this.user?.role === 'secretary';
@@ -2963,11 +2970,12 @@ private openOccupancyConfirmDialog(isSecretary: boolean) {
     : this.confirmOccupancyParentDialog;
 
   return this.dialog.open(tpl, {
-    width: '380px',
+    width: '420px',
     disableClose: true,
     data: {},
   });
 }
+
 get canShowSeriesCalendar(): boolean {
   // חייבים לבחור ילד
   if (!this.selectedChildId) return false;

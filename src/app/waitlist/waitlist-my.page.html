@@ -1,0 +1,31 @@
+<div class="my-wrap" dir="rtl">
+  <div class="title">רשימת ההמתנה שלי</div>
+
+  <div class="err" *ngIf="errorText()">{{ errorText() }}</div>
+  <div class="loading" *ngIf="loading()">טוען…</div>
+
+  <div class="cards" *ngIf="!loading()">
+    <div class="card" *ngFor="let e of items()">
+      <div class="row">
+        <div class="pill" [class.paused]="e.status==='paused'">
+          {{ e.status==='paused' ? 'מושהה' : 'פעיל' }}
+        </div>
+        <div class="small">{{ e.created_at | date:'dd/MM HH:mm' }}</div>
+      </div>
+
+      <div class="name">{{ typeName(e.riding_type_id) }}</div>
+
+      <div class="chips">
+        <span class="chip" *ngIf="e.requested_day">יום: {{ e.requested_day }}</span>
+        <span class="chip" *ngIf="e.time_window_start && e.time_window_end">
+          שעות: {{ e.time_window_start!.slice(0,5) }}–{{ e.time_window_end!.slice(0,5) }}
+        </span>
+      </div>
+
+      <div class="actions">
+        <button class="btn ghost" (click)="togglePause(e)">{{ e.status==='paused' ? 'החזר לפעיל' : 'השהה' }}</button>
+        <button class="btn" (click)="cancel(e.id)">בטל</button>
+      </div>
+    </div>
+  </div>
+</div>

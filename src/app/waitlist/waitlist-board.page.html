@@ -1,0 +1,98 @@
+<div class="wl-wrap" dir="rtl">
+
+  <div class="wl-head">
+    <div class="wl-title">רשימת המתנה</div>
+
+    <div class="wl-filters">
+      <label class="field">
+        <div class="lbl">סוג רכיבה</div>
+        <select [ngModel]="selectedTypeId()" (ngModelChange)="selectedTypeId.set($event); onTypeChanged()">
+          <option *ngFor="let t of ridingTypes()" [value]="t.id">{{ t.name }}</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <div class="lbl">סינון יום (אופציונלי)</div>
+        <input type="date" [ngModel]="requestedDay()" (ngModelChange)="requestedDay.set($event); refresh()" />
+      </label>
+
+      <button class="btn" type="button" (click)="refresh()" [disabled]="loading()">רענן</button>
+      <button class="btn ghost" type="button" (click)="normalizePositions()" [disabled]="loading()">Normalize</button>
+    </div>
+
+    <div class="wl-error" *ngIf="errorText()">{{ errorText() }}</div>
+  </div>
+
+  <div class="wl-list" *ngIf="!loading()">
+
+    <div class="wl-section-title">פעילים / מושהים (אפשר לגרור)</div>
+
+    <div cdkDropList class="cards" (cdkDropListDropped)="drop($event)">
+      <div class="card"
+           *ngFor="let e of activeEntries(); let i = index"
+           cdkDrag>
+
+        <div class="row top">
+          <div class="pill status" [class.paused]="e.status==='paused'">
+            {{ e.status === 'paused' ? 'מושהה' : 'פעיל' }}
+          </div>
+
+          <div class="meta">
+            <div class="small">קדימות: <b>{{ e.priority }}</b></div>
+            <div class="small">נוצר קשר: <b>{{ e.last_contacted_at ? (e.last_contacted_at | date:'dd/MM HH:mm') : '—' }}</b></div>
+          </div>
+        </div>
+
+        <div class="row mid">
+          <div class="title">ילד: {{ e.child_uuid }}</div>
+          <div class="sub">הורה: {{ e.parent_uid }}</div>
+        </div>
+
+        <div class="row chips">
+          <span class="chip" *ngIf="e.requested_day">יום: {{ e.requested_day }}</span>
+          <span class="chip" *ngIf="e.time_window_start && e.time_window_end">
+            שעות: {{ e.time_window_start!.slice(0,5) }}–{{ e.time_window_end!.slice(0,5) }}
+          </span>
+          <span class="chip" *ngIf="e.preferred_instructor_uid">מדריך: {{ e.preferred_instructor_uid }}</span>
+        </div>
+
+        <div class="row actions">
+          <button class="btn ghost" type="button" (click)="togglePause(e)">
+            {{ e.status==='paused' ? 'החזר לפעיל' : 'השהה' }}
+          </button>
+
+          <button class="btn" type="button" (click)="bumpPriority(e, +1)">+ קדימות</button>
+          <button class="btn ghost" type="button" (click)="bumpPriority(e, -1)">- קדימות</button>
+
+          <button class="btn ghost" type="button" (click)="markContacted(e)">סמן “נוצר קשר”</button>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="wl-section-title">הצעות פתוחות (offered)</div>
+
+    <div class="cards">
+      <div class="card offered" *ngFor="let e of offeredEntries()">
+        <div class="row top">
+          <div class="pill offered">הצעה נשלחה</div>
+          <div class="meta">
+            <div class="small">תוקף עד: <b>{{ e.offer_expires_at ? (e.offer_expires_at | date:'dd/MM HH:mm') : '—' }}</b></div>
+          </div>
+        </div>
+
+        <div class="row mid">
+          <div class="title">ילד: {{ e.child_uuid }}</div>
+          <div class="sub">הורה: {{ e.parent_uid }}</div>
+        </div>
+
+        <div class="row chips">
+          <span class="chip" *ngIf="e.linked_occurrence_id">שיעור: {{ e.linked_occurrence_id }}</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="wl-loading" *ngIf="loading()">טוען…</div>
+</div>
