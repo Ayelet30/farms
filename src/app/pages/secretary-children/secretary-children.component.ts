@@ -110,6 +110,17 @@ export class SecretaryChildrenComponent implements OnInit {
   termsPath: string | null = null;
   termsCreatedAt: string | null = null;
 
+  // --- הפניות (Storage) ---
+referralsLoading = false;
+referralsError: string | null = null;
+
+referralFiles: {
+  name: string;
+  fullPath: string;
+  updatedAt?: string | null;
+  publicUrl?: string; // כי bucket public
+}[] = [];
+
   constructor(
     private ui: UiDialogService,
     private fb: FormBuilder,
@@ -323,6 +334,10 @@ goToParentPaymentsFromChild() {
     this.termsPath = null;
     this.termsCreatedAt = null;
     this.termsLoading = false;
+    this.referralFiles = [];
+    this.referralsLoading = false;
+    this.referralsError = null;
+
   }
 
   openAddChildDialog() {
@@ -378,6 +393,8 @@ goToParentPaymentsFromChild() {
 
       // ✅ טען תקנון חתום (אם יש)
       await this.loadChildTermsSignature(id);
+      await this.loadChildReferrals(id);
+
     } catch (e) {
       console.error('loadDrawerData error:', e);
       this.drawerChild = null;
@@ -419,6 +436,51 @@ goToParentPaymentsFromChild() {
       this.termsLoading = false;
     }
   }
+ private async loadChildReferrals(childId: string) {
+  this.referralsLoading = true;
+  this.referralsError = null;
+  this.referralFiles = [];
+
+  try {
+    const client = getSupabaseClient();
+    const bucket = 'referrals';
+
+    const folderPath = `referrals/${childId}`;
+    const { data, error } = await client.storage
+      .from(bucket)
+      .list(folderPath, {
+        limit: 100,
+        sortBy: { column: 'updated_at', order: 'desc' },
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    this.referralFiles = (data ?? [])
+      .filter((x: any) => !!x?.name)
+      .map((x: any) => {
+        const fullPath = `${folderPath}/${x.name}`;
+        const { data: pub } = client.storage.from(bucket).getPublicUrl(fullPath);
+
+        return {
+          name: x.name,
+          fullPath,
+          updatedAt: x.updated_at ?? null,
+          publicUrl: pub.publicUrl,
+        };
+      });
+
+  } catch (e: any) {
+    console.error('loadChildReferrals error:', e);
+    this.referralsError = e?.message ?? 'שגיאה בטעינת הפניות';
+    this.referralFiles = [];
+  } finally {
+    this.referralsLoading = false;
+  }
+}
+
+
 
   /** פותח PDF של התקנון בדיאלוג */
   async openTermsPdf() {
@@ -429,7 +491,7 @@ goToParentPaymentsFromChild() {
 
     try {
      const client = getSupabaseClient();
-console.log('dbTenant storage?', (client as any)?.storage);
+     console.log('dbTenant storage?', (client as any)?.storage);
 
 
       // Signed URL לשעה (אפשר לשנות)
@@ -455,6 +517,39 @@ console.log('dbTenant storage?', (client as any)?.storage);
       await this.ui.alert('לא הצלחתי לפתוח את ה-PDF: ' + (e?.message ?? e), 'תקנון');
     }
   }
+
+  async openReferralPdf(file: { fullPath: string; publicUrl?: string }) {
+  try {
+    const client = getSupabaseClient();
+    const bucket = 'referrals';
+
+    let url = file.publicUrl;
+
+    if (!url) {
+      const { data, error } = await client.storage
+        .from(bucket)
+        .createSignedUrl(file.fullPath, 60 * 60);
+
+      if (error) throw error;
+      url = data?.signedUrl;
+    }
+
+    if (!url) throw new Error('No url returned');
+
+    this.dialog.open(TermsPdfDialogComponent, {
+      width: 'min(980px, 96vw)',
+      height: 'min(90vh, 900px)',
+      data: {
+        title: 'הפניה (PDF)',
+        url: this.sanitizer.bypassSecurityTrustResourceUrl(url),
+      },
+    });
+  } catch (e: any) {
+    console.error('openReferralPdf error:', e);
+    await this.ui.alert('לא הצלחתי לפתוח את ההפניה: ' + (e?.message ?? e), 'הפניות');
+  }
+}
+
 
   /** בונה טופס עריכה מתוך פרטי הילד שבמגירה */
   private buildChildForm(child: ChildDetails) {
