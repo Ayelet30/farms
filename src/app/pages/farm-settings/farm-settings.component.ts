@@ -77,6 +77,7 @@ interface FarmSettings {
 
   updated_at?: string | null;
 }
+
 type ListNoteId = number;
 
 interface ListNote {
@@ -158,6 +159,7 @@ interface FarmWorkingHours {
   farm_start: string | null; // "HH:MM"
   farm_end: string | null;
 
+  is_offical_open: boolean;
   office_start: string | null;
   office_end: string | null;
 }
@@ -171,9 +173,10 @@ interface FarmWorkingHours {
 })
 export class FarmSettingsComponent implements OnInit {
   private readonly SETTINGS_SINGLETON_ID = '00000000-0000-0000-0000-000000000001';
+
   private get supabase() {
-  return dbTenant();
-}
+    return dbTenant();
+  }
 
   private ui = inject(UiDialogService);
 
@@ -183,20 +186,18 @@ export class FarmSettingsComponent implements OnInit {
   editingListNoteId = signal<ListNoteId | null>(null);
 
   newListNoteText = signal<string>('');
-  listNotesExpanded = signal(true);  
+  listNotesExpanded = signal(true);
 
   toggleListNotesExpanded(): void {
-  const next = !this.listNotesExpanded();
-  this.listNotesExpanded.set(next);
+    const next = !this.listNotesExpanded();
+    this.listNotesExpanded.set(next);
 
-  // אופציונלי - כשסוגרים, נסגור גם טופס/עריכה כדי שלא יישאר פתוח
-  if (!next) {
-    this.showNewListNoteForm.set(false);
-    this.editingListNoteId.set(null);
-    this.newListNoteText.set('');
+    if (!next) {
+      this.showNewListNoteForm.set(false);
+      this.editingListNoteId.set(null);
+      this.newListNoteText.set('');
+    }
   }
-}
-
 
   loading = signal(false);
   saving = signal(false);
@@ -353,7 +354,6 @@ export class FarmSettingsComponent implements OnInit {
 
     let g = new HDate(heDay, heMonth, hy).greg();
 
-    // אם כבר עבר - נזוז לשנה הבאה
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     if (g < startOfToday) {
       hy += 1;
@@ -410,11 +410,11 @@ export class FarmSettingsComponent implements OnInit {
     this.specialDayForm.set({
       ...f,
       calendar_kind: 'HEBREW',
-      recurrence: f.recurrence ?? 'YEARLY', // טבעי לעברי
+      recurrence: f.recurrence ?? 'YEARLY',
       start_date: f.start_date || todayIso,
       end_date: f.end_date || todayIso,
       hebrew_day: f.hebrew_day ?? 10,
-      hebrew_month: f.hebrew_month ?? 1, // תשרי (לפי המערך שלך)
+      hebrew_month: f.hebrew_month ?? 1,
       hebrew_end_day: f.hebrew_end_day ?? f.hebrew_day ?? 10,
       hebrew_end_month: f.hebrew_end_month ?? f.hebrew_month ?? 1,
     });
@@ -442,6 +442,7 @@ export class FarmSettingsComponent implements OnInit {
       is_open: r.is_open ?? true,
       farm_start: this.t5(r.farm_start),
       farm_end: this.t5(r.farm_end),
+      is_offical_open: r.is_offical_open ?? false,
       office_start: this.t5(r.office_start),
       office_end: this.t5(r.office_end),
     }));
@@ -464,6 +465,7 @@ export class FarmSettingsComponent implements OnInit {
         is_open: true,
         farm_start: defFarmStart,
         farm_end: defFarmEnd,
+        is_offical_open: !!(defOfficeStart && defOfficeEnd),
         office_start: defOfficeStart,
         office_end: defOfficeEnd,
       });
@@ -485,37 +487,53 @@ export class FarmSettingsComponent implements OnInit {
   }
 
   private validateWorkingHoursRow(r: FarmWorkingHours): string | null {
-    if (!r.is_open) return null;
-
     const day = this.getHebDayLabel(r.day_of_week);
 
-    // חווה: חייבים שניהם
-    if (!r.farm_start || !r.farm_end) {
-      return `חסר טווח שעות חווה ליום ${day}.`;
-    }
-    if (r.farm_end <= r.farm_start) {
-      return `בשעות חווה: שעת סיום חייבת להיות אחרי שעת התחלה ביום ${day}.`;
-    }
-
-    // משרד: אם אחד מלא -> שניהם חובה
-    const hasOfficeAny = !!r.office_start || !!r.office_end;
-    if (hasOfficeAny && (!r.office_start || !r.office_end)) {
-      return `בשעות משרד: אם מילאת התחלה/סיום – חייבים למלא את שניהם ביום ${day}.`;
+    // ---- חווה ----
+    if (r.is_open) {
+      if (!r.farm_start || !r.farm_end) {
+        return `בשעות חווה: חסר טווח שעות ליום ${day}.`;
+      }
+      if (r.farm_end <= r.farm_start) {
+        return `בשעות חווה: שעת סיום חייבת להיות אחרי שעת התחלה ביום ${day}.`;
+      }
     }
 
-    // משרד: התחלה לפני סיום
-    if (r.office_start && r.office_end && r.office_end <= r.office_start) {
-      return `בשעות משרד: שעת סיום חייבת להיות אחרי שעת התחלה ביום ${day}.`;
-    }
-
-    // משרד בתוך חווה
-    if (r.office_start && r.office_end) {
-      if (r.office_start < r.farm_start || r.office_end > r.farm_end) {
-        return `בשעות משרד: טווח המשרד חייב להיות בתוך טווח החווה ביום ${day}.`;
+    // ---- משרד ----
+    if (r.is_offical_open) {
+      if (!r.office_start || !r.office_end) {
+        return `בשעות משרד: המשרד פתוח ולכן חובה למלא התחלה וסיום ביום ${day}.`;
+      }
+      if (r.office_end <= r.office_start) {
+        return `בשעות משרד: שעת סיום חייבת להיות אחרי שעת התחלה ביום ${day}.`;
       }
     }
 
     return null;
+  }
+
+  // ✅ חדש: כשסוגרים חווה - ננקה שעות כדי שלא יישמרו "שעות ישנות"
+  onFarmOpenToggle(r: FarmWorkingHours): void {
+    if (!r.is_open) {
+      r.farm_start = null;
+      r.farm_end = null;
+    } else {
+      const s = this.settings();
+      r.farm_start = r.farm_start ?? (s?.operating_hours_start ?? '08:00');
+      r.farm_end = r.farm_end ?? (s?.operating_hours_end ?? '20:00');
+    }
+  }
+
+  // ✅ חדש: כשסוגרים משרד - ננקה שעות משרד; כשפותחים - נכניס ברירת מחדל אם חסר
+  onOfficeOpenToggle(r: FarmWorkingHours): void {
+    if (!r.is_offical_open) {
+      r.office_start = null;
+      r.office_end = null;
+    } else {
+      const s = this.settings();
+      r.office_start = r.office_start ?? (s?.office_hours_start ?? '08:30');
+      r.office_end = r.office_end ?? (s?.office_hours_end ?? '16:00');
+    }
   }
 
   async saveWorkingHours(): Promise<void> {
@@ -529,14 +547,18 @@ export class FarmSettingsComponent implements OnInit {
       return;
     }
 
+    // ✅ חשוב: אם יום סגור -> נשמור NULL לשעות
     const payload = rows.map(r => ({
       id: r.id,
       day_of_week: r.day_of_week,
+
       is_open: !!r.is_open,
-      farm_start: this.timeToDb(r.farm_start),
-      farm_end: this.timeToDb(r.farm_end),
-      office_start: this.timeToDb(r.office_start),
-      office_end: this.timeToDb(r.office_end),
+      farm_start: r.is_open ? this.timeToDb(r.farm_start) : null,
+      farm_end: r.is_open ? this.timeToDb(r.farm_end) : null,
+
+      is_offical_open: !!r.is_offical_open,
+      office_start: r.is_offical_open ? this.timeToDb(r.office_start) : null,
+      office_end: r.is_offical_open ? this.timeToDb(r.office_end) : null,
     }));
 
     try {
@@ -561,7 +583,6 @@ export class FarmSettingsComponent implements OnInit {
       await this.loadWorkingHours();
       this.onWorkingHoursChanged();
 
-      // אופציונלי: סנכרון working_days לפי is_open
       const s = this.settings();
       if (s) {
         const openDays = rows.filter(x => x.is_open).map(x => x.day_of_week).sort((a, b) => a - b);
@@ -677,11 +698,11 @@ export class FarmSettingsComponent implements OnInit {
 
   async saveSpecialDay(): Promise<void> {
     const f = this.specialDayForm();
-   this.validateSpecialDayDateRange(f);
-if (this.dateRangeError()) {
-  await this.ui.alert(this.dateRangeError()!, 'שגיאה');
-  return;
-}
+    this.validateSpecialDayDateRange(f);
+    if (this.dateRangeError()) {
+      await this.ui.alert(this.dateRangeError()!, 'שגיאה');
+      return;
+    }
 
     if (!f.reason?.trim()) {
       await this.ui.alert('חובה למלא סיבה.', 'חסר שדה');
@@ -748,7 +769,6 @@ if (this.dateRangeError()) {
         console.error('saveSpecialDay error', error);
         await this.ui.alert('שמירת יום מיוחד נכשלה.', 'שגיאה');
         this.error.set('שמירת יום מיוחד נכשלה.');
-        
         return;
       }
 
@@ -848,7 +868,6 @@ if (this.dateRangeError()) {
       return;
     }
 
-    // Defaults when no row exists
     this.settings.set({
       operating_hours_start: '08:00',
       operating_hours_end: '20:00',
