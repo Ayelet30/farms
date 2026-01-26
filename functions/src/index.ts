@@ -23,6 +23,7 @@ export * from "./dailyBilling.js";
 
 export * from "./publicSignup.js";
 
+export { processDueChildDeletions } from './processDueChildDeletions';
 
 
 
