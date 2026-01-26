@@ -660,6 +660,7 @@ export const tranzilaHandshakeHttp = onRequest(
     try {
       if (handleCors(req, res)) return;
       if (req.method !== 'GET') { res.status(405).send('Method Not Allowed'); return; }
+      console.log('[tranzilaHandshakeHttp] req.query:', req.query);
 
       const tenantSchema = String(req.query.tenantSchema ?? '').trim();
       if (!tenantSchema) { res.status(400).json({ ok:false, error:'missing tenantSchema' }); return; }
@@ -674,6 +675,7 @@ export const tranzilaHandshakeHttp = onRequest(
 
       const resp = await fetch(url.toString(), { method: 'GET' });
       const text = await resp.text();
+      console.log('[tranzilaHandshakeHttp] response text:', text);
 
       const kv: Record<string, string> = Object.fromEntries(
         text.split('&').map((p) => {
