@@ -68,6 +68,7 @@ export class RequestRemoveChildDetailsComponent {
   @Input() onApproved?: (e: any) => void;
   @Input() onRejected?: (e: any) => void;
   @Input() onError?: (e: any) => void;
+scheduledDeletionAt = signal<string | null>(null);
 
   // outputs
   @Output() approved = new EventEmitter<{ requestId: string; newStatus: 'APPROVED' }>();
@@ -135,95 +136,140 @@ export class RequestRemoveChildDetailsComponent {
     return `${(first ?? '').trim()} ${(last ?? '').trim()}`.trim() || '—';
   }
 
-  async loadRemainingLessons() {
-    const token = ++this.runToken;
+ async loadRemainingLessons() {
+  const token = ++this.runToken;
 
-    const childId = this.getChildId();
-    if (!childId) {
-      this.remainingError.set('חסר childId בבקשה ולכן אי אפשר להביא שיעורים.');
+  const childId = this.getChildId();
+  if (!childId) {
+    this.remainingError.set('חסר childId בבקשה ולכן אי אפשר להביא שיעורים.');
+    this.remainingLessons.set([]);
+    return;
+  }
+
+  this.loadingRemaining.set(true);
+  this.remainingError.set(null);
+
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    // ✅ אם כבר יש תאריך מחיקה מתוזמן (Deletion Scheduled),
+    //    נציג "שיעורים שנותרו" רק עד לפני התאריך הזה.
+    //    (occur_date הוא date, אז נשווה מול YYYY-MM-DD)
+    const untilIso =
+      (this.scheduledDeletionAt?.() ?? null)  // אם יש לך signal scheduledDeletionAt
+        ? (this.scheduledDeletionAt() as string).slice(0, 10)
+        : null;
+
+    let q = db
+      .from('lessons_occurrences')
+      .select(
+        'lesson_id, occur_date, day_of_week, start_time, end_time, lesson_type, status, instructor_id'
+      )
+      .eq('child_id', childId)
+      .gte('occur_date', this.todayIso())
+      .in('status', ['ממתין לאישור', 'אושר'])
+      .order('occur_date', { ascending: true })
+      .order('start_time', { ascending: true });
+
+    // ✅ חשוב: להראות רק שיעורים לפני תאריך המחיקה בפועל
+    if (untilIso) {
+      q = q.lt('occur_date', untilIso);
+    }
+
+    const { data: occData, error: occErr } = await q;
+    if (occErr) throw occErr;
+    if (token !== this.runToken) return;
+
+    const occ = (occData ?? []) as OccRow[];
+    if (!occ.length) {
       this.remainingLessons.set([]);
       return;
     }
 
-    this.loadingRemaining.set(true);
-    this.remainingError.set(null);
+    const instructorIds = Array.from(
+      new Set(occ.map((o) => o.instructor_id).filter(Boolean))
+    );
 
-    try {
-      await ensureTenantContextReady();
-      const db = dbTenant();
+    const { data: instData, error: instErr } = await db
+      .from('instructors')
+      .select('id_number, first_name, last_name')
+      .in('id_number', instructorIds);
 
-      const { data: occData, error: occErr } = await db
-        .from('lessons_occurrences')
-        .select('lesson_id, occur_date, day_of_week, start_time, end_time, lesson_type, status, instructor_id')
-        .eq('child_id', childId)
-        .gte('occur_date', this.todayIso())
-        .in('status', ['ממתין לאישור', 'אושר'])
-        .order('occur_date', { ascending: true })
-        .order('start_time', { ascending: true });
+    if (instErr) throw instErr;
+    if (token !== this.runToken) return;
 
-      if (occErr) throw occErr;
-      if (token !== this.runToken) return;
-
-      const occ = (occData ?? []) as OccRow[];
-      if (!occ.length) {
-        this.remainingLessons.set([]);
-        return;
-      }
-
-      const instructorIds = Array.from(new Set(occ.map(o => o.instructor_id).filter(Boolean)));
-
-      const { data: instData, error: instErr } = await db
-        .from('instructors')
-        .select('id_number, first_name, last_name')
-        .in('id_number', instructorIds);
-
-      if (instErr) throw instErr;
-      if (token !== this.runToken) return;
-
-      const instMap = new Map<string, InstructorMeta>();
-      (instData ?? []).forEach((i: any) => {
-        instMap.set(i.id_number, {
-          id_number: i.id_number,
-          first_name: i.first_name ?? null,
-          last_name: i.last_name ?? null,
-        });
+    const instMap = new Map<string, InstructorMeta>();
+    (instData ?? []).forEach((i: any) => {
+      instMap.set(i.id_number, {
+        id_number: i.id_number,
+        first_name: i.first_name ?? null,
+        last_name: i.last_name ?? null,
       });
+    });
 
-      const vm: RemainingLessonVM[] = occ.map((o) => {
-        const ins = instMap.get(o.instructor_id);
-        return {
-          instructorName: this.fullName(ins?.first_name, ins?.last_name),
-          dayOfWeek: o.day_of_week || '—',
-          timeRange: `${this.fmtTime(o.start_time)}–${this.fmtTime(o.end_time)}`,
-          lessonType: o.lesson_type ?? '—',
-          occurDate: o.occur_date,
-          status: o.status,
-        };
-      });
+    const vm: RemainingLessonVM[] = occ.map((o) => {
+      const ins = instMap.get(o.instructor_id);
+      return {
+        instructorName: this.fullName(ins?.first_name, ins?.last_name),
+        dayOfWeek: o.day_of_week || '—',
+        timeRange: `${this.fmtTime(o.start_time)}–${this.fmtTime(o.end_time)}`,
+        lessonType: o.lesson_type ?? '—',
+        occurDate: o.occur_date,
+        status: o.status,
+      };
+    });
 
-      if (token !== this.runToken) return;
-      this.remainingLessons.set(vm);
-
-    } catch (err: any) {
-      if (token !== this.runToken) return;
-      console.error('loadRemainingLessons failed', err);
-      this.remainingError.set(err?.message ?? 'שגיאה בשליפת שיעורים שנותרו');
-      this.remainingLessons.set([]);
-    } finally {
-      if (token !== this.runToken) return;
-      this.loadingRemaining.set(false);
-    }
+    if (token !== this.runToken) return;
+    this.remainingLessons.set(vm);
+  } catch (err: any) {
+    if (token !== this.runToken) return;
+    console.error('loadRemainingLessons failed', err);
+    this.remainingError.set(err?.message ?? 'שגיאה בשליפת שיעורים שנותרו');
+    this.remainingLessons.set([]);
+  } finally {
+    if (token !== this.runToken) return;
+    this.loadingRemaining.set(false);
   }
+}
 
   // ===== פעולות =====
-  approveSimulate() {
-    const r = this.req();
-    if (!r) return;
+  async approve() {
+  const r = this.req();
+  if (!r) return;
+
+  const childId = this.getChildId();
+  if (!childId) {
+    this.error.emit('חסר childId בבקשה');
+    return;
+  }
+
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const { data, error } = await db.rpc('schedule_child_deletion', { p_child_id: childId });
+    if (error) throw error;
+
+    // data הוא timestamptz שחוזר מהפונקציה
+    this.scheduledDeletionAt.set(data ?? null);
+
+    // כאן (אם יש לך טבלת בקשות) תעשי גם update לסטטוס הבקשה עצמה ל-APPROVED
 
     const e = { requestId: r.id, newStatus: 'APPROVED' as const };
     this.approved.emit(e);
     this.onApproved?.(e);
+
+    // אופציונלי: לרענן את השיעורים שנותרו עד תאריך המחיקה
+    await this.loadRemainingLessons();
+
+  } catch (err: any) {
+    const msg = err?.message ?? 'שגיאה באישור המחיקה';
+    this.error.emit(msg);
+    this.onError?.(msg);
   }
+}
+
 
   rejectSimulate() {
     const r = this.req();
