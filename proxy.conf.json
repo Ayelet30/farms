@@ -58,5 +58,11 @@
     "changeOrigin": true,
     "secure": true,
     "pathRewrite":{ "^/api/approveParentSignupRequest$": "/approveParentSignupRequest" }
+  },
+  "/api/sendEmailGmail": {
+    "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+    "changeOrigin": true,
+    "secure": true,
+    "pathRewrite":{ "^/api/sendEmailGmail$": "/sendEmailGmail" }
   }
 }

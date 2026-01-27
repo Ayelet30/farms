@@ -11,6 +11,7 @@ import {
   ensureTenantContextReady,
   dbPublic,
   dbTenant,
+  getCurrentFarmMetaSync,
 } from '../../services/legacy-compat';
 
 import {
@@ -220,7 +221,6 @@ constructor(
       await ensureTenantContextReady();
       await this.loadInstructors();
     } catch (e: any) {
-      console.error('[INSTRUCTORS] ngOnInit error:', e);
       this.error = e?.message || 'Failed to load instructors';
     } finally {
       this.isLoading = false;
@@ -322,7 +322,6 @@ statusLabel(s?: string | null): string {
 
 
     } catch (e: any) {
-      console.error('[INSTRUCTORS] loadInstructors error:', e);
       this.error = e?.message || 'Failed to fetch instructors.';
       this.instructors = [];
     } finally {
@@ -442,7 +441,6 @@ statusLabel(s?: string | null): string {
 
 
       if (availErr) {
-        console.error('availability error', availErr);
         this.drawerAvailability = [];
         this.editAvailability = [];
       } else {
@@ -450,7 +448,6 @@ statusLabel(s?: string | null): string {
         this.editAvailability = this.drawerAvailability.map(a => ({ ...a }));
       }
     } catch (e) {
-      console.error('[INSTRUCTORS] loadDrawerData error:', e);
       this.drawerInstructor = null;
       this.editModel = null;
       this.drawerAvailability = [];
@@ -635,7 +632,6 @@ if (!ok) return;
       // ריענון טבלה
       await this.loadInstructors();
     } catch (e: any) {
-      console.error('[INSTRUCTORS] saveEditFromDrawer error:', e);
       await this.ui.alert(e?.message || 'שמירת פרטי המדריך נכשלה', 'שמירה נכשלה');
 
     } finally {
@@ -697,7 +693,6 @@ if (!ok) return;
           tempPassword = res.tempPassword;
         }
       } catch (e: any) {
-        console.error('[ADD INSTRUCTOR] error in user creation/check:', e);
         const msg =
           this.createUserService.errorMessage ||
           e?.message ||
@@ -776,21 +771,37 @@ if (!ok) return;
           </div>
         `;
 
-        this.mailService
-          .sendEmail({
-            tenantSchema: body.schema_name, // זה ה־selectedSchema שלך
-            to: body.email,
+        try {
+          const tenantSchema = this.getTenantSchemaOrThrow();
+          console.log('Tenant schema:', tenantSchema);
+          await this.mailService.sendEmailGmail({
+            tenantSchema: tenantSchema,
+            to: [body.email],
             subject,
             html,
-          })
-          .catch((err) => console.error('send instructor email failed', err));
+            text: `שלום ${fullName},
+        נוספת למערכת כמדריך/ה בחווה.
+        ${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התחברות עם האימייל הזה: ${body.email}`,
+          });
+        } catch (err) {
+        }
+
           await this.ui.alert('מדריך נוצר/שויך בהצלחה', 'הצלחה');
 
       } catch (e: any) {
-        console.error('[ADD INSTRUCTOR] ERROR:', e);
         await this.ui.alert(e?.message ?? 'שגיאה - המערכת לא הצליחה להוסיף מדריך', 'שגיאה'); }
     });
   }
+
+  private getTenantSchemaOrThrow(): string {
+    const farm = getCurrentFarmMetaSync();
+        const schema = farm?.schema_name ?? null;
+        if (!schema) {
+    throw new Error('לא נמצא selectedSchema ב-localStorage. כנראה שלא נעשה bootstrap לטננט.');
+  }
+  return schema ;
+}
+
 
   // ======= Helpers =======
 
@@ -842,7 +853,6 @@ if (!ok) return;
 
 
     if (error || !data?.id) {
-      console.error('getInstructorRoleId error', error, data);
       throw new Error('לא הצלחתי למצוא role_id לתפקיד מדריך בטננט הנוכחי');
     }
 
@@ -870,7 +880,6 @@ if (!ok) return;
       .upsert(row, { onConflict: 'uid' });
 
     if (error) {
-      console.error('[ADD INSTRUCTOR] users upsert failed:', error);
       throw new Error(`users upsert failed: ${error.message}`);
     }
 
@@ -900,7 +909,6 @@ if (!ok) return;
       );
 
     if (error) {
-      console.error('[ADD INSTRUCTOR] tenant_users upsert failed:', error);
       throw new Error(`tenant_users upsert failed: ${error.message}`);
     }
 
@@ -944,7 +952,6 @@ if (!ok) return;
 
 
     if (error) {
-      console.error('[ADD INSTRUCTOR] instructors insert failed:', error);
       throw new Error(`instructors insert failed: ${error.message}`);
     }
 

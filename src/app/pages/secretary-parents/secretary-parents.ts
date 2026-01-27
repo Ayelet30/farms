@@ -17,6 +17,7 @@ import {
   ensureTenantContextReady,
   dbPublic,
   dbTenant,
+  getCurrentFarmMetaSync,
 } from '../../services/legacy-compat';
 
 import {
@@ -677,8 +678,9 @@ async ngOnInit() {
         await this.loadParents();
 
         // 9) שליחת מייל לנרשם
-        const tenantSchema = schema_name;
+
         const fullName = `${body.first_name} ${body.last_name}`.trim();
+        const tenantSchema = this.getTenantSchemaOrThrow();
 
         const isNewUser = !!payload.password;
         const subject = 'ברוכים הבאים לחווה';
@@ -699,13 +701,20 @@ async ngOnInit() {
               <p>אפשר להתחבר עם החשבון הקיים שלך.</p>
             </div>`;
 
-        await this.mailService.sendEmail({
-          tenantSchema,
-          to: body.email,
-          subject,
-          html,
-        });
-
+        try {
+          console.log('Sending welcome email to new parent:', body.email);
+          console.log('Tenant schema:', tenantSchema);
+          await this.mailService.sendEmailGmail({
+            tenantSchema: tenantSchema,
+            to: [body.email],
+            subject,
+            html,
+            // מומלץ להוסיף גם text כדי שלא תיפלי על לקוחות שמסרבים HTML
+            text: `שלום ${fullName},\nנוספת למערכת כמדריך/ה בחווה.\n${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התחברות עם האימייל הזה: ${body.email}`,
+          });
+        } catch (err) {
+          console.error('sendEmailGmail failed', err);
+        }
        await this.ui.alert('הורה נוצר/שויך בהצלחה + נשלח מייל', 'הצלחה');
 
       } catch (e: any) {
@@ -715,6 +724,16 @@ async ngOnInit() {
       }
     });
   }
+
+   private getTenantSchemaOrThrow(): string {
+    const farm = getCurrentFarmMetaSync();
+        const schema = farm?.schema_name ?? null;
+        if (!schema) {
+    throw new Error('לא נמצא selectedSchema ב-localStorage. כנראה שלא נעשה bootstrap לטננט.');
+  }
+  return schema ;
+}
+
   
 
   /** ================== Helpers: Inserts to Supabase ================== */
