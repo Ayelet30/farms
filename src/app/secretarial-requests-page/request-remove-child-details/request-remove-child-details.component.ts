@@ -11,8 +11,10 @@ import {
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 
-import { ensureTenantContextReady, dbTenant } from '../../services/legacy-compat';
-
+import { ensureTenantContextReady, dbTenant } from '../../services/supabaseClient.service';
+import { MatDialog } from '@angular/material/dialog';
+import { firstValueFrom } from 'rxjs';
+import { ConfirmDialogComponent } from '../confirm-dialog.component';
 type UiRequest = any;
 
 type OccRow = {
@@ -110,7 +112,7 @@ scheduledDeletionAt = signal<string | null>(null);
   // כדי למנוע “תשובה ישנה” שנכנסת אחרי החלפה מהירה של בקשה
   private runToken = 0;
 
-  constructor() {
+  constructor(private dialog: MatDialog) {
     effect(() => {
       const id = this.req()?.id;
       if (!id) return;
@@ -247,6 +249,7 @@ scheduledDeletionAt = signal<string | null>(null);
   try {
     await ensureTenantContextReady();
     const db = dbTenant();
+console.log('childId =', childId, 'type=', typeof childId);
 
     const { data, error } = await db.rpc('schedule_child_deletion', { p_child_id: childId });
     if (error) throw error;
@@ -254,8 +257,17 @@ scheduledDeletionAt = signal<string | null>(null);
     // data הוא timestamptz שחוזר מהפונקציה
     this.scheduledDeletionAt.set(data ?? null);
 
-    // כאן (אם יש לך טבלת בקשות) תעשי גם update לסטטוס הבקשה עצמה ל-APPROVED
+// ✅ עדכון סטטוס הבקשה בדאטהבייס
+    const { error: updErr } = await db
+      .from('secretarial_requests')
+      .update({
+        status: 'APPROVED',
+        decided_at: new Date().toISOString(),
+        // decided_by_uid: ... אם יש לך,
+      })
+      .eq('id', r.id);
 
+    if (updErr) throw updErr;
     const e = { requestId: r.id, newStatus: 'APPROVED' as const };
     this.approved.emit(e);
     this.onApproved?.(e);
@@ -268,18 +280,91 @@ scheduledDeletionAt = signal<string | null>(null);
     this.error.emit(msg);
     this.onError?.(msg);
   }
+  const ok = await this.confirmApprove();
+if (!ok) return;
+
 }
 
+async reject() {
+  const r = this.req();
+  if (!r) return;
 
-  rejectSimulate() {
-    const r = this.req();
-    if (!r) return;
+  const childId = this.getChildId();
+  if (!childId) {
+    this.error.emit('חסר childId בבקשה');
+    return;
+  }
 
-    const ok = window.confirm('לא מתבצעת מחיקה בדאטאבייס.\nרק סימון UI כ"נדחה".\nלהמשיך?');
-    if (!ok) return;
+  const ok = await this.confirmReject();
+  if (!ok) return;
+
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    // 1) עדכון סטטוס הבקשה ל-REJECTED
+    const { error: reqErr } = await db
+      .from('secretarial_requests')
+      .update({
+        status: 'REJECTED',
+        decided_at: new Date().toISOString(),
+        // decided_by_uid: ... אם יש לך
+      })
+      .eq('id', r.id);
+
+    if (reqErr) throw reqErr;
+
+    // 2) החזרת סטטוס הילד ל-Active + ניקוי שדות המחיקה
+    const { error: childErr } = await db
+      .from('children')
+      .update({
+        status: 'Active',                 // ⚠️ להתאים לערך האמיתי ב-enum שלך
+        deletion_requested_at: null,
+        scheduled_deletion_at: null,
+      })
+      .eq('child_uuid', childId);
+
+    if (childErr) throw childErr;
 
     const e = { requestId: r.id, newStatus: 'REJECTED' as const };
     this.rejected.emit(e);
     this.onRejected?.(e);
+
+    // אופציונלי: לרענן תצוגה / שיעורים
+    await this.loadRemainingLessons?.();
+
+  } catch (err: any) {
+    const msg = err?.message ?? 'שגיאה בדחיית הבקשה';
+    this.error.emit(msg);
+    this.onError?.(msg);
   }
+}
+
+  private async confirmApprove(): Promise<boolean> {
+  const ref = this.dialog.open(ConfirmDialogComponent, {
+    data: {
+      title: 'אישור מחיקה',
+      message: 'האם את בטוחה שברצונך לאשר את בקשת המחיקה?',
+    },
+    disableClose: true,
+    panelClass: 'ui-confirm-dialog',
+    backdropClass: 'ui-confirm-backdrop',
+  });
+
+  return (await firstValueFrom(ref.afterClosed())) === true;
+}
+private async confirmReject(): Promise<boolean> {
+  const ref = this.dialog.open(ConfirmDialogComponent, {
+    data: {
+      title: 'דחיית בקשה',
+      message: 'האם את בטוחה שברצונך לדחות את בקשת המחיקה?\nהסטטוס של הילד יחזור ל-פעיל.',
+    },
+    disableClose: true,
+    panelClass: 'ui-confirm-dialog',
+    backdropClass: 'ui-confirm-backdrop',
+  });
+
+  return (await firstValueFrom(ref.afterClosed())) === true;
+}
+
 }

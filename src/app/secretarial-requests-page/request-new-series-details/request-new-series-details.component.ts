@@ -9,7 +9,7 @@ import { SeriesRequestsService } from '../../services/series-requests.service';
 import { getCurrentUserData } from '../../services/supabaseClient.service';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
-import { ConfirmDialogComponent } from './confirm-dialog.component';
+import { ConfirmDialogComponent } from '../confirm-dialog.component';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 
