@@ -242,6 +242,8 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
       const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema);
       this.thtkAdd = thtk;
 
+      console.log('[pm] HF init, thtk:', thtk);
+
       if (!TzlaHostedFields) {
         this.tokenError.set('רכיב התשלום לא נטען');
         return;
@@ -283,6 +285,7 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
           },
         },
       });
+      console.log('[pm] HF initialized', this.hfAdd);
 
       this.hfAdd?.onEvent?.('validityChange', () => {});
     } catch (e: any) {
@@ -322,7 +325,23 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
     this.savingToken.set(true);
     this.tokenSaved.set(false);
 
-    const terminalName = 'moachapp';
+    const dbc = this.ppDb.db();
+
+    const { data, error } = await dbc
+    .from('billing_terminals')
+    .select(
+      'terminal_name,tok_terminal_name,secret_key_charge,secret_key_charge_token',
+    )
+    .eq('provider', 'tranzila')
+    .eq('mode', 'prod')
+    .eq('active', true)
+    .order('is_default', { ascending: false })
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+    const terminalName = data?.terminal_name ?? 'moachapp';
+    console.log('[pm] using terminal:', terminalName);
     const amount = '1.00'; // verify
 
     this.hfAdd.charge(
@@ -341,6 +360,7 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
       async (err: any, response: any) => {
         try {
           if (err?.messages?.length) {
+            console.log('[pm] tokenize error', err);
             err.messages.forEach((msg: any) => {
               const el = document.getElementById('pm_errors_for_' + msg.param);
               if (el) el.textContent = msg.message;
@@ -348,6 +368,7 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
             this.tokenError.set('שגיאה בפרטי הכרטיס');
             return;
           }
+          console.log('[pm] tokenize response', response);
 
           const tx = response?.transaction_response;
           if (!tx?.success) {

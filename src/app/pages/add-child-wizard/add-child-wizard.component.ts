@@ -840,7 +840,23 @@ export class AddChildWizardComponent implements OnInit {
     this.savingToken = true;
     this.tokenSaved = false;
 
-    const terminalName = 'moachapp';
+    const dbc = dbTenant();
+
+    const { data, error } = await dbc
+    .from('billing_terminals')
+    .select(
+      'terminal_name,tok_terminal_name,secret_key_charge,secret_key_charge_token',
+    )
+    .eq('provider', 'tranzila')
+    .eq('mode', 'prod')
+    .eq('active', true)
+    .order('is_default', { ascending: false })
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+    const terminalName = data?.terminal_name ?? 'moachapp';
+    console.log('[pm] using terminal:', terminalName);
     const amount = '1.00';
 
     this.hfReg.charge(

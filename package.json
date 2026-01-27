@@ -7,7 +7,7 @@
   "main": "lib/index.js",
   "scripts": {
     "start": "ng serve --proxy-config proxy.conf.json",
-    "start:https": "ng serve --ssl true --port 4200",
+    "start:https": "ng serve --ssl true --port 4200 --proxy-config proxy.conf.json",
     "ng": "ng",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",

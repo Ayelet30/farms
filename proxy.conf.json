@@ -13,12 +13,13 @@
   },
 
   "/api/tranzilaHandshake": {
-    "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
-    "changeOrigin": true,
-    "secure": true,
-    "pathRewrite": {
-      "^/api/tranzilaHandshake$": "/tranzilaHandshakeHttp"
-    }
+  "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+  "secure": true,
+  "changeOrigin": true,
+  "logLevel": "debug",
+  "pathRewrite": {
+    "^/api/tranzilaHandshake": "/tranzilaHandshake"
+  }
   },
   "/api/recordOneTimePayment": { 
     "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",

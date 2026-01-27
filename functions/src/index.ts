@@ -26,7 +26,7 @@ export * from "./publicSignup.js";
 
 
 
-export { createHostedPaymentUrl, tranzilaHandshakeHttp , recordOneTimePayment , savePaymentMethod ,chargeSelectedChargesForParent } from './tranzila.js';
+export { createHostedPaymentUrl, tranzilaHandshake , recordOneTimePayment , savePaymentMethod ,chargeSelectedChargesForParent } from './tranzila.js';
 export {
   ensureTranzilaInvoiceForPayment
 } from './tranzilaInvoices.js';

@@ -34,8 +34,6 @@ const TRANZILA_SECRET_S = defineSecret('TRANZILA_SECRET');
 const PUBLIC_BASE_URL_S = defineSecret('PUBLIC_BASE_URL');
 
 
-
-
 const mailTransport = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
@@ -648,9 +646,9 @@ async function tranzilaFetchPdfByRetrievalKey(retrievalKey: string): Promise<Buf
   return buf;
 }
 
-// tranzilaHandshakeHttp – Handshake v1 שמחזיר thtk ל-Hosted Fields
+// tranzilaHandshakep – Handshake v1 שמחזיר thtk ל-Hosted Fields
 // ===================================================================
-export const tranzilaHandshakeHttp = onRequest(
+export const tranzilaHandshake = onRequest(
   {
     invoker: 'public',
     // מספיק Supabase כדי לקרוא billing_terminals
@@ -660,7 +658,7 @@ export const tranzilaHandshakeHttp = onRequest(
     try {
       if (handleCors(req, res)) return;
       if (req.method !== 'GET') { res.status(405).send('Method Not Allowed'); return; }
-      console.log('[tranzilaHandshakeHttp] req.query:', req.query);
+      console.log('[tranzilaHandshake] req.query:', req.query);
 
       const tenantSchema = String(req.query.tenantSchema ?? '').trim();
       if (!tenantSchema) { res.status(400).json({ ok:false, error:'missing tenantSchema' }); return; }
@@ -669,13 +667,18 @@ export const tranzilaHandshakeHttp = onRequest(
 
       const sum = '1';
       const url = new URL('https://api.tranzila.com/v1/handshake/create');
+      console.log('[tranzilaHandshake] !!!using terminal:', cfg.terminalName);
+      console.log('[tranzilaHandshake] !!!using password:', cfg.passwordCharge);
+      console.log('[tranzilaHandshake] !!!using sum:', sum);
+
+
       url.searchParams.set('supplier', cfg.terminalName);
       url.searchParams.set('sum', sum);
-      url.searchParams.set('TranzilaPW', cfg.passwordCharge); // לרוב זה מסוף רגיל ל-hosted fields
+      url.searchParams.set('TranzilaPW', cfg.passwordCharge); 
 
       const resp = await fetch(url.toString(), { method: 'GET' });
       const text = await resp.text();
-      console.log('[tranzilaHandshakeHttp] response text:', text);
+      console.log('[tranzilaHandshake] response text:', text);
 
       const kv: Record<string, string> = Object.fromEntries(
         text.split('&').map((p) => {
@@ -693,7 +696,7 @@ export const tranzilaHandshakeHttp = onRequest(
       // ✅ מחזירים גם terminal_name כדי שהקליינט לא ישים "moachapp"
       res.json({ thtk, terminal_name: cfg.terminalName });
     } catch (err: any) {
-      console.error('[tranzilaHandshakeHttp] error:', err);
+      console.error('[tranzilaHandshake] error:', err);
       res.status(500).json({ ok:false, error: err?.message || 'internal error' });
     }
   },
@@ -996,8 +999,8 @@ export const chargeSelectedChargesForParent = onRequest(
       // A) טוענים מסוף ברירת מחדל מהסכמה של החווה (זה מה שחסר אצלך עכשיו)
       const terminal = await loadDefaultBillingTerminal({ sbTenant: sb, provider: 'tranzila', mode: 'prod' });
 
-      if (!terminal.tok_terminal_name) {
-        res.status(500).json({ ok: false, error: 'tok_terminal_name not configured in billing_terminals' });
+      if (!terminal.terminal_name) {
+        res.status(500).json({ ok: false, error: 'terminal_name not configured in billing_terminals' });
         return;
       }
 
@@ -1073,7 +1076,7 @@ export const chargeSelectedChargesForParent = onRequest(
           const orderId = `ch_${chargeId}_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
 
           const attempt = await chargeByToken({
-          terminalName: terminal.tok_terminal_name ?? terminal.terminal_name,
+          terminalName: terminal.tok_terminal_name ?? terminal.tok_terminal_name!,
           token: String(prof.token_ref),
           amountAgorot,
           description: ch.description ?? 'Monthly charge',
