@@ -9,7 +9,7 @@ const SUPABASE_SERVICE_KEY_S = defineSecret('SUPABASE_SERVICE_KEY');
 // ===== פונקציה מתוזמנת =====
 export const processDueChildDeletions = onSchedule(
   {
-    schedule: 'every 60 minutes', // אפשר גם: '0 2 * * *'
+    schedule: 'every 1 minutes', // ⏱ זמני לבדיקה
     timeZone: 'Asia/Jerusalem',
     secrets: [SUPABASE_URL_S, SUPABASE_SERVICE_KEY_S],
   },
@@ -20,14 +20,14 @@ export const processDueChildDeletions = onSchedule(
     );
 
     const { data, error } = await supabase.rpc(
-      'process_due_child_deletions'
-    );
+  'process_due_child_deletions_all_schemas'
+);
 
     if (error) {
-      console.error('❌ process_due_child_deletions failed', error);
+      console.error('❌ process_due_child_deletions_all_schemas failed', error);
       throw error;
     }
 
-    console.log('✅ process_due_child_deletions finished. affected:', data);
+    console.log('✅ process_due_child_deletions_all_schemas finished. affected:', data);
   }
 );
