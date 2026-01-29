@@ -725,3 +725,9 @@
   color: #444;
 }
 
+.age-badge.danger{
+  background: #ffe5e5;
+  color: #b00020;
+  border: 1px solid #ffb3b3;
+  font-weight: 700;
+}
