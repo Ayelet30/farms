@@ -15,6 +15,9 @@ import { ensureTenantContextReady, dbTenant } from '../../services/supabaseClien
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { ConfirmDialogComponent } from '../confirm-dialog.component';
+import { SupabaseTenantService } from '../../services/supabase-tenant.service'; // התאימי נתיב אם צריך
+import { getAuth } from 'firebase/auth';
+
 type UiRequest = any;
 
 type OccRow = {
@@ -112,7 +115,9 @@ scheduledDeletionAt = signal<string | null>(null);
   // כדי למנוע “תשובה ישנה” שנכנסת אחרי החלפה מהירה של בקשה
   private runToken = 0;
 
-  constructor(private dialog: MatDialog) {
+  constructor(private dialog: MatDialog,private tenantSvc: SupabaseTenantService
+) {
+    
     effect(() => {
       const id = this.req()?.id;
       if (!id) return;
@@ -234,9 +239,7 @@ scheduledDeletionAt = signal<string | null>(null);
     this.loadingRemaining.set(false);
   }
 }
-
-  // ===== פעולות =====
-  async approve() {
+async approve() {
   const r = this.req();
   if (!r) return;
 
@@ -246,33 +249,60 @@ scheduledDeletionAt = signal<string | null>(null);
     return;
   }
 
+  const ok = await this.confirmApprove();
+  if (!ok) return;
+
   try {
-    await ensureTenantContextReady();
-    const db = dbTenant();
-console.log('childId =', childId, 'type=', typeof childId);
+    // tenant schema כמו בחשבוניות
+    // const tenantSchema = await this.getTenantSchemaOrThrow();
+    await this.tenantSvc.ensureTenantContextReady();
+const tenant = this.tenantSvc.requireTenant();
+const tenantSchema = tenant.schema;
+const tenantId = tenant.id; // או השם האמיתי אצלך
 
-    const { data, error } = await db.rpc('schedule_child_deletion', { p_child_id: childId });
-    if (error) throw error;
 
-    // data הוא timestamptz שחוזר מהפונקציה
-    this.scheduledDeletionAt.set(data ?? null);
+    const approveUrl =
+      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/approveRemoveChildAndNotify';
 
-// ✅ עדכון סטטוס הבקשה בדאטהבייס
-    const { error: updErr } = await db
-      .from('secretarial_requests')
-      .update({
-        status: 'APPROVED',
-        decided_at: new Date().toISOString(),
-        // decided_by_uid: ... אם יש לך,
-      })
-      .eq('id', r.id);
+    // ✅ Firebase Bearer token (כי ה-CF דורשת requireAuth אם אין internal secret)
+    const user = getAuth().currentUser;
+    if (!user) throw new Error('המשתמש לא מחובר');
+    const token = await user.getIdToken();
+console.log('tenant object:', tenant);
+console.log('tenant.schema:', tenant.schema);
+console.log('tenant.id:', tenant.id);
 
-    if (updErr) throw updErr;
+    const resp = await fetch(approveUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+  tenantSchema,
+  tenantId,
+  childId,
+  requestId: r.id,
+}),
+
+    });
+
+    const raw = await resp.text();
+    let json: any = null;
+    try { json = JSON.parse(raw); } catch {}
+
+    if (!resp.ok || !json?.ok) {
+      throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+    }
+
+    // תאריך המחיקה שחזר מהשרת
+    this.scheduledDeletionAt.set(json.scheduledDeletionAt ?? null);
+
+    // עדכון UI
     const e = { requestId: r.id, newStatus: 'APPROVED' as const };
     this.approved.emit(e);
     this.onApproved?.(e);
 
-    // אופציונלי: לרענן את השיעורים שנותרו עד תאריך המחיקה
     await this.loadRemainingLessons();
 
   } catch (err: any) {
@@ -280,9 +310,6 @@ console.log('childId =', childId, 'type=', typeof childId);
     this.error.emit(msg);
     this.onError?.(msg);
   }
-  const ok = await this.confirmApprove();
-if (!ok) return;
-
 }
 
 async reject() {
@@ -366,5 +393,45 @@ private async confirmReject(): Promise<boolean> {
 
   return (await firstValueFrom(ref.afterClosed())) === true;
 }
+private async getTenantSchemaOrThrow(): Promise<string> {
+  await this.tenantSvc.ensureTenantContextReady();
+  return this.tenantSvc.requireTenant().schema;
+}
+}
 
+function escapeHtml(s: any) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function fmtTime(t: string | null | undefined) {
+  return t ? String(t).slice(0, 5) : '—';
+}
+
+function renderTable(list: Array<any>) {
+  if (!list?.length) return '';
+
+  const body = list.map((r: any) => `
+    <tr>
+      <td>${escapeHtml(r.occur_date)}</td>
+      <td>${escapeHtml(r.day_of_week || '—')}</td>
+      <td>${escapeHtml(`${fmtTime(r.start_time)}–${fmtTime(r.end_time)}`)}</td>
+      <td>${escapeHtml(r.lesson_type ?? '—')}</td>
+      <td>${escapeHtml(r.instructor_name ?? '—')}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <table border="1" cellpadding="6" cellspacing="0"
+           style="border-collapse:collapse;width:100%;font-size:14px">
+      <thead>
+        <tr><th>תאריך</th><th>יום</th><th>שעה</th><th>סוג</th><th>מדריך/ה</th></tr>
+      </thead>
+      <tbody>${body}</tbody>
+    </table>
+  `.trim();
 }

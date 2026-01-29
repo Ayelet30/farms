@@ -36,6 +36,7 @@ export { sendEmailGmail } from './email';
 //export  *  from "../createParent.js";
 
 
+export { approveRemoveChildAndNotify } from './approve-remove-child-and-notify';
 
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
