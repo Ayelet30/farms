@@ -11,6 +11,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { ConfirmDialogComponent } from '../confirm-dialog.component';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 
 // חשוב: זה הטיפוס שאת מעבירה מהדף הראשי
@@ -18,7 +19,7 @@ import type { UiRequest } from '../../Types/detailes.model';
 @Component({
   selector: 'app-secretarial-series-requests',
   standalone: true,
-  imports: [CommonModule, FormsModule , MatDialogModule , MatSnackBarModule],
+  imports: [CommonModule, FormsModule , MatDialogModule , MatSnackBarModule, MatTooltipModule],
   templateUrl: './request-new-series-details.component.html',
   styleUrls: ['./request-new-series-details.component.scss'],
 })
@@ -59,7 +60,7 @@ this.existingParticipants.set([]);
 this.participantsCapacity.set(null);
 
 void this.loadExistingParticipants();
-
+void this.loadChildStatus();
 
 }
 
@@ -89,6 +90,94 @@ successMsg = signal<string | null>(null);
 errorMsg = signal<string | null>(null);
 existingParticipants = signal<any[]>([]);
 participantsCapacity = signal<{ current: number; max: number } | null>(null);
+// ===== Child status (from children table) =====
+childStatus = signal<string | null>(null);
+childDeletionRequestedAt = signal<string | null>(null);
+childScheduledDeletionAt = signal<string | null>(null);
+
+canApprove = signal<boolean>(true); // יתעדכן לפי סטטוס
+
+private statusToHebrew(status: string | null): string {
+  switch (status) {
+    case 'Active': return 'פעיל';
+    case 'Pending Addition Approval': return 'ממתין לאישור הוספה';
+    case 'Pending Deletion Approval': return 'ממתין לאישור מחיקה';
+    case 'Deletion Scheduled': return 'מחיקה מתוכננת';
+    case 'Deleted': return 'נמחק';
+    default: return status ? status : 'לא ידוע';
+  }
+}
+
+private formatDateOnly(iso: string | null): string | null {
+  if (!iso) return null;
+  // "2026-01-29T..." -> "2026-01-29"
+  return iso.slice(0, 10);
+}
+
+get childStatusHebrew(): string {
+  return this.statusToHebrew(this.childStatus());
+}
+
+get childStatusBannerText(): string | null {
+  const st = this.childStatus();
+  if (!st) return null;
+  if (st === 'Active') return null;
+
+  const stHe = this.statusToHebrew(st);
+
+  if (st === 'Deletion Scheduled') {
+    const d = this.formatDateOnly(this.childScheduledDeletionAt());
+    return `ילד זה אינו פעיל (סטטוס: ${stHe})${d ? ` • תאריך מחיקה עתידי: ${d}` : ''}`;
+  }
+
+  if (st === 'Deleted') {
+    // אין לך deleted_at בטבלה, אז נשתמש במה שיש (עדיף scheduled_deletion_at אם קיים, אחרת deletion_requested_at)
+    const when =
+      this.formatDateOnly(this.childScheduledDeletionAt()) ??
+      this.formatDateOnly(this.childDeletionRequestedAt());
+
+    return `ילד זה אינו פעיל (סטטוס: ${stHe})${when ? ` • נמחק בתאריך: ${when}` : ''}`;
+  }
+
+  // כל שאר הסטטוסים
+  return `ילד זה אינו פעיל (סטטוס: ${stHe})`;
+}
+
+private async loadChildStatus() {
+  const childId = this.request?.childId;
+  if (!childId) {
+    this.childStatus.set(null);
+    this.childDeletionRequestedAt.set(null);
+    this.childScheduledDeletionAt.set(null);
+    this.canApprove.set(true);
+    return;
+  }
+
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const { data, error } = await db
+      .from('children')
+      .select('status, deletion_requested_at, scheduled_deletion_at')
+      .eq('child_uuid', childId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    const st = (data as any)?.status ?? null;
+    this.childStatus.set(st);
+    this.childDeletionRequestedAt.set((data as any)?.deletion_requested_at ?? null);
+    this.childScheduledDeletionAt.set((data as any)?.scheduled_deletion_at ?? null);
+
+this.canApprove.set(st !== 'Deleted');
+  } catch (e) {
+    console.error('loadChildStatus failed', e);
+    // במקרה תקלה – ניזהר ולא נאפשר אישור עד שהכל ברור
+    this.childStatus.set('לא ידוע');
+    this.canApprove.set(false);
+  }
+}
 
 private clearMessages() {
   this.successMsg.set(null);
@@ -186,6 +275,19 @@ async approveSelected() {
   this.clearMessages();
 
   if (!this.request) return;
+  if (!this.canApprove()) {
+  const msg = this.childStatusBannerText ?? 'לא ניתן לאשר סדרה לילד שאינו פעיל';
+  this.errorMsg.set(msg);
+  this.snack.open('לא ניתן לאשר: הילד אינו פעיל', 'סגור', {
+    duration: 2500,
+    panelClass: ['snack-reject'],
+    direction: 'rtl',
+    horizontalPosition: 'center',
+    verticalPosition: 'top',
+  });
+  return;
+}
+
 
   try {
     this.loading.set(true);
@@ -600,6 +702,22 @@ private async getMaxParticipantsForRidingType(ridingTypeId: string | null | unde
 
   if (!Number.isFinite(n) || n <= 0) return 1;
   return Math.floor(n);
+}
+get approveTooltip(): string | null {
+  const st = this.childStatus();
+
+  if (st === 'Deleted') {
+    return 'ילד זה נמחק ולכן לא ניתן לאשר לו את הזמנת הסדרה';
+  }
+
+  if (st === 'Deletion Scheduled') {
+    const d = this.formatDateOnly(this.childScheduledDeletionAt());
+    return d
+      ? `שימו לב: הילד עתיד להימחק בתאריך ${d}`
+      : 'שימו לב: הילד עתיד להימחק';
+  }
+
+  return null;
 }
 
 }
