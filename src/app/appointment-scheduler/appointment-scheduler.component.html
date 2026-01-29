@@ -288,14 +288,15 @@
   </div>
 
   <!-- שורה של "ללא הגבלה" -->
-  <label class="unlimited-row">
-    <input
-      type="checkbox"
-      [(ngModel)]="isOpenEndedSeries"
-      (change)="onUnlimitedSeriesToggle()"
-    />
-    סדרה ללא הגבלת שיעורים
-  </label>
+ <label class="unlimited-row" *ngIf="canUseOpenEndedSeries">
+  <input
+    type="checkbox"
+    [(ngModel)]="isOpenEndedSeries"
+    (change)="onUnlimitedSeriesToggle()"
+  />
+  סדרה ללא הגבלת שיעורים
+</label>
+
 </div>
 
 <!-- מסלול תשלום -->
@@ -696,7 +697,7 @@
 </div>
 
 <!-- דיאלוג אישור מילוי מקום -->
-+<!-- דיאלוג הורה (בקשה למזכירה) -->
+<!-- דיאלוג הורה (בקשה למזכירה) -->
 <ng-template #confirmOccupancyParentDialog let-dialogRef="dialogRef">
   <div dir="rtl" style="padding: 10px; max-width: 380px;">
     <h3>אישור בקשת מילוי מקום</h3>

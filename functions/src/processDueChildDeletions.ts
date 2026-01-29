@@ -9,7 +9,7 @@ const SUPABASE_SERVICE_KEY_S = defineSecret('SUPABASE_SERVICE_KEY');
 // ===== פונקציה מתוזמנת =====
 export const processDueChildDeletions = onSchedule(
   {
-    schedule: 'every 1 minutes', // ⏱ זמני לבדיקה
+    schedule: '0 2 * * *',
     timeZone: 'Asia/Jerusalem',
     secrets: [SUPABASE_URL_S, SUPABASE_SERVICE_KEY_S],
   },

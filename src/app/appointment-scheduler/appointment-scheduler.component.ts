@@ -110,6 +110,8 @@ interface MakeupCandidate {
 type ChildWithProfile = ChildRow & {
   gender?: string | null;       // "זכר" / "נקבה"
   birth_date?: string | null;
+  scheduled_deletion_at?: string | null; 
+
 };
 type InstructorWithConstraints = InstructorRow & {
   instructor_id?: string | null;       // 👈 ה-id_number מה-DB
@@ -354,6 +356,8 @@ paymentSourceForSeries: 'health_fund' | 'private' | null = null;
   makeupCreatedMessage: string | null = null;
   user: CurrentUser | null = null;
   hoursBeforeCancel: number | null = null;
+  childDeletionGraceDays: number = 0;
+
 
 
   constructor(
@@ -525,17 +529,28 @@ if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
       return;
     }
 
-    let slots = (data ?? []) as MakeupSlot[];
+ let slots = (data ?? []) as MakeupSlot[];
 
-    if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
-      slots = slots.slice(0, this.displayedMakeupLessonsCount);
-    }
+if (this.selectedChildId) {
+  slots = this.filterSlotsByHardDeletion(slots, this.selectedChildId);
+}
 
-    this.candidateSlots = slots;
+if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
+  slots = slots.slice(0, this.displayedMakeupLessonsCount);
+}
 
-    if (!this.candidateSlots.length) {
-      this.candidateSlotsError = 'לא נמצאו חורים למדריך זה';
-    }
+this.candidateSlots = slots;
+
+if (!slots.length) {
+  const hard = this.getChildHardDeletionDate(this.selectedChildId!);
+  this.candidateSlotsError = hard
+    ? `אין חורים זמינים עד ${hard} (מחיקה מתוכננת).`
+    : 'לא נמצאו חורים למדריך זה';
+} else {
+  this.candidateSlotsError = null;
+}
+
+
   } finally {
     this.loadingCandidateSlots = false;
   }
@@ -595,7 +610,7 @@ private async loadFarmSettings(): Promise<void> {
 
   const { data, error } = await supa
     .from('farm_settings')
-    .select('displayed_makeup_lessons_count , hours_before_cancel_lesson , time_range_occupancy_rate_days , series_search_horizon_days')
+    .select('displayed_makeup_lessons_count , hours_before_cancel_lesson , time_range_occupancy_rate_days , series_search_horizon_days , child_deletion_grace_days')
     .limit(1)
     .single();
 
@@ -609,6 +624,7 @@ private async loadFarmSettings(): Promise<void> {
     this.timeRangeOccupancyRateDays =
   data?.time_range_occupancy_rate_days ?? 30;
   this.seriesSearchHorizonDays = data?.series_search_horizon_days ?? 90;
+this.childDeletionGraceDays = Number(data?.child_deletion_grace_days ?? 0);
 
 
 
@@ -728,7 +744,7 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
   this.childrenError = null;
 
   const baseSelect =
-    'child_uuid, first_name, last_name, instructor_id, status, gender, birth_date';
+    'child_uuid, first_name, last_name, instructor_id, status, gender, birth_date ,scheduled_deletion_at';
 
   // כמו אצלך: אם בטעות מישהו ישלח select בלי status, נוסיף
   const hasStatus = /(^|,)\s*status\s*(,|$)/.test(baseSelect);
@@ -750,11 +766,15 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
     return;
   }
 
-  // בעמוד זימון תור את רוצה רק Active בכל מקרה
-  const rows = (res.data ?? []).filter(r => (r as any).status === 'Active');
+  const rowsAll = (res.data ?? []) as any[];
 
-  this.children = rows as unknown as ChildWithProfile[];
-  this.filteredChildren = [...this.children];
+const rows = rowsAll.filter(r =>
+  r.status === 'Active' || r.status === 'Deletion Scheduled'
+);
+
+this.children = rows as ChildWithProfile[];
+this.filteredChildren = [...this.children];
+
   this.childSearchTerm = '';
 
   // בחירה אוטומטית כמו שהיה לך
@@ -1166,6 +1186,21 @@ try {
 
 
   } else {
+    const cutoff = this.getChildBookingCutoff(child.child_uuid); // "YYYY-MM-DD" | null
+
+if (cutoff) {
+  // אם היום כבר אחרי cutoff – אין מה לחפש בכלל
+  if (fromDate > cutoff) {
+    this.seriesError = `לא ניתן להזמין שיעורים אחרי ${cutoff} בגלל מחיקה מתוכננת לילד.`;
+    return;
+  }
+
+  // toDate לא עובר את cutoff
+  if (toDate > cutoff) {
+    toDate = cutoff;
+  }
+}
+
     // 🔹 קריאה לפונקציה הישנה (עם כמות שיעורים)
     const payloadRegular = {
       p_child_id: child.child_uuid,
@@ -1235,26 +1270,55 @@ for (const s of sorted) {
   filtered.push(s);
 }
 
-this.recurringSlots = filtered.map(s => {
+// this.recurringSlots = filtered.map(s => {
+//   const ins = this.instructors.find(i =>
+//     i.instructor_id === s.instructor_id ||
+//     i.instructor_uid === s.instructor_id
+//   );
+
+//   return {
+//     ...s,
+//     instructor_name: ins?.full_name ?? (s.instructor_id ?? undefined),
+//     // אם את רוצה תמיד מחרוזת:
+//     // instructor_name: ins?.full_name ?? (s.instructor_id ?? 'לא ידוע'),
+//   };
+// });
+
+// this.mapRecurringSlotsToCalendar();
+
+//     if (!this.recurringSlots.length) {
+//       this.seriesError = 'לא נמצאו זמנים מתאימים לסדרה בזמן הקרוב, נא לפנות למזכירות';
+//       return;
+//     }
+// const child = this.children.find(c => c.child_uuid === this.selectedChildId);
+
+let filteredSlots = filtered;
+filteredSlots = filteredSlots.filter(s => this.canSeriesFitBeforeDeletion(s, child));
+
+
+this.recurringSlots = filteredSlots.map(s => {
   const ins = this.instructors.find(i =>
-    i.instructor_id === s.instructor_id ||
-    i.instructor_uid === s.instructor_id
+    i.instructor_id === s.instructor_id || i.instructor_uid === s.instructor_id
   );
 
   return {
     ...s,
     instructor_name: ins?.full_name ?? (s.instructor_id ?? undefined),
-    // אם את רוצה תמיד מחרוזת:
-    // instructor_name: ins?.full_name ?? (s.instructor_id ?? 'לא ידוע'),
   };
 });
 
 this.mapRecurringSlotsToCalendar();
+if (!filtered.length) {
+  this.seriesError = 'לא נמצאו זמנים מתאימים לסדרה בזמן הקרוב, נא לפנות למזכירות';
+  return;
+}
 
-    if (!this.recurringSlots.length) {
-      this.seriesError = 'לא נמצאו זמנים מתאימים לסדרה בזמן הקרוב, נא לפנות למזכירות';
-      return;
-    }
+if (!filteredSlots.length) {
+  const cutoff = this.getChildBookingCutoff(child.child_uuid);
+  this.seriesError = `כל הזמנים שנמצאו הם אחרי ${cutoff} ולכן נחסמו (מחיקה מתוכננת).`;
+  return;
+}
+
 
     // קפיצה ליום הראשון הפנוי
     const first = [...this.recurringSlots].sort((a, b) =>
@@ -2119,6 +2183,38 @@ private formatLocalDate(d: Date): string {
     d.setDate(d.getDate() + days);
     return d.toISOString().slice(0, 10);
   }
+  private getChildBookingCutoff(childId: string): string | null {
+  const c = this.children.find(x => x.child_uuid === childId);
+  const raw = c?.scheduled_deletion_at;
+  if (!raw) return null;
+
+  const delDate = raw.slice(0, 10); // YYYY-MM-DD
+  const grace = Number(this.childDeletionGraceDays ?? 0);
+
+  return this.addDays(delDate, grace); // YYYY-MM-DD
+}
+
+private isSlotAfterCutoff(dateStr: string, childId: string): boolean {
+  const cutoff = this.getChildBookingCutoff(childId);
+  if (!cutoff) return false;
+  // השוואת מחרוזות YYYY-MM-DD עובדת מצוין
+  return dateStr > cutoff;
+}
+
+private filterSlotsByChildCutoff<T extends { occur_date?: string; lesson_date?: string }>(
+  rows: T[],
+  childId: string
+): T[] {
+  const cutoff = this.getChildBookingCutoff(childId);
+  if (!cutoff) return rows;
+
+  return rows.filter(r => {
+    const d = (r as any).occur_date ?? (r as any).lesson_date;
+    if (!d) return true;
+    return d <= cutoff;
+  });
+}
+
 private buildSeriesCalendar(year: number, month: number): void {
   const firstDay = new Date(year, month, 1);
   const firstDow = firstDay.getDay(); // 0=Sunday ... 6=Saturday
@@ -2265,20 +2361,32 @@ const rangeDays = this.timeRangeOccupancyRateDays ?? 30;
       this.occupancySlotsError =    `לא נמצאו שיעורים פנויים למילוי מקום בטווח השבועי (מיום ראשון של אותו שבוע ועד אותו יום בשבוע הבא).`;
       return;
     }
+let slots = (data ?? []) as MakeupSlot[];
 
-    let slots = (data ?? []) as MakeupSlot[];
+// 1) פילטר מחיקה קשיח (בלי grace)
+if (this.selectedChildId) {
+  slots = this.filterSlotsByHardDeletion(slots, this.selectedChildId);
+}
 
-    if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
-      slots = slots.slice(0, this.displayedMakeupLessonsCount);
-    }
+// 2) הגבלה של “כמה להציג”
+if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
+  slots = slots.slice(0, this.displayedMakeupLessonsCount);
+}
 
-    this.occupancySlots = slots;
+// 3) עדכון UI
+this.occupancySlots = slots;
 
-    if (!this.occupancySlots.length) {
-this.occupancySlotsError =
-  `לא נמצאו שיעורים פנויים למילוי מקום בטווח של ${rangeDays} ימים ` +
-  `מתאריך השיעור המקורי.`;
-    }
+// 4) הודעת שגיאה רק אם אין תוצאות
+if (!slots.length) {
+  const hard = this.getChildHardDeletionDate(this.selectedChildId!);
+
+  this.occupancySlotsError = hard
+    ? `אין שיעורים זמינים עד ${hard} (מחיקה מתוכננת).`
+    : `לא נמצאו שיעורים פנויים למילוי מקום בטווח של ${rangeDays} ימים מתאריך השיעור המקורי.`;
+} else {
+  this.occupancySlotsError = null;
+}
+
   } finally {
     this.loadingOccupancySlots = false;
   }
@@ -2622,6 +2730,10 @@ onTabClick(tab: 'series' | 'makeup' | 'occupancy') {
   this.selectedTab = tab;
 }
 isSeriesDisabled(slot: any): boolean {
+  if (this.selectedSeriesDate && this.isSlotBlockedByDeletion(this.selectedSeriesDate)) {
+    return true;
+  }
+
   return (
     (this.selectedSeriesDate &&
       this.isPastSeriesSlot(this.selectedSeriesDate, slot.start_time)) ||
@@ -2629,12 +2741,14 @@ isSeriesDisabled(slot: any): boolean {
   );
 }
 
-
 getSeriesDisabledTooltip(slot: any): string {
-  if (
-    this.selectedSeriesDate &&
-    this.isPastSeriesSlot(this.selectedSeriesDate, slot.start_time)
-  ) {
+  if (this.selectedSeriesDate && this.isSlotBlockedByDeletion(this.selectedSeriesDate)) {
+    const child = this.children.find(c => c.child_uuid === this.selectedChildId) ?? null;
+    const cutoff = this.getChildDeletionCutoffDate(child);
+    return `לא ניתן לקבוע שיעורים אחרי תאריך המחיקה (${cutoff})`;
+  }
+
+  if (this.selectedSeriesDate && this.isPastSeriesSlot(this.selectedSeriesDate, slot.start_time)) {
     return 'לא ניתן להתחיל סדרה זו היום בשעה זו כי השעה חלפה';
   }
 
@@ -2964,6 +3078,81 @@ private async submitSeriesRequestToSecretary(slot: RecurringSlotWithSkips): Prom
 //     skippedInstructor: (slot.skipped_instructor_unavailability ?? []).map(String),
 //   };
 // }
+private getChildHardDeletionDate(childId: string): string | null {
+  const c = this.children.find(x => x.child_uuid === childId);
+  if (!c) return null;
+
+  if (c.status !== 'Deletion Scheduled') return null;
+
+  const raw = c.scheduled_deletion_at;
+  if (!raw) return null;
+
+  return raw.slice(0, 10); // YYYY-MM-DD
+}
+private filterSlotsByHardDeletion<T extends { occur_date?: string; lesson_date?: string }>(
+  rows: T[],
+  childId: string
+): T[] {
+  const hard = this.getChildHardDeletionDate(childId);
+  if (!hard) return rows;
+
+  return rows.filter(r => {
+    const d = (r as any).occur_date ?? (r as any).lesson_date;
+    if (!d) return true;
+    return d <= hard; // ✅ עד יום המחיקה כולל
+  });
+}
+
+private getChildDeletionCutoffDate(child: ChildWithProfile | undefined | null): string | null {
+  if (!child) return null;
+  if (child.status !== 'Deletion Scheduled') return null;
+
+  const v = (child as any).scheduled_deletion_at as string | null;
+  if (!v) return null;
+
+  // scheduled_deletion_at אצלך יכול להיות timestamp -> לוקחים רק תאריך
+  return v.slice(0, 10); // "YYYY-MM-DD"
+}
+get canUseOpenEndedSeries(): boolean {
+  const child = this.children.find(c => c.child_uuid === this.selectedChildId);
+  if (!child) return false;
+
+  // אם הילד במחיקה מתוכננת – אין סדרה ללא הגבלה
+  return child.status !== 'Deletion Scheduled';
+}
+private canSeriesFitBeforeDeletion(slot: RecurringSlotWithSkips, child: ChildWithProfile | null | undefined): boolean {
+  const cutoff = this.getChildDeletionCutoffDate(child);
+  if (!cutoff) return true;
+
+  if (this.isOpenEndedSeries) return false;
+
+  if (!this.seriesLessonCount || this.seriesLessonCount < 1) return true;
+
+  const skipsCount =
+    (slot.skipped_farm_days_off?.length ?? 0) +
+    (slot.skipped_instructor_unavailability?.length ?? 0);
+
+  const totalWeeksForward = (this.seriesLessonCount - 1) + skipsCount;
+
+  const endD = new Date(slot.lesson_date + 'T00:00:00');
+  endD.setDate(endD.getDate() + totalWeeksForward * 7);
+  const seriesEndDate = this.formatLocalDate(endD);
+
+  return seriesEndDate <= cutoff;
+}
+
+private isDateAfterCutoff(dateStr: string, cutoffDate: string): boolean {
+  // השוואה לקסיקוגרפית עובדת ל-YYYY-MM-DD
+  return dateStr > cutoffDate;
+}
+
+private isSlotBlockedByDeletion(dateStr: string): boolean {
+  const child = this.children.find(c => c.child_uuid === this.selectedChildId) ?? null;
+  const cutoff = this.getChildDeletionCutoffDate(child);
+  if (!cutoff) return false;
+  return this.isDateAfterCutoff(dateStr, cutoff);
+}
+
 private openOccupancyConfirmDialog(isSecretary: boolean) {
   const tpl = isSecretary
     ? this.confirmOccupancySecretaryDialog
