@@ -288,14 +288,15 @@
   </div>
 
   <!-- שורה של "ללא הגבלה" -->
-  <label class="unlimited-row">
-    <input
-      type="checkbox"
-      [(ngModel)]="isOpenEndedSeries"
-      (change)="onUnlimitedSeriesToggle()"
-    />
-    סדרה ללא הגבלת שיעורים
-  </label>
+ <label class="unlimited-row" *ngIf="canUseOpenEndedSeries">
+  <input
+    type="checkbox"
+    [(ngModel)]="isOpenEndedSeries"
+    (change)="onUnlimitedSeriesToggle()"
+  />
+  סדרה ללא הגבלת שיעורים
+</label>
+
 </div>
 
 <!-- מסלול תשלום -->
