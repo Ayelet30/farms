@@ -4,6 +4,9 @@
   </header>
 
   <article class="card">
+<div class="child-status-alert" *ngIf="childStatusBannerText as t">
+  {{ t }}
+</div>
 
 <!-- יום בשבוע -->
 <div class="row">
@@ -148,9 +151,16 @@
 
 
     <div class="actions">
-      <button class="btn approve" (click)="approveSelected()" [disabled]="loading()">
-        אישור
-      </button>
+ <button
+  class="btn approve"
+  (click)="approveSelected()"
+  [disabled]="loading() || !canApprove()"
+  [matTooltip]="approveTooltip || ''"
+  [matTooltipDisabled]="!approveTooltip"
+  matTooltipPosition="above">
+  אישור
+</button>
+
 
     <button
   class="btn reject"
