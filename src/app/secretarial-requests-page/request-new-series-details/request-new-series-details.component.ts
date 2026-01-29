@@ -712,12 +712,16 @@ get approveTooltip(): string | null {
 
   if (st === 'Deletion Scheduled') {
     const d = this.formatDateOnly(this.childScheduledDeletionAt());
-    return d
-      ? `שימו לב: הילד עתיד להימחק בתאריך ${d}`
-      : 'שימו לב: הילד עתיד להימחק';
+    return d ? `שימו לב: הילד עתיד להימחק בתאריך ${d}` : 'שימו לב: הילד עתיד להימחק';
+  }
+
+  // אופציונלי: גם לממתין לאישור מחיקה
+  if (st === 'Pending Deletion Approval') {
+    return 'שימו לב: הילד ממתין לאישור מחיקה';
   }
 
   return null;
 }
+
 
 }
