@@ -529,23 +529,27 @@ if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
       return;
     }
 
-    let slots = (data ?? []) as MakeupSlot[];
-    if (this.selectedChildId) {
-  slots = this.filterSlotsByChildCutoff(slots, this.selectedChildId);
+ let slots = (data ?? []) as MakeupSlot[];
+
+if (this.selectedChildId) {
+  slots = this.filterSlotsByHardDeletion(slots, this.selectedChildId);
 }
 
+if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
+  slots = slots.slice(0, this.displayedMakeupLessonsCount);
+}
 
-    if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
-      slots = slots.slice(0, this.displayedMakeupLessonsCount);
-    }
+this.candidateSlots = slots;
 
-    this.candidateSlots = slots;
 if (!slots.length) {
-  const cutoff = this.getChildBookingCutoff(this.selectedChildId!);
-  this.candidateSlotsError = cutoff
-    ? `אין חורים זמינים עד ${cutoff} (מחיקה מתוכננת).`
+  const hard = this.getChildHardDeletionDate(this.selectedChildId!);
+  this.candidateSlotsError = hard
+    ? `אין חורים זמינים עד ${hard} (מחיקה מתוכננת).`
     : 'לא נמצאו חורים למדריך זה';
+} else {
+  this.candidateSlotsError = null;
 }
+
 
   } finally {
     this.loadingCandidateSlots = false;
@@ -2357,24 +2361,30 @@ const rangeDays = this.timeRangeOccupancyRateDays ?? 30;
       this.occupancySlotsError =    `לא נמצאו שיעורים פנויים למילוי מקום בטווח השבועי (מיום ראשון של אותו שבוע ועד אותו יום בשבוע הבא).`;
       return;
     }
+let slots = (data ?? []) as MakeupSlot[];
 
-    let slots = (data ?? []) as MakeupSlot[];
-    if (this.selectedChildId) {
-  slots = this.filterSlotsByChildCutoff(slots, this.selectedChildId);
+// 1) פילטר מחיקה קשיח (בלי grace)
+if (this.selectedChildId) {
+  slots = this.filterSlotsByHardDeletion(slots, this.selectedChildId);
 }
 
+// 2) הגבלה של “כמה להציג”
+if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
+  slots = slots.slice(0, this.displayedMakeupLessonsCount);
+}
 
-    if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
-      slots = slots.slice(0, this.displayedMakeupLessonsCount);
-    }
+// 3) עדכון UI
+this.occupancySlots = slots;
 
-    this.occupancySlots = slots;
+// 4) הודעת שגיאה רק אם אין תוצאות
+if (!slots.length) {
+  const hard = this.getChildHardDeletionDate(this.selectedChildId!);
 
-  if (!slots.length) {
-  const cutoff = this.getChildBookingCutoff(this.selectedChildId!);
-  this.occupancySlotsError = cutoff
-    ? `אין שיעורים זמינים עד ${cutoff} (מחיקה מתוכננת).`
+  this.occupancySlotsError = hard
+    ? `אין שיעורים זמינים עד ${hard} (מחיקה מתוכננת).`
     : `לא נמצאו שיעורים פנויים למילוי מקום בטווח של ${rangeDays} ימים מתאריך השיעור המקורי.`;
+} else {
+  this.occupancySlotsError = null;
 }
 
   } finally {
@@ -3068,6 +3078,30 @@ private async submitSeriesRequestToSecretary(slot: RecurringSlotWithSkips): Prom
 //     skippedInstructor: (slot.skipped_instructor_unavailability ?? []).map(String),
 //   };
 // }
+private getChildHardDeletionDate(childId: string): string | null {
+  const c = this.children.find(x => x.child_uuid === childId);
+  if (!c) return null;
+
+  if (c.status !== 'Deletion Scheduled') return null;
+
+  const raw = c.scheduled_deletion_at;
+  if (!raw) return null;
+
+  return raw.slice(0, 10); // YYYY-MM-DD
+}
+private filterSlotsByHardDeletion<T extends { occur_date?: string; lesson_date?: string }>(
+  rows: T[],
+  childId: string
+): T[] {
+  const hard = this.getChildHardDeletionDate(childId);
+  if (!hard) return rows;
+
+  return rows.filter(r => {
+    const d = (r as any).occur_date ?? (r as any).lesson_date;
+    if (!d) return true;
+    return d <= hard; // ✅ עד יום המחיקה כולל
+  });
+}
 
 private getChildDeletionCutoffDate(child: ChildWithProfile | undefined | null): string | null {
   if (!child) return null;

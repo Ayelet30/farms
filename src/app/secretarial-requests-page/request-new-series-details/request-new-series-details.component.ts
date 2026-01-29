@@ -548,12 +548,9 @@ console.log('participants args', {
         p_riding_type_id: ridingTypeId ?? null,
       }
     );
-console.log('RPC raw data:', data);
-console.log('RPC typeof data:', typeof data);
-console.log('RPC isArray:', Array.isArray(data));
+
 if (Array.isArray(data)) {
-  console.log('RPC length:', data.length);
-  console.log('RPC first row:', data[0]);
+  
 }
 
     if (error) throw error;
