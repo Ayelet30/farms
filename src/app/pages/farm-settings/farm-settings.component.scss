@@ -98,6 +98,12 @@
   flex-direction:column;
   gap:14px;
 }
+/* תמיד LTR לשדות שעה */
+input[type="time"] {
+  direction: ltr;
+  text-align: left;
+}
+
 
 /* ========== Sections ========== */
 .settings-section{
@@ -196,6 +202,7 @@
   align-items:center;
   gap:8px;
   background:#fff;
+  margin-bottom: 10px;
   border-color: var(--sf-border-2);
   color: var(--sf-olive-ink);
 

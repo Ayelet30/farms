@@ -43,3 +43,20 @@ bootstrapApplication(App, {
           }),
   ],
 }).catch(err => console.error(err));
+
+// main.ts
+(() => {
+  const tt = (window as any).trustedTypes;
+  if (!tt?.createPolicy) return;
+
+  try {
+    tt.createPolicy('moachsites', {
+      createHTML: (s: string) => s,
+      createScript: (s: string) => s,
+      createScriptURL: (s: string) => s,
+    });
+  } catch {
+    // policy כבר קיים
+  }
+})();
+

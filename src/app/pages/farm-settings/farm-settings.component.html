@@ -17,23 +17,22 @@
       <!-- =================== שעות פעילות לפי יום =================== -->
       <section class="settings-section">
         <div class="subsection-header accordion">
-          <button
-            type="button"
-            class="accordion-toggle"
-            (click)="toggleWorkingHoursExpanded()"
-            [attr.aria-expanded]="workingHoursExpanded()"
-          >
+            <button type="button" class="accordion-toggle" (click)="toggleWorkingHoursExpanded()"
+            [attr.aria-expanded]="workingHoursExpanded()">
             <span class="chev" [class.open]="workingHoursExpanded()">▾</span>
             <h2>שעות פעילות לפי יום</h2>
           </button>
+          
+          <div class="fields-grid three-cols">
+          <label class="field">
+            <span class="field-label">אזור זמן</span>
+            <label type="text" [(ngModel)]="s.timezone" name="timezone">Asia/Jerusalem</label>
+          </label>
+        </div>
 
           <div class="inline-actions">
-            <button
-              type="button"
-              class="primary-btn"
-              (click)="saveWorkingHours()"
-              [disabled]="saving() || loading() || !!workingHoursError()"
-            >
+            <button type="button" class="primary-btn" (click)="saveWorkingHours()"
+              [disabled]="saving() || loading() || !!workingHoursError() || !canSaveWorkingHours()">
               שמירת שעות לפי יום
             </button>
           </div>
@@ -66,66 +65,34 @@
               </div>
 
               <!-- פתוח (חווה) -->
-<div class="col-secondary mini-toggle">
-  <input
-    type="checkbox"
-    class="wh-check"
-    [(ngModel)]="r.is_open"
-    name="whOpen{{ r.day_of_week }}"
-    (ngModelChange)="onFarmOpenToggle(r); onWorkingHoursChanged()"
-  />
-</div>
+              <div class="col-secondary mini-toggle">
+                <input type="checkbox" class="wh-check" [(ngModel)]="r.is_open" name="whOpen{{ r.day_of_week }}"
+                  (ngModelChange)="onFarmOpenToggle(r); onWorkingHoursChanged()" />
+              </div>
 
               <!-- שעות חווה -->
-               <div class="col-secondary time-col">
-                <input
-                  type="time"
-                    class="wh-time"
-                  [(ngModel)]="r.farm_start"
-                  name="whFarmStart{{ r.day_of_week }}"
-                  [disabled]="!r.is_open"
-                  (ngModelChange)="onWorkingHoursChanged()"
-                />
+              <div class="col-secondary">
+                <input type="time" class="wh-time" [(ngModel)]="r.farm_start" name="whFarmStart{{ r.day_of_week }}"
+                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursChanged()" />
                 <span class="sep">–</span>
-                <input
-                  type="time"
-                    class="wh-time"
-                  [(ngModel)]="r.farm_end"
-                  name="whFarmEnd{{ r.day_of_week }}"
-                  [disabled]="!r.is_open"
-                  (ngModelChange)="onWorkingHoursChanged()"
-                />
+                <input type="time" class="wh-time" [(ngModel)]="r.farm_end" name="whFarmEnd{{ r.day_of_week }}"
+                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursChanged()" />
               </div>
-<!-- משרד פתוח -->
-<div class="col-secondary mini-toggle">
-  <input
-    type="checkbox"
-    class="wh-check"
-    [(ngModel)]="r.is_offical_open"
-    name="whOfficeOpen{{ r.day_of_week }}"
-    (ngModelChange)="onOfficeOpenToggle(r); onWorkingHoursChanged()"
-  />
-</div>
+              <!-- משרד פתוח -->
+              <div class="col-secondary mini-toggle">
+                <input type="checkbox" class="wh-check" [(ngModel)]="r.is_offical_open"
+                  name="whOfficeOpen{{ r.day_of_week }}"
+                  (ngModelChange)="onOfficeOpenToggle(r); onWorkingHoursChanged()" />
+              </div>
 
               <!-- שעות משרד (לא תלוי ב־is_open של החווה) -->
               <div class="col-secondary">
-                <input
-                  type="time"
-                    class="wh-time"
-                  [(ngModel)]="r.office_start"
-                  name="whOfficeStart{{ r.day_of_week }}"
-                  [disabled]="!r.is_offical_open"
-                  (ngModelChange)="onWorkingHoursChanged()"
-                />
+                <input type="time" class="wh-time" [(ngModel)]="r.office_start" ד
+                  name="whOfficeStart{{ r.day_of_week }}" [disabled]="!r.is_offical_open"
+                  (ngModelChange)="onWorkingHoursChanged()" />
                 <span class="sep">–</span>
-                <input
-                  type="time"
-                    class="wh-time"
-                  [(ngModel)]="r.office_end"
-                  name="whOfficeEnd{{ r.day_of_week }}"
-                  [disabled]="!r.is_offical_open"
-                  (ngModelChange)="onWorkingHoursChanged()"
-                />
+                <input type="time" class="wh-time" [(ngModel)]="r.office_end" name="whOfficeEnd{{ r.day_of_week }}"
+                  [disabled]="!r.is_offical_open" (ngModelChange)="onWorkingHoursChanged()" />
               </div>
             </div>
           </div>
@@ -138,26 +105,6 @@
           </ng-template>
         </div>
       </section>
-
-      <!-- לוח שנה ושעות -->
-      <section class="settings-section">
-        <h2>לוח שנה ושעות</h2>
-
-        <div class="fields-grid three-cols">
-          <label class="field">
-            <span class="field-label">גרנולריות זמן (דקות)</span>
-            <input type="number" min="5" step="5" [(ngModel)]="s.time_slot_minutes" name="time_slot_minutes" />
-            <small class="field-hint">לדוגמה 15 כדי ליישר שעות בלו״ז ובוולידציות.</small>
-          </label>
-
-          <label class="field">
-            <span class="field-label">אזור זמן</span>
-            <input type="text" [(ngModel)]="s.timezone" name="timezone" placeholder="Asia/Jerusalem" />
-            <small class="field-hint">חשוב ל-cron / Cloud Functions.</small>
-          </label>
-        </div>
-      </section>
-
       <!-- ימים מיוחדים -->
       <section class="settings-section">
         <div class="subsection-header">
@@ -489,23 +436,14 @@
       <!-- הערות מובנות -->
       <section class="settings-section">
         <div class="subsection-header accordion">
-          <button
-            type="button"
-            class="accordion-toggle"
-            (click)="toggleListNotesExpanded()"
-            [attr.aria-expanded]="listNotesExpanded()"
-          >
+          <button type="button" class="accordion-toggle" (click)="toggleListNotesExpanded()"
+            [attr.aria-expanded]="listNotesExpanded()">
             <span class="chev" [class.open]="listNotesExpanded()">❯</span>
             <span class="accordion-title">הערות מובנות</span>
             <span class="accordion-sub">לחצי לפתיחה / סגירה</span>
           </button>
 
-          <button
-            type="button"
-            class="icon-btn"
-            (click)="toggleNewListNoteForm()"
-            [disabled]="!listNotesExpanded()"
-          >
+          <button type="button" class="icon-btn" (click)="toggleNewListNoteForm()" [disabled]="!listNotesExpanded()">
             <span class="plus-icon">+</span>
             <span>הוספת הודעה</span>
           </button>
@@ -518,14 +456,8 @@
 
             <label class="field">
               <span class="field-label">תוכן ההודעה</span>
-              <input
-                type="text"
-                [ngModel]="newListNoteText()"
-                (ngModelChange)="newListNoteText.set($event)"
-                name="new_list_note"
-                placeholder="לדוגמה: התקדמת יפה"
-                maxlength="250"
-              />
+              <input type="text" [ngModel]="newListNoteText()" (ngModelChange)="newListNoteText.set($event)"
+                name="new_list_note" placeholder="לדוגמה: התקדמת יפה" maxlength="250" />
               <small class="field-hint">עד 250 תווים</small>
             </label>
 
@@ -555,13 +487,8 @@
 
               <ng-template #editNoteRow>
                 <div class="col-main">
-                  <input
-                    class="note-edit-input"
-                    type="text"
-                    [(ngModel)]="n.note"
-                    name="edit_note_{{n.id}}"
-                    maxlength="250"
-                  />
+                  <input class="note-edit-input" type="text" [(ngModel)]="n.note" name="edit_note_{{n.id}}"
+                    maxlength="250" />
                 </div>
 
                 <div class="col-actions">

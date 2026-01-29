@@ -137,10 +137,10 @@ export class AddChildWizardComponent implements OnInit {
   validationErrors: Record<string, string> = {};
 
   // ===== דמי הרשמה =====
-  registrationFeeAgorot: number | null = null;
+  registrationFee: number | null = null;
 
   get hasRegistrationFee(): boolean {
-    return (this.registrationFeeAgorot ?? 0) > 0;
+    return (this.registrationFee ?? 0) > 0;
   }
 
   get paymentStepIndex(): number {
@@ -162,7 +162,7 @@ export class AddChildWizardComponent implements OnInit {
 
   get headerSubtitle(): string {
     if (this.isParentMode) {
-      return 'האשף מלווה אותך בשלבים קצרים. החיוב יתבצע רק לאחר אישור המזכירה.';
+      return 'האשף מלווה אותך בשלבים קצרים. החיוב יתבצע רק לילד חדש ורק לאחר אישור המזכירה.';
     }
     return 'כאן ניתן להוסיף ילד/ה לחווה, לבחור הורה אחראי ולמלא שאלון קצר. השמירה מתבצעת ישירות במערכת.';
   }
@@ -241,17 +241,20 @@ export class AddChildWizardComponent implements OnInit {
 
   private async loadRegistrationFeeFromDb(): Promise<void> {
     try {
+      await ensureTenantContextReady()
       const db = dbTenant();
-      const { data, error } = await db.from('farm_settings').select('registration_fee').single();
+      const { data, error } = await db.from('farm_settings').select('registration_fee').limit(1).maybeSingle()
+      console.log('loadRegistrationFeeFromDb data:', data, 'error:', error);
+
       if (error) throw error;
 
-      this.registrationFeeAgorot = (data as any)?.registration_fee ?? 0;
+      this.registrationFee = (data as any)?.registration_fee ?? 0;
 
       if (this.hasRegistrationFee) {
-        this.payment.registrationAmount = Math.round((this.registrationFeeAgorot ?? 0) / 100);
+        this.payment.registrationAmount = Math.round(this.registrationFee ?? 0);
       }
     } catch (e) {
-      this.registrationFeeAgorot = 0;
+      this.registrationFee = 0;
     }
   }
 
