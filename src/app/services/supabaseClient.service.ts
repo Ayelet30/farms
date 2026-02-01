@@ -712,6 +712,7 @@ select = 'child_uuid, first_name, last_name, gov_id, birth_date, parent_uid, sta
     return { ok: false, data: [], error: e?.message ?? 'Unknown error' };
   }
 }
+
 export async function fetchActiveChildrenForTenant(
   select = 'child_uuid, first_name, last_name, instructor_id, status, gender, birth_date'
 ): Promise<{ ok: boolean; data: ChildRow[]; error?: string }> {
@@ -721,7 +722,7 @@ export async function fetchActiveChildrenForTenant(
     const { data, error } = await dbTenant()
       .from('children')
       .select(select)
-      .eq('status', 'Active')
+      .in('status', ['Active', 'Deletion Scheduled', 'Pending Deletion Approval'])
       .order('first_name', { ascending: true })
       .order('last_name', { ascending: true });
 
