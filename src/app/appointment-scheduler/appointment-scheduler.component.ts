@@ -769,7 +769,7 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
   const rowsAll = (res.data ?? []) as any[];
 
 const rows = rowsAll.filter(r =>
-  r.status === 'Active' || r.status === 'Deletion Scheduled'
+  r.status === 'Active' || r.status === 'Deletion Scheduled' || r.status === 'Pending Deletion Approval'
 );
 
 this.children = rows as ChildWithProfile[];
