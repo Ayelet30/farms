@@ -190,61 +190,10 @@ export class FarmSettingsComponent implements OnInit {
 private readonly SHABBAT_START = '16:00';
 private readonly SHABBAT_END = '19:00';
 
-private isFriday(day: number) { return day === 5; }   // ו'
-private isSaturday(day: number) { return day === 6; } // ש'
+private isFriday(day: number) { return day === 6; }   // ו'
+private isSaturday(day: number) { return day === 7; } // ש'
 
   private flashTimer: any = null;
-
-/** אוכף חוקי שבת על הרשומות (גם אחרי טעינה) */
-private enforceShabbatRules(rows: FarmWorkingHours[]): FarmWorkingHours[] {
-  return rows.map(r => {
-    // שבת (ש): תמיד סגור לגמרי
-    // שבת: אם פתוח, מתחילים לא לפני 19:00
-if (this.isSaturday(r.day_of_week)) {
-  const next = { ...r };
-
-  if (next.is_open) {
-    if (!next.farm_start || next.farm_start < this.SHABBAT_END) next.farm_start = this.SHABBAT_END;
-    if (next.farm_end && next.farm_end <= next.farm_start) next.farm_end = null;
-  } else {
-    next.farm_start = null;
-    next.farm_end = null;
-  }
-
-  if (next.is_offical_open) {
-    if (!next.office_start || next.office_start < this.SHABBAT_END) next.office_start = this.SHABBAT_END;
-    if (next.office_end && next.office_end <= next.office_start) next.office_end = null;
-  } else {
-    next.office_start = null;
-    next.office_end = null;
-  }
-
-  return next;
-}
-
-
-    // שישי (ו): חייבים להסתיים עד 16:00 (גם חווה וגם משרד)
-    if (this.isFriday(r.day_of_week)) {
-      const clampEnd = (t: string | null) => (t && t > this.SHABBAT_START ? this.SHABBAT_START : t);
-      const invalidStart = (t: string | null) => (t && t >= this.SHABBAT_START);
-
-      const next = { ...r };
-
-      if (next.is_open) {
-        if (invalidStart(next.farm_start)) next.farm_start = '08:00';
-        next.farm_end = clampEnd(next.farm_end);
-      }
-      if (next.is_offical_open) {
-        if (invalidStart(next.office_start)) next.office_start = '08:30';
-        next.office_end = clampEnd(next.office_end);
-      }
-
-      return next;
-    }
-
-    return r;
-  });
-}
 
 /** יש לפחות יום אחד פעיל (חווה או משרד) */
 hasAnyActiveWorkingDay(): boolean {
@@ -342,34 +291,37 @@ hasAnyActiveWorkingDay(): boolean {
 
   // ================================
   async ngOnInit(): Promise<void> {
-    this.loading.set(true);
-    this.error.set(null);
-    this.success.set(null);
+  this.loading.set(true);
+  this.error.set(null);
+  this.success.set(null);
 
-    try {
-      await Promise.all([
-        this.loadSettings(),
-        this.loadFundingSources(),
-        this.loadPaymentPlans(),
-        this.loadFarmDaysOff(),
-        this.loadWorkingHours(),
-        this.loadListNotes(),
-      ]);
+  try {
+    await Promise.all([
+      this.loadSettings(),
+      this.loadFundingSources(),
+      this.loadPaymentPlans(),
+      this.loadFarmDaysOff(),
+      this.loadWorkingHours(),
+      this.loadListNotes(),
+    ]);
 
-      if (!this.workingHours().length) {
-        this.workingHours.set(this.enforceShabbatRules(this.buildEmptyWorkingHours()));
-      }
-      this.onWorkingHoursChanged();
-
-      this.onWorkingHoursChanged();
-    } catch (e) {
-      console.error(e);
-      await this.ui.alert('שגיאה בטעינת הנתונים.', 'שגיאה');
-      this.error.set('שגיאה בטעינת הנתונים.');
-    } finally {
-      this.loading.set(false);
+    if (!this.workingHours().length) {
+      this.workingHours.set(this.enforceShabbatRules(this.buildEmptyWorkingHours()));
+    } else {
+      // ליתר ביטחון אחרי טעינה/seed
+      this.workingHours.set(this.enforceShabbatRules(this.workingHours()));
     }
+
+    // פעם אחת בלבד
+    this.workingHoursError.set(this.validateAllWorkingHours());
+  } catch (e) {
+    console.error(e);
+    await this.ui.alert('שגיאה בטעינת הנתונים.', 'שגיאה');
+    this.error.set('שגיאה בטעינת הנתונים.');
+  } finally {
+    this.loading.set(false);
   }
+}
 
   // =============================
   // Helpers
@@ -382,13 +334,13 @@ hasAnyActiveWorkingDay(): boolean {
 
   getHebDayLabel(d: number): string {
     switch (d) {
-      case 0: return 'א׳';
-      case 1: return 'ב׳';
-      case 2: return 'ג׳';
-      case 3: return 'ד׳';
-      case 4: return 'ה׳';
-      case 5: return 'ו׳';
-      case 6: return 'ש׳';
+      case 1: return 'א׳';
+      case 2: return 'ב׳';
+      case 3: return 'ג׳';
+      case 4: return 'ד׳';
+      case 5: return 'ה׳';
+      case 6: return 'ו׳';
+      case 7: return 'ש׳';
       default: return String(d);
     }
   }
@@ -525,6 +477,7 @@ private flashError(msg: string): void {
       return;
     }
 
+    console.log('loadWorkingHours data:', data);
     const list: FarmWorkingHours[] = (data || []).map((r: any) => ({
       id: r.id,
       day_of_week: r.day_of_week,
@@ -536,42 +489,107 @@ private flashError(msg: string): void {
       office_end: this.t5(r.office_end),
     }));
 
-    
+    console.log('loadWorkingHours before enforceShabbatRules:', list);
     this.workingHours.set(this.enforceShabbatRules(list));
     console.log('day_of_week values:', list.map(x => x.day_of_week));
 
   }
 
   private buildEmptyWorkingHours(): FarmWorkingHours[] {
-    const s = this.settings();
-    const defFarmStart = s?.operating_hours_start ?? '08:00';
-    const defFarmEnd = s?.operating_hours_end ?? '20:00';
+  const s = this.settings();
+  const defFarmStart = s?.operating_hours_start ?? '08:00';
+  const defFarmEnd = s?.operating_hours_end ?? '20:00';
 
-    const defOfficeStart = s?.office_hours_start ?? null;
-    const defOfficeEnd = s?.office_hours_end ?? null;
-
-    const arr: FarmWorkingHours[] = [];
-   for (let d = 0; d <= 6; d++) {
-  const isSat = d === 6;
-  arr.push({
-    day_of_week: d,
-    is_open: !isSat,
-    farm_start: isSat ? null : defFarmStart,
-    farm_end: isSat ? null : defFarmEnd,
-    is_offical_open: false,
-    office_start: null,
-    office_end: null,
-  });
+  const arr: FarmWorkingHours[] = [];
+  for (let d = 1; d <= 7; d++) {
+    const isSat = d === 7; // שבת
+    arr.push({
+      day_of_week: d,
+      is_open: !isSat,
+      farm_start: isSat ? null : defFarmStart,
+      farm_end: isSat ? null : defFarmEnd,
+      is_offical_open: false,
+      office_start: null,
+      office_end: null,
+    });
+  }
+  return arr;
 }
 
-    return arr;
+private compareTime(a: string | null, b: string | null): number {
+  if (!a && !b) return 0;
+  if (!a) return -1;
+  if (!b) return 1;
+  return a.localeCompare(b); // עובד ל-HH:MM
+}
+
+private enforceShabbatRulesRow(r: FarmWorkingHours): FarmWorkingHours {
+  const next = { ...r };
+
+  // שבת (7): אם פתוח, מתחילים לא לפני 19:00
+  if (this.isSaturday(next.day_of_week)) {
+    if (next.is_open) {
+      if (!next.farm_start || this.compareTime(next.farm_start, this.SHABBAT_END) < 0) {
+        next.farm_start = this.SHABBAT_END;
+      }
+      if (next.farm_end && this.compareTime(next.farm_end, next.farm_start) <= 0) next.farm_end = null;
+    } else {
+      next.farm_start = null;
+      next.farm_end = null;
+    }
+
+    if (next.is_offical_open) {
+      if (!next.office_start || this.compareTime(next.office_start, this.SHABBAT_END) < 0) {
+        next.office_start = this.SHABBAT_END;
+      }
+      if (next.office_end && this.compareTime(next.office_end, next.office_start) <= 0) next.office_end = null;
+    } else {
+      next.office_start = null;
+      next.office_end = null;
+    }
+
+    return next;
   }
 
-  onWorkingHoursChanged(): void {
-    this.workingHours.set(this.enforceShabbatRules(this.workingHours()));
-    this.workingHoursError.set(this.validateAllWorkingHours());
+  // שישי (6): לא לשים שעות אחרי 16:00
+  if (this.isFriday(next.day_of_week)) {
+    const clampEnd = (t: string | null) => (t && this.compareTime(t, this.SHABBAT_START) > 0 ? this.SHABBAT_START : t);
+    const invalidStart = (t: string | null) => (t && this.compareTime(t, this.SHABBAT_START) >= 0);
 
+    if (next.is_open) {
+      if (invalidStart(next.farm_start)) next.farm_start = '08:00';
+      next.farm_end = clampEnd(next.farm_end);
+      if (next.farm_end && next.farm_start && this.compareTime(next.farm_end, next.farm_start) <= 0) next.farm_end = null;
+    }
+
+    if (next.is_offical_open) {
+      if (invalidStart(next.office_start)) next.office_start = '08:30';
+      next.office_end = clampEnd(next.office_end);
+      if (next.office_end && next.office_start && this.compareTime(next.office_end, next.office_start) <= 0) next.office_end = null;
+    }
+
+    return next;
   }
+
+  return next;
+}
+
+private enforceShabbatRules(rows: FarmWorkingHours[]): FarmWorkingHours[] {
+  // שומר על immutable כדי שה-signal יעדכן UI
+  return rows.map(r => this.enforceShabbatRulesRow(r));
+}
+
+
+ onWorkingHoursChanged(): void {
+  // רק ולידציה (מהיר)
+  this.workingHoursError.set(this.validateAllWorkingHours());
+}
+
+private applyWorkingHoursRulesAndValidate(): void {
+  this.workingHours.update(rows => this.enforceShabbatRules(rows));
+  this.workingHoursError.set(this.validateAllWorkingHours());
+}
+
 
   private validateAllWorkingHours(): string | null {
     const rows = this.workingHours();
@@ -581,6 +599,62 @@ private flashError(msg: string): void {
     }
     return null;
   }
+  // ===== Special Day rules (Day 6/7) =====
+private readonly DAY6_CUTOFF = '16:00'; // יום 6
+private readonly DAY7_START  = '19:00'; // יום 7
+
+private isoDow(isoDate: string | null): number | null {
+  if (!isoDate) return null;
+  // מונע בעיות TZ: בונים "צהריים" מקומי
+  const d = new Date(`${isoDate}T12:00:00`);
+  // JS: 0=Sunday ... 5=Friday ... 6=Saturday
+  return d.getDay();
+}
+
+private clampMin(t: string | null, min: string): string | null {
+  if (!t) return null;
+  return t < min ? min : t;
+}
+private clampMax(t: string | null, max: string): string | null {
+  if (!t) return null;
+  return t > max ? max : t;
+}
+
+private applySpecialDayRules(form: FarmDayOff): FarmDayOff {
+  // אוכפים רק כשזה "חלק מהיום" ובאותו יום (לא טווח)
+  if (form.all_day) return form;
+  if (!form.start_date || !form.end_date) return form;
+  if (form.start_date !== form.end_date) return form;
+
+  const dow = this.isoDow(form.start_date);
+  if (dow == null) return form;
+
+  const next = { ...form };
+
+  // יום 7 (JS Saturday=6): אסור להתחיל לפני 19:00
+  if (dow === 6) {
+    next.start_time = this.clampMin(next.start_time, this.DAY7_START);
+    // אם סיום לפני התחלה -> ננקה כדי שיראו שגיאה
+    if (next.end_time && next.start_time && next.end_time <= next.start_time) {
+      next.end_time = null;
+    }
+  }
+
+  // יום 6 (JS Friday=5): אסור לסיים אחרי 16:00
+  if (dow === 5) {
+    next.end_time = this.clampMax(next.end_time, this.DAY6_CUTOFF);
+    if (next.start_time && next.start_time >= this.DAY6_CUTOFF) {
+      // אם שמו התחלה לא חוקית – נחזיר לברירת מחדל
+      next.start_time = this.settings()?.operating_hours_start ?? '08:00';
+    }
+    if (next.end_time && next.start_time && next.end_time <= next.start_time) {
+      next.end_time = null;
+    }
+  }
+
+  return next;
+}
+
 
   private validateWorkingHoursRow(r: FarmWorkingHours): string | null {
     const day = this.getHebDayLabel(r.day_of_week);
@@ -598,13 +672,12 @@ private flashError(msg: string): void {
     if (this.isSaturday(r.day_of_week)) {
   if (r.is_open) {
     if (r.farm_start && r.farm_start < this.SHABBAT_END) return 'בשבת אין להתחיל לפני 19:00.';
+    if (r.farm_end && r.farm_end < this.SHABBAT_END) return 'ביום שישי לא ניתן לסיים לאחר 16:00.';
   }
   if (r.is_offical_open) {
     if (r.office_start && r.office_start < this.SHABBAT_END) return 'בשבת אין לפתוח משרד לפני 19:00.';
-  }
+ }
 }
-
-
     // שישי: לא מתחילים/מסיימים אחרי 16:00
     if (this.isFriday(r.day_of_week)) {
       if (r.is_open) {
@@ -632,28 +705,36 @@ private flashError(msg: string): void {
   }
 
   // ✅ חדש: כשסוגרים חווה - ננקה שעות כדי שלא יישמרו "שעות ישנות"
-  onFarmOpenToggle(r: FarmWorkingHours): void {
-    if (!r.is_open) {
-      r.farm_start = null;
-      r.farm_end = null;
-    } else {
-      const s = this.settings();
-      r.farm_start = r.farm_start ?? (s?.operating_hours_start ?? '08:00');
-      r.farm_end = r.farm_end ?? (s?.operating_hours_end ?? '20:00');
-    }
+onFarmOpenToggle(r: FarmWorkingHours): void {
+  if (!r.is_open) {
+    r.farm_start = null;
+    r.farm_end = null;
+  } else {
+    const s = this.settings();
+    r.farm_start = r.farm_start ?? (s?.operating_hours_start ?? '08:00');
+    r.farm_end = r.farm_end ?? (s?.operating_hours_end ?? '20:00');
   }
 
-  // ✅ חדש: כשסוגרים משרד - ננקה שעות משרד; כשפותחים - נכניס ברירת מחדל אם חסר
-  onOfficeOpenToggle(r: FarmWorkingHours): void {
-    if (!r.is_offical_open) {
-      r.office_start = null;
-      r.office_end = null;
-    } else {
-      const s = this.settings();
-      r.office_start = r.office_start ?? (s?.office_hours_start ?? '08:30');
-      r.office_end = r.office_end ?? (s?.office_hours_end ?? '16:00');
-    }
+  this.applyWorkingHoursRulesAndValidate();
+}
+
+onOfficeOpenToggle(r: FarmWorkingHours): void {
+  if (!r.is_offical_open) {
+    r.office_start = null;
+    r.office_end = null;
+  } else {
+    const s = this.settings();
+    r.office_start = r.office_start ?? (s?.office_hours_start ?? '08:30');
+    r.office_end = r.office_end ?? (s?.office_hours_end ?? '16:00');
   }
+
+  this.applyWorkingHoursRulesAndValidate();
+}
+
+onWorkingHoursTimeChanged(): void {
+  this.applyWorkingHoursRulesAndValidate();
+}
+
   /** יש לפחות יום אחד פתוח בחווה */
 hasAnyFarmOpenDay(): boolean {
   return this.workingHours().some(r => !!r.is_open);
@@ -746,10 +827,12 @@ canSaveWorkingHours(): boolean {
   }
 
   patchSpecialDayForm(patch: Partial<FarmDayOff>): void {
-    const next = { ...this.specialDayForm(), ...patch };
-    this.specialDayForm.set(next);
-    this.validateSpecialDayDateRange(next);
-  }
+  let next = { ...this.specialDayForm(), ...patch };
+  next = this.applySpecialDayRules(next);   // ✅ כאן
+  this.specialDayForm.set(next);
+  this.validateSpecialDayDateRange(next);
+}
+
 
   openSpecialDays(): void {
     const today = new Date().toISOString().slice(0, 10);
@@ -781,20 +864,27 @@ canSaveWorkingHours(): boolean {
     this.showSpecialDaysModal.set(false);
   }
 
-  onToggleAllDay(value: boolean): void {
-    const cur = this.specialDayForm();
-    if (value) {
-      this.specialDayForm.set({ ...cur, all_day: true, start_time: null, end_time: null });
-    } else {
-      const s = this.settings();
-      this.specialDayForm.set({
-        ...cur,
-        all_day: false,
-        start_time: cur.start_time ?? (s?.operating_hours_start ?? '08:00'),
-        end_time: cur.end_time ?? (s?.operating_hours_end ?? '20:00'),
-      });
-    }
+ onToggleAllDay(value: boolean): void {
+  const cur = this.specialDayForm();
+  let next: FarmDayOff;
+
+  if (value) {
+    next = { ...cur, all_day: true, start_time: null, end_time: null };
+  } else {
+    const s = this.settings();
+    next = {
+      ...cur,
+      all_day: false,
+      start_time: cur.start_time ?? (s?.operating_hours_start ?? '08:00'),
+      end_time: cur.end_time ?? (s?.operating_hours_end ?? '20:00'),
+    };
   }
+
+  next = this.applySpecialDayRules(next);   // ✅ כאן
+  this.specialDayForm.set(next);
+  
+}
+
 
   private async loadFarmDaysOff(): Promise<void> {
     const { data, error } = await this.supabase
@@ -864,6 +954,24 @@ canSaveWorkingHours(): boolean {
         await this.ui.alert('שעת סיום חייבת להיות אחרי שעת התחלה.', 'שגיאה');
         return;
       }
+      if (!f.all_day && f.start_date && f.end_date && f.start_date === f.end_date) {
+  const dow = this.isoDow(f.start_date);
+
+  if (dow === 6) { // יום 7
+    if (f.start_time && f.start_time < this.DAY7_START) {
+      await this.ui.alert('ביום 7 אי אפשר להתחיל לפני 19:00.', 'שגיאה');
+      return;
+    }
+  }
+
+  if (dow === 5) { // יום 6
+    if (f.end_time && f.end_time > this.DAY6_CUTOFF) {
+      await this.ui.alert('ביום 6 חייבים לסיים עד 16:00.', 'שגיאה');
+      return;
+    }
+  }
+}
+
     }
 
     const isHebrew = (f.calendar_kind ?? 'GREGORIAN') === 'HEBREW';
@@ -1625,5 +1733,19 @@ async deleteListNote(n: ListNote): Promise<void> {
     await this.ui.alert('מחיקת הודעה נכשלה.', 'שגיאה');
   }
 }
+
+paymentPlansExpanded = signal(true);
+fundingSourcesExpanded = signal(true);
+
+togglePaymentPlansExpanded() {
+  this.paymentPlansExpanded.update(v => !v);
+  if (!this.paymentPlansExpanded()) this.showNewPlanForm.set(false);
+}
+
+toggleFundingSourcesExpanded() {
+  this.fundingSourcesExpanded.update(v => !v);
+  if (!this.fundingSourcesExpanded()) this.showNewFundingForm.set(false);
+}
+
 }
 

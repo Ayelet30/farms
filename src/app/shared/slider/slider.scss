@@ -371,4 +371,24 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6h12'/%3E%3Cpath d='M9 12h12'/%3E%3Cpath d='M9 18h12'/%3E%3Ccircle cx='5' cy='12' r='2.6'/%3E%3Cpath d='M5 10.9v1.4l1 .6'/%3E%3C/svg%3E");
 }
 
+@media (max-width: 1023.98px){
+  .mobile-drawer-head{
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--panel-bg);
+    padding: 10px;
+    border-bottom: 1px solid #dfe7d7;
+  }
+
+  .close-btn{
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    border: 1px solid #cdd6bf;
+    background: #f7f9f4;
+    font-weight: 900;
+  }
+}
+
+
 
