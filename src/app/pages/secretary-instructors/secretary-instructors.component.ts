@@ -47,7 +47,6 @@ interface InstructorDetailsRow extends InstructorRow {
   license_id?: string | null;
   about?: string | null;
   education?: string | null;
-  ages?: any | null;                      // jsonb – טווחי גיל
   taught_child_genders?: string[] | null; // ["זכר","נקבה"]
   default_lesson_duration_min?: number | null;
   min_age_years?: number | null;
@@ -371,7 +370,6 @@ statusLabel(s?: string | null): string {
           license_id,
           about,
           education,
-          ages,
           taught_child_genders,
           default_lesson_duration_min,
           min_age_years,
