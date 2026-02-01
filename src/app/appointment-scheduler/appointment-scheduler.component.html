@@ -35,7 +35,7 @@
   (click)="!selectedChildId && showUiHint('instructor', missingInstructorMsg)"
 >
         <mat-select #instructorSelect class="appt-select" [ngClass]="{ disabled: !selectedChildId }"
-          [(ngModel)]="selectedInstructorId" (selectionChange)="onInstructorChange()" [disabled]="!selectedChildId"
+          [(ngModel)]="selectedInstructorId" (selectionChange)="onInstructorChange()" [disabled]="!selectedChildId || loadingInstructors || !instructors.length"
           placeholder="בחר/י מדריך">
           <!-- שורת חיפוש -->
           <mat-option class="search-option" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()">
@@ -45,21 +45,25 @@
           </mat-option>
 
           <!-- אופציה של "כל המדריכים" -->
-          <mat-option value="any">
-            כל המדריכים
-          </mat-option>
+         <mat-option *ngIf="instructors.length" value="any">כל המדריכים</mat-option>
+
 
           <!-- אופציות – רשימה מסוננת -->
           <mat-option *ngFor="let ins of filteredInstructors" [value]="ins.instructor_uid">
             {{ ins.full_name }}
           </mat-option>
         </mat-select>
+      
           <small class="hint" *ngIf="uiHint['instructor']">{{ uiHint['instructor'] }}</small>
 
       </div>
 
 
     </div>
+      <div *ngIf="!loadingInstructors && instructorsError" class="error">
+  {{ instructorsError }}
+</div>
+
   </div>
 
   <!-- כרטיס מידע על המדריך שנבחר -->

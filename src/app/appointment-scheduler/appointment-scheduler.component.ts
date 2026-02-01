@@ -233,6 +233,7 @@ get hasSeriesCountOrOpenEnded(): boolean {
 // שיעורי מילוי מקום
 
 occupancyCreatedMessage: string | null = null;
+instructorsError: string | null = null;
 
 @ViewChild('confirmOccupancyDialog') confirmOccupancyDialog!: TemplateRef<any>;
 @ViewChild('confirmOccupancyParentDialog') confirmOccupancyParentDialog!: TemplateRef<any>;
@@ -786,6 +787,7 @@ this.filteredChildren = [...this.children];
   }
 }
 private async loadInstructorsForChild(childId: string): Promise<void> {
+  this.instructorsError = null;
   this.loadingInstructors = true;
   this.instructors = [];
 
@@ -865,7 +867,24 @@ this.filteredInstructors = [...this.instructors];
 this.instructorSearchTerm = '';
 
 
-  this.loadingInstructors = false;
+this.loadingInstructors = false;
+
+// ✅ מצב ריק: אין אף מדריך מתאים
+if (!this.instructors.length) {
+  this.instructorsError = 'לא נמצאו מדריכים שיכולים ללמד את הילד/ה הזה/זו, נא לפנות למזכירות';
+
+  // ננקה בחירה כדי שלא יישאר "any" או מדריך קודם
+  this.selectedInstructorId = null;
+
+  // אם יש לך דגל שמאפשר "ללא העדפה" – לנקות גם אותו
+  this.noInstructorPreference = false;
+
+  this.filteredInstructors = [];
+  return;
+}
+
+// ✅ יש מדריכים
+this.instructorsError = null;
 }
 selectFirstChildFromSearch(event: any): void {
   event.preventDefault();
