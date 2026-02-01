@@ -44,8 +44,10 @@ interface InstructorDbRow {
   about: string | null;
   education: string | null;
   phone: string | null;
-  min_age_years: number | null;
-  max_age_years: number | null;
+  min_age_years_male: number | null;
+  max_age_years_male: number | null;
+  min_age_years_female: number | null;
+  max_age_years_female: number | null;
   taught_child_genders: string[] | null; // ⬅️ "זכר"/"נקבה"
     id_number: string;         
 
@@ -115,8 +117,10 @@ type ChildWithProfile = ChildRow & {
 };
 type InstructorWithConstraints = InstructorRow & {
   instructor_id?: string | null;       // 👈 ה-id_number מה-DB
-  min_age_years?: number | null;
-  max_age_years?: number | null;
+ min_age_years_male?: number | null;
+  max_age_years_male?: number | null;
+  min_age_years_female?: number | null;
+  max_age_years_female?: number | null;
   taught_child_genders?: string[] | null;
 };
 interface SeriesCalendarDay {
@@ -805,27 +809,29 @@ private async loadInstructorsForChild(childId: string): Promise<void> {
   const { data, error } = await supa
   .from('instructors')
   .select(`
-      id_number,
-      uid,
-      first_name,
-      last_name,
-      gender,
-      certificate,
-      about,
-      education,
-      phone,
-      accepts_makeup_others,
-      min_age_years,
-      max_age_years,
-      taught_child_genders
+    id_number,
+    uid,
+    first_name,
+    last_name,
+    gender,
+    certificate,
+    about,
+    education,
+    phone,
+    accepts_makeup_others,
+    taught_child_genders,
+    min_age_years_male,
+    max_age_years_male,
+    min_age_years_female,
+    max_age_years_female
   `)
-    .eq('accepts_makeup_others', true)
-    .eq('status', 'Active')
-    .not('uid', 'is', null)
-    .order('first_name', { ascending: true }) as {
-      data: InstructorDbRow[] | null;
-      error: any;
-    };
+  .eq('accepts_makeup_others', true)
+  .eq('status', 'Active')
+  .not('uid', 'is', null)
+  .order('first_name', { ascending: true }) as {
+    data: InstructorDbRow[] | null;
+    error: any;
+  };
 
   if (error) {
     console.error('loadInstructorsForChild error', error);
@@ -833,37 +839,56 @@ private async loadInstructorsForChild(childId: string): Promise<void> {
     return;
   }
 
-  const filtered = (data ?? []).filter(ins => {
-    if (!ins.uid) return false;
+ const filtered = (data ?? []).filter(ins => {
+  if (!ins.uid) return false;
 
-    // סינון לפי גיל
-    if (childAgeYears != null) {
-      if (ins.min_age_years != null && childAgeYears < ins.min_age_years) return false;
-      if (ins.max_age_years != null && childAgeYears > ins.max_age_years) return false;
+  // ===== 1) סינון לפי מין הילד =====
+  // אם taught_child_genders קיים ולא ריק => חייב להכיל את מין הילד
+  if (childGender && ins.taught_child_genders && ins.taught_child_genders.length > 0) {
+    if (!ins.taught_child_genders.includes(childGender)) return false;
+  }
+  // אם taught_child_genders ריק/NULL => מתאים לכולם
+
+  // ===== 2) סינון לפי גיל + לפי מין הילד =====
+  if (childAgeYears != null) {
+    // בוחרים את טווח הגיל המתאים לפי מין הילד
+    let minAge: number | null = null;
+    let maxAge: number | null = null;
+
+    if (childGender === 'זכר') {
+      minAge = ins.min_age_years_male ?? null;
+      maxAge = ins.max_age_years_male ?? null;
+    } else if (childGender === 'נקבה') {
+      minAge = ins.min_age_years_female ?? null;
+      maxAge = ins.max_age_years_female ?? null;
+    } else {
+    
     }
 
-    // סינון לפי מין הילד: "זכר"/"נקבה"
-    if (childGender && ins.taught_child_genders && ins.taught_child_genders.length > 0) {
-      if (!ins.taught_child_genders.includes(childGender)) return false;
-    }
+    if (minAge != null && childAgeYears < minAge) return false;
+    if (maxAge != null && childAgeYears > maxAge) return false;
+  }
 
-    // אם taught_child_genders ריק/NULL – נניח שהמדריך מתאים לכולם
-    return true;
-  });
-
+  return true;
+});
 this.instructors = filtered.map(ins => ({
-  instructor_uid: ins.uid!,                           // מה שה-select משתמש בו
-  instructor_id: ins.id_number,                       // 👈 id_number לטובת הקריאה ל-DB
+  instructor_uid: ins.uid!,
+  instructor_id: ins.id_number,
   full_name: `${ins.first_name ?? ''} ${ins.last_name ?? ''}`.trim(),
   gender: ins.gender,
   certificate: ins.certificate,
   about: ins.about,
   education: ins.education,
   phone: ins.phone,
-  min_age_years: ins.min_age_years,
-  max_age_years: ins.max_age_years,
+
   taught_child_genders: ins.taught_child_genders,
+
+  min_age_years_male: ins.min_age_years_male,
+  max_age_years_male: ins.max_age_years_male,
+  min_age_years_female: ins.min_age_years_female,
+  max_age_years_female: ins.max_age_years_female,
 }));
+
 this.filteredInstructors = [...this.instructors];
 this.instructorSearchTerm = '';
 
