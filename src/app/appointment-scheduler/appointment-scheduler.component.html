@@ -49,9 +49,29 @@
 
 
           <!-- אופציות – רשימה מסוננת -->
-          <mat-option *ngFor="let ins of filteredInstructors" [value]="ins.instructor_uid">
+          <!-- <mat-option *ngFor="let ins of filteredInstructors" [value]="ins.instructor_uid">
             {{ ins.full_name }}
-          </mat-option>
+          </mat-option> -->
+          <!-- אופציות – רשימה מסוננת -->
+<mat-option
+  *ngFor="let ins of filteredInstructors"
+  [value]="ins.instructor_uid"
+  [matTooltip]="isSecretary && !ins.isEligible ? ins.ineligibleReasonText : ''"
+  [matTooltipDisabled]="!(isSecretary && !ins.isEligible)"
+  matTooltipPosition="left"
+>
+  <span class="instructor-option">
+    <!-- נקודה אדומה רק למזכירה ורק אם לא מתאים -->
+    <span
+      *ngIf="isSecretary && !ins.isEligible"
+      class="dot dot-red"
+      aria-hidden="true"
+    ></span>
+
+    <span class="name">{{ ins.full_name }}</span>
+  </span>
+</mat-option>
+
         </mat-select>
       
           <small class="hint" *ngIf="uiHint['instructor']">{{ uiHint['instructor'] }}</small>
