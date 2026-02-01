@@ -523,7 +523,7 @@
     {{ o.start_time | slice:0:5 }}–{{ o.end_time | slice:0:5 }}
   </span>
 </td>
-      <td>{{ o.instructor_name || o.instructor_id }}</td>
+<td>{{ getInstructorDisplayName(o.instructor_id) }}</td>
       <!-- <td>{{ o.status }}</td> -->
       <td>
         <button
@@ -639,7 +639,7 @@
     {{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}
   </span>
 </td>
-            <td>{{ getInstructorNameById(c.instructor_id) }}</td>
+<td>{{ getInstructorDisplayName(c.instructor_id) }}</td>
             <td>
               <button type="button" class="appt-cta" (click)="openHolesForCandidate(c)">
                 להשלמת שיעור זה
