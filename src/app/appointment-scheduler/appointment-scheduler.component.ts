@@ -820,6 +820,7 @@ private async loadInstructorsForChild(childId: string): Promise<void> {
       taught_child_genders
   `)
     .eq('accepts_makeup_others', true)
+    .eq('status', 'Active')
     .not('uid', 'is', null)
     .order('first_name', { ascending: true }) as {
       data: InstructorDbRow[] | null;
