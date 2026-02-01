@@ -117,6 +117,8 @@ interface MakeupCandidate {
   end_time: string;
   instructor_id: string | null;
   status: string;
+  instructor_name: string; 
+
 }
 type ChildWithProfile = ChildRow & {
   gender?: string | null;       // "זכר" / "נקבה"
@@ -189,6 +191,9 @@ loadingInstructors = false;
 showInstructorDetails = true;
 noInstructorPreference = false;        
 
+private instructorNameById = new Map<string, string>(); // id_number -> full_name
+private instructorNameByUid = new Map<string, string>(); // uid -> full_name
+loadingInstructorNames = false;
 
 displayedMakeupLessonsCount: number | null = null;
 
@@ -429,6 +434,7 @@ private unsubTenant?: () => void;
 async ngOnInit(): Promise<void> {
   // 1) קריאת פרמטרים מה-URL
   const qp = this.route.snapshot.queryParamMap;
+await this.loadInstructorNamesIndex();
 
   const needApproveParam = qp.get('needApprove');
   this.needApprove = needApproveParam === 'true';
@@ -3404,5 +3410,43 @@ get canShowSeriesCalendar(): boolean {
   // ורק אחרי שבוחרים כמות שיעורים או "ללא הגבלה"
   return this.hasSeriesCountOrOpenEnded;
 }
+private async loadInstructorNamesIndex(): Promise<void> {
+  this.loadingInstructorNames = true;
+
+  try {
+    const { data, error } = await dbTenant()
+      .from('instructors')
+      .select('id_number, uid, first_name, last_name')
+      .eq('status', 'Active');
+
+    if (error) {
+      console.error('loadInstructorNamesIndex error', error);
+      return;
+    }
+
+    this.instructorNameById.clear();
+    this.instructorNameByUid.clear();
+
+    for (const r of (data ?? []) as any[]) {
+      const full = `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim();
+      if (!full) continue;
+
+      if (r.id_number) this.instructorNameById.set(String(r.id_number), full);
+      if (r.uid) this.instructorNameByUid.set(String(r.uid), full);
+    }
+  } finally {
+    this.loadingInstructorNames = false;
+  }
+}
+getInstructorDisplayName(idOrUid: string | null | undefined): string {
+  if (!idOrUid) return '';
+
+  return (
+    this.instructorNameById.get(idOrUid) ??
+    this.instructorNameByUid.get(idOrUid) ??
+    '' // או fallback: idOrUid
+  );
+}
+
 
 }
