@@ -20,6 +20,7 @@ import {
   fetchActiveChildrenForTenant,
   getCurrentRoleInTenantSync,
 } from '../services/supabaseClient.service';
+import type { TaughtChildGender } from '../Types/detailes.model';
 
 
 
@@ -39,7 +40,7 @@ interface InstructorDbRow {
   first_name: string | null;
   last_name: string | null;
   accepts_makeup_others: boolean;
-  gender: string | null;             // מין המדריך עצמו (גם כנראה "זכר"/"נקבה")
+  gender: string | null;         
   certificate: string | null;
   about: string | null;
   education: string | null;
@@ -48,8 +49,8 @@ interface InstructorDbRow {
   max_age_years_male: number | null;
   min_age_years_female: number | null;
   max_age_years_female: number | null;
-  taught_child_genders: string[] | null; // ⬅️ "זכר"/"נקבה"
-    id_number: string;         
+ taught_child_genders: TaughtChildGender[] | null;
+  id_number: string;         
 
 }
 
@@ -121,7 +122,7 @@ type InstructorWithConstraints = InstructorRow & {
   max_age_years_male?: number | null;
   min_age_years_female?: number | null;
   max_age_years_female?: number | null;
-  taught_child_genders?: string[] | null;
+  taught_child_genders?: TaughtChildGender[] | null;
 };
 interface SeriesCalendarDay {
   date: string;        // 'YYYY-MM-DD'
@@ -790,6 +791,7 @@ this.filteredChildren = [...this.children];
     await this.onChildChange();
   }
 }
+
 private async loadInstructorsForChild(childId: string): Promise<void> {
   this.instructorsError = null;
   this.loadingInstructors = true;
@@ -801,7 +803,8 @@ private async loadInstructorsForChild(childId: string): Promise<void> {
     return;
   }
 
-  const childGender = child.gender ?? null;        // "זכר"/"נקבה"
+  const childGender: TaughtChildGender | null =  isTaughtChildGender(child.gender) ? child.gender : null;
+
   const childAgeYears = child.birth_date ? this.calcAgeYears(child.birth_date) : null;
 
   const supa = dbTenant();
@@ -881,7 +884,7 @@ this.instructors = filtered.map(ins => ({
   education: ins.education,
   phone: ins.phone,
 
-  taught_child_genders: ins.taught_child_genders,
+  taught_child_genders: ins.taught_child_genders ?? [],
 
   min_age_years_male: ins.min_age_years_male,
   max_age_years_male: ins.max_age_years_male,
@@ -3222,3 +3225,6 @@ get canShowSeriesCalendar(): boolean {
 }
 
 }
+const isTaughtChildGender = (v: any): v is TaughtChildGender =>
+  v === 'זכר' || v === 'נקבה';
+
