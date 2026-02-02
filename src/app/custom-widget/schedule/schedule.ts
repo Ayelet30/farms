@@ -227,7 +227,8 @@ if (event.extendedProps['isFarmDayOff']) {
       `,
     };
   }
-  const title = this.lessonTitleNumberOnly(event.title || '');
+  const title = event.title || ''; 
+  const meta = event.extendedProps['meta'] || {};
 
   // כרטיסיית שיעור – ילדים + סוג
 const childrenStr =

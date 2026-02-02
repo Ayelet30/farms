@@ -757,6 +757,25 @@ async exportExcel(): Promise<void> {
     const XLSXmod: any = await import('xlsx');
     const XLSX = XLSXmod.default ?? XLSXmod;
 
+    const exportRows = rows.map((r) => ({
+      'תאריך שיעור': r.occur_date ?? '',
+      'תלמיד/ה': (
+        r.child_full_name ||
+        `${this.clean(r.child_first_name)} ${this.clean(r.child_last_name)}`.trim() ||
+        ''
+      ).trim(),
+      'מדריך/ה': r.instructor_name ?? '',
+      'סוג שיעור': r.lesson_type ?? '',
+      'סוג רכיבה': r.riding_type ?? '',
+      סטטוס: r.status ?? '',
+      'שעת התחלה': r.start_time ?? '',
+      'שעת סיום': r.end_time ?? '',
+    }));
+
+    try {
+      const XLSXmod: any = await import('xlsx');
+      const XLSX = XLSXmod.default ?? XLSXmod;
+
       const exportRows = rows.map((r) => ({
         'תאריך שיעור': r.occur_date ?? '',
         'תלמיד/ה': (
@@ -775,24 +794,22 @@ async exportExcel(): Promise<void> {
         'שעת סיום': r.end_time ?? '',
       }));
 
-    const ws = XLSX.utils.json_to_sheet(exportRows);
-    const wb = XLSX.utils.book_new();
-    const sheetName = this.mode() === 'month' ? 'Monthly' : 'Yearly';
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      const ws = XLSX.utils.json_to_sheet(exportRows);
+      const wb = XLSX.utils.book_new();
+      const sheetName = this.mode() === 'month' ? 'Monthly' : 'Yearly';
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
-    const fileName =
-      this.mode() === 'month'
-        ? `monthly_${this.year}_${this.month}.xlsx`
-        : `yearly_${this.year}.xlsx`;
+      const fileName =
+        this.mode() === 'month'
+          ? `monthly_${this.year}_${this.month}.xlsx`
+          : `yearly_${this.year}.xlsx`;
 
-    XLSX.writeFile(wb, fileName);
-  } catch (e: any) {
-    // בלי הדפסת דאטה
-    console.error('exportExcel failed:', e?.message || e);
-   await this.ui.alert(
-  'כדי לייצא לאקסל צריך להתקין את הספריה xlsx (npm i xlsx).',
-  'חסר התקנה'
-);
+      XLSX.writeFile(wb, fileName);
+    } catch (e) {
+      console.error(e);
+      alert('יש להתקין: npm i xlsx');
+    }
+  }
 
   }
 }

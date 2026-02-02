@@ -69,6 +69,9 @@ showToast(msg: string, ms = 3000) {
   setTimeout(() => (this.toastMessage = null), ms);
 }
 
+constructor(private dialog: MatDialog) {}
+
+
   constructor(private dialog: MatDialog,private ui: UiDialogService) {}
 
   async ngOnInit() {
@@ -664,6 +667,13 @@ private async handleCancelRequest(
       p_occur_date: occurDate,   // ✅ DATE אמיתי
       p_reason: reason,
     });
+    this.markLessonAsPendingCancel(lessonId);
+   this.ui.alert('בקשת הביטול נשלחה למזכירה.');
+  } catch (err) {
+    console.error('cancel request error', err);
+   this.ui.alert('אירעה שגיאה בעת שליחת בקשת הביטול');
+  }
+}
 
     if (error) throw error;
 

@@ -415,11 +415,8 @@ onSlotFocus(slot: TimeSlot) {
       return;
     }
 
-    if (this.toMin(slot.end) > this.toMin(this.farmEnd)) {
-      this.toast(`שעת סיום לא יכולה להיות אחרי ${this.farmEnd}`);
-      this.revert(slot);
-      return;
-    }
+onTimeChange(day: DayAvailability, slot: TimeSlot) {
+  if (!this.allowEdit) return;
 
     if (this.toMin(slot.end) <= this.toMin(slot.start)) {
       this.toast('שעת סיום חייבת להיות אחרי שעת התחלה');
@@ -563,6 +560,21 @@ if (endMin <= startMin) {
       this.toast('שגיאה בשמירה');
       return;
     }
+  }
+
+  // 3️⃣ סנכרון לטבלה שהמערכת משתמשת בה
+// 3️⃣ סנכרון לטבלה שהמערכת משתמשת בה
+const { error: rpcError } = await dbTenant()
+  .rpc('sync_instructor_availability', {
+    p_instructor_id: this.instructorIdNumber,
+    p_days: rows,
+  });
+
+if (rpcError) {
+  console.error('❌ sync_instructor_availability failed:', rpcError);
+  this.toast(`שגיאה בסנכרון זמינות: ${rpcError.message}`);
+  return;
+}
 
     if (payload.length) {
       const ins = await dbTenant()
@@ -718,8 +730,8 @@ for (const day of this.days) {
   private getChangedAvailabilityRanges(): { dayLabel: string; oldStart: string; oldEnd: string }[] {
     const ranges: { dayLabel: string; oldStart: string; oldEnd: string }[] = [];
 
-  for (const oldDay of this.originalDays) {
-    const newDay = this.days.find(d => d.key === oldDay.key);
+    for (const oldDay of this.originalDays) {
+      const newDay = this.days.find(d => d.key === oldDay.key);
 
     // יום שהיה פעיל ונמחק
     if (oldDay.active && (!newDay || !newDay.active)) {
