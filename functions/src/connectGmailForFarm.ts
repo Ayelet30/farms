@@ -80,6 +80,7 @@ function applyCors(req: ReqLike, res: ResLike): boolean {
 export const connectGmailForFarm = onRequest(
   {
     region: 'us-central1',
+    invoker: 'public',
     secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, GMAIL_MASTER_KEY_S],
     timeoutSeconds: 60,
   },

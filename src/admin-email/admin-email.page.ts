@@ -24,6 +24,8 @@ export class AdminEmailPage {
   // connectGmailForFarm
   senderEmail = '';
   refreshToken = '';
+  gmailClientId = '';
+  gmailClientSecret = '';
 
   // sendEmailGmail
   testTo = '';
@@ -87,6 +89,8 @@ export class AdminEmailPage {
         tenantSchema: this.tenantSchema.trim(),
         senderEmail: this.cleanEmail(this.senderEmail),
         refreshToken: String(this.refreshToken || '').trim(),
+        gmailClientId: String(this.gmailClientId || '').trim(),
+        gmailClientSecret: String(this.gmailClientSecret || '').trim(),
       };
 
       const resp = await firstValueFrom(this.http.post(this.CONNECT_URL, body, opts));

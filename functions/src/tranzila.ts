@@ -9,8 +9,6 @@ import PDFDocument from 'pdfkit';
 import { ensureTranzilaInvoiceForPaymentInternal } from './tranzilaInvoices';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import {
-  GMAIL_CLIENT_ID_S,
-  GMAIL_CLIENT_SECRET_S,
   GMAIL_MASTER_KEY_S,
 } from "./gmail/email-core";
 
@@ -667,9 +665,6 @@ export const tranzilaHandshake = onRequest(
 
       const sum = '1';
       const url = new URL('https://api.tranzila.com/v1/handshake/create');
-      console.log('[tranzilaHandshake] !!!using terminal:', cfg.terminalName);
-      console.log('[tranzilaHandshake] !!!using password:', cfg.passwordCharge);
-      console.log('[tranzilaHandshake] !!!using sum:', sum);
 
 
       url.searchParams.set('supplier', cfg.terminalName);
@@ -966,9 +961,6 @@ export const chargeSelectedChargesForParent = onRequest(
       TRANZILA_PASSWORD_TOKEN_S,
       TRANZILA_APP_KEY_S,
       TRANZILA_SECRET_S,
-      GMAIL_CLIENT_ID_S,
-      GMAIL_CLIENT_SECRET_S,
-      GMAIL_MASTER_KEY_S,
     ],
   },
   async (req, res) => {
