@@ -8,11 +8,24 @@
   {{ t }}
 </div>
 
-<!-- יום בשבוע -->
+<div class="row">
+  <div class="label">שם הילד/ה</div>
+  <div class="val"> 
+      {{ childFullName() }}
+    </div>
+        </div>
+
+<div class="row">
+  <div class="label">ת״ז </div>
+  <div class="val" *ngIf="childGovId()">
+      ת״ז {{ childGovId() }}</div>
+</div>
+
 <div class="row">
   <div class="label">יום בשבוע</div>
   <div class="val">{{ startWeekdayName }}</div>
 </div>
+<!-- יום בשבוע -->
 
 <!-- תאריך התחלה -->
 <div class="row">

@@ -35,6 +35,8 @@ async ngOnInit() {
 private _request!: UiRequest;
 ridingTypeName = signal<string>('טוען...');
 lessonTypeMode = signal<string | null>(null);
+childFullName = signal<string>('טוען...');
+childGovId = signal<string | null>(null);
 
 @Input({ required: true })
 set request(v: UiRequest) {
@@ -61,6 +63,9 @@ this.participantsCapacity.set(null);
 
 void this.loadExistingParticipants();
 void this.loadChildStatus();
+this.childFullName.set('טוען...');
+this.childGovId.set(null);
+void this.loadChildName();
 
 }
 
@@ -721,6 +726,38 @@ get approveTooltip(): string | null {
   }
 
   return null;
+}
+private async loadChildName() {
+  const childId = this.request?.childId; // זה child_uuid
+  if (!childId) {
+    this.childFullName.set('—');
+    this.childGovId.set(null);
+    return;
+  }
+
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const { data, error } = await db
+      .from('children')
+      .select('first_name, last_name, gov_id')
+      .eq('child_uuid', childId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    const fullName =
+      `${data?.first_name ?? ''} ${data?.last_name ?? ''}`.trim();
+
+    this.childFullName.set(fullName || 'לא נמצא');
+    this.childGovId.set(data?.gov_id ?? null);
+
+  } catch (e) {
+    console.error('loadChildName failed', e);
+    this.childFullName.set('שגיאה בטעינה');
+    this.childGovId.set(null);
+  }
 }
 
 
