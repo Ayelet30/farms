@@ -28,6 +28,7 @@ type InstructorRow = {
   first_name: string | null;
   last_name: string | null;
   status?: string | null;
+    color_hex?: string | null;
 };
 
 @Component({
@@ -68,6 +69,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
 
   private childAgeById = new Map<string, string>();
+private instructorColorById = new Map<string, string>();
 
   weekInstructorStats: { instructor_id: string; instructor_name: string; totalLessons: number }[] = [];
 
@@ -80,6 +82,14 @@ private ui = inject(UiDialogService);
 
   async ngOnInit(): Promise<void> {
     try {
+      await ensureTenantContextReady();
+
+const { data: ridingTypes } = await dbTenant()
+  .from('riding_types')
+  .select('id, name');
+
+this.ridingTypes = ridingTypes || [];
+
       await ensureTenantContextReady();
 
       this.unsubTenantChange = onTenantChange(async () => {
@@ -114,9 +124,11 @@ private hashString(str: string): number {
 private rebuildInstructorResources(): void {
   // אם לא מסומן כלום – נתייחס כאילו כולם מסומנים
   const activeIds =
-    this.selectedInstructorIds.length
-      ? this.selectedInstructorIds
-      : this.instructors.map(i => i.id_number);
+  this.selectedInstructorIds.length
+    ? this.selectedInstructorIds
+    : this.instructors
+        .filter(i => i.status === 'Active')
+        .map(i => i.id_number);
 
   this.instructorResources = this.instructors
     .filter(i => activeIds.includes(i.id_number))
@@ -176,18 +188,29 @@ private calcChildAge(birthDate: string | null): string {
   if (m < 0 || (m === 0 && now.getDate() < d.getDate())) years--;
   return years > 0 ? years.toString() : '';
 }
+ridingTypes: { id: string; name: string }[] = [];
 
   private async loadInstructors(): Promise<void> {
     try {
       const dbc = dbTenant();
       const { data, error } = await dbc
-        .from('instructors')
-        .select('id_number, first_name, last_name, status')
-        .in('status', ['Active']);
+  .from('instructors')
+      .select('id_number, first_name, last_name, status, color_hex'); 
+ // ✔ בלי סינון
+
 
       if (error) throw error;
 
       this.instructors = (data ?? []) as InstructorRow[];
+this.instructorColorById = new Map(
+  this.instructors
+    .filter(i => i.color_hex && i.color_hex.trim() !== '')
+    .map(i => [
+      String(i.id_number),
+      i.color_hex!.trim()
+    ])
+);
+
 
       // ברירת מחדל – אם המשתמש גם מדריך, מסמנים אותו, אחרת כולם
       if (!this.selectedInstructorIds.length) {
@@ -205,9 +228,12 @@ if (!this.selectedInstructorIds.length) {
   if (this.instructorId) {
     this.selectedInstructorIds = [this.instructorId];
   } else {
-    this.selectedInstructorIds = this.instructors.map(i => i.id_number);
+    this.selectedInstructorIds = this.instructors
+      .filter(i => i.status === 'Active')
+      .map(i => i.id_number);
   }
 }
+
 
 // 👇 חדש
 this.rebuildInstructorResources();
@@ -235,7 +261,10 @@ this.rebuildInstructorResources();
   if (this.isAllInstructorsSelected) {
     this.selectedInstructorIds = [];
   } else {
-    this.selectedInstructorIds = this.instructors.map(i => i.id_number);
+this.selectedInstructorIds = this.instructors
+  .filter(i => i.status === 'Active')
+  .map(i => i.id_number);
+
   }
 
   this.rebuildInstructorResources();  // 👈
@@ -379,12 +408,13 @@ const isMakeupAllowed =
         start_time:  r.start_time,
         end_time:    r.end_time,
         lesson_type: r.lesson_type,
-        status:      r.status,
+      
         instructor_id:   r.instructor_id ?? '',
         instructor_name: instructorNameById.get(r.instructor_id) || '',
         child_color: this.getColorForChild(r.child_id),
         child_name:  nameByChild.get(r.child_id) || '',
         start_datetime: r.start_datetime ?? null,
+          status: finalStatus,   // 🔥 חובה
         end_datetime:   r.end_datetime ?? null,
         occur_date:     r.occur_date ?? null,
   is_makeup_allowed: isMakeupAllowed,
@@ -403,14 +433,16 @@ const isMakeupAllowed =
   /** סינון שיעורים לפי מדריכים מסומנים + טווח תצוגה */
   private filterLessons(): void {
     let src = [...this.lessons];
+if (!this.selectedInstructorIds.length) {
+  if (this.instructorId) {
+    this.selectedInstructorIds = [this.instructorId];
+  } else {
+    this.selectedInstructorIds = this.instructors
+      .filter(i => i.status === 'Active')
+      .map(i => i.id_number);
+  }
+}
 
-    if (!this.selectedInstructorIds.length) {
-      if (this.instructorId) {
-        this.selectedInstructorIds = [this.instructorId];
-      } else {
-        this.selectedInstructorIds = this.instructors.map(i => i.id_number);
-      }
-    }
 
     const selected = this.selectedInstructorIds.filter(Boolean);
 
@@ -450,6 +482,15 @@ const isMakeupAllowed =
   };
 
  const makeLessonEvent = (lesson: any): ScheduleItem => {
+const instructorId = String(lesson.instructor_id || '');
+
+const colorFromDb = this.instructorColorById.get(instructorId);
+
+const instructorBorderColor =
+  colorFromDb && colorFromDb.trim() !== ''
+    ? colorFromDb
+    : this.getColorForInstructor(instructorId);
+
   const start = this.ensureIso(
     lesson.start_datetime as any,
     lesson.start_time as any,
@@ -466,6 +507,13 @@ const isMakeupAllowed =
   const age = this.childAgeById.get(lesson.child_id) || '';
   const childDisplay = age ? `${childName} (${age})` : childName;
 
+console.log(
+  '🧪 lesson.instructor_id:',
+  lesson.instructor_id,
+  'color from map:',
+  this.instructorColorById.get(String(lesson.instructor_id))
+);
+
   return {
     id: lesson.id,
     title: childDisplay,
@@ -479,6 +527,7 @@ const isMakeupAllowed =
       child_name: childDisplay,
       instructor_id: lesson.instructor_id,
       instructor_name: lesson.instructor_name,
+         instructor_color: instructorBorderColor, 
       lesson_type: lessonType,
       children: childDisplay,   
       horse_name: lesson.horse_name,
@@ -653,6 +702,11 @@ if (this.currentViewType === 'timeGridDay') {
     const colors = ['#d8f3dc', '#fbc4ab', '#cdb4db', '#b5ead7', '#ffdac1'];
     return colors[(index >= 0 ? index : 0) % colors.length];
   }
+private getColorForInstructor(id: string): string {
+  const palette = ['#ff6b6b', '#4dabf7', '#51cf66', '#f59f00', '#845ef7'];
+  const idx = this.hashString(id) % palette.length;
+  return palette[idx];
+}
 
   onEventClick(arg: EventClickArg): void {
   const ext: any = arg.event.extendedProps || {};
@@ -689,6 +743,12 @@ let lessonId: string | null = meta.lesson_id ?? null;
     (arg.event.start
       ? arg.event.start.toISOString().slice(0, 10)
       : null);
+
+       const rawStatus = String(meta.status ?? '').toLowerCase();
+const isCancelled =
+  rawStatus.includes('בוטל') ||
+  rawStatus.includes('מבוטל') ||
+  rawStatus.includes('cancel');
 
   this.selectedOccurrence = {
     lesson_id: lessonId,
@@ -797,6 +857,7 @@ let lessonId: string | null = meta.lesson_id ?? null;
     this.autoAssignLoading = false;
   }
 }
+
 async onToggleMakeupAllowed(checked: boolean) {
   try {
     await ensureTenantContextReady();

@@ -9,6 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { getAuth } from 'firebase/auth';
 
@@ -26,7 +27,7 @@ type MonthlyReportRow = {
   lesson_date: string | null;
   start_time: string | null;
   end_time: string | null;
-
+ office_note?: string | null;
   status?: string | null;
   child_name?: string | null;
   instructor_name?: string | null;
@@ -48,7 +49,7 @@ type MonthlyReportRow = {
 interface LessonRow {
   lesson_id: UUID;
   child_id?: UUID;
-
+  office_note?: string | null;
   lesson_type: LessonType | null;
   status: LessonStatus | null;
 
@@ -160,6 +161,7 @@ interface OccWithAttendanceRow {
     MatButtonModule,
     MatTableModule,
     MatProgressSpinnerModule,
+     MatTooltipModule, 
   ],
 })
 export class MonthlySummaryComponent implements OnInit {
@@ -167,6 +169,14 @@ export class MonthlySummaryComponent implements OnInit {
   private ui = inject(UiDialogService);
 
   private dbc = this.dbTenantFactory();
+displayedColumns: string[] = [];
+
+
+
+readonly isSecretary = signal<boolean>(
+  window.location.pathname.includes('secretary')
+);
+
 
   // ✅ Safe debug logger: runs only on localhost/dev and never prints sensitive payloads
   private readonly isDev =
@@ -467,9 +477,27 @@ export class MonthlySummaryComponent implements OnInit {
   // ===============================
   //        LOAD DATA
   // ===============================
-  ngOnInit(): void {
-    this.load();
-  }
+ngOnInit(): void {
+  const base = [
+    'date',
+    'start',
+    'end',
+    'student',
+    'instructor',
+    'type',
+    'ridingType',
+    'status',
+  ];
+
+this.displayedColumns =
+  this.isSecretary() ? [...base, 'officeNote'] : base;
+
+
+  console.log('👩‍💼 isSecretary =', this.isSecretary());
+  console.log('📊 displayedColumns =', this.displayedColumns);
+
+  this.load();
+}
 
   async load(): Promise<void> {
     this.loading = true;
@@ -555,6 +583,10 @@ export class MonthlySummaryComponent implements OnInit {
       if (occAttErr) throw occAttErr;
 
       const rows = (rawLessons ?? []) as MonthlyReportRow[];
+console.log(
+  '🟩 raw office_note from DB:',
+  rows.map(r => r.office_note)
+);
 
       // ✅ safe debug: counts only
       this.debug('loaded data', {
@@ -580,6 +612,7 @@ export class MonthlySummaryComponent implements OnInit {
         return {
           lesson_id: (raw.lesson_id ?? '') as UUID,
           occur_date: raw.lesson_date ?? null,
+office_note: raw.office_note ?? null,
 
           start_time: raw.start_time ? raw.start_time.slice(0, 5) : null,
           end_time: raw.end_time ? raw.end_time.slice(0, 5) : null,
@@ -601,6 +634,14 @@ export class MonthlySummaryComponent implements OnInit {
       });
 
       this.lessons.set(normalizedLessons);
+      console.log(
+  '🧪 lessons office_note:',
+  normalizedLessons.map(l => ({
+    date: l.occur_date,
+    note: l.office_note
+  }))
+);
+
       this.payments.set((paymentsData ?? []) as PaymentRow[]);
       this.cancelExceptions.set((cancelsData ?? []) as CancelExceptionRow[]);
       this.occurrences.set((occurrencesData ?? []) as LessonOccurrenceRow[]);
@@ -747,24 +788,44 @@ async exportExcel(): Promise<void> {
       'שעת סיום': r.end_time ?? '',
     }));
 
-    const ws = XLSX.utils.json_to_sheet(exportRows);
-    const wb = XLSX.utils.book_new();
-    const sheetName = this.mode() === 'month' ? 'Monthly' : 'Yearly';
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    try {
+      const XLSXmod: any = await import('xlsx');
+      const XLSX = XLSXmod.default ?? XLSXmod;
 
-    const fileName =
-      this.mode() === 'month'
-        ? `monthly_${this.year}_${this.month}.xlsx`
-        : `yearly_${this.year}.xlsx`;
+      const exportRows = rows.map((r) => ({
+        'תאריך שיעור': r.occur_date ?? '',
+        'תלמיד/ה': (
+          r.child_full_name ||
+          `${this.clean(r.child_first_name)} ${this.clean(
+            r.child_last_name
+          )}`.trim() ||
+          ''
+        ).trim(),
+        'מדריך/ה': r.instructor_name ?? '',
+        'סוג שיעור': r.lesson_type ?? '',
+        'סוג רכיבה': r.riding_type ?? '',
+        סטטוס: r.status ?? '',
+  'הערת משרד': r.office_note ?? '',
+        'שעת התחלה': r.start_time ?? '',
+        'שעת סיום': r.end_time ?? '',
+      }));
 
-    XLSX.writeFile(wb, fileName);
-  } catch (e: any) {
-    // בלי הדפסת דאטה
-    console.error('exportExcel failed:', e?.message || e);
-   await this.ui.alert(
-  'כדי לייצא לאקסל צריך להתקין את הספריה xlsx (npm i xlsx).',
-  'חסר התקנה'
-);
+      const ws = XLSX.utils.json_to_sheet(exportRows);
+      const wb = XLSX.utils.book_new();
+      const sheetName = this.mode() === 'month' ? 'Monthly' : 'Yearly';
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+      const fileName =
+        this.mode() === 'month'
+          ? `monthly_${this.year}_${this.month}.xlsx`
+          : `yearly_${this.year}.xlsx`;
+
+      XLSX.writeFile(wb, fileName);
+    } catch (e) {
+      console.error(e);
+      alert('יש להתקין: npm i xlsx');
+    }
+  }
 
   }
 }
@@ -953,6 +1014,7 @@ async exportExcel(): Promise<void> {
     const step = (this.axisRight - this.axisLeft) / (total - 1);
     return this.axisLeft + index * step;
   }
+
 
   getPointY(value: number): number {
     const max = this.maxChartValue() || 1;

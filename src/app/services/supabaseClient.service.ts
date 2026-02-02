@@ -845,7 +845,8 @@ export type SecretaryChargeRow = {
   invoice_url: string | null;
   is_external: boolean;   
    invoice_status?: string | null;
-  tranzila_invoice_url?: string | null;      // uid = 1111.. או ללא התאמת הורה
+  tranzila_invoice_url?: string | null;  
+  office_note: string | null;     // uid = 1111.. או ללא התאמת הורה
 };
 
 export type ParentChargeRow = {

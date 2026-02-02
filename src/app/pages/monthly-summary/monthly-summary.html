@@ -417,12 +417,8 @@
           class="responsive-cell"
           data-label="תאריך"
         >
-          <ng-container *ngIf="isGroupFirst(i); else emptyCell">
-            {{ l.occur_date || '—' }}
-          </ng-container>
-          <ng-template #emptyCell>
-            <span class="empty-repeat">—</span>
-          </ng-template>
+  {{ l.occur_date || '—' }}
+
         </td>
       </ng-container>
 
@@ -467,7 +463,29 @@
           </span>
         </td>
       </ng-container>
+<!-- ✅ Office Note – רק למזכירה -->
+<ng-container matColumnDef="officeNote">
 
+  <th mat-header-cell *matHeaderCellDef>הערות משרד</th>
+  <td
+    mat-cell
+    *matCellDef="let l"
+    class="responsive-cell office-note-cell"
+    data-label="הערות משרד"
+  >
+    <span
+      *ngIf="l.office_note; else noOfficeNote"
+      matTooltip="{{ l.office_note }}"
+      matTooltipPosition="above"
+    >
+      {{ l.office_note }}
+    </span>
+
+    <ng-template #noOfficeNote>
+      <span class="muted">—</span>
+    </ng-template>
+  </td>
+</ng-container>
       <!-- Start -->
       <ng-container matColumnDef="start">
         <th mat-header-cell *matHeaderCellDef>התחלה</th>
@@ -477,12 +495,8 @@
           class="responsive-cell"
           data-label="התחלה"
         >
-          <ng-container *ngIf="isGroupFirst(i); else emptyCell2">
-            {{ l.start_time || '—' }}
-          </ng-container>
-          <ng-template #emptyCell2>
-            <span class="empty-repeat">—</span>
-          </ng-template>
+   {{ l.start_time || '—' }}
+
         </td>
       </ng-container>
 
@@ -495,47 +509,19 @@
           class="responsive-cell"
           data-label="סיום"
         >
-          <ng-container *ngIf="isGroupFirst(i); else emptyCell3">
-            {{ l.end_time || '—' }}
-          </ng-container>
-          <ng-template #emptyCell3>
-            <span class="empty-repeat">—</span>
-          </ng-template>
+  {{ l.end_time || '—' }}
+
         </td>
       </ng-container>
 
       <!-- Header & rows -->
-      <tr
-        mat-header-row
-        *matHeaderRowDef="[
-          'date',
-          'start',
-          'end',
-          'student',
-          'instructor',
-          'type',
-          'ridingType',
-          'status'
-        ]"
-      ></tr>
+<tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
 
-      <tr
-        mat-row
-        *matRowDef="let row; let i = index; columns: [
-          'date',
-          'start',
-          'end',
-          'student',
-          'instructor',
-          'type',
-          'ridingType',
-          'status'
-        ]"
-        [ngClass]="{
-          'group-cont-row': isGroupContinuation(i),
-          'group-not-last-row': !isGroupLast(i)
-        }"
-      ></tr>
+<tr
+  mat-row
+  *matRowDef="let row; columns: displayedColumns"
+></tr>
+
     </table>
 
     <div class="empty" *ngIf="!filteredLessons().length">

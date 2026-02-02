@@ -9,6 +9,9 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
+
+import { supabase } from '../../../services/supabaseClient.service';
+
 import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import type { EventClickArg } from '@fullcalendar/core';
 
@@ -17,7 +20,8 @@ import { Lesson } from '../../../models/lesson-schedule.model';
 import { NoteComponent } from '../../Notes/note.component';
 
 import { CurrentUserService } from '../../../core/auth/current-user.service';
-import { dbTenant, ensureTenantContextReady } from '../../../services/legacy-compat';
+import { dbPublic,dbTenant, ensureTenantContextReady } from '../../../services/legacy-compat';
+
 
 /* ------------ TYPES ------------ */
 type UUID = string;
@@ -62,6 +66,8 @@ interface DayRequestRow {
   request_type: RequestType;
   status: RequestStatus;
   note?: string | null;
+
+  sick_note_file_path?: string | null;
 }
 
 /* ------------ COMPONENT ------------ */
@@ -85,7 +91,10 @@ export class InstructorScheduleComponent implements OnInit {
   currentView: CalendarView = 'timeGridWeek';
   currentDate = '';
    
+selectedSickFile: File | null = null;
 
+// 🔒 קובץ מחלה שנשמר בלי קשר ל-UI / פופאפים
+private pendingSickFile: File | null = null;
 
   isFullscreen = false;
 
@@ -140,6 +149,7 @@ showAffectedParentsPopup = false;
     y: 0,
     request: null as DayRequestRow | null,
   };
+  instructorColor: any;
 
   /* ------------ INIT ------------ */
   async ngOnInit(): Promise<void> {
@@ -150,7 +160,17 @@ showAffectedParentsPopup = false;
       const user = await this.cu.loadUserDetails();
       this.instructorId = String(user?.id_number || '').trim();
       if (!this.instructorId) throw new Error('לא נמצא מזהה מדריך');
+const { data: instructor } = await dbTenant()
+  .from('instructors')
+  .select('color_hex')
+  .eq('id_number', this.instructorId)
+  .single();
 
+this.instructorColor = instructor?.color_hex ?? null;
+
+console.log('🎨 instructor color loaded:', this.instructorColor);
+this.setScheduleItems();
+this.cdr.detectChanges();
       const startYmd = ymd(addDays(new Date(), -14));
       const endYmd = ymd(addDays(new Date(), 60));
 
@@ -580,6 +600,8 @@ const title = `${name}${agePart} — ${lessonTypeLabel}`.trim();
           arena_name: l.arena_name ?? null,
           occur_date: (l.occur_date ?? '').slice(0, 10),
           lesson_id: l.lesson_id,
+          
+          instructor_color: this.instructorColor,
         } as any,
         status: l.status as any,
       };
@@ -732,17 +754,8 @@ onRightClickDay(e: any): void {
 
   let localYmd: string | null = null;
 
-  // 🟢 עדיפות ל-Date אמיתי
-  if (e.date instanceof Date && !isNaN(e.date.getTime())) {
-    const d = e.date;
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    localYmd = `${y}-${m}-${day}`;
-  }
-
-  // 🟡 fallback בטוח
-  if (!localYmd && typeof e.dateStr === 'string') {
+  // ✅ הדרך הנכונה
+  if (typeof e.dateStr === 'string') {
     localYmd = e.dateStr.slice(0, 10);
   }
 
@@ -758,6 +771,7 @@ onRightClickDay(e: any): void {
 
   this.cdr.detectChanges();
 }
+
 
 
 
@@ -882,6 +896,7 @@ const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
 
 
   if (hasLessons) {
+      const preservedFile = this.selectedSickFile;
     // סוגרים את מודאל הבקשה
     this.rangeModal.open = false;
  this.loadAffectedParentsFromSchedule(from, to);
@@ -889,6 +904,7 @@ const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
 if (this.affectedParents.length > 0) {
   this.rangeModal.open = false;
   this.showAffectedParentsPopup = true;
+    (this as any)._preservedSickFile = preservedFile; 
   this.cdr.detectChanges();
   return;
 }
@@ -907,11 +923,21 @@ if (this.affectedParents.length > 0) {
     type,
     text?.trim() || null,
   );
+this.selectedSickFile = null;
+this.pendingSickFile = null;
 
   this.rangeModal.open = false;
 }
 closeContextMenu(): void {
   this.contextMenu.visible = false;
+}
+
+onSickFileSelected(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0] ?? null;
+  console.log('📎 FILE SELECTED:', file);
+  this.selectedSickFile = file;   // לצורך UI
+  this.pendingSickFile = file;    // 🔒 לשמירה אמיתית
 }
 
 
@@ -988,11 +1014,14 @@ private loadAffectedParentsFromSchedule(from: string, to: string): void {
 
 
 async confirmSaveAfterWarning(): Promise<void> {
+  this.selectedSickFile = (this as any)._preservedSickFile ?? null;
+  this.pendingSickFile = this.selectedSickFile;
   this.showAffectedParentsPopup = false;
 
   const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
 
   await this.saveRangeRequest(
+    
     from,
     to,
     allDay,
@@ -1001,11 +1030,46 @@ async confirmSaveAfterWarning(): Promise<void> {
     type,
     text?.trim() || null,
   );
+console.log('🧪 BEFORE IF', {
+  type,
+  pending: this.pendingSickFile,
+});
 
   this.rangeModal.open = false;
 }
 
+
+private async uploadSickFile(
+  file: File,
+  requestId: string
+): Promise<string> {
+
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized');
+  }
+
+  const ext = file.name.split('.').pop();
+  if (!ext) {
+    throw new Error('Invalid file extension');
+  }
+
+  const path = `instructor_${this.instructorId}/request_${requestId}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from('sick_notes')
+    .upload(path, file, { upsert: true });
+
+  if (error) {
+    console.error('UPLOAD SICK FILE ERROR', error);
+    throw error;
+  }
+
+  return path;
+}
+
+
  private async saveRangeRequest(
+  
   fromDate: string,
   toDate: string,
   allDay: boolean,
@@ -1015,6 +1079,10 @@ async confirmSaveAfterWarning(): Promise<void> {
   note: string | null,
 ): Promise<void> {
   if (!this.instructorId) return;
+console.log('🧪 SAVE RANGE');
+console.log('TYPE:', type);
+console.log('PENDING FILE:', this.pendingSickFile);
+
 
   const dbc = dbTenant();
   const user = await this.cu.loadUserDetails();
@@ -1048,6 +1116,22 @@ async confirmSaveAfterWarning(): Promise<void> {
     console.error('SAVE REQUEST ERROR', error);
     throw error;
   }
+// 🩺 אם זו בקשת מחלה ויש קובץ – מעלים אותו
+if (this.pendingSickFile) {
+
+  const path = await this.uploadSickFile(
+    this.pendingSickFile,
+    data.id
+  );
+
+  await dbc
+    .from('secretarial_requests')
+    .update({ sick_note_file_path: path })
+    .eq('id', data.id);
+}
+console.log('SICK FILE:', this.pendingSickFile);
+
+
 
   this.dayRequests.push(...this.expandRequestRow(data));
   this.setScheduleItems();

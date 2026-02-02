@@ -814,6 +814,23 @@
         font-size: 12px;
         margin-left: 6px;
       }
+          /* ===== Office Note – תיקון למובייל ===== */
+    td.mat-column-officeNote {
+      display: flex !important;
+      align-items: flex-start;
+      gap: 8px;
+      white-space: normal;
+      line-height: 1.4;
+    }
+
+    td.mat-column-officeNote::before {
+      content: "הערות משרד";
+      font-weight: 600;
+      color: #545b41;
+      font-size: 12px;
+      min-width: 90px;
+    }
+
     }
 
     .insights-section {
@@ -830,4 +847,7 @@
       }
     }
   }
+}
+.mat-column-officeNote {
+  display: table-cell !important;
 }
