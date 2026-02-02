@@ -20,6 +20,7 @@ import {
   fetchActiveChildrenForTenant,
   getCurrentRoleInTenantSync,
 } from '../services/supabaseClient.service';
+import type { TaughtChildGender } from '../Types/detailes.model';
 
 
 
@@ -39,18 +40,29 @@ interface InstructorDbRow {
   first_name: string | null;
   last_name: string | null;
   accepts_makeup_others: boolean;
-  gender: string | null;             // מין המדריך עצמו (גם כנראה "זכר"/"נקבה")
+  gender: string | null;         
   certificate: string | null;
   about: string | null;
   education: string | null;
   phone: string | null;
-  min_age_years: number | null;
-  max_age_years: number | null;
-  taught_child_genders: string[] | null; // ⬅️ "זכר"/"נקבה"
-    id_number: string;         
+  min_age_years_male: number | null;
+  max_age_years_male: number | null;
+  min_age_years_female: number | null;
+  max_age_years_female: number | null;
+ taught_child_genders: TaughtChildGender[] | null;
+  id_number: string;         
 
 }
 
+type InstructorPickRow = InstructorDbRow & {
+  instructor_id: string;       // id_number
+  instructor_uid: string | null; // uid
+  full_name: string;
+
+  isEligible: boolean;
+  ineligibleReasons: string[];   // סיבות מפורטות
+  ineligibleReasonText: string;  // טקסט ל-tooltip
+};
 
 
 
@@ -106,16 +118,22 @@ interface MakeupCandidate {
   end_time: string;
   instructor_id: string | null;
   status: string;
+  instructor_name: string; 
+
 }
 type ChildWithProfile = ChildRow & {
   gender?: string | null;       // "זכר" / "נקבה"
   birth_date?: string | null;
+  scheduled_deletion_at?: string | null; 
+
 };
 type InstructorWithConstraints = InstructorRow & {
   instructor_id?: string | null;       // 👈 ה-id_number מה-DB
-  min_age_years?: number | null;
-  max_age_years?: number | null;
-  taught_child_genders?: string[] | null;
+  min_age_years_male?: number | null;
+  max_age_years_male?: number | null;
+  min_age_years_female?: number | null;
+  max_age_years_female?: number | null;
+  taught_child_genders?: TaughtChildGender[] | null;
 };
 interface SeriesCalendarDay {
   date: string;        // 'YYYY-MM-DD'
@@ -168,12 +186,15 @@ private unsubTenantChange?: () => void;
 
 needApprove: boolean = false;
 selectedChildId: string | null = null;
-instructors: InstructorWithConstraints[] = [];
+instructors: InstructorPickRow[] = [];
 selectedInstructorId: string | null = null;
 loadingInstructors = false;
 showInstructorDetails = true;
 noInstructorPreference = false;        
 
+private instructorNameById = new Map<string, string>(); // id_number -> full_name
+private instructorNameByUid = new Map<string, string>(); // uid -> full_name
+loadingInstructorNames = false;
 
 displayedMakeupLessonsCount: number | null = null;
 
@@ -231,6 +252,7 @@ get hasSeriesCountOrOpenEnded(): boolean {
 // שיעורי מילוי מקום
 
 occupancyCreatedMessage: string | null = null;
+instructorsError: string | null = null;
 
 @ViewChild('confirmOccupancyDialog') confirmOccupancyDialog!: TemplateRef<any>;
 @ViewChild('confirmOccupancyParentDialog') confirmOccupancyParentDialog!: TemplateRef<any>;
@@ -297,7 +319,9 @@ seriesConfirmData = {
 filteredChildren: ChildWithProfile[] = [];
 childSearchTerm: string = '';
 
-filteredInstructors: InstructorWithConstraints[] = [];
+// filteredInstructors: InstructorWithConstraints[] = [];
+filteredInstructors: InstructorPickRow[] = [];
+
 instructorSearchTerm: string = '';
 // שומרים את הרשימות המקוריות מה-DB
 private makeupCandidatesAll: MakeupCandidate[] = [];
@@ -311,11 +335,10 @@ private occupancyCandidatesAll: OccupancyCandidate[] = [];
   get selectedApproval(): ApprovalBalance | undefined {
     return this.approvals.find(a => a.approval_id === this.selectedApprovalId);
   }
-get selectedInstructor(): InstructorWithConstraints | undefined {
-  return this.instructors.find(
-    ins => ins.instructor_uid === this.selectedInstructorId
-  );
+get selectedInstructor(): InstructorPickRow | undefined {
+  return this.instructors.find(ins => ins.instructor_uid === this.selectedInstructorId);
 }
+
 
 
 onNoInstructorPreferenceChange(): void {
@@ -354,6 +377,8 @@ paymentSourceForSeries: 'health_fund' | 'private' | null = null;
   makeupCreatedMessage: string | null = null;
   user: CurrentUser | null = null;
   hoursBeforeCancel: number | null = null;
+  childDeletionGraceDays: number = 0;
+
 
 
   constructor(
@@ -410,6 +435,7 @@ private unsubTenant?: () => void;
 async ngOnInit(): Promise<void> {
   // 1) קריאת פרמטרים מה-URL
   const qp = this.route.snapshot.queryParamMap;
+await this.loadInstructorNamesIndex();
 
   const needApproveParam = qp.get('needApprove');
   this.needApprove = needApproveParam === 'true';
@@ -512,7 +538,7 @@ if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
 
   try {
    const { data, error } = await dbTenant().rpc('find_makeup_slots_for_lesson_by_id_number', {
-  p_child_id: this.selectedChildId,          // ✅ חדש
+  p_child_id: this.selectedChildId,          
   p_instructor_id: instructorParam,         // יכול להיות null = כל המדריכים
   p_from_date: this.makeupSearchFromDate,
   p_to_date: this.makeupSearchToDate,
@@ -525,17 +551,28 @@ if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
       return;
     }
 
-    let slots = (data ?? []) as MakeupSlot[];
+ let slots = (data ?? []) as MakeupSlot[];
 
-    if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
-      slots = slots.slice(0, this.displayedMakeupLessonsCount);
-    }
+if (this.selectedChildId) {
+  slots = this.filterSlotsByHardDeletion(slots, this.selectedChildId);
+}
 
-    this.candidateSlots = slots;
+if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
+  slots = slots.slice(0, this.displayedMakeupLessonsCount);
+}
 
-    if (!this.candidateSlots.length) {
-      this.candidateSlotsError = 'לא נמצאו חורים למדריך זה';
-    }
+this.candidateSlots = slots;
+
+if (!slots.length) {
+  const hard = this.getChildHardDeletionDate(this.selectedChildId!);
+  this.candidateSlotsError = hard
+    ? `אין חורים זמינים עד ${hard} (מחיקה מתוכננת).`
+    : 'לא נמצאו חורים למדריך זה';
+} else {
+  this.candidateSlotsError = null;
+}
+
+
   } finally {
     this.loadingCandidateSlots = false;
   }
@@ -595,7 +632,7 @@ private async loadFarmSettings(): Promise<void> {
 
   const { data, error } = await supa
     .from('farm_settings')
-    .select('displayed_makeup_lessons_count , hours_before_cancel_lesson , time_range_occupancy_rate_days , series_search_horizon_days')
+    .select('displayed_makeup_lessons_count , hours_before_cancel_lesson , time_range_occupancy_rate_days , series_search_horizon_days , child_deletion_grace_days')
     .limit(1)
     .single();
 
@@ -609,6 +646,7 @@ private async loadFarmSettings(): Promise<void> {
     this.timeRangeOccupancyRateDays =
   data?.time_range_occupancy_rate_days ?? 30;
   this.seriesSearchHorizonDays = data?.series_search_horizon_days ?? 90;
+this.childDeletionGraceDays = Number(data?.child_deletion_grace_days ?? 0);
 
 
 
@@ -728,7 +766,7 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
   this.childrenError = null;
 
   const baseSelect =
-    'child_uuid, first_name, last_name, instructor_id, status, gender, birth_date';
+    'child_uuid, first_name, last_name, instructor_id, status, gender, birth_date ,scheduled_deletion_at';
 
   // כמו אצלך: אם בטעות מישהו ישלח select בלי status, נוסיף
   const hasStatus = /(^|,)\s*status\s*(,|$)/.test(baseSelect);
@@ -750,11 +788,15 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
     return;
   }
 
-  // בעמוד זימון תור את רוצה רק Active בכל מקרה
-  const rows = (res.data ?? []).filter(r => (r as any).status === 'Active');
+  const rowsAll = (res.data ?? []) as any[];
 
-  this.children = rows as unknown as ChildWithProfile[];
-  this.filteredChildren = [...this.children];
+const rows = rowsAll.filter(r =>
+  r.status === 'Active' || r.status === 'Deletion Scheduled' || r.status === 'Pending Deletion Approval'
+);
+
+this.children = rows as ChildWithProfile[];
+this.filteredChildren = [...this.children];
+
   this.childSearchTerm = '';
 
   // בחירה אוטומטית כמו שהיה לך
@@ -765,9 +807,133 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
     await this.onChildChange();
   }
 }
+// private async loadInstructorsForChild(childId: string): Promise<void> {
+//   this.instructorsError = null;
+//   this.loadingInstructors = true;
+//   this.instructors = [];
+
+//   const child = this.children.find(c => c.child_uuid === childId);
+//   if (!child) {
+//     this.loadingInstructors = false;
+//     return;
+//   }
+
+//   const childGender = child.gender ?? null;        // "זכר"/"נקבה"
+//   const childAgeYears = child.birth_date ? this.calcAgeYears(child.birth_date) : null;
+
+//   const supa = dbTenant();
+
+//   const { data, error } = await supa
+//   .from('instructors')
+//   .select(`
+//     id_number,
+//     uid,
+//     first_name,
+//     last_name,
+//     gender,
+//     certificate,
+//     about,
+//     education,
+//     phone,
+//     accepts_makeup_others,
+//     taught_child_genders,
+//     min_age_years_male,
+//     max_age_years_male,
+//     min_age_years_female,
+//     max_age_years_female
+//   `)
+//   .eq('accepts_makeup_others', true)
+//   .eq('status', 'Active')
+//   .not('uid', 'is', null)
+//   .order('first_name', { ascending: true }) as {
+//     data: InstructorDbRow[] | null;
+//     error: any;
+//   };
+
+//   if (error) {
+//     console.error('loadInstructorsForChild error', error);
+//     this.loadingInstructors = false;
+//     return;
+//   }
+
+//  const filtered = (data ?? []).filter(ins => {
+//   if (!ins.uid) return false;
+
+//   // ===== 1) סינון לפי מין הילד =====
+//   // אם taught_child_genders קיים ולא ריק => חייב להכיל את מין הילד
+//   if (childGender && ins.taught_child_genders && ins.taught_child_genders.length > 0) {
+//     if (!ins.taught_child_genders.includes(childGender)) return false;
+//   }
+//   // אם taught_child_genders ריק/NULL => מתאים לכולם
+
+//   // ===== 2) סינון לפי גיל + לפי מין הילד =====
+//   if (childAgeYears != null) {
+//     // בוחרים את טווח הגיל המתאים לפי מין הילד
+//     let minAge: number | null = null;
+//     let maxAge: number | null = null;
+
+//     if (childGender === 'זכר') {
+//       minAge = ins.min_age_years_male ?? null;
+//       maxAge = ins.max_age_years_male ?? null;
+//     } else if (childGender === 'נקבה') {
+//       minAge = ins.min_age_years_female ?? null;
+//       maxAge = ins.max_age_years_female ?? null;
+//     } else {
+    
+//     }
+
+//     if (minAge != null && childAgeYears < minAge) return false;
+//     if (maxAge != null && childAgeYears > maxAge) return false;
+//   }
+
+//   return true;
+// });
+// this.instructors = filtered.map(ins => ({
+//   instructor_uid: ins.uid!,
+//   instructor_id: ins.id_number,
+//   full_name: `${ins.first_name ?? ''} ${ins.last_name ?? ''}`.trim(),
+//   gender: ins.gender,
+//   certificate: ins.certificate,
+//   about: ins.about,
+//   education: ins.education,
+//   phone: ins.phone,
+
+//   taught_child_genders: ins.taught_child_genders,
+
+//   min_age_years_male: ins.min_age_years_male,
+//   max_age_years_male: ins.max_age_years_male,
+//   min_age_years_female: ins.min_age_years_female,
+//   max_age_years_female: ins.max_age_years_female,
+// }));
+
+// this.filteredInstructors = [...this.instructors];
+// this.instructorSearchTerm = '';
+
+
+// this.loadingInstructors = false;
+
+// // ✅ מצב ריק: אין אף מדריך מתאים
+// if (!this.instructors.length) {
+//   this.instructorsError = 'לא נמצאו מדריכים שיכולים ללמד את הילד/ה הזה/זו, נא לפנות למזכירות';
+
+//   // ננקה בחירה כדי שלא יישאר "any" או מדריך קודם
+//   this.selectedInstructorId = null;
+
+//   // אם יש לך דגל שמאפשר "ללא העדפה" – לנקות גם אותו
+//   this.noInstructorPreference = false;
+
+//   this.filteredInstructors = [];
+//   return;
+// }
+
+// // ✅ יש מדריכים
+// this.instructorsError = null;
+// }
 private async loadInstructorsForChild(childId: string): Promise<void> {
+  this.instructorsError = null;
   this.loadingInstructors = true;
   this.instructors = [];
+  this.filteredInstructors = [];
 
   const child = this.children.find(c => c.child_uuid === childId);
   if (!child) {
@@ -775,14 +941,17 @@ private async loadInstructorsForChild(childId: string): Promise<void> {
     return;
   }
 
-  const childGender = child.gender ?? null;        // "זכר"/"נקבה"
+  const childGender: TaughtChildGender | null =  isTaughtChildGender(child.gender) ? child.gender : null;
+
   const childAgeYears = child.birth_date ? this.calcAgeYears(child.birth_date) : null;
 
+  const role = getCurrentRoleInTenantSync(); // 👈 אותו מנגנון כמו ילדים
   const supa = dbTenant();
 
+  // ⚠️ בטעינה “לכולם” אנחנו חייבים להביא גם accepts_makeup_others וגם uid וכו'
   const { data, error } = await supa
-  .from('instructors')
-  .select(`
+    .from('instructors')
+    .select(`
       id_number,
       uid,
       first_name,
@@ -793,12 +962,14 @@ private async loadInstructorsForChild(childId: string): Promise<void> {
       education,
       phone,
       accepts_makeup_others,
-      min_age_years,
-      max_age_years,
-      taught_child_genders
-  `)
-    .eq('accepts_makeup_others', true)
-    .not('uid', 'is', null)
+      status,
+      taught_child_genders,
+      min_age_years_male,
+      max_age_years_male,
+      min_age_years_female,
+      max_age_years_female
+    `)
+    .eq('status', 'Active')                 // שומרת רק Active
     .order('first_name', { ascending: true }) as {
       data: InstructorDbRow[] | null;
       error: any;
@@ -810,43 +981,97 @@ private async loadInstructorsForChild(childId: string): Promise<void> {
     return;
   }
 
-  const filtered = (data ?? []).filter(ins => {
-    if (!ins.uid) return false;
+  const rows = (data ?? []);
 
-    // סינון לפי גיל
-    if (childAgeYears != null) {
-      if (ins.min_age_years != null && childAgeYears < ins.min_age_years) return false;
-      if (ins.max_age_years != null && childAgeYears > ins.max_age_years) return false;
-    }
+  // ===== הורה: רק מתאימים באמת (כמו היום) =====
+  if (role === 'parent') {
+    const filtered = rows.filter(ins => {
+      if (!ins.uid) return false;                 // חובה uid
+      if (ins.accepts_makeup_others !== true) return false;
 
-    // סינון לפי מין הילד: "זכר"/"נקבה"
-    if (childGender && ins.taught_child_genders && ins.taught_child_genders.length > 0) {
-      if (!ins.taught_child_genders.includes(childGender)) return false;
-    }
+      // מין
+      if (childGender && ins.taught_child_genders?.length) {
+        if (!ins.taught_child_genders.includes(childGender)) return false;
+      }
 
-    // אם taught_child_genders ריק/NULL – נניח שהמדריך מתאים לכולם
-    return true;
-  });
+      // גיל לפי מין
+      if (childAgeYears != null && childGender) {
+        const minAge =
+          childGender === 'זכר' ? (ins.min_age_years_male ?? null)
+          : childGender === 'נקבה' ? (ins.min_age_years_female ?? null)
+          : null;
 
-this.instructors = filtered.map(ins => ({
-  instructor_uid: ins.uid!,                           // מה שה-select משתמש בו
-  instructor_id: ins.id_number,                       // 👈 id_number לטובת הקריאה ל-DB
-  full_name: `${ins.first_name ?? ''} ${ins.last_name ?? ''}`.trim(),
-  gender: ins.gender,
-  certificate: ins.certificate,
-  about: ins.about,
-  education: ins.education,
-  phone: ins.phone,
-  min_age_years: ins.min_age_years,
-  max_age_years: ins.max_age_years,
-  taught_child_genders: ins.taught_child_genders,
-}));
-this.filteredInstructors = [...this.instructors];
-this.instructorSearchTerm = '';
+        const maxAge =
+          childGender === 'זכר' ? (ins.max_age_years_male ?? null)
+          : childGender === 'נקבה' ? (ins.max_age_years_female ?? null)
+          : null;
 
+        if (minAge != null && childAgeYears < minAge) return false;
+        if (maxAge != null && childAgeYears > maxAge) return false;
+      }
 
+      return true;
+    });
+
+    this.instructors = filtered.map(ins => ({
+      ...ins,
+      instructor_id: ins.id_number,
+      instructor_uid: ins.uid,
+      full_name: `${ins.first_name ?? ''} ${ins.last_name ?? ''}`.trim(),
+      isEligible: true,
+      ineligibleReasons: [],
+      ineligibleReasonText: '',
+      taught_child_genders: ins.taught_child_genders ?? [],
+
+  min_age_years_male: ins.min_age_years_male,
+  max_age_years_male: ins.max_age_years_male,
+  min_age_years_female: ins.min_age_years_female,
+  max_age_years_female: ins.max_age_years_female,
+    }));
+
+  } else {
+    // ===== מזכירה/אחרים: כולם + סימון סיבות + מיון =====
+    const all = rows.map(ins => {
+      const elig = this.buildEligibility(ins, childGender, childAgeYears);
+
+      return {
+        ...ins,
+        instructor_id: ins.id_number,
+        instructor_uid: ins.uid,
+        full_name: `${ins.first_name ?? ''} ${ins.last_name ?? ''}`.trim(),
+        isEligible: elig.isEligible,
+        ineligibleReasons: elig.reasons,
+        ineligibleReasonText: elig.reasonText,
+      } as InstructorPickRow;
+    });
+
+    // מיון: מתאימים למעלה, אחר כך לא מתאימים
+    all.sort((a, b) => {
+      const ea = a.isEligible ? 0 : 1;
+      const eb = b.isEligible ? 0 : 1;
+      if (ea !== eb) return ea - eb;
+      return (a.full_name ?? '').localeCompare(b.full_name ?? '');
+    });
+
+    this.instructors = all;
+  }
+
+  this.filteredInstructors = [...this.instructors];
+  this.instructorSearchTerm = '';
   this.loadingInstructors = false;
+
+  // הודעת “אין מדריכים” — רק להורה! (כי למזכירה תמיד יהיו “כולם”)
+  if (role === 'parent' && !this.instructors.length) {
+    this.instructorsError = 'לא נמצאו מדריכים שיכולים ללמד את הילד/ה הזה/זו, נא לפנות למזכירות';
+    this.selectedInstructorId = null;
+    this.noInstructorPreference = false;
+    this.filteredInstructors = [];
+    return;
+  }
+
+  this.instructorsError = null;
 }
+
 selectFirstChildFromSearch(event: any): void {
   event.preventDefault();
   event.stopPropagation();
@@ -923,6 +1148,18 @@ async onChildSelected(): Promise<void> {
   this.clearUiHint('tab');
   this.clearUiHint('seriesCount');
   this.clearUiHint('payment');
+
+  this.seriesLessonCount = null;
+  this.isOpenEndedSeries = false;
+  this.paymentSourceForSeries = null;
+
+  this.selectedPaymentPlanId = null;
+this.seriesCreatedMessage = null;
+  this.seriesError = null;
+  // ✅ איפוס קובץ/קישור הפניה
+  this.referralFile = null;
+  this.referralUrl = null;
+  this.referralUploadError = null;
 
   // איפוס נתונים של סדרות
   this.recurringSlots = [];
@@ -1154,6 +1391,21 @@ try {
 
 
   } else {
+    const cutoff = this.getChildBookingCutoff(child.child_uuid); // "YYYY-MM-DD" | null
+
+if (cutoff) {
+  // אם היום כבר אחרי cutoff – אין מה לחפש בכלל
+  if (fromDate > cutoff) {
+    this.seriesError = `לא ניתן להזמין שיעורים אחרי ${cutoff} בגלל מחיקה מתוכננת לילד.`;
+    return;
+  }
+
+  // toDate לא עובר את cutoff
+  if (toDate > cutoff) {
+    toDate = cutoff;
+  }
+}
+
     // 🔹 קריאה לפונקציה הישנה (עם כמות שיעורים)
     const payloadRegular = {
       p_child_id: child.child_uuid,
@@ -1223,26 +1475,55 @@ for (const s of sorted) {
   filtered.push(s);
 }
 
-this.recurringSlots = filtered.map(s => {
+// this.recurringSlots = filtered.map(s => {
+//   const ins = this.instructors.find(i =>
+//     i.instructor_id === s.instructor_id ||
+//     i.instructor_uid === s.instructor_id
+//   );
+
+//   return {
+//     ...s,
+//     instructor_name: ins?.full_name ?? (s.instructor_id ?? undefined),
+//     // אם את רוצה תמיד מחרוזת:
+//     // instructor_name: ins?.full_name ?? (s.instructor_id ?? 'לא ידוע'),
+//   };
+// });
+
+// this.mapRecurringSlotsToCalendar();
+
+//     if (!this.recurringSlots.length) {
+//       this.seriesError = 'לא נמצאו זמנים מתאימים לסדרה בזמן הקרוב, נא לפנות למזכירות';
+//       return;
+//     }
+// const child = this.children.find(c => c.child_uuid === this.selectedChildId);
+
+let filteredSlots = filtered;
+filteredSlots = filteredSlots.filter(s => this.canSeriesFitBeforeDeletion(s, child));
+
+
+this.recurringSlots = filteredSlots.map(s => {
   const ins = this.instructors.find(i =>
-    i.instructor_id === s.instructor_id ||
-    i.instructor_uid === s.instructor_id
+    i.instructor_id === s.instructor_id || i.instructor_uid === s.instructor_id
   );
 
   return {
     ...s,
     instructor_name: ins?.full_name ?? (s.instructor_id ?? undefined),
-    // אם את רוצה תמיד מחרוזת:
-    // instructor_name: ins?.full_name ?? (s.instructor_id ?? 'לא ידוע'),
   };
 });
 
 this.mapRecurringSlotsToCalendar();
+if (!filtered.length) {
+  this.seriesError = 'לא נמצאו זמנים מתאימים לסדרה בזמן הקרוב, נא לפנות למזכירות';
+  return;
+}
 
-    if (!this.recurringSlots.length) {
-      this.seriesError = 'לא נמצאו זמנים מתאימים לסדרה בזמן הקרוב, נא לפנות למזכירות';
-      return;
-    }
+if (!filteredSlots.length) {
+  const cutoff = this.getChildBookingCutoff(child.child_uuid);
+  this.seriesError = `כל הזמנים שנמצאו הם אחרי ${cutoff} ולכן נחסמו (מחיקה מתוכננת).`;
+  return;
+}
+
 
     // קפיצה ליום הראשון הפנוי
     const first = [...this.recurringSlots].sort((a, b) =>
@@ -2107,6 +2388,38 @@ private formatLocalDate(d: Date): string {
     d.setDate(d.getDate() + days);
     return d.toISOString().slice(0, 10);
   }
+  private getChildBookingCutoff(childId: string): string | null {
+  const c = this.children.find(x => x.child_uuid === childId);
+  const raw = c?.scheduled_deletion_at;
+  if (!raw) return null;
+
+  const delDate = raw.slice(0, 10); // YYYY-MM-DD
+  const grace = Number(this.childDeletionGraceDays ?? 0);
+
+  return this.addDays(delDate, grace); // YYYY-MM-DD
+}
+
+private isSlotAfterCutoff(dateStr: string, childId: string): boolean {
+  const cutoff = this.getChildBookingCutoff(childId);
+  if (!cutoff) return false;
+  // השוואת מחרוזות YYYY-MM-DD עובדת מצוין
+  return dateStr > cutoff;
+}
+
+private filterSlotsByChildCutoff<T extends { occur_date?: string; lesson_date?: string }>(
+  rows: T[],
+  childId: string
+): T[] {
+  const cutoff = this.getChildBookingCutoff(childId);
+  if (!cutoff) return rows;
+
+  return rows.filter(r => {
+    const d = (r as any).occur_date ?? (r as any).lesson_date;
+    if (!d) return true;
+    return d <= cutoff;
+  });
+}
+
 private buildSeriesCalendar(year: number, month: number): void {
   const firstDay = new Date(year, month, 1);
   const firstDow = firstDay.getDay(); // 0=Sunday ... 6=Saturday
@@ -2253,20 +2566,32 @@ const rangeDays = this.timeRangeOccupancyRateDays ?? 30;
       this.occupancySlotsError =    `לא נמצאו שיעורים פנויים למילוי מקום בטווח השבועי (מיום ראשון של אותו שבוע ועד אותו יום בשבוע הבא).`;
       return;
     }
+let slots = (data ?? []) as MakeupSlot[];
 
-    let slots = (data ?? []) as MakeupSlot[];
+// 1) פילטר מחיקה קשיח (בלי grace)
+if (this.selectedChildId) {
+  slots = this.filterSlotsByHardDeletion(slots, this.selectedChildId);
+}
 
-    if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
-      slots = slots.slice(0, this.displayedMakeupLessonsCount);
-    }
+// 2) הגבלה של “כמה להציג”
+if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
+  slots = slots.slice(0, this.displayedMakeupLessonsCount);
+}
 
-    this.occupancySlots = slots;
+// 3) עדכון UI
+this.occupancySlots = slots;
 
-    if (!this.occupancySlots.length) {
-this.occupancySlotsError =
-  `לא נמצאו שיעורים פנויים למילוי מקום בטווח של ${rangeDays} ימים ` +
-  `מתאריך השיעור המקורי.`;
-    }
+// 4) הודעת שגיאה רק אם אין תוצאות
+if (!slots.length) {
+  const hard = this.getChildHardDeletionDate(this.selectedChildId!);
+
+  this.occupancySlotsError = hard
+    ? `אין שיעורים זמינים עד ${hard} (מחיקה מתוכננת).`
+    : `לא נמצאו שיעורים פנויים למילוי מקום בטווח של ${rangeDays} ימים מתאריך השיעור המקורי.`;
+} else {
+  this.occupancySlotsError = null;
+}
+
   } finally {
     this.loadingOccupancySlots = false;
   }
@@ -2307,35 +2632,27 @@ async selectAndRequestOccupancySlot(slot: MakeupSlot): Promise<void> {
   this.occupancyConfirmData.newDate  = slot.occur_date;
   this.occupancyConfirmData.newStart = slot.start_time.substring(0, 5);
   this.occupancyConfirmData.newEnd   = slot.end_time.substring(0, 5);
-  this.occupancyConfirmData.newInstructorName =
-    slot.instructor_name || this.selectedInstructor?.full_name || slot.instructor_id;
 
-  // נתוני השיעור המקורי שבוטל – מתוך ה-candidate שנבחר
-  const orig = this.selectedOccupancyCandidate;
-// נניח שיש לך:
-const c = this.selectedOccupancyCandidate!;
+  const c = this.selectedOccupancyCandidate;
 
-// שם המדריך הישן (זה שביטל את השיעור)
-const oldInstructorName =
-  c.instructor_name ||               // אם יש שם מלא
-  c.instructor_id  ||               // אחרת ניפול לת"ז
-  '';
+  const oldInstructorName =
+    c.instructor_name ||
+    c.instructor_id ||
+    '';
 
-// שם המדריך החדש (של שיעור המילוי מקום)
-const newInstructorName =
-  slot.instructor_name ||           // אם חישבנו שם מלא ב-RPC
-  slot.instructor_id  ||           // fallback לת"ז
-  '';
+  const newInstructorName =
+    slot.instructor_name ||
+    slot.instructor_id ||
+    '';
 
-this.occupancyConfirmData.oldInstructorName = oldInstructorName;
-this.occupancyConfirmData.newInstructorName = newInstructorName;
+  this.occupancyConfirmData.oldInstructorName = oldInstructorName;
+  this.occupancyConfirmData.newInstructorName = newInstructorName;
 
-  this.occupancyConfirmData.oldDate  = orig.occur_date;
-  this.occupancyConfirmData.oldStart = orig.start_time.substring(0, 5);
-  this.occupancyConfirmData.oldEnd   = orig.end_time.substring(0, 5);
-  
- const dialogRef = this.openOccupancyConfirmDialog(false);
+  this.occupancyConfirmData.oldDate  = c.occur_date;
+  this.occupancyConfirmData.oldStart = c.start_time.substring(0, 5);
+  this.occupancyConfirmData.oldEnd   = c.end_time.substring(0, 5);
 
+  const dialogRef = this.openOccupancyConfirmDialog(false);
 
   dialogRef.afterClosed().subscribe(async confirmed => {
     if (!confirmed) return;
@@ -2343,60 +2660,75 @@ this.occupancyConfirmData.newInstructorName = newInstructorName;
     this.occupancyError = null;
     this.occupancyCreatedMessage = null;
 
-    const supa = dbTenant();
+    try {
+      const supa = dbTenant();
 
-    // ה-UID של השיעור המקורי אותו משלימים (מתוך ה-view)
-    const lessonOccId = this.selectedOccupancyCandidate!.lesson_id;
-    // אם ה-view מחזיר lesson_occ_exception_id שאת רוצה להשתמש בו, תחליפי כאן.
+      // השיעור המקורי שבוטל (כמו שאת עושה כבר)
+      const lessonOccId = this.selectedOccupancyCandidate!.lesson_id;
 
-    const payload = {
-      requested_start_time: slot.start_time,
-      requested_end_time: slot.end_time,
-    };
+      const payload = {
+        requested_start_time: slot.start_time,
+        requested_end_time: slot.end_time,
+      };
 
-    const { error } = await supa
-      .from('secretarial_requests')
-      .insert({
-        request_type: 'FILL_IN',
-        status: 'PENDING',
-        requested_by_uid: String(this.user!.uid),
-        requested_by_role: 'parent',
-        child_id: this.selectedChildId,
-        instructor_id: slot.instructor_id,      // המדריך של השיעור החדש
-        lesson_occ_id: lessonOccId,             // השיעור המקורי (view)
-        from_date: slot.occur_date,
-        to_date: slot.occur_date,
-        payload,
-      });
+      // 1) יצירת בקשה למזכירה
+      const { error: reqErr } = await supa
+        .from('secretarial_requests')
+        .insert({
+          request_type: 'FILL_IN',
+          status: 'PENDING',
+          requested_by_uid: String(this.user!.uid),
+          requested_by_role: 'parent',
+          child_id: this.selectedChildId,
+          instructor_id: slot.instructor_id, // המדריך של השיעור החדש
+          lesson_occ_id: lessonOccId,        // השיעור המקורי (view)
+          from_date: slot.occur_date,
+          to_date: slot.occur_date,
+          payload,
+        });
 
-    if (error) {
-      console.error('FILL_IN request error', error);
-      this.occupancyError = 'שגיאה בשליחת בקשת מילוי מקום למזכירה';
-      return;
+      if (reqErr) {
+        console.error('FILL_IN request error', reqErr);
+        this.occupancyError = 'שגיאה בשליחת בקשת מילוי מקום למזכירה';
+        this.showErrorToast(this.occupancyError);
+        return;
+      }
+
+      // 2) עדכון החריגה של השיעור המקורי
+      const excId = this.selectedOccupancyCandidate!.lesson_occ_exception_id;
+
+      const { error: updErr } = await supa
+        .from('lesson_occurrence_exceptions')
+        .update({ status: 'נשלחה בקשה למילוי מקום' })
+        .eq('id', excId);
+
+      if (updErr) {
+        console.error('lesson_occurrence_exceptions update error (FILL_IN)', updErr);
+        // לא מפיל את כל הפעולה—הבקשה כבר נשלחה
+      }
+
+      // 3) UI
+      this.showSuccessToast('בקשת מילוי מקום נשלחה למזכירה ✔️');
+
+      // אופציונלי: להוריד מהרשימה המקומית כדי שיראה מייד
+      this.occupancyCandidates = this.occupancyCandidates.filter(x =>
+        !(x.lesson_id === c.lesson_id && x.occur_date === c.occur_date)
+      );
+
+      this.selectedOccupancyCandidate = null;
+      this.occupancySlots = [];
+      this.selectedOccupancySlot = null;
+
+      await this.onChildChange();
+
+    } catch (e) {
+      console.error(e);
+      this.occupancyError = 'שגיאה בלתי צפויה בשליחת בקשת מילוי מקום';
+      this.showErrorToast(this.occupancyError);
     }
-const excId = this.selectedOccupancyCandidate!.lesson_occ_exception_id;
-
-const { error: updErr } = await supa
-  .from('lesson_occurrence_exceptions')
-  .update({ status: 'נשלחה בקשה למילוי מקום' })
-  .eq('id', excId);
-
-if (updErr) {
-  console.error('lesson_occurrence_exceptions update error (FILL_IN)', updErr);
-  // לא חייבים להפיל הכל – אבל כן להציג הודעה אם תרצי
-}
-
-    this.occupancyCreatedMessage =
-      'בקשת מילוי המקום נשלחה למזכירה ✔️';
-      this.occupancyCandidates = this.occupancyCandidates.filter(x => !this.sameCandidate(x, this.selectedOccupancyCandidate!));
-this.selectedOccupancyCandidate = null;
-this.occupancySlots = [];
-
-
-    // אם את רוצה – לרענן את השיעורים שמחפשים מילוי מקום
-    //await this.onChildChange();
   });
 }
+
 async onOccupancySlotChosen(slot: MakeupSlot): Promise<void> {
   // תתאימי לפי איך את מחזיקה תפקיד אצלך (role / isSecretary וכו')
   const isSecretary = this.user?.role === 'secretary';
@@ -2603,6 +2935,10 @@ onTabClick(tab: 'series' | 'makeup' | 'occupancy') {
   this.selectedTab = tab;
 }
 isSeriesDisabled(slot: any): boolean {
+  if (this.selectedSeriesDate && this.isSlotBlockedByDeletion(this.selectedSeriesDate)) {
+    return true;
+  }
+
   return (
     (this.selectedSeriesDate &&
       this.isPastSeriesSlot(this.selectedSeriesDate, slot.start_time)) ||
@@ -2610,12 +2946,14 @@ isSeriesDisabled(slot: any): boolean {
   );
 }
 
-
 getSeriesDisabledTooltip(slot: any): string {
-  if (
-    this.selectedSeriesDate &&
-    this.isPastSeriesSlot(this.selectedSeriesDate, slot.start_time)
-  ) {
+  if (this.selectedSeriesDate && this.isSlotBlockedByDeletion(this.selectedSeriesDate)) {
+    const child = this.children.find(c => c.child_uuid === this.selectedChildId) ?? null;
+    const cutoff = this.getChildDeletionCutoffDate(child);
+    return `לא ניתן לקבוע שיעורים אחרי תאריך המחיקה (${cutoff})`;
+  }
+
+  if (this.selectedSeriesDate && this.isPastSeriesSlot(this.selectedSeriesDate, slot.start_time)) {
     return 'לא ניתן להתחיל סדרה זו היום בשעה זו כי השעה חלפה';
   }
 
@@ -2650,7 +2988,7 @@ onOpenEndedSeriesToggle(checked: boolean): void {
 }
 
 onUnlimitedSeriesToggle(): void {
-    this.clearUiHint('seriesCount');
+  this.clearUiHint('seriesCount');
 
   // אם סימנו ללא הגבלה – מבטלים כמות
   if (this.isOpenEndedSeries) {
@@ -2666,13 +3004,11 @@ onUnlimitedSeriesToggle(): void {
   this.seriesError = null;
 
   // אם יש תנאים בסיסיים – להריץ חיפוש
-  if (
-    this.selectedChildId &&
-    (this.noInstructorPreference || this.selectedInstructorId) // יש מדריך או אין העדפה
-  ) {
+  if (this.selectedChildId && (this.noInstructorPreference || this.selectedInstructorId)) {
     this.searchRecurringSlots();
   }
 }
+
 private isSameLocalDate(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear()
     && a.getMonth() === b.getMonth()
@@ -2889,6 +3225,8 @@ private async submitSeriesRequestToSecretary(slot: RecurringSlotWithSkips): Prom
   // ===== payload לבקשה =====
   const payload: any = {
     requested_start_time: built.startTime,
+      repeat_weeks: this.isOpenEndedSeries ? null : this.seriesLessonCount,
+
     is_open_ended: this.isOpenEndedSeries,
     series_search_horizon_days: this.seriesSearchHorizonDays,
     skipped_farm_dates: (slot.skipped_farm_days_off ?? []).map(String),
@@ -2945,17 +3283,129 @@ private async submitSeriesRequestToSecretary(slot: RecurringSlotWithSkips): Prom
 //     skippedInstructor: (slot.skipped_instructor_unavailability ?? []).map(String),
 //   };
 // }
+private getChildHardDeletionDate(childId: string): string | null {
+  const c = this.children.find(x => x.child_uuid === childId);
+  if (!c) return null;
+
+  if (c.status !== 'Deletion Scheduled') return null;
+
+  const raw = c.scheduled_deletion_at;
+  if (!raw) return null;
+
+  return raw.slice(0, 10); // YYYY-MM-DD
+}
+private filterSlotsByHardDeletion<T extends { occur_date?: string; lesson_date?: string }>(
+  rows: T[],
+  childId: string
+): T[] {
+  const hard = this.getChildHardDeletionDate(childId);
+  if (!hard) return rows;
+
+  return rows.filter(r => {
+    const d = (r as any).occur_date ?? (r as any).lesson_date;
+    if (!d) return true;
+    return d <= hard; // ✅ עד יום המחיקה כולל
+  });
+}
+private buildEligibility(
+  ins: InstructorDbRow,
+  childGender: TaughtChildGender | null,
+  childAgeYears: number | null
+) {
+  const reasons: string[] = [];
+
+  if (!ins.uid) reasons.push('למדריך אין משתמש במערכת (uid)');
+  if (ins.accepts_makeup_others !== true) reasons.push('לא מסומן שמלמד ילדים שלא שלו');
+
+  // 1) מין הילד
+  if (childGender && ins.taught_child_genders?.length) {
+    if (!ins.taught_child_genders.includes(childGender)) {
+      reasons.push(`לא מלמד/ת ילדים במין: ${childGender}`);
+    }
+  }
+
+  // 2) גיל + לפי מין הילד
+  if (childAgeYears != null && childGender) {
+    const minAge =
+      childGender === 'זכר' ? (ins.min_age_years_male ?? null)
+      : (ins.min_age_years_female ?? null);
+
+    const maxAge =
+      childGender === 'זכר' ? (ins.max_age_years_male ?? null)
+      : (ins.max_age_years_female ?? null);
+
+    if (minAge != null && childAgeYears < minAge) reasons.push(`הגיל קטן מהמינימום (${minAge})`);
+    if (maxAge != null && childAgeYears > maxAge) reasons.push(`הגיל גדול מהמקסימום (${maxAge})`);
+  }
+
+  const isEligible = reasons.length === 0;
+
+  return { isEligible, reasons, reasonText: reasons.join(', ') };
+}
+
+
+private getChildDeletionCutoffDate(child: ChildWithProfile | undefined | null): string | null {
+  if (!child) return null;
+  if (child.status !== 'Deletion Scheduled') return null;
+
+  const v = (child as any).scheduled_deletion_at as string | null;
+  if (!v) return null;
+
+  // scheduled_deletion_at אצלך יכול להיות timestamp -> לוקחים רק תאריך
+  return v.slice(0, 10); // "YYYY-MM-DD"
+}
+get canUseOpenEndedSeries(): boolean {
+  const child = this.children.find(c => c.child_uuid === this.selectedChildId);
+  if (!child) return false;
+
+  // אם הילד במחיקה מתוכננת – אין סדרה ללא הגבלה
+  return child.status !== 'Deletion Scheduled';
+}
+private canSeriesFitBeforeDeletion(slot: RecurringSlotWithSkips, child: ChildWithProfile | null | undefined): boolean {
+  const cutoff = this.getChildDeletionCutoffDate(child);
+  if (!cutoff) return true;
+
+  if (this.isOpenEndedSeries) return false;
+
+  if (!this.seriesLessonCount || this.seriesLessonCount < 1) return true;
+
+  const skipsCount =
+    (slot.skipped_farm_days_off?.length ?? 0) +
+    (slot.skipped_instructor_unavailability?.length ?? 0);
+
+  const totalWeeksForward = (this.seriesLessonCount - 1) + skipsCount;
+
+  const endD = new Date(slot.lesson_date + 'T00:00:00');
+  endD.setDate(endD.getDate() + totalWeeksForward * 7);
+  const seriesEndDate = this.formatLocalDate(endD);
+
+  return seriesEndDate <= cutoff;
+}
+
+private isDateAfterCutoff(dateStr: string, cutoffDate: string): boolean {
+  // השוואה לקסיקוגרפית עובדת ל-YYYY-MM-DD
+  return dateStr > cutoffDate;
+}
+
+private isSlotBlockedByDeletion(dateStr: string): boolean {
+  const child = this.children.find(c => c.child_uuid === this.selectedChildId) ?? null;
+  const cutoff = this.getChildDeletionCutoffDate(child);
+  if (!cutoff) return false;
+  return this.isDateAfterCutoff(dateStr, cutoff);
+}
+
 private openOccupancyConfirmDialog(isSecretary: boolean) {
   const tpl = isSecretary
     ? this.confirmOccupancySecretaryDialog
     : this.confirmOccupancyParentDialog;
 
   return this.dialog.open(tpl, {
-    width: '380px',
+    width: '420px',
     disableClose: true,
     data: {},
   });
 }
+
 get canShowSeriesCalendar(): boolean {
   // חייבים לבחור ילד
   if (!this.selectedChildId) return false;
@@ -2966,5 +3416,46 @@ get canShowSeriesCalendar(): boolean {
   // ורק אחרי שבוחרים כמות שיעורים או "ללא הגבלה"
   return this.hasSeriesCountOrOpenEnded;
 }
+private async loadInstructorNamesIndex(): Promise<void> {
+  this.loadingInstructorNames = true;
+
+  try {
+    const { data, error } = await dbTenant()
+      .from('instructors')
+      .select('id_number, uid, first_name, last_name')
+      .eq('status', 'Active');
+
+    if (error) {
+      console.error('loadInstructorNamesIndex error', error);
+      return;
+    }
+
+    this.instructorNameById.clear();
+    this.instructorNameByUid.clear();
+
+    for (const r of (data ?? []) as any[]) {
+      const full = `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim();
+      if (!full) continue;
+
+      if (r.id_number) this.instructorNameById.set(String(r.id_number), full);
+      if (r.uid) this.instructorNameByUid.set(String(r.uid), full);
+    }
+  } finally {
+    this.loadingInstructorNames = false;
+  }
+}
+getInstructorDisplayName(idOrUid: string | null | undefined): string {
+  if (!idOrUid) return '';
+
+  return (
+    this.instructorNameById.get(idOrUid) ??
+    this.instructorNameByUid.get(idOrUid) ??
+    '' // או fallback: idOrUid
+  );
+}
+
 
 }
+const isTaughtChildGender = (v: any): v is TaughtChildGender =>
+  v === 'זכר' || v === 'נקבה';
+

@@ -1,7 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/supabaseClient.service';
+import { UiDialogService } from '../../services/ui-dialog.service';
 
 interface Horse {
   id?: string;
@@ -30,9 +31,9 @@ interface HorseAlert {
   horseId: string;
   horseName: string;
   kind: AlertKind;
-  dueDate: string;    // ISO date string
+  dueDate: string; // ISO
   overdue: boolean;
-  daysDiff: number;   // חיובי = ימים לעתיד, שלילי = איחור
+  daysDiff: number; // חיובי=עתיד, שלילי=איחור
 }
 
 @Component({
@@ -43,48 +44,43 @@ interface HorseAlert {
   styleUrls: ['./secretary-horses.component.scss'],
 })
 export class SecretaryHorsesComponent implements OnInit {
+  private ui = inject(UiDialogService);
+
   horses: Horse[] = [];
   editing: Horse | null = null;
-  horseToDelete: Horse | null = null;
 
   alerts: HorseAlert[] = [];
-
   loading = false;
-  error: string | null = null;
 
-  // 👈 כמה ימים קדימה נציג התראות
   readonly ALERT_HORIZON_DAYS = 30;
 
   async ngOnInit(): Promise<void> {
     await this.loadHorses();
   }
 
-  // טעינת כל הסוסים
   async loadHorses(): Promise<void> {
     this.loading = true;
-    this.error = null;
 
-    const { data, error } = await dbTenant()
-      .from('horses')
-      .select('*')
-      .order('name', { ascending: true });
+    try {
+      const { data, error } = await dbTenant()
+        .from('horses')
+        .select('*')
+        .order('name', { ascending: true });
 
-    if (error) {
-      console.error('Failed to load horses', error);
-      this.error = 'אירעה שגיאה בטעינת הסוסים.';
+      if (error) throw error;
+
+      this.horses = (data ?? []) as Horse[];
+      this.buildAlerts();
+    } catch (e: any) {
+      console.error('Failed to load horses', e);
       this.horses = [];
-    } else if (data) {
-      this.horses = data as Horse[];
-    } else {
-      this.horses = [];
+      this.alerts = [];
+      await this.ui.alert('אירעה שגיאה בטעינת הסוסים.', 'שגיאה');
+    } finally {
+      this.loading = false;
     }
-
-    this.buildAlerts(); // אחרי הטעינה
-
-    this.loading = false;
   }
 
-  // התחלת יצירת סוס חדש
   newHorse(): void {
     this.editing = {
       name: '',
@@ -105,24 +101,19 @@ export class SecretaryHorsesComponent implements OnInit {
     };
   }
 
-  // עריכה של סוס קיים
   editHorse(horse: Horse): void {
     this.editing = { ...horse };
   }
 
-  // ביטול עריכה
   cancelEdit(): void {
     this.editing = null;
   }
 
-  // שמירת סוס (חדש או קיים)
   async saveHorse(): Promise<void> {
     if (!this.editing) return;
 
-    this.error = null;
-
     if (!this.editing.name || !this.editing.name.trim()) {
-      this.error = 'שם הסוס הוא שדה חובה.';
+      await this.ui.alert('שם הסוס הוא שדה חובה.', 'חסר שדה');
       return;
     }
 
@@ -139,94 +130,90 @@ export class SecretaryHorsesComponent implements OnInit {
     if (!payload.max_daily_minutes) payload.max_daily_minutes = 240;
     if (!payload.min_break_minutes) payload.min_break_minutes = 15;
 
-    if (payload.id) {
-      const { error } = await dbTenant()
-        .from('horses')
-        .update({
-          name: payload.name,
-          age: payload.age,
-          color: payload.color,
-          max_continuous_minutes: payload.max_continuous_minutes,
-          max_daily_minutes: payload.max_daily_minutes,
-          min_break_minutes: payload.min_break_minutes,
-          is_active: payload.is_active,
-          notes: payload.notes,
+    try {
+      if (payload.id) {
+        const { error } = await dbTenant()
+          .from('horses')
+          .update({
+            name: payload.name,
+            age: payload.age,
+            color: payload.color,
+            max_continuous_minutes: payload.max_continuous_minutes,
+            max_daily_minutes: payload.max_daily_minutes,
+            min_break_minutes: payload.min_break_minutes,
+            is_active: payload.is_active,
+            notes: payload.notes,
 
-          last_shoeing_date: payload.last_shoeing_date,
-          next_shoeing_date: payload.next_shoeing_date,
-          last_vaccination_date: payload.last_vaccination_date,
-          next_vaccination_date: payload.next_vaccination_date,
-          last_teeth_date: payload.last_teeth_date,
-          next_teeth_date: payload.next_teeth_date,
-        })
-        .eq('id', payload.id);
+            last_shoeing_date: payload.last_shoeing_date,
+            next_shoeing_date: payload.next_shoeing_date,
+            last_vaccination_date: payload.last_vaccination_date,
+            next_vaccination_date: payload.next_vaccination_date,
+            last_teeth_date: payload.last_teeth_date,
+            next_teeth_date: payload.next_teeth_date,
+          })
+          .eq('id', payload.id);
 
-      if (error) {
-        console.error('Failed to update horse', error);
-        this.error = 'אירעה שגיאה בעדכון הסוס.';
-        return;
+        if (error) throw error;
+      } else {
+        const { error } = await dbTenant()
+          .from('horses')
+          .insert({
+            name: payload.name,
+            age: payload.age,
+            color: payload.color,
+            max_continuous_minutes: payload.max_continuous_minutes,
+            max_daily_minutes: payload.max_daily_minutes,
+            min_break_minutes: payload.min_break_minutes,
+            is_active: payload.is_active,
+            notes: payload.notes,
+
+            last_shoeing_date: payload.last_shoeing_date,
+            next_shoeing_date: payload.next_shoeing_date,
+            last_vaccination_date: payload.last_vaccination_date,
+            next_vaccination_date: payload.next_vaccination_date,
+            last_teeth_date: payload.last_teeth_date,
+            next_teeth_date: payload.next_teeth_date,
+          });
+
+        if (error) throw error;
       }
-    } else {
-      const { error } = await dbTenant()
-        .from('horses')
-        .insert({
-          name: payload.name,
-          age: payload.age,
-          color: payload.color,
-          max_continuous_minutes: payload.max_continuous_minutes,
-          max_daily_minutes: payload.max_daily_minutes,
-          min_break_minutes: payload.min_break_minutes,
-          is_active: payload.is_active,
-          notes: payload.notes,
 
-          last_shoeing_date: payload.last_shoeing_date,
-          next_shoeing_date: payload.next_shoeing_date,
-          last_vaccination_date: payload.last_vaccination_date,
-          next_vaccination_date: payload.next_vaccination_date,
-          last_teeth_date: payload.last_teeth_date,
-          next_teeth_date: payload.next_teeth_date,
-        });
-
-      if (error) {
-        console.error('Failed to insert horse', error);
-        this.error = 'אירעה שגיאה ביצירת הסוס.';
-        return;
-      }
+      this.editing = null;
+      await this.loadHorses();
+      await this.ui.alert('הסוס נשמר בהצלחה.', 'הצלחה');
+    } catch (e: any) {
+      console.error('saveHorse failed', e);
+      await this.ui.alert('שמירת הסוס נכשלה: ' + (e?.message ?? 'שגיאה'), 'שגיאה');
     }
-
-    this.editing = null;
-    await this.loadHorses();
   }
 
-  // פתיחת דיאלוג מחיקה
-  confirmDelete(horse: Horse): void {
-    this.horseToDelete = horse;
-  }
+  async confirmDelete(horse: Horse): Promise<void> {
+    const ok = await this.ui.confirm({
+      title: 'מחיקת סוס',
+      message: `למחוק את הסוס "${horse.name}"?`,
+      okText: 'כן, למחוק',
+      cancelText: 'ביטול',
+      showCancel: true,
+    });
 
-  // מחיקת סוס אחרי אישור
-  async deleteHorseConfirmed(): Promise<void> {
-    if (!this.horseToDelete || !this.horseToDelete.id) {
-      this.horseToDelete = null;
+    if (!ok) return;
+
+    if (!horse.id) {
+      await this.ui.alert('לא נמצא מזהה לסוס (id).', 'שגיאה');
       return;
     }
 
-    const id = this.horseToDelete.id;
+    try {
+      const { error } = await dbTenant().from('horses').delete().eq('id', horse.id);
+      if (error) throw error;
 
-    const { error } = await dbTenant()
-      .from('horses')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Failed to delete horse', error);
-      this.error = 'אירעה שגיאה במחיקת הסוס.';
+      await this.loadHorses();
+      await this.ui.alert('הסוס נמחק בהצלחה.', 'הצלחה');
+    } catch (e: any) {
+      console.error('delete horse failed', e);
+      await this.ui.alert('מחיקת הסוס נכשלה: ' + (e?.message ?? 'שגיאה'), 'שגיאה');
     }
-
-    this.horseToDelete = null;
-    await this.loadHorses();
   }
-
-  // ===== התראות טיפולים =====
 
   private parseDate(d: string | null | undefined): Date | null {
     if (!d) return null;
@@ -251,20 +238,17 @@ export class SecretaryHorsesComponent implements OnInit {
         const due = this.parseDate(dateStr ?? null);
         if (!due) return;
 
-        const daysDiff = this.daysBetween(due, today); // חיובי = עתיד, שלילי = עבר
-
-        // לא מציגים דברים רחוקים מדי
+        const daysDiff = this.daysBetween(due, today);
         if (daysDiff > this.ALERT_HORIZON_DAYS) return;
 
-        const alert: HorseAlert = {
+        alerts.push({
           horseId: h.id!,
           horseName: h.name,
           kind,
           dueDate: due.toISOString(),
           overdue: daysDiff < 0,
           daysDiff,
-        };
-        alerts.push(alert);
+        });
       };
 
       addAlert('shoeing', h.next_shoeing_date);
@@ -272,14 +256,12 @@ export class SecretaryHorsesComponent implements OnInit {
       addAlert('teeth', h.next_teeth_date);
     }
 
-    // מיון: קודם באיחור, אח"כ לפי תאריך
     this.alerts = alerts.sort((a, b) => {
       if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
       return a.dueDate.localeCompare(b.dueDate);
     });
   }
 
-  // להמרת סוג ההתראה לטקסט יפה
   kindLabel(kind: AlertKind): string {
     switch (kind) {
       case 'shoeing':

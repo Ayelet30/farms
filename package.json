@@ -7,7 +7,7 @@
   "main": "lib/index.js",
   "scripts": {
     "start": "ng serve --proxy-config proxy.conf.json",
-    "start:https": "ng serve --ssl true --port 4200",
+    "start:https": "ng serve --ssl true --port 4200 --proxy-config proxy.conf.json",
     "ng": "ng",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
@@ -39,13 +39,15 @@
     "@fullcalendar/resource-common": "^5.11.5",
     "@fullcalendar/resource-timegrid": "^6.1.19",
     "@fullcalendar/timegrid": "^6.1.19",
+    "@google-cloud/secret-manager": "^6.1.1",
     "@hebcal/core": "^6.0.8",
+    "@pdf-lib/fontkit": "^1.1.1",
     "@stripe/stripe-js": "^7.9.0",
     "@supabase/supabase-js": "^2.57.4",
     "angular-calendar": "^0.31.1",
     "body-parser": "^2.2.0",
     "date-fns": "^4.1.0",
-    "express": "^5.1.0",
+    "express": "^5.2.1",
     "file-saver": "^2.0.5",
     "firebase": "^11.10.0",
     "firebase-admin": "^12.6.0",
@@ -54,6 +56,7 @@
     "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",
     "jwt-decode": "^4.0.0",
+    "pdf-lib": "^1.17.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
@@ -78,5 +81,21 @@
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
     "typescript": "~5.8.2"
-  }
+  },
+  "description": "This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.0.2.",
+  "directories": {
+    "test": "tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ayelet30/farms.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Ayelet30/farms/issues"
+  },
+  "homepage": "https://github.com/Ayelet30/farms#readme"
 }

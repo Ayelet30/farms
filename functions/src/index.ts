@@ -14,8 +14,7 @@ setGlobalOptions({
   region: 'us-central1',
 });
 
-import { decryptRefreshToken } from './crypto-gmail';
-export { connectGmailForFarm } from './connectGmailForFarm.js';
+export { connectGmailForFarm } from './connectGmailForFarm';
 
 
 export * from "./loginBootstrap.js";
@@ -24,18 +23,20 @@ export * from "./dailyBilling.js";
 
 export * from "./publicSignup.js";
 
-export * from './email';
+export { processDueChildDeletions } from './processDueChildDeletions';
 
 
 
-export { createHostedPaymentUrl, tranzilaHandshakeHttp , recordOneTimePayment , savePaymentMethod ,chargeSelectedChargesForParent } from './tranzila.js';
+export { createHostedPaymentUrl, tranzilaHandshake , recordOneTimePayment , savePaymentMethod ,chargeSelectedChargesForParent } from './tranzila.js';
 export {
   ensureTranzilaInvoiceForPayment
 } from './tranzilaInvoices.js';
+export { sendEmailGmail } from './email';
 
 //export  *  from "../createParent.js";
 
 
+export { approveRemoveChildAndNotify } from './approve-remove-child-and-notify';
 
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript

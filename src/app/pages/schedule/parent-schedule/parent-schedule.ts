@@ -7,6 +7,14 @@ import type { EventClickArg } from '@fullcalendar/core';
 
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
+import { UiDialogService } from '../../../services/ui-dialog.service';
+
+imports: [
+  CommonModule,
+  ScheduleComponent,
+  MatDialogModule,
+  MatTooltipModule
+]
 
 
 import {
@@ -63,6 +71,7 @@ showToast(msg: string, ms = 3000) {
 constructor(private dialog: MatDialog) {}
 
 
+  constructor(private dialog: MatDialog,private ui: UiDialogService) {}
 
   async ngOnInit() {
     await ensureTenantContextReady();
@@ -657,6 +666,13 @@ private async handleCancelRequest(
       p_occur_date: occurDate,   // ✅ DATE אמיתי
       p_reason: reason,
     });
+    this.markLessonAsPendingCancel(lessonId);
+   this.ui.alert('בקשת הביטול נשלחה למזכירה.');
+  } catch (err) {
+    console.error('cancel request error', err);
+   this.ui.alert('אירעה שגיאה בעת שליחת בקשת הביטול');
+  }
+}
 
     if (error) throw error;
 
@@ -713,10 +729,15 @@ canCancel(lesson: Lesson) {
   }
 
   cancelLesson(_lesson: Lesson) {
-    const confirmed = confirm('האם לבטל את השיעור?');
-    if (confirmed) {
-      // (לא בשימוש יותר – עברנו לדיאלוג)
-    }
+    const confirmed = this.ui.confirm(
+      {
+    title: 'ביטול שיעור',
+    message: `האם לבטל את השיעור ""?`,
+    okText: 'כן, לבטל',
+    cancelText: 'ביטול',
+    showCancel: true,
+  });
+
   }
 
   viewDetails(_lesson: Lesson) {

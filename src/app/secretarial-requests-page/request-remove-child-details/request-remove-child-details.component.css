@@ -1,0 +1,184 @@
+.wrap{
+  display: grid;
+  gap: 10px;
+}
+
+.head{
+  display: grid;
+  gap: 4px;
+  padding: 6px 4px;
+}
+
+.title{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 900;
+  color: #1f3a2a;
+}
+
+.ico{
+  transform: scale(1.05);
+}
+
+.hint{
+  font-size: 12px;
+  font-weight: 800;
+  color: #8a9362;
+}
+
+.card{
+  border: 1px solid #cdd6bf;
+  background: #fff;
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 6px 14px rgba(0,0,0,.05);
+}
+
+.row{
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed #e6ecdd;
+}
+
+.row:last-child{
+  border-bottom: none;
+}
+
+.k{
+  font-weight: 900;
+  color: #586141;
+}
+
+.v{
+  font-weight: 800;
+  color: #2b2b2b;
+  word-break: break-word;
+}
+
+.v.strong{
+  color: #1f3a2a;
+}
+
+.meta{
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eef1ea;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: #586141;
+  font-weight: 800;
+}
+
+.mk{
+  font-weight: 900;
+  color: #2b2b2b;
+  margin-left: 6px;
+}
+
+.actions{
+  display: flex;
+  gap: 10px;
+  justify-content: flex-start;
+}
+
+.btn{
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 900;
+  border: 1.5px solid #cdd6bf;
+  background: #f7f9f4;
+  cursor: pointer;
+}
+
+.btn.primary{
+  border-color: #8a9362;
+  background: #8a9362;
+  color: #fff;
+}
+
+.btn.ghost{
+  border-color: #f3b3b3;
+  background: #fff;
+  color: #b91c1c;
+}
+
+.note{
+  font-size: 13px;
+  font-weight: 800;
+  color: #7e8363;
+}
+.actions{
+  display: flex;
+  gap: 10px;
+  justify-content: flex-start;
+  margin-top: 12px;
+}
+
+/* כפתורי Material – התאמה למראה המערכת */
+.action{
+  font-weight: 900;
+  border-radius: 12px !important;
+  padding: 10px 16px !important;
+}
+
+/* דחייה - קו אדום עדין */
+.action.reject{
+  border-color: #f3b3b3 !important;
+  color: #b91c1c !important;
+  background: #fff !important;
+}
+
+/* אישור - ירוק עדין בסגנון מערכת */
+.action.approve{
+  background: #8a9362 !important;
+  color: #fff !important;
+}
+.remain-box{
+  margin-top: 10px;
+  border: 1px solid #e6ecdd;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.remain-head, .remain-row{
+  display: grid;
+  grid-template-columns: 1.2fr .7fr .8fr .8fr .9fr;
+  gap: 8px;
+  padding: 10px 10px;
+  align-items: center;
+}
+
+.remain-head{
+  background: #f7f9f4;
+  font-weight: 900;
+  color: #586141;
+  border-bottom: 1px solid #e6ecdd;
+}
+
+.remain-row{
+  border-bottom: 1px dashed #e6ecdd;
+  font-weight: 800;
+  color: #2b2b2b;
+}
+
+.remain-row:last-child{
+  border-bottom: none;
+}
+
+.cell{
+  min-width: 0;
+  word-break: break-word;
+}
+
+.remain-empty, .remain-error{
+  margin-top: 10px;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.remain-empty{ color: #7e8363; }
+.remain-error{ color: #b91c1c; }

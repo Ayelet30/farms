@@ -40,7 +40,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   @ViewChild('calendar') calendarComponent!: FullCalendarComponent;
 
   @Input() items: ScheduleItem[] = [];
-  @Input() initialView: ViewName = 'timeGridWeek';
+  @Input() initialView: ViewName = 'timeGridDay';
   @Input() rtl = true;
   @Input() locale: any = heLocale;
   @Input() slotMinTime = '07:00:00';
@@ -72,6 +72,21 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   currentDate = '';
   isFullscreen = false;
 
+    private isNarrow600 = window.innerWidth < 600;
+
+  @HostListener('window:resize')
+  onResize() {
+    const next = window.innerWidth < 600;
+    if (next === this.isNarrow600) return;
+    this.isNarrow600 = next;
+
+    const api = this.calendarApi;
+    if (api) {
+      // גורם לכותרות להתרענן
+      api.setOption('dayHeaderContent', this.dayHeaderContentFactory());
+    }
+  }
+
   constructor(private cdr: ChangeDetectorRef, private ngZone: NgZone) {}
 
   // שעה נוכחית (לגלילה אוטומטית)
@@ -90,19 +105,48 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     );
   }
 
-  /** אם יש resources – למפות את ה-View ל-resourceTimeGrid */
+   /** שבועי/יומי עם resources */
   private mapView(view: ViewName): string {
-    if (view === 'timeGridDay' && this.resources && this.resources.length) {
-    return 'resourceTimeGridDay';
+    const hasRes = !!(this.resources && this.resources.length);
+    if (!hasRes) return view;
+
+    if (view === 'timeGridDay') return 'resourceTimeGridDay';
+    if (view === 'timeGridWeek') return 'resourceTimeGridWeek'; // ✅ מומלץ
+    return view;
   }
-  // שבועי נשאר timeGridWeek רגיל
-  return view;
+
+  private hebDayLetter(date: Date): string {
+    // 0=Sunday ... 6=Saturday
+    const map = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
+    return map[date.getDay()] ?? '';
+  }
+
+  private lessonTitleNumberOnly(title: string): string {
+  const m = String(title ?? '').match(/\d+/);
+  return m ? m[0] : (title ?? '');
+}
+
+
+  private dayHeaderContentFactory() {
+    return (args: any) => {
+      const viewType = args.view?.type as string;
+
+      const isWeek =
+        viewType === 'timeGridWeek' || viewType === 'resourceTimeGridWeek';
+
+      if (isWeek && this.isNarrow600) {
+        return { html: `<span>${this.hebDayLetter(args.date)}</span>` };
+      }
+
+      // ברירת מחדל של FullCalendar (מה שהוא היה מצייר)
+      return { html: args.text };
+    };
   }
 
 
   calendarOptions: CalendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimeGridPlugin],
-    initialView: 'timeGridWeek',
+    initialView: 'timeGridDay',
     locale: heLocale,
     direction: 'rtl',
     headerToolbar: false,
@@ -117,6 +161,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     slotDuration: '00:30:00',
     events: [],
     resources: [],
+    dayHeaderContent: this.dayHeaderContentFactory(),
 
 
     // 👇 קליק שמאלי רגיל
@@ -574,4 +619,6 @@ onAutoAssignClick() {
   onEsc() {
     if (this.isFullscreen) this.toggleFullscreen();
   }
+
+  
 }

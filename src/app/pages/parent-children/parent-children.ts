@@ -3,17 +3,16 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import type { ChildRow } from '../../Types/detailes.model';
-import { getCurrentUserData } from '../../services/supabaseClient.service';
+import { getCurrentUserData, getSupabaseClient } from '../../services/supabaseClient.service';
 import { NgClass, NgTemplateOutlet } from '@angular/common';
 //import { dbTenant } from '../../services/legacy-compat';
 import { dbTenant } from '../../services/legacy-compat';
 import { fetchMyChildren } from '../../services/supabaseClient.service';
 import { ViewChild, ElementRef } from '@angular/core';
 import { AddChildWizardComponent } from '../add-child-wizard/add-child-wizard.component';
-
-//import { SupabaseClient } from '@supabase/supabase-js';
-
-
+import { ChildTermsSignComponent } from '../child-terms-sign/child-terms-sign.component';
+import { computed, signal } from '@angular/core';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 type OccurrenceRow = {
   child_id: string;
@@ -36,7 +35,7 @@ type ChildStatus = 'Active' | 'Pending Deletion Approval' | 'Pending Addition Ap
 @Component({
   selector: 'app-parent-children',
   standalone: true,
-  imports: [CommonModule, FormsModule, NgClass, NgTemplateOutlet, AddChildWizardComponent],
+  imports: [CommonModule, FormsModule, NgClass, NgTemplateOutlet, AddChildWizardComponent, ChildTermsSignComponent],
   templateUrl: './parent-children.html',
   styleUrls: ['./parent-children.css'],
  
@@ -74,6 +73,19 @@ export class ParentChildrenComponent implements OnInit {
 
   showAddChildWizard = false;
 
+  //חתימת תקנון
+  termsStatusByChild: Record<string, { is_signed: boolean; signed_at: string | null; required_version: number | null }> = {};
+showTermsSign = false;
+termsSignChildId: string | null = null;
+termsSignChildName: string | null = null;
+
+signedOpen = signal(false);
+loadingSigned = signal(false);
+
+signedDocUrlRaw = signal<string | null>(null);
+signedDocUrlSafe = signal<SafeResourceUrl | null>(null);
+
+
   // ---- History modal state ----
 showHistory = false;
 historyLoading = false;
@@ -102,8 +114,16 @@ statusClass(st: string): string {
   ========================= */
   private infoTimer: any;
 private readonly CHILD_SELECT =
-  'child_uuid, gov_id, first_name, last_name, birth_date, gender, health_fund, instructor_id, parent_uid, status, medical_notes';
-  constructor(private router: Router) {}
+  'child_uuid, gov_id, first_name, last_name, birth_date, gender, health_fund, instructor_id, parent_uid, status, medical_notes , scheduled_deletion_at';
+ 
+  /* =========================
+     Constructor
+  ========================= */
+ constructor(
+  private router: Router,
+  private sanitizer: DomSanitizer
+) {}
+
 
   /* =========================
      Lifecycle
@@ -132,6 +152,8 @@ private readonly CHILD_SELECT =
 const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמחק)
 
     this.children = rows;
+    await this.loadTermsStatuses();
+
 
     // ברירת מחדל – מציג עד 4 פעילים ראשונים
     if (this.selectedIds.size === 0) {
@@ -836,4 +858,131 @@ private occTs(start_datetime: string): number {
   return new Date(iso).getTime();
 }
 
+async loadTermsStatuses() {
+  try {
+    const { data, error } = await dbTenant().rpc('get_my_children_terms_status');
+    if (error) throw error;
+
+    const rows = (data ?? []) as any[];
+    const map: any = {};
+    for (const r of rows) {
+      map[String(r.child_id)] = {
+        is_signed: !!r.is_signed,
+        signed_at: r.signed_at ?? null,
+        required_version: r.required_version ?? null
+      };
+    }
+    this.termsStatusByChild = map;
+  } catch (e) {
+    console.error('loadTermsStatuses failed', e);
+    // לא חוסמים UI של הילדים בגלל זה
+  }
 }
+public isDeletionScheduled = (st?: string | null): boolean =>
+  st === 'Deletion Scheduled';
+
+private parseTs(v: any): number {
+  if (!v) return NaN;
+  // Supabase לרוב מחזיר ISO עם tz, אבל נשמור על בטיחות
+  const s = String(v);
+  const hasTz = /([zZ]|[+\-]\d{2}:\d{2})$/.test(s);
+  return new Date(hasTz ? s : `${s}Z`).getTime();
+}
+
+public deletionScheduledText(child: any): string | null {
+  if (!this.isDeletionScheduled(child?.status)) return null;
+
+  const ts = this.parseTs(child?.scheduled_deletion_at);
+  if (!Number.isFinite(ts)) return 'מחיקה מתבצעת בקרוב';
+
+  const msLeft = ts - Date.now();
+  const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+
+  // אם הגיע הזמן/עבר -> עדיין סטטוס Deletion Scheduled אבל ימים 0
+  return `מחיקה מתבצעת בעוד ${daysLeft} ימים`;
+}
+
+isChildTermsSigned(childId: string): boolean {
+  return !!this.termsStatusByChild?.[childId]?.is_signed;
+}
+
+openTermsSign(child: any) {
+  const id = this.childId(child);
+  if (!id) return;
+  this.termsSignChildId = id;
+  this.termsSignChildName = `${child.first_name || ''} ${child.last_name || ''}`.trim();
+  this.showTermsSign = true;
+}
+
+onTermsSigned() {
+  // רענון סטטוסים בלבד
+  this.loadTermsStatuses();
+  this.showTermsSign = false;
+  this.termsSignChildId = null;
+  this.termsSignChildName = null;
+}
+
+closeTermsSign() {
+  this.showTermsSign = false;
+  this.termsSignChildId = null;
+  this.termsSignChildName = null;
+}
+
+async openSignedTerms(child: any) {
+  this.error = undefined;
+
+  const cid = this.childId(child); // <-- UUID אמיתי
+  if (!cid) return void (this.error = 'חסר childId');
+
+  this.loadingSigned.set(true);
+
+  try {
+    const dbc = dbTenant();
+    const client = getSupabaseClient();
+
+    const { data, error } = await dbc
+      .from('child_terms_signatures')
+      .select('signed_pdf_bucket, signed_pdf_path')
+      .eq('child_id', cid)              // ✅ נסי קודם ככה
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    console.log('Received signed terms signature data:', data, 'error:', error);
+
+    if (error) throw error;
+
+    const bucket = data?.signed_pdf_bucket ?? null;
+    const path = data?.signed_pdf_path ?? null;
+    console.log('Signed terms bucket:', bucket, 'path:', path);
+
+    if (!bucket || !path) {
+      this.signedDocUrlRaw.set(null);
+      this.signedDocUrlSafe.set(null);
+      this.signedOpen.set(true);
+      return;
+    }
+
+    const { data: pub } = client.storage.from(bucket).getPublicUrl(path);
+    let url = pub?.publicUrl ?? null;
+
+    if (url) url = `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+
+    this.signedDocUrlRaw.set(url);
+    this.signedDocUrlSafe.set(url ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null);
+    this.signedOpen.set(true);
+  } catch (e: any) {
+    console.error(e);
+    this.error = e?.message ?? 'שגיאה בפתיחת תקנון חתום';
+  } finally {
+    this.loadingSigned.set(false);
+  }
+}
+
+
+closeSignedPopup() {
+  this.signedOpen.set(false);
+}
+
+}
+

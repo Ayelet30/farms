@@ -6,9 +6,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { dbTenant } from '../../services/legacy-compat';
-import { UiRequest } from '../../Types/detailes.model';
 import { CurrentUserService } from '../../core/auth/current-user.service';
 import { TenantBootstrapService } from '../../services/tenant-bootstrap.service';
+import type { UiRequest } from '../../Types/detailes.model';
+
 
 type ParentMeta = {
   first_name?: string;

@@ -126,9 +126,27 @@ export function db(schema?: string) {
   const effectiveSchema = schema ?? requireTenant().schema;
   if (!_schemaClients[effectiveSchema]) _schemaClients[effectiveSchema] = base.schema(effectiveSchema);
   return _schemaClients[effectiveSchema];
+}let _dbTenantImpl = () => db();
+let _dbPublicImpl = () => db('public');
+
+export function dbTenant() {
+  return _dbTenantImpl();
 }
-export const dbTenant = () => db();
-export const dbPublic = () => db('public');
+
+export function dbPublic() {
+  return _dbPublicImpl();
+}
+
+// לטסטים בלבד:
+export function setDbTenantForTests(fn: () => any) {
+  _dbTenantImpl = fn;
+}
+
+export function resetDbForTests() {
+  _dbTenantImpl = () => db();
+  _dbPublicImpl = () => db('public');
+}
+
 export function clearDbCache() { _schemaClients = {}; }
 
 let _ctxLock: Promise<void> | null = null;
@@ -694,6 +712,7 @@ select = 'child_uuid, first_name, last_name, gov_id, birth_date, parent_uid, sta
     return { ok: false, data: [], error: e?.message ?? 'Unknown error' };
   }
 }
+
 export async function fetchActiveChildrenForTenant(
   select = 'child_uuid, first_name, last_name, instructor_id, status, gender, birth_date'
 ): Promise<{ ok: boolean; data: ChildRow[]; error?: string }> {
@@ -703,7 +722,7 @@ export async function fetchActiveChildrenForTenant(
     const { data, error } = await dbTenant()
       .from('children')
       .select(select)
-      .eq('status', 'Active')
+      .in('status', ['Active', 'Deletion Scheduled', 'Pending Deletion Approval'])
       .order('first_name', { ascending: true })
       .order('last_name', { ascending: true });
 

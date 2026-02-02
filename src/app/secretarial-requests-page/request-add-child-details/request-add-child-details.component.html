@@ -34,12 +34,26 @@
 
   <div class="section" *ngIf="d.terms_signed_name || d.terms_accepted_at">
     <div class="sec-title">תקנון</div>
+
     <div class="row">
       <span class="k">חתימה:</span>
       <span class="v">{{ d.terms_signed_name || '—' }}</span>
       <span class="sep">·</span>
       <span class="k">אושר:</span>
       <span class="v">{{ d.terms_accepted_at | date:'dd/MM/yyyy HH:mm' }}</span>
+    </div>
+
+    <div class="row" style="margin-top: 10px;">
+      <button type="button"
+              class="btn view-signed"
+              (click)="openSignedTerms()"
+              [disabled]="loadingSigned()">
+        {{ loadingSigned() ? 'פותח…' : 'תקנון חתום ✅' }}
+      </button>
+
+      <span class="muted" *ngIf="!d.signed_pdf_bucket || !d.signed_pdf_path">
+        (עדיין אין PDF חתום שמור)
+      </span>
     </div>
   </div>
 
@@ -69,3 +83,34 @@
 <ng-template #loadingTpl>
   <div class="loading">טוען פרטים...</div>
 </ng-template>
+
+<!-- ✅ Popup תקנון חתום -->
+<div class="popup-backdrop" *ngIf="signedOpen()" (click)="closeSignedPopup()">
+  <div class="popup" (click)="$event.stopPropagation()">
+    <div class="popup-head">
+      <div class="popup-title">תקנון חתום</div>
+
+      <div class="popup-actions">
+        <a *ngIf="signedDocUrlRaw()"
+           class="btn-link"
+           [href]="signedDocUrlRaw()!"
+           target="_blank"
+           rel="noopener">
+          פתיחה בלשונית חדשה
+        </a>
+
+        <button type="button" class="btn" (click)="closeSignedPopup()">סגור</button>
+      </div>
+    </div>
+
+    <div class="popup-body" *ngIf="signedDocUrlSafe(); else noSigned">
+      <iframe class="pdf-frame" [src]="signedDocUrlSafe()"></iframe>
+    </div>
+
+    <ng-template #noSigned>
+      <div class="empty">
+        עדיין אין תקנון חתום לילד הזה.
+      </div>
+    </ng-template>
+  </div>
+</div>

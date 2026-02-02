@@ -23,17 +23,23 @@
             <h2>שעות פעילות לפי יום</h2>
           </button>
 
+          <div class="fields-grid three-cols">
+            <label class="field">
+              <span class="field-label">אזור זמן</span>
+              <label type="text" [(ngModel)]="s.timezone" name="timezone">Asia/Jerusalem</label>
+            </label>
+          </div>
+
           <div class="inline-actions">
             <button type="button" class="primary-btn" (click)="saveWorkingHours()"
-              [disabled]="saving() || loading() || !!workingHoursError()">
+              [disabled]="saving() || loading() || !!workingHoursError() || !canSaveWorkingHours()">
               שמירת שעות לפי יום
             </button>
           </div>
         </div>
 
         <small class="field-hint">
-          כאן מגדירים בפועל שעות פעילות חווה/משרד לכל יום. "משרד" אופציונלי, אבל אם מגדירים – חייב להיות בתוך טווח
-          "חווה".
+          כאן מגדירים בפועל שעות פעילות חווה/משרד לכל יום.
         </small>
 
         <div class="inline-error" *ngIf="workingHoursError()">
@@ -46,33 +52,47 @@
               <span class="col-main">יום</span>
               <span class="col-secondary">פתוח</span>
               <span class="col-secondary">חווה</span>
+              <span class="col-secondary">משרד פתוח</span>
               <span class="col-secondary">משרד</span>
             </div>
 
+            <!-- ✅ trackBy -->
             <div class="list-row" *ngFor="let r of workingHours(); trackBy: trackByDay">
+              <!-- יום -->
               <div class="col-main">
                 {{ getHebDayLabel(r.day_of_week) }}
               </div>
 
+              <!-- פתוח (חווה) -->
               <div class="col-secondary mini-toggle">
-                <input type="checkbox" [(ngModel)]="r.is_open" name="wh_open_{{r.day_of_week}}"
-                  (ngModelChange)="onWorkingHoursChanged()" />
+                <input type="checkbox" class="wh-check" [(ngModel)]="r.is_open" name="whOpen{{ r.day_of_week }}"
+                  (ngModelChange)="onFarmOpenToggle(r); onWorkingHoursChanged()" />
               </div>
 
-              <div class="col-secondary range">
-                <input type="time" [(ngModel)]="r.farm_start" name="wh_farm_start_{{r.day_of_week}}"
-                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursChanged()" />
+              <!-- שעות חווה -->
+              <div class="col-secondary">
+                <input type="time" class="wh-time" [(ngModel)]="r.farm_start" name="whFarmStart{{ r.day_of_week }}"
+                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursTimeChanged()" />
                 <span class="sep">–</span>
-                <input type="time" [(ngModel)]="r.farm_end" name="wh_farm_end_{{r.day_of_week}}" [disabled]="!r.is_open"
-                  (ngModelChange)="onWorkingHoursChanged()" />
+                <input type="time" class="wh-time" [(ngModel)]="r.farm_end" name="whFarmEnd{{ r.day_of_week }}"
+                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursTimeChanged()" />
+
+              </div>
+              <!-- משרד פתוח -->
+              <div class="col-secondary mini-toggle">
+                <input type="checkbox" class="wh-check" [(ngModel)]="r.is_offical_open"
+                  name="whOfficeOpen{{ r.day_of_week }}"
+                  (ngModelChange)="onOfficeOpenToggle(r); onWorkingHoursChanged()" />
               </div>
 
-              <div class="col-secondary range">
-                <input type="time" [(ngModel)]="r.office_start" name="wh_office_start_{{r.day_of_week}}"
-                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursChanged()" />
+              <!-- שעות משרד (לא תלוי ב־is_open של החווה) -->
+              <div class="col-secondary">
+                <input type="time" class="wh-time" [(ngModel)]="r.office_start" name="whOfficeStart{{ r.day_of_week }}"
+                  [disabled]="!r.is_offical_open" (ngModelChange)="onWorkingHoursTimeChanged()" />
                 <span class="sep">–</span>
-                <input type="time" [(ngModel)]="r.office_end" name="wh_office_end_{{r.day_of_week}}"
-                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursChanged()" />
+                <input type="time" class="wh-time" [(ngModel)]="r.office_end" name="whOfficeEnd{{ r.day_of_week }}"
+                  [disabled]="!r.is_offical_open" (ngModelChange)="onWorkingHoursTimeChanged()" />
+
               </div>
             </div>
           </div>
@@ -85,26 +105,6 @@
           </ng-template>
         </div>
       </section>
-
-      <!-- לוח שנה ושעות -->
-      <section class="settings-section">
-        <h2>לוח שנה ושעות</h2>
-
-        <div class="fields-grid three-cols">
-          <label class="field">
-            <span class="field-label">גרנולריות זמן (דקות)</span>
-            <input type="number" min="5" step="5" [(ngModel)]="s.time_slot_minutes" name="time_slot_minutes" />
-            <small class="field-hint">לדוגמה 15 כדי ליישר שעות בלו״ז ובוולידציות.</small>
-          </label>
-
-          <label class="field">
-            <span class="field-label">אזור זמן</span>
-            <input type="text" [(ngModel)]="s.timezone" name="timezone" placeholder="Asia/Jerusalem" />
-            <small class="field-hint">חשוב ל-cron / Cloud Functions.</small>
-          </label>
-        </div>
-      </section>
-
       <!-- ימים מיוחדים -->
       <section class="settings-section">
         <div class="subsection-header">
@@ -173,7 +173,6 @@
               [disabled]="isUnlimitedDefaultLessonsPerSeries()"
               [placeholder]="isUnlimitedDefaultLessonsPerSeries() ? 'ללא הגבלה' : ''" />
           </div>
-
 
           <label class="field">
             <span class="field-label">אורך שיעור (דקות)</span>
@@ -440,131 +439,42 @@
     </form>
 
     <!-- =================== מסלולי תשלום =================== -->
-    <section class="settings-section">
-      <div class="subsection-header">
-        <h2>מסלולי תשלום</h2>
+    <div class="settings-form">
+      <section class="settings-section">
+        <div class="subsection-header accordion section-acc">
+          <button type="button" class="accordion-toggle" (click)="togglePaymentPlansExpanded()"
+            [attr.aria-expanded]="paymentPlansExpanded()">
+            <span class="chev" [class.open]="paymentPlansExpanded()">▾</span>
+            <span class="accordion-title">מסלולי תשלום</span>
+          </button>
 
-        <button type="button" class="icon-btn" (click)="toggleNewPlanForm()">
-          <span class="plus-icon">+</span>
-          <span>הוספת מסלול חדש</span>
-        </button>
-      </div>
-
-      <div class="inline-panel" *ngIf="showNewPlanForm()">
-        <div class="fields-grid three-cols">
-          <div class="field">
-            <label class="field-label">שם המסלול</label>
-            <input type="text" name="newPlanName" [(ngModel)]="newPlan.name" />
-          </div>
-
-          <div class="field">
-            <label class="field-label">מחיר לשיעור (₪)</label>
-            <input type="number" name="newPlanLessonPrice" [(ngModel)]="newPlan.lesson_price" />
-          </div>
-
-          <div class="field">
-            <label class="field-label">סבסוד (₪)</label>
-            <input type="number" name="newPlanSubsidy" [(ngModel)]="newPlan.subsidy_amount" />
-          </div>
-
-          <div class="field">
-            <label class="field-label">גורם מימון</label>
-            <select name="newPlanFunding" [(ngModel)]="newPlan.funding_source_id">
-              <option [ngValue]="null">ללא</option>
-              <option *ngFor="let fs of fundingSources()" [ngValue]="fs.id" [disabled]="!fs.is_active">
-                {{ fs.name }}<ng-container *ngIf="!fs.is_active"> (לא פעיל)</ng-container>
-              </option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label class="field-label">דרישת מסמכים</label>
-            <textarea rows="3" name="newPlanDocs" [ngModel]="getDocsText(newPlan)"
-              (ngModelChange)="onNewPlanDocsChange($event)"></textarea>
-            <small class="field-hint">כל שורה = סוג קובץ</small>
-          </div>
-
-          <div class="field toggle">
-            <span class="field-label">חובה מסמכים בזמן קביעת סדרה</span>
-            <input type="checkbox" name="newPlanRequireDocs" [(ngModel)]="newPlan.require_docs_at_booking" />
-          </div>
+          <button type="button" class="icon-btn" (click)="toggleNewPlanForm()" [disabled]="!paymentPlansExpanded()">
+            <span class="plus-icon">+</span>
+            <span>הוספת מסלול חדש</span>
+          </button>
         </div>
 
-        <div class="panel-actions">
-          <button type="button" class="primary-btn" (click)="addPaymentPlan()">שמירת מסלול חדש</button>
-          <button type="button" class="ghost-btn" (click)="toggleNewPlanForm()">ביטול</button>
-        </div>
-      </div>
-
-      <div class="list-block" *ngIf="paymentPlans().length; else noPlans">
-        <div class="list-header-row">
-          <span class="col-main">מסלול</span>
-          <span class="col-secondary">מחירים</span>
-          <span class="col-secondary">גורם מימון</span>
-          <span class="col-secondary">מסמכים</span>
-          <span class="col-actions">פעולות</span>
-        </div>
-
-        <div class="list-row" *ngFor="let p of paymentPlans()" [class.inactive]="p.is_active === false">
-          <div class="col-main">
-            <div class="list-title">{{ p.name }}</div>
-            <div class="list-sub" *ngIf="p.is_active === false">
-              <span class="status-tag danger">לא פעיל</span>
-            </div>
-          </div>
-
-          <div class="col-secondary">
-            <span class="meta-chip">מחיר שיעור: {{ (p.lesson_price || 0) | number:'1.0-0' }} ₪</span>
-            <span class="meta-chip" *ngIf="(p.subsidy_amount || 0) > 0">
-              סבסוד: {{ p.subsidy_amount | number:'1.0-0' }} ₪
-            </span>
-            <span class="meta-chip highlight">
-              לקוח משלם: {{ getCustomerAmount(p) | number:'1.0-0' }} ₪
-            </span>
-          </div>
-
-          <div class="col-secondary">
-            <span class="meta-chip">{{ getFundingName(p.funding_source_id || null) }}</span>
-          </div>
-
-          <div class="col-secondary">
-            <span class="meta-chip" *ngIf="p.required_docs?.length; else noDocs">
-              {{ p.required_docs.length }} סוגי מסמכים
-            </span>
-            <ng-template #noDocs>
-              <span class="meta-chip muted">אין מסמכים נדרשים</span>
-            </ng-template>
-          </div>
-
-          <div class="col-actions">
-            <button type="button" class="text-btn" (click)="startEditPlan(p)">עריכה</button>
-            <button type="button" class="text-btn danger" (click)="deletePaymentPlan(p)">מחיקה</button>
-          </div>
-        </div>
-
-        <ng-container *ngFor="let p of paymentPlans()">
-          <div class="inline-panel" *ngIf="editingPlanId() === p.id">
-            <div class="panel-title">עריכת מסלול – {{ p.name }}</div>
-
+        <ng-container *ngIf="paymentPlansExpanded()">
+          <div class="inline-panel" *ngIf="showNewPlanForm()">
             <div class="fields-grid three-cols">
               <div class="field">
                 <label class="field-label">שם המסלול</label>
-                <input type="text" name="editPlanName_{{p.id}}" [(ngModel)]="p.name" />
+                <input type="text" name="newPlanName" [(ngModel)]="newPlan.name" />
               </div>
 
               <div class="field">
-                <label class="field-label">מחיר נוכחי לשיעור (₪)</label>
-                <input type="number" name="editPlanLessonPrice_{{p.id}}" [(ngModel)]="p.lesson_price" />
+                <label class="field-label">מחיר לשיעור (₪)</label>
+                <input type="number" name="newPlanLessonPrice" [(ngModel)]="newPlan.lesson_price" />
               </div>
 
               <div class="field">
-                <label class="field-label">סבסוד נוכחי (₪)</label>
-                <input type="number" name="editPlanSubsidy_{{p.id}}" [(ngModel)]="p.subsidy_amount" />
+                <label class="field-label">סבסוד (₪)</label>
+                <input type="number" name="newPlanSubsidy" [(ngModel)]="newPlan.subsidy_amount" />
               </div>
 
               <div class="field">
                 <label class="field-label">גורם מימון</label>
-                <select name="editPlanFunding_{{p.id}}" [(ngModel)]="p.funding_source_id">
+                <select name="newPlanFunding" [(ngModel)]="newPlan.funding_source_id">
                   <option [ngValue]="null">ללא</option>
                   <option *ngFor="let fs of fundingSources()" [ngValue]="fs.id" [disabled]="!fs.is_active">
                     {{ fs.name }}<ng-container *ngIf="!fs.is_active"> (לא פעיל)</ng-container>
@@ -573,171 +483,360 @@
               </div>
 
               <div class="field">
-                <label class="field-label">מסמכים נדרשים</label>
-                <textarea rows="3" name="editPlanDocs_{{p.id}}" [ngModel]="getDocsText(p)"
-                  (ngModelChange)="onDocsTextChange(p, $event)"></textarea>
-                <small class="field-hint">כל שורה = סוג קובץ נדרש</small>
+                <label class="field-label">דרישת מסמכים</label>
+                <textarea rows="3" name="newPlanDocs" [ngModel]="getDocsText(newPlan)"
+                  (ngModelChange)="onNewPlanDocsChange($event)"></textarea>
+                <small class="field-hint">כל שורה = סוג קובץ</small>
               </div>
 
               <div class="field toggle">
                 <span class="field-label">חובה מסמכים בזמן קביעת סדרה</span>
-                <input type="checkbox" name="editPlanRequireDocs_{{p.id}}" [(ngModel)]="p.require_docs_at_booking" />
-              </div>
-
-              <div class="field toggle">
-                <span class="field-label">מסלול פעיל</span>
-                <input type="checkbox" name="editPlanIsActive_{{p.id}}" [(ngModel)]="p.is_active" />
-              </div>
-            </div>
-
-            <div class="fields-grid three-cols">
-              <div class="field">
-                <label class="field-label">תאריך תחולה לשינוי מחיר</label>
-                <input type="date" name="planVersionDate_{{p.id}}" [(ngModel)]="p.newVersionDate" />
-                <small class="field-hint">השינוי יחול על שיעורים מתאריך זה והלאה.</small>
-              </div>
-
-              <div class="field">
-                <label class="field-label">מחיר חדש לשיעור (₪)</label>
-                <input type="number" name="planVersionPrice_{{p.id}}" [(ngModel)]="p.newVersionPrice" />
-              </div>
-
-              <div class="field">
-                <label class="field-label">סבסוד חדש (₪)</label>
-                <input type="number" name="planVersionSubsidy_{{p.id}}" [(ngModel)]="p.newVersionSubsidy" />
-              </div>
-            </div>
-
-            <div class="history-block" *ngIf="p.versions?.length">
-              <div class="history-title">היסטוריית מחירים</div>
-
-              <div class="history-row" *ngFor="let v of p.versions">
-                <span class="history-date">מ־{{ v.valid_from | date:'dd/MM/yyyy' }}:</span>
-                <span class="history-chip">מחיר: {{ v.lesson_price | number:'1.0-0' }} ₪</span>
-                <span class="history-chip" *ngIf="(v.subsidy_amount || 0) > 0">
-                  סבסוד: {{ v.subsidy_amount | number:'1.0-0' }} ₪
-                </span>
-                <span class="history-chip highlight">
-                  לקוח משלם: {{ v.customer_amount | number:'1.0-0' }} ₪
-                </span>
+                <input type="checkbox" name="newPlanRequireDocs" [(ngModel)]="newPlan.require_docs_at_booking" />
               </div>
             </div>
 
             <div class="panel-actions">
-              <button type="button" class="primary-btn" (click)="savePlanPriceVersion(p)">
-                שמירת שינוי מחיר עם היסטוריה
-              </button>
-              <button type="button" class="ghost-btn" (click)="updatePaymentPlan(p)">
-                שמירת שינויים כלליים במסלול
-              </button>
-              <button type="button" class="ghost-btn" (click)="cancelEditPlan()">
-                ביטול
-              </button>
+              <button type="button" class="primary-btn" (click)="addPaymentPlan()">שמירת מסלול חדש</button>
+              <button type="button" class="ghost-btn" (click)="toggleNewPlanForm()">ביטול</button>
             </div>
           </div>
+
+          <div class="list-block" *ngIf="paymentPlans().length; else noPlans">
+            <div class="list-header-row">
+              <span class="col-main">מסלול</span>
+              <span class="col-secondary">מחירים</span>
+              <span class="col-secondary">לקוח משלם</span>
+              <span class="col-secondary">גורם מימון</span>
+              <span class="col-secondary">מסמכים</span>
+              <span class="col-actions">פעולות</span>
+            </div>
+
+            <div class="list-row" *ngFor="let p of paymentPlans()" [class.inactive]="p.is_active === false">
+              <div class="col-main">
+                <div class="list-title">{{ p.name }}</div>
+                <div class="list-sub" *ngIf="p.is_active === false">
+                  <span class="status-tag danger">לא פעיל</span>
+                </div>
+              </div>
+
+              <div class="col-secondary prices-col">
+                <div class="price-grid">
+                  <span class="meta-chip">
+                    מחיר שיעור: {{ (p.lesson_price || 0) | number:'1.0-0' }} ₪
+                  </span>
+
+                  <span class="meta-chip" *ngIf="(p.subsidy_amount || 0) > 0; else noSubsidy">
+                    סבסוד: {{ p.subsidy_amount | number:'1.0-0' }} ₪
+                  </span>
+                  <ng-template #noSubsidy>
+                    <span class="meta-chip muted">סבסוד: 0 ₪</span>
+                  </ng-template>
+                </div>
+                <div class="col-secondary funding-col">
+                  <span class="meta-chip highlight">
+                    לקוח משלם: {{ getCustomerAmount(p) | number:'1.0-0' }} ₪
+                  </span>
+                </div>
+              </div>
+
+              <div class="col-secondary funding-col">
+                <span class="meta-chip">{{ getFundingName(p.funding_source_id || null) }}</span>
+              </div>
+
+              <div class="col-secondary">
+                <span class="meta-chip" *ngIf="p.required_docs?.length; else noDocs">
+                  {{ p.required_docs.length }} סוגי מסמכים
+                </span>
+                <ng-template #noDocs>
+                  <span class="meta-chip muted">אין מסמכים נדרשים</span>
+                </ng-template>
+              </div>
+
+              <div class="col-actions">
+                <button type="button" class="text-btn" (click)="startEditPlan(p)">עריכה</button>
+                <button type="button" class="text-btn danger" (click)="deletePaymentPlan(p)">מחיקה</button>
+              </div>
+            </div>
+
+            <ng-container *ngFor="let p of paymentPlans()">
+              <div class="inline-panel" *ngIf="editingPlanId() === p.id">
+                <div class="panel-title">עריכת מסלול – {{ p.name }}</div>
+
+                <div class="fields-grid three-cols">
+                  <div class="field">
+                    <label class="field-label">שם המסלול</label>
+                    <input type="text" name="editPlanName_{{p.id}}" [(ngModel)]="p.name" />
+                  </div>
+
+                  <div class="field">
+                    <label class="field-label">מחיר נוכחי לשיעור (₪)</label>
+                    <input type="number" name="editPlanLessonPrice_{{p.id}}" [(ngModel)]="p.lesson_price" />
+                  </div>
+
+                  <div class="field">
+                    <label class="field-label">סבסוד נוכחי (₪)</label>
+                    <input type="number" name="editPlanSubsidy_{{p.id}}" [(ngModel)]="p.subsidy_amount" />
+                  </div>
+
+                  <div class="field">
+                    <label class="field-label">גורם מימון</label>
+                    <select name="editPlanFunding_{{p.id}}" [(ngModel)]="p.funding_source_id">
+                      <option [ngValue]="null">ללא</option>
+                      <option *ngFor="let fs of fundingSources()" [ngValue]="fs.id" [disabled]="!fs.is_active">
+                        {{ fs.name }}<ng-container *ngIf="!fs.is_active"> (לא פעיל)</ng-container>
+                      </option>
+                    </select>
+                  </div>
+
+                  <div class="field">
+                    <label class="field-label">מסמכים נדרשים</label>
+                    <textarea rows="3" name="editPlanDocs_{{p.id}}" [ngModel]="getDocsText(p)"
+                      (ngModelChange)="onDocsTextChange(p, $event)"></textarea>
+                    <small class="field-hint">כל שורה = סוג קובץ נדרש</small>
+                  </div>
+
+                  <div class="field toggle">
+                    <span class="field-label">חובה מסמכים בזמן קביעת סדרה</span>
+                    <input type="checkbox" name="editPlanRequireDocs_{{p.id}}"
+                      [(ngModel)]="p.require_docs_at_booking" />
+                  </div>
+
+                  <div class="field toggle">
+                    <span class="field-label">מסלול פעיל</span>
+                    <input type="checkbox" name="editPlanIsActive_{{p.id}}" [(ngModel)]="p.is_active" />
+                  </div>
+                </div>
+
+                <div class="fields-grid three-cols">
+                  <div class="field">
+                    <label class="field-label">תאריך תחולה לשינוי מחיר</label>
+                    <input type="date" name="planVersionDate_{{p.id}}" [(ngModel)]="p.newVersionDate" />
+                    <small class="field-hint">השינוי יחול על שיעורים מתאריך זה והלאה.</small>
+                  </div>
+
+                  <div class="field">
+                    <label class="field-label">מחיר חדש לשיעור (₪)</label>
+                    <input type="number" name="planVersionPrice_{{p.id}}" [(ngModel)]="p.newVersionPrice" />
+                  </div>
+
+                  <div class="field">
+                    <label class="field-label">סבסוד חדש (₪)</label>
+                    <input type="number" name="planVersionSubsidy_{{p.id}}" [(ngModel)]="p.newVersionSubsidy" />
+                  </div>
+                </div>
+
+                <div class="history-block" *ngIf="p.versions?.length">
+                  <div class="history-title">היסטוריית מחירים</div>
+
+                  <div class="history-row" *ngFor="let v of p.versions">
+                    <span class="history-date">מ־{{ v.valid_from | date:'dd/MM/yyyy' }}:</span>
+                    <span class="history-chip">מחיר: {{ v.lesson_price | number:'1.0-0' }} ₪</span>
+                    <span class="history-chip" *ngIf="(v.subsidy_amount || 0) > 0">
+                      סבסוד: {{ v.subsidy_amount | number:'1.0-0' }} ₪
+                    </span>
+                    <span class="history-chip highlight">
+                      לקוח משלם: {{ v.customer_amount | number:'1.0-0' }} ₪
+                    </span>
+                  </div>
+                </div>
+
+                <div class="panel-actions">
+                  <button type="button" class="primary-btn" (click)="savePlanPriceVersion(p)">
+                    שמירת שינוי מחיר עם היסטוריה
+                  </button>
+                  <button type="button" class="ghost-btn" (click)="updatePaymentPlan(p)">
+                    שמירת שינויים כלליים במסלול
+                  </button>
+                  <button type="button" class="ghost-btn" (click)="cancelEditPlan()">
+                    ביטול
+                  </button>
+                </div>
+              </div>
+            </ng-container>
+          </div>
+
+          <ng-template #noPlans>
+            <div class="empty-state">
+              עדיין אין מסלולי תשלום מוגדרים.
+              <button type="button" class="text-btn" (click)="toggleNewPlanForm()">הוספת מסלול ראשון</button>
+            </div>
+          </ng-template>
         </ng-container>
-      </div>
+      </section>
 
-      <ng-template #noPlans>
-        <div class="empty-state">
-          עדיין אין מסלולי תשלום מוגדרים.
-          <button type="button" class="text-btn" (click)="toggleNewPlanForm()">הוספת מסלול ראשון</button>
-        </div>
-      </ng-template>
-    </section>
+      <!-- =================== גורמי מימון =================== -->
+      <section class="settings-section">
+        <div class="subsection-header accordion section-acc">
+          <button type="button" class="accordion-toggle" (click)="toggleFundingSourcesExpanded()"
+            [attr.aria-expanded]="fundingSourcesExpanded()">
+            <span class="chev" [class.open]="fundingSourcesExpanded()">▾</span>
+            <span class="accordion-title">גורמי מימון</span>
+          </button>
 
-    <!-- =================== גורמי מימון =================== -->
-    <section class="settings-section">
-      <div class="subsection-header">
-        <h2>גורמי מימון</h2>
-
-        <button type="button" class="icon-btn" (click)="toggleNewFundingForm()">
-          <span class="plus-icon">+</span>
-          <span>הוספת גורם מימון</span>
-        </button>
-      </div>
-
-      <div class="inline-panel" *ngIf="showNewFundingForm()">
-        <div class="fields-grid two-cols">
-          <div class="field">
-            <label class="field-label">שם גורם המימון</label>
-            <input type="text" name="newFundingName" [ngModel]="newFundingSourceName()"
-              (ngModelChange)="newFundingSourceName.set($event)" />
-          </div>
+          <button type="button" class="icon-btn" (click)="toggleNewFundingForm()"
+            [disabled]="!fundingSourcesExpanded()">
+            <span class="plus-icon">+</span>
+            <span>הוספת גורם מימון</span>
+          </button>
         </div>
 
-        <div class="panel-actions">
-          <button type="button" class="primary-btn" (click)="addFundingSource()">שמירת גורם מימון</button>
-          <button type="button" class="ghost-btn" (click)="toggleNewFundingForm()">ביטול</button>
-        </div>
-      </div>
-
-      <div class="list-block" *ngIf="fundingSources().length; else noFunding">
-        <div class="list-header-row">
-          <span class="col-main">שם גורם מימון</span>
-          <span class="col-secondary">סוג</span>
-          <span class="col-secondary">סטטוס</span>
-          <span class="col-actions">פעולות</span>
-        </div>
-
-        <div class="list-row" *ngFor="let fs of fundingSources()" [class.inactive]="!fs.is_active">
-          <div class="col-main">
-            <div class="list-title">{{ fs.name }}</div>
-          </div>
-
-          <div class="col-secondary">
-            <span class="status-tag" [class.info]="fs.is_system" [class.neutral]="!fs.is_system">
-              {{ fs.is_system ? 'גורם מערכת' : 'מותאם לחווה' }}
-            </span>
-          </div>
-
-          <div class="col-secondary">
-            <span class="status-tag" [class.success]="fs.is_active" [class.danger]="!fs.is_active">
-              {{ fs.is_active ? 'פעיל' : 'לא פעיל' }}
-            </span>
-          </div>
-
-          <div class="col-actions" *ngIf="!fs.is_system">
-            <button type="button" class="text-btn" (click)="startEditFunding(fs)">עריכה</button>
-            <button type="button" class="text-btn danger" (click)="deleteFundingSource(fs)">מחיקה</button>
-          </div>
-
-          <div class="col-actions" *ngIf="fs.is_system">
-            <span class="meta-chip muted">לא ניתן לעריכה</span>
-          </div>
-        </div>
-
-        <ng-container *ngFor="let fs of fundingSources()">
-          <div class="inline-panel" *ngIf="editingFundingId() === fs.id">
-            <div class="panel-title">עריכת גורם מימון – {{ fs.name }}</div>
-
+        <ng-container *ngIf="fundingSourcesExpanded()">
+          <div class="inline-panel" *ngIf="showNewFundingForm()">
             <div class="fields-grid two-cols">
               <div class="field">
-                <label class="field-label">שם גורם מימון</label>
-                <input type="text" name="editFundingName_{{fs.id}}" [(ngModel)]="fs.name" />
-              </div>
-
-              <div class="field toggle">
-                <span class="field-label">פעיל</span>
-                <input type="checkbox" name="editFundingIsActive_{{fs.id}}" [(ngModel)]="fs.is_active" />
+                <label class="field-label">שם גורם המימון</label>
+                <input type="text" name="newFundingName" [ngModel]="newFundingSourceName()"
+                  (ngModelChange)="newFundingSourceName.set($event)" />
               </div>
             </div>
 
             <div class="panel-actions">
-              <button type="button" class="primary-btn" (click)="updateFundingSource(fs)">שמירת שינויים</button>
-              <button type="button" class="ghost-btn" (click)="cancelEditFunding()">ביטול</button>
+              <button type="button" class="primary-btn" (click)="addFundingSource()">שמירת גורם מימון</button>
+              <button type="button" class="ghost-btn" (click)="toggleNewFundingForm()">ביטול</button>
             </div>
           </div>
-        </ng-container>
-      </div>
 
-      <ng-template #noFunding>
-        <div class="empty-state">
-          עדיין לא הוגדרו גורמי מימון.
-          <button type="button" class="text-btn" (click)="toggleNewFundingForm()">הוספת גורם ראשון</button>
+          <div class="list-block" *ngIf="fundingSources().length; else noFunding">
+            <div class="list-header-row">
+              <span class="col-main">שם גורם מימון</span>
+              <span class="col-secondary">סוג</span>
+              <span class="col-secondary">סטטוס</span>
+              <span class="col-actions">פעולות</span>
+            </div>
+
+            <div class="list-row" *ngFor="let fs of fundingSources()" [class.inactive]="!fs.is_active">
+              <div class="col-main">
+                <div class="list-title">{{ fs.name }}</div>
+              </div>
+
+              <div class="col-secondary">
+                <span class="status-tag" [class.info]="fs.is_system" [class.neutral]="!fs.is_system">
+                  {{ fs.is_system ? 'גורם מערכת' : 'מותאם לחווה' }}
+                </span>
+              </div>
+
+              <div class="col-secondary">
+                <span class="status-tag" [class.success]="fs.is_active" [class.danger]="!fs.is_active">
+                  {{ fs.is_active ? 'פעיל' : 'לא פעיל' }}
+                </span>
+              </div>
+
+              <div class="col-actions" *ngIf="!fs.is_system">
+                <button type="button" class="text-btn" (click)="startEditFunding(fs)">עריכה</button>
+                <button type="button" class="text-btn danger" (click)="deleteFundingSource(fs)">מחיקה</button>
+              </div>
+
+              <div class="col-actions" *ngIf="fs.is_system">
+                <span class="meta-chip muted">לא ניתן לעריכה</span>
+              </div>
+            </div>
+
+            <ng-container *ngFor="let fs of fundingSources()">
+              <div class="inline-panel" *ngIf="editingFundingId() === fs.id">
+                <div class="panel-title">עריכת גורם מימון – {{ fs.name }}</div>
+
+                <div class="fields-grid two-cols">
+                  <div class="field">
+                    <label class="field-label">שם גורם מימון</label>
+                    <input type="text" name="editFundingName_{{fs.id}}" [(ngModel)]="fs.name" />
+                  </div>
+
+                  <div class="field toggle">
+                    <span class="field-label">פעיל</span>
+                    <input type="checkbox" name="editFundingIsActive_{{fs.id}}" [(ngModel)]="fs.is_active" />
+                  </div>
+                </div>
+
+                <div class="panel-actions">
+                  <button type="button" class="primary-btn" (click)="updateFundingSource(fs)">שמירת שינויים</button>
+                  <button type="button" class="ghost-btn" (click)="cancelEditFunding()">ביטול</button>
+                </div>
+              </div>
+            </ng-container>
+          </div>
+
+          <ng-template #noFunding>
+            <div class="empty-state">
+              עדיין לא הוגדרו גורמי מימון.
+              <button type="button" class="text-btn" (click)="toggleNewFundingForm()">הוספת גורם ראשון</button>
+            </div>
+          </ng-template>
+        </ng-container>
+      </section>
+      <!-- הערות מובנות -->
+      <section class="settings-section">
+        <div class="subsection-header accordion">
+          <button type="button" class="accordion-toggle" (click)="toggleListNotesExpanded()"
+            [attr.aria-expanded]="listNotesExpanded()">
+            <span class="chev" [class.open]="listNotesExpanded()">❯</span>
+            <span class="accordion-title">הערות מובנות</span>
+          </button>
+
+          <button type="button" class="icon-btn" (click)="toggleNewListNoteForm()" [disabled]="!listNotesExpanded()">
+            <span class="plus-icon">+</span>
+            <span>הוספת הודעה</span>
+          </button>
         </div>
-      </ng-template>
-    </section>
+
+        <ng-container *ngIf="listNotesExpanded()">
+          <!-- טופס הוספה -->
+          <div class="inline-panel" *ngIf="showNewListNoteForm()">
+            <div class="panel-title">הוספת הודעה חדשה</div>
+
+            <label class="field">
+              <span class="field-label">תוכן ההודעה</span>
+              <input type="text" [ngModel]="newListNoteText()" (ngModelChange)="newListNoteText.set($event)"
+                name="new_list_note" placeholder="לדוגמה: התקדמת יפה" maxlength="250" />
+              <small class="field-hint">עד 250 תווים</small>
+            </label>
+
+            <div class="panel-actions">
+              <button type="button" class="primary-btn" (click)="addListNote()">שמירה</button>
+              <button type="button" class="ghost-btn" (click)="toggleNewListNoteForm()">ביטול</button>
+            </div>
+          </div>
+
+          <!-- רשימה -->
+          <div class="list-block" *ngIf="listNotes().length; else noListNotes">
+            <div class="list-header-row notes-header">
+              <span class="col-main">הודעה</span>
+            </div>
+
+            <div class="list-row notes-row" *ngFor="let n of listNotes()">
+              <ng-container *ngIf="editingListNoteId() !== n.id; else editNoteRow">
+                <div class="col-main">
+                  <div class="list-title">{{ n.note }}</div>
+                </div>
+
+                <div class="col-actions">
+                  <button type="button" class="text-btn" (click)="startEditListNote(n)">עריכה</button>
+                  <button type="button" class="text-btn danger" (click)="deleteListNote(n)">מחיקה</button>
+                </div>
+              </ng-container>
+
+              <ng-template #editNoteRow>
+                <div class="col-main">
+                  <input class="note-edit-input" type="text" [(ngModel)]="n.note" name="edit_note_{{n.id}}"
+                    maxlength="250" />
+                </div>
+
+                <div class="col-actions">
+                  <button type="button" class="text-btn" (click)="updateListNote(n)">שמירה</button>
+                  <button type="button" class="text-btn" (click)="cancelEditListNote()">ביטול</button>
+                </div>
+              </ng-template>
+            </div>
+          </div>
+
+          <ng-template #noListNotes>
+            <div class="empty-state">
+              עדיין אין הודעות מובנות.
+              <button type="button" class="text-btn" (click)="toggleNewListNoteForm()">הוספת הודעה ראשונה</button>
+            </div>
+          </ng-template>
+        </ng-container>
+      </section>
+    </div>
 
     <!-- =================== מודאל ימים מיוחדים (לועזי בלבד) =================== -->
     <div class="modal-backdrop" *ngIf="showSpecialDaysModal()" (click)="closeSpecialDaysModal()">
@@ -765,12 +864,12 @@
             </select>
           </label>
         </div>
+
         <label class="field toggle">
           <span class="field-label">כל היום</span>
           <input type="checkbox" [ngModel]="specialDayForm().all_day"
             (ngModelChange)="patchSpecialDayForm({ all_day: $event })" />
         </label>
-
 
         <div class="fields-grid two-cols" *ngIf="specialDayForm().calendar_kind !== 'HEBREW'">
           <label class="field">
@@ -826,7 +925,6 @@
           </label>
         </div>
 
-
         <div class="inline-error" *ngIf="dateRangeError()">{{ dateRangeError() }}</div>
 
         <div class="inline-panel inline-panel-open" *ngIf="!specialDayForm().all_day">
@@ -867,6 +965,7 @@
               [disabled]="!specialDayForm().notify_parents_before" />
           </label>
         </div>
+
 
         <div class="panel-actions">
           <button type="button" class="primary-btn" (click)="saveSpecialDay()" [disabled]="saving()">

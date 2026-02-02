@@ -1,16 +1,41 @@
-
 <div class="header">
   <app-header></app-header>
+
+  <!-- כפתור המבורגר במובייל -->
+  <button
+    type="button"
+    class="hamburger"
+    aria-label="פתח תפריט"
+    (click)="menuCollapsed = false">
+    ☰
+  </button>
 </div>
 
-<div class="body-layout" [class.menu-collapsed]="menuCollapsed">
-  <div class="slider">
-    <app-slider (collapsedChange)="onCollapsedChange($event)"></app-slider>
-  </div>
+<!-- פס “חם” בימין לדסקטופ – פותח תפריט צף בהובר -->
+<div class="edge-hotzone"
+     (mouseenter)="openFromHover()"
+     (mouseleave)="closeFromHover()">
+</div>
 
-  <div class="main-content">
+<div class="body-layout"
+     [class.menu-collapsed]="menuCollapsed"
+     [class.drawer-open]="!menuCollapsed"
+     (touchstart)="onTouchStart($event)"
+     (touchmove)="onTouchMove($event)"
+     (touchend)="onTouchEnd()">
+
+  <aside class="slider"
+         aria-label="Side menu"
+         (mouseenter)="hoveringMenu = true"
+         (mouseleave)="hoveringMenu = false">
+    <app-slider [collapsed]="menuCollapsed" (collapsedChange)="onCollapsedChange($event)"></app-slider>
+  </aside>
+
+  <div class="scrim" *ngIf="!menuCollapsed" (click)="menuCollapsed = true"></div>
+
+  <main class="main-content">
     <div class="content-area">
       <router-outlet></router-outlet>
     </div>
-  </div>
+  </main>
 </div>

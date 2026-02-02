@@ -200,3 +200,91 @@ option {
   background-color: #d5ddd5;
   color: #f7fbea;
 }
+/* רקע כהה עדין */
+.ui-confirm-backdrop {
+  background: rgba(0, 0, 0, 0.35) !important;
+}
+
+/* הקופסה של הדיאלוג */
+.ui-confirm-dialog .mat-mdc-dialog-container .mdc-dialog__surface {
+  background: #fbf8ef !important; /* שמנת */
+  border: 2px solid #8a9362 !important;
+  border-radius: 22px !important;
+  box-shadow: 0 18px 40px rgba(0,0,0,.2) !important;
+  padding: 14px 18px 12px !important;
+  direction: rtl;
+}
+
+/* כותרת וטקסט */
+.ui-confirm-dialog .title {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 900;
+  color: #2b2b2b;
+}
+
+.ui-confirm-dialog .msg {
+  margin: 0 0 18px;
+  font-weight: 600;
+  color: #444;
+  line-height: 1.5;
+}
+
+/* כפתורים */
+.ui-confirm-dialog .actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* הכפתור הירוק (כמו "שמור") */
+.ui-confirm-dialog .btn-ok.mat-mdc-unelevated-button,
+.ui-confirm-dialog .btn-ok.mat-mdc-raised-button,
+.ui-confirm-dialog .btn-ok.mat-mdc-button-base {
+  background: #6f7e3f !important;
+  color: #fff !important;
+  border-radius: 999px !important;
+  padding: 10px 18px !important;
+  font-weight: 800 !important;
+  min-width: 96px;
+  box-shadow: none !important;
+}
+
+/* הכפתור השמנתי (כמו "ביטול") */
+.ui-confirm-dialog .btn-cancel.mat-mdc-button,
+.ui-confirm-dialog .btn-cancel.mat-mdc-button-base {
+  background: #fbf8ef !important; /* שמנת */
+  color: #6f7e3f !important;
+  border: 2px solid #6f7e3f !important;
+  border-radius: 999px !important;
+  padding: 10px 18px !important;
+  font-weight: 800 !important;
+  min-width: 96px;
+}
+/* הצלחה – ירוק עדין */
+.snack-success {
+  background: #6f7e3f !important; /* הירוק של האתר */
+  color: #fff !important;
+  font-weight: 700;
+  border-radius: 14px;
+}
+
+/* דחייה – אדום עדין */
+.snack-reject {
+  background: #c62828 !important;
+  color: #fff !important;
+  font-weight: 700;
+  border-radius: 14px;
+}
+
+/* כפתור "סגור" */
+.mat-mdc-snack-bar-action {
+  color: #fff !important;
+  font-weight: 800;
+}
+
+
+.cdk-overlay-container,
+.cdk-overlay-pane {
+  z-index: 99999 !important;
+}

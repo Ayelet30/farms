@@ -1,14 +1,14 @@
-<div class="page" dir="rtl">
+<!-- <div class="page" dir="rtl">
   <h2>מרכז הודעות להורה</h2>
 
   <nav class="tabs">
     <button [class.active]="tab()==='threads'" (click)="tab.set('threads'); loadThreads()">השיחות שלי</button>
     <button [class.active]="tab()==='new'" (click)="tab.set('new')">פתחו שיחה חדשה</button>
     <button [class.active]="tab()==='announcements'" (click)="tab.set('announcements'); loadAnnouncements()">הודעות מהחווה</button>
-  </nav>
+  </nav> -->
 
   <!-- שיחות -->
-  <section *ngIf="tab()==='threads'">
+  <!-- <section *ngIf="tab()==='threads'">
     <div class="split">
       <aside class="list">
         <div class="row" *ngFor="let c of threads()" (click)="openConversation(c)" [class.active]="activeConv()?.id===c.id">
@@ -44,10 +44,10 @@
         <div class="empty">בחרו שיחה מרשימה</div>
       </ng-template>
     </div>
-  </section>
+  </section> -->
 
   <!-- פתיחת שיחה -->
-  <section *ngIf="tab()==='new'" class="form">
+  <!-- <section *ngIf="tab()==='new'" class="form">
     <label>נושא
       <input [(ngModel)]="newSubject" placeholder="נושא (אופציונלי)">
     </label>
@@ -58,10 +58,10 @@
 
     <button (click)="createConversation()" [disabled]="creating() || !newBody.trim()">פתחו שיחה</button>
     <span class="toast" *ngIf="toast()">{{toast()}}</span>
-  </section>
+  </section> -->
 
   <!-- הודעות שידור -->
-  <section *ngIf="tab()==='announcements'">
+  <!-- <section *ngIf="tab()==='announcements'">
     <div *ngIf="!announcements().length && !loadingAnn()">אין הודעות</div>
     <article class="ann" *ngFor="let a of announcements()">
       <header>
@@ -77,4 +77,147 @@
     </article>
     <div *ngIf="loadingAnn()">טוען…</div>
   </section>
+</div> -->
+
+<!-- parent-messages.component.html -->
+<div class="page-wrap" dir="rtl">
+
+  <div class="card header-card">
+    <div class="title-block">
+      <h2>יצירת קשר</h2>
+      <p class="subtitle">
+        לכל שאלה, בקשה או עדכון – אפשר לפנות אלינו כאן.
+      </p>
+    </div>
+  </div>
+
+  <div class="card contact-card">
+    <div class="contact-grid">
+
+      <!-- טלפון -->
+      <div class="contact-item">
+        <div class="contact-icon" aria-hidden="true">📞</div>
+
+        <div class="contact-content">
+          <div class="contact-label">טלפון</div>
+
+          <ng-container *ngIf="farmSettings?.main_phone as phone; else noPhone">
+            <a class="contact-value ltr" [href]="'tel:' + phone">{{ phone }}</a>
+            <div class="contact-hint">לחיצה תחייג מהמכשיר שלך</div>
+          </ng-container>
+
+          <ng-template #noPhone>
+            <div class="contact-value muted">לא עודכן טלפון במערכת</div>
+          </ng-template>
+        </div>
+      </div>
+
+      <!-- מייל -->
+      <div class="contact-item">
+        <div class="contact-icon" aria-hidden="true">✉️</div>
+
+        <div class="contact-content">
+          <div class="contact-label">אימייל</div>
+
+          <ng-container *ngIf="farmSettings?.main_mail as mail; else noMail">
+            <a class="contact-value ltr" [href]="'mailto:' + mail">{{ mail }}</a>
+            <div class="contact-hint">לחיצה תפתח הודעת מייל חדשה</div>
+          </ng-container>
+
+          <ng-template #noMail>
+            <div class="contact-value muted">לא עודכן מייל במערכת</div>
+          </ng-template>
+        </div>
+      </div>
+<!-- כתובת -->
+<div class="contact-item">
+  <div class="contact-icon" aria-hidden="true">📍</div>
+
+  <div class="contact-content">
+    <div class="contact-label">כתובת</div>
+
+    <ng-container *ngIf="farmSettings?.main_address as addr; else noAddr">
+      <div class="contact-value">{{ addr }}</div>
+
+      <!-- אופציונלי ניווט -->
+      <a class="contact-hint"
+         [href]="buildMapsUrl(addr)"
+         target="_blank" rel="noopener">
+        ניווט במפות
+      </a>
+    </ng-container>
+
+    <ng-template #noAddr>
+      <div class="contact-value muted">לא עודכנה כתובת במערכת</div>
+    </ng-template>
+  </div>
+</div>
+
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="note-box">
+      <div class="note-title">שימו לב</div>
+      <div class="note-text">
+        זמני מענה יכולים להשתנות בהתאם לשעות הפעילות. אם זה דחוף – מומלץ להתקשר.
+      </div>
+    </div>
+  </div>
+<!-- שעות פעילות החווה -->
+<div class="card hours-card" dir="rtl" *ngIf="workingHours().length">
+  <div class="title-row">
+    <h3>שעות פעילות</h3>
+    <p class="subtitle small">השעות מוצגות לפי ימים. ייתכנו שינויים בחגים/אירועים מיוחדים.</p>
+  </div>
+
+  <div class="table-wrap" role="region" aria-label="טבלת שעות פעילות" tabindex="0">
+    <table class="hours-table">
+      <thead>
+        <tr>
+          <th scope="col" class="col-day">יום</th>
+          <th scope="col" class="col-farm">חווה</th>
+          <th scope="col" class="col-office">משרד</th>
+          <th scope="col" class="col-status">סטטוס</th>
+        </tr>
+      </thead>
+
+      <tbody>
+<tr *ngFor="let r of workingHours()"
+    [class.closed-row]="!r.isAnyOpen"
+    [class.today-row]="isToday(r.day_of_week)">
+
+
+<th scope="row" class="day-cell">
+  <span class="day-name">{{ r.dayLabel }}</span>
+  <span *ngIf="isToday(r.day_of_week)" class="today-chip">היום</span>
+</th>
+
+         <td class="time-cell">
+  <span class="time-pill ltr" [class.muted]="!r.is_open">
+    {{ r.farmRangeText }}
+  </span>
+</td>
+
+
+       <td class="time-cell">
+  <span class="time-pill ltr" [class.muted]="!r.is_offical_open">
+    {{ r.officeRangeText }}
+  </span>
+</td>
+
+
+    <td class="status-cell">
+  <span class="status-badge" [class.open]="r.isAnyOpen" [class.closed]="!r.isAnyOpen">
+    {{ r.isAnyOpen ? 'פתוח' : 'סגור' }}
+  </span>
+</td>
+
+
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
 </div>

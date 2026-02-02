@@ -1,4 +1,4 @@
-.page { padding: 12px; background:#fff; color:#0f172a; }
+/* .page { padding: 12px; background:#fff; color:#0f172a; }
 .tabs { display:flex; gap:8px; margin:8px 0 16px; }
 .tabs button { border:1px solid #1d4ed8; color:#1d4ed8; background:#fff; padding:6px 10px; border-radius:8px; }
 .tabs button.active { background:#e0ecff; }
@@ -26,4 +26,292 @@
 .ann { border:1px solid #e5e7eb; border-radius:12px; padding:10px; margin-bottom:10px; }
 .ann header { display:flex; justify-content:space-between; }
 .channels { color:#64748b; font-size:12px; margin-top:6px; }
-@media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .split { grid-template-columns: 1fr; } } */
+
+.page-wrap {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.06);
+}
+
+.header-card {
+  margin-bottom: 12px;
+}
+
+.title-block h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+
+.subtitle {
+  margin: 0;
+  opacity: .75;
+}
+
+.contact-card {
+  padding: 18px;
+}
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.contact-item {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(0,0,0,.08);
+  background: rgba(0,0,0,.02);
+}
+
+.contact-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(0,0,0,.06);
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+
+.contact-label {
+  font-size: 13px;
+  opacity: .75;
+  margin-bottom: 4px;
+}
+
+.contact-value {
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.contact-value:hover {
+  text-decoration: underline;
+}
+
+.contact-hint {
+  font-size: 12px;
+  opacity: .7;
+  margin-top: 4px;
+}
+
+.muted {
+  opacity: .6;
+  font-weight: 500;
+}
+
+.divider {
+  height: 1px;
+  background: rgba(0,0,0,.08);
+  margin: 16px 0;
+}
+
+.note-box {
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(0,0,0,.03);
+  border: 1px dashed rgba(0,0,0,.15);
+}
+
+.note-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.note-text {
+  opacity: .8;
+  line-height: 1.35;
+}
+
+.ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+}
+
+@media (max-width: 820px) {
+  .contact-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.hours-card {
+  margin-top: 12px;
+  padding: 18px;
+}
+
+.title-row h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.subtitle.small {
+  font-size: 12px;
+  margin: 0 0 12px;
+  opacity: 0.75;
+}
+
+.table-wrap {
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 14px;
+  overflow: auto;
+  background: #fff;
+}
+
+/* נגישות: פוקוס מקלדת על אזור הגלילה */
+.table-wrap:focus {
+  outline: 3px solid rgba(0, 0, 0, 0.15);
+  outline-offset: 2px;
+}
+
+.hours-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 620px; /* כדי שבמובייל יהיה scroll ולא מעיכה */
+  text-align: center;
+}
+
+.hours-table thead th {
+  position: sticky;
+  top: 0;
+  background: rgba(0,0,0,.035);
+  backdrop-filter: blur(6px);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(0,0,0,.08);
+  color: rgba(0,0,0,.75);
+}
+
+.hours-table tbody td,
+.hours-table tbody th {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(0,0,0,.06);
+  vertical-align: middle;
+}
+
+.hours-table tbody tr:nth-child(even) {
+  background: rgba(0,0,0,.015);
+}
+
+.hours-table tbody tr:hover {
+  background: rgba(0,0,0,.03);
+}
+
+.col-day { width: 140px; }
+.col-farm, .col-office { width: 190px; }
+.col-status { width: 110px; }
+
+.day-cell {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.time-cell {
+  text-align: center;
+}
+
+.time-pill {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,.10);
+  background: rgba(0,0,0,.02);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: .2px;
+}
+
+.time-pill.muted {
+  opacity: .55;
+  background: rgba(0,0,0,.015);
+}
+
+.status-cell {
+  text-align: center;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 13px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+/* צבעים נגישים (ניגודיות טובה) */
+.status-badge.open {
+  background: rgba(22, 163, 74, 0.12);
+  border-color: rgba(22, 163, 74, 0.35);
+  color: rgb(21, 128, 61);
+}
+
+.status-badge.closed {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(220, 38, 38, 0.35);
+  color: rgb(185, 28, 28);
+}
+
+/* שורה סגורה - רמז עדין */
+.closed-row .day-cell {
+  opacity: .9;
+}
+
+.ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+}
+
+/* יום נשאר לימין (RTL) */
+.hours-table thead th.col-day,
+.hours-table tbody th.day-cell {
+  text-align: right;
+}
+
+/* עמודות זמן/סטטוס באמצע */
+.time-cell,
+.status-cell {
+  text-align: center;
+}
+.today-row {
+  background: rgba(37, 99, 235, 0.06) !important; /* כחול עדין */
+}
+
+.today-row:hover {
+  background: rgba(37, 99, 235, 0.10) !important;
+}
+
+.today-chip {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  border: 1px solid rgba(37, 99, 235, 0.30);
+  background: rgba(37, 99, 235, 0.12);
+  color: rgb(30, 64, 175);
+}
+
+.day-name {
+  font-weight: 900;
+}
