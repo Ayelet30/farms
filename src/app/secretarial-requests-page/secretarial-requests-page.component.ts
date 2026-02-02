@@ -52,6 +52,8 @@ const APPROVE_RPC_BY_TYPE: Partial<Record<RequestType, string>> = {
   INSTRUCTOR_DAY_OFF: 'approve_instructor_day_off_request',
   NEW_SERIES: 'approve_new_series_request',
   PARENT_SIGNUP: 'approve_parent_signup_request',
+  FILL_IN: 'approve_fill_in_request',
+
 };
 
 type ToastKind = 'success' | 'error' | 'info';
@@ -120,6 +122,9 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
     DELETE_CHILD: RequestRemoveChildDetailsComponent,
     NEW_SERIES: SecretarialSeriesRequestsComponent, 
     PARENT_SIGNUP: RequestAddParentDetailsComponent,
+    // MAKEUP_LESSON: RequestMakeupLessonDetailsComponent,
+    // FILL_IN: RequestFillInDetailsComponent,
+
   };
 
   getDetailsComponent(type: string) {
@@ -331,6 +336,9 @@ instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
         return p.summary || 'בקשה לשיעור פיצוי';
       case 'PARENT_SIGNUP':
         return p.summary || 'בקשה להרשמת הורה למערכת';
+      case 'FILL_IN':
+      return p.summary || `מילוי מקום בשיעור ${p.occur_date ?? row.from_date ?? ''}`;
+
       default:
         return p.summary || 'כללי';
     }
@@ -427,6 +435,7 @@ instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
       case 'ADD_CHILD': return 'הוספת ילד/ה';
       case 'DELETE_CHILD': return 'מחיקת ילד/ה';
       case 'MAKEUP_LESSON': return 'שיעור פיצוי';
+      case 'FILL_IN': return 'מילוי מקום';
       case 'PARENT_SIGNUP': return 'הרשמת הורה';
       default: return type;
     }
@@ -440,6 +449,7 @@ instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
       case 'ADD_CHILD': return 'person_add';
       case 'DELETE_CHILD': return 'person_remove';
       case 'MAKEUP_LESSON': return 'school';
+      case 'FILL_IN': return 'swap_horiz';
       case 'PARENT_SIGNUP': return 'person';
       default: return 'help';
     }
