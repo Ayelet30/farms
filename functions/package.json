@@ -16,6 +16,7 @@
     "logs": "firebase functions:log"
   },
   "dependencies": {
+    "@google-cloud/secret-manager": "^6.1.1",
     "@google-cloud/storage": "^7.10.0",
     "@supabase/supabase-js": "^2.58.0",
     "dotenv": "^17.2.3",

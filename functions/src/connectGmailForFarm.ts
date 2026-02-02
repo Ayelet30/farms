@@ -2,7 +2,7 @@ import { onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import * as admin from 'firebase-admin';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { encryptRefreshToken } from './crypto-gmail';
+import { encryptRefreshToken } from './gmail/crypto-gmail';
 
 if (!admin.apps.length) admin.initializeApp();
 

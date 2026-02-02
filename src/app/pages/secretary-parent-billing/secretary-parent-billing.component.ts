@@ -139,7 +139,9 @@ invoiceExtraText = '';
   }
 
   async loadCharges() {
-    const { thtk } = await this.tranzila.getHandshakeToken();
+    const farm = getCurrentFarmMetaSync();
+    const tenantSchema = farm?.schema_name ?? null;
+    const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema ?? 'public');
       this.thtk = thtk;
     try {
       this.loading.set(true);

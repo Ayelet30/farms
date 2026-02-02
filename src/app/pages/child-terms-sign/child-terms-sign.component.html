@@ -1,0 +1,80 @@
+<div class="overlay" (click)="close()">
+  <div class="modal" dir="rtl" (click)="$event.stopPropagation()">
+    <button class="x" type="button" (click)="close()" aria-label="סגור">✕</button>
+
+    <h3 class="title">חתימה על תקנון — {{ childName }}</h3>
+
+    <!-- מצבי טעינה / שגיאה -->
+    <div *ngIf="loading" class="muted">טוען תקנון…</div>
+    <div *ngIf="error && !loading" class="error">{{ error }}</div>
+
+    <!-- תוכן התקנון -->
+    <ng-container *ngIf="!loading && doc() && docUrlSafe()">
+
+      <!-- פרטי מסמך -->
+      <div class="doc-meta">
+        <div><b>{{ doc()?.title }}</b></div>
+        <div class="muted">גרסה: {{ doc()?.version }}</div>
+      </div>
+
+      <!-- PDF -->
+      <div class="pdf-wrap">
+        <iframe
+          class="pdf"
+          [src]="docUrlSafe()!"
+          title="תקנון החווה"
+        ></iframe>
+      </div>
+
+      <!-- קישור גיבוי -->
+      <div class="open-new">
+        <a
+          *ngIf="docUrlRaw()"
+          [href]="docUrlRaw()!"
+          target="_blank"
+          rel="noopener"
+        >
+          פתיחה בחלון חדש
+        </a>
+      </div>
+
+      <!-- אישור קריאה -->
+      <label class="check">
+        <input type="checkbox" [(ngModel)]="accept" />
+        <span>קראתי את התקנון ואני מאשר/ת את תנאי ההשתתפות.</span>
+      </label>
+
+      <!-- חתימה -->
+      <div class="field">
+        <label>שם מלא לחתימה דיגיטלית</label>
+        <input
+          class="inp"
+          [(ngModel)]="signedName"
+          placeholder="שם ההורה החותם"
+        />
+      </div>
+
+      <!-- כפתורים -->
+      <div class="actions">
+        <button
+          class="btn secondary"
+          type="button"
+          (click)="close()"
+          [disabled]="saving"
+        >
+          ביטול
+        </button>
+
+        <button
+          class="btn primary"
+          type="button"
+          (click)="signNow()"
+          [disabled]="saving"
+        >
+          {{ saving ? 'שומר…' : 'חתימה ושמירה' }}
+        </button>
+      </div>
+
+    </ng-container>
+  </div>
+</div>

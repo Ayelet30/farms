@@ -1,0 +1,94 @@
+<div class="wrap" dir="rtl">
+  <div class="head">
+    <div class="title">
+      <mat-icon class="ico">person_remove</mat-icon>
+      פרטי בקשה להסרת ילד/ה
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="k">שם ילד/ה</div>
+      <div class="v strong">{{ childFullName() }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">ת״ז</div>
+      <div class="v">{{ payload().gov_id || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">תאריך לידה</div>
+      <div class="v">{{ payload().birth_date || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">מגדר</div>
+      <div class="v">{{ payload().gender || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">קופת חולים</div>
+      <div class="v">{{ payload().health_fund || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">שיעורים שנותרו</div>
+      <div class="v">
+        <span *ngIf="loadingRemaining()">טוען…</span>
+        <span *ngIf="!loadingRemaining()">{{ remainingLessons().length }}</span>
+      </div>
+    </div>
+
+    <div class="remain-error" *ngIf="remainingError()">
+      {{ remainingError() }}
+    </div>
+
+    <div class="remain-empty"
+         *ngIf="!loadingRemaining() && !remainingError() && remainingLessons().length === 0">
+      אין שיעורים עתידיים לילד/ה.
+    </div>
+
+    <div class="remain-box" *ngIf="!loadingRemaining() && remainingLessons().length > 0">
+      <div class="remain-head">
+        <div>מדריך</div>
+        <div>יום</div>
+        <div>שעה</div>
+        <div>סוג</div>
+        <div>תאריך</div>
+      </div>
+
+      <div class="remain-row" *ngFor="let r of remainingLessons()">
+        <div class="cell">{{ r.instructorName }}</div>
+        <div class="cell">{{ r.dayOfWeek }}</div>
+        <div class="cell">{{ r.timeRange }}</div>
+        <div class="cell">{{ r.lessonType }}</div>
+        <div class="cell">{{ r.occurDate | date:'dd/MM/yyyy' }}</div>
+      </div>
+    </div>
+
+    <div class="row" *ngIf="reason()">
+      <div class="k">סיבה / פירוט</div>
+      <div class="v">{{ reason() }}</div>
+    </div>
+
+    <div class="meta" *ngIf="req()">
+      <div><span class="mk">נוצר:</span> {{ req()!.createdAt | date:'dd/MM/yyyy HH:mm' }}</div>
+    </div>
+
+    <div class="actions" *ngIf="req()?.status === 'PENDING'">
+      <button mat-stroked-button type="button" class="action reject" (click)="reject()">
+        דחייה
+      </button>
+
+    <button mat-flat-button type="button" class="action approve" (click)="approve()">
+  אישור
+</button>
+
+    </div>
+
+    <div class="note" *ngIf="req()?.status !== 'PENDING'">
+      הבקשה כבר לא במצב “ממתין”, לכן אין כפתורי פעולה.
+    </div>
+  </div>
+</div>

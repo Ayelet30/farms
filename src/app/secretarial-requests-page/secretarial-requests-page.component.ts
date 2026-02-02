@@ -15,6 +15,8 @@ import { Subscription } from 'rxjs';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { ViewChild } from '@angular/core';
 import { MatSidenav } from '@angular/material/sidenav';
+import { RequestRemoveChildDetailsComponent } from './request-remove-child-details/request-remove-child-details.component';
+
 
 
 import {
@@ -30,6 +32,8 @@ import {
 } from '../Types/detailes.model';
 
 import { CurrentUserService } from '../core/auth/current-user.service';
+import { EnvironmentInjector, ViewContainerRef } from '@angular/core';
+
 
 // קומפוננטות פרטים (נטענות לפי סוג)
 import { RequestInstructorDayOffDetailsComponent } from './request-instructor-day-off-details/request-instructor-day-off-details.component';
@@ -48,6 +52,8 @@ const APPROVE_RPC_BY_TYPE: Partial<Record<RequestType, string>> = {
   INSTRUCTOR_DAY_OFF: 'approve_instructor_day_off_request',
   NEW_SERIES: 'approve_new_series_request',
   PARENT_SIGNUP: 'approve_parent_signup_request',
+  FILL_IN: 'approve_fill_in_request',
+
 };
 
 type ToastKind = 'success' | 'error' | 'info';
@@ -72,8 +78,19 @@ export class SecretarialRequestsPageComponent implements OnInit {
   private bo = inject(BreakpointObserver);
 
   isMobile = signal(false);
+  bulkBusy = signal(false);
 
   @ViewChild('detailsDrawer') detailsDrawer?: MatSidenav;
+
+  private selectedIdsSig = signal<Set<string>>(new Set());
+  @ViewChild('bulkHost', { read: ViewContainerRef })
+  bulkHost?: ViewContainerRef;
+  private envInj = inject(EnvironmentInjector);
+
+selectedCount() {
+  return this.selectedIdsSig().size;
+}
+
 
   onChildApprovedBound = (e: any) => this.onChildApproved(e);
 onChildRejectedBound = (e: any) => this.onChildRejected(e);
@@ -102,8 +119,12 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
     INSTRUCTOR_DAY_OFF: RequestInstructorDayOffDetailsComponent,
     CANCEL_OCCURRENCE: RequestCancelOccurrenceDetailsComponent,
     ADD_CHILD: RequestAddChildDetailsComponent,
+    DELETE_CHILD: RequestRemoveChildDetailsComponent,
     NEW_SERIES: SecretarialSeriesRequestsComponent, 
     PARENT_SIGNUP: RequestAddParentDetailsComponent,
+    // MAKEUP_LESSON: RequestMakeupLessonDetailsComponent,
+    // FILL_IN: RequestFillInDetailsComponent,
+
   };
 
   getDetailsComponent(type: string) {
@@ -293,6 +314,9 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
 
       requesterUid: row.requested_by_uid,
       payload: row.payload,
+      childId: row.child_id ?? null,
+instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
+
     };
   }
 
@@ -312,6 +336,9 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
         return p.summary || 'בקשה לשיעור פיצוי';
       case 'PARENT_SIGNUP':
         return p.summary || 'בקשה להרשמת הורה למערכת';
+      case 'FILL_IN':
+      return p.summary || `מילוי מקום בשיעור ${p.occur_date ?? row.from_date ?? ''}`;
+
       default:
         return p.summary || 'כללי';
     }
@@ -319,7 +346,8 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
 
   private getRequesterDisplay(row: any): string {
   const uid = row.requested_by_uid;
-  if (uid != "PUBLIC" && String(uid).trim()) return String(uid);
+  const name = row.requested_by_name;
+  if (uid != "PUBLIC" && String(uid).trim()) return String(name);
 
   // אחרת: ננסה לחלץ שם מה-payload (במיוחד ל-PARENT_SIGNUP)
   const p: any = row.payload ?? {};
@@ -347,17 +375,30 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
     this.statusFilter.set('PENDING');
   }
 
+  
   openDetails(row: UiRequest) {
-    this.selectedRequest = row;
-    this.indexOfRowSelected = this.filteredRequestsList.indexOf(row);
-    this.detailsOpened = true;
-  }
+  this.selectedRequest = row;
+  this.indexOfRowSelected = this.filteredRequestsList.indexOf(row);
+  this.detailsOpened = true;
 
-  closeDetails() {
-    this.detailsOpened = false;
-    this.indexOfRowSelected = null;
-    this.selectedRequest = null;
+  // ✅ במובייל לפתוח את הדראור
+  if (this.isMobile()) {
+    this.detailsDrawer?.open();
   }
+}
+
+
+  
+  closeDetails() {
+  this.detailsOpened = false;
+  this.indexOfRowSelected = null;
+  this.selectedRequest = null;
+
+  if (this.isMobile()) {
+    this.detailsDrawer?.close();
+  }
+}
+
 
   reloadRequests() {
     this.loadRequestsFromDb();
@@ -394,6 +435,7 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
       case 'ADD_CHILD': return 'הוספת ילד/ה';
       case 'DELETE_CHILD': return 'מחיקת ילד/ה';
       case 'MAKEUP_LESSON': return 'שיעור פיצוי';
+      case 'FILL_IN': return 'מילוי מקום';
       case 'PARENT_SIGNUP': return 'הרשמת הורה';
       default: return type;
     }
@@ -407,6 +449,7 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
       case 'ADD_CHILD': return 'person_add';
       case 'DELETE_CHILD': return 'person_remove';
       case 'MAKEUP_LESSON': return 'school';
+      case 'FILL_IN': return 'swap_horiz';
       case 'PARENT_SIGNUP': return 'person';
       default: return 'help';
     }
@@ -525,5 +568,169 @@ private onAnyError(msg: string) {
   // פה את יכולה לעשות snackbar מרכזי אם בא לך
   console.error('request details error:', msg);
 }
+
+isRowSelectable(row: UiRequest): boolean {
+  return this.isSecretary && row.status === 'PENDING';
+}
+
+isSelected(row: UiRequest): boolean {
+  return this.selectedIdsSig().has(row.id);
+}
+
+clearSelection() {
+  this.selectedIdsSig.set(new Set());
+}
+
+toggleRowSelection(row: UiRequest, ev: Event) {
+  ev.stopPropagation();
+  if (!this.isRowSelectable(row)) return;
+
+  const next = new Set(this.selectedIdsSig());
+  next.has(row.id) ? next.delete(row.id) : next.add(row.id);
+  this.selectedIdsSig.set(next);
+}
+
+toggleSelectAll(ev: Event) {
+  ev.stopPropagation();
+
+  const selectable = this.filteredRequestsList.filter(r => this.isRowSelectable(r));
+  const current = this.selectedIdsSig();
+
+  const allChecked = selectable.length > 0 && selectable.every(r => current.has(r.id));
+  const next = new Set(current);
+
+  if (allChecked) {
+    selectable.forEach(r => next.delete(r.id));
+  } else {
+    selectable.forEach(r => next.add(r.id));
+  }
+
+  this.selectedIdsSig.set(next);
+}
+
+isAllSelectableChecked(): boolean {
+  const selectable = this.filteredRequestsList.filter(r => this.isRowSelectable(r));
+  if (!selectable.length) return false;
+  const current = this.selectedIdsSig();
+  return selectable.every(r => current.has(r.id));
+}
+
+isSomeSelectableChecked(): boolean {
+  const selectable = this.filteredRequestsList.filter(r => this.isRowSelectable(r));
+  if (!selectable.length) return false;
+  const current = this.selectedIdsSig();
+  const some = selectable.some(r => current.has(r.id));
+  const all = selectable.every(r => current.has(r.id));
+  return some && !all;
+}
+
+private getSelectedRowsPending(): UiRequest[] {
+  const selected = this.selectedIdsSig();
+  return this.filteredRequestsList.filter(r => selected.has(r.id) && this.isRowSelectable(r));
+}
+
+private async runDecisionViaDetailsComponent(
+  row: UiRequest,
+  action: 'approve' | 'reject'
+): Promise<{ ok: boolean; message?: string }> {
+
+  if (!this.bulkHost) return { ok: false, message: 'bulkHost לא מאותחל' };
+
+  const cmp = this.getDetailsComponent(row.requestType);
+  if (!cmp) return { ok: false, message: `אין קומפוננטת פרטים לסוג ${row.requestType}` };
+
+  // יצירה בזיכרון (לא מוצג)
+  const ref = this.bulkHost.createComponent(cmp, { environmentInjector: this.envInj });
+  const inst: any = ref.instance;
+
+  // להזין Inputs בסיסיים שכל קומפוננטה אצלך מקבלת
+  inst.request = row;
+  inst.decidedByUid = this.curentUser?.uid;
+
+  // כדי שהמסך הראשי יקבל עדכון סטטוס מיד
+  inst.onApproved = (e: any) => {
+    this.patchRequestStatus(row.id, 'APPROVED');
+    const next = new Set(this.selectedIdsSig());
+    next.delete(row.id);
+    this.selectedIdsSig.set(next);
+  };
+  inst.onRejected = (e: any) => {
+    this.patchRequestStatus(row.id, 'REJECTED');
+    const next = new Set(this.selectedIdsSig());
+    next.delete(row.id);
+    this.selectedIdsSig.set(next);
+  };
+  inst.onError = (e: any) => {
+    // נרשום אבל לא נעצור את כל הבאלק
+    console.error('bulk decision error', row.id, e);
+  };
+
+  try {
+    const fn = inst?.[action];
+    if (typeof fn !== 'function') {
+      return { ok: false, message: `לקומפוננטה אין מתודה ${action}()` };
+    }
+
+    // קריאה ל-approve()/reject() של קומפוננטת הפרטים
+    await fn.call(inst);
+
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, message: e?.message || String(e) };
+  } finally {
+    ref.destroy();
+  }
+}
+
+async bulkApproveSelected() {
+  if (!this.isSecretary || !this.curentUser) return;
+
+  const rows = this.getSelectedRowsPending();
+  if (!rows.length) return;
+
+  this.bulkBusy.set(true);
+  try {
+    let ok = 0, fail = 0;
+
+    for (const r of rows) {
+      const res = await this.runDecisionViaDetailsComponent(r, 'approve');
+      if (res.ok) ok++;
+      else fail++;
+    }
+
+    if (ok) this.showToast(`אושרו ${ok} בקשות`, 'success');
+    if (fail) this.showToast(`נכשלו ${fail} בקשות`, 'error');
+
+    void this.loadRequestsFromDb();
+  } finally {
+    this.bulkBusy.set(false);
+  }
+}
+
+async bulkRejectSelected() {
+  if (!this.isSecretary || !this.curentUser) return;
+
+  const rows = this.getSelectedRowsPending();
+  if (!rows.length) return;
+
+  this.bulkBusy.set(true);
+  try {
+    let ok = 0, fail = 0;
+
+    for (const r of rows) {
+      const res = await this.runDecisionViaDetailsComponent(r, 'reject');
+      if (res.ok) ok++;
+      else fail++;
+    }
+
+    if (ok) this.showToast(`נדחו ${ok} בקשות`, 'success');
+    if (fail) this.showToast(`נכשלו ${fail} בקשות`, 'error');
+
+    void this.loadRequestsFromDb();
+  } finally {
+    this.bulkBusy.set(false);
+  }
+}
+
 
 }

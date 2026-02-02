@@ -118,11 +118,16 @@ chargeSelectedChargesForParent(args: {
   );
 }
 
-  getHandshakeToken(): Promise<{ thtk: string }> {
+  getHandshakeToken(tenantSchema: string) {
   return firstValueFrom(
-    this.http.get<{ thtk: string }>('/api/tranzilaHandshake', {})
+    this.http.get<{ thtk: string; terminal_name: string }>(
+      `${this.base}/tranzilaHandshake`,
+      { params: { tenantSchema } }
+    )
   );
 }
+
+
 
 chargeOnce(body: {
   amountAgorot: number;

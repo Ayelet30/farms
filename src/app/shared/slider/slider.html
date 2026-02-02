@@ -1,16 +1,21 @@
 <!-- side-menu.html -->
 <div class="layout" [class.desktop]="isDesktop">
+
   <!-- Drawer/Sidebar -->
   <nav class="side-menu"
-       [class.collapsed]="menuCollapsed"
-       [class.mobile]="!isDesktop"
-       [class.open]="!menuCollapsed && !isDesktop">
+     [class.collapsed]="isDesktop && collapsed"
+     [class.mobile]="!isDesktop"
+     [class.open]="!isDesktop && !collapsed">
+
+  <div class="mobile-drawer-head" *ngIf="!isDesktop">
+    <button type="button" class="close-btn" (click)="toggleMenu(true)">✕</button>
+  </div>
 
     <button class="toggle-button"
             (click)="toggleMenu()"
-            [attr.aria-expanded]="!menuCollapsed"
-            [attr.aria-label]="menuCollapsed ? 'פתח תפריט' : 'סגור תפריט'">
-      <svg class="chevron" [class.left]="menuCollapsed" viewBox="0 0 24 24" width="20" height="20" fill="none">
+            [attr.aria-expanded]="!collapsed"
+            [attr.aria-label]="collapsed ? 'פתח תפריט' : 'סגור תפריט'">
+      <svg class="chevron" [class.left]="collapsed" viewBox="0 0 24 24" width="20" height="20" fill="none">
         <path d="M9 6L15 12L9 18"
               stroke="currentColor"
               stroke-width="2"
@@ -24,9 +29,9 @@
       <li *ngFor="let item of menuItems"
           (click)="navigateTo(item.path)"
           [class.active]="isActive(item.path)"
-          [attr.title]="menuCollapsed ? item.label : null">
+          [attr.title]="collapsed ? item.label : null">
         <span class="icon" [ngClass]="'i-' + item.icon"></span>
-        <span class="label" *ngIf="!menuCollapsed">{{ item.label }}</span>
+        <span class="label">{{ item.label }}</span>
       </li>
     </ul>
 
@@ -34,7 +39,7 @@
 
   <!-- שכבת כיסוי במובייל -->
   <div class="scrim"
-       *ngIf="!isDesktop && !menuCollapsed"
+       *ngIf="!isDesktop && !collapsed"
        (click)="toggleMenu(true)">
   </div>
 </div>

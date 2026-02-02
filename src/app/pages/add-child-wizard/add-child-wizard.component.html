@@ -1,11 +1,8 @@
 <!-- add-child-wizard.component.html -->
 <div class="wizard-overlay">
   <div class="wizard-dialog" dir="rtl">
-    <button class="close-btn" type="button" (click)="close()" aria-label="סגירת חלון">
-      ✕
-    </button>
+    <button class="close-btn" type="button" (click)="close()" aria-label="סגירת חלון">✕</button>
 
-    <!-- כותרת עליונה + פס שלבים -->
     <div class="wizard-header">
       <h2>{{ headerTitle }}</h2>
       <p class="wizard-subtitle">{{ headerSubtitle }}</p>
@@ -24,7 +21,6 @@
     </div>
 
     <div class="wizard-body">
-      <!-- שגיאה כללית -->
       <div *ngIf="error" class="error-banner">
         {{ error }}
       </div>
@@ -32,6 +28,7 @@
       <!-- שלב 1: פרטי ילד -->
       <div *ngIf="stepIndex === 0" class="step-pane">
         <h3 class="step-title">פרטי הילד/ה</h3>
+
         <p class="step-hint" *ngIf="isParentMode">
           מלאי את הפרטים כפי שמופיעים בתעודת הזהות. ניתן לעדכן פרטים מסוימים גם לאחר ההרשמה.
         </p>
@@ -56,9 +53,7 @@
             <option *ngFor="let p of parents" [value]="formatParentOption(p)"></option>
           </datalist>
 
-          <div class="error-msg" *ngIf="validationErrors['parent_uid']">
-            {{ validationErrors['parent_uid'] }}
-          </div>
+          <div class="error-msg" *ngIf="validationErrors['parent_uid']">{{ validationErrors['parent_uid'] }}</div>
           <div class="error-msg" *ngIf="parentsError">{{ parentsError }}</div>
           <div class="step-hint small" *ngIf="parentsLoading">טוען הורים…</div>
         </div>
@@ -67,17 +62,13 @@
           <div class="form-field">
             <label>שם פרטי</label>
             <input class="editable-input" [(ngModel)]="child.first_name" />
-            <div class="error-msg" *ngIf="validationErrors['first_name']">
-              {{ validationErrors['first_name'] }}
-            </div>
+            <div class="error-msg" *ngIf="validationErrors['first_name']">{{ validationErrors['first_name'] }}</div>
           </div>
 
           <div class="form-field">
             <label>שם משפחה</label>
             <input class="editable-input" [(ngModel)]="child.last_name" />
-            <div class="error-msg" *ngIf="validationErrors['last_name']">
-              {{ validationErrors['last_name'] }}
-            </div>
+            <div class="error-msg" *ngIf="validationErrors['last_name']">{{ validationErrors['last_name'] }}</div>
           </div>
 
           <div class="form-field">
@@ -90,17 +81,13 @@
               (keypress)="allowOnlyNumbers($event)"
               [(ngModel)]="child.gov_id"
             />
-            <div class="error-msg" *ngIf="validationErrors['gov_id']">
-              {{ validationErrors['gov_id'] }}
-            </div>
+            <div class="error-msg" *ngIf="validationErrors['gov_id']">{{ validationErrors['gov_id'] }}</div>
           </div>
 
           <div class="form-field">
             <label>תאריך לידה</label>
             <input type="date" class="editable-input" [(ngModel)]="child.birth_date" />
-            <div class="error-msg" *ngIf="validationErrors['birth_date']">
-              {{ validationErrors['birth_date'] }}
-            </div>
+            <div class="error-msg" *ngIf="validationErrors['birth_date']">{{ validationErrors['birth_date'] }}</div>
           </div>
 
           <div class="form-field">
@@ -110,9 +97,7 @@
               <option value="זכר">זכר</option>
               <option value="נקבה">נקבה</option>
             </select>
-            <div class="error-msg" *ngIf="validationErrors['gender']">
-              {{ validationErrors['gender'] }}
-            </div>
+            <div class="error-msg" *ngIf="validationErrors['gender']">{{ validationErrors['gender'] }}</div>
           </div>
 
           <div class="form-field">
@@ -121,20 +106,13 @@
               <option value="" disabled hidden>בחר/י קופה</option>
               <option *ngFor="let fund of healthFunds" [value]="fund">{{ fund }}</option>
             </select>
-            <div class="error-msg" *ngIf="validationErrors['health_fund']">
-              {{ validationErrors['health_fund'] }}
-            </div>
+            <div class="error-msg" *ngIf="validationErrors['health_fund']">{{ validationErrors['health_fund'] }}</div>
           </div>
         </div>
 
         <div class="form-field full-width">
           <label>הערות כלליות / רגישויות</label>
-          <textarea
-            rows="3"
-            class="editable-input"
-            [(ngModel)]="child.medical_notes_free"
-            maxlength="4000"
-          ></textarea>
+          <textarea rows="3" class="editable-input" [(ngModel)]="child.medical_notes_free" maxlength="4000"></textarea>
         </div>
       </div>
 
@@ -173,9 +151,7 @@
                 <span>תפקוד גבוה</span>
               </label>
 
-              <div class="error-msg" *ngIf="validationErrors['autismFunction']">
-                {{ validationErrors['autismFunction'] }}
-              </div>
+              <div class="error-msg" *ngIf="validationErrors['autismFunction']">{{ validationErrors['autismFunction'] }}</div>
             </div>
           </div>
 
@@ -208,42 +184,49 @@
 
       <!-- שלב 3: תקנון (רק הורה) -->
       <div *ngIf="stepIndex === 2 && isParentMode" class="step-pane">
-        <h3 class="step-title">אישור תקנון החווה</h3>
-        <p class="step-hint">
-          להמשך ההרשמה נדרש אישור תקנון החווה. ניתן לפתוח את התקנון המלא בעמוד נפרד, ולסמן כאן שאישרת.
-        </p>
+        <h3 class="step-title">אישור וחתימה על תקנון החווה</h3>
 
-        <div class="rules-box">
-          <ul>
-            <li>ההשתתפות בשיעורים מותנית באישור רפואי מתאים.</li>
-            <li>היעדרות משיעור יש לעדכן לפי הנהלי ההשלמות של החווה.</li>
-            <li>התשלום מתבצע חודשי, בהתאם לתנאי התשלום שסוכמו עם החווה.</li>
-          </ul>
-          <p class="rules-link">התקנון המלא מופיע בעמוד "תקנון החווה" באתר.</p>
-        </div>
+        <div *ngIf="termsLoading" class="step-hint">טוען תקנון…</div>
+        <div *ngIf="termsError && !termsLoading" class="error-banner">{{ termsError }}</div>
 
-        <label class="check-row big">
-          <input type="checkbox" [(ngModel)]="termsAccepted" />
-          <span>קראתי את תקנון החווה ואני מאשר/ת את תנאי ההשתתפות.</span>
-        </label>
-        <div class="error-msg" *ngIf="validationErrors['terms']">{{ validationErrors['terms'] }}</div>
-
-        <div class="form-field">
-          <label>שם מלא לחתימה דיגיטלית</label>
-          <input class="editable-input" [(ngModel)]="termsSignature" placeholder="שם ההורה החותם" />
-          <div class="error-msg" *ngIf="validationErrors['signature']">
-            {{ validationErrors['signature'] }}
+        <ng-container *ngIf="!termsLoading && activeTermsDoc && termsUrlSafe">
+          <div class="doc-meta">
+            <div><b>{{ activeTermsDoc.title }}</b></div>
+            <div class="muted">גרסה: {{ activeTermsDoc.version }}</div>
           </div>
-        </div>
+
+          <div class="pdf-wrap">
+            <iframe class="pdf" [src]="termsUrlSafe" title="תקנון החווה"></iframe>
+          </div>
+
+          <div class="open-new">
+            <a *ngIf="termsUrlRaw" [href]="termsUrlRaw" target="_blank" rel="noopener">פתיחה בחלון חדש</a>
+          </div>
+
+          <label class="check-row big">
+            <input type="checkbox" [(ngModel)]="termsAccepted" />
+            <span>קראתי את התקנון ואני מאשר/ת את תנאי ההשתתפות.</span>
+          </label>
+          <div class="error-msg" *ngIf="validationErrors['terms']">{{ validationErrors['terms'] }}</div>
+
+          <div class="form-field">
+            <label>שם מלא לחתימה דיגיטלית</label>
+            <input class="editable-input" [(ngModel)]="termsSignature" placeholder="שם ההורה החותם" />
+            <div class="error-msg" *ngIf="validationErrors['signature']">{{ validationErrors['signature'] }}</div>
+          </div>
+
+          <div class="step-hint small">
+            * החתימה ושמירת ה-PDF החתום יתבצעו אוטומטית לאחר שמירת הילד (נדרש childId).
+          </div>
+        </ng-container>
       </div>
 
-      <!-- שלב 4: אמצעי תשלום (רק הורה ורק אם registration_fee > 0) -->
+      <!-- שלב 4: אמצעי תשלום -->
       <div *ngIf="stepIndex === paymentStepIndex && isParentMode" class="step-pane">
         <h3 class="step-title">אמצעי תשלום</h3>
 
         <p class="step-hint" *ngIf="loadingPaymentProfile">טוען אמצעי תשלום…</p>
 
-        <!-- יש כרטיס שמור -->
         <div *ngIf="!loadingPaymentProfile && hasSavedPaymentProfile" class="ok-banner">
           יש לך כבר אמצעי תשלום שמור במערכת ✅<br />
           דמי רישום (לאחר אישור מזכירה) והתשלום החודשי ייגבו מכרטיס שמסתיים ב־
@@ -252,12 +235,9 @@
             כדי לשנות את הכרטיס יש לשלוח בקשה דרך
             <b><a class="inline-link" routerLink="/parent/payments">אמצעי תשלום</a></b>.
           </div>
-          <p class="step-hint small" style="margin-top: 8px;">
-            * החיוב בפועל יבוצע רק לאחר אישור המזכירה.
-          </p>
+          <p class="step-hint small" style="margin-top: 8px;">* החיוב בפועל יבוצע רק לאחר אישור המזכירה.</p>
         </div>
 
-        <!-- אין כרטיס שמור -->
         <div *ngIf="!loadingPaymentProfile && !hasSavedPaymentProfile">
           <div class="form-grid">
             <div class="form-field">
@@ -295,9 +275,7 @@
 
             <p class="step-hint small">* החיוב בפועל יבוצע רק לאחר אישור המזכירה.</p>
 
-            <div class="error-msg" *ngIf="validationErrors['token']">
-              {{ validationErrors['token'] }}
-            </div>
+            <div class="error-msg" *ngIf="validationErrors['token']">{{ validationErrors['token'] }}</div>
           </div>
         </div>
       </div>
@@ -322,6 +300,7 @@
         class="btn primary"
         type="button"
         (click)="completeWizard()"
+        [disabled]="saving || termsSaving"
         [attr.aria-busy]="saving ? 'true' : null"
       >
         {{ saving ? 'שומר…' : finishButtonLabel }}

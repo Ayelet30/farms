@@ -1,47 +1,188 @@
-<div class="page" dir="rtl">
+<div class="page" dir="rtl" *ngIf="request as r">
   <header class="top">
-    <h1>בקשות לסדרות</h1>
-    <button class="btn" (click)="reload()" [disabled]="loading()">רענון</button>
+    <h1>בקשה לפתיחת סדרה</h1>
   </header>
 
-  <div class="err" *ngIf="error()">{{ error() }}</div>
-  <div class="empty" *ngIf="!loading() && rows().length === 0">אין בקשות ממתינות</div>
+  <article class="card">
+<div class="child-status-alert" *ngIf="childStatusBannerText as t">
+  {{ t }}
+</div>
 
-  <section class="list" *ngIf="rows().length > 0">
-    <article class="card" *ngFor="let r of rows()">
-      <div class="row">
-        <div class="label">תאריך התחלה</div>
-        <div class="val">{{ r.series_start_date }}</div>
-      </div>
-
-      <div class="row">
-        <div class="label">שעה</div>
-        <div class="val">{{ r.start_time }}</div>
-      </div>
-
-      <div class="row">
-        <div class="label">סוג</div>
-        <div class="val">
-          {{ r.is_open_ended ? 'ללא הגבלה' : ('מוגבל (' + (r.repeat_weeks ?? 0) + ' שבועות)') }}
+<div class="row">
+  <div class="label">שם הילד/ה</div>
+  <div class="val"> 
+      {{ childFullName() }}
+    </div>
         </div>
-      </div>
 
-      <div class="row">
-        <div class="label">מקור תשלום</div>
-        <div class="val">{{ r.payment_source }}</div>
-      </div>
+<div class="row">
+  <div class="label">ת״ז </div>
+  <div class="val" *ngIf="childGovId()">
+      ת״ז {{ childGovId() }}</div>
+</div>
 
-      <textarea
-        class="note"
-        [(ngModel)]="noteById[r.id]"
-        placeholder="הערה למזכירה / סיבה לדחייה (חובה בדחייה)"
-      ></textarea>
+<div class="row">
+  <div class="label">יום בשבוע</div>
+  <div class="val">{{ startWeekdayName }}</div>
+</div>
+<!-- יום בשבוע -->
 
-      <!-- ✅ כפתורים רק במקום אחד (בסוף הכרטיס) -->
-      <div class="actions">
-        <button class="btn approve" (click)="approve(r)" [disabled]="loading()">אישור</button>
-        <button class="btn reject" (click)="reject(r)" [disabled]="loading()">דחייה</button>
+<!-- תאריך התחלה -->
+<div class="row">
+  <div class="label">תאריך התחלה</div>
+  <div class="val">{{ startDate }}</div>
+</div>
+
+    <div class="row" *ngIf="!isOpenEnded">
+      <div class="label">תאריך סיום</div>
+      <div class="val">{{ endDate }}</div>
+    </div>
+<!-- מדריך -->
+<div class="row">
+  <div class="label">מדריך</div>
+  <div class="val">{{ instructorName() }}</div>
+</div>
+
+    <!-- שעת התחלה מה-payload -->
+    <div class="row">
+      <div class="label">שעת התחלה מבוקשת</div>
+      <div class="val">{{ requestedStartTime }}</div>
+    </div>
+
+    <div class="row">
+      <div class="label">סוג סדרה</div>
+      <div class="val">{{ isOpenEnded ? 'ללא הגבלה' : 'מוגבלת' }}</div>
+    </div>
+<!-- מספר שיעורים (רק אם מוגבלת) -->
+<div class="row" *ngIf="!isOpenEnded">
+  <div class="label">מספר שיעורים</div>
+  <div class="val">{{ repeatWeeks }}</div>
+</div>
+<div class="row">
+  <div class="label">סוג שיעור</div>
+  <div class="val">
+    {{ ridingTypeName() }}
+    <ng-container *ngIf="lessonTypeMode()">
+      • {{ lessonTypeMode() }}
+    </ng-container>
+  </div>
+</div>
+
+    <!-- payment_plan -->
+    <div class="row">
+      <div class="label"> מסלול תשלום</div>
+      <div class="val">{{ paymentPlanName() }}</div>
+    </div>
+
+    <!-- horizon -->
+    <!-- horizon (רק ללא הגבלה) -->
+<div class="row" *ngIf="isOpenEnded">
+  <div class="label">חלון בדיקה (ימים)</div>
+  <div class="val">{{ seriesSearchHorizonDays }}</div>
+</div>
+
+
+    <!-- skipped farm dates -->
+    <div class="row">
+      <div class="label">דילוגים (ימי חופש חווה)</div>
+      <div class="val" *ngIf="skippedFarmDates.length; else noFarmSkips">
+        <ul class="list-inline">
+          <li *ngFor="let d of skippedFarmDates">{{ d }}</li>
+        </ul>
       </div>
-    </article>
-  </section>
+      <ng-template #noFarmSkips>—</ng-template>
+    </div>
+
+    <!-- skipped instructor dates -->
+    <div class="row">
+      <div class="label">דילוגים (אי-זמינות מדריך)</div>
+      <div class="val" *ngIf="skippedInstructorDates.length; else noInstructorSkips">
+        <ul class="list-inline">
+          <li *ngFor="let d of skippedInstructorDates">{{ d }}</li>
+        </ul>
+      </div>
+      <ng-template #noInstructorSkips>—</ng-template>
+    </div>
+
+    <!-- referral -->
+    <div class="row">
+      <div class="label">קובץ הפניה</div>
+      <div class="val">
+        <ng-container *ngIf="referralUrl; else noReferral">
+          <a [href]="referralUrl" target="_blank" rel="noopener">פתיחת קובץ הפניה</a>
+        </ng-container>
+        <ng-template #noReferral>—</ng-template>
+      </div>
+    </div>
+
+<!-- מציגים בלוק רק אם יש ילדים -->
+<div *ngIf="existingParticipants().length" class="card subtle">
+
+  <!-- capacity מוצג רק אם קיים -->
+  <div class="row" *ngIf="participantsCapacity() as cap">
+    <div class="label">שיבוץ קיים</div>
+    <div class="val">
+      {{ cap.current }} / {{ cap.max }}
+    </div>
+  </div>
+
+  <table class="mini-table">
+   <thead>
+  <tr>
+    <th>שם</th>
+    <th class="col-gender">מין</th>
+    <th class="col-age">גיל</th>
+    <th>הערות</th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr *ngFor="let c of existingParticipants()">
+    <td>{{ c.first_name }} {{ c.last_name }}</td>
+    <td class="col-gender">{{ c.gender || '—' }}</td>
+    <td class="col-age">{{ calcAge(c.birth_date) }}</td>
+    <td class="notes-cell">
+      <span *ngIf="c.medical_notes">🩺 {{ c.medical_notes }}</span>
+      <span *ngIf="c.behavior_notes">⚠ {{ c.behavior_notes }}</span>
+    </td>
+  </tr>
+</tbody>
+
+  </table>
+
+</div>
+
+
+    <textarea
+      class="note"
+      [(ngModel)]="note"
+      placeholder="הערה למזכירה / סיבה לדחייה (חובה בדחייה)">
+    </textarea>
+    <div class="hint error" *ngIf="!note.trim() && !loading()">
+  חובה למלא סיבה לפני דחיית בקשה
+</div>
+
+
+    <div class="actions">
+ <button
+  class="btn approve"
+  (click)="approveSelected()"
+  [disabled]="loading() || !canApprove()"
+  [matTooltip]="approveTooltip || ''"
+  [matTooltipDisabled]="!approveTooltip"
+  matTooltipPosition="above">
+  אישור
+</button>
+
+
+    <button
+  class="btn reject"
+  (click)="rejectSelected()"
+  [disabled]="loading() || !note.trim()">
+  דחייה
+</button>
+
+    </div>
+
+  </article>
 </div>

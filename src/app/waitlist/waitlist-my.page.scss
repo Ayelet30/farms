@@ -1,0 +1,16 @@
+.my-wrap{ padding:16px; }
+.title{ font-size:20px; font-weight:800; margin-bottom:12px; }
+.cards{ display:grid; gap:10px; }
+.card{ background:#fff; border:1px solid rgba(0,0,0,.12); border-radius:16px; padding:12px; }
+.row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.small{ font-size:12px; opacity:.7; }
+.name{ font-weight:800; margin-top:10px; }
+.chips{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.chip{ font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid rgba(0,0,0,.12); background:rgba(0,0,0,.03); }
+.actions{ margin-top:12px; display:flex; gap:8px; }
+.btn{ padding:10px 12px; border-radius:12px; border:1px solid rgba(0,0,0,.15); background:#fff; cursor:pointer; }
+.btn.ghost{ opacity:.9; }
+.pill{ font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid rgba(0,0,0,.12); background:rgba(0,0,0,.04); }
+.pill.paused{ background:rgba(0,0,0,.06); }
+.err{ padding:10px 12px; border-radius:12px; background:rgba(255,0,0,.07); border:1px solid rgba(255,0,0,.15); margin-bottom:10px; }
+.loading{ opacity:.8; }

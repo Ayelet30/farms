@@ -1,4 +1,4 @@
-import { Component, OnInit, HostListener, inject, EventEmitter, Output } from '@angular/core';
+import { Component, OnInit, HostListener, inject, EventEmitter, Output, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -15,6 +15,8 @@ import { CurrentUserService } from '../../core/auth/current-user.service';
 })
 export class SliderComponent implements OnInit {
 
+  @Input() collapsed = false; 
+
   @Output() collapsedChange = new EventEmitter<boolean>();
     
   private router = inject(Router);
@@ -22,7 +24,6 @@ export class SliderComponent implements OnInit {
   private cu = inject(CurrentUserService);
 
   isDesktop = false;
-  menuCollapsed = false;
   role = '';
   menuItems: Array<{ path: string; label: string; icon: string }> = [];
   error: string | undefined;
@@ -62,11 +63,12 @@ private setMenuItemsByRole() {
         { path: 'parent/children',          label: 'הילדים שלי',        icon: 'children' },
         { path: 'parent/schedule',          label: 'מערכת שיעורים',     icon: 'calendar' },
         { path: 'parent/appointment',       label: 'זימון תורים',       icon: 'calendar_plus' },
-        { path: 'parent/activity-summary',  label: 'סיכום פעילות',      icon: 'receipt' },
         { path: 'parent/payments',          label: 'אמצעי תשלום',       icon: 'card' },
-        { path: 'parent/messages',          label: 'הודעות',            icon: 'messages' },
+        { path: 'parent/requests',          label: 'בקשות ואישורים',    icon: 'checklist' },
+        { path: 'parent/messages',          label: 'יצירת קשר',            icon: 'messages' },
+        { path: 'parent/waitlist',         label: 'רשימת המתנה',      icon: 'waitlist' },
         { path: 'parent/details',           label: 'הפרטים שלי',        icon: 'user' },
-        { path: 'parent/requests',          label: 'בקשות ואישורים',    icon: 'checklist' }
+        { path: 'parent/activity-summary',  label: 'סיכום פעילות',      icon: 'receipt' },
       ];
       break;
 
@@ -89,7 +91,8 @@ private setMenuItemsByRole() {
         { path: 'secretary/arenas',     label: 'מגרשים בחווה',     icon: 'arena' },
         { path: 'secretary/schedule',        label: 'לו״ז ומעקב',        icon: 'calendar' },
         { path: 'secretary/appointment',     label: 'זימון תורים',       icon: 'calendar_plus' },
-        { path: 'secretary/messages',        label: 'הודעות',            icon: 'messages' },
+        { path: 'secretary/waitlist',        label: 'רשימת המתנה',      icon: 'waitlist' },
+        { path: 'secretary/messages',        label: 'יצירת קשר',            icon: 'messages' },
         { path: 'secretary/monthly-summary', label: 'סיכום וגרפים',      icon: 'bar_chart' },
         { path: 'secretary/requests',        label: 'בקשות ואישורים',    icon: 'checklist' },
         { path: 'secretary/payments',        label: 'תשלומים וחשבוניות', icon: 'card' },
@@ -114,9 +117,17 @@ private setMenuItemsByRole() {
 
 
   /** מעבר לנתיב שנבחר בתפריט */
-  navigateTo(path: string) {
+   navigateTo(path: string) {
     this.router.navigate([path]);
-    if (!this.isDesktop) this.menuCollapsed = true; // סגירה במובייל
+    if (!this.isDesktop) {
+      this.collapsed = true;
+      this.collapsedChange.emit(true);
+    }
+  }
+
+  toggleMenu(force?: boolean) {
+    this.collapsed = typeof force === 'boolean' ? force : !this.collapsed;
+    this.collapsedChange.emit(this.collapsed);
   }
 
   /** בדיקה אם הנתיב פעיל */
@@ -124,15 +135,11 @@ private setMenuItemsByRole() {
     return this.router.url.includes(path);
   }
 
-  /** פתיחה/סגירה של התפריט */
-   toggleMenu(force?: boolean) {
-    this.menuCollapsed = typeof force === 'boolean' ? force : !this.menuCollapsed;
-    this.collapsedChange.emit(this.menuCollapsed);
-  }
-
   /** התאמה למסכים רספונסיביים */
   private syncBreakpoint() {
     this.isDesktop = window.matchMedia('(min-width: 1024px)').matches;
-    this.menuCollapsed = !this.isDesktop;
+    if (!this.isDesktop) this.collapsed = true; // במובייל תמיד סגור כברירת מחדל
+      this.collapsedChange.emit(this.collapsed);
+
   }
 }

@@ -4,6 +4,15 @@ import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import type { ScheduleItem } from '../../../models/schedule-item.model';
 import type { Lesson } from '../../../models/lesson-schedule.model';
 import type { EventClickArg } from '@fullcalendar/core';
+import { MatTooltipModule, MatDialogModule } from '@angular/material/tooltip';
+import { UiDialogService } from '../../../services/ui-dialog.service';
+
+imports: [
+  CommonModule,
+  ScheduleComponent,
+  MatDialogModule,
+  MatTooltipModule
+]
 
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
@@ -60,9 +69,7 @@ showToast(msg: string, ms = 3000) {
   setTimeout(() => (this.toastMessage = null), ms);
 }
 
-constructor(private dialog: MatDialog) {}
-
-
+  constructor(private dialog: MatDialog,private ui: UiDialogService) {}
 
   async ngOnInit() {
     await ensureTenantContextReady();
@@ -713,10 +720,15 @@ canCancel(lesson: Lesson) {
   }
 
   cancelLesson(_lesson: Lesson) {
-    const confirmed = confirm('האם לבטל את השיעור?');
-    if (confirmed) {
-      // (לא בשימוש יותר – עברנו לדיאלוג)
-    }
+    const confirmed = this.ui.confirm(
+      {
+    title: 'ביטול שיעור',
+    message: `האם לבטל את השיעור ""?`,
+    okText: 'כן, לבטל',
+    cancelText: 'ביטול',
+    showCancel: true,
+  });
+
   }
 
   viewDetails(_lesson: Lesson) {
