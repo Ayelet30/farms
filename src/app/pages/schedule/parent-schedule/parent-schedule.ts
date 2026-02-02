@@ -4,7 +4,9 @@ import { ScheduleComponent } from '../../../custom-widget/schedule/schedule';
 import type { ScheduleItem } from '../../../models/schedule-item.model';
 import type { Lesson } from '../../../models/lesson-schedule.model';
 import type { EventClickArg } from '@fullcalendar/core';
-import { MatTooltipModule } from '@angular/material/tooltip';
+
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+
 import { UiDialogService } from '../../../services/ui-dialog.service';
 
 imports: [
@@ -21,10 +23,7 @@ import {
   getCurrentUserData,
 } from '../../../services/legacy-compat';
 
-import {
-  MatDialog,
-  MatDialogModule,
-} from '@angular/material/dialog';
+
 import {
   CancelLessonDialogComponent,
   CancelLessonDialogData,
@@ -35,7 +34,12 @@ import {
   standalone: true,
   templateUrl: './parent-schedule.html',
   styleUrls: ['./parent-schedule.scss'],
-  imports: [CommonModule, ScheduleComponent, MatDialogModule],
+  imports: [    CommonModule,
+    ScheduleComponent,
+
+    // 👇 כאן להוסיף
+    MatDialogModule,
+    ],
 })
 
 export class ParentScheduleComponent implements OnInit {
@@ -57,6 +61,15 @@ nextCanceledLessonNote: string | null = null;
   items: ScheduleItem[] = [];
   selectedChildId: string = 'all';
   dropdownOpen = false;
+toastMessage: string | null = null;
+
+showToast(msg: string, ms = 3000) {
+  this.toastMessage = msg;
+  setTimeout(() => (this.toastMessage = null), ms);
+}
+
+constructor(private dialog: MatDialog) {}
+
 
   constructor(private dialog: MatDialog,private ui: UiDialogService) {}
 
@@ -212,6 +225,7 @@ const toDate = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000)
   .from('lessons_occurrences')
   .select(`
     lesson_id,
+     occur_date,   
     child_id,
     instructor_id,
     lesson_type,
@@ -267,6 +281,17 @@ const toDate = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000)
           .join(' ');
       }
     }
+    const { data: pending } = await dbc
+  .from('secretarial_requests')
+  .select('lesson_occ_id, from_date')
+  .eq('request_type', 'CANCEL_OCCURRENCE')
+  .eq('status', 'PENDING');
+const pendingMap = new Set(
+  (pending ?? []).map(
+    (r: { lesson_occ_id: any; from_date: any; }) => `${r.lesson_occ_id}__${r.from_date}`
+  )
+);
+
 this.lessons = rows.map((r) => {
 
  const exceptions = (r as any).lesson_occurrence_exceptions as any[] | null;
@@ -292,6 +317,9 @@ const isMakeupAllowed =
   const occurrenceKey = `${r.child_id}__${start}`;
 
   const child = this.children.find((c) => c.child_uuid === r.child_id);
+const hasPendingCancel = pendingMap.has(
+  `${r.lesson_id}__${r.occur_date}`
+);
 
   return {
     id: occurrenceKey,
@@ -310,7 +338,9 @@ const isMakeupAllowed =
     start_datetime: start,
     end_datetime: end,
     lesson_id: (r as any).lesson_id,
-
+occur_date: (r as any).occur_date, // 👈 זה
+ 
+  hasPendingCancel,
     // ✅ זה השדה שמעניין אותנו
     is_makeup_allowed: isMakeupAllowed,
   } as Lesson;
@@ -412,6 +442,18 @@ const isMakeupAllowed =
     const uniq = new Map<string, ScheduleItem>();
 
     for (const lesson of base) {
+      let cancelBlockReason: string | null = null;
+
+if (lesson.lesson_type === 'השלמה') {
+  cancelBlockReason = 'לא ניתן לבטל שיעור השלמה';
+} else if (lesson.status === 'הושלם') {
+  cancelBlockReason = 'לא ניתן לבטל שיעור שהושלם';
+} else if (lesson.status === 'בוטל') {
+  cancelBlockReason = 'השיעור כבר בוטל';
+} else if (lesson.hasPendingCancel) {
+  cancelBlockReason = 'כבר נשלחה בקשת ביטול לשיעור זה';
+}
+
       const startFallback = this.getLessonDateTime(
         lesson.day_of_week,
         lesson.start_time
@@ -438,17 +480,31 @@ const isMakeupAllowed =
       const childLabel =
         lesson.child_name || this.getChildName(lesson.child_id) || 'ילד';
 let displayTitle = childLabel;
+if (lesson.hasPendingCancel) {
+  displayTitle = `⏳ ${childLabel} (ממתין לאישור מזכירה)`;
+}
 
-if (lesson.status === 'בוטל') {
+if (lesson.status === 'ממתין לאישור') {
+  displayTitle = `⏳ ${childLabel} (ממתין לאישור מזכירה)`;
+}
+
+
+// 🟢 קודם כל – אם זה שיעור השלמה, זה שיעור רגיל שאסור לבטל
+if (String(lesson.lesson_type) === 'השלמה') {
+  displayTitle = `🔁 ${childLabel}`;
+}
+
+// 🔴 רק אם זה ביטול אמיתי (לא השלמה) משתמשים ב־is_makeup_allowed
+else if (lesson.status === 'בוטל') {
   if (lesson['is_makeup_allowed'] === true) {
-  displayTitle = `🔁 ${childLabel} (להשלמה)`;
-} else if (lesson['is_makeup_allowed'] === false) {
-  displayTitle = `❌ ${childLabel} (לא להשלמה)`;
-} else {
-  displayTitle = `❌ ${childLabel} (בוטל)`;
+    displayTitle = `🔁 ${childLabel} (להשלמה)`;
+  } else if (lesson['is_makeup_allowed'] === false) {
+    displayTitle = `❌ ${childLabel} (לא להשלמה)`;
+  } else {
+    displayTitle = `❌ ${childLabel} (בוטל)`;
+  }
 }
 
-}
 
       const uid = `${
         (lesson as any).lesson_id || lesson.id || 'occ'
@@ -460,28 +516,33 @@ if (lesson.status === 'בוטל') {
         (lesson as any).lesson_id || (lesson as any).id || uid;
 
       if (!uniq.has(uid)) {
-        uniq.set(uid, {
-          id: uid,
-           title: displayTitle, 
-          start,
-          end,
-          color,
-          status: lesson.status,
-          meta: {
-            status: lesson.status,
-            child_id: lesson.child_id,
-            child_name: lesson.child_name,
-            instructor_id: lesson.instructor_id,
-            instructor_name: lesson.instructor_name,
-            lesson_type: lesson.lesson_type,
-            canCancel: canCancelFlag,
-            lesson_occurrence_id: lessonOccId,
-            displayTitle,
-             is_makeup_allowed: lesson['is_makeup_allowed'],
-             
+uniq.set(uid, {
+  id: uid,
+  title: displayTitle,
+  start,
+  end,
+  color,
+  status: lesson.status,
 
-          },
-        } as unknown as ScheduleItem);
+  meta: {
+    lesson_type: lesson.lesson_type,
+    status: lesson.status,
+
+    canCancel: !cancelBlockReason,
+    cancelBlockReason, // ⭐ זה הטולטיפ / הסבר
+
+    hasPendingCancel: lesson.hasPendingCancel,
+    is_makeup_allowed: lesson['is_makeup_allowed'],
+    lesson_id: lesson.lesson_id,
+    occur_date: lesson.occur_date,
+    child_id: lesson.child_id,
+    child_name: lesson.child_name,
+    instructor_id: lesson.instructor_id,
+    instructor_name: lesson.instructor_name,
+  }
+} as unknown as ScheduleItem);
+
+
       }
     }
 
@@ -491,78 +552,120 @@ if (lesson.status === 'בוטל') {
   }
 
   // 🔹 פופאפ + קריאה ל־RPC
-  onEventClick(arg: EventClickArg) {
-    const ev = arg.event;
-    const ext: any = ev.extendedProps;
+ onEventClick(arg: EventClickArg) {
+  const ev = arg.event;
+  const ext: any = ev.extendedProps;
 
-    const data: CancelLessonDialogData = {
-      lessonId: ext['lesson_occurrence_id'] ?? ev.id,
-      childName: ext['child_name'] ?? ev.title ?? '',
-      instructorName: ext['instructor_name'] ?? '',
-      dateStr: ev.start
-        ? ev.start.toLocaleDateString('he-IL')
-        : '',
-      timeStr: ev.start
-        ? ev.start.toLocaleTimeString('he-IL', {
-            hour: '2-digit',
-            minute: '2-digit',
-          })
-        : '',
-      lessonType: ext['lesson_type'] ?? '',
-      status: ext['status'] ?? '',
-      canCancel: !!ext['canCancel'],
-       isMakeupAllowed: !!ext['is_makeup_allowed'],
-    };
+  // ⏳ כבר נשלחה בקשה
+  if (ext.hasPendingCancel) {
+    this.showToast('כבר נשלחה בקשת ביטול לשיעור זה');
+    return;
+  }
+
+  // 🔁 שיעור השלמה – חסימה מוחלטת
+  if (String(ext.lesson_type) === 'השלמה') {
+    this.showToast('אי אפשר לבטל שיעור השלמה');
+    return;
+  }
+
+  // ❌ כבר בוטל
+  if (ext.status === 'בוטל') {
+    this.showToast('השיעור כבר בוטל');
+    return;
+  }
+
+  // ⛔ הושלם
+  if (ext.status === 'הושלם') {
+    this.showToast('לא ניתן לבטל שיעור שהושלם');
+    return;
+  }
+
+  // ⏳ ממתין לאישור
+  if (ext.status === 'ממתין לאישור') {
+    this.showToast('כבר קיימת בקשה לשיעור זה');
+    return;
+  }
+
+  // ✅ רק מפה נפתח דיאלוג
+
+  // ✅ רק אם עברנו את כל החסימות – פותחים דיאלוג
+
+
+  const data: CancelLessonDialogData = {
+  lessonId: ext['lesson_id'],
+
+  childName: ext['child_name'] ?? ev.title ?? '',
+  instructorName: ext['instructor_name'] ?? '',
+  dateStr: ev.start
+    ? ev.start.toLocaleDateString('he-IL')
+    : '',
+  timeStr: ev.start
+    ? ev.start.toLocaleTimeString('he-IL', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '',
+  lessonType: ext['lesson_type'] ?? '',
+  status: ext['status'] ?? '',
+
+  canCancel: true, // ✅ תמיד true – כי הגענו לפה רק אם מותר
+  isMakeupAllowed: !!ext['is_makeup_allowed'],
+};
+
 
     const dialogRef = this.dialog.open(CancelLessonDialogComponent, {
       width: '420px',
       data,
       direction: 'rtl',
     });
+dialogRef.afterClosed().subscribe((result) => {
+  if (!result?.cancelRequested) return;
 
-   dialogRef.afterClosed().subscribe((result) => {
-  if (result?.cancelRequested) {
-    const startIso = ev.start
-      ? ev.start.toISOString()
-      : '';
+  const occurDate = ext['occur_date']; // ← רק מה־DB
 
-    this.handleCancelRequest(
-      data.lessonId,     // lesson_id
-      result.reason,     // סיבת הביטול
-      startIso           // start_datetime
-    );
+  if (!occurDate) {
+    alert('לא נמצא תאריך מופע (occur_date)');
+    return;
   }
+
+  this.handleCancelRequest(
+    ext['lesson_id'],
+    result.reason,
+    ext['occur_date']   
+  );
 });
 
+
   }
 
 
-  private async handleCancelRequest(
+private async handleCancelRequest(
   lessonId: string,
   reason: string,
-  startDateTimeIso: string
+  occurDate: string   // ← זה מגיע מ-ext['occur_date']
 ) {
   try {
     await ensureTenantContextReady();
 
-    const user = await getCurrentUserData(); // יש לך כבר בפרויקט
+    const user = await getCurrentUserData();
     if (!user?.uid) throw new Error('Missing user uid');
+
+    if (!occurDate) throw new Error('Missing occur date');
+
+    console.log('📤 RPC payload', {
+      lessonId,
+      occurDate,
+      reason,
+    });
 
     const dbc = dbTenant();
 
-    const occurDateIso = startDateTimeIso ? startDateTimeIso.slice(0, 10) : '';
-    if (!occurDateIso) throw new Error('Missing occur date');
-
-    const { error } = await dbc
-      .rpc('parent_request_cancel_lesson', {
-        p_requested_by_uid: String(user.uid),
-        p_lesson_id: lessonId,
-        p_occur_date: occurDateIso,
-        p_reason: reason,
-      });
-
-    if (error) throw error;
-
+    const { error } = await dbc.rpc('parent_request_cancel_lesson', {
+      p_requested_by_uid: String(user.uid),
+      p_lesson_id: lessonId,
+      p_occur_date: occurDate,   // ✅ DATE אמיתי
+      p_reason: reason,
+    });
     this.markLessonAsPendingCancel(lessonId);
    this.ui.alert('בקשת הביטול נשלחה למזכירה.');
   } catch (err) {
@@ -571,31 +674,32 @@ if (lesson.status === 'בוטל') {
   }
 }
 
-  
+    if (error) throw error;
+
+    // זמני – עדיף לרענן מה־DB
+this.showToast('בקשת הביטול נשלחה למזכירה');
+setTimeout(() => this.refresh(), 300);
 
 
+  } catch (err: any) {
+  const msg =
+    err?.message ||
+    err?.error?.message ||
+    err?.details ||
+    '';
 
+  if (msg.includes('already exists')) {
+    this.showToast('כבר נשלחה בקשת ביטול לשיעור זה');
+    await this.refresh();
+    return;
+  }
 
-
-private markLessonAsPendingCancel(lessonOccId: string) {
-  // עדכון lessons
-  this.lessons = this.lessons.map((l) =>
-    (l as any).lesson_id === lessonOccId
-      ? { ...l, status: 'בקשת ביטול' as any }
-      : l
-  );
-
-  // עדכון items
-  this.items = this.items.map((it) =>
-    (it.meta as any)?.['lesson_occurrence_id'] === lessonOccId
-      ? {
-          ...it,
-          status: 'בקשת ביטול' as any,
-          meta: { ...(it.meta as any), status: 'בקשת ביטול' },
-        }
-      : it
-  );
+  console.error('cancel request error', err);
+  this.showToast('אירעה שגיאה בעת שליחת בקשת הביטול');
 }
+
+}
+
 
   onDateClick(dateIso: string) {
   }
@@ -604,10 +708,22 @@ private markLessonAsPendingCancel(lessonOccId: string) {
     window.print();
   }
 
-  canCancel(lesson: Lesson) {
-    // אפשר לחדד את הכלל – כרגע לפי סטטוס בלבד
-    return lesson.status !== 'הושלם' && lesson.status !== 'בוטל';
+canCancel(lesson: Lesson) {
+  // ❌ שיעור השלמה – אין ביטול
+  if (lesson.lesson_type === 'השלמה') {
+    return false;
   }
+
+  // ❌ הושלם או בוטל – אין מה לבטל
+  if (lesson.status === 'הושלם' || lesson.status === 'בוטל') {
+    return false;
+  }
+
+  // ✅ כל השאר – מותר לבטל (כולל עתידי רגיל)
+  return true;
+}
+
+
   canView(_lesson: Lesson) {
     return true;
   }

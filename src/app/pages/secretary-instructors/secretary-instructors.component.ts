@@ -35,16 +35,20 @@ type InstructorRow = {
   accepts_makeup_others?: boolean | null;
   allow_availability_edit?: boolean | null;
 };
-
 interface InstructorWeeklyAvailabilityRow {
   instructor_id_number: string;
-  day_of_week: number;          // 0-6 (ראשון-שבת)
-  start_time: string | null;    // 'HH:MM:SS'
-  end_time: string | null;      // 'HH:MM:SS'
-  lesson_type_mode: string | null; // 'both' | 'double_only' | 'double or both' | 'break'
+  day_of_week: number;
+  start_time: string | null;
+  end_time: string | null;
+  lesson_type_mode: string | null;
+  lesson_ridding_type: string | null;
 }
 
+
+
 interface InstructorDetailsRow extends InstructorRow {
+  non_therapy_riding_types?: string[] | null;
+
   address?: string | null;
   license_id?: string | null;
   about?: string | null;
@@ -73,6 +77,7 @@ interface InstructorDetailsRow extends InstructorRow {
 })
 export class SecretaryInstructorsComponent implements OnInit {
   instructors: InstructorRow[] = [];
+ridingTypes: { id: string; name: string }[] = [];
 
   // לו"ז שבועי במגירה (מצב תצוגה)
   drawerAvailability: InstructorWeeklyAvailabilityRow[] = [];
@@ -80,18 +85,24 @@ export class SecretaryInstructorsComponent implements OnInit {
   // לו"ז שבועי במצב עריכה
   editAvailability: InstructorWeeklyAvailabilityRow[] = [];
 
-  dayOfWeekToLabel(d?: number | null): string {
-    switch (d) {
-      case 0: return 'ראשון';
-      case 1: return 'שני';
-      case 2: return 'שלישי';
-      case 3: return 'רביעי';
-      case 4: return 'חמישי';
-      case 5: return 'שישי';
-      case 6: return 'צאת שבת';
-      default: return '—';
-    }
+dayOfWeekToLabel(d?: number | null): string {
+  switch (d) {
+    case 1: return 'ראשון';
+    case 2: return 'שני';
+    case 3: return 'שלישי';
+    case 4: return 'רביעי';
+    case 5: return 'חמישי';
+    case 6: return 'שישי';
+    case 7: return 'שבת';
+    default: return '—';
   }
+}
+
+ridingTypeName(id: string | null): string {
+  if (!id) return '—';
+  const rt = this.ridingTypes.find(r => r.id === id);
+  return rt ? rt.name : '—';
+}
 
   lessonTypeLabel(mode?: string | null): string {
     switch (mode) {
@@ -222,6 +233,8 @@ constructor(
 
   async ngOnInit() {
     try {
+      await this.loadRidingTypes();
+
       await ensureTenantContextReady();
       await this.loadInstructors();
     } catch (e: any) {
@@ -249,6 +262,17 @@ statusLabel(s?: string | null): string {
   if (!s) return '—';
   const v = this.normalizeStatus(s);
   return v === 'Active' ? 'פעיל' : 'לא פעיל';
+}
+getNotifyLabel(notify: any): string {
+  if (!notify) return '—';
+
+  const labels: string[] = [];
+  if (notify.email) labels.push('דוא״ל');
+  if (notify.sms) labels.push('SMS');
+  if (notify.whatsapp) labels.push('WhatsApp');
+  if (notify.voice) labels.push('קולית');
+
+  return labels.length ? labels.join(', ') : '—';
 }
 
   private async loadInstructors() {
@@ -317,11 +341,12 @@ statusLabel(s?: string | null): string {
         const key = (i.uid || '').trim();
         const user = key ? usersMap.get(key) : undefined;
 
-        return {
-          ...i,
-          email: user?.email ?? i.email ?? null,
-          phone: user?.phone ?? i.phone ?? null,
-        };
+   return {
+  ...i,
+  email: user?.email ?? i.email ?? null,
+  phone: i.phone ?? user?.phone ?? null,
+};
+
       });
 
 
@@ -334,8 +359,32 @@ statusLabel(s?: string | null): string {
   }
 
   // ======= מגירת פרטים =======
+async loadRidingTypes() {
+    console.log('👉 loadRidingTypes called');
+  console.log('RIDING TYPES', this.ridingTypes);
+
+  const dbc = dbTenant();
+
+const { data, error } = await dbc
+  .from('riding_types')
+  .select('id, name, code')
+  .neq('code', 'break');
+
+
+  if (error) {
+    console.error('failed loading riding types', error);
+    return;
+  }
+
+  this.ridingTypes = data ?? [];
+}
 
   async openDetails(id_number: string) {
+    if (!this.ridingTypes.length) {
+  await this.loadRidingTypes();
+}
+
+    console.log('[INSTRUCTORS] openDetails for id_number:', id_number);
     this.selectedIdNumber = id_number?.trim();
     this.drawerInstructor = null;
     this.editMode = false;
@@ -354,6 +403,15 @@ statusLabel(s?: string | null): string {
     this.editModel = null;
     this.editMode = false;
   }
+getNonTherapyRidingTypesLabel(ins: InstructorDetailsRow | null): string {
+  if (!ins?.non_therapy_riding_types?.length) {
+    return '—';
+  }
+
+  return ins.non_therapy_riding_types
+    .map(id => this.ridingTypeName(id))
+    .join(', ');
+}
 
   private async loadDrawerData(id_number: string) {
     this.drawerLoading = true;
@@ -403,6 +461,7 @@ statusLabel(s?: string | null): string {
       }
 
       let ins = data as InstructorDetailsRow;
+// ✅ תיקון להצגת תאריך לידה במצב קריאה
 
       // ---- אם יש uid – להשלים טלפון/מייל מ-public.users ----
       const uid = (ins.uid || '').trim();
@@ -420,7 +479,8 @@ statusLabel(s?: string | null): string {
           ins = {
             ...ins,
             email: user.email ?? ins.email ?? null,
-            phone: user.phone ?? ins.phone ?? null,
+     phone: ins.phone || user.phone || null,
+
           };
         }
       }
@@ -438,10 +498,17 @@ statusLabel(s?: string | null): string {
       // ---- לטעון לו"ז שבועי מהטבלה instructor_weekly_availability ----
 
       const { data: avail, error: availErr } = await dbcTenant
-        .from('instructor_weekly_availability')
-        .select(
-          'instructor_id_number, day_of_week, start_time, end_time, lesson_type_mode'
-        )
+       .from('instructor_weekly_availability')
+.select(`
+  instructor_id_number,
+  day_of_week,
+  start_time,
+  end_time,
+  lesson_ridding_type,
+  lesson_type_mode
+`)
+
+
         .eq('instructor_id_number', id_number)
         .order('day_of_week');
 
@@ -468,17 +535,33 @@ statusLabel(s?: string | null): string {
 
   // ======= מצב עריכה במגירה =======
 
-  startEditFromDrawer() {
-    console.log('[INSTRUCTORS] startEditFromDrawer');
-    if (!this.drawerInstructor) return;
-    this.editMode = true;
-    this.editModel = {
-      ...this.drawerInstructor,
-      taught_child_genders: this.drawerInstructor.taught_child_genders
-        ? [...this.drawerInstructor.taught_child_genders]
-        : [],
-    };
+async startEditFromDrawer() {
+  if (!this.drawerInstructor) return;
+
+  if (!this.ridingTypes.length) {
+    await this.loadRidingTypes();
   }
+
+  const ins = this.drawerInstructor; // ✅ זה החסר
+
+  this.editMode = true;
+  this.editModel = {
+    ...ins,
+    notify: ins.notify ?? {
+      email: false,
+      sms: false,
+      whatsapp: false,
+      voice: false,
+    },
+    taught_child_genders: ins.taught_child_genders
+      ? [...ins.taught_child_genders]
+      : [],
+    non_therapy_riding_types: ins.non_therapy_riding_types
+      ? [...ins.non_therapy_riding_types]
+      : [],
+  };
+}
+
 
   private hasUnsavedChanges(): boolean {
     if (!this.drawerInstructor || !this.editModel) return false;
@@ -675,6 +758,13 @@ const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_fe
         license_id: m.license_id?.trim() || null,
         education: m.education?.trim() || null,
         about: m.about?.trim() || null,
+          birth_date: m.birth_date ?? null, 
+          notify: m.notify ?? {
+    email: false,
+    sms: false,
+    whatsapp: false,
+    voice: false,
+  },
         default_lesson_duration_min: m.default_lesson_duration_min ?? null,
         min_age_years_male: m.min_age_years_male ?? null,
         max_age_years_male: m.max_age_years_male ?? null, 
@@ -902,6 +992,24 @@ const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_fe
 
 
   // ======= Helpers =======
+onRidingTypeChange(id: string, checked: boolean) {
+  if (!this.editModel) return;
+
+  let arr = this.editModel.non_therapy_riding_types || [];
+
+  if (checked) {
+    if (!arr.includes(id)) {
+      arr = [...arr, id];
+    }
+  } else {
+    arr = arr.filter(x => x !== id);
+  }
+
+  this.editModel = {
+    ...this.editModel,
+    non_therapy_riding_types: arr,
+  };
+}
 
   async checkIfInstructorExists(email: string, tenant_id: string) {
 
