@@ -8,10 +8,9 @@ import { sendEmailCore } from './gmail/email-core';
 import {
   SUPABASE_URL_S,
   SUPABASE_KEY_S,
-  GMAIL_CLIENT_ID_S,
-  GMAIL_CLIENT_SECRET_S,
   GMAIL_MASTER_KEY_S,
 } from './gmail/email-core';
+
 
 
 if (!admin.apps.length) admin.initializeApp();
@@ -95,8 +94,6 @@ export const sendEmailGmail = onRequest(
     secrets: [
       SUPABASE_URL_S,
       SUPABASE_KEY_S,
-      GMAIL_CLIENT_ID_S,
-      GMAIL_CLIENT_SECRET_S,
       GMAIL_MASTER_KEY_S,
       INTERNAL_CALL_SECRET_S,
     ],

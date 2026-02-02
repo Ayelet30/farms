@@ -39,3 +39,8 @@ export function decryptRefreshToken(
   const dec = Buffer.concat([decipher.update(enc), decipher.final()]);
   return dec.toString('utf8');
 }
+
+// crypto-gmail.ts
+export const encryptSecret = encryptRefreshToken;
+export const decryptSecret = decryptRefreshToken;
+
