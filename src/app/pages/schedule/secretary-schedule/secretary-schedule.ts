@@ -26,6 +26,7 @@ type InstructorRow = {
   first_name: string | null;
   last_name: string | null;
   status?: string | null;
+    color_hex?: string | null;
 };
 
 @Component({
@@ -66,6 +67,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
 
   private childAgeById = new Map<string, string>();
+private instructorColorById = new Map<string, string>();
 
   weekInstructorStats: { instructor_id: string; instructor_name: string; totalLessons: number }[] = [];
 
@@ -190,12 +192,22 @@ ridingTypes: { id: string; name: string }[] = [];
       const dbc = dbTenant();
       const { data, error } = await dbc
   .from('instructors')
-  .select('id_number, first_name, last_name, status');   // ✔ בלי סינון
+      .select('id_number, first_name, last_name, status, color_hex'); 
+ // ✔ בלי סינון
 
 
       if (error) throw error;
 
       this.instructors = (data ?? []) as InstructorRow[];
+this.instructorColorById = new Map(
+  this.instructors
+    .filter(i => i.color_hex && i.color_hex.trim() !== '')
+    .map(i => [
+      String(i.id_number),
+      i.color_hex!.trim()
+    ])
+);
+
 
       // ברירת מחדל – אם המשתמש גם מדריך, מסמנים אותו, אחרת כולם
       if (!this.selectedInstructorIds.length) {
@@ -467,6 +479,15 @@ if (!this.selectedInstructorIds.length) {
   };
 
  const makeLessonEvent = (lesson: any): ScheduleItem => {
+const instructorId = String(lesson.instructor_id || '');
+
+const colorFromDb = this.instructorColorById.get(instructorId);
+
+const instructorBorderColor =
+  colorFromDb && colorFromDb.trim() !== ''
+    ? colorFromDb
+    : this.getColorForInstructor(instructorId);
+
   const start = this.ensureIso(
     lesson.start_datetime as any,
     lesson.start_time as any,
@@ -483,6 +504,13 @@ if (!this.selectedInstructorIds.length) {
   const age = this.childAgeById.get(lesson.child_id) || '';
   const childDisplay = age ? `${childName} (${age})` : childName;
 
+console.log(
+  '🧪 lesson.instructor_id:',
+  lesson.instructor_id,
+  'color from map:',
+  this.instructorColorById.get(String(lesson.instructor_id))
+);
+
   return {
     id: lesson.id,
     title: childDisplay,
@@ -496,6 +524,7 @@ if (!this.selectedInstructorIds.length) {
       child_name: childDisplay,
       instructor_id: lesson.instructor_id,
       instructor_name: lesson.instructor_name,
+         instructor_color: instructorBorderColor, 
       lesson_type: lessonType,
       children: childDisplay,   
       horse_name: lesson.horse_name,
@@ -670,6 +699,11 @@ if (this.currentViewType === 'timeGridDay') {
     const colors = ['#d8f3dc', '#fbc4ab', '#cdb4db', '#b5ead7', '#ffdac1'];
     return colors[(index >= 0 ? index : 0) % colors.length];
   }
+private getColorForInstructor(id: string): string {
+  const palette = ['#ff6b6b', '#4dabf7', '#51cf66', '#f59f00', '#845ef7'];
+  const idx = this.hashString(id) % palette.length;
+  return palette[idx];
+}
 
   onEventClick(arg: EventClickArg): void {
   const ext: any = arg.event.extendedProps || {};
@@ -813,6 +847,7 @@ const isCancelled =
     this.autoAssignLoading = false;
   }
 }
+
 async onToggleMakeupAllowed(checked: boolean) {
   try {
     await ensureTenantContextReady();

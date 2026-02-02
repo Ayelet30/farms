@@ -51,7 +51,7 @@
     </div>
 
     <!-- TOP WARNINGS (compact) -->
-    <div class="top-alerts">
+   <div class="top-alerts" *ngIf="!isInitializing">
       <div class="alert warn" *ngIf="mustChooseAttendance">
         <mat-icon>error_outline</mat-icon>
         חובה לבחור נוכחות לפני סגירה.
@@ -303,6 +303,54 @@
           </button>
         </div>
       </section>
+<!-- OFFICE NOTES -->
+<details class="acc office"
+      *ngIf="true"
+
+         [attr.open]="notesOffice.length ? '' : null">
+
+  <summary>
+    <span>הערות משרד</span>
+    <span class="count">{{ notesOffice.length || 0 }}</span>
+  </summary>
+
+  <div class="acc-body">
+    <p class="empty" *ngIf="!notesOffice.length">
+      אין הערות משרד.
+    </p>
+
+    <div *ngFor="let note of notesOffice; trackBy: trackByNote"
+         class="note-card office">
+
+      <div class="note-text">
+        {{ note.display_text }}
+      </div>
+
+      <div class="note-meta">
+        {{ note.created_at | date:'dd.MM.yyyy HH:mm' }}
+      </div>
+    </div>
+  </div>
+</details>
+
+<section class="block" *ngIf="canEditOfficeNotes">
+  <div class="block-title">
+    <mat-icon>account_balance</mat-icon>
+    <span>הערת משרד (פנימית)</span>
+  </div>
+
+  <mat-form-field appearance="fill" class="full">
+    <mat-label>הערה לחיוב / משרד</mat-label>
+    <textarea matInput [(ngModel)]="newOfficeNote" rows="2"></textarea>
+  </mat-form-field>
+
+  <div class="row">
+    <button mat-raised-button color="accent"
+            (click)="addOfficeNote()">
+      שמור הערת משרד
+    </button>
+  </div>
+</section>
 
       <div class="bottom-space"></div>
     </div>

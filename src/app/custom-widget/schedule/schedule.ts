@@ -67,6 +67,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     dateStr: string;
   }>(); 
 
+
   currentView: ViewName = this.initialView;
   currentDate = '';
   isFullscreen = false;
@@ -117,6 +118,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     events: [],
     resources: [],
 
+
     // 👇 קליק שמאלי רגיל
     dateClick: (info: DateClickArg) => this.dateClick.emit(info),
     eventClick: (arg: EventClickArg) => this.eventClick.emit(arg),
@@ -143,6 +145,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     },
 
     eventContent: (arg) => {
+      
   const { event } = arg;
   const status = event.extendedProps['status'] || '';
   const isSummaryDay = !!event.extendedProps['isSummaryDay'];
@@ -181,28 +184,34 @@ if (event.extendedProps['isFarmDayOff']) {
     };
   }
   const title = event.title || ''; 
+  const meta = event.extendedProps['meta'] || {};
+
   // כרטיסיית שיעור – ילדים + סוג
-  const childrenStr =
-    event.extendedProps['children'] ||
-    event.extendedProps['child_name'] ||
-    '';
+const childrenStr =
+  event.extendedProps['children'] ||
+  event.extendedProps['child_name'] ||
+  event.title ||
+  '';
+
+const age = meta.age ? `(${meta.age})` : '';
+
+
   const children = childrenStr
     .split('|')
     .map((s: string) => s.trim())
     .filter((s: string) => !!s);
 
-  const childrenHtml = children
-    .map((name: string) => `<span class="child-name">${name}</span>`)
-    .join('<span class="child-sep"></span>');
+const childrenHtml = children
+  .map((name: string) => `<span class="child-name">${name} ${age}</span>`)
+  .join('<span class="child-sep"></span>');
+
 
   const type = event.extendedProps['lesson_type'] || '';
   const chip = type ? `<span class="chip">${type}</span>` : '';
+const horse = event.extendedProps['horse_name'] || '';
+const arena = event.extendedProps['arena_name'] || '';
 
-  // 👇 חדשים – סוס ומגרש
-const meta = event.extendedProps['meta'] || event.extendedProps;
 
-const horse = meta?.horse_name || '';
-const arena = meta?.arena_name || '';
 
 
   const resourcesHtml =
@@ -220,9 +229,7 @@ return {
   html: `
    <div class="event-box">
 
-      <div class="title-line">
-        ${title}
-      </div>
+   
 
       <div class="children-line">
         ${childrenHtml}
@@ -268,13 +275,32 @@ return {
 },
 
 
-  eventDidMount: (info: any) => {
+eventDidMount: (info: any) => {
+  const meta = info.event.extendedProps?.meta;
+
+  const color = meta?.instructor_color;
+
+  console.log(
+    '🎨 instructor_color:',
+    color,
+    'event:',
+    info.event.title
+  );
+
+  if (color) {
+    const box = info.el.querySelector('.event-box') as HTMLElement | null;
+    if (box) {
+      box.style.borderRight = `6px solid ${color}`; // RTL
+      box.style.boxSizing = 'border-box';
+    }
+  }
+
+
+
   console.log('🎯 eventDidMount', info.event.title, info.event.extendedProps);
 
   // ===== TOOLTIP =====
-  const meta =
-    info.event.extendedProps?.meta ??
-    info.event.extendedProps;
+
 console.log('🧪 META', meta);
   let tooltipText = '';
 
@@ -388,6 +414,7 @@ console.log('🧪 META', meta);
 
   // ===== חופשת חווה =====
 if (i.meta?.['isFarmDayOff'] === 'true') {
+console.log('🧪 ITEM META', i.meta);
 
     return [
       // 1️⃣ רקע – צובע את כל היום / שעות
@@ -415,35 +442,39 @@ if (i.meta?.['isFarmDayOff'] === 'true') {
     ];
   }
 
+
   // ===== אירוע רגיל =====
-  return {
-    id: i.id,
-    title: i.title,
-    start: i.start,
-    end: i.end,
-    backgroundColor: i.color,
-    borderColor: i.color,
-    resourceId: i.meta?.instructor_id || undefined,
-    extendedProps: {
-  lesson_id: i.meta?.['lesson_id'],
- meta: i.meta, 
-      status: i.status,
-      child_id: i.meta?.child_id,
-      child_name: i.meta?.child_name,
-      instructor_id: i.meta?.instructor_id,
-      instructor_name: i.meta?.instructor_name,
-      lesson_type: i.meta?.['lesson_type'],
-      children: i.meta?.['children'],
-        occur_date: i.meta?.['occur_date'],
-      isSummaryDay: i.meta?.isSummaryDay,
-      isSummarySlot: i.meta?.isSummarySlot,
-      isInstructorHeader: i.meta?.['isInstructorHeader'],
+return [{
+  id: i.id,
+  title: i.title,
+  start: i.start,
+  end: i.end,
+  backgroundColor: i.color,
+  borderColor: i.color,
+  resourceId: i.meta?.instructor_id || undefined,
+  extendedProps: {
+    lesson_id: i.meta?.['lesson_id'],
+    meta: i.meta,
+       
+instructor_color: i.meta?.['instructor_color'],
 
+    status: i.status,
+    child_id: i.meta?.child_id,
+    child_name: i.meta?.child_name,
+    instructor_id: i.meta?.instructor_id,
+    instructor_name: i.meta?.instructor_name,
+    lesson_type: i.meta?.['lesson_type'],
+    children: i.meta?.['children'],
+    occur_date: i.meta?.['occur_date'],
+    isSummaryDay: i.meta?.isSummaryDay,
+    isSummarySlot: i.meta?.isSummarySlot,
+    isInstructorHeader: i.meta?.['isInstructorHeader'],
     horse_name: i.meta?.['horse_name'],
-arena_name: i.meta?.['arena_name'],
+    arena_name: i.meta?.['arena_name'],
+    
+  },
+}];
 
-    },
-  };
 }),
 
       resources: this.resources,

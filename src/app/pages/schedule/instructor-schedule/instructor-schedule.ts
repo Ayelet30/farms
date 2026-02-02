@@ -149,6 +149,7 @@ showAffectedParentsPopup = false;
     y: 0,
     request: null as DayRequestRow | null,
   };
+  instructorColor: any;
 
   /* ------------ INIT ------------ */
   async ngOnInit(): Promise<void> {
@@ -159,7 +160,17 @@ showAffectedParentsPopup = false;
       const user = await this.cu.loadUserDetails();
       this.instructorId = String(user?.id_number || '').trim();
       if (!this.instructorId) throw new Error('לא נמצא מזהה מדריך');
+const { data: instructor } = await dbTenant()
+  .from('instructors')
+  .select('color_hex')
+  .eq('id_number', this.instructorId)
+  .single();
 
+this.instructorColor = instructor?.color_hex ?? null;
+
+console.log('🎨 instructor color loaded:', this.instructorColor);
+this.setScheduleItems();
+this.cdr.detectChanges();
       const startYmd = ymd(addDays(new Date(), -14));
       const endYmd = ymd(addDays(new Date(), 60));
 
@@ -589,6 +600,8 @@ const title = `${name}${agePart} — ${lessonTypeLabel}`.trim();
           arena_name: l.arena_name ?? null,
           occur_date: (l.occur_date ?? '').slice(0, 10),
           lesson_id: l.lesson_id,
+          
+          instructor_color: this.instructorColor,
         } as any,
         status: l.status as any,
       };
