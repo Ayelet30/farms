@@ -60,6 +60,10 @@ const APPROVE_RPC_BY_TYPE: Partial<Record<RequestType, string>> = {
 
 type ToastKind = 'success' | 'error' | 'info';
 
+type ValidationMode = 'auto' | 'approve';
+
+type ValidationResult = { ok: true } | { ok: false; reason: string };
+
 
 @Component({
   selector: 'app-secretarial-requests-page',
@@ -129,6 +133,35 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
     FILL_IN: RequestFillInDetailsComponent,
 
   };
+
+  private isDbFailure(err: any): boolean {
+  const msg = String(err?.message ?? err ?? '').toLowerCase();
+  // supabase-js errors / fetch
+  return (
+    msg.includes('failed to fetch') ||
+    msg.includes('network') ||
+    msg.includes('timeout') ||
+    msg.includes('502') ||
+    msg.includes('503') ||
+    msg.includes('500') ||
+    msg.includes('400') ||
+    msg.includes('jwt') ||
+    msg.includes('permission') ||
+    msg.includes('rls') ||
+    msg.includes('schema') ||
+    msg.includes('tenant')
+  );
+}
+
+private handleDbFailure(mode: ValidationMode, context: string, err: any): ValidationResult {
+  console.warn(`[VALIDATION][${mode}] ${context} DB failed → skip/restrict`, err);
+
+  // במצב auto: לא מפילים, לא דוחים
+  if (mode === 'auto') return { ok: true };
+
+  // במצב approve: חוסמים כדי לא לאשר בטעות
+  return { ok: false, reason: 'לא ניתן לאמת כרגע (שגיאת מערכת). נסי לרענן/להתחבר מחדש.' };
+}
 
   getDetailsComponent(type: string) {
     return this.REQUEST_DETAILS_COMPONENT[type] || null;
@@ -680,7 +713,7 @@ private async runDecisionViaDetailsComponent(
   try {
     // ולידציה רק לפני approve (כמו שרצית)
     if (action === 'approve') {
-      const valid = await this.isValidRequset(row, inst);
+      const valid = await this.isValidRequset(row, inst, 'approve');
       if (!valid.ok) {
         const reason = valid.reason ?? 'בקשה לא רלוונטית';
         await this.rejectBySystem(row, reason);
@@ -764,7 +797,7 @@ async bulkRejectSelected() {
     if (original.__sfWrapped) return;
 
     const wrapped = async () => {
-      const valid = await this.isValidRequset(row, instance);
+      const valid = await this.isValidRequset(row, instance, 'approve');
       if (!valid.ok) {
         await this.rejectBySystem(row, valid.reason ?? 'בקשה לא רלוונטית');
         return;
@@ -791,7 +824,7 @@ private async rejectInvalidRequests(context: 'load' | 'postBulk') {
 
     let rejected = 0;
     for (const r of pending) {
-      const valid = await this.isValidRequset(r);
+      const valid = await this.isValidRequset(r, undefined, 'auto');
       if (!valid.ok) {
         await this.rejectBySystem(r, valid.reason ?? 'בקשה לא רלוונטית');
         rejected++;
@@ -812,8 +845,10 @@ private async rejectInvalidRequests(context: 'load' | 'postBulk') {
 
 private async isValidRequset(
   row: UiRequest,
-  _instance?: any
+  _instance?: any,
+  mode: ValidationMode = 'auto'
 ): Promise<{ ok: boolean; reason?: string }> {
+
   if (!row) return { ok: false, reason: 'בקשה לא תקינה' };
 
   const expiryReason = this.getExpiryReason(row);
@@ -822,20 +857,21 @@ private async isValidRequset(
   await ensureTenantContextReady();
   const db = dbTenant();
 
-  const childCheck = await this.checkChildActive(db, row);
+  const childCheck = await this.checkChildActive(db, row, mode);
   if (!childCheck.ok) return childCheck;
 
-  const instructorCheck = await this.checkInstructorActive(db, row);
+  const instructorCheck = await this.checkInstructorActive(db, row, mode);
   if (!instructorCheck.ok) return instructorCheck;
 
-  const parentCheck = await this.checkParentActive(db, row);
+  const parentCheck = await this.checkParentActive(db, row, mode);
   if (!parentCheck.ok) return parentCheck;
 
-  const conflictCheck = await this.checkLessonSlotConflict(db, row);
+  const conflictCheck = await this.checkLessonSlotConflict(db, row, mode);
   if (!conflictCheck.ok) return conflictCheck;
 
   return { ok: true };
 }
+
 
 private getExpiryReason(row: UiRequest): string | null {
   const p: any = row.payload ?? {};
@@ -899,73 +935,92 @@ private getParentUidForRequest(row: UiRequest): string | null {
   return p.parent_uid ?? p.parent?.uid ?? p.uid ?? null;
 }
 
-private async checkChildActive(db: any, row: UiRequest): Promise<{ ok: boolean; reason?: string }> {
+private async checkChildActive(db: any, row: UiRequest, mode: ValidationMode)
+  : Promise<{ ok: boolean; reason?: string }> {
+
   const childId = this.getChildIdForRequest(row);
   if (!childId) return { ok: true };
 
-  const { data, error } = await db
-    .from('children')
-    .select('status,is_active')
-    .eq('child_uuid', childId)
-    .maybeSingle();
-  if (error) return { ok: false, reason: 'שגיאה בבדיקת סטטוס הילד' };
+  try {
+    const { data, error } = await db
+      .from('children')
+      .select('status,is_active')
+      .eq('child_uuid', childId)
+      .maybeSingle();
 
-  const status = (data as any)?.status ?? null;
-  const isActiveFlag = (data as any)?.is_active;
-  if (isActiveFlag === false) return { ok: false, reason: 'הילד אינו פעיל' };
+    if (error) {
+      const r = this.handleDbFailure(mode, 'checkChildActive', error);
+      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    }
 
-  if (status && status !== 'Active') {
-    return { ok: false, reason: 'הילד אינו פעיל (סטטוס: ' + status + ')' };
+    const status = (data as any)?.status ?? null;
+    const isActiveFlag = (data as any)?.is_active;
+
+    if (isActiveFlag === false) return { ok: false, reason: 'הילד אינו פעיל' };
+    if (status && status !== 'Active') return { ok: false, reason: `הילד אינו פעיל (סטטוס: ${status})` };
+
+    return { ok: true };
+  } catch (e: any) {
+    const r = this.handleDbFailure(mode, 'checkChildActive', e);
+    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
   }
-
-  return { ok: true };
 }
 
-private async checkInstructorActive(db: any, row: UiRequest): Promise<{ ok: boolean; reason?: string }> {
+private async checkInstructorActive(db: any, row: UiRequest, mode: ValidationMode)
+  : Promise<{ ok: boolean; reason?: string }> {
+
   const instructorId = this.getInstructorIdForRequest(row);
   if (!instructorId) return { ok: true };
 
-  const { data, error } = await db
-    .from('instructors')
-    .select('is_active')
-    .eq('id_number', instructorId)
-    .maybeSingle();
-  if (error) return { ok: false, reason: 'שגיאה בבדיקת סטטוס מדריך' };
+  try {
+    const { data, error } = await db
+      .from('instructors')
+      .select('is_active')
+      .eq('id_number', instructorId)
+      .maybeSingle();
 
-  if ((data as any)?.is_active === false) {
-    return { ok: false, reason: 'המדריך אינו פעיל' };
+    if (error) {
+      const r = this.handleDbFailure(mode, 'checkInstructorActive', error);
+      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    }
+
+    if ((data as any)?.is_active === false) return { ok: false, reason: 'המדריך אינו פעיל' };
+    return { ok: true };
+  } catch (e: any) {
+    const r = this.handleDbFailure(mode, 'checkInstructorActive', e);
+    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
   }
-
-  return { ok: true };
 }
 
-private async checkParentActive(db: any, row: UiRequest): Promise<{ ok: boolean; reason?: string }> {
+private async checkParentActive(db: any, row: UiRequest, mode: ValidationMode)
+  : Promise<{ ok: boolean; reason?: string }> {
+
   const parentUid = this.getParentUidForRequest(row);
   if (!parentUid) return { ok: true };
 
-  const { data, error } = await db
-    .from('parents')
-    .select('is_active')
-    .eq('uid', parentUid)
-    .maybeSingle();
-  if (error) return { ok: false, reason: 'שגיאה בבדיקת סטטוס הורה' };
+  try {
+    const { data, error } = await db
+      .from('parents')
+      .select('is_active')
+      .eq('uid', parentUid)
+      .maybeSingle();
 
-  if ((data as any)?.is_active === false) {
-    return { ok: false, reason: 'ההורה אינו פעיל' };
+    if (error) {
+      const r = this.handleDbFailure(mode, 'checkParentActive', error);
+      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    }
+
+    if ((data as any)?.is_active === false) return { ok: false, reason: 'ההורה אינו פעיל' };
+    return { ok: true };
+  } catch (e: any) {
+    const r = this.handleDbFailure(mode, 'checkParentActive', e);
+    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
   }
-
-  return { ok: true };
 }
 
-private normalizeTimeToSeconds(t: string | null | undefined): string | null {
-  if (!t) return null;
-  const s = t.trim();
-  if (!s) return null;
-  if (s.length === 5) return `${s}:00`;
-  return s;
-}
+private async checkLessonSlotConflict(db: any, row: UiRequest, mode: ValidationMode)
+  : Promise<{ ok: boolean; reason?: string }> {
 
-private async checkLessonSlotConflict(db: any, row: UiRequest): Promise<{ ok: boolean; reason?: string }> {
   if (!['NEW_SERIES', 'MAKEUP_LESSON', 'FILL_IN'].includes(row.requestType)) return { ok: true };
 
   const p: any = row.payload ?? {};
@@ -975,21 +1030,40 @@ private async checkLessonSlotConflict(db: any, row: UiRequest): Promise<{ ok: bo
 
   if (!instructorId || !dateStr || !timeStr) return { ok: true };
 
-  const { data, error } = await db
-    .from('lessons_occurrences')
-    .select('lesson_id')
-    .eq('instructor_id', instructorId)
-    .eq('occur_date', dateStr)
-    .eq('start_time', timeStr)
-    .limit(1);
+  try {
+    const { data, error } = await db
+      .from('lessons_occurrences')
+      .select('lesson_id')
+      .eq('instructor_id', instructorId)
+      .eq('occur_date', dateStr)
+      .eq('start_time', timeStr)
+      .limit(1);
 
-  if (error) return { ok: false, reason: 'שגיאה בבדיקת התנגשות שיעור' };
-  if (Array.isArray(data) && data.length > 0) {
-    return { ok: false, reason: 'כבר נקבע שיעור במועד הזה' };
+    if (error) {
+      const r = this.handleDbFailure(mode, 'checkLessonSlotConflict', error);
+      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    }
+
+    if (Array.isArray(data) && data.length > 0) {
+      return { ok: false, reason: 'כבר נקבע שיעור במועד הזה' };
+    }
+
+    return { ok: true };
+  } catch (e: any) {
+    const r = this.handleDbFailure(mode, 'checkLessonSlotConflict', e);
+    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
   }
-
-  return { ok: true };
 }
+
+
+private normalizeTimeToSeconds(t: string | null | undefined): string | null {
+  if (!t) return null;
+  const s = t.trim();
+  if (!s) return null;
+  if (s.length === 5) return `${s}:00`;
+  return s;
+}
+
 
 private async rejectBySystem(row: UiRequest, reason: string) {
   await ensureTenantContextReady();
