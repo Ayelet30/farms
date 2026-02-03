@@ -41,6 +41,8 @@ import { RequestCancelOccurrenceDetailsComponent } from './request-cancel-occurr
 import { RequestAddChildDetailsComponent } from './request-add-child-details/request-add-child-details.component';
 import { SecretarialSeriesRequestsComponent } from './request-new-series-details/request-new-series-details.component';
 import { RequestAddParentDetailsComponent } from './request-add-parent-details/request-add-parent-details.component';
+import { RequestMakeupLessonDetailsComponent } from './request-makeup-lesson-details/request-makeup-lesson-details';
+import { RequestFillInDetailsComponent } from './request-fill-in-details/request-fill-in-details';
 
 // שם ה־RPC שאמור לרוץ עבור כל סוג בקשה בעת "אישור"
 const APPROVE_RPC_BY_TYPE: Partial<Record<RequestType, string>> = {
@@ -54,6 +56,7 @@ const APPROVE_RPC_BY_TYPE: Partial<Record<RequestType, string>> = {
   FILL_IN: 'approve_fill_in_request',
 
 };
+
 
 type ToastKind = 'success' | 'error' | 'info';
 
@@ -122,8 +125,8 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
     DELETE_CHILD: RequestRemoveChildDetailsComponent,
     NEW_SERIES: SecretarialSeriesRequestsComponent, 
     PARENT_SIGNUP: RequestAddParentDetailsComponent,
-    // MAKEUP_LESSON: RequestMakeupLessonDetailsComponent,
-    // FILL_IN: RequestFillInDetailsComponent,
+    MAKEUP_LESSON: RequestMakeupLessonDetailsComponent,
+    FILL_IN: RequestFillInDetailsComponent,
 
   };
 
