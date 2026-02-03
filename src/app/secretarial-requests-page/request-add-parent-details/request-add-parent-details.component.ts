@@ -83,6 +83,14 @@ export class RequestAddParentDetailsComponent {
     catch { return String(this.request?.payload ?? ''); }
   }
 
+  static async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
+    return { ok: true };
+  }
+
+  async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
+    return await RequestAddParentDetailsComponent.isValidRequset();
+  }
+
   private toast(message: string, type: ToastKind = 'info') {
     this.snack.open(message, 'סגור', {
       duration: 3500,
@@ -248,3 +256,5 @@ private async getTenantCtx(): Promise<{ tenant_id: string; schema: string }> {
     }
   }
 }
+
+

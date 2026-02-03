@@ -111,6 +111,14 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
     }
   }
 
+  static async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
+    return { ok: true };
+  }
+
+  async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
+    return await RequestAddChildDetailsComponent.isValidRequset();
+  }
+
   get medicalTags(): string[] {
     const d = this.details();
     if (!d) return [];

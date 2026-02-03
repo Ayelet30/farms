@@ -276,6 +276,22 @@ private async loadPaymentPlanName() {
   }
 }
 
+static async isValidRequset(row: UiRequest): Promise<{ ok: boolean; reason?: string }> {
+  const p: any = row?.payload ?? {};
+  const start = row?.fromDate ?? p.series_start_date ?? p.start_date ?? null;
+  if (!start) return { ok: true };
+
+  const dt = SecretarialSeriesRequestsComponent.combineDateTime(start, '00:00');
+  if (dt.getTime() < Date.now()) {
+    return { ok: false, reason: 'עבר מועד תחילת הסדרה' };
+  }
+  return { ok: true };
+}
+
+async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
+  return await SecretarialSeriesRequestsComponent.isValidRequset(this.request);
+}
+
 async approveSelected() {
   this.clearMessages();
 
@@ -570,6 +586,11 @@ private parseDateOnly(value: string): Date | null {
   // fallback למקרים אחרים
   const dt = new Date(value);
   return Number.isNaN(dt.getTime()) ? null : dt;
+}
+private static combineDateTime(dateStr: string, timeStr?: string | null): Date {
+  const d = dateStr?.slice(0, 10);
+  const t = (timeStr ?? '00:00').slice(0, 5);
+  return new Date(`${d}T${t}:00`);
 }
 private async loadLessonTypeFromAvailability() {
   const instructorId = this.request?.instructorId; // id_number

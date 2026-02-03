@@ -101,6 +101,21 @@ export class RequestInstructorDayOffDetailsComponent {
     }
   }
 
+  static async isValidRequset(row: any): Promise<{ ok: boolean; reason?: string }> {
+    const end = row?.toDate ?? row?.fromDate ?? null;
+    if (!end) return { ok: true };
+
+    const dt = RequestInstructorDayOffDetailsComponent.combineDateTime(end, '23:59');
+    if (dt.getTime() < Date.now()) {
+      return { ok: false, reason: 'עבר מועד חופשת המדריך' };
+    }
+    return { ok: true };
+  }
+
+  async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
+    return await RequestInstructorDayOffDetailsComponent.isValidRequset(this.req());
+  }
+
   async approve() {
     if (this.loading()) return;
 
@@ -188,6 +203,12 @@ export class RequestInstructorDayOffDetailsComponent {
   private formatDate(d: any): string {
     try { return new Date(d).toLocaleDateString('he-IL'); }
     catch { return String(d ?? ''); }
+  }
+
+  private static combineDateTime(dateStr: string, timeStr?: string | null): Date {
+    const d = dateStr?.slice(0, 10);
+    const t = (timeStr ?? '00:00').slice(0, 5);
+    return new Date(`${d}T${t}:00`);
   }
 
   getDayOffTitle(): string {

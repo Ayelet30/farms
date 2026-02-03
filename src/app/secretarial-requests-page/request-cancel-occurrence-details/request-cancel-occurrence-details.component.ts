@@ -64,6 +64,24 @@ export class RequestCancelOccurrenceDetailsComponent implements OnInit {
     }
   }
 
+  static async isValidRequset(row: any): Promise<{ ok: boolean; reason?: string }> {
+    const p: any = row?.payload ?? {};
+    const dateStr = p.occur_date ?? row?.fromDate ?? null;
+    const timeStr = p.start_time ?? p.startTime ?? p.time ?? null;
+
+    if (!dateStr) return { ok: true };
+
+    const dt = RequestCancelOccurrenceDetailsComponent.combineDateTime(dateStr, timeStr);
+    if (dt.getTime() < Date.now()) {
+      return { ok: false, reason: 'עבר מועד השיעור לביטול' };
+    }
+    return { ok: true };
+  }
+
+  async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
+    return await RequestCancelOccurrenceDetailsComponent.isValidRequset(this.request);
+  }
+
   async approve() {
     if (this.loading()) return;
     this.loading.set(true);
@@ -151,5 +169,11 @@ export class RequestCancelOccurrenceDetailsComponent implements OnInit {
   private formatDate(d: any): string {
     try { return new Date(d).toLocaleDateString('he-IL'); }
     catch { return String(d ?? ''); }
+  }
+
+  private static combineDateTime(dateStr: string, timeStr?: string | null): Date {
+    const d = dateStr?.slice(0, 10);
+    const t = (timeStr ?? '00:00').slice(0, 5);
+    return new Date(`${d}T${t}:00`);
   }
 }
