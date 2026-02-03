@@ -277,9 +277,7 @@ const tenantId = tenant.id; // או השם האמיתי אצלך
     const user = getAuth().currentUser;
     if (!user) throw new Error('המשתמש לא מחובר');
     const token = await user.getIdToken();
-console.log('tenant object:', tenant);
-console.log('tenant.schema:', tenant.schema);
-console.log('tenant.id:', tenant.id);
+
 
     const resp = await fetch(approveUrl, {
       method: 'POST',
