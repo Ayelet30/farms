@@ -451,13 +451,17 @@ const repeatWeeks =
 await ensureTenantContextReady();
 
 // ✅ עדכון סטטוס הבקשה רק אם עדיין PENDING
-const { data: upd, error: updErr } = await db
+const sec_uid = getAuth().currentUser?.uid;
+if (!uid) throw new Error('No logged-in user');
+
+// ✅ עדכון סטטוס הבקשה רק אם עדיין PENDING
+const { data: upd, error: updErr } = await dbTenant()
   .from('secretarial_requests')
   .update({
     status: 'APPROVED',
-    decided_by_uid: uid,
+    decided_by_uid: sec_uid,
     decision_note: this.note || null,
-    decided_at: new Date().toISOString(), // (אם תרצי server time נדבר על זה)
+    decided_at: new Date().toISOString(),
   })
   .eq('id', this.request.id)
   .eq('status', 'PENDING')
@@ -467,7 +471,6 @@ const { data: upd, error: updErr } = await db
 if (updErr) throw updErr;
 
 if (!upd) {
-  // כלומר או שלא הייתה בקשה כזו, או שכבר לא PENDING (מישהו אישר/דחה לפני)
   throw new Error('הבקשה כבר לא במצב ממתין (ייתכן שכבר עודכנה).');
 }
 

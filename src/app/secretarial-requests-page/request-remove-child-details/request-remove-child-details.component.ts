@@ -335,12 +335,15 @@ async reject() {
   try {
     await ensureTenantContextReady();
     const db = dbTenant();
-
+const uid = getAuth().currentUser?.uid;
+if (!uid) throw new Error('המשתמש לא מחובר');
     // 1) עדכון סטטוס הבקשה ל-REJECTED
     const { error: reqErr } = await db
       .from('secretarial_requests')
       .update({
         status: 'REJECTED',
+        decided_by_uid: uid,                 // ✅ זה מה שחסר
+
         decided_at: new Date().toISOString(),
         // decided_by_uid: ... אם יש לך
       })
