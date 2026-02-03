@@ -682,7 +682,7 @@ private async runDecisionViaDetailsComponent(
     if (action === 'approve') {
       const valid = await this.isValidRequset(row, inst);
       if (!valid.ok) {
-        const reason = valid.reason ?? 'בקשה לא תקינה';
+        const reason = valid.reason ?? 'בקשה לא רלוונטית';
         await this.rejectBySystem(row, reason);
         return { ok: false, message: reason };
       }
@@ -758,238 +758,238 @@ async bulkRejectSelected() {
 
 
   private wrapApproveWithValidation(instance: any, row: UiRequest) {
-    const wrap = (methodName: 'approve' | 'approveSelected') => {
-      const original = instance?.[methodName];
-      if (typeof original !== 'function') return;
-      if (original.__sfWrapped) return;
+  const wrap = (methodName: 'approve' | 'approveSelected') => {
+    const original = instance?.[methodName];
+    if (typeof original !== 'function') return;
+    if (original.__sfWrapped) return;
 
-      const wrapped = async () => {
-        const valid = await this.isValidRequset(row, instance);
-        if (!valid.ok) {
-          await this.rejectBySystem(row, valid.reason ?? '���� �� ��������');
-          return;
-        }
-        return original.call(instance);
-      };
-
-      wrapped.__sfWrapped = true;
-      instance[methodName] = wrapped;
+    const wrapped = async () => {
+      const valid = await this.isValidRequset(row, instance);
+      if (!valid.ok) {
+        await this.rejectBySystem(row, valid.reason ?? 'בקשה לא רלוונטית');
+        return;
+      }
+      return original.call(instance);
     };
 
-    wrap('approve');
-    wrap('approveSelected');
-  }
+    wrapped.__sfWrapped = true;
+    instance[methodName] = wrapped;
+  };
 
-  private async rejectInvalidRequests(context: 'load' | 'postBulk') {
-    if (!this.isSecretary) return;
-    if (this.autoRejectInFlight) return;
-    this.autoRejectInFlight = true;
+  wrap('approve');
+  wrap('approveSelected');
+}
 
-    try {
-      const pending = this.allRequests().filter(r => r.status === 'PENDING');
-      if (!pending.length) return;
+private async rejectInvalidRequests(context: 'load' | 'postBulk') {
+  if (!this.isSecretary) return;
+  if (this.autoRejectInFlight) return;
+  this.autoRejectInFlight = true;
 
-      let rejected = 0;
-      for (const r of pending) {
-        const valid = await this.isValidRequset(r);
-        if (!valid.ok) {
-          await this.rejectBySystem(r, valid.reason ?? '���� �� ��������');
-          rejected++;
-        }
+  try {
+    const pending = this.allRequests().filter(r => r.status === 'PENDING');
+    if (!pending.length) return;
+
+    let rejected = 0;
+    for (const r of pending) {
+      const valid = await this.isValidRequset(r);
+      if (!valid.ok) {
+        await this.rejectBySystem(r, valid.reason ?? 'בקשה לא רלוונטית');
+        rejected++;
       }
-
-      if (rejected > 0) {
-        const msg =
-          context === 'postBulk'
-            ? `���� �������� ${rejected} ����� �� ��������� ���� ������`
-            : `���� �������� ${rejected} ����� �� ���������`;
-        this.showToast(msg, 'info');
-      }
-    } finally {
-      this.autoRejectInFlight = false;
     }
-  }
 
-  private async isValidRequset(
+    if (rejected > 0) {
+      const msg =
+        context === 'postBulk'
+          ? `נדחו אוטומטית ${rejected} בקשות לא רלוונטיות אחרי האישור`
+          : `נדחו אוטומטית ${rejected} בקשות לא רלוונטיות`;
+      this.showToast(msg, 'info');
+    }
+  } finally {
+    this.autoRejectInFlight = false;
+  }
+}
+
+private async isValidRequset(
   row: UiRequest,
   _instance?: any
 ): Promise<{ ok: boolean; reason?: string }> {
-   if (!row) return { ok: false, reason: '���� �� �����' };
+  if (!row) return { ok: false, reason: 'בקשה לא תקינה' };
 
-    const expiryReason = this.getExpiryReason(row);
-    if (expiryReason) return { ok: false, reason: expiryReason };
+  const expiryReason = this.getExpiryReason(row);
+  if (expiryReason) return { ok: false, reason: expiryReason };
 
-    await ensureTenantContextReady();
-    const db = dbTenant();
+  await ensureTenantContextReady();
+  const db = dbTenant();
 
-    const childCheck = await this.checkChildActive(db, row);
-    if (!childCheck.ok) return childCheck;
+  const childCheck = await this.checkChildActive(db, row);
+  if (!childCheck.ok) return childCheck;
 
-    const instructorCheck = await this.checkInstructorActive(db, row);
-    if (!instructorCheck.ok) return instructorCheck;
+  const instructorCheck = await this.checkInstructorActive(db, row);
+  if (!instructorCheck.ok) return instructorCheck;
 
-    const parentCheck = await this.checkParentActive(db, row);
-    if (!parentCheck.ok) return parentCheck;
+  const parentCheck = await this.checkParentActive(db, row);
+  if (!parentCheck.ok) return parentCheck;
 
-    const conflictCheck = await this.checkLessonSlotConflict(db, row);
-    if (!conflictCheck.ok) return conflictCheck;
+  const conflictCheck = await this.checkLessonSlotConflict(db, row);
+  if (!conflictCheck.ok) return conflictCheck;
 
-    return { ok: true };
-  }
+  return { ok: true };
+}
 
-  private getExpiryReason(row: UiRequest): string | null {
-    const p: any = row.payload ?? {};
-    const now = new Date();
+private getExpiryReason(row: UiRequest): string | null {
+  const p: any = row.payload ?? {};
+  const now = new Date();
 
-    const isPast = (dateStr: string | null | undefined, timeStr?: string | null): boolean => {
-      if (!dateStr) return false;
-      const dt = this.combineDateTime(dateStr, timeStr);
-      return dt.getTime() < now.getTime();
-    };
+  const isPast = (dateStr: string | null | undefined, timeStr?: string | null): boolean => {
+    if (!dateStr) return false;
+    const dt = this.combineDateTime(dateStr, timeStr);
+    return dt.getTime() < now.getTime();
+  };
 
-    switch (row.requestType) {
-      case 'CANCEL_OCCURRENCE': {
-        const dateStr = p.occur_date ?? row.fromDate ?? null;
-        const timeStr = p.start_time ?? p.startTime ?? p.time ?? null;
-        if (isPast(dateStr, timeStr)) return '��� ���� ������ ������';
-        return null;
-      }
-      case 'INSTRUCTOR_DAY_OFF': {
-        const end = row.toDate ?? row.fromDate ?? null;
-        if (isPast(end, '23:59')) return '��� ���� ����� ������';
-        return null;
-      }
-      case 'NEW_SERIES': {
-        const start = row.fromDate ?? p.series_start_date ?? p.start_date ?? null;
-        if (isPast(start, '00:00')) return '��� ���� ����� �����';
-        return null;
-      }
-      case 'MAKEUP_LESSON':
-      case 'FILL_IN': {
-        const dateStr = row.fromDate ?? p.occur_date ?? null;
-        const timeStr = p.requested_start_time ?? p.start_time ?? p.startTime ?? null;
-        if (isPast(dateStr, timeStr)) return '��� ���� ������ ������';
-        return null;
-      }
-      default:
-        return null;
+  switch (row.requestType) {
+    case 'CANCEL_OCCURRENCE': {
+      const dateStr = p.occur_date ?? row.fromDate ?? null;
+      const timeStr = p.start_time ?? p.startTime ?? p.time ?? null;
+      if (isPast(dateStr, timeStr)) return 'עבר מועד השיעור לביטול';
+      return null;
     }
-  }
-
-  private combineDateTime(dateStr: string, timeStr?: string | null): Date {
-    const d = dateStr?.slice(0, 10);
-    const t = (timeStr ?? '00:00').slice(0, 5);
-    return new Date(`${d}T${t}:00`);
-  }
-
-  private getChildIdForRequest(row: UiRequest): string | null {
-    const p: any = row.payload ?? {};
-    return row.childId ?? p.child_id ?? p.childId ?? null;
-  }
-
-  private getInstructorIdForRequest(row: UiRequest): string | null {
-    const p: any = row.payload ?? {};
-    return row.instructorId ?? p.instructor_id ?? p.instructorId ?? null;
-  }
-
-  private getParentUidForRequest(row: UiRequest): string | null {
-    const p: any = row.payload ?? {};
-    const uid = row.requesterUid;
-    if (uid && uid !== 'PUBLIC') return uid;
-    return p.parent_uid ?? p.parent?.uid ?? p.uid ?? null;
-  }
-
-  private async checkChildActive(db: any, row: UiRequest): Promise<{ ok: boolean; reason?: string }> {
-    const childId = this.getChildIdForRequest(row);
-    if (!childId) return { ok: true };
-
-    const { data, error } = await db
-      .from('children')
-      .select('status,is_active')
-      .eq('child_uuid', childId)
-      .maybeSingle();
-    if (error) return { ok: false, reason: '����� ������ ����� ����' };
-
-    const status = (data as any)?.status ?? null;
-    const isActiveFlag = (data as any)?.is_active;
-    if (isActiveFlag === false) return { ok: false, reason: '���� ���� ����' };
-
-    if (status && status !== 'Active') {
-      return { ok: false, reason: `���� ���� ���� (�����: ${status})` };
+    case 'INSTRUCTOR_DAY_OFF': {
+      const end = row.toDate ?? row.fromDate ?? null;
+      if (isPast(end, '23:59')) return 'עבר מועד חופשת המדריך';
+      return null;
     }
-
-    return { ok: true };
-  }
-
-  private async checkInstructorActive(db: any, row: UiRequest): Promise<{ ok: boolean; reason?: string }> {
-    const instructorId = this.getInstructorIdForRequest(row);
-    if (!instructorId) return { ok: true };
-
-    const { data, error } = await db
-      .from('instructors')
-      .select('is_active')
-      .eq('id_number', instructorId)
-      .maybeSingle();
-    if (error) return { ok: false, reason: '����� ������ ����� �����' };
-
-    if ((data as any)?.is_active === false) {
-      return { ok: false, reason: '������ ���� ����' };
+    case 'NEW_SERIES': {
+      const start = row.fromDate ?? p.series_start_date ?? p.start_date ?? null;
+      if (isPast(start, '00:00')) return 'עבר מועד תחילת הסדרה';
+      return null;
     }
-
-    return { ok: true };
-  }
-
-  private async checkParentActive(db: any, row: UiRequest): Promise<{ ok: boolean; reason?: string }> {
-    const parentUid = this.getParentUidForRequest(row);
-    if (!parentUid) return { ok: true };
-
-    const { data, error } = await db
-      .from('parents')
-      .select('is_active')
-      .eq('uid', parentUid)
-      .maybeSingle();
-    if (error) return { ok: false, reason: '����� ������ ����� ����' };
-
-    if ((data as any)?.is_active === false) {
-      return { ok: false, reason: '����� ���� ����' };
+    case 'MAKEUP_LESSON':
+    case 'FILL_IN': {
+      const dateStr = row.fromDate ?? p.occur_date ?? null;
+      const timeStr = p.requested_start_time ?? p.start_time ?? p.startTime ?? null;
+      if (isPast(dateStr, timeStr)) return 'עבר מועד השיעור המבוקש';
+      return null;
     }
+    default:
+      return null;
+  }
+}
 
-    return { ok: true };
+private combineDateTime(dateStr: string, timeStr?: string | null): Date {
+  const d = dateStr?.slice(0, 10);
+  const t = (timeStr ?? '00:00').slice(0, 5);
+  return new Date(`${d}T${t}:00`);
+}
+
+private getChildIdForRequest(row: UiRequest): string | null {
+  const p: any = row.payload ?? {};
+  return row.childId ?? p.child_id ?? p.childId ?? null;
+}
+
+private getInstructorIdForRequest(row: UiRequest): string | null {
+  const p: any = row.payload ?? {};
+  return row.instructorId ?? p.instructor_id ?? p.instructorId ?? null;
+}
+
+private getParentUidForRequest(row: UiRequest): string | null {
+  const p: any = row.payload ?? {};
+  const uid = row.requesterUid;
+  if (uid && uid !== 'PUBLIC') return uid;
+  return p.parent_uid ?? p.parent?.uid ?? p.uid ?? null;
+}
+
+private async checkChildActive(db: any, row: UiRequest): Promise<{ ok: boolean; reason?: string }> {
+  const childId = this.getChildIdForRequest(row);
+  if (!childId) return { ok: true };
+
+  const { data, error } = await db
+    .from('children')
+    .select('status,is_active')
+    .eq('child_uuid', childId)
+    .maybeSingle();
+  if (error) return { ok: false, reason: 'שגיאה בבדיקת סטטוס הילד' };
+
+  const status = (data as any)?.status ?? null;
+  const isActiveFlag = (data as any)?.is_active;
+  if (isActiveFlag === false) return { ok: false, reason: 'הילד אינו פעיל' };
+
+  if (status && status !== 'Active') {
+    return { ok: false, reason: 'הילד אינו פעיל (סטטוס: ' + status + ')' };
   }
 
-  private normalizeTimeToSeconds(t: string | null | undefined): string | null {
-    if (!t) return null;
-    const s = t.trim();
-    if (!s) return null;
-    if (s.length === 5) return `${s}:00`;
-    return s;
+  return { ok: true };
+}
+
+private async checkInstructorActive(db: any, row: UiRequest): Promise<{ ok: boolean; reason?: string }> {
+  const instructorId = this.getInstructorIdForRequest(row);
+  if (!instructorId) return { ok: true };
+
+  const { data, error } = await db
+    .from('instructors')
+    .select('is_active')
+    .eq('id_number', instructorId)
+    .maybeSingle();
+  if (error) return { ok: false, reason: 'שגיאה בבדיקת סטטוס מדריך' };
+
+  if ((data as any)?.is_active === false) {
+    return { ok: false, reason: 'המדריך אינו פעיל' };
   }
 
-  private async checkLessonSlotConflict(db: any, row: UiRequest): Promise<{ ok: boolean; reason?: string }> {
-    if (!['NEW_SERIES', 'MAKEUP_LESSON', 'FILL_IN'].includes(row.requestType)) return { ok: true };
+  return { ok: true };
+}
 
-    const p: any = row.payload ?? {};
-    const instructorId = this.getInstructorIdForRequest(row);
-    const dateStr = row.fromDate ?? p.occur_date ?? p.series_start_date ?? null;
-    const timeStr = this.normalizeTimeToSeconds(p.requested_start_time ?? p.start_time ?? p.startTime ?? null);
+private async checkParentActive(db: any, row: UiRequest): Promise<{ ok: boolean; reason?: string }> {
+  const parentUid = this.getParentUidForRequest(row);
+  if (!parentUid) return { ok: true };
 
-    if (!instructorId || !dateStr || !timeStr) return { ok: true };
+  const { data, error } = await db
+    .from('parents')
+    .select('is_active')
+    .eq('uid', parentUid)
+    .maybeSingle();
+  if (error) return { ok: false, reason: 'שגיאה בבדיקת סטטוס הורה' };
 
-    const { data, error } = await db
-      .from('lessons_occurrences')
-      .select('lesson_id')
-      .eq('instructor_id', instructorId)
-      .eq('occur_date', dateStr)
-      .eq('start_time', timeStr)
-      .limit(1);
-
-    if (error) return { ok: false, reason: '����� ������ ������� �����' };
-    if (Array.isArray(data) && data.length > 0) {
-      return { ok: false, reason: '��� ���� ����� ����� ���' };
-    }
-
-    return { ok: true };
+  if ((data as any)?.is_active === false) {
+    return { ok: false, reason: 'ההורה אינו פעיל' };
   }
+
+  return { ok: true };
+}
+
+private normalizeTimeToSeconds(t: string | null | undefined): string | null {
+  if (!t) return null;
+  const s = t.trim();
+  if (!s) return null;
+  if (s.length === 5) return `${s}:00`;
+  return s;
+}
+
+private async checkLessonSlotConflict(db: any, row: UiRequest): Promise<{ ok: boolean; reason?: string }> {
+  if (!['NEW_SERIES', 'MAKEUP_LESSON', 'FILL_IN'].includes(row.requestType)) return { ok: true };
+
+  const p: any = row.payload ?? {};
+  const instructorId = this.getInstructorIdForRequest(row);
+  const dateStr = row.fromDate ?? p.occur_date ?? p.series_start_date ?? null;
+  const timeStr = this.normalizeTimeToSeconds(p.requested_start_time ?? p.start_time ?? p.startTime ?? null);
+
+  if (!instructorId || !dateStr || !timeStr) return { ok: true };
+
+  const { data, error } = await db
+    .from('lessons_occurrences')
+    .select('lesson_id')
+    .eq('instructor_id', instructorId)
+    .eq('occur_date', dateStr)
+    .eq('start_time', timeStr)
+    .limit(1);
+
+  if (error) return { ok: false, reason: 'שגיאה בבדיקת התנגשות שיעור' };
+  if (Array.isArray(data) && data.length > 0) {
+    return { ok: false, reason: 'כבר נקבע שיעור במועד הזה' };
+  }
+
+  return { ok: true };
+}
 
 private async rejectBySystem(row: UiRequest, reason: string) {
   await ensureTenantContextReady();

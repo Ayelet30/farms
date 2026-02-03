@@ -196,7 +196,7 @@ async function saveInvoicePdfToSupabase(params: {
 export const ensureTranzilaInvoiceForPayment = onRequest(
   {
     invoker: "public",
-    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_APP_KEY_S, TRANZILA_SECRET_S ],
+    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_APP_KEY_S, TRANZILA_SECRET_S, GMAIL_MASTER_KEY_S ],
   },
   
   async (req, res) => {
@@ -545,6 +545,7 @@ try {
     if (!data) throw new Error("Invoice PDF is empty");
 
     const pdfBuffer = Buffer.from(await data.arrayBuffer());
+    const pdfBase64 = pdfBuffer.toString("base64");
 
     // 2) שליחה דרך core (בלי HTTP)
     await sendEmailCore({     
@@ -562,7 +563,7 @@ try {
         {
           filename: `invoice-${documentNumber ?? "payment"}.pdf`,
           contentType: "application/pdf",
-          content: pdfBuffer,     // ✅ Buffer (לא base64)
+          contentBase64: pdfBase64, // ✅
         },
       ],
       fromName: "Smart Farm",
