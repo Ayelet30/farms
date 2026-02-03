@@ -20,6 +20,7 @@ import {
   fetchActiveChildrenForTenant,
   getCurrentRoleInTenantSync,
 } from '../services/supabaseClient.service';
+import type { TaughtChildGender } from '../Types/detailes.model';
 
 
 
@@ -39,7 +40,7 @@ interface InstructorDbRow {
   first_name: string | null;
   last_name: string | null;
   accepts_makeup_others: boolean;
-  gender: string | null;             // מין המדריך עצמו (גם כנראה "זכר"/"נקבה")
+  gender: string | null;         
   certificate: string | null;
   about: string | null;
   education: string | null;
@@ -48,7 +49,7 @@ interface InstructorDbRow {
   max_age_years_male: number | null;
   min_age_years_female: number | null;
   max_age_years_female: number | null;
-  taught_child_genders: string[] | null; // ⬅️ "זכר"/"נקבה"
+ taught_child_genders: TaughtChildGender[] | null;
   id_number: string;         
 
 }
@@ -132,7 +133,7 @@ type InstructorWithConstraints = InstructorRow & {
   max_age_years_male?: number | null;
   min_age_years_female?: number | null;
   max_age_years_female?: number | null;
-  taught_child_genders?: string[] | null;
+  taught_child_genders?: TaughtChildGender[] | null;
 };
 interface SeriesCalendarDay {
   date: string;        // 'YYYY-MM-DD'
@@ -940,7 +941,8 @@ private async loadInstructorsForChild(childId: string): Promise<void> {
     return;
   }
 
-  const childGender = child.gender ?? null; // "זכר"/"נקבה"
+  const childGender: TaughtChildGender | null =  isTaughtChildGender(child.gender) ? child.gender : null;
+
   const childAgeYears = child.birth_date ? this.calcAgeYears(child.birth_date) : null;
 
   const role = getCurrentRoleInTenantSync(); // 👈 אותו מנגנון כמו ילדים
@@ -1019,6 +1021,12 @@ private async loadInstructorsForChild(childId: string): Promise<void> {
       isEligible: true,
       ineligibleReasons: [],
       ineligibleReasonText: '',
+      taught_child_genders: ins.taught_child_genders ?? [],
+
+  min_age_years_male: ins.min_age_years_male,
+  max_age_years_male: ins.max_age_years_male,
+  min_age_years_female: ins.min_age_years_female,
+  max_age_years_female: ins.max_age_years_female,
     }));
 
   } else {
@@ -3299,10 +3307,13 @@ private filterSlotsByHardDeletion<T extends { occur_date?: string; lesson_date?:
     return d <= hard; // ✅ עד יום המחיקה כולל
   });
 }
-private buildEligibility(ins: InstructorDbRow, childGender: string | null, childAgeYears: number | null) {
+private buildEligibility(
+  ins: InstructorDbRow,
+  childGender: TaughtChildGender | null,
+  childAgeYears: number | null
+) {
   const reasons: string[] = [];
 
-  // 0) תנאים “מערכתיים”
   if (!ins.uid) reasons.push('למדריך אין משתמש במערכת (uid)');
   if (ins.accepts_makeup_others !== true) reasons.push('לא מסומן שמלמד ילדים שלא שלו');
 
@@ -3317,13 +3328,11 @@ private buildEligibility(ins: InstructorDbRow, childGender: string | null, child
   if (childAgeYears != null && childGender) {
     const minAge =
       childGender === 'זכר' ? (ins.min_age_years_male ?? null)
-      : childGender === 'נקבה' ? (ins.min_age_years_female ?? null)
-      : null;
+      : (ins.min_age_years_female ?? null);
 
     const maxAge =
       childGender === 'זכר' ? (ins.max_age_years_male ?? null)
-      : childGender === 'נקבה' ? (ins.max_age_years_female ?? null)
-      : null;
+      : (ins.max_age_years_female ?? null);
 
     if (minAge != null && childAgeYears < minAge) reasons.push(`הגיל קטן מהמינימום (${minAge})`);
     if (maxAge != null && childAgeYears > maxAge) reasons.push(`הגיל גדול מהמקסימום (${maxAge})`);
@@ -3331,12 +3340,9 @@ private buildEligibility(ins: InstructorDbRow, childGender: string | null, child
 
   const isEligible = reasons.length === 0;
 
-  return {
-    isEligible,
-    reasons,
-    reasonText: reasons.join(', '),
-  };
+  return { isEligible, reasons, reasonText: reasons.join(', ') };
 }
+
 
 private getChildDeletionCutoffDate(child: ChildWithProfile | undefined | null): string | null {
   if (!child) return null;
@@ -3450,3 +3456,6 @@ getInstructorDisplayName(idOrUid: string | null | undefined): string {
 
 
 }
+const isTaughtChildGender = (v: any): v is TaughtChildGender =>
+  v === 'זכר' || v === 'נקבה';
+

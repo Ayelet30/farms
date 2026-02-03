@@ -84,7 +84,6 @@ export const connectGmailForFarm = onRequest(
     timeoutSeconds: 60,
   },
   async (req, res) => {
-    // ✅ CORS תמיד ראשון
     if (applyCors(req as any, res as any)) return;
 
     try {
@@ -98,16 +97,20 @@ export const connectGmailForFarm = onRequest(
       const refreshToken = normStr(body.refreshToken, 5000);
       const senderEmail = normStr(body.senderEmail, 200);
 
+      const gmailClientId = normStr(body.gmailClientId, 300);
+      const gmailClientSecret = normStr(body.gmailClientSecret, 5000);
+
       if (!tenantSchema) return void res.status(400).json({ error: 'Missing tenantSchema' });
       if (!refreshToken) return void res.status(400).json({ error: 'Missing refreshToken' });
-      if (senderEmail && !looksLikeEmail(senderEmail)) {
-        return void res.status(400).json({ error: 'Invalid senderEmail' });
-      }
+      if (senderEmail && !looksLikeEmail(senderEmail)) return void res.status(400).json({ error: 'Invalid senderEmail' });
 
       const masterKey = envOrSecret(GMAIL_MASTER_KEY_S, 'GMAIL_MASTER_KEY');
       if (!masterKey) throw new Error('Missing GMAIL_MASTER_KEY');
 
-      const enc = encryptRefreshToken(refreshToken, masterKey);
+      // 1) encrypt refresh token
+      const encRt = encryptRefreshToken(refreshToken, masterKey);
+
+      // 2) update farm_settings in tenant schema
       const sbTenant = getSupabaseForTenant(tenantSchema);
 
       const { data: current, error: qErr } = await sbTenant
@@ -121,9 +124,9 @@ export const connectGmailForFarm = onRequest(
       if (!current?.id) throw new Error('No farm_settings row found (need one row to update)');
 
       const patch: any = {
-        gmail_refresh_token_enc: enc.encBase64,
-        gmail_refresh_token_iv: enc.ivBase64,
-        gmail_refresh_token_tag: enc.tagBase64,
+        gmail_refresh_token_enc: encRt.encBase64,
+        gmail_refresh_token_iv: encRt.ivBase64,
+        gmail_refresh_token_tag: encRt.tagBase64,
         updated_at: new Date().toISOString(),
       };
       if (senderEmail) patch.main_mail = senderEmail;
@@ -131,11 +134,38 @@ export const connectGmailForFarm = onRequest(
       const { error: uErr } = await sbTenant.from('farm_settings').update(patch).eq('id', current.id);
       if (uErr) throw new Error(`farm_settings update failed: ${uErr.message}`);
 
-      return void res.status(200).json({ ok: true, tenantSchema, updated: true });
+      // 3) upsert identity (optional but recommended)
+      if (gmailClientId && gmailClientSecret) {
+        const encSecret = encryptRefreshToken(gmailClientSecret, masterKey);
+        const sbPublic = getSupabaseForTenant('public');
+
+        const { error: idErr } = await sbPublic
+          .from('gmail_identities')
+          .upsert(
+            {
+              tenant_schema: tenantSchema,
+              gmail_client_id: gmailClientId,
+              gmail_client_secret_enc: encSecret.encBase64,
+              gmail_client_secret_iv: encSecret.ivBase64,
+              gmail_client_secret_tag: encSecret.tagBase64,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'tenant_schema' }
+          );
+
+        if (idErr) throw new Error(`gmail_identities upsert failed: ${idErr.message}`);
+      }
+
+      return void res.status(200).json({
+        ok: true,
+        tenantSchema,
+        updated: true,
+        identityUpdated: !!(gmailClientId && gmailClientSecret),
+      });
     } catch (e: any) {
       console.error('connectGmailForFarm error', e);
-      // ✅ חשוב: לא לשבור CORS, הכותרות כבר הוגדרו
       return void res.status(500).json({ error: 'Internal error', message: e?.message || String(e) });
     }
   }
 );
+

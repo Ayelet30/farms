@@ -1,3 +1,7 @@
+<div class="toast" *ngIf="toastMessage">
+  {{ toastMessage }}
+</div>
+
 <div class="schedule-wrapper">
   <div class="toolbar">
     <div class="custom-dropdown" [class.open]="dropdownOpen">
@@ -55,7 +59,7 @@
   </div>
   <app-schedule
     [items]="items"
-    [initialView]="'timeGridWeek'"
+    [initialView]="'timeGridDay'"
     [rtl]="true"
     [slotMinTime]="'07:00:00'"
     [slotMaxTime]="'21:00:00'"
