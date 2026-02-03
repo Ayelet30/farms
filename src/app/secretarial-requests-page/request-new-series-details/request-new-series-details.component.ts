@@ -12,10 +12,20 @@ import { firstValueFrom } from 'rxjs';
 import { ConfirmDialogComponent } from '../confirm-dialog.component';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { SupabaseTenantService } from '../../services/supabase-tenant.service';
+import { getAuth } from 'firebase/auth';
 
 
 // חשוב: זה הטיפוס שאת מעבירה מהדף הראשי
 import type { UiRequest } from '../../Types/detailes.model';
+
+const SERIES_DENY_MESSAGES: Record<string, string> = {
+  anchor_start_date_in_past: 'אי אפשר לאשר סדרה: תאריך תחילת הסדרה כבר עבר.',
+  anchor_capacity_reached: 'אי אפשר לאשר סדרה: כבר קיימים שיעורים בסלוט הזה (הקיבולת מלאה).',
+  anchor_falls_on_farm_day_off: 'אי אפשר לאשר סדרה: תאריך תחילת הסדרה נופל על חופש חווה.',
+  anchor_instructor_unavailable: 'אי אפשר לאשר סדרה: המדריך לא זמין בתאריך תחילת הסדרה.',
+  time_conflict_capacity_reached: 'אי אפשר לאשר סדרה: יש קונפליקט/קיבולת מלאה באחד המפגשים.',
+};
 @Component({
   selector: 'app-secretarial-series-requests',
   standalone: true,
@@ -23,6 +33,7 @@ import type { UiRequest } from '../../Types/detailes.model';
   templateUrl: './request-new-series-details.component.html',
   styleUrls: ['./request-new-series-details.component.scss'],
 })
+
 export class SecretarialSeriesRequestsComponent {
   private api = inject(SeriesRequestsService);
 async ngOnInit() {
@@ -37,6 +48,7 @@ ridingTypeName = signal<string>('טוען...');
 lessonTypeMode = signal<string | null>(null);
 childFullName = signal<string>('טוען...');
 childGovId = signal<string | null>(null);
+private tenantSvc = inject(SupabaseTenantService);
 
 @Input({ required: true })
 set request(v: UiRequest) {
@@ -101,6 +113,14 @@ childDeletionRequestedAt = signal<string | null>(null);
 childScheduledDeletionAt = signal<string | null>(null);
 
 canApprove = signal<boolean>(true); // יתעדכן לפי סטטוס
+
+async approve() {
+  return this.approveSelected();
+}
+
+async reject() {
+  return this.rejectSelected();
+}
 
 private statusToHebrew(status: string | null): string {
   switch (status) {
@@ -277,30 +297,65 @@ private async loadPaymentPlanName() {
 }
 
 async approveSelected() {
-  this.clearMessages();
+  // ✅ מניעת קריאה כפולה (לחיצה כפולה / submit)
+  if (this.loading()) return;
+  this.loading.set(true);
 
-  if (!this.request) return;
+  this.clearMessages();
+  if (!this.request) {
+    this.loading.set(false);
+    return;
+  }
+
+  // ✅ תמיד לטעון סטטוס לפני החלטה (לא להסתמך על null)
+  await this.loadChildStatus();
+
+  // ✅ חסימה קשיחה אם הילד Deleted
+  if (this.childStatus() === 'Deleted') {
+    const msg =
+      this.childStatusBannerText ??
+      'ילד זה נמחק ולכן לא ניתן לאשר לו את הזמנת הסדרה';
+
+    this.errorMsg.set(msg);
+    this.snack.open(msg, 'סגור', {
+      duration: 3500,
+      panelClass: ['snack-reject'],
+      direction: 'rtl',
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+    });
+
+    this.loading.set(false);
+    return;
+  }
+
+  // ✅ כל שאר הסטטוסים שלא מאפשרים
   if (!this.canApprove()) {
-  const msg = this.childStatusBannerText ?? 'לא ניתן לאשר סדרה לילד שאינו פעיל';
-  this.errorMsg.set(msg);
-  this.snack.open('לא ניתן לאשר: הילד אינו פעיל', 'סגור', {
-    duration: 2500,
-    panelClass: ['snack-reject'],
-    direction: 'rtl',
-    horizontalPosition: 'center',
-    verticalPosition: 'top',
-  });
-  return;
-}
+    const msg = this.childStatusBannerText ?? 'לא ניתן לאשר סדרה לילד שאינו פעיל';
+    this.errorMsg.set(msg);
+
+    this.snack.open('לא ניתן לאשר: הילד אינו פעיל', 'סגור', {
+      duration: 2500,
+      panelClass: ['snack-reject'],
+      direction: 'rtl',
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+    });
+
+    this.loading.set(false);
+    return;
+  }
 
 
   try {
-    this.loading.set(true);
 
     const uid = await this.resolveDeciderUid();
     if (!uid) throw new Error('לא נמצא משתמש מאשר (uid)');
 const ok = await this.confirmApprove();
-if (!ok) return;
+if (!ok) {
+  this.loading.set(false);
+  return;
+}
 
     await ensureTenantContextReady();
     const db = dbTenant();
@@ -357,12 +412,26 @@ const repeatWeeks =
     const first = Array.isArray(data) ? data[0] : data;
 
     if (!first?.ok) {
-      const msg = `לא ניתן לאשר: ${first?.deny_reason ?? 'unknown'}`;
-      this.error.emit(msg);
-      this.onError?.({ requestId: this.request.id, message: msg, raw: first });
-      alert(msg);
-      return;
-    }
+  const reason = String(first?.deny_reason ?? '');
+  const msg =
+    SERIES_DENY_MESSAGES[reason] ??
+    `אי אפשר לאשר את הסדרה: ${reason || 'סיבה לא ידועה'}`;
+
+  this.errorMsg.set(msg);
+  this.error.emit(msg);
+  this.onError?.({ requestId: this.request.id, message: msg, raw: first });
+
+  this.snack.open(msg, 'סגור', {
+    duration: 5000,
+    panelClass: ['snack-reject'],
+    direction: 'rtl',
+    horizontalPosition: 'center',
+    verticalPosition: 'top',
+  });
+
+  return;
+}
+
 await ensureTenantContextReady();
 
 // ✅ עדכון סטטוס הבקשה רק אם עדיין PENDING
@@ -398,6 +467,22 @@ if (!upd) {
 });
     this.approved.emit(payload);
     this.onApproved?.(payload);
+    const lessonId = first?.lesson_id ?? null;
+
+// שליחת מייל לא תחסום את האישור אם נכשלת
+try {
+  await this.sendSeriesApprovedEmail(this.request.id, lessonId);
+} catch (e) {
+  console.warn('sendSeriesApprovedEmail failed', e);
+  this.snack.open('הסדרה אושרה, אך שליחת המייל נכשלה', 'סגור', {
+    duration: 3500,
+    panelClass: ['snack-reject'],
+    direction: 'rtl',
+    horizontalPosition: 'center',
+    verticalPosition: 'top',
+  });
+}
+
 
   } catch (e: any) {
     const msg = e?.message ?? 'שגיאה באישור';
@@ -429,7 +514,10 @@ async rejectSelected() {
     const uid = await this.resolveDeciderUid();
     if (!uid) throw new Error('לא נמצא משתמש מאשר (uid)');
 const ok = await this.confirmReject();
-if (!ok) return; // חוזר למצב הקודם, לא עושה כלום
+if (!ok) {
+  this.loading.set(false);
+  return;
+}
 
     await ensureTenantContextReady();
     const db = dbTenant();
@@ -467,6 +555,18 @@ if (!ok) return; // חוזר למצב הקודם, לא עושה כלום
 
     this.rejected.emit(payload);
     this.onRejected?.(payload);
+try {
+  await this.sendSeriesRejectedEmail(this.request.id);
+} catch (e) {
+  console.warn('sendSeriesRejectedEmail failed', e);
+  this.snack.open('הבקשה נדחתה, אך שליחת המייל נכשלה', 'סגור', {
+    duration: 3500,
+    panelClass: ['snack-reject'],
+    direction: 'rtl',
+    horizontalPosition: 'center',
+    verticalPosition: 'top',
+  });
+}
 
   } catch (e: any) {
     const msg = e?.message ?? 'שגיאה בדחייה';
@@ -757,6 +857,69 @@ private async loadChildName() {
     console.error('loadChildName failed', e);
     this.childFullName.set('שגיאה בטעינה');
     this.childGovId.set(null);
+  }
+}
+private async sendSeriesApprovedEmail(requestId: string, lessonId: string | null) {
+  await this.tenantSvc.ensureTenantContextReady();
+  const tenant = this.tenantSvc.requireTenant();
+
+  const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifySeriesApproved';
+
+  const user = getAuth().currentUser;
+  if (!user) throw new Error('המשתמש לא מחובר');
+  const token = await user.getIdToken();
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      tenantSchema: tenant.schema,
+      tenantId: tenant.id,
+      requestId,
+      lessonId,
+    }),
+  });
+
+  const raw = await resp.text();
+  let json: any = null;
+  try { json = JSON.parse(raw); } catch {}
+
+  if (!resp.ok || !json?.ok) {
+    throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+  }
+}
+private async sendSeriesRejectedEmail(requestId: string) {
+  await this.tenantSvc.ensureTenantContextReady();
+  const tenant = this.tenantSvc.requireTenant();
+
+  const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifySeriesRejected';
+
+  const user = getAuth().currentUser;
+  if (!user) throw new Error('המשתמש לא מחובר');
+  const token = await user.getIdToken();
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      tenantSchema: tenant.schema,
+      tenantId: tenant.id,
+      requestId,
+    }),
+  });
+
+  const raw = await resp.text();
+  let json: any = null;
+  try { json = JSON.parse(raw); } catch {}
+
+  if (!resp.ok || !json?.ok) {
+    throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
   }
 }
 
