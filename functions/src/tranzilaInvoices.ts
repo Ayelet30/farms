@@ -7,8 +7,6 @@ import {
   sendEmailCore,
   SUPABASE_URL_S,
   SUPABASE_KEY_S,
-  GMAIL_CLIENT_ID_S,
-  GMAIL_CLIENT_SECRET_S,
   GMAIL_MASTER_KEY_S,
 } from "./gmail/email-core";
 
@@ -198,16 +196,12 @@ async function saveInvoicePdfToSupabase(params: {
 export const ensureTranzilaInvoiceForPayment = onRequest(
   {
     invoker: "public",
-    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_APP_KEY_S, TRANZILA_SECRET_S , GMAIL_CLIENT_ID_S,
-  GMAIL_CLIENT_SECRET_S,
-  GMAIL_MASTER_KEY_S,],
+    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_APP_KEY_S, TRANZILA_SECRET_S, GMAIL_MASTER_KEY_S ],
   },
   
   async (req, res) => {
     console.log("[ensureTranzilaInvoiceForPayment] secrets check:", {
   masterLen: (GMAIL_MASTER_KEY_S.value() || "").length,
-  clientIdLen: (GMAIL_CLIENT_ID_S.value() || "").length,
-  clientSecretLen: (GMAIL_CLIENT_SECRET_S.value() || "").length,
   hasSupabaseUrl: !!SUPABASE_URL_S.value(),
 });
 
@@ -542,7 +536,6 @@ if (extra) {
 
   
 try {
-  console.log("PARENT-EMAIL:" +parentEmail+"!!!!!!!!11"); 
   if (parentEmail) {
     const farmName = await getFarmNameBySchema(tenantSchema);
 
@@ -552,7 +545,7 @@ try {
     if (!data) throw new Error("Invoice PDF is empty");
 
     const pdfBuffer = Buffer.from(await data.arrayBuffer());
-console.log("לפני sendemailcore !!!!!!!!111"); 
+    const pdfBase64 = pdfBuffer.toString("base64");
 
     // 2) שליחה דרך core (בלי HTTP)
     await sendEmailCore({     
@@ -570,7 +563,7 @@ console.log("לפני sendemailcore !!!!!!!!111");
         {
           filename: `invoice-${documentNumber ?? "payment"}.pdf`,
           contentType: "application/pdf",
-          content: pdfBuffer,     // ✅ Buffer (לא base64)
+          contentBase64: pdfBase64, // ✅
         },
       ],
       fromName: "Smart Farm",

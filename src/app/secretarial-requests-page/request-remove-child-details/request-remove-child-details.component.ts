@@ -143,7 +143,7 @@ scheduledDeletionAt = signal<string | null>(null);
     return `${(first ?? '').trim()} ${(last ?? '').trim()}`.trim() || '—';
   }
 
- async loadRemainingLessons() {
+async loadRemainingLessons() {
   const token = ++this.runToken;
 
   const childId = this.getChildId();
@@ -239,6 +239,15 @@ scheduledDeletionAt = signal<string | null>(null);
     this.loadingRemaining.set(false);
   }
 }
+
+  static async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
+    return { ok: true };
+  }
+
+  async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
+    return await RequestRemoveChildDetailsComponent.isValidRequset();
+  }
+
 async approve() {
   const r = this.req();
   if (!r) return;
@@ -268,9 +277,7 @@ const tenantId = tenant.id; // או השם האמיתי אצלך
     const user = getAuth().currentUser;
     if (!user) throw new Error('המשתמש לא מחובר');
     const token = await user.getIdToken();
-console.log('tenant object:', tenant);
-console.log('tenant.schema:', tenant.schema);
-console.log('tenant.id:', tenant.id);
+
 
     const resp = await fetch(approveUrl, {
       method: 'POST',
@@ -328,12 +335,15 @@ async reject() {
   try {
     await ensureTenantContextReady();
     const db = dbTenant();
-
+const uid = getAuth().currentUser?.uid;
+if (!uid) throw new Error('המשתמש לא מחובר');
     // 1) עדכון סטטוס הבקשה ל-REJECTED
     const { error: reqErr } = await db
       .from('secretarial_requests')
       .update({
         status: 'REJECTED',
+        decided_by_uid: uid,                 // ✅ זה מה שחסר
+
         decided_at: new Date().toISOString(),
         // decided_by_uid: ... אם יש לך
       })

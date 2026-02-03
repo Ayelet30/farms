@@ -747,7 +747,7 @@ office_note: raw.office_note ?? null,
     this.statusFilter.set('all');
     this.instructorFilter.set('all');
   }
-  // ===============================
+// ===============================
 //        EXCEL EXPORT (SAFE)
 // ===============================
 async exportExcel(): Promise<void> {
@@ -768,51 +768,29 @@ async exportExcel(): Promise<void> {
       'סוג שיעור': r.lesson_type ?? '',
       'סוג רכיבה': r.riding_type ?? '',
       סטטוס: r.status ?? '',
+      'הערת משרד': r.office_note ?? '',
       'שעת התחלה': r.start_time ?? '',
       'שעת סיום': r.end_time ?? '',
     }));
 
-    try {
-      const XLSXmod: any = await import('xlsx');
-      const XLSX = XLSXmod.default ?? XLSXmod;
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const wb = XLSX.utils.book_new();
 
-      const exportRows = rows.map((r) => ({
-        'תאריך שיעור': r.occur_date ?? '',
-        'תלמיד/ה': (
-          r.child_full_name ||
-          `${this.clean(r.child_first_name)} ${this.clean(
-            r.child_last_name
-          )}`.trim() ||
-          ''
-        ).trim(),
-        'מדריך/ה': r.instructor_name ?? '',
-        'סוג שיעור': r.lesson_type ?? '',
-        'סוג רכיבה': r.riding_type ?? '',
-        סטטוס: r.status ?? '',
-  'הערת משרד': r.office_note ?? '',
-        'שעת התחלה': r.start_time ?? '',
-        'שעת סיום': r.end_time ?? '',
-      }));
+    const sheetName = this.mode() === 'month' ? 'Monthly' : 'Yearly';
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
-      const ws = XLSX.utils.json_to_sheet(exportRows);
-      const wb = XLSX.utils.book_new();
-      const sheetName = this.mode() === 'month' ? 'Monthly' : 'Yearly';
-      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    const fileName =
+      this.mode() === 'month'
+        ? `monthly_${this.year}_${this.month}.xlsx`
+        : `yearly_${this.year}.xlsx`;
 
-      const fileName =
-        this.mode() === 'month'
-          ? `monthly_${this.year}_${this.month}.xlsx`
-          : `yearly_${this.year}.xlsx`;
-
-      XLSX.writeFile(wb, fileName);
-    } catch (e) {
-      console.error(e);
-      alert('יש להתקין: npm i xlsx');
-    }
-  }
-
+    XLSX.writeFile(wb, fileName);
+  } catch (e) {
+    console.error(e);
+    this.ui.alert('חסר xlsx. להריץ: npm i xlsx', 'שגיאה');
   }
 }
+
   // ===============================
   //      CHARTS & KPI VIEW
   // ===============================

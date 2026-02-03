@@ -24,6 +24,7 @@
             ],
             "styles": [
               "@angular/material/prebuilt-themes/azure-blue.css",
+              "src/assets/fonts/material-icon/material-icons.css",
               "src/styles.scss",
               {
                 "input": "src/styles/tokens/bereshit_farm-tokens.scss",

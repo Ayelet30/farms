@@ -84,7 +84,12 @@ export type RequestType =
   | 'FILL_IN';         
 
 
-export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED_BY_REQUESTER';
+export type RequestStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'REJECTED_BY_SYSTEM'
+  | 'CANCELLED_BY_REQUESTER';
 
 export interface SecretarialRequestDbRow {
   id: string;

@@ -23,10 +23,14 @@ interface TimeSlot {
 
   editing?: 'start' | 'end' | null;
   editSessionStarted?: boolean;
+
   isNew?: boolean;
   wasUpdated?: boolean;
-hasError?: boolean;
-errorMessage?: string | null;
+
+  // UI validation
+  hasError?: boolean;
+  errorMessage?: string | null;
+  flashError?: boolean;
 
   originalStart?: string | null;
   originalEnd?: string | null;
@@ -37,7 +41,7 @@ errorMessage?: string | null;
 }
 
 interface DayAvailability {
-  key: string;   // sun/mon/...
+  key: string; // sun/mon/...
   label: string; // ראשון/שני/...
   active: boolean;
   slots: TimeSlot[];
@@ -72,9 +76,9 @@ interface FarmSettings {
 /** ✅ DB shape לפי הטבלה אצלך (מהצילום) */
 type InstructorWeeklyRow = {
   instructor_id_number: string;
-  day_of_week: number;           // 1..7
-  start_time: string;            // 'HH:MM:SS'
-  end_time: string;              // 'HH:MM:SS'
+  day_of_week: number; // 0..6 (לפי המיפוי החדש)
+  start_time: string; // 'HH:MM:SS'
+  end_time: string; // 'HH:MM:SS'
   lesson_ridding_type: UUID | null;
   lesson_type_mode?: string | null;
 };
@@ -86,13 +90,7 @@ type InstructorWeeklyRow = {
   standalone: true,
   templateUrl: './availability-tab.html',
   styleUrls: ['./availability-tab.scss'],
-  imports: [
-    CommonModule,
-    FormsModule,
-    MatSlideToggleModule,
-    MatButtonModule,
-    MatIconModule,
-  ],
+  imports: [CommonModule, FormsModule, MatSlideToggleModule, MatButtonModule, MatIconModule],
 })
 export class AvailabilityTabComponent implements OnInit {
   public userId: string | null = null;
@@ -134,15 +132,26 @@ export class AvailabilityTabComponent implements OnInit {
     { key: 'sat', label: 'שבת' },
   ];
 
- // ✅ החליפי את המיפויים הקיימים (1..7) במיפויים (0..6)
-private readonly DAY_KEY_TO_NUM: Record<string, number> = {
-  sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
-};
+  // ✅ מיפוי חדש: 0..6
+  private readonly DAY_KEY_TO_NUM: Record<string, number> = {
+    sun: 0,
+    mon: 1,
+    tue: 2,
+    wed: 3,
+    thu: 4,
+    fri: 5,
+    sat: 6,
+  };
 
-private readonly NUM_TO_DAY_KEY: Record<number, string> = {
-  0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat',
-};
-
+  private readonly NUM_TO_DAY_KEY: Record<number, string> = {
+    0: 'sun',
+    1: 'mon',
+    2: 'tue',
+    3: 'wed',
+    4: 'thu',
+    5: 'fri',
+    6: 'sat',
+  };
 
   constructor(
     private cdr: ChangeDetectorRef,
@@ -152,15 +161,15 @@ private readonly NUM_TO_DAY_KEY: Record<number, string> = {
   /* ===================== INIT ===================== */
 
   async ngOnInit() {
-      await ensureTenantContextReady();
+    await ensureTenantContextReady();
+
     await this.loadUserId();
-    await this.loadInstructorRecord();   // ✅ בלי availability
+    await this.loadInstructorRecord(); // ✅ בלי availability
     await this.loadFarmSettings();
     await this.loadRidingTypes();
 
     this.loadDefaultsIfEmpty();
-    await this.loadInstructorWeekly();   // ✅ קורא מהטבלה weekly
-
+    await this.loadInstructorWeekly(); // ✅ קורא מהטבלה weekly
     this.ensureSlotsHaveDefaults();
   }
 
@@ -182,26 +191,24 @@ private readonly NUM_TO_DAY_KEY: Record<number, string> = {
 
       if (settings.farm_id) this.farmId = settings.farm_id;
 
-      if (settings.operating_hours_start)
-        this.farmStart = settings.operating_hours_start.slice(0, 5);
+      if (settings.operating_hours_start) this.farmStart = settings.operating_hours_start.slice(0, 5);
+      if (settings.operating_hours_end) this.farmEnd = settings.operating_hours_end.slice(0, 5);
 
-      if (settings.operating_hours_end)
-        this.farmEnd = settings.operating_hours_end.slice(0, 5);
-
-      if (settings.lesson_duration_minutes)
-        this.lessonDuration = settings.lesson_duration_minutes;
-
+      if (settings.lesson_duration_minutes) this.lessonDuration = settings.lesson_duration_minutes;
     } catch (err) {
       console.error('❌ loadFarmSettings failed', err);
     }
   }
 
+  /** יש מערכות ששומרות working_days כ-1..7 / 0..6 / 1..7 עם 7=Sunday.
+   *  כאן אנחנו שומרים כמו שמגיע, ובודקים בכל מקרה בצורה "גמישה". */
   private normalizeWorkingDays(days: number[]): number[] {
+    // אם הגיע 0..6 -> לפעמים ממירים 0 ל-7
     const has7 = days.includes(7);
     const has0 = days.includes(0);
 
-    if (has7 && !has0) return days; // 1-7
-    if (has0 && !has7) return days.map(d => (d === 0 ? 7 : d)); // 0-6 -> 1-7
+    if (has7 && !has0) return days; // 1-7 (אולי 7=ראשון)
+    if (has0 && !has7) return days.map(d => (d === 0 ? 7 : d)); // 0-6 -> 1-7 (0 הופך ל-7)
     return days;
   }
 
@@ -239,7 +246,6 @@ private readonly NUM_TO_DAY_KEY: Record<number, string> = {
     if (!this.userId) return;
 
     const { data, error } = await dbTenant()
-    
       .from('instructors')
       .select('id_number, notify, allow_availability_edit')
       .eq('uid', this.userId)
@@ -255,9 +261,7 @@ private readonly NUM_TO_DAY_KEY: Record<number, string> = {
     this.allowEdit = data.allow_availability_edit ?? true;
 
     if (data.notify) {
-      this.notif = typeof data.notify === 'string'
-        ? JSON.parse(data.notify)
-        : data.notify;
+      this.notif = typeof data.notify === 'string' ? JSON.parse(data.notify) : data.notify;
     }
   }
 
@@ -310,11 +314,15 @@ private readonly NUM_TO_DAY_KEY: Record<number, string> = {
         start: this.trimToHHMM(r.start_time),
         end: this.trimToHHMM(r.end_time),
         ridingTypeId: r.lesson_ridding_type ?? null,
+        hasError: false,
+        errorMessage: null,
       });
     }
 
     for (const day of this.days) {
-      day.slots.sort((a, b) => this.toMin(this.normalizeTime(a.start)) - this.toMin(this.normalizeTime(b.start)));
+      day.slots.sort(
+        (a, b) => this.toMin(this.normalizeTime(a.start)) - this.toMin(this.normalizeTime(b.start)),
+      );
     }
 
     this.originalDays = JSON.parse(JSON.stringify(this.days));
@@ -326,11 +334,9 @@ private readonly NUM_TO_DAY_KEY: Record<number, string> = {
     return m ? m[1] : t;
   }
 
-  /* ===================== DAYS / SLOTS UI (כמו שהיה) ===================== */
+  /* ===================== DAYS / SLOTS UI ===================== */
 
   private ensureSlotsHaveDefaults() {
-    const defaultType = this.ridingTypes[0]?.id ?? null;
-
     for (const day of this.days) {
       for (const slot of day.slots) {
         slot.ridingTypeId ??= defaultType;
@@ -341,28 +347,41 @@ private readonly NUM_TO_DAY_KEY: Record<number, string> = {
 
         slot.originalStart ??= slot.start;
         slot.originalEnd ??= slot.end;
+
+        slot.hasError ??= false;
+        slot.errorMessage ??= null;
       }
     }
   }
 
   isFarmWorkingDay(dayKey: string): boolean {
     if (!this.farmWorkingDays?.length) return true;
-    return this.farmWorkingDays.includes(this.DAY_KEY_TO_NUM[dayKey]);
+
+    const n0 = this.DAY_KEY_TO_NUM[dayKey]; // 0..6
+    const n1 = n0 + 1; // 1..7
+    const nSundayAs7 = n0 === 0 ? 7 : n0; // 7=Sunday style
+
+    return (
+      this.farmWorkingDays.includes(n0) ||
+      this.farmWorkingDays.includes(n1) ||
+      this.farmWorkingDays.includes(nSundayAs7)
+    );
   }
 
   toggleDay(day: DayAvailability) {
     if (!this.allowEdit) return;
 
-    if (day.active && !day.slots.length) {
-  day.slots.push({
-  start: null,
-  end: null,
-  ridingTypeId: null,
-  isNew: true,
-    hasError: false,
-  errorMessage: null,
-});
+    day.active = !day.active;
 
+    if (day.active && !day.slots.length) {
+      day.slots.push({
+        start: null,
+        end: null,
+        ridingTypeId: null,
+        isNew: true,
+        hasError: false,
+        errorMessage: null,
+      });
     }
 
     if (!day.active) day.slots = [];
@@ -374,7 +393,7 @@ private readonly NUM_TO_DAY_KEY: Record<number, string> = {
     this.isDirty = true;
   }
 
-onSlotFocus(slot: TimeSlot) {
+  onSlotFocus(slot: TimeSlot) {
   if (slot.editSessionStarted) return;
 
   slot.editSessionStarted = true;
@@ -384,79 +403,171 @@ onSlotFocus(slot: TimeSlot) {
   slot.prevRidingTypeId = slot.ridingTypeId;
 }
 
-  onTimeTyping(day: DayAvailability, slot: TimeSlot) {
-    if (!this.allowEdit) return;
-    this.isDirty = true;
+  slot.editSessionStarted = true;
 
-    if (this.isFullTime(slot.start) && this.isFullTime(slot.end)) {
-      const start = this.toMin(this.normalizeTime(slot.start));
-      const end = this.toMin(this.normalizeTime(slot.end));
+  // snapshot לרברט
+  slot.prevStart ??= slot.start;
+  slot.prevEnd ??= slot.end;
+  slot.prevRidingTypeId ??= slot.ridingTypeId;
 
-      if (end <= start) {
-        this.toast('שעת התחלה לא יכולה להיות מאוחרת משעת הסיום');
-        slot.flashError = true;
-        return;
-      }
+  slot.originalStart ??= slot.start;
+  slot.originalEnd ??= slot.end;
 
-      slot.flashError = false;
-    }
-  }
-
-  onTimeBlur(day: DayAvailability, slot: TimeSlot) {
-    if (!this.allowEdit) return;
-    if (!this.isFullTime(slot.start) || !this.isFullTime(slot.end)) return;
-
-    slot.start = this.normalizeTime(slot.start);
-    slot.end = this.normalizeTime(slot.end);
-
-    if (this.toMin(slot.start) < this.toMin(this.farmStart)) {
-      this.toast(`שעת התחלה לא יכולה להיות לפני ${this.farmStart}`);
-      this.revert(slot);
-      return;
-    }
+  // נקה שגיאות בעת פוקוס
+  slot.hasError = false;
+  slot.errorMessage = null;
+}
 
 onTimeChange(day: DayAvailability, slot: TimeSlot) {
   if (!this.allowEdit) return;
 
-    if (this.toMin(slot.end) <= this.toMin(slot.start)) {
-      this.toast('שעת סיום חייבת להיות אחרי שעת התחלה');
-      this.revert(slot);
+  this.isDirty = true;
+
+  // ולידציה “שקטה” בזמן שינוי – לא טוסט כל הקלדה
+  this.validateSlotSilent(day, slot);
+}
+
+
+  /** בזמן הקלדה — בלי "ריוורט", רק סימון בעיה */
+  onTimeTyping(day: DayAvailability, slot: TimeSlot) {
+    if (!this.allowEdit) return;
+    this.isDirty = true;
+
+    slot.flashError = false;
+    slot.hasError = false;
+    slot.errorMessage = null;
+
+    // אם אחד חסר — עדיין לא מפילים
+    if (!slot.start || !slot.end) return;
+
+    if (!this.isFullTime(slot.start) || !this.isFullTime(slot.end)) return;
+
+    const start = this.toMin(this.normalizeTime(slot.start));
+    const end = this.toMin(this.normalizeTime(slot.end));
+
+    if (end <= start) {
+      slot.flashError = true;
+      slot.hasError = true;
+      slot.errorMessage = 'שעת סיום חייבת להיות אחרי שעת התחלה';
       return;
     }
 
     if (this.hasOverlap(day, slot)) {
-      this.toast('שעת התחלה לא יכולה להיות מוקדמת משעת סיום קודמת');
-      this.revert(slot);
+      slot.flashError = true;
+      slot.hasError = true;
+      slot.errorMessage = 'יש חפיפה עם טווח אחר באותו יום';
       return;
     }
+  }
 
-    slot.prevStart = slot.start;
-    slot.prevEnd = slot.end;
-    slot.prevRidingTypeId = slot.ridingTypeId;
+  /** blur — כאן עושים ולידציה מלאה + revert */
+  onTimeBlur(day: DayAvailability, slot: TimeSlot) {
+  if (!this.allowEdit) return;
+
+  // אם לא הושלם – תשאירי שגיאה עדינה
+  this.validateSlotSilent(day, slot);
+
+  // רק אם שני הערכים מלאים ותקינים – נבדוק חפיפות וטווחים
+  if (!slot.start || !slot.end) return;
+  if (!this.isFullTime(slot.start) || !this.isFullTime(slot.end)) return;
+
+  slot.start = this.normalizeTime(slot.start);
+  slot.end = this.normalizeTime(slot.end);
+
+  // טווח חווה
+  if (this.toMin(slot.start) < this.toMin(this.farmStart)) {
+    this.toast(`שעת התחלה לא יכולה להיות לפני ${this.farmStart}`);
+    this.revert(slot);
+    return;
+  }
+  if (this.toMin(slot.end) > this.toMin(this.farmEnd)) {
+    this.toast(`שעת סיום לא יכולה להיות אחרי ${this.farmEnd}`);
+    this.revert(slot);
+    return;
+  }
+
+  // סדר שעות
+  if (this.toMin(slot.end) <= this.toMin(slot.start)) {
+    this.toast('שעת סיום חייבת להיות אחרי שעת התחלה');
+    this.revert(slot);
+    return;
+  }
+
+  // חפיפה
+  if (this.hasOverlap(day, slot)) {
+    this.toast('יש חפיפה עם טווח אחר באותו יום');
+    this.revert(slot);
+    return;
+  }
+
+  // עדכון snapshot מוצלח
+  slot.prevStart = slot.start;
+  slot.prevEnd = slot.end;
+  slot.prevRidingTypeId = slot.ridingTypeId;
 
     slot.wasUpdated = true;
     this.isDirty = true;
   }
+  slot.hasError = false;
+  slot.errorMessage = null;
+}
 
   onRidingTypeChange(day: DayAvailability, slot: TimeSlot) {
     if (!this.allowEdit) return;
     slot.prevRidingTypeId = slot.ridingTypeId;
     slot.wasUpdated = true;
     this.isDirty = true;
+
+    // אם כבר יש שעות — בדיקת חפיפה מחדש
+    this.onTimeTyping(day, slot);
   }
 
-addSlot(day: DayAvailability) {
-  if (!this.allowEdit) return;
+  addSlot(day: DayAvailability) {
+    if (!this.allowEdit) return;
 
-  day.slots.push({
-    start: null,
-    end: null,
-    ridingTypeId: null,
-    isNew: true,
-  });
+    day.slots.push({
+      start: null,
+      end: null,
+      ridingTypeId: null,
+      isNew: true,
+      hasError: false,
+      errorMessage: null,
+    });
 
-  this.isDirty = true;
+    this.isDirty = true;
+  }
+
+  private validateSlotSilent(_day: DayAvailability, slot: TimeSlot): void {
+  slot.hasError = false;
+  slot.errorMessage = null;
+
+  // אם שניהם ריקים – לא מציגים כלום
+  if (!slot.start && !slot.end) return;
+
+  // חסר אחד מהם
+  if (!slot.start || !slot.end) {
+    slot.hasError = true;
+    slot.errorMessage = 'יש להשלים שעת התחלה וסיום';
+    return;
+  }
+
+  // פורמט
+  if (!this.isFullTime(slot.start) || !this.isFullTime(slot.end)) {
+    slot.hasError = true;
+    slot.errorMessage = 'פורמט שעה לא תקין';
+    return;
+  }
+
+  // סדר שעות בסיסי
+  const s = this.toMin(this.normalizeTime(slot.start));
+  const e = this.toMin(this.normalizeTime(slot.end));
+  if (e <= s) {
+    slot.hasError = true;
+    slot.errorMessage = 'שעת סיום חייבת להיות אחרי שעת התחלה';
+    return;
+  }
 }
+
 
   removeSlot(day: DayAvailability, i: number) {
     if (!this.allowEdit) return;
@@ -467,8 +578,6 @@ addSlot(day: DayAvailability) {
   /* ===================== SAVE FLOW ===================== */
 
   async saveAvailability() {
-    // (נשאר כמו אצלך – לא נגעתי בלוגיקה)
-
     for (const day of this.days) {
       if (!day.active) continue;
 
@@ -482,6 +591,13 @@ addSlot(day: DayAvailability) {
   this.toast('יש טווח עם שעה לא תקינה');
   return;
 }
+        // אם שניהם ריקים - להתעלם (אבל אם יום פעיל ויש לך שורה ריקה - אפשר גם לחסום, את בחרי)
+        if (!slot.start && !slot.end) continue;
+
+        if (!slot.start || !slot.end || !this.isFullTime(slot.start) || !this.isFullTime(slot.end)) {
+          this.toast('יש טווח עם שעה לא תקינה');
+          return;
+        }
 
         slot.start = this.normalizeTime(slot.start);
         slot.end = this.normalizeTime(slot.end);
@@ -496,7 +612,16 @@ if (endMin <= startMin) {
 
 
         if (this.toMin(slot.start) < this.toMin(this.farmStart) || this.toMin(slot.end) > this.toMin(this.farmEnd)) {
+        if (
+          this.toMin(slot.start) < this.toMin(this.farmStart) ||
+          this.toMin(slot.end) > this.toMin(this.farmEnd)
+        ) {
           this.toast(`השעות חייבות להיות בין ${this.farmStart} ל־${this.farmEnd}`);
+          return;
+        }
+
+        if (this.toMin(slot.end) <= this.toMin(slot.start)) {
+          this.toast('שעת סיום חייבת להיות אחרי שעת התחלה');
           return;
         }
 
@@ -550,42 +675,40 @@ if (endMin <= startMin) {
 
     const payload = this.buildWeeklyPayloadForSave();
 
-    const del = await dbTenant()
+    // 1) delete old
+    const { error: delError } = await dbTenant()
       .from('instructor_weekly_availability')
       .delete()
       .eq('instructor_id_number', this.instructorIdNumber);
 
-    if (del.error) {
-      console.error('❌ delete instructor_weekly_availability error', del.error);
+    if (delError) {
+      console.error('❌ delete instructor_weekly_availability error', delError);
       this.toast('שגיאה בשמירה');
       return;
     }
-  }
 
-  // 3️⃣ סנכרון לטבלה שהמערכת משתמשת בה
-// 3️⃣ סנכרון לטבלה שהמערכת משתמשת בה
-const { error: rpcError } = await dbTenant()
-  .rpc('sync_instructor_availability', {
-    p_instructor_id: this.instructorIdNumber,
-    p_days: rows,
-  });
-
-if (rpcError) {
-  console.error('❌ sync_instructor_availability failed:', rpcError);
-  this.toast(`שגיאה בסנכרון זמינות: ${rpcError.message}`);
-  return;
-}
-
+    // 2) insert new
     if (payload.length) {
-      const ins = await dbTenant()
-        .from('instructor_weekly_availability')
-        .insert(payload);
+      const { error: insError } = await dbTenant().from('instructor_weekly_availability').insert(payload);
 
-      if (ins.error) {
-        console.error('❌ insert instructor_weekly_availability error', ins.error);
+      if (insError) {
+        console.error('❌ insert instructor_weekly_availability error', insError);
         this.toast('שגיאה בשמירה');
         return;
       }
+    }
+
+    // 3) (אופציונלי) סנכרון לטבלה/לוגיקה שהמערכת משתמשת בה
+    // אם אין לך את ה-RPC בפרויקט – לא יפיל קומפילציה, רק ידפיס שגיאה בלוג
+    const { error: rpcError } = await dbTenant().rpc('sync_instructor_availability', {
+      p_instructor_id: this.instructorIdNumber,
+      p_days: payload,
+    });
+
+    if (rpcError) {
+      console.error('❌ sync_instructor_availability failed:', rpcError);
+      this.toast(`שגיאה בסנכרון זמינות: ${rpcError.message}`);
+      return;
     }
 
   this.isDirty = false;
@@ -596,6 +719,10 @@ for (const day of this.days) {
   for (const slot of day.slots) {
     slot.hasError = false;
     slot.errorMessage = null;
+  }
+    this.isDirty = false;
+    this.toast('✔ הזמינות נשמרה');
+    this.originalDays = JSON.parse(JSON.stringify(this.days));
   }
 
   private buildWeeklyPayloadForSave(): Array<{
@@ -617,40 +744,37 @@ for (const day of this.days) {
 
     const instructor_id_number = this.instructorIdNumber!;
 
-    console.log('Building payload for save...');
-
     for (const day of this.days) {
-      console.log('Processing day:', day.key, 'active:', day.active);
       if (!day.active) continue;
 
-      const day_of_week = this.DAY_KEY_TO_NUM[day.key];
-      console.log('Day of week:', day_of_week);
+      const day_of_week = this.DAY_KEY_TO_NUM[day.key]; // 0..6
       if (!Number.isInteger(day_of_week)) continue;
 
-
       for (const s of day.slots) {
+        // להתעלם משורה ריקה
+        if (!s.start && !s.end) continue;
+
+        if (!s.start || !s.end) continue;
+        if (!this.isFullTime(s.start) || !this.isFullTime(s.end)) continue;
+
         out.push({
           instructor_id_number,
           day_of_week,
-          start_time: this.normalizeTime(s.start), // 'HH:MM'
-          end_time: this.normalizeTime(s.end),
+          start_time: this.toDbTime(s.start), // 'HH:MM:SS'
+          end_time: this.toDbTime(s.end),
           lesson_ridding_type: s.ridingTypeId ?? null,
-          lesson_type_mode: null, // אם תרצי להכניס ערך — תגידי לי מה המשמעות
+          lesson_type_mode: null,
         });
       }
     }
 
-    console.log('Built payload:', out);
     return out;
   }
 
   private async lockAvailabilityEdit() {
     if (!this.userId) return;
 
-    const { error } = await dbTenant()
-      .from('instructors')
-      .update({ allow_availability_edit: false })
-      .eq('uid', this.userId);
+    const { error } = await dbTenant().from('instructors').update({ allow_availability_edit: false }).eq('uid', this.userId);
 
     if (error) {
       console.error('❌ lockAvailabilityEdit error', error);
@@ -688,22 +812,21 @@ for (const day of this.days) {
     this.toast('✔ העדפות התראות נשמרו');
   }
 
-  /* ===================== IMPACT + CHANGES (כמו אצלך) ===================== */
+  /* ===================== IMPACT + CHANGES ===================== */
 
-  private async loadParentsImpactCountOnly(dayHebrew: string, startTime: string, endTime: string): Promise<ConfirmData | null> {
+  private async loadParentsImpactCountOnly(
+    dayHebrew: string,
+    startTime: string,
+    endTime: string,
+  ): Promise<ConfirmData | null> {
     if (!this.instructorIdNumber) return null;
 
-    console.log('Checking impact for:', { dayHebrew, startTime, endTime });
-
-    const { data, error } = await dbTenant()
-    
-      .rpc('get_impacted_parents_by_availability', {
-        p_instructor_id: this.instructorIdNumber,
-        p_day_of_week: dayHebrew,
-        //p_day_of_week: this.DAY_KEY_TO_NUM[dayHebrew],
-        p_start_time: startTime,
-        p_end_time: endTime,
-      });
+    const { data, error } = await dbTenant().rpc('get_impacted_parents_by_availability', {
+      p_instructor_id: this.instructorIdNumber,
+      p_day_of_week: dayHebrew, // נשאר לפי מה שהיה אצלך
+      p_start_time: startTime,
+      p_end_time: endTime,
+    });
 
     if (error || !data) {
       console.warn('⚠️ impact check skipped – RPC missing/failed', error);
@@ -717,7 +840,8 @@ for (const day of this.days) {
     if (Array.isArray(data)) {
       const unique = new Set<string>();
       for (const row of data) {
-        const key = (row?.parent_id ?? row?.parent_uid ?? row?.parent_email ?? row?.parent_name ?? '') + '';
+        const key =
+          (row?.parent_id ?? row?.parent_uid ?? row?.parent_email ?? row?.parent_name ?? '') + '';
         if (key) unique.add(key);
       }
       const count = unique.size > 0 ? unique.size : data.length;
@@ -727,6 +851,7 @@ for (const day of this.days) {
     return null;
   }
 
+  /** טווחים שהיו במקור ונעלמו עכשיו (לצורך השפעה על הורים) */
   private getChangedAvailabilityRanges(): { dayLabel: string; oldStart: string; oldEnd: string }[] {
     const ranges: { dayLabel: string; oldStart: string; oldEnd: string }[] = [];
 
@@ -746,14 +871,22 @@ for (const day of this.days) {
       }
       continue;
     }
+      // יום שהיה פעיל וכעת לא פעיל: כל הטווחים נמחקו
+      if (oldDay.active && (!newDay || !newDay.active)) {
+        for (const s of oldDay.slots) {
+          if (s.start && s.end) ranges.push({ dayLabel: oldDay.label, oldStart: s.start, oldEnd: s.end });
+        }
+        continue;
+      }
 
-    if (!newDay) continue;
+      // יום פעיל גם בעבר וגם עכשיו: בדוק אם טווחים נמחקו
+      if (!oldDay.active || !newDay || !newDay.active) continue;
 
-      for (const oldSlot of oldDay.slots) {
-        const stillExists = newDay.slots.some(s =>
-          this.toMin(this.normalizeTime(s.start)) === this.toMin(this.normalizeTime(oldSlot.start)) &&
-          this.toMin(this.normalizeTime(s.end)) === this.toMin(this.normalizeTime(oldSlot.end))
-        );
+      const newSet = new Set(
+        newDay.slots
+          .filter(s => s.start && s.end && this.isFullTime(s.start) && this.isFullTime(s.end))
+          .map(s => `${this.normalizeTime(s.start!)}-${this.normalizeTime(s.end!)}`),
+      );
 
       if (!stillExists) {
         ranges.push({
@@ -764,9 +897,17 @@ for (const day of this.days) {
       }
     }
   }
+      for (const oldSlot of oldDay.slots) {
+        if (!oldSlot.start || !oldSlot.end) continue;
+        const key = `${this.normalizeTime(oldSlot.start)}-${this.normalizeTime(oldSlot.end)}`;
+        if (!newSet.has(key)) {
+          ranges.push({ dayLabel: oldDay.label, oldStart: oldSlot.start, oldEnd: oldSlot.end });
+        }
+      }
+    }
 
-  return ranges;
-}
+    return ranges;
+  }
 
   /* ===================== HELPERS ===================== */
 
@@ -787,66 +928,54 @@ for (const day of this.days) {
     const [h, m] = time.split(':').map(Number);
     const d = new Date(2000, 0, 1, h, m + min);
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+  private normalizeTime(t: string | null): string {
+    if (!t) return '';
+    if (!this.isFullTime(t)) return t;
+
+    const [hh, mm] = t.split(':');
+    const h = Number(hh);
+    const m = Number(mm);
+
+    if (Number.isNaN(h) || Number.isNaN(m)) return t;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
+  /** ✅ מקבל גם 8:05 וגם 08:05 */
+  private isFullTime(t: string | null): boolean {
+    return typeof t === 'string' && /^\d{1,2}:\d{2}$/.test(t);
+  }
+
+  private toDbTime(t: string): string {
+    const hhmm = this.normalizeTime(t);
+    return hhmm ? `${hhmm}:00` : '';
   }
 
   private toMin(t: string) {
+    if (!t) return 0;
     const [h, m] = t.split(':').map(Number);
     return h * 60 + m;
   }
 
   private revert(slot: TimeSlot) {
-  const start = slot.prevStart ?? slot.originalStart ?? this.farmStart;
-  const end   = slot.prevEnd   ?? slot.originalEnd   ?? this.farmEnd;
-  const rt    = slot.prevRidingTypeId ?? slot.ridingTypeId;
+    const start = slot.prevStart ?? slot.originalStart ?? this.farmStart;
+    const end = slot.prevEnd ?? slot.originalEnd ?? this.farmEnd;
+    const rt = slot.prevRidingTypeId ?? slot.ridingTypeId ?? null;
 
-  // ✅ חשוב: בטיק הבא כדי ש-ngModel לא ידרוס אותנו אחרי blur
-  setTimeout(() => {
-    slot.start = start;
-    slot.end = end;
-    slot.ridingTypeId = rt;
-    slot.editSessionStarted = false;
-    this.cdr.detectChanges();
-  });
-}
-
-private validateSlot(day: DayAvailability, slot: TimeSlot, phase: 'blur' | 'save'): boolean {
-  if (!this.isFullTime(slot.start) || !this.isFullTime(slot.end)) {
-    if (phase === 'save') this.toast('יש טווח עם שעה לא תקינה');
-    return false;
+    // ✅ חשוב: בטיק הבא כדי ש-ngModel לא ידרוס אותנו אחרי blur
+    setTimeout(() => {
+      slot.start = start;
+      slot.end = end;
+      slot.ridingTypeId = rt;
+      slot.editSessionStarted = false;
+      slot.hasError = false;
+      slot.errorMessage = null;
+      this.cdr.detectChanges();
+    });
   }
-if (!slot.start || !slot.end) return false;
-
-  const start = this.toMin(this.normalizeTime(slot.start));
-  const end   = this.toMin(this.normalizeTime(slot.end));
-  const farmStart = this.toMin(this.farmStart);
-  const farmEnd   = this.toMin(this.farmEnd);
-
-  if (start < farmStart || start > farmEnd) {
-    this.toast(`שעת התחלה חייבת להיות בין ${this.farmStart} ל־${this.farmEnd}`);
-    return false;
-  }
-
-  if (end < farmStart || end > farmEnd) {
-    this.toast(`שעת סיום חייבת להיות בין ${this.farmStart} ל־${this.farmEnd}`);
-    return false;
-  }
-
-  if (start >= end) {
-    this.toast('שעת סיום חייבת להיות אחרי שעת התחלה');
-    return false;
-  }
-
-  if (this.hasOverlap(day, slot)) {
-    this.toast('יש חפיפה עם טווח אחר באותו יום');
-    return false;
-  }
-
-  return true;
-}
 
   private hasOverlap(day: DayAvailability, target: TimeSlot): boolean {
     if (!target.start || !target.end) return false;
-
     if (!this.isFullTime(target.start) || !this.isFullTime(target.end)) return false;
 
     const a1 = this.toMin(this.normalizeTime(target.start));
@@ -854,6 +983,7 @@ if (!slot.start || !slot.end) return false;
 
     return day.slots.some(s => {
       if (s === target) return false;
+      if (!s.start || !s.end) return false;
       if (!this.isFullTime(s.start) || !this.isFullTime(s.end)) return false;
 
       const b1 = this.toMin(this.normalizeTime(s.start));
@@ -864,17 +994,14 @@ if (!slot.start || !slot.end) return false;
   }
 
   private dayHasAnyOverlap(day: DayAvailability): boolean {
-  const slots = day.slots
-  .filter(
-    (s): s is TimeSlot & { start: string; end: string } =>
-      !!s.start && !!s.end && this.isFullTime(s.start) && this.isFullTime(s.end)
-  )
-  .map(s => ({
-    start: this.toMin(this.normalizeTime(s.start)),
-    end: this.toMin(this.normalizeTime(s.end)),
-  }))
-  .sort((a, b) => a.start - b.start);
-
+    const slots = day.slots
+      .filter((s): s is TimeSlot & { start: string; end: string } => !!s.start && !!s.end)
+      .filter(s => this.isFullTime(s.start) && this.isFullTime(s.end))
+      .map(s => ({
+        start: this.toMin(this.normalizeTime(s.start)),
+        end: this.toMin(this.normalizeTime(s.end)),
+      }))
+      .sort((a, b) => a.start - b.start);
 
     for (let i = 1; i < slots.length; i++) {
       if (slots[i].start < slots[i - 1].end) return true;

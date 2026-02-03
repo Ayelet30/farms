@@ -40,8 +40,9 @@ import { RequestInstructorDayOffDetailsComponent } from './request-instructor-da
 import { RequestCancelOccurrenceDetailsComponent } from './request-cancel-occurrence-details/request-cancel-occurrence-details.component';
 import { RequestAddChildDetailsComponent } from './request-add-child-details/request-add-child-details.component';
 import { SecretarialSeriesRequestsComponent } from './request-new-series-details/request-new-series-details.component';
-import { request } from 'http';
 import { RequestAddParentDetailsComponent } from './request-add-parent-details/request-add-parent-details.component';
+import { RequestMakeupLessonDetailsComponent } from './request-makeup-lesson-details/request-makeup-lesson-details';
+import { RequestFillInDetailsComponent } from './request-fill-in-details/request-fill-in-details';
 
 // שם ה־RPC שאמור לרוץ עבור כל סוג בקשה בעת "אישור"
 const APPROVE_RPC_BY_TYPE: Partial<Record<RequestType, string>> = {
@@ -56,7 +57,12 @@ const APPROVE_RPC_BY_TYPE: Partial<Record<RequestType, string>> = {
 
 };
 
+
 type ToastKind = 'success' | 'error' | 'info';
+
+type ValidationMode = 'auto' | 'approve';
+
+type ValidationResult = { ok: true } | { ok: false; reason: string };
 
 
 @Component({
@@ -76,6 +82,7 @@ export class SecretarialRequestsPageComponent implements OnInit {
   private sanitizer = inject(DomSanitizer);
   private detailsSubs: Subscription[] = [];
   private bo = inject(BreakpointObserver);
+  private autoRejectInFlight = false;
 
   isMobile = signal(false);
   bulkBusy = signal(false);
@@ -122,10 +129,39 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
     DELETE_CHILD: RequestRemoveChildDetailsComponent,
     NEW_SERIES: SecretarialSeriesRequestsComponent, 
     PARENT_SIGNUP: RequestAddParentDetailsComponent,
-    // MAKEUP_LESSON: RequestMakeupLessonDetailsComponent,
-    // FILL_IN: RequestFillInDetailsComponent,
+    MAKEUP_LESSON: RequestMakeupLessonDetailsComponent,
+    FILL_IN: RequestFillInDetailsComponent,
 
   };
+
+  private isDbFailure(err: any): boolean {
+  const msg = String(err?.message ?? err ?? '').toLowerCase();
+  // supabase-js errors / fetch
+  return (
+    msg.includes('failed to fetch') ||
+    msg.includes('network') ||
+    msg.includes('timeout') ||
+    msg.includes('502') ||
+    msg.includes('503') ||
+    msg.includes('500') ||
+    msg.includes('400') ||
+    msg.includes('jwt') ||
+    msg.includes('permission') ||
+    msg.includes('rls') ||
+    msg.includes('schema') ||
+    msg.includes('tenant')
+  );
+}
+
+private handleDbFailure(mode: ValidationMode, context: string, err: any): ValidationResult {
+  console.warn(`[VALIDATION][${mode}] ${context} DB failed → skip/restrict`, err);
+
+  // במצב auto: לא מפילים, לא דוחים
+  if (mode === 'auto') return { ok: true };
+
+  // במצב approve: חוסמים כדי לא לאשר בטעות
+  return { ok: false, reason: 'לא ניתן לאמת כרגע (שגיאת מערכת). נסי לרענן/להתחבר מחדש.' };
+}
 
   getDetailsComponent(type: string) {
     return this.REQUEST_DETAILS_COMPONENT[type] || null;
@@ -196,7 +232,11 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
         if (r.requesterUid !== myUid) return false;
       }
 
-      if (status !== 'ALL' && r.status !== status) return false;
+      if (status !== 'ALL') {
+        if (status === 'REJECTED' && r.status === 'REJECTED_BY_SYSTEM') {
+          // include system rejections under rejected tab
+        } else if (r.status !== status) return false;
+      }
       if (type !== 'ALL' && r.requestType !== type) return false;
 
       if (from || to) {
@@ -262,7 +302,6 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
 
     await this.loadRequestsFromDb();
   }
-  
 
   // --------------------------------------------------
   // טעינה מה־DB
@@ -289,6 +328,7 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
         data?.map((row: any) => this.mapRowToUi(row)) ?? [];
 
       this.allRequests.set(mapped);
+      void this.rejectInvalidRequests('load');
     } catch (err: any) {
       console.error('Failed to load v_secretarial_requests', err);
       this.loadError.set('אירעה שגיאה בטעינת הבקשות מהמערכת.');
@@ -412,6 +452,7 @@ instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
       case 'PENDING': return 'status-chip pending';
       case 'APPROVED': return 'status-chip approved';
       case 'REJECTED': return 'status-chip rejected';
+            case 'REJECTED_BY_SYSTEM': return 'status-chip rejected';
       case 'CANCELLED_BY_REQUESTER': return 'status-chip cancelled';
       default: return 'status-chip';
     }
@@ -422,7 +463,7 @@ instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
       case 'PENDING': return 'ממתין';
       case 'APPROVED': return 'מאושר';
       case 'REJECTED': return 'נדחה';
-      case 'CANCELLED_BY_REQUESTER': return 'בוטל ע״י המבקש/ת';
+            case 'CANCELLED_BY_REQUESTER': return 'בוטל ע״י המבקש/ת';
       default: return status;
     }
   }
@@ -536,6 +577,11 @@ onDetailsActivate(instance: any) {
       instance.error.subscribe((msg: string) => this.onAnyError(msg))
     );
   }
+
+  const current = this.selectedRequest;
+  if (current) {
+    this.wrapApproveWithValidation(instance, current);
+  }
 }
 
 onChildApproved(e: { requestId: string }) {
@@ -643,11 +689,11 @@ private async runDecisionViaDetailsComponent(
   const ref = this.bulkHost.createComponent(cmp, { environmentInjector: this.envInj });
   const inst: any = ref.instance;
 
-  // להזין Inputs בסיסיים שכל קומפוננטה אצלך מקבלת
+  // להזין Inputs בסיסיים
   inst.request = row;
   inst.decidedByUid = this.curentUser?.uid;
 
-  // כדי שהמסך הראשי יקבל עדכון סטטוס מיד
+  // callbacks לעדכון מיידי
   inst.onApproved = (e: any) => {
     this.patchRequestStatus(row.id, 'APPROVED');
     const next = new Set(this.selectedIdsSig());
@@ -661,26 +707,35 @@ private async runDecisionViaDetailsComponent(
     this.selectedIdsSig.set(next);
   };
   inst.onError = (e: any) => {
-    // נרשום אבל לא נעצור את כל הבאלק
     console.error('bulk decision error', row.id, e);
   };
 
   try {
+    // ולידציה רק לפני approve (כמו שרצית)
+    if (action === 'approve') {
+      const valid = await this.isValidRequset(row, inst, 'approve');
+      if (!valid.ok) {
+        const reason = valid.reason ?? 'בקשה לא רלוונטית';
+        await this.rejectBySystem(row, reason);
+        return { ok: false, message: reason };
+      }
+    }
+
     const fn = inst?.[action];
     if (typeof fn !== 'function') {
       return { ok: false, message: `לקומפוננטה אין מתודה ${action}()` };
     }
 
-    // קריאה ל-approve()/reject() של קומפוננטת הפרטים
     await fn.call(inst);
-
     return { ok: true };
+
   } catch (e: any) {
     return { ok: false, message: e?.message || String(e) };
   } finally {
     ref.destroy();
   }
 }
+
 
 async bulkApproveSelected() {
   if (!this.isSecretary || !this.curentUser) return;
@@ -702,6 +757,7 @@ async bulkApproveSelected() {
     if (fail) this.showToast(`נכשלו ${fail} בקשות`, 'error');
 
     void this.loadRequestsFromDb();
+    void this.rejectInvalidRequests('postBulk');
   } finally {
     this.bulkBusy.set(false);
   }
@@ -727,10 +783,353 @@ async bulkRejectSelected() {
     if (fail) this.showToast(`נכשלו ${fail} בקשות`, 'error');
 
     void this.loadRequestsFromDb();
+    void this.rejectInvalidRequests('postBulk');
   } finally {
     this.bulkBusy.set(false);
   }
 }
 
 
+  private wrapApproveWithValidation(instance: any, row: UiRequest) {
+  const wrap = (methodName: 'approve' | 'approveSelected') => {
+    const original = instance?.[methodName];
+    if (typeof original !== 'function') return;
+    if (original.__sfWrapped) return;
+
+    const wrapped = async () => {
+      const valid = await this.isValidRequset(row, instance, 'approve');
+      if (!valid.ok) {
+        await this.rejectBySystem(row, valid.reason ?? 'בקשה לא רלוונטית');
+        return;
+      }
+      return original.call(instance);
+    };
+
+    wrapped.__sfWrapped = true;
+    instance[methodName] = wrapped;
+  };
+
+  wrap('approve');
+  wrap('approveSelected');
 }
+
+private async rejectInvalidRequests(context: 'load' | 'postBulk') {
+  if (!this.isSecretary) return;
+  if (this.autoRejectInFlight) return;
+  this.autoRejectInFlight = true;
+
+  try {
+    const pending = this.allRequests().filter(r => r.status === 'PENDING');
+    if (!pending.length) return;
+
+    let rejected = 0;
+    for (const r of pending) {
+      const valid = await this.isValidRequset(r, undefined, 'auto');
+      if (!valid.ok) {
+        await this.rejectBySystem(r, valid.reason ?? 'בקשה לא רלוונטית');
+        rejected++;
+      }
+    }
+
+    if (rejected > 0) {
+      const msg =
+        context === 'postBulk'
+          ? `נדחו אוטומטית ${rejected} בקשות לא רלוונטיות אחרי האישור`
+          : `נדחו אוטומטית ${rejected} בקשות לא רלוונטיות`;
+      this.showToast(msg, 'info');
+    }
+  } finally {
+    this.autoRejectInFlight = false;
+  }
+}
+
+private async isValidRequset(
+  row: UiRequest,
+  _instance?: any,
+  mode: ValidationMode = 'auto'
+): Promise<{ ok: boolean; reason?: string }> {
+
+  if (!row) return { ok: false, reason: 'בקשה לא תקינה' };
+
+  const expiryReason = this.getExpiryReason(row);
+  if (expiryReason) return { ok: false, reason: expiryReason };
+
+  await ensureTenantContextReady();
+  const db = dbTenant();
+
+  const childCheck = await this.checkChildActive(db, row, mode);
+  if (!childCheck.ok) return childCheck;
+
+  const instructorCheck = await this.checkInstructorActive(db, row, mode);
+  if (!instructorCheck.ok) return instructorCheck;
+
+  const parentCheck = await this.checkParentActive(db, row, mode);
+  if (!parentCheck.ok) return parentCheck;
+
+  const conflictCheck = await this.checkLessonSlotConflict(db, row, mode);
+  if (!conflictCheck.ok) return conflictCheck;
+
+  return { ok: true };
+}
+
+
+private getExpiryReason(row: UiRequest): string | null {
+  const p: any = row.payload ?? {};
+  const now = new Date();
+
+  const isPast = (dateStr: string | null | undefined, timeStr?: string | null): boolean => {
+    if (!dateStr) return false;
+    const dt = this.combineDateTime(dateStr, timeStr);
+    return dt.getTime() < now.getTime();
+  };
+
+  switch (row.requestType) {
+    case 'CANCEL_OCCURRENCE': {
+      const dateStr = p.occur_date ?? row.fromDate ?? null;
+      const timeStr = p.start_time ?? p.startTime ?? p.time ?? null;
+      if (isPast(dateStr, timeStr)) return 'עבר מועד השיעור לביטול';
+      return null;
+    }
+    case 'INSTRUCTOR_DAY_OFF': {
+      const end = row.toDate ?? row.fromDate ?? null;
+      if (isPast(end, '23:59')) return 'עבר מועד חופשת המדריך';
+      return null;
+    }
+    case 'NEW_SERIES': {
+      const start = row.fromDate ?? p.series_start_date ?? p.start_date ?? null;
+      if (isPast(start, '00:00')) return 'עבר מועד תחילת הסדרה';
+      return null;
+    }
+    case 'MAKEUP_LESSON':
+    case 'FILL_IN': {
+      const dateStr = row.fromDate ?? p.occur_date ?? null;
+      const timeStr = p.requested_start_time ?? p.start_time ?? p.startTime ?? null;
+      if (isPast(dateStr, timeStr)) return 'עבר מועד השיעור המבוקש';
+      return null;
+    }
+    default:
+      return null;
+  }
+}
+
+private combineDateTime(dateStr: string, timeStr?: string | null): Date {
+  const d = dateStr?.slice(0, 10);
+  const t = (timeStr ?? '00:00').slice(0, 5);
+  return new Date(`${d}T${t}:00`);
+}
+
+private getChildIdForRequest(row: UiRequest): string | null {
+  const p: any = row.payload ?? {};
+  return row.childId ?? p.child_id ?? p.childId ?? null;
+}
+
+private getInstructorIdForRequest(row: UiRequest): string | null {
+  const p: any = row.payload ?? {};
+  return row.instructorId ?? p.instructor_id ?? p.instructorId ?? null;
+}
+
+private getParentUidForRequest(row: UiRequest): string | null {
+  const p: any = row.payload ?? {};
+  const uid = row.requesterUid;
+  if (uid && uid !== 'PUBLIC') return uid;
+  return p.parent_uid ?? p.parent?.uid ?? p.uid ?? null;
+}
+
+private async checkChildActive(db: any, row: UiRequest, mode: ValidationMode)
+  : Promise<{ ok: boolean; reason?: string }> {
+
+  const childId = this.getChildIdForRequest(row);
+  if (!childId) return { ok: true };
+
+  try {
+    const { data, error } = await db
+      .from('children')
+      .select('status,is_active')
+      .eq('child_uuid', childId)
+      .maybeSingle();
+
+    if (error) {
+      const r = this.handleDbFailure(mode, 'checkChildActive', error);
+      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    }
+
+    const status = (data as any)?.status ?? null;
+    const isActiveFlag = (data as any)?.is_active;
+
+    if (isActiveFlag === false) return { ok: false, reason: 'הילד אינו פעיל' };
+    if (status && status !== 'Active') return { ok: false, reason: `הילד אינו פעיל (סטטוס: ${status})` };
+
+    return { ok: true };
+  } catch (e: any) {
+    const r = this.handleDbFailure(mode, 'checkChildActive', e);
+    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+  }
+}
+
+private async checkInstructorActive(db: any, row: UiRequest, mode: ValidationMode)
+  : Promise<{ ok: boolean; reason?: string }> {
+
+  const instructorId = this.getInstructorIdForRequest(row);
+  if (!instructorId) return { ok: true };
+
+  try {
+    const { data, error } = await db
+      .from('instructors')
+      .select('is_active')
+      .eq('id_number', instructorId)
+      .maybeSingle();
+
+    if (error) {
+      const r = this.handleDbFailure(mode, 'checkInstructorActive', error);
+      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    }
+
+    if ((data as any)?.is_active === false) return { ok: false, reason: 'המדריך אינו פעיל' };
+    return { ok: true };
+  } catch (e: any) {
+    const r = this.handleDbFailure(mode, 'checkInstructorActive', e);
+    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+  }
+}
+
+private async checkParentActive(db: any, row: UiRequest, mode: ValidationMode)
+  : Promise<{ ok: boolean; reason?: string }> {
+
+  const parentUid = this.getParentUidForRequest(row);
+  if (!parentUid) return { ok: true };
+
+  try {
+    const { data, error } = await db
+      .from('parents')
+      .select('is_active')
+      .eq('uid', parentUid)
+      .maybeSingle();
+
+    if (error) {
+      const r = this.handleDbFailure(mode, 'checkParentActive', error);
+      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    }
+
+    if ((data as any)?.is_active === false) return { ok: false, reason: 'ההורה אינו פעיל' };
+    return { ok: true };
+  } catch (e: any) {
+    const r = this.handleDbFailure(mode, 'checkParentActive', e);
+    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+  }
+}
+
+private async checkLessonSlotConflict(db: any, row: UiRequest, mode: ValidationMode)
+  : Promise<{ ok: boolean; reason?: string }> {
+
+  if (!['NEW_SERIES', 'MAKEUP_LESSON', 'FILL_IN'].includes(row.requestType)) return { ok: true };
+
+  const p: any = row.payload ?? {};
+  const instructorId = this.getInstructorIdForRequest(row);
+  const dateStr = row.fromDate ?? p.occur_date ?? p.series_start_date ?? null;
+  const timeStr = this.normalizeTimeToSeconds(p.requested_start_time ?? p.start_time ?? p.startTime ?? null);
+
+  if (!instructorId || !dateStr || !timeStr) return { ok: true };
+
+  try {
+    const { data, error } = await db
+      .from('lessons_occurrences')
+      .select('lesson_id')
+      .eq('instructor_id', instructorId)
+      .eq('occur_date', dateStr)
+      .eq('start_time', timeStr)
+      .limit(1);
+
+    if (error) {
+      const r = this.handleDbFailure(mode, 'checkLessonSlotConflict', error);
+      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    }
+
+    if (Array.isArray(data) && data.length > 0) {
+      return { ok: false, reason: 'כבר נקבע שיעור במועד הזה' };
+    }
+
+    return { ok: true };
+  } catch (e: any) {
+    const r = this.handleDbFailure(mode, 'checkLessonSlotConflict', e);
+    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+  }
+}
+
+
+private normalizeTimeToSeconds(t: string | null | undefined): string | null {
+  if (!t) return null;
+  const s = t.trim();
+  if (!s) return null;
+  if (s.length === 5) return `${s}:00`;
+  return s;
+}
+
+
+private async rejectBySystem(row: UiRequest, reason: string) {
+  await ensureTenantContextReady();
+  const db = dbTenant();
+
+  const note = (reason || 'בקשה לא תקינה').trim();
+  const decidedBy = this.curentUser?.uid ?? null;
+  const decidedAt = new Date().toISOString();
+
+  try {
+    switch (row.requestType) {
+      case 'INSTRUCTOR_DAY_OFF':
+        await db.rpc('reject_instructor_day_off_request', {
+          p_request_id: row.id,
+          p_decided_by_uid: decidedBy,
+          p_decision_note: note,
+        });
+        break;
+
+      case 'DELETE_CHILD': {
+        const childId = this.getChildIdForRequest(row);
+        if (childId) {
+          await db
+            .from('children')
+            .update({
+              status: 'Active',
+              deletion_requested_at: null,
+              scheduled_deletion_at: null,
+            })
+            .eq('child_uuid', childId);
+        }
+        break;
+      }
+
+      default:
+        await db.rpc('reject_secretarial_request', {
+          p_request_id: row.id,
+          p_decided_by_uid: decidedBy,
+          p_decision_note: note,
+        });
+        break;
+    }
+  } catch (e) {
+    console.error('rejectBySystem RPC failed', e);
+  }
+
+  try {
+    await db
+      .from('secretarial_requests')
+      .update({
+        status: 'REJECTED_BY_SYSTEM',
+        decided_by_uid: decidedBy,
+        decision_note: note,
+        decided_at: decidedAt,
+      })
+      .eq('id', row.id)
+      .eq('status', 'PENDING');
+  } catch (e) {
+    console.error('rejectBySystem update failed', e);
+  }
+
+  this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
+}
+
+
+}
+
+
+
