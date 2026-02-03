@@ -536,7 +536,6 @@ if (extra) {
 
   
 try {
-  console.log("PARENT-EMAIL:" +parentEmail+"!!!!!!!!11"); 
   if (parentEmail) {
     const farmName = await getFarmNameBySchema(tenantSchema);
 
@@ -546,7 +545,6 @@ try {
     if (!data) throw new Error("Invoice PDF is empty");
 
     const pdfBuffer = Buffer.from(await data.arrayBuffer());
-console.log("לפני sendemailcore !!!!!!!!111"); 
 
     // 2) שליחה דרך core (בלי HTTP)
     await sendEmailCore({     
