@@ -64,6 +64,15 @@ export const approveRemoveChildAndNotify = onRequest(
 if (!isInternalCall(req)) {
   await requireAuth(req);
 }
+let decidedByUid: string | null = null;
+
+if (!isInternalCall(req)) {
+  const decoded = await requireAuth(req);
+  decidedByUid = decoded?.uid ?? null;
+}
+
+// אם זו קריאה פנימית ואת עדיין רוצה לשמור decided_by_uid — אפשר להעביר אותו בכותרת/ב-body,
+// אבל אם לא צריך, אפשר להשאיר null.
 
       const body = req.body || {};
       const tenantSchema = String(body.tenantSchema || '').trim();
@@ -119,11 +128,31 @@ if (graceDays != null && !Number.isFinite(graceDays)) {
       const scheduledDate = String(scheduledIso).slice(0, 10);
 
       // 2) update request approved
-      const { error: updErr } = await sbTenant
-        .from('secretarial_requests')
-        .update({ status: 'APPROVED', decided_at: new Date().toISOString() })
-        .eq('id', requestId);
-      if (updErr) throw updErr;
+    const updatePayload: any = {
+  status: 'APPROVED',
+  decided_at: new Date().toISOString(),
+};
+
+if (decidedByUid) {
+  updatePayload.decided_by_uid = decidedByUid; // ✅ כאן נכנס ה-uid של המזכירה
+}
+
+const { data: upd, error: updErr } = await sbTenant
+  .from('secretarial_requests')
+  .update(updatePayload)
+  .eq('id', requestId)
+  .eq('status', 'PENDING')
+  .select('id,status')
+  .maybeSingle();
+
+if (updErr) throw updErr;
+
+if (!upd) {
+  return void res.status(409).json({
+    ok: false,
+    message: 'הבקשה כבר לא במצב ממתין (ייתכן שכבר עודכנה).',
+  });
+}
 
       // 3) fetch child + parent
       const { data: childRow, error: childErr } = await sbTenant
