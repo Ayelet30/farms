@@ -43,6 +43,8 @@ export type ParentChargeRow = {
   description: string | null;
   charge_amount_agorot: number;
   items_amount_agorot: number;
+  office_note?: string | null;
+
   paid_agorot: number;
   credits_agorot: number;
   remaining_agorot: number;
@@ -158,10 +160,11 @@ export class PaymentsService {
 
     let q = dbc
       .from('v_parent_charges')
-      .select(
-        'id,parent_name,parent_uid,period_start,period_end,description,charge_amount_agorot,items_amount_agorot,paid_agorot,credits_agorot,remaining_agorot,status,created_at',
-        { count: 'exact' }
-      )
+   .select(
+  'id,parent_name,parent_uid,period_start,period_end,description,charge_amount_agorot,items_amount_agorot,office_note,paid_agorot,credits_agorot,remaining_agorot,status,created_at',
+  { count: 'exact' }
+)
+
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 

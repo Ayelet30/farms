@@ -404,7 +404,28 @@
           </button>
         </div>
       </div>
+      <div class="filter-field search-field">
+  <label class="filter-label">חיפוש לפי שם ילד</label>
+  <div class="search">
+    <mat-icon>person</mat-icon>
+    <input
+      type="text"
+      [value]="childSearch()"
+      (input)="onChildSearchChange($event)"
+      placeholder="הקלד/י שם תלמיד..."
+    />
+    <button
+      mat-icon-button
+      *ngIf="childSearch()"
+      (click)="clearChildSearch()"
+    >
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+</div>
     </div>
+<!-- חיפוש לפי שם ילד -->
+
 
     <!-- טבלה -->
 <table

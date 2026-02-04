@@ -2,6 +2,7 @@ import { Component, OnInit, computed, signal, Input, inject } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UiDialogService } from '../../services/ui-dialog.service';
+import { ActivatedRoute } from '@angular/router';
 
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -48,7 +49,7 @@ type MonthlyReportRow = {
 
 interface LessonRow {
   lesson_id: UUID;
-  child_id?: UUID;
+  child_id?: UUID | null; 
   office_note?: string | null;
   lesson_type: LessonType | null;
   status: LessonStatus | null;
@@ -169,6 +170,7 @@ export class MonthlySummaryComponent implements OnInit {
   private ui = inject(UiDialogService);
 
   private dbc = this.dbTenantFactory();
+  private route = inject(ActivatedRoute);
 
 
 
@@ -279,7 +281,12 @@ readonly displayedColumns = computed(() =>
   typeFilter = signal<'all' | 'regular' | 'makeup'>('all');
   statusFilter = signal<'all' | 'pending' | 'approved' | 'canceled' | 'done'>('all');
   search = signal('');
+  childSearch = signal('');
+
   instructorFilter = signal<'all' | string>('all');
+  selectedChildId = signal<string | null>(null);
+  fromChildCard = signal<boolean>(false);
+selectedChildName = signal<string | null>(null);
 
   // DATA
   lessons = signal<LessonRow[]>([]);
@@ -366,10 +373,15 @@ readonly displayedColumns = computed(() =>
   });
 
   filteredLessons = computed<LessonRow[]>(() => {
+    const childId = this.selectedChildId();
+
     const q = this.clean(this.search()).toLowerCase();
+    const childQ = this.clean(this.childSearch()).toLowerCase();
+
     const type = this.typeFilter();
     const statusF = this.statusFilter();
     const instructorF = this.instructorFilter();
+    
     const rows = this.lessons();
 
     const map: Record<string, LessonStatus[]> = {
@@ -380,36 +392,56 @@ readonly displayedColumns = computed(() =>
       all: [],
     };
 
-    return rows.filter((l: LessonRow) => {
-      if (type === 'regular' && l.lesson_type !== 'רגיל') return false;
-      if (type === 'makeup' && l.lesson_type !== 'השלמה') return false;
+return rows.filter((l: LessonRow) => {
+  const childName =
+    this.clean(l.child_full_name) ||
+    `${this.clean(l.child_first_name)} ${this.clean(l.child_last_name)}`.trim() ||
+    `${this.clean(l.child?.first_name)} ${this.clean(l.child?.last_name)}`.trim();
 
-      if (statusF !== 'all') {
-        const allowed = map[statusF];
-        if (!l.status || !allowed.includes(l.status)) return false;
-      }
+  // סוג שיעור
+  if (type === 'regular' && l.lesson_type !== 'רגיל') return false;
+  if (type === 'makeup' && l.lesson_type !== 'השלמה') return false;
 
-      if (instructorF !== 'all') {
-        const instName = this.clean(l.instructor_name);
-        if (instName !== instructorF) return false;
-      }
+  // סטטוס
+  if (statusF !== 'all') {
+    const allowed = map[statusF];
+    if (!l.status || !allowed.includes(l.status)) return false;
+  }
 
-      if (q) {
-        const childName =
-          this.clean(l.child_full_name) ||
-          `${this.clean(l.child_first_name)} ${this.clean(l.child_last_name)}`.trim() ||
-          `${this.clean(l.child?.first_name)} ${this.clean(l.child?.last_name)}`.trim();
+  // מדריך
+  if (instructorF !== 'all') {
+    const instName = this.clean(l.instructor_name);
+    if (instName !== instructorF) return false;
+  }
 
-        const hay = `${childName} ${l.lesson_type || ''} ${l.riding_type || ''} ${
-          l.instructor_name || ''
-        }`.toLowerCase();
+  // 🔹 אם הגענו מכרטיס ילד – סינון לפי child_id בלבד
+// 🔹 אם הגענו מכרטיס ילד – סינון לפי שם הילד
+// 🔒 סינון מכרטסת ילד – ילד אחד בלבד
+if (this.fromChildCard()) {
+  const childId = this.selectedChildId();
+  if (!childId) return true; // ← אל תחסום אם אין מזהה
 
-        if (!hay.includes(q)) return false;
-      }
+  // השוואה בטוחה (string)
+  if (String(l.child_id) !== String(childId)) return false;
+}
+console.log('fromChildCard:', this.fromChildCard());
+console.log('route childId:', this.selectedChildId());
+console.log('rows childIds:', this.lessons().map(l => l.child_id));
 
-      return true;
-    });
-  });
+
+  // 🔹 חיפוש חופשי כללי
+  if (q) {
+    const hay = `${childName} ${l.lesson_type || ''} ${l.riding_type || ''} ${
+      l.instructor_name || ''
+    }`.toLowerCase();
+
+    if (!hay.includes(q)) return false;
+  }
+
+  return true;
+});
+
+});
 
   // ===============================
   //            KPIs
@@ -490,31 +522,23 @@ readonly displayedColumns = computed(() =>
     };
   });
 
-  // ===============================
-  //        LOAD DATA
-  // ===============================
 ngOnInit(): void {
-  const base = [
-    'date',
-    'start',
-    'end',
-    'student',
-    'instructor',
-    'type',
-    'ridingType',
-    'status',
-  ];
+  this.route.queryParams.subscribe(params => {
+    const childId = params['childId'] ?? null;
 
+    this.selectedChildId.set(childId);
 
-
-
-
-  console.log('👩‍💼 isSecretary =', this.isSecretary());
-console.log('📊 displayedColumns =', this.displayedColumns());
-
+    // 🔒 רק אם באמת הגיע childId – נחשב "מכרטסת ילד"
+    this.fromChildCard.set(
+      params['fromChild'] === 'true' && !!childId
+    );
+  });
 
   this.load();
 }
+
+
+
 
   async load(): Promise<void> {
     this.loading = true;
@@ -628,6 +652,8 @@ console.log(
 
         return {
           lesson_id: (raw.lesson_id ?? '') as UUID,
+          
+            child_id: raw.child_id ?? null, 
           occur_date: raw.lesson_date ?? null,
 office_note: raw.office_note ?? null,
 
@@ -651,6 +677,31 @@ office_note: raw.office_note ?? null,
       });
 
       this.lessons.set(normalizedLessons);
+      console.log(
+  '🧒 child_id check:',
+  normalizedLessons.map(l => l.child_id)
+);
+
+      // ✅ אם הגענו מכרטיס ילד – סינון אוטומטי לפי שם הילד
+// ✅ סינון אוטומטי לפי שם הילד שממנו הגענו (לפי childId)
+if (this.fromChildCard() && this.selectedChildId()) {
+  const childId = this.selectedChildId();
+
+  const match = normalizedLessons.find(
+    l => l.child_id === childId
+  );
+
+  if (match) {
+    const name =
+      this.clean(match.child_full_name) ||
+      `${this.clean(match.child_first_name)} ${this.clean(match.child_last_name)}`.trim();
+
+    if (name) {
+      this.childSearch.set(name);
+    }
+  }
+}
+
       console.log(
   '🧪 lessons office_note:',
   normalizedLessons.map(l => ({
@@ -773,6 +824,14 @@ office_note: raw.office_note ?? null,
     const target = e.target as HTMLInputElement;
     this.search.set(target.value);
   }
+onChildSearchChange(e: Event): void {
+  const target = e.target as HTMLInputElement;
+  this.childSearch.set(target.value);
+}
+
+clearChildSearch(): void {
+  this.childSearch.set('');
+}
 
   clearSearch(): void {
     this.search.set('');
