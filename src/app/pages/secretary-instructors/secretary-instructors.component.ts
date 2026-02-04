@@ -6,6 +6,7 @@ import { UiDialogService } from '../../services/ui-dialog.service';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MailService } from '../../services/mail.service';
+import { InstructorAvailabilityDialogComponent } from './instructor-availability-dialog/instructor-availability-dialog.component';
 
 import {
   ensureTenantContextReady,
@@ -143,6 +144,23 @@ constructor(
   private createUserService: CreateUserService,
   private mailService: MailService
 ) {}
+
+openAvailabilityDialog() {
+  const ins = this.drawerInstructor;
+  if (!ins?.id_number) return;
+
+  this.dialog.open(InstructorAvailabilityDialogComponent, {
+    width: '760px',
+    maxWidth: '95vw',
+    height: '90vh',
+    panelClass: 'availability-dialog',
+    data: {
+      instructorIdNumber: ins.id_number,
+      instructorName: `${ins.first_name ?? ''} ${ins.last_name ?? ''}`.trim(),
+    },
+  });
+}
+
 
 
   // ======= לוגיקה לחיפוש/סינון =======

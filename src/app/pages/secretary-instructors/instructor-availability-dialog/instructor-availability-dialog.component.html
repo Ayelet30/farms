@@ -1,0 +1,20 @@
+<div class="dlg" dir="rtl">
+  <div class="dlg-head">
+    <div class="titles">
+      <div class="h">עריכת שעות עבודה</div>
+      <div class="s" *ngIf="data?.instructorName">{{ data.instructorName }}</div>
+    </div>
+
+    <button type="button" class="icon" (click)="close()" aria-label="סגור">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <div class="dlg-body">
+    <!-- כאן אנחנו "מזריקים" את העורך -->
+    <app-availability-tab
+      [mode]="'secretary'"
+      [instructorIdNumber]="data.instructorIdNumber">
+    </app-availability-tab>
+  </div>
+</div>

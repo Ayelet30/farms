@@ -11,6 +11,8 @@ import { dbTenant } from '../../services/supabaseClient.service';
 import { getAuth } from 'firebase/auth';
 import { FarmSettingsService } from '../../services/farm-settings.service';
 import { ensureTenantContextReady } from '../../services/legacy-compat';
+import { Input } from '@angular/core';
+
 
 /* ===================== TYPES ===================== */
 
@@ -93,8 +95,8 @@ type InstructorWeeklyRow = {
   imports: [CommonModule, FormsModule, MatSlideToggleModule, MatButtonModule, MatIconModule],
 })
 export class AvailabilityTabComponent implements OnInit {
+  
   public userId: string | null = null;
-  public instructorIdNumber: string | null = null;
 
   public days: DayAvailability[] = [];
   public ridingTypes: RidingType[] = [];
@@ -108,6 +110,19 @@ export class AvailabilityTabComponent implements OnInit {
   public farmEnd = '17:00';
   public lessonDuration = 60;
   public farmWorkingDays: number[] = [];
+
+  @Input() mode: 'self' | 'secretary' = 'self';
+
+  private _instructorIdNumber: string | null = null;
+
+@Input()
+set instructorIdNumber(v: string | null) {
+  this._instructorIdNumber = v;
+}
+get instructorIdNumber(): string | null {
+  return this._instructorIdNumber;
+}
+
 
   public notif: NotificationPrefs = {
     cancelLesson: true,
@@ -161,17 +176,74 @@ export class AvailabilityTabComponent implements OnInit {
   /* ===================== INIT ===================== */
 
   async ngOnInit() {
-    await ensureTenantContextReady();
+  await ensureTenantContextReady();
 
+  await this.loadFarmSettings();
+  await this.loadRidingTypes();
+  this.loadDefaultsIfEmpty();
+
+  if (this.mode === 'secretary') {
+    // מזכירה: עובד לפי ת"ז שהגיעה מבחוץ
+    if (!this.instructorIdNumber) return;
+
+    this.allowEdit = true; // מזכירה תמיד עורכת
+    await this.loadInstructorWeeklyByIdNumber(this.instructorIdNumber);
+
+  } else {
+    // מדריך מחובר: כמו היום
     await this.loadUserId();
-    await this.loadInstructorRecord(); // ✅ בלי availability
-    await this.loadFarmSettings();
-    await this.loadRidingTypes();
-
-    this.loadDefaultsIfEmpty();
-    await this.loadInstructorWeekly(); // ✅ קורא מהטבלה weekly
-    this.ensureSlotsHaveDefaults();
+    await this.loadInstructorRecord(); // מציב instructorIdNumber + allowEdit
+    await this.loadInstructorWeekly();  // קורא לפי this.instructorIdNumber
   }
+
+  this.ensureSlotsHaveDefaults();
+}
+
+private async loadInstructorWeeklyByIdNumber(idNumber: string) {
+  this.instructorIdNumber = idNumber;
+
+  const { data, error } = await dbTenant()
+    .from('instructor_weekly_availability')
+    .select('instructor_id_number, day_of_week, start_time, end_time, lesson_ridding_type, lesson_type_mode')
+    .eq('instructor_id_number', idNumber);
+
+  if (error) {
+    console.error('❌ loadInstructorWeeklyByIdNumber error', error);
+    this.originalDays = JSON.parse(JSON.stringify(this.days));
+    return;
+  }
+
+  const rows = (data || []) as any[];
+
+  for (const day of this.days) {
+    day.active = false;
+    day.slots = [];
+  }
+
+  for (const r of rows) {
+    const key = this.NUM_TO_DAY_KEY[Number(r.day_of_week)];
+    if (!key) continue;
+
+    const day = this.days.find(d => d.key === key);
+    if (!day) continue;
+
+    day.active = true;
+    day.slots.push({
+      start: this.trimToHHMM(r.start_time),
+      end: this.trimToHHMM(r.end_time),
+      ridingTypeId: r.lesson_ridding_type ?? null,
+      hasError: false,
+      errorMessage: null,
+    });
+  }
+
+  for (const day of this.days) {
+    day.slots.sort((a, b) => this.toMin(this.normalizeTime(a.start)) - this.toMin(this.normalizeTime(b.start)));
+  }
+
+  this.originalDays = JSON.parse(JSON.stringify(this.days));
+}
+
 
   private async loadUserId() {
     const auth = getAuth();
@@ -337,8 +409,10 @@ export class AvailabilityTabComponent implements OnInit {
   /* ===================== DAYS / SLOTS UI ===================== */
 
   private ensureSlotsHaveDefaults() {
+    const defaultType = this.ridingTypes[0]?.id ?? null;
     for (const day of this.days) {
       for (const slot of day.slots) {
+        slot.ridingTypeId ??= defaultType;
         slot.prevStart ??= slot.start;
         slot.prevEnd ??= slot.end;
         slot.prevRidingTypeId ??= slot.ridingTypeId;
@@ -375,7 +449,7 @@ export class AvailabilityTabComponent implements OnInit {
       day.slots.push({
         start: null,
         end: null,
-        ridingTypeId: null,
+        ridingTypeId: this.ridingTypes[0]?.id ?? null,
         isNew: true,
         hasError: false,
         errorMessage: null,
@@ -506,6 +580,8 @@ onTimeChange(day: DayAvailability, slot: TimeSlot) {
     slot.wasUpdated = true;
     this.isDirty = true;
 
+    console.log("onRidingTypeChange", slot.ridingTypeId);
+
     // אם כבר יש שעות — בדיקת חפיפה מחדש
     this.onTimeTyping(day, slot);
   }
@@ -606,7 +682,7 @@ onTimeChange(day: DayAvailability, slot: TimeSlot) {
       }
     }
 
-    if (!this.allowEdit) {
+    if ((!this.allowEdit)&&(this.mode != 'secretary')) {
       this.toast('הזמינות נעולה לעריכה');
       return;
     }
@@ -626,6 +702,11 @@ onTimeChange(day: DayAvailability, slot: TimeSlot) {
       }
     }
 
+    if (this.mode === 'secretary') {
+    await this.saveAvailabilityDirect();
+    return;
+  }
+
     this.lockConfirm = true;
   }
 
@@ -643,6 +724,8 @@ onTimeChange(day: DayAvailability, slot: TimeSlot) {
     if (!this.instructorIdNumber) return;
 
     const payload = this.buildWeeklyPayloadForSave();
+    console.log("payload", payload);
+    
 
     // 1) delete old
     const { error: delError } = await dbTenant()
@@ -665,19 +748,6 @@ onTimeChange(day: DayAvailability, slot: TimeSlot) {
         this.toast('שגיאה בשמירה');
         return;
       }
-    }
-
-    // 3) (אופציונלי) סנכרון לטבלה/לוגיקה שהמערכת משתמשת בה
-    // אם אין לך את ה-RPC בפרויקט – לא יפיל קומפילציה, רק ידפיס שגיאה בלוג
-    const { error: rpcError } = await dbTenant().rpc('sync_instructor_availability', {
-      p_instructor_id: this.instructorIdNumber,
-      p_days: payload,
-    });
-
-    if (rpcError) {
-      console.error('❌ sync_instructor_availability failed:', rpcError);
-      this.toast(`שגיאה בסנכרון זמינות: ${rpcError.message}`);
-      return;
     }
 
     this.isDirty = false;
@@ -717,6 +787,7 @@ onTimeChange(day: DayAvailability, slot: TimeSlot) {
         if (!s.start || !s.end) continue;
         if (!this.isFullTime(s.start) || !this.isFullTime(s.end)) continue;
 
+        console.log("saveAvailabilityDirect", s.start, s.end, s.ridingTypeId)
         out.push({
           instructor_id_number,
           day_of_week,

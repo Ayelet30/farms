@@ -20,9 +20,9 @@
       <div class="dialog-header">
         <div class="icon-circle warning">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="11" fill="#FFF4E5"/>
-            <path d="M12 7v7" stroke="#C26400" stroke-width="2" stroke-linecap="round"/>
-            <circle cx="12" cy="17" r="1.6" fill="#C26400"/>
+            <circle cx="12" cy="12" r="11" fill="#FFF4E5" />
+            <path d="M12 7v7" stroke="#C26400" stroke-width="2" stroke-linecap="round" />
+            <circle cx="12" cy="17" r="1.6" fill="#C26400" />
           </svg>
         </div>
 
@@ -38,10 +38,10 @@
 
       <div class="note-box">
         <svg class="note-icon" width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="11" fill="#FFFBE6"/>
-          <path d="M12 6a4 4 0 0 0-2 7.5V16h4v-2.5A4 4 0 0 0 12 6Z"
-                stroke="#D28A00" stroke-width="1.8" stroke-linecap="round"/>
-          <path d="M10 17h4" stroke="#D28A00" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="12" cy="12" r="11" fill="#FFFBE6" />
+          <path d="M12 6a4 4 0 0 0-2 7.5V16h4v-2.5A4 4 0 0 0 12 6Z" stroke="#D28A00" stroke-width="1.8"
+            stroke-linecap="round" />
+          <path d="M10 17h4" stroke="#D28A00" stroke-width="2" stroke-linecap="round" />
         </svg>
         <span>המזכירה תקבל התראה ותתאם מול ההורים לפני שינוי בפועל של שיעורים.</span>
       </div>
@@ -63,9 +63,9 @@
       <div class="dialog-header">
         <div class="icon-circle warning">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="11" fill="#FFF4E5"/>
-            <path d="M12 7v7" stroke="#C26400" stroke-width="2" stroke-linecap="round"/>
-            <circle cx="12" cy="17" r="1.6" fill="#C26400"/>
+            <circle cx="12" cy="12" r="11" fill="#FFF4E5" />
+            <path d="M12 7v7" stroke="#C26400" stroke-width="2" stroke-linecap="round" />
+            <circle cx="12" cy="17" r="1.6" fill="#C26400" />
           </svg>
         </div>
 
@@ -116,12 +116,8 @@
               <span class="day-name">{{ day.label }}</span>
 
               <label class="custom-toggle">
-                <input
-                  type="checkbox"
-                  [(ngModel)]="day.active"
-                  (change)="toggleDay(day)"
-                  [disabled]="!allowEdit || !isFarmWorkingDay(day.key)"
-                />
+                <input type="checkbox" [(ngModel)]="day.active" (change)="toggleDay(day)"
+                  [disabled]="!allowEdit || !isFarmWorkingDay(day.key)" />
                 <span class="slider" [class.disabled]="!allowEdit"></span>
               </label>
             </div>
@@ -136,16 +132,12 @@
             <!-- טווחי שיעור -->
             <div class="slot-row" *ngFor="let slot of day.slots; let i = index">
 
-              <button
-                class="icon-btn danger"
-                (click)="removeSlot(day, i)"
-                [class.disabled]="!allowEdit"
-                [disabled]="!allowEdit"
-              >
+              <button class="icon-btn danger" (click)="removeSlot(day, i)" [class.disabled]="!allowEdit"
+                [disabled]="!allowEdit">
                 <mat-icon>delete</mat-icon>
               </button>
 
-             <div class="slot-box" [class.error]="slot.hasError">
+              <div class="slot-box" [class.error]="slot.hasError">
 
 
 
@@ -154,14 +146,9 @@
                   <label>שעת התחלה</label>
                   <div class="time-input">
                     <mat-icon class="clock-icon">schedule</mat-icon>
-<input
-  type="time"
-  [(ngModel)]="slot.start"
-  (focus)="onSlotFocus(slot)"
-  (ngModelChange)="onTimeChange(day, slot)"
-  (blur)="onTimeBlur(day, slot)"
-  [disabled]="!allowEdit"
-/>
+                    <input type="time" [(ngModel)]="slot.start" (focus)="onSlotFocus(slot)"
+                      (ngModelChange)="onTimeChange(day, slot)" (blur)="onTimeBlur(day, slot)"
+                      [disabled]="!allowEdit" />
                   </div>
                 </div>
 
@@ -170,51 +157,36 @@
                   <label>שעת סיום</label>
                   <div class="time-input">
                     <mat-icon class="clock-icon">schedule</mat-icon>
-<input
-  type="time"
-  [(ngModel)]="slot.end"
-  (focus)="onSlotFocus(slot)"
-  (ngModelChange)="onTimeChange(day, slot)"
-  (blur)="onTimeBlur(day, slot)"
-  [disabled]="!allowEdit"
-/>
+                    <input type="time" [(ngModel)]="slot.end" (focus)="onSlotFocus(slot)"
+                      (ngModelChange)="onTimeChange(day, slot)" (blur)="onTimeBlur(day, slot)"
+                      [disabled]="!allowEdit" />
                   </div>
-                  
+
                 </div>
 
                 <!-- סוג רכיבה -->
                 <div class="slot-field lesson-type">
                   <label>סוג שיעור</label>
 
-                  <select
-  class="select"
-  [(ngModel)]="slot.ridingTypeId"
-  (change)="onRidingTypeChange(day, slot)"
-  [disabled]="!allowEdit"
-  [class.placeholder]="!slot.ridingTypeId"
->
-  <option [ngValue]="null">בחר סוג רכיבה</option>
+                  <select class="select" [(ngModel)]="slot.ridingTypeId" (change)="onRidingTypeChange(day, slot)"
+                    [disabled]="!allowEdit" [class.placeholder]="!slot.ridingTypeId">
+                    <option [ngValue]="null">בחר סוג רכיבה</option>
 
-  <option *ngFor="let rt of ridingTypes" [ngValue]="rt.id">
-    {{ rt.name }}
-  </option>
-</select>
-  <div class="slot-error" *ngIf="slot.hasError">
-    {{ slot.errorMessage }}
-  </div>
+                    <option *ngFor="let rt of ridingTypes" [ngValue]="rt.id">
+                      {{ rt.name }}
+                    </option>
+                  </select>
+                  <div class="slot-error" *ngIf="slot.hasError">
+                    {{ slot.errorMessage }}
+                  </div>
                 </div>
 
               </div>
-              
+
             </div>
 
-            <button
-              class="link-btn"
-              type="button"
-              (click)="addSlot(day)"
-              [class.disabled]="!allowEdit"
-              [disabled]="!allowEdit"
-            >
+            <button class="link-btn" type="button" (click)="addSlot(day)" [class.disabled]="!allowEdit"
+              [disabled]="!allowEdit">
               <mat-icon>add</mat-icon>
               הוספת טווח זמן חדש
             </button>

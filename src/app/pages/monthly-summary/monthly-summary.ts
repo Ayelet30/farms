@@ -169,12 +169,28 @@ export class MonthlySummaryComponent implements OnInit {
   private ui = inject(UiDialogService);
 
   private dbc = this.dbTenantFactory();
-displayedColumns: string[] = [];
 
 
 
-readonly isSecretary = signal<boolean>(
-  window.location.pathname.includes('secretary')
+readonly isSecretary = signal<boolean>(true);
+
+readonly baseColumns = [
+  'date',
+  'student',
+  'instructor',
+  'type',
+  'ridingType',
+  'status',
+  'start',
+  'end',
+];
+
+
+
+readonly displayedColumns = computed(() =>
+  this.isSecretary()
+    ? [...this.baseColumns, 'office_note']
+    : this.baseColumns
 );
 
 
@@ -489,12 +505,13 @@ ngOnInit(): void {
     'status',
   ];
 
-this.displayedColumns =
-  this.isSecretary() ? [...base, 'officeNote'] : base;
+
+
 
 
   console.log('👩‍💼 isSecretary =', this.isSecretary());
-  console.log('📊 displayedColumns =', this.displayedColumns);
+console.log('📊 displayedColumns =', this.displayedColumns());
+
 
   this.load();
 }
