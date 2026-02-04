@@ -155,41 +155,59 @@ export class RequestInstructorDayOffDetailsComponent {
   }
 
   async reject() {
-    if (this.loading()) return;
+  if (this.loading()) return;
 
-    const r = this.req();
-    const requestId = r?.id;
-    const decidedByUid = this.decidedByUidSig();
+  const r = this.req();
+  const requestId = r?.id;
+  const decidedByUid = this.decidedByUidSig();
 
-    if (!requestId || !decidedByUid) return;
+  if (!requestId || !decidedByUid) return;
 
-    this.loading.set(true);
+  this.loading.set(true);
 
-    try {
-      const { error } = await this.db.rpc('reject_instructor_day_off_request', {
-        p_request_id: requestId,
-        p_decided_by_uid: decidedByUid,
-        p_decision_note: (this.decisionNote().trim() || null),
-      });
-      if (error) throw error;
+  try {
+    const decidedAt = new Date().toISOString();
+    const note = this.decisionNote().trim() || null;
 
-      const msg = `דחית את הבקשה: ${this.getDayOffTitle()}. הודעה נשלחה ברגעים אלה.`;
-      this.toast(msg, 'info');
+    // עדכון "אטומי" מותנה: רק אם עדיין PENDING ורק אם זה INSTRUCTOR_DAY_OFF
+    const { data, error } = await this.db
+      .from('secretarial_requests')
+      .update({
+        status: 'REJECTED',
+        decided_by_uid: decidedByUid,
+        decided_at: decidedAt,
+        decision_note: note,
+      })
+      .eq('id', requestId)
+      .eq('status', 'PENDING')
+      .eq('request_type', 'INSTRUCTOR_DAY_OFF')
+      .select('id,status')
+      .maybeSingle();
 
-      this.onRejected?.({
-        requestId,
-        newStatus: 'REJECTED',
-        message: msg,
-      });
-    } catch (e: any) {
-      console.error(e);
-      const msg = e?.message || 'שגיאה בדחיית הבקשה';
-      this.toast(msg, 'error');
-      this.onError?.({ requestId, message: msg, raw: e });
-    } finally {
-      this.loading.set(false);
+    if (error) throw error;
+
+    // אם לא עודכנה שורה → או שלא קיימת, או לא PENDING, או סוג לא נכון
+    if (!data) {
+      throw new Error('הבקשה כבר לא במצב "ממתין" או שהסוג לא תואם (INSTRUCTOR_DAY_OFF). רענני את הרשימה.');
     }
+
+    const msg = `דחית את הבקשה: ${this.getDayOffTitle()}.`;
+    this.toast(msg, 'info');
+
+    this.onRejected?.({
+      requestId,
+      newStatus: 'REJECTED',
+      message: msg,
+    });
+  } catch (e: any) {
+    console.error(e);
+    const msg = e?.message || 'שגיאה בדחיית הבקשה';
+    this.toast(msg, 'error');
+    this.onError?.({ requestId: this.req()?.id, message: msg, raw: e });
+  } finally {
+    this.loading.set(false);
   }
+}
 
   private toast(message: string, type: ToastKind = 'info') {
     this.snack.open(message, 'סגור', {

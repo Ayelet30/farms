@@ -333,41 +333,48 @@ async reject() {
   if (!ok) return;
 
   try {
-    await ensureTenantContextReady();
-    const db = dbTenant();
-const uid = getAuth().currentUser?.uid;
-if (!uid) throw new Error('המשתמש לא מחובר');
-    // 1) עדכון סטטוס הבקשה ל-REJECTED
-    const { error: reqErr } = await db
-      .from('secretarial_requests')
-      .update({
-        status: 'REJECTED',
-        decided_by_uid: uid,                 // ✅ זה מה שחסר
+    // ✅ tenant schema/id כמו באישור
+    await this.tenantSvc.ensureTenantContextReady();
+    const tenant = this.tenantSvc.requireTenant();
+    const tenantSchema = tenant.schema;
+    const tenantId = tenant.id;
 
-        decided_at: new Date().toISOString(),
-        // decided_by_uid: ... אם יש לך
-      })
-      .eq('id', r.id);
+    const rejectUrl =
+      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectRemoveChildAndNotify';
 
-    if (reqErr) throw reqErr;
+    // ✅ Firebase Bearer token
+    const user = getAuth().currentUser;
+    if (!user) throw new Error('המשתמש לא מחובר');
+    const token = await user.getIdToken();
 
-    // 2) החזרת סטטוס הילד ל-Active + ניקוי שדות המחיקה
-    const { error: childErr } = await db
-      .from('children')
-      .update({
-        status: 'Active',                 // ⚠️ להתאים לערך האמיתי ב-enum שלך
-        deletion_requested_at: null,
-        scheduled_deletion_at: null,
-      })
-      .eq('child_uuid', childId);
+    const resp = await fetch(rejectUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        tenantSchema,
+        tenantId,
+        childId,
+        requestId: r.id,
+      }),
+    });
 
-    if (childErr) throw childErr;
+    const raw = await resp.text();
+    let json: any = null;
+    try { json = JSON.parse(raw); } catch {}
 
+    if (!resp.ok || !json?.ok) {
+      throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+    }
+
+    // ✅ עדכון UI (הבקשה נעלמת מיד מהממתינים)
     const e = { requestId: r.id, newStatus: 'REJECTED' as const };
     this.rejected.emit(e);
     this.onRejected?.(e);
 
-    // אופציונלי: לרענן תצוגה / שיעורים
+    // אופציונלי: רענון "שיעורים שנותרו" (אחרי דחייה זה בעצם שיעורים רגילים)
     await this.loadRemainingLessons?.();
 
   } catch (err: any) {

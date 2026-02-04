@@ -238,7 +238,7 @@ export const notifySeriesRejected = onRequest(
             }
           </table>
 
-          <p style="margin-top:16px">ניתן ליצור קשר עם המשרד כדי לתאם חלופה.</p>
+          <p style="margin-top:16px">ניתן לבצע הזמנה חדשה באתר או ליצור קשר עם המשרד לתאם חלופה</p>
           <p style="color:#666;font-size:12px;margin-top:18px">הודעה אוטומטית</p>
         </div>
       `.trim();
