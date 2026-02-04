@@ -155,6 +155,9 @@ invoiceExtraText = '';
       });
 
       this.charges.set(rows);
+      console.log('charges sample', rows[0]);
+console.log('office_note on first row:', rows?.[0]?.office_note);
+
       this.selectedChargeIds.set(new Set());
     } catch (e: any) {
       console.error('[ParentBilling] load error', e);
@@ -352,8 +355,9 @@ openCreditForCharge(c: ParentChargeRow) {
     this.detailsError.set(null);
 
     const { data: items, error: e1 } = await dbTenant()
-      .from('lesson_billing_items')
-      .select('occur_date,start_datetime,child_id,unit_price_agorot,quantity,amount_agorot')
+    .from('lesson_billing_items_with_office_note')
+
+      .select('occur_date,start_datetime,child_id,unit_price_agorot,quantity,amount_agorot, office_note')
       .eq('charge_id', chargeId)
       .order('start_datetime', { ascending: true });
 
