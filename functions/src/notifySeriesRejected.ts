@@ -4,6 +4,8 @@ import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL_S, SUPABASE_KEY_S } from './gmail/email-core';
+import { notifyUserInternal } from './notify-user-client'; 
+import { buildSeriesRejectedEmail } from './send-series-rejected-email';
 
 const ALLOWED_ORIGINS = new Set<string>([
   'https://smart-farm.org',
@@ -46,6 +48,10 @@ function timingSafeEq(a: string, b: string) {
   const bb = Buffer.from(b);
   return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
 }
+function stripHtml(html: string) {
+  return String(html ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 function isInternalCall(req: any): boolean {
   const secret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
   const got = String(req.headers['x-internal-secret'] || req.headers['X-Internal-Secret'] || '');
@@ -147,19 +153,15 @@ export const notifySeriesRejected = onRequest(
 
       const childName =
         `${String(childRow.first_name ?? '').trim()} ${String(childRow.last_name ?? '').trim()}`.trim() || 'הילד/ה';
+const { data: parentRow, error: parErr } = await sbTenant
+  .from('parents')
+  .select('first_name, last_name')
+  .eq('uid', childRow.parent_uid)
+  .maybeSingle();
+if (parErr) throw parErr;
 
-      const { data: parentRow, error: parErr } = await sbTenant
-        .from('parents')
-        .select('email, first_name, last_name')
-        .eq('uid', childRow.parent_uid)
-        .maybeSingle();
-      if (parErr) throw parErr;
-
-      const parentEmail = String(parentRow?.email ?? '').trim();
-      if (!parentEmail) throw new Error('Parent has no email');
-
-      const parentName =
-        `${String(parentRow?.first_name ?? '').trim()} ${String(parentRow?.last_name ?? '').trim()}`.trim() || 'הורה';
+const parentName =
+  `${String(parentRow?.first_name ?? '').trim()} ${String(parentRow?.last_name ?? '').trim()}`.trim() || 'הורה';
 
       // instructor name
       let instructorName: string | null = null;
@@ -187,92 +189,34 @@ export const notifySeriesRejected = onRequest(
         if (ppErr) throw ppErr;
         paymentPlanName = String(ppRow?.name ?? '').trim() || null;
       }
+const { subject, html, text } = buildSeriesRejectedEmail({
+  parentName,
+  childName,
+  farmName,
+  instructorName,
+  seriesStartDate: startDate,
+  seriesEndDate: endDate,
+  startTime: requestedStartTime,
+  isOpenEnded,
+  repeatWeeks: repeatWeeks != null ? Number(repeatWeeks) : null,
+  ridingTypeName: null, // אם אין לך כרגע
+  paymentPlanName,
+  rejectReason: rejectReason || null,
+});
 
-      const subject = `הסדרה לא אושרה – ${farmName}`;
-      const html = `
-        <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.6">
-          <h2 style="margin:0 0 12px">הסדרה לא אושרה ❌</h2>
-          <p>שלום ${esc(parentName)},</p>
-          <p>בקשת הסדרה עבור <b>${esc(childName)}</b> לא אושרה במערכת של ${esc(farmName)}.</p>
+const mail = await notifyUserInternal({
+  tenantSchema,
+  userType: 'parent',
+  uid: childRow.parent_uid,
+  subject,
+  html,
+  text,
+  category: 'series',
+  forceEmail: true,
+});
 
-          ${
-            rejectReason
-              ? `<p><b>סיבת דחייה:</b> ${esc(rejectReason)}</p>`
-              : `<p><b>סיבת דחייה:</b> לא נמסרה סיבה.</p>`
-          }
+return void res.status(200).json({ ok: true, mail });
 
-          <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:640px;margin-top:12px;font-size:14px">
-            <tr>
-              <td style="padding:6px 10px;border:1px solid #ddd;"><b>מדריך/ה</b></td>
-              <td style="padding:6px 10px;border:1px solid #ddd;">${esc(instructorName ?? '—')}</td>
-            </tr>
-            <tr>
-              <td style="padding:6px 10px;border:1px solid #ddd;"><b>תאריך התחלה</b></td>
-              <td style="padding:6px 10px;border:1px solid #ddd;">${esc(startDate ?? '—')}</td>
-            </tr>
-            <tr>
-              <td style="padding:6px 10px;border:1px solid #ddd;"><b>שעת התחלה</b></td>
-              <td style="padding:6px 10px;border:1px solid #ddd;">${esc(requestedStartTime ?? '—')}</td>
-            </tr>
-            <tr>
-              <td style="padding:6px 10px;border:1px solid #ddd;"><b>סיום</b></td>
-              <td style="padding:6px 10px;border:1px solid #ddd;">
-                ${isOpenEnded ? 'פתוח (ללא תאריך סיום)' : esc(endDate ?? '—')}
-              </td>
-            </tr>
-            ${
-              !isOpenEnded && repeatWeeks != null
-                ? `<tr>
-                     <td style="padding:6px 10px;border:1px solid #ddd;"><b>מספר שבועות</b></td>
-                     <td style="padding:6px 10px;border:1px solid #ddd;">${esc(repeatWeeks)}</td>
-                   </tr>`
-                : ''
-            }
-            ${
-              paymentPlanName
-                ? `<tr>
-                     <td style="padding:6px 10px;border:1px solid #ddd;"><b>תכנית תשלום</b></td>
-                     <td style="padding:6px 10px;border:1px solid #ddd;">${esc(paymentPlanName)}</td>
-                   </tr>`
-                : ''
-            }
-          </table>
-
-          <p style="margin-top:16px">ניתן לבצע הזמנה חדשה באתר או ליצור קשר עם המשרד לתאם חלופה</p>
-          <p style="color:#666;font-size:12px;margin-top:18px">הודעה אוטומטית</p>
-        </div>
-      `.trim();
-
-      const sendEmailGmailUrl =
-        'https://us-central1-bereshit-ac5d8.cloudfunctions.net/sendEmailGmail';
-
-      const internalCallSecret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET')!;
-      if (!internalCallSecret) throw new Error('Missing INTERNAL_CALL_SECRET');
-console.log('about to send email', { tenantSchema, to: parentEmail, subject });
-
-      const sendResp = await fetch(sendEmailGmailUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Internal-Secret': internalCallSecret,
-        },
-        body: JSON.stringify({
-          tenantSchema,
-          to: parentEmail,
-          subject,
-          html,
-        }),
-      });
-
-      const raw = await sendResp.text();
-      let json: any = null;
-      try { json = JSON.parse(raw); } catch {}
-
-      if (!sendResp.ok || !json?.ok) {
-        throw new Error(json?.message || json?.error || `sendEmailGmail HTTP ${sendResp.status}: ${raw?.slice(0, 300)}`);
-      }
-
-      return void res.status(200).json({ ok: true, mail: json });
     } catch (e: any) {
       console.error('notifySeriesRejected error', e);
       return void res.status(500).json({ error: 'Internal error', message: e?.message || String(e) });

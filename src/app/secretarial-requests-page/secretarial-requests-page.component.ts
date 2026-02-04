@@ -1124,43 +1124,6 @@ private async checkParentActive(db: any, row: UiRequest, mode: ValidationMode)
   }
 }
 
-// private async checkLessonSlotConflict(db: any, row: UiRequest, mode: ValidationMode)
-//   : Promise<{ ok: boolean; reason?: string }> {
-
-//   if (!['NEW_SERIES', 'MAKEUP_LESSON', 'FILL_IN'].includes(row.requestType)) return { ok: true };
-
-//   const p: any = row.payload ?? {};
-//   const instructorId = this.getInstructorIdForRequest(row);
-//   const dateStr = row.fromDate ?? p.occur_date ?? p.series_start_date ?? null;
-//   const timeStr = this.normalizeTimeToSeconds(p.requested_start_time ?? p.start_time ?? p.startTime ?? null);
-
-//   if (!instructorId || !dateStr || !timeStr) return { ok: true };
-
-//   try {
-//     const { data, error } = await db
-//       .from('lessons_occurrences')
-//       .select('lesson_id')
-//       .eq('instructor_id', instructorId)
-//       .eq('occur_date', dateStr)
-//       .eq('start_time', timeStr)
-//       .limit(1);
-
-//     if (error) {
-//       const r = this.handleDbFailure(mode, 'checkLessonSlotConflict', error);
-//       return r.ok ? { ok: true } : { ok: false, reason: r.reason };
-//     }
-
-//     if (Array.isArray(data) && data.length > 0) {
-//       return { ok: false, reason: 'כבר נקבע שיעור במועד הזה' };
-//     }
-
-//     return { ok: true };
-//   } catch (e: any) {
-//     const r = this.handleDbFailure(mode, 'checkLessonSlotConflict', e);
-//     return r.ok ? { ok: true } : { ok: false, reason: r.reason };
-//   }
-// }
-
 
 private normalizeTimeToSeconds(t: string | null | undefined): string | null {
   if (!t) return null;
