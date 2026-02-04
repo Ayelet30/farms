@@ -815,21 +815,22 @@
         margin-left: 6px;
       }
           /* ===== Office Note – תיקון למובייל ===== */
-    td.mat-column-officeNote {
-      display: flex !important;
-      align-items: flex-start;
-      gap: 8px;
-      white-space: normal;
-      line-height: 1.4;
-    }
+td.mat-column-office_note {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 8px;
+  white-space: normal;
+  line-height: 1.4;
+}
 
-    td.mat-column-officeNote::before {
-      content: "הערות משרד";
-      font-weight: 600;
-      color: #545b41;
-      font-size: 12px;
-      min-width: 90px;
-    }
+td.mat-column-office_note::before {
+  content: "הערות משרד";
+  font-weight: 600;
+  color: #545b41;
+  font-size: 12px;
+  min-width: 90px;
+}
+
 
     }
 
@@ -848,6 +849,10 @@
     }
   }
 }
-.mat-column-officeNote {
+.mat-column-office_note {
   display: table-cell !important;
+}
+:host ::ng-deep .mat-column-office_note {
+  display: table-cell !important;
+  white-space: normal;
 }

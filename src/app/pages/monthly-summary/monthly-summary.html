@@ -407,7 +407,13 @@
     </div>
 
     <!-- טבלה -->
-    <table mat-table [dataSource]="filteredLessons()" class="mat-elevation-z1">
+<table
+  mat-table
+  *ngIf="displayedColumns().length"
+  [dataSource]="filteredLessons()"
+>
+
+
       <!-- Date -->
       <ng-container matColumnDef="date">
         <th mat-header-cell *matHeaderCellDef>תאריך</th>
@@ -464,27 +470,25 @@
         </td>
       </ng-container>
 <!-- ✅ Office Note – רק למזכירה -->
-<ng-container matColumnDef="officeNote">
+<ng-container matColumnDef="office_note">
+
 
   <th mat-header-cell *matHeaderCellDef>הערות משרד</th>
   <td
-    mat-cell
-    *matCellDef="let l"
-    class="responsive-cell office-note-cell"
-    data-label="הערות משרד"
-  >
-    <span
-      *ngIf="l.office_note; else noOfficeNote"
-      matTooltip="{{ l.office_note }}"
-      matTooltipPosition="above"
-    >
-      {{ l.office_note }}
-    </span>
+  mat-cell
+  *matCellDef="let l"
+  class="responsive-cell office-note-cell"
+  data-label="הערות משרד"
+>
+  <span *ngIf="l.office_note; else noOfficeNote">
+    {{ l.office_note }}
+  </span>
 
-    <ng-template #noOfficeNote>
-      <span class="muted">—</span>
-    </ng-template>
-  </td>
+  <ng-template #noOfficeNote>
+    <span class="muted">—</span>
+  </ng-template>
+</td>
+
 </ng-container>
       <!-- Start -->
       <ng-container matColumnDef="start">
@@ -515,12 +519,11 @@
       </ng-container>
 
       <!-- Header & rows -->
-<tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+<tr mat-header-row *matHeaderRowDef="displayedColumns()"></tr>
 
-<tr
-  mat-row
-  *matRowDef="let row; columns: displayedColumns"
-></tr>
+
+<tr mat-row *matRowDef="let row; columns: displayedColumns()"></tr>
+
 
     </table>
 
