@@ -39,6 +39,8 @@ export { sendEmailGmail } from './email';
 export { approveRemoveChildAndNotify } from './approve-remove-child-and-notify';
 export { notifySeriesApproved } from './notifySeriesApproved';
 export { notifySeriesRejected } from './notifySeriesRejected';
+export { rejectRemoveChildAndNotify } from './rejectRemoveChildAndNotify';
+export { notifyUser } from './notifyUser';
 
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
