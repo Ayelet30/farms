@@ -222,7 +222,7 @@ export const notifyUser = onRequest(
         html: html || undefined,
         text: text || undefined,
       };
-
+console.log("PAYLOAD : " + payload); 
       const r = await fetch(SEND_EMAIL_GMAIL_URL, {
         method: 'POST',
         headers: {
