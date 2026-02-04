@@ -113,6 +113,7 @@ childDeletionRequestedAt = signal<string | null>(null);
 childScheduledDeletionAt = signal<string | null>(null);
 
 canApprove = signal<boolean>(true); // יתעדכן לפי סטטוס
+ridingTypeId = signal<string | null>(null);
 
 async approve() {
   return this.approveSelected();
@@ -383,8 +384,13 @@ if (!instructorIdNumber) throw new Error('חסר instructor_id_number בבקשה
 const instructorUid = await this.getInstructorUidByIdNumber(instructorIdNumber);
 if (!instructorUid) throw new Error('למדריך אין uid במערכת');
 const isOpenEnded = !!p.is_open_ended;
-const ridingTypeId = p.riding_type_id ?? null;
-const maxParticipants = await this.getMaxParticipantsForRidingType(ridingTypeId);
+const ridingTypeId =
+  p.riding_type_id ??
+  this.ridingTypeId() ??
+  null;
+
+const maxParticipants =
+  await this.getMaxParticipantsForRidingType(ridingTypeId);
 const normalizeTime = (t: string) => {
   const s = (t ?? '').trim();
   if (!s) return null;
@@ -416,10 +422,16 @@ const repeatWeeks =
       p_total_lessons: p.total_lessons ?? null,
       p_referral_url: p.referral_url ?? null,
 
-      p_riding_type_id: p.riding_type_id ?? null,
+      p_riding_type_id: ridingTypeId ?? null,
       p_origin: "secretary",
     };
     
+console.log('RIDING TYPE DEBUG', {
+  fromPayload: p.riding_type_id,
+  fromAvailability: this.ridingTypeId(),
+  used: ridingTypeId,
+  maxParticipants,
+});
 
 
     const { data, error } = await db.rpc('create_series_with_validation', params);
@@ -728,7 +740,7 @@ private async loadLessonTypeFromAvailability() {
         start_time,
         end_time,
         lesson_type_mode,
-        riding_types:lesson_ridding_type ( name )
+    riding_types:lesson_ridding_type ( id, name )
       `)
       .eq('instructor_id_number', instructorId)
       .eq('day_of_week', dow)
@@ -739,6 +751,12 @@ private async loadLessonTypeFromAvailability() {
       .maybeSingle();
 
     if (error) throw error;
+const rtId =
+  (data as any)?.riding_types?.id ??
+  (data as any)?.riding_type_id ??
+  null;
+
+this.ridingTypeId.set(rtId);
 
     const name = (data as any)?.riding_types?.name ?? null;
     this.ridingTypeName.set(name ?? 'לא נמצא');
@@ -752,7 +770,10 @@ private async loadLessonTypeFromAvailability() {
 private async loadExistingParticipants() {
   const instructorId = this.request?.instructorId;
   const startTime = this.requestedStartTime;
-  const ridingTypeId = this.p?.riding_type_id;
+const ridingTypeId =
+  this.p?.riding_type_id ??
+  this.ridingTypeId() ??
+  null;
 
   const dayName = this.startWeekdayName; // כבר חישבת בעברית
 

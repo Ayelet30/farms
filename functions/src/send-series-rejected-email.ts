@@ -1,4 +1,4 @@
-export type BuildSeriesApprovedEmailArgs = {
+export type BuildSeriesRejectedEmailArgs = {
   parentName: string;
   childName: string;
   farmName: string;
@@ -13,11 +13,13 @@ export type BuildSeriesApprovedEmailArgs = {
   ridingTypeName: string | null;
   paymentPlanName: string | null;
 
-  seriesId: string | null;
+  rejectReason: string | null;    // decision_note
 };
 
-export function buildSeriesApprovedEmail(args: BuildSeriesApprovedEmailArgs) {
-  const subject = `אישור סדרה – ${args.farmName}`;
+export function buildSeriesRejectedEmail(args: BuildSeriesRejectedEmailArgs) {
+  const subject = `הסדרה לא אושרה – ${args.farmName}`;
+
+  const reasonText = (args.rejectReason ?? '').trim() || 'לא נמסרה סיבה.';
 
   const details: Array<[string, string]> = [
     ['הורה', args.parentName],
@@ -25,18 +27,18 @@ export function buildSeriesApprovedEmail(args: BuildSeriesApprovedEmailArgs) {
     ['מדריך/ה', args.instructorName ?? '—'],
     ['תאריך התחלה', args.seriesStartDate ?? '—'],
     ['שעה', args.startTime ?? '—'],
+    ['סיבת דחייה', reasonText],
   ];
 
   if (args.isOpenEnded) {
-    details.push(['סיום', 'ללא תאריך סיום (פתוח)']);
+    details.push(['סיום', 'פתוח (ללא תאריך סיום)']);
   } else {
-    details.push(['תאריך סיום', args.seriesEndDate ?? '—']);
+    details.push(['סיום', args.seriesEndDate ?? '—']);
     if (args.repeatWeeks != null) details.push(['מספר שבועות', String(args.repeatWeeks)]);
   }
 
   if (args.ridingTypeName) details.push(['סוג רכיבה', args.ridingTypeName]);
   if (args.paymentPlanName) details.push(['תכנית תשלום', args.paymentPlanName]);
-  if (args.seriesId) details.push(['מזהה סדרה', args.seriesId]);
 
   const rowsHtml = details
     .map(
@@ -49,16 +51,18 @@ export function buildSeriesApprovedEmail(args: BuildSeriesApprovedEmailArgs) {
     .join('');
 
   const html = `
-    <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.5">
-      <h2 style="margin:0 0 12px">הסדרה אושרה ✅</h2>
+    <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.6">
+      <h2 style="margin:0 0 12px">הסדרה לא אושרה ❌</h2>
       <p>שלום ${esc(args.parentName)},</p>
-      <p>הסדרה עבור <b>${esc(args.childName)}</b> אושרה במערכת של ${esc(args.farmName)}.</p>
+      <p>בקשת הסדרה עבור <b>${esc(args.childName)}</b> לא אושרה במערכת של ${esc(args.farmName)}.</p>
+
+      <p><b>סיבת דחייה:</b> ${esc(reasonText)}</p>
 
       <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:640px;margin-top:12px">
         ${rowsHtml}
       </table>
 
-      <p style="margin-top:16px">אם יש שאלות – אפשר להשיב למייל הזה.</p>
+      <p style="margin-top:16px">ניתן לבצע הזמנה חדשה באתר או ליצור קשר עם המשרד לתאם חלופה.</p>
       <p style="color:#666;font-size:12px;margin-top:18px">הודעה אוטומטית</p>
     </div>
   `.trim();
