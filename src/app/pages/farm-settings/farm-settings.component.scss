@@ -1105,3 +1105,15 @@ input[type="time"] {
     justify-content: flex-end;
   }
 }
+/* שדה מספרי קטן ונעים */
+.small-number {
+  max-width: 120px;
+  height: 36px;
+  padding: 4px 8px;
+  font-size: 14px;
+}
+
+/* אופציונלי – פחות רווחים מסביב */
+.field.compact {
+  align-self: flex-start;
+}
