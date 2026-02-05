@@ -9,7 +9,6 @@ import { SeriesRequestsService } from '../../services/series-requests.service';
 import { getCurrentUserData } from '../../services/supabaseClient.service';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
-import { ConfirmDialogComponent } from '../confirm-dialog.component';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
@@ -19,6 +18,7 @@ import { MatIconModule } from '@angular/material/icon';
 // חשוב: זה הטיפוס שאת מעבירה מהדף הראשי
 import type { UiRequest } from '../../Types/detailes.model';
 import { MatButtonModule } from '@angular/material/button';
+type RejectArgs = { source: 'user' | 'system'; reason?: string };
 
 const SERIES_DENY_MESSAGES: Record<string, string> = {
   anchor_start_date_in_past: 'אי אפשר לאשר סדרה: תאריך תחילת הסדרה כבר עבר.',
@@ -47,6 +47,7 @@ async ngOnInit() {
   // ✅ הבקשה שנבחרה מהדף הראשי
 private _request!: UiRequest;
   req = () => this.request;
+@Input() bulkMode?: boolean;
 
 ridingTypeName = signal<string>('טוען...');
 lessonTypeMode = signal<string | null>(null);
@@ -123,7 +124,8 @@ async approve() {
   return this.approveSelected();
 }
 
-async reject() {
+async reject(args?: RejectArgs) {
+  if (args?.reason != null) this.note = args.reason; // לוקח מה-Bulk
   return this.rejectSelected();
 }
 
@@ -372,11 +374,6 @@ async approveSelected() {
 
     const uid = await this.resolveDeciderUid();
     if (!uid) throw new Error('לא נמצא משתמש מאשר (uid)');
-const ok = await this.confirmApprove();
-if (!ok) {
-  this.loading.set(false);
-  return;
-}
 
     await ensureTenantContextReady();
     const db = dbTenant();
@@ -495,11 +492,14 @@ if (!upd) {
     // אם את רוצה שהבקשה תיעלם – חייבים update לטבלה או RPC נוסף.
     // כרגע רק נעדכן UI
     const payload = { requestId: this.request.id, newStatus: 'APPROVED' as const };
-      this.snack.open('הבקשה אושרה בהצלחה', 'סגור', {
-  duration: 2500,
-  panelClass: ['snack-success'],
-  direction: 'rtl',
-});
+     if (!this.bulkMode) {
+  this.snack.open('הבקשה אושרה בהצלחה', 'סגור', {
+    duration: 2500,
+    panelClass: ['snack-success'],
+    direction: 'rtl',
+  });
+}
+
     this.approved.emit(payload);
     this.onApproved?.(payload);
     const lessonId = first?.lesson_id ?? null;
@@ -509,6 +509,7 @@ try {
   await this.sendSeriesApprovedEmail(this.request.id, lessonId);
 } catch (e) {
   console.warn('sendSeriesApprovedEmail failed', e);
+  if (!this.bulkMode) {
   this.snack.open('הסדרה אושרה, אך שליחת המייל נכשלה', 'סגור', {
     duration: 3500,
     panelClass: ['snack-reject'],
@@ -516,6 +517,7 @@ try {
     horizontalPosition: 'center',
     verticalPosition: 'top',
   });
+}
 }
 
 
@@ -551,11 +553,7 @@ async rejectSelected() {
 
     const uid = await this.resolveDeciderUid();
     if (!uid) throw new Error('לא נמצא משתמש מאשר (uid)');
-const ok = await this.confirmReject();
-if (!ok) {
-  this.loading.set(false);
-  return;
-}
+
 
     await ensureTenantContextReady();
     const db = dbTenant();
@@ -583,13 +581,16 @@ if (!ok) {
     }
 
     const payload = { requestId: this.request.id, newStatus: 'REJECTED' as const };
-     this.snack.open('הבקשה נדחתה בהצלחה', 'סגור', {
-  duration: 2500,
-  panelClass: ['snack-reject'],
-  direction: 'rtl',
-  horizontalPosition: 'center',
-  verticalPosition: 'top',
-});
+    if (!this.bulkMode) {
+  this.snack.open('הבקשה נדחתה בהצלחה', 'סגור', {
+    duration: 2500,
+    panelClass: ['snack-reject'],
+    direction: 'rtl',
+    horizontalPosition: 'center',
+    verticalPosition: 'top',
+  });
+}
+
 
     this.rejected.emit(payload);
     this.onRejected?.(payload);
@@ -597,6 +598,7 @@ try {
   await this.sendSeriesRejectedEmail(this.request.id);
 } catch (e) {
   console.warn('sendSeriesRejectedEmail failed', e);
+  if (!this.bulkMode) {
   this.snack.open('הבקשה נדחתה, אך שליחת המייל נכשלה', 'סגור', {
     duration: 3500,
     panelClass: ['snack-reject'],
@@ -604,6 +606,7 @@ try {
     horizontalPosition: 'center',
     verticalPosition: 'top',
   });
+}
 }
 
   } catch (e: any) {
@@ -630,30 +633,7 @@ private async getInstructorUidByIdNumber(idNumber: string): Promise<string | nul
   if (error) throw error;
   return data?.uid ?? null;
 }
-private async confirmReject(): Promise<boolean> {
-  const ref = this.dialog.open(ConfirmDialogComponent, {
-    panelClass: 'ui-confirm-dialog',
-    backdropClass: 'ui-confirm-backdrop',
-    data: {
-      title: 'דחיית בקשה',
-      message: 'האם את/ה בטוח/ה שברצונך לדחות את הבקשה?',
-    },
-  });
 
-  return !!(await firstValueFrom(ref.afterClosed()));
-}
-private async confirmApprove(): Promise<boolean> {
-  const ref = this.dialog.open(ConfirmDialogComponent, {
-    panelClass: 'ui-confirm-dialog',
-    backdropClass: 'ui-confirm-backdrop',
-    data: {
-      title: 'אישור בקשה',
-      message: 'האם את/ה בטוח/ה שברצונך לאשר את הבקשה?',
-    },
-  });
-
-  return !!(await firstValueFrom(ref.afterClosed()));
-}
 private async loadInstructorName() {
   const idNumber = this.request?.instructorId; // אצלך זה id_number
   if (!idNumber) {

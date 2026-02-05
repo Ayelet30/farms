@@ -75,6 +75,12 @@
     <div class="meta" *ngIf="req()">
       <div><span class="mk">נוצר:</span> {{ req()!.createdAt | date:'dd/MM/yyyy HH:mm' }}</div>
     </div>
+<div class="decision-banner"
+     *ngIf="decisionMsg()"
+     [class.ok]="decisionType()==='success'"
+     [class.err]="decisionType()==='error'">
+  {{ decisionMsg() }}
+</div>
 
     <div class="actions" *ngIf="canDecide()">
       <button mat-stroked-button type="button" class="action reject" (click)="reject()">

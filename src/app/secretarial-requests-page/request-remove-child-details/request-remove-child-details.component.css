@@ -182,3 +182,16 @@
 
 .remain-empty{ color: #7e8363; }
 .remain-error{ color: #b91c1c; }
+/* snackbar */
+.snack-success { background: #2e7d32; color: #fff; }
+.snack-error   { background: #c62828; color: #fff; }
+
+/* banner */
+.decision-banner{
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.decision-banner.ok  { background: #e8f5e9; color: #1b5e20; border: 1px solid #c8e6c9; }
+.decision-banner.err { background: #ffebee; color: #b71c1c; border: 1px solid #ffcdd2; }

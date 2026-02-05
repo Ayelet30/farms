@@ -43,6 +43,10 @@ import { SecretarialSeriesRequestsComponent } from './request-new-series-details
 import { RequestAddParentDetailsComponent } from './request-add-parent-details/request-add-parent-details.component';
 import { RequestMakeupLessonDetailsComponent } from './request-makeup-lesson-details/request-makeup-lesson-details';
 import { RequestFillInDetailsComponent } from './request-fill-in-details/request-fill-in-details';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { firstValueFrom } from 'rxjs';
+import { BulkDecisionDialogComponent, BulkDecisionDialogResult } from './bulk-decision-dialog/bulk-decision-dialog.component';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 
 
@@ -60,7 +64,8 @@ type RequesterRole = 'parent' | 'instructor' | 'secretary' | 'admin' | 'manager'
 @Component({
   selector: 'app-secretarial-requests-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatIconModule, MatButtonModule, MatSidenavModule],
+  imports: [CommonModule, FormsModule, MatIconModule, MatButtonModule, MatSidenavModule , MatSidenavModule, MatDialogModule , MatProgressSpinnerModule
+],
   templateUrl: './secretarial-requests-page.component.html',
   styleUrls: ['./secretarial-requests-page.component.css'],
 })
@@ -75,9 +80,9 @@ export class SecretarialRequestsPageComponent implements OnInit {
   private detailsSubs: Subscription[] = [];
   private bo = inject(BreakpointObserver);
   private autoRejectInFlight = false;
+private dialog = inject(MatDialog);
 
   isMobile = signal(false);
-  bulkBusy = signal(false);
 
   @ViewChild('detailsDrawer') detailsDrawer?: MatSidenav;
 
@@ -186,6 +191,8 @@ private handleDbFailure(mode: ValidationMode, context: string, err: any): Valida
   safeUrl(u: string): SafeResourceUrl {
     return this.sanitizer.bypassSecurityTrustResourceUrl(u);
   }
+bulkBusy = signal(false);
+bulkBusyMode = signal<'approve' | 'reject' | null>(null);
 
   // ===== פילטרים =====
   statusFilter = signal<RequestStatus | 'ALL'>('PENDING');
@@ -690,6 +697,7 @@ if (row.status !== 'PENDING') {
   // להזין Inputs בסיסיים
   inst.request = row;
   inst.decidedByUid = this.curentUser?.uid;
+inst.bulkMode = true; // ✅ מונע confirm dialogs פנימיים
 
   // callbacks לעדכון מיידי
   inst.onApproved = (e: any) => {
@@ -720,14 +728,38 @@ if (row.status !== 'PENDING') {
       }
     }
 
-     const fn = inst?.[action];
-  if (typeof fn !== 'function') return { ok: false, message: `לקומפוננטה אין מתודה ${action}()` };
- if (action === 'reject') {
-    await fn.call(inst, rejectArgs ?? { source: 'user' });
-  } else {
-    await fn.call(inst);
+  const before = row.status;
+
+// ✅ לבחור מתודה לפי הקומפוננטה
+const methodName =
+  action === 'approve'
+    ? (typeof inst?.approveSelected === 'function' ? 'approveSelected' : 'approve')
+    : (typeof inst?.rejectSelected === 'function' ? 'rejectSelected' : 'reject');
+
+const fn = inst?.[methodName];
+if (typeof fn !== 'function') {
+  return { ok: false, message: `לקומפוננטה אין מתודה ${methodName}()` };
+}
+
+// ✅ אם זו דחייה – להזין note (כי בסדרה זה חובה)
+if (action === 'reject') {
+  const reason = rejectArgs?.reason?.trim() ?? '';
+  if (reason && 'note' in inst) {
+    inst.note = reason;
   }
-    return { ok: true };
+  await fn.call(inst, rejectArgs ?? { source: 'user', reason });
+} else {
+  await fn.call(inst);
+}
+
+// ✅ אם לא השתנה סטטוס (לא קרא update/emit) – להחזיר כישלון כדי לא לשקר
+// (בד"כ קומפוננטה תקרא onRejected/onApproved ותעשה patchRequestStatus)
+const afterLocal = this.allRequests().find(x => x.id === row.id)?.status ?? before;
+if (afterLocal === 'PENDING') {
+  return { ok: false, message: 'הדחייה לא בוצעה (כנראה חסרה סיבה או שהקומפוננטה יצאה מוקדם).' };
+}
+
+return { ok: true };
 
   } catch (e: any) {
     return { ok: false, message: e?.message || String(e) };
@@ -736,12 +768,16 @@ if (row.status !== 'PENDING') {
   }
 }
 
-
 async bulkApproveSelected() {
+  this.bulkBusy.set(true);
+this.bulkBusyMode.set('approve');
   if (!this.isSecretary || !this.curentUser) return;
 
   const rows = this.getSelectedRowsPending();
   if (!rows.length) return;
+
+  const dlg = await this.openBulkDecisionDialog('approve', rows);
+  if (!dlg.confirmed) return;
 
   this.bulkBusy.set(true);
   try {
@@ -751,44 +787,89 @@ async bulkApproveSelected() {
       const res = await this.runDecisionViaDetailsComponent(r, 'approve');
       if (res.ok) ok++;
       else fail++;
+
+      // ✅ לנקות בחירה גם אם נכשל/הצליח
+      const next = new Set(this.selectedIdsSig());
+      next.delete(r.id);
+      this.selectedIdsSig.set(next);
     }
 
     if (ok) this.showToast(`אושרו ${ok} בקשות`, 'success');
     if (fail) this.showToast(`נכשלו ${fail} בקשות`, 'error');
 
-    void this.loadRequestsFromDb();
-void this.autoRejectCriticalInvalidRequests('postBulk');
+    // ✅ רענון קשיח כדי שהרשימה תתעדכן מייד
+    await this.loadRequestsFromDb();
+    await this.autoRejectCriticalInvalidRequests('postBulk');
+
+    // ✅ לנקות הכל ליתר ביטחון
+    this.clearSelection();
   } finally {
     this.bulkBusy.set(false);
+  this.bulkBusyMode.set(null);
   }
 }
-
 async bulkRejectSelected() {
+  this.bulkBusy.set(true);
+this.bulkBusyMode.set('reject');
   if (!this.isSecretary || !this.curentUser) return;
 
   const rows = this.getSelectedRowsPending();
   if (!rows.length) return;
+
+  const ref = this.dialog.open(BulkDecisionDialogComponent, {
+    data: {
+      mode: 'reject',
+      title: 'דחיית בקשות מסומנות',
+      items: rows.map(r => ({
+        id: r.id,
+        requestType: r.requestType,
+        requestedByName: r.requestedByName,
+        summary: r.summary,
+        childName: r.childName,
+        instructorName: r.instructorName,
+        createdAt: r.createdAt,
+      })),
+    },
+    disableClose: true,
+    panelClass: 'ui-confirm-dialog',
+    backdropClass: 'ui-confirm-backdrop',
+  });
+
+  const result = await firstValueFrom(ref.afterClosed());
+  if (!result?.confirmed) return;
+
+  const reasonsById = result.reasonsById ?? {};
 
   this.bulkBusy.set(true);
   try {
     let ok = 0, fail = 0;
 
     for (const r of rows) {
-      const res = await this.runDecisionViaDetailsComponent(r, 'reject');
+      const reason = (reasonsById[r.id] ?? '').trim();
+      const res = await this.runDecisionViaDetailsComponent(r, 'reject', { source: 'user', reason });
       if (res.ok) ok++;
       else fail++;
+
+      // ✅ לנקות בחירה
+      const next = new Set(this.selectedIdsSig());
+      next.delete(r.id);
+      this.selectedIdsSig.set(next);
     }
 
     if (ok) this.showToast(`נדחו ${ok} בקשות`, 'success');
     if (fail) this.showToast(`נכשלו ${fail} בקשות`, 'error');
 
-    void this.loadRequestsFromDb();
-void this.autoRejectCriticalInvalidRequests('postBulk');
+    // ✅ רענון קשיח
+    await this.loadRequestsFromDb();
+    await this.autoRejectCriticalInvalidRequests('postBulk');
+
+    this.clearSelection();
   } finally {
     this.bulkBusy.set(false);
+      this.bulkBusyMode.set(null);
+
   }
 }
-
 
   private wrapApproveWithValidation(instance: any, row: UiRequest) {
   if (row.status !== 'PENDING') return;
@@ -812,6 +893,9 @@ void this.autoRejectCriticalInvalidRequests('postBulk');
 
   wrap('approve');
   wrap('approveSelected');
+}
+get hasSelectableRows(): boolean {
+  return this.filteredRequestsList.some(r => this.isRowSelectable(r));
 }
 
 // private async rejectInvalidRequests(context: 'load' | 'postBulk') {
@@ -1237,6 +1321,33 @@ const role = this.getRequesterRoleForRequest(row);
   } catch (e: any) {
     return this.handleDbFailure(mode, 'checkRequesterActive', e);
   }
+}
+private async openBulkDecisionDialog(
+  mode: 'approve' | 'reject',
+  rows: UiRequest[]
+): Promise<BulkDecisionDialogResult> {
+  const items = rows.map(r => ({
+    id: r.id,
+    requestType: this.getRequestTypeLabel(r.requestType), // ✅ יפה בעברית
+    requestedByName: r.requestedByName,
+    summary: r.summary,
+    childName: r.childName,
+    instructorName: r.instructorName,
+    createdAt: r.createdAt,
+  }));
+
+  const ref = this.dialog.open(BulkDecisionDialogComponent, {
+    data: {
+      mode,
+      title: mode === 'approve' ? 'אישור בקשות מסומנות' : 'דחיית בקשות מסומנות',
+      items,
+    },
+    disableClose: true,
+    panelClass: 'ui-bulk-dialog',
+    backdropClass: 'ui-confirm-backdrop',
+  });
+
+  return (await firstValueFrom(ref.afterClosed())) ?? { confirmed: false };
 }
 
 
