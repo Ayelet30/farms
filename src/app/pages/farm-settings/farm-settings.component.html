@@ -212,7 +212,26 @@
             <span class="field-label">אפשר זימון שיעורים ע&quot;י הורים</span>
             <input type="checkbox" [(ngModel)]="s.allow_online_booking" name="allow_online_booking" />
           </label>
-        </div>
+        </div><label class="field compact">
+  <span class="field-label">
+    כמה ימים קדימה הורים יכולים לקבוע שיעור
+  </span>
+
+  <input
+    type="number"
+    min="0"
+    [(ngModel)]="s.parent_booking_days_ahead"
+    name="parent_booking_days_ahead"
+    [disabled]="!s.allow_online_booking"
+    placeholder="0 = ללא הגבלה"
+    class="small-number"
+  />
+
+  <small class="field-hint">
+    מגביל עד כמה ימים קדימה הורה יכול לקבוע שיעור בעצמו.
+  </small>
+</label>
+
       </section>
 
       <!-- ביטולים / השלמות / נוכחות -->

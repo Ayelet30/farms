@@ -31,6 +31,7 @@ interface FarmSettings {
 
   makeup_allowed_days_back: number | null;
   makeup_allowed_days_ahead: number | null;
+    parent_booking_days_ahead?: number | null;
   max_makeups_in_period: number | null;
   makeups_period_days: number | null;
   displayed_makeup_lessons_count: number | null;
@@ -1087,6 +1088,7 @@ canSaveWorkingHours(): boolean {
     if (data) {
       const s: FarmSettings = {
         ...data,
+parent_booking_days_ahead: data.parent_booking_days_ahead ?? null,
 
         operating_hours_start: this.t5(data.operating_hours_start) ?? '08:00',
         operating_hours_end: this.t5(data.operating_hours_end) ?? '20:00',
@@ -1171,6 +1173,7 @@ canSaveWorkingHours(): boolean {
       max_group_size: 6,
       max_lessons_per_week_per_child: 2,
       allow_online_booking: true,
+      
     });
   }
 
