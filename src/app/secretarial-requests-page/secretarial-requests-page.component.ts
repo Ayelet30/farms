@@ -457,7 +457,8 @@ instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
       case 'PENDING': return 'ממתין';
       case 'APPROVED': return 'מאושר';
       case 'REJECTED': return 'נדחה';
-            case 'CANCELLED_BY_REQUESTER': return 'בוטל ע״י המבקש/ת';
+      case 'CANCELLED_BY_REQUESTER': return 'בוטל ע״י המבקש/ת';
+      case 'REJECTED_BY_SYSTEM': return 'נדחה על ידי המערכת';
       default: return status;
     }
   }
@@ -674,7 +675,9 @@ private async runDecisionViaDetailsComponent(
   action: 'approve' | 'reject',
   rejectArgs?: RejectArgs
 ): Promise<{ ok: boolean; message?: string }> {
-
+if (row.status !== 'PENDING') {
+    return { ok: false, message: 'לא ניתן לבצע פעולה על בקשה שאינה ממתינה' };
+  }
   if (!this.bulkHost) return { ok: false, message: 'bulkHost לא מאותחל' };
 
   const cmp = this.getDetailsComponent(row.requestType);
@@ -788,6 +791,7 @@ void this.autoRejectCriticalInvalidRequests('postBulk');
 
 
   private wrapApproveWithValidation(instance: any, row: UiRequest) {
+  if (row.status !== 'PENDING') return;
   const wrap = (methodName: 'approve' | 'approveSelected') => {
     const original = instance?.[methodName];
     if (typeof original !== 'function') return;

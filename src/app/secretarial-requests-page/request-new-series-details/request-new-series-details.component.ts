@@ -14,10 +14,11 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { getAuth } from 'firebase/auth';
-
+import { MatIconModule } from '@angular/material/icon';
 
 // חשוב: זה הטיפוס שאת מעבירה מהדף הראשי
 import type { UiRequest } from '../../Types/detailes.model';
+import { MatButtonModule } from '@angular/material/button';
 
 const SERIES_DENY_MESSAGES: Record<string, string> = {
   anchor_start_date_in_past: 'אי אפשר לאשר סדרה: תאריך תחילת הסדרה כבר עבר.',
@@ -29,13 +30,14 @@ const SERIES_DENY_MESSAGES: Record<string, string> = {
 @Component({
   selector: 'app-secretarial-series-requests',
   standalone: true,
-  imports: [CommonModule, FormsModule , MatDialogModule , MatSnackBarModule, MatTooltipModule],
+  imports: [CommonModule, FormsModule , MatDialogModule , MatSnackBarModule, MatTooltipModule , MatButtonModule , MatIconModule],
   templateUrl: './request-new-series-details.component.html',
   styleUrls: ['./request-new-series-details.component.scss'],
 })
 
 export class SecretarialSeriesRequestsComponent {
   private api = inject(SeriesRequestsService);
+  
 async ngOnInit() {
   // await this.loadPaymentPlanName();
   // await this.loadInstructorName();
@@ -44,6 +46,8 @@ async ngOnInit() {
 
   // ✅ הבקשה שנבחרה מהדף הראשי
 private _request!: UiRequest;
+  req = () => this.request;
+
 ridingTypeName = signal<string>('טוען...');
 lessonTypeMode = signal<string | null>(null);
 childFullName = signal<string>('טוען...');
@@ -527,6 +531,9 @@ this.errorMsg.set(msg);
   }
 }
 
+canDecide(): boolean {
+  return this.request?.status === 'PENDING';
+}
 
 
 async rejectSelected() {
