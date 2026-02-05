@@ -14,9 +14,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { ensureTenantContextReady, dbTenant } from '../../services/supabaseClient.service';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
-import { ConfirmDialogComponent } from '../confirm-dialog.component';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service'; // התאימי נתיב אם צריך
 import { getAuth } from 'firebase/auth';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 type UiRequest = any;
 
@@ -49,7 +49,7 @@ type RemainingLessonVM = {
 @Component({
   selector: 'app-request-remove-child-details',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatButtonModule],
+  imports: [CommonModule, MatIconModule, MatButtonModule , MatSnackBarModule],
   templateUrl: './request-remove-child-details.component.html',
   styleUrls: ['./request-remove-child-details.component.css'],
 })
@@ -57,6 +57,7 @@ export class RequestRemoveChildDetailsComponent {
 
   // ✅ signal פנימי שמחזיק את הבקשה
   private _req = signal<UiRequest | null>(null);
+@Input() bulkMode = false;   // ברירת מחדל: ידני => כן להציג snack
 
   // ✅ זה ה-Input היחיד (אין שדה בשם request בכלל)
   @Input({ required: true })
@@ -115,7 +116,8 @@ scheduledDeletionAt = signal<string | null>(null);
   // כדי למנוע “תשובה ישנה” שנכנסת אחרי החלפה מהירה של בקשה
   private runToken = 0;
 
-  constructor(private dialog: MatDialog,private tenantSvc: SupabaseTenantService
+  constructor(private dialog: MatDialog,private tenantSvc: SupabaseTenantService,     private snack: MatSnackBar
+
 ) {
     
     effect(() => {
@@ -125,9 +127,26 @@ scheduledDeletionAt = signal<string | null>(null);
     });
   }
 canDecide(): boolean {
-  return this.request?.status === 'PENDING';
+  return this.req()?.status === 'PENDING';
 }
 
+
+decisionMsg = signal<string | null>(null);
+decisionType = signal<'success' | 'error' | null>(null);
+
+private showSnack(msg: string, type: 'success' | 'error') {
+  this.decisionMsg.set(msg);
+  this.decisionType.set(type);
+  if (this.bulkMode && type === 'success') return;
+
+  this.snack.open(msg, 'סגור', {
+    duration: 3000,
+    direction: 'rtl',
+    horizontalPosition: 'center',
+    verticalPosition: 'top',
+    panelClass: [type === 'success' ? 'snack-success' : 'snack-error'],
+  });
+}
 
   private getChildId(): string | null {
     const r = this.req();
@@ -262,9 +281,6 @@ async approve() {
     return;
   }
 
-  const ok = await this.confirmApprove();
-  if (!ok) return;
-
   try {
     // tenant schema כמו בחשבוניות
     // const tenantSchema = await this.getTenantSchemaOrThrow();
@@ -294,6 +310,7 @@ const tenantId = tenant.id; // או השם האמיתי אצלך
   tenantId,
   childId,
   requestId: r.id,
+  
 }),
 
     });
@@ -312,18 +329,21 @@ const tenantId = tenant.id; // או השם האמיתי אצלך
     // עדכון UI
     const e = { requestId: r.id, newStatus: 'APPROVED' as const };
     this.approved.emit(e);
+    
+    this.showSnack('הבקשה אושרה בהצלחה ✅', 'success');
     this.onApproved?.(e);
 
     await this.loadRemainingLessons();
 
   } catch (err: any) {
     const msg = err?.message ?? 'שגיאה באישור המחיקה';
+    this.showSnack(msg, 'error');
     this.error.emit(msg);
     this.onError?.(msg);
   }
 }
 
-async reject() {
+async reject(args?: { source: 'user' | 'system'; reason?: string }) {
   const r = this.req();
   if (!r) return;
 
@@ -332,9 +352,7 @@ async reject() {
     this.error.emit('חסר childId בבקשה');
     return;
   }
-
-  const ok = await this.confirmReject();
-  if (!ok) return;
+  const reason = (args?.reason ?? '').trim();
 
   try {
     // ✅ tenant schema/id כמו באישור
@@ -362,6 +380,8 @@ async reject() {
         tenantId,
         childId,
         requestId: r.id,
+        decisionNote: reason, // 👈 חדש: להעביר לשרת
+
       }),
     });
 
@@ -376,6 +396,7 @@ async reject() {
     // ✅ עדכון UI (הבקשה נעלמת מיד מהממתינים)
     const e = { requestId: r.id, newStatus: 'REJECTED' as const };
     this.rejected.emit(e);
+    this.showSnack('הבקשה נדחתה בהצלחה ✅', 'success');
     this.onRejected?.(e);
 
     // אופציונלי: רענון "שיעורים שנותרו" (אחרי דחייה זה בעצם שיעורים רגילים)
@@ -383,37 +404,12 @@ async reject() {
 
   } catch (err: any) {
     const msg = err?.message ?? 'שגיאה בדחיית הבקשה';
+    this.showSnack(msg, 'error');
     this.error.emit(msg);
     this.onError?.(msg);
   }
 }
 
-  private async confirmApprove(): Promise<boolean> {
-  const ref = this.dialog.open(ConfirmDialogComponent, {
-    data: {
-      title: 'אישור מחיקה',
-      message: 'האם את בטוחה שברצונך לאשר את בקשת המחיקה?',
-    },
-    disableClose: true,
-    panelClass: 'ui-confirm-dialog',
-    backdropClass: 'ui-confirm-backdrop',
-  });
-
-  return (await firstValueFrom(ref.afterClosed())) === true;
-}
-private async confirmReject(): Promise<boolean> {
-  const ref = this.dialog.open(ConfirmDialogComponent, {
-    data: {
-      title: 'דחיית בקשה',
-      message: 'האם את בטוחה שברצונך לדחות את בקשת המחיקה?\nהסטטוס של הילד יחזור ל-פעיל.',
-    },
-    disableClose: true,
-    panelClass: 'ui-confirm-dialog',
-    backdropClass: 'ui-confirm-backdrop',
-  });
-
-  return (await firstValueFrom(ref.afterClosed())) === true;
-}
 private async getTenantSchemaOrThrow(): Promise<string> {
   await this.tenantSvc.ensureTenantContextReady();
   return this.tenantSvc.requireTenant().schema;
