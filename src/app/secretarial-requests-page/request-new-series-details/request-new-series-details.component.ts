@@ -563,12 +563,7 @@ async rejectSelected() {
   this.clearMessages();
 
   if (!this.request?.id) return;
-   const note = this.note.trim();
-  if (!note) {
-    this.errorMsg.set('חובה למלא סיבה לפני דחיית בקשה');
-    return;
-  }
-
+  
   try {
     this.loading.set(true);
 

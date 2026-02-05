@@ -970,6 +970,10 @@ private async isCriticalValidRequest(
 ): Promise<{ ok: boolean; reason?: string }> {
   if (!row) return { ok: false, reason: 'בקשה לא תקינה' };
 
+  // ✅ חדש: תוקף לפי זמן/תאריך
+  const expiryReason = this.getExpiryReason(row);
+  if (expiryReason) return { ok: false, reason: expiryReason };
+
   await ensureTenantContextReady();
   const db = dbTenant();
 
@@ -980,10 +984,12 @@ private async isCriticalValidRequest(
   if (!instructorCheck.ok) return instructorCheck;
 
   const requesterCheck = await this.checkRequesterActive(db, row, mode);
-if (!requesterCheck.ok) return requesterCheck;
+  if (!requesterCheck.ok) return requesterCheck;
 
   return { ok: true };
 }
+
+
 private async autoRejectCriticalInvalidRequests(context: 'load' | 'postBulk') {
   if (!this.isSecretary || !this.curentUser) return;
   if (this.autoRejectInFlight) return;
@@ -1043,8 +1049,11 @@ private getExpiryReason(row: UiRequest): string | null {
     }
     case 'NEW_SERIES': {
       const start = row.fromDate ?? p.series_start_date ?? p.start_date ?? null;
-      if (isPast(start, '00:00')) return 'עבר מועד תחילת הסדרה';
-      return null;
+ const timeStr =
+    p.requested_start_time ?? p.start_time ?? p.startTime ?? null;
+
+  if (isPast(start, timeStr ?? '00:00')) return 'עבר מועד תחילת הסדרה';
+  return null;      
     }
     case 'MAKEUP_LESSON':
     case 'FILL_IN': {

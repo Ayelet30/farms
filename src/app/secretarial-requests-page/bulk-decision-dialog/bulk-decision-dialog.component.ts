@@ -82,19 +82,10 @@ export class BulkDecisionDialogComponent {
    getReason(id: string): string {
     return (this.reasonsById()[id] ?? '').toString();
   }
-   canConfirm = computed(() => {
-    if (!this.isReject()) return true;
-
-    // אם יש סיבה כוללת – מספיק שהיא לא ריקה
-    if (this.useGlobalReason()) {
-      return this.globalReason().trim().length > 0;
-    }
-
-    // אחרת: חובה סיבה לכל item
-    const items = this.data.items ?? [];
-    const map = this.reasonsById();
-    return items.every(it => (map[it.id] ?? '').trim().length > 0);
-  });
+  canConfirm = computed(() => {
+  // גם בדחייה – לא מחייבים סיבה
+  return true;
+});
 
   closeNo() {
     this.ref.close({ confirmed: false });
