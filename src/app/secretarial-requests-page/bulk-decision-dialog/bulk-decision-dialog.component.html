@@ -12,6 +12,20 @@
  
 
   <div class="bulk-body">
+<div class="global-reason" *ngIf="data.mode === 'reject'">
+  <label class="bulk-label">סיבת דחייה לכל הבקשות (אופציונלי)</label>
+
+  <textarea
+    class="bulk-textarea"
+    rows="2"
+    [value]="globalReason()"
+    (input)="setGlobalReason($any($event.target).value || '')"
+    placeholder="אם תמלאי פה — זו תהיה הסיבה לכל הבקשות, ולא ניתן יהיה להזין סיבות פרטניות."></textarea>
+
+  <div class="bulk-hint" *ngIf="useGlobalReason()">
+    סיבה כוללת פעילה — סיבות פרטניות נעולות.
+  </div>
+</div>
 
   <!-- מובייל: כרטיסיות -->
   <div class="bulk-cards">
@@ -40,17 +54,18 @@
         <span class="v">{{ r.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
       </div>
       <div class="card-reason" *ngIf="data.mode === 'reject'">
-  <label class="bulk-label">סיבת דחייה (חובה)</label>
+  <label class="bulk-label">סיבת דחייה</label>
   <textarea
     class="bulk-textarea"
     rows="2"
+    [disabled]="useGlobalReason()"
     [value]="getReason(r.id)"
     (input)="setReason(r.id, ($any($event.target).value || ''))"
     placeholder="כתבי סיבה לבקשה הזו..."></textarea>
-
-  <div class="bulk-hint" *ngIf="!getReason(r.id).trim()">
-    חובה למלא סיבה כדי לדחות.
-  </div>
+<div class="bulk-hint" *ngIf="useGlobalReason()">
+  קיימת סיבה כוללת ולכן לא ניתן להזין סיבה פרטנית לבקשה זו.
+</div>
+  
 </div>
 
     </div>

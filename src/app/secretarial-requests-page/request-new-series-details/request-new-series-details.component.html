@@ -116,22 +116,35 @@
       </div>
 
       <div class="mini-box">
-        <div class="mini-head">
-          <div>שם</div>
-          <div class="c">מין</div>
-          <div class="c">גיל</div>
-          <div>הערות</div>
-        </div>
+      <div class="mini-head">
+  <div>שם</div>
+  <div class="c">מין</div>
+  <div class="c">גיל</div>
+  <div>יחד איתו</div>
+  <div>הערות</div>
+</div>
 
-        <div class="mini-row" *ngFor="let c of existingParticipants()">
-          <div class="cell">{{ c.first_name }} {{ c.last_name }}</div>
-          <div class="cell c">{{ c.gender || '—' }}</div>
-          <div class="cell c">{{ calcAge(c.birth_date) }}</div>
-          <div class="cell notes-cell">
-            <span *ngIf="c.medical_notes">🩺 {{ c.medical_notes }}</span>
-            <span *ngIf="c.behavior_notes">⚠ {{ c.behavior_notes }}</span>
-          </div>
-        </div>
+
+      <div class="mini-row" *ngFor="let c of existingParticipants()">
+  <div class="cell">{{ c.first_name }} {{ c.last_name }}</div>
+  <div class="cell c">{{ c.gender || '—' }}</div>
+  <div class="cell c">{{ calcAge(c.birth_date) }}</div>
+
+  <div class="cell">
+    <div>
+      {{ c.together_from | date:'dd/MM/yyyy' }} – {{ c.together_to | date:'dd/MM/yyyy' }}
+    </div>
+    <div class="muted">
+      ({{ c.overlap_count }} מפגשים יחד)
+    </div>
+  </div>
+
+  <div class="cell notes-cell">
+    <span *ngIf="c.medical_notes">🩺 {{ c.medical_notes }}</span>
+    <span *ngIf="c.behavior_notes">⚠ {{ c.behavior_notes }}</span>
+  </div>
+</div>
+
       </div>
 
     </div>
