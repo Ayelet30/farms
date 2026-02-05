@@ -157,17 +157,15 @@
       class="note"
       *ngIf="canDecide()"
       [(ngModel)]="note"
-      placeholder="הערה למזכירה / סיבה לדחייה (חובה בדחייה)">
+      placeholder="סיבה לדחייה (אופציונלי)">
     </textarea>
 
-    <div class="hint error" *ngIf="!note.trim() && !loading() && canDecide()">
-      חובה למלא סיבה לפני דחיית בקשה
-    </div>
+    
 
     <div class="actions" *ngIf="canDecide()">
       <button mat-stroked-button type="button" class="action reject"
               (click)="rejectSelected()"
-              [disabled]="loading() || !note.trim()">
+              [disabled]="loading() ">
         דחייה
       </button>
 

@@ -380,7 +380,7 @@ async reject(args?: { source: 'user' | 'system'; reason?: string }) {
         tenantId,
         childId,
         requestId: r.id,
-        decisionNote: reason, // 👈 חדש: להעביר לשרת
+        decisionNote: reason || null, 
 
       }),
     });
