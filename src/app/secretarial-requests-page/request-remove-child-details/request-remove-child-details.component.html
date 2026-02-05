@@ -76,7 +76,7 @@
       <div><span class="mk">נוצר:</span> {{ req()!.createdAt | date:'dd/MM/yyyy HH:mm' }}</div>
     </div>
 
-    <div class="actions" *ngIf="req()?.status === 'PENDING'">
+    <div class="actions" *ngIf="canDecide()">
       <button mat-stroked-button type="button" class="action reject" (click)="reject()">
         דחייה
       </button>
@@ -87,8 +87,6 @@
 
     </div>
 
-    <div class="note" *ngIf="req()?.status !== 'PENDING'">
-      הבקשה כבר לא במצב “ממתין”, לכן אין כפתורי פעולה.
-    </div>
+   
   </div>
 </div>

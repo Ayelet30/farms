@@ -124,6 +124,10 @@ scheduledDeletionAt = signal<string | null>(null);
       void this.loadRemainingLessons();
     });
   }
+canDecide(): boolean {
+  return this.request?.status === 'PENDING';
+}
+
 
   private getChildId(): string | null {
     const r = this.req();
