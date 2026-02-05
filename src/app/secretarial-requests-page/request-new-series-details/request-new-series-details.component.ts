@@ -48,6 +48,11 @@ async ngOnInit() {
 private _request!: UiRequest;
   req = () => this.request;
 @Input() bulkMode?: boolean;
+requestedEndTime = signal<string | null>(null);
+
+// המשתתפים עם טווח חפיפה
+existingParticipants = signal<any[]>([]); // כבר יש לך
+participantsCapacity = signal<{ current: number; max: number } | null>(null); // כבר יש לך
 
 ridingTypeName = signal<string>('טוען...');
 lessonTypeMode = signal<string | null>(null);
@@ -74,11 +79,13 @@ set request(v: UiRequest) {
   this.ridingTypeName.set('טוען...');
 this.lessonTypeMode.set(null);
 
-void this.loadLessonTypeFromAvailability();
+// void this.loadLessonTypeFromAvailability();
 this.existingParticipants.set([]);
 this.participantsCapacity.set(null);
 
-void this.loadExistingParticipants();
+// void this.loadExistingParticipants();
+void this.loadLessonTypeFromAvailability().then(() => this.loadExistingParticipants());
+
 void this.loadChildStatus();
 this.childFullName.set('טוען...');
 this.childGovId.set(null);
@@ -110,8 +117,6 @@ private dialog = inject(MatDialog);
 private snack = inject(MatSnackBar);
 successMsg = signal<string | null>(null);
 errorMsg = signal<string | null>(null);
-existingParticipants = signal<any[]>([]);
-participantsCapacity = signal<{ current: number; max: number } | null>(null);
 // ===== Child status (from children table) =====
 childStatus = signal<string | null>(null);
 childDeletionRequestedAt = signal<string | null>(null);
@@ -176,12 +181,19 @@ get childStatusBannerText(): string | null {
 }
 
 private async loadChildStatus() {
+  const reqId = this.request?.id; // ✅ guard token
   const childId = this.request?.childId;
-  if (!childId) {
-    this.childStatus.set(null);
-    this.childDeletionRequestedAt.set(null);
-    this.childScheduledDeletionAt.set(null);
-    this.canApprove.set(true);
+
+  const safeSet = (st: string | null, delReqAt: string | null, schedDelAt: string | null, canApprove: boolean) => {
+    if (this.request?.id !== reqId) return;
+    this.childStatus.set(st);
+    this.childDeletionRequestedAt.set(delReqAt);
+    this.childScheduledDeletionAt.set(schedDelAt);
+    this.canApprove.set(canApprove);
+  };
+
+  if (!reqId || !childId) {
+    safeSet(null, null, null, true);
     return;
   }
 
@@ -197,17 +209,17 @@ private async loadChildStatus() {
 
     if (error) throw error;
 
-    const st = (data as any)?.status ?? null;
-    this.childStatus.set(st);
-    this.childDeletionRequestedAt.set((data as any)?.deletion_requested_at ?? null);
-    this.childScheduledDeletionAt.set((data as any)?.scheduled_deletion_at ?? null);
+    if (this.request?.id !== reqId) return;
 
-this.canApprove.set(st !== 'Deleted');
+    const st = (data as any)?.status ?? null;
+    const delReqAt = (data as any)?.deletion_requested_at ?? null;
+    const schedDelAt = (data as any)?.scheduled_deletion_at ?? null;
+
+    safeSet(st, delReqAt, schedDelAt, st !== 'Deleted');
   } catch (e) {
     console.error('loadChildStatus failed', e);
     // במקרה תקלה – ניזהר ולא נאפשר אישור עד שהכל ברור
-    this.childStatus.set('לא ידוע');
-    this.canApprove.set(false);
+    safeSet('לא ידוע', null, null, false);
   }
 }
 
@@ -278,9 +290,16 @@ get skippedInstructorDates(): string[] {
     return uid;
   }
 private async loadPaymentPlanName() {
+  const reqId = this.request?.id; // ✅ guard token
   const id = this.p?.payment_plan_id;
-  if (!id) {
-    this.paymentPlanName.set('—');
+
+  const safeSet = (value: string) => {
+    if (this.request?.id !== reqId) return;
+    this.paymentPlanName.set(value);
+  };
+
+  if (!reqId || !id) {
+    safeSet('—');
     return;
   }
 
@@ -296,10 +315,12 @@ private async loadPaymentPlanName() {
 
     if (error) throw error;
 
-    this.paymentPlanName.set(data?.name ?? 'לא נמצא');
+    if (this.request?.id !== reqId) return;
+
+    safeSet(data?.name ?? 'לא נמצא');
   } catch (e) {
     console.error('loadPaymentPlanName failed', e);
-    this.paymentPlanName.set('שגיאה בטעינה');
+    safeSet('שגיאה בטעינה');
   }
 }
 
@@ -635,9 +656,16 @@ private async getInstructorUidByIdNumber(idNumber: string): Promise<string | nul
 }
 
 private async loadInstructorName() {
+  const reqId = this.request?.id; // ✅ guard token
   const idNumber = this.request?.instructorId; // אצלך זה id_number
-  if (!idNumber) {
-    this.instructorName.set('—');
+
+  const safeSet = (value: string) => {
+    if (this.request?.id !== reqId) return;
+    this.instructorName.set(value);
+  };
+
+  if (!reqId || !idNumber) {
+    safeSet('—');
     return;
   }
 
@@ -653,15 +681,16 @@ private async loadInstructorName() {
 
     if (error) throw error;
 
-    const full =
-      `${data?.first_name ?? ''} ${data?.last_name ?? ''}`.trim();
+    if (this.request?.id !== reqId) return;
 
-    this.instructorName.set(full || data?.id_number || 'לא נמצא');
+    const full = `${data?.first_name ?? ''} ${data?.last_name ?? ''}`.trim();
+    safeSet(full || data?.id_number || 'לא נמצא');
   } catch (e) {
     console.error('loadInstructorName failed', e);
-    this.instructorName.set('שגיאה בטעינה');
+    safeSet('שגיאה בטעינה');
   }
 }
+
 
 get startWeekdayName(): string {
   const d = this.parseDateOnly(this.startDate);
@@ -695,120 +724,164 @@ private static combineDateTime(dateStr: string, timeStr?: string | null): Date {
   return new Date(`${d}T${t}:00`);
 }
 private async loadLessonTypeFromAvailability() {
+  const reqId = this.request?.id; // ✅ guard token
   const instructorId = this.request?.instructorId; // id_number
   const dateStr = this.startDate;                  // YYYY-MM-DD
   const t = this.requestedStartTime;               // "15:30"
 
-  if (!instructorId || !dateStr || dateStr === '—' || !t || t === '—') {
+  const safeReset = () => {
+    if (this.request?.id !== reqId) return;
     this.ridingTypeName.set('—');
     this.lessonTypeMode.set(null);
+    this.ridingTypeId.set(null);
+    this.requestedEndTime.set(null);
+  };
+
+  if (!reqId || !instructorId || !dateStr || dateStr === '—' || !t || t === '—') {
+    safeReset();
     return;
   }
 
   const d = this.parseDateOnly(dateStr);
   if (!d) {
-    this.ridingTypeName.set('—');
-    this.lessonTypeMode.set(null);
+    safeReset();
     return;
   }
 
-  // שימי לב: אצלך day_of_week הוא 0..6, וב-JS getDay() גם 0..6 (ראשון=0)
-  const dow = d.getDay();
+  const dow = d.getDay(); // 0..6 (ראשון=0)
 
   try {
     await ensureTenantContextReady();
     const db = dbTenant();
 
-    // מחפשים טווח שבו start_time <= t < end_time
-    // לוקחים את ה-slot "הכי ספציפי" (start_time הכי מאוחר שמתאים) כדי להימנע מחפיפות
     const { data, error } = await db
       .from('instructor_weekly_availability')
       .select(`
         start_time,
         end_time,
         lesson_type_mode,
-    riding_types:lesson_ridding_type ( id, name )
+        riding_types:lesson_ridding_type ( id, name )
       `)
       .eq('instructor_id_number', instructorId)
       .eq('day_of_week', dow)
       .lte('start_time', t)
-      .gt('end_time', t) // end_time > t  (כלומר t בתוך הטווח)
+      .gt('end_time', t) // end_time > t
       .order('start_time', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (error) throw error;
-const rtId =
-  (data as any)?.riding_types?.id ??
-  (data as any)?.riding_type_id ??
-  null;
 
-this.ridingTypeId.set(rtId);
+    if (this.request?.id !== reqId) return;
+
+    const endTime = (data as any)?.end_time ?? null;
+    this.requestedEndTime.set(endTime);
+
+    const rtId =
+      (data as any)?.riding_types?.id ??
+      (data as any)?.riding_type_id ??
+      null;
+
+    this.ridingTypeId.set(rtId);
 
     const name = (data as any)?.riding_types?.name ?? null;
     this.ridingTypeName.set(name ?? 'לא נמצא');
     this.lessonTypeMode.set((data as any)?.lesson_type_mode ?? null);
   } catch (e) {
     console.error('loadLessonTypeFromAvailability failed', e);
+    if (this.request?.id !== reqId) return;
     this.ridingTypeName.set('שגיאה בטעינה');
     this.lessonTypeMode.set(null);
+    this.ridingTypeId.set(null);
+    this.requestedEndTime.set(null);
   }
 }
+
 private async loadExistingParticipants() {
-  const instructorId = this.request?.instructorId;
-  const startTime = this.requestedStartTime;
-const ridingTypeId =
-  this.p?.riding_type_id ??
-  this.ridingTypeId() ??
-  null;
+  const reqId = this.request?.id; // ✅ guard token
+  const instructorId = this.request?.instructorId;          // id_number אצלך
+  const dayName = this.startWeekdayName;                    // "ראשון" וכו'
+  const startDate = this.request?.fromDate;                 // YYYY-MM-DD
+  const startTime = this.requestedStartTime;                // "15:30"
+  const endTime = this.requestedEndTime();                  // "16:15:00" / "16:15"
+  const requestChildId = this.request?.childId ?? null;
 
-  const dayName = this.startWeekdayName; // כבר חישבת בעברית
+  const ridingTypeId =
+    this.p?.riding_type_id ??
+    this.ridingTypeId() ??
+    null;
 
-  if (!instructorId || !startTime || !dayName) {
+  const safeClear = () => {
+    if (this.request?.id !== reqId) return;
+    this.existingParticipants.set([]);
+    this.participantsCapacity.set(null);
+  };
+
+  if (!reqId || !instructorId || !dayName || !startDate || startDate === '—' || !startTime || startTime === '—') {
+    safeClear();
+    return;
+  }
+
+  // אם אין end_time עדיין (עוד לא נטען availability) – לא נציג חפיפות כדי לא להטעות
+  if (!endTime) {
+    safeClear();
     return;
   }
 
   try {
     await ensureTenantContextReady();
     const db = dbTenant();
-console.log('participants args', {
-  instructorId: this.request?.instructorId,
-  startDate: this.startDate,
-  dayName: this.startWeekdayName,
-  startTime: this.requestedStartTime,
-  ridingTypeId: this.p?.riding_type_id,
-});
-    const { data, error } = await db.rpc(
-      'get_existing_lesson_participants',
-      {
-        p_instructor_id: instructorId,
-        p_day_of_week: dayName,
-        p_start_time: startTime,
-        p_riding_type_id: ridingTypeId ?? null,
-      }
-    );
 
-if (Array.isArray(data)) {
-  
-}
+    // normalize שעה לפורמט time ב-Postgres ("HH:MM:SS")
+    const normTime = (t: string | null) => {
+      const s = (t ?? '').trim();
+      if (!s) return null;
+      return s.length === 5 ? `${s}:00` : s;
+    };
 
+    const params = {
+      p_instructor_id: instructorId,
+      p_day_of_week: dayName,
+      p_start_time: normTime(startTime),
+      p_end_time: normTime(endTime),
+      p_riding_type_id: ridingTypeId,
+      p_series_start_date: startDate,
+
+      p_is_open_ended: !!this.p?.is_open_ended,
+      p_repeat_weeks: this.p?.is_open_ended ? null : Number(this.p?.repeat_weeks ?? 0),
+      p_series_search_horizon_days: Number(this.p?.series_search_horizon_days ?? 90),
+
+      p_skipped_farm_dates: (this.p?.skipped_farm_dates ?? []) as string[],
+      p_skipped_instructor_dates: (this.p?.skipped_instructor_dates ?? []) as string[],
+
+      // אופציונלי אם הוספת בפונקציה DB: להחריג את הילד המבקש
+      // p_request_child_id: requestChildId,
+    };
+
+    const { data, error } = await db.rpc('get_series_overlap_participants', params);
     if (error) throw error;
-    if (!data || !data.length) return;
 
-    this.existingParticipants.set(data);
+    // ✅ אם הבקשה התחלפה בזמן ההמתנה — לא נוגעים ב-state
+    if (this.request?.id !== reqId) return;
 
+    const rows = Array.isArray(data) ? data : [];
+    this.existingParticipants.set(rows);
 
-    this.participantsCapacity.set({
-      current: data[0].current_count,
-      max: data[0].max_participants,
-    });
-
+    // קיבולת + current
+    if (rows.length) {
+      this.participantsCapacity.set({
+        current: rows.length,
+        max: rows[0].max_participants ?? 1,
+      });
+    } else {
+      this.participantsCapacity.set(null);
+    }
   } catch (e) {
-    console.error('loadExistingParticipants failed', e);
-    this.existingParticipants.set([]);
-    this.participantsCapacity.set(null);
+    console.error('loadExistingParticipants (overlap) failed', e);
+    safeClear();
   }
 }
+
 calcAge(birthDate: string | null): string {
   if (!birthDate) return '—';
   const b = new Date(birthDate);
@@ -860,10 +933,17 @@ get approveTooltip(): string | null {
   return null;
 }
 private async loadChildName() {
-  const childId = this.request?.childId; // זה child_uuid
-  if (!childId) {
-    this.childFullName.set('—');
-    this.childGovId.set(null);
+  const reqId = this.request?.id; // ✅ guard token
+  const childId = this.request?.childId; // child_uuid
+
+  const safeSet = (fullName: string, govId: string | null) => {
+    if (this.request?.id !== reqId) return;
+    this.childFullName.set(fullName);
+    this.childGovId.set(govId);
+  };
+
+  if (!reqId || !childId) {
+    safeSet('—', null);
     return;
   }
 
@@ -879,18 +959,16 @@ private async loadChildName() {
 
     if (error) throw error;
 
-    const fullName =
-      `${data?.first_name ?? ''} ${data?.last_name ?? ''}`.trim();
+    if (this.request?.id !== reqId) return;
 
-    this.childFullName.set(fullName || 'לא נמצא');
-    this.childGovId.set(data?.gov_id ?? null);
-
+    const fullName = `${data?.first_name ?? ''} ${data?.last_name ?? ''}`.trim();
+    safeSet(fullName || 'לא נמצא', data?.gov_id ?? null);
   } catch (e) {
     console.error('loadChildName failed', e);
-    this.childFullName.set('שגיאה בטעינה');
-    this.childGovId.set(null);
+    safeSet('שגיאה בטעינה', null);
   }
 }
+
 private async sendSeriesApprovedEmail(requestId: string, lessonId: string | null) {
   await this.tenantSvc.ensureTenantContextReady();
   const tenant = this.tenantSvc.requireTenant();
