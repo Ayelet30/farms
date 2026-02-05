@@ -1,105 +1,103 @@
-import fetch from 'node-fetch';
-
-function escapeHtml(s: any) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-}
-function fmtTime(t: string | null | undefined) { return t ? String(t).slice(0, 5) : '—'; }
-
-function renderTable(rows: any[]) {
-  if (!rows.length) return '';
-  const body = rows.map(r => `
-    <tr>
-      <td>${escapeHtml(r.occur_date)}</td>
-      <td>${escapeHtml(r.day_of_week || '—')}</td>
-      <td>${escapeHtml(`${fmtTime(r.start_time)}–${fmtTime(r.end_time)}`)}</td>
-      <td>${escapeHtml(r.lesson_type ?? '—')}</td>
-      <td>${escapeHtml(r.instructorName ?? '—')}</td>
-    </tr>
-  `).join('');
-
-  return `
-    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:14px">
-      <thead><tr><th>תאריך</th><th>יום</th><th>שעה</th><th>סוג</th><th>מדריך/ה</th></tr></thead>
-      <tbody>${body}</tbody>
-    </table>
-  `.trim();
-}
-
-export async function sendChildRemovalApprovedEmailViaGmailCF(params: {
-  tenantSchema: string;
-  to: string;
+type BuildArgs = {
+  kind: 'approved' | 'rejected';
   parentName: string;
   childName: string;
   farmName: string;
-  scheduledDeletionAtIso: string;
-  willHappen: any[];
-  willCancel: any[];
-  graceDays: number | null;
 
-  // בדיוק כמו חשבונית:
-  sendEmailGmailUrl: string;
-  internalCallSecret: string;
-}) {
-  const {
-    tenantSchema, to, parentName, childName, farmName,
-    scheduledDeletionAtIso, willHappen, willCancel, graceDays,
-    sendEmailGmailUrl, internalCallSecret
-  } = params;
+  // approved
+  scheduledDeletionAtIso?: string;
+  willHappen?: Array<any>;
+  willCancel?: Array<any>;
+  graceDays?: number | null;
 
-  const scheduledDate = scheduledDeletionAtIso.slice(0, 10);
-  const deletionHuman = new Date(scheduledDeletionAtIso).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' });
+  // rejected
+  decisionNote?: string | null;
+};
 
-  const subject = `אישור הסרת ילד – ${childName}`.trim();
+export function buildChildRemovalEmail(args: BuildArgs) {
+  const scheduledDate =
+    args.scheduledDeletionAtIso ? String(args.scheduledDeletionAtIso).slice(0, 10) : null;
 
-  const graceLine =
-    graceDays != null
-      ? `<p><b>המחיקה תתבצע בפועל בעוד:</b> ${escapeHtml(graceDays)} ימים</p>`
+  const subject =
+    args.kind === 'approved'
+      ? `עדכון מהחווה ${args.farmName}: מחיקת ילד/ה נקבעה`
+      : `עדכון מהחווה ${args.farmName}: בקשת מחיקת ילד/ה נדחתה`;
+
+  const decisionNoteHtml =
+    args.kind === 'rejected' && args.decisionNote
+      ? `<p><b>סיבת דחייה:</b> ${escapeHtml(args.decisionNote)}</p>`
+      : '';
+
+  const approvedBlock =
+    args.kind === 'approved'
+      ? `
+        <p>
+          תאריך מחיקה מתוכנן: <b>${escapeHtml(scheduledDate || '')}</b>${
+            args.graceDays != null ? ` ( ${args.graceDays} ימים)` : ''
+          }
+        </p>
+
+        <h4>שיעורים שיתקיימו עד המחיקה:</h4>
+        ${renderRows(args.willHappen ?? [])}
+
+        <h4>שיעורים שיבוטלו החל מהמחיקה:</h4>
+        ${renderRows(args.willCancel ?? [])}
+      `
       : '';
 
   const html = `
-    <div dir="rtl" style="font-family: Arial, sans-serif; line-height:1.6">
-      <p>שלום ${escapeHtml(parentName)},</p>
-      <p>בקשת הסרת הילד/ה <b>${escapeHtml(childName)}</b> אושרה.</p>
+  <div dir="rtl" style="font-family:Arial,sans-serif">
+    <p>שלום ${escapeHtml(args.parentName)},</p>
 
-      <p><b>תאריך מחיקה בפועל:</b> ${escapeHtml(deletionHuman)}<br/>
-      (מתאריך ${escapeHtml(scheduledDate)} והלאה השיעורים יבוטלו)</p>
+    <p>
+      ${
+        args.kind === 'approved'
+          ? `בקשת מחיקת הילד/ה <b>${escapeHtml(args.childName)}</b> אושרה.`
+          : `בקשת מחיקת הילד/ה <b>${escapeHtml(args.childName)}</b> נדחתה.`
+      }
+    </p>
 
-      ${graceLine}
+    ${decisionNoteHtml}
+    ${approvedBlock}
 
-      <hr/>
+    <p>בברכה,<br/>${escapeHtml(args.farmName)}</p>
+  </div>`.trim();
 
-      <h3 style="margin:12px 0 6px">שיעורים שעדיין ניתן להגיע אליהם</h3>
-      ${renderTable(willHappen) || `<p>אין שיעורים נוספים לפני תאריך המחיקה.</p>`}
+  const decisionNoteText =
+    args.kind === 'rejected' && args.decisionNote ? `סיבת דחייה: ${args.decisionNote}\n` : '';
 
-      <h3 style="margin:12px 0 6px">שיעורים שיתבטלו החל מתאריך המחיקה</h3>
-      ${renderTable(willCancel) || `<p>אין שיעורים שיתבטלו.</p>`}
+  const text =
+    `${subject}\n\n` +
+    `שלום ${args.parentName}\n` +
+    (args.kind === 'approved'
+      ? `בקשת מחיקת הילד/ה ${args.childName} אושרה.${
+          scheduledDate ? ` תאריך מחיקה: ${scheduledDate}` : ''
+        }\n`
+      : `בקשת מחיקת הילד/ה ${args.childName} נדחתה.\n`) +
+    decisionNoteText +
+    `\n${args.farmName}`;
 
-      <p style="margin-top:16px">תודה,<br/>חוות ${escapeHtml(farmName)}</p>
-    </div>
-  `.trim();
+  return { subject, html, text };
+}
 
-  const payload: any = {
-    tenantSchema,
-    to: [to],
-    subject,
-    html,
-  };
+function renderRows(rows: any[]) {
+  if (!rows?.length) return `<p>—</p>`;
+  const lis = rows
+    .map(
+      r =>
+        `<li>${escapeHtml(String(r.occur_date))} ${escapeHtml(String(r.start_time))}-${escapeHtml(
+          String(r.end_time)
+        )} | ${escapeHtml(String(r.lesson_type ?? '—'))} | ${escapeHtml(String(r.instructorName ?? '—'))}</li>`
+    )
+    .join('');
+  return `<ul>${lis}</ul>`;
+}
 
-  const resp = await fetch(sendEmailGmailUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-internal-secret': internalCallSecret,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const json: any = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    throw new Error(`sendEmailGmail failed: ${json?.message || json?.error || resp.statusText}`);
-  }
-
-  return json;
+function escapeHtml(s: string) {
+  return String(s ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }

@@ -4,11 +4,14 @@ import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
+// ❌ להסיר: sendChildRemovalEmailViaGmailCF
+// import { sendChildRemovalEmailViaGmailCF } from './send-child-removal-email';
+
 import { SUPABASE_URL_S, SUPABASE_KEY_S } from './gmail/email-core';
 
-// ✅ חדש: builder + notify client
-import { buildChildRemovalEmail } from './send-child-removal-email'; // שימי את הנתיב לפי המיקום אצלך
-import { notifyUserInternal } from './notify-user-client'; // שימי את הנתיב לפי המיקום אצלך
+// ✅ חדש: builder + notify client (תעדכני נתיבים לפי המבנה שלך)
+import { buildChildRemovalEmail } from './send-child-removal-email';
+import { notifyUserInternal } from './notify-user-client';
 
 const ALLOWED_ORIGINS = new Set<string>([
   'https://smart-farm.org',
@@ -30,7 +33,7 @@ function applyCors(req: any, res: any): boolean {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Authorization, Content-Type, X-Requested-With, X-Internal-Secret'
+    'Authorization, Content-Type, X-Requested-With, X-Internal-Secret, x-internal-secret'
   );
 
   if (req.method === 'OPTIONS') {
@@ -46,30 +49,41 @@ const INTERNAL_CALL_SECRET_S = defineSecret('INTERNAL_CALL_SECRET');
 function envOrSecret(s: ReturnType<typeof defineSecret>, name: string) {
   return s.value() || process.env[name];
 }
+
 function timingSafeEq(a: string, b: string) {
   const ba = Buffer.from(a);
   const bb = Buffer.from(b);
   return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
 }
+
 function isInternalCall(req: any): boolean {
   const secret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
   const got = String(req.headers['x-internal-secret'] || req.headers['X-Internal-Secret'] || '');
   return !!(secret && got && timingSafeEq(got, secret));
 }
 
-export const approveRemoveChildAndNotify = onRequest(
+async function requireAuth(req: any) {
+  const auth = req.headers.authorization || '';
+  const m = auth.match(/^Bearer (.+)$/);
+  if (!m) throw new Error('Missing Bearer token');
+  return admin.auth().verifyIdToken(m[1]);
+}
+
+export const rejectRemoveChildAndNotify = onRequest(
   {
     region: 'us-central1',
     secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, INTERNAL_CALL_SECRET_S],
   },
   async (req, res) => {
+    if (applyCors(req, res)) return;
+
     try {
-      if (applyCors(req, res)) return;
-      if (req.method !== 'POST') return void res.status(405).json({ error: 'Method not allowed' });
+      if (req.method !== 'POST') {
+        return void res.status(405).json({ error: 'Method not allowed' });
+      }
 
-      // ✅ אל תקראי requireAuth פעמיים
+      // auth: פנימי או Bearer
       let decidedByUid: string | null = null;
-
       if (!isInternalCall(req)) {
         const decoded = await requireAuth(req);
         decidedByUid = decoded?.uid ?? null;
@@ -80,6 +94,9 @@ export const approveRemoveChildAndNotify = onRequest(
       const childId = String(body.childId || '').trim();
       const requestId = String(body.requestId || '').trim();
       const tenantId = String(body.tenantId || '').trim();
+
+      const decisionNoteRaw = body.decisionNote ?? body.decision_note ?? null;
+      const decisionNote = decisionNoteRaw == null ? null : String(decisionNoteRaw).trim();
 
       if (!tenantSchema) return void res.status(400).json({ error: 'Missing tenantSchema' });
       if (!childId) return void res.status(400).json({ error: 'Missing childId' });
@@ -92,13 +109,7 @@ export const approveRemoveChildAndNotify = onRequest(
       const sbTenant = createClient(url, key, { db: { schema: tenantSchema } });
       const sbPublic = createClient(url, key, { db: { schema: 'public' } });
 
-      const { data: fsRow, error: fsErr } = await sbTenant
-        .from('farm_settings')
-        .select('child_deletion_grace_days')
-        .limit(1)
-        .maybeSingle();
-      if (fsErr) throw fsErr;
-
+      // שם חווה
       const { data: farmRow, error: farmErr } = await sbPublic
         .from('farms')
         .select('name')
@@ -108,27 +119,13 @@ export const approveRemoveChildAndNotify = onRequest(
 
       const farmName = String(farmRow?.name ?? 'החווה').trim() || 'החווה';
 
-      const graceDaysRaw = fsRow?.child_deletion_grace_days;
-      const graceDays = graceDaysRaw == null ? null : Number(graceDaysRaw);
-      if (graceDays != null && !Number.isFinite(graceDays)) {
-        throw new Error('Invalid child_deletion_grace_days in farm_settings');
-      }
-
-      // 1) schedule deletion
-      const { data: scheduledIso, error: schErr } = await sbTenant.rpc('schedule_child_deletion', {
-        p_child_id: childId,
-      });
-      if (schErr) throw schErr;
-      if (!scheduledIso) throw new Error('schedule_child_deletion returned empty scheduledDeletionAt');
-
-      const scheduledDate = String(scheduledIso).slice(0, 10);
-
-      // 2) update request approved
+      // 1) לעדכן סטטוס בקשה ל-REJECTED
       const updatePayload: any = {
-        status: 'APPROVED',
+        status: 'REJECTED',
         decided_at: new Date().toISOString(),
       };
       if (decidedByUid) updatePayload.decided_by_uid = decidedByUid;
+      if (decisionNote) updatePayload.decision_note = decisionNote;
 
       const { data: upd, error: updErr } = await sbTenant
         .from('secretarial_requests')
@@ -137,8 +134,8 @@ export const approveRemoveChildAndNotify = onRequest(
         .eq('status', 'PENDING')
         .select('id,status')
         .maybeSingle();
-      if (updErr) throw updErr;
 
+      if (updErr) throw updErr;
       if (!upd) {
         return void res.status(409).json({
           ok: false,
@@ -146,7 +143,30 @@ export const approveRemoveChildAndNotify = onRequest(
         });
       }
 
-      // 3) fetch child + parent
+      // אם לא הגיע decisionNote ב-body, נשלוף מה-row
+      let decisionNoteFinal = decisionNote;
+      if (!decisionNoteFinal) {
+        const { data: noteRow, error: noteErr } = await sbTenant
+          .from('secretarial_requests')
+          .select('decision_note')
+          .eq('id', requestId)
+          .maybeSingle();
+        if (noteErr) throw noteErr;
+        decisionNoteFinal = String(noteRow?.decision_note ?? '').trim() || null;
+      }
+
+      // 2) להחזיר ילד ל-Active + ניקוי שדות מחיקה
+      const { error: childUpdErr } = await sbTenant
+        .from('children')
+        .update({
+          status: 'Active',
+          deletion_requested_at: null,
+          scheduled_deletion_at: null,
+        })
+        .eq('child_uuid', childId);
+      if (childUpdErr) throw childUpdErr;
+
+      // 3) להביא ילד + הורה (רק לשם + uid)
       const { data: childRow, error: childErr } = await sbTenant
         .from('children')
         .select('parent_uid, first_name, last_name')
@@ -156,7 +176,8 @@ export const approveRemoveChildAndNotify = onRequest(
       if (!childRow?.parent_uid) throw new Error('Child missing parent_uid');
 
       const childName =
-        `${(childRow.first_name ?? '').trim()} ${(childRow.last_name ?? '').trim()}`.trim() || 'הילד/ה';
+        `${String(childRow.first_name ?? '').trim()} ${String(childRow.last_name ?? '').trim()}`.trim() ||
+        'הילד/ה';
 
       const { data: parentRow, error: parErr } = await sbTenant
         .from('parents')
@@ -169,8 +190,9 @@ export const approveRemoveChildAndNotify = onRequest(
         `${String(parentRow?.first_name ?? '').trim()} ${String(parentRow?.last_name ?? '').trim()}`.trim() ||
         'הורה';
 
-      // 4) fetch occurrences
+      // 4) (אופציונלי) להביא שיעורים עתידיים — נשאר אצלך כמו שהיה
       const todayIso = new Date().toISOString().slice(0, 10);
+
       const { data: occData, error: occErr } = await sbTenant
         .from('lessons_occurrences')
         .select('occur_date, day_of_week, start_time, end_time, lesson_type, status, instructor_id')
@@ -183,7 +205,7 @@ export const approveRemoveChildAndNotify = onRequest(
 
       const occ = (occData ?? []) as any[];
 
-      // 5) fetch instructors names
+      // שמות מדריכים
       const instructorIds = Array.from(new Set(occ.map(o => o.instructor_id).filter(Boolean)));
       const instMap = new Map<string, { first_name: string | null; last_name: string | null }>();
 
@@ -202,7 +224,7 @@ export const approveRemoveChildAndNotify = onRequest(
       const fullName = (f?: string | null, l?: string | null) =>
         `${(f ?? '').trim()} ${(l ?? '').trim()}`.trim() || '—';
 
-      const rows = occ.map(o => {
+      const upcomingRows = occ.map(o => {
         const ins = instMap.get(o.instructor_id);
         return {
           occur_date: o.occur_date,
@@ -211,24 +233,21 @@ export const approveRemoveChildAndNotify = onRequest(
           end_time: o.end_time,
           lesson_type: o.lesson_type ?? '—',
           instructorName: fullName(ins?.first_name, ins?.last_name),
-          willCancel: String(o.occur_date) >= scheduledDate,
         };
       });
 
-      const willHappen = rows.filter(r => !r.willCancel);
-      const willCancel = rows.filter(r => r.willCancel);
-
-      // ✅ 6) build + notify via notifyUser
+      // ✅ 5) build + notify via notifyUser (במקום sendEmailGmail)
       const { subject, html, text } = buildChildRemovalEmail({
-        kind: 'approved',
+        kind: 'rejected',
         parentName,
         childName,
         farmName,
-        scheduledDeletionAtIso: String(scheduledIso),
-        willHappen,
-        willCancel,
-        graceDays,
-      });
+        scheduledDeletionAtIso: '', // לא רלוונטי לדחייה; אפשר להשאיר '' או לעדכן builder שיקבל optional
+        willHappen: upcomingRows,   // אם את מציגה “השיעורים ממשיכים כרגיל”
+        willCancel: [],
+        graceDays: null,
+        decisionNote: decisionNoteFinal, // ✅ חשוב לדחייה
+      } as any);
 
       const notifyRes = await notifyUserInternal({
         tenantSchema,
@@ -241,21 +260,11 @@ export const approveRemoveChildAndNotify = onRequest(
         forceEmail: true,
       });
 
-      return void res.status(200).json({
-        ok: true,
-        scheduledDeletionAt: scheduledIso,
-        mail: notifyRes,
-      });
+      return void res.status(200).json({ ok: true, mail: notifyRes });
     } catch (e: any) {
-      console.error('approveRemoveChildAndNotify error', e);
+      applyCors(req, res);
+      console.error('rejectRemoveChildAndNotify error', e);
       return void res.status(500).json({ error: 'Internal error', message: e?.message || String(e) });
     }
   }
 );
-
-async function requireAuth(req: any) {
-  const auth = req.headers.authorization || '';
-  const m = auth.match(/^Bearer (.+)$/);
-  if (!m) throw new Error('Missing Bearer token');
-  return admin.auth().verifyIdToken(m[1]);
-}

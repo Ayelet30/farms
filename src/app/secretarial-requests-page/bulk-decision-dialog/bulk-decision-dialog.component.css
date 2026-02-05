@@ -1,0 +1,274 @@
+.bulk-dialog {
+  width: min(980px, 92vw);
+  max-height: min(82vh, 760px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-x: hidden;   /* 🔒 חוסם גלילה הצידה */
+
+}
+
+.bulk-head {
+  padding: 8px 4px 0;
+}
+
+.bulk-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #1f2a2e;
+}
+
+.bulk-sub {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #5a6a6f;
+}
+
+/* reason */
+.bulk-reason {
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.bulk-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #1f2a2e;
+}
+
+.bulk-textarea {
+  width: 100%;
+  border: 1px solid rgba(0,0,0,0.14);
+  border-radius: 12px;
+  padding: 10px 12px;
+  outline: none;
+  font-size: 14px;
+  resize: vertical;
+  background: #fcfcfc;
+    max-width: 100%;
+  box-sizing: border-box; /* ✅ חובה */
+
+}
+
+
+.bulk-textarea:focus {
+  border-color: rgba(0,0,0,0.28);
+  background: #fff;
+}
+
+.bulk-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #b42318;
+}
+.mat-mdc-dialog-container {
+  overflow-x: hidden !important;
+}
+
+/* table */
+.bulk-table-wrap {
+  overflow: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: #fff;
+}
+
+.bulk-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  min-width: 820px;
+}
+
+.bulk-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f7f7f8;
+  z-index: 1;
+  text-align: right;
+  font-size: 12px;
+  color: #4a5a60;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+.bulk-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  vertical-align: top;
+}
+
+.col-type { width: 150px; }
+.col-req { width: 190px; }
+.col-date { width: 120px; }
+.col-status { width: 110px; }
+.col-details { width: auto; }
+
+.cell-main {
+  font-size: 14px;
+  color: #1f2a2e;
+  font-weight: 650;
+}
+
+.cell-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7b81;
+  line-height: 1.25;
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.type-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.06);
+  color: #1f2a2e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  background: rgba(0,0,0,0.06);
+  color: #1f2a2e;
+}
+
+.status-chip.pending {
+  background: rgba(255, 186, 8, 0.18);
+  color: #6a4c00;
+}
+
+/* mobile cards */
+.bulk-cards {
+  display: grid;
+  gap: 10px;
+  padding: 2px;
+
+  overflow-y: auto;
+  overflow-x: hidden;   /* 🔒 אין גלילה הצידה */
+}
+
+.bulk-card {
+  border: 1px solid rgba(0,0,0,0.08);
+  background: #fff;
+  border-radius: 16px;
+  padding: 12px;
+   width: 100%;
+  box-sizing: border-box;
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.card-row {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  color: #1f2a2e;
+  margin-top: 4px;
+}
+
+.card-row .k {
+  color: #6b7b81;
+  font-weight: 700;
+}
+
+.card-summary {
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2a2e;
+}
+
+.card-meta {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #6b7b81;
+}
+
+/* actions – same vibe as your appt-cta */
+.bulk-actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.appt-cta {
+  border: 0;
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-weight: 800;
+  cursor: pointer;
+  background: #1f7a5b;
+  color: #fff;
+}
+
+.appt-cta.danger {
+  background: #c62828;
+}
+
+.appt-cta.ghost {
+  background: #eef1f2;
+  color: #1f2a2e;
+}
+
+.appt-cta:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.bulk-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.bulk-body::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+}
+.bulk-dialog {
+  max-height: 90vh;              /* גובה מקסימלי למסך */
+  display: flex;
+  flex-direction: column;
+}
+
+/* אזור גולל */
+.bulk-body {
+  overflow-y: auto;
+  padding: 12px 0;
+  flex: 1;  
+    overflow-x: hidden;   /* 🔒 חובה */
+                     /* תופס את כל הגובה הפנוי */
+}
+
+/* הכותרת והכפתורים לא גוללים */
+.bulk-head {
+  flex-shrink: 0;
+}
+
+.bulk-actions {
+  flex-shrink: 0;
+  border-top: 1px solid rgba(0,0,0,0.08);
+  padding-top: 12px;
+  background: #faf7ef;           /* כמו אצלך */
+}

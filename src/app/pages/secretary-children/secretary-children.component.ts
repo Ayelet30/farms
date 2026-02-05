@@ -130,6 +130,8 @@ referralFiles: {
   ) {}
 
   async ngOnInit(): Promise<void> {
+    console.log(this.router.config);
+
     try {
       await ensureTenantContextReady();
       await this.loadChildren();
@@ -141,6 +143,24 @@ referralFiles: {
       console.error(e);
     }
   }
+  goToChildLessonsHistory() {
+  if (!this.drawerChild?.child_uuid) {
+    this.ui.alert('לא ניתן לעבור להיסטוריית שיעורים – ילד לא מזוהה', 'שיעורים');
+    return;
+  }
+
+this.router.navigate(
+  ['/secretary/monthly-summary'],
+  {
+    queryParams: {
+      childId: this.drawerChild.child_uuid,
+      fromChild: true,
+    },
+  }
+);
+
+}
+
 goToParentPaymentsFromChild() {
   const parentUid = this.drawerChild?.parent_uid;
   if (!parentUid) {
@@ -477,10 +497,10 @@ goToParentPaymentsFromChild() {
     this.referralFiles = [];
   } finally {
     this.referralsLoading = false;
-  }
+ 
 }
 
-
+}
 
   /** פותח PDF של התקנון בדיאלוג */
   async openTermsPdf() {

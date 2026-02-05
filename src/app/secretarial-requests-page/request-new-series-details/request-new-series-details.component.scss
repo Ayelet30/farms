@@ -1,105 +1,120 @@
-.page { padding: 16px; }
-.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.list { display: grid; gap: 12px; margin-top: 12px; }
-.card { background: #fff; border: 1px solid #e6e6e6; border-radius: 12px; padding: 12px; }
-.row { display: grid; grid-template-columns: 110px 1fr; gap: 10px; padding: 4px 0; }
-.label { opacity: .7; }
-.note { width: 100%; min-height: 64px; margin-top: 10px; padding: 10px; border-radius: 10px; border: 1px solid #e6e6e6; }
-.actions { display: flex; gap: 10px; margin-top: 10px; }
-.btn { padding: 10px 14px; border-radius: 10px; border: 1px solid #d0d0d0; background: #fff; cursor: pointer; }
-.btn:disabled { opacity: .6; cursor: not-allowed; }
-.approve { border-color: #2e7d32; }
-.reject { border-color: #c62828; }
-.err { color: #c62828; margin-top: 10px; }
-.empty { opacity: .7; margin-top: 18px; }
-.mini-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 12px;
-  font-size: 14px;
+.wrap{
+  display: grid;
+  gap: 10px;
+}
+
+.head{
+  display: grid;
+  gap: 4px;
+  padding: 6px 4px;
+}
+
+.title{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 900;
+  color: #1f3a2a;
+}
+
+.ico{ transform: scale(1.05); }
+
+.card{
+  border: 1px solid #cdd6bf;
   background: #fff;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 6px 14px rgba(0,0,0,.05);
 }
 
-.mini-table thead {
-  background: #f5f7fa;
+.row{
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed #e6ecdd;
+}
+.row:last-child{ border-bottom: none; }
+
+.k{
+  font-weight: 900;
+  color: #586141;
 }
 
-.mini-table th,
-.mini-table td {
-  white-space: normal;        // מאפשר ירידת שורה
-  word-break: break-word;     // שוברת מילים ארוכות
-  overflow-wrap: anywhere;    // שובר גם מחרוזות בלי רווחים
-  vertical-align: top;        // שהטקסט יתחיל למעלה
+.v{
+  font-weight: 800;
+  color: #2b2b2b;
+  word-break: break-word;
 }
 
-.mini-table th {
-  font-weight: 600;
-  color: #333;
-  border-left: 1px solid #e6e8eb;
-}
+.v.strong{ color: #1f3a2a; }
 
-.mini-table td {
-  color: #444;
-  border-left: 1px solid #f0f1f3;
-}
-
-.mini-table th:last-child,
-.mini-table td:last-child {
-  border-left: none;
-}
-
-/* zebra rows */
-.mini-table tbody tr:nth-child(even) {
-  background: #fafbfc;
-}
-
-/* hover */
-.mini-table tbody tr:hover {
-  background: #eef5ff;
-}
-
-/* אייקונים בהערות */
-.mini-table td span {
-  display: inline-block;
-  margin-left: 6px;
+.meta{
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eef1ea;
+  display: grid;
+  gap: 6px;
   font-size: 13px;
-  white-space: normal;
-}
-.card.subtle {
-  background: #f9fafb;
-  border: 1px solid #e6e8eb;
-  border-radius: 10px;
-  padding: 12px 14px;
+  color: #586141;
+  font-weight: 800;
 }
 
-.card.subtle .row {
-  margin-bottom: 8px;
-  font-weight: 500;
+.mk{
+  font-weight: 900;
+  color: #2b2b2b;
+  margin-left: 6px;
 }
 
-/* שלא ישבר "מין" ו"גיל" */
-.mini-table th.col-gender,
-.mini-table td.col-gender,
-.mini-table th.col-age,
-.mini-table td.col-age {
-  white-space: nowrap;     // לא לשבור לאותיות
-  word-break: normal;
-  overflow-wrap: normal;
-  text-align: center;      // נראה יותר טוב לעמודות קצרות
-  width: 72px;             // אפשר לשנות
-  min-width: 72px;
+.actions{
+  display: flex;
+  gap: 10px;
+  justify-content: flex-start;
+  margin-top: 12px;
 }
 
-/* טיפה פחות לעמודת גיל אם בא לך */
-.mini-table th.col-age,
-.mini-table td.col-age {
-  width: 60px;
-  min-width: 60px;
+/* כפתורי Material – התאמה למראה המערכת */
+.action{
+  font-weight: 900;
+  border-radius: 12px !important;
+  padding: 10px 16px !important;
 }
-.child-status-alert {
+
+/* דחייה - קו אדום עדין */
+.action.reject{
+  border-color: #f3b3b3 !important;
+  color: #b91c1c !important;
+  background: #fff !important;
+}
+
+/* אישור - ירוק עדין בסגנון מערכת */
+.action.approve{
+  background: #8a9362 !important;
+  color: #fff !important;
+}
+
+/* textarea כמו אצלך */
+.note{
+  width: 100%;
+  min-height: 64px;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid #e6ecdd;
+  font-weight: 800;
+}
+
+.hint{
+  font-size: 12px;
+  font-weight: 800;
+  color: #8a9362;
+}
+.hint.error{
+  color: #b91c1c;
+}
+
+/* banner */
+.child-status-alert{
   margin: 12px 0;
   padding: 10px 12px;
   border-radius: 10px;
@@ -108,4 +123,80 @@
   color: #a40000;
   font-weight: 700;
   line-height: 1.35;
+}
+
+/* רשימות דילוגים */
+.list-inline{
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.list-inline li{
+  border: 1px solid #e6ecdd;
+  background: #f7f9f4;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 13px;
+  color: #2b2b2b;
+}
+
+/* subcard (משתתפים) */
+.subcard{
+  margin-top: 10px;
+  border: 1px solid #e6ecdd;
+  border-radius: 12px;
+  padding: 10px;
+  background: #f9fafb;
+}
+
+/* “טבלה” כמו remain-box אבל מותאם למשתתפים */
+.mini-box{
+  margin-top: 10px;
+  border: 1px solid #e6ecdd;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.mini-head, .mini-row{
+  display: grid;
+  grid-template-columns: 1.3fr .6fr .6fr 1.6fr;
+  gap: 8px;
+  padding: 10px 10px;
+  align-items: start;
+}
+
+.mini-head{
+  background: #f7f9f4;
+  font-weight: 900;
+  color: #586141;
+  border-bottom: 1px solid #e6ecdd;
+}
+
+.mini-row{
+  border-bottom: 1px dashed #e6ecdd;
+  font-weight: 800;
+  color: #2b2b2b;
+}
+
+.mini-row:last-child{ border-bottom: none; }
+
+.cell{
+  min-width: 0;
+  word-break: break-word;
+}
+
+.c{
+  text-align: center;
+  white-space: nowrap;
+}
+
+.notes-cell span{
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 13px;
 }

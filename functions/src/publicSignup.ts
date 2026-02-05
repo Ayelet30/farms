@@ -1,18 +1,17 @@
+
 import { onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import * as admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
-
-
+import fetch from 'node-fetch'; // ✅ חדש
 
 if (!admin.apps.length) admin.initializeApp();
 
 // ===== Secrets =====
 const SUPABASE_URL_S = defineSecret('SUPABASE_URL');
 const SUPABASE_KEY_S = defineSecret('SUPABASE_SERVICE_KEY');
-
 const SMTP_HOST_S = defineSecret('SMTP_HOST');
 const SMTP_PORT_S = defineSecret('SMTP_PORT');
 const SMTP_USER_S = defineSecret('SMTP_USER');
@@ -25,7 +24,6 @@ const ALLOWED_ORIGINS = new Set<string>([
   'https://smart-farm.org',
   'https://bereshit-ac5d8.web.app',
   'http://localhost:4200',
-  
 ]);
 
 function cors(req: any, res: any) {
@@ -35,7 +33,10 @@ function cors(req: any, res: any) {
     res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // ✅ חשוב: להוסיף X-Internal-Secret כדי שנוכל לקרוא ל-notifyUser
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Internal-Secret');
+
   if (req.method === 'OPTIONS') {
     res.status(204).send('');
     return true;
@@ -62,9 +63,7 @@ export const publicCreateParentSignupRequest = onRequest(
       if (cors(req, res)) return;
 
       if (req.method !== 'POST') {
-        res
-          .status(405)
-          .json({ error: 'Method not allowed' });
+        res.status(405).json({ error: 'Method not allowed' });
         return;
       }
 
@@ -99,7 +98,7 @@ export const publicCreateParentSignupRequest = onRequest(
         res.status(400).json({ error: 'Missing fields', missing });
         return;
       }
-      if (!isEmail(email)){
+      if (!isEmail(email)) {
         res.status(400).json({ error: 'Invalid email' });
         return;
       }
@@ -107,26 +106,29 @@ export const publicCreateParentSignupRequest = onRequest(
         res.status(400).json({ error: 'Invalid phone' });
         return;
       }
-      if (!/^\d{9}$/.test(id_number)){
+      if (!/^\d{9}$/.test(id_number)) {
         res.status(400).json({ error: 'Invalid id_number' });
         return;
       }
 
-      // מיפוי farmCode -> schema (אצלך זה כבר multi-tenant; כאן אני עושה allowlist פשוט)
-      // אם רק בראשית: פשוט תקבעי schema קבוע.
-      const schema = farmCode === 'bereshit' ? 'bereshit_farm' : farmCode === 'bereshitfarm' ? 'bereshit_farm' : farmCode === 'bereshit_farm' ? 'bereshit_farm' : '';
-      if (!schema){
-        res.status(400).json({ error: 'Unknown farmCode' }); 
-        return;   
-      } 
+      const schema =
+        farmCode === 'bereshit'
+          ? 'bereshit_farm'
+          : farmCode === 'bereshitfarm'
+          ? 'bereshit_farm'
+          : farmCode === 'bereshit_farm'
+          ? 'bereshit_farm'
+          : '';
 
-      const sb = createClient(
-        SUPABASE_URL_S.value(),
-        SUPABASE_KEY_S.value(),
-        { auth: { persistSession: false } }
-      );
+      if (!schema) {
+        res.status(400).json({ error: 'Unknown farmCode' });
+        return;
+      }
 
-      // שומרים כבקשה למזכירה – הכל בתוך payload
+      const sb = createClient(SUPABASE_URL_S.value(), SUPABASE_KEY_S.value(), {
+        auth: { persistSession: false },
+      });
+
       const payload = {
         first_name,
         last_name,
@@ -140,7 +142,7 @@ export const publicCreateParentSignupRequest = onRequest(
         public_meta: {
           origin: req.headers.origin || null,
           user_agent: req.headers['user-agent'] || null,
-          ip: (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || null),
+          ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || null,
         },
       };
 
@@ -148,7 +150,7 @@ export const publicCreateParentSignupRequest = onRequest(
         .schema(schema)
         .from('secretarial_requests')
         .insert({
-          request_type: 'PARENT_SIGNUP',   // ← אם זה enum ולא קיים – תוסיפי ערך (SQL למטה)
+          request_type: 'PARENT_SIGNUP',
           status: 'PENDING',
           requested_by_uid: 'PUBLIC',
           requested_by_role: 'parent',
@@ -162,19 +164,20 @@ export const publicCreateParentSignupRequest = onRequest(
         .select('id')
         .single();
 
-    if (error) {
-  console.error('supabase insert error', error);
-  res.status(500).json({
-    error: 'DB insert failed',
-    message: error.message,
-    details: (error as any).details,
-    hint: (error as any).hint,
-    code: (error as any).code,
-  });
-    return;
-}
-       res.status(200).json({ ok: true, id: data?.id });
-       return;
+      if (error) {
+        console.error('supabase insert error', error);
+        res.status(500).json({
+          error: 'DB insert failed',
+          message: error.message,
+          details: (error as any).details,
+          hint: (error as any).hint,
+          code: (error as any).code,
+        });
+        return;
+      }
+
+      res.status(200).json({ ok: true, id: data?.id });
+      return;
     } catch (e: any) {
       console.error(e);
       res.status(500).json({ error: e?.message || 'Unknown error' });
@@ -182,7 +185,6 @@ export const publicCreateParentSignupRequest = onRequest(
     }
   }
 );
-
 
 function genTempPassword(len = 8): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -199,10 +201,8 @@ async function requireSecretary(req: any, sb: any, tenant_id: string | null) {
   const decoded = await admin.auth().verifyIdToken(m[1]);
   const uid = decoded.uid;
 
-  // אם לא שלחת tenant_id – אין דרך לדעת הרשאות -> תחזירי 400
   if (!tenant_id) throw new HttpsError('invalid-argument', 'Missing tenant_id');
 
-  // בדיקת הרשאה ב-public.tenant_users
   const { data, error } = await sb
     .from('tenant_users')
     .select('role_in_tenant,is_active')
@@ -212,10 +212,9 @@ async function requireSecretary(req: any, sb: any, tenant_id: string | null) {
     .maybeSingle();
 
   if (error) throw new Error(`tenant_users lookup failed: ${error.message}`);
-
   if (!data?.is_active) throw new HttpsError('permission-denied', 'Forbidden');
 
-  return decoded; // מחזירים uid וכו'
+  return decoded;
 }
 
 async function sendMail(to: string, subject: string, html: string, text?: string) {
@@ -235,51 +234,50 @@ async function sendMail(to: string, subject: string, html: string, text?: string
   });
 }
 
-const envOrSecret = (s: ReturnType<typeof defineSecret>, name: string) =>
-  s.value() || process.env[name];
+const envOrSecret = (s: ReturnType<typeof defineSecret>, name: string) => s.value() || process.env[name];
 
-async function callSendEmailGmail(args: {
+async function callNotifyUser(args: {
   tenantSchema: string;
-  to: string[];
+  userType: 'parent' | 'instructor';
+  uid: string;
+
   subject: string;
-  html?: string;
-  text?: string;
-  attachments?: Array<{ filename: string; contentType?: string; content: Buffer }>;
+  html: string;
+
+  category?: string | null;
+  forceEmail?: boolean;
 }) {
   const internalSecret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
   if (!internalSecret) throw new Error('Missing INTERNAL_CALL_SECRET');
 
-  const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/sendEmailGmail';
+  const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifyUser';
 
-  const body: any = {
+  const body = {
     tenantSchema: args.tenantSchema,
-    to: args.to,
+    userType: args.userType,
+    uid: args.uid,
+    category: args.category ?? null,
     subject: args.subject,
     html: args.html,
-    text: args.text,
-    attachments: (args.attachments || []).map(a => ({
-      filename: a.filename,
-      contentType: a.contentType,
-      contentBase64: a.content.toString('base64'),
-    })),
+    forceEmail: args.forceEmail === true,
   };
 
   const r = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-internal-secret': internalSecret,
+      // ✅ חשוב: תואם ל-notifyUser ול-sendEmailGmail (X-Internal-Secret)
+      'X-Internal-Secret': internalSecret,
     },
     body: JSON.stringify(body),
   });
 
   const json = await r.json().catch(() => ({}));
   if (!r.ok) {
-    throw new Error(`sendEmailGmail failed: ${r.status} ${JSON.stringify(json)}`);
+    throw new Error(`notifyUser failed: ${r.status} ${JSON.stringify(json)}`);
   }
   return json;
 }
-
 
 export const approveParentSignupRequest = onRequest(
   {
@@ -293,7 +291,6 @@ export const approveParentSignupRequest = onRequest(
       SMTP_PASS_S,
       MAIL_FROM_S,
       INTERNAL_CALL_SECRET_S,
-
     ],
   },
   async (req, res) => {
@@ -306,22 +303,18 @@ export const approveParentSignupRequest = onRequest(
 
       const sb = createClient(SUPABASE_URL_S.value(), SUPABASE_KEY_S.value(), {
         auth: { persistSession: false },
-        });
+      });
 
-        const tenant_id = normStr(req.body?.tenant_id, 80) || null;
+      const tenant_id = normStr(req.body?.tenant_id, 80) || null;
+      const decidedBy = await requireSecretary(req, sb, tenant_id);
 
-        // במקום requireAuth(req):
-        const decidedBy = await requireSecretary(req, sb, tenant_id);
-
-
-      const schema = normStr(req.body?.schema, 60);     
-      const requestId = normStr(req.body?.requestId, 80); // uuid
+      const schema = normStr(req.body?.schema, 60);
+      const requestId = normStr(req.body?.requestId, 80);
       if (!schema || !requestId) {
         res.status(400).json({ error: 'Missing schema/requestId' });
         return;
       }
 
-      // 1) מביאים את הבקשה + payload
       const { data: reqRow, error: reqErr } = await sb
         .schema(schema)
         .from('secretarial_requests')
@@ -356,16 +349,14 @@ export const approveParentSignupRequest = onRequest(
         return;
       }
 
-      // 2) יצירת/איתור משתמש בפיירבייס
       let uid = '';
       let tempPassword = '';
 
       try {
         const user = await admin.auth().getUserByEmail(email);
         uid = user.uid;
-        tempPassword = ''; // משתמש קיים: לא מאפסים סיסמה אוטומטית
+        tempPassword = '';
       } catch (e: any) {
-        // לא קיים -> יוצרים
         tempPassword = genTempPassword(8);
         const created = await admin.auth().createUser({
           email,
@@ -375,17 +366,12 @@ export const approveParentSignupRequest = onRequest(
         uid = created.uid;
       }
 
-      // 3) upsert ל-public.users
       const { error: upUsersErr } = await sb
         .from('users')
-        .upsert({ uid, email, role: "parent", phone: phone || null }, { onConflict: 'uid' });
-
+        .upsert({ uid, email, role: 'parent', phone: phone || null }, { onConflict: 'uid' });
       if (upUsersErr) throw new Error(`public.users upsert failed: ${upUsersErr.message}`);
 
-      // 4) tenant_users (אם יש tenant_id)
-      // אם אין לך tenant_id בבקשה – עדיף להכניס אותו כבר בעת יצירת הבקשה הציבורית.
       if (tenant_id) {
-        // כאן כדאי לקחת role_id מהטננט, אבל אם את מחזיקה role_id בטבלת role בטננט, אפשר להביא דרך schema
         let parentRoleId: number | null = null;
         const roleRes = await sb.schema(schema).from('role').select('id').eq('table', 'parents').maybeSingle();
         parentRoleId = (roleRes.data?.id as any) ?? null;
@@ -393,21 +379,12 @@ export const approveParentSignupRequest = onRequest(
         const { error: tuErr } = await sb
           .from('tenant_users')
           .upsert(
-            {
-              tenant_id,
-              uid,
-              role_in_tenant: 'parent',
-              role_id: parentRoleId,
-              is_active: true,
-            },
+            { tenant_id, uid, role_in_tenant: 'parent', role_id: parentRoleId, is_active: true },
             { onConflict: 'tenant_id,uid,role_in_tenant' }
           );
-
         if (tuErr) throw new Error(`public.tenant_users upsert failed: ${tuErr.message}`);
       }
 
-      // 5) insert ל-parents בטננט
-      // אם כבר קיים (אותו uid) – אפשר upsert במקום insert
       const { error: parentErr } = await sb
         .schema(schema)
         .from('parents')
@@ -426,10 +403,8 @@ export const approveParentSignupRequest = onRequest(
           },
           { onConflict: 'uid' }
         );
-
       if (parentErr) throw new Error(`parents upsert failed: ${parentErr.message}`);
 
-      // 6) עדכון הבקשה ל-APPROVED
       const { error: updErr } = await sb
         .schema(schema)
         .from('secretarial_requests')
@@ -438,7 +413,6 @@ export const approveParentSignupRequest = onRequest(
           decided_by_uid: String(decidedBy.uid),
           decided_at: new Date().toISOString(),
           decision_note: null,
-          // אפשר לשמור גם מה נוצר:
           payload: {
             ...p,
             approved_meta: {
@@ -449,11 +423,8 @@ export const approveParentSignupRequest = onRequest(
           },
         })
         .eq('id', requestId);
-
       if (updErr) throw new Error(`request update failed: ${updErr.message}`);
 
-      // 7) שליחת מייל למבקש
-      // אם משתמש כבר קיים ואין tempPassword – תשלחי “החשבון פעיל, התחברי עם הסיסמה שלך / איפוס סיסמה”
       const subject = 'פרטי התחברות למערכת';
       const html = tempPassword
         ? `
@@ -478,41 +449,30 @@ export const approveParentSignupRequest = onRequest(
           </div>
         `;
 
-      await callSendEmailGmail({
-              tenantSchema: schema,   // אצלך זה שם הסכמה של החווה
-              to: [email],
-              subject,
-              html,
-            });
-
+      await callNotifyUser({
+        tenantSchema: schema,
+        userType: 'parent',
+        uid,
+        subject,
+        html,
+        category: 'signupApproved',
+        forceEmail: true,
+      });
 
       res.status(200).json({ ok: true, uid, tempPasswordSent: !!tempPassword });
     } catch (e: any) {
-  console.error('approveParentSignupRequest error', e);
+      console.error('approveParentSignupRequest error', e);
 
-  const code = e?.code; // HttpsError code
-  const msg = e?.message || String(e);
+      const code = e?.code;
+      const msg = e?.message || String(e);
 
-  if (code === 'unauthenticated') {
-    res.status(401).json({ error: 'unauthenticated', message: msg });
-    return;
-}
-  if (code === 'permission-denied'){
-    res.status(403).json({ error: 'forbidden', message: msg });
-    return;
-  }
-  if (code === 'invalid-argument'){
-    res.status(400).json({ error: 'invalid_argument', message: msg });
-    return;
-  }
-  if (code === 'not-found'){
-    res.status(404).json({ error: 'not_found', message: msg });
-    return;
-  }
+      if (code === 'unauthenticated') return void res.status(401).json({ error: 'unauthenticated', message: msg });
+      if (code === 'permission-denied') return void res.status(403).json({ error: 'forbidden', message: msg });
+      if (code === 'invalid-argument') return void res.status(400).json({ error: 'invalid_argument', message: msg });
+      if (code === 'not-found') return void res.status(404).json({ error: 'not_found', message: msg });
 
-  res.status(500).json({ error: 'Internal error', message: msg });
-  return;
-}
-
+      res.status(500).json({ error: 'Internal error', message: msg });
+      return;
+    }
   }
 );

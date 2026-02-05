@@ -1,0 +1,70 @@
+<div class="bulk-dialog" dir="rtl">
+
+  <div class="bulk-head">
+    <div class="bulk-title">
+      {{ data.mode === 'approve' ? 'אישור בקשות מסומנות' : 'דחיית בקשות מסומנות' }}
+    </div>
+    <div class="bulk-sub">
+      נבחרו {{ data.items.length || 0 }} בקשות
+    </div>
+  </div>
+
+ 
+
+  <div class="bulk-body">
+
+  <!-- מובייל: כרטיסיות -->
+  <div class="bulk-cards">
+    <div class="bulk-card" *ngFor="let r of data.items; trackBy: trackById">
+      <div class="card-top">
+        <span class="type-pill">{{ getTypeLabel(r.requestType) }}</span>
+        <span class="status-chip pending">ממתין</span>
+      </div>
+
+      <div class="card-row">
+        <span class="k">מבקש/ת:</span>
+        <span class="v">{{ r.requestedByName || '—' }}</span>
+      </div>
+
+      <div class="card-summary">
+        {{ r.summary || '—' }}
+      </div>
+
+      <div class="card-meta" *ngIf="r.childName || r.instructorName">
+        <span *ngIf="r.childName">ילד/ה: {{ r.childName }}</span>
+        <span *ngIf="r.instructorName"> · מדריך/ה: {{ r.instructorName }}</span>
+      </div>
+
+      <div class="card-row">
+        <span class="k">נוצר:</span>
+        <span class="v">{{ r.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+      </div>
+      <div class="card-reason" *ngIf="data.mode === 'reject'">
+  <label class="bulk-label">סיבת דחייה (חובה)</label>
+  <textarea
+    class="bulk-textarea"
+    rows="2"
+    [value]="getReason(r.id)"
+    (input)="setReason(r.id, ($any($event.target).value || ''))"
+    placeholder="כתבי סיבה לבקשה הזו..."></textarea>
+
+  <div class="bulk-hint" *ngIf="!getReason(r.id).trim()">
+    חובה למלא סיבה כדי לדחות.
+  </div>
+</div>
+
+    </div>
+  </div>
+  </div>
+<div class="bulk-actions">
+    <button type="button" class="appt-cta ghost" (click)="closeNo()">ביטול</button>
+    <button
+      type="button"
+      class="appt-cta"
+      [class.danger]="data.mode === 'reject'"
+      [disabled]="!canConfirm()"
+      (click)="closeYes()">
+      {{ data.mode === 'approve' ? 'אשרי בקשות' : 'דחי בקשות' }}
+    </button>
+  </div>
+  </div>

@@ -129,6 +129,8 @@ export interface UiRequest {
   createdAt: string;
 
   requesterUid: string | null;  // ← חשוב להוספת סינון לפי משתמש
+  requesterRole: string | null,   
+
   payload: any;
   childId?: string | null;
   instructorId?: string | null;
