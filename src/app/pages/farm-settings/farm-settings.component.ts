@@ -328,6 +328,11 @@ hasAnyActiveWorkingDay(): boolean {
   // =============================
   // Helpers
   // =============================
+  private clearFocus(): void {
+  const el = document.activeElement as HTMLElement | null;
+  el?.blur();
+}
+
   toggleWorkingHoursExpanded(): void {
     this.workingHoursExpanded.set(!this.workingHoursExpanded());
   }
@@ -1394,11 +1399,13 @@ leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
     if (!plan.id) return;
     this.editingPlanId.set(plan.id);
   }
+cancelEditPlan(): void {
+  this.editingPlanId.set(null);
+  this.loadPaymentPlans();
 
-  cancelEditPlan(): void {
-    this.editingPlanId.set(null);
-    this.loadPaymentPlans();
-  }
+  setTimeout(() => this.clearFocus());
+}
+
 
   onDocsTextChange(plan: PaymentPlan, value: string): void {
     plan.required_docs = value.split('\n').map(v => v.trim()).filter(Boolean);
@@ -1746,8 +1753,14 @@ fundingSourcesExpanded = signal(true);
 
 togglePaymentPlansExpanded() {
   this.paymentPlansExpanded.update(v => !v);
-  if (!this.paymentPlansExpanded()) this.showNewPlanForm.set(false);
+
+  if (!this.paymentPlansExpanded()) {
+    this.showNewPlanForm.set(false);
+  }
+
+  setTimeout(() => this.clearFocus());
 }
+
 
 toggleFundingSourcesExpanded() {
   this.fundingSourcesExpanded.update(v => !v);
