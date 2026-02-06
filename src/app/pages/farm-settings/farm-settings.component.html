@@ -287,25 +287,6 @@
             <span class="field-label">ביטול עד (שעות לפני)</span>
             <input type="number" min="0" [(ngModel)]="s.cancel_before_hours" name="cancel_before_hours" />
           </label>
-<label class="field compact">
-  <span class="field-label">
-    זמן ביטחון לעזיבה (בדקות)
-  </span>
-
-  <input
-    type="number"
-    min="0"
-    step="1"
-    [(ngModel)]="s.leave_buffer_minutes"
-    name="leave_buffer_minutes"
-    placeholder="0 = מיידי"
-    class="small-number"
-  />
-
-  <small class="field-hint">
-    כמה דקות לאחר אישור עזיבה היא תיכנס לתוקף בפועל.
-  </small>
-</label>
 
           <label class="field">
             <span class="field-label">מדיניות ביטול מאוחר</span>
@@ -341,7 +322,163 @@
           </label>
         </div>
       </section>
+        <!-- =================== סוגי רכיבה =================== -->
+<section class="settings-section">
+  <div class="subsection-header accordion section-acc">
+    <button
+      type="button"
+      class="accordion-toggle"
+      (click)="ridingTypesExpanded.set(!ridingTypesExpanded())"
+      [attr.aria-expanded]="ridingTypesExpanded()"
+    >
+      <span class="chev" [class.open]="ridingTypesExpanded()">▾</span>
+      <span class="accordion-title">סוגי רכיבה</span>
+    </button>
 
+    <button
+      type="button"
+      class="icon-btn"
+      (click)="showNewRidingTypeForm.set(true)"
+      [disabled]="!ridingTypesExpanded()"
+    >
+      <span class="plus-icon">+</span>
+      <span>הוספת סוג רכיבה</span>
+    </button>
+  </div>
+
+  <ng-container *ngIf="ridingTypesExpanded()">
+    <!-- טופס הוספה -->
+    <div class="inline-panel" *ngIf="showNewRidingTypeForm()">
+      <div class="fields-grid two-cols">
+        <label class="field">
+          <span class="field-label">שם סוג רכיבה</span>
+    <input
+  type="text"
+  [ngModel]="newRidingTypeName()"
+  (ngModelChange)="newRidingTypeName.set($event)"
+  [ngModelOptions]="{ standalone: true }"
+  placeholder="לדוגמה: רכיבה טיפולית"
+/>
+
+        </label>
+      </div>
+
+      <div class="panel-actions">
+        <button type="button" class="primary-btn" (click)="addRidingType()">
+          שמירה
+        </button>
+        <button
+          type="button"
+          class="ghost-btn"
+          (click)="showNewRidingTypeForm.set(false)"
+        >
+          ביטול
+        </button>
+      </div>
+    </div>
+
+    <!-- רשימה -->
+    <div class="list-block" *ngIf="ridingTypes().length; else noRidingTypes">
+      <div class="list-header-row">
+        <span class="col-main">שם</span>
+        <span class="col-secondary">סטטוס</span>
+        <span class="col-actions">פעולות</span>
+      </div>
+
+      <div
+        class="list-row"
+        *ngFor="let rt of ridingTypes()"
+        [class.inactive]="!rt.is_active"
+      >
+        <ng-container *ngIf="editingRidingTypeId() !== rt.id; else editRT">
+          <div class="col-main">
+            <div class="list-title">{{ rt.name }}</div>
+          </div>
+
+          <div class="col-secondary">
+            <span
+              class="status-tag"
+              [class.success]="rt.is_active"
+              [class.danger]="!rt.is_active"
+            >
+              {{ rt.is_active ? 'פעיל' : 'לא פעיל' }}
+            </span>
+          </div>
+
+          <div class="col-actions">
+            <button
+              type="button"
+              class="text-btn"
+              (click)="startEditRidingType(rt)"
+            >
+              עריכה
+            </button>
+            <button
+              type="button"
+              class="text-btn danger"
+              (click)="deleteRidingType(rt)"
+            >
+              מחיקה
+            </button>
+          </div>
+        </ng-container>
+
+        <!-- עריכה -->
+  <ng-template #editRT>
+  <div class="col-main">
+    <input
+      type="text"
+      [(ngModel)]="rt.name"
+      [ngModelOptions]="{ standalone: true }"
+    />
+  </div>
+
+  <div class="col-secondary">
+    <label class="mini-toggle">
+      <input
+        type="checkbox"
+        [(ngModel)]="rt.is_active"
+        [ngModelOptions]="{ standalone: true }"
+      />
+      <span>פעיל</span>
+    </label>
+  </div>
+
+
+          <div class="col-actions">
+            <button
+              type="button"
+              class="text-btn"
+              (click)="updateRidingType(rt)"
+            >
+              שמירה
+            </button>
+            <button
+              type="button"
+              class="text-btn"
+              (click)="cancelEditRidingType()"
+            >
+              ביטול
+            </button>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+
+    <ng-template #noRidingTypes>
+      <div class="empty-state">
+        עדיין לא הוגדרו סוגי רכיבה.
+        <button
+          type="button"
+          class="text-btn"
+          (click)="showNewRidingTypeForm.set(true)"
+        >
+          הוספת סוג ראשון
+        </button>
+      </div>
+    </ng-template>
+  </ng-container>
+</section>
       <!-- תזכורות והתראות -->
       <section class="settings-section">
         <h2>תזכורות והתראות</h2>
@@ -808,6 +945,8 @@
             </div>
           </ng-template>
         </ng-container>
+
+
       </section>
       <!-- הערות מובנות -->
       <section class="settings-section">
