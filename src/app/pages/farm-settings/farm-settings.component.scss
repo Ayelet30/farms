@@ -1154,3 +1154,9 @@ input[type="time"] {
   background: #fdeaea;
   color: #b42318;
 }
+.field input,
+.field select {
+  height: 44px;        // 👈 אותו גובה כמו השדות הסטנדרטיים
+  padding: 0 12px;
+  box-sizing: border-box;
+}

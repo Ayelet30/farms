@@ -17,8 +17,9 @@ type RecurrenceKind = 'ONCE' | 'YEARLY';
 type DayType = 'FULL_DAY' | 'PARTIAL_DAY';
 
 interface FarmSettings {
+  
   id?: UUID;
-
+  leave_buffer_minutes?: number | null;
   operating_hours_start: string | null;
   operating_hours_end: string | null;
 
@@ -1092,6 +1093,7 @@ parent_booking_days_ahead: data.parent_booking_days_ahead ?? null,
 
         operating_hours_start: this.t5(data.operating_hours_start) ?? '08:00',
         operating_hours_end: this.t5(data.operating_hours_end) ?? '20:00',
+leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
 
         office_hours_start: this.t5(data.office_hours_start) ?? '08:30',
         office_hours_end: this.t5(data.office_hours_end) ?? '16:00',
@@ -1121,7 +1123,7 @@ parent_booking_days_ahead: data.parent_booking_days_ahead ?? null,
     this.settings.set({
       operating_hours_start: '08:00',
       operating_hours_end: '20:00',
-
+  leave_buffer_minutes: 0, 
       office_hours_start: '08:30',
       office_hours_end: '16:00',
 
@@ -1589,6 +1591,8 @@ parent_booking_days_ahead: data.parent_booking_days_ahead ?? null,
     this.settings.set({
       ...s,
       default_lessons_per_series: checked ? null : (s.default_lessons_per_series ?? 12),
+      leave_buffer_minutes: 0,
+
     });
   }
 

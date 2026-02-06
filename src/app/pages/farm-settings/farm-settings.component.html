@@ -287,6 +287,25 @@
             <span class="field-label">ביטול עד (שעות לפני)</span>
             <input type="number" min="0" [(ngModel)]="s.cancel_before_hours" name="cancel_before_hours" />
           </label>
+<label class="field compact">
+  <span class="field-label">
+    זמן ביטחון לעזיבה (בדקות)
+  </span>
+
+  <input
+    type="number"
+    min="0"
+    step="1"
+    [(ngModel)]="s.leave_buffer_minutes"
+    name="leave_buffer_minutes"
+    placeholder="0 = מיידי"
+    class="small-number"
+  />
+
+  <small class="field-hint">
+    כמה דקות לאחר אישור עזיבה היא תיכנס לתוקף בפועל.
+  </small>
+</label>
 
           <label class="field">
             <span class="field-label">מדיניות ביטול מאוחר</span>
