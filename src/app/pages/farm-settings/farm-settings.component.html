@@ -1,4 +1,13 @@
 <!-- src/app/pages/farm-settings/farm-settings.component.html -->
+<!-- FLASH MESSAGES -->
+<div class="flash success" *ngIf="success()">
+  {{ success() }}
+</div>
+
+<div class="flash error" *ngIf="error()">
+  {{ error() }}
+</div>
+
 <div class="farm-settings-page" dir="rtl">
   <div class="farm-settings-card">
     <div class="card-header">
@@ -549,14 +558,13 @@
                   </span>
                   <ng-template #noSubsidy>
                     <span class="meta-chip muted">סבסוד: 0 ₪</span>
+                    
                   </ng-template>
-                </div>
-                <div class="col-secondary funding-col">
-                  <span class="meta-chip highlight">
-                    לקוח משלם: {{ getCustomerAmount(p) | number:'1.0-0' }} ₪
-                  </span>
-                </div>
-              </div>
+                <span class="meta-chip highlight">
+      לקוח משלם: {{ getCustomerAmount(p) | number:'1.0-0' }} ₪
+    </span>
+  </div>
+</div>
 
               <div class="col-secondary funding-col">
                 <span class="meta-chip">{{ getFundingName(p.funding_source_id || null) }}</span>
