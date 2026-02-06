@@ -1117,3 +1117,46 @@ input[type="time"] {
 .field.compact {
   align-self: flex-start;
 }
+.flash {
+  margin: 12px 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+.flash.success {
+  background: #e6f6ec;
+  color: #1e7f43;
+}
+
+.flash.error {
+  background: #fdeaea;
+  color: #b42318;
+}
+.global-flash {
+  position: fixed;
+  top: 16px;
+  right: 16px; /* RTL – אם צריך left */
+  z-index: 9999;
+
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 500;
+  box-shadow: 0 6px 20px rgba(0,0,0,.15);
+}
+
+.global-flash.success {
+  background: #e6f6ec;
+  color: #1e7f43;
+}
+
+.global-flash.error {
+  background: #fdeaea;
+  color: #b42318;
+}
+.field input,
+.field select {
+  height: 44px;        // 👈 אותו גובה כמו השדות הסטנדרטיים
+  padding: 0 12px;
+  box-sizing: border-box;
+}

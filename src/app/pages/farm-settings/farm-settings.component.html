@@ -1,4 +1,13 @@
 <!-- src/app/pages/farm-settings/farm-settings.component.html -->
+<!-- FLASH MESSAGES -->
+<div class="flash success" *ngIf="success()">
+  {{ success() }}
+</div>
+
+<div class="flash error" *ngIf="error()">
+  {{ error() }}
+</div>
+
 <div class="farm-settings-page" dir="rtl">
   <div class="farm-settings-card">
     <div class="card-header">
@@ -278,6 +287,25 @@
             <span class="field-label">ביטול עד (שעות לפני)</span>
             <input type="number" min="0" [(ngModel)]="s.cancel_before_hours" name="cancel_before_hours" />
           </label>
+<label class="field compact">
+  <span class="field-label">
+    זמן ביטחון לעזיבה (בדקות)
+  </span>
+
+  <input
+    type="number"
+    min="0"
+    step="1"
+    [(ngModel)]="s.leave_buffer_minutes"
+    name="leave_buffer_minutes"
+    placeholder="0 = מיידי"
+    class="small-number"
+  />
+
+  <small class="field-hint">
+    כמה דקות לאחר אישור עזיבה היא תיכנס לתוקף בפועל.
+  </small>
+</label>
 
           <label class="field">
             <span class="field-label">מדיניות ביטול מאוחר</span>
@@ -549,14 +577,13 @@
                   </span>
                   <ng-template #noSubsidy>
                     <span class="meta-chip muted">סבסוד: 0 ₪</span>
+                    
                   </ng-template>
-                </div>
-                <div class="col-secondary funding-col">
-                  <span class="meta-chip highlight">
-                    לקוח משלם: {{ getCustomerAmount(p) | number:'1.0-0' }} ₪
-                  </span>
-                </div>
-              </div>
+                <span class="meta-chip highlight">
+      לקוח משלם: {{ getCustomerAmount(p) | number:'1.0-0' }} ₪
+    </span>
+  </div>
+</div>
 
               <div class="col-secondary funding-col">
                 <span class="meta-chip">{{ getFundingName(p.funding_source_id || null) }}</span>
