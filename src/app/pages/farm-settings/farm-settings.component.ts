@@ -15,6 +15,11 @@ type ReminderChannel = 'EMAIL' | 'SMS' | 'APP' | 'WHATSAPP';
 type CalendarKind = 'GREGORIAN' | 'HEBREW';
 type RecurrenceKind = 'ONCE' | 'YEARLY';
 type DayType = 'FULL_DAY' | 'PARTIAL_DAY';
+interface RidingType {
+  id: UUID;
+  name: string;
+  is_active: boolean;
+}
 
 interface FarmSettings {
   
@@ -188,6 +193,13 @@ export class FarmSettingsComponent implements OnInit {
 
   newListNoteText = signal<string>('');
   listNotesExpanded = signal(true);
+  // ====== Riding Types ======
+ridingTypes = signal<RidingType[]>([]);
+showNewRidingTypeForm = signal(false);
+editingRidingTypeId = signal<UUID | null>(null);
+newRidingTypeName = signal('');
+ridingTypesExpanded = signal(true);
+
   // שבת: ו׳ מ-16:00 ועד מוצ"ש 19:00
 private readonly SHABBAT_START = '16:00';
 private readonly SHABBAT_END = '19:00';
@@ -305,6 +317,7 @@ hasAnyActiveWorkingDay(): boolean {
       this.loadFarmDaysOff(),
       this.loadWorkingHours(),
       this.loadListNotes(),
+        this.loadRidingTypes(),
     ]);
 
     if (!this.workingHours().length) {
@@ -1357,6 +1370,7 @@ leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
     await this.ui.alert('גורם המימון נמחק.', 'הצלחה');
   }
 
+
   // =============================
   // Payment Plans
   // =============================
@@ -1414,6 +1428,101 @@ cancelEditPlan(): void {
   onNewPlanDocsChange(value: string): void {
     this.newPlan.required_docs = value.split('\n').map(v => v.trim()).filter(Boolean);
   }
+// =============================
+// Riding Types
+// =============================
+
+private async loadRidingTypes(): Promise<void> {
+  const { data, error } = await this.supabase
+    .from('riding_types')
+    .select('*')
+    .order('name');
+      const filtered = (data ?? []).filter(
+        (    rt: { name: string; }) => rt.name !== 'הפסקה'
+  );
+
+  this.ridingTypes.set(filtered);
+
+  if (error) {
+    console.error('loadRidingTypes error', error);
+    this.error.set('לא ניתן לטעון סוגי רכיבה');
+    return;
+  }
+
+
+}
+
+async addRidingType(): Promise<void> {
+  const name = this.newRidingTypeName().trim();
+  if (!name) return;
+
+  const { error } = await this.supabase
+    .from('riding_types')
+    .insert({ name });
+
+  if (error) {
+    console.error('addRidingType error', error);
+    await this.ui.alert('הוספת סוג רכיבה נכשלה.', 'שגיאה');
+    return;
+  }
+
+  this.newRidingTypeName.set('');
+  this.showNewRidingTypeForm.set(false);
+  await this.loadRidingTypes();
+}
+
+startEditRidingType(rt: RidingType): void {
+  this.editingRidingTypeId.set(rt.id);
+}
+
+cancelEditRidingType(): void {
+  this.editingRidingTypeId.set(null);
+  this.loadRidingTypes();
+}
+
+async updateRidingType(rt: RidingType): Promise<void> {
+  const { error } = await this.supabase
+    .from('riding_types')
+    .update({
+      name: rt.name,
+      is_active: rt.is_active,
+    })
+    .eq('id', rt.id);
+
+  if (error) {
+    console.error('updateRidingType error', error);
+    await this.ui.alert('עדכון סוג רכיבה נכשל.', 'שגיאה');
+    return;
+  }
+
+  this.editingRidingTypeId.set(null);
+  await this.loadRidingTypes();
+}
+
+async deleteRidingType(rt: RidingType): Promise<void> {
+  const ok = await this.ui.confirm({
+    title: 'מחיקת סוג רכיבה',
+    message: `למחוק את "${rt.name}"?`,
+    okText: 'מחיקה',
+    cancelText: 'ביטול',
+    showCancel: true,
+  });
+
+  if (!ok) return;
+
+  const { error } = await this.supabase
+    .from('riding_types')
+    .delete()
+    .eq('id', rt.id);
+
+  if (error) {
+    console.error('deleteRidingType error', error);
+    await this.ui.alert('מחיקת סוג רכיבה נכשלה.', 'שגיאה');
+    return;
+  }
+
+  await this.loadRidingTypes();
+}
 
   private normalizePlanForSave(plan: PaymentPlan): any {
     return {
