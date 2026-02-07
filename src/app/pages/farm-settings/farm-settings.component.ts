@@ -1107,6 +1107,9 @@ canSaveWorkingHours(): boolean {
     if (data) {
       const s: FarmSettings = {
         ...data,
+        default_lessons_per_series:
+  data.default_lessons_per_series ?? 12,
+
 parent_booking_days_ahead: data.parent_booking_days_ahead ?? null,
 
         operating_hours_start: this.t5(data.operating_hours_start) ?? '08:00',
