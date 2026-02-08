@@ -42,7 +42,7 @@ import { RequestAddChildDetailsComponent } from './request-add-child-details/req
 import { SecretarialSeriesRequestsComponent } from './request-new-series-details/request-new-series-details.component';
 import { RequestAddParentDetailsComponent } from './request-add-parent-details/request-add-parent-details.component';
 import { RequestMakeupLessonDetailsComponent } from './request-makeup-lesson-details/request-makeup-lesson-details.component';
-import { RequestFillInDetailsComponent } from './request-fill-in-details/request-fill-in-details';
+import { RequestFillInDetailsComponent } from './request-fill-in-details/request-fill-in-details.component';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { BulkDecisionDialogComponent, BulkDecisionDialogResult } from './bulk-decision-dialog/bulk-decision-dialog.component';
