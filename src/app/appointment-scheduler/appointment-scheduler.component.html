@@ -270,7 +270,12 @@
       <br />
       עם המדריך/ה <b>{{ seriesConfirmData.instructorName }}</b>
     </ng-container>
-
+ <ng-container *ngIf="hoursBeforeCancel != null">
+      <br />
+      <small style="color:#666;">
+        ניתן לבטל עד {{ hoursBeforeCancel }} שעות לפני תחילת השיעור
+      </small>
+    </ng-container>
     <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
       <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
       <button class="btn-ok" (click)="dialogRef.close(true)">כן</button>
