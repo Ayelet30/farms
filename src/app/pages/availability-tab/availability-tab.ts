@@ -41,6 +41,12 @@ interface TimeSlot {
   prevEnd?: string | null;
   prevRidingTypeId?: UUID | null;
 }
+interface FarmWorkingHourRow {
+  day_of_week: number; // 1..7
+  is_open: boolean;
+  farm_start: string | null;
+  farm_end: string | null;
+}
 
 interface DayAvailability {
   key: string; // sun/mon/...
@@ -96,6 +102,8 @@ type InstructorWeeklyRow = {
 })
 export class AvailabilityTabComponent implements OnInit {
   
+public farmHoursByDay: Record<number, { start: string; end: string }> = {};
+
   public userId: string | null = null;
 
   public days: DayAvailability[] = [];
@@ -178,7 +186,8 @@ get instructorIdNumber(): string | null {
   async ngOnInit() {
   await ensureTenantContextReady();
 
-  await this.loadFarmSettings();
+  await this.loadFarmWorkingHours();
+
   await this.loadRidingTypes();
   this.loadDefaultsIfEmpty();
 
@@ -251,6 +260,38 @@ private async loadInstructorWeeklyByIdNumber(idNumber: string) {
   }
 
   /* ===================== FARM SETTINGS ===================== */
+
+private async loadFarmWorkingHours() {
+  const { data, error } = await dbTenant()
+    .from('farm_working_hours')
+    .select('day_of_week, is_open, farm_start, farm_end');
+
+  if (error) {
+    console.error('❌ loadFarmWorkingHours error', error);
+    return;
+  }
+
+  const rows = (data || []) as FarmWorkingHourRow[];
+
+  // ימים פתוחים
+  this.farmWorkingDays = rows
+    .filter(r => r.is_open)
+    .map(r => r.day_of_week);
+
+  // שעות לפי יום (1..7)
+  this.farmHoursByDay = {};
+  for (const r of rows) {
+    if (!r.is_open || !r.farm_start || !r.farm_end) continue;
+
+    this.farmHoursByDay[r.day_of_week] = {
+      start: r.farm_start.slice(0, 5),
+      end: r.farm_end.slice(0, 5),
+    };
+  }
+  console.log('farmWorkingDays', this.farmWorkingDays);
+console.log('farmHoursByDay', this.farmHoursByDay);
+
+}
 
   private async loadFarmSettings() {
     try {
@@ -426,19 +467,15 @@ private async loadInstructorWeeklyByIdNumber(idNumber: string) {
     }
   }
 
-  isFarmWorkingDay(dayKey: string): boolean {
-    if (!this.farmWorkingDays?.length) return true;
+isFarmWorkingDay(dayKey: string): boolean {
+  if (!this.farmWorkingDays.length) return true;
 
-    const n0 = this.DAY_KEY_TO_NUM[dayKey]; // 0..6
-    const n1 = n0 + 1; // 1..7
-    const nSundayAs7 = n0 === 0 ? 7 : n0; // 7=Sunday style
+  const n0 = this.DAY_KEY_TO_NUM[dayKey]; // 0..6
+  const day1to7 = n0 === 0 ? 7 : n0;      // ראשון = 7
 
-    return (
-      this.farmWorkingDays.includes(n0) ||
-      this.farmWorkingDays.includes(n1) ||
-      this.farmWorkingDays.includes(nSundayAs7)
-    );
-  }
+  return this.farmWorkingDays.includes(day1to7);
+}
+
 
   toggleDay(day: DayAvailability) {
     if (!this.allowEdit) return;
@@ -540,16 +577,26 @@ onTimeChange(day: DayAvailability, slot: TimeSlot) {
   slot.end = this.normalizeTime(slot.end);
 
   // טווח חווה
-  if (this.toMin(slot.start) < this.toMin(this.farmStart)) {
-    this.toast(`שעת התחלה לא יכולה להיות לפני ${this.farmStart}`);
+const dayNum =
+  this.DAY_KEY_TO_NUM[day.key] === 0
+    ? 7
+    : this.DAY_KEY_TO_NUM[day.key];
+
+const farmHours = this.farmHoursByDay[dayNum];
+
+if (farmHours) {
+  if (this.toMin(slot.start) < this.toMin(farmHours.start)) {
+    this.toast(`שעת התחלה לא יכולה להיות לפני ${farmHours.start}`);
     this.revert(slot);
     return;
   }
-  if (this.toMin(slot.end) > this.toMin(this.farmEnd)) {
-    this.toast(`שעת סיום לא יכולה להיות אחרי ${this.farmEnd}`);
+
+  if (this.toMin(slot.end) > this.toMin(farmHours.end)) {
+    this.toast(`שעת סיום לא יכולה להיות אחרי ${farmHours.end}`);
     this.revert(slot);
     return;
   }
+}
 
   // סדר שעות
   if (this.toMin(slot.end) <= this.toMin(slot.start)) {
@@ -657,13 +704,23 @@ onTimeChange(day: DayAvailability, slot: TimeSlot) {
         slot.start = this.normalizeTime(slot.start);
         slot.end = this.normalizeTime(slot.end);
 
-        if (
-          this.toMin(slot.start) < this.toMin(this.farmStart) ||
-          this.toMin(slot.end) > this.toMin(this.farmEnd)
-        ) {
-          this.toast(`השעות חייבות להיות בין ${this.farmStart} ל־${this.farmEnd}`);
-          return;
-        }
+  const dayNum =
+  this.DAY_KEY_TO_NUM[day.key] === 0
+    ? 7
+    : this.DAY_KEY_TO_NUM[day.key];
+
+const farmHours = this.farmHoursByDay[dayNum];
+
+if (farmHours) {
+  if (
+    this.toMin(slot.start) < this.toMin(farmHours.start) ||
+    this.toMin(slot.end) > this.toMin(farmHours.end)
+  ) {
+    this.toast(`השעות חייבות להיות בין ${farmHours.start} ל־${farmHours.end}`);
+    return;
+  }
+}
+
 
         if (this.toMin(slot.end) <= this.toMin(slot.start)) {
           this.toast('שעת סיום חייבת להיות אחרי שעת התחלה');
