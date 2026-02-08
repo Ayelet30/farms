@@ -43,6 +43,8 @@ export { rejectRemoveChildAndNotify } from './rejectRemoveChildAndNotify';
 export { notifyUser } from './notifyUser';
 export { approveMakeupLessonAndNotify } from './approveMakeupLessonAndNotify';
 export { rejectMakeupLessonAndNotify } from './rejectMakeupLessonAndNotify';
+export { approveFillInAndNotify } from './approveFillInAndNotify';
+export { rejectFillInAndNotify } from './rejectFillInAndNotify';
 
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
