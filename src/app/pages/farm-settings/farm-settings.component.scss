@@ -1160,3 +1160,12 @@ input[type="time"] {
   padding: 0 12px;
   box-sizing: border-box;
 }
+.field.short input[type="number"] {
+  max-width: 120px;
+}
+.field-error {
+  color: #c62828;
+  font-size: 12px;
+  margin-top: 4px;
+  display: block;
+}
