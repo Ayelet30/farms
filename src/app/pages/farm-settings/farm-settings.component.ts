@@ -22,7 +22,7 @@ interface RidingType {
 }
 
 interface FarmSettings {
-  
+  availability_days_ahead?: number | null;
   id?: UUID;
   leave_buffer_minutes?: number | null;
   operating_hours_start: string | null;
@@ -169,6 +169,28 @@ interface FarmWorkingHours {
   office_start: string | null;
   office_end: string | null;
 }
+type SettingsErrors = {
+  lesson_duration_minutes?: string;
+  availability_days_ahead?: string;
+  default_lessons_per_series?: string;
+  cancel_before_hours?: string;
+  parent_booking_days_ahead?: string;
+  max_group_size?: string;
+    default_lesson_price?: string;
+  max_lessons_per_week_per_child?: string;
+  makeup_allowed_days_ahead?: string;
+  makeup_allowed_days_back?: string;
+  max_makeups_in_period?: string;
+  makeups_period_days?: string;
+  late_cancel_fee_amount?: string;
+  late_cancel_fee_percent?: string;
+  reminder_hours_before?: string;
+notify_before_farm_closure_hours?: string;
+min_time_between_cancellations?: string;
+registration_fee?: string;
+student_insurance_premiums?: string;
+
+};
 
 @Component({
   selector: 'app-farm-settings',
@@ -232,6 +254,8 @@ hasAnyActiveWorkingDay(): boolean {
   success = signal<string | null>(null);
 
   settings = signal<FarmSettings | null>(null);
+  settingsErrors = signal<SettingsErrors>({});
+
 
   // Accordion hours
   workingHoursExpanded = signal(true);
@@ -1107,6 +1131,8 @@ canSaveWorkingHours(): boolean {
     if (data) {
       const s: FarmSettings = {
         ...data,
+        availability_days_ahead: data.availability_days_ahead ?? 30,
+
         default_lessons_per_series:
   data.default_lessons_per_series ?? 12,
 
@@ -1199,11 +1225,173 @@ leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
       
     });
   }
+  validateSettingsFields(s: FarmSettings): void {
+  const errors: SettingsErrors = {};
+if (
+  s.default_lesson_price != null &&
+  (s.default_lesson_price < 0 || s.default_lesson_price > 1000)
+) {
+  errors.default_lesson_price = 'מחיר שיעור חייב להיות בין 0 ל־999 ₪';
+}
+if (
+  s.student_insurance_premiums != null &&
+  (s.student_insurance_premiums < 0 || s.student_insurance_premiums > 2000)
+) {
+  errors.student_insurance_premiums =
+    'ביטוח תלמידים חייב להיות בין 0 ל־2000 ₪';
+}
+if (
+  s.registration_fee != null &&
+  (s.registration_fee < 0 || s.registration_fee > 5000)
+) {
+  errors.registration_fee =
+    'דמי רישום חייבים להיות בין 0 ל־5000 ₪';
+}
+if (s.min_time_between_cancellations) {
+  const [h, m] = s.min_time_between_cancellations.split(':').map(Number);
+  if (
+    isNaN(h) || isNaN(m) ||
+    h < 0 || h > 24 ||
+    m < 0 || m > 59
+  ) {
+    errors.min_time_between_cancellations =
+      'הפרש בין ביטולים חייב להיות בפורמט שעות:דקות ועד 24:00';
+  }
+}
+if (
+  s.notify_before_farm_closure_hours != null &&
+  (s.notify_before_farm_closure_hours < 0 || s.notify_before_farm_closure_hours > 720)
+) {
+  errors.notify_before_farm_closure_hours =
+    'התראה לפני חופש חווה – בין 0 ל־720 שעות';
+}
+if (
+  s.reminder_hours_before != null &&
+  (s.reminder_hours_before < 0 || s.reminder_hours_before > 168)
+) {
+  errors.reminder_hours_before =
+    'תזכורת לשיעור – בין 0 ל־168 שעות לפני';
+}
+
+if (
+  s.max_lessons_per_week_per_child != null &&
+  (s.max_lessons_per_week_per_child < 1 || s.max_lessons_per_week_per_child > 14)
+) {
+  errors.max_lessons_per_week_per_child =
+    'מקסימום שיעורים בשבוע חייב להיות בין 1 ל־14';
+}
+if (
+  s.makeup_allowed_days_ahead != null &&
+  (s.makeup_allowed_days_ahead < 0 || s.makeup_allowed_days_ahead > 365)
+) {
+  errors.makeup_allowed_days_ahead =
+    'קביעת השלמה קדימה – עד 365 ימים';
+}
+if (
+  s.makeup_allowed_days_back != null &&
+  (s.makeup_allowed_days_back < 0 || s.makeup_allowed_days_back > 365)
+) {
+  errors.makeup_allowed_days_back =
+    'השלמה אחורה – עד 365 ימים';
+}
+if (
+  s.max_makeups_in_period != null &&
+  (s.max_makeups_in_period < 0 || s.max_makeups_in_period > 50)
+) {
+  errors.max_makeups_in_period =
+    'מספר השלמות בתקופה חייב להיות בין 0 ל־50';
+}
+if (
+  s.makeups_period_days != null &&
+  (s.makeups_period_days < 1 || s.makeups_period_days > 365)
+) {
+  errors.makeups_period_days =
+    'תקופת השלמות חייבת להיות בין יום ל־365 ימים';
+}
+if (
+  s.late_cancel_fee_amount != null &&
+  (s.late_cancel_fee_amount < 0 || s.late_cancel_fee_amount > 1000)
+) {
+  errors.late_cancel_fee_amount =
+    'קנס ביטול (₪) חייב להיות בין 0 ל־1000';
+}
+if (
+  s.late_cancel_fee_percent != null &&
+  (s.late_cancel_fee_percent < 0 || s.late_cancel_fee_percent > 100)
+) {
+  errors.late_cancel_fee_percent =
+    'קנס ביטול (%) חייב להיות בין 0 ל־100';
+}
+
+  if (
+    s.lesson_duration_minutes != null &&
+    (s.lesson_duration_minutes < 10 || s.lesson_duration_minutes > 180)
+  ) {
+    errors.lesson_duration_minutes = 'אורך שיעור חייב להיות בין 10 ל־180 דקות';
+  }
+
+  if (
+    s.availability_days_ahead != null &&
+    (s.availability_days_ahead < 1 || s.availability_days_ahead > 365)
+  ) {
+    errors.availability_days_ahead = 'טווח חישוב זמינות חייב להיות בין 1 ל־365 ימים';
+  }
+
+  if (
+    s.default_lessons_per_series != null &&
+    (s.default_lessons_per_series < 1 || s.default_lessons_per_series > 100)
+  ) {
+    errors.default_lessons_per_series = 'מספר שיעורים בסדרה חייב להיות בין 1 ל־100';
+  }
+
+  if (
+    s.cancel_before_hours != null &&
+    (s.cancel_before_hours < 0 || s.cancel_before_hours > 168)
+  ) {
+    errors.cancel_before_hours = 'ביטול מראש חייב להיות בין 0 ל־168 שעות';
+  }
+
+  if (
+    s.parent_booking_days_ahead != null &&
+    (s.parent_booking_days_ahead < 0 || s.parent_booking_days_ahead > 365)
+  ) {
+    errors.parent_booking_days_ahead = 'קביעת שיעור קדימה – עד שנה בלבד';
+  }
+
+  if (
+    s.max_group_size != null &&
+    (s.max_group_size < 1 || s.max_group_size > 10)
+  ) {
+    errors.max_group_size = 'גודל קבוצה חייב להיות בין 1 ל־10';
+  }
+
+  this.settingsErrors.set(errors);
+}
+
 
   async saveSettings(): Promise<void> {
     const current = this.settings();
     if (!current) return;
+this.validateSettingsFields(current);
 
+if (Object.keys(this.settingsErrors()).length > 0) {
+const messages = Object.values(this.settingsErrors());
+await this.ui.alert(
+  'לא ניתן לשמור:\n\n• ' + messages.join('\n• '),
+  'שגיאה'
+);
+
+  return;
+}
+
+
+  if (!this.validateOfficeHours()) {
+    await this.ui.alert('יש שגיאה בשעות פעילות המשרד.', 'שגיאה');
+    this.error.set('לא ניתן לשמור: יש שגיאה בשעות פעילות המשרד.');
+    return;
+  }
+  this.saving.set(true);
+  
     if (!this.validateOfficeHours()) {
       await this.ui.alert('יש שגיאה בשעות פעילות המשרד.', 'שגיאה');
       this.error.set('לא ניתן לשמור: יש שגיאה בשעות פעילות המשרד.');
