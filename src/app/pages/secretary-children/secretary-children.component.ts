@@ -7,17 +7,26 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
-import { ensureTenantContextReady, dbTenant, getSupabaseClient } from '../../services/legacy-compat';
+import {
+  ensureTenantContextReady,
+  dbTenant,
+  getSupabaseClient,
+} from '../../services/legacy-compat';
 import type { ChildRow } from '../../Types/detailes.model';
 import { UiDialogService } from '../../services/ui-dialog.service';
 import { Router, RouterModule } from '@angular/router';
 
-import { MatDialog, MatDialogModule, MAT_DIALOG_DATA } from '@angular/material/dialog';
+import {
+  MatDialog,
+  MatDialogModule,
+  MAT_DIALOG_DATA,
+} from '@angular/material/dialog';
 import {
   FormsModule,
   ReactiveFormsModule,
   FormBuilder,
   FormGroup,
+  Validators,
 } from '@angular/forms';
 
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -40,16 +49,10 @@ type ChildDetails = {
   birth_date?: string | null;
   gender?: string | null;
   health_fund?: string | null;
-  status?: string | null;
+  status?: string | null; // null | 'active' | 'inactive'
   medical_notes?: string | null;
   behavior_notes?: string | null;
   parent?: ParentBrief | null;
-};
-
-type HorseLite = {
-  id: string;
-  name: string;
-  is_active: boolean;
 };
 
 // רשומת תקנון חתום
@@ -85,6 +88,10 @@ export class SecretaryChildrenComponent implements OnInit {
   drawerLoading = false;
   drawerChild: ChildDetails | null = null;
 
+  fc(name: string) {
+  return this.childForm!.get(name)!;
+}
+
   // --- טופס עריכת ילד במגירה ---
   childForm: FormGroup | null = null;
   editMode = false;
@@ -99,11 +106,6 @@ export class SecretaryChildrenComponent implements OnInit {
   panelFocus: 'search' | 'filter' = 'search';
   showAddChildWizard = false;
 
-  // --- סוסים לילדים ---
-  horses: HorseLite[] = [];
-  childHorses: Record<string, string[]> = {};
-  savingChildHorses: Record<string, boolean> = {};
-
   // --- תקנון חתום לילד ---
   termsLoading = false;
   termsBucket: string | null = null;
@@ -111,22 +113,51 @@ export class SecretaryChildrenComponent implements OnInit {
   termsCreatedAt: string | null = null;
 
   // --- הפניות (Storage) ---
-referralsLoading = false;
-referralsError: string | null = null;
+  referralsLoading = false;
+  referralsError: string | null = null;
 
-referralFiles: {
-  name: string;
-  fullPath: string;
-  updatedAt?: string | null;
-  publicUrl?: string; // כי bucket public
-}[] = [];
+  referralFiles: {
+    name: string;
+    fullPath: string;
+    updatedAt?: string | null;
+    publicUrl?: string;
+  }[] = [];
+
+  // ✅ רשימת קופות חולים לבחירה (באנגלית כמו שביקשת)
+healthFunds = [
+  { value: 'clalit', label: 'כללית' },
+  { value: 'maccabi', label: 'מכבי' },
+  { value: 'meuhedet', label: 'מאוחדת' },
+  { value: 'leumit', label: 'לאומית' },
+];
+
+// ✅ מפה קוד -> עברית (אם כבר שמור בעברית, נחזיר כמו שזה)
+healthFundLabel(v?: string | null): string {
+  if (!v) return '—';
+  const found = this.healthFunds.find(x => x.value === v);
+  return found ? found.label : '—'; // אם שמור כבר בעברית/ערך אחר
+}
+
+// ✅ סטטוס: רק Active מוצג כ"פעיל", כל השאר מוצג כקו
+statusLabel(v?: string | null): string {
+  if (!v) return '—';
+  return v === 'Active' ? 'פעיל' : '—';
+}
+
+// ✅ לשימוש בסינון/לוגיקה: האם סטטוס פעיל
+isActiveStatus(v?: any): boolean {
+  return (v ?? '').toString() === 'Active';
+}
+
+  // ✅ regex: עברית/אנגלית + רווח + מקף
+  private nameRegex = /^[A-Za-z\u0590-\u05FF\s'-]+$/;
 
   constructor(
     private ui: UiDialogService,
     private fb: FormBuilder,
     private dialog: MatDialog,
     private sanitizer: DomSanitizer,
-      private router: Router,
+    private router: Router,
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -141,18 +172,17 @@ referralFiles: {
       console.error(e);
     }
   }
-goToParentPaymentsFromChild() {
-  const parentUid = this.drawerChild?.parent_uid;
-  if (!parentUid) {
-    this.ui.alert('לילד הזה אין הורה משויך, לכן אין אפשרות לסנן תשלומים.', 'תשלומים');
-    return;
-  }
 
-  
-  this.router.navigate(['/secretary/payments'], {
-    queryParams: { parentUid },
-  });
-}
+  goToParentPaymentsFromChild() {
+    const parentUid = this.drawerChild?.parent_uid;
+    if (!parentUid) {
+      this.ui.alert('לילד הזה אין הורה משויך, לכן אין אפשרות לסנן תשלומים.', 'תשלומים');
+      return;
+    }
+    this.router.navigate(['/secretary/payments'], {
+      queryParams: { parentUid },
+    });
+  }
 
   /** Guard: תמיד לוודא טננט לפני DB */
   private async dbc() {
@@ -172,7 +202,8 @@ goToParentPaymentsFromChild() {
 
       const { data, error } = await db
         .from('children')
-        .select(`
+        .select(
+          `
           child_uuid,
           first_name,
           last_name,
@@ -182,7 +213,8 @@ goToParentPaymentsFromChild() {
           gender,
           health_fund,
           status
-        `)
+        `,
+        )
         .order('first_name', { ascending: true })
         .order('last_name', { ascending: true });
 
@@ -195,53 +227,6 @@ goToParentPaymentsFromChild() {
       console.error(e);
     } finally {
       this.isLoading = false;
-      await this.loadHorsesAndChildMapping();
-    }
-  }
-
-  /** טוען סוסים ומיפוי child_horses */
-  private async loadHorsesAndChildMapping(): Promise<void> {
-    try {
-      const db = await this.dbc();
-
-      const { data: horsesData, error: horsesErr } = await db
-        .from('horses')
-        .select('id, name, is_active')
-        .order('name', { ascending: true });
-
-      if (horsesErr) {
-        console.error('loadHorses error:', horsesErr);
-        this.horses = [];
-      } else {
-        this.horses = (horsesData ?? []) as HorseLite[];
-      }
-
-      const childIds = this.children
-        .map(c => (c as any).child_uuid)
-        .filter(Boolean) as string[];
-
-      if (!childIds.length) return;
-
-      const { data: mappingData, error: mapErr } = await db
-        .from('child_horses')
-        .select('child_id, horse_id')
-        .in('child_id', childIds);
-
-      if (mapErr) {
-        console.error('loadChildHorses mapping error:', mapErr);
-        return;
-      }
-
-      const mapping: Record<string, string[]> = {};
-      for (const row of mappingData ?? []) {
-        const cid = (row as any).child_id as string;
-        const hid = (row as any).horse_id as string;
-        if (!mapping[cid]) mapping[cid] = [];
-        if (!mapping[cid].includes(hid)) mapping[cid].push(hid);
-      }
-      this.childHorses = mapping;
-    } catch (e) {
-      console.error('loadHorsesAndChildMapping fatal:', e);
     }
   }
 
@@ -270,7 +255,7 @@ goToParentPaymentsFromChild() {
     if (this.statusFilter !== 'all') {
       rows = rows.filter((c: any) => {
         const status = (c.status || '').toString().toLowerCase();
-        const active = status === 'active' || status === 'פעיל';
+        const active = this.isActiveStatus((c as any).status);
         return this.statusFilter === 'active' ? active : !active;
       });
     }
@@ -334,17 +319,17 @@ goToParentPaymentsFromChild() {
     this.termsPath = null;
     this.termsCreatedAt = null;
     this.termsLoading = false;
+
     this.referralFiles = [];
     this.referralsLoading = false;
     this.referralsError = null;
-
   }
 
   openAddChildDialog() {
     this.showAddChildWizard = true;
   }
 
-  /** טוען פרטי ילד והורה למגירה + תקנון חתום */
+  /** טוען פרטי ילד והורה למגירה + תקנון חתום + הפניות */
   private async loadDrawerData(id: string) {
     this.drawerLoading = true;
 
@@ -358,7 +343,8 @@ goToParentPaymentsFromChild() {
 
       const { data: c, error: cErr } = await db
         .from('children')
-        .select(`
+        .select(
+          `
           child_uuid,
           first_name,
           last_name,
@@ -370,7 +356,8 @@ goToParentPaymentsFromChild() {
           status,
           medical_notes,
           behavior_notes
-        `)
+        `,
+        )
         .eq('child_uuid', id)
         .single();
 
@@ -383,7 +370,7 @@ goToParentPaymentsFromChild() {
           .from('parents')
           .select('uid, first_name,last_name, phone, email')
           .eq('uid', c.parent_uid)
-          .maybeSingle(); // ✅ לא יפיל 406 אם אין
+          .maybeSingle();
 
         if (!pErr && p) parent = p as ParentBrief;
       }
@@ -391,10 +378,8 @@ goToParentPaymentsFromChild() {
       this.drawerChild = { ...(c as ChildDetails), parent, child_uuid: id };
       this.buildChildForm(this.drawerChild);
 
-      // ✅ טען תקנון חתום (אם יש)
       await this.loadChildTermsSignature(id);
       await this.loadChildReferrals(id);
-
     } catch (e) {
       console.error('loadDrawerData error:', e);
       this.drawerChild = null;
@@ -403,13 +388,12 @@ goToParentPaymentsFromChild() {
     }
   }
 
-  /** מביא את התקנון החתום האחרון לילד (bucket/path) */
+  /** מביא את התקנון החתום האחרון לילד */
   private async loadChildTermsSignature(childId: string) {
     this.termsLoading = true;
     try {
       const db = await this.dbc();
 
-      // חשוב: maybeSingle כדי למנוע 406 אם אין שורה
       const { data, error } = await db
         .from('child_terms_signatures')
         .select('signed_pdf_bucket, signed_pdf_path, created_at')
@@ -428,7 +412,6 @@ goToParentPaymentsFromChild() {
       this.termsCreatedAt = row?.created_at ?? null;
     } catch (e) {
       console.error('loadChildTermsSignature error:', e);
-      // לא מפילים את המסך בגלל תקנון
       this.termsBucket = null;
       this.termsPath = null;
       this.termsCreatedAt = null;
@@ -436,126 +419,88 @@ goToParentPaymentsFromChild() {
       this.termsLoading = false;
     }
   }
- private async loadChildReferrals(childId: string) {
-  this.referralsLoading = true;
-  this.referralsError = null;
-  this.referralFiles = [];
 
-  try {
-    const client = getSupabaseClient();
-    const bucket = 'referrals';
+  private async loadChildReferrals(childId: string) {
+    this.referralsLoading = true;
+    this.referralsError = null;
+    this.referralFiles = [];
 
-    const folderPath = `referrals/${childId}`;
-    const { data, error } = await client.storage
-      .from(bucket)
-      .list(folderPath, {
+    try {
+      const client = getSupabaseClient();
+      const bucket = 'referrals';
+      const folderPath = `referrals/${childId}`;
+
+      const { data, error } = await client.storage.from(bucket).list(folderPath, {
         limit: 100,
         sortBy: { column: 'updated_at', order: 'desc' },
       });
 
-    if (error) {
-      throw error;
-    }
-
-    this.referralFiles = (data ?? [])
-      .filter((x: any) => !!x?.name)
-      .map((x: any) => {
-        const fullPath = `${folderPath}/${x.name}`;
-        const { data: pub } = client.storage.from(bucket).getPublicUrl(fullPath);
-
-        return {
-          name: x.name,
-          fullPath,
-          updatedAt: x.updated_at ?? null,
-          publicUrl: pub.publicUrl,
-        };
-      });
-
-  } catch (e: any) {
-    console.error('loadChildReferrals error:', e);
-    this.referralsError = e?.message ?? 'שגיאה בטעינת הפניות';
-    this.referralFiles = [];
-  } finally {
-    this.referralsLoading = false;
-  }
-}
-
-
-
-  /** פותח PDF של התקנון בדיאלוג */
-  async openTermsPdf() {
-    if (!this.termsBucket || !this.termsPath) {
-      await this.ui.alert('אין תקנון חתום להצגה לילד זה.', 'תקנון');
-      return;
-    }
-
-    try {
-     const client = getSupabaseClient();
-     console.log('dbTenant storage?', (client as any)?.storage);
-
-
-      // Signed URL לשעה (אפשר לשנות)
-      const { data, error } = await client.storage
-        .from(this.termsBucket)
-        .createSignedUrl(this.termsPath, 60 * 60);
-
       if (error) throw error;
 
-      const url = data?.signedUrl;
-      if (!url) throw new Error('No signedUrl returned');
+      this.referralFiles = (data ?? [])
+        .filter((x: any) => !!x?.name)
+        .map((x: any) => {
+          const fullPath = `${folderPath}/${x.name}`;
+          const { data: pub } = client.storage.from(bucket).getPublicUrl(fullPath);
+
+          return {
+            name: x.name,
+            fullPath,
+            updatedAt: x.updated_at ?? null,
+            publicUrl: pub.publicUrl,
+          };
+        });
+    } catch (e: any) {
+      console.error('loadChildReferrals error:', e);
+      this.referralsError = e?.message ?? 'שגיאה בטעינת הפניות';
+      this.referralFiles = [];
+    } finally {
+      this.referralsLoading = false;
+    }
+  }
+
+  async openReferralPdf(file: { fullPath: string; publicUrl?: string }) {
+    try {
+      const client = getSupabaseClient();
+      const bucket = 'referrals';
+
+      let url = file.publicUrl;
+
+      if (!url) {
+        const { data, error } = await client.storage.from(bucket).createSignedUrl(file.fullPath, 60 * 60);
+        if (error) throw error;
+        url = data?.signedUrl;
+      }
+
+      if (!url) throw new Error('No url returned');
 
       this.dialog.open(TermsPdfDialogComponent, {
         width: 'min(980px, 96vw)',
         height: 'min(90vh, 900px)',
         data: {
-          title: 'תקנון חתום (PDF)',
+          title: 'הפניה (PDF)',
           url: this.sanitizer.bypassSecurityTrustResourceUrl(url),
         },
       });
     } catch (e: any) {
-      console.error('openTermsPdf error:', e);
-      await this.ui.alert('לא הצלחתי לפתוח את ה-PDF: ' + (e?.message ?? e), 'תקנון');
+      console.error('openReferralPdf error:', e);
+      await this.ui.alert('לא הצלחתי לפתוח את ההפניה: ' + (e?.message ?? e), 'הפניות');
     }
   }
 
-  async openReferralPdf(file: { fullPath: string; publicUrl?: string }) {
-  try {
-    const client = getSupabaseClient();
-    const bucket = 'referrals';
-
-    let url = file.publicUrl;
-
-    if (!url) {
-      const { data, error } = await client.storage
-        .from(bucket)
-        .createSignedUrl(file.fullPath, 60 * 60);
-
-      if (error) throw error;
-      url = data?.signedUrl;
-    }
-
-    if (!url) throw new Error('No url returned');
-
-    this.dialog.open(TermsPdfDialogComponent, {
-      width: 'min(980px, 96vw)',
-      height: 'min(90vh, 900px)',
-      data: {
-        title: 'הפניה (PDF)',
-        url: this.sanitizer.bypassSecurityTrustResourceUrl(url),
-      },
-    });
-  } catch (e: any) {
-    console.error('openReferralPdf error:', e);
-    await this.ui.alert('לא הצלחתי לפתוח את ההפניה: ' + (e?.message ?? e), 'הפניות');
-  }
-}
-
-
-  /** בונה טופס עריכה מתוך פרטי הילד שבמגירה */
+  /** ✅ בונה טופס עריכה + ולידציות */
   private buildChildForm(child: ChildDetails) {
     this.childForm = this.fb.group({
-      health_fund: [child.health_fund ?? null],
-      status: [child.status ?? null],
+      first_name: [
+        child.first_name ?? '',
+        [Validators.required, Validators.minLength(2), Validators.maxLength(30), Validators.pattern(this.nameRegex)],
+      ],
+      last_name: [
+        child.last_name ?? '',
+        [Validators.required, Validators.minLength(2), Validators.maxLength(30), Validators.pattern(this.nameRegex)],
+      ],
+      health_fund: [child.health_fund ?? null], // בחירה
+      status: [child.status ?? null], // null | active | inactive
       medical_notes: [child.medical_notes ?? null],
       behavior_notes: [child.behavior_notes ?? null],
     });
@@ -564,13 +509,13 @@ goToParentPaymentsFromChild() {
     this.editMode = false;
   }
 
-  /** כניסה למצב עריכה במגירת הילד */
+  /** כניסה למצב עריכה */
   enterEditModeChild() {
     if (!this.drawerChild || !this.childForm) return;
     this.editMode = true;
   }
 
-  /** ביטול עריכה – חזרה לערכים המקוריים */
+  /** ביטול עריכה */
   cancelChildEdit() {
     if (!this.originalChild) {
       this.editMode = false;
@@ -580,13 +525,22 @@ goToParentPaymentsFromChild() {
     this.editMode = false;
   }
 
-  /** שמירת השינויים – PATCH רק על שדות ששונו */
+  /** שמירה */
   async saveChildEdits() {
     if (!this.drawerChild || !this.childForm || !this.selectedId) return;
+
+    // ✅ ולידציה לפני שמירה
+    if (this.childForm.invalid) {
+      this.childForm.markAllAsTouched();
+      await this.ui.alert('יש שדות לא תקינים. תקני אותם ואז שמרי שוב.', 'שגיאת תקינות');
+      return;
+    }
 
     const raw = this.childForm.getRawValue();
 
     const fieldsToCompare: (keyof ChildDetails)[] = [
+      'first_name',
+      'last_name',
       'health_fund',
       'status',
       'medical_notes',
@@ -618,88 +572,17 @@ goToParentPaymentsFromChild() {
 
       if (error) throw error;
 
-      this.drawerChild = {
-        ...(this.drawerChild as ChildDetails),
-        ...delta,
-      };
+      this.drawerChild = { ...(this.drawerChild as ChildDetails), ...delta };
       this.originalChild = { ...this.drawerChild };
 
-      this.children = this.children.map(c =>
-        (c as any).child_uuid === this.selectedId
-          ? { ...c, ...delta }
-          : c,
+      this.children = this.children.map((c: any) =>
+        c.child_uuid === this.selectedId ? { ...c, ...delta } : c,
       );
 
       this.editMode = false;
     } catch (e: any) {
       console.error(e);
-      await this.ui.alert(
-        'שמירת השינויים נכשלה: ' + (e?.message ?? e),
-        'שמירה נכשלה',
-      );
-    }
-  }
-
-  /** האם לילד יש סוס מסוים */
-  childHasHorse(childId: string | undefined, horseId: string): boolean {
-    if (!childId) return false;
-    const list = this.childHorses[childId] || [];
-    return list.includes(horseId);
-  }
-
-  /** רשימת שמות סוסים לתצוגה */
-  horseNamesForChild(childId: string | undefined): string {
-    if (!childId) return '';
-    const ids = this.childHorses[childId] || [];
-    if (!ids.length) return '';
-    const nameById = new Map(this.horses.map(h => [h.id, h.name]));
-    return ids
-      .map(id => nameById.get(id))
-      .filter(Boolean)
-      .join(', ');
-  }
-
-  /** הוספה/הסרה של סוס לילד */
-  async toggleChildHorse(
-    childId: string | undefined,
-    horseId: string,
-    checked: boolean,
-  ) {
-    if (!childId) return;
-    const key = childId;
-    this.savingChildHorses[key] = true;
-
-    try {
-      const db = await this.dbc();
-
-      const current = new Set(this.childHorses[key] || []);
-
-      if (checked) {
-        if (!current.has(horseId)) {
-          const { error } = await db
-            .from('child_horses')
-            .insert({ child_id: childId, horse_id: horseId });
-          if (error) throw error;
-          current.add(horseId);
-        }
-      } else {
-        if (current.has(horseId)) {
-          const { error } = await db
-            .from('child_horses')
-            .delete()
-            .eq('child_id', childId)
-            .eq('horse_id', horseId);
-          if (error) throw error;
-          current.delete(horseId);
-        }
-      }
-
-      this.childHorses[key] = Array.from(current);
-    } catch (e) {
-      console.error('toggleChildHorse error:', e);
-      await this.ui.alert('שמירת התאמת הסוס נכשלה', 'שמירה נכשלה');
-    } finally {
-      this.savingChildHorses[key] = false;
+      await this.ui.alert('שמירת השינויים נכשלה: ' + (e?.message ?? e), 'שמירה נכשלה');
     }
   }
 
@@ -724,30 +607,40 @@ goToParentPaymentsFromChild() {
       <button class="pdf-close" (click)="close()">✕</button>
     </div>
 
-    <iframe
-      class="pdf-frame"
-      [src]="data.url"
-      title="PDF"
-      loading="lazy"
-    ></iframe>
+    <iframe class="pdf-frame" [src]="data.url" title="PDF" loading="lazy"></iframe>
   `,
-  styles: [`
-    :host { display:block; height:100%; }
-    .pdf-head{
-      display:flex; align-items:center; justify-content:space-between;
-      padding:10px 12px; border-bottom:1px solid #e6e6e6;
-      font-family: "Heebo", system-ui, Arial, sans-serif;
-    }
-    .pdf-title{ font-weight:800; }
-    .pdf-close{
-      border:none; background:transparent; font-size:18px; cursor:pointer;
-      line-height:1; padding:6px 10px;
-    }
-    .pdf-frame{
-      width:100%; height: calc(100% - 52px);
-      border:0;
-    }
-  `],
+  styles: [
+    `
+      :host {
+        display: block;
+        height: 100%;
+      }
+      .pdf-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px;
+        border-bottom: 1px solid #e6e6e6;
+        font-family: 'Heebo', system-ui, Arial, sans-serif;
+      }
+      .pdf-title {
+        font-weight: 800;
+      }
+      .pdf-close {
+        border: none;
+        background: transparent;
+        font-size: 18px;
+        cursor: pointer;
+        line-height: 1;
+        padding: 6px 10px;
+      }
+      .pdf-frame {
+        width: 100%;
+        height: calc(100% - 52px);
+        border: 0;
+      }
+    `,
+  ],
 })
 export class TermsPdfDialogComponent {
   constructor(
