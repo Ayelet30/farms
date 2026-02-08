@@ -9,6 +9,7 @@ export interface Lesson {
   end_time: string;
   instructor_id: string;
   instructor_name: string;
+hasPendingCancel?: boolean;
 
   lesson_type: 'רגיל' | 'השלמה' | 'נסיון' | string;   // ← הוספתי נסיון וגם string לאפשר סוגים מורחבים
   series_index?: number;   // ← אם מגיע מהסדרה (חלק 1/10)

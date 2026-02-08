@@ -2,6 +2,7 @@ import { Component, OnInit, computed, signal, Input, inject } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UiDialogService } from '../../services/ui-dialog.service';
+import { ActivatedRoute } from '@angular/router';
 
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,6 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { getAuth } from 'firebase/auth';
 
@@ -26,7 +28,7 @@ type MonthlyReportRow = {
   lesson_date: string | null;
   start_time: string | null;
   end_time: string | null;
-
+ office_note?: string | null;
   status?: string | null;
   child_name?: string | null;
   instructor_name?: string | null;
@@ -47,8 +49,8 @@ type MonthlyReportRow = {
 
 interface LessonRow {
   lesson_id: UUID;
-  child_id?: UUID;
-
+  child_id?: UUID | null; 
+  office_note?: string | null;
   lesson_type: LessonType | null;
   status: LessonStatus | null;
 
@@ -160,6 +162,7 @@ interface OccWithAttendanceRow {
     MatButtonModule,
     MatTableModule,
     MatProgressSpinnerModule,
+     MatTooltipModule, 
   ],
 })
 export class MonthlySummaryComponent implements OnInit {
@@ -167,6 +170,31 @@ export class MonthlySummaryComponent implements OnInit {
   private ui = inject(UiDialogService);
 
   private dbc = this.dbTenantFactory();
+  private route = inject(ActivatedRoute);
+
+
+
+readonly isSecretary = signal<boolean>(true);
+
+readonly baseColumns = [
+  'date',
+  'student',
+  'instructor',
+  'type',
+  'ridingType',
+  'status',
+  'start',
+  'end',
+];
+
+
+
+readonly displayedColumns = computed(() =>
+  this.isSecretary()
+    ? [...this.baseColumns, 'office_note']
+    : this.baseColumns
+);
+
 
   // ✅ Safe debug logger: runs only on localhost/dev and never prints sensitive payloads
   private readonly isDev =
@@ -253,7 +281,12 @@ export class MonthlySummaryComponent implements OnInit {
   typeFilter = signal<'all' | 'regular' | 'makeup'>('all');
   statusFilter = signal<'all' | 'pending' | 'approved' | 'canceled' | 'done'>('all');
   search = signal('');
+  childSearch = signal('');
+
   instructorFilter = signal<'all' | string>('all');
+  selectedChildId = signal<string | null>(null);
+  fromChildCard = signal<boolean>(false);
+selectedChildName = signal<string | null>(null);
 
   // DATA
   lessons = signal<LessonRow[]>([]);
@@ -340,10 +373,15 @@ export class MonthlySummaryComponent implements OnInit {
   });
 
   filteredLessons = computed<LessonRow[]>(() => {
+    const childId = this.selectedChildId();
+
     const q = this.clean(this.search()).toLowerCase();
+    const childQ = this.clean(this.childSearch()).toLowerCase();
+
     const type = this.typeFilter();
     const statusF = this.statusFilter();
     const instructorF = this.instructorFilter();
+    
     const rows = this.lessons();
 
     const map: Record<string, LessonStatus[]> = {
@@ -354,36 +392,56 @@ export class MonthlySummaryComponent implements OnInit {
       all: [],
     };
 
-    return rows.filter((l: LessonRow) => {
-      if (type === 'regular' && l.lesson_type !== 'רגיל') return false;
-      if (type === 'makeup' && l.lesson_type !== 'השלמה') return false;
+return rows.filter((l: LessonRow) => {
+  const childName =
+    this.clean(l.child_full_name) ||
+    `${this.clean(l.child_first_name)} ${this.clean(l.child_last_name)}`.trim() ||
+    `${this.clean(l.child?.first_name)} ${this.clean(l.child?.last_name)}`.trim();
 
-      if (statusF !== 'all') {
-        const allowed = map[statusF];
-        if (!l.status || !allowed.includes(l.status)) return false;
-      }
+  // סוג שיעור
+  if (type === 'regular' && l.lesson_type !== 'רגיל') return false;
+  if (type === 'makeup' && l.lesson_type !== 'השלמה') return false;
 
-      if (instructorF !== 'all') {
-        const instName = this.clean(l.instructor_name);
-        if (instName !== instructorF) return false;
-      }
+  // סטטוס
+  if (statusF !== 'all') {
+    const allowed = map[statusF];
+    if (!l.status || !allowed.includes(l.status)) return false;
+  }
 
-      if (q) {
-        const childName =
-          this.clean(l.child_full_name) ||
-          `${this.clean(l.child_first_name)} ${this.clean(l.child_last_name)}`.trim() ||
-          `${this.clean(l.child?.first_name)} ${this.clean(l.child?.last_name)}`.trim();
+  // מדריך
+  if (instructorF !== 'all') {
+    const instName = this.clean(l.instructor_name);
+    if (instName !== instructorF) return false;
+  }
 
-        const hay = `${childName} ${l.lesson_type || ''} ${l.riding_type || ''} ${
-          l.instructor_name || ''
-        }`.toLowerCase();
+  // 🔹 אם הגענו מכרטיס ילד – סינון לפי child_id בלבד
+// 🔹 אם הגענו מכרטיס ילד – סינון לפי שם הילד
+// 🔒 סינון מכרטסת ילד – ילד אחד בלבד
+if (this.fromChildCard()) {
+  const childId = this.selectedChildId();
+  if (!childId) return true; // ← אל תחסום אם אין מזהה
 
-        if (!hay.includes(q)) return false;
-      }
+  // השוואה בטוחה (string)
+  if (String(l.child_id) !== String(childId)) return false;
+}
+console.log('fromChildCard:', this.fromChildCard());
+console.log('route childId:', this.selectedChildId());
+console.log('rows childIds:', this.lessons().map(l => l.child_id));
 
-      return true;
-    });
-  });
+
+  // 🔹 חיפוש חופשי כללי
+  if (q) {
+    const hay = `${childName} ${l.lesson_type || ''} ${l.riding_type || ''} ${
+      l.instructor_name || ''
+    }`.toLowerCase();
+
+    if (!hay.includes(q)) return false;
+  }
+
+  return true;
+});
+
+});
 
   // ===============================
   //            KPIs
@@ -464,12 +522,23 @@ export class MonthlySummaryComponent implements OnInit {
     };
   });
 
-  // ===============================
-  //        LOAD DATA
-  // ===============================
-  ngOnInit(): void {
-    this.load();
-  }
+ngOnInit(): void {
+  this.route.queryParams.subscribe(params => {
+    const childId = params['childId'] ?? null;
+
+    this.selectedChildId.set(childId);
+
+    // 🔒 רק אם באמת הגיע childId – נחשב "מכרטסת ילד"
+    this.fromChildCard.set(
+      params['fromChild'] === 'true' && !!childId
+    );
+  });
+
+  this.load();
+}
+
+
+
 
   async load(): Promise<void> {
     this.loading = true;
@@ -555,6 +624,10 @@ export class MonthlySummaryComponent implements OnInit {
       if (occAttErr) throw occAttErr;
 
       const rows = (rawLessons ?? []) as MonthlyReportRow[];
+console.log(
+  '🟩 raw office_note from DB:',
+  rows.map(r => r.office_note)
+);
 
       // ✅ safe debug: counts only
       this.debug('loaded data', {
@@ -579,7 +652,10 @@ export class MonthlySummaryComponent implements OnInit {
 
         return {
           lesson_id: (raw.lesson_id ?? '') as UUID,
+          
+            child_id: raw.child_id ?? null, 
           occur_date: raw.lesson_date ?? null,
+office_note: raw.office_note ?? null,
 
           start_time: raw.start_time ? raw.start_time.slice(0, 5) : null,
           end_time: raw.end_time ? raw.end_time.slice(0, 5) : null,
@@ -601,6 +677,39 @@ export class MonthlySummaryComponent implements OnInit {
       });
 
       this.lessons.set(normalizedLessons);
+      console.log(
+  '🧒 child_id check:',
+  normalizedLessons.map(l => l.child_id)
+);
+
+      // ✅ אם הגענו מכרטיס ילד – סינון אוטומטי לפי שם הילד
+// ✅ סינון אוטומטי לפי שם הילד שממנו הגענו (לפי childId)
+if (this.fromChildCard() && this.selectedChildId()) {
+  const childId = this.selectedChildId();
+
+  const match = normalizedLessons.find(
+    l => l.child_id === childId
+  );
+
+  if (match) {
+    const name =
+      this.clean(match.child_full_name) ||
+      `${this.clean(match.child_first_name)} ${this.clean(match.child_last_name)}`.trim();
+
+    if (name) {
+      this.childSearch.set(name);
+    }
+  }
+}
+
+      console.log(
+  '🧪 lessons office_note:',
+  normalizedLessons.map(l => ({
+    date: l.occur_date,
+    note: l.office_note
+  }))
+);
+
       this.payments.set((paymentsData ?? []) as PaymentRow[]);
       this.cancelExceptions.set((cancelsData ?? []) as CancelExceptionRow[]);
       this.occurrences.set((occurrencesData ?? []) as LessonOccurrenceRow[]);
@@ -715,6 +824,14 @@ export class MonthlySummaryComponent implements OnInit {
     const target = e.target as HTMLInputElement;
     this.search.set(target.value);
   }
+onChildSearchChange(e: Event): void {
+  const target = e.target as HTMLInputElement;
+  this.childSearch.set(target.value);
+}
+
+clearChildSearch(): void {
+  this.childSearch.set('');
+}
 
   clearSearch(): void {
     this.search.set('');
@@ -722,7 +839,7 @@ export class MonthlySummaryComponent implements OnInit {
     this.statusFilter.set('all');
     this.instructorFilter.set('all');
   }
-  // ===============================
+// ===============================
 //        EXCEL EXPORT (SAFE)
 // ===============================
 async exportExcel(): Promise<void> {
@@ -743,12 +860,14 @@ async exportExcel(): Promise<void> {
       'סוג שיעור': r.lesson_type ?? '',
       'סוג רכיבה': r.riding_type ?? '',
       סטטוס: r.status ?? '',
+      'הערת משרד': r.office_note ?? '',
       'שעת התחלה': r.start_time ?? '',
       'שעת סיום': r.end_time ?? '',
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
+
     const sheetName = this.mode() === 'month' ? 'Monthly' : 'Yearly';
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
@@ -758,16 +877,12 @@ async exportExcel(): Promise<void> {
         : `yearly_${this.year}.xlsx`;
 
     XLSX.writeFile(wb, fileName);
-  } catch (e: any) {
-    // בלי הדפסת דאטה
-    console.error('exportExcel failed:', e?.message || e);
-   await this.ui.alert(
-  'כדי לייצא לאקסל צריך להתקין את הספריה xlsx (npm i xlsx).',
-  'חסר התקנה'
-);
-
+  } catch (e) {
+    console.error(e);
+    this.ui.alert('חסר xlsx. להריץ: npm i xlsx', 'שגיאה');
   }
 }
+
   // ===============================
   //      CHARTS & KPI VIEW
   // ===============================
@@ -953,6 +1068,7 @@ async exportExcel(): Promise<void> {
     const step = (this.axisRight - this.axisLeft) / (total - 1);
     return this.axisLeft + index * step;
   }
+
 
   getPointY(value: number): number {
     const max = this.maxChartValue() || 1;

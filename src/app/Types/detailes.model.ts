@@ -25,6 +25,7 @@ export interface CurrentUser {
   selectedTenantId?: string | null;
 }
 
+export type TaughtChildGender = 'זכר' | 'נקבה';
 
 export interface UserDetails {
   [x: string]: any;
@@ -63,6 +64,11 @@ export interface InstructorRow {
   about?: string | null;
   education?: string | null;
   phone?: string | null;
+  taught_child_genders: TaughtChildGender[]; // default ['זכר','נקבה']
+  min_age_years_male: number | null;
+  max_age_years_male: number | null;
+  min_age_years_female: number | null;
+  max_age_years_female: number | null;
 }
 // models/secretarial-request.model.ts (או ליד הקומפוננטה)
 
@@ -74,9 +80,16 @@ export type RequestType =
   | 'DELETE_CHILD'
   | 'MAKEUP_LESSON'
   | 'OTHER_REQUEST'
-  | 'PARENT_SIGNUP';
+  | 'PARENT_SIGNUP'
+  | 'FILL_IN';         
 
-export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED_BY_REQUESTER';
+
+export type RequestStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'REJECTED_BY_SYSTEM'
+  | 'CANCELLED_BY_REQUESTER';
 
 export interface SecretarialRequestDbRow {
   id: string;
@@ -116,6 +129,8 @@ export interface UiRequest {
   createdAt: string;
 
   requesterUid: string | null;  // ← חשוב להוספת סינון לפי משתמש
+  requesterRole: string | null,   
+
   payload: any;
   childId?: string | null;
   instructorId?: string | null;

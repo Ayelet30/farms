@@ -712,6 +712,7 @@ select = 'child_uuid, first_name, last_name, gov_id, birth_date, parent_uid, sta
     return { ok: false, data: [], error: e?.message ?? 'Unknown error' };
   }
 }
+
 export async function fetchActiveChildrenForTenant(
   select = 'child_uuid, first_name, last_name, instructor_id, status, gender, birth_date'
 ): Promise<{ ok: boolean; data: ChildRow[]; error?: string }> {
@@ -721,7 +722,7 @@ export async function fetchActiveChildrenForTenant(
     const { data, error } = await dbTenant()
       .from('children')
       .select(select)
-      .eq('status', 'Active')
+      .in('status', ['Active', 'Deletion Scheduled', 'Pending Deletion Approval'])
       .order('first_name', { ascending: true })
       .order('last_name', { ascending: true });
 
@@ -844,7 +845,8 @@ export type SecretaryChargeRow = {
   invoice_url: string | null;
   is_external: boolean;   
    invoice_status?: string | null;
-  tranzila_invoice_url?: string | null;      // uid = 1111.. או ללא התאמת הורה
+  tranzila_invoice_url?: string | null;  
+  office_note: string | null;     // uid = 1111.. או ללא התאמת הורה
 };
 
 export type ParentChargeRow = {

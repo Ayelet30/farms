@@ -35,7 +35,7 @@
   (click)="!selectedChildId && showUiHint('instructor', missingInstructorMsg)"
 >
         <mat-select #instructorSelect class="appt-select" [ngClass]="{ disabled: !selectedChildId }"
-          [(ngModel)]="selectedInstructorId" (selectionChange)="onInstructorChange()" [disabled]="!selectedChildId"
+          [(ngModel)]="selectedInstructorId" (selectionChange)="onInstructorChange()" [disabled]="!selectedChildId || loadingInstructors || !instructors.length"
           placeholder="בחר/י מדריך">
           <!-- שורת חיפוש -->
           <mat-option class="search-option" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()">
@@ -45,21 +45,45 @@
           </mat-option>
 
           <!-- אופציה של "כל המדריכים" -->
-          <mat-option value="any">
-            כל המדריכים
-          </mat-option>
+         <mat-option *ngIf="instructors.length" value="any">כל המדריכים</mat-option>
+
 
           <!-- אופציות – רשימה מסוננת -->
-          <mat-option *ngFor="let ins of filteredInstructors" [value]="ins.instructor_uid">
+          <!-- <mat-option *ngFor="let ins of filteredInstructors" [value]="ins.instructor_uid">
             {{ ins.full_name }}
-          </mat-option>
+          </mat-option> -->
+          <!-- אופציות – רשימה מסוננת -->
+<mat-option
+  *ngFor="let ins of filteredInstructors"
+  [value]="ins.instructor_uid"
+  [matTooltip]="isSecretary && !ins.isEligible ? ins.ineligibleReasonText : ''"
+  [matTooltipDisabled]="!(isSecretary && !ins.isEligible)"
+  matTooltipPosition="left"
+>
+  <span class="instructor-option">
+    <!-- נקודה אדומה רק למזכירה ורק אם לא מתאים -->
+    <span
+      *ngIf="isSecretary && !ins.isEligible"
+      class="dot dot-red"
+      aria-hidden="true"
+    ></span>
+
+    <span class="name">{{ ins.full_name }}</span>
+  </span>
+</mat-option>
+
         </mat-select>
+      
           <small class="hint" *ngIf="uiHint['instructor']">{{ uiHint['instructor'] }}</small>
 
       </div>
 
 
     </div>
+      <div *ngIf="!loadingInstructors && instructorsError" class="error">
+  {{ instructorsError }}
+</div>
+
   </div>
 
   <!-- כרטיס מידע על המדריך שנבחר -->
@@ -180,6 +204,8 @@
       מסתיימת בתאריך
       <b><span class="ltr">{{ seriesConfirmData.endDate | date:'dd-MM-yyyy'}}</span></b><br>
     </ng-container>
+    עם המדריך/ה
+<b>{{ seriesConfirmData.instructorName }}</b><br>
 
     ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
 
@@ -288,14 +314,15 @@
   </div>
 
   <!-- שורה של "ללא הגבלה" -->
-  <label class="unlimited-row">
-    <input
-      type="checkbox"
-      [(ngModel)]="isOpenEndedSeries"
-      (change)="onUnlimitedSeriesToggle()"
-    />
-    סדרה ללא הגבלת שיעורים
-  </label>
+ <label class="unlimited-row" *ngIf="canUseOpenEndedSeries">
+  <input
+    type="checkbox"
+    [(ngModel)]="isOpenEndedSeries"
+    (change)="onUnlimitedSeriesToggle()"
+  />
+  סדרה ללא הגבלת שיעורים
+</label>
+
 </div>
 
 <!-- מסלול תשלום -->
@@ -496,7 +523,7 @@
     {{ o.start_time | slice:0:5 }}–{{ o.end_time | slice:0:5 }}
   </span>
 </td>
-      <td>{{ o.instructor_name || o.instructor_id }}</td>
+<td>{{ getInstructorDisplayName(o.instructor_id) }}</td>
       <!-- <td>{{ o.status }}</td> -->
       <td>
         <button
@@ -612,7 +639,7 @@
     {{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}
   </span>
 </td>
-            <td>{{ getInstructorNameById(c.instructor_id) }}</td>
+<td>{{ getInstructorDisplayName(c.instructor_id) }}</td>
             <td>
               <button type="button" class="appt-cta" (click)="openHolesForCandidate(c)">
                 להשלמת שיעור זה
@@ -696,7 +723,7 @@
 </div>
 
 <!-- דיאלוג אישור מילוי מקום -->
-+<!-- דיאלוג הורה (בקשה למזכירה) -->
+<!-- דיאלוג הורה (בקשה למזכירה) -->
 <ng-template #confirmOccupancyParentDialog let-dialogRef="dialogRef">
   <div dir="rtl" style="padding: 10px; max-width: 380px;">
     <h3>אישור בקשת מילוי מקום</h3>

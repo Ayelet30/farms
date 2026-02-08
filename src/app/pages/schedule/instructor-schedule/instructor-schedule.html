@@ -75,9 +75,23 @@
     </div>
 
     <div class="field-row">
-      <label>סיבת הבקשה</label>
-      <textarea [(ngModel)]="rangeModal.text"></textarea>
-    </div>
+  <div class="field-row">
+  <label>סיבת הבקשה</label>
+
+  <div
+    class="field-row"
+    *ngIf="rangeModal.type === 'sick'"
+  >
+    <label>אישור מחלה (אופציונלי)</label>
+    <input
+      type="file"
+      accept=".pdf,image/*"
+      (change)="onSickFileSelected($event)"
+    />
+  </div>
+
+  <textarea [(ngModel)]="rangeModal.text"></textarea>
+</div>
 
     <div class="modal-actions">
       <button class="cancel" (click)="closeRangeModal()">ביטול</button>

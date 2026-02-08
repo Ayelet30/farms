@@ -56,6 +56,9 @@
           <span class="age-badge warn" *ngIf="isPendingDelete(c?.status)">
             ממתין לאישור מחיקה
           </span>
+<span class="age-badge danger" *ngIf="isDeletionScheduled(c?.status)">
+  {{ deletionScheduledText(c) }}
+</span>
 
           <span class="age-badge" *ngIf="c.birth_date">גיל: {{ getAge(c.birth_date) }} </span>
           <span class="age-badge" *ngIf="c.health_fund">
@@ -80,12 +83,17 @@
               </svg>
             </button>
 
-            <button *ngIf="!editing[childId(c)] && !isPendingDelete(c?.status)" class="icon-btn danger" type="button"
-              (click)="confirmDeleteChild(c)" aria-label="מחיקה">
-              <svg class="icon" aria-hidden="true">
-                <use href="assets/icons/feather-slim.svg#trash" />
-              </svg>
-            </button>
+          <button *ngIf="!editing[childId(c)] 
+              && !isPendingDelete(c?.status) 
+              && !isDeletionScheduled(c?.status)"
+        class="icon-btn danger"
+        type="button"
+        (click)="confirmDeleteChild(c)"
+        aria-label="מחיקה">
+  <svg class="icon" aria-hidden="true">
+    <use href="assets/icons/feather-slim.svg#trash" />
+  </svg>
+</button>
 
             <button *ngIf="editing[childId(c)]" class="icon-btn" type="button" (click)="cancelEdit(c)"
               aria-label="ביטול" title="ביטול">

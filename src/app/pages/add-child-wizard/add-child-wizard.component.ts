@@ -137,10 +137,10 @@ export class AddChildWizardComponent implements OnInit {
   validationErrors: Record<string, string> = {};
 
   // ===== דמי הרשמה =====
-  registrationFeeAgorot: number | null = null;
+  registrationFee: number | null = null;
 
   get hasRegistrationFee(): boolean {
-    return (this.registrationFeeAgorot ?? 0) > 0;
+    return (this.registrationFee ?? 0) > 0;
   }
 
   get paymentStepIndex(): number {
@@ -162,7 +162,7 @@ export class AddChildWizardComponent implements OnInit {
 
   get headerSubtitle(): string {
     if (this.isParentMode) {
-      return 'האשף מלווה אותך בשלבים קצרים. החיוב יתבצע רק לאחר אישור המזכירה.';
+      return 'האשף מלווה אותך בשלבים קצרים. החיוב יתבצע רק לילד חדש ורק לאחר אישור המזכירה.';
     }
     return 'כאן ניתן להוסיף ילד/ה לחווה, לבחור הורה אחראי ולמלא שאלון קצר. השמירה מתבצעת ישירות במערכת.';
   }
@@ -241,18 +241,20 @@ export class AddChildWizardComponent implements OnInit {
 
   private async loadRegistrationFeeFromDb(): Promise<void> {
     try {
+      await ensureTenantContextReady()
       const db = dbTenant();
-      const { data, error } = await db.from('farm_settings').select('registration_fee').single();
+      const { data, error } = await db.from('farm_settings').select('registration_fee').limit(1).maybeSingle()
+      console.log('loadRegistrationFeeFromDb data:', data, 'error:', error);
+
       if (error) throw error;
 
-      this.registrationFeeAgorot = (data as any)?.registration_fee ?? 0;
+      this.registrationFee = (data as any)?.registration_fee ?? 0;
 
       if (this.hasRegistrationFee) {
-        this.payment.registrationAmount = Math.round((this.registrationFeeAgorot ?? 0) / 100);
+        this.payment.registrationAmount = Math.round(this.registrationFee ?? 0);
       }
     } catch (e) {
-      console.error('loadRegistrationFeeFromDb failed', e);
-      this.registrationFeeAgorot = 0;
+      this.registrationFee = 0;
     }
   }
 
@@ -300,7 +302,6 @@ export class AddChildWizardComponent implements OnInit {
 
       if (!url) this.termsError = 'לא הצלחתי לייצר קישור לתקנון';
     } catch (e: any) {
-      console.error(e);
       this.termsError = e?.message ?? 'שגיאה בטעינת התקנון';
     } finally {
       this.termsLoading = false;
@@ -335,7 +336,6 @@ export class AddChildWizardComponent implements OnInit {
         }
       }
     } catch (e: any) {
-      console.error(e);
       this.parents = [];
       this.parentsError = e?.message ?? 'שגיאה בטעינת רשימת ההורים';
     } finally {
@@ -473,6 +473,7 @@ export class AddChildWizardComponent implements OnInit {
         return;
       }
 
+
       // בדיקה אם ת"ז הילד כבר קיימת
       const { data: exists, error: existsError } = await dbc
         .from('children')
@@ -524,7 +525,10 @@ export class AddChildWizardComponent implements OnInit {
       }
 
       // יוצרים דרישת תקנון (כמו אצלך)
-      await dbc.rpc('create_child_terms_requirement', { p_child_id: insertedChild.child_uuid });
+      const { error: reqErr } = await dbc.rpc('create_child_terms_requirement', {
+        p_child_id: insertedChild.child_uuid,
+      });
+      if (reqErr) throw reqErr;
 
       // ✅ במצב הורה: אחרי יצירת הילד — חותמים ושומרים PDF חתום
       if (this.isParentMode) {
@@ -574,10 +578,10 @@ export class AddChildWizardComponent implements OnInit {
           },
         };
 
+
         const { error: secretarialError } = await dbc.from('secretarial_requests').insert(secretarialPayload);
 
         if (secretarialError) {
-          console.error('שגיאה ביצירת בקשה למזכירה:', secretarialError);
           this.error = 'הילד נוסף למערכת, אך הייתה שגיאה בשליחת הבקשה למזכירה. אנא צרי קשר עם המשרד.';
           this.childAdded.emit();
           this.closed.emit();
@@ -663,7 +667,6 @@ export class AddChildWizardComponent implements OnInit {
       });
       if (attachErr) throw attachErr;
     } catch (e: any) {
-      console.error('[signAndAttachTermsPdfAfterChildInsert] error', e);
       this.termsError = e?.message ?? 'שגיאה בחתימה/שמירת התקנון';
       throw e; // חשוב כדי לעצור את ה-flow אם את רוצה שהכל יהיה עקבי
     } finally {
@@ -765,7 +768,6 @@ export class AddChildWizardComponent implements OnInit {
         this.tokenError = null;
       }
     } catch (e) {
-      console.error('loadSavedPaymentProfileForParent failed', e);
       this.savedPaymentProfile = null;
     } finally {
       this.loadingPaymentProfile = false;
@@ -803,7 +805,6 @@ export class AddChildWizardComponent implements OnInit {
 
       this.hfReg?.onEvent?.('validityChange', () => {});
     } catch (e: any) {
-      console.error('[reg] handshake/init error', e);
       this.tokenError = e?.message ?? 'שגיאה באתחול שדות האשראי';
     }
   }
@@ -840,7 +841,22 @@ export class AddChildWizardComponent implements OnInit {
     this.savingToken = true;
     this.tokenSaved = false;
 
-    const terminalName = 'moachapp';
+    const dbc = dbTenant();
+
+    const { data, error } = await dbc
+    .from('billing_terminals')
+    .select(
+      'terminal_name,tok_terminal_name,secret_key_charge,secret_key_charge_token',
+    )
+    .eq('provider', 'tranzila')
+    .eq('mode', 'prod')
+    .eq('active', true)
+    .order('is_default', { ascending: false })
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+    const terminalName = data?.terminal_name ?? 'moachapp';
     const amount = '1.00';
 
     this.hfReg.charge(
@@ -907,7 +923,6 @@ export class AddChildWizardComponent implements OnInit {
           this.tokenSaved = true;
           await this.loadSavedPaymentProfileForParent(parentUid);
         } catch (e: any) {
-          console.error('[tokenizeCard] save error', e);
           this.tokenError = e?.message ?? 'שגיאה בשמירת אמצעי תשלום במערכת';
         } finally {
           this.savingToken = false;

@@ -15,7 +15,7 @@ type ConfirmDialogData = {
   imports: [CommonModule, MatDialogModule, MatButtonModule],
   template: `
     <div dir="rtl">
-      <h3 class="title">{{ data .title || 'אישור' }}</h3>
+<h3 class="title">{{ data.title || 'אישור' }}</h3>
       <p class="msg">{{ data.message || 'האם להמשיך?' }}</p>
 
       <div class="actions">

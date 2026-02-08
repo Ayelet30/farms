@@ -120,9 +120,13 @@ chargeSelectedChargesForParent(args: {
 
   getHandshakeToken(tenantSchema: string) {
   return firstValueFrom(
-    this.http.get<{ thtk: string; terminal_name: string }>(`/api/tranzilaHandshake?tenantSchema=${encodeURIComponent(tenantSchema)}`)
+    this.http.get<{ thtk: string; terminal_name: string }>(
+      `${this.base}/tranzilaHandshake`,
+      { params: { tenantSchema } }
+    )
   );
 }
+
 
 
 chargeOnce(body: {

@@ -114,7 +114,7 @@ statusClass(st: string): string {
   ========================= */
   private infoTimer: any;
 private readonly CHILD_SELECT =
-  'child_uuid, gov_id, first_name, last_name, birth_date, gender, health_fund, instructor_id, parent_uid, status, medical_notes';
+  'child_uuid, gov_id, first_name, last_name, birth_date, gender, health_fund, instructor_id, parent_uid, status, medical_notes , scheduled_deletion_at';
  
   /* =========================
      Constructor
@@ -877,6 +877,29 @@ async loadTermsStatuses() {
     console.error('loadTermsStatuses failed', e);
     // לא חוסמים UI של הילדים בגלל זה
   }
+}
+public isDeletionScheduled = (st?: string | null): boolean =>
+  st === 'Deletion Scheduled';
+
+private parseTs(v: any): number {
+  if (!v) return NaN;
+  // Supabase לרוב מחזיר ISO עם tz, אבל נשמור על בטיחות
+  const s = String(v);
+  const hasTz = /([zZ]|[+\-]\d{2}:\d{2})$/.test(s);
+  return new Date(hasTz ? s : `${s}Z`).getTime();
+}
+
+public deletionScheduledText(child: any): string | null {
+  if (!this.isDeletionScheduled(child?.status)) return null;
+
+  const ts = this.parseTs(child?.scheduled_deletion_at);
+  if (!Number.isFinite(ts)) return 'מחיקה מתבצעת בקרוב';
+
+  const msLeft = ts - Date.now();
+  const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+
+  // אם הגיע הזמן/עבר -> עדיין סטטוס Deletion Scheduled אבל ימים 0
+  return `מחיקה מתבצעת בעוד ${daysLeft} ימים`;
 }
 
 isChildTermsSigned(childId: string): boolean {

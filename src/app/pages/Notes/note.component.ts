@@ -41,7 +41,8 @@ type RoleInTenant =
   | 'admin'
   | 'coordinator';
 
-type Category = 'general' | 'medical' | 'behavioral';
+type Category = 'general' | 'medical' | 'behavioral' | 'office';
+
 
 interface NoteVM {
   id: string;
@@ -161,13 +162,21 @@ get attendanceStatus(): AttendanceStatus {
   @ViewChild('scrollable') scrollable!: ElementRef<HTMLDivElement>;
 
   /* ===================== STATE ===================== */
+  
+isInitializing = true;   // ⏳ חסימת אזהרות בזמן טעינה
 
-  private dbc = dbTenant();
-  private cu = inject(CurrentUserService);
+private dbc = dbTenant();
+private cu = inject(CurrentUserService);
+
 
   notesGeneral: NoteVM[] = [];
   notesMedical: NoteVM[] = [];
   notesBehavioral: NoteVM[] = [];
+
+notesOffice: NoteVM[] = [];
+
+newOfficeNote = '';
+
 
   readyNotes: ReadyNote[] = [];
 
@@ -227,6 +236,14 @@ get canEditMakeupAllowed(): boolean {
     const r = this.effectiveRole();
     return r === 'instructor' || r === 'secretary';
   }
+get canSeeOfficeNotes(): boolean {
+  const r = this.effectiveRole();
+  return r === 'secretary' || r === 'manager' || r === 'admin';
+}
+
+get canEditOfficeNotes(): boolean {
+  return this.canSeeOfficeNotes;
+}
 
   get canEditLessonResources(): boolean {
     const r = this.effectiveRole();
@@ -236,6 +253,8 @@ get canEditMakeupAllowed(): boolean {
   /* ===================== LIFECYCLE ===================== */
 
  async ngOnInit() {
+  console.log('NOTE occurrence:', this.occurrence);
+
   // 1️⃣ טעינת נתונים בסיסיים – חייבים לפני פרטי שיעור
   await this.loadChildDetails();
   await this.loadHorses();
@@ -256,6 +275,11 @@ get canEditMakeupAllowed(): boolean {
       this.scrollable.nativeElement.scrollTo({ top: 0 });
     }
   });
+    // ✅ סיום טעינה – אפשר להציג אזהרות
+  queueMicrotask(() => {
+    this.isInitializing = false;
+  });
+
 }
 
 
@@ -282,6 +306,10 @@ get canEditMakeupAllowed(): boolean {
   
 
   /* ===================== HELPERS ===================== */
+  private isInstructor(): boolean {
+  return this.effectiveRole() === 'instructor';
+}
+
   get childName(): string {
   return (
     this.occurrence?.child_full_name ||
@@ -320,11 +348,23 @@ private hasAnyNote(): boolean {
 
 
 private recalcPresenceFlags() {
-  if (!this.canMarkAttendanceNow()) {
+  // ⛔ שיעור מבוטל – אין שום חובת נוכחות
+  if (this.occurrence?.isCancelled) {
     this.mustChooseAttendance = false;
     this.mustFillNoteForPresent = false;
     return;
   }
+
+  if (!this.canMarkAttendanceNow()) {
+    console.log('NOW (js):', new Date().toString());
+console.log('NOW (iso):', new Date().toISOString());
+
+
+    this.mustChooseAttendance = false;
+    this.mustFillNoteForPresent = false;
+    return;
+  }
+
 
   this.mustChooseAttendance =
     this.enforceNoteForPresence && !this.attendanceStatus;
@@ -356,44 +396,86 @@ private recalcPresenceFlags() {
     return d.toISOString().substring(0, 10);
   }
 
-  private getOccurDateForDb(): string | null {
-    return this.extractDate(
-      this.occurrence?.occur_date ||
-        this.occurrence?.date ||
-        this.occurrence?.start ||
-        this.occurrence?.start_time
-    );
+ private getOccurDateForDb(): string | null {
+  const d = this.occurrence?.occur_date;
+  if (!d) return null;
+
+  // אם כבר YYYY-MM-DD
+  if (typeof d === 'string' && d.length >= 10) {
+    return d.substring(0, 10);
   }
+
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return null;
+
+  return dt.toISOString().slice(0, 10);
+}
+
 canMarkAttendanceNow(): boolean {
-  if (!this.occurrence || !this.lessonDetails?.start_time) {
-    return false;
-  }
+  if (!this.occurrence?.lesson_id) return false;
+  if (this.occurrence?.isCancelled) return false;
 
   const occurDate = this.getOccurDateForDb();
   if (!occurDate) return false;
 
-  const lessonDate = new Date(
-    `${occurDate}T${this.lessonDetails.start_time}`
-  );
-
   const now = new Date();
-  const oneHourAhead = new Date(now.getTime() + 60 * 60 * 1000);
 
-  // ❌ שיעור עתידי מעבר לשעה קדימה
-  if (lessonDate > oneHourAhead) {
+  // 🟡 בניית תאריך מהיום בלבד (00:00)
+  const [y, m, d] = occurDate.split('-').map(Number);
+  const lessonDay = new Date(y, m - 1, d, 0, 0, 0, 0);
+
+  // ❌ יום עתידי (בלי קשר לשעה)
+  if (lessonDay.getTime() > now.getTime()) {
     return false;
   }
 
-  // ✅ עבר / היום / עד שעה קדימה
-  return true;
+  // 🟢 יום עבר → מותר
+  if (lessonDay.toDateString() !== now.toDateString()) {
+    return true;
+  }
+
+  // 🟢 אותו יום – עכשיו נבדוק שעה (אם יש)
+  const startTime =
+    this.occurrence?.start_time ??
+    this.occurrence?.meta?.start_time ??
+    this.lessonDetails?.start_time;
+
+  // ❌ אותו יום אבל אין שעה → לא מאפשרים נוכחות
+  if (!startTime) {
+    return false;
+  }
+
+  const [h, min] = startTime.split(':').map(Number);
+  const lessonDate = new Date(y, m - 1, d, h, min, 0, 0);
+
+  // 🟢 מותר רק אם השיעור לא יותר משעה קדימה
+  return lessonDate.getTime() - now.getTime() <= 60 * 60 * 1000;
 }
+
+
 onAttendanceAttempt(): void {
+  // ❗ אין lesson_id → זה לא שיעור → אין בדיקת זמן
+  if (!this.occurrence?.lesson_id) {
+    this.showEarlyAttendanceWarning = false;
+    return;
+  }
+
   if (this.canMarkAttendanceNow()) {
     this.showEarlyAttendanceWarning = false;
     return;
   }
 
   this.showEarlyAttendanceWarning = true;
+
+  if (this.earlyAttendanceTimer) {
+    clearTimeout(this.earlyAttendanceTimer);
+  }
+
+  this.earlyAttendanceTimer = setTimeout(() => {
+    this.showEarlyAttendanceWarning = false;
+  }, 3000);
+
+
 
   if (this.earlyAttendanceTimer) {
     clearTimeout(this.earlyAttendanceTimer);
@@ -530,6 +612,7 @@ async loadLessonDetails() {
 
 
 
+
   if (excError) {
     console.error('[loadLessonDetails] exception error', excError);
   }
@@ -541,6 +624,8 @@ async loadLessonDetails() {
     end_time: lesson.end_time,
     lesson_type: lesson.lesson_type,
   status: this.occurrence?.status ?? lesson.status,
+
+    isCancelled: this.occurrence?.isCancelled === true,
 
     horse_id: resources?.horse_id ?? null,
     horse_name: horseName,
@@ -616,33 +701,30 @@ async loadLessonDetails() {
   }
   //CHECKDHCECK
 async onMakeupAllowedChange(newVal: boolean) {
-  if (!this.canEditNotes) return;           // רק מזכירה/מדריך
+  if (!this.canEditNotes) return;
+ 
   const r = this.effectiveRole();
-  if (r !== 'secretary' && r !== 'manager' && r !== 'admin') return; // אם את רוצה רק מזכירה
-
+  if (r !== 'secretary' && r !== 'manager' && r !== 'admin') return;
+ 
   const lessonId = this.occurrence?.lesson_id;
   const occurDate = this.getOccurDateForDb();
   if (!lessonId || !occurDate) return;
 
   const { error } = await this.dbc
     .from('lesson_occurrence_exceptions')
-    .upsert(
-      {
-        lesson_id: lessonId,
-        occur_date: occurDate,
-        is_makeup_allowed: newVal,
-         status: 'בוטל', // 👈 זה החיבור החסר
-      },
-      { onConflict: 'lesson_id,occur_date' }
-    );
-
+    .update({ is_makeup_allowed: newVal })
+    .eq('lesson_id', lessonId)
+    .eq('occur_date', occurDate);
+ 
   if (error) {
-    console.error('[onMakeupAllowedChange] upsert error', error);
+    console.error('[onMakeupAllowedChange] update error', error);
     return;
   }
-
+ 
   this.lessonDetails.is_makeup_allowed = newVal;
 }
+ 
+
 
   /* ===================== ATTENDANCE ===================== */
 private async saveAttendance(status: AttendanceStatus | null) {
@@ -738,32 +820,79 @@ async setAttendance(status: AttendanceStatus) {
 }
 
   /* ===================== NOTES ===================== */
+async addOfficeNote() {
+  if (!this.canEditOfficeNotes) return;
 
-  async loadNotes() {
-    const childId = this.child?.child_uuid;
-    if (!childId) return;
+  const content = this.newOfficeNote.trim();
+  if (!content) return;
 
-    const { data } = await this.dbc
-      .from('notes')
-      .select('id,content,date,instructor_uid,instructor_name,category')
-      .eq('child_id', childId)
-      .order('date', { ascending: false });
+  const childId = this.child?.child_uuid;
+  if (!childId) return;
 
-    const notes: NoteVM[] =
-      (data ?? []).map((n: any) => ({
-        id: String(n.id),
-        display_text: String(n.content ?? ''),
-        created_at: String(n.date ?? new Date().toISOString()),
-        instructor_uid: n.instructor_uid ? String(n.instructor_uid) : null,
-        instructor_name: n.instructor_name ? String(n.instructor_name) : null,
-        category: (n.category ?? 'general') as Category,
-        isEditing: false,
-      })) ?? [];
+  const now = new Date().toISOString();
+  const id = crypto.randomUUID();
 
-    this.notesGeneral = notes.filter(n => n.category === 'general');
-    this.notesMedical = notes.filter(n => n.category === 'medical');
-    this.notesBehavioral = notes.filter(n => n.category === 'behavioral');
-  }
+  const u = await getCurrentUserDetails('uid,first_name,last_name');
+
+const lessonId = this.occurrence?.lesson_id;
+const occurDate = this.getOccurDateForDb();
+
+if (!lessonId || !occurDate || !childId) return;
+
+const { data } = await this.dbc
+  .from('lesson_notes_simple')
+  .insert({
+    lesson_id: lessonId,
+    child_id: childId,
+    occur_date: occurDate,
+    note: content,
+  })
+  .select()
+  .single();
+
+this.notesGeneral.unshift({
+  id: data.id,
+  display_text: data.note,
+  created_at: data.created_at,
+  instructor_uid: null,
+  instructor_name: null,
+  category: 'general',
+});
+
+
+  this.newOfficeNote = '';
+}
+
+ async loadNotes() {
+  const lessonId = this.occurrence?.lesson_id;
+  const occurDate = this.getOccurDateForDb();
+  const childId = this.child?.child_uuid;
+
+  if (!lessonId || !occurDate || !childId) return;
+
+  const { data } = await this.dbc
+    .from('lesson_notes_simple')
+    .select('id, note, created_at')
+    .eq('lesson_id', lessonId)
+    .eq('child_id', childId)
+    .eq('occur_date', occurDate)
+    .order('created_at', { ascending: false });
+
+  const notes: NoteVM[] = (data ?? []).map((n: any) => ({
+    id: n.id,
+    display_text: n.note,
+    created_at: n.created_at,
+    instructor_uid: null,
+    instructor_name: null,
+    category: 'general',
+  }));
+
+  this.notesGeneral = notes;
+  this.notesMedical = [];
+  this.notesBehavioral = [];
+  this.notesOffice = [];
+}
+
 
   async loadReadyNotes() {
     const { data } = await this.dbc.from('list_notes').select('id,note');
@@ -780,6 +909,11 @@ async setAttendance(status: AttendanceStatus) {
   }
 
   async addNote() {
+      console.log('ADD NOTE CLICKED');
+      console.log('lesson', this.occurrence?.lesson_id);
+console.log('child', this.child?.child_uuid);
+console.log('date', this.getOccurDateForDb());
+
   if (!this.canEditNotes) return;
 
   const content = this.newNote.trim();
@@ -793,15 +927,23 @@ async setAttendance(status: AttendanceStatus) {
 
   const u = await getCurrentUserDetails('uid,first_name,last_name');
 
-  await this.dbc.from('notes').insert([{
+const { error } = await this.dbc
+  .from('lesson_notes_simple')
+  .insert([{
     id,
+    lesson_id: this.occurrence.lesson_id,
     child_id: childId,
-    content,
-    date: now,
-    instructor_uid: u?.uid ?? null,
-    instructor_name: `${u?.first_name ?? ''} ${u?.last_name ?? ''}`.trim(),
-    category: 'general',
+    occur_date: this.getOccurDateForDb(),
+    note: content,
   }]);
+
+if (error) {
+  console.error('SAVE NOTE ERROR', error);
+  return;
+}
+
+console.log('NOTE SAVED OK');
+
 
   this.notesGeneral.unshift({
     id,
@@ -860,8 +1002,24 @@ async setAttendance(status: AttendanceStatus) {
  
 
 private canCloseNow(): boolean {
-  if (!this.enforceNoteForPresence) return true;
-  if (!this.canMarkAttendanceNow()) return true;
+  // ✅ רק מדריך כפוף לאכיפה
+  if (!this.isInstructor()) {
+    return true;
+  }
+
+  // אם לא אוכפים בכלל - תמיד אפשר לסגור
+  if (!this.enforceNoteForPresence) {
+    this.resetCloseWarnings();
+    return true;
+  }
+
+  // ✅ שיעור עתידי / מוקדם מדי לסימון נוכחות → לא חוסמים סגירה
+  if (!this.canMarkAttendanceNow()) {
+    this.resetCloseWarnings();
+    return true;
+  }
+
+  // מכאן והלאה: אפשר לסמן נוכחות, אז כן אוכפים
 
   if (!this.attendanceStatus) {
     this.mustChooseAttendance = true;
@@ -869,13 +1027,14 @@ private canCloseNow(): boolean {
     return false;
   }
 
-  // ❗ חובת הערה רק אם סומן "הגיע" עכשיו
+  // חובת הערה רק אם "הגיע" סומן עכשיו בסשן הנוכחי
   if (this.attendanceStatus === 'present' && this.presentMarkedNow) {
     this.mustChooseAttendance = false;
     this.mustFillNoteForPresent = true;
     return false;
   }
 
+  this.resetCloseWarnings();
   return true;
 }
 

@@ -704,3 +704,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 🚫 ביטול מוחלט של קו אלכסוני לשיעור מבוטל */
+.bereshit-calendar .fc-event.status-canceled::after,
+.bereshit-calendar .fc-event.status-cancelled::after,
+.bereshit-calendar .fc-timegrid-event.status-canceled::after,
+.bereshit-calendar .event-box.status-canceled::after {
+  content: none !important;
+  display: none !important;
+}

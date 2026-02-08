@@ -9,21 +9,35 @@ import { SeriesRequestsService } from '../../services/series-requests.service';
 import { getCurrentUserData } from '../../services/supabaseClient.service';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
-import { ConfirmDialogComponent } from './confirm-dialog.component';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { SupabaseTenantService } from '../../services/supabase-tenant.service';
+import { getAuth } from 'firebase/auth';
+import { MatIconModule } from '@angular/material/icon';
 
 // חשוב: זה הטיפוס שאת מעבירה מהדף הראשי
 import type { UiRequest } from '../../Types/detailes.model';
+import { MatButtonModule } from '@angular/material/button';
+type RejectArgs = { source: 'user' | 'system'; reason?: string };
+
+const SERIES_DENY_MESSAGES: Record<string, string> = {
+  anchor_start_date_in_past: 'אי אפשר לאשר סדרה: תאריך תחילת הסדרה כבר עבר.',
+  anchor_capacity_reached: 'אי אפשר לאשר סדרה: כבר קיימים שיעורים בסלוט הזה (הקיבולת מלאה).',
+  anchor_falls_on_farm_day_off: 'אי אפשר לאשר סדרה: תאריך תחילת הסדרה נופל על חופש חווה.',
+  anchor_instructor_unavailable: 'אי אפשר לאשר סדרה: המדריך לא זמין בתאריך תחילת הסדרה.',
+  time_conflict_capacity_reached: 'אי אפשר לאשר סדרה: יש קונפליקט/קיבולת מלאה באחד המפגשים.',
+};
 @Component({
   selector: 'app-secretarial-series-requests',
   standalone: true,
-  imports: [CommonModule, FormsModule , MatDialogModule , MatSnackBarModule],
+  imports: [CommonModule, FormsModule , MatDialogModule , MatSnackBarModule, MatTooltipModule , MatButtonModule , MatIconModule],
   templateUrl: './request-new-series-details.component.html',
   styleUrls: ['./request-new-series-details.component.scss'],
 })
+
 export class SecretarialSeriesRequestsComponent {
   private api = inject(SeriesRequestsService);
+  
 async ngOnInit() {
   // await this.loadPaymentPlanName();
   // await this.loadInstructorName();
@@ -32,8 +46,19 @@ async ngOnInit() {
 
   // ✅ הבקשה שנבחרה מהדף הראשי
 private _request!: UiRequest;
+  req = () => this.request;
+@Input() bulkMode?: boolean;
+requestedEndTime = signal<string | null>(null);
+
+// המשתתפים עם טווח חפיפה
+existingParticipants = signal<any[]>([]); // כבר יש לך
+participantsCapacity = signal<{ current: number; max: number } | null>(null); // כבר יש לך
+
 ridingTypeName = signal<string>('טוען...');
 lessonTypeMode = signal<string | null>(null);
+childFullName = signal<string>('טוען...');
+childGovId = signal<string | null>(null);
+private tenantSvc = inject(SupabaseTenantService);
 
 @Input({ required: true })
 set request(v: UiRequest) {
@@ -54,12 +79,17 @@ set request(v: UiRequest) {
   this.ridingTypeName.set('טוען...');
 this.lessonTypeMode.set(null);
 
-void this.loadLessonTypeFromAvailability();
+// void this.loadLessonTypeFromAvailability();
 this.existingParticipants.set([]);
 this.participantsCapacity.set(null);
 
-void this.loadExistingParticipants();
+// void this.loadExistingParticipants();
+void this.loadLessonTypeFromAvailability().then(() => this.loadExistingParticipants());
 
+void this.loadChildStatus();
+this.childFullName.set('טוען...');
+this.childGovId.set(null);
+void this.loadChildName();
 
 }
 
@@ -87,8 +117,111 @@ private dialog = inject(MatDialog);
 private snack = inject(MatSnackBar);
 successMsg = signal<string | null>(null);
 errorMsg = signal<string | null>(null);
-existingParticipants = signal<any[]>([]);
-participantsCapacity = signal<{ current: number; max: number } | null>(null);
+// ===== Child status (from children table) =====
+childStatus = signal<string | null>(null);
+childDeletionRequestedAt = signal<string | null>(null);
+childScheduledDeletionAt = signal<string | null>(null);
+
+canApprove = signal<boolean>(true); // יתעדכן לפי סטטוס
+ridingTypeId = signal<string | null>(null);
+
+async approve() {
+  return this.approveSelected();
+}
+
+async reject(args?: RejectArgs) {
+  if (args?.reason != null) this.note = args.reason; // לוקח מה-Bulk
+  return this.rejectSelected();
+}
+
+private statusToHebrew(status: string | null): string {
+  switch (status) {
+    case 'Active': return 'פעיל';
+    case 'Pending Addition Approval': return 'ממתין לאישור הוספה';
+    case 'Pending Deletion Approval': return 'ממתין לאישור מחיקה';
+    case 'Deletion Scheduled': return 'מחיקה מתוכננת';
+    case 'Deleted': return 'נמחק';
+    default: return status ? status : 'לא ידוע';
+  }
+}
+
+private formatDateOnly(iso: string | null): string | null {
+  if (!iso) return null;
+  // "2026-01-29T..." -> "2026-01-29"
+  return iso.slice(0, 10);
+}
+
+get childStatusHebrew(): string {
+  return this.statusToHebrew(this.childStatus());
+}
+
+get childStatusBannerText(): string | null {
+  const st = this.childStatus();
+  if (!st) return null;
+  if (st === 'Active') return null;
+
+  const stHe = this.statusToHebrew(st);
+
+  if (st === 'Deletion Scheduled') {
+    const d = this.formatDateOnly(this.childScheduledDeletionAt());
+    return `ילד זה אינו פעיל (סטטוס: ${stHe})${d ? ` • תאריך מחיקה עתידי: ${d}` : ''}`;
+  }
+
+  if (st === 'Deleted') {
+    // אין לך deleted_at בטבלה, אז נשתמש במה שיש (עדיף scheduled_deletion_at אם קיים, אחרת deletion_requested_at)
+    const when =
+      this.formatDateOnly(this.childScheduledDeletionAt()) ??
+      this.formatDateOnly(this.childDeletionRequestedAt());
+
+    return `ילד זה אינו פעיל (סטטוס: ${stHe})${when ? ` • נמחק בתאריך: ${when}` : ''}`;
+  }
+
+  // כל שאר הסטטוסים
+  return `ילד זה אינו פעיל (סטטוס: ${stHe})`;
+}
+
+private async loadChildStatus() {
+  const reqId = this.request?.id; // ✅ guard token
+  const childId = this.request?.childId;
+
+  const safeSet = (st: string | null, delReqAt: string | null, schedDelAt: string | null, canApprove: boolean) => {
+    if (this.request?.id !== reqId) return;
+    this.childStatus.set(st);
+    this.childDeletionRequestedAt.set(delReqAt);
+    this.childScheduledDeletionAt.set(schedDelAt);
+    this.canApprove.set(canApprove);
+  };
+
+  if (!reqId || !childId) {
+    safeSet(null, null, null, true);
+    return;
+  }
+
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const { data, error } = await db
+      .from('children')
+      .select('status, deletion_requested_at, scheduled_deletion_at')
+      .eq('child_uuid', childId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (this.request?.id !== reqId) return;
+
+    const st = (data as any)?.status ?? null;
+    const delReqAt = (data as any)?.deletion_requested_at ?? null;
+    const schedDelAt = (data as any)?.scheduled_deletion_at ?? null;
+
+    safeSet(st, delReqAt, schedDelAt, st !== 'Deleted');
+  } catch (e) {
+    console.error('loadChildStatus failed', e);
+    // במקרה תקלה – ניזהר ולא נאפשר אישור עד שהכל ברור
+    safeSet('לא ידוע', null, null, false);
+  }
+}
 
 private clearMessages() {
   this.successMsg.set(null);
@@ -157,9 +290,16 @@ get skippedInstructorDates(): string[] {
     return uid;
   }
 private async loadPaymentPlanName() {
+  const reqId = this.request?.id; // ✅ guard token
   const id = this.p?.payment_plan_id;
-  if (!id) {
-    this.paymentPlanName.set('—');
+
+  const safeSet = (value: string) => {
+    if (this.request?.id !== reqId) return;
+    this.paymentPlanName.set(value);
+  };
+
+  if (!reqId || !id) {
+    safeSet('—');
     return;
   }
 
@@ -175,25 +315,86 @@ private async loadPaymentPlanName() {
 
     if (error) throw error;
 
-    this.paymentPlanName.set(data?.name ?? 'לא נמצא');
+    if (this.request?.id !== reqId) return;
+
+    safeSet(data?.name ?? 'לא נמצא');
   } catch (e) {
     console.error('loadPaymentPlanName failed', e);
-    this.paymentPlanName.set('שגיאה בטעינה');
+    safeSet('שגיאה בטעינה');
   }
 }
 
-async approveSelected() {
-  this.clearMessages();
+static async isValidRequset(row: UiRequest): Promise<{ ok: boolean; reason?: string }> {
+  const p: any = row?.payload ?? {};
+  const start = row?.fromDate ?? p.series_start_date ?? p.start_date ?? null;
+  if (!start) return { ok: true };
 
-  if (!this.request) return;
+  const dt = SecretarialSeriesRequestsComponent.combineDateTime(start, '00:00');
+  if (dt.getTime() < Date.now()) {
+    return { ok: false, reason: 'עבר מועד תחילת הסדרה' };
+  }
+  return { ok: true };
+}
+
+async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
+  return await SecretarialSeriesRequestsComponent.isValidRequset(this.request);
+}
+
+async approveSelected() {
+  // ✅ מניעת קריאה כפולה (לחיצה כפולה / submit)
+  if (this.loading()) return;
+  this.loading.set(true);
+
+  this.clearMessages();
+  if (!this.request) {
+    this.loading.set(false);
+    return;
+  }
+
+  // ✅ תמיד לטעון סטטוס לפני החלטה (לא להסתמך על null)
+  await this.loadChildStatus();
+
+  // ✅ חסימה קשיחה אם הילד Deleted
+  if (this.childStatus() === 'Deleted') {
+    const msg =
+      this.childStatusBannerText ??
+      'ילד זה נמחק ולכן לא ניתן לאשר לו את הזמנת הסדרה';
+
+    this.errorMsg.set(msg);
+    this.snack.open(msg, 'סגור', {
+      duration: 3500,
+      panelClass: ['snack-reject'],
+      direction: 'rtl',
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+    });
+
+    this.loading.set(false);
+    return;
+  }
+
+  // ✅ כל שאר הסטטוסים שלא מאפשרים
+  if (!this.canApprove()) {
+    const msg = this.childStatusBannerText ?? 'לא ניתן לאשר סדרה לילד שאינו פעיל';
+    this.errorMsg.set(msg);
+
+    this.snack.open('לא ניתן לאשר: הילד אינו פעיל', 'סגור', {
+      duration: 2500,
+      panelClass: ['snack-reject'],
+      direction: 'rtl',
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+    });
+
+    this.loading.set(false);
+    return;
+  }
+
 
   try {
-    this.loading.set(true);
 
     const uid = await this.resolveDeciderUid();
     if (!uid) throw new Error('לא נמצא משתמש מאשר (uid)');
-const ok = await this.confirmApprove();
-if (!ok) return;
 
     await ensureTenantContextReady();
     const db = dbTenant();
@@ -205,8 +406,13 @@ if (!instructorIdNumber) throw new Error('חסר instructor_id_number בבקשה
 const instructorUid = await this.getInstructorUidByIdNumber(instructorIdNumber);
 if (!instructorUid) throw new Error('למדריך אין uid במערכת');
 const isOpenEnded = !!p.is_open_ended;
-const ridingTypeId = p.riding_type_id ?? null;
-const maxParticipants = await this.getMaxParticipantsForRidingType(ridingTypeId);
+const ridingTypeId =
+  p.riding_type_id ??
+  this.ridingTypeId() ??
+  null;
+
+const maxParticipants =
+  await this.getMaxParticipantsForRidingType(ridingTypeId);
 const normalizeTime = (t: string) => {
   const s = (t ?? '').trim();
   if (!s) return null;
@@ -238,10 +444,16 @@ const repeatWeeks =
       p_total_lessons: p.total_lessons ?? null,
       p_referral_url: p.referral_url ?? null,
 
-      p_riding_type_id: p.riding_type_id ?? null,
+      p_riding_type_id: ridingTypeId ?? null,
       p_origin: "secretary",
     };
     
+console.log('RIDING TYPE DEBUG', {
+  fromPayload: p.riding_type_id,
+  fromAvailability: this.ridingTypeId(),
+  used: ridingTypeId,
+  maxParticipants,
+});
 
 
     const { data, error } = await db.rpc('create_series_with_validation', params);
@@ -250,22 +462,40 @@ const repeatWeeks =
     const first = Array.isArray(data) ? data[0] : data;
 
     if (!first?.ok) {
-      const msg = `לא ניתן לאשר: ${first?.deny_reason ?? 'unknown'}`;
-      this.error.emit(msg);
-      this.onError?.({ requestId: this.request.id, message: msg, raw: first });
-      alert(msg);
-      return;
-    }
+  const reason = String(first?.deny_reason ?? '');
+  const msg =
+    SERIES_DENY_MESSAGES[reason] ??
+    `אי אפשר לאשר את הסדרה: ${reason || 'סיבה לא ידועה'}`;
+
+  this.errorMsg.set(msg);
+  this.error.emit(msg);
+  this.onError?.({ requestId: this.request.id, message: msg, raw: first });
+
+  this.snack.open(msg, 'סגור', {
+    duration: 5000,
+    panelClass: ['snack-reject'],
+    direction: 'rtl',
+    horizontalPosition: 'center',
+    verticalPosition: 'top',
+  });
+
+  return;
+}
+
 await ensureTenantContextReady();
 
 // ✅ עדכון סטטוס הבקשה רק אם עדיין PENDING
-const { data: upd, error: updErr } = await db
+const sec_uid = getAuth().currentUser?.uid;
+if (!uid) throw new Error('No logged-in user');
+
+// ✅ עדכון סטטוס הבקשה רק אם עדיין PENDING
+const { data: upd, error: updErr } = await dbTenant()
   .from('secretarial_requests')
   .update({
     status: 'APPROVED',
-    decided_by_uid: uid,
+    decided_by_uid: sec_uid,
     decision_note: this.note || null,
-    decided_at: new Date().toISOString(), // (אם תרצי server time נדבר על זה)
+    decided_at: new Date().toISOString(),
   })
   .eq('id', this.request.id)
   .eq('status', 'PENDING')
@@ -275,7 +505,6 @@ const { data: upd, error: updErr } = await db
 if (updErr) throw updErr;
 
 if (!upd) {
-  // כלומר או שלא הייתה בקשה כזו, או שכבר לא PENDING (מישהו אישר/דחה לפני)
   throw new Error('הבקשה כבר לא במצב ממתין (ייתכן שכבר עודכנה).');
 }
 
@@ -284,13 +513,34 @@ if (!upd) {
     // אם את רוצה שהבקשה תיעלם – חייבים update לטבלה או RPC נוסף.
     // כרגע רק נעדכן UI
     const payload = { requestId: this.request.id, newStatus: 'APPROVED' as const };
-      this.snack.open('הבקשה אושרה בהצלחה', 'סגור', {
-  duration: 2500,
-  panelClass: ['snack-success'],
-  direction: 'rtl',
-});
+     if (!this.bulkMode) {
+  this.snack.open('הבקשה אושרה בהצלחה', 'סגור', {
+    duration: 2500,
+    panelClass: ['snack-success'],
+    direction: 'rtl',
+  });
+}
+
     this.approved.emit(payload);
     this.onApproved?.(payload);
+    const lessonId = first?.lesson_id ?? null;
+
+// שליחת מייל לא תחסום את האישור אם נכשלת
+try {
+  await this.sendSeriesApprovedEmail(this.request.id, lessonId);
+} catch (e) {
+  console.warn('sendSeriesApprovedEmail failed', e);
+  if (!this.bulkMode) {
+  this.snack.open('הסדרה אושרה, אך שליחת המייל נכשלה', 'סגור', {
+    duration: 3500,
+    panelClass: ['snack-reject'],
+    direction: 'rtl',
+    horizontalPosition: 'center',
+    verticalPosition: 'top',
+  });
+}
+}
+
 
   } catch (e: any) {
     const msg = e?.message ?? 'שגיאה באישור';
@@ -304,25 +554,22 @@ this.errorMsg.set(msg);
   }
 }
 
+canDecide(): boolean {
+  return this.request?.status === 'PENDING';
+}
 
 
 async rejectSelected() {
   this.clearMessages();
 
   if (!this.request?.id) return;
-   const note = this.note.trim();
-  if (!note) {
-    this.errorMsg.set('חובה למלא סיבה לפני דחיית בקשה');
-    return;
-  }
-
+  
   try {
     this.loading.set(true);
 
     const uid = await this.resolveDeciderUid();
     if (!uid) throw new Error('לא נמצא משתמש מאשר (uid)');
-const ok = await this.confirmReject();
-if (!ok) return; // חוזר למצב הקודם, לא עושה כלום
+
 
     await ensureTenantContextReady();
     const db = dbTenant();
@@ -350,16 +597,33 @@ if (!ok) return; // חוזר למצב הקודם, לא עושה כלום
     }
 
     const payload = { requestId: this.request.id, newStatus: 'REJECTED' as const };
-     this.snack.open('הבקשה נדחתה בהצלחה', 'סגור', {
-  duration: 2500,
-  panelClass: ['snack-reject'],
-  direction: 'rtl',
-  horizontalPosition: 'center',
-  verticalPosition: 'top',
-});
+    if (!this.bulkMode) {
+  this.snack.open('הבקשה נדחתה בהצלחה', 'סגור', {
+    duration: 2500,
+    panelClass: ['snack-reject'],
+    direction: 'rtl',
+    horizontalPosition: 'center',
+    verticalPosition: 'top',
+  });
+}
+
 
     this.rejected.emit(payload);
     this.onRejected?.(payload);
+try {
+  await this.sendSeriesRejectedEmail(this.request.id);
+} catch (e) {
+  console.warn('sendSeriesRejectedEmail failed', e);
+  if (!this.bulkMode) {
+  this.snack.open('הבקשה נדחתה, אך שליחת המייל נכשלה', 'סגור', {
+    duration: 3500,
+    panelClass: ['snack-reject'],
+    direction: 'rtl',
+    horizontalPosition: 'center',
+    verticalPosition: 'top',
+  });
+}
+}
 
   } catch (e: any) {
     const msg = e?.message ?? 'שגיאה בדחייה';
@@ -385,34 +649,18 @@ private async getInstructorUidByIdNumber(idNumber: string): Promise<string | nul
   if (error) throw error;
   return data?.uid ?? null;
 }
-private async confirmReject(): Promise<boolean> {
-  const ref = this.dialog.open(ConfirmDialogComponent, {
-    panelClass: 'ui-confirm-dialog',
-    backdropClass: 'ui-confirm-backdrop',
-    data: {
-      title: 'דחיית בקשה',
-      message: 'האם את/ה בטוח/ה שברצונך לדחות את הבקשה?',
-    },
-  });
 
-  return !!(await firstValueFrom(ref.afterClosed()));
-}
-private async confirmApprove(): Promise<boolean> {
-  const ref = this.dialog.open(ConfirmDialogComponent, {
-    panelClass: 'ui-confirm-dialog',
-    backdropClass: 'ui-confirm-backdrop',
-    data: {
-      title: 'אישור בקשה',
-      message: 'האם את/ה בטוח/ה שברצונך לאשר את הבקשה?',
-    },
-  });
-
-  return !!(await firstValueFrom(ref.afterClosed()));
-}
 private async loadInstructorName() {
+  const reqId = this.request?.id; // ✅ guard token
   const idNumber = this.request?.instructorId; // אצלך זה id_number
-  if (!idNumber) {
-    this.instructorName.set('—');
+
+  const safeSet = (value: string) => {
+    if (this.request?.id !== reqId) return;
+    this.instructorName.set(value);
+  };
+
+  if (!reqId || !idNumber) {
+    safeSet('—');
     return;
   }
 
@@ -428,15 +676,16 @@ private async loadInstructorName() {
 
     if (error) throw error;
 
-    const full =
-      `${data?.first_name ?? ''} ${data?.last_name ?? ''}`.trim();
+    if (this.request?.id !== reqId) return;
 
-    this.instructorName.set(full || data?.id_number || 'לא נמצא');
+    const full = `${data?.first_name ?? ''} ${data?.last_name ?? ''}`.trim();
+    safeSet(full || data?.id_number || 'לא נמצא');
   } catch (e) {
     console.error('loadInstructorName failed', e);
-    this.instructorName.set('שגיאה בטעינה');
+    safeSet('שגיאה בטעינה');
   }
 }
+
 
 get startWeekdayName(): string {
   const d = this.parseDateOnly(this.startDate);
@@ -464,115 +713,170 @@ private parseDateOnly(value: string): Date | null {
   const dt = new Date(value);
   return Number.isNaN(dt.getTime()) ? null : dt;
 }
+private static combineDateTime(dateStr: string, timeStr?: string | null): Date {
+  const d = dateStr?.slice(0, 10);
+  const t = (timeStr ?? '00:00').slice(0, 5);
+  return new Date(`${d}T${t}:00`);
+}
 private async loadLessonTypeFromAvailability() {
+  const reqId = this.request?.id; // ✅ guard token
   const instructorId = this.request?.instructorId; // id_number
   const dateStr = this.startDate;                  // YYYY-MM-DD
   const t = this.requestedStartTime;               // "15:30"
 
-  if (!instructorId || !dateStr || dateStr === '—' || !t || t === '—') {
+  const safeReset = () => {
+    if (this.request?.id !== reqId) return;
     this.ridingTypeName.set('—');
     this.lessonTypeMode.set(null);
+    this.ridingTypeId.set(null);
+    this.requestedEndTime.set(null);
+  };
+
+  if (!reqId || !instructorId || !dateStr || dateStr === '—' || !t || t === '—') {
+    safeReset();
     return;
   }
 
   const d = this.parseDateOnly(dateStr);
   if (!d) {
-    this.ridingTypeName.set('—');
-    this.lessonTypeMode.set(null);
+    safeReset();
     return;
   }
 
-  // שימי לב: אצלך day_of_week הוא 0..6, וב-JS getDay() גם 0..6 (ראשון=0)
-  const dow = d.getDay();
+  const dow = d.getDay(); // 0..6 (ראשון=0)
 
   try {
     await ensureTenantContextReady();
     const db = dbTenant();
 
-    // מחפשים טווח שבו start_time <= t < end_time
-    // לוקחים את ה-slot "הכי ספציפי" (start_time הכי מאוחר שמתאים) כדי להימנע מחפיפות
     const { data, error } = await db
       .from('instructor_weekly_availability')
       .select(`
         start_time,
         end_time,
         lesson_type_mode,
-        riding_types:lesson_ridding_type ( name )
+        riding_types:lesson_ridding_type ( id, name )
       `)
       .eq('instructor_id_number', instructorId)
       .eq('day_of_week', dow)
       .lte('start_time', t)
-      .gt('end_time', t) // end_time > t  (כלומר t בתוך הטווח)
+      .gt('end_time', t) // end_time > t
       .order('start_time', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (error) throw error;
 
+    if (this.request?.id !== reqId) return;
+
+    const endTime = (data as any)?.end_time ?? null;
+    this.requestedEndTime.set(endTime);
+
+    const rtId =
+      (data as any)?.riding_types?.id ??
+      (data as any)?.riding_type_id ??
+      null;
+
+    this.ridingTypeId.set(rtId);
+
     const name = (data as any)?.riding_types?.name ?? null;
     this.ridingTypeName.set(name ?? 'לא נמצא');
     this.lessonTypeMode.set((data as any)?.lesson_type_mode ?? null);
   } catch (e) {
     console.error('loadLessonTypeFromAvailability failed', e);
+    if (this.request?.id !== reqId) return;
     this.ridingTypeName.set('שגיאה בטעינה');
     this.lessonTypeMode.set(null);
+    this.ridingTypeId.set(null);
+    this.requestedEndTime.set(null);
   }
 }
+
 private async loadExistingParticipants() {
-  const instructorId = this.request?.instructorId;
-  const startTime = this.requestedStartTime;
-  const ridingTypeId = this.p?.riding_type_id;
+  const reqId = this.request?.id; // ✅ guard token
+  const instructorId = this.request?.instructorId;          // id_number אצלך
+  const dayName = this.startWeekdayName;                    // "ראשון" וכו'
+  const startDate = this.request?.fromDate;                 // YYYY-MM-DD
+  const startTime = this.requestedStartTime;                // "15:30"
+  const endTime = this.requestedEndTime();                  // "16:15:00" / "16:15"
+  const requestChildId = this.request?.childId ?? null;
 
-  const dayName = this.startWeekdayName; // כבר חישבת בעברית
+  const ridingTypeId =
+    this.p?.riding_type_id ??
+    this.ridingTypeId() ??
+    null;
 
-  if (!instructorId || !startTime || !dayName) {
+  const safeClear = () => {
+    if (this.request?.id !== reqId) return;
+    this.existingParticipants.set([]);
+    this.participantsCapacity.set(null);
+  };
+
+  if (!reqId || !instructorId || !dayName || !startDate || startDate === '—' || !startTime || startTime === '—') {
+    safeClear();
+    return;
+  }
+
+  // אם אין end_time עדיין (עוד לא נטען availability) – לא נציג חפיפות כדי לא להטעות
+  if (!endTime) {
+    safeClear();
     return;
   }
 
   try {
     await ensureTenantContextReady();
     const db = dbTenant();
-console.log('participants args', {
-  instructorId: this.request?.instructorId,
-  startDate: this.startDate,
-  dayName: this.startWeekdayName,
-  startTime: this.requestedStartTime,
-  ridingTypeId: this.p?.riding_type_id,
-});
-    const { data, error } = await db.rpc(
-      'get_existing_lesson_participants',
-      {
-        p_instructor_id: instructorId,
-        p_day_of_week: dayName,
-        p_start_time: startTime,
-        p_riding_type_id: ridingTypeId ?? null,
-      }
-    );
-console.log('RPC raw data:', data);
-console.log('RPC typeof data:', typeof data);
-console.log('RPC isArray:', Array.isArray(data));
-if (Array.isArray(data)) {
-  console.log('RPC length:', data.length);
-  console.log('RPC first row:', data[0]);
-}
 
+    // normalize שעה לפורמט time ב-Postgres ("HH:MM:SS")
+    const normTime = (t: string | null) => {
+      const s = (t ?? '').trim();
+      if (!s) return null;
+      return s.length === 5 ? `${s}:00` : s;
+    };
+
+    const params = {
+      p_instructor_id: instructorId,
+      p_day_of_week: dayName,
+      p_start_time: normTime(startTime),
+      p_end_time: normTime(endTime),
+      p_riding_type_id: ridingTypeId,
+      p_series_start_date: startDate,
+
+      p_is_open_ended: !!this.p?.is_open_ended,
+      p_repeat_weeks: this.p?.is_open_ended ? null : Number(this.p?.repeat_weeks ?? 0),
+      p_series_search_horizon_days: Number(this.p?.series_search_horizon_days ?? 90),
+
+      p_skipped_farm_dates: (this.p?.skipped_farm_dates ?? []) as string[],
+      p_skipped_instructor_dates: (this.p?.skipped_instructor_dates ?? []) as string[],
+
+      // אופציונלי אם הוספת בפונקציה DB: להחריג את הילד המבקש
+      // p_request_child_id: requestChildId,
+    };
+
+    const { data, error } = await db.rpc('get_series_overlap_participants', params);
     if (error) throw error;
-    if (!data || !data.length) return;
 
-    this.existingParticipants.set(data);
+    // ✅ אם הבקשה התחלפה בזמן ההמתנה — לא נוגעים ב-state
+    if (this.request?.id !== reqId) return;
 
+    const rows = Array.isArray(data) ? data : [];
+    this.existingParticipants.set(rows);
 
-    this.participantsCapacity.set({
-      current: data[0].current_count,
-      max: data[0].max_participants,
-    });
-
+    // קיבולת + current
+    if (rows.length) {
+      this.participantsCapacity.set({
+        current: rows.length,
+        max: rows[0].max_participants ?? 1,
+      });
+    } else {
+      this.participantsCapacity.set(null);
+    }
   } catch (e) {
-    console.error('loadExistingParticipants failed', e);
-    this.existingParticipants.set([]);
-    this.participantsCapacity.set(null);
+    console.error('loadExistingParticipants (overlap) failed', e);
+    safeClear();
   }
 }
+
 calcAge(birthDate: string | null): string {
   if (!birthDate) return '—';
   const b = new Date(birthDate);
@@ -604,5 +908,125 @@ private async getMaxParticipantsForRidingType(ridingTypeId: string | null | unde
   if (!Number.isFinite(n) || n <= 0) return 1;
   return Math.floor(n);
 }
+get approveTooltip(): string | null {
+  const st = this.childStatus();
+
+  if (st === 'Deleted') {
+    return 'ילד זה נמחק ולכן לא ניתן לאשר לו את הזמנת הסדרה';
+  }
+
+  if (st === 'Deletion Scheduled') {
+    const d = this.formatDateOnly(this.childScheduledDeletionAt());
+    return d ? `שימו לב: הילד עתיד להימחק בתאריך ${d}` : 'שימו לב: הילד עתיד להימחק';
+  }
+
+  // אופציונלי: גם לממתין לאישור מחיקה
+  if (st === 'Pending Deletion Approval') {
+    return 'שימו לב: הילד ממתין לאישור מחיקה';
+  }
+
+  return null;
+}
+private async loadChildName() {
+  const reqId = this.request?.id; // ✅ guard token
+  const childId = this.request?.childId; // child_uuid
+
+  const safeSet = (fullName: string, govId: string | null) => {
+    if (this.request?.id !== reqId) return;
+    this.childFullName.set(fullName);
+    this.childGovId.set(govId);
+  };
+
+  if (!reqId || !childId) {
+    safeSet('—', null);
+    return;
+  }
+
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const { data, error } = await db
+      .from('children')
+      .select('first_name, last_name, gov_id')
+      .eq('child_uuid', childId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (this.request?.id !== reqId) return;
+
+    const fullName = `${data?.first_name ?? ''} ${data?.last_name ?? ''}`.trim();
+    safeSet(fullName || 'לא נמצא', data?.gov_id ?? null);
+  } catch (e) {
+    console.error('loadChildName failed', e);
+    safeSet('שגיאה בטעינה', null);
+  }
+}
+
+private async sendSeriesApprovedEmail(requestId: string, lessonId: string | null) {
+  await this.tenantSvc.ensureTenantContextReady();
+  const tenant = this.tenantSvc.requireTenant();
+
+  const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifySeriesApproved';
+
+  const user = getAuth().currentUser;
+  if (!user) throw new Error('המשתמש לא מחובר');
+  const token = await user.getIdToken();
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      tenantSchema: tenant.schema,
+      tenantId: tenant.id,
+      requestId,
+      lessonId,
+    }),
+  });
+
+  const raw = await resp.text();
+  let json: any = null;
+  try { json = JSON.parse(raw); } catch {}
+
+  if (!resp.ok || !json?.ok) {
+    throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+  }
+}
+private async sendSeriesRejectedEmail(requestId: string) {
+  await this.tenantSvc.ensureTenantContextReady();
+  const tenant = this.tenantSvc.requireTenant();
+
+  const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifySeriesRejected';
+
+  const user = getAuth().currentUser;
+  if (!user) throw new Error('המשתמש לא מחובר');
+  const token = await user.getIdToken();
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      tenantSchema: tenant.schema,
+      tenantId: tenant.id,
+      requestId,
+    }),
+  });
+
+  const raw = await resp.text();
+  let json: any = null;
+  try { json = JSON.parse(raw); } catch {}
+
+  if (!resp.ok || !json?.ok) {
+    throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+  }
+}
+
 
 }

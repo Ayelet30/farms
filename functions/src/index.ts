@@ -23,10 +23,11 @@ export * from "./dailyBilling.js";
 
 export * from "./publicSignup.js";
 
+export { processDueChildDeletions } from './processDueChildDeletions';
 
 
 
-export { createHostedPaymentUrl, tranzilaHandshakeHttp , recordOneTimePayment , savePaymentMethod ,chargeSelectedChargesForParent } from './tranzila.js';
+export { createHostedPaymentUrl, tranzilaHandshake , recordOneTimePayment , savePaymentMethod ,chargeSelectedChargesForParent } from './tranzila.js';
 export {
   ensureTranzilaInvoiceForPayment
 } from './tranzilaInvoices.js';
@@ -35,6 +36,11 @@ export { sendEmailGmail } from './email';
 //export  *  from "../createParent.js";
 
 
+export { approveRemoveChildAndNotify } from './approve-remove-child-and-notify';
+export { notifySeriesApproved } from './notifySeriesApproved';
+export { notifySeriesRejected } from './notifySeriesRejected';
+export { rejectRemoveChildAndNotify } from './rejectRemoveChildAndNotify';
+export { notifyUser } from './notifyUser';
 
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript

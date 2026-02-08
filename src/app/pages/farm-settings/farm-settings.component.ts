@@ -15,10 +15,16 @@ type ReminderChannel = 'EMAIL' | 'SMS' | 'APP' | 'WHATSAPP';
 type CalendarKind = 'GREGORIAN' | 'HEBREW';
 type RecurrenceKind = 'ONCE' | 'YEARLY';
 type DayType = 'FULL_DAY' | 'PARTIAL_DAY';
+interface RidingType {
+  id: UUID;
+  name: string;
+  is_active: boolean;
+}
 
 interface FarmSettings {
+  
   id?: UUID;
-
+  leave_buffer_minutes?: number | null;
   operating_hours_start: string | null;
   operating_hours_end: string | null;
 
@@ -31,6 +37,7 @@ interface FarmSettings {
 
   makeup_allowed_days_back: number | null;
   makeup_allowed_days_ahead: number | null;
+    parent_booking_days_ahead?: number | null;
   max_makeups_in_period: number | null;
   makeups_period_days: number | null;
   displayed_makeup_lessons_count: number | null;
@@ -46,7 +53,6 @@ interface FarmSettings {
   monthly_billing_day: number | null;
 
   working_days: number[] | null;
-  time_slot_minutes: number | null;
   timezone: string | null;
 
   send_lesson_reminder: boolean | null;
@@ -187,6 +193,27 @@ export class FarmSettingsComponent implements OnInit {
 
   newListNoteText = signal<string>('');
   listNotesExpanded = signal(true);
+  // ====== Riding Types ======
+ridingTypes = signal<RidingType[]>([]);
+showNewRidingTypeForm = signal(false);
+editingRidingTypeId = signal<UUID | null>(null);
+newRidingTypeName = signal('');
+ridingTypesExpanded = signal(true);
+
+  // שבת: ו׳ מ-16:00 ועד מוצ"ש 19:00
+private readonly SHABBAT_START = '16:00';
+private readonly SHABBAT_END = '19:00';
+
+private isFriday(day: number) { return day === 6; }   // ו'
+private isSaturday(day: number) { return day === 7; } // ש'
+
+  private flashTimer: any = null;
+
+/** יש לפחות יום אחד פעיל (חווה או משרד) */
+hasAnyActiveWorkingDay(): boolean {
+  return this.workingHours().some(r => !!r.is_open || !!r.is_offical_open);
+}
+
 
   toggleListNotesExpanded(): void {
     const next = !this.listNotesExpanded();
@@ -278,37 +305,47 @@ export class FarmSettingsComponent implements OnInit {
 
   // ================================
   async ngOnInit(): Promise<void> {
-    this.loading.set(true);
-    this.error.set(null);
-    this.success.set(null);
+  this.loading.set(true);
+  this.error.set(null);
+  this.success.set(null);
 
-    try {
-      await Promise.all([
-        this.loadSettings(),
-        this.loadFundingSources(),
-        this.loadPaymentPlans(),
-        this.loadFarmDaysOff(),
-        this.loadWorkingHours(),
-        this.loadListNotes(),
-      ]);
+  try {
+    await Promise.all([
+      this.loadSettings(),
+      this.loadFundingSources(),
+      this.loadPaymentPlans(),
+      this.loadFarmDaysOff(),
+      this.loadWorkingHours(),
+      this.loadListNotes(),
+        this.loadRidingTypes(),
+    ]);
 
-      if (!this.workingHours().length) {
-        this.workingHours.set(this.buildEmptyWorkingHours());
-      }
-
-      this.onWorkingHoursChanged();
-    } catch (e) {
-      console.error(e);
-      await this.ui.alert('שגיאה בטעינת הנתונים.', 'שגיאה');
-      this.error.set('שגיאה בטעינת הנתונים.');
-    } finally {
-      this.loading.set(false);
+    if (!this.workingHours().length) {
+      this.workingHours.set(this.enforceShabbatRules(this.buildEmptyWorkingHours()));
+    } else {
+      // ליתר ביטחון אחרי טעינה/seed
+      this.workingHours.set(this.enforceShabbatRules(this.workingHours()));
     }
+
+    // פעם אחת בלבד
+    this.workingHoursError.set(this.validateAllWorkingHours());
+  } catch (e) {
+    console.error(e);
+    await this.ui.alert('שגיאה בטעינת הנתונים.', 'שגיאה');
+    this.error.set('שגיאה בטעינת הנתונים.');
+  } finally {
+    this.loading.set(false);
   }
+}
 
   // =============================
   // Helpers
   // =============================
+  private clearFocus(): void {
+  const el = document.activeElement as HTMLElement | null;
+  el?.blur();
+}
+
   toggleWorkingHoursExpanded(): void {
     this.workingHoursExpanded.set(!this.workingHoursExpanded());
   }
@@ -362,6 +399,30 @@ export class FarmSettingsComponent implements OnInit {
 
     return this.toIsoDate(g);
   }
+
+
+
+private clearFlash(): void {
+  this.success.set(null);
+  this.error.set(null);
+  if (this.flashTimer) {
+    clearTimeout(this.flashTimer);
+    this.flashTimer = null;
+  }
+}
+
+private flashSuccess(msg: string): void {
+  this.clearFlash();
+  this.success.set(msg);
+  this.flashTimer = setTimeout(() => this.success.set(null), 4000);
+}
+
+private flashError(msg: string): void {
+  this.clearFlash();
+  this.error.set(msg);
+  this.flashTimer = setTimeout(() => this.error.set(null), 6000);
+}
+
 
   /** סנכרון עברי->לועזי (start_date/end_date) כדי לשמור DB תקין */
   syncHebrewToGregorianDates(): void {
@@ -436,6 +497,7 @@ export class FarmSettingsComponent implements OnInit {
       return;
     }
 
+    console.log('loadWorkingHours data:', data);
     const list: FarmWorkingHours[] = (data || []).map((r: any) => ({
       id: r.id,
       day_of_week: r.day_of_week,
@@ -447,35 +509,107 @@ export class FarmSettingsComponent implements OnInit {
       office_end: this.t5(r.office_end),
     }));
 
-    this.workingHours.set(list);
+    console.log('loadWorkingHours before enforceShabbatRules:', list);
+    this.workingHours.set(this.enforceShabbatRules(list));
+    console.log('day_of_week values:', list.map(x => x.day_of_week));
+
   }
 
   private buildEmptyWorkingHours(): FarmWorkingHours[] {
-    const s = this.settings();
-    const defFarmStart = s?.operating_hours_start ?? '08:00';
-    const defFarmEnd = s?.operating_hours_end ?? '20:00';
+  const s = this.settings();
+  const defFarmStart = s?.operating_hours_start ?? '08:00';
+  const defFarmEnd = s?.operating_hours_end ?? '20:00';
 
-    const defOfficeStart = s?.office_hours_start ?? null;
-    const defOfficeEnd = s?.office_hours_end ?? null;
+  const arr: FarmWorkingHours[] = [];
+  for (let d = 1; d <= 7; d++) {
+    const isSat = d === 7; // שבת
+    arr.push({
+      day_of_week: d,
+      is_open: !isSat,
+      farm_start: isSat ? null : defFarmStart,
+      farm_end: isSat ? null : defFarmEnd,
+      is_offical_open: false,
+      office_start: null,
+      office_end: null,
+    });
+  }
+  return arr;
+}
 
-    const arr: FarmWorkingHours[] = [];
-    for (let d = 1; d <= 7; d++) {
-      arr.push({
-        day_of_week: d,
-        is_open: true,
-        farm_start: defFarmStart,
-        farm_end: defFarmEnd,
-        is_offical_open: !!(defOfficeStart && defOfficeEnd),
-        office_start: defOfficeStart,
-        office_end: defOfficeEnd,
-      });
+private compareTime(a: string | null, b: string | null): number {
+  if (!a && !b) return 0;
+  if (!a) return -1;
+  if (!b) return 1;
+  return a.localeCompare(b); // עובד ל-HH:MM
+}
+
+private enforceShabbatRulesRow(r: FarmWorkingHours): FarmWorkingHours {
+  const next = { ...r };
+
+  // שבת (7): אם פתוח, מתחילים לא לפני 19:00
+  if (this.isSaturday(next.day_of_week)) {
+    if (next.is_open) {
+      if (!next.farm_start || this.compareTime(next.farm_start, this.SHABBAT_END) < 0) {
+        next.farm_start = this.SHABBAT_END;
+      }
+      if (next.farm_end && this.compareTime(next.farm_end, next.farm_start) <= 0) next.farm_end = null;
+    } else {
+      next.farm_start = null;
+      next.farm_end = null;
     }
-    return arr;
+
+    if (next.is_offical_open) {
+      if (!next.office_start || this.compareTime(next.office_start, this.SHABBAT_END) < 0) {
+        next.office_start = this.SHABBAT_END;
+      }
+      if (next.office_end && this.compareTime(next.office_end, next.office_start) <= 0) next.office_end = null;
+    } else {
+      next.office_start = null;
+      next.office_end = null;
+    }
+
+    return next;
   }
 
-  onWorkingHoursChanged(): void {
-    this.workingHoursError.set(this.validateAllWorkingHours());
+  // שישי (6): לא לשים שעות אחרי 16:00
+  if (this.isFriday(next.day_of_week)) {
+    const clampEnd = (t: string | null) => (t && this.compareTime(t, this.SHABBAT_START) > 0 ? this.SHABBAT_START : t);
+    const invalidStart = (t: string | null) => (t && this.compareTime(t, this.SHABBAT_START) >= 0);
+
+    if (next.is_open) {
+      if (invalidStart(next.farm_start)) next.farm_start = '08:00';
+      next.farm_end = clampEnd(next.farm_end);
+      if (next.farm_end && next.farm_start && this.compareTime(next.farm_end, next.farm_start) <= 0) next.farm_end = null;
+    }
+
+    if (next.is_offical_open) {
+      if (invalidStart(next.office_start)) next.office_start = '08:30';
+      next.office_end = clampEnd(next.office_end);
+      if (next.office_end && next.office_start && this.compareTime(next.office_end, next.office_start) <= 0) next.office_end = null;
+    }
+
+    return next;
   }
+
+  return next;
+}
+
+private enforceShabbatRules(rows: FarmWorkingHours[]): FarmWorkingHours[] {
+  // שומר על immutable כדי שה-signal יעדכן UI
+  return rows.map(r => this.enforceShabbatRulesRow(r));
+}
+
+
+ onWorkingHoursChanged(): void {
+  // רק ולידציה (מהיר)
+  this.workingHoursError.set(this.validateAllWorkingHours());
+}
+
+private applyWorkingHoursRulesAndValidate(): void {
+  this.workingHours.update(rows => this.enforceShabbatRules(rows));
+  this.workingHoursError.set(this.validateAllWorkingHours());
+}
+
 
   private validateAllWorkingHours(): string | null {
     const rows = this.workingHours();
@@ -485,6 +619,62 @@ export class FarmSettingsComponent implements OnInit {
     }
     return null;
   }
+  // ===== Special Day rules (Day 6/7) =====
+private readonly DAY6_CUTOFF = '16:00'; // יום 6
+private readonly DAY7_START  = '19:00'; // יום 7
+
+private isoDow(isoDate: string | null): number | null {
+  if (!isoDate) return null;
+  // מונע בעיות TZ: בונים "צהריים" מקומי
+  const d = new Date(`${isoDate}T12:00:00`);
+  // JS: 0=Sunday ... 5=Friday ... 6=Saturday
+  return d.getDay();
+}
+
+private clampMin(t: string | null, min: string): string | null {
+  if (!t) return null;
+  return t < min ? min : t;
+}
+private clampMax(t: string | null, max: string): string | null {
+  if (!t) return null;
+  return t > max ? max : t;
+}
+
+private applySpecialDayRules(form: FarmDayOff): FarmDayOff {
+  // אוכפים רק כשזה "חלק מהיום" ובאותו יום (לא טווח)
+  if (form.all_day) return form;
+  if (!form.start_date || !form.end_date) return form;
+  if (form.start_date !== form.end_date) return form;
+
+  const dow = this.isoDow(form.start_date);
+  if (dow == null) return form;
+
+  const next = { ...form };
+
+  // יום 7 (JS Saturday=6): אסור להתחיל לפני 19:00
+  if (dow === 6) {
+    next.start_time = this.clampMin(next.start_time, this.DAY7_START);
+    // אם סיום לפני התחלה -> ננקה כדי שיראו שגיאה
+    if (next.end_time && next.start_time && next.end_time <= next.start_time) {
+      next.end_time = null;
+    }
+  }
+
+  // יום 6 (JS Friday=5): אסור לסיים אחרי 16:00
+  if (dow === 5) {
+    next.end_time = this.clampMax(next.end_time, this.DAY6_CUTOFF);
+    if (next.start_time && next.start_time >= this.DAY6_CUTOFF) {
+      // אם שמו התחלה לא חוקית – נחזיר לברירת מחדל
+      next.start_time = this.settings()?.operating_hours_start ?? '08:00';
+    }
+    if (next.end_time && next.start_time && next.end_time <= next.start_time) {
+      next.end_time = null;
+    }
+  }
+
+  return next;
+}
+
 
   private validateWorkingHoursRow(r: FarmWorkingHours): string | null {
     const day = this.getHebDayLabel(r.day_of_week);
@@ -498,6 +688,28 @@ export class FarmSettingsComponent implements OnInit {
         return `בשעות חווה: שעת סיום חייבת להיות אחרי שעת התחלה ביום ${day}.`;
       }
     }
+    // שבת: אם פתוח, לא מתחילים לפני 19:00
+    if (this.isSaturday(r.day_of_week)) {
+  if (r.is_open) {
+    if (r.farm_start && r.farm_start < this.SHABBAT_END) return 'בשבת אין להתחיל לפני 19:00.';
+    if (r.farm_end && r.farm_end < this.SHABBAT_END) return 'ביום שישי לא ניתן לסיים לאחר 16:00.';
+  }
+  if (r.is_offical_open) {
+    if (r.office_start && r.office_start < this.SHABBAT_END) return 'בשבת אין לפתוח משרד לפני 19:00.';
+ }
+}
+    // שישי: לא מתחילים/מסיימים אחרי 16:00
+    if (this.isFriday(r.day_of_week)) {
+      if (r.is_open) {
+        if (r.farm_start && r.farm_start >= this.SHABBAT_START) return 'ביום ו׳ אין להתחיל פעילות מ-16:00 ומעלה.';
+        if (r.farm_end && r.farm_end > this.SHABBAT_START) return 'ביום ו׳ חייבים לסיים עד 16:00.';
+      }
+      if (r.is_offical_open) {
+        if (r.office_start && r.office_start >= this.SHABBAT_START) return 'ביום ו׳ אין לפתוח משרד מ-16:00 ומעלה.';
+        if (r.office_end && r.office_end > this.SHABBAT_START) return 'ביום ו׳ משרד חייב להיסגר עד 16:00.';
+      }
+    }
+
 
     // ---- משרד ----
     if (r.is_offical_open) {
@@ -513,30 +725,60 @@ export class FarmSettingsComponent implements OnInit {
   }
 
   // ✅ חדש: כשסוגרים חווה - ננקה שעות כדי שלא יישמרו "שעות ישנות"
-  onFarmOpenToggle(r: FarmWorkingHours): void {
-    if (!r.is_open) {
-      r.farm_start = null;
-      r.farm_end = null;
-    } else {
-      const s = this.settings();
-      r.farm_start = r.farm_start ?? (s?.operating_hours_start ?? '08:00');
-      r.farm_end = r.farm_end ?? (s?.operating_hours_end ?? '20:00');
-    }
+onFarmOpenToggle(r: FarmWorkingHours): void {
+  if (!r.is_open) {
+    r.farm_start = null;
+    r.farm_end = null;
+  } else {
+    const s = this.settings();
+    r.farm_start = r.farm_start ?? (s?.operating_hours_start ?? '08:00');
+    r.farm_end = r.farm_end ?? (s?.operating_hours_end ?? '20:00');
   }
 
-  // ✅ חדש: כשסוגרים משרד - ננקה שעות משרד; כשפותחים - נכניס ברירת מחדל אם חסר
-  onOfficeOpenToggle(r: FarmWorkingHours): void {
-    if (!r.is_offical_open) {
-      r.office_start = null;
-      r.office_end = null;
-    } else {
-      const s = this.settings();
-      r.office_start = r.office_start ?? (s?.office_hours_start ?? '08:30');
-      r.office_end = r.office_end ?? (s?.office_hours_end ?? '16:00');
-    }
+  this.applyWorkingHoursRulesAndValidate();
+}
+
+onOfficeOpenToggle(r: FarmWorkingHours): void {
+  if (!r.is_offical_open) {
+    r.office_start = null;
+    r.office_end = null;
+  } else {
+    const s = this.settings();
+    r.office_start = r.office_start ?? (s?.office_hours_start ?? '08:30');
+    r.office_end = r.office_end ?? (s?.office_hours_end ?? '16:00');
   }
+
+  this.applyWorkingHoursRulesAndValidate();
+}
+
+onWorkingHoursTimeChanged(): void {
+  this.applyWorkingHoursRulesAndValidate();
+}
+
+  /** יש לפחות יום אחד פתוח בחווה */
+hasAnyFarmOpenDay(): boolean {
+  return this.workingHours().some(r => !!r.is_open);
+}
+
+/** יש לפחות יום אחד פתוח במשרד */
+hasAnyOfficeOpenDay(): boolean {
+  return this.workingHours().some(r => !!r.is_offical_open);
+}
+
+/** יש מינימום הגיוני לשמירה: חווה + משרד */
+canSaveWorkingHours(): boolean {
+  return this.hasAnyFarmOpenDay() && this.hasAnyOfficeOpenDay() && !this.workingHoursError();
+}
 
   async saveWorkingHours(): Promise<void> {
+      if (!this.hasAnyFarmOpenDay() || !this.hasAnyOfficeOpenDay()) {
+    const msg = !this.hasAnyFarmOpenDay()
+      ? 'חובה לסמן לפחות יום אחד פתוח בחווה.'
+      : 'חובה לסמן לפחות יום אחד פתוח במשרד.';
+    await this.ui.alert(msg, 'שגיאה');
+    this.error.set(msg);
+    return;
+  }
     const rows = this.workingHours().length ? this.workingHours() : this.buildEmptyWorkingHours();
 
     const err = this.validateAllWorkingHours();
@@ -577,7 +819,7 @@ export class FarmSettingsComponent implements OnInit {
         return;
       }
 
-      this.success.set('שעות לפי יום נשמרו בהצלחה.');
+      this.flashSuccess('שעות לפי יום נשמרו בהצלחה.');
       await this.ui.alert('שעות לפי יום נשמרו בהצלחה.', 'הצלחה');
 
       await this.loadWorkingHours();
@@ -605,10 +847,12 @@ export class FarmSettingsComponent implements OnInit {
   }
 
   patchSpecialDayForm(patch: Partial<FarmDayOff>): void {
-    const next = { ...this.specialDayForm(), ...patch };
-    this.specialDayForm.set(next);
-    this.validateSpecialDayDateRange(next);
-  }
+  let next = { ...this.specialDayForm(), ...patch };
+  next = this.applySpecialDayRules(next);   // ✅ כאן
+  this.specialDayForm.set(next);
+  this.validateSpecialDayDateRange(next);
+}
+
 
   openSpecialDays(): void {
     const today = new Date().toISOString().slice(0, 10);
@@ -640,20 +884,27 @@ export class FarmSettingsComponent implements OnInit {
     this.showSpecialDaysModal.set(false);
   }
 
-  onToggleAllDay(value: boolean): void {
-    const cur = this.specialDayForm();
-    if (value) {
-      this.specialDayForm.set({ ...cur, all_day: true, start_time: null, end_time: null });
-    } else {
-      const s = this.settings();
-      this.specialDayForm.set({
-        ...cur,
-        all_day: false,
-        start_time: cur.start_time ?? (s?.operating_hours_start ?? '08:00'),
-        end_time: cur.end_time ?? (s?.operating_hours_end ?? '20:00'),
-      });
-    }
+ onToggleAllDay(value: boolean): void {
+  const cur = this.specialDayForm();
+  let next: FarmDayOff;
+
+  if (value) {
+    next = { ...cur, all_day: true, start_time: null, end_time: null };
+  } else {
+    const s = this.settings();
+    next = {
+      ...cur,
+      all_day: false,
+      start_time: cur.start_time ?? (s?.operating_hours_start ?? '08:00'),
+      end_time: cur.end_time ?? (s?.operating_hours_end ?? '20:00'),
+    };
   }
+
+  next = this.applySpecialDayRules(next);   // ✅ כאן
+  this.specialDayForm.set(next);
+  
+}
+
 
   private async loadFarmDaysOff(): Promise<void> {
     const { data, error } = await this.supabase
@@ -723,6 +974,24 @@ export class FarmSettingsComponent implements OnInit {
         await this.ui.alert('שעת סיום חייבת להיות אחרי שעת התחלה.', 'שגיאה');
         return;
       }
+      if (!f.all_day && f.start_date && f.end_date && f.start_date === f.end_date) {
+  const dow = this.isoDow(f.start_date);
+
+  if (dow === 6) { // יום 7
+    if (f.start_time && f.start_time < this.DAY7_START) {
+      await this.ui.alert('ביום 7 אי אפשר להתחיל לפני 19:00.', 'שגיאה');
+      return;
+    }
+  }
+
+  if (dow === 5) { // יום 6
+    if (f.end_time && f.end_time > this.DAY6_CUTOFF) {
+      await this.ui.alert('ביום 6 חייבים לסיים עד 16:00.', 'שגיאה');
+      return;
+    }
+  }
+}
+
     }
 
     const isHebrew = (f.calendar_kind ?? 'GREGORIAN') === 'HEBREW';
@@ -838,9 +1107,14 @@ export class FarmSettingsComponent implements OnInit {
     if (data) {
       const s: FarmSettings = {
         ...data,
+        default_lessons_per_series:
+  data.default_lessons_per_series ?? 12,
+
+parent_booking_days_ahead: data.parent_booking_days_ahead ?? null,
 
         operating_hours_start: this.t5(data.operating_hours_start) ?? '08:00',
         operating_hours_end: this.t5(data.operating_hours_end) ?? '20:00',
+leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
 
         office_hours_start: this.t5(data.office_hours_start) ?? '08:30',
         office_hours_end: this.t5(data.office_hours_end) ?? '16:00',
@@ -854,7 +1128,6 @@ export class FarmSettingsComponent implements OnInit {
 
         working_days: (data.working_days ?? null) as any,
         timezone: data.timezone ?? 'Asia/Jerusalem',
-        time_slot_minutes: data.time_slot_minutes ?? 15,
 
         late_payment_grace_days: data.late_payment_grace_days ?? 0,
         notify_before_farm_closure: data.notify_before_farm_closure ?? false,
@@ -871,7 +1144,7 @@ export class FarmSettingsComponent implements OnInit {
     this.settings.set({
       operating_hours_start: '08:00',
       operating_hours_end: '20:00',
-
+  leave_buffer_minutes: 0, 
       office_hours_start: '08:30',
       office_hours_end: '16:00',
 
@@ -896,7 +1169,6 @@ export class FarmSettingsComponent implements OnInit {
       monthly_billing_day: 10,
 
       working_days: [1, 2, 3, 4, 5],
-      time_slot_minutes: 15,
       timezone: 'Asia/Jerusalem',
 
       send_lesson_reminder: true,
@@ -924,6 +1196,7 @@ export class FarmSettingsComponent implements OnInit {
       max_group_size: 6,
       max_lessons_per_week_per_child: 2,
       allow_online_booking: true,
+      
     });
   }
 
@@ -963,8 +1236,8 @@ export class FarmSettingsComponent implements OnInit {
 
     if (error) {
       console.error('save farm_settings error', error);
-      await this.ui.alert('שמירת ההגדרות נכשלה. נסי שוב.', 'שגיאה');
-      this.error.set('שמירת ההגדרות נכשלה. נסי שוב.');
+      await this.ui.alert('שמירת ההגדרות נכשלה. נסה/י שוב.', 'שגיאה');
+      this.error.set('שמירת ההגדרות נכשלה. נסה/י שוב.');
       this.saving.set(false);
       return;
     }
@@ -1100,6 +1373,7 @@ export class FarmSettingsComponent implements OnInit {
     await this.ui.alert('גורם המימון נמחק.', 'הצלחה');
   }
 
+
   // =============================
   // Payment Plans
   // =============================
@@ -1142,11 +1416,13 @@ export class FarmSettingsComponent implements OnInit {
     if (!plan.id) return;
     this.editingPlanId.set(plan.id);
   }
+cancelEditPlan(): void {
+  this.editingPlanId.set(null);
+  this.loadPaymentPlans();
 
-  cancelEditPlan(): void {
-    this.editingPlanId.set(null);
-    this.loadPaymentPlans();
-  }
+  setTimeout(() => this.clearFocus());
+}
+
 
   onDocsTextChange(plan: PaymentPlan, value: string): void {
     plan.required_docs = value.split('\n').map(v => v.trim()).filter(Boolean);
@@ -1155,6 +1431,101 @@ export class FarmSettingsComponent implements OnInit {
   onNewPlanDocsChange(value: string): void {
     this.newPlan.required_docs = value.split('\n').map(v => v.trim()).filter(Boolean);
   }
+// =============================
+// Riding Types
+// =============================
+
+private async loadRidingTypes(): Promise<void> {
+  const { data, error } = await this.supabase
+    .from('riding_types')
+    .select('*')
+    .order('name');
+      const filtered = (data ?? []).filter(
+        (    rt: { name: string; }) => rt.name !== 'הפסקה'
+  );
+
+  this.ridingTypes.set(filtered);
+
+  if (error) {
+    console.error('loadRidingTypes error', error);
+    this.error.set('לא ניתן לטעון סוגי רכיבה');
+    return;
+  }
+
+
+}
+
+async addRidingType(): Promise<void> {
+  const name = this.newRidingTypeName().trim();
+  if (!name) return;
+
+  const { error } = await this.supabase
+    .from('riding_types')
+    .insert({ name });
+
+  if (error) {
+    console.error('addRidingType error', error);
+    await this.ui.alert('הוספת סוג רכיבה נכשלה.', 'שגיאה');
+    return;
+  }
+
+  this.newRidingTypeName.set('');
+  this.showNewRidingTypeForm.set(false);
+  await this.loadRidingTypes();
+}
+
+startEditRidingType(rt: RidingType): void {
+  this.editingRidingTypeId.set(rt.id);
+}
+
+cancelEditRidingType(): void {
+  this.editingRidingTypeId.set(null);
+  this.loadRidingTypes();
+}
+
+async updateRidingType(rt: RidingType): Promise<void> {
+  const { error } = await this.supabase
+    .from('riding_types')
+    .update({
+      name: rt.name,
+      is_active: rt.is_active,
+    })
+    .eq('id', rt.id);
+
+  if (error) {
+    console.error('updateRidingType error', error);
+    await this.ui.alert('עדכון סוג רכיבה נכשל.', 'שגיאה');
+    return;
+  }
+
+  this.editingRidingTypeId.set(null);
+  await this.loadRidingTypes();
+}
+
+async deleteRidingType(rt: RidingType): Promise<void> {
+  const ok = await this.ui.confirm({
+    title: 'מחיקת סוג רכיבה',
+    message: `למחוק את "${rt.name}"?`,
+    okText: 'מחיקה',
+    cancelText: 'ביטול',
+    showCancel: true,
+  });
+
+  if (!ok) return;
+
+  const { error } = await this.supabase
+    .from('riding_types')
+    .delete()
+    .eq('id', rt.id);
+
+  if (error) {
+    console.error('deleteRidingType error', error);
+    await this.ui.alert('מחיקת סוג רכיבה נכשלה.', 'שגיאה');
+    return;
+  }
+
+  await this.loadRidingTypes();
+}
 
   private normalizePlanForSave(plan: PaymentPlan): any {
     return {
@@ -1294,8 +1665,8 @@ export class FarmSettingsComponent implements OnInit {
 
       if (error) {
         console.error('savePlanPriceVersion error', error);
-        this.error.set('שמירת שינוי המחיר נכשלה. נסי שוב.');
-        await this.ui.alert('שמירת שינוי המחיר נכשלה. נסי שוב.', 'שגיאה');
+        this.error.set('שמירת שינוי המחיר נכשלה. נסה/י שוב.');
+        await this.ui.alert('שמירת שינוי המחיר נכשלה. נסה/י שוב.', 'שגיאה');
         return;
       }
 
@@ -1339,8 +1710,11 @@ export class FarmSettingsComponent implements OnInit {
     this.settings.set({
       ...s,
       default_lessons_per_series: checked ? null : (s.default_lessons_per_series ?? 12),
+      leave_buffer_minutes: 0,
+
     });
   }
+
 // =============================
 // Structured Notes (list_notes)
 // =============================
@@ -1485,5 +1859,25 @@ async deleteListNote(n: ListNote): Promise<void> {
     await this.ui.alert('מחיקת הודעה נכשלה.', 'שגיאה');
   }
 }
+
+paymentPlansExpanded = signal(true);
+fundingSourcesExpanded = signal(true);
+
+togglePaymentPlansExpanded() {
+  this.paymentPlansExpanded.update(v => !v);
+
+  if (!this.paymentPlansExpanded()) {
+    this.showNewPlanForm.set(false);
+  }
+
+  setTimeout(() => this.clearFocus());
+}
+
+
+toggleFundingSourcesExpanded() {
+  this.fundingSourcesExpanded.update(v => !v);
+  if (!this.fundingSourcesExpanded()) this.showNewFundingForm.set(false);
+}
+
 }
 

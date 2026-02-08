@@ -161,6 +161,8 @@ isActiveStatus(v?: any): boolean {
   ) {}
 
   async ngOnInit(): Promise<void> {
+    console.log(this.router.config);
+
     try {
       await ensureTenantContextReady();
       await this.loadChildren();
@@ -172,17 +174,36 @@ isActiveStatus(v?: any): boolean {
       console.error(e);
     }
   }
-
-  goToParentPaymentsFromChild() {
-    const parentUid = this.drawerChild?.parent_uid;
-    if (!parentUid) {
-      this.ui.alert('לילד הזה אין הורה משויך, לכן אין אפשרות לסנן תשלומים.', 'תשלומים');
-      return;
-    }
-    this.router.navigate(['/secretary/payments'], {
-      queryParams: { parentUid },
-    });
+  goToChildLessonsHistory() {
+  if (!this.drawerChild?.child_uuid) {
+    this.ui.alert('לא ניתן לעבור להיסטוריית שיעורים – ילד לא מזוהה', 'שיעורים');
+    return;
   }
+
+this.router.navigate(
+  ['/secretary/monthly-summary'],
+  {
+    queryParams: {
+      childId: this.drawerChild.child_uuid,
+      fromChild: true,
+    },
+  }
+);
+
+}
+
+goToParentPaymentsFromChild() {
+  const parentUid = this.drawerChild?.parent_uid;
+  if (!parentUid) {
+    this.ui.alert('לילד הזה אין הורה משויך, לכן אין אפשרות לסנן תשלומים.', 'תשלומים');
+    return;
+  }
+
+  
+  this.router.navigate(['/secretary/payments'], {
+    queryParams: { parentUid },
+  });
+}
 
   /** Guard: תמיד לוודא טננט לפני DB */
   private async dbc() {
@@ -443,19 +464,58 @@ isActiveStatus(v?: any): boolean {
           const fullPath = `${folderPath}/${x.name}`;
           const { data: pub } = client.storage.from(bucket).getPublicUrl(fullPath);
 
-          return {
-            name: x.name,
-            fullPath,
-            updatedAt: x.updated_at ?? null,
-            publicUrl: pub.publicUrl,
-          };
-        });
+        return {
+          name: x.name,
+          fullPath,
+          updatedAt: x.updated_at ?? null,
+          publicUrl: pub.publicUrl,
+        };
+      });
+
+  } catch (e: any) {
+    console.error('loadChildReferrals error:', e);
+    this.referralsError = e?.message ?? 'שגיאה בטעינת הפניות';
+    this.referralFiles = [];
+  } finally {
+    this.referralsLoading = false;
+ 
+}
+
+}
+
+  /** פותח PDF של התקנון בדיאלוג */
+  async openTermsPdf() {
+    if (!this.termsBucket || !this.termsPath) {
+      await this.ui.alert('אין תקנון חתום להצגה לילד זה.', 'תקנון');
+      return;
+    }
+
+    try {
+     const client = getSupabaseClient();
+     console.log('dbTenant storage?', (client as any)?.storage);
+
+
+      // Signed URL לשעה (אפשר לשנות)
+      const { data, error } = await client.storage
+        .from(this.termsBucket)
+        .createSignedUrl(this.termsPath, 60 * 60);
+
+      if (error) throw error;
+
+      const url = data?.signedUrl;
+      if (!url) throw new Error('No signedUrl returned');
+
+      this.dialog.open(TermsPdfDialogComponent, {
+        width: 'min(980px, 96vw)',
+        height: 'min(90vh, 900px)',
+        data: {
+          title: 'תקנון חתום (PDF)',
+          url: this.sanitizer.bypassSecurityTrustResourceUrl(url),
+        },
+      });
     } catch (e: any) {
-      console.error('loadChildReferrals error:', e);
-      this.referralsError = e?.message ?? 'שגיאה בטעינת הפניות';
-      this.referralFiles = [];
-    } finally {
-      this.referralsLoading = false;
+      console.error('openTermsPdf error:', e);
+      await this.ui.alert('לא הצלחתי לפתוח את ה-PDF: ' + (e?.message ?? e), 'תקנון');
     }
   }
 
