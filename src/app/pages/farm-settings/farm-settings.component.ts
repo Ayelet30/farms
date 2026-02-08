@@ -1323,12 +1323,14 @@ if (
     'קנס ביטול (%) חייב להיות בין 0 ל־100';
 }
 
-  if (
-    s.lesson_duration_minutes != null &&
-    (s.lesson_duration_minutes < 10 || s.lesson_duration_minutes > 180)
-  ) {
-    errors.lesson_duration_minutes = 'אורך שיעור חייב להיות בין 10 ל־180 דקות';
-  }
+if (
+  s.lesson_duration_minutes != null &&
+  (s.lesson_duration_minutes < 10 || s.lesson_duration_minutes > 540)
+) {
+  errors.lesson_duration_minutes =
+    'אורך שיעור חייב להיות בין 10 דקות ל־9 שעות (540 דקות)';
+}
+
 
   if (
     s.availability_days_ahead != null &&
