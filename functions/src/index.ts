@@ -41,6 +41,8 @@ export { notifySeriesApproved } from './notifySeriesApproved';
 export { notifySeriesRejected } from './notifySeriesRejected';
 export { rejectRemoveChildAndNotify } from './rejectRemoveChildAndNotify';
 export { notifyUser } from './notifyUser';
+export { approveMakeupLessonAndNotify } from './approveMakeupLessonAndNotify';
+export { rejectMakeupLessonAndNotify } from './rejectMakeupLessonAndNotify';
 
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript

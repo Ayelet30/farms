@@ -41,7 +41,7 @@ import { RequestCancelOccurrenceDetailsComponent } from './request-cancel-occurr
 import { RequestAddChildDetailsComponent } from './request-add-child-details/request-add-child-details.component';
 import { SecretarialSeriesRequestsComponent } from './request-new-series-details/request-new-series-details.component';
 import { RequestAddParentDetailsComponent } from './request-add-parent-details/request-add-parent-details.component';
-import { RequestMakeupLessonDetailsComponent } from './request-makeup-lesson-details/request-makeup-lesson-details';
+import { RequestMakeupLessonDetailsComponent } from './request-makeup-lesson-details/request-makeup-lesson-details.component';
 import { RequestFillInDetailsComponent } from './request-fill-in-details/request-fill-in-details';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
@@ -357,6 +357,7 @@ bulkBusyMode = signal<'approve' | 'reject' | null>(null);
       payload: row.payload,
       childId: row.child_id ?? null,
 instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
+  lessonOccId: row.lesson_occ_id ?? null,   
 
     };
   }
@@ -374,7 +375,7 @@ instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
       case 'DELETE_CHILD':
         return p.summary || 'בקשה למחיקת ילד מהמערכת';
       case 'MAKEUP_LESSON':
-        return p.summary || 'בקשה לשיעור פיצוי';
+        return p.summary || 'בקשה לשיעור השלמה';
       case 'PARENT_SIGNUP':
         return p.summary || 'בקשה להרשמת הורה למערכת';
       case 'FILL_IN':
@@ -477,7 +478,7 @@ instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
       case 'NEW_SERIES': return 'סדרת שיעורים';
       case 'ADD_CHILD': return 'הוספת ילד/ה';
       case 'DELETE_CHILD': return 'מחיקת ילד/ה';
-      case 'MAKEUP_LESSON': return 'שיעור פיצוי';
+      case 'MAKEUP_LESSON': return 'שיעור השלמה';
       case 'FILL_IN': return 'מילוי מקום';
       case 'PARENT_SIGNUP': return 'הרשמת הורה';
       default: return type;
@@ -744,13 +745,21 @@ if (typeof fn !== 'function') {
 // ✅ אם זו דחייה – להזין note (כי בסדרה זה חובה)
 if (action === 'reject') {
   const reason = rejectArgs?.reason?.trim() ?? '';
-  if (reason && 'note' in inst) {
+
+  // ✅ אם note הוא signal -> note.set(...)
+  if (typeof inst?.note?.set === 'function') {
+    inst.note.set(reason);
+  }
+  // ✅ אם note הוא string רגיל (קומפוננטות ישנות) -> note = reason
+  else if ('note' in inst) {
     inst.note = reason;
   }
+
   await fn.call(inst, rejectArgs ?? { source: 'user', reason });
 } else {
   await fn.call(inst);
 }
+
 
 // ✅ אם לא השתנה סטטוס (לא קרא update/emit) – להחזיר כישלון כדי לא לשקר
 // (בד"כ קומפוננטה תקרא onRejected/onApproved ותעשה patchRequestStatus)
@@ -1100,7 +1109,7 @@ private async checkChildActive(db: any, row: UiRequest, mode: ValidationMode)
   try {
     const { data, error } = await db
       .from('children')
-      .select('status')
+      .select('status , scheduled_deletion_at')
       .eq('child_uuid', childId)
       .maybeSingle();
 
@@ -1116,6 +1125,37 @@ private async checkChildActive(db: any, row: UiRequest, mode: ValidationMode)
       if (mode === 'auto') return { ok: true };
       return { ok: false, reason: 'לא נמצא ילד במערכת' };
     }
+const scheduledDeletionAt = (data as any)?.scheduled_deletion_at ?? null;
+
+// ✅ חדש: אם הילד ב-Deletion Scheduled ובקשה היא MAKEUP/FILL_IN,
+// ואם השיעור המבוקש נופל אחרי מועד המחיקה → דחייה אוטומטית
+if (
+  status === 'Deletion Scheduled' &&
+  scheduledDeletionAt &&
+  (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN')
+) {
+  const p: any = row.payload ?? {};
+
+  // תאריך/שעה של השיעור המבוקש
+  const dateStr =
+    row.fromDate ?? row.fromDate ?? p.occur_date ?? p.from_date ?? null;
+
+  const timeStr =
+    p.requested_start_time ?? p.start_time ?? p.startTime ?? '00:00';
+
+  if (dateStr) {
+    const reqDt = this.combineDateTime(String(dateStr), String(timeStr));
+    const delDt = new Date(String(scheduledDeletionAt)); // timestamp מה-DB (עם TZ)
+
+    if (!isNaN(delDt.getTime()) && reqDt.getTime() >= delDt.getTime()) {
+      const delPretty = new Date(delDt).toLocaleString('he-IL');
+      return {
+        ok: false,
+        reason: `הבקשה נדחתה אוטומטית: הילד/ה מתוזמן/ת למחיקה ב-${delPretty}, והשיעור המבוקש לאחר מועד זה.`,
+      };
+    }
+  }
+}
 
  // ✅ סטטוסים מותרים לפי סוג בקשה
 const allowedStatusesForType = (type: RequestType): Set<string> => {
