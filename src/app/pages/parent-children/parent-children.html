@@ -203,12 +203,14 @@
   </div>
 
   <!-- History Modal -->
-  <div class="dialog-overlay" *ngIf="showHistory">
-    <div class="history-modal">
-      <button class="card-close small" (click)="closeHistory()" aria-label="סגור">✕</button>
-
+<div class="dialog-overlay" *ngIf="showHistory">
+  <div class="history-modal">
+    <div class="history-head">
       <h3 class="history-title">היסטוריית שיעורים — {{ historyChildName }}</h3>
+      <button class="card-close small" (click)="closeHistory()" aria-label="סגור">✕</button>
+    </div>
 
+    <div class="history-body">
       <div *ngIf="historyLoading" class="history-loading">טוען…</div>
 
       <div *ngIf="!historyLoading && historyItems.length === 0" class="history-empty">
@@ -228,6 +230,7 @@
       </ul>
     </div>
   </div>
+</div>
 
   <div class="overlay" *ngIf="showDeleteConfirm">
     <div class="confirm-dialog" dir="rtl">
