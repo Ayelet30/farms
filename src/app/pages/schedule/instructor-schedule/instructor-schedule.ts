@@ -387,8 +387,9 @@ private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<vo
 // ✅ אם אין category – זו לא בקשת חופש תקינה, לא להציג בלוח
 if (!row.payload?.category) return res;
 
-    const from = new Date(row.from_date);
-    const to = new Date(row.to_date || row.from_date);
+const from = new Date(`${row.from_date}T00:00:00`);
+const to = new Date(`${(row.to_date || row.from_date)}T00:00:00`);
+
 
     const type: RequestType = this.mapDbRequestType(row.payload?.category);
     const status: RequestStatus = this.mapDbStatus(row.status);
@@ -788,14 +789,11 @@ async onViewRangeChange(range: any): Promise<void> {
   return;
 }
 
-const startYmd = ymd(new Date(range.start));
+const startYmd = range.start.slice(0, 10);
 
-// end של FullCalendar הוא יום *אחרי* הטווח → מחזירים יום אחד אחורה
-const endDate = new Date(range.end);
-endDate.setDate(endDate.getDate() - 1);
-const endYmd = ymd(endDate);
-
-
+const endYmd = new Date(
+  new Date(range.end).getTime() - 24 * 60 * 60 * 1000
+).toLocaleDateString('sv-SE');
 
 
     if (
@@ -941,21 +939,26 @@ onSickFileSelected(event: Event): void {
 }
 
 
-  async openRequest(type: RequestType): Promise<void> {
-    const date = this.contextMenu.date;
-    this.closeContextMenu();
-    
-    if (!date) return;
+async openRequest(type: RequestType): Promise<void> {
+  const date = this.contextMenu.date;
+  this.closeContextMenu();
 
-    this.rangeModal.open = true;
-    this.rangeModal.from = date;
-    this.rangeModal.to = date;
-    this.rangeModal.allDay = true;
-    this.rangeModal.fromTime = '';
-    this.rangeModal.toTime = '';
-    this.rangeModal.type = type;
-    this.rangeModal.text = '';
-  }
+  if (!date) return;
+
+  // 🔥 קריטי: אובייקט חדש לגמרי
+  this.rangeModal = {
+    open: true,
+    from: date,
+    to: date,
+    allDay: true,
+    fromTime: '',
+    toTime: '',
+    type,
+    text: '',
+  };
+
+  this.cdr.detectChanges();
+}
 
   closeRangeModal(): void {
     this.rangeModal.open = false;
@@ -1227,7 +1230,8 @@ console.log('SICK FILE:', this.pendingSickFile);
 
     // יום מלא – חוסם הכל
     if (off.day_type === 'FULL_DAY') {
-      const lessonDay = lessonStart.toISOString().slice(0, 10);
+     const lessonDay = lessonStart.toLocaleDateString('sv-SE');
+
       return (
         lessonDay >= off.start_date &&
         lessonDay <= off.end_date
