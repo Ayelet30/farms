@@ -1345,26 +1345,27 @@ private farmDaysOffToItems(): ScheduleItem[] {
         ? '🏖 חופשת חווה – יום מלא'
         : '🏖 חופשת חווה – לפי שעות';
 
-    return {
-      id: `farm_off_${d.id}`,
-      title,
+       return {
+        id: `farm_off_${d.id}`,
+        title,
+        start,
+        end,
+        allDay: isFullDay,
 
-      start,
-      end,
+        display: 'block',                 
+        classNames: ['farm-day-off-event'],
+        color: 'rgba(255, 183, 77, 0.35)', 
+       textColor: '#1f2a1f',
 
-      allDay: isFullDay,
-      display: 'background',
-      classNames: ['farm-day-off'],
-
-      status: 'farm_day_off' as any,
-      meta: {
+        status: 'farm_day_off' as any,
+        meta: {
         isFarmDayOff: 'true',
         reason: d.reason ?? null,
         day_type: d.day_type,
-      } as any,
-    };
-  });
-}
+        } as any,
+      };
+    });
+  }
 
 
   private getRequestForDate(date: string): DayRequestRow | undefined {
