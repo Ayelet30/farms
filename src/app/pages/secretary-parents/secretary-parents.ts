@@ -1,3 +1,4 @@
+// secretary-parents.component.ts
 import { Component, OnInit, ViewChild, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
@@ -121,6 +122,14 @@ export class SecretaryParentsComponent implements OnInit {
   editMode = false;
   private originalParent: ParentDetailsRow | null = null;
 
+  // ====== מגבלות תווים (כמו שביקשת) ======
+  readonly MAX_FIRST_NAME = 25;
+  readonly MAX_LAST_NAME = 35;
+  readonly MAX_EMAIL = 60;
+  readonly MAX_ADDRESS = 30;
+  readonly MAX_EXTRA_NOTES = 60;
+  readonly MAX_PHONE = 11; 
+
   readonly COMM_PREF_OPTIONS = [
     { value: 'inapp', label: 'אפליקציה (In-app)' },
     { value: 'voice', label: 'הודעה קולית' },
@@ -128,119 +137,113 @@ export class SecretaryParentsComponent implements OnInit {
     { value: 'email', label: 'אימייל' },
     { value: 'sms', label: 'SMS' },
   ];
-  // מנקה רווחים/מקפים/סוגריים
-private normalizePhone(raw: any): string {
-  return String(raw ?? '').replace(/[^\d+]/g, ''); // משאיר ספרות ו-+
-}
 
-// ולידטור לטלפון ישראלי
+  // מנקה רווחים/מקפים/סוגריים
+  private normalizePhone(raw: any): string {
+    return String(raw ?? '').replace(/[^\d+]/g, ''); // משאיר ספרות ו-+
+  }
+
+  // ולידטור לטלפון ישראלי
 private israelPhoneValidator(): ValidatorFn {
   return (control: AbstractControl): ValidationErrors | null => {
     const raw = control.value;
-    if (raw == null || raw === '') return null; // required מטופל בנפרד
+    if (raw == null || raw === '') return null;
 
-    const val = this.normalizePhone(raw);
+    const rawStr = String(raw);
 
-    // 1) אם יש אותיות/תווים לא חוקיים (אחרי ניקוי לא אמור לקרות, אבל אם כן)
-    // כאן אנחנו גם חוסמים כל דבר שהוא לא ספרות או + בתחילת מספר
-    if (!/^\+?\d+$/.test(val)) {
+    // ✅ חוסם אותיות שלא יעברו “ניקוי” בטעות
+    if (/[A-Za-z\u0590-\u05FF]/.test(rawStr)) {
       return { phoneDigitsOnly: true };
     }
 
-    // 2) תמיכה ב-+972
+    const val = this.normalizePhone(rawStr);
+
+    // רק ספרות (או + בתחילה)
+    if (!/^\+?\d+$/.test(val)) return { phoneDigitsOnly: true };
+
+    // +9725XXXXXXXX
     if (val.startsWith('+972')) {
-      const rest = val.slice(4); // אחרי +972
-      // חייב להתחיל ב-5 ואז 8 ספרות (סה"כ 9 אחרי 972)
+      const rest = val.slice(4);
       if (!/^5\d{8}$/.test(rest)) return { ilPhone: true };
       return null;
     }
 
-    // 3) תמיכה ב-972 בלי +
+    // 9725XXXXXXXX
     if (val.startsWith('972')) {
       const rest = val.slice(3);
       if (!/^5\d{8}$/.test(rest)) return { ilPhone: true };
       return null;
     }
 
-    // 4) מספר ישראלי מקומי 05XXXXXXXX
+    // 05XXXXXXXX
     if (/^05\d{8}$/.test(val)) return null;
 
     return { ilPhone: true };
   };
 }
 
-constructor(
-  private ui: UiDialogService,
-  private dialog: MatDialog,
-  private createUserService: CreateUserService,
-  private fb: FormBuilder,
-  private mailService: MailService,
-  private route: ActivatedRoute,
-) {}
+
+  constructor(
+    private ui: UiDialogService,
+    private dialog: MatDialog,
+    private createUserService: CreateUserService,
+    private fb: FormBuilder,
+    private mailService: MailService,
+    private route: ActivatedRoute,
+  ) {}
 
   // ================== חיפוש + סינון ==================
 
-  // לחיצה על כל השורה (בד"כ חיפוש)
   toggleSearchPanelFromBar() {
     this.panelFocus = 'search';
     this.showSearchPanel = !this.showSearchPanel;
   }
 
-  // לחיצה על האייקון של זכוכית מגדלת
   toggleFromSearchIcon(event: MouseEvent) {
     event.stopPropagation();
     this.panelFocus = 'search';
     this.showSearchPanel = !this.showSearchPanel;
   }
 
-  // לחיצה על האייקון של פילטר
   toggleFromFilterIcon(event: MouseEvent) {
     event.stopPropagation();
     this.panelFocus = 'filter';
     this.showSearchPanel = !this.showSearchPanel;
   }
 
-  // סגירה אוטומטית בלחיצה מחוץ לחלונית
   @HostListener('document:click')
   closeSearchPanelOnOutsideClick() {
     this.showSearchPanel = false;
   }
-  // רשימת הורים אחרי חיפוש + סינון
+
   get filteredParents(): ParentRow[] {
     let rows = [...this.parents];
 
-    // טקסט גולמי מהאינפוט
     const raw = (this.searchText || '').trim();
 
     if (raw) {
       if (this.searchMode === 'name') {
-        // חיפוש חופשי לפי שם
         const q = raw.toLowerCase();
         rows = rows.filter(p => {
           const hay = `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase();
           return hay.includes(q);
         });
       } else {
-        // 🔎 מצב חיפוש לפי ת"ז – "מתחיל ב..." תוך כדי הקלדה
-        const qId = raw.replace(/\s/g, ''); // מסירים רווחים מהקלדה
-
+        const qId = raw.replace(/\s/g, '');
         rows = rows.filter(p => {
-          const id = (p.id_number || '').toString().replace(/\s/g, ''); // גם כאן בלי רווחים
-          // מספיק שה־id יתחיל במה שהוקלד עד עכשיו
+          const id = (p.id_number || '').toString().replace(/\s/g, '');
           return qId !== '' && id.startsWith(qId);
         });
       }
     }
 
-    // 2) סינון לפי סטטוס הורה
     if (this.statusFilter !== 'all') {
       rows = rows.filter(p => {
-        const active = p.is_active !== false; // ברירת מחדל = פעיל
+        const active = p.is_active !== false;
         return this.statusFilter === 'active' ? active : !active;
       });
     }
 
-    // 3) סינון לפי ילדים פעילים/לא פעילים
     if (this.childrenFilter === 'active') {
       rows = rows.filter(p => !!p.hasActiveChildren);
     } else if (this.childrenFilter === 'inactive') {
@@ -250,7 +253,6 @@ constructor(
     return rows;
   }
 
-  // כפתור איפוס – מחזיר לברירות מחדל
   clearFilters() {
     this.searchText = '';
     this.searchMode = 'name';
@@ -266,19 +268,18 @@ constructor(
   }
 
   // ================== lifecycle ==================
-async ngOnInit() {
-  try {
-    await ensureTenantContextReady();
-    await this.loadParents();
-  } catch (e: any) {
-    this.error = e?.message || 'Failed to load parents';
-    console.error(e);
-  } finally {
-    this.isLoading = false;
+  async ngOnInit() {
+    try {
+      await ensureTenantContextReady();
+      await this.loadParents();
+    } catch (e: any) {
+      this.error = e?.message || 'Failed to load parents';
+      console.error(e);
+    } finally {
+      this.isLoading = false;
+    }
   }
-}
- 
-  /** טוען הורים מתוך סכימת הטננט הפעיל (לפי ההקשר שנקבע ב־ensureTenantContextReady) */
+
   private async loadParents() {
     this.isLoading = true;
     this.error = null;
@@ -286,7 +287,6 @@ async ngOnInit() {
     try {
       const dbc = dbTenant();
 
-      // 1) מביאים הורים עם סטטוס is_active
       const { data: parentsData, error: parentsErr } = await dbc
         .from('parents')
         .select('uid, first_name, last_name, id_number, phone, email, is_active, billing_day_of_month')
@@ -296,7 +296,6 @@ async ngOnInit() {
 
       const parents = (parentsData ?? []) as ParentRow[];
 
-      // 2) מביאים את כל הילדים של כל ההורים – רק parent_uid + status
       const { data: kidsData, error: kidsErr } = await dbc
         .from('children')
         .select('parent_uid, status');
@@ -318,7 +317,6 @@ async ngOnInit() {
         map.set(kid.parent_uid, entry);
       });
 
-      // 3) מחברים את הנתונים להורה
       this.parents = parents.map(p => {
         const stats = map.get(p.uid) || { hasActive: false, hasInactive: false };
         return {
@@ -344,7 +342,6 @@ async ngOnInit() {
     if (!cleanUid) {
       await this.ui.alert('שגיאה: uid ריק. לא ניתן לפתוח פרטי הורה.', 'שגיאה');
       return;
-
     }
 
     this.selectedUid = cleanUid;
@@ -367,7 +364,6 @@ async ngOnInit() {
     this.originalParent = null;
   }
 
-  /** טוען פרטי הורה + ילדי ההורה מסכימת הטננט */
   private async loadDrawerData(uid: string) {
     this.drawerLoading = true;
 
@@ -391,17 +387,14 @@ async ngOnInit() {
         this.drawerParent = null;
         this.originalParent = null;
         this.drawerChildren = [];
-       await this.ui.alert('לא נמצאה רשומת הורה עבור המשתמש הזה (uid לא קיים בטבלת parents).', 'לא נמצא');
-       return;
-
+        await this.ui.alert('לא נמצאה רשומת הורה עבור המשתמש הזה (uid לא קיים בטבלת parents).', 'לא נמצא');
+        return;
       }
 
       this.drawerParent = p as ParentDetailsRow;
 
-      // שומרים עותק מקורי לחישוב diff + ביטול
       this.originalParent = structuredClone(this.drawerParent);
 
-      // בונים טופס לעריכה
       this.buildParentForm(this.drawerParent);
 
       const { data: kids, error: kidsErr } = await db
@@ -422,36 +415,47 @@ async ngOnInit() {
       this.drawerLoading = false;
     }
   }
-  
 
   // ================== עריכה inline במגירה ==================
 
   private buildParentForm(parent: ParentDetailsRow) {
     this.parentForm = this.fb.group({
-      full_name: [
-        {
-          value: `${parent.first_name || ''} ${parent.last_name || ''}`.trim(),
-          disabled: true,
-        },
+      // ✅ חדש: שם פרטי/משפחה ניתנים לעריכה (ולא full_name נעול)
+      first_name: [
+        parent.first_name ?? '',
+        [Validators.required, Validators.maxLength(this.MAX_FIRST_NAME)],
       ],
+      last_name: [
+        parent.last_name ?? '',
+        [Validators.required, Validators.maxLength(this.MAX_LAST_NAME)],
+      ],
+
       id_number: [{ value: parent.id_number ?? '', disabled: true }],
 
-      phone: [
+     phone: [
   parent.phone ?? '',
   [
     Validators.required,
-    this.israelPhoneValidator(), // ✅ ישראלי + רק מספרים
+    Validators.maxLength(this.MAX_PHONE),
+    this.israelPhoneValidator(),
   ],
 ],
 
-      email: [parent.email ?? '', [Validators.email]],
+
+      // ✅ אימייל: גם maxLength וגם email
+      email: [
+        parent.email ?? '',
+        [Validators.required, Validators.email, Validators.maxLength(this.MAX_EMAIL)],
+      ],
+
       billing_day: [
         parent.billing_day_of_month ?? 10,
         [Validators.required, Validators.min(1), Validators.max(28)],
       ],
 
-      address: [parent.address ?? ''],
-      extra_notes: [parent.extra_notes ?? ''],
+      // ✅ כתובת + הערות עם הגבלת תווים
+      address: [parent.address ?? '', [Validators.maxLength(this.MAX_ADDRESS)]],
+      extra_notes: [parent.extra_notes ?? '', [Validators.maxLength(this.MAX_EXTRA_NOTES)]],
 
       message_preferences: [
         parent.message_preferences && parent.message_preferences.length
@@ -462,14 +466,12 @@ async ngOnInit() {
     });
   }
 
-  /** מעבר למצב עריכה */
   enterEditMode() {
     if (!this.drawerParent) return;
     this.editMode = true;
     this.buildParentForm(this.drawerParent);
   }
 
-  /** ביטול עריכה */
   cancelEdit() {
     this.editMode = false;
     if (this.originalParent) {
@@ -478,24 +480,69 @@ async ngOnInit() {
     }
   }
 
-  /** שמירת שינויים – PATCH רק על מה שהשתנה */
+  private getFormInvalidMessages(): string[] {
+    const msgs: string[] = [];
+
+    const fn = this.parentForm.get('first_name');
+    if (fn?.errors?.['required']) msgs.push('שם פרטי: שדה חובה');
+    if (fn?.errors?.['maxlength']) msgs.push(`שם פרטי: עד ${this.MAX_FIRST_NAME} תווים`);
+
+    const ln = this.parentForm.get('last_name');
+    if (ln?.errors?.['required']) msgs.push('שם משפחה: שדה חובה');
+    if (ln?.errors?.['maxlength']) msgs.push(`שם משפחה: עד ${this.MAX_LAST_NAME} תווים`);
+
+    const email = this.parentForm.get('email');
+    if (email?.errors?.['required']) msgs.push('אימייל: שדה חובה');
+    if (email?.errors?.['email']) msgs.push('אימייל: פורמט לא תקין');
+    if (email?.errors?.['maxlength']) msgs.push(`אימייל: עד ${this.MAX_EMAIL} תווים`);
+
+    const addr = this.parentForm.get('address');
+    if (addr?.errors?.['maxlength']) msgs.push(`כתובת: עד ${this.MAX_ADDRESS} תווים`);
+
+    const notes = this.parentForm.get('extra_notes');
+    if (notes?.errors?.['maxlength']) msgs.push(`הערות רפואיות/התנהגותיות: עד ${this.MAX_EXTRA_NOTES} תווים`);
+
+    const phone = this.parentForm.get('phone');
+    if (phone?.errors?.['required']) msgs.push('טלפון: שדה חובה');
+    if (phone?.errors?.['phoneDigitsOnly']) msgs.push('טלפון: מותר להזין ספרות בלבד');
+    if (phone?.errors?.['ilPhone']) msgs.push('טלפון: מספר ישראלי לא תקין (לדוגמה 05XXXXXXXX)');
+
+    return msgs;
+  }
+
   async saveParentEdits() {
     if (!this.drawerParent || !this.originalParent || !this.selectedUid) return;
 
+    // ✅ אם יש שגיאה — גם מסמנים וגם קופץ פופאפ
     if (this.parentForm.invalid) {
       this.parentForm.markAllAsTouched();
+      const msgs = this.getFormInvalidMessages();
+      await this.ui.alert(
+        msgs.length ? msgs.join('\n') : 'יש שדות לא תקינים. בדקי את הטופס.',
+        'לא ניתן לשמור'
+      );
       return;
     }
 
     const formValue = this.parentForm.getRawValue();
 
-    // ✅ בניית changes בצורה נכונה (כולל יום חיוב)
+    // נרמול עדין לפני שמירה
+    const first_name = String(formValue.first_name ?? '').trim();
+    const last_name = String(formValue.last_name ?? '').trim();
+    const email = String(formValue.email ?? '').trim().toLowerCase();
+    const address = String(formValue.address ?? '').trim();
+    const extra_notes = String(formValue.extra_notes ?? '');
+
     const changes: any = {};
 
+    if (first_name !== (this.originalParent.first_name ?? '')) changes.first_name = first_name;
+    if (last_name !== (this.originalParent.last_name ?? '')) changes.last_name = last_name;
+
     if (formValue.phone !== this.originalParent.phone) changes.phone = formValue.phone;
-    if (formValue.email !== this.originalParent.email) changes.email = formValue.email;
-    if (formValue.address !== this.originalParent.address) changes.address = formValue.address;
-    if (formValue.extra_notes !== this.originalParent.extra_notes) changes.extra_notes = formValue.extra_notes;
+    if (email !== (this.originalParent.email ?? '')) changes.email = email;
+
+    if (address !== (this.originalParent.address ?? '')) changes.address = address || null;
+    if (extra_notes !== (this.originalParent.extra_notes ?? '')) changes.extra_notes = extra_notes || null;
 
     if (
       JSON.stringify(formValue.message_preferences) !==
@@ -504,13 +551,10 @@ async ngOnInit() {
       changes.message_preferences = formValue.message_preferences;
     }
 
-    // billing_day (form) -> billing_day_of_month (db)
-  const newBillingDay = Number(formValue.billing_day);
-
+    const newBillingDay = Number(formValue.billing_day);
     const oldBillingDay = this.originalParent.billing_day_of_month ?? 10;
     if (newBillingDay !== oldBillingDay) changes.billing_day_of_month = newBillingDay;
 
-    // אם אין שינוי – לא שולחים PATCH
     if (Object.keys(changes).length === 0) {
       this.editMode = false;
       return;
@@ -540,11 +584,13 @@ async ngOnInit() {
       this.drawerParent = data as ParentDetailsRow;
       this.originalParent = structuredClone(this.drawerParent);
 
-      // עדכון השורה בטבלה
+      // עדכון השורה בטבלה (כולל שמות)
       this.parents = this.parents.map(p =>
         p.uid === cleanUid
           ? {
               ...p,
+              first_name: this.drawerParent!.first_name,
+              last_name: this.drawerParent!.last_name,
               phone: this.drawerParent!.phone,
               email: this.drawerParent!.email,
               id_number: this.drawerParent!.id_number,
@@ -557,7 +603,6 @@ async ngOnInit() {
     } catch (e: any) {
       console.error(e);
       await this.ui.alert(e?.message || 'שמירת השינויים נכשלה', 'שמירה נכשלה');
-
     }
   }
 
@@ -577,36 +622,29 @@ async ngOnInit() {
 
       await ensureTenantContextReady();
 
-      // 1) חווה / סכימה נוכחית
       const tenant_id = localStorage.getItem('selectedTenant') || '';
       const schema_name = localStorage.getItem('selectedSchema') || '';
 
       if (!tenant_id) {
-       await this.ui.alert('לא נמצא tenant פעיל. התחברי מחדש או בחרי חווה פעילה.', 'שגיאה');
-       return;
-
+        await this.ui.alert('לא נמצא tenant פעיל. התחברי מחדש או בחרי חווה פעילה.', 'שגיאה');
+        return;
       }
 
-      // 2) בדיקה אם המשתמש כבר קיים במערכת / בחווה
       let uid = '';
       let tempPassword = '';
 
       try {
         const exists = await this.checkIfParentExists(payload.email, tenant_id);
 
-        // 2א) אם כבר קיים כהורה באותה חווה → שגיאה
         if (exists.existsInTenant) {
-         await this.ui.alert('משתמש עם המייל הזה כבר קיים כהורה בחווה הנוכחית.', 'שגיאה');
-         return;
-
+          await this.ui.alert('משתמש עם המייל הזה כבר קיים כהורה בחווה הנוכחית.', 'שגיאה');
+          return;
         }
 
-        // 2ב) קיים במערכת (בכלל) אבל לא כהורה בחווה הזאת
         if (exists.existsInSystem && exists.uid) {
           uid = exists.uid;
           tempPassword = '';
         } else {
-          // 2ג) לא קיים בכלל במערכת → יוצרים משתמש חדש בפיירבייס
           const res = await this.createUserService.createUserIfNotExists(payload.email);
           uid = res.uid;
           tempPassword = res.tempPassword;
@@ -614,20 +652,18 @@ async ngOnInit() {
       } catch (e: any) {
         const msg =
           this.createUserService.errorMessage || e?.message || 'שגיאה ביצירת / בדיקת המשתמש.';
-          await this.ui.alert(msg, 'שגיאה');
-          return;
-       }
+        await this.ui.alert(msg, 'שגיאה');
+        return;
+      }
 
       payload.uid = uid;
       payload.password = tempPassword || '';
 
-      // 3) העדפות הודעות
       const message_preferences: string[] =
         Array.isArray(payload?.message_preferences) && payload.message_preferences.length
           ? payload.message_preferences
           : ['inapp'];
 
-      // 4) נרמול שדות
       const body = {
         uid: (payload.uid ?? '').trim(),
         first_name: (payload.first_name ?? '').trim(),
@@ -647,21 +683,18 @@ async ngOnInit() {
       );
 
       if (missing.length) {
-       await this.ui.alert('שדות חובה חסרים: ' + missing.join(', '), 'חסרים פרטים');
-       return;
+        await this.ui.alert('שדות חובה חסרים: ' + missing.join(', '), 'חסרים פרטים');
+        return;
       }
 
       try {
-        // 5) users (public) – upsert תמיד, גם אם המשתמש קיים
         await this.createUserInSupabase(body.uid, body.email, 'parent', body.phone);
 
-        // 6) tenant_users (public) – משייכים כהורה לחווה הנוכחית
         await this.createTenantUserInSupabase({
           tenant_id: body.tenant_id,
           uid: body.uid,
         });
 
-        // 7) parents (tenant schema) – יצירת/עדכון רשומת הורה בחווה הנוכחית
         await this.createParentInSupabase({
           uid: body.uid,
           first_name: body.first_name,
@@ -674,10 +707,7 @@ async ngOnInit() {
           message_preferences: body.message_preferences,
         });
 
-        // 8) רענון הטבלה
         await this.loadParents();
-
-        // 9) שליחת מייל לנרשם
 
         const fullName = `${body.first_name} ${body.last_name}`.trim();
         const tenantSchema = this.getTenantSchemaOrThrow();
@@ -702,39 +732,33 @@ async ngOnInit() {
             </div>`;
 
         try {
-          console.log('Sending welcome email to new parent:', body.email);
-          console.log('Tenant schema:', tenantSchema);
           await this.mailService.sendEmailGmail({
             tenantSchema: tenantSchema,
             to: [body.email],
             subject,
             html,
-            // מומלץ להוסיף גם text כדי שלא תיפלי על לקוחות שמסרבים HTML
-            text: `שלום ${fullName},\nנוספת למערכת כמדריך/ה בחווה.\n${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התחברות עם האימייל הזה: ${body.email}`,
+            text: `שלום ${fullName},\nנרשמת/שויכת לחווה.\n${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התחברות עם האימייל הזה: ${body.email}`,
           });
         } catch (err) {
           console.error('sendEmailGmail failed', err);
         }
-       await this.ui.alert('הורה נוצר/שויך בהצלחה + נשלח מייל', 'הצלחה');
 
+        await this.ui.alert('הורה נוצר/שויך בהצלחה + נשלח מייל', 'הצלחה');
       } catch (e: any) {
         console.error(e);
         await this.ui.alert(e?.message ?? 'שגיאה - המערכת לא הצליחה להוסיף הורה', 'שגיאה');
-
       }
     });
   }
 
-   private getTenantSchemaOrThrow(): string {
+  private getTenantSchemaOrThrow(): string {
     const farm = getCurrentFarmMetaSync();
-        const schema = farm?.schema_name ?? null;
-        if (!schema) {
-    throw new Error('לא נמצא selectedSchema ב-localStorage. כנראה שלא נעשה bootstrap לטננט.');
+    const schema = farm?.schema_name ?? null;
+    if (!schema) {
+      throw new Error('לא נמצא selectedSchema ב-localStorage. כנראה שלא נעשה bootstrap לטננט.');
+    }
+    return schema;
   }
-  return schema ;
-}
-
-  
 
   /** ================== Helpers: Inserts to Supabase ================== */
 
@@ -755,9 +779,7 @@ async ngOnInit() {
     return data.id as number;
   }
 
-  // public.users – upsert לפי uid (אימייל/טלפון)
   async checkIfParentExists(email: string, tenant_id: string) {
-    // 1) בדיקה אם המשתמש קיים בטבלת users (כל המערכת)
     const { data: user, error: userErr } = await dbPublic()
       .from('users')
       .select('uid')
@@ -770,7 +792,6 @@ async ngOnInit() {
       return { existsInSystem: false, existsInTenant: false, uid: null };
     }
 
-    // 2) בדיקה אם המשתמש קיים כ-parent באותה חווה
     const { data: tenantUser, error: tenantErr } = await dbPublic()
       .from('tenant_users')
       .select('uid, role_in_tenant')
@@ -809,11 +830,8 @@ async ngOnInit() {
     if (error) throw new Error(`users upsert failed: ${error.message}`);
   }
 
-  // public.tenant_users – שיוך לטננט פעיל כ-parent
   private async createTenantUserInSupabase(body: { tenant_id: string; uid: string }): Promise<void> {
     const dbcPublic = dbPublic();
-
-    // 🔹 לוקחים דינמית את ה-role_id מהחווה הנוכחית
     const parentRoleId = await this.getParentRoleId();
 
     const { error } = await dbcPublic.from('tenant_users').upsert(

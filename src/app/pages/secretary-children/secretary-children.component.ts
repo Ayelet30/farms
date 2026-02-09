@@ -573,6 +573,7 @@ goToParentPaymentsFromChild() {
   enterEditModeChild() {
     if (!this.drawerChild || !this.childForm) return;
     this.editMode = true;
+      this.childForm.markAsUntouched();
   }
 
   /** ביטול עריכה */
@@ -587,14 +588,18 @@ goToParentPaymentsFromChild() {
 
   /** שמירה */
   async saveChildEdits() {
-    if (!this.drawerChild || !this.childForm || !this.selectedId) return;
+    if (this.childForm?.invalid) {
+     const bad = Object.entries(this.childForm.controls)
+    .filter(([_, c]) => c.invalid)
+    .map(([k, c]) => ({ key: k, errors: c.errors, value: c.value }));
+  console.log('INVALID CONTROLS:', bad);
 
-    // ✅ ולידציה לפני שמירה
-    if (this.childForm.invalid) {
-      this.childForm.markAllAsTouched();
-      await this.ui.alert('יש שדות לא תקינים. תקני אותם ואז שמרי שוב.', 'שגיאת תקינות');
-      return;
-    }
+   this.childForm.markAllAsTouched();
+    await this.ui.alert('יש שדות לא תקינים. תקני אותם ואז שמרי שוב.', 'שגיאת תקינות');
+    return;
+}
+
+    if (!this.drawerChild || !this.childForm || !this.selectedId) return;
 
     const raw = this.childForm.getRawValue();
 
