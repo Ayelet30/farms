@@ -348,7 +348,7 @@ if (firstErr || lastErr) {
     this.nextAppointments = {};
     ids.forEach(id => (this.nextAppointments[id] = null));
 
-    const nowIso = new Date().toISOString();
+const nowIso = this.nowLocalIsoNoTz(); 
     const dbc = dbTenant();
 
     const { data: occRaw, error } = await dbc
@@ -437,7 +437,7 @@ const ids = this.children
     ids.forEach(id => (this.lastActivities[id] = null));
 
     const dbc = dbTenant();
-    const nowIso = new Date().toISOString();
+const nowIso = this.nowLocalIsoNoTz(); 
 
     const { data: occRaw, error } = await dbc
       .from('lessons_occurrences')
@@ -452,9 +452,9 @@ const ids = this.children
       console.error('שגיאה בקריאת lessons_occurrences (last):', error);
       return;
     }
-
+console.log(occRaw); 
     const occs = (occRaw ?? []) as OccurrenceRow[];
-
+console.log(occs); 
     // שמות מדריכים
     const instrIds = Array.from(new Set(occs.map(o => o.instructor_id).filter(Boolean))) as string[];
     let instructorNameById: Record<string, string> = {};
@@ -505,6 +505,16 @@ this.lastActivities[cid] = {
     const id = this.childId(child);
     return id ? this.lastActivities[id] ?? null : null;
   }
+private nowLocalIsoNoTz(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`; // בלי Z
+}
 
   /* =========================
      Delete / Leave (logical)
@@ -518,7 +528,7 @@ this.lastActivities[cid] = {
     if (!id) return;
 
     const dbc = dbTenant();
-    const nowIso = new Date().toISOString();
+const nowIso = this.nowLocalIsoNoTz();
 
     // סטייט לדיאלוג
     this.pendingDeleteId = id;
@@ -768,7 +778,7 @@ private async loadChildHistory(childId: string) {
   this.historyLoading = true;
 
   const dbc = dbTenant();
-  const nowIso = new Date().toISOString();
+const nowIso = this.nowLocalIsoNoTz(); 
 
   // כל המופעים בעבר (מאז הכניסה למערכת ועד עכשיו)
   const { data: occRaw, error } = await dbc
@@ -849,13 +859,17 @@ private validateChildName(value: string, label: string): string | null {
 private occTs(start_datetime: string): number {
   if (!start_datetime) return NaN;
 
-  // אם יש Z או offset (+02:00 / -05:00) – זה כבר "מודע זמן"
+  // אם יש Z או offset (+02:00) -> אפשר לתת ל-Date לפרש
   const hasTz = /([zZ]|[+\-]\d{2}:\d{2})$/.test(start_datetime);
+  if (hasTz) return new Date(start_datetime).getTime();
 
-  // אם אין tz, נניח שהמחרוזת היא UTC ונוסיף Z (מונע סטייה של שעתיים)
-  const iso = hasTz ? start_datetime : `${start_datetime}Z`;
+  // בלי TZ -> מפרשים כלוקאל (ישראל) בצורה ידנית
+  const s = String(start_datetime).trim().replace(' ', 'T'); // "2026-02-10T15:00:00"
+  const [datePart, timePart = '00:00:00'] = s.split('T');
+  const [y, m, d] = datePart.split('-').map(Number);
+  const [hh = 0, mm = 0, ss = 0] = timePart.split(':').map(Number);
 
-  return new Date(iso).getTime();
+  return new Date(y, (m - 1), d, hh, mm, ss, 0).getTime();
 }
 
 async loadTermsStatuses() {
