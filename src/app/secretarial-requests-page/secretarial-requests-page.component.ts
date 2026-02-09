@@ -1046,11 +1046,19 @@ private getExpiryReason(row: UiRequest): string | null {
 
   switch (row.requestType) {
     case 'CANCEL_OCCURRENCE': {
-      const dateStr = p.occur_date ?? row.fromDate ?? null;
-      const timeStr = p.start_time ?? p.startTime ?? p.time ?? null;
-      if (isPast(dateStr, timeStr)) return 'עבר מועד השיעור לביטול';
-      return null;
-    }
+  const dateStr = p.occur_date ?? row.fromDate ?? null;
+
+  const timeStr =
+    p.start_time ??
+    p.requested_start_time ??  
+    p.startTime ??
+    p.time ??
+    null;
+
+  if (isPast(dateStr, timeStr)) return 'עבר מועד השיעור לביטול';
+  return null;
+}
+
     case 'INSTRUCTOR_DAY_OFF': {
       const end = row.toDate ?? row.fromDate ?? null;
       if (isPast(end, '23:59')) return 'עבר מועד חופשת המדריך';
@@ -1169,6 +1177,8 @@ const allowedStatusesForType = (type: RequestType): Set<string> => {
     case 'MAKEUP_LESSON':
       return new Set(['Active', 'Deletion Scheduled']);
 
+    case 'CANCEL_OCCURRENCE':           
+      return new Set(['Active' , 'Deletion Scheduled' , 'Pending Deletion Approval']); 
     default:
       // אם הבקשה לא תלויה בסטטוס ילד — לא נחסום
       return new Set<string>([]);
@@ -1197,6 +1207,7 @@ return { ok: true };
     return r.ok ? { ok: true } : { ok: false, reason: r.reason };
   }
 }
+
 
 private async checkInstructorActive(db: any, row: UiRequest, mode: ValidationMode)
   : Promise<{ ok: boolean; reason?: string }> {

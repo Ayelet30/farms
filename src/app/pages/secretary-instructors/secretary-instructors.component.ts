@@ -36,6 +36,7 @@ type InstructorRow = {
   accepts_makeup_others?: boolean | null;
   allow_availability_edit?: boolean | null;
 };
+
 interface InstructorWeeklyAvailabilityRow {
   instructor_id_number: string;
   day_of_week: number;
@@ -44,8 +45,6 @@ interface InstructorWeeklyAvailabilityRow {
   lesson_type_mode: string | null;
   lesson_ridding_type: string | null;
 }
-
-
 
 interface InstructorDetailsRow extends InstructorRow {
   non_therapy_riding_types?: string[] | null;
@@ -64,7 +63,6 @@ interface InstructorDetailsRow extends InstructorRow {
   photo_url?: string | null;
   notify?: any | null; // jsonb הגדרות התראות
 
-
   // ✅ השדות החדשים:
   birth_date?: string | null;        // מגיע מ-Supabase כ-'YYYY-MM-DD'
 }
@@ -78,7 +76,7 @@ interface InstructorDetailsRow extends InstructorRow {
 })
 export class SecretaryInstructorsComponent implements OnInit {
   instructors: InstructorRow[] = [];
-ridingTypes: { id: string; name: string }[] = [];
+  ridingTypes: { id: string; name: string }[] = [];
 
   // לו"ז שבועי במגירה (מצב תצוגה)
   drawerAvailability: InstructorWeeklyAvailabilityRow[] = [];
@@ -86,24 +84,24 @@ ridingTypes: { id: string; name: string }[] = [];
   // לו"ז שבועי במצב עריכה
   editAvailability: InstructorWeeklyAvailabilityRow[] = [];
 
-dayOfWeekToLabel(d?: number | null): string {
-  switch (d) {
-    case 0: return 'ראשון';
-    case 1: return 'שני';
-    case 2: return 'שלישי';
-    case 3: return 'רביעי';
-    case 4: return 'חמישי';
-    case 5: return 'שישי';
-    case 6: return 'שבת';
-    default: return '—';
+  dayOfWeekToLabel(d?: number | null): string {
+    switch (d) {
+      case 1: return 'ראשון';
+      case 2: return 'שני';
+      case 3: return 'שלישי';
+      case 4: return 'רביעי';
+      case 5: return 'חמישי';
+      case 6: return 'שישי';
+      case 7: return 'שבת';
+      default: return '—';
+    }
   }
-}
 
-ridingTypeName(id: string | null): string {
-  if (!id) return '—';
-  const rt = this.ridingTypes.find(r => r.id === id);
-  return rt ? rt.name : '—';
-}
+  ridingTypeName(id: string | null): string {
+    if (!id) return '—';
+    const rt = this.ridingTypes.find(r => r.id === id);
+    return rt ? rt.name : '—';
+  }
 
   lessonTypeLabel(mode?: string | null): string {
     switch (mode) {
@@ -138,30 +136,71 @@ ridingTypeName(id: string | null): string {
   selectedIdNumber: string | null = null;
   drawerLoading = false;
   drawerInstructor: InstructorDetailsRow | null = null;
-constructor(
-  private ui: UiDialogService,
-  private dialog: MatDialog,
-  private createUserService: CreateUserService,
-  private mailService: MailService
-) {}
 
-openAvailabilityDialog() {
-  const ins = this.drawerInstructor;
-  if (!ins?.id_number) return;
+  constructor(
+    private ui: UiDialogService,
+    private dialog: MatDialog,
+    private createUserService: CreateUserService,
+    private mailService: MailService
+  ) {}
 
-  this.dialog.open(InstructorAvailabilityDialogComponent, {
-    width: '760px',
-    maxWidth: '95vw',
-    height: '90vh',
-    panelClass: 'availability-dialog',
-    data: {
-      instructorIdNumber: ins.id_number,
-      instructorName: `${ins.first_name ?? ''} ${ins.last_name ?? ''}`.trim(),
-    },
-  });
+  // =========================
+  // ✅ ולידציות/סניטציה נקודתיות לשדות שביקשת
+  // =========================
+
+  /** שם פרטי/משפחה: עברית/אנגלית + רווח/גרש/מקף, מקס 40 (כמו ב-HTML) */
+ sanitizeName(v: any): string {
+  let s = (v ?? '').toString();
+  s = s.replace(/[^A-Za-z\u0590-\u05FF\s'’\-]/g, '');
+  s = s.replace(/\s{2,}/g, ' ').trim();
+  return s.slice(0, 25);
 }
 
 
+  /** השכלה: טקסט חופשי "סביר", מקס 80 (כמו ב-HTML) */
+  sanitizeEducation(v: any): string {
+    let s = (v ?? '').toString();
+    s = s.replace(/\s{2,}/g, ' ').trim();
+    return s.slice(0, 80);
+  }
+
+
+  /** כתובת: טקסט חופשי, אבל בלי תווים "מוזרים", מקס 120 (כמו ב-HTML) */
+sanitizeAddress(v: any): string {
+  let s = (v ?? '').toString();
+  s = s.replace(/[^A-Za-z\u0590-\u05FF0-9\s.,'’"\-\/]/g, '');
+  s = s.replace(/\s{2,}/g, ' ').trim();
+  return s.slice(0, 60);
+}
+
+  /** רישיון מדריך: מותר אותיות/מספרים/מקף/סלאש/רווח, מקס 30 (כמו ב-HTML) */
+  sanitizeLicense(v: any): string {
+    let s = (v ?? '').toString();
+    s = s.replace(/[^A-Za-z\u0590-\u05FF0-9\s\-\/]/g, '');
+    s = s.replace(/\s{2,}/g, ' ').trim();
+    return s.slice(0, 30);
+  }
+  sanitizeAbout(v: any): string {
+  let s = (v ?? '').toString();
+  s = s.replace(/\s{2,}/g, ' ').trim();
+  return s.slice(0, 200);
+}
+
+  openAvailabilityDialog() {
+    const ins = this.drawerInstructor;
+    if (!ins?.id_number) return;
+
+    this.dialog.open(InstructorAvailabilityDialogComponent, {
+      width: '760px',
+      maxWidth: '95vw',
+      height: '90vh',
+      panelClass: 'availability-dialog',
+      data: {
+        instructorIdNumber: ins.id_number,
+        instructorName: `${ins.first_name ?? ''} ${ins.last_name ?? ''}`.trim(),
+      },
+    });
+  }
 
   // ======= לוגיקה לחיפוש/סינון =======
 
@@ -261,37 +300,40 @@ openAvailabilityDialog() {
       this.isLoading = false;
     }
   }
+
   // ✅ אפשרויות סטטוס (ערך שנשמר בדאטאבייס + תצוגה)
-statusOptions = [
-  { value: 'Active', label: 'פעיל' },
-  { value: 'Inactive', label: 'לא פעיל' },
-] as const;
+  statusOptions = [
+    { value: 'Active', label: 'פעיל' },
+    { value: 'Inactive', label: 'לא פעיל' },
+  ];
 
-private normalizeStatus(input: string | null | undefined): 'Active' | 'Inactive' {
-  const s = (input ?? '').trim().toLowerCase();
+  private normalizeStatus(input: string | null | undefined): 'Active' | 'Inactive' {
+    const s = (input ?? '').trim().toLowerCase();
 
-  if (s === 'active' || s === 'פעיל' || s === 'פעילה') return 'Active';
-  if (s === 'inactive' || s === 'לא פעיל' || s === 'לא פעילה') return 'Inactive';
+    if (s === 'active' || s === 'פעיל' || s === 'פעילה') return 'Active';
+    if (s === 'inactive' || s === 'לא פעיל' || s === 'לא פעילה') return 'Inactive';
 
-  // ברירת מחדל (כדי לא לשמור "טקסט חופשי" לא צפוי)
-  return 'Active';
-}
-statusLabel(s?: string | null): string {
-  if (!s) return '—';
-  const v = this.normalizeStatus(s);
-  return v === 'Active' ? 'פעיל' : 'לא פעיל';
-}
-getNotifyLabel(notify: any): string {
-  if (!notify) return '—';
+    // ברירת מחדל (כדי לא לשמור "טקסט חופשי" לא צפוי)
+    return 'Active';
+  }
 
-  const labels: string[] = [];
-  if (notify.email) labels.push('דוא״ל');
-  if (notify.sms) labels.push('SMS');
-  if (notify.whatsapp) labels.push('WhatsApp');
-  if (notify.voice) labels.push('קולית');
+  statusLabel(s?: string | null): string {
+    if (!s) return '—';
+    const v = this.normalizeStatus(s);
+    return v === 'Active' ? 'פעיל' : 'לא פעיל';
+  }
 
-  return labels.length ? labels.join(', ') : '—';
-}
+  getNotifyLabel(notify: any): string {
+    if (!notify) return '—';
+
+    const labels: string[] = [];
+    if (notify.email) labels.push('דוא״ל');
+    if (notify.sms) labels.push('SMS');
+    if (notify.whatsapp) labels.push('WhatsApp');
+    if (notify.voice) labels.push('קולית');
+
+    return labels.length ? labels.join(', ') : '—';
+  }
 
   private async loadInstructors() {
     this.isLoading = true;
@@ -318,7 +360,6 @@ getNotifyLabel(notify: any): string {
         )
         .order('first_name', { ascending: true });
 
-
       if (error) throw error;
 
       const instructors = (data ?? []) as InstructorRow[];
@@ -332,7 +373,6 @@ getNotifyLabel(notify: any): string {
         ),
       ];
 
-
       let usersMap = new Map<string, { email: string | null; phone: string | null }>();
 
       if (uids.length) {
@@ -342,7 +382,6 @@ getNotifyLabel(notify: any): string {
           .from('users')
           .select('uid, email, phone')
           .in('uid', uids);
-
 
         if (usersErr) throw usersErr;
 
@@ -359,14 +398,12 @@ getNotifyLabel(notify: any): string {
         const key = (i.uid || '').trim();
         const user = key ? usersMap.get(key) : undefined;
 
-   return {
-  ...i,
-  email: user?.email ?? i.email ?? null,
-  phone: i.phone ?? user?.phone ?? null,
-};
-
+        return {
+          ...i,
+          email: user?.email ?? i.email ?? null,
+          phone: i.phone ?? user?.phone ?? null,
+        };
       });
-
 
     } catch (e: any) {
       this.error = e?.message || 'Failed to fetch instructors.';
@@ -377,30 +414,29 @@ getNotifyLabel(notify: any): string {
   }
 
   // ======= מגירת פרטים =======
-async loadRidingTypes() {
+  async loadRidingTypes() {
     console.log('👉 loadRidingTypes called');
-  console.log('RIDING TYPES', this.ridingTypes);
+    console.log('RIDING TYPES', this.ridingTypes);
 
-  const dbc = dbTenant();
+    const dbc = dbTenant();
 
-const { data, error } = await dbc
-  .from('riding_types')
-  .select('id, name, code')
-  .neq('code', 'break');
+    const { data, error } = await dbc
+      .from('riding_types')
+      .select('id, name, code')
+      .neq('code', 'break');
 
+    if (error) {
+      console.error('failed loading riding types', error);
+      return;
+    }
 
-  if (error) {
-    console.error('failed loading riding types', error);
-    return;
+    this.ridingTypes = data ?? [];
   }
-
-  this.ridingTypes = data ?? [];
-}
 
   async openDetails(id_number: string) {
     if (!this.ridingTypes.length) {
-  await this.loadRidingTypes();
-}
+      await this.loadRidingTypes();
+    }
 
     console.log('[INSTRUCTORS] openDetails for id_number:', id_number);
     this.selectedIdNumber = id_number?.trim();
@@ -421,15 +457,16 @@ const { data, error } = await dbc
     this.editModel = null;
     this.editMode = false;
   }
-getNonTherapyRidingTypesLabel(ins: InstructorDetailsRow | null): string {
-  if (!ins?.non_therapy_riding_types?.length) {
-    return '—';
-  }
 
-  return ins.non_therapy_riding_types
-    .map(id => this.ridingTypeName(id))
-    .join(', ');
-}
+  getNonTherapyRidingTypesLabel(ins: InstructorDetailsRow | null): string {
+    if (!ins?.non_therapy_riding_types?.length) {
+      return '—';
+    }
+
+    return ins.non_therapy_riding_types
+      .map(id => this.ridingTypeName(id))
+      .join(', ');
+  }
 
   private async loadDrawerData(id_number: string) {
     this.drawerLoading = true;
@@ -438,36 +475,34 @@ getNonTherapyRidingTypesLabel(ins: InstructorDetailsRow | null): string {
       const dbcTenant = dbTenant();
 
       const { data, error } = await dbcTenant
-  .from('instructors')
-  .select(`
-    id_number,
-    uid,
-    first_name,
-    last_name,
-    phone,
-    status,
-    gender,
-    address,
-    license_id,
-    about,
-    education,
-    taught_child_genders,
-    default_lesson_duration_min,
-    min_age_years_male,
-    max_age_years_male,
-    min_age_years_female,
-    max_age_years_female,
-    certificate,
-    photo_url,
-    notify,
-    accepts_makeup_others,
-    allow_availability_edit,
-    birth_date
-  `)
-  .eq('id_number', id_number)
-  .maybeSingle();
-
-
+        .from('instructors')
+        .select(`
+          id_number,
+          uid,
+          first_name,
+          last_name,
+          phone,
+          status,
+          gender,
+          address,
+          license_id,
+          about,
+          education,
+          taught_child_genders,
+          default_lesson_duration_min,
+          min_age_years_male,
+          max_age_years_male,
+          min_age_years_female,
+          max_age_years_female,
+          certificate,
+          photo_url,
+          notify,
+          accepts_makeup_others,
+          allow_availability_edit,
+          birth_date
+        `)
+        .eq('id_number', id_number)
+        .maybeSingle();
 
       if (error) throw error;
       if (!data) {
@@ -479,7 +514,6 @@ getNonTherapyRidingTypesLabel(ins: InstructorDetailsRow | null): string {
       }
 
       let ins = data as InstructorDetailsRow;
-// ✅ תיקון להצגת תאריך לידה במצב קריאה
 
       // ---- אם יש uid – להשלים טלפון/מייל מ-public.users ----
       const uid = (ins.uid || '').trim();
@@ -492,13 +526,11 @@ getNonTherapyRidingTypesLabel(ins: InstructorDetailsRow | null): string {
           .eq('uid', uid)
           .maybeSingle();
 
-
         if (!userErr && user) {
           ins = {
             ...ins,
             email: user.email ?? ins.email ?? null,
-     phone: ins.phone || user.phone || null,
-
+            phone: ins.phone || user.phone || null,
           };
         }
       }
@@ -511,25 +543,22 @@ getNonTherapyRidingTypesLabel(ins: InstructorDetailsRow | null): string {
         taught_child_genders: ins.taught_child_genders
           ? [...ins.taught_child_genders]
           : [],
+        
       };
 
       // ---- לטעון לו"ז שבועי מהטבלה instructor_weekly_availability ----
-
       const { data: avail, error: availErr } = await dbcTenant
-       .from('instructor_weekly_availability')
-.select(`
-  instructor_id_number,
-  day_of_week,
-  start_time,
-  end_time,
-  lesson_ridding_type,
-  lesson_type_mode
-`)
-
-
+        .from('instructor_weekly_availability')
+        .select(`
+          instructor_id_number,
+          day_of_week,
+          start_time,
+          end_time,
+          lesson_ridding_type,
+          lesson_type_mode
+        `)
         .eq('instructor_id_number', id_number)
         .order('day_of_week');
-
 
       if (availErr) {
         this.drawerAvailability = [];
@@ -539,13 +568,12 @@ getNonTherapyRidingTypesLabel(ins: InstructorDetailsRow | null): string {
         this.editAvailability = this.drawerAvailability.map(a => ({ ...a }));
       }
     } catch (e: any) {
-  console.error('[INSTRUCTORS] loadDrawerData failed:', e);
-  this.error = e?.message || 'טעינת פרטי מדריך נכשלה';
-  this.drawerInstructor = null;
-  this.editModel = null;
-  this.drawerAvailability = [];
-  this.editAvailability = [];
-
+      console.error('[INSTRUCTORS] loadDrawerData failed:', e);
+      this.error = e?.message || 'טעינת פרטי מדריך נכשלה';
+      this.drawerInstructor = null;
+      this.editModel = null;
+      this.drawerAvailability = [];
+      this.editAvailability = [];
     } finally {
       this.drawerLoading = false;
     }
@@ -553,33 +581,33 @@ getNonTherapyRidingTypesLabel(ins: InstructorDetailsRow | null): string {
 
   // ======= מצב עריכה במגירה =======
 
-async startEditFromDrawer() {
-  if (!this.drawerInstructor) return;
+  async startEditFromDrawer() {
+    if (!this.drawerInstructor) return;
 
-  if (!this.ridingTypes.length) {
-    await this.loadRidingTypes();
+    if (!this.ridingTypes.length) {
+      await this.loadRidingTypes();
+    }
+
+    const ins = this.drawerInstructor;
+
+    this.editMode = true;
+    this.editModel = {
+      ...ins,
+      notify: ins.notify ?? {
+        email: false,
+        sms: false,
+        whatsapp: false,
+        voice: false,
+      },
+      taught_child_genders: ins.taught_child_genders
+        ? [...ins.taught_child_genders]
+        : [],
+      non_therapy_riding_types: ins.non_therapy_riding_types
+        ? [...ins.non_therapy_riding_types]
+        : [],
+
+    };
   }
-
-  const ins = this.drawerInstructor; // ✅ זה החסר
-
-  this.editMode = true;
-  this.editModel = {
-    ...ins,
-    notify: ins.notify ?? {
-      email: false,
-      sms: false,
-      whatsapp: false,
-      voice: false,
-    },
-    taught_child_genders: ins.taught_child_genders
-      ? [...ins.taught_child_genders]
-      : [],
-    non_therapy_riding_types: ins.non_therapy_riding_types
-      ? [...ins.non_therapy_riding_types]
-      : [],
-  };
-}
-
 
   private hasUnsavedChanges(): boolean {
     if (!this.drawerInstructor || !this.editModel) return false;
@@ -594,17 +622,17 @@ async startEditFromDrawer() {
     return a !== b;
   }
 
-  async  cancelEditFromDrawer() {
+  async cancelEditFromDrawer() {
     if (this.hasUnsavedChanges()) {
-     const ok = await this.ui.confirm({
-  title: 'אישור ביטול',
-  message: 'את בטוחה שתרצי לבטל את השינויים?',
-  okText: 'כן, לבטל',
-  cancelText: 'לא',
-  showCancel: true,
-});
-if (!ok) return;
- }
+      const ok = await this.ui.confirm({
+        title: 'אישור ביטול',
+        message: 'את בטוחה שתרצי לבטל את השינויים?',
+        okText: 'כן, לבטל',
+        cancelText: 'לא',
+        showCancel: true,
+      });
+      if (!ok) return;
+    }
 
     if (this.drawerInstructor) {
       this.editModel = {
@@ -625,98 +653,111 @@ if (!ok) return;
   }
 
   onTaughtGenderChange(g: string, checked: boolean) {
-  if (!this.editModel) return;
+    if (!this.editModel) return;
 
-  let arr = this.editModel.taught_child_genders || [];
-  if (checked) {
-    if (!arr.includes(g)) arr = [...arr, g];
-  } else {
-    arr = arr.filter((x) => x !== g);
+    let arr = this.editModel.taught_child_genders || [];
+    if (checked) {
+      if (!arr.includes(g)) arr = [...arr, g];
+    } else {
+      arr = arr.filter((x) => x !== g);
 
-    // ✅ אם ביטלו מגדר — מאפסים את הטווח שלו
-    if (g === 'זכר') {
-      this.editModel = {
-        ...this.editModel,
-        taught_child_genders: arr,
-        min_age_years_male: null,
-        max_age_years_male: null,
-      };
-      return;
+      // ✅ אם ביטלו מגדר — מאפסים את הטווח שלו
+      if (g === 'זכר') {
+        this.editModel = {
+          ...this.editModel,
+          taught_child_genders: arr,
+          min_age_years_male: null,
+          max_age_years_male: null,
+        };
+        return;
+      }
+      if (g === 'נקבה') {
+        this.editModel = {
+          ...this.editModel,
+          taught_child_genders: arr,
+          min_age_years_female: null,
+          max_age_years_female: null,
+        };
+        return;
+      }
     }
-    if (g === 'נקבה') {
-      this.editModel = {
-        ...this.editModel,
-        taught_child_genders: arr,
-        min_age_years_female: null,
-        max_age_years_female: null,
-      };
-      return;
+
+    this.editModel = { ...this.editModel, taught_child_genders: arr };
+  }
+
+  private toIntOrNull(v: any): number | null {
+    if (v === '' || v === undefined || v === null) return null;
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    const i = Math.trunc(n);
+    return i < 0 ? null : i;
+  }
+
+  private validateGenderAges(m: InstructorDetailsRow): string | null {
+    const teachesMale = (m.taught_child_genders ?? []).includes('זכר');
+    const teachesFemale = (m.taught_child_genders ?? []).includes('נקבה');
+
+    const mnM = this.toIntOrNull(m.min_age_years_male);
+    const mxM = this.toIntOrNull(m.max_age_years_male);
+    const mnF = this.toIntOrNull(m.min_age_years_female);
+    const mxF = this.toIntOrNull(m.max_age_years_female);
+
+    // אם לא מלמד מגדר מסוים — מתעלמים (וגם נשמור null)
+    if (teachesMale) {
+      if (mnM !== null && mxM !== null && mnM > mxM) return 'טווח גילאים לבנים לא תקין (מגיל גדול מעד גיל).';
     }
+    if (teachesFemale) {
+      if (mnF !== null && mxF !== null && mnF > mxF) return 'טווח גילאים לבנות לא תקין (מגיל גדול מעד גיל).';
+    }
+
+    return null;
   }
 
-  this.editModel = { ...this.editModel, taught_child_genders: arr };
-}
+  /** אופציונלי: לשמור גם שדות legacy min_age_years/max_age_years כדי לא לשבור קוד ישן */
+  private computeLegacyMinMax(m: InstructorDetailsRow): { min_age_years: number | null; max_age_years: number | null } {
+    const teachesMale = (m.taught_child_genders ?? []).includes('זכר');
+    const teachesFemale = (m.taught_child_genders ?? []).includes('נקבה');
 
-private toIntOrNull(v: any): number | null {
-  if (v === '' || v === undefined || v === null) return null;
-  const n = Number(v);
-  if (!Number.isFinite(n)) return null;
-  const i = Math.trunc(n);
-  return i < 0 ? null : i;
-}
+    const mins: number[] = [];
+    const maxs: number[] = [];
 
-private validateGenderAges(m: InstructorDetailsRow): string | null {
-  const teachesMale = (m.taught_child_genders ?? []).includes('זכר');
-  const teachesFemale = (m.taught_child_genders ?? []).includes('נקבה');
+    const min_age_years_male = teachesMale ? this.toIntOrNull(m.min_age_years_male) : null;
+    const max_age_years_male = teachesMale ? this.toIntOrNull(m.max_age_years_male) : null;
+    const min_age_years_female = teachesFemale ? this.toIntOrNull(m.min_age_years_female) : null;
+    const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_female) : null;
 
-  const mnM = this.toIntOrNull(m.min_age_years_male);
-  const mxM = this.toIntOrNull(m.max_age_years_male);
-  const mnF = this.toIntOrNull(m.min_age_years_female);
-  const mxF = this.toIntOrNull(m.max_age_years_female);
+    if (teachesMale) {
+      if (min_age_years_male !== null) mins.push(min_age_years_male);
+      if (max_age_years_male !== null) maxs.push(max_age_years_male);
+    }
+    if (teachesFemale) {
+      if (min_age_years_female !== null) mins.push(min_age_years_female);
+      if (max_age_years_female !== null) maxs.push(max_age_years_female);
+    }
 
-  // אם לא מלמד מגדר מסוים — מתעלמים (וגם נשמור null)
-  if (teachesMale) {
-    if (mnM !== null && mxM !== null && mnM > mxM) return 'טווח גילאים לבנים לא תקין (מגיל גדול מעד גיל).';
+    return {
+      min_age_years: mins.length ? Math.min(...mins) : null,
+      max_age_years: maxs.length ? Math.max(...maxs) : null,
+    };
   }
-  if (teachesFemale) {
-    if (mnF !== null && mxF !== null && mnF > mxF) return 'טווח גילאים לבנות לא תקין (מגיל גדול מעד גיל).';
-  }
-
-  return null;
-}
-
-/** אופציונלי: לשמור גם שדות legacy min_age_years/max_age_years כדי לא לשבור קוד ישן */
-private computeLegacyMinMax(m: InstructorDetailsRow): { min_age_years: number | null; max_age_years: number | null } {
-  const teachesMale = (m.taught_child_genders ?? []).includes('זכר');
-  const teachesFemale = (m.taught_child_genders ?? []).includes('נקבה');
-
-  const mins: number[] = [];
-  const maxs: number[] = [];
-
-  const min_age_years_male = teachesMale ? this.toIntOrNull(m.min_age_years_male) : null;
-const max_age_years_male = teachesMale ? this.toIntOrNull(m.max_age_years_male) : null;
-const min_age_years_female = teachesFemale ? this.toIntOrNull(m.min_age_years_female) : null;
-const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_female) : null;
-
-
-  if (teachesMale) {
-    if (min_age_years_male !== null) mins.push(min_age_years_male);
-    if (max_age_years_male !== null) maxs.push(max_age_years_male);
-  }
-  if (teachesFemale) {
-    if (min_age_years_female !== null) mins.push(min_age_years_female);
-    if (max_age_years_female !== null) maxs.push(max_age_years_female);
-  }
-
-  return {
-    min_age_years: mins.length ? Math.min(...mins) : null,
-    max_age_years: maxs.length ? Math.max(...maxs) : null,
-  };
-}
-
 
   async saveEditFromDrawer() {
     if (!this.drawerInstructor || !this.editModel) return;
+
+    // ✅ סניטציה נקודתית לפני ולידציות/שמירה
+    this.editModel = {
+      ...this.editModel,
+      first_name: this.sanitizeName(this.editModel.first_name),
+      last_name: this.sanitizeName(this.editModel.last_name),
+      education: this.sanitizeEducation(this.editModel.education),
+      address: this.sanitizeAddress(this.editModel.address),
+      license_id: this.sanitizeLicense(this.editModel.license_id),
+      // about נשאר חופשי (הגבלה ב-HTML maxlength=500)
+    };
+
+
+
+
 
     const m = this.editModel;
     console.log('[INSTRUCTORS] saveEditFromDrawer called with model:', m);
@@ -727,18 +768,17 @@ const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_fe
     if (!m.last_name?.trim()) missing.push('שם משפחה');
     if (!m.phone?.trim()) missing.push('טלפון');
     if (!m.email?.trim()) missing.push('אימייל');
+
     const ageErr = this.validateGenderAges(m);
     if (ageErr) {
       await this.ui.alert(ageErr, 'שגיאת טווח גילאים');
       return;
     }
 
-
     if (missing.length) {
       console.warn('[INSTRUCTORS] saveEditFromDrawer missing required fields:', missing);
       await this.ui.alert('שדות חובה חסרים: ' + missing.join(', '), 'חסרים פרטים');
       return;
-
     }
 
     // טלפון ישראלי
@@ -747,8 +787,8 @@ const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_fe
 
     if (!rawPhone || !phoneRe.test(rawPhone)) {
       console.warn('[INSTRUCTORS] saveEditFromDrawer invalid phone:', rawPhone);
-     await this.ui.alert('טלפון לא תקין. בדקי קידומת ומספר (10 ספרות).', 'שגיאת טלפון');
-     return;
+      await this.ui.alert('טלפון לא תקין. בדקי קידומת ומספר (10 ספרות).', 'שגיאת טלפון');
+      return;
     }
     const phone = rawPhone;
 
@@ -758,8 +798,8 @@ const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_fe
 
     if (!rawEmail || !emailRe.test(rawEmail)) {
       console.warn('[INSTRUCTORS] saveEditFromDrawer invalid email:', rawEmail);
-       await this.ui.alert('אימייל לא תקין.', 'שגיאת אימייל');
-       return;
+      await this.ui.alert('אימייל לא תקין.', 'שגיאת אימייל');
+      return;
     }
     const email = rawEmail;
 
@@ -771,29 +811,27 @@ const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_fe
         first_name: m.first_name.trim(),
         last_name: m.last_name.trim(),
         phone,
-        status: this.normalizeStatus(m.status), 
+        status: this.normalizeStatus(m.status),
         address: m.address?.trim() || null,
         license_id: m.license_id?.trim() || null,
         education: m.education?.trim() || null,
-        about: m.about?.trim() || null,
-          birth_date: m.birth_date ?? null, 
-          notify: m.notify ?? {
-    email: false,
-    sms: false,
-    whatsapp: false,
-    voice: false,
-  },
+        about: m.about ? this.sanitizeAbout(m.about) : null,
+        birth_date: m.birth_date ?? null,
+        notify: m.notify ?? {
+          email: false,
+          sms: false,
+          whatsapp: false,
+          voice: false,
+        },
         default_lesson_duration_min: m.default_lesson_duration_min ?? null,
         min_age_years_male: m.min_age_years_male ?? null,
-        max_age_years_male: m.max_age_years_male ?? null, 
+        max_age_years_male: m.max_age_years_male ?? null,
         min_age_years_female: m.min_age_years_female ?? null,
         max_age_years_female: m.max_age_years_female ?? null,
         accepts_makeup_others: m.accepts_makeup_others ?? null,
         allow_availability_edit: m.allow_availability_edit ?? null,
         taught_child_genders: m.taught_child_genders ?? null,
-        
       };
-
 
       const { data, error } = await dbcTenant
         .from('instructors')
@@ -802,13 +840,12 @@ const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_fe
         .select('*')
         .maybeSingle();
 
-
       if (error) throw error;
 
       // עדכון users (מייל/טלפון) אם יש uid
       const uid = (this.drawerInstructor.uid || '').trim();
       if (uid) {
-        await this.createUserInSupabase(uid, email,"instructor", phone);
+        await this.createUserInSupabase(uid, email, 'instructor', phone);
       }
 
       const updated = (data as InstructorDetailsRow) || {
@@ -824,14 +861,13 @@ const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_fe
         phone,
       };
 
-    this.editModel = {
-   ...this.drawerInstructor,
-   status: this.normalizeStatus(this.drawerInstructor.status), // ✅
-   taught_child_genders: this.drawerInstructor.taught_child_genders
-    ? [...this.drawerInstructor.taught_child_genders]
-    : [],
-};
-
+      this.editModel = {
+        ...this.drawerInstructor,
+        status: this.normalizeStatus(this.drawerInstructor.status),
+        taught_child_genders: this.drawerInstructor.taught_child_genders
+          ? [...this.drawerInstructor.taught_child_genders]
+          : [],
+      };
 
       this.editMode = false;
 
@@ -839,7 +875,6 @@ const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_fe
       await this.loadInstructors();
     } catch (e: any) {
       await this.ui.alert(e?.message || 'שמירת פרטי המדריך נכשלה', 'שמירה נכשלה');
-
     } finally {
       this.savingEdit = false;
     }
@@ -866,12 +901,9 @@ const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_fe
       const tenant_id = localStorage.getItem('selectedTenant') || '';
       const schema_name = localStorage.getItem('selectedSchema') || '';
 
-    
-
       if (!tenant_id) {
-       await this.ui.alert('לא נמצא tenant פעיל. התחברי מחדש או בחרי חווה פעילה.', 'שגיאה');
-       return;
-
+        await this.ui.alert('לא נמצא tenant פעיל. התחברי מחדש או בחרי חווה פעילה.', 'שגיאה');
+        return;
       }
 
       let uid = '';
@@ -884,8 +916,8 @@ const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_fe
         );
 
         if (exists.existsInTenant) {
-        await this.ui.alert('מדריך עם המייל הזה כבר קיים בחווה הנוכחית.', 'שגיאה');
-        return;
+          await this.ui.alert('מדריך עם המייל הזה כבר קיים בחווה הנוכחית.', 'שגיאה');
+          return;
         }
 
         if (exists.existsInSystem && exists.uid) {
@@ -905,28 +937,27 @@ const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_fe
           'שגיאה ביצירת / בדיקת המשתמש.';
         await this.ui.alert(msg, 'שגיאה');
         return;
-
       }
 
       payload.uid = uid;
       payload.password = tempPassword || '';
 
+      // ✅ סניטציה נקודתית גם בהוספה (כדי למנוע הכנסת זבל ל-DB)
       const body = {
         uid: (payload.uid ?? '').trim(),
-        first_name: (payload.first_name ?? '').trim(),
-        last_name: (payload.last_name ?? '').trim(),
+        first_name: this.sanitizeName(payload.first_name),
+        last_name: this.sanitizeName(payload.last_name),
         email: (payload.email ?? '').trim().toLowerCase(),
         phone: (payload.phone ?? '').trim(),
         id_number: (payload.id_number ?? '').trim(),
-        address: (payload.address ?? '').trim(),
+        address: this.sanitizeAddress(payload.address),
         gender: (payload.gender ?? '').trim(),
-        license_id: (payload.license_id ?? '').trim(),
-        education: (payload.education ?? '').trim(),
-        about: (payload.about ?? '').trim(),
+        license_id: this.sanitizeLicense(payload.license_id),
+        education: this.sanitizeEducation(payload.education),
+        about: (payload.about ?? '').toString().trim(),
         tenant_id,
         schema_name,
       };
-
 
       const missing = ['first_name', 'last_name', 'email', 'phone', 'id_number'].filter(
         (k) => !(body as any)[k]
@@ -934,21 +965,33 @@ const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_fe
 
       if (missing.length) {
         console.warn('[ADD INSTRUCTOR] missing required fields:', missing);
-       await this.ui.alert('שדות חובה חסרים: ' + missing.join(', '), 'חסרים פרטים');
-       return;
+        await this.ui.alert('שדות חובה חסרים: ' + missing.join(', '), 'חסרים פרטים');
+        return;
+      }
+      
 
+      // ✅ ולידציה מייל/טלפון גם בהוספה (כמו בעריכה)
+      const phoneRe = /^0(5\d|[2-9])\d{7}$/;
+      if (!body.phone || !phoneRe.test(body.phone)) {
+        await this.ui.alert('טלפון לא תקין. בדקי קידומת ומספר (10 ספרות).', 'שגיאת טלפון');
+        return;
+      }
+
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!body.email || !emailRe.test(body.email)) {
+        await this.ui.alert('אימייל לא תקין.', 'שגיאת אימייל');
+        return;
       }
 
       try {
         // users
-        await this.createUserInSupabase(body.uid, body.email, "instructor", body.phone);
+        await this.createUserInSupabase(body.uid, body.email, 'instructor', body.phone);
 
         await this.createTenantUserInSupabase({
           tenant_id: body.tenant_id,
           uid: body.uid,
         });
 
-       
         const instructorRow = await this.createInstructorInSupabase({
           uid: body.uid,
           first_name: body.first_name,
@@ -986,57 +1029,55 @@ const max_age_years_female = teachesFemale ? this.toIntOrNull(m.max_age_years_fe
             subject,
             html,
             text: `שלום ${fullName},
-        נוספת למערכת כמדריך/ה בחווה.
-        ${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התחברות עם האימייל הזה: ${body.email}`,
+נוספת למערכת כמדריך/ה בחווה .
+${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התחברות עם האימייל הזה: ${body.email}`,
           });
         } catch (err) {
         }
 
-          await this.ui.alert('מדריך נוצר/שויך בהצלחה', 'הצלחה');
+        await this.ui.alert('מדריך נוצר/שויך בהצלחה', 'הצלחה');
 
       } catch (e: any) {
-        await this.ui.alert(e?.message ?? 'שגיאה - המערכת לא הצליחה להוסיף מדריך', 'שגיאה'); }
+        await this.ui.alert(e?.message ?? 'שגיאה - המערכת לא הצליחה להוסיף מדריך', 'שגיאה');
+      }
     });
   }
 
   private getTenantSchemaOrThrow(): string {
     const farm = getCurrentFarmMetaSync();
-        const schema = farm?.schema_name ?? null;
-        if (!schema) {
-    throw new Error('לא נמצא selectedSchema ב-localStorage. כנראה שלא נעשה bootstrap לטננט.');
+    const schema = farm?.schema_name ?? null;
+    if (!schema) {
+      throw new Error('לא נמצא selectedSchema ב-localStorage. כנראה שלא נעשה bootstrap לטננט.');
+    }
+    return schema;
   }
-  return schema ;
-}
-
 
   // ======= Helpers =======
-onRidingTypeChange(id: string, checked: boolean) {
-  if (!this.editModel) return;
+  onRidingTypeChange(id: string, checked: boolean) {
+    if (!this.editModel) return;
 
-  let arr = this.editModel.non_therapy_riding_types || [];
+    let arr = this.editModel.non_therapy_riding_types || [];
 
-  if (checked) {
-    if (!arr.includes(id)) {
-      arr = [...arr, id];
+    if (checked) {
+      if (!arr.includes(id)) {
+        arr = [...arr, id];
+      }
+    } else {
+      arr = arr.filter(x => x !== id);
     }
-  } else {
-    arr = arr.filter(x => x !== id);
+
+    this.editModel = {
+      ...this.editModel,
+      non_therapy_riding_types: arr,
+    };
   }
 
-  this.editModel = {
-    ...this.editModel,
-    non_therapy_riding_types: arr,
-  };
-}
-
   async checkIfInstructorExists(email: string, tenant_id: string) {
-
     const { data: user, error: userErr } = await dbPublic()
       .from('users')
       .select('uid')
       .eq('email', email.toLowerCase())
       .maybeSingle();
-
 
     if (userErr) throw userErr;
 
@@ -1050,7 +1091,6 @@ onRidingTypeChange(id: string, checked: boolean) {
       .eq('tenant_id', tenant_id)
       .eq('uid', user.uid)
       .maybeSingle();
-
 
     if (tenantErr) throw tenantErr;
 
@@ -1075,7 +1115,6 @@ onRidingTypeChange(id: string, checked: boolean) {
       .eq('table', 'instructors')
       .maybeSingle();
 
-
     if (error || !data?.id) {
       throw new Error('לא הצלחתי למצוא role_id לתפקיד מדריך בטננט הנוכחי');
     }
@@ -1098,7 +1137,6 @@ onRidingTypeChange(id: string, checked: boolean) {
       phone: (phone || '').trim() || null,
     };
 
-
     const { error } = await dbcPublic
       .from('users')
       .upsert(row, { onConflict: 'uid' });
@@ -1106,7 +1144,6 @@ onRidingTypeChange(id: string, checked: boolean) {
     if (error) {
       throw new Error(`users upsert failed: ${error.message}`);
     }
-
   }
 
   private async createTenantUserInSupabase(body: {
@@ -1115,7 +1152,6 @@ onRidingTypeChange(id: string, checked: boolean) {
   }): Promise<void> {
     const dbcPublic = dbPublic();
     const instructorRoleId = await this.getInstructorRoleId();
-
 
     const { error } = await dbcPublic
       .from('tenant_users')
@@ -1135,7 +1171,6 @@ onRidingTypeChange(id: string, checked: boolean) {
     if (error) {
       throw new Error(`tenant_users upsert failed: ${error.message}`);
     }
-
   }
 
   private async createInstructorInSupabase(body: {
@@ -1152,7 +1187,6 @@ onRidingTypeChange(id: string, checked: boolean) {
     about?: string | null;
   }) {
     const dbcTenant = dbTenant();
-
 
     const { data, error } = await dbcTenant
       .from('instructors')
@@ -1173,7 +1207,6 @@ onRidingTypeChange(id: string, checked: boolean) {
       })
       .select('*')
       .single();
-
 
     if (error) {
       throw new Error(`instructors insert failed: ${error.message}`);

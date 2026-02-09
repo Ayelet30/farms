@@ -111,8 +111,11 @@
       <!-- התור הבא -->
       <div class="card-section">
         <div class="section-title">התור הבא</div>
-        <ng-container [ngTemplateOutlet]="nextTpl"
-          [ngTemplateOutletContext]="{ $implicit: getNextAppointment(c) }"></ng-container>
+       <ng-container
+  [ngTemplateOutlet]="nextTpl"
+  [ngTemplateOutletContext]="{ $implicit: getNextAppointment(c) }">
+</ng-container>
+
       </div>
 
       <!-- פעילות אחרונה -->
