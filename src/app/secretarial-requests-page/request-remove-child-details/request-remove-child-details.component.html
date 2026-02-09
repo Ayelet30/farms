@@ -1,3 +1,11 @@
+<!-- ✅ Overlay Loading -->
+<div class="overlay" *ngIf="busy()">
+  <div class="overlay-card">
+    <mat-progress-spinner mode="indeterminate" diameter="44"></mat-progress-spinner>
+    <div class="overlay-text">{{ busyText() }}</div>
+  </div>
+</div>
+
 <div class="wrap" dir="rtl">
   <div class="head">
     <div class="title">

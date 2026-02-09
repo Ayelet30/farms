@@ -294,10 +294,13 @@ confirmData = {
   newDate: '',
   newStart: '',
   newEnd: '',
+  newInstructorName: '',   
   oldDate: '',
   oldStart: '',
   oldEnd: '',
+  oldInstructorName: '',   
 };
+
 
 referralFile: File | null = null;
 referralUploadError: string | null = null;
@@ -499,6 +502,8 @@ async openHolesForCandidate(c: MakeupCandidate): Promise<void> {
     this.candidateSlotsError = 'יש לבחור ילד';
     return;
   }
+  console.log('clicked candidate', c, 'selectedChildId', this.selectedChildId);
+
   this.selectedMakeupCandidate = c;
   this.candidateSlots = [];
   this.candidateSlotsError = null;
@@ -535,6 +540,12 @@ if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
 
   this.loadingCandidateSlots = true;
   this.candidateSlotsError = null;
+console.log('makeup params', {
+  child: this.selectedChildId,
+  instructorParam,
+  from: this.makeupSearchFromDate,
+  to: this.makeupSearchToDate
+});
 
   try {
    const { data, error } = await dbTenant().rpc('find_makeup_slots_for_lesson_by_id_number', {
@@ -543,9 +554,10 @@ if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
   p_from_date: this.makeupSearchFromDate,
   p_to_date: this.makeupSearchToDate,
 });
+console.log('makeup rpc result', { error, dataLen: data?.length, data: (data ?? []).slice(0, 5) });
 
     if (error) {
-      console.error('find_makeup_slots_for_lesson error', error);
+      console.error('find_makeup_slots_for_lesson_by_id_number error', error);
       this.candidateSlots = [];
       this.candidateSlotsError = 'שגיאה בחיפוש חורים להשלמה לשיעור זה';
       return;
@@ -1895,10 +1907,19 @@ async bookMakeupSlot(slot: MakeupSlot): Promise<void> {
   this.confirmData.newDate  = slot.occur_date;
   this.confirmData.newStart = slot.start_time.substring(0, 5);
   this.confirmData.newEnd   = slot.end_time.substring(0, 5);
-
+this.confirmData.newInstructorName =
+  slot.instructor_name ??
+  this.getInstructorDisplayName(slot.instructor_id) ??
+  this.getInstructorNameById(slot.instructor_id) ??
+  slot.instructor_id;
   this.confirmData.oldDate  = this.selectedMakeupCandidate.occur_date;
   this.confirmData.oldStart = this.selectedMakeupCandidate.start_time.substring(0, 5);
   this.confirmData.oldEnd   = this.selectedMakeupCandidate.end_time.substring(0, 5);
+this.confirmData.oldInstructorName =
+  this.selectedMakeupCandidate?.instructor_name ??
+  this.getInstructorDisplayName(this.selectedMakeupCandidate?.instructor_id) ??
+  this.getInstructorNameById(this.selectedMakeupCandidate?.instructor_id ?? null) ??
+  (this.selectedMakeupCandidate?.instructor_id ?? '');
 
   // ===== 2) לפתוח את אותו דיאלוג בדיוק =====
   const dialogRef = this.dialog.open(this.confirmMakeupDialog, {
@@ -2000,7 +2021,17 @@ async requestMakeupFromSecretary(slot: MakeupSlot): Promise<void> {
   this.confirmData.newDate  = slot.occur_date;
   this.confirmData.newStart = slot.start_time.substring(0, 5);
   this.confirmData.newEnd   = slot.end_time.substring(0, 5);
+  this.confirmData.newInstructorName =
+  slot.instructor_name ??
+  this.getInstructorDisplayName(slot.instructor_id) ??
+  this.getInstructorNameById(slot.instructor_id) ??
+  slot.instructor_id;
 
+this.confirmData.oldInstructorName =
+  this.selectedMakeupCandidate?.instructor_name ??
+  this.getInstructorDisplayName(this.selectedMakeupCandidate?.instructor_id) ??
+  this.getInstructorNameById(this.selectedMakeupCandidate?.instructor_id ?? null) ??
+  (this.selectedMakeupCandidate?.instructor_id ?? '');
   // מידע של השיעור המקורי (הביטל/שאפשר להשלים אותו)
   this.confirmData.oldDate  = this.selectedMakeupCandidate.occur_date;
   this.confirmData.oldStart = this.selectedMakeupCandidate.start_time.substring(0, 5);
