@@ -28,6 +28,13 @@ export class RequestInstructorDayOffDetailsComponent {
   // ====== INPUTS → Signals (כדי שהפרטים יתעדכנו תמיד) ======
   private _req = signal<any | null>(null);
   readonly req = this._req;
+readonly status = computed(() => (this.req() as any)?.status ?? null);
+readonly isPending = computed(() => this.status() === 'PENDING');
+
+// ✅ האם להציג impact + האם לטעון impact
+readonly shouldShowImpact = computed(() => this.isPending());
+// ✅ האם להציג פעולות (Approve/Reject)
+readonly canDecide = computed(() => this.isPending());
 
   @Input({ required: true })
   set request(value: any) {
@@ -58,6 +65,8 @@ export class RequestInstructorDayOffDetailsComponent {
 
   // ====== נגזרים ======
   impactCount = computed(() => this.impactRows().length);
+// alias כדי שה-bulk runner שממלא inst.note יעבוד
+note = this.decisionNote;
 
   constructor() {
     // כל פעם שהבקשה משתנה (לפי id) → טוענים impact מחדש
@@ -68,8 +77,9 @@ export class RequestInstructorDayOffDetailsComponent {
       // איפוס תצוגה “מיד” כדי שלא יישארו שורות מהבקשה הקודמת
       this.impactRows.set([]);
       this.decisionNote.set(this.decisionNote()); // משאירה מה שהקלדת (אם תרצי לאפס: set(''))
-
-      void this.loadImpact();
+if (this.isPending()) {
+    void this.loadImpact();
+  }
     });
   }
 

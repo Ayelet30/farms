@@ -45,6 +45,11 @@ note = signal<string>('');
 
   constructor(private snack: MatSnackBar) {}
 private tenantSvc = inject(SupabaseTenantService);
+readonly status = computed(() => (this.request as any)?.status ?? null);
+readonly isPending = computed(() => this.status() === 'PENDING');
+
+readonly canDecide = computed(() => this.isPending());
+readonly shouldShowFillInTarget = computed(() => this.isPending());
 
   busy = signal(false);
   action = signal<'approve' | 'reject' | null>(null);
