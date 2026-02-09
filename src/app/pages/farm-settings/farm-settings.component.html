@@ -199,12 +199,13 @@
 <input
   type="number"
   min="10"
-  max="180"
+  max="540"
   inputmode="numeric"
   [(ngModel)]="s.lesson_duration_minutes"
   name="lesson_duration_minutes"
   (ngModelChange)="validateSettingsFields(s)"
 />
+
 
 <small class="field-error"
   *ngIf="settingsErrors().lesson_duration_minutes">
