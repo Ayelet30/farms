@@ -294,10 +294,13 @@ confirmData = {
   newDate: '',
   newStart: '',
   newEnd: '',
+  newInstructorName: '',   
   oldDate: '',
   oldStart: '',
   oldEnd: '',
+  oldInstructorName: '',   
 };
+
 
 referralFile: File | null = null;
 referralUploadError: string | null = null;
@@ -1904,10 +1907,19 @@ async bookMakeupSlot(slot: MakeupSlot): Promise<void> {
   this.confirmData.newDate  = slot.occur_date;
   this.confirmData.newStart = slot.start_time.substring(0, 5);
   this.confirmData.newEnd   = slot.end_time.substring(0, 5);
-
+this.confirmData.newInstructorName =
+  slot.instructor_name ??
+  this.getInstructorDisplayName(slot.instructor_id) ??
+  this.getInstructorNameById(slot.instructor_id) ??
+  slot.instructor_id;
   this.confirmData.oldDate  = this.selectedMakeupCandidate.occur_date;
   this.confirmData.oldStart = this.selectedMakeupCandidate.start_time.substring(0, 5);
   this.confirmData.oldEnd   = this.selectedMakeupCandidate.end_time.substring(0, 5);
+this.confirmData.oldInstructorName =
+  this.selectedMakeupCandidate?.instructor_name ??
+  this.getInstructorDisplayName(this.selectedMakeupCandidate?.instructor_id) ??
+  this.getInstructorNameById(this.selectedMakeupCandidate?.instructor_id ?? null) ??
+  (this.selectedMakeupCandidate?.instructor_id ?? '');
 
   // ===== 2) לפתוח את אותו דיאלוג בדיוק =====
   const dialogRef = this.dialog.open(this.confirmMakeupDialog, {
@@ -2009,7 +2021,17 @@ async requestMakeupFromSecretary(slot: MakeupSlot): Promise<void> {
   this.confirmData.newDate  = slot.occur_date;
   this.confirmData.newStart = slot.start_time.substring(0, 5);
   this.confirmData.newEnd   = slot.end_time.substring(0, 5);
+  this.confirmData.newInstructorName =
+  slot.instructor_name ??
+  this.getInstructorDisplayName(slot.instructor_id) ??
+  this.getInstructorNameById(slot.instructor_id) ??
+  slot.instructor_id;
 
+this.confirmData.oldInstructorName =
+  this.selectedMakeupCandidate?.instructor_name ??
+  this.getInstructorDisplayName(this.selectedMakeupCandidate?.instructor_id) ??
+  this.getInstructorNameById(this.selectedMakeupCandidate?.instructor_id ?? null) ??
+  (this.selectedMakeupCandidate?.instructor_id ?? '');
   // מידע של השיעור המקורי (הביטל/שאפשר להשלים אותו)
   this.confirmData.oldDate  = this.selectedMakeupCandidate.occur_date;
   this.confirmData.oldStart = this.selectedMakeupCandidate.start_time.substring(0, 5);
