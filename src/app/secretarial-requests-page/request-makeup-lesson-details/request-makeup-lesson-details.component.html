@@ -79,15 +79,15 @@
     </div>
 </div>
 
-    <textarea
-      class="note"
-      *ngIf="!bulkMode"
-      [ngModel]="note()"
-      (ngModelChange)="note.set($event)"
-      placeholder="סיבה לדחייה (אופציונלי)">
-    </textarea>
+   <textarea
+  class="note"
+  *ngIf="(r.status === 'PENDING') && !bulkMode"
+  [ngModel]="note()"
+  (ngModelChange)="note.set($event)"
+  placeholder="סיבה לדחייה (אופציונלי)">
+</textarea>
 
-    <div class="actions">
+<div class="actions" *ngIf="r.status === 'PENDING'">
      <button mat-stroked-button class="action reject"
         (click)="reject()"
         [disabled]="busy()">
