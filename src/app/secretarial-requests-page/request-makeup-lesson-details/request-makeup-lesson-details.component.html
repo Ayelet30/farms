@@ -1,0 +1,106 @@
+<!-- ✅ Overlay Loading -->
+<div class="overlay" *ngIf="busy()">
+  <div class="overlay-card">
+    <mat-progress-spinner mode="indeterminate" diameter="44"></mat-progress-spinner>
+    <div class="overlay-text">{{ busyText() }}</div>
+  </div>
+</div>
+
+
+<div class="wrap" dir="rtl" *ngIf="request as r">
+  <div class="head">
+    <div class="title">
+      <mat-icon class="ico">school</mat-icon>
+      פרטי בקשה להשלמת שיעור
+    </div>
+  </div>
+
+  <div class="card">
+
+    <div class="child-status-alert" *ngIf="errorMsg() as t">
+      {{ t }}
+    </div>
+
+    <div class="row">
+      <div class="k">שם ילד/ה</div>
+      <div class="v strong">{{ r.childName || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">מדריך/ה</div>
+      <div class="v">{{ r.instructorName || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">תאריך</div>
+      <div class="v">{{ (r.fromDate || r.from_date) || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">שעה</div>
+      <div class="v">{{ timeRange() }}</div>
+    </div>
+<!-- טוען יעד השלמה -->
+<div class="row muted" *ngIf="loadingMakeupTarget()">
+  טוען פרטי השיעור המקורי…
+</div>
+<div class="row error"
+     *ngIf="!loadingMakeupTarget() && !makeupTarget()">
+  לא נמצא שיעור מקור להשלמה
+</div>
+
+    <!-- משלים את השיעור -->
+     <div *ngIf="!loadingMakeupTarget() && makeupTarget() as t">
+    <div class="meta">
+      <div class="meta-title">משלים את השיעור:</div>
+
+      <ng-container *ngIf="makeupTarget() as mt; else noTarget">
+        <div class="row">
+          <div class="k">תאריך</div>
+          <div class="v">{{ mt.occur_date || '—' }}</div>
+        </div>
+
+        <div class="row">
+          <div class="k">שעה</div>
+          <div class="v">
+            {{ (mt.start_time ? (mt.start_time | slice:0:5) : '—') }}-{{ (mt.end_time ? (mt.end_time | slice:0:5) : '—') }}
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="k">מדריך/ה</div>
+          <div class="v">{{ mt.instructor_name || '—' }}</div>
+        </div>
+      </ng-container>
+
+      <ng-template #noTarget>
+        <div class="hint error">לא נמצאו פרטי שיעור ב־lessons_occurrences עבור הבקשה</div>
+      </ng-template>
+    </div>
+</div>
+
+    <textarea
+      class="note"
+      *ngIf="!bulkMode"
+      [ngModel]="note()"
+      (ngModelChange)="note.set($event)"
+      placeholder="סיבה לדחייה (אופציונלי)">
+    </textarea>
+
+    <div class="actions">
+     <button mat-stroked-button class="action reject"
+        (click)="reject()"
+        [disabled]="busy()">
+  דחייה
+</button>
+
+<button mat-flat-button class="action approve"
+        (click)="approve()"
+        [disabled]="busy()">
+  אישור
+</button>
+
+    </div>
+
+  </div>
+</div>

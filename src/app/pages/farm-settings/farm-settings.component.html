@@ -1,4 +1,13 @@
 <!-- src/app/pages/farm-settings/farm-settings.component.html -->
+<!-- FLASH MESSAGES -->
+<div class="flash success" *ngIf="success()">
+  {{ success() }}
+</div>
+
+<div class="flash error" *ngIf="error()">
+  {{ error() }}
+</div>
+
 <div class="farm-settings-page" dir="rtl">
   <div class="farm-settings-card">
     <div class="card-header">
@@ -22,13 +31,15 @@
             <span class="chev" [class.open]="workingHoursExpanded()">▾</span>
             <h2>שעות פעילות לפי יום</h2>
           </button>
+<div class="fields-grid three-cols">
+  <label class="field">
+    <span class="field-label">אזור זמן</span>
 
-          <div class="fields-grid three-cols">
-            <label class="field">
-              <span class="field-label">אזור זמן</span>
-              <label type="text" [(ngModel)]="s.timezone" name="timezone">Asia/Jerusalem</label>
-            </label>
-          </div>
+    <span class="readonly-value">
+      {{ s.timezone || 'Asia/Jerusalem' }}
+    </span>
+  </label>
+</div>
 
           <div class="inline-actions">
             <button type="button" class="primary-btn" (click)="saveWorkingHours()"
@@ -169,26 +180,73 @@
               </label>
             </div>
 
-            <input type="number" min="1" [(ngModel)]="s.default_lessons_per_series" name="default_lessons_per_series"
-              [disabled]="isUnlimitedDefaultLessonsPerSeries()"
-              [placeholder]="isUnlimitedDefaultLessonsPerSeries() ? 'ללא הגבלה' : ''" />
+          <input type="number" min="1"
+  [(ngModel)]="s.default_lessons_per_series"
+  name="default_lessons_per_series"
+  [disabled]="isUnlimitedDefaultLessonsPerSeries()"
+  [placeholder]="isUnlimitedDefaultLessonsPerSeries() ? 'ללא הגבלה' : ''"
+  (ngModelChange)="validateSettingsFields(s)" />
+
+<small class="field-error"
+  *ngIf="settingsErrors().default_lessons_per_series">
+  {{ settingsErrors().default_lessons_per_series }}
+</small>
+
           </div>
 
           <label class="field">
             <span class="field-label">אורך שיעור (דקות)</span>
-            <input type="number" min="10" [(ngModel)]="s.lesson_duration_minutes" name="lesson_duration_minutes" />
+<input
+  type="number"
+  min="10"
+  max="180"
+  inputmode="numeric"
+  [(ngModel)]="s.lesson_duration_minutes"
+  name="lesson_duration_minutes"
+  (ngModelChange)="validateSettingsFields(s)"
+/>
+
+<small class="field-error"
+  *ngIf="settingsErrors().lesson_duration_minutes">
+  {{ settingsErrors().lesson_duration_minutes }}
+</small>
+
+
           </label>
 
           <label class="field">
             <span class="field-label">מחיר שיעור רגיל (₪)</span>
-            <input type="number" min="0" step="0.5" [(ngModel)]="s.default_lesson_price" name="default_lesson_price" />
+       <input
+  type="number"
+  min="0"
+  max="1000"
+  step="0.5"
+  inputmode="decimal"
+  [(ngModel)]="s.default_lesson_price"
+  name="default_lesson_price"
+/>
+
           </label>
         </div>
 
         <div class="fields-grid three-cols">
           <label class="field">
             <span class="field-label">מקס' רוכבים בשיעור קבוצתי</span>
-            <input type="number" min="1" [(ngModel)]="s.max_group_size" name="max_group_size" />
+<input
+  type="number"
+  min="1"
+  max="10"
+  [(ngModel)]="s.max_group_size"
+  name="max_group_size"
+  (ngModelChange)="validateSettingsFields(s)"
+/>
+
+<small class="field-error"
+  *ngIf="settingsErrors().max_group_size">
+  {{ settingsErrors().max_group_size }}
+</small>
+
+
           </label>
 
           <!-- מקס שיעורים בשבוע + ללא הגבלה -->
@@ -212,7 +270,60 @@
             <span class="field-label">אפשר זימון שיעורים ע&quot;י הורים</span>
             <input type="checkbox" [(ngModel)]="s.allow_online_booking" name="allow_online_booking" />
           </label>
-        </div>
+      
+</div>
+
+
+  <!-- לוח זמינות -->
+ <div class="fields-grid three-cols">
+  <!-- לוח זמינות -->
+  <label class="field compact short">
+    <span class="field-label">
+      כמה ימים קדימה לחשב לוח זמינות
+    </span>
+
+<input
+  type="number"
+  min="1"
+  max="365"
+  [(ngModel)]="s.availability_days_ahead"
+  name="availability_days_ahead"
+  (ngModelChange)="validateSettingsFields(s)"
+/>
+
+<small class="field-error"
+  *ngIf="settingsErrors().availability_days_ahead">
+  {{ settingsErrors().availability_days_ahead }}
+</small>
+
+
+    <small class="field-hint">
+      משפיע על חישוב זמינות מדריכים, סוסים ולו״ז מערכת
+    </small>
+  </label>
+</div>
+  <!-- הורים -->
+ <div class="fields-grid three-cols">
+  <!-- לוח זמינות -->
+  <label class="field compact short">
+    <span class="field-label">
+      כמה ימים קדימה הורים יכולים לקבוע שיעור
+    </span>
+
+    <input
+      type="number"
+      min="0"
+      max="365"
+      [(ngModel)]="s.parent_booking_days_ahead"
+      name="parent_booking_days_ahead"
+      [disabled]="!s.allow_online_booking"
+    />
+
+    <small class="field-hint">
+      מגביל קביעת שיעורים ע״י הורים
+    </small>
+  </label>
+</div>
       </section>
 
       <!-- ביטולים / השלמות / נוכחות -->
@@ -222,7 +333,8 @@
         <div class="fields-grid three-cols">
           <label class="field">
             <span class="field-label">ימי אחורה להשלמות</span>
-            <input type="number" min="0" [(ngModel)]="s.makeup_allowed_days_back" name="makeup_allowed_days_back" />
+        <input type="number" min="0" max="365" [(ngModel)]="s.makeup_allowed_days_back" />
+
           </label>
 
           <label class="field">
@@ -257,7 +369,21 @@
         <div class="fields-grid three-cols">
           <label class="field">
             <span class="field-label">ביטול עד (שעות לפני)</span>
-            <input type="number" min="0" [(ngModel)]="s.cancel_before_hours" name="cancel_before_hours" />
+<input
+  type="number"
+  min="0"
+  max="168"
+  [(ngModel)]="s.cancel_before_hours"
+  name="cancel_before_hours"
+  (ngModelChange)="validateSettingsFields(s)"
+/>
+
+<small class="field-error"
+  *ngIf="settingsErrors().cancel_before_hours">
+  {{ settingsErrors().cancel_before_hours }}
+</small>
+
+
           </label>
 
           <label class="field">
@@ -294,7 +420,165 @@
           </label>
         </div>
       </section>
+        <!-- =================== סוגי רכיבה =================== -->
+<section class="settings-section">
+  <div class="subsection-header accordion section-acc">
+    <button
+      type="button"
+      class="accordion-toggle"
+      (click)="ridingTypesExpanded.set(!ridingTypesExpanded())"
+      [attr.aria-expanded]="ridingTypesExpanded()"
+    >
+      <span class="chev" [class.open]="ridingTypesExpanded()">▾</span>
+      <span class="accordion-title">סוגי רכיבה</span>
+    </button>
 
+    <button
+      type="button"
+      class="icon-btn"
+      (click)="showNewRidingTypeForm.set(true)"
+      [disabled]="!ridingTypesExpanded()"
+    >
+      <span class="plus-icon">+</span>
+      <span>הוספת סוג רכיבה</span>
+    </button>
+  </div>
+
+  <ng-container *ngIf="ridingTypesExpanded()">
+    <!-- טופס הוספה -->
+    <div class="inline-panel" *ngIf="showNewRidingTypeForm()">
+      <div class="fields-grid two-cols">
+        <label class="field">
+          <span class="field-label">שם סוג רכיבה</span>
+<input
+  type="text"
+  maxlength="50"
+  [ngModel]="newRidingTypeName()"
+  (ngModelChange)="newRidingTypeName.set($event)"
+  [ngModelOptions]="{ standalone: true }"
+  placeholder="לדוגמה: רכיבה טיפולית"
+/>
+
+
+        </label>
+      </div>
+
+      <div class="panel-actions">
+        <button type="button" class="primary-btn" (click)="addRidingType()">
+          שמירה
+        </button>
+        <button
+          type="button"
+          class="ghost-btn"
+          (click)="showNewRidingTypeForm.set(false)"
+        >
+          ביטול
+        </button>
+      </div>
+    </div>
+
+    <!-- רשימה -->
+    <div class="list-block" *ngIf="ridingTypes().length; else noRidingTypes">
+      <div class="list-header-row">
+        <span class="col-main">שם</span>
+        <span class="col-secondary">סטטוס</span>
+        <span class="col-actions">פעולות</span>
+      </div>
+
+      <div
+        class="list-row"
+        *ngFor="let rt of ridingTypes()"
+        [class.inactive]="!rt.is_active"
+      >
+        <ng-container *ngIf="editingRidingTypeId() !== rt.id; else editRT">
+          <div class="col-main">
+            <div class="list-title">{{ rt.name }}</div>
+          </div>
+
+          <div class="col-secondary">
+            <span
+              class="status-tag"
+              [class.success]="rt.is_active"
+              [class.danger]="!rt.is_active"
+            >
+              {{ rt.is_active ? 'פעיל' : 'לא פעיל' }}
+            </span>
+          </div>
+
+          <div class="col-actions">
+            <button
+              type="button"
+              class="text-btn"
+              (click)="startEditRidingType(rt)"
+            >
+              עריכה
+            </button>
+            <button
+              type="button"
+              class="text-btn danger"
+              (click)="deleteRidingType(rt)"
+            >
+              מחיקה
+            </button>
+          </div>
+        </ng-container>
+
+        <!-- עריכה -->
+  <ng-template #editRT>
+  <div class="col-main">
+<input
+  type="text"
+  maxlength="50"
+  [(ngModel)]="rt.name"
+  [ngModelOptions]="{ standalone: true }"
+/>
+  </div> 
+  <div class="col-secondary">
+    <label class="mini-toggle">
+      <input
+        type="checkbox"
+        [(ngModel)]="rt.is_active"
+        [ngModelOptions]="{ standalone: true }"
+      />
+      <span>פעיל</span>
+    </label>
+  </div>
+
+
+          <div class="col-actions">
+            <button
+              type="button"
+              class="text-btn"
+              (click)="updateRidingType(rt)"
+            >
+              שמירה
+            </button>
+            <button
+              type="button"
+              class="text-btn"
+              (click)="cancelEditRidingType()"
+            >
+              ביטול
+            </button>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+
+    <ng-template #noRidingTypes>
+      <div class="empty-state">
+        עדיין לא הוגדרו סוגי רכיבה.
+        <button
+          type="button"
+          class="text-btn"
+          (click)="showNewRidingTypeForm.set(true)"
+        >
+          הוספת סוג ראשון
+        </button>
+      </div>
+    </ng-template>
+  </ng-container>
+</section>
       <!-- תזכורות והתראות -->
       <section class="settings-section">
         <h2>תזכורות והתראות</h2>
@@ -307,8 +591,15 @@
 
           <label class="field">
             <span class="field-label">כמה שעות לפני</span>
-            <input type="number" min="0" [(ngModel)]="s.reminder_hours_before" name="reminder_hours_before"
-              [disabled]="!s.send_lesson_reminder" />
+<input
+  type="number"
+  min="0"
+  max="168"
+  [(ngModel)]="s.reminder_hours_before"
+  name="reminder_hours_before"
+  [disabled]="!s.send_lesson_reminder"
+/>
+
           </label>
 
           <label class="field">
@@ -459,12 +750,19 @@
             <div class="fields-grid three-cols">
               <div class="field">
                 <label class="field-label">שם המסלול</label>
-                <input type="text" name="newPlanName" [(ngModel)]="newPlan.name" />
+              <input
+  type="text"
+  maxlength="60"
+  name="newPlanName"
+  [(ngModel)]="newPlan.name"
+/>
+
               </div>
 
               <div class="field">
                 <label class="field-label">מחיר לשיעור (₪)</label>
-                <input type="number" name="newPlanLessonPrice" [(ngModel)]="newPlan.lesson_price" />
+                <input type="number" min="0" max="1000" [(ngModel)]="newPlan.lesson_price" />
+
               </div>
 
               <div class="field">
@@ -484,8 +782,14 @@
 
               <div class="field">
                 <label class="field-label">דרישת מסמכים</label>
-                <textarea rows="3" name="newPlanDocs" [ngModel]="getDocsText(newPlan)"
-                  (ngModelChange)="onNewPlanDocsChange($event)"></textarea>
+               <textarea
+  rows="3"
+  name="newPlanDocs"
+  maxlength="350"
+  [ngModel]="getDocsText(newPlan)"
+  (ngModelChange)="onNewPlanDocsChange($event)">
+</textarea>
+
                 <small class="field-hint">כל שורה = סוג קובץ</small>
               </div>
 
@@ -530,14 +834,13 @@
                   </span>
                   <ng-template #noSubsidy>
                     <span class="meta-chip muted">סבסוד: 0 ₪</span>
+                    
                   </ng-template>
-                </div>
-                <div class="col-secondary funding-col">
-                  <span class="meta-chip highlight">
-                    לקוח משלם: {{ getCustomerAmount(p) | number:'1.0-0' }} ₪
-                  </span>
-                </div>
-              </div>
+                <span class="meta-chip highlight">
+      לקוח משלם: {{ getCustomerAmount(p) | number:'1.0-0' }} ₪
+    </span>
+  </div>
+</div>
 
               <div class="col-secondary funding-col">
                 <span class="meta-chip">{{ getFundingName(p.funding_source_id || null) }}</span>
@@ -565,7 +868,13 @@
                 <div class="fields-grid three-cols">
                   <div class="field">
                     <label class="field-label">שם המסלול</label>
-                    <input type="text" name="editPlanName_{{p.id}}" [(ngModel)]="p.name" />
+                  <input
+  type="text"
+  maxlength="60"
+  name="editPlanName_{{p.id}}"
+  [(ngModel)]="p.name"
+/>
+
                   </div>
 
                   <div class="field">
@@ -590,8 +899,14 @@
 
                   <div class="field">
                     <label class="field-label">מסמכים נדרשים</label>
-                    <textarea rows="3" name="editPlanDocs_{{p.id}}" [ngModel]="getDocsText(p)"
-                      (ngModelChange)="onDocsTextChange(p, $event)"></textarea>
+                 <textarea
+  rows="3"
+  name="editPlanDocs_{{p.id}}"
+  maxlength="350"
+  [ngModel]="getDocsText(p)"
+  (ngModelChange)="onDocsTextChange(p, $event)">
+</textarea>
+
                     <small class="field-hint">כל שורה = סוג קובץ נדרש</small>
                   </div>
 
@@ -685,8 +1000,14 @@
             <div class="fields-grid two-cols">
               <div class="field">
                 <label class="field-label">שם גורם המימון</label>
-                <input type="text" name="newFundingName" [ngModel]="newFundingSourceName()"
-                  (ngModelChange)="newFundingSourceName.set($event)" />
+           <input
+  type="text"
+  maxlength="60"
+  name="newFundingName"
+  [ngModel]="newFundingSourceName()"
+  (ngModelChange)="newFundingSourceName.set($event)"
+/>
+
               </div>
             </div>
 
@@ -738,7 +1059,13 @@
                 <div class="fields-grid two-cols">
                   <div class="field">
                     <label class="field-label">שם גורם מימון</label>
-                    <input type="text" name="editFundingName_{{fs.id}}" [(ngModel)]="fs.name" />
+                <input
+  type="text"
+  maxlength="60"
+  name="editFundingName_{{fs.id}}"
+  [(ngModel)]="fs.name"
+/>
+
                   </div>
 
                   <div class="field toggle">
@@ -762,6 +1089,8 @@
             </div>
           </ng-template>
         </ng-container>
+
+
       </section>
       <!-- הערות מובנות -->
       <section class="settings-section">
@@ -947,8 +1276,14 @@
 
         <label class="field">
           <span class="field-label">סיבה</span>
-          <input type="text" placeholder="לדוגמה: חופשת פסח" [ngModel]="specialDayForm().reason"
-            (ngModelChange)="patchSpecialDayForm({ reason: $event })" />
+         <input
+  type="text"
+  maxlength="100"
+  placeholder="לדוגמה: חופשת פסח"
+  [ngModel]="specialDayForm().reason"
+  (ngModelChange)="patchSpecialDayForm({ reason: $event })"
+/>
+
         </label>
 
         <div class="fields-grid two-cols" style="margin-top:10px;">

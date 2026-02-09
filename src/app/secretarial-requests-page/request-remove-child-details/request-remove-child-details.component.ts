@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { ensureTenantContextReady, dbTenant } from '../../services/supabaseClient.service';
 import { MatDialog } from '@angular/material/dialog';
@@ -49,7 +50,7 @@ type RemainingLessonVM = {
 @Component({
   selector: 'app-request-remove-child-details',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatButtonModule , MatSnackBarModule],
+  imports: [CommonModule, MatIconModule, MatButtonModule , MatSnackBarModule , MatProgressSpinnerModule],
   templateUrl: './request-remove-child-details.component.html',
   styleUrls: ['./request-remove-child-details.component.css'],
 })
@@ -83,6 +84,17 @@ scheduledDeletionAt = signal<string | null>(null);
 
   // ✅ payload מטופס כ-any כדי לא לקבל "{}"
   payload = computed<any>(() => this.req()?.payload ?? {});
+// ✅ Overlay loading (כמו בהשלמת שיעור)
+busy = signal(false);
+action = signal<'approve' | 'reject' | null>(null);
+
+busyText = computed(() => {
+  switch (this.action()) {
+    case 'approve': return 'הבקשה בתהליך אישור…';
+    case 'reject':  return 'הבקשה בתהליך דחייה…';
+    default:        return 'מעבד…';
+  }
+});
 
   childFullName = computed(() => {
     const r = this.req();
@@ -275,29 +287,29 @@ async approve() {
   const r = this.req();
   if (!r) return;
 
+  this.action.set('approve');
+  this.busy.set(true);
+
   const childId = this.getChildId();
   if (!childId) {
+    this.busy.set(false);
+    this.action.set(null);
     this.error.emit('חסר childId בבקשה');
     return;
   }
 
   try {
-    // tenant schema כמו בחשבוניות
-    // const tenantSchema = await this.getTenantSchemaOrThrow();
     await this.tenantSvc.ensureTenantContextReady();
-const tenant = this.tenantSvc.requireTenant();
-const tenantSchema = tenant.schema;
-const tenantId = tenant.id; // או השם האמיתי אצלך
-
+    const tenant = this.tenantSvc.requireTenant();
+    const tenantSchema = tenant.schema;
+    const tenantId = tenant.id;
 
     const approveUrl =
       'https://us-central1-bereshit-ac5d8.cloudfunctions.net/approveRemoveChildAndNotify';
 
-    // ✅ Firebase Bearer token (כי ה-CF דורשת requireAuth אם אין internal secret)
     const user = getAuth().currentUser;
     if (!user) throw new Error('המשתמש לא מחובר');
     const token = await user.getIdToken();
-
 
     const resp = await fetch(approveUrl, {
       method: 'POST',
@@ -305,57 +317,52 @@ const tenantId = tenant.id; // או השם האמיתי אצלך
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({
-  tenantSchema,
-  tenantId,
-  childId,
-  requestId: r.id,
-  
-}),
-
+      body: JSON.stringify({ tenantSchema, tenantId, childId, requestId: r.id }),
     });
 
     const raw = await resp.text();
     let json: any = null;
     try { json = JSON.parse(raw); } catch {}
-
     if (!resp.ok || !json?.ok) {
       throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
     }
 
-    // תאריך המחיקה שחזר מהשרת
     this.scheduledDeletionAt.set(json.scheduledDeletionAt ?? null);
 
-    // עדכון UI
     const e = { requestId: r.id, newStatus: 'APPROVED' as const };
     this.approved.emit(e);
-    
     this.showSnack('הבקשה אושרה בהצלחה ✅', 'success');
     this.onApproved?.(e);
 
     await this.loadRemainingLessons();
-
   } catch (err: any) {
     const msg = err?.message ?? 'שגיאה באישור המחיקה';
     this.showSnack(msg, 'error');
     this.error.emit(msg);
     this.onError?.(msg);
+  } finally {
+    this.busy.set(false);
+    this.action.set(null);
   }
 }
-
 async reject(args?: { source: 'user' | 'system'; reason?: string }) {
   const r = this.req();
   if (!r) return;
 
+  this.action.set('reject');
+  this.busy.set(true);
+
   const childId = this.getChildId();
   if (!childId) {
+    this.busy.set(false);
+    this.action.set(null);
     this.error.emit('חסר childId בבקשה');
     return;
   }
+
   const reason = (args?.reason ?? '').trim();
 
   try {
-    // ✅ tenant schema/id כמו באישור
     await this.tenantSvc.ensureTenantContextReady();
     const tenant = this.tenantSvc.requireTenant();
     const tenantSchema = tenant.schema;
@@ -364,7 +371,6 @@ async reject(args?: { source: 'user' | 'system'; reason?: string }) {
     const rejectUrl =
       'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectRemoveChildAndNotify';
 
-    // ✅ Firebase Bearer token
     const user = getAuth().currentUser;
     if (!user) throw new Error('המשתמש לא מחובר');
     const token = await user.getIdToken();
@@ -380,33 +386,31 @@ async reject(args?: { source: 'user' | 'system'; reason?: string }) {
         tenantId,
         childId,
         requestId: r.id,
-        decisionNote: reason, // 👈 חדש: להעביר לשרת
-
+        decisionNote: reason || null,
       }),
     });
 
     const raw = await resp.text();
     let json: any = null;
     try { json = JSON.parse(raw); } catch {}
-
     if (!resp.ok || !json?.ok) {
       throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
     }
 
-    // ✅ עדכון UI (הבקשה נעלמת מיד מהממתינים)
     const e = { requestId: r.id, newStatus: 'REJECTED' as const };
     this.rejected.emit(e);
     this.showSnack('הבקשה נדחתה בהצלחה ✅', 'success');
     this.onRejected?.(e);
 
-    // אופציונלי: רענון "שיעורים שנותרו" (אחרי דחייה זה בעצם שיעורים רגילים)
     await this.loadRemainingLessons?.();
-
   } catch (err: any) {
     const msg = err?.message ?? 'שגיאה בדחיית הבקשה';
     this.showSnack(msg, 'error');
     this.error.emit(msg);
     this.onError?.(msg);
+  } finally {
+    this.busy.set(false);
+    this.action.set(null);
   }
 }
 

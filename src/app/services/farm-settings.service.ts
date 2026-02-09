@@ -15,11 +15,13 @@ export interface FarmSettings {
   time_slot_minutes?: number | null;
 
   cancel_before_hours?: number | null;
+    leave_buffer_minutes?: number | null;
   late_cancel_policy?: 'CHARGE_FULL' | 'CHARGE_PARTIAL' | 'NO_CHARGE' | 'NO_MAKEUP' | null;
   late_cancel_fee_amount?: number | null;
   late_cancel_fee_percent?: number | null;
 
   makeup_allowed_days_ahead?: number | null;
+    parent_booking_days_ahead?: number | null;
   attendance_default?: 'ASSUME_ATTENDED' | 'ASSUME_ABSENT' | 'REQUIRE_MARKING' | null;
 
   send_lesson_reminder?: boolean | null;

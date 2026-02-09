@@ -134,6 +134,8 @@ export interface UiRequest {
   payload: any;
   childId?: string | null;
   instructorId?: string | null;
+  lessonOccId?: string | null;
+
 }
 
 export interface NewSeriesDetails {

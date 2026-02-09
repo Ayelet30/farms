@@ -15,10 +15,16 @@ type ReminderChannel = 'EMAIL' | 'SMS' | 'APP' | 'WHATSAPP';
 type CalendarKind = 'GREGORIAN' | 'HEBREW';
 type RecurrenceKind = 'ONCE' | 'YEARLY';
 type DayType = 'FULL_DAY' | 'PARTIAL_DAY';
+interface RidingType {
+  id: UUID;
+  name: string;
+  is_active: boolean;
+}
 
 interface FarmSettings {
+  availability_days_ahead?: number | null;
   id?: UUID;
-
+  leave_buffer_minutes?: number | null;
   operating_hours_start: string | null;
   operating_hours_end: string | null;
 
@@ -31,6 +37,7 @@ interface FarmSettings {
 
   makeup_allowed_days_back: number | null;
   makeup_allowed_days_ahead: number | null;
+    parent_booking_days_ahead?: number | null;
   max_makeups_in_period: number | null;
   makeups_period_days: number | null;
   displayed_makeup_lessons_count: number | null;
@@ -162,6 +169,28 @@ interface FarmWorkingHours {
   office_start: string | null;
   office_end: string | null;
 }
+type SettingsErrors = {
+  lesson_duration_minutes?: string;
+  availability_days_ahead?: string;
+  default_lessons_per_series?: string;
+  cancel_before_hours?: string;
+  parent_booking_days_ahead?: string;
+  max_group_size?: string;
+    default_lesson_price?: string;
+  max_lessons_per_week_per_child?: string;
+  makeup_allowed_days_ahead?: string;
+  makeup_allowed_days_back?: string;
+  max_makeups_in_period?: string;
+  makeups_period_days?: string;
+  late_cancel_fee_amount?: string;
+  late_cancel_fee_percent?: string;
+  reminder_hours_before?: string;
+notify_before_farm_closure_hours?: string;
+min_time_between_cancellations?: string;
+registration_fee?: string;
+student_insurance_premiums?: string;
+
+};
 
 @Component({
   selector: 'app-farm-settings',
@@ -186,6 +215,13 @@ export class FarmSettingsComponent implements OnInit {
 
   newListNoteText = signal<string>('');
   listNotesExpanded = signal(true);
+  // ====== Riding Types ======
+ridingTypes = signal<RidingType[]>([]);
+showNewRidingTypeForm = signal(false);
+editingRidingTypeId = signal<UUID | null>(null);
+newRidingTypeName = signal('');
+ridingTypesExpanded = signal(true);
+
   // שבת: ו׳ מ-16:00 ועד מוצ"ש 19:00
 private readonly SHABBAT_START = '16:00';
 private readonly SHABBAT_END = '19:00';
@@ -218,6 +254,8 @@ hasAnyActiveWorkingDay(): boolean {
   success = signal<string | null>(null);
 
   settings = signal<FarmSettings | null>(null);
+  settingsErrors = signal<SettingsErrors>({});
+
 
   // Accordion hours
   workingHoursExpanded = signal(true);
@@ -303,6 +341,7 @@ hasAnyActiveWorkingDay(): boolean {
       this.loadFarmDaysOff(),
       this.loadWorkingHours(),
       this.loadListNotes(),
+        this.loadRidingTypes(),
     ]);
 
     if (!this.workingHours().length) {
@@ -326,6 +365,11 @@ hasAnyActiveWorkingDay(): boolean {
   // =============================
   // Helpers
   // =============================
+  private clearFocus(): void {
+  const el = document.activeElement as HTMLElement | null;
+  el?.blur();
+}
+
   toggleWorkingHoursExpanded(): void {
     this.workingHoursExpanded.set(!this.workingHoursExpanded());
   }
@@ -1087,9 +1131,16 @@ canSaveWorkingHours(): boolean {
     if (data) {
       const s: FarmSettings = {
         ...data,
+        availability_days_ahead: data.availability_days_ahead ?? 30,
+
+        default_lessons_per_series:
+  data.default_lessons_per_series ?? 12,
+
+parent_booking_days_ahead: data.parent_booking_days_ahead ?? null,
 
         operating_hours_start: this.t5(data.operating_hours_start) ?? '08:00',
         operating_hours_end: this.t5(data.operating_hours_end) ?? '20:00',
+leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
 
         office_hours_start: this.t5(data.office_hours_start) ?? '08:30',
         office_hours_end: this.t5(data.office_hours_end) ?? '16:00',
@@ -1119,7 +1170,7 @@ canSaveWorkingHours(): boolean {
     this.settings.set({
       operating_hours_start: '08:00',
       operating_hours_end: '20:00',
-
+  leave_buffer_minutes: 0, 
       office_hours_start: '08:30',
       office_hours_end: '16:00',
 
@@ -1171,13 +1222,176 @@ canSaveWorkingHours(): boolean {
       max_group_size: 6,
       max_lessons_per_week_per_child: 2,
       allow_online_booking: true,
+      
     });
   }
+  validateSettingsFields(s: FarmSettings): void {
+  const errors: SettingsErrors = {};
+if (
+  s.default_lesson_price != null &&
+  (s.default_lesson_price < 0 || s.default_lesson_price > 1000)
+) {
+  errors.default_lesson_price = 'מחיר שיעור חייב להיות בין 0 ל־999 ₪';
+}
+if (
+  s.student_insurance_premiums != null &&
+  (s.student_insurance_premiums < 0 || s.student_insurance_premiums > 2000)
+) {
+  errors.student_insurance_premiums =
+    'ביטוח תלמידים חייב להיות בין 0 ל־2000 ₪';
+}
+if (
+  s.registration_fee != null &&
+  (s.registration_fee < 0 || s.registration_fee > 5000)
+) {
+  errors.registration_fee =
+    'דמי רישום חייבים להיות בין 0 ל־5000 ₪';
+}
+if (s.min_time_between_cancellations) {
+  const [h, m] = s.min_time_between_cancellations.split(':').map(Number);
+  if (
+    isNaN(h) || isNaN(m) ||
+    h < 0 || h > 24 ||
+    m < 0 || m > 59
+  ) {
+    errors.min_time_between_cancellations =
+      'הפרש בין ביטולים חייב להיות בפורמט שעות:דקות ועד 24:00';
+  }
+}
+if (
+  s.notify_before_farm_closure_hours != null &&
+  (s.notify_before_farm_closure_hours < 0 || s.notify_before_farm_closure_hours > 720)
+) {
+  errors.notify_before_farm_closure_hours =
+    'התראה לפני חופש חווה – בין 0 ל־720 שעות';
+}
+if (
+  s.reminder_hours_before != null &&
+  (s.reminder_hours_before < 0 || s.reminder_hours_before > 168)
+) {
+  errors.reminder_hours_before =
+    'תזכורת לשיעור – בין 0 ל־168 שעות לפני';
+}
+
+if (
+  s.max_lessons_per_week_per_child != null &&
+  (s.max_lessons_per_week_per_child < 1 || s.max_lessons_per_week_per_child > 14)
+) {
+  errors.max_lessons_per_week_per_child =
+    'מקסימום שיעורים בשבוע חייב להיות בין 1 ל־14';
+}
+if (
+  s.makeup_allowed_days_ahead != null &&
+  (s.makeup_allowed_days_ahead < 0 || s.makeup_allowed_days_ahead > 365)
+) {
+  errors.makeup_allowed_days_ahead =
+    'קביעת השלמה קדימה – עד 365 ימים';
+}
+if (
+  s.makeup_allowed_days_back != null &&
+  (s.makeup_allowed_days_back < 0 || s.makeup_allowed_days_back > 365)
+) {
+  errors.makeup_allowed_days_back =
+    'השלמה אחורה – עד 365 ימים';
+}
+if (
+  s.max_makeups_in_period != null &&
+  (s.max_makeups_in_period < 0 || s.max_makeups_in_period > 50)
+) {
+  errors.max_makeups_in_period =
+    'מספר השלמות בתקופה חייב להיות בין 0 ל־50';
+}
+if (
+  s.makeups_period_days != null &&
+  (s.makeups_period_days < 1 || s.makeups_period_days > 365)
+) {
+  errors.makeups_period_days =
+    'תקופת השלמות חייבת להיות בין יום ל־365 ימים';
+}
+if (
+  s.late_cancel_fee_amount != null &&
+  (s.late_cancel_fee_amount < 0 || s.late_cancel_fee_amount > 1000)
+) {
+  errors.late_cancel_fee_amount =
+    'קנס ביטול (₪) חייב להיות בין 0 ל־1000';
+}
+if (
+  s.late_cancel_fee_percent != null &&
+  (s.late_cancel_fee_percent < 0 || s.late_cancel_fee_percent > 100)
+) {
+  errors.late_cancel_fee_percent =
+    'קנס ביטול (%) חייב להיות בין 0 ל־100';
+}
+
+  if (
+    s.lesson_duration_minutes != null &&
+    (s.lesson_duration_minutes < 10 || s.lesson_duration_minutes > 180)
+  ) {
+    errors.lesson_duration_minutes = 'אורך שיעור חייב להיות בין 10 ל־180 דקות';
+  }
+
+  if (
+    s.availability_days_ahead != null &&
+    (s.availability_days_ahead < 1 || s.availability_days_ahead > 365)
+  ) {
+    errors.availability_days_ahead = 'טווח חישוב זמינות חייב להיות בין 1 ל־365 ימים';
+  }
+
+  if (
+    s.default_lessons_per_series != null &&
+    (s.default_lessons_per_series < 1 || s.default_lessons_per_series > 100)
+  ) {
+    errors.default_lessons_per_series = 'מספר שיעורים בסדרה חייב להיות בין 1 ל־100';
+  }
+
+  if (
+    s.cancel_before_hours != null &&
+    (s.cancel_before_hours < 0 || s.cancel_before_hours > 168)
+  ) {
+    errors.cancel_before_hours = 'ביטול מראש חייב להיות בין 0 ל־168 שעות';
+  }
+
+  if (
+    s.parent_booking_days_ahead != null &&
+    (s.parent_booking_days_ahead < 0 || s.parent_booking_days_ahead > 365)
+  ) {
+    errors.parent_booking_days_ahead = 'קביעת שיעור קדימה – עד שנה בלבד';
+  }
+
+  if (
+    s.max_group_size != null &&
+    (s.max_group_size < 1 || s.max_group_size > 10)
+  ) {
+    errors.max_group_size = 'גודל קבוצה חייב להיות בין 1 ל־10';
+  }
+
+  this.settingsErrors.set(errors);
+}
+
 
   async saveSettings(): Promise<void> {
     const current = this.settings();
     if (!current) return;
+this.validateSettingsFields(current);
 
+if (Object.keys(this.settingsErrors()).length > 0) {
+const messages = Object.values(this.settingsErrors());
+await this.ui.alert(
+  'לא ניתן לשמור:\n\n• ' + messages.join('\n• '),
+  'שגיאה'
+);
+
+  return;
+}
+
+
+  if (!this.validateOfficeHours()) {
+    await this.ui.alert('יש שגיאה בשעות פעילות המשרד.', 'שגיאה');
+    this.error.set('לא ניתן לשמור: יש שגיאה בשעות פעילות המשרד.');
+    return;
+  }
+  this.saving.set(true);
+  
     if (!this.validateOfficeHours()) {
       await this.ui.alert('יש שגיאה בשעות פעילות המשרד.', 'שגיאה');
       this.error.set('לא ניתן לשמור: יש שגיאה בשעות פעילות המשרד.');
@@ -1347,6 +1561,7 @@ canSaveWorkingHours(): boolean {
     await this.ui.alert('גורם המימון נמחק.', 'הצלחה');
   }
 
+
   // =============================
   // Payment Plans
   // =============================
@@ -1389,11 +1604,13 @@ canSaveWorkingHours(): boolean {
     if (!plan.id) return;
     this.editingPlanId.set(plan.id);
   }
+cancelEditPlan(): void {
+  this.editingPlanId.set(null);
+  this.loadPaymentPlans();
 
-  cancelEditPlan(): void {
-    this.editingPlanId.set(null);
-    this.loadPaymentPlans();
-  }
+  setTimeout(() => this.clearFocus());
+}
+
 
   onDocsTextChange(plan: PaymentPlan, value: string): void {
     plan.required_docs = value.split('\n').map(v => v.trim()).filter(Boolean);
@@ -1402,6 +1619,101 @@ canSaveWorkingHours(): boolean {
   onNewPlanDocsChange(value: string): void {
     this.newPlan.required_docs = value.split('\n').map(v => v.trim()).filter(Boolean);
   }
+// =============================
+// Riding Types
+// =============================
+
+private async loadRidingTypes(): Promise<void> {
+  const { data, error } = await this.supabase
+    .from('riding_types')
+    .select('*')
+    .order('name');
+      const filtered = (data ?? []).filter(
+        (    rt: { name: string; }) => rt.name !== 'הפסקה'
+  );
+
+  this.ridingTypes.set(filtered);
+
+  if (error) {
+    console.error('loadRidingTypes error', error);
+    this.error.set('לא ניתן לטעון סוגי רכיבה');
+    return;
+  }
+
+
+}
+
+async addRidingType(): Promise<void> {
+  const name = this.newRidingTypeName().trim();
+  if (!name) return;
+
+  const { error } = await this.supabase
+    .from('riding_types')
+    .insert({ name });
+
+  if (error) {
+    console.error('addRidingType error', error);
+    await this.ui.alert('הוספת סוג רכיבה נכשלה.', 'שגיאה');
+    return;
+  }
+
+  this.newRidingTypeName.set('');
+  this.showNewRidingTypeForm.set(false);
+  await this.loadRidingTypes();
+}
+
+startEditRidingType(rt: RidingType): void {
+  this.editingRidingTypeId.set(rt.id);
+}
+
+cancelEditRidingType(): void {
+  this.editingRidingTypeId.set(null);
+  this.loadRidingTypes();
+}
+
+async updateRidingType(rt: RidingType): Promise<void> {
+  const { error } = await this.supabase
+    .from('riding_types')
+    .update({
+      name: rt.name,
+      is_active: rt.is_active,
+    })
+    .eq('id', rt.id);
+
+  if (error) {
+    console.error('updateRidingType error', error);
+    await this.ui.alert('עדכון סוג רכיבה נכשל.', 'שגיאה');
+    return;
+  }
+
+  this.editingRidingTypeId.set(null);
+  await this.loadRidingTypes();
+}
+
+async deleteRidingType(rt: RidingType): Promise<void> {
+  const ok = await this.ui.confirm({
+    title: 'מחיקת סוג רכיבה',
+    message: `למחוק את "${rt.name}"?`,
+    okText: 'מחיקה',
+    cancelText: 'ביטול',
+    showCancel: true,
+  });
+
+  if (!ok) return;
+
+  const { error } = await this.supabase
+    .from('riding_types')
+    .delete()
+    .eq('id', rt.id);
+
+  if (error) {
+    console.error('deleteRidingType error', error);
+    await this.ui.alert('מחיקת סוג רכיבה נכשלה.', 'שגיאה');
+    return;
+  }
+
+  await this.loadRidingTypes();
+}
 
   private normalizePlanForSave(plan: PaymentPlan): any {
     return {
@@ -1586,6 +1898,8 @@ canSaveWorkingHours(): boolean {
     this.settings.set({
       ...s,
       default_lessons_per_series: checked ? null : (s.default_lessons_per_series ?? 12),
+      leave_buffer_minutes: 0,
+
     });
   }
 
@@ -1739,8 +2053,14 @@ fundingSourcesExpanded = signal(true);
 
 togglePaymentPlansExpanded() {
   this.paymentPlansExpanded.update(v => !v);
-  if (!this.paymentPlansExpanded()) this.showNewPlanForm.set(false);
+
+  if (!this.paymentPlansExpanded()) {
+    this.showNewPlanForm.set(false);
+  }
+
+  setTimeout(() => this.clearFocus());
 }
+
 
 toggleFundingSourcesExpanded() {
   this.fundingSourcesExpanded.update(v => !v);
