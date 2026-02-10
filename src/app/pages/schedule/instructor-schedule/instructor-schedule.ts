@@ -160,7 +160,7 @@ showAffectedParentsPopup = false;
       const user = await this.cu.loadUserDetails();
       this.instructorId = String(user?.id_number || '').trim();
       if (!this.instructorId) throw new Error('לא נמצא מזהה מדריך');
-const { data: instructor } = await dbTenant()
+  const { data: instructor } = await dbTenant()
   .from('instructors')
   .select('color_hex')
   .eq('id_number', this.instructorId)
@@ -479,22 +479,20 @@ const req = this.dayRequests.find(
 
         const item: ScheduleItem = {
           id: `summary_${day}`,
-          title: parts.join(' | '),
+          title: parts.join('\n'),
           start: day,
           end: day,
           color: 'transparent', 
-          
           status: 'summary',
-    meta: {
-    isSummaryDay: 'true', // ✅ string ולא boolean
-  },
-
-        };
+          meta: {
+         isSummaryDay: 'true', 
+       },
+     };
 
         return item;
       });
-const farmOffItems = this.farmDaysOffToItems();
-const instructorOffItems = this.instructorDaysOffToItems();
+    const farmOffItems = this.farmDaysOffToItems();
+    const instructorOffItems = this.instructorDaysOffToItems();
 
 this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
 
@@ -1341,9 +1339,10 @@ private farmDaysOffToItems(): ScheduleItem[] {
     const title =
       d.reason?.trim()
         ? `🏖 ${d.reason}`
-        : isFullDay
-        ? '🏖 חופשת חווה – יום מלא'
-        : '🏖 חופשת חווה – לפי שעות';
+       : isFullDay
+     ? '🏖 חופשת חווה\nיום מלא'
+     : '🏖 חופשת חווה\nלפי שעות';
+
 
        return {
         id: `farm_off_${d.id}`,
