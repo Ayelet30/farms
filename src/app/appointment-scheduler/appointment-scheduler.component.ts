@@ -2138,8 +2138,9 @@ const baseLessonUid = this.selectedMakeupCandidate!.lesson_occ_exception_id ?? n
     //   return;
     // }
 
-    this.makeupCreatedMessage =
-      'בקשת ההשלמה נשלחה למזכירה ✔️';
+   this.showSuccessToast('בקשת ההשלמה נשלחה למזכירה ✔️');
+this.makeupCreatedMessage = null; // אם את עדיין מציגה אותו איפשהו
+
 this.makeupCandidates = this.makeupCandidates.filter(x => !this.sameCandidate(x, this.selectedMakeupCandidate!));
 this.selectedMakeupCandidate = null;
 this.candidateSlots = [];
