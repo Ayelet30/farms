@@ -2138,8 +2138,9 @@ const baseLessonUid = this.selectedMakeupCandidate!.lesson_occ_exception_id ?? n
     //   return;
     // }
 
-    this.makeupCreatedMessage =
-      'בקשת ההשלמה נשלחה למזכירה ✔️';
+   this.showSuccessToast('בקשת ההשלמה נשלחה למזכירה ✔️');
+this.makeupCreatedMessage = null; // אם את עדיין מציגה אותו איפשהו
+
 this.makeupCandidates = this.makeupCandidates.filter(x => !this.sameCandidate(x, this.selectedMakeupCandidate!));
 this.selectedMakeupCandidate = null;
 this.candidateSlots = [];
@@ -3256,6 +3257,8 @@ private async submitSeriesRequestToSecretary(slot: RecurringSlotWithSkips): Prom
   // ===== payload לבקשה =====
   const payload: any = {
     requested_start_time: built.startTime,
+      requested_end_time: built.endTime,  
+
       repeat_weeks: this.isOpenEndedSeries ? null : this.seriesLessonCount,
 
     is_open_ended: this.isOpenEndedSeries,

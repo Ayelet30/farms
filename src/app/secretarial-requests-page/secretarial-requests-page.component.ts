@@ -48,6 +48,15 @@ import { firstValueFrom } from 'rxjs';
 import { BulkDecisionDialogComponent, BulkDecisionDialogResult } from './bulk-decision-dialog/bulk-decision-dialog.component';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
+export enum Check {
+  Expiry = 'expiry',
+  Requester = 'requester',
+  Child = 'child',
+  Instructor = 'instructor',
+  ParentTarget = 'parentTarget',
+  FarmDayOff = 'farmDayOff', 
+
+}
 
 
 type ToastKind = 'success' | 'error' | 'info';
@@ -58,6 +67,12 @@ type ValidationResult = { ok: true } | { ok: false; reason: string };
 type RejectSource = 'user' | 'system';
 type RejectArgs = { source: RejectSource; reason?: string };
 type RequesterRole = 'parent' | 'instructor' | 'secretary' | 'admin' | 'manager';
+type CheckKey = 'expiry' | 'requester' | 'child' | 'instructor' | 'parentTarget';
+
+type RequestRule = {
+  checks: Check[];
+  allowedChildStatuses?: Set<string>;
+};
 
 
 
@@ -75,12 +90,72 @@ export class SecretarialRequestsPageComponent implements OnInit {
   @Input() onRejected?: (e: any) => void;
   @Input() onError?: (e: any) => void;
 
+private REQUEST_RULES: Record<RequestType, RequestRule> = {
+  CANCEL_OCCURRENCE: {
+    checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor],
+    allowedChildStatuses: new Set([
+      'Active',
+      'Deletion Scheduled',
+      'Pending Deletion Approval',
+    ]),
+  },
+
+  INSTRUCTOR_DAY_OFF: {
+    checks: [Check.Expiry, Check.Requester, Check.Instructor , Check.FarmDayOff],
+  },
+
+ NEW_SERIES: {
+  checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff],
+  allowedChildStatuses: new Set(['Active','Deletion Scheduled','Pending Deletion Approval']),
+},
+
+
+  MAKEUP_LESSON: {
+    checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor , Check.FarmDayOff],
+    allowedChildStatuses: new Set([
+      'Active',
+      'Deletion Scheduled',
+      'Pending Deletion Approval',
+    ]),
+  },
+
+  FILL_IN: {
+    checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor , Check.FarmDayOff],
+    allowedChildStatuses: new Set([
+      'Active',
+      'Deletion Scheduled',
+      'Pending Deletion Approval',
+    ]),
+  },
+
+  ADD_CHILD: {
+    checks: [Check.Expiry, Check.Requester, Check.ParentTarget, Check.Child],
+    allowedChildStatuses: new Set(['Pending Addition Approval']),
+  },
+
+  DELETE_CHILD: {
+    checks: [Check.Expiry, Check.Requester, Check.Child],
+    allowedChildStatuses: new Set(['Pending Deletion Approval']),
+  },
+
+  PARENT_SIGNUP: {
+    checks: [],
+  },
+  OTHER_REQUEST:{
+    checks:[],
+  },
+};
+
   private cu = inject(CurrentUserService);
   private sanitizer = inject(DomSanitizer);
   private detailsSubs: Subscription[] = [];
   private bo = inject(BreakpointObserver);
   private autoRejectInFlight = false;
 private dialog = inject(MatDialog);
+private getRulesFor(row: UiRequest): RequestRule {
+  const type = row.requestType as RequestType;
+return this.REQUEST_RULES[type] ?? { checks: [Check.Requester] };
+}
 
   isMobile = signal(false);
 
@@ -948,56 +1023,12 @@ get hasSelectableRows(): boolean {
 
 
 private async isValidRequset(row: UiRequest, _instance?: any, mode: ValidationMode = 'auto') {
-  if (!row) return { ok: false, reason: 'בקשה לא תקינה' };
-
-  const expiryReason = this.getExpiryReason(row);
-  if (expiryReason) return { ok: false, reason: expiryReason };
-
-  await ensureTenantContextReady();
-  const db = dbTenant();
-
-  // ✅ קריטי: מבקש פעיל לפי requested_by_role
-  const requesterCheck = await this.checkRequesterActive(db, row, mode);
-  if (!requesterCheck.ok) return requesterCheck;
-
-  // שאר הבדיקות (על “מי שבשבילו” הבקשה)
-  const childCheck = await this.checkChildActive(db, row, mode);
-  if (!childCheck.ok) return childCheck;
-
-  const instructorCheck = await this.checkInstructorActive(db, row, mode);
-  if (!instructorCheck.ok) return instructorCheck;
-
-  // const conflictCheck = await this.checkLessonSlotConflict(db, row, mode);
-  // if (!conflictCheck.ok) return conflictCheck;
-
-  return { ok: true };
+  return await this.validateRequestByRules(row, mode);
 }
 
-private async isCriticalValidRequest(
-  row: UiRequest,
-  mode: ValidationMode = 'auto'
-): Promise<{ ok: boolean; reason?: string }> {
-  if (!row) return { ok: false, reason: 'בקשה לא תקינה' };
-
-  // ✅ חדש: תוקף לפי זמן/תאריך
-  const expiryReason = this.getExpiryReason(row);
-  if (expiryReason) return { ok: false, reason: expiryReason };
-
-  await ensureTenantContextReady();
-  const db = dbTenant();
-
-  const childCheck = await this.checkChildActive(db, row, mode);
-  if (!childCheck.ok) return childCheck;
-
-  const instructorCheck = await this.checkInstructorActive(db, row, mode);
-  if (!instructorCheck.ok) return instructorCheck;
-
-  const requesterCheck = await this.checkRequesterActive(db, row, mode);
-  if (!requesterCheck.ok) return requesterCheck;
-
-  return { ok: true };
+private async isCriticalValidRequest(row: UiRequest, mode: ValidationMode = 'auto') {
+  return await this.validateRequestByRules(row, mode);
 }
-
 
 private async autoRejectCriticalInvalidRequests(context: 'load' | 'postBulk') {
   if (!this.isSecretary || !this.curentUser) return;
@@ -1046,11 +1077,19 @@ private getExpiryReason(row: UiRequest): string | null {
 
   switch (row.requestType) {
     case 'CANCEL_OCCURRENCE': {
-      const dateStr = p.occur_date ?? row.fromDate ?? null;
-      const timeStr = p.start_time ?? p.startTime ?? p.time ?? null;
-      if (isPast(dateStr, timeStr)) return 'עבר מועד השיעור לביטול';
-      return null;
-    }
+  const dateStr = p.occur_date ?? row.fromDate ?? null;
+
+  const timeStr =
+    p.start_time ??
+    p.requested_start_time ??  
+    p.startTime ??
+    p.time ??
+    null;
+
+  if (isPast(dateStr, timeStr)) return 'עבר מועד השיעור לביטול';
+  return null;
+}
+
     case 'INSTRUCTOR_DAY_OFF': {
       const end = row.toDate ?? row.fromDate ?? null;
       if (isPast(end, '23:59')) return 'עבר מועד חופשת המדריך';
@@ -1089,8 +1128,15 @@ private getChildIdForRequest(row: UiRequest): string | null {
 
 private getInstructorIdForRequest(row: UiRequest): string | null {
   const p: any = row.payload ?? {};
-  return row.instructorId ?? p.instructor_id ?? p.instructorId ?? null;
+  return (
+    row.instructorId ??
+    p.instructor_id_number ??
+    p.instructor_id ??
+    p.instructorId ??
+    null
+  );
 }
+
 
 private getParentUidForRequest(row: UiRequest): string | null {
   const p: any = row.payload ?? {};
@@ -1100,8 +1146,12 @@ private getParentUidForRequest(row: UiRequest): string | null {
 }
 
 
-private async checkChildActive(db: any, row: UiRequest, mode: ValidationMode)
-  : Promise<{ ok: boolean; reason?: string }> {
+private async checkChildActive(
+  db: any,
+  row: UiRequest,
+  mode: ValidationMode,
+  allowedStatuses?: Set<string>
+): Promise<{ ok: boolean; reason?: string }> {
 
   const childId = this.getChildIdForRequest(row);
   if (!childId) return { ok: true };
@@ -1109,7 +1159,7 @@ private async checkChildActive(db: any, row: UiRequest, mode: ValidationMode)
   try {
     const { data, error } = await db
       .from('children')
-      .select('status , scheduled_deletion_at')
+      .select('status, scheduled_deletion_at')
       .eq('child_uuid', childId)
       .maybeSingle();
 
@@ -1118,83 +1168,320 @@ private async checkChildActive(db: any, row: UiRequest, mode: ValidationMode)
       return r.ok ? { ok: true } : { ok: false, reason: r.reason };
     }
 
-    const status = (data as any)?.status ?? null;
-
-    // אם אין רשומה בכלל – בעיני עדיף לחסום באישור (approve) ולדלג ב-auto
     if (!data) {
       if (mode === 'auto') return { ok: true };
       return { ok: false, reason: 'לא נמצא ילד במערכת' };
     }
-const scheduledDeletionAt = (data as any)?.scheduled_deletion_at ?? null;
 
-// ✅ חדש: אם הילד ב-Deletion Scheduled ובקשה היא MAKEUP/FILL_IN,
-// ואם השיעור המבוקש נופל אחרי מועד המחיקה → דחייה אוטומטית
-if (
-  status === 'Deletion Scheduled' &&
-  scheduledDeletionAt &&
-  (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN')
-) {
-  const p: any = row.payload ?? {};
+    const status = (data as any)?.status ?? null;
+    const scheduledDeletionAt = (data as any)?.scheduled_deletion_at ?? null;
 
-  // תאריך/שעה של השיעור המבוקש
-  const dateStr =
-    row.fromDate ?? row.fromDate ?? p.occur_date ?? p.from_date ?? null;
+    // ✅ נשאר לך החוק המיוחד ל-Deletion Scheduled עבור MAKEUP/FILL_IN
+    if (
+      status === 'Deletion Scheduled' &&
+      scheduledDeletionAt &&
+      (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN')
+    ) {
+      const p: any = row.payload ?? {};
+      const dateStr = row.fromDate ?? p.occur_date ?? p.from_date ?? null;
+      const timeStr = p.requested_start_time ?? p.start_time ?? p.startTime ?? '00:00';
 
-  const timeStr =
-    p.requested_start_time ?? p.start_time ?? p.startTime ?? '00:00';
-
-  if (dateStr) {
-    const reqDt = this.combineDateTime(String(dateStr), String(timeStr));
-    const delDt = new Date(String(scheduledDeletionAt)); // timestamp מה-DB (עם TZ)
-
-    if (!isNaN(delDt.getTime()) && reqDt.getTime() >= delDt.getTime()) {
-      const delPretty = new Date(delDt).toLocaleString('he-IL');
-      return {
-        ok: false,
-        reason: `הבקשה נדחתה אוטומטית: הילד/ה מתוזמן/ת למחיקה ב-${delPretty}, והשיעור המבוקש לאחר מועד זה.`,
-      };
+      if (dateStr) {
+        const reqDt = this.combineDateTime(String(dateStr), String(timeStr));
+        const delDt = new Date(String(scheduledDeletionAt));
+        if (!isNaN(delDt.getTime()) && reqDt.getTime() >= delDt.getTime()) {
+          const delPretty = new Date(delDt).toLocaleString('he-IL');
+          return {
+            ok: false,
+            reason: `הבקשה נדחתה אוטומטית: הילד/ה מתוזמן/ת למחיקה ב-${delPretty}, והשיעור המבוקש לאחר מועד זה.`,
+          };
+        }
+      }
     }
-  }
-}
 
- // ✅ סטטוסים מותרים לפי סוג בקשה
-const allowedStatusesForType = (type: RequestType): Set<string> => {
-  switch (type) {
-    case 'DELETE_CHILD':
-      // חייב להיות רק זה
-      return new Set(['Pending Deletion Approval']);
+    // ✅ אם אין allowedStatuses → לא בודקים סטטוס ילד
+    if (!allowedStatuses || allowedStatuses.size === 0) return { ok: true };
 
-    case 'NEW_SERIES':
-    case 'FILL_IN':
-    case 'MAKEUP_LESSON':
-      return new Set(['Active', 'Deletion Scheduled']);
-
-    default:
-      // אם הבקשה לא תלויה בסטטוס ילד — לא נחסום
-      return new Set<string>([]);
-  }
-};
-
-const allowed = allowedStatusesForType(row.requestType);
-
-// אם אין סטטוסים מוגדרים לסוג הזה → לא בודקים סטטוס ילד
-if (allowed.size === 0) return { ok: true };
-
-if (!allowed.has(status)) {
-  // הודעה יותר מדויקת למחיקה
-  if (row.requestType === 'DELETE_CHILD') {
-    return { ok: false, reason: `כדי למחוק ילד, הסטטוס חייב להיות Pending Deletion Approval (כרגע: ${status})` };
-  }
-
-  return { ok: false, reason: `הילד אינו מתאים לבקשה (סטטוס: ${status})` };
-}
-
-return { ok: true };
+    if (!allowedStatuses.has(status)) {
+      if (row.requestType === 'DELETE_CHILD') {
+        return { ok: false, reason: `כדי למחוק ילד, הסטטוס חייב להיות Pending Deletion Approval (כרגע: ${status})` };
+      }
+      return { ok: false, reason: `הילד אינו מתאים לבקשה (סטטוס: ${status})` };
+    }
 
     return { ok: true };
   } catch (e: any) {
     const r = this.handleDbFailure(mode, 'checkChildActive', e);
     return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+  }
+}
+private async validateRequestByRules(
+  row: UiRequest,
+  mode: ValidationMode
+): Promise<{ ok: boolean; reason?: string }> {
+
+  if (!row) return { ok: false, reason: 'בקשה לא תקינה' };
+
+  const rules = this.getRulesFor(row);
+
+  await ensureTenantContextReady();
+  const db = dbTenant();
+
+  for (const check of rules.checks) {
+  switch (check) {
+    case Check.Expiry: {
+      const expiryReason = this.getExpiryReason(row);
+      if (expiryReason) return { ok: false, reason: expiryReason };
+      break;
+    }
+
+    case Check.Requester: {
+      const r = await this.checkRequesterActive(db, row, mode);
+      if (!r.ok) return r;
+      break;
+    }
+
+    case Check.Child: {
+      const r = await this.checkChildActive(
+        db,
+        row,
+        mode,
+        rules.allowedChildStatuses
+      );
+      if (!r.ok) return r;
+      break;
+    }
+    case Check.FarmDayOff: {
+  const r = await this.checkFarmDayOffConflict(db, row, mode);
+  if (!r.ok) return r;
+  break;
+}
+
+
+    case Check.Instructor: {
+      const r = await this.checkInstructorActive(db, row, mode);
+      if (!r.ok) return r;
+      break;
+    }
+
+    case Check.ParentTarget: {
+      const r = await this.checkParentActive(db, row, mode);
+      if (!r.ok) return r;
+      break;
+    }
+  }
+}
+
+  return { ok: true };
+}
+
+private normalizeTimeHHMM(v: any): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+
+  // אם הגיע ISO עם תאריך (נדיר אצלך אבל שיהיה)
+  // "2026-02-18T10:29:00.000Z" -> "10:29"
+  if (s.includes('T')) {
+    const timePart = s.split('T')[1] ?? '';
+    return timePart.slice(0, 5);
+  }
+
+  // "10:29:00" -> "10:29"
+  if (s.length >= 5) return s.slice(0, 5);
+
+  return null;
+}
+
+private timeToMinutes(hhmm: string): number {
+  const [hh, mm] = hhmm.split(':');
+  const h = Number(hh);
+  const m = Number(mm);
+  if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+  return h * 60 + m;
+}
+
+// חפיפה של דקות: [aStart,aEnd) מול [bStart,bEnd)
+private overlapsMinutes(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  if (aEnd <= aStart || bEnd <= bStart) return false;
+  return aStart < bEnd && bStart < aEnd;
+}
+
+private getRequestedDateAndWindow(row: UiRequest): { date: string; startMin: number; endMin: number } | null {
+  const p: any = row.payload ?? {};
+
+  // תאריך רלוונטי
+  const date =
+    (row.requestType === 'NEW_SERIES'
+      ? (row.fromDate ?? p.series_start_date ?? p.start_date ?? null)
+      : (row.fromDate ?? p.occur_date ?? p.from_date ?? null)
+    );
+
+  if (!date) return null;
+
+  // שעות רלוונטיות
+  const startHHMM = this.normalizeTimeHHMM(
+    p.requested_start_time ?? p.start_time ?? p.startTime ?? p.time ?? null
+  );
+
+  // ✅ חדש: סוף מפורש מה־payload
+  const endHHMM = this.normalizeTimeHHMM(
+    p.requested_end_time ?? p.end_time ?? p.endTime ?? null
+  );
+
+  if (!startHHMM) return null;
+
+  const startMin = this.timeToMinutes(startHHMM);
+
+  // fallback אם אין requested_end_time
+  let endMin: number;
+  if (endHHMM) {
+    endMin = this.timeToMinutes(endHHMM);
+  } else {
+    // ברירת מחדל (אם עדיין לא שולחים end): 30 דקות
+    endMin = startMin + 30;
+  }
+
+  return { date: String(date).slice(0, 10), startMin, endMin };
+}
+
+private async checkFarmDayOffConflict(db: any, row: UiRequest, mode: ValidationMode)
+: Promise<{ ok: boolean; reason?: string }> {
+
+  if (!['MAKEUP_LESSON', 'FILL_IN', 'INSTRUCTOR_DAY_OFF', 'NEW_SERIES'].includes(row.requestType)) {
+    return { ok: true };
+  }
+
+  try {
+    // ---------- INSTRUCTOR_DAY_OFF ----------
+    if (row.requestType === 'INSTRUCTOR_DAY_OFF') {
+      const from = (row.fromDate ?? null)?.slice(0, 10);
+      const to   = (row.toDate ?? row.fromDate ?? null)?.slice(0, 10);
+      if (!from || !to) return { ok: true };
+
+      // אם בבקשה יש שעות — נבדוק חפיפה לפי שעות.
+      // אם אין שעות — נתייחס לזה כיום מלא (יחסום גם שעות).
+      const p: any = row.payload ?? {};
+      const reqStartHHMM = this.normalizeTimeHHMM(p.requested_start_time ?? p.start_time ?? null);
+      const reqEndHHMM   = this.normalizeTimeHHMM(p.requested_end_time ?? p.end_time ?? null);
+
+      const hasWindow = !!(reqStartHHMM && reqEndHHMM);
+      const reqStartMin = hasWindow ? this.timeToMinutes(reqStartHHMM!) : 0;
+      const reqEndMin   = hasWindow ? this.timeToMinutes(reqEndHHMM!)   : 24 * 60;
+
+      const { data, error } = await db
+        .from('farm_days_off')
+        .select('id, reason, day_type, start_date, end_date, start_time, end_time')
+        .eq('is_active', true)
+        .lte('start_date', to)
+        .gte('end_date', from);
+
+      if (error) {
+        const r = this.handleDbFailure(mode, 'checkFarmDayOffConflict(INSTRUCTOR_DAY_OFF)', error);
+        return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+      }
+
+      const offs = (data ?? []) as any[];
+      for (const off of offs) {
+        const dayType = String(off.day_type ?? '');
+
+        if (dayType === 'FULL_DAY') {
+          return {
+            ok: false,
+            reason: `הבקשה נדחתה אוטומטית: יש יום חופש חווה (יום מלא) שחופף לטווח ${from}–${to}${off.reason ? ` (${off.reason})` : ''}.`,
+          };
+        }
+
+        // שעות בחופש חווה
+        const offStart = this.normalizeTimeHHMM(off.start_time);
+        const offEnd   = this.normalizeTimeHHMM(off.end_time);
+        if (!offStart || !offEnd) {
+          return { ok: false, reason: `הבקשה נדחתה אוטומטית: יום חופש חווה מוגדר לפי שעות אך חסרות שעות במערכת.` };
+        }
+
+        const offStartMin = this.timeToMinutes(offStart);
+        const offEndMin   = this.timeToMinutes(offEnd);
+
+        // אם אין שעות בבקשת יום-חופש-מדריך → נחשב כ"יום מלא" ולכן כל שעות חופש חווה חופפות
+        // אם יש שעות בבקשה → בדיקת חפיפה
+        if (!hasWindow || this.overlapsMinutes(reqStartMin, reqEndMin, offStartMin, offEndMin)) {
+          return {
+            ok: false,
+            reason: `הבקשה נדחתה אוטומטית: יש יום חופש חווה שחופף (בתוך הטווח) בין ${offStart}-${offEnd}${off.reason ? ` (${off.reason})` : ''}.`,
+          };
+        }
+      }
+
+      return { ok: true };
+    }
+
+    // ---------- MAKEUP / FILL_IN / NEW_SERIES ----------
+    const w = this.getRequestedDateAndWindow(row);
+    if (!w?.date) return { ok: true };
+
+    const { data, error } = await db
+      .from('farm_days_off')
+      .select('id, reason, day_type, start_date, end_date, start_time, end_time')
+      .eq('is_active', true)
+      .lte('start_date', w.date)
+      .gte('end_date', w.date);
+
+    if (error) {
+      const r = this.handleDbFailure(mode, 'checkFarmDayOffConflict', error);
+      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    }
+
+    const rows = (data ?? []) as any[];
+    for (const off of rows) {
+      const dayType = String(off.day_type ?? '');
+
+      if (dayType === 'FULL_DAY') {
+        return {
+          ok: false,
+          reason: `הבקשה נדחתה אוטומטית: יש יום חופש חווה (יום מלא) בתאריך ${w.date}${off.reason ? ` (${off.reason})` : ''}.`,
+        };
+      }
+
+      const offStart = this.normalizeTimeHHMM(off.start_time);
+      const offEnd   = this.normalizeTimeHHMM(off.end_time);
+
+      if (!offStart || !offEnd) {
+        return {
+          ok: false,
+          reason: `הבקשה נדחתה אוטומטית: יום חופש חווה בתאריך ${w.date} מוגדר לפי שעות אך חסרות שעות במערכת.`,
+        };
+      }
+
+      const offStartMin = this.timeToMinutes(offStart);
+      const offEndMin   = this.timeToMinutes(offEnd);
+
+      if (this.overlapsMinutes(w.startMin, w.endMin, offStartMin, offEndMin)) {
+        return {
+          ok: false,
+          reason: `הבקשה נדחתה אוטומטית: יש יום חופש חווה בתאריך ${w.date} בין ${offStart}-${offEnd}${off.reason ? ` (${off.reason})` : ''}.`,
+        };
+      }
+    }
+
+    return { ok: true };
+
+  } catch (e: any) {
+    const r = this.handleDbFailure(mode, 'checkFarmDayOffConflict', e);
+    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+  }
+}
+
+
+private shouldValidateInstructor(row: UiRequest): boolean {
+  switch (row.requestType) {
+    case 'INSTRUCTOR_DAY_OFF':
+    case 'CANCEL_OCCURRENCE':
+    case 'NEW_SERIES':
+    case 'MAKEUP_LESSON':
+    case 'FILL_IN':
+      return true;
+    default:
+      return false;
   }
 }
 
