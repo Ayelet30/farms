@@ -249,9 +249,10 @@ export class AddChildWizardComponent implements OnInit {
       if (error) throw error;
 
       this.registrationFee = (data as any)?.registration_fee ?? 0;
+      console.log('loadRegistrationFeeFromDb data:', this.registrationFee);
 
       if (this.hasRegistrationFee) {
-        this.payment.registrationAmount = Math.round(this.registrationFee ?? 0);
+        this.payment.registrationAmount = this.registrationFee ?? 0;
       }
     } catch (e) {
       this.registrationFee = 0;
