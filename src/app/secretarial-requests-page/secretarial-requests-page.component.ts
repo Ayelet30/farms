@@ -54,6 +54,8 @@ export enum Check {
   Child = 'child',
   Instructor = 'instructor',
   ParentTarget = 'parentTarget',
+  FarmDayOff = 'farmDayOff', 
+
 }
 
 
@@ -99,20 +101,17 @@ private REQUEST_RULES: Record<RequestType, RequestRule> = {
   },
 
   INSTRUCTOR_DAY_OFF: {
-    checks: [Check.Expiry, Check.Requester, Check.Instructor],
+    checks: [Check.Expiry, Check.Requester, Check.Instructor , Check.FarmDayOff],
   },
 
-  NEW_SERIES: {
-    checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor],
-    allowedChildStatuses: new Set([
-      'Active',
-      'Deletion Scheduled',
-      'Pending Deletion Approval',
-    ]),
-  },
+ NEW_SERIES: {
+  checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff],
+  allowedChildStatuses: new Set(['Active','Deletion Scheduled','Pending Deletion Approval']),
+},
+
 
   MAKEUP_LESSON: {
-    checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor],
+    checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor , Check.FarmDayOff],
     allowedChildStatuses: new Set([
       'Active',
       'Deletion Scheduled',
@@ -121,7 +120,7 @@ private REQUEST_RULES: Record<RequestType, RequestRule> = {
   },
 
   FILL_IN: {
-    checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor],
+    checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor , Check.FarmDayOff],
     allowedChildStatuses: new Set([
       'Active',
       'Deletion Scheduled',
@@ -155,7 +154,7 @@ private REQUEST_RULES: Record<RequestType, RequestRule> = {
 private dialog = inject(MatDialog);
 private getRulesFor(row: UiRequest): RequestRule {
   const type = row.requestType as RequestType;
-  return this.REQUEST_RULES[type] ?? { checks: ['requester'] };
+return this.REQUEST_RULES[type] ?? { checks: [Check.Requester] };
 }
 
   isMobile = signal(false);
@@ -1252,6 +1251,12 @@ private async validateRequestByRules(
       if (!r.ok) return r;
       break;
     }
+    case Check.FarmDayOff: {
+  const r = await this.checkFarmDayOffConflict(db, row, mode);
+  if (!r.ok) return r;
+  break;
+}
+
 
     case Check.Instructor: {
       const r = await this.checkInstructorActive(db, row, mode);
@@ -1268,6 +1273,202 @@ private async validateRequestByRules(
 }
 
   return { ok: true };
+}
+
+private normalizeTimeHHMM(v: any): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+
+  // אם הגיע ISO עם תאריך (נדיר אצלך אבל שיהיה)
+  // "2026-02-18T10:29:00.000Z" -> "10:29"
+  if (s.includes('T')) {
+    const timePart = s.split('T')[1] ?? '';
+    return timePart.slice(0, 5);
+  }
+
+  // "10:29:00" -> "10:29"
+  if (s.length >= 5) return s.slice(0, 5);
+
+  return null;
+}
+
+private timeToMinutes(hhmm: string): number {
+  const [hh, mm] = hhmm.split(':');
+  const h = Number(hh);
+  const m = Number(mm);
+  if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+  return h * 60 + m;
+}
+
+// חפיפה של דקות: [aStart,aEnd) מול [bStart,bEnd)
+private overlapsMinutes(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  if (aEnd <= aStart || bEnd <= bStart) return false;
+  return aStart < bEnd && bStart < aEnd;
+}
+
+private getRequestedDateAndWindow(row: UiRequest): { date: string; startMin: number; endMin: number } | null {
+  const p: any = row.payload ?? {};
+
+  // תאריך רלוונטי
+  const date =
+    (row.requestType === 'NEW_SERIES'
+      ? (row.fromDate ?? p.series_start_date ?? p.start_date ?? null)
+      : (row.fromDate ?? p.occur_date ?? p.from_date ?? null)
+    );
+
+  if (!date) return null;
+
+  // שעות רלוונטיות
+  const startHHMM = this.normalizeTimeHHMM(
+    p.requested_start_time ?? p.start_time ?? p.startTime ?? p.time ?? null
+  );
+
+  // ✅ חדש: סוף מפורש מה־payload
+  const endHHMM = this.normalizeTimeHHMM(
+    p.requested_end_time ?? p.end_time ?? p.endTime ?? null
+  );
+
+  if (!startHHMM) return null;
+
+  const startMin = this.timeToMinutes(startHHMM);
+
+  // fallback אם אין requested_end_time
+  let endMin: number;
+  if (endHHMM) {
+    endMin = this.timeToMinutes(endHHMM);
+  } else {
+    // ברירת מחדל (אם עדיין לא שולחים end): 30 דקות
+    endMin = startMin + 30;
+  }
+
+  return { date: String(date).slice(0, 10), startMin, endMin };
+}
+
+private async checkFarmDayOffConflict(db: any, row: UiRequest, mode: ValidationMode)
+: Promise<{ ok: boolean; reason?: string }> {
+
+  if (!['MAKEUP_LESSON', 'FILL_IN', 'INSTRUCTOR_DAY_OFF', 'NEW_SERIES'].includes(row.requestType)) {
+    return { ok: true };
+  }
+
+  try {
+    // ---------- INSTRUCTOR_DAY_OFF ----------
+    if (row.requestType === 'INSTRUCTOR_DAY_OFF') {
+      const from = (row.fromDate ?? null)?.slice(0, 10);
+      const to   = (row.toDate ?? row.fromDate ?? null)?.slice(0, 10);
+      if (!from || !to) return { ok: true };
+
+      // אם בבקשה יש שעות — נבדוק חפיפה לפי שעות.
+      // אם אין שעות — נתייחס לזה כיום מלא (יחסום גם שעות).
+      const p: any = row.payload ?? {};
+      const reqStartHHMM = this.normalizeTimeHHMM(p.requested_start_time ?? p.start_time ?? null);
+      const reqEndHHMM   = this.normalizeTimeHHMM(p.requested_end_time ?? p.end_time ?? null);
+
+      const hasWindow = !!(reqStartHHMM && reqEndHHMM);
+      const reqStartMin = hasWindow ? this.timeToMinutes(reqStartHHMM!) : 0;
+      const reqEndMin   = hasWindow ? this.timeToMinutes(reqEndHHMM!)   : 24 * 60;
+
+      const { data, error } = await db
+        .from('farm_days_off')
+        .select('id, reason, day_type, start_date, end_date, start_time, end_time')
+        .eq('is_active', true)
+        .lte('start_date', to)
+        .gte('end_date', from);
+
+      if (error) {
+        const r = this.handleDbFailure(mode, 'checkFarmDayOffConflict(INSTRUCTOR_DAY_OFF)', error);
+        return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+      }
+
+      const offs = (data ?? []) as any[];
+      for (const off of offs) {
+        const dayType = String(off.day_type ?? '');
+
+        if (dayType === 'FULL_DAY') {
+          return {
+            ok: false,
+            reason: `הבקשה נדחתה אוטומטית: יש יום חופש חווה (יום מלא) שחופף לטווח ${from}–${to}${off.reason ? ` (${off.reason})` : ''}.`,
+          };
+        }
+
+        // שעות בחופש חווה
+        const offStart = this.normalizeTimeHHMM(off.start_time);
+        const offEnd   = this.normalizeTimeHHMM(off.end_time);
+        if (!offStart || !offEnd) {
+          return { ok: false, reason: `הבקשה נדחתה אוטומטית: יום חופש חווה מוגדר לפי שעות אך חסרות שעות במערכת.` };
+        }
+
+        const offStartMin = this.timeToMinutes(offStart);
+        const offEndMin   = this.timeToMinutes(offEnd);
+
+        // אם אין שעות בבקשת יום-חופש-מדריך → נחשב כ"יום מלא" ולכן כל שעות חופש חווה חופפות
+        // אם יש שעות בבקשה → בדיקת חפיפה
+        if (!hasWindow || this.overlapsMinutes(reqStartMin, reqEndMin, offStartMin, offEndMin)) {
+          return {
+            ok: false,
+            reason: `הבקשה נדחתה אוטומטית: יש יום חופש חווה שחופף (בתוך הטווח) בין ${offStart}-${offEnd}${off.reason ? ` (${off.reason})` : ''}.`,
+          };
+        }
+      }
+
+      return { ok: true };
+    }
+
+    // ---------- MAKEUP / FILL_IN / NEW_SERIES ----------
+    const w = this.getRequestedDateAndWindow(row);
+    if (!w?.date) return { ok: true };
+
+    const { data, error } = await db
+      .from('farm_days_off')
+      .select('id, reason, day_type, start_date, end_date, start_time, end_time')
+      .eq('is_active', true)
+      .lte('start_date', w.date)
+      .gte('end_date', w.date);
+
+    if (error) {
+      const r = this.handleDbFailure(mode, 'checkFarmDayOffConflict', error);
+      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    }
+
+    const rows = (data ?? []) as any[];
+    for (const off of rows) {
+      const dayType = String(off.day_type ?? '');
+
+      if (dayType === 'FULL_DAY') {
+        return {
+          ok: false,
+          reason: `הבקשה נדחתה אוטומטית: יש יום חופש חווה (יום מלא) בתאריך ${w.date}${off.reason ? ` (${off.reason})` : ''}.`,
+        };
+      }
+
+      const offStart = this.normalizeTimeHHMM(off.start_time);
+      const offEnd   = this.normalizeTimeHHMM(off.end_time);
+
+      if (!offStart || !offEnd) {
+        return {
+          ok: false,
+          reason: `הבקשה נדחתה אוטומטית: יום חופש חווה בתאריך ${w.date} מוגדר לפי שעות אך חסרות שעות במערכת.`,
+        };
+      }
+
+      const offStartMin = this.timeToMinutes(offStart);
+      const offEndMin   = this.timeToMinutes(offEnd);
+
+      if (this.overlapsMinutes(w.startMin, w.endMin, offStartMin, offEndMin)) {
+        return {
+          ok: false,
+          reason: `הבקשה נדחתה אוטומטית: יש יום חופש חווה בתאריך ${w.date} בין ${offStart}-${offEnd}${off.reason ? ` (${off.reason})` : ''}.`,
+        };
+      }
+    }
+
+    return { ok: true };
+
+  } catch (e: any) {
+    const r = this.handleDbFailure(mode, 'checkFarmDayOffConflict', e);
+    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+  }
 }
 
 
