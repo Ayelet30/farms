@@ -161,7 +161,7 @@ private lastAllDayPref: boolean = true;
       const user = await this.cu.loadUserDetails();
       this.instructorId = String(user?.id_number || '').trim();
       if (!this.instructorId) throw new Error('לא נמצא מזהה מדריך');
-const { data: instructor } = await dbTenant()
+  const { data: instructor } = await dbTenant()
   .from('instructors')
   .select('color_hex')
   .eq('id_number', this.instructorId)
@@ -388,8 +388,9 @@ private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<vo
 // ✅ אם אין category – זו לא בקשת חופש תקינה, לא להציג בלוח
 if (!row.payload?.category) return res;
 
-    const from = new Date(row.from_date);
-    const to = new Date(row.to_date || row.from_date);
+const from = new Date(`${row.from_date}T00:00:00`);
+const to = new Date(`${(row.to_date || row.from_date)}T00:00:00`);
+
 
     const type: RequestType = this.mapDbRequestType(row.payload?.category);
     const status: RequestStatus = this.mapDbStatus(row.status);
@@ -480,22 +481,20 @@ const req = this.dayRequests.find(
 
         const item: ScheduleItem = {
           id: `summary_${day}`,
-          title: parts.join(' | '),
+          title: parts.join('\n'),
           start: day,
           end: day,
           color: 'transparent', 
-          
           status: 'summary',
-    meta: {
-    isSummaryDay: 'true', // ✅ string ולא boolean
-  },
-
-        };
+          meta: {
+         isSummaryDay: 'true', 
+       },
+     };
 
         return item;
       });
-const farmOffItems = this.farmDaysOffToItems();
-const instructorOffItems = this.instructorDaysOffToItems();
+    const farmOffItems = this.farmDaysOffToItems();
+    const instructorOffItems = this.instructorDaysOffToItems();
 
 this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
 
@@ -789,14 +788,11 @@ async onViewRangeChange(range: any): Promise<void> {
   return;
 }
 
-const startYmd = ymd(new Date(range.start));
+const startYmd = range.start.slice(0, 10);
 
-// end של FullCalendar הוא יום *אחרי* הטווח → מחזירים יום אחד אחורה
-const endDate = new Date(range.end);
-endDate.setDate(endDate.getDate() - 1);
-const endYmd = ymd(endDate);
-
-
+const endYmd = new Date(
+  new Date(range.end).getTime() - 24 * 60 * 60 * 1000
+).toLocaleDateString('sv-SE');
 
 
     if (
@@ -1253,7 +1249,8 @@ console.log('SICK FILE:', this.pendingSickFile);
 
     // יום מלא – חוסם הכל
     if (off.day_type === 'FULL_DAY') {
-      const lessonDay = lessonStart.toISOString().slice(0, 10);
+     const lessonDay = lessonStart.toLocaleDateString('sv-SE');
+
       return (
         lessonDay >= off.start_date &&
         lessonDay <= off.end_date
@@ -1367,30 +1364,32 @@ private farmDaysOffToItems(): ScheduleItem[] {
     const title =
       d.reason?.trim()
         ? `🏖 ${d.reason}`
-        : isFullDay
-        ? '🏖 חופשת חווה – יום מלא'
-        : '🏖 חופשת חווה – לפי שעות';
+       : isFullDay
+     ? '🏖 חופשת חווה\nיום מלא'
+     : '🏖 חופשת חווה\nלפי שעות';
 
-    return {
-      id: `farm_off_${d.id}`,
-      title,
 
-      start,
-      end,
+       return {
+        id: `farm_off_${d.id}`,
+        title,
+        start,
+        end,
+        allDay: isFullDay,
 
-      allDay: isFullDay,
-      display: 'background',
-      classNames: ['farm-day-off'],
+        display: 'block',                 
+        classNames: ['farm-day-off-event'],
+        color: 'rgba(255, 183, 77, 0.35)', 
+       textColor: '#1f2a1f',
 
-      status: 'farm_day_off' as any,
-      meta: {
+        status: 'farm_day_off' as any,
+        meta: {
         isFarmDayOff: 'true',
         reason: d.reason ?? null,
         day_type: d.day_type,
-      } as any,
-    };
-  });
-}
+        } as any,
+      };
+    });
+  }
 
 
   private getRequestForDate(date: string): DayRequestRow | undefined {

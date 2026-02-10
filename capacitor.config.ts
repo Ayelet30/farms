@@ -1,9 +1,9 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'org.smartfarm.app',
-  appName: 'smart-farm',
-  webDir: 'dist'
+  appId: 'com.moachsites.smartfarm',
+  appName: 'Smart-Farm',
+  webDir: 'dist/chavat-bereshit/browser'
 };
 
 export default config;

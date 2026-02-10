@@ -92,6 +92,7 @@
     grid-template-columns: 1fr;
     row-gap: 8px;
   }
+ 
 
   .calendar-toolbar .actions,
   .calendar-toolbar .view-buttons {
@@ -411,7 +412,7 @@
 .bereshit-calendar .children-line {
   flex: 1;
   overflow: hidden;
-  white-space: nowrap;
+  white-space: normal;
   text-overflow: ellipsis;
 }
 

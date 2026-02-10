@@ -409,9 +409,6 @@ detailsCreditsTotalAgorot = computed(() => {
     let ok = 0;
     let failed = 0;
 
-    const { data: jwtDbg, error: jwtErr } = await dbTenant().rpc('debug_jwt');
-  console.log('debug_jwt', { jwtDbg, jwtErr });
-
 
     for (const p of list) {
 const { data, error: rpcError } = await dbTenant().rpc('create_monthly_charge_for_parent', {
