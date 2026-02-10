@@ -371,6 +371,7 @@ hasAnyActiveWorkingDay(): boolean {
 }
 
   toggleWorkingHoursExpanded(): void {
+    this.clearFlash();
     this.workingHoursExpanded.set(!this.workingHoursExpanded());
   }
 
@@ -625,6 +626,7 @@ private enforceShabbatRules(rows: FarmWorkingHours[]): FarmWorkingHours[] {
 
 
  onWorkingHoursChanged(): void {
+  this.clearFlash(); 
   // רק ולידציה (מהיר)
   this.workingHoursError.set(this.validateAllWorkingHours());
 }
@@ -776,6 +778,7 @@ onOfficeOpenToggle(r: FarmWorkingHours): void {
 }
 
 onWorkingHoursTimeChanged(): void {
+  this.clearFlash();
   this.applyWorkingHoursRulesAndValidate();
 }
 
@@ -795,6 +798,7 @@ canSaveWorkingHours(): boolean {
 }
 
   async saveWorkingHours(): Promise<void> {
+     this.clearFlash(); 
       if (!this.hasAnyFarmOpenDay() || !this.hasAnyOfficeOpenDay()) {
     const msg = !this.hasAnyFarmOpenDay()
       ? 'חובה לסמן לפחות יום אחד פתוח בחווה.'
@@ -1372,11 +1376,24 @@ if (
 
 
   async saveSettings(): Promise<void> {
+    
+    this.clearFlash();  
+    // ⛔ חסימה אם יש שגיאה בשעות פעילות לפי יום
+if (this.workingHoursError()) {
+  const msg = 'לא ניתן לשמור: יש שגיאה בשעות פעילות לפי יום.';
+  await this.ui.alert(msg, 'שגיאה');
+  this.error.set(msg);
+  return;
+}
+
+    this.settingsErrors.set({});  
+    this.saving.set(false);
     const current = this.settings();
     if (!current) return;
 this.validateSettingsFields(current);
 
 if (Object.keys(this.settingsErrors()).length > 0) {
+  this.success.set(null); 
 const messages = Object.values(this.settingsErrors());
 await this.ui.alert(
   'לא ניתן לשמור:\n\n• ' + messages.join('\n• '),
@@ -1387,12 +1404,6 @@ await this.ui.alert(
 }
 
 
-  if (!this.validateOfficeHours()) {
-    await this.ui.alert('יש שגיאה בשעות פעילות המשרד.', 'שגיאה');
-    this.error.set('לא ניתן לשמור: יש שגיאה בשעות פעילות המשרד.');
-    return;
-  }
-  this.saving.set(true);
   
     if (!this.validateOfficeHours()) {
       await this.ui.alert('יש שגיאה בשעות פעילות המשרד.', 'שגיאה');
@@ -1444,8 +1455,9 @@ await this.ui.alert(
     };
 
     this.settings.set(s);
-    this.success.set('ההגדרות נשמרו בהצלחה.');
-    await this.ui.alert('ההגדרות נשמרו בהצלחה.', 'הצלחה');
+    this.flashSuccess('ההגדרות נשמרו בהצלחה.');
+await this.ui.alert('ההגדרות נשמרו בהצלחה.', 'הצלחה');
+
 
     this.saving.set(false);
   }
@@ -2054,6 +2066,7 @@ paymentPlansExpanded = signal(true);
 fundingSourcesExpanded = signal(true);
 
 togglePaymentPlansExpanded() {
+   this.clearFlash(); 
   this.paymentPlansExpanded.update(v => !v);
 
   if (!this.paymentPlansExpanded()) {

@@ -480,8 +480,6 @@ isFarmWorkingDay(dayKey: string): boolean {
   toggleDay(day: DayAvailability) {
     if (!this.allowEdit) return;
 
-    day.active = !day.active;
-
     if (day.active && !day.slots.length) {
       day.slots.push({
         start: null,

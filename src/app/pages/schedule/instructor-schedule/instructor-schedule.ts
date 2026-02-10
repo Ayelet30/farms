@@ -1028,9 +1028,6 @@ private loadAffectedParentsFromSchedule(from: string, to: string): void {
 }
 
 
-
-
-
 async confirmSaveAfterWarning(): Promise<void> {
   this.selectedSickFile = (this as any)._preservedSickFile ?? null;
   this.pendingSickFile = this.selectedSickFile;
