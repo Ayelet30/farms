@@ -35,6 +35,41 @@ readonly isPending = computed(() => this.status() === 'PENDING');
 readonly shouldShowImpact = computed(() => this.isPending());
 // ✅ האם להציג פעולות (Approve/Reject)
 readonly canDecide = computed(() => this.isPending());
+readonly windowText = computed(() => {
+  const r: any = this.req() ?? {};
+  const p: any = r.payload ?? {};
+
+  const from = (r.fromDate ?? p.from_date ?? '').slice(0, 10);
+  const to   = (r.toDate   ?? p.to_date   ?? from).slice(0, 10);
+
+  const allDay = !!p.all_day;
+
+  const start = (p.requested_start_time ?? '').toString().slice(0, 5) || null;
+  const end   = (p.requested_end_time   ?? '').toString().slice(0, 5) || null;
+
+  const fmt = (d: string) => {
+    try { return new Date(d).toLocaleDateString('he-IL'); }
+    catch { return d; }
+  };
+
+  // 1) יום אחד
+  if (from && to && from === to) {
+    if (allDay) return `${fmt(from)} — יום חופש מלא`;
+    if (start && end) return `${fmt(from)} — ${start}–${end}`;
+    if (start && !end) return `${fmt(from)} — החל מ־${start}`;
+    return `${fmt(from)} — יום חופש`;
+  }
+
+  // 2) טווח ימים
+  if (from && to && from !== to) {
+    if (allDay) return `${fmt(from)}–${fmt(to)} — חופשה מלאה`;
+    if (start && end) return `${fmt(from)}–${fmt(to)} — בכל יום ${start}–${end}`;
+    if (start && !end) return `${fmt(from)}–${fmt(to)} — בכל יום החל מ־${start}`;
+    return `${fmt(from)}–${fmt(to)} — חופשה`;
+  }
+
+  return '—';
+});
 
   @Input({ required: true })
   set request(value: any) {

@@ -141,6 +141,7 @@ showAffectedParentsPopup = false;
     type: 'holiday' as RequestType,
     text: '',
   };
+private lastAllDayPref: boolean = true;
 
   /* ------- תפריט אישור/דחייה ------- */
   approvalMenu = {
@@ -221,7 +222,7 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
       end_datetime,
       occur_date,
       start_time,
-      end_time
+      
     `)
     .eq('instructor_id', this.instructorId)
     .gte('occur_date', startYmd)
@@ -885,6 +886,7 @@ cancelAffectedPopup(): void {
  async submitRange(): Promise<void> {
 
   const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
+  this.lastAllDayPref = !!allDay;
 
   if (!from || !to) {
     this.error = 'חובה לבחור מתאריך ועד תאריך';
@@ -895,23 +897,34 @@ cancelAffectedPopup(): void {
 const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
 
 
-  if (hasLessons) {
-      const preservedFile = this.selectedSickFile;
-    // סוגרים את מודאל הבקשה
-    this.rangeModal.open = false;
- this.loadAffectedParentsFromSchedule(from, to);
+ if (hasLessons) {
+  const preservedFile = this.selectedSickFile;
 
-if (this.affectedParents.length > 0) {
-  this.rangeModal.open = false;
-  this.showAffectedParentsPopup = true;
-    (this as any)._preservedSickFile = preservedFile; 
-  this.cdr.detectChanges();
-  return;
-}
+  // לא סוגרים מודאל לפני שבטוח שהולכים לפופאפ
+  this.loadAffectedParentsFromSchedule(from, to);
+
+  if (this.affectedParents.length > 0) {
+    // סוגרים מודאל ומראים פופאפ רק אם באמת יש למי להציג
+    this.rangeModal.open = false;
+    this.showAffectedParentsPopup = true;
+    (this as any)._preservedSickFile = preservedFile;
+    this.cdr.detectChanges();
+    return; // ⛔ לא שומרים עדיין - מחכים לאישור בפופאפ
+  }
+
+  // ✅ אין הורים מושפעים (או לא הצלחנו לזהות) → ממשיכים לשמור רגיל
+  // אל תעשי return פה!
 
     this.cdr.detectChanges();
     return; // ⛔ לא שומרים עדיין
+}
+  
+if (!allDay) {
+  if (!fromTime || !toTime) {
+    this.error = 'חובה לבחור שעות התחלה וסיום';
+    return;
   }
+}
 
   // אם אין שיעורים – שומרים רגיל
   await this.saveRangeRequest(
@@ -942,20 +955,29 @@ onSickFileSelected(event: Event): void {
 
 
   async openRequest(type: RequestType): Promise<void> {
-    const date = this.contextMenu.date;
-    this.closeContextMenu();
-    
-    if (!date) return;
+  const date = this.contextMenu.date;
+  this.closeContextMenu();
+  if (!date) return;
 
-    this.rangeModal.open = true;
-    this.rangeModal.from = date;
-    this.rangeModal.to = date;
-    this.rangeModal.allDay = true;
+  this.rangeModal.open = true;
+  this.rangeModal.from = date;
+  this.rangeModal.to = date;
+
+  // ✅ לא לכפות true. לשחזר את הבחירה האחרונה של המשתמש.
+  this.rangeModal.allDay = this.lastAllDayPref;
+
+  // אם זה לא יום מלא – תני ערכים סבירים לשעות (או השאירי ריק אם את מעדיפה)
+  if (!this.rangeModal.allDay) {
+    this.rangeModal.fromTime = this.rangeModal.fromTime || '08:00';
+    this.rangeModal.toTime = this.rangeModal.toTime || '12:00';
+  } else {
     this.rangeModal.fromTime = '';
     this.rangeModal.toTime = '';
-    this.rangeModal.type = type;
-    this.rangeModal.text = '';
   }
+
+  this.rangeModal.type = type;
+  this.rangeModal.text = '';
+}
 
   closeRangeModal(): void {
     this.rangeModal.open = false;
@@ -1091,11 +1113,15 @@ console.log('PENDING FILE:', this.pendingSickFile);
     throw new Error('missing user uid');
   }
 
-  // 🔴 בדיוק כמו המקור – בלי שדות מיותרים
-  const payload = {
-    category: this.mapRequestTypeToDb(type),
-    note: note ?? null,
-  };
+const payload: any = {
+  category: this.mapRequestTypeToDb(type),
+  note: note ?? null,
+
+  all_day: allDay,
+  requested_start_time: allDay ? null : (fromTime ? fromTime.slice(0, 5) : null),
+  requested_end_time: allDay ? null : (toTime ? toTime.slice(0, 5) : null),
+};
+
 
   const { data, error } = await dbc
     .from('secretarial_requests')

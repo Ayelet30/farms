@@ -437,12 +437,38 @@ instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
     };
   }
 
-  private buildSummary(row: SecretarialRequestDbRow, p: any): string {
+private buildSummary(row: any, p: any): string {
     switch (row.request_type) {
       case 'CANCEL_OCCURRENCE':
         return p.summary || `ביטול שיעור לתאריך ${p.occur_date ?? row.from_date ?? ''}`;
-      case 'INSTRUCTOR_DAY_OFF':
-        return p.summary || `יום חופש מדריך ${p.instructor_name ?? ''} בין ${row.from_date ?? ''}–${row.to_date ?? ''}`;
+   case 'INSTRUCTOR_DAY_OFF': {
+  if (p.summary) return p.summary;
+
+  const from = (row.from_date ?? '').slice(0, 10);
+  const to   = (row.to_date ?? row.from_date ?? '').slice(0, 10);
+  const name = row.instructor_name ?? '';
+
+  const allDay = !!p.all_day;
+  const start = (p.requested_start_time ?? '').toString().slice(0, 5) || null;
+  const end   = (p.requested_end_time   ?? '').toString().slice(0, 5) || null;
+
+  // יום אחד
+  if (from && to && from === to) {
+    if (allDay) return `יום חופש מלא למדריך/ה ${name} בתאריך ${from}`;
+    if (start && end) return `יום חופש למדריך/ה ${name} בתאריך ${from} (${start}–${end})`;
+    return `יום חופש למדריך/ה ${name} בתאריך ${from}`;
+  }
+
+  // טווח ימים
+  if (from && to && from !== to) {
+    if (allDay) return `חופשה מלאה למדריך/ה ${name} בין ${from}–${to}`;
+    if (start && end) return `חופשה למדריך/ה ${name} בין ${from}–${to} (בכל יום ${start}–${end})`;
+    return `חופשה למדריך/ה ${name} בין ${from}–${to}`;
+  }
+
+  return `יום חופש מדריך ${name}`;
+}
+
       case 'NEW_SERIES':
         return p.summary || 'בקשה לפתיחת סדרת שיעורים';
       case 'ADD_CHILD':
