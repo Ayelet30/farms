@@ -320,6 +320,10 @@
   :host ::ng-deep .bereshit-calendar .fc {
     min-width: 720px; /* 7 ימים * ~100px */
   }
+ :host ::ng-deep .fc .farm-day-off-text, .fc .event-box {
+  white-space: normal !important;
+}
+
 
   /* 3) אירועים: שלא ייחתכו/ייעלמו */
   :host ::ng-deep .bereshit-calendar .fc-dayGridMonth-view .fc-daygrid-event,
@@ -408,7 +412,7 @@
   box-sizing: border-box !important;
 }
 
-/* אם התוכן אצלך בתוך event-box + title (לפי הקוד שלך) */
+/* אם התוכן אצלך בתוך event-box + title */
 :host ::ng-deep .bereshit-calendar .fc-dayGridMonth-view .farm-day-off-event .event-box {
   width: 100% !important;
   max-width: 100% !important;
@@ -432,4 +436,57 @@
   word-break: break-word !important;
   line-height: 1.15 !important;
 }
+/* =========================================================
+   ✅ Month view: allow multi-line titles for Summary + Day Off + Farm Off
+   (override the mobile nowrap/ellipsis)
+========================================================= */
 
+/* 1) סיכום חודשי (status = summary) */
+:host ::ng-deep .bereshit-calendar .fc-dayGridMonth-view .fc-daygrid-event.summary .fc-event-title,
+:host ::ng-deep .bereshit-calendar .fc-dayGridMonth-view .fc-daygrid-event.summary .event-box .title {
+  white-space: pre-line !important;   /* ✅ \n יורד שורה */
+  overflow: visible !important;
+  text-overflow: unset !important;
+  word-break: break-word !important;
+  line-height: 1.15 !important;
+}
+
+/* 2) חופשת מדריך (כבר יש לך classNames: ['instructor-day-off']) */
+:host ::ng-deep .bereshit-calendar .fc-dayGridMonth-view .instructor-day-off .fc-event-title,
+:host ::ng-deep .bereshit-calendar .fc-dayGridMonth-view .instructor-day-off .event-box .title {
+  white-space: pre-line !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  word-break: break-word !important;
+  line-height: 1.15 !important;
+}
+
+/* 3) חופשת חווה (כבר יש לך classNames: ['farm-day-off-event']) */
+:host ::ng-deep .bereshit-calendar .fc-dayGridMonth-view .farm-day-off-event .fc-event-title,
+:host ::ng-deep .bereshit-calendar .fc-dayGridMonth-view .farm-day-off-event .event-box .title {
+  white-space: pre-line !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  word-break: break-word !important;
+  line-height: 1.15 !important;
+}
+
+/* 4) כדי שלא “יזלוג” לתא ליד */
+:host ::ng-deep .bereshit-calendar .fc-dayGridMonth-view .fc-daygrid-event-harness {
+  overflow: hidden !important;
+}
+
+/* 5) להפוך את ה-pill לקופסה שיכולה להכיל 2 שורות */
+:host ::ng-deep .bereshit-calendar .fc-dayGridMonth-view .fc-daygrid-event.summary .event-box,
+:host ::ng-deep .bereshit-calendar .fc-dayGridMonth-view .instructor-day-off .event-box,
+:host ::ng-deep .bereshit-calendar .fc-dayGridMonth-view .farm-day-off-event .event-box {
+  height: auto !important;
+  min-height: 34px !important;
+  padding: 6px 10px !important;
+  border-radius: 12px !important; /* לא 999px */
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 2px !important;
+}
