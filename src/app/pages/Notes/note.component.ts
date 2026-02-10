@@ -846,19 +846,19 @@ const { data } = await this.dbc
     child_id: childId,
     occur_date: occurDate,
     note: content,
+    category: 'office',
   })
   .select()
   .single();
 
-this.notesGeneral.unshift({
+this.notesOffice.unshift({
   id: data.id,
   display_text: data.note,
   created_at: data.created_at,
   instructor_uid: null,
   instructor_name: null,
-  category: 'general',
+  category: 'office',
 });
-
 
   this.newOfficeNote = '';
 }
@@ -872,25 +872,45 @@ this.notesGeneral.unshift({
 
   const { data } = await this.dbc
     .from('lesson_notes_simple')
-    .select('id, note, created_at')
+    .select('id, note, created_at, category')
+
     .eq('lesson_id', lessonId)
     .eq('child_id', childId)
     .eq('occur_date', occurDate)
     .order('created_at', { ascending: false });
 
-  const notes: NoteVM[] = (data ?? []).map((n: any) => ({
+this.notesGeneral = [];
+this.notesMedical = [];
+this.notesBehavioral = [];
+this.notesOffice = [];
+
+(data ?? []).forEach((n: any) => {
+  const cat: Category = (n.category ?? 'general') as Category;
+
+  const vm: NoteVM = {
     id: n.id,
     display_text: n.note,
     created_at: n.created_at,
     instructor_uid: null,
     instructor_name: null,
-    category: 'general',
-  }));
+    category: cat,
+  };
 
-  this.notesGeneral = notes;
-  this.notesMedical = [];
-  this.notesBehavioral = [];
-  this.notesOffice = [];
+  switch (cat) {
+    case 'office':
+      this.notesOffice.push(vm);
+      break;
+    case 'medical':
+      this.notesMedical.push(vm);
+      break;
+    case 'behavioral':
+      this.notesBehavioral.push(vm);
+      break;
+    default:
+      this.notesGeneral.push(vm);
+  }
+});
+
 }
 
 
@@ -935,6 +955,7 @@ const { error } = await this.dbc
     child_id: childId,
     occur_date: this.getOccurDateForDb(),
     note: content,
+     category: 'general', 
   }]);
 
 if (error) {
@@ -969,14 +990,16 @@ console.log('NOTE SAVED OK');
 
   async saveEdit(note: NoteVM) {
     if (!this.canEditNotes) return;
-    await this.dbc.from('notes').update({ content: note.display_text }).eq('id', note.id);
+    this.dbc.from('lesson_notes_simple')
+.update({ content: note.display_text }).eq('id', note.id);
     note.isEditing = false;
   }
 
   async deleteNote(id: string) {
     if (!this.canEditNotes) return;
 
-    await this.dbc.from('notes').delete().eq('id', id);
+    this.dbc.from('lesson_notes_simple')
+.delete().eq('id', id);
 
     this.notesGeneral = this.notesGeneral.filter(n => n.id !== id);
     this.notesMedical = this.notesMedical.filter(n => n.id !== id);
