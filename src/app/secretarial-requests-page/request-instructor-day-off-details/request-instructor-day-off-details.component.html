@@ -4,11 +4,11 @@
 
     <div class="meta">
       <div><b>מדריך:</b> {{ r.instructorName || '—' }}</div>
-      <div>
-        <b>טווח:</b>
-        {{ r.fromDate | date:'dd/MM/yyyy' }} –
-        {{ (r.toDate || r.fromDate) | date:'dd/MM/yyyy' }}
-      </div>
+     <div>
+  <b>מועד:</b>
+  {{ windowText() }}
+</div>
+
       <div><b>מבקש/ת:</b> {{ r.requestedByName || '—' }}</div>
     </div>
   </div>
