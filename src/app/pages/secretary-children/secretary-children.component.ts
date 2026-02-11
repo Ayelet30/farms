@@ -18,7 +18,11 @@ import {
   ReactiveFormsModule,
   FormBuilder,
   FormGroup,
+  Validators,
+  AbstractControl,
+  ValidationErrors,
 } from '@angular/forms';
+
 
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { AddChildWizardComponent } from '../add-child-wizard/add-child-wizard.component';
@@ -75,6 +79,18 @@ type TermsSignatureRow = {
   styleUrls: ['./secretary-children.component.css'],
 })
 export class SecretaryChildrenComponent implements OnInit {
+  readonly MAX_NAME_LEN = 20;
+readonly MAX_MEDICAL_NOTES = 300;
+readonly MAX_BEHAVIOR_NOTES = 300;
+
+readonly healthFunds = ['כללית', 'מכבי', 'מאוחדת', 'לאומית'] as const;
+
+// סטטוס ל-DB: נשתמש ב-'active' או null (כשבוחרים --)
+readonly statusOptions = [
+  { value: 'active', label: 'פעיל' },
+  { value: null, label: '--' },
+] as const;
+
   children: ChildRow[] = [];
   isLoading = true;
   error: string | null = null;
@@ -98,6 +114,19 @@ export class SecretaryChildrenComponent implements OnInit {
   showSearchPanel = false;
   panelFocus: 'search' | 'filter' = 'search';
   showAddChildWizard = false;
+
+  private hebrewNameValidator(): (c: AbstractControl) => ValidationErrors | null {
+  // אותיות עברית + רווח + גרש/גרשיים + מקף
+  const re = /^[\u0590-\u05FF\s'"\-]+$/;
+  return (c: AbstractControl) => {
+    const v = String(c.value ?? '').trim();
+    if (!v) return null; // required יטפל בזה אם צריך
+    return re.test(v) ? null : { hebrewName: true };
+  };
+
+}
+
+
 
   // --- סוסים לילדים ---
   horses: HorseLite[] = [];
@@ -158,7 +187,6 @@ this.router.navigate(
     },
   }
 );
-
 }
 
 goToParentPaymentsFromChild() {
@@ -569,22 +597,44 @@ goToParentPaymentsFromChild() {
     await this.ui.alert('לא הצלחתי לפתוח את ההפניה: ' + (e?.message ?? e), 'הפניות');
   }
 }
+ /** בונה טופס עריכה מתוך פרטי הילד שבמגירה */
+private buildChildForm(child: ChildDetails) {
+  this.childForm = this.fb.group({
+    first_name: [
+      child.first_name ?? '',
+      [
+        Validators.required,
+        Validators.maxLength(this.MAX_NAME_LEN),
+        this.hebrewNameValidator(),
+      ],
+    ],
+    last_name: [
+      child.last_name ?? '',
+      [
+        Validators.required,
+        Validators.maxLength(this.MAX_NAME_LEN),
+        this.hebrewNameValidator(),
+      ],
+    ],
 
+    health_fund: [child.health_fund ?? null], // נוודא ב-HTML שזה מתוך הרשימה
 
-  /** בונה טופס עריכה מתוך פרטי הילד שבמגירה */
-  private buildChildForm(child: ChildDetails) {
-    this.childForm = this.fb.group({
-      health_fund: [child.health_fund ?? null],
-      status: [child.status ?? null],
-      medical_notes: [child.medical_notes ?? null],
-      behavior_notes: [child.behavior_notes ?? null],
-    });
+    status: [child.status ?? null], // active / null
 
-    this.originalChild = { ...child };
-    this.editMode = false;
-  }
+    medical_notes: [
+      child.medical_notes ?? '',
+      [Validators.maxLength(this.MAX_MEDICAL_NOTES)],
+    ],
+    behavior_notes: [
+      child.behavior_notes ?? '',
+      [Validators.maxLength(this.MAX_BEHAVIOR_NOTES)],
+    ],
+  });
 
-  /** כניסה למצב עריכה במגירת הילד */
+  this.originalChild = { ...child };
+  this.editMode = false;
+}
+/** כניסה למצב עריכה במגירת הילד */
   enterEditModeChild() {
     if (!this.drawerChild || !this.childForm) return;
     this.editMode = true;
@@ -606,12 +656,15 @@ goToParentPaymentsFromChild() {
 
     const raw = this.childForm.getRawValue();
 
-    const fieldsToCompare: (keyof ChildDetails)[] = [
-      'health_fund',
-      'status',
-      'medical_notes',
-      'behavior_notes',
-    ];
+   const fieldsToCompare: (keyof ChildDetails)[] = [
+   'first_name',
+   'last_name',
+   'health_fund',
+   'status',
+   'medical_notes',
+   'behavior_notes',
+  ];
+
 
     const delta: Partial<ChildDetails> = {};
 
