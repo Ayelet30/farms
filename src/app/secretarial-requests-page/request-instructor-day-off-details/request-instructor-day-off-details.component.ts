@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/legacy-compat';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { RequestValidationService } from '../../services/request-validation.service';
 
 type ImpactRow = {
   occur_date: string; // date
@@ -24,6 +25,7 @@ type ToastKind = 'success' | 'error' | 'info';
 export class RequestInstructorDayOffDetailsComponent {
   private snack = inject(MatSnackBar);
   private db = dbTenant();
+  private validator = inject(RequestValidationService);
 
   // ====== INPUTS → Signals (כדי שהפרטים יתעדכנו תמיד) ======
   private _req = signal<any | null>(null);
@@ -145,6 +147,45 @@ if (this.isPending()) {
       this.loadingImpact.set(false);
     }
   }
+private async rejectBySystem(reason: string): Promise<void> {
+  const r = this.req();
+  const requestId = r?.id;
+  const decidedByUid = this.decidedByUidSig();
+
+  if (!requestId) return;
+
+  try {
+    const { data, error } = await this.db
+      .from('secretarial_requests')
+      .update({
+        status: 'REJECTED_BY_SYSTEM',
+        decided_by_uid: decidedByUid,
+        decision_note: (reason || 'בקשה לא תקינה').trim(),
+        decided_at: new Date().toISOString(),
+      })
+      .eq('id', requestId)
+      .eq('status', 'PENDING')
+      .select('id,status')
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return; // מישהו כבר טיפל
+
+    const msg = reason || 'הבקשה נדחתה אוטומטית ע"י המערכת';
+    this.toast(msg, 'info');
+
+    this.onRejected?.({
+      requestId,
+      newStatus: 'REJECTED',
+      message: msg,
+      meta: { rejectedBySystem: true },
+    });
+  } catch (e: any) {
+    console.error('rejectBySystem failed', e);
+    // אם נכשל – לא להפיל את ה-UI, רק להודיע
+    this.onError?.({ requestId, message: e?.message ?? 'שגיאה בדחייה אוטומטית', raw: e });
+  }
+}
 
   static async isValidRequset(row: any): Promise<{ ok: boolean; reason?: string }> {
     const end = row?.toDate ?? row?.fromDate ?? null;
@@ -169,7 +210,12 @@ if (this.isPending()) {
     const decidedByUid = this.decidedByUidSig();
 
     if (!requestId || !decidedByUid) return;
-
+ // ✅ הולידציה דרך השירות – לפני אישור
+  const v = await this.validator.validate(r, 'approve');
+  if (!v.ok) {
+    await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
+    return; // 👈 הכי חשוב!
+  }
     this.loading.set(true);
 
     try {
@@ -207,7 +253,11 @@ if (this.isPending()) {
   const decidedByUid = this.decidedByUidSig();
 
   if (!requestId || !decidedByUid) return;
-
+ const v = await this.validator.validate(r, 'approve');
+  if (!v.ok) {
+    await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
+    return; // 👈 חשוב!
+  }
   this.loading.set(true);
 
   try {
