@@ -9,6 +9,8 @@ import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { ensureTenantContextReady, dbTenant } from '../../services/supabaseClient.service';
 import { getAuth } from 'firebase/auth';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { inject } from '@angular/core';
+import { RequestValidationService } from '../../services/request-validation.service';
 
 const SECRETARIAL_REQUESTS_TABLE = 'secretarial_requests';
 const EXCEPTIONS_TABLE = 'lesson_occurrence_exceptions';
@@ -63,6 +65,7 @@ busyText = computed(() => {
     if (a === 'reject') return 'הבקשה בתהליך דחייה...';
     return 'הבקשה בתהליך...';
   });
+private validator = inject(RequestValidationService);
 
   // signal כדי לעבוד יפה עם ngModel
   note = signal<string>(''); // לא חובה
@@ -106,6 +109,29 @@ private fmtName(first?: string | null, last?: string | null): string | null {
   const l = (last ?? '').trim();
   const full = `${f} ${l}`.trim();
   return full || null;
+}
+private async rejectBySystem(reason: string): Promise<void> {
+  await ensureTenantContextReady();
+  const db = await dbTenant();
+
+  await db
+    .from(SECRETARIAL_REQUESTS_TABLE)
+    .update({
+      status: 'REJECTED_BY_SYSTEM',
+      decided_by_uid: this.decidedByUid ?? getAuth().currentUser?.uid ?? null,
+      decision_note: reason?.trim() || 'נדחה אוטומטית: בקשה לא רלוונטית',
+      decided_at: new Date().toISOString(),
+    })
+    .eq('id', this.requestId())
+    .eq('status', 'PENDING');
+
+  // UI callbacks
+  const evt = { requestId: this.requestId(), newStatus: 'REJECTED' as const };
+  this.rejected.emit(evt);
+  this.onRejected?.(evt);
+
+  // הודעה (errors מותר גם בבאלק)
+  this.fail(reason);
 }
 
 async loadMakeupTarget(): Promise<void> {
@@ -293,6 +319,13 @@ async approve(): Promise<void> {
   if (!r?.id) return;
 
   try {
+      // ✅ ולידציה דרך השירות לפני אישור
+    const v = await this.validator.validate(r, 'approve');
+    if (!v.ok) {
+      await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
+      return; // חשוב
+    }
+
     // ✅ tenant schema/id כמו במחיקת ילד
     await this.tenantSvc.ensureTenantContextReady();
     const tenant = this.tenantSvc.requireTenant();
@@ -411,6 +444,14 @@ async reject(args?: { source?: 'user' | 'system'; reason?: string }): Promise<vo
   if (!r?.id) return;
 
   try {
+     // ✅ ולידציה דרך השירות לפני דחייה
+    // אם הבקשה כבר לא רלוונטית — לא “דחייה רגילה”, אלא REJECTED_BY_SYSTEM
+    const v = await this.validator.validate(r, 'approve');
+    if (!v.ok) {
+      await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
+      return;
+    }
+
     await this.tenantSvc.ensureTenantContextReady();
     const tenant = this.tenantSvc.requireTenant();
     const tenantSchema = tenant.schema;
