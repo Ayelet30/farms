@@ -11,7 +11,12 @@ import {
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-
+import { inject } from '@angular/core';
+import {
+  RequestValidationService,
+  ValidationResult,
+  ValidationMode,
+} from '../../services/request-validation.service'; 
 import { ensureTenantContextReady, dbTenant } from '../../services/supabaseClient.service';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
@@ -106,6 +111,7 @@ busyText = computed(() => {
 
     return full || r?.childName || '—';
   });
+private validation = inject(RequestValidationService);
 
   reason = computed(() => {
     const r = this.req();
@@ -275,13 +281,18 @@ async loadRemainingLessons() {
   }
 }
 
-  static async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
-    return { ok: true };
-  }
+  // static async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
+  //   return { ok: true };
+  // }
 
-  async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
-    return await RequestRemoveChildDetailsComponent.isValidRequset();
-  }
+  // async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
+  //   return await RequestRemoveChildDetailsComponent.isValidRequset();
+  // }
+async isValidRequset(mode: ValidationMode = 'auto'): Promise<ValidationResult> {
+  const r = this.req();
+  if (!r) return { ok: false, reason: 'אין בקשה' };
+  return this.validation.validate(r, mode);
+}
 
 async approve() {
   const r = this.req();
@@ -289,6 +300,16 @@ async approve() {
 
   this.action.set('approve');
   this.busy.set(true);
+const valid = await this.validation.validate(r, 'approve');
+if (!valid.ok) {
+  this.showSnack(valid.reason, 'error');
+  this.error.emit(valid.reason);
+  this.onError?.(valid.reason);
+
+  this.busy.set(false);
+  this.action.set(null);
+  return;
+}
 
   const childId = this.getChildId();
   if (!childId) {
@@ -351,6 +372,16 @@ async reject(args?: { source: 'user' | 'system'; reason?: string }) {
 
   this.action.set('reject');
   this.busy.set(true);
+const valid = await this.validation.validate(r, 'reject');
+if (!valid.ok) {
+  this.showSnack(valid.reason, 'error');
+  this.error.emit(valid.reason);
+  this.onError?.(valid.reason);
+
+  this.busy.set(false);
+  this.action.set(null);
+  return;
+}
 
   const childId = this.getChildId();
   if (!childId) {
