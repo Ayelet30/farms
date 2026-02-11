@@ -19,13 +19,12 @@
 
 /* כפתור המבורגר – רק מובייל */
 .hamburger{
-  position: absolute;
   inset-inline-end: 10px; /* ימין */
-  top: 50%;
-  transform: translateY(-50%);
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  top: 100%;
+  // transform: translateY(-50%);
+  // width: 0px;
+  height: 30px;
+  // border-radius: 16px;
   border: 1px solid #cdd6bf;
   background: #f7f9f4;
   font-size: 20px;
