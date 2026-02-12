@@ -4,9 +4,6 @@
   {{ success() }}
 </div>
 
-<div class="flash error" *ngIf="error()">
-  {{ error() }}
-</div>
 
 <div class="farm-settings-page" dir="rtl">
   <div class="farm-settings-card">
@@ -17,7 +14,7 @@
         <span *ngIf="loading()" class="status-chip">טוען נתונים…</span>
         <span *ngIf="saving()" class="status-chip saving">שומר…</span>
         <span *ngIf="success()" class="status-chip success">{{ success() }}</span>
-        <span *ngIf="error()" class="status-chip error">{{ error() }}</span>
+
       </div>
     </div>
 
