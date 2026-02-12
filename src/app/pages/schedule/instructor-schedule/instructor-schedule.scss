@@ -394,3 +394,30 @@
   align-items: center;
   justify-content: center;
 }
+.context-menu {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  z-index: 3000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding-top: 24px; /* מקום ל-X */
+}
+
+.context-close {
+  position: absolute;
+  top: 6px;
+  left: 6px; /* RTL */
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  cursor: pointer;
+  color: #888;
+}
+
+.context-close:hover {
+  color: #333;
+}
