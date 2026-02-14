@@ -87,13 +87,10 @@
   background: #fff;
   cursor: pointer;
 }
-
-.context-menu button:hover {
-  background: #f2f2f2;
-}
+.context-menu button:hover { background: #f2f2f2; }
 
 /* ============================
-   BACKDROP – רק אחד!
+   BACKDROP
 =============================== */
 .modal-backdrop {
   position: fixed;
@@ -101,27 +98,28 @@
   background: rgba(0,0,0,0.4);
   z-index: 3500;
   display: flex;
-  align-items: center;
   justify-content: center;
+
+  /* שלא יהיה צמוד למעלה */
+  align-items: flex-start;
+  padding-top: 64px;
 }
 
 /* ============================
-   MODAL – המקורית (מתוקנת)
+   MODAL
 =============================== */
 .modal {
   background: #fff;
   padding: 20px;
   width: 360px;
   max-width: 95%;
-  max-height: calc(100vh - 40px); /* ⭐ מונע חיתוך */
-  overflow-y: auto;               /* ⭐ גלילה פנימית */
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   border-radius: 12px;
   text-align: right;
   box-shadow: 0 4px 18px rgba(0,0,0,0.25);
-
-  margin-top: 20px; /* ⭐ מרחיק מהחלק העליון */
+  margin-top: 20px;
 }
-
 
 .modal h3 {
   margin-top: 0;
@@ -129,9 +127,6 @@
   font-size: 16px;
 }
 
-/* ============================
-   שדות
-=============================== */
 .field-row {
   margin-bottom: 12px;
   display: flex;
@@ -143,9 +138,7 @@
     color: #4d4d4d;
   }
 
-  input,
-  select,
-  textarea {
+  input, select, textarea {
     border-radius: 6px;
     border: 1px solid #ccc;
     padding: 6px 8px;
@@ -157,20 +150,11 @@
 .time-row {
   display: flex;
   gap: 10px;
-
-  > div {
-    flex: 1;
-  }
+  > div { flex: 1; }
 }
 
-.modal textarea {
-  width: 100%;
-  height: 100px;
-}
+.modal textarea { width: 100%; height: 100px; }
 
-/* ============================
-   כפתורים
-=============================== */
 .modal-actions {
   margin-top: 20px;
   display: flex;
@@ -186,15 +170,8 @@
   font-size: 13px;
   cursor: pointer;
 }
-
-.modal-actions .confirm {
-  background: #4caf50;
-  color: #fff;
-}
-
-.modal-actions .cancel {
-  background: #ccc;
-}
+.modal-actions .confirm { background: #4caf50; color: #fff; }
+.modal-actions .cancel  { background: #ccc; }
 
 /* ============================
    אישור / דחייה
@@ -213,7 +190,7 @@
 /* ============================
    צביעת בקשות
 =============================== */
-.day-request-pending { background-color: #fff3cd !important; }
+.day-request-pending  { background-color: #fff3cd !important; }
 .day-request-approved { background-color: #d4edda !important; }
 .day-request-rejected { background-color: #f8d7da !important; }
 
@@ -228,7 +205,7 @@
 }
 
 /* ============================
-   אירועי לוז
+   ה-pill שלך (כללי)
 =============================== */
 :host ::ng-deep .bereshit-calendar .event-box {
   display: flex;
@@ -249,22 +226,10 @@
   background-color: rgba(255, 183, 77, 0.35) !important;
   border: none !important;
 }
-/* ===== תיקון מיקום מודאל – לא צמוד למעלה ===== */
-.modal-backdrop {
-  align-items: flex-start;   /* במקום center */
-  padding-top: 64px;         /* ריווח מהחלק העליון */
-}
 
-/* רספונסיבי – מובייל */
-@media (max-width: 600px) {
-  .modal-backdrop {
-    padding-top: 48px;
-  }
-}
 /* ============================
-   CONFIRM DIALOG – כמו זמינות
+   CONFIRM DIALOG
 =============================== */
-
 .confirm-dialog {
   background: #fff;
   width: 420px;
@@ -285,33 +250,15 @@
   cursor: pointer;
 }
 
-.dialog-header {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
+.dialog-header { display: flex; gap: 12px; margin-bottom: 16px; }
 .icon-circle.warning {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #fff4e5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: #fff4e5; display: flex; align-items: center; justify-content: center;
   font-size: 18px;
 }
 
-.dialog-titles h2 {
-  margin: 0;
-  font-size: 18px;
-}
-
-.dialog-titles p {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: #666;
-}
+.dialog-titles h2 { margin: 0; font-size: 18px; }
+.dialog-titles p  { margin: 4px 0 0; font-size: 13px; color: #666; }
 
 .impact-box {
   background: #fff4e5;
@@ -321,39 +268,16 @@
   margin-bottom: 12px;
 }
 
-.parent-list {
-  max-height: 220px;
-  overflow-y: auto;
-  margin-bottom: 12px;
+.parent-list { max-height: 220px; overflow-y: auto; margin-bottom: 12px; }
+.parent-row  { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid #eee; }
+.index-pill  {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #cdd8aa; font-size: 12px;
+  display: flex; align-items: center; justify-content: center;
 }
 
-.parent-row {
-  display: flex;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid #eee;
-}
-
-.index-pill {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #cdd8aa;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.parent-name {
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.parent-sub {
-  font-size: 12px;
-  color: #666;
-}
+.parent-name { font-weight: 600; font-size: 14px; }
+.parent-sub  { font-size: 12px; color: #666; }
 
 .note-box {
   background: #fffbe6;
@@ -363,33 +287,18 @@
   margin-bottom: 16px;
 }
 
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
+.dialog-actions { display: flex; justify-content: flex-end; gap: 12px; }
+.btn.primary { background: #4caf50; color: #fff; border-radius: 8px; padding: 8px 16px; }
+.btn.ghost   { background: transparent; border: 1px solid #ccc; border-radius: 8px; padding: 8px 16px; }
 
-.btn.primary {
-  background: #4caf50;
-  color: #fff;
-  border-radius: 8px;
-  padding: 8px 16px;
-}
-
-.btn.ghost {
-  background: transparent;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 8px 16px;
-}
 /* ============================
-   OVERLAY – חובה לפופאפ הורים
+   OVERLAY
 =============================== */
 .overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
-  z-index: 6000; /* מעל FullCalendar */
+  z-index: 6000;
   display: flex;
   align-items: center;
   justify-content: center;

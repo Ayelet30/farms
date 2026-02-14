@@ -10,6 +10,7 @@ import { ensureTenantContextReady, dbTenant } from '../../services/supabaseClien
 import { inject } from '@angular/core';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { getAuth } from 'firebase/auth';
+import { RequestValidationService } from '../../services/request-validation.service';
 
 type UiRequest = any;
 
@@ -45,6 +46,12 @@ note = signal<string>('');
 
   constructor(private snack: MatSnackBar) {}
 private tenantSvc = inject(SupabaseTenantService);
+readonly status = computed(() => (this.request as any)?.status ?? null);
+readonly isPending = computed(() => this.status() === 'PENDING');
+private validator = inject(RequestValidationService);
+
+readonly canDecide = computed(() => this.isPending());
+readonly shouldShowFillInTarget = computed(() => this.isPending());
 
   busy = signal(false);
   action = signal<'approve' | 'reject' | null>(null);
@@ -113,6 +120,59 @@ private tenantSvc = inject(SupabaseTenantService);
       verticalPosition: 'top',
     });
   }
+private async rejectBySystem(reason: string): Promise<void> {
+  const r = this.request;
+  if (!r?.id) return;
+
+  try {
+    await this.tenantSvc.ensureTenantContextReady();
+    const tenant = this.tenantSvc.requireTenant();
+    const tenantSchema = tenant.schema;
+    const tenantId = tenant.id;
+
+    const user = getAuth().currentUser;
+    if (!user) throw new Error('המשתמש לא מחובר');
+    const token = await user.getIdToken();
+
+    const resp = await fetch(
+      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectFillInAndNotify',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          tenantSchema,
+          tenantId,
+          requestId: r.id,
+          // ✅ כאן אנחנו כופים "דחייה ע״י מערכת" עם סיבה
+          decisionNote: (reason || 'הבקשה נדחתה אוטומטית ע״י המערכת').trim(),
+          source: 'system', // אם הפונקציה שלך תומכת בזה (לא חובה)
+        }),
+      }
+    );
+
+    const raw = await resp.text();
+    let json: any = null;
+    try { json = JSON.parse(raw); } catch {}
+
+    if (!resp.ok || !json?.ok) {
+      throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+    }
+
+    // ✅ לעדכן UI (כמו בשאר הקומפוננטות)
+    const evt = { requestId: r.id, newStatus: 'REJECTED' as const };
+    this.rejected.emit(evt);
+    this.onRejected?.(evt);
+
+    // הצלחה בבאלק לא מציגים, אבל זה "אוטומטי" אז אפשר להציג רק אם תרצי
+    if (!this.bulkMode) this.okSnack('הבקשה נדחתה אוטומטית ע״י המערכת');
+  } catch (e: any) {
+    // אם הדחייה האוטומטית נכשלה – נציג error רגיל
+    this.fail(e?.message ?? 'שגיאה בדחייה אוטומטית ע״י המערכת', e);
+  }
+}
 
   private okSnack(msg: string) {
     if (this.bulkMode) return;
@@ -194,9 +254,21 @@ this.fillInTarget.set({
     this.action.set('approve');
     this.busy.set(true);
 
-    const r = this.request;
-    if (!r?.id) return;
+   const r = this.request;
+  if (!r?.id) {
+    this.busy.set(false);
+    this.action.set(null);
+    return;
+  }
 
+  // ✅ בדיקת שירות לפני אישור
+  const v = await this.validator.validate(r, 'approve'); // או השם המדויק אצלך
+  if (!v.ok) {
+    await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
+    this.busy.set(false);
+    this.action.set(null);
+    return; // 👈 חשוב
+  }
     try {
       await this.tenantSvc.ensureTenantContextReady();
       const tenant = this.tenantSvc.requireTenant();
@@ -244,7 +316,25 @@ this.fillInTarget.set({
 
   // ===== REJECT (supports bulk reason) =====
  async reject(): Promise<void> {
+   this.clearMessages();
+  this.action.set('reject');
   this.busy.set(true);
+
+  const r = this.request;
+  if (!r?.id) {
+    this.busy.set(false);
+    this.action.set(null);
+    return;
+  }
+
+  // ✅ בדיקת שירות לפני דחייה (כן, גם פה)
+  const v = await this.validator.validate(r, 'reject'); // או 'approve' אם אצלך זה אותו דבר
+  if (!v.ok) {
+    await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
+    this.busy.set(false);
+    this.action.set(null);
+    return; // 👈 חשוב
+  }
   try {
     await this.tenantSvc.ensureTenantContextReady();
     const tenant = this.tenantSvc.requireTenant();
@@ -269,11 +359,18 @@ this.fillInTarget.set({
     const raw = await resp.text();
     let json: any = null; try { json = JSON.parse(raw); } catch {}
     if (!resp.ok || !json?.ok) throw new Error(json?.message || json?.error || raw);
-
-    // emit + callbacks
+    this.okSnack('נדחה ✅');
+    const evt = { requestId: r.id, newStatus: 'REJECTED' as const };
+    this.rejected.emit(evt);
+    this.onRejected?.(evt);
+  } catch (e: any) {
+    this.fail(e?.message ?? 'שגיאה בדחיית הבקשה', e);
   } finally {
     this.busy.set(false);
+    this.action.set(null);
   }
 }
 
 }
+
+

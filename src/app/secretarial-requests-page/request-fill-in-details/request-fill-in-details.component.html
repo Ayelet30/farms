@@ -50,7 +50,7 @@
     </div>
 
     <!-- השיעור שמחליפים (שבוטל) -->
-    <div class="section">
+<div class="section" *ngIf="shouldShowFillInTarget()">
       <div class="section-title">
         <mat-icon class="sec-ico warn">event_busy</mat-icon>
         מחליף את השיעור שבוטל
@@ -88,14 +88,15 @@
 
     <!-- note רק ידני -->
     <textarea
-      class="note"
-      *ngIf="!bulkMode"
-      [ngModel]="note()"
-      (ngModelChange)="note.set($event)"
-      placeholder="סיבה לדחייה (אופציונלי)">
-    </textarea>
+  class="note"
+  *ngIf="canDecide() && !bulkMode"
+  [ngModel]="note()"
+  (ngModelChange)="note.set($event)"
+  placeholder="סיבה לדחייה (אופציונלי)">
+</textarea>
 
-    <div class="actions">
+
+<div class="actions" *ngIf="canDecide()">
       <button mat-stroked-button class="action reject"
               (click)="reject()"
               [disabled]="busy()">

@@ -141,6 +141,7 @@ showAffectedParentsPopup = false;
     type: 'holiday' as RequestType,
     text: '',
   };
+private lastAllDayPref: boolean = true;
 
   /* ------- תפריט אישור/דחייה ------- */
   approvalMenu = {
@@ -160,7 +161,7 @@ showAffectedParentsPopup = false;
       const user = await this.cu.loadUserDetails();
       this.instructorId = String(user?.id_number || '').trim();
       if (!this.instructorId) throw new Error('לא נמצא מזהה מדריך');
-const { data: instructor } = await dbTenant()
+  const { data: instructor } = await dbTenant()
   .from('instructors')
   .select('color_hex')
   .eq('id_number', this.instructorId)
@@ -221,7 +222,7 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
       end_datetime,
       occur_date,
       start_time,
-      end_time
+      
     `)
     .eq('instructor_id', this.instructorId)
     .gte('occur_date', startYmd)
@@ -480,22 +481,20 @@ const req = this.dayRequests.find(
 
         const item: ScheduleItem = {
           id: `summary_${day}`,
-          title: parts.join(' | '),
+          title: parts.join('\n'),
           start: day,
           end: day,
           color: 'transparent', 
-          
           status: 'summary',
-    meta: {
-    isSummaryDay: 'true', // ✅ string ולא boolean
-  },
-
-        };
+          meta: {
+         isSummaryDay: 'true', 
+       },
+     };
 
         return item;
       });
-const farmOffItems = this.farmDaysOffToItems();
-const instructorOffItems = this.instructorDaysOffToItems();
+    const farmOffItems = this.farmDaysOffToItems();
+    const instructorOffItems = this.instructorDaysOffToItems();
 
 this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
 
@@ -883,6 +882,7 @@ cancelAffectedPopup(): void {
  async submitRange(): Promise<void> {
 
   const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
+  this.lastAllDayPref = !!allDay;
 
   if (!from || !to) {
     this.error = 'חובה לבחור מתאריך ועד תאריך';
@@ -893,23 +893,34 @@ cancelAffectedPopup(): void {
 const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
 
 
-  if (hasLessons) {
-      const preservedFile = this.selectedSickFile;
-    // סוגרים את מודאל הבקשה
-    this.rangeModal.open = false;
- this.loadAffectedParentsFromSchedule(from, to);
+ if (hasLessons) {
+  const preservedFile = this.selectedSickFile;
 
-if (this.affectedParents.length > 0) {
-  this.rangeModal.open = false;
-  this.showAffectedParentsPopup = true;
-    (this as any)._preservedSickFile = preservedFile; 
-  this.cdr.detectChanges();
-  return;
-}
+  // לא סוגרים מודאל לפני שבטוח שהולכים לפופאפ
+  this.loadAffectedParentsFromSchedule(from, to);
+
+  if (this.affectedParents.length > 0) {
+    // סוגרים מודאל ומראים פופאפ רק אם באמת יש למי להציג
+    this.rangeModal.open = false;
+    this.showAffectedParentsPopup = true;
+    (this as any)._preservedSickFile = preservedFile;
+    this.cdr.detectChanges();
+    return; // ⛔ לא שומרים עדיין - מחכים לאישור בפופאפ
+  }
+
+  // ✅ אין הורים מושפעים (או לא הצלחנו לזהות) → ממשיכים לשמור רגיל
+  // אל תעשי return פה!
 
     this.cdr.detectChanges();
     return; // ⛔ לא שומרים עדיין
+}
+  
+if (!allDay) {
+  if (!fromTime || !toTime) {
+    this.error = 'חובה לבחור שעות התחלה וסיום';
+    return;
   }
+}
 
   // אם אין שיעורים – שומרים רגיל
   await this.saveRangeRequest(
@@ -939,25 +950,29 @@ onSickFileSelected(event: Event): void {
 }
 
 
-async openRequest(type: RequestType): Promise<void> {
+  async openRequest(type: RequestType): Promise<void> {
   const date = this.contextMenu.date;
   this.closeContextMenu();
-
   if (!date) return;
 
-  // 🔥 קריטי: אובייקט חדש לגמרי
-  this.rangeModal = {
-    open: true,
-    from: date,
-    to: date,
-    allDay: true,
-    fromTime: '',
-    toTime: '',
-    type,
-    text: '',
-  };
+  this.rangeModal.open = true;
+  this.rangeModal.from = date;
+  this.rangeModal.to = date;
 
-  this.cdr.detectChanges();
+  // ✅ לא לכפות true. לשחזר את הבחירה האחרונה של המשתמש.
+  this.rangeModal.allDay = this.lastAllDayPref;
+
+  // אם זה לא יום מלא – תני ערכים סבירים לשעות (או השאירי ריק אם את מעדיפה)
+  if (!this.rangeModal.allDay) {
+    this.rangeModal.fromTime = this.rangeModal.fromTime || '08:00';
+    this.rangeModal.toTime = this.rangeModal.toTime || '12:00';
+  } else {
+    this.rangeModal.fromTime = '';
+    this.rangeModal.toTime = '';
+  }
+
+  this.rangeModal.type = type;
+  this.rangeModal.text = '';
 }
 
   closeRangeModal(): void {
@@ -1091,11 +1106,15 @@ console.log('PENDING FILE:', this.pendingSickFile);
     throw new Error('missing user uid');
   }
 
-  // 🔴 בדיוק כמו המקור – בלי שדות מיותרים
-  const payload = {
-    category: this.mapRequestTypeToDb(type),
-    note: note ?? null,
-  };
+const payload: any = {
+  category: this.mapRequestTypeToDb(type),
+  note: note ?? null,
+
+  all_day: allDay,
+  requested_start_time: allDay ? null : (fromTime ? fromTime.slice(0, 5) : null),
+  requested_end_time: allDay ? null : (toTime ? toTime.slice(0, 5) : null),
+};
+
 
   const { data, error } = await dbc
     .from('secretarial_requests')
@@ -1342,30 +1361,32 @@ private farmDaysOffToItems(): ScheduleItem[] {
     const title =
       d.reason?.trim()
         ? `🏖 ${d.reason}`
-        : isFullDay
-        ? '🏖 חופשת חווה – יום מלא'
-        : '🏖 חופשת חווה – לפי שעות';
+       : isFullDay
+     ? '🏖 חופשת חווה\nיום מלא'
+     : '🏖 חופשת חווה\nלפי שעות';
 
-    return {
-      id: `farm_off_${d.id}`,
-      title,
 
-      start,
-      end,
+       return {
+        id: `farm_off_${d.id}`,
+        title,
+        start,
+        end,
+        allDay: isFullDay,
 
-      allDay: isFullDay,
-      display: 'background',
-      classNames: ['farm-day-off'],
+        display: 'block',                 
+        classNames: ['farm-day-off-event'],
+        color: 'rgba(255, 183, 77, 0.35)', 
+       textColor: '#1f2a1f',
 
-      status: 'farm_day_off' as any,
-      meta: {
+        status: 'farm_day_off' as any,
+        meta: {
         isFarmDayOff: 'true',
         reason: d.reason ?? null,
         day_type: d.day_type,
-      } as any,
-    };
-  });
-}
+        } as any,
+      };
+    });
+  }
 
 
   private getRequestForDate(date: string): DayRequestRow | undefined {

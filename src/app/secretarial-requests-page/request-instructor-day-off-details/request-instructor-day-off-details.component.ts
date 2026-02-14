@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/legacy-compat';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { RequestValidationService } from '../../services/request-validation.service';
 
 type ImpactRow = {
   occur_date: string; // date
@@ -24,10 +25,53 @@ type ToastKind = 'success' | 'error' | 'info';
 export class RequestInstructorDayOffDetailsComponent {
   private snack = inject(MatSnackBar);
   private db = dbTenant();
+  private validator = inject(RequestValidationService);
 
   // ====== INPUTS → Signals (כדי שהפרטים יתעדכנו תמיד) ======
   private _req = signal<any | null>(null);
   readonly req = this._req;
+readonly status = computed(() => (this.req() as any)?.status ?? null);
+readonly isPending = computed(() => this.status() === 'PENDING');
+
+// ✅ האם להציג impact + האם לטעון impact
+readonly shouldShowImpact = computed(() => this.isPending());
+// ✅ האם להציג פעולות (Approve/Reject)
+readonly canDecide = computed(() => this.isPending());
+readonly windowText = computed(() => {
+  const r: any = this.req() ?? {};
+  const p: any = r.payload ?? {};
+
+  const from = (r.fromDate ?? p.from_date ?? '').slice(0, 10);
+  const to   = (r.toDate   ?? p.to_date   ?? from).slice(0, 10);
+
+  const allDay = !!p.all_day;
+
+  const start = (p.requested_start_time ?? '').toString().slice(0, 5) || null;
+  const end   = (p.requested_end_time   ?? '').toString().slice(0, 5) || null;
+
+  const fmt = (d: string) => {
+    try { return new Date(d).toLocaleDateString('he-IL'); }
+    catch { return d; }
+  };
+
+  // 1) יום אחד
+  if (from && to && from === to) {
+    if (allDay) return `${fmt(from)} — יום חופש מלא`;
+    if (start && end) return `${fmt(from)} — ${start}–${end}`;
+    if (start && !end) return `${fmt(from)} — החל מ־${start}`;
+    return `${fmt(from)} — יום חופש`;
+  }
+
+  // 2) טווח ימים
+  if (from && to && from !== to) {
+    if (allDay) return `${fmt(from)}–${fmt(to)} — חופשה מלאה`;
+    if (start && end) return `${fmt(from)}–${fmt(to)} — בכל יום ${start}–${end}`;
+    if (start && !end) return `${fmt(from)}–${fmt(to)} — בכל יום החל מ־${start}`;
+    return `${fmt(from)}–${fmt(to)} — חופשה`;
+  }
+
+  return '—';
+});
 
   @Input({ required: true })
   set request(value: any) {
@@ -58,6 +102,8 @@ export class RequestInstructorDayOffDetailsComponent {
 
   // ====== נגזרים ======
   impactCount = computed(() => this.impactRows().length);
+// alias כדי שה-bulk runner שממלא inst.note יעבוד
+note = this.decisionNote;
 
   constructor() {
     // כל פעם שהבקשה משתנה (לפי id) → טוענים impact מחדש
@@ -68,8 +114,9 @@ export class RequestInstructorDayOffDetailsComponent {
       // איפוס תצוגה “מיד” כדי שלא יישארו שורות מהבקשה הקודמת
       this.impactRows.set([]);
       this.decisionNote.set(this.decisionNote()); // משאירה מה שהקלדת (אם תרצי לאפס: set(''))
-
-      void this.loadImpact();
+if (this.isPending()) {
+    void this.loadImpact();
+  }
     });
   }
 
@@ -100,6 +147,45 @@ export class RequestInstructorDayOffDetailsComponent {
       this.loadingImpact.set(false);
     }
   }
+private async rejectBySystem(reason: string): Promise<void> {
+  const r = this.req();
+  const requestId = r?.id;
+  const decidedByUid = this.decidedByUidSig();
+
+  if (!requestId) return;
+
+  try {
+    const { data, error } = await this.db
+      .from('secretarial_requests')
+      .update({
+        status: 'REJECTED_BY_SYSTEM',
+        decided_by_uid: decidedByUid,
+        decision_note: (reason || 'בקשה לא תקינה').trim(),
+        decided_at: new Date().toISOString(),
+      })
+      .eq('id', requestId)
+      .eq('status', 'PENDING')
+      .select('id,status')
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return; // מישהו כבר טיפל
+
+    const msg = reason || 'הבקשה נדחתה אוטומטית ע"י המערכת';
+    this.toast(msg, 'info');
+
+    this.onRejected?.({
+      requestId,
+      newStatus: 'REJECTED',
+      message: msg,
+      meta: { rejectedBySystem: true },
+    });
+  } catch (e: any) {
+    console.error('rejectBySystem failed', e);
+    // אם נכשל – לא להפיל את ה-UI, רק להודיע
+    this.onError?.({ requestId, message: e?.message ?? 'שגיאה בדחייה אוטומטית', raw: e });
+  }
+}
 
   static async isValidRequset(row: any): Promise<{ ok: boolean; reason?: string }> {
     const end = row?.toDate ?? row?.fromDate ?? null;
@@ -124,7 +210,12 @@ export class RequestInstructorDayOffDetailsComponent {
     const decidedByUid = this.decidedByUidSig();
 
     if (!requestId || !decidedByUid) return;
-
+ // ✅ הולידציה דרך השירות – לפני אישור
+  const v = await this.validator.validate(r, 'approve');
+  if (!v.ok) {
+    await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
+    return; // 👈 הכי חשוב!
+  }
     this.loading.set(true);
 
     try {
@@ -162,7 +253,11 @@ export class RequestInstructorDayOffDetailsComponent {
   const decidedByUid = this.decidedByUidSig();
 
   if (!requestId || !decidedByUid) return;
-
+ const v = await this.validator.validate(r, 'approve');
+  if (!v.ok) {
+    await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
+    return; // 👈 חשוב!
+  }
   this.loading.set(true);
 
   try {

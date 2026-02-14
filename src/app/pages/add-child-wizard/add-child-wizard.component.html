@@ -224,6 +224,8 @@
       <!-- שלב 4: אמצעי תשלום -->
       <div *ngIf="stepIndex === paymentStepIndex && isParentMode" class="step-pane">
         <h3 class="step-title">אמצעי תשלום</h3>
+        <b>שימו לב! דמי רישום יגבו רק מילדים חדשים בחווה - ולא ילדים חדשים באתר</b>.
+        <b>שימו לב! הכנסת פרטי האשראי הוא לצורך חיובים עתידיים מהמערכת</b>.
 
         <p class="step-hint" *ngIf="loadingPaymentProfile">טוען אמצעי תשלום…</p>
 
@@ -242,7 +244,7 @@
           <div class="form-grid">
             <div class="form-field">
               <label>סכום דמי הרשמה (₪)</label>
-              <input type="number" class="editable-input" [(ngModel)]="payment.registrationAmount" min="0" />
+              <label>payment.registrationAmount</label>
               <div class="error-msg" *ngIf="validationErrors['registrationAmount']">
                 {{ validationErrors['registrationAmount'] }}
               </div>

@@ -10,6 +10,8 @@ import { CurrentUserService } from '../../core/auth/current-user.service';
 import { TenantBootstrapService } from '../../services/tenant-bootstrap.service';
 import type { UiRequest } from '../../Types/detailes.model';
 
+import { RequestValidationService } from '../../services/request-validation.service'; 
+// ⚠️ תעדכני את הנתיב לפי הפרויקט שלך
 
 type ParentMeta = {
   first_name?: string;
@@ -51,6 +53,27 @@ export class RequestAddParentDetailsComponent {
 
   private cu = inject(CurrentUserService);
   private snack = inject(MatSnackBar);
+private validator = inject(RequestValidationService);
+private async rejectBySystem(reason: string): Promise<void> {
+  const db = dbTenant();
+
+  const decidedUid =
+    this.decidedByUid ?? (this.cu.current as any)?.uid ?? null;
+
+  const { error } = await db.rpc('reject_secretarial_request', {
+    p_request_id: this.request.id,
+    p_decided_by_uid: decidedUid,
+    p_decision_note: reason || 'הבקשה אינה תקינה',
+  });
+
+  if (error) throw error;
+
+  const msg = `הבקשה נדחתה אוטומטית: ${reason}`;
+  this.toast(msg, 'info');
+
+  this.onRejected?.({ requestId: this.request.id, newStatus: 'REJECTED', message: msg });
+  this.rejected.emit({ requestId: this.request.id, newStatus: 'REJECTED' });
+}
 
   loading = signal(false);
   errText = signal<string | null>(null);
@@ -178,6 +201,12 @@ private async getTenantCtx(): Promise<{ tenant_id: string; schema: string }> {
     this.errText.set(null);
 
     try {
+      // ✅ בדיקה דרך השירות לפני אישור
+    const v = await this.validator.validate(this.request as any, 'approve');
+    if (!v.ok) {
+      await this.rejectBySystem(v.reason);
+      return; // 👈 חשוב מאוד
+    }
       const idToken = await this.cu.getIdToken(true);
 
       const { tenant_id, schema } = await this.getTenantCtx(); 
@@ -229,6 +258,12 @@ private async getTenantCtx(): Promise<{ tenant_id: string; schema: string }> {
     this.errText.set(null);
 
     try {
+       // ✅ בדיקה דרך השירות לפני דחייה (גם פה)
+    const v = await this.validator.validate(this.request as any, 'reject');
+    if (!v.ok) {
+      await this.rejectBySystem(v.reason);
+      return; // 👈 חשוב מאוד
+    }
       const db = dbTenant();
 
       const { error } = await db.rpc('reject_secretarial_request', {

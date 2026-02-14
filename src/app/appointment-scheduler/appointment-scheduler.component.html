@@ -660,7 +660,6 @@
     </p>
 
     <p class="error" *ngIf="makeupError">{{ makeupError }}</p>
-    <p class="success" *ngIf="makeupCreatedMessage">{{ makeupCreatedMessage }}</p>
   </div>
 
   <!-- חורים פנויים עבור השיעור שנבחר -->
@@ -702,6 +701,30 @@
     <p *ngIf="loadingCandidateSlots">טוען חורים פנויים...</p>
     <p class="error" *ngIf="candidateSlotsError">{{ candidateSlotsError }}</p>
   </div>
+<ng-template #confirmMakeupDialogSecretary let-dialogRef="dialogRef">
+  <div dir="rtl" style="padding: 10px; max-width: 380px;">
+    <h3>אישור קביעת שיעור השלמה</h3>
+
+    <p>
+      האם את בטוחה שברצונך <b>לקבוע</b> שיעור השלמה לתאריך
+      <b>{{ confirmData.newDate }}</b>
+      בשעות <b><span class="time-range">{{ confirmData.newStart }}–{{ confirmData.newEnd }}</span></b>
+      עם המדריך/ה <b>{{ confirmData.newInstructorName }}</b>
+
+      <br /><br />
+
+      במקום השיעור בתאריך
+      <b>{{ confirmData.oldDate }}</b>
+      בשעות <b><span class="time-range">{{ confirmData.oldStart }}–{{ confirmData.oldEnd }}</span></b>
+      עם המדריך/ה <b>{{ confirmData.oldInstructorName }}</b>
+    </p>
+
+    <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 20px;">
+      <button mat-button (click)="dialogRef.close(false)">ביטול</button>
+      <button mat-raised-button color="primary" (click)="dialogRef.close(true)">אישור</button>
+    </div>
+  </div>
+</ng-template>
 
   <!-- דיאלוג אישור להורה -->
   <ng-template #confirmMakeupDialog let-dialogRef="dialogRef">
@@ -712,10 +735,13 @@
         האם את בטוחה שברצונך לבקש שיעור השלמה
         לתאריך <b>{{ confirmData.newDate }}</b>
 בשעות <b><span class="time-range">{{ confirmData.newStart }}–{{ confirmData.newEnd }}</span></b>
+עם המדריך/ה <b>{{ confirmData.newInstructorName }}</b>
 
         במקום השיעור בתאריך
         <b>{{ confirmData.oldDate | date:'dd-MM-yyyy' }}</b>
         בשעות <b>{{ confirmData.oldStart }}–{{ confirmData.oldEnd }}</b>?
+        עם המדריך/ה <b>{{ confirmData.oldInstructorName }}</b>?
+
         ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
       </p>
 

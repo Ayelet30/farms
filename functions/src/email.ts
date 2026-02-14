@@ -143,6 +143,8 @@ const masterKey = envOrSecret(GMAIL_MASTER_KEY_S, 'GMAIL_MASTER_KEY');
       const rawAtt = Array.isArray(body.attachments) ? body.attachments : [];
       if (rawAtt.length > 5) return void res.status(400).json({ error: 'Too many attachments (max 5)' });
 
+      console.log('sendEmailGmail', tenantSchema);
+
       // ✅ call core
       const result = await sendEmailCore({
         tenantSchema,

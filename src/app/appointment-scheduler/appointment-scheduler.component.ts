@@ -294,10 +294,13 @@ confirmData = {
   newDate: '',
   newStart: '',
   newEnd: '',
+  newInstructorName: '',   
   oldDate: '',
   oldStart: '',
   oldEnd: '',
+  oldInstructorName: '',   
 };
+
 
 referralFile: File | null = null;
 referralUploadError: string | null = null;
@@ -641,7 +644,15 @@ private async loadFarmSettings(): Promise<void> {
 
   const { data, error } = await supa
     .from('farm_settings')
-    .select('displayed_makeup_lessons_count , hours_before_cancel_lesson , time_range_occupancy_rate_days , series_search_horizon_days , child_deletion_grace_days')
+    .select(`
+  displayed_makeup_lessons_count,
+  hours_before_cancel_lesson,
+  time_range_occupancy_rate_days,
+  series_search_horizon_days,
+  child_deletion_grace_days,
+  default_lessons_per_series
+`)
+
     .limit(1)
     .single();
 
@@ -657,6 +668,8 @@ private async loadFarmSettings(): Promise<void> {
   this.seriesSearchHorizonDays = data?.series_search_horizon_days ?? 90;
 this.childDeletionGraceDays = Number(data?.child_deletion_grace_days ?? 0);
 
+this.seriesLessonCount = data?.default_lessons_per_series ?? null;
+this.isOpenEndedSeries = data?.default_lessons_per_series == null;
 
 
 }
@@ -1158,8 +1171,6 @@ async onChildSelected(): Promise<void> {
   this.clearUiHint('seriesCount');
   this.clearUiHint('payment');
 
-  this.seriesLessonCount = null;
-  this.isOpenEndedSeries = false;
   this.paymentSourceForSeries = null;
 
   this.selectedPaymentPlanId = null;
@@ -1334,7 +1345,8 @@ async searchRecurringSlots(): Promise<void> {
     return;
   }
 
-  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
+ if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
+
   this.seriesError = 'יש לבחור כמות שיעורים בסדרה';
   return;
 }
@@ -1568,9 +1580,10 @@ onSeriesLessonCountChange(val: number | null): void {
   this.selectedSeriesDaySlots = [];
   this.seriesError = null;
 
-  if (!val) {
-    return;
-  }
+if (val == null) {
+  return;
+}
+
 
   // אם עדיין אין ילד נבחר – נחכה
   if (
@@ -1594,7 +1607,8 @@ async createSeriesFromSlot(slot: RecurringSlotWithSkips): Promise<void> {
   if (!this.selectedChildId) return;
 
   // ✅ אם "ללא הגבלה" מותר בלי כמות, אחרת חובה כמות
-  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
+  if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
+
     this.seriesError = 'יש לבחור כמות שיעורים בסדרה לפני קביעת הסדרה';
     this.showErrorToast(this.seriesError);
     return;
@@ -1904,10 +1918,19 @@ async bookMakeupSlot(slot: MakeupSlot): Promise<void> {
   this.confirmData.newDate  = slot.occur_date;
   this.confirmData.newStart = slot.start_time.substring(0, 5);
   this.confirmData.newEnd   = slot.end_time.substring(0, 5);
-
+this.confirmData.newInstructorName =
+  slot.instructor_name ??
+  this.getInstructorDisplayName(slot.instructor_id) ??
+  this.getInstructorNameById(slot.instructor_id) ??
+  slot.instructor_id;
   this.confirmData.oldDate  = this.selectedMakeupCandidate.occur_date;
   this.confirmData.oldStart = this.selectedMakeupCandidate.start_time.substring(0, 5);
   this.confirmData.oldEnd   = this.selectedMakeupCandidate.end_time.substring(0, 5);
+this.confirmData.oldInstructorName =
+  this.selectedMakeupCandidate?.instructor_name ??
+  this.getInstructorDisplayName(this.selectedMakeupCandidate?.instructor_id) ??
+  this.getInstructorNameById(this.selectedMakeupCandidate?.instructor_id ?? null) ??
+  (this.selectedMakeupCandidate?.instructor_id ?? '');
 
   // ===== 2) לפתוח את אותו דיאלוג בדיוק =====
   const dialogRef = this.dialog.open(this.confirmMakeupDialog, {
@@ -2009,7 +2032,17 @@ async requestMakeupFromSecretary(slot: MakeupSlot): Promise<void> {
   this.confirmData.newDate  = slot.occur_date;
   this.confirmData.newStart = slot.start_time.substring(0, 5);
   this.confirmData.newEnd   = slot.end_time.substring(0, 5);
+  this.confirmData.newInstructorName =
+  slot.instructor_name ??
+  this.getInstructorDisplayName(slot.instructor_id) ??
+  this.getInstructorNameById(slot.instructor_id) ??
+  slot.instructor_id;
 
+this.confirmData.oldInstructorName =
+  this.selectedMakeupCandidate?.instructor_name ??
+  this.getInstructorDisplayName(this.selectedMakeupCandidate?.instructor_id) ??
+  this.getInstructorNameById(this.selectedMakeupCandidate?.instructor_id ?? null) ??
+  (this.selectedMakeupCandidate?.instructor_id ?? '');
   // מידע של השיעור המקורי (הביטל/שאפשר להשלים אותו)
   this.confirmData.oldDate  = this.selectedMakeupCandidate.occur_date;
   this.confirmData.oldStart = this.selectedMakeupCandidate.start_time.substring(0, 5);
@@ -2116,8 +2149,9 @@ const baseLessonUid = this.selectedMakeupCandidate!.lesson_occ_exception_id ?? n
     //   return;
     // }
 
-    this.makeupCreatedMessage =
-      'בקשת ההשלמה נשלחה למזכירה ✔️';
+   this.showSuccessToast('בקשת ההשלמה נשלחה למזכירה ✔️');
+this.makeupCreatedMessage = null; // אם את עדיין מציגה אותו איפשהו
+
 this.makeupCandidates = this.makeupCandidates.filter(x => !this.sameCandidate(x, this.selectedMakeupCandidate!));
 this.selectedMakeupCandidate = null;
 this.candidateSlots = [];
@@ -2138,7 +2172,8 @@ async onSeriesSlotChosen(slot: RecurringSlotWithSkips): Promise<void> {
     return;
   }
 
-  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
+if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
+
     this.seriesError = 'חסר מספר שיעורים בסדרה';
     this.showErrorToast(this.seriesError);
     return;
@@ -3170,7 +3205,8 @@ private async submitSeriesRequestToSecretary(slot: RecurringSlotWithSkips): Prom
     return;
   }
 
-  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
+if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
+
     this.seriesError = 'חסר מספר שיעורים בסדרה';
     this.showErrorToast(this.seriesError);
     return;
@@ -3234,6 +3270,8 @@ private async submitSeriesRequestToSecretary(slot: RecurringSlotWithSkips): Prom
   // ===== payload לבקשה =====
   const payload: any = {
     requested_start_time: built.startTime,
+      requested_end_time: built.endTime,  
+
       repeat_weeks: this.isOpenEndedSeries ? null : this.seriesLessonCount,
 
     is_open_ended: this.isOpenEndedSeries,

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { dbTenant, getSupabaseClient } from '../../services/legacy-compat';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { RequestValidationService } from '../../services/request-validation.service';
 
 type AddChildDetails = {
   request_id: string;
@@ -68,6 +69,36 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
   loading = signal(false);
   details = signal<AddChildDetails | null>(null);
   decisionNote = '';
+private validator = inject(RequestValidationService);
+private async rejectBySystem(reason: string): Promise<void> {
+  // עדכון אטומי: רק אם עדיין PENDING
+  const { data, error } = await this.db
+    .from('secretarial_requests')
+    .update({
+      status: 'REJECTED_BY_SYSTEM',
+      decided_by_uid: this.decidedByUid ?? null,
+      decided_at: new Date().toISOString(),
+      decision_note: reason || null,
+    })
+    .eq('id', this.request.id)
+    .eq('status', 'PENDING')
+    .select('id,status')
+    .maybeSingle();
+
+  if (error) throw error;
+
+  // אם כבר לא PENDING — לא נזרוק, פשוט נסיים בשקט
+  if (!data) return;
+
+  this.toast(reason || 'הבקשה נדחתה אוטומטית ע״י המערכת', 'info');
+
+  this.onRejected?.({
+    requestId: this.request.id,
+    newStatus: 'REJECTED',
+    message: reason,
+    meta: { system: true },
+  });
+}
 
   // ===== Signed Terms popup =====
   signedOpen = signal(false);
@@ -178,6 +209,13 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
     this.loading.set(true);
 
     try {
+       // ✅ בדיקה לפני אישור
+    const v = await this.validator.validate(this.request, 'approve');
+    if (!v.ok) {
+      await this.rejectBySystem(v.reason ?? 'הבקשה אינה תקינה');
+      return; // 👈 חשוב
+    }
+
       const { error } = await this.db.rpc('approve_add_child_request', {
         p_request_id: this.request.id,
         p_decided_by_uid: this.decidedByUid,
@@ -213,6 +251,13 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
     this.loading.set(true);
 
     try {
+        // ✅ בדיקה לפני דחייה
+    const v = await this.validator.validate(this.request, 'reject');
+    if (!v.ok) {
+      await this.rejectBySystem(v.reason ?? 'הבקשה אינה תקינה');
+      return; // 👈 חשוב
+    }
+
       const { error } = await this.db.rpc('reject_secretarial_request', {
         p_request_id: this.request.id,
         p_decided_by_uid: this.decidedByUid,

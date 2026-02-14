@@ -14,6 +14,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { getAuth } from 'firebase/auth';
 import { MatIconModule } from '@angular/material/icon';
+import { RequestValidationService } from '../../services/request-validation.service';
+import type { ValidationResult } from '../../services/request-validation.service';
 
 // חשוב: זה הטיפוס שאת מעבירה מהדף הראשי
 import type { UiRequest } from '../../Types/detailes.model';
@@ -43,6 +45,7 @@ async ngOnInit() {
   // await this.loadInstructorName();
 
 }
+private validator = inject(RequestValidationService);
 
   // ✅ הבקשה שנבחרה מהדף הראשי
 private _request!: UiRequest;
@@ -107,7 +110,7 @@ get request(): UiRequest {
 
   // ✅ outputs – כדי שגם onDetailsActivate יוכל להאזין (approved/rejected/error)
   @Output() approved = new EventEmitter<{ requestId: string; newStatus: 'APPROVED' }>();
-  @Output() rejected = new EventEmitter<{ requestId: string; newStatus: 'REJECTED' }>();
+@Output() rejected = new EventEmitter<{ requestId: string; newStatus: 'REJECTED' | 'REJECTED_BY_SYSTEM' }>();
   @Output() error = new EventEmitter<string>();
 
   loading = signal(false);
@@ -339,6 +342,54 @@ static async isValidRequset(row: UiRequest): Promise<{ ok: boolean; reason?: str
 async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
   return await SecretarialSeriesRequestsComponent.isValidRequset(this.request);
 }
+private async rejectBySystem(reason: string): Promise<boolean> {
+  if (!this.request?.id) return false;
+
+  await ensureTenantContextReady();
+  const db = dbTenant();
+
+  const decidedBy = await this.resolveDeciderUid();
+  const note = (reason || 'בקשה לא תקינה').trim();
+
+  try {
+    const { data, error } = await db
+      .from('secretarial_requests')
+      .update({
+        status: 'REJECTED_BY_SYSTEM',
+        decided_by_uid: decidedBy,
+        decision_note: note,
+        decided_at: new Date().toISOString(),
+      })
+      .eq('id', this.request.id)
+      .eq('status', 'PENDING')
+      .select('id')
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return false;
+
+    const payload = { requestId: this.request.id, newStatus: 'REJECTED_BY_SYSTEM' as const };
+
+    // Snack (לא להפריע בבאלק)
+    if (!this.bulkMode) {
+      this.snack.open(`נדחה אוטומטית: ${note}`, 'סגור', {
+        duration: 4500,
+        panelClass: ['snack-reject'],
+        direction: 'rtl',
+        horizontalPosition: 'center',
+        verticalPosition: 'top',
+      });
+    }
+
+    this.rejected.emit(payload);
+    this.onRejected?.(payload);
+
+    return true;
+  } catch (e) {
+    console.error('rejectBySystem failed', e);
+    return false;
+  }
+}
 
 async approveSelected() {
   // ✅ מניעת קריאה כפולה (לחיצה כפולה / submit)
@@ -386,6 +437,14 @@ async approveSelected() {
       verticalPosition: 'top',
     });
 
+    this.loading.set(false);
+    return;
+  }
+  // ✅ ולידציה דרך השירות (approve) — לפני כל RPC/DB
+  const v = await this.validator.validate(this.request, 'approve');
+  if (!v.ok) {
+    // ✅ דחייה אוטומטית ע"י המערכת עם הסיבה של השירות
+    await this.rejectBySystem(v.reason);
     this.loading.set(false);
     return;
   }
@@ -461,24 +520,16 @@ console.log('RIDING TYPE DEBUG', {
 
     const first = Array.isArray(data) ? data[0] : data;
 
-    if (!first?.ok) {
-  const reason = String(first?.deny_reason ?? '');
+   if (!first?.ok) {
+  const reasonKey = String(first?.deny_reason ?? '');
   const msg =
-    SERIES_DENY_MESSAGES[reason] ??
-    `אי אפשר לאשר את הסדרה: ${reason || 'סיבה לא ידועה'}`;
+    SERIES_DENY_MESSAGES[reasonKey] ??
+    `אי אפשר לאשר את הסדרה: ${reasonKey || 'סיבה לא ידועה'}`;
 
-  this.errorMsg.set(msg);
-  this.error.emit(msg);
-  this.onError?.({ requestId: this.request.id, message: msg, raw: first });
+  // ✅ לא להשאיר PENDING – דחייה אוטומטית
+  await this.rejectBySystem(msg);
 
-  this.snack.open(msg, 'סגור', {
-    duration: 5000,
-    panelClass: ['snack-reject'],
-    direction: 'rtl',
-    horizontalPosition: 'center',
-    verticalPosition: 'top',
-  });
-
+  this.loading.set(false);
   return;
 }
 
@@ -563,6 +614,13 @@ async rejectSelected() {
   this.clearMessages();
 
   if (!this.request?.id) return;
+  // ✅ ולידציה דרך השירות גם ברגע דחייה
+const v = await this.validator.validate(this.request, 'reject');
+if (!v.ok) {
+  await this.rejectBySystem(v.reason);
+  return;
+}
+
   
   try {
     this.loading.set(true);
