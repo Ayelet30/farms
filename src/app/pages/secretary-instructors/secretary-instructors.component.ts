@@ -499,6 +499,7 @@ sanitizeAddress(v: any): string {
           notify,
           accepts_makeup_others,
           allow_availability_edit,
+          non_therapy_riding_types,
           birth_date
         `)
         .eq('id_number', id_number)
@@ -808,6 +809,8 @@ sanitizeAddress(v: any): string {
     try {
       const dbcTenant = dbTenant();
       const updates: any = {
+        non_therapy_riding_types: m.non_therapy_riding_types ?? [],
+
         first_name: m.first_name.trim(),
         last_name: m.last_name.trim(),
         phone,

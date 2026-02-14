@@ -20,7 +20,9 @@
   class="context-menu"
   *ngIf="contextMenu.visible"
   [style.top.px]="contextMenu.y"
-  [style.left.px]="contextMenu.x">
+  [style.left.px]="contextMenu.x"
+
+>
 
   <button class="context-close" (click)="closeContextMenu()">×</button>
 
