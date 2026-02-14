@@ -382,35 +382,36 @@ private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<vo
 }
 
 
-  private expandRequestRow(row: any): DayRequestRow[] {
-    const res: DayRequestRow[] = [];
-    if (!row.from_date) return res;
-// ✅ אם אין category – זו לא בקשת חופש תקינה, לא להציג בלוח
-if (!row.payload?.category) return res;
+ private expandRequestRow(row: any): DayRequestRow[] {
+  const res: DayRequestRow[] = [];
+  if (!row.from_date) return res;
+  if (!row.payload?.category) return res;
 
-const from = new Date(`${row.from_date}T00:00:00`);
-const to = new Date(`${(row.to_date || row.from_date)}T00:00:00`);
+  let current = row.from_date.slice(0, 10);
+  const end = (row.to_date || row.from_date).slice(0, 10);
 
+  const type: RequestType = this.mapDbRequestType(row.payload?.category);
+  const status: RequestStatus = this.mapDbStatus(row.status);
+  const note: string | null =
+    row.payload?.note ?? row.decision_note ?? null;
 
-    const type: RequestType = this.mapDbRequestType(row.payload?.category);
-    const status: RequestStatus = this.mapDbStatus(row.status);
-    const note: string | null = row.payload?.note ?? row.decision_note ?? null;
+  while (current <= end) {
+    res.push({
+      id: row.id,
+      instructor_id: row.instructor_id,
+      request_date: current,
+      request_type: type,
+      status,
+      note,
+    });
 
-    let d = new Date(from);
-    while (d <= to) {
-      res.push({
-        id: row.id,
-        instructor_id: row.instructor_id,
-        request_date: ymd(d),
-        request_type: type,
-        status,
-        note,
-      });
-      d.setDate(d.getDate() + 1);
-    }
-
-    return res;
+    // הוספת יום בלי Date UTC
+    current = this.addOneDayYmd(current);
   }
+
+  return res;
+}
+
 
   /* ------------ ITEM MAPPING ------------ */
   private setScheduleItems(): void {
@@ -752,17 +753,13 @@ onRightClickDay(e: any): void {
   e.jsEvent.preventDefault();
   e.jsEvent.stopPropagation();
 
-  let localYmd: string | null = null;
+  const localYmd = typeof e.dateStr === 'string'
+    ? e.dateStr.slice(0, 10)
+    : (e.date ? new Date(e.date).toLocaleDateString('sv-SE') : null);
 
-  // ✅ הדרך הנכונה
-  if (typeof e.dateStr === 'string') {
-    localYmd = e.dateStr.slice(0, 10);
-  }
+  console.log('🟣 RIGHT CLICK dateStr=', e.dateStr, ' => localYmd=', localYmd);
 
-  if (!localYmd) {
-    console.warn('[rightClickDay] no valid date', e);
-    return;
-  }
+  if (!localYmd) return;
 
   this.contextMenu.visible = true;
   this.contextMenu.x = e.jsEvent.clientX;
@@ -771,9 +768,6 @@ onRightClickDay(e: any): void {
 
   this.cdr.detectChanges();
 }
-
-
-
 
   /* ------------ שינוי טווח תצוגה ------------ */
 async onViewRangeChange(range: any): Promise<void> {
@@ -950,30 +944,28 @@ onSickFileSelected(event: Event): void {
 }
 
 
-  async openRequest(type: RequestType): Promise<void> {
+async openRequest(type: RequestType): Promise<void> {
   const date = this.contextMenu.date;
+   console.log('🟡 OPEN REQUEST using date=', date, 'type=', type);
   this.closeContextMenu();
   if (!date) return;
 
-  this.rangeModal.open = true;
-  this.rangeModal.from = date;
-  this.rangeModal.to = date;
+  const allDay = this.lastAllDayPref;
 
-  // ✅ לא לכפות true. לשחזר את הבחירה האחרונה של המשתמש.
-  this.rangeModal.allDay = this.lastAllDayPref;
+  this.rangeModal = {
+    open: true,
+    from: date,
+    to: date,
+    allDay,
+    fromTime: allDay ? '' : '08:00',
+    toTime: allDay ? '' : '12:00',
+    type,
+    text: '',
+  };
 
-  // אם זה לא יום מלא – תני ערכים סבירים לשעות (או השאירי ריק אם את מעדיפה)
-  if (!this.rangeModal.allDay) {
-    this.rangeModal.fromTime = this.rangeModal.fromTime || '08:00';
-    this.rangeModal.toTime = this.rangeModal.toTime || '12:00';
-  } else {
-    this.rangeModal.fromTime = '';
-    this.rangeModal.toTime = '';
-  }
-
-  this.rangeModal.type = type;
-  this.rangeModal.text = '';
+  this.cdr.detectChanges();
 }
+
 
   closeRangeModal(): void {
     this.rangeModal.open = false;
