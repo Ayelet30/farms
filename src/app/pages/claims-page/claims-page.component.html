@@ -1,0 +1,246 @@
+<div class="page-wrap">
+  <!-- כותרת -->
+  <div class="card header-card">
+    <div class="title-block">
+      <h2>תביעות</h2>
+      <p class="subtitle">ניהול תביעות לפי קופה: פתיחה, סימון, והגשה.</p>
+    </div>
+  </div>
+
+  <!-- טאבים -->
+  <mat-tab-group class="tabs-shell">
+    <!-- כללית -->
+    <mat-tab label="כללית">
+      <!-- פילטרים -->
+      <div class="card filters-card">
+        <div class="filters-grid">
+
+          <div class="filter-field">
+            <label>חיפוש ילד</label>
+            <input
+              type="text"
+              [(ngModel)]="filters.childText"
+              (input)="applyFilters()"
+              placeholder="שם ילד"
+            />
+          </div>
+
+          <div class="filter-field">
+            <label>חיפוש מדריך</label>
+            <input
+              type="text"
+              [(ngModel)]="filters.instructorText"
+              (input)="applyFilters()"
+              placeholder="שם מדריך"
+            />
+          </div>
+
+          <div class="filter-field">
+            <label>מתאריך</label>
+            <input
+              type="date"
+              [(ngModel)]="filters.dateFrom"
+              (change)="applyFilters()"
+              [max]="filters.dateTo || null"
+            />
+          </div>
+
+          <div class="filter-field">
+            <label>עד תאריך</label>
+            <input
+              type="date"
+              [(ngModel)]="filters.dateTo"
+              (change)="applyFilters()"
+              [min]="filters.dateFrom || null"
+            />
+          </div>
+
+          <div class="filter-field">
+            <label>סטטוס תביעה</label>
+            <mat-select [(ngModel)]="filters.claimStatus" (selectionChange)="applyFilters()">
+              <mat-option value="ALL">הכל</mat-option>
+              <mat-option value="NONE">ללא</mat-option>
+              <mat-option value="OPENED_NOT_SUBMITTED">נפתחה (לא הוגשה)</mat-option>
+              <mat-option value="PENDING">הוגשה - ממתינה</mat-option>
+              <mat-option value="APPROVED">אושרה</mat-option>
+              <mat-option value="REJECTED">נדחתה</mat-option>
+            </mat-select>
+          </div>
+
+          <div class="filter-field">
+            <label>מחויב בתשלום</label>
+            <mat-select [(ngModel)]="filters.chargeable" (selectionChange)="applyFilters()">
+              <mat-option value="ALL">הכל</mat-option>
+              <mat-option value="YES">כן</mat-option>
+              <mat-option value="NO">לא</mat-option>
+            </mat-select>
+          </div>
+
+          <div class="filter-actions">
+            <button class="pill-btn ghost" type="button" (click)="resetFilters()">
+              איפוס סינון
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- פעולות כלליות -->
+      <div class="actions-row">
+        <div class="chips">
+          <span class="chip">מוצגים: {{ dataSource.data.length }}</span>
+          <span class="chip">מסומנים: {{ selectedIds.size }}</span>
+        </div>
+
+        <div class="top-actions">
+          <button class="pill-btn" [disabled]="!canOpenSelectedClaims" (click)="openSelectedClaims()">
+            פתיחת תביעות למסומנים
+          </button>
+
+          <button class="pill-btn primary" [disabled]="!canSubmitSelectedClaims" (click)="submitSelectedClaims()">
+            הגשת תביעות מסומנות
+          </button>
+        </div>
+      </div>
+
+      <!-- טבלה -->
+      <div class="card table-card">
+        <div class="table-wrap">
+          <table mat-table [dataSource]="dataSource" class="claims-table">
+
+            <!-- בחירה -->
+            <ng-container matColumnDef="select">
+              <th mat-header-cell *matHeaderCellDef class="col-select">
+                <mat-checkbox
+                  [checked]="isAllSelectedOnPage()"
+                  [indeterminate]="isSomeSelectedOnPage()"
+                  (change)="masterToggle($event.checked)">
+                </mat-checkbox>
+              </th>
+
+              <td mat-cell *matCellDef="let row" class="col-select">
+                <mat-checkbox
+                  [disabled]="!isRowSelectable(row)"
+                  [checked]="isSelected(row)"
+                  (change)="toggleRow(row, $event.checked)">
+                </mat-checkbox>
+              </td>
+            </ng-container>
+
+            <!-- מדריך -->
+            <ng-container matColumnDef="instructor">
+              <th mat-header-cell *matHeaderCellDef>מדריך</th>
+              <td mat-cell *matCellDef="let row">{{ row.instructorName }}</td>
+            </ng-container>
+
+            <!-- ילד -->
+            <ng-container matColumnDef="child">
+              <th mat-header-cell *matHeaderCellDef>ילד</th>
+              <td mat-cell *matCellDef="let row">{{ row.childName }}</td>
+            </ng-container>
+
+            <!-- תאריך -->
+            <ng-container matColumnDef="date">
+              <th mat-header-cell *matHeaderCellDef>תאריך</th>
+              <td mat-cell *matCellDef="let row">{{ row.occur_date }}</td>
+            </ng-container>
+
+            <!-- שעה -->
+            <ng-container matColumnDef="time">
+              <th mat-header-cell *matHeaderCellDef>שעה</th>
+              <td mat-cell *matCellDef="let row">
+                {{ (row.start_time || '').toString().slice(0, 5) }}
+                <span *ngIf="row.end_time"> - {{ (row.end_time || '').toString().slice(0, 5) }}</span>
+              </td>
+            </ng-container>
+
+            <!-- התקיים -->
+            <ng-container matColumnDef="occurred">
+              <th mat-header-cell *matHeaderCellDef>התקיים</th>
+              <td mat-cell *matCellDef="let row">
+                <span class="pill" [class.ok]="row.occurred" [class.no]="!row.occurred">
+                  {{ row.occurred ? 'כן' : 'לא' }}
+                </span>
+              </td>
+            </ng-container>
+
+            <!-- מחויב -->
+            <ng-container matColumnDef="chargeable">
+              <th mat-header-cell *matHeaderCellDef>מחויב</th>
+              <td mat-cell *matCellDef="let row">
+                <span class="pill" [class.ok]="row.chargeable" [class.no]="!row.chargeable">
+                  {{ row.chargeable ? 'כן' : 'לא' }}
+                </span>
+              </td>
+            </ng-container>
+
+            <!-- נפתחה תביעה -->
+            <ng-container matColumnDef="claimOpened">
+              <th mat-header-cell *matHeaderCellDef>נפתחה תביעה</th>
+              <td mat-cell *matCellDef="let row">
+                <span class="pill" [class.ok]="row.claimOpened" [class.no]="!row.claimOpened">
+                  {{ row.claimOpened ? 'כן' : 'לא' }}
+                </span>
+              </td>
+            </ng-container>
+
+            <!-- סטטוס -->
+            <ng-container matColumnDef="claimStatus">
+              <th mat-header-cell *matHeaderCellDef>סטטוס תביעה</th>
+              <td mat-cell *matCellDef="let row">
+                <span class="pill status-pill" [ngClass]="statusClass(row.claimStatus)">
+                  {{ statusLabel(row.claimStatus) }}
+                </span>
+              </td>
+            </ng-container>
+
+            <!-- פעולות -->
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef class="col-actions">פעולות</th>
+              <td mat-cell *matCellDef="let row" class="col-actions actions-cell">
+                <button class="pill-btn tiny" type="button" disabled title="מחויב נגזר מהמערכת">
+                  מחויב
+                </button>
+
+                <button
+                  class="pill-btn tiny danger"
+                  type="button"
+                  *ngIf="canDeleteClaimRow(row)"
+                  (click)="deleteClaimRow(row)">
+                  מחיקת תביעה
+                </button>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+
+            <tr
+              mat-row
+              *matRowDef="let row; columns: displayedColumns"
+              [class.row-disabled]="!row.chargeable">
+            </tr>
+
+          </table>
+        </div>
+
+        <mat-paginator [pageSize]="25" [pageSizeOptions]="[10,25,50,100]"></mat-paginator>
+      </div>
+    </mat-tab>
+
+    <!-- מכבי -->
+    <mat-tab label="מכבי">
+      <div class="card empty-card">
+        <h3>מכבי</h3>
+        <p>בשלב הבא נוסיף את אותו UI גם כאן.</p>
+      </div>
+    </mat-tab>
+
+    <!-- מאוחדת -->
+    <mat-tab label="מאוחדת">
+      <div class="card empty-card">
+        <h3>מאוחדת</h3>
+        <p>בשלב הבא נוסיף את אותו UI גם כאן.</p>
+      </div>
+    </mat-tab>
+
+  </mat-tab-group>
+</div>

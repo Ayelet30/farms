@@ -1,0 +1,41 @@
+<div dir="rtl" class="admin-shell">
+  <h2>ADMIN – חיבור כללית (Credentials)</h2>
+
+  <div class="card">
+    <h3>בחירת סכמה</h3>
+
+    <label>Tenant Schema</label>
+    <input [(ngModel)]="schema" placeholder="moacha_atarim_app" />
+
+    <p class="hint">דוגמה: bereshit_farm / moacha_atarim_app</p>
+  </div>
+
+  <div class="card">
+    <h3>פרטי כללית</h3>
+
+    <label>UserName</label>
+    <input [(ngModel)]="username" placeholder="test" autocomplete="off" />
+
+    <label>Password</label>
+    <input [(ngModel)]="password" placeholder="******" type="password" autocomplete="new-password" />
+
+    <label>Supplier ID</label>
+    <input [(ngModel)]="supplierId" placeholder="99425" />
+
+    <label>Endpoint</label>
+    <input [(ngModel)]="endpoint" placeholder="https://sapaktest.clalit.co.il/.../SupplierRequest.asmx" />
+
+    <div class="row">
+      <button type="button" (click)="saveClalitSecrets()" [disabled]="saving">
+        {{ saving ? 'שומר...' : 'שמור (מוצפן)' }}
+      </button>
+
+      <span class="ok" *ngIf="lastOk">✔ נשמר</span>
+      <span class="err" *ngIf="lastErr">✖ {{ lastErr }}</span>
+    </div>
+
+    <p class="hint">
+      הערכים נשמרים בטבלת <b>integration_secrets</b> בתוך הסכמה שנבחרה.
+    </p>
+  </div>
+</div>

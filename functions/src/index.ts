@@ -25,7 +25,9 @@ export * from "./publicSignup.js";
 
 export { processDueChildDeletions } from './processDueChildDeletions';
 
+export { openClaimsClalit } from './clalit-claims';
 
+export { connectClalitForFarm } from './connectClalitForFarm';
 
 export { createHostedPaymentUrl, tranzilaHandshake , recordOneTimePayment , savePaymentMethod ,chargeSelectedChargesForParent } from './tranzila.js';
 export {
