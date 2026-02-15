@@ -32,6 +32,11 @@
                 "inject": false
               },
               {
+                "input": "src/styles/tokens/tokens-raanana_farm.scss",
+                "bundleName": "tokens-raanana_farm",
+                "inject": false
+              },
+              {
                 "input": "src/styles/tokens/tokens-moacha_atarim_app.scss",
                 "bundleName": "tokens-moacha_atarim_app",
                 "inject": false

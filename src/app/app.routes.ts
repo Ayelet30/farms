@@ -171,6 +171,12 @@ export const routes: Routes = [
             .then(m => m.SecretaryMessagesComponent)
       },
       {
+        path: 'claims',
+        loadComponent: () =>
+          import('./pages/claims-page/claims-page.component')
+            .then(m => m.ClaimsPageComponent)
+      },
+      {
         path: 'waitlist',
         loadComponent: () =>
           import('./waitlist/waitlist-board.page')
@@ -227,6 +233,11 @@ export const routes: Routes = [
         path: 'email',
         loadComponent: () =>
           import('../admin-email/admin-email.page').then(m => m.AdminEmailPage)
+      },
+      {
+        path: 'clalit',
+        loadComponent: () =>
+          import('../admin-clalit/admin-clalit.page').then(m => m.AdminClalitPage)
       },
 
     ]

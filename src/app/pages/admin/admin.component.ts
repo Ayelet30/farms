@@ -11,8 +11,12 @@ export class AdminComponent {
   constructor(private router: Router) {}
 
   openEmailAdmin() {
-    console.log('openEmailAdmin');
     this.router.navigate(['/admin/email']);
   }
 
+
+
+  openClalitAdmin() {
+    this.router.navigate(['/admin/clalit']);
+}
 }

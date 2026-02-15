@@ -108,16 +108,16 @@ note = this.decisionNote;
   constructor() {
     // כל פעם שהבקשה משתנה (לפי id) → טוענים impact מחדש
     effect(() => {
-      const id = this.req()?.id;
-      if (!id) return;
+    const id = this.req()?.id;
+    if (!id) return;
 
-      // איפוס תצוגה “מיד” כדי שלא יישארו שורות מהבקשה הקודמת
-      this.impactRows.set([]);
-      this.decisionNote.set(this.decisionNote()); // משאירה מה שהקלדת (אם תרצי לאפס: set(''))
-if (this.isPending()) {
-    void this.loadImpact();
-  }
-    });
+    // איפוס impact רק כשעוברים בקשה
+    this.impactRows.set([]);
+
+    if (this.isPending()) {
+      void this.loadImpact();
+    }
+  });
   }
 
   async loadImpact() {

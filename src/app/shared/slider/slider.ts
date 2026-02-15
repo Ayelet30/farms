@@ -97,6 +97,7 @@ private setMenuItemsByRole() {
         { path: 'secretary/requests',        label: 'בקשות ואישורים',    icon: 'checklist' },
         { path: 'secretary/payments',        label: 'תשלומים וחשבוניות', icon: 'card' },
         { path: 'secretary/billing',        label: 'ניהול חיובים',       icon: 'billing' },
+        { path: 'secretary/claims',        label: 'טיפול בתביעות',       icon: 'claims' },
         { path: 'secretary/settings',        label: 'הגדרות חווה',       icon: 'settings' },
       ];
       break;
