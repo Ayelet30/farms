@@ -881,17 +881,19 @@ return { ok: true };
 }
 
 async bulkApproveSelected() {
-  this.bulkBusy.set(true);
-this.bulkBusyMode.set('approve');
+  if (this.bulkBusy()) return;
+
   if (!this.isSecretary || !this.curentUser) return;
 
   const rows = this.getSelectedRowsPending();
   if (!rows.length) return;
 
   const dlg = await this.openBulkDecisionDialog('approve', rows);
-  if (!dlg.confirmed) return;
+  if (!dlg?.confirmed) return;
 
+  this.bulkBusyMode.set('approve');
   this.bulkBusy.set(true);
+
   try {
     let ok = 0, fail = 0;
 
@@ -900,7 +902,6 @@ this.bulkBusyMode.set('approve');
       if (res.ok) ok++;
       else fail++;
 
-      // ✅ לנקות בחירה גם אם נכשל/הצליח
       const next = new Set(this.selectedIdsSig());
       next.delete(r.id);
       this.selectedIdsSig.set(next);
@@ -909,20 +910,19 @@ this.bulkBusyMode.set('approve');
     if (ok) this.showToast(`אושרו ${ok} בקשות`, 'success');
     if (fail) this.showToast(`נכשלו ${fail} בקשות`, 'error');
 
-    // ✅ רענון קשיח כדי שהרשימה תתעדכן מייד
     await this.loadRequestsFromDb();
     await this.autoRejectCriticalInvalidRequests('postBulk');
 
-    // ✅ לנקות הכל ליתר ביטחון
     this.clearSelection();
   } finally {
     this.bulkBusy.set(false);
-  this.bulkBusyMode.set(null);
+    this.bulkBusyMode.set(null);
   }
 }
+
 async bulkRejectSelected() {
-  this.bulkBusy.set(true);
-this.bulkBusyMode.set('reject');
+  if (this.bulkBusy()) return;
+
   if (!this.isSecretary || !this.curentUser) return;
 
   const rows = this.getSelectedRowsPending();
@@ -952,17 +952,23 @@ this.bulkBusyMode.set('reject');
 
   const reasonsById = result.reasonsById ?? {};
 
+  this.bulkBusyMode.set('reject');
   this.bulkBusy.set(true);
+
   try {
     let ok = 0, fail = 0;
 
     for (const r of rows) {
       const reason = (reasonsById[r.id] ?? '').trim();
-      const res = await this.runDecisionViaDetailsComponent(r, 'reject', { source: 'user', reason });
+      const res = await this.runDecisionViaDetailsComponent(
+        r,
+        'reject',
+        { source: 'user', reason }
+      );
+
       if (res.ok) ok++;
       else fail++;
 
-      // ✅ לנקות בחירה
       const next = new Set(this.selectedIdsSig());
       next.delete(r.id);
       this.selectedIdsSig.set(next);
@@ -971,17 +977,16 @@ this.bulkBusyMode.set('reject');
     if (ok) this.showToast(`נדחו ${ok} בקשות`, 'success');
     if (fail) this.showToast(`נכשלו ${fail} בקשות`, 'error');
 
-    // ✅ רענון קשיח
     await this.loadRequestsFromDb();
     await this.autoRejectCriticalInvalidRequests('postBulk');
 
     this.clearSelection();
   } finally {
     this.bulkBusy.set(false);
-      this.bulkBusyMode.set(null);
-
+    this.bulkBusyMode.set(null);
   }
 }
+
 
   private wrapApproveWithValidation(instance: any, row: UiRequest) {
   if (row.status !== 'PENDING') return;
