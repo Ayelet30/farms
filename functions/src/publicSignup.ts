@@ -118,6 +118,8 @@ export const publicCreateParentSignupRequest = onRequest(
           ? 'bereshit_farm'
           : farmCode === 'bereshit_farm'
           ? 'bereshit_farm'
+          : farmCode === 'raanana'
+          ? 'raanana_farm'
           : '';
 
       if (!schema) {
@@ -145,6 +147,7 @@ export const publicCreateParentSignupRequest = onRequest(
           ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || null,
         },
       };
+  
 
       const { data, error } = await sb
         .schema(schema)
