@@ -356,9 +356,19 @@ async approve(): Promise<void> {
     let json: any = null;
     try { json = JSON.parse(raw); } catch {}
 
-    if (!resp.ok || !json?.ok) {
-      throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
-    }
+   if (!resp.ok || !json?.ok) {
+  throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+}
+
+// ✅ הבקשה אושרה גם אם המייל נכשל
+if (json?.mailSent === false) {
+  this.snack.open(
+    'הבקשה אושרה, אך שליחת המייל נכשלה',
+    'סגור',
+    { duration: 3500, direction: 'rtl' }
+  );
+}
+
 
     this.okSnack('הבקשה אושרה בהצלחה  ');
     const evt = { requestId: r.id, newStatus: 'APPROVED' as const };
@@ -483,9 +493,19 @@ async reject(args?: { source?: 'user' | 'system'; reason?: string }): Promise<vo
     const raw = await resp.text();
     let json: any = null;
     try { json = JSON.parse(raw); } catch {}
-    if (!resp.ok || !json?.ok) {
-      throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
-    }
+   if (!resp.ok || !json?.ok) {
+  throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+}
+
+// ✅ הבקשה אושרה גם אם המייל נכשל
+if (json?.mailSent === false) {
+  this.snack.open(
+    'הבקשה נדחתה, אך שליחת המייל נכשלה',
+    'סגור',
+    { duration: 3500, direction: 'rtl' }
+  );
+}
+
 
     this.okSnack('הבקשה נדחתה בהצלחה');
     const evt = { requestId: r.id, newStatus: 'REJECTED' as const };
