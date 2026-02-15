@@ -736,3 +736,35 @@
   border: 1px solid #ffb3b3;
   font-weight: 700;
 }
+/* ✅ Mobile: prevent bottom clipping of child cards */
+@media (max-width: 600px) {
+
+  /* תני לעמוד עצמו לגלול ולא לחתוך */
+  :host, 
+  .body-layout {
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  /* לרוב החיתוך קורה כי אין “מרווח נשימה” בסוף המסך */
+  .body-layout {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* אם הרשימה של הכרטיסים נמצאת בתוך קונטיינר עם גלילה – תני מרווח למטה */
+  .children-list,
+  .cards-list,
+  .cards-wrap,
+  .table-container {
+    padding-bottom: calc(90px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* הכרטיס עצמו – שלא יקבל גובה קשיח בטעות */
+  .child-card {
+    height: auto !important;
+    max-height: none !important;
+  }
+}
+

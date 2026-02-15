@@ -159,6 +159,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     nowIndicator: true,
     scrollTime: '07:00:00',
     slotDuration: '00:30:00',
+     timeZone: 'local',
     events: [],
     resources: [],
     dayHeaderContent: this.dayHeaderContentFactory(),
@@ -170,7 +171,10 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
 
     // 👇 קליק ימני על יום (בתצוגת חודש / יום / שבוע)
     dayCellDidMount: (info) => {
-      const dateStr = info.date.toISOString().slice(0, 10);
+     const pad = (n: number) => String(n).padStart(2, '0');
+const d = info.date;
+const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
 
       // אם בעתיד תעבירי classNames ליום – להחיל אותם על ה-frame הפנימי
       const classes = info.el.classList;

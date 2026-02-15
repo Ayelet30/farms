@@ -16,17 +16,23 @@
   </div>
 
   <!-- ▬▬▬ תפריט קליק ימני ▬▬▬ -->
-  <div
-    class="context-menu"
-    *ngIf="contextMenu.visible"
-    [style.top.px]="contextMenu.y"
-    [style.left.px]="contextMenu.x">
-    <button (click)="openRequest('holiday')">🏖️ יום חופש</button>
-    <button (click)="openRequest('sick')">🤒 יום מחלה</button>
-    <button (click)="openRequest('personal')">📌 יום אישי</button>
-    <button (click)="openRequest('other')">📝 אחר</button>
-  </div>
+<div
+  class="context-menu"
+  *ngIf="contextMenu.visible"
+  [style.top.px]="contextMenu.y"
+  [style.left.px]="contextMenu.x"
+
+>
+
+  <button class="context-close" (click)="closeContextMenu()">×</button>
+
+  <button (click)="openRequest('holiday')">🏖️ יום חופש</button>
+  <button (click)="openRequest('sick')">🤒 יום מחלה</button>
+  <button (click)="openRequest('personal')">📌 יום אישי</button>
+  <button (click)="openRequest('other')">📝 אחר</button>
+
 </div>
+
 
 <!-- 🔴 כאן! כרטסת הילד -->
 <app-note

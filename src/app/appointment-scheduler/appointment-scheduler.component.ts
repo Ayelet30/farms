@@ -644,7 +644,15 @@ private async loadFarmSettings(): Promise<void> {
 
   const { data, error } = await supa
     .from('farm_settings')
-    .select('displayed_makeup_lessons_count , hours_before_cancel_lesson , time_range_occupancy_rate_days , series_search_horizon_days , child_deletion_grace_days')
+    .select(`
+  displayed_makeup_lessons_count,
+  hours_before_cancel_lesson,
+  time_range_occupancy_rate_days,
+  series_search_horizon_days,
+  child_deletion_grace_days,
+  default_lessons_per_series
+`)
+
     .limit(1)
     .single();
 
@@ -660,6 +668,8 @@ private async loadFarmSettings(): Promise<void> {
   this.seriesSearchHorizonDays = data?.series_search_horizon_days ?? 90;
 this.childDeletionGraceDays = Number(data?.child_deletion_grace_days ?? 0);
 
+this.seriesLessonCount = data?.default_lessons_per_series ?? null;
+this.isOpenEndedSeries = data?.default_lessons_per_series == null;
 
 
 }
@@ -1161,8 +1171,6 @@ async onChildSelected(): Promise<void> {
   this.clearUiHint('seriesCount');
   this.clearUiHint('payment');
 
-  this.seriesLessonCount = null;
-  this.isOpenEndedSeries = false;
   this.paymentSourceForSeries = null;
 
   this.selectedPaymentPlanId = null;
@@ -1337,7 +1345,8 @@ async searchRecurringSlots(): Promise<void> {
     return;
   }
 
-  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
+ if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
+
   this.seriesError = 'יש לבחור כמות שיעורים בסדרה';
   return;
 }
@@ -1571,9 +1580,10 @@ onSeriesLessonCountChange(val: number | null): void {
   this.selectedSeriesDaySlots = [];
   this.seriesError = null;
 
-  if (!val) {
-    return;
-  }
+if (val == null) {
+  return;
+}
+
 
   // אם עדיין אין ילד נבחר – נחכה
   if (
@@ -1597,7 +1607,8 @@ async createSeriesFromSlot(slot: RecurringSlotWithSkips): Promise<void> {
   if (!this.selectedChildId) return;
 
   // ✅ אם "ללא הגבלה" מותר בלי כמות, אחרת חובה כמות
-  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
+  if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
+
     this.seriesError = 'יש לבחור כמות שיעורים בסדרה לפני קביעת הסדרה';
     this.showErrorToast(this.seriesError);
     return;
@@ -2161,7 +2172,8 @@ async onSeriesSlotChosen(slot: RecurringSlotWithSkips): Promise<void> {
     return;
   }
 
-  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
+if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
+
     this.seriesError = 'חסר מספר שיעורים בסדרה';
     this.showErrorToast(this.seriesError);
     return;
@@ -3193,7 +3205,8 @@ private async submitSeriesRequestToSecretary(slot: RecurringSlotWithSkips): Prom
     return;
   }
 
-  if (!this.isOpenEndedSeries && !this.seriesLessonCount) {
+if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
+
     this.seriesError = 'חסר מספר שיעורים בסדרה';
     this.showErrorToast(this.seriesError);
     return;
