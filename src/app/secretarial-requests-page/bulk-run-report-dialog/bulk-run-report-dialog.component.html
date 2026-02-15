@@ -1,0 +1,77 @@
+<div class="brd" dir="rtl">
+  <div class="brd__header">
+    <div class="brd__title">
+      <div class="brd__headline">דוח הרצה — {{ data?.action === 'approve' ? 'אישור' : 'דחייה' }}</div>
+      <div class="brd__sub">סיכום תוצאות ההרצה על הבקשות שסומנו</div>
+    </div>
+
+    <button mat-icon-button mat-dialog-close class="brd__close" aria-label="סגור">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <div class="brd__chips">
+    <div class="chip chip--ok">
+      <mat-icon>check_circle</mat-icon>
+      <span>הצליחו: {{ data?.successCount || 0 }}</span>
+    </div>
+
+    <div class="chip chip--sys" *ngIf="(data?.systemRejectedCount || 0) > 0">
+      <mat-icon>info</mat-icon>
+      <span>נדחו אוטומטית: {{ data?.systemRejectedCount || 0 }}</span>
+    </div>
+
+    <div class="chip chip--fail" *ngIf="(data?.failedCount || 0) > 0">
+      <mat-icon>error</mat-icon>
+      <span>נכשלו: {{ data?.failedCount || 0 }}</span>
+    </div>
+
+    <div class="chip chip--total">
+      <mat-icon>list</mat-icon>
+      <span>סה״כ: {{ data?.total || 0 }}</span>
+    </div>
+  </div>
+
+  <!-- כרטיסים במקום טבלה "קרה" (הרבה יותר יפה ב-RTL) -->
+  <div class="brd__section" *ngIf="(data?.systemRejected?.length || 0) > 0">
+    <div class="brd__sectionTitle">נדחו אוטומטית</div>
+
+    <div class="brd__cards">
+      <div class="card card--sys" *ngFor="let r of data.systemRejected">
+        <div class="card__top">
+          <div class="pill pill--sys">אוטומטי</div>
+          <!-- <div class="card__type">{{ r.requestType }}</div> -->
+        </div>
+        <div class="card__summary">{{ r.summary || '—' }}</div>
+        <div class="card__meta">
+          <span *ngIf="r.requestedByName">מבקש/ת: {{ r.requestedByName }}</span>
+          <span *ngIf="r.childName">ילד/ה: {{ r.childName }}</span>
+          <span *ngIf="r.instructorName">מדריך/ה: {{ r.instructorName }}</span>
+        </div>
+        <div class="card__reason" *ngIf="r.systemReason">סיבה: {{ r.systemReason }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="brd__section" *ngIf="(data?.failed?.length || 0) > 0">
+    <div class="brd__sectionTitle">נכשלו</div>
+
+    <div class="brd__cards">
+      <div class="card card--fail" *ngFor="let r of data.failed">
+        <div class="card__top">
+          <div class="pill pill--fail">כשל</div>
+          <div class="card__type">{{ r.requestType }}</div>
+        </div>
+        <div class="card__summary">{{ r.summary || '—' }}</div>
+        <div class="card__meta">
+          <span *ngIf="r.requestedByName">מבקש/ת: {{ r.requestedByName }}</span>
+          <span *ngIf="r.childName">ילד/ה: {{ r.childName }}</span>
+          <span *ngIf="r.instructorName">מדריך/ה: {{ r.instructorName }}</span>
+        </div>
+        <div class="card__reason" *ngIf="r.errorMessage">שגיאה: {{ r.errorMessage }}</div>
+      </div>
+    </div>
+  </div>
+
+ 
+</div>
