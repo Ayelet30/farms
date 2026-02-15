@@ -987,8 +987,9 @@ if (afterLocal === 'PENDING') {
     errorMessage: 'הפעולה לא בוצעה (הבקשה נשארה PENDING).',
   };
 }
-
 if (afterLocal === 'REJECTED_BY_SYSTEM') {
+  const noteFromDb = await this.fetchDecisionNote(row.id);
+
   return {
     id: row.id,
     requestType: row.requestType,
@@ -998,7 +999,7 @@ if (afterLocal === 'REJECTED_BY_SYSTEM') {
     instructorName: row.instructorName,
     action,
     kind: 'systemRejected',
-    systemReason: rejectArgs?.reason?.trim() || undefined, // אם היה
+    systemReason: noteFromDb ?? 'נדחה אוטומטית ע״י המערכת',
   };
 }
 
@@ -1133,7 +1134,7 @@ async bulkRejectSelected() {
   await this.loadRequestsFromDb();
   await this.autoRejectCriticalInvalidRequests('postBulk');
   this.clearSelection();
-
+console.log(report.systemRejected); 
   this.openBulkRunReportDialog(report);
   } finally {
     this.bulkBusy.set(false);
@@ -1881,6 +1882,28 @@ private openBulkRunReportDialog(report: BulkRunReport) {
     panelClass: 'ui-bulk-report-dialog',
     backdropClass: 'ui-confirm-backdrop',
   });
+}
+private async fetchDecisionNote(requestId: string): Promise<string | null> {
+  if (!requestId) return null;
+
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const { data, error } = await db
+      .from('secretarial_requests')
+      .select('decision_note')
+      .eq('id', requestId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    const note = (data as any)?.decision_note ?? null;
+    return (note && String(note).trim()) ? String(note).trim() : null;
+  } catch (e) {
+    console.warn('fetchDecisionNote failed', requestId, e);
+    return null;
+  }
 }
 
 private buildBulkReport(action: 'approve' | 'reject', results: BulkRunItemReport[]): BulkRunReport {
