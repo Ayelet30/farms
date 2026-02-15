@@ -16,6 +16,7 @@ import { BreakpointObserver } from '@angular/cdk/layout';
 import { ViewChild } from '@angular/core';
 import { MatSidenav } from '@angular/material/sidenav';
 import { RequestRemoveChildDetailsComponent } from './request-remove-child-details/request-remove-child-details.component';
+import { BulkRunReportDialogComponent } from './bulk-run-report-dialog/bulk-run-report-dialog.component';
 
 
 
@@ -74,6 +75,37 @@ type CheckKey = 'expiry' | 'requester' | 'child' | 'instructor' | 'parentTarget'
 //   checks: Check[];
 //   allowedChildStatuses?: Set<string>;
 // };
+type BulkOutcomeKind = 'success' | 'failed' | 'systemRejected';
+
+type BulkRunItemReport = {
+  id: string;
+  requestType: RequestType | string;
+  summary?: string;
+  requestedByName?: string;
+  childName?: string;
+  instructorName?: string;
+
+  action: 'approve' | 'reject';
+  kind: BulkOutcomeKind;
+
+  // אם זו דחייה אוטומטית: למה
+  systemReason?: string;
+
+  // אם נכשל: הודעת שגיאה
+  errorMessage?: string;
+};
+
+type BulkRunReport = {
+  action: 'approve' | 'reject';
+  total: number;
+  successCount: number;
+  failedCount: number;
+  systemRejectedCount: number;
+
+  results: BulkRunItemReport[];    
+  systemRejected: BulkRunItemReport[];
+  failed: BulkRunItemReport[];
+};
 
 
 
@@ -785,14 +817,49 @@ private async runDecisionViaDetailsComponent(
   row: UiRequest,
   action: 'approve' | 'reject',
   rejectArgs?: RejectArgs
-): Promise<{ ok: boolean; message?: string }> {
-if (row.status !== 'PENDING') {
-    return { ok: false, message: 'לא ניתן לבצע פעולה על בקשה שאינה ממתינה' };
-  }
-  if (!this.bulkHost) return { ok: false, message: 'bulkHost לא מאותחל' };
+): Promise<BulkRunItemReport> {
 
-  const cmp = this.getDetailsComponent(row.requestType);
-  if (!cmp) return { ok: false, message: `אין קומפוננטת פרטים לסוג ${row.requestType}` };
+if (row.status !== 'PENDING') {
+  return {
+    id: row.id,
+    requestType: row.requestType,
+    summary: row.summary,
+    requestedByName: row.requestedByName,
+    childName: row.childName,
+    instructorName: row.instructorName,
+    action,
+    kind: 'failed',
+    errorMessage: 'לא ניתן לבצע פעולה על בקשה שאינה ממתינה',
+  };
+}
+if (!this.bulkHost) {
+  return {
+    id: row.id,
+    requestType: row.requestType,
+    summary: row.summary,
+    requestedByName: row.requestedByName,
+    childName: row.childName,
+    instructorName: row.instructorName,
+    action,
+    kind: 'failed',
+    errorMessage: 'bulkHost לא מאותחל',
+  };
+}
+
+ const cmp = this.getDetailsComponent(row.requestType);
+if (!cmp) {
+  return {
+    id: row.id,
+    requestType: row.requestType,
+    summary: row.summary,
+    requestedByName: row.requestedByName,
+    childName: row.childName,
+    instructorName: row.instructorName,
+    action,
+    kind: 'failed',
+    errorMessage: `אין קומפוננטת פרטים לסוג ${row.requestType}`,
+  };
+}
 
   // יצירה בזיכרון (לא מוצג)
   const ref = this.bulkHost.createComponent(cmp, { environmentInjector: this.envInj });
@@ -826,10 +893,37 @@ inst.bulkMode = true; // ✅ מונע confirm dialogs פנימיים
     if (action === 'approve') {
 const valid = await this.validation.validate(row, 'approve');
       if (!valid.ok) {
-        const reason = valid.reason ?? 'בקשה לא רלוונטית';
-        await this.rejectBySystem(row, reason);
-        return { ok: false, message: reason };
-      }
+  const reason = valid.reason ?? 'בקשה לא רלוונטית';
+  const didReject = await this.rejectBySystem(row, reason);
+
+  if (didReject) {
+    return {
+      id: row.id,
+      requestType: row.requestType,
+      summary: row.summary,
+      requestedByName: row.requestedByName,
+      childName: row.childName,
+      instructorName: row.instructorName,
+      action,
+      kind: 'systemRejected',
+      systemReason: reason,
+    };
+  }
+
+  // אם לא הצליח לדחות (כי כבר טופל/סטטוס השתנה) – נחשב ככשל להרצה
+  return {
+    id: row.id,
+    requestType: row.requestType,
+    summary: row.summary,
+    requestedByName: row.requestedByName,
+    childName: row.childName,
+    instructorName: row.instructorName,
+    action,
+    kind: 'failed',
+    errorMessage: reason,
+  };
+}
+
     }
 
   const before = row.status;
@@ -842,8 +936,19 @@ const methodName =
 
 const fn = inst?.[methodName];
 if (typeof fn !== 'function') {
-  return { ok: false, message: `לקומפוננטה אין מתודה ${methodName}()` };
+  return {
+    id: row.id,
+    requestType: row.requestType,
+    summary: row.summary,
+    requestedByName: row.requestedByName,
+    childName: row.childName,
+    instructorName: row.instructorName,
+    action,
+    kind: 'failed',
+    errorMessage: `לקומפוננטה אין מתודה ${methodName}()`,
+  };
 }
+
 
 // ✅ אם זו דחייה – להזין note (כי בסדרה זה חובה)
 if (action === 'reject') {
@@ -866,18 +971,64 @@ if (action === 'reject') {
 
 // ✅ אם לא השתנה סטטוס (לא קרא update/emit) – להחזיר כישלון כדי לא לשקר
 // (בד"כ קומפוננטה תקרא onRejected/onApproved ותעשה patchRequestStatus)
-const afterLocal = this.allRequests().find(x => x.id === row.id)?.status ?? before;
+const afterLocal =
+  this.allRequests().find(x => x.id === row.id)?.status ?? before;
+
 if (afterLocal === 'PENDING') {
-  return { ok: false, message: 'הדחייה לא בוצעה (כנראה חסרה סיבה או שהקומפוננטה יצאה מוקדם).' };
+  return {
+    id: row.id,
+    requestType: row.requestType,
+    summary: row.summary,
+    requestedByName: row.requestedByName,
+    childName: row.childName,
+    instructorName: row.instructorName,
+    action,
+    kind: 'failed',
+    errorMessage: 'הפעולה לא בוצעה (הבקשה נשארה PENDING).',
+  };
 }
 
-return { ok: true };
+if (afterLocal === 'REJECTED_BY_SYSTEM') {
+  return {
+    id: row.id,
+    requestType: row.requestType,
+    summary: row.summary,
+    requestedByName: row.requestedByName,
+    childName: row.childName,
+    instructorName: row.instructorName,
+    action,
+    kind: 'systemRejected',
+    systemReason: rejectArgs?.reason?.trim() || undefined, // אם היה
+  };
+}
 
-  } catch (e: any) {
-    return { ok: false, message: e?.message || String(e) };
-  } finally {
-    ref.destroy();
-  }
+return {
+  id: row.id,
+  requestType: row.requestType,
+  summary: row.summary,
+  requestedByName: row.requestedByName,
+  childName: row.childName,
+  instructorName: row.instructorName,
+  action,
+  kind: 'success',
+};
+
+} catch (e: any) {
+  return {
+    id: row.id,
+    requestType: row.requestType,
+    summary: row.summary,
+    requestedByName: row.requestedByName,
+    childName: row.childName,
+    instructorName: row.instructorName,
+    action,
+    kind: 'failed',
+    errorMessage: e?.message || String(e),
+  };
+} finally {
+  ref.destroy();
+}
+
 }
 
 async bulkApproveSelected() {
@@ -894,26 +1045,31 @@ async bulkApproveSelected() {
   this.bulkBusyMode.set('approve');
   this.bulkBusy.set(true);
 
-  try {
-    let ok = 0, fail = 0;
+ try {
+  const results: BulkRunItemReport[] = [];
 
-    for (const r of rows) {
-      const res = await this.runDecisionViaDetailsComponent(r, 'approve');
-      if (res.ok) ok++;
-      else fail++;
+  for (const r of rows) {
+    const res = await this.runDecisionViaDetailsComponent(r, 'approve');
+    results.push(res);
 
-      const next = new Set(this.selectedIdsSig());
-      next.delete(r.id);
-      this.selectedIdsSig.set(next);
-    }
+    const next = new Set(this.selectedIdsSig());
+    next.delete(r.id);
+    this.selectedIdsSig.set(next);
+  }
 
-    if (ok) this.showToast(`אושרו ${ok} בקשות`, 'success');
-    if (fail) this.showToast(`נכשלו ${fail} בקשות`, 'error');
+  const report = this.buildBulkReport('approve', results);
 
-    await this.loadRequestsFromDb();
-    await this.autoRejectCriticalInvalidRequests('postBulk');
+  // ה-toast הקיים שלך יכול להישאר (רשות)
+  if (report.successCount) this.showToast(`אושרו ${report.successCount} בקשות`, 'success');
+  if (report.systemRejectedCount) this.showToast(`נדחו אוטומטית ${report.systemRejectedCount}`, 'info');
+  if (report.failedCount) this.showToast(`נכשלו ${report.failedCount} בקשות`, 'error');
 
-    this.clearSelection();
+  await this.loadRequestsFromDb();
+  await this.autoRejectCriticalInvalidRequests('postBulk');
+  this.clearSelection();
+
+  // ✅ הפופאפ דוח בסוף (אחרי סנכרון)
+  this.openBulkRunReportDialog(report);
   } finally {
     this.bulkBusy.set(false);
     this.bulkBusyMode.set(null);
@@ -955,32 +1111,30 @@ async bulkRejectSelected() {
   this.bulkBusyMode.set('reject');
   this.bulkBusy.set(true);
 
-  try {
-    let ok = 0, fail = 0;
+ try {
+  const results: BulkRunItemReport[] = [];
 
-    for (const r of rows) {
-      const reason = (reasonsById[r.id] ?? '').trim();
-      const res = await this.runDecisionViaDetailsComponent(
-        r,
-        'reject',
-        { source: 'user', reason }
-      );
+  for (const r of rows) {
+    const reason = (reasonsById[r.id] ?? '').trim();
+    const res = await this.runDecisionViaDetailsComponent(r, 'reject', { source: 'user', reason });
+    results.push(res);
 
-      if (res.ok) ok++;
-      else fail++;
+    const next = new Set(this.selectedIdsSig());
+    next.delete(r.id);
+    this.selectedIdsSig.set(next);
+  }
 
-      const next = new Set(this.selectedIdsSig());
-      next.delete(r.id);
-      this.selectedIdsSig.set(next);
-    }
+  const report = this.buildBulkReport('reject', results);
 
-    if (ok) this.showToast(`נדחו ${ok} בקשות`, 'success');
-    if (fail) this.showToast(`נכשלו ${fail} בקשות`, 'error');
+  if (report.successCount) this.showToast(`נדחו ${report.successCount} בקשות`, 'success');
+  if (report.systemRejectedCount) this.showToast(`נדחו אוטומטית ${report.systemRejectedCount}`, 'info');
+  if (report.failedCount) this.showToast(`נכשלו ${report.failedCount} בקשות`, 'error');
 
-    await this.loadRequestsFromDb();
-    await this.autoRejectCriticalInvalidRequests('postBulk');
+  await this.loadRequestsFromDb();
+  await this.autoRejectCriticalInvalidRequests('postBulk');
+  this.clearSelection();
 
-    this.clearSelection();
+  this.openBulkRunReportDialog(report);
   } finally {
     this.bulkBusy.set(false);
     this.bulkBusyMode.set(null);
@@ -1719,6 +1873,31 @@ private async openBulkDecisionDialog(
   });
 
   return (await firstValueFrom(ref.afterClosed())) ?? { confirmed: false };
+}
+private openBulkRunReportDialog(report: BulkRunReport) {
+  this.dialog.open(BulkRunReportDialogComponent, {
+    data: report,
+    disableClose: false,
+    panelClass: 'ui-bulk-report-dialog',
+    backdropClass: 'ui-confirm-backdrop',
+  });
+}
+
+private buildBulkReport(action: 'approve' | 'reject', results: BulkRunItemReport[]): BulkRunReport {
+  const systemRejected = results.filter(r => r.kind === 'systemRejected');
+  const failed = results.filter(r => r.kind === 'failed');
+  const success = results.filter(r => r.kind === 'success');
+
+  return {
+    action,
+    total: results.length,
+    successCount: success.length,
+    failedCount: failed.length,
+    systemRejectedCount: systemRejected.length,
+    results,
+    systemRejected,
+    failed,
+  };
 }
 
 
