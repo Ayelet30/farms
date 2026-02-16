@@ -953,7 +953,7 @@ private async getMaxParticipantsForRidingType(ridingTypeId: string | null | unde
 
   const { data, error } = await db
     .from('riding_types')
-    .select('max_participants, active')
+    .select('max_participants, is_active')
     .eq('id', ridingTypeId)
     .maybeSingle();
 
