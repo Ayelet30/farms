@@ -169,7 +169,6 @@ private lastAllDayPref: boolean = true;
 
 this.instructorColor = instructor?.color_hex ?? null;
 
-console.log('🎨 instructor color loaded:', this.instructorColor);
 this.setScheduleItems();
 this.cdr.detectChanges();
       const startYmd = ymd(addDays(new Date(), -14));
@@ -191,7 +190,7 @@ this.cdr.detectChanges();
       }
 
       await this.loadRequestsForRange(startYmd, endYmd);
-await this.loadFarmDaysOffForRange(startYmd, endYmd);
+      await this.loadFarmDaysOffForRange(startYmd, endYmd);
 
       this.setScheduleItems();
       this.updateCurrentDateFromCalendar();
@@ -202,12 +201,14 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
       this.loading = false;
       this.cdr.detectChanges();
     }
+
   }
 
 
   /* ------------ LOADERS ------------ */
 
   private async loadLessonsForRange(startYmd: string, endYmd: string): Promise<void> {
+
   const dbc = dbTenant();
 
   const { data, error } = await dbc
@@ -221,8 +222,7 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
       start_datetime,
       end_datetime,
       occur_date,
-      start_time,
-      
+      start_time      
     `)
     .eq('instructor_id', this.instructorId)
     .gte('occur_date', startYmd)
@@ -242,6 +242,7 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
    * - ממפים לפי (lesson_id + occur_date)
    */
 private async loadLessonResourcesForRange(startYmd: string, endYmd: string): Promise<void> {
+
   if (!this.lessons.length) return;
 
   const dbc = dbTenant();
@@ -353,25 +354,23 @@ private async loadFarmDaysOffForRange(startYmd: string, endYmd: string): Promise
 }
 
 private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<void> {
+
   const dbc = dbTenant();
 
   const { data, error } = await dbc
     .from('secretarial_requests')
     .select(
-      `
-      id,
+      `id,
       instructor_id,
       request_type,
       status,
       from_date,
       to_date,
       payload,
-      decision_note
-    `,
+      decision_note`,
     )
     .eq('instructor_id', this.instructorId)
-    .eq('request_type', 'INSTRUCTOR_DAY_OFF') // ✅ הכי חשוב! רק בקשות חופש אמיתיות
-    // ✅ טווח חופף: בקשה שנוגעת לטווח התצוגה גם אם התחילה לפני
+    .eq('request_type', 'INSTRUCTOR_DAY_OFF')
     .lte('from_date', endYmd)
     .gte('to_date', startYmd);
 
@@ -382,7 +381,7 @@ private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<vo
 }
 
 
- private expandRequestRow(row: any): DayRequestRow[] {
+private expandRequestRow(row: any): DayRequestRow[] {
   const res: DayRequestRow[] = [];
   if (!row.from_date) return res;
   if (!row.payload?.category) return res;
@@ -392,29 +391,33 @@ private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<vo
 
   const type: RequestType = this.mapDbRequestType(row.payload?.category);
   const status: RequestStatus = this.mapDbStatus(row.status);
-  const note: string | null =
-    row.payload?.note ?? row.decision_note ?? null;
+  const note: string | null = row.payload?.note ?? row.decision_note ?? null;
 
+  let guard = 0;
   while (current <= end) {
-    res.push({
-      id: row.id,
-      instructor_id: row.instructor_id,
-      request_date: current,
-      request_type: type,
-      status,
-      note,
-    });
+    res.push({ id: row.id, instructor_id: row.instructor_id, request_date: current, request_type: type, status, note });
 
-    // הוספת יום בלי Date UTC
-    current = this.addOneDayYmd(current);
+    const next = this.addOneDayYmd(current);
+    if (next <= current) {
+      console.error('[expandRequestRow] date did not advance', { current, next, row });
+      break;
+    }
+
+    current = next;
+    if (++guard > 400) {
+      console.error('[expandRequestRow] guard break', { row, current, end });
+      break;
+    }
   }
 
   return res;
 }
 
 
+
   /* ------------ ITEM MAPPING ------------ */
   private setScheduleItems(): void {
+
     // 🔑 שיעורים תקינים (לא חופפים לחופשת חווה)
 const validLessons = this.lessons.filter((l: any) => {
   const baseDate = String(l.occur_date).slice(0, 10);
@@ -757,8 +760,6 @@ onRightClickDay(e: any): void {
     ? e.dateStr.slice(0, 10)
     : (e.date ? new Date(e.date).toLocaleDateString('sv-SE') : null);
 
-  console.log('🟣 RIGHT CLICK dateStr=', e.dateStr, ' => localYmd=', localYmd);
-
   if (!localYmd) return;
 
   this.contextMenu.visible = true;
@@ -771,6 +772,7 @@ onRightClickDay(e: any): void {
 
   /* ------------ שינוי טווח תצוגה ------------ */
 async onViewRangeChange(range: any): Promise<void> {
+
   try {
     const vt = range.viewType || '';
     if (vt === 'dayGridMonth') this.currentView = 'dayGridMonth';
@@ -938,7 +940,6 @@ closeContextMenu(): void {
 onSickFileSelected(event: Event): void {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0] ?? null;
-  console.log('📎 FILE SELECTED:', file);
   this.selectedSickFile = file;   // לצורך UI
   this.pendingSickFile = file;    // 🔒 לשמירה אמיתית
 }
@@ -946,7 +947,6 @@ onSickFileSelected(event: Event): void {
 
 async openRequest(type: RequestType): Promise<void> {
   const date = this.contextMenu.date;
-   console.log('🟡 OPEN REQUEST using date=', date, 'type=', type);
   this.closeContextMenu();
   if (!date) return;
 
@@ -1037,11 +1037,6 @@ async confirmSaveAfterWarning(): Promise<void> {
     type,
     text?.trim() || null,
   );
-console.log('🧪 BEFORE IF', {
-  type,
-  pending: this.pendingSickFile,
-});
-
   this.rangeModal.open = false;
 }
 
@@ -1086,10 +1081,6 @@ private async uploadSickFile(
   note: string | null,
 ): Promise<void> {
   if (!this.instructorId) return;
-console.log('🧪 SAVE RANGE');
-console.log('TYPE:', type);
-console.log('PENDING FILE:', this.pendingSickFile);
-
 
   const dbc = dbTenant();
   const user = await this.cu.loadUserDetails();
@@ -1140,10 +1131,6 @@ if (this.pendingSickFile) {
     .update({ sick_note_file_path: path })
     .eq('id', data.id);
 }
-console.log('SICK FILE:', this.pendingSickFile);
-
-
-
   this.dayRequests.push(...this.expandRequestRow(data));
   this.setScheduleItems();
   this.cdr.detectChanges();
@@ -1273,11 +1260,17 @@ private isLessonBlockedByInstructorOff(lessonDate: string): boolean {
 
 
 
-  private addOneDayYmd(dateYmd: string): string {
-  const d = new Date(dateYmd + 'T00:00:00');
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+private addOneDayYmd(dateYmd: string): string {
+  const [y, m, d] = dateYmd.split('-').map(Number);
+  const dt = new Date(y, m - 1, d); // local date
+  dt.setDate(dt.getDate() + 1);
+
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
 }
+
 private instructorDaysOffToItems(): ScheduleItem[] {
   return (this.dayRequests ?? [])
     .filter(r => r.status === 'approved')

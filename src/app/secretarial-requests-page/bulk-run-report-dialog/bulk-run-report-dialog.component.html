@@ -1,7 +1,7 @@
 <div class="brd" dir="rtl">
   <div class="brd__header">
     <div class="brd__title">
-      <div class="brd__headline">דוח הרצה — {{ data?.action === 'approve' ? 'אישור' : 'דחייה' }}</div>
+      <div class="brd__headline">דוח הרצה — {{ data.action === 'approve' ? 'אישור' : 'דחייה' }}</div>
       <div class="brd__sub">סיכום תוצאות ההרצה על הבקשות שסומנו</div>
     </div>
 
@@ -10,68 +10,93 @@
     </button>
   </div>
 
+  <!-- ✅ Chips ככפתורים לחיצים + מצב פעיל -->
   <div class="brd__chips">
-    <div class="chip chip--ok">
+    <button type="button"
+            class="chip chip--ok chip--btn"
+            (click)="setView('success')"
+            [disabled]="(data.successCount || 0) === 0"
+            [class.is-active]="view() === 'success'">
       <mat-icon>check_circle</mat-icon>
-      <span>הצליחו: {{ data?.successCount || 0 }}</span>
-    </div>
+      <span>הצליחו: {{ data.successCount || 0 }}</span>
+    </button>
 
-    <div class="chip chip--sys" *ngIf="(data?.systemRejectedCount || 0) > 0">
+    <button type="button"
+            class="chip chip--sys chip--btn"
+            (click)="setView('systemRejected')"
+            [disabled]="(data.systemRejectedCount || 0) === 0"
+            [class.is-active]="view() === 'systemRejected'">
       <mat-icon>info</mat-icon>
-      <span>נדחו אוטומטית: {{ data?.systemRejectedCount || 0 }}</span>
-    </div>
+      <span>נדחו אוטומטית: {{ data.systemRejectedCount || 0 }}</span>
+    </button>
 
-    <div class="chip chip--fail" *ngIf="(data?.failedCount || 0) > 0">
-      <mat-icon>error</mat-icon>
-      <span>נכשלו: {{ data?.failedCount || 0 }}</span>
-    </div>
+    <button type="button"
+            class="chip chip--np chip--btn"
+            (click)="setView('notProcessed')"
+            [disabled]="(data.notProcessedCount || 0) === 0"
+            [class.is-active]="view() === 'notProcessed'">
+      <mat-icon>hourglass_empty</mat-icon>
+      <span>לא טופלו: {{ data.notProcessedCount || 0 }}</span>
+    </button>
 
-    <div class="chip chip--total">
+    <button type="button"
+            class="chip chip--total chip--btn"
+            (click)="setView('all')"
+            [class.is-active]="view() === 'all'">
       <mat-icon>list</mat-icon>
-      <span>סה״כ: {{ data?.total || 0 }}</span>
-    </div>
+      <span>סה״כ: {{ data.total || 0 }}</span>
+    </button>
+
+    <span class="brd__spacer"></span>
+
+   
   </div>
 
-  <!-- כרטיסים במקום טבלה "קרה" (הרבה יותר יפה ב-RTL) -->
-  <div class="brd__section" *ngIf="(data?.systemRejected?.length || 0) > 0">
-    <div class="brd__sectionTitle">נדחו אוטומטית</div>
+  <!-- ✅ אזור תוכן קבוע בגובה: לא משנה על מה לוחצים -->
+  <div class="brd__body">
+    <div class="brd__sectionTitle">
+      {{ viewTitle() }}
+      <span class="brd__count">({{ viewCount() }})</span>
+    </div>
 
-    <div class="brd__cards">
-      <div class="card card--sys" *ngFor="let r of data.systemRejected">
+    <div class="brd__cards" *ngIf="visibleList().length > 0; else emptyState">
+      <div class="card"
+           [class.card--ok]="r.kind === 'success'"
+           [class.card--sys]="r.kind === 'systemRejected'"
+           [class.card--np]="r.kind === 'notProcessed'"
+           *ngFor="let r of visibleList(); trackBy: trackById">
+
         <div class="card__top">
-          <div class="pill pill--sys">אוטומטי</div>
-          <!-- <div class="card__type">{{ r.requestType }}</div> -->
+          <div class="pill"
+               [class.pill--ok]="r.kind === 'success'"
+               [class.pill--sys]="r.kind === 'systemRejected'"
+               [class.pill--np]="r.kind === 'notProcessed'">
+            <mat-icon class="pill__ico">{{ statusIcon(r.kind) }}</mat-icon>
+            {{ statusLabel(r.kind) }}
+          </div>
         </div>
+
         <div class="card__summary">{{ r.summary || '—' }}</div>
+
         <div class="card__meta">
           <span *ngIf="r.requestedByName">מבקש/ת: {{ r.requestedByName }}</span>
           <span *ngIf="r.childName">ילד/ה: {{ r.childName }}</span>
           <span *ngIf="r.instructorName">מדריך/ה: {{ r.instructorName }}</span>
         </div>
-        <div class="card__reason" *ngIf="r.systemReason">סיבה: {{ r.systemReason }}</div>
+
+        <div class="card__reason" *ngIf="rowReason(r) as reason">
+          <span class="card__reasonLabel">
+            {{ r.kind === 'success' ? 'אזהרה' : 'סיבה' }}:
+          </span>
+          {{ reason }}
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="brd__section" *ngIf="(data?.failed?.length || 0) > 0">
-    <div class="brd__sectionTitle">נכשלו</div>
-
-    <div class="brd__cards">
-      <div class="card card--fail" *ngFor="let r of data.failed">
-        <div class="card__top">
-          <div class="pill pill--fail">כשל</div>
-          <div class="card__type">{{ r.requestType }}</div>
-        </div>
-        <div class="card__summary">{{ r.summary || '—' }}</div>
-        <div class="card__meta">
-          <span *ngIf="r.requestedByName">מבקש/ת: {{ r.requestedByName }}</span>
-          <span *ngIf="r.childName">ילד/ה: {{ r.childName }}</span>
-          <span *ngIf="r.instructorName">מדריך/ה: {{ r.instructorName }}</span>
-        </div>
-        <div class="card__reason" *ngIf="r.errorMessage">שגיאה: {{ r.errorMessage }}</div>
+    <ng-template #emptyState>
+      <div class="brd__empty">
+        אין בקשות להצגה בקטגוריה הזו.
       </div>
-    </div>
+    </ng-template>
   </div>
-
- 
 </div>

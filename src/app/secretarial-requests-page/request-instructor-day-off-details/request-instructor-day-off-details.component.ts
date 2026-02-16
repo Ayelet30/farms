@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/legacy-compat';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { RequestValidationService } from '../../services/request-validation.service';
+import { RequestStatus } from '../../Types/detailes.model';
 
 type ImpactRow = {
   occur_date: string; // date
@@ -88,7 +89,7 @@ readonly windowText = computed(() => {
 
   // callbacks מהאב
   @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
-  @Input() onRejected?: (e: { requestId: string; newStatus: 'REJECTED'; message?: string; meta?: any }) => void;
+@Input() onRejected?: (e: { requestId: string; newStatus: RequestStatus; message?: string; meta?: any }) => void;
   @Input() onError?: (e: { requestId?: string; message: string; raw?: any }) => void;
 
   // ====== UI state ======
@@ -174,12 +175,13 @@ private async rejectBySystem(reason: string): Promise<void> {
     const msg = reason || 'הבקשה נדחתה אוטומטית ע"י המערכת';
     this.toast(msg, 'info');
 
-    this.onRejected?.({
-      requestId,
-      newStatus: 'REJECTED',
-      message: msg,
-      meta: { rejectedBySystem: true },
-    });
+   this.onRejected?.({
+  requestId,
+  newStatus: 'REJECTED_BY_SYSTEM' as any, // עדיף שתעדכני את הטיפוס למטה
+  message: msg,
+  meta: { rejectedBySystem: true, systemReason: msg },
+});
+
   } catch (e: any) {
     console.error('rejectBySystem failed', e);
     // אם נכשל – לא להפיל את ה-UI, רק להודיע

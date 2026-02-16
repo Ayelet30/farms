@@ -834,3 +834,8 @@
 .dot-red {
   background: #e53935;
 }
+.date-ltr {
+  direction: ltr;
+  unicode-bidi: bidi-override;
+  display: inline-block;
+}

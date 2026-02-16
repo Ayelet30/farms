@@ -203,19 +203,42 @@ const { subject, html, text } = buildSeriesApprovedEmail({
   seriesId: lessonId,
 });
 
-const mail = await notifyUserInternal({
-  tenantSchema,
-  userType: 'parent',
-  uid: childRow.parent_uid,
-  subject,
-  html,
-  text,
-  category: 'series',
-  forceEmail: true,
+let mail: any = null;
+let mailOk = false;
+let warning: string | null = null;
+let mailError: any = null;
+
+try {
+  mail = await notifyUserInternal({
+    tenantSchema,
+    userType: 'parent',
+    uid: childRow.parent_uid,
+    subject,
+    html,
+    text,
+    category: 'series',
+    forceEmail: true,
+  });
+
+  // תחליטי מה נחשב הצלחה לפי המבנה ש-notifyUserInternal מחזיר אצלך
+  // אם אין אינדיקציה — עצם זה שלא זרק נחשב הצלחה
+  mailOk = true;
+} catch (e: any) {
+  mailOk = false;
+  warning = 'הסדרה אושרה, אך שליחת המייל להורה נכשלה';
+  mailError = { message: e?.message || String(e) };
+
+  // חשוב: לא לזרוק! האישור כבר קרה.
+  console.warn('notifySeriesApproved: mail failed', mailError);
+}
+
+return void res.status(200).json({
+  ok: true,
+  mailOk,
+  warning,
+  mail,
+  mailError,
 });
-
-
-return void res.status(200).json({ ok: true, mail });
 
       
     } catch (e: any) {

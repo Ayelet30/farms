@@ -1,57 +1,81 @@
 :host {
-  direction: rtl;
+  display: block;
 }
 
+/* הדיאלוג עצמו */
 .brd {
-  text-align: right;
-  padding: 18px 18px 14px;
-  background: #fbfaf3; /* שמנת */
+  width: 720px;
+  max-width: calc(100vw - 24px);
+  max-height: 80vh;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  padding: 14px;
+  box-sizing: border-box;
+
+  background: #fff;          /* ✅ לא שקוף */
+  color: #111;
   border-radius: 18px;
+  overflow: hidden;          /* ✅ אין גלילה לצדדים על המעטפת */
 }
 
+/* header */
 .brd__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+}
+
+.brd__title {
+  display: grid;
+  gap: 4px;
 }
 
 .brd__headline {
-  font-size: 20px;
+  font-size: 18px;           /* ✅ קטן יותר */
   font-weight: 800;
-  color: #2f3b2f;
-  letter-spacing: 0.2px;
+  line-height: 1.2;
 }
 
 .brd__sub {
-  margin-top: 4px;
   font-size: 13px;
-  color: #6b756a;
+  opacity: 0.75;
 }
 
 .brd__close {
-  margin-right: 6px;
+  flex: 0 0 auto;
 }
 
+/* chips row */
 .brd__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin: 10px 0 16px;
+  gap: 8px;
+  align-items: center;
 }
 
+.brd__spacer {
+  flex: 1;
+}
+
+/* chip button */
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+
   border-radius: 999px;
-  background: #f3f4ee;
-  border: 1px solid rgba(122, 129, 88, 0.25);
-  color: #2f3b2f;
+  padding: 8px 12px;
+
+  border: 1px solid #e3e3e3;
+  background: #f6f6f6;
+
   font-weight: 700;
   font-size: 13px;
+  line-height: 1;
 }
 
 .chip mat-icon {
@@ -60,105 +84,156 @@
   height: 18px;
 }
 
-.chip--ok { background: rgba(122, 129, 88, 0.12); }
-.chip--sys { background: rgba(91, 128, 159, 0.12); border-color: rgba(91, 128, 159, 0.25); }
-.chip--fail { background: rgba(176, 80, 80, 0.10); border-color: rgba(176, 80, 80, 0.20); }
-.chip--total { background: #f3f4ee; }
+.chip--btn {
+  cursor: pointer;
+  user-select: none;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
 
-.brd__section {
-  margin-top: 14px;
+.chip--btn:hover:not(:disabled) {
+  background: #efefef;
+}
+
+.chip--btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ✅ מצב נבחר */
+.chip--btn.is-active {
+  background: #fff;
+  border-color: #bdbdbd;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+}
+
+/* גוף */
+.brd__body {
+  flex: 1;
+  min-height: 260px;           /* ✅ קבוע */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  border: 1px solid #eee;
+  border-radius: 14px;
+  padding: 12px;
+
+  background: #fff;            /* ✅ לא שקוף */
+  overflow: hidden;            /* ✅ אין overflow-x */
 }
 
 .brd__sectionTitle {
   font-size: 14px;
-  font-weight: 900;
-  color: #3a4a3a;
-  margin: 10px 0;
+  font-weight: 800;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
 
+.brd__count {
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+/* ✅ גלילה רק בתוך הרשימה */
 .brd__cards {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;          /* ✅ אין גלילה לצדדים */
   display: grid;
-  grid-template-columns: 1fr;
   gap: 10px;
+  padding-right: 4px;          /* מקום לסקרול */
 }
 
+/* empty */
+.brd__empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  opacity: 0.7;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* cards */
 .card {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 12px 12px 10px;
-  border: 1px solid rgba(122, 129, 88, 0.20);
-  box-shadow: 0 6px 16px rgba(40, 55, 40, 0.06);
+  border-radius: 14px;
+  padding: 12px;
+
+  background: #fff;
+  border: 1px solid #eaeaea;
+
+  overflow: hidden;            /* ✅ מונע טקסט שמייצר overflow */
 }
 
 .card__top {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 6px;
+  justify-content: flex-start;
+  margin-bottom: 8px;
 }
 
-.card__type {
-  font-weight: 900;
-  color: #2f3b2f;
-  font-size: 13px;
-  opacity: 0.9;
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  border-radius: 999px;
+  padding: 6px 10px;
+
+  border: 1px solid #e1e1e1;
+  background: #f7f7f7;
+
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.pill__ico {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
 }
 
 .card__summary {
-  font-size: 15px;
+  font-size: 16px;             /* ✅ לא ענק */
   font-weight: 800;
-  color: #233123;
-  margin: 2px 0 6px;
+  margin-bottom: 6px;
+
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .card__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  font-size: 12px;
-  color: #6b756a;
+  gap: 8px 12px;
+
+  font-size: 13px;
+  opacity: 0.85;
+
+  margin-bottom: 6px;
+
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .card__reason {
-  margin-top: 8px;
-  background: #fbfaf3;
-  border: 1px dashed rgba(122, 129, 88, 0.35);
-  border-radius: 12px;
-  padding: 8px 10px;
-  color: #2f3b2f;
-  font-weight: 700;
-  font-size: 12px;
+  border-top: 1px dashed #e5e5e5;
+  padding-top: 8px;
+  font-size: 13px;
+
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
-.pill {
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 900;
-  border: 1px solid transparent;
+.card__reasonLabel {
+  font-weight: 800;
 }
 
-.pill--sys {
-  background: rgba(91, 128, 159, 0.12);
-  border-color: rgba(91, 128, 159, 0.28);
-  color: #2b4a60;
-}
+/* צבעי סטטוסים עדינים */
+.card--ok { border-color: #d6ead7; }
+.card--sys { border-color: #d6e6fb; }
+.card--np { border-color: #fde7c7; }
 
-.pill--fail {
-  background: rgba(176, 80, 80, 0.10);
-  border-color: rgba(176, 80, 80, 0.22);
-  color: #7c2b2b;
-}
-
-.brd__footer {
-  display: flex;
-  justify-content: flex-start;
-  margin-top: 16px;
-}
-
-.btn--ghost {
-  border-radius: 999px;
-  padding: 8px 16px;
-  border-color: rgba(122, 129, 88, 0.35) !important;
-}
+.pill--ok { background: #eef8ef; border-color: #d6ead7; }
+.pill--sys { background: #eef4ff; border-color: #d6e6fb; }
+.pill--np { background: #fff6e8; border-color: #fde7c7; }

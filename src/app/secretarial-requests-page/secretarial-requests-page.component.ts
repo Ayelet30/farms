@@ -4,6 +4,7 @@ import {
   signal,
   inject,
   Input,
+  computed,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -75,7 +76,7 @@ type CheckKey = 'expiry' | 'requester' | 'child' | 'instructor' | 'parentTarget'
 //   checks: Check[];
 //   allowedChildStatuses?: Set<string>;
 // };
-type BulkOutcomeKind = 'success' | 'failed' | 'systemRejected';
+type BulkOutcomeKind = 'success' | 'systemRejected' | 'notProcessed';
 
 type BulkRunItemReport = {
   id: string;
@@ -93,19 +94,24 @@ type BulkRunItemReport = {
 
   // אם נכשל: הודעת שגיאה
   errorMessage?: string;
+  warningMessage?: string;
 };
 
 type BulkRunReport = {
   action: 'approve' | 'reject';
   total: number;
-  successCount: number;
-  failedCount: number;
-  systemRejectedCount: number;
 
-  results: BulkRunItemReport[];    
+  successCount: number;
+  systemRejectedCount: number;
+  notProcessedCount: number;
+
+  results: BulkRunItemReport[];
+
+  success: BulkRunItemReport[];
   systemRejected: BulkRunItemReport[];
-  failed: BulkRunItemReport[];
+  notProcessed: BulkRunItemReport[];
 };
+
 
 
 
@@ -381,6 +387,23 @@ bulkBusyMode = signal<'approve' | 'reject' | null>(null);
       return true;
     });
   }
+selectedVisibleRequest = computed<UiRequest | null>(() => {
+  const sel = this.selectedRequest;
+  if (!sel) return null;
+
+  // אם הבקשה כבר לא קיימת בכלל (אחרי reload)
+  const exists = this.allRequests().some(x => x.id === sel.id);
+  if (!exists) return null;
+
+  // אם היא לא עוברת את הפילטר הנוכחי → לא להציג פרטים
+  const isVisible = this.filteredRequestsList.some(x => x.id === sel.id);
+  if (!isVisible) return null;
+
+  // אם את רוצה: רק בקשות ממתינות יציגו פרטים (לא חובה)
+  // if (sel.status !== 'PENDING') return null;
+
+  return sel;
+});
 
   private getRequestWindow(r: UiRequest): { start: Date; end: Date } {
     const fd = r.fromDate ? new Date(r.fromDate) : null;
@@ -638,21 +661,19 @@ private buildSummary(row: any, p: any): string {
   // PATCH מקומי = הסוד שהופך את זה ל"מרנדר מיד"
   // --------------------------------------------------
   private patchRequestStatus(requestId: string, newStatus: RequestStatus) {
-    const arr = this.allRequests();
-    const idx = arr.findIndex(x => x.id === requestId);
-    if (idx === -1) return;
+  const arr = this.allRequests();
+  const idx = arr.findIndex(x => x.id === requestId);
+  if (idx === -1) return;
 
-    const updated = [...arr];
-    updated[idx] = { ...updated[idx], status: newStatus };
-    this.allRequests.set(updated);
+  const updated = [...arr];
+  updated[idx] = { ...updated[idx], status: newStatus };
+  this.allRequests.set(updated);
 
-    // אם אנחנו בטאב ממתינים – הבקשה תיעלם מיד
-    if (this.statusFilter() === 'PENDING') {
-      this.selectedRequest = null;
-      this.detailsOpened = false;
-      this.indexOfRowSelected = null;
-    }
+  // ✅ אם זו הבקשה שנבחרה - תמיד לנקות פרטים
+  if (this.selectedRequest?.id === requestId) {
+    this.closeDetails();
   }
+}
 
   onRequestError = async (e: { requestId?: string; message: string; raw?: any }) => {
     // אם זה “not pending” → סנכרון מהשרת כדי לא להישאר במצב מוזר
@@ -745,8 +766,8 @@ private onAnyApproved(e: { requestId: string; newStatus: 'APPROVED' }) {
 
 private onAnyRejected(e: { requestId: string; newStatus: RequestStatus }) {
   this.patchRequestStatus(e.requestId, e.newStatus ?? 'REJECTED');
+  this.closeDetails(); 
 }
-
 
 private onAnyError(msg: string) {
   // פה את יכולה לעשות snackbar מרכזי אם בא לך
@@ -828,7 +849,7 @@ if (row.status !== 'PENDING') {
     childName: row.childName,
     instructorName: row.instructorName,
     action,
-    kind: 'failed',
+    kind: 'notProcessed',
     errorMessage: 'לא ניתן לבצע פעולה על בקשה שאינה ממתינה',
   };
 }
@@ -841,7 +862,7 @@ if (!this.bulkHost) {
     childName: row.childName,
     instructorName: row.instructorName,
     action,
-    kind: 'failed',
+    kind: 'notProcessed',
     errorMessage: 'bulkHost לא מאותחל',
   };
 }
@@ -856,7 +877,7 @@ if (!cmp) {
     childName: row.childName,
     instructorName: row.instructorName,
     action,
-    kind: 'failed',
+    kind: 'notProcessed',
     errorMessage: `אין קומפוננטת פרטים לסוג ${row.requestType}`,
   };
 }
@@ -884,18 +905,16 @@ inst.bulkMode = true; // ✅ מונע confirm dialogs פנימיים
     next.delete(row.id);
     this.selectedIdsSig.set(next);
   };
-  inst.onError = (e: any) => {
-    console.error('bulk decision error', row.id, e);
-  };
 
   try {
-    // ולידציה רק לפני approve (כמו שרצית)
-    if (action === 'approve') {
-const valid = await this.validation.validate(row, 'approve');
-      if (!valid.ok) {
+ const mode = action === 'approve' ? 'approve' : 'reject';
+const valid = await this.validation.validate(row, mode);
+
+if (!valid.ok) {
   const reason = valid.reason ?? 'בקשה לא רלוונטית';
   const didReject = await this.rejectBySystem(row, reason);
 
+  // אם הצלחנו לדחות ע"י מערכת => נדחו על ידי המערכת
   if (didReject) {
     return {
       id: row.id,
@@ -907,10 +926,30 @@ const valid = await this.validation.validate(row, 'approve');
       action,
       kind: 'systemRejected',
       systemReason: reason,
+      warningMessage: undefined,
     };
   }
 
-  // אם לא הצליח לדחות (כי כבר טופל/סטטוס השתנה) – נחשב ככשל להרצה
+  // אם לא הצליח לעדכן סטטוס ל-REJECTED_BY_SYSTEM (כבר טופל וכו')
+  // מבחינתך לא מציגים "נכשלו" — אז ננסה להביא מטא מה-DB ולסווג לפי סטטוס בפועל:
+  const meta = await this.fetchDecisionMeta(row.id);
+  if (meta.status === 'REJECTED_BY_SYSTEM') {
+    return {
+      id: row.id,
+      requestType: row.requestType,
+      summary: row.summary,
+      requestedByName: row.requestedByName,
+      childName: row.childName,
+      instructorName: row.instructorName,
+      action,
+      kind: 'systemRejected',
+      systemReason: meta.note ?? reason,
+      warningMessage: undefined,
+    };
+  }
+
+  // אם לא נדחה בפועל ע"י מערכת — אין קטגוריה של "נכשלו",
+  // אז נסווג כהצלחה עם אזהרה “לא בוצעה פעולה” כדי לא לשקר שסטטוס השתנה:
   return {
     id: row.id,
     requestType: row.requestType,
@@ -919,12 +958,10 @@ const valid = await this.validation.validate(row, 'approve');
     childName: row.childName,
     instructorName: row.instructorName,
     action,
-    kind: 'failed',
-    errorMessage: reason,
+    kind: 'notProcessed',
+    warningMessage: `לא ניתן היה לדחות ע"י המערכת בפועל (ייתכן שהבקשה כבר טופלה).`,
   };
 }
-
-    }
 
   const before = row.status;
 
@@ -944,29 +981,28 @@ if (typeof fn !== 'function') {
     childName: row.childName,
     instructorName: row.instructorName,
     action,
-    kind: 'failed',
+    kind: 'notProcessed',
     errorMessage: `לקומפוננטה אין מתודה ${methodName}()`,
   };
 }
 
 
-// ✅ אם זו דחייה – להזין note (כי בסדרה זה חובה)
+let warning: string | null = null;
+
 if (action === 'reject') {
   const reason = rejectArgs?.reason?.trim() ?? '';
 
-  // ✅ אם note הוא signal -> note.set(...)
-  if (typeof inst?.note?.set === 'function') {
-    inst.note.set(reason);
-  }
-  // ✅ אם note הוא string רגיל (קומפוננטות ישנות) -> note = reason
-  else if ('note' in inst) {
-    inst.note = reason;
-  }
+  if (typeof inst?.note?.set === 'function') inst.note.set(reason);
+  else if ('note' in inst) inst.note = reason;
 
   await fn.call(inst, rejectArgs ?? { source: 'user', reason });
+  warning = (inst?.bulkWarning ?? null) as string | null;
+
 } else {
   await fn.call(inst);
+  warning = (inst?.bulkWarning ?? null) as string | null;
 }
+
 
 
 // ✅ אם לא השתנה סטטוס (לא קרא update/emit) – להחזיר כישלון כדי לא לשקר
@@ -975,6 +1011,40 @@ const afterLocal =
   this.allRequests().find(x => x.id === row.id)?.status ?? before;
 
 if (afterLocal === 'PENDING') {
+  const meta = await this.fetchDecisionMeta(row.id);
+
+  if (meta.status === 'REJECTED_BY_SYSTEM') {
+    return {
+      id: row.id,
+      requestType: row.requestType,
+      summary: row.summary,
+      requestedByName: row.requestedByName,
+      childName: row.childName,
+      instructorName: row.instructorName,
+      action,
+      kind: 'systemRejected',
+      systemReason: (meta.note ?? '').trim() || 'נדחה אוטומטית ע״י המערכת',
+    };
+  }
+
+  // אם DB כבר אישר/דחה (מישהו אחר), נסווג כלא טופל ונציג סטטוס בפועל
+  if (meta.status && meta.status !== 'PENDING') {
+    return {
+      id: row.id,
+      requestType: row.requestType,
+      summary: row.summary,
+      requestedByName: row.requestedByName,
+      childName: row.childName,
+      instructorName: row.instructorName,
+      action,
+      kind: 'notProcessed',
+      errorMessage: `הבקשה כבר טופלה במערכת (סטטוס: ${meta.status}).`,
+      warningMessage: warning || undefined, 
+
+    };
+  }
+
+  // נשאר PENDING בפועל => באמת לא טופל
   return {
     id: row.id,
     requestType: row.requestType,
@@ -983,12 +1053,18 @@ if (afterLocal === 'PENDING') {
     childName: row.childName,
     instructorName: row.instructorName,
     action,
-    kind: 'failed',
-    errorMessage: 'הפעולה לא בוצעה (הבקשה נשארה PENDING).',
+    kind: 'notProcessed',
+    errorMessage: 'לא בוצעה פעולה על הבקשה (נשארה ממתינה).',
+    warningMessage: warning || undefined, 
+
+
   };
 }
 
+
 if (afterLocal === 'REJECTED_BY_SYSTEM') {
+  const meta = await this.fetchDecisionMeta(row.id);
+
   return {
     id: row.id,
     requestType: row.requestType,
@@ -998,7 +1074,7 @@ if (afterLocal === 'REJECTED_BY_SYSTEM') {
     instructorName: row.instructorName,
     action,
     kind: 'systemRejected',
-    systemReason: rejectArgs?.reason?.trim() || undefined, // אם היה
+systemReason: (meta.note ?? '').trim() || 'נדחה אוטומטית ע״י המערכת',
   };
 }
 
@@ -1011,9 +1087,32 @@ return {
   instructorName: row.instructorName,
   action,
   kind: 'success',
-};
+    warningMessage: warning || undefined, 
 
+};
 } catch (e: any) {
+  const meta = await this.fetchDecisionMeta(row.id);
+
+  if (meta.status === 'REJECTED_BY_SYSTEM') {
+    return {
+      id: row.id,
+      requestType: row.requestType,
+      summary: row.summary,
+      requestedByName: row.requestedByName,
+      childName: row.childName,
+      instructorName: row.instructorName,
+      action,
+      kind: 'systemRejected',
+      systemReason: meta.note?.trim() || 'נדחה אוטומטית ע״י המערכת',
+    };
+  }
+
+  // ✅ פה הקסם: אם DB שם reason אמיתי, נשתמש בו
+  const msg =
+    meta.note?.trim() ||
+    e?.message ||
+    String(e);
+
   return {
     id: row.id,
     requestType: row.requestType,
@@ -1022,14 +1121,51 @@ return {
     childName: row.childName,
     instructorName: row.instructorName,
     action,
-    kind: 'failed',
-    errorMessage: e?.message || String(e),
+    kind: 'notProcessed',
+    errorMessage: msg,
   };
-} finally {
-  ref.destroy();
 }
 
 }
+private async enrichBulkReportFromDb(report: BulkRunReport): Promise<BulkRunReport> {
+  const updatedResults: BulkRunItemReport[] = [];
+
+  for (const r of report.results) {
+    const meta = await this.fetchDecisionMeta(r.id);
+
+    // 1) אם ה-DB דחה אוטומטית – תמיד "נדחו ע״י המערכת"
+    if (meta.status === 'REJECTED_BY_SYSTEM') {
+      updatedResults.push({
+        ...r,
+        kind: 'systemRejected',
+        systemReason: (meta.note ?? '').trim() || r.systemReason || 'נדחה אוטומטית ע״י המערכת',
+        errorMessage: undefined,
+      });
+      continue;
+    }
+
+    // 2) אם בפועל כבר APPROVED/REJECTED – זה "הצליחו" (גם אם ה-UI לא פאטצ׳)
+    if (meta.status === 'APPROVED' || meta.status === 'REJECTED') {
+      updatedResults.push({
+        ...r,
+        kind: 'success',
+        errorMessage: undefined,
+      });
+      continue;
+    }
+
+    // 3) אם בפועל PENDING / null – זה "לא טופלו"
+    // ננקה מערכתית שדות סיבה/שגיאה אם צריך, או נשאיר errorMessage להצגה
+    updatedResults.push({
+      ...r,
+      kind: r.kind === 'success' ? 'success' : 'notProcessed',
+      systemReason: undefined,
+    });
+  }
+
+  return this.buildBulkReport(report.action, updatedResults);
+}
+
 
 async bulkApproveSelected() {
   if (this.bulkBusy()) return;
@@ -1062,14 +1198,14 @@ async bulkApproveSelected() {
   // ה-toast הקיים שלך יכול להישאר (רשות)
   if (report.successCount) this.showToast(`אושרו ${report.successCount} בקשות`, 'success');
   if (report.systemRejectedCount) this.showToast(`נדחו אוטומטית ${report.systemRejectedCount}`, 'info');
-  if (report.failedCount) this.showToast(`נכשלו ${report.failedCount} בקשות`, 'error');
 
   await this.loadRequestsFromDb();
   await this.autoRejectCriticalInvalidRequests('postBulk');
   this.clearSelection();
 
   // ✅ הפופאפ דוח בסוף (אחרי סנכרון)
-  this.openBulkRunReportDialog(report);
+const enriched = await this.enrichBulkReportFromDb(report);
+this.openBulkRunReportDialog(enriched);
   } finally {
     this.bulkBusy.set(false);
     this.bulkBusyMode.set(null);
@@ -1128,13 +1264,12 @@ async bulkRejectSelected() {
 
   if (report.successCount) this.showToast(`נדחו ${report.successCount} בקשות`, 'success');
   if (report.systemRejectedCount) this.showToast(`נדחו אוטומטית ${report.systemRejectedCount}`, 'info');
-  if (report.failedCount) this.showToast(`נכשלו ${report.failedCount} בקשות`, 'error');
 
   await this.loadRequestsFromDb();
   await this.autoRejectCriticalInvalidRequests('postBulk');
   this.clearSelection();
-
-  this.openBulkRunReportDialog(report);
+const enriched = await this.enrichBulkReportFromDb(report);
+this.openBulkRunReportDialog(enriched);
   } finally {
     this.bulkBusy.set(false);
     this.bulkBusyMode.set(null);
@@ -1772,17 +1907,38 @@ private async rejectBySystem(row: UiRequest, reason: string): Promise<boolean> {
 
     if (error) throw error;
 
-    // אם לא עודכן (מישהו כבר טיפל) - לא לשקר ל-UI
-    if (!data) return false;
+    // ✅ עודכן עכשיו
+    if (data) {
+      this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
+      return true;
+    }
 
-    this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
-    return true;
+    // ✅ לא עודכן כי כנראה כבר טופל: נביא מטא מה-DB ונחליט לפי זה
+    const meta = await this.fetchDecisionMeta(row.id);
+
+    if (meta.status === 'REJECTED_BY_SYSTEM') {
+      // נשמור ב-UI סטטוס נכון
+      this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
+      return true; // ✅ נחשב כהצלחה של "דחייה אוטומטית"
+    }
+
+    // אם לא נדחה ע"י המערכת בפועל - אז באמת לא הצלחנו
+    return false;
 
   } catch (e) {
     console.error('rejectBySystem failed', e);
+
+    // ✅ גם פה fallback (ליתר בטחון): אולי ה-DB כן עודכן אבל הייתה תקלה אצלנו
+    const meta = await this.fetchDecisionMeta(row.id);
+    if (meta.status === 'REJECTED_BY_SYSTEM') {
+      this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
+      return true;
+    }
+
     return false;
   }
 }
+
 private getRequesterRoleForRequest(row: UiRequest): RequesterRole | null {
   const p: any = row.payload ?? {};
   return (row as any).requesterRole ?? p.requested_by_role ?? p.requestedByRole ?? null;
@@ -1882,24 +2038,49 @@ private openBulkRunReportDialog(report: BulkRunReport) {
     backdropClass: 'ui-confirm-backdrop',
   });
 }
+private async fetchDecisionMeta(requestId: string): Promise<{ status: string | null; note: string | null }> {
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const { data, error } = await db
+      .from('secretarial_requests')
+      .select('status, decision_note')
+      .eq('id', requestId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    const status = (data as any)?.status ?? null;
+    const noteRaw = (data as any)?.decision_note ?? null;
+    const note = noteRaw && String(noteRaw).trim() ? String(noteRaw).trim() : null;
+
+    return { status, note };
+  } catch (e) {
+    console.warn('fetchDecisionMeta failed', requestId, e);
+    return { status: null, note: null };
+  }
+}
 
 private buildBulkReport(action: 'approve' | 'reject', results: BulkRunItemReport[]): BulkRunReport {
-  const systemRejected = results.filter(r => r.kind === 'systemRejected');
-  const failed = results.filter(r => r.kind === 'failed');
   const success = results.filter(r => r.kind === 'success');
+  const systemRejected = results.filter(r => r.kind === 'systemRejected');
+  const notProcessed = results.filter(r => r.kind === 'notProcessed');
 
   return {
     action,
     total: results.length,
+
     successCount: success.length,
-    failedCount: failed.length,
     systemRejectedCount: systemRejected.length,
+    notProcessedCount: notProcessed.length,
+
     results,
+    success,
     systemRejected,
-    failed,
+    notProcessed,
   };
 }
-
 
 }
 
