@@ -491,7 +491,7 @@
 </div>
 
 <!-- ======== טאב: מילוי מקום ======== -->
-<div *ngIf="selectedTab === 'occupancy'" class="appt-card">
+<div *ngIf="selectedTab === 'occupancy'" class="appt-card" dir="rtl">
   <h3>שיעורים שמחפשים מילוי מקום</h3>
 
   <div class="slots-list">
@@ -521,7 +521,7 @@
           selectedOccupancyCandidate?.occur_date === o.occur_date
       }"
     >
-      <td>{{ o.occur_date }}</td>
+<td><span class="date-ltr">{{ o.occur_date | date:'dd-MM-yyyy' }}</span></td>
 <td>{{ getSlotDayLabel(o.occur_date) }}</td>
 <td>
   <span class="time-range">
@@ -574,7 +574,7 @@
 
     <tbody>
       <tr *ngFor="let s of occupancySlots">
-        <td>{{ s.occur_date }}</td>
+<td><span class="date-ltr">{{ s.occur_date | date:'dd-MM-yyyy' }}</span></td>
         <td>{{ getSlotDayLabel(s.occur_date) }}</td>
 <td>
   <span class="time-range">
@@ -637,7 +637,7 @@
                 selectedMakeupCandidate?.occur_date === c.occur_date
             }"
           >
-            <td>{{ c.occur_date }}</td>
+<td><span class="date-ltr">{{ c.occur_date | date:'dd-MM-yyyy' }}</span></td>
             <td>{{  dayOfWeekLabelFromDate(c.occur_date)  }}</td>
 <td>
   <span class="time-range">
@@ -680,7 +680,7 @@
 
       <tbody>
         <tr *ngFor="let s of candidateSlots">
-          <td>{{ s.occur_date }}</td>
+<td><span class="date-ltr">{{ s.occur_date | date:'dd-MM-yyyy' }}</span></td>
           <td>{{ getSlotDayLabel(s.occur_date) }}</td>
 <td>
   <span class="time-range">
