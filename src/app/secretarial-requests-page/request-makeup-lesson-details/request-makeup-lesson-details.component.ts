@@ -36,12 +36,13 @@ export class RequestMakeupLessonDetailsComponent {
 
   // ===== Outputs שהאב מאזין אליהם ב-onDetailsActivate =====
   @Output() approved = new EventEmitter<{ requestId: string; newStatus: 'APPROVED' }>();
-  @Output() rejected = new EventEmitter<{ requestId: string; newStatus: 'REJECTED' }>();
+  @Output() rejected = new EventEmitter<{ requestId: string; newStatus: 'REJECTED' | 'REJECTED_BY_SYSTEM' }>();
   @Output() error = new EventEmitter<string>();
   ngOnInit() {
   this.loadingMakeupTarget.set(true);
   void this.loadMakeupTarget();
 }
+bulkWarning: string | null = null;
 
 timeRange = computed(() => {
   const start = this.normalizeTime(this.payload()?.requested_start_time ?? null);
@@ -96,6 +97,8 @@ private validator = inject(RequestValidationService);
 
   clearMessages() {
     this.errorMsg.set(null);
+    this.bulkWarning = null;
+
   }
 makeupTarget = signal<null | {
   occur_date: string;
@@ -126,7 +129,7 @@ private async rejectBySystem(reason: string): Promise<void> {
     .eq('status', 'PENDING');
 
   // UI callbacks
-  const evt = { requestId: this.requestId(), newStatus: 'REJECTED' as const };
+  const evt = { requestId: this.requestId(), newStatus: 'REJECTED_BY_SYSTEM' as const };
   this.rejected.emit(evt);
   this.onRejected?.(evt);
 
@@ -361,12 +364,18 @@ async approve(): Promise<void> {
 }
 
 // ✅ הבקשה אושרה גם אם המייל נכשל
-if (json?.mailSent === false) {
-  this.snack.open(
-    'הבקשה אושרה, אך שליחת המייל נכשלה',
-    'סגור',
-    { duration: 3500, direction: 'rtl' }
-  );
+const warn = (json?.warning ?? '').toString().trim();
+if (warn) {
+  this.bulkWarning = warn;
+  if (!this.bulkMode) {
+    this.snack.open(warn, 'סגור', {
+      duration: 3500,
+      panelClass: ['snack-warn'], // אם אין לך, תשתמשי snack-reject
+      direction: 'rtl',
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+    });
+  }
 }
 
 
@@ -456,7 +465,7 @@ async reject(args?: { source?: 'user' | 'system'; reason?: string }): Promise<vo
   try {
      // ✅ ולידציה דרך השירות לפני דחייה
     // אם הבקשה כבר לא רלוונטית — לא “דחייה רגילה”, אלא REJECTED_BY_SYSTEM
-    const v = await this.validator.validate(r, 'approve');
+const v = await this.validator.validate(r, 'reject');
     if (!v.ok) {
       await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
       return;
@@ -498,13 +507,20 @@ async reject(args?: { source?: 'user' | 'system'; reason?: string }): Promise<vo
 }
 
 // ✅ הבקשה אושרה גם אם המייל נכשל
-if (json?.mailSent === false) {
-  this.snack.open(
-    'הבקשה נדחתה, אך שליחת המייל נכשלה',
-    'סגור',
-    { duration: 3500, direction: 'rtl' }
-  );
+const warn = (json?.warning ?? '').toString().trim();
+if (warn) {
+  this.bulkWarning = warn;
+  if (!this.bulkMode) {
+    this.snack.open(warn, 'סגור', {
+      duration: 3500,
+      panelClass: ['snack-warn'],
+      direction: 'rtl',
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+    });
+  }
 }
+
 
 
     this.okSnack('הבקשה נדחתה בהצלחה');

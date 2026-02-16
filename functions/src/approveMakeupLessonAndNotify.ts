@@ -237,18 +237,39 @@ export const approveMakeupLessonAndNotify = onRequest(
         decisionNote: null,
       });
 
-      const notifyRes = await notifyUserInternal({
-        tenantSchema,
-        userType: 'parent',
-        uid: childRow.parent_uid,
-        subject,
-        html,
-        text,
-        category: 'makeup_lesson',
-        forceEmail: true,
-      });
+     let mail: any = null;
+let mailOk = false;
+let warning: string | null = null;
+let mailError: any = null;
 
-      return void res.status(200).json({ ok: true, mail: notifyRes });
+try {
+  mail = await notifyUserInternal({
+    tenantSchema,
+    userType: 'parent',
+    uid: childRow.parent_uid,
+    subject,
+    html,
+    text,
+    category: 'makeup_lesson',
+    forceEmail: true,
+  });
+  mailOk = true;
+} catch (e: any) {
+  mailOk = false;
+  warning = 'הבקשה אושרה, אך שליחת המייל נכשלה';
+  mailError = { message: e?.message || String(e) };
+  console.warn('approveMakeupLessonAndNotify: mail failed', mailError);
+  // לא זורקים — האישור כבר בוצע
+}
+
+return void res.status(200).json({
+  ok: true,
+  mailOk,
+  warning,
+  mail,
+  mailError,
+});
+
     } catch (e: any) {
       console.error('approveMakeupLessonAndNotify error', e);
       return void res.status(500).json({ error: 'Internal error', message: e?.message || String(e) });
