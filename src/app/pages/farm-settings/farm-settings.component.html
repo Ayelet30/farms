@@ -331,7 +331,14 @@
         <div class="fields-grid three-cols">
           <label class="field">
             <span class="field-label">ימי אחורה להשלמות</span>
-        <input type="number" min="0" max="365" [(ngModel)]="s.makeup_allowed_days_back" />
+      <input
+  type="number"
+  min="0"
+  max="365"
+  [(ngModel)]="s.makeup_allowed_days_back"
+  name="makeup_allowed_days_back"
+/>
+
 
           </label>
 
@@ -445,23 +452,80 @@
   <ng-container *ngIf="ridingTypesExpanded()">
     <!-- טופס הוספה -->
     <div class="inline-panel" *ngIf="showNewRidingTypeForm()">
-      <div class="fields-grid two-cols">
-        <label class="field">
-          <span class="field-label">שם סוג רכיבה</span>
-<input
-  type="text"
-  maxlength="50"
-  [ngModel]="newRidingTypeName()"
-  (ngModelChange)="newRidingTypeName.set($event)"
-  [ngModelOptions]="{ standalone: true }"
-  placeholder="לדוגמה: רכיבה טיפולית"
-/>
+    <div class="fields-grid three-cols">
+
+  <label class="field">
+    <span class="field-label">שם</span>
+    <input
+      type="text"
+      name="newRidingTypeName"
+      [ngModel]="newRidingTypeName()"
+      (ngModelChange)="newRidingTypeName.set($event)"
+    />
+  </label>
+
+  <label class="field">
+    <span class="field-label">תיאור</span>
+    <input
+      type="text"
+      name="newRidingTypeDesc"
+      [ngModel]="newRidingTypeDesc()"
+      (ngModelChange)="newRidingTypeDesc.set($event)"
+    />
+  </label>
+
+  <label class="field">
+    <span class="field-label">מינ׳ משתתפים</span>
+    <input
+      type="number"
+      name="newRidingTypeMin"
+      [ngModel]="newRidingTypeMin()"
+      (ngModelChange)="newRidingTypeMin.set($event)"
+    />
+  </label>
+
+  <label class="field">
+    <span class="field-label">מקס׳ משתתפים</span>
+    <input
+      type="number"
+      name="newRidingTypeMax"
+      [ngModel]="newRidingTypeMax()"
+      (ngModelChange)="newRidingTypeMax.set($event)"
+    />
+  </label>
+
+  <label class="field">
+    <span class="field-label">מחיר מיוחד</span>
+    <input
+      type="number"
+      name="newRidingTypeSpecialPrice"
+      [ngModel]="newRidingTypeSpecialPrice()"
+      (ngModelChange)="newRidingTypeSpecialPrice.set($event)"
+    />
+  </label>
+
+  <label class="field">
+    <span class="field-label">משך מיוחד (דקות)</span>
+    <input
+      type="number"
+      name="newRidingTypeSpecialDuration"
+      [ngModel]="newRidingTypeSpecialDuration()"
+      (ngModelChange)="newRidingTypeSpecialDuration.set($event)"
+    />
+  </label>
+
+  <label class="field toggle">
+    <span class="field-label">פעיל</span>
+    <input
+      type="checkbox"
+      name="newRidingTypeIsActive"
+      [ngModel]="newRidingTypeIsActive()"
+      (ngModelChange)="newRidingTypeIsActive.set($event)"
+    />
+  </label>
 
 
-        </label>
-      </div>
 
-      <div class="panel-actions">
         <button type="button" class="primary-btn" (click)="addRidingType()">
           שמירה
         </button>
