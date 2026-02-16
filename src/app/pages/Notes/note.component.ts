@@ -132,6 +132,7 @@ childDetails: ChildDetails | null = null;
 
 private _attendanceStatus: AttendanceStatus = null;
  private presentMarkedNow: boolean = false;
+private noteAddedThisSession = false;
 
 // ⚠️ אזהרה – ניסיון סימון נוכחות מוקדם מדי
 showEarlyAttendanceWarning = false;
@@ -268,6 +269,7 @@ get canEditOfficeNotes(): boolean {
 
   // 3️⃣ איפוס התראות סגירה
   this.resetCloseWarnings();
+this.noteAddedThisSession = false;
 
   // 4️⃣ גלילה לראש הכרטיס (אחרי רינדור)
   queueMicrotask(() => {
@@ -980,6 +982,9 @@ console.log('NOTE SAVED OK');
   // ✅ הערה נוספה → אפשר לסגור
   this.presentMarkedNow = false;
   this.resetCloseWarnings();
+  this.noteAddedThisSession = true;
+this.recalcPresenceFlags();
+
 }
 
 
@@ -1051,11 +1056,12 @@ private canCloseNow(): boolean {
   }
 
   // חובת הערה רק אם "הגיע" סומן עכשיו בסשן הנוכחי
-  if (this.attendanceStatus === 'present' && this.presentMarkedNow) {
-    this.mustChooseAttendance = false;
-    this.mustFillNoteForPresent = true;
-    return false;
-  }
+if (this.attendanceStatus === 'present' && !this.noteAddedThisSession) {
+  this.mustChooseAttendance = false;
+  this.mustFillNoteForPresent = true;
+  return false;
+}
+
 
   this.resetCloseWarnings();
   return true;
