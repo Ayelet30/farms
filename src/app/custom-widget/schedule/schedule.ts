@@ -329,13 +329,6 @@ eventDidMount: (info: any) => {
 
   const color = meta?.instructor_color;
 
-  console.log(
-    '🎨 instructor_color:',
-    color,
-    'event:',
-    info.event.title
-  );
-
   if (color) {
     const box = info.el.querySelector('.event-box') as HTMLElement | null;
     if (box) {
@@ -345,12 +338,8 @@ eventDidMount: (info: any) => {
   }
 
 
-
-  console.log('🎯 eventDidMount', info.event.title, info.event.extendedProps);
-
   // ===== TOOLTIP =====
 
-console.log('🧪 META', meta);
   let tooltipText = '';
 
   // 🏖 חופשת חווה
@@ -368,7 +357,6 @@ console.log('🧪 META', meta);
   if (tooltipText) {
     info.el.setAttribute('title', tooltipText);
     info.el.classList.add('has-tooltip');
-    console.log('✅ tooltip set:', meta.cancelBlockReason);
   }
     // 🚫 חסימת ביטול – הסבר
   if (meta?.cancelBlockReason) {
@@ -463,7 +451,6 @@ console.log('🧪 META', meta);
 
   // ===== חופשת חווה =====
 if (i.meta?.['isFarmDayOff'] === 'true') {
-console.log('🧪 ITEM META', i.meta);
 
     return [
       // 1️⃣ רקע – צובע את כל היום / שעות
