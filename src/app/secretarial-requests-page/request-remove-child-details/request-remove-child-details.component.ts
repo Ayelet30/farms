@@ -73,6 +73,7 @@ export class RequestRemoveChildDetailsComponent {
 
   // ✅ זה מה שמשתמשים בו בקוד ובתבנית: req()
   readonly req = this._req;
+public bulkWarning: string | null = null;
 
   @Input() decidedByUid?: string;
 
@@ -350,10 +351,19 @@ if (!valid.ok) {
 
     this.scheduledDeletionAt.set(json.scheduledDeletionAt ?? null);
 
-    const e = { requestId: r.id, newStatus: 'APPROVED' as const };
-    this.approved.emit(e);
-    this.showSnack('הבקשה אושרה בהצלחה ✅', 'success');
-    this.onApproved?.(e);
+const e = { requestId: r.id, newStatus: 'APPROVED' as const };
+this.approved.emit(e);
+this.onApproved?.(e);
+
+this.bulkWarning = null;
+
+if (json?.emailOk === false) {
+  this.bulkWarning = 'אושרה ✅ אבל לא נשלח מייל להורה';
+  this.showSnack(`אושר ✅ אבל שליחת מייל נכשלה: ${json?.emailError ?? ''}`, 'error');
+} else {
+  this.showSnack('הבקשה אושרה בהצלחה ✅', 'success');
+}
+
 
     await this.loadRemainingLessons();
   } catch (err: any) {
@@ -421,19 +431,38 @@ if (!valid.ok) {
       }),
     });
 
-    const raw = await resp.text();
-    let json: any = null;
-    try { json = JSON.parse(raw); } catch {}
-    if (!resp.ok || !json?.ok) {
-      throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
-    }
+  const raw = await resp.text();
+let json: any = null;
+try { json = JSON.parse(raw); } catch {}
 
-    const e = { requestId: r.id, newStatus: 'REJECTED' as const };
-    this.rejected.emit(e);
-    this.showSnack('הבקשה נדחתה בהצלחה ✅', 'success');
-    this.onRejected?.(e);
+// ❌ כשל "אמיתי" (השרת לא אישר / לא עדכן DB)
+if (!resp.ok || !json?.ok) {
+  throw new Error(
+    json?.message ||
+    json?.error ||
+    `HTTP ${resp.status}: ${raw?.slice(0, 300)}`
+  );
+}
 
-    await this.loadRemainingLessons?.();
+// ✅ הגענו לפה = הדחייה ב-DB הצליחה
+const er = { requestId: r.id, newStatus: 'REJECTED' as const };
+this.rejected.emit(er);
+this.onRejected?.(er);
+
+this.bulkWarning = null;
+
+if (json?.emailOk === false) {
+  this.bulkWarning = 'נדחתה ✅ אבל לא נשלח מייל להורה';
+  this.showSnack(`נדחה ✅ אבל שליחת מייל נכשלה: ${json?.emailError ?? ''}`, 'error');
+} else {
+  this.showSnack('הבקשה נדחתה בהצלחה ✅', 'success');
+}
+
+
+await this.loadRemainingLessons?.();
+return; // חשוב כדי לא להמשיך ל-catch בטעות
+
+  
   } catch (err: any) {
     const msg = err?.message ?? 'שגיאה בדחיית הבקשה';
     this.showSnack(msg, 'error');

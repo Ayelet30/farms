@@ -249,22 +249,47 @@ export const rejectRemoveChildAndNotify = onRequest(
         decisionNote: decisionNoteFinal, // ✅ חשוב לדחייה
       } as any);
 
-      const notifyRes = await notifyUserInternal({
-        tenantSchema,
-        userType: 'parent',
-        uid: childRow.parent_uid,
-        subject,
-        html,
-        text,
-        category: 'child_removal',
-        forceEmail: true,
-      });
+    let emailOk = true;
+let emailError: string | null = null;
+let mail: any = null;
 
-      return void res.status(200).json({ ok: true, mail: notifyRes });
-    } catch (e: any) {
-      applyCors(req, res);
-      console.error('rejectRemoveChildAndNotify error', e);
-      return void res.status(500).json({ error: 'Internal error', message: e?.message || String(e) });
-    }
+try {
+  mail = await notifyUserInternal({
+    tenantSchema,
+    userType: 'parent',
+    uid: childRow.parent_uid,
+    subject,
+    html,
+    text,
+    category: 'child_removal',
+    forceEmail: true,
+  });
+
+  // אופציונלי: אם notifyUserInternal מחזיר אובייקט עם ok=false בלי לזרוק
+  if (mail && (mail.ok === false || mail.emailOk === false)) {
+    emailOk = false;
+    emailError =
+      String(mail.message ?? mail.error ?? mail.emailError ?? 'שליחת מייל נכשלה').slice(0, 300);
+  }
+} catch (err: any) {
+  emailOk = false;
+  emailError = String(err?.message ?? err ?? 'שליחת מייל נכשלה').slice(0, 300);
+  console.warn('rejectRemoveChildAndNotify: email failed but request was rejected OK', err);
+}
+
+// ✅ חשוב: מחזירים ok:true תמיד כי הדחייה ב-DB הצליחה
+return void res.status(200).json({
+  ok: true,
+  emailOk,
+  emailError,
+  mail, // אם הצליח/החזיר משהו
+});
+
+  } catch (e: any) {
+  applyCors(req, res);
+  console.error('rejectRemoveChildAndNotify error', e);
+  return void res.status(500).json({ error: 'Internal error', message: e?.message || String(e) });
+}
+
   }
 );
