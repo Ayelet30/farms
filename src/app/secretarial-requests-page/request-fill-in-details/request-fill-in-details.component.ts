@@ -36,12 +36,12 @@ export class RequestFillInDetailsComponent implements OnInit {
   @Input() bulkMode = false;
 
   @Input() onApproved?: (e: any) => void;
-  @Input() onRejected?: (e: any) => void;
+@Input() onRejected?: (e: { requestId: string; newStatus: 'REJECTED' | 'REJECTED_BY_SYSTEM' }) => void;
   @Input() onError?: (e: any) => void;
 note = signal<string>('');
 
   @Output() approved = new EventEmitter<{ requestId: string; newStatus: 'APPROVED' }>();
-  @Output() rejected = new EventEmitter<{ requestId: string; newStatus: 'REJECTED' }>();
+  @Output() rejected = new EventEmitter<{ requestId: string; newStatus: 'REJECTED' | 'REJECTED_BY_SYSTEM' }>();
   @Output() error = new EventEmitter<string>();
 
   constructor(private snack: MatSnackBar) {}
@@ -49,6 +49,7 @@ private tenantSvc = inject(SupabaseTenantService);
 readonly status = computed(() => (this.request as any)?.status ?? null);
 readonly isPending = computed(() => this.status() === 'PENDING');
 private validator = inject(RequestValidationService);
+bulkWarning: string | null = null;
 
 readonly canDecide = computed(() => this.isPending());
 readonly shouldShowFillInTarget = computed(() => this.isPending());
@@ -106,6 +107,8 @@ readonly shouldShowFillInTarget = computed(() => this.isPending());
 
   private clearMessages() {
     this.errorMsg.set(null);
+    this.bulkWarning = null;
+
   }
 
   private fail(msg: string, raw?: any) {
@@ -162,7 +165,7 @@ private async rejectBySystem(reason: string): Promise<void> {
     }
 
     // ✅ לעדכן UI (כמו בשאר הקומפוננטות)
-    const evt = { requestId: r.id, newStatus: 'REJECTED' as const };
+    const evt = { requestId: r.id, newStatus: 'REJECTED_BY_SYSTEM' as const };
     this.rejected.emit(evt);
     this.onRejected?.(evt);
 
@@ -301,6 +304,20 @@ this.fillInTarget.set({
       if (!resp.ok || !json?.ok) {
         throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
       }
+const warn = (json?.warning ?? '').toString().trim();
+if (warn) {
+  this.bulkWarning = warn;
+
+  if (!this.bulkMode) {
+    this.snack.open(warn, 'סגור', {
+      duration: 3500,
+      panelClass: ['snack-warn'], // אם אין לך סטייל כזה, שימי ['snack-reject']
+      direction: 'rtl',
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+    });
+  }
+}
 
       this.okSnack('אושר ✅');
       const evt = { requestId: r.id, newStatus: 'APPROVED' as const };
@@ -359,6 +376,21 @@ this.fillInTarget.set({
     const raw = await resp.text();
     let json: any = null; try { json = JSON.parse(raw); } catch {}
     if (!resp.ok || !json?.ok) throw new Error(json?.message || json?.error || raw);
+    const warn = (json?.warning ?? '').toString().trim();
+if (warn) {
+  this.bulkWarning = warn;
+
+  if (!this.bulkMode) {
+    this.snack.open(warn, 'סגור', {
+      duration: 3500,
+      panelClass: ['snack-warn'],
+      direction: 'rtl',
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+    });
+  }
+}
+
     this.okSnack('נדחה ✅');
     const evt = { requestId: r.id, newStatus: 'REJECTED' as const };
     this.rejected.emit(evt);
