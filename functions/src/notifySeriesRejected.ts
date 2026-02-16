@@ -204,18 +204,41 @@ const { subject, html, text } = buildSeriesRejectedEmail({
   rejectReason: rejectReason || null,
 });
 
-const mail = await notifyUserInternal({
-  tenantSchema,
-  userType: 'parent',
-  uid: childRow.parent_uid,
-  subject,
-  html,
-  text,
-  category: 'series',
-  forceEmail: true,
+let mail: any = null;
+let mailOk = false;
+let warning: string | null = null;
+let mailError: any = null;
+
+try {
+  mail = await notifyUserInternal({
+    tenantSchema,
+    userType: 'parent',
+    uid: childRow.parent_uid,
+    subject,
+    html,
+    text,
+    category: 'series',
+    forceEmail: true,
+  });
+
+  mailOk = true; // אם אצלך יש שדה "sent"/"queued" אפשר לעשות יותר מדויק
+} catch (e: any) {
+  mailOk = false;
+  warning = 'הבקשה נדחתה, אך שליחת המייל להורה נכשלה';
+  mailError = { message: e?.message || String(e) };
+
+  console.warn('notifySeriesRejected: mail failed', mailError);
+  // לא לזרוק! הדחייה כבר התבצעה במערכת
+}
+
+return void res.status(200).json({
+  ok: true,
+  mailOk,
+  warning,
+  mail,
+  mailError,
 });
 
-return void res.status(200).json({ ok: true, mail });
 
     } catch (e: any) {
       console.error('notifySeriesRejected error', e);
