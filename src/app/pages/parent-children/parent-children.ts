@@ -452,9 +452,7 @@ const nowIso = this.nowLocalIsoNoTz();
       console.error('שגיאה בקריאת lessons_occurrences (last):', error);
       return;
     }
-console.log(occRaw); 
     const occs = (occRaw ?? []) as OccurrenceRow[];
-console.log(occs); 
     // שמות מדריכים
     const instrIds = Array.from(new Set(occs.map(o => o.instructor_id).filter(Boolean))) as string[];
     let instructorNameById: Record<string, string> = {};
@@ -968,7 +966,6 @@ async openSignedTerms(child: any) {
 
     const bucket = data?.signed_pdf_bucket ?? null;
     const path = data?.signed_pdf_path ?? null;
-    console.log('Signed terms bucket:', bucket, 'path:', path);
 
     if (!bucket || !path) {
       this.signedDocUrlRaw.set(null);
