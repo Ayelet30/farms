@@ -457,7 +457,12 @@
 
   <ng-container *ngIf="ridingTypesExpanded()">
     <!-- טופס הוספה -->
-    <div class="inline-panel" *ngIf="showNewRidingTypeForm()">
+  <form
+  class="inline-panel"
+  *ngIf="showNewRidingTypeForm()"
+  (ngSubmit)="addRidingType()"
+>
+
     <div class="fields-grid three-cols">
 
   <label class="field">
@@ -575,9 +580,9 @@
     />
   </label>
 <button
-  type="button"
+  type="submit"
   class="primary-btn"
-  (click)="addRidingType()"
+
   [disabled]="
     !!newRidingTypeCodeError() ||
     !newRidingTypeName().trim()
@@ -594,8 +599,8 @@
         >
           ביטול
         </button>
-      </div>
-    </div>
+ </div>
+</form>
 
     <!-- רשימה -->
     <div class="list-block" *ngIf="ridingTypes().length; else noRidingTypes">
