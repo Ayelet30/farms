@@ -89,7 +89,7 @@ readonly windowText = computed(() => {
 
   // callbacks מהאב
   @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
-@Input() onRejected?: (e: { requestId: string; newStatus: RequestStatus; message?: string; meta?: any }) => void;
+@Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
   @Input() onError?: (e: { requestId?: string; message: string; raw?: any }) => void;
 
   // ====== UI state ======

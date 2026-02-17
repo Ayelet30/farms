@@ -17,8 +17,14 @@
   </div>
 
   <div class="actions">
-    <button class="btn reject" (click)="reject()" [disabled]="loading()">דחייה</button>
-    <button class="btn approve" (click)="approve()" [disabled]="loading()">אישור</button>
+  <button class="btn reject" (click)="reject()" [disabled]="loading()">
+  {{ loading() ? 'טוען…' : 'דחייה' }}
+</button>
+
+<button class="btn approve" (click)="approve()" [disabled]="loading()">
+  {{ loading() ? 'טוען…' : 'אישור' }}
+</button>
+
   </div>
 </div>
 

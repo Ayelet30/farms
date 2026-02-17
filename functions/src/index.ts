@@ -45,7 +45,8 @@ export { approveMakeupLessonAndNotify } from './approveMakeupLessonAndNotify';
 export { rejectMakeupLessonAndNotify } from './rejectMakeupLessonAndNotify';
 export { approveFillInAndNotify } from './approveFillInAndNotify';
 export { rejectFillInAndNotify } from './rejectFillInAndNotify';
-
+export {approveCancelOccurrenceAndNotify} from './approveCancelOccurrenceAndNotify'
+export {rejectCancelOccurrenceAndNotify} from './rejectCancelOccurrenceAndNotify'
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
 

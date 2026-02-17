@@ -29,9 +29,8 @@ export class RequestMakeupLessonDetailsComponent {
   @Input({ required: true }) request!: UiRequest;
   @Input() decidedByUid?: string | null;
   @Input() bulkMode = false;
-
-  @Input() onApproved?: (e: any) => void;
-  @Input() onRejected?: (e: any) => void;
+ @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
+@Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
   @Input() onError?: (e: any) => void;
 
   // ===== Outputs שהאב מאזין אליהם ב-onDetailsActivate =====
