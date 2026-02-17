@@ -506,7 +506,6 @@
     {{ newRidingTypeDesc().length }}/100 תווים
   </small>
 </label>
-
 <label class="field">
   <span class="field-label">מינ׳ משתתפים</span>
   <input
@@ -520,14 +519,13 @@
       validateParticipants()
     "
   />
+<small class="field-error" *ngIf="participantsMinError()">
+  {{ participantsMinError() }}
+</small>
 
-  <small class="field-error" *ngIf="participantsError()">
-    {{ participantsError() }}
-  </small>
 </label>
 
-
-  <label class="field">
+<label class="field">
   <span class="field-label">מקס׳ משתתפים</span>
   <input
     type="number"
@@ -540,7 +538,12 @@
       validateParticipants()
     "
   />
+<small class="field-error" *ngIf="participantsMaxError()">
+  {{ participantsMaxError() }}
+</small>
+
 </label>
+
 
   <label class="field">
     <span class="field-label">מחיר מיוחד</span>

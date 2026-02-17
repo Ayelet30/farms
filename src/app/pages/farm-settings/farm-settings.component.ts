@@ -239,6 +239,31 @@ newRidingTypeDesc = signal('');
 
 newRidingTypeMin = signal<number | null>(null);
 newRidingTypeMax = signal<number | null>(null);
+participantsMinError = signal<string | null>(null);
+participantsMaxError = signal<string | null>(null);
+
+
+validateParticipants(): void {
+  const min = this.newRidingTypeMin();
+  const max = this.newRidingTypeMax();
+
+  this.participantsMinError.set(null);
+  this.participantsMaxError.set(null);
+
+  if (min != null && (!Number.isFinite(min) || min < 1 || min > 50)) {
+    this.participantsMinError.set('מינימום חייב להיות בין 1 ל־50');
+  }
+
+  if (max != null && (!Number.isFinite(max) || max < 1 || max > 50)) {
+    this.participantsMaxError.set('מקסימום חייב להיות בין 1 ל־50');
+  }
+
+  if (min != null && max != null && min > max) {
+    this.participantsMinError.set('מינימום לא יכול להיות גדול ממקסימום');
+    this.participantsMaxError.set('מקסימום לא יכול להיות קטן ממינימום');
+  }
+}
+
 newRidingTypeCode = signal('');
 newRidingTypeCodeError = signal<string | null>(null);
 
@@ -1801,6 +1826,8 @@ if (duration !== null) {
       spacial_duration: duration,
       is_active: this.newRidingTypeIsActive(),
     });
+this.success.set('סוג רכיבה נשמר בהצלחה');
+setTimeout(() => this.success.set(null), 3000);
 
   if (error) {
     await this.ui.alert(error.message, 'שגיאה');
