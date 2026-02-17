@@ -1826,13 +1826,14 @@ if (duration !== null) {
       spacial_duration: duration,
       is_active: this.newRidingTypeIsActive(),
     });
-this.success.set('סוג רכיבה נשמר בהצלחה');
-setTimeout(() => this.success.set(null), 3000);
+if (error) {
+  await this.ui.alert(error.message, 'שגיאה');
+  return;
+}
 
-  if (error) {
-    await this.ui.alert(error.message, 'שגיאה');
-    return;
-  }
+this.flashSuccess('סוג רכיבה נשמר בהצלחה.');
+await this.ui.alert('סוג רכיבה נשמר בהצלחה.', 'הצלחה');
+
 
   // איפוס
   this.newRidingTypeName.set('');
