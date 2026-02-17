@@ -95,7 +95,7 @@ export const rejectCancelOccurrenceAndNotify = onRequest(
       // 1) להביא בקשה
       const { data: reqRow, error: reqErr } = await sbTenant
         .from('secretarial_requests')
-        .select('id,status,request_type,child_id,lesson_occ_id,from_date,to_date')
+        .select('id,status,request_type,child_id,lesson_id,lesson_occ_id,from_date,to_date')
         .eq('id', requestId)
         .maybeSingle();
       if (reqErr) throw reqErr;
