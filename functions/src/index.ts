@@ -49,6 +49,9 @@ export { approveFillInAndNotify } from './approveFillInAndNotify';
 export { rejectFillInAndNotify } from './rejectFillInAndNotify';
 export {approveCancelOccurrenceAndNotify} from './approveCancelOccurrenceAndNotify'
 export {rejectCancelOccurrenceAndNotify} from './rejectCancelOccurrenceAndNotify'
+export { approveInstructorDayOffAndNotify } from './approve-instructor-day-off-and-notify';
+export { rejectInstructorDayOffAndNotify } from './reject-instructor-day-off-and-notify';
+
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
 

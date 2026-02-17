@@ -45,7 +45,10 @@ readonly windowText = computed(() => {
   const from = (r.fromDate ?? p.from_date ?? '').slice(0, 10);
   const to   = (r.toDate   ?? p.to_date   ?? from).slice(0, 10);
 
-  const allDay = !!p.all_day;
+const allDay =
+  p.all_day === undefined || p.all_day === null
+    ? true
+    : (p.all_day === true || p.all_day === 'true');
 
   const start = (p.requested_start_time ?? '').toString().slice(0, 5) || null;
   const end   = (p.requested_end_time   ?? '').toString().slice(0, 5) || null;
@@ -213,38 +216,37 @@ private async rejectBySystem(reason: string): Promise<void> {
 
     if (!requestId || !decidedByUid) return;
  // ✅ הולידציה דרך השירות – לפני אישור
-  const v = await this.validator.validate(r, 'approve');
-  if (!v.ok) {
-    await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
-    return; // 👈 הכי חשוב!
-  }
-    this.loading.set(true);
+ const v = await this.validator.validate(r, 'approve');
+if (!v.ok) { await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית'); return; }
 
-    try {
-      const { error } = await this.db.rpc('approve_instructor_day_off_request', {
-        p_request_id: requestId,
-        p_decided_by_uid: decidedByUid,
-        p_decision_note: (this.decisionNote().trim() || null),
-      });
-      if (error) throw error;
+this.loading.set(true);
+try {
+  const token = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
+  const resp = await fetch('/api/approveInstructorDayOffAndNotify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      tenantSchema: r.tenantSchema,   // תעבירי מהאב/מה-context שלך
+      tenantId: r.tenantId,           // כנ״ל
+      requestId: r.id,
+      decisionNote: this.decisionNote().trim() || null,
+    }),
+  });
 
-      const msg = `אישרת: ${this.getDayOffTitle()}. נשלחו הודעות להורים הרלוונטיים.`;
-      this.toast(msg, 'success');
+  const json = await resp.json();
+  if (!resp.ok) throw new Error(json?.message || 'שגיאה באישור');
 
-      this.onApproved?.({
-        requestId,
-        newStatus: 'APPROVED',
-        message: msg,
-        meta: { impactCount: this.impactRows().length },
-      });
-    } catch (e: any) {
-      console.error(e);
-      const msg = e?.message || 'שגיאה באישור הבקשה';
-      this.toast(msg, 'error');
-      this.onError?.({ requestId, message: msg, raw: e });
-    } finally {
-      this.loading.set(false);
-    }
+  const msg = json.warning
+    ? `אישרת: ${this.getDayOffTitle()}. ${json.warning}`
+    : `אישרת: ${this.getDayOffTitle()}. נשלחו הודעות להורים הרלוונטיים.`;
+
+  this.toast(msg, json.warning ? 'info' : 'success');
+
+  this.onApproved?.({ requestId: r.id, newStatus: 'APPROVED', message: msg, meta: json.meta });
+} finally {
+  this.loading.set(false);
+}
+
   }
 
   async reject() {
@@ -255,55 +257,36 @@ private async rejectBySystem(reason: string): Promise<void> {
   const decidedByUid = this.decidedByUidSig();
 
   if (!requestId || !decidedByUid) return;
- const v = await this.validator.validate(r, 'approve');
-  if (!v.ok) {
-    await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
-    return; // 👈 חשוב!
-  }
-  this.loading.set(true);
+ const v = await this.validator.validate(r, 'reject');
+if (!v.ok) { await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית'); return; }
 
-  try {
-    const decidedAt = new Date().toISOString();
-    const note = this.decisionNote().trim() || null;
+this.loading.set(true);
+try {
+  const token = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
+  const resp = await fetch('/api/rejectInstructorDayOffAndNotify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      tenantSchema: r.tenantSchema,
+      tenantId: r.tenantId,
+      requestId: r.id,
+      decisionNote: this.decisionNote().trim() || null,
+    }),
+  });
 
-    // עדכון "אטומי" מותנה: רק אם עדיין PENDING ורק אם זה INSTRUCTOR_DAY_OFF
-    const { data, error } = await this.db
-      .from('secretarial_requests')
-      .update({
-        status: 'REJECTED',
-        decided_by_uid: decidedByUid,
-        decided_at: decidedAt,
-        decision_note: note,
-      })
-      .eq('id', requestId)
-      .eq('status', 'PENDING')
-      .eq('request_type', 'INSTRUCTOR_DAY_OFF')
-      .select('id,status')
-      .maybeSingle();
+  const json = await resp.json();
+  if (!resp.ok) throw new Error(json?.message || 'שגיאה בדחייה');
 
-    if (error) throw error;
+  const msg = json.warning
+    ? `דחית את הבקשה: ${this.getDayOffTitle()}. ${json.warning}`
+    : `דחית את הבקשה: ${this.getDayOffTitle()}.`;
 
-    // אם לא עודכנה שורה → או שלא קיימת, או לא PENDING, או סוג לא נכון
-    if (!data) {
-      throw new Error('הבקשה כבר לא במצב "ממתין" או שהסוג לא תואם (INSTRUCTOR_DAY_OFF). רענני את הרשימה.');
-    }
+  this.toast(msg, json.warning ? 'info' : 'info');
+  this.onRejected?.({ requestId: r.id, newStatus: 'REJECTED', message: msg });
+} finally {
+  this.loading.set(false);
+}
 
-    const msg = `דחית את הבקשה: ${this.getDayOffTitle()}.`;
-    this.toast(msg, 'info');
-
-    this.onRejected?.({
-      requestId,
-      newStatus: 'REJECTED',
-      message: msg,
-    });
-  } catch (e: any) {
-    console.error(e);
-    const msg = e?.message || 'שגיאה בדחיית הבקשה';
-    this.toast(msg, 'error');
-    this.onError?.({ requestId: this.req()?.id, message: msg, raw: e });
-  } finally {
-    this.loading.set(false);
-  }
 }
 
   private toast(message: string, type: ToastKind = 'info') {
