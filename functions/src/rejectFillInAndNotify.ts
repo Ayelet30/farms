@@ -226,18 +226,38 @@ export const rejectFillInAndNotify = onRequest(
         decisionNote: decisionNote || null,
       });
 
-      const mail = await notifyUserInternal({
-        tenantSchema,
-        userType: 'parent',
-        uid: childRow.parent_uid,
-        subject,
-        html,
-        text,
-        category: 'fill_in',
-        forceEmail: true,
-      });
+      let mail: any = null;
+let mailOk = false;
+let warning: string | null = null;
+let mailError: any = null;
 
-      return void res.status(200).json({ ok: true, mail });
+try {
+  mail = await notifyUserInternal({
+    tenantSchema,
+    userType: 'parent',
+    uid: childRow.parent_uid,
+    subject,
+    html,
+    text,
+    category: 'fill_in',
+    forceEmail: true,
+  });
+  mailOk = true;
+} catch (e: any) {
+  mailOk = false;
+  warning = 'הבקשה נדחתה, אך שליחת המייל נכשלה';
+  mailError = { message: e?.message || String(e) };
+  console.warn('rejectFillInAndNotify: mail failed', mailError);
+}
+
+return void res.status(200).json({
+  ok: true,
+  mailOk,
+  warning,
+  mail,
+  mailError,
+});
+
     } catch (e: any) {
       console.error('rejectFillInAndNotify error', e);
       return void res.status(500).json({ ok: false, error: 'Internal error', message: e?.message || String(e) });

@@ -4,6 +4,7 @@ import {
   signal,
   inject,
   Input,
+  computed,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -386,6 +387,23 @@ bulkBusyMode = signal<'approve' | 'reject' | null>(null);
       return true;
     });
   }
+selectedVisibleRequest = computed<UiRequest | null>(() => {
+  const sel = this.selectedRequest;
+  if (!sel) return null;
+
+  // אם הבקשה כבר לא קיימת בכלל (אחרי reload)
+  const exists = this.allRequests().some(x => x.id === sel.id);
+  if (!exists) return null;
+
+  // אם היא לא עוברת את הפילטר הנוכחי → לא להציג פרטים
+  const isVisible = this.filteredRequestsList.some(x => x.id === sel.id);
+  if (!isVisible) return null;
+
+  // אם את רוצה: רק בקשות ממתינות יציגו פרטים (לא חובה)
+  // if (sel.status !== 'PENDING') return null;
+
+  return sel;
+});
 
   private getRequestWindow(r: UiRequest): { start: Date; end: Date } {
     const fd = r.fromDate ? new Date(r.fromDate) : null;
@@ -643,21 +661,19 @@ private buildSummary(row: any, p: any): string {
   // PATCH מקומי = הסוד שהופך את זה ל"מרנדר מיד"
   // --------------------------------------------------
   private patchRequestStatus(requestId: string, newStatus: RequestStatus) {
-    const arr = this.allRequests();
-    const idx = arr.findIndex(x => x.id === requestId);
-    if (idx === -1) return;
+  const arr = this.allRequests();
+  const idx = arr.findIndex(x => x.id === requestId);
+  if (idx === -1) return;
 
-    const updated = [...arr];
-    updated[idx] = { ...updated[idx], status: newStatus };
-    this.allRequests.set(updated);
+  const updated = [...arr];
+  updated[idx] = { ...updated[idx], status: newStatus };
+  this.allRequests.set(updated);
 
-    // אם אנחנו בטאב ממתינים – הבקשה תיעלם מיד
-    if (this.statusFilter() === 'PENDING') {
-      this.selectedRequest = null;
-      this.detailsOpened = false;
-      this.indexOfRowSelected = null;
-    }
+  // ✅ אם זו הבקשה שנבחרה - תמיד לנקות פרטים
+  if (this.selectedRequest?.id === requestId) {
+    this.closeDetails();
   }
+}
 
   onRequestError = async (e: { requestId?: string; message: string; raw?: any }) => {
     // אם זה “not pending” → סנכרון מהשרת כדי לא להישאר במצב מוזר
@@ -750,8 +766,8 @@ private onAnyApproved(e: { requestId: string; newStatus: 'APPROVED' }) {
 
 private onAnyRejected(e: { requestId: string; newStatus: RequestStatus }) {
   this.patchRequestStatus(e.requestId, e.newStatus ?? 'REJECTED');
+  this.closeDetails(); 
 }
-
 
 private onAnyError(msg: string) {
   // פה את יכולה לעשות snackbar מרכזי אם בא לך
@@ -971,40 +987,22 @@ if (typeof fn !== 'function') {
 }
 
 
-// ✅ אם זו דחייה – להזין note (כי בסדרה זה חובה)
+let warning: string | null = null;
+
 if (action === 'reject') {
   const reason = rejectArgs?.reason?.trim() ?? '';
 
-  // ✅ אם note הוא signal -> note.set(...)
-  if (typeof inst?.note?.set === 'function') {
-    inst.note.set(reason);
-  }
-  // ✅ אם note הוא string רגיל (קומפוננטות ישנות) -> note = reason
-  else if ('note' in inst) {
-    inst.note = reason;
-  }
+  if (typeof inst?.note?.set === 'function') inst.note.set(reason);
+  else if ('note' in inst) inst.note = reason;
 
   await fn.call(inst, rejectArgs ?? { source: 'user', reason });
-  const warning = (inst?.bulkWarning ?? null) as string | null;
-
-return {
-  id: row.id,
-  requestType: row.requestType,
-  summary: row.summary,
-  requestedByName: row.requestedByName,
-  childName: row.childName,
-  instructorName: row.instructorName,
-  action,
-  kind: 'success',
-  // ✅ חדש
-  warningMessage: warning || undefined,
-};
+  warning = (inst?.bulkWarning ?? null) as string | null;
 
 } else {
   await fn.call(inst);
-  const warning = (inst?.bulkWarning ?? null) as string | null;
-
+  warning = (inst?.bulkWarning ?? null) as string | null;
 }
+
 
 
 // ✅ אם לא השתנה סטטוס (לא קרא update/emit) – להחזיר כישלון כדי לא לשקר
@@ -1041,6 +1039,8 @@ if (afterLocal === 'PENDING') {
       action,
       kind: 'notProcessed',
       errorMessage: `הבקשה כבר טופלה במערכת (סטטוס: ${meta.status}).`,
+      warningMessage: warning || undefined, 
+
     };
   }
 
@@ -1055,6 +1055,9 @@ if (afterLocal === 'PENDING') {
     action,
     kind: 'notProcessed',
     errorMessage: 'לא בוצעה פעולה על הבקשה (נשארה ממתינה).',
+    warningMessage: warning || undefined, 
+
+
   };
 }
 
@@ -1084,6 +1087,8 @@ return {
   instructorName: row.instructorName,
   action,
   kind: 'success',
+    warningMessage: warning || undefined, 
+
 };
 } catch (e: any) {
   const meta = await this.fetchDecisionMeta(row.id);

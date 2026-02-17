@@ -218,34 +218,56 @@ export const approveRemoveChildAndNotify = onRequest(
       const willHappen = rows.filter(r => !r.willCancel);
       const willCancel = rows.filter(r => r.willCancel);
 
-      // ✅ 6) build + notify via notifyUser
-      const { subject, html, text } = buildChildRemovalEmail({
-        kind: 'approved',
-        parentName,
-        childName,
-        farmName,
-        scheduledDeletionAtIso: String(scheduledIso),
-        willHappen,
-        willCancel,
-        graceDays,
-      });
+     // ✅ 6) build + notify via notifyUser (soft-fail)
+const { subject, html, text } = buildChildRemovalEmail({
+  kind: 'approved',
+  parentName,
+  childName,
+  farmName,
+  scheduledDeletionAtIso: String(scheduledIso),
+  willHappen,
+  willCancel,
+  graceDays,
+});
 
-      const notifyRes = await notifyUserInternal({
-        tenantSchema,
-        userType: 'parent',
-        uid: childRow.parent_uid,
-        subject,
-        html,
-        text,
-        category: 'child_removal',
-        forceEmail: true,
-      });
+let emailOk = true;
+let emailError: string | null = null;
+let mail: any = null;
 
-      return void res.status(200).json({
-        ok: true,
-        scheduledDeletionAt: scheduledIso,
-        mail: notifyRes,
-      });
+try {
+  mail = await notifyUserInternal({
+    tenantSchema,
+    userType: 'parent',
+    uid: childRow.parent_uid,
+    subject,
+    html,
+    text,
+    category: 'child_removal',
+    forceEmail: true,
+  });
+
+  // אם notifyUserInternal מחזיר ok=false בלי לזרוק
+  if (mail && (mail.ok === false || mail.emailOk === false)) {
+    emailOk = false;
+    emailError =
+      String(mail.message ?? mail.error ?? mail.emailError ?? 'שליחת מייל נכשלה')
+        .slice(0, 300);
+  }
+} catch (err: any) {
+  emailOk = false;
+  emailError = String(err?.message ?? err ?? 'שליחת מייל נכשלה').slice(0, 300);
+  console.warn('approveRemoveChildAndNotify: email failed but approval OK', err);
+}
+
+// ✅ חשוב: ok:true תמיד כי אישור + schedule ב-DB הצליחו
+return void res.status(200).json({
+  ok: true,
+  scheduledDeletionAt: scheduledIso,
+  emailOk,
+  emailError,
+  mail,
+});
+
     } catch (e: any) {
       console.error('approveRemoveChildAndNotify error', e);
       return void res.status(500).json({ error: 'Internal error', message: e?.message || String(e) });

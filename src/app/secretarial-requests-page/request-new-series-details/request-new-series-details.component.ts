@@ -104,8 +104,8 @@ get request(): UiRequest {
   @Input() decidedByUid?: string | null;
 
   // (אופציונלי) callbacks – כי את מעבירה אותם כבר ב-inputs
-  @Input() onApproved?: (e: any) => void;
-  @Input() onRejected?: (e: any) => void;
+  @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
+@Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
   @Input() onError?: (e: any) => void;
 
   // ✅ outputs – כדי שגם onDetailsActivate יוכל להאזין (approved/rejected/error)
@@ -124,6 +124,7 @@ errorMsg = signal<string | null>(null);
 childStatus = signal<string | null>(null);
 childDeletionRequestedAt = signal<string | null>(null);
 childScheduledDeletionAt = signal<string | null>(null);
+bulkWarning: string | null = null;
 
 canApprove = signal<boolean>(true); // יתעדכן לפי סטטוס
 ridingTypeId = signal<string | null>(null);
@@ -229,6 +230,8 @@ private async loadChildStatus() {
 private clearMessages() {
   this.successMsg.set(null);
   this.errorMsg.set(null);
+  this.bulkWarning = null;
+
 }
 
   // הערה אחת לבקשה הנוכחית
@@ -578,19 +581,40 @@ if (!upd) {
 
 // שליחת מייל לא תחסום את האישור אם נכשלת
 try {
-  await this.sendSeriesApprovedEmail(this.request.id, lessonId);
+  const mailRes = await this.sendSeriesApprovedEmail(this.request.id, lessonId);
+
+  // ✅ אם הענן מחזיר warning – לשמור לדוח
+  const warn = (mailRes?.warning ?? '').toString().trim();
+  if (warn) {
+    this.bulkWarning = warn;
+
+    if (!this.bulkMode) {
+      this.snack.open(warn, 'סגור', {
+        duration: 3500,
+        panelClass: ['snack-warn'], // או snack-reject אם אין לך סטייל אחר
+        direction: 'rtl',
+        horizontalPosition: 'center',
+        verticalPosition: 'top',
+      });
+    }
+  }
 } catch (e) {
+  // פה זה באמת כשל HTTP/ok=false — עדיין לא לחסום אישור
+  const warn = 'הסדרה אושרה, אך שליחת המייל נכשלה';
+  this.bulkWarning = warn;
+
   console.warn('sendSeriesApprovedEmail failed', e);
   if (!this.bulkMode) {
-  this.snack.open('הסדרה אושרה, אך שליחת המייל נכשלה', 'סגור', {
-    duration: 3500,
-    panelClass: ['snack-reject'],
-    direction: 'rtl',
-    horizontalPosition: 'center',
-    verticalPosition: 'top',
-  });
+    this.snack.open(warn, 'סגור', {
+      duration: 3500,
+      panelClass: ['snack-warn'],
+      direction: 'rtl',
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+    });
+  }
 }
-}
+
 
 
   } catch (e: any) {
@@ -669,19 +693,38 @@ if (!v.ok) {
     this.rejected.emit(payload);
     this.onRejected?.(payload);
 try {
-  await this.sendSeriesRejectedEmail(this.request.id);
+  const mailRes = await this.sendSeriesRejectedEmail(this.request.id);
+
+  const warn = (mailRes?.warning ?? '').toString().trim();
+  if (warn) {
+    this.bulkWarning = warn;
+
+    if (!this.bulkMode) {
+      this.snack.open(warn, 'סגור', {
+        duration: 3500,
+        panelClass: ['snack-warn'], // או snack-reject אם אין לך
+        direction: 'rtl',
+        horizontalPosition: 'center',
+        verticalPosition: 'top',
+      });
+    }
+  }
 } catch (e) {
+  const warn = 'הבקשה נדחתה, אך שליחת המייל נכשלה';
+  this.bulkWarning = warn;
+
   console.warn('sendSeriesRejectedEmail failed', e);
   if (!this.bulkMode) {
-  this.snack.open('הבקשה נדחתה, אך שליחת המייל נכשלה', 'סגור', {
-    duration: 3500,
-    panelClass: ['snack-reject'],
-    direction: 'rtl',
-    horizontalPosition: 'center',
-    verticalPosition: 'top',
-  });
+    this.snack.open(warn, 'סגור', {
+      duration: 3500,
+      panelClass: ['snack-warn'],
+      direction: 'rtl',
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+    });
+  }
 }
-}
+
 
   } catch (e: any) {
     const msg = e?.message ?? 'שגיאה בדחייה';
@@ -1022,7 +1065,7 @@ private async loadChildName() {
   }
 }
 
-private async sendSeriesApprovedEmail(requestId: string, lessonId: string | null) {
+private async sendSeriesApprovedEmail(requestId: string, lessonId: string | null):Promise<any> {
   await this.tenantSvc.ensureTenantContextReady();
   const tenant = this.tenantSvc.requireTenant();
 
@@ -1050,11 +1093,14 @@ private async sendSeriesApprovedEmail(requestId: string, lessonId: string | null
   let json: any = null;
   try { json = JSON.parse(raw); } catch {}
 
-  if (!resp.ok || !json?.ok) {
-    throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
-  }
+ if (!resp.ok || !json?.ok) {
+  throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
 }
-private async sendSeriesRejectedEmail(requestId: string) {
+
+return json; // ✅ מחזירים גם warning/mailOk
+
+}
+private async sendSeriesRejectedEmail(requestId: string): Promise<any>{
   await this.tenantSvc.ensureTenantContextReady();
   const tenant = this.tenantSvc.requireTenant();
 
@@ -1081,9 +1127,12 @@ private async sendSeriesRejectedEmail(requestId: string) {
   let json: any = null;
   try { json = JSON.parse(raw); } catch {}
 
-  if (!resp.ok || !json?.ok) {
-    throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
-  }
+ if (!resp.ok || !json?.ok) {
+  throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+}
+
+return json;
+
 }
 
 

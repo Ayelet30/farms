@@ -17,9 +17,20 @@ type RecurrenceKind = 'ONCE' | 'YEARLY';
 type DayType = 'FULL_DAY' | 'PARTIAL_DAY';
 interface RidingType {
   id: UUID;
+  code: string;
   name: string;
+
+  min_participants: number | null;
+  max_participants: number | null;
+  description: string | null;
+
+  active: boolean;
   is_active: boolean;
+
+  spacial_price: number | null;
+  spacial_duration: number | null;
 }
+
 
 interface FarmSettings {
   availability_days_ahead?: number | null;
@@ -220,6 +231,18 @@ ridingTypes = signal<RidingType[]>([]);
 showNewRidingTypeForm = signal(false);
 editingRidingTypeId = signal<UUID | null>(null);
 newRidingTypeName = signal('');
+
+newRidingTypeDesc = signal('');
+
+newRidingTypeMin = signal<number | null>(null);
+newRidingTypeMax = signal<number | null>(null);
+
+newRidingTypeSpecialPrice = signal<number | null>(null);
+newRidingTypeSpecialDuration = signal<number | null>(null);
+
+
+newRidingTypeIsActive = signal(true);
+
 ridingTypesExpanded = signal(true);
 
   // שבת: ו׳ מ-16:00 ועד מוצ"ש 19:00
@@ -1638,10 +1661,11 @@ cancelEditPlan(): void {
 // =============================
 
 private async loadRidingTypes(): Promise<void> {
-  const { data, error } = await this.supabase
-    .from('riding_types')
-    .select('*')
-    .order('name');
+  
+const { data, error } = await dbTenant()
+  .from('riding_types')
+  .select('*')
+  .order('name');
       const filtered = (data ?? []).filter(
         (    rt: { name: string; }) => rt.name !== 'הפסקה'
   );
@@ -1658,22 +1682,61 @@ private async loadRidingTypes(): Promise<void> {
 }
 
 async addRidingType(): Promise<void> {
+  console.log('RAW NAME:', this.newRidingTypeName());
+
+  console.log('addRidingType called');
+
   const name = this.newRidingTypeName().trim();
   if (!name) return;
 
-  const { error } = await this.supabase
-    .from('riding_types')
-    .insert({ name });
+  const code = this.generateCode(name);   // 👈 שימוש בפונקציה האוטומטית
 
-  if (error) {
-    console.error('addRidingType error', error);
-    await this.ui.alert('הוספת סוג רכיבה נכשלה.', 'שגיאה');
+const { data, error } = await dbTenant()
+  .from('riding_types')
+  .insert({
+    name,
+    code,
+    description: this.newRidingTypeDesc(),
+    min_participants: this.newRidingTypeMin(),
+    max_participants: this.newRidingTypeMax(),
+  })
+  .select();
+
+console.log('INSERT RESULT:', data);
+console.log('INSERT ERROR:', error);
+
+if (error) {
+  console.error('FULL ERROR:', error);
+}
+
+console.log('payload:', {
+  name,
+  code,
+  description: this.newRidingTypeDesc(),
+  min_participants: this.newRidingTypeMin(),
+  max_participants: this.newRidingTypeMax(),
+});
+
+ if (error) {
+  console.error('FULL ERROR:', JSON.stringify(error, null, 2));
+
+    await this.ui.alert(error.message, 'שגיאה');
     return;
   }
 
   this.newRidingTypeName.set('');
   this.showNewRidingTypeForm.set(false);
   await this.loadRidingTypes();
+}
+
+
+private generateCode(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+    + '_' + Date.now().toString().slice(-4);
 }
 
 startEditRidingType(rt: RidingType): void {

@@ -1,4 +1,4 @@
-// functions/src/reject-makeup-lesson-and-notify.ts
+// functions/src/approve-cancel-occurrence-and-notify.ts
 
 import { onRequest } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
@@ -8,7 +8,8 @@ import { createClient } from '@supabase/supabase-js';
 
 import { SUPABASE_URL_S, SUPABASE_KEY_S } from './gmail/email-core';
 import { notifyUserInternal } from './notify-user-client';
-import { buildMakeupLessonDecisionEmail } from './send-makeup-lesson-decision-email';
+import { buildCancelOccurrenceDecisionEmail } from './send-cancel-occurrence-decision-email';
+
 
 const INTERNAL_CALL_SECRET_S = defineSecret('INTERNAL_CALL_SECRET');
 
@@ -58,12 +59,23 @@ async function requireAuth(req: any) {
 function fullName(f?: string | null, l?: string | null) {
   return `${(f ?? '').trim()} ${(l ?? '').trim()}`.trim() || null;
 }
+function parsePayload(p: any) {
+  try {
+    if (!p) return {};
+    if (typeof p === 'string') return JSON.parse(p);
+    return p;
+  } catch {
+    return {};
+  }
+}
+function fmtTime(t: any) {
+  const s = String(t ?? '');
+  if (!s) return null;
+  return s.length >= 5 ? s.slice(0, 5) : s;
+}
 
-export const rejectMakeupLessonAndNotify = onRequest(
-  {
-    region: 'us-central1',
-    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, INTERNAL_CALL_SECRET_S],
-  },
+export const approveCancelOccurrenceAndNotify = onRequest(
+  { region: 'us-central1', secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, INTERNAL_CALL_SECRET_S] },
   async (req, res) => {
     try {
       if (applyCors(req, res)) return;
@@ -90,10 +102,10 @@ export const rejectMakeupLessonAndNotify = onRequest(
       const sbTenant = createClient(url, key, { db: { schema: tenantSchema } });
       const sbPublic = createClient(url, key, { db: { schema: 'public' } });
 
-      // 1) להביא את הבקשה
+      // 1) בקשה
       const { data: reqRow, error: reqErr } = await sbTenant
         .from('secretarial_requests')
-        .select('id, status, request_type, child_id, instructor_id, lesson_occ_id, from_date, payload')
+        .select('id,status,request_type,child_id,lesson_occ_id,from_date,to_date,payload')
         .eq('id', requestId)
         .maybeSingle();
       if (reqErr) throw reqErr;
@@ -101,63 +113,68 @@ export const rejectMakeupLessonAndNotify = onRequest(
       if (reqRow.status !== 'PENDING') {
         return void res.status(409).json({ ok: false, message: 'הבקשה כבר לא במצב ממתין (ייתכן שכבר עודכנה).' });
       }
-      if (reqRow.request_type !== 'MAKEUP_LESSON') {
-        return void res.status(400).json({ ok: false, message: 'Not a MAKEUP_LESSON request' });
+      if (reqRow.request_type !== 'CANCEL_OCCURRENCE') {
+        return void res.status(400).json({ ok: false, message: 'Not a CANCEL_OCCURRENCE request' });
       }
 
-      const childId = String(reqRow.child_id || '');
-      const lessonId = String(reqRow.lesson_occ_id || '');
-      if (!childId || !lessonId) throw new Error('Missing child_id / lesson_occ_id in request');
+      const payload = parsePayload((reqRow as any).payload);
+      const cancelDate = String(reqRow.from_date ?? reqRow.to_date ?? payload?.occur_date ?? '').slice(0, 10);
+      if (!cancelDate) return void res.status(400).json({ ok: false, message: 'Request has no from_date/to_date' });
 
-      const payload = typeof reqRow.payload === 'string' ? JSON.parse(reqRow.payload) : (reqRow.payload ?? {});
-      const requestedDate = String(reqRow.from_date || '').slice(0, 10);
-      const requestedStart = payload.requested_start_time ?? null;
-      const requestedEnd = payload.requested_end_time ?? null;
+      // 2) lesson_id מתוך lesson_occ_id (כמו ה-RPC)
+      const occId = reqRow.lesson_occ_id;
+      if (!occId) return void res.status(400).json({ ok: false, message: 'Missing lesson_occ_id in request' });
 
-      // 2) למצוא את תאריך השיעור המקורי מתוך exceptions
-      const { data: ex, error: exErr } = await sbTenant
-        .from('lesson_occurrence_exceptions')
-        .select('occur_date')
-        .eq('lesson_id', lessonId)
-        .eq('status', 'נשלחה בקשה להשלמה')
-        .order('occur_date', { ascending: false })
-        .limit(1)
+      const { data: occRow, error: occErr } = await sbTenant
+        .from('lessons_occurrences')
+        .select('lesson_id, occur_date, start_time, end_time, instructor_id')
+        .eq('lesson_id', occId)
         .maybeSingle();
-      if (exErr) throw exErr;
+      if (occErr) throw occErr;
 
-      const originalDate = ex?.occur_date ? String(ex.occur_date).slice(0, 10) : null;
-
-      // 3) לעדכן exception של השיעור המקורי ל"בוטל" + ✅ להחזיר is_makeup_allowed ל-TRUE
-      if (originalDate) {
-        const { error: upExErr } = await sbTenant
-          .from('lesson_occurrence_exceptions')
-          .update({ status: 'בוטל', is_makeup_allowed: true })
-          .eq('lesson_id', lessonId)
-          .eq('occur_date', originalDate);
-        if (upExErr) throw upExErr;
+      const lessonId = occRow?.lesson_id ? String(occRow.lesson_id) : null;
+      if (!lessonId) {
+        return void res.status(400).json({ ok: false, message: `Could not resolve lesson_id from lesson_occ_id=${occId}` });
       }
 
-      // 4) לעדכן את הבקשה ל-REJECTED
-      const updatePayload: any = {
-        status: 'REJECTED',
+      // 3) upsert exception (כמו RPC)
+      const { error: upExErr } = await sbTenant
+        .from('lesson_occurrence_exceptions')
+        .upsert(
+          {
+            lesson_id: lessonId,
+            occur_date: cancelDate,
+            status: 'בוטל',
+            note: decisionNote ?? '',
+            canceller_role: 'secretary',
+            cancelled_at: new Date().toISOString(),
+          } as any,
+          { onConflict: 'lesson_id,occur_date' }
+        );
+      if (upExErr) throw upExErr;
+
+      // 4) update request -> APPROVED
+      const updPayload: any = {
+        status: 'APPROVED',
         decided_at: new Date().toISOString(),
-        decision_note: decisionNote || null,
+        decision_note: decisionNote ?? null,
       };
-      if (decidedByUid) updatePayload.decided_by_uid = decidedByUid;
+      if (decidedByUid) updPayload.decided_by_uid = decidedByUid;
 
       const { data: upd, error: updErr } = await sbTenant
         .from('secretarial_requests')
-        .update(updatePayload)
+        .update(updPayload)
         .eq('id', requestId)
         .eq('status', 'PENDING')
         .select('id,status')
         .maybeSingle();
       if (updErr) throw updErr;
-      if (!upd) {
-        return void res.status(409).json({ ok: false, message: 'הבקשה כבר לא במצב ממתין (ייתכן שכבר עודכנה).' });
-      }
+      if (!upd) return void res.status(409).json({ ok: false, message: 'הבקשה כבר לא במצב ממתין (ייתכן שכבר עודכנה).' });
 
-      // 5) להביא שמות ילד/ה + הורה
+      // ==== מייל להורה (כמו במייקאפ) ====
+      const childId = String(reqRow.child_id || '').trim();
+      if (!childId) throw new Error('Missing child_id in request');
+
       const { data: childRow, error: childErr } = await sbTenant
         .from('children')
         .select('parent_uid, first_name, last_name')
@@ -170,13 +187,13 @@ export const rejectMakeupLessonAndNotify = onRequest(
 
       const { data: parentRow, error: parErr } = await sbTenant
         .from('parents')
-        .select('first_name, last_name')
+        .select('first_name,last_name')
         .eq('uid', childRow.parent_uid)
         .maybeSingle();
       if (parErr) throw parErr;
+
       const parentName = fullName(parentRow?.first_name ?? null, parentRow?.last_name ?? null) ?? 'הורה';
 
-      // 6) farm name
       const { data: farmRow, error: farmErr } = await sbPublic
         .from('farms')
         .select('name')
@@ -185,94 +202,56 @@ export const rejectMakeupLessonAndNotify = onRequest(
       if (farmErr) throw farmErr;
       const farmName = String(farmRow?.name ?? 'החווה').trim() || 'החווה';
 
-      // 7) שמות מדריכים
-      let requestedInstructorName: string | null = null;
-      if (reqRow.instructor_id) {
-        const { data: inst, error: instErr } = await sbTenant
+      // מדריך/שעות (מה-occRow)
+      let instructorName: string | null = null;
+      const insId = occRow?.instructor_id ? String(occRow.instructor_id) : null;
+      if (insId) {
+        const { data: inst } = await sbTenant
           .from('instructors')
-          .select('first_name, last_name')
-          .eq('id_number', String(reqRow.instructor_id))
+          .select('first_name,last_name')
+          .eq('id_number', insId)
           .maybeSingle();
-        if (!instErr && inst) requestedInstructorName = fullName(inst.first_name, inst.last_name);
+        if (inst) instructorName = fullName((inst as any).first_name, (inst as any).last_name);
       }
 
-      let originalStart: string | null = null;
-      let originalEnd: string | null = null;
-      let originalInstructorName: string | null = null;
-
-      if (originalDate) {
-        const { data: occ, error: occErr } = await sbTenant
-          .from('lessons_occurrences')
-          .select('start_time, end_time, instructor_id')
-          .eq('lesson_id', lessonId)
-          .eq('occur_date', originalDate)
-          .maybeSingle();
-        if (!occErr && occ) {
-          originalStart = occ.start_time ?? null;
-          originalEnd = occ.end_time ?? null;
-
-          if (occ.instructor_id) {
-            const { data: inst2, error: inst2Err } = await sbTenant
-              .from('instructors')
-              .select('first_name, last_name')
-              .eq('id_number', String(occ.instructor_id))
-              .maybeSingle();
-            if (!inst2Err && inst2) originalInstructorName = fullName(inst2.first_name, inst2.last_name);
-          }
-        }
-      }
-
-      // 8) build + notify
-      const { subject, html, text } = buildMakeupLessonDecisionEmail({
-        kind: 'rejected',
+      const { subject, html, text } = buildCancelOccurrenceDecisionEmail({
+        kind: 'approved',
         farmName,
         parentName,
         childName,
-        requestedDate,
-        requestedStart,
-        requestedEnd,
-        requestedInstructorName,
-        originalDate,
-        originalStart,
-        originalEnd,
-        originalInstructorName,
+        occurDate: cancelDate,
+        startTime: fmtTime(occRow?.start_time),
+        endTime: fmtTime(occRow?.end_time),
+        instructorName,
         decisionNote,
       });
 
-     let mail: any = null;
-let mailOk = false;
-let warning: string | null = null;
-let mailError: any = null;
+      let mailOk = false;
+      let warning: string | null = null;
+      let mail: any = null;
+      let mailError: any = null;
 
-try {
-  mail = await notifyUserInternal({
-    tenantSchema,
-    userType: 'parent',
-    uid: childRow.parent_uid,
-    subject,
-    html,
-    text,
-    category: 'makeup_lesson',
-    forceEmail: true,
-  });
-  mailOk = true;
-} catch (e: any) {
-  mailOk = false;
-  warning = 'הבקשה נדחתה, אך שליחת המייל נכשלה';
-  mailError = { message: e?.message || String(e) };
-  console.warn('rejectMakeupLessonAndNotify: mail failed', mailError);
-}
+      try {
+        mail = await notifyUserInternal({
+          tenantSchema,
+          userType: 'parent',
+          uid: childRow.parent_uid,
+          subject,
+          html,
+          text,
+          category: 'cancel_occurrence',
+          forceEmail: true,
+        });
+        mailOk = true;
+      } catch (e: any) {
+        warning = 'הבקשה אושרה והשיעור בוטל, אך שליחת המייל נכשלה';
+        mailError = { message: e?.message || String(e) };
+        console.warn('approveCancelOccurrenceAndNotify: mail failed', mailError);
+      }
 
-return void res.status(200).json({
-  ok: true,
-  mailOk,
-  warning,
-  mail,
-  mailError,
-});
-
+      return void res.status(200).json({ ok: true, mailOk, warning, mail, mailError });
     } catch (e: any) {
-      console.error('rejectMakeupLessonAndNotify error', e);
+      console.error('approveCancelOccurrenceAndNotify error', e);
       return void res.status(500).json({ error: 'Internal error', message: e?.message || String(e) });
     }
   }
