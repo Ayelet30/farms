@@ -102,7 +102,8 @@
       </section>
 
       <!-- ATTENDANCE (only if not chosen yet) -->
-      <section class="block" *ngIf="occurrence && canEditNotes && !occurrence?.isCancelled && !attendanceStatus">
+      <section class="block"*ngIf="occurrence && canEditNotes && !occurrence?.isCancelled"
+>
         <div class="block-title">
           <mat-icon>how_to_reg</mat-icon>
           <span>נוכחות</span>
