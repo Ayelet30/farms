@@ -78,8 +78,8 @@ public bulkWarning: string | null = null;
   @Input() decidedByUid?: string;
 
   // callbacks אם צריך
-  @Input() onApproved?: (e: any) => void;
-  @Input() onRejected?: (e: any) => void;
+  @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
+@Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
   @Input() onError?: (e: any) => void;
 scheduledDeletionAt = signal<string | null>(null);
 
