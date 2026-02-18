@@ -136,11 +136,52 @@ private normalizeResult(
   let r: ValidationResult | null = null;
 
   switch (check) {
-    case Check.Expiry: {
-      const expiryReason = this.getExpiryReason(row);
-      if (expiryReason) return { ok: false, reason: expiryReason };
-      break;
+ case Check.Expiry: {
+  // 🔁 תמיד רענון נתונים מה-DB לפני approve/reject
+  if (mode !== 'auto') {
+    try {
+      // ===== CANCEL_OCCURRENCE =====
+      if (row.requestType === 'CANCEL_OCCURRENCE') {
+        const fresh = await this.getFreshCancelOccurrenceDateTime(db, row, mode);
+
+        const dateStr = fresh?.dateStr ?? (row.payload?.occur_date ?? row.fromDate ?? null);
+        const timeStr = fresh?.timeStr ?? null;
+
+        if (dateStr) {
+          const dt = this.combineDateTime(dateStr, timeStr ?? '00:00');
+          if (dt.getTime() < Date.now()) {
+            return { ok: false, reason: 'עבר מועד השיעור לביטול' };
+          }
+        }
+      }
+
+      // ===== MAKEUP / FILL_IN =====
+ // ===== MAKEUP / FILL_IN =====
+if (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN') {
+  const p: any = row.payload ?? {};
+  const dateStr = (row.fromDate ?? p.occur_date ?? p.from_date ?? null);
+  const startStr = this.normalizeHHMM(p.requested_start_time ?? p.start_time ?? p.startTime ?? null);
+
+  if (dateStr && startStr) {
+    const dt = this.combineDateTime(String(dateStr).slice(0, 10), startStr);
+    if (dt.getTime() < Date.now()) {
+      return { ok: false, reason: 'עבר מועד השיעור המבוקש' };
     }
+  }
+}
+
+
+    } catch (e:any) {
+      return this.handleDbFailure(mode, 'expiry fresh check', e);
+    }
+  }
+
+  // fallback רגיל (כמו שהיה)
+  const expiryReason = this.getExpiryReason(row);
+  if (expiryReason) return { ok: false, reason: expiryReason };
+  break;
+}
+
 
     case Check.Requester: {
       r = this.normalizeResult(
@@ -235,18 +276,13 @@ private normalizeResult(
     };
 
     switch (row.requestType) {
-      case 'CANCEL_OCCURRENCE': {
-        const dateStr = p.occur_date ?? row.fromDate ?? null;
-        const timeStr =
-          p.start_time ??
-          p.requested_start_time ??
-          p.startTime ??
-          p.time ??
-          null;
+    case 'CANCEL_OCCURRENCE': {
+  const dateStr = p.occur_date ?? row.fromDate ?? null;
+  const timeStr = null; // ⚠️ אל תשתמשי בשעה מה-payload כי היא לא תמיד נכונה
+  if (isPast(dateStr, timeStr)) return 'עבר מועד השיעור לביטול';
+  return null;
+}
 
-        if (isPast(dateStr, timeStr)) return 'עבר מועד השיעור לביטול';
-        return null;
-      }
 
       case 'INSTRUCTOR_DAY_OFF': {
         const end = row.toDate ?? row.fromDate ?? null;
@@ -660,4 +696,66 @@ private normalizeResult(
       return r.ok ? { ok: true } : { ok: false, reason: r.reason };
     }
   }
+ private async getFreshCancelOccurrenceDateTime(
+  db: any,
+  row: UiRequest,
+  mode: ValidationMode
+): Promise<{ dateStr: string | null; timeStr: string | null } | null> {
+
+  if (mode === 'auto') return null;
+  const requestId = row?.id;
+  if (!requestId) return null;
+
+  const fresh = await this.fetchFreshRequestRow(db, requestId);
+  const p = this.parsePayload(fresh?.payload);
+
+  const dateStr = p?.occur_date ? String(p.occur_date).slice(0, 10) : null;
+
+  let timeStr: string | null = null;
+
+  // ⭐ חדש: להביא שעת שיעור אמיתית מהמופע
+  if (fresh?.lesson_occ_id) {
+    const { data: occ, error: occErr } = await db
+      .from('lessons_occurrences')
+      .select('start_time')
+      .eq('id', fresh.lesson_occ_id)
+      .maybeSingle();
+
+    if (!occErr && occ?.start_time) {
+      timeStr = String(occ.start_time).slice(0, 5);
+    }
+  }
+
+  return { dateStr, timeStr };
+}
+
+private async fetchFreshRequestRow(db: any, requestId: string) {
+  const { data, error } = await db
+    .from('secretarial_requests')
+    .select('id, request_type, from_date, to_date, payload, lesson_occ_id')
+    .eq('id', requestId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ?? null;
+}
+
+private parsePayload(p: any): any {
+  try {
+    if (!p) return {};
+    if (typeof p === 'string') return JSON.parse(p);
+    return p;
+  } catch {
+    return {};
+  }
+}
+
+private normalizeHHMM(v: any): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  // "10:30:00" -> "10:30"
+  return s.length >= 5 ? s.slice(0, 5) : s;
+}
+
 }

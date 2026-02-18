@@ -104,8 +104,8 @@ get request(): UiRequest {
   @Input() decidedByUid?: string | null;
 
   // (אופציונלי) callbacks – כי את מעבירה אותם כבר ב-inputs
-  @Input() onApproved?: (e: any) => void;
-  @Input() onRejected?: (e: any) => void;
+  @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
+@Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
   @Input() onError?: (e: any) => void;
 
   // ✅ outputs – כדי שגם onDetailsActivate יוכל להאזין (approved/rejected/error)

@@ -220,7 +220,6 @@ try {
     forceEmail: true,
   });
 
-  // תחליטי מה נחשב הצלחה לפי המבנה ש-notifyUserInternal מחזיר אצלך
   // אם אין אינדיקציה — עצם זה שלא זרק נחשב הצלחה
   mailOk = true;
 } catch (e: any) {

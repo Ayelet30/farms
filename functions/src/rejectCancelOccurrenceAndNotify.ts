@@ -1,0 +1,230 @@
+// functions/src/reject-cancel-occurrence-and-notify.ts
+
+import { onRequest } from 'firebase-functions/v2/https';
+import { defineSecret } from 'firebase-functions/params';
+import * as admin from 'firebase-admin';
+import * as crypto from 'crypto';
+import { createClient } from '@supabase/supabase-js';
+
+import { SUPABASE_URL_S, SUPABASE_KEY_S } from './gmail/email-core';
+import { notifyUserInternal } from './notify-user-client';
+import { buildCancelOccurrenceDecisionEmail } from './send-cancel-occurrence-decision-email';
+
+const INTERNAL_CALL_SECRET_S = defineSecret('INTERNAL_CALL_SECRET');
+
+const ALLOWED_ORIGINS = new Set<string>([
+  'https://smart-farm.org',
+  'https://bereshit-ac5d8.web.app',
+  'https://bereshit-ac5d8.firebaseapp.com',
+  'http://localhost:4200',
+  'https://localhost:4200',
+]);
+
+function applyCors(req: any, res: any): boolean {
+  const origin = String(req.headers.origin || '');
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  } else {
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Requested-With, X-Internal-Secret');
+  if (req.method === 'OPTIONS') { res.status(204).end(); return true; }
+  return false;
+}
+
+if (!admin.apps.length) admin.initializeApp();
+
+function envOrSecret(s: ReturnType<typeof defineSecret>, name: string) {
+  return s.value() || process.env[name];
+}
+function timingSafeEq(a: string, b: string) {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+}
+function isInternalCall(req: any): boolean {
+  const secret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
+  const got = String(req.headers['x-internal-secret'] || req.headers['X-Internal-Secret'] || '');
+  return !!(secret && got && timingSafeEq(got, secret));
+}
+async function requireAuth(req: any) {
+  const auth = req.headers.authorization || '';
+  const m = auth.match(/^Bearer (.+)$/);
+  if (!m) throw new Error('Missing Bearer token');
+  return admin.auth().verifyIdToken(m[1]);
+}
+function fullName(f?: string | null, l?: string | null) {
+  return `${(f ?? '').trim()} ${(l ?? '').trim()}`.trim() || null;
+}
+function fmtTime(t: any) {
+  const s = String(t ?? '');
+  if (!s) return null;
+  return s.length >= 5 ? s.slice(0, 5) : s;
+}
+
+export const rejectCancelOccurrenceAndNotify = onRequest(
+  { region: 'us-central1', secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, INTERNAL_CALL_SECRET_S] },
+  async (req, res) => {
+    try {
+      if (applyCors(req, res)) return;
+      if (req.method !== 'POST') return void res.status(405).json({ error: 'Method not allowed' });
+
+      let decidedByUid: string | null = null;
+      if (!isInternalCall(req)) {
+        const decoded = await requireAuth(req);
+        decidedByUid = decoded?.uid ?? null;
+      }
+
+      const body = req.body || {};
+      const tenantSchema = String(body.tenantSchema || '').trim();
+      const tenantId = String(body.tenantId || '').trim();
+      const requestId = String(body.requestId || '').trim();
+      const decisionNote = body.decisionNote == null ? null : String(body.decisionNote).trim();
+
+      if (!tenantSchema) return void res.status(400).json({ error: 'Missing tenantSchema' });
+      if (!tenantId) return void res.status(400).json({ error: 'Missing tenantId' });
+      if (!requestId) return void res.status(400).json({ error: 'Missing requestId' });
+
+      const url = envOrSecret(SUPABASE_URL_S, 'SUPABASE_URL')!;
+      const key = envOrSecret(SUPABASE_KEY_S, 'SUPABASE_SERVICE_KEY')!;
+      const sbTenant = createClient(url, key, { db: { schema: tenantSchema } });
+      const sbPublic = createClient(url, key, { db: { schema: 'public' } });
+
+      // 1) להביא בקשה
+       const { data: reqRow, error: reqErr } = await sbTenant
+  .from('secretarial_requests')
+  .select('id,status,request_type,child_id,instructor_id,lesson_occ_id,from_date,to_date,payload')
+  .eq('id', requestId)
+  .maybeSingle();
+
+      if (reqErr) throw reqErr;
+      if (!reqRow) return void res.status(404).json({ ok: false, message: 'request not found' });
+
+      if (reqRow.status !== 'PENDING') {
+        return void res.status(409).json({ ok: false, message: 'הבקשה כבר לא במצב ממתין (ייתכן שכבר עודכנה).' });
+      }
+      if (reqRow.request_type !== 'CANCEL_OCCURRENCE') {
+        return void res.status(400).json({ ok: false, message: 'Not a CANCEL_OCCURRENCE request' });
+      }
+
+      // 2) update -> REJECTED
+      const updPayload: any = {
+        status: 'REJECTED',
+        decided_at: new Date().toISOString(),
+        decision_note: decisionNote ?? null,
+      };
+      if (decidedByUid) updPayload.decided_by_uid = decidedByUid;
+
+      const { data: upd, error: updErr } = await sbTenant
+        .from('secretarial_requests')
+        .update(updPayload)
+        .eq('id', requestId)
+        .eq('status', 'PENDING')
+        .select('id,status')
+        .maybeSingle();
+      if (updErr) throw updErr;
+      if (!upd) return void res.status(409).json({ ok: false, message: 'הבקשה כבר לא במצב ממתין (ייתכן שכבר עודכנה).' });
+
+      // ==== מייל להורה ====
+      const childId = String(reqRow.child_id || '').trim();
+      if (!childId) throw new Error('Missing child_id in request');
+
+      const { data: childRow, error: childErr } = await sbTenant
+        .from('children')
+        .select('parent_uid, first_name, last_name')
+        .eq('child_uuid', childId)
+        .maybeSingle();
+      if (childErr) throw childErr;
+      if (!childRow?.parent_uid) throw new Error('Child missing parent_uid');
+
+      const childName = fullName(childRow.first_name, childRow.last_name) ?? 'הילד/ה';
+
+      const { data: parentRow, error: parErr } = await sbTenant
+        .from('parents')
+        .select('first_name,last_name')
+        .eq('uid', childRow.parent_uid)
+        .maybeSingle();
+      if (parErr) throw parErr;
+
+      const parentName = fullName(parentRow?.first_name ?? null, parentRow?.last_name ?? null) ?? 'הורה';
+
+      const { data: farmRow, error: farmErr } = await sbPublic
+        .from('farms')
+        .select('name')
+        .eq('id', tenantId)
+        .maybeSingle();
+      if (farmErr) throw farmErr;
+      const farmName = String(farmRow?.name ?? 'החווה').trim() || 'החווה';
+
+      // להביא שעות/מדריך רק אם אפשר (לא חובה)
+      const cancelDate = String(reqRow.from_date ?? reqRow.to_date ?? '').slice(0, 10);
+      let startTime: string | null = null;
+      let endTime: string | null = null;
+      let instructorName: string | null = null;
+
+      if (reqRow.lesson_occ_id) {
+        const { data: occ } = await sbTenant
+          .from('lessons_occurrences')
+          .select('start_time,end_time,instructor_id')
+          .eq('id', reqRow.lesson_occ_id)
+          .maybeSingle();
+        if (occ) {
+          startTime = fmtTime((occ as any).start_time);
+          endTime = fmtTime((occ as any).end_time);
+
+          const insId = String((occ as any).instructor_id ?? '').trim();
+          if (insId) {
+            const { data: inst } = await sbTenant
+              .from('instructors')
+              .select('first_name,last_name')
+              .eq('id_number', insId)
+              .maybeSingle();
+            if (inst) instructorName = fullName((inst as any).first_name, (inst as any).last_name);
+          }
+        }
+      }
+
+      const { subject, html, text } = buildCancelOccurrenceDecisionEmail({
+        kind: 'rejected',
+        farmName,
+        parentName,
+        childName,
+        occurDate: cancelDate || '—',
+        startTime,
+        endTime,
+        instructorName,
+        decisionNote,
+      });
+
+      let mailOk = false;
+      let warning: string | null = null;
+      let mail: any = null;
+      let mailError: any = null;
+
+      try {
+        mail = await notifyUserInternal({
+          tenantSchema,
+          userType: 'parent',
+          uid: childRow.parent_uid,
+          subject,
+          html,
+          text,
+          category: 'cancel_occurrence',
+          forceEmail: true,
+        });
+        mailOk = true;
+      } catch (e: any) {
+        warning = 'הבקשה נדחתה, אך שליחת המייל נכשלה';
+        mailError = { message: e?.message || String(e) };
+        console.warn('rejectCancelOccurrenceAndNotify: mail failed', mailError);
+      }
+
+      return void res.status(200).json({ ok: true, mailOk, warning, mail, mailError });
+    } catch (e: any) {
+      console.error('rejectCancelOccurrenceAndNotify error', e);
+      return void res.status(500).json({ error: 'Internal error', message: e?.message || String(e) });
+    }
+  }
+);

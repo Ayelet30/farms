@@ -35,8 +35,8 @@ export class RequestFillInDetailsComponent implements OnInit {
   @Input() decidedByUid?: string | null;
   @Input() bulkMode = false;
 
-  @Input() onApproved?: (e: any) => void;
-@Input() onRejected?: (e: { requestId: string; newStatus: 'REJECTED' | 'REJECTED_BY_SYSTEM' }) => void;
+   @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
+@Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
   @Input() onError?: (e: any) => void;
 note = signal<string>('');
 
