@@ -164,3 +164,21 @@
   font-size: 14px;
   z-index: 9999;
 }
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+
+  background: #2f855a;
+  color: white;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+
+  max-width: 90vw;
+  text-align: center;
+
+  z-index: 9999;
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+}
