@@ -93,11 +93,12 @@ export const rejectCancelOccurrenceAndNotify = onRequest(
       const sbPublic = createClient(url, key, { db: { schema: 'public' } });
 
       // 1) להביא בקשה
-      const { data: reqRow, error: reqErr } = await sbTenant
-        .from('secretarial_requests')
-        .select('id,status,request_type,child_id,lesson_id,lesson_occ_id,from_date,to_date')
-        .eq('id', requestId)
-        .maybeSingle();
+       const { data: reqRow, error: reqErr } = await sbTenant
+  .from('secretarial_requests')
+  .select('id,status,request_type,child_id,instructor_id,lesson_occ_id,from_date,to_date,payload')
+  .eq('id', requestId)
+  .maybeSingle();
+
       if (reqErr) throw reqErr;
       if (!reqRow) return void res.status(404).json({ ok: false, message: 'request not found' });
 
