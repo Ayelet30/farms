@@ -402,24 +402,32 @@ export class ParentScheduleComponent implements OnInit {
     const base = (this.filteredLessons?.length ? this.filteredLessons : this.lessons) || [];
     const uniq = new Map<string, ScheduleItem>();
 
-    for (const lesson of base) {
-      let cancelBlockReason: string | null = null;
+     for (const lesson of base) {
 
-      if (lesson.lesson_type === 'השלמה') cancelBlockReason = 'לא ניתן לבטל שיעור השלמה';
-      else if (lesson.status === 'הושלם') cancelBlockReason = 'לא ניתן לבטל שיעור שהושלם';
-      else if (lesson.status === 'בוטל') cancelBlockReason = 'השיעור כבר בוטל';
-      else if ((lesson as any).hasPendingCancel) cancelBlockReason = 'כבר נשלחה בקשת ביטול לשיעור זה';
+  const startFallback = this.getLessonDateTime(lesson.day_of_week, lesson.start_time);
+  const endFallback = this.getLessonDateTime(lesson.day_of_week, lesson.end_time);
 
-      const startFallback = this.getLessonDateTime(lesson.day_of_week, lesson.start_time);
-      const endFallback = this.getLessonDateTime(lesson.day_of_week, lesson.end_time);
+  const start = this.isoWithTFallback(lesson.start_datetime, startFallback);
+  const end = this.isoWithTFallback(lesson.end_datetime, endFallback);
 
-      const start = this.isoWithTFallback(lesson.start_datetime, startFallback);
-      const end = this.isoWithTFallback(lesson.end_datetime, endFallback);
+  if (!start || !end) continue;
 
-      if (!start || !end) continue;
-      const startMs = Date.parse(start);
-      const endMs = Date.parse(end);
-      if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) continue;
+  const startMs = Date.parse(start);
+  const endMs = Date.parse(end);
+
+  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) continue;
+
+  const isPast = startMs < Date.now();
+
+  let cancelBlockReason: string | null = null;
+
+  if (isPast) cancelBlockReason = 'לא ניתן לבטל שיעור שכבר עבר';
+  else if (lesson.lesson_type === 'השלמה') cancelBlockReason = 'לא ניתן לבטל שיעור השלמה';
+  else if (lesson.status === 'הושלם') cancelBlockReason = 'לא ניתן לבטל שיעור שהושלם';
+  else if (lesson.status === 'בוטל') cancelBlockReason = 'השיעור כבר בוטל';
+  else if ((lesson as any).hasPendingCancel) cancelBlockReason = 'כבר נשלחה בקשת ביטול לשיעור זה';
+
+
 
       const color = (lesson as any).child_color || this.getColorForChild(lesson.child_id);
       const childLabel = lesson.child_name || this.getChildName(lesson.child_id) || 'ילד';
@@ -485,6 +493,10 @@ export class ParentScheduleComponent implements OnInit {
   onEventClick(arg: EventClickArg) {
     const ev = arg.event;
     const ext: any = ev.extendedProps;
+if (ev.start && ev.start.getTime() < Date.now()) {
+  this.showToast('לא ניתן לבטל שיעור שכבר עבר');
+  return;
+}
 
     if (ext?.hasPendingCancel) {
       this.showToast('כבר נשלחה בקשת ביטול לשיעור זה');
