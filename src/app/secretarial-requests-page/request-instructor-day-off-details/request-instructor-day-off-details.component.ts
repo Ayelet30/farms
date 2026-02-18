@@ -5,6 +5,7 @@ import { dbTenant } from '../../services/legacy-compat';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { RequestValidationService } from '../../services/request-validation.service';
 import { RequestStatus } from '../../Types/detailes.model';
+import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 
 type ImpactRow = {
   occur_date: string; // date
@@ -81,6 +82,7 @@ const allDay =
   set request(value: any) {
     this._req.set(value);
   }
+private tenantSvc = inject(SupabaseTenantService);
 
   private _decidedByUid = signal<string | null>(null);
   readonly decidedByUidSig = this._decidedByUid;
@@ -89,6 +91,28 @@ const allDay =
   set decidedByUid(value: string) {
     this._decidedByUid.set(value);
   }
+@Input() bulkMode = false;
+public bulkWarning: string | null = null;
+
+private showSnack(msg: string, type: 'success' | 'error') {
+  if (this.bulkMode && type === 'success') return; // בבאלק לא להציג הצלחות
+  this.snack.open(msg, 'סגור', {
+    duration: 3500,
+    direction: 'rtl',
+    horizontalPosition: 'center',
+    verticalPosition: 'top',
+    panelClass: [type === 'success' ? 'sf-toast-success' : 'sf-toast-error'],
+  });
+}
+private async readJson(resp: Response) {
+  const raw = await resp.text();
+  let json: any = null;
+  try { json = raw ? JSON.parse(raw) : null; } catch {}
+  if (!resp.ok || !json?.ok) {
+    throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw.slice(0, 300)}`);
+  }
+  return { json, raw };
+}
 
   // callbacks מהאב
   @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
@@ -222,27 +246,60 @@ if (!v.ok) { await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוו
 this.loading.set(true);
 try {
   const token = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
-  const resp = await fetch('/api/approveInstructorDayOffAndNotify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({
-      tenantSchema: r.tenantSchema,   // תעבירי מהאב/מה-context שלך
-      tenantId: r.tenantId,           // כנ״ל
-      requestId: r.id,
-      decisionNote: this.decisionNote().trim() || null,
-    }),
-  });
+  const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/approveInstructorDayOffAndNotify';
+await this.tenantSvc.ensureTenantContextReady();
+const tenant = this.tenantSvc.requireTenant();
+const tenantSchema = tenant.schema;
+const tenantId = tenant.id;
 
-  const json = await resp.json();
-  if (!resp.ok) throw new Error(json?.message || 'שגיאה באישור');
+const resp = await fetch(url, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  },
+body: JSON.stringify({
+  tenantSchema,
+  tenantId,
+  requestId: r.id,
+  decisionNote: this.decisionNote().trim() || null,
+}),
 
-  const msg = json.warning
-    ? `אישרת: ${this.getDayOffTitle()}. ${json.warning}`
-    : `אישרת: ${this.getDayOffTitle()}. נשלחו הודעות להורים הרלוונטיים.`;
+});
 
-  this.toast(msg, json.warning ? 'info' : 'success');
 
-  this.onApproved?.({ requestId: r.id, newStatus: 'APPROVED', message: msg, meta: json.meta });
+ const { json } = await this.readJson(resp);
+
+this.bulkWarning = null;
+
+const mailOk = (json?.mailOk ?? json?.emailOk);
+const warnFromServer = (json?.warning ?? '').toString().trim();
+
+if (mailOk === false) {
+  this.bulkWarning = 'אושר ✅ אבל שליחת מייל נכשלה ';
+  const extra = (json?.mailErrors?.[0]?.message ?? json?.mailError?.message ?? warnFromServer ?? '').toString().trim();
+  this.showSnack(`אושר ✅ אבל שליחת מייל נכשלה${extra ? `: ${extra}` : ''}`, 'error');
+} else if (warnFromServer) {
+  // למשל: אין uid למדריך / חלק מההורים נכשלו
+  this.bulkWarning = warnFromServer;
+  this.showSnack(warnFromServer, 'error');
+} else {
+  this.showSnack('הבקשה אושרה בהצלחה ✅', 'success');
+}
+
+const msg = this.bulkWarning
+  ? `אישרת: ${this.getDayOffTitle()}. ${this.bulkWarning}`
+  : `אישרת: ${this.getDayOffTitle()}.`;
+
+this.toast(msg, this.bulkWarning ? 'info' : 'success');
+
+this.onApproved?.({
+  requestId: r.id,
+  newStatus: 'APPROVED',
+  message: this.bulkWarning ? `אושר ✅ (${this.bulkWarning})` : 'אושר ✅',
+  meta: { ...(json?.meta ?? {}), warning: this.bulkWarning, mailOk },
+});
+
 } finally {
   this.loading.set(false);
 }
@@ -263,26 +320,59 @@ if (!v.ok) { await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוו
 this.loading.set(true);
 try {
   const token = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
-  const resp = await fetch('/api/rejectInstructorDayOffAndNotify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({
-      tenantSchema: r.tenantSchema,
-      tenantId: r.tenantId,
-      requestId: r.id,
-      decisionNote: this.decisionNote().trim() || null,
-    }),
-  });
+  const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectInstructorDayOffAndNotify';
+await this.tenantSvc.ensureTenantContextReady();
+const tenant = this.tenantSvc.requireTenant();
+const tenantSchema = tenant.schema;
+const tenantId = tenant.id;
 
-  const json = await resp.json();
-  if (!resp.ok) throw new Error(json?.message || 'שגיאה בדחייה');
+const resp = await fetch(url, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  },
+body: JSON.stringify({
+  tenantSchema,
+  tenantId,
+  requestId: r.id,
+  decisionNote: this.decisionNote().trim() || null,
+}),
 
-  const msg = json.warning
-    ? `דחית את הבקשה: ${this.getDayOffTitle()}. ${json.warning}`
-    : `דחית את הבקשה: ${this.getDayOffTitle()}.`;
+});
 
-  this.toast(msg, json.warning ? 'info' : 'info');
-  this.onRejected?.({ requestId: r.id, newStatus: 'REJECTED', message: msg });
+
+  const { json } = await this.readJson(resp);
+
+this.bulkWarning = null;
+
+const mailOk = (json?.mailOk ?? json?.emailOk);
+const warnFromServer = (json?.warning ?? '').toString().trim();
+
+if (mailOk === false) {
+  this.bulkWarning = 'נדחה ✅ אבל שליחת מייל נכשלה';
+  const extra = (json?.mailError?.message ?? warnFromServer ?? '').toString().trim();
+  this.showSnack(`נדחה ✅ אבל שליחת מייל נכשלה${extra ? `: ${extra}` : ''}`, 'error');
+} else if (warnFromServer) {
+  this.bulkWarning = warnFromServer;
+  this.showSnack(warnFromServer, 'error');
+} else {
+  this.showSnack('הבקשה נדחתה בהצלחה ✅', 'success');
+}
+
+const msg = this.bulkWarning
+  ? `דחית את הבקשה: ${this.getDayOffTitle()}. ${this.bulkWarning}`
+  : `דחית את הבקשה: ${this.getDayOffTitle()}.`;
+
+this.toast(msg, 'info');
+
+this.onRejected?.({
+  requestId: r.id,
+  newStatus: 'REJECTED',
+  message: this.bulkWarning ? `נדחה ✅ (${this.bulkWarning})` : 'נדחה ✅',
+  meta: { warning: this.bulkWarning, mailOk },
+});
+
 } finally {
   this.loading.set(false);
 }
