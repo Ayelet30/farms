@@ -1,3 +1,10 @@
+<div class="busy-overlay" *ngIf="loading()">
+  <div class="busy-card" dir="rtl">
+    <mat-spinner diameter="28"></mat-spinner>
+    <div class="busy-text">{{ busyText() }}</div>
+  </div>
+</div>
+
 <div class="req" *ngIf="req() as r">
   <div class="req-head">
     <div class="req-title">יום חופש מדריך</div>
@@ -20,7 +27,7 @@
       [ngModel]="decisionNote()"
       (ngModelChange)="decisionNote.set($event)"
       rows="2"
-      placeholder="למדריך / לתיעוד..."></textarea>
+      placeholder="למדריך / לתיעוד..." [disabled]="loading()"></textarea>
   </div>
 
   <!-- Impact: להציג ולטעון רק כשהבקשה ממתינה -->
