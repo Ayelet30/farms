@@ -59,16 +59,20 @@ timeRange = computed(() => {
   errorMsg = signal<string | null>(null);
   loadingMakeupTarget = signal(false);  
 
+
 busyText = computed(() => {
-    const a = this.action();
-    if (a === 'approve') return 'הבקשה בתהליך אישור...';
-    if (a === 'reject') return 'הבקשה בתהליך דחייה...';
-    return 'הבקשה בתהליך...';
-  });
+  switch (this.action()) {
+    case 'approve': return 'הבקשה בתהליך אישור…';
+    case 'reject':  return 'הבקשה בתהליך דחייה…';
+    default:        return 'מעבד…';
+  }
+});
+
 private validator = inject(RequestValidationService);
 
   // signal כדי לעבוד יפה עם ngModel
   note = signal<string>(''); // לא חובה
+
 
   payload = computed(() => {
     try {
@@ -314,6 +318,7 @@ async loadMakeupTarget(): Promise<void> {
 //     }
 //   }
 async approve(): Promise<void> {
+    if (this.busy()) return;
   this.clearMessages();
   this.action.set('approve');  
   this.busy.set(true);
@@ -454,6 +459,7 @@ if (warn) {
 //     }
 //   }
 async reject(args?: { source?: 'user' | 'system'; reason?: string }): Promise<void> {
+    if (this.busy()) return;
   this.clearMessages();
   this.action.set('reject');
   this.busy.set(true);

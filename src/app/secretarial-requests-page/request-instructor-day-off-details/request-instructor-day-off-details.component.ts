@@ -6,6 +6,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { RequestValidationService } from '../../services/request-validation.service';
 import { RequestStatus } from '../../Types/detailes.model';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 type ImpactRow = {
   occur_date: string; // date
@@ -20,7 +21,7 @@ type ToastKind = 'success' | 'error' | 'info';
 @Component({
   selector: 'app-request-instructor-day-off-details',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule],
+  imports: [CommonModule, FormsModule, MatSnackBarModule , MatProgressSpinnerModule],
   templateUrl: './request-instructor-day-off-details.component.html',
   styleUrls: ['./request-instructor-day-off-details.component.scss'],
 })
@@ -93,6 +94,16 @@ private tenantSvc = inject(SupabaseTenantService);
   }
 @Input() bulkMode = false;
 public bulkWarning: string | null = null;
+busy = signal(false);
+action = signal<'approve' | 'reject' | null>(null);
+
+busyText = computed(() => {
+  switch (this.action()) {
+    case 'approve': return 'הבקשה בתהליך אישור…';
+    case 'reject':  return 'הבקשה בתהליך דחייה…';
+    default:        return 'מעבד…';
+  }
+});
 
 private showSnack(msg: string, type: 'success' | 'error') {
   if (this.bulkMode && type === 'success') return; // בבאלק לא להציג הצלחות
@@ -233,6 +244,9 @@ private async rejectBySystem(reason: string): Promise<void> {
 
   async approve() {
     if (this.loading()) return;
+      this.action.set('approve');          // ✅ להוסיף
+  this.loading.set(true);
+
 
     const r = this.req();
     const requestId = r?.id;
@@ -302,12 +316,16 @@ this.onApproved?.({
 
 } finally {
   this.loading.set(false);
+    this.action.set(null);        
+
 }
 
   }
 
   async reject() {
   if (this.loading()) return;
+    this.action.set('reject');      
+
 
   const r = this.req();
   const requestId = r?.id;
@@ -375,6 +393,8 @@ this.onRejected?.({
 
 } finally {
   this.loading.set(false);
+    this.action.set(null);          
+
 }
 
 }
