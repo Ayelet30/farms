@@ -4,6 +4,7 @@ import { Component, EventEmitter, Input, Output, inject, signal } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ensureTenantContextReady, dbTenant } from '../../services/legacy-compat';
+import { computed } from '@angular/core'; 
 
 import { SeriesRequestsService } from '../../services/series-requests.service';
 import { getCurrentUserData } from '../../services/supabaseClient.service';
@@ -16,6 +17,7 @@ import { getAuth } from 'firebase/auth';
 import { MatIconModule } from '@angular/material/icon';
 import { RequestValidationService } from '../../services/request-validation.service';
 import type { ValidationResult } from '../../services/request-validation.service';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 // חשוב: זה הטיפוס שאת מעבירה מהדף הראשי
 import type { UiRequest } from '../../Types/detailes.model';
@@ -32,7 +34,7 @@ const SERIES_DENY_MESSAGES: Record<string, string> = {
 @Component({
   selector: 'app-secretarial-series-requests',
   standalone: true,
-  imports: [CommonModule, FormsModule , MatDialogModule , MatSnackBarModule, MatTooltipModule , MatButtonModule , MatIconModule],
+  imports: [CommonModule, FormsModule , MatDialogModule , MatSnackBarModule, MatTooltipModule , MatButtonModule , MatIconModule, MatProgressSpinnerModule],
   templateUrl: './request-new-series-details.component.html',
   styleUrls: ['./request-new-series-details.component.scss'],
 })
@@ -52,6 +54,8 @@ private _request!: UiRequest;
   req = () => this.request;
 @Input() bulkMode?: boolean;
 requestedEndTime = signal<string | null>(null);
+busy = signal(false);
+action = signal<'approve' | 'reject' | null>(null);
 
 // המשתתפים עם טווח חפיפה
 existingParticipants = signal<any[]>([]); // כבר יש לך
@@ -95,6 +99,13 @@ this.childGovId.set(null);
 void this.loadChildName();
 
 }
+busyText = computed(() => {
+  switch (this.action()) {
+    case 'approve': return 'הבקשה בתהליך אישור…';
+    case 'reject':  return 'הבקשה בתהליך דחייה…';
+    default:        return 'מעבד…';
+  }
+});
 
 get request(): UiRequest {
   return this._request;
@@ -397,6 +408,8 @@ private async rejectBySystem(reason: string): Promise<boolean> {
 async approveSelected() {
   // ✅ מניעת קריאה כפולה (לחיצה כפולה / submit)
   if (this.loading()) return;
+   this.action.set('approve');   
+   this.busy.set(true);     
   this.loading.set(true);
 
   this.clearMessages();
@@ -567,13 +580,7 @@ if (!upd) {
     // אם את רוצה שהבקשה תיעלם – חייבים update לטבלה או RPC נוסף.
     // כרגע רק נעדכן UI
     const payload = { requestId: this.request.id, newStatus: 'APPROVED' as const };
-     if (!this.bulkMode) {
-  this.snack.open('הבקשה אושרה בהצלחה', 'סגור', {
-    duration: 2500,
-    panelClass: ['snack-success'],
-    direction: 'rtl',
-  });
-}
+ 
 
     this.approved.emit(payload);
     this.onApproved?.(payload);
@@ -625,6 +632,8 @@ try {
     this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
 this.errorMsg.set(msg);
   } finally {
+    this.action.set(null); 
+      this.busy.set(false);        
     this.loading.set(false);
   }
 }
@@ -635,6 +644,10 @@ canDecide(): boolean {
 
 
 async rejectSelected() {
+ if (this.loading()) return;      
+  this.action.set('reject');  
+  this.busy.set(true);        
+  this.loading.set(true);
   this.clearMessages();
 
   if (!this.request?.id) return;
@@ -679,15 +692,7 @@ if (!v.ok) {
     }
 
     const payload = { requestId: this.request.id, newStatus: 'REJECTED' as const };
-    if (!this.bulkMode) {
-  this.snack.open('הבקשה נדחתה בהצלחה', 'סגור', {
-    duration: 2500,
-    panelClass: ['snack-reject'],
-    direction: 'rtl',
-    horizontalPosition: 'center',
-    verticalPosition: 'top',
-  });
-}
+  
 
 
     this.rejected.emit(payload);
@@ -734,6 +739,10 @@ try {
 this.errorMsg.set(msg);
   } finally {
     this.loading.set(false);
+    this.action.set(null);            
+    this.busy.set(false);
+
+
   }
 }
 
