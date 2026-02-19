@@ -1,3 +1,10 @@
+<div class="busy-overlay" *ngIf="loading()">
+  <div class="busy-card" dir="rtl">
+    <mat-spinner diameter="28"></mat-spinner>
+    <div class="busy-text">{{ busyText() }}</div>
+  </div>
+</div>
+
 <div class="req" *ngIf="details() as d; else loadingTpl">
   <div class="req-title">ביטול שיעור</div>
 
@@ -13,17 +20,15 @@
 
   <div class="note">
     <label>הערה להחלטה (אופציונלי)</label>
-    <textarea [(ngModel)]="decisionNote" rows="2" placeholder="למזכירה / להורה..."></textarea>
+    <textarea [(ngModel)]="decisionNote" rows="2" placeholder="למזכירה / להורה..." [disabled]="loading()"></textarea>
   </div>
 
   <div class="actions">
   <button class="btn reject" (click)="reject()" [disabled]="loading()">
-  {{ loading() ? 'טוען…' : 'דחייה' }}
-</button>
+דחייה</button>
 
 <button class="btn approve" (click)="approve()" [disabled]="loading()">
-  {{ loading() ? 'טוען…' : 'אישור' }}
-</button>
+אישור</button>
 
   </div>
 </div>

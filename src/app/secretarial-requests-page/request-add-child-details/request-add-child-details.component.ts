@@ -5,6 +5,8 @@ import { dbTenant, getSupabaseClient } from '../../services/legacy-compat';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { RequestValidationService } from '../../services/request-validation.service';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { computed } from '@angular/core'; 
 
 type AddChildDetails = {
   request_id: string;
@@ -50,7 +52,7 @@ type ToastKind = 'success' | 'error' | 'info';
 @Component({
   selector: 'app-request-add-child-details',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule],
+  imports: [CommonModule, FormsModule, MatSnackBarModule ,MatProgressSpinnerModule],
   templateUrl: './request-add-child-details.component.html',
   styleUrls: ['./request-add-child-details.component.scss'],
 })
@@ -65,6 +67,16 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
   private db = dbTenant();
   private snack = inject(MatSnackBar);
   private sanitizer = inject(DomSanitizer);
+  busy = signal(false);
+action = signal<'approve' | 'reject' | null>(null);
+
+busyText = computed(() => {
+  switch (this.action()) {
+    case 'approve': return 'הבקשה בתהליך אישור…';
+    case 'reject':  return 'הבקשה בתהליך דחייה…';
+    default:        return 'מעבד…';
+  }
+});
 
   loading = signal(false);
   details = signal<AddChildDetails | null>(null);
@@ -206,6 +218,7 @@ private async rejectBySystem(reason: string): Promise<void> {
 
   async approve() {
     if (this.loading()) return;
+      this.action.set('approve');     
     this.loading.set(true);
 
     try {
@@ -243,11 +256,15 @@ private async rejectBySystem(reason: string): Promise<void> {
       this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
     } finally {
       this.loading.set(false);
+        this.action.set(null);        
+
     }
   }
 
   async reject() {
     if (this.loading()) return;
+      this.action.set('reject');      
+
     this.loading.set(true);
 
     try {
@@ -284,6 +301,8 @@ private async rejectBySystem(reason: string): Promise<void> {
       this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
     } finally {
       this.loading.set(false);
+        this.action.set(null);              
+
     }
   }
 
