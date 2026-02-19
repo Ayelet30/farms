@@ -502,7 +502,6 @@ async openHolesForCandidate(c: MakeupCandidate): Promise<void> {
     this.candidateSlotsError = 'יש לבחור ילד';
     return;
   }
-  console.log('clicked candidate', c, 'selectedChildId', this.selectedChildId);
 
   this.selectedMakeupCandidate = c;
   this.candidateSlots = [];
@@ -540,12 +539,6 @@ if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
 
   this.loadingCandidateSlots = true;
   this.candidateSlotsError = null;
-console.log('makeup params', {
-  child: this.selectedChildId,
-  instructorParam,
-  from: this.makeupSearchFromDate,
-  to: this.makeupSearchToDate
-});
 
   try {
    const { data, error } = await dbTenant().rpc('find_makeup_slots_for_lesson_by_id_number', {
@@ -554,7 +547,6 @@ console.log('makeup params', {
   p_from_date: this.makeupSearchFromDate,
   p_to_date: this.makeupSearchToDate,
 });
-console.log('makeup rpc result', { error, dataLen: data?.length, data: (data ?? []).slice(0, 5) });
 
     if (error) {
       console.error('find_makeup_slots_for_lesson_by_id_number error', error);

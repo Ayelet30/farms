@@ -96,10 +96,13 @@ readonly shouldShowFillInTarget = computed(() => this.isPending());
   }>(null);
 
   busyText = computed(() => {
-    if (this.action() === 'approve') return 'הבקשה בתהליך אישור…';
-    if (this.action() === 'reject') return 'הבקשה בתהליך דחייה…';
-    return 'בתהליך…';
-  });
+  switch (this.action()) {
+    case 'approve': return 'הבקשה בתהליך אישור…';
+    case 'reject':  return 'הבקשה בתהליך דחייה…';
+    default:        return 'מעבד…';
+  }
+});
+
 
   ngOnInit() {
     void this.loadFillInTarget();
@@ -253,6 +256,7 @@ this.fillInTarget.set({
 
   // ===== APPROVE =====
   async approve(): Promise<void> {
+    if (this.busy()) return; 
     this.clearMessages();
     this.action.set('approve');
     this.busy.set(true);
@@ -333,6 +337,7 @@ if (warn) {
 
   // ===== REJECT (supports bulk reason) =====
  async reject(): Promise<void> {
+    if (this.busy()) return; 
    this.clearMessages();
   this.action.set('reject');
   this.busy.set(true);

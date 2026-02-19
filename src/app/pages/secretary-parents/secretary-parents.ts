@@ -825,7 +825,7 @@ private israelPhoneValidator(): ValidatorFn {
       phone: (phone || '').trim() || null,
     };
 
-    const { error } = await dbcPublic.from('users').upsert(row, { onConflict: 'uid' });
+    const { error } = await dbcPublic.from('users').upsert(row, { onConflict: 'uid'  ,  ignoreDuplicates: true,});
 
     if (error) throw new Error(`users upsert failed: ${error.message}`);
   }
@@ -843,7 +843,7 @@ private israelPhoneValidator(): ValidatorFn {
         is_active: true,
       },
       {
-        onConflict: 'tenant_id,uid,role_in_tenant',
+        onConflict: 'tenant_id,uid,role_in_tenant' ,  ignoreDuplicates: true,
       },
     );
 
@@ -881,7 +881,7 @@ private israelPhoneValidator(): ValidatorFn {
 
     const { data, error } = await dbcTenant
       .from('parents')
-      .upsert(row, { onConflict: 'uid' })
+      .upsert(row, { onConflict: 'uid' , ignoreDuplicates: true, })
       .select('*')
       .single();
 

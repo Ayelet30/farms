@@ -157,13 +157,14 @@ export class ParentScheduleComponent implements OnInit {
       }
 
       const dbc = dbTenant();
+console.log( "+++++++"+ user.uid); 
 
       const { data: parent, error: e1 } = await dbc
         .from('parents')
         .select('uid')
         .eq('uid', user.uid)
         .maybeSingle();
-
+console.log( "+++++++"+ parent); 
       if (e1 || !parent) {
         console.error('Parent not found', e1);
         this.children = [];

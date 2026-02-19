@@ -1,8 +1,7 @@
-<!-- ✅ Overlay Loading -->
-<div class="overlay" *ngIf="busy()">
-  <div class="overlay-card">
-    <mat-progress-spinner mode="indeterminate" diameter="44"></mat-progress-spinner>
-    <div class="overlay-text">{{ busyText() }}</div>
+<div class="busy-overlay" *ngIf="busy()">
+  <div class="busy-card" dir="rtl">
+    <mat-spinner diameter="28"></mat-spinner>
+    <div class="busy-text">{{ busyText() }}</div>
   </div>
 </div>
 
@@ -91,8 +90,11 @@
   class="note"
   *ngIf="canDecide() && !bulkMode"
   [ngModel]="note()"
+  [disabled]="busy()"
   (ngModelChange)="note.set($event)"
-  placeholder="סיבה לדחייה (אופציונלי)">
+  placeholder="סיבה לדחייה (אופציונלי)"
+  
+  >
 </textarea>
 
 
