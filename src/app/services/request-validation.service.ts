@@ -156,19 +156,20 @@ private normalizeResult(
       }
 
       // ===== MAKEUP / FILL_IN =====
-   if (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN') {
-  const fresh = await this.getFreshMakeupOrFillInDateTime(db, row, mode);
-
-  const dateStr = fresh?.dateStr ?? null;
-  const startStr = fresh?.startStr ?? null;
+ // ===== MAKEUP / FILL_IN =====
+if (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN') {
+  const p: any = row.payload ?? {};
+  const dateStr = (row.fromDate ?? p.occur_date ?? p.from_date ?? null);
+  const startStr = this.normalizeHHMM(p.requested_start_time ?? p.start_time ?? p.startTime ?? null);
 
   if (dateStr && startStr) {
-    const dt = this.combineDateTime(dateStr, startStr);
+    const dt = this.combineDateTime(String(dateStr).slice(0, 10), startStr);
     if (dt.getTime() < Date.now()) {
       return { ok: false, reason: 'עבר מועד השיעור המבוקש' };
     }
   }
 }
+
 
     } catch (e:any) {
       return this.handleDbFailure(mode, 'expiry fresh check', e);
@@ -755,29 +756,6 @@ private normalizeHHMM(v: any): string | null {
   if (!s) return null;
   // "10:30:00" -> "10:30"
   return s.length >= 5 ? s.slice(0, 5) : s;
-}
-private async getFreshMakeupOrFillInDateTime(
-  db: any,
-  row: UiRequest,
-  mode: ValidationMode
-): Promise<{ dateStr: string | null; startStr: string | null; endStr: string | null } | null> {
-  if (mode === 'auto') return null;
-
-  const requestId = row?.id;
-  if (!requestId) return null;
-
-  const fresh = await this.fetchFreshRequestRow(db, requestId);
-  const p = this.parsePayload(fresh?.payload);
-
-  // ✅ התאריך העדכני מגיע מהטבלה (from_date / to_date)
-  const dateStr =
-    String(fresh?.from_date ?? fresh?.to_date ?? '').slice(0, 10) || null;
-
-  // ✅ השעות העדכניות מגיעות מה-payload
-  const startStr = this.normalizeHHMM(p?.requested_start_time ?? null);
-  const endStr   = this.normalizeHHMM(p?.requested_end_time ?? null);
-
-  return { dateStr, startStr, endStr };
 }
 
 }

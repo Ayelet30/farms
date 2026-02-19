@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/supabaseClient.service';
 import { HDate } from '@hebcal/core';
 import { UiDialogService } from '../../services/ui-dialog.service';
+import { computed } from '@angular/core';
 
 type UUID = string;
 
@@ -16,6 +17,7 @@ type CalendarKind = 'GREGORIAN' | 'HEBREW';
 type RecurrenceKind = 'ONCE' | 'YEARLY';
 type DayType = 'FULL_DAY' | 'PARTIAL_DAY';
 interface RidingType {
+  
   id: UUID;
   code: string;
   name: string;
@@ -227,6 +229,7 @@ export class FarmSettingsComponent implements OnInit {
   newListNoteText = signal<string>('');
   listNotesExpanded = signal(true);
   // ====== Riding Types ======
+
 ridingTypes = signal<RidingType[]>([]);
 showNewRidingTypeForm = signal(false);
 editingRidingTypeId = signal<UUID | null>(null);
@@ -236,6 +239,33 @@ newRidingTypeDesc = signal('');
 
 newRidingTypeMin = signal<number | null>(null);
 newRidingTypeMax = signal<number | null>(null);
+participantsMinError = signal<string | null>(null);
+participantsMaxError = signal<string | null>(null);
+
+
+validateParticipants(): void {
+  const min = this.newRidingTypeMin();
+  const max = this.newRidingTypeMax();
+
+  this.participantsMinError.set(null);
+  this.participantsMaxError.set(null);
+
+  if (min != null && (!Number.isFinite(min) || min < 1 || min > 50)) {
+    this.participantsMinError.set('מינימום חייב להיות בין 1 ל־50');
+  }
+
+  if (max != null && (!Number.isFinite(max) || max < 1 || max > 50)) {
+    this.participantsMaxError.set('מקסימום חייב להיות בין 1 ל־50');
+  }
+
+  if (min != null && max != null && min > max) {
+    this.participantsMinError.set('מינימום לא יכול להיות גדול ממקסימום');
+    this.participantsMaxError.set('מקסימום לא יכול להיות קטן ממינימום');
+  }
+}
+
+newRidingTypeCode = signal('');
+newRidingTypeCodeError = signal<string | null>(null);
 
 newRidingTypeSpecialPrice = signal<number | null>(null);
 newRidingTypeSpecialDuration = signal<number | null>(null);
@@ -1660,6 +1690,11 @@ cancelEditPlan(): void {
 // Riding Types
 // =============================
 
+hasSettingsErrors = computed(() =>
+  Object.values(this.settingsErrors()).some(v => !!v)
+);
+
+
 private async loadRidingTypes(): Promise<void> {
   
 const { data, error } = await dbTenant()
@@ -1680,55 +1715,137 @@ const { data, error } = await dbTenant()
 
 
 }
-
 async addRidingType(): Promise<void> {
-  console.log('RAW NAME:', this.newRidingTypeName());
+    if (!this.newRidingTypeName()?.trim()) return;
+  if (this.newRidingTypeCodeError()) return;
 
-  console.log('addRidingType called');
-
-  const name = this.newRidingTypeName().trim();
-  if (!name) return;
-
-  const code = this.generateCode(name);   // 👈 שימוש בפונקציה האוטומטית
-
-const { data, error } = await dbTenant()
-  .from('riding_types')
-  .insert({
-    name,
-    code,
-    description: this.newRidingTypeDesc(),
-    min_participants: this.newRidingTypeMin(),
-    max_participants: this.newRidingTypeMax(),
-  })
-  .select();
-
-console.log('INSERT RESULT:', data);
-console.log('INSERT ERROR:', error);
-
-if (error) {
-  console.error('FULL ERROR:', error);
+  if (this.newRidingTypeMin() != null && this.newRidingTypeMin()! < 0) return;
+  if (this.newRidingTypeMax() != null && this.newRidingTypeMax()! < 1) return;
+  if (this.newRidingTypeDesc().length > 100) {
+  return;
 }
 
-console.log('payload:', {
-  name,
-  code,
-  description: this.newRidingTypeDesc(),
-  min_participants: this.newRidingTypeMin(),
-  max_participants: this.newRidingTypeMax(),
-});
+  if (this.newRidingTypeCodeError() || !this.newRidingTypeName()?.trim()) {
+  return;
+}
 
- if (error) {
-  console.error('FULL ERROR:', JSON.stringify(error, null, 2));
+  if (this.newRidingTypeCodeError()) {
+  await this.ui.alert(this.newRidingTypeCodeError()!, 'שגיאה');
+  return;
+}
 
-    await this.ui.alert(error.message, 'שגיאה');
+  const name = this.newRidingTypeName().trim();
+  const code = this.newRidingTypeCode().trim();
+  const min = this.newRidingTypeMin();
+  const max = this.newRidingTypeMax();
+  const price = this.newRidingTypeSpecialPrice();
+  const duration = this.newRidingTypeSpecialDuration();
+
+  // ===== שם חובה =====
+  if (!name) {
+    await this.ui.alert('חובה למלא שם סוג רכיבה.', 'שגיאה');
     return;
   }
 
-  this.newRidingTypeName.set('');
-  this.showNewRidingTypeForm.set(false);
-  await this.loadRidingTypes();
+  // ===== קוד חובה =====
+  if (!code) {
+    await this.ui.alert('חובה למלא קוד.', 'שגיאה');
+    return;
+  }
+
+  // ===== קוד באנגלית ללא רווחים =====
+  if (!/^[A-Za-z0-9_]+$/.test(code)) {
+    await this.ui.alert('הקוד חייב להיות באנגלית ללא רווחים.', 'שגיאה');
+    return;
+  }
+
+  // ===== בדיקת ייחודיות =====
+  const { data: existing } = await dbTenant()
+    .from('riding_types')
+    .select('id')
+    .eq('code', code)
+    .maybeSingle();
+
+  if (existing) {
+    await this.ui.alert('הקוד כבר קיים במערכת.', 'שגיאה');
+    return;
+  }
+
+  // ===== מינימום/מקסימום =====
+// ===== מינימום/מקסימום =====
+if (min !== null) {
+  if (!Number.isFinite(min) || min < 1 || min > 50) {
+    await this.ui.alert('מינימום משתתפים חייב להיות בין 1 ל־50.', 'שגיאה');
+    return;
+  }
 }
 
+if (max !== null) {
+  if (!Number.isFinite(max) || max < 1 || max > 50) {
+    await this.ui.alert('מקסימום משתתפים חייב להיות בין 1 ל־50.', 'שגיאה');
+    return;
+  }
+}
+
+if (min !== null && max !== null && min > max) {
+  await this.ui.alert('מינימום משתתפים לא יכול להיות גדול ממקסימום.', 'שגיאה');
+  return;
+}
+
+  // ===== מחיר / משך זמן =====
+// ===== מחיר מיוחד =====
+if (price !== null) {
+  if (!Number.isFinite(price) || price < 0 || price > 10000) {
+    await this.ui.alert(
+      'מחיר מיוחד חייב להיות בין 0 ל־10,000 ₪.',
+      'שגיאה'
+    );
+    return;
+  }
+}
+
+if (duration !== null) {
+  if (!Number.isFinite(duration) || duration <= 0 || duration > 600) {
+    await this.ui.alert(
+      'משך מיוחד חייב להיות בין 1 ל־600 דקות.',
+      'שגיאה'
+    );
+    return;
+  }
+}
+
+  const { error } = await dbTenant()
+    .from('riding_types')
+    .insert({
+      name,
+      code,
+      description: this.newRidingTypeDesc(),
+      min_participants: min,
+      max_participants: max,
+      spacial_price: price,
+      spacial_duration: duration,
+      is_active: this.newRidingTypeIsActive(),
+    });
+if (error) {
+  await this.ui.alert(error.message, 'שגיאה');
+  return;
+}
+
+this.flashSuccess('סוג רכיבה נשמר בהצלחה.');
+await this.ui.alert('סוג רכיבה נשמר בהצלחה.', 'הצלחה');
+
+
+  // איפוס
+  this.newRidingTypeName.set('');
+  this.newRidingTypeCode.set('');
+  this.newRidingTypeDesc.set('');
+  this.newRidingTypeMin.set(null);
+  this.newRidingTypeMax.set(null);
+  this.newRidingTypeSpecialPrice.set(null);
+  this.newRidingTypeSpecialDuration.set(null);
+
+  await this.loadRidingTypes();
+}
 
 private generateCode(name: string): string {
   return name
@@ -1790,6 +1907,21 @@ async deleteRidingType(rt: RidingType): Promise<void> {
   }
 
   await this.loadRidingTypes();
+}
+validateRidingTypeCode(value: string): void {
+  const code = value.trim();
+
+  if (!code) {
+    this.newRidingTypeCodeError.set('חובה למלא קוד');
+    return;
+  }
+
+  if (!/^[A-Za-z0-9_]+$/.test(code)) {
+    this.newRidingTypeCodeError.set('רק אנגלית, מספרים וקו תחתון ללא רווחים');
+    return;
+  }
+
+  this.newRidingTypeCodeError.set(null);
 }
 
   private normalizePlanForSave(plan: PaymentPlan): any {

@@ -214,7 +214,7 @@
 
           <label class="field">
             <span class="field-label">מחיר שיעור רגיל (₪)</span>
-       <input
+<input
   type="number"
   min="0"
   max="1000"
@@ -222,7 +222,13 @@
   inputmode="decimal"
   [(ngModel)]="s.default_lesson_price"
   name="default_lesson_price"
+  (ngModelChange)="validateSettingsFields(s)"
 />
+<small class="field-error"
+  *ngIf="settingsErrors().default_lesson_price">
+  {{ settingsErrors().default_lesson_price }}
+</small>
+
 
           </label>
         </div>
@@ -451,7 +457,12 @@
 
   <ng-container *ngIf="ridingTypesExpanded()">
     <!-- טופס הוספה -->
-    <div class="inline-panel" *ngIf="showNewRidingTypeForm()">
+  <form
+  class="inline-panel"
+  *ngIf="showNewRidingTypeForm()"
+  (ngSubmit)="addRidingType()"
+>
+
     <div class="fields-grid three-cols">
 
   <label class="field">
@@ -463,36 +474,81 @@
       (ngModelChange)="newRidingTypeName.set($event)"
     />
   </label>
+<label class="field">
+  <span class="field-label">
+    קוד (שם סוג רכיבה באנגלית ללא רווחים)
+  </span>
 
-  <label class="field">
-    <span class="field-label">תיאור</span>
-    <input
-      type="text"
-      name="newRidingTypeDesc"
-      [ngModel]="newRidingTypeDesc()"
-      (ngModelChange)="newRidingTypeDesc.set($event)"
-    />
-  </label>
+  <input
+    type="text"
+    name="newRidingTypeCode"
+    [ngModel]="newRidingTypeCode()"
+    (ngModelChange)="
+      newRidingTypeCode.set($event);
+      validateRidingTypeCode($event)
+    "
+    placeholder="GROUP_LESSON"
+  />
 
-  <label class="field">
-    <span class="field-label">מינ׳ משתתפים</span>
-    <input
-      type="number"
-      name="newRidingTypeMin"
-      [ngModel]="newRidingTypeMin()"
-      (ngModelChange)="newRidingTypeMin.set($event)"
-    />
-  </label>
+  <small class="field-error" *ngIf="newRidingTypeCodeError()">
+    {{ newRidingTypeCodeError() }}
+  </small>
+</label>
 
-  <label class="field">
-    <span class="field-label">מקס׳ משתתפים</span>
-    <input
-      type="number"
-      name="newRidingTypeMax"
-      [ngModel]="newRidingTypeMax()"
-      (ngModelChange)="newRidingTypeMax.set($event)"
-    />
-  </label>
+
+<label class="field">
+  <span class="field-label">תיאור</span>
+
+  <input
+    type="text"
+    maxlength="100"
+    name="newRidingTypeDesc"
+    [ngModel]="newRidingTypeDesc()"
+    (ngModelChange)="newRidingTypeDesc.set($event)"
+  />
+
+  <small class="field-hint">
+    {{ newRidingTypeDesc().length }}/100 תווים
+  </small>
+</label>
+<label class="field">
+  <span class="field-label">מינ׳ משתתפים</span>
+  <input
+    type="number"
+    min="1"
+    max="50"
+    name="newRidingTypeMin"
+    [ngModel]="newRidingTypeMin()"
+    (ngModelChange)="
+      newRidingTypeMin.set($event);
+      validateParticipants()
+    "
+  />
+<small class="field-error" *ngIf="participantsMinError()">
+  {{ participantsMinError() }}
+</small>
+
+</label>
+
+<label class="field">
+  <span class="field-label">מקס׳ משתתפים</span>
+  <input
+    type="number"
+    min="1"
+    max="50"
+    name="newRidingTypeMax"
+    [ngModel]="newRidingTypeMax()"
+    (ngModelChange)="
+      newRidingTypeMax.set($event);
+      validateParticipants()
+    "
+  />
+<small class="field-error" *ngIf="participantsMaxError()">
+  {{ participantsMaxError() }}
+</small>
+
+</label>
+
 
   <label class="field">
     <span class="field-label">מחיר מיוחד</span>
@@ -523,10 +579,17 @@
       (ngModelChange)="newRidingTypeIsActive.set($event)"
     />
   </label>
+<button
+  type="submit"
+  class="primary-btn"
+
+  [disabled]="
+    !!newRidingTypeCodeError() ||
+    !newRidingTypeName().trim()
+  "
+>
 
 
-
-        <button type="button" class="primary-btn" (click)="addRidingType()">
           שמירה
         </button>
         <button
@@ -536,8 +599,8 @@
         >
           ביטול
         </button>
-      </div>
-    </div>
+ </div>
+</form>
 
     <!-- רשימה -->
     <div class="list-block" *ngIf="ridingTypes().length; else noRidingTypes">
@@ -787,7 +850,18 @@
       </section>
 
       <div class="actions">
-        <button type="submit" class="primary-btn" [disabled]="saving() || loading()">שמירת הגדרות</button>
+        <button
+  type="submit"
+  class="primary-btn"
+  [disabled]="
+    saving() ||
+    loading() ||
+    hasSettingsErrors()
+  "
+>
+  שמירת הגדרות
+</button>
+
       </div>
     </form>
 

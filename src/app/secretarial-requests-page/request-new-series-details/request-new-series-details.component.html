@@ -1,3 +1,12 @@
+<div class="busy-overlay" *ngIf="loading()">
+  <div class="busy-card" dir="rtl">
+    <mat-spinner diameter="28"></mat-spinner>
+    <div class="busy-text">{{ busyText() }}</div>
+  </div>
+</div>
+
+
+
 <div class="wrap" dir="rtl" *ngIf="request as r">
   <div class="head">
     <div class="title">
@@ -157,6 +166,7 @@
       class="note"
       *ngIf="canDecide()"
       [(ngModel)]="note"
+      [disabled]="busy()"
       placeholder="סיבה לדחייה (אופציונלי)">
     </textarea>
 
@@ -165,13 +175,13 @@
     <div class="actions" *ngIf="canDecide()">
       <button mat-stroked-button type="button" class="action reject"
               (click)="rejectSelected()"
-              [disabled]="loading() ">
+              [disabled]="loading() || busy()">
         דחייה
       </button>
 
       <button mat-flat-button type="button" class="action approve"
               (click)="approveSelected()"
-              [disabled]="loading() || !canApprove()"
+              [disabled]="loading() || !canApprove() || busy()"
               [matTooltip]="approveTooltip || ''"
               [matTooltipDisabled]="!approveTooltip"
               matTooltipPosition="above">

@@ -1,3 +1,10 @@
+<div class="busy-overlay" *ngIf="busy()">
+  <div class="busy-card" dir="rtl">
+    <mat-spinner diameter="28"></mat-spinner>
+    <div class="busy-text">{{ busyText() }}</div>
+  </div>
+</div>
+
 <div class="req" dir="rtl">
   <div class="req-head">
     <div class="req-title">הוספת הורה חדש</div>
@@ -13,14 +20,14 @@
 
   <div class="note-box">
     <label>הערה להחלטה (אופציונלי)</label>
-    <textarea [(ngModel)]="decisionNote" rows="2" placeholder="לתיעוד / למזכירות..."></textarea>
+    <textarea [(ngModel)]="decisionNote" rows="2"  [disabled]="busy()" placeholder="לתיעוד / למזכירות..."></textarea>
   </div>
 
   <div class="actions" *ngIf="isSecretary">
-    <button class="btn reject" (click)="reject()" [disabled]="loading()">
+    <button class="btn reject" (click)="reject()" [disabled]="loading() || busy()">
       דחייה
     </button>
-    <button class="btn approve" (click)="approve()" [disabled]="loading()">
+    <button class="btn approve" (click)="approve()" [disabled]="loading() || busy()">
       אישור
     </button>
   </div>
