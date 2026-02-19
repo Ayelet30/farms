@@ -102,6 +102,7 @@ busyText = computed(() => {
   }
 });
 
+
   childFullName = computed(() => {
     const r = this.req();
     const p = this.payload();
@@ -296,8 +297,8 @@ async isValidRequset(mode: ValidationMode = 'auto'): Promise<ValidationResult> {
 }
 
 async approve() {
+    if (this.busy()) return; 
   const r = this.req();
-  if (!r) return;
 
   this.action.set('approve');
   this.busy.set(true);
@@ -359,7 +360,7 @@ this.bulkWarning = null;
 
 if (json?.emailOk === false) {
   this.bulkWarning = 'אושרה ✅ אבל לא נשלח מייל להורה';
-  this.showSnack(`אושר ✅ אבל שליחת מייל נכשלה: ${json?.emailError ?? ''}`, 'error');
+  this.showSnack(`אושר ✅ אבל שליחת מייל נכשלה`, 'error');
 } else {
   this.showSnack('הבקשה אושרה בהצלחה ✅', 'success');
 }
@@ -377,6 +378,7 @@ if (json?.emailOk === false) {
   }
 }
 async reject(args?: { source: 'user' | 'system'; reason?: string }) {
+    if (this.busy()) return; 
   const r = this.req();
   if (!r) return;
 
@@ -453,7 +455,7 @@ this.bulkWarning = null;
 
 if (json?.emailOk === false) {
   this.bulkWarning = 'נדחתה ✅ אבל לא נשלח מייל להורה';
-  this.showSnack(`נדחה ✅ אבל שליחת מייל נכשלה: ${json?.emailError ?? ''}`, 'error');
+  this.showSnack(`נדחה ✅ אבל שליחת מייל נכשלה`, 'error');
 } else {
   this.showSnack('הבקשה נדחתה בהצלחה ✅', 'success');
 }
