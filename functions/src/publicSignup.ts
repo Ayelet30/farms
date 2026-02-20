@@ -120,6 +120,8 @@ export const publicCreateParentSignupRequest = onRequest(
           ? 'bereshit_farm'
           : farmCode === 'raanana'
           ? 'raanana_farm'
+          : farmCode === 'moach'
+          ? 'moacha_atarim_app'
           : '';
 
       if (!schema) {
@@ -188,6 +190,41 @@ export const publicCreateParentSignupRequest = onRequest(
     }
   }
 );
+const SEND_EMAIL_GMAIL_URL = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/sendEmailGmail';
+
+async function callSendEmailGmailInternal(args: {
+  tenantSchema: string;
+  to: string[];          // אפשר גם string, אבל נשלח array כמו notifyUser
+  subject: string;
+  html?: string;
+  text?: string;
+  replyTo?: string;
+}) {
+  const internalSecret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
+  if (!internalSecret) throw new Error('Missing INTERNAL_CALL_SECRET');
+
+  const payload = {
+    tenantSchema: args.tenantSchema,
+    to: args.to,
+    subject: args.subject,
+    html: args.html,
+    text: args.text,
+    replyTo: args.replyTo,
+  };
+
+  const r = await fetch(SEND_EMAIL_GMAIL_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Internal-Secret': internalSecret,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json: any = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`sendEmailGmail failed: ${r.status} ${JSON.stringify(json)}`);
+  return json;
+}
 
 function genTempPassword(len = 8): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -354,12 +391,14 @@ export const approveParentSignupRequest = onRequest(
 
       let uid = '';
       let tempPassword = '';
+      let isExistUser = false;
 
       try {
         const user = await admin.auth().getUserByEmail(email);
         uid = user.uid;
         tempPassword = '';
       } catch (e: any) {
+        isExistUser = true;
         tempPassword = genTempPassword(8);
         const created = await admin.auth().createUser({
           email,
@@ -369,10 +408,12 @@ export const approveParentSignupRequest = onRequest(
         uid = created.uid;
       }
 
-      const { error: upUsersErr } = await sb
+         const { error: upUsersErr } = await sb
         .from('users')
-        .upsert({ uid, email, role: 'parent', phone: phone || null }, { onConflict: 'uid' });
+        .upsert({ uid, email, role: 'parent', phone: phone || null }, { onConflict: 'uid' , ignoreDuplicates: true,});
       if (upUsersErr) throw new Error(`public.users upsert failed: ${upUsersErr.message}`);
+      
+     
 
       if (tenant_id) {
         let parentRoleId: number | null = null;
@@ -383,7 +424,7 @@ export const approveParentSignupRequest = onRequest(
           .from('tenant_users')
           .upsert(
             { tenant_id, uid, role_in_tenant: 'parent', role_id: parentRoleId, is_active: true },
-            { onConflict: 'tenant_id,uid,role_in_tenant' }
+            { onConflict: 'tenant_id,uid,role_in_tenant' ,  ignoreDuplicates: true, }
           );
         if (tuErr) throw new Error(`public.tenant_users upsert failed: ${tuErr.message}`);
       }
@@ -404,7 +445,8 @@ export const approveParentSignupRequest = onRequest(
             message_preferences,
             is_active: true,
           },
-          { onConflict: 'uid' }
+          { onConflict: 'uid' ,       ignoreDuplicates: true, 
+}
         );
       if (parentErr) throw new Error(`parents upsert failed: ${parentErr.message}`);
 
@@ -452,17 +494,41 @@ export const approveParentSignupRequest = onRequest(
           </div>
         `;
 
-      await callNotifyUser({
-        tenantSchema: schema,
-        userType: 'parent',
+         let emailOk = true;
+      let emailError: string | null = null;
+      let mail: any = null;
+
+      try {
+        mail = await callNotifyUser({
+          tenantSchema: schema,
+          userType: 'parent',
+          uid,
+          subject,
+          html,
+          category: 'signupApproved',
+          forceEmail: true,
+        });
+
+        // אם notifyUser מחזיר ok=false בלי לזרוק
+        if (mail && (mail.ok === false || mail.emailOk === false)) {
+          emailOk = false;
+          emailError = String(mail.message ?? mail.error ?? mail.emailError ?? 'שליחת מייל נכשלה').slice(0, 300);
+        }
+      } catch (err: any) {
+        emailOk = false;
+        emailError = String(err?.message ?? err ?? 'שליחת מייל נכשלה').slice(0, 300);
+        console.warn('approveParentSignupRequest: email failed but approval OK', err);
+      }
+
+      res.status(200).json({
+        ok: true,
         uid,
-        subject,
-        html,
-        category: 'signupApproved',
-        forceEmail: true,
+        tempPasswordSent: !!tempPassword,
+        emailOk,
+        emailError,
+        mail,
       });
 
-      res.status(200).json({ ok: true, uid, tempPasswordSent: !!tempPassword });
     } catch (e: any) {
       console.error('approveParentSignupRequest error', e);
 
@@ -476,6 +542,127 @@ export const approveParentSignupRequest = onRequest(
 
       res.status(500).json({ error: 'Internal error', message: msg });
       return;
+    }
+  }
+);
+export const rejectParentSignupRequest = onRequest(
+  {
+    region: 'us-central1',
+    secrets: [
+      SUPABASE_URL_S,
+      SUPABASE_KEY_S,
+      INTERNAL_CALL_SECRET_S, // ✅ חייב כדי לקרוא ל-sendEmailGmail פנימית
+    ],
+  },
+  async (req, res) => {
+    try {
+      if (cors(req, res)) return;
+      if (req.method !== 'POST') {
+        return void res.status(405).json({ error: 'Method not allowed' });
+      }
+
+      const sb = createClient(SUPABASE_URL_S.value(), SUPABASE_KEY_S.value(), {
+        auth: { persistSession: false },
+      });
+
+      const tenant_id = normStr(req.body?.tenant_id, 80) || null;
+      const decidedBy = await requireSecretary(req, sb, tenant_id);
+
+      const schema = normStr(req.body?.schema, 60);
+      const requestId = normStr(req.body?.requestId, 80);
+      const decisionNote = normStr(req.body?.decisionNote, 300) || null;
+
+      if (!schema || !requestId) {
+        return void res.status(400).json({ error: 'Missing schema/requestId' });
+      }
+
+      const { data: reqRow, error: reqErr } = await sb
+        .schema(schema)
+        .from('secretarial_requests')
+        .select('id,status,payload')
+        .eq('id', requestId)
+        .single();
+
+      if (reqErr || !reqRow) {
+        return void res.status(404).json({ error: 'Request not found', message: reqErr?.message });
+      }
+
+      if (reqRow.status !== 'PENDING') {
+        return void res.status(400).json({ error: 'Request is not PENDING', status: reqRow.status });
+      }
+
+      const p = reqRow.payload || {};
+      const email = String(p.email || '').toLowerCase().trim();
+      const first_name = normStr(p.first_name, 40);
+      const last_name = normStr(p.last_name, 60);
+
+      if (!email || !isEmail(email)) {
+        return void res.status(400).json({ error: 'Invalid email in payload' });
+      }
+
+      // 1) update status to REJECTED
+      const { error: updErr } = await sb
+        .schema(schema)
+        .from('secretarial_requests')
+        .update({
+          status: 'REJECTED',
+          decided_by_uid: String(decidedBy.uid),
+          decided_at: new Date().toISOString(),
+          decision_note: decisionNote,
+          payload: {
+            ...p,
+            rejected_meta: {
+              rejected_at: new Date().toISOString(),
+              rejected_by_uid: String(decidedBy.uid),
+              decision_note: decisionNote,
+            },
+          },
+        })
+        .eq('id', requestId);
+
+      if (updErr) throw new Error(`request update failed: ${updErr.message}`);
+
+      // 2) send email via sendEmailGmail (internal secret)
+      const subject = 'בקשת ההצטרפות נדחתה';
+      const reasonLine = decisionNote ? `<p><b>סיבה:</b> ${decisionNote}</p>` : '';
+
+      const html = `
+        <div dir="rtl" style="font-family:Arial">
+          <h2>היי ${first_name || ''} ${last_name || ''},</h2>
+          <p>בקשת ההצטרפות שלך למערכת נדחתה.</p>
+          ${reasonLine}
+          <p>אם זו טעות או שתרצי להשלים פרטים — אפשר לפנות למשרד החווה.</p>
+        </div>
+      `;
+
+      let emailOk = true;
+      let emailError: string | null = null;
+      let mail: any = null;
+
+      try {
+        mail = await callSendEmailGmailInternal({
+          tenantSchema: schema,
+          to: [email],
+          subject,
+          html,
+        });
+      } catch (err: any) {
+        emailOk = false;
+        emailError = String(err?.message ?? err ?? 'שליחת מייל נכשלה').slice(0, 300);
+        console.warn('rejectParentSignupRequest: email failed but rejection OK', err);
+      }
+
+      return void res.status(200).json({ ok: true, emailOk, emailError, mail });
+    } catch (e: any) {
+      const code = e?.code;
+      const msg = e?.message || String(e);
+
+      if (code === 'unauthenticated') return void res.status(401).json({ error: 'unauthenticated', message: msg });
+      if (code === 'permission-denied') return void res.status(403).json({ error: 'forbidden', message: msg });
+      if (code === 'invalid-argument') return void res.status(400).json({ error: 'invalid_argument', message: msg });
+
+      console.error('rejectParentSignupRequest error', e);
+      return void res.status(500).json({ error: 'Internal error', message: msg });
     }
   }
 );

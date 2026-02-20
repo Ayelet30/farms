@@ -1,3 +1,10 @@
+<div class="busy-overlay" *ngIf="loading()">
+  <div class="busy-card" dir="rtl">
+    <mat-spinner diameter="28"></mat-spinner>
+    <div class="busy-text">{{ busyText() }}</div>
+  </div>
+</div>
+
 <div class="req" *ngIf="details() as d; else loadingTpl">
   <div class="title">הוספת ילד/ה</div>
 

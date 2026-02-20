@@ -1147,7 +1147,7 @@ ${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התח�
 
     const { error } = await dbcPublic
       .from('users')
-      .upsert(row, { onConflict: 'uid' });
+      .upsert(row, { onConflict: 'uid' ,  ignoreDuplicates: true,});
 
     if (error) {
       throw new Error(`users upsert failed: ${error.message}`);
@@ -1172,7 +1172,7 @@ ${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התח�
           is_active: true,
         },
         {
-          onConflict: 'tenant_id,uid,role_in_tenant',
+          onConflict: 'tenant_id,uid,role_in_tenant' , ignoreDuplicates: true,
         }
       );
 
@@ -1212,7 +1212,12 @@ ${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התח�
         status: 'Active',
         accepts_makeup_others: true,
         allow_availability_edit: true,
-      })
+      }
+     , 
+     {
+        onConflict: 'uid' ,  ignoreDuplicates: true,
+      },
+    )
       .select('*')
       .single();
 
