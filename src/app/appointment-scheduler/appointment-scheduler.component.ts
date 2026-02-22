@@ -98,16 +98,14 @@ interface MakeupSlot {
   end_time: string;
   instructor_id: string;
   remaining_capacity: number;
+  lesson_ridding_type?: string | null;   // ✅ להוסיף (זה ה-ID האמיתי)
 
-  riding_type_id?: string | null;
+  // riding_type_id?: string | null;
   riding_type_code?: string | null;
   riding_type_name?: string | null;
   max_participants?: number | null;
-
+// lesson_ridding_type?: string | null; 
   instructor_name?: string | null; 
-
-
-
 }
 interface MakeupCandidate {
   lesson_occ_exception_id: string;  
@@ -555,8 +553,7 @@ if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
       return;
     }
 
- let slots = (data ?? []) as MakeupSlot[];
-
+let slots = this.normalizeMakeupSlots(data ?? []);
 if (this.selectedChildId) {
   slots = this.filterSlotsByHardDeletion(slots, this.selectedChildId);
 }
@@ -1977,7 +1974,7 @@ this.confirmData.oldInstructorName =
           p_payment_source: this.selectedApproval ? 'health_fund' : 'private',
           p_approval_id: this.selectedApproval?.approval_id ?? null,
           p_payment_plan_id: this.selectedPaymentPlanId ?? null,
-          p_riding_type_id: slot.riding_type_id ?? null,
+          p_riding_type_id: slot.lesson_ridding_type  ?? null,
           p_capacity: slot.max_participants ?? 1,
           p_current_booked: 1
         }
@@ -2062,6 +2059,11 @@ this.confirmData.oldInstructorName =
     const payload = {
       requested_start_time: slot.start_time,
       requested_end_time: slot.end_time,
+riding_type_id: slot.lesson_ridding_type ?? null, // או slot.riding_type_id אחרי הנרמול
+  riding_type_name: slot.riding_type_name ?? null, // אופציונלי (לנוחות)
+    base_lesson_uid: this.selectedMakeupCandidate!.lesson_occ_exception_id, 
+
+
 
     };
 
@@ -2602,8 +2604,7 @@ const rangeDays = this.timeRangeOccupancyRateDays ?? 30;
       this.occupancySlotsError =    `לא נמצאו שיעורים פנויים למילוי מקום בטווח השבועי (מיום ראשון של אותו שבוע ועד אותו יום בשבוע הבא).`;
       return;
     }
-let slots = (data ?? []) as MakeupSlot[];
-
+let slots = this.normalizeMakeupSlots(data ?? []);
 // 1) פילטר מחיקה קשיח (בלי grace)
 if (this.selectedChildId) {
   slots = this.filterSlotsByHardDeletion(slots, this.selectedChildId);
@@ -2705,6 +2706,10 @@ async selectAndRequestOccupancySlot(slot: MakeupSlot): Promise<void> {
       const payload = {
         requested_start_time: slot.start_time,
         requested_end_time: slot.end_time,
+riding_type_id: slot.lesson_ridding_type ?? null, // או slot.riding_type_id אחרי הנרמול
+  riding_type_name: slot.riding_type_name ?? null, // אופציונלי (לנוחות)
+  base_lesson_uid: this.selectedOccupancyCandidate!.lesson_occ_exception_id,
+
       };
 
       // 1) יצירת בקשה למזכירה
@@ -2850,7 +2855,7 @@ async bookOccupancySlotAsSecretary(slot: MakeupSlot): Promise<void> {
           p_payment_source: this.selectedApproval ? 'health_fund' : 'private',
           p_approval_id: this.selectedApproval?.approval_id ?? null,
           p_payment_plan_id: this.selectedPaymentPlanId ?? null,
-          p_riding_type_id: slot.riding_type_id ?? null,
+          p_riding_type_id: slot.lesson_ridding_type  ?? null,
           p_capacity: slot.max_participants ?? 1,
           p_current_booked: 1,
 
@@ -3305,7 +3310,16 @@ if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
   this.showSuccessToast('בקשתך נשלחה למזכירה ✔️');
   this.selectedTab = 'series';
 }
+private normalizeMakeupSlots(rows: any[]): MakeupSlot[] {
+  return (rows ?? []).map((r: any) => ({
+    ...r,
+    // ✅ מה שה-RPC מחזיר בפועל:
+    lesson_ridding_type: r.lesson_ridding_type ?? null,
 
+    // ✅ מה שהקוד שלך מצפה לו:
+    riding_type_id: r.riding_type_id ?? r.lesson_ridding_type ?? null,
+  })) as MakeupSlot[];
+}
 // private fillSeriesConfirmData(slot: RecurringSlotWithSkips, startDate: string, endDate: string, instructorName: string) {
 //   const dayLabel = this.getSlotDayLabel(startDate);
 //   const startTime = slot.start_time.substring(0, 5);
