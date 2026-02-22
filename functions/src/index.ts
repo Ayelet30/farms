@@ -52,7 +52,8 @@ export {approveCancelOccurrenceAndNotify} from './approveCancelOccurrenceAndNoti
 export {rejectCancelOccurrenceAndNotify} from './rejectCancelOccurrenceAndNotify'
 export { approveInstructorDayOffAndNotify } from './approve-instructor-day-off-and-notify';
 export { rejectInstructorDayOffAndNotify } from './reject-instructor-day-off-and-notify';
-
+export { approveAddChildAndNotify } from './approve-add-child-and-notify';
+export { rejectAddChildAndNotify } from './reject-add-child-and-notify';
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
 
