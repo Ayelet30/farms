@@ -7,7 +7,8 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { RequestValidationService } from '../../services/request-validation.service';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { computed } from '@angular/core'; 
-
+import { SupabaseTenantService } from '../../services/supabase-tenant.service';
+import { getAuth } from 'firebase/auth';
 type AddChildDetails = {
   request_id: string;
   created_at: string;
@@ -69,7 +70,7 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
   private sanitizer = inject(DomSanitizer);
   busy = signal(false);
 action = signal<'approve' | 'reject' | null>(null);
-
+private tenantSvc = inject(SupabaseTenantService);
 busyText = computed(() => {
   switch (this.action()) {
     case 'approve': return 'הבקשה בתהליך אישור…';
@@ -77,41 +78,53 @@ busyText = computed(() => {
     default:        return 'מעבד…';
   }
 });
+private approveUrl =
+  'https://us-central1-bereshit-ac5d8.cloudfunctions.net/approveAddChildAndNotify';
 
+private rejectUrl =
+  'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectAddChildAndNotify';
+  private async postCloud(url: string, body: any) {
+  const user = getAuth().currentUser;
+  if (!user) throw new Error('המשתמש לא מחובר');
+  const token = await user.getIdToken();
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const raw = await resp.text();
+  let json: any = null;
+  try { json = JSON.parse(raw); } catch {}
+
+  if (!resp.ok || !json?.ok) {
+    throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+  }
+
+  return json;
+}
+private getChildIdFromRequest(): string | null {
+  const r = this.request;
+  const p = r?.payload ?? {};
+  return (
+    r?.childId ??
+    r?.child_id ??
+    p?.child_id ??
+    p?.childId ??
+    null
+  );
+}
   loading = signal(false);
   details = signal<AddChildDetails | null>(null);
   decisionNote = '';
 private validator = inject(RequestValidationService);
 private async rejectBySystem(reason: string): Promise<void> {
-  // עדכון אטומי: רק אם עדיין PENDING
-  const { data, error } = await this.db
-    .from('secretarial_requests')
-    .update({
-      status: 'REJECTED_BY_SYSTEM',
-      decided_by_uid: this.decidedByUid ?? null,
-      decided_at: new Date().toISOString(),
-      decision_note: reason || null,
-    })
-    .eq('id', this.request.id)
-    .eq('status', 'PENDING')
-    .select('id,status')
-    .maybeSingle();
-
-  if (error) throw error;
-
-  // אם כבר לא PENDING — לא נזרוק, פשוט נסיים בשקט
-  if (!data) return;
-
-  this.toast(reason || 'הבקשה נדחתה אוטומטית ע״י המערכת', 'info');
-
-  this.onRejected?.({
-    requestId: this.request.id,
-    newStatus: 'REJECTED',
-    message: reason,
-    meta: { system: true },
-  });
+  await this.reject({ source: 'system', reason });
 }
-
   // ===== Signed Terms popup =====
   signedOpen = signal(false);
   loadingSigned = signal(false);
@@ -121,7 +134,35 @@ private async rejectBySystem(reason: string): Promise<void> {
   async ngOnInit() {
     await this.loadDetails();
   }
+private async callCloud(action: 'approve' | 'reject', extra?: { system?: boolean }) {
+  const url =
+    action === 'approve'
+      ? '/api/approveAddChildAndNotify'
+      : '/api/rejectAddChildAndNotify';
 
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requestId: this.request.id,
+      decidedByUid: this.decidedByUid ?? null,
+      decisionNote: this.decisionNote || null,
+      system: !!extra?.system, // 👈 כדי לאפשר REJECTED_BY_SYSTEM
+    }),
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json?.ok === false) {
+    throw new Error(json?.message || 'שגיאה בקריאה לשרת');
+  }
+  return json as {
+    ok: true;
+    newStatus: 'APPROVED' | 'REJECTED' | 'REJECTED_BY_SYSTEM';
+    mail?: { ok: boolean; warning?: string };
+    meta?: any;
+    message?: string;
+  };
+}
   async ngOnChanges(changes: SimpleChanges) {
     if (changes['request'] && !changes['request'].firstChange) {
       const prev = changes['request'].previousValue?.id;
@@ -217,95 +258,122 @@ private async rejectBySystem(reason: string): Promise<void> {
   }
 
   async approve() {
-    if (this.loading()) return;
-      this.action.set('approve');     
-    this.loading.set(true);
+  if (this.loading()) return;
 
-    try {
-       // ✅ בדיקה לפני אישור
+  this.action.set('approve');
+  this.loading.set(true);
+
+  try {
+    // ✅ בדיקה בתחילת אישור
     const v = await this.validator.validate(this.request, 'approve');
     if (!v.ok) {
       await this.rejectBySystem(v.reason ?? 'הבקשה אינה תקינה');
-      return; // 👈 חשוב
+      return;
     }
 
-      const { error } = await this.db.rpc('approve_add_child_request', {
-        p_request_id: this.request.id,
-        p_decided_by_uid: this.decidedByUid,
-        p_decision_note: this.decisionNote || null,
-      });
-      if (error) throw error;
+    await this.tenantSvc.ensureTenantContextReady();
+    const tenant = this.tenantSvc.requireTenant();
+    const tenantSchema = tenant.schema;
+    const tenantId = tenant.id;
 
-      const d = this.details();
-      const child = d?.child_name || 'הילד/ה';
-      const parent = d?.parent_name ? `להורה ${d.parent_name}` : 'להורה';
-      const msg = `אישרת הוספת ${child}. הודעה נשלחה ${parent}.`;
+    const childId = this.getChildIdFromRequest();
+    if (!childId) throw new Error('חסר childId בבקשה');
 
+    const json = await this.postCloud(this.approveUrl, {
+      tenantSchema,
+      tenantId,
+      childId,
+      requestId: this.request.id,
+      decisionNote: this.decisionNote || null,
+    });
+
+    // ✅ הצלחה ב-DB
+    const msg = 'הבקשה אושרה בהצלחה ✅';
+
+    if (json?.emailOk === false) {
+      this.toast('אושר ✅ אבל שליחת מייל נכשלה', 'error'); // כמו אצלך במחיקה
+    } else {
       this.toast(msg, 'success');
-
-      this.onApproved?.({
-        requestId: this.request.id,
-        newStatus: 'APPROVED',
-        message: msg,
-        meta: d,
-      });
-    } catch (e: any) {
-      console.error(e);
-      const msg = e?.message || 'שגיאה באישור הבקשה';
-      this.toast(msg, 'error');
-      this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
-    } finally {
-      this.loading.set(false);
-        this.action.set(null);        
-
     }
+
+    this.onApproved?.({
+      requestId: this.request.id,
+      newStatus: 'APPROVED',
+      message: msg,
+      meta: json,
+    });
+  } catch (e: any) {
+    console.error(e);
+    const msg = e?.message || 'שגיאה באישור הבקשה';
+    this.toast(msg, 'error');
+    this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
+  } finally {
+    this.loading.set(false);
+    this.action.set(null);
   }
+}
+async reject(args?: { source: 'user' | 'system'; reason?: string }) {
+  if (this.loading()) return;
 
-  async reject() {
-    if (this.loading()) return;
-      this.action.set('reject');      
+  this.action.set('reject');
+  this.loading.set(true);
 
-    this.loading.set(true);
-
-    try {
-        // ✅ בדיקה לפני דחייה
+  try {
+    // ✅ בדיקה בתחילת דחייה
     const v = await this.validator.validate(this.request, 'reject');
     if (!v.ok) {
       await this.rejectBySystem(v.reason ?? 'הבקשה אינה תקינה');
-      return; // 👈 חשוב
+      return;
     }
 
-      const { error } = await this.db.rpc('reject_secretarial_request', {
-        p_request_id: this.request.id,
-        p_decided_by_uid: this.decidedByUid,
-        p_decision_note: this.decisionNote || null,
-      });
-      if (error) throw error;
+    await this.tenantSvc.ensureTenantContextReady();
+    const tenant = this.tenantSvc.requireTenant();
+    const tenantSchema = tenant.schema;
+    const tenantId = tenant.id;
 
-      const d = this.details();
-      const child = d?.child_name || 'הילד/ה';
-      const msg = `דחית בקשת הוספת ${child}. הודעה נשלחה ברגעים אלה.`;
+    const childId = this.getChildIdFromRequest();
+    if (!childId) throw new Error('חסר childId בבקשה');
 
-      this.toast(msg, 'info');
+    const reason = (args?.reason ?? this.decisionNote ?? '').trim() || null;
+    const system = args?.source === 'system';
 
-      this.onRejected?.({
-        requestId: this.request.id,
-        newStatus: 'REJECTED',
-        message: msg,
-        meta: d,
-      });
-    } catch (e: any) {
-      console.error(e);
-      const msg = e?.message || 'שגיאה בדחיית הבקשה';
-      this.toast(msg, 'error');
-      this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
-    } finally {
-      this.loading.set(false);
-        this.action.set(null);              
+    const json = await this.postCloud(this.rejectUrl, {
+      tenantSchema,
+      tenantId,
+      childId,
+      requestId: this.request.id,
+      decisionNote: reason,
+      system,
+    });
 
+    const newStatus = (json?.newStatus === 'REJECTED_BY_SYSTEM')
+      ? 'REJECTED_BY_SYSTEM'
+      : 'REJECTED';
+
+    const msg = 'הבקשה נדחתה בהצלחה ✅';
+
+    if (json?.emailOk === false) {
+      this.toast('נדחה ✅ אבל שליחת מייל נכשלה', 'error');
+    } else {
+      this.toast(msg, 'success');
     }
+
+    this.onRejected?.({
+      requestId: this.request.id,
+      newStatus,
+      message: msg,
+      meta: json,
+    });
+  } catch (e: any) {
+    console.error(e);
+    const msg = e?.message || 'שגיאה בדחיית הבקשה';
+    this.toast(msg, 'error');
+    this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
+  } finally {
+    this.loading.set(false);
+    this.action.set(null);
   }
-
+}
   private toast(message: string, type: ToastKind = 'info') {
     this.snack.open(message, 'סגור', {
       duration: 3500,
