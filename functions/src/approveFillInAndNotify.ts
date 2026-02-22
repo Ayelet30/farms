@@ -105,7 +105,7 @@ export const approveFillInAndNotify = onRequest(
       // fetch request
       const { data: reqRow, error: reqErr } = await sbTenant
         .from('secretarial_requests')
-        .select('id,status,request_type,child_id,lesson_occ_id,from_date,payload,requested_by_uid')
+        .select('id,status,request_type,child_id,lesson_occ_id,from_date,payload,requested_by_uid , instructor_id')
         .eq('id', requestId)
         .maybeSingle();
       if (reqErr) throw reqErr;
@@ -122,29 +122,139 @@ export const approveFillInAndNotify = onRequest(
       if (!lessonId) return void res.status(400).json({ ok: false, message: 'Missing lesson_occ_id on request' });
 
       // find target occur_date by exceptions (stable)
-      const { data: exRow, error: exErr } = await sbTenant
-        .from('lesson_occurrence_exceptions')
-        .select('occur_date')
-        .eq('lesson_id', lessonId)
-        .eq('status', 'נשלחה בקשה למילוי מקום')
-        .order('occur_date', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (exErr) throw exErr;
+     const payload = typeof (reqRow as any).payload === 'string'
+  ? JSON.parse((reqRow as any).payload)
+  : ((reqRow as any).payload ?? {});
 
-      const occurDate = exRow?.occur_date ? String(exRow.occur_date) : null;
+const requestedStart = payload.requested_start_time ?? null;
+const requestedEnd = payload.requested_end_time ?? null;
+const requestedRidingTypeId = payload.riding_type_id ?? null;
+
+// ✅ הכי חשוב: base_lesson_uid = exception.id
+const baseExceptionId = payload.base_lesson_uid ?? null;
+
+if (!requestedStart || !requestedEnd) {
+  throw new Error('Missing requested_start_time / requested_end_time in payload');
+}
+if (!requestedRidingTypeId) {
+  throw new Error('Missing riding_type_id in payload');
+}
+if (!baseExceptionId) {
+  throw new Error('Missing base_lesson_uid (lesson_occurrence_exceptions.id) in payload');
+}
+
+// להביא את ה-exception עצמו כדי לקבל occur_date + lesson_id (לבדיקת עקביות)
+const { data: ex, error: exErr } = await sbTenant
+  .from('lesson_occurrence_exceptions')
+  .select('id, occur_date, lesson_id')
+  .eq('id', baseExceptionId)
+  .maybeSingle();
+if (exErr) throw exErr;
+if (!ex) throw new Error('Base exception not found');
+
+const occurDate = String(ex.occur_date).slice(0, 10);
+
+// לוודא שה-exception באמת שייך ל-lessonId של הבקשה
+if (String(ex.lesson_id).trim() !== lessonId) {
+  throw new Error('base_lesson_uid does not match request.lesson_occ_id');
+}
       if (!occurDate) {
         return void res.status(400).json({ ok: false, message: 'לא נמצא שיעור יעד למילוי מקום (lesson_occurrence_exceptions).' });
       }
+const { data: originalLesson, error: origLErr } = await sbTenant
+  .from('lessons')
+  .select(`
+    id,
+    child_id,
+    instructor_id,
+    instructor_uid,
+    appointment_kind,
+    payment_plan_id,
+    payment_source,
+    approval_id,
+    capacity,
+    current_booked
+  `)
+  .eq('id', lessonId)
+  .maybeSingle();
 
+if (origLErr) throw origLErr;
+if (!originalLesson) throw new Error('Original lesson not found');
+// ✅ מדריך לשיעור מילוי מקום: רק מהבקשה (secretarial_requests.instructor_id)
+const fillInInstructorId = String((reqRow as any).instructor_id || '').trim();
+if (!fillInInstructorId) {
+  throw new Error('Request missing instructor_id (secretarial_requests.instructor_id)');
+}
+
+// להביא instructor_uid למדריך שנבחר
+const { data: instRow, error: instErr } = await sbTenant
+  .from('instructors')
+  .select('uid')
+  .eq('id_number', fillInInstructorId)
+  .maybeSingle();
+if (instErr) throw instErr;
+if (!instRow?.uid) throw new Error('Instructor missing uid');
+
+const fillInInstructorUid = String(instRow.uid).trim();
       // update exception: approved + is_makeup_allowed false
       const { error: exUpErr } = await sbTenant
         .from('lesson_occurrence_exceptions')
-        .update({ status: 'אושר', is_makeup_allowed: false })
+        .update({ status: 'הושלם', is_makeup_allowed: false })
         .eq('lesson_id', lessonId)
         .eq('occur_date', occurDate);
       if (exUpErr) throw exUpErr;
+function hebrewDayOfWeek(dateISO: string): string {
+  const d = new Date(`${dateISO}T00:00:00Z`);
+  const day = d.getUTCDay();
+  const map = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'] as const;
+  return map[day];
+}
 
+const dayOfWeekHe = hebrewDayOfWeek(occurDate);
+
+const newLessonPayload: any = {
+  lesson_type: 'מילוי מקום',
+  status: 'אושר',
+  day_of_week: dayOfWeekHe,
+  start_time: requestedStart,
+  end_time: requestedEnd,
+
+  child_id: originalLesson.child_id,
+  repeat_weeks: 1,
+  anchor_week_start: occurDate,     // כדי “לעגן” את זה לתאריך
+
+  appointment_kind: 'therapy_fill_in', // או מה שאתם משתמשים
+  series_id: null,
+  approval_id: originalLesson.approval_id ?? null, // ✅ העתקה מהמקורי
+  origin: 'parent',
+  is_tentative: false,
+
+  base_lesson_uid: String(ex.id),   // ✅ FK ל-exception
+
+  capacity: originalLesson.capacity ?? null,
+  current_booked: originalLesson.current_booked ?? null,
+
+  payment_source: originalLesson.payment_source ?? 'private',
+  riding_type_id: requestedRidingTypeId,            // ✅ מה-payload
+  payment_plan_id: originalLesson.payment_plan_id ?? null, // ✅ העתקה מהמקורי
+  payment_docs_url: null,
+
+  instructor_id: fillInInstructorId,
+  instructor_uid: fillInInstructorUid,
+
+  is_open_ended: false,
+};
+
+const { data: newLesson, error: insErr } = await sbTenant
+  .from('lessons')
+  .insert(newLessonPayload)
+  .select('id')
+  .maybeSingle();
+
+if (insErr) throw insErr;
+if (!newLesson?.id) throw new Error('Failed to create fill-in lesson');
+
+const newFillInLessonId = String(newLesson.id);
       // update request approved
       const upd: any = {
         status: 'APPROVED',
@@ -253,6 +363,7 @@ try {
 
 return void res.status(200).json({
   ok: true,
+  newFillInLessonId,
   mailOk,
   warning,
   mail,
