@@ -485,28 +485,22 @@ const instructorBorderColor =
     ? colorFromDb
     : this.getColorForInstructor(instructorId);
 
-  const start = this.ensureIso(
-    lesson.start_datetime as any,
-    lesson.start_time as any,
-    lesson.occur_date as any
-  );
-  const end = this.ensureIso(
-    lesson.end_datetime as any,
-    lesson.end_time as any,
-    lesson.occur_date as any
-  );
+  const start =
+  this.buildDateTime(lesson.occur_date, lesson.start_time) ??
+  this.ensureIso(lesson.start_datetime as any, lesson.start_time as any, lesson.occur_date as any);
+
+let end =
+  this.buildDateTime(lesson.occur_date, lesson.end_time) ??
+  this.ensureIso(lesson.end_datetime as any, lesson.end_time as any, lesson.occur_date as any);
+
+end = this.ensureEndAfterStart(start, end);
+
+console.log(start, end);
 
   const childName = lesson.child_name ?? '';
   const lessonType = lesson.lesson_type ?? '';
   const age = this.childAgeById.get(lesson.child_id) || '';
   const childDisplay = age ? `${childName} (${age})` : childName;
-
-console.log(
-  '🧪 lesson.instructor_id:',
-  lesson.instructor_id,
-  'color from map:',
-  this.instructorColorById.get(String(lesson.instructor_id))
-);
 
   return {
     id: lesson.id,
@@ -772,6 +766,26 @@ const isCancelled =
       return;
     }
   }
+
+  private buildDateTime(dateStr?: string | null, timeStr?: string | null): string | null {
+  if (!dateStr || !timeStr) return null;
+
+  // time יכול להגיע HH:mm או HH:mm:ss
+  const t = String(timeStr).length === 5 ? `${timeStr}:00` : String(timeStr);
+  return `${dateStr}T${t}`;
+}
+
+private ensureEndAfterStart(startIso: string, endIso: string): string {
+  // אם בטעות end קטן מ-start (בעיה של נתונים/יום מתחלף) – נשאיר מינימום 30 דק
+  const s = new Date(startIso).getTime();
+  const e = new Date(endIso).getTime();
+  if (isNaN(s) || isNaN(e)) return endIso;
+  if (e > s) return endIso;
+
+  // fallback: +30 דקות
+  return this.toLocalIso(new Date(s + 30 * 60 * 1000));
+}
+
 
   private buildWeekStats(): void {
     if (this.currentViewType !== 'timeGridWeek') {
