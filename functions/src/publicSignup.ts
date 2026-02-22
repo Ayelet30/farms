@@ -391,12 +391,14 @@ export const approveParentSignupRequest = onRequest(
 
       let uid = '';
       let tempPassword = '';
+      let isExistUser = false;
 
       try {
         const user = await admin.auth().getUserByEmail(email);
         uid = user.uid;
         tempPassword = '';
       } catch (e: any) {
+        isExistUser = true;
         tempPassword = genTempPassword(8);
         const created = await admin.auth().createUser({
           email,
@@ -406,10 +408,12 @@ export const approveParentSignupRequest = onRequest(
         uid = created.uid;
       }
 
-      const { error: upUsersErr } = await sb
+         const { error: upUsersErr } = await sb
         .from('users')
-        .upsert({ uid, email, role: 'parent', phone: phone || null }, { onConflict: 'uid' });
+        .upsert({ uid, email, role: 'parent', phone: phone || null }, { onConflict: 'uid' , ignoreDuplicates: true,});
       if (upUsersErr) throw new Error(`public.users upsert failed: ${upUsersErr.message}`);
+      
+     
 
       if (tenant_id) {
         let parentRoleId: number | null = null;
@@ -420,7 +424,7 @@ export const approveParentSignupRequest = onRequest(
           .from('tenant_users')
           .upsert(
             { tenant_id, uid, role_in_tenant: 'parent', role_id: parentRoleId, is_active: true },
-            { onConflict: 'tenant_id,uid,role_in_tenant' }
+            { onConflict: 'tenant_id,uid,role_in_tenant' ,  ignoreDuplicates: true, }
           );
         if (tuErr) throw new Error(`public.tenant_users upsert failed: ${tuErr.message}`);
       }
@@ -441,7 +445,8 @@ export const approveParentSignupRequest = onRequest(
             message_preferences,
             is_active: true,
           },
-          { onConflict: 'uid' }
+          { onConflict: 'uid' ,       ignoreDuplicates: true, 
+}
         );
       if (parentErr) throw new Error(`parents upsert failed: ${parentErr.message}`);
 

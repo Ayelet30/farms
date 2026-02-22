@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, inject, signal } from '@angular/core';
+import { Component, Input, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/legacy-compat';
@@ -7,6 +7,7 @@ import { ensureTenantContextReady } from '../../services/supabaseClient.service'
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { getAuth } from 'firebase/auth';
 import { RequestValidationService } from '../../services/request-validation.service';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 
 type CancelDetails = {
@@ -28,7 +29,7 @@ type ToastKind = 'success' | 'error' | 'info';
 @Component({
   selector: 'app-request-cancel-occurrence-details',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule],
+  imports: [CommonModule, FormsModule, MatSnackBarModule ,MatProgressSpinnerModule],
   templateUrl: './request-cancel-occurrence-details.component.html',
   styleUrls: ['./request-cancel-occurrence-details.component.scss'],
 })
@@ -42,6 +43,15 @@ export class RequestCancelOccurrenceDetailsComponent implements OnInit {
 @Input() bulkMode = false;
 public bulkWarning: string | null = null;
 private validator = inject(RequestValidationService);
+busy = signal(false);
+action = signal<'approve' | 'reject' | null>(null);
+busyText = computed(() => {
+  switch (this.action()) {
+    case 'approve': return 'הבקשה בתהליך אישור…';
+    case 'reject':  return 'הבקשה בתהליך דחייה…';
+    default:        return 'מעבד…';
+  }
+});
 
 private showSnack(msg: string, type: 'success' | 'error') {
   if (this.bulkMode && type === 'success') return; // ✅ בבאלק לא להציג הצלחות
@@ -107,6 +117,8 @@ private tenantSvc = inject(SupabaseTenantService);
 
   async approve() {
   if (this.loading()) return;
+    this.action.set('approve');     
+
   this.loading.set(true);
  const v = await this.validator.validate(this.request, 'approve');
 if (!v.ok) {
@@ -189,10 +201,14 @@ if (mailOk === false) {
     this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
   } finally {
     this.loading.set(false);
+      this.action.set(null);            
+
   }
 }
 async reject() {
   if (this.loading()) return;
+    this.action.set('reject');        
+
   this.loading.set(true);
  const v = await this.validator.validate(this.request, 'reject');
 if (!v.ok) {
@@ -272,6 +288,8 @@ this.onRejected?.({
     this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
   } finally {
     this.loading.set(false);
+    this.action.set(null);               
+
   }
 }
 private async rejectBySystem(reason: string): Promise<void> {
