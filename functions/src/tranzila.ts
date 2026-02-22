@@ -8,9 +8,7 @@ import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
 import { ensureTranzilaInvoiceForPaymentInternal } from './tranzilaInvoices';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
-import {
-  GMAIL_MASTER_KEY_S,
-} from "./gmail/email-core";
+
 
 
 // ===== Local env for emulator only =====

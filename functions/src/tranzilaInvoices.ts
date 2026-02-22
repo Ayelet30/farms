@@ -7,7 +7,6 @@ import {
   sendEmailCore,
   SUPABASE_URL_S,
   SUPABASE_KEY_S,
-  GMAIL_MASTER_KEY_S,
 } from "./gmail/email-core";
 
 
@@ -196,12 +195,11 @@ async function saveInvoicePdfToSupabase(params: {
 export const ensureTranzilaInvoiceForPayment = onRequest(
   {
     invoker: "public",
-    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_APP_KEY_S, TRANZILA_SECRET_S, GMAIL_MASTER_KEY_S ],
+    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_APP_KEY_S, TRANZILA_SECRET_S ],
   },
   
   async (req, res) => {
     console.log("[ensureTranzilaInvoiceForPayment] secrets check:", {
-  masterLen: (GMAIL_MASTER_KEY_S.value() || "").length,
   hasSupabaseUrl: !!SUPABASE_URL_S.value(),
 });
 
@@ -215,7 +213,6 @@ export const ensureTranzilaInvoiceForPayment = onRequest(
         return;
       }
 console.log("[ensureTranzilaInvoiceForPayment] revision check", new Date().toISOString());
-console.log("GMAIL_MASTER_KEY length (handler):", (GMAIL_MASTER_KEY_S.value() || "").length);
 
       const out = await ensureTranzilaInvoiceForPaymentInternal({ tenantSchema, paymentId });
       res.json(out);
@@ -242,7 +239,6 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
   tranzila_pdf_url: string;
   public_invoice_url: string | null;
 }> {
-  console.log("GMAIL_MASTER_KEY length:", (GMAIL_MASTER_KEY_S.value() || "").length);
 
   const { tenantSchema, paymentId } = args;
 const extra = (args.extraLineText ?? '').trim();

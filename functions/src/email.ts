@@ -8,9 +8,10 @@ import { sendEmailCore } from './gmail/email-core';
 import {
   SUPABASE_URL_S,
   SUPABASE_KEY_S,
-  GMAIL_MASTER_KEY_S,
+  GMAIL_REFRESH_TOKEN_S,
+  GMAIL_CLIENT_ID_S,
+  GMAIL_CLIENT_SECRET_S,
 } from './gmail/email-core';
-
 
 
 if (!admin.apps.length) admin.initializeApp();
@@ -92,11 +93,13 @@ export const sendEmailGmail = onRequest(
   {
     region: 'us-central1',
     secrets: [
-      SUPABASE_URL_S,
-      SUPABASE_KEY_S,
-      GMAIL_MASTER_KEY_S,
-      INTERNAL_CALL_SECRET_S,
-    ],
+    SUPABASE_URL_S,
+    SUPABASE_KEY_S,
+    GMAIL_REFRESH_TOKEN_S,
+    GMAIL_CLIENT_ID_S,
+    GMAIL_CLIENT_SECRET_S,
+    INTERNAL_CALL_SECRET_S,
+  ],
   },
   async (req, res) => {
     if (applyCors(req, res)) return;
@@ -116,9 +119,6 @@ export const sendEmailGmail = onRequest(
 
       const tenantSchema = normStr(body.tenantSchema, 120);
       if (!tenantSchema) return void res.status(400).json({ error: 'Missing "tenantSchema"' });
-
-const masterKey = envOrSecret(GMAIL_MASTER_KEY_S, 'GMAIL_MASTER_KEY');
-      if (!masterKey) throw new Error('Missing GMAIL_MASTER_KEY');
 
       const to = asArray(body.to).map(s => s.trim()).filter(Boolean);
       const cc = asArray(body.cc).map(s => s.trim()).filter(Boolean);
