@@ -11,6 +11,7 @@ import {
   GMAIL_REFRESH_TOKEN_S,
   GMAIL_CLIENT_ID_S,
   GMAIL_CLIENT_SECRET_S,
+  GMAIL_SENDER_EMAIL_S,
 } from './gmail/email-core';
 
 
@@ -98,6 +99,7 @@ export const sendEmailGmail = onRequest(
     GMAIL_REFRESH_TOKEN_S,
     GMAIL_CLIENT_ID_S,
     GMAIL_CLIENT_SECRET_S,
+    GMAIL_SENDER_EMAIL_S,
     INTERNAL_CALL_SECRET_S,
   ],
   },
@@ -156,9 +158,8 @@ export const sendEmailGmail = onRequest(
         html: html || undefined,
         replyTo,
         attachments: rawAtt, // מגיע עם contentBase64 מהקליינט
-        fromName: 'Smart Farm',
+        fromName: 'Smart-Farm',
       });
-console.log("RESULT:" + result +"!!!!!!111"); 
       return void res.status(200).json({
         ...result,
         sentBy: decoded.uid,

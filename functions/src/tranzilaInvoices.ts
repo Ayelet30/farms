@@ -562,7 +562,7 @@ try {
           contentBase64: pdfBase64, // ✅
         },
       ],
-      fromName: "Smart Farm",
+      fromName: "Smart-Farm",
     });
   }
 } catch (err: any) {

@@ -10,6 +10,8 @@ export const SUPABASE_KEY_S = defineSecret('SUPABASE_SERVICE_KEY');
 export const GMAIL_REFRESH_TOKEN_S = defineSecret('GMAIL_REFRESH_TOKEN');
 export const GMAIL_CLIENT_ID_S = defineSecret('GMAIL_CLIENT_ID');
 export const GMAIL_CLIENT_SECRET_S = defineSecret('GMAIL_CLIENT_SECRET');
+export const GMAIL_SENDER_EMAIL_S = defineSecret('GMAIL_SENDER');
+
 
 function envOrSecret(s: ReturnType<typeof defineSecret>, name: string) {
   return s.value() || process.env[name];
@@ -148,8 +150,11 @@ export async function sendEmailCore(args: SendEmailCoreArgs) {
   const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
   // שולח “מאותו אחד”: ניקח את המייל של החשבון המחובר בפועל
-  const profile = await gmail.users.getProfile({ userId: 'me' });
-  const senderEmail = normStr(profile.data.emailAddress, 200);
+  const senderEmail = normStr(envOrSecret(GMAIL_SENDER_EMAIL_S, 'GMAIL_SENDER_EMAIL'), 200);
+if (!senderEmail || !looksLikeEmail(senderEmail)) {
+  throw new Error('Missing/invalid GMAIL_SENDER_EMAIL secret');
+}
+
   if (!senderEmail || !looksLikeEmail(senderEmail)) {
     throw new Error('Could not determine sender email from Gmail profile');
   }

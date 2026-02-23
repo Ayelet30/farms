@@ -70,6 +70,8 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
   busy = signal(false);
 action = signal<'approve' | 'reject' | null>(null);
 
+isCreateBillingCharge = signal(false);
+
 busyText = computed(() => {
   switch (this.action()) {
     case 'approve': return 'הבקשה בתהליך אישור…';
@@ -81,7 +83,7 @@ busyText = computed(() => {
   loading = signal(false);
   details = signal<AddChildDetails | null>(null);
   decisionNote = '';
-private validator = inject(RequestValidationService);
+  private validator = inject(RequestValidationService);
 private async rejectBySystem(reason: string): Promise<void> {
   // עדכון אטומי: רק אם עדיין PENDING
   const { data, error } = await this.db
@@ -120,6 +122,8 @@ private async rejectBySystem(reason: string): Promise<void> {
 
   async ngOnInit() {
     await this.loadDetails();
+    await this.loadFarmSettings();
+
   }
 
   async ngOnChanges(changes: SimpleChanges) {
@@ -132,6 +136,19 @@ private async rejectBySystem(reason: string): Promise<void> {
       }
     }
   }
+ private async loadFarmSettings() {
+  const { data, error } = await this.db
+    .from('farm_settings')
+    .select('iscreatebillingcharge')
+    .maybeSingle();
+
+  if (error) {
+    console.error('loadFarmSettings error', error);
+    return;
+  }
+
+  this.isCreateBillingCharge.set(!!data?.iscreatebillingcharge);
+}
 
   async loadDetails() {
     this.loading.set(true);
@@ -233,6 +250,7 @@ private async rejectBySystem(reason: string): Promise<void> {
         p_request_id: this.request.id,
         p_decided_by_uid: this.decidedByUid,
         p_decision_note: this.decisionNote || null,
+        //
       });
       if (error) throw error;
 
