@@ -8,7 +8,11 @@ import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL_S, SUPABASE_KEY_S } from './gmail/email-core';
 
 if (!admin.apps.length) admin.initializeApp();
-
+type EmailAttachment = {
+  filename: string;
+  contentType: string;
+  contentBase64: string; // base64 בלבד
+};
 // ===== Secrets =====
 const INTERNAL_CALL_SECRET_S = defineSecret('INTERNAL_CALL_SECRET');
 
@@ -126,8 +130,14 @@ export const notifyUser = onRequest(
       const subject = normStr(body.subject, 200);
       const html = normStr(body.html, 80000);
       const text = normStr(body.text, 20000);
-
-      const toOverride = body.to ? String(body.to).trim() : null;
+const attachmentsRaw = Array.isArray(body.attachments) ? body.attachments : [];
+const attachments: EmailAttachment[] = attachmentsRaw
+  .map((a: any) => ({
+    filename: normStr(a?.filename, 200),
+    contentType: normStr(a?.contentType, 100),
+    contentBase64: normStr(a?.contentBase64, 15_000_000), // הגבלה גסה כדי לא לקבל מפלצות
+  }))
+.filter((a: EmailAttachment) => a.filename && a.contentType && a.contentBase64);      const toOverride = body.to ? String(body.to).trim() : null;
 
       if (!tenantSchema) return void res.status(400).json({ error: 'Missing "tenantSchema"' });
       if (!validateTenantSchema(tenantSchema)) return void res.status(400).json({ error: 'Invalid tenantSchema' });
@@ -221,8 +231,9 @@ export const notifyUser = onRequest(
         subject,
         html: html || undefined,
         text: text || undefined,
+        attachments: attachments.length ? attachments : undefined,
+
       };
-console.log("PAYLOAD : " + payload); 
       const r = await fetch(SEND_EMAIL_GMAIL_URL, {
         method: 'POST',
         headers: {
