@@ -71,6 +71,8 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
   busy = signal(false);
 action = signal<'approve' | 'reject' | null>(null);
 private tenantSvc = inject(SupabaseTenantService);
+isCreateBillingCharge = signal(false);
+
 busyText = computed(() => {
   switch (this.action()) {
     case 'approve': return 'הבקשה בתהליך אישור…';
@@ -121,7 +123,7 @@ private getChildIdFromRequest(): string | null {
   loading = signal(false);
   details = signal<AddChildDetails | null>(null);
   decisionNote = '';
-private validator = inject(RequestValidationService);
+  private validator = inject(RequestValidationService);
 private async rejectBySystem(reason: string): Promise<void> {
   await this.reject({ source: 'system', reason });
 }
@@ -133,7 +135,9 @@ private async rejectBySystem(reason: string): Promise<void> {
 
   async ngOnInit() {
     await this.loadDetails();
+    await this.loadFarmSettings();
   }
+  
 private async callCloud(action: 'approve' | 'reject', extra?: { system?: boolean }) {
   const url =
     action === 'approve'
@@ -173,6 +177,19 @@ private async callCloud(action: 'approve' | 'reject', extra?: { system?: boolean
       }
     }
   }
+ private async loadFarmSettings() {
+  const { data, error } = await this.db
+    .from('farm_settings')
+    .select('iscreatebillingcharge')
+    .maybeSingle();
+
+  if (error) {
+    console.error('loadFarmSettings error', error);
+    return;
+  }
+
+  this.isCreateBillingCharge.set(!!data?.iscreatebillingcharge);
+}
 
   async loadDetails() {
     this.loading.set(true);
