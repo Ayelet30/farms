@@ -947,12 +947,20 @@ function escapeHtml(s: string) {
  * - בהצלחה: updates charges + inserts payments + generates receipt url
  * - בכשלון בכל הכרטיסים: מסמן failed + שולח מייל למזכירה
  */
+const GMAIL_REFRESH_TOKEN_S = defineSecret('GMAIL_REFRESH_TOKEN');
+const GMAIL_CLIENT_ID_S = defineSecret('GMAIL_CLIENT_ID');
+const GMAIL_CLIENT_SECRET_S = defineSecret('GMAIL_CLIENT_SECRET');
+const INTERNAL_CALL_SECRET_S = defineSecret('INTERNAL_CALL_SECRET');
 export const chargeSelectedChargesForParent = onRequest(
   {
     invoker: 'public',
     secrets: [
       SUPABASE_URL_S,
       SUPABASE_KEY_S,
+      GMAIL_REFRESH_TOKEN_S,
+      GMAIL_CLIENT_ID_S,
+      GMAIL_CLIENT_SECRET_S,
+      INTERNAL_CALL_SECRET_S,
 
       // סודות טרנזילה (אל תורידי – צריך שיהיו זמינים ב-runtime)
       TRANZILA_PASSWORD_S,
