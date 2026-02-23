@@ -79,7 +79,7 @@ export class ChildTermsSignComponent implements OnInit {
       this.doc.set(data as any);
 
       const bucket = (data as any).storage_bucket as string;   // "farm-docs"
-      const path   = (data as any).storage_path as string;     // "moacha_atarim_app/terms/v1.pdf"
+      const path   = (data as any).storage_path as string;   
 
       const client = getSupabaseClient();
 
@@ -153,7 +153,7 @@ const signedBucket = 'signed-docs';
 // path לפי חווה/ילד/גרסה
 const safeChild = this.childId;
 const path = `${doc.storage_path.replace(/\/[^\/]+$/, '')}/signed/${safeChild}/terms_v${doc.version}.pdf`;
-// לדוגמה: moacha_atarim_app/terms/signed/<child_uuid>/terms_v1.pdf
+
 
 console.log('!!!!!Uploading signed PDF to path:', path);
 await this.uploadSignedPdf(signedBytes, signedBucket, path);

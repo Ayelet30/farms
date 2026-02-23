@@ -1,12 +1,17 @@
 import { defineSecret } from 'firebase-functions/params';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { google } from 'googleapis';
-import { decryptRefreshToken } from './crypto-gmail';
 import { buildRawEmail, GmailAttachment } from './mime';
 
+/** ===== Secrets ===== */
 export const SUPABASE_URL_S = defineSecret('SUPABASE_URL');
 export const SUPABASE_KEY_S = defineSecret('SUPABASE_SERVICE_KEY');
-export const GMAIL_MASTER_KEY_S = defineSecret('GMAIL_MASTER_KEY');
+
+export const GMAIL_REFRESH_TOKEN_S = defineSecret('GMAIL_REFRESH_TOKEN');
+export const GMAIL_CLIENT_ID_S = defineSecret('GMAIL_CLIENT_ID');
+export const GMAIL_CLIENT_SECRET_S = defineSecret('GMAIL_CLIENT_SECRET');
+export const GMAIL_SENDER_EMAIL_S = defineSecret('GMAIL_SENDER');
+
 
 function envOrSecret(s: ReturnType<typeof defineSecret>, name: string) {
   return s.value() || process.env[name];
@@ -38,34 +43,39 @@ function looksLikeEmail(s: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
-type GmailIdentityRow = {
-  tenant_schema: string;
-  sender_email: string | null;
+async function getFarmPrimaryEmail(tenantSchema: string): Promise<string | undefined> {
+  // קורא מתוך הסכמה של החווה עצמה
+  const sbTenant = getSupabase(tenantSchema);
 
-  gmail_refresh_token_enc: string | null;
-  gmail_refresh_token_iv: string | null;
-  gmail_refresh_token_tag: string | null;
+  const { data, error } = await sbTenant
+    .from('farm_settings')
+    .select('main_mail')
+    .limit(1)
+    .maybeSingle<{ main_mail: string | null }>();
 
-  gmail_client_id: string;
-  gmail_client_secret_enc: string;
-  gmail_client_secret_iv: string;
-  gmail_client_secret_tag: string;
+  if (error) {
+    // אם תרצי אפשר להחמיר ל-throw, אבל עדיף לא להפיל שליחת מייל
+    console.warn(`farm_settings.main_mail query failed for ${tenantSchema}: ${error.message}`);
+    return undefined;
+  }
 
-  redirect_uri: string | null;
-};
+  const em = normStr(data?.main_mail, 200);
+  if (em && looksLikeEmail(em)) return em;
+
+  return undefined;
+}
+
 
 export type SendEmailCoreArgs = {
   tenantSchema: string;
-
   to: string[] | string;
   cc?: string[] | string;
   bcc?: string[] | string;
-
   subject: string;
   text?: string;
   html?: string;
 
-  /** אם לא תשלחי replyTo – התשובות יחזרו ל-From (sender_email) */
+  /** אם לא תשלחי replyTo – ננסה להביא מה־DB את האימייל הראשי של החווה */
   replyTo?: string;
 
   attachments?: Array<{
@@ -89,65 +99,31 @@ export async function sendEmailCore(args: SendEmailCoreArgs) {
   const subject = normStr(args.subject, 200);
   const text = normStr(args.text, 20000);
   const html = normStr(args.html, 80000);
-  const replyTo = normStr(args.replyTo, 200) || undefined;
 
   if (!to.length) throw new Error('Missing "to"');
   if (!subject) throw new Error('Missing "subject"');
   if (!text && !html) throw new Error('Provide "text" or "html"');
-
   if (![...to, ...cc, ...bcc].every(looksLikeEmail)) throw new Error('Invalid email in to/cc/bcc');
+
+  // Reply-To: או מהבקשה, או מה־DB לפי החווה
+  let replyTo = normStr(args.replyTo, 200) || '';
   if (replyTo && !looksLikeEmail(replyTo)) throw new Error('Invalid replyTo');
-
-  const masterKey = envOrSecret(GMAIL_MASTER_KEY_S, 'GMAIL_MASTER_KEY');
-  if (!masterKey) throw new Error('Missing GMAIL_MASTER_KEY');
-
-  // 1) identity (public) => sender_email + refresh token + client credentials
-  const sbPublic = getSupabase('public');
-  const { data: ident, error: identErr } = await sbPublic
-    .from('gmail_identities')
-    .select(`
-      tenant_schema,
-      sender_email,
-      gmail_refresh_token_enc,
-      gmail_refresh_token_iv,
-      gmail_refresh_token_tag,
-      gmail_client_id,
-      gmail_client_secret_enc,
-      gmail_client_secret_iv,
-      gmail_client_secret_tag,
-      redirect_uri
-    `)
-    .eq('tenant_schema', tenantSchema)
-    .maybeSingle<GmailIdentityRow>();
-
-  if (identErr) throw new Error(`gmail_identities query failed: ${identErr.message}`);
-  if (!ident) throw new Error(`Missing gmail identity for tenant: ${tenantSchema}`);
-
-  const senderEmail = normStr(ident.sender_email, 200);
-  if (!senderEmail || !looksLikeEmail(senderEmail)) throw new Error('gmail_identities.sender_email missing/invalid');
-
-  if (!ident.gmail_refresh_token_enc || !ident.gmail_refresh_token_iv || !ident.gmail_refresh_token_tag) {
-    throw new Error('Gmail refresh token not connected for this farm');
+  if (!replyTo) {
+    const farmEmail = await getFarmPrimaryEmail(tenantSchema);
+    if (farmEmail) replyTo = farmEmail;
   }
+  const replyToFinal = replyTo || undefined;
 
-  const refreshToken = decryptRefreshToken(
-    ident.gmail_refresh_token_enc,
-    ident.gmail_refresh_token_iv,
-    ident.gmail_refresh_token_tag,
-    masterKey
-  );
+  // ===== OAuth (Secrets בלבד) =====
+  const refreshToken = normStr(envOrSecret(GMAIL_REFRESH_TOKEN_S, 'GMAIL_REFRESH_TOKEN'), 5000);
+  const clientId = normStr(envOrSecret(GMAIL_CLIENT_ID_S, 'GMAIL_CLIENT_ID'), 2000);
+  const clientSecret = normStr(envOrSecret(GMAIL_CLIENT_SECRET_S, 'GMAIL_CLIENT_SECRET'), 2000);
 
-  const clientId = normStr(ident.gmail_client_id, 500);
-  if (!clientId) throw new Error('gmail_identities.gmail_client_id missing');
+  if (!refreshToken) throw new Error('Missing GMAIL_REFRESH_TOKEN secret');
+  if (!clientId) throw new Error('Missing GMAIL_CLIENT_ID secret');
+  if (!clientSecret) throw new Error('Missing GMAIL_CLIENT_SECRET secret');
 
-  const clientSecret = decryptRefreshToken(
-    ident.gmail_client_secret_enc,
-    ident.gmail_client_secret_iv,
-    ident.gmail_client_secret_tag,
-    masterKey
-  );
-
-  // 2) attachments
+  // ===== attachments =====
   const rawAtt = Array.isArray(args.attachments) ? args.attachments : [];
   if (rawAtt.length > 5) throw new Error('Too many attachments (max 5)');
 
@@ -156,22 +132,32 @@ export async function sendEmailCore(args: SendEmailCoreArgs) {
     const contentType = normStr(a?.contentType, 120) || undefined;
 
     let content: Buffer | null = null;
-
     if (a?.content && Buffer.isBuffer(a.content)) content = a.content;
     else if (a?.contentBase64) {
       const s = String(a.contentBase64);
       if (s.length > 6_000_000) throw new Error(`Attachment too large: ${filename}`);
       content = Buffer.from(s, 'base64');
     }
-
     if (!content) throw new Error(`Attachment missing content: ${filename}`);
+
     return { filename, contentType, content };
   });
 
-  // 3) Gmail OAuth + send
-  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, ident.redirect_uri || undefined);
+  // ===== Gmail send =====
+  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
   oauth2Client.setCredentials({ refresh_token: refreshToken });
+
   const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+  // שולח “מאותו אחד”: ניקח את המייל של החשבון המחובר בפועל
+  const senderEmail = normStr(envOrSecret(GMAIL_SENDER_EMAIL_S, 'GMAIL_SENDER_EMAIL'), 200);
+if (!senderEmail || !looksLikeEmail(senderEmail)) {
+  throw new Error('Missing/invalid GMAIL_SENDER_EMAIL secret');
+}
+
+  if (!senderEmail || !looksLikeEmail(senderEmail)) {
+    throw new Error('Could not determine sender email from Gmail profile');
+  }
 
   const fromName = (args.fromName && normStr(args.fromName, 80)) || 'Smart Farm';
 
@@ -183,11 +169,14 @@ export async function sendEmailCore(args: SendEmailCoreArgs) {
     subject,
     text: text || undefined,
     html: html || undefined,
-    replyTo,
+    replyTo: replyToFinal,
     attachments: attachments.length ? attachments : undefined,
   });
 
-  const r = await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
+  const r = await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: { raw },
+  });
 
   return {
     ok: true,
@@ -195,5 +184,6 @@ export async function sendEmailCore(args: SendEmailCoreArgs) {
     threadId: r.data.threadId,
     tenant: tenantSchema,
     from: senderEmail,
+    replyTo: replyToFinal || null,
   };
 }

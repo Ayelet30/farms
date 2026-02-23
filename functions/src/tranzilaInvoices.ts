@@ -7,7 +7,6 @@ import {
   sendEmailCore,
   SUPABASE_URL_S,
   SUPABASE_KEY_S,
-  GMAIL_MASTER_KEY_S,
 } from "./gmail/email-core";
 
 
@@ -16,7 +15,7 @@ import {
 
 const TRANZILA_APP_KEY_S = defineSecret("TRANZILA_APP_KEY");
 const TRANZILA_SECRET_S = defineSecret("TRANZILA_SECRET");
-
+const INTERNAL_CALL_SECRET_S = defineSecret("INTERNAL_CALL_SECRET");
 
 
 function vatPercentByDate(docDate: string) {
@@ -78,7 +77,8 @@ type ParentCreditRow = {
   related_charge_id: string | null;
   created_at: string | null;
 };
-
+const NOTIFY_USER_URL =
+  "https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifyUser";
 // ===== Helpers =====
 async function getFarmNameBySchema(tenantSchema: string): Promise<string> {
   const sbPublic = getSupabaseForTenant("public");
@@ -128,7 +128,59 @@ function buildTranzilaAuth() {
 
   return { appKey, requestTime, nonce, accessToken };
 }
+async function sendInvoiceViaNotifyUser(params: {
+  tenantSchema: string;
+  parentUid: string;
+  parentFullName: string;
+  documentNumber: string | null;
+  farmName: string;
+  pdfBuffer: Buffer;
+}) {
+  const { tenantSchema, parentUid, parentFullName, documentNumber, farmName, pdfBuffer } = params;
 
+  const internalSecret = envOrSecret(INTERNAL_CALL_SECRET_S, "INTERNAL_CALL_SECRET");
+  if (!internalSecret) throw new Error("Missing INTERNAL_CALL_SECRET");
+
+  const pdfBase64 = pdfBuffer.toString("base64");
+
+  const notifyPayload = {
+    tenantSchema,
+    userType: "parent",
+    uid: parentUid,
+    subject: `חשבונית ${documentNumber ?? ""}`.trim(),
+    html: `
+      <div dir="rtl" style="font-family: Arial, sans-serif">
+        <p>שלום ${parentFullName},</p>
+        <p>מצורפת החשבונית עבור התשלום שבוצע.</p>
+        <p>תודה,<br/>חוות ${farmName}</p>
+      </div>
+    `.trim(),
+    attachments: [
+      {
+        filename: `invoice-${documentNumber ?? "payment"}.pdf`,
+        contentType: "application/pdf",
+        contentBase64: pdfBase64,
+      },
+    ],
+  };
+
+  const r = await fetch(NOTIFY_USER_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Internal-Secret": internalSecret,
+    },
+    body: JSON.stringify(notifyPayload),
+  });
+
+  const j: any = await r.json().catch(() => ({}));
+
+  // לוג קצר שיעזור לך להבין למה לא נשלח
+  console.log("[notifyUser] response", { status: r.status, sent: j?.sent, reason: j?.reason, to: j?.to });
+
+  if (!r.ok) throw new Error(`notifyUser failed: ${j?.message || j?.error || r.statusText}`);
+  return j;
+}
 async function loadDefaultBillingTerminal(sbTenant: SupabaseClient): Promise<BillingTerminalRow> {
   const { data, error } = await sbTenant
     .from("billing_terminals")
@@ -196,12 +248,11 @@ async function saveInvoicePdfToSupabase(params: {
 export const ensureTranzilaInvoiceForPayment = onRequest(
   {
     invoker: "public",
-    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_APP_KEY_S, TRANZILA_SECRET_S, GMAIL_MASTER_KEY_S ],
+    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, TRANZILA_APP_KEY_S, TRANZILA_SECRET_S ,INTERNAL_CALL_SECRET_S],
   },
   
   async (req, res) => {
     console.log("[ensureTranzilaInvoiceForPayment] secrets check:", {
-  masterLen: (GMAIL_MASTER_KEY_S.value() || "").length,
   hasSupabaseUrl: !!SUPABASE_URL_S.value(),
 });
 
@@ -215,7 +266,6 @@ export const ensureTranzilaInvoiceForPayment = onRequest(
         return;
       }
 console.log("[ensureTranzilaInvoiceForPayment] revision check", new Date().toISOString());
-console.log("GMAIL_MASTER_KEY length (handler):", (GMAIL_MASTER_KEY_S.value() || "").length);
 
       const out = await ensureTranzilaInvoiceForPaymentInternal({ tenantSchema, paymentId });
       res.json(out);
@@ -242,7 +292,6 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
   tranzila_pdf_url: string;
   public_invoice_url: string | null;
 }> {
-  console.log("GMAIL_MASTER_KEY length:", (GMAIL_MASTER_KEY_S.value() || "").length);
 
   const { tenantSchema, paymentId } = args;
 const extra = (args.extraLineText ?? '').trim();
@@ -261,21 +310,100 @@ const extra = (args.extraLineText ?? '').trim();
   if (!pay) throw new Error("payment not found");
 
   const payment = pay as PaymentRow;
+  // ===== 2) Load parent (מוקדם כדי שיהיה גם ב-from_cache) =====
+let parentFullName = "הורה";
+let parentIdNumber: string | null = null;
+let parentEmail: string | null = null;
+
+if (payment.parent_uid) {
+  const { data: parent, error: parentErr } = await sb
+    .from("parents")
+    .select("uid, first_name, last_name, id_number, email")
+    .eq("uid", payment.parent_uid)
+    .maybeSingle();
+  if (parentErr) throw new Error(`parents query failed: ${parentErr.message}`);
+
+  const pr = parent as ParentRow | null;
+  parentFullName = safeFullName(pr?.first_name, pr?.last_name);
+  parentIdNumber = pr?.id_number ?? null;
+}
 
   // Cache hit
-  if (payment.tranzila_retrieval_key) {
-    const url = `https://my.tranzila.com/api/get_financial_document/${payment.tranzila_retrieval_key}`;
-    return {
-      ok: true,
-      from_cache: true,
-      document_id: payment.tranzila_document_id ?? null,
-      document_number: payment.tranzila_document_number ?? null,
-      retrieval_key: payment.tranzila_retrieval_key,
-      tranzila_pdf_url: url,
-      public_invoice_url: (payment as any).invoice_url ?? null,
-    };
+  
+// Cache hit
+if (payment.tranzila_retrieval_key) {
+  const tranzilaPdfUrl = `https://my.tranzila.com/api/get_financial_document/${payment.tranzila_retrieval_key}`;
+
+  // 1) ננסה קודם להוריד מה-Storage אם כבר שמור שם
+  let pdfBuffer: Buffer | null = null;
+
+  const bucket = (pay as any).invoice_storage_bucket as string | null | undefined;
+  const path   = (pay as any).invoice_storage_path as string | null | undefined;
+
+  if (bucket && path) {
+    const { data, error } = await sb.storage.from(bucket).download(path);
+    if (!error && data) {
+      pdfBuffer = Buffer.from(await data.arrayBuffer());
+    } else {
+      console.warn("[from_cache] storage download failed, fallback to Tranzila", error?.message);
+    }
   }
 
+  // 2) אם לא הצלחנו מה-Storage – נביא מטרנזילה, ונשמור ל-Storage (כדי שבפעם הבאה יהיה)
+  if (!pdfBuffer) {
+    const pdfResp = await fetch(tranzilaPdfUrl);
+    if (!pdfResp.ok) throw new Error(`failed to fetch invoice pdf (cache): HTTP ${pdfResp.status}`);
+    pdfBuffer = Buffer.from(await pdfResp.arrayBuffer());
+
+    const paymentDate = payment.date ?? new Date().toISOString().slice(0, 10);
+
+    const stored = await saveInvoicePdfToSupabase({
+      sb,
+      tenantSchema,
+      paymentId,
+      invoiceUrl: tranzilaPdfUrl,
+      paymentDate,
+    });
+
+    const { data: pub } = sb.storage.from(stored.bucket).getPublicUrl(stored.path);
+    const publicInvoiceUrl = (pub as any).publicUrl + "?v=" + Date.now();
+
+    await sb.from("payments").update({
+      invoice_url: (payment as any).invoice_url ?? publicInvoiceUrl, // אם כבר יש – לא לדרוס
+      invoice_storage_bucket: stored.bucket,
+      invoice_storage_path: stored.path,
+      invoice_updated_at: new Date().toISOString(),
+    }).eq("id", paymentId);
+  }
+
+  // 3) שליחה דרך notifyUser
+  try {
+    if (payment.parent_uid && pdfBuffer) {
+      const farmName = await getFarmNameBySchema(tenantSchema);
+
+      await sendInvoiceViaNotifyUser({
+        tenantSchema,
+        parentUid: payment.parent_uid,
+        parentFullName,
+        documentNumber: payment.tranzila_document_number ? String(payment.tranzila_document_number) : null,
+        farmName,
+        pdfBuffer,
+      });
+    }
+  } catch (err: any) {
+    console.error(`[ensureInvoiceInternal][${rid}] notifyUser mail failed (from_cache)`, err?.message || err);
+  }
+
+  return {
+    ok: true,
+    from_cache: true,
+    document_id: payment.tranzila_document_id ?? null,
+    document_number: payment.tranzila_document_number ?? null,
+    retrieval_key: payment.tranzila_retrieval_key,
+    tranzila_pdf_url: tranzilaPdfUrl,
+    public_invoice_url: (payment as any).invoice_url ?? null,
+  };
+}
   // מניעת כפילויות
   if ((payment as any).invoice_status === "generating") {
     throw new Error("invoice is generating, try again in a moment");
@@ -331,27 +459,6 @@ const extra = (args.extraLineText ?? '').trim();
       .maybeSingle();
     if (profErr) throw new Error(`payment_profiles query failed: ${profErr.message}`);
     ccLast4 = (prof?.last4 ?? "").trim().slice(-4) || undefined;
-  }
-
-  // ===== 2) Load parent =====
-  let parentFullName = "הורה";
-  let parentIdNumber: string | null = null;
-  let parentEmail: string | null = null;
-
-  if (payment.parent_uid) {
-    const { data: parent, error: parentErr } = await sb
-      .from("parents")
-      .select("uid, first_name, last_name, id_number, email")
-      .eq("uid", payment.parent_uid)
-      .maybeSingle();
-    if (parentErr) throw new Error(`parents query failed: ${parentErr.message}`);
-
-    const pr = parent as ParentRow | null;
-    parentFullName = safeFullName(pr?.first_name, pr?.last_name);
-    parentIdNumber = pr?.id_number ?? null;
-    parentEmail = pr?.email ?? null;
-    console.log("P:" +parentEmail+"!!!!"); 
-    console.log("PR:" +pr +"!!!!!!!1"); 
   }
 
   // ===== 3) lesson items =====
@@ -536,43 +643,27 @@ if (extra) {
 
   
 try {
-  if (parentEmail) {
+  if (payment.parent_uid) {
     const farmName = await getFarmNameBySchema(tenantSchema);
 
-    // 1) הורדת PDF מה-storage
     const { data, error } = await sb.storage.from(stored.bucket).download(stored.path);
     if (error) throw new Error(`Failed to download invoice PDF: ${error.message}`);
     if (!data) throw new Error("Invoice PDF is empty");
 
     const pdfBuffer = Buffer.from(await data.arrayBuffer());
-    const pdfBase64 = pdfBuffer.toString("base64");
 
-    // 2) שליחה דרך core (בלי HTTP)
-    await sendEmailCore({     
+    await sendInvoiceViaNotifyUser({
       tenantSchema,
-      to: [parentEmail],
-      subject: `חשבונית ${documentNumber ?? ""}`.trim(),
-      html: `
-        <div dir="rtl" style="font-family: Arial, sans-serif">
-          <p>שלום ${parentFullName},</p>
-          <p>מצורפת החשבונית עבור התשלום שבוצע.</p>
-          <p>תודה,<br/>חוות ${farmName}</p>
-        </div>
-      `.trim(),
-      attachments: [
-        {
-          filename: `invoice-${documentNumber ?? "payment"}.pdf`,
-          contentType: "application/pdf",
-          contentBase64: pdfBase64, // ✅
-        },
-      ],
-      fromName: "Smart Farm",
+      parentUid: payment.parent_uid,
+      parentFullName,
+      documentNumber: documentNumber ? String(documentNumber) : null,
+      farmName,
+      pdfBuffer,
     });
   }
 } catch (err: any) {
-  console.error(`[ensureInvoiceInternal][${rid}] mail failed`, err?.message || err);
+  console.error(`[ensureInvoiceInternal][${rid}] notifyUser mail failed`, err?.message || err);
 }
-
   return {
     ok: true,
     from_cache: false,

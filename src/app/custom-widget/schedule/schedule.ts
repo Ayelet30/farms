@@ -162,6 +162,11 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
      timeZone: 'local',
     events: [],
     resources: [],
+    slotEventOverlap: true,      // נשאר side-by-side (לא stack לגובה)
+    eventMaxStack: 4,            // שיראה עד 4 באותו סלוט
+    eventMinHeight: 34,          // שלא יהפוך לפס דק
+    eventShortHeight: 34,        // שומר גובה מינימלי גם כשצפוף
+
     dayHeaderContent: this.dayHeaderContentFactory(),
 
 

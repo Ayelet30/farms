@@ -19,7 +19,13 @@ const ALLOWED_ORIGINS = new Set<string>([
   'http://localhost:4200',
   'https://localhost:4200',
 ]);
-
+function hebrewDayOfWeek(dateISO: string): string {
+  // dateISO: 'YYYY-MM-DD'
+  const d = new Date(`${dateISO}T00:00:00Z`);
+  const day = d.getUTCDay(); // 0=Sun ... 6=Sat
+  const map = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'] as const;
+  return map[day];
+}
 function applyCors(req: any, res: any): boolean {
   const origin = String(req.headers.origin || '');
   if (origin && ALLOWED_ORIGINS.has(origin)) {
@@ -106,36 +112,139 @@ export const approveMakeupLessonAndNotify = onRequest(
 
       const childId = String(reqRow.child_id || '');
       const lessonId = String(reqRow.lesson_occ_id || ''); // זה lesson_id המקורי
+      // להביא את השיעור המקורי כדי להעתיק ממנו נתונים (appointment_kind וכו')
+const { data: originalLesson, error: origLErr } = await sbTenant
+  .from('lessons')
+  .select(`
+    id,
+    child_id,
+    instructor_id,
+    instructor_uid,
+    start_time,
+    end_time,
+    appointment_kind,
+    payment_plan_id,
+    riding_type_id,
+    payment_source,
+    approval_id,
+    capacity,
+    current_booked
+  `)
+  .eq('id', lessonId)
+  .maybeSingle();
+
+if (origLErr) throw origLErr;
+if (!originalLesson) throw new Error('Original lesson not found');
       if (!childId || !lessonId) throw new Error('Missing child_id / lesson_occ_id in request');
 
       const payload = typeof reqRow.payload === 'string' ? JSON.parse(reqRow.payload) : (reqRow.payload ?? {});
+      const requestedRidingTypeId = payload.riding_type_id ?? null; // אמור להיות uuid
+      if (!requestedRidingTypeId) {
+  throw new Error('Missing riding_type_id in payload (new lesson riding_type_id is required)');
+}
       const requestedDate = String(reqRow.from_date || '').slice(0, 10);
       const requestedStart = payload.requested_start_time ?? null;
       const requestedEnd = payload.requested_end_time ?? null;
 
-      // 2) למצוא את תאריך השיעור המקורי מתוך exceptions (הסטטוס שהיה "נשלחה בקשה להשלמה")
-      const { data: ex, error: exErr } = await sbTenant
-        .from('lesson_occurrence_exceptions')
-        .select('occur_date')
-        .eq('lesson_id', lessonId)
-        .eq('status', 'נשלחה בקשה להשלמה')
-        .order('occur_date', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (exErr) throw exErr;
+  const baseExceptionId = payload.base_lesson_uid ?? null;
+if (!baseExceptionId) throw new Error('Missing base_lesson_uid (lesson_occurrence_exceptions.id) in payload');
 
-      const originalDate = ex?.occur_date ? String(ex.occur_date).slice(0, 10) : null;
+const { data: ex, error: exErr } = await sbTenant
+  .from('lesson_occurrence_exceptions')
+  .select('id, occur_date, lesson_id')
+  .eq('id', baseExceptionId)
+  .maybeSingle();
+if (exErr) throw exErr;
+if (!ex) throw new Error('Base exception not found');
 
-      // 3) לעדכן exception של השיעור המקורי ל"אושר" + לנעול makeup
-      if (originalDate) {
-        const { error: upExErr } = await sbTenant
-          .from('lesson_occurrence_exceptions')
-          .update({ status: 'אושר', is_makeup_allowed: false })
-          .eq('lesson_id', lessonId)
-          .eq('occur_date', originalDate);
-        if (upExErr) throw upExErr;
-      }
+const originalExId = String(ex.id);
+const originalDate = String(ex.occur_date).slice(0, 10);
 
+// ואז update לפי id (לא לפי lesson_id+date+status)
+const { error: upExErr } = await sbTenant
+  .from('lesson_occurrence_exceptions')
+  .update({ status: 'הושלם', is_makeup_allowed: false })
+  .eq('id', originalExId);
+if (upExErr) throw upExErr;
+const dayOfWeekHe = hebrewDayOfWeek(requestedDate);
+
+// לקבוע מדריך לשיעור ההשלמה:
+// אם בבקשה יש instructor_id -> נשתמש בו, אחרת במדריך של השיעור המקורי
+const makeupInstructorId = String(reqRow.instructor_id || originalLesson.instructor_id || '').trim();
+if (!makeupInstructorId) throw new Error('Missing instructor_id for makeup lesson');
+
+// להביא instructor_uid למדריך שנבחר (אם הוא שונה מהמקורי)
+let makeupInstructorUid = String(originalLesson.instructor_uid || '').trim();
+
+if (makeupInstructorId && makeupInstructorId !== String(originalLesson.instructor_id || '').trim()) {
+  const { data: instRow, error: instErr } = await sbTenant
+    .from('instructors')
+    .select('uid')
+    .eq('id_number', makeupInstructorId)
+    .maybeSingle();
+  if (instErr) throw instErr;
+  if (!instRow?.uid) throw new Error('Instructor missing uid');
+  makeupInstructorUid = String(instRow.uid).trim();
+}
+
+if (!requestedStart || !requestedEnd) {
+  throw new Error('Missing requested_start_time / requested_end_time in payload');
+}
+
+// לבנות רשומת שיעור השלמה חדשה
+const newLessonPayload: any = {
+  lesson_type: 'השלמה',
+  status: 'אושר',
+  day_of_week: dayOfWeekHe,
+  start_time: requestedStart, // צריך להיות 'HH:MM:SS' או 'HH:MM'
+  end_time: requestedEnd,
+
+  child_id: originalLesson.child_id,
+  repeat_weeks: 1,
+
+  // חשוב: כדי שהמופע יצא בדיוק בתאריך המבוקש, אנחנו שמים anchor_week_start = requestedDate
+  // הטריגר normalize_anchor_week_start ינרמל לשבוע - אצלך זה עובד כבר עם ה-view.
+  anchor_week_start: requestedDate,
+
+appointment_kind: 'therapy_makeup',
+
+  // לא סדרה
+  series_id: null,
+
+  // אם תרצי לקשר לאישור בריאות של המקורי:
+  approval_id: originalLesson.approval_id ?? null,
+
+origin: 'parent',
+  is_tentative: false,
+
+  // ⚠️ MUST להיות id של lesson_occurrence_exceptions כדי לעבור FK
+  base_lesson_uid: originalExId ?? null,
+
+  capacity: originalLesson.capacity ?? null,
+  current_booked: originalLesson.current_booked ?? null,
+
+  payment_source: originalLesson.payment_source ?? 'private',
+riding_type_id: requestedRidingTypeId,
+  payment_plan_id: originalLesson.payment_plan_id ?? null,
+  payment_docs_url: null, // לפי מה שאתם עושים "כרגיל"
+
+  instructor_id: makeupInstructorId,
+  instructor_uid: makeupInstructorUid,
+
+  is_open_ended: false,
+};
+
+// ליצור בפועל
+const { data: newLesson, error: insErr } = await sbTenant
+  .from('lessons')
+  .insert(newLessonPayload)
+  .select('id')
+  .maybeSingle();
+
+if (insErr) throw insErr;
+if (!newLesson?.id) throw new Error('Failed to create makeup lesson');
+
+const newMakeupLessonId = String(newLesson.id);
       // 4) לעדכן את הבקשה ל-APPROVED
       const updatePayload: any = {
         status: 'APPROVED',
@@ -264,6 +373,7 @@ try {
 
 return void res.status(200).json({
   ok: true,
+  newMakeupLessonId,
   mailOk,
   warning,
   mail,

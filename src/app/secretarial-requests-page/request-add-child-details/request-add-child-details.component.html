@@ -8,9 +8,19 @@
 <div class="req" *ngIf="details() as d; else loadingTpl">
   <div class="title">הוספת ילד/ה</div>
 
+  <div class="field">
+    <label class="sf-check">
+      <input type="checkbox" [checked]="isCreateBillingCharge()"
+        (change)="isCreateBillingCharge.set($any($event.target).checked)" />
+      ליצור חיוב רישום אוטומטי בעת הוספת ילד
+    </label>
+
+  </div>
+
   <div class="grid">
     <div class="box"><span class="k">הורה:</span><span class="v">{{ d.parent_name || d.parent_uid }}</span></div>
-    <div class="box"><span class="k">נוצר:</span><span class="v">{{ d.created_at | date:'dd/MM/yyyy HH:mm' }}</span></div>
+    <div class="box"><span class="k">נוצר:</span><span class="v">{{ d.created_at | date:'dd/MM/yyyy HH:mm' }}</span>
+    </div>
 
     <div class="box"><span class="k">שם ילד/ה:</span><span class="v">{{ d.child_name || '—' }}</span></div>
     <div class="box"><span class="k">ת״ז:</span><span class="v">{{ d.gov_id || '—' }}</span></div>
@@ -19,7 +29,8 @@
     <div class="box"><span class="k">מין:</span><span class="v">{{ d.gender || '—' }}</span></div>
 
     <div class="box"><span class="k">קופת חולים:</span><span class="v">{{ d.health_fund || '—' }}</span></div>
-    <div class="box"><span class="k">תאריך לידה:</span><span class="v">{{ d.birth_date | date:'dd/MM/yyyy' }}</span></div>
+    <div class="box"><span class="k">תאריך לידה:</span><span class="v">{{ d.birth_date | date:'dd/MM/yyyy' }}</span>
+    </div>
   </div>
 
   <div class="section">
@@ -51,10 +62,7 @@
     </div>
 
     <div class="row" style="margin-top: 10px;">
-      <button type="button"
-              class="btn view-signed"
-              (click)="openSignedTerms()"
-              [disabled]="loadingSigned()">
+      <button type="button" class="btn view-signed" (click)="openSignedTerms()" [disabled]="loadingSigned()">
         {{ loadingSigned() ? 'פותח…' : 'תקנון חתום ✅' }}
       </button>
 
@@ -98,11 +106,7 @@
       <div class="popup-title">תקנון חתום</div>
 
       <div class="popup-actions">
-        <a *ngIf="signedDocUrlRaw()"
-           class="btn-link"
-           [href]="signedDocUrlRaw()!"
-           target="_blank"
-           rel="noopener">
+        <a *ngIf="signedDocUrlRaw()" class="btn-link" [href]="signedDocUrlRaw()!" target="_blank" rel="noopener">
           פתיחה בלשונית חדשה
         </a>
 

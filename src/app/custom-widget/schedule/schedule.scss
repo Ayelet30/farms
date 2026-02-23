@@ -474,6 +474,42 @@
   opacity: .95;
 }
 
+/* שהאירוע ינצל את כל הגובה שלו */
+.fc-timegrid-event .fc-event-main,
+.fc-timegrid-event .event-box {
+  height: 100%;
+}
+
+/* הקופסה שלך – שלא תברח ותישאר קריאה */
+.fc-timegrid-event .event-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4px 6px;
+  overflow: hidden;
+  border-radius: 999px;
+}
+
+/* שורה של ילדים – אליפסיס במקום לחתוך מוזר */
+.fc-timegrid-event .children-line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.1;
+}
+
+/* chip קטן ולא משתלט */
+.fc-timegrid-event .chip {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+
 .instructor-filter {
   margin-bottom: 12px;
 }

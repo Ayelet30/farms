@@ -67,6 +67,9 @@ farmDaysOff: any[] = [];
   autoAssignLoading = false;
   selectedOccurrence: any = null;
 
+  instructorsAll: InstructorRow[] = [];    // כל המדריכים (פעילים)
+instructorsToday: InstructorRow[] = [];  // רק העובדים היום (פעילים + זמינות)
+
 
   private childAgeById = new Map<string, string>();
 private instructorColorById = new Map<string, string>();
@@ -111,6 +114,11 @@ this.ridingTypes = ridingTypes || [];
     try { this.unsubTenantChange?.(); } catch {}
   }
 
+  private getTodayDow(): number {
+  return new Date().getDay();
+}
+
+
 
 private hashString(str: string): number {
   let hash = 0;
@@ -122,16 +130,10 @@ private hashString(str: string): number {
 }
 
 private rebuildInstructorResources(): void {
-  // אם לא מסומן כלום – נתייחס כאילו כולם מסומנים
-  const activeIds =
-  this.selectedInstructorIds.length
-    ? this.selectedInstructorIds
-    : this.instructors
-        .filter(i => i.status === 'Active')
-        .map(i => i.id_number);
+  const ids = new Set(this.selectedInstructorIds.map(String));
 
   this.instructorResources = this.instructors
-    .filter(i => activeIds.includes(i.id_number))
+    .filter(i => ids.has(String(i.id_number)))
     .map(i => ({
       id: i.id_number,
       title: `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim(),
@@ -190,65 +192,70 @@ private calcChildAge(birthDate: string | null): string {
 }
 ridingTypes: { id: string; name: string }[] = [];
 
-  private async loadInstructors(): Promise<void> {
-    try {
-      const dbc = dbTenant();
-      const { data, error } = await dbc
-  .from('instructors')
-      .select('id_number, first_name, last_name, status, color_hex'); 
- // ✔ בלי סינון
+private async loadInstructors(): Promise<void> {
+  try {
+    const dbc = dbTenant();
 
+    // 1) כל המדריכים
+    const { data: all, error: e1 } = await dbc
+      .from('instructors')
+      .select('id_number, first_name, last_name, status, color_hex');
 
-      if (error) throw error;
+    if (e1) throw e1;
 
-      this.instructors = (data ?? []) as InstructorRow[];
-this.instructorColorById = new Map(
-  this.instructors
-    .filter(i => i.color_hex && i.color_hex.trim() !== '')
-    .map(i => [
-      String(i.id_number),
-      i.color_hex!.trim()
-    ])
-);
+    const allRows = (all ?? []) as InstructorRow[];
 
+    // UI למעלה: כל הפעילים
+    this.instructorsAll = allRows;
+    this.instructors = allRows.filter(i => i.status === 'Active');
 
-      // ברירת מחדל – אם המשתמש גם מדריך, מסמנים אותו, אחרת כולם
+    // צבעים מכל המדריכים
+    this.instructorColorById = new Map(
+      this.instructorsAll
+        .filter(i => i.color_hex && i.color_hex.trim() !== '')
+        .map(i => [String(i.id_number), i.color_hex!.trim()])
+    );
+
+    // 2) עובדים היום לפי זמינות
+    const dow = new Date().getDay(); // 0..6
+    const { data: avail, error: e2 } = await dbc
+      .from('instructor_weekly_availability')
+      .select('instructor_id_number')
+      .eq('day_of_week', dow);
+
+    if (e2) throw e2;
+
+    const todayIds = new Set((avail ?? []).map((r: any) => String(r.instructor_id_number)));
+
+    this.instructorsToday = this.instructors.filter(i => todayIds.has(String(i.id_number)));
+
+    // 3) ברירת מחדל לבחירה: רק של היום (או אני אם אני עובד היום)
+    if (!this.selectedInstructorIds.length) {
+      const me = String(this.instructorId || '');
+
+      if (me && this.instructorsToday.some(i => String(i.id_number) === me)) {
+        this.selectedInstructorIds = [me];
+      } else {
+        this.selectedInstructorIds = this.instructorsToday.map(i => String(i.id_number));
+      }
+
+      // אם אין בכלל זמינות היום → fallback: כל הפעילים
       if (!this.selectedInstructorIds.length) {
-        if (this.instructorId) {
-          this.selectedInstructorIds = [this.instructorId];
-          this.instructorResources = this.instructors.map(i => ({
-  id: i.id_number,
-  title: `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()
-}));
+        this.selectedInstructorIds = this.instructors.map(i => String(i.id_number));
+      }
+    }
 
-this.instructors = (data ?? []) as InstructorRow[];
+    // 4) resources ללוח נקבעים לפי הבחירה הנוכחית
+    this.rebuildInstructorResources();
 
-// ברירת מחדל לבחירה
-if (!this.selectedInstructorIds.length) {
-  if (this.instructorId) {
-    this.selectedInstructorIds = [this.instructorId];
-  } else {
-    this.selectedInstructorIds = this.instructors
-      .filter(i => i.status === 'Active')
-      .map(i => i.id_number);
+  } catch (err) {
+    console.error('loadInstructors failed', err);
+    this.instructorsAll = [];
+    this.instructorsToday = [];
+    this.instructors = [];
   }
 }
 
-
-// 👇 חדש
-this.rebuildInstructorResources();
-
-
-        } else {
-          this.selectedInstructorIds = this.instructors.map(i => i.id_number);
-        }
-      }
-    } catch (err) {
-      console.error('loadInstructors failed', err);
-      this.instructors = [];
-    }
-    
-  }
 
   get isAllInstructorsSelected(): boolean {
     return (
@@ -385,11 +392,9 @@ private async loadLessons(
     );
 
     const instructorNameById = new Map(
-      this.instructors.map(i => [
-        i.id_number,
-        `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim(),
-      ])
-    );
+  this.instructorsAll.map(i => [
+    i.id_number,
+    `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim(),  ]));
 
     this.lessons = (occData ?? []).map((r: any) => {
       const ex = r.lesson_occurrence_exceptions;
@@ -459,23 +464,12 @@ private async loadFarmDaysOffForRange(startYmd: string, endYmd: string): Promise
   /** סינון שיעורים לפי מדריכים מסומנים + טווח תצוגה */
   private filterLessons(): void {
     let src = [...this.lessons];
-if (!this.selectedInstructorIds.length) {
-  if (this.instructorId) {
-    this.selectedInstructorIds = [this.instructorId];
-  } else {
-    this.selectedInstructorIds = this.instructors
-      .filter(i => i.status === 'Active')
-      .map(i => i.id_number);
-  }
-}
-
-
     const selected = this.selectedInstructorIds.filter(Boolean);
-
     if (selected.length) {
-      src = src.filter(l =>
-        selected.includes((l.instructor_id ?? '').toString())
-      );
+      src = src.filter(l => selected.includes(String(l.instructor_id ?? '')));
+    } else {
+      // אם אין בחירה בכלל – אל תציגי כלום (או תחליטי fallback אחר)
+      src = [];
     }
 
     if (this.currentRange) {
@@ -513,28 +507,22 @@ const instructorBorderColor =
     ? colorFromDb
     : this.getColorForInstructor(instructorId);
 
-  const start = this.ensureIso(
-    lesson.start_datetime as any,
-    lesson.start_time as any,
-    lesson.occur_date as any
-  );
-  const end = this.ensureIso(
-    lesson.end_datetime as any,
-    lesson.end_time as any,
-    lesson.occur_date as any
-  );
+  const start =
+  this.buildDateTime(lesson.occur_date, lesson.start_time) ??
+  this.ensureIso(lesson.start_datetime as any, lesson.start_time as any, lesson.occur_date as any);
+
+let end =
+  this.buildDateTime(lesson.occur_date, lesson.end_time) ??
+  this.ensureIso(lesson.end_datetime as any, lesson.end_time as any, lesson.occur_date as any);
+
+end = this.ensureEndAfterStart(start, end);
+
+console.log(start, end);
 
   const childName = lesson.child_name ?? '';
   const lessonType = lesson.lesson_type ?? '';
   const age = this.childAgeById.get(lesson.child_id) || '';
   const childDisplay = age ? `${childName} (${age})` : childName;
-
-console.log(
-  '🧪 lesson.instructor_id:',
-  lesson.instructor_id,
-  'color from map:',
-  this.instructorColorById.get(String(lesson.instructor_id))
-);
 
   return {
     id: lesson.id,
@@ -836,6 +824,26 @@ const isCancelled =
       return;
     }
   }
+
+  private buildDateTime(dateStr?: string | null, timeStr?: string | null): string | null {
+  if (!dateStr || !timeStr) return null;
+
+  // time יכול להגיע HH:mm או HH:mm:ss
+  const t = String(timeStr).length === 5 ? `${timeStr}:00` : String(timeStr);
+  return `${dateStr}T${t}`;
+}
+
+private ensureEndAfterStart(startIso: string, endIso: string): string {
+  // אם בטעות end קטן מ-start (בעיה של נתונים/יום מתחלף) – נשאיר מינימום 30 דק
+  const s = new Date(startIso).getTime();
+  const e = new Date(endIso).getTime();
+  if (isNaN(s) || isNaN(e)) return endIso;
+  if (e > s) return endIso;
+
+  // fallback: +30 דקות
+  return this.toLocalIso(new Date(s + 30 * 60 * 1000));
+}
+
 
   private buildWeekStats(): void {
     if (this.currentViewType !== 'timeGridWeek') {
