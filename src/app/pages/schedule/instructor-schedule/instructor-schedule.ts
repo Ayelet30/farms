@@ -906,6 +906,10 @@ cancelAffectedPopup(): void {
 
   /* ------------ REQUEST UI ------------ */
  async submitRange(): Promise<void> {
+  console.log('rangeModal', this.rangeModal);
+
+  console.log('showAffectedParentsPopup', this.showAffectedParentsPopup);
+console.log('affectedParents', this.affectedParents);
   this.affectedParents = [];
   console.log('STEP 1 - before hasLessons');
 console.log('🔥 submitRange clicked', this.rangeModal);
@@ -1031,18 +1035,10 @@ private async loadAffectedParentsFromDb(from: string, to: string): Promise<void>
 
   const dbc = dbTenant();
 
-  const { data, error } = await dbc
-    .from('lessons_with_children')
-    .select(`
-      occur_date,
-      child_id,
-      parent_uid,
-      parent_first_name,
-      parent_last_name,
-      parent_email,
-      parent_phone,
-      status
-    `)
+  // 1️⃣ שלוף שיעורים אמיתיים
+  const { data: lessons, error } = await dbc
+    .from('lessons_occurrences')
+    .select('child_id, occur_date, status')
     .eq('instructor_id', this.instructorId)
     .gte('occur_date', from)
     .lte('occur_date', to);
@@ -1052,25 +1048,43 @@ private async loadAffectedParentsFromDb(from: string, to: string): Promise<void>
     return;
   }
 
-  const impacted = new Map<string, Parent>();
-
-  for (const row of data ?? []) {
-
-    const status = String(row.status ?? '').toLowerCase();
-    if (status.includes('cancel')) continue;
-
-    if (row.parent_uid) {
-      impacted.set(row.parent_uid, {
-        uid: row.parent_uid,
-        first_name: row.parent_first_name,
-        last_name: row.parent_last_name,
-        email: row.parent_email,
-        phone: row.parent_phone,
-      });
-    }
+  if (!lessons?.length) {
+    this.affectedParents = [];
+    return;
   }
 
-  this.affectedParents = Array.from(impacted.values());
+  // 2️⃣ קח child ids
+  const childIds = lessons
+    .filter((l: { status: any; }) => !String(l.status ?? '').toLowerCase().includes('cancel'))
+    .map((l: { child_id: any; }) => l.child_id);
+
+  if (!childIds.length) {
+    this.affectedParents = [];
+    return;
+  }
+
+  // 3️⃣ שלוף ילדים
+  const { data: children } = await dbc
+    .from('children')
+    .select('child_uuid, parent_uid')
+    .in('child_uuid', childIds);
+
+  const parentIds = (children ?? [])
+    .map((c: { parent_uid: any; }) => c.parent_uid)
+    .filter(Boolean);
+
+  if (!parentIds.length) {
+    this.affectedParents = [];
+    return;
+  }
+
+  // 4️⃣ שלוף הורים
+  const { data: parents } = await dbc
+    .from('parents')
+    .select('uid, first_name, last_name, email, phone')
+    .in('uid', parentIds);
+
+  this.affectedParents = parents ?? [];
 }
 async confirmSaveAfterWarning(): Promise<void> {
   this.selectedSickFile = (this as any)._preservedSickFile ?? null;
