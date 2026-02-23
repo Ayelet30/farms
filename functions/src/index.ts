@@ -38,7 +38,7 @@ export { sendEmailGmail } from './email';
 
 //export  *  from "../createParent.js";
 
-
+export {autoRejectRequestAndNotify} from './auto-reject-and-notify'; 
 export { approveRemoveChildAndNotify } from './approve-remove-child-and-notify';
 export { notifySeriesApproved } from './notifySeriesApproved';
 export { notifySeriesRejected } from './notifySeriesRejected';

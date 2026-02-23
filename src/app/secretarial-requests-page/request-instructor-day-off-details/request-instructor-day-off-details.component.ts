@@ -7,6 +7,8 @@ import { RequestValidationService } from '../../services/request-validation.serv
 import { RequestStatus } from '../../Types/detailes.model';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { getAuth } from 'firebase/auth';
+import { requireTenant } from '../../services/supabaseClient.service';
 
 type ImpactRow = {
   occur_date: string; // date
@@ -187,43 +189,41 @@ note = this.decisionNote;
     }
   }
 private async rejectBySystem(reason: string): Promise<void> {
-  const r = this.req();
-  const requestId = r?.id;
-  const decidedByUid = this.decidedByUidSig();
+  if (!this.request?.id) return;
 
-  if (!requestId) return;
+  const tenantSchema = requireTenant().schema;               // ✅ schema מה-context
+  const decidedByUid = getAuth().currentUser?.uid ?? null;   // ✅ uid של המשתמש המחובר
 
-  try {
-    const { data, error } = await this.db
-      .from('secretarial_requests')
-      .update({
-        status: 'REJECTED_BY_SYSTEM',
-        decided_by_uid: decidedByUid,
-        decision_note: (reason || 'בקשה לא תקינה').trim(),
-        decided_at: new Date().toISOString(),
-      })
-      .eq('id', requestId)
-      .eq('status', 'PENDING')
-      .select('id,status')
-      .maybeSingle();
+  // אם את רוצה decided_by_uid מתוך טבלת users (ולא uid של Firebase):
+  // const appUser = await getCurrentUserData();
+  // const decidedByUid = appUser?.uid ?? getAuth().currentUser?.uid ?? null;
 
-    if (error) throw error;
-    if (!data) return; // מישהו כבר טיפל
+  const idToken = await getAuth().currentUser?.getIdToken();
+  if (!idToken) throw new Error('No Firebase token');
 
-    const msg = reason || 'הבקשה נדחתה אוטומטית ע"י המערכת';
-    this.toast(msg, 'info');
+  const resp = await fetch(
+    'https://us-central1-bereshit-ac5d8.cloudfunctions.net/autoRejectRequestAndNotify',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        tenantSchema,
+        requestId: this.request.id,
+        reason,
+        decidedByUid,
+      }),
+    }
+  );
 
-   this.onRejected?.({
-  requestId,
-  newStatus: 'REJECTED_BY_SYSTEM' as any, // עדיף שתעדכני את הטיפוס למטה
-  message: msg,
-  meta: { rejectedBySystem: true, systemReason: msg },
-});
+  const text = await resp.text();
+  let json: any = null;
+  try { json = JSON.parse(text); } catch {}
 
-  } catch (e: any) {
-    console.error('rejectBySystem failed', e);
-    // אם נכשל – לא להפיל את ה-UI, רק להודיע
-    this.onError?.({ requestId, message: e?.message ?? 'שגיאה בדחייה אוטומטית', raw: e });
+  if (!resp.ok || json?.ok === false) {
+    throw new Error(json?.error || `autoRejectRequestAndNotify failed: ${resp.status}`);
   }
 }
 

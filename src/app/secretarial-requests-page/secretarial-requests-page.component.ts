@@ -50,6 +50,8 @@ import { firstValueFrom } from 'rxjs';
 import { BulkDecisionDialogComponent, BulkDecisionDialogResult } from './bulk-decision-dialog/bulk-decision-dialog.component';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RequestValidationService } from './../services/request-validation.service';
+import { getAuth } from 'firebase/auth';
+import { requireTenant } from '../services/supabaseClient.service';
 
 // export enum Check {
 //   Expiry = 'expiry',
@@ -457,6 +459,11 @@ selectedVisibleRequest = computed<UiRequest | null>(() => {
     const mapped: UiRequest[] =
       data?.map((row: any) => this.mapRowToUi(row)) ?? [];
 
+console.log('DEBUG first delete_child mapped:',
+  mapped.find(r => r.requestType === 'DELETE_CHILD')?.childId,
+  mapped.find(r => r.requestType === 'DELETE_CHILD')?.payload
+);
+
     this.allRequests.set(mapped);
 
     // ✅ חדש: רק בדיקות קריטיות בעמוד (Active וכו')
@@ -479,7 +486,6 @@ selectedVisibleRequest = computed<UiRequest | null>(() => {
       requestedByName: this.getRequesterDisplay(row),
       childName: row.child_name || undefined,
       instructorName: row.instructor_name || undefined,
-
       fromDate: row.from_date,
       toDate: row.to_date,
       createdAt: row.created_at,
@@ -1447,8 +1453,15 @@ private combineDateTime(dateStr: string, timeStr?: string | null): Date {
 
 private getChildIdForRequest(row: UiRequest): string | null {
   const p: any = row.payload ?? {};
-  return row.childId ?? p.child_id ?? p.childId ?? null;
-}
+  return (
+    row.childId ??
+    (row as any).child_id ??      // ✅ fallback אם נשאר snake_case
+    p.child_id ??
+    p.childId ??
+    p.child_uuid ??
+    p.childUuid ??
+    null
+  );}
 
 private getInstructorIdForRequest(row: UiRequest): string | null {
   const p: any = row.payload ?? {};
@@ -1881,62 +1894,68 @@ private normalizeTimeToSeconds(t: string | null | undefined): string | null {
   return s;
 }
 
-
 private async rejectBySystem(row: UiRequest, reason: string): Promise<boolean> {
   if (!row?.id) return false;
-
-  await ensureTenantContextReady();
-  const db = dbTenant();
 
   const note = (reason || 'בקשה לא תקינה').trim();
   const decidedBy = this.curentUser?.uid ?? null;
 
   try {
-    const { data, error } = await db
-      .from('secretarial_requests')
-      .update({
-        status: 'REJECTED_BY_SYSTEM',
-        decided_by_uid: decidedBy,
-        decision_note: note,
-        decided_at: new Date().toISOString(),
-      })
-      .eq('id', row.id)
-      .eq('status', 'PENDING')
-      .select('id')
-      .maybeSingle();
+    // ✅ אם הפונקציה שלך דורשת token (מומלץ) — שולחים Bearer
+    const token = await getAuth().currentUser?.getIdToken();
 
-    if (error) throw error;
+    // ✅ אם הפונקציה שלך דורשת tenantSchema במפורש:
+await ensureTenantContextReady();
+const tenantSchema = requireTenant().schema;console.log('[rejectBySystem] sending', { tenantSchema, row , reason });
 
-    // ✅ עודכן עכשיו
-    if (data) {
-      this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
-      return true;
-    }
+const url =       'https://us-central1-bereshit-ac5d8.cloudfunctions.net/autoRejectRequestAndNotify';
 
-    // ✅ לא עודכן כי כנראה כבר טופל: נביא מטא מה-DB ונחליט לפי זה
-    const meta = await this.fetchDecisionMeta(row.id);
+    const r = await fetch
+    (url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        tenantSchema,      // אם בפונקציה שלך לא צריך - תסירי גם כאן וגם שם
+        requestId: row.id,
+        reason: note,
+        decidedByUid: decidedBy,
+      }),
+    });
 
-    if (meta.status === 'REJECTED_BY_SYSTEM') {
-      // נשמור ב-UI סטטוס נכון
-      this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
-      return true; // ✅ נחשב כהצלחה של "דחייה אוטומטית"
-    }
+    const json: any = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(json?.error || json?.message || r.statusText);
 
-    // אם לא נדחה ע"י המערכת בפועל - אז באמת לא הצלחנו
-    return false;
+    // ✅ הצליח → נעדכן UI מיד
+    this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
+    return true;
 
   } catch (e) {
-    console.error('rejectBySystem failed', e);
+    console.error('rejectBySystem (via CF) failed', e);
 
-    // ✅ גם פה fallback (ליתר בטחון): אולי ה-DB כן עודכן אבל הייתה תקלה אצלנו
+    // fallback: אולי כן עודכן ב-DB למרות שקרתה תקלה אצלנו
     const meta = await this.fetchDecisionMeta(row.id);
     if (meta.status === 'REJECTED_BY_SYSTEM') {
       this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
       return true;
     }
-
     return false;
   }
+}
+
+/**
+ * נסי להשיג tenantSchema בצורה “בטוחה”.
+ * אם אצלך זה מגיע ממקום אחר (למשל cu.current.tenant_schema) — תעדכני פה בלבד.
+ */
+private getTenantSchemaSafe(): string {
+  return (
+    (this.curentUser as any)?.tenant_schema ||
+    (this.curentUser as any)?.tenantSchema ||
+    (window as any)?.TENANT_SCHEMA ||
+    ''
+  );
 }
 
 private getRequesterRoleForRequest(row: UiRequest): RequesterRole | null {

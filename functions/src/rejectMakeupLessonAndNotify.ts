@@ -80,7 +80,7 @@ export const rejectMakeupLessonAndNotify = onRequest(
       const tenantId = String(body.tenantId || '').trim();
       const requestId = String(body.requestId || '').trim();
       const decisionNote = body.decisionNote == null ? null : String(body.decisionNote).trim();
-
+const source = String(body.source || '').trim(); // 'system' או ריק
       if (!tenantSchema) return void res.status(400).json({ error: 'Missing tenantSchema' });
       if (!tenantId) return void res.status(400).json({ error: 'Missing tenantId' });
       if (!requestId) return void res.status(400).json({ error: 'Missing requestId' });
@@ -138,11 +138,13 @@ export const rejectMakeupLessonAndNotify = onRequest(
       }
 
       // 4) לעדכן את הבקשה ל-REJECTED
-      const updatePayload: any = {
-        status: 'REJECTED',
-        decided_at: new Date().toISOString(),
-        decision_note: decisionNote || null,
-      };
+    const statusToSet = source === 'system' ? 'REJECTED_BY_SYSTEM' : 'REJECTED';
+
+const updatePayload: any = {
+  status: statusToSet,
+  decided_at: new Date().toISOString(),
+  decision_note: decisionNote || null,
+};
       if (decidedByUid) updatePayload.decided_by_uid = decidedByUid;
 
       const { data: upd, error: updErr } = await sbTenant
@@ -265,12 +267,12 @@ try {
 
 return void res.status(200).json({
   ok: true,
+  status: statusToSet,
   mailOk,
   warning,
   mail,
   mailError,
 });
-
     } catch (e: any) {
       console.error('rejectMakeupLessonAndNotify error', e);
       return void res.status(500).json({ error: 'Internal error', message: e?.message || String(e) });
