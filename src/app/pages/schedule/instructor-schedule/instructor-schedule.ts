@@ -62,13 +62,18 @@ interface Child {
 interface DayRequestRow {
   id: string;
   instructor_id: string;
-  request_date: string; // YYYY-MM-DD
+  request_date: string;
   request_type: RequestType;
   status: RequestStatus;
   note?: string | null;
 
+  all_day?: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
+
   sick_note_file_path?: string | null;
 }
+
 
 /* ------------ COMPONENT ------------ */
 @Component({
@@ -378,10 +383,13 @@ private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<vo
 
   const rows = data ?? [];
   this.dayRequests = rows.flatMap((row: any) => this.expandRequestRow(row));
+  console.log('📅 dayRequests:', this.dayRequests);
+
 }
 
 
 private expandRequestRow(row: any): DayRequestRow[] {
+  console.log('CATEGORY VALUE:', row.payload?.category);
   const res: DayRequestRow[] = [];
   if (!row.from_date) return res;
   if (!row.payload?.category) return res;
@@ -395,7 +403,29 @@ private expandRequestRow(row: any): DayRequestRow[] {
 
   let guard = 0;
   while (current <= end) {
-    res.push({ id: row.id, instructor_id: row.instructor_id, request_date: current, request_type: type, status, note });
+    console.log('🔎 RAW REQUEST ROW:', row);
+
+console.log('🧩 PARSED REQUEST:', {
+  date: current,
+  all_day: row.payload?.all_day,
+  start_time: row.payload?.requested_start_time,
+  end_time: row.payload?.requested_end_time,
+});
+
+   res.push({
+  id: row.id,
+  instructor_id: row.instructor_id,
+  request_date: current,
+  request_type: type,
+  status,
+  note,
+
+all_day:
+  row.payload?.all_day === true ||
+  row.payload?.all_day === 'true',
+  start_time: row.payload?.requested_start_time ?? null,
+  end_time: row.payload?.requested_end_time ?? null,
+});
 
     const next = this.addOneDayYmd(current);
     if (next <= current) {
@@ -436,9 +466,14 @@ const validLessons = this.lessons.filter((l: any) => {
   }
 
   // ⛔ חופשת מדריך
-  if (this.isLessonBlockedByInstructorOff(baseDate)) {
-    return false;
-  }
+const startDate = new Date(startISO);
+const endDate = new Date(endISO);
+
+// ⛔ חופשת מדריך
+if (this.isLessonBlockedByInstructorOff(baseDate, startDate, endDate)) {
+  return false;
+}
+
 
   return true;
 });
@@ -451,10 +486,7 @@ for (const l of this.lessons) {
   const day = (l as any).occur_date?.slice(0, 10);
   if (!day) continue;
 
-  // ⛔ חופשת מדריך → לא סופרים שיעורים ביום הזה
-  if (this.isLessonBlockedByInstructorOff(day)) continue;
-
-  // ⛔ חופשת חווה
+  // קודם מגדירים ISO
   const startISO = l.start_datetime
     ? l.start_datetime
     : this.ensureLocalIso(l.start_time, day);
@@ -463,12 +495,18 @@ for (const l of this.lessons) {
     ? l.end_datetime
     : this.ensureLocalIso(l.end_time, day);
 
-  if (this.isLessonBlockedByFarmOff(new Date(startISO), new Date(endISO))) continue;
+  const startDate = new Date(startISO);
+  const endDate = new Date(endISO);
+
+  // ⛔ חופשת מדריך
+  if (this.isLessonBlockedByInstructorOff(day, startDate, endDate)) continue;
+
+  // ⛔ חופשת חווה
+  if (this.isLessonBlockedByFarmOff(startDate, endDate)) continue;
 
   if (!grouped[day]) grouped[day] = [];
   grouped[day].push(l);
 }
-
 
       this.items = Object.entries(grouped).map(([day, arr]) => {
 const req = this.dayRequests.find(
@@ -533,7 +571,8 @@ if (this.isLessonBlockedByFarmOff(start, end)) {
 }
 
 // ⛔ חופשת מדריך
-if (this.isLessonBlockedByInstructorOff(baseDate)) {
+if (this.isLessonBlockedByInstructorOff(baseDate, start, end)
+) {
   return false;
 }
 
@@ -850,15 +889,6 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
   }
 cancelAffectedPopup(): void {
   this.showAffectedParentsPopup = false;
-
-  // ❌ למחוק:
-  // this.rangeModal.open = true;
-
-  // אופציונלי – ניקוי שדות
-  this.rangeModal.from = '';
-  this.rangeModal.to = '';
-  this.rangeModal.text = '';
-
   this.cdr.detectChanges();
 }
 
@@ -876,6 +906,9 @@ cancelAffectedPopup(): void {
 
   /* ------------ REQUEST UI ------------ */
  async submitRange(): Promise<void> {
+  this.affectedParents = [];
+  console.log('STEP 1 - before hasLessons');
+console.log('🔥 submitRange clicked', this.rangeModal);
 
   const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
   this.lastAllDayPref = !!allDay;
@@ -887,30 +920,27 @@ cancelAffectedPopup(): void {
 
   // ✅ כמו פעם – בדיקה על השיעורים שכבר נטענו
 const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
+console.log('STEP 2 - hasLessons result:', hasLessons);
+if (hasLessons) {
 
-
- if (hasLessons) {
-  const preservedFile = this.selectedSickFile;
-
-  // לא סוגרים מודאל לפני שבטוח שהולכים לפופאפ
-  this.loadAffectedParentsFromSchedule(from, to);
+  await this.loadAffectedParentsFromDb(from, to);
 
   if (this.affectedParents.length > 0) {
-    // סוגרים מודאל ומראים פופאפ רק אם באמת יש למי להציג
     this.rangeModal.open = false;
+    console.log('POPUP FLOW', {
+  from, to,
+  hasLessons,
+  affectedCount: this.affectedParents.length,
+  showPopupBefore: this.showAffectedParentsPopup
+});
     this.showAffectedParentsPopup = true;
-    (this as any)._preservedSickFile = preservedFile;
     this.cdr.detectChanges();
-    return; // ⛔ לא שומרים עדיין - מחכים לאישור בפופאפ
+    return;
   }
 
-  // ✅ אין הורים מושפעים (או לא הצלחנו לזהות) → ממשיכים לשמור רגיל
-  // אל תעשי return פה!
-
-    this.cdr.detectChanges();
-    return; // ⛔ לא שומרים עדיין
+  // 👇 אם יש שיעורים אבל אין הורים מושפעים — ממשיכים לשמור!
+  console.log('No affected parents – continue to save');
 }
-  
 if (!allDay) {
   if (!fromTime || !toTime) {
     this.error = 'חובה לבחור שעות התחלה וסיום';
@@ -946,6 +976,7 @@ onSickFileSelected(event: Event): void {
 
 
 async openRequest(type: RequestType): Promise<void> {
+  
   const date = this.contextMenu.date;
   this.closeContextMenu();
   if (!date) return;
@@ -996,30 +1027,51 @@ private async hasLessonsInRangeFromDb(from: string, to: string): Promise<boolean
 
   return (data?.length ?? 0) > 0;
 }
-private loadAffectedParentsFromSchedule(from: string, to: string): void {
+private async loadAffectedParentsFromDb(from: string, to: string): Promise<void> {
+
+  const dbc = dbTenant();
+
+  const { data, error } = await dbc
+    .from('lessons_with_children')
+    .select(`
+      occur_date,
+      child_id,
+      parent_uid,
+      parent_first_name,
+      parent_last_name,
+      parent_email,
+      parent_phone,
+      status
+    `)
+    .eq('instructor_id', this.instructorId)
+    .gte('occur_date', from)
+    .lte('occur_date', to);
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
   const impacted = new Map<string, Parent>();
 
-  for (const lesson of this.lessons) {
-    const day = lesson.occur_date?.slice(0, 10);
-    if (!day) continue;
-    if (day < from || day > to) continue;
+  for (const row of data ?? []) {
 
-    // מדלגים על מבוטלים
-    const status = String(lesson.status ?? '').toLowerCase();
-    if (status.includes('בוטל') || status.includes('cancel')) continue;
+    const status = String(row.status ?? '').toLowerCase();
+    if (status.includes('cancel')) continue;
 
-    const child = this.children.find(c => c.child_uuid === lesson.child_id);
-    const parent = child?.parent;
-
-    if (parent && parent.uid) {
-      impacted.set(parent.uid, parent);
+    if (row.parent_uid) {
+      impacted.set(row.parent_uid, {
+        uid: row.parent_uid,
+        first_name: row.parent_first_name,
+        last_name: row.parent_last_name,
+        email: row.parent_email,
+        phone: row.parent_phone,
+      });
     }
   }
 
   this.affectedParents = Array.from(impacted.values());
 }
-
-
 async confirmSaveAfterWarning(): Promise<void> {
   this.selectedSickFile = (this as any)._preservedSickFile ?? null;
   this.pendingSickFile = this.selectedSickFile;
@@ -1027,8 +1079,9 @@ async confirmSaveAfterWarning(): Promise<void> {
 
   const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
 
+  console.log('STEP 4 - calling saveRangeRequest');
+
   await this.saveRangeRequest(
-    
     from,
     to,
     allDay,
@@ -1037,10 +1090,9 @@ async confirmSaveAfterWarning(): Promise<void> {
     type,
     text?.trim() || null,
   );
+
   this.rangeModal.open = false;
 }
-
-
 private async uploadSickFile(
   file: File,
   requestId: string
@@ -1093,10 +1145,23 @@ const payload: any = {
   category: this.mapRequestTypeToDb(type),
   note: note ?? null,
 
-  all_day: allDay,
-  requested_start_time: allDay ? null : (fromTime ? fromTime.slice(0, 5) : null),
-  requested_end_time: allDay ? null : (toTime ? toTime.slice(0, 5) : null),
+  all_day: !!allDay,
+
+  requested_start_time: allDay
+    ? null
+    : (fromTime ? fromTime.slice(0, 5) : null),
+
+  requested_end_time: allDay
+    ? null
+    : (toTime ? toTime.slice(0, 5) : null),
 };
+console.log('INSERTING REQUEST', {
+  instructor_id: this.instructorId,
+  fromDate,
+  toDate,
+  payload,
+  requested_by_uid: user.uid
+});
 
 
   const { data, error } = await dbc
@@ -1244,21 +1309,32 @@ if (this.pendingSickFile) {
     return lessonStart < offEnd && lessonEnd > offStart;
   });
 }
-private isLessonBlockedByInstructorOff(lessonDate: string): boolean {
-  if (!this.lastRange) return false;
+private isLessonBlockedByInstructorOff(
+  
+  lessonDate: string,
+  lessonStart?: Date,
+  lessonEnd?: Date
+): boolean {
 
-  // היום לא בטווח שמוצג – אל תחסום
-  if (lessonDate < this.lastRange.start || lessonDate > this.lastRange.end) {
-    return false;
-  }
+  return (this.dayRequests ?? []).some(r => {
 
-  return (this.dayRequests ?? []).some(r =>
-    r.status === 'approved' &&
-    r.request_date === lessonDate
-  );
+    if (r.status !== 'approved') return false;
+    if (r.request_date !== lessonDate) return false;
+
+    // יום מלא
+    if (r.all_day === true) return true;
+
+    // אם אין שעות – לא לחסום
+    if (!r.start_time || !r.end_time) return false;
+
+    if (!lessonStart || !lessonEnd) return false;
+
+    const offStart = new Date(`${lessonDate}T${r.start_time}`);
+    const offEnd   = new Date(`${lessonDate}T${r.end_time}`);
+
+    return lessonStart < offEnd && lessonEnd > offStart;
+  });
 }
-
-
 
 private addOneDayYmd(dateYmd: string): string {
   const [y, m, d] = dateYmd.split('-').map(Number);
@@ -1272,8 +1348,19 @@ private addOneDayYmd(dateYmd: string): string {
 }
 
 private instructorDaysOffToItems(): ScheduleItem[] {
+  console.log('INSTRUCTOR OFF ITEMS SOURCE:', this.dayRequests);
   return (this.dayRequests ?? [])
-    .filter(r => r.status === 'approved')
+ 
+    .filter(r => {
+  const isFarmFullDay = this.farmDaysOff.some(f =>
+    f.day_type === 'FULL_DAY' &&
+    r.request_date >= f.start_date &&
+    r.request_date <= f.end_date
+  );
+
+  return r.status === 'approved' && !isFarmFullDay;
+})
+
     .map(r => {
 
       let bg = '#e5e7eb';
@@ -1297,8 +1384,14 @@ private instructorDaysOffToItems(): ScheduleItem[] {
           text = '#374151';
       }
 
-      const start = `${r.request_date}T00:00:00`;
-      const end   = `${r.request_date}T23:59:59`;
+   const start = r.all_day || !r.start_time
+  ? `${r.request_date}T00:00:00`
+  : `${r.request_date}T${r.start_time}:00`;
+
+const end = r.all_day || !r.end_time
+  ? `${r.request_date}T23:59:59`
+  : `${r.request_date}T${r.end_time}:00`;
+
 
       return {
         id: `instructor_off_${r.id}_${r.request_date}`,
@@ -1403,15 +1496,16 @@ private farmDaysOffToItems(): ScheduleItem[] {
     return map[key] ?? 'other';
   }
 
-  private mapDbStatus(x: string | null | undefined): RequestStatus {
-    const map: Record<string, RequestStatus> = {
-      APPROVED: 'approved',
-      REJECTED: 'rejected',
-      PENDING: 'pending',
-    };
-    const key = String(x ?? '').toUpperCase();
-    return map[key] ?? 'pending';
-  }
+private mapDbStatus(x: string | null | undefined): RequestStatus {
+  const map: Record<string, RequestStatus> = {
+    APPROVED: 'approved',
+    REJECTED: 'rejected',
+    REJECTED_BY_SYSTEM: 'rejected',   // ← להוסיף
+    PENDING: 'pending',
+  };
+  const key = String(x ?? '').toUpperCase();
+  return map[key] ?? 'pending';
+}
 
   private mapRequestTypeToDb(t: RequestType): string {
     const map: Record<RequestType, string> = {
