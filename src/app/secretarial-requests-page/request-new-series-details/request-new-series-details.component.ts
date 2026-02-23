@@ -7,7 +7,7 @@ import { ensureTenantContextReady, dbTenant } from '../../services/legacy-compat
 import { computed } from '@angular/core'; 
 
 import { SeriesRequestsService } from '../../services/series-requests.service';
-import { getCurrentUserData } from '../../services/supabaseClient.service';
+import { getCurrentUserData, requireTenant } from '../../services/supabaseClient.service';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -356,55 +356,44 @@ static async isValidRequset(row: UiRequest): Promise<{ ok: boolean; reason?: str
 async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
   return await SecretarialSeriesRequestsComponent.isValidRequset(this.request);
 }
-private async rejectBySystem(reason: string): Promise<boolean> {
-  if (!this.request?.id) return false;
+private async rejectBySystem(reason: string): Promise<void> {
+  if (!this.request?.id) return;
 
-  await ensureTenantContextReady();
-  const db = dbTenant();
+  const tenantSchema = requireTenant().schema;               // ✅ schema מה-context
+  const decidedByUid = getAuth().currentUser?.uid ?? null;   // ✅ uid של המשתמש המחובר
 
-  const decidedBy = await this.resolveDeciderUid();
-  const note = (reason || 'בקשה לא תקינה').trim();
+  // אם את רוצה decided_by_uid מתוך טבלת users (ולא uid של Firebase):
+  // const appUser = await getCurrentUserData();
+  // const decidedByUid = appUser?.uid ?? getAuth().currentUser?.uid ?? null;
 
-  try {
-    const { data, error } = await db
-      .from('secretarial_requests')
-      .update({
-        status: 'REJECTED_BY_SYSTEM',
-        decided_by_uid: decidedBy,
-        decision_note: note,
-        decided_at: new Date().toISOString(),
-      })
-      .eq('id', this.request.id)
-      .eq('status', 'PENDING')
-      .select('id')
-      .maybeSingle();
+  const idToken = await getAuth().currentUser?.getIdToken();
+  if (!idToken) throw new Error('No Firebase token');
 
-    if (error) throw error;
-    if (!data) return false;
-
-    const payload = { requestId: this.request.id, newStatus: 'REJECTED_BY_SYSTEM' as const };
-
-    // Snack (לא להפריע בבאלק)
-    if (!this.bulkMode) {
-      this.snack.open(`נדחה אוטומטית: ${note}`, 'סגור', {
-        duration: 4500,
-        panelClass: ['snack-reject'],
-        direction: 'rtl',
-        horizontalPosition: 'center',
-        verticalPosition: 'top',
-      });
+  const resp = await fetch(
+    'https://us-central1-bereshit-ac5d8.cloudfunctions.net/autoRejectRequestAndNotify',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        tenantSchema,
+        requestId: this.request.id,
+        reason,
+        decidedByUid,
+      }),
     }
+  );
 
-    this.rejected.emit(payload);
-    this.onRejected?.(payload);
+  const text = await resp.text();
+  let json: any = null;
+  try { json = JSON.parse(text); } catch {}
 
-    return true;
-  } catch (e) {
-    console.error('rejectBySystem failed', e);
-    return false;
+  if (!resp.ok || json?.ok === false) {
+    throw new Error(json?.error || `autoRejectRequestAndNotify failed: ${resp.status}`);
   }
 }
-
 async approveSelected() {
   // ✅ מניעת קריאה כפולה (לחיצה כפולה / submit)
   if (this.loading()) return;

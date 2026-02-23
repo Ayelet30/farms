@@ -9,6 +9,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { computed } from '@angular/core'; 
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { getAuth } from 'firebase/auth';
+import { requireTenant } from '../../services/supabaseClient.service';
 type AddChildDetails = {
   request_id: string;
   created_at: string;
@@ -125,7 +126,31 @@ private getChildIdFromRequest(): string | null {
   decisionNote = '';
   private validator = inject(RequestValidationService);
 private async rejectBySystem(reason: string): Promise<void> {
-  await this.reject({ source: 'system', reason });
+  if (!this.request?.id) return;
+
+  try {
+    const idToken = await getAuth().currentUser?.getIdToken();
+  const tenantSchema = requireTenant().schema;               // ✅ schema מה-context
+
+    await fetch(
+      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/autoRejectRequestAndNotify',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          tenantSchema,
+          requestId: this.request.id,
+          reason,
+          decidedByUid: this.request.id
+        }),
+      }
+    );
+  } catch (e) {
+    console.error('rejectBySystem (via CF) failed', e);
+  }
 }
   // ===== Signed Terms popup =====
   signedOpen = signal(false);

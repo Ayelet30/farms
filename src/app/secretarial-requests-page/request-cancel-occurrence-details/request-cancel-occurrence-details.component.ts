@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/legacy-compat';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { ensureTenantContextReady } from '../../services/supabaseClient.service';
+import { ensureTenantContextReady, requireTenant } from '../../services/supabaseClient.service';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { getAuth } from 'firebase/auth';
 import { RequestValidationService } from '../../services/request-validation.service';
@@ -293,30 +293,43 @@ this.onRejected?.({
   }
 }
 private async rejectBySystem(reason: string): Promise<void> {
-  await ensureTenantContextReady();
-  const db = this.db;
+  if (!this.request?.id) return;
 
-  await db
-    .from('secretarial_requests')
-    .update({
-      status: 'REJECTED_BY_SYSTEM',
-      decided_by_uid: this.decidedByUid ?? null,
-      decision_note: reason?.trim() || 'נדחה אוטומטית: בקשה לא רלוונטית',
-      decided_at: new Date().toISOString(),
-    })
-    .eq('id', this.request.id)
-    .eq('status', 'PENDING');
+  const tenantSchema = requireTenant().schema;               // ✅ schema מה-context
+  const decidedByUid = getAuth().currentUser?.uid ?? null;   // ✅ uid של המשתמש המחובר
 
-  this.onRejected?.({
-    requestId: this.request.id,
-    newStatus: 'REJECTED_BY_SYSTEM' as const,
-    message: reason,
-    meta: { warning: 'REJECTED_BY_SYSTEM' },
-  });
+  // אם את רוצה decided_by_uid מתוך טבלת users (ולא uid של Firebase):
+  // const appUser = await getCurrentUserData();
+  // const decidedByUid = appUser?.uid ?? getAuth().currentUser?.uid ?? null;
 
-  this.toast(reason, 'error');
+  const idToken = await getAuth().currentUser?.getIdToken();
+  if (!idToken) throw new Error('No Firebase token');
+
+  const resp = await fetch(
+    'https://us-central1-bereshit-ac5d8.cloudfunctions.net/autoRejectRequestAndNotify',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        tenantSchema,
+        requestId: this.request.id,
+        reason,
+        decidedByUid,
+      }),
+    }
+  );
+
+  const text = await resp.text();
+  let json: any = null;
+  try { json = JSON.parse(text); } catch {}
+
+  if (!resp.ok || json?.ok === false) {
+    throw new Error(json?.error || `autoRejectRequestAndNotify failed: ${resp.status}`);
+  }
 }
-
   private toast(message: string, type: ToastKind = 'info') {
     this.snack.open(message, 'סגור', {
       duration: 3500,

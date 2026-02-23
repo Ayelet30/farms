@@ -42,7 +42,7 @@ export class RequestMakeupLessonDetailsComponent {
   void this.loadMakeupTarget();
 }
 bulkWarning: string | null = null;
-
+private snackBar = inject(MatSnackBar);
 timeRange = computed(() => {
   const start = this.normalizeTime(this.payload()?.requested_start_time ?? null);
   const end = this.normalizeTime(this.payload()?.requested_end_time ?? null);
@@ -68,6 +68,14 @@ busyText = computed(() => {
   }
 });
 
+private warnSnack(msg: string) {
+  this.snackBar.open(msg, 'סגור', {
+    duration: 5000,
+    panelClass: ['snack-warning'],
+    horizontalPosition: 'center',
+    verticalPosition: 'bottom',
+  });
+}
 private validator = inject(RequestValidationService);
 
   // signal כדי לעבוד יפה עם ngModel
@@ -117,27 +125,60 @@ private fmtName(first?: string | null, last?: string | null): string | null {
   return full || null;
 }
 private async rejectBySystem(reason: string): Promise<void> {
-  await ensureTenantContextReady();
-  const db = await dbTenant();
+  const requestId = this.requestId();
+  if (!requestId) return;
 
-  await db
-    .from(SECRETARIAL_REQUESTS_TABLE)
-    .update({
-      status: 'REJECTED_BY_SYSTEM',
-      decided_by_uid: this.decidedByUid ?? getAuth().currentUser?.uid ?? null,
-      decision_note: reason?.trim() || 'נדחה אוטומטית: בקשה לא רלוונטית',
-      decided_at: new Date().toISOString(),
-    })
-    .eq('id', this.requestId())
-    .eq('status', 'PENDING');
+  try {
+    await this.tenantSvc.ensureTenantContextReady();
+    const tenant = this.tenantSvc.requireTenant();
 
-  // UI callbacks
-  const evt = { requestId: this.requestId(), newStatus: 'REJECTED_BY_SYSTEM' as const };
-  this.rejected.emit(evt);
-  this.onRejected?.(evt);
+    const user = getAuth().currentUser;
+    if (!user) throw new Error('המשתמש לא מחובר');
+    const token = await user.getIdToken();
 
-  // הודעה (errors מותר גם בבאלק)
-  this.fail(reason);
+    const resp = await fetch(
+      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectMakeupLessonAndNotify',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          tenantSchema: tenant.schema,
+          tenantId: tenant.id,
+          requestId,
+          decisionNote: (reason || 'הבקשה נדחתה אוטומטית ע״י המערכת').trim(),
+          source: 'system', // ✅ כדי שיקבע REJECTED_BY_SYSTEM
+        }),
+      }
+    );
+
+    const raw = await resp.text();
+    let json: any = null;
+    try { json = JSON.parse(raw); } catch {}
+
+    if (!resp.ok || !json?.ok) {
+      throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw.slice(0, 300)}`);
+    }
+
+const newStatus = (json?.status || 'REJECTED_BY_SYSTEM') as 'REJECTED_BY_SYSTEM' | 'REJECTED';
+    // ✅ UI callbacks
+    const evt = { requestId, newStatus };
+    this.rejected.emit(evt);
+    this.onRejected?.(evt);
+
+    // ✅ חשוב: לא fail() על הצלחה!
+    // אם המייל נכשל → להציג warning (כמו בשאר הבקשות)
+    if (json?.warning && !this.bulkMode) {
+      this.warnSnack(json.warning); // או infoSnack
+    } else if (!this.bulkMode) {
+      this.okSnack('הבקשה נדחתה אוטומטית ע״י המערכת');
+    }
+
+  } catch (e: any) {
+    this.fail(e?.message ?? 'שגיאה בדחייה אוטומטית ע״י המערכת', e);
+  }
 }
 
 async loadMakeupTarget(): Promise<void> {
