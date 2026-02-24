@@ -10,7 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL_S, SUPABASE_KEY_S } from './gmail/email-core';
 
 // ✅ חדש: builder + notify client (תעדכני נתיבים לפי המבנה שלך)
-import { buildChildRemovalEmail } from './send-child-removal-email';
+import { buildChildRemovalEmail } from './email-builders/send-child-removal-email';
 import { notifyUserInternal } from './notify-user-client';
 
 const ALLOWED_ORIGINS = new Set<string>([

@@ -8,7 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 
 import { SUPABASE_URL_S, SUPABASE_KEY_S } from './gmail/email-core';
 import { notifyUserInternal } from './notify-user-client';
-import { buildAddChildDecisionEmail } from './send-add-child-decision-email';
+import { buildAddChildDecisionEmail } from './email-builders/send-add-child-decision-email';
 
 const ALLOWED_ORIGINS = new Set<string>([
   'https://smart-farm.org',
