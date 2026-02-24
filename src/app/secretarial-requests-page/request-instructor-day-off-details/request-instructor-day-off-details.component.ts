@@ -42,6 +42,15 @@ readonly isPending = computed(() => this.status() === 'PENDING');
 readonly shouldShowImpact = computed(() => this.isPending());
 // ✅ האם להציג פעולות (Approve/Reject)
 readonly canDecide = computed(() => this.isPending());
+readonly isSickRequest = computed(() => {
+  const p: any = (this.req() as any)?.payload ?? {};
+  return String(p.category ?? '').toUpperCase() === 'SICK';
+});
+
+readonly medicalCertificateUrl = computed(() => {
+  const p: any = (this.req() as any)?.payload ?? {};
+  return p.medical_certificate_url ?? null;
+});
 readonly windowText = computed(() => {
   const r: any = this.req() ?? {};
   const p: any = r.payload ?? {};
@@ -63,12 +72,23 @@ const allDay =
   };
 
   // 1) יום אחד
-  if (from && to && from === to) {
-    if (allDay) return `${fmt(from)} — יום חופש מלא`;
-    if (start && end) return `${fmt(from)} — ${start}–${end}`;
-    if (start && !end) return `${fmt(from)} — החל מ־${start}`;
-    return `${fmt(from)} — יום חופש`;
-  }
+const label = this.getCategoryLabel();
+
+// 1) יום אחד
+if (from && to && from === to) {
+  if (allDay) return `${fmt(from)} — ${label} מלא`;
+  if (start && end) return `${fmt(from)} — ${start}–${end}`;
+  if (start && !end) return `${fmt(from)} — החל מ־${start}`;
+  return `${fmt(from)} — ${label}`;
+}
+
+// 2) טווח ימים
+if (from && to && from !== to) {
+  if (allDay) return `${fmt(from)}–${fmt(to)} — ${label} מלאה`;
+  if (start && end) return `${fmt(from)}–${fmt(to)} — בכל יום ${start}–${end}`;
+  if (start && !end) return `${fmt(from)}–${fmt(to)} — בכל יום החל מ־${start}`;
+  return `${fmt(from)}–${fmt(to)} — ${label}`;
+}
 
   // 2) טווח ימים
   if (from && to && from !== to) {
@@ -85,6 +105,18 @@ const allDay =
   set request(value: any) {
     this._req.set(value);
   }
+   getCategoryLabel(): string {
+  const p: any = (this.req() as any)?.payload ?? {};
+  const c = String(p.category ?? '').toUpperCase();
+
+  switch (c) {
+    case 'SICK': return 'יום מחלה';
+    case 'HOLIDAY': return 'יום חופש';
+    case 'PERSONAL': return 'יום אישי';
+    case 'OTHER': return 'אחר';
+    default: return 'היעדרות';
+  }
+}
 private tenantSvc = inject(SupabaseTenantService);
 
   private _decidedByUid = signal<string | null>(null);
@@ -419,14 +451,15 @@ this.onRejected?.({
     return new Date(`${d}T${t}:00`);
   }
 
-  getDayOffTitle(): string {
-    const r = this.req();
-    const name = r?.instructorName || 'המדריך/ה';
-    const from = this.formatDate(r?.fromDate);
-    const to = this.formatDate(r?.toDate || r?.fromDate);
+getDayOffTitle(): string {
+  const r = this.req();
+  const name = r?.instructorName || 'המדריך/ה';
+  const from = this.formatDate(r?.fromDate);
+  const to = this.formatDate(r?.toDate || r?.fromDate);
+  const label = this.getCategoryLabel();
 
-    return from === to
-      ? `${name} – יום חופש בתאריך ${from}`
-      : `${name} – יום חופש בין ${from} עד ${to}`;
-  }
+  return from === to
+    ? `${name} – ${label} בתאריך ${from}`
+    : `${name} – ${label} בין ${from} עד ${to}`;
+}
 }

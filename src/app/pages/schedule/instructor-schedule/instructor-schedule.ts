@@ -387,12 +387,17 @@ private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<vo
 
 }
 
-
 private expandRequestRow(row: any): DayRequestRow[] {
-  console.log('CATEGORY VALUE:', row.payload?.category);
   const res: DayRequestRow[] = [];
+
+  if (row.request_type !== 'INSTRUCTOR_DAY_OFF') {
+    return res;
+  }
+
+  console.log('CATEGORY VALUE:', row.payload?.category);
+
   if (!row.from_date) return res;
-  if (!row.payload?.category) return res;
+  if (typeof row.payload?.category !== 'string') return res;
 
   let current = row.from_date.slice(0, 10);
   const end = (row.to_date || row.from_date).slice(0, 10);
@@ -1499,17 +1504,22 @@ private farmDaysOffToItems(): ScheduleItem[] {
     }
   }
 
-  private mapDbRequestType(x: string | null | undefined): RequestType {
-    const map: Record<string, RequestType> = {
-      HOLIDAY: 'holiday',
-      SICK: 'sick',
-      PERSONAL: 'personal',
-      OTHER: 'other',
-    };
-    const key = String(x ?? '').toUpperCase();
-    return map[key] ?? 'other';
-  }
+private mapDbRequestType(x: string | null | undefined): RequestType {
+  const val = String(x ?? '').toUpperCase().trim();
 
+  switch (val) {
+    case 'HOLIDAY':
+      return 'holiday';
+    case 'SICK':
+      return 'sick';
+    case 'PERSONAL':
+      return 'personal';
+    case 'OTHER':
+      return 'other';
+    default:
+      return 'other';
+  }
+}
 private mapDbStatus(x: string | null | undefined): RequestStatus {
   const map: Record<string, RequestStatus> = {
     APPROVED: 'approved',
