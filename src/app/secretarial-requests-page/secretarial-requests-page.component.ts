@@ -472,6 +472,8 @@ selectedVisibleRequest = computed<UiRequest | null>(() => {
  private mapRowToUi(row: any): UiRequest {
   const payload = { ...(row.payload ?? {}) };
 
+console.log('CATEGORY:', payload.category);
+
   payload.category =
     payload.category ??
     row.day_off_category ??
