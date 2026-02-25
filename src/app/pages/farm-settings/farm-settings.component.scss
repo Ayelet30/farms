@@ -364,7 +364,7 @@ input[type="time"] {
   &.toggle {
     flex-direction: row;
     align-items: center;
-    justify-content: space-between;
+    justify-content: inherit;
     gap: 10px;
 
     input[type="checkbox"] {

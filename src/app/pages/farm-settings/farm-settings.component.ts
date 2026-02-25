@@ -87,6 +87,7 @@ interface FarmSettings {
   reminder_require_confirmation?: boolean | null;
   reminder_allow_cancel_link?: boolean | null;
 
+  iscreatebillingcharge?: boolean | null; // תקופת הרצה - הכנסת ילדים רשומים למערכת לא מחייבים דמי רישום.
   registration_fee: number | null;
   student_insurance_premiums: number | null;
 
@@ -201,6 +202,7 @@ type SettingsErrors = {
 notify_before_farm_closure_hours?: string;
 min_time_between_cancellations?: string;
 registration_fee?: string;
+iscreatebillingcharge?: string;
 student_insurance_premiums?: string;
 
 };
@@ -1273,6 +1275,7 @@ leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
       reminder_require_confirmation: false,
       reminder_allow_cancel_link: true,
 
+      iscreatebillingcharge: false,
       registration_fee: null,
       student_insurance_premiums: null,
 

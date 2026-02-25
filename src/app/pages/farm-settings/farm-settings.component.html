@@ -271,8 +271,8 @@
           </div>
 
           <label class="field toggle">
-            <span class="field-label">אפשר זימון שיעורים ע&quot;י הורים</span>
             <input type="checkbox" [(ngModel)]="s.allow_online_booking" name="allow_online_booking" />
+            <span class="field-label">אפשר זימון שיעורים ע&quot;י הורים</span>
           </label>
       
 </div>
@@ -571,13 +571,13 @@
   </label>
 
   <label class="field toggle">
-    <span class="field-label">פעיל</span>
     <input
-      type="checkbox"
-      name="newRidingTypeIsActive"
-      [ngModel]="newRidingTypeIsActive()"
-      (ngModelChange)="newRidingTypeIsActive.set($event)"
+    type="checkbox"
+    name="newRidingTypeIsActive"
+    [ngModel]="newRidingTypeIsActive()"
+    (ngModelChange)="newRidingTypeIsActive.set($event)"
     />
+    <span class="field-label">פעיל</span>
   </label>
 <button
   type="submit"
@@ -710,8 +710,8 @@
 
         <div class="fields-grid three-cols">
           <label class="field toggle">
-            <span class="field-label">שליחת תזכורת לשיעור</span>
             <input type="checkbox" [(ngModel)]="s.send_lesson_reminder" name="send_lesson_reminder" />
+            <span class="field-label">שליחת תזכורת לשיעור</span>
           </label>
 
           <label class="field">
@@ -758,33 +758,33 @@
 
         <div class="fields-grid three-cols">
           <label class="field toggle">
-            <span class="field-label">להציע שיעור השלמה כשיש ביטול</span>
             <input type="checkbox" [(ngModel)]="s.suggest_makeup_on_cancel" name="suggest_makeup_on_cancel" />
+            <span class="field-label">להציע שיעור השלמה כשיש ביטול</span>
           </label>
 
           <label class="field toggle">
-            <span class="field-label">תזכורת עם אישור הגעה</span>
             <input type="checkbox" [(ngModel)]="s.reminder_require_confirmation" name="reminder_require_confirmation"
-              [disabled]="!s.send_lesson_reminder" />
+            [disabled]="!s.send_lesson_reminder" />
+            <span class="field-label">תזכורת עם אישור הגעה</span>
           </label>
 
           <label class="field toggle">
-            <span class="field-label">לאפשר ביטול מתוך תזכורת</span>
             <input type="checkbox" [(ngModel)]="s.reminder_allow_cancel_link" name="reminder_allow_cancel_link"
-              [disabled]="!s.send_lesson_reminder" />
+            [disabled]="!s.send_lesson_reminder" />
+            <span class="field-label">לאפשר ביטול מתוך תזכורת</span>
           </label>
         </div>
 
         <div class="fields-grid three-cols" style="margin-top:10px;">
           <label class="field toggle">
-            <span class="field-label">לשלוח הודעה להורים לפני חופש חווה</span>
             <input type="checkbox" [(ngModel)]="s.notify_before_farm_closure" name="notify_before_farm_closure" />
+            <span class="field-label">לשלוח הודעה להורים לפני חופש חווה</span>
           </label>
 
           <label class="field">
-            <span class="field-label">כמה שעות לפני</span>
             <input type="number" min="1" step="1" [(ngModel)]="s.notify_before_farm_closure_hours"
-              name="notify_before_farm_closure_hours" [disabled]="!s.notify_before_farm_closure" />
+            name="notify_before_farm_closure_hours" [disabled]="!s.notify_before_farm_closure" />
+            <span class="field-label">כמה שעות לפני</span>
           </label>
         </div>
       </section>
@@ -800,15 +800,15 @@
           </label>
 
           <label class="field toggle">
-            <span class="field-label">אפשר הנחות</span>
             <input type="checkbox" [(ngModel)]="s.enable_discounts" name="enable_discounts" />
+            <span class="field-label">אפשר הנחות</span>
           </label>
         </div>
 
         <div class="fields-grid three-cols">
           <label class="field">
-            <span class="field-label">קנס פיגור (₪)</span>
             <input type="number" min="0" step="0.5" [(ngModel)]="s.late_payment_fee" name="late_payment_fee" />
+            <span class="field-label">קנס פיגור (₪)</span>
           </label>
 
           <label class="field">
@@ -829,6 +829,12 @@
       <!-- תשלומים ודמי רישום -->
       <section class="settings-section">
         <h2>תשלומים ודמי רישום</h2>
+
+        <div class="field toggle">
+          <input type="checkbox" name="iscreatebillingcharge" [(ngModel)]="s.iscreatebillingcharge" />
+                <span class="field-label"> תקופת הרצה - הכנסת ילדים רשומים למערכת לא מחייבים דמי רישום.</span>
+        </div>
+       
 
         <div class="fields-grid three-cols">
           <label class="field">
@@ -930,8 +936,8 @@
               </div>
 
               <div class="field toggle">
-                <span class="field-label">חובה מסמכים בזמן קביעת סדרה</span>
                 <input type="checkbox" name="newPlanRequireDocs" [(ngModel)]="newPlan.require_docs_at_booking" />
+                <span class="field-label">חובה מסמכים בזמן קביעת סדרה</span>
               </div>
             </div>
 
@@ -1047,14 +1053,14 @@
                   </div>
 
                   <div class="field toggle">
-                    <span class="field-label">חובה מסמכים בזמן קביעת סדרה</span>
                     <input type="checkbox" name="editPlanRequireDocs_{{p.id}}"
-                      [(ngModel)]="p.require_docs_at_booking" />
+                    [(ngModel)]="p.require_docs_at_booking" />
+                    <span class="field-label">חובה מסמכים בזמן קביעת סדרה</span>
                   </div>
 
                   <div class="field toggle">
-                    <span class="field-label">מסלול פעיל</span>
                     <input type="checkbox" name="editPlanIsActive_{{p.id}}" [(ngModel)]="p.is_active" />
+                    <span class="field-label">מסלול פעיל</span>
                   </div>
                 </div>
 
@@ -1205,8 +1211,8 @@
                   </div>
 
                   <div class="field toggle">
-                    <span class="field-label">פעיל</span>
                     <input type="checkbox" name="editFundingIsActive_{{fs.id}}" [(ngModel)]="fs.is_active" />
+                    <span class="field-label">פעיל</span>
                   </div>
                 </div>
 
@@ -1331,9 +1337,9 @@
         </div>
 
         <label class="field toggle">
-          <span class="field-label">כל היום</span>
           <input type="checkbox" [ngModel]="specialDayForm().all_day"
-            (ngModelChange)="patchSpecialDayForm({ all_day: $event })" />
+          (ngModelChange)="patchSpecialDayForm({ all_day: $event })" />
+          <span class="field-label">כל היום</span>
         </label>
 
         <div class="fields-grid two-cols" *ngIf="specialDayForm().calendar_kind !== 'HEBREW'">
@@ -1424,9 +1430,9 @@
 
         <div class="fields-grid two-cols" style="margin-top:10px;">
           <label class="field toggle">
-            <span class="field-label">לשלוח הודעה להורים לפני החופש</span>
             <input type="checkbox" [ngModel]="specialDayForm().notify_parents_before"
-              (ngModelChange)="patchSpecialDayForm({ notify_parents_before: $event })" />
+            (ngModelChange)="patchSpecialDayForm({ notify_parents_before: $event })" />
+            <span class="field-label">לשלוח הודעה להורים לפני החופש</span>
           </label>
 
           <label class="field">

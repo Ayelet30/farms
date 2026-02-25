@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { dbTenant } from './supabaseClient.service';
 
 export interface FarmSettings {
+  iscreatebillingcharge?: boolean | null; // תקופת הרצה - הכנסת ילדים רשומים למערכת לא מחייבים דמי רישום.
   registration_fee?: number | null;
   operating_hours_start?: string | null;
   operating_hours_end?: string | null;
@@ -79,6 +80,11 @@ export class FarmSettingsService {
     const settings = await this.loadSettings();
     return settings?.registration_fee ?? 0;
   }
+
+  async getIsCreateBillingCharge(): Promise<boolean> {
+    const settings = await this.loadSettings();
+    return settings?.iscreatebillingcharge ?? false;
+  } 
 
   clearCache() {
     this.cache = null;
