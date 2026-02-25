@@ -8,7 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 
 import { SUPABASE_URL_S, SUPABASE_KEY_S } from './gmail/email-core';
 import { notifyUserInternal } from './notify-user-client';
-import { buildMakeupLessonDecisionEmail } from './send-makeup-lesson-decision-email';
+import { buildMakeupLessonDecisionEmail } from './email-builders/send-makeup-lesson-decision-email';
 
 const INTERNAL_CALL_SECRET_S = defineSecret('INTERNAL_CALL_SECRET');
 

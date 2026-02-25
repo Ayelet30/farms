@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 
 import { SUPABASE_URL_S, SUPABASE_KEY_S } from './gmail/email-core';
 import { notifyUserInternal } from './notify-user-client';
-import { buildFillInEmail } from './send-fill-in-email';
+import { buildFillInEmail } from './email-builders/send-fill-in-email';
 
 const ALLOWED_ORIGINS = new Set<string>([
   'https://smart-farm.org',

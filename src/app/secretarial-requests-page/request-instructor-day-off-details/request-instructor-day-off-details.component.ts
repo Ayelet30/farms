@@ -7,6 +7,8 @@ import { RequestValidationService } from '../../services/request-validation.serv
 import { RequestStatus } from '../../Types/detailes.model';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { getAuth } from 'firebase/auth';
+import { requireTenant } from '../../services/supabaseClient.service';
 
 type ImpactRow = {
   occur_date: string; // date
@@ -40,6 +42,15 @@ readonly isPending = computed(() => this.status() === 'PENDING');
 readonly shouldShowImpact = computed(() => this.isPending());
 // ✅ האם להציג פעולות (Approve/Reject)
 readonly canDecide = computed(() => this.isPending());
+readonly isSickRequest = computed(() => {
+  const p: any = (this.req() as any)?.payload ?? {};
+  return String(p.category ?? '').toUpperCase() === 'SICK';
+});
+
+readonly medicalCertificateUrl = computed(() => {
+  const p: any = (this.req() as any)?.payload ?? {};
+  return p.medical_certificate_url ?? null;
+});
 readonly windowText = computed(() => {
   const r: any = this.req() ?? {};
   const p: any = r.payload ?? {};
@@ -61,12 +72,23 @@ const allDay =
   };
 
   // 1) יום אחד
-  if (from && to && from === to) {
-    if (allDay) return `${fmt(from)} — יום חופש מלא`;
-    if (start && end) return `${fmt(from)} — ${start}–${end}`;
-    if (start && !end) return `${fmt(from)} — החל מ־${start}`;
-    return `${fmt(from)} — יום חופש`;
-  }
+const label = this.getCategoryLabel();
+
+// 1) יום אחד
+if (from && to && from === to) {
+  if (allDay) return `${fmt(from)} — ${label} מלא`;
+  if (start && end) return `${fmt(from)} — ${start}–${end}`;
+  if (start && !end) return `${fmt(from)} — החל מ־${start}`;
+  return `${fmt(from)} — ${label}`;
+}
+
+// 2) טווח ימים
+if (from && to && from !== to) {
+  if (allDay) return `${fmt(from)}–${fmt(to)} — ${label} מלאה`;
+  if (start && end) return `${fmt(from)}–${fmt(to)} — בכל יום ${start}–${end}`;
+  if (start && !end) return `${fmt(from)}–${fmt(to)} — בכל יום החל מ־${start}`;
+  return `${fmt(from)}–${fmt(to)} — ${label}`;
+}
 
   // 2) טווח ימים
   if (from && to && from !== to) {
@@ -83,6 +105,18 @@ const allDay =
   set request(value: any) {
     this._req.set(value);
   }
+   getCategoryLabel(): string {
+  const p: any = (this.req() as any)?.payload ?? {};
+  const c = String(p.category ?? '').toUpperCase();
+
+  switch (c) {
+    case 'SICK': return 'יום מחלה';
+    case 'HOLIDAY': return 'יום חופש';
+    case 'PERSONAL': return 'יום אישי';
+    case 'OTHER': return 'אחר';
+    default: return 'היעדרות';
+  }
+}
 private tenantSvc = inject(SupabaseTenantService);
 
   private _decidedByUid = signal<string | null>(null);
@@ -187,43 +221,41 @@ note = this.decisionNote;
     }
   }
 private async rejectBySystem(reason: string): Promise<void> {
-  const r = this.req();
-  const requestId = r?.id;
-  const decidedByUid = this.decidedByUidSig();
+  if (!this.request?.id) return;
 
-  if (!requestId) return;
+  const tenantSchema = requireTenant().schema;               // ✅ schema מה-context
+  const decidedByUid = getAuth().currentUser?.uid ?? null;   // ✅ uid של המשתמש המחובר
 
-  try {
-    const { data, error } = await this.db
-      .from('secretarial_requests')
-      .update({
-        status: 'REJECTED_BY_SYSTEM',
-        decided_by_uid: decidedByUid,
-        decision_note: (reason || 'בקשה לא תקינה').trim(),
-        decided_at: new Date().toISOString(),
-      })
-      .eq('id', requestId)
-      .eq('status', 'PENDING')
-      .select('id,status')
-      .maybeSingle();
+  // אם את רוצה decided_by_uid מתוך טבלת users (ולא uid של Firebase):
+  // const appUser = await getCurrentUserData();
+  // const decidedByUid = appUser?.uid ?? getAuth().currentUser?.uid ?? null;
 
-    if (error) throw error;
-    if (!data) return; // מישהו כבר טיפל
+  const idToken = await getAuth().currentUser?.getIdToken();
+  if (!idToken) throw new Error('No Firebase token');
 
-    const msg = reason || 'הבקשה נדחתה אוטומטית ע"י המערכת';
-    this.toast(msg, 'info');
+  const resp = await fetch(
+    'https://us-central1-bereshit-ac5d8.cloudfunctions.net/autoRejectRequestAndNotify',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        tenantSchema,
+        requestId: this.request.id,
+        reason,
+        decidedByUid,
+      }),
+    }
+  );
 
-   this.onRejected?.({
-  requestId,
-  newStatus: 'REJECTED_BY_SYSTEM' as any, // עדיף שתעדכני את הטיפוס למטה
-  message: msg,
-  meta: { rejectedBySystem: true, systemReason: msg },
-});
+  const text = await resp.text();
+  let json: any = null;
+  try { json = JSON.parse(text); } catch {}
 
-  } catch (e: any) {
-    console.error('rejectBySystem failed', e);
-    // אם נכשל – לא להפיל את ה-UI, רק להודיע
-    this.onError?.({ requestId, message: e?.message ?? 'שגיאה בדחייה אוטומטית', raw: e });
+  if (!resp.ok || json?.ok === false) {
+    throw new Error(json?.error || `autoRejectRequestAndNotify failed: ${resp.status}`);
   }
 }
 
@@ -419,14 +451,15 @@ this.onRejected?.({
     return new Date(`${d}T${t}:00`);
   }
 
-  getDayOffTitle(): string {
-    const r = this.req();
-    const name = r?.instructorName || 'המדריך/ה';
-    const from = this.formatDate(r?.fromDate);
-    const to = this.formatDate(r?.toDate || r?.fromDate);
+getDayOffTitle(): string {
+  const r = this.req();
+  const name = r?.instructorName || 'המדריך/ה';
+  const from = this.formatDate(r?.fromDate);
+  const to = this.formatDate(r?.toDate || r?.fromDate);
+  const label = this.getCategoryLabel();
 
-    return from === to
-      ? `${name} – יום חופש בתאריך ${from}`
-      : `${name} – יום חופש בין ${from} עד ${to}`;
-  }
+  return from === to
+    ? `${name} – ${label} בתאריך ${from}`
+    : `${name} – ${label} בין ${from} עד ${to}`;
+}
 }

@@ -469,61 +469,84 @@ selectedVisibleRequest = computed<UiRequest | null>(() => {
   }
 }
 
-  private mapRowToUi(row: any): UiRequest {
-    return {
-      id: row.id,
-      requestType: row.request_type,
-      status: row.status,
+ private mapRowToUi(row: any): UiRequest {
+  const payload = { ...(row.payload ?? {}) };
 
-      summary: this.buildSummary(row as SecretarialRequestDbRow, row.payload || {}),
-      requestedByName: this.getRequesterDisplay(row),
-      childName: row.child_name || undefined,
-      instructorName: row.instructor_name || undefined,
+console.log('CATEGORY:', payload.category);
 
-      fromDate: row.from_date,
-      toDate: row.to_date,
-      createdAt: row.created_at,
+  payload.category =
+    payload.category ??
+    row.day_off_category ??
+    row.category ??
+    null;
 
-      requesterUid: row.requested_by_uid,
-      requesterRole: row.requested_by_role ?? null, 
-      payload: row.payload,
-      childId: row.child_id ?? null,
-instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
-  lessonOccId: row.lesson_occ_id ?? null,   
+  console.log('REQ', row.id, row.request_type, payload.category, payload);
 
-    };
+  return {
+    id: row.id,
+    requestType: row.request_type,
+    status: row.status,
+
+    summary: this.buildSummary(row as SecretarialRequestDbRow, payload),
+    requestedByName: this.getRequesterDisplay(row),
+    childName: row.child_name || undefined,
+    instructorName: row.instructor_name || undefined,
+
+    fromDate: row.from_date,
+    toDate: row.to_date,
+    createdAt: row.created_at,
+
+    requesterUid: row.requested_by_uid,
+    requesterRole: row.requested_by_role ?? null,
+
+    payload, // ✅ חשוב
+    childId: row.child_id ?? null,
+    instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
+    lessonOccId: row.lesson_occ_id ?? null,
+  };
+}
+private getDayOffCategoryLabel(p: any): string {
+  const key = String(p?.category ?? '').toUpperCase().trim();
+  switch (key) {
+    case 'HOLIDAY': return 'יום חופש';
+    case 'SICK': return 'יום מחלה';
+    case 'PERSONAL': return 'יום אישי';
+    case 'OTHER': return 'בקשה אחרת';
+    default: return 'בקשה אחרת';
   }
-
+}
 private buildSummary(row: any, p: any): string {
     switch (row.request_type) {
       case 'CANCEL_OCCURRENCE':
         return p.summary || `ביטול שיעור לתאריך ${p.occur_date ?? row.from_date ?? ''}`;
-   case 'INSTRUCTOR_DAY_OFF': {
+case 'INSTRUCTOR_DAY_OFF': {
   if (p.summary) return p.summary;
 
   const from = (row.from_date ?? '').slice(0, 10);
   const to   = (row.to_date ?? row.from_date ?? '').slice(0, 10);
   const name = row.instructor_name ?? '';
 
+  const catLabel = this.getDayOffCategoryLabel(p); // ✅ יום חופש / יום מחלה / יום אישי...
   const allDay = !!p.all_day;
+
   const start = (p.requested_start_time ?? '').toString().slice(0, 5) || null;
   const end   = (p.requested_end_time   ?? '').toString().slice(0, 5) || null;
 
   // יום אחד
   if (from && to && from === to) {
-    if (allDay) return `יום חופש מלא למדריך/ה ${name} בתאריך ${from}`;
-    if (start && end) return `יום חופש למדריך/ה ${name} בתאריך ${from} (${start}–${end})`;
-    return `יום חופש למדריך/ה ${name} בתאריך ${from}`;
+    if (allDay) return `${catLabel} מלא למדריך/ה ${name} בתאריך ${from}`;
+    if (start && end) return `${catLabel} למדריך/ה ${name} בתאריך ${from} (${start}–${end})`;
+    return `${catLabel} למדריך/ה ${name} בתאריך ${from}`;
   }
 
   // טווח ימים
   if (from && to && from !== to) {
-    if (allDay) return `חופשה מלאה למדריך/ה ${name} בין ${from}–${to}`;
-    if (start && end) return `חופשה למדריך/ה ${name} בין ${from}–${to} (בכל יום ${start}–${end})`;
-    return `חופשה למדריך/ה ${name} בין ${from}–${to}`;
+    if (allDay) return `${catLabel} (מלא) למדריך/ה ${name} בין ${from}–${to}`;
+    if (start && end) return `${catLabel} למדריך/ה ${name} בין ${from}–${to} (בכל יום ${start}–${end})`;
+    return `${catLabel} למדריך/ה ${name} בין ${from}–${to}`;
   }
 
-  return `יום חופש מדריך ${name}`;
+  return `${catLabel} למדריך/ה ${name}`;
 }
 
       case 'NEW_SERIES':
@@ -642,7 +665,26 @@ private buildSummary(row: any, p: any): string {
       default: return type;
     }
   }
+getRequestTypeLabelRow(r: UiRequest): string {
+  if (r.requestType === 'INSTRUCTOR_DAY_OFF') {
+    return this.getDayOffCategoryLabel(r.payload);
+  }
+  return this.getRequestTypeLabel(r.requestType);
+}
 
+getRequestTypeIconRow(r: UiRequest): string {
+  if (r.requestType === 'INSTRUCTOR_DAY_OFF') {
+    const key = String(r.payload?.category ?? '').toUpperCase().trim();
+    switch (key) {
+      case 'SICK': return 'healing';
+      case 'PERSONAL': return 'person';
+      case 'OTHER': return 'help';
+      case 'HOLIDAY': return 'beach_access';
+      default: return 'beach_access';
+    }
+  }
+  return this.getRequestTypeIcon(r.requestType);
+}
   getRequestTypeIcon(type: RequestType): string {
     switch (type) {
       case 'CANCEL_OCCURRENCE': return 'event_busy';

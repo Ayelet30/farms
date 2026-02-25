@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL_S, SUPABASE_KEY_S } from './gmail/email-core';
 import { notifyUserInternal } from './notify-user-client';
-import { buildSeriesApprovedEmail } from './send-series-approved-email';
+import { buildSeriesApprovedEmail } from './email-builders/send-series-approved-email';
 
 const ALLOWED_ORIGINS = new Set<string>([
   'https://smart-farm.org',

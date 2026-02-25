@@ -8,7 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 
 import { SUPABASE_URL_S, SUPABASE_KEY_S } from './gmail/email-core';
 import { notifyUserInternal } from './notify-user-client';
-import { buildCancelOccurrenceDecisionEmail } from './send-cancel-occurrence-decision-email';
+import { buildCancelOccurrenceDecisionEmail } from './email-builders/send-cancel-occurrence-decision-email';
 
 const INTERNAL_CALL_SECRET_S = defineSecret('INTERNAL_CALL_SECRET');
 

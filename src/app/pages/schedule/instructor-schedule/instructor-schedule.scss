@@ -434,6 +434,22 @@
 :host ::ng-deep .fc-view-harness {
   overflow: visible !important;
 }
-.context-menu {
-  transform: translate(-50%, -50%);
+
+.note-overlay,
+.busy-overlay {
+  display: none !important;
+}
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999 !important;
+}
+
+.confirm-dialog {
+  position: relative;
+  z-index: 100000;
 }
