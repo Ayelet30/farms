@@ -51,7 +51,7 @@
   background: var(--panel-bg);
   padding-top: var(--header-h);
   position: relative;
-  min-height: 100dvh;
+  min-height: calc(100dvh - var(--header-h));
 
   /* דסקטופ ברירת מחדל */
   --menu-w: var(--menu-closed);
