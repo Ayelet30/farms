@@ -63,6 +63,10 @@ type InstructorPickRow = InstructorDbRow & {
   ineligibleReasons: string[];   // סיבות מפורטות
   ineligibleReasonText: string;  // טקסט ל-tooltip
 };
+type ExistingSeriesGate =
+  | { kind: 'none' }
+  | { kind: 'open_ended' }
+  | { kind: 'regular'; endDate: string }; // YYYY-MM-DD
 
 
 
@@ -181,7 +185,9 @@ interface CreateSeriesWithValidationResult {
 
 export class AppointmentSchedulerComponent implements OnInit {
 private unsubTenantChange?: () => void;
-
+existingSeriesGate: ExistingSeriesGate = { kind: 'none' };
+// הודעת UI (אופציונלי)
+seriesGateMessage: string | null = null;
 needApprove: boolean = false;
 selectedChildId: string | null = null;
 instructors: InstructorPickRow[] = [];
@@ -1198,7 +1204,7 @@ this.seriesCreatedMessage = null;
     this.instructors = [];
     return;
   }
-
+await this.loadExistingSeriesGateForChild(this.selectedChildId);
   // טוענים מדריכים מתאימים לילד שנבחר
   await this.loadInstructorsForChild(this.selectedChildId);
 
@@ -1333,7 +1339,13 @@ async searchRecurringSlots(): Promise<void> {
     this.seriesError = 'יש לבחור ילד מתוך הרשימה';
     return;
   }
-
+  // ✅ Gate: אם כבר יש סדרה ללא הגבלה – לא מציגים כלום
+  if (this.existingSeriesGate.kind === 'open_ended') {
+    this.seriesError = 'לילד קיימת סדרה ללא הגבלה.';
+    // אם את רוצה שזה יהיה "info" ולא error:
+    // this.showUiHint('seriesCount', this.seriesError, 5000);
+    return;
+  }
  if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
 
   this.seriesError = 'יש לבחור כמות שיעורים בסדרה';
@@ -1357,8 +1369,12 @@ async searchRecurringSlots(): Promise<void> {
     instructorParam = sel?.instructor_id ?? null;
   }
 
-  const today = new Date();
-  const fromDate = today.toISOString().slice(0, 10);
+   const today = new Date();
+  let fromDate = today.toISOString().slice(0, 10);
+
+  // ✅ אם יש סדרה רגילה פעילה – מתחילים מה-end_date שלה
+  if (this.existingSeriesGate.kind === 'regular') {
+fromDate = this.addDays(this.existingSeriesGate.endDate, 1);  }
   // ✅ רגיל: 3 חודשים קדימה | ללא הגבלה: לפי series_search_horizon_days
   let toDate: string;
   if (this.isOpenEndedSeries) {
@@ -2401,11 +2417,11 @@ async requestSeriesFromSecretary(slot: RecurringSlotWithSkips, dialogTpl: Templa
 getSlotDayLabel(dateStr: string): string {
   return this.dayOfWeekLabelFromDate(dateStr);
 }
-private formatLocalDate(d: Date): string {
+private formatLocalDateDMY(d: Date): string {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+  return `${dd}-${mm}-${yyyy}`;
 }
 
   /**
@@ -3144,7 +3160,7 @@ private buildSeriesConfirmData(slot: RecurringSlotWithSkips): {
   if (this.isOpenEndedSeries) {
     const endD = new Date(startDate + 'T00:00:00');
     endD.setDate(endD.getDate() + (this.seriesSearchHorizonDays ?? 90));
-    endDate = this.formatLocalDate(endD);
+    endDate = this.formatLocalDateDMY(endD);
   } else {
     const skipsCount =
       (slot.skipped_farm_days_off?.length ?? 0) +
@@ -3154,7 +3170,7 @@ private buildSeriesConfirmData(slot: RecurringSlotWithSkips): {
 
     const endD = new Date(startDate + 'T00:00:00');
     endD.setDate(endD.getDate() + totalWeeksForward * 7);
-    endDate = this.formatLocalDate(endD);
+    endDate = this.formatLocalDateDMY(endD);
   }
 
   // ---- פרטי מדריך ----
@@ -3430,7 +3446,7 @@ private canSeriesFitBeforeDeletion(slot: RecurringSlotWithSkips, child: ChildWit
 
   const endD = new Date(slot.lesson_date + 'T00:00:00');
   endD.setDate(endD.getDate() + totalWeeksForward * 7);
-  const seriesEndDate = this.formatLocalDate(endD);
+  const seriesEndDate = this.formatLocalDateDMY(endD);
 
   return seriesEndDate <= cutoff;
 }
@@ -3506,7 +3522,67 @@ getInstructorDisplayName(idOrUid: string | null | undefined): string {
     '' // או fallback: idOrUid
   );
 }
+private async loadExistingSeriesGateForChild(childId: string): Promise<void> {
+  this.existingSeriesGate = { kind: 'none' };
+  this.seriesGateMessage = null;
 
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data, error } = await dbTenant()
+    .from('lessons')
+    .select(`
+      id,
+      appointment_kind,
+      status,
+      is_open_ended,
+      series_end_date
+    `)
+    .eq('child_id', childId)
+    .eq('appointment_kind', 'therapy_series')
+    .eq('status', 'אושר') // אצלך זה בדיוק "אושר"
+    // הכי חשוב: להביא את הסדרה עם הסיום הכי מאוחר
+    .order('series_end_date', { ascending: false, nullsFirst: false })
+    .order('anchor_week_start', { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error('loadExistingSeriesGateForChild error', error);
+    return;
+  }
+
+  const rows = (data ?? []) as any[];
+
+  // 1) אם יש open-ended פעילה -> חוסם
+  const openEnded = rows.find(r => r.is_open_ended === true);
+  if (openEnded) {
+    this.existingSeriesGate = { kind: 'open_ended' };
+    this.seriesGateMessage = 'לילד קיימת סדרה ללא הגבלה.';
+    return;
+  }
+
+  // 2) אחרת: לקחת את הסדרה המוגבלת עם הסוף הכי מאוחר (series_end_date)
+  const regular = rows.find(r => r.is_open_ended === false && r.series_end_date);
+  if (!regular?.series_end_date) {
+    this.existingSeriesGate = { kind: 'none' };
+    this.seriesGateMessage = null;
+    return;
+  }
+
+  const endDate = String(regular.series_end_date).slice(0, 10);
+
+  // אם כבר הסתיימה -> אין gate
+  if (endDate < today) {
+    this.existingSeriesGate = { kind: 'none' };
+    this.seriesGateMessage = null;
+    return;
+  }
+
+  this.existingSeriesGate = { kind: 'regular', endDate };
+  const nextStart = new Date(this.addDays(endDate, 1));
+this.seriesGateMessage =
+  `לילד יש סדרה קיימת. ניתן להזמין סדרה חדשה רק החל מ-` +
+  `\u200E${this.formatLocalDateDMY(nextStart)}\u200E`;
+}
 
 }
 const isTaughtChildGender = (v: any): v is TaughtChildGender =>
