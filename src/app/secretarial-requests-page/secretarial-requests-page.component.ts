@@ -534,16 +534,16 @@ case 'INSTRUCTOR_DAY_OFF': {
 
   // יום אחד
   if (from && to && from === to) {
-    if (allDay) return `${catLabel} מלא למדריך/ה ${name} בתאריך ${from}`;
-    if (start && end) return `${catLabel} למדריך/ה ${name} בתאריך ${from} (${start}–${end})`;
-    return `${catLabel} למדריך/ה ${name} בתאריך ${from}`;
+    if (allDay) return `יום חופש מלא למדריך/ה ${name} בתאריך ${from}`;
+    if (start && end) return `יום חופש למדריך/ה ${name} בתאריך ${from} (${end}–${start})`; 
+    return `יום חופש למדריך/ה ${name} בתאריך ${from}`;
   }
 
   // טווח ימים
   if (from && to && from !== to) {
-    if (allDay) return `${catLabel} (מלא) למדריך/ה ${name} בין ${from}–${to}`;
-    if (start && end) return `${catLabel} למדריך/ה ${name} בין ${from}–${to} (בכל יום ${start}–${end})`;
-    return `${catLabel} למדריך/ה ${name} בין ${from}–${to}`;
+    if (allDay) return `חופשה מלאה למדריך/ה ${name} בין ${from}–${to}`;
+    if (start && end) return `חופשה למדריך/ה ${name} בין ${from}–${to} (בכל יום ${end}–${start})`;
+    return `חופשה למדריך/ה ${name} בין ${from}–${to}`;
   }
 
   return `${catLabel} למדריך/ה ${name}`;

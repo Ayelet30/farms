@@ -74,7 +74,7 @@
       <tbody>
         <tr *ngFor="let x of impactRows()">
           <td>{{ x.occur_date | date:'dd/MM/yyyy' }}</td>
-          <td>{{ x.start_time }} - {{ x.end_time }}</td>
+<td> {{ x.end_time.slice(0,5) }} - {{ x.start_time.slice(0,5) }}</td>
           <td>{{ x.child_name || '—' }}</td>
         </tr>
       </tbody>
