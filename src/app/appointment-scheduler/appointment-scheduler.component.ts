@@ -3230,14 +3230,12 @@ if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
     this.showErrorToast(this.seriesError);
     return;
   }
-
-  const plan = this.selectedPaymentPlan!;
-  if (plan.require_docs_at_booking && !this.referralFile) {
-    this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
-    this.showErrorToast(this.seriesError);
-    return;
-  }
-
+const plan = this.selectedPaymentPlan!;
+if (!this.isSecretary && plan.require_docs_at_booking && !this.referralFile) {
+  this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
+  this.showErrorToast(this.seriesError);
+  return;
+}
   // נבנה (וממילא מעדכן seriesConfirmData כולל skips)
   const built = this.buildSeriesConfirmData(slot);
 
