@@ -45,7 +45,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   lessons: Lesson[] = [];
   filteredLessons: Lesson[] = [];
   selectedChild: ChildRow | null = null;
-
+farmDaysOff: any[] = [];
   instructors: InstructorRow[] = [];
   selectedInstructorIds: string[] = [];
 
@@ -300,6 +300,10 @@ this.selectedInstructorIds = this.instructors
     this.currentViewType = range.viewType as any;
 
     await this.loadLessons({ start: range.start, end: range.end });
+   await this.loadFarmDaysOffForRange(
+  range.start.slice(0,10),
+  range.end.slice(0,10)
+);
     this.filterLessons();
     this.setScheduleItems();
     this.buildWeekStats();
@@ -433,7 +437,29 @@ const isMakeupAllowed =
     this.lessons = [];
   }
 }
+private async loadFarmDaysOffForRange(startYmd: string, endYmd: string): Promise<void> {
+  const dbc = dbTenant();
 
+  const { data, error } = await dbc
+    .from('farm_days_off')
+    .select(`
+      id,
+      reason,
+      start_date,
+      end_date,
+      day_type,
+      start_time,
+      end_time,
+      is_active
+    `)
+    .eq('is_active', true)
+    .lte('start_date', endYmd)
+    .gte('end_date', startYmd);
+
+  if (error) throw error;
+
+  this.farmDaysOff = data ?? [];
+}
 
   /** סינון שיעורים לפי מדריכים מסומנים + טווח תצוגה */
   private filterLessons(): void {
@@ -464,10 +490,6 @@ const isMakeupAllowed =
 
  private setScheduleItems(): void {
   const src = this.filteredLessons;
-  if (!src?.length) {
-    this.items = [];
-    return;
-  }
 
   const getDate = (l: any): string | null => {
     if (l.occur_date) return l.occur_date;
@@ -554,7 +576,8 @@ console.log(start, end);
         isSummaryDay: '1',
       },
     })) as any;
-
+const farmOffItems = this.farmDaysOffToItems();
+this.items = [...this.items, ...farmOffItems];
     return;
   }
 
@@ -648,20 +671,55 @@ if (this.currentViewType === 'timeGridWeek') {
   }
 
   this.items = result;
+  const farmOffItems = this.farmDaysOffToItems();
+this.items = [...this.items, ...farmOffItems];
   return;
 }
   // ===== יום – בשעה 07:00 שם המדריך, ובשעות – כרטיסיות ילדים (עם גיל) =====
   // ===== יום – מדריך בשורה ב-07:00, ובשעות כרטיסייה אחת לכל שיעור (גם כפול) =====
 if (this.currentViewType === 'timeGridDay') {
   this.items = src.map(makeLessonEvent);
+  const farmOffItems = this.farmDaysOffToItems();
+this.items = [...this.items, ...farmOffItems];
   return;
 
 }
 
   // ברירת מחדל (אם יהיה View נוסף) – אירוע לכל שיעור
   this.items = src.map(makeLessonEvent);
+  const farmOffItems = this.farmDaysOffToItems();
+this.items = [...this.items, ...farmOffItems];
 }
+private farmDaysOffToItems(): ScheduleItem[] {
+  return (this.farmDaysOff ?? []).map((d: any) => {
+    const isFullDay = String(d.day_type || '').toUpperCase() === 'FULL_DAY';
 
+    const start = isFullDay
+      ? String(d.start_date).slice(0, 10)
+      : `${d.start_date}T${String(d.start_time).slice(0,5)}:00`;
+
+    const end = isFullDay
+      ? `${String(d.end_date).slice(0, 10)}T23:59:59`
+      : `${d.start_date}T${String(d.end_time).slice(0,5)}:00`;
+
+    return {
+      id: `farm_off_${d.id}`,
+      title: d.reason?.trim()
+        ? `🏖 ${d.reason}`
+        : '🏖 חופשת חווה',
+      start,
+      end,
+      allDay: isFullDay,
+      display: 'block',
+      color: 'rgba(255, 183, 77, 0.35)',
+      textColor: '#1f2a1f',
+      status: 'farm_day_off' as any,
+      meta: {
+        isFarmDayOff: 'true',
+      } as any,
+    };
+  });
+}
   private ensureIso(datetime?: string | null, time?: string | null, baseDate?: string | null): string {
     if (datetime && typeof datetime === 'string' && datetime.includes('T')) return datetime;
 

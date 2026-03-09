@@ -35,6 +35,7 @@ type InstructorRow = {
   gender?: string | null;
   accepts_makeup_others?: boolean | null;
   allow_availability_edit?: boolean | null;
+    color_hex?: string | null;
 };
 
 interface InstructorWeeklyAvailabilityRow {
@@ -62,6 +63,7 @@ interface InstructorDetailsRow extends InstructorRow {
   certificate?: string | null;
   photo_url?: string | null;
   notify?: any | null; // jsonb הגדרות התראות
+color_hex?: string | null;
 
   // ✅ השדות החדשים:
   birth_date?: string | null;        // מגיע מ-Supabase כ-'YYYY-MM-DD'
@@ -500,7 +502,8 @@ sanitizeAddress(v: any): string {
           accepts_makeup_others,
           allow_availability_edit,
           non_therapy_riding_types,
-          birth_date
+          birth_date,
+          color_hex
         `)
         .eq('id_number', id_number)
         .maybeSingle();
@@ -834,6 +837,8 @@ sanitizeAddress(v: any): string {
         accepts_makeup_others: m.accepts_makeup_others ?? null,
         allow_availability_edit: m.allow_availability_edit ?? null,
         taught_child_genders: m.taught_child_genders ?? null,
+        color_hex: m.color_hex || '#4dabf7',
+
       };
 
       const { data, error } = await dbcTenant

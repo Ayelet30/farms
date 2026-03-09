@@ -260,8 +260,15 @@ const childrenHtml = children
   .join('<span class="child-sep"></span>');
 
 
-  const type = event.extendedProps['lesson_type'] || '';
-  const chip = type ? `<span class="chip">${type}</span>` : '';
+const isWeekView =
+  arg.view.type === 'timeGridWeek' ||
+  arg.view.type === 'resourceTimeGridWeek';
+
+const type = event.extendedProps['lesson_type'] || '';
+
+const chip = (!isWeekView && type)
+  ? `<span class="chip">${type}</span>`
+  : '';
 const horse = event.extendedProps['horse_name'] || '';
 const arena = event.extendedProps['arena_name'] || '';
 

@@ -50,8 +50,6 @@ import { firstValueFrom } from 'rxjs';
 import { BulkDecisionDialogComponent, BulkDecisionDialogResult } from './bulk-decision-dialog/bulk-decision-dialog.component';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RequestValidationService } from './../services/request-validation.service';
-import { getAuth } from 'firebase/auth';
-import { requireTenant } from '../services/supabaseClient.service';
 
 // export enum Check {
 //   Expiry = 'expiry',
@@ -471,42 +469,66 @@ selectedVisibleRequest = computed<UiRequest | null>(() => {
   }
 }
 
-  private mapRowToUi(row: any): UiRequest {
-    return {
-      id: row.id,
-      requestType: row.request_type,
-      status: row.status,
+ private mapRowToUi(row: any): UiRequest {
+  const payload = { ...(row.payload ?? {}) };
 
-      summary: this.buildSummary(row as SecretarialRequestDbRow, row.payload || {}),
-      requestedByName: this.getRequesterDisplay(row),
-      childName: row.child_name || undefined,
-      instructorName: row.instructor_name || undefined,
-      fromDate: row.from_date,
-      toDate: row.to_date,
-      createdAt: row.created_at,
+console.log('CATEGORY:', payload.category);
 
-      requesterUid: row.requested_by_uid,
-      requesterRole: row.requested_by_role ?? null, 
-      payload: row.payload,
-      childId: row.child_id ?? null,
-instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
-  lessonOccId: row.lesson_occ_id ?? null,   
+  payload.category =
+    payload.category ??
+    row.day_off_category ??
+    row.category ??
+    null;
 
-    };
+  console.log('REQ', row.id, row.request_type, payload.category, payload);
+
+  return {
+    id: row.id,
+    requestType: row.request_type,
+    status: row.status,
+
+    summary: this.buildSummary(row as SecretarialRequestDbRow, payload),
+    requestedByName: this.getRequesterDisplay(row),
+    childName: row.child_name || undefined,
+    instructorName: row.instructor_name || undefined,
+
+    fromDate: row.from_date,
+    toDate: row.to_date,
+    createdAt: row.created_at,
+
+    requesterUid: row.requested_by_uid,
+    requesterRole: row.requested_by_role ?? null,
+
+    payload, // ✅ חשוב
+    childId: row.child_id ?? null,
+    instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
+    lessonOccId: row.lesson_occ_id ?? null,
+  };
+}
+private getDayOffCategoryLabel(p: any): string {
+  const key = String(p?.category ?? '').toUpperCase().trim();
+  switch (key) {
+    case 'HOLIDAY': return 'יום חופש';
+    case 'SICK': return 'יום מחלה';
+    case 'PERSONAL': return 'יום אישי';
+    case 'OTHER': return 'בקשה אחרת';
+    default: return 'בקשה אחרת';
   }
-
+}
 private buildSummary(row: any, p: any): string {
     switch (row.request_type) {
       case 'CANCEL_OCCURRENCE':
         return p.summary || `ביטול שיעור לתאריך ${p.occur_date ?? row.from_date ?? ''}`;
-   case 'INSTRUCTOR_DAY_OFF': {
+case 'INSTRUCTOR_DAY_OFF': {
   if (p.summary) return p.summary;
 
   const from = (row.from_date ?? '').slice(0, 10);
   const to   = (row.to_date ?? row.from_date ?? '').slice(0, 10);
   const name = row.instructor_name ?? '';
 
+  const catLabel = this.getDayOffCategoryLabel(p); // ✅ יום חופש / יום מחלה / יום אישי...
   const allDay = !!p.all_day;
+
   const start = (p.requested_start_time ?? '').toString().slice(0, 5) || null;
   const end   = (p.requested_end_time   ?? '').toString().slice(0, 5) || null;
 
@@ -524,7 +546,7 @@ private buildSummary(row: any, p: any): string {
     return `חופשה למדריך/ה ${name} בין ${from}–${to}`;
   }
 
-  return `יום חופש מדריך ${name}`;
+  return `${catLabel} למדריך/ה ${name}`;
 }
 
       case 'NEW_SERIES':
@@ -643,7 +665,26 @@ private buildSummary(row: any, p: any): string {
       default: return type;
     }
   }
+getRequestTypeLabelRow(r: UiRequest): string {
+  if (r.requestType === 'INSTRUCTOR_DAY_OFF') {
+    return this.getDayOffCategoryLabel(r.payload);
+  }
+  return this.getRequestTypeLabel(r.requestType);
+}
 
+getRequestTypeIconRow(r: UiRequest): string {
+  if (r.requestType === 'INSTRUCTOR_DAY_OFF') {
+    const key = String(r.payload?.category ?? '').toUpperCase().trim();
+    switch (key) {
+      case 'SICK': return 'healing';
+      case 'PERSONAL': return 'person';
+      case 'OTHER': return 'help';
+      case 'HOLIDAY': return 'beach_access';
+      default: return 'beach_access';
+    }
+  }
+  return this.getRequestTypeIcon(r.requestType);
+}
   getRequestTypeIcon(type: RequestType): string {
     switch (type) {
       case 'CANCEL_OCCURRENCE': return 'event_busy';
@@ -1448,15 +1489,8 @@ private combineDateTime(dateStr: string, timeStr?: string | null): Date {
 
 private getChildIdForRequest(row: UiRequest): string | null {
   const p: any = row.payload ?? {};
-  return (
-    row.childId ??
-    (row as any).child_id ??      // ✅ fallback אם נשאר snake_case
-    p.child_id ??
-    p.childId ??
-    p.child_uuid ??
-    p.childUuid ??
-    null
-  );}
+  return row.childId ?? p.child_id ?? p.childId ?? null;
+}
 
 private getInstructorIdForRequest(row: UiRequest): string | null {
   const p: any = row.payload ?? {};
@@ -1889,68 +1923,62 @@ private normalizeTimeToSeconds(t: string | null | undefined): string | null {
   return s;
 }
 
+
 private async rejectBySystem(row: UiRequest, reason: string): Promise<boolean> {
   if (!row?.id) return false;
+
+  await ensureTenantContextReady();
+  const db = dbTenant();
 
   const note = (reason || 'בקשה לא תקינה').trim();
   const decidedBy = this.curentUser?.uid ?? null;
 
   try {
-    // ✅ אם הפונקציה שלך דורשת token (מומלץ) — שולחים Bearer
-    const token = await getAuth().currentUser?.getIdToken();
+    const { data, error } = await db
+      .from('secretarial_requests')
+      .update({
+        status: 'REJECTED_BY_SYSTEM',
+        decided_by_uid: decidedBy,
+        decision_note: note,
+        decided_at: new Date().toISOString(),
+      })
+      .eq('id', row.id)
+      .eq('status', 'PENDING')
+      .select('id')
+      .maybeSingle();
 
-    // ✅ אם הפונקציה שלך דורשת tenantSchema במפורש:
-await ensureTenantContextReady();
-const tenantSchema = requireTenant().schema;console.log('[rejectBySystem] sending', { tenantSchema, row , reason });
+    if (error) throw error;
 
-const url =       'https://us-central1-bereshit-ac5d8.cloudfunctions.net/autoRejectRequestAndNotify';
+    // ✅ עודכן עכשיו
+    if (data) {
+      this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
+      return true;
+    }
 
-    const r = await fetch
-    (url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        tenantSchema,      // אם בפונקציה שלך לא צריך - תסירי גם כאן וגם שם
-        requestId: row.id,
-        reason: note,
-        decidedByUid: decidedBy,
-      }),
-    });
+    // ✅ לא עודכן כי כנראה כבר טופל: נביא מטא מה-DB ונחליט לפי זה
+    const meta = await this.fetchDecisionMeta(row.id);
 
-    const json: any = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(json?.error || json?.message || r.statusText);
+    if (meta.status === 'REJECTED_BY_SYSTEM') {
+      // נשמור ב-UI סטטוס נכון
+      this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
+      return true; // ✅ נחשב כהצלחה של "דחייה אוטומטית"
+    }
 
-    // ✅ הצליח → נעדכן UI מיד
-    this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
-    return true;
+    // אם לא נדחה ע"י המערכת בפועל - אז באמת לא הצלחנו
+    return false;
 
   } catch (e) {
-    console.error('rejectBySystem (via CF) failed', e);
+    console.error('rejectBySystem failed', e);
 
-    // fallback: אולי כן עודכן ב-DB למרות שקרתה תקלה אצלנו
+    // ✅ גם פה fallback (ליתר בטחון): אולי ה-DB כן עודכן אבל הייתה תקלה אצלנו
     const meta = await this.fetchDecisionMeta(row.id);
     if (meta.status === 'REJECTED_BY_SYSTEM') {
       this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
       return true;
     }
+
     return false;
   }
-}
-
-/**
- * נסי להשיג tenantSchema בצורה “בטוחה”.
- * אם אצלך זה מגיע ממקום אחר (למשל cu.current.tenant_schema) — תעדכני פה בלבד.
- */
-private getTenantSchemaSafe(): string {
-  return (
-    (this.curentUser as any)?.tenant_schema ||
-    (this.curentUser as any)?.tenantSchema ||
-    (window as any)?.TENANT_SCHEMA ||
-    ''
-  );
 }
 
 private getRequesterRoleForRequest(row: UiRequest): RequesterRole | null {

@@ -364,7 +364,7 @@ input[type="time"] {
   &.toggle {
     flex-direction: row;
     align-items: center;
-    justify-content: space-between;
+    justify-content: inherit;
     gap: 10px;
 
     input[type="checkbox"] {
@@ -415,14 +415,6 @@ input[type="time"] {
   display: flex;
   justify-content: flex-end;
   padding-top: 6px;
-}
-
-/* ========== List Blocks (Working Hours, Plans, Funding) ========== */
-.list-block {
-  border: 1px solid var(--sf-border-2);
-  border-radius: var(--sf-radius);
-  overflow: hidden;
-  background: #fff;
 }
 
 .list-header-row,
@@ -899,52 +891,6 @@ input[type="time"] {
   justify-content: center;
 }
 
-/* ✅ Working Hours checkboxes – same green + same size */
-.list-block .wh-check {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  border: 2px solid rgba(199, 204, 183, .95);
-  background: #fff;
-  display: inline-grid;
-  place-content: center;
-  cursor: pointer;
-  transition: background .12s ease, border-color .12s ease, transform .06s ease;
-}
-
-.list-block .wh-check:active {
-  transform: translateY(1px);
-}
-
-.list-block .wh-check::before {
-  content: "";
-  width: 9px;
-  height: 5px;
-  border-left: 3px solid #fff;
-  border-bottom: 3px solid #fff;
-  transform: rotate(-45deg);
-  opacity: 0;
-  margin-top: -1px;
-}
-
-.list-block .wh-check:checked {
-  background: var(--sf-olive);
-  border-color: rgba(103, 115, 63, .35);
-}
-
-.list-block .wh-check:checked::before {
-  opacity: 1;
-}
-
-.list-block .wh-check:disabled {
-  background: #eef0e6;
-  border-color: rgba(199, 204, 183, .9);
-  cursor: not-allowed;
-  opacity: .75;
-}
-
 /* ===========================
    Softer + more solid tables (Plans + Funding)
    =========================== */
@@ -974,12 +920,6 @@ input[type="time"] {
   font-weight: 800;
   color: var(--sf-text-soft);
   opacity: .85;
-}
-
-/* טבלת list – פחות “בועות”, יותר שורות נקיות */
-.list-block {
-  border-color: rgba(199, 204, 183, .75);
-  background: #fff;
 }
 
 .list-header-row {
