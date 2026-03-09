@@ -459,11 +459,6 @@ selectedVisibleRequest = computed<UiRequest | null>(() => {
     const mapped: UiRequest[] =
       data?.map((row: any) => this.mapRowToUi(row)) ?? [];
 
-console.log('DEBUG first delete_child mapped:',
-  mapped.find(r => r.requestType === 'DELETE_CHILD')?.childId,
-  mapped.find(r => r.requestType === 'DELETE_CHILD')?.payload
-);
-
     this.allRequests.set(mapped);
 
     // ✅ חדש: רק בדיקות קריטיות בעמוד (Active וכו')
@@ -518,14 +513,14 @@ private buildSummary(row: any, p: any): string {
   // יום אחד
   if (from && to && from === to) {
     if (allDay) return `יום חופש מלא למדריך/ה ${name} בתאריך ${from}`;
-    if (start && end) return `יום חופש למדריך/ה ${name} בתאריך ${from} (${start}–${end})`;
+    if (start && end) return `יום חופש למדריך/ה ${name} בתאריך ${from} (${end}–${start})`; 
     return `יום חופש למדריך/ה ${name} בתאריך ${from}`;
   }
 
   // טווח ימים
   if (from && to && from !== to) {
     if (allDay) return `חופשה מלאה למדריך/ה ${name} בין ${from}–${to}`;
-    if (start && end) return `חופשה למדריך/ה ${name} בין ${from}–${to} (בכל יום ${start}–${end})`;
+    if (start && end) return `חופשה למדריך/ה ${name} בין ${from}–${to} (בכל יום ${end}–${start})`;
     return `חופשה למדריך/ה ${name} בין ${from}–${to}`;
   }
 

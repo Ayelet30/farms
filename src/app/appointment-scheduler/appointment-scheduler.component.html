@@ -557,14 +557,14 @@
     </p>
   </div>
 </div>
-<div class="slots-list occupancy-slots"
+<div class="slots-list occupancy-slots" dir ='rtl'
      *ngIf="selectedTab === 'occupancy' && selectedOccupancyCandidate">
   <h4>
     שיעורים זמינים למילוי מקום עבור
     {{ selectedOccupancyCandidate.occur_date }}
   </h4>
 
-  <table *ngIf="occupancySlots.length > 0">
+  <table *ngIf="occupancySlots.length > 0" dir = 'rtl'>
     <thead>
       <tr>
         <th>תאריך</th>
