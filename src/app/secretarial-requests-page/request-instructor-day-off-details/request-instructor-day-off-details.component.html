@@ -7,7 +7,9 @@
 
 <div class="req" *ngIf="req() as r">
   <div class="req-head">
-    <div class="req-title">יום חופש מדריך</div>
+   <div class="req-title">
+  {{ getCategoryLabel() }} מדריך
+</div>
 
     <div class="meta">
       <div><b>מדריך:</b> {{ r.instructorName || '—' }}</div>
@@ -22,6 +24,22 @@
 
   <!-- הערה להחלטה: להציג רק כשהבקשה ממתינה (כי אחרת אין מה "להחליט") -->
   <div class="note-box" *ngIf="canDecide()">
+    <!-- אישור מחלה -->
+<div class="medical-certificate"
+     *ngIf="isSickRequest()">
+
+  <b>אישור מחלה:</b>
+
+  <ng-container *ngIf="medicalCertificateUrl(); else noFile">
+    <a [href]="medicalCertificateUrl()" target="_blank">
+      לצפייה באישור
+    </a>
+  </ng-container>
+
+  <ng-template #noFile>
+    <span class="missing">לא צורף אישור</span>
+  </ng-template>
+</div>
     <label>הערה להחלטה (אופציונלי)</label>
     <textarea
       [ngModel]="decisionNote()"

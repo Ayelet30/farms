@@ -327,32 +327,31 @@ console.log('farmHoursByDay', this.farmHoursByDay);
 
   /* ===================== RIDING TYPES ===================== */
 
-  private async loadRidingTypes() {
-    const { data, error } = await dbTenant()
-      .from('riding_types')
-      .select('id, code, name, max_participants, active')
-      .eq('active', true)
-      .order('name');
+private async loadRidingTypes() {
+  const { data, error } = await dbTenant()
+    .from('riding_types')
+    .select('id, code, name, max_participants, is_active')
+    .eq('is_active', true)
+    .order('name');
 
-    if (error) {
-      console.error('❌ loadRidingTypes error', error);
-      this.ridingTypes = [];
-      return;
-    }
-
-    this.ridingTypes = (data || []).slice();
-
-    this.ridingTypes.sort((a, b) => {
-      const aIsBreak = a.name.includes('הפסק');
-      const bIsBreak = b.name.includes('הפסק');
-
-      if (aIsBreak && !bIsBreak) return 1;
-      if (!aIsBreak && bIsBreak) return -1;
-
-      return a.name.localeCompare(b.name, 'he');
-    });
+  if (error) {
+    console.error('❌ loadRidingTypes error', error);
+    this.ridingTypes = [];
+    return;
   }
 
+  this.ridingTypes = (data || []).slice();
+
+  this.ridingTypes.sort((a, b) => {
+    const aIsBreak = a.name.includes('הפסק');
+    const bIsBreak = b.name.includes('הפסק');
+
+    if (aIsBreak && !bIsBreak) return 1;
+    if (!aIsBreak && bIsBreak) return -1;
+
+    return a.name.localeCompare(b.name, 'he');
+  });
+}
   /* ===================== INSTRUCTOR ===================== */
 
   private async loadInstructorRecord() {
