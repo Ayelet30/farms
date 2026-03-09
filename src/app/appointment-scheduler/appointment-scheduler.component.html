@@ -363,21 +363,29 @@
 
     <small class="hint" *ngIf="uiHint['payment']">{{ uiHint['payment'] }}</small>
 
-    <small
-      *ngIf="selectedPaymentPlan?.require_docs_at_booking"
-      style="color:#888; display:block; margin-top:4px;"
-    >
-      למסלול זה נדרשים מסמכים:
-      {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}
-    </small>
+ <small
+  *ngIf="selectedPaymentPlan?.require_docs_at_booking"
+  style="color:#888; display:block; margin-top:4px;"
+>
+  <ng-container *ngIf="isSecretary; else parentDocsMsg">
+    למסלול זה ניתן לצרף מסמכים:
+    {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}
+  </ng-container>
+
+  <ng-template #parentDocsMsg>
+    למסלול זה נדרשים מסמכים:
+    {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}
+  </ng-template>
+</small>
   </div>
 </div>
 
 <!-- העלאת מסמך רק אם המסלול דורש -->
 <div class="appt-form-row" *ngIf="selectedPaymentPlan?.require_docs_at_booking">
   <div class="appt-field-group">
-    <span class="appt-field-label">העלאת מסמך למסלול</span>
-    <input type="file" class="appt-input" (change)="onReferralFileSelected($event)" accept=".pdf,image/*" />
+<span class="appt-field-label">
+  {{ isSecretary ? 'העלאת מסמך למסלול (אופציונלי)' : 'העלאת מסמך למסלול' }}
+</span>    <input type="file" class="appt-input" (change)="onReferralFileSelected($event)" accept=".pdf,image/*" />
     <div *ngIf="referralFile" class="file-name">
       הקובץ שנבחר: <b>{{ referralFile.name }}</b>
     </div>
