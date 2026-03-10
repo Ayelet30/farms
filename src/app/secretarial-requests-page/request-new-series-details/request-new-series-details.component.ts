@@ -890,14 +890,16 @@ private async loadLessonTypeFromAvailability() {
     this.requestedEndTime.set(null);
   }
 }
-
+get requestedEndTimeFromRequest(): string {
+  return this.p?.requested_end_time ?? '—';
+}
 private async loadExistingParticipants() {
-  const reqId = this.request?.id; // ✅ guard token
-  const instructorId = this.request?.instructorId;          // id_number אצלך
-  const dayName = this.startWeekdayName;                    // "ראשון" וכו'
-  const startDate = this.request?.fromDate;                 // YYYY-MM-DD
-  const startTime = this.requestedStartTime;                // "15:30"
-  const endTime = this.requestedEndTime();                  // "16:15:00" / "16:15"
+  const reqId = this.request?.id;
+  const instructorId = this.request?.instructorId;
+  const dayName = this.startWeekdayName;
+  const startDate = this.request?.fromDate;
+  const startTime = this.p?.requested_start_time ?? null;
+  const endTime = this.p?.requested_end_time ?? null;
   const requestChildId = this.request?.childId ?? null;
 
   const ridingTypeId =
@@ -911,13 +913,7 @@ private async loadExistingParticipants() {
     this.participantsCapacity.set(null);
   };
 
-  if (!reqId || !instructorId || !dayName || !startDate || startDate === '—' || !startTime || startTime === '—') {
-    safeClear();
-    return;
-  }
-
-  // אם אין end_time עדיין (עוד לא נטען availability) – לא נציג חפיפות כדי לא להטעות
-  if (!endTime) {
+  if (!reqId || !instructorId || !dayName || !startDate || startDate === '—' || !startTime || !endTime) {
     safeClear();
     return;
   }
@@ -926,7 +922,6 @@ private async loadExistingParticipants() {
     await ensureTenantContextReady();
     const db = dbTenant();
 
-    // normalize שעה לפורמט time ב-Postgres ("HH:MM:SS")
     const normTime = (t: string | null) => {
       const s = (t ?? '').trim();
       if (!s) return null;
@@ -940,28 +935,22 @@ private async loadExistingParticipants() {
       p_end_time: normTime(endTime),
       p_riding_type_id: ridingTypeId,
       p_series_start_date: startDate,
-
       p_is_open_ended: !!this.p?.is_open_ended,
       p_repeat_weeks: this.p?.is_open_ended ? null : Number(this.p?.repeat_weeks ?? 0),
       p_series_search_horizon_days: Number(this.p?.series_search_horizon_days ?? 90),
-
       p_skipped_farm_dates: (this.p?.skipped_farm_dates ?? []) as string[],
       p_skipped_instructor_dates: (this.p?.skipped_instructor_dates ?? []) as string[],
-
-      // אופציונלי אם הוספת בפונקציה DB: להחריג את הילד המבקש
       // p_request_child_id: requestChildId,
     };
 
     const { data, error } = await db.rpc('get_series_overlap_participants', params);
     if (error) throw error;
 
-    // ✅ אם הבקשה התחלפה בזמן ההמתנה — לא נוגעים ב-state
     if (this.request?.id !== reqId) return;
 
     const rows = Array.isArray(data) ? data : [];
     this.existingParticipants.set(rows);
 
-    // קיבולת + current
     if (rows.length) {
       this.participantsCapacity.set({
         current: rows.length,
