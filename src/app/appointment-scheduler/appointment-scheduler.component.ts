@@ -66,10 +66,9 @@ type InstructorPickRow = InstructorDbRow & {
 type ExistingSeriesGate =
   | { kind: 'none' }
   | { kind: 'open_ended' }
-  | { kind: 'regular'; endDate: string }; // YYYY-MM-DD
-
-
-
+  | { kind: 'regular'; endDate: string } // YYYY-MM-DD
+  | { kind: 'pending_request'; requestId: string; createdAt?: string | null };
+  
 interface ApprovalBalance {
   approval_id: string;
   child_id: string;
@@ -1339,6 +1338,10 @@ async searchRecurringSlots(): Promise<void> {
     this.seriesError = 'יש לבחור ילד מתוך הרשימה';
     return;
   }
+  if (this.existingSeriesGate.kind === 'pending_request') {
+  this.seriesError = 'לילד כבר קיימת בקשה פתוחה לסדרה.';
+  return;
+}
   // ✅ Gate: אם כבר יש סדרה ללא הגבלה – לא מציגים כלום
   if (this.existingSeriesGate.kind === 'open_ended') {
     this.seriesError = 'לילד קיימת סדרה ללא הגבלה.';
@@ -1346,6 +1349,7 @@ async searchRecurringSlots(): Promise<void> {
     // this.showUiHint('seriesCount', this.seriesError, 5000);
     return;
   }
+  
  if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
 
   this.seriesError = 'יש לבחור כמות שיעורים בסדרה';
@@ -3160,7 +3164,7 @@ private buildSeriesConfirmData(slot: RecurringSlotWithSkips): {
   if (this.isOpenEndedSeries) {
     const endD = new Date(startDate + 'T00:00:00');
     endD.setDate(endD.getDate() + (this.seriesSearchHorizonDays ?? 90));
-    endDate = this.formatLocalDateDMY(endD);
+endDate = this.formatLocalDate(endD);
   } else {
     const skipsCount =
       (slot.skipped_farm_days_off?.length ?? 0) +
@@ -3170,8 +3174,7 @@ private buildSeriesConfirmData(slot: RecurringSlotWithSkips): {
 
     const endD = new Date(startDate + 'T00:00:00');
     endD.setDate(endD.getDate() + totalWeeksForward * 7);
-    endDate = this.formatLocalDateDMY(endD);
-  }
+endDate = this.formatLocalDate(endD);  }
 
   // ---- פרטי מדריך ----
   let instructorIdNumber: string | null = null;
@@ -3211,6 +3214,12 @@ private buildSeriesConfirmData(slot: RecurringSlotWithSkips): {
 
   return { startDate, endDate, instructorIdNumber, instructorName, startTime, endTime };
 }
+private formatLocalDate(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
 private async submitSeriesRequestToSecretary(slot: RecurringSlotWithSkips): Promise<void> {
   if (!this.selectedChildId || !this.user) {
     this.seriesError = 'חסר ילד או משתמש מחובר';
@@ -3230,14 +3239,12 @@ if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
     this.showErrorToast(this.seriesError);
     return;
   }
-
-  const plan = this.selectedPaymentPlan!;
-  if (plan.require_docs_at_booking && !this.referralFile) {
-    this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
-    this.showErrorToast(this.seriesError);
-    return;
-  }
-
+const plan = this.selectedPaymentPlan!;
+if (!this.isSecretary && plan.require_docs_at_booking && !this.referralFile) {
+  this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
+  this.showErrorToast(this.seriesError);
+  return;
+}
   // נבנה (וממילא מעדכן seriesConfirmData כולל skips)
   const built = this.buildSeriesConfirmData(slot);
 
@@ -3446,7 +3453,7 @@ private canSeriesFitBeforeDeletion(slot: RecurringSlotWithSkips, child: ChildWit
 
   const endD = new Date(slot.lesson_date + 'T00:00:00');
   endD.setDate(endD.getDate() + totalWeeksForward * 7);
-  const seriesEndDate = this.formatLocalDateDMY(endD);
+  const seriesEndDate = this.formatLocalDate(endD); 
 
   return seriesEndDate <= cutoff;
 }
@@ -3527,6 +3534,36 @@ private async loadExistingSeriesGateForChild(childId: string): Promise<void> {
   this.seriesGateMessage = null;
 
   const today = new Date().toISOString().slice(0, 10);
+// 1) קודם בודקים אם כבר יש בקשה פתוחה לסדרה
+  const { data: reqData, error: reqError } = await dbTenant()
+    .from('v_secretarial_requests')
+    .select(`
+      id,
+      request_type,
+      status,
+      child_id,
+      created_at
+    `)
+    .eq('child_id', childId)
+    .eq('request_type', 'NEW_SERIES')
+    .in('status', ['PENDING'])
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (reqError) {
+    console.error('loadExistingSeriesGateForChild request check error', reqError);
+    return;
+  }
+ const pendingReq = reqData?.[0];
+  if (pendingReq) {
+    this.existingSeriesGate = {
+      kind: 'pending_request',
+      requestId: pendingReq.id,
+      createdAt: pendingReq.created_at ?? null,
+    };
+    this.seriesGateMessage = 'לילד כבר קיימת בקשה פתוחה לסדרה.';
+    return;
+  }
 
   const { data, error } = await dbTenant()
     .from('lessons')

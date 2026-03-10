@@ -70,7 +70,7 @@ export function buildInstructorDayOffDecisionEmail(args: Args) {
   const farmName = esc(args.farmName);
 
   if (args.kind === 'approved_parent') {
-    const subject = `עדכון מהחווה: שיעורים בוטלו עקב חופש מדריך/ה`;
+    const subject = `עדכון מהחווה: שיעורים בוטלו`;
     const list = (args.cancellations ?? []).map(x => {
       const line = `${fmtDateIL(x.occurDate)} • ${esc(x.childName)} • ${esc(x.startTime ?? '')}-${esc(x.endTime ?? '')}`;
       return `<li>${line}</li>`;
@@ -82,12 +82,10 @@ export function buildInstructorDayOffDecisionEmail(args: Args) {
       <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.5">
         <h2>${farmName}</h2>
         <p>שלום ${esc(args.parentName)},</p>
-        <p>אושרה בקשת חופש למדריך/ה <b>${esc(args.instructorName)}</b>.</p>
-        <p><b>חלון החופש:</b> ${esc(windowText(args))}</p>
         ${note}
-        <p>כתוצאה מכך, השיעורים הבאים בוטלו:</p>
+        <p עקב חופשת מדריך השיעורים הבאים בוטלו:</p>
         <ul>${list || '<li>(לא נמצאו שיעורים לשיוך)</li>'}</ul>
-        <p>אם צריך שיעור השלמה/עדכון – אפשר לפנות למזכירות.</p>
+        <p>שיעור מילוי מקום יש לקבוע דרך דף זימון תור באתר או באפליקציה. לחילופין - ניתן ליצור קשר עם המזכירות</p>
       </div>
     `.trim();
 

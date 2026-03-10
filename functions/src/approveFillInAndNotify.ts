@@ -151,8 +151,17 @@ const { data: ex, error: exErr } = await sbTenant
   .maybeSingle();
 if (exErr) throw exErr;
 if (!ex) throw new Error('Base exception not found');
-
+const requestedDate = String((reqRow as any).from_date ?? '').slice(0, 10);
+if (!requestedDate) throw new Error('Request missing from_date');
 const occurDate = String(ex.occur_date).slice(0, 10);
+function toWeekStartISO(dateISO: string): string {
+  const d = new Date(`${dateISO}T00:00:00Z`);
+  const day = d.getUTCDay(); // 0=Sun
+  const diff = day; // כמה ימים אחורה ליום ראשון
+  d.setUTCDate(d.getUTCDate() - diff);
+  return d.toISOString().slice(0, 10);
+}
+const requestedWeekStart = toWeekStartISO(requestedDate);
 
 // לוודא שה-exception באמת שייך ל-lessonId של הבקשה
 if (String(ex.lesson_id).trim() !== lessonId) {
@@ -210,8 +219,7 @@ function hebrewDayOfWeek(dateISO: string): string {
   return map[day];
 }
 
-const dayOfWeekHe = hebrewDayOfWeek(occurDate);
-
+const dayOfWeekHe = hebrewDayOfWeek(requestedDate); // ✅ תאריך חדש
 const newLessonPayload: any = {
   lesson_type: 'מילוי מקום',
   status: 'אושר',
@@ -221,8 +229,9 @@ const newLessonPayload: any = {
 
   child_id: originalLesson.child_id,
   repeat_weeks: 1,
-  anchor_week_start: occurDate,     // כדי “לעגן” את זה לתאריך
 
+anchor_week_start: requestedWeekStart,   // ✅ התאריך החדש מהבקשה
+  current_booked: originalLesson.current_booked ?? null,
   appointment_kind: 'therapy_fill_in', // או מה שאתם משתמשים
   series_id: null,
   approval_id: originalLesson.approval_id ?? null, // ✅ העתקה מהמקורי
@@ -232,7 +241,6 @@ const newLessonPayload: any = {
   base_lesson_uid: String(ex.id),   // ✅ FK ל-exception
 
   capacity: originalLesson.capacity ?? null,
-  current_booked: originalLesson.current_booked ?? null,
 
   payment_source: originalLesson.payment_source ?? 'private',
   riding_type_id: requestedRidingTypeId,            // ✅ מה-payload
@@ -273,12 +281,12 @@ const newFillInLessonId = String(newLesson.id);
       if (!updRow) return void res.status(409).json({ ok: false, message: 'הבקשה כבר לא במצב ממתין' });
 
       // fetch target lesson info for email
-      const { data: occ, error: occErr } = await sbTenant
-        .from('lessons_occurrences')
-        .select('occur_date, day_of_week, start_time, end_time, instructor_id')
-        .eq('lesson_id', lessonId)
-        .eq('occur_date', occurDate)
-        .maybeSingle();
+     const { data: occ, error: occErr } = await sbTenant
+  .from('lessons_occurrences')
+  .select('occur_date, day_of_week, start_time, end_time, instructor_id')
+  .eq('lesson_id', newFillInLessonId)  // ✅ החדש
+  .eq('occur_date', requestedDate)     // ✅ התאריך החדש
+  .maybeSingle();
       if (occErr) throw occErr;
 
       // fetch child + parent

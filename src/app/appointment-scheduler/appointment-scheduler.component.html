@@ -286,8 +286,7 @@
 <div *ngIf="seriesGateMessage" class="info">
   {{ seriesGateMessage }}
 </div>
-<ng-container *ngIf="existingSeriesGate.kind !== 'open_ended'">
-
+<ng-container *ngIf="existingSeriesGate.kind !== 'open_ended' && existingSeriesGate.kind !== 'pending_request'">
     <div class="appt-form-row">
      <div class="appt-field-group">
   <span class="appt-field-label">כמות שיעורים בסדרה</span>
@@ -363,24 +362,60 @@
 
     <small class="hint" *ngIf="uiHint['payment']">{{ uiHint['payment'] }}</small>
 
-    <small
-      *ngIf="selectedPaymentPlan?.require_docs_at_booking"
-      style="color:#888; display:block; margin-top:4px;"
-    >
-      למסלול זה נדרשים מסמכים:
-      {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}
-    </small>
+ <small
+  *ngIf="selectedPaymentPlan?.require_docs_at_booking"
+  style="color:#888; display:block; margin-top:4px;"
+>
+  <ng-container *ngIf="isSecretary; else parentDocsMsg">
+    למסלול זה ניתן לצרף מסמכים:
+    {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
+  </ng-container>
+
+  <ng-template #parentDocsMsg>
+    למסלול זה נדרשים מסמכים:
+    {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
+  </ng-template>
+
+  יש להעלות תמיד קובץ אחד בלבד.
+</small>
   </div>
 </div>
 
 <!-- העלאת מסמך רק אם המסלול דורש -->
 <div class="appt-form-row" *ngIf="selectedPaymentPlan?.require_docs_at_booking">
   <div class="appt-field-group">
-    <span class="appt-field-label">העלאת מסמך למסלול</span>
-    <input type="file" class="appt-input" (change)="onReferralFileSelected($event)" accept=".pdf,image/*" />
+  <span class="appt-field-label">
+  {{ isSecretary ? 'העלאת מסמך למסלול (אופציונלי)' : 'העלאת מסמך למסלול' }}
+
+  <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length">
+    – {{ selectedPaymentPlan?.required_docs?.join(', ') }}
+  </ng-container>
+</span>
+    <input
+      type="file"
+      class="appt-input"
+      (change)="onReferralFileSelected($event)"
+      accept=".pdf,image/*"
+    />
+
+    <small style="color:#888; display:block; margin-top:6px;">
+      <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length; else genericDocsText">
+        יש לצרף את המסמכים הנדרשים למסלול:
+        {{ selectedPaymentPlan?.required_docs?.join(', ') }}.
+      </ng-container>
+
+      <ng-template #genericDocsText>
+        יש לצרף את המסמכים הנדרשים בהתאם למסלול שנבחר.
+      </ng-template>
+
+      ההעלאה מתבצעת תמיד כקובץ אחד בלבד.
+      אם יש כמה מסמכים, יש לאחד אותם לקובץ אחד לפני ההעלאה.
+    </small>
+
     <div *ngIf="referralFile" class="file-name">
       הקובץ שנבחר: <b>{{ referralFile.name }}</b>
     </div>
+
     <p class="error" *ngIf="referralUploadError">{{ referralUploadError }}</p>
   </div>
 </div>
@@ -557,14 +592,14 @@
     </p>
   </div>
 </div>
-<div class="slots-list occupancy-slots"
+<div class="slots-list occupancy-slots" dir ='rtl'
      *ngIf="selectedTab === 'occupancy' && selectedOccupancyCandidate">
   <h4>
     שיעורים זמינים למילוי מקום עבור
     {{ selectedOccupancyCandidate.occur_date }}
   </h4>
 
-  <table *ngIf="occupancySlots.length > 0">
+  <table *ngIf="occupancySlots.length > 0" dir = 'rtl'>
     <thead>
       <tr>
         <th>תאריך</th>

@@ -152,7 +152,7 @@ if (!occRow) {
             occur_date: cancelDate,
             status: 'בוטל',
             note: decisionNote ?? '',
-            canceller_role: 'secretary',
+            canceller_role: 'instructor',
             cancelled_at: new Date().toISOString(),
           } as any,
           { onConflict: 'lesson_id,occur_date' }
