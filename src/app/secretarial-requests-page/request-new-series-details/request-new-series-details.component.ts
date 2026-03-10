@@ -507,7 +507,7 @@ const repeatWeeks =
       p_approval_number: p.approval_number ?? null,
       p_total_lessons: p.total_lessons ?? null,
       p_referral_url: p.referral_url ?? null,
-
+p_payment_docs_url: p.referral_url ?? null,
       p_riding_type_id: ridingTypeId ?? null,
       p_origin: "secretary",
     };
