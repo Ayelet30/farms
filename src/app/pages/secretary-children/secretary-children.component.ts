@@ -3,7 +3,7 @@ import {
   OnInit,
   ViewChild,
   HostListener,
-  Inject,
+  inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
@@ -11,7 +11,6 @@ import { ensureTenantContextReady, dbTenant, getSupabaseClient } from '../../ser
 import type { ChildRow } from '../../Types/detailes.model';
 import { UiDialogService } from '../../services/ui-dialog.service';
 import { Router, RouterModule } from '@angular/router';
-
 import { MatDialog, MatDialogModule, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import {
   FormsModule,
@@ -27,6 +26,18 @@ import {
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { AddChildWizardComponent } from '../add-child-wizard/add-child-wizard.component';
 
+type SeriesDocRow = {
+  lessonId: string;
+  lessonType: string | null;
+  dayOfWeek: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  anchorWeekStart: string | null;
+  seriesEndDate: string | null;
+  isOpenEnded: boolean | null;
+  status: string | null;
+  paymentDocsUrl: string | null;
+};
 type ParentBrief = {
   uid: string;
   first_name: string;
@@ -139,17 +150,20 @@ readonly statusOptions = [
   termsPath: string | null = null;
   termsCreatedAt: string | null = null;
 
-  // --- הפניות (Storage) ---
-referralsLoading = false;
-referralsError: string | null = null;
+//   // --- הפניות (Storage) ---
+// referralsLoading = false;
+// referralsError: string | null = null;
 
-referralFiles: {
-  name: string;
-  fullPath: string;
-  updatedAt?: string | null;
-  publicUrl?: string; // כי bucket public
-}[] = [];
-
+// referralFiles: {
+//   name: string;
+//   fullPath: string;
+//   updatedAt?: string | null;
+//   publicUrl?: string; // כי bucket public
+// }[] = [];
+  // --- סדרות + מסמכים מתוך lessons.payment_docs_url ---
+  seriesDocsLoading = false;
+  seriesDocsError: string | null = null;
+  seriesDocs: SeriesDocRow[] = [];
   constructor(
     private ui: UiDialogService,
     private fb: FormBuilder,
@@ -382,9 +396,9 @@ goToParentPaymentsFromChild() {
     this.termsPath = null;
     this.termsCreatedAt = null;
     this.termsLoading = false;
-    this.referralFiles = [];
-    this.referralsLoading = false;
-    this.referralsError = null;
+    this.seriesDocs = [];
+    this.seriesDocsLoading = false;
+    this.seriesDocsError = null;
 
   }
 
@@ -440,8 +454,8 @@ goToParentPaymentsFromChild() {
       this.buildChildForm(this.drawerChild);
 
       // ✅ טען תקנון חתום (אם יש)
-      await this.loadChildTermsSignature(id);
-      await this.loadChildReferrals(id);
+          await this.loadChildTermsSignature(id);
+      await this.loadChildSeriesDocs(id);
 
     } catch (e) {
       console.error('loadDrawerData error:', e);
@@ -484,52 +498,104 @@ goToParentPaymentsFromChild() {
       this.termsLoading = false;
     }
   }
- private async loadChildReferrals(childId: string) {
-  this.referralsLoading = true;
-  this.referralsError = null;
-  this.referralFiles = [];
+//  private async loadChildReferrals(childId: string) {
+//   this.referralsLoading = true;
+//   this.referralsError = null;
+//   this.referralFiles = [];
+
+//   try {
+//     const client = getSupabaseClient();
+//     const bucket = 'referrals';
+
+//     const folderPath = `referrals/${childId}`;
+//     const { data, error } = await client.storage
+//       .from(bucket)
+//       .list(folderPath, {
+//         limit: 100,
+//         sortBy: { column: 'updated_at', order: 'desc' },
+//       });
+
+//     if (error) {
+//       throw error;
+//     }
+
+//     this.referralFiles = (data ?? [])
+//       .filter((x: any) => !!x?.name)
+//       .map((x: any) => {
+//         const fullPath = `${folderPath}/${x.name}`;
+//         const { data: pub } = client.storage.from(bucket).getPublicUrl(fullPath);
+
+//         return {
+//           name: x.name,
+//           fullPath,
+//           updatedAt: x.updated_at ?? null,
+//           publicUrl: pub.publicUrl,
+//         };
+//       });
+
+//   } catch (e: any) {
+//     console.error('loadChildReferrals error:', e);
+//     this.referralsError = e?.message ?? 'שגיאה בטעינת הפניות';
+//     this.referralFiles = [];
+//   } finally {
+//     this.referralsLoading = false;
+ 
+// }
+
+// }
+private async loadChildSeriesDocs(childId: string) {
+  this.seriesDocsLoading = true;
+  this.seriesDocsError = null;
+  this.seriesDocs = [];
 
   try {
-    const client = getSupabaseClient();
-    const bucket = 'referrals';
+    const db = await this.dbc();
 
-    const folderPath = `referrals/${childId}`;
-    const { data, error } = await client.storage
-      .from(bucket)
-      .list(folderPath, {
-        limit: 100,
-        sortBy: { column: 'updated_at', order: 'desc' },
-      });
+    const { data, error } = await db
+      .from('lessons')
+      .select(`
+        id,
+        lesson_type,
+        day_of_week,
+        start_time,
+        end_time,
+        anchor_week_start,
+        series_end_date,
+        is_open_ended,
+        status,
+        payment_docs_url
+      `)
+      .eq('child_id', childId)
+      .order('anchor_week_start', { ascending: false })
+      .order('day_of_week', { ascending: true })
+      .order('start_time', { ascending: true });
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
-    this.referralFiles = (data ?? [])
-      .filter((x: any) => !!x?.name)
-      .map((x: any) => {
-        const fullPath = `${folderPath}/${x.name}`;
-        const { data: pub } = client.storage.from(bucket).getPublicUrl(fullPath);
-
-        return {
-          name: x.name,
-          fullPath,
-          updatedAt: x.updated_at ?? null,
-          publicUrl: pub.publicUrl,
-        };
-      });
-
+    this.seriesDocs = (data ?? []).map((row: any) => ({
+      lessonId: row.id,
+      lessonType: row.lesson_type ?? null,
+      dayOfWeek: row.day_of_week ?? null,
+      startTime: row.start_time ?? null,
+      endTime: row.end_time ?? null,
+      anchorWeekStart: row.anchor_week_start ?? null,
+      seriesEndDate: row.series_end_date ?? null,
+      isOpenEnded: row.is_open_ended ?? null,
+      status: row.status ?? null,
+      paymentDocsUrl: row.payment_docs_url ?? null,
+    }));
   } catch (e: any) {
-    console.error('loadChildReferrals error:', e);
-    this.referralsError = e?.message ?? 'שגיאה בטעינת הפניות';
-    this.referralFiles = [];
+    console.error('loadChildSeriesDocs error:', e);
+    this.seriesDocsError = e?.message ?? 'שגיאה בטעינת סדרות והפניות';
+    this.seriesDocs = [];
   } finally {
-    this.referralsLoading = false;
- 
+    this.seriesDocsLoading = false;
+  }
 }
-
+getSeriesEndDisplay(row: SeriesDocRow): string {
+  if (row.isOpenEnded) return 'סדרה ללא הגבלה';
+  return row.seriesEndDate || '—';
 }
-
   /** פותח PDF של התקנון בדיאלוג */
   async openTermsPdf() {
     if (!this.termsBucket || !this.termsPath) {
@@ -566,37 +632,53 @@ goToParentPaymentsFromChild() {
     }
   }
 
-  async openReferralPdf(file: { fullPath: string; publicUrl?: string }) {
-  try {
-    const client = getSupabaseClient();
-    const bucket = 'referrals';
+//   async openReferralPdf(file: { fullPath: string; publicUrl?: string }) {
+//   try {
+//     const client = getSupabaseClient();
+//     const bucket = 'referrals';
 
-    let url = file.publicUrl;
+//     let url = file.publicUrl;
 
-    if (!url) {
-      const { data, error } = await client.storage
-        .from(bucket)
-        .createSignedUrl(file.fullPath, 60 * 60);
+//     if (!url) {
+//       const { data, error } = await client.storage
+//         .from(bucket)
+//         .createSignedUrl(file.fullPath, 60 * 60);
 
-      if (error) throw error;
-      url = data?.signedUrl;
-    }
+//       if (error) throw error;
+//       url = data?.signedUrl;
+//     }
 
-    if (!url) throw new Error('No url returned');
+//     if (!url) throw new Error('No url returned');
 
-    this.dialog.open(TermsPdfDialogComponent, {
-      width: 'min(980px, 96vw)',
-      height: 'min(90vh, 900px)',
-      data: {
-        title: 'הפניה (PDF)',
-        url: this.sanitizer.bypassSecurityTrustResourceUrl(url),
-      },
-    });
-  } catch (e: any) {
-    console.error('openReferralPdf error:', e);
-    await this.ui.alert('לא הצלחתי לפתוח את ההפניה: ' + (e?.message ?? e), 'הפניות');
+//     this.dialog.open(TermsPdfDialogComponent, {
+//       width: 'min(980px, 96vw)',
+//       height: 'min(90vh, 900px)',
+//       data: {
+//         title: 'הפניה (PDF)',
+//         url: this.sanitizer.bypassSecurityTrustResourceUrl(url),
+//       },
+//     });
+//   } catch (e: any) {
+//     console.error('openReferralPdf error:', e);
+//     await this.ui.alert('לא הצלחתי לפתוח את ההפניה: ' + (e?.message ?? e), 'הפניות');
+//   }
+// }
+openSeriesDoc(url: string | null | undefined) {
+  if (!url) {
+    this.ui.alert('אין מסמך להצגה עבור סדרה זו.', 'הפניות');
+    return;
   }
+
+  this.dialog.open(TermsPdfDialogComponent, {
+    width: 'min(980px, 96vw)',
+    height: 'min(90vh, 900px)',
+    data: {
+      title: 'הפניית סדרה',
+      url: this.sanitizer.bypassSecurityTrustResourceUrl(url),
+    },
+  });
 }
+
  /** בונה טופס עריכה מתוך פרטי הילד שבמגירה */
 private buildChildForm(child: ChildDetails) {
   this.childForm = this.fb.group({
@@ -731,7 +813,10 @@ private buildChildForm(child: ChildDetails) {
       .filter(Boolean)
       .join(', ');
   }
-
+  formatTimeShort(value: string | null | undefined): string {
+    if (!value) return '—';
+    return String(value).slice(0, 5);
+  }
   /** הוספה/הסרה של סוס לילד */
   async toggleChildHorse(
     childId: string | undefined,
@@ -793,40 +878,98 @@ private buildChildForm(child: ChildDetails) {
   imports: [CommonModule],
   template: `
     <div class="pdf-head">
-      <div class="pdf-title">{{ data!.title || 'PDF' }}</div>
+      <div class="pdf-title">{{ data.title || 'קובץ' }}</div>
       <button class="pdf-close" (click)="close()">✕</button>
     </div>
 
-    <iframe
-      class="pdf-frame"
-      [src]="data.url"
-      title="PDF"
-      loading="lazy"
-    ></iframe>
+    <div class="viewer-body">
+      <ng-container *ngIf="isImage(); else pdfTpl">
+        <img
+          class="image-frame"
+          [src]="data.url"
+          [alt]="data.title || 'image'"
+        />
+      </ng-container>
+
+      <ng-template #pdfTpl>
+        <iframe
+          class="pdf-frame"
+          [src]="data.url"
+          title="PDF"
+          loading="lazy"
+        ></iframe>
+      </ng-template>
+    </div>
   `,
   styles: [`
-    :host { display:block; height:100%; }
-    .pdf-head{
-      display:flex; align-items:center; justify-content:space-between;
-      padding:10px 12px; border-bottom:1px solid #e6e6e6;
+    :host {
+      display: block;
+      height: 100%;
+    }
+
+    .pdf-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-bottom: 1px solid #e6e6e6;
       font-family: "Heebo", system-ui, Arial, sans-serif;
+      box-sizing: border-box;
+      height: 52px;
     }
-    .pdf-title{ font-weight:800; }
-    .pdf-close{
-      border:none; background:transparent; font-size:18px; cursor:pointer;
-      line-height:1; padding:6px 10px;
+
+    .pdf-title {
+      font-weight: 800;
     }
-    .pdf-frame{
-      width:100%; height: calc(100% - 52px);
-      border:0;
+
+    .pdf-close {
+      border: none;
+      background: transparent;
+      font-size: 18px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 6px 10px;
+    }
+
+    .viewer-body {
+      width: 100%;
+      height: calc(100% - 52px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: #f8f8f8;
+    }
+
+    .image-frame {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .pdf-frame {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
     }
   `],
 })
 export class TermsPdfDialogComponent {
-  constructor(
-    @Inject(MAT_DIALOG_DATA) public data: { title: string; url: SafeResourceUrl },
-    private dialog: MatDialog,
-  ) {}
+  readonly data = inject(MAT_DIALOG_DATA) as { title: string; url: SafeResourceUrl };
+  private dialog = inject(MatDialog);
+
+  isImage(): boolean {
+    const url = String(this.data?.url ?? '').toLowerCase();
+    return (
+      url.includes('.png') ||
+      url.includes('.jpg') ||
+      url.includes('.jpeg') ||
+      url.includes('.webp') ||
+      url.includes('.gif')
+    );
+  }
 
   close() {
     this.dialog.closeAll();
