@@ -503,47 +503,7 @@ host {
   font-size: 12px;
   color: #777;
 }
- 
-.custom-toggle {
-  position: relative;
-  width: 40px;
-  height: 22px;
-  display: inline-block;
-}
- 
-.custom-toggle input {
-  display: none;
-}
- 
-.custom-toggle .slider {
-  position: absolute;
-  inset: 0;
-  border-radius: 999px;
-  background: #d7ddcc;
-  transition: 0.2s;
-}
- 
-.custom-toggle .slider::before {
-  content: '';
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  top: 3px;
-  right: 3px;
-  transition: 0.2s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
-}
- 
-.custom-toggle input:checked + .slider {
-  background: var(--primary, #4b6b2f);
-}
- 
-.custom-toggle input:checked + .slider::before {
-  transform: translateX(-18px);
-}
- 
+
 /* ============= רספונסיביות ============= */
  
 .mobile-only {

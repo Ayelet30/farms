@@ -5,7 +5,7 @@
   border-radius: 12px;
   padding: 12px;
   margin-bottom: 12px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
 }
 
 /* ===== פריסת הטולבר ===== */
@@ -34,7 +34,6 @@
   justify-self: end;
 }
 
-/* קבוצות כפתורים (“קפסולה”) */
 .btn-group {
   display: inline-flex;
   flex-wrap: wrap;
@@ -51,7 +50,7 @@
   border: 0;
   background: #fafafa;
   cursor: pointer;
-  transition: .2s;
+  transition: 0.2s;
   font-weight: 600;
 }
 
@@ -61,11 +60,10 @@
 
 .btn-group > button.active {
   background: #ffffff;
-  color: #748c40;             /* ירוק הזית של המערכת */
+  color: #748c40;
   border: 1px solid #748c40;
 }
 
-/* כפתור מסך מלא */
 .fullscreen-btn {
   border: 1px solid #ddd;
   background: #fff;
@@ -81,7 +79,6 @@
   padding-inline: 12px;
 }
 
-
 /* ===== רספונסיביות טולבר ===== */
 @media (max-width: 900px) {
   .calendar-toolbar {
@@ -92,7 +89,6 @@
     grid-template-columns: 1fr;
     row-gap: 8px;
   }
- 
 
   .calendar-toolbar .actions,
   .calendar-toolbar .view-buttons {
@@ -105,31 +101,12 @@
   }
 }
 
-.event-box .resource-line {
-  margin-top: 2px;
-  font-size: 0.75rem;
-  opacity: 0.9;
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-
-.event-box .horse-label,
-.event-box .arena-label {
-  white-space: nowrap;
-}
-
-.event-box .resource-line .sep {
-  opacity: 0.6;
-}
-
-
 /* ===== מסך מלא ===== */
 .schedule-wrap {
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 12px;
-  --toolbar-space: 96px;          /* לשימוש בחישוב גובה */
+  --toolbar-space: 96px;
 }
 
 .schedule-wrap.fullscreen {
@@ -152,7 +129,6 @@
   height: 100% !important;
 }
 
-/* קונטיינר הקלנדר – גובה + גלילה פנימית */
 .calendar-host {
   max-height: calc(100vh - var(--toolbar-space));
 }
@@ -185,12 +161,11 @@
   font-family: "Heebo", system-ui, Arial, sans-serif;
 }
 
-/* מיפוי משתנים ל-FullCalendar */
 .bereshit-calendar .fc {
   --fc-page-bg-color: var(--panel);
   --fc-neutral-bg-color: var(--panel);
   --fc-border-color: var(--line);
-  --fc-today-bg-color: rgba(232,239,216,.55);
+  --fc-today-bg-color: rgba(232, 239, 216, 0.55);
   --fc-now-indicator-color: var(--fail);
 
   --fc-button-text-color: var(--ink);
@@ -201,7 +176,6 @@
   --fc-button-active-text-color: #fff;
   --fc-button-active-border-color: var(--olive-600);
 
-  /* timeGrid – גובה סלוט נוח */
   --fc-slot-min-height: 2.6em;
 }
 
@@ -221,7 +195,7 @@
 .bereshit-calendar .fc .fc-toolbar-chunk {
   display: flex;
   flex-wrap: wrap;
-  row-gap: .5rem;
+  row-gap: 0.5rem;
   padding: 8px;
   background: #fff;
   border: 1.5px solid var(--line);
@@ -234,49 +208,12 @@
   height: 36px;
   font-weight: 700;
   font-size: 12px;
-  box-shadow: 0 1px 0 rgba(0,0,0,.04);
-}
-/* סטטוס מאושר – ירוק */
-.bereshit-calendar .fc-event.status-approved .event-box {
-  background: #e8f5e9;       /* ירוק בהיר */
-  border-color: #66bb6a;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
 }
 
-/* סטטוס מבוטל – אדום */
-.bereshit-calendar .fc-event.status-canceled .event-box {
-  background: #ffebee;       /* אדום בהיר */
-  border-color: #e53935;
-}
-.bereshit-calendar .fc-event.status-canceled .event-box {
-  min-height: 24px;
-}
-
-/* סטטוס ממתין – כתום */
-.bereshit-calendar .fc-event.status-pending .event-box {
-  background: #fff3e0;       /* כתום בהיר */
-  border-color: #fb8c00;
-}
-
-.bereshit-calendar .fc-event.status-approved .event-box,
-.bereshit-calendar .fc-event.status-approved .event-box * {
-  color: #1b5e20;
-}
-
-.bereshit-calendar .fc-event.status-canceled .event-box,
-.bereshit-calendar .fc-event.status-canceled .event-box * {
-  color: #b71c1c;
-}
-
-.bereshit-calendar .fc-event.status-pending .event-box,
-.bereshit-calendar .fc-event.status-pending .event-box * {
-  color: #e65100;
-}
-
-
-/* קומפקט מובייל לסרגל FC */
 @media (max-width: 900px) {
   .bereshit-calendar .fc .fc-header-toolbar {
-    row-gap: .5rem;
+    row-gap: 0.5rem;
   }
 
   .bereshit-calendar .fc .fc-toolbar-chunk {
@@ -317,7 +254,7 @@
   border-color: #eff3e4;
 }
 
-/* ===== month view – תאי יום כ"קלפים" ===== */
+/* ===== month view ===== */
 .bereshit-calendar .fc .fc-daygrid-day-frame {
   background: #fff;
   border: 1.5px solid var(--line);
@@ -342,16 +279,14 @@
 }
 
 .bereshit-calendar .fc .fc-day-other .fc-daygrid-day-frame {
-  opacity: .65;
+  opacity: 0.65;
 }
 
-/* אירועי dayGrid – לא להגביל לשורה אחת */
 .bereshit-calendar .fc .fc-daygrid-event {
   white-space: normal;
   line-height: 1.25;
 }
 
-/* ===== hover על תאים ===== */
 .bereshit-calendar .fc .fc-daygrid-day-frame:hover {
   background: var(--bg-cream);
 }
@@ -361,194 +296,268 @@
   background-clip: padding-box;
 }
 
-/* אם היה כלל hover כללי – ננטרל */
 .bereshit-calendar .fc .fc-timegrid-slot:hover {
   background: transparent;
 }
 
-/* ===== אירועי timeGrid – בלי רקע, הכרטיסייה הפנימית שולטת ===== */
+/* ===== timeGrid event shell ===== */
 .bereshit-calendar .fc-timegrid-event {
-  padding: 0 !important;
+  padding: 2px 4px !important;
   background: transparent !important;
   border: none !important;
-  min-height: 28px; 
+  min-height: auto !important;
 }
 
-/* ריווח אנכי בין אירועים באותה שעה */
 .bereshit-calendar .fc-timegrid-col-events .fc-timegrid-event-harness {
   padding: 2px 4px;
   margin-bottom: 4px;
 }
 
-/* ===== מבנה כרטיס האירוע (eventContent) ===== */
+.bereshit-calendar .fc-timegrid-event .fc-event-main {
+  height: 100%;
+}
+
+/* ===== כרטיס אירוע בסיסי ===== */
 .bereshit-calendar .event-box {
+  width: 100%;
+  min-height: 30px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 4px 8px;
+  overflow: hidden;
+}
+
+.bereshit-calendar .event-box,
+.bereshit-calendar .event-box * {
+  color: #333;
+}
+
+/* ===== שיעור רגיל ===== */
+.bereshit-calendar .event-box.lesson-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.bereshit-calendar .event-box .main-line {
   display: flex;
   align-items: center;
   justify-content: space-between;
-
-  width: 100%;
-  min-height: 24px;
-  box-sizing: border-box;
-
-  padding: 0 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  line-height: 1.2;
-
-  background-color: #ffffff;
-  border: 1px solid rgba(0, 0, 0, .06);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
-
-  overflow: hidden;
+  gap: 6px;
+  min-width: 0;
 }
 
-/* כותרת מדריך ב-07:00 */
-.bereshit-calendar .event-box.instructor-header {
-  justify-content: center;
-  font-weight: 600;
-}
-
-/* שורת ילדים – “תא” בטבלה */
-.bereshit-calendar .children-line {
+.bereshit-calendar .child-main-name {
   flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
   overflow: hidden;
-  white-space: normal;
+  text-overflow: ellipsis;
+  color: #2f3a28;
+}
+
+.bereshit-calendar .badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.bereshit-calendar .mini-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bereshit-calendar .type-badge {
+  background: #eef3e3;
+  color: #556b2f;
+  border: 1px solid #cfd7b9;
+}
+
+.bereshit-calendar .secondary-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 10px;
+  color: #6e7462;
+  white-space: nowrap;
+  overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.bereshit-calendar .child-name {
-  display: inline-block;
-  padding: 0 4px;
+.bereshit-calendar .resource-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* מפריד בין ילדים באותו סלוט (שיעור כפול) */
-.bereshit-calendar .child-sep::before {
-  content: "|";
-  padding: 0 2px;
-  color: #bbb;
+.bereshit-calendar .dot-sep {
+  opacity: 0.6;
 }
 
-/* צ'יפ סוג שיעור */
-.bereshit-calendar .chip {
-  font-size: 10px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: #f5f5f5;
+/* ===== כותרת מדריך / סיכומים / חופשה ===== */
+.bereshit-calendar .event-box.instructor-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  font-weight: 600;
 }
 
-/* קו מדריך / כותרות נוספות בתוך event-box אם צריך */
 .bereshit-calendar .event-box .instructor-line {
   font-weight: 700;
   font-size: 13px;
   color: #2f3a28;
 }
 
-.bereshit-calendar .event-box .time {
-  font-weight: 800;
-  color: var(--ink);
+.bereshit-calendar .event-box.summary,
+.bereshit-calendar .event-box.farm-day-off-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
 }
 
-.bereshit-calendar .event-box .title {
+.bereshit-calendar .event-box.summary .title {
   font-weight: 700;
   color: var(--ink);
+  text-align: center;
 }
 
-/* צבע טקסט אחיד */
-.bereshit-calendar .event-box,
-.bereshit-calendar .event-box * {
-  color: #333;
-}
-
-/* ===== אירוע מבוטל – קו אלכסוני ===== */
-.bereshit-calendar .fc .fc-event.canceled::after,
-.bereshit-calendar .event-box.status-canceled::after
-{
-  content: "";
-  position: absolute;
-  left: 6%;
-  right: 6%;
-  top: 50%;
-  border-top: 2.5px solid var(--fail);
-  transform: rotate(-12deg);
-  pointer-events: none;
-  opacity: .95;
-}
-
-/* שהאירוע ינצל את כל הגובה שלו */
-.fc-timegrid-event .fc-event-main,
-.fc-timegrid-event .event-box {
-  height: 100%;
-}
-
-/* הקופסה שלך – שלא תברח ותישאר קריאה */
-.fc-timegrid-event .event-box {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 4px 6px;
-  overflow: hidden;
-  border-radius: 999px;
-}
-
-/* שורה של ילדים – אליפסיס במקום לחתוך מוזר */
-.fc-timegrid-event .children-line {
+.fc .farm-day-off-text,
+.fc .summary,
+.fc .instructor-header {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.1;
 }
 
-/* chip קטן ולא משתלט */
-.fc-timegrid-event .chip {
-  display: inline-block;
-  margin-top: 2px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  font-size: 12px;
-  line-height: 1;
-  white-space: nowrap;
+/* ===== סטטוסים ===== */
+.bereshit-calendar .fc-event.status-approved .event-box {
+  background: #e8f5e9;
+  border-color: #66bb6a;
 }
 
-
-.instructor-filter {
-  margin-bottom: 12px;
+.bereshit-calendar .fc-event.status-pending .event-box {
+  background: #fff3e0;
+  border-color: #fb8c00;
 }
 
-.instructor-filter .filter-title {
-  font-weight: 700;
-  font-size: 14px;
-  margin-bottom: 6px;
-  color: #2f3a28;
+.bereshit-calendar .fc-event.status-canceled .event-box {
+  background: #ffebee;
+  border-color: #e53935;
 }
 
-.tag-list {
+.bereshit-calendar .fc-event.status-approved .event-box,
+.bereshit-calendar .fc-event.status-approved .event-box * {
+  color: #1b5e20;
+}
+
+.bereshit-calendar .fc-event.status-pending .event-box,
+.bereshit-calendar .fc-event.status-pending .event-box * {
+  color: #e65100;
+}
+
+.bereshit-calendar .fc-event.status-canceled .event-box,
+.bereshit-calendar .fc-event.status-canceled .event-box * {
+  color: #b71c1c;
+}
+
+/* ===== מבוטל קומפקטי ===== */
+.bereshit-calendar .event-box.canceled-compact {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
   gap: 6px;
+  min-height: 30px;
+  background: #ffebee;
+  border-color: #ef9a9a;
 }
 
-.tag-list .tag {
-  border-radius: 999px;
-  border: 1px solid #cfd7b9;
-  background: #fff;
-  padding: 4px 10px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: .2s;
-  color: #4b5540;
+.bereshit-calendar .cancel-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #d32f2f;
+  color: #fff !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
 }
 
-.tag-list .tag:hover {
-  background: #f3f6e9;
+.bereshit-calendar .cancel-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #8b1e1e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.tag-list .tag.active {
-  background: #748c40;
-  border-color: #748c40;
-  color: #fff;
+.bereshit-calendar .cancel-type {
+  background: #fff5f5;
+  color: #b71c1c;
+  border: 1px solid #ef9a9a;
 }
 
-/* ===== מובייל אמיתי (פלאפון) ===== */
+.bereshit-calendar .makeup-ok {
+  background: #fff8e1;
+  color: #8d6e00;
+  border: 1px solid #e6c65c;
+}
+
+.bereshit-calendar .fc-timegrid-event.status-canceled {
+  min-height: 36px !important;
+}
+
+/* ===== חופשת חווה בתצוגת חודש ===== */
+.fc-daygrid-event.farm-day-off {
+  white-space: normal !important;
+  line-height: 1.2;
+}
+
+.fc-daygrid-event.farm-day-off .fc-event-title {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  word-break: break-word;
+}
+
+.fc-daygrid-day-events {
+  max-height: none;
+}
+
+/* ===== ביטול מוחלט של קו אלכסוני ===== */
+.bereshit-calendar .fc-event.status-canceled::after,
+.bereshit-calendar .fc-event.status-cancelled::after,
+.bereshit-calendar .fc-timegrid-event.status-canceled::after,
+.bereshit-calendar .event-box.status-canceled::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* ===== מובייל ===== */
 @media (max-width: 600px) {
   .schedule-wrap {
     gap: 8px;
@@ -591,7 +600,6 @@
     font-size: 0.78rem;
   }
 
-  /* אם בונים מצב שהקבוצה רחבה מדי – אפשר לאפשר גלילה אופקית */
   .calendar-toolbar .view-buttons,
   .calendar-toolbar .actions {
     max-width: 100%;
@@ -603,11 +611,9 @@
   .calendar-toolbar .actions::-webkit-scrollbar {
     height: 4px;
   }
-}
 
-@media (max-width: 600px) {
   .bereshit-calendar .fc {
-    --fc-slot-min-height: 2.2em;   /* סלוטים קצת נמוכים יותר */
+    --fc-slot-min-height: 2.2em;
   }
 
   .bereshit-calendar .fc .fc-col-header-cell-cushion {
@@ -627,125 +633,26 @@
   }
 
   .bereshit-calendar .event-box {
-    padding: 0 6px;
-    font-size: 11px;
-    min-height: 20px;
+    padding: 4px 6px;
+    min-height: 28px;
   }
 
-  .bereshit-calendar .chip {
+  .bereshit-calendar .child-main-name {
+    font-size: 11px;
+  }
+
+  .bereshit-calendar .secondary-line {
     font-size: 9px;
+  }
+
+  .bereshit-calendar .mini-badge {
+    font-size: 9px;
+    min-width: 18px;
+    height: 16px;
     padding: 0 4px;
   }
 
   .calendar-host {
-    max-height: calc(100vh - 72px); // טיפה יותר מרווח למובייל
+    max-height: calc(100vh - 72px);
   }
-}
-
-/* 🔥 חובה – לאפשר גובה לאירוע מבוטל */
-.bereshit-calendar .fc-timegrid-event.status-canceled {
-  min-height: 32px !important;
-}
-
-/* 🔥 לוודא שהתוכן הפנימי נראה */
-.bereshit-calendar .fc-timegrid-event.status-canceled .event-box {
-  display: flex !important;
-  min-height: 24px;
-}
-/* ===========================
-   FIX: FullCalendar timeGrid
-   =========================== */
-
-/* לא להעלים את ה-event עצמו */
-.bereshit-calendar .fc-timegrid-event {
-  padding: 2px 4px !important;
-  background: transparent !important;
-  border: none !important;
-  min-height: auto !important;   /* ← קריטי */
-}
-
-/* ריווח בין אירועים */
-.bereshit-calendar .fc-timegrid-col-events .fc-timegrid-event-harness {
-  padding: 2px 4px;
-  margin-bottom: 4px;
-}
-
-/* מבנה כרטיס האירוע */
-.bereshit-calendar .event-box {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  width: 100%;
-  min-height: 28px;
-  padding: 0 8px;
-
-  border-radius: 999px;
-  font-size: 12px;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, .06);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
-}
-
-/* ===========================
-   🔥 מבוטל – חייב להיות נראה
-   =========================== */
-.bereshit-calendar .fc-timegrid-event.status-canceled {
-  min-height: 36px !important;
-}
-
-.bereshit-calendar .fc-timegrid-event.status-canceled .event-box {
-  display: flex !important;
-  min-height: 28px;
-  background: #ffebee;
-  border-color: #e53935;
-}
-
-/* קו אלכסוני למבוטל */
-.bereshit-calendar .fc-timegrid-event.status-canceled::after {
-  content: "";
-  position: absolute;
-  left: 6%;
-  right: 6%;
-  top: 50%;
-  border-top: 2px solid #e53935;
-  transform: rotate(-12deg);
-  pointer-events: none;
-}
-/* =========================
-   חופשת חווה – תצוגת חודש
-   ========================= */
-
-.fc-daygrid-event.farm-day-off {
-  white-space: normal !important;   /* מאפשר ירידת שורה */
-  line-height: 1.2;
-}
-
-.fc-daygrid-event.farm-day-off .fc-event-title {
-  white-space: normal !important;
-  overflow: visible !important;
-  text-overflow: unset !important;
-  word-break: break-word;
-}
-
-/* אם היום קטן – לתת לו קצת יותר גובה */
-.fc-daygrid-day-events {
-  max-height: none;
-}
-/* חופשת חווה – טקסט */
-.fc .farm-day-off-text,
-.fc .event-box,
-.fc .summary,
-.fc .instructor-header {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* 🚫 ביטול מוחלט של קו אלכסוני לשיעור מבוטל */
-.bereshit-calendar .fc-event.status-canceled::after,
-.bereshit-calendar .fc-event.status-cancelled::after,
-.bereshit-calendar .fc-timegrid-event.status-canceled::after,
-.bereshit-calendar .event-box.status-canceled::after {
-  content: none !important;
-  display: none !important;
 }

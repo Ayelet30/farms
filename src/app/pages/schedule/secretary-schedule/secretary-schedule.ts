@@ -135,11 +135,12 @@ private rebuildInstructorResources(): void {
   this.instructorResources = this.instructors
     .filter(i => ids.has(String(i.id_number)))
     .map(i => ({
-      id: i.id_number,
+      id: String(i.id_number),
       title: `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim(),
     }));
-}
 
+  console.log('instructorResources', this.instructorResources);
+}
 
   private async reloadAll() {
     await this.loadChildren();

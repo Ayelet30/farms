@@ -15,7 +15,12 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FullCalendarModule, FullCalendarComponent } from '@fullcalendar/angular';
-import { CalendarOptions, EventClickArg, DatesSetArg } from '@fullcalendar/core';
+import {
+  CalendarOptions,
+  EventClickArg,
+  DatesSetArg,
+  EventInput,
+} from '@fullcalendar/core';
 import { DateClickArg } from '@fullcalendar/interaction';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -24,7 +29,6 @@ import heLocale from '@fullcalendar/core/locales/he';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 
 import { ScheduleItem } from '../../models/schedule-item.model';
-import type { EventInput } from '@fullcalendar/core';
 
 type ViewName = 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay';
 
@@ -48,13 +52,9 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   @Input() allDaySlot = false;
   @Input() resources: any[] = [];
   @Input() showToolbar = true;
+  @Input() enableAutoAssign = false;
 
-
-  // למעלה, אחרי שאר ה-@Input
-@Input() enableAutoAssign = false;
-@Output() autoAssignRequested = new EventEmitter<void>();
-
-
+  @Output() autoAssignRequested = new EventEmitter<void>();
   @Output() eventClick = new EventEmitter<EventClickArg>();
   @Output() dateClick = new EventEmitter<DateClickArg>();
   @Output() viewRange = new EventEmitter<{
@@ -65,14 +65,13 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   @Output() rightClickDay = new EventEmitter<{
     jsEvent: MouseEvent;
     dateStr: string;
-  }>(); 
-
+  }>();
 
   currentView: ViewName = this.initialView;
   currentDate = '';
   isFullscreen = false;
 
-    private isNarrow600 = window.innerWidth < 600;
+  private isNarrow600 = window.innerWidth < 600;
 
   @HostListener('window:resize')
   onResize() {
@@ -82,21 +81,22 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
 
     const api = this.calendarApi;
     if (api) {
-      // גורם לכותרות להתרענן
       api.setOption('dayHeaderContent', this.dayHeaderContentFactory());
     }
   }
 
-  constructor(private cdr: ChangeDetectorRef, private ngZone: NgZone) {}
+  constructor(
+    private cdr: ChangeDetectorRef,
+    private ngZone: NgZone
+  ) {}
 
-  // שעה נוכחית (לגלילה אוטומטית)
   private nowScroll(): string {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
   }
 
-   private isToday(d: Date) {
+  private isToday(d: Date) {
     const t = new Date();
     return (
       d.getFullYear() === t.getFullYear() &&
@@ -105,27 +105,19 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     );
   }
 
-   /** שבועי/יומי עם resources */
   private mapView(view: ViewName): string {
-    const hasRes = !!(this.resources && this.resources.length);
-    if (!hasRes) return view;
+  const hasRes = !!(this.resources && this.resources.length);
+  if (!hasRes) return view;
 
-    if (view === 'timeGridDay') return 'resourceTimeGridDay';
-    if (view === 'timeGridWeek') return 'resourceTimeGridWeek'; // ✅ מומלץ
-    return view;
-  }
+  if (view === 'timeGridDay') return 'resourceTimeGridDay';
+  if (view === 'timeGridWeek') return 'resourceTimeGridWeek';
+  return view;
+}
 
   private hebDayLetter(date: Date): string {
-    // 0=Sunday ... 6=Saturday
     const map = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
     return map[date.getDay()] ?? '';
   }
-
-  private lessonTitleNumberOnly(title: string): string {
-  const m = String(title ?? '').match(/\d+/);
-  return m ? m[0] : (title ?? '');
-}
-
 
   private dayHeaderContentFactory() {
     return (args: any) => {
@@ -138,50 +130,74 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
         return { html: `<span>${this.hebDayLetter(args.date)}</span>` };
       }
 
-      // ברירת מחדל של FullCalendar (מה שהוא היה מצייר)
       return { html: args.text };
     };
   }
 
+  private escapeHtml(v: any): string {
+    return String(v ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
 
-  calendarOptions: CalendarOptions = {
-    plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimeGridPlugin],
-    initialView: 'timeGridDay',
-    locale: heLocale,
-    direction: 'rtl',
-    headerToolbar: false,
-    height: 'auto',
-    slotMinTime: '07:00:00',
-    slotMaxTime: '21:00:00',
-    allDaySlot: false,
-    displayEventTime: false,
-    eventDisplay: 'block', 
-    nowIndicator: true,
-    scrollTime: '07:00:00',
-    slotDuration: '00:30:00',
-     timeZone: 'local',
-    events: [],
-    resources: [],
-    slotEventOverlap: true,      // נשאר side-by-side (לא stack לגובה)
-    eventMaxStack: 4,            // שיראה עד 4 באותו סלוט
-    eventMinHeight: 34,          // שלא יהפוך לפס דק
-    eventShortHeight: 34,        // שומר גובה מינימלי גם כשצפוף
+  private getLessonTypeShort(type: string): string {
+    const t = String(type || '').trim();
 
-    dayHeaderContent: this.dayHeaderContentFactory(),
+    const map: Record<string, string> = {
+      'רגיל': 'ר',
+      'שיעור רגיל': 'ר',
+      'מילוי מקום': 'מ"מ',
+      'ממלא מקום': 'מ"מ',
+      'אימון': 'א',
+      'פרטי': 'פ',
+      'קבוצתי': 'ק',
+      'השלמה': 'ה',
+      'טיפולי': 'ט',
+    };
 
+    return map[t] || (t ? t.slice(0, 2) : '');
+  }
 
-    // 👇 קליק שמאלי רגיל
+ calendarOptions: CalendarOptions = {
+  plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, resourceTimeGridPlugin],
+  initialView: 'timeGridDay',
+  locale: heLocale,
+  direction: 'rtl',
+  headerToolbar: false,
+  height: 'auto',
+  slotMinTime: '07:00:00',
+  slotMaxTime: '21:00:00',
+  allDaySlot: false,
+  displayEventTime: false,
+  eventDisplay: 'block',
+  nowIndicator: true,
+  scrollTime: '07:00:00',
+  slotDuration: '00:30:00',
+  timeZone: 'local',
+  events: [],
+  resources: [],
+
+  resourceAreaWidth: '140px',
+  resourceOrder: 'title',
+  resourceAreaHeaderContent: '',
+
+  slotEventOverlap: false,
+  eventMaxStack: 4,
+  eventMinHeight: 34,
+  eventShortHeight: 34,
+  dayHeaderContent: this.dayHeaderContentFactory(),
+
     dateClick: (info: DateClickArg) => this.dateClick.emit(info),
     eventClick: (arg: EventClickArg) => this.eventClick.emit(arg),
 
-    // 👇 קליק ימני על יום (בתצוגת חודש / יום / שבוע)
     dayCellDidMount: (info) => {
-     const pad = (n: number) => String(n).padStart(2, '0');
-const d = info.date;
-const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const d = info.date;
+      const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-
-      // אם בעתיד תעבירי classNames ליום – להחיל אותם על ה-frame הפנימי
       const classes = info.el.classList;
       const fcFrame = info.el.querySelector('.fc-daygrid-day-frame');
       if (fcFrame && classes.length > 0) {
@@ -199,204 +215,199 @@ const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}
     },
 
     eventContent: (arg) => {
-      
-  const { event } = arg;
-  const status = event.extendedProps['status'] || '';
-  const isSummaryDay = !!event.extendedProps['isSummaryDay'];
-  const isSummarySlot = !!event.extendedProps['isSummarySlot'];
-  const isInstructorHeader = !!event.extendedProps['isInstructorHeader'];
-// 🏖 חופשת חווה – טקסט
-if (event.extendedProps['isFarmDayOff']) {
-  return {
-    html: `
-      <div class="event-box farm-day-off-text">
-        ${event.title}
-      </div>
-    `,
-  };
-}
+      const { event } = arg;
+      const meta = event.extendedProps['meta'] || {};
 
-  // סיכומי חודש/שבוע
-  if (isSummaryDay || isSummarySlot) {
-    return {
-      html: `
-        <div class="event-box summary">
-          <div class="title">${event.title}</div>
-        </div>
-      `,
-    };
-  }
+      const isSummaryDay = !!event.extendedProps['isSummaryDay'];
+      const isSummarySlot = !!event.extendedProps['isSummarySlot'];
+      const isInstructorHeader = !!event.extendedProps['isInstructorHeader'];
+      const isFarmDayOff = !!event.extendedProps['isFarmDayOff'];
 
-  // כותרת מדריך
-  if (isInstructorHeader) {
-    return {
-      html: `
-        <div class="event-box instructor-header">
-          <div class="instructor-line">${event.title}</div>
-        </div>
-      `,
-    };
-  }
-  const title = event.title || ''; 
-  const meta = event.extendedProps['meta'] || {};
+      if (isFarmDayOff) {
+        return {
+          html: `
+            <div class="event-box farm-day-off-text">
+              ${this.escapeHtml(event.title)}
+            </div>
+          `,
+        };
+      }
 
-  // כרטיסיית שיעור – ילדים + סוג
-const childrenStr =
-  event.extendedProps['children'] ||
-  event.extendedProps['child_name'] ||
-  event.title ||
-  '';
+      if (isSummaryDay || isSummarySlot) {
+        return {
+          html: `
+            <div class="event-box summary">
+              <div class="title">${this.escapeHtml(event.title)}</div>
+            </div>
+          `,
+        };
+      }
 
-const age = meta.age ? `(${meta.age})` : '';
+      if (isInstructorHeader) {
+        return {
+          html: `
+            <div class="event-box instructor-header">
+              <div class="instructor-line">${this.escapeHtml(event.title)}</div>
+            </div>
+          `,
+        };
+      }
 
+      const rawStatus = String(event.extendedProps['status'] || '').trim().toUpperCase();
+      const isCanceled = ['בוטל', 'מבוטל', 'CANCELED', 'CANCELLED'].includes(rawStatus);
 
-  const children = childrenStr
-    .split('|')
-    .map((s: string) => s.trim())
-    .filter((s: string) => !!s);
+      const childName =
+        event.extendedProps['child_name'] ||
+        event.extendedProps['children'] ||
+        event.title ||
+        '';
 
-const childrenHtml = children
-  .map((name: string) => `<span class="child-name">${name} ${age}</span>`)
-  .join('<span class="child-sep"></span>');
+      const lessonType = event.extendedProps['lesson_type'] || '';
+      const lessonTypeShort = this.getLessonTypeShort(lessonType);
 
+      const horse = event.extendedProps['horse_name'] || '';
+      const arena = event.extendedProps['arena_name'] || '';
 
-const isWeekView =
-  arg.view.type === 'timeGridWeek' ||
-  arg.view.type === 'resourceTimeGridWeek';
+      const isWeekView =
+        arg.view.type === 'timeGridWeek' ||
+        arg.view.type === 'resourceTimeGridWeek';
 
-const type = event.extendedProps['lesson_type'] || '';
+      const isDayView =
+        arg.view.type === 'timeGridDay' ||
+        arg.view.type === 'resourceTimeGridDay';
 
-const chip = (!isWeekView && type)
-  ? `<span class="chip">${type}</span>`
-  : '';
-const horse = event.extendedProps['horse_name'] || '';
-const arena = event.extendedProps['arena_name'] || '';
+      const isMakeupAllowed = !!meta?.is_makeup_allowed;
 
+      if (isCanceled) {
+        const cancelTooltip = [
+          'שיעור מבוטל',
+          childName ? `ילד: ${childName}` : '',
+          lessonType ? `סוג: ${lessonType}` : '',
+          isMakeupAllowed ? 'מותר להשלמה' : 'ללא השלמה',
+        ]
+          .filter(Boolean)
+          .join(' • ');
 
+        return {
+          html: `
+            <div class="event-box canceled-compact" title="${this.escapeHtml(cancelTooltip)}">
+              <span class="cancel-icon">✖</span>
+              ${isDayView ? `<span class="cancel-name">${this.escapeHtml(childName)}</span>` : ''}
+              ${lessonTypeShort ? `<span class="mini-badge cancel-type">${this.escapeHtml(lessonTypeShort)}</span>` : ''}
+              ${isMakeupAllowed ? `<span class="mini-badge makeup-ok">ה</span>` : ''}
+            </div>
+          `,
+        };
+      }
 
+      const secondaryLine =
+        isDayView && (horse || arena)
+          ? `
+            <div class="secondary-line">
+              ${horse ? `<span class="resource-item">🐎 ${this.escapeHtml(horse)}</span>` : ''}
+              ${horse && arena ? `<span class="dot-sep">•</span>` : ''}
+              ${arena ? `<span class="resource-item">📍 ${this.escapeHtml(arena)}</span>` : ''}
+            </div>
+          `
+          : '';
 
-  const resourcesHtml =
-    horse || arena
-      ? `
-        <div class="resource-line">
-          ${horse ? `<span class="horse-label">עם ${horse}</span>` : ''}
-          ${horse && arena ? '<span class="sep">·</span>' : ''}
-          ${arena ? `<span class="arena-label">ב${arena}</span>` : ''}
-        </div>
-      `
-      : '';
+      return {
+        html: `
+          <div class="event-box lesson-card">
+            <div class="main-line">
+              <span class="child-main-name" title="${this.escapeHtml(childName)}">
+                ${this.escapeHtml(childName)}
+              </span>
 
-return {
-  html: `
-   <div class="event-box">
+              <span class="badges">
+                ${lessonTypeShort ? `<span class="mini-badge type-badge">${this.escapeHtml(lessonTypeShort)}</span>` : ''}
+              </span>
+            </div>
 
-   
+            ${!isWeekView ? secondaryLine : ''}
+          </div>
+        `,
+      };
+    },
 
-      <div class="children-line">
-        ${childrenHtml}
-      </div>
-
-      ${resourcesHtml}
-      ${chip}
-    </div>
-  `,
-};
-
-},
-
-
-    // 👇 צביעת אירועים + קליק ימני על אירוע (אותו תפריט כמו על יום)
     eventClassNames: (arg) => {
-  const classes: string[] = [];
-  const status = arg.event.extendedProps['status'];
-  const isSummaryDay = arg.event.extendedProps['isSummaryDay'];
-  const isSummarySlot = arg.event.extendedProps['isSummarySlot'];
-  const isHeader = arg.event.extendedProps['isInstructorHeader'];
+      const classes: string[] = [];
+      const status = arg.event.extendedProps['status'];
+      const isSummaryDay = arg.event.extendedProps['isSummaryDay'];
+      const isSummarySlot = arg.event.extendedProps['isSummarySlot'];
+      const isHeader = arg.event.extendedProps['isInstructorHeader'];
+      const isFarmDayOff = arg.event.extendedProps['isFarmDayOff'];
 
-  if (isSummaryDay || isSummarySlot) classes.push('summary-event');
-  if (isHeader) classes.push('inst-header');
+      if (isSummaryDay || isSummarySlot) classes.push('summary-event');
+      if (isHeader) classes.push('inst-header');
+      if (isFarmDayOff) classes.push('farm-day-off');
 
-  const s = (typeof status === 'string' ? status.trim() : '').toUpperCase();
+      const s = (typeof status === 'string' ? status.trim() : '').toUpperCase();
 
-  // כאן תתאימי למחרוזות שהגדרת ב־DB
- if (['בוטל', 'מבוטל', 'CANCELED', 'CANCELLED'].includes(s)) {
-  classes.push('status-canceled');
-}
- else if (s === 'אושר' || s === 'APPROVED') {
-    classes.push('status-approved');
-  } else if (
-    s === 'ממתין לאישור' ||
-    s === 'ממתין לאישור מזכירה' ||
-    s === 'PENDING'
-  ) {
-    classes.push('status-pending');
-  }
+      if (['בוטל', 'מבוטל', 'CANCELED', 'CANCELLED'].includes(s)) {
+        classes.push('status-canceled');
+      } else if (s === 'אושר' || s === 'APPROVED') {
+        classes.push('status-approved');
+      } else if (
+        s === 'ממתין לאישור' ||
+        s === 'ממתין לאישור מזכירה' ||
+        s === 'PENDING'
+      ) {
+        classes.push('status-pending');
+      }
 
-  return classes;
-},
+      return classes;
+    },
 
+    eventDidMount: (info: any) => {
+      const meta = info.event.extendedProps?.meta || info.event.extendedProps || {};
+      const color = meta?.instructor_color;
 
-eventDidMount: (info: any) => {
-  const meta = info.event.extendedProps?.meta;
+      if (color) {
+        const box = info.el.querySelector('.event-box') as HTMLElement | null;
+        if (box) {
+          box.style.borderRight = `6px solid ${color}`;
+          box.style.boxSizing = 'border-box';
+        }
+      }
 
-  const color = meta?.instructor_color;
+      let tooltipText = '';
 
-  if (color) {
-    const box = info.el.querySelector('.event-box') as HTMLElement | null;
-    if (box) {
-      box.style.borderRight = `6px solid ${color}`; // RTL
-      box.style.boxSizing = 'border-box';
-    }
-  }
+      if (meta?.isFarmDayOff === true || meta?.isFarmDayOff === 'true') {
+        tooltipText = meta.reason
+          ? `חופשת חווה:\n${meta.reason}`
+          : 'חופשת חווה';
+      }
 
+      if (meta?.isSummaryDay === true || meta?.isSummaryDay === 'true') {
+        tooltipText = info.event.title;
+      }
 
-  // ===== TOOLTIP =====
+      if (meta?.cancelBlockReason) {
+        tooltipText = meta.cancelBlockReason;
+      }
 
-  let tooltipText = '';
+      if (tooltipText) {
+        info.el.setAttribute('title', tooltipText);
+        info.el.classList.add('has-tooltip');
+      }
 
-  // 🏖 חופשת חווה
-  if (meta?.isFarmDayOff === true || meta?.isFarmDayOff === 'true') {
-    tooltipText = meta.reason
-      ? `חופשת חווה:\n${meta.reason}`
-      : 'חופשת חווה';
-  }
+      (info.event.classNames || []).forEach((cls: string) => {
+        info.el.classList.add(cls);
+      });
 
-  // 📅 סיכום יום / חודש
-  if (meta?.isSummaryDay === true || meta?.isSummaryDay === 'true') {
-    tooltipText = info.event.title;
-  }
+      info.el.addEventListener('contextmenu', (ev: MouseEvent) => {
+        ev.preventDefault();
+        ev.stopPropagation();
 
-  if (tooltipText) {
-    info.el.setAttribute('title', tooltipText);
-    info.el.classList.add('has-tooltip');
-  }
-    // 🚫 חסימת ביטול – הסבר
-  if (meta?.cancelBlockReason) {
-    tooltipText = meta.cancelBlockReason;
-  }
+        const dateStr = info.event.startStr.slice(0, 10);
 
-  // ===================
+        this.ngZone.run(() => {
+          this.rightClickDay.emit({ jsEvent: ev, dateStr });
+        });
+      });
+    },
 
-  // החלת classNames
-  (info.event.classNames || []).forEach((cls: string) => {
-    info.el.classList.add(cls);
-  });
-
-  // קליק ימני על אירוע
-  info.el.addEventListener('contextmenu', (ev: MouseEvent) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-
-    const dateStr = info.event.startStr.slice(0, 10);
-
-    this.ngZone.run(() => {
-      this.rightClickDay.emit({ jsEvent: ev, dateStr });
-    });
-  });
-},
-
-
- 
     datesSet: (info: DatesSetArg) => {
       setTimeout(() => {
         const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
@@ -426,10 +437,12 @@ eventDidMount: (info: any) => {
         const api = this.calendarApi;
         if (
           api &&
-          (info.view.type === 'timeGridDay' ||
+          (
+            info.view.type === 'timeGridDay' ||
             info.view.type === 'resourceTimeGridDay' ||
             info.view.type === 'timeGridWeek' ||
-            info.view.type === 'resourceTimeGridWeek')
+            info.view.type === 'resourceTimeGridWeek'
+          )
         ) {
           if (this.isToday(api.getDate())) {
             api.scrollToTime(this.nowScroll());
@@ -448,93 +461,79 @@ eventDidMount: (info: any) => {
   }
 
   ngOnChanges(changes: SimpleChanges) {
-  if (changes['resources']) {
-    // אחרי שמגיעים resources – לעדכן את ה־View למצב resource*
-    setTimeout(() => this.applyCurrentView(), 0);
+    if (changes['resources']) {
+      setTimeout(() => this.applyCurrentView(), 0);
+    }
+
+    if (changes['items'] || changes['resources']) {
+      this.calendarOptions = {
+        ...this.calendarOptions,
+        events: this.items.flatMap<EventInput>((i) => {
+          if (i.meta?.['isFarmDayOff'] === 'true') {
+            return [
+              {
+                id: i.id + '_bg',
+                start: i.start,
+                end: i.end,
+                display: 'background',
+                backgroundColor: '#FFE0B2',
+                overlap: false,
+              },
+              {
+                id: i.id,
+                title: i.title,
+                start: i.start,
+                end: i.end,
+                color: '#FB8C00',
+                textColor: '#4E342E',
+                extendedProps: {
+                  isFarmDayOff: true,
+                  meta: i.meta,
+                },
+              },
+            ];
+          }
+
+          return [
+            {
+              id: i.id,
+              title: i.title,
+              start: i.start,
+              end: i.end,
+              backgroundColor: i.color,
+              borderColor: i.color,
+              resourceId: i.meta?.instructor_id || undefined,
+              extendedProps: {
+                lesson_id: i.meta?.['lesson_id'],
+                meta: i.meta,
+                instructor_color: i.meta?.['instructor_color'],
+                status: i.status,
+                child_id: i.meta?.child_id,
+                child_name: i.meta?.child_name,
+                instructor_id: i.meta?.instructor_id,
+                instructor_name: i.meta?.instructor_name,
+                lesson_type: i.meta?.['lesson_type'],
+                children: i.meta?.['children'],
+                occur_date: i.meta?.['occur_date'],
+                isSummaryDay: i.meta?.isSummaryDay,
+                isSummarySlot: i.meta?.isSummarySlot,
+                isInstructorHeader: i.meta?.['isInstructorHeader'],
+                horse_name: i.meta?.['horse_name'],
+                arena_name: i.meta?.['arena_name'],
+                isFarmDayOff: i.meta?.['isFarmDayOff'],
+              },
+            },
+          ];
+        }),
+        resources: this.resources,
+      };
+    }
+
+    if (changes['initialView'] && changes['initialView'].currentValue) {
+      this.currentView = changes['initialView'].currentValue;
+      this.applyCurrentView();
+    }
   }
-
-  if (changes['items'] || changes['resources']) {
-
-
-    this.calendarOptions = {
-      ...this.calendarOptions,
-   events: this.items.flatMap<EventInput>((i) => {
-
-
-  // ===== חופשת חווה =====
-if (i.meta?.['isFarmDayOff'] === 'true') {
-
-    return [
-      // 1️⃣ רקע – צובע את כל היום / שעות
-      {
-        id: i.id + '_bg',
-        start: i.start,
-        end: i.end,
-        display: 'background',
-        backgroundColor: '#FFE0B2',
-        overlap: false,
-      },
-
-      // 2️⃣ טקסט – הסיבה
-      {
-        id: i.id,
-        title: i.title,
-        start: i.start,
-        end: i.end,
-        color: '#FB8C00',
-        textColor: '#4E342E',
-        extendedProps: {
-          isFarmDayOff: true,
-        },
-      },
-    ];
-  }
-
-
-  // ===== אירוע רגיל =====
-return [{
-  id: i.id,
-  title: i.title,
-  start: i.start,
-  end: i.end,
-  backgroundColor: i.color,
-  borderColor: i.color,
-  resourceId: i.meta?.instructor_id || undefined,
-  extendedProps: {
-    lesson_id: i.meta?.['lesson_id'],
-    meta: i.meta,
-       
-instructor_color: i.meta?.['instructor_color'],
-
-    status: i.status,
-    child_id: i.meta?.child_id,
-    child_name: i.meta?.child_name,
-    instructor_id: i.meta?.instructor_id,
-    instructor_name: i.meta?.instructor_name,
-    lesson_type: i.meta?.['lesson_type'],
-    children: i.meta?.['children'],
-    occur_date: i.meta?.['occur_date'],
-    isSummaryDay: i.meta?.isSummaryDay,
-    isSummarySlot: i.meta?.isSummarySlot,
-    isInstructorHeader: i.meta?.['isInstructorHeader'],
-    horse_name: i.meta?.['horse_name'],
-    arena_name: i.meta?.['arena_name'],
-    
-  },
-}];
-
-}),
-
-      resources: this.resources,
-    };
-  }
-
-  if (changes['initialView'] && changes['initialView'].currentValue) {
-    this.currentView = changes['initialView'].currentValue;
-    this.applyCurrentView();
-  }
-}
-
 
   get calendarApi() {
     return this.calendarComponent?.getApi();
@@ -548,20 +547,17 @@ instructor_color: i.meta?.['instructor_color'],
     api.changeView(mapped);
 
     if (
-      (this.currentView === 'timeGridDay' ||
-        this.currentView === 'timeGridWeek') &&
+      (this.currentView === 'timeGridDay' || this.currentView === 'timeGridWeek') &&
       this.isToday(api.getDate())
     ) {
       setTimeout(() => api.scrollToTime(this.nowScroll()), 0);
     }
   }
 
-  // בתוך המחלקה ScheduleComponent
-onAutoAssignClick() {
-  if (!this.enableAutoAssign) return;
-  this.autoAssignRequested.emit();
-}
-
+  onAutoAssignClick() {
+    if (!this.enableAutoAssign) return;
+    this.autoAssignRequested.emit();
+  }
 
   changeView(view: ViewName) {
     this.currentView = view;
@@ -571,6 +567,7 @@ onAutoAssignClick() {
   next() {
     this.calendarApi.next();
   }
+
   prev() {
     this.calendarApi.prev();
   }
@@ -622,6 +619,4 @@ onAutoAssignClick() {
   onEsc() {
     if (this.isFullscreen) this.toggleFullscreen();
   }
-
-  
 }

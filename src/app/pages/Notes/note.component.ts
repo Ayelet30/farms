@@ -69,8 +69,11 @@ interface LessonDetails {
   horse_name?: string | null;
   arena_id?: string | null;
   arena_name?: string | null;
-    is_makeup_allowed?: boolean | null;
-      isCancelled?: boolean;
+
+  is_makeup_allowed?: boolean | null;
+  is_billable?: boolean | null;
+
+  isCancelled?: boolean;
 }
 
 interface HorseOption {
@@ -232,6 +235,10 @@ get canEditMakeupAllowed(): boolean {
   const r = this.effectiveRole();
   return r === 'secretary' || r === 'manager' || r === 'admin';
 }
+get canEditBillingFlag(): boolean {
+  const r = this.effectiveRole();
+  return r === 'secretary' || r === 'manager' || r === 'admin';
+}
 
   get canEditNotes(): boolean {
     const r = this.effectiveRole();
@@ -241,6 +248,8 @@ get canSeeOfficeNotes(): boolean {
   const r = this.effectiveRole();
   return r === 'secretary' || r === 'manager' || r === 'admin';
 }
+
+
 
 get canEditOfficeNotes(): boolean {
   return this.canSeeOfficeNotes;
@@ -310,6 +319,15 @@ this.noteAddedThisSession = false;
   /* ===================== HELPERS ===================== */
   private isInstructor(): boolean {
   return this.effectiveRole() === 'instructor';
+}
+
+get isCancelledLesson(): boolean {
+  // מקור אמת: occurrence.isCancelled (כמו שאת כבר משתמשת)
+  if (this.occurrence?.isCancelled === true) return true;
+
+  // גיבוי: status מגיע לפעמים מ-lessons או occurrence
+  const st = (this.lessonDetails?.status ?? this.occurrence?.status ?? '').toString().trim();
+  return st === 'בוטל' || st === 'מבוטל';
 }
 
   get childName(): string {
@@ -582,6 +600,38 @@ async loadLessonDetails() {
     console.error('[loadLessonDetails] lesson error', lessonError);
     return;
   }
+    /** 3️⃣ חריג – השלמה */
+  const { data: exception, error: excError } = await this.dbc
+    .from('lesson_occurrence_exceptions')
+    .select('is_makeup_allowed, is_billable')
+    .eq('lesson_id', lessonId)
+    .eq('occur_date', occurDate)
+    .maybeSingle();
+
+  if (excError) {
+    console.error('[loadLessonDetails] exception error', excError);
+  }
+  
+  const isCancelled = this.occurrence?.isCancelled === true
+  || (this.occurrence?.status ?? lesson.status) === 'בוטל';
+
+if (isCancelled) {
+  this.lessonDetails = {
+    lesson_id: lesson.id,
+    start_time: lesson.start_time,
+    end_time: lesson.end_time,
+    lesson_type: lesson.lesson_type,
+    status: this.occurrence?.status ?? lesson.status,
+    isCancelled: true,
+    horse_id: null,
+    horse_name: null,
+    arena_id: null,
+    arena_name: null,
+    is_makeup_allowed: exception?.is_makeup_allowed ?? false,
+    is_billable: exception?.is_billable ?? true,
+  };
+  return;
+}
 
   /** 2️⃣ סוס + מגרש */
   const { data: resources } = await this.dbc
@@ -604,21 +654,6 @@ async loadLessonDetails() {
       this.arenas.find(a => a.id === resources.arena_id)?.name ?? null;
   }
 
-  /** 3️⃣ חריג – השלמה */
-  const { data: exception, error: excError } = await this.dbc
-    .from('lesson_occurrence_exceptions')
-    .select('is_makeup_allowed')
-    .eq('lesson_id', lessonId)
-    .eq('occur_date', occurDate)
-    .maybeSingle();
-
-
-
-
-  if (excError) {
-    console.error('[loadLessonDetails] exception error', excError);
-  }
-
   /** 4️⃣ מיפוי ל-UI */
   this.lessonDetails = {
     lesson_id: lesson.id,
@@ -638,6 +673,34 @@ async loadLessonDetails() {
   };
 }
 
+async onBillableChange(newVal: boolean) {
+  if (!this.canEditBillingFlag) return;
+
+  const lessonId = this.occurrence?.lesson_id;
+  const occurDate = this.getOccurDateForDb();
+  if (!lessonId || !occurDate) return;
+
+  // שימי לב: עדיף UPSERT כדי לוודא שיש שורה גם אם עוד לא קיימת חריגה
+  const { error } = await this.dbc
+    .from('lesson_occurrence_exceptions')
+    .upsert(
+      {
+        lesson_id: lessonId,
+        occur_date: occurDate,
+        is_billable: newVal,
+        // לא לדרוס ערך קיים בטעות: אם אין לנו, נשאיר כמו שהוא אצלך ב-UI
+        is_makeup_allowed: this.lessonDetails?.is_makeup_allowed ?? false,
+      },
+      { onConflict: 'lesson_id,occur_date' }
+    );
+
+  if (error) {
+    console.error('[onBillableChange] upsert error', error);
+    return;
+  }
+
+  this.lessonDetails.is_billable = newVal;
+}
   /* ===================== HORSES / ARENAS ===================== */
 
   async loadHorses() {
