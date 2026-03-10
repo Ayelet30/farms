@@ -1610,7 +1610,39 @@ if (val == null) {
   // הכול מוכן – נריץ חיפוש
   this.searchRecurringSlots();
 }
+private async uploadReferralIfNeeded(childId: string): Promise<string | null> {
+  if (!this.referralFile) {
+    this.referralUrl = null;
+    return null;
+  }
 
+  try {
+    const ext = this.referralFile.name.split('.').pop() || 'bin';
+    const filePath = `referrals/${childId}/${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabase!
+      .storage
+      .from('referrals')
+      .upload(filePath, this.referralFile);
+
+    if (uploadError) {
+      console.error('referral upload error', uploadError);
+      throw new Error('שגיאה בהעלאת מסמך ההפניה');
+    }
+
+    const { data: publicData } = supabase!
+      .storage
+      .from('referrals')
+      .getPublicUrl(filePath);
+
+    const url = publicData?.publicUrl ?? null;
+    this.referralUrl = url;
+    return url;
+  } catch (e) {
+    console.error('referral upload exception', e);
+    throw e;
+  }
+}
 //   // יצירת סדרה בפועל – insert ל-lessons (occurrences נוצרים מה-view)
 async createSeriesFromSlot(slot: RecurringSlotWithSkips): Promise<void> {
   if (!this.selectedChildId) return;
@@ -1682,7 +1714,26 @@ const maxParticipants = await this.getMaxParticipantsByRidingTypeId(ridingTypeId
 
  // const paymentSource: 'health_fund' | 'private' = /* מה שנבחר */;
 //const existingApprovalId: string | null = /* אם נבחר אישור קיים, אחרת null */;
+const plan = this.selectedPaymentPlan;
 
+// אם למסלול נדרש מסמך - גם מזכירה חייבת לבחור קובץ
+if (plan?.require_docs_at_booking && !this.referralFile) {
+  this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
+  this.showErrorToast(this.seriesError);
+  return;
+}
+
+let uploadedReferralUrl: string | null = null;
+
+if (this.referralFile) {
+  try {
+    uploadedReferralUrl = await this.uploadReferralIfNeeded(this.selectedChildId);
+  } catch {
+    this.seriesError = 'שגיאה בהעלאת המסמך. אפשר לנסות שוב.';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+}
 const rpcPayload: any = {
   // ===== חובה =====
   p_child_id: this.selectedChildId,
@@ -1703,8 +1754,9 @@ const rpcPayload: any = {
   p_existing_approval_id: paymentSource === 'health_fund' ? existingApprovalId : null,
 
   // שדות ליצירת אישור חדש (רק אם קופה + אין אישור קיים)
-  p_referral_url:
-  paymentSource === 'health_fund' && !existingApprovalId ? (this.referralUrl ?? null) : null,
+p_referral_url:
+  paymentSource === 'health_fund' && !existingApprovalId ? uploadedReferralUrl : null,
+p_payment_docs_url: uploadedReferralUrl,
 
 // ✅ לבטל לגמרי את אלה כדי שלא יהיו שגיאות קומפילציה:
 p_health_fund: null,
@@ -1745,6 +1797,8 @@ p_total_lessons: null,
     await this.onChildChange();
   } finally {
     this.loadingSeries = false;
+    this.referralFile = null;
+this.referralUrl = null;
   }
 }
 
