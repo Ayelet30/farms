@@ -800,11 +800,11 @@
 
     <p>
       האם את בטוחה שברצונך <b>לבקש</b> מילוי מקום
-      בתאריך <b>{{ occupancyConfirmData.newDate | date:'dd-MM-yyyy'}}</b>
-      בשעות <b>{{ occupancyConfirmData.newStart | date:'dd-MM-yyyy'}}–{{ occupancyConfirmData.newEnd | date:'dd-MM-yyyy'}}</b>
+      בתאריך <b>{{ occupancyConfirmData.newDate | date:'dd-MM-yyyy' }}</b>
+      בשעות <b>{{ occupancyConfirmData.newStart }}–{{ occupancyConfirmData.newEnd }}</b>
       עם המדריך <b>{{ occupancyConfirmData.newInstructorName }}</b><br>
       במקום השיעור שהיה בתאריך
-      <b>{{ occupancyConfirmData.oldDate | date:'dd-MM-yyyy'}}</b>
+      <b>{{ occupancyConfirmData.oldDate | date:'dd-MM-yyyy' }}</b>
       בשעות <b>{{ occupancyConfirmData.oldStart }}–{{ occupancyConfirmData.oldEnd }}</b>
       עם המדריך <b>{{ occupancyConfirmData.oldInstructorName }}</b>?
     </p>
@@ -815,7 +815,6 @@
     </div>
   </div>
 </ng-template>
-
 <!-- דיאלוג מזכירה (קביעה בפועל) -->
 <ng-template #confirmOccupancySecretaryDialog let-dialogRef="dialogRef">
   <div dir="rtl" style="padding: 10px; max-width: 380px;">

@@ -3525,6 +3525,10 @@ private isSlotBlockedByDeletion(dateStr: string): boolean {
 }
 
 private openOccupancyConfirmDialog(isSecretary: boolean) {
+  if (this.dialog.openDialogs.length) {
+    return this.dialog.openDialogs[0];
+  }
+
   const tpl = isSecretary
     ? this.confirmOccupancySecretaryDialog
     : this.confirmOccupancyParentDialog;
@@ -3535,7 +3539,6 @@ private openOccupancyConfirmDialog(isSecretary: boolean) {
     data: {},
   });
 }
-
 get canShowSeriesCalendar(): boolean {
   // חייבים לבחור ילד
   if (!this.selectedChildId) return false;
