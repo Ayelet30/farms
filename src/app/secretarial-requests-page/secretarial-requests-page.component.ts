@@ -472,7 +472,6 @@ selectedVisibleRequest = computed<UiRequest | null>(() => {
  private mapRowToUi(row: any): UiRequest {
   const payload = { ...(row.payload ?? {}) };
 
-console.log('CATEGORY:', payload.category);
 
   payload.category =
     payload.category ??
@@ -480,7 +479,6 @@ console.log('CATEGORY:', payload.category);
     row.category ??
     null;
 
-  console.log('REQ', row.id, row.request_type, payload.category, payload);
 
   return {
     id: row.id,
