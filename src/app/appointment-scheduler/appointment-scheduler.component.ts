@@ -2697,8 +2697,8 @@ if (!slots.length) {
   const hard = this.getChildHardDeletionDate(this.selectedChildId!);
 
   this.occupancySlotsError = hard
-    ? `אין שיעורים זמינים עד ${hard} (מחיקה מתוכננת).`
-    : `לא נמצאו שיעורים פנויים למילוי מקום בטווח של ${rangeDays} ימים מתאריך השיעור המקורי.`;
+  ? `אין שיעורים זמינים עד ${hard} (מחיקה מתוכננת).`
+  : `לא נמצאו שיעורים פנויים למילוי מקום בטווח השבועי (מיום ראשון של אותו שבוע ועד אותו יום בשבוע הבא).`;
 } else {
   this.occupancySlotsError = null;
 }
