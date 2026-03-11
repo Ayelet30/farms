@@ -716,13 +716,14 @@ async onInstructorChange() {
 
   // סדרות נשאר כרגיל
   if (
-    this.selectedTab === 'series' &&
-    this.seriesLessonCount &&
-    this.selectedChildId &&
-    this.children.some(c => c.child_uuid === this.selectedChildId)
-  ) {
+  (this.selectedTab === 'series' || this.selectedTab === 'single') &&
+  this.selectedChildId &&
+  this.children.some(c => c.child_uuid === this.selectedChildId)
+) {
+  if (this.selectedTab === 'single' || this.seriesLessonCount || this.isOpenEndedSeries) {
     await this.searchRecurringSlots();
   }
+}
 }
 
 private calcAgeYears(birthDateStr: string): number | null {
@@ -1329,7 +1330,6 @@ async searchRecurringSlots(): Promise<void> {
   this.selectedSeriesDate = null;
   this.selectedSeriesDaySlots = [];
   this.calendarSlotsByDate = {};
-
   // ✅ מוצאים את הילד לפי child_uuid אמיתי מתוך this.children
   const child = this.children.find(c => c.child_uuid === this.selectedChildId);
 
@@ -1337,25 +1337,26 @@ async searchRecurringSlots(): Promise<void> {
     console.error('❌ selectedChildId is not a valid child_uuid:', this.selectedChildId, this.children);
     this.seriesError = 'יש לבחור ילד מתוך הרשימה';
     return;
-  }
+  }const isSingle = this.selectedTab === 'single';
+  const useOpenEndedSearch = !isSingle && this.isOpenEndedSeries;
+
+if (!isSingle) {
   if (this.existingSeriesGate.kind === 'pending_request') {
-  this.seriesError = 'לילד כבר קיימת בקשה פתוחה לסדרה.';
-  return;
-}
-  // ✅ Gate: אם כבר יש סדרה ללא הגבלה – לא מציגים כלום
-  if (this.existingSeriesGate.kind === 'open_ended') {
-    this.seriesError = 'לילד קיימת סדרה ללא הגבלה.';
-    // אם את רוצה שזה יהיה "info" ולא error:
-    // this.showUiHint('seriesCount', this.seriesError, 5000);
+    this.seriesError = 'לילד כבר קיימת בקשה פתוחה לסדרה.';
     return;
   }
-  
- if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
 
-  this.seriesError = 'יש לבחור כמות שיעורים בסדרה';
-  return;
+  if (this.existingSeriesGate.kind === 'open_ended') {
+    this.seriesError = 'לילד קיימת סדרה ללא הגבלה.';
+    return;
+  }
+
+  if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
+    this.seriesError = 'יש לבחור כמות שיעורים בסדרה';
+    return;
+  }
 }
-
+  
 
   if (!this.noInstructorPreference && !this.selectedInstructorId) {
     this.seriesError = 'יש לבחור מדריך או לסמן שאין העדפה';
@@ -1377,12 +1378,13 @@ async searchRecurringSlots(): Promise<void> {
   let fromDate = today.toISOString().slice(0, 10);
 
   // ✅ אם יש סדרה רגילה פעילה – מתחילים מה-end_date שלה
-  if (this.existingSeriesGate.kind === 'regular') {
-fromDate = this.addDays(this.existingSeriesGate.endDate, 1);  }
+ if (!isSingle && this.existingSeriesGate.kind === 'regular') {
+  fromDate = this.addDays(this.existingSeriesGate.endDate, 1);
+}
   // ✅ רגיל: 3 חודשים קדימה | ללא הגבלה: לפי series_search_horizon_days
   let toDate: string;
-  if (this.isOpenEndedSeries) {
-    const to = new Date();
+if (useOpenEndedSearch) {
+      const to = new Date();
     to.setDate(to.getDate() + (this.seriesSearchHorizonDays ?? 90));
     toDate = to.toISOString().slice(0, 10);
   } else {
@@ -1406,8 +1408,8 @@ try {
   let data: any[] | null = null;
   let error: any = null;
 
-  if (this.isOpenEndedSeries) {
-    // 🔹 קריאה לפונקציה החדשה מה-DB
+if (useOpenEndedSearch) {
+      // 🔹 קריאה לפונקציה החדשה מה-DB
     const payloadUnlimited = {
       p_child_id: child.child_uuid,
       p_from_date: fromDate,
@@ -1435,11 +1437,11 @@ if (cutoff) {
     toDate = cutoff;
   }
 }
-
+const requestedLessonCount = isSingle ? 1 : this.seriesLessonCount;
     // 🔹 קריאה לפונקציה הישנה (עם כמות שיעורים)
     const payloadRegular = {
       p_child_id: child.child_uuid,
-      p_lesson_count: this.seriesLessonCount,
+      p_lesson_count: requestedLessonCount,
       p_instructor_id_number: instructorParam,
       p_from_date: fromDate,
       p_to_date: toDate,
@@ -2240,8 +2242,7 @@ async onSeriesSlotChosen(slot: RecurringSlotWithSkips): Promise<void> {
     return;
   }
 
-if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
-
+  if (this.selectedTab !== 'single' && !this.isOpenEndedSeries && this.seriesLessonCount == null) {
     this.seriesError = 'חסר מספר שיעורים בסדרה';
     this.showErrorToast(this.seriesError);
     return;
@@ -2253,32 +2254,313 @@ if (!this.isOpenEndedSeries && this.seriesLessonCount == null) {
     return;
   }
 
-  // ✅ ממלא את seriesConfirmData כולל skips
   this.buildSeriesConfirmData(slot);
-const dialogTpl = this.getSeriesDialogTpl();
+  const dialogTpl = this.getSeriesDialogTpl();
 
-const dialogRef = this.dialog.open(dialogTpl, {
-  width: '420px',
-  disableClose: true,
-  data: {},
-});
+  const dialogRef = this.dialog.open(dialogTpl, {
+    width: '420px',
+    disableClose: true,
+    data: {},
+  });
 
-dialogRef.afterClosed().subscribe(async confirmed => {
-  if (!confirmed) return;
+  dialogRef.afterClosed().subscribe(async confirmed => {
+    if (!confirmed) return;
 
+    this.seriesError = null;
+
+    if (this.selectedTab === 'single') {
+      if (this.isSecretary) {
+        await this.createSingleLessonFromSlot(slot);
+      } else {
+        await this.submitSingleLessonRequestToSecretary(slot);
+      }
+      return;
+    }
+
+    if (this.isSecretary) {
+      await this.createSeriesFromSlot(slot);
+    } else {
+      await this.submitSeriesRequestToSecretary(slot);
+    }
+  });
+}
+async createSingleLessonFromSlot(slot: RecurringSlotWithSkips): Promise<void> {
+  if (!this.selectedChildId) return;
+
+  if (!this.selectedPaymentPlanId) {
+    this.seriesError = 'יש לבחור מסלול תשלום';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+  let instructorIdNumber: string | null = null;
+  if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
+    const selected = this.instructors.find(i =>
+      i.instructor_uid === this.selectedInstructorId ||
+      i.instructor_id === this.selectedInstructorId
+    );
+    instructorIdNumber = selected?.instructor_id ?? slot.instructor_id ?? null;
+  } else {
+    instructorIdNumber = slot.instructor_id ?? null;
+  }
+
+  if (!instructorIdNumber) {
+    this.seriesError = 'חסר מדריך (ת"ז) לקביעת השיעור';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+  const instructorUid =
+    this.instructors.find(i => i.instructor_id === instructorIdNumber)?.instructor_uid ?? null;
+
+  if (!instructorUid) {
+    this.seriesError = 'חסר instructor_uid עבור המדריך שנבחר';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+  const ridingTypeId = slot.riding_type_id ?? null;
+  if (!ridingTypeId) {
+    this.seriesError = 'חסר סוג שיעור (riding_type_id) בסלוט שנבחר';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+  const maxParticipants = await this.getMaxParticipantsByRidingTypeId(ridingTypeId);
+
+  const paymentSource: 'health_fund' | 'private' =
+    this.paymentSourceForSeries === 'health_fund' ? 'health_fund' : 'private';
+
+  const approval = this.selectedApproval;
+  const existingApprovalId =
+    paymentSource === 'health_fund' ? (approval?.approval_id ?? null) : null;
+
+  if (paymentSource === 'health_fund' && !existingApprovalId) {
+    this.seriesError = 'לא נבחר אישור טיפול לקופה';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+  const plan = this.selectedPaymentPlan;
+
+  if (plan?.require_docs_at_booking && !this.referralFile) {
+    this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+  let uploadedReferralUrl: string | null = null;
+
+  if (this.referralFile) {
+    try {
+      uploadedReferralUrl = await this.uploadReferralIfNeeded(this.selectedChildId);
+    } catch {
+      this.seriesError = 'שגיאה בהעלאת המסמך. אפשר לנסות שוב.';
+      this.showErrorToast(this.seriesError);
+      return;
+    }
+  }
+
+  const rpcPayload: any = {
+    p_child_id: this.selectedChildId,
+    p_instructor_id_number: instructorIdNumber,
+    p_instructor_uid: instructorUid,
+    p_series_start_date: slot.lesson_date,
+    p_start_time: slot.start_time,
+    p_riding_type_id: ridingTypeId,
+    p_payment_plan_id: this.selectedPaymentPlanId,
+    p_payment_source: paymentSource,
+    p_is_open_ended: false,
+    p_repeat_weeks: 1,
+    p_series_search_horizon_days: null,
+    p_existing_approval_id: paymentSource === 'health_fund' ? existingApprovalId : null,
+    p_referral_url:
+      paymentSource === 'health_fund' && !existingApprovalId ? uploadedReferralUrl : null,
+    p_payment_docs_url: uploadedReferralUrl,
+    p_health_fund: null,
+    p_approval_number: null,
+    p_total_lessons: null,
+    p_origin: this.user?.role === 'parent' ? 'parent' : 'secretary',
+    p_max_participants: maxParticipants
+  };
+
+  this.loadingSeries = true;
   this.seriesError = null;
 
-  if (this.isSecretary) {
-    await this.createSeriesFromSlot(slot);
-  } else {
-    await this.submitSeriesRequestToSecretary(slot);
+  try {
+    const { data, error } = await dbTenant().rpc('create_series_with_validation', rpcPayload);
+
+    if (error) {
+      console.error('create single lesson error', error);
+      this.seriesError = 'שגיאה ביצירת השיעור הבודד';
+      this.showErrorToast(this.seriesError);
+      return;
+    }
+
+    const res = (Array.isArray(data) ? data[0] : data) as CreateSeriesWithValidationResult | null;
+
+    if (!res?.ok) {
+      const msg = res?.deny_reason || 'לא ניתן ליצור שיעור בודד';
+      this.seriesError = msg;
+      this.showErrorToast(msg);
+      return;
+    }
+
+    this.showSuccessToast('השיעור הבודד נוצר בהצלחה ✔️');
+    await this.onChildChange();
+  } finally {
+    this.loadingSeries = false;
+    this.referralFile = null;
+    this.referralUrl = null;
   }
-});
-
 }
+private async submitSingleLessonRequestToSecretary(slot: RecurringSlotWithSkips): Promise<void> {
+  if (!this.selectedChildId || !this.user) {
+    this.seriesError = 'חסר ילד או משתמש מחובר';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
 
+  if (!this.selectedPaymentPlanId) {
+    this.seriesError = 'יש לבחור מסלול תשלום';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
 
+  const plan = this.selectedPaymentPlan!;
+  if (!this.isSecretary && plan.require_docs_at_booking && !this.referralFile) {
+    this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
 
+  const built = this.buildSingleLessonConfirmData(slot);
+  const supa = dbTenant();
+
+  let referralUrl: string | null = null;
+
+  if (this.referralFile) {
+    try {
+      const ext = this.referralFile.name.split('.').pop() || 'bin';
+      const filePath = `referrals/${this.selectedChildId}/${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase!
+        .storage
+        .from('referrals')
+        .upload(filePath, this.referralFile);
+
+      if (uploadError) {
+        console.error('referral upload error', uploadError);
+        this.seriesError = 'שגיאה בהעלאת המסמך. אפשר לנסות שוב.';
+        this.showErrorToast(this.seriesError);
+        return;
+      }
+
+      const { data: publicData } = supabase!
+        .storage
+        .from('referrals')
+        .getPublicUrl(filePath);
+
+      referralUrl = publicData?.publicUrl ?? null;
+      this.referralUrl = referralUrl;
+    } catch (e) {
+      console.error('referral upload exception', e);
+      this.seriesError = 'שגיאה בהעלאת המסמך. אפשר לנסות שוב.';
+      this.showErrorToast(this.seriesError);
+      return;
+    }
+  } else {
+    this.referralUrl = null;
+  }
+
+  const payload: any = {
+    requested_start_time: built.startTime,
+    requested_end_time: built.endTime,
+    repeat_weeks: 1,
+    is_open_ended: false,
+    series_search_horizon_days: null,
+    skipped_farm_dates: [],
+    skipped_instructor_dates: [],
+    payment_plan_id: this.selectedPaymentPlanId,
+    request_mode: 'single_lesson',
+  };
+
+  if (referralUrl) {
+    payload.referral_url = referralUrl;
+  }
+
+  const { error } = await supa
+    .from('secretarial_requests')
+    .insert({
+      request_type: 'NEW_SERIES',
+      status: 'PENDING',
+      requested_by_uid: String(this.user!.uid),
+      requested_by_role: 'parent',
+      child_id: this.selectedChildId,
+      instructor_id: built.instructorIdNumber,
+      from_date: built.startDate,
+      to_date: built.startDate,
+      payload
+    });
+
+  if (error) {
+    console.error(error);
+    this.seriesError = 'שגיאה בשליחת בקשת השיעור הבודד';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
+  await this.onChildChange();
+  this.referralFile = null;
+
+  this.showSuccessToast('בקשתך לשיעור בודד נשלחה למזכירה ✔️');
+  this.selectedTab = 'single';
+}
+private buildSingleLessonConfirmData(slot: RecurringSlotWithSkips): {
+  startDate: string;
+  instructorIdNumber: string | null;
+  instructorName: string;
+  startTime: string;
+  endTime: string;
+} {
+  const startDate = slot.lesson_date;
+
+  let instructorIdNumber: string | null = null;
+  let instructorName = '';
+
+  if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
+    const selected = this.instructors.find(
+      i =>
+        i.instructor_uid === this.selectedInstructorId ||
+        i.instructor_id === this.selectedInstructorId
+    );
+
+    instructorIdNumber = selected?.instructor_id ?? slot.instructor_id ?? null;
+    instructorName = selected?.full_name ?? '';
+  } else {
+    instructorIdNumber = slot.instructor_id ?? null;
+    const ins = this.instructors.find(i => i.instructor_id === instructorIdNumber);
+    instructorName = ins?.full_name ?? 'ללא העדפה';
+  }
+
+  const dayLabel = this.getSlotDayLabel(startDate);
+  const startTime = slot.start_time.substring(0, 5);
+  const endTime = slot.end_time.substring(0, 5);
+
+  this.seriesConfirmData = {
+    startDate,
+    endDate: startDate,
+    dayLabel,
+    startTime,
+    endTime,
+    instructorName,
+    instructorIdNumber,
+    skippedFarm: [],
+    skippedInstructor: [],
+  };
+
+  return { startDate, instructorIdNumber, instructorName, startTime, endTime };
+}
 // async requestSeriesFromSecretary(slot: RecurringSlotWithSkips , dialogTpl: TemplateRef<any>): Promise<void> {
 //    if (!this.selectedChildId || !this.user) {
 //     this.seriesError = 'חסר ילד או משתמש מחובר';
@@ -2619,16 +2901,19 @@ get canChooseSeriesCount(): boolean {
 }
 get canRequestSeries(): boolean {
   if (!this.selectedChildId) return false;
-  if (!this.hasSeriesCountOrOpenEnded) return false;
+
+  if (this.selectedTab !== 'single' && !this.hasSeriesCountOrOpenEnded) {
+    return false;
+  }
+
   if (!this.selectedPaymentPlanId) return false;
 
-  // ✅ רק הורה חייב מסמך
   if (!this.isSecretary && this.selectedPaymentPlan?.require_docs_at_booking && !this.referralFile) {
     return false;
   }
+
   return true;
 }
-
 
 
 getLessonTypeLabel(slot: MakeupSlot): string {
@@ -3015,20 +3300,24 @@ get missingSeriesCountMsg() {
   if (!this.selectedInstructorId) return 'יש לבחור מדריך לפני בחירת כמות שיעורים';
   return '';
 }
-
 get missingPaymentPlanMsg() {
   if (!this.selectedChildId) return 'יש לבחור ילד/ה לפני בחירת מסלול תשלום';
   if (!this.selectedInstructorId) return 'יש לבחור מדריך לפני בחירת מסלול תשלום';
-  if (!this.hasSeriesCountOrOpenEnded) return 'יש לבחור כמות שיעורים או לסמן "ללא הגבלה" לפני מסלול תשלום';
+
+  if (this.selectedTab !== 'single' && !this.hasSeriesCountOrOpenEnded) {
+    return 'יש לבחור כמות שיעורים או לסמן "ללא הגבלה" לפני מסלול תשלום';
+  }
+
   return '';
 }
 
-
-
 get paymentLocked(): boolean {
+  if (this.selectedTab === 'single') {
+    return !this.selectedChildId || !this.selectedInstructorId;
+  }
+
   return !this.selectedChildId || !this.selectedInstructorId || !this.hasSeriesCountOrOpenEnded;
 }
-
 
 get tabsLocked(): boolean {
   return !this.selectedChildId || !this.selectedInstructorId;
@@ -3040,14 +3329,43 @@ get missingTabMsg(): string {
   return '';
 }
 
-onTabClick(tab: 'series' | 'makeup' | 'occupancy') {
+async onTabClick(tab: 'series' | 'single' | 'makeup' | 'occupancy') {
   if (this.tabsLocked) {
     this.showUiHint('tab', this.missingTabMsg);
     return;
   }
-    this.clearUiHint('tab');
+
+  this.clearUiHint('tab');
+
+  // ניקוי state ישן
+  this.seriesError = null;
+  this.seriesCreatedMessage = null;
+  this.recurringSlots = [];
+  this.calendarSlotsByDate = {};
+  this.seriesCalendarDays = [];
+  this.selectedSeriesDate = null;
+  this.selectedSeriesDaySlots = [];
 
   this.selectedTab = tab;
+
+  // אם עברנו לטאב שיעור בודד ויש כבר ילד + מדריך, לחפש מיד
+  if (
+    tab === 'single' &&
+    this.selectedChildId &&
+    this.selectedInstructorId
+  ) {
+    await this.searchRecurringSlots();
+  }
+
+  // ואם עברנו לסדרה ויש כבר כל התנאים, גם שם אפשר לחפש
+  if (
+    tab === 'series' &&
+    this.selectedChildId &&
+    this.selectedInstructorId &&
+    (this.seriesLessonCount || this.isOpenEndedSeries)
+  ) {
+    await this.searchRecurringSlots();
+  }
 }
 isSeriesDisabled(slot: any): boolean {
   if (this.selectedSeriesDate && this.isSlotBlockedByDeletion(this.selectedSeriesDate)) {
@@ -3495,8 +3813,7 @@ private canSeriesFitBeforeDeletion(slot: RecurringSlotWithSkips, child: ChildWit
   const cutoff = this.getChildDeletionCutoffDate(child);
   if (!cutoff) return true;
 
-  if (this.isOpenEndedSeries) return false;
-
+if (this.selectedTab !== 'single' && this.isOpenEndedSeries) return false;
   if (!this.seriesLessonCount || this.seriesLessonCount < 1) return true;
 
   const skipsCount =
@@ -3539,14 +3856,17 @@ private openOccupancyConfirmDialog(isSecretary: boolean) {
     data: {},
   });
 }
+get isSingleLessonTab(): boolean {
+  return this.selectedTab === 'single';
+}
 get canShowSeriesCalendar(): boolean {
-  // חייבים לבחור ילד
   if (!this.selectedChildId) return false;
-
-  // חייבים לבחור מדריך (או any)
   if (!this.selectedInstructorId) return false;
 
-  // ורק אחרי שבוחרים כמות שיעורים או "ללא הגבלה"
+  if (this.selectedTab === 'single') {
+    return true;
+  }
+
   return this.hasSeriesCountOrOpenEnded;
 }
 private async loadInstructorNamesIndex(): Promise<void> {

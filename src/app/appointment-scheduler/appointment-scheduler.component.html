@@ -151,7 +151,21 @@
       סדרת טיפולים
     </button>
   </div>
-
+<!-- Single -->
+<div class="tab-wrap" (click)="onTabClick('single')">
+  <button
+    type="button"
+    class="appt-tab"
+    [class.active]="selectedTab === 'single'"
+    [class.tab-disabled]="tabsLocked"
+    matTooltip="קביעת שיעור בודד בתאריך ושעה מסוימים"
+    matTooltipPosition="above"
+    matTooltipClass="custom-tooltip"
+    [matTooltipDisabled]="tabsLocked"
+  >
+    הזמנת שיעור בודד
+  </button>
+</div>
   <!-- Makeup -->
   <div class="tab-wrap" (click)="onTabClick('makeup')">
     <button
@@ -195,8 +209,7 @@
 <!-- דיאלוג סדרה - מזכירה (עם דילוגים) -->
 <ng-template #confirmSeriesDialogSecretary let-dialogRef="dialogRef">
   <div dir="rtl" style="padding: 10px; max-width: 350px;">
-    <h3>אישור בקשת סדרה</h3>
-
+<h3>{{ selectedTab === 'single' ? 'אישור קביעת שיעור בודד' : 'אישור בקשת סדרה' }}</h3>
     סדרה שמתחילה בתאריך
     <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy'}}</span></b><br>
 
@@ -249,15 +262,21 @@
 <!-- דיאלוג סדרה - הורה (בלי דילוגים) -->
 <ng-template #confirmSeriesDialogParent let-dialogRef="dialogRef">
   <div dir="rtl" style="padding: 10px; max-width: 350px;">
-    <h3>אישור הזמנת סדרה</h3>
+<h3>{{ selectedTab === 'single' ? 'אישור הזמנת שיעור בודד' : 'אישור הזמנת סדרה' }}</h3>
+<ng-container *ngIf="selectedTab === 'single'; else seriesText">
+  האם אתה בטוח שברצונך להזמין שיעור בודד בתאריך
+  <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy' }}</span></b>
+</ng-container>
 
-    האם אתה בטוח שברצונך להזמין סדרה שמתחילה בתאריך
-<b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy' }}</span></b>
+<ng-template #seriesText>
+  האם אתה בטוח שברצונך להזמין סדרה שמתחילה בתאריך
+  <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy' }}</span></b>
+</ng-template>
 
-    <ng-container *ngIf="!isOpenEndedSeries">
-      ומסתיימת בתאריך
-      <b><span class="ltr">{{ seriesConfirmData.endDate | date:'dd-MM-yyyy'}}</span></b>
-    </ng-container>
+   <ng-container *ngIf="selectedTab !== 'single' && !isOpenEndedSeries">
+  ומסתיימת בתאריך
+  <b><span class="ltr">{{ seriesConfirmData.endDate | date:'dd-MM-yyyy' }}</span></b>
+</ng-container>
 
     <br />
 
@@ -526,7 +545,188 @@
     </p>
 </ng-container>
   </div>
+<div *ngIf="selectedTab === 'single'" class="appt-card">
 
+<!-- מסלול תשלום -->
+<div class="appt-field-group">
+  <span class="appt-field-label">מסלול תשלום</span>
+
+  <div
+    class="field-wrap"
+    [class.is-disabled]="paymentLocked"
+    (click)="paymentLocked && showUiHint('payment', missingPaymentPlanMsg)"
+  >
+    <select
+  class="appt-select"
+  [(ngModel)]="selectedPaymentPlanId"
+  (ngModelChange)="onPaymentPlanChange($event)"
+>
+
+      <option [ngValue]="null" disabled hidden>
+        בחר/י מסלול תשלום
+      </option>
+
+      <option *ngFor="let plan of paymentPlans" [ngValue]="plan.id">
+        {{ plan.name }}
+        <ng-container *ngIf="plan.customer_amount != null">
+          – {{ plan.customer_amount | number:'1.0-0' }} ₪ לשיעור
+        </ng-container>
+      </option>
+    </select>
+
+    <small class="hint" *ngIf="uiHint['payment']">{{ uiHint['payment'] }}</small>
+
+ <small
+  *ngIf="selectedPaymentPlan?.require_docs_at_booking"
+  style="color:#888; display:block; margin-top:4px;"
+>
+  <ng-container *ngIf="isSecretary; else parentDocsMsg">
+    למסלול זה ניתן לצרף מסמכים:
+    {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
+  </ng-container>
+
+  <ng-template #parentDocsMsg>
+    למסלול זה נדרשים מסמכים:
+    {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
+  </ng-template>
+
+  יש להעלות תמיד קובץ אחד בלבד.
+</small>
+  </div>
+</div>
+
+<!-- העלאת מסמך רק אם המסלול דורש -->
+<div class="appt-form-row" *ngIf="selectedPaymentPlan?.require_docs_at_booking">
+  <div class="appt-field-group">
+  <span class="appt-field-label">
+  {{ isSecretary ? 'העלאת מסמך למסלול (אופציונלי)' : 'העלאת מסמך למסלול' }}
+
+  <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length">
+    – {{ selectedPaymentPlan?.required_docs?.join(', ') }}
+  </ng-container>
+</span>
+    <input
+      type="file"
+      class="appt-input"
+      (change)="onReferralFileSelected($event)"
+      accept=".pdf,image/*"
+    />
+
+    <small style="color:#888; display:block; margin-top:6px;">
+      <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length; else genericDocsText">
+        יש לצרף את המסמכים הנדרשים למסלול:
+        {{ selectedPaymentPlan?.required_docs?.join(', ') }}.
+      </ng-container>
+
+      <ng-template #genericDocsText>
+        יש לצרף את המסמכים הנדרשים בהתאם למסלול שנבחר.
+      </ng-template>
+
+      ההעלאה מתבצעת תמיד כקובץ אחד בלבד.
+      אם יש כמה מסמכים, יש לאחד אותם לקובץ אחד לפני ההעלאה.
+    </small>
+
+    <div *ngIf="referralFile" class="file-name">
+      הקובץ שנבחר: <b>{{ referralFile.name }}</b>
+    </div>
+
+    <p class="error" *ngIf="referralUploadError">{{ referralUploadError }}</p>
+  </div>
+</div>
+
+  <div class="appt-form-row">
+    <div class="appt-field-group">
+      <span class="appt-field-label">יום השיעור בשבוע </span>
+<div class="series-layout" *ngIf="canShowSeriesCalendar; else singleCalendarLocked">
+  <!-- קלנדר קטן -->
+  <div class="series-calendar">
+    <div class="calendar-header">
+      <button type="button" (click)="goToPrevMonth()">&lt;</button>
+      <span>
+        {{ currentCalendarMonth + 1 }}/{{ currentCalendarYear }}
+      </span>
+      <button type="button" (click)="goToNextMonth()">&gt;</button>
+    </div>
+
+    <div class="calendar-grid">
+      <div class="calendar-day-name">א'</div>
+      <div class="calendar-day-name">ב'</div>
+      <div class="calendar-day-name">ג'</div>
+      <div class="calendar-day-name">ד'</div>
+      <div class="calendar-day-name">ה'</div>
+      <div class="calendar-day-name">ו'</div>
+      <div class="calendar-day-name">ש'</div>
+
+      <div
+        *ngFor="let d of seriesCalendarDays"
+        class="calendar-day"
+        [ngClass]="{
+          'not-current': !d.isCurrentMonth,
+          'has-slots': d.hasSlots,
+          'selected-day': d.date === selectedSeriesDate
+        }"
+        (click)="onSeriesCalendarDayClick(d)"
+      >
+        <span class="day-label" *ngIf="d.label">{{ d.label }}</span>
+        <span class="day-dot" *ngIf="d.hasSlots"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- שעות זמינות ביום שנבחר -->
+  <div class="slots-list series-slots" *ngIf="selectedSeriesDate && selectedSeriesDaySlots.length">
+    <h4>שעות זמינות ליום {{ selectedSeriesDate }} לשיעור בודד</h4>
+
+    <table>
+      <thead>
+        <tr>
+          <th>שעה</th>
+          <th>מדריך</th>
+          <th>סוג שיעור</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let s of selectedSeriesDaySlots">
+          <td>
+            <span class="time-range">
+              {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
+            </span>
+          </td>
+          <td>{{ s.instructor_name || s.instructor_id }}</td>
+          <td>{{ s.riding_type_name || '—' }}</td>
+          <td>
+            <span
+              class="tooltip-wrap"
+              [matTooltip]="getSeriesDisabledTooltip(s)"
+              matTooltipPosition="above"
+              [matTooltipDisabled]="!isSeriesDisabled(s)"
+            >
+              <button
+                type="button"
+                class="appt-cta"
+                (click)="onSeriesSlotChosen(s)"
+                [disabled]="isSeriesDisabled(s)"
+              >
+                בקש שיעור בודד במועד זה
+              </button>
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+      <ng-template #singleCalendarLocked>
+        <div class="empty-text" style="margin-top:10px;">
+          כדי לראות זמינות – בחרי מדריך ומסלול תשלום.
+        </div>
+      </ng-template>
+    </div>
+  </div>
+
+  <p class="error" *ngIf="seriesError">{{ seriesError }}</p>
+</div>
 </div>
 
 <!-- ======== טאב: מילוי מקום ======== -->
