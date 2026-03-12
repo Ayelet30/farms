@@ -220,7 +220,7 @@ candidateSlotsError: string | null = null;
   makeupSearchToDate: string | null = null;
  seriesLessonCount: number | null = null;
 
-seriesLessonCountOptions: number[] = Array.from({ length: 50 }, (_, i) => i + 1);
+seriesLessonCountOptions: number[] = Array.from({ length: 49 }, (_, i) => i + 2);
 // קלנדר לסדרה
 currentCalendarYear: number = new Date().getFullYear();
 currentCalendarMonth: number = new Date().getMonth(); // 0-11
