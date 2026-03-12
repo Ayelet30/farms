@@ -161,6 +161,7 @@ export class BulkRunReportDialogComponent {
       case 'MAKEUP_LESSON': return 'שיעור השלמה';
       case 'FILL_IN': return 'מילוי מקום';
       case 'PARENT_SIGNUP': return 'הרשמת הורה';
+      case 'SINGLE_LESSON': return 'שיעור בודד';
       default: return t || '—';
     }
   }

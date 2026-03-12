@@ -92,6 +92,14 @@ export class RequestValidationService {
 
     PARENT_SIGNUP: { checks: [] },
     OTHER_REQUEST: { checks: [] },
+    SINGLE_LESSON: {
+  checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff],
+  allowedChildStatuses: new Set([
+    'Active',
+    'Deletion Scheduled',
+    'Pending Deletion Approval',
+  ]),
+},
   };
 
   // =====================================
@@ -157,10 +165,23 @@ private normalizeResult(
 
       // ===== MAKEUP / FILL_IN =====
  // ===== MAKEUP / FILL_IN =====
-if (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN') {
+if (
+  row.requestType === 'MAKEUP_LESSON' ||
+  row.requestType === 'FILL_IN' ||
+  row.requestType === 'SINGLE_LESSON'
+) {
   const p: any = row.payload ?? {};
-  const dateStr = (row.fromDate ?? p.occur_date ?? p.from_date ?? null);
-  const startStr = this.normalizeHHMM(p.requested_start_time ?? p.start_time ?? p.startTime ?? null);
+  const dateStr =
+    row.fromDate ??
+    p.lesson_date ??
+    p.requested_date ??
+    p.occur_date ??
+    p.from_date ??
+    null;
+
+  const startStr = this.normalizeHHMM(
+    p.requested_start_time ?? p.start_time ?? p.startTime ?? null
+  );
 
   if (dateStr && startStr) {
     const dt = this.combineDateTime(String(dateStr).slice(0, 10), startStr);
@@ -169,7 +190,6 @@ if (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN') {
     }
   }
 }
-
 
     } catch (e:any) {
       return this.handleDbFailure(mode, 'expiry fresh check', e);
@@ -296,7 +316,28 @@ if (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN') {
         if (isPast(start, timeStr ?? '00:00')) return 'עבר מועד תחילת הסדרה';
         return null;
       }
+case 'SINGLE_LESSON': {
+  const dateStr =
+    row.fromDate ??
+    p.lesson_date ??
+    p.requested_date ??
+    p.occur_date ??
+    p.from_date ??
+    null;
 
+  const timeStr =
+    p.requested_start_time ??
+    p.start_time ??
+    p.startTime ??
+    p.time ??
+    null;
+
+  if (isPast(dateStr, timeStr ?? '00:00')) {
+    return 'עבר מועד השיעור המבוקש';
+  }
+
+  return null;
+}
       case 'MAKEUP_LESSON':
       case 'FILL_IN': {
         const dateStr = row.fromDate ?? p.occur_date ?? null;
@@ -481,12 +522,23 @@ if (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN') {
       if (
         status === 'Deletion Scheduled' &&
         scheduledDeletionAt &&
-        (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN')
+        (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN' || row.requestType === 'SINGLE_LESSON'
+)
       ) {
         const p: any = row.payload ?? {};
-        const dateStr = row.fromDate ?? p.occur_date ?? p.from_date ?? null;
-        const timeStr = p.requested_start_time ?? p.start_time ?? p.startTime ?? '00:00';
+      const dateStr =
+  row.fromDate ??
+  p.lesson_date ??
+  p.requested_date ??
+  p.occur_date ??
+  p.from_date ??
+  null;
 
+const timeStr =
+  p.requested_start_time ??
+  p.start_time ??
+  p.startTime ??
+  '00:00';
         if (dateStr) {
           const reqDt = this.combineDateTime(String(dateStr), String(timeStr));
           const delDt = new Date(String(scheduledDeletionAt));
@@ -552,11 +604,12 @@ if (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN') {
 
     const p: any = row.payload ?? {};
 
-    const date =
-      (row.requestType === 'NEW_SERIES'
-        ? (row.fromDate ?? p.series_start_date ?? p.start_date ?? null)
-        : (row.fromDate ?? p.occur_date ?? p.from_date ?? null)
-      );
+   const date =
+  row.requestType === 'NEW_SERIES'
+    ? (row.fromDate ?? p.series_start_date ?? p.start_date ?? null)
+    : row.requestType === 'SINGLE_LESSON'
+      ? (row.fromDate ?? p.lesson_date ?? p.requested_date ?? p.from_date ?? null)
+      : (row.fromDate ?? p.occur_date ?? p.from_date ?? null);
 
     if (!date) return null;
 
@@ -580,7 +633,7 @@ if (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN') {
   private async checkFarmDayOffConflict(db: any, row: UiRequest, mode: ValidationMode)
     : Promise<{ ok: boolean; reason?: string }> {
 
-    if (!['MAKEUP_LESSON', 'FILL_IN', 'INSTRUCTOR_DAY_OFF', 'NEW_SERIES'].includes(row.requestType)) {
+    if (!['MAKEUP_LESSON', 'FILL_IN', 'INSTRUCTOR_DAY_OFF', 'NEW_SERIES' , 'SINGLE_LESSON'].includes(row.requestType)) {
       return { ok: true };
     }
 

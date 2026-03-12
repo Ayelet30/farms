@@ -54,6 +54,8 @@ export { approveInstructorDayOffAndNotify } from './approve-instructor-day-off-a
 export { rejectInstructorDayOffAndNotify } from './reject-instructor-day-off-and-notify';
 export { approveAddChildAndNotify } from './approve-add-child-and-notify';
 export { rejectAddChildAndNotify } from './reject-add-child-and-notify';
+export { notifySingleLessonApproved } from './notify-single-lesson-approved'
+export { notifySingleLessonRejected } from './notify-single-lesson-rejected'
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
 
