@@ -45,6 +45,7 @@ import { SecretarialSeriesRequestsComponent } from './request-new-series-details
 import { RequestAddParentDetailsComponent } from './request-add-parent-details/request-add-parent-details.component';
 import { RequestMakeupLessonDetailsComponent } from './request-makeup-lesson-details/request-makeup-lesson-details.component';
 import { RequestFillInDetailsComponent } from './request-fill-in-details/request-fill-in-details.component';
+import { RequestSingleLessonDetailsComponent } from './request-single-lesson-details/request-single-lesson-details.component';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { BulkDecisionDialogComponent, BulkDecisionDialogResult } from './bulk-decision-dialog/bulk-decision-dialog.component';
@@ -243,6 +244,7 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
     PARENT_SIGNUP: RequestAddParentDetailsComponent,
     MAKEUP_LESSON: RequestMakeupLessonDetailsComponent,
     FILL_IN: RequestFillInDetailsComponent,
+    SINGLE_LESSON: RequestSingleLessonDetailsComponent,
 
   };
 
@@ -558,7 +560,10 @@ case 'INSTRUCTOR_DAY_OFF': {
       case 'PARENT_SIGNUP':
         return p.summary || 'בקשה להרשמת הורה למערכת';
       case 'FILL_IN':
-      return p.summary || `מילוי מקום בשיעור ${p.occur_date ?? row.from_date ?? ''}`;
+        return p.summary || `מילוי מקום בשיעור ${p.occur_date ?? row.from_date ?? ''}`;
+      case 'SINGLE_LESSON':
+        return p.summary || 'שיעור בודד';
+
 
       default:
         return p.summary || 'כללי';
@@ -660,6 +665,7 @@ case 'INSTRUCTOR_DAY_OFF': {
       case 'MAKEUP_LESSON': return 'שיעור השלמה';
       case 'FILL_IN': return 'מילוי מקום';
       case 'PARENT_SIGNUP': return 'הרשמת הורה';
+      case 'SINGLE_LESSON': return 'שיעור בודד'; 
       default: return type;
     }
   }
@@ -693,6 +699,7 @@ getRequestTypeIconRow(r: UiRequest): string {
       case 'MAKEUP_LESSON': return 'school';
       case 'FILL_IN': return 'swap_horiz';
       case 'PARENT_SIGNUP': return 'person';
+      case 'SINGLE_LESSON': return 'event';
       default: return 'help';
     }
   }

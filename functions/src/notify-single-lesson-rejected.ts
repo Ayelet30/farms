@@ -1,0 +1,250 @@
+import { onRequest } from 'firebase-functions/v2/https';
+import { defineSecret } from 'firebase-functions/params';
+import * as admin from 'firebase-admin';
+import * as crypto from 'crypto';
+import { createClient } from '@supabase/supabase-js';
+
+import { SUPABASE_URL_S, SUPABASE_KEY_S } from './gmail/email-core';
+import { notifyUserInternal } from './notify-user-client';
+import { buildSingleLessonStatusEmail } from './email-builders/send-single-lesson-status-email';
+
+const ALLOWED_ORIGINS = new Set<string>([
+  'https://smart-farm.org',
+  'https://bereshit-ac5d8.web.app',
+  'https://bereshit-ac5d8.firebaseapp.com',
+  'http://localhost:4200',
+  'https://localhost:4200',
+]);
+
+function applyCors(req: any, res: any): boolean {
+  const origin = String(req.headers.origin || '');
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  } else {
+    res.setHeader('Vary', 'Origin');
+  }
+
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Authorization, Content-Type, X-Requested-With, X-Internal-Secret'
+  );
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return true;
+  }
+  return false;
+}
+
+if (!admin.apps.length) admin.initializeApp();
+
+const INTERNAL_CALL_SECRET_S = defineSecret('INTERNAL_CALL_SECRET');
+
+function envOrSecret(s: ReturnType<typeof defineSecret>, name: string) {
+  return s.value() || process.env[name];
+}
+
+function timingSafeEq(a: string, b: string) {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+}
+
+function isInternalCall(req: any): boolean {
+  const secret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
+  const got = String(req.headers['x-internal-secret'] || req.headers['X-Internal-Secret'] || '');
+  return !!(secret && got && timingSafeEq(got, secret));
+}
+
+async function requireAuth(req: any) {
+  const auth = req.headers.authorization || '';
+  const m = auth.match(/^Bearer (.+)$/);
+  if (!m) throw new Error('Missing Bearer token');
+  return admin.auth().verifyIdToken(m[1]);
+}
+
+export const notifySingleLessonRejected = onRequest(
+  {
+    region: 'us-central1',
+    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, INTERNAL_CALL_SECRET_S],
+  },
+  async (req, res) => {
+    try {
+      if (applyCors(req, res)) return;
+      if (req.method !== 'POST') {
+        return void res.status(405).json({ error: 'Method not allowed' });
+      }
+
+      if (!isInternalCall(req)) {
+        await requireAuth(req);
+      }
+
+      const body = req.body || {};
+      const tenantSchema = String(body.tenantSchema || '').trim();
+      const tenantId = String(body.tenantId || '').trim();
+      const requestId = String(body.requestId || '').trim();
+
+      if (!tenantSchema) return void res.status(400).json({ error: 'Missing tenantSchema' });
+      if (!tenantId) return void res.status(400).json({ error: 'Missing tenantId' });
+      if (!requestId) return void res.status(400).json({ error: 'Missing requestId' });
+
+      const url = envOrSecret(SUPABASE_URL_S, 'SUPABASE_URL')!;
+      const key = envOrSecret(SUPABASE_KEY_S, 'SUPABASE_SERVICE_KEY')!;
+
+      const sbTenant = createClient(url, key, { db: { schema: tenantSchema } });
+      const sbPublic = createClient(url, key, { db: { schema: 'public' } });
+
+      const { data: farmRow, error: farmErr } = await sbPublic
+        .from('farms')
+        .select('name')
+        .eq('id', tenantId)
+        .maybeSingle();
+      if (farmErr) throw farmErr;
+
+      const farmName = String(farmRow?.name ?? 'החווה').trim() || 'החווה';
+
+      const { data: reqRow, error: reqErr } = await sbTenant
+        .from('secretarial_requests')
+        .select('id, status, child_id, instructor_id, from_date, payload, decision_note')
+        .eq('id', requestId)
+        .maybeSingle();
+      if (reqErr) throw reqErr;
+      if (!reqRow) throw new Error('Request not found');
+
+      if (String((reqRow as any).status) !== 'REJECTED') {
+        throw new Error('Request is not REJECTED (won’t send email)');
+      }
+
+      const payload: any = (reqRow as any).payload ?? {};
+      const requestedStartTime = String(payload?.requested_start_time ?? '').trim() || null;
+      const requestedEndTime = String(payload?.requested_end_time ?? '').trim() || null;
+      const paymentPlanId = payload?.payment_plan_id ?? null;
+      const ridingTypeId = payload?.riding_type_id ?? null;
+      const rejectReason = String((reqRow as any).decision_note ?? '').trim() || null;
+
+      const childId = String((reqRow as any).child_id ?? '').trim();
+      if (!childId) throw new Error('Request missing child_id');
+
+      const instructorIdNumber = String((reqRow as any).instructor_id ?? '').trim() || null;
+      const lessonDate = (reqRow as any).from_date
+        ? String((reqRow as any).from_date).slice(0, 10)
+        : null;
+
+      const { data: childRow, error: childErr } = await sbTenant
+        .from('children')
+        .select('parent_uid, first_name, last_name')
+        .eq('child_uuid', childId)
+        .maybeSingle();
+      if (childErr) throw childErr;
+      if (!childRow?.parent_uid) throw new Error('Child missing parent_uid');
+
+      const childName =
+        `${String(childRow.first_name ?? '').trim()} ${String(childRow.last_name ?? '').trim()}`.trim() ||
+        'הילד/ה';
+
+      const { data: parentRow, error: parErr } = await sbTenant
+        .from('parents')
+        .select('first_name, last_name')
+        .eq('uid', childRow.parent_uid)
+        .maybeSingle();
+      if (parErr) throw parErr;
+
+      const parentName =
+        `${String(parentRow?.first_name ?? '').trim()} ${String(parentRow?.last_name ?? '').trim()}`.trim() ||
+        'הורה';
+
+      let instructorName: string | null = null;
+      if (instructorIdNumber) {
+        const { data: instRow, error: instErr } = await sbTenant
+          .from('instructors')
+          .select('first_name,last_name,id_number')
+          .eq('id_number', instructorIdNumber)
+          .maybeSingle();
+        if (instErr) throw instErr;
+
+        instructorName =
+          `${String(instRow?.first_name ?? '').trim()} ${String(instRow?.last_name ?? '').trim()}`.trim() ||
+          (instRow?.id_number ? String(instRow.id_number) : null);
+      }
+
+      let paymentPlanName: string | null = null;
+      if (paymentPlanId) {
+        const { data: ppRow, error: ppErr } = await sbTenant
+          .from('payment_plans')
+          .select('name')
+          .eq('id', paymentPlanId)
+          .maybeSingle();
+        if (ppErr) throw ppErr;
+
+        paymentPlanName = String(ppRow?.name ?? '').trim() || null;
+      }
+
+      let ridingTypeName: string | null = null;
+      if (ridingTypeId) {
+        const { data: rtRow, error: rtErr } = await sbTenant
+          .from('riding_types')
+          .select('name')
+          .eq('id', ridingTypeId)
+          .maybeSingle();
+        if (rtErr) throw rtErr;
+
+        ridingTypeName = String(rtRow?.name ?? '').trim() || null;
+      }
+
+      const { subject, html, text } = buildSingleLessonStatusEmail({
+        status: 'rejected',
+        parentName,
+        childName,
+        farmName,
+        instructorName,
+        lessonDate,
+        startTime: requestedStartTime,
+        endTime: requestedEndTime,
+        ridingTypeName,
+        paymentPlanName,
+        rejectReason,
+      });
+
+      let mail: any = null;
+      let mailOk = false;
+      let warning: string | null = null;
+      let mailError: any = null;
+
+      try {
+        mail = await notifyUserInternal({
+          tenantSchema,
+          userType: 'parent',
+          uid: childRow.parent_uid,
+          subject,
+          html,
+          text,
+          category: 'single_lesson',
+          forceEmail: true,
+        });
+
+        mailOk = true;
+      } catch (e: any) {
+        mailOk = false;
+        warning = 'הבקשה נדחתה, אך שליחת המייל להורה נכשלה';
+        mailError = { message: e?.message || String(e) };
+        console.warn('notifySingleLessonRejected: mail failed', mailError);
+      }
+
+      return void res.status(200).json({
+        ok: true,
+        mailOk,
+        warning,
+        mail,
+        mailError,
+      });
+    } catch (e: any) {
+      console.error('notifySingleLessonRejected error', e);
+      return void res.status(500).json({
+        error: 'Internal error',
+        message: e?.message || String(e),
+      });
+    }
+  }
+);

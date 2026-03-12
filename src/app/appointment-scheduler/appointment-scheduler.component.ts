@@ -2474,35 +2474,43 @@ private async submitSingleLessonRequestToSecretary(slot: RecurringSlotWithSkips)
   }
 
   const payload: any = {
-    requested_start_time: built.startTime,
-    requested_end_time: built.endTime,
-    repeat_weeks: 1,
-    is_open_ended: false,
-    series_search_horizon_days: null,
-    skipped_farm_dates: [],
-    skipped_instructor_dates: [],
-    payment_plan_id: this.selectedPaymentPlanId,
-    request_mode: 'single_lesson',
-  };
+  requested_start_time: built.startTime,
+  requested_end_time: built.endTime,
+
+  repeat_weeks: 1,
+  is_open_ended: false,
+  series_search_horizon_days: null,
+
+  skipped_farm_dates: [],
+  skipped_instructor_dates: [],
+
+  payment_plan_id: this.selectedPaymentPlanId,
+  request_mode: 'single_lesson',
+
+  riding_type_id: slot.riding_type_id ?? null,
+  riding_type_name: slot.riding_type_name ?? null,
+
+  lesson_date: built.startDate,
+
+  referral_url: referralUrl ?? null,
+};
 
   if (referralUrl) {
     payload.referral_url = referralUrl;
   }
-
-  const { error } = await supa
-    .from('secretarial_requests')
-    .insert({
-      request_type: 'NEW_SERIES',
-      status: 'PENDING',
-      requested_by_uid: String(this.user!.uid),
-      requested_by_role: 'parent',
-      child_id: this.selectedChildId,
-      instructor_id: built.instructorIdNumber,
-      from_date: built.startDate,
-      to_date: built.startDate,
-      payload
-    });
-
+const { error } = await supa
+  .from('secretarial_requests')
+  .insert({
+    request_type: 'SINGLE_LESSON',
+    status: 'PENDING',
+    requested_by_uid: String(this.user!.uid),
+    requested_by_role: 'parent',
+    child_id: this.selectedChildId,
+    instructor_id: built.instructorIdNumber,
+    from_date: built.startDate,
+    to_date: built.startDate,
+    payload
+  });
   if (error) {
     console.error(error);
     this.seriesError = 'שגיאה בשליחת בקשת השיעור הבודד';

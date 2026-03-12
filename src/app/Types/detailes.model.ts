@@ -76,6 +76,7 @@ export type RequestType =
   | 'CANCEL_OCCURRENCE'
   | 'INSTRUCTOR_DAY_OFF'
   | 'NEW_SERIES'
+  | 'SINGLE_LESSON'
   | 'ADD_CHILD'
   | 'DELETE_CHILD'
   | 'MAKEUP_LESSON'
