@@ -5,6 +5,7 @@ import {
   ChangeDetectorRef,
   ViewChild,
   inject,
+  HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -85,7 +86,12 @@ interface DayRequestRow {
 })
 export class InstructorScheduleComponent implements OnInit {
   @ViewChild(ScheduleComponent) scheduleComp!: ScheduleComponent;
-
+@HostListener('document:keydown.escape')
+onEscapeModal(): void {
+  if (this.rangeModal.open) {
+    this.closeRangeModal();
+  }
+}
   private cdr = inject(ChangeDetectorRef);
   private cu = inject(CurrentUserService);
 
@@ -132,20 +138,21 @@ farmDaysOff: any[] = [];
   };
 // 🔔 הורים שנפגעים מהחופש
 affectedParents: Parent[] = [];
-showAffectedParentsPopup = false;
+impactReviewMode = false;
+impactLoading = false;
 
   /* ------- מודאל לטווח תאריכים ------- */
-  rangeModal = {
-    open: false,
-    from: '',
-    to: '',
+ rangeModal = {
+  open: false,
+  from: '',
+  to: '',
   allDay: false,
-
-    fromTime: '',
-    toTime: '',
-    type: 'holiday' as RequestType,
-    text: '',
-  };
+  fromTime: '',
+  toTime: '',
+  type: 'holiday' as RequestType,
+  text: '',
+  reviewedImpact: false,
+};
 private lastAllDayPref: boolean = true;
 
   /* ------- תפריט אישור/דחייה ------- */
@@ -383,7 +390,6 @@ private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<vo
 
   const rows = data ?? [];
   this.dayRequests = rows.flatMap((row: any) => this.expandRequestRow(row));
-  console.log('📅 dayRequests:', this.dayRequests);
 
 }
 
@@ -394,7 +400,6 @@ private expandRequestRow(row: any): DayRequestRow[] {
     return res;
   }
 
-  console.log('CATEGORY VALUE:', row.payload?.category);
 
   if (!row.from_date) return res;
   if (typeof row.payload?.category !== 'string') return res;
@@ -408,14 +413,8 @@ private expandRequestRow(row: any): DayRequestRow[] {
 
   let guard = 0;
   while (current <= end) {
-    console.log('🔎 RAW REQUEST ROW:', row);
 
-console.log('🧩 PARSED REQUEST:', {
-  date: current,
-  all_day: row.payload?.all_day,
-  start_time: row.payload?.requested_start_time,
-  end_time: row.payload?.requested_end_time,
-});
+
 
    res.push({
   id: row.id,
@@ -892,10 +891,7 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
     this.scheduleComp.next();
     this.updateCurrentDateFromCalendar();
   }
-cancelAffectedPopup(): void {
-  this.showAffectedParentsPopup = false;
-  this.cdr.detectChanges();
-}
+
 
 
   onToolbarToday(): void {
@@ -911,15 +907,9 @@ cancelAffectedPopup(): void {
 
   /* ------------ REQUEST UI ------------ */
  async submitRange(): Promise<void> {
-  console.log('rangeModal', this.rangeModal);
+  this.error = null;
 
-  console.log('showAffectedParentsPopup', this.showAffectedParentsPopup);
-console.log('affectedParents', this.affectedParents);
-  this.affectedParents = [];
-  console.log('STEP 1 - before hasLessons');
-console.log('🔥 submitRange clicked', this.rangeModal);
-
-  const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
+  const { from, to, allDay, fromTime, toTime, type, text, reviewedImpact } = this.rangeModal;
   this.lastAllDayPref = !!allDay;
 
   if (!from || !to) {
@@ -927,50 +917,85 @@ console.log('🔥 submitRange clicked', this.rangeModal);
     return;
   }
 
-  // ✅ כמו פעם – בדיקה על השיעורים שכבר נטענו
-const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
-console.log('STEP 2 - hasLessons result:', hasLessons);
-if (hasLessons) {
+  if (!allDay) {
+    if (!fromTime || !toTime) {
+      this.error = 'חובה לבחור שעות התחלה וסיום';
+      return;
+    }
 
-  await this.loadAffectedParentsFromDb(from, to);
+    if (fromTime >= toTime) {
+      this.error = 'שעת הסיום חייבת להיות אחרי שעת ההתחלה';
+      return;
+    }
+  }
 
-  if (this.affectedParents.length > 0) {
-    this.rangeModal.open = false;
-    console.log('POPUP FLOW', {
-  from, to,
-  hasLessons,
-  affectedCount: this.affectedParents.length,
-  showPopupBefore: this.showAffectedParentsPopup
+  // שלב 1: בדיקת השפעה
+  if (!reviewedImpact) {
+    try {
+      this.impactLoading = true;
+      this.affectedParents = [];
+
+      const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
+console.log('CHECK IMPACT START', {
+  from,
+  to,
+  allDay,
+  fromTime,
+  toTime
 });
-    this.showAffectedParentsPopup = true;
+      if (hasLessons) {
+        await this.loadAffectedParentsFromDb(
+          from,
+          to,
+          allDay,
+          allDay ? null : fromTime,
+          allDay ? null : toTime
+        );
+      }
+console.log('CHECK IMPACT DONE', {
+  affectedParents: this.affectedParents
+});
+      this.rangeModal.reviewedImpact = true;
+      this.impactReviewMode = true;
+      this.cdr.detectChanges();
+      return;
+    } catch (err: any) {
+      console.error('submitRange impact check error', err);
+      this.error = err?.message || 'שגיאה בבדיקת ההשפעה של הבקשה';
+      this.cdr.detectChanges();
+      return;
+    } finally {
+      this.impactLoading = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  // שלב 2: שליחה בפועל
+  try {
+    await this.saveRangeRequest(
+      from,
+      to,
+      allDay,
+      allDay ? null : fromTime,
+      allDay ? null : toTime,
+      type,
+      text?.trim() || null,
+    );
+
+    this.rangeModal.open = false;
+    this.rangeModal.reviewedImpact = false;
+    this.impactReviewMode = false;
+    this.impactLoading = false;
+    this.affectedParents = [];
+    this.selectedSickFile = null;
+    this.pendingSickFile = null;
+
     this.cdr.detectChanges();
-    return;
+  } catch (err: any) {
+    console.error('submitRange save error', err);
+    this.error = err?.message || 'שגיאה בשמירת הבקשה';
+    this.cdr.detectChanges();
   }
-
-  // 👇 אם יש שיעורים אבל אין הורים מושפעים — ממשיכים לשמור!
-  console.log('No affected parents – continue to save');
-}
-if (!allDay) {
-  if (!fromTime || !toTime) {
-    this.error = 'חובה לבחור שעות התחלה וסיום';
-    return;
-  }
-}
-
-  // אם אין שיעורים – שומרים רגיל
-  await this.saveRangeRequest(
-    from,
-    to,
-    allDay,
-    allDay ? null : fromTime,
-    allDay ? null : toTime,
-    type,
-    text?.trim() || null,
-  );
-this.selectedSickFile = null;
-this.pendingSickFile = null;
-
-  this.rangeModal.open = false;
 }
 closeContextMenu(): void {
   this.contextMenu.visible = false;
@@ -983,14 +1008,16 @@ onSickFileSelected(event: Event): void {
   this.pendingSickFile = file;    // 🔒 לשמירה אמיתית
 }
 
-
 async openRequest(type: RequestType): Promise<void> {
-  
   const date = this.contextMenu.date;
   this.closeContextMenu();
   if (!date) return;
 
   const allDay = this.lastAllDayPref;
+
+  this.affectedParents = [];
+  this.impactReviewMode = false;
+  this.impactLoading = false;
 
   this.rangeModal = {
     open: true,
@@ -1001,15 +1028,24 @@ async openRequest(type: RequestType): Promise<void> {
     toTime: allDay ? '' : '12:00',
     type,
     text: '',
+    reviewedImpact: false,
   };
+
+  this.selectedSickFile = null;
+  this.pendingSickFile = null;
 
   this.cdr.detectChanges();
 }
 
-
-  closeRangeModal(): void {
-    this.rangeModal.open = false;
-  }
+ closeRangeModal(): void {
+  this.rangeModal.open = false;
+  this.rangeModal.reviewedImpact = false;
+  this.impactReviewMode = false;
+  this.impactLoading = false;
+  this.affectedParents = [];
+  this.selectedSickFile = null;
+  this.pendingSickFile = null;
+}
  private hasLessonsInRange(from: string, to: string): boolean {
   return this.lessons.some(l => {
     const d = l.occur_date?.slice(0, 10);
@@ -1036,81 +1072,203 @@ private async hasLessonsInRangeFromDb(from: string, to: string): Promise<boolean
 
   return (data?.length ?? 0) > 0;
 }
-private async loadAffectedParentsFromDb(from: string, to: string): Promise<void> {
-
+private async loadAffectedParentsFromDb(
+  from: string,
+  to: string,
+  allDay: boolean,
+  fromTime: string | null,
+  toTime: string | null,
+): Promise<void> {
   const dbc = dbTenant();
 
-  // 1️⃣ שלוף שיעורים אמיתיים
-  const { data: lessons, error } = await dbc
-    .from('lessons_occurrences')
-    .select('child_id, occur_date, status')
-    .eq('instructor_id', this.instructorId)
-    .gte('occur_date', from)
-    .lte('occur_date', to);
+  // נשתמש בשיעורים שכבר נטענו לטווח הנוכחי
+  const relevantLessons = (this.lessons ?? []).filter((l: any) => {
+    const rawStatus = String(l.status ?? '').toLowerCase();
+    const isCancelled =
+      rawStatus.includes('cancel') ||
+      rawStatus.includes('בוטל') ||
+      rawStatus.includes('מבוטל');
 
-  if (error) {
-    console.error(error);
-    return;
-  }
+    if (isCancelled) return false;
 
-  if (!lessons?.length) {
+    const lessonDate = String(l.occur_date ?? '').slice(0, 10);
+    if (!lessonDate) return false;
+
+    if (lessonDate < from || lessonDate > to) return false;
+
+    if (allDay) return true;
+
+    if (!fromTime || !toTime) return false;
+
+    const lessonStartIso = l.start_datetime
+      ? l.start_datetime
+      : this.ensureLocalIso(
+          String(l.start_time ?? '00:00').slice(0, 5),
+          lessonDate
+        );
+
+    const lessonEndIso = l.end_datetime
+      ? l.end_datetime
+      : this.ensureLocalIso(
+          this.addMinutes(String(l.start_time ?? '00:00').slice(0, 5), 30),
+          lessonDate
+        );
+
+    const reqStart = new Date(`${lessonDate}T${fromTime}:00`);
+    const reqEnd = new Date(`${lessonDate}T${toTime}:00`);
+    const lessonStart = new Date(lessonStartIso);
+    const lessonEnd = new Date(lessonEndIso);
+
+    return lessonStart < reqEnd && lessonEnd > reqStart;
+  });
+console.log('RELEVANT LESSONS', relevantLessons);
+  if (!relevantLessons.length) {
     this.affectedParents = [];
     return;
   }
 
-  // 2️⃣ קח child ids
-  const childIds = lessons
-    .filter((l: { status: any; }) => !String(l.status ?? '').toLowerCase().includes('cancel'))
-    .map((l: { child_id: any; }) => l.child_id);
+  const childIds = [
+    ...new Set(relevantLessons.map((l: any) => l.child_id).filter(Boolean)),
+  ];
 
   if (!childIds.length) {
     this.affectedParents = [];
     return;
   }
 
-  // 3️⃣ שלוף ילדים
-  const { data: children } = await dbc
+  const { data: children, error: childrenError } = await dbc
     .from('children')
     .select('child_uuid, parent_uid')
     .in('child_uuid', childIds);
 
-  const parentIds = (children ?? [])
-    .map((c: { parent_uid: any; }) => c.parent_uid)
-    .filter(Boolean);
+  if (childrenError) {
+    console.error('children fetch error', childrenError);
+    this.affectedParents = [];
+    return;
+  }
+
+  const parentIds = [
+    ...new Set((children ?? []).map((c: any) => c.parent_uid).filter(Boolean)),
+  ];
 
   if (!parentIds.length) {
     this.affectedParents = [];
     return;
   }
 
-  // 4️⃣ שלוף הורים
-  const { data: parents } = await dbc
+  const { data: parents, error: parentsError } = await dbc
     .from('parents')
     .select('uid, first_name, last_name, email, phone')
     .in('uid', parentIds);
 
+  if (parentsError) {
+    console.error('parents fetch error', parentsError);
+    this.affectedParents = [];
+    return;
+  }
+
   this.affectedParents = parents ?? [];
 }
-async confirmSaveAfterWarning(): Promise<void> {
-  this.selectedSickFile = (this as any)._preservedSickFile ?? null;
-  this.pendingSickFile = this.selectedSickFile;
-  this.showAffectedParentsPopup = false;
+onImpactButtonClick(): void {
+  console.log('BUTTON CLICKED', {
+    allDay: this.rangeModal.allDay,
+    fromTime: this.rangeModal.fromTime,
+    toTime: this.rangeModal.toTime,
+    reviewedImpact: this.rangeModal.reviewedImpact,
+  });
 
-  const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal;
+  this.submitRange();
+}
+async onAllDayToggle(allDay: boolean): Promise<void> {
+  this.error = null;
+  this.rangeModal.allDay = allDay;
 
-  console.log('STEP 4 - calling saveRangeRequest');
+  if (!allDay) {
+    if (!this.rangeModal.fromTime) {
+      this.rangeModal.fromTime = '08:00';
+    }
 
-  await this.saveRangeRequest(
-    from,
-    to,
-    allDay,
-    allDay ? null : fromTime,
-    allDay ? null : toTime,
-    type,
-    text?.trim() || null,
-  );
+    if (!this.rangeModal.toTime) {
+      this.rangeModal.toTime = '12:00';
+    }
+  } else {
+    this.rangeModal.fromTime = '';
+    this.rangeModal.toTime = '';
+  }
 
-  this.rangeModal.open = false;
+  // מאפסים מצב review קודם
+  this.rangeModal.reviewedImpact = false;
+  this.impactReviewMode = false;
+  this.affectedParents = [];
+
+  // אם יש תאריכים, טוענים מחדש את ההשפעה
+  if (this.rangeModal.from && this.rangeModal.to) {
+    await this.refreshAffectedParentsPreview();
+  }
+
+  this.cdr.detectChanges();
+}
+private async refreshAffectedParentsPreview(): Promise<void> {
+  const { from, to, allDay, fromTime, toTime } = this.rangeModal;
+
+  if (!from || !to) return;
+
+  if (!allDay) {
+    if (!fromTime || !toTime) {
+      return;
+    }
+
+    if (fromTime >= toTime) {
+      return;
+    }
+  }
+
+  try {
+    this.impactLoading = true;
+    this.affectedParents = [];
+
+    const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
+
+    if (hasLessons) {
+      await this.loadAffectedParentsFromDb(
+        from,
+        to,
+        allDay,
+        allDay ? null : fromTime,
+        allDay ? null : toTime
+      );
+    }
+
+    this.impactReviewMode = true;
+  } catch (err: any) {
+    console.error('refreshAffectedParentsPreview error', err);
+    this.error = err?.message || 'שגיאה בטעינת ההשפעה';
+  } finally {
+    this.impactLoading = false;
+    this.cdr.detectChanges();
+  }
+}
+async onTimeChanged(): Promise<void> {
+  this.error = null;
+
+  this.rangeModal.reviewedImpact = false;
+  this.affectedParents = [];
+  this.impactReviewMode = false;
+
+  if (!this.rangeModal.allDay) {
+    await this.refreshAffectedParentsPreview();
+  }
+
+  this.cdr.detectChanges();
+}
+async onDateRangeChanged(): Promise<void> {
+  this.error = null;
+  this.rangeModal.reviewedImpact = false;
+  this.affectedParents = [];
+  this.impactReviewMode = false;
+
+  await this.refreshAffectedParentsPreview();
+  this.cdr.detectChanges();
 }
 private async uploadSickFile(
   file: File,
@@ -1174,13 +1332,6 @@ const payload: any = {
     ? null
     : (toTime ? toTime.slice(0, 5) : null),
 };
-console.log('INSERTING REQUEST', {
-  instructor_id: this.instructorId,
-  fromDate,
-  toDate,
-  payload,
-  requested_by_uid: user.uid
-});
 
 
   const { data, error } = await dbc
@@ -1367,7 +1518,6 @@ private addOneDayYmd(dateYmd: string): string {
 }
 
 private instructorDaysOffToItems(): ScheduleItem[] {
-  console.log('INSTRUCTOR OFF ITEMS SOURCE:', this.dayRequests);
   return (this.dayRequests ?? [])
  
     .filter(r => {

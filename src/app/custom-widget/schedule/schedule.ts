@@ -9,9 +9,11 @@ import {
   SimpleChanges,
   ViewEncapsulation,
   AfterViewInit,
+  OnDestroy,
   HostListener,
   ChangeDetectorRef,
   NgZone,
+  ElementRef,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FullCalendarModule, FullCalendarComponent } from '@fullcalendar/angular';
@@ -40,9 +42,10 @@ type ViewName = 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay';
   styleUrls: ['./schedule.scss'],
   encapsulation: ViewEncapsulation.None,
 })
-export class ScheduleComponent implements OnChanges, AfterViewInit {
+export class ScheduleComponent implements OnChanges, AfterViewInit,OnDestroy {
   @ViewChild('calendar') calendarComponent!: FullCalendarComponent;
-
+@ViewChild('calendarHost', { static: true }) calendarHost!: ElementRef<HTMLElement>;
+private boundContextMenuHandler?: (e: MouseEvent) => void;
   @Input() items: ScheduleItem[] = [];
   @Input() initialView: ViewName = 'timeGridDay';
   @Input() rtl = true;
@@ -57,6 +60,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   @Output() autoAssignRequested = new EventEmitter<void>();
   @Output() eventClick = new EventEmitter<EventClickArg>();
   @Output() dateClick = new EventEmitter<DateClickArg>();
+  
   @Output() viewRange = new EventEmitter<{
     start: string;
     end: string;
@@ -193,26 +197,26 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
     dateClick: (info: DateClickArg) => this.dateClick.emit(info),
     eventClick: (arg: EventClickArg) => this.eventClick.emit(arg),
 
-    dayCellDidMount: (info) => {
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const d = info.date;
-      const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    // dayCellDidMount: (info) => {
+    //   const pad = (n: number) => String(n).padStart(2, '0');
+    //   const d = info.date;
+    //   const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-      const classes = info.el.classList;
-      const fcFrame = info.el.querySelector('.fc-daygrid-day-frame');
-      if (fcFrame && classes.length > 0) {
-        classes.forEach((cls) => fcFrame.classList.add(cls));
-      }
+    //   const classes = info.el.classList;
+    //   const fcFrame = info.el.querySelector('.fc-daygrid-day-frame');
+    //   if (fcFrame && classes.length > 0) {
+    //     classes.forEach((cls) => fcFrame.classList.add(cls));
+    //   }
 
-      info.el.addEventListener('contextmenu', (ev: MouseEvent) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+    //   // info.el.addEventListener('contextmenu', (ev: MouseEvent) => {
+    //   //   ev.preventDefault();
+    //   //   ev.stopPropagation();
 
-        this.ngZone.run(() => {
-          this.rightClickDay.emit({ jsEvent: ev, dateStr });
-        });
-      });
-    },
+    //   //   this.ngZone.run(() => {
+    //   //     this.rightClickDay.emit({ jsEvent: ev, dateStr });
+    //   //   });
+    //   // });
+    // },
 
     eventContent: (arg) => {
       const { event } = arg;
@@ -396,16 +400,16 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
         info.el.classList.add(cls);
       });
 
-      info.el.addEventListener('contextmenu', (ev: MouseEvent) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+        // info.el.addEventListener('contextmenu', (ev: MouseEvent) => {
+        //   ev.preventDefault();
+        //   ev.stopPropagation();
 
-        const dateStr = info.event.startStr.slice(0, 10);
+        //   const dateStr = info.event.startStr.slice(0, 10);
 
-        this.ngZone.run(() => {
-          this.rightClickDay.emit({ jsEvent: ev, dateStr });
-        });
-      });
+        //   this.ngZone.run(() => {
+        //     this.rightClickDay.emit({ jsEvent: ev, dateStr });
+        //   });
+        // });
     },
 
     datesSet: (info: DatesSetArg) => {
@@ -455,11 +459,46 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   };
 
   ngAfterViewInit(): void {
-    setTimeout(() => {
-      this.applyCurrentView();
-    }, 0);
-  }
+  this.boundContextMenuHandler = (e: MouseEvent) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
 
+    const dateStr = this.extractDateFromRightClick(
+      target,
+      e.clientX,
+      e.clientY
+    );
+
+    if (!dateStr) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    this.ngZone.run(() => {
+      this.rightClickDay.emit({
+        jsEvent: e,
+        dateStr,
+      });
+    });
+  };
+
+  this.calendarHost.nativeElement.addEventListener(
+    'contextmenu',
+    this.boundContextMenuHandler
+  );
+
+  setTimeout(() => {
+    this.applyCurrentView();
+  }, 0);
+}
+ngOnDestroy(): void {
+  if (this.boundContextMenuHandler) {
+    this.calendarHost.nativeElement.removeEventListener(
+      'contextmenu',
+      this.boundContextMenuHandler
+    );
+  }
+}
   ngOnChanges(changes: SimpleChanges) {
     if (changes['resources']) {
       setTimeout(() => this.applyCurrentView(), 0);
@@ -538,7 +577,56 @@ export class ScheduleComponent implements OnChanges, AfterViewInit {
   get calendarApi() {
     return this.calendarComponent?.getApi();
   }
+private extractDateFromRightClick(
+  target: HTMLElement,
+  clientX: number,
+  clientY: number
+): string | null {
+  // 1) אם לחצו בתוך תא חודש
+  const dayCells = Array.from(
+    this.calendarHost.nativeElement.querySelectorAll('.fc-daygrid-day[data-date]')
+  ) as HTMLElement[];
 
+  for (const cell of dayCells) {
+    const rect = cell.getBoundingClientRect();
+    if (
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    ) {
+      const date = cell.getAttribute('data-date');
+      if (date) return date.slice(0, 10);
+    }
+  }
+
+  // 2) אם לחצו בתוך עמודת יום של timeGrid
+  const timeGridCols = Array.from(
+    this.calendarHost.nativeElement.querySelectorAll('.fc-timegrid-col[data-date]')
+  ) as HTMLElement[];
+
+  for (const col of timeGridCols) {
+    const rect = col.getBoundingClientRect();
+    if (
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    ) {
+      const date = col.getAttribute('data-date');
+      if (date) return date.slice(0, 10);
+    }
+  }
+
+  // 3) fallback - אם לחצו על event / header / משהו עם data-date
+  const anyDateEl = target.closest('[data-date]') as HTMLElement | null;
+  const anyDate = anyDateEl?.getAttribute('data-date');
+  if (anyDate) {
+    return anyDate.slice(0, 10);
+  }
+
+  return null;
+}
   private applyCurrentView() {
     const api = this.calendarApi;
     if (!api) return;
