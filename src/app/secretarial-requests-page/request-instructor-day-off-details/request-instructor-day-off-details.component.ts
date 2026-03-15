@@ -353,7 +353,10 @@ this.onApproved?.({
 }
 
   }
-
+readonly requestNote = computed(() => {
+  const p: any = (this.req() as any)?.payload ?? {};
+  return String(p.note ?? '').trim() || null;
+});
   async reject() {
   if (this.loading()) return;
     this.action.set('reject');      
