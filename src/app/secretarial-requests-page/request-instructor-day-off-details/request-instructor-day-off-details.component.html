@@ -21,7 +21,10 @@
       <div><b>מבקש/ת:</b> {{ r.requestedByName || '—' }}</div>
     </div>
   </div>
-
+<div class="detail-row" *ngIf="requestNote()">
+  <div class="label">הערת המדריך/ה</div>
+  <div class="value">{{ requestNote() }}</div>
+</div>
   <!-- הערה להחלטה: להציג רק כשהבקשה ממתינה (כי אחרת אין מה "להחליט") -->
   <div class="note-box" *ngIf="canDecide()">
     <!-- אישור מחלה -->
