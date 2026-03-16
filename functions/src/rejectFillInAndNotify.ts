@@ -143,10 +143,11 @@ export const rejectFillInAndNotify = onRequest(
         .eq('lesson_id', lessonId)
         .eq('occur_date', occurDate);
       if (exUpErr) throw exUpErr;
-
+const source = String(body.source || '').trim();
+const statusToSet = source === 'system' ? 'REJECTED_BY_SYSTEM' : 'REJECTED';
       // update request rejected
       const upd: any = {
-        status: 'REJECTED',
+        status: statusToSet,
         decided_at: new Date().toISOString(),
         decision_note: decisionNote || null,
       };
@@ -249,9 +250,9 @@ try {
   mailError = { message: e?.message || String(e) };
   console.warn('rejectFillInAndNotify: mail failed', mailError);
 }
-
 return void res.status(200).json({
   ok: true,
+  status: statusToSet,
   mailOk,
   warning,
   mail,

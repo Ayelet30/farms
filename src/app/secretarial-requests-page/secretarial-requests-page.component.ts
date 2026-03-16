@@ -18,7 +18,7 @@ import { ViewChild } from '@angular/core';
 import { MatSidenav } from '@angular/material/sidenav';
 import { RequestRemoveChildDetailsComponent } from './request-remove-child-details/request-remove-child-details.component';
 import { BulkRunReportDialogComponent } from './bulk-run-report-dialog/bulk-run-report-dialog.component';
-
+import { RequestSystemRejectedMailService } from '../services/request-system-rejected-mail.service';
 
 
 import {
@@ -130,7 +130,7 @@ export class SecretarialRequestsPageComponent implements OnInit {
   @Input() onRejected?: (e: any) => void;
   @Input() onError?: (e: any) => void;
 private validation = inject(RequestValidationService);
-
+private systemRejectedMail = inject(RequestSystemRejectedMailService);
 // private REQUEST_RULES: Record<RequestType, RequestRule> = {
 //   CANCEL_OCCURRENCE: {
 //     checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor],
@@ -233,7 +233,19 @@ onChildErrorBound    = (e: any) => this.onChildError(e?.message ?? String(e));
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.toastTimer = setTimeout(() => this.toastOpen.set(false), 3200);
   }
-
+private async sendSystemRejectedMail(row: UiRequest, reason?: string): Promise<void> {
+  try {
+    await this.systemRejectedMail.send({
+      id: row.id,
+      requestType: row.requestType,
+      reason: reason ?? null,
+      decidedByUid: this.curentUser?.uid ?? null,
+    });
+  } catch (e: any) {
+    console.error('sendSystemRejectedMail failed', row.id, e);
+    throw e;
+  }
+}
   // ===== מיפוי קומפוננטת פרטים לפי סוג =====
   REQUEST_DETAILS_COMPONENT: Record<string, any> = {
     INSTRUCTOR_DAY_OFF: RequestInstructorDayOffDetailsComponent,
@@ -1938,7 +1950,40 @@ private async rejectBySystem(row: UiRequest, reason: string): Promise<boolean> {
   const note = (reason || 'בקשה לא תקינה').trim();
   const decidedBy = this.curentUser?.uid ?? null;
 
+  const cfg = this.systemRejectedMail.getConfig(row.requestType as RequestType);
+
+  if (!cfg) {
+    console.warn('No system rejection config for request type:', row.requestType);
+    return false;
+  }
+
   try {
+    // --------------------------------------------------
+    // מצב 1: פונקציית ענן עושה גם reject וגם notify
+    // --------------------------------------------------
+    if (cfg.mode === 'rejectAndNotify') {
+      const result = await this.systemRejectedMail.send({
+        id: row.id,
+        requestType: row.requestType,
+        reason: note,
+        decidedByUid: decidedBy,
+      });
+
+      const meta = await this.fetchDecisionMeta(row.id);
+
+      if (meta.status === 'REJECTED_BY_SYSTEM') {
+        this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
+        await this.loadRequestsFromDb();
+        this.closeDetails();
+        return true;
+      }
+
+      return false;
+    }
+
+    // --------------------------------------------------
+    // מצב 2: Angular עושה reject, ענן רק שולח מייל
+    // --------------------------------------------------
     const { data, error } = await db
       .from('secretarial_requests')
       .update({
@@ -1954,38 +1999,41 @@ private async rejectBySystem(row: UiRequest, reason: string): Promise<boolean> {
 
     if (error) throw error;
 
-    // ✅ עודכן עכשיו
     if (data) {
       this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
+
+      await this.sendSystemRejectedMail(row, note);
+
+      await this.loadRequestsFromDb();
+      this.closeDetails();
+
       return true;
     }
 
-    // ✅ לא עודכן כי כנראה כבר טופל: נביא מטא מה-DB ונחליט לפי זה
     const meta = await this.fetchDecisionMeta(row.id);
 
     if (meta.status === 'REJECTED_BY_SYSTEM') {
-      // נשמור ב-UI סטטוס נכון
       this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
-      return true; // ✅ נחשב כהצלחה של "דחייה אוטומטית"
+      await this.loadRequestsFromDb();
+      this.closeDetails();
+      return true;
     }
 
-    // אם לא נדחה ע"י המערכת בפועל - אז באמת לא הצלחנו
     return false;
-
   } catch (e) {
     console.error('rejectBySystem failed', e);
 
-    // ✅ גם פה fallback (ליתר בטחון): אולי ה-DB כן עודכן אבל הייתה תקלה אצלנו
     const meta = await this.fetchDecisionMeta(row.id);
     if (meta.status === 'REJECTED_BY_SYSTEM') {
       this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
+      await this.loadRequestsFromDb();
+      this.closeDetails();
       return true;
     }
 
     return false;
   }
 }
-
 private getRequesterRoleForRequest(row: UiRequest): RequesterRole | null {
   const p: any = row.payload ?? {};
   return (row as any).requesterRole ?? p.requested_by_role ?? p.requestedByRole ?? null;

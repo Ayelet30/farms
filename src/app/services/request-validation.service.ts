@@ -754,27 +754,32 @@ const timeStr =
   row: UiRequest,
   mode: ValidationMode
 ): Promise<{ dateStr: string | null; timeStr: string | null } | null> {
-
   if (mode === 'auto') return null;
+
   const requestId = row?.id;
   if (!requestId) return null;
 
   const fresh = await this.fetchFreshRequestRow(db, requestId);
   const p = this.parsePayload(fresh?.payload);
 
-  const dateStr = p?.occur_date ? String(p.occur_date).slice(0, 10) : null;
+  const dateStr =
+    p?.occur_date
+      ? String(p.occur_date).slice(0, 10)
+      : (fresh?.from_date ? String(fresh.from_date).slice(0, 10) : null);
 
   let timeStr: string | null = null;
 
-  // ⭐ חדש: להביא שעת שיעור אמיתית מהמופע
-  if (fresh?.lesson_occ_id) {
+  if (fresh?.lesson_occ_id && dateStr) {
     const { data: occ, error: occErr } = await db
       .from('lessons_occurrences')
       .select('start_time')
-      .eq('id', fresh.lesson_occ_id)
+      .eq('lesson_id', fresh.lesson_occ_id)
+      .eq('occur_date', dateStr)
       .maybeSingle();
 
-    if (!occErr && occ?.start_time) {
+    if (occErr) throw occErr;
+
+    if (occ?.start_time) {
       timeStr = String(occ.start_time).slice(0, 5);
     }
   }

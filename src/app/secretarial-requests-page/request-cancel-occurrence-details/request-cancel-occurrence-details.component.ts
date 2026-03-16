@@ -120,13 +120,34 @@ private tenantSvc = inject(SupabaseTenantService);
     this.action.set('approve');     
 
   this.loading.set(true);
- const v = await this.validator.validate(this.request, 'approve');
+const v = await this.validator.validate(this.request, 'approve');
 if (!v.ok) {
-  await this.rejectBySystem(v.reason);
-  this.loading.set(false);
+  try {
+    const json = await this.rejectBySystem(v.reason);
+    const d = this.details();
+
+    this.toast('הבקשה נדחתה אוטומטית על ידי המערכת', 'info');
+
+    this.onRejected?.({
+      requestId: this.request.id,
+      newStatus: 'REJECTED_BY_SYSTEM',
+      message: v.reason ?? 'נדחה אוטומטית',
+      meta: {
+        ...(d ?? {}),
+        reason: v.reason ?? null,
+        server: json ?? null,
+      },
+    });
+  } catch (e: any) {
+    const msg = e?.message || 'שגיאה בדחייה אוטומטית';
+    this.toast(msg, 'error');
+    this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
+  } finally {
+    this.loading.set(false);
+    this.action.set(null);
+  }
   return;
 }
-
 
 
   try {
@@ -212,8 +233,30 @@ async reject() {
   this.loading.set(true);
  const v = await this.validator.validate(this.request, 'reject');
 if (!v.ok) {
-  await this.rejectBySystem(v.reason);
-  this.loading.set(false);
+  try {
+    const json = await this.rejectBySystem(v.reason);
+    const d = this.details();
+
+    this.toast('הבקשה נדחתה אוטומטית על ידי המערכת', 'info');
+
+    this.onRejected?.({
+      requestId: this.request.id,
+      newStatus: 'REJECTED_BY_SYSTEM',
+      message: v.reason ?? 'נדחה אוטומטית',
+      meta: {
+        ...(d ?? {}),
+        reason: v.reason ?? null,
+        server: json ?? null,
+      },
+    });
+  } catch (e: any) {
+    const msg = e?.message || 'שגיאה בדחייה אוטומטית';
+    this.toast(msg, 'error');
+    this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
+  } finally {
+    this.loading.set(false);
+    this.action.set(null);
+  }
   return;
 }
 
@@ -292,15 +335,11 @@ this.onRejected?.({
 
   }
 }
-private async rejectBySystem(reason: string): Promise<void> {
-  if (!this.request?.id) return;
+private async rejectBySystem(reason: string): Promise<any> {
+  if (!this.request?.id) return null;
 
-  const tenantSchema = requireTenant().schema;               // ✅ schema מה-context
-  const decidedByUid = getAuth().currentUser?.uid ?? null;   // ✅ uid של המשתמש המחובר
-
-  // אם את רוצה decided_by_uid מתוך טבלת users (ולא uid של Firebase):
-  // const appUser = await getCurrentUserData();
-  // const decidedByUid = appUser?.uid ?? getAuth().currentUser?.uid ?? null;
+  const tenantSchema = requireTenant().schema;
+  const decidedByUid = getAuth().currentUser?.uid ?? null;
 
   const idToken = await getAuth().currentUser?.getIdToken();
   if (!idToken) throw new Error('No Firebase token');
@@ -327,8 +366,10 @@ private async rejectBySystem(reason: string): Promise<void> {
   try { json = JSON.parse(text); } catch {}
 
   if (!resp.ok || json?.ok === false) {
-    throw new Error(json?.error || `autoRejectRequestAndNotify failed: ${resp.status}`);
+    throw new Error(json?.error || json?.message || `autoRejectRequestAndNotify failed: ${resp.status}`);
   }
+
+  return json;
 }
   private toast(message: string, type: ToastKind = 'info') {
     this.snack.open(message, 'סגור', {
