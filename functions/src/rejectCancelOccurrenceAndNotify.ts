@@ -108,10 +108,11 @@ export const rejectCancelOccurrenceAndNotify = onRequest(
       if (reqRow.request_type !== 'CANCEL_OCCURRENCE') {
         return void res.status(400).json({ ok: false, message: 'Not a CANCEL_OCCURRENCE request' });
       }
-
+const source = String(body.source || '').trim();
+const statusToSet = source === 'system' ? 'REJECTED_BY_SYSTEM' : 'REJECTED';
       // 2) update -> REJECTED
       const updPayload: any = {
-        status: 'REJECTED',
+        status: statusToSet,
         decided_at: new Date().toISOString(),
         decision_note: decisionNote ?? null,
       };
@@ -164,27 +165,35 @@ export const rejectCancelOccurrenceAndNotify = onRequest(
       let endTime: string | null = null;
       let instructorName: string | null = null;
 
-      if (reqRow.lesson_occ_id) {
-        const { data: occ } = await sbTenant
-          .from('lessons_occurrences')
-          .select('start_time,end_time,instructor_id')
-          .eq('id', reqRow.lesson_occ_id)
-          .maybeSingle();
-        if (occ) {
-          startTime = fmtTime((occ as any).start_time);
-          endTime = fmtTime((occ as any).end_time);
+    if (reqRow.lesson_occ_id) {
+  const { data: occ } = await sbTenant
+    .from('lessons_occurrences')
+    .select('start_time,end_time,instructor_id')
+    .eq('lesson_id', reqRow.lesson_occ_id)
+    .eq('occur_date', cancelDate)
+    .maybeSingle();
 
-          const insId = String((occ as any).instructor_id ?? '').trim();
-          if (insId) {
-            const { data: inst } = await sbTenant
-              .from('instructors')
-              .select('first_name,last_name')
-              .eq('id_number', insId)
-              .maybeSingle();
-            if (inst) instructorName = fullName((inst as any).first_name, (inst as any).last_name);
-          }
-        }
+  if (occ) {
+    startTime = fmtTime((occ as any).start_time);
+    endTime = fmtTime((occ as any).end_time);
+
+    const insId = String((occ as any).instructor_id ?? '').trim();
+    if (insId) {
+      const { data: inst } = await sbTenant
+        .from('instructors')
+        .select('first_name,last_name')
+        .eq('id_number', insId)
+        .maybeSingle();
+
+      if (inst) {
+        instructorName = fullName(
+          (inst as any).first_name,
+          (inst as any).last_name
+        );
       }
+    }
+  }
+}
 
       const { subject, html, text } = buildCancelOccurrenceDecisionEmail({
         kind: 'rejected',

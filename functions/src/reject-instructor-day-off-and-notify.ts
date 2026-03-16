@@ -114,12 +114,13 @@ export const rejectInstructorDayOffAndNotify = onRequest(
       if (reqRow.status !== 'PENDING') {
         return void res.status(409).json({ ok: false, message: 'הבקשה כבר לא במצב ממתין (ייתכן שכבר עודכנה).' });
       }
-
+const source = String(body.source || '').trim();
+const statusToSet = source === 'system' ? 'REJECTED_BY_SYSTEM' : 'REJECTED';
       // 2) דחייה “אטומית”
       const { data: upd, error: updErr } = await sbTenant
         .from('secretarial_requests')
         .update({
-          status: 'REJECTED',
+          status: statusToSet,
           decided_by_uid: decidedByUid,
           decided_at: new Date().toISOString(),
           decision_note: decisionNote ?? null,
@@ -213,8 +214,7 @@ export const rejectInstructorDayOffAndNotify = onRequest(
         mailOk = false;
       }
 
-      return void res.status(200).json({ ok: true, mailOk, warning, mail, mailError });
-    } catch (e: any) {
+return void res.status(200).json({ ok: true, status: statusToSet, mailOk, warning, mail, mailError });    } catch (e: any) {
       console.error('rejectInstructorDayOffAndNotify error', e);
       return void res.status(500).json({ error: 'Internal error', message: e?.message || String(e) });
     }

@@ -113,10 +113,11 @@ export const notifySingleLessonRejected = onRequest(
       if (reqErr) throw reqErr;
       if (!reqRow) throw new Error('Request not found');
 
-      if (String((reqRow as any).status) !== 'REJECTED') {
-        throw new Error('Request is not REJECTED (won’t send email)');
-      }
+     const reqStatus = String((reqRow as any).status ?? '').trim();
 
+if (!['REJECTED', 'REJECTED_BY_SYSTEM'].includes(reqStatus)) {
+  throw new Error('Request is not rejected (won’t send email)');
+}
       const payload: any = (reqRow as any).payload ?? {};
       const requestedStartTime = String(payload?.requested_start_time ?? '').trim() || null;
       const requestedEndTime = String(payload?.requested_end_time ?? '').trim() || null;

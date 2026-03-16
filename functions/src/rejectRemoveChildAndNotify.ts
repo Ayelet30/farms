@@ -118,10 +118,11 @@ export const rejectRemoveChildAndNotify = onRequest(
       if (farmErr) throw farmErr;
 
       const farmName = String(farmRow?.name ?? 'החווה').trim() || 'החווה';
-
+const source = String(body.source || '').trim();
+const statusToSet = source === 'system' ? 'REJECTED_BY_SYSTEM' : 'REJECTED';
       // 1) לעדכן סטטוס בקשה ל-REJECTED
       const updatePayload: any = {
-        status: 'REJECTED',
+        status: statusToSet ,
         decided_at: new Date().toISOString(),
       };
       if (decidedByUid) updatePayload.decided_by_uid = decidedByUid;
