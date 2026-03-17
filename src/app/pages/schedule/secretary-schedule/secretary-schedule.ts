@@ -1,5 +1,4 @@
-import { ChangeDetectorRef, Component, OnInit, OnDestroy, inject, ViewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectorRef, Component, OnInit, OnDestroy, inject, ViewChild, signal, computed } from '@angular/core';import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   dbTenant,
@@ -13,6 +12,7 @@ import type { EventClickArg } from '@fullcalendar/core';
 import { CurrentUserService } from '../../../core/auth/current-user.service';
 import { NoteComponent } from '../../Notes/note.component';
 import { UiDialogService } from '../../../services/ui-dialog.service';
+import { requireTenant, supabase } from '../../../services/supabaseClient.service';
 
 
 type ChildRow = {
@@ -30,7 +30,29 @@ type InstructorRow = {
   status?: string | null;
     color_hex?: string | null;
 };
+type RequestType = 'holiday' | 'sick' | 'personal' | 'other';
+type RequestStatus = 'pending' | 'approved' | 'rejected';
 
+interface AffectedChild {
+  child_uuid: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  birth_date?: string | null;
+  status?: string | null;
+}
+
+interface DayRequestRow {
+  id: string;
+  instructor_id: string;
+  request_date: string;
+  request_type: RequestType;
+  status: RequestStatus;
+  note?: string | null;
+  all_day?: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
+  sick_note_file_path?: string | null;
+}
 @Component({
   selector: 'app-secretary-schedule',
   standalone: true,
@@ -70,8 +92,52 @@ farmDaysOff: any[] = [];
   instructorsAll: InstructorRow[] = [];    // כל המדריכים (פעילים)
 instructorsToday: InstructorRow[] = [];  // רק העובדים היום (פעילים + זמינות)
 
+dayRequests: DayRequestRow[] = [];
+affectedChildren: AffectedChild[] = [];
+impactReviewMode = false;
+impactLoading = false;
+error: string | null = null;
 
-  private childAgeById = new Map<string, string>();
+selectedSickFile: File | null = null;
+private pendingSickFile: File | null = null;
+busyAction = signal<'check-impact' | 'submit-day-off' | null>(null);
+
+busyText = computed(() => {
+  switch (this.busyAction()) {
+    case 'check-impact':
+      return 'בודק השפעת בקשה…';
+    case 'submit-day-off':
+      return 'היעדרות בתהליך עדכון ושליחת מיילים…';
+    default:
+      return 'מעבד…';
+  }
+});
+contextMenu = {
+  visible: false,
+  x: 0,
+  y: 0,
+  date: '' as string,
+};
+
+rangeModal = {
+  open: false,
+  from: '',
+  to: '',
+  allDay: false,
+  fromTime: '',
+  toTime: '',
+  type: 'holiday' as RequestType,
+  text: '',
+  reviewedImpact: false,
+  instructorId: '',
+};
+timeOptions: string[] = Array.from({ length: 24 * 2 }, (_, i) => {
+  const hours = Math.floor(i / 2).toString().padStart(2, '0');
+  const minutes = ((i % 2) * 30).toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
+});
+private lastAllDayPref = true;
+   childAgeById = new Map<string, string>();
 private instructorColorById = new Map<string, string>();
 
   weekInstructorStats: { instructor_id: string; instructor_name: string; totalLessons: number }[] = [];
@@ -139,13 +205,18 @@ private rebuildInstructorResources(): void {
       title: `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim(),
     }));
 
-  console.log('instructorResources', this.instructorResources);
 }
 
   private async reloadAll() {
     await this.loadChildren();
     await this.loadInstructors();
     await this.loadLessons(this.currentRange ?? undefined);
+    if (this.currentRange) {
+  await this.loadRequestsForRange(
+    this.currentRange.start.slice(0, 10),
+    this.currentRange.end.slice(0, 10)
+  );
+}
     this.filterLessons();
     this.setScheduleItems();
     this.buildWeekStats();
@@ -156,7 +227,605 @@ private rebuildInstructorResources(): void {
     this.isFullscreen = !this.isFullscreen;
     document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
   }
+private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<void> {
+  const dbc = dbTenant();
 
+  const { data, error } = await dbc
+    .from('secretarial_requests')
+    .select(`
+      id,
+      instructor_id,
+      request_type,
+      status,
+      from_date,
+      to_date,
+      payload,
+      decision_note,
+      sick_note_file_path
+    `)
+    .eq('request_type', 'INSTRUCTOR_DAY_OFF')
+    .lte('from_date', endYmd)
+    .gte('to_date', startYmd);
+
+  if (error) throw error;
+
+  const rows = data ?? [];
+  this.dayRequests = rows.flatMap((row: any) => this.expandRequestRow(row));
+}
+
+private expandRequestRow(row: any): DayRequestRow[] {
+  const res: DayRequestRow[] = [];
+
+  if (row.request_type !== 'INSTRUCTOR_DAY_OFF') return res;
+  if (!row.from_date) return res;
+  if (typeof row.payload?.category !== 'string') return res;
+
+  let current = String(row.from_date).slice(0, 10);
+  const end = String(row.to_date || row.from_date).slice(0, 10);
+
+  const type: RequestType = this.mapDbRequestType(row.payload?.category);
+  const status: RequestStatus = this.mapDbStatus(row.status);
+  const note: string | null = row.payload?.note ?? row.decision_note ?? null;
+
+  let guard = 0;
+  while (current <= end) {
+    res.push({
+      id: row.id,
+      instructor_id: row.instructor_id,
+      request_date: current,
+      request_type: type,
+      status,
+      note,
+      all_day: row.payload?.all_day === true || row.payload?.all_day === 'true',
+      start_time: row.payload?.requested_start_time ?? null,
+      end_time: row.payload?.requested_end_time ?? null,
+      sick_note_file_path: row.sick_note_file_path ?? null,
+    });
+
+    const next = this.addOneDayYmd(current);
+    if (next <= current) break;
+
+    current = next;
+    if (++guard > 400) break;
+  }
+
+  return res;
+}
+onRightClickDay(e: any): void {
+  if (!e?.jsEvent) return;
+
+  e.jsEvent.preventDefault();
+  e.jsEvent.stopPropagation();
+
+  const localYmd =
+    typeof e.dateStr === 'string'
+      ? e.dateStr.slice(0, 10)
+      : e.date
+      ? new Date(e.date).toLocaleDateString('sv-SE')
+      : null;
+
+  if (!localYmd) return;
+
+  this.contextMenu.visible = true;
+  this.contextMenu.x = e.jsEvent.clientX;
+  this.contextMenu.y = e.jsEvent.clientY;
+  this.contextMenu.date = localYmd;
+
+  this.cdr.detectChanges();
+}
+
+closeContextMenu(): void {
+  this.contextMenu.visible = false;
+}
+async openRequest(type: RequestType): Promise<void> {
+  const date = this.contextMenu.date;
+  this.closeContextMenu();
+  if (!date) return;
+
+  const allDay = this.lastAllDayPref;
+
+this.affectedChildren = [];
+  this.impactReviewMode = false;
+  this.impactLoading = false;
+  this.selectedSickFile = null;
+  this.pendingSickFile = null;
+
+  this.rangeModal = {
+    open: true,
+    from: date,
+    to: date,
+    allDay,
+    fromTime: allDay ? '' : '08:00',
+    toTime: allDay ? '' : '12:00',
+    type,
+    text: '',
+    reviewedImpact: false,
+    instructorId: this.selectedInstructorIds.length === 1 ? this.selectedInstructorIds[0] : '',
+  };
+
+  this.cdr.detectChanges();
+}
+
+closeRangeModal(): void {
+  this.rangeModal.open = false;
+  this.rangeModal.reviewedImpact = false;
+  this.impactReviewMode = false;
+  this.impactLoading = false;
+this.affectedChildren = [];
+  this.selectedSickFile = null;
+  this.pendingSickFile = null;
+}
+onSickFileSelected(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0] ?? null;
+  this.selectedSickFile = file;
+  this.pendingSickFile = file;
+}
+async submitRange(): Promise<void> {
+  if (this.busyAction()) return;
+  this.error = null;
+
+  const {
+    from,
+    to,
+    allDay,
+    fromTime,
+    toTime,
+    type,
+    text,
+    reviewedImpact,
+    instructorId,
+  } = this.rangeModal;
+
+  this.lastAllDayPref = !!allDay;
+
+  if (!instructorId) {
+    this.error = 'חובה לבחור מדריך';
+    return;
+  }
+
+  if (!from || !to) {
+    this.error = 'חובה לבחור מתאריך ועד תאריך';
+    return;
+  }
+
+  if (!allDay) {
+    if (!fromTime || !toTime) {
+      this.error = 'חובה לבחור שעות התחלה וסיום';
+      return;
+    }
+
+    if (fromTime >= toTime) {
+      this.error = 'שעת הסיום חייבת להיות אחרי שעת ההתחלה';
+      return;
+    }
+  }
+if (!reviewedImpact) {
+  try {
+    this.busyAction.set('check-impact');
+    this.impactLoading = true;
+this.affectedChildren = [];
+    const hasLessons = await this.hasLessonsInRangeFromDb(instructorId, from, to);
+
+    if (hasLessons) {
+    await this.loadAffectedChildrenFromDb(
+  instructorId,
+  from,
+  to,
+  allDay,
+  allDay ? null : fromTime,
+  allDay ? null : toTime
+);
+    }
+
+    this.rangeModal.reviewedImpact = true;
+    this.impactReviewMode = true;
+    this.cdr.detectChanges();
+    return;
+  } catch (err: any) {
+    console.error('submitRange impact check error', err);
+    this.error = err?.message || 'שגיאה בבדיקת ההשפעה של הבקשה';
+    return;
+  } finally {
+    this.impactLoading = false;
+    this.busyAction.set(null);
+    this.cdr.detectChanges();
+  }
+}
+ try {
+  this.busyAction.set('submit-day-off');
+  this.cdr.detectChanges(); // 🔥 חשוב!!
+
+  // נותן ל-UI רינדור לפני ה-call
+  await new Promise(res => setTimeout(res, 50));
+
+  await this.executeInstructorDayOffBySecretary(
+    instructorId,
+    from,
+    to,
+    allDay,
+    allDay ? null : fromTime,
+    allDay ? null : toTime,
+    type,
+    text?.trim() || null
+  );
+
+  this.closeRangeModal();
+
+  if (this.currentRange) {
+    await this.loadLessons({
+      start: this.currentRange.start,
+      end: this.currentRange.end,
+    });
+
+    await this.loadRequestsForRange(
+      this.currentRange.start.slice(0, 10),
+      this.currentRange.end.slice(0, 10)
+    );
+
+    this.filterLessons();
+    this.setScheduleItems();
+    this.buildWeekStats();
+  }
+
+  this.cdr.detectChanges();
+} catch (err: any) {
+  console.error('submitRange save error', err);
+  this.error = err?.message || 'שגיאה בשמירת הבקשה';
+  this.cdr.detectChanges();
+} finally {
+  this.busyAction.set(null);
+}
+}
+private async hasLessonsInRangeFromDb(
+  instructorId: string,
+  from: string,
+  to: string
+): Promise<boolean> {
+  const dbc = dbTenant();
+
+  const { data, error } = await dbc
+    .from('lessons_occurrences')
+    .select('lesson_id')
+    .eq('instructor_id', instructorId)
+    .gte('occur_date', from)
+    .lte('occur_date', to)
+    .limit(1);
+
+  if (error) {
+    console.error('hasLessonsInRangeFromDb error', error);
+    return false;
+  }
+
+  return (data?.length ?? 0) > 0;
+}
+private async loadAffectedChildrenFromDb(
+  instructorId: string,
+  from: string,
+  to: string,
+  allDay: boolean,
+  fromTime: string | null,
+  toTime: string | null,
+): Promise<void> {
+  const dbc = dbTenant();
+
+  const { data: lessons, error: lessonsError } = await dbc
+    .from('lessons_occurrences')
+    .select(`
+      lesson_id,
+      child_id,
+      occur_date,
+      start_time,
+      end_time,
+      start_datetime,
+      end_datetime,
+      status
+    `)
+    .eq('instructor_id', instructorId)
+    .gte('occur_date', from)
+    .lte('occur_date', to);
+
+  if (lessonsError) {
+    console.error('lessons fetch error', lessonsError);
+    this.affectedChildren = [];
+    return;
+  }
+
+  const relevantLessons = (lessons ?? []).filter((l: any) => {
+    const rawStatus = String(l.status ?? '').toLowerCase();
+    const isCancelled =
+      rawStatus.includes('cancel') ||
+      rawStatus.includes('בוטל') ||
+      rawStatus.includes('מבוטל');
+
+    if (isCancelled) return false;
+
+    const lessonDate = String(l.occur_date ?? '').slice(0, 10);
+    if (!lessonDate) return false;
+
+    if (allDay) return true;
+
+    if (!fromTime || !toTime) return false;
+
+    const lessonStartIso = l.start_datetime
+      ? l.start_datetime
+      : `${lessonDate}T${String(l.start_time ?? '00:00').slice(0, 5)}:00`;
+
+    const lessonEndIso = l.end_datetime
+      ? l.end_datetime
+      : `${lessonDate}T${String(l.end_time ?? '00:00').slice(0, 5)}:00`;
+
+    const reqStart = new Date(`${lessonDate}T${fromTime}:00`);
+    const reqEnd = new Date(`${lessonDate}T${toTime}:00`);
+    const lessonStart = new Date(lessonStartIso);
+    const lessonEnd = new Date(lessonEndIso);
+
+    return lessonStart < reqEnd && lessonEnd > reqStart;
+  });
+
+  if (!relevantLessons.length) {
+    this.affectedChildren = [];
+    return;
+  }
+
+  const childIds = [
+    ...new Set(relevantLessons.map((l: any) => l.child_id).filter(Boolean)),
+  ];
+
+  const { data: children, error: childrenError } = await dbc
+    .from('children')
+    .select('child_uuid, first_name, last_name, birth_date, status')
+    .in('child_uuid', childIds);
+
+  if (childrenError) {
+    console.error('children fetch error', childrenError);
+    this.affectedChildren = [];
+    return;
+  }
+
+  this.affectedChildren = children ?? [];
+}
+async onAllDayToggle(allDay: boolean): Promise<void> {
+  this.error = null;
+  this.rangeModal.allDay = allDay;
+
+  if (!allDay) {
+    if (!this.rangeModal.fromTime) this.rangeModal.fromTime = '08:00';
+    if (!this.rangeModal.toTime) this.rangeModal.toTime = '12:00';
+  } else {
+    this.rangeModal.fromTime = '';
+    this.rangeModal.toTime = '';
+  }
+
+  this.impactLoading = false;
+this.affectedChildren = [];
+  // אם כבר בוצעה בדיקה בעבר – טוענים מחדש אוטומטית
+  if (this.rangeModal.reviewedImpact) {
+    await this.refreshAffectedChildrenPreview();
+  } else {
+    this.impactReviewMode = false;
+  }
+
+  this.cdr.detectChanges();
+}
+async onTimeChanged(): Promise<void> {
+  this.error = null;
+  this.impactLoading = false;
+this.affectedChildren = [];
+  if (this.rangeModal.reviewedImpact && !this.rangeModal.allDay) {
+    await this.refreshAffectedChildrenPreview();
+  } else if (!this.rangeModal.reviewedImpact) {
+    this.impactReviewMode = false;
+  }
+
+  this.cdr.detectChanges();
+}
+async onDateRangeChanged(): Promise<void> {
+  this.error = null;
+  this.impactLoading = false;
+this.affectedChildren = [];
+  if (this.rangeModal.reviewedImpact) {
+    await this.refreshAffectedChildrenPreview();
+  } else {
+    this.impactReviewMode = false;
+  }
+
+  this.cdr.detectChanges();
+}
+async onRequestInstructorChanged(): Promise<void> {
+  this.error = null;
+  this.impactLoading = false;
+this.affectedChildren = [];
+  if (this.rangeModal.reviewedImpact) {
+    await this.refreshAffectedChildrenPreview();
+  } else {
+    this.impactReviewMode = false;
+  }
+
+  this.cdr.detectChanges();
+}
+
+private async refreshAffectedChildrenPreview(): Promise<void> {
+  const { from, to, allDay, fromTime, toTime, instructorId } = this.rangeModal;
+
+  if (!from || !to || !instructorId) return;
+
+  if (!allDay) {
+    if (!fromTime || !toTime) return;
+    if (fromTime >= toTime) return;
+  }
+
+  try {
+    this.impactLoading = true;
+this.affectedChildren = [];
+    const hasLessons = await this.hasLessonsInRangeFromDb(instructorId, from, to);
+
+    if (hasLessons) {
+    await this.loadAffectedChildrenFromDb(
+  instructorId,
+  from,
+  to,
+  allDay,
+  allDay ? null : fromTime,
+  allDay ? null : toTime
+);
+    }
+
+    this.rangeModal.reviewedImpact = true;
+    this.impactReviewMode = true;
+  } catch (err: any) {
+    console.error('refreshAffectedChildrenPreview error', err);
+    this.error = err?.message || 'שגיאה בטעינת ההשפעה';
+  } finally {
+    this.impactLoading = false;
+    this.cdr.detectChanges();
+  }
+}
+private async executeInstructorDayOffBySecretary(
+  instructorId: string,
+  fromDate: string,
+  toDate: string,
+  allDay: boolean,
+  fromTime: string | null,
+  toTime: string | null,
+  type: RequestType,
+  note: string | null,
+): Promise<void> {
+  const authMod = await import('firebase/auth');
+  const auth = authMod.getAuth();
+  const token = await auth.currentUser?.getIdToken();
+
+  if (!token) {
+    throw new Error('לא נמצא טוקן משתמש');
+  }
+
+  await ensureTenantContextReady();
+  const tenant = requireTenant();
+
+  const tenantSchema = tenant.schema;
+  const tenantId = tenant.id;
+
+  const url =
+    'https://us-central1-bereshit-ac5d8.cloudfunctions.net/secretaryCreateInstructorDayOffAndNotify';
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      tenantSchema,
+      tenantId,
+      instructorId,
+      fromDate,
+      toDate,
+      allDay,
+      startTime: allDay ? null : fromTime,
+      endTime: allDay ? null : toTime,
+      requestType: this.mapRequestTypeToDb(type),
+      decisionNote: note ?? null,
+    }),
+  });
+
+  let json: any = null;
+  try {
+    json = await resp.json();
+  } catch {
+    json = null;
+  }
+
+  if (!resp.ok) {
+    throw new Error(json?.message || json?.error || 'הפעולה נכשלה');
+  }
+
+  const mailOk = json?.mailOk ?? true;
+  const warning = String(json?.warning ?? '').trim();
+
+  if (mailOk === false) {
+    console.warn('Instructor day off executed but mail failed', json);
+    await this.ui.alert(
+      `יום החופש עודכן, אבל שליחת מייל נכשלה${warning ? `: ${warning}` : ''}`,
+      'אזהרה'
+    );
+    return;
+  }
+
+  if (warning) {
+    await this.ui.alert(warning, 'אזהרה');
+  }
+}
+private async uploadSickFile(file: File, requestId: string): Promise<string> {
+  if (!supabase) {
+    throw new Error('Supabase client is not initialized');
+  }
+
+  const ext = file.name.split('.').pop();
+  if (!ext) {
+    throw new Error('Invalid file extension');
+  }
+
+  const path = `secretary_request_${requestId}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from('sick_notes')
+    .upload(path, file, { upsert: true });
+
+  if (error) throw error;
+
+  return path;
+}
+private mapDbRequestType(x: string | null | undefined): RequestType {
+  const val = String(x ?? '').toUpperCase().trim();
+
+  switch (val) {
+    case 'HOLIDAY':
+      return 'holiday';
+    case 'SICK':
+      return 'sick';
+    case 'PERSONAL':
+      return 'personal';
+    case 'OTHER':
+      return 'other';
+    default:
+      return 'other';
+  }
+}
+
+private mapDbStatus(x: string | null | undefined): RequestStatus {
+  const map: Record<string, RequestStatus> = {
+    APPROVED: 'approved',
+    REJECTED: 'rejected',
+    REJECTED_BY_SYSTEM: 'rejected',
+    PENDING: 'pending',
+  };
+
+  const key = String(x ?? '').toUpperCase();
+  return map[key] ?? 'pending';
+}
+
+private mapRequestTypeToDb(t: RequestType): string {
+  const map: Record<RequestType, string> = {
+    holiday: 'HOLIDAY',
+    sick: 'SICK',
+    personal: 'PERSONAL',
+    other: 'OTHER',
+  };
+  return map[t];
+}
+
+getRequestLabel(type: RequestType): string {
+  switch (type) {
+    case 'holiday':
+      return 'יום חופש';
+    case 'sick':
+      return 'יום מחלה';
+    case 'personal':
+      return 'יום אישי';
+    default:
+      return 'בקשה אחרת';
+  }
+}
   /** ילדים פעילים */
   private async loadChildren(): Promise<void> {
     try {
@@ -304,6 +973,10 @@ this.selectedInstructorIds = this.instructors
    await this.loadFarmDaysOffForRange(
   range.start.slice(0,10),
   range.end.slice(0,10)
+);
+await this.loadRequestsForRange(
+  range.start.slice(0, 10),
+  range.end.slice(0, 10)
 );
     this.filterLessons();
     this.setScheduleItems();
@@ -463,32 +1136,75 @@ private async loadFarmDaysOffForRange(startYmd: string, endYmd: string): Promise
 }
 
   /** סינון שיעורים לפי מדריכים מסומנים + טווח תצוגה */
-  private filterLessons(): void {
-    let src = [...this.lessons];
-    const selected = this.selectedInstructorIds.filter(Boolean);
-    if (selected.length) {
-      src = src.filter(l => selected.includes(String(l.instructor_id ?? '')));
-    } else {
-      // אם אין בחירה בכלל – אל תציגי כלום (או תחליטי fallback אחר)
-      src = [];
-    }
+ private filterLessons(): void {
+  let src = [...this.lessons];
 
-    if (this.currentRange) {
-      const { start, end } = this.currentRange;
-      src = src.filter(l => {
-        const d =
-          (l as any).occur_date ||
-          ((l as any).start_datetime
-            ? (l as any).start_datetime.slice(0, 10)
-            : '');
-        if (!d) return true;
-        return d >= start && d <= end;
-      });
-    }
-
-    this.filteredLessons = src;
+  const selected = this.selectedInstructorIds.filter(Boolean);
+  if (selected.length) {
+    src = src.filter(l => selected.includes(String(l.instructor_id ?? '')));
+  } else {
+    src = [];
   }
 
+  if (this.currentRange) {
+    const { start, end } = this.currentRange;
+    src = src.filter(l => {
+      const d =
+        (l as any).occur_date ||
+        ((l as any).start_datetime
+          ? (l as any).start_datetime.slice(0, 10)
+          : '');
+      if (!d) return true;
+      return d >= start && d <= end;
+    });
+  }
+
+  // ✅ כאן בדיוק מוסיפים את הסינון של חופשת מדריך
+  src = src.filter((l: any) => {
+    const lessonDate =
+      l.occur_date ||
+      (l.start_datetime ? String(l.start_datetime).slice(0, 10) : '');
+
+    if (!lessonDate) return true;
+
+    const startIso =
+      this.buildDateTime(l.occur_date, l.start_time) ??
+      this.ensureIso(
+        l.start_datetime as any,
+        l.start_time as any,
+        l.occur_date as any
+      );
+
+    const endIsoRaw =
+      this.buildDateTime(l.occur_date, l.end_time) ??
+      this.ensureIso(
+        l.end_datetime as any,
+        l.end_time as any,
+        l.occur_date as any
+      );
+
+    const endIso = this.ensureEndAfterStart(startIso, endIsoRaw);
+
+    return !this.isLessonBlockedByInstructorOff(
+      String(l.instructor_id ?? ''),
+      lessonDate,
+      new Date(startIso),
+      new Date(endIso)
+    );
+  });
+
+  this.filteredLessons = src;
+}
+private addOneDayYmd(dateYmd: string): string {
+  const [y, m, d] = dateYmd.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + 1);
+
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
  private setScheduleItems(): void {
   const src = this.filteredLessons;
 
@@ -498,59 +1214,69 @@ private async loadFarmDaysOffForRange(startYmd: string, endYmd: string): Promise
     return null;
   };
 
- const makeLessonEvent = (lesson: any): ScheduleItem => {
-const instructorId = String(lesson.instructor_id || '');
+  const makeLessonEvent = (lesson: any): ScheduleItem => {
+    const instructorId = String(lesson.instructor_id || '');
 
-const colorFromDb = this.instructorColorById.get(instructorId);
+    const colorFromDb = this.instructorColorById.get(instructorId);
 
-const instructorBorderColor =
-  colorFromDb && colorFromDb.trim() !== ''
-    ? colorFromDb
-    : this.getColorForInstructor(instructorId);
+    const instructorBorderColor =
+      colorFromDb && colorFromDb.trim() !== ''
+        ? colorFromDb
+        : this.getColorForInstructor(instructorId);
 
-  const start =
-  this.buildDateTime(lesson.occur_date, lesson.start_time) ??
-  this.ensureIso(lesson.start_datetime as any, lesson.start_time as any, lesson.occur_date as any);
+    const start =
+      this.buildDateTime(lesson.occur_date, lesson.start_time) ??
+      this.ensureIso(
+        lesson.start_datetime as any,
+        lesson.start_time as any,
+        lesson.occur_date as any
+      );
 
-let end =
-  this.buildDateTime(lesson.occur_date, lesson.end_time) ??
-  this.ensureIso(lesson.end_datetime as any, lesson.end_time as any, lesson.occur_date as any);
+    let end =
+      this.buildDateTime(lesson.occur_date, lesson.end_time) ??
+      this.ensureIso(
+        lesson.end_datetime as any,
+        lesson.end_time as any,
+        lesson.occur_date as any
+      );
 
-end = this.ensureEndAfterStart(start, end);
+    end = this.ensureEndAfterStart(start, end);
 
-console.log(start, end);
+    const childName = lesson.child_name ?? '';
+    const lessonType = lesson.lesson_type ?? '';
+    const age = this.childAgeById.get(lesson.child_id) || '';
+    const childDisplay = age ? `${childName} (${age})` : childName;
 
-  const childName = lesson.child_name ?? '';
-  const lessonType = lesson.lesson_type ?? '';
-  const age = this.childAgeById.get(lesson.child_id) || '';
-  const childDisplay = age ? `${childName} (${age})` : childName;
+    return {
+      id: lesson.id,
+      title: childDisplay,
+      start,
+      end,
+      color: lesson.child_color,
+      status: lesson.status,
+      meta: {
+        status: lesson.status ?? '',
+        child_id: lesson.child_id,
+        child_name: childDisplay,
+        instructor_id: lesson.instructor_id,
+        instructor_name: lesson.instructor_name,
+        instructor_color: instructorBorderColor,
+        lesson_type: lessonType,
+        children: childDisplay,
+        horse_name: lesson.horse_name,
+        arena_name: lesson.arena_name,
+        lesson_id: lesson.lesson_id,
+        occur_date: lesson.occur_date,
+        is_makeup_allowed: lesson['is_makeup_allowed'] ?? false,
+      },
+    } as ScheduleItem;
+  };
 
-  return {
-    id: lesson.id,
-    title: childDisplay,
-    start,
-    end,
-    color: lesson.child_color,
-    status: lesson.status,
-    meta: {
-      status: lesson.status ?? '',
-      child_id: lesson.child_id,
-      child_name: childDisplay,
-      instructor_id: lesson.instructor_id,
-      instructor_name: lesson.instructor_name,
-         instructor_color: instructorBorderColor, 
-      lesson_type: lessonType,
-      children: childDisplay,   
-      horse_name: lesson.horse_name,
-      arena_name: lesson.arena_name,
-        lesson_id: lesson.lesson_id,          // זה ה-UUID של השיעור
-  occur_date: lesson.occur_date,        // YYYY-MM-DD
-  is_makeup_allowed: lesson['is_makeup_allowed'] ?? false, 
-    },
-  } as ScheduleItem;
-};
+  // ✅ מגדירים פעם אחת בתחילת הפונקציה
+  const farmOffItems = this.farmDaysOffToItems();
+  const instructorOffItems = this.instructorDaysOffToItems();
 
-  // ===== חודשי – כמו שהיה =====
+  // ===== חודשי =====
   if (this.currentViewType === 'dayGridMonth') {
     const perDay = new Map<string, number>();
 
@@ -577,119 +1303,181 @@ console.log(start, end);
         isSummaryDay: '1',
       },
     })) as any;
-const farmOffItems = this.farmDaysOffToItems();
-this.items = [...this.items, ...farmOffItems];
+
+    this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
     return;
   }
 
-  // ===== שבוע – טבלת מדריכים × ימים =====
-// ===== תצוגת שבוע – סיכום לכל מדריך בכל יום (אחד מתחת לשני) =====
-if (this.currentViewType === 'timeGridWeek') {
-  type Key = string; // date|instructor_id
+  // ===== שבוע =====
+  if (this.currentViewType === 'timeGridWeek') {
+    type Key = string;
 
-  const perDayInstructor = new Map<Key, {
-    date: string;
-    instructor_id: string;
-    instructor_name: string;
-    count: number;
-  }>();
+    const perDayInstructor = new Map<Key, {
+      date: string;
+      instructor_id: string;
+      instructor_name: string;
+      count: number;
+    }>();
 
-  const getDate = (l: any): string | null => {
-    if (l.occur_date) return l.occur_date;
-    if (l.start_datetime) return String(l.start_datetime).slice(0, 10);
-    return null;
-  };
+    for (const l of src) {
+      const d = getDate(l);
+      if (!d) continue;
 
-  // אוספים: כמה שיעורים יש לכל מדריך בכל יום
-  for (const l of src) {
-    const d = getDate(l);
-    if (!d) continue;
+      const instId = (l as any).instructor_id || '';
+      const instName = (l as any).instructor_name || 'ללא מדריך';
+      const key: Key = `${d}|${instId}`;
 
-    const instId = (l as any).instructor_id || '';
-    const instName = (l as any).instructor_name || 'ללא מדריך';
-    const key: Key = `${d}|${instId}`;
+      if (!perDayInstructor.has(key)) {
+        perDayInstructor.set(key, {
+          date: d,
+          instructor_id: instId,
+          instructor_name: instName,
+          count: 0,
+        });
+      }
+      perDayInstructor.get(key)!.count++;
+    }
 
-    if (!perDayInstructor.has(key)) {
-      perDayInstructor.set(key, {
-        date: d,
-        instructor_id: instId,
-        instructor_name: instName,
-        count: 0,
+    const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
+
+    const perDate = new Map<string, {
+      date: string;
+      instructor_id: string;
+      instructor_name: string;
+      count: number;
+    }[]>();
+
+    for (const g of perDayInstructor.values()) {
+      if (!perDate.has(g.date)) perDate.set(g.date, []);
+      perDate.get(g.date)!.push(g);
+    }
+
+    const result: ScheduleItem[] = [];
+
+    for (const [date, groups] of perDate.entries()) {
+      groups.sort((a, b) =>
+        a.instructor_name.localeCompare(b.instructor_name, 'he')
+      );
+
+      groups.forEach((g, idxInDay) => {
+        const baseHour = 7;
+        const startHour = baseHour + idxInDay;
+        const endHour = startHour;
+
+        const start = `${date}T${pad(startHour)}:00:00`;
+        const end = `${date}T${pad(endHour)}:50:00`;
+
+        result.push({
+          id: `sum-week-${date}-${g.instructor_id}`,
+          title: `${g.instructor_name} · ${g.count} שיעורים`,
+          start,
+          end,
+          status: 'אושר',
+          meta: {
+            status: '',
+            child_id: '',
+            child_name: '',
+            instructor_id: g.instructor_id,
+            instructor_name: g.instructor_name,
+            lesson_type: 'summary-week',
+            isSummarySlot: '1',
+          },
+        } as ScheduleItem);
       });
     }
-    perDayInstructor.get(key)!.count++;
+
+    this.items = [...result, ...farmOffItems, ...instructorOffItems];
+    return;
   }
 
-  const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
-
-  // ממירים למבנה לפי יום → [סיכומים]
-  const perDate = new Map<string, {
-    date: string;
-    instructor_id: string;
-    instructor_name: string;
-    count: number;
-  }[]>();
-
-  for (const g of perDayInstructor.values()) {
-    if (!perDate.has(g.date)) perDate.set(g.date, []);
-    perDate.get(g.date)!.push(g);
+  // ===== יום =====
+  if (this.currentViewType === 'timeGridDay') {
+    this.items = src.map(makeLessonEvent);
+    this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
+    return;
   }
 
-  const result: ScheduleItem[] = [];
+  // ===== ברירת מחדל =====
+  this.items = src.map(makeLessonEvent);
+  this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
+}
+private instructorDaysOffToItems(): ScheduleItem[] {
+  return (this.dayRequests ?? [])
+    .filter(r => r.status === 'approved')
+    .map(r => {
+      let bg = '#e5e7eb';
+      let text = '#374151';
 
-  for (const [date, groups] of perDate.entries()) {
-    // שיהיה מסודר לפי שם מדריך
-    groups.sort((a, b) =>
-      a.instructor_name.localeCompare(b.instructor_name, 'he')
-    );
+      switch (r.request_type) {
+        case 'holiday':
+          bg = '#fef3c7';
+          text = '#92400e';
+          break;
+        case 'sick':
+          bg = '#ffe4e6';
+          text = '#9f1239';
+          break;
+        case 'personal':
+          bg = '#ede9fe';
+          text = '#5b21b6';
+          break;
+      }
 
-    groups.forEach((g, idxInDay) => {
-      // כל מדריך שעה אחרת – 7, 8, 9, ...
-      const baseHour = 7;
-      const startHour = baseHour + idxInDay;
-      const endHour = startHour;
+      const start = r.all_day || !r.start_time
+        ? `${r.request_date}T00:00:00`
+        : `${r.request_date}T${r.start_time}:00`;
 
-      const start = `${date}T${pad(startHour)}:00:00`;
-      const end   = `${date}T${pad(endHour)}:50:00`;
+      const end = r.all_day || !r.end_time
+        ? `${r.request_date}T23:59:59`
+        : `${r.request_date}T${r.end_time}:00`;
 
-      result.push({
-        id: `sum-week-${date}-${g.instructor_id}`,
-        title: `${g.instructor_name} · ${g.count} שיעורים`,
+      const inst = this.instructorsAll.find(i => String(i.id_number) === String(r.instructor_id));
+      const instructorName = `${inst?.first_name ?? ''} ${inst?.last_name ?? ''}`.trim();
+
+      return {
+        id: `instructor_off_${r.id}_${r.request_date}_${r.instructor_id}`,
+        title: `⛔ ${instructorName} — ${this.getRequestLabel(r.request_type)}`,
         start,
         end,
-        status: 'אושר',
+        allDay: false,
+        display: 'block',
+        overlap: false,
+        color: bg,
+        textColor: text,
+        classNames: ['instructor-day-off'],
+        status: 'instructor_day_off' as any,
         meta: {
-          status: '',
-          child_id: '',
-          child_name: '',
-          instructor_id: g.instructor_id,
-          instructor_name: g.instructor_name,
-          lesson_type: 'summary-week',
-          isSummarySlot: '1',
-        },
-      } as ScheduleItem);
+          isInstructorDayOff: 'true',
+          request_type: r.request_type,
+          note: r.note ?? null,
+          instructor_id: r.instructor_id,
+        } as any,
+      } as ScheduleItem;
     });
-  }
-
-  this.items = result;
-  const farmOffItems = this.farmDaysOffToItems();
-this.items = [...this.items, ...farmOffItems];
-  return;
 }
-  // ===== יום – בשעה 07:00 שם המדריך, ובשעות – כרטיסיות ילדים (עם גיל) =====
-  // ===== יום – מדריך בשורה ב-07:00, ובשעות כרטיסייה אחת לכל שיעור (גם כפול) =====
-if (this.currentViewType === 'timeGridDay') {
-  this.items = src.map(makeLessonEvent);
-  const farmOffItems = this.farmDaysOffToItems();
-this.items = [...this.items, ...farmOffItems];
-  return;
+private isLessonBlockedByInstructorOff(
+  instructorId: string,
+  lessonDate: string,
+  lessonStart?: Date,
+  lessonEnd?: Date
+): boolean {
+  return (this.dayRequests ?? []).some(r => {
+    if (r.status !== 'approved') return false;
+    if (String(r.instructor_id) !== String(instructorId)) return false;
+    if (r.request_date !== lessonDate) return false;
 
-}
+    // יום מלא
+    if (r.all_day === true) return true;
 
-  // ברירת מחדל (אם יהיה View נוסף) – אירוע לכל שיעור
-  this.items = src.map(makeLessonEvent);
-  const farmOffItems = this.farmDaysOffToItems();
-this.items = [...this.items, ...farmOffItems];
+    // אם אין שעות - לא לחסום
+    if (!r.start_time || !r.end_time) return false;
+    if (!lessonStart || !lessonEnd) return false;
+
+    const offStart = new Date(`${lessonDate}T${r.start_time}`);
+    const offEnd = new Date(`${lessonDate}T${r.end_time}`);
+
+    return lessonStart < offEnd && lessonEnd > offStart;
+  });
 }
 private farmDaysOffToItems(): ScheduleItem[] {
   return (this.farmDaysOff ?? []).map((d: any) => {
