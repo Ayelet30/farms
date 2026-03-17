@@ -56,6 +56,7 @@ export { approveAddChildAndNotify } from './approve-add-child-and-notify';
 export { rejectAddChildAndNotify } from './reject-add-child-and-notify';
 export { notifySingleLessonApproved } from './notify-single-lesson-approved'
 export { notifySingleLessonRejected } from './notify-single-lesson-rejected'
+export { secretaryCreateInstructorDayOffAndNotify } from './secretary-create-instructor-day-off-and-notify'
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
 

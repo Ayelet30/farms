@@ -839,3 +839,26 @@
   unicode-bidi: bidi-override;
   display: inline-block;
 }
+.no-booking-msg {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 60vh;
+}
+
+.no-booking-msg::before {
+  // content: "⚠️ ";
+  margin-left: 6px;
+}
+
+.no-booking-msg {
+  font-size: 20px;
+  font-weight: 500;
+  color: #444;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 12px;
+  padding: 24px 32px;
+  max-width: 500px;
+  margin: auto;
+}
