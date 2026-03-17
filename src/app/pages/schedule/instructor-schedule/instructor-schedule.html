@@ -84,19 +84,25 @@
       <div *ngIf="!rangeModal.allDay" class="date-row">
         <div class="field-row">
           <label>משעה</label>
-<input
-  type="time"
+<select
   [(ngModel)]="rangeModal.fromTime"
   (ngModelChange)="onTimeChanged()"
-/>        </div>
+>
+  <option value="">בחר/י שעה</option>
+  <option *ngFor="let t of timeOptions" [value]="t">{{ t }}</option>
+</select>
+       </div>
 
         <div class="field-row">
           <label>עד שעה</label>
-<input
-  type="time"
+<select
   [(ngModel)]="rangeModal.toTime"
   (ngModelChange)="onTimeChanged()"
-/>        </div>
+>
+  <option value="">בחר/י שעה</option>
+  <option *ngFor="let t of timeOptions" [value]="t">{{ t }}</option>
+</select>
+        </div>
       </div>
 
       <div class="field-row">
@@ -114,39 +120,38 @@
         <textarea [(ngModel)]="rangeModal.text"></textarea>
       </div>
 
-      <div class="impact-review-box" *ngIf="impactLoading">
-        בודק על אילו הורים/שיעורים הבקשה תשפיע...
-      </div>
+    <div class="impact-review-box" *ngIf="impactLoading">
+  בודק על אילו ילדים/שיעורים הבקשה תשפיע...
+</div>
+     <div class="impact-review-box" *ngIf="impactReviewMode && !impactLoading">
+  <h4>השפעת הבקשה</h4>
 
-      <div class="impact-review-box" *ngIf="impactReviewMode && !impactLoading">
-        <h4>השפעת הבקשה</h4>
+  <div class="impact-box" *ngIf="affectedChildren.length > 0">
+    נמצאו <strong>{{ affectedChildren.length }}</strong> ילדים שהשינוי ישפיע עליהם.
+  </div>
 
-        <div class="impact-box" *ngIf="affectedParents.length > 0">
-          נמצאו <strong>{{ affectedParents.length }}</strong> הורים שהשינוי ישפיע עליהם.
+  <div class="impact-box success" *ngIf="affectedChildren.length === 0">
+    לא נמצאו ילדים מושפעים מהבקשה.
+  </div>
+
+  <div class="child-list" *ngIf="affectedChildren.length > 0">
+    <div class="child-row" *ngFor="let c of affectedChildren; let i = index">
+      <div class="index-pill">{{ i + 1 }}</div>
+      <div class="child-text">
+        <div class="child-name">
+          {{ c.first_name }} {{ c.last_name }}
         </div>
-
-        <div class="impact-box success" *ngIf="affectedParents.length === 0">
-          לא נמצאו הורים מושפעים מהבקשה.
-        </div>
-
-        <div class="parent-list" *ngIf="affectedParents.length > 0">
-          <div class="parent-row" *ngFor="let p of affectedParents; let i = index">
-            <div class="index-pill">{{ i + 1 }}</div>
-            <div class="parent-text">
-              <div class="parent-name">
-                {{ p.first_name }} {{ p.last_name }}
-              </div>
-              <div class="parent-sub">
-                {{ p.phone }}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="note-box" *ngIf="affectedParents.length > 0">
-          המזכירה תקבל התראה ותתאם מול ההורים לפני שינוי בפועל של שיעורים.
+        <div class="child-sub">
+          גיל: {{ c.age ?? 'לא ידוע' }}
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="note-box" *ngIf="affectedChildren.length > 0">
+    הבקשה תשפיע על הילדים המוצגים ברשימה לפני שינוי בפועל של השיעורים.
+  </div>
+</div>
 
       <div class="form-error" *ngIf="error">
         {{ error }}

@@ -25,6 +25,19 @@ type Args =
       decisionNote: string | null;
       cancellations: CancelItem[];
     }
+    | {
+      kind: 'created_by_secretary_instructor';
+      farmName: string;
+      instructorName: string;
+      fromDate: string;
+      toDate: string;
+      allDay: boolean;
+      startTime: string | null;
+      endTime: string | null;
+      decisionNote: string | null;
+      impactCount: number;
+      requestTypeLabel: string;
+    }
   | {
       kind: 'approved_instructor';
       farmName: string;
@@ -131,7 +144,31 @@ export function buildInstructorDayOffDecisionEmail(args: Args) {
 
     return { subject, html, text };
   }
+  if (args.kind === 'created_by_secretary_instructor') {
+    const subject = `עודכן עבורך ${args.requestTypeLabel} במערכת`;
+    const note = args.decisionNote ? `<p><b>הערה מהמזכירות:</b> ${esc(args.decisionNote)}</p>` : '';
 
+    const html = `
+      <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.5">
+        <h2>${farmName}</h2>
+        <p>שלום ${esc(args.instructorName)},</p>
+        <p>המזכירות עדכנה עבורך <b>${esc(args.requestTypeLabel)}</b> במערכת.</p>
+        <p><b>חלון ההיעדרות:</b> ${esc(windowText(args))}</p>
+        ${note}
+        <p><b>מספר שיעורים שהושפעו:</b> ${esc(args.impactCount)}</p>
+      </div>
+    `.trim();
+
+    const text =
+      `${args.farmName}\n` +
+      `שלום ${args.instructorName},\n` +
+      `המזכירות עדכנה עבורך ${args.requestTypeLabel} במערכת.\n` +
+      `חלון ההיעדרות: ${windowText(args)}\n` +
+      (args.decisionNote ? `הערה מהמזכירות: ${args.decisionNote}\n` : '') +
+      `מספר שיעורים שהושפעו: ${args.impactCount}\n`;
+
+    return { subject, html, text };
+  }
   // rejected_instructor
   const subject = `הבקשה לחופש נדחתה`;
   const note = args.decisionNote ? `<p><b>סיבת דחייה:</b> ${esc(args.decisionNote)}</p>` : '';

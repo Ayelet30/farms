@@ -128,7 +128,11 @@ farmDaysOff: any[] = [];
   currentUserRole: RoleInTenant = 'instructor';
 
   private lastRange: { start: string; end: string } | null = null;
-
+timeOptions: string[] = Array.from({ length: 24 * 2 }, (_, i) => {
+  const hours = Math.floor(i / 2).toString().padStart(2, '0');
+  const minutes = ((i % 2) * 30).toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
+});
   /* ------- תפריט קליק ימני ------- */
   contextMenu = {
     visible: false,
@@ -137,7 +141,7 @@ farmDaysOff: any[] = [];
     date: '' as string,
   };
 // 🔔 הורים שנפגעים מהחופש
-affectedParents: Parent[] = [];
+affectedChildren: Child[] = [];
 impactReviewMode = false;
 impactLoading = false;
 
@@ -933,8 +937,7 @@ await this.loadFarmDaysOffForRange(startYmd, endYmd);
   if (!reviewedImpact) {
     try {
       this.impactLoading = true;
-      this.affectedParents = [];
-
+this.affectedChildren = [];
       const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
 console.log('CHECK IMPACT START', {
   from,
@@ -944,7 +947,7 @@ console.log('CHECK IMPACT START', {
   toTime
 });
       if (hasLessons) {
-        await this.loadAffectedParentsFromDb(
+        await this.loadAffectedChildrenFromDb(
           from,
           to,
           allDay,
@@ -953,7 +956,7 @@ console.log('CHECK IMPACT START', {
         );
       }
 console.log('CHECK IMPACT DONE', {
-  affectedParents: this.affectedParents
+  affectedParents: this.affectedChildren
 });
       this.rangeModal.reviewedImpact = true;
       this.impactReviewMode = true;
@@ -986,7 +989,7 @@ console.log('CHECK IMPACT DONE', {
     this.rangeModal.reviewedImpact = false;
     this.impactReviewMode = false;
     this.impactLoading = false;
-    this.affectedParents = [];
+this.affectedChildren = [];
     this.selectedSickFile = null;
     this.pendingSickFile = null;
 
@@ -1015,7 +1018,7 @@ async openRequest(type: RequestType): Promise<void> {
 
   const allDay = this.lastAllDayPref;
 
-  this.affectedParents = [];
+this.affectedChildren = [];
   this.impactReviewMode = false;
   this.impactLoading = false;
 
@@ -1042,7 +1045,7 @@ async openRequest(type: RequestType): Promise<void> {
   this.rangeModal.reviewedImpact = false;
   this.impactReviewMode = false;
   this.impactLoading = false;
-  this.affectedParents = [];
+this.affectedChildren = [];
   this.selectedSickFile = null;
   this.pendingSickFile = null;
 }
@@ -1072,16 +1075,13 @@ private async hasLessonsInRangeFromDb(from: string, to: string): Promise<boolean
 
   return (data?.length ?? 0) > 0;
 }
-private async loadAffectedParentsFromDb(
+private async loadAffectedChildrenFromDb(
   from: string,
   to: string,
   allDay: boolean,
   fromTime: string | null,
   toTime: string | null,
 ): Promise<void> {
-  const dbc = dbTenant();
-
-  // נשתמש בשיעורים שכבר נטענו לטווח הנוכחי
   const relevantLessons = (this.lessons ?? []).filter((l: any) => {
     const rawStatus = String(l.status ?? '').toLowerCase();
     const isCancelled =
@@ -1121,9 +1121,11 @@ private async loadAffectedParentsFromDb(
 
     return lessonStart < reqEnd && lessonEnd > reqStart;
   });
-console.log('RELEVANT LESSONS', relevantLessons);
+
+  console.log('RELEVANT LESSONS', relevantLessons);
+
   if (!relevantLessons.length) {
-    this.affectedParents = [];
+    this.affectedChildren = [];
     return;
   }
 
@@ -1132,42 +1134,17 @@ console.log('RELEVANT LESSONS', relevantLessons);
   ];
 
   if (!childIds.length) {
-    this.affectedParents = [];
+    this.affectedChildren = [];
     return;
   }
 
-  const { data: children, error: childrenError } = await dbc
-    .from('children')
-    .select('child_uuid, parent_uid')
-    .in('child_uuid', childIds);
+  const childrenMap = new Map(
+    (this.children ?? []).map((c) => [c.child_uuid, c])
+  );
 
-  if (childrenError) {
-    console.error('children fetch error', childrenError);
-    this.affectedParents = [];
-    return;
-  }
-
-  const parentIds = [
-    ...new Set((children ?? []).map((c: any) => c.parent_uid).filter(Boolean)),
-  ];
-
-  if (!parentIds.length) {
-    this.affectedParents = [];
-    return;
-  }
-
-  const { data: parents, error: parentsError } = await dbc
-    .from('parents')
-    .select('uid, first_name, last_name, email, phone')
-    .in('uid', parentIds);
-
-  if (parentsError) {
-    console.error('parents fetch error', parentsError);
-    this.affectedParents = [];
-    return;
-  }
-
-  this.affectedParents = parents ?? [];
+  this.affectedChildren = childIds
+    .map((id) => childrenMap.get(id))
+    .filter(Boolean) as Child[];
 }
 onImpactButtonClick(): void {
   console.log('BUTTON CLICKED', {
@@ -1199,16 +1176,16 @@ async onAllDayToggle(allDay: boolean): Promise<void> {
   // מאפסים מצב review קודם
   this.rangeModal.reviewedImpact = false;
   this.impactReviewMode = false;
-  this.affectedParents = [];
+this.affectedChildren = [];
 
   // אם יש תאריכים, טוענים מחדש את ההשפעה
   if (this.rangeModal.from && this.rangeModal.to) {
-    await this.refreshAffectedParentsPreview();
+    await this.refreshAffectedChildrenPreview();
   }
 
   this.cdr.detectChanges();
 }
-private async refreshAffectedParentsPreview(): Promise<void> {
+private async refreshAffectedChildrenPreview(): Promise<void> {
   const { from, to, allDay, fromTime, toTime } = this.rangeModal;
 
   if (!from || !to) return;
@@ -1225,12 +1202,12 @@ private async refreshAffectedParentsPreview(): Promise<void> {
 
   try {
     this.impactLoading = true;
-    this.affectedParents = [];
+    this.affectedChildren = [];
 
     const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
 
     if (hasLessons) {
-      await this.loadAffectedParentsFromDb(
+      await this.loadAffectedChildrenFromDb(
         from,
         to,
         allDay,
@@ -1241,7 +1218,7 @@ private async refreshAffectedParentsPreview(): Promise<void> {
 
     this.impactReviewMode = true;
   } catch (err: any) {
-    console.error('refreshAffectedParentsPreview error', err);
+    console.error('refreshAffectedChildrenPreview error', err);
     this.error = err?.message || 'שגיאה בטעינת ההשפעה';
   } finally {
     this.impactLoading = false;
@@ -1252,11 +1229,11 @@ async onTimeChanged(): Promise<void> {
   this.error = null;
 
   this.rangeModal.reviewedImpact = false;
-  this.affectedParents = [];
+this.affectedChildren = [];
   this.impactReviewMode = false;
 
   if (!this.rangeModal.allDay) {
-    await this.refreshAffectedParentsPreview();
+    await this.refreshAffectedChildrenPreview();
   }
 
   this.cdr.detectChanges();
@@ -1264,10 +1241,10 @@ async onTimeChanged(): Promise<void> {
 async onDateRangeChanged(): Promise<void> {
   this.error = null;
   this.rangeModal.reviewedImpact = false;
-  this.affectedParents = [];
+this.affectedChildren = [];
   this.impactReviewMode = false;
 
-  await this.refreshAffectedParentsPreview();
+  await this.refreshAffectedChildrenPreview();
   this.cdr.detectChanges();
 }
 private async uploadSickFile(
