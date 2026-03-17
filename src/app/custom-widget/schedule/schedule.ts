@@ -113,8 +113,13 @@ private boundContextMenuHandler?: (e: MouseEvent) => void;
   const hasRes = !!(this.resources && this.resources.length);
   if (!hasRes) return view;
 
+  // ביומי כן מחלקים לטורי מדריכים
   if (view === 'timeGridDay') return 'resourceTimeGridDay';
-  if (view === 'timeGridWeek') return 'resourceTimeGridWeek';
+
+  // בשבועי נשארים על timeGridWeek רגיל
+  // כדי להציג כרטיסיות סיכום לכל מדריך בכל יום
+  if (view === 'timeGridWeek') return 'timeGridWeek';
+
   return view;
 }
 
@@ -180,6 +185,9 @@ private boundContextMenuHandler?: (e: MouseEvent) => void;
   nowIndicator: true,
   scrollTime: '07:00:00',
   slotDuration: '00:30:00',
+  snapDuration: '00:30:00',
+  slotEventOverlap: false,
+  eventOverlap: false,
   timeZone: 'local',
   events: [],
   resources: [],
@@ -188,7 +196,6 @@ private boundContextMenuHandler?: (e: MouseEvent) => void;
   resourceOrder: 'title',
   resourceAreaHeaderContent: '',
 
-  slotEventOverlap: false,
   eventMaxStack: 4,
   eventMinHeight: 34,
   eventShortHeight: 34,
@@ -440,17 +447,17 @@ private boundContextMenuHandler?: (e: MouseEvent) => void;
 
         const api = this.calendarApi;
         if (
-          api &&
-          (
-            info.view.type === 'timeGridDay' ||
-            info.view.type === 'resourceTimeGridDay' ||
-            info.view.type === 'timeGridWeek' ||
-            info.view.type === 'resourceTimeGridWeek'
-          )
-        ) {
-          if (this.isToday(api.getDate())) {
-            api.scrollToTime(this.nowScroll());
-          }
+        api &&
+        (
+          info.view.type === 'timeGridDay' ||
+          info.view.type === 'resourceTimeGridDay' ||
+          info.view.type === 'timeGridWeek'
+        )
+      ) {
+        if (this.isToday(api.getDate())) {
+          api.scrollToTime(this.nowScroll());
+        }
+
         }
 
         this.cdr.detectChanges();
@@ -533,12 +540,17 @@ ngOnDestroy(): void {
             ];
           }
 
+                console.log('FC EVENT', {
+      title: i.title,
+      start: this.normalizeFcDate(i.start),
+      end: this.normalizeFcDate(i.end),
+    });
           return [
             {
               id: i.id,
               title: i.title,
-              start: i.start,
-              end: i.end,
+              start: this.normalizeFcDate(i.start),
+              end: this.normalizeFcDate(i.end),
               backgroundColor: i.color,
               borderColor: i.color,
               resourceId: i.meta?.instructor_id || undefined,
@@ -691,6 +703,34 @@ private extractDateFromRightClick(
       }, 0);
     }
   }
+  private normalizeFcDate(value: string | Date): string {
+  if (value instanceof Date) {
+    return this.formatLocalDateTime(value);
+  }
+
+  let s = String(value).trim();
+
+  // מחליף רווח ב-T
+  s = s.replace(' ', 'T');
+
+  // אם יש רק שעות ודקות - נוסיף שניות
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) {
+    return `${s}:00`;
+  }
+
+  // אם כבר יש שניות - נשאיר
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(s)) {
+    return s;
+  }
+
+  return s;
+}
+
+private formatLocalDateTime(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
 
   goToDay(dateStr: string) {
     const api = this.calendarApi;
