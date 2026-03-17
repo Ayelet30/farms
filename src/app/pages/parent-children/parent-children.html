@@ -53,6 +53,9 @@
             </svg>
             {{ c.first_name }} {{ c.last_name }}
           </h3>
+          <span class="age-badge warn" *ngIf="isPendingAdd(c?.status)">
+  ממתין לאישור הוספה
+</span>
           <span class="age-badge warn" *ngIf="isPendingDelete(c?.status)">
             ממתין לאישור מחיקה
           </span>
