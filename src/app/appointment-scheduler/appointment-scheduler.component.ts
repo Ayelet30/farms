@@ -183,6 +183,7 @@ interface CreateSeriesWithValidationResult {
 })
 
 export class AppointmentSchedulerComponent implements OnInit {
+  
 private unsubTenantChange?: () => void;
 existingSeriesGate: ExistingSeriesGate = { kind: 'none' };
 // הודעת UI (אופציונלי)
@@ -256,7 +257,19 @@ get hasSeriesCountOrOpenEnded(): boolean {
 
 occupancyCreatedMessage: string | null = null;
 instructorsError: string | null = null;
+allowOnlineBooking = true;
+onlineBookingChecked = false;
 
+get shouldShowAppointmentScheduler(): boolean {
+  // מזכירה תמיד רואה את המסך
+  if (this.isSecretary) return true;
+
+  // עד שלא בדקנו את ההגדרה – לא מציגים כלום כדי למנוע הבהוב
+  if (!this.onlineBookingChecked) return false;
+
+  // הורה רואה רק אם מותר
+  return this.allowOnlineBooking;
+}
 @ViewChild('confirmOccupancyDialog') confirmOccupancyDialog!: TemplateRef<any>;
 @ViewChild('confirmOccupancyParentDialog') confirmOccupancyParentDialog!: TemplateRef<any>;
 @ViewChild('confirmOccupancySecretaryDialog') confirmOccupancySecretaryDialog!: TemplateRef<any>;
@@ -458,6 +471,9 @@ await this.loadInstructorNamesIndex();
 
   // 2) טעינות שאינן תלויות בילדים
   await this.loadFarmSettings();
+   if (!this.isSecretary && !this.allowOnlineBooking) {
+    return;
+  }
   await this.loadPaymentPlans();
 
   // 3) האזנה להחלפת membership/role (טעינה מחדש + איפוס)
@@ -467,7 +483,9 @@ await this.loadInstructorNamesIndex();
     this.children = [];
     this.filteredChildren = [];
     this.childSearchTerm = '';
-
+ if (!this.isSecretary && !this.allowOnlineBooking) {
+      return;
+    }
     await this.loadChildrenFromCurrentUser();
   });
 
@@ -644,17 +662,23 @@ private async loadFarmSettings(): Promise<void> {
   time_range_occupancy_rate_days,
   series_search_horizon_days,
   child_deletion_grace_days,
-  default_lessons_per_series
+  default_lessons_per_series,
+  allow_online_booking
 `)
 
     .limit(1)
     .single();
 
+  this.onlineBookingChecked = true;
+
   if (error) {
     console.error('loadFarmSettings error', error);
+
+    // fallback בטוח – אם לא הצלחנו לטעון, עדיף לא לאפשר להורה לראות
+    this.allowOnlineBooking = false;
     return;
   }
-
+    this.allowOnlineBooking = data?.allow_online_booking ?? true;
   this.displayedMakeupLessonsCount = data?.displayed_makeup_lessons_count ?? null;
     this.hoursBeforeCancel = data?.hours_before_cancel_lesson ?? null;
     this.timeRangeOccupancyRateDays =
