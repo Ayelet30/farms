@@ -1,3 +1,8 @@
+<div *ngIf="!isSecretary && onlineBookingChecked && !allowOnlineBooking" class="no-booking-msg" dir="rtl">
+  הזמנות אונליין אינן זמינות כרגע. יש לפנות למזכירות.
+</div>
+
+<ng-container *ngIf="shouldShowAppointmentScheduler">
 <div class="appt-wrapper" dir="rtl">
   <!-- בחירת ילד + אישורים -->
   <div class="appt-card">
@@ -728,7 +733,7 @@
   <p class="error" *ngIf="seriesError">{{ seriesError }}</p>
 </div>
 </div>
-
+</ng-container>
 <!-- ======== טאב: מילוי מקום ======== -->
 <div *ngIf="selectedTab === 'occupancy'" class="appt-card" dir="rtl">
   <h3>שיעורים שמחפשים מילוי מקום</h3>
