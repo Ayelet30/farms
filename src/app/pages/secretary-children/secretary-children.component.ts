@@ -7,11 +7,19 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
-import { ensureTenantContextReady, dbTenant, getSupabaseClient } from '../../services/legacy-compat';
+import {
+  ensureTenantContextReady,
+  dbTenant,
+  getSupabaseClient,
+} from '../../services/legacy-compat';
 import type { ChildRow } from '../../Types/detailes.model';
 import { UiDialogService } from '../../services/ui-dialog.service';
 import { Router, RouterModule } from '@angular/router';
-import { MatDialog, MatDialogModule, MAT_DIALOG_DATA } from '@angular/material/dialog';
+import {
+  MatDialog,
+  MatDialogModule,
+  MAT_DIALOG_DATA,
+} from '@angular/material/dialog';
 import {
   FormsModule,
   ReactiveFormsModule,
@@ -21,8 +29,6 @@ import {
   AbstractControl,
   ValidationErrors,
 } from '@angular/forms';
-
-
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { AddChildWizardComponent } from '../add-child-wizard/add-child-wizard.component';
 
@@ -38,6 +44,7 @@ type SeriesDocRow = {
   status: string | null;
   paymentDocsUrl: string | null;
 };
+
 type ParentBrief = {
   uid: string;
   first_name: string;
@@ -67,11 +74,26 @@ type HorseLite = {
   is_active: boolean;
 };
 
-// רשומת תקנון חתום
 type TermsSignatureRow = {
   signed_pdf_bucket: string | null;
   signed_pdf_path: string | null;
   created_at: string | null;
+};
+
+type ChildColumnKey =
+  | 'first_name'
+  | 'last_name'
+  | 'gov_id'
+  | 'birth_date'
+  | 'gender'
+  | 'health_fund'
+  | 'status'
+  | 'parent_status';
+
+type ChildColumnDef = {
+  key: ChildColumnKey;
+  label: string;
+  visible: boolean;
 };
 
 @Component({
@@ -91,16 +113,37 @@ type TermsSignatureRow = {
 })
 export class SecretaryChildrenComponent implements OnInit {
   readonly MAX_NAME_LEN = 20;
-readonly MAX_MEDICAL_NOTES = 300;
-readonly MAX_BEHAVIOR_NOTES = 300;
+  readonly MAX_MEDICAL_NOTES = 300;
+  readonly MAX_BEHAVIOR_NOTES = 300;
 
-readonly healthFunds = ['כללית', 'מכבי', 'מאוחדת', 'לאומית'] as const;
+  readonly healthFunds = ['כללית', 'מכבי', 'מאוחדת', 'לאומית'] as const;
 
-// סטטוס ל-DB: נשתמש ב-'active' או null (כשבוחרים --)
-readonly statusOptions = [
-  { value: 'active', label: 'פעיל' },
-  { value: null, label: '--' },
-] as const;
+  readonly statusOptions = [
+    { value: 'active', label: 'פעיל' },
+    { value: null, label: '--' },
+  ] as const;
+
+  readonly STORAGE_KEY = 'secretary_children_table_prefs';
+
+  columns: ChildColumnDef[] = [
+    { key: 'first_name', label: 'שם פרטי', visible: true },
+    { key: 'last_name', label: 'שם משפחה', visible: true },
+    { key: 'gov_id', label: 'תעודת זהות', visible: true },
+    { key: 'birth_date', label: 'תאריך לידה', visible: false },
+    { key: 'gender', label: 'מין', visible: false },
+    { key: 'health_fund', label: 'קופת חולים', visible: false },
+    { key: 'status', label: 'סטטוס', visible: true },
+    { key: 'parent_status', label: 'שיוך להורה', visible: true },
+  ];
+
+  stats = {
+    total: 0,
+    filtered: 0,
+    activeChildren: 0,
+    inactiveChildren: 0,
+    withParent: 0,
+    withoutParent: 0,
+  };
 
   children: ChildRow[] = [];
   isLoading = true;
@@ -112,72 +155,46 @@ readonly statusOptions = [
   drawerLoading = false;
   drawerChild: ChildDetails | null = null;
 
-  // --- טופס עריכת ילד במגירה ---
   childForm: FormGroup | null = null;
   editMode = false;
   private originalChild: ChildDetails | null = null;
 
-  // --- חיפוש / סינון ---
   searchText = '';
   searchMode: 'name' | 'id' = 'name';
   statusFilter: 'all' | 'active' | 'inactive' = 'all';
   parentFilter: 'all' | 'withParent' | 'withoutParent' = 'all';
   showSearchPanel = false;
+  showColumnsPanel = false;
   panelFocus: 'search' | 'filter' = 'search';
   showAddChildWizard = false;
 
-  private hebrewNameValidator(): (c: AbstractControl) => ValidationErrors | null {
-  // אותיות עברית + רווח + גרש/גרשיים + מקף
-  const re = /^[\u0590-\u05FF\s'"\-]+$/;
-  return (c: AbstractControl) => {
-    const v = String(c.value ?? '').trim();
-    if (!v) return null; // required יטפל בזה אם צריך
-    return re.test(v) ? null : { hebrewName: true };
-  };
-
-}
-
-
-
-  // --- סוסים לילדים ---
   horses: HorseLite[] = [];
   childHorses: Record<string, string[]> = {};
   savingChildHorses: Record<string, boolean> = {};
 
-  // --- תקנון חתום לילד ---
   termsLoading = false;
   termsBucket: string | null = null;
   termsPath: string | null = null;
   termsCreatedAt: string | null = null;
 
-//   // --- הפניות (Storage) ---
-// referralsLoading = false;
-// referralsError: string | null = null;
-
-// referralFiles: {
-//   name: string;
-//   fullPath: string;
-//   updatedAt?: string | null;
-//   publicUrl?: string; // כי bucket public
-// }[] = [];
-  // --- סדרות + מסמכים מתוך lessons.payment_docs_url ---
   seriesDocsLoading = false;
   seriesDocsError: string | null = null;
   seriesDocs: SeriesDocRow[] = [];
+
   constructor(
     private ui: UiDialogService,
     private fb: FormBuilder,
     private dialog: MatDialog,
     private sanitizer: DomSanitizer,
-      private router: Router,
+    private router: Router,
   ) {}
 
   async ngOnInit(): Promise<void> {
-    console.log(this.router.config);
-
     try {
+      this.loadTablePrefs();
       await ensureTenantContextReady();
       await this.loadChildren();
+      this.updateStats();
     } catch (e: any) {
       this.error =
         'Failed to initialize tenant context or load children: ' +
@@ -186,37 +203,55 @@ readonly statusOptions = [
       console.error(e);
     }
   }
+
+  @HostListener('document:click')
+  closePanelsOnOutsideClick() {
+    this.showSearchPanel = false;
+    this.showColumnsPanel = false;
+  }
+
+  get visibleColumns(): ChildColumnDef[] {
+    return this.columns.filter((c) => c.visible);
+  }
+
+  private hebrewNameValidator(): (c: AbstractControl) => ValidationErrors | null {
+    const re = /^[\u0590-\u05FF\s'"\-]+$/;
+    return (c: AbstractControl) => {
+      const v = String(c.value ?? '').trim();
+      if (!v) return null;
+      return re.test(v) ? null : { hebrewName: true };
+    };
+  }
+
   goToChildLessonsHistory() {
-  if (!this.drawerChild?.child_uuid) {
-    this.ui.alert('לא ניתן לעבור להיסטוריית שיעורים – ילד לא מזוהה', 'שיעורים');
-    return;
+    if (!this.drawerChild?.child_uuid) {
+      this.ui.alert('לא ניתן לעבור להיסטוריית שיעורים – ילד לא מזוהה', 'שיעורים');
+      return;
+    }
+
+    this.router.navigate(['/secretary/monthly-summary'], {
+      queryParams: {
+        childId: this.drawerChild.child_uuid,
+        fromChild: true,
+      },
+    });
   }
 
-this.router.navigate(
-  ['/secretary/monthly-summary'],
-  {
-    queryParams: {
-      childId: this.drawerChild.child_uuid,
-      fromChild: true,
-    },
-  }
-);
-}
+  goToParentPaymentsFromChild() {
+    const parentUid = this.drawerChild?.parent_uid;
+    if (!parentUid) {
+      this.ui.alert(
+        'לילד הזה אין הורה משויך, לכן אין אפשרות לסנן תשלומים.',
+        'תשלומים'
+      );
+      return;
+    }
 
-goToParentPaymentsFromChild() {
-  const parentUid = this.drawerChild?.parent_uid;
-  if (!parentUid) {
-    this.ui.alert('לילד הזה אין הורה משויך, לכן אין אפשרות לסנן תשלומים.', 'תשלומים');
-    return;
+    this.router.navigate(['/secretary/payments'], {
+      queryParams: { parentUid },
+    });
   }
 
-  
-  this.router.navigate(['/secretary/payments'], {
-    queryParams: { parentUid },
-  });
-}
-
-  /** Guard: תמיד לוודא טננט לפני DB */
   private async dbc() {
     await ensureTenantContextReady();
     const dbc = dbTenant();
@@ -224,7 +259,6 @@ goToParentPaymentsFromChild() {
     return dbc;
   }
 
-  /** טוען את כל הילדים בסכימת הטננט הפעיל */
   async loadChildren(): Promise<void> {
     this.isLoading = true;
     this.error = null;
@@ -251,6 +285,7 @@ goToParentPaymentsFromChild() {
       if (error) throw error;
 
       this.children = (data ?? []) as ChildRow[];
+      this.updateStats();
     } catch (e: any) {
       this.error = e?.message ?? 'Failed to fetch children.';
       this.children = [];
@@ -261,7 +296,6 @@ goToParentPaymentsFromChild() {
     }
   }
 
-  /** טוען סוסים ומיפוי child_horses */
   private async loadHorsesAndChildMapping(): Promise<void> {
     try {
       const db = await this.dbc();
@@ -279,7 +313,7 @@ goToParentPaymentsFromChild() {
       }
 
       const childIds = this.children
-        .map(c => (c as any).child_uuid)
+        .map((c) => (c as any).child_uuid)
         .filter(Boolean) as string[];
 
       if (!childIds.length) return;
@@ -307,7 +341,6 @@ goToParentPaymentsFromChild() {
     }
   }
 
-  /** רשימת ילדים אחרי חיפוש + סינון */
   get filteredChildren(): ChildRow[] {
     let rows = [...this.children];
 
@@ -346,27 +379,13 @@ goToParentPaymentsFromChild() {
     return rows;
   }
 
-  // פתיחה/סגירה של חלונית החיפוש/סינון
-  toggleSearchPanelFromBar() {
-    this.panelFocus = 'search';
-    this.showSearchPanel = !this.showSearchPanel;
+  private isChildActive(row: any): boolean {
+    const status = (row?.status || '').toString().toLowerCase();
+    return status === 'active' || row?.status === 'פעיל';
   }
 
-  toggleFromSearchIcon(event: MouseEvent) {
-    event.stopPropagation();
-    this.panelFocus = 'search';
-    this.showSearchPanel = !this.showSearchPanel;
-  }
-
-  toggleFromFilterIcon(event: MouseEvent) {
-    event.stopPropagation();
-    this.panelFocus = 'filter';
-    this.showSearchPanel = !this.showSearchPanel;
-  }
-
-  @HostListener('document:click')
-  closeSearchPanelOnOutsideClick() {
-    this.showSearchPanel = false;
+  onFiltersChanged(): void {
+    this.updateStats();
   }
 
   clearFilters() {
@@ -374,6 +393,83 @@ goToParentPaymentsFromChild() {
     this.searchMode = 'name';
     this.statusFilter = 'all';
     this.parentFilter = 'all';
+    this.updateStats();
+  }
+
+  toggleSearchPanelFromBar() {
+    this.panelFocus = 'search';
+    this.showColumnsPanel = false;
+    this.showSearchPanel = !this.showSearchPanel;
+  }
+
+  toggleFromSearchIcon(event: MouseEvent) {
+    event.stopPropagation();
+    this.panelFocus = 'search';
+    this.showColumnsPanel = false;
+    this.showSearchPanel = !this.showSearchPanel;
+  }
+
+  toggleFromFilterIcon(event: MouseEvent) {
+    event.stopPropagation();
+    this.panelFocus = 'filter';
+    this.showColumnsPanel = false;
+    this.showSearchPanel = !this.showSearchPanel;
+  }
+
+  toggleColumnsPanel(event?: MouseEvent) {
+    if (event) event.stopPropagation();
+    this.showSearchPanel = false;
+    this.showColumnsPanel = !this.showColumnsPanel;
+  }
+
+  moveColumnLeft(index: number): void {
+    if (index <= 0) return;
+    const arr = [...this.columns];
+    [arr[index - 1], arr[index]] = [arr[index], arr[index - 1]];
+    this.columns = arr;
+    this.saveTablePrefs();
+  }
+
+  moveColumnRight(index: number): void {
+    if (index >= this.columns.length - 1) return;
+    const arr = [...this.columns];
+    [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]];
+    this.columns = arr;
+    this.saveTablePrefs();
+  }
+
+  saveTablePrefs(): void {
+    localStorage.setItem(
+      this.STORAGE_KEY,
+      JSON.stringify({ columns: this.columns })
+    );
+  }
+
+  private loadTablePrefs(): void {
+    try {
+      const raw = localStorage.getItem(this.STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.columns)) {
+        this.columns = parsed.columns;
+      }
+    } catch (e) {
+      console.warn('loadTablePrefs failed', e);
+    }
+  }
+
+  private updateStats(): void {
+    const all = this.children ?? [];
+    const filtered = this.filteredChildren ?? [];
+
+    this.stats = {
+      total: all.length,
+      filtered: filtered.length,
+      activeChildren: all.filter((c: any) => this.isChildActive(c)).length,
+      inactiveChildren: all.filter((c: any) => !this.isChildActive(c)).length,
+      withParent: all.filter((c: any) => !!c.parent_uid).length,
+      withoutParent: all.filter((c: any) => !c.parent_uid).length,
+    };
   }
 
   async openDetails(id?: string) {
@@ -399,18 +495,15 @@ goToParentPaymentsFromChild() {
     this.seriesDocs = [];
     this.seriesDocsLoading = false;
     this.seriesDocsError = null;
-
   }
 
   openAddChildDialog() {
     this.showAddChildWizard = true;
   }
 
-  /** טוען פרטי ילד והורה למגירה + תקנון חתום */
   private async loadDrawerData(id: string) {
     this.drawerLoading = true;
 
-    // reset terms
     this.termsBucket = null;
     this.termsPath = null;
     this.termsCreatedAt = null;
@@ -445,7 +538,7 @@ goToParentPaymentsFromChild() {
           .from('parents')
           .select('uid, first_name,last_name, phone, email')
           .eq('uid', c.parent_uid)
-          .maybeSingle(); // ✅ לא יפיל 406 אם אין
+          .maybeSingle();
 
         if (!pErr && p) parent = p as ParentBrief;
       }
@@ -453,10 +546,8 @@ goToParentPaymentsFromChild() {
       this.drawerChild = { ...(c as ChildDetails), parent, child_uuid: id };
       this.buildChildForm(this.drawerChild);
 
-      // ✅ טען תקנון חתום (אם יש)
-          await this.loadChildTermsSignature(id);
+      await this.loadChildTermsSignature(id);
       await this.loadChildSeriesDocs(id);
-
     } catch (e) {
       console.error('loadDrawerData error:', e);
       this.drawerChild = null;
@@ -465,13 +556,11 @@ goToParentPaymentsFromChild() {
     }
   }
 
-  /** מביא את התקנון החתום האחרון לילד (bucket/path) */
   private async loadChildTermsSignature(childId: string) {
     this.termsLoading = true;
     try {
       const db = await this.dbc();
 
-      // חשוב: maybeSingle כדי למנוע 406 אם אין שורה
       const { data, error } = await db
         .from('child_terms_signatures')
         .select('signed_pdf_bucket, signed_pdf_path, created_at')
@@ -490,7 +579,6 @@ goToParentPaymentsFromChild() {
       this.termsCreatedAt = row?.created_at ?? null;
     } catch (e) {
       console.error('loadChildTermsSignature error:', e);
-      // לא מפילים את המסך בגלל תקנון
       this.termsBucket = null;
       this.termsPath = null;
       this.termsCreatedAt = null;
@@ -498,105 +586,62 @@ goToParentPaymentsFromChild() {
       this.termsLoading = false;
     }
   }
-//  private async loadChildReferrals(childId: string) {
-//   this.referralsLoading = true;
-//   this.referralsError = null;
-//   this.referralFiles = [];
 
-//   try {
-//     const client = getSupabaseClient();
-//     const bucket = 'referrals';
-
-//     const folderPath = `referrals/${childId}`;
-//     const { data, error } = await client.storage
-//       .from(bucket)
-//       .list(folderPath, {
-//         limit: 100,
-//         sortBy: { column: 'updated_at', order: 'desc' },
-//       });
-
-//     if (error) {
-//       throw error;
-//     }
-
-//     this.referralFiles = (data ?? [])
-//       .filter((x: any) => !!x?.name)
-//       .map((x: any) => {
-//         const fullPath = `${folderPath}/${x.name}`;
-//         const { data: pub } = client.storage.from(bucket).getPublicUrl(fullPath);
-
-//         return {
-//           name: x.name,
-//           fullPath,
-//           updatedAt: x.updated_at ?? null,
-//           publicUrl: pub.publicUrl,
-//         };
-//       });
-
-//   } catch (e: any) {
-//     console.error('loadChildReferrals error:', e);
-//     this.referralsError = e?.message ?? 'שגיאה בטעינת הפניות';
-//     this.referralFiles = [];
-//   } finally {
-//     this.referralsLoading = false;
- 
-// }
-
-// }
-private async loadChildSeriesDocs(childId: string) {
-  this.seriesDocsLoading = true;
-  this.seriesDocsError = null;
-  this.seriesDocs = [];
-
-  try {
-    const db = await this.dbc();
-
-    const { data, error } = await db
-      .from('lessons')
-      .select(`
-        id,
-        lesson_type,
-        day_of_week,
-        start_time,
-        end_time,
-        anchor_week_start,
-        series_end_date,
-        is_open_ended,
-        status,
-        payment_docs_url
-      `)
-      .eq('child_id', childId)
-      .order('anchor_week_start', { ascending: false })
-      .order('day_of_week', { ascending: true })
-      .order('start_time', { ascending: true });
-
-    if (error) throw error;
-
-    this.seriesDocs = (data ?? []).map((row: any) => ({
-      lessonId: row.id,
-      lessonType: row.lesson_type ?? null,
-      dayOfWeek: row.day_of_week ?? null,
-      startTime: row.start_time ?? null,
-      endTime: row.end_time ?? null,
-      anchorWeekStart: row.anchor_week_start ?? null,
-      seriesEndDate: row.series_end_date ?? null,
-      isOpenEnded: row.is_open_ended ?? null,
-      status: row.status ?? null,
-      paymentDocsUrl: row.payment_docs_url ?? null,
-    }));
-  } catch (e: any) {
-    console.error('loadChildSeriesDocs error:', e);
-    this.seriesDocsError = e?.message ?? 'שגיאה בטעינת סדרות והפניות';
+  private async loadChildSeriesDocs(childId: string) {
+    this.seriesDocsLoading = true;
+    this.seriesDocsError = null;
     this.seriesDocs = [];
-  } finally {
-    this.seriesDocsLoading = false;
+
+    try {
+      const db = await this.dbc();
+
+      const { data, error } = await db
+        .from('lessons')
+        .select(`
+          id,
+          lesson_type,
+          day_of_week,
+          start_time,
+          end_time,
+          anchor_week_start,
+          series_end_date,
+          is_open_ended,
+          status,
+          payment_docs_url
+        `)
+        .eq('child_id', childId)
+        .order('anchor_week_start', { ascending: false })
+        .order('day_of_week', { ascending: true })
+        .order('start_time', { ascending: true });
+
+      if (error) throw error;
+
+      this.seriesDocs = (data ?? []).map((row: any) => ({
+        lessonId: row.id,
+        lessonType: row.lesson_type ?? null,
+        dayOfWeek: row.day_of_week ?? null,
+        startTime: row.start_time ?? null,
+        endTime: row.end_time ?? null,
+        anchorWeekStart: row.anchor_week_start ?? null,
+        seriesEndDate: row.series_end_date ?? null,
+        isOpenEnded: row.is_open_ended ?? null,
+        status: row.status ?? null,
+        paymentDocsUrl: row.payment_docs_url ?? null,
+      }));
+    } catch (e: any) {
+      console.error('loadChildSeriesDocs error:', e);
+      this.seriesDocsError = e?.message ?? 'שגיאה בטעינת סדרות והפניות';
+      this.seriesDocs = [];
+    } finally {
+      this.seriesDocsLoading = false;
+    }
   }
-}
-getSeriesEndDisplay(row: SeriesDocRow): string {
-  if (row.isOpenEnded) return 'סדרה ללא הגבלה';
-  return row.seriesEndDate || '—';
-}
-  /** פותח PDF של התקנון בדיאלוג */
+
+  getSeriesEndDisplay(row: SeriesDocRow): string {
+    if (row.isOpenEnded) return 'סדרה ללא הגבלה';
+    return row.seriesEndDate || '—';
+  }
+
   async openTermsPdf() {
     if (!this.termsBucket || !this.termsPath) {
       await this.ui.alert('אין תקנון חתום להצגה לילד זה.', 'תקנון');
@@ -604,11 +649,8 @@ getSeriesEndDisplay(row: SeriesDocRow): string {
     }
 
     try {
-     const client = getSupabaseClient();
-     console.log('dbTenant storage?', (client as any)?.storage);
+      const client = getSupabaseClient();
 
-
-      // Signed URL לשעה (אפשר לשנות)
       const { data, error } = await client.storage
         .from(this.termsBucket)
         .createSignedUrl(this.termsPath, 60 * 60);
@@ -628,101 +670,68 @@ getSeriesEndDisplay(row: SeriesDocRow): string {
       });
     } catch (e: any) {
       console.error('openTermsPdf error:', e);
-      await this.ui.alert('לא הצלחתי לפתוח את ה-PDF: ' + (e?.message ?? e), 'תקנון');
+      await this.ui.alert(
+        'לא הצלחתי לפתוח את ה-PDF: ' + (e?.message ?? e),
+        'תקנון'
+      );
     }
   }
 
-//   async openReferralPdf(file: { fullPath: string; publicUrl?: string }) {
-//   try {
-//     const client = getSupabaseClient();
-//     const bucket = 'referrals';
+  openSeriesDoc(url: string | null | undefined) {
+    if (!url) {
+      this.ui.alert('אין מסמך להצגה עבור סדרה זו.', 'הפניות');
+      return;
+    }
 
-//     let url = file.publicUrl;
-
-//     if (!url) {
-//       const { data, error } = await client.storage
-//         .from(bucket)
-//         .createSignedUrl(file.fullPath, 60 * 60);
-
-//       if (error) throw error;
-//       url = data?.signedUrl;
-//     }
-
-//     if (!url) throw new Error('No url returned');
-
-//     this.dialog.open(TermsPdfDialogComponent, {
-//       width: 'min(980px, 96vw)',
-//       height: 'min(90vh, 900px)',
-//       data: {
-//         title: 'הפניה (PDF)',
-//         url: this.sanitizer.bypassSecurityTrustResourceUrl(url),
-//       },
-//     });
-//   } catch (e: any) {
-//     console.error('openReferralPdf error:', e);
-//     await this.ui.alert('לא הצלחתי לפתוח את ההפניה: ' + (e?.message ?? e), 'הפניות');
-//   }
-// }
-openSeriesDoc(url: string | null | undefined) {
-  if (!url) {
-    this.ui.alert('אין מסמך להצגה עבור סדרה זו.', 'הפניות');
-    return;
+    this.dialog.open(TermsPdfDialogComponent, {
+      width: 'min(980px, 96vw)',
+      height: 'min(90vh, 900px)',
+      data: {
+        title: 'הפניית סדרה',
+        url: this.sanitizer.bypassSecurityTrustResourceUrl(url),
+      },
+    });
   }
 
-  this.dialog.open(TermsPdfDialogComponent, {
-    width: 'min(980px, 96vw)',
-    height: 'min(90vh, 900px)',
-    data: {
-      title: 'הפניית סדרה',
-      url: this.sanitizer.bypassSecurityTrustResourceUrl(url),
-    },
-  });
-}
-
- /** בונה טופס עריכה מתוך פרטי הילד שבמגירה */
-private buildChildForm(child: ChildDetails) {
-  this.childForm = this.fb.group({
-    first_name: [
-      child.first_name ?? '',
-      [
-        Validators.required,
-        Validators.maxLength(this.MAX_NAME_LEN),
-        this.hebrewNameValidator(),
+  private buildChildForm(child: ChildDetails) {
+    this.childForm = this.fb.group({
+      first_name: [
+        child.first_name ?? '',
+        [
+          Validators.required,
+          Validators.maxLength(this.MAX_NAME_LEN),
+          this.hebrewNameValidator(),
+        ],
       ],
-    ],
-    last_name: [
-      child.last_name ?? '',
-      [
-        Validators.required,
-        Validators.maxLength(this.MAX_NAME_LEN),
-        this.hebrewNameValidator(),
+      last_name: [
+        child.last_name ?? '',
+        [
+          Validators.required,
+          Validators.maxLength(this.MAX_NAME_LEN),
+          this.hebrewNameValidator(),
+        ],
       ],
-    ],
+      health_fund: [child.health_fund ?? null],
+      status: [child.status ?? null],
+      medical_notes: [
+        child.medical_notes ?? '',
+        [Validators.maxLength(this.MAX_MEDICAL_NOTES)],
+      ],
+      behavior_notes: [
+        child.behavior_notes ?? '',
+        [Validators.maxLength(this.MAX_BEHAVIOR_NOTES)],
+      ],
+    });
 
-    health_fund: [child.health_fund ?? null], // נוודא ב-HTML שזה מתוך הרשימה
+    this.originalChild = { ...child };
+    this.editMode = false;
+  }
 
-    status: [child.status ?? null], // active / null
-
-    medical_notes: [
-      child.medical_notes ?? '',
-      [Validators.maxLength(this.MAX_MEDICAL_NOTES)],
-    ],
-    behavior_notes: [
-      child.behavior_notes ?? '',
-      [Validators.maxLength(this.MAX_BEHAVIOR_NOTES)],
-    ],
-  });
-
-  this.originalChild = { ...child };
-  this.editMode = false;
-}
-/** כניסה למצב עריכה במגירת הילד */
   enterEditModeChild() {
     if (!this.drawerChild || !this.childForm) return;
     this.editMode = true;
   }
 
-  /** ביטול עריכה – חזרה לערכים המקוריים */
   cancelChildEdit() {
     if (!this.originalChild) {
       this.editMode = false;
@@ -732,21 +741,19 @@ private buildChildForm(child: ChildDetails) {
     this.editMode = false;
   }
 
-  /** שמירת השינויים – PATCH רק על שדות ששונו */
   async saveChildEdits() {
     if (!this.drawerChild || !this.childForm || !this.selectedId) return;
 
     const raw = this.childForm.getRawValue();
 
-   const fieldsToCompare: (keyof ChildDetails)[] = [
-   'first_name',
-   'last_name',
-   'health_fund',
-   'status',
-   'medical_notes',
-   'behavior_notes',
-  ];
-
+    const fieldsToCompare: (keyof ChildDetails)[] = [
+      'first_name',
+      'last_name',
+      'health_fund',
+      'status',
+      'medical_notes',
+      'behavior_notes',
+    ];
 
     const delta: Partial<ChildDetails> = {};
 
@@ -779,12 +786,13 @@ private buildChildForm(child: ChildDetails) {
       };
       this.originalChild = { ...this.drawerChild };
 
-      this.children = this.children.map(c =>
+      this.children = this.children.map((c) =>
         (c as any).child_uuid === this.selectedId
           ? { ...c, ...delta }
           : c,
       );
 
+      this.updateStats();
       this.editMode = false;
     } catch (e: any) {
       console.error(e);
@@ -795,29 +803,28 @@ private buildChildForm(child: ChildDetails) {
     }
   }
 
-  /** האם לילד יש סוס מסוים */
   childHasHorse(childId: string | undefined, horseId: string): boolean {
     if (!childId) return false;
     const list = this.childHorses[childId] || [];
     return list.includes(horseId);
   }
 
-  /** רשימת שמות סוסים לתצוגה */
   horseNamesForChild(childId: string | undefined): string {
     if (!childId) return '';
     const ids = this.childHorses[childId] || [];
     if (!ids.length) return '';
-    const nameById = new Map(this.horses.map(h => [h.id, h.name]));
+    const nameById = new Map(this.horses.map((h) => [h.id, h.name]));
     return ids
-      .map(id => nameById.get(id))
+      .map((id) => nameById.get(id))
       .filter(Boolean)
       .join(', ');
   }
+
   formatTimeShort(value: string | null | undefined): string {
     if (!value) return '—';
     return String(value).slice(0, 5);
   }
-  /** הוספה/הסרה של סוס לילד */
+
   async toggleChildHorse(
     childId: string | undefined,
     horseId: string,
@@ -871,7 +878,6 @@ private buildChildForm(child: ChildDetails) {
   }
 }
 
-/** דיאלוג להצגת PDF בתוך iframe */
 @Component({
   selector: 'app-terms-pdf-dialog',
   standalone: true,
