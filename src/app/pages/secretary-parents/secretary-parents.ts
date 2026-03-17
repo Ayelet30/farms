@@ -4,6 +4,8 @@ import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 import { UiDialogService } from '../../services/ui-dialog.service';
 import {
@@ -937,5 +939,90 @@ export class SecretaryParentsComponent implements OnInit {
     }
 
     return data;
+  }
+
+    exportToExcel(): void {
+    try {
+      const rows = this.filteredParents.map((parent) => {
+        const row: Record<string, any> = {};
+
+        this.visibleColumns.forEach((col) => {
+          row[col.label] = this.getExportCellValue(parent, col.key);
+        });
+
+        return row;
+      });
+
+      if (!rows.length) {
+        this.ui.alert('אין נתונים לייצוא.', 'ייצוא לאקסל');
+        return;
+      }
+
+      const worksheet: XLSX.WorkSheet = XLSX.utils.json_to_sheet(rows);
+
+      // רוחב עמודות לפי תוכן
+      worksheet['!cols'] = this.visibleColumns.map((col) => ({
+        wch: Math.max(col.label.length + 4, 18),
+      }));
+
+      const workbook: XLSX.WorkBook = {
+        Sheets: { הורים: worksheet },
+        SheetNames: ['הורים'],
+      };
+
+      const excelBuffer: ArrayBuffer = XLSX.write(workbook, {
+        bookType: 'xlsx',
+        type: 'array',
+      });
+
+      const blob = new Blob([excelBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8',
+      });
+
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+
+      saveAs(blob, `parents-export-${yyyy}-${mm}-${dd}.xlsx`);
+    } catch (error) {
+      console.error('exportToExcel failed', error);
+      this.ui.alert('אירעה שגיאה בעת ייצוא לאקסל.', 'שגיאה');
+    }
+  }
+
+  private getExportCellValue(parent: ParentRow, key: ParentColumnKey): string | number {
+    switch (key) {
+      case 'first_name':
+        return parent.first_name || '—';
+
+      case 'last_name':
+        return parent.last_name || '—';
+
+      case 'phone':
+        return parent.phone || '—';
+
+      case 'email':
+        return parent.email || '—';
+
+      case 'id_number':
+        return parent.id_number || '—';
+
+      case 'billing_day_of_month':
+        return parent.billing_day_of_month ?? '—';
+
+      case 'status':
+        return parent.is_active === false ? 'לא פעיל' : 'פעיל';
+
+      case 'children_status': {
+        const parts: string[] = [];
+        if (parent.hasActiveChildren) parts.push('ילדים פעילים');
+        if (parent.hasInactiveChildren) parts.push('ילדים לא פעילים');
+        return parts.length ? parts.join(', ') : '—';
+      }
+
+      default:
+        return '—';
+    }
   }
 }
