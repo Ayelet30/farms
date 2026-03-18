@@ -34,6 +34,7 @@ import { ScheduleItem } from '../../models/schedule-item.model';
 
 type ViewName = 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay';
 
+
 @Component({
   selector: 'app-schedule',
   standalone: true,
@@ -233,16 +234,50 @@ private boundContextMenuHandler?: (e: MouseEvent) => void;
       const isSummarySlot = !!event.extendedProps['isSummarySlot'];
       const isInstructorHeader = !!event.extendedProps['isInstructorHeader'];
       const isFarmDayOff = !!event.extendedProps['isFarmDayOff'];
+      const isInstructorDayOff = !!event.extendedProps['isInstructorDayOff'];
+      const isPendingInstructorDayOff = !!event.extendedProps['isPendingInstructorDayOff'];
 
       if (isFarmDayOff) {
-        return {
-          html: `
-            <div class="event-box farm-day-off-text">
-              ${this.escapeHtml(event.title)}
-            </div>
-          `,
-        };
-      }
+  return {
+    html: `
+      <div class="event-box farm-day-off-box">
+        <div class="off-top">
+          <span class="off-label">חופשת חווה</span>
+        </div>
+        <div class="off-text">${this.escapeHtml(event.title || 'החווה סגורה')}</div>
+      </div>
+    `,
+  };
+}
+
+if (isInstructorDayOff) {
+  return {
+    html: `
+      <div class="event-box instructor-day-off-box">
+        <div class="off-top">
+          <span class="off-icon">🚫</span>
+          <span class="off-label">היעדרות מדריך</span>
+        </div>
+        <div class="off-text">${this.escapeHtml(event.title || 'המדריך אינו זמין')}</div>
+      </div>
+    `,
+  };
+}
+
+if (isPendingInstructorDayOff) {
+  return {
+    html: `
+      <div class="event-box pending-day-off-box">
+        <div class="off-top">
+          <span class="off-icon">⏳</span>
+          <span class="off-label">בקשת היעדרות</span>
+          <span class="pending-badge">ממתין</span>
+        </div>
+        <div class="off-text">${this.escapeHtml(event.title || 'בקשה טרם אושרה')}</div>
+      </div>
+    `,
+  };
+}
 
       if (isSummaryDay || isSummarySlot) {
         return {
@@ -349,9 +384,14 @@ private boundContextMenuHandler?: (e: MouseEvent) => void;
       const isHeader = arg.event.extendedProps['isInstructorHeader'];
       const isFarmDayOff = arg.event.extendedProps['isFarmDayOff'];
 
+      const isInstructorDayOff = arg.event.extendedProps['isInstructorDayOff'];
+      const isPendingInstructorDayOff = arg.event.extendedProps['isPendingInstructorDayOff'];
+
       if (isSummaryDay || isSummarySlot) classes.push('summary-event');
       if (isHeader) classes.push('inst-header');
       if (isFarmDayOff) classes.push('farm-day-off');
+      if (isInstructorDayOff) classes.push('instructor-day-off');
+      if (isPendingInstructorDayOff) classes.push('pending-instructor-day-off');
 
       const s = (typeof status === 'string' ? status.trim() : '').toUpperCase();
 
@@ -389,6 +429,17 @@ private boundContextMenuHandler?: (e: MouseEvent) => void;
           ? `חופשת חווה:\n${meta.reason}`
           : 'חופשת חווה';
       }
+      if (meta?.isInstructorDayOff === true || meta?.isInstructorDayOff === 'true') {
+  tooltipText = meta.note
+    ? `היעדרות מדריך:\n${meta.note}`
+    : 'היעדרות מדריך';
+}
+
+if (meta?.isPendingInstructorDayOff === true || meta?.isPendingInstructorDayOff === 'true') {
+  tooltipText = meta.note
+    ? `בקשת היעדרות ממתינה:\n${meta.note}`
+    : 'בקשת היעדרות ממתינה לאישור';
+}
 
       if (meta?.isSummaryDay === true || meta?.isSummaryDay === 'true') {
         tooltipText = info.event.title;
@@ -572,6 +623,8 @@ ngOnDestroy(): void {
                 horse_name: i.meta?.['horse_name'],
                 arena_name: i.meta?.['arena_name'],
                 isFarmDayOff: i.meta?.['isFarmDayOff'],
+                isInstructorDayOff: i.meta?.['isInstructorDayOff'],
+                isPendingInstructorDayOff: i.meta?.['isPendingInstructorDayOff'],
               },
             },
           ];

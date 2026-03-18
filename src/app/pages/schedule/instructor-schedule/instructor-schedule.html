@@ -1,40 +1,39 @@
-<div class="instructor-schedule" dir="rtl">
-  <div class="schedule-wrap" [class.fullscreen]="isFullscreen">
-
-    <!-- ▬▬▬ לוח שנה ▬▬▬ -->
-    <div class="bereshit-calendar calendar-host">
-      <app-schedule
-        [items]="items"
-        [initialView]="currentView"
-        (eventClick)="onEventClick($event)"
-        (dateClick)="onDateClick($event)"
-        (viewRange)="onViewRangeChange($event)"
-        (rightClickDay)="onRightClickDay($event)">
-      </app-schedule>
+<div class="schedule-page instructor-page" dir="rtl">
+  <div class="top-strip">
+    <div class="top-strip-head">
+      <h2>לוח מדריך</h2>
+      <p>צפייה בשיעורים, חופשות חווה ובקשות היעדרות</p>
     </div>
-
   </div>
 
-  <!-- ▬▬▬ תפריט קליק ימני ▬▬▬ -->
+  <div class="schedule-main-card">
+    <app-schedule
+      [items]="items"
+      [initialView]="currentView"
+      (eventClick)="onEventClick($event)"
+      (dateClick)="onDateClick($event)"
+      (viewRange)="onViewRangeChange($event)"
+      (rightClickDay)="onRightClickDay($event)">
+    </app-schedule>
+  </div>
+</div>
+
+<!-- תפריט קליק ימני -->
 <div
   class="context-menu"
   *ngIf="contextMenu.visible"
   [style.top.px]="contextMenu.y"
-  [style.left.px]="contextMenu.x"
-
->
+  [style.left.px]="contextMenu.x">
 
   <button class="context-close" (click)="closeContextMenu()">×</button>
 
-  <button (click)="openRequest('holiday')">🏖️ יום חופש</button>
-  <button (click)="openRequest('sick')">🤒 יום מחלה</button>
-  <button (click)="openRequest('personal')">📌 יום אישי</button>
-  <button (click)="openRequest('other')">📝 אחר</button>
-
+  <button (click)="openRequest('holiday')">️ יום חופש</button>
+  <button (click)="openRequest('sick')"> יום מחלה</button>
+  <button (click)="openRequest('personal')"> יום אישי</button>
+  <button (click)="openRequest('other')"> אחר</button>
 </div>
 
-
-<!-- 🔴 כאן! כרטסת הילד -->
+<!-- כרטסת ילד -->
 <app-note
   *ngIf="selectedChild && selectedOccurrence"
   [child]="selectedChild"
@@ -45,63 +44,62 @@
   (close)="onCloseNote()">
 </app-note>
 
-<!-- ▬▬▬ מודאל בקשת חופש ▬▬▬ -->
+<!-- מודאל -->
 <div class="modal-backdrop" *ngIf="rangeModal.open" (click)="closeRangeModal()">
-  <div class="modal" (click)="$event.stopPropagation()">
-
+  <div class="modal schedule-modal" (click)="$event.stopPropagation()">
     <button type="button" class="modal-close" (click)="closeRangeModal()">×</button>
 
     <div class="modal-content">
-      <h3>בקשת היעדרות</h3>
+      <div class="modal-header">
+        <h3>בקשת היעדרות</h3>
+        <p>אפשר לבחור יום מלא או טווח שעות ולבדוק השפעה לפני שליחה</p>
+      </div>
 
-      <div class="date-row">
+      <div class="compact-grid two-col">
         <div class="field-row">
           <label>מתאריך</label>
-<input
-  type="date"
-  [(ngModel)]="rangeModal.from"
-  (ngModelChange)="onDateRangeChanged()"
-/>        </div>
+          <input
+            type="date"
+            [(ngModel)]="rangeModal.from"
+            (ngModelChange)="onDateRangeChanged()" />
+        </div>
 
         <div class="field-row">
           <label>עד תאריך</label>
-<input
-  type="date"
-  [(ngModel)]="rangeModal.to"
-  (ngModelChange)="onDateRangeChanged()"
-/>        </div>
+          <input
+            type="date"
+            [(ngModel)]="rangeModal.to"
+            (ngModelChange)="onDateRangeChanged()" />
+        </div>
       </div>
 
       <div class="all-day-row">
         <input
           type="checkbox"
           [(ngModel)]="rangeModal.allDay"
-          (ngModelChange)="onAllDayToggle($event)"
-        />
+          (ngModelChange)="onAllDayToggle($event)" />
         <label>יום מלא</label>
       </div>
 
-      <div *ngIf="!rangeModal.allDay" class="date-row">
+      <div *ngIf="!rangeModal.allDay" class="compact-grid two-col">
         <div class="field-row">
           <label>משעה</label>
-<select
-  [(ngModel)]="rangeModal.fromTime"
-  (ngModelChange)="onTimeChanged()"
->
-  <option value="">בחר/י שעה</option>
-  <option *ngFor="let t of timeOptions" [value]="t">{{ t }}</option>
-</select>
-       </div>
+          <select
+            [(ngModel)]="rangeModal.fromTime"
+            (ngModelChange)="onTimeChanged()">
+            <option value="">בחר/י שעה</option>
+            <option *ngFor="let t of timeOptions" [value]="t">{{ t }}</option>
+          </select>
+        </div>
 
         <div class="field-row">
           <label>עד שעה</label>
-<select
-  [(ngModel)]="rangeModal.toTime"
-  (ngModelChange)="onTimeChanged()"
->
-  <option value="">בחר/י שעה</option>
-  <option *ngFor="let t of timeOptions" [value]="t">{{ t }}</option>
-</select>
+          <select
+            [(ngModel)]="rangeModal.toTime"
+            (ngModelChange)="onTimeChanged()">
+            <option value="">בחר/י שעה</option>
+            <option *ngFor="let t of timeOptions" [value]="t">{{ t }}</option>
+          </select>
         </div>
       </div>
 
@@ -113,45 +111,43 @@
           <input
             type="file"
             accept=".pdf,image/*"
-            (change)="onSickFileSelected($event)"
-          />
+            (change)="onSickFileSelected($event)" />
         </div>
 
         <textarea [(ngModel)]="rangeModal.text"></textarea>
       </div>
 
-    <div class="impact-review-box" *ngIf="impactLoading">
-  בודק על אילו ילדים/שיעורים הבקשה תשפיע...
-</div>
-     <div class="impact-review-box" *ngIf="impactReviewMode && !impactLoading">
-  <h4>השפעת הבקשה</h4>
+      <div class="impact-review-box" *ngIf="impactLoading">
+        בודק על אילו ילדים/שיעורים הבקשה תשפיע...
+      </div>
 
-  <div class="impact-box" *ngIf="affectedChildren.length > 0">
-    נמצאו <strong>{{ affectedChildren.length }}</strong> ילדים שהשינוי ישפיע עליהם.
-  </div>
+      <div class="impact-review-box" *ngIf="impactReviewMode && !impactLoading">
+        <h4>השפעת הבקשה</h4>
 
-  <div class="impact-box success" *ngIf="affectedChildren.length === 0">
-    לא נמצאו ילדים מושפעים מהבקשה.
-  </div>
-
-  <div class="child-list" *ngIf="affectedChildren.length > 0">
-    <div class="child-row" *ngFor="let c of affectedChildren; let i = index">
-      <div class="index-pill">{{ i + 1 }}</div>
-      <div class="child-text">
-        <div class="child-name">
-          {{ c.first_name }} {{ c.last_name }}
+        <div class="impact-box" *ngIf="affectedChildren.length > 0">
+          נמצאו <strong>{{ affectedChildren.length }}</strong> ילדים שהשינוי ישפיע עליהם.
         </div>
-        <div class="child-sub">
-          גיל: {{ c.age ?? 'לא ידוע' }}
+
+        <div class="impact-box success" *ngIf="affectedChildren.length === 0">
+          לא נמצאו ילדים מושפעים מהבקשה.
+        </div>
+
+        <div class="entity-list" *ngIf="affectedChildren.length > 0">
+          <div class="entity-row" *ngFor="let c of affectedChildren; let i = index">
+            <div class="index-pill">{{ i + 1 }}</div>
+            <div class="entity-text">
+              <div class="entity-name">{{ c.first_name }} {{ c.last_name }}</div>
+              <div class="entity-sub">
+                גיל: {{ c.age ?? 'לא ידוע' }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="note-box" *ngIf="affectedChildren.length > 0">
+          הבקשה תשפיע על הילדים המוצגים ברשימה לפני שינוי בפועל של השיעורים.
         </div>
       </div>
-    </div>
-  </div>
-
-  <div class="note-box" *ngIf="affectedChildren.length > 0">
-    הבקשה תשפיע על הילדים המוצגים ברשימה לפני שינוי בפועל של השיעורים.
-  </div>
-</div>
 
       <div class="form-error" *ngIf="error">
         {{ error }}
@@ -165,8 +161,7 @@
         type="button"
         class="confirm"
         *ngIf="!rangeModal.reviewedImpact"
-        (click)="onImpactButtonClick()"
-      >
+        (click)="onImpactButtonClick()">
         בדיקת השפעה
       </button>
 
@@ -174,12 +169,9 @@
         type="button"
         class="confirm"
         *ngIf="rangeModal.reviewedImpact"
-        (click)="onImpactButtonClick()"
-      >
+        (click)="onImpactButtonClick()">
         אישור ושליחה
       </button>
     </div>
-
   </div>
 </div>
-
