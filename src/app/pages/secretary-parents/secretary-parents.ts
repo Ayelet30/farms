@@ -1,19 +1,11 @@
-// secretary-parents.component.ts
 import { Component, OnInit, ViewChild, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { FormsModule } from '@angular/forms';
-import { UiDialogService } from '../../services/ui-dialog.service';
-import { ActivatedRoute } from '@angular/router';
-import {
-  ReactiveFormsModule,
-  FormBuilder,
-  FormGroup,
-  Validators,
-} from '@angular/forms';
-import { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+
+import { UiDialogService } from '../../services/ui-dialog.service';
 import {
   ensureTenantContextReady,
   dbPublic,
@@ -35,11 +27,11 @@ type ParentRow = {
   last_name: string;
   id_number?: string | null;
   billing_day_of_month?: number | null;
-  phone?: string;
-  email?: string;
-  is_active?: boolean | null; // סטטוס הורה
-  hasActiveChildren?: boolean; // יש ילדים פעילים
-  hasInactiveChildren?: boolean; // יש ילדים לא פעילים
+  phone?: string | null;
+  email?: string | null;
+  is_active?: boolean | null;
+  hasActiveChildren?: boolean;
+  hasInactiveChildren?: boolean;
 };
 
 interface ParentDetailsRow extends ParentRow {
@@ -48,24 +40,20 @@ interface ParentDetailsRow extends ParentRow {
   message_preferences?: string[] | null;
 }
 
-type ParentFile = {
-  id: string;
-  file_name: string;
-  file_url: string;
-  created_at?: string | null;
-};
+type ParentColumnKey =
+  | 'first_name'
+  | 'last_name'
+  | 'phone'
+  | 'email'
+  | 'id_number'
+  | 'billing_day_of_month'
+  | 'status'
+  | 'children_status';
 
-type ParentInvoice = {
-  id: string;
-  date: string;
-  description: string;
-  amount: number;
-};
-
-type PaymentSummary = {
-  totalPaid: number;
-  outstanding: number;
-  upcoming?: number | null;
+type ParentColumnDef = {
+  key: ParentColumnKey;
+  label: string;
+  visible: boolean;
 };
 
 @Component({
@@ -83,28 +71,25 @@ type PaymentSummary = {
   styleUrls: ['./secretary-parents.css'],
 })
 export class SecretaryParentsComponent implements OnInit {
+  @ViewChild('drawer') drawer!: MatSidenav;
+
   parents: ParentRow[] = [];
 
-  // 🔍 ערך החיפוש הכללי
   searchText = '';
-  // מצב חיפוש: לפי שם / לפי ת"ז
   searchMode: 'name' | 'id' = 'name';
-  // סינון
   statusFilter: 'all' | 'active' | 'inactive' = 'all';
   childrenFilter: 'all' | 'active' | 'inactive' = 'all';
-  // תפריט פתוח / סגור
+
   showSearchPanel = false;
+  showColumnsPanel = false;
   panelFocus: 'search' | 'filter' = 'search';
 
   isLoading = true;
   error: string | null = null;
 
-  @ViewChild('drawer') drawer!: MatSidenav;
   selectedUid: string | null = null;
-
   drawerLoading = false;
   drawerParent: ParentDetailsRow | null = null;
-
   drawerChildren: Array<{
     child_uuid: string;
     first_name: string;
@@ -115,20 +100,38 @@ export class SecretaryParentsComponent implements OnInit {
     gov_id?: string | null;
   }> = [];
 
-  toast: { error: (msg: string) => void } | any;
-
-  // 🌟 חדש – בשביל עריכה inline במגירה
   parentForm!: FormGroup;
   editMode = false;
   private originalParent: ParentDetailsRow | null = null;
 
-  // ====== מגבלות תווים (כמו שביקשת) ======
+  readonly STORAGE_KEY = 'secretary_parents_table_prefs';
+
+  columns: ParentColumnDef[] = [
+    { key: 'first_name', label: 'שם פרטי', visible: true },
+    { key: 'last_name', label: 'שם משפחה', visible: true },
+    { key: 'phone', label: 'טלפון', visible: true },
+    { key: 'email', label: 'אימייל', visible: true },
+    { key: 'id_number', label: 'תעודת זהות', visible: false },
+    { key: 'billing_day_of_month', label: 'יום חיוב', visible: false },
+    { key: 'status', label: 'סטטוס הורה', visible: true },
+    { key: 'children_status', label: 'סטטוס ילדים', visible: true },
+  ];
+
+  stats = {
+    total: 0,
+    filtered: 0,
+    activeParents: 0,
+    inactiveParents: 0,
+    withActiveChildren: 0,
+    withInactiveChildren: 0,
+  };
+
   readonly MAX_FIRST_NAME = 25;
   readonly MAX_LAST_NAME = 35;
   readonly MAX_EMAIL = 60;
   readonly MAX_ADDRESS = 30;
   readonly MAX_EXTRA_NOTES = 60;
-  readonly MAX_PHONE = 11; 
+  readonly MAX_PHONE = 11;
 
   readonly COMM_PREF_OPTIONS = [
     { value: 'inapp', label: 'אפליקציה (In-app)' },
@@ -138,99 +141,48 @@ export class SecretaryParentsComponent implements OnInit {
     { value: 'sms', label: 'SMS' },
   ];
 
-  // מנקה רווחים/מקפים/סוגריים
-  private normalizePhone(raw: any): string {
-    return String(raw ?? '').replace(/[^\d+]/g, ''); // משאיר ספרות ו-+
-  }
-
-  // ולידטור לטלפון ישראלי
-private israelPhoneValidator(): ValidatorFn {
-  return (control: AbstractControl): ValidationErrors | null => {
-    const raw = control.value;
-    if (raw == null || raw === '') return null;
-
-    const rawStr = String(raw);
-
-    // ✅ חוסם אותיות שלא יעברו “ניקוי” בטעות
-    if (/[A-Za-z\u0590-\u05FF]/.test(rawStr)) {
-      return { phoneDigitsOnly: true };
-    }
-
-    const val = this.normalizePhone(rawStr);
-
-    // רק ספרות (או + בתחילה)
-    if (!/^\+?\d+$/.test(val)) return { phoneDigitsOnly: true };
-
-    // +9725XXXXXXXX
-    if (val.startsWith('+972')) {
-      const rest = val.slice(4);
-      if (!/^5\d{8}$/.test(rest)) return { ilPhone: true };
-      return null;
-    }
-
-    // 9725XXXXXXXX
-    if (val.startsWith('972')) {
-      const rest = val.slice(3);
-      if (!/^5\d{8}$/.test(rest)) return { ilPhone: true };
-      return null;
-    }
-
-    // 05XXXXXXXX
-    if (/^05\d{8}$/.test(val)) return null;
-
-    return { ilPhone: true };
-  };
-}
-
-
   constructor(
     private ui: UiDialogService,
     private dialog: MatDialog,
     private createUserService: CreateUserService,
     private fb: FormBuilder,
     private mailService: MailService,
-    private route: ActivatedRoute,
   ) {}
 
-  // ================== חיפוש + סינון ==================
-
-  toggleSearchPanelFromBar() {
-    this.panelFocus = 'search';
-    this.showSearchPanel = !this.showSearchPanel;
-  }
-
-  toggleFromSearchIcon(event: MouseEvent) {
-    event.stopPropagation();
-    this.panelFocus = 'search';
-    this.showSearchPanel = !this.showSearchPanel;
-  }
-
-  toggleFromFilterIcon(event: MouseEvent) {
-    event.stopPropagation();
-    this.panelFocus = 'filter';
-    this.showSearchPanel = !this.showSearchPanel;
+  async ngOnInit() {
+    try {
+      this.loadTablePrefs();
+      await ensureTenantContextReady();
+      await this.loadParents();
+      this.updateStats();
+    } catch (e: any) {
+      this.error = e?.message || 'Failed to load parents';
+      console.error(e);
+    } finally {
+      this.isLoading = false;
+    }
   }
 
   @HostListener('document:click')
-  closeSearchPanelOnOutsideClick() {
+  closePanelsOnOutsideClick() {
     this.showSearchPanel = false;
+    this.showColumnsPanel = false;
   }
 
   get filteredParents(): ParentRow[] {
     let rows = [...this.parents];
-
     const raw = (this.searchText || '').trim();
 
     if (raw) {
       if (this.searchMode === 'name') {
         const q = raw.toLowerCase();
-        rows = rows.filter(p => {
+        rows = rows.filter((p) => {
           const hay = `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase();
           return hay.includes(q);
         });
       } else {
         const qId = raw.replace(/\s/g, '');
-        rows = rows.filter(p => {
+        rows = rows.filter((p) => {
           const id = (p.id_number || '').toString().replace(/\s/g, '');
           return qId !== '' && id.startsWith(qId);
         });
@@ -238,19 +190,59 @@ private israelPhoneValidator(): ValidatorFn {
     }
 
     if (this.statusFilter !== 'all') {
-      rows = rows.filter(p => {
+      rows = rows.filter((p) => {
         const active = p.is_active !== false;
         return this.statusFilter === 'active' ? active : !active;
       });
     }
 
     if (this.childrenFilter === 'active') {
-      rows = rows.filter(p => !!p.hasActiveChildren);
+      rows = rows.filter((p) => !!p.hasActiveChildren);
     } else if (this.childrenFilter === 'inactive') {
-      rows = rows.filter(p => !!p.hasInactiveChildren);
+      rows = rows.filter((p) => !!p.hasInactiveChildren);
     }
 
     return rows;
+  }
+
+  get visibleColumns(): ParentColumnDef[] {
+    return this.columns.filter((c) => c.visible);
+  }
+
+  toggleSearchPanelFromBar() {
+    this.panelFocus = 'search';
+    this.showColumnsPanel = false;
+    this.showSearchPanel = !this.showSearchPanel;
+  }
+
+  toggleFromSearchIcon(event: MouseEvent) {
+    event.stopPropagation();
+    this.panelFocus = 'search';
+    this.showColumnsPanel = false;
+    this.showSearchPanel = !this.showSearchPanel;
+  }
+
+  toggleFromFilterIcon(event: MouseEvent) {
+    event.stopPropagation();
+    this.panelFocus = 'filter';
+    this.showColumnsPanel = false;
+    this.showSearchPanel = !this.showSearchPanel;
+  }
+
+  toggleSearchPanel(event?: MouseEvent) {
+    if (event) event.stopPropagation();
+    this.showColumnsPanel = false;
+    this.showSearchPanel = !this.showSearchPanel;
+  }
+
+  toggleColumnsPanel(event?: MouseEvent) {
+    if (event) event.stopPropagation();
+    this.showSearchPanel = false;
+    this.showColumnsPanel = !this.showColumnsPanel;
+  }
+
+  onFiltersChanged(): void {
+    this.updateStats();
   }
 
   clearFilters() {
@@ -258,26 +250,63 @@ private israelPhoneValidator(): ValidatorFn {
     this.searchMode = 'name';
     this.statusFilter = 'all';
     this.childrenFilter = 'all';
+    this.updateStats();
   }
 
-  toggleSearchPanel(event?: MouseEvent) {
-    if (event) {
-      event.stopPropagation();
-    }
-    this.showSearchPanel = !this.showSearchPanel;
+  toggleColumn(key: ParentColumnKey): void {
+    this.columns = this.columns.map((c) =>
+      c.key === key ? { ...c, visible: !c.visible } : c
+    );
+    this.saveTablePrefs();
   }
 
-  // ================== lifecycle ==================
-  async ngOnInit() {
+  moveColumnLeft(index: number): void {
+    if (index <= 0) return;
+    const arr = [...this.columns];
+    [arr[index - 1], arr[index]] = [arr[index], arr[index - 1]];
+    this.columns = arr;
+    this.saveTablePrefs();
+  }
+
+  moveColumnRight(index: number): void {
+    if (index >= this.columns.length - 1) return;
+    const arr = [...this.columns];
+    [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]];
+    this.columns = arr;
+    this.saveTablePrefs();
+  }
+
+  saveTablePrefs(): void {
+    const data = { columns: this.columns };
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+  }
+
+  private loadTablePrefs(): void {
     try {
-      await ensureTenantContextReady();
-      await this.loadParents();
-    } catch (e: any) {
-      this.error = e?.message || 'Failed to load parents';
-      console.error(e);
-    } finally {
-      this.isLoading = false;
+      const raw = localStorage.getItem(this.STORAGE_KEY);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.columns)) {
+        this.columns = parsed.columns;
+      }
+    } catch (e) {
+      console.warn('loadTablePrefs failed', e);
     }
+  }
+
+  private updateStats(): void {
+    const all = this.parents ?? [];
+    const filtered = this.filteredParents ?? [];
+
+    this.stats = {
+      total: all.length,
+      filtered: filtered.length,
+      activeParents: all.filter((p) => p.is_active !== false).length,
+      inactiveParents: all.filter((p) => p.is_active === false).length,
+      withActiveChildren: all.filter((p) => !!p.hasActiveChildren).length,
+      withInactiveChildren: all.filter((p) => !!p.hasInactiveChildren).length,
+    };
   }
 
   private async loadParents() {
@@ -308,16 +337,21 @@ private israelPhoneValidator(): ValidatorFn {
 
       (kidsData ?? []).forEach((kid: any) => {
         if (!kid.parent_uid) return;
-        const entry = map.get(kid.parent_uid) || { hasActive: false, hasInactive: false };
+
+        const entry = map.get(kid.parent_uid) || {
+          hasActive: false,
+          hasInactive: false,
+        };
 
         const status = (kid.status || '').toString().toLowerCase();
+
         if (status === 'active' || status === 'פעיל') entry.hasActive = true;
         if (status === 'inactive' || status === 'לא פעיל') entry.hasInactive = true;
 
         map.set(kid.parent_uid, entry);
       });
 
-      this.parents = parents.map(p => {
+      this.parents = parents.map((p) => {
         const stats = map.get(p.uid) || { hasActive: false, hasInactive: false };
         return {
           ...p,
@@ -325,6 +359,8 @@ private israelPhoneValidator(): ValidatorFn {
           hasInactiveChildren: stats.hasInactive,
         };
       });
+
+      this.updateStats();
     } catch (e: any) {
       this.error = e?.message || 'Failed to fetch parents.';
       console.error(e);
@@ -333,8 +369,6 @@ private israelPhoneValidator(): ValidatorFn {
       this.isLoading = false;
     }
   }
-
-  // ================== מגירה – פתיחה/סגירה ==================
 
   async openDetails(uid: string) {
     const cleanUid = (uid || '').trim();
@@ -348,8 +382,6 @@ private israelPhoneValidator(): ValidatorFn {
     this.drawerChildren = [];
     this.editMode = false;
     this.originalParent = null;
-
-    console.log('[PARENTS] openDetails uid=', this.selectedUid);
 
     this.drawer.open();
     await this.loadDrawerData(this.selectedUid);
@@ -371,8 +403,6 @@ private israelPhoneValidator(): ValidatorFn {
       const db = dbTenant();
       const cleanUid = (uid || '').trim();
 
-      console.log('[PARENTS] loadDrawerData uid=', cleanUid);
-
       const { data: p, error: pErr } = await db
         .from('parents')
         .select(
@@ -392,9 +422,7 @@ private israelPhoneValidator(): ValidatorFn {
       }
 
       this.drawerParent = p as ParentDetailsRow;
-
       this.originalParent = structuredClone(this.drawerParent);
-
       this.buildParentForm(this.drawerParent);
 
       const { data: kids, error: kidsErr } = await db
@@ -416,11 +444,8 @@ private israelPhoneValidator(): ValidatorFn {
     }
   }
 
-  // ================== עריכה inline במגירה ==================
-
   private buildParentForm(parent: ParentDetailsRow) {
     this.parentForm = this.fb.group({
-      // ✅ חדש: שם פרטי/משפחה ניתנים לעריכה (ולא full_name נעול)
       first_name: [
         parent.first_name ?? '',
         [Validators.required, Validators.maxLength(this.MAX_FIRST_NAME)],
@@ -429,34 +454,25 @@ private israelPhoneValidator(): ValidatorFn {
         parent.last_name ?? '',
         [Validators.required, Validators.maxLength(this.MAX_LAST_NAME)],
       ],
-
       id_number: [{ value: parent.id_number ?? '', disabled: true }],
-
-     phone: [
-  parent.phone ?? '',
-  [
-    Validators.required,
-    Validators.maxLength(this.MAX_PHONE),
-    this.israelPhoneValidator(),
-  ],
-],
-
-
-      // ✅ אימייל: גם maxLength וגם email
+      phone: [
+        parent.phone ?? '',
+        [
+          Validators.required,
+          Validators.maxLength(this.MAX_PHONE),
+          this.israelPhoneValidator(),
+        ],
+      ],
       email: [
         parent.email ?? '',
         [Validators.required, Validators.email, Validators.maxLength(this.MAX_EMAIL)],
       ],
-
       billing_day: [
         parent.billing_day_of_month ?? 10,
         [Validators.required, Validators.min(1), Validators.max(28)],
       ],
-
-      // ✅ כתובת + הערות עם הגבלת תווים
       address: [parent.address ?? '', [Validators.maxLength(this.MAX_ADDRESS)]],
       extra_notes: [parent.extra_notes ?? '', [Validators.maxLength(this.MAX_EXTRA_NOTES)]],
-
       message_preferences: [
         parent.message_preferences && parent.message_preferences.length
           ? parent.message_preferences
@@ -478,6 +494,43 @@ private israelPhoneValidator(): ValidatorFn {
       this.drawerParent = structuredClone(this.originalParent);
       this.buildParentForm(this.originalParent);
     }
+  }
+
+  private normalizePhone(raw: any): string {
+    return String(raw ?? '').replace(/[^\d+]/g, '');
+  }
+
+  private israelPhoneValidator(): ValidatorFn {
+    return (control: AbstractControl): ValidationErrors | null => {
+      const raw = control.value;
+      if (raw == null || raw === '') return null;
+
+      const rawStr = String(raw);
+
+      if (/[A-Za-z\u0590-\u05FF]/.test(rawStr)) {
+        return { phoneDigitsOnly: true };
+      }
+
+      const val = this.normalizePhone(rawStr);
+
+      if (!/^\+?\d+$/.test(val)) return { phoneDigitsOnly: true };
+
+      if (val.startsWith('+972')) {
+        const rest = val.slice(4);
+        if (!/^5\d{8}$/.test(rest)) return { ilPhone: true };
+        return null;
+      }
+
+      if (val.startsWith('972')) {
+        const rest = val.slice(3);
+        if (!/^5\d{8}$/.test(rest)) return { ilPhone: true };
+        return null;
+      }
+
+      if (/^05\d{8}$/.test(val)) return null;
+
+      return { ilPhone: true };
+    };
   }
 
   private getFormInvalidMessages(): string[] {
@@ -513,7 +566,6 @@ private israelPhoneValidator(): ValidatorFn {
   async saveParentEdits() {
     if (!this.drawerParent || !this.originalParent || !this.selectedUid) return;
 
-    // ✅ אם יש שגיאה — גם מסמנים וגם קופץ פופאפ
     if (this.parentForm.invalid) {
       this.parentForm.markAllAsTouched();
       const msgs = this.getFormInvalidMessages();
@@ -526,7 +578,6 @@ private israelPhoneValidator(): ValidatorFn {
 
     const formValue = this.parentForm.getRawValue();
 
-    // נרמול עדין לפני שמירה
     const first_name = String(formValue.first_name ?? '').trim();
     const last_name = String(formValue.last_name ?? '').trim();
     const email = String(formValue.email ?? '').trim().toLowerCase();
@@ -537,10 +588,8 @@ private israelPhoneValidator(): ValidatorFn {
 
     if (first_name !== (this.originalParent.first_name ?? '')) changes.first_name = first_name;
     if (last_name !== (this.originalParent.last_name ?? '')) changes.last_name = last_name;
-
     if (formValue.phone !== this.originalParent.phone) changes.phone = formValue.phone;
     if (email !== (this.originalParent.email ?? '')) changes.email = email;
-
     if (address !== (this.originalParent.address ?? '')) changes.address = address || null;
     if (extra_notes !== (this.originalParent.extra_notes ?? '')) changes.extra_notes = extra_notes || null;
 
@@ -564,8 +613,6 @@ private israelPhoneValidator(): ValidatorFn {
       const db = dbTenant();
       const cleanUid = (this.selectedUid || '').trim();
 
-      console.log('[PARENTS] saveParentEdits uid=', cleanUid, 'changes=', changes);
-
       const { data, error } = await db
         .from('parents')
         .update(changes)
@@ -578,14 +625,13 @@ private israelPhoneValidator(): ValidatorFn {
       if (error) throw error;
 
       if (!data) {
-        throw new Error('עדכון נכשל: לא נמצא הורה עם ה-uid הזה (ייתכן selectedUid לא נכון).');
+        throw new Error('עדכון נכשל: לא נמצא הורה עם ה-uid הזה.');
       }
 
       this.drawerParent = data as ParentDetailsRow;
       this.originalParent = structuredClone(this.drawerParent);
 
-      // עדכון השורה בטבלה (כולל שמות)
-      this.parents = this.parents.map(p =>
+      this.parents = this.parents.map((p) =>
         p.uid === cleanUid
           ? {
               ...p,
@@ -596,17 +642,16 @@ private israelPhoneValidator(): ValidatorFn {
               id_number: this.drawerParent!.id_number,
               billing_day_of_month: this.drawerParent!.billing_day_of_month,
             }
-          : p,
+          : p
       );
 
+      this.updateStats();
       this.editMode = false;
     } catch (e: any) {
       console.error(e);
       await this.ui.alert(e?.message || 'שמירת השינויים נכשלה', 'שמירה נכשלה');
     }
   }
-
-  // ================== דיאלוג יצירת הורה חדש ==================
 
   openAddParentDialog() {
     const ref = this.dialog.open(AddParentDialogComponent, {
@@ -679,7 +724,7 @@ private israelPhoneValidator(): ValidatorFn {
       };
 
       const missing = ['first_name', 'last_name', 'email', 'phone', 'id_number', 'address'].filter(
-        k => !(body as any)[k],
+        (k) => !(body as any)[k]
       );
 
       if (missing.length) {
@@ -733,7 +778,7 @@ private israelPhoneValidator(): ValidatorFn {
 
         try {
           await this.mailService.sendEmailGmail({
-            tenantSchema: tenantSchema,
+            tenantSchema,
             to: [body.email],
             subject,
             html,
@@ -759,8 +804,6 @@ private israelPhoneValidator(): ValidatorFn {
     }
     return schema;
   }
-
-  /** ================== Helpers: Inserts to Supabase ================== */
 
   private async getParentRoleId(): Promise<number> {
     const dbcTenant = dbTenant();
@@ -825,7 +868,10 @@ private israelPhoneValidator(): ValidatorFn {
       phone: (phone || '').trim() || null,
     };
 
-    const { error } = await dbcPublic.from('users').upsert(row, { onConflict: 'uid'  ,  ignoreDuplicates: true,});
+    const { error } = await dbcPublic.from('users').upsert(row, {
+      onConflict: 'uid',
+      ignoreDuplicates: true,
+    });
 
     if (error) throw new Error(`users upsert failed: ${error.message}`);
   }
@@ -843,7 +889,8 @@ private israelPhoneValidator(): ValidatorFn {
         is_active: true,
       },
       {
-        onConflict: 'tenant_id,uid,role_in_tenant' ,  ignoreDuplicates: true,
+        onConflict: 'tenant_id,uid,role_in_tenant',
+        ignoreDuplicates: true,
       },
     );
 
@@ -881,7 +928,7 @@ private israelPhoneValidator(): ValidatorFn {
 
     const { data, error } = await dbcTenant
       .from('parents')
-      .upsert(row, { onConflict: 'uid' , ignoreDuplicates: true, })
+      .upsert(row, { onConflict: 'uid', ignoreDuplicates: true })
       .select('*')
       .single();
 
