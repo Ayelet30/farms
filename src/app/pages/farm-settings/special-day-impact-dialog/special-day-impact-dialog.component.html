@@ -1,0 +1,92 @@
+<div class="impact-dialog" dir="rtl">
+  <div class="dialog-header">
+    <div>
+      <h2>שיעורים שיושפעו מהיום המיוחד</h2>
+      <p class="dialog-subtitle">
+        לפני שמירה, המערכת מצאה שיעורים שיבוטלו עקב
+        <strong>{{ data.reason }}</strong>
+      </p>
+    </div>
+
+    <button type="button" class="close-btn" (click)="cancel()">✕</button>
+  </div>
+
+  <div class="summary-cards">
+    <div class="summary-card">
+      <div class="summary-label">סה״כ שיעורים</div>
+      <div class="summary-value">{{ totalLessons }}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">ילדים מושפעים</div>
+      <div class="summary-value">{{ totalChildren }}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">הורים יקבלו מייל</div>
+      <div class="summary-value">{{ totalParents }}</div>
+    </div>
+  </div>
+
+  <div class="date-strip">
+    <span class="chip">מתאריך: {{ data.startDate }}</span>
+    <span class="chip">עד תאריך: {{ data.endDate }}</span>
+    <span class="chip">{{ data.allDay ? 'כל היום' : 'חלק מהיום' }}</span>
+  </div>
+
+  <div class="empty-state" *ngIf="!groupedRows.length">
+    לא נמצאו שיעורים מושפעים.
+  </div>
+
+  <div class="groups-list" *ngIf="groupedRows.length">
+    <div class="child-card" *ngFor="let group of groupedRows; trackBy: trackByChild">
+      <div class="child-card-header">
+        <div>
+          <div class="child-name">{{ group.childName }}</div>
+          <div class="parent-line">
+            הורה: {{ group.parentName }} |
+            <span class="email">{{ group.parentEmail }}</span>
+          </div>
+        </div>
+
+        <div class="lesson-count">
+          {{ group.lessons.length }} שיעור/ים
+        </div>
+      </div>
+
+      <div class="lessons-table-wrap">
+        <table class="lessons-table">
+          <thead>
+            <tr>
+              <th>תאריך</th>
+              <th>שעה</th>
+              <th>סוג שיעור</th>
+              <th>מדריך</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr *ngFor="let lesson of group.lessons; trackBy: trackByLesson">
+              <td>{{ lesson.occur_date }}</td>
+              <td>{{ formatHour(lesson.start_time) }} - {{ formatHour(lesson.end_time) }}</td>
+              <td>{{ lesson.lesson_type || '—' }}</td>
+              <td>{{ lesson.instructor_id || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="dialog-warning" *ngIf="groupedRows.length">
+    עם אישור הפעולה:
+    <strong>היום המיוחד יישמר</strong>,
+    <strong>השיעורים יסומנו כמבוטלים</strong>,
+    ויישלחו <strong>מיילים להורים הרלוונטיים</strong>.
+  </div>
+
+  <div class="dialog-actions">
+    <button mat-stroked-button type="button" (click)="cancel()">ביטול</button>
+    <button mat-flat-button color="primary" type="button" (click)="confirm()">אישור והמשך</button>
+  </div>
+</div>
