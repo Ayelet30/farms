@@ -180,7 +180,7 @@ export class SecretaryChildrenComponent implements OnInit {
   seriesDocsLoading = false;
   seriesDocsError: string | null = null;
   seriesDocs: SeriesDocRow[] = [];
-
+uploadingSeriesDocLessonId: string | null = null;
   constructor(
     private ui: UiDialogService,
     private fb: FormBuilder,
@@ -340,7 +340,93 @@ export class SecretaryChildrenComponent implements OnInit {
       console.error('loadHorsesAndChildMapping fatal:', e);
     }
   }
+async uploadSeriesReferral(
+  event: Event,
+  lessonId: string,
+): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
 
+  if (!file) return;
+  if (!this.isAllowedReferralFile(file)) {
+  await this.ui.alert(
+    'ניתן להעלות רק קובצי PDF או תמונות (PNG/JPG/WEBP).',
+    'קובץ לא נתמך'
+  );
+  input.value = '';
+  return;
+}
+
+  try {
+    this.uploadingSeriesDocLessonId = lessonId;
+
+    const db = await this.dbc();
+    const client = getSupabaseClient();
+
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+    const safeExt = fileExt || 'pdf';
+    const fileName = `${lessonId}-${Date.now()}.${safeExt}`;
+
+    // אפשר לשנות את שם הבאקט לפי מה שיש אצלך בפועל
+    const bucketName = 'referrals';
+    const filePath = `series-referrals/${fileName}`;
+
+    const { error: uploadError } = await client.storage
+      .from(bucketName)
+      .upload(filePath, file, {
+        upsert: true,
+        contentType: file.type || undefined,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: publicData } = client.storage
+      .from(bucketName)
+      .getPublicUrl(filePath);
+
+    const publicUrl = publicData?.publicUrl;
+    if (!publicUrl) {
+      throw new Error('לא נוצר URL למסמך שהועלה');
+    }
+
+    const { error: updateError } = await db
+      .from('lessons')
+      .update({
+        payment_docs_url: publicUrl,
+      })
+      .eq('id', lessonId);
+
+    if (updateError) throw updateError;
+
+    this.seriesDocs = this.seriesDocs.map((row) =>
+      row.lessonId === lessonId
+        ? { ...row, paymentDocsUrl: publicUrl }
+        : row
+    );
+
+    await this.ui.alert('ההפניה הועלתה ונשמרה בהצלחה.', 'העלאת הפניה');
+  } catch (e: any) {
+    console.error('uploadSeriesReferral error:', e);
+    await this.ui.alert(
+      'העלאת ההפניה נכשלה: ' + (e?.message ?? e),
+      'שגיאה'
+    );
+  } finally {
+    this.uploadingSeriesDocLessonId = null;
+    input.value = '';
+  }
+}
+private isAllowedReferralFile(file: File): boolean {
+  const allowedMimeTypes = [
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/webp',
+  ];
+
+  return allowedMimeTypes.includes(file.type);
+}
   get filteredChildren(): ChildRow[] {
     let rows = [...this.children];
 
@@ -610,6 +696,7 @@ export class SecretaryChildrenComponent implements OnInit {
           payment_docs_url
         `)
         .eq('child_id', childId)
+        .eq('lesson_type', 'סידרה')
         .order('anchor_week_start', { ascending: false })
         .order('day_of_week', { ascending: true })
         .order('start_time', { ascending: true });
@@ -636,7 +723,19 @@ export class SecretaryChildrenComponent implements OnInit {
       this.seriesDocsLoading = false;
     }
   }
+getChildTitle(): string {
+  const gender = this.drawerChild?.gender;
 
+  if (this.editMode) {
+    if (gender === 'זכר') return 'עריכת הילד';
+    if (gender === 'נקבה') return 'עריכת הילדה';
+    return 'עריכת ילד/ה';
+  } else {
+    if (gender === 'זכר') return 'פרטי הילד';
+    if (gender === 'נקבה') return 'פרטי הילדה';
+    return 'פרטי ילד/ה';
+  }
+}
   getSeriesEndDisplay(row: SeriesDocRow): string {
     if (row.isOpenEnded) return 'סדרה ללא הגבלה';
     return row.seriesEndDate || '—';
