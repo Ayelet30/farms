@@ -138,7 +138,7 @@ timeOptions: string[] = Array.from({ length: 24 * 2 }, (_, i) => {
 });
 private lastAllDayPref = true;
    childAgeById = new Map<string, string>();
-private instructorColorById = new Map<string, string>();
+public instructorColorById = new Map<string, string>();
 
   weekInstructorStats: { instructor_id: string; instructor_name: string; totalLessons: number }[] = [];
 
@@ -1403,23 +1403,29 @@ private addOneDayYmd(dateYmd: string): string {
 }
 private instructorDaysOffToItems(): ScheduleItem[] {
   return (this.dayRequests ?? [])
-    .filter(r => r.status === 'approved')
+    .filter(r => r.status === 'approved' || r.status === 'pending')
     .map(r => {
+      const isPending = r.status === 'pending';
+
       let bg = '#e5e7eb';
       let text = '#374151';
 
       switch (r.request_type) {
         case 'holiday':
-          bg = '#fef3c7';
+          bg = isPending ? '#fff8e7' : '#fef3c7';
           text = '#92400e';
           break;
         case 'sick':
-          bg = '#ffe4e6';
-          text = '#9f1239';
+          bg = isPending ? '#fff4e5' : '#ffe4e6';
+          text = isPending ? '#9a6700' : '#9f1239';
           break;
         case 'personal':
-          bg = '#ede9fe';
-          text = '#5b21b6';
+          bg = isPending ? '#fff7e8' : '#ede9fe';
+          text = isPending ? '#9a6700' : '#5b21b6';
+          break;
+        default:
+          bg = isPending ? '#fff8e7' : '#e5e7eb';
+          text = isPending ? '#9a6700' : '#374151';
           break;
       }
 
@@ -1431,12 +1437,16 @@ private instructorDaysOffToItems(): ScheduleItem[] {
         ? `${r.request_date}T23:59:59`
         : `${r.request_date}T${r.end_time}:00`;
 
-      const inst = this.instructorsAll.find(i => String(i.id_number) === String(r.instructor_id));
+      const inst = this.instructorsAll.find(
+        i => String(i.id_number) === String(r.instructor_id)
+      );
       const instructorName = `${inst?.first_name ?? ''} ${inst?.last_name ?? ''}`.trim();
 
       return {
         id: `instructor_off_${r.id}_${r.request_date}_${r.instructor_id}`,
-        title: `⛔ ${instructorName} — ${this.getRequestLabel(r.request_type)}`,
+        title: isPending
+          ? `${instructorName} — ${this.getRequestLabel(r.request_type)}`
+          : `${instructorName} — ${this.getRequestLabel(r.request_type)}`,
         start,
         end,
         allDay: false,
@@ -1444,17 +1454,20 @@ private instructorDaysOffToItems(): ScheduleItem[] {
         overlap: false,
         color: bg,
         textColor: text,
-        classNames: ['instructor-day-off'],
-        status: 'instructor_day_off' as any,
+        classNames: [isPending ? 'pending-instructor-day-off' : 'instructor-day-off'],
+        status: isPending ? 'PENDING' as any : 'APPROVED' as any,
         meta: {
-          isInstructorDayOff: 'true',
+          isInstructorDayOff: isPending ? undefined : 'true',
+          isPendingInstructorDayOff: isPending ? 'true' : undefined,
           request_type: r.request_type,
           note: r.note ?? null,
           instructor_id: r.instructor_id,
+          instructor_name: instructorName,
         } as any,
       } as ScheduleItem;
     });
 }
+
 private isLessonBlockedByInstructorOff(
   instructorId: string,
   lessonDate: string,
@@ -1494,8 +1507,8 @@ private farmDaysOffToItems(): ScheduleItem[] {
     return {
       id: `farm_off_${d.id}`,
       title: d.reason?.trim()
-        ? `🏖 ${d.reason}`
-        : '🏖 חופשת חווה',
+        ? ` ${d.reason}`
+        : ' חופשת חווה',
       start,
       end,
       allDay: isFullDay,

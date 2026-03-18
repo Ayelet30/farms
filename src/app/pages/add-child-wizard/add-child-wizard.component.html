@@ -8,12 +8,8 @@
       <p class="wizard-subtitle">{{ headerSubtitle }}</p>
 
       <div class="steps-bar">
-        <div
-          *ngFor="let s of steps; index as i"
-          class="step-pill"
-          [class.active]="i === stepIndex"
-          [class.done]="i < stepIndex"
-        >
+        <div *ngFor="let s of steps; index as i" class="step-pill" [class.active]="i === stepIndex"
+          [class.done]="i < stepIndex">
           <span class="step-number">{{ i + 1 }}</span>
           <span class="step-label">{{ s }}</span>
         </div>
@@ -40,14 +36,9 @@
         <div class="form-field full-width" *ngIf="isSecretaryMode">
           <label>הורה אחראי</label>
 
-          <input
-            class="editable-input"
-            type="text"
-            [(ngModel)]="parentInputText"
-            (ngModelChange)="onParentInputChange($event)"
-            placeholder="התחילי להקליד שם או תעודת זהות…"
-            list="parentsList"
-          />
+          <input class="editable-input" type="text" [(ngModel)]="parentInputText"
+            (ngModelChange)="onParentInputChange($event)" placeholder="התחילי להקליד שם או תעודת זהות…"
+            list="parentsList" />
 
           <datalist id="parentsList">
             <option *ngFor="let p of parents" [value]="formatParentOption(p)"></option>
@@ -73,14 +64,8 @@
 
           <div class="form-field">
             <label>תעודת זהות</label>
-            <input
-              class="editable-input"
-              maxlength="9"
-              pattern="[0-9]*"
-              inputmode="numeric"
-              (keypress)="allowOnlyNumbers($event)"
-              [(ngModel)]="child.gov_id"
-            />
+            <input class="editable-input" maxlength="9" pattern="[0-9]*" inputmode="numeric"
+              (keypress)="allowOnlyNumbers($event)" [(ngModel)]="child.gov_id" />
             <div class="error-msg" *ngIf="validationErrors['gov_id']">{{ validationErrors['gov_id'] }}</div>
           </div>
 
@@ -151,7 +136,8 @@
                 <span>תפקוד גבוה</span>
               </label>
 
-              <div class="error-msg" *ngIf="validationErrors['autismFunction']">{{ validationErrors['autismFunction'] }}</div>
+              <div class="error-msg" *ngIf="validationErrors['autismFunction']">{{ validationErrors['autismFunction'] }}
+              </div>
             </div>
           </div>
 
@@ -173,12 +159,8 @@
 
         <div class="form-field full-width">
           <label>פרטים נוספים שחשוב שנדע</label>
-          <textarea
-            rows="3"
-            class="editable-input"
-            [(ngModel)]="medical.other"
-            placeholder="אבחנות רשמיות, תרופות קבועות, רגישויות מיוחדות ועוד…"
-          ></textarea>
+          <textarea rows="3" class="editable-input" [(ngModel)]="medical.other"
+            placeholder="אבחנות רשמיות, תרופות קבועות, רגישויות מיוחדות ועוד…"></textarea>
         </div>
       </div>
 
@@ -222,12 +204,20 @@
       </div>
 
       <!-- שלב 4: אמצעי תשלום -->
-      <div *ngIf="stepIndex === paymentStepIndex && isParentMode" class="step-pane">
+      <div *ngIf="stepIndex === paymentStepIndex && isParentMode" class="step-pane payment-step">
         <h3 class="step-title">אמצעי תשלום</h3>
-        <b>שימו לב! דמי רישום יגבו רק מילדים חדשים בחווה - ולא ילדים חדשים באתר</b>.
-        <b>שימו לב! הכנסת פרטי האשראי הוא לצורך חיובים עתידיים מהמערכת</b>.
 
-        <p class="step-hint" *ngIf="loadingPaymentProfile">טוען אמצעי תשלום…</p>
+        <div class="payment-notes">
+          <div class="info-banner">
+            שימו לב! דמי רישום ייגבו רק מילדים חדשים בחווה — ולא מילדים חדשים באתר.
+          </div>
+
+          <div class="info-banner">
+            הכנסת פרטי האשראי נועדה לצורך חיובים עתידיים מהמערכת בלבד.
+          </div>
+        </div>
+
+        <p class="step-hint" *ngIf="loadingPaymentProfile">טוען אמצעי תשלום שמור…</p>
 
         <div *ngIf="!loadingPaymentProfile && hasSavedPaymentProfile" class="ok-banner">
           יש לך כבר אמצעי תשלום שמור במערכת ✅<br />
@@ -240,45 +230,60 @@
           <p class="step-hint small" style="margin-top: 8px;">* החיוב בפועל יבוצע רק לאחר אישור המזכירה.</p>
         </div>
 
-        <div *ngIf="!loadingPaymentProfile && !hasSavedPaymentProfile">
-          <div class="form-grid">
-            <div class="form-field">
-              <label>סכום דמי הרשמה (₪)</label>
-              <label>payment.registrationAmount</label>
-              <div class="error-msg" *ngIf="validationErrors['registrationAmount']">
-                {{ validationErrors['registrationAmount'] }}
+        <div *ngIf="!loadingPaymentProfile && !hasSavedPaymentProfile" class="payment-card">
+          <div class="payment-summary">
+            <div class="summary-row">
+              <span class="summary-label">דמי הרשמה</span>
+              <span class="summary-value">{{ payment.registrationAmount || 0 }} ₪</span>
+            </div>
+
+            <div class="error-msg" *ngIf="validationErrors['registrationAmount']">
+              {{ validationErrors['registrationAmount'] }}
+            </div>
+          </div>
+
+          <div class="payment-fields-shell" [class.is-loading]="paymentFieldsLoading">
+            <div class="payment-loading-overlay" *ngIf="paymentFieldsLoading">
+              <div class="spinner"></div>
+              <div class="loading-title">טוען את טרנזילה…</div>
+              <div class="loading-subtitle">מכין עבורך את שדות האשראי בצורה מאובטחת</div>
+            </div>
+
+            <div class="payment-fields-wrap">
+              <div class="hf-grid">
+                <div class="hf-box hf-box-wide">
+                  <label>מספר כרטיס</label>
+                  <div id="reg_credit_card_number" class="hf-field"></div>
+                  <div class="error-msg" id="reg_errors_for_credit_card_number"></div>
+                </div>
+
+                <div class="hf-box">
+                  <label>תוקף</label>
+                  <div id="reg_expiry" class="hf-field"></div>
+                  <div class="error-msg" id="reg_errors_for_expiry"></div>
+                </div>
+
+                <div class="hf-box">
+                  <label>CVV</label>
+                  <div id="reg_cvv" class="hf-field"></div>
+                  <div class="error-msg" id="reg_errors_for_cvv"></div>
+                </div>
               </div>
             </div>
+          </div>
 
-            <div class="hf-box">
-              <label>מספר כרטיס</label>
-              <div id="reg_credit_card_number"></div>
-              <div class="error-msg" id="reg_errors_for_credit_card_number"></div>
-            </div>
-
-            <div class="hf-box">
-              <label>תוקף</label>
-              <div id="reg_expiry"></div>
-              <div class="error-msg" id="reg_errors_for_expiry"></div>
-            </div>
-
-            <div class="hf-box">
-              <label>CVV</label>
-              <div id="reg_cvv"></div>
-              <div class="error-msg" id="reg_errors_for_cvv"></div>
-            </div>
-
-            <button class="btn primary" type="button" (click)="tokenizeCard()" [disabled]="savingToken">
+          <div class="payment-actions">
+            <button class="btn primary" type="button" (click)="tokenizeCard()"
+              [disabled]="savingToken || paymentFieldsLoading">
               {{ savingToken ? 'שומר…' : 'שמירת אמצעי תשלום' }}
             </button>
-
-            <div *ngIf="tokenSaved" class="ok-banner">אמצעי תשלום נשמר בהצלחה ✅</div>
-            <div *ngIf="tokenError" class="error-banner">{{ tokenError }}</div>
-
-            <p class="step-hint small">* החיוב בפועל יבוצע רק לאחר אישור המזכירה.</p>
-
-            <div class="error-msg" *ngIf="validationErrors['token']">{{ validationErrors['token'] }}</div>
           </div>
+
+          <div *ngIf="tokenSaved" class="ok-banner">אמצעי תשלום נשמר בהצלחה ✅</div>
+          <div *ngIf="tokenError" class="error-banner">{{ tokenError }}</div>
+
+          <p class="step-hint small">* החיוב בפועל יבוצע רק לאחר אישור המזכירה.</p>
+          <div class="error-msg" *ngIf="validationErrors['token']">{{ validationErrors['token'] }}</div>
         </div>
       </div>
     </div>
@@ -293,18 +298,13 @@
 
       <button class="btn ghost" type="button" (click)="close()" [disabled]="saving">ביטול</button>
 
-      <button *ngIf="stepIndex < steps.length - 1" class="btn primary" type="button" (click)="nextStep()" [disabled]="saving">
+      <button *ngIf="stepIndex < steps.length - 1" class="btn primary" type="button" (click)="nextStep()"
+        [disabled]="saving">
         המשך
       </button>
 
-      <button
-        *ngIf="stepIndex === steps.length - 1"
-        class="btn primary"
-        type="button"
-        (click)="completeWizard()"
-        [disabled]="saving || termsSaving"
-        [attr.aria-busy]="saving ? 'true' : null"
-      >
+      <button *ngIf="stepIndex === steps.length - 1" class="btn primary" type="button" (click)="completeWizard()"
+        [disabled]="saving || termsSaving" [attr.aria-busy]="saving ? 'true' : null">
         {{ saving ? 'שומר…' : finishButtonLabel }}
       </button>
     </div>

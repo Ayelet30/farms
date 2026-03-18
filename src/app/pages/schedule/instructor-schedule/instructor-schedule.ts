@@ -1496,70 +1496,69 @@ private addOneDayYmd(dateYmd: string): string {
 
 private instructorDaysOffToItems(): ScheduleItem[] {
   return (this.dayRequests ?? [])
- 
     .filter(r => {
-  const isFarmFullDay = this.farmDaysOff.some(f =>
-    f.day_type === 'FULL_DAY' &&
-    r.request_date >= f.start_date &&
-    r.request_date <= f.end_date
-  );
+      const isFarmFullDay = this.farmDaysOff.some((f: any) =>
+        String(f.day_type).toUpperCase() === 'FULL_DAY' &&
+        r.request_date >= String(f.start_date).slice(0, 10) &&
+        r.request_date <= String(f.end_date).slice(0, 10)
+      );
 
-  return r.status === 'approved' && !isFarmFullDay;
-})
-
+      return (r.status === 'approved' || r.status === 'pending') && !isFarmFullDay;
+    })
     .map(r => {
+      const isPending = r.status === 'pending';
 
       let bg = '#e5e7eb';
       let text = '#374151';
 
       switch (r.request_type) {
         case 'holiday':
-          bg = '#fef3c7';   // 🏖 צהוב
+          bg = isPending ? '#fff8e7' : '#fef3c7';
           text = '#92400e';
           break;
         case 'sick':
-          bg = '#ffe4e6';   // 🩺 ורוד
-          text = '#9f1239';
+          bg = isPending ? '#fff4e5' : '#ffe4e6';
+          text = isPending ? '#9a6700' : '#9f1239';
           break;
         case 'personal':
-          bg = '#ede9fe';  // 👤 סגול
-          text = '#5b21b6';
+          bg = isPending ? '#fff7e8' : '#ede9fe';
+          text = isPending ? '#9a6700' : '#5b21b6';
           break;
         default:
-          bg = '#e5e7eb';  // אפור
-          text = '#374151';
+          bg = isPending ? '#fff8e7' : '#e5e7eb';
+          text = isPending ? '#9a6700' : '#374151';
       }
 
-   const start = r.all_day || !r.start_time
-  ? `${r.request_date}T00:00:00`
-  : `${r.request_date}T${r.start_time}:00`;
+      const start = r.all_day || !r.start_time
+        ? `${r.request_date}T00:00:00`
+        : `${r.request_date}T${r.start_time}:00`;
 
-const end = r.all_day || !r.end_time
-  ? `${r.request_date}T23:59:59`
-  : `${r.request_date}T${r.end_time}:00`;
-
+      const end = r.all_day || !r.end_time
+        ? `${r.request_date}T23:59:59`
+        : `${r.request_date}T${r.end_time}:00`;
 
       return {
         id: `instructor_off_${r.id}_${r.request_date}`,
-        title: `⛔ ${this.getRequestLabel(r.request_type)}`,
+        title: isPending
+          ? `${this.getRequestLabel(r.request_type)}`
+          : `${this.getRequestLabel(r.request_type)}`,
         start,
         end,
         allDay: false,
-
         display: 'block',
         overlap: false,
-
         color: bg,
         textColor: text,
-
-        classNames: ['instructor-day-off'],
-        status: 'instructor_day_off' as any,
+        classNames: [isPending ? 'pending-instructor-day-off' : 'instructor-day-off'],
+        status: isPending ? 'PENDING' as any : 'APPROVED' as any,
         meta: {
-          isInstructorDayOff: 'true',
+          isInstructorDayOff: isPending ? undefined : 'true',
+          isPendingInstructorDayOff: isPending ? 'true' : undefined,
           request_type: r.request_type,
           note: r.note ?? null,
+          instructor_id: this.instructorId,
         } as any,
-      };
+      } as ScheduleItem;
     });
 }
 
@@ -1584,10 +1583,10 @@ private farmDaysOffToItems(): ScheduleItem[] {
     // ⭐ כאן הקסם
     const title =
       d.reason?.trim()
-        ? `🏖 ${d.reason}`
+        ? `${d.reason}`
        : isFullDay
-     ? '🏖 חופשת חווה\nיום מלא'
-     : '🏖 חופשת חווה\nלפי שעות';
+     ? ' חופשת חווה\nיום מלא'
+     : ' חופשת חווה\nלפי שעות';
 
 
        return {

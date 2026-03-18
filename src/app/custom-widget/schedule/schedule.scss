@@ -557,6 +557,93 @@
   display: none !important;
 }
 
+/* ===== חופש חווה ===== */
+.event-box.farm-day-off {
+  background: #eef4e6;
+  border: 1px solid #b8c8a0;
+  color: #3f5a2a;
+  font-weight: 700;
+  position: relative;
+  padding-right: 18px;
+}
+
+.event-box.farm-day-off::before {
+  content: "🏡";
+  position: absolute;
+  right: 4px;
+  top: 3px;
+  font-size: 11px;
+}
+
+.event-box.farm-day-off .title::before {
+  content: "חווה סגורה";
+  display: block;
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+/* ===== היעדרות מדריך ===== */
+.event-box.instructor-day-off {
+  background: #f8faf3;
+  border: 1px solid #d6e2c3;
+  color: #5c6f3a;
+  position: relative;
+  padding-right: 6px;
+}
+
+.event-box.instructor-day-off::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 3px;
+  height: 100%;
+  background: #9fb37a;
+  border-radius: 2px;
+}
+
+.event-box.instructor-day-off .title::before {
+  content: "היעדרות";
+  display: block;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* ===== בקשה ממתינה ===== */
+.event-box.pending-day-off {
+  background: #fff8e6;
+  border: 1px dashed #e3b15a;
+  color: #7a5a00;
+  opacity: 0.9;
+  position: relative;
+}
+
+.event-box.pending-day-off::after {
+  content: "ממתין";
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 9px;
+  background: #ffcf66;
+  color: #5a3d00;
+  padding: 1px 5px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+/* ===== hover קטן (איכות UX) ===== */
+.event-box.farm-day-off:hover {
+  background: #e4ecd7;
+}
+
+.event-box.instructor-day-off:hover {
+  background: #eef4e6;
+}
+
+.event-box.pending-day-off:hover {
+  background: #fff3d1;
+}
+
 /* ===== מובייל ===== */
 @media (max-width: 600px) {
   .schedule-wrap {

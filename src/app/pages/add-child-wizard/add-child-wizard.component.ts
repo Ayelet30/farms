@@ -103,12 +103,17 @@ export class AddChildWizardComponent implements OnInit {
   termsAccepted = false;
   termsSignature = '';
 
+
+
   // =========================
   // ===== תשלום =====
-  // =========================
+  // ====================
+
+
   private hfReg: HostedFieldsInstance | null = null;
   private thtkReg: string | null = null;
 
+  paymentFieldsLoading = false;   // ✅ חדש
   savingToken = false;
   tokenSaved = false;
   tokenError: string | null = null;
@@ -359,21 +364,21 @@ export class AddChildWizardComponent implements OnInit {
 
   // ===== ניווט =====
   nextStep() {
-    if (!this.validateCurrentStep()) return;
+  if (!this.validateCurrentStep()) return;
 
-    if (this.stepIndex < this.steps.length - 1) {
-      this.stepIndex++;
-    }
-
-    if (
-      this.isParentMode &&
-      this.stepIndex === this.paymentStepIndex &&
-      this.hasRegistrationFee &&
-      !this.hasSavedPaymentProfile
-    ) {
-      queueMicrotask(() => this.ensureRegHostedFieldsReady());
-    }
+  if (this.stepIndex < this.steps.length - 1) {
+    this.stepIndex++;
   }
+
+  if (
+    this.isParentMode &&
+    this.stepIndex === this.paymentStepIndex &&
+    this.hasRegistrationFee &&
+    !this.hasSavedPaymentProfile
+  ) {
+   setTimeout(() => this.ensureRegHostedFieldsReady(), 0);
+  }
+}
 
   prevStep() {
     if (this.stepIndex > 0) this.stepIndex--;
@@ -525,10 +530,14 @@ export class AddChildWizardComponent implements OnInit {
         return;
       }
 
-      // יוצרים דרישת תקנון (כמו אצלך)
-      const { error: reqErr } = await dbc.rpc('create_child_terms_requirement', {
+      console.log('child inserted:', insertedChild);
+
+      const { data: reqData, error: reqErr } = await dbc.rpc('create_child_terms_requirement', {
         p_child_id: insertedChild.child_uuid,
       });
+
+      console.log('create_child_terms_requirement result:', { reqData, reqErr });
+ 
       if (reqErr) throw reqErr;
 
       // ✅ במצב הורה: אחרי יצירת הילד — חותמים ושומרים PDF חתום
@@ -776,44 +785,85 @@ export class AddChildWizardComponent implements OnInit {
   }
 
   private async ensureRegHostedFieldsReady() {
-    if (this.hfReg) return;
-    this.tokenError = null;
+  if (this.hfReg || this.paymentFieldsLoading) return;
 
-    try {
-      const farm = getCurrentFarmMetaSync();
-      const tenantSchema = farm?.schema_name ?? null;
-      if (!tenantSchema) {
-        this.tokenError = 'לא זוהה סכמת חווה';
-        return;
-      }
+  this.tokenError = null;
+  this.paymentFieldsLoading = true;
 
-      const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema);
-      this.thtkReg = thtk;
+  try {
+    const farm = getCurrentFarmMetaSync();
+    const tenantSchema = farm?.schema_name ?? null;
 
-      if (!TzlaHostedFields) {
-        this.tokenError = 'רכיב התשלום לא נטען';
-        return;
-      }
-
-      this.hfReg = TzlaHostedFields.create({
-        sandbox: false,
-        fields: {
-          credit_card_number: { selector: '#reg_credit_card_number', placeholder: '4580 4580 4580 4580', tabindex: 1 },
-          cvv: { selector: '#reg_cvv', placeholder: '123', tabindex: 2 },
-          expiry: { selector: '#reg_expiry', placeholder: '12/26', version: '1' },
-        },
-      });
-
-      this.hfReg?.onEvent?.('validityChange', () => {});
-    } catch (e: any) {
-      this.tokenError = e?.message ?? 'שגיאה באתחול שדות האשראי';
+    if (!tenantSchema) {
+      this.tokenError = 'לא זוהה סכמת חווה';
+      return;
     }
+
+    const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema);
+    this.thtkReg = thtk;
+
+    if (!TzlaHostedFields) {
+      this.tokenError = 'רכיב התשלום לא נטען';
+      return;
+    }
+
+    this.hfReg = TzlaHostedFields.create({
+      sandbox: false,
+      fields: {
+        credit_card_number: {
+          selector: '#reg_credit_card_number',
+          placeholder: '4580 4580 4580 4580',
+          tabindex: 1,
+        },
+        cvv: {
+          selector: '#reg_cvv',
+          placeholder: '123',
+          tabindex: 2,
+        },
+        expiry: {
+          selector: '#reg_expiry',
+          placeholder: '12/26',
+          version: '1',
+        },
+      },
+      styles: {
+        input: {
+          height: '44px',
+          'line-height': '44px',
+          padding: '0 12px',
+          'font-size': '15px',
+          'box-sizing': 'border-box',
+          'background-color': 'transparent',
+        },
+        select: {
+          height: '44px',
+          'line-height': '44px',
+          padding: '0 12px',
+          'font-size': '15px',
+          'box-sizing': 'border-box',
+          'background-color': 'transparent',
+        },
+      },
+    });
+
+    this.hfReg?.onEvent?.('validityChange', () => {});
+  } catch (e: any) {
+    this.tokenError = e?.message ?? 'שגיאה באתחול שדות האשראי';
+  } finally {
+    this.paymentFieldsLoading = false;
   }
+}
 
   async tokenizeCard() {
     this.tokenError = null;
 
     if (!this.isParentMode) return;
+
+    if (this.paymentFieldsLoading) {
+      this.tokenError = 'שדות התשלום עדיין נטענים';
+      return;
+    }
+
     if (!this.hfReg || !this.thtkReg) {
       this.tokenError = 'שדות התשלום לא מוכנים';
       return;
