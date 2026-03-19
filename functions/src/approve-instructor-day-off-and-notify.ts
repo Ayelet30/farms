@@ -227,7 +227,7 @@ export const approveInstructorDayOffAndNotify = onRequest(
             occur_date: String(x.occur_date).slice(0, 10),
             status: 'בוטל',
             note: decisionNote?.trim() || 'בוטל עקב חופש מדריך',
-            canceller_role: 'secretary',
+            canceller_role: 'instructor',
             cancelled_at: new Date().toISOString(),
             is_makeup_allowed: true,
           } as any, { onConflict: 'lesson_id,occur_date' });
