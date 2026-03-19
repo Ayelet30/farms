@@ -1159,7 +1159,7 @@ input[type="time"],
   .cols-plans {
     grid-template-columns: 1fr !important;
   }
-
+}
   .actions-inline {
     justify-content: flex-start;
   }
@@ -1234,6 +1234,7 @@ input[type="time"],
 @keyframes bulk-spin {
   to {
     transform: rotate(360deg);
+  }}
   .special-day-card {
     flex-direction: column;
     align-items: stretch;
@@ -1260,4 +1261,4 @@ input[type="time"],
   .short-input {
     max-width: 100%;
   }
-}
+
