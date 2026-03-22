@@ -2162,6 +2162,7 @@ this.confirmData.oldInstructorName =
 riding_type_id: slot.lesson_ridding_type ?? null, // או slot.riding_type_id אחרי הנרמול
   riding_type_name: slot.riding_type_name ?? null, // אופציונלי (לנוחות)
     base_lesson_uid: this.selectedMakeupCandidate!.lesson_occ_exception_id, 
+  original_lesson_date: this.selectedMakeupCandidate?.occur_date,
 
 
 
@@ -3050,6 +3051,7 @@ private startOfWeekSunday(d: string | Date): string {
 selectOccupancySlot(slot: MakeupSlot): void {
   this.selectedOccupancySlot = slot;
 }
+
 async selectAndRequestOccupancySlot(slot: MakeupSlot): Promise<void> {
   if (!this.selectedChildId || !this.user || !this.selectedOccupancyCandidate) {
     this.occupancyError = 'חסר ילד או שיעור מילוי מקום שנבחר';
@@ -3100,6 +3102,8 @@ async selectAndRequestOccupancySlot(slot: MakeupSlot): Promise<void> {
 riding_type_id: slot.lesson_ridding_type ?? null, // או slot.riding_type_id אחרי הנרמול
   riding_type_name: slot.riding_type_name ?? null, // אופציונלי (לנוחות)
   base_lesson_uid: this.selectedOccupancyCandidate!.lesson_occ_exception_id,
+    original_lesson_date: this.selectedOccupancyCandidate!.occur_date,
+
 
       };
 

@@ -59,7 +59,10 @@ timeRange = computed(() => {
   errorMsg = signal<string | null>(null);
   loadingMakeupTarget = signal(false);  
 
-
+originalLessonDate = computed(() => {
+  const d = this.payload()?.original_lesson_date ?? null;
+  return d ? String(d) : null;
+});
 busyText = computed(() => {
   switch (this.action()) {
     case 'approve': return 'הבקשה בתהליך אישור…';
@@ -180,15 +183,13 @@ const newStatus = (json?.status || 'REJECTED_BY_SYSTEM') as 'REJECTED_BY_SYSTEM'
     this.fail(e?.message ?? 'שגיאה בדחייה אוטומטית ע״י המערכת', e);
   }
 }
-
 async loadMakeupTarget(): Promise<void> {
-  const lessonId = this.lessonOccId();    // lesson_occ_id מהבקשה (uuid)
-  const dateStr  = this.fromDate();       // התאריך של השיעור המבוקש (לא בהכרח המקורי)
+  const lessonId = this.lessonOccId();                 // מזהה הסדרה / lesson_id
+  const originalDate = this.originalLessonDate();      // התאריך המקורי שנשלח ב-payload
 
-  // התחלת טעינה
   this.loadingMakeupTarget.set(true);
 
-  if (!lessonId) {
+  if (!lessonId || !originalDate) {
     this.makeupTarget.set(null);
     this.loadingMakeupTarget.set(false);
     return;
@@ -198,26 +199,7 @@ async loadMakeupTarget(): Promise<void> {
     await ensureTenantContextReady();
     const db = await dbTenant();
 
-    // 0) למצוא את תאריך השיעור המקורי (שהוגשה עליו בקשת השלמה)
-    const { data: ex, error: exErr } = await db
-      .from(EXCEPTIONS_TABLE)
-      .select('occur_date, lesson_id, status')
-      .eq('lesson_id', lessonId)
-      .in('status', ['נשלחה בקשה להשלמה', 'נשלחה בקשה למילוי מקום'])
-      .order('occur_date', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (exErr) throw exErr;
-
-    if (!ex?.occur_date) {
-      this.makeupTarget.set(null);
-      return;
-    }
-
-    const originalDate = String(ex.occur_date);
-
-    // 1) להביא occurrence מה-view לפי lesson_id + occur_date של המקור
+    // 1) להביא occurrence מדויק לפי lesson_id + original_lesson_date
     const { data: occ, error: occErr } = await db
       .from('lessons_occurrences')
       .select('lesson_id, occur_date, start_time, end_time, instructor_id')
@@ -257,12 +239,9 @@ async loadMakeupTarget(): Promise<void> {
   } catch {
     this.makeupTarget.set(null);
   } finally {
-    // סיום טעינה בכל מצב
     this.loadingMakeupTarget.set(false);
   }
 }
-
-
   private fail(msg: string, raw?: any) {
     this.errorMsg.set(msg);
     this.error.emit(msg);
@@ -581,23 +560,13 @@ if (warn) {
     this.action.set(null);
   }
 }
+private async getOriginalOccurDate(_db: any, _lessonId: string): Promise<string | null> {
+  const fromPayload = this.originalLessonDate();
+  if (fromPayload) return fromPayload;
 
-  private async getOriginalOccurDate(db: any, lessonId: string): Promise<string | null> {
-  // אם כבר נטען במסך
   const cached = this.makeupTarget()?.occur_date;
   if (cached) return String(cached);
 
-  const { data: ex, error } = await db
-    .from(EXCEPTIONS_TABLE)
-    .select('occur_date')
-    .eq('lesson_id', lessonId)
-    .eq('status', 'נשלחה בקשה להשלמה')
-    .order('occur_date', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-  return ex?.occur_date ? String(ex.occur_date) : null;
+  return null;
 }
-
 }
