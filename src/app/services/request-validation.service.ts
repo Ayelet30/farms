@@ -21,6 +21,9 @@ export enum Check {
   Instructor = 'instructor',
   ParentTarget = 'parentTarget',
   FarmDayOff = 'farmDayOff',
+  MakeupSourceStillRelevant = 'makeupSourceStillRelevant',
+  FillInSourceStillRelevant = 'fillInSourceStillRelevant',
+
 }
 
 export type ValidationMode = 'auto' | 'approve' | 'reject';
@@ -63,7 +66,7 @@ export class RequestValidationService {
     },
 
     MAKEUP_LESSON: {
-      checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff],
+      checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff ,Check.MakeupSourceStillRelevant,],
       allowedChildStatuses: new Set([
         'Active',
         'Deletion Scheduled',
@@ -72,7 +75,7 @@ export class RequestValidationService {
     },
 
     FILL_IN: {
-      checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff],
+      checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff,Check.FillInSourceStillRelevant,],
       allowedChildStatuses: new Set([
         'Active',
         'Deletion Scheduled',
@@ -242,6 +245,18 @@ if (
       );
       break;
     }
+    case Check.MakeupSourceStillRelevant: {
+  r = this.normalizeResult(
+    await this.checkMakeupSourceStillRelevant(db, row, mode)
+  );
+  break;
+}
+case Check.FillInSourceStillRelevant: {
+  r = this.normalizeResult(
+    await this.checkFillInSourceStillRelevant(db, row, mode)
+  );
+  break;
+}
   }
 
   if (r && !r.ok) return r;
@@ -271,7 +286,128 @@ if (
       msg.includes('tenant')
     );
   }
+  private async checkFillInSourceStillRelevant(
+  db: any,
+  row: UiRequest,
+  mode: ValidationMode
+): Promise<{ ok: boolean; reason?: string }> {
+  try {
+    if (row.requestType !== 'FILL_IN') {
+      return { ok: true };
+    }
 
+    const lessonId =
+      row.lessonOccId ??
+      null;
+
+    const p: any = row.payload ?? {};
+    const originalLessonDate =
+      p.original_lesson_date
+        ? String(p.original_lesson_date).slice(0, 10)
+        : null;
+
+    if (!lessonId || !originalLessonDate) {
+      return {
+        ok: false,
+        reason: 'לא ניתן לאתר את השיעור המקורי של בקשת מילוי המקום',
+      };
+    }
+
+    const { data: ex, error } = await db
+      .from('lesson_occurrence_exceptions')
+      .select('id, lesson_id, occur_date, status')
+      .eq('lesson_id', lessonId)
+      .eq('occur_date', originalLessonDate)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!ex) {
+      return {
+        ok: false,
+        reason: 'השיעור המקורי של מילוי המקום כבר לא קיים או לא נמצא',
+      };
+    }
+
+    const status = String(ex.status ?? '').trim();
+
+    if (status === 'הושלם') {
+      return {
+        ok: false,
+        reason: 'בקשת מילוי המקום כבר אינה רלוונטית כי השיעור כבר הושלם',
+      };
+    }
+
+    return { ok: true };
+  } catch (e: any) {
+    return this.handleDbFailure(mode, 'checkFillInSourceStillRelevant', e);
+  }
+}
+private async checkMakeupSourceStillRelevant(
+  db: any,
+  row: UiRequest,
+  mode: ValidationMode
+): Promise<{ ok: boolean; reason?: string }> {
+  try {
+    if (row.requestType !== 'MAKEUP_LESSON') {
+      return { ok: true };
+    }
+
+    const lessonId =
+      row.lessonOccId ??
+      null;
+
+    const p: any = row.payload ?? {};
+    const originalLessonDate =
+      p.original_lesson_date
+        ? String(p.original_lesson_date).slice(0, 10)
+        : null;
+
+    if (!lessonId || !originalLessonDate) {
+      return {
+        ok: false,
+        reason: 'לא ניתן לאתר את השיעור המקורי של בקשת ההשלמה',
+      };
+    }
+
+    const { data: ex, error } = await db
+      .from('lesson_occurrence_exceptions')
+      .select('id, lesson_id, occur_date, status, is_makeup_allowed')
+      .eq('lesson_id', lessonId)
+      .eq('occur_date', originalLessonDate)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!ex) {
+      return {
+        ok: false,
+        reason: 'השיעור המקורי של ההשלמה כבר לא קיים או לא נמצא',
+      };
+    }
+
+    const status = String(ex.status ?? '').trim();
+    const isMakeupAllowed = ex.is_makeup_allowed === true;
+
+    if (status === 'הושלם') {
+      return {
+        ok: false,
+        reason: 'בקשת ההשלמה כבר אינה רלוונטית כי השיעור כבר הושלם',
+      };
+    }
+
+    if (!isMakeupAllowed) {
+      return {
+        ok: false,
+        reason: 'בקשת ההשלמה כבר אינה רלוונטית כי לא ניתן עוד לבצע השלמה לשיעור זה',
+      };
+    }
+
+    return { ok: true };
+  } catch (e: any) {
+    return this.handleDbFailure(mode, 'checkMakeupSourceStillRelevant', e);
+  }
+}
   private handleDbFailure(mode: ValidationMode, context: string, err: any): ValidationResult {
     console.warn(`[VALIDATION][${mode}] ${context} DB failed → skip/restrict`, err);
 
