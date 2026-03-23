@@ -512,12 +512,6 @@ p_payment_docs_url: p.referral_url ?? null,
       p_origin: "secretary",
     };
     
-console.log('RIDING TYPE DEBUG', {
-  fromPayload: p.riding_type_id,
-  fromAvailability: this.ridingTypeId(),
-  used: ridingTypeId,
-  maxParticipants,
-});
 
 
     const { data, error } = await db.rpc('create_series_with_validation', params);

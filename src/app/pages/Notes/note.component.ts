@@ -263,7 +263,6 @@ get canEditOfficeNotes(): boolean {
   /* ===================== LIFECYCLE ===================== */
 
  async ngOnInit() {
-  console.log('NOTE occurrence:', this.occurrence);
 
   // 1️⃣ טעינת נתונים בסיסיים – חייבים לפני פרטי שיעור
   await this.loadChildDetails();
@@ -376,8 +375,6 @@ private recalcPresenceFlags() {
   }
 
   if (!this.canMarkAttendanceNow()) {
-    console.log('NOW (js):', new Date().toString());
-console.log('NOW (iso):', new Date().toISOString());
 
 
     this.mustChooseAttendance = false;
@@ -994,10 +991,6 @@ this.notesOffice = [];
   }
 
   async addNote() {
-      console.log('ADD NOTE CLICKED');
-      console.log('lesson', this.occurrence?.lesson_id);
-console.log('child', this.child?.child_uuid);
-console.log('date', this.getOccurDateForDb());
 
   if (!this.canEditNotes) return;
 
@@ -1028,7 +1021,6 @@ if (error) {
   return;
 }
 
-console.log('NOTE SAVED OK');
 
 
   this.notesGeneral.unshift({

@@ -584,7 +584,6 @@ private flashError(msg: string): void {
       return;
     }
 
-    console.log('loadWorkingHours data:', data);
     const list: FarmWorkingHours[] = (data || []).map((r: any) => ({
       id: r.id,
       day_of_week: r.day_of_week,
@@ -596,9 +595,7 @@ private flashError(msg: string): void {
       office_end: this.t5(r.office_end),
     }));
 
-    console.log('loadWorkingHours before enforceShabbatRules:', list);
     this.workingHours.set(this.enforceShabbatRules(list));
-    console.log('day_of_week values:', list.map(x => x.day_of_week));
 
   }
 
