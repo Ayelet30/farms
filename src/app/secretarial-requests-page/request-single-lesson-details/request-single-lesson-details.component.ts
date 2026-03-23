@@ -833,15 +833,7 @@ export class RequestSingleLessonDetailsComponent {
         p_riding_type_id: ridingTypeId ?? null,
         p_origin: 'secretary',
       };
-console.log('single lesson params', {
-  lessonDate: this.lessonDate,
-  start: normalizeTime(this.requestedStartTime),
-  end: normalizeTime(this.requestedEndTimeFromRequest),
-  instructorIdNumber,
-  ridingTypeId,
-  maxParticipants,
-  payload: p,
-});
+
       const { data, error } = await db.rpc('create_single_lesson_with_validation', params);
       if (error) throw error;
 

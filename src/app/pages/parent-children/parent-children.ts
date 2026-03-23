@@ -960,7 +960,6 @@ async openSignedTerms(child: any) {
       .limit(1)
       .maybeSingle();
 
-    console.log('Received signed terms signature data:', data, 'error:', error);
 
     if (error) throw error;
 

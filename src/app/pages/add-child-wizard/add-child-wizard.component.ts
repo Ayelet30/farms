@@ -249,12 +249,10 @@ export class AddChildWizardComponent implements OnInit {
       await ensureTenantContextReady()
       const db = dbTenant();
       const { data, error } = await db.from('farm_settings').select('registration_fee').limit(1).maybeSingle()
-      console.log('loadRegistrationFeeFromDb data:', data, 'error:', error);
 
       if (error) throw error;
 
       this.registrationFee = (data as any)?.registration_fee ?? 0;
-      console.log('loadRegistrationFeeFromDb data:', this.registrationFee);
 
       if (this.hasRegistrationFee) {
         this.payment.registrationAmount = this.registrationFee ?? 0;
@@ -530,13 +528,11 @@ export class AddChildWizardComponent implements OnInit {
         return;
       }
 
-      console.log('child inserted:', insertedChild);
 
       const { data: reqData, error: reqErr } = await dbc.rpc('create_child_terms_requirement', {
         p_child_id: insertedChild.child_uuid,
       });
 
-      console.log('create_child_terms_requirement result:', { reqData, reqErr });
  
       if (reqErr) throw reqErr;
 
