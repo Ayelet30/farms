@@ -364,8 +364,7 @@ openCreditForCharge(c: ParentChargeRow) {
     const { data: items, error: e1 } = await dbTenant()
     .from('lesson_billing_items_with_office_note')
 
-      .select('occur_date,start_datetime,child_id,unit_price_agorot,quantity,amount_agorot, office_note')
-      .eq('charge_id', chargeId)
+.select('occur_date,start_datetime,child_id,child_name,unit_price_agorot,quantity,amount_agorot,office_note')      .eq('charge_id', chargeId)
       .order('start_datetime', { ascending: true });
 
     if (e1) throw e1;
