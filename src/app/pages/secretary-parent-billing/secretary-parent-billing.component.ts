@@ -18,7 +18,7 @@ import {
 } from '../../services/payments.service';
 import { dbTenant } from '../../services/supabaseClient.service';
 import { TranzilaService } from '../../services/tranzila.service';
-
+import { AdditionalChargeDialogComponent } from './additional-charge-dialog.component';
 @Component({
   selector: 'app-secretary-parent-billing',
   standalone: true,
@@ -469,5 +469,91 @@ private getSelectedChargesGroupedByParent(): Record<string, string[]> {
   }
 
   return grouped;
+}
+async openAdditionalChargeDialog(c: ParentChargeRow) {
+  const ref = this.dialog.open(AdditionalChargeDialogComponent, {
+    width: '420px',
+    data: {
+      parentUid: c.parent_uid,
+      parentName: c.parent_name || `${c.first_name} ${c.last_name}`.trim(),
+    },
+  });
+
+  ref.afterClosed().subscribe(async (result) => {
+    if (!result?.saved) return;
+
+    try {
+      this.loading.set(true);
+      this.error.set(null);
+
+      await this.createAdditionalCharge({
+        parentUid: c.parent_uid,
+        amountAgorot: result.amountAgorot,
+        description: result.description,
+      });
+
+      await this.loadCharges();
+    } catch (e: any) {
+      this.error.set(e?.message ?? 'שגיאה ביצירת חיוב נוסף');
+    } finally {
+      this.loading.set(false);
+    }
+  });
+}
+private async createAdditionalCharge(args: {
+  parentUid: string;
+  amountAgorot: number;
+  description: string;
+}) {
+  const now = new Date();
+  const isoNow = now.toISOString();
+
+  const billingMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
+
+  const sb = dbTenant();
+
+  // 1. בדיקה אם קיים כבר חיוב לחודש
+  const { data: existing, error: fetchErr } = await sb
+    .from('charges')
+    .select('id, amount_agorot, description')
+    .eq('parent_uid', args.parentUid)
+    .eq('billing_month', billingMonth)
+    .maybeSingle();
+
+  if (fetchErr) throw fetchErr;
+
+  if (existing) {
+    // 2. עדכון חיוב קיים
+    const { error: updateErr } = await sb
+      .from('charges')
+      .update({
+        amount_agorot: existing.amount_agorot + args.amountAgorot,
+        description: (existing.description || '') + ' | ' + args.description,
+        updated_at: isoNow,
+      })
+      .eq('id', existing.id);
+
+    if (updateErr) throw updateErr;
+
+  } else {
+    // 3. יצירת חיוב חדש
+    const { error: insertErr } = await sb
+      .from('charges')
+      .insert({
+        parent_uid: args.parentUid,
+        amount_agorot: args.amountAgorot,
+        currency: 'ILS',
+        status: 'pending',
+        description: args.description,
+        billing_month: billingMonth,
+        created_at: isoNow,
+        updated_at: isoNow,
+        office_note: 'חיוב נוסף שהוזן ידנית ע"י המזכירה',
+      });
+
+    if (insertErr) throw insertErr;
+  }
 }
 }
