@@ -125,24 +125,7 @@ invoiceExtraText = '';
     return this.selectedChargeIds().size > 0;
   }
 
-  /** אם יש בחירה – מה ה־parent_uid שלה, ואם יש יותר מאחד יהיה null */
-  selectedParentUid = computed<string | null>(() => {
-    const ids = this.selectedChargeIds();
-    if (!ids.size) return null;
-
-    let parent: string | null = null;
-    for (const c of this.openCharges()) {
-      if (ids.has(c.id)) {
-        if (parent == null) {
-          parent = c.parent_uid;
-        } else if (parent !== c.parent_uid) {
-          return null; // מעורבבים הורים שונים
-        }
-      }
-    }
-    return parent;
-  });
-
+  
   // === lifecycle ===
 
   async ngOnInit() {
@@ -226,37 +209,49 @@ console.log('office_note on first row:', rows?.[0]?.office_note);
  async chargeSelected() {
   if (!this.anySelected()) return;
 
-  const parentUid = this.selectedParentUid();
-  if (!parentUid) {
-    this.error.set('ניתן לחייב בבת אחת רק הורה אחד...');
-    return;
-  }
-
   try {
     this.loading.set(true);
     this.error.set(null);
 
-    const ids = Array.from(this.selectedChargeIds());
+    const farm = getCurrentFarmMetaSync();
+    const schema = farm?.schema_name ?? 'public';
 
-     const farm = getCurrentFarmMetaSync();
-    const schema = farm?.schema_name ?? undefined;
-    await this.tranzila.chargeSelectedChargesForParent({
-      tenantSchema: schema?? farm?.schema_name ?? 'public',
-      parentUid,
-      chargeIds: ids,
-      secretaryEmail: 'ayelethury@gmail.com', 
-      invoiceExtraText: this.invoiceExtraText?.trim() || null, 
-// או מהמזכירה המחוברת
-    });
+    const grouped = this.getSelectedChargesGroupedByParent();
+    const entries = Object.entries(grouped);
+
+    if (!entries.length) {
+      this.error.set('לא נבחרו חיובים לחיוב');
+      return;
+    }
+
+    const failures: string[] = [];
+
+    for (const [parentUid, chargeIds] of entries) {
+      try {
+        await this.tranzila.chargeSelectedChargesForParent({
+          tenantSchema: schema,
+          parentUid,
+          chargeIds,
+          secretaryEmail: 'ayelethury@gmail.com',
+          invoiceExtraText: this.invoiceExtraText?.trim() || null,
+        });
+      } catch (e: any) {
+        console.error('[ParentBilling] charge failed for parent', parentUid, e);
+        failures.push(parentUid);
+      }
+    }
 
     await this.loadCharges();
+
+    if (failures.length) {
+      this.error.set(`חלק מהחיובים לא חויבו. מספר הורים שנכשלו: ${failures.length}`);
+    }
   } catch (e: any) {
     this.error.set(e?.message ?? 'שגיאה בחיוב');
   } finally {
     this.loading.set(false);
   }
 }
-
 
   // === זיכוי הורה ===
 
@@ -459,5 +454,20 @@ else {
     this.loading.set(false);
   }
 }
+private getSelectedChargesGroupedByParent(): Record<string, string[]> {
+  const ids = this.selectedChargeIds();
+  const grouped: Record<string, string[]> = {};
 
+  for (const c of this.openCharges()) {
+    if (!ids.has(c.id)) continue;
+
+    if (!grouped[c.parent_uid]) {
+      grouped[c.parent_uid] = [];
+    }
+
+    grouped[c.parent_uid].push(c.id);
+  }
+
+  return grouped;
+}
 }
