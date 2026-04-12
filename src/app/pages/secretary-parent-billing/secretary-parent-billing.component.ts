@@ -92,10 +92,20 @@ invoiceExtraText = '';
   });
 
   /** מה שמוצג בטבלה, לפי הטאב */
-  visibleCharges = computed(() =>
-    this.activeTab() === 'open' ? this.openCharges() : this.charges()
-  );
+ visibleCharges = computed(() => {
+  const base =
+    this.activeTab() === 'open' ? this.openCharges() : this.charges();
 
+  const filter = this.parentNameFilter().toLowerCase().trim();
+  if (!filter) return base;
+
+  return base.filter((c) => {
+    const name = (c.parent_name || `${c.first_name} ${c.last_name}` || '')
+      .toLowerCase();
+
+    return name.includes(filter);
+  });
+});
   /** סכום חיובים נבחרים */
   selectedTotalShekels = computed(() => {
     const ids = this.selectedChargeIds();
@@ -147,12 +157,10 @@ invoiceExtraText = '';
       this.loading.set(true);
       this.error.set(null);
 
-      const parentUid = this.parentNameFilter().trim() || null;
 
-      const { rows } = await this.payments.listParentCharges({
-        parentUid,
-        limit: 200,
-      });
+  const { rows } = await this.payments.listParentCharges({
+  limit: 200,
+});
 
       this.charges.set(rows);
       console.log('charges sample', rows[0]);
@@ -170,7 +178,6 @@ console.log('office_note on first row:', rows?.[0]?.office_note);
   // שינוי סינון UID
   async onParentNameFilterChange(name: string) {
     this.parentNameFilter.set(name);
-    await this.loadCharges();
   }
 
   // === בחירת חיובים ===
