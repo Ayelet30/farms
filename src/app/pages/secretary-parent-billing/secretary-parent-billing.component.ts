@@ -10,7 +10,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { createParentCredit, getCurrentFarmMetaSync } from '../../services/supabaseClient.service';
-
+import { MatDialog } from '@angular/material/dialog';
+import { CreditDialogComponent } from './credit-dialog.component';
 import {
   PaymentsService,
   ParentChargeRow,
@@ -26,7 +27,7 @@ import { TranzilaService } from '../../services/tranzila.service';
   styleUrls: ['./secretary-parent-billing.component.scss'],
 })
 export class SecretaryParentBillingComponent implements OnInit {
-
+private dialog = inject(MatDialog);
   private tranzila = inject(TranzilaService);
   
   // === פילטרים ===
@@ -310,15 +311,26 @@ console.log('office_note on first row:', rows?.[0]?.office_note);
 
  
 
+
 openCreditForCharge(c: ParentChargeRow) {
-  this.creditParentUid.set(c.parent_uid);
-  this.creditParentName.set(c.parent_name ?? '');
-  this.creditRelatedChargeId.set(c.id); // זיכוי על חיוב מסוים
-  this.creditSuccess.set(null);
-  this.creditError.set(null);
+  const ref = this.dialog.open(CreditDialogComponent, {
+    width: '560px',
+    maxWidth: '92vw',
+    autoFocus: false,
+    panelClass: 'credit-dialog-panel',
+    data: {
+      parentUid: c.parent_uid,
+      parentName: c.parent_name ?? '',
+      relatedChargeId: c.id,
+    },
+  });
+
+  ref.afterClosed().subscribe(async (result) => {
+    if (result?.saved) {
+      await this.loadCharges();
+    }
+  });
 }
-
-
 
   // === תצוגה ===
 
