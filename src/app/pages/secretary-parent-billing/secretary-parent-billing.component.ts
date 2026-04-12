@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
+import { MatIconModule } from '@angular/material/icon';
 import { createParentCredit, getCurrentFarmMetaSync } from '../../services/supabaseClient.service';
 
 import {
@@ -21,7 +21,7 @@ import { TranzilaService } from '../../services/tranzila.service';
 @Component({
   selector: 'app-secretary-parent-billing',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MatIconModule],
   templateUrl: './secretary-parent-billing.component.html',
   styleUrls: ['./secretary-parent-billing.component.scss'],
 })
