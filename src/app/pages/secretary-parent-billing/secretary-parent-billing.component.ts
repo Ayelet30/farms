@@ -323,6 +323,9 @@ openCreditForCharge(c: ParentChargeRow) {
   ref.afterClosed().subscribe(async (result) => {
     if (result?.saved) {
       await this.loadCharges();
+      if (this.detailsOpenFor() === c.id) {
+          await this.openChargeDetails(c.id);
+    }
     }
   });
 }
@@ -371,7 +374,18 @@ openCreditForCharge(c: ParentChargeRow) {
     const { data: items, error: e1 } = await dbTenant()
     .from('lesson_billing_items_with_office_note')
 
-.select('occur_date,start_datetime,child_id,child_name,unit_price_agorot,quantity,amount_agorot,office_note')      .eq('charge_id', chargeId)
+.select(`
+  occur_date,
+  start_datetime,
+  child_id,
+  child_name,
+  unit_price_agorot,
+  quantity,
+  amount_agorot,
+  office_note,
+  billing_source,
+  is_cancelled_billable
+`)   .eq('charge_id', chargeId)
       .order('start_datetime', { ascending: true });
 
     if (e1) throw e1;
@@ -493,6 +507,9 @@ async openAdditionalChargeDialog(c: ParentChargeRow) {
       });
 
       await this.loadCharges();
+         if (this.detailsOpenFor() === c.id) {
+            await this.openChargeDetails(c.id);
+    }
     } catch (e: any) {
       this.error.set(e?.message ?? 'שגיאה ביצירת חיוב נוסף');
     } finally {
