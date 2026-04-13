@@ -81,7 +81,8 @@
   class="day-bg-cell"
   [style.gridColumn]="shouldSplitDayByInstructor ? col + 1 : 2"
   [style.gridRow]="row + 2"
-  (click)="onCustomDateCellClick(slot.iso)">
+  (click)="onCustomDateCellClick(slot.iso)"
+  (contextmenu)="onCustomDateRightClick($event, slot.iso)">
 </div>
       </ng-container>
     </ng-container>

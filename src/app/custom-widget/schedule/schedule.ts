@@ -562,6 +562,15 @@ console.log('items for day', (this.items || []).map(i => i.start));
     this.autoAssignRequested.emit();
   }
 
+  onCustomDateRightClick(event: MouseEvent, iso: string) {
+  event.preventDefault(); // חשוב! שלא ייפתח תפריט דפדפן
+
+  this.rightClickDay.emit({
+  jsEvent: event,
+  dateStr: iso,
+});
+}
+
   toggleFullscreen() {
     this.isFullscreen = !this.isFullscreen;
     document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
