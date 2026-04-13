@@ -226,7 +226,6 @@ private async callCloud(action: 'approve' | 'reject', extra?: { system?: boolean
 
       const row = (data?.[0] ?? null) as AddChildDetails | null;
       this.details.set(row);
-      console.log('details:', this.details);
     } catch (e: any) {
       console.error(e);
       const msg = e?.message || 'שגיאה בטעינת פרטי הבקשה';

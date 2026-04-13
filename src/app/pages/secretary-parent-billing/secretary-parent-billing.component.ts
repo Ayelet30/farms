@@ -8,25 +8,26 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
+import { MatIconModule } from '@angular/material/icon';
 import { createParentCredit, getCurrentFarmMetaSync } from '../../services/supabaseClient.service';
-
+import { MatDialog } from '@angular/material/dialog';
+import { CreditDialogComponent } from './credit-dialog.component';
 import {
   PaymentsService,
   ParentChargeRow,
 } from '../../services/payments.service';
 import { dbTenant } from '../../services/supabaseClient.service';
 import { TranzilaService } from '../../services/tranzila.service';
-
+import { AdditionalChargeDialogComponent } from './additional-charge-dialog.component';
 @Component({
   selector: 'app-secretary-parent-billing',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MatIconModule],
   templateUrl: './secretary-parent-billing.component.html',
   styleUrls: ['./secretary-parent-billing.component.scss'],
 })
 export class SecretaryParentBillingComponent implements OnInit {
-
+private dialog = inject(MatDialog);
   private tranzila = inject(TranzilaService);
   
   // === פילטרים ===
@@ -92,10 +93,20 @@ invoiceExtraText = '';
   });
 
   /** מה שמוצג בטבלה, לפי הטאב */
-  visibleCharges = computed(() =>
-    this.activeTab() === 'open' ? this.openCharges() : this.charges()
-  );
+ visibleCharges = computed(() => {
+  const base =
+    this.activeTab() === 'open' ? this.openCharges() : this.charges();
 
+  const filter = this.parentNameFilter().toLowerCase().trim();
+  if (!filter) return base;
+
+  return base.filter((c) => {
+    const name = (c.parent_name || `${c.first_name} ${c.last_name}` || '')
+      .toLowerCase();
+
+    return name.includes(filter);
+  });
+});
   /** סכום חיובים נבחרים */
   selectedTotalShekels = computed(() => {
     const ids = this.selectedChargeIds();
@@ -114,24 +125,7 @@ invoiceExtraText = '';
     return this.selectedChargeIds().size > 0;
   }
 
-  /** אם יש בחירה – מה ה־parent_uid שלה, ואם יש יותר מאחד יהיה null */
-  selectedParentUid = computed<string | null>(() => {
-    const ids = this.selectedChargeIds();
-    if (!ids.size) return null;
-
-    let parent: string | null = null;
-    for (const c of this.openCharges()) {
-      if (ids.has(c.id)) {
-        if (parent == null) {
-          parent = c.parent_uid;
-        } else if (parent !== c.parent_uid) {
-          return null; // מעורבבים הורים שונים
-        }
-      }
-    }
-    return parent;
-  });
-
+  
   // === lifecycle ===
 
   async ngOnInit() {
@@ -147,12 +141,10 @@ invoiceExtraText = '';
       this.loading.set(true);
       this.error.set(null);
 
-      const parentUid = this.parentNameFilter().trim() || null;
 
-      const { rows } = await this.payments.listParentCharges({
-        parentUid,
-        limit: 200,
-      });
+  const { rows } = await this.payments.listParentCharges({
+  limit: 200,
+});
 
       this.charges.set(rows);
       console.log('charges sample', rows[0]);
@@ -170,7 +162,6 @@ console.log('office_note on first row:', rows?.[0]?.office_note);
   // שינוי סינון UID
   async onParentNameFilterChange(name: string) {
     this.parentNameFilter.set(name);
-    await this.loadCharges();
   }
 
   // === בחירת חיובים ===
@@ -218,37 +209,49 @@ console.log('office_note on first row:', rows?.[0]?.office_note);
  async chargeSelected() {
   if (!this.anySelected()) return;
 
-  const parentUid = this.selectedParentUid();
-  if (!parentUid) {
-    this.error.set('ניתן לחייב בבת אחת רק הורה אחד...');
-    return;
-  }
-
   try {
     this.loading.set(true);
     this.error.set(null);
 
-    const ids = Array.from(this.selectedChargeIds());
+    const farm = getCurrentFarmMetaSync();
+    const schema = farm?.schema_name ?? 'public';
 
-     const farm = getCurrentFarmMetaSync();
-    const schema = farm?.schema_name ?? undefined;
-    await this.tranzila.chargeSelectedChargesForParent({
-      tenantSchema: schema?? farm?.schema_name ?? 'public',
-      parentUid,
-      chargeIds: ids,
-      secretaryEmail: 'ayelethury@gmail.com', 
-      invoiceExtraText: this.invoiceExtraText?.trim() || null, 
-// או מהמזכירה המחוברת
-    });
+    const grouped = this.getSelectedChargesGroupedByParent();
+    const entries = Object.entries(grouped);
+
+    if (!entries.length) {
+      this.error.set('לא נבחרו חיובים לחיוב');
+      return;
+    }
+
+    const failures: string[] = [];
+
+    for (const [parentUid, chargeIds] of entries) {
+      try {
+        await this.tranzila.chargeSelectedChargesForParent({
+          tenantSchema: schema,
+          parentUid,
+          chargeIds,
+          secretaryEmail: 'ayelethury@gmail.com',
+          invoiceExtraText: this.invoiceExtraText?.trim() || null,
+        });
+      } catch (e: any) {
+        console.error('[ParentBilling] charge failed for parent', parentUid, e);
+        failures.push(parentUid);
+      }
+    }
 
     await this.loadCharges();
+
+    if (failures.length) {
+      this.error.set(`חלק מהחיובים לא חויבו. מספר הורים שנכשלו: ${failures.length}`);
+    }
   } catch (e: any) {
     this.error.set(e?.message ?? 'שגיאה בחיוב');
   } finally {
     this.loading.set(false);
   }
 }
-
 
   // === זיכוי הורה ===
 
@@ -303,15 +306,26 @@ console.log('office_note on first row:', rows?.[0]?.office_note);
 
  
 
+
 openCreditForCharge(c: ParentChargeRow) {
-  this.creditParentUid.set(c.parent_uid);
-  this.creditParentName.set(c.parent_name ?? '');
-  this.creditRelatedChargeId.set(c.id); // זיכוי על חיוב מסוים
-  this.creditSuccess.set(null);
-  this.creditError.set(null);
+  const ref = this.dialog.open(CreditDialogComponent, {
+    width: '560px',
+    maxWidth: '92vw',
+    autoFocus: false,
+    panelClass: 'credit-dialog-panel',
+    data: {
+      parentUid: c.parent_uid,
+      parentName: c.parent_name ?? '',
+      relatedChargeId: c.id,
+    },
+  });
+
+  ref.afterClosed().subscribe(async (result) => {
+    if (result?.saved) {
+      await this.loadCharges();
+    }
+  });
 }
-
-
 
   // === תצוגה ===
 
@@ -357,8 +371,7 @@ openCreditForCharge(c: ParentChargeRow) {
     const { data: items, error: e1 } = await dbTenant()
     .from('lesson_billing_items_with_office_note')
 
-      .select('occur_date,start_datetime,child_id,unit_price_agorot,quantity,amount_agorot, office_note')
-      .eq('charge_id', chargeId)
+.select('occur_date,start_datetime,child_id,child_name,unit_price_agorot,quantity,amount_agorot,office_note')      .eq('charge_id', chargeId)
       .order('start_datetime', { ascending: true });
 
     if (e1) throw e1;
@@ -441,5 +454,106 @@ else {
     this.loading.set(false);
   }
 }
+private getSelectedChargesGroupedByParent(): Record<string, string[]> {
+  const ids = this.selectedChargeIds();
+  const grouped: Record<string, string[]> = {};
 
+  for (const c of this.openCharges()) {
+    if (!ids.has(c.id)) continue;
+
+    if (!grouped[c.parent_uid]) {
+      grouped[c.parent_uid] = [];
+    }
+
+    grouped[c.parent_uid].push(c.id);
+  }
+
+  return grouped;
+}
+async openAdditionalChargeDialog(c: ParentChargeRow) {
+  const ref = this.dialog.open(AdditionalChargeDialogComponent, {
+    width: '420px',
+    data: {
+      parentUid: c.parent_uid,
+      parentName: c.parent_name || `${c.first_name} ${c.last_name}`.trim(),
+    },
+  });
+
+  ref.afterClosed().subscribe(async (result) => {
+    if (!result?.saved) return;
+
+    try {
+      this.loading.set(true);
+      this.error.set(null);
+
+      await this.createAdditionalCharge({
+        parentUid: c.parent_uid,
+        amountAgorot: result.amountAgorot,
+        description: result.description,
+      });
+
+      await this.loadCharges();
+    } catch (e: any) {
+      this.error.set(e?.message ?? 'שגיאה ביצירת חיוב נוסף');
+    } finally {
+      this.loading.set(false);
+    }
+  });
+}
+private async createAdditionalCharge(args: {
+  parentUid: string;
+  amountAgorot: number;
+  description: string;
+}) {
+  const now = new Date();
+  const isoNow = now.toISOString();
+
+  const billingMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
+
+  const sb = dbTenant();
+
+  // 1. בדיקה אם קיים כבר חיוב לחודש
+  const { data: existing, error: fetchErr } = await sb
+    .from('charges')
+    .select('id, amount_agorot, description')
+    .eq('parent_uid', args.parentUid)
+    .eq('billing_month', billingMonth)
+    .maybeSingle();
+
+  if (fetchErr) throw fetchErr;
+
+  if (existing) {
+    // 2. עדכון חיוב קיים
+    const { error: updateErr } = await sb
+      .from('charges')
+      .update({
+        amount_agorot: existing.amount_agorot + args.amountAgorot,
+        description: (existing.description || '') + ' | ' + args.description,
+        updated_at: isoNow,
+      })
+      .eq('id', existing.id);
+
+    if (updateErr) throw updateErr;
+
+  } else {
+    // 3. יצירת חיוב חדש
+    const { error: insertErr } = await sb
+      .from('charges')
+      .insert({
+        parent_uid: args.parentUid,
+        amount_agorot: args.amountAgorot,
+        currency: 'ILS',
+        status: 'pending',
+        description: args.description,
+        billing_month: billingMonth,
+        created_at: isoNow,
+        updated_at: isoNow,
+        office_note: 'חיוב נוסף שהוזן ידנית ע"י המזכירה',
+      });
+
+    if (insertErr) throw insertErr;
+  }
+}
 }

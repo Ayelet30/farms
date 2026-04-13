@@ -6,7 +6,14 @@ import { dbTenant } from '../../services/supabaseClient.service';
 import { HDate } from '@hebcal/core';
 import { UiDialogService } from '../../services/ui-dialog.service';
 import { computed } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
+import { firstValueFrom } from 'rxjs';
+import { getAuth } from 'firebase/auth';
 
+import {
+  SpecialDayImpactDialogComponent,
+  SpecialDayImpactRow,
+} from './special-day-impact-dialog/special-day-impact-dialog.component';
 type UUID = string;
 
 type LateCancelPolicy = 'CHARGE_FULL' | 'CHARGE_PARTIAL' | 'NO_CHARGE' | 'NO_MAKEUP';
@@ -15,7 +22,7 @@ type ReminderChannel = 'EMAIL' | 'SMS' | 'APP' | 'WHATSAPP';
 
 type CalendarKind = 'GREGORIAN' | 'HEBREW';
 type RecurrenceKind = 'ONCE' | 'YEARLY';
-type DayType = 'FULL_DAY' | 'PARTIAL_DAY';
+type DayType = 'FULL_DAY' | 'HOURS';
 interface RidingType {
   
   id: UUID;
@@ -220,7 +227,7 @@ export class FarmSettingsComponent implements OnInit {
   private get supabase() {
     return dbTenant();
   }
-
+private dialog = inject(MatDialog);
   private ui = inject(UiDialogService);
 
   // ====== Structured Notes (list_notes) ======
@@ -577,7 +584,6 @@ private flashError(msg: string): void {
       return;
     }
 
-    console.log('loadWorkingHours data:', data);
     const list: FarmWorkingHours[] = (data || []).map((r: any) => ({
       id: r.id,
       day_of_week: r.day_of_week,
@@ -589,9 +595,7 @@ private flashError(msg: string): void {
       office_end: this.t5(r.office_end),
     }));
 
-    console.log('loadWorkingHours before enforceShabbatRules:', list);
     this.workingHours.set(this.enforceShabbatRules(list));
-    console.log('day_of_week values:', list.map(x => x.day_of_week));
 
   }
 
@@ -1029,111 +1033,220 @@ canSaveWorkingHours(): boolean {
 
     this.daysOff.set(list);
   }
+specialDayBusy = signal(false);
+specialDayBusyText = signal('שומרת יום מיוחד, מעדכנת שיעורים ושולחת מיילים...');
+ async saveSpecialDay(): Promise<void> {
+  const f = this.specialDayForm();
+  this.validateSpecialDayDateRange(f);
 
-  async saveSpecialDay(): Promise<void> {
-    const f = this.specialDayForm();
-    this.validateSpecialDayDateRange(f);
-    if (this.dateRangeError()) {
-      await this.ui.alert(this.dateRangeError()!, 'שגיאה');
+  if (this.dateRangeError()) {
+    await this.ui.alert(this.dateRangeError()!, 'שגיאה');
+    return;
+  }
+
+  if (!f.reason?.trim()) {
+    await this.ui.alert('חובה למלא סיבה.', 'חסר שדה');
+    return;
+  }
+
+  if (!f.start_date || !f.end_date) {
+    await this.ui.alert('חובה למלא "מתאריך" ו-"עד תאריך".', 'חסר שדה');
+    return;
+  }
+
+  if (!f.all_day) {
+    if (!f.start_time || !f.end_time) {
+      await this.ui.alert('כשזה לא "כל היום" חובה למלא שעות התחלה/סיום.', 'חסר שדה');
       return;
     }
 
-    if (!f.reason?.trim()) {
-      await this.ui.alert('חובה למלא סיבה.', 'חסר שדה');
-      return;
-    }
-
-    if (!f.start_date || !f.end_date) {
-      await this.ui.alert('חובה למלא "מתאריך" ו-"עד תאריך".', 'חסר שדה');
-      return;
-    }
-
-    if (!f.all_day) {
-      if (!f.start_time || !f.end_time) {
-        await this.ui.alert('כשזה לא "כל היום" חובה למלא שעות התחלה/סיום.', 'חסר שדה');
-        return;
-      }
-      if (f.end_time <= f.start_time) {
-        await this.ui.alert('שעת סיום חייבת להיות אחרי שעת התחלה.', 'שגיאה');
-        return;
-      }
-      if (!f.all_day && f.start_date && f.end_date && f.start_date === f.end_date) {
-  const dow = this.isoDow(f.start_date);
-
-  if (dow === 6) { // יום 7
-    if (f.start_time && f.start_time < this.DAY7_START) {
-      await this.ui.alert('ביום 7 אי אפשר להתחיל לפני 19:00.', 'שגיאה');
+    if (f.end_time <= f.start_time) {
+      await this.ui.alert('שעת סיום חייבת להיות אחרי שעת התחלה.', 'שגיאה');
       return;
     }
   }
 
-  if (dow === 5) { // יום 6
-    if (f.end_time && f.end_time > this.DAY6_CUTOFF) {
-      await this.ui.alert('ביום 6 חייבים לסיים עד 16:00.', 'שגיאה');
+  const isHebrew = (f.calendar_kind ?? 'GREGORIAN') === 'HEBREW';
+
+  if (isHebrew) {
+    if (!f.hebrew_day || !f.hebrew_month) {
+      await this.ui.alert('חובה לבחור תאריך עברי (חודש + יום).', 'חסר שדה');
       return;
     }
+    this.syncHebrewToGregorianDates();
+  }
+
+ const previewPayload = {
+  p_start_date: this.specialDayForm().start_date,
+  p_end_date: this.specialDayForm().end_date,
+  p_day_type: f.all_day ? 'FULL_DAY' : 'HOURS',
+  p_start_time: f.all_day ? null : this.timeToDb(f.start_time),
+  p_end_time: f.all_day ? null : this.timeToDb(f.end_time),
+};
+
+  try {
+this.saving.set(true);
+this.specialDayBusy.set(true);
+this.specialDayBusyText.set('שומרת יום מיוחד, מעדכנת שיעורים ושולחת מיילים...');
+    this.error.set(null);
+    this.success.set(null);
+
+    const { data: impacted, error: previewError } = await this.supabase
+      .rpc('preview_farm_day_off_impact', previewPayload);
+
+    if (previewError) {
+      console.error('preview_farm_day_off_impact error', previewError);
+      await this.ui.alert('בדיקת השפעת היום המיוחד נכשלה.', 'שגיאה');
+      return;
+    }
+
+  if (impacted?.length) {
+  const ok = await firstValueFrom(
+    this.dialog
+      .open(SpecialDayImpactDialogComponent, {
+        width: '960px',
+        maxWidth: '95vw',
+        maxHeight: '90vh',
+        autoFocus: false,
+        restoreFocus: false,
+        disableClose: false,
+        data: {
+          reason: f.reason.trim(),
+          startDate: this.specialDayForm().start_date!,
+          endDate: this.specialDayForm().end_date!,
+          allDay: !!f.all_day,
+          rows: impacted as SpecialDayImpactRow[],
+        },
+      })
+      .afterClosed()
+  );
+
+  if (!ok) return;
+}
+    
+
+    const applyPayload = {
+      p_start_date: this.specialDayForm().start_date,
+      p_end_date: this.specialDayForm().end_date,
+      p_reason: f.reason.trim(),
+  p_day_type: f.all_day ? 'FULL_DAY' : 'HOURS',
+      p_start_time: f.all_day ? null : this.timeToDb(f.start_time),
+      p_end_time: f.all_day ? null : this.timeToDb(f.end_time),
+      p_recurrence: f.recurrence ?? 'ONCE',
+      p_calendar_kind: f.calendar_kind ?? 'GREGORIAN',
+      p_hebrew_day: isHebrew ? (this.specialDayForm().hebrew_day ?? null) : null,
+      p_hebrew_month: isHebrew ? (this.specialDayForm().hebrew_month ?? null) : null,
+      p_hebrew_end_day: isHebrew ? (this.specialDayForm().hebrew_end_day ?? this.specialDayForm().hebrew_day ?? null) : null,
+      p_hebrew_end_month: isHebrew ? (this.specialDayForm().hebrew_end_month ?? this.specialDayForm().hebrew_month ?? null) : null,
+      p_notify_parents_before: !!f.notify_parents_before,
+      p_notify_days_before: f.notify_parents_before ? (f.notify_days_before ?? 1) : null,
+    };
+
+    const { data: result, error: applyError } = await this.supabase
+      .rpc('create_farm_day_off_and_cancel_lessons', applyPayload);
+
+ 
+if (applyError) {
+  console.error('create_farm_day_off_and_cancel_lessons error', applyError);
+  await this.ui.alert('שמירת יום מיוחד נכשלה.', 'שגיאה');
+  return;
+}
+const normalizedRows = (result ?? []).map((r: any) => ({
+  lesson_id: r.out_lesson_id,
+  occur_date: r.out_occur_date,
+  start_time: r.out_start_time,
+  end_time: r.out_end_time,
+  child_id: r.out_child_id,
+  child_name: r.out_child_name,
+  parent_uid: r.out_parent_uid,
+  parent_name: r.out_parent_name,
+  parent_email: r.out_parent_email,
+  lesson_type: r.out_lesson_type,
+  instructor_id: r.out_instructor_id,
+  instructor_uid: r.out_instructor_uid,
+  instructor_name: r.out_instructor_name,
+}));
+const emailResult = await this.sendFarmDayOffCancellationEmailsViaCloudFunction(
+  normalizedRows,
+  f.reason.trim()
+);
+
+await this.loadFarmDaysOff();
+this.closeSpecialDaysModal();
+
+if (emailResult.failedCount > 0) {
+  await this.ui.alert(
+    `יום מיוחד נשמר והשיעורים בוטלו.\n\nנשלחו ${emailResult.parentSentCount} מיילים להורים ו־${emailResult.instructorSentCount} מיילים למדריכים, אבל ${emailResult.failedCount} שליחות נכשלו.`,
+    'הושלם חלקית'
+  );
+} else {
+  await this.ui.alert(
+    `יום מיוחד נשמר, השיעורים בוטלו, נשלחו ${emailResult.parentSentCount} מיילים להורים ו־${emailResult.instructorSentCount} מיילים למדריכים.`,
+    'הצלחה'
+  );
+}
+  } finally {
+    this.saving.set(false);
+          this.specialDayBusy.set(false);
+
+
   }
 }
 
-    }
-
-    const isHebrew = (f.calendar_kind ?? 'GREGORIAN') === 'HEBREW';
-
-    if (isHebrew) {
-      if (!f.hebrew_day || !f.hebrew_month) {
-        await this.ui.alert('חובה לבחור תאריך עברי (חודש + יום).', 'חסר שדה');
-        return;
-      }
-      this.syncHebrewToGregorianDates();
-    }
-
-    const payload: any = {
-      reason: f.reason.trim(),
-      is_active: true,
-
-      recurrence: f.recurrence ?? 'ONCE',
-
-      notify_parents_before: !!f.notify_parents_before,
-      notify_days_before: f.notify_parents_before ? (f.notify_days_before ?? 1) : null,
-
-      day_type: f.all_day ? 'FULL_DAY' : 'PARTIAL_DAY',
-      start_time: f.all_day ? null : this.timeToDb(f.start_time),
-      end_time: f.all_day ? null : this.timeToDb(f.end_time),
-
-      start_date: this.specialDayForm().start_date,
-      end_date: this.specialDayForm().end_date,
-
-      calendar_kind: isHebrew ? 'HEBREW' : 'GREGORIAN',
-      hebrew_day: isHebrew ? (this.specialDayForm().hebrew_day ?? null) : null,
-      hebrew_month: isHebrew ? (this.specialDayForm().hebrew_month ?? null) : null,
-      hebrew_end_day: isHebrew ? (this.specialDayForm().hebrew_end_day ?? this.specialDayForm().hebrew_day ?? null) : null,
-      hebrew_end_month: isHebrew ? (this.specialDayForm().hebrew_end_month ?? this.specialDayForm().hebrew_month ?? null) : null,
+private async sendFarmDayOffCancellationEmailsViaCloudFunction(
+  rows: any[],
+  reason: string
+): Promise<{
+  parentSentCount: number;
+  instructorSentCount: number;
+  failedCount: number;
+  skippedCount: number;
+}> {
+  if (!rows.length) {
+    return {
+      parentSentCount: 0,
+      instructorSentCount: 0,
+      failedCount: 0,
+      skippedCount: 0,
     };
-
-    try {
-      this.saving.set(true);
-      this.error.set(null);
-      this.success.set(null);
-
-      const { error } = await this.supabase.from('farm_days_off').insert(payload);
-
-      if (error) {
-        console.error('saveSpecialDay error', error);
-        await this.ui.alert('שמירת יום מיוחד נכשלה.', 'שגיאה');
-        this.error.set('שמירת יום מיוחד נכשלה.');
-        return;
-      }
-
-      this.success.set('יום מיוחד נשמר בהצלחה.');
-      await this.ui.alert('יום מיוחד נשמר בהצלחה.', 'הצלחה');
-
-      await this.loadFarmDaysOff();
-      this.closeSpecialDaysModal();
-    } finally {
-      this.saving.set(false);
-    }
   }
 
+  const user = getAuth().currentUser;
+  const token = await user?.getIdToken();
+
+  if (!token) {
+    throw new Error('לא נמצא משתמש מחובר לצורך שליחת מיילים.');
+  }
+
+  const response = await fetch(
+    'https://us-central1-bereshit-ac5d8.cloudfunctions.net/sendFarmDayOffCancellationEmails',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        tenantSchema: 'moacha_atarim_app',
+        reason,
+        impactedLessons: rows,
+      }),
+    }
+  );
+
+  const json = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(json?.message || json?.error || 'שליחת מיילים נכשלה.');
+  }
+
+  return {
+    parentSentCount: Number(json?.parentSentCount ?? 0),
+    instructorSentCount: Number(json?.instructorSentCount ?? 0),
+    failedCount: Number(json?.failedCount ?? 0),
+    skippedCount: Number(json?.skippedCount ?? 0),
+  };
+}
   async deactivateDayOff(day: FarmDayOff): Promise<void> {
     if (!day.id) return;
 

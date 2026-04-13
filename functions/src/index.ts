@@ -57,6 +57,9 @@ export { rejectAddChildAndNotify } from './reject-add-child-and-notify';
 export { notifySingleLessonApproved } from './notify-single-lesson-approved'
 export { notifySingleLessonRejected } from './notify-single-lesson-rejected'
 export { secretaryCreateInstructorDayOffAndNotify } from './secretary-create-instructor-day-off-and-notify'
+export { sendFarmDayOffCancellationEmails } from './send-farm-day-off-cancellation-emails';
+export { previewInstructorDeactivationImpact } from './preview-instructor-deactivation-impact';
+export { deactivateInstructorAndCancelFutureLessons } from './deactivate-instructor-and-cancel-future-lessons';
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
 

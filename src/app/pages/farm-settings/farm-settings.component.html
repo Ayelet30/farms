@@ -1755,3 +1755,14 @@
     </div>
   </div>
 </div>
+<div class="bulk-overlay" *ngIf="specialDayBusy()">
+  <div class="bulk-overlay-card">
+    <div class="bulk-spinner"></div>
+    <div class="bulk-overlay-title">
+      {{ specialDayBusyText() }}
+    </div>
+    <div class="bulk-overlay-subtitle">
+      אנא המתיני, הפעולה יכולה לקחת כמה שניות.
+    </div>
+  </div>
+</div>

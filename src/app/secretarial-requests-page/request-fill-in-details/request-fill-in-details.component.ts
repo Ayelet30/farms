@@ -74,7 +74,10 @@ readonly shouldShowFillInTarget = computed(() => this.isPending());
   fromDate = computed(() => this.request?.fromDate ?? this.request?.from_date ?? null);
   toDate   = computed(() => this.request?.toDate ?? this.request?.to_date ?? null);
   lessonOccId = computed(() => this.request?.lessonOccId ?? this.request?.lesson_occ_id ?? null);
-
+  originalLessonDate = computed(() => {
+  const p: any = this.payload() ?? {};
+  return p.original_lesson_date ? String(p.original_lesson_date) : null;
+});
   timeRange = computed(() => {
     const p: any = this.payload() ?? {};
     const start = this.normalizeTime(p.requested_start_time ?? null);
@@ -199,60 +202,57 @@ private async rejectBySystem(reason: string): Promise<void> {
     return s;
   }
 
-  async loadFillInTarget(): Promise<void> {
-    const lessonId = this.lessonOccId();
-    if (!lessonId) {
+async loadFillInTarget(): Promise<void> {
+  const lessonId = this.lessonOccId();
+  const originalDate = this.originalLessonDate();
+
+  if (!lessonId || !originalDate) {
+    this.fillInTarget.set(null);
+    return;
+  }
+
+  this.loadingFillInTarget.set(true);
+  try {
+    await ensureTenantContextReady();
+    const db = await dbTenant();
+
+    // 1) להביא את ה-exception המדויק של השיעור המקורי
+    const { data: ex, error: exErr } = await db
+      .from('lesson_occurrence_exceptions')
+      .select('occur_date, status, note, canceller_role, cancelled_at')
+      .eq('lesson_id', lessonId)
+      .eq('occur_date', originalDate)
+      .maybeSingle();
+
+    if (exErr) throw exErr;
+
+    // 2) להביא את ה-occurrence המדויק
+    const { data: occ, error: occErr } = await db
+      .from('lessons_occurrences')
+      .select('occur_date, start_time, end_time, instructor_id, day_of_week, lesson_type, status')
+      .eq('lesson_id', lessonId)
+      .eq('occur_date', originalDate)
+      .maybeSingle();
+
+    if (occErr) throw occErr;
+    if (!occ) {
       this.fillInTarget.set(null);
       return;
     }
 
-    this.loadingFillInTarget.set(true);
-    try {
-      await ensureTenantContextReady();
-      const db = await dbTenant();
-
-  const lessonId = this.lessonOccId();   // בפועל lesson_id
-if (!lessonId) { this.fillInTarget.set(null); return; }
-
-const { data: ex, error: exErr } = await db
-  .from('lesson_occurrence_exceptions')
-  .select('occur_date, status, note, canceller_role, cancelled_at')
-  .eq('lesson_id', lessonId)
-  .eq('status', 'נשלחה בקשה למילוי מקום')
-  .order('occur_date', { ascending: false })
-  .limit(1)
-  .maybeSingle();
-
-if (exErr) throw exErr;
-if (!ex?.occur_date) { this.fillInTarget.set(null); return; }
-
-const originalDate = String(ex.occur_date);
-const { data: occ, error: occErr } = await db
-  .from('lessons_occurrences')
-  .select('occur_date, start_time, end_time, instructor_id, day_of_week, lesson_type, status')
-  .eq('lesson_id', lessonId)
-  .eq('occur_date', originalDate)
-  .maybeSingle();
-
-if (occErr) throw occErr;
-if (!occ) { this.fillInTarget.set(null); return; }
-
-this.fillInTarget.set({
-  occur_date: originalDate,
-  start_time: String((occ as any).start_time ?? ''),
-  end_time: String((occ as any).end_time ?? ''),
-  status_label: String((ex as any).status ?? null),
-  note: (ex as any).note ?? null,
-});
-
-    } catch {
-      this.fillInTarget.set(null);
-    } finally {
-      this.loadingFillInTarget.set(false);
-    }
+    this.fillInTarget.set({
+      occur_date: String((occ as any).occur_date ?? originalDate),
+      start_time: String((occ as any).start_time ?? ''),
+      end_time: String((occ as any).end_time ?? ''),
+      status_label: ex ? String((ex as any).status ?? null) : null,
+      note: ex ? ((ex as any).note ?? null) : null,
+    });
+  } catch {
+    this.fillInTarget.set(null);
+  } finally {
+    this.loadingFillInTarget.set(false);
   }
-
-
+}
 
   // ===== APPROVE =====
   async approve(): Promise<void> {

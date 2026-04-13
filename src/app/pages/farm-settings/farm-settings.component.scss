@@ -1159,11 +1159,82 @@ input[type="time"],
   .cols-plans {
     grid-template-columns: 1fr !important;
   }
-
+}
   .actions-inline {
     justify-content: flex-start;
   }
 
+.global-flash.error {
+  background: #fdeaea;
+  color: #b42318;
+}
+.field input,
+.field select {
+  height: 44px;        // 👈 אותו גובה כמו השדות הסטנדרטיים
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+.field.short input[type="number"] {
+  max-width: 120px;
+}
+.field-error {
+  color: #c62828;
+  font-size: 12px;
+  margin-top: 4px;
+  display: block;
+}
+
+.bulk-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 24, 20, 0.42);
+  backdrop-filter: blur(2px);
+  z-index: 3000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.bulk-overlay-card {
+  width: min(420px, 92vw);
+  background: #fffdf8;
+  border-radius: 22px;
+  padding: 28px 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+  text-align: center;
+  border: 1px solid #e7e2d7;
+}
+
+.bulk-spinner {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  border: 5px solid #d9e7d8;
+  border-top-color: #3f6b46;
+  animation: bulk-spin 0.9s linear infinite;
+}
+
+.bulk-overlay-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #24442a;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.bulk-overlay-subtitle {
+  font-size: 14px;
+  color: #6a746b;
+  line-height: 1.5;
+}
+
+@keyframes bulk-spin {
+  to {
+    transform: rotate(360deg);
+  }}
   .special-day-card {
     flex-direction: column;
     align-items: stretch;
@@ -1190,4 +1261,4 @@ input[type="time"],
   .short-input {
     max-width: 100%;
   }
-}
+
