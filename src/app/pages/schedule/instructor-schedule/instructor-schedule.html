@@ -9,7 +9,9 @@
   <div class="schedule-main-card">
     <app-schedule
       [items]="items"
-      [initialView]="currentView"
+      [resources]="[]"
+     viewerMode="instructor"
+      initialView="timeGridWeek"
       (eventClick)="onEventClick($event)"
       (dateClick)="onDateClick($event)"
       (viewRange)="onViewRangeChange($event)"

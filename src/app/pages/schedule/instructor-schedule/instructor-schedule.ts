@@ -185,8 +185,6 @@ private lastAllDayPref: boolean = true;
 
 this.instructorColor = instructor?.color_hex ?? null;
 
-this.setScheduleItems();
-this.cdr.detectChanges();
       const startYmd = ymd(addDays(new Date(), -14));
       const endYmd = ymd(addDays(new Date(), 60));
 
@@ -548,8 +546,6 @@ const req = this.dayRequests.find(
 
 this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
 
-
-      this.cdr.detectChanges();
       return;
     }
 
@@ -664,7 +660,6 @@ const instructorOffItems = this.instructorDaysOffToItems();
 
 this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
 
-    this.cdr.detectChanges();
   }
  
 
@@ -819,24 +814,29 @@ onRightClickDay(e: any): void {
 
   /* ------------ שינוי טווח תצוגה ------------ */
 async onViewRangeChange(range: any): Promise<void> {
-
   try {
     const vt = range.viewType || '';
+
     if (vt === 'dayGridMonth') this.currentView = 'dayGridMonth';
     else if (vt === 'timeGridWeek') this.currentView = 'timeGridWeek';
     else this.currentView = 'timeGridDay';
 
-   if (!range?.start || !range?.end) {
-  console.warn('[viewRange] missing start/end', range);
-  return;
-}
+    if (!range?.start || !range?.end) {
+      console.warn('[viewRange] missing start/end', range);
+      return;
+    }
 
-const startYmd = range.start.slice(0, 10);
+    const startYmd = String(range.start).slice(0, 10);
 
-const endYmd = new Date(
-  new Date(range.end).getTime() - 24 * 60 * 60 * 1000
-).toLocaleDateString('sv-SE');
-
+    // חשוב:
+    // ב-timeGridDay מהקומפוננטה המותאמת end===start,
+    // לכן אסור להחסיר יום.
+    const endYmd =
+      vt === 'timeGridDay'
+        ? startYmd
+        : new Date(
+            new Date(range.end).getTime() - 24 * 60 * 60 * 1000
+          ).toLocaleDateString('sv-SE');
 
     if (
       this.lastRange &&
@@ -859,19 +859,28 @@ const endYmd = new Date(
 
     if (ids.length) {
       await this.loadChildrenAndRefs(ids);
+    } else {
+      this.children = [];
     }
 
     await this.loadRequestsForRange(startYmd, endYmd);
-await this.loadFarmDaysOffForRange(startYmd, endYmd);
+    await this.loadFarmDaysOffForRange(startYmd, endYmd);
 
     this.setScheduleItems();
     this.updateCurrentDateFromCalendar();
+
+    console.log('[viewRange fixed]', {
+      viewType: vt,
+      startYmd,
+      endYmd,
+      lessons: this.lessons.length,
+      items: this.items.length,
+    });
   } catch (err: any) {
-    console.error('viewRange error', err);
+    console.error('[viewRange error]', err);
     this.error = err?.message || 'שגיאה בטעינת השיעורים';
   } finally {
     this.loading = false;
-    this.cdr.detectChanges();
   }
 }
 

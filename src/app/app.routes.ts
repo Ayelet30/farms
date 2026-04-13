@@ -239,6 +239,11 @@ export const routes: Routes = [
         loadComponent: () =>
           import('../admin-clalit/admin-clalit.page').then(m => m.AdminClalitPage)
       },
+      // {
+      //   path: 'addChildren',
+      //   loadComponent: () =>
+      //     import('../admin-addCChildren/admin-addChildren.page').then(m => m.AdminAddChildrenPage)
+      // },
 
     ]
   },

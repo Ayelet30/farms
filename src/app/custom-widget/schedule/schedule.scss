@@ -1,3 +1,7 @@
+:host {
+  display: block;
+}
+
 /* ===== Card בסיסי ===== */
 .card {
   background: #fff;
@@ -27,6 +31,7 @@
   font-weight: 700;
   text-align: center;
   font-size: 15px;
+  color: #2f3a28;
 }
 
 .calendar-toolbar .actions {
@@ -52,6 +57,7 @@
   cursor: pointer;
   transition: 0.2s;
   font-weight: 600;
+  color: #2f3a28;
 }
 
 .btn-group > button:hover {
@@ -129,6 +135,23 @@
   height: 100% !important;
 }
 
+/* ===== ערכת צבעים כללית ===== */
+.bereshit-calendar {
+  --bg-cream: #fffcf5;
+  --panel: #ffffff;
+  --ink: #2f3a28;
+  --ink-muted: #6e7462;
+  --line: #cfd7b9;
+  --olive-50: #f3f6e9;
+  --olive-100: #e8efd8;
+  --olive-300: #c7d1a9;
+  --olive-600: #748c40;
+  --fail: #e24d4d;
+  --slot-row-height: 54px;
+
+  font-family: "Heebo", system-ui, Arial, sans-serif;
+}
+
 .calendar-host {
   max-height: calc(100vh - var(--toolbar-space));
 }
@@ -145,21 +168,268 @@
   overflow-y: auto !important;
 }
 
-/* ===== ערכת צבעים כללית ===== */
-.bereshit-calendar {
-  --bg-cream: #fffcf5;
-  --panel: #ffffff;
-  --ink: #2f3a28;
-  --ink-muted: #6e7462;
-  --line: #cfd7b9;
-  --olive-50: #f3f6e9;
-  --olive-100: #e8efd8;
-  --olive-300: #c7d1a9;
-  --olive-600: #748c40;
-  --fail: #e24d4d;
+/* =========================================================
+   =============== תצוגת יום מותאמת ========================
+   ========================================================= */
 
-  font-family: "Heebo", system-ui, Arial, sans-serif;
+.custom-day-host {
+  overflow: auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 4px 18px rgba(33, 37, 28, 0.05);
 }
+
+.custom-day-grid {
+  --time-col-width: 78px;
+  --slot-row-height: 54px;
+  --min-resource-col: 150px;
+
+  display: grid;
+  grid-template-columns:
+    repeat(var(--day-cols), minmax(min(var(--min-resource-col), 100%), 1fr))
+    var(--time-col-width);
+  grid-template-rows: 52px repeat(var(--slot-count), var(--slot-row-height));
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  background: #fff;
+}
+
+.custom-day-host {
+  overflow: auto;
+  min-width: 0;
+}
+
+.day-resource-header,
+.day-cluster,
+.day-cluster-inner,
+.day-lesson-card {
+  min-width: 0;
+}
+
+.day-cluster-inner {
+  gap: 4px;
+}
+
+.day-cluster-inner.multi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+}
+
+.day-cluster-inner.multi .day-lesson-card {
+  width: 100%;
+}
+
+/* כותרות דביקות */
+.sticky-cell {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.day-corner {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--ink);
+  background: #f8faf3;
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.day-resource-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 8px;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--olive-50);
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+
+/* עמודת שעה */
+.day-time-cell {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-muted);
+  background: #fff;
+  border-left: 1px solid #eff3e4;
+  border-bottom: 1px solid #eff3e4;
+}
+
+/* רקע תאים */
+.day-bg-cell {
+  background: #fff;
+  border-left: 1px solid #eff3e4;
+  border-bottom: 1px solid #eff3e4;
+  transition: background 0.15s ease;
+}
+
+.day-bg-cell:hover {
+  background: #fbfcf7;
+}
+
+/* בלוק אירועים בשורה/עמודה */
+.day-cluster {
+  padding: 2px 4px;
+  z-index: 5;
+  min-width: 0;
+  min-height: 0;
+  pointer-events: none;
+}
+
+.day-cluster-inner {
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+}
+
+.day-cluster-inner.multi .day-lesson-card {
+  flex: 1 1 0;
+}
+
+.day-cluster-inner:not(.multi) .day-lesson-card {
+  flex: 1 1 100%;
+}
+
+/* כרטיס שיעור */
+.day-lesson-card {
+  appearance: none;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-inline-start: 6px solid #748c40;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  text-align: right;
+  cursor: pointer;
+  min-width: 0;
+  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: auto;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+
+.day-lesson-card {
+  transition: box-shadow 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
+  transform: none !important;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.day-lesson-card:hover {
+  transform: none !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+/* סטטוסים */
+.day-lesson-card.status-approved {
+  background: #e8f5e9;
+  border-color: #66bb6a;
+  color: #1b5e20;
+}
+
+.day-lesson-card.status-pending {
+  background: #fff3e0;
+  border-color: #fb8c00;
+  color: #e65100;
+}
+
+.day-lesson-card.status-canceled {
+  background: #ffebee;
+  border-color: #e53935;
+  color: #b71c1c;
+}
+
+/* שורת תוכן ראשית */
+.day-lesson-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.day-child-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: inherit;
+}
+
+.day-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* שורת משנה */
+.day-lesson-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 10px;
+  color: #6e7462;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* תגיות כלליות */
+.mini-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.type-badge {
+  background: #eef3e3;
+  color: #556b2f;
+  border: 1px solid #cfd7b9;
+}
+
+.dot-sep {
+  opacity: 0.6;
+}
+
+/* =========================================================
+   ================= FullCalendar שבוע/חודש =================
+   ========================================================= */
 
 .bereshit-calendar .fc {
   --fc-page-bg-color: var(--panel);
@@ -176,10 +446,10 @@
   --fc-button-active-text-color: #fff;
   --fc-button-active-border-color: var(--olive-600);
 
-  --fc-slot-min-height: 2.6em;
+  --fc-slot-min-height: 40px;
 }
 
-/* ===== סרגל עליון של FC ===== */
+/* סרגל עליון של FC */
 .bereshit-calendar .fc .fc-header-toolbar {
   gap: 1rem;
   margin-bottom: 12px;
@@ -211,27 +481,7 @@
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
 }
 
-@media (max-width: 900px) {
-  .bereshit-calendar .fc .fc-header-toolbar {
-    row-gap: 0.5rem;
-  }
-
-  .bereshit-calendar .fc .fc-toolbar-chunk {
-    padding: 6px;
-    border-radius: 14px;
-  }
-
-  .bereshit-calendar .fc .fc-button {
-    height: 34px;
-    min-width: 64px;
-  }
-
-  .bereshit-calendar .fc .fc-toolbar-title {
-    font-size: 1.1rem;
-  }
-}
-
-/* ===== כותרות ימים ===== */
+/* כותרות ימים */
 .bereshit-calendar .fc .fc-col-header-cell {
   background: var(--olive-50);
   color: var(--ink);
@@ -243,7 +493,7 @@
   padding: 10px 12px;
 }
 
-/* ===== רשת וקווים ===== */
+/* רשת וקווים */
 .bereshit-calendar .fc .fc-scrollgrid,
 .bereshit-calendar .fc .fc-scrollgrid-section > * {
   border-color: var(--line);
@@ -254,7 +504,7 @@
   border-color: #eff3e4;
 }
 
-/* ===== month view ===== */
+/* month view */
 .bereshit-calendar .fc .fc-daygrid-day-frame {
   background: #fff;
   border: 1.5px solid var(--line);
@@ -284,7 +534,7 @@
 
 .bereshit-calendar .fc .fc-daygrid-event {
   white-space: normal;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .bereshit-calendar .fc .fc-daygrid-day-frame:hover {
@@ -300,33 +550,34 @@
   background: transparent;
 }
 
-/* ===== timeGrid event shell ===== */
+/* timeGrid event shell */
 .bereshit-calendar .fc-timegrid-event {
-  padding: 2px 4px !important;
+  padding: 0 !important;
   background: transparent !important;
   border: none !important;
-  min-height: auto !important;
+  min-height: 0 !important;
 }
 
 .bereshit-calendar .fc-timegrid-col-events .fc-timegrid-event-harness {
-  padding: 2px 4px;
-  margin-bottom: 4px;
+  padding: 0 2px !important;
+  margin-bottom: 0 !important;
 }
 
 .bereshit-calendar .fc-timegrid-event .fc-event-main {
   height: 100%;
 }
 
-/* ===== כרטיס אירוע בסיסי ===== */
+/* כרטיס אירוע בסיסי */
 .bereshit-calendar .event-box {
   width: 100%;
-  min-height: 30px;
+  height: 100%;
+  min-height: 0;
   box-sizing: border-box;
   border-radius: 14px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: #fff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  padding: 4px 8px;
+  padding: 2px 8px;
   overflow: hidden;
 }
 
@@ -335,12 +586,13 @@
   color: #333;
 }
 
-/* ===== שיעור רגיל ===== */
+/* שיעור רגיל */
 .bereshit-calendar .event-box.lesson-card {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 2px;
+  gap: 1px;
+  line-height: 1.05;
 }
 
 .bereshit-calendar .event-box .main-line {
@@ -354,9 +606,9 @@
 .bereshit-calendar .child-main-name {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -374,11 +626,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 20px;
-  height: 18px;
+  min-width: 15px;
+  height: 15px;
   padding: 0 6px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -394,7 +646,7 @@
   align-items: center;
   gap: 4px;
   min-width: 0;
-  font-size: 10px;
+  font-size: 9px;
   color: #6e7462;
   white-space: nowrap;
   overflow: hidden;
@@ -407,11 +659,7 @@
   white-space: nowrap;
 }
 
-.bereshit-calendar .dot-sep {
-  opacity: 0.6;
-}
-
-/* ===== כותרת מדריך / סיכומים / חופשה ===== */
+/* כותרת מדריך / סיכומים / חופשה */
 .bereshit-calendar .event-box.instructor-header {
   display: flex;
   align-items: center;
@@ -448,7 +696,7 @@
   text-overflow: ellipsis;
 }
 
-/* ===== סטטוסים ===== */
+/* סטטוסים */
 .bereshit-calendar .fc-event.status-approved .event-box {
   background: #e8f5e9;
   border-color: #66bb6a;
@@ -479,27 +727,27 @@
   color: #b71c1c;
 }
 
-/* ===== מבוטל קומפקטי ===== */
+/* מבוטל קומפקטי */
 .bereshit-calendar .event-box.canceled-compact {
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 6px;
-  min-height: 30px;
+  min-height: 25px;
   background: #ffebee;
   border-color: #ef9a9a;
 }
 
 .bereshit-calendar .cancel-icon {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
   background: #d32f2f;
   color: #fff !important;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 800;
   flex-shrink: 0;
 }
@@ -507,7 +755,7 @@
 .bereshit-calendar .cancel-name {
   flex: 1;
   min-width: 0;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 700;
   color: #8b1e1e;
   white-space: nowrap;
@@ -528,10 +776,10 @@
 }
 
 .bereshit-calendar .fc-timegrid-event.status-canceled {
-  min-height: 36px !important;
+  min-height: 30px !important;
 }
 
-/* ===== חופשת חווה בתצוגת חודש ===== */
+/* חופשת חווה בתצוגת חודש */
 .fc-daygrid-event.farm-day-off {
   white-space: normal !important;
   line-height: 1.2;
@@ -548,7 +796,7 @@
   max-height: none;
 }
 
-/* ===== ביטול מוחלט של קו אלכסוני ===== */
+/* ביטול מוחלט של קו אלכסוני */
 .bereshit-calendar .fc-event.status-canceled::after,
 .bereshit-calendar .fc-event.status-cancelled::after,
 .bereshit-calendar .fc-timegrid-event.status-canceled::after,
@@ -557,7 +805,7 @@
   display: none !important;
 }
 
-/* ===== חופש חווה ===== */
+/* חופש חווה */
 .event-box.farm-day-off {
   background: #eef4e6;
   border: 1px solid #b8c8a0;
@@ -582,7 +830,7 @@
   opacity: 0.8;
 }
 
-/* ===== היעדרות מדריך ===== */
+/* היעדרות מדריך */
 .event-box.instructor-day-off {
   background: #f8faf3;
   border: 1px solid #d6e2c3;
@@ -609,7 +857,7 @@
   opacity: 0.7;
 }
 
-/* ===== בקשה ממתינה ===== */
+/* בקשה ממתינה */
 .event-box.pending-day-off {
   background: #fff8e6;
   border: 1px dashed #e3b15a;
@@ -631,7 +879,6 @@
   font-weight: 700;
 }
 
-/* ===== hover קטן (איכות UX) ===== */
 .event-box.farm-day-off:hover {
   background: #e4ecd7;
 }
@@ -642,6 +889,33 @@
 
 .event-box.pending-day-off:hover {
   background: #fff3d1;
+}
+
+.day-single-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 8px;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--olive-50);
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.custom-day-grid.single-column-day {
+  grid-template-columns: 70px 1fr !important;
+}
+
+.day-time-col {
+  width: 70px;
+  min-width: 70px;
+  max-width: 70px;
+  text-align: center;
+  font-weight: 600;
+  color: #6e7462;
 }
 
 /* ===== מובייל ===== */
@@ -700,7 +974,7 @@
   }
 
   .bereshit-calendar .fc {
-    --fc-slot-min-height: 2.2em;
+    --fc-slot-min-height: 40px;
   }
 
   .bereshit-calendar .fc .fc-col-header-cell-cushion {
@@ -725,21 +999,80 @@
   }
 
   .bereshit-calendar .child-main-name {
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .bereshit-calendar .secondary-line {
-    font-size: 9px;
+    font-size: 8px;
   }
 
   .bereshit-calendar .mini-badge {
-    font-size: 9px;
-    min-width: 18px;
-    height: 16px;
+    font-size: 8px;
+    min-width: 16px;
+    height: 15px;
     padding: 0 4px;
   }
 
   .calendar-host {
     max-height: calc(100vh - 72px);
+  }
+
+  .custom-day-grid {
+    --time-col-width: 58px;
+    --slot-row-height: 52px;
+    grid-template-columns: var(--time-col-width) repeat(var(--day-cols), minmax(160px, 1fr));
+  }
+
+  .day-resource-header {
+    font-size: 11px;
+    padding: 0 4px;
+  }
+
+  .day-time-cell {
+    font-size: 10px;
+  }
+
+  .day-lesson-card {
+    padding: 3px 6px;
+    border-radius: 12px;
+  }
+
+  .day-child-name {
+    font-size: 10px;
+  }
+
+  .day-lesson-sub {
+    font-size: 8px;
+  }
+}
+
+@media (max-width: 1400px) {
+  .custom-day-grid {
+    --min-resource-col: 130px;
+  }
+
+  .day-child-name {
+    font-size: 11px;
+  }
+
+  .day-lesson-sub {
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .custom-day-grid {
+    --min-resource-col: 110px;
+    --time-col-width: 64px;
+  }
+
+  .day-resource-header {
+    font-size: 12px;
+    padding: 0 6px;
+  }
+
+  .day-lesson-card {
+    padding: 4px 6px;
+    border-radius: 12px;
   }
 }
