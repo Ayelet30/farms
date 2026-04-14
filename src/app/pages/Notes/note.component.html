@@ -79,6 +79,7 @@
 
     <!-- BODY (single scroll) -->
     <div class="sheet-body" #scrollable>
+<ng-container *ngIf="!isInitializing">
 
       <!-- QUICK CHILD SUMMARY -->
       <section class="block" *ngIf="childDetails">
@@ -183,27 +184,7 @@
   </div>
 </div>
 
-<!-- אם לא מבוטל – עדיין אפשר להציג חיוב (אם את רוצה גם לשיעור רגיל) -->
-<!-- <!-- <div class="status-card" *ngIf="!isCancelledLesson && canEditBillingFlag">
-  <div class="st-left">
-    <mat-icon class="st-ic">payments</mat-icon>
-    <div class="st-txt">
-      <div class="st-title">חיוב</div>
-      <div class="st-sub">
-        {{ (lessonDetails!.is_billable ?? true) ? 'מחויב בתשלום' : 'לא מחויב בתשלום' }}
-      </div>
-    </div>
-  </div>
 
-  <div>
-    <mat-slide-toggle
-      color="primary"
-      [(ngModel)]="lessonDetails.is_billable"
-      (ngModelChange)="onBillableChange($event)">
-      מחויב בתשלום
-    </mat-slide-toggle>
-  </div> 
-</div> -->
 
         <!-- RESOURCES -->
          <div class="resources-grid" *ngIf="!isCancelledLesson">
@@ -372,6 +353,13 @@
       </section>
 
       <div class="bottom-space"></div>
+        </ng-container>
+        <div class="card-loading" *ngIf="isInitializing">
+  <mat-icon class="spin">autorenew</mat-icon>
+  <div class="loading-text">טוען פרטי שיעור...</div>
+</div>
+
     </div>
+    
   </mat-card>
 </div>
