@@ -918,6 +918,34 @@
   color: #6e7462;
 }
 
+.day-bg-cell.blocked-cell {
+  background: #ececec;
+  cursor: not-allowed;
+}
+
+.day-blocked-overlay {
+  background: rgba(140, 140, 140, 0.32);
+  border: 1px solid rgba(120, 120, 120, 0.18);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.day-blocked-overlay.kind-day-off {
+  background: rgba(160, 160, 160, 0.34);
+}
+
+.day-blocked-overlay.kind-not-working {
+  background: rgba(110, 110, 110, 0.18);
+}
+
+.day-blocked-overlay.kind-farm-off {
+  background: rgba(120, 120, 120, 0.26);
+}
+
+.day-cluster {
+  z-index: 2;
+}
+
 /* ===== מובייל ===== */
 @media (max-width: 600px) {
   .schedule-wrap {

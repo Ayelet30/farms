@@ -52,6 +52,25 @@ interface CustomDayCluster {
   span: number;
   items: ScheduleItem[];
 }
+
+interface BlockedDayCell {
+  date: string;              // YYYY-MM-DD
+  resourceId: string;        // instructor_id
+  startTime: string;         // HH:mm
+  endTime?: string | null;   // HH:mm
+  reason?: string | null;
+  kind?: 'day_off' | 'not_working' | 'farm_off';
+}
+
+interface CustomDayBlockedCell {
+  key: string;
+  col: number;
+  row: number;
+  span: number;
+  reason?: string | null;
+  kind?: 'day_off' | 'not_working' | 'farm_off';
+}
+
 type ViewerMode = 'manager' | 'secretary' | 'instructor' | 'parent';
 
 
@@ -81,7 +100,9 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   @Input() showToolbar = true;
   @Input() enableAutoAssign = false;
   @Input() viewerMode: ViewerMode = 'secretary';
+  @Input() blockedDayCells: BlockedDayCell[] = [];
 
+  
   @Output() autoAssignRequested = new EventEmitter<void>();
   @Output() eventClick = new EventEmitter<EventClickArg>();
   @Output() dateClick = new EventEmitter<DateClickArg>();
@@ -93,8 +114,12 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   @Output() rightClickDay = new EventEmitter<{
     jsEvent: MouseEvent;
     dateStr: string;
+    resourceId?: string | null;
+    resourceTitle?: string | null;
+    sourceView?: 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth';
   }>();
   
+  customDayBlockedCells: CustomDayBlockedCell[] = [];
 
   currentView: ViewName = this.initialView;
   currentDate = '';
@@ -192,6 +217,52 @@ get isInstructorView(): boolean {
       d.getDate() === t.getDate()
     );
   }
+
+  private toHm(value: string | null | undefined): string {
+  return String(value || '').slice(0, 5);
+}
+
+private getSlotStepMinutes(): number {
+  return 30;
+}
+
+isBlockedRawCell(resourceId: string, slotIso: string): boolean {
+  const d = new Date(slotIso);
+  const ymd = this.toYmd(d);
+  const hm = this.minutesToTime(d.getHours() * 60 + d.getMinutes());
+
+  return (this.blockedDayCells || []).some(b => {
+    if (String(b.resourceId) !== String(resourceId)) return false;
+    if (b.date !== ymd) return false;
+
+    const bStart = this.toHm(b.startTime);
+    const bEnd = this.toHm(
+      b.endTime || this.minutesToTime(this.parseTimeToMinutes(bStart) + this.getSlotStepMinutes())
+    );
+
+    return hm >= bStart && hm < bEnd;
+  });
+}
+
+getBlockedReason(resourceId: string, slotIso: string): string {
+  const d = new Date(slotIso);
+  const ymd = this.toYmd(d);
+  const hm = this.minutesToTime(d.getHours() * 60 + d.getMinutes());
+
+  const match = (this.blockedDayCells || []).find(b => {
+    if (String(b.resourceId) !== String(resourceId)) return false;
+    if (b.date !== ymd) return false;
+
+    const bStart = this.toHm(b.startTime);
+    const bEnd = this.toHm(
+      b.endTime || this.minutesToTime(this.parseTimeToMinutes(bStart) + this.getSlotStepMinutes())
+    );
+
+    return hm >= bStart && hm < bEnd;
+  });
+
+  return match?.reason || '';
+}
 
   private formatHebrewDayTitle(date: Date): string {
     return new Intl.DateTimeFormat('he-IL', {
@@ -422,7 +493,7 @@ buildCustomItemTitle(item: ScheduleItem): string {
     return Array.from(map.values());
   }
 
-  private rebuildCustomDayView(): void {
+ private rebuildCustomDayView(): void {
   const ymd = this.toYmd(this.customDayDate);
 
   const minMinutes = this.parseTimeToMinutes(String(this.slotMinTime || '07:00:00'));
@@ -458,16 +529,13 @@ buildCustomItemTitle(item: ScheduleItem): string {
   const resourceIndex = new Map<string, number>();
   this.customDayResources.forEach((r, idx) => resourceIndex.set(r.id, idx));
 
-  console.log('customDayDate', ymd);
-console.log('items for day', (this.items || []).map(i => i.start));
-
   const visibleItems = (this.items || []).filter((item: any) => {
-  if (!item?.start) return false;
+    if (!item?.start) return false;
 
-  const itemDate = new Date(item.start);
-  const itemYmd = this.toYmd(itemDate);
+    const itemDate = new Date(item.start);
+    const itemYmd = this.toYmd(itemDate);
 
-  if (itemYmd !== ymd) return false;
+    if (itemYmd !== ymd) return false;
 
     const meta = item?.meta || {};
     if (meta?.isSummaryDay || meta?.isSummarySlot || meta?.isInstructorHeader) return false;
@@ -513,6 +581,38 @@ console.log('items for day', (this.items || []).map(i => i.start));
 
   this.customDayClusters = Array.from(grouped.values())
     .sort((a, b) => a.row - b.row || a.col - b.col);
+
+  const blockedCells: CustomDayBlockedCell[] = [];
+
+  for (const b of this.blockedDayCells || []) {
+    if (b.date !== ymd) continue;
+
+    const col = this.shouldSplitDayByInstructor
+      ? this.customDayResources.findIndex(r => String(r.id) === String(b.resourceId))
+      : 0;
+
+    if (col < 0) continue;
+
+    const startMinutes = this.parseTimeToMinutes(this.toHm(b.startTime));
+    const endMinutes = this.parseTimeToMinutes(
+      this.toHm(b.endTime || this.minutesToTime(startMinutes + slotStep))
+    );
+
+    const row = Math.max(0, Math.floor((startMinutes - fallbackMin) / slotStep));
+    const durationMinutes = Math.max(slotStep, endMinutes - startMinutes);
+    const span = Math.max(1, Math.ceil(durationMinutes / slotStep));
+
+    blockedCells.push({
+      key: `${b.resourceId}|${b.date}|${b.startTime}|${b.endTime ?? ''}`,
+      col,
+      row,
+      span,
+      reason: b.reason ?? '',
+      kind: b.kind ?? 'day_off',
+    });
+  }
+
+  this.customDayBlockedCells = blockedCells;
 }
 
 
@@ -547,28 +647,44 @@ console.log('items for day', (this.items || []).map(i => i.start));
     this.eventClick.emit(payload);
   }
 
-  onCustomDateCellClick(iso: string): void {
-    this.dateClick.emit({
-      date: new Date(iso),
-      dateStr: iso,
-      allDay: false,
-      dayEl: null as any,
-      jsEvent: new MouseEvent('click'),
-      view: { type: 'timeGridDay' } as any,
-    });
+  onCustomDateCellClick(iso: string, resource?: ScheduleResource | null): void {
+  if (resource?.id && this.isBlockedRawCell(resource.id, iso)) {
+    return;
   }
+
+  this.dateClick.emit({
+    date: new Date(iso),
+    dateStr: iso,
+    allDay: false,
+    dayEl: null as any,
+    jsEvent: new MouseEvent('click'),
+    view: { type: 'timeGridDay' } as any,
+  });
+}
 
   onAutoAssignClick() {
     this.autoAssignRequested.emit();
   }
 
-  onCustomDateRightClick(event: MouseEvent, iso: string) {
-  event.preventDefault(); // חשוב! שלא ייפתח תפריט דפדפן
+ onCustomDateRightClick(
+  event: MouseEvent,
+  iso: string,
+  resource?: ScheduleResource | null
+) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (resource?.id && this.isBlockedRawCell(resource.id, iso)) {
+    return;
+  }
 
   this.rightClickDay.emit({
-  jsEvent: event,
-  dateStr: iso,
-});
+    jsEvent: event,
+    dateStr: iso,
+    resourceId: resource?.id ?? null,
+    resourceTitle: resource?.title ?? null,
+    sourceView: 'timeGridDay',
+  });
 }
 
   toggleFullscreen() {
@@ -1172,6 +1288,20 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
       api.setOption('resources', this.resources || []);
     }, 0);
   }
+  if (this.currentView === 'timeGridDay') {
+  if (
+    changes['items'] ||
+    changes['resources'] ||
+    changes['slotMinTime'] ||
+    changes['slotMaxTime'] ||
+    changes['initialView'] ||
+    changes['blockedDayCells']
+  ) {
+    this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
+    this.rebuildCustomDayView();
+  }
+  return;
+}
 }
 
   private bindContextMenu(): void {

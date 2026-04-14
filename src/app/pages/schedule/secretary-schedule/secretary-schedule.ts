@@ -13,6 +13,7 @@ import { CurrentUserService } from '../../../core/auth/current-user.service';
 import { NoteComponent } from '../../Notes/note.component';
 import { UiDialogService } from '../../../services/ui-dialog.service';
 import { requireTenant, supabase } from '../../../services/supabaseClient.service';
+import { QuickAppointmentComponent } from './quick-appointment/quick-appointment.component';
 
 
 type ChildRow = {
@@ -32,6 +33,8 @@ type InstructorRow = {
 };
 type RequestType = 'holiday' | 'sick' | 'personal' | 'other';
 type RequestStatus = 'pending' | 'approved' | 'rejected';
+
+
 
 interface AffectedChild {
   child_uuid: string;
@@ -53,10 +56,22 @@ interface DayRequestRow {
   end_time?: string | null;
   sick_note_file_path?: string | null;
 }
+
+type ContextMenuMode = 'root' | 'dayOff';
+
+type QuickBookingContext = {
+  open: boolean;
+  date: string;          // YYYY-MM-DD
+  startTime: string;     // HH:mm
+  endTime: string;       // HH:mm
+  instructorId: string;
+  instructorName: string;
+};
+
 @Component({
   selector: 'app-secretary-schedule',
   standalone: true,
-  imports: [CommonModule, FormsModule, ScheduleComponent, NoteComponent],
+  imports: [CommonModule, FormsModule, ScheduleComponent, NoteComponent, QuickAppointmentComponent],
   templateUrl: './secretary-schedule.html',
   styleUrls: ['./secretary-schedule.css'],
 })
@@ -89,6 +104,32 @@ farmDaysOff: any[] = [];
   autoAssignLoading = false;
   selectedOccurrence: any = null;
 
+  contextMenuMode: ContextMenuMode = 'root';
+  blockedDayCells: Array<{
+  date: string;
+  resourceId: string;
+  startTime: string;
+  endTime?: string | null;
+  reason?: string | null;
+  kind?: 'day_off' | 'not_working' | 'farm_off';
+}> = [];
+
+instructorWeeklyAvailability: Array<{
+  instructor_id_number: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+}> = [];
+
+quickBooking: QuickBookingContext = {
+  open: false,
+  date: '',
+  startTime: '',
+  endTime: '',
+  instructorId: '',
+  instructorName: '',
+};
+
   instructorsAll: InstructorRow[] = [];    // כל המדריכים (פעילים)
 instructorsToday: InstructorRow[] = [];  // רק העובדים היום (פעילים + זמינות)
 
@@ -112,11 +153,16 @@ busyText = computed(() => {
       return 'מעבד…';
   }
 });
+
+
 contextMenu = {
   visible: false,
   x: 0,
   y: 0,
   date: '' as string,
+  time: '' as string,
+  instructorId: '' as string,
+  instructorName: '' as string,
 };
 
 rangeModal = {
@@ -184,6 +230,25 @@ this.ridingTypes = ridingTypes || [];
   return new Date().getDay();
 }
 
+private extractYmd(iso: string): string {
+  return String(iso).slice(0, 10);
+}
+
+private extractHm(iso: string): string {
+  const d = new Date(iso);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+private addMinutesToHm(hm: string, minutesToAdd: number): string {
+  const [h, m] = hm.split(':').map(Number);
+  const total = h * 60 + m + minutesToAdd;
+  const hh = String(Math.floor(total / 60)).padStart(2, '0');
+  const mm = String(total % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
 
 
 private hashString(str: string): number {
@@ -208,20 +273,24 @@ private rebuildInstructorResources(): void {
 }
 
   private async reloadAll() {
-    await this.loadChildren();
-    await this.loadInstructors();
-    await this.loadLessons(this.currentRange ?? undefined);
-    if (this.currentRange) {
-  await this.loadRequestsForRange(
-    this.currentRange.start.slice(0, 10),
-    this.currentRange.end.slice(0, 10)
-  );
-}
-    this.filterLessons();
-    this.setScheduleItems();
-    this.buildWeekStats();
-    this.cdr.detectChanges();
+  await this.loadChildren();
+  await this.loadInstructors();
+  await this.loadInstructorWeeklyAvailability();
+  await this.loadLessons(this.currentRange ?? undefined);
+
+  if (this.currentRange) {
+    await this.loadRequestsForRange(
+      this.currentRange.start.slice(0, 10),
+      this.currentRange.end.slice(0, 10)
+    );
   }
+
+  this.filterLessons();
+  this.setScheduleItems();
+  this.buildBlockedDayCells(this.currentRange ?? undefined);
+  this.buildWeekStats();
+  this.cdr.detectChanges();
+}
 
   toggleFullscreen() {
     this.isFullscreen = !this.isFullscreen;
@@ -291,27 +360,244 @@ private expandRequestRow(row: any): DayRequestRow[] {
 
   return res;
 }
+
+private async loadInstructorWeeklyAvailability(): Promise<void> {
+  const { data, error } = await dbTenant()
+    .from('instructor_weekly_availability')
+    .select('instructor_id_number, day_of_week, start_time, end_time');
+
+  if (error) {
+    console.error('availability load error', error);
+    this.instructorWeeklyAvailability = [];
+    return;
+  }
+
+  this.instructorWeeklyAvailability = (data ?? []) as Array<{
+    instructor_id_number: string;
+    day_of_week: number;
+    start_time: string;
+    end_time: string;
+  }>;
+}
+
+private addOneDayYmdSafe(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + 1);
+
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+
+  return `${yy}-${mm}-${dd}`;
+}
+
+private buildBlockedDayCells(range?: { start: string; end: string }): void {
+  const blocked: Array<{
+    date: string;
+    resourceId: string;
+    startTime: string;
+    endTime?: string | null;
+    reason?: string | null;
+    kind?: 'day_off' | 'not_working' | 'farm_off';
+  }> = [];
+
+  const from = range?.start?.slice(0, 10) ?? '';
+  const to = range?.end?.slice(0, 10) ?? '';
+
+  const dateList: string[] = [];
+if (from && to) {
+  let cur = from;
+  let guard = 0;
+
+  while (cur <= to) {
+    dateList.push(cur);
+
+    const next = this.addOneDayYmdSafe(cur);
+    if (next <= cur) break;
+
+    cur = next;
+
+    if (++guard > 400) break;
+  }
+}
+
+  // 1) היעדרויות מדריך
+  for (const req of this.dayRequests) {
+    if (!req.instructor_id || !req.request_date) continue;
+    if (req.status !== 'approved' && req.status !== 'pending') continue;
+
+    blocked.push({
+      date: req.request_date,
+      resourceId: req.instructor_id,
+      startTime: req.all_day ? '07:00' : (req.start_time?.slice(0, 5) || '07:00'),
+      endTime: req.all_day ? '21:00' : (req.end_time?.slice(0, 5) || '21:00'),
+      reason:
+        req.request_type === 'sick'
+          ? 'מדריך ביום מחלה'
+          : req.request_type === 'holiday'
+          ? 'מדריך ביום חופש'
+          : req.request_type === 'personal'
+          ? 'מדריך ביום אישי'
+          : 'מדריך לא זמין',
+      kind: 'day_off',
+    });
+  }
+
+  // 2) שעות שהמדריך בכלל לא עובד
+  const availabilityByInstructorAndDow = new Map<string, Array<{ start: string; end: string }>>();
+
+  for (const row of this.instructorWeeklyAvailability || []) {
+    const key = `${row.instructor_id_number}|${row.day_of_week}`;
+    if (!availabilityByInstructorAndDow.has(key)) {
+      availabilityByInstructorAndDow.set(key, []);
+    }
+
+    availabilityByInstructorAndDow.get(key)!.push({
+      start: String(row.start_time).slice(0, 5),
+      end: String(row.end_time).slice(0, 5),
+    });
+  }
+
+  const visibleInstructorIds = new Set(this.instructorResources.map(r => String(r.id)));
+
+  for (const inst of this.instructors) {
+    if (!visibleInstructorIds.has(String(inst.id_number))) continue;
+
+    for (const ymd of dateList) {
+      const d = new Date(ymd + 'T00:00:00');
+      const dow = d.getDay();
+      const key = `${inst.id_number}|${dow}`;
+      const spans = (availabilityByInstructorAndDow.get(key) ?? [])
+        .sort((a, b) => a.start.localeCompare(b.start));
+
+      if (!spans.length) {
+        blocked.push({
+          date: ymd,
+          resourceId: inst.id_number,
+          startTime: '07:00',
+          endTime: '21:00',
+          reason: 'המדריך אינו עובד ביום זה',
+          kind: 'not_working',
+        });
+        continue;
+      }
+
+      let cursor = '07:00';
+
+      for (const span of spans) {
+        if (cursor < span.start) {
+          blocked.push({
+            date: ymd,
+            resourceId: inst.id_number,
+            startTime: cursor,
+            endTime: span.start,
+            reason: 'המדריך אינו עובד בשעות אלה',
+            kind: 'not_working',
+          });
+        }
+
+        if (cursor < span.end) {
+          cursor = span.end;
+        }
+      }
+
+      if (cursor < '21:00') {
+        blocked.push({
+          date: ymd,
+          resourceId: inst.id_number,
+          startTime: cursor,
+          endTime: '21:00',
+          reason: 'המדריך אינו עובד בשעות אלה',
+          kind: 'not_working',
+        });
+      }
+    }
+  }
+
+  this.blockedDayCells = blocked;
+}
+
+
 onRightClickDay(e: any): void {
   if (!e?.jsEvent) return;
 
   e.jsEvent.preventDefault();
   e.jsEvent.stopPropagation();
 
-  const localYmd =
-    typeof e.dateStr === 'string'
-      ? e.dateStr.slice(0, 10)
-      : e.date
-      ? new Date(e.date).toLocaleDateString('sv-SE')
-      : null;
+  const dateStr = typeof e.dateStr === 'string' ? e.dateStr : '';
+  if (!dateStr) return;
 
-  if (!localYmd) return;
+  const localYmd = this.extractYmd(dateStr);
+  const localHm = dateStr.includes('T') ? this.extractHm(dateStr) : '';
 
   this.contextMenu.visible = true;
   this.contextMenu.x = e.jsEvent.clientX;
   this.contextMenu.y = e.jsEvent.clientY;
   this.contextMenu.date = localYmd;
+  this.contextMenu.time = localHm;
+  this.contextMenu.instructorId = String(e.resourceId ?? '');
+  this.contextMenu.instructorName = String(e.resourceTitle ?? '');
+  this.contextMenuMode = 'root';
 
   this.cdr.detectChanges();
+}
+
+openDayOffMenu(): void {
+  this.contextMenuMode = 'dayOff';
+}
+
+backToRootContextMenu(): void {
+  this.contextMenuMode = 'root';
+}
+
+openQuickBookingFromContext(): void {
+  const { date, time, instructorId, instructorName } = this.contextMenu;
+
+  if (!date || !time || !instructorId) {
+    this.closeContextMenu();
+    return;
+  }
+
+  this.quickBooking = {
+    open: true,
+    date,
+    startTime: time,
+    endTime: this.addMinutesToHm(time, 60), // ברירת מחדל שעה
+    instructorId,
+    instructorName,
+  };
+
+  this.closeContextMenu();
+  this.cdr.detectChanges();
+}
+
+closeQuickBooking(): void {
+  this.quickBooking.open = false;
+}
+
+async onQuickBookingSaved(): Promise<void> {
+  this.quickBooking.open = false;
+
+  if (this.currentRange) {
+    await this.loadLessons({
+      start: this.currentRange.start,
+      end: this.currentRange.end,
+    });
+
+    await this.loadRequestsForRange(
+      this.currentRange.start.slice(0, 10),
+      this.currentRange.end.slice(0, 10)
+    );
+
+    await this.loadInstructorWeeklyAvailability();
+
+    this.filterLessons();
+    this.setScheduleItems();
+    this.buildBlockedDayCells(this.currentRange);
+    this.buildWeekStats();
+    this.cdr.detectChanges();
+  }
 }
 
 closeContextMenu(): void {
@@ -934,55 +1220,59 @@ private async loadInstructors(): Promise<void> {
     );
   }
 
-  toggleAllInstructors() {
+toggleAllInstructors() {
   if (this.isAllInstructorsSelected) {
     this.selectedInstructorIds = [];
   } else {
-this.selectedInstructorIds = this.instructors
-  .filter(i => i.status === 'Active')
-  .map(i => i.id_number);
-
+    this.selectedInstructorIds = this.instructors
+      .filter(i => i.status === 'Active')
+      .map(i => i.id_number);
   }
 
-  this.rebuildInstructorResources();  // 👈
+  this.rebuildInstructorResources();
   this.filterLessons();
   this.setScheduleItems();
+  this.buildBlockedDayCells(this.currentRange ?? undefined);
   this.buildWeekStats();
 }
 
 
-  toggleInstructor(id: string) {
+ toggleInstructor(id: string) {
   if (this.selectedInstructorIds.includes(id)) {
     this.selectedInstructorIds = this.selectedInstructorIds.filter(x => x !== id);
   } else {
     this.selectedInstructorIds = [...this.selectedInstructorIds, id];
   }
 
-  this.rebuildInstructorResources();  // 👈 חשוב
+  this.rebuildInstructorResources();
   this.filterLessons();
   this.setScheduleItems();
+  this.buildBlockedDayCells(this.currentRange ?? undefined);
   this.buildWeekStats();
 }
 
+ async onViewRange(range: { start: string; end: string; viewType: string }) {
+  this.currentRange = range;
+  this.currentViewType = range.viewType as any;
 
-  async onViewRange(range: { start: string; end: string; viewType: string }) {
-    this.currentRange = range;
-    this.currentViewType = range.viewType as any;
+  await this.loadLessons({ start: range.start, end: range.end });
+  await this.loadFarmDaysOffForRange(
+    range.start.slice(0, 10),
+    range.end.slice(0, 10)
+  );
+  await this.loadRequestsForRange(
+    range.start.slice(0, 10),
+    range.end.slice(0, 10)
+  );
+  await this.loadInstructorWeeklyAvailability();
 
-    await this.loadLessons({ start: range.start, end: range.end });
-   await this.loadFarmDaysOffForRange(
-  range.start.slice(0,10),
-  range.end.slice(0,10)
-);
-await this.loadRequestsForRange(
-  range.start.slice(0, 10),
-  range.end.slice(0, 10)
-);
-    this.filterLessons();
-    this.setScheduleItems();
-    this.buildWeekStats();
-    this.cdr.detectChanges();
-  }
+  this.filterLessons();
+  this.setScheduleItems();
+  this.buildBlockedDayCells(range);
+  this.buildWeekStats();
+  this.cdr.detectChanges();
+}
+
 
 private async loadLessons(
   range?: { start: string; end: string }

@@ -33,98 +33,112 @@
 
   <!-- תצוגת יום מותאמת -->
   <div *ngIf="currentView === 'timeGridDay'" class="bereshit-calendar calendar-host custom-day-host" #calendarHost>
-  <div class="custom-day-grid"
-       [class.single-column-day]="!shouldSplitDayByInstructor"
-       [style.--day-cols]="customDayResources.length"
-       [style.--slot-count]="customDaySlots.length">
+    <div class="custom-day-grid"
+         [class.single-column-day]="!shouldSplitDayByInstructor"
+         [style.--day-cols]="customDayResources.length"
+         [style.--slot-count]="customDaySlots.length">
 
-    <!-- כותרות מדריכים - רק למזכירה/מנהלת -->
-    <ng-container *ngIf="shouldSplitDayByInstructor">
-      <div *ngFor="let res of customDayResources; let col = index"
-           class="day-resource-header sticky-cell"
-           [style.gridColumn]="col + 1"
-           [style.gridRow]="1">
-        {{ res.title }}
-      </div>
-    </ng-container>
-
-    <!-- כותרת עליונה כשאין חלוקה למדריכים -->
-    <div *ngIf="!shouldSplitDayByInstructor"
-         class="day-single-header sticky-cell"
-         [style.gridColumn]="1"
-         [style.gridRow]="1">
-      {{ currentDate }}
-    </div>
-
-    <!-- כותרת פינתית -->
-    <div
-  class="day-corner sticky-cell day-corner-time"
-  [style.gridColumn]="shouldSplitDayByInstructor ? customDayResources.length + 1 : 1"
-  [style.gridRow]="1">
-  שעה
-</div>
-
-    <!-- עמודת שעות -->
-    <ng-container *ngFor="let slot of customDaySlots; let row = index">
-      <div
-  class="day-time-cell day-time-col"
-  [style.gridColumn]="shouldSplitDayByInstructor ? customDayResources.length + 1 : 1"
-  [style.gridRow]="row + 2">
-  {{ slot.label }}
-</div>
-    </ng-container>
-
-    <!-- רקע תאים -->
-    <ng-container *ngFor="let slot of customDaySlots; let row = index">
-      <ng-container *ngFor="let res of customDayResources; let col = index">
-        <div
-  class="day-bg-cell"
-  [style.gridColumn]="shouldSplitDayByInstructor ? col + 1 : 2"
-  [style.gridRow]="row + 2"
-  (click)="onCustomDateCellClick(slot.iso)"
-  (contextmenu)="onCustomDateRightClick($event, slot.iso)">
-</div>
+      <!-- כותרות מדריכים - רק למזכירה/מנהלת -->
+      <ng-container *ngIf="shouldSplitDayByInstructor">
+        <div *ngFor="let res of customDayResources; let col = index"
+             class="day-resource-header sticky-cell"
+             [style.gridColumn]="col + 1"
+             [style.gridRow]="1">
+          {{ res.title }}
+        </div>
       </ng-container>
-    </ng-container>
 
-    <!-- אירועים -->
-    <div
-  *ngFor="let cluster of customDayClusters"
-  class="day-cluster"
-  [style.gridColumn]="shouldSplitDayByInstructor ? cluster.col + 1 : 2"
-  [style.gridRow]="cluster.row + 2 + ' / span ' + cluster.span">
+      <!-- כותרת עליונה כשאין חלוקה למדריכים -->
+      <div *ngIf="!shouldSplitDayByInstructor"
+           class="day-single-header sticky-cell"
+           [style.gridColumn]="1"
+           [style.gridRow]="1">
+        {{ currentDate }}
+      </div>
 
-      <div class="day-cluster-inner" [class.multi]="cluster.items.length > 1">
-        <button type="button"
-                *ngFor="let item of cluster.items"
-                class="day-lesson-card"
-                [class.status-canceled]="isCanceledItem(item)"
-                [class.status-pending]="isPendingItem(item)"
-                [class.status-approved]="isApprovedItem(item)"
-                [style.borderInlineStartColor]="getInstructorBorderColor(item)"
-                (click)="onCustomItemClick(item, $event)"
-                [title]="buildCustomItemTitle(item)">
+      <!-- כותרת פינתית -->
+      <div
+        class="day-corner sticky-cell day-corner-time"
+        [style.gridColumn]="shouldSplitDayByInstructor ? customDayResources.length + 1 : 1"
+        [style.gridRow]="1">
+        שעה
+      </div>
 
-          <div class="day-lesson-main">
-            <span class="day-child-name">
-              {{ getCustomDayPrimaryText(item) }}
-            </span>
+      <!-- עמודת שעות -->
+      <ng-container *ngFor="let slot of customDaySlots; let row = index">
+        <div
+          class="day-time-cell day-time-col"
+          [style.gridColumn]="shouldSplitDayByInstructor ? customDayResources.length + 1 : 1"
+          [style.gridRow]="row + 2">
+          {{ slot.label }}
+        </div>
+      </ng-container>
 
-            <span class="day-badges">
-              <span class="mini-badge type-badge" *ngIf="getItemLessonTypeShort(item)">
-                {{ getItemLessonTypeShort(item) }}
+      <!-- רקע תאים -->
+      <ng-container *ngFor="let slot of customDaySlots; let row = index">
+        <ng-container *ngFor="let res of customDayResources; let col = index">
+          <div
+            class="day-bg-cell"
+            [class.blocked-cell]="isBlockedRawCell(res.id, slot.iso)"
+            [attr.title]="isBlockedRawCell(res.id, slot.iso) ? getBlockedReason(res.id, slot.iso) : null"
+            [style.gridColumn]="shouldSplitDayByInstructor ? col + 1 : 2"
+            [style.gridRow]="row + 2"
+            (click)="onCustomDateCellClick(slot.iso, res)"
+            (contextmenu)="onCustomDateRightClick($event, slot.iso, res)">
+          </div>
+        </ng-container>
+      </ng-container>
+
+      <!-- שכבת חסימות -->
+      <div
+        *ngFor="let blocked of customDayBlockedCells"
+        class="day-blocked-overlay"
+        [class.kind-day-off]="blocked.kind === 'day_off'"
+        [class.kind-not-working]="blocked.kind === 'not_working'"
+        [class.kind-farm-off]="blocked.kind === 'farm_off'"
+        [style.gridColumn]="shouldSplitDayByInstructor ? blocked.col + 1 : 2"
+        [style.gridRow]="blocked.row + 2 + ' / span ' + blocked.span"
+        [attr.title]="blocked.reason || 'זמן חסום'">
+      </div>
+
+      <!-- אירועים -->
+      <div
+        *ngFor="let cluster of customDayClusters"
+        class="day-cluster"
+        [style.gridColumn]="shouldSplitDayByInstructor ? cluster.col + 1 : 2"
+        [style.gridRow]="cluster.row + 2 + ' / span ' + cluster.span">
+
+        <div class="day-cluster-inner" [class.multi]="cluster.items.length > 1">
+          <button type="button"
+                  *ngFor="let item of cluster.items"
+                  class="day-lesson-card"
+                  [class.status-canceled]="isCanceledItem(item)"
+                  [class.status-pending]="isPendingItem(item)"
+                  [class.status-approved]="isApprovedItem(item)"
+                  [style.borderInlineStartColor]="getInstructorBorderColor(item)"
+                  (click)="onCustomItemClick(item, $event)"
+                  [title]="buildCustomItemTitle(item)">
+
+            <div class="day-lesson-main">
+              <span class="day-child-name">
+                {{ getCustomDayPrimaryText(item) }}
               </span>
-            </span>
-          </div>
 
-          <div class="day-lesson-sub" *ngIf="getCustomDaySecondaryText(item)">
-            {{ getCustomDaySecondaryText(item) }}
-          </div>
-        </button>
+              <span class="day-badges">
+                <span class="mini-badge type-badge" *ngIf="getItemLessonTypeShort(item)">
+                  {{ getItemLessonTypeShort(item) }}
+                </span>
+              </span>
+            </div>
+
+            <div class="day-lesson-sub" *ngIf="getCustomDaySecondaryText(item)">
+              {{ getCustomDaySecondaryText(item) }}
+            </div>
+          </button>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
   <!-- שבוע/חודש נשארים FullCalendar -->
   <div *ngIf="currentView !== 'timeGridDay'" class="bereshit-calendar calendar-host">

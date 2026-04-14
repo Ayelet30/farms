@@ -1,0 +1,403 @@
+:host {
+  --olive-900: #243746;
+  --olive-800: #3d4f43;
+  --olive-700: #5f705f;
+  --olive-600: #8f9763;
+  --olive-500: #a4aa74;
+  --olive-400: #c7ccb0;
+  --olive-300: #d9ddc8;
+  --olive-200: #eceedd;
+  --olive-100: #f6f7ef;
+
+  --cream-bg: #f7f7f3;
+  --card-bg: #fcfcf8;
+  --text-main: #253746;
+  --text-soft: #6e7462;
+  --line: #cfd5bd;
+  --danger: #b55b5b;
+  --shadow-soft: 0 10px 30px rgba(36, 55, 70, 0.08);
+}
+
+.qa-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(36, 55, 70, 0.14);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  z-index: 9999;
+}
+
+.qa-modal {
+  width: min(1000px, 60vw);
+  max-height: 94vh;
+  overflow: auto;
+  background: var(--card-bg);
+  border: 1.5px solid var(--olive-500);
+  border-radius: 24px;
+  box-shadow: var(--shadow-soft);
+  padding: 18px 18px 16px;
+  position: relative;
+  direction: rtl;
+  color: var(--text-main);
+}
+
+/* כפתור סגירה */
+.qa-close {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 50%;
+  font-size: 22px;
+  color: var(--olive-800);
+  cursor: pointer;
+}
+
+/* כותרת */
+.qa-header {
+  margin-bottom: 10px;
+  padding-inline-start: 4px;
+}
+
+.qa-header h3 {
+  margin: 0 0 2px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--olive-900);
+  line-height: 1.1;
+}
+
+.qa-subtitle {
+  color: var(--text-soft);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.qa-loading,
+.qa-error {
+  border-radius: 12px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+}
+
+.qa-loading {
+  background: var(--olive-100);
+  border: 1px solid var(--olive-300);
+  color: var(--olive-800);
+}
+
+.qa-error {
+  background: #fff4f4;
+  border: 1px solid #e5b9b9;
+  color: var(--danger);
+}
+
+/* שורת מידע עליונה - הכל בשורה אחת */
+.qa-info-card {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 0.8fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.qa-info-row {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 8px 10px;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.qa-info-row .k {
+  font-size: 0.76rem;
+  color: var(--text-soft);
+  margin-bottom: 2px;
+  line-height: 1.2;
+}
+
+.qa-info-row .v {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--olive-900);
+  line-height: 1.2;
+}
+
+/* אזור ילדים קיימים - מוקטן מאוד */
+.qa-participants {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+
+.qa-participants-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--olive-900);
+  margin-bottom: 8px;
+}
+
+.mini-box {
+  overflow: hidden;
+  border: 1px solid var(--olive-300);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.mini-head,
+.mini-row {
+  display: grid;
+  grid-template-columns: 1.2fr 56px 52px 0.9fr 1.1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.mini-head {
+  background: var(--olive-100);
+  color: var(--olive-900);
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 7px 8px;
+}
+
+.mini-row {
+  padding: 6px 8px;
+  border-top: 1px solid #edf0e4;
+  font-size: 0.74rem;
+  line-height: 1.2;
+}
+
+.mini-row:nth-child(even) {
+  background: #fcfcf8;
+}
+
+.cell {
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+}
+
+.cell.c {
+  justify-content: center;
+  text-align: center;
+}
+
+.notes-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.muted {
+  color: var(--text-soft);
+  font-size: 0.68rem;
+}
+
+/* טופס */
+.qa-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.qa-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.qa-field label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--olive-800);
+  padding-inline: 4px;
+}
+
+.qa-field input,
+.qa-field select {
+  width: 100%;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 0 10px;
+  font-size: 0.86rem;
+  color: var(--text-main);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.qa-field input:focus,
+.qa-field select:focus {
+  border-color: var(--olive-500);
+  box-shadow: 0 0 0 3px rgba(164, 170, 116, 0.12);
+}
+
+.qa-field input[type="number"],
+.qa-field input[type="time"] {
+  direction: ltr;
+}
+
+/* אזורי השלמה / מילוי מקום */
+.qa-section {
+  margin-bottom: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 10px;
+}
+
+.qa-section h4 {
+  margin: 0 0 8px;
+  color: var(--olive-900);
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.qa-section p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.8rem;
+}
+
+.qa-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--olive-300);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.qa-table thead th {
+  background: var(--olive-100);
+  color: var(--olive-900);
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 8px 8px;
+  text-align: right;
+  border-bottom: 1px solid var(--olive-300);
+}
+
+.qa-table tbody td {
+  padding: 7px 8px;
+  border-bottom: 1px solid #edf0e4;
+  font-size: 0.78rem;
+  color: var(--text-main);
+}
+
+.qa-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.qa-table tbody tr:nth-child(even) {
+  background: #fcfcf8;
+}
+
+.row-pick {
+  cursor: pointer;
+}
+
+.row-pick:hover {
+  background: #f5f7ee !important;
+}
+
+.qa-table input[type="radio"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--olive-600);
+}
+
+/* כפתורים תחתונים */
+.qa-actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.qa-actions button {
+  min-width: 120px;
+  height: 40px;
+  border-radius: 999px;
+  padding: 0 18px;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+  border: none;
+}
+
+.qa-actions .primary {
+  background: var(--olive-500);
+  color: #fff;
+}
+
+.qa-actions .secondary {
+  background: #fff;
+  color: var(--olive-800);
+  border: 1px solid var(--line);
+}
+
+.qa-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* רספונסיב */
+@media (max-width: 1100px) {
+  .qa-grid {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .qa-info-card {
+    grid-template-columns: 1fr;
+  }
+
+  .qa-grid {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+
+  .mini-box,
+  .qa-table {
+    overflow-x: auto;
+    display: block;
+  }
+
+  .mini-head,
+  .mini-row {
+    min-width: 650px;
+  }
+}
+
+@media (max-width: 580px) {
+  .qa-modal {
+    padding: 14px 12px 12px;
+  }
+
+  .qa-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .qa-actions {
+    flex-direction: column-reverse;
+  }
+
+  .qa-actions button {
+    width: 100%;
+  }
+}

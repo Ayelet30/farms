@@ -1,0 +1,276 @@
+<div class="qa-backdrop" (click)="close.emit()">
+  <div class="qa-modal" dir="rtl" (click)="$event.stopPropagation()">
+    <button type="button" class="qa-close" (click)="close.emit()">×</button>
+
+    <div class="qa-header">
+      <h3>זימון מהיר</h3>
+      <div class="qa-subtitle">
+        {{ date }} | {{ startTime }}–{{ endTime }} | {{ instructorName || instructorId }}
+      </div>
+    </div>
+
+    <div class="qa-loading" *ngIf="loadingSlotInfo">
+      טוען פרטי סלוט...
+    </div>
+
+    <div class="qa-error" *ngIf="slotInfoError">
+      {{ slotInfoError }}
+    </div>
+
+    <ng-container *ngIf="slotInfo as s">
+      <div class="qa-info-card">
+        <div class="qa-info-row">
+          <div class="k">סוג שיעור מהזמינות</div>
+          <div class="v">
+            {{ s.riding_type_name || '—' }}
+            <ng-container *ngIf="s.lesson_type_mode">
+              • {{ s.lesson_type_mode }}
+            </ng-container>
+          </div>
+        </div>
+
+        <div class="qa-info-row">
+          <div class="k">שיבוץ קיים</div>
+          <div class="v">{{ s.current_participants }} / {{ s.max_participants }}</div>
+        </div>
+
+        <div class="qa-info-row">
+          <div class="k">מקום פנוי</div>
+          <div class="v">{{ s.remaining_capacity > 0 ? 'כן' : 'לא' }}</div>
+        </div>
+      </div>
+
+      <div class="qa-participants" *ngIf="s.existing_participants?.length">
+        <div class="qa-participants-title">ילדים שכבר משובצים בשעה זו</div>
+
+        <div class="mini-box">
+          <div class="mini-head">
+            <div>שם</div>
+            <div class="c">מין</div>
+            <div class="c">גיל</div>
+            <div>יחד איתו</div>
+            <div>הערות</div>
+          </div>
+
+          <div class="mini-row" *ngFor="let c of s.existing_participants">
+            <div class="cell">{{ c.first_name }} {{ c.last_name }}</div>
+            <div class="cell c">{{ c.gender || '—' }}</div>
+            <div class="cell c">{{ calcAge(c.birth_date) || '—' }}</div>
+            <div class="cell">
+              <div *ngIf="c.together_from || c.together_to">
+                {{ c.together_from || '—' }} – {{ c.together_to || '—' }}
+              </div>
+              <div class="muted" *ngIf="c.overlap_count != null">
+                ({{ c.overlap_count }} מפגשים יחד)
+              </div>
+            </div>
+            <div class="cell notes-cell">
+              <span *ngIf="c.medical_notes">🩺 {{ c.medical_notes }}</span>
+              <span *ngIf="c.behavior_notes">⚠ {{ c.behavior_notes }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+
+    <div class="qa-grid">
+      <div class="qa-field">
+        <label>ילד/ה</label>
+        <select [(ngModel)]="selectedChildId" (ngModelChange)="onChildChange()">
+          <option [ngValue]="null">בחר/י ילד/ה</option>
+          <option *ngFor="let child of children" [ngValue]="child.child_uuid">
+            {{ child.first_name }} {{ child.last_name }}
+          </option>
+        </select>
+      </div>
+
+      <div class="qa-field">
+        <label>מסלול זימון</label>
+        <select [(ngModel)]="bookingMode" (ngModelChange)="onBookingModeChange()">
+          <option value="single">שיעור בודד</option>
+          <option value="series">סדרה</option>
+          <option value="makeup">שיעור השלמה</option>
+          <option value="occupancy">מילוי מקום</option>
+          <option value="special">סוג מיוחד</option>
+        </select>
+      </div>
+
+      <div class="qa-field" *ngIf="bookingMode === 'series'">
+        <label>סוג סדרה</label>
+        <select [(ngModel)]="seriesMode">
+          <option value="fixed">מוגבלת</option>
+          <option value="open">קבועה</option>
+        </select>
+      </div>
+
+      <div class="qa-field" *ngIf="bookingMode === 'series' && seriesMode === 'fixed'">
+        <label>כמה מפגשים</label>
+        <input type="number" min="1" [(ngModel)]="repeatWeeks" />
+      </div>
+
+      <div class="qa-field" *ngIf="bookingMode === 'special'">
+        <label>סוג מיוחד</label>
+        <select [(ngModel)]="selectedSpecialRidingTypeId">
+          <option [ngValue]="null">בחר/י סוג</option>
+          <option *ngFor="let r of inactiveRidingTypes" [ngValue]="r.id">
+            {{ r.name }}
+          </option>
+        </select>
+      </div>
+
+      <div class="qa-field" *ngIf="bookingMode !== 'makeup' && bookingMode !== 'occupancy'">
+  <label>מסלול תשלום</label>
+  <select [(ngModel)]="selectedPaymentPlanId" (ngModelChange)="onPaymentPlanChange()">
+    <option [ngValue]="null">בחר/י מסלול</option>
+    <option *ngFor="let plan of paymentPlans" [ngValue]="plan.id">
+      {{ plan.name }}
+    </option>
+  </select>
+
+  <small
+    *ngIf="selectedPaymentPlan?.require_docs_at_booking"
+    class="qa-help-text"
+  >
+    למסלול זה נדרשים מסמכים:
+    {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
+    יש להעלות קובץ אחד בלבד.
+  </small>
+</div>
+
+<div
+  class="qa-field qa-field-full"
+  *ngIf="bookingMode !== 'makeup'
+      && bookingMode !== 'occupancy'
+      && selectedPaymentPlan?.require_docs_at_booking"
+>
+  <label>
+    העלאת הפניה / מסמך נדרש
+    <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length">
+      – {{ selectedPaymentPlan?.required_docs?.join(', ') }}
+    </ng-container>
+  </label>
+
+  <input
+    type="file"
+    accept=".pdf,image/*"
+    (change)="onReferralFileSelected($event)"
+  />
+
+  <small class="qa-help-text">
+    ניתן להעלות PDF או תמונה.
+    אם יש כמה מסמכים, יש לאחד אותם לקובץ אחד לפני ההעלאה.
+  </small>
+
+  <small class="qa-error" *ngIf="referralUploadError">
+    {{ referralUploadError }}
+  </small>
+
+  <small class="qa-success" *ngIf="referralFile">
+    נבחר קובץ: {{ referralFile.name }}
+  </small>
+</div>
+
+<div class="qa-field" *ngIf="bookingMode !== 'makeup' && bookingMode !== 'occupancy'">
+        <label>מסלול תשלום</label>
+        <select [(ngModel)]="selectedPaymentPlanId">
+          <option [ngValue]="null">בחר/י מסלול</option>
+          <option *ngFor="let plan of paymentPlans" [ngValue]="plan.id">
+            {{ plan.name }}
+          </option>
+        </select>
+      </div>
+
+      <div class="qa-field" *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
+        <label>שעת התחלה</label>
+        <input type="time" [(ngModel)]="startTime" />
+      </div>
+
+      <div class="qa-field" *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
+        <label>שעת סיום</label>
+        <input type="time" [(ngModel)]="endTime" />
+      </div>
+    </div>
+
+    <!-- השלמה -->
+    <div class="qa-section" *ngIf="bookingMode === 'makeup'">
+  <h4>שיעורים שניתן להשלים</h4>
+
+  <p *ngIf="loadingMakeup">טוען שיעורים להשלמה...</p>
+  <p class="qa-error" *ngIf="makeupError">{{ makeupError }}</p>
+
+  <table class="qa-table" *ngIf="makeupCandidates.length">
+    <thead>
+      <tr>
+        <th>תאריך</th>
+        <th>שעה</th>
+        <th>מדריך</th>
+        <th>סוג שיעור</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let c of makeupCandidates" (click)="selectedMakeupCandidate = c" class="row-pick">
+        <td>{{ c.occur_date }}</td>
+        <td>{{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}</td>
+        <td>{{ c.instructor_name }}</td>
+        <td>שיעור השלמה</td>
+        <td>
+          <input
+            type="radio"
+            name="makeupCandidate"
+            [checked]="selectedMakeupCandidate === c"
+            (click)="$event.stopPropagation()"
+            (change)="selectedMakeupCandidate = c" />
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+    <!-- מילוי מקום -->
+    <div class="qa-section" *ngIf="bookingMode === 'occupancy'">
+  <h4>ביטולים שניתנים למילוי מקום</h4>
+
+  <p *ngIf="loadingOccupancy">טוען שיעורים למילוי מקום...</p>
+  <p class="qa-error" *ngIf="occupancyError">{{ occupancyError }}</p>
+
+  <table class="qa-table" *ngIf="occupancyCandidates.length">
+    <thead>
+      <tr>
+        <th>תאריך</th>
+        <th>שעה</th>
+        <th>מדריך</th>
+        <th>סוג שיעור</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let c of occupancyCandidates" (click)="selectedOccupancyCandidate = c" class="row-pick">
+        <td>{{ c.occur_date }}</td>
+        <td>{{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}</td>
+        <td>{{ c.instructor_name || c.instructor_id }}</td>
+        <td>מילוי מקום</td>
+        <td>
+          <input
+            type="radio"
+            name="occupancyCandidate"
+            [checked]="selectedOccupancyCandidate === c"
+            (click)="$event.stopPropagation()"
+            (change)="selectedOccupancyCandidate = c" />
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+    <div class="qa-actions">
+      <button type="button" class="secondary" (click)="close.emit()" [disabled]="loading">
+        ביטול
+      </button>
+
+      <button type="button" class="primary" (click)="save()" [disabled]="loading">
+        {{ loading ? 'שומרת...' : 'שמור זימון' }}
+      </button>
+    </div>
+  </div>
+</div>
