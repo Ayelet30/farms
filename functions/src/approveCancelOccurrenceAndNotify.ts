@@ -118,6 +118,10 @@ export const approveCancelOccurrenceAndNotify = onRequest(
       }
 
       const payload = parsePayload((reqRow as any).payload);
+      const cancelReason = String(payload?.reason ?? '').trim();
+const noteText = cancelReason
+  ? `בוטל על ידי ההורה - ${cancelReason}`
+  : 'בוטל על ידי ההורה';
       const cancelDate = String(reqRow.from_date ?? reqRow.to_date ?? payload?.occur_date ?? '').slice(0, 10);
       if (!cancelDate) return void res.status(400).json({ ok: false, message: 'Request has no from_date/to_date' });
 
@@ -151,8 +155,8 @@ if (!occRow) {
             lesson_id: lessonId,
             occur_date: cancelDate,
             status: 'בוטל',
-            note: decisionNote ?? '',
-            canceller_role: 'instructor',
+note: noteText,
+            canceller_role: 'parent',
             cancelled_at: new Date().toISOString(),
           } as any,
           { onConflict: 'lesson_id,occur_date' }
