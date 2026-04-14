@@ -39,7 +39,7 @@ private dialog = inject(MatDialog);
   // סטטוסים
   loading = signal(false);
   error = signal<string | null>(null);
-
+hasLoadedOnce = signal(false);
   // בחירת חיובים לסליקה
   selectedChargeIds = signal<Set<string>>(new Set());
 
@@ -133,32 +133,31 @@ invoiceExtraText = '';
   }
 
   async loadCharges() {
-    const farm = getCurrentFarmMetaSync();
-    const tenantSchema = farm?.schema_name ?? null;
+  const farm = getCurrentFarmMetaSync();
+  const tenantSchema = farm?.schema_name ?? null;
+
+  try {
+    this.loading.set(true);
+    this.error.set(null);
+
     const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema ?? 'public');
-      this.thtk = thtk;
-    try {
-      this.loading.set(true);
-      this.error.set(null);
+    this.thtk = thtk;
 
+    const { rows } = await this.payments.listParentCharges({
+      limit: 200,
+    });
 
-  const { rows } = await this.payments.listParentCharges({
-  limit: 200,
-});
-
-      this.charges.set(rows);
-      console.log('charges sample', rows[0]);
-console.log('office_note on first row:', rows?.[0]?.office_note);
-
-      this.selectedChargeIds.set(new Set());
-    } catch (e: any) {
-      console.error('[ParentBilling] load error', e);
-      this.error.set(e?.message ?? 'שגיאה בטעינת החיובים');
-    } finally {
-      this.loading.set(false);
-    }
+    this.charges.set(rows);
+    this.selectedChargeIds.set(new Set());
+    this.hasLoadedOnce.set(true);
+  } catch (e: any) {
+    console.error('[ParentBilling] load error', e);
+    this.error.set(e?.message ?? 'שגיאה בטעינת החיובים');
+    this.hasLoadedOnce.set(true);
+  } finally {
+    this.loading.set(false);
   }
-
+}
   // שינוי סינון UID
   async onParentNameFilterChange(name: string) {
     this.parentNameFilter.set(name);
