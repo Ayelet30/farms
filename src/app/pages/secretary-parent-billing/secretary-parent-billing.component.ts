@@ -68,7 +68,7 @@ hasLoadedOnce = signal(false);
   private thtk: string | null = null;
 
 invoiceExtraText = '';
-
+billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
 
   constructor(private payments: PaymentsService) {}
 
@@ -412,54 +412,52 @@ detailsCreditsTotalAgorot = computed(() => {
 
 
 
-  async runbilling() {
+  async runbilling(runDate?: string) {
   try {
     this.loading.set(true);
     this.error.set(null);
 
-    const now = new Date();
-    const day = now.getDate();
-    const billingDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
-
-    // להביא את כל ההורים שיום החיוב שלהם הוא היום
+    const billingDate = runDate || this.billingRunDate() || new Date().toISOString().slice(0, 10);
+const billingDay = Number(billingDate.split('-')[2]);
+    // להביא את כל ההורים שיום החיוב שלהם הוא היום שבתאריך שנבחר
     const { data: parents, error } = await dbTenant()
       .from('parents')
       .select('uid')
-      .eq('billing_day_of_month', day);
+      .eq('billing_day_of_month', billingDay);
 
     if (error) throw error;
 
     const list = parents ?? [];
 
-    // לעבור אחד-אחד ולהפעיל RPC
     let ok = 0;
     let failed = 0;
 
-
     for (const p of list) {
-const { data, error: rpcError } = await dbTenant().rpc('create_monthly_charge_for_parent', {
-  p_parent_uid: p.uid,
-  p_billing_date: billingDate,
-});
+      const { error: rpcError } = await dbTenant().rpc('create_monthly_charge_for_parent', {
+        p_parent_uid: p.uid,
+        p_billing_date: billingDate,
+      });
 
-if (rpcError) {
-  console.error('RPC failed', {
-    message: rpcError.message,
-    code: rpcError.code,
-    details: rpcError.details,
-    hint: rpcError.hint,
-  });
-}
-
-else {
+      if (rpcError) {
+        failed++;
+        console.error('RPC failed', {
+          parentUid: p.uid,
+          billingDate,
+          message: rpcError.message,
+          code: rpcError.code,
+          details: rpcError.details,
+          hint: rpcError.hint,
+        });
+      } else {
         ok++;
       }
     }
 
-
-    // רענון מסך החיובים (כדי לראות את מה שנוצר)
     await this.loadCharges();
 
+    if (failed > 0) {
+      this.error.set(`החיוב הורץ חלקית. הצליחו: ${ok}, נכשלו: ${failed}`);
+    }
   } catch (e: any) {
     console.error('[ParentBilling] runbilling error', e);
     this.error.set(e?.message ?? 'שגיאה בהרצת חיוב יזום');
