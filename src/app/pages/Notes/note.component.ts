@@ -262,55 +262,53 @@ get canEditOfficeNotes(): boolean {
 
   /* ===================== LIFECYCLE ===================== */
 
- async ngOnInit() {
+async ngOnInit() {
+  this.isInitializing = true;
 
-  // 1️⃣ טעינת נתונים בסיסיים – חייבים לפני פרטי שיעור
   await this.loadChildDetails();
   await this.loadHorses();
   await this.loadArenas();
   await this.loadReadyNotes();
-
-  // 2️⃣ עכשיו אפשר לטעון נתונים שתלויים בזה
   await this.loadLessonDetails();
-  await this.loadAttendance(); 
+  await this.loadAttendance();
   await this.loadNotes();
 
-  // 3️⃣ איפוס התראות סגירה
   this.resetCloseWarnings();
-this.noteAddedThisSession = false;
+  this.noteAddedThisSession = false;
 
-  // 4️⃣ גלילה לראש הכרטיס (אחרי רינדור)
   queueMicrotask(() => {
     if (this.scrollable?.nativeElement) {
       this.scrollable.nativeElement.scrollTo({ top: 0 });
     }
   });
-    // ✅ סיום טעינה – אפשר להציג אזהרות
+
   queueMicrotask(() => {
     this.isInitializing = false;
   });
-
 }
+async ngOnChanges(changes: SimpleChanges) {
+  const shouldReload =
+    (changes['occurrence'] && !changes['occurrence'].firstChange) ||
+    changes['child'];
 
+  if (shouldReload) {
+    this.isInitializing = true;
 
-  async ngOnChanges(changes: SimpleChanges) {
-    if (changes['occurrence'] && !changes['occurrence'].firstChange) {
-      await this.loadLessonDetails();
-       await this.loadAttendance(); 
+    if (changes['child']) {
+      await this.loadChildDetails();
     }
-  if (changes['child']) {
-  await this.loadChildDetails();
-    await this.loadAttendance(); 
-  await this.loadNotes();
-}
 
+    await this.loadLessonDetails();
+    await this.loadAttendance();
+    await this.loadNotes();
 
-    if (changes['attendanceStatus'] && !changes['attendanceStatus'].firstChange) {
-      // שינוי מבחוץ – לא “מחייב” הערה חדשה אוטומטית
-      this.resetCloseWarnings();
-    }
+    this.isInitializing = false;
   }
 
+  if (changes['attendanceStatus'] && !changes['attendanceStatus'].firstChange) {
+    this.resetCloseWarnings();
+  }
+}
 
 
   
@@ -611,7 +609,12 @@ async loadLessonDetails() {
   
   const isCancelled = this.occurrence?.isCancelled === true
   || (this.occurrence?.status ?? lesson.status) === 'בוטל';
-
+if (isCancelled && !exception) {
+    console.error(
+      '[loadLessonDetails] Cancelled lesson without lesson_occurrence_exceptions row',
+      { lessonId, occurDate }
+    );
+  }
 if (isCancelled) {
   this.lessonDetails = {
     lesson_id: lesson.id,
@@ -651,25 +654,21 @@ if (isCancelled) {
       this.arenas.find(a => a.id === resources.arena_id)?.name ?? null;
   }
 
-  /** 4️⃣ מיפוי ל-UI */
   this.lessonDetails = {
-    lesson_id: lesson.id,
-    start_time: lesson.start_time,
-    end_time: lesson.end_time,
-    lesson_type: lesson.lesson_type,
+  lesson_id: lesson.id,
+  start_time: lesson.start_time,
+  end_time: lesson.end_time,
+  lesson_type: lesson.lesson_type,
   status: this.occurrence?.status ?? lesson.status,
-
-    isCancelled: this.occurrence?.isCancelled === true,
-
-    horse_id: resources?.horse_id ?? null,
-    horse_name: horseName,
-    arena_id: resources?.arena_id ?? null,
-    arena_name: arenaName,
-    is_makeup_allowed: exception?.is_makeup_allowed ?? false,
-
-  };
+  isCancelled: this.occurrence?.isCancelled === true,
+  horse_id: resources?.horse_id ?? null,
+  horse_name: horseName,
+  arena_id: resources?.arena_id ?? null,
+  arena_name: arenaName,
+  is_makeup_allowed: exception?.is_makeup_allowed ?? false,
+  is_billable: exception?.is_billable ?? true,
+};
 }
-
 async onBillableChange(newVal: boolean) {
   if (!this.canEditBillingFlag) return;
 
@@ -677,27 +676,20 @@ async onBillableChange(newVal: boolean) {
   const occurDate = this.getOccurDateForDb();
   if (!lessonId || !occurDate) return;
 
-  // שימי לב: עדיף UPSERT כדי לוודא שיש שורה גם אם עוד לא קיימת חריגה
   const { error } = await this.dbc
     .from('lesson_occurrence_exceptions')
-    .upsert(
-      {
-        lesson_id: lessonId,
-        occur_date: occurDate,
-        is_billable: newVal,
-        // לא לדרוס ערך קיים בטעות: אם אין לנו, נשאיר כמו שהוא אצלך ב-UI
-        is_makeup_allowed: this.lessonDetails?.is_makeup_allowed ?? false,
-      },
-      { onConflict: 'lesson_id,occur_date' }
-    );
+    .update({ is_billable: newVal })
+    .eq('lesson_id', lessonId)
+    .eq('occur_date', occurDate);
 
   if (error) {
-    console.error('[onBillableChange] upsert error', error);
+    console.error('[onBillableChange] update error', error);
     return;
   }
 
   this.lessonDetails.is_billable = newVal;
 }
+
   /* ===================== HORSES / ARENAS ===================== */
 
   async loadHorses() {
@@ -761,13 +753,9 @@ async onBillableChange(newVal: boolean) {
     this.lessonDetails.arena_id = newArenaId;
     this.lessonDetails.arena_name = arena?.name ?? null;
   }
-  //CHECKDHCECK
-async onMakeupAllowedChange(newVal: boolean) {
-  if (!this.canEditNotes) return;
- 
-  const r = this.effectiveRole();
-  if (r !== 'secretary' && r !== 'manager' && r !== 'admin') return;
- 
+  async onMakeupAllowedChange(newVal: boolean) {
+  if (!this.canEditMakeupAllowed) return;
+
   const lessonId = this.occurrence?.lesson_id;
   const occurDate = this.getOccurDateForDb();
   if (!lessonId || !occurDate) return;
@@ -777,12 +765,12 @@ async onMakeupAllowedChange(newVal: boolean) {
     .update({ is_makeup_allowed: newVal })
     .eq('lesson_id', lessonId)
     .eq('occur_date', occurDate);
- 
+
   if (error) {
     console.error('[onMakeupAllowedChange] update error', error);
     return;
   }
- 
+
   this.lessonDetails.is_makeup_allowed = newVal;
 }
  
