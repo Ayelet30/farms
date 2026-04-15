@@ -395,7 +395,7 @@ paymentSourceForSeries: 'health_fund' | 'private' | null = null;
   makeupError: string | null = null;
   makeupCreatedMessage: string | null = null;
   user: CurrentUser | null = null;
-  hoursBeforeCancel: number | null = null;
+  cancelbeforehours: number | null = null;
   childDeletionGraceDays: number = 0;
 
 
@@ -658,7 +658,7 @@ private async loadFarmSettings(): Promise<void> {
     .from('farm_settings')
     .select(`
   displayed_makeup_lessons_count,
-  hours_before_cancel_lesson,
+  cancel_before_hours,
   time_range_occupancy_rate_days,
   series_search_horizon_days,
   child_deletion_grace_days,
@@ -680,7 +680,7 @@ private async loadFarmSettings(): Promise<void> {
   }
     this.allowOnlineBooking = data?.allow_online_booking ?? true;
   this.displayedMakeupLessonsCount = data?.displayed_makeup_lessons_count ?? null;
-    this.hoursBeforeCancel = data?.hours_before_cancel_lesson ?? null;
+    this.cancelbeforehours  = data?.cancel_before_hours  ?? null;
     this.timeRangeOccupancyRateDays =
   data?.time_range_occupancy_rate_days ?? 30;
   this.seriesSearchHorizonDays = data?.series_search_horizon_days ?? 90;
