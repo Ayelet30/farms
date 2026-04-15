@@ -505,7 +505,56 @@
               {{ settingsErrors().cancel_before_hours }}
             </small>
           </label>
+<div class="form-grid cols-3">
+  <label class="field-card field-toggle">
+    <div class="toggle-line">
+      <span class="field-label">חיוב ביטול לפני הדדליין</span>
+      <label class="switch">
+        <input
+          type="checkbox"
+          [(ngModel)]="s.parent_cancel_charge_before_deadline"
+          name="parent_cancel_charge_before_deadline"
+        />
+        <span class="switch-ui"></span>
+      </label>
+    </div>
+    <small class="field-hint">
+      האם לחייב הורה גם אם הביטול בוצע בזמן.
+    </small>
+  </label>
 
+  <label class="field-card field-toggle">
+    <div class="toggle-line">
+      <span class="field-label">חיוב ביטול אחרי הדדליין</span>
+      <label class="switch">
+        <input
+          type="checkbox"
+          [(ngModel)]="s.parent_cancel_charge_after_deadline"
+          name="parent_cancel_charge_after_deadline"
+        />
+        <span class="switch-ui"></span>
+      </label>
+    </div>
+    <small class="field-hint">
+      האם לחייב הורה על ביטול מאוחר.
+    </small>
+  </label>
+
+  <label class="field-card">
+    <span class="field-label">מועד יצירת החיוב על ביטול</span>
+    <select
+      class="form-control"
+      [(ngModel)]="s.parent_cancel_charge_timing"
+      name="parent_cancel_charge_timing"
+    >
+      <option [ngValue]="'at_cancel'">בעת הביטול</option>
+      <option [ngValue]="'at_makeup'">בעת קביעת השלמה</option>
+    </select>
+    <small class="field-hint">
+      מגדיר מתי בפועל יווצר החיוב על ביטול.
+    </small>
+  </label>
+</div>
           <label class="field-card">
             <span class="field-label">מדיניות ביטול מאוחר</span>
             <select class="form-control" [(ngModel)]="s.late_cancel_policy" name="late_cancel_policy">
