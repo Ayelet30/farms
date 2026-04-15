@@ -103,6 +103,9 @@ interface FarmSettings {
   allow_online_booking?: boolean | null;
 
   updated_at?: string | null;
+    parent_cancel_charge_before_deadline?: boolean | null;
+  parent_cancel_charge_after_deadline?: boolean | null;
+  parent_cancel_charge_timing?: 'at_cancel' | 'at_makeup' | null;
 }
 
 type ListNoteId = number;
@@ -1333,6 +1336,12 @@ leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
         suggest_makeup_on_cancel: data.suggest_makeup_on_cancel ?? true,
         reminder_require_confirmation: data.reminder_require_confirmation ?? false,
         reminder_allow_cancel_link: data.reminder_allow_cancel_link ?? false,
+           parent_cancel_charge_before_deadline:
+          data.parent_cancel_charge_before_deadline ?? false,
+        parent_cancel_charge_after_deadline:
+          data.parent_cancel_charge_after_deadline ?? true,
+        parent_cancel_charge_timing:
+          data.parent_cancel_charge_timing ?? 'at_cancel',
       };
 
       this.settings.set(s);
