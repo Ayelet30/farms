@@ -144,9 +144,18 @@ export class AddChildWizardComponent implements OnInit {
   // ===== דמי הרשמה =====
   registrationFee: number | null = null;
 
-  get hasRegistrationFee(): boolean {
-    return (this.registrationFee ?? 0) > 0;
+get hasRegistrationFee(): boolean {
+  return (this.registrationFee ?? 0) > 0 && !this.isExemptFromPayment;
+}
+
+onHealthFundChange() {
+  this.rebuildSteps();
+
+  // אם היינו בשלב תשלום – להחזיר אחורה
+  if (!this.hasRegistrationFee && this.stepIndex > this.steps.length - 1) {
+    this.stepIndex = this.steps.length - 1;
   }
+}
 
   get paymentStepIndex(): number {
     if (!this.isParentMode || !this.hasRegistrationFee) return -1;
@@ -369,13 +378,14 @@ export class AddChildWizardComponent implements OnInit {
   }
 
   if (
-    this.isParentMode &&
-    this.stepIndex === this.paymentStepIndex &&
-    this.hasRegistrationFee &&
-    !this.hasSavedPaymentProfile
-  ) {
-   setTimeout(() => this.ensureRegHostedFieldsReady(), 0);
-  }
+  this.isParentMode &&
+  !this.isExemptFromPayment && // ✅ חדש
+  this.stepIndex === this.paymentStepIndex &&
+  this.hasRegistrationFee &&
+  !this.hasSavedPaymentProfile
+) {
+  setTimeout(() => this.ensureRegHostedFieldsReady(), 0);
+}
 }
 
   prevStep() {
@@ -386,6 +396,19 @@ export class AddChildWizardComponent implements OnInit {
     if (this.saving) return;
     this.closed.emit();
   }
+
+ get isRaananaFarm(): boolean {
+  const farm = getCurrentFarmMetaSync();
+  return farm?.schema_name === 'raanana_farm';
+}
+
+get isMaccabi(): boolean {
+  return this.child.health_fund === 'מכבי';
+}
+
+get isExemptFromPayment(): boolean {
+  return this.isRaananaFarm && this.isMaccabi;
+}
 
   allowOnlyNumbers(event: KeyboardEvent) {
     if (!/^\d$/.test(event.key)) event.preventDefault();
@@ -441,6 +464,7 @@ export class AddChildWizardComponent implements OnInit {
   }
 
   private validatePayment() {
+  if (!this.hasRegistrationFee || this.isExemptFromPayment) return;
     if (!this.hasRegistrationFee) return;
 
     const v = Number(this.payment.registrationAmount ?? 0);
@@ -781,6 +805,8 @@ export class AddChildWizardComponent implements OnInit {
   }
 
   private async ensureRegHostedFieldsReady() {
+  if (this.isExemptFromPayment) return; // ✅ חוסם לגמרי
+
   if (this.hfReg || this.paymentFieldsLoading) return;
 
   this.tokenError = null;

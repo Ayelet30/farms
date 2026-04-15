@@ -393,6 +393,20 @@ textarea {
   position: relative;
   z-index: 1;
 }
+.health-fund-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.exempt-badge {
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
 
 @keyframes spin {
   to {
