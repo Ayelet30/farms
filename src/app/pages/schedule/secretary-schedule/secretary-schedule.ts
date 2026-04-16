@@ -531,9 +531,22 @@ onRightClickDay(e: any): void {
   const localYmd = this.extractYmd(dateStr);
   const localHm = dateStr.includes('T') ? this.extractHm(dateStr) : '';
 
+  const MENU_WIDTH = 210;
+  const MENU_HEIGHT = this.contextMenuMode === 'dayOff' ? 260 : 150;
+  const EDGE_GAP = 12;
+
+  let x = e.jsEvent.clientX;
+  let y = e.jsEvent.clientY;
+
+  const maxX = window.innerWidth - MENU_WIDTH - EDGE_GAP;
+  const maxY = window.innerHeight - MENU_HEIGHT - EDGE_GAP;
+
+  x = Math.max(EDGE_GAP, Math.min(x, maxX));
+  y = Math.max(EDGE_GAP, Math.min(y, maxY));
+
   this.contextMenu.visible = true;
-  this.contextMenu.x = e.jsEvent.clientX;
-  this.contextMenu.y = e.jsEvent.clientY;
+  this.contextMenu.x = x;
+  this.contextMenu.y = y;
   this.contextMenu.date = localYmd;
   this.contextMenu.time = localHm;
   this.contextMenu.instructorId = String(e.resourceId ?? '');
@@ -543,12 +556,29 @@ onRightClickDay(e: any): void {
   this.cdr.detectChanges();
 }
 
+
+private repositionContextMenu(mode: ContextMenuMode): void {
+  const EDGE_GAP = 12;
+  const MENU_WIDTH = 210;
+  const MENU_HEIGHT = mode === 'dayOff' ? 260 : 150;
+
+  const maxX = window.innerWidth - MENU_WIDTH - EDGE_GAP;
+  const maxY = window.innerHeight - MENU_HEIGHT - EDGE_GAP;
+
+  this.contextMenu.x = Math.max(EDGE_GAP, Math.min(this.contextMenu.x, maxX));
+  this.contextMenu.y = Math.max(EDGE_GAP, Math.min(this.contextMenu.y, maxY));
+}
+
 openDayOffMenu(): void {
   this.contextMenuMode = 'dayOff';
+  this.repositionContextMenu('dayOff');
+  this.cdr.detectChanges();
 }
 
 backToRootContextMenu(): void {
   this.contextMenuMode = 'root';
+  this.repositionContextMenu('root');
+  this.cdr.detectChanges();
 }
 
 openQuickBookingFromContext(): void {
