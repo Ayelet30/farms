@@ -364,28 +364,34 @@ openCreditForCharge(c: ParentChargeRow) {
     }
   }
 
-  async openChargeDetails(chargeId: string) {
+ async openChargeDetails(chargeId: string) {
   try {
     this.detailsOpenFor.set(chargeId);
     this.detailsLoading.set(true);
     this.detailsError.set(null);
 
     const { data: items, error: e1 } = await dbTenant()
-    .from('lesson_billing_items_with_office_note')
-
-.select(`
-  occur_date,
-  start_datetime,
-  child_id,
-  child_name,
-  unit_price_agorot,
-  quantity,
-  amount_agorot,
-  office_note,
-  billing_source,
-  is_cancelled_billable
-`)   .eq('charge_id', chargeId)
-      .order('start_datetime', { ascending: true });
+      .from('charge_details_with_office_note')
+      .select(`
+        id,
+        row_type,
+        occur_date,
+        start_datetime,
+        child_id,
+        child_name,
+        unit_price_agorot,
+        quantity,
+        amount_agorot,
+        office_note,
+        billing_source,
+        is_cancelled_billable,
+        related_lesson_id,
+        item_type,
+        item_code,
+        description
+      `)
+      .eq('charge_id', chargeId)
+      .order('occur_date', { ascending: true });
 
     if (e1) throw e1;
 
@@ -396,8 +402,18 @@ openCreditForCharge(c: ParentChargeRow) {
       .order('created_at', { ascending: true });
 
     if (e2) throw e2;
+const sortedItems = (items ?? []).sort((a: any, b: any) => {
+    if (a.row_type === b.row_type) {
+    const dateCompare = (a.occur_date || '').localeCompare(b.occur_date || '');
+    if (dateCompare !== 0) return dateCompare;
 
-    this.detailsItems.set(items ?? []);
+    return (a.start_datetime || '').localeCompare(b.start_datetime || '');
+  }
+
+  return a.row_type === 'lesson' ? -1 : 1;
+});
+
+this.detailsItems.set(sortedItems);
     this.detailsCredits.set(credits ?? []);
   } catch (e: any) {
     this.detailsError.set(e?.message ?? 'שגיאה בטעינת פירוט חיוב');
@@ -497,16 +513,17 @@ async openAdditionalChargeDialog(c: ParentChargeRow) {
       this.loading.set(true);
       this.error.set(null);
 
-      await this.createAdditionalCharge({
-        parentUid: c.parent_uid,
-        amountAgorot: result.amountAgorot,
-        description: result.description,
-      });
+   const chargeId = await this.createAdditionalCharge({
+  parentUid: c.parent_uid,
+  amountAgorot: result.amountAgorot,
+  description: result.description,
+});
 
-      await this.loadCharges();
-         if (this.detailsOpenFor() === c.id) {
-            await this.openChargeDetails(c.id);
-    }
+await this.loadCharges();
+
+if (this.detailsOpenFor() === c.id || this.detailsOpenFor() === chargeId) {
+  await this.openChargeDetails(chargeId);
+}
     } catch (e: any) {
       this.error.set(e?.message ?? 'שגיאה ביצירת חיוב נוסף');
     } finally {
@@ -521,17 +538,16 @@ private async createAdditionalCharge(args: {
 }) {
   const now = new Date();
   const isoNow = now.toISOString();
-
-  const billingMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
+  const itemDate = isoNow.slice(0, 10);
+  const billingMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 
   const sb = dbTenant();
 
-  // 1. בדיקה אם קיים כבר חיוב לחודש
+  let chargeId: string;
+
   const { data: existing, error: fetchErr } = await sb
     .from('charges')
-    .select('id, amount_agorot, description')
+    .select('id, amount_agorot')
     .eq('parent_uid', args.parentUid)
     .eq('billing_month', billingMonth)
     .maybeSingle();
@@ -539,35 +555,62 @@ private async createAdditionalCharge(args: {
   if (fetchErr) throw fetchErr;
 
   if (existing) {
-    // 2. עדכון חיוב קיים
+    chargeId = existing.id;
+
     const { error: updateErr } = await sb
       .from('charges')
       .update({
-        amount_agorot: existing.amount_agorot + args.amountAgorot,
-        description: (existing.description || '') + ' | ' + args.description,
+        amount_agorot: Number(existing.amount_agorot || 0) + args.amountAgorot,
         updated_at: isoNow,
       })
-      .eq('id', existing.id);
+      .eq('id', chargeId);
 
     if (updateErr) throw updateErr;
-
   } else {
-    // 3. יצירת חיוב חדש
-    const { error: insertErr } = await sb
+    const { data: insertedCharge, error: insertChargeErr } = await sb
       .from('charges')
       .insert({
         parent_uid: args.parentUid,
         amount_agorot: args.amountAgorot,
         currency: 'ILS',
-        status: 'pending',
-        description: args.description,
+        status: 'draft',
+        description: 'חיוב נוסף',
         billing_month: billingMonth,
         created_at: isoNow,
         updated_at: isoNow,
         office_note: 'חיוב נוסף שהוזן ידנית ע"י המזכירה',
-      });
+      })
+      .select('id')
+      .single();
 
-    if (insertErr) throw insertErr;
+    if (insertChargeErr) throw insertChargeErr;
+
+    chargeId = insertedCharge.id;
   }
+
+  const { error: insertItemErr } = await sb
+    .from('charge_items')
+    .insert({
+      charge_id: chargeId,
+      parent_uid: args.parentUid,
+      item_type: 'extra',
+      item_code: 'extra_manual',
+      description: args.description,
+      amount_agorot: args.amountAgorot,
+      quantity: 1,
+      unit_price_agorot: args.amountAgorot,
+      item_date: itemDate,
+      office_note: 'חיוב נוסף שהוזן ידנית ע"י המזכירה',
+      metadata: {
+        created_by: 'secretary-parent-billing',
+        source: 'manual_additional_charge',
+      },
+      created_at: isoNow,
+      updated_at: isoNow,
+    });
+
+  if (insertItemErr) throw insertItemErr;
+
+  return chargeId;
 }
 }
