@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, OnInit, OnDestroy, inject, ViewChild, signal, computed } from '@angular/core';import { CommonModule } from '@angular/common';
+import { ChangeDetectorRef, Component, OnInit, OnDestroy, inject, ViewChild, signal, computed, HostListener } from '@angular/core';import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   dbTenant,
@@ -14,6 +14,7 @@ import { NoteComponent } from '../../Notes/note.component';
 import { UiDialogService } from '../../../services/ui-dialog.service';
 import { requireTenant, supabase } from '../../../services/supabaseClient.service';
 import { QuickAppointmentComponent } from './quick-appointment/quick-appointment.component';
+
 
 
 type ChildRow = {
@@ -177,6 +178,40 @@ rangeModal = {
   reviewedImpact: false,
   instructorId: '',
 };
+
+@HostListener('document:click', ['$event'])
+onDocumentClick(event: MouseEvent): void {
+  if (!this.contextMenu.visible) return;
+
+  const target = event.target as HTMLElement | null;
+  if (!target) return;
+
+  if (target.closest('.context-menu')) return;
+
+  this.closeContextMenu();
+  this.cdr.detectChanges();
+}
+
+@HostListener('document:contextmenu', ['$event'])
+onDocumentContextMenu(event: MouseEvent): void {
+  const target = event.target as HTMLElement | null;
+  if (!target) return;
+
+  if (target.closest('.context-menu')) return;
+
+  if (this.contextMenu.visible) {
+    this.closeContextMenu();
+    this.cdr.detectChanges();
+  }
+}
+
+@HostListener('document:keydown.escape')
+onEscapeCloseContextMenu(): void {
+  if (!this.contextMenu.visible) return;
+  this.closeContextMenu();
+  this.cdr.detectChanges();
+}
+
 timeOptions: string[] = Array.from({ length: 24 * 2 }, (_, i) => {
   const hours = Math.floor(i / 2).toString().padStart(2, '0');
   const minutes = ((i % 2) * 30).toString().padStart(2, '0');
@@ -632,7 +667,9 @@ async onQuickBookingSaved(): Promise<void> {
 
 closeContextMenu(): void {
   this.contextMenu.visible = false;
+  this.contextMenuMode = 'root';
 }
+
 async openRequest(type: RequestType): Promise<void> {
   const date = this.contextMenu.date;
   this.closeContextMenu();
