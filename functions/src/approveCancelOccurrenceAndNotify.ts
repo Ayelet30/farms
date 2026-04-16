@@ -73,7 +73,9 @@ function fmtTime(t: any) {
   if (!s) return null;
   return s.length >= 5 ? s.slice(0, 5) : s;
 }
-
+function toDateOnlyString(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 export const approveCancelOccurrenceAndNotify = onRequest(
   { region: 'us-central1', secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, INTERNAL_CALL_SECRET_S] },
   async (req, res) => {
@@ -117,14 +119,21 @@ export const approveCancelOccurrenceAndNotify = onRequest(
         return void res.status(400).json({ ok: false, message: 'Not a CANCEL_OCCURRENCE request' });
       }
 
-      const payload = parsePayload((reqRow as any).payload);
+           const payload = parsePayload((reqRow as any).payload);
       const cancelReason = String(payload?.reason ?? '').trim();
-const noteText = cancelReason
-  ? `בוטל על ידי ההורה - ${cancelReason}`
-  : 'בוטל על ידי ההורה';
-      const cancelDate = String(reqRow.from_date ?? reqRow.to_date ?? payload?.occur_date ?? '').slice(0, 10);
-      if (!cancelDate) return void res.status(400).json({ ok: false, message: 'Request has no from_date/to_date' });
+      const noteText = cancelReason
+        ? `בוטל על ידי ההורה - ${cancelReason}`
+        : 'בוטל על ידי ההורה';
 
+      const cancelDate = String(reqRow.from_date ?? reqRow.to_date ?? payload?.occur_date ?? '').slice(0, 10);
+      if (!cancelDate) {
+        return void res.status(400).json({ ok: false, message: 'Request has no from_date/to_date' });
+      }
+
+      const childId = String(reqRow.child_id || '').trim();
+      if (!childId) {
+        throw new Error('Missing child_id in request');
+      }
       // 2) resolve lessonId + occurrence row
 const lessonIdFromReq = (reqRow as any).lesson_id ? String((reqRow as any).lesson_id) : null; // אם קיים אצלך
 const lessonIdFromOcc = reqRow.lesson_occ_id ? String(reqRow.lesson_occ_id) : null;           // אצלך כנראה שזה lesson_id בפועל
@@ -145,19 +154,125 @@ if (occErr) throw occErr;
 if (!occRow) {
   return void res.status(400).json({ ok: false, message: `No occurrence found for lesson_id=${lessonId} on ${cancelDate}` });
 }
+      // 2.1) farm settings לצורך זכאות להשלמה
+           const { data: farmSettings, error: fsErr } = await sbTenant
+        .from('farm_settings')
+        .select(`
+          cancel_before_hours,
+          suggest_makeup_on_cancel,
+          max_makeups_in_period,
+          makeups_period_days,
+          parent_cancel_charge_before_deadline,
+          parent_cancel_charge_after_deadline,
+          parent_cancel_charge_timing
+        `)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
+      if (fsErr) throw fsErr;
+      if (!farmSettings) {
+        return void res.status(400).json({ ok: false, message: 'Missing farm settings' });
+      }
 
+      // 2.2) האם הביטול בוצע בזמן לפי cancel_before_hours
+      const lessonStart = new Date(`${cancelDate}T${String(occRow.start_time).slice(0, 8)}`);
+      const now = new Date();
+
+      const timeDiffMs = lessonStart.getTime() - now.getTime();
+      const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
+
+      const cancelBeforeHours = Number(farmSettings.cancel_before_hours ?? 0);
+      const isBeforeCancelDeadline = timeDiffHours >= cancelBeforeHours;
+
+      // 2.3) שליפת כל ה-lessons של הילד כדי לספור ביטולים קודמים שזוכו להשלמה
+      const { data: childLessons, error: childLessonsErr } = await sbTenant
+        .from('lessons')
+        .select('id')
+        .eq('child_id', childId);
+
+      if (childLessonsErr) throw childLessonsErr;
+
+      const childLessonIds = (childLessons || [])
+        .map((r: any) => r.id)
+        .filter(Boolean);
+
+      // 2.4) ספירת ביטולים קודמים שזוכו להשלמה בתוך הטווח
+      let usedMakeupsInPeriod = 0;
+
+      if (
+        childLessonIds.length > 0 &&
+        farmSettings.max_makeups_in_period != null &&
+        farmSettings.makeups_period_days != null
+      ) {
+        const fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - Number(farmSettings.makeups_period_days));
+        const fromDateStr = toDateOnlyString(fromDate);
+
+        const { count, error: countErr } = await sbTenant
+          .from('lesson_occurrence_exceptions')
+          .select('*', { count: 'exact', head: true })
+          .in('lesson_id', childLessonIds)
+          .eq('is_makeup_allowed', true)
+          .gte('occur_date', fromDateStr);
+
+        if (countErr) throw countErr;
+        usedMakeupsInPeriod = count || 0;
+      }
+
+      // 2.5) החלטה סופית - האם השיעור זכאי להשלמה
+      const suggestMakeup = farmSettings.suggest_makeup_on_cancel === true;
+
+      let underQuota = true;
+      if (
+        farmSettings.max_makeups_in_period != null &&
+        farmSettings.makeups_period_days != null
+      ) {
+        underQuota = usedMakeupsInPeriod < Number(farmSettings.max_makeups_in_period);
+      }
+
+      const isMakeupAllowed = suggestMakeup && isBeforeCancelDeadline && underQuota;
+      // 2.6) החלטת חיוב
+     // 2.6) החלטה האם הביטול עצמו מחויב
+let isBillable = false;
+
+if (isBeforeCancelDeadline) {
+  // ביטול בזמן
+  isBillable = farmSettings.parent_cancel_charge_before_deadline === true
+    && String(farmSettings.parent_cancel_charge_timing || 'at_cancel') === 'at_cancel';
+} else {
+  // ביטול מאוחר
+  isBillable = farmSettings.parent_cancel_charge_after_deadline === true
+    && String(farmSettings.parent_cancel_charge_timing || 'at_cancel') === 'at_cancel';
+}
+console.log('cancel billing decision', {
+  cancelDate,
+  lessonStart: lessonStart.toISOString(),
+  now: now.toISOString(),
+  timeDiffHours,
+  cancelBeforeHours,
+  isBeforeCancelDeadline,
+  parent_cancel_charge_before_deadline: farmSettings.parent_cancel_charge_before_deadline,
+  parent_cancel_charge_after_deadline: farmSettings.parent_cancel_charge_after_deadline,
+  parent_cancel_charge_timing: farmSettings.parent_cancel_charge_timing,
+  isBillable,
+});
       // 3) upsert exception (כמו RPC)
-      const { error: upExErr } = await sbTenant
+           // 3) upsert exception (כמו RPC)
+           const { error: upExErr } = await sbTenant
         .from('lesson_occurrence_exceptions')
         .upsert(
           {
             lesson_id: lessonId,
             occur_date: cancelDate,
             status: 'בוטל',
-note: noteText,
+            note: noteText,
             canceller_role: 'parent',
             cancelled_at: new Date().toISOString(),
+            is_makeup_allowed: isMakeupAllowed,
+
+
+            is_billable: isBillable,
           } as any,
           { onConflict: 'lesson_id,occur_date' }
         );
@@ -182,8 +297,6 @@ note: noteText,
       if (!upd) return void res.status(409).json({ ok: false, message: 'הבקשה כבר לא במצב ממתין (ייתכן שכבר עודכנה).' });
 
       // ==== מייל להורה (כמו במייקאפ) ====
-      const childId = String(reqRow.child_id || '').trim();
-      if (!childId) throw new Error('Missing child_id in request');
 
       const { data: childRow, error: childErr } = await sbTenant
         .from('children')
@@ -259,7 +372,16 @@ note: noteText,
         console.warn('approveCancelOccurrenceAndNotify: mail failed', mailError);
       }
 
-      return void res.status(200).json({ ok: true, mailOk, warning, mail, mailError });
+         return void res.status(200).json({
+        ok: true,
+        mailOk,
+        warning,
+        mail,
+        mailError,
+        isMakeupAllowed,
+    
+        isBillable,
+      });
     } catch (e: any) {
       console.error('approveCancelOccurrenceAndNotify error', e);
       return void res.status(500).json({ error: 'Internal error', message: e?.message || String(e) });

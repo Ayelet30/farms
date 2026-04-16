@@ -294,10 +294,10 @@
       <br />
       עם המדריך/ה <b>{{ seriesConfirmData.instructorName }}</b>
     </ng-container>
- <ng-container *ngIf="hoursBeforeCancel != null">
+ <ng-container *ngIf="cancelbeforehours != null">
       <br />
       <small style="color:#666;">
-        ניתן לבטל עד {{ hoursBeforeCancel }} שעות לפני תחילת השיעור
+        ניתן לבטל עד {{ cancelbeforehours }} שעות לפני תחילת השיעור
       </small>
     </ng-container>
     <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
@@ -986,7 +986,7 @@
         בשעות <b>{{ confirmData.oldStart }}–{{ confirmData.oldEnd }}</b>?
         עם המדריך/ה <b>{{ confirmData.oldInstructorName }}</b>?
 
-        ניתן לבטל שיעור עד {{ hoursBeforeCancel }} שעות לפני מועד השיעור ללא חיוב.
+        ניתן לבטל שיעור עד {{ cancelbeforehours }} שעות לפני מועד השיעור ללא חיוב.
       </p>
 
       <div style="display:flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
