@@ -138,9 +138,14 @@ private setMenuItemsByRole() {
 
   /** התאמה למסכים רספונסיביים */
   private syncBreakpoint() {
-    this.isDesktop = window.matchMedia('(min-width: 1024px)').matches;
-    if (!this.isDesktop) this.collapsed = true; // במובייל תמיד סגור כברירת מחדל
-      this.collapsedChange.emit(this.collapsed);
+  this.isDesktop = window.matchMedia('(min-width: 1024px)').matches;
 
+  if (this.isDesktop) {
+    this.collapsed = false; // בדסקטופ פתוח כברירת מחדל
+  } else {
+    this.collapsed = true;  // במובייל סגור
   }
+
+  this.collapsedChange.emit(this.collapsed);
+}
 }

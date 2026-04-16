@@ -30,8 +30,8 @@
           (click)="navigateTo(item.path)"
           [class.active]="isActive(item.path)"
           [attr.title]="collapsed ? item.label : null">
-        <span class="icon" [ngClass]="'i-' + item.icon"></span>
-        <span class="label">{{ item.label }}</span>
+          <span class="label">{{ item.label }}</span>
+          <span class="icon" [ngClass]="'i-' + item.icon"></span>
       </li>
     </ul>
 
