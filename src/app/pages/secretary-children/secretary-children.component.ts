@@ -53,6 +53,7 @@ type ParentBrief = {
   email: string | null;
 };
 
+
 type ChildDetails = {
   child_uuid?: string;
   first_name?: string;
@@ -119,9 +120,11 @@ export class SecretaryChildrenComponent implements OnInit {
   readonly healthFunds = ['כללית', 'מכבי', 'מאוחדת', 'לאומית'] as const;
 
   readonly statusOptions = [
-    { value: 'active', label: 'פעיל' },
-    { value: null, label: '--' },
-  ] as const;
+  { value: 'Active', label: 'פעיל' },
+  { value: 'Deleted', label: 'לא פעיל' },
+  { value: 'Pending Parent Terms', label: 'ממתין לאישור הורה' },
+  { value: 'Pending Addition Approval', label: 'ממתין לאישור מזכירה' },
+];
 
   readonly STORAGE_KEY = 'secretary_children_table_prefs';
 
@@ -222,6 +225,10 @@ uploadingSeriesDocLessonId: string | null = null;
       return re.test(v) ? null : { hebrewName: true };
     };
   }
+
+ isActiveStatus(status: string | null | undefined): boolean {
+  return String(status ?? '').toLowerCase() === 'active';
+}
 
   goToChildLessonsHistory() {
     if (!this.drawerChild?.child_uuid) {
@@ -449,12 +456,11 @@ private isAllowedReferralFile(file: File): boolean {
     }
 
     if (this.statusFilter !== 'all') {
-      rows = rows.filter((c: any) => {
-        const status = (c.status || '').toString().toLowerCase();
-        const active = status === 'active' || status === 'פעיל';
-        return this.statusFilter === 'active' ? active : !active;
-      });
-    }
+  rows = rows.filter((c: any) => {
+    const active = this.isActiveStatus(c.status);
+    return this.statusFilter === 'active' ? active : !active;
+  });
+}
 
     if (this.parentFilter === 'withParent') {
       rows = rows.filter((c: any) => !!c.parent_uid);
@@ -466,9 +472,8 @@ private isAllowedReferralFile(file: File): boolean {
   }
 
   private isChildActive(row: any): boolean {
-    const status = (row?.status || '').toString().toLowerCase();
-    return status === 'active' || row?.status === 'פעיל';
-  }
+  return this.isActiveStatus(row?.status);
+}
 
   onFiltersChanged(): void {
     this.updateStats();
