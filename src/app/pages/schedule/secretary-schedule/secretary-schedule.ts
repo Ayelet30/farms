@@ -307,24 +307,47 @@ private rebuildInstructorResources(): void {
 
 }
 
-  private async reloadAll() {
+ private async reloadAll() {
   await this.loadChildren();
   await this.loadInstructors();
   await this.loadInstructorWeeklyAvailability();
-  await this.loadLessons(this.currentRange ?? undefined);
 
-  if (this.currentRange) {
-    await this.loadRequestsForRange(
-      this.currentRange.start.slice(0, 10),
-      this.currentRange.end.slice(0, 10)
-    );
-  }
+  const range = this.ensureInitialDayRange();
+
+  await this.loadLessons(range);
+  await this.loadFarmDaysOffForRange(
+    range.start.slice(0, 10),
+    range.end.slice(0, 10)
+  );
+  await this.loadRequestsForRange(
+    range.start.slice(0, 10),
+    range.end.slice(0, 10)
+  );
 
   this.filterLessons();
   this.setScheduleItems();
-  this.buildBlockedDayCells(this.currentRange ?? undefined);
+  this.buildBlockedDayCells(range);
   this.buildWeekStats();
   this.cdr.detectChanges();
+}
+
+private ensureInitialDayRange(): { start: string; end: string; viewType: string } {
+  if (this.currentRange) return this.currentRange;
+
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  const ymd = `${y}-${m}-${d}`;
+
+  this.currentRange = {
+    start: ymd,
+    end: ymd,
+    viewType: 'timeGridDay',
+  };
+
+  this.currentViewType = 'timeGridDay';
+  return this.currentRange;
 }
 
   toggleFullscreen() {
@@ -1270,6 +1293,10 @@ private async loadInstructors(): Promise<void> {
 
     // 4) resources ללוח נקבעים לפי הבחירה הנוכחית
     this.rebuildInstructorResources();
+
+    if (this.currentRange) {
+  this.buildBlockedDayCells(this.currentRange);
+}
 
   } catch (err) {
     console.error('loadInstructors failed', err);
