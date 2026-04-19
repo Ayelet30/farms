@@ -106,6 +106,7 @@ interface FarmSettings {
     parent_cancel_charge_before_deadline?: boolean | null;
   parent_cancel_charge_after_deadline?: boolean | null;
   parent_cancel_charge_timing?: 'at_cancel' | 'at_makeup' | null;
+  farm_cancel_charge_target?: 'cancelled_lesson' | 'makeup_lesson' | null;
 }
 
 type ListNoteId = number;
@@ -1342,6 +1343,8 @@ leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
           data.parent_cancel_charge_after_deadline ?? true,
         parent_cancel_charge_timing:
           data.parent_cancel_charge_timing ?? 'at_cancel',
+          farm_cancel_charge_target:
+  data.farm_cancel_charge_target ?? 'makeup_lesson',
       };
 
       this.settings.set(s);

@@ -216,21 +216,34 @@ export const approveInstructorDayOffAndNotify = onRequest(
           return overlapsTime(s, e, startTime!, endTime!);
         });
       }
+const { data: farmSettingsRow, error: farmSettingsErr } = await sbTenant
+  .from('farm_settings')
+  .select('farm_cancel_charge_target')
+  .order('updated_at', { ascending: false })
+  .limit(1)
+  .maybeSingle();
 
+if (farmSettingsErr) throw farmSettingsErr;
+
+const farmCancelChargeTarget =
+  String(farmSettingsRow?.farm_cancel_charge_target ?? 'makeup_lesson').trim();
+
+const isBillableForCancelledLesson = farmCancelChargeTarget === 'cancelled_lesson';
       // 4) ביטול כל השיעורים שייפגעו: upsert ל-exceptions
       //    שימי לב: אם יש המון rows זה יכול לקחת זמן, אבל לרוב זה סביר.
       for (const x of affected) {
         const { error: upErr } = await sbTenant
-          .from('lesson_occurrence_exceptions')
-          .upsert({
-            lesson_id: x.lesson_id,
-            occur_date: String(x.occur_date).slice(0, 10),
-            status: 'בוטל',
-            note: decisionNote?.trim() || 'בוטל עקב חופש מדריך',
-            canceller_role: 'instructor',
-            cancelled_at: new Date().toISOString(),
-            is_makeup_allowed: true,
-          } as any, { onConflict: 'lesson_id,occur_date' });
+  .from('lesson_occurrence_exceptions')
+  .upsert({
+    lesson_id: x.lesson_id,
+    occur_date: String(x.occur_date).slice(0, 10),
+    status: 'בוטל',
+    note: decisionNote?.trim() || 'בוטל עקב חופש מדריך',
+    canceller_role: 'instructor',
+    cancelled_at: new Date().toISOString(),
+    is_makeup_allowed: true,
+    is_billable: isBillableForCancelledLesson,
+  } as any, { onConflict: 'lesson_id,occur_date' });
 
         if (upErr) throw upErr;
       }
