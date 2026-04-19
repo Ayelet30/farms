@@ -101,50 +101,50 @@ export class ParentScheduleComponent implements OnInit {
   }
 
   private calcNextCanceledLesson() {
-    const now = new Date();
-    const relevant = this.filteredLessons
-      .filter((l: Lesson) => {
-        const status = String(l.status || '').trim();
-        const canceledStatuses = [
-          'בוטל',
-          'מבוטל',
-          'בקשת ביטול',
-          'ממתין לאישור',
-          'ממתין לאישור מזכירה',
-        ];
+  const now = new Date();
 
-        if (!canceledStatuses.includes(status)) return false;
-        if (!l.start_datetime) return false;
-
-        const start = new Date(l.start_datetime);
-        if (isNaN(start.getTime())) return false;
-
-        return start > now; // רק עתידי
-      })
-      .sort((a: Lesson, b: Lesson) => {
-        const da = new Date(a.start_datetime!).getTime();
-        const db = new Date(b.start_datetime!).getTime();
-        return da - db;
-      });
-
-    if (!relevant.length) {
-      this.nextCanceledLessonNote = null;
-      return;
-    }
-
-    const lesson = relevant[0];
-    const childName = lesson.child_name || 'הילד';
-
-    const date = new Date(lesson.start_datetime!);
-    const formattedDate = date.toLocaleDateString('he-IL', {
-      weekday: 'long',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
+  const futureLessons = this.filteredLessons
+    .filter((l: Lesson) => {
+      if (!l.start_datetime) return false;
+      const start = new Date(l.start_datetime);
+      return !isNaN(start.getTime()) && start > now;
+    })
+    .sort((a: Lesson, b: Lesson) => {
+      return new Date(a.start_datetime!).getTime() - new Date(b.start_datetime!).getTime();
     });
 
-    this.nextCanceledLessonNote = `${childName} – השיעור הקרוב בוטל בתאריך ${formattedDate}`;
+  if (!futureLessons.length) {
+    this.nextCanceledLessonNote = null;
+    return;
   }
+
+  const nextSpecialLesson = futureLessons.find((l: Lesson) => {
+    const status = String(l.status || '').trim();
+    return status === 'בוטל' || status === 'מבוטל' || !!(l as any).hasPendingCancel;
+  });
+
+  if (!nextSpecialLesson) {
+    this.nextCanceledLessonNote = null;
+    return;
+  }
+
+  const childName = nextSpecialLesson.child_name || 'הילד';
+  const date = new Date(nextSpecialLesson.start_datetime!);
+
+  const formattedDate = date.toLocaleDateString('he-IL', {
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+
+  if ((nextSpecialLesson as any).hasPendingCancel) {
+    this.nextCanceledLessonNote = `${childName} – נשלחה בקשת ביטול לשיעור הקרוב בתאריך ${formattedDate}`;
+    return;
+  }
+
+  this.nextCanceledLessonNote = `${childName} – השיעור הקרוב בוטל בתאריך ${formattedDate}`;
+}
 
   /* ===================== Load Children ===================== */
 
