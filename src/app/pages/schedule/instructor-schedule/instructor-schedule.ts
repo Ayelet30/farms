@@ -804,9 +804,22 @@ onRightClickDay(e: any): void {
 
   if (!localYmd) return;
 
+  const MENU_WIDTH = 220;
+  const MENU_HEIGHT = 200;
+  const EDGE_GAP = 12;
+
+  let x = e.jsEvent.clientX;
+  let y = e.jsEvent.clientY;
+
+  const maxX = window.innerWidth - MENU_WIDTH - EDGE_GAP;
+  const maxY = window.innerHeight - MENU_HEIGHT - EDGE_GAP;
+
+  x = Math.max(EDGE_GAP, Math.min(x, maxX));
+  y = Math.max(EDGE_GAP, Math.min(y, maxY));
+
   this.contextMenu.visible = true;
-  this.contextMenu.x = e.jsEvent.clientX;
-  this.contextMenu.y = e.jsEvent.clientY;
+  this.contextMenu.x = x;
+  this.contextMenu.y = y;
   this.contextMenu.date = localYmd;
 
   this.cdr.detectChanges();
