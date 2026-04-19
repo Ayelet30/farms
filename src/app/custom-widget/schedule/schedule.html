@@ -116,6 +116,7 @@
                   [class.status-pending]="isPendingItem(item)"
                   [class.status-approved]="isApprovedItem(item)"
                   [style.borderInlineStartColor]="getInstructorBorderColor(item)"
+                  (contextmenu)="onCustomItemRightClick(item, $event)"
                   (click)="onCustomItemClick(item, $event)"
                   [title]="buildCustomItemTitle(item)">
 

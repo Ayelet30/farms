@@ -162,8 +162,17 @@ contextMenu = {
   y: 0,
   date: '' as string,
   time: '' as string,
+  endTime: '' as string,
   instructorId: '' as string,
   instructorName: '' as string,
+
+  hasEvent: false,
+  eventId: '' as string,
+  lessonId: '' as string,
+  childId: '' as string,
+  childName: '' as string,
+  lessonType: '' as string,
+  status: '' as string,
 };
 
 rangeModal = {
@@ -607,8 +616,16 @@ onRightClickDay(e: any): void {
   this.contextMenu.y = y;
   this.contextMenu.date = localYmd;
   this.contextMenu.time = localHm;
+  this.contextMenu.endTime = '';
   this.contextMenu.instructorId = String(e.resourceId ?? '');
   this.contextMenu.instructorName = String(e.resourceTitle ?? '');
+  this.contextMenu.hasEvent = false;
+  this.contextMenu.eventId = '';
+  this.contextMenu.lessonId = '';
+  this.contextMenu.childId = '';
+  this.contextMenu.childName = '';
+  this.contextMenu.lessonType = '';
+  this.contextMenu.status = '';
   this.contextMenuMode = 'root';
 
   this.cdr.detectChanges();
@@ -640,7 +657,7 @@ backToRootContextMenu(): void {
 }
 
 openQuickBookingFromContext(): void {
-  const { date, time, instructorId, instructorName } = this.contextMenu;
+  const { date, time, endTime, instructorId, instructorName, hasEvent } = this.contextMenu;
 
   if (!date || !time || !instructorId) {
     this.closeContextMenu();
@@ -651,7 +668,7 @@ openQuickBookingFromContext(): void {
     open: true,
     date,
     startTime: time,
-    endTime: this.addMinutesToHm(time, 60), // ברירת מחדל שעה
+    endTime: hasEvent && endTime ? endTime : this.addMinutesToHm(time, 60),
     instructorId,
     instructorName,
   };
@@ -691,6 +708,55 @@ async onQuickBookingSaved(): Promise<void> {
 closeContextMenu(): void {
   this.contextMenu.visible = false;
   this.contextMenuMode = 'root';
+}
+
+async cancelLessonFromContext(): Promise<void> {
+  const lessonId = this.contextMenu.lessonId;
+  const occurDate = this.contextMenu.date;
+
+  this.closeContextMenu();
+
+  if (!lessonId || !occurDate) return;
+
+  try {
+    const dbc = dbTenant();
+
+    const { error } = await dbc
+      .from('lesson_occurrence_exceptions')
+      .upsert(
+        {
+          lesson_id: lessonId,
+          occur_date: occurDate,
+          status: 'בוטל',
+          canceller_role: 'secretary',
+          cancelled_at: new Date().toISOString(),
+        },
+        { onConflict: 'lesson_id,occur_date' }
+      );
+
+    if (error) throw error;
+
+    if (this.currentRange) {
+      await this.loadLessons({
+        start: this.currentRange.start,
+        end: this.currentRange.end,
+      });
+
+      await this.loadRequestsForRange(
+        this.currentRange.start.slice(0, 10),
+        this.currentRange.end.slice(0, 10)
+      );
+
+      this.filterLessons();
+      this.setScheduleItems();
+      this.buildBlockedDayCells(this.currentRange);
+      this.buildWeekStats();
+      this.cdr.detectChanges();
+    }
+  } catch (e) {
+    console.error('cancelLessonFromContext failed', e);
+    await this.ui.alert('שגיאה בביטול השיעור', 'שגיאה');
+  }
 }
 
 async openRequest(type: RequestType): Promise<void> {
@@ -1938,6 +2004,56 @@ private getColorForInstructor(id: string): string {
   const palette = ['#ff6b6b', '#4dabf7', '#51cf66', '#f59f00', '#845ef7'];
   const idx = this.hashString(id) % palette.length;
   return palette[idx];
+}
+
+onRightClickEvent(e: any): void {
+  if (!e?.jsEvent) return;
+
+  e.jsEvent.preventDefault();
+  e.jsEvent.stopPropagation();
+
+  const dateStr = typeof e.dateStr === 'string' ? e.dateStr : '';
+  if (!dateStr) return;
+
+  const localYmd = this.extractYmd(dateStr);
+  const localHm = dateStr.includes('T') ? this.extractHm(dateStr) : '';
+
+  let localEndHm = '';
+  if (typeof e.endStr === 'string' && e.endStr.includes('T')) {
+    localEndHm = this.extractHm(e.endStr);
+  }
+
+  const MENU_WIDTH = 220;
+  const MENU_HEIGHT = 230;
+  const EDGE_GAP = 12;
+
+  let x = e.jsEvent.clientX;
+  let y = e.jsEvent.clientY;
+
+  const maxX = window.innerWidth - MENU_WIDTH - EDGE_GAP;
+  const maxY = window.innerHeight - MENU_HEIGHT - EDGE_GAP;
+
+  x = Math.max(EDGE_GAP, Math.min(x, maxX));
+  y = Math.max(EDGE_GAP, Math.min(y, maxY));
+
+  this.contextMenu.visible = true;
+  this.contextMenu.x = x;
+  this.contextMenu.y = y;
+  this.contextMenu.date = localYmd;
+  this.contextMenu.time = localHm;
+  this.contextMenu.endTime = localEndHm;
+  this.contextMenu.instructorId = String(e.resourceId ?? '');
+  this.contextMenu.instructorName = String(e.resourceTitle ?? '');
+  this.contextMenu.hasEvent = true;
+  this.contextMenu.eventId = String(e.eventId ?? '');
+  this.contextMenu.lessonId = String(e.lessonId ?? '');
+  this.contextMenu.childId = String(e.childId ?? '');
+  this.contextMenu.childName = String(e.childName ?? '');
+  this.contextMenu.lessonType = String(e.lessonType ?? '');
+  this.contextMenu.status = String(e.status ?? '');
+  this.contextMenuMode = 'root';
+
+  this.cdr.detectChanges();
 }
 
   onEventClick(arg: EventClickArg): void {
