@@ -1743,7 +1743,7 @@ const maxParticipants = await this.getMaxParticipantsByRidingTypeId(ridingTypeId
 const plan = this.selectedPaymentPlan;
 
 // אם למסלול נדרש מסמך - גם מזכירה חייבת לבחור קובץ
-if (plan?.require_docs_at_booking && !this.referralFile) {
+if (plan?.require_docs_at_booking && !this.isSecretary && !this.referralFile) {
   this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
   this.showErrorToast(this.seriesError);
   return;
@@ -2365,15 +2365,14 @@ async createSingleLessonFromSlot(slot: RecurringSlotWithSkips): Promise<void> {
     this.showErrorToast(this.seriesError);
     return;
   }
+const plan = this.selectedPaymentPlan;
 
-  const plan = this.selectedPaymentPlan;
-
-  if (plan?.require_docs_at_booking && !this.referralFile) {
-    this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
-    this.showErrorToast(this.seriesError);
-    return;
-  }
-
+// אם למסלול נדרש מסמך - הורה חייב, מזכירה לא
+if (plan?.require_docs_at_booking && !this.isSecretary && !this.referralFile) {
+  this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
+  this.showErrorToast(this.seriesError);
+  return;
+}
   let uploadedReferralUrl: string | null = null;
 
   if (this.referralFile) {
