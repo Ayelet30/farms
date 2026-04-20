@@ -65,8 +65,7 @@ interface FarmSettings {
 
   cancel_before_hours: number | null;
   late_cancel_policy: LateCancelPolicy | null;
-  late_cancel_fee_amount: number | null;
-  late_cancel_fee_percent: number | null;
+  
 
   attendance_default: AttendanceDefault | null;
 
@@ -208,8 +207,6 @@ type SettingsErrors = {
   makeup_allowed_days_back?: string;
   max_makeups_in_period?: string;
   makeups_period_days?: string;
-  late_cancel_fee_amount?: string;
-  late_cancel_fee_percent?: string;
   reminder_hours_before?: string;
 notify_before_farm_closure_hours?: string;
 min_time_between_cancellations?: string;
@@ -1381,8 +1378,6 @@ leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
 
       cancel_before_hours: 24,
       late_cancel_policy: 'CHARGE_FULL',
-      late_cancel_fee_amount: null,
-      late_cancel_fee_percent: null,
 
       attendance_default: 'REQUIRE_MARKING',
 
@@ -1502,20 +1497,6 @@ if (
 ) {
   errors.makeups_period_days =
     'תקופת השלמות חייבת להיות בין יום ל־365 ימים';
-}
-if (
-  s.late_cancel_fee_amount != null &&
-  (s.late_cancel_fee_amount < 0 || s.late_cancel_fee_amount > 1000)
-) {
-  errors.late_cancel_fee_amount =
-    'קנס ביטול (₪) חייב להיות בין 0 ל־1000';
-}
-if (
-  s.late_cancel_fee_percent != null &&
-  (s.late_cancel_fee_percent < 0 || s.late_cancel_fee_percent > 100)
-) {
-  errors.late_cancel_fee_percent =
-    'קנס ביטול (%) חייב להיות בין 0 ל־100';
 }
 
 if (

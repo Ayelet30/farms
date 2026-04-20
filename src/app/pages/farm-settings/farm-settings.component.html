@@ -601,40 +601,7 @@
           </label>
         </div>
 
-        <div class="form-grid cols-2">
-          <label class="field-card">
-            <span class="field-label">קנס ביטול מאוחר (₪)</span>
-            <input
-              class="form-control"
-              type="number"
-              min="0"
-              step="0.5"
-              [(ngModel)]="s.late_cancel_fee_amount"
-              name="late_cancel_fee_amount"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
-            <small class="field-error" *ngIf="settingsErrors().late_cancel_fee_amount">
-              {{ settingsErrors().late_cancel_fee_amount }}
-            </small>
-          </label>
-
-          <label class="field-card">
-            <span class="field-label">קנס ביטול מאוחר (%)</span>
-            <input
-              class="form-control"
-              type="number"
-              min="0"
-              max="100"
-              step="0.5"
-              [(ngModel)]="s.late_cancel_fee_percent"
-              name="late_cancel_fee_percent"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
-            <small class="field-error" *ngIf="settingsErrors().late_cancel_fee_percent">
-              {{ settingsErrors().late_cancel_fee_percent }}
-            </small>
-          </label>
-        </div>
+       
       </section>
 
       <!-- תזכורות והתראות -->
