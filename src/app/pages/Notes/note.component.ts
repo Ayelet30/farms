@@ -96,6 +96,8 @@ interface ChildDetails {
   parent_name: string | null;
   parent_phone: string | null;
   parent_email: string | null;
+  medical_notes: string | null;
+  behavior_notes: string | null;
 }
 
 /* ===================== COMPONENT ===================== */
@@ -510,8 +512,7 @@ async loadChildDetails() {
   // 1) הילד (לפי child_uuid, לא id)
   const { data: childData, error } = await this.dbc
     .from('children')
-    .select('child_uuid, first_name, last_name, birth_date, parent_uid')
-    .eq('child_uuid', childUuid)
+    .select('child_uuid, first_name, last_name, birth_date, parent_uid, medical_notes, behavior_notes')    .eq('child_uuid', childUuid)
     .maybeSingle();
 
   if (error || !childData) {
@@ -546,6 +547,8 @@ async loadChildDetails() {
     parent_name: parentName,
     parent_phone: parentPhone,
     parent_email: parentEmail,
+    medical_notes: childData.medical_notes ?? null,
+    behavior_notes: childData.behavior_notes ?? null,
   };
 }
 async loadAttendance() {
@@ -934,6 +937,27 @@ this.notesOffice.unshift({
   this.notesMedical = [];
   this.notesBehavioral = [];
   this.notesOffice = [];
+  if (this.childDetails?.medical_notes?.trim()) {
+  this.notesMedical.push({
+    id: `child-medical-${childId}`,
+    display_text: this.childDetails.medical_notes.trim(),
+    created_at: '',
+    instructor_uid: null,
+    instructor_name: null,
+    category: 'medical',
+  });
+}
+
+if (this.childDetails?.behavior_notes?.trim()) {
+  this.notesBehavioral.push({
+    id: `child-behavior-${childId}`,
+    display_text: this.childDetails.behavior_notes.trim(),
+    created_at: '',
+    instructor_uid: null,
+    instructor_name: null,
+    category: 'behavioral',
+  });
+}
 
   (data ?? []).forEach((n: any) => {
     const cat: Category = (n.category ?? 'general') as Category;
