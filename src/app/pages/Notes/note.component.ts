@@ -52,6 +52,7 @@ interface NoteVM {
   instructor_name: string | null;
   category: Category;
   isEditing?: boolean;
+  occur_date?: string | null;
 }
 
 interface ReadyNote {
@@ -914,55 +915,54 @@ this.notesOffice.unshift({
 }
 
  async loadNotes() {
-  const lessonId = this.occurrence?.lesson_id;
-  const occurDate = this.getOccurDateForDb();
   const childId = this.child?.child_uuid;
+  if (!childId) return;
 
-  if (!lessonId || !occurDate || !childId) return;
-
-  const { data } = await this.dbc
+  const { data, error } = await this.dbc
     .from('lesson_notes_simple')
-    .select('id, note, created_at, category')
-
-    .eq('lesson_id', lessonId)
+    .select('id, note, created_at, category, occur_date, lesson_id')
     .eq('child_id', childId)
-    .eq('occur_date', occurDate)
+    .order('occur_date', { ascending: false })
     .order('created_at', { ascending: false });
 
-this.notesGeneral = [];
-this.notesMedical = [];
-this.notesBehavioral = [];
-this.notesOffice = [];
-
-(data ?? []).forEach((n: any) => {
-  const cat: Category = (n.category ?? 'general') as Category;
-
-  const vm: NoteVM = {
-    id: n.id,
-    display_text: n.note,
-    created_at: n.created_at,
-    instructor_uid: null,
-    instructor_name: null,
-    category: cat,
-  };
-
-  switch (cat) {
-    case 'office':
-      this.notesOffice.push(vm);
-      break;
-    case 'medical':
-      this.notesMedical.push(vm);
-      break;
-    case 'behavioral':
-      this.notesBehavioral.push(vm);
-      break;
-    default:
-      this.notesGeneral.push(vm);
+  if (error) {
+    console.error('[loadNotes] error', error);
+    return;
   }
-});
 
+  this.notesGeneral = [];
+  this.notesMedical = [];
+  this.notesBehavioral = [];
+  this.notesOffice = [];
+
+  (data ?? []).forEach((n: any) => {
+    const cat: Category = (n.category ?? 'general') as Category;
+
+    const vm: NoteVM = {
+      id: n.id,
+      display_text: n.note,
+      created_at: n.created_at,
+      occur_date: n.occur_date ?? null,
+      instructor_uid: null,
+      instructor_name: null,
+      category: cat,
+    };
+
+    switch (cat) {
+      case 'office':
+        this.notesOffice.push(vm);
+        break;
+      case 'medical':
+        this.notesMedical.push(vm);
+        break;
+      case 'behavioral':
+        this.notesBehavioral.push(vm);
+        break;
+      default:
+        this.notesGeneral.push(vm);
+    }
+  });
 }
-
 
   async loadReadyNotes() {
     const { data } = await this.dbc.from('list_notes').select('id,note');
