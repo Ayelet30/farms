@@ -118,6 +118,21 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
     resourceTitle?: string | null;
     sourceView?: 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth';
   }>();
+
+  @Output() rightClickEvent = new EventEmitter<{
+  jsEvent: MouseEvent;
+  dateStr: string;
+  endStr?: string | null;
+  resourceId?: string | null;
+  resourceTitle?: string | null;
+  sourceView?: 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth';
+  eventId?: string | null;
+  lessonId?: string | null;
+  childId?: string | null;
+  childName?: string | null;
+  lessonType?: string | null;
+  status?: string | null;
+}>();
   
   customDayBlockedCells: CustomDayBlockedCell[] = [];
 
@@ -135,6 +150,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   private isNarrow600 = window.innerWidth < 600;
 
   @HostListener('window:resize')
+  
   onResize() {
     const next = window.innerWidth < 600;
     if (next === this.isNarrow600) return;
@@ -1212,7 +1228,33 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
       (info.event.classNames || []).forEach((cls: string) => {
         info.el.classList.add(cls);
       });
+
+      info.el.addEventListener('contextmenu', (ev: MouseEvent) => {
+  ev.preventDefault();
+  ev.stopPropagation();
+
+  const meta = info.event.extendedProps?.meta || info.event.extendedProps || {};
+
+  this.rightClickEvent.emit({
+    jsEvent: ev,
+    dateStr: info.event.start
+      ? info.event.start?.toISOString() : '',
+    endStr: info.event.end
+      ? info.event.end?.toISOString()
+      : null,
+    resourceId: String(meta?.instructor_id || info.event.getResources?.()?.[0]?.id || ''),
+    resourceTitle: String(meta?.instructor_name || ''),
+    sourceView: this.currentView,
+    eventId: String(info.event.id || ''),
+    lessonId: String(meta?.lesson_id || ''),
+    childId: String(meta?.child_id || ''),
+    childName: String(meta?.child_name || ''),
+    lessonType: String(meta?.lesson_type || ''),
+    status: String(meta?.status || ''),
+  });
+});
     },
+    
 
     datesSet: (info: DatesSetArg) => {
   setTimeout(() => {
@@ -1247,6 +1289,7 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
     this.currentDate = info.view.title;
   }, 0);
 },
+
   };
 
   ngAfterViewInit(): void {
@@ -1339,4 +1382,28 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
       this.boundContextMenuHandler
     );
   }
+
+  onCustomItemRightClick(item: ScheduleItem, ev: MouseEvent): void {
+  ev.preventDefault();
+  ev.stopPropagation();
+
+  const meta = this.getItemMeta(item) || {};
+  const startIso = String((item as any).start || '');
+  const endIso = String((item as any).end || '');
+
+  this.rightClickEvent.emit({
+    jsEvent: ev,
+    dateStr: startIso,
+    endStr: endIso || null,
+    resourceId: this.getItemInstructorId(item) || null,
+    resourceTitle: this.getItemInstructorName(item) || null,
+    sourceView: 'timeGridDay',
+    eventId: String((item as any).id || ''),
+    lessonId: String(meta.lesson_id || ''),
+    childId: String(meta.child_id || ''),
+    childName: String(meta.child_name || ''),
+    lessonType: String(meta.lesson_type || ''),
+    status: String((item as any).status || meta.status || ''),
+  });
+}
 }
