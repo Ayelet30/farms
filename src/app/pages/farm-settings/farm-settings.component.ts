@@ -9,7 +9,7 @@ import { computed } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { getAuth } from 'firebase/auth';
-
+import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import {
   SpecialDayImpactDialogComponent,
   SpecialDayImpactRow,
@@ -255,7 +255,7 @@ newRidingTypeMin = signal<number | null>(null);
 newRidingTypeMax = signal<number | null>(null);
 participantsMinError = signal<string | null>(null);
 participantsMaxError = signal<string | null>(null);
-
+private tenantSvc = inject(SupabaseTenantService);
 
 validateParticipants(): void {
   const min = this.newRidingTypeMin();
@@ -1226,6 +1226,10 @@ private async sendFarmDayOffCancellationEmailsViaCloudFunction(
   if (!token) {
     throw new Error('לא נמצא משתמש מחובר לצורך שליחת מיילים.');
   }
+await this.tenantSvc.ensureTenantContextReady();
+const tenant = this.tenantSvc.requireTenant();
+const tenantSchema = tenant.schema;
+const tenantId = tenant.id;
 
   const response = await fetch(
     'https://us-central1-bereshit-ac5d8.cloudfunctions.net/sendFarmDayOffCancellationEmails',
@@ -1235,11 +1239,12 @@ private async sendFarmDayOffCancellationEmailsViaCloudFunction(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        tenantSchema: 'moacha_atarim_app',
-        reason,
-        impactedLessons: rows,
-      }),
+    body: JSON.stringify({
+  tenantSchema,
+  tenantId,
+  reason,
+  impactedLessons: rows,
+}),
     }
   );
 
@@ -2251,7 +2256,6 @@ validateRidingTypeCode(value: string): void {
 async loadListNotes(): Promise<void> {
   try {
     const { data, error } = await this.supabase
-      .schema('moacha_atarim_app')
       .from('list_notes')
       .select('id, note')
       .order('id', { ascending: true });
@@ -2297,7 +2301,6 @@ async addListNote(): Promise<void> {
 
   try {
     const { data, error } = await this.supabase
-      .schema('moacha_atarim_app')
       .from('list_notes')
       .insert({ note })
       .select('id, note')
@@ -2331,7 +2334,6 @@ async updateListNote(n: ListNote): Promise<void> {
 
   try {
     const { data, error } = await this.supabase
-      .schema('moacha_atarim_app')
       .from('list_notes')
       .update({ note })
       .eq('id', n.id)
@@ -2365,7 +2367,6 @@ async deleteListNote(n: ListNote): Promise<void> {
 
   try {
     const { error } = await this.supabase
-      .schema('moacha_atarim_app')
       .from('list_notes')
       .delete()
       .eq('id', n.id);
