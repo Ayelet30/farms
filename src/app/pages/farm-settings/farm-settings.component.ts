@@ -107,6 +107,7 @@ interface FarmSettings {
   parent_cancel_charge_after_deadline?: boolean | null;
   parent_cancel_charge_timing?: 'at_cancel' | 'at_makeup' | null;
   farm_cancel_charge_target?: 'cancelled_lesson' | 'makeup_lesson' | null;
+  is_special_day?: boolean;
 }
 
 type ListNoteId = number;
@@ -164,7 +165,7 @@ interface FarmDayOff {
 
   reason: string;
   is_active: boolean;
-
+is_special_day?: boolean;
   created_at?: string;
 
   day_type?: DayType;
@@ -377,6 +378,7 @@ hasAnyActiveWorkingDay(): boolean {
     end_time: null,
     reason: '',
     is_active: true,
+    is_special_day: true,
     recurrence: 'ONCE',
     notify_parents_before: false,
     notify_days_before: 1,
@@ -957,6 +959,7 @@ canSaveWorkingHours(): boolean {
       end_time: null,
       reason: '',
       is_active: true,
+      is_special_day: true,
       recurrence: 'ONCE',
       notify_parents_before: false,
       notify_days_before: 1,
@@ -1021,6 +1024,7 @@ canSaveWorkingHours(): boolean {
 
       reason: r.reason ?? '',
       is_active: r.is_active ?? true,
+      is_special_day: r.is_special_day ?? true,
       day_type: r.day_type as DayType,
       created_at: r.created_at,
 
@@ -1133,7 +1137,7 @@ this.specialDayBusyText.set('שומרת יום מיוחד, מעדכנת שיעו
       p_start_date: this.specialDayForm().start_date,
       p_end_date: this.specialDayForm().end_date,
       p_reason: f.reason.trim(),
-  p_day_type: f.all_day ? 'FULL_DAY' : 'HOURS',
+      p_day_type: f.all_day ? 'FULL_DAY' : 'HOURS',
       p_start_time: f.all_day ? null : this.timeToDb(f.start_time),
       p_end_time: f.all_day ? null : this.timeToDb(f.end_time),
       p_recurrence: f.recurrence ?? 'ONCE',
@@ -1144,6 +1148,7 @@ this.specialDayBusyText.set('שומרת יום מיוחד, מעדכנת שיעו
       p_hebrew_end_month: isHebrew ? (this.specialDayForm().hebrew_end_month ?? this.specialDayForm().hebrew_month ?? null) : null,
       p_notify_parents_before: !!f.notify_parents_before,
       p_notify_days_before: f.notify_parents_before ? (f.notify_days_before ?? 1) : null,
+      p_is_special_day: !!f.is_special_day,
     };
 
     const { data: result, error: applyError } = await this.supabase

@@ -191,6 +191,9 @@
 
                 <div class="chips-row">
                   <span class="chip">{{ d.recurrence === 'YEARLY' ? 'שנתי' : 'חד פעמי' }}</span>
+                  <span class="chip chip-soft">
+  {{ d.is_special_day ? 'יום מיוחד' : 'יום השבתה' }}
+</span>
                   <span class="chip">
                     {{
                       d.all_day
@@ -1790,7 +1793,28 @@
           (ngModelChange)="patchSpecialDayForm({ reason: $event })"
         />
       </label>
+<label class="field-card field-toggle">
+  <div class="toggle-line">
+    <span class="field-label">יום מיוחד</span>
+    <label class="switch">
+      <input
+        type="checkbox"
+        [ngModel]="specialDayForm().is_special_day"
+        name="is_special_day"
+        (ngModelChange)="patchSpecialDayForm({ is_special_day: $event })"
+      />
+      <span class="switch-ui"></span>
+    </label>
+  </div>
 
+  <small class="field-hint">
+    אם מסומן — זה יישמר כיום מיוחד. אם לא מסומן — זה יישמר כיום השבתה.
+  </small>
+
+  <small class="field-hint" *ngIf="specialDayForm().is_special_day">
+    ביום מיוחד החיובים יתבצעו בהתאם ללוגיקה של יום מיוחד.
+  </small>
+</label>
       <div class="form-grid cols-2">
         <label class="field-card field-toggle">
           <div class="toggle-line">

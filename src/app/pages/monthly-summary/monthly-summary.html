@@ -511,6 +511,23 @@
 </td>
 
 </ng-container>
+<ng-container matColumnDef="instructor_note">
+  <th mat-header-cell *matHeaderCellDef>הערת מדריך</th>
+  <td
+    mat-cell
+    *matCellDef="let l"
+    class="responsive-cell office-note-cell"
+    data-label="הערת מדריך"
+  >
+    <span *ngIf="l.instructor_note; else noInstructorNote">
+      {{ l.instructor_note }}
+    </span>
+
+    <ng-template #noInstructorNote>
+      <span class="muted">—</span>
+    </ng-template>
+  </td>
+</ng-container>
       <!-- Start -->
       <ng-container matColumnDef="start">
         <th mat-header-cell *matHeaderCellDef>התחלה</th>

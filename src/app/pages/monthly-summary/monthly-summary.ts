@@ -29,6 +29,8 @@ type MonthlyReportRow = {
   start_time: string | null;
   end_time: string | null;
  office_note?: string | null;
+   instructor_note?: string | null;
+
   status?: string | null;
   child_name?: string | null;
   instructor_name?: string | null;
@@ -51,6 +53,8 @@ interface LessonRow {
   lesson_id: UUID;
   child_id?: UUID | null; 
   office_note?: string | null;
+  instructor_note?: string | null;
+
   lesson_type: LessonType | null;
   status: LessonStatus | null;
 
@@ -81,7 +85,14 @@ interface LessonRow {
 
   instructor_name?: string | null;
 }
-
+interface LessonNoteRow {
+  lesson_id: UUID;
+  child_id: UUID | null;
+  occur_date: string | null;
+  note: string | null;
+  category: string | null;
+  created_at?: string | null;
+}
 interface PaymentRow {
   amount: number | null;
   date: string | null;
@@ -191,7 +202,7 @@ readonly baseColumns = [
 
 readonly displayedColumns = computed(() =>
   this.isSecretary()
-    ? [...this.baseColumns, 'office_note']
+    ? [...this.baseColumns, 'office_note', 'instructor_note']
     : this.baseColumns
 );
 
@@ -589,6 +600,8 @@ ngOnInit(): void {
         { data: cancelsData, error: cancelsErr },
         { data: occurrencesData, error: occErr },
         { data: occAttData, error: occAttErr },
+        { data: notesData, error: notesErr },
+
       ] = await Promise.all([
         lessonsQuery,
 
@@ -615,6 +628,11 @@ ngOnInit(): void {
           .select('occur_date,status,lesson_id,is_cancellation,attendance_status,lesson_type')
           .gte('occur_date', from)
           .lte('occur_date', to),
+         this.dbc
+          .from('lesson_notes_simple')
+          .select('lesson_id, child_id, occur_date, note, category, created_at')
+          .gte('occur_date', from)
+          .lte('occur_date', to),
       ]);
 
       if (lessonsErr) throw lessonsErr;
@@ -622,8 +640,42 @@ ngOnInit(): void {
       if (cancelsErr) throw cancelsErr;
       if (occErr) throw occErr;
       if (occAttErr) throw occAttErr;
+      if (notesErr) throw notesErr;
 
       const rows = (rawLessons ?? []) as MonthlyReportRow[];
+      const noteRows = (notesData ?? []) as LessonNoteRow[];
+
+const noteKey = (lessonId: string | null | undefined, childId: string | null | undefined, occurDate: string | null | undefined): string =>
+  `${lessonId ?? ''}__${childId ?? ''}__${occurDate ?? ''}`;
+
+const notesMap = new Map<string, { office_note: string | null; instructor_note: string | null }>();
+
+for (const n of noteRows) {
+  const key = noteKey(n.lesson_id, n.child_id, n.occur_date);
+
+  if (!notesMap.has(key)) {
+    notesMap.set(key, {
+      office_note: null,
+      instructor_note: null,
+    });
+  }
+
+  const current = notesMap.get(key)!;
+  const category = (n.category ?? '').trim();
+  const text = (n.note ?? '').trim();
+
+  if (!text) continue;
+
+  if (category === 'office') {
+    current.office_note = current.office_note
+      ? `${current.office_note} | ${text}`
+      : text;
+  } else if (category === 'general') {
+    current.instructor_note = current.instructor_note
+      ? `${current.instructor_note} | ${text}`
+      : text;
+  }
+}
 console.log(
   '🟩 raw office_note from DB:',
   rows.map(r => r.office_note)
@@ -641,40 +693,65 @@ console.log(
         occAttendance: (occAttData ?? []).length,
       });
 
-      const normalizedLessons: LessonRow[] = rows.map((raw) => {
-        const childFull = this.clean(raw.child_name) || null;
-        const instructorName = this.clean(raw.instructor_name) || null;
+     const lessonKey = (raw: MonthlyReportRow): string =>
+  `${raw.lesson_id ?? ''}__${raw.child_id ?? ''}__${raw.lesson_date ?? ''}`;
 
-        const lessonType = this.deriveLessonType(raw);
-        const status = this.deriveStatus(raw);
+const dedupedMap = new Map<string, LessonRow>();
 
-        const ridingType = this.clean(raw.riding_type_name) || this.clean(raw.riding_type_code) || null;
+for (const raw of rows) {
+  const key = lessonKey(raw);
 
-        return {
-          lesson_id: (raw.lesson_id ?? '') as UUID,
-          
-            child_id: raw.child_id ?? null, 
-          occur_date: raw.lesson_date ?? null,
-office_note: raw.office_note ?? null,
+  const childFull = this.clean(raw.child_name) || null;
+  const instructorName = this.clean(raw.instructor_name) || null;
+  const lessonType = this.deriveLessonType(raw);
+  const status = this.deriveStatus(raw);
+  const ridingType =
+    this.clean(raw.riding_type_name) || this.clean(raw.riding_type_code) || null;
 
-          start_time: raw.start_time ? raw.start_time.slice(0, 5) : null,
-          end_time: raw.end_time ? raw.end_time.slice(0, 5) : null,
+  const notes = notesMap.get(
+    noteKey(raw.lesson_id ?? null, raw.child_id ?? null, raw.lesson_date ?? null)
+  );
 
-          lesson_type: lessonType,
-          status,
+  if (!dedupedMap.has(key)) {
+    dedupedMap.set(key, {
+      lesson_id: (raw.lesson_id ?? '') as UUID,
+      child_id: raw.child_id ?? null,
+      occur_date: raw.lesson_date ?? null,
 
-          riding_type_code: raw.riding_type_code ?? null,
-          riding_type_name: raw.riding_type_name ?? null,
-          riding_type: ridingType,
+      office_note: notes?.office_note ?? null,
+      instructor_note: notes?.instructor_note ?? null,
 
-          child_full_name: childFull,
-          child_first_name: null,
-          child_last_name: null,
+      start_time: raw.start_time ? raw.start_time.slice(0, 5) : null,
+      end_time: raw.end_time ? raw.end_time.slice(0, 5) : null,
 
-          instructor_name: instructorName,
-          instructor_uid: raw.instructor_uid ?? null,
-        };
-      });
+      lesson_type: lessonType,
+      status,
+
+      riding_type_code: raw.riding_type_code ?? null,
+      riding_type_name: raw.riding_type_name ?? null,
+      riding_type: ridingType,
+
+      child_full_name: childFull,
+      child_first_name: null,
+      child_last_name: null,
+
+      instructor_name: instructorName,
+      instructor_uid: raw.instructor_uid ?? null,
+    });
+  } else {
+    const existing = dedupedMap.get(key)!;
+
+    if (!existing.office_note && notes?.office_note) {
+      existing.office_note = notes.office_note;
+    }
+
+    if (!existing.instructor_note && notes?.instructor_note) {
+      existing.instructor_note = notes.instructor_note;
+    }
+  }
+}
+
+const normalizedLessons = Array.from(dedupedMap.values());
 
       this.lessons.set(normalizedLessons);
       console.log(
