@@ -2365,14 +2365,15 @@ async createSingleLessonFromSlot(slot: RecurringSlotWithSkips): Promise<void> {
     this.showErrorToast(this.seriesError);
     return;
   }
-const plan = this.selectedPaymentPlan;
 
-// אם למסלול נדרש מסמך - הורה חייב, מזכירה לא
-if (plan?.require_docs_at_booking && !this.isSecretary && !this.referralFile) {
-  this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
-  this.showErrorToast(this.seriesError);
-  return;
-}
+  const plan = this.selectedPaymentPlan;
+
+  if (plan?.require_docs_at_booking && !this.isSecretary && !this.referralFile) {
+    this.seriesError = 'למסלול שנבחר נדרש מסמך מצורף';
+    this.showErrorToast(this.seriesError);
+    return;
+  }
+
   let uploadedReferralUrl: string | null = null;
 
   if (this.referralFile) {
@@ -2385,34 +2386,41 @@ if (plan?.require_docs_at_booking && !this.isSecretary && !this.referralFile) {
     }
   }
 
-  const rpcPayload: any = {
+  const normalizeTime = (t: string | null | undefined) => {
+    const s = (t ?? '').trim();
+    if (!s) return null;
+    return s.length === 5 ? `${s}:00` : s;
+  };
+
+  const params = {
     p_child_id: this.selectedChildId,
     p_instructor_id_number: instructorIdNumber,
     p_instructor_uid: instructorUid,
-    p_series_start_date: slot.lesson_date,
-    p_start_time: slot.start_time,
-    p_riding_type_id: ridingTypeId,
-    p_payment_plan_id: this.selectedPaymentPlanId,
+    p_lesson_date: slot.lesson_date,
+    p_start_time: normalizeTime(slot.start_time),
+    p_end_time: normalizeTime(slot.end_time),
+    p_max_participants: maxParticipants,
     p_payment_source: paymentSource,
-    p_is_open_ended: false,
-    p_repeat_weeks: 1,
-    p_series_search_horizon_days: null,
     p_existing_approval_id: paymentSource === 'health_fund' ? existingApprovalId : null,
-    p_referral_url:
-      paymentSource === 'health_fund' && !existingApprovalId ? uploadedReferralUrl : null,
-    p_payment_docs_url: uploadedReferralUrl,
+    p_payment_plan_id: this.selectedPaymentPlanId,
     p_health_fund: null,
     p_approval_number: null,
     p_total_lessons: null,
+    p_referral_url:
+      paymentSource === 'health_fund' && !existingApprovalId ? uploadedReferralUrl : null,
+    p_payment_docs_url: uploadedReferralUrl,
+    p_riding_type_id: ridingTypeId,
     p_origin: this.user?.role === 'parent' ? 'parent' : 'secretary',
-    p_max_participants: maxParticipants
   };
 
   this.loadingSeries = true;
   this.seriesError = null;
 
   try {
-    const { data, error } = await dbTenant().rpc('create_series_with_validation', rpcPayload);
+    const { data, error } = await dbTenant().rpc(
+      'create_single_lesson_with_validation',
+      params
+    );
 
     if (error) {
       console.error('create single lesson error', error);
@@ -2421,7 +2429,7 @@ if (plan?.require_docs_at_booking && !this.isSecretary && !this.referralFile) {
       return;
     }
 
-    const res = (Array.isArray(data) ? data[0] : data) as CreateSeriesWithValidationResult | null;
+    const res = Array.isArray(data) ? data[0] : data;
 
     if (!res?.ok) {
       const msg = res?.deny_reason || 'לא ניתן ליצור שיעור בודד';
