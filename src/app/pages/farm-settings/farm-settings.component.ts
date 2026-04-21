@@ -518,7 +518,6 @@ private flashError(msg: string): void {
   /** סנכרון עברי->לועזי (start_date/end_date) כדי לשמור DB תקין */
   syncHebrewToGregorianDates(): void {
     const f = this.specialDayForm();
-    console.log('syncHebrewToGregorianDates ->', { f });
     if ((f.calendar_kind ?? 'GREGORIAN') !== 'HEBREW') return;
 
     const sd = f.hebrew_day ?? null;
@@ -539,7 +538,6 @@ private flashError(msg: string): void {
       hebrew_end_month: em,
     };
 
-    console.log('syncHebrewToGregorianDates ->', { sd, sm, ed, em, start, end });
 
     this.specialDayForm.set(next);
     this.validateSpecialDayDateRange(next);
@@ -945,7 +943,6 @@ canSaveWorkingHours(): boolean {
   next = this.applySpecialDayRules(next);   // ✅ כאן
   this.specialDayForm.set(next);
   this.validateSpecialDayDateRange(next);
-  console.log('patchSpecialDayForm ->', { patch, next, dateRangeError: this.dateRangeError() });
 }
 
 

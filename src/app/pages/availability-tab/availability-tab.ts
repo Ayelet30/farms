@@ -288,8 +288,6 @@ private async loadFarmWorkingHours() {
       end: r.farm_end.slice(0, 5),
     };
   }
-  console.log('farmWorkingDays', this.farmWorkingDays);
-console.log('farmHoursByDay', this.farmHoursByDay);
 
 }
 
@@ -624,8 +622,6 @@ if (farmHours) {
     slot.wasUpdated = true;
     this.isDirty = true;
 
-    console.log("onRidingTypeChange", slot.ridingTypeId);
-
     // אם כבר יש שעות — בדיקת חפיפה מחדש
     this.onTimeTyping(day, slot);
   }
@@ -778,7 +774,6 @@ if (farmHours) {
     if (!this.instructorIdNumber) return;
 
     const payload = this.buildWeeklyPayloadForSave();
-    console.log("payload", payload);
     
 
     // 1) delete old
@@ -841,7 +836,6 @@ if (farmHours) {
         if (!s.start || !s.end) continue;
         if (!this.isFullTime(s.start) || !this.isFullTime(s.end)) continue;
 
-        console.log("saveAvailabilityDirect", s.start, s.end, s.ridingTypeId)
         out.push({
           instructor_id_number,
           day_of_week,

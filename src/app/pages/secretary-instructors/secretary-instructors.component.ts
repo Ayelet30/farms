@@ -419,8 +419,6 @@ sanitizeAddress(v: any): string {
 
   // ======= מגירת פרטים =======
   async loadRidingTypes() {
-    console.log('👉 loadRidingTypes called');
-    console.log('RIDING TYPES', this.ridingTypes);
 
     const dbc = dbTenant();
 
@@ -1126,7 +1124,6 @@ this.bulkBusyMessage.set('מעדכנים את המדריך ומבטלים שיע
 
         try {
           const tenantSchema = this.getTenantSchemaOrThrow();
-          console.log('Tenant schema:', tenantSchema);
           await this.mailService.sendEmailGmail({
             tenantSchema: tenantSchema,
             to: [body.email],
