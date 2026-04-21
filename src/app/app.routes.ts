@@ -12,6 +12,19 @@ export const routes: Routes = [
   { path: '', redirectTo: 'home', pathMatch: 'full' },
 
   { path: 'home', loadComponent: () => import('./pages/home/home.component').then(m => m.HomeComponent) },
+  {
+  path: 'accessibility',
+  loadComponent: () =>
+    import('./pages/accessibility/accessibility.component')
+      .then(m => m.AccessibilityComponent)
+},
+
+{
+  path: 'privacy-policy',
+  loadComponent: () =>
+    import('./pages/privacy-policy/privacy-policy.component')
+      .then(m => m.PrivacyPolicyComponent)
+},
 
   {
     path: 'checkout/ride/:productId',

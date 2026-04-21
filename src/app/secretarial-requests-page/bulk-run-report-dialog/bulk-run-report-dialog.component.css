@@ -4,7 +4,6 @@
 
 /* הדיאלוג עצמו */
 .brd {
-  width: 720px;
   max-width: calc(100vw - 24px);
   max-height: 80vh;
 

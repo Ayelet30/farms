@@ -38,4 +38,67 @@
       <router-outlet></router-outlet>
     </div>
   </main>
+  <!-- כפתור נגישות -->
+  <button
+  type="button"
+  class="accessibility-fab"
+  (click)="openAccessibilityModal()"
+  aria-label="פתיחת הצהרת נגישות"
+  title="נגישות">
+  ♿
+</button>
+</div>
+ <footer class="site-footer">
+  <a href="" (click)="$event.preventDefault(); openAccessibilityModal()">הצהרת נגישות</a>
+  <a href="" (click)="$event.preventDefault(); openPrivacyModal()">מדיניות פרטיות</a>
+</footer>
+
+<!-- Modal: Accessibility -->
+<div
+  class="legal-modal-backdrop"
+  *ngIf="isAccessibilityOpen"
+  (click)="closeAccessibilityModal()">
+
+  <div
+    class="legal-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="accessibilityModalTitle"
+    (click)="$event.stopPropagation()">
+
+    <button
+      type="button"
+      class="legal-modal-close"
+      aria-label="סגירת חלון נגישות"
+      (click)="closeAccessibilityModal()">
+      ✕
+    </button>
+
+    <app-accessibility></app-accessibility>
+  </div>
+</div>
+
+<!-- Modal: Privacy Policy -->
+<div
+  class="legal-modal-backdrop"
+  *ngIf="isPrivacyOpen"
+  (click)="closePrivacyModal()">
+
+  <div
+    class="legal-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="privacyModalTitle"
+    (click)="$event.stopPropagation()">
+
+    <button
+      type="button"
+      class="legal-modal-close"
+      aria-label="סגירת חלון פרטיות"
+      (click)="closePrivacyModal()">
+      ✕
+    </button>
+
+    <app-privacy-policy></app-privacy-policy>
+  </div>
 </div>
