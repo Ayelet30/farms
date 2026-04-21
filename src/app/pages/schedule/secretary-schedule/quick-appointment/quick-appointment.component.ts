@@ -197,6 +197,26 @@ referralUploadError: string | null = null;
     await this.loadSlotInfo();
   }
 
+  childSearchTerm = '';
+
+get filteredChildren(): ChildRow[] {
+  const term = this.childSearchTerm.trim().toLowerCase();
+
+  if (!term) {
+    return this.children;
+  }
+
+  return this.children.filter(child => {
+    const fullName = `${child.first_name ?? ''} ${child.last_name ?? ''}`.trim().toLowerCase();
+    return fullName.includes(term);
+  });
+}
+
+clearChildSelection(): void {
+  this.selectedChildId = null;
+  this.childSearchTerm = '';
+}
+
   private showError(msg: string): void {
     this.snack.open(msg, 'סגור', { duration: 4500 });
   }
@@ -585,6 +605,13 @@ referralUploadError: string | null = null;
   throw new Error('למסלול התשלום שנבחר חייבים לצרף הפניה');
 }
 
+if (
+  this.bookingMode !== 'makeup' &&
+  this.bookingMode !== 'occupancy' &&
+  !this.selectedPaymentPlanId
+) {
+  throw new Error('יש לבחור מסלול תשלום');
+}
 
     const child = this.selectedChild;
     const instructor = this.selectedInstructor;
