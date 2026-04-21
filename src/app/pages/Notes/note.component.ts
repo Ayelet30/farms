@@ -52,6 +52,7 @@ interface NoteVM {
   instructor_name: string | null;
   category: Category;
   isEditing?: boolean;
+  occur_date?: string | null;
 }
 
 interface ReadyNote {
@@ -95,6 +96,8 @@ interface ChildDetails {
   parent_name: string | null;
   parent_phone: string | null;
   parent_email: string | null;
+  medical_notes: string | null;
+  behavior_notes: string | null;
 }
 
 /* ===================== COMPONENT ===================== */
@@ -509,8 +512,7 @@ async loadChildDetails() {
   // 1) הילד (לפי child_uuid, לא id)
   const { data: childData, error } = await this.dbc
     .from('children')
-    .select('child_uuid, first_name, last_name, birth_date, parent_uid')
-    .eq('child_uuid', childUuid)
+    .select('child_uuid, first_name, last_name, birth_date, parent_uid, medical_notes, behavior_notes')    .eq('child_uuid', childUuid)
     .maybeSingle();
 
   if (error || !childData) {
@@ -545,6 +547,8 @@ async loadChildDetails() {
     parent_name: parentName,
     parent_phone: parentPhone,
     parent_email: parentEmail,
+    medical_notes: childData.medical_notes ?? null,
+    behavior_notes: childData.behavior_notes ?? null,
   };
 }
 async loadAttendance() {
@@ -914,55 +918,75 @@ this.notesOffice.unshift({
 }
 
  async loadNotes() {
-  const lessonId = this.occurrence?.lesson_id;
-  const occurDate = this.getOccurDateForDb();
   const childId = this.child?.child_uuid;
+  if (!childId) return;
 
-  if (!lessonId || !occurDate || !childId) return;
-
-  const { data } = await this.dbc
+  const { data, error } = await this.dbc
     .from('lesson_notes_simple')
-    .select('id, note, created_at, category')
-
-    .eq('lesson_id', lessonId)
+    .select('id, note, created_at, category, occur_date, lesson_id')
     .eq('child_id', childId)
-    .eq('occur_date', occurDate)
+    .order('occur_date', { ascending: false })
     .order('created_at', { ascending: false });
 
-this.notesGeneral = [];
-this.notesMedical = [];
-this.notesBehavioral = [];
-this.notesOffice = [];
+  if (error) {
+    console.error('[loadNotes] error', error);
+    return;
+  }
 
-(data ?? []).forEach((n: any) => {
-  const cat: Category = (n.category ?? 'general') as Category;
-
-  const vm: NoteVM = {
-    id: n.id,
-    display_text: n.note,
-    created_at: n.created_at,
+  this.notesGeneral = [];
+  this.notesMedical = [];
+  this.notesBehavioral = [];
+  this.notesOffice = [];
+  if (this.childDetails?.medical_notes?.trim()) {
+  this.notesMedical.push({
+    id: `child-medical-${childId}`,
+    display_text: this.childDetails.medical_notes.trim(),
+    created_at: '',
     instructor_uid: null,
     instructor_name: null,
-    category: cat,
-  };
-
-  switch (cat) {
-    case 'office':
-      this.notesOffice.push(vm);
-      break;
-    case 'medical':
-      this.notesMedical.push(vm);
-      break;
-    case 'behavioral':
-      this.notesBehavioral.push(vm);
-      break;
-    default:
-      this.notesGeneral.push(vm);
-  }
-});
-
+    category: 'medical',
+  });
 }
 
+if (this.childDetails?.behavior_notes?.trim()) {
+  this.notesBehavioral.push({
+    id: `child-behavior-${childId}`,
+    display_text: this.childDetails.behavior_notes.trim(),
+    created_at: '',
+    instructor_uid: null,
+    instructor_name: null,
+    category: 'behavioral',
+  });
+}
+
+  (data ?? []).forEach((n: any) => {
+    const cat: Category = (n.category ?? 'general') as Category;
+
+    const vm: NoteVM = {
+      id: n.id,
+      display_text: n.note,
+      created_at: n.created_at,
+      occur_date: n.occur_date ?? null,
+      instructor_uid: null,
+      instructor_name: null,
+      category: cat,
+    };
+
+    switch (cat) {
+      case 'office':
+        this.notesOffice.push(vm);
+        break;
+      case 'medical':
+        this.notesMedical.push(vm);
+        break;
+      case 'behavioral':
+        this.notesBehavioral.push(vm);
+        break;
+      default:
+        this.notesGeneral.push(vm);
+    }
+  });
+}
 
   async loadReadyNotes() {
     const { data } = await this.dbc.from('list_notes').select('id,note');

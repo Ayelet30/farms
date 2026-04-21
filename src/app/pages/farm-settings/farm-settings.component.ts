@@ -9,7 +9,7 @@ import { computed } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { getAuth } from 'firebase/auth';
-
+import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import {
   SpecialDayImpactDialogComponent,
   SpecialDayImpactRow,
@@ -65,8 +65,7 @@ interface FarmSettings {
 
   cancel_before_hours: number | null;
   late_cancel_policy: LateCancelPolicy | null;
-  late_cancel_fee_amount: number | null;
-  late_cancel_fee_percent: number | null;
+  
 
   attendance_default: AttendanceDefault | null;
 
@@ -107,6 +106,7 @@ interface FarmSettings {
   parent_cancel_charge_after_deadline?: boolean | null;
   parent_cancel_charge_timing?: 'at_cancel' | 'at_makeup' | null;
   farm_cancel_charge_target?: 'cancelled_lesson' | 'makeup_lesson' | null;
+  is_special_day?: boolean;
 }
 
 type ListNoteId = number;
@@ -164,7 +164,7 @@ interface FarmDayOff {
 
   reason: string;
   is_active: boolean;
-
+is_special_day?: boolean;
   created_at?: string;
 
   day_type?: DayType;
@@ -207,8 +207,6 @@ type SettingsErrors = {
   makeup_allowed_days_back?: string;
   max_makeups_in_period?: string;
   makeups_period_days?: string;
-  late_cancel_fee_amount?: string;
-  late_cancel_fee_percent?: string;
   reminder_hours_before?: string;
 notify_before_farm_closure_hours?: string;
 min_time_between_cancellations?: string;
@@ -254,7 +252,7 @@ newRidingTypeMin = signal<number | null>(null);
 newRidingTypeMax = signal<number | null>(null);
 participantsMinError = signal<string | null>(null);
 participantsMaxError = signal<string | null>(null);
-
+private tenantSvc = inject(SupabaseTenantService);
 
 validateParticipants(): void {
   const min = this.newRidingTypeMin();
@@ -377,6 +375,7 @@ hasAnyActiveWorkingDay(): boolean {
     end_time: null,
     reason: '',
     is_active: true,
+    is_special_day: true,
     recurrence: 'ONCE',
     notify_parents_before: false,
     notify_days_before: 1,
@@ -962,6 +961,7 @@ canSaveWorkingHours(): boolean {
       end_time: null,
       reason: '',
       is_active: true,
+      is_special_day: true,
       recurrence: 'ONCE',
       notify_parents_before: false,
       notify_days_before: 1,
@@ -1026,6 +1026,7 @@ canSaveWorkingHours(): boolean {
 
       reason: r.reason ?? '',
       is_active: r.is_active ?? true,
+      is_special_day: r.is_special_day ?? true,
       day_type: r.day_type as DayType,
       created_at: r.created_at,
 
@@ -1138,7 +1139,7 @@ this.specialDayBusyText.set('שומרת יום מיוחד, מעדכנת שיעו
       p_start_date: this.specialDayForm().start_date,
       p_end_date: this.specialDayForm().end_date,
       p_reason: f.reason.trim(),
-  p_day_type: f.all_day ? 'FULL_DAY' : 'HOURS',
+      p_day_type: f.all_day ? 'FULL_DAY' : 'HOURS',
       p_start_time: f.all_day ? null : this.timeToDb(f.start_time),
       p_end_time: f.all_day ? null : this.timeToDb(f.end_time),
       p_recurrence: f.recurrence ?? 'ONCE',
@@ -1149,6 +1150,7 @@ this.specialDayBusyText.set('שומרת יום מיוחד, מעדכנת שיעו
       p_hebrew_end_month: isHebrew ? (this.specialDayForm().hebrew_end_month ?? this.specialDayForm().hebrew_month ?? null) : null,
       p_notify_parents_before: !!f.notify_parents_before,
       p_notify_days_before: f.notify_parents_before ? (f.notify_days_before ?? 1) : null,
+      p_is_special_day: !!f.is_special_day,
     };
 
     const { data: result, error: applyError } = await this.supabase
@@ -1226,6 +1228,10 @@ private async sendFarmDayOffCancellationEmailsViaCloudFunction(
   if (!token) {
     throw new Error('לא נמצא משתמש מחובר לצורך שליחת מיילים.');
   }
+await this.tenantSvc.ensureTenantContextReady();
+const tenant = this.tenantSvc.requireTenant();
+const tenantSchema = tenant.schema;
+const tenantId = tenant.id;
 
   const response = await fetch(
     'https://us-central1-bereshit-ac5d8.cloudfunctions.net/sendFarmDayOffCancellationEmails',
@@ -1235,11 +1241,12 @@ private async sendFarmDayOffCancellationEmailsViaCloudFunction(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        tenantSchema: 'moacha_atarim_app',
-        reason,
-        impactedLessons: rows,
-      }),
+    body: JSON.stringify({
+  tenantSchema,
+  tenantId,
+  reason,
+  impactedLessons: rows,
+}),
     }
   );
 
@@ -1376,8 +1383,6 @@ leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
 
       cancel_before_hours: 24,
       late_cancel_policy: 'CHARGE_FULL',
-      late_cancel_fee_amount: null,
-      late_cancel_fee_percent: null,
 
       attendance_default: 'REQUIRE_MARKING',
 
@@ -1497,20 +1502,6 @@ if (
 ) {
   errors.makeups_period_days =
     'תקופת השלמות חייבת להיות בין יום ל־365 ימים';
-}
-if (
-  s.late_cancel_fee_amount != null &&
-  (s.late_cancel_fee_amount < 0 || s.late_cancel_fee_amount > 1000)
-) {
-  errors.late_cancel_fee_amount =
-    'קנס ביטול (₪) חייב להיות בין 0 ל־1000';
-}
-if (
-  s.late_cancel_fee_percent != null &&
-  (s.late_cancel_fee_percent < 0 || s.late_cancel_fee_percent > 100)
-) {
-  errors.late_cancel_fee_percent =
-    'קנס ביטול (%) חייב להיות בין 0 ל־100';
 }
 
 if (
@@ -2251,7 +2242,6 @@ validateRidingTypeCode(value: string): void {
 async loadListNotes(): Promise<void> {
   try {
     const { data, error } = await this.supabase
-      .schema('moacha_atarim_app')
       .from('list_notes')
       .select('id, note')
       .order('id', { ascending: true });
@@ -2297,7 +2287,6 @@ async addListNote(): Promise<void> {
 
   try {
     const { data, error } = await this.supabase
-      .schema('moacha_atarim_app')
       .from('list_notes')
       .insert({ note })
       .select('id, note')
@@ -2331,7 +2320,6 @@ async updateListNote(n: ListNote): Promise<void> {
 
   try {
     const { data, error } = await this.supabase
-      .schema('moacha_atarim_app')
       .from('list_notes')
       .update({ note })
       .eq('id', n.id)
@@ -2365,7 +2353,6 @@ async deleteListNote(n: ListNote): Promise<void> {
 
   try {
     const { error } = await this.supabase
-      .schema('moacha_atarim_app')
       .from('list_notes')
       .delete()
       .eq('id', n.id);
