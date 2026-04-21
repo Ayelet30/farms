@@ -74,20 +74,32 @@
     </ng-container>
 
     <div class="qa-grid">
-      <div class="qa-field">
-        <label>חיפוש ילד/ה</label>
-        <input type="text" [(ngModel)]="childSearchTerm" placeholder="הקלידי שם ילד" />
-      </div>
+      <div class="qa-field qa-field-child-picker">
+  <label>ילד/ה</label>
 
-      <div class="qa-field">
-        <label>ילד/ה</label>
-        <select [(ngModel)]="selectedChildId" (ngModelChange)="onChildChange()">
-          <option [ngValue]="null">בחר/י ילד/ה</option>
-          <option *ngFor="let child of filteredChildren" [ngValue]="child.child_uuid">
-            {{ child.first_name }} {{ child.last_name }}
-          </option>
-        </select>
-      </div>
+  <input
+    type="text"
+    [(ngModel)]="childSearchTerm"
+    (focus)="childDropdownOpen = true"
+    placeholder="התחילי להקליד שם ילד/ה"
+    autocomplete="off"
+  />
+
+  <div class="qa-child-dropdown" *ngIf="childDropdownOpen">
+    <button
+      type="button"
+      class="qa-child-option"
+      *ngFor="let child of filteredChildren"
+      (click)="selectChild(child)"
+    >
+      {{ child.first_name }} {{ child.last_name }}
+    </button>
+
+    <div class="qa-child-empty" *ngIf="!filteredChildren.length">
+      לא נמצאו ילדים
+    </div>
+  </div>
+</div>
 
       <div class="qa-field">
         <label>מסלול זימון</label>

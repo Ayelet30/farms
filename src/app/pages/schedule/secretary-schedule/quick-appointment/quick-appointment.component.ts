@@ -198,6 +198,7 @@ referralUploadError: string | null = null;
   }
 
   childSearchTerm = '';
+  childDropdownOpen = false;
 
 get filteredChildren(): ChildRow[] {
   const term = this.childSearchTerm.trim().toLowerCase();
@@ -212,9 +213,18 @@ get filteredChildren(): ChildRow[] {
   });
 }
 
+selectChild(child: ChildRow): void {
+  this.selectedChildId = child.child_uuid;
+  this.childSearchTerm = `${child.first_name ?? ''} ${child.last_name ?? ''}`.trim();
+  this.childDropdownOpen = false;
+  void this.onChildChange();
+}
+
+
 clearChildSelection(): void {
   this.selectedChildId = null;
   this.childSearchTerm = '';
+  this.childDropdownOpen = false;
 }
 
   private showError(msg: string): void {
@@ -434,16 +444,21 @@ clearChildSelection(): void {
   }
 
   async onChildChange(): Promise<void> {
-    if (!this.selectedChildId) return;
+  if (!this.selectedChildId) return;
 
-    if (this.bookingMode === 'makeup') {
-      await this.loadMakeupCandidates();
-    }
-
-    if (this.bookingMode === 'occupancy') {
-      await this.loadOccupancyCandidates();
-    }
+  const child = this.children.find(c => c.child_uuid === this.selectedChildId);
+  if (child) {
+    this.childSearchTerm = `${child.first_name ?? ''} ${child.last_name ?? ''}`.trim();
   }
+
+  if (this.bookingMode === 'makeup') {
+    await this.loadMakeupCandidates();
+  }
+
+  if (this.bookingMode === 'occupancy') {
+    await this.loadOccupancyCandidates();
+  }
+}
 
   private getSelectedInstructorUidOrThrow(): string {
     const uid = this.selectedInstructor?.uid ?? null;
