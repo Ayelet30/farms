@@ -132,6 +132,14 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   childName?: string | null;
   lessonType?: string | null;
   status?: string | null;
+  seriesId?: string | null;
+appointmentKind?: string | null;
+repeatWeeks?: number | null;
+isOpenEnded?: boolean | null;
+seriesEndDate?: string | null;
+occurDate?: string | null;
+startTime?: string | null;
+endTimeOnly?: string | null;
 }>();
   
   customDayBlockedCells: CustomDayBlockedCell[] = [];
@@ -1236,22 +1244,27 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
   const meta = info.event.extendedProps?.meta || info.event.extendedProps || {};
 
   this.rightClickEvent.emit({
-    jsEvent: ev,
-    dateStr: info.event.start
-      ? info.event.start?.toISOString() : '',
-    endStr: info.event.end
-      ? info.event.end?.toISOString()
-      : null,
-    resourceId: String(meta?.instructor_id || info.event.getResources?.()?.[0]?.id || ''),
-    resourceTitle: String(meta?.instructor_name || ''),
-    sourceView: this.currentView,
-    eventId: String(info.event.id || ''),
-    lessonId: String(meta?.lesson_id || ''),
-    childId: String(meta?.child_id || ''),
-    childName: String(meta?.child_name || ''),
-    lessonType: String(meta?.lesson_type || ''),
-    status: String(meta?.status || ''),
-  });
+  jsEvent: ev,
+  dateStr: info.event.start ? info.event.start.toISOString() : '',
+  endStr: info.event.end ? info.event.end.toISOString() : null,
+  resourceId: String(meta?.instructor_id || info.event.getResources?.()?.[0]?.id || ''),
+  resourceTitle: String(meta?.instructor_name || ''),
+  sourceView: this.currentView,
+  eventId: String(info.event.id || ''),
+  lessonId: String(meta?.lesson_id || ''),
+  childId: String(meta?.child_id || ''),
+  childName: String(meta?.child_name || ''),
+  lessonType: String(meta?.lesson_type || ''),
+  status: String(meta?.status || ''),
+  seriesId: meta?.series_id ? String(meta.series_id) : null,
+  appointmentKind: meta?.appointment_kind ? String(meta.appointment_kind) : null,
+  repeatWeeks: meta?.repeat_weeks != null ? Number(meta.repeat_weeks) : null,
+  isOpenEnded: meta?.is_open_ended != null ? !!meta.is_open_ended : null,
+  seriesEndDate: meta?.series_end_date ? String(meta.series_end_date) : null,
+  occurDate: meta?.occur_date ? String(meta.occur_date) : null,
+  startTime: meta?.start_time ? String(meta.start_time) : null,
+  endTimeOnly: meta?.end_time ? String(meta.end_time) : null,
+});
 });
     },
     
@@ -1383,7 +1396,7 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
     );
   }
 
-  onCustomItemRightClick(item: ScheduleItem, ev: MouseEvent): void {
+ onCustomItemRightClick(item: ScheduleItem, ev: MouseEvent): void {
   ev.preventDefault();
   ev.stopPropagation();
 
@@ -1404,6 +1417,15 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
     childName: String(meta.child_name || ''),
     lessonType: String(meta.lesson_type || ''),
     status: String((item as any).status || meta.status || ''),
+
+    seriesId: meta?.series_id ? String(meta.series_id) : null,
+    appointmentKind: meta?.appointment_kind ? String(meta.appointment_kind) : null,
+    repeatWeeks: meta?.repeat_weeks != null ? Number(meta.repeat_weeks) : null,
+    isOpenEnded: meta?.is_open_ended != null ? !!meta.is_open_ended : null,
+    seriesEndDate: meta?.series_end_date ? String(meta.series_end_date) : null,
+    occurDate: meta?.occur_date ? String(meta.occur_date) : null,
+    startTime: meta?.start_time ? String(meta.start_time) : String(startIso).slice(11, 16),
+    endTimeOnly: meta?.end_time ? String(meta.end_time) : (endIso ? String(endIso).slice(11, 16) : null),
   });
 }
 }

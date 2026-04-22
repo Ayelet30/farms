@@ -904,6 +904,8 @@ canSaveWorkingHours(): boolean {
         .from('farm_working_hours')
         .upsert(payload, { onConflict: 'day_of_week' });
 
+        console.log('payload before saveWorkingHours', payload);
+
       if (error) {
         console.error('saveWorkingHours error', error);
         await this.ui.alert('שמירת שעות לפי יום נכשלה.', 'שגיאה');
