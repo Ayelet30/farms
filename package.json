@@ -13,7 +13,8 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "serve": "firebase emulators:start --only functions",
-    "deploy": "firebase deploy --only functions --project bereshit-ac5d8"
+    "build:prod": "ng build --configuration production",
+"deploy": "npm run build:prod && firebase deploy --only hosting,functions --project bereshit-ac5d8"
   },
   "private": true,
   "dependencies": {

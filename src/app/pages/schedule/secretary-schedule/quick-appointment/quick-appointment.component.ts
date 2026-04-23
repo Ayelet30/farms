@@ -197,6 +197,36 @@ referralUploadError: string | null = null;
     await this.loadSlotInfo();
   }
 
+  childSearchTerm = '';
+  childDropdownOpen = false;
+
+get filteredChildren(): ChildRow[] {
+  const term = this.childSearchTerm.trim().toLowerCase();
+
+  if (!term) {
+    return this.children;
+  }
+
+  return this.children.filter(child => {
+    const fullName = `${child.first_name ?? ''} ${child.last_name ?? ''}`.trim().toLowerCase();
+    return fullName.includes(term);
+  });
+}
+
+selectChild(child: ChildRow): void {
+  this.selectedChildId = child.child_uuid;
+  this.childSearchTerm = `${child.first_name ?? ''} ${child.last_name ?? ''}`.trim();
+  this.childDropdownOpen = false;
+  void this.onChildChange();
+}
+
+
+clearChildSelection(): void {
+  this.selectedChildId = null;
+  this.childSearchTerm = '';
+  this.childDropdownOpen = false;
+}
+
   private showError(msg: string): void {
     this.snack.open(msg, 'סגור', { duration: 4500 });
   }
@@ -414,16 +444,21 @@ referralUploadError: string | null = null;
   }
 
   async onChildChange(): Promise<void> {
-    if (!this.selectedChildId) return;
+  if (!this.selectedChildId) return;
 
-    if (this.bookingMode === 'makeup') {
-      await this.loadMakeupCandidates();
-    }
-
-    if (this.bookingMode === 'occupancy') {
-      await this.loadOccupancyCandidates();
-    }
+  const child = this.children.find(c => c.child_uuid === this.selectedChildId);
+  if (child) {
+    this.childSearchTerm = `${child.first_name ?? ''} ${child.last_name ?? ''}`.trim();
   }
+
+  if (this.bookingMode === 'makeup') {
+    await this.loadMakeupCandidates();
+  }
+
+  if (this.bookingMode === 'occupancy') {
+    await this.loadOccupancyCandidates();
+  }
+}
 
   private getSelectedInstructorUidOrThrow(): string {
     const uid = this.selectedInstructor?.uid ?? null;
@@ -585,6 +620,13 @@ referralUploadError: string | null = null;
   throw new Error('למסלול התשלום שנבחר חייבים לצרף הפניה');
 }
 
+if (
+  this.bookingMode !== 'makeup' &&
+  this.bookingMode !== 'occupancy' &&
+  !this.selectedPaymentPlanId
+) {
+  throw new Error('יש לבחור מסלול תשלום');
+}
 
     const child = this.selectedChild;
     const instructor = this.selectedInstructor;

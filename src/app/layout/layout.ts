@@ -1,13 +1,15 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { Router, RouterLink, RouterModule } from '@angular/router';
 import { HeaderComponent } from '../shared/header/header';
 import { SliderComponent } from '../shared/slider/slider';
+import { AccessibilityComponent } from '../pages/accessibility/accessibility.component';
+import { PrivacyPolicyComponent } from '../pages/privacy-policy/privacy-policy.component';
 
 @Component({
   selector: 'app-layout',
   standalone: true,
-  imports: [CommonModule, RouterModule, HeaderComponent, SliderComponent],
+  imports: [CommonModule, RouterModule, HeaderComponent, SliderComponent, AccessibilityComponent, PrivacyPolicyComponent],
   templateUrl: './layout.html',
   styleUrls: ['./layout.scss']
 })
@@ -20,6 +22,31 @@ export class LayoutComponent {
   private touchStartX = 0;
   private touchStartY = 0;
   private tracking = false;
+
+  isAccessibilityOpen = false;
+  isPrivacyOpen = false;
+
+openAccessibilityModal(): void {
+  this.isAccessibilityOpen = true;
+  document.body.style.overflow = 'hidden';
+}
+
+closeAccessibilityModal(): void {
+  this.isAccessibilityOpen = false;
+  document.body.style.overflow = '';
+}
+
+openPrivacyModal(): void {
+  this.isPrivacyOpen = true;
+  document.body.style.overflow = 'hidden';
+}
+
+closePrivacyModal(): void {
+  this.isPrivacyOpen = false;
+  document.body.style.overflow = '';
+}
+
+  constructor(private router: Router) {}
 
   ngOnInit() {
     const apply = () => {
@@ -35,6 +62,7 @@ export class LayoutComponent {
     apply();
     this.MQ.addEventListener?.('change', apply);
   }
+
 
   onCollapsedChange(v: boolean) {
     this.menuCollapsed = v;

@@ -219,7 +219,6 @@ readonly displayedColumns = computed(() =>
     // Never print raw rows / uids / names
     const safeMeta = meta ? JSON.parse(JSON.stringify(meta)) : undefined;
     // eslint-disable-next-line no-console
-    console.log(`🟦 [MonthlySummary] ${msg}`, safeMeta ?? '');
   }
 
   privVsGroupCharts = signal<{ priv: ChartPoint[]; group: ChartPoint[] }>({
@@ -435,9 +434,6 @@ if (this.fromChildCard()) {
   // השוואה בטוחה (string)
   if (String(l.child_id) !== String(childId)) return false;
 }
-console.log('fromChildCard:', this.fromChildCard());
-console.log('route childId:', this.selectedChildId());
-console.log('rows childIds:', this.lessons().map(l => l.child_id));
 
 
   // 🔹 חיפוש חופשי כללי
@@ -676,10 +672,6 @@ for (const n of noteRows) {
       : text;
   }
 }
-console.log(
-  '🟩 raw office_note from DB:',
-  rows.map(r => r.office_note)
-);
 
       // ✅ safe debug: counts only
       this.debug('loaded data', {
@@ -754,10 +746,6 @@ for (const raw of rows) {
 const normalizedLessons = Array.from(dedupedMap.values());
 
       this.lessons.set(normalizedLessons);
-      console.log(
-  '🧒 child_id check:',
-  normalizedLessons.map(l => l.child_id)
-);
 
       // ✅ אם הגענו מכרטיס ילד – סינון אוטומטי לפי שם הילד
 // ✅ סינון אוטומטי לפי שם הילד שממנו הגענו (לפי childId)
@@ -779,13 +767,6 @@ if (this.fromChildCard() && this.selectedChildId()) {
   }
 }
 
-      console.log(
-  '🧪 lessons office_note:',
-  normalizedLessons.map(l => ({
-    date: l.occur_date,
-    note: l.office_note
-  }))
-);
 
       this.payments.set((paymentsData ?? []) as PaymentRow[]);
       this.cancelExceptions.set((cancelsData ?? []) as CancelExceptionRow[]);

@@ -882,13 +882,6 @@ async onViewRangeChange(range: any): Promise<void> {
     this.setScheduleItems();
     this.updateCurrentDateFromCalendar();
 
-    console.log('[viewRange fixed]', {
-      viewType: vt,
-      startYmd,
-      endYmd,
-      lessons: this.lessons.length,
-      items: this.items.length,
-    });
   } catch (err: any) {
     console.error('[viewRange error]', err);
     this.error = err?.message || 'שגיאה בטעינת השיעורים';
@@ -961,13 +954,6 @@ async onViewRangeChange(range: any): Promise<void> {
       this.impactLoading = true;
 this.affectedChildren = [];
       const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
-console.log('CHECK IMPACT START', {
-  from,
-  to,
-  allDay,
-  fromTime,
-  toTime
-});
       if (hasLessons) {
         await this.loadAffectedChildrenFromDb(
           from,
@@ -977,9 +963,6 @@ console.log('CHECK IMPACT START', {
           allDay ? null : toTime
         );
       }
-console.log('CHECK IMPACT DONE', {
-  affectedParents: this.affectedChildren
-});
       this.rangeModal.reviewedImpact = true;
       this.impactReviewMode = true;
       this.cdr.detectChanges();
@@ -1144,7 +1127,6 @@ private async loadAffectedChildrenFromDb(
     return lessonStart < reqEnd && lessonEnd > reqStart;
   });
 
-  console.log('RELEVANT LESSONS', relevantLessons);
 
   if (!relevantLessons.length) {
     this.affectedChildren = [];
@@ -1169,12 +1151,6 @@ private async loadAffectedChildrenFromDb(
     .filter(Boolean) as Child[];
 }
 onImpactButtonClick(): void {
-  console.log('BUTTON CLICKED', {
-    allDay: this.rangeModal.allDay,
-    fromTime: this.rangeModal.fromTime,
-    toTime: this.rangeModal.toTime,
-    reviewedImpact: this.rangeModal.reviewedImpact,
-  });
 
   this.submitRange();
 }

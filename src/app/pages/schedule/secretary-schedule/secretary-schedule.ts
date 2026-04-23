@@ -69,6 +69,7 @@ type QuickBookingContext = {
   instructorName: string;
 };
 
+
 @Component({
   selector: 'app-secretary-schedule',
   standalone: true,
@@ -104,6 +105,16 @@ farmDaysOff: any[] = [];
 
   autoAssignLoading = false;
   selectedOccurrence: any = null;
+
+  endSeriesModal = {
+  open: false,
+  lessonId: '',
+  occurDate: '',
+  childName: '',
+  instructorName: '',
+  startTime: '',
+  saving: false,
+};
 
   contextMenuMode: ContextMenuMode = 'root';
   blockedDayCells: Array<{
@@ -173,6 +184,14 @@ contextMenu = {
   childName: '' as string,
   lessonType: '' as string,
   status: '' as string,
+
+  seriesId: '' as string,
+appointmentKind: '' as string,
+repeatWeeks: null as number | null,
+isOpenEnded: null as boolean | null,
+seriesEndDate: '' as string,
+occurDate: '' as string,
+startTimeOnly: '' as string,
 };
 
 rangeModal = {
@@ -278,6 +297,84 @@ private extractYmd(iso: string): string {
   return String(iso).slice(0, 10);
 }
 
+openEndSeriesModal(): void {
+  this.endSeriesModal = {
+    open: true,
+    lessonId: this.contextMenu.lessonId,
+    occurDate: this.contextMenu.occurDate || this.contextMenu.date,
+    childName: this.contextMenu.childName,
+    instructorName: this.contextMenu.instructorName,
+    startTime: this.contextMenu.startTimeOnly || this.contextMenu.time,
+    saving: false,
+  };
+
+  this.closeContextMenu();
+  this.cdr.detectChanges();
+}
+
+closeEndSeriesModal(): void {
+  if (this.endSeriesModal.saving) return;
+
+  this.endSeriesModal = {
+    open: false,
+    lessonId: '',
+    occurDate: '',
+    childName: '',
+    instructorName: '',
+    startTime: '',
+    saving: false,
+  };
+
+  this.cdr.detectChanges();
+}
+
+async confirmEndSeries(): Promise<void> {
+  if (!this.endSeriesModal.lessonId || !this.endSeriesModal.occurDate) return;
+
+  this.endSeriesModal.saving = true;
+  this.cdr.detectChanges();
+
+  try {
+    const { error } = await dbTenant().rpc('end_lesson_series', {
+      p_lesson_id: this.endSeriesModal.lessonId,
+      p_effective_occur_date: this.endSeriesModal.occurDate,
+      p_note: null,
+    });
+
+    if (error) throw error;
+
+    this.endSeriesModal = {
+      open: false,
+      lessonId: '',
+      occurDate: '',
+      childName: '',
+      instructorName: '',
+      startTime: '',
+      saving: false,
+    };
+
+    if (this.currentRange) {
+      await this.loadLessons({
+        start: this.currentRange.start,
+        end: this.currentRange.end,
+      });
+
+      this.filterLessons();
+      this.setScheduleItems();
+      this.buildBlockedDayCells(this.currentRange);
+      this.buildWeekStats();
+    }
+
+    this.cdr.detectChanges();
+  } catch (e) {
+    console.error('end series failed', e);
+    this.endSeriesModal.saving = false;
+    this.cdr.detectChanges();
+    await this.ui.alert('שגיאה בסיום הסדרה', 'שגיאה');
+  }
+}
+
+
 private extractHm(iso: string): string {
   const d = new Date(iso);
   const hh = String(d.getHours()).padStart(2, '0');
@@ -369,16 +466,16 @@ private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<vo
   const { data, error } = await dbc
     .from('secretarial_requests')
     .select(`
-      id,
-      instructor_id,
-      request_type,
-      status,
-      from_date,
-      to_date,
-      payload,
-      decision_note,
-      sick_note_file_path
-    `)
+  id,
+  instructor_id,
+  request_type,
+  status,
+  from_date,
+  to_date,
+  payload,
+  decision_note,
+  sick_note_file_path
+`)
     .eq('request_type', 'INSTRUCTOR_DAY_OFF')
     .lte('from_date', endYmd)
     .gte('to_date', startYmd);
@@ -961,7 +1058,13 @@ private async loadAffectedChildrenFromDb(
       end_time,
       start_datetime,
       end_datetime,
-      status
+      status,
+      series_id,
+      appointment_kind,
+      repeat_weeks,
+      is_open_ended,
+      series_end_date
+
     `)
     .eq('instructor_id', instructorId)
     .gte('occur_date', from)
@@ -1469,11 +1572,11 @@ private async loadLessons(
   start_datetime,
   end_datetime,
   occur_date,
-
-  lesson_occurrence_exceptions (
-    status,
-    is_makeup_allowed
-  )
+  series_id,
+  appointment_kind,
+  repeat_weeks,
+  is_open_ended,
+  series_end_date
 `)
 
       .in('child_id', childIds)
@@ -1521,40 +1624,36 @@ private async loadLessons(
     `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim(),  ]));
 
     this.lessons = (occData ?? []).map((r: any) => {
-      const ex = r.lesson_occurrence_exceptions;
-const finalStatus =
-  ex?.status === 'בוטל'
-    ? 'בוטל'
-    : r.status;
-
-const isMakeupAllowed =
-  ex?.is_makeup_allowed ?? false;
+    const finalStatus = r.status;
+const isMakeupAllowed = r.is_makeup_allowed ?? false;
 
       const key = `${r.lesson_id}::${r.occur_date}`;
       const res = resourceByKey.get(key);
 
       return {
-        lesson_id: String(r.lesson_id ?? ''),
-        id:        String(r.lesson_id ?? ''),
-        child_id:  r.child_id,
-        day_of_week: r.day_of_week,
-        start_time:  r.start_time,
-        end_time:    r.end_time,
-        lesson_type: r.lesson_type,
-      
-        instructor_id:   r.instructor_id ?? '',
-        instructor_name: instructorNameById.get(r.instructor_id) || '',
-        child_color: this.getColorForChild(r.child_id),
-        child_name:  nameByChild.get(r.child_id) || '',
-        start_datetime: r.start_datetime ?? null,
-          status: finalStatus,   // 🔥 חובה
-        end_datetime:   r.end_datetime ?? null,
-        occur_date:     r.occur_date ?? null,
-  is_makeup_allowed: isMakeupAllowed,
-        // 👇 עכשיו באמת מגיע מהנתונים של ה-view
-        horse_name: res?.horse_name ?? null,
-        arena_name: res?.arena_name ?? null,
-      } as Lesson;
+  lesson_id: String(r.lesson_id ?? ''),
+  id: String(r.lesson_id ?? ''),
+  child_id: r.child_id,
+  day_of_week: r.day_of_week,
+  start_time: r.start_time,
+  end_time: r.end_time,
+  lesson_type: r.lesson_type,
+  instructor_id: r.instructor_id ?? '',
+  instructor_name: instructorNameById.get(r.instructor_id) || '',
+  child_color: this.getColorForChild(r.child_id),
+  child_name: nameByChild.get(r.child_id) || '',
+  start_datetime: r.start_datetime ?? null,
+  status: finalStatus,
+  end_datetime: r.end_datetime ?? null,
+  occur_date: r.occur_date ?? null,
+  horse_name: res?.horse_name ?? null,
+  arena_name: res?.arena_name ?? null,
+  series_id: r.series_id,
+  appointment_kind: r.appointment_kind,
+  repeat_weeks: r.repeat_weeks,
+  is_open_ended: r.is_open_ended,
+  series_end_date: r.series_end_date,
+} as Lesson;
     });
   } catch (err) {
     console.error('loadLessons failed', err);
@@ -1717,7 +1816,13 @@ private addOneDayYmd(dateYmd: string): string {
         arena_name: lesson.arena_name,
         lesson_id: lesson.lesson_id,
         occur_date: lesson.occur_date,
-        is_makeup_allowed: lesson['is_makeup_allowed'] ?? false,
+
+        series_id: lesson.series_id,
+        appointment_kind: lesson.appointment_kind,
+        repeat_weeks: lesson.repeat_weeks,
+        is_open_ended: lesson.is_open_ended,
+        series_end_date: lesson.series_end_date,
+        
       },
     } as ScheduleItem;
   };
@@ -2006,6 +2111,22 @@ private getColorForInstructor(id: string): string {
   return palette[idx];
 }
 
+isSeriesContext(): boolean {
+
+  console.log('Checking series context:', {
+    appointmentKind: this.contextMenu.appointmentKind,
+    seriesId: this.contextMenu.seriesId,
+    isOpenEnded: this.contextMenu.isOpenEnded,
+    repeatWeeks: this.contextMenu.repeatWeeks,
+  });
+  return (
+    this.contextMenu.appointmentKind === 'therapy_series' ||
+    !!this.contextMenu.seriesId ||
+    !!this.contextMenu.isOpenEnded ||
+    (this.contextMenu.repeatWeeks ?? 0) > 1
+  );
+}
+
 onRightClickEvent(e: any): void {
   if (!e?.jsEvent) return;
 
@@ -2052,6 +2173,13 @@ onRightClickEvent(e: any): void {
   this.contextMenu.lessonType = String(e.lessonType ?? '');
   this.contextMenu.status = String(e.status ?? '');
   this.contextMenuMode = 'root';
+  this.contextMenu.seriesId = String(e.seriesId ?? '');
+this.contextMenu.appointmentKind = String(e.appointmentKind ?? '');
+this.contextMenu.repeatWeeks = e.repeatWeeks != null ? Number(e.repeatWeeks) : null;
+this.contextMenu.isOpenEnded = e.isOpenEnded != null ? !!e.isOpenEnded : null;
+this.contextMenu.seriesEndDate = String(e.seriesEndDate ?? '');
+this.contextMenu.occurDate = String(e.occurDate ?? this.contextMenu.date ?? '');
+this.contextMenu.startTimeOnly = String(e.startTime ?? this.contextMenu.time ?? '');
 
   this.cdr.detectChanges();
 }
@@ -2105,8 +2233,7 @@ const isCancelled =
     status: meta.status ?? null,
     lesson_type: meta.lesson_type ?? null,
     start: arg.event.start,
-    end: arg.event.end,
-    is_makeup_allowed: !!meta.is_makeup_allowed,
+    end: arg.event.end
   };
 
   

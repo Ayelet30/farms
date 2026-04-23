@@ -114,6 +114,129 @@
 :host ::ng-deep app-slider .scrim{
   display: none !important;
 }
+.accessibility-fab {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  width: 58px;
+  height: 58px;
+  border: none;
+  border-radius: 50%;
+  background: #556b2f;
+  color: #fff;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  z-index: 7000;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.accessibility-fab:hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+  background: #6b8438;
+}
+
+.accessibility-fab:active {
+  transform: scale(0.97);
+}
+
+.accessibility-fab:focus-visible {
+  outline: 3px solid #1f3b08;
+  outline-offset: 3px;
+}
+
+@media (max-width: 1023.98px) {
+  .accessibility-fab {
+    left: 14px;
+    bottom: 14px;
+    width: 52px;
+    height: 52px;
+    font-size: 22px;
+  }
+}
+
+.accessibility-fab {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  width: 58px;
+  height: 58px;
+  border: 1px solid #cdd6bf;
+  border-radius: 50%;
+  background: #6f8a3a;
+  color: #fff;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+  z-index: 7000;
+}
+
+.accessibility-fab:hover {
+  transform: translateY(-1px);
+}
+
+.legal-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.38);
+  z-index: 8000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.legal-modal {
+  position: relative;
+  width: min(980px, 96vw);
+  max-height: 88vh;
+  overflow: auto;
+  background: #f8f7f2;
+  border-radius: 20px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
+  padding: 24px;
+}
+
+.legal-modal-close {
+  position: sticky;
+  top: 0;
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid #d5dcc9;
+  border-radius: 50%;
+  background: #fff;
+  color: #2f3a1f;
+  cursor: pointer;
+  z-index: 2;
+}
+
+@media (max-width: 1023.98px) {
+  .accessibility-fab {
+    left: 12px;
+    bottom: 12px;
+    width: 52px;
+    height: 52px;
+    font-size: 22px;
+  }
+
+  .legal-modal {
+    width: 100%;
+    max-height: 92vh;
+    padding: 16px;
+    border-radius: 16px;
+  }
+}
 
 /* =========================================================
    DESKTOP (>=1024):

@@ -347,19 +347,19 @@ hasAnyActiveWorkingDay(): boolean {
 
   // ===== Hebrew months (Hebcal) =====
   hebrewMonths = [
-    { value: 1, label: 'תשרי' },
-    { value: 2, label: 'חשוון' },
-    { value: 3, label: 'כסלו' },
-    { value: 4, label: 'טבת' },
-    { value: 5, label: 'שבט' },
-    { value: 6, label: 'אדר' },
-    { value: 7, label: 'אדר ב' },
-    { value: 8, label: 'ניסן' },
-    { value: 9, label: 'אייר' },
-    { value: 10, label: 'סיון' },
-    { value: 11, label: 'תמוז' },
-    { value: 12, label: 'אב' },
-    { value: 13, label: 'אלול' },
+    { value: 7, label: 'תשרי' },
+    { value: 8, label: 'חשוון' },
+    { value: 9, label: 'כסלו' },
+    { value: 10, label: 'טבת' },
+    { value: 11, label: 'שבט' },
+    { value: 12, label: 'אדר' },
+    { value: 13, label: 'אדר ב' },
+    { value: 1, label: 'ניסן' },
+    { value: 2, label: 'אייר' },
+    { value: 3, label: 'סיון' },
+    { value: 4, label: 'תמוז' },
+    { value: 5, label: 'אב' },
+    { value: 6, label: 'אלול' },
   ];
 
   hebrewDays = Array.from({ length: 30 }, (_, i) => i + 1);
@@ -479,6 +479,7 @@ hasAnyActiveWorkingDay(): boolean {
     const hToday = new HDate(today);
     let hy = hToday.getFullYear();
 
+
     let g = new HDate(heDay, heMonth, hy).greg();
 
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -536,6 +537,7 @@ private flashError(msg: string): void {
       hebrew_end_day: ed,
       hebrew_end_month: em,
     };
+
 
     this.specialDayForm.set(next);
     this.validateSpecialDayDateRange(next);
@@ -901,6 +903,8 @@ canSaveWorkingHours(): boolean {
       const { error } = await this.supabase
         .from('farm_working_hours')
         .upsert(payload, { onConflict: 'day_of_week' });
+
+        console.log('payload before saveWorkingHours', payload);
 
       if (error) {
         console.error('saveWorkingHours error', error);

@@ -110,8 +110,6 @@ export class ChildTermsSignComponent implements OnInit {
     if (!this.signedName.trim()) return void (this.error = 'נא להזין שם מלא לחתימה');
     if (!this.childId) return void (this.error = 'חסר childId');
 
-    console.log('childId being sent to rpc:', this.childId);
-
 
     this.saving = true;
 
@@ -136,16 +134,12 @@ if (!doc) throw new Error('חסר מסמך תקנון');
 const originalUrl = this.docUrlRaw();
 if (!originalUrl) throw new Error('חסר קישור למסמך המקורי');
 
-console.log('Building signed PDF for child:', this.childId, 'with name:', this.signedName, 'on doc:', doc.id, originalUrl);
-
 const now = new Date();
 const signedLine =
   `נחתם דיגיטלית בתאריך ${now.toLocaleDateString('he-IL')} ${now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })} • ` +
   `שם החותם: ${this.signedName.trim()} • ילד: ${this.childName}`;
-  console.log('Signed line to add to PDF:', signedLine);
 
 const signedBytes = await this.buildSignedPdf(originalUrl, this.signedName, this.childName);
-console.log('Signed PDF built, size in bytes:', signedBytes.length);
 
 // קבעי bucket נפרד למסמכים חתומים
 const signedBucket = 'signed-docs';
@@ -154,8 +148,6 @@ const signedBucket = 'signed-docs';
 const safeChild = this.childId;
 const path = `${doc.storage_path.replace(/\/[^\/]+$/, '')}/signed/${safeChild}/terms_v${doc.version}.pdf`;
 
-
-console.log('!!!!!Uploading signed PDF to path:', path);
 await this.uploadSignedPdf(signedBytes, signedBucket, path);
 
 // עכשיו מעדכנים DB איפה נמצא ה-PDF החתום
@@ -259,7 +251,6 @@ private async buildSignedPdf(originalPdfUrl: string, signedName: string, childNa
 
 
 private async uploadSignedPdf(bytes: Uint8Array, bucket: string, path: string): Promise<void> {
-    console.log('Uploading signed PDF to:', bucket, path);
   const client = getSupabaseClient();
 const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 const file = new Blob([ab], { type: 'application/pdf' }); // ✅

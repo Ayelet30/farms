@@ -364,7 +364,6 @@ export class ClaimsPageComponent implements AfterViewInit {
 
     try {
       const res = await this.claimsApi.openClaimsClalit({ schema, items });
-      console.log('openClaimsClalit result pretty:\n', JSON.stringify(res, null, 2));
 
       const bad = res.results?.filter(x => !x.ok) ?? [];
       if (bad.length) {
