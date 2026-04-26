@@ -13,6 +13,9 @@
   --font-ui: "Heebo", system-ui, -apple-system, "Segoe UI", "Tahoma", Arial, sans-serif;
 }
 html, body { font-family: var(--font-ui); }
+body {
+  font-family: 'Heebo', sans-serif;
+}
 
 // /* צבע רקע כשהמתג פעיל */
 // .mdc-switch--selected .mdc-switch__track {
@@ -195,6 +198,7 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   border-bottom: 1px solid #e1e6d5;
   vertical-align: middle;
 }
+
 
 /* זברה עדינה */
 .slots-list tbody tr:nth-child(even) {
