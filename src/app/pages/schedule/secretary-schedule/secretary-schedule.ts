@@ -95,6 +95,17 @@ farmDaysOff: any[] = [];
 
   isFullscreen = false;
 
+  moveChoiceModal = {
+  open: false,
+  lessonId: '',
+  occurDate: '',
+  childName: '',
+  instructorId: '',
+  instructorName: '',
+  startTime: '',
+  endTime: '',
+};
+
   currentRange: { start: string; end: string; viewType: string } | null = null;
   currentViewType:
   | 'timeGridDay'
@@ -2112,13 +2123,6 @@ private getColorForInstructor(id: string): string {
 }
 
 isSeriesContext(): boolean {
-
-  console.log('Checking series context:', {
-    appointmentKind: this.contextMenu.appointmentKind,
-    seriesId: this.contextMenu.seriesId,
-    isOpenEnded: this.contextMenu.isOpenEnded,
-    repeatWeeks: this.contextMenu.repeatWeeks,
-  });
   return (
     this.contextMenu.appointmentKind === 'therapy_series' ||
     !!this.contextMenu.seriesId ||
@@ -2394,6 +2398,49 @@ async onToggleMakeupAllowed(checked: boolean) {
      await this.ui.alert('שגיאה בעדכון "ניתן להשלמה"', 'שגיאה');
 
   }
+}
+
+openMoveChoiceModal(): void {
+  this.moveChoiceModal = {
+    open: true,
+    lessonId: this.contextMenu.lessonId,
+    occurDate: this.contextMenu.occurDate || this.contextMenu.date,
+    childName: this.contextMenu.childName,
+    instructorId: this.contextMenu.instructorId,
+    instructorName: this.contextMenu.instructorName,
+    startTime: this.contextMenu.startTimeOnly || this.contextMenu.time,
+    endTime: this.contextMenu.endTime || '',
+  };
+
+  this.closeContextMenu();
+  this.cdr.detectChanges();
+}
+
+closeMoveChoiceModal(): void {
+  this.moveChoiceModal = {
+    open: false,
+    lessonId: '',
+    occurDate: '',
+    childName: '',
+    instructorId: '',
+    instructorName: '',
+    startTime: '',
+    endTime: '',
+  };
+
+  this.cdr.detectChanges();
+}
+
+chooseMoveSingleOccurrence(): void {
+  // כאן בשלב הבא נחבר את מודאל רשימת האפשרויות הפנויות
+  console.log('move single occurrence', this.moveChoiceModal);
+  this.closeMoveChoiceModal();
+}
+
+chooseMoveWholeSeries(): void {
+  // כאן בשלב הבא נחבר את מודאל הזזת הסדרה + פופאפ אישור
+  console.log('move whole series', this.moveChoiceModal);
+  this.closeMoveChoiceModal();
 }
 
 }

@@ -930,9 +930,7 @@ get isExemptFromPayment(): boolean {
     .maybeSingle();
 
     const terminalName = data?.terminal_name ?? 'moachapp';
-    const amount = '1.00';
 
-    console.log('!!!!!!!!!!!!!@@@@@@@@@@@@@###############')
     this.hfReg.charge(
       {
          terminal_name: terminalName,

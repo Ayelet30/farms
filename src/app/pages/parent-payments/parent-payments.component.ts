@@ -339,7 +339,7 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
     .maybeSingle();
 
     const terminalName = data?.terminal_name ?? 'moachapp';
-    const amount = '1.00'; // verify
+    const amount = '0.00'; // verify
 
     this.hfAdd.charge(
       {

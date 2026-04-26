@@ -1417,7 +1417,6 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
     childName: String(meta.child_name || ''),
     lessonType: String(meta.lesson_type || ''),
     status: String((item as any).status || meta.status || ''),
-
     seriesId: meta?.series_id ? String(meta.series_id) : null,
     appointmentKind: meta?.appointment_kind ? String(meta.appointment_kind) : null,
     repeatWeeks: meta?.repeat_weeks != null ? Number(meta.repeat_weeks) : null,
