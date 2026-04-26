@@ -99,7 +99,12 @@ type OccRow = {
 export const approveInstructorDayOffAndNotify = onRequest(
   { region: 'us-central1', secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, INTERNAL_CALL_SECRET_S] },
   async (req, res) => {
-    try {
+console.log('APPROVE FUNCTION CALLED', {
+  requestId: req.body?.requestId,
+  userAgent: req.headers['user-agent'],
+  internalSecret: !!req.headers['x-internal-secret'],
+  body: req.body,
+});    try {
       if (applyCors(req, res)) return;
       if (req.method !== 'POST') return void res.status(405).json({ error: 'Method not allowed' });
 
@@ -178,13 +183,33 @@ export const approveInstructorDayOffAndNotify = onRequest(
           message: 'all_day=false but missing requested_start_time/requested_end_time',
         });
       }
+// 5) עדכון הבקשה ל-APPROVED (מותנה PENDING)
+      const { data: upd, error: updErr } = await sbTenant
+        .from('secretarial_requests')
+        .update({
+          status: 'APPROVED',
+          decided_by_uid: decidedByUid,
+          decided_at: new Date().toISOString(),
+          decision_note: decisionNote ?? null,
+        })
+        .eq('id', requestId)
+        .eq('status', 'PENDING')
+        .select('id,status')
+        .maybeSingle();
+
+      if (updErr) throw updErr;
+      if (!upd) {
+        return void res.status(409).json({ ok: false, message: 'הבקשה כבר לא במצב ממתין (ייתכן שכבר עודכנה).' });
+      }
 
       // 2) יצירת Unavailability (כמו RPC)
-      const fromTs = allDay ? toIsoUtc(fromDate, '00:00') : toIsoUtc(fromDate, startTime!);
-      const toTs = allDay
-        ? new Date(`${toDate}T23:59:59Z`).toISOString()
-        : toIsoUtc(toDate, endTime!);
+    const fromTs = allDay
+  ? toIsoUtc(fromDate, '00:00')
+  : toIsoUtc(fromDate, startTime!);
 
+const toTs = allDay
+  ? toIsoUtc(toDate, '00:00')
+  : toIsoUtc(toDate, endTime!);
       const dayOffCategory = String(payload?.category ?? 'OTHER').trim().toUpperCase();
 
 const freeTextReason =
@@ -261,25 +286,7 @@ const isBillableForCancelledLesson = farmCancelChargeTarget === 'cancelled_lesso
         if (upErr) throw upErr;
       }
 
-      // 5) עדכון הבקשה ל-APPROVED (מותנה PENDING)
-      const { data: upd, error: updErr } = await sbTenant
-        .from('secretarial_requests')
-        .update({
-          status: 'APPROVED',
-          decided_by_uid: decidedByUid,
-          decided_at: new Date().toISOString(),
-          decision_note: decisionNote ?? null,
-        })
-        .eq('id', requestId)
-        .eq('status', 'PENDING')
-        .select('id,status')
-        .maybeSingle();
-
-      if (updErr) throw updErr;
-      if (!upd) {
-        return void res.status(409).json({ ok: false, message: 'הבקשה כבר לא במצב ממתין (ייתכן שכבר עודכנה).' });
-      }
-
+      
       // 6) מידע עזר למיילים
       const { data: farmRow, error: farmErr } = await sbPublic
         .from('farms')
