@@ -1,264 +1,289 @@
-/* ---- פריסת ברירת מחדל (נשארת כמו אצלך) ---- */
-.home-container {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  height: 100vh;
-  direction: rtl;
-  background-color: #e6f4ec;
+:host {
+  display: block;
+  font-family: 'Heebo', 'Assistant', Arial, sans-serif;
 }
 
-.image-section {
-  flex: 1;
-  background-color: #e6f4ec;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-  border-top-left-radius: 35% 65%;
-  border-bottom-left-radius: 35% 65%;
+* {
+  box-sizing: border-box;
+}
+
+.home-page {
+  min-height: 100vh;
+  direction: rtl;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background:
+    radial-gradient(circle at top right, rgba(116, 140, 64, 0.2), transparent 34%),
+    radial-gradient(circle at bottom left, rgba(213, 224, 177, 0.45), transparent 35%),
+    linear-gradient(135deg, #fffdf6 0%, #eef4df 100%);
   overflow: hidden;
 }
 
-
-.image-section img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.login-shell {
+  width: min(1180px, 100%);
+  min-height: 680px;
+  display: grid;
+  grid-template-columns: 1fr 0.88fr;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(116, 140, 64, 0.18);
+  border-radius: 36px;
+  overflow: hidden;
+  box-shadow: 0 28px 80px rgba(45, 58, 31, 0.16);
 }
 
-.buttons {
+/* צד תמונה */
+.brand-panel {
+  position: relative;
+  min-height: 680px;
+  padding: 42px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background:
+    linear-gradient(90deg, rgba(36, 47, 24, 0.68), rgba(36, 47, 24, 0.12)),
+    url('/assets/images/hors.png') center / cover no-repeat;
+  color: white;
+  overflow: hidden;
+}
+
+.brand-overlay {
   position: absolute;
-  left: 50px;
-  flex: 0.1;
+  inset: 0;
+  background:
+    radial-gradient(circle at 70% 30%, transparent 0 24%, rgba(31, 42, 22, 0.16) 55%),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.3));
+  z-index: 0;
 }
 
-.content {
-  flex: 2;
+.app-logo {
+  position: relative;
+  z-index: 1;
+  width: 92px;
+  height: 92px;
+  border-radius: 24px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
 }
 
-.left-panel {
-  flex: 1;
+.brand-text {
+  position: relative;
+  z-index: 1;
+  max-width: 460px;
+}
+
+.eyebrow {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 14px;
+  color: #edf5d9;
+}
+
+.brand-text h2 {
+  margin: 0 0 14px;
+  font-size: 44px;
+  line-height: 1.1;
+  font-weight: 900;
+  letter-spacing: -0.8px;
+}
+
+.brand-text p {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+/* צד כניסה */
+.login-panel {
+  padding: 70px 58px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  /* הפעילויות יישארו ממורכזות אנכית */
-  padding: 2rem;
-  background-color: #e6f4ec;
-  position: relative;
-  /* כדי ש־.login-icon יתמקם ביחס לפאנל הזה */
+  align-items: flex-start;
+  background: #fff;
 }
 
-$login-start: #e6ecd9;
-/* ירוק זית בהיר */
-$login-end: #7a8b55; // ירוק זית כהה (למטה)
-$login-text: #fff;
-$radius: 5px;
+.mobile-logo-wrap {
+  display: none;
+}
 
-.login-icon {
-  position: relative;
-  top: 21px;
-  left: 20px;
-  max-width: 115px;
-  max-height: 40px;
+.tag {
+  background: #eef4df;
+  color: #6f843d;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 22px;
+}
 
-  position: relative;
-  display: inline-block;
-  direction: rtl;
-  /* טקסט בעברית */
-  padding: 10px;
-  border: 1px solid $login-end;
-  border-radius: $radius;
+.login-panel h1 {
+  margin: 0 0 18px;
+  font-size: clamp(30px, 3.5vw, 58px);
+  line-height: 1.05;
+  color: #29351f;
+  font-weight: 900;
+  letter-spacing: -1px;
+}
+
+.subtitle {
+  margin: 0 0 34px;
+  max-width: 440px;
+  font-size: 21px;
+  line-height: 1.65;
+  color: #5d6752;
+}
+
+.main-login-btn {
+  width: 100%;
+  max-width: 360px;
+  height: 60px;
+  border: none;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #789241, #566f2c);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 900;
   cursor: pointer;
+  box-shadow: 0 14px 28px rgba(86, 111, 44, 0.25);
+  transition: 0.2s ease;
+}
 
-  color: $login-end;
-  font-size: 1.2rem;
+.main-login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 34px rgba(86, 111, 44, 0.32);
+  filter: brightness(1.04);
+}
+
+.main-login-btn:active {
+  transform: translateY(0);
+}
+
+.features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.features span {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #f6f8ef;
+  color: #6f765f;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: .2px;
-  background-color: $login-start;
-  
-  &::after {
-    content: "";
-    position: absolute;
-    inset-block: 0;
-    /* מרכז אנכי לוגי */
-    margin-block: auto;
-    inset-inline-start: calc(var(--padH) - .2rem);
-    /* בצד הימני ב-RTL */
-    width: var(--iconSize);
-    height: var(--iconSize);
-    background: currentColor;
-    -webkit-mask: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>\
-<path d='M3 12h12'/>\
-<path d='M11 5l7 7-7 7'/>\
-</svg>") center / contain no-repeat;
-    mask: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>\
-<path d='M3 12h12'/>\
-<path d='M11 5l7 7-7 7'/>\
-</svg>") center / contain no-repeat;
-    transition: transform .2s ease;
+}
+
+/* מובייל */
+@media (max-width: 820px) {
+  .home-page {
+    padding: 0;
+    align-items: stretch;
+    overflow-y: auto;
+    background: #fffdf6;
   }
 
-  &:hover {
-    filter: brightness(1.03) saturate(1.02);
-
-    &::after {
-      transform: translateX(-2px);
-    }
-
-    /* תנועה עדינה פנימה */
-  }
-
-  &:active {
-    transform: translateY(1px);
-    box-shadow: 0 3px 8px rgba(0, 0, 0, .18), 0 1px 3px rgba(0, 0, 0, .2);
-  }
-
-  &:focus-visible {
-    outline: 3px solid rgba(0, 0, 0, .18);
-    outline-offset: 2px;
-  }
-
-  &:disabled {
-    opacity: .6;
-    cursor: not-allowed;
+  .login-shell {
+    width: 100%;
+    min-height: 100vh;
+    grid-template-columns: 1fr;
+    border-radius: 0;
+    border: none;
     box-shadow: none;
+    background: #fff;
   }
 
-  /* מצב טעינה (רצוי להוסיף class="btn-login loading") */
-  &.loading {
-    pointer-events: none;
-
-    &::after {
-      -webkit-mask: none;
-      mask: none;
-      width: 1.05rem;
-      height: 1.05rem;
-      border: 2px solid currentColor;
-      border-left-color: transparent;
-      border-radius: 50%;
-      animation: btnlogin-spin .8s linear infinite;
-    }
-  }
-}
-
-@keyframes btnlogin-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.content {
-  display: flex;
-  flex-direction: row;
-}
-
-.activities {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2rem;
-  margin-top: 2rem;
-  margin-right: 5rem;
-}
-
-.activity-box {
-  background: linear-gradient(135deg, #e6f4ec, #fdfdfd);
-  border: 2px solid #a0c4a8;
-  padding: 1.5rem 2rem;
-  border-radius: 40px;
-  width: 90%;
-  max-width: 400px;
-  text-align: right;
-  font-weight: 500;
-  line-height: 1.6;
-  color: #2f3e34;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.activity-box:hover {
-  background: linear-gradient(135deg, #d0ebda, #ffffff);
-  transform: translateY(-5px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
-}
-
-.activity-box strong {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: #1e3b2f;
-  margin-bottom: 0.5rem;
-}
-
-::ng-deep .custom-login-dialog .mat-dialog-container {
-  border-radius: 20px;
-  padding: 20px;
-  background: white;
-  direction: rtl;
-}
-
-/* ---- התאמות מסך בינוני (טאבלט מתחת ל-992px) ---- */
-@media (max-width: 992px) {
-  .home-container {
-    flex-direction: column;
-    /* במקום שורה -> טור אחד */
-    height: auto;
-    /* ניתן לגובה להתארך */
+  .brand-panel {
+    min-height: 210px;
+    padding: 22px;
+    border-radius: 0 0 34px 34px;
+    background:
+      linear-gradient(to bottom, rgba(38, 50, 26, 0.18), rgba(38, 50, 26, 0.48)),
+      url('/assets/images/hors.png') center 38% / cover no-repeat;
   }
 
-  .image-section {
-    border: 0;
-    background: transparent;
-    position: absolute;
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
+  .app-logo,
+  .brand-text {
+    display: none;
   }
 
-  .image-section img {
-    border: 0;
-    background: transparent;
-    z-index: 10;
+  .login-panel {
+    padding: 26px 22px 34px;
+    align-items: stretch;
+    text-align: center;
+    justify-content: flex-start;
   }
 
-  .content {
-    flex-direction: column;
-    align-items: center;
-    padding: 1rem;
-  }
-
-  .activities {
-    margin: 1rem 0;
-    gap: 1rem;
-  }
-
-  .activity-box {
-    max-width: 100%;
-    border-radius: 20px;
-    z-index: 1;
-    background: transparent;
-  }
-
-  .buttons {
-    position: relative;
-    /* לא פיקסד במובייל */
+  .mobile-logo-wrap {
     display: flex;
     justify-content: center;
-    margin: 1rem 0;
+    margin-top: -72px;
+    margin-bottom: 18px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .mobile-logo {
+    width: 104px;
+    height: 104px;
+    border-radius: 28px;
+    box-shadow: 0 16px 36px rgba(45, 58, 31, 0.22);
+    background: #fff;
+  }
+
+  .tag {
+    align-self: center;
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  .login-panel h1 {
+    font-size: 34px;
+    margin-bottom: 14px;
+  }
+
+  .subtitle {
+    max-width: none;
+    font-size: 17px;
+    line-height: 1.7;
+    margin-bottom: 24px;
+  }
+
+  .main-login-btn {
+    max-width: none;
+    height: 58px;
+    font-size: 18px;
+    border-radius: 17px;
+  }
+
+  .features {
+    justify-content: center;
+    margin-top: 22px;
   }
 }
 
-/* ---- התאמות מסך קטן (מתחת ל-576px) ---- */
-@media (max-width: 576px) {
-
-  .activity-box strong {
-    font-size: 1rem;
-    z-index: 1;
-    background: transparent;
+@media (max-width: 420px) {
+  .brand-panel {
+    min-height: 190px;
   }
 
-  .login-icon {
-    font-size: 0.9rem;
-    padding: 0.5rem 1rem;
+  .mobile-logo {
+    width: 92px;
+    height: 92px;
+    border-radius: 24px;
+  }
+
+  .mobile-logo-wrap {
+    margin-top: -62px;
+  }
+
+  .login-panel h1 {
+    font-size: 30px;
+  }
+
+  .subtitle {
+    font-size: 16px;
   }
 }
