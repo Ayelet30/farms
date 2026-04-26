@@ -8,8 +8,7 @@ import { RequestStatus } from '../../Types/detailes.model';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { getAuth } from 'firebase/auth';
-import { requireTenant } from '../../services/supabaseClient.service';
-
+import { requireTenant, supabase } from '../../services/supabaseClient.service';
 type ImpactRow = {
   occur_date: string; // date
   start_time: string; // time
@@ -49,7 +48,20 @@ readonly isSickRequest = computed(() => {
 
 readonly medicalCertificateUrl = computed(() => {
   const p: any = (this.req() as any)?.payload ?? {};
-  return p.medical_certificate_url ?? null;
+  const path = p.medical_certificate_url ?? null;
+
+  if (!path) return null;
+
+  if (!supabase) {
+    console.error('Supabase client is not initialized');
+    return null;
+  }
+
+  const { data } = supabase.storage
+    .from('sick_notes')
+    .getPublicUrl(path);
+
+  return data.publicUrl;
 });
 readonly windowText = computed(() => {
   const r: any = this.req() ?? {};
