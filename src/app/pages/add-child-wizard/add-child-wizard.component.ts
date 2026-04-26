@@ -932,18 +932,23 @@ get isExemptFromPayment(): boolean {
     const terminalName = data?.terminal_name ?? 'moachapp';
     const amount = '1.00';
 
+    console.log('!!!!!!!!!!!!!@@@@@@@@@@@@@###############')
     this.hfReg.charge(
       {
-        terminal_name: terminalName,
-        thtk: this.thtkReg,
-        currency_code: 'ILS',
-        amount,
-        txn_type: 'verify',
-        verify_mode: 2,
-        response_language: 'hebrew',
-        requested_by_user: 'registration-tokenize',
-        email: user?.email ?? undefined,
-        contact: `${this.child.first_name} ${this.child.last_name}`.trim() || undefined,
+         terminal_name: terminalName,
+          thtk: this.thtkReg,
+
+          tran_mode: 'N',       // J2 Validate בלבד
+          tokenize: true,       // חובה כדי לקבל טוקן
+          amount: '1',          // לפי התיעוד amount חובה, אבל ב־N לא אמור להיות חיוב
+          currency_code: 'ILS',
+          payment_plan: 1,
+
+          response_language: 'hebrew',
+          requested_by_user: 'registration-tokenize',
+
+          email: user?.email ?? undefined,
+          contact: `${this.child.first_name} ${this.child.last_name}`.trim() || undefined,
       },
       async (err: any, response: any) => {
         try {
@@ -957,6 +962,7 @@ get isExemptFromPayment(): boolean {
           }
 
           const tx = response?.transaction_response;
+          console.log('Transaction response:', tx);
           if (!tx?.success) {
             this.tokenError = tx?.error || 'שמירת אמצעי תשלום נכשלה';
             return;
