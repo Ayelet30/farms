@@ -2,7 +2,7 @@ import { Component, OnInit, ViewChild, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UiDialogService } from '../../services/ui-dialog.service';
-
+import { supabase } from '../../services/supabaseClient.service';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MailService } from '../../services/mail.service';
@@ -65,9 +65,17 @@ interface InstructorDetailsRow extends InstructorRow {
   photo_url?: string | null;
   notify?: any | null; // jsonb הגדרות התראות
 color_hex?: string | null;
-
-  // ✅ השדות החדשים:
   birth_date?: string | null;        // מגיע מ-Supabase כ-'YYYY-MM-DD'
+}
+interface InstructorUnavailabilityRow {
+  id: string;
+  instructor_id_number: string;
+  from_ts: string;
+  to_ts: string;
+  reason?: string | null;
+  all_day: boolean;
+  category?: string | null;
+  sick_note_file_path?: string | null;
 }
 
 @Component({
@@ -86,7 +94,7 @@ export class SecretaryInstructorsComponent implements OnInit {
 
   // לו"ז שבועי במצב עריכה
   editAvailability: InstructorWeeklyAvailabilityRow[] = [];
-
+drawerUnavailability: InstructorUnavailabilityRow[] = [];
   dayOfWeekToLabel(d?: number | null): string {
     switch (d) {
       case 1: return 'ראשון';
@@ -446,6 +454,7 @@ sanitizeAddress(v: any): string {
     this.editModel = null;
     this.drawerAvailability = [];
     this.editAvailability = [];
+    this.drawerUnavailability = [];
 
     this.drawer.open();
     await this.loadDrawerData(this.selectedIdNumber!);
@@ -513,6 +522,7 @@ sanitizeAddress(v: any): string {
         this.editModel = null;
         this.drawerAvailability = [];
         this.editAvailability = [];
+        this.drawerUnavailability = [];
         return;
       }
 
@@ -566,14 +576,37 @@ sanitizeAddress(v: any): string {
       if (availErr) {
         this.drawerAvailability = [];
         this.editAvailability = [];
+        this.drawerUnavailability = [];
       } else {
         this.drawerAvailability = (avail ?? []) as InstructorWeeklyAvailabilityRow[];
         this.editAvailability = this.drawerAvailability.map(a => ({ ...a }));
       }
+      const { data: unavailability, error: unErr } = await dbcTenant
+  .from('instructor_unavailability')
+  .select(`
+    id,
+    instructor_id_number,
+    from_ts,
+    to_ts,
+    reason,
+    all_day,
+    category,
+    sick_note_file_path
+  `)
+  .eq('instructor_id_number', id_number)
+  .order('from_ts', { ascending: false });
+
+if (unErr) {
+  console.error('failed loading instructor unavailability', unErr);
+  this.drawerUnavailability = [];
+} else {
+  this.drawerUnavailability = (unavailability ?? []) as InstructorUnavailabilityRow[];
+}
     } catch (e: any) {
       console.error('[INSTRUCTORS] loadDrawerData failed:', e);
       this.error = e?.message || 'טעינת פרטי מדריך נכשלה';
       this.drawerInstructor = null;
+      this.drawerUnavailability = [];
       this.editModel = null;
       this.drawerAvailability = [];
       this.editAvailability = [];
@@ -1392,5 +1425,78 @@ private async callDeactivateInstructorAndCancelFutureLessons(payload: {
     throw new Error(json?.message || json?.error || 'עדכון מדריך וביטול שיעורים נכשל');
   }
   return json;
+}
+dayOffCategoryLabel(category?: string | null): string {
+  switch (String(category ?? '').toUpperCase()) {
+    case 'SICK': return 'יום מחלה';
+    case 'HOLIDAY': return 'יום חופש';
+    case 'PERSONAL': return 'יום אישי';
+    case 'OTHER': return 'אחר';
+    default: return 'היעדרות';
+  }
+}
+
+formatDateTime(v?: string | null): string {
+  if (!v) return '—';
+  return new Date(v).toLocaleString('he-IL', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
+}
+
+getSickNoteUrl(path?: string | null): string | null {
+  if (!path) return null;
+
+  if (!supabase) {
+    console.error('Supabase client is not initialized');
+    return null;
+  }
+
+  const { data } = supabase.storage
+    .from('sick_notes')
+    .getPublicUrl(path);
+
+  return data.publicUrl;
+}
+
+isSickWithoutFile(row: InstructorUnavailabilityRow): boolean {
+  return String(row.category ?? '').toUpperCase() === 'SICK' && !row.sick_note_file_path;
+}
+isSickCategory(category?: string | null): boolean {
+  return (category ?? '').toUpperCase() === 'SICK';
+}
+
+formatDateOnly(v?: string | null): string {
+  if (!v) return '';
+
+  const iso = String(v).slice(0, 10); // YYYY-MM-DD
+  const [y, m, d] = iso.split('-');
+
+  return `${d}.${m}.${y}`;
+}
+
+formatTimeOnly(v?: string | null): string {
+  if (!v) return '';
+
+  return new Date(v).toLocaleTimeString('he-IL', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+formatUnavailabilityWindow(d: InstructorUnavailabilityRow): string {
+  const fromDate = this.formatDateOnly(d.from_ts);
+
+  if (d.all_day) {
+    return `${fromDate} · יום מלא`;
+  }
+
+  const toDate = this.formatDateOnly(d.to_ts);
+  const fromTime = this.formatTimeOnly(d.from_ts);
+  const toTime = this.formatTimeOnly(d.to_ts);
+
+  return fromDate === toDate
+    ? `${fromDate} · ${fromTime}–${toTime}`
+    : `${fromDate} ${fromTime} – ${toDate} ${toTime}`;
 }
 }

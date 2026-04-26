@@ -220,6 +220,7 @@ export const secretaryCreateInstructorDayOffAndNotify = onRequest(
       const endTime = fmtTime(body.endTime);
 
       const requestType = normalizeRequestType(body.requestType);
+      
       const decisionNote =
         body.decisionNote == null ? null : String(body.decisionNote).trim();
 
@@ -264,21 +265,29 @@ export const secretaryCreateInstructorDayOffAndNotify = onRequest(
         ? new Date(`${toDate}T23:59:59Z`).toISOString()
         : toIsoUtc(toDate, endTime!);
 
-      const reason =
-        decisionNote?.trim() ||
-        requestTypeLabel(requestType) ||
-        'Instructor day off';
+     const reason =
+  decisionNote?.trim() === ''
+    ? null
+    : decisionNote?.trim() ?? null;
+const sickNoteFilePath =
+  body.medicalCertificateUrl == null ||
+  String(body.medicalCertificateUrl).trim() === ''
+    ? null
+    : String(body.medicalCertificateUrl).trim();
+    const { error: unErr } = await sbTenant
+  .from('instructor_unavailability')
+  .insert({
+    instructor_id_number: instructorId,
+    from_ts: fromTs,
+    to_ts: toTs,
 
-      const { error: unErr } = await sbTenant
-        .from('instructor_unavailability')
-        .insert({
-          instructor_id_number: instructorId,
-          from_ts: fromTs,
-          to_ts: toTs,
-          reason,
-          all_day: allDay,
-        } as any);
+    reason,
+    all_day: allDay,
 
+    category: requestType, 
+    sick_note_file_path:
+      requestType === 'SICK' ? sickNoteFilePath : null, 
+  } as any);
       if (unErr) throw unErr;
 
       // 2) occurrences בטווח

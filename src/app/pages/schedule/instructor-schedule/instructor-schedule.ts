@@ -1336,10 +1336,18 @@ if (this.pendingSickFile) {
     data.id
   );
 
-  await dbc
-    .from('secretarial_requests')
-    .update({ sick_note_file_path: path })
-    .eq('id', data.id);
+const updatedPayload = {
+  ...(data.payload ?? payload),
+  medical_certificate_url: path,
+};
+
+await dbc
+  .from('secretarial_requests')
+  .update({
+    sick_note_file_path: path,
+    payload: updatedPayload,
+  })
+  .eq('id', data.id);
 }
   this.dayRequests.push(...this.expandRequestRow(data));
   this.setScheduleItems();

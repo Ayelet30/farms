@@ -185,15 +185,28 @@ export const approveInstructorDayOffAndNotify = onRequest(
         ? new Date(`${toDate}T23:59:59Z`).toISOString()
         : toIsoUtc(toDate, endTime!);
 
-      const { error: unErr } = await sbTenant
-        .from('instructor_unavailability')
-        .insert({
-          instructor_id_number: instructorId,
-          from_ts: fromTs,
-          to_ts: toTs,
-          reason: String(payload?.reason ?? payload?.note ?? 'Instructor day off'),
-          all_day: allDay,
-        } as any);
+      const dayOffCategory = String(payload?.category ?? 'OTHER').trim().toUpperCase();
+
+const freeTextReason =
+  payload?.note == null || String(payload.note).trim() === ''
+    ? null
+    : String(payload.note).trim();
+const sickNoteFilePath =
+  payload?.medical_certificate_url == null ||
+  String(payload.medical_certificate_url).trim() === ''
+    ? null
+    : String(payload.medical_certificate_url).trim();
+const { error: unErr } = await sbTenant
+  .from('instructor_unavailability')
+ .insert({
+  instructor_id_number: instructorId,
+  from_ts: fromTs,
+  to_ts: toTs,
+  category: dayOffCategory,
+  reason: freeTextReason,
+  sick_note_file_path: sickNoteFilePath,
+  all_day: allDay,
+} as any);
 
       if (unErr) throw unErr;
 
