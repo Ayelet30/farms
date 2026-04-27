@@ -136,6 +136,7 @@ export interface UiRequest {
   childId?: string | null;
   instructorId?: string | null;
   lessonOccId?: string | null;
+  decisionNote?: string | null;
 
 }
 
