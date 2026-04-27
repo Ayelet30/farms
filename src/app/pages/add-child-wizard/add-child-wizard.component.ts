@@ -406,8 +406,12 @@ get isMaccabi(): boolean {
   return this.child.health_fund === 'מכבי';
 }
 
+get isLeumit(): boolean {
+  return this.child.health_fund === 'לאומית';
+}
+
 get isExemptFromPayment(): boolean {
-  return this.isRaananaFarm && this.isMaccabi;
+  return this.isRaananaFarm && this.isMaccabi || this.isRaananaFarm && this.isLeumit;
 }
 
   allowOnlyNumbers(event: KeyboardEvent) {
