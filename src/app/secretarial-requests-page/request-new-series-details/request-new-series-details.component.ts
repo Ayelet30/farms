@@ -1115,6 +1115,16 @@ private async sendSeriesRejectedEmail(requestId: string): Promise<any>{
 return json;
 
 }
+formatDate(value: string | null | undefined): string {
+  if (!value || value === '—') return '—';
 
+  const s = String(value).slice(0, 10);
+  const parts = s.split('-');
+
+  if (parts.length !== 3) return s;
+
+  const [yyyy, mm, dd] = parts;
+  return `${dd}/${mm}/${yyyy}`;
+}
 
 }

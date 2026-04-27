@@ -569,4 +569,15 @@ private async getOriginalOccurDate(_db: any, _lessonId: string): Promise<string 
 
   return null;
 }
+formatDate(value: string | null | undefined): string {
+  if (!value) return '—';
+
+  const s = String(value).slice(0, 10);
+  const parts = s.split('-');
+
+  if (parts.length !== 3) return s;
+
+  const [yyyy, mm, dd] = parts;
+  return `${dd}/${mm}/${yyyy}`;
+}
 }
