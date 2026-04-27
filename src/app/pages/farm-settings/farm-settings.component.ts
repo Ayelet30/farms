@@ -41,6 +41,24 @@ interface RidingType {
 }
 
 
+
+interface SpecialCharge {
+  id?: UUID;
+  item: string;
+  amount: number | null;
+  notes: string | null;
+
+  charge_on_registration: boolean;
+  charge_on_specific_date: boolean;
+  charge_date: string | null;
+
+charge_times_per_year: number | null;
+  is_required: boolean;
+  warning_note: string | null;
+
+  is_active: boolean;
+  sort_order: number;
+}
 interface FarmSettings {
   availability_days_ahead?: number | null;
   id?: UUID;
@@ -92,10 +110,6 @@ interface FarmSettings {
   suggest_makeup_on_cancel?: boolean | null;
   reminder_require_confirmation?: boolean | null;
   reminder_allow_cancel_link?: boolean | null;
-
-  iscreatebillingcharge?: boolean | null; // תקופת הרצה - הכנסת ילדים רשומים למערכת לא מחייבים דמי רישום.
-  registration_fee: number | null;
-  student_insurance_premiums: number | null;
 
   max_group_size?: number | null;
   max_lessons_per_week_per_child?: number | null;
@@ -210,9 +224,7 @@ type SettingsErrors = {
   reminder_hours_before?: string;
 notify_before_farm_closure_hours?: string;
 min_time_between_cancellations?: string;
-registration_fee?: string;
-iscreatebillingcharge?: string;
-student_insurance_premiums?: string;
+
 
 };
 
@@ -253,7 +265,25 @@ newRidingTypeMax = signal<number | null>(null);
 participantsMinError = signal<string | null>(null);
 participantsMaxError = signal<string | null>(null);
 private tenantSvc = inject(SupabaseTenantService);
+specialCharges = signal<SpecialCharge[]>([]);
+showNewSpecialChargeForm = signal(false);
 
+newSpecialCharge = signal<SpecialCharge>({
+  item: '',
+  amount: null,
+  notes: null,
+
+  charge_on_registration: true,
+  charge_on_specific_date: false,
+  charge_date: null,
+
+charge_times_per_year: null,
+  is_required: true,
+  warning_note: null,
+
+  is_active: true,
+  sort_order: 0,
+});
 validateParticipants(): void {
   const min = this.newRidingTypeMin();
   const max = this.newRidingTypeMax();
@@ -406,7 +436,8 @@ hasAnyActiveWorkingDay(): boolean {
       this.loadFarmDaysOff(),
       this.loadWorkingHours(),
       this.loadListNotes(),
-        this.loadRidingTypes(),
+      this.loadRidingTypes(),
+      this.loadSpecialCharges(),
     ]);
 
     if (!this.workingHours().length) {
@@ -1409,10 +1440,6 @@ leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
       reminder_require_confirmation: false,
       reminder_allow_cancel_link: true,
 
-      iscreatebillingcharge: false,
-      registration_fee: null,
-      student_insurance_premiums: null,
-
       max_group_size: 6,
       max_lessons_per_week_per_child: 2,
       allow_online_booking: true,
@@ -1427,20 +1454,7 @@ if (
 ) {
   errors.default_lesson_price = 'מחיר שיעור חייב להיות בין 0 ל־999 ₪';
 }
-if (
-  s.student_insurance_premiums != null &&
-  (s.student_insurance_premiums < 0 || s.student_insurance_premiums > 2000)
-) {
-  errors.student_insurance_premiums =
-    'ביטוח תלמידים חייב להיות בין 0 ל־2000 ₪';
-}
-if (
-  s.registration_fee != null &&
-  (s.registration_fee < 0 || s.registration_fee > 5000)
-) {
-  errors.registration_fee =
-    'דמי רישום חייבים להיות בין 0 ל־5000 ₪';
-}
+
 if (s.min_time_between_cancellations) {
   const [h, m] = s.min_time_between_cancellations.split(':').map(Number);
   if (
@@ -2395,6 +2409,391 @@ toggleFundingSourcesExpanded() {
   this.fundingSourcesExpanded.update(v => !v);
   if (!this.fundingSourcesExpanded()) this.showNewFundingForm.set(false);
 }
+async loadSpecialCharges(): Promise<void> {
+  const { data, error } = await this.supabase
+    .from('special_charges')
+    .select('*')
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true });
 
+  if (error) {
+    console.error('loadSpecialCharges error', error);
+    this.flashError('טעינת החיובים המיוחדים נכשלה.');
+    return;
+  }
+
+  this.specialCharges.set((data || []) as SpecialCharge[]);
+}
+toggleNewSpecialChargeForm(): void {
+  const next = !this.showNewSpecialChargeForm();
+  this.showNewSpecialChargeForm.set(next);
+
+  if (next) {
+    this.newSpecialCharge.set({
+      item: '',
+      amount: null,
+      notes: null,
+
+      charge_on_registration: true,
+      charge_on_specific_date: false,
+      charge_date: null,
+
+charge_times_per_year: null,
+      is_required: true,
+      warning_note: null,
+
+      is_active: true,
+      sort_order: this.specialCharges().length + 1,
+    });
+  }
+}
+onSpecialChargeDateToggle(c: SpecialCharge): void {
+  if (!c.charge_on_specific_date) {
+    c.charge_date = null;
+  }
+}
+validateSpecialCharge(c: SpecialCharge): string | null {
+  if (!c.item?.trim()) return 'חובה להזין שם פריט.';
+  if (c.amount == null || c.amount < 0) return 'חובה להזין סכום תקין.';
+const selectedCount =
+  (c.charge_on_registration ? 1 : 0) +
+  (c.charge_on_specific_date ? 1 : 0) +
+  (c.charge_times_per_year != null ? 1 : 0);
+
+if (selectedCount !== 1) {
+  return 'חובה לבחור אפשרות חיוב אחת בלבד: בהרשמה, בתאריך ספציפי או כמה פעמים בשנה.';
+}
+if (c.charge_on_specific_date && !c.charge_date) {
+  return 'כאשר בוחרים תשלום בתאריך ספציפי חובה לבחור תאריך.';
+}
+if (
+  c.charge_times_per_year == null ||
+  c.charge_times_per_year < 1 ||
+  c.charge_times_per_year > 365
+) {
+  return 'מספר הפעמים בשנה חייב להיות בין 1 ל־365.';
+}
+
+  return null;
+}
+async createSpecialCharge(): Promise<void> {
+  const c = this.newSpecialCharge();
+  const err = this.validateSpecialCharge(c);
+
+  if (err) {
+    await this.ui.alert(err, 'שגיאה');
+    return;
+  }
+
+  const { error } = await this.supabase
+    .from('special_charges')
+    .insert({
+      item: c.item.trim(),
+      amount: c.amount,
+      notes: c.notes?.trim() || null,
+
+      charge_on_registration: !!c.charge_on_registration,
+      charge_on_specific_date: !!c.charge_on_specific_date,
+      charge_date: c.charge_on_specific_date ? c.charge_date : null,
+
+charge_times_per_year: Number(c.charge_times_per_year ?? 1),
+      is_required: !!c.is_required,
+      warning_note: c.warning_note?.trim() || null,
+
+      is_active: !!c.is_active,
+      sort_order: c.sort_order ?? 0,
+    });
+
+  if (error) {
+    console.error('createSpecialCharge error', error);
+    await this.ui.alert('שמירת החיוב נכשלה.', 'שגיאה');
+    return;
+  }
+
+  this.showNewSpecialChargeForm.set(false);
+  await this.loadSpecialCharges();
+  this.flashSuccess('החיוב נוסף בהצלחה.');
+}
+async updateSpecialCharge(c: SpecialCharge): Promise<void> {
+  if (!c.id) return;
+
+  const err = this.validateSpecialCharge(c);
+
+  if (err) {
+    await this.ui.alert(err, 'שגיאה');
+    return;
+  }
+
+  const { error } = await this.supabase
+    .from('special_charges')
+    .update({
+      item: c.item.trim(),
+      amount: c.amount,
+      notes: c.notes?.trim() || null,
+
+      charge_on_registration: !!c.charge_on_registration,
+      charge_on_specific_date: !!c.charge_on_specific_date,
+      charge_date: c.charge_on_specific_date ? c.charge_date : null,
+
+charge_times_per_year: Number(c.charge_times_per_year ?? 1),
+      is_required: !!c.is_required,
+      warning_note: c.warning_note?.trim() || null,
+
+      is_active: !!c.is_active,
+      sort_order: c.sort_order ?? 0,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', c.id);
+
+  if (error) {
+    console.error('updateSpecialCharge error', error);
+    await this.ui.alert('עדכון החיוב נכשל.', 'שגיאה');
+    return;
+  }
+
+  await this.loadSpecialCharges();
+  this.flashSuccess('החיוב עודכן בהצלחה.');
+}
+async deactivateSpecialCharge(c: SpecialCharge): Promise<void> {
+  if (!c.id) return;
+
+  const confirmed = await this.ui.confirm({
+    title: 'ביטול חיוב מיוחד',
+    message: `להפוך את "${c.item}" ללא פעיל?`,
+    okText: 'כן',
+    cancelText: 'ביטול',
+    showCancel: true,
+  });
+
+  if (!confirmed) return;
+
+  const { error } = await this.supabase
+    .from('special_charges')
+    .update({
+      is_active: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', c.id);
+
+  if (error) {
+    console.error('deactivateSpecialCharge error', error);
+    await this.ui.alert('ביטול החיוב נכשל.', 'שגיאה');
+    return;
+  }
+
+  await this.loadSpecialCharges();
+}
+
+patchNewSpecialCharge(patch: Partial<SpecialCharge>): void {
+  this.newSpecialCharge.update(current => ({
+    ...current,
+    ...patch,
+  }));
+}
+
+onRegistrationChargeToggle(c: SpecialCharge, checked: boolean): void {
+  c.charge_on_registration = checked;
+
+  if (checked) {
+    c.charge_on_specific_date = false;
+    c.charge_date = null;
+  }
+}
+onSpecificDateChargeToggle(c: SpecialCharge, checked: boolean): void {
+  c.charge_on_specific_date = checked;
+
+  if (checked) {
+    c.charge_on_registration = false;
+  } else {
+    c.charge_date = null;
+  }
+}
+
+
+selectNewChargeOnRegistration(checked: boolean): void {
+  this.patchNewSpecialCharge({
+    charge_on_registration: checked,
+    charge_on_specific_date: checked ? false : this.newSpecialCharge().charge_on_specific_date,
+    charge_date: checked ? null : this.newSpecialCharge().charge_date,
+    charge_times_per_year: checked ? null : this.newSpecialCharge().charge_times_per_year,
+  });
+}
+
+selectNewChargeOnSpecificDate(checked: boolean): void {
+  this.patchNewSpecialCharge({
+    charge_on_specific_date: checked,
+    charge_on_registration: checked ? false : this.newSpecialCharge().charge_on_registration,
+    charge_times_per_year: checked ? null : this.newSpecialCharge().charge_times_per_year,
+    charge_date: checked ? this.newSpecialCharge().charge_date : null,
+  });
+}
+
+selectNewChargeTimesPerYear(value: any): void {
+  const n = value === '' || value == null ? null : Number(value);
+
+  this.patchNewSpecialCharge({
+    charge_times_per_year: n,
+    charge_on_registration: n != null ? false : this.newSpecialCharge().charge_on_registration,
+    charge_on_specific_date: n != null ? false : this.newSpecialCharge().charge_on_specific_date,
+    charge_date: n != null ? null : this.newSpecialCharge().charge_date,
+  });
+}
+selectExistingChargeOnRegistration(c: SpecialCharge, checked: boolean): void {
+  c.charge_on_registration = checked;
+
+  if (checked) {
+    c.charge_on_specific_date = false;
+    c.charge_date = null;
+    c.charge_times_per_year = null;
+  }
+}
+
+selectExistingChargeOnSpecificDate(c: SpecialCharge, checked: boolean): void {
+  c.charge_on_specific_date = checked;
+
+  if (checked) {
+    c.charge_on_registration = false;
+    c.charge_times_per_year = null;
+  } else {
+    c.charge_date = null;
+  }
+}
+
+selectExistingChargeTimesPerYear(c: SpecialCharge, value: any): void {
+  const n = value === '' || value == null ? null : Number(value);
+  c.charge_times_per_year = n;
+
+  if (n != null) {
+    c.charge_on_registration = false;
+    c.charge_on_specific_date = false;
+    c.charge_date = null;
+  }
+}
+enforceChargeRule(mode: 'registration' | 'date' | 'yearly', value: any): void {
+  const cur = this.newSpecialCharge();
+
+  let updated = { ...cur };
+
+  if (mode === 'registration') {
+    updated.charge_on_registration = value;
+
+    if (value) {
+      updated.charge_on_specific_date = false;
+      updated.charge_times_per_year = null;
+      updated.charge_date = null;
+    }
+  }
+
+  if (mode === 'date') {
+    updated.charge_on_specific_date = value;
+
+    if (value) {
+      updated.charge_on_registration = false;
+      updated.charge_times_per_year = null;
+    } else {
+      updated.charge_date = null;
+    }
+  }
+
+  if (mode === 'yearly') {
+    let n = value === '' || value == null ? null : Number(value);
+
+    if (n != null) {
+      if (n < 1) n = 1;
+      if (n > 365) n = 365;
+    }
+
+    updated.charge_times_per_year = n;
+
+    if (n != null) {
+      updated.charge_on_registration = false;
+      updated.charge_on_specific_date = false;
+      updated.charge_date = null;
+    }
+  }
+
+  this.newSpecialCharge.set(updated);
+}
+enforceExistingChargeRule(
+  c: SpecialCharge,
+  mode: 'registration' | 'date' | 'yearly',
+  value: any
+): void {
+  if (mode === 'registration') {
+    c.charge_on_registration = !!value;
+
+    if (value) {
+      c.charge_on_specific_date = false;
+      c.charge_times_per_year = null;
+      c.charge_date = null;
+    }
+  }
+
+  if (mode === 'date') {
+    c.charge_on_specific_date = !!value;
+
+    if (value) {
+      c.charge_on_registration = false;
+      c.charge_times_per_year = null;
+    } else {
+      c.charge_date = null;
+    }
+  }
+
+  if (mode === 'yearly') {
+    let n = value === '' || value == null ? null : Number(value);
+
+    if (n != null) {
+      if (n < 1) n = 1;
+      if (n > 365) n = 365;
+    }
+
+    c.charge_times_per_year = n;
+
+    if (n != null) {
+      c.charge_on_registration = false;
+      c.charge_on_specific_date = false;
+      c.charge_date = null;
+    }
+  }
+}
+onTimesPerYearChange(value: any): void {
+  let n = value === '' || value == null ? null : Number(value);
+
+  if (n != null) {
+    if (n < 1) n = 1;
+    if (n > 365) n = 365;
+  }
+
+  this.selectNewChargeTimesPerYear(n);
+}
+onNewTimesPerYearInput(event: Event): void {
+  const input = event.target as HTMLInputElement;
+
+  let value = input.value === '' ? null : Number(input.value);
+
+  if (value != null) {
+    if (value < 1) value = 1;
+    if (value > 365) value = 365;
+
+    input.value = String(value);
+  }
+
+  this.selectNewChargeTimesPerYear(value);
+}
+onExistingTimesPerYearInput(c: SpecialCharge, event: Event): void {
+  const input = event.target as HTMLInputElement;
+
+  let value = input.value === '' ? null : Number(input.value);
+
+  if (value != null) {
+    if (value < 1) value = 1;
+    if (value > 365) value = 365;
+
+    input.value = String(value);
+  }
+
+  this.selectExistingChargeTimesPerYear(c, value);
+}
 }
 
