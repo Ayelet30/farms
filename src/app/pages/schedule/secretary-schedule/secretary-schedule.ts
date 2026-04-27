@@ -106,6 +106,16 @@ farmDaysOff: any[] = [];
   endTime: '',
 };
 
+moveSlotsModal = {
+  open: false,
+  mode: 'single' as 'single' | 'series',
+  loading: false,
+  saving: false,
+  error: '',
+  slots: [] as any[],
+  selectedSlot: null as any | null,
+};
+
   currentRange: { start: string; end: string; viewType: string } | null = null;
   currentViewType:
   | 'timeGridDay'
@@ -2122,6 +2132,18 @@ private getColorForInstructor(id: string): string {
   return palette[idx];
 }
 
+private addDaysYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+
+  return [
+    dt.getFullYear(),
+    String(dt.getMonth() + 1).padStart(2, '0'),
+    String(dt.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
 isSeriesContext(): boolean {
   return (
     this.contextMenu.appointmentKind === 'therapy_series' ||
@@ -2431,16 +2453,238 @@ closeMoveChoiceModal(): void {
   this.cdr.detectChanges();
 }
 
-chooseMoveSingleOccurrence(): void {
-  // כאן בשלב הבא נחבר את מודאל רשימת האפשרויות הפנויות
-  console.log('move single occurrence', this.moveChoiceModal);
-  this.closeMoveChoiceModal();
+async chooseMoveSingleOccurrence(): Promise<void> {
+  this.moveChoiceModal.open = false;
+
+  this.moveSlotsModal = {
+    open: true,
+    mode: 'single',
+    loading: true,
+    saving: false,
+    error: '',
+    slots: [],
+    selectedSlot: null,
+  };
+
+  this.cdr.detectChanges();
+
+  try {
+    const from = this.moveChoiceModal.occurDate;
+    const to = this.addDaysYmd(from, 30);
+
+    const { data, error } = await dbTenant().rpc(
+      'find_makeup_slots_for_lesson_by_id_number',
+      {
+        p_child_id: this.contextMenu.childId,
+        p_instructor_id: null,
+        p_from_date: from,
+        p_to_date: to,
+      }
+    );
+
+    if (error) throw error;
+
+    this.moveSlotsModal.slots = (data ?? []).filter((s: any) => {
+      const sameDate = s.occur_date === this.moveChoiceModal.occurDate;
+      const sameStart = String(s.start_time).slice(0, 5) === String(this.moveChoiceModal.startTime).slice(0, 5);
+      const sameInstructor = String(s.instructor_id) === String(this.moveChoiceModal.instructorId);
+
+      return !(sameDate && sameStart && sameInstructor);
+    });
+  } catch (e) {
+    console.error('load single move slots failed', e);
+    this.moveSlotsModal.error = 'שגיאה בטעינת אפשרויות להזזת שיעור';
+  } finally {
+    this.moveSlotsModal.loading = false;
+    this.cdr.detectChanges();
+  }
 }
 
-chooseMoveWholeSeries(): void {
-  // כאן בשלב הבא נחבר את מודאל הזזת הסדרה + פופאפ אישור
-  console.log('move whole series', this.moveChoiceModal);
-  this.closeMoveChoiceModal();
+selectMoveSlot(slot: any): void {
+  this.moveSlotsModal.selectedSlot = slot;
+}
+
+async confirmMove(): Promise<void> {
+  const slot = this.moveSlotsModal.selectedSlot;
+  if (!slot) return;
+
+  this.moveSlotsModal.saving = true;
+  this.cdr.detectChanges();
+
+  try {
+   if (this.moveSlotsModal.mode === 'single') {
+  const date = slot.occur_date || slot.lesson_date;
+  const start = String(slot.start_time || slot.start).slice(0, 5);
+  const end = String(slot.end_time || slot.end).slice(0, 5);
+
+  const newStartDatetime = `${date}T${start}:00`;
+  const newEndDatetime = `${date}T${end}:00`;
+
+  const { error } = await dbTenant().rpc('move_lesson_occurrence', {
+    p_lesson_id: this.moveChoiceModal.lessonId,
+    p_occur_date: this.moveChoiceModal.occurDate,
+    p_new_instructor_id: slot.instructor_id,
+    p_new_start_datetime: newStartDatetime,
+    p_new_end_datetime: newEndDatetime,
+    p_note: null,
+    p_created_by_role: 'secretary',
+    p_created_by_uid: null
+  });
+
+  if (error) throw error;
+}
+    if (this.moveSlotsModal.mode === 'series') {
+      // 🔥 הזזה של סדרה
+      const { error } = await dbTenant().rpc('move_lesson_series', {
+        p_lesson_id: this.moveChoiceModal.lessonId,
+        p_new_instructor_id: slot.instructor_id,
+        p_new_day_of_week: slot.day_of_week,
+        p_new_start_time: slot.start,
+        p_new_end_time: slot.end,
+      });
+
+      if (error) throw error;
+    }
+
+    // 🔁 רענון לוח
+    if (this.currentRange) {
+      await this.loadLessons({
+        start: this.currentRange.start,
+        end: this.currentRange.end,
+      });
+
+      this.filterLessons();
+      this.setScheduleItems();
+      this.buildBlockedDayCells(this.currentRange);
+      this.buildWeekStats();
+    }
+
+    this.moveSlotsModal.open = false;
+    this.moveSlotsModal.selectedSlot = null;
+
+    await this.ui.alert('השיעור עודכן בהצלחה', 'בוצע');
+
+  } catch (e) {
+    console.error('move failed', e);
+    await this.ui.alert('שגיאה בהזזה', 'שגיאה');
+  } finally {
+    this.moveSlotsModal.saving = false;
+    this.cdr.detectChanges();
+  }
+}
+
+async chooseMoveWholeSeries(): Promise<void> {
+  this.moveChoiceModal.open = false;
+
+  this.moveSlotsModal = {
+    open: true,
+    mode: 'series',
+    loading: true,
+    saving: false,
+    error: '',
+    slots: [],
+    selectedSlot: null,
+  };
+
+  this.cdr.detectChanges();
+
+  try {
+    const from = this.moveChoiceModal.occurDate;
+    const to = this.addDaysYmd(from, 90);
+
+    const lesson = this.lessons.find(
+      (l: any) => String(l.lesson_id) === String(this.moveChoiceModal.lessonId)
+    ) as any;
+
+    const isOpenEnded = !!lesson?.is_open_ended;
+    const repeatWeeks = Number(lesson?.repeat_weeks ?? 1);
+
+    const rpcName = isOpenEnded
+      ? 'find_open_ended_series_slots_with_skips'
+      : 'find_series_slots_with_skips';
+
+    const payload = isOpenEnded
+      ? {
+          p_child_id: this.contextMenu.childId,
+          p_from_date: from,
+          p_instructor_id_number: null,
+        }
+      : {
+          p_child_id: this.contextMenu.childId,
+          p_lesson_count: repeatWeeks,
+          p_instructor_id_number: null,
+          p_from_date: from,
+          p_to_date: to,
+        };
+
+    const { data, error } = await dbTenant().rpc(rpcName, payload);
+
+    if (error) throw error;
+
+    this.moveSlotsModal.slots = (data ?? []).map((s: any) => ({
+      occur_date: s.lesson_date,
+      start_time: s.start_time,
+      end_time: s.end_time,
+      instructor_id: s.instructor_id,
+      instructor_name:
+        this.instructors.find(i => String(i.id_number) === String(s.instructor_id))
+          ? `${this.instructors.find(i => String(i.id_number) === String(s.instructor_id))?.first_name ?? ''} ${this.instructors.find(i => String(i.id_number) === String(s.instructor_id))?.last_name ?? ''}`.trim()
+          : s.instructor_id,
+      lesson_ridding_type: s.riding_type_id ?? null,
+      riding_type_name: s.riding_type_name ?? null,
+      remaining_capacity: 1,
+      raw: s,
+    }));
+  } catch (e) {
+    console.error('load series move slots failed', e);
+    this.moveSlotsModal.error = 'שגיאה בטעינת אפשרויות להזזת סדרה';
+  } finally {
+    this.moveSlotsModal.loading = false;
+    this.cdr.detectChanges();
+  }
+}
+
+
+async confirmMoveSelectedSlot(): Promise<void> {
+  const slot = this.moveSlotsModal.selectedSlot;
+  if (!slot) return;
+
+  if (this.moveSlotsModal.mode === 'single') {
+    //await this.confirmMoveSingle(slot);
+    return;
+  }
+
+  //await this.confirmMoveSeries(slot);
+}
+
+moveSlotsPage = 0;
+moveSlotsPageSize = 4;
+
+get pagedMoveSlots(): any[] {
+  const start = this.moveSlotsPage * this.moveSlotsPageSize;
+  return this.moveSlotsModal.slots.slice(start, start + this.moveSlotsPageSize);
+}
+
+get moveSlotsTotalPages(): number {
+  return Math.max(1, Math.ceil(this.moveSlotsModal.slots.length / this.moveSlotsPageSize));
+}
+
+get canPrevMoveSlots(): boolean {
+  return this.moveSlotsPage > 0;
+}
+
+get canNextMoveSlots(): boolean {
+  return this.moveSlotsPage < this.moveSlotsTotalPages - 1;
+}
+
+prevMoveSlotsPage(): void {
+  if (!this.canPrevMoveSlots) return;
+  this.moveSlotsPage--;
+}
+
+nextMoveSlotsPage(): void {
+  if (!this.canNextMoveSlots) return;
+  this.moveSlotsPage++;
 }
 
 }
