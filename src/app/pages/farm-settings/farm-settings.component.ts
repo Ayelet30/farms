@@ -861,29 +861,34 @@ canSaveWorkingHours(): boolean {
   return this.hasAnyFarmOpenDay() && this.hasAnyOfficeOpenDay() && !this.workingHoursError();
 }
 
-  async saveWorkingHours(): Promise<void> {
-     this.clearFlash(); 
-      if (!this.hasAnyFarmOpenDay() || !this.hasAnyOfficeOpenDay()) {
+ async saveWorkingHours(): Promise<void> {
+  this.clearFlash();
+
+  if (!this.hasAnyFarmOpenDay() || !this.hasAnyOfficeOpenDay()) {
     const msg = !this.hasAnyFarmOpenDay()
       ? 'חובה לסמן לפחות יום אחד פתוח בחווה.'
       : 'חובה לסמן לפחות יום אחד פתוח במשרד.';
+
     await this.ui.alert(msg, 'שגיאה');
     this.error.set(msg);
     return;
   }
-    const rows = this.workingHours().length ? this.workingHours() : this.buildEmptyWorkingHours();
 
-    const err = this.validateAllWorkingHours();
-    this.workingHoursError.set(err);
-    if (err) {
-      await this.ui.alert(err, 'שגיאה');
-      this.error.set(err);
-      return;
-    }
+  const rows = this.workingHours().length
+    ? this.workingHours()
+    : this.buildEmptyWorkingHours();
 
-    // ✅ חשוב: אם יום סגור -> נשמור NULL לשעות
-    const payload = rows.map(r => ({
-      id: r.id,
+  const err = this.validateAllWorkingHours();
+  this.workingHoursError.set(err);
+
+  if (err) {
+    await this.ui.alert(err, 'שגיאה');
+    this.error.set(err);
+    return;
+  }
+
+  const payload = rows.map(r => {
+    const row: any = {
       day_of_week: r.day_of_week,
 
       is_open: !!r.is_open,
@@ -893,42 +898,50 @@ canSaveWorkingHours(): boolean {
       is_offical_open: !!r.is_offical_open,
       office_start: r.is_offical_open ? this.timeToDb(r.office_start) : null,
       office_end: r.is_offical_open ? this.timeToDb(r.office_end) : null,
-    }));
+    };
 
-    try {
-      this.saving.set(true);
-      this.error.set(null);
-      this.success.set(null);
+    if (r.id) row.id = r.id;
 
-      const { error } = await this.supabase
-        .from('farm_working_hours')
-        .upsert(payload, { onConflict: 'day_of_week' });
+    return row;
+  });
 
-        console.log('payload before saveWorkingHours', payload);
+  try {
+    this.saving.set(true);
+    this.error.set(null);
+    this.success.set(null);
 
-      if (error) {
-        console.error('saveWorkingHours error', error);
-        await this.ui.alert('שמירת שעות לפי יום נכשלה.', 'שגיאה');
-        this.error.set('שמירת שעות לפי יום נכשלה.');
-        return;
-      }
+    console.log('payload before saveWorkingHours', payload);
 
-      this.flashSuccess('שעות לפי יום נשמרו בהצלחה.');
-      await this.ui.alert('שעות לפי יום נשמרו בהצלחה.', 'הצלחה');
+    const { error } = await this.supabase
+      .from('farm_working_hours')
+      .upsert(payload, { onConflict: 'day_of_week' });
 
-      await this.loadWorkingHours();
-      this.onWorkingHoursChanged();
-
-      const s = this.settings();
-      if (s) {
-        const openDays = rows.filter(x => x.is_open).map(x => x.day_of_week).sort((a, b) => a - b);
-        this.settings.set({ ...s, working_days: openDays });
-      }
-    } finally {
-      this.saving.set(false);
+    if (error) {
+      console.error('saveWorkingHours error', error);
+      await this.ui.alert('שמירת שעות לפי יום נכשלה.', 'שגיאה');
+      this.error.set('שמירת שעות לפי יום נכשלה.');
+      return;
     }
-  }
 
+    this.flashSuccess('שעות לפי יום נשמרו בהצלחה.');
+    await this.ui.alert('שעות לפי יום נשמרו בהצלחה.', 'הצלחה');
+
+    await this.loadWorkingHours();
+    this.onWorkingHoursChanged();
+
+    const s = this.settings();
+    if (s) {
+      const openDays = rows
+        .filter(x => x.is_open)
+        .map(x => x.day_of_week)
+        .sort((a, b) => a - b);
+
+      this.settings.set({ ...s, working_days: openDays });
+    }
+  } finally {
+    this.saving.set(false);
+  }
+}
   // =============================
   // Special Days
   // =============================
