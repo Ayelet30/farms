@@ -38,13 +38,11 @@
 
     <div class="row">
       <div class="k">תאריך התחלה</div>
-      <div class="v">{{ startDate || '—' }}</div>
-    </div>
+<div class="v">{{ formatDate(startDate) }}</div>    </div>
 
     <div class="row" *ngIf="!isOpenEnded">
       <div class="k">תאריך סיום</div>
-      <div class="v">{{ endDate || '—' }}</div>
-    </div>
+<div class="v">{{ formatDate(endDate) }}</div>    </div>
 
     <div class="row">
       <div class="k">מדריך/ה</div>

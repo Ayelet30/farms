@@ -480,6 +480,18 @@ private async getTenantSchemaOrThrow(): Promise<string> {
   await this.tenantSvc.ensureTenantContextReady();
   return this.tenantSvc.requireTenant().schema;
 }
+
+formatDate(value: string | null | undefined): string {
+  if (!value) return '—';
+
+  const s = String(value).slice(0, 10);
+  const parts = s.split('-');
+
+  if (parts.length !== 3) return s;
+
+  const [yyyy, mm, dd] = parts;
+  return `${dd}/${mm}/${yyyy}`;
+}
 }
 
 function escapeHtml(s: any) {
