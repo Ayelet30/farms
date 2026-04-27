@@ -1645,6 +1645,13 @@ await this.ui.alert(
     };
 
     this.settings.set(s);
+    // 🔥 שמירת חיובים מיוחדים
+try {
+  await this.saveSpecialCharges();
+} catch (e) {
+  this.saving.set(false);
+  return; // אם יש שגיאה - לא ממשיכים להצלחה
+}
     this.flashSuccess('ההגדרות נשמרו בהצלחה.');
 await this.ui.alert('ההגדרות נשמרו בהצלחה.', 'הצלחה');
 
@@ -2467,9 +2474,8 @@ if (c.charge_on_specific_date && !c.charge_date) {
   return 'כאשר בוחרים תשלום בתאריך ספציפי חובה לבחור תאריך.';
 }
 if (
-  c.charge_times_per_year == null ||
-  c.charge_times_per_year < 1 ||
-  c.charge_times_per_year > 365
+  c.charge_times_per_year != null &&
+  (c.charge_times_per_year < 1 || c.charge_times_per_year > 365)
 ) {
   return 'מספר הפעמים בשנה חייב להיות בין 1 ל־365.';
 }
@@ -2647,7 +2653,6 @@ selectExistingChargeOnRegistration(c: SpecialCharge, checked: boolean): void {
     c.charge_times_per_year = null;
   }
 }
-
 selectExistingChargeOnSpecificDate(c: SpecialCharge, checked: boolean): void {
   c.charge_on_specific_date = checked;
 
@@ -2658,7 +2663,6 @@ selectExistingChargeOnSpecificDate(c: SpecialCharge, checked: boolean): void {
     c.charge_date = null;
   }
 }
-
 selectExistingChargeTimesPerYear(c: SpecialCharge, value: any): void {
   const n = value === '' || value == null ? null : Number(value);
   c.charge_times_per_year = n;
@@ -2794,6 +2798,37 @@ onExistingTimesPerYearInput(c: SpecialCharge, event: Event): void {
   }
 
   this.selectExistingChargeTimesPerYear(c, value);
+}
+
+async saveSpecialCharges(): Promise<void> {
+  const newCharge = this.newSpecialCharge();
+if (this.showNewSpecialChargeForm() && !this.isNewSpecialChargeEmpty()) {
+  const err = this.validateSpecialCharge(this.newSpecialCharge());
+  if (err) {
+    await this.ui.alert(err, 'שגיאה');
+    throw new Error(err);
+  }
+
+  await this.createSpecialCharge();
+}
+
+  for (const c of this.specialCharges()) {
+    const err = this.validateSpecialCharge(c);
+    if (err) {
+      await this.ui.alert(err, 'שגיאה');
+      throw new Error(err);
+    }
+
+    await this.updateSpecialCharge(c);
+  }
+}
+private isNewSpecialChargeEmpty(): boolean {
+  const c = this.newSpecialCharge();
+
+  return !c.item?.trim()
+    && c.amount == null
+    && !c.notes?.trim()
+    && !c.warning_note?.trim();
 }
 }
 
