@@ -515,6 +515,7 @@ selectedVisibleRequest = computed<UiRequest | null>(() => {
     childId: row.child_id ?? null,
     instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
     lessonOccId: row.lesson_occ_id ?? null,
+    decisionNote: row.decision_note ?? null,
   };
 }
 private getDayOffCategoryLabel(p: any): string {

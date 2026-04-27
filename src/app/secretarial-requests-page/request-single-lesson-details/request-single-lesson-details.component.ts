@@ -1101,4 +1101,23 @@ const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifySingleL
 
     return json;
   }
+
+  get lessonDateFormatted(): string {
+  const raw =
+    this.request?.fromDate ??
+    this.p?.lesson_date ??
+    this.p?.requested_date ??
+    null;
+
+  if (!raw) return '—';
+
+  const d = this.parseDateOnly(String(raw));
+  if (!d) return '—';
+
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+
+  return `${dd}/${mm}/${yyyy}`;
+}
 }

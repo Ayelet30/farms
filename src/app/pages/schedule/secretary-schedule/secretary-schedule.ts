@@ -484,27 +484,67 @@ private ensureInitialDayRange(): { start: string; end: string; viewType: string 
 private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<void> {
   const dbc = dbTenant();
 
-  const { data, error } = await dbc
+  // 1) בקשות ממתינות בלבד
+  const { data: pendingRequests, error: pendingError } = await dbc
     .from('secretarial_requests')
     .select(`
-  id,
-  instructor_id,
-  request_type,
-  status,
-  from_date,
-  to_date,
-  payload,
-  decision_note,
-  sick_note_file_path
-`)
+      id,
+      instructor_id,
+      request_type,
+      status,
+      from_date,
+      to_date,
+      payload,
+      decision_note,
+      sick_note_file_path
+    `)
     .eq('request_type', 'INSTRUCTOR_DAY_OFF')
+    .eq('status', 'PENDING')
     .lte('from_date', endYmd)
     .gte('to_date', startYmd);
 
-  if (error) throw error;
+  if (pendingError) throw pendingError;
 
-  const rows = data ?? [];
-  this.dayRequests = rows.flatMap((row: any) => this.expandRequestRow(row));
+  const pendingRows = (pendingRequests ?? [])
+    .flatMap((row: any) => this.expandRequestRow(row));
+
+  // 2) היעדרויות שאושרו בפועל
+  const { data: unavailabilityRows, error: unavailabilityError } = await dbc
+    .from('instructor_unavailability')
+    .select(`
+      id,
+      instructor_id_number,
+      from_ts,
+      to_ts,
+      reason,
+      all_day,
+      category,
+      sick_note_file_path
+    `)
+    .lte('from_ts', `${endYmd}T23:59:59`)
+    .gte('to_ts', `${startYmd}T00:00:00`);
+
+  if (unavailabilityError) throw unavailabilityError;
+
+  const approvedRows: DayRequestRow[] = (unavailabilityRows ?? []).map((row: any) => {
+    const from = new Date(row.from_ts);
+    const to = new Date(row.to_ts);
+
+    return {
+      id: row.id,
+      instructor_id: String(row.instructor_id_number),
+      request_date: String(row.from_ts).slice(0, 10),
+      request_type: this.mapUnavailabilityCategory(row.category),
+      status: 'approved',
+      note: row.reason ?? null,
+      all_day: row.all_day === true,
+      start_time: row.all_day ? null : from.toTimeString().slice(0, 5),
+      end_time: row.all_day ? null : to.toTimeString().slice(0, 5),
+      sick_note_file_path: row.sick_note_file_path ?? null,
+    };
+  });
+
+  this.dayRequests = [...pendingRows, ...approvedRows];
 }
 
 private expandRequestRow(row: any): DayRequestRow[] {
@@ -876,15 +916,17 @@ async cancelLessonFromContext(): Promise<void> {
     await this.ui.alert('שגיאה בביטול השיעור', 'שגיאה');
   }
 }
-
 async openRequest(type: RequestType): Promise<void> {
   const date = this.contextMenu.date;
+  const instructorId = this.contextMenu.instructorId; // המדריך שעליו לחצת בלוז
+
   this.closeContextMenu();
+
   if (!date) return;
 
   const allDay = this.lastAllDayPref;
 
-this.affectedChildren = [];
+  this.affectedChildren = [];
   this.impactReviewMode = false;
   this.impactLoading = false;
   this.selectedSickFile = null;
@@ -900,12 +942,11 @@ this.affectedChildren = [];
     type,
     text: '',
     reviewedImpact: false,
-    instructorId: this.selectedInstructorIds.length === 1 ? this.selectedInstructorIds[0] : '',
+    instructorId: instructorId || '',
   };
 
   this.cdr.detectChanges();
 }
-
 closeRangeModal(): void {
   this.rangeModal.open = false;
   this.rangeModal.reviewedImpact = false;
@@ -1270,7 +1311,12 @@ private async executeInstructorDayOffBySecretary(
 
   const tenantSchema = tenant.schema;
   const tenantId = tenant.id;
+let medicalCertificateUrl: string | null = null;
 
+if (type === 'sick' && this.pendingSickFile) {
+  const tempRequestId = crypto.randomUUID();
+  medicalCertificateUrl = await this.uploadSickFile(this.pendingSickFile, tempRequestId);
+}
   const url =
     'https://us-central1-bereshit-ac5d8.cloudfunctions.net/secretaryCreateInstructorDayOffAndNotify';
 
@@ -1291,6 +1337,7 @@ private async executeInstructorDayOffBySecretary(
       endTime: allDay ? null : toTime,
       requestType: this.mapRequestTypeToDb(type),
       decisionNote: note ?? null,
+      medicalCertificateUrl,
     }),
   });
 
@@ -1357,7 +1404,20 @@ private mapDbRequestType(x: string | null | undefined): RequestType {
       return 'other';
   }
 }
+private mapUnavailabilityCategory(x: string | null | undefined): RequestType {
+  const val = String(x ?? '').toUpperCase().trim();
 
+  switch (val) {
+    case 'HOLIDAY':
+      return 'holiday';
+    case 'SICK':
+      return 'sick';
+    case 'PERSONAL':
+      return 'personal';
+    default:
+      return 'other';
+  }
+}
 private mapDbStatus(x: string | null | undefined): RequestStatus {
   const map: Record<string, RequestStatus> = {
     APPROVED: 'approved',
@@ -1978,9 +2038,13 @@ private addOneDayYmd(dateYmd: string): string {
   this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
 }
 private instructorDaysOffToItems(): ScheduleItem[] {
+  const selected = new Set(this.selectedInstructorIds.map(String));
+
   return (this.dayRequests ?? [])
     .filter(r => r.status === 'approved' || r.status === 'pending')
+    .filter(r => selected.size === 0 || selected.has(String(r.instructor_id)))
     .map(r => {
+      // המשך הקוד שלך כרגיל
       const isPending = r.status === 'pending';
 
       let bg = '#e5e7eb';

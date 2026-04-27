@@ -39,8 +39,7 @@
 
       <div class="row">
         <div class="k">תאריך</div>
-        <div class="v">{{ (r.fromDate || r.from_date) || '—' }}</div>
-      </div>
+<div class="v">{{ formatDate(r.fromDate || r.from_date) }}</div>      </div>
 
       <div class="row">
         <div class="k">שעה</div>
@@ -66,8 +65,7 @@
       <ng-container *ngIf="!loadingFillInTarget() && fillInTarget() as t">
         <div class="row">
           <div class="k">תאריך</div>
-          <div class="v">{{ t.occur_date || '—' }}</div>
-        </div>
+<div class="v">{{ formatDate(t.occur_date) }}</div>        </div>
 
         <div class="row">
           <div class="k">שעה</div>
