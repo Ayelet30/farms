@@ -100,7 +100,27 @@
             <div class="error-msg" *ngIf="validationErrors['health_fund']">{{ validationErrors['health_fund'] }}</div>
           </div>
         </div>
+<div class="form-field full-width" *ngIf="registrationCharges.length">
+  <label>חיובים בהרשמה</label>
 
+  <div class="registration-charge-row" *ngFor="let c of registrationCharges">
+   <label class="check-row">
+  <input
+    type="checkbox"
+    [checked]="c.selected"
+    (change)="onRegistrationChargeToggle(c, $any($event.target).checked)"
+  />
+
+  <span>
+    {{ c.item }} — {{ c.amount | number:'1.0-2' }} ₪
+  </span>
+</label>
+
+<div class="warning-note" *ngIf="c.warning_note && !c.selected">
+  ⚠ {{ c.warning_note }}
+</div>
+  </div>
+</div>
         <div class="form-field full-width">
           <label>הערות כלליות / רגישויות</label>
           <textarea rows="3" class="editable-input" [(ngModel)]="child.medical_notes_free" maxlength="4000"></textarea>
@@ -239,9 +259,16 @@
         <div *ngIf="!loadingPaymentProfile && !hasSavedPaymentProfile" class="payment-card">
           <div class="payment-summary">
             <div class="summary-row">
-              <span class="summary-label">דמי הרשמה</span>
-              <span class="summary-value">{{ payment.registrationAmount || 0 }} ₪</span>
-            </div>
+           <div class="summary-row" *ngFor="let c of registrationCharges">
+  <ng-container *ngIf="c.selected">
+    <span class="summary-label">{{ c.item }}</span>
+    <span class="summary-value">{{ c.amount | number:'1.0-2' }} ₪</span>
+  </ng-container>
+</div>
+<div class="summary-row total">
+  <span class="summary-label">סה״כ</span>
+  <span class="summary-value">{{ payment.registrationAmount || 0 }} ₪</span>
+</div>            </div>
 
             <div class="error-msg" *ngIf="validationErrors['registrationAmount']">
               {{ validationErrors['registrationAmount'] }}
