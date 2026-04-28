@@ -64,7 +64,14 @@ type FarmDoc = {
   storage_path: string;
   published_at: string;
 };
-
+interface RegistrationSpecialCharge {
+  id: string;
+  item: string;
+  amount: number;
+  warning_note: string | null;
+  is_required: boolean;
+  selected: boolean;
+}
 declare const TzlaHostedFields: any;
 
 type HostedFieldsInstance = {
@@ -108,7 +115,7 @@ export class AddChildWizardComponent implements OnInit {
   // =========================
   // ===== תשלום =====
   // ====================
-
+registrationCharges: RegistrationSpecialCharge[] = [];
 
   private hfReg: HostedFieldsInstance | null = null;
   private thtkReg: string | null = null;
@@ -253,24 +260,49 @@ onHealthFundChange() {
     }
   }
 
-  private async loadRegistrationFeeFromDb(): Promise<void> {
-    try {
-      await ensureTenantContextReady()
-      const db = dbTenant();
-      const { data, error } = await db.from('farm_settings').select('registration_fee').limit(1).maybeSingle()
+ private async loadRegistrationFeeFromDb(): Promise<void> {
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
 
-      if (error) throw error;
+    const { data, error } = await db
+      .from('special_charges')
+      .select('id, item, amount, warning_note, is_required')
+      .eq('is_active', true)
+      .eq('charge_on_registration', true)
+      .order('sort_order', { ascending: true });
 
-      this.registrationFee = (data as any)?.registration_fee ?? 0;
+    if (error) throw error;
 
-      if (this.hasRegistrationFee) {
-        this.payment.registrationAmount = this.registrationFee ?? 0;
-      }
-    } catch (e) {
-      this.registrationFee = 0;
-    }
+    this.registrationCharges = (data ?? []).map((c: any) => ({
+      id: c.id,
+      item: c.item,
+      amount: Number(c.amount ?? 0),
+      warning_note: c.warning_note ?? null,
+      is_required: !!c.is_required,
+      selected: !!c.is_required,
+    }));
+
+    this.recalculateRegistrationAmount();
+  } catch (e) {
+    console.error('loadRegistrationFeeFromDb error', e);
+    this.registrationCharges = [];
+    this.registrationFee = 0;
+    this.payment.registrationAmount = 0;
   }
+}
+recalculateRegistrationAmount(): void {
+  const total = this.registrationCharges
+    .filter(c => c.selected)
+    .reduce((sum, c) => sum + Number(c.amount || 0), 0);
 
+  this.registrationFee = total;
+  this.payment.registrationAmount = total;
+}
+onRegistrationChargeToggle(c: RegistrationSpecialCharge, checked: boolean): void {
+  c.selected = checked;
+  this.recalculateRegistrationAmount();
+}
   // =========================================
   // ===== תקנון: טעינה מ-farm_documents =====
   // =========================================
