@@ -284,6 +284,8 @@ charge_times_per_year: null,
   is_active: true,
   sort_order: 0,
 });
+editingSpecialChargeId = signal<UUID | null>(null);
+specialChargeBeforeEdit = signal<SpecialCharge | null>(null);
 validateParticipants(): void {
   const min = this.newRidingTypeMin();
   const max = this.newRidingTypeMax();
@@ -2440,15 +2442,12 @@ toggleNewSpecialChargeForm(): void {
       item: '',
       amount: null,
       notes: null,
-
       charge_on_registration: true,
       charge_on_specific_date: false,
       charge_date: null,
-
-charge_times_per_year: null,
+      charge_times_per_year: null,
       is_required: true,
       warning_note: null,
-
       is_active: true,
       sort_order: this.specialCharges().length + 1,
     });
@@ -2559,6 +2558,8 @@ charge_times_per_year: Number(c.charge_times_per_year ?? 1),
 
   await this.loadSpecialCharges();
   this.flashSuccess('החיוב עודכן בהצלחה.');
+this.editingSpecialChargeId.set(null);
+this.specialChargeBeforeEdit.set(null);
 }
 async deactivateSpecialCharge(c: SpecialCharge): Promise<void> {
   if (!c.id) return;
@@ -2615,14 +2616,20 @@ onSpecificDateChargeToggle(c: SpecialCharge, checked: boolean): void {
   }
 }
 
-
 selectNewChargeOnRegistration(checked: boolean): void {
-  this.patchNewSpecialCharge({
-    charge_on_registration: checked,
-    charge_on_specific_date: checked ? false : this.newSpecialCharge().charge_on_specific_date,
-    charge_date: checked ? null : this.newSpecialCharge().charge_date,
-    charge_times_per_year: checked ? null : this.newSpecialCharge().charge_times_per_year,
-  });
+  const cur = this.newSpecialCharge();
+
+  let updated = { ...cur, charge_on_registration: checked };
+
+  if (checked) {
+    updated.charge_on_specific_date = false;
+    updated.charge_times_per_year = null;
+    updated.charge_date = null;
+  } else {
+    updated.warning_note = null;
+  }
+
+  this.newSpecialCharge.set(updated);
 }
 
 selectNewChargeOnSpecificDate(checked: boolean): void {
@@ -2647,10 +2654,13 @@ selectNewChargeTimesPerYear(value: any): void {
 selectExistingChargeOnRegistration(c: SpecialCharge, checked: boolean): void {
   c.charge_on_registration = checked;
 
+  
   if (checked) {
     c.charge_on_specific_date = false;
     c.charge_date = null;
     c.charge_times_per_year = null;
+  } else {
+    c.warning_note = null;
   }
 }
 selectExistingChargeOnSpecificDate(c: SpecialCharge, checked: boolean): void {
@@ -2829,6 +2839,21 @@ private isNewSpecialChargeEmpty(): boolean {
     && c.amount == null
     && !c.notes?.trim()
     && !c.warning_note?.trim();
+}
+startEditSpecialCharge(c: SpecialCharge): void {
+  this.editingSpecialChargeId.set(c.id ?? null);
+  this.specialChargeBeforeEdit.set({ ...c });
+}
+
+cancelEditSpecialCharge(c: SpecialCharge): void {
+  const original = this.specialChargeBeforeEdit();
+
+  if (original && c.id === original.id) {
+    Object.assign(c, original);
+  }
+
+  this.editingSpecialChargeId.set(null);
+  this.specialChargeBeforeEdit.set(null);
 }
 }
 

@@ -839,10 +839,10 @@
       </span>
     </div>
 
-    <button type="button" class="btn btn-ghost icon-left" (click)="toggleNewSpecialChargeForm()">
-      <span class="plus-icon">＋</span>
-      <span>הוספת חיוב</span>
-    </button>
+   <button type="button" class="btn btn-ghost icon-left" (click)="toggleNewSpecialChargeForm()">
+  <span class="plus-icon">＋</span>
+  <span>הוספת חיוב</span>
+</button>
   </div>
 
   <div class="sub-panel" *ngIf="showNewSpecialChargeForm()">
@@ -953,14 +953,14 @@
 
   <label class="field-card">
     <span class="field-label">הערת אזהרה אם ההורה לא מסמן</span>
-    <input
-      class="form-control"
-      type="text"
-      [ngModel]="newSpecialCharge().warning_note"
-      name="newSpecialChargeWarning"
-      (ngModelChange)="patchNewSpecialCharge({ warning_note: $event })"
-      placeholder="לדוגמה: ללא קסדה לא ניתן להשתתף בשיעור"
-    />
+   <input
+  class="form-control"
+  type="text"
+  [(ngModel)]="newSpecialCharge().warning_note"
+  name="newSpecialChargeWarning"
+  placeholder="לדוגמה: ללא קסדה לא ניתן להשתתף בשיעור"
+  [disabled]="!newSpecialCharge().charge_on_registration"
+/>
   </label>
 </div>
 
@@ -977,137 +977,132 @@
 
    
   </div>
-<div class="special-charges-list" *ngIf="specialCharges().length; else noSpecialCharges">
-  <div class="sub-panel special-charge-card" *ngFor="let c of specialCharges()">
+<div class="data-list special-charges-table" *ngIf="specialCharges().length; else noSpecialCharges">
+  <div class="data-head cols-special-charges">
+    <div>פריט</div>
+    <div>סכום</div>
+    <div>כמה פעמים בשנה</div>
+    <div>בהרשמה</div>
+    <div>הערת אזהרה</div>
+    <div>בתאריך</div>
+    <div>תאריך חיוב</div>
+    <div>חובה</div>
+    <div>פעיל</div>
+    <div>הערות</div>
+    <div>פעולות</div>
+  </div>
 
-    <div class="form-grid cols-3">
-      <label class="field-card">
-        <span class="field-label">פריט</span>
-        <input class="form-control" [(ngModel)]="c.item" name="specialItem_{{ c.id }}" />
-      </label>
+  <div class="data-row cols-special-charges" *ngFor="let c of specialCharges()">
+    <ng-container *ngIf="editingSpecialChargeId() === c.id; else viewSpecialChargeRow">
 
-      <label class="field-card">
-        <span class="field-label">סכום</span>
-        <input
-          class="form-control"
-          type="number"
-          min="0"
-          step="0.5"
-          [(ngModel)]="c.amount"
-          name="specialAmount_{{ c.id }}"
-        />
-      </label>
+   <input class="form-control" [(ngModel)]="c.item" name="specialItem_{{ c.id }}" />
 
-      <label class="field-card">
-        <span class="field-label">כמה פעמים בשנה</span>
-        <input
-          class="form-control"
-          type="number"
-          min="1"
-          max="365"
-          [ngModel]="c.charge_times_per_year"
-          name="specialTimesPerYear_{{ c.id }}"
-          (input)="onExistingTimesPerYearInput(c, $event)"
-          [disabled]="c.charge_on_registration || c.charge_on_specific_date"
-        />
-      </label>
-    </div>
+<input
+  class="form-control"
+  type="number"
+  min="0"
+  step="0.5"
+  [(ngModel)]="c.amount"
+  name="specialAmount_{{ c.id }}"
+/>
 
-    <div class="form-grid cols-3">
-      <label class="field-card field-toggle">
-        <div class="toggle-line">
-          <span class="field-label">תשלום בהרשמה</span>
-          <label class="switch">
-            <input
-              type="checkbox"
-              [(ngModel)]="c.charge_on_registration"
-              name="specialReg_{{ c.id }}"
-              (ngModelChange)="selectExistingChargeOnRegistration(c, $event)"
-            />
-            <span class="switch-ui"></span>
-          </label>
-        </div>
-      </label>
+<input
+  class="form-control"
+  type="number"
+  min="1"
+  max="365"
+  [ngModel]="c.charge_times_per_year"
+  name="specialTimesPerYear_{{ c.id }}"
+  (input)="onExistingTimesPerYearInput(c, $event)"
+  [disabled]="c.charge_on_registration || c.charge_on_specific_date"
+/>
 
-      <label class="field-card field-toggle">
-        <div class="toggle-line">
-          <span class="field-label">תשלום בתאריך ספציפי</span>
-          <label class="switch">
-            <input
-              type="checkbox"
-              [(ngModel)]="c.charge_on_specific_date"
-              name="specialSpecific_{{ c.id }}"
-              (ngModelChange)="selectExistingChargeOnSpecificDate(c, $event)"
-            />
-            <span class="switch-ui"></span>
-          </label>
-        </div>
-      </label>
+<label class="mini-check">
+  <input
+    type="checkbox"
+    [(ngModel)]="c.charge_on_registration"
+    name="specialReg_{{ c.id }}"
+    (ngModelChange)="selectExistingChargeOnRegistration(c, $event)"
+  />
+</label>
 
-      <label class="field-card">
-        <span class="field-label">תאריך חיוב</span>
-        <input
-          class="form-control"
-          type="date"
-          [(ngModel)]="c.charge_date"
-          name="specialDate_{{ c.id }}"
-          [disabled]="!c.charge_on_specific_date"
-        />
-      </label>
-    </div>
+<input
+  class="form-control"
+  type="text"
+  [(ngModel)]="c.warning_note"
+  name="specialWarning_{{ c.id }}"
+  placeholder="הערת אזהרה"
+  [disabled]="!c.charge_on_registration"
+/>
 
-    <div class="form-grid cols-3">
-      <label class="field-card field-toggle">
-        <div class="toggle-line">
-          <span class="field-label">חובה?</span>
-          <label class="switch">
-            <input
-              type="checkbox"
-              [(ngModel)]="c.is_required"
-              name="specialRequired_{{ c.id }}"
-            />
-            <span class="switch-ui"></span>
-          </label>
-        </div>
-      </label>
+<label class="mini-check">
+  <input
+    type="checkbox"
+    [(ngModel)]="c.charge_on_specific_date"
+    name="specialSpecific_{{ c.id }}"
+    (ngModelChange)="selectExistingChargeOnSpecificDate(c, $event)"
+  />
+</label>
 
-      <label class="field-card field-toggle">
-        <div class="toggle-line">
-          <span class="field-label">פעיל?</span>
-          <label class="switch">
-            <input
-              type="checkbox"
-              [(ngModel)]="c.is_active"
-              name="specialActive_{{ c.id }}"
-            />
-            <span class="switch-ui"></span>
-          </label>
-        </div>
-      </label>
+<input
+  class="form-control"
+  type="date"
+  [(ngModel)]="c.charge_date"
+  name="specialDate_{{ c.id }}"
+  [disabled]="!c.charge_on_specific_date"
+/>
 
-      <label class="field-card">
-        <span class="field-label">הערת אזהרה</span>
-        <input
-          class="form-control"
-          type="text"
-          [(ngModel)]="c.warning_note"
-          name="specialWarning_{{ c.id }}"
-          placeholder="לדוגמה: ללא קסדה לא ניתן להשתתף בשיעור"
-        />
-      </label>
-    </div>
+<label class="mini-check">
+  <input type="checkbox" [(ngModel)]="c.is_required" name="specialRequired_{{ c.id }}" />
+</label>
 
-    <label class="field-card">
-      <span class="field-label">הערות</span>
-      <input
-        class="form-control"
-        type="text"
-        [(ngModel)]="c.notes"
-        name="specialNotes_{{ c.id }}"
-        placeholder="הערה פנימית למזכירות"
-      />
-    </label>
+<label class="mini-check">
+  <input type="checkbox" [(ngModel)]="c.is_active" name="specialActive_{{ c.id }}" />
+</label>
 
+<input
+  class="form-control"
+  type="text"
+  [(ngModel)]="c.notes"
+  name="specialNotes_{{ c.id }}"
+  placeholder="הערות"
+/>
+
+<div class="actions-inline">
+  <button type="button" class="btn btn-primary" (click)="updateSpecialCharge(c)">
+    שמירה
+  </button>
+  <button type="button" class="btn btn-text" (click)="cancelEditSpecialCharge(c)">
+    ביטול
+  </button>
+</div>
+</ng-container>
+
+<ng-template #viewSpecialChargeRow>
+ <div>{{ c.item }}</div>
+<div>{{ c.amount | number:'1.0-2' }}</div>
+<div>{{ c.charge_times_per_year || '—' }}</div>
+<div>{{ c.charge_on_registration ? 'כן' : 'לא' }}</div>
+<div>{{ c.warning_note || '—' }}</div>
+<div>{{ c.charge_on_specific_date ? 'כן' : 'לא' }}</div>
+<div>{{ c.charge_date || '—' }}</div>
+<div>{{ c.is_required ? 'כן' : 'לא' }}</div>
+<div>
+  <span class="status-chip-tiny" [class.success]="c.is_active" [class.danger]="!c.is_active">
+    {{ c.is_active ? 'פעיל' : 'לא פעיל' }}
+  </span>
+</div>
+<div>{{ c.notes || '—' }}</div>
+
+<div class="actions-inline">
+  <button type="button" class="btn btn-text" (click)="startEditSpecialCharge(c)">
+    עריכה
+  </button>
+  <button type="button" class="btn btn-text danger" (click)="deactivateSpecialCharge(c)">
+    מחיקה
+  </button>
+</div>
+</ng-template>
   </div>
 </div>
   <ng-template #noSpecialCharges>
