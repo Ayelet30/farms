@@ -305,7 +305,7 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
       return;
     }
 
-    await this.tenantBoot.ensureReady();
+     await this.tenantBoot.ensureReady();
     const farm = this.tenantBoot.getFarmMetaSync();
 
     const tenantSchema = farm?.schema_name ?? undefined;
@@ -320,7 +320,7 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
       if (el) el.textContent = '';
     });
 
-    this.savingToken.set(true);
+     this.savingToken.set(true);
     this.tokenSaved.set(false);
 
     const dbc = this.ppDb.db();
@@ -339,7 +339,7 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
     .maybeSingle();
 
     const terminalName = data?.terminal_name ?? 'moachapp';
-    const amount = '0.00'; // verify
+    const amount = '1.00'; // verify
 
     this.hfAdd.charge(
       {
@@ -347,8 +347,8 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
         thtk: this.thtkAdd,
         currency_code: 'ILS',
         amount,
-        txn_type: 'verify',
-        verify_mode: 2,
+        tran_mode: 'N',       // J2 Validate בלבד
+        tokenize: true,
         response_language: 'hebrew',
         requested_by_user: 'parent-payments-tokenize',
         email: this.parentEmail || undefined,
