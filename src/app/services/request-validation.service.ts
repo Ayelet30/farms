@@ -23,6 +23,7 @@ export enum Check {
   FarmDayOff = 'farmDayOff',
   MakeupSourceStillRelevant = 'makeupSourceStillRelevant',
   FillInSourceStillRelevant = 'fillInSourceStillRelevant',
+  InstructorAvailability = 'instructorAvailability',
 
 }
 
@@ -57,7 +58,7 @@ export class RequestValidationService {
     },
 
     NEW_SERIES: {
-      checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff],
+      checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.InstructorAvailability,Check.FarmDayOff],
       allowedChildStatuses: new Set([
         'Active',
         'Deletion Scheduled',
@@ -66,7 +67,7 @@ export class RequestValidationService {
     },
 
     MAKEUP_LESSON: {
-      checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff ,Check.MakeupSourceStillRelevant,],
+      checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff,Check.InstructorAvailability,Check.MakeupSourceStillRelevant,],
       allowedChildStatuses: new Set([
         'Active',
         'Deletion Scheduled',
@@ -75,7 +76,7 @@ export class RequestValidationService {
     },
 
     FILL_IN: {
-      checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff,Check.FillInSourceStillRelevant,],
+      checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff,Check.InstructorAvailability,Check.FillInSourceStillRelevant,],
       allowedChildStatuses: new Set([
         'Active',
         'Deletion Scheduled',
@@ -96,7 +97,7 @@ export class RequestValidationService {
     PARENT_SIGNUP: { checks: [] },
     OTHER_REQUEST: { checks: [] },
     SINGLE_LESSON: {
-  checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff],
+  checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.InstructorAvailability,Check.FarmDayOff],
   allowedChildStatuses: new Set([
     'Active',
     'Deletion Scheduled',
@@ -166,7 +167,6 @@ private normalizeResult(
         }
       }
 
-      // ===== MAKEUP / FILL_IN =====
  // ===== MAKEUP / FILL_IN =====
 if (
   row.requestType === 'MAKEUP_LESSON' ||
@@ -231,7 +231,12 @@ if (
       );
       break;
     }
-
+case Check.InstructorAvailability: {
+  r = this.normalizeResult(
+    await this.checkInstructorAvailabilityConflict(db, row, mode)
+  );
+  break;
+}
     case Check.ParentTarget: {
       r = this.normalizeResult(
         await this.checkParentActive(db, row, mode)
@@ -951,5 +956,58 @@ private normalizeHHMM(v: any): string | null {
   // "10:30:00" -> "10:30"
   return s.length >= 5 ? s.slice(0, 5) : s;
 }
+private async checkInstructorAvailabilityConflict(
+  db: any,
+  row: UiRequest,
+  mode: ValidationMode
+): Promise<{ ok: boolean; reason?: string }> {
+  if (!['NEW_SERIES', 'MAKEUP_LESSON', 'FILL_IN', 'SINGLE_LESSON'].includes(row.requestType)) {
+    return { ok: true };
+  }
 
+  try {
+    const instructorId = this.getInstructorIdForRequest(row);
+    const w = this.getRequestedDateAndWindow(row);
+
+    if (!instructorId || !w?.date) {
+      return { ok: true };
+    }
+
+    const startHHMM = `${String(Math.floor(w.startMin / 60)).padStart(2, '0')}:${String(w.startMin % 60).padStart(2, '0')}:00`;
+    const endHHMM = `${String(Math.floor(w.endMin / 60)).padStart(2, '0')}:${String(w.endMin % 60).padStart(2, '0')}:00`;
+
+    const startTs = `${w.date} ${startHHMM}`;
+    const endTs = `${w.date} ${endHHMM}`;
+
+    const { data, error } = await db
+      .from('instructor_unavailability')
+      .select('id, category, reason, from_ts, to_ts')
+      .eq('instructor_id_number', instructorId)
+      .lt('from_ts', endTs)
+      .gt('to_ts', startTs)
+      .limit(1);
+
+    if (error) {
+      const r = this.handleDbFailure(mode, 'checkInstructorAvailabilityConflict', error);
+      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    }
+
+    const rows = data ?? [];
+
+    if (rows.length > 0) {
+      const x: any = rows[0];
+      const label = x.reason || x.category || 'חוסר זמינות מדריך';
+
+      return {
+        ok: false,
+        reason: `הבקשה נדחתה אוטומטית: המדריך לא זמין בזמן המבוקש (${label}).`,
+      };
+    }
+
+    return { ok: true };
+  } catch (e: any) {
+    const r = this.handleDbFailure(mode, 'checkInstructorAvailabilityConflict', e);
+    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+  }
+}
 }
