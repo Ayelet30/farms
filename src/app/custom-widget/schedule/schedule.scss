@@ -1301,44 +1301,6 @@
 
 }
 
-/* מונע מהלוח להיראות מתחת לאזור העליון בזמן גלילה */
-.calendar-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 300;
-  background: #fff;
-  box-shadow: 0 8px 18px rgba(33, 37, 28, 0.06);
-}
-
-/* אם יש מעטפת מעל הלוח */
-.schedule-wrap {
-  background: #fff;
-}
-
-/* FullCalendar לא יעלה מעל הטולבר */
-.bereshit-calendar,
-.calendar-host,
-.schedule-host {
-  position: relative;
-  z-index: 1;
-}
-
-/* כותרות הלוח מתחת לטולבר */
-.bereshit-calendar .fc .fc-scrollgrid-section-header,
-.bereshit-calendar .fc .fc-col-header,
-.bereshit-calendar .fc .fc-timegrid-axis,
-.bereshit-calendar .fc .fc-daygrid-day-top {
-  background: #fff;
-  z-index: 20;
-}
-
-/* במובייל שיהיה ממש אטום */
-@media (max-width: 600px) {
-  .calendar-toolbar {
-    background: #fff;
-    backdrop-filter: none;
-  }
-}
 
 /* =========================
    Month view compact badges
