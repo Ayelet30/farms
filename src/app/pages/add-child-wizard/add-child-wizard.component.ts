@@ -152,7 +152,11 @@ registrationCharges: RegistrationSpecialCharge[] = [];
   registrationFee: number | null = null;
 
 get hasRegistrationFee(): boolean {
+
+  this.registrationFee = 1;
   return (this.registrationFee ?? 0) > 0 && !this.isExemptFromPayment;
+  // להוריד לאחר שמטפלים בדמי רישום וכו!!!
+  //return true;
 }
 
 onHealthFundChange() {
@@ -292,9 +296,12 @@ onHealthFundChange() {
   }
 }
 recalculateRegistrationAmount(): void {
-  const total = this.registrationCharges
-    .filter(c => c.selected)
-    .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+  // ✅ להחזיר לאחר שמטפלים בדמי רישום וכו!!!  
+  // const total = this.registrationCharges
+  //   .filter(c => c.selected)
+  //   .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+
+   const total = 1; // ✅ להוריד לאחר שמטפלים בדמי רישום וכו!!!    
 
   this.registrationFee = total;
   this.payment.registrationAmount = total;
@@ -443,7 +450,7 @@ get isLeumit(): boolean {
 }
 
 get isExemptFromPayment(): boolean {
-  return this.isRaananaFarm && this.isMaccabi || this.isRaananaFarm && this.isLeumit;
+  return (this.isRaananaFarm && this.isMaccabi) || (this.isRaananaFarm && this.isLeumit);
 }
 
   allowOnlyNumbers(event: KeyboardEvent) {
@@ -516,14 +523,14 @@ get isExemptFromPayment(): boolean {
 
   // ===== שמירה =====
   async completeWizard() {
-    if (!this.validateCurrentStep()) return;
-
+  
+     if (!this.validateCurrentStep()) return;
+   
     this.saving = true;
     this.error = null;
 
     try {
       const dbc = dbTenant();
-
       let parentUid: string | null = null;
       if (this.isParentMode) {
         const user = await getCurrentUserData();
@@ -569,7 +576,7 @@ get isExemptFromPayment(): boolean {
         parent_uid: parentUid,
         medical_notes: medicalNotesCombined || null,
       };
-
+     
       const { data: insertedChild, error: insertChildError } = await dbc
         .from('children')
         .insert(childPayload)
@@ -587,8 +594,6 @@ get isExemptFromPayment(): boolean {
         }
         return;
       }
-
-
       const { data: reqData, error: reqErr } = await dbc.rpc('create_child_terms_requirement', {
         p_child_id: insertedChild.child_uuid,
       });
@@ -647,7 +652,7 @@ get isExemptFromPayment(): boolean {
 
         const { error: secretarialError } = await dbc.from('secretarial_requests').insert(secretarialPayload);
 
-        if (secretarialError) {
+         if (secretarialError) {
           this.error = 'הילד נוסף למערכת, אך הייתה שגיאה בשליחת הבקשה למזכירה. אנא צרי קשר עם המשרד.';
           this.childAdded.emit();
           this.closed.emit();
@@ -996,7 +1001,6 @@ get isExemptFromPayment(): boolean {
           }
 
           const tx = response?.transaction_response;
-          console.log('Transaction response:', tx);
           if (!tx?.success) {
             this.tokenError = tx?.error || 'שמירת אמצעי תשלום נכשלה';
             return;
