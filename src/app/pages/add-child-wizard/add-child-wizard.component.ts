@@ -153,7 +153,7 @@ registrationCharges: RegistrationSpecialCharge[] = [];
 
 get hasRegistrationFee(): boolean {
 
-  // this.registrationFee = 1;
+  this.registrationFee = 1;
   return (this.registrationFee ?? 0) > 0 && !this.isExemptFromPayment;
   // להוריד לאחר שמטפלים בדמי רישום וכו!!!
   //return true;
@@ -299,11 +299,11 @@ healthFunds: { id: string; name: string }[] = [];
 }
 recalculateRegistrationAmount(): void {
   // ✅ להחזיר לאחר שמטפלים בדמי רישום וכו!!!  
-  const total = this.registrationCharges
-    .filter(c => c.selected)
-    .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+  // const total = this.registrationCharges
+  //   .filter(c => c.selected)
+  //   .reduce((sum, c) => sum + Number(c.amount || 0), 0);
 
-  //  const total = 1; // ✅ להוריד לאחר שמטפלים בדמי רישום וכו!!!    
+   const total = 1; // ✅ להוריד לאחר שמטפלים בדמי רישום וכו!!!    
 
   this.registrationFee = total;
   this.payment.registrationAmount = total;
