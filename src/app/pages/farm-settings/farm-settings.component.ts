@@ -2515,9 +2515,8 @@ async createSpecialCharge(): Promise<void> {
       charge_date: c.charge_on_specific_date ? c.charge_date : null,
 
 charge_times_per_year: Number(c.charge_times_per_year ?? 1),
-      is_required: !!c.is_required,
-      warning_note: c.warning_note?.trim() || null,
-
+    is_required: !!c.charge_on_registration && !!c.is_required,
+warning_note: c.charge_on_registration ? (c.warning_note?.trim() || null) : null,
       is_active: !!c.is_active,
       sort_order: c.sort_order ?? 0,
     });
@@ -2554,8 +2553,8 @@ async updateSpecialCharge(c: SpecialCharge): Promise<void> {
       charge_date: c.charge_on_specific_date ? c.charge_date : null,
 
 charge_times_per_year: Number(c.charge_times_per_year ?? 1),
-      is_required: !!c.is_required,
-      warning_note: c.warning_note?.trim() || null,
+    is_required: !!c.charge_on_registration && !!c.is_required,
+warning_note: c.charge_on_registration ? (c.warning_note?.trim() || null) : null,
 
       is_active: !!c.is_active,
       sort_order: c.sort_order ?? 0,
@@ -2639,6 +2638,7 @@ selectNewChargeOnRegistration(checked: boolean): void {
     updated.charge_times_per_year = null;
     updated.charge_date = null;
   } else {
+    updated.is_required = false;
     updated.warning_note = null;
   }
 
@@ -2674,6 +2674,8 @@ selectExistingChargeOnRegistration(c: SpecialCharge, checked: boolean): void {
     c.charge_times_per_year = null;
   } else {
     c.warning_note = null;
+    c.is_required = false;
+
   }
 }
 selectExistingChargeOnSpecificDate(c: SpecialCharge, checked: boolean): void {

@@ -939,17 +939,19 @@
     <div class="toggle-line">
       <span class="field-label">חובה?</span>
       <label class="switch">
-        <input
-          type="checkbox"
-          [ngModel]="newSpecialCharge().is_required"
-          name="newSpecialChargeRequired"
-          (ngModelChange)="patchNewSpecialCharge({ is_required: $event })"
-        />
+       <input
+  type="checkbox"
+  [ngModel]="newSpecialCharge().is_required"
+  name="newSpecialChargeRequired"
+  (ngModelChange)="patchNewSpecialCharge({ is_required: $event })"
+  [disabled]="!newSpecialCharge().charge_on_registration"
+/>
         <span class="switch-ui"></span>
       </label>
     </div>
-    <small class="field-hint">אם לא חובה — ההורה יוכל לא לסמן.</small>
-  </label>
+<small class="field-hint">
+  ניתן לסמן חובה רק עבור חיוב בהרשמה.
+</small>  </label>
 
   <label class="field-card">
     <span class="field-label">הערת אזהרה אם ההורה לא מסמן</span>
@@ -1053,7 +1055,12 @@
 />
 
 <label class="mini-check">
-  <input type="checkbox" [(ngModel)]="c.is_required" name="specialRequired_{{ c.id }}" />
+  <input
+  type="checkbox"
+  [(ngModel)]="c.is_required"
+  name="specialRequired_{{ c.id }}"
+  [disabled]="!c.charge_on_registration"
+/>
 </label>
 
 <label class="mini-check">
