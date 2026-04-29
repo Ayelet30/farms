@@ -53,6 +53,8 @@ export interface ChildRow {
   status?: string | null;
   birth_date?: string | null;
   gov_id?: string | null;
+  funding_source_id?: string | null;
+
 }
 
 
@@ -193,7 +195,7 @@ export type AddChildPayload = {
   gov_id?: string;
   birth_date?: string;
   gender?: string;
-  health_fund?: string;
+  funding_source_id?: string | null;
   status?: string;
   medical_notes?: string;
   behavior_notes?: string;

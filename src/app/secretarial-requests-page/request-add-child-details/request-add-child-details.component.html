@@ -28,8 +28,10 @@
     <div class="box"><span class="k">גיל:</span><span class="v">{{ d.age_years ?? '—' }}</span></div>
     <div class="box"><span class="k">מין:</span><span class="v">{{ d.gender || '—' }}</span></div>
 
-    <div class="box"><span class="k">קופת חולים:</span><span class="v">{{ d.health_fund || '—' }}</span></div>
-    <div class="box"><span class="k">תאריך לידה:</span><span class="v">{{ d.birth_date | date:'dd/MM/yyyy' }}</span>
+<div class="box">
+  <span class="k">קופת חולים:</span>
+  <span class="v">{{ d.funding_source_name || '—' }}</span>
+</div>    <div class="box"><span class="k">תאריך לידה:</span><span class="v">{{ d.birth_date | date:'dd/MM/yyyy' }}</span>
     </div>
   </div>
 

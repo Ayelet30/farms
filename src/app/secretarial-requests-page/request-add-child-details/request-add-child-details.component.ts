@@ -25,8 +25,8 @@ type AddChildDetails = {
   birth_date: string | null;
   age_years: number | null;
   gender: string | null;
-  health_fund: string | null;
-
+funding_source_id: string | null;
+funding_source_name: string | null;
   medical_notes: string | null;
 
   growth_delay: boolean;
