@@ -72,6 +72,36 @@ export class HeaderComponent implements OnInit {
     this.isRoleMenuOpen = false;
   }
 
+  deferredPrompt: any = null;
+
+showInstallButton = true;
+installGuideOpen = false;
+
+isIosDevice = false;
+isAndroidDevice = false;
+isDesktopDevice = false;
+isStandalone = false;
+
+installGuideTitle = '';
+installGuideText = '';
+
+@HostListener('window:beforeinstallprompt', ['$event'])
+onBeforeInstallPrompt(event: any) {
+  event.preventDefault();
+  this.deferredPrompt = event;
+
+  if (!this.isStandalone) {
+    this.showInstallButton = true;
+  }
+}
+
+@HostListener('window:appinstalled')
+onAppInstalled() {
+  this.deferredPrompt = null;
+  this.showInstallButton = false;
+  localStorage.setItem('smartFarmInstalled', 'true');
+}
+
   toggleRoleMenu(event: MouseEvent) {
     event.stopPropagation(); // שלא יסגור מיד מה־HostListener
     if (this.memberships.length <= 1) return;
@@ -108,6 +138,7 @@ export class HeaderComponent implements OnInit {
       this.memberships[0];
 
     this.rebindFromStores();
+    this.initInstallState();
   });
 
   this.cu.userDetails$.subscribe(() => this.rebindFromStores());
@@ -226,6 +257,98 @@ formatMembershipFarm(m: Membership): string {
 formatMembershipLabel(m: Membership | null | undefined): string {
   if (!m) return '';
   return `${this.formatMembershipRole(m)} · ${this.formatMembershipFarm(m)}`;
+}
+
+private initInstallState(): void {
+  const ua = window.navigator.userAgent.toLowerCase();
+
+  this.isIosDevice = /iphone|ipad|ipod/.test(ua);
+  this.isAndroidDevice = /android/.test(ua);
+  this.isDesktopDevice = !this.isIosDevice && !this.isAndroidDevice;
+
+  this.isStandalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as any).standalone === true;
+
+  const alreadyInstalled = localStorage.getItem('smartFarmInstalled') === 'true';
+
+  if (this.isStandalone || alreadyInstalled) {
+    this.showInstallButton = false;
+    return;
+  }
+
+  // באייפון אין beforeinstallprompt, לכן מציגים כפתור הדרכה
+  if (this.isIosDevice) {
+    this.showInstallButton = true;
+    return;
+  }
+
+  // באנדרואיד נציג כפתור, אבל ההתקנה תעבוד רק כש־beforeinstallprompt הגיע
+  if (this.isAndroidDevice) {
+    this.showInstallButton = true;
+    return;
+  }
+
+  // במחשב אפשר להשאיר כפתור להסבר/QR בהמשך
+  this.showInstallButton = true;
+}
+
+async onInstallClick(): Promise<void> {
+  if (this.isStandalone) {
+    this.showInstallButton = false;
+    return;
+  }
+
+  if (this.isIosDevice) {
+    this.openIosGuide();
+    return;
+  }
+
+  if (this.isAndroidDevice) {
+    await this.installAndroid();
+    return;
+  }
+
+  this.openDesktopGuide();
+}
+
+private async installAndroid(): Promise<void> {
+  if (!this.deferredPrompt) {
+    this.installGuideTitle = 'התקנת האפליקציה';
+    this.installGuideText =
+      'אם חלון ההתקנה לא נפתח, פתח את האתר דרך Chrome באנדרואיד ובחר בתפריט: התקנת האפליקציה או הוסף למסך הבית.';
+    this.installGuideOpen = true;
+    return;
+  }
+
+  this.deferredPrompt.prompt();
+
+  const choiceResult = await this.deferredPrompt.userChoice;
+
+  if (choiceResult?.outcome === 'accepted') {
+    this.showInstallButton = false;
+    localStorage.setItem('smartFarmInstalled', 'true');
+  }
+
+  this.deferredPrompt = null;
+}
+
+private openIosGuide(): void {
+  this.installGuideTitle = 'התקנה באייפון';
+  this.installGuideText =
+    'באייפון ההתקנה נעשית דרך Safari באמצעות הוספה למסך הבית.';
+  this.installGuideOpen = true;
+}
+
+private openDesktopGuide(): void {
+  this.installGuideTitle = 'התקנה מהטלפון';
+  this.installGuideText =
+    'כדי להתקין את Smart Farm כאפליקציה, פתח את האתר מהטלפון.';
+  this.installGuideOpen = true;
+}
+
+closeInstallGuide(): void {
+  this.installGuideOpen = false;
 }
 
 

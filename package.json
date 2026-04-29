@@ -14,7 +14,7 @@
     "test": "ng test",
     "serve": "firebase emulators:start --only functions",
     "build:prod": "ng build --configuration production",
-"deploy": "npm run build:prod && firebase deploy --only hosting,functions --project bereshit-ac5d8"
+    "deploy": "npm run build:prod && firebase deploy --only hosting,functions --project bereshit-ac5d8"
   },
   "private": true,
   "dependencies": {
@@ -29,7 +29,7 @@
     "@angular/platform-browser": "^20.0.6",
     "@angular/platform-browser-dynamic": "^20.0.6",
     "@angular/router": "^20.0.6",
-    "@angular/service-worker": "^20.0.6",
+    "@angular/service-worker": "20.0.6",
     "@capacitor/android": "^7.6.1",
     "@capacitor/cli": "^7.6.1",
     "@capacitor/core": "^7.6.1",

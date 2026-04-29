@@ -48,7 +48,20 @@
     </div>
   </div>
 
+
   <!-- שמאל: התנתקות -->
+   
+<div class="header-actions">
+  <button
+    *ngIf="showInstallButton"
+    type="button"
+    class="install-button"
+    (click)="onInstallClick()"
+    aria-label="התקנת האפליקציה">
+    <span class="install-icon"></span>
+    <span class="install-label">התקן אפליקציה</span>
+  </button>
+
   <button
     type="button"
     class="auth-button"
@@ -58,4 +71,33 @@
     <span class="auth-icon"></span>
     <span class="auth-label">{{ isLoggedIn ? 'התנתק' : 'התחבר' }}</span>
   </button>
+</div>
 </header>
+<div class="install-overlay" *ngIf="installGuideOpen" (click)="closeInstallGuide()">
+  <div class="install-modal" dir="rtl" (click)="$event.stopPropagation()">
+    <button type="button" class="install-close" (click)="closeInstallGuide()">×</button>
+
+    <div class="install-modal-icon">📲</div>
+
+    <h2>{{ installGuideTitle }}</h2>
+    <p>{{ installGuideText }}</p>
+
+    <ol class="install-steps" *ngIf="isIosDevice">
+      <li>פתח את האתר דרך Safari.</li>
+      <li>לחץ על כפתור השיתוף <strong>⬆️</strong>.</li>
+      <li>בחרי <strong>הוסף למסך הבית</strong>.</li>
+      <li>לחץ <strong>הוסף</strong>.</li>
+    </ol>
+
+    <ol class="install-steps" *ngIf="isDesktopDevice">
+      <li>פתח את האתר מהטלפון.</li>
+      <li>באנדרואיד השתמש ב־Chrome.</li>
+      <li>באייפון השתמש ב־Safari.</li>
+    </ol>
+
+    <button type="button" class="install-ok" (click)="closeInstallGuide()">
+      הבנתי
+    </button>
+  </div>
+</div>
+
