@@ -23,6 +23,7 @@ type ReminderChannel = 'EMAIL' | 'SMS' | 'APP' | 'WHATSAPP';
 type CalendarKind = 'GREGORIAN' | 'HEBREW';
 type RecurrenceKind = 'ONCE' | 'YEARLY';
 type DayType = 'FULL_DAY' | 'HOURS';
+type SpecialChargeMode = 'registration' | 'specific_date' | 'yearly';
 interface RidingType {
   
   id: UUID;
@@ -51,7 +52,7 @@ interface SpecialCharge {
   charge_on_registration: boolean;
   charge_on_specific_date: boolean;
   charge_date: string | null;
-
+first_charge_date: string | null;
 charge_times_per_year: number | null;
   is_required: boolean;
   warning_note: string | null;
@@ -276,6 +277,8 @@ newSpecialCharge = signal<SpecialCharge>({
   charge_on_registration: true,
   charge_on_specific_date: false,
   charge_date: null,
+  first_charge_date: null,
+
 
 charge_times_per_year: null,
   is_required: true,
@@ -2458,6 +2461,7 @@ toggleNewSpecialChargeForm(): void {
       charge_on_registration: true,
       charge_on_specific_date: false,
       charge_date: null,
+      first_charge_date: null,
       charge_times_per_year: null,
       is_required: true,
       warning_note: null,
@@ -2474,13 +2478,20 @@ onSpecialChargeDateToggle(c: SpecialCharge): void {
 validateSpecialCharge(c: SpecialCharge): string | null {
   if (!c.item?.trim()) return 'חובה להזין שם פריט.';
   if (c.amount == null || c.amount < 0) return 'חובה להזין סכום תקין.';
-const selectedCount =
-  (c.charge_on_registration ? 1 : 0) +
-  (c.charge_on_specific_date ? 1 : 0) +
-  (c.charge_times_per_year != null ? 1 : 0);
+const mode = this.getSpecialChargeMode(c);
 
-if (selectedCount !== 1) {
-  return 'חובה לבחור אפשרות חיוב אחת בלבד: בהרשמה, בתאריך ספציפי או כמה פעמים בשנה.';
+if (mode === 'specific_date' && !c.charge_date) {
+  return 'בתשלום בתאריך ספציפי חובה לבחור תאריך.';
+}
+
+if (mode === 'yearly') {
+  if (!c.charge_times_per_year || c.charge_times_per_year < 1 || c.charge_times_per_year > 365) {
+    return 'בתשלום שנתי חובה להזין כמה פעמים בשנה, בין 1 ל־365.';
+  }
+
+  if (!c.first_charge_date) {
+    return 'בתשלום שנתי חובה לבחור תאריך לפעם הראשונה.';
+  }
 }
 if (c.charge_on_specific_date && !c.charge_date) {
   return 'כאשר בוחרים תשלום בתאריך ספציפי חובה לבחור תאריך.';
@@ -2492,12 +2503,24 @@ if (
   return 'מספר הפעמים בשנה חייב להיות בין 1 ל־365.';
 }
 
+if (mode === 'specific_date' && !c.charge_date) {
+  return 'בתשלום בתאריך ספציפי חובה לבחור תאריך.';
+}
+
+if (mode === 'yearly') {
+  if (!c.charge_times_per_year || c.charge_times_per_year < 1 || c.charge_times_per_year > 365) {
+    return 'בתשלום שנתי חובה להזין כמה פעמים בשנה, בין 1 ל־365.';
+  }
+if (!c.first_charge_date) {
+  return 'בתשלום שנתי חובה לבחור תאריך לפעם הראשונה.';
+}
+}
   return null;
 }
 async createSpecialCharge(): Promise<void> {
   const c = this.newSpecialCharge();
   const err = this.validateSpecialCharge(c);
-
+const mode = this.getSpecialChargeMode(c);
   if (err) {
     await this.ui.alert(err, 'שגיאה');
     return;
@@ -2509,14 +2532,13 @@ async createSpecialCharge(): Promise<void> {
       item: c.item.trim(),
       amount: c.amount,
       notes: c.notes?.trim() || null,
-
-      charge_on_registration: !!c.charge_on_registration,
-      charge_on_specific_date: !!c.charge_on_specific_date,
-      charge_date: c.charge_on_specific_date ? c.charge_date : null,
-
-charge_times_per_year: Number(c.charge_times_per_year ?? 1),
-    is_required: !!c.charge_on_registration && !!c.is_required,
-warning_note: c.charge_on_registration ? (c.warning_note?.trim() || null) : null,
+charge_on_registration: mode === 'registration',
+charge_on_specific_date: mode === 'specific_date',
+charge_date: mode === 'specific_date' ? c.charge_date : null,
+first_charge_date: mode === 'yearly' ? c.first_charge_date : null,
+charge_times_per_year: mode === 'yearly' ? Number(c.charge_times_per_year ?? 1) : 1,
+is_required: mode === 'registration' && !!c.is_required,
+warning_note: mode === 'registration' ? (c.warning_note?.trim() || null) : null,
       is_active: !!c.is_active,
       sort_order: c.sort_order ?? 0,
     });
@@ -2535,7 +2557,7 @@ async updateSpecialCharge(c: SpecialCharge): Promise<void> {
   if (!c.id) return;
 
   const err = this.validateSpecialCharge(c);
-
+const mode = this.getSpecialChargeMode(c);
   if (err) {
     await this.ui.alert(err, 'שגיאה');
     return;
@@ -2550,9 +2572,9 @@ async updateSpecialCharge(c: SpecialCharge): Promise<void> {
 
       charge_on_registration: !!c.charge_on_registration,
       charge_on_specific_date: !!c.charge_on_specific_date,
-      charge_date: c.charge_on_specific_date ? c.charge_date : null,
-
-charge_times_per_year: Number(c.charge_times_per_year ?? 1),
+     charge_date: mode === 'specific_date' ? c.charge_date : null,
+first_charge_date: mode === 'yearly' ? c.first_charge_date : null,
+charge_times_per_year: mode === 'yearly' ? Number(c.charge_times_per_year ?? 1) : 1,
     is_required: !!c.charge_on_registration && !!c.is_required,
 warning_note: c.charge_on_registration ? (c.warning_note?.trim() || null) : null,
 
@@ -2869,6 +2891,59 @@ cancelEditSpecialCharge(c: SpecialCharge): void {
 
   this.editingSpecialChargeId.set(null);
   this.specialChargeBeforeEdit.set(null);
+}
+getSpecialChargeMode(c: SpecialCharge): SpecialChargeMode {
+  if (c.charge_on_registration) return 'registration';
+  if (c.charge_on_specific_date) return 'specific_date';
+  return 'yearly';
+}
+
+setNewSpecialChargeMode(mode: SpecialChargeMode): void {
+  this.newSpecialCharge.update(c => ({
+    ...c,
+    charge_on_registration: mode === 'registration',
+    charge_on_specific_date: mode === 'specific_date',
+
+    charge_date: mode === 'specific_date' ? c.charge_date : null,
+    first_charge_date: mode === 'yearly' ? c.first_charge_date : null,
+
+    charge_times_per_year: mode === 'yearly' ? (c.charge_times_per_year ?? 1) : null,
+
+    is_required: mode === 'registration' ? c.is_required : false,
+    warning_note: mode === 'registration' ? c.warning_note : null,
+  }));
+}
+
+setExistingSpecialChargeMode(c: SpecialCharge, mode: SpecialChargeMode): void {
+  c.charge_on_registration = mode === 'registration';
+  c.charge_on_specific_date = mode === 'specific_date';
+
+  c.charge_date = mode === 'specific_date' ? c.charge_date : null;
+  c.first_charge_date = mode === 'yearly' ? c.first_charge_date : null;
+
+  c.charge_times_per_year = mode === 'yearly'
+    ? (c.charge_times_per_year ?? 1)
+    : null;
+
+  if (mode !== 'registration') {
+    c.is_required = false;
+    c.warning_note = null;
+  }
+}
+formatDateDisplay(date: string | null): string {
+  if (!date) return '';
+  const [y, m, d] = date.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+onDateInput(value: string) {
+  const parts = value.split('/');
+  if (parts.length === 3) {
+    const [d, m, y] = parts;
+    this.patchNewSpecialCharge({
+      first_charge_date: `${y}-${m}-${d}`
+    });
+  }
 }
 }
 
