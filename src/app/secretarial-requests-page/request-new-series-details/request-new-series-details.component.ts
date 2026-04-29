@@ -503,7 +503,7 @@ const repeatWeeks =
       p_payment_source: p.payment_source ?? null,              
       p_existing_approval_id: null,
       p_payment_plan_id: p.payment_plan_id ?? null,
-      p_health_fund: p.health_fund ?? null,
+p_funding_source_id: p.funding_source_id ?? null,
       p_approval_number: p.approval_number ?? null,
       p_total_lessons: p.total_lessons ?? null,
       p_referral_url: p.referral_url ?? null,

@@ -60,8 +60,8 @@ private infoTimer: ReturnType<typeof setTimeout> | null = null;
   'uid, id_number, first_name, last_name, address, phone, email, notify, billing_day_of_month';
 
 
-  private readonly CHILD_SELECT =
- 'child_uuid, first_name, last_name, gov_id, birth_date, gender, health_fund, status, medical_notes, parent_uid';
+ private readonly CHILD_SELECT =
+ 'child_uuid, first_name, last_name, gov_id, birth_date, gender, funding_source_id, status, medical_notes, parent_uid';
    async ngOnInit() {
     try {
       const user = await getCurrentUserData();

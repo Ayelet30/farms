@@ -62,7 +62,7 @@ type ChildDetails = {
   gov_id?: string | null;
   birth_date?: string | null;
   gender?: string | null;
-  health_fund?: string | null;
+funding_source_id?: string | null;
   status?: string | null;
   medical_notes?: string | null;
   behavior_notes?: string | null;
@@ -87,7 +87,7 @@ type ChildColumnKey =
   | 'gov_id'
   | 'birth_date'
   | 'gender'
-  | 'health_fund'
+  | 'funding_source_id'
   | 'status'
   | 'parent_status';
 
@@ -117,8 +117,7 @@ export class SecretaryChildrenComponent implements OnInit {
   readonly MAX_MEDICAL_NOTES = 300;
   readonly MAX_BEHAVIOR_NOTES = 300;
 
-  readonly healthFunds = ['כללית', 'מכבי', 'מאוחדת', 'לאומית'] as const;
-
+healthFunds: { id: string; name: string }[] = [];
   readonly statusOptions = [
   { value: 'Active', label: 'פעיל' },
   { value: 'Deleted', label: 'לא פעיל' },
@@ -134,8 +133,7 @@ export class SecretaryChildrenComponent implements OnInit {
     { key: 'gov_id', label: 'תעודת זהות', visible: true },
     { key: 'birth_date', label: 'תאריך לידה', visible: false },
     { key: 'gender', label: 'מין', visible: false },
-    { key: 'health_fund', label: 'קופת חולים', visible: false },
-    { key: 'status', label: 'סטטוס', visible: true },
+    { key: 'funding_source_id', label: 'קופת חולים', visible: false },    { key: 'status', label: 'סטטוס', visible: true },
     { key: 'parent_status', label: 'שיוך להורה', visible: true },
   ];
 
@@ -196,6 +194,7 @@ uploadingSeriesDocLessonId: string | null = null;
     try {
       this.loadTablePrefs();
       await ensureTenantContextReady();
+      await this.loadFundingSources();
       await this.loadChildren();
       this.updateStats();
     } catch (e: any) {
@@ -283,7 +282,7 @@ uploadingSeriesDocLessonId: string | null = null;
           gov_id,
           birth_date,
           gender,
-          health_fund,
+          funding_source_id,
           status
         `)
         .order('first_name', { ascending: true })
@@ -612,7 +611,7 @@ private isAllowedReferralFile(file: File): boolean {
           birth_date,
           gender,
           parent_uid,
-          health_fund,
+          funding_source_id,
           status,
           medical_notes,
           behavior_notes
@@ -815,7 +814,7 @@ getChildTitle(): string {
           this.hebrewNameValidator(),
         ],
       ],
-      health_fund: [child.health_fund ?? null],
+      funding_source_id: [child.funding_source_id ?? null],
       status: [child.status ?? null],
       medical_notes: [
         child.medical_notes ?? '',
@@ -853,7 +852,7 @@ getChildTitle(): string {
     const fieldsToCompare: (keyof ChildDetails)[] = [
       'first_name',
       'last_name',
-      'health_fund',
+      'funding_source_id',
       'status',
       'medical_notes',
       'behavior_notes',
@@ -980,6 +979,25 @@ getChildTitle(): string {
   closeWizard() {
     this.showAddChildWizard = false;
   }
+  private async loadFundingSources(): Promise<void> {
+  const db = await this.dbc();
+
+  const { data, error } = await db
+    .from('funding_sources')
+    .select('id, name')
+    .eq('is_system', true)
+    .eq('is_active', true)
+    .order('name', { ascending: true });
+
+  if (error) throw error;
+
+  this.healthFunds = data ?? [];
+}
+
+getFundingSourceName(id: string | null | undefined): string {
+  if (!id) return '—';
+  return this.healthFunds.find(f => f.id === id)?.name ?? '—';
+}
 }
 
 @Component({
@@ -1084,4 +1102,5 @@ export class TermsPdfDialogComponent {
   close() {
     this.dialog.closeAll();
   }
+  
 }

@@ -376,7 +376,7 @@
         בחר/י מסלול תשלום
       </option>
 
-      <option *ngFor="let plan of paymentPlans" [ngValue]="plan.id">
+      <option *ngFor="let plan of availablePaymentPlans" [ngValue]="plan.id">
         {{ plan.name }}
         <ng-container *ngIf="plan.customer_amount != null">
           – {{ plan.customer_amount | number:'1.0-0' }} ₪ לשיעור
