@@ -54,6 +54,8 @@ interface SpecialCharge {
   charge_date: string | null;
 first_charge_date: string | null;
 charge_times_per_year: number | null;
+  funding_source_ids: UUID[];
+
   is_required: boolean;
   warning_note: string | null;
 
@@ -273,7 +275,7 @@ newSpecialCharge = signal<SpecialCharge>({
   item: '',
   amount: null,
   notes: null,
-
+funding_source_ids: [],
   charge_on_registration: true,
   charge_on_specific_date: false,
   charge_date: null,
@@ -2459,7 +2461,9 @@ toggleNewSpecialChargeForm(): void {
       amount: null,
       notes: null,
       charge_on_registration: true,
-      charge_on_specific_date: false,
+funding_source_ids: this.fundingSources()
+  .filter(fs => fs.is_active)
+  .map(fs => fs.id),      charge_on_specific_date: false,
       charge_date: null,
       first_charge_date: null,
       charge_times_per_year: null,
@@ -2538,6 +2542,7 @@ charge_date: mode === 'specific_date' ? c.charge_date : null,
 first_charge_date: mode === 'yearly' ? c.first_charge_date : null,
 charge_times_per_year: mode === 'yearly' ? Number(c.charge_times_per_year ?? 1) : 1,
 is_required: mode === 'registration' && !!c.is_required,
+funding_source_ids: c.funding_source_ids ?? [],
 warning_note: mode === 'registration' ? (c.warning_note?.trim() || null) : null,
       is_active: !!c.is_active,
       sort_order: c.sort_order ?? 0,
@@ -2577,7 +2582,7 @@ first_charge_date: mode === 'yearly' ? c.first_charge_date : null,
 charge_times_per_year: mode === 'yearly' ? Number(c.charge_times_per_year ?? 1) : 1,
     is_required: !!c.charge_on_registration && !!c.is_required,
 warning_note: c.charge_on_registration ? (c.warning_note?.trim() || null) : null,
-
+funding_source_ids: c.funding_source_ids ?? [],
       is_active: !!c.is_active,
       sort_order: c.sort_order ?? 0,
       updated_at: new Date().toISOString(),
@@ -2945,5 +2950,34 @@ onDateInput(value: string) {
     });
   }
 }
+toggleFundingSourceForNewSpecialCharge(sourceId: UUID, checked: boolean): void {
+  const cur = this.newSpecialCharge();
+  const ids = cur.funding_source_ids ?? [];
+
+  this.patchNewSpecialCharge({
+    funding_source_ids: checked
+      ? Array.from(new Set([...ids, sourceId]))
+      : ids.filter(id => id !== sourceId),
+  });
+}
+
+toggleFundingSourceForExistingSpecialCharge(c: SpecialCharge, sourceId: UUID, checked: boolean): void {
+  const ids = c.funding_source_ids ?? [];
+
+  c.funding_source_ids = checked
+    ? Array.from(new Set([...ids, sourceId]))
+    : ids.filter(id => id !== sourceId);
+}
+
+fundingSourceNames(ids: UUID[] | null | undefined): string {
+  if (!ids?.length) return 'כל גורמי המימון';
+
+  const names = this.fundingSources()
+    .filter(fs => ids.includes(fs.id))
+    .map(fs => fs.name);
+
+  return names.length ? names.join(', ') : 'לא נבחרו גורמי מימון';
+}
+
 }
 

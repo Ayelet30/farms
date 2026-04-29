@@ -955,7 +955,20 @@
     />
   </label>
 </div>
+<div class="field-card full-row">
+  <span class="field-label">גורמי מימון שהחיוב חל עליהם</span>
 
+  <div class="checks-grid">
+    <label class="mini-check" *ngFor="let fs of fundingSources()">
+      <input
+        type="checkbox"
+        [checked]="(newSpecialCharge().funding_source_ids || []).includes(fs.id)"
+        (change)="toggleFundingSourceForNewSpecialCharge(fs.id, $any($event.target).checked)"
+      />
+      <span>{{ fs.name }}</span>
+    </label>
+  </div>
+</div>
     <label class="field-card">
       <span class="field-label">הערות</span>
       <input
@@ -1043,6 +1056,7 @@
         <span>פעיל</span>
       </label>
 
+ 
       <div class="actions-inline">
         <button type="button" class="btn btn-primary" (click)="updateSpecialCharge(c)">שמירה</button>
         <button type="button" class="btn btn-text" (click)="cancelEditSpecialCharge(c)">ביטול</button>
@@ -1071,7 +1085,9 @@
         <span class="chip" *ngIf="getSpecialChargeMode(c) === 'yearly'">
           שנתי · {{ c.charge_times_per_year || 1 }} פעמים בשנה · התחלה {{ c.first_charge_date || '—' }}
         </span>
-
+ <span class="chip chip-soft">
+    {{ fundingSourceNames(c.funding_source_ids) }}
+  </span>
         <span class="status-chip-tiny" [class.success]="c.is_active" [class.danger]="!c.is_active">
           {{ c.is_active ? 'פעיל' : 'לא פעיל' }}
         </span>
