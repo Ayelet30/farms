@@ -8,14 +8,7 @@
 <div class="req" *ngIf="details() as d; else loadingTpl">
   <div class="title">הוספת ילד/ה</div>
 
-  <div class="field">
-    <label class="sf-check">
-      <input type="checkbox" [checked]="isCreateBillingCharge()"
-        (change)="isCreateBillingCharge.set($any($event.target).checked)" />
-      ליצור חיוב רישום אוטומטי בעת הוספת ילד
-    </label>
-
-  </div>
+  
 
   <div class="grid">
     <div class="box"><span class="k">הורה:</span><span class="v">{{ d.parent_name || d.parent_uid }}</span></div>
