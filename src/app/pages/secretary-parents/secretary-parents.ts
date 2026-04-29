@@ -78,9 +78,9 @@ export class SecretaryParentsComponent implements OnInit {
   parents: ParentRow[] = [];
 
   searchText = '';
-  searchMode: 'name' | 'id' = 'name';
+  searchMode: 'name' | 'id' | 'email' = 'name';
+childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
   statusFilter: 'all' | 'active' | 'inactive' = 'all';
-  childrenFilter: 'all' | 'active' | 'inactive' = 'all';
 
   showSearchPanel = false;
   showColumnsPanel = false;
@@ -176,20 +176,33 @@ export class SecretaryParentsComponent implements OnInit {
     const raw = (this.searchText || '').trim();
 
     if (raw) {
-      if (this.searchMode === 'name') {
-        const q = raw.toLowerCase();
-        rows = rows.filter((p) => {
-          const hay = `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase();
-          return hay.includes(q);
-        });
-      } else {
-        const qId = raw.replace(/\s/g, '');
-        rows = rows.filter((p) => {
-          const id = (p.id_number || '').toString().replace(/\s/g, '');
-          return qId !== '' && id.startsWith(qId);
-        });
-      }
-    }
+  if (this.searchMode === 'name') {
+    const q = raw.toLowerCase();
+
+    rows = rows.filter((p) => {
+      const hay = `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  if (this.searchMode === 'id') {
+    const qId = raw.replace(/\s/g, '');
+
+    rows = rows.filter((p) => {
+      const id = (p.id_number || '').toString().replace(/\s/g, '');
+      return qId !== '' && id.startsWith(qId);
+    });
+  }
+
+  if (this.searchMode === 'email') {
+    const qEmail = raw.toLowerCase();
+
+    rows = rows.filter((p) => {
+      const email = (p.email || '').toLowerCase();
+      return email.includes(qEmail);
+    });
+  }
+}
 
     if (this.statusFilter !== 'all') {
       rows = rows.filter((p) => {
@@ -199,10 +212,12 @@ export class SecretaryParentsComponent implements OnInit {
     }
 
     if (this.childrenFilter === 'active') {
-      rows = rows.filter((p) => !!p.hasActiveChildren);
-    } else if (this.childrenFilter === 'inactive') {
-      rows = rows.filter((p) => !!p.hasInactiveChildren);
-    }
+  rows = rows.filter((p) => !!p.hasActiveChildren);
+} else if (this.childrenFilter === 'inactive') {
+  rows = rows.filter((p) => !!p.hasInactiveChildren);
+} else if (this.childrenFilter === 'withoutChildren') {
+  rows = rows.filter((p) => !p.hasActiveChildren && !p.hasInactiveChildren);
+}
 
     return rows;
   }
