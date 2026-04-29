@@ -153,7 +153,7 @@ registrationCharges: RegistrationSpecialCharge[] = [];
 
 get hasRegistrationFee(): boolean {
 
-  this.registrationFee = 1;
+  // this.registrationFee = 1;
   return (this.registrationFee ?? 0) > 0 && !this.isExemptFromPayment;
   // להוריד לאחר שמטפלים בדמי רישום וכו!!!
   //return true;
@@ -204,12 +204,12 @@ onHealthFundChange() {
     birth_date: '',
     gender: '',
     health_fund: '',
+    funding_source_id: '',
     medical_notes_free: '',
     status: 'Pending Addition Approval' as ChildStatus,
   };
 
-  healthFunds: string[] = ['כללית', 'מאוחדת', 'מכבי', 'לאומית'];
-
+healthFunds: { id: string; name: string }[] = [];
   medical: MedicalFlags = {
     growthDelay: false,
     epilepsy: false,
@@ -232,6 +232,8 @@ onHealthFundChange() {
 
   async ngOnInit() {
     await this.loadRegistrationFeeFromDb();
+      await this.loadHealthFunds(); 
+
 
     if (this.isSecretaryMode) {
       await this.loadParentsForSecretary();
@@ -297,11 +299,11 @@ onHealthFundChange() {
 }
 recalculateRegistrationAmount(): void {
   // ✅ להחזיר לאחר שמטפלים בדמי רישום וכו!!!  
-  // const total = this.registrationCharges
-  //   .filter(c => c.selected)
-  //   .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+  const total = this.registrationCharges
+    .filter(c => c.selected)
+    .reduce((sum, c) => sum + Number(c.amount || 0), 0);
 
-   const total = 1; // ✅ להוריד לאחר שמטפלים בדמי רישום וכו!!!    
+  //  const total = 1; // ✅ להוריד לאחר שמטפלים בדמי רישום וכו!!!    
 
   this.registrationFee = total;
   this.payment.registrationAmount = total;
@@ -481,8 +483,9 @@ get isExemptFromPayment(): boolean {
     if (!this.child.last_name) this.validationErrors['last_name'] = 'נא להזין שם משפחה';
     if (!this.child.birth_date) this.validationErrors['birth_date'] = 'יש לבחור תאריך לידה';
     if (!this.child.gender) this.validationErrors['gender'] = 'יש לבחור ערך';
-    if (!this.child.health_fund) this.validationErrors['health_fund'] = 'יש לבחור קופת חולים';
-  }
+if (!this.child.funding_source_id) {
+  this.validationErrors['funding_source_id'] = 'יש לבחור קופת חולים';
+}  }
 
   private validateMedical() {
     if (this.medical.autismSpectrum && !this.medical.autismFunction) {
@@ -572,6 +575,7 @@ get isExemptFromPayment(): boolean {
         birth_date: this.child.birth_date,
         gender: this.child.gender,
         health_fund: this.child.health_fund,
+        funding_source_id: this.child.funding_source_id || null,
         status,
         parent_uid: parentUid,
         medical_notes: medicalNotesCombined || null,
@@ -1047,4 +1051,32 @@ get isExemptFromPayment(): boolean {
       }
     );
   }
+ private async loadHealthFunds(): Promise<void> {
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const { data, error } = await db
+      .from('funding_sources')
+      .select('id, name')
+      .eq('is_system', true)
+      .eq('is_active', true)
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+
+    this.healthFunds = data ?? [];
+  } catch (e) {
+    console.error('loadHealthFunds error', e);
+    this.healthFunds = [];
+  }
+}
+onFundingSourceChange(id: string): void {
+  const selected = this.healthFunds.find(h => h.id === id);
+
+  this.child.health_fund = selected?.name ?? '';
+  this.child.funding_source_id = id;
+
+  this.onHealthFundChange();
+}
 }

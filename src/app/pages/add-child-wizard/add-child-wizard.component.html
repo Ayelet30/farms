@@ -88,10 +88,17 @@
           <div class="form-field">
             <label>קופת חולים</label>
             <div class="health-fund-row">
-          <select [(ngModel)]="child.health_fund" (change)="onHealthFundChange()">
-            <option value="" disabled hidden>בחר/י קופה</option>
-            <option *ngFor="let hf of healthFunds" [value]="hf">{{ hf }}</option>
-          </select>
+       <select
+  [(ngModel)]="child.funding_source_id"
+  name="funding_source_id"
+  (ngModelChange)="onFundingSourceChange($event)"
+>
+  <option value="">בחרי קופת חולים</option>
+
+  <option *ngFor="let hf of healthFunds" [value]="hf.id">
+    {{ hf.name }}
+  </option>
+</select>
 
           <span *ngIf="isExemptFromPayment" class="exempt-badge">
             פטור מתשלום
