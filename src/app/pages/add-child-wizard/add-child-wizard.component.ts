@@ -159,10 +159,9 @@ get hasRegistrationFee(): boolean {
   //return true;
 }
 
-onHealthFundChange() {
+onFundingSourceChangeForPayment() {
   this.rebuildSteps();
 
-  // אם היינו בשלב תשלום – להחזיר אחורה
   if (!this.hasRegistrationFee && this.stepIndex > this.steps.length - 1) {
     this.stepIndex = this.steps.length - 1;
   }
@@ -203,7 +202,6 @@ onHealthFundChange() {
     last_name: '',
     birth_date: '',
     gender: '',
-    health_fund: '',
     funding_source_id: '',
     medical_notes_free: '',
     status: 'Pending Addition Approval' as ChildStatus,
@@ -442,13 +440,16 @@ onRegistrationChargeToggle(c: RegistrationSpecialCharge, checked: boolean): void
   const farm = getCurrentFarmMetaSync();
   return farm?.schema_name === 'raanana_farm';
 }
+get selectedFundingSourceName(): string {
+  return this.healthFunds.find(h => h.id === this.child.funding_source_id)?.name ?? '';
+}
 
 get isMaccabi(): boolean {
-  return this.child.health_fund === 'מכבי';
+  return this.selectedFundingSourceName === 'מכבי';
 }
 
 get isLeumit(): boolean {
-  return this.child.health_fund === 'לאומית';
+  return this.selectedFundingSourceName === 'לאומית';
 }
 
 get isExemptFromPayment(): boolean {
@@ -574,7 +575,6 @@ if (!this.child.funding_source_id) {
         last_name: this.child.last_name,
         birth_date: this.child.birth_date,
         gender: this.child.gender,
-        health_fund: this.child.health_fund,
         funding_source_id: this.child.funding_source_id || null,
         status,
         parent_uid: parentUid,
@@ -584,9 +584,9 @@ if (!this.child.funding_source_id) {
       const { data: insertedChild, error: insertChildError } = await dbc
         .from('children')
         .insert(childPayload)
-        .select(
-          'child_uuid, gov_id, first_name, last_name, birth_date, gender, health_fund, medical_notes, status, parent_uid'
-        )
+       .select(
+  'child_uuid, gov_id, first_name, last_name, birth_date, gender, funding_source_id, medical_notes, status, parent_uid'
+)
         .single();
 
       if (insertChildError || !insertedChild) {
@@ -629,7 +629,8 @@ if (!this.child.funding_source_id) {
             last_name: insertedChild.last_name,
             birth_date: insertedChild.birth_date,
             gender: insertedChild.gender,
-            health_fund: insertedChild.health_fund,
+            funding_source_id: insertedChild.funding_source_id,
+            funding_source_name: this.selectedFundingSourceName, 
             medical_notes: insertedChild.medical_notes,
             medical_questionnaire: { ...this.medical },
             terms: {
@@ -1072,11 +1073,7 @@ if (!this.child.funding_source_id) {
   }
 }
 onFundingSourceChange(id: string): void {
-  const selected = this.healthFunds.find(h => h.id === id);
-
-  this.child.health_fund = selected?.name ?? '';
   this.child.funding_source_id = id;
-
-  this.onHealthFundChange();
+  this.onFundingSourceChangeForPayment();
 }
 }

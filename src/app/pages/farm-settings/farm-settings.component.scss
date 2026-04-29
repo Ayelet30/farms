@@ -1363,3 +1363,23 @@ input[type="time"],
   direction: ltr;
   text-align: left;
 }
+.full-row {
+  grid-column: 1 / -1;
+}
+
+.checks-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 8px;
+}
+.full-row {
+  grid-column: 1 / -1;
+}
+
+.checks-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 8px;
+}
