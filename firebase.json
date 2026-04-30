@@ -104,7 +104,10 @@
         "source": "/api/sendEmailGmail",
         "function": "sendEmailGmail"
       },
-      
+      {
+        "source": "/api/testOpenMaccabi",
+        "function": "testOpenMaccabi"
+      },
       {
         "source": "/api/**",
         "function": "loginBootstrap"

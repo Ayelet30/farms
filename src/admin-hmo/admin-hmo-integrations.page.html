@@ -1,0 +1,73 @@
+<div dir="rtl" class="admin-shell">
+  <h2>ADMIN – חיבור קופות חולים לחווה</h2>
+  <p class="subtitle">שמירת פרטי התחברות מוצפנים לפי חווה וקופה.</p>
+
+  <div class="card">
+    <h3>בחירת חווה וקופה</h3>
+
+    <label>Tenant Schema</label>
+    <input [(ngModel)]="schema" placeholder="bereshit_farm / moacha_atarim_app" />
+
+    <label>קופה</label>
+    <select [(ngModel)]="provider">
+      <option value="CLALIT">כללית</option>
+      <option value="MACCABI">מכבי</option>
+      <option value="MEUHEDET">מאוחדת</option>
+    </select>
+  </div>
+
+  <div class="card">
+    <h3>פרטי {{ providerLabel }}</h3>
+
+    <label>שם משתמש</label>
+    <input [(ngModel)]="username" autocomplete="off" />
+
+    <label>סיסמה</label>
+    <input
+      [(ngModel)]="password"
+      type="password"
+      autocomplete="new-password"
+      placeholder="******"
+    />
+
+    <ng-container *ngIf="provider === 'CLALIT'">
+      <label>Supplier ID</label>
+      <input [(ngModel)]="supplierId" placeholder="99425" />
+
+      <label>Endpoint</label>
+      <input [(ngModel)]="endpoint" />
+    </ng-container>
+
+    <ng-container *ngIf="provider === 'MACCABI'">
+      <label>סוג נותן שירות</label>
+      <input [(ngModel)]="serviceProviderType" placeholder="5" />
+
+      <label>קוד נותן שירות</label>
+      <input [(ngModel)]="serviceProviderCode" placeholder="24220" />
+
+      <label>Endpoint</label>
+      <input [(ngModel)]="maccabiEndpoint" />
+    </ng-container>
+
+    <ng-container *ngIf="provider === 'MEUHEDET'">
+      <label>קוד ספק / נותן שירות</label>
+      <input [(ngModel)]="meuhedetProviderCode" />
+
+      <label>Endpoint</label>
+      <input [(ngModel)]="meuhedetEndpoint" />
+    </ng-container>
+
+    <div class="row">
+      <button type="button" (click)="saveSecrets()" [disabled]="saving">
+        {{ saving ? 'שומר...' : 'שמור מוצפן' }}
+      </button>
+
+      <span class="ok" *ngIf="lastOk">✔ נשמר בהצלחה</span>
+      <span class="err" *ngIf="lastErr">✖ {{ lastErr }}</span>
+    </div>
+
+    <p class="hint">
+      הסיסמה נשלחת ל־Firebase Function ונשמרת מוצפנת ב־DB. לא שומרים סיסמאות באנגולר.
+    </p>
+  </div>
+</div>
