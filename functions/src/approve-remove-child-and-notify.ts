@@ -122,7 +122,13 @@ export const approveRemoveChildAndNotify = onRequest(
       if (!scheduledIso) throw new Error('schedule_child_deletion returned empty scheduledDeletionAt');
 
       const scheduledDate = String(scheduledIso).slice(0, 10);
+// 1.1) delete child special charge state
+const { error: specialStateDeleteErr } = await sbTenant
+  .from('child_special_charge_state')
+  .delete()
+  .eq('child_id', childId);
 
+if (specialStateDeleteErr) throw specialStateDeleteErr;
       // 2) update request approved
       const updatePayload: any = {
         status: 'APPROVED',
