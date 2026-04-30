@@ -146,6 +146,62 @@ export const approveAddChildAndNotify = onRequest(
         .update({ status: 'Active' })
         .eq('child_uuid', childId);
       if (childUpdErr) throw childUpdErr;
+      // 3.1) יצירת state לחיובים מיוחדים קיימים שרלוונטיים לילד
+const { data: childFundingRow, error: childFundingErr } = await sbTenant
+  .from('children')
+  .select('child_uuid, funding_source_id')
+  .eq('child_uuid', childId)
+  .maybeSingle();
+
+if (childFundingErr) throw childFundingErr;
+
+if (childFundingRow?.funding_source_id) {
+  const { data: specialCharges, error: specialChargesErr } = await sbTenant
+    .from('special_charges')
+    .select('id, charge_on_registration, charge_on_specific_date, charge_date, charge_times_per_year, first_charge_date, funding_source_ids')
+    .eq('is_active', true)
+    .eq('charge_on_registration', false)
+    .contains('funding_source_ids', [childFundingRow.funding_source_id]);
+
+  if (specialChargesErr) throw specialChargesErr;
+
+  const rowsToInsert = (specialCharges || [])
+    .map((sc: any) => {
+      let last_charge_date: string | null = null;
+      let next_charge_date: string | null = null;
+
+      if (sc.charge_on_specific_date) {
+        next_charge_date = sc.charge_date || null;
+      }  else {
+  const firstDate = sc.first_charge_date || null;
+
+  if (!firstDate) return null;
+
+  last_charge_date = null;
+  next_charge_date = firstDate;
+}
+
+      if (!next_charge_date) return null;
+
+      return {
+        child_id: childId,
+        special_charge_id: sc.id,
+        last_charge_date,
+        next_charge_date,
+      };
+    })
+    .filter(Boolean);
+
+  if (rowsToInsert.length) {
+    const { error: stateErr } = await sbTenant
+      .from('child_special_charge_state')
+      .upsert(rowsToInsert, {
+        onConflict: 'child_id,special_charge_id',
+      });
+
+    if (stateErr) throw stateErr;
+  }
+}
 
       // 4) fetch child + parent
       const { data: childRow, error: childErr } = await sbTenant
@@ -224,4 +280,12 @@ async function requireAuth(req: any) {
   const m = auth.match(/^Bearer (.+)$/);
   if (!m) throw new Error('Missing Bearer token');
   return admin.auth().verifyIdToken(m[1]);
+}
+function addMonthsIsoDate(isoDate: string, months: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCMonth(date.getUTCMonth() + months);
+
+  return date.toISOString().slice(0, 10);
 }
