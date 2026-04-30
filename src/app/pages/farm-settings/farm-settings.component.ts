@@ -251,7 +251,11 @@ private dialog = inject(MatDialog);
   listNotes = signal<ListNote[]>([]);
   showNewListNoteForm = signal(false);
   editingListNoteId = signal<ListNoteId | null>(null);
-
+newSpecialChargeErrors = signal<{
+  item?: string;
+  amount?: string;
+  mode?: string;
+}>({});
   newListNoteText = signal<string>('');
   listNotesExpanded = signal(true);
   // ====== Riding Types ======
@@ -2522,6 +2526,10 @@ if (!c.first_charge_date) {
   return null;
 }
 async createSpecialCharge(): Promise<void> {
+    if (!this.validateNewSpecialCharge()) {
+    await this.ui.alert('יש למלא את כל שדות החובה בחיוב המיוחד.', 'שדות חסרים');
+    return;
+  }
   const c = this.newSpecialCharge();
   const err = this.validateSpecialCharge(c);
 const mode = this.getSpecialChargeMode(c);
@@ -2978,6 +2986,52 @@ fundingSourceNames(ids: UUID[] | null | undefined): string {
 
   return names.length ? names.join(', ') : 'לא נבחרו גורמי מימון';
 }
+validateNewSpecialCharge(): boolean {
+  const c = this.newSpecialCharge();
+  const mode = this.getSpecialChargeMode(c);
 
+  const errors: {
+    item?: string;
+    amount?: string;
+    mode?: string;
+  } = {};
+
+  if (!c.item?.trim()) {
+    errors.item = 'חובה למלא שם פריט';
+  }
+
+  if (c.amount == null || Number(c.amount) <= 0) {
+    errors.amount = 'חובה למלא סכום';
+  }
+
+  if (!mode) {
+    errors.mode = 'חובה לבחור סוג חיוב';
+  }
+
+  this.newSpecialChargeErrors.set(errors);
+  return Object.keys(errors).length === 0;
+}
+cancelNewSpecialCharge(): void {
+  this.showNewSpecialChargeForm.set(false);
+  this.newSpecialChargeErrors.set({});
+
+  this.newSpecialCharge.set({
+    item: '',
+    amount: null,
+    notes: null,
+    charge_on_registration: true,
+    charge_on_specific_date: false,
+    charge_date: null,
+    first_charge_date: null,
+    charge_times_per_year: null,
+    funding_source_ids: this.fundingSources()
+      .filter(fs => fs.is_active)
+      .map(fs => fs.id),
+    is_required: true,
+    warning_note: null,
+    is_active: true,
+    sort_order: 0,
+  });
+}
 }
 

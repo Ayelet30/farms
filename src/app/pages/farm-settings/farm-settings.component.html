@@ -858,6 +858,9 @@
           name="newSpecialChargeItem"
           placeholder="לדוגמה: ביטוח / קסדה / מכנס רכיבה"
         />
+         <small class="field-error" *ngIf="newSpecialChargeErrors().item">
+      {{ newSpecialChargeErrors().item }}
+    </small>
       </label>
 
       <label class="field-card">
@@ -870,9 +873,12 @@
           [(ngModel)]="newSpecialCharge().amount"
           name="newSpecialChargeAmount"
         />
+        <small class="field-error" *ngIf="newSpecialChargeErrors().amount">
+  {{ newSpecialChargeErrors().amount }}
+</small>
+ 
       </label>
 
- 
     </div>
 
    <div class="form-grid cols-3">
@@ -890,6 +896,9 @@
       <option [ngValue]="'yearly'">תשלום שנתי / מחזורי</option>
     </select>
   </label>
+  <small class="field-error" *ngIf="newSpecialChargeErrors().mode">
+  {{ newSpecialChargeErrors().mode }}
+</small>
 
   <label class="field-card" *ngIf="getSpecialChargeMode(newSpecialCharge()) === 'specific_date'">
     <span class="field-label">תאריך תשלום</span>
@@ -980,8 +989,17 @@
       />
     </label>
 
-   
+   <div class="panel-actions">
+  <button type="button" class="btn btn-primary" (click)="createSpecialCharge()">
+    שמירה
+  </button>
+
+  <button type="button" class="btn btn-ghost" (click)="cancelNewSpecialCharge()">
+    ביטול
+  </button>
+</div>
   </div>
+  
 <div class="special-charge-cards" *ngIf="specialCharges().length; else noSpecialCharges">
   <div class="special-charge-card" *ngFor="let c of specialCharges()" [class.inactive]="!c.is_active">
     <ng-container *ngIf="editingSpecialChargeId() === c.id; else viewSpecialChargeCard">
@@ -1045,7 +1063,21 @@
           <input class="form-control" type="text" [(ngModel)]="c.warning_note" name="specialWarning_{{ c.id }}" />
         </label>
       </div>
+<div class="field-card full-row">
+  <span class="field-label">גורמי מימון שהחיוב חל עליהם</span>
 
+  <div class="checks-grid">
+    <label class="mini-check" *ngFor="let fs of fundingSources()">
+      <input
+        type="checkbox"
+        [checked]="(c.funding_source_ids || []).includes(fs.id)"
+        (change)="toggleFundingSourceForExistingSpecialCharge(c, fs.id, $any($event.target).checked)"
+        name="specialFunding_{{ c.id }}_{{ fs.id }}"
+      />
+      <span>{{ fs.name }}</span>
+    </label>
+  </div>
+</div>
       <label class="field-card">
         <span class="field-label">הערות</span>
         <input class="form-control" type="text" [(ngModel)]="c.notes" name="specialNotes_{{ c.id }}" />
