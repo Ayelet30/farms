@@ -48,6 +48,11 @@ if ((await page.locator('#ServiceType').count()) === 0) {
     screenshotBase64: screenshot.toString('base64'),
   };
 }
+
+console.log('CURRENT URL:', page.url());
+console.log('PAGE TITLE:', await page.title());
+console.log('BODY TEXT:', await page.locator('body').innerText().catch(() => 'NO BODY'));
+
     await page.waitForSelector('#ServiceType', { timeout: 60_000 });
 
 await page.locator('#UserName').fill(String(creds.username));
