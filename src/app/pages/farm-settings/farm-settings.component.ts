@@ -240,7 +240,14 @@ min_time_between_cancellations?: string;
 })
 export class FarmSettingsComponent implements OnInit {
   private readonly SETTINGS_SINGLETON_ID = '00000000-0000-0000-0000-000000000001';
-
+readonly specialChargeFrequencyOptions = [
+  { value: 1, label: 'פעם בשנה' },
+  { value: 2, label: 'פעמיים בשנה - כל 6 חודשים' },
+  { value: 3, label: '3 פעמים בשנה - כל 4 חודשים' },
+  { value: 4, label: '4 פעמים בשנה - כל 3 חודשים' },
+  { value: 6, label: '6 פעמים בשנה - כל חודשיים' },
+  { value: 12, label: '12 פעמים בשנה - כל חודש' },
+];
   private get supabase() {
     return dbTenant();
   }
@@ -2493,10 +2500,11 @@ if (mode === 'specific_date' && !c.charge_date) {
 }
 
 if (mode === 'yearly') {
-  if (!c.charge_times_per_year || c.charge_times_per_year < 1 || c.charge_times_per_year > 365) {
-    return 'בתשלום שנתי חובה להזין כמה פעמים בשנה, בין 1 ל־365.';
-  }
+ const allowed = [1, 2, 3, 4, 6, 12];
 
+if (!c.charge_times_per_year || !allowed.includes(Number(c.charge_times_per_year))) {
+  return 'בתשלום מחזורי חובה לבחור תדירות חיוב תקינה.';
+}
   if (!c.first_charge_date) {
     return 'בתשלום שנתי חובה לבחור תאריך לפעם הראשונה.';
   }

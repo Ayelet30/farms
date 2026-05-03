@@ -153,7 +153,7 @@ registrationCharges: RegistrationSpecialCharge[] = [];
 
 get hasRegistrationFee(): boolean {
 
-  this.registrationFee = 1;
+  // this.registrationFee = 1;
   return (this.registrationFee ?? 0) > 0 && !this.isExemptFromPayment;
   // להוריד לאחר שמטפלים בדמי רישום וכו!!!
   //return true;
@@ -297,11 +297,11 @@ healthFunds: { id: string; name: string }[] = [];
 }
 recalculateRegistrationAmount(): void {
   // ✅ להחזיר לאחר שמטפלים בדמי רישום וכו!!!  
-  // const total = this.registrationCharges
-  //   .filter(c => c.selected)
-  //   .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+  const total = this.registrationCharges
+    .filter(c => c.selected)
+    .reduce((sum, c) => sum + Number(c.amount || 0), 0);
 
-   const total = 1; // ✅ להוריד לאחר שמטפלים בדמי רישום וכו!!!    
+  //  const total = 1; // ✅ להוריד לאחר שמטפלים בדמי רישום וכו!!!    
 
   this.registrationFee = total;
   this.payment.registrationAmount = total;
@@ -646,9 +646,15 @@ if (!this.child.funding_source_id) {
                   registration_amount: this.payment.registrationAmount,
                   method: 'credit_card',
                   card_last4: cardLast4,
+
+                  selected_optional_special_charge_ids: this.registrationCharges
+  .filter(c => !c.is_required && c.selected)
+  .map(c => c.id),
+  
                   note: cardLast4
                     ? `חיוב לאחר אישור מזכירה מכרטיס שמסתיים ב-${cardLast4}`
                     : 'חיוב לאחר אישור מזכירה',
+                    
                 }
               : null,
           },
