@@ -85,7 +85,8 @@
     "karma-coverage": "~2.2.0",
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
-    "typescript": "~5.8.2"
+    "typescript": "~5.8.2",
+    "webpack-bundle-analyzer": "^5.3.0"
   },
   "description": "This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.0.2.",
   "directories": {

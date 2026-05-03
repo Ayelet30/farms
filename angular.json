@@ -13,6 +13,10 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
+            "allowedCommonJsDependencies": [
+              "file-saver",
+              "pako"
+            ],
             "browser": "src/main.ts",
             "polyfills": [
               "zone.js"
@@ -52,16 +56,16 @@
           "configurations": {
             "production": {
               "budgets": [
-                          {
-              "type": "initial",
-              "maximumWarning": "1.5mb",
-              "maximumError": "2.5mb"
-            },
-            {
-              "type": "anyComponentStyle",
-              "maximumWarning": "30kb",
-              "maximumError": "50kb"
-            }
+                {
+                  "type": "initial",
+                  "maximumWarning": "1.5mb",
+                  "maximumError": "2.5mb"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "30kb",
+                  "maximumError": "50kb"
+                }
               ],
               "serviceWorker": "ngsw-config.json"
             },
