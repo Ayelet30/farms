@@ -343,26 +343,33 @@ openCreditForCharge(c: ParentChargeRow) {
     return c.period_start || c.period_end || '';
   }
 
-  formatStatus(status: ParentChargeRow['status']): string {
-    switch (status) {
-      case 'draft':
-        return 'טיוטה';
-      case 'pending':
-        return 'ממתין לחיוב';
-      case 'open':
-        return 'פתוח';
-      case 'partial':
-        return 'שולם חלקית';
-      case 'paid':
-        return 'שולם';
-      case 'failed':
-        return 'נכשל';
-      case 'cancelled':
-        return 'בוטל';
-      default:
-        return status ?? '';
-    }
+  formatStatus(c: ParentChargeRow): string {
+  // אם יש זיכויים על החיוב
+  const hasCredits = (c.credits_agorot ?? 0) > 0;
+
+  if (hasCredits && c.status === 'partial') {
+    return 'טיוטה';
   }
+
+  switch (c.status) {
+    case 'draft':
+      return 'טיוטה';
+    case 'pending':
+      return 'ממתין לחיוב';
+    case 'open':
+      return 'פתוח';
+    case 'partial':
+      return 'שולם חלקית';
+    case 'paid':
+      return 'שולם';
+    case 'failed':
+      return 'נכשל';
+    case 'cancelled':
+      return 'בוטל';
+    default:
+      return c.status ?? '';
+  }
+}
 
  async openChargeDetails(chargeId: string) {
   try {
