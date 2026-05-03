@@ -113,22 +113,31 @@
   <label>חיובים בהרשמה</label>
 
   <div class="registration-charge-row" *ngFor="let c of registrationCharges">
-   <label class="check-row">
-  <input
-    type="checkbox"
-    [checked]="c.selected"
-    (change)="onRegistrationChargeToggle(c, $any($event.target).checked)"
-  />
 
-  <span>
-    {{ c.item }} — {{ c.amount | number:'1.0-2' }} ₪
-  </span>
-</label>
-
-<div class="warning-note" *ngIf="c.warning_note && !c.selected">
-  ⚠ {{ c.warning_note }}
-</div>
+  <!-- חיוב חובה: בלי checkbox בכלל -->
+  <div class="check-row required-charge" *ngIf="c.is_required">
+    <span>
+      {{ c.item }} — {{ c.amount | number:'1.0-2' }} ₪
+    </span>
   </div>
+
+  <!-- חיוב לא חובה: עם checkbox לבחירת ההורה -->
+  <label class="check-row" *ngIf="!c.is_required">
+    <input
+      type="checkbox"
+      [checked]="c.selected"
+      (change)="onRegistrationChargeToggle(c, $any($event.target).checked)"
+    />
+
+    <span>
+      {{ c.item }} — {{ c.amount | number:'1.0-2' }} ₪
+    </span>
+  </label>
+
+  <div class="warning-note" *ngIf="!c.is_required && c.warning_note && !c.selected">
+    ⚠ {{ c.warning_note }}
+  </div>
+</div>
 </div>
         <div class="form-field full-width">
           <label>הערות כלליות / רגישויות</label>

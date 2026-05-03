@@ -47,6 +47,13 @@ funding_source_name: string | null;
   // ✅ חדש - מגיע מה-RPC
   signed_pdf_bucket: string | null;
   signed_pdf_path: string | null;
+
+  registration_charges: {
+  id: string;
+  item: string;
+  amount: number;
+  is_required: boolean;
+}[] | null;
 };
 
 type ToastKind = 'success' | 'error' | 'info';

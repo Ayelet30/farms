@@ -146,6 +146,48 @@ export const approveAddChildAndNotify = onRequest(
         .update({ status: 'Active' })
         .eq('child_uuid', childId);
       if (childUpdErr) throw childUpdErr;
+      // 3.0) שליפת הבקשה כדי לדעת אילו חיובי רשות ההורה בחר
+const { data: requestRow, error: requestFetchErr } = await sbTenant
+  .from('secretarial_requests')
+  .select('payload')
+  .eq('id', requestId)
+  .maybeSingle();
+
+if (requestFetchErr) throw requestFetchErr;
+
+const selectedOptionalIds: string[] =
+  requestRow?.payload?.registration_payment?.selected_optional_special_charge_ids ?? [];
+
+// 3.0.1) חיובי הרשמה: חובה תמיד + רשות רק אם ההורה סימן
+const { data: registrationCharges, error: registrationChargesErr } = await sbTenant
+  .from('special_charges')
+  .select('id')
+  .eq('is_active', true)
+  .eq('charge_on_registration', true)
+  .or(
+    selectedOptionalIds.length
+      ? `is_required.eq.true,id.in.(${selectedOptionalIds.join(',')})`
+      : `is_required.eq.true`
+  );
+
+if (registrationChargesErr) throw registrationChargesErr;
+
+const registrationStateRows = (registrationCharges ?? []).map((sc: any) => ({
+  child_id: childId,
+  special_charge_id: sc.id,
+  last_charge_date: null,
+  next_charge_date: new Date().toISOString().slice(0, 10),
+}));
+
+if (registrationStateRows.length) {
+  const { error: registrationStateErr } = await sbTenant
+    .from('child_special_charge_state')
+    .upsert(registrationStateRows, {
+      onConflict: 'child_id,special_charge_id',
+    });
+
+  if (registrationStateErr) throw registrationStateErr;
+}
       // 3.1) יצירת state לחיובים מיוחדים קיימים שרלוונטיים לילד
 const { data: childFundingRow, error: childFundingErr } = await sbTenant
   .from('children')

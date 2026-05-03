@@ -77,6 +77,15 @@
       <span class="v" *ngIf="d.card_last4">**** {{ d.card_last4 }}</span>
       <span class="v" *ngIf="!d.card_last4">—</span>
     </div>
+    <div class="charge-breakdown" *ngIf="d.registration_charges?.length">
+  <div class="row" *ngFor="let c of d.registration_charges">
+    <span class="k">{{ c.item }}</span>
+    <span class="v">
+      {{ c.amount | number:'1.0-2' }} ₪
+      <span class="muted" *ngIf="c.is_required">· חובה</span>
+    </span>
+  </div>
+</div>
   </div>
 
   <div class="note">
