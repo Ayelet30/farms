@@ -913,18 +913,20 @@
   </label>
 
   <label class="field-card" *ngIf="getSpecialChargeMode(newSpecialCharge()) === 'yearly'">
-    <span class="field-label">כמה פעמים בשנה</span>
-    <input
-      class="form-control"
-      type="number"
-      min="1"
-      max="365"
-      [ngModel]="newSpecialCharge().charge_times_per_year"
-      name="newSpecialChargeTimesPerYear"
-      (input)="onNewTimesPerYearInput($event)"
-    />
-  </label>
+  <span class="field-label">תדירות חיוב</span>
 
+  <select
+    class="form-control"
+    [ngModel]="newSpecialCharge().charge_times_per_year"
+    name="newSpecialChargeTimesPerYear"
+    (ngModelChange)="selectNewChargeTimesPerYear($event)"
+  >
+    <option [ngValue]="null">בחירת תדירות</option>
+    <option *ngFor="let opt of specialChargeFrequencyOptions" [ngValue]="opt.value">
+      {{ opt.label }}
+    </option>
+  </select>
+</label>
  <label class="field-card" *ngIf="getSpecialChargeMode(newSpecialCharge()) === 'yearly'">
   <span class="field-label">תאריך לפעם ראשונה</span>
 <input
@@ -1030,10 +1032,19 @@
   name="specialDate_{{ c.id }}"
 />        </label>
 
-        <label class="field-card" *ngIf="getSpecialChargeMode(c) === 'yearly'">
-          <span class="field-label">כמה פעמים בשנה</span>
-          <input class="form-control" type="number" min="1" max="365" [ngModel]="c.charge_times_per_year" name="specialTimesPerYear_{{ c.id }}" (input)="onExistingTimesPerYearInput(c, $event)" />
-        </label>
+       <label class="field-card" *ngIf="getSpecialChargeMode(c) === 'yearly'">
+  <span class="field-label">תדירות חיוב</span>
+
+  <select
+    class="form-control"
+    [(ngModel)]="c.charge_times_per_year"
+    name="specialTimesPerYear_{{ c.id }}"
+  >
+    <option *ngFor="let opt of specialChargeFrequencyOptions" [ngValue]="opt.value">
+      {{ opt.label }}
+    </option>
+  </select>
+</label>
 
         <label class="field-card" *ngIf="getSpecialChargeMode(c) === 'yearly'">
           <span class="field-label">תאריך לפעם ראשונה</span>

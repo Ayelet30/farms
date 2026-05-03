@@ -252,14 +252,15 @@
         <h3 class="step-title">אמצעי תשלום</h3>
 
         <div class="payment-notes">
-          <div class="info-banner">
-            שימו לב! דמי רישום ייגבו רק מילדים חדשים בחווה — ולא מילדים חדשים באתר.
-          </div>
+      <div class="info-banner" *ngIf="registrationCharges?.length; else noRegCharges">
+  הכנסת פרטי האשראי נועדה לצורך חיובים עתידיים מהמערכת ועבור החיובים המצויינים פה.
+</div>
 
-          <div class="info-banner">
-            הכנסת פרטי האשראי נועדה לצורך חיובים עתידיים מהמערכת בלבד.
-          </div>
-        </div>
+<ng-template #noRegCharges>
+  <div class="info-banner">
+    הכנסת פרטי האשראי נועדה לצורך חיובים עתידיים מהמערכת.
+  </div>
+</ng-template>
 
         <p class="step-hint" *ngIf="loadingPaymentProfile">טוען אמצעי תשלום שמור…</p>
 
@@ -272,15 +273,33 @@
             <b><a class="inline-link" routerLink="/parent/payments">אמצעי תשלום</a></b>.
           </div>
           <p class="step-hint small" style="margin-top: 8px;">* החיוב בפועל יבוצע רק לאחר אישור המזכירה.</p>
+          <div class="summary-row" *ngFor="let c of registrationCharges">
+  <ng-container *ngIf="c.is_required || c.selected">
+    <span class="summary-label">
+      {{ c.item }}
+      <span class="muted" *ngIf="c.is_required">· חובה</span>
+    </span>
+
+    <span class="summary-value">
+      {{ c.amount | number:'1.0-2' }} ₪
+    </span>
+  </ng-container>
+</div>
         </div>
 
         <div *ngIf="!loadingPaymentProfile && !hasSavedPaymentProfile" class="payment-card">
           <div class="payment-summary">
             <div class="summary-row">
-           <div class="summary-row" *ngFor="let c of registrationCharges">
-  <ng-container *ngIf="c.selected">
-    <span class="summary-label">{{ c.item }}</span>
-    <span class="summary-value">{{ c.amount | number:'1.0-2' }} ₪</span>
+         <div class="summary-row" *ngFor="let c of registrationCharges">
+  <ng-container *ngIf="c.is_required || c.selected">
+    <span class="summary-label">
+      {{ c.item }}
+      <span class="muted" *ngIf="c.is_required">· חובה</span>
+    </span>
+
+    <span class="summary-value">
+      {{ c.amount | number:'1.0-2' }} ₪
+    </span>
   </ng-container>
 </div>
 <div class="summary-row total">
