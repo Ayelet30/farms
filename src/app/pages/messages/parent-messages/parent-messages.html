@@ -82,11 +82,87 @@
 <!-- parent-messages.component.html -->
 <div class="page-wrap" dir="rtl">
 
+  <div class="chat-page-container">
+  <!-- כותרת ראשית גדולה במרכז -->
+  <div class="chat-welcome-section">
+    <h1>יצירת קשר</h1>
+    <p>לכל שאלה, בקשה או עדכון ניתן לפנות אלינו כאן</p>
+  </div>
+
+  <!-- תיבת ההזנה -->
+  <div class="input-container">
+    <div class="input-box-wrapper">
+      
+      <!-- אזור ההקלדה (למעלה) -->
+      <textarea 
+        [(ngModel)]="newBody" 
+        placeholder="איך נוכל לעזור?" 
+        rows="1" 
+        (input)="adjustHeight($event)">
+      </textarea>
+
+      <!-- שורת הכלים (למטה) -->
+      <div class="input-toolbar">
+        <div class="toolbar-left">
+          
+          <!-- כפתור פלוס להוספת קבצים -->
+          <label class="tool-btn plus-btn">
+            <span class="icon">+</span>
+            <input type="file" (change)="onFileSelected($event)" hidden>
+          </label>
+
+          <!-- בחירת נושא -->
+          <div class="tool-dropdown-wrapper">
+            <select [(ngModel)]="newSubject" class="minimal-select">
+              <option value="" disabled selected>בחרו נושא</option>
+              <option value="billing">חיוב ותשלומים</option>
+              <option value="schedule">שינוי לוח זמנים</option>
+              <option value="general">בקשה כללית</option>
+              <option value="files">שליחת קבצים</option>
+            </select>
+          </div>
+
+          <!-- בחירת ילד - מופיע רק כאשר בוחרים בנושא בחירת קבצים ונעלם עם אנימציה חלקה -->
+          <div class="tool-dropdown-wrapper child-selection-animator" 
+            [class.is-visible]="newSubject === 'files'">
+            <select class="minimal-select" [(ngModel)]="selectedKidId">
+              <option value="" disabled selected>עבור איזה ילד?</option>
+              <!-- לולאה שיוצרת אופציה לכל ילד ברשימה -->
+              <option *ngFor="let kid of kids()" [value]="kid.id">
+              {{ kid.student_name }}
+              </option>
+            </select>
+        </div>
+
+          
+        </div>
+
+        <div class="toolbar-right">
+          <!-- חץ שליחה -->
+          <button class="send-action-btn" 
+                  [disabled]="!newBody.trim() || !newSubject" 
+                  (click)="createConversation()">
+            <span class="send-arrow">➤</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- הודעת אישור (Toast) -->
+  <div class="toast-message" *ngIf="toast()">
+    {{ toast() }}
+  </div>
+</div>
+
+  
+
+
   <div class="card header-card">
     <div class="title-block">
       <h2>יצירת קשר</h2>
       <p class="subtitle">
-        לכל שאלה, בקשה או עדכון – אפשר לפנות אלינו כאן.
+        לכל שאלה, בקשה או עדכון – אפשר לפנות אלינו כאן...
       </p>
     </div>
   </div>
@@ -150,6 +226,20 @@
     <ng-template #noAddr>
       <div class="contact-value muted">לא עודכנה כתובת במערכת</div>
     </ng-template>
+  </div>
+</div>
+<!-- וואטסאפ -->
+<div class="contact-item whatsapp-item" *ngIf="farmSettings?.main_phone">
+  <div class="contact-icon" aria-hidden="true">💬</div>
+
+  <div class="contact-content">
+    <div class="contact-label">וואטסאפ</div>
+
+    <a class="contact-value ltr whatsapp-link" [href]="whatsappLink" target="_blank">
+      {{ farmSettings?.main_phone }}
+    </a>
+    
+    <div class="contact-hint">לחיצה תפתח שיחת וואטסאפ</div>
   </div>
 </div>
 

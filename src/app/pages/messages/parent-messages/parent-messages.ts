@@ -65,6 +65,8 @@ type WorkingHourVm = WorkingHourRow & {
   styleUrls: ['./parent-messages.css']
 })
 export class ParentMessagesComponent implements OnInit {
+
+  
   tab = signal<Tab>('threads');
 
   // שיחות
@@ -74,11 +76,24 @@ export class ParentMessagesComponent implements OnInit {
   messages = signal<ConversationMessage[]>([]);
   replyText = ''; // <-- לא signal כדי לעבוד עם ngModel
 
+  
+  get whatsappLink(): string {
+  // אם אין טלפון ב-Supabase, נשתמש במספר ברירת מחדל לבדיקה
+  const phone = this.farmSettings?.main_phone || '0501234567'; 
+  
+  // מנקים תווים שהם לא מספרים
+  let cleanPhone = phone.replace(/\D/g, '');   
+  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent('שלום, אני פונה מהאתר של החווה')}`;
+}
+
   // פתיחת שיחה חדשה
   newSubject = ''; // <-- לא signal
   newBody = '';    // <-- לא signal
   creating = signal(false);
   toast = signal<string | null>(null);
+  selectedFile: File | null = null;
+  selectedKidId: string = ''; // ישמור את ה-ID של הילד שנבחר
+  kids = signal<any[]>([]);
 
   // הודעות שידור
   loadingAnn = signal(false);
@@ -99,8 +114,28 @@ export class ParentMessagesComponent implements OnInit {
       this.loadWorkingHours(),
     ]);
     await ensureTenantContextReady();
-    await Promise.all([this.loadThreads(), this.loadAnnouncements()]);
+    await Promise.all([
+      this.loadThreads(), 
+      this.loadAnnouncements(), 
+      this.loadKids() 
+    ]);
   }
+
+  async loadKids() {
+  // הוצאת המשתמש המחובר (לפי ה-Firebase Auth שמופיע אצלך ב-import)
+  const user = getAuth().currentUser;
+  if (!user) return;
+
+  const { data, error } = await dbTenant()
+    .from('registrations')
+    .select('id, student_name')
+    .eq('parent_id', user.uid); // ב-Firebase זה uid ולא id
+
+  if (data) {
+    this.kids.set(data); // מעדכן את ה-Signal עבור ה-HTML
+  }
+}
+
   private async loadWorkingHours(): Promise<void> {
     try {
       const dbc = await dbTenant();
@@ -272,7 +307,45 @@ private jsToDbDow(js: number): number {
     this.replyText = '';
   }
 
+  onFileSelected(event: any) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // בדיקת גודל קובץ - מקסימום 5MB לפי האפיון
+  const maxSizeInBytes = 5 * 1024 * 1024; 
+  if (file.size > maxSizeInBytes) {
+    this.toast.set('הקובץ גדול מדי. הגודל המקסימלי המותר הוא 5MB');
+    event.target.value = ''; // איפוס הבחירה
+    return;
+  }
+
+  // בדיקת סוג קובץ - JPG, PNG, PDF בלבד
+  const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+  if (!allowedTypes.includes(file.type)) {
+    this.toast.set('סוג קובץ לא נתמך. ניתן להעלות PDF, PNG או JPG בלבד');
+    event.target.value = '';
+    return;
+  }
+
+  this.selectedFile = file;
+  this.toast.set(`קובץ נבחר: ${file.name}`);
+  setTimeout(() => this.toast.set(null), 3000);
+}
+
+adjustHeight(event: any) {
+  const element = event.target;
+  element.style.height = 'auto';
+  element.style.height = element.scrollHeight + 'px';
+}
+
   async createConversation() {
+    // 1. בדיקה ראשונה: האם נבחר ילד כשמדובר בקבצים?
+    if (this.newSubject === 'files' && !this.selectedKidId) {
+      this.toast.set('חובה לבחור ילד עבור שליחת קבצים');
+      // אנחנו עושים return כדי שהפונקציה תיעצר כאן ולא תמשיך לשלוח
+      setTimeout(() => this.toast.set(null), 3000); // מעלים את ההודעה אחרי 3 שניות
+      return; 
+    }
     if (!this.newBody.trim()) return;
     this.creating.set(true);
     try {
@@ -343,5 +416,7 @@ private jsToDbDow(js: number): number {
   buildMapsUrl(addr: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
 }
+
+
 
 }
