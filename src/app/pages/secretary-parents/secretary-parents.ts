@@ -19,7 +19,7 @@ import {
   AddParentDialogComponent,
   AddParentPayload,
 } from './add-parent-dialog/add-parent-dialog.component';
-
+import { PaymentsService } from '../../services/payments.service';
 import { CreateUserService } from '../../services/create-user.service';
 import { MailService } from '../../services/mail.service';
 
@@ -34,8 +34,23 @@ type ParentRow = {
   is_active?: boolean | null;
   hasActiveChildren?: boolean;
   hasInactiveChildren?: boolean;
+  paymentProfilesCount?: number;
+hasPaymentMethod?: boolean;
+hasExpiringPaymentMethod?: boolean;
+defaultPaymentLast4?: string | null;
+defaultPaymentExpiry?: string | null;
 };
-
+type PaymentProfileRow = {
+  id: string;
+  parent_uid: string;
+  brand?: string | null;
+  last4?: string | null;
+  expiry_month?: number | null;
+  expiry_year?: number | null;
+  active: boolean;
+  is_default: boolean;
+  created_at?: string;
+};
 interface ParentDetailsRow extends ParentRow {
   address?: string | null;
   extra_notes?: string | null;
@@ -50,7 +65,8 @@ type ParentColumnKey =
   | 'id_number'
   | 'billing_day_of_month'
   | 'status'
-  | 'children_status';
+  | 'children_status'
+  | 'payment_status';
 
 type ParentColumnDef = {
   key: ParentColumnKey;
@@ -107,7 +123,7 @@ childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
   private originalParent: ParentDetailsRow | null = null;
 
   readonly STORAGE_KEY = 'secretary_parents_table_prefs';
-
+drawerPaymentProfiles: PaymentProfileRow[] = [];
   columns: ParentColumnDef[] = [
     { key: 'first_name', label: 'שם פרטי', visible: true },
     { key: 'last_name', label: 'שם משפחה', visible: true },
@@ -117,6 +133,7 @@ childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
     { key: 'billing_day_of_month', label: 'יום חיוב', visible: false },
     { key: 'status', label: 'סטטוס הורה', visible: true },
     { key: 'children_status', label: 'סטטוס ילדים', visible: true },
+    { key: 'payment_status', label: 'אמצעי תשלום', visible: true },
   ];
 
   stats = {
@@ -149,6 +166,7 @@ childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
     private createUserService: CreateUserService,
     private fb: FormBuilder,
     private mailService: MailService,
+    private pagos: PaymentsService,
   ) {}
 
   async ngOnInit() {
@@ -225,7 +243,18 @@ childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
   get visibleColumns(): ParentColumnDef[] {
     return this.columns.filter((c) => c.visible);
   }
+// async setDefaultPaymentProfile(profileId: string) {
+//   if (!this.selectedUid) return;
 
+//   try {
+//     await this.pagos.setDefault(profileId, this.selectedUid);
+
+//     await this.loadDrawerData(this.selectedUid);
+//     await this.loadParents();
+//   } catch (e: any) {
+//     await this.ui.alert(e?.message ?? 'לא ניתן היה לשנות כרטיס ברירת מחדל', 'שגיאה');
+//   }
+// }
   toggleSearchPanelFromBar() {
     this.panelFocus = 'search';
     this.showColumnsPanel = false;
@@ -349,7 +378,20 @@ childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
       if (kidsErr) {
         console.error('children fetch error', kidsErr);
       }
+const { data: profilesData, error: profilesErr } = await dbc
+  .from('payment_profiles')
+  .select('id, parent_uid, brand, last4, expiry_month, expiry_year, active, is_default, created_at')
+  .eq('active', true);
 
+if (profilesErr) throw profilesErr;
+
+const profilesMap = new Map<string, PaymentProfileRow[]>();
+
+(profilesData ?? []).forEach((p: any) => {
+  const arr = profilesMap.get(p.parent_uid) || [];
+  arr.push(p);
+  profilesMap.set(p.parent_uid, arr);
+});
       const map = new Map<string, { hasActive: boolean; hasInactive: boolean }>();
 
       (kidsData ?? []).forEach((kid: any) => {
@@ -370,10 +412,19 @@ childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
 
       this.parents = parents.map((p) => {
         const stats = map.get(p.uid) || { hasActive: false, hasInactive: false };
+        const profiles = profilesMap.get(p.uid) || [];
+const defaultProfile = profiles.find(x => x.is_default) || profiles[0];
         return {
-          ...p,
-          hasActiveChildren: stats.hasActive,
-          hasInactiveChildren: stats.hasInactive,
+         ...p,
+  hasActiveChildren: stats.hasActive,
+  hasInactiveChildren: stats.hasInactive,
+  paymentProfilesCount: profiles.length,
+  hasPaymentMethod: profiles.length > 0,
+  hasExpiringPaymentMethod: profiles.some(x => this.isExpiringSoon(x)),
+  defaultPaymentLast4: defaultProfile?.last4 ?? null,
+  defaultPaymentExpiry: defaultProfile
+    ? this.formatExpiry(defaultProfile.expiry_month, defaultProfile.expiry_year)
+    : null,
         };
       });
 
@@ -411,10 +462,12 @@ childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
     this.drawerChildren = [];
     this.editMode = false;
     this.originalParent = null;
+    this.drawerPaymentProfiles = [];
   }
 
   private async loadDrawerData(uid: string) {
     this.drawerLoading = true;
+    this.drawerPaymentProfiles = [];
 
     try {
       const db = dbTenant();
@@ -449,7 +502,17 @@ childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
         .order('first_name', { ascending: true });
 
       if (kidsErr) throw kidsErr;
+const { data: profiles, error: profilesErr } = await db
+  .from('payment_profiles')
+  .select('id, parent_uid, brand, last4, expiry_month, expiry_year, active, is_default, created_at')
+  .eq('parent_uid', cleanUid)
+  .eq('active', true)
+  .order('is_default', { ascending: false })
+  .order('created_at', { ascending: false });
 
+if (profilesErr) throw profilesErr;
+
+this.drawerPaymentProfiles = profiles ?? [];
       this.drawerChildren = kids ?? [];
     } catch (e) {
       console.error(e);
@@ -1040,4 +1103,72 @@ childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
         return '—';
     }
   }
+ async removePaymentProfile(profileId: string) {
+  if (!this.selectedUid || !this.drawerParent) return;
+  const profile = this.drawerPaymentProfiles.find(p => p.id === profileId);
+
+  // 👉 כאן מכניסים את ה־message הדינמי
+  const ok = await this.ui.confirm({
+    title: 'מחיקת אמצעי תשלום',
+    message: profile?.is_default
+      ? 'הכרטיס הזה הוא ברירת מחדל. יוגדר כרטיס אחר כברירת מחדל. להמשיך?'
+      : 'להסיר את אמצעי התשלום הזה?'
+  });
+
+  if (!ok) return;
+
+  const { error } = await dbTenant()
+    .from('payment_profiles')
+    .update({
+      active: false,
+      is_default: false,
+    })
+    .eq('id', profileId)
+    .eq('parent_uid', this.selectedUid);
+
+  if (error) {
+    await this.ui.alert(error.message, 'שגיאה');
+    return;
+  }
+
+  await this.loadDrawerData(this.selectedUid);
+  await this.loadParents();
+
+  await this.ui.alert('אמצעי התשלום הוסר בהצלחה', 'בוצע');
+}
+formatExpiry(month?: number | null, year?: number | null): string {
+  if (!month || !year) return '—';
+  return `${String(month).padStart(2, '0')}/${String(year).slice(-2)}`;
+}
+
+isExpiringSoon(profile: PaymentProfileRow): boolean {
+  if (!profile.expiry_month || !profile.expiry_year) return false;
+
+  const now = new Date();
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const expiryMonthEnd = new Date(profile.expiry_year, profile.expiry_month, 0);
+
+  const oneMonthFromNow = new Date(
+    currentMonthStart.getFullYear(),
+    currentMonthStart.getMonth() + 2,
+    0
+  );
+
+  return expiryMonthEnd >= currentMonthStart && expiryMonthEnd <= oneMonthFromNow;
+}
+async setDefaultPaymentProfile(profileId: string) {
+  if (!this.selectedUid) return;
+
+  try {
+    await this.pagos.setDefault(profileId, this.selectedUid);
+
+    await this.loadDrawerData(this.selectedUid);
+    await this.loadParents();
+  } catch (e: any) {
+    await this.ui.alert(
+      e?.message ?? 'לא ניתן היה לשנות כרטיס ברירת מחדל',
+      'שגיאה'
+    );
+  }
+}
 }
