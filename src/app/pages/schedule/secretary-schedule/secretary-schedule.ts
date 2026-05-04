@@ -2529,7 +2529,7 @@ async chooseMoveSingleOccurrence(): Promise<void> {
     slots: [],
     selectedSlot: null,
   };
-
+  
   this.cdr.detectChanges();
 
   try {

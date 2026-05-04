@@ -10,6 +10,9 @@ import { computed } from '@angular/core';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { getAuth } from 'firebase/auth';
 import { requireTenant } from '../../services/supabaseClient.service';
+import { Output, EventEmitter } from '@angular/core';
+
+
 type AddChildDetails = {
   request_id: string;
   created_at: string;
@@ -70,8 +73,11 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
   @Input({ required: true }) decidedByUid!: string;
 
   @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
-@Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
+  @Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
   @Input() onError?: (e: { requestId?: string; message: string; raw?: any }) => void;
+
+  @Output() approved = new EventEmitter<any>();
+  @Output() rejected = new EventEmitter<any>();
 
   private db = dbTenant();
   private snack = inject(MatSnackBar);
@@ -322,12 +328,17 @@ private async callCloud(action: 'approve' | 'reject', extra?: { system?: boolean
 
     // ✅ הצלחה ב-DB
     const msg = 'הבקשה אושרה בהצלחה ✅';
+    this.approved.emit({
+      requestId: this.request.id,
+      newStatus: 'APPROVED'
+    });
 
     if (json?.emailOk === false) {
       this.toast('אושר ✅ אבל שליחת מייל נכשלה', 'error'); // כמו אצלך במחיקה
     } else {
       this.toast(msg, 'success');
     }
+
 
     this.onApproved?.({
       requestId: this.request.id,
@@ -384,6 +395,10 @@ async reject(args?: { source: 'user' | 'system'; reason?: string }) {
       : 'REJECTED';
 
     const msg = 'הבקשה נדחתה בהצלחה ✅';
+    this.rejected.emit({
+  requestId: this.request.id,
+  newStatus
+});
 
     if (json?.emailOk === false) {
       this.toast('נדחה ✅ אבל שליחת מייל נכשלה', 'error');

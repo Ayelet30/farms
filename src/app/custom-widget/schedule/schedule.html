@@ -136,7 +136,7 @@
 
 
     <div class="schedule-legend" *ngIf="currentView === 'dayGridMonth'">
-      <div class="legend-item" *ngFor="let item of monthLegend">
+      <div class="legend-item" *ngFor="let item of monthLegend trackBy: trackById">
         <span class="legend-dot" [ngClass]="item.className"></span>
         <span>{{ item.label }}</span>
       </div>

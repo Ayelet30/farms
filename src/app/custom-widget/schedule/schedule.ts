@@ -14,6 +14,7 @@ import {
   ChangeDetectorRef,
   NgZone,
   ElementRef,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FullCalendarModule, FullCalendarComponent } from '@fullcalendar/angular';
@@ -88,6 +89,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   @ViewChild('calendarHost', { static: false }) calendarHost?: ElementRef<HTMLElement>;
 
   private boundContextMenuHandler?: (e: MouseEvent) => void;
+  
 
   @Input() items: ScheduleItem[] = [];
   @Input() initialView: ViewName = 'timeGridDay';
@@ -184,7 +186,9 @@ endTimeOnly?: string | null;
   constructor(
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone
-  ) {}
+  ) {
+    changeDetection: ChangeDetectionStrategy.OnPush
+  }
 
   get calendarApi() {
     return this.calendarComponent?.getApi();
@@ -755,8 +759,13 @@ buildCustomItemTitle(item: ScheduleItem): string {
     document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
   }
 
+  trackById(i: number, item: any) {
+  return item.id;
+}
+
   changeView(view: ViewName) {
   this.currentView = view;
+  
 
   if (view === 'timeGridDay') {
     const api = this.calendarApi;
@@ -874,7 +883,8 @@ buildCustomItemTitle(item: ScheduleItem): string {
     api.setOption('slotMaxTime', this.slotMaxTime);
     api.setOption('allDaySlot', this.allDaySlot);
     api.setOption('resources', this.resources || []);
-    api.setOption('events', this.buildFullCalendarEvents());
+    api.getEventSources().forEach(s => s.remove());
+    api.addEventSource(this.buildFullCalendarEvents());
 
     if (
       mapped === 'timeGridDay' ||
@@ -891,7 +901,8 @@ buildCustomItemTitle(item: ScheduleItem): string {
   const api = this.calendarApi;
   if (!api) return;
 
-  api.setOption('events', this.buildFullCalendarEvents());
+  api.getEventSources().forEach(s => s.remove());
+  api.addEventSource(this.buildFullCalendarEvents());
 }
 
   private buildFullCalendarEvents(): EventInput[] {
