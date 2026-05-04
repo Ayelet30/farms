@@ -25,6 +25,11 @@ type ChargeWithPaymentStatus = ParentChargeRow & {
   hasExpiredPaymentMethod?: boolean;
   paymentBlockReason?: string | null;
 };
+type ParentChildEmailInfo = {
+  first_name: string | null;
+  last_name: string | null;
+  gov_id: string | null;
+};
 @Component({
   selector: 'app-secretary-parent-billing',
   standalone: true,
@@ -312,14 +317,15 @@ this.charges.set(rowsWithPaymentStatus);
   const farm = getCurrentFarmMetaSync();
   const tenantSchema = farm?.schema_name ?? 'public';
   const farmName = farm?.name ?? 'Smart Farm';
-
-  const email = this.buildPaymentFailedEmail({
-    parentName,
-    parentUid,
-    chargeIds,
-    farmName,
-    errorMessage: e?.message ?? null,
-  });
+const children = await this.getParentChildrenForEmail(parentUid);
+const email = this.buildPaymentFailedEmail({
+  parentName,
+  parentUid,
+  chargeIds,
+  farmName,
+  errorMessage: e?.message ?? null,
+  children,
+});
 
  const secretaryEmails = await this.getSecretaryEmailsForCurrentTenant();
 
@@ -638,6 +644,7 @@ private async createAdditionalCharge(args: {
   parentUid: string;
   amountAgorot: number;
   description: string;
+  children?: ParentChildEmailInfo[];
 }) {
   const now = new Date();
   const isoNow = now.toISOString();
@@ -751,10 +758,37 @@ private buildPaymentFailedEmail(args: {
   chargeIds: string[];
   farmName: string;
   errorMessage?: string | null;
+  children?: ParentChildEmailInfo[];
+  
 }) {
   const parentName = args.parentName || args.parentUid;
   const subject = `חיוב אשראי נכשל – ${parentName}`;
+const children = args.children ?? [];
 
+const childrenHtml = children.length
+  ? `
+  <p style="margin:14px 0 6px 0;"><b>ילדים משויכים להורה:</b></p>
+  <table style="border-collapse:collapse;width:100%;max-width:520px;">
+    <thead>
+      <tr>
+        <th style="text-align:right;border:1px solid #e5e7eb;padding:6px;background:#f9fafb;">שם הילד/ה</th>
+        <th style="text-align:right;border:1px solid #e5e7eb;padding:6px;background:#f9fafb;">תעודת זהות</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${children.map(child => {
+        const name = `${child.first_name || ''} ${child.last_name || ''}`.trim() || '—';
+        return `
+          <tr>
+            <td style="border:1px solid #e5e7eb;padding:6px;">${this.escapeHtml(name)}</td>
+            <td style="border:1px solid #e5e7eb;padding:6px;">${this.escapeHtml(child.gov_id || '—')}</td>
+          </tr>
+        `;
+      }).join('')}
+    </tbody>
+  </table>
+`
+  : `<p style="margin:14px 0 6px 0;color:#6b7280;">לא נמצאו ילדים משויכים להורה.</p>`;
   const html = `
 <div style="direction:rtl;font-family:Arial,Helvetica,sans-serif;font-size:16px;color:#111827;">
   <h2 style="margin:0 0 8px 0;">${args.farmName}</h2>
@@ -764,7 +798,6 @@ private buildPaymentFailedEmail(args: {
   </p>
 
   <p style="margin:0 0 8px 0;">
-    <b>מזהה הורה:</b> ${args.parentUid}
   </p>
 
   <p style="margin:0 0 8px 0;">
@@ -829,5 +862,24 @@ private async getSecretaryEmailsForCurrentTenant(): Promise<string[]> {
         .filter(Boolean)
     )
   );
+}
+private async getParentChildrenForEmail(parentUid: string): Promise<ParentChildEmailInfo[]> {
+  const { data, error } = await dbTenant()
+    .from('children')
+    .select('first_name, last_name, gov_id')
+    .eq('parent_uid', parentUid)
+    .order('first_name', { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? []) as ParentChildEmailInfo[];
+}
+private escapeHtml(s: string): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 }

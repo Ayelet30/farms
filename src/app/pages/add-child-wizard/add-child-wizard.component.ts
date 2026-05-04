@@ -167,10 +167,17 @@ onFundingSourceChangeForPayment() {
   }
 }
 
-  get paymentStepIndex(): number {
-    if (!this.isParentMode || !this.hasRegistrationFee) return -1;
-    return 3; // parent: child(0), medical(1), terms(2), payment(3)
-  }
+get paymentStepIndex(): number {
+  if (!this.isParentMode) return -1;
+
+  if (this.isExemptFromPayment) return -1;
+
+  return 3;
+}
+
+get shouldRequirePaymentMethod(): boolean {
+  return this.paymentStepIndex !== -1;
+}
 
   // ===== מצב =====
   get isParentMode() {
@@ -288,6 +295,7 @@ healthFunds: { id: string; name: string }[] = [];
     }));
 
     this.recalculateRegistrationAmount();
+    console.log("!!!!!!!11111111"+ this.recalculateRegistrationAmount());
   } catch (e) {
     console.error('loadRegistrationFeeFromDb error', e);
     this.registrationCharges = [];
@@ -309,6 +317,7 @@ recalculateRegistrationAmount(): void {
 onRegistrationChargeToggle(c: RegistrationSpecialCharge, checked: boolean): void {
   c.selected = checked;
   this.recalculateRegistrationAmount();
+  console.log("2222222222"+this.recalculateRegistrationAmount());
 }
   // =========================================
   // ===== תקנון: טעינה מ-farm_documents =====
@@ -415,12 +424,10 @@ onRegistrationChargeToggle(c: RegistrationSpecialCharge, checked: boolean): void
   if (this.stepIndex < this.steps.length - 1) {
     this.stepIndex++;
   }
-
-  if (
+if (
   this.isParentMode &&
-  !this.isExemptFromPayment && // ✅ חדש
+  this.shouldRequirePaymentMethod &&
   this.stepIndex === this.paymentStepIndex &&
-  this.hasRegistrationFee &&
   !this.hasSavedPaymentProfile
 ) {
   setTimeout(() => this.ensureRegHostedFieldsReady(), 0);
@@ -511,20 +518,13 @@ if (!this.child.funding_source_id) {
   }
 
   private validatePayment() {
-  if (!this.hasRegistrationFee || this.isExemptFromPayment) return;
-    if (!this.hasRegistrationFee) return;
+  if (!this.shouldRequirePaymentMethod) return;
 
-    const v = Number(this.payment.registrationAmount ?? 0);
-    if (!Number.isFinite(v) || v <= 0) {
-      this.validationErrors['registrationAmount'] = 'נא להזין סכום דמי הרשמה';
-    }
-
-    if (!this.hasSavedPaymentProfile && !this.tokenSaved) {
-      this.validationErrors['token'] = 'יש לשמור אמצעי תשלום לפני המשך';
-      this.error = 'יש ללחוץ על "שמירת אמצעי תשלום" לפני המשך';
-    }
+  if (!this.hasSavedPaymentProfile && !this.tokenSaved) {
+    this.validationErrors['token'] = 'יש לשמור אמצעי תשלום לפני המשך';
+    this.error = 'יש ללחוץ על "שמירת אמצעי תשלום" לפני המשך';
   }
-
+}
   // ===== שמירה =====
   async completeWizard() {
   
@@ -616,7 +616,14 @@ if (!this.child.funding_source_id) {
       // במצב הורה – יוצרים גם בקשה למזכירה
       if (this.isParentMode) {
         const cardLast4 = this.savedPaymentProfile?.last4 ?? this.savedToken?.last4 ?? null;
+const requiresPaymentMethod = this.shouldRequirePaymentMethod;
 
+if (requiresPaymentMethod && !this.hasSavedPaymentProfile && !this.tokenSaved) {
+  this.stepIndex = this.paymentStepIndex;
+  this.validationErrors['token'] = 'יש לשמור אמצעי תשלום לפני שליחת הבקשה';
+  this.error = 'נדרש לשמור אמצעי תשלום לפני שליחת הבקשה';
+  return;
+}
         const secretarialPayload = {
           request_type: 'ADD_CHILD',
           status: 'PENDING',
@@ -640,23 +647,23 @@ if (!this.child.funding_source_id) {
               document_id: this.activeTermsDoc?.id ?? null,
               document_version: this.activeTermsDoc?.version ?? null,
             },
-            registration_payment: this.hasRegistrationFee
-              ? {
-                  status: 'PENDING',
-                  registration_amount: this.payment.registrationAmount,
-                  method: 'credit_card',
-                  card_last4: cardLast4,
+           registration_payment: requiresPaymentMethod
+  ? {
+      status: 'PENDING',
+      registration_amount: this.payment.registrationAmount,
+      method: 'credit_card',
+      card_last4: cardLast4,
 
-                  selected_optional_special_charge_ids: this.registrationCharges
-  .filter(c => !c.is_required && c.selected)
-  .map(c => c.id),
-  
-                  note: cardLast4
-                    ? `חיוב לאחר אישור מזכירה מכרטיס שמסתיים ב-${cardLast4}`
-                    : 'חיוב לאחר אישור מזכירה',
-                    
-                }
-              : null,
+      selected_optional_special_charge_ids: this.registrationCharges
+        .filter(c => !c.is_required && c.selected)
+        .map(c => c.id),
+
+      note: cardLast4
+        ? `חיוב לאחר אישור מזכירה מכרטיס שמסתיים ב-${cardLast4}`
+        : 'חיוב לאחר אישור מזכירה',
+    }
+  : null,
+            
           },
         };
 
