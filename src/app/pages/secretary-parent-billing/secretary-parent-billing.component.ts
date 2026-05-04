@@ -19,6 +19,11 @@ import {
 import { dbTenant } from '../../services/supabaseClient.service';
 import { TranzilaService } from '../../services/tranzila.service';
 import { AdditionalChargeDialogComponent } from './additional-charge-dialog.component';
+type ChargeWithPaymentStatus = ParentChargeRow & {
+  hasPaymentMethod?: boolean;
+  hasExpiredPaymentMethod?: boolean;
+  paymentBlockReason?: string | null;
+};
 @Component({
   selector: 'app-secretary-parent-billing',
   standalone: true,
@@ -26,7 +31,9 @@ import { AdditionalChargeDialogComponent } from './additional-charge-dialog.comp
   templateUrl: './secretary-parent-billing.component.html',
   styleUrls: ['./secretary-parent-billing.component.scss'],
 })
+
 export class SecretaryParentBillingComponent implements OnInit {
+  
 private dialog = inject(MatDialog);
   private tranzila = inject(TranzilaService);
   
@@ -34,8 +41,7 @@ private dialog = inject(MatDialog);
   parentNameFilter = signal<string>('');
 
   // נתונים
-  charges = signal<ParentChargeRow[]>([]);
-
+charges = signal<ChargeWithPaymentStatus[]>([]);
   // סטטוסים
   loading = signal(false);
   error = signal<string | null>(null);
@@ -146,8 +152,47 @@ billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
     const { rows } = await this.payments.listParentCharges({
       limit: 200,
     });
+const parentUids = Array.from(
+  new Set((rows ?? []).map((c: any) => c.parent_uid).filter(Boolean))
+);
 
-    this.charges.set(rows);
+const profilesByParent = new Map<string, any[]>();
+
+if (parentUids.length) {
+  const { data: profiles, error: profilesErr } = await dbTenant()
+    .from('payment_profiles')
+    .select('parent_uid, active, is_default, expiry_month, expiry_year, last4, brand')
+    .in('parent_uid', parentUids)
+    .eq('active', true);
+
+  if (profilesErr) throw profilesErr;
+
+  for (const p of profiles ?? []) {
+    const arr = profilesByParent.get(p.parent_uid) ?? [];
+    arr.push(p);
+    profilesByParent.set(p.parent_uid, arr);
+  }
+}
+
+const rowsWithPaymentStatus = (rows ?? []).map((c: any) => {
+  const profiles = profilesByParent.get(c.parent_uid) ?? [];
+  const hasPaymentMethod = profiles.length > 0;
+  const hasValidPaymentMethod = profiles.some((p) => !this.isCardExpired(p));
+  const hasExpiredPaymentMethod = hasPaymentMethod && !hasValidPaymentMethod;
+
+  return {
+    ...c,
+    hasPaymentMethod,
+    hasExpiredPaymentMethod,
+    paymentBlockReason: !hasPaymentMethod
+      ? 'אין להורה אמצעי תשלום פעיל'
+      : hasExpiredPaymentMethod
+        ? 'כל אמצעי התשלום של ההורה פגי תוקף'
+        : null,
+  };
+});
+
+this.charges.set(rowsWithPaymentStatus);
     this.selectedChargeIds.set(new Set());
     this.hasLoadedOnce.set(true);
   } catch (e: any) {
@@ -176,15 +221,18 @@ billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
   }
 
   toggleSelectAllVisible(checked: boolean) {
-    const next = new Set<string>();
-    if (checked) {
-      for (const c of this.openCharges()) {
-        const remaining = this.remainingAgorot(c);
-        if (remaining > 0) next.add(c.id);
+  const next = new Set<string>();
+
+  if (checked) {
+    for (const c of this.openCharges()) {
+      if (this.canSelectForPayment(c)) {
+        next.add(c.id);
       }
     }
-    this.selectedChargeIds.set(next);
   }
+
+  this.selectedChargeIds.set(next);
+}
 
   isSelected(chargeId: string): boolean {
     return this.selectedChargeIds().has(chargeId);
@@ -198,10 +246,18 @@ billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
   }
 
   onRowCheckboxChange(chargeId: string, event: Event) {
-    const input = event.target as HTMLInputElement | null;
-    const checked = !!input?.checked;
-    this.toggleChargeSelection(chargeId, checked);
+  const input = event.target as HTMLInputElement | null;
+  const checked = !!input?.checked;
+
+  const charge = this.openCharges().find(c => c.id === chargeId);
+
+  if (checked && charge && !this.canSelectForPayment(charge)) {
+    input!.checked = false;
+    return;
   }
+
+  this.toggleChargeSelection(chargeId, checked);
+}
 
   // === חיוב חיובים נבחרים ===
 
@@ -620,5 +676,31 @@ private async createAdditionalCharge(args: {
   if (insertItemErr) throw insertItemErr;
 
   return chargeId;
+}
+private isCardExpired(profile: any): boolean {
+  if (!profile?.expiry_month || !profile?.expiry_year) return false;
+
+  const now = new Date();
+
+  // סוף חודש התוקף
+  const expiryEnd = new Date(
+    Number(profile.expiry_year),
+    Number(profile.expiry_month),
+    0,
+    23,
+    59,
+    59
+  );
+
+  return expiryEnd < now;
+}
+
+canSelectForPayment(c: ChargeWithPaymentStatus): boolean {
+  return (
+    this.remainingAgorot(c) > 0 &&
+    c.status !== 'cancelled' &&
+    c.hasPaymentMethod === true &&
+    c.hasExpiredPaymentMethod !== true
+  );
 }
 }
