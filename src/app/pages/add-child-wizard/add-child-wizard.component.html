@@ -248,8 +248,12 @@
       </div>
 
       <!-- שלב 4: אמצעי תשלום -->
-      <div *ngIf="stepIndex === paymentStepIndex && isParentMode" class="step-pane payment-step">
-        <h3 class="step-title">אמצעי תשלום</h3>
+<div *ngIf="stepIndex === steps.length - 1" class="step-pane payment-step">
+          <h3 class="step-title">אמצעי תשלום</h3>
+<div *ngIf="!shouldRequirePaymentMethod" class="ok-banner">
+  לפי הגדרות חווה אינך צריך להכניס פרטי אשראי.
+</div>
+<ng-container *ngIf="shouldRequirePaymentMethod">
 
         <div class="payment-notes">
       <div class="info-banner" *ngIf="registrationCharges?.length; else noRegCharges">
@@ -284,8 +288,11 @@
       {{ c.amount | number:'1.0-2' }} ₪
     </span>
   </ng-container>
+  
 </div>
+
         </div>
+        
 
         <div *ngIf="!loadingPaymentProfile && !hasSavedPaymentProfile" class="payment-card">
           <div class="payment-summary">
@@ -340,6 +347,7 @@
                 </div>
               </div>
             </div>
+            
           </div>
 
           <div class="payment-actions">
@@ -356,6 +364,7 @@
           <div class="error-msg" *ngIf="validationErrors['token']">{{ validationErrors['token'] }}</div>
         </div>
       </div>
+      </ng-container>
     </div>
 
     <!-- כפתורי ניווט -->
