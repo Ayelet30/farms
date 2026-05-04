@@ -16,9 +16,10 @@ import {
   PaymentsService,
   ParentChargeRow,
 } from '../../services/payments.service';
-import { dbTenant } from '../../services/supabaseClient.service';
 import { TranzilaService } from '../../services/tranzila.service';
 import { AdditionalChargeDialogComponent } from './additional-charge-dialog.component';
+import { MailService } from '../../services/mail.service';
+import { dbTenant, dbPublic } from '../../services/supabaseClient.service';
 type ChargeWithPaymentStatus = ParentChargeRow & {
   hasPaymentMethod?: boolean;
   hasExpiredPaymentMethod?: boolean;
@@ -48,7 +49,7 @@ charges = signal<ChargeWithPaymentStatus[]>([]);
 hasLoadedOnce = signal(false);
   // בחירת חיובים לסליקה
   selectedChargeIds = signal<Set<string>>(new Set());
-
+failedPaymentParentUids = signal<Set<string>>(new Set());
   // טאב פעיל: 'open' | 'all'
   activeTab = signal<'open' | 'all'>('open');
 
@@ -76,7 +77,8 @@ hasLoadedOnce = signal(false);
 invoiceExtraText = '';
 billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
 
-  constructor(private payments: PaymentsService) {}
+  constructor(private payments: PaymentsService,  private mailService: MailService,
+) {}
 
   // === helpers ===
 
@@ -283,17 +285,54 @@ this.charges.set(rowsWithPaymentStatus);
 
     for (const [parentUid, chargeIds] of entries) {
       try {
+//         if (parentUid === 'zXWaxymcPSWzbUXYKNzASkhaZaz1') {
+//   throw new Error('בדיקת כישלון חיוב יזומה');
+// }
         await this.tranzila.chargeSelectedChargesForParent({
           tenantSchema: schema,
           parentUid,
           chargeIds,
-          secretaryEmail: 'ayelethury@gmail.com',
+          secretaryEmail: '',
           invoiceExtraText: this.invoiceExtraText?.trim() || null,
         });
-      } catch (e: any) {
-        console.error('[ParentBilling] charge failed for parent', parentUid, e);
-        failures.push(parentUid);
-      }
+    } catch (e: any) {
+  console.error('[ParentBilling] charge failed for parent', parentUid, e);
+  failures.push(parentUid);
+
+  const nextFailed = new Set(this.failedPaymentParentUids());
+  nextFailed.add(parentUid);
+  this.failedPaymentParentUids.set(nextFailed);
+
+  const parentCharge = this.openCharges().find(c => c.parent_uid === parentUid);
+  const parentName =
+    parentCharge?.parent_name ||
+    `${parentCharge?.first_name || ''} ${parentCharge?.last_name || ''}`.trim() ||
+    parentUid;
+
+  const farm = getCurrentFarmMetaSync();
+  const tenantSchema = farm?.schema_name ?? 'public';
+  const farmName = farm?.name ?? 'Smart Farm';
+
+  const email = this.buildPaymentFailedEmail({
+    parentName,
+    parentUid,
+    chargeIds,
+    farmName,
+    errorMessage: e?.message ?? null,
+  });
+
+ const secretaryEmails = await this.getSecretaryEmailsForCurrentTenant();
+
+if (secretaryEmails.length) {
+  await this.mailService.sendEmailGmail({
+    tenantSchema,
+    to: secretaryEmails,
+    subject: email.subject,
+    html: email.html,
+    text: email.text,
+  });
+}
+}
     }
 
     await this.loadCharges();
@@ -701,6 +740,94 @@ canSelectForPayment(c: ChargeWithPaymentStatus): boolean {
     c.status !== 'cancelled' &&
     c.hasPaymentMethod === true &&
     c.hasExpiredPaymentMethod !== true
+  );
+}
+isParentPaymentFailed(parentUid: string): boolean {
+  return this.failedPaymentParentUids().has(parentUid);
+}
+private buildPaymentFailedEmail(args: {
+  parentName: string;
+  parentUid: string;
+  chargeIds: string[];
+  farmName: string;
+  errorMessage?: string | null;
+}) {
+  const parentName = args.parentName || args.parentUid;
+  const subject = `חיוב אשראי נכשל – ${parentName}`;
+
+  const html = `
+<div style="direction:rtl;font-family:Arial,Helvetica,sans-serif;font-size:16px;color:#111827;">
+  <h2 style="margin:0 0 8px 0;">${args.farmName}</h2>
+
+  <p style="margin:0 0 12px 0;">
+    חיוב אשראי עבור ההורה <b>${parentName}</b> לא עבר.
+  </p>
+
+  <p style="margin:0 0 8px 0;">
+    <b>מזהה הורה:</b> ${args.parentUid}
+  </p>
+
+  <p style="margin:0 0 8px 0;">
+    <b>מספר חיובים שניסו לחייב:</b> ${args.chargeIds.length}
+  </p>
+
+  ${
+    args.errorMessage
+      ? `<p style="margin:0 0 8px 0;color:#b42318;"><b>שגיאה:</b> ${args.errorMessage}</p>`
+      : ''
+  }
+
+  <hr style="margin:18px 0;border:none;border-top:1px solid #e5e7eb;" />
+  <p style="margin:0;color:#6b7280;font-size:13px;">הודעה אוטומטית ממערכת Smart Farm.</p>
+</div>
+`.trim();
+
+  const text = `
+${args.farmName}
+חיוב אשראי נכשל
+הורה: ${parentName}
+מזהה הורה: ${args.parentUid}
+מספר חיובים: ${args.chargeIds.length}
+${args.errorMessage ? `שגיאה: ${args.errorMessage}` : ''}
+`.trim();
+
+  return { subject, html, text };
+}
+private async getSecretaryEmailsForCurrentTenant(): Promise<string[]> {
+  const farm = getCurrentFarmMetaSync();
+  const tenantId = farm?.id;
+
+  if (!tenantId) return [];
+
+  const { data: tenantUsers, error: tuError } = await dbPublic()
+    .from('tenant_users')
+    .select('uid')
+    .eq('tenant_id', tenantId)
+    .eq('role_in_tenant', 'secretary')
+    .eq('is_active', true);
+
+  if (tuError) throw tuError;
+
+  const uids = Array.from(
+    new Set((tenantUsers ?? []).map((x: any) => x.uid).filter(Boolean))
+  );
+
+  if (!uids.length) return [];
+
+  const { data: users, error: usersError } = await dbPublic()
+    .from('users')
+    .select('email')
+    .in('uid', uids)
+    .eq('role', 'secretary');
+
+  if (usersError) throw usersError;
+
+  return Array.from(
+    new Set(
+      (users ?? [])
+        .map((u: any) => String(u.email || '').trim().toLowerCase())
+        .filter(Boolean)
+    )
   );
 }
 }
