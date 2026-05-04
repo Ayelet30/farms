@@ -167,17 +167,6 @@ onFundingSourceChangeForPayment() {
   }
 }
 
-get paymentStepIndex(): number {
-  if (!this.isParentMode) return -1;
-
-  if (this.isExemptFromPayment) return -1;
-
-  return 3;
-}
-
-get shouldRequirePaymentMethod(): boolean {
-  return this.paymentStepIndex !== -1;
-}
 
   // ===== מצב =====
   get isParentMode() {
@@ -261,15 +250,25 @@ healthFunds: { id: string; name: string }[] = [];
     this.rebuildSteps();
   }
 
-  private rebuildSteps() {
-    const hasFee = this.hasRegistrationFee;
-
-    if (this.isParentMode) {
-      this.steps = ['פרטי ילד', 'שאלון רפואי', 'תקנון', ...(hasFee ? ['אמצעי תשלום'] : [])];
-    } else {
-      this.steps = ['פרטי ילד', 'שאלון רפואי', ...(hasFee ? ['אמצעי תשלום'] : [])];
-    }
+private rebuildSteps() {
+  if (this.isParentMode) {
+    this.steps = ['פרטי ילד', 'שאלון רפואי', 'תקנון', 'אמצעי תשלום'];
+  } else {
+    this.steps = ['פרטי ילד', 'שאלון רפואי', 'אמצעי תשלום'];
   }
+}
+
+get paymentStepIndex(): number {
+  return this.steps.indexOf('אמצעי תשלום');
+}
+
+get canEnterPaymentMethod(): boolean {
+  return this.isParentMode && !this.isExemptFromPayment;
+}
+
+get shouldRequirePaymentMethod(): boolean {
+  return this.canEnterPaymentMethod;
+}
 
  private async loadRegistrationFeeFromDb(): Promise<void> {
   try {
@@ -418,20 +417,20 @@ onRegistrationChargeToggle(c: RegistrationSpecialCharge, checked: boolean): void
   }
 
   // ===== ניווט =====
-  nextStep() {
+ nextStep() {
   if (!this.validateCurrentStep()) return;
 
   if (this.stepIndex < this.steps.length - 1) {
     this.stepIndex++;
   }
-if (
-  this.isParentMode &&
-  this.shouldRequirePaymentMethod &&
-  this.stepIndex === this.paymentStepIndex &&
-  !this.hasSavedPaymentProfile
-) {
-  setTimeout(() => this.ensureRegHostedFieldsReady(), 0);
-}
+
+  if (
+    this.canEnterPaymentMethod &&
+    this.stepIndex === this.paymentStepIndex &&
+    !this.hasSavedPaymentProfile
+  ) {
+    setTimeout(() => this.ensureRegHostedFieldsReady(), 0);
+  }
 }
 
   prevStep() {
@@ -517,14 +516,15 @@ if (!this.child.funding_source_id) {
     if (!this.termsSignature.trim()) this.validationErrors['signature'] = 'נא להזין שם לחתימה דיגיטלית';
   }
 
-  private validatePayment() {
-  if (!this.shouldRequirePaymentMethod) return;
+ private validatePayment() {
+  if (!this.canEnterPaymentMethod) return;
 
   if (!this.hasSavedPaymentProfile && !this.tokenSaved) {
     this.validationErrors['token'] = 'יש לשמור אמצעי תשלום לפני המשך';
     this.error = 'יש ללחוץ על "שמירת אמצעי תשלום" לפני המשך';
   }
 }
+
   // ===== שמירה =====
   async completeWizard() {
   
@@ -616,7 +616,7 @@ if (!this.child.funding_source_id) {
       // במצב הורה – יוצרים גם בקשה למזכירה
       if (this.isParentMode) {
         const cardLast4 = this.savedPaymentProfile?.last4 ?? this.savedToken?.last4 ?? null;
-const requiresPaymentMethod = this.shouldRequirePaymentMethod;
+const requiresPaymentMethod = this.canEnterPaymentMethod;
 
 if (requiresPaymentMethod && !this.hasSavedPaymentProfile && !this.tokenSaved) {
   this.stepIndex = this.paymentStepIndex;
