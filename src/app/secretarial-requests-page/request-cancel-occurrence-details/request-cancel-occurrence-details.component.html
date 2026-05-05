@@ -23,14 +23,15 @@
     <textarea [(ngModel)]="decisionNote" rows="2" placeholder="למזכירה / להורה..." [disabled]="loading()"></textarea>
   </div>
 
-  <div class="actions">
+ <div class="actions" *ngIf="request?.status === 'PENDING'">
   <button class="btn reject" (click)="reject()" [disabled]="loading()">
-דחייה</button>
+    דחייה
+  </button>
 
-<button class="btn approve" (click)="approve()" [disabled]="loading()">
-אישור</button>
-
-  </div>
+  <button class="btn approve" (click)="approve()" [disabled]="loading()">
+    אישור
+  </button>
+</div>
 </div>
 
 <ng-template #loadingTpl>

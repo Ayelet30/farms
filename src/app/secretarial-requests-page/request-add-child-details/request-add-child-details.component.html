@@ -93,10 +93,10 @@
     <textarea [(ngModel)]="decisionNote" rows="2" placeholder="הערה פנימית / להורה..."></textarea>
   </div>
 
-  <div class="actions">
-    <button class="btn reject" (click)="reject()" [disabled]="loading()">דחייה</button>
-    <button class="btn approve" (click)="approve()" [disabled]="loading()">אישור</button>
-  </div>
+ <div class="actions" *ngIf="isPending">
+  <button class="btn reject" (click)="reject()" [disabled]="loading()">דחייה</button>
+  <button class="btn approve" (click)="approve()" [disabled]="loading()">אישור</button>
+</div>
 </div>
 
 <ng-template #loadingTpl>
