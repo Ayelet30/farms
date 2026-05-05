@@ -290,9 +290,9 @@ this.charges.set(rowsWithPaymentStatus);
 
     for (const [parentUid, chargeIds] of entries) {
       try {
-        if (parentUid === 'zXWaxymcPSWzbUXYKNzASkhaZaz1') {
-  throw new Error('בדיקת כישלון חיוב יזומה');
-}
+//         if (parentUid === 'zXWaxymcPSWzbUXYKNzASkhaZaz1') {
+//   throw new Error('בדיקת כישלון חיוב יזומה');
+// }
         await this.tranzila.chargeSelectedChargesForParent({
           tenantSchema: schema,
           parentUid,
