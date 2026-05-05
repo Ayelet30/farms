@@ -290,9 +290,9 @@ this.charges.set(rowsWithPaymentStatus);
 
     for (const [parentUid, chargeIds] of entries) {
       try {
-//         if (parentUid === 'zXWaxymcPSWzbUXYKNzASkhaZaz1') {
-//   throw new Error('בדיקת כישלון חיוב יזומה');
-// }
+        if (parentUid === 'zXWaxymcPSWzbUXYKNzASkhaZaz1') {
+  throw new Error('בדיקת כישלון חיוב יזומה');
+}
         await this.tranzila.chargeSelectedChargesForParent({
           tenantSchema: schema,
           parentUid,
@@ -644,7 +644,6 @@ private async createAdditionalCharge(args: {
   parentUid: string;
   amountAgorot: number;
   description: string;
-  children?: ParentChildEmailInfo[];
 }) {
   const now = new Date();
   const isoNow = now.toISOString();
@@ -803,6 +802,7 @@ const childrenHtml = children.length
   <p style="margin:0 0 8px 0;">
     <b>מספר חיובים שניסו לחייב:</b> ${args.chargeIds.length}
   </p>
+  ${childrenHtml}
 
   ${
     args.errorMessage
@@ -819,7 +819,6 @@ const childrenHtml = children.length
 ${args.farmName}
 חיוב אשראי נכשל
 הורה: ${parentName}
-מזהה הורה: ${args.parentUid}
 מספר חיובים: ${args.chargeIds.length}
 ${args.errorMessage ? `שגיאה: ${args.errorMessage}` : ''}
 `.trim();
