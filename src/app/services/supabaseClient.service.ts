@@ -1070,23 +1070,29 @@ export type ParentCreditInput = {
   amount_agorot: number;   // זיכוי חיובי – אנחנו נרשום אותו כערך שלילי
   reason: string;
 };
-
 export async function createParentCredit(input: {
   parent_uid: string;
-  amount_agorot: number;     // שימי לב: נשמור חיובי בטבלה הזו
+  amount_agorot: number;
   reason: string;
   related_charge_id?: string | null;
+  child_id: string;
 }): Promise<void> {
-  const { parent_uid, amount_agorot, reason, related_charge_id } = input;
+  const {
+    parent_uid,
+    amount_agorot,
+    reason,
+    related_charge_id,
+    child_id,
+  } = input;
 
   const { error } = await dbTenant()
     .from('parent_credits')
     .insert({
       parent_uid,
-      amount_agorot: Math.abs(amount_agorot),   // בטבלת credits נשמור חיובי וברור שזה זיכוי
+      amount_agorot: Math.abs(amount_agorot),
       reason,
       related_charge_id: related_charge_id ?? null,
-      // created_by: אפשר להוסיף כאן אם את שומרת uid של מזכירה
+      child_id,
     });
 
   if (error) {
@@ -1094,7 +1100,6 @@ export async function createParentCredit(input: {
     throw error;
   }
 }
-
 export async function listChargesForBilling(opts: {
   parentUid?: string | null;
 }): Promise<ParentChargeRow[]> {

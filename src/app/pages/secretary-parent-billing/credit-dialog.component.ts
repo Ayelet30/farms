@@ -5,17 +5,25 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatButtonModule } from '@angular/material/button';
 import { createParentCredit } from '../../services/supabaseClient.service';
 
+export type ChildOption = {
+  child_uuid: string;
+  first_name: string | null;
+  last_name: string | null;
+  gov_id?: string | null;
+};
+
 export type CreditDialogData = {
   parentUid: string;
   parentName: string;
   relatedChargeId: string | null;
+  children: ChildOption[];
 };
 
 @Component({
   selector: 'app-credit-dialog',
   standalone: true,
   imports: [CommonModule, FormsModule, MatDialogModule, MatButtonModule],
- template: `
+  template: `
   <div class="credit-dialog" dir="rtl">
     <div class="credit-head">
       <div class="credit-title-wrap">
@@ -25,20 +33,14 @@ export type CreditDialogData = {
         </div>
       </div>
 
-      <button
-        class="close-btn"
-        type="button"
-        aria-label="סגירה"
-        title="סגירה"
-        (click)="dialogRef.close()"
-      >
+      <button class="close-btn" type="button" aria-label="סגירה" title="סגירה" (click)="dialogRef.close()">
         ✕
       </button>
     </div>
 
     <div class="credit-body">
       <div class="credit-note">
-        הזיכוי נרשם כשורת תשלום שלילית ומקוזז מהחיובים הקיימים והעתידיים.
+        הזיכוי ישויך לילד/ה שנבחר/ה ויקוזז מהחיוב של ההורה.
       </div>
 
       <div *ngIf="error()" class="credit-error">
@@ -46,6 +48,43 @@ export type CreditDialogData = {
       </div>
 
       <div class="credit-form-card">
+        <div class="credit-field">
+          <label class="credit-label">בחירת ילד/ה</label>
+
+          <div class="children-grid" *ngIf="data.children?.length; else noChildrenTpl">
+            <button
+              type="button"
+              class="child-card"
+              *ngFor="let child of data.children"
+              [class.selected]="selectedChildId() === child.child_uuid"
+              (click)="selectedChildId.set(child.child_uuid)"
+            >
+              <div class="child-avatar">
+                {{ getInitials(child) }}
+              </div>
+
+              <div class="child-info">
+                <div class="child-name">
+                  {{ child.first_name || '' }} {{ child.last_name || '' }}
+                </div>
+                <div class="child-id" *ngIf="child.gov_id">
+                  ת״ז: {{ child.gov_id }}
+                </div>
+              </div>
+
+              <div class="check-mark" *ngIf="selectedChildId() === child.child_uuid">
+                ✓
+              </div>
+            </button>
+          </div>
+
+          <ng-template #noChildrenTpl>
+            <div class="empty-children">
+              לא נמצאו ילדים משויכים להורה הזה.
+            </div>
+          </ng-template>
+        </div>
+
         <div class="credit-field">
           <label class="credit-label">סכום הזיכוי (₪)</label>
           <input
@@ -73,26 +112,17 @@ export type CreditDialogData = {
     </div>
 
     <div class="credit-actions">
-      <button
-        class="appt-cta ghost"
-        type="button"
-        (click)="dialogRef.close()"
-      >
+      <button class="appt-cta ghost" type="button" (click)="dialogRef.close()">
         ביטול
       </button>
 
-      <button
-        class="appt-cta"
-        type="button"
-        [disabled]="saving()"
-        (click)="submit()"
-      >
+      <button class="appt-cta" type="button" [disabled]="saving()" (click)="submit()">
         {{ saving() ? 'שומר...' : 'שמירת זיכוי' }}
       </button>
     </div>
   </div>
 `,
- styles: [`
+  styles: [`
   .credit-dialog {
     width: min(560px, 92vw);
     max-height: min(82vh, 760px);
@@ -101,6 +131,11 @@ export type CreditDialogData = {
     gap: 14px;
     overflow: hidden;
     background: #fcfbf8;
+  }
+
+  * {
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   .credit-head {
@@ -142,18 +177,10 @@ export type CreditDialogData = {
     cursor: pointer;
     font-size: 18px;
     font-weight: 700;
-    line-height: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    transition: background 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
-  }
-
-  .close-btn:hover {
-    background: #f3f5f4;
-    border-color: rgba(0,0,0,0.16);
-    transform: scale(1.03);
   }
 
   .credit-body {
@@ -193,7 +220,6 @@ export type CreditDialogData = {
     padding: 14px;
     display: grid;
     gap: 14px;
-    box-sizing: border-box;
   }
 
   .credit-field {
@@ -202,10 +228,90 @@ export type CreditDialogData = {
   }
 
   .credit-label {
-    display: block;
     font-size: 13px;
     font-weight: 700;
     color: #1f2a2e;
+  }
+
+  .children-grid {
+    display: grid;
+    gap: 8px;
+  }
+
+  .child-card {
+    width: 100%;
+    border: 1px solid rgba(0,0,0,0.10);
+    background: #fcfcfc;
+    border-radius: 14px;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    text-align: right;
+    transition: 0.18s ease;
+  }
+
+  .child-card:hover {
+    background: #f5faf7;
+    border-color: rgba(31,122,91,0.28);
+  }
+
+  .child-card.selected {
+    background: #eef8f3;
+    border-color: #1f7a5b;
+    box-shadow: 0 0 0 2px rgba(31,122,91,0.08);
+  }
+
+  .child-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    background: #e6eee9;
+    color: #1f7a5b;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .child-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .child-name {
+    font-weight: 800;
+    color: #1f2a2e;
+  }
+
+  .child-id {
+    font-size: 12px;
+    color: #6b777b;
+    margin-top: 2px;
+  }
+
+  .check-mark {
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: #1f7a5b;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    flex-shrink: 0;
+  }
+
+  .empty-children {
+    padding: 12px;
+    border-radius: 12px;
+    background: #fff8e8;
+    color: #7a4b00;
+    font-size: 13px;
+    font-weight: 600;
   }
 
   .credit-input,
@@ -224,13 +330,6 @@ export type CreditDialogData = {
   .credit-textarea {
     resize: vertical;
     min-height: 96px;
-    max-width: 100%;
-  }
-
-  .credit-input:focus,
-  .credit-textarea:focus {
-    border-color: rgba(0,0,0,0.28);
-    background: #fff;
   }
 
   .credit-actions {
@@ -252,11 +351,6 @@ export type CreditDialogData = {
     background: #1f7a5b;
     color: #fff;
     font: inherit;
-    transition: opacity 0.18s ease, transform 0.18s ease;
-  }
-
-  .appt-cta:hover:not(:disabled) {
-    transform: translateY(-1px);
   }
 
   .appt-cta.ghost {
@@ -268,20 +362,12 @@ export type CreditDialogData = {
     opacity: 0.55;
     cursor: not-allowed;
   }
-
-  .credit-body::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  .credit-body::-webkit-scrollbar-thumb {
-    background: rgba(0,0,0,0.18);
-    border-radius: 8px;
-  }
 `]
 })
 export class CreditDialogComponent {
   amount = signal<string>('');
   reason = signal<string>('');
+  selectedChildId = signal<string | null>(null);
   saving = signal(false);
   error = signal<string | null>(null);
 
@@ -290,14 +376,25 @@ export class CreditDialogComponent {
     public dialogRef: MatDialogRef<CreditDialogComponent>
   ) {}
 
+  getInitials(child: ChildOption): string {
+    const first = child.first_name?.trim()?.[0] ?? '';
+    const last = child.last_name?.trim()?.[0] ?? '';
+    return `${first}${last}` || 'ילד';
+  }
+
   async submit() {
     this.error.set(null);
 
     const amountStr = String(this.amount() ?? '').trim();
     const reason = this.reason().trim();
-
     const amountNumber = Number(amountStr.replace(',', '.'));
 
+  const childId = this.selectedChildId();
+
+if (!childId) {
+  this.error.set('יש לבחור ילד/ה עבור הזיכוי');
+  return;
+}
     if (!amountStr || isNaN(amountNumber) || amountNumber <= 0) {
       this.error.set('יש להזין סכום זיכוי חיובי בש"ח');
       return;
@@ -316,7 +413,7 @@ export class CreditDialogComponent {
         amount_agorot: Math.round(amountNumber * 100),
         reason,
         related_charge_id: this.data.relatedChargeId,
-      });
+child_id: childId,      });
 
       this.dialogRef.close({ saved: true });
     } catch (e: any) {
