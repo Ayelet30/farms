@@ -430,4 +430,7 @@ async reject(args?: { source: 'user' | 'system'; reason?: string }) {
       panelClass: [`sf-toast`, `sf-toast-${type}`],
     });
   }
+  get isPending(): boolean {
+  return this.request?.status === 'PENDING';
+}
 }

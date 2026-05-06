@@ -23,14 +23,15 @@
     <textarea [(ngModel)]="decisionNote" rows="2"  [disabled]="busy()" placeholder="לתיעוד / למזכירות..."></textarea>
   </div>
 
-  <div class="actions" *ngIf="isSecretary">
-    <button class="btn reject" (click)="reject()" [disabled]="loading() || busy()">
-      דחייה
-    </button>
-    <button class="btn approve" (click)="approve()" [disabled]="loading() || busy()">
-      אישור
-    </button>
-  </div>
+  <div class="actions" *ngIf="isSecretary && isPending">
+  <button class="btn reject" (click)="reject()" [disabled]="loading() || busy()">
+    דחייה
+  </button>
+
+  <button class="btn approve" (click)="approve()" [disabled]="loading() || busy()">
+    אישור
+  </button>
+</div>
 
   <div class="err" *ngIf="errText()">{{ errText() }}</div>
 

@@ -45,7 +45,7 @@ private dialog = inject(MatDialog);
   
   // === פילטרים ===
   parentNameFilter = signal<string>('');
-
+successMessage = signal<string | null>(null);
   // נתונים
 charges = signal<ChargeWithPaymentStatus[]>([]);
   // סטטוסים
@@ -58,13 +58,7 @@ failedPaymentParentUids = signal<Set<string>>(new Set());
   // טאב פעיל: 'open' | 'all'
   activeTab = signal<'open' | 'all'>('open');
 
-  // טופס זיכוי
-  creditAmount = signal<string>(''); // בש"ח
-  creditReason = signal<string>('');
-  creditSaving = signal(false);
-  creditError = signal<string | null>(null);
-  creditSuccess = signal<string | null>(null);
-
+ 
   detailsOpenFor = signal<string | null>(null);
   detailsLoading = signal(false);
   detailsError = signal<string | null>(null);
@@ -72,16 +66,12 @@ failedPaymentParentUids = signal<Set<string>>(new Set());
   detailsItems = signal<any[]>([]);   // lesson items
   detailsPayments = signal<any[]>([]); // credits/payments
 
-  creditParentUid = signal<string | null>(null);
-  creditParentName = signal<string | null>(null);
-  creditRelatedChargeId = signal<string | null>(null);
-
   detailsCredits = signal<any[]>([]);
   private thtk: string | null = null;
 
 invoiceExtraText = '';
 billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
-
+unbilledWarning = signal<string | null>(null);
   constructor(private payments: PaymentsService,  private mailService: MailService,
 ) {}
 
@@ -355,59 +345,10 @@ if (secretaryEmails.length) {
 
   // === זיכוי הורה ===
 
-  async submitCredit() {
-    this.creditError.set(null);
-    this.creditSuccess.set(null);
 
-    const raw = this.creditAmount();
-    const amountStr = String(raw ?? '').trim();
+async openCreditForCharge(c: ParentChargeRow) {
+  const children = await this.getChildrenForParent(c.parent_uid);
 
-    const reason = this.creditReason().trim();
-    
-    const parentUid = this.creditParentUid();
-    if (!parentUid) {
-      this.creditError.set('בחר/י קודם הורה מתוך הטבלה (כפתור "הוסף זיכוי").');
-      return;
-    }
-
-
-    const amountNumber = Number(amountStr.replace(',', '.'));
-    if (!amountStr || isNaN(amountNumber) || amountNumber <= 0) {
-      this.creditError.set('יש להזין סכום זיכוי חיובי בש"ח');
-      return;
-    }
-    if (!reason) {
-      this.creditError.set('יש להזין סיבה לזיכוי');
-      return;
-    }
-
-    try {
-      this.creditSaving.set(true);
-
-      await createParentCredit({
-        parent_uid: parentUid,
-        amount_agorot: Math.round(amountNumber * 100),
-        reason,
-        related_charge_id: this.creditRelatedChargeId(),
-      });
-
-
-      this.creditAmount.set('');
-      this.creditReason.set('');
-      this.creditSuccess.set('הזיכוי נשמר בהצלחה');
-      await this.loadCharges();
-    } catch (e: any) {
-      console.error('[ParentBilling] credit error', e);
-      this.creditError.set(e?.message ?? 'שגיאה בשמירת הזיכוי');
-    } finally {
-      this.creditSaving.set(false);
-    }
-  }
-
- 
-
-
-openCreditForCharge(c: ParentChargeRow) {
   const ref = this.dialog.open(CreditDialogComponent, {
     width: '560px',
     maxWidth: '92vw',
@@ -417,15 +358,17 @@ openCreditForCharge(c: ParentChargeRow) {
       parentUid: c.parent_uid,
       parentName: c.parent_name ?? '',
       relatedChargeId: c.id,
+      children,
     },
   });
 
   ref.afterClosed().subscribe(async (result) => {
     if (result?.saved) {
       await this.loadCharges();
+
       if (this.detailsOpenFor() === c.id) {
-          await this.openChargeDetails(c.id);
-    }
+        await this.openChargeDetails(c.id);
+      }
     }
   });
 }
@@ -436,14 +379,28 @@ openCreditForCharge(c: ParentChargeRow) {
     const val = this.shekelsFromAgorot(agorot);
     return `${val.toFixed(2)} ₪`;
   }
+formatPeriod(c: ParentChargeRow): string {
+  if (!c.period_start && !c.period_end) return '';
 
-  formatPeriod(c: ParentChargeRow): string {
-    if (c.period_start && c.period_end) {
-      return `${c.period_start} – ${c.period_end}`;
-    }
-    return c.period_start || c.period_end || '';
+  const format = (d: string) => {
+    const date = new Date(d);
+    return date.toLocaleDateString('he-IL'); // dd/MM/yyyy
+  };
+
+  if (c.period_start && c.period_end) {
+    return `מ־${format(c.period_start)} עד ${format(c.period_end)}`;
   }
 
+  if (c.period_start) {
+    return `מ־${format(c.period_start)}`;
+  }
+
+  if (c.period_end) {
+    return `עד ${format(c.period_end)}`;
+  }
+
+  return '';
+}
   formatStatus(c: ParentChargeRow): string {
   // אם יש זיכויים על החיוב
   const hasCredits = (c.credits_agorot ?? 0) > 0;
@@ -477,6 +434,31 @@ openCreditForCharge(c: ParentChargeRow) {
     this.detailsOpenFor.set(chargeId);
     this.detailsLoading.set(true);
     this.detailsError.set(null);
+   const { data: newAmount, error: recalcErr } = await dbTenant().rpc(
+  'recalc_charge_amount',
+  { p_charge_id: chargeId }
+);
+
+if (recalcErr) throw recalcErr;
+
+if (newAmount != null) {
+  const updated = this.charges().map((c: any) => {
+    if (c.id !== chargeId) return c;
+
+    const paid = c.paid_agorot ?? 0;
+    const credits = c.credits_agorot ?? 0;
+    const newRemaining = Math.max(Number(newAmount) - paid - credits, 0);
+
+    return {
+      ...c,
+      charge_amount_agorot: Number(newAmount),
+      amount_agorot: Number(newAmount),
+      remaining_agorot: newRemaining,
+    };
+  });
+
+  this.charges.set(updated);
+}
 
     const { data: items, error: e1 } = await dbTenant()
       .from('charge_details_with_office_note')
@@ -536,13 +518,61 @@ detailsCreditsTotalAgorot = computed(() => {
 
 
 
-  async runbilling(runDate?: string) {
-  try {
+async runbilling(runDate?: string, forceIgnoreWarning = false) {
+     try {
     this.loading.set(true);
     this.error.set(null);
-
+    this.successMessage.set(null);
+this.unbilledWarning.set(null);
     const billingDate = runDate || this.billingRunDate() || new Date().toISOString().slice(0, 10);
 const billingDay = Number(billingDate.split('-')[2]);
+
+
+const previousMonthDate = this.getPreviousMonthDate(billingDate);
+const previousMonthStart = previousMonthDate.slice(0, 7) + '-01';
+
+const { data: dismissedWarning, error: dismissedErr } = await dbTenant()
+  .from('billing_warnings_dismissals')
+  .select('id')
+  .eq('warning_type', 'UNBILLED_PREVIOUS_MONTH')
+  .eq('warning_month', previousMonthStart)
+  .maybeSingle();
+
+if (dismissedErr) throw dismissedErr;
+
+const { data: unbilledLessons, error: unbilledErr } = await dbTenant().rpc(
+  'get_unbilled_lessons_for_month',
+  { p_month: previousMonthDate }
+);
+
+if (unbilledErr) throw unbilledErr;
+
+if (
+  unbilledLessons?.length &&
+  !dismissedWarning &&
+  !forceIgnoreWarning
+) {
+  const parentNames = Array.from(
+  new Set(
+    (unbilledLessons ?? []).map((x: any) =>
+      (x.parent_name || x.parent_uid || '').trim()
+    )
+  )
+).filter(Boolean);
+
+const parentsText = parentNames.length
+  ? ` הורים: ${parentNames.join(', ')}.`
+  : '';
+
+this.unbilledWarning.set(
+  `קיים שיעור אחד או יותר בחודש ${previousMonthDate.slice(0, 7)} שלא שולם.` +
+  parentsText +
+  ` כדי להכניס חיוב לשיעור/ים אלה יש להריץ חישוב על החודש עם החיוב החסר.`
+);
+
+  return;
+
+}
     // להביא את כל ההורים שיום החיוב שלהם הוא היום שבתאריך שנבחר
     const { data: parents, error } = await dbTenant()
       .from('parents')
@@ -552,7 +582,40 @@ const billingDay = Number(billingDate.split('-')[2]);
     if (error) throw error;
 
     const list = parents ?? [];
+const targetMonthStart = billingDate.slice(0, 7) + '-01';
 
+const { data: missingCurrentMonth, error: missingCurrentErr } =
+  await dbTenant().rpc('get_unbilled_lessons_for_month', {
+    p_month: targetMonthStart,
+  });
+
+if (missingCurrentErr) throw missingCurrentErr;
+
+const parentUidsToRun = new Set((list ?? []).map((p: any) => p.uid));
+
+const relevantMissing = (missingCurrentMonth ?? []).filter((x: any) =>
+  parentUidsToRun.has(x.parent_uid)
+);
+
+if (relevantMissing.length) {
+  const parentUids = Array.from(
+    new Set(relevantMissing.map((x: any) => x.parent_uid))
+  );
+
+  for (const parentUid of parentUids) {
+    await dbTenant().rpc('create_missing_lessons_charge_for_parent', {
+      p_parent_uid: parentUid,
+      p_month: targetMonthStart,
+    });
+  }
+
+  await this.loadCharges();
+
+ this.successMessage.set(
+  `נוצר חיוב השלמה עבור שיעורים שלא חויבו בחודש ${targetMonthStart.slice(0, 7)}.`
+);
+  return;
+}
     let ok = 0;
     let failed = 0;
 
@@ -607,11 +670,16 @@ private getSelectedChargesGroupedByParent(): Record<string, string[]> {
   return grouped;
 }
 async openAdditionalChargeDialog(c: ParentChargeRow) {
+  const children = await this.getChildrenForParent(c.parent_uid);
+
   const ref = this.dialog.open(AdditionalChargeDialogComponent, {
-    width: '420px',
+    width: '560px',
+    maxWidth: '92vw',
+    autoFocus: false,
     data: {
       parentUid: c.parent_uid,
       parentName: c.parent_name || `${c.first_name} ${c.last_name}`.trim(),
+      children,
     },
   });
 
@@ -622,17 +690,18 @@ async openAdditionalChargeDialog(c: ParentChargeRow) {
       this.loading.set(true);
       this.error.set(null);
 
-   const chargeId = await this.createAdditionalCharge({
-  parentUid: c.parent_uid,
-  amountAgorot: result.amountAgorot,
-  description: result.description,
-});
+      const chargeId = await this.createAdditionalCharge({
+        parentUid: c.parent_uid,
+        amountAgorot: result.amountAgorot,
+        description: result.description,
+        childId: result.childId,
+      });
 
-await this.loadCharges();
+      await this.loadCharges();
 
-if (this.detailsOpenFor() === c.id || this.detailsOpenFor() === chargeId) {
-  await this.openChargeDetails(chargeId);
-}
+      if (this.detailsOpenFor() === c.id || this.detailsOpenFor() === chargeId) {
+        await this.openChargeDetails(chargeId);
+      }
     } catch (e: any) {
       this.error.set(e?.message ?? 'שגיאה ביצירת חיוב נוסף');
     } finally {
@@ -644,7 +713,7 @@ private async createAdditionalCharge(args: {
   parentUid: string;
   amountAgorot: number;
   description: string;
-  children?: ParentChildEmailInfo[];
+  childId: string;
 }) {
   const now = new Date();
   const isoNow = now.toISOString();
@@ -703,6 +772,7 @@ private async createAdditionalCharge(args: {
     .insert({
       charge_id: chargeId,
       parent_uid: args.parentUid,
+      child_id: args.childId,
       item_type: 'extra',
       item_code: 'extra_manual',
       description: args.description,
@@ -714,6 +784,7 @@ private async createAdditionalCharge(args: {
       metadata: {
         created_by: 'secretary-parent-billing',
         source: 'manual_additional_charge',
+        child_id: args.childId,
       },
       created_at: isoNow,
       updated_at: isoNow,
@@ -803,6 +874,7 @@ const childrenHtml = children.length
   <p style="margin:0 0 8px 0;">
     <b>מספר חיובים שניסו לחייב:</b> ${args.chargeIds.length}
   </p>
+  ${childrenHtml}
 
   ${
     args.errorMessage
@@ -819,7 +891,6 @@ const childrenHtml = children.length
 ${args.farmName}
 חיוב אשראי נכשל
 הורה: ${parentName}
-מזהה הורה: ${args.parentUid}
 מספר חיובים: ${args.chargeIds.length}
 ${args.errorMessage ? `שגיאה: ${args.errorMessage}` : ''}
 `.trim();
@@ -881,5 +952,49 @@ private escapeHtml(s: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+private getPreviousMonthDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() - 1);
+  return d.toISOString().slice(0, 10);
+}
+async dismissUnbilledWarning() {
+  try {
+    const billingDate =
+      this.billingRunDate() || new Date().toISOString().slice(0, 10);
+
+    const previousMonthDate = this.getPreviousMonthDate(billingDate);
+    const previousMonthStart = previousMonthDate.slice(0, 7) + '-01';
+
+    const { error } = await dbTenant()
+      .from('billing_warnings_dismissals')
+      .upsert(
+        {
+          warning_type: 'UNBILLED_PREVIOUS_MONTH',
+          warning_month: previousMonthStart,
+          note: 'המזכירה בחרה להתעלם מהתראת חיוב חסר בחודש קודם',
+        },
+        {
+          onConflict: 'warning_type,warning_month',
+        }
+      );
+
+    if (error) throw error;
+
+    this.unbilledWarning.set(null);
+  } catch (e: any) {
+    this.error.set(e?.message ?? 'שגיאה בהסרת האזהרה');
+  }
+}
+private async getChildrenForParent(parentUid: string) {
+  const { data, error } = await dbTenant()
+    .from('children')
+    .select('child_uuid, first_name, last_name, gov_id')
+    .eq('parent_uid', parentUid)
+    .order('first_name', { ascending: true });
+
+  if (error) throw error;
+
+  return data ?? [];
 }
 }
