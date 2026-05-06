@@ -58,23 +58,13 @@ failedPaymentParentUids = signal<Set<string>>(new Set());
   // טאב פעיל: 'open' | 'all'
   activeTab = signal<'open' | 'all'>('open');
 
-  // טופס זיכוי
-  creditAmount = signal<string>(''); // בש"ח
-  creditReason = signal<string>('');
-  creditSaving = signal(false);
-  creditError = signal<string | null>(null);
-  creditSuccess = signal<string | null>(null);
-
+ 
   detailsOpenFor = signal<string | null>(null);
   detailsLoading = signal(false);
   detailsError = signal<string | null>(null);
 
   detailsItems = signal<any[]>([]);   // lesson items
   detailsPayments = signal<any[]>([]); // credits/payments
-
-  creditParentUid = signal<string | null>(null);
-  creditParentName = signal<string | null>(null);
-  creditRelatedChargeId = signal<string | null>(null);
 
   detailsCredits = signal<any[]>([]);
   private thtk: string | null = null;
@@ -355,59 +345,10 @@ if (secretaryEmails.length) {
 
   // === זיכוי הורה ===
 
-  async submitCredit() {
-    this.creditError.set(null);
-    this.creditSuccess.set(null);
 
-    const raw = this.creditAmount();
-    const amountStr = String(raw ?? '').trim();
+async openCreditForCharge(c: ParentChargeRow) {
+  const children = await this.getChildrenForParent(c.parent_uid);
 
-    const reason = this.creditReason().trim();
-    
-    const parentUid = this.creditParentUid();
-    if (!parentUid) {
-      this.creditError.set('בחר/י קודם הורה מתוך הטבלה (כפתור "הוסף זיכוי").');
-      return;
-    }
-
-
-    const amountNumber = Number(amountStr.replace(',', '.'));
-    if (!amountStr || isNaN(amountNumber) || amountNumber <= 0) {
-      this.creditError.set('יש להזין סכום זיכוי חיובי בש"ח');
-      return;
-    }
-    if (!reason) {
-      this.creditError.set('יש להזין סיבה לזיכוי');
-      return;
-    }
-
-    try {
-      this.creditSaving.set(true);
-
-      await createParentCredit({
-        parent_uid: parentUid,
-        amount_agorot: Math.round(amountNumber * 100),
-        reason,
-        related_charge_id: this.creditRelatedChargeId(),
-      });
-
-
-      this.creditAmount.set('');
-      this.creditReason.set('');
-      this.creditSuccess.set('הזיכוי נשמר בהצלחה');
-      await this.loadCharges();
-    } catch (e: any) {
-      console.error('[ParentBilling] credit error', e);
-      this.creditError.set(e?.message ?? 'שגיאה בשמירת הזיכוי');
-    } finally {
-      this.creditSaving.set(false);
-    }
-  }
-
- 
-
-
-openCreditForCharge(c: ParentChargeRow) {
   const ref = this.dialog.open(CreditDialogComponent, {
     width: '560px',
     maxWidth: '92vw',
@@ -417,15 +358,17 @@ openCreditForCharge(c: ParentChargeRow) {
       parentUid: c.parent_uid,
       parentName: c.parent_name ?? '',
       relatedChargeId: c.id,
+      children,
     },
   });
 
   ref.afterClosed().subscribe(async (result) => {
     if (result?.saved) {
       await this.loadCharges();
+
       if (this.detailsOpenFor() === c.id) {
-          await this.openChargeDetails(c.id);
-    }
+        await this.openChargeDetails(c.id);
+      }
     }
   });
 }
@@ -727,11 +670,16 @@ private getSelectedChargesGroupedByParent(): Record<string, string[]> {
   return grouped;
 }
 async openAdditionalChargeDialog(c: ParentChargeRow) {
+  const children = await this.getChildrenForParent(c.parent_uid);
+
   const ref = this.dialog.open(AdditionalChargeDialogComponent, {
-    width: '420px',
+    width: '560px',
+    maxWidth: '92vw',
+    autoFocus: false,
     data: {
       parentUid: c.parent_uid,
       parentName: c.parent_name || `${c.first_name} ${c.last_name}`.trim(),
+      children,
     },
   });
 
@@ -742,17 +690,18 @@ async openAdditionalChargeDialog(c: ParentChargeRow) {
       this.loading.set(true);
       this.error.set(null);
 
-   const chargeId = await this.createAdditionalCharge({
-  parentUid: c.parent_uid,
-  amountAgorot: result.amountAgorot,
-  description: result.description,
-});
+      const chargeId = await this.createAdditionalCharge({
+        parentUid: c.parent_uid,
+        amountAgorot: result.amountAgorot,
+        description: result.description,
+        childId: result.childId,
+      });
 
-await this.loadCharges();
+      await this.loadCharges();
 
-if (this.detailsOpenFor() === c.id || this.detailsOpenFor() === chargeId) {
-  await this.openChargeDetails(chargeId);
-}
+      if (this.detailsOpenFor() === c.id || this.detailsOpenFor() === chargeId) {
+        await this.openChargeDetails(chargeId);
+      }
     } catch (e: any) {
       this.error.set(e?.message ?? 'שגיאה ביצירת חיוב נוסף');
     } finally {
@@ -764,6 +713,7 @@ private async createAdditionalCharge(args: {
   parentUid: string;
   amountAgorot: number;
   description: string;
+  childId: string;
 }) {
   const now = new Date();
   const isoNow = now.toISOString();
@@ -822,6 +772,7 @@ private async createAdditionalCharge(args: {
     .insert({
       charge_id: chargeId,
       parent_uid: args.parentUid,
+      child_id: args.childId,
       item_type: 'extra',
       item_code: 'extra_manual',
       description: args.description,
@@ -833,6 +784,7 @@ private async createAdditionalCharge(args: {
       metadata: {
         created_by: 'secretary-parent-billing',
         source: 'manual_additional_charge',
+        child_id: args.childId,
       },
       created_at: isoNow,
       updated_at: isoNow,
@@ -1034,5 +986,15 @@ async dismissUnbilledWarning() {
     this.error.set(e?.message ?? 'שגיאה בהסרת האזהרה');
   }
 }
+private async getChildrenForParent(parentUid: string) {
+  const { data, error } = await dbTenant()
+    .from('children')
+    .select('child_uuid, first_name, last_name, gov_id')
+    .eq('parent_uid', parentUid)
+    .order('first_name', { ascending: true });
 
+  if (error) throw error;
+
+  return data ?? [];
+}
 }
