@@ -690,8 +690,7 @@ if (from && to) {
     if (!visibleInstructorIds.has(String(inst.id_number))) continue;
 
     for (const ymd of dateList) {
-      const d = new Date(ymd + 'T00:00:00');
-      const dow = d.getDay();
+      const dow = this.dbDowFromYmd(ymd);
       const key = `${inst.id_number}|${dow}`;
       const spans = (availabilityByInstructorAndDow.get(key) ?? [])
         .sort((a, b) => a.start.localeCompare(b.start));
@@ -1513,7 +1512,7 @@ private async loadInstructors(): Promise<void> {
     );
 
     // 2) עובדים היום לפי זמינות
-    const dow = new Date().getDay(); // 0..6
+    const dow = this.jsDowToDbDow(new Date().getDay());
     const { data: avail, error: e2 } = await dbc
       .from('instructor_weekly_availability')
       .select('instructor_id_number')
@@ -2484,6 +2483,15 @@ async onToggleMakeupAllowed(checked: boolean) {
      await this.ui.alert('שגיאה בעדכון "ניתן להשלמה"', 'שגיאה');
 
   }
+}
+
+private jsDowToDbDow(jsDow: number): number {
+  return jsDow === 0 ? 1 : jsDow + 1;
+}
+
+private dbDowFromYmd(ymd: string): number {
+  const d = new Date(`${ymd}T12:00:00`);
+  return this.jsDowToDbDow(d.getDay());
 }
 
 openMoveChoiceModal(): void {
