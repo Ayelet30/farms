@@ -348,14 +348,26 @@ export const ensureTranzilaInvoiceForPayment = onRequest(
       if (handleCors(req, res)) return;
       if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
 
-      const { tenantSchema, paymentId } = req.body as any;
+const {
+  tenantSchema,
+  paymentId,
+  invoiceExtraLinesByChild,
+} = req.body as {
+  tenantSchema?: string;
+  paymentId?: string;
+  invoiceExtraLinesByChild?: Record<string, string>;
+};
       if (!tenantSchema || !paymentId) {
         res.status(400).json({ ok: false, error: "missing tenantSchema/paymentId" });
         return;
       }
 console.log("[ensureTranzilaInvoiceForPayment] revision check", new Date().toISOString());
 
-      const out = await ensureTranzilaInvoiceForPaymentInternal({ tenantSchema, paymentId });
+      const out = await ensureTranzilaInvoiceForPaymentInternal({
+  tenantSchema,
+  paymentId,
+ extraLinesByChild: invoiceExtraLinesByChild,
+});
       res.json(out);
     } catch (e: any) {
       console.error("[ensureTranzilaInvoiceForPayment] error:", e);
@@ -369,8 +381,7 @@ console.log("[ensureTranzilaInvoiceForPayment] revision check", new Date().toISO
 export async function ensureTranzilaInvoiceForPaymentInternal(args: {
   tenantSchema: string;
   paymentId: string;
-  extraLineText?: string | null; // ✅ חדש
-
+extraLinesByChild?: Record<string, string>;
 }): Promise<{
   ok: boolean;
   from_cache: boolean;
@@ -378,8 +389,7 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
 }> {
 
   const { tenantSchema, paymentId } = args;
-const extra = (args.extraLineText ?? '').trim();
-
+const extraLinesByChild = args.extraLinesByChild ?? {};
   const sb = getSupabaseForTenant(tenantSchema);
   const rid = crypto.randomBytes(6).toString("hex");
 console.log("[ensureInvoiceInternal] SPLIT_VERSION_2026_05_07_01", {
@@ -617,6 +627,17 @@ if (existingInvoices?.length) {
   const createdInvoices: any[] = [];
 
   for (const [childId, childItems] of itemsByChild.entries()) {
+   const extraText = String(extraLinesByChild[childId] ?? '').trim();
+
+if (extraText) {
+  childItems.push({
+    name: extraText,
+    unit_price: 0,
+    units_number: 1,
+    unit_type: 1,
+    currency_code: "ILS",
+  });
+}
     const childNetILS = Number(
       childItems.reduce((sum, item) => {
         return sum + Number(item.unit_price || 0) * Number(item.units_number || 1);
