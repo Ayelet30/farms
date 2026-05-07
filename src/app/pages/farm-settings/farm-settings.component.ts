@@ -389,7 +389,7 @@ hasAnyActiveWorkingDay(): boolean {
     subsidy_amount: 0,
     funding_source_id: null,
     required_docs: [],
-    require_docs_at_booking: true,
+    require_docs_at_booking: false,
     is_active: true,
   };
 
@@ -1831,7 +1831,7 @@ await this.ui.alert('ההגדרות נשמרו בהצלחה.', 'הצלחה');
     const plans: PaymentPlan[] = (data || []).map((p: any) => ({
       ...p,
       required_docs: p.required_docs || [],
-      require_docs_at_booking: p.require_docs_at_booking ?? true,
+      require_docs_at_booking: p.require_docs_at_booking ?? false,
       versions: (p.payment_plan_prices || []) as PaymentPlanPriceVersion[],
     }));
 
@@ -2106,7 +2106,7 @@ validateRidingTypeCode(value: string): void {
       subsidy_amount: plan.subsidy_amount ?? 0,
       funding_source_id: plan.funding_source_id,
       required_docs: plan.required_docs || [],
-      require_docs_at_booking: plan.require_docs_at_booking ?? true,
+      require_docs_at_booking: plan.require_docs_at_booking ?? false,
       is_active: plan.is_active ?? true,
     };
   }
@@ -2136,7 +2136,7 @@ validateRidingTypeCode(value: string): void {
       subsidy_amount: 0,
       funding_source_id: null,
       required_docs: [],
-      require_docs_at_booking: true,
+      require_docs_at_booking: false,
       is_active: true,
     };
     this.showNewPlanForm.set(false);
