@@ -92,6 +92,14 @@
   <!-- תיבת ההזנה -->
   <div class="input-container">
     <div class="input-box-wrapper">
+
+      <div class="file-preview-container animate-in" *ngIf="selectedFile">
+        <div class="file-card">
+          <span class="file-icon">📄</span>
+          <span class="file-name">{{ selectedFile.name }}</span>
+          <button class="remove-file-btn" (click)="removeFile()">✕</button>
+        </div>
+      </div>
       
       <!-- אזור ההקלדה (למעלה) -->
       <textarea 
@@ -140,7 +148,7 @@
         <div class="toolbar-right">
           <!-- חץ שליחה -->
           <button class="send-action-btn" 
-                  [disabled]="!newBody.trim() || !newSubject" 
+                  
                   (click)="createConversation()">
             <span class="send-arrow">➤</span>
           </button>

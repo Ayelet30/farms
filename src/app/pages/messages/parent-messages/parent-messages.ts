@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { getAuth } from 'firebase/auth';
 import { db, ensureTenantContextReady } from '../../../services/legacy-compat';
 import { dbTenant } from '../../../services/supabaseClient.service';
+import { fetchMyChildren } from '../../../services/supabaseClient.service';
+
 
 type Tab = 'threads' | 'new' | 'announcements';
 type FarmSettingsContact = {
@@ -94,6 +96,9 @@ export class ParentMessagesComponent implements OnInit {
   selectedFile: File | null = null;
   selectedKidId: string = ''; // ישמור את ה-ID של הילד שנבחר
   kids = signal<any[]>([]);
+  activeThread = signal<any>(null); // שומר את השיחה שכרגע פתוחה במסך
+  messages = signal<any[]>([]);
+
 
   // הודעות שידור
   loadingAnn = signal(false);
@@ -122,19 +127,24 @@ export class ParentMessagesComponent implements OnInit {
   }
 
   async loadKids() {
-  // הוצאת המשתמש המחובר (לפי ה-Firebase Auth שמופיע אצלך ב-import)
-  const user = getAuth().currentUser;
-  if (!user) return;
+  // הפעלת הפונקציה המוכנה של המערכת
+    const res = await fetchMyChildren('child_uuid, first_name, last_name, status');
 
-  const { data, error } = await dbTenant()
-    .from('registrations')
-    .select('id, student_name')
-    .eq('parent_id', user.uid); // ב-Firebase זה uid ולא id
+    if (!res.ok) {
+      console.error("שגיאה בטעינת ילדים:", res.error);
+      return;
+    }
 
-  if (data) {
-    this.kids.set(data); // מעדכן את ה-Signal עבור ה-HTML
+    // המרת הנתונים לפורמט שה-HTML שלנו מכיר
+    // אנחנו משלבים שם פרטי ומשפחה לתוך student_name
+    const mappedKids = (res.data ?? []).map((child: any) => ({
+    id: child.child_uuid,
+    student_name: `${child.first_name} ${child.last_name}`
+    }));
+
+    console.log("הילדים נטענו בהצלחה:", mappedKids);
+    this.kids.set(mappedKids);
   }
-}
 
   private async loadWorkingHours(): Promise<void> {
     try {
@@ -338,53 +348,203 @@ adjustHeight(event: any) {
   element.style.height = element.scrollHeight + 'px';
 }
 
+removeFile() {
+  this.selectedFile = null;
+  // איפוס ה-input של הקובץ ב-HTML כדי שאפשר יהיה לבחור את אותו קובץ שוב
+  const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+  if (fileInput) fileInput.value = '';
+}
+
   async createConversation() {
-    // 1. בדיקה ראשונה: האם נבחר ילד כשמדובר בקבצים?
-    if (this.newSubject === 'files' && !this.selectedKidId) {
-      this.toast.set('חובה לבחור ילד עבור שליחת קבצים');
-      // אנחנו עושים return כדי שהפונקציה תיעצר כאן ולא תמשיך לשלוח
-      setTimeout(() => this.toast.set(null), 3000); // מעלים את ההודעה אחרי 3 שניות
-      return; 
-    }
-    if (!this.newBody.trim()) return;
-    this.creating.set(true);
-    try {
-      const uid = this.myUid();
-      const { data: conv, error: e1 } = await db()
-        .from('conversations')
-        .insert({
-          subject: this.newSubject.trim() || null,
-          status: 'open',
-          opened_by_parent_uid: uid
-        })
-        .select()
-        .single();
-      if (e1) throw e1;
+  this.toast.set(null);
 
-      const { error: e2 } = await db()
-        .from('conversation_messages')
-        .insert({
-          conversation_id: (conv as any).id,
-          body_md: this.newBody.trim(),
-          sender_role: 'parent',
-          sender_uid: uid,
-          has_attachment: false
-        });
-      if (e2) throw e2;
-
-      this.newSubject = '';
-      this.newBody = '';
-      this.toast.set('השיחה נפתחה ונשלחה');
+  // --- שלב א: בדיקות תקינות (וולידציה) ---
+  if (!this.newSubject) {
+    this.toast.set('יש לבחור נושא לפני השליחה');
+    setTimeout(() => this.toast.set(null), 3000);
+    return;
+  }
+  if (!this.newBody.trim()) {
+    this.toast.set('לא ניתן לשלוח הודעה ריקה');
+    setTimeout(() => this.toast.set(null), 3000);
+    return;
+  }
+  if (this.newSubject === 'files') {
+    if (!this.selectedKidId) {
+      this.toast.set('יש לבחור ילד עבור שליחת קבצים');
       setTimeout(() => this.toast.set(null), 3000);
-
-      await this.loadThreads();
-      const just = this.threads().find(t => t.id === (conv as any).id);
-      if (just) await this.openConversation(just);
-      this.tab.set('threads');
-    } finally {
-      this.creating.set(false);
+      return;
+    }
+    if (!this.selectedFile) {
+      this.toast.set('יש לבחור קובץ לשליחה');
+      setTimeout(() => this.toast.set(null), 3000);
+      return;
     }
   }
+
+  // --- שלב ב: שליחה לסופבייס ---
+  this.creating.set(true);
+  try {
+    const uid = this.myUid();
+
+    // 1. יצירת שיחה
+    const { data: conv, error: e1 } = await db()
+      .from('conversations')
+      .insert({
+        subject: this.newSubject,
+        status: 'open',
+        opened_by_parent_uid: uid,
+        student_id: this.selectedKidId || null
+      })
+      .select().single();
+
+    if (e1) throw e1;
+
+    // 2. יצירת הודעה ראשונה
+    const { error: e2 } = await db()
+      .from('conversation_messages')
+      .insert({
+        conversation_id: (conv as any).id,
+        body_md: this.newBody.trim(),
+        sender_role: 'parent',
+        sender_uid: uid,
+        has_attachment: !!this.selectedFile
+      });
+
+    if (e2) throw e2;
+
+    // 3. ניקוי שדות
+    this.newSubject = '';
+    this.newBody = '';
+    this.selectedFile = null;
+
+    // 4. השורות החשובות שביקשת:
+    await this.loadThreads(); // טוען את הרשימה המעודכנת מסופבייס
+    const justCreated = this.threads().find(t => t.id === (conv as any).id);
+    
+    if (justCreated) {
+      await this.openConversation(justCreated); // פותח את הצ'אט של השיחה החדשה
+    }
+    
+    this.tab.set('threads'); // מעביר את המשתמש למסך ההודעות
+
+  } catch (error) {
+    this.toast.set('שגיאה ביצירת השיחה');
+  } finally {
+    this.creating.set(false);
+  }
+}
+
+async sendMessage() {
+  const thread = this.activeThread(); // בודק איזו שיחה פתוחה כרגע
+  if (!thread || !this.newBody.trim()) return;
+
+  this.creating.set(true);
+  try {
+    const uid = this.myUid();
+    
+    // מוסיף רק הודעה לטבלת ההודעות, בלי לגעת בטבלת השיחות
+    const { error } = await db()
+      .from('conversation_messages')
+      .insert({
+        conversation_id: thread.id,
+        body_md: this.newBody.trim(),
+        sender_role: 'parent',
+        sender_uid: uid,
+        has_attachment: !!this.selectedFile
+      });
+
+    if (error) throw error;
+
+    // ניקוי ושליחה
+    this.newBody = '';
+    this.selectedFile = null;
+    
+    // רענון ההודעות בשיחה הנוכחית כדי שהבועה החדשה תופיע
+    await this.loadMessages(thread.id); 
+
+  } catch (e) {
+    this.toast.set('שגיאה בשליחת התגובה');
+  } finally {
+    this.creating.set(false);
+  }
+}
+
+// בתוך createConversation, אחרי כל ה-if (validation)
+async performSendMessage() {
+  try {
+    this.loading = true; // אפשר להוסיף משתנה לטעינה
+
+    // 1. קבלת המשתמש המחובר
+    const user = (await dbTenant().auth.getUser()).data.user;
+    if (!user) return;
+
+    // 2. יצירת "שיחה" חדשה בטבלת conversations
+    const { data: conv, error: convErr } = await dbTenant()
+      .from('conversations')
+      .insert({
+        subject: this.newSubject,
+        parent_id: user.id,
+        student_id: this.selectedKidId || null, // אם יש ילד - נשייך
+        status: 'sent' // סטטוס התחלתי
+      })
+      .select()
+      .single();
+
+    if (convErr) throw convErr;
+
+    // 3. יצירת ההודעה הראשונה בתוך השיחה
+    const { error: msgErr } = await dbTenant()
+      .from('messages')
+      .insert({
+        conversation_id: conv.id,
+        body: this.newBody,
+        sender_id: user.id,
+        sender_type: 'parent'
+      });
+
+    if (msgErr) throw msgErr;
+
+    // 4. אם יש קובץ - כאן יבוא הקוד של העלאת הקובץ (Storage)
+    if (this.selectedFile) {
+      await this.uploadFile(conv.id); 
+    }
+
+    // 5. הצלחה!
+    this.toast.set('הודעתך נשלחה בהצלחה וטופלה על ידי המזכירות');
+    this.resetForm(); // פונקציה שתנקה את השדות
+    this.loadThreads(); // רענון רשימת ההודעות
+
+  } catch (err) {
+    console.error("שגיאה בשליחה:", err);
+    this.toast.set('אופס, משהו השתבש בשליחה. נסו שוב.');
+  } finally {
+    this.loading = false;
+  }
+}
+
+async sendMessageToExistingConversation() {
+  const activeId = this.activeThread()?.id; // ה-ID של השיחה שפתוחה עכשיו על המסך
+  if (!activeId) return;
+
+  const uid = this.myUid();
+
+  const { error } = await db()
+    .from('conversation_messages')
+    .insert({
+      conversation_id: activeId,
+      body_md: this.newBody.trim(),
+      sender_role: 'parent',
+      sender_uid: uid,
+      has_attachment: !!this.selectedFile
+    });
+
+  if (!error) {
+    this.newBody = ''; // ניקוי התיבה
+    this.selectedFile = null;
+    await this.loadMessages(activeId); // רענון הבועות על המסך
+  }
+}
 
   async loadAnnouncements() {
     this.loadingAnn.set(true);
