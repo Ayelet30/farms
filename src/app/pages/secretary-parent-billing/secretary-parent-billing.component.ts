@@ -72,6 +72,8 @@ failedPaymentParentUids = signal<Set<string>>(new Set());
 invoiceExtraText = '';
 billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
 unbilledWarning = signal<string | null>(null);
+private creditDialogOpen = false;
+private additionalChargeDialogOpen = false;
   constructor(private payments: PaymentsService,  private mailService: MailService,
 ) {}
 
@@ -81,12 +83,9 @@ unbilledWarning = signal<string | null>(null);
     if (agorot == null) return 0;
     return agorot / 100;
   }
-
- remainingAgorot(c: ParentChargeRow): number {
-    // אם ה־VIEW כבר מחשב – זה השדה המרכזי
-    return c.remaining_agorot ?? 0;
-  }
-
+remainingAgorot(c: ParentChargeRow): number {
+  return this.realRemainingAgorot(c);
+}
   /** חיובים פתוחים (יתרה > 0, לא בוטל) */
   openCharges = computed(() => {
     return this.charges().filter((c) => {
@@ -345,32 +344,42 @@ if (secretaryEmails.length) {
 
   // === זיכוי הורה ===
 
-
 async openCreditForCharge(c: ParentChargeRow) {
-  const children = await this.getChildrenForParent(c.parent_uid);
+  if (this.creditDialogOpen) return;
 
-  const ref = this.dialog.open(CreditDialogComponent, {
-    width: '560px',
-    maxWidth: '92vw',
-    autoFocus: false,
-    panelClass: 'credit-dialog-panel',
-    data: {
-      parentUid: c.parent_uid,
-      parentName: c.parent_name ?? '',
-      relatedChargeId: c.id,
-      children,
-    },
-  });
+  this.creditDialogOpen = true;
 
-  ref.afterClosed().subscribe(async (result) => {
-    if (result?.saved) {
-      await this.loadCharges();
+  try {
+    const children = await this.getChildrenForCharge(c.id);
 
-      if (this.detailsOpenFor() === c.id) {
-        await this.openChargeDetails(c.id);
+    const ref = this.dialog.open(CreditDialogComponent, {
+      width: '560px',
+      maxWidth: '92vw',
+      autoFocus: false,
+      panelClass: 'credit-dialog-panel',
+      data: {
+        parentUid: c.parent_uid,
+        parentName: c.parent_name ?? '',
+        relatedChargeId: c.id,
+        children,
+      },
+    });
+
+    ref.afterClosed().subscribe(async (result) => {
+      this.creditDialogOpen = false;
+
+      if (result?.saved) {
+        await this.loadCharges();
+
+        if (this.detailsOpenFor() === c.id) {
+          await this.openChargeDetails(c.id);
+        }
       }
-    }
-  });
+    });
+  } catch (e) {
+    this.creditDialogOpen = false;
+    throw e;
+  }
 }
 
   // === תצוגה ===
@@ -402,33 +411,25 @@ formatPeriod(c: ParentChargeRow): string {
   return '';
 }
   formatStatus(c: ParentChargeRow): string {
-  // אם יש זיכויים על החיוב
-  const hasCredits = (c.credits_agorot ?? 0) > 0;
+  const total = this.chargeTotalAgorot(c);
+  const paid = this.paidAgorot(c);
+  const credits = this.creditsAgorot(c);
+  const remaining = this.realRemainingAgorot(c);
 
-  if (hasCredits && c.status === 'partial') {
-    return 'טיוטה';
+  if (c.status === 'cancelled') return 'בוטל';
+  if (c.status === 'failed') return 'נכשל';
+  if (c.status === 'pending') return 'ממתין לחיוב';
+
+  if (remaining <= 0 && total > 0) {
+    if (paid > 0 && credits > 0) return 'שולם עם זיכוי';
+    if (credits > 0 && paid === 0) return 'נסגר בזיכוי';
+    return 'שולם';
   }
 
-  switch (c.status) {
-    case 'draft':
-      return 'טיוטה';
-    case 'pending':
-      return 'ממתין לחיוב';
-    case 'open':
-      return 'פתוח';
-    case 'partial':
-      return 'שולם חלקית';
-    case 'paid':
-      return 'שולם';
-    case 'failed':
-      return 'נכשל';
-    case 'cancelled':
-      return 'בוטל';
-    default:
-      return c.status ?? '';
-  }
+  if (paid > 0 && remaining > 0) return 'שולם חלקית';
+
+  return 'טיוטה';
 }
-
  async openChargeDetails(chargeId: string) {
   try {
     this.detailsOpenFor.set(chargeId);
@@ -487,8 +488,18 @@ if (newAmount != null) {
 
     const { data: credits, error: e2 } = await dbTenant()
       .from('parent_credits')
-      .select('created_at,amount_agorot,reason,created_by')
-      .eq('related_charge_id', chargeId)
+.select(`
+  created_at,
+  amount_agorot,
+  reason,
+  created_by,
+  child_id,
+  children:child_id (
+    first_name,
+    last_name,
+    gov_id
+  )
+`)      .eq('related_charge_id', chargeId)
       .order('created_at', { ascending: true });
 
     if (e2) throw e2;
@@ -603,17 +614,36 @@ if (relevantMissing.length) {
   );
 
   for (const parentUid of parentUids) {
-    await dbTenant().rpc('create_missing_lessons_charge_for_parent', {
-      p_parent_uid: parentUid,
-      p_month: targetMonthStart,
-    });
+    const { data: existingMonthlyCharge, error: existingMonthlyErr } =
+      await dbTenant()
+        .from('charges')
+        .select('id')
+        .eq('parent_uid', parentUid)
+        .eq('billing_month', targetMonthStart)
+        .eq('charge_kind', 'monthly')
+        .maybeSingle();
+
+    if (existingMonthlyErr) throw existingMonthlyErr;
+
+    if (existingMonthlyCharge) {
+      await dbTenant().rpc('create_missing_lessons_charge_for_parent', {
+        p_parent_uid: parentUid,
+        p_month: targetMonthStart,
+      });
+    } else {
+      await dbTenant().rpc('create_monthly_charge_for_parent', {
+        p_parent_uid: parentUid,
+        p_billing_date: billingDate,
+      });
+    }
   }
 
   await this.loadCharges();
 
- this.successMessage.set(
-  `נוצר חיוב השלמה עבור שיעורים שלא חויבו בחודש ${targetMonthStart.slice(0, 7)}.`
-);
+  this.successMessage.set(
+    `החיוב חושב עבור חודש ${targetMonthStart.slice(0, 7)}. אם היו שיעורים חסרים לחיוב קיים, נוצר עבורם חיוב השלמה.`
+  );
+
   return;
 }
     let ok = 0;
@@ -670,44 +700,55 @@ private getSelectedChargesGroupedByParent(): Record<string, string[]> {
   return grouped;
 }
 async openAdditionalChargeDialog(c: ParentChargeRow) {
-  const children = await this.getChildrenForParent(c.parent_uid);
+  if (this.additionalChargeDialogOpen) return;
 
-  const ref = this.dialog.open(AdditionalChargeDialogComponent, {
-    width: '560px',
-    maxWidth: '92vw',
-    autoFocus: false,
-    data: {
-      parentUid: c.parent_uid,
-      parentName: c.parent_name || `${c.first_name} ${c.last_name}`.trim(),
-      children,
-    },
-  });
+  this.additionalChargeDialogOpen = true;
 
-  ref.afterClosed().subscribe(async (result) => {
-    if (!result?.saved) return;
+  try {
+    const children = await this.getChildrenForCharge(c.id);
 
-    try {
-      this.loading.set(true);
-      this.error.set(null);
-
-      const chargeId = await this.createAdditionalCharge({
+    const ref = this.dialog.open(AdditionalChargeDialogComponent, {
+      width: '560px',
+      maxWidth: '92vw',
+      autoFocus: false,
+      data: {
         parentUid: c.parent_uid,
-        amountAgorot: result.amountAgorot,
-        description: result.description,
-        childId: result.childId,
-      });
+        parentName: c.parent_name || `${c.first_name} ${c.last_name}`.trim(),
+        children,
+      },
+    });
 
-      await this.loadCharges();
+    ref.afterClosed().subscribe(async (result) => {
+      this.additionalChargeDialogOpen = false;
 
-      if (this.detailsOpenFor() === c.id || this.detailsOpenFor() === chargeId) {
-        await this.openChargeDetails(chargeId);
+      if (!result?.saved) return;
+
+      try {
+        this.loading.set(true);
+        this.error.set(null);
+
+        const chargeId = await this.createAdditionalCharge({
+          parentUid: c.parent_uid,
+          amountAgorot: result.amountAgorot,
+          description: result.description,
+          childId: result.childId,
+        });
+
+        await this.loadCharges();
+
+        if (this.detailsOpenFor() === c.id || this.detailsOpenFor() === chargeId) {
+          await this.openChargeDetails(chargeId);
+        }
+      } catch (e: any) {
+        this.error.set(e?.message ?? 'שגיאה ביצירת חיוב נוסף');
+      } finally {
+        this.loading.set(false);
       }
-    } catch (e: any) {
-      this.error.set(e?.message ?? 'שגיאה ביצירת חיוב נוסף');
-    } finally {
-      this.loading.set(false);
-    }
-  });
+    });
+  } catch (e) {
+    this.additionalChargeDialogOpen = false;
+    throw e;
+  }
 }
 private async createAdditionalCharge(args: {
   parentUid: string;
@@ -991,6 +1032,58 @@ private async getChildrenForParent(parentUid: string) {
     .from('children')
     .select('child_uuid, first_name, last_name, gov_id')
     .eq('parent_uid', parentUid)
+    .order('first_name', { ascending: true });
+
+  if (error) throw error;
+
+  return data ?? [];
+}
+paidAgorot(c: ParentChargeRow): number {
+  return c.paid_agorot ?? 0;
+}
+
+creditsAgorot(c: ParentChargeRow): number {
+  return c.credits_agorot ?? 0;
+}
+
+chargeTotalAgorot(c: ParentChargeRow): number {
+  return c.charge_amount_agorot ?? 0;
+}
+
+finalAmountAfterCreditsAgorot(c: ParentChargeRow): number {
+  return Math.max(
+    this.chargeTotalAgorot(c) - this.creditsAgorot(c),
+    0
+  );
+}
+
+realRemainingAgorot(c: ParentChargeRow): number {
+  return Math.max(
+    this.chargeTotalAgorot(c) -
+      this.paidAgorot(c) -
+      this.creditsAgorot(c),
+    0
+  );
+}
+private async getChildrenForCharge(chargeId: string) {
+  const { data: detailRows, error: detailErr } = await dbTenant()
+    .from('charge_details_with_office_note')
+    .select('child_id')
+    .eq('charge_id', chargeId)
+    .not('child_id', 'is', null);
+
+  if (detailErr) throw detailErr;
+
+  const childIds = Array.from(
+    new Set((detailRows ?? []).map((x: any) => x.child_id).filter(Boolean))
+  );
+
+  if (!childIds.length) return [];
+
+  const { data, error } = await dbTenant()
+    .from('children')
+    .select('child_uuid, first_name, last_name, gov_id')
+    .in('child_uuid', childIds)
     .order('first_name', { ascending: true });
 
   if (error) throw error;
