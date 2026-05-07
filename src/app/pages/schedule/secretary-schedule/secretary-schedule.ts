@@ -2036,6 +2036,44 @@ private addOneDayYmd(dateYmd: string): string {
   this.items = src.map(makeLessonEvent);
   this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
 }
+
+isCancelledContext(): boolean {
+  const status = String(this.contextMenu.status || '').toLowerCase();
+  return status.includes('בוטל') || status.includes('cancel');
+}
+
+isInstructorOffContext(): boolean {
+  const type = String(this.contextMenu.lessonType || this.contextMenu.appointmentKind || '').toLowerCase();
+  const title = String(this.contextMenu.childName || '').toLowerCase();
+
+  return (
+    type.includes('day_off') ||
+    type.includes('unavailability') ||
+    type.includes('holiday') ||
+    title.includes('חופש') ||
+    title.includes('מחלה') ||
+    title.includes('לא זמין')
+  );
+}
+
+canCancelContextLesson(): boolean {
+  return !!this.contextMenu.hasEvent &&
+    !!this.contextMenu.lessonId &&
+    !this.isCancelledContext() &&
+    !this.isInstructorOffContext();
+}
+
+canMoveContextLesson(): boolean {
+  return !!this.contextMenu.hasEvent &&
+    !!this.contextMenu.lessonId &&
+    !this.isCancelledContext() &&
+    !this.isInstructorOffContext();
+}
+
+canEndContextSeries(): boolean {
+  return this.canMoveContextLesson() && this.isSeriesContext();
+}
+
 private instructorDaysOffToItems(): ScheduleItem[] {
   const selected = new Set(this.selectedInstructorIds.map(String));
 

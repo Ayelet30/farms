@@ -15,14 +15,15 @@
     </div>
 
     <div class="date-nav">
-      <button class="nav-btn" (click)="prev()" aria-label="קודם">
-        <span class="chevron right"></span>
+      <button class="nav-btn" (click)="next()" aria-label="הבא">
+        <span class="chevron left"></span>
       </button>
+      
 
       <div class="current-date">{{ currentDate }}</div>
 
-      <button class="nav-btn" (click)="next()" aria-label="הבא">
-        <span class="chevron left"></span>
+      <button class="nav-btn" (click)="prev()" aria-label="קודם">
+        <span class="chevron right"></span>
       </button>
     </div>
 
