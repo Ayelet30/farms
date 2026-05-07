@@ -106,6 +106,23 @@ farmDaysOff: any[] = [];
   endTime: '',
 };
 
+moveConfirmModal = {
+  open: false,
+  mode: 'single' as 'single' | 'series',
+
+  childName: '',
+  originalDate: '',
+  originalTime: '',
+  originalInstructor: '',
+
+  newDate: '',
+  newStartTime: '',
+  newEndTime: '',
+  newInstructor: '',
+
+  slot: null as any | null,
+};
+
 moveSlotsModal = {
   open: false,
   mode: 'single' as 'single' | 'series',
@@ -2618,45 +2635,100 @@ async confirmMove(): Promise<void> {
   const slot = this.moveSlotsModal.selectedSlot;
   if (!slot) return;
 
-  this.moveSlotsModal.saving = true;
-  this.cdr.detectChanges();
-
-  try {
-   if (this.moveSlotsModal.mode === 'single') {
   const date = slot.occur_date || slot.lesson_date;
   const start = String(slot.start_time || slot.start).slice(0, 5);
   const end = String(slot.end_time || slot.end).slice(0, 5);
 
-  const newStartDatetime = `${date}T${start}:00`;
-  const newEndDatetime = `${date}T${end}:00`;
+  this.moveConfirmModal = {
+    open: true,
+    mode: this.moveSlotsModal.mode,
 
-  const { error } = await dbTenant().rpc('move_lesson_occurrence', {
-    p_lesson_id: this.moveChoiceModal.lessonId,
-    p_occur_date: this.moveChoiceModal.occurDate,
-    p_new_instructor_id: slot.instructor_id,
-    p_new_start_datetime: newStartDatetime,
-    p_new_end_datetime: newEndDatetime,
-    p_note: null,
-    p_created_by_role: 'secretary',
-    p_created_by_uid: null
+    childName: this.moveChoiceModal.childName,
+
+    originalDate: this.moveChoiceModal.occurDate,
+    originalTime: `${this.moveChoiceModal.startTime}-${this.moveChoiceModal.endTime || ''}`,
+    originalInstructor: this.moveChoiceModal.instructorName,
+
+    newDate: date,
+    newStartTime: start,
+    newEndTime: end,
+    newInstructor: slot.instructor_name || slot.instructorName || String(slot.instructor_id || ''),
+
+    slot,
+  };
+
+  this.cdr.detectChanges();
+}
+
+closeMoveConfirmModal(): void {
+  this.moveConfirmModal.open = false;
+  this.cdr.detectChanges();
+}
+
+async approveMoveConfirm(): Promise<void> {
+  console.log('approveMoveConfirm clicked', this.moveConfirmModal);
+
+  const slot = this.moveConfirmModal.slot || this.moveSlotsModal.selectedSlot;
+
+  if (!slot) {
+    console.error('No slot found for move approval', {
+      moveConfirmModal: this.moveConfirmModal,
+      moveSlotsModal: this.moveSlotsModal,
+    });
+
+    await this.ui.alert('לא נמצא סלוט להזזה. בחרי שוב אפשרות מהרשימה.', 'שגיאה');
+    return;
+  }
+
+  this.moveConfirmModal.open = false;
+  await this.executeMove(slot);
+}
+
+async executeMove(slot: any): Promise<void> {
+  console.log('executeMove started', {
+    slot,
+    mode: this.moveSlotsModal.mode,
+    moveChoiceModal: this.moveChoiceModal,
   });
 
-  if (error) throw error;
-}
-    if (this.moveSlotsModal.mode === 'series') {
-      // 🔥 הזזה של סדרה
-      const { error } = await dbTenant().rpc('move_lesson_series', {
+  this.moveSlotsModal.saving = true;
+  this.cdr.detectChanges();
+
+  try {
+    if (this.moveSlotsModal.mode === 'single') {
+      const date = slot.occur_date || slot.lesson_date;
+      const start = String(slot.start_time || slot.start).slice(0, 5);
+      const end = String(slot.end_time || slot.end).slice(0, 5);
+
+      const newStartDatetime = `${date}T${start}:00`;
+      const newEndDatetime = `${date}T${end}:00`;
+
+      const { error } = await dbTenant().rpc('move_lesson_occurrence', {
         p_lesson_id: this.moveChoiceModal.lessonId,
+        p_occur_date: this.moveChoiceModal.occurDate,
         p_new_instructor_id: slot.instructor_id,
-        p_new_day_of_week: slot.day_of_week,
-        p_new_start_time: slot.start,
-        p_new_end_time: slot.end,
+        p_new_start_datetime: newStartDatetime,
+        p_new_end_datetime: newEndDatetime,
+        p_note: null,
+        p_created_by_role: 'secretary',
+        p_created_by_uid: null
       });
 
       if (error) throw error;
     }
 
-    // 🔁 רענון לוח
+    if (this.moveSlotsModal.mode === 'series') {
+      const { error } = await dbTenant().rpc('move_lesson_series', {
+        p_lesson_id: this.moveChoiceModal.lessonId,
+        p_new_instructor_id: slot.instructor_id,
+        p_new_day_of_week: slot.day_of_week,
+        p_new_start_time: slot.start_time || slot.start,
+        p_new_end_time: slot.end_time || slot.end,
+      });
+
+      if (error) throw error;
+    }
+
     if (this.currentRange) {
       await this.loadLessons({
         start: this.currentRange.start,
