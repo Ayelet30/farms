@@ -8,14 +8,25 @@ const SUPABASE_SERVICE_KEY = defineSecret('SUPABASE_SERVICE_KEY');
 const INTEGRATIONS_MASTER_KEY = defineSecret('INTEGRATIONS_MASTER_KEY');
 
 export async function openMaccabiSite(schema: string) {
-  const { chromium } = await import('playwright-core');
-const chromiumAws = await import('@sparticuz/chromium');
+const { chromium } = await import('playwright-core');
 
-const browser = await chromium.launch({
-  args: chromiumAws.default.args,
-  executablePath: await chromiumAws.default.executablePath(),
-  headless: true,
-});
+const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
+//const isEmulator = true; // Force non-headless mode for testing, remove in production 
+let browser;
+
+if (isEmulator) {
+  browser = await chromium.launch({
+    headless: false,
+  });
+} else {
+  const chromiumAws = await import('@sparticuz/chromium');
+
+  browser = await chromium.launch({
+    args: chromiumAws.default.args,
+    executablePath: await chromiumAws.default.executablePath(),
+    headless: true,
+  });
+}
 
   const creds = await getMaccabiCredentials(schema);
 
