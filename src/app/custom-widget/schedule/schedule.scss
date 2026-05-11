@@ -1332,23 +1332,40 @@
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
+
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+
   border-radius: 999px !important;
-  padding: 0 !important;
-  margin: 2px !important;
-  border: 1px solid transparent !important;
-  font-size: 11px;
+
+  margin: 3px !important;
+
+  box-shadow: 0 2px 6px rgba(0,0,0,0.10);
+
+  font-size: 13px;
   font-weight: 900;
-  line-height: 1;
-  overflow: hidden;
 }
 
 /* מסתיר טקסט ארוך */
-.bereshit-calendar .fc-daygrid-event .fc-event-title,
+/* מסתיר רק שעה */
 .bereshit-calendar .fc-daygrid-event .fc-event-time {
   display: none !important;
+}
+
+/* מציג מספר במרכז */
+.bereshit-calendar .fc-daygrid-event .fc-event-title {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+
+  font-size: 13px;
+  font-weight: 900;
+
+  line-height: 1;
 }
 
 /* תוכן מספרי אם את מחזירה title קצר כמו "4" */
@@ -1402,4 +1419,98 @@
   gap: 2px;
   max-height: 68px;
   overflow: hidden;
+}
+
+/* =========================
+   Month summary badges
+========================= */
+
+.bereshit-calendar .month-count-event {
+  background: transparent !important;
+  border: none !important;
+}
+
+.bereshit-calendar .month-count-event .fc-event-main {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.bereshit-calendar .month-count-event .fc-event-title {
+  width: 28px;
+  height: 28px;
+
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 13px;
+  font-weight: 800;
+
+  line-height: 1;
+
+  border: 1.5px solid transparent;
+}
+
+/* =========================
+   Month badges strong colors
+========================= */
+
+/* פעילים */
+.bereshit-calendar .fc-daygrid-event.status-approved {
+  background: #dff5df !important;
+  border: 2px solid #42b44e !important;
+  color: #16691f !important;
+}
+
+/* מבוטלים */
+.bereshit-calendar .fc-daygrid-event.status-canceled {
+  background: #ffe1e1 !important;
+  border: 2px solid #e53935 !important;
+  color: #b71c1c !important;
+}
+
+/* ממתינים */
+.bereshit-calendar .fc-daygrid-event.status-pending {
+  background: #fff0db !important;
+  border: 2px solid #fb8c00 !important;
+  color: #d96a00 !important;
+}
+
+/* חופשת חווה */
+.bereshit-calendar .fc-daygrid-event.farm-day-off {
+  background: #dfe5ff !important;
+  border: 2px solid #5c6cff !important;
+  color: #2e3db5 !important;
+}
+
+/* חופשת מדריך */
+.bereshit-calendar .fc-daygrid-event.instructor-day-off {
+  background: #f0e4ff !important;
+  border: 2px solid #9c6ade !important;
+  color: #6a1b9a !important;
+}
+
+.fc-h-event .fc-event-main {
+    color: black !important;
+}
+
+.bereshit-calendar .month-count-event .fc-event-title {
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+.month-badge-only {
+  width: 28px;
+  height: 28px;
+
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 13px;
+  font-weight: 800;
 }

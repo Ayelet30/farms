@@ -504,12 +504,24 @@ buildCustomItemTitle(item: ScheduleItem): string {
   }
 
   isCanceledItem(item: ScheduleItem): boolean {
-    const s = String(
-      (item as any)?.status || this.getItemMeta(item)?.status || ''
-    ).trim().toUpperCase();
+  const meta = this.getItemMeta(item);
 
-    return ['בוטל', 'מבוטל', 'CANCELED', 'CANCELLED'].includes(s);
-  }
+  const rawStatus = String(
+    (item as any)?.status ||
+    meta?.status ||
+    meta?.attendance_status ||
+    meta?.lesson_status ||
+    ''
+  ).trim().toUpperCase();
+
+  return (
+    rawStatus.includes('CANCEL') ||
+    rawStatus.includes('CANCELED') ||
+    rawStatus.includes('CANCELLED') ||
+    rawStatus.includes('בוטל') ||
+    rawStatus.includes('מבוטל')
+  );
+}
 
   isPendingItem(item: ScheduleItem): boolean {
     const s = String(
@@ -1001,6 +1013,12 @@ private buildMonthSummaryEvents(): EventInput[] {
       bucket.instructorOff++;
       continue;
     }
+    console.log('MONTH ITEM STATUS:', {
+  title: (item as any).title,
+  status: (item as any).status,
+  metaStatus: this.getItemMeta(item)?.status,
+  meta: this.getItemMeta(item),
+});
 
     if (this.isCanceledItem(item)) {
       bucket.canceled++;
@@ -1149,6 +1167,7 @@ private getEventClassNames(item: ScheduleItem): string[] {
     eventClick: (arg: EventClickArg) => this.eventClick.emit(arg),
 
     eventContent: (arg) => {
+      
       const { event } = arg;
       const meta = event.extendedProps['meta'] || {};
 
@@ -1158,6 +1177,17 @@ private getEventClassNames(item: ScheduleItem): string[] {
       const isFarmDayOff = !!event.extendedProps['isFarmDayOff'];
       const isInstructorDayOff = !!event.extendedProps['isInstructorDayOff'];
       const isPendingInstructorDayOff = !!event.extendedProps['isPendingInstructorDayOff'];
+      const isMonthSummary = !!event.extendedProps['isMonthSummary'];
+
+      if (isMonthSummary) {
+        return {
+          html: `
+            <div class="month-badge-only" title="${this.escapeHtml(event.extendedProps['tooltip'] || '')}">
+              ${this.escapeHtml(event.title)}
+            </div>
+          `,
+        };
+      }
 
       if (isFarmDayOff) {
         return {
