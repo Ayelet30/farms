@@ -43,6 +43,9 @@ type SeriesDocRow = {
   isOpenEnded: boolean | null;
   status: string | null;
   paymentDocsUrl: string | null;
+  paymentPlanId: string | null;
+requiredDocs: string[];
+requireDocsAtBooking: boolean | null;
 };
 
 type ParentBrief = {
@@ -67,6 +70,18 @@ funding_source_id?: string | null;
   medical_notes?: string | null;
   behavior_notes?: string | null;
   parent?: ParentBrief | null;
+};
+
+type ChildDocumentRow = {
+  id: string;
+  childId: string;
+  documentName: string;
+  bucket: string;
+  filePath: string;
+  fileUrl: string | null;
+  mimeType: string | null;
+  fileSize: number | null;
+  createdAt: string;
 };
 
 type HorseLite = {
@@ -151,6 +166,12 @@ healthFunds: { id: string; name: string }[] = [];
   error: string | null = null;
 
   @ViewChild('drawer') drawer!: MatSidenav;
+
+  childDocsLoading = false;
+childDocsError: string | null = null;
+childDocs: ChildDocumentRow[] = [];
+uploadingChildDoc = false;
+newChildDocName = '';
 
   selectedId: string | null = null;
   drawerLoading = false;
@@ -638,6 +659,7 @@ private isAllowedReferralFile(file: File): boolean {
 
       await this.loadChildTermsSignature(id);
       await this.loadChildSeriesDocs(id);
+      await this.loadChildDocuments(id);
     } catch (e) {
       console.error('loadDrawerData error:', e);
       this.drawerChild = null;
@@ -645,6 +667,171 @@ private isAllowedReferralFile(file: File): boolean {
       this.drawerLoading = false;
     }
   }
+
+  private async loadChildDocuments(childId: string): Promise<void> {
+  this.childDocsLoading = true;
+  this.childDocsError = null;
+  this.childDocs = [];
+
+  try {
+    const db = await this.dbc();
+
+    const { data, error } = await db
+      .from('child_documents')
+      .select(`
+        id,
+        child_id,
+        document_name,
+        bucket,
+        file_path,
+        file_url,
+        mime_type,
+        file_size,
+        created_at
+      `)
+      .eq('child_id', childId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    this.childDocs = (data ?? []).map((row: any) => ({
+      id: row.id,
+      childId: row.child_id,
+      documentName: row.document_name,
+      bucket: row.bucket,
+      filePath: row.file_path,
+      fileUrl: row.file_url,
+      mimeType: row.mime_type,
+      fileSize: row.file_size,
+      createdAt: row.created_at,
+    }));
+  } catch (e: any) {
+    console.error('loadChildDocuments error:', e);
+    this.childDocsError = e?.message ?? 'שגיאה בטעינת מסמכי הילד';
+  } finally {
+    this.childDocsLoading = false;
+  }
+}
+
+async uploadChildDocument(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+
+  if (!file || !this.drawerChild?.child_uuid) return;
+
+  const docName = this.newChildDocName.trim();
+  if (!docName) {
+    await this.ui.alert('יש להזין שם קובץ לפני ההעלאה.', 'שם קובץ חסר');
+    input.value = '';
+    return;
+  }
+
+  if (!this.isAllowedReferralFile(file)) {
+    await this.ui.alert(
+      'ניתן להעלות רק קובצי PDF או תמונות (PNG/JPG/WEBP).',
+      'קובץ לא נתמך'
+    );
+    input.value = '';
+    return;
+  }
+
+  try {
+    this.uploadingChildDoc = true;
+
+    const db = await this.dbc();
+    const client = getSupabaseClient();
+
+    const childId = this.drawerChild.child_uuid;
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+    const safeName = docName.replace(/[^\u0590-\u05FFa-zA-Z0-9-_ ]/g, '').trim();
+    const bucketName = 'child-documents';
+    const filePath = `${childId}/${Date.now()}-${safeName}.${fileExt}`;
+
+    const { error: uploadError } = await client.storage
+      .from(bucketName)
+      .upload(filePath, file, {
+        upsert: false,
+        contentType: file.type || undefined,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: publicData } = client.storage
+      .from(bucketName)
+      .getPublicUrl(filePath);
+
+    const publicUrl = publicData?.publicUrl ?? null;
+
+    const { data, error } = await db
+      .from('child_documents')
+      .insert({
+        child_id: childId,
+        document_name: docName,
+        bucket: bucketName,
+        file_path: filePath,
+        file_url: publicUrl,
+        mime_type: file.type || null,
+        file_size: file.size,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    this.childDocs = [
+      {
+        id: data.id,
+        childId: data.child_id,
+        documentName: data.document_name,
+        bucket: data.bucket,
+        filePath: data.file_path,
+        fileUrl: data.file_url,
+        mimeType: data.mime_type,
+        fileSize: data.file_size,
+        createdAt: data.created_at,
+      },
+      ...this.childDocs,
+    ];
+
+    this.newChildDocName = '';
+
+    await this.ui.alert('המסמך הועלה בהצלחה.', 'מסמכי ילד');
+  } catch (e: any) {
+    console.error('uploadChildDocument error:', e);
+    await this.ui.alert('העלאת המסמך נכשלה: ' + (e?.message ?? e), 'שגיאה');
+  } finally {
+    this.uploadingChildDoc = false;
+    input.value = '';
+  }
+}
+
+get intakeDoc(): ChildDocumentRow | null {
+  return this.childDocs.find(d => d.documentName.trim() === 'אינטק') ?? null;
+}
+
+hasIntake(): boolean {
+  return !!this.intakeDoc;
+}
+
+prepareIntakeUpload(): void {
+  this.newChildDocName = 'אינטק';
+}
+
+openChildDocument(doc: ChildDocumentRow): void {
+  if (!doc.fileUrl) {
+    this.ui.alert('אין קישור זמין למסמך.', 'מסמכי ילד');
+    return;
+  }
+
+  this.dialog.open(TermsPdfDialogComponent, {
+    width: 'min(980px, 96vw)',
+    height: 'min(90vh, 900px)',
+    data: {
+      title: doc.documentName,
+      url: this.sanitizer.bypassSecurityTrustResourceUrl(doc.fileUrl),
+    },
+  });
+}
 
   private async loadChildTermsSignature(childId: string) {
     this.termsLoading = true;
@@ -688,17 +875,22 @@ private isAllowedReferralFile(file: File): boolean {
       const { data, error } = await db
         .from('lessons')
         .select(`
-          id,
-          lesson_type,
-          day_of_week,
-          start_time,
-          end_time,
-          anchor_week_start,
-          series_end_date,
-          is_open_ended,
-          status,
-          payment_docs_url
-        `)
+  id,
+  lesson_type,
+  day_of_week,
+  start_time,
+  end_time,
+  anchor_week_start,
+  series_end_date,
+  is_open_ended,
+  status,
+  payment_docs_url,
+  payment_plan_id,
+  payment_plans (
+    required_docs,
+    require_docs_at_booking
+  )
+`)
         .eq('child_id', childId)
         .eq('lesson_type', 'סידרה')
         .order('anchor_week_start', { ascending: false })
@@ -718,6 +910,9 @@ private isAllowedReferralFile(file: File): boolean {
         isOpenEnded: row.is_open_ended ?? null,
         status: row.status ?? null,
         paymentDocsUrl: row.payment_docs_url ?? null,
+        paymentPlanId: row.payment_plan_id ?? null,
+        requiredDocs: row.payment_plans?.required_docs ?? [],
+        requireDocsAtBooking: row.payment_plans?.require_docs_at_booking ?? null,
       }));
     } catch (e: any) {
       console.error('loadChildSeriesDocs error:', e);
@@ -727,6 +922,8 @@ private isAllowedReferralFile(file: File): boolean {
       this.seriesDocsLoading = false;
     }
   }
+
+  
 getChildTitle(): string {
   const gender = this.drawerChild?.gender;
 
@@ -739,6 +936,15 @@ getChildTitle(): string {
     if (gender === 'נקבה') return 'פרטי הילדה';
     return 'פרטי ילד/ה';
   }
+}
+
+seriesRequiresDocs(row: SeriesDocRow): boolean {
+  return !!row.requireDocsAtBooking && Array.isArray(row.requiredDocs) && row.requiredDocs.length > 0;
+}
+
+getRequiredDocsText(row: SeriesDocRow): string {
+  if (!row.requiredDocs?.length) return '';
+  return row.requiredDocs.join(', ');
 }
   getSeriesEndDisplay(row: SeriesDocRow): string {
     if (row.isOpenEnded) return 'סדרה ללא הגבלה';
