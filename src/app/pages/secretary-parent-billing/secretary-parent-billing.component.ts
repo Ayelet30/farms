@@ -1,17 +1,13 @@
 // src/app/pages/secretary-parent-billing/secretary-parent-billing.component.ts
-import {
-  Component,
-  OnInit,
-  signal,
-  computed,
-  inject,
-} from '@angular/core';
+
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { createParentCredit, getCurrentFarmMetaSync } from '../../services/supabaseClient.service';
 import { MatDialog } from '@angular/material/dialog';
 import { CreditDialogComponent } from './credit-dialog.component';
+import { Component, OnInit, signal, computed, inject, Inject } from '@angular/core';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import {
   PaymentsService,
   ParentChargeRow,
@@ -489,6 +485,7 @@ if (newAmount != null) {
     const { data: credits, error: e2 } = await dbTenant()
       .from('parent_credits')
 .select(`
+    id,
   created_at,
   amount_agorot,
   reason,
@@ -1246,4 +1243,130 @@ setInvoiceExtraTextForChild(childId: string, value: string) {
 
   this.invoiceExtraLinesByChild.set(next);
 }
+async confirmDeleteCredit(credit: any, chargeId: string) {
+  const ref = this.dialog.open(DeleteCreditConfirmDialogComponent, {
+    width: '420px',
+    maxWidth: '92vw',
+    autoFocus: false,
+    panelClass: 'delete-credit-dialog-panel',
+    data: { credit },
+  });
+
+  ref.afterClosed().subscribe(async (confirmed) => {
+    if (!confirmed) return;
+
+    try {
+      this.detailsLoading.set(true);
+      this.error.set(null);
+
+      const { error } = await dbTenant()
+        .from('parent_credits')
+        .delete()
+        .eq('id', credit.id);
+
+      if (error) throw error;
+
+      await this.loadCharges();
+      await this.openChargeDetails(chargeId);
+    } catch (e: any) {
+      this.error.set(e?.message ?? 'שגיאה במחיקת הזיכוי');
+    } finally {
+      this.detailsLoading.set(false);
+    }
+  });
+}
+}
+@Component({
+  selector: 'app-delete-credit-confirm-dialog',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <div class="simple-confirm-dialog" dir="rtl">
+      <h3>מחיקת זיכוי</h3>
+
+      <p>
+        האם את בטוחה שברצונך למחוק את הזיכוי?
+      </p>
+
+      <p class="note">
+        פעולה זו תמחק את הזיכוי מהחיוב ותעדכן את היתרה לתשלום.
+      </p>
+
+      <div class="dialog-actions">
+        <button type="button" (click)="close(false)">לא</button>
+        <button type="button" class="danger" (click)="close(true)">כן</button>
+      </div>
+    </div>
+  `,
+  styles: [`
+    .simple-confirm-dialog {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 34px 42px 14px;
+      text-align: center;
+      direction: rtl;
+      color: #3f3f3f;
+      font-family: 'Heebo', system-ui, sans-serif;
+    }
+
+    h3 {
+      margin: 0 0 22px;
+      font-size: 23px;
+      font-weight: 900;
+      color: #3f3f3f;
+    }
+
+    p {
+      margin: 0 0 12px;
+      font-size: 18px;
+      line-height: 1.55;
+      font-weight: 500;
+    }
+
+    .note {
+      font-size: 16px;
+      color: #555;
+      margin-bottom: 26px;
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-start;
+      gap: 10px;
+      direction: ltr;
+    }
+
+    button {
+      min-width: 34px;
+      height: 31px;
+      padding: 0 10px;
+      border-radius: 9px;
+      border: 2px solid #3f3f3f;
+      background: #fff;
+      color: #3f3f3f;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    button:hover {
+      background: #f5f7ef;
+    }
+
+    button.danger {
+      color: #b42318;
+      border-color: #b42318;
+    }
+  `],
+})
+export class DeleteCreditConfirmDialogComponent {
+  constructor(
+    private ref: MatDialogRef<DeleteCreditConfirmDialogComponent>,
+    @Inject(MAT_DIALOG_DATA) public data: any
+  ) {}
+
+  close(confirm: boolean) {
+    this.ref.close(confirm);
+  }
 }
