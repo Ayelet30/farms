@@ -11,6 +11,7 @@ import {
   ensureTenantContextReady,
   dbTenant,
   getSupabaseClient,
+  getCurrentFarmMetaSync,
 } from '../../services/legacy-compat';
 import type { ChildRow } from '../../Types/detailes.model';
 import { UiDialogService } from '../../services/ui-dialog.service';
@@ -31,6 +32,7 @@ import {
 } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { AddChildWizardComponent } from '../add-child-wizard/add-child-wizard.component';
+import { ActivatedRoute } from '@angular/router';
 
 type SeriesDocRow = {
   lessonId: string;
@@ -170,6 +172,7 @@ healthFunds: { id: string; name: string }[] = [];
   childDocsLoading = false;
 childDocsError: string | null = null;
 childDocs: ChildDocumentRow[] = [];
+allChildDocs: ChildDocumentRow[] = [];
 uploadingChildDoc = false;
 newChildDocName = '';
 
@@ -209,6 +212,7 @@ uploadingSeriesDocLessonId: string | null = null;
     private dialog: MatDialog,
     private sanitizer: DomSanitizer,
     private router: Router,
+    private route: ActivatedRoute,
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -217,6 +221,10 @@ uploadingSeriesDocLessonId: string | null = null;
       await ensureTenantContextReady();
       await this.loadFundingSources();
       await this.loadChildren();
+      const childId = this.route.snapshot.queryParamMap.get('childId');
+if (childId) {
+  setTimeout(() => this.openDetails(childId), 0);
+}
       this.updateStats();
     } catch (e: any) {
       this.error =
@@ -694,17 +702,24 @@ private isAllowedReferralFile(file: File): boolean {
 
     if (error) throw error;
 
-    this.childDocs = (data ?? []).map((row: any) => ({
-      id: row.id,
-      childId: row.child_id,
-      documentName: row.document_name,
-      bucket: row.bucket,
-      filePath: row.file_path,
-      fileUrl: row.file_url,
-      mimeType: row.mime_type,
-      fileSize: row.file_size,
-      createdAt: row.created_at,
-    }));
+    const docs = (data ?? []).map((row: any) => ({
+  id: row.id,
+  childId: row.child_id,
+  documentName: row.document_name,
+  bucket: row.bucket,
+  filePath: row.file_path,
+  fileUrl: row.file_url,
+  mimeType: row.mime_type,
+  fileSize: row.file_size,
+  createdAt: row.created_at,
+}));
+
+this.allChildDocs = docs;
+
+this.childDocs = docs.filter(
+  (doc: { documentName: string; }) => doc.documentName?.trim() !== 'אינטק'
+);
+
   } catch (e: any) {
     console.error('loadChildDocuments error:', e);
     this.childDocsError = e?.message ?? 'שגיאה בטעינת מסמכי הילד';
@@ -743,9 +758,16 @@ async uploadChildDocument(event: Event): Promise<void> {
 
     const childId = this.drawerChild.child_uuid;
     const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-    const safeName = docName.replace(/[^\u0590-\u05FFa-zA-Z0-9-_ ]/g, '').trim();
     const bucketName = 'child-documents';
-    const filePath = `${childId}/${Date.now()}-${safeName}.${fileExt}`;
+
+    const farm = getCurrentFarmMetaSync();
+const schemaName = farm?.schema_name || localStorage.getItem('selectedSchema');
+
+if (!schemaName) {
+  throw new Error('לא נמצאה סכמה פעילה לשמירת המסמך');
+}
+
+const filePath = `${schemaName}/${childId}/${Date.now()}-${crypto.randomUUID()}.${fileExt}`;
 
     const { error: uploadError } = await client.storage
       .from(bucketName)
@@ -778,20 +800,7 @@ async uploadChildDocument(event: Event): Promise<void> {
 
     if (error) throw error;
 
-    this.childDocs = [
-      {
-        id: data.id,
-        childId: data.child_id,
-        documentName: data.document_name,
-        bucket: data.bucket,
-        filePath: data.file_path,
-        fileUrl: data.file_url,
-        mimeType: data.mime_type,
-        fileSize: data.file_size,
-        createdAt: data.created_at,
-      },
-      ...this.childDocs,
-    ];
+    await this.loadChildDocuments(childId);
 
     this.newChildDocName = '';
 
@@ -806,7 +815,7 @@ async uploadChildDocument(event: Event): Promise<void> {
 }
 
 get intakeDoc(): ChildDocumentRow | null {
-  return this.childDocs.find(d => d.documentName.trim() === 'אינטק') ?? null;
+  return this.allChildDocs.find(d => d.documentName?.trim() === 'אינטק') ?? null;
 }
 
 hasIntake(): boolean {

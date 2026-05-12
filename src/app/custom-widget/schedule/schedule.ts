@@ -103,6 +103,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   @Input() enableAutoAssign = false;
   @Input() viewerMode: ViewerMode = 'secretary';
   @Input() blockedDayCells: BlockedDayCell[] = [];
+  @Input() availableDayCells: Array<{  date: string;  resourceId: string;  startTime: string;  endTime: string;  color: string;}> = [];
 
   
   @Output() autoAssignRequested = new EventEmitter<void>();
@@ -1541,17 +1542,18 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
     }, 0);
   }
   if (this.currentView === 'timeGridDay') {
-  if (
-    changes['items'] ||
-    changes['resources'] ||
-    changes['slotMinTime'] ||
-    changes['slotMaxTime'] ||
-    changes['initialView'] ||
-    changes['blockedDayCells']
-  ) {
-    this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
-    this.rebuildCustomDayView();
-  }
+ if (
+  changes['items'] ||
+  changes['resources'] ||
+  changes['slotMinTime'] ||
+  changes['slotMaxTime'] ||
+  changes['initialView'] ||
+  changes['blockedDayCells'] ||
+  changes['availableDayCells']
+) {
+  this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
+  this.rebuildCustomDayView();
+}
   return;
 }
 }
@@ -1622,5 +1624,41 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
     startTime: meta?.start_time ? String(meta.start_time) : String(startIso).slice(11, 16),
     endTimeOnly: meta?.end_time ? String(meta.end_time) : (endIso ? String(endIso).slice(11, 16) : null),
   });
+}
+
+isAvailableRawCell(resourceId: string, slotIso: string): boolean {
+  return !!this.getAvailableRawCellColor(resourceId, slotIso);
+}
+
+getAvailableRawCellColor(resourceId: string, slotIso: string): string {
+  const d = new Date(slotIso);
+  const ymd = this.toYmd(d);
+  const hm = this.minutesToTime(d.getHours() * 60 + d.getMinutes());
+
+  const match = (this.availableDayCells || []).find(a => {
+    if (String(a.resourceId) !== String(resourceId)) return false;
+    if (a.date !== ymd) return false;
+
+    const start = this.toHm(a.startTime);
+    const end = this.toHm(a.endTime);
+
+    return hm >= start && hm < end;
+  });
+
+  return match?.color || '';
+}
+
+hexToRgba(hex: string, alpha: number): string {
+  const clean = String(hex || '').replace('#', '').trim();
+
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) {
+    return `rgba(116, 140, 64, ${alpha})`;
+  }
+
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 }

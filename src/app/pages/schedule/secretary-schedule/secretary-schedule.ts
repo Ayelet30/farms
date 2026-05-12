@@ -164,6 +164,14 @@ moveSlotsModal = {
   kind?: 'day_off' | 'not_working' | 'farm_off';
 }> = [];
 
+availableDayCells: Array<{
+  date: string;
+  resourceId: string;
+  startTime: string;
+  endTime: string;
+  color: string;
+}> = [];
+
 instructorWeeklyAvailability: Array<{
   instructor_id_number: string;
   day_of_week: number;
@@ -400,6 +408,7 @@ async confirmEndSeries(): Promise<void> {
       this.filterLessons();
       this.setScheduleItems();
       this.buildBlockedDayCells(this.currentRange);
+      this.buildAvailableDayCells(this.currentRange);
       this.buildWeekStats();
     }
 
@@ -428,7 +437,61 @@ private addMinutesToHm(hm: string, minutesToAdd: number): string {
   return `${hh}:${mm}`;
 }
 
+private buildAvailableDayCells(range?: { start: string; end: string }): void {
+  const available: Array<{
+    date: string;
+    resourceId: string;
+    startTime: string;
+    endTime: string;
+    color: string;
+  }> = [];
 
+  const from = range?.start?.slice(0, 10) ?? '';
+  const to = range?.end?.slice(0, 10) ?? '';
+
+  if (!from || !to) {
+    this.availableDayCells = [];
+    return;
+  }
+
+  const visibleInstructorIds = new Set(
+    this.instructorResources.map(r => String(r.id))
+  );
+
+  let cur = from;
+  let guard = 0;
+
+  while (cur <= to) {
+    const dow = this.dbDowFromYmd(cur);
+
+    for (const row of this.instructorWeeklyAvailability || []) {
+      const instructorId = String(row.instructor_id_number);
+
+      if (!visibleInstructorIds.has(instructorId)) continue;
+      if (Number(row.day_of_week) !== dow) continue;
+
+      const color =
+        this.instructorColorById.get(instructorId) ||
+        this.getColorForInstructor(instructorId);
+
+      available.push({
+        date: cur,
+        resourceId: instructorId,
+        startTime: String(row.start_time).slice(0, 5),
+        endTime: String(row.end_time).slice(0, 5),
+        color,
+      });
+    }
+
+    const next = this.addOneDayYmdSafe(cur);
+    if (next <= cur) break;
+    cur = next;
+
+    if (++guard > 400) break;
+  }
+
+  this.availableDayCells = available;
+}
 
 private hashString(str: string): number {
   let hash = 0;
@@ -471,6 +534,7 @@ private rebuildInstructorResources(): void {
   this.filterLessons();
   this.setScheduleItems();
   this.buildBlockedDayCells(range);
+  this.buildAvailableDayCells(range);
   this.buildWeekStats();
   this.cdr.detectChanges();
 }
@@ -512,8 +576,7 @@ private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<vo
       from_date,
       to_date,
       payload,
-      decision_note,
-      sick_note_file_path
+      decision_note
     `)
     .eq('request_type', 'INSTRUCTOR_DAY_OFF')
     .eq('status', 'PENDING')
@@ -590,7 +653,7 @@ private expandRequestRow(row: any): DayRequestRow[] {
       all_day: row.payload?.all_day === true || row.payload?.all_day === 'true',
       start_time: row.payload?.requested_start_time ?? null,
       end_time: row.payload?.requested_end_time ?? null,
-      sick_note_file_path: row.sick_note_file_path ?? null,
+      sick_note_file_path: row.payload?.sick_note_file_path ?? null,
     });
 
     const next = this.addOneDayYmd(current);
@@ -686,75 +749,6 @@ if (from && to) {
     });
   }
 
-  // 2) שעות שהמדריך בכלל לא עובד
-  const availabilityByInstructorAndDow = new Map<string, Array<{ start: string; end: string }>>();
-
-  for (const row of this.instructorWeeklyAvailability || []) {
-    const key = `${row.instructor_id_number}|${row.day_of_week}`;
-    if (!availabilityByInstructorAndDow.has(key)) {
-      availabilityByInstructorAndDow.set(key, []);
-    }
-
-    availabilityByInstructorAndDow.get(key)!.push({
-      start: String(row.start_time).slice(0, 5),
-      end: String(row.end_time).slice(0, 5),
-    });
-  }
-
-  const visibleInstructorIds = new Set(this.instructorResources.map(r => String(r.id)));
-
-  for (const inst of this.instructors) {
-    if (!visibleInstructorIds.has(String(inst.id_number))) continue;
-
-    for (const ymd of dateList) {
-      const dow = this.dbDowFromYmd(ymd);
-      const key = `${inst.id_number}|${dow}`;
-      const spans = (availabilityByInstructorAndDow.get(key) ?? [])
-        .sort((a, b) => a.start.localeCompare(b.start));
-
-      if (!spans.length) {
-        blocked.push({
-          date: ymd,
-          resourceId: inst.id_number,
-          startTime: '07:00',
-          endTime: '21:00',
-          reason: 'המדריך אינו עובד ביום זה',
-          kind: 'not_working',
-        });
-        continue;
-      }
-
-      let cursor = '07:00';
-
-      for (const span of spans) {
-        if (cursor < span.start) {
-          blocked.push({
-            date: ymd,
-            resourceId: inst.id_number,
-            startTime: cursor,
-            endTime: span.start,
-            reason: 'המדריך אינו עובד בשעות אלה',
-            kind: 'not_working',
-          });
-        }
-
-        if (cursor < span.end) {
-          cursor = span.end;
-        }
-      }
-
-      if (cursor < '21:00') {
-        blocked.push({
-          date: ymd,
-          resourceId: inst.id_number,
-          startTime: cursor,
-          endTime: '21:00',
-          reason: 'המדריך אינו עובד בשעות אלה',
-          kind: 'not_working',
-        });
-      }
-    }
-  }
 
   this.blockedDayCells = blocked;
 }
@@ -874,6 +868,7 @@ async onQuickBookingSaved(): Promise<void> {
     this.filterLessons();
     this.setScheduleItems();
     this.buildBlockedDayCells(this.currentRange);
+    this.buildAvailableDayCells(this.currentRange);
     this.buildWeekStats();
     this.cdr.detectChanges();
   }
@@ -924,6 +919,7 @@ async cancelLessonFromContext(): Promise<void> {
       this.filterLessons();
       this.setScheduleItems();
       this.buildBlockedDayCells(this.currentRange);
+      this.buildAvailableDayCells(this.currentRange);
       this.buildWeekStats();
       this.cdr.detectChanges();
     }
@@ -1560,10 +1556,6 @@ private async loadInstructors(): Promise<void> {
     // 4) resources ללוח נקבעים לפי הבחירה הנוכחית
     this.rebuildInstructorResources();
 
-    if (this.currentRange) {
-  this.buildBlockedDayCells(this.currentRange);
-}
-
   } catch (err) {
     console.error('loadInstructors failed', err);
     this.instructorsAll = [];
@@ -1593,6 +1585,7 @@ toggleAllInstructors() {
   this.filterLessons();
   this.setScheduleItems();
   this.buildBlockedDayCells(this.currentRange ?? undefined);
+  this.buildAvailableDayCells(this.currentRange ?? undefined);
   this.buildWeekStats();
 }
 
@@ -1608,6 +1601,7 @@ toggleAllInstructors() {
   this.filterLessons();
   this.setScheduleItems();
   this.buildBlockedDayCells(this.currentRange ?? undefined);
+  this.buildAvailableDayCells(this.currentRange ?? undefined);
   this.buildWeekStats();
 }
 
@@ -1629,6 +1623,7 @@ toggleAllInstructors() {
   this.filterLessons();
   this.setScheduleItems();
   this.buildBlockedDayCells(range);
+  this.buildAvailableDayCells(range);
   this.buildWeekStats();
   this.cdr.detectChanges();
 }
@@ -1894,34 +1889,39 @@ private addOneDayYmd(dateYmd: string): string {
     const childDisplay = age ? `${childName} (${age})` : childName;
 
     return {
-      id: lesson.id,
-      title: childDisplay,
-      start,
-      end,
-      color: lesson.child_color,
-      status: lesson.status,
-      meta: {
-        status: lesson.status ?? '',
-        child_id: lesson.child_id,
-        child_name: childDisplay,
-        instructor_id: lesson.instructor_id,
-        instructor_name: lesson.instructor_name,
-        instructor_color: instructorBorderColor,
-        lesson_type: lessonType,
-        children: childDisplay,
-        horse_name: lesson.horse_name,
-        arena_name: lesson.arena_name,
-        lesson_id: lesson.lesson_id,
-        occur_date: lesson.occur_date,
+  id: lesson.id,
+  title: childDisplay,
+  start,
+  end,
 
-        series_id: lesson.series_id,
-        appointment_kind: lesson.appointment_kind,
-        repeat_weeks: lesson.repeat_weeks,
-        is_open_ended: lesson.is_open_ended,
-        series_end_date: lesson.series_end_date,
-        
-      },
-    } as ScheduleItem;
+  // צבע מלא של המדריך בשיעור תפוס
+  color: instructorBorderColor,
+  backgroundColor: instructorBorderColor,
+  borderColor: instructorBorderColor,
+  textColor: '#ffffff',
+
+  status: lesson.status,
+  meta: {
+    status: lesson.status ?? '',
+    child_id: lesson.child_id,
+    child_name: childDisplay,
+    instructor_id: lesson.instructor_id,
+    instructor_name: lesson.instructor_name,
+    instructor_color: instructorBorderColor,
+    lesson_type: lessonType,
+    children: childDisplay,
+    horse_name: lesson.horse_name,
+    arena_name: lesson.arena_name,
+    lesson_id: lesson.lesson_id,
+    occur_date: lesson.occur_date,
+
+    series_id: lesson.series_id,
+    appointment_kind: lesson.appointment_kind,
+    repeat_weeks: lesson.repeat_weeks,
+    is_open_ended: lesson.is_open_ended,
+    series_end_date: lesson.series_end_date,
+  },
+} as any;
   };
 
   // ✅ מגדירים פעם אחת בתחילת הפונקציה
@@ -1956,7 +1956,11 @@ private addOneDayYmd(dateYmd: string): string {
       },
     })) as any;
 
-    this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
+    this.items = [
+  ...this.items,
+  ...farmOffItems,
+  ...instructorOffItems,
+];
     return;
   }
 
@@ -2038,21 +2042,30 @@ private addOneDayYmd(dateYmd: string): string {
       });
     }
 
-    this.items = [...result, ...farmOffItems, ...instructorOffItems];
+    this.items = [ ...result, ...farmOffItems, ...instructorOffItems];
     return;
   }
 
   // ===== יום =====
   if (this.currentViewType === 'timeGridDay') {
     this.items = src.map(makeLessonEvent);
-    this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
+    this.items = [
+  ...this.items,
+  ...farmOffItems,
+  ...instructorOffItems,
+];
     return;
   }
 
   // ===== ברירת מחדל =====
   this.items = src.map(makeLessonEvent);
-  this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
+  this.items = [
+  ...this.items,
+  ...farmOffItems,
+  ...instructorOffItems,
+];
 }
+
 
 isCancelledContext(): boolean {
   const status = String(this.contextMenu.status || '').toLowerCase();
@@ -2738,6 +2751,7 @@ async executeMove(slot: any): Promise<void> {
       this.filterLessons();
       this.setScheduleItems();
       this.buildBlockedDayCells(this.currentRange);
+      this.buildAvailableDayCells(this.currentRange);
       this.buildWeekStats();
     }
 
