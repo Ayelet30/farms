@@ -476,8 +476,8 @@ const defaultProfile = profiles.find(x => x.is_default) || profiles[0];
       const { data: p, error: pErr } = await db
         .from('parents')
         .select(
-          'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month'
-        )
+            'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month, is_active'
+          )
         .eq('uid', cleanUid)
         .maybeSingle();
 
@@ -551,6 +551,7 @@ this.drawerPaymentProfiles = profiles ?? [];
         parent.billing_day_of_month ?? 10,
         [Validators.required, Validators.min(1), Validators.max(28)],
       ],
+      is_active: [parent.is_active !== false],
       address: [parent.address ?? '', [Validators.maxLength(this.MAX_ADDRESS)]],
       extra_notes: [parent.extra_notes ?? '', [Validators.maxLength(this.MAX_EXTRA_NOTES)]],
       message_preferences: [
@@ -681,6 +682,12 @@ this.drawerPaymentProfiles = profiles ?? [];
     }
 
     const newBillingDay = Number(formValue.billing_day);
+    const newIsActive = formValue.is_active === true;
+    const oldIsActive = this.originalParent.is_active !== false;
+
+    if (newIsActive !== oldIsActive) {
+      changes.is_active = newIsActive;
+    }
     const oldBillingDay = this.originalParent.billing_day_of_month ?? 10;
     if (newBillingDay !== oldBillingDay) changes.billing_day_of_month = newBillingDay;
 
@@ -698,7 +705,7 @@ this.drawerPaymentProfiles = profiles ?? [];
         .update(changes)
         .eq('uid', cleanUid)
         .select(
-          'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month'
+          'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month, is_active'
         )
         .maybeSingle();
 
@@ -715,6 +722,7 @@ this.drawerPaymentProfiles = profiles ?? [];
         p.uid === cleanUid
           ? {
               ...p,
+              is_active: this.drawerParent!.is_active,
               first_name: this.drawerParent!.first_name,
               last_name: this.drawerParent!.last_name,
               phone: this.drawerParent!.phone,
