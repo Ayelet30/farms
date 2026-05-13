@@ -62,6 +62,7 @@ export { secretaryCreateInstructorDayOffAndNotify } from './secretary-create-ins
 export { sendFarmDayOffCancellationEmails } from './send-farm-day-off-cancellation-emails';
 export { previewInstructorDeactivationImpact } from './preview-instructor-deactivation-impact';
 export { deactivateInstructorAndCancelFutureLessons } from './deactivate-instructor-and-cancel-future-lessons';
+export { createMaccabiAutomationJob } from './automation/maccabiJobs';
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
 
@@ -112,7 +113,7 @@ export const testOpenMaccabi = onRequest(
     String(req.query.schema || req.body?.schema || 'bereshit_farm').trim();
 
   const { openMaccabiSite } = await import('./automation/maccabiAutomation');
-
+console.log(`Testing openMaccabiSite with schema: ${schema}`);
   const result = await openMaccabiSite(schema);
   res.status(result.ok ? 200 : 500).json(result);
 } catch (error: any) {

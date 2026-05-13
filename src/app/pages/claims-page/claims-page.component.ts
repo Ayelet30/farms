@@ -30,6 +30,10 @@ interface LessonClaimRow {
   child_id: string;
   childName: string;
 
+  childIdNumber: string | null;
+  childFirstName: string | null;
+  childLastName: string | null;
+
   start_time: string | null;
   end_time: string | null;
 
@@ -149,25 +153,47 @@ async reportSelectedToFundingSource() {
 async testMaccabiAutomation() {
   const tenant = this.tenantSvc.requireTenant();
 
-  const res = await fetch('/api/testOpenMaccabi', {
+  const lessonsForMaccabi = this.selectedRows.map(r => ({
+    lesson_id: r.lesson_id,
+    occur_date: r.occur_date,
+
+    child_id: r.child_id,
+    child_name: r.childName,
+    child_id_number: r.childIdNumber,
+    child_first_name: r.childFirstName,
+    child_last_name: r.childLastName,
+
+    instructor_id: r.instructor_id,
+    instructor_name: r.instructorName,
+
+    start_time: r.start_time,
+    end_time: r.end_time,
+    attendance_status: r.attendance_status,
+    chargeable: r.chargeable,
+  }));
+
+  console.log('Sending lessons to Maccabi agent:', lessonsForMaccabi);
+
+  const res = await fetch('/api/createMaccabiAutomationJob', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       schema: tenant.schema,
+      lessons: lessonsForMaccabi,
     }),
   });
 
   const data = await res.json();
-console.log('Maccabi automation result:', data);
+  console.log('Maccabi job created:', data);
 
-if (data.screenshotBase64) {
-  const win = window.open('');
-  win?.document.write(`
-    <img style="max-width:100%" src="data:image/png;base64,${data.screenshotBase64}" />
-  `);
-}
+  if (!data.ok) {
+    alert(data.message || 'שגיאה ביצירת משימת מכבי');
+    return;
+  }
+
+  alert('המשימה נשלחה לאוטומציה. מספר משימה: ' + data.jobId);
 }
 
 async reportToMaccabi() {
@@ -202,22 +228,27 @@ private async loadClaimsLessons() {
   const toDate = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 
   const { data, error } = await dbc
-    .from(this.getViewNameByTab())
-    .select(`
-      lesson_id,
-      occur_date,
-      child_id,
-      child_name,
-      instructor_id,
-      instructor_name,
-      start_time,
-      end_time,
-      attendance_status,
-      chargeable,
-      claim_opened,
-      claim_submitted,
-      claim_status
-    `)
+  .from(this.getViewNameByTab())
+  .select(`
+    lesson_id,
+    occur_date,
+    child_id,
+    child_name,
+
+    child_id_number,
+    child_first_name,
+    child_last_name,
+
+    instructor_id,
+    instructor_name,
+    start_time,
+    end_time,
+    attendance_status,
+    chargeable,
+    claim_opened,
+    claim_submitted,
+    claim_status
+  `)
     .gte('occur_date', fromDate)
     .lte('occur_date', toDate)
     .order('occur_date', { ascending: true })
@@ -253,6 +284,9 @@ private async loadClaimsLessons() {
       instructorName: String(r.instructor_name ?? ''),
       child_id: String(r.child_id),
       childName: String(r.child_name ?? ''),
+      childIdNumber: r.child_id_number ? String(r.child_id_number) : null,
+      childFirstName: r.child_first_name ? String(r.child_first_name) : null,
+      childLastName: r.child_last_name ? String(r.child_last_name) : null,
       start_time: r.start_time ?? null,
       end_time: r.end_time ?? null,
       attendance_status: String(r.attendance_status ?? 'unknown'),
@@ -324,6 +358,9 @@ private async loadClaimsLessons() {
 
         child_id: String(r.child_id),
         childName: String(r.child_name ?? ''),
+        childIdNumber: r.child_id_number ? String(r.child_id_number) : null,
+        childFirstName: r.child_first_name ? String(r.child_first_name) : null,
+        childLastName: r.child_last_name ? String(r.child_last_name) : null,
 
         start_time: r.start_time ?? null,
         end_time: r.end_time ?? null,

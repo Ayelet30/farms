@@ -109,6 +109,10 @@
         "function": "testOpenMaccabi"
       },
       {
+        "source": "/api/createMaccabiAutomationJob",
+        "function": "createMaccabiAutomationJob"
+      },
+      {
         "source": "/api/**",
         "function": "loginBootstrap"
       },
