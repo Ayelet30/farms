@@ -956,6 +956,9 @@ private normalizeHHMM(v: any): string | null {
   // "10:30:00" -> "10:30"
   return s.length >= 5 ? s.slice(0, 5) : s;
 }
+private getDayOfWeekForDb(dateStr: string): number {
+  return new Date(`${dateStr}T12:00:00`).getDay();
+}
 private async checkInstructorAvailabilityConflict(
   db: any,
   row: UiRequest,
@@ -972,20 +975,39 @@ private async checkInstructorAvailabilityConflict(
     if (!instructorId || !w?.date) {
       return { ok: true };
     }
+const dayOfWeek = this.getDayOfWeekForDb(w.date);
 
-    const startHHMM = `${String(Math.floor(w.startMin / 60)).padStart(2, '0')}:${String(w.startMin % 60).padStart(2, '0')}:00`;
-    const endHHMM = `${String(Math.floor(w.endMin / 60)).padStart(2, '0')}:${String(w.endMin % 60).padStart(2, '0')}:00`;
+const reqStartHHMM = `${String(Math.floor(w.startMin / 60)).padStart(2, '0')}:${String(w.startMin % 60).padStart(2, '0')}:00`;
+const reqEndHHMM = `${String(Math.floor(w.endMin / 60)).padStart(2, '0')}:${String(w.endMin % 60).padStart(2, '0')}:00`;
 
-    const startTs = `${w.date} ${startHHMM}`;
-    const endTs = `${w.date} ${endHHMM}`;
+const { data: availabilityRows, error: availabilityError } = await db
+  .from('instructor_weekly_availability')
+  .select('start_time, end_time, lesson_ridding_type, lesson_type_mode')
+  .eq('instructor_id_number', instructorId)
+  .eq('day_of_week', dayOfWeek)
+  .lte('start_time', reqStartHHMM)
+  .gte('end_time', reqEndHHMM);
+
+if (availabilityError) {
+  const r = this.handleDbFailure(mode, 'checkInstructorWeeklyAvailability', availabilityError);
+  return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+}
+
+if (!availabilityRows || availabilityRows.length === 0) {
+  return {
+    ok: false,
+    reason: 'הבקשה נדחתה אוטומטית: המדריך אינו מוגדר כזמין ביום ובשעה המבוקשים.',
+  };
+}
+    const dayStart = `${w.date} 00:00:00+00`;
+    const dayEnd = `${w.date} 23:59:59+00`;
 
     const { data, error } = await db
       .from('instructor_unavailability')
-      .select('id, category, reason, from_ts, to_ts')
+      .select('id, category, reason, from_ts, to_ts, all_day')
       .eq('instructor_id_number', instructorId)
-      .lt('from_ts', endTs)
-      .gt('to_ts', startTs)
-      .limit(1);
+      .gte('from_ts', dayStart)
+      .lte('from_ts', dayEnd);
 
     if (error) {
       const r = this.handleDbFailure(mode, 'checkInstructorAvailabilityConflict', error);
@@ -994,14 +1016,32 @@ private async checkInstructorAvailabilityConflict(
 
     const rows = data ?? [];
 
-    if (rows.length > 0) {
-      const x: any = rows[0];
-      const label = x.reason || x.category || 'חוסר זמינות מדריך';
+    for (const x of rows) {
+      if (x.all_day === true) {
+        const label = x.reason || x.category || 'חוסר זמינות מדריך';
 
-      return {
-        ok: false,
-        reason: `הבקשה נדחתה אוטומטית: המדריך לא זמין בזמן המבוקש (${label}).`,
-      };
+        return {
+          ok: false,
+          reason: `הבקשה נדחתה אוטומטית: המדריך לא זמין ביום המבוקש (${label}).`,
+        };
+      }
+
+      const fromHHMM = this.normalizeTimeHHMM(x.from_ts);
+      const toHHMM = this.normalizeTimeHHMM(x.to_ts);
+
+      if (!fromHHMM || !toHHMM) continue;
+
+      const fromMin = this.timeToMinutes(fromHHMM);
+      const toMin = this.timeToMinutes(toHHMM);
+
+      if (this.overlapsMinutes(w.startMin, w.endMin, fromMin, toMin)) {
+        const label = x.reason || x.category || 'חוסר זמינות מדריך';
+
+        return {
+          ok: false,
+          reason: `הבקשה נדחתה אוטומטית: המדריך לא זמין בזמן המבוקש (${label}).`,
+        };
+      }
     }
 
     return { ok: true };
