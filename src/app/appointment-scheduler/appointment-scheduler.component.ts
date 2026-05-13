@@ -1243,6 +1243,22 @@ this.seriesCreatedMessage = null;
   this.showInstructorDetails = false;
   this.noInstructorPreference = false;
 
+  // ===== Occupancy reset =====
+this.occupancyCandidates = [];
+this.occupancyCandidatesAll = [];
+
+this.selectedOccupancyCandidate = null;
+
+this.occupancySlots = [];
+this.selectedOccupancySlot = null;
+
+this.occupancyError = null;
+this.occupancySlotsError = null;
+
+this.occupancyCreatedMessage = null;
+
+this.loadingOccupancyCandidates = false;
+this.loadingOccupancySlots = false;
   // אם אין ילד – מנקים רשימת מדריכים ויוצאים
   if (!this.selectedChildId) {
     this.instructors = [];
