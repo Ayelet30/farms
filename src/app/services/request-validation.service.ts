@@ -999,15 +999,15 @@ if (!availabilityRows || availabilityRows.length === 0) {
     reason: 'הבקשה נדחתה אוטומטית: המדריך אינו מוגדר כזמין ביום ובשעה המבוקשים.',
   };
 }
-    const dayStart = `${w.date} 00:00:00+00`;
-    const dayEnd = `${w.date} 23:59:59+00`;
+    const dayStart = `${w.date} 00:00:00`;
+const dayEnd = `${w.date} 23:59:59`;
 
-    const { data, error } = await db
-      .from('instructor_unavailability')
-      .select('id, category, reason, from_ts, to_ts, all_day')
-      .eq('instructor_id_number', instructorId)
-      .gte('from_ts', dayStart)
-      .lte('from_ts', dayEnd);
+const { data, error } = await db
+  .from('instructor_unavailability')
+  .select('id, category, reason, from_ts, to_ts, all_day')
+  .eq('instructor_id_number', instructorId)
+  .lte('from_ts', dayEnd)
+  .gte('to_ts', dayStart);
 
     if (error) {
       const r = this.handleDbFailure(mode, 'checkInstructorAvailabilityConflict', error);

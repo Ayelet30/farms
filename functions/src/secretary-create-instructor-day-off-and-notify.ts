@@ -76,10 +76,9 @@ function fmtTime(t: any) {
   return s.length >= 5 ? s.slice(0, 5) : s;
 }
 
-function toIsoUtc(dateYYYYMMDD: string, timeHHMM: string) {
-  return new Date(`${dateYYYYMMDD}T${timeHHMM}:00Z`).toISOString();
+function toLocalTimestamp(dateYYYYMMDD: string, timeHHMM: string) {
+  return `${dateYYYYMMDD} ${timeHHMM}:00`;
 }
-
 // חפיפת שעות: lesson_start < window_end && lesson_end > window_start
 function overlapsTime(
   lessonStartHHMM: string,
@@ -257,14 +256,13 @@ export const secretaryCreateInstructorDayOffAndNotify = onRequest(
       const sbPublic = createClient(url, key, { db: { schema: 'public' } });
 
       // 1) יצירת Unavailability
-      const fromTs = allDay
-        ? toIsoUtc(fromDate, '00:00')
-        : toIsoUtc(fromDate, startTime!);
+     const fromTs = allDay
+  ? toLocalTimestamp(fromDate, '00:00')
+  : toLocalTimestamp(fromDate, startTime!);
 
-      const toTs = allDay
-        ? new Date(`${toDate}T23:59:59Z`).toISOString()
-        : toIsoUtc(toDate, endTime!);
-
+const toTs = allDay
+  ? toLocalTimestamp(toDate, '23:59')
+  : toLocalTimestamp(toDate, endTime!);
      const reason =
   decisionNote?.trim() === ''
     ? null
