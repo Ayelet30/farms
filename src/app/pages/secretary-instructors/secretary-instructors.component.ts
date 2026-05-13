@@ -1438,10 +1438,12 @@ dayOffCategoryLabel(category?: string | null): string {
 
 formatDateTime(v?: string | null): string {
   if (!v) return '—';
-  return new Date(v).toLocaleString('he-IL', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  });
+
+  const s = String(v);
+  const date = this.formatDateOnly(s);
+  const time = this.formatTimeOnly(s);
+
+  return time ? `${date} ${time}` : date;
 }
 
 getSickNoteUrl(path?: string | null): string | null {
@@ -1478,10 +1480,12 @@ formatDateOnly(v?: string | null): string {
 formatTimeOnly(v?: string | null): string {
   if (!v) return '';
 
-  return new Date(v).toLocaleTimeString('he-IL', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const s = String(v);
+  const timePart = s.includes('T')
+    ? s.split('T')[1]
+    : s.split(' ')[1];
+
+  return timePart ? timePart.slice(0, 5) : '';
 }
 
 formatUnavailabilityWindow(d: InstructorUnavailabilityRow): string {
