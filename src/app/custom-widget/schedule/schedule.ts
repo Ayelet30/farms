@@ -14,6 +14,7 @@ import {
   ChangeDetectorRef,
   NgZone,
   ElementRef,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FullCalendarModule, FullCalendarComponent } from '@fullcalendar/angular';
@@ -88,6 +89,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   @ViewChild('calendarHost', { static: false }) calendarHost?: ElementRef<HTMLElement>;
 
   private boundContextMenuHandler?: (e: MouseEvent) => void;
+  
 
   @Input() items: ScheduleItem[] = [];
   @Input() initialView: ViewName = 'timeGridDay';
@@ -101,6 +103,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   @Input() enableAutoAssign = false;
   @Input() viewerMode: ViewerMode = 'secretary';
   @Input() blockedDayCells: BlockedDayCell[] = [];
+  @Input() availableDayCells: Array<{  date: string;  resourceId: string;  startTime: string;  endTime: string;  color: string;}> = [];
 
   
   @Output() autoAssignRequested = new EventEmitter<void>();
@@ -171,12 +174,22 @@ endTimeOnly?: string | null;
   }
 
   private lastRangeKey = '';
+
+  readonly monthLegend = [
+  { className: 'legend-approved', label: 'שיעורים פעילים' },
+  { className: 'legend-canceled', label: 'שיעורים מבוטלים' },
+  { className: 'legend-pending', label: 'בקשות / ממתינים' },
+  { className: 'legend-farm-off', label: 'חופשת חווה' },
+  { className: 'legend-instructor-off', label: 'חופשת מדריך' },
+];
   
 
   constructor(
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone
-  ) {}
+  ) {
+    changeDetection: ChangeDetectionStrategy.OnPush
+  }
 
   get calendarApi() {
     return this.calendarComponent?.getApi();
@@ -217,6 +230,37 @@ get isInstructorView(): boolean {
     const m = minutes % 60;
     return `${this.pad(h)}:${this.pad(m)}`;
   }
+
+  private swipeStartX = 0;
+private swipeStartY = 0;
+
+onSwipeStart(event: TouchEvent): void {
+  const touch = event.changedTouches[0];
+  this.swipeStartX = touch.clientX;
+  this.swipeStartY = touch.clientY;
+}
+
+onSwipeEnd(event: TouchEvent): void {
+  const touch = event.changedTouches[0];
+
+  const deltaX = touch.clientX - this.swipeStartX;
+  const deltaY = touch.clientY - this.swipeStartY;
+
+  const minSwipe = 60;
+  const maxVerticalMove = 45;
+
+  if (Math.abs(deltaX) < minSwipe) return;
+  if (Math.abs(deltaY) > maxVerticalMove) return;
+
+  // RTL:
+  // גרירה שמאלה = הבא
+  // גרירה ימינה = הקודם
+  if (deltaX < 0) {
+    this.next();
+  } else {
+    this.prev();
+  }
+}
 
   private isoToMinutes(iso: string): number {
     const d = new Date(iso);
@@ -461,12 +505,24 @@ buildCustomItemTitle(item: ScheduleItem): string {
   }
 
   isCanceledItem(item: ScheduleItem): boolean {
-    const s = String(
-      (item as any)?.status || this.getItemMeta(item)?.status || ''
-    ).trim().toUpperCase();
+  const meta = this.getItemMeta(item);
 
-    return ['בוטל', 'מבוטל', 'CANCELED', 'CANCELLED'].includes(s);
-  }
+  const rawStatus = String(
+    (item as any)?.status ||
+    meta?.status ||
+    meta?.attendance_status ||
+    meta?.lesson_status ||
+    ''
+  ).trim().toUpperCase();
+
+  return (
+    rawStatus.includes('CANCEL') ||
+    rawStatus.includes('CANCELED') ||
+    rawStatus.includes('CANCELLED') ||
+    rawStatus.includes('בוטל') ||
+    rawStatus.includes('מבוטל')
+  );
+}
 
   isPendingItem(item: ScheduleItem): boolean {
     const s = String(
@@ -716,8 +772,13 @@ buildCustomItemTitle(item: ScheduleItem): string {
     document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
   }
 
+  trackById(i: number, item: any) {
+  return item.id;
+}
+
   changeView(view: ViewName) {
   this.currentView = view;
+  
 
   if (view === 'timeGridDay') {
     const api = this.calendarApi;
@@ -835,7 +896,8 @@ buildCustomItemTitle(item: ScheduleItem): string {
     api.setOption('slotMaxTime', this.slotMaxTime);
     api.setOption('allDaySlot', this.allDaySlot);
     api.setOption('resources', this.resources || []);
-    api.setOption('events', this.buildFullCalendarEvents());
+    api.getEventSources().forEach(s => s.remove());
+    api.addEventSource(this.buildFullCalendarEvents());
 
     if (
       mapped === 'timeGridDay' ||
@@ -852,70 +914,193 @@ buildCustomItemTitle(item: ScheduleItem): string {
   const api = this.calendarApi;
   if (!api) return;
 
-  api.setOption('events', this.buildFullCalendarEvents());
+  api.getEventSources().forEach(s => s.remove());
+  api.addEventSource(this.buildFullCalendarEvents());
 }
 
   private buildFullCalendarEvents(): EventInput[] {
-    return this.items.flatMap<EventInput>((i: any) => {
-      if (i.meta?.['isFarmDayOff'] === 'true' || i.meta?.['isFarmDayOff'] === true) {
-        return [
-          {
-            id: i.id + '_bg',
-            start: i.start,
-            end: i.end,
-            display: 'background',
-            backgroundColor: '#FFE0B2',
-            overlap: false,
-          },
-          {
-            id: i.id,
-            title: i.title,
-            start: i.start,
-            end: i.end,
-            color: '#FB8C00',
-            textColor: '#4E342E',
-            extendedProps: {
-              isFarmDayOff: true,
-              meta: i.meta,
-            },
-          },
-        ];
-      }
-
-      return [
-        {
-          id: i.id,
-          title: i.title,
-          start: this.normalizeFcDate(i.start),
-          end: this.normalizeFcDate(i.end),
-          backgroundColor: i.color,
-          borderColor: i.color,
-          resourceId: i.meta?.instructor_id || undefined,
-          extendedProps: {
-            lesson_id: i.meta?.lesson_id,
-            meta: i.meta,
-            instructor_color: i.meta?.instructor_color,
-            status: i.status,
-            child_id: i.meta?.child_id,
-            child_name: i.meta?.child_name,
-            instructor_id: i.meta?.instructor_id,
-            instructor_name: i.meta?.instructor_name,
-            lesson_type: i.meta?.lesson_type,
-            children: i.meta?.children,
-            occur_date: i.meta?.occur_date,
-            isSummaryDay: i.meta?.isSummaryDay,
-            isSummarySlot: i.meta?.isSummarySlot,
-            isInstructorHeader: i.meta?.isInstructorHeader,
-            horse_name: i.meta?.horse_name,
-            arena_name: i.meta?.arena_name,
-            isFarmDayOff: i.meta?.isFarmDayOff,
-            isInstructorDayOff: i.meta?.isInstructorDayOff,
-            isPendingInstructorDayOff: i.meta?.isPendingInstructorDayOff,
-          },
-        },
-      ];
-    });
+  if (this.currentView === 'dayGridMonth') {
+    return this.buildMonthSummaryEvents();
   }
+
+  return this.items.flatMap<EventInput>((i: any) => {
+    const isFarmOff = i.meta?.isFarmDayOff === true || i.meta?.isFarmDayOff === 'true';
+
+    if (isFarmOff) {
+      return [{
+        id: i.id,
+        title: i.title || 'חופשת חווה',
+        start: i.start,
+        end: i.end,
+        allDay: true,
+        classNames: ['farm-day-off'],
+        extendedProps: {
+          isFarmDayOff: true,
+          meta: i.meta,
+        },
+      }];
+    }
+
+    return [{
+      id: i.id,
+      title: i.title,
+      start: this.normalizeFcDate(i.start),
+      end: this.normalizeFcDate(i.end),
+      backgroundColor: i.color,
+      borderColor: i.color,
+      resourceId: i.meta?.instructor_id || undefined,
+      classNames: this.getEventClassNames(i),
+      extendedProps: {
+        lesson_id: i.meta?.lesson_id,
+        meta: i.meta,
+        instructor_color: i.meta?.instructor_color,
+        status: i.status,
+        child_id: i.meta?.child_id,
+        child_name: i.meta?.child_name,
+        instructor_id: i.meta?.instructor_id,
+        instructor_name: i.meta?.instructor_name,
+        lesson_type: i.meta?.lesson_type,
+        children: i.meta?.children,
+        occur_date: i.meta?.occur_date,
+        isSummaryDay: i.meta?.isSummaryDay,
+        isSummarySlot: i.meta?.isSummarySlot,
+        isInstructorHeader: i.meta?.isInstructorHeader,
+        horse_name: i.meta?.horse_name,
+        arena_name: i.meta?.arena_name,
+        isFarmDayOff: i.meta?.isFarmDayOff,
+        isInstructorDayOff: i.meta?.isInstructorDayOff,
+        isPendingInstructorDayOff: i.meta?.isPendingInstructorDayOff,
+      },
+    }];
+  });
+}
+
+private buildMonthSummaryEvents(): EventInput[] {
+  const byDate = new Map<string, {
+    approved: number;
+    canceled: number;
+    pending: number;
+    farmOff: number;
+    instructorOff: number;
+  }>();
+
+  const ensure = (date: string) => {
+    if (!byDate.has(date)) {
+      byDate.set(date, {
+        approved: 0,
+        canceled: 0,
+        pending: 0,
+        farmOff: 0,
+        instructorOff: 0,
+      });
+    }
+    return byDate.get(date)!;
+  };
+
+  for (const item of this.items || []) {
+    const start = (item as any).start;
+    if (!start) continue;
+
+    const date = this.toYmd(new Date(start));
+    const meta = this.getItemMeta(item);
+    const bucket = ensure(date);
+
+    if (meta?.isFarmDayOff === true || meta?.isFarmDayOff === 'true') {
+      bucket.farmOff++;
+      continue;
+    }
+
+    if (meta?.isInstructorDayOff === true || meta?.isInstructorDayOff === 'true') {
+      bucket.instructorOff++;
+      continue;
+    }
+    console.log('MONTH ITEM STATUS:', {
+  title: (item as any).title,
+  status: (item as any).status,
+  metaStatus: this.getItemMeta(item)?.status,
+  meta: this.getItemMeta(item),
+});
+
+    if (this.isCanceledItem(item)) {
+      bucket.canceled++;
+      continue;
+    }
+
+    if (this.isPendingItem(item)) {
+      bucket.pending++;
+      continue;
+    }
+
+    bucket.approved++;
+  }
+
+  const events: EventInput[] = [];
+
+  for (const [date, c] of byDate.entries()) {
+    if (c.approved > 0) {
+      events.push(this.monthBadgeEvent(date, c.approved, 'status-approved', 'שיעורים פעילים'));
+    }
+
+    if (c.canceled > 0) {
+      events.push(this.monthBadgeEvent(date, c.canceled, 'status-canceled', 'שיעורים מבוטלים'));
+    }
+
+    if (c.pending > 0) {
+      events.push(this.monthBadgeEvent(date, c.pending, 'status-pending', 'בקשות / ממתינים'));
+    }
+
+    if (c.farmOff > 0) {
+      events.push(this.monthBadgeEvent(date, 'ח', 'farm-day-off', 'חופשת חווה'));
+    }
+
+    if (c.instructorOff > 0) {
+      events.push(this.monthBadgeEvent(date, 'מ', 'instructor-day-off', 'חופשת מדריך'));
+    }
+  }
+
+  return events;
+}
+
+private monthBadgeEvent(
+  date: string,
+  title: string | number,
+  className: string,
+  tooltip: string
+): EventInput {
+  return {
+    id: `month-${className}-${date}`,
+    title: String(title),
+    start: date,
+    allDay: true,
+    classNames: ['month-count-event', className],
+    extendedProps: {
+      tooltip,
+      isMonthSummary: true,
+    },
+  };
+}
+
+private getEventClassNames(item: ScheduleItem): string[] {
+  const meta = this.getItemMeta(item);
+
+  if (meta?.isFarmDayOff === true || meta?.isFarmDayOff === 'true') {
+    return ['farm-day-off'];
+  }
+
+  if (meta?.isInstructorDayOff === true || meta?.isInstructorDayOff === 'true') {
+    return ['instructor-day-off'];
+  }
+
+  if (this.isCanceledItem(item)) {
+    return ['status-canceled'];
+  }
+
+  if (this.isPendingItem(item)) {
+    return ['status-pending'];
+  }
+
+  return ['status-approved'];
+}
 
   private extractDateFromRightClick(
     target: HTMLElement,
@@ -983,6 +1168,7 @@ buildCustomItemTitle(item: ScheduleItem): string {
     eventClick: (arg: EventClickArg) => this.eventClick.emit(arg),
 
     eventContent: (arg) => {
+      
       const { event } = arg;
       const meta = event.extendedProps['meta'] || {};
 
@@ -992,6 +1178,17 @@ buildCustomItemTitle(item: ScheduleItem): string {
       const isFarmDayOff = !!event.extendedProps['isFarmDayOff'];
       const isInstructorDayOff = !!event.extendedProps['isInstructorDayOff'];
       const isPendingInstructorDayOff = !!event.extendedProps['isPendingInstructorDayOff'];
+      const isMonthSummary = !!event.extendedProps['isMonthSummary'];
+
+      if (isMonthSummary) {
+        return {
+          html: `
+            <div class="month-badge-only" title="${this.escapeHtml(event.extendedProps['tooltip'] || '')}">
+              ${this.escapeHtml(event.title)}
+            </div>
+          `,
+        };
+      }
 
       if (isFarmDayOff) {
         return {
@@ -1345,17 +1542,18 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
     }, 0);
   }
   if (this.currentView === 'timeGridDay') {
-  if (
-    changes['items'] ||
-    changes['resources'] ||
-    changes['slotMinTime'] ||
-    changes['slotMaxTime'] ||
-    changes['initialView'] ||
-    changes['blockedDayCells']
-  ) {
-    this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
-    this.rebuildCustomDayView();
-  }
+ if (
+  changes['items'] ||
+  changes['resources'] ||
+  changes['slotMinTime'] ||
+  changes['slotMaxTime'] ||
+  changes['initialView'] ||
+  changes['blockedDayCells'] ||
+  changes['availableDayCells']
+) {
+  this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
+  this.rebuildCustomDayView();
+}
   return;
 }
 }
@@ -1426,5 +1624,41 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
     startTime: meta?.start_time ? String(meta.start_time) : String(startIso).slice(11, 16),
     endTimeOnly: meta?.end_time ? String(meta.end_time) : (endIso ? String(endIso).slice(11, 16) : null),
   });
+}
+
+isAvailableRawCell(resourceId: string, slotIso: string): boolean {
+  return !!this.getAvailableRawCellColor(resourceId, slotIso);
+}
+
+getAvailableRawCellColor(resourceId: string, slotIso: string): string {
+  const d = new Date(slotIso);
+  const ymd = this.toYmd(d);
+  const hm = this.minutesToTime(d.getHours() * 60 + d.getMinutes());
+
+  const match = (this.availableDayCells || []).find(a => {
+    if (String(a.resourceId) !== String(resourceId)) return false;
+    if (a.date !== ymd) return false;
+
+    const start = this.toHm(a.startTime);
+    const end = this.toHm(a.endTime);
+
+    return hm >= start && hm < end;
+  });
+
+  return match?.color || '';
+}
+
+hexToRgba(hex: string, alpha: number): string {
+  const clean = String(hex || '').replace('#', '').trim();
+
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) {
+    return `rgba(116, 140, 64, ${alpha})`;
+  }
+
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 }

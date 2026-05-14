@@ -64,9 +64,9 @@
 </span>
 
           <span class="age-badge" *ngIf="c.birth_date">גיל: {{ getAge(c.birth_date) }} </span>
-          <span class="age-badge" *ngIf="c.health_fund">
-            {{ c.health_fund }}
-          </span>
+        <span class="age-badge" *ngIf="c.funding_source_id">
+  {{ getFundingSourceName(c.funding_source_id) }}
+</span>
         </div>
 
         <div class="actions">
@@ -109,8 +109,6 @@
         </div>
       </div>
 
-      <p class="row"><span class="key">תחום רכיבה:</span><span class="val">רכיבה טיפולית</span></p>
-
       <!-- התור הבא -->
       <div class="card-section">
         <div class="section-title">התור הבא</div>
@@ -149,10 +147,12 @@
 
         <div class="form-row">
           <label>קופת חולים</label>
-          <select [(ngModel)]="editables[c.child_uuid!].health_fund" class="editable-input">
-            <option value="" disabled hidden>בחר קופה</option>
-            <option *ngFor="let fund of healthFunds" [value]="fund">{{ fund }}</option>
-          </select>
+         <select [(ngModel)]="editables[c.child_uuid!].funding_source_id" class="editable-input">
+  <option value="" disabled hidden>בחר קופה</option>
+  <option *ngFor="let fund of healthFunds" [value]="fund.id">
+    {{ fund.name }}
+  </option>
+</select>
         </div>
         <div class="form-row">
           <label>הערות רפואיות</label>

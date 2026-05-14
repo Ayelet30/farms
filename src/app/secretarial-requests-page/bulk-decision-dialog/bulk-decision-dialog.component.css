@@ -1,5 +1,5 @@
 .bulk-dialog {
-  width: min(980px, 92vw);
+  width: min(350px, 55vw);
   max-height: min(82vh, 760px);
   display: flex;
   flex-direction: column;

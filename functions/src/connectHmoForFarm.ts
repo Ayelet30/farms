@@ -153,3 +153,125 @@ export const connectClalitForFarm = onRequest(
     }
   }
 );
+
+
+type HmoProvider = 'CLALIT' | 'MACCABI' | 'MEUHEDET';
+
+function normalizeProvider(v: any): HmoProvider | null {
+  const p = String(v || '').trim().toUpperCase();
+  if (p === 'CLALIT' || p === 'MACCABI' || p === 'MEUHEDET') return p;
+  return null;
+}
+
+export const connectHmoForFarm = onRequest(
+  {
+    region: 'us-central1',
+    invoker: 'public',
+    secrets: [SUPABASE_URL, SUPABASE_SERVICE_KEY, INTEGRATIONS_MASTER_KEY],
+    timeoutSeconds: 60,
+  },
+  async (req, res): Promise<void> => {
+    if (applyCors(req as any, res as any)) return;
+
+    try {
+      if (req.method !== 'POST') {
+        return void res.status(405).json({ error: 'POST only' });
+      }
+
+      const decoded = await requireAuth(req);
+      assertIsAdmin(decoded);
+
+      const body = req.body || {};
+
+      const schema = String(body.schema || '').trim();
+      const provider = normalizeProvider(body.provider);
+
+      const username = String(body.username || '').trim();
+      const password = String(body.password || '').trim();
+      const endpoint = String(body.endpoint || '').trim();
+
+      if (!schema) return void res.status(400).json({ error: 'Missing schema' });
+      if (!provider) return void res.status(400).json({ error: 'Missing/invalid provider' });
+      if (!username) return void res.status(400).json({ error: 'Missing username' });
+      if (!password) return void res.status(400).json({ error: 'Missing password' });
+
+      const entries: Array<[string, string]> = [
+        ['USERNAME', username],
+        ['PASSWORD', password],
+      ];
+
+      if (endpoint) {
+        entries.push(['ENDPOINT', endpoint]);
+      }
+
+      if (provider === 'CLALIT') {
+        const supplierId = String(body.supplierId || '').trim();
+
+        if (!supplierId) return void res.status(400).json({ error: 'Missing supplierId' });
+        if (!endpoint) return void res.status(400).json({ error: 'Missing endpoint' });
+
+        entries.push(['SUPPLIER_ID', supplierId]);
+      }
+
+      if (provider === 'MACCABI') {
+        const serviceProviderType = String(body.serviceProviderType || '').trim();
+        const serviceProviderCode = String(body.serviceProviderCode || '').trim();
+
+        if (!serviceProviderType) {
+          return void res.status(400).json({ error: 'Missing serviceProviderType' });
+        }
+
+        if (!serviceProviderCode) {
+          return void res.status(400).json({ error: 'Missing serviceProviderCode' });
+        }
+
+        entries.push(['SERVICE_PROVIDER_TYPE', serviceProviderType]);
+        entries.push(['SERVICE_PROVIDER_CODE', serviceProviderCode]);
+      }
+
+      if (provider === 'MEUHEDET') {
+        const providerCode = String(body.providerCode || '').trim();
+
+        if (!providerCode) {
+          return void res.status(400).json({ error: 'Missing providerCode' });
+        }
+
+        entries.push(['PROVIDER_CODE', providerCode]);
+      }
+
+      const sb = supabaseForSchema(schema);
+
+      for (const [keyName, value] of entries) {
+        const enc = encryptGcm(value);
+
+        const { error } = await sb.rpc('upsert_integration_secret', {
+          p_provider: provider,
+          p_key_name: keyName,
+          p_enc_iv: bufToByteaHex(enc.iv),
+          p_enc_tag: bufToByteaHex(enc.tag),
+          p_enc_data: bufToByteaHex(enc.data),
+          p_note: null,
+        });
+
+        if (error) {
+          return void res.status(500).json({
+            error: `DB rpc failed for ${provider}.${keyName}: ${error.message}`,
+          });
+        }
+      }
+
+      return void res.status(200).json({
+        ok: true,
+        provider,
+        savedKeys: entries.map(([key]) => key),
+      });
+    } catch (e: any) {
+      console.error('connectHmoForFarm error', e);
+
+      return void res.status(500).json({
+        error: 'Internal error',
+        message: e?.message || String(e),
+      });
+    }
+  }
+);

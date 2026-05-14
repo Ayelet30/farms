@@ -51,12 +51,11 @@
       </ul>
     </div>
   </div>
-  <div
-    class="next-cancel-note"
-    *ngIf="nextCanceledLessonNote"
-  >
-    {{ nextCanceledLessonNote }}
+<div class="next-cancel-notes" *ngIf="nextCanceledLessonNotes.length">
+  <div class="next-cancel-note" *ngFor="let note of nextCanceledLessonNotes">
+    {{ note }}
   </div>
+</div>
   <app-schedule
     [items]="items"
     viewerMode="parent"

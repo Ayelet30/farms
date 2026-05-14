@@ -19,4 +19,8 @@ export class AdminComponent {
   openClalitAdmin() {
     this.router.navigate(['/admin/clalit']);
 }
+
+openHmoIntegrationsAdmin() {
+    this.router.navigate(['/admin/hmo-integrations']);
+}
 }

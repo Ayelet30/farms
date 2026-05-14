@@ -947,7 +947,19 @@ async onViewRangeChange(range: any): Promise<void> {
       return;
     }
   }
+const hasOverlap = await this.hasAnyOverlappingInstructorAbsence(
+  from,
+  to,
+  allDay,
+  allDay ? null : fromTime,
+  allDay ? null : toTime
+);
 
+if (hasOverlap) {
+  this.error = 'כבר קיימת בקשת היעדרות או היעדרות מדריך חופפת בטווח שבחרת';
+  this.cdr.detectChanges();
+  return;
+}
   // שלב 1: בדיקת השפעה
   if (!reviewedImpact) {
     try {
@@ -1272,7 +1284,129 @@ private async uploadSickFile(
 
   return path;
 }
+private timeRangesOverlap(
+  startA: string,
+  endA: string,
+  startB: string,
+  endB: string
+): boolean {
+  return startA < endB && endA > startB;
+}
 
+private datesOverlap(
+  fromA: string,
+  toA: string,
+  fromB: string,
+  toB: string
+): boolean {
+  return fromA <= toB && toA >= fromB;
+}
+
+private async hasOverlappingDayOffRequest(
+  fromDate: string,
+  toDate: string,
+  allDay: boolean,
+  fromTime: string | null,
+  toTime: string | null
+): Promise<boolean> {
+  const dbc = dbTenant();
+
+  const { data, error } = await dbc
+    .from('secretarial_requests')
+    .select('id, from_date, to_date, status, payload')
+    .eq('instructor_id', this.instructorId)
+    .eq('request_type', 'INSTRUCTOR_DAY_OFF')
+    .in('status', ['PENDING', 'APPROVED'])
+    .lte('from_date', toDate)
+    .gte('to_date', fromDate);
+
+  if (error) throw error;
+
+  for (const r of data ?? []) {
+    const existingFrom = String(r.from_date).slice(0, 10);
+    const existingTo = String(r.to_date || r.from_date).slice(0, 10);
+
+    if (!this.datesOverlap(fromDate, toDate, existingFrom, existingTo)) {
+      continue;
+    }
+
+    const existingAllDay =
+      r.payload?.all_day === true || r.payload?.all_day === 'true';
+
+    if (allDay || existingAllDay) {
+      return true;
+    }
+
+    const existingStart = r.payload?.requested_start_time?.slice(0, 5);
+    const existingEnd = r.payload?.requested_end_time?.slice(0, 5);
+
+    if (!fromTime || !toTime || !existingStart || !existingEnd) {
+      return true;
+    }
+
+    if (this.timeRangesOverlap(fromTime, toTime, existingStart, existingEnd)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+private async hasOverlappingInstructorUnavailability(
+  fromDate: string,
+  toDate: string,
+  allDay: boolean,
+  fromTime: string | null,
+  toTime: string | null
+): Promise<boolean> {
+  const dbc = dbTenant();
+
+  const fromTs = allDay
+    ? `${fromDate}T00:00:00`
+    : `${fromDate}T${fromTime}:00`;
+
+  const toTs = allDay
+    ? `${toDate}T23:59:59`
+    : `${toDate}T${toTime}:00`;
+
+  const { data, error } = await dbc
+    .from('instructor_unavailability')
+    .select('id, from_ts, to_ts, all_day')
+    .eq('instructor_id_number', this.instructorId)
+    .lt('from_ts', toTs)
+    .gt('to_ts', fromTs)
+    .limit(1);
+
+  if (error) throw error;
+
+  return (data?.length ?? 0) > 0;
+}
+
+private async hasAnyOverlappingInstructorAbsence(
+  fromDate: string,
+  toDate: string,
+  allDay: boolean,
+  fromTime: string | null,
+  toTime: string | null
+): Promise<boolean> {
+  const hasRequestOverlap = await this.hasOverlappingDayOffRequest(
+    fromDate,
+    toDate,
+    allDay,
+    fromTime,
+    toTime
+  );
+
+  if (hasRequestOverlap) return true;
+
+  return await this.hasOverlappingInstructorUnavailability(
+    fromDate,
+    toDate,
+    allDay,
+    fromTime,
+    toTime
+  );
+}
 
  private async saveRangeRequest(
   

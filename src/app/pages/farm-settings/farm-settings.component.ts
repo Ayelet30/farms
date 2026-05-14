@@ -23,6 +23,7 @@ type ReminderChannel = 'EMAIL' | 'SMS' | 'APP' | 'WHATSAPP';
 type CalendarKind = 'GREGORIAN' | 'HEBREW';
 type RecurrenceKind = 'ONCE' | 'YEARLY';
 type DayType = 'FULL_DAY' | 'HOURS';
+type SpecialChargeMode = 'registration' | 'specific_date' | 'yearly';
 interface RidingType {
   
   id: UUID;
@@ -41,6 +42,26 @@ interface RidingType {
 }
 
 
+
+interface SpecialCharge {
+  id?: UUID;
+  item: string;
+  amount: number | null;
+  notes: string | null;
+
+  charge_on_registration: boolean;
+  charge_on_specific_date: boolean;
+  charge_date: string | null;
+first_charge_date: string | null;
+charge_times_per_year: number | null;
+  funding_source_ids: UUID[];
+
+  is_required: boolean;
+  warning_note: string | null;
+
+  is_active: boolean;
+  sort_order: number;
+}
 interface FarmSettings {
   availability_days_ahead?: number | null;
   id?: UUID;
@@ -92,10 +113,6 @@ interface FarmSettings {
   suggest_makeup_on_cancel?: boolean | null;
   reminder_require_confirmation?: boolean | null;
   reminder_allow_cancel_link?: boolean | null;
-
-  iscreatebillingcharge?: boolean | null; // תקופת הרצה - הכנסת ילדים רשומים למערכת לא מחייבים דמי רישום.
-  registration_fee: number | null;
-  student_insurance_premiums: number | null;
 
   max_group_size?: number | null;
   max_lessons_per_week_per_child?: number | null;
@@ -210,9 +227,7 @@ type SettingsErrors = {
   reminder_hours_before?: string;
 notify_before_farm_closure_hours?: string;
 min_time_between_cancellations?: string;
-registration_fee?: string;
-iscreatebillingcharge?: string;
-student_insurance_premiums?: string;
+
 
 };
 
@@ -225,7 +240,14 @@ student_insurance_premiums?: string;
 })
 export class FarmSettingsComponent implements OnInit {
   private readonly SETTINGS_SINGLETON_ID = '00000000-0000-0000-0000-000000000001';
-
+readonly specialChargeFrequencyOptions = [
+  { value: 1, label: 'פעם בשנה' },
+  { value: 2, label: 'פעמיים בשנה - כל 6 חודשים' },
+  { value: 3, label: '3 פעמים בשנה - כל 4 חודשים' },
+  { value: 4, label: '4 פעמים בשנה - כל 3 חודשים' },
+  { value: 6, label: '6 פעמים בשנה - כל חודשיים' },
+  { value: 12, label: '12 פעמים בשנה - כל חודש' },
+];
   private get supabase() {
     return dbTenant();
   }
@@ -236,7 +258,11 @@ private dialog = inject(MatDialog);
   listNotes = signal<ListNote[]>([]);
   showNewListNoteForm = signal(false);
   editingListNoteId = signal<ListNoteId | null>(null);
-
+newSpecialChargeErrors = signal<{
+  item?: string;
+  amount?: string;
+  mode?: string;
+}>({});
   newListNoteText = signal<string>('');
   listNotesExpanded = signal(true);
   // ====== Riding Types ======
@@ -253,7 +279,29 @@ newRidingTypeMax = signal<number | null>(null);
 participantsMinError = signal<string | null>(null);
 participantsMaxError = signal<string | null>(null);
 private tenantSvc = inject(SupabaseTenantService);
+specialCharges = signal<SpecialCharge[]>([]);
+showNewSpecialChargeForm = signal(false);
 
+newSpecialCharge = signal<SpecialCharge>({
+  item: '',
+  amount: null,
+  notes: null,
+funding_source_ids: [],
+  charge_on_registration: true,
+  charge_on_specific_date: false,
+  charge_date: null,
+  first_charge_date: null,
+
+
+charge_times_per_year: null,
+  is_required: true,
+  warning_note: null,
+
+  is_active: true,
+  sort_order: 0,
+});
+editingSpecialChargeId = signal<UUID | null>(null);
+specialChargeBeforeEdit = signal<SpecialCharge | null>(null);
 validateParticipants(): void {
   const min = this.newRidingTypeMin();
   const max = this.newRidingTypeMax();
@@ -341,7 +389,7 @@ hasAnyActiveWorkingDay(): boolean {
     subsidy_amount: 0,
     funding_source_id: null,
     required_docs: [],
-    require_docs_at_booking: true,
+    require_docs_at_booking: false,
     is_active: true,
   };
 
@@ -406,7 +454,8 @@ hasAnyActiveWorkingDay(): boolean {
       this.loadFarmDaysOff(),
       this.loadWorkingHours(),
       this.loadListNotes(),
-        this.loadRidingTypes(),
+      this.loadRidingTypes(),
+      this.loadSpecialCharges(),
     ]);
 
     if (!this.workingHours().length) {
@@ -861,29 +910,34 @@ canSaveWorkingHours(): boolean {
   return this.hasAnyFarmOpenDay() && this.hasAnyOfficeOpenDay() && !this.workingHoursError();
 }
 
-  async saveWorkingHours(): Promise<void> {
-     this.clearFlash(); 
-      if (!this.hasAnyFarmOpenDay() || !this.hasAnyOfficeOpenDay()) {
+ async saveWorkingHours(): Promise<void> {
+  this.clearFlash();
+
+  if (!this.hasAnyFarmOpenDay() || !this.hasAnyOfficeOpenDay()) {
     const msg = !this.hasAnyFarmOpenDay()
       ? 'חובה לסמן לפחות יום אחד פתוח בחווה.'
       : 'חובה לסמן לפחות יום אחד פתוח במשרד.';
+
     await this.ui.alert(msg, 'שגיאה');
     this.error.set(msg);
     return;
   }
-    const rows = this.workingHours().length ? this.workingHours() : this.buildEmptyWorkingHours();
 
-    const err = this.validateAllWorkingHours();
-    this.workingHoursError.set(err);
-    if (err) {
-      await this.ui.alert(err, 'שגיאה');
-      this.error.set(err);
-      return;
-    }
+  const rows = this.workingHours().length
+    ? this.workingHours()
+    : this.buildEmptyWorkingHours();
 
-    // ✅ חשוב: אם יום סגור -> נשמור NULL לשעות
-    const payload = rows.map(r => ({
-      id: r.id,
+  const err = this.validateAllWorkingHours();
+  this.workingHoursError.set(err);
+
+  if (err) {
+    await this.ui.alert(err, 'שגיאה');
+    this.error.set(err);
+    return;
+  }
+
+  const payload = rows.map(r => {
+    const row: any = {
       day_of_week: r.day_of_week,
 
       is_open: !!r.is_open,
@@ -893,42 +947,50 @@ canSaveWorkingHours(): boolean {
       is_offical_open: !!r.is_offical_open,
       office_start: r.is_offical_open ? this.timeToDb(r.office_start) : null,
       office_end: r.is_offical_open ? this.timeToDb(r.office_end) : null,
-    }));
+    };
 
-    try {
-      this.saving.set(true);
-      this.error.set(null);
-      this.success.set(null);
+    if (r.id) row.id = r.id;
 
-      const { error } = await this.supabase
-        .from('farm_working_hours')
-        .upsert(payload, { onConflict: 'day_of_week' });
+    return row;
+  });
 
-        console.log('payload before saveWorkingHours', payload);
+  try {
+    this.saving.set(true);
+    this.error.set(null);
+    this.success.set(null);
 
-      if (error) {
-        console.error('saveWorkingHours error', error);
-        await this.ui.alert('שמירת שעות לפי יום נכשלה.', 'שגיאה');
-        this.error.set('שמירת שעות לפי יום נכשלה.');
-        return;
-      }
+    console.log('payload before saveWorkingHours', payload);
 
-      this.flashSuccess('שעות לפי יום נשמרו בהצלחה.');
-      await this.ui.alert('שעות לפי יום נשמרו בהצלחה.', 'הצלחה');
+    const { error } = await this.supabase
+      .from('farm_working_hours')
+      .upsert(payload, { onConflict: 'day_of_week' });
 
-      await this.loadWorkingHours();
-      this.onWorkingHoursChanged();
-
-      const s = this.settings();
-      if (s) {
-        const openDays = rows.filter(x => x.is_open).map(x => x.day_of_week).sort((a, b) => a - b);
-        this.settings.set({ ...s, working_days: openDays });
-      }
-    } finally {
-      this.saving.set(false);
+    if (error) {
+      console.error('saveWorkingHours error', error);
+      await this.ui.alert('שמירת שעות לפי יום נכשלה.', 'שגיאה');
+      this.error.set('שמירת שעות לפי יום נכשלה.');
+      return;
     }
-  }
 
+    this.flashSuccess('שעות לפי יום נשמרו בהצלחה.');
+    await this.ui.alert('שעות לפי יום נשמרו בהצלחה.', 'הצלחה');
+
+    await this.loadWorkingHours();
+    this.onWorkingHoursChanged();
+
+    const s = this.settings();
+    if (s) {
+      const openDays = rows
+        .filter(x => x.is_open)
+        .map(x => x.day_of_week)
+        .sort((a, b) => a - b);
+
+      this.settings.set({ ...s, working_days: openDays });
+    }
+  } finally {
+    this.saving.set(false);
+  }
+}
   // =============================
   // Special Days
   // =============================
@@ -1409,10 +1471,6 @@ leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
       reminder_require_confirmation: false,
       reminder_allow_cancel_link: true,
 
-      iscreatebillingcharge: false,
-      registration_fee: null,
-      student_insurance_premiums: null,
-
       max_group_size: 6,
       max_lessons_per_week_per_child: 2,
       allow_online_booking: true,
@@ -1427,20 +1485,7 @@ if (
 ) {
   errors.default_lesson_price = 'מחיר שיעור חייב להיות בין 0 ל־999 ₪';
 }
-if (
-  s.student_insurance_premiums != null &&
-  (s.student_insurance_premiums < 0 || s.student_insurance_premiums > 2000)
-) {
-  errors.student_insurance_premiums =
-    'ביטוח תלמידים חייב להיות בין 0 ל־2000 ₪';
-}
-if (
-  s.registration_fee != null &&
-  (s.registration_fee < 0 || s.registration_fee > 5000)
-) {
-  errors.registration_fee =
-    'דמי רישום חייבים להיות בין 0 ל־5000 ₪';
-}
+
 if (s.min_time_between_cancellations) {
   const [h, m] = s.min_time_between_cancellations.split(':').map(Number);
   if (
@@ -1631,6 +1676,13 @@ await this.ui.alert(
     };
 
     this.settings.set(s);
+    // 🔥 שמירת חיובים מיוחדים
+try {
+  await this.saveSpecialCharges();
+} catch (e) {
+  this.saving.set(false);
+  return; // אם יש שגיאה - לא ממשיכים להצלחה
+}
     this.flashSuccess('ההגדרות נשמרו בהצלחה.');
 await this.ui.alert('ההגדרות נשמרו בהצלחה.', 'הצלחה');
 
@@ -1779,7 +1831,7 @@ await this.ui.alert('ההגדרות נשמרו בהצלחה.', 'הצלחה');
     const plans: PaymentPlan[] = (data || []).map((p: any) => ({
       ...p,
       required_docs: p.required_docs || [],
-      require_docs_at_booking: p.require_docs_at_booking ?? true,
+      require_docs_at_booking: p.require_docs_at_booking ?? false,
       versions: (p.payment_plan_prices || []) as PaymentPlanPriceVersion[],
     }));
 
@@ -2054,7 +2106,7 @@ validateRidingTypeCode(value: string): void {
       subsidy_amount: plan.subsidy_amount ?? 0,
       funding_source_id: plan.funding_source_id,
       required_docs: plan.required_docs || [],
-      require_docs_at_booking: plan.require_docs_at_booking ?? true,
+      require_docs_at_booking: plan.require_docs_at_booking ?? false,
       is_active: plan.is_active ?? true,
     };
   }
@@ -2084,7 +2136,7 @@ validateRidingTypeCode(value: string): void {
       subsidy_amount: 0,
       funding_source_id: null,
       required_docs: [],
-      require_docs_at_booking: true,
+      require_docs_at_booking: false,
       is_active: true,
     };
     this.showNewPlanForm.set(false);
@@ -2395,6 +2447,599 @@ toggleFundingSourcesExpanded() {
   this.fundingSourcesExpanded.update(v => !v);
   if (!this.fundingSourcesExpanded()) this.showNewFundingForm.set(false);
 }
+async loadSpecialCharges(): Promise<void> {
+  const { data, error } = await this.supabase
+    .from('special_charges')
+    .select('*')
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true });
 
+  if (error) {
+    console.error('loadSpecialCharges error', error);
+    this.flashError('טעינת החיובים המיוחדים נכשלה.');
+    return;
+  }
+
+  this.specialCharges.set((data || []) as SpecialCharge[]);
+}
+toggleNewSpecialChargeForm(): void {
+  const next = !this.showNewSpecialChargeForm();
+  this.showNewSpecialChargeForm.set(next);
+
+  if (next) {
+    this.newSpecialCharge.set({
+      item: '',
+      amount: null,
+      notes: null,
+      charge_on_registration: true,
+funding_source_ids: this.fundingSources()
+  .filter(fs => fs.is_active)
+  .map(fs => fs.id),      charge_on_specific_date: false,
+      charge_date: null,
+      first_charge_date: null,
+      charge_times_per_year: null,
+      is_required: true,
+      warning_note: null,
+      is_active: true,
+      sort_order: this.specialCharges().length + 1,
+    });
+  }
+}
+onSpecialChargeDateToggle(c: SpecialCharge): void {
+  if (!c.charge_on_specific_date) {
+    c.charge_date = null;
+  }
+}
+validateSpecialCharge(c: SpecialCharge): string | null {
+  if (!c.item?.trim()) return 'חובה להזין שם פריט.';
+  if (c.amount == null || c.amount < 0) return 'חובה להזין סכום תקין.';
+const mode = this.getSpecialChargeMode(c);
+
+if (mode === 'specific_date' && !c.charge_date) {
+  return 'בתשלום בתאריך ספציפי חובה לבחור תאריך.';
+}
+
+if (mode === 'yearly') {
+ const allowed = [1, 2, 3, 4, 6, 12];
+
+if (!c.charge_times_per_year || !allowed.includes(Number(c.charge_times_per_year))) {
+  return 'בתשלום מחזורי חובה לבחור תדירות חיוב תקינה.';
+}
+  if (!c.first_charge_date) {
+    return 'בתשלום שנתי חובה לבחור תאריך לפעם הראשונה.';
+  }
+}
+if (c.charge_on_specific_date && !c.charge_date) {
+  return 'כאשר בוחרים תשלום בתאריך ספציפי חובה לבחור תאריך.';
+}
+if (
+  c.charge_times_per_year != null &&
+  (c.charge_times_per_year < 1 || c.charge_times_per_year > 365)
+) {
+  return 'מספר הפעמים בשנה חייב להיות בין 1 ל־365.';
+}
+
+if (mode === 'specific_date' && !c.charge_date) {
+  return 'בתשלום בתאריך ספציפי חובה לבחור תאריך.';
+}
+
+if (mode === 'yearly') {
+  if (!c.charge_times_per_year || c.charge_times_per_year < 1 || c.charge_times_per_year > 365) {
+    return 'בתשלום שנתי חובה להזין כמה פעמים בשנה, בין 1 ל־365.';
+  }
+if (!c.first_charge_date) {
+  return 'בתשלום שנתי חובה לבחור תאריך לפעם הראשונה.';
+}
+}
+  return null;
+}
+async createSpecialCharge(): Promise<void> {
+    if (!this.validateNewSpecialCharge()) {
+    await this.ui.alert('יש למלא את כל שדות החובה בחיוב המיוחד.', 'שדות חסרים');
+    return;
+  }
+  const c = this.newSpecialCharge();
+  const err = this.validateSpecialCharge(c);
+const mode = this.getSpecialChargeMode(c);
+  if (err) {
+    await this.ui.alert(err, 'שגיאה');
+    return;
+  }
+
+  const { error } = await this.supabase
+    .from('special_charges')
+    .insert({
+      item: c.item.trim(),
+      amount: c.amount,
+      notes: c.notes?.trim() || null,
+charge_on_registration: mode === 'registration',
+charge_on_specific_date: mode === 'specific_date',
+charge_date: mode === 'specific_date' ? c.charge_date : null,
+first_charge_date: mode === 'yearly' ? c.first_charge_date : null,
+charge_times_per_year: mode === 'yearly' ? Number(c.charge_times_per_year ?? 1) : 1,
+is_required: mode === 'registration' && !!c.is_required,
+funding_source_ids: c.funding_source_ids ?? [],
+warning_note: mode === 'registration' ? (c.warning_note?.trim() || null) : null,
+      is_active: !!c.is_active,
+      sort_order: c.sort_order ?? 0,
+    });
+
+  if (error) {
+    console.error('createSpecialCharge error', error);
+    await this.ui.alert('שמירת החיוב נכשלה.', 'שגיאה');
+    return;
+  }
+
+  this.showNewSpecialChargeForm.set(false);
+  await this.loadSpecialCharges();
+  this.flashSuccess('החיוב נוסף בהצלחה.');
+}
+async updateSpecialCharge(c: SpecialCharge): Promise<void> {
+  if (!c.id) return;
+
+  const err = this.validateSpecialCharge(c);
+const mode = this.getSpecialChargeMode(c);
+  if (err) {
+    await this.ui.alert(err, 'שגיאה');
+    return;
+  }
+
+  const { error } = await this.supabase
+    .from('special_charges')
+    .update({
+      item: c.item.trim(),
+      amount: c.amount,
+      notes: c.notes?.trim() || null,
+
+      charge_on_registration: !!c.charge_on_registration,
+      charge_on_specific_date: !!c.charge_on_specific_date,
+     charge_date: mode === 'specific_date' ? c.charge_date : null,
+first_charge_date: mode === 'yearly' ? c.first_charge_date : null,
+charge_times_per_year: mode === 'yearly' ? Number(c.charge_times_per_year ?? 1) : 1,
+    is_required: !!c.charge_on_registration && !!c.is_required,
+warning_note: c.charge_on_registration ? (c.warning_note?.trim() || null) : null,
+funding_source_ids: c.funding_source_ids ?? [],
+      is_active: !!c.is_active,
+      sort_order: c.sort_order ?? 0,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', c.id);
+
+  if (error) {
+    console.error('updateSpecialCharge error', error);
+    await this.ui.alert('עדכון החיוב נכשל.', 'שגיאה');
+    return;
+  }
+
+  await this.loadSpecialCharges();
+  this.flashSuccess('החיוב עודכן בהצלחה.');
+this.editingSpecialChargeId.set(null);
+this.specialChargeBeforeEdit.set(null);
+}
+async deactivateSpecialCharge(c: SpecialCharge): Promise<void> {
+  if (!c.id) return;
+
+  const confirmed = await this.ui.confirm({
+    title: 'ביטול חיוב מיוחד',
+    message: `להפוך את "${c.item}" ללא פעיל?`,
+    okText: 'כן',
+    cancelText: 'ביטול',
+    showCancel: true,
+  });
+
+  if (!confirmed) return;
+
+  const { error } = await this.supabase
+    .from('special_charges')
+    .update({
+      is_active: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', c.id);
+
+  if (error) {
+    console.error('deactivateSpecialCharge error', error);
+    await this.ui.alert('ביטול החיוב נכשל.', 'שגיאה');
+    return;
+  }
+
+  await this.loadSpecialCharges();
+}
+
+patchNewSpecialCharge(patch: Partial<SpecialCharge>): void {
+  this.newSpecialCharge.update(current => ({
+    ...current,
+    ...patch,
+  }));
+}
+
+onRegistrationChargeToggle(c: SpecialCharge, checked: boolean): void {
+  c.charge_on_registration = checked;
+
+  if (checked) {
+    c.charge_on_specific_date = false;
+    c.charge_date = null;
+  }
+}
+onSpecificDateChargeToggle(c: SpecialCharge, checked: boolean): void {
+  c.charge_on_specific_date = checked;
+
+  if (checked) {
+    c.charge_on_registration = false;
+  } else {
+    c.charge_date = null;
+  }
+}
+
+selectNewChargeOnRegistration(checked: boolean): void {
+  const cur = this.newSpecialCharge();
+
+  let updated = { ...cur, charge_on_registration: checked };
+
+  if (checked) {
+    updated.charge_on_specific_date = false;
+    updated.charge_times_per_year = null;
+    updated.charge_date = null;
+  } else {
+    updated.is_required = false;
+    updated.warning_note = null;
+  }
+
+  this.newSpecialCharge.set(updated);
+}
+
+selectNewChargeOnSpecificDate(checked: boolean): void {
+  this.patchNewSpecialCharge({
+    charge_on_specific_date: checked,
+    charge_on_registration: checked ? false : this.newSpecialCharge().charge_on_registration,
+    charge_times_per_year: checked ? null : this.newSpecialCharge().charge_times_per_year,
+    charge_date: checked ? this.newSpecialCharge().charge_date : null,
+  });
+}
+
+selectNewChargeTimesPerYear(value: any): void {
+  const n = value === '' || value == null ? null : Number(value);
+
+  this.patchNewSpecialCharge({
+    charge_times_per_year: n,
+    charge_on_registration: n != null ? false : this.newSpecialCharge().charge_on_registration,
+    charge_on_specific_date: n != null ? false : this.newSpecialCharge().charge_on_specific_date,
+    charge_date: n != null ? null : this.newSpecialCharge().charge_date,
+  });
+}
+selectExistingChargeOnRegistration(c: SpecialCharge, checked: boolean): void {
+  c.charge_on_registration = checked;
+
+  
+  if (checked) {
+    c.charge_on_specific_date = false;
+    c.charge_date = null;
+    c.charge_times_per_year = null;
+  } else {
+    c.warning_note = null;
+    c.is_required = false;
+
+  }
+}
+selectExistingChargeOnSpecificDate(c: SpecialCharge, checked: boolean): void {
+  c.charge_on_specific_date = checked;
+
+  if (checked) {
+    c.charge_on_registration = false;
+    c.charge_times_per_year = null;
+  } else {
+    c.charge_date = null;
+  }
+}
+selectExistingChargeTimesPerYear(c: SpecialCharge, value: any): void {
+  const n = value === '' || value == null ? null : Number(value);
+  c.charge_times_per_year = n;
+
+  if (n != null) {
+    c.charge_on_registration = false;
+    c.charge_on_specific_date = false;
+    c.charge_date = null;
+  }
+}
+enforceChargeRule(mode: 'registration' | 'date' | 'yearly', value: any): void {
+  const cur = this.newSpecialCharge();
+
+  let updated = { ...cur };
+
+  if (mode === 'registration') {
+    updated.charge_on_registration = value;
+
+    if (value) {
+      updated.charge_on_specific_date = false;
+      updated.charge_times_per_year = null;
+      updated.charge_date = null;
+    }
+  }
+
+  if (mode === 'date') {
+    updated.charge_on_specific_date = value;
+
+    if (value) {
+      updated.charge_on_registration = false;
+      updated.charge_times_per_year = null;
+    } else {
+      updated.charge_date = null;
+    }
+  }
+
+  if (mode === 'yearly') {
+    let n = value === '' || value == null ? null : Number(value);
+
+    if (n != null) {
+      if (n < 1) n = 1;
+      if (n > 365) n = 365;
+    }
+
+    updated.charge_times_per_year = n;
+
+    if (n != null) {
+      updated.charge_on_registration = false;
+      updated.charge_on_specific_date = false;
+      updated.charge_date = null;
+    }
+  }
+
+  this.newSpecialCharge.set(updated);
+}
+enforceExistingChargeRule(
+  c: SpecialCharge,
+  mode: 'registration' | 'date' | 'yearly',
+  value: any
+): void {
+  if (mode === 'registration') {
+    c.charge_on_registration = !!value;
+
+    if (value) {
+      c.charge_on_specific_date = false;
+      c.charge_times_per_year = null;
+      c.charge_date = null;
+    }
+  }
+
+  if (mode === 'date') {
+    c.charge_on_specific_date = !!value;
+
+    if (value) {
+      c.charge_on_registration = false;
+      c.charge_times_per_year = null;
+    } else {
+      c.charge_date = null;
+    }
+  }
+
+  if (mode === 'yearly') {
+    let n = value === '' || value == null ? null : Number(value);
+
+    if (n != null) {
+      if (n < 1) n = 1;
+      if (n > 365) n = 365;
+    }
+
+    c.charge_times_per_year = n;
+
+    if (n != null) {
+      c.charge_on_registration = false;
+      c.charge_on_specific_date = false;
+      c.charge_date = null;
+    }
+  }
+}
+onTimesPerYearChange(value: any): void {
+  let n = value === '' || value == null ? null : Number(value);
+
+  if (n != null) {
+    if (n < 1) n = 1;
+    if (n > 365) n = 365;
+  }
+
+  this.selectNewChargeTimesPerYear(n);
+}
+onNewTimesPerYearInput(event: Event): void {
+  const input = event.target as HTMLInputElement;
+
+  let value = input.value === '' ? null : Number(input.value);
+
+  if (value != null) {
+    if (value < 1) value = 1;
+    if (value > 365) value = 365;
+
+    input.value = String(value);
+  }
+
+  this.selectNewChargeTimesPerYear(value);
+}
+onExistingTimesPerYearInput(c: SpecialCharge, event: Event): void {
+  const input = event.target as HTMLInputElement;
+
+  let value = input.value === '' ? null : Number(input.value);
+
+  if (value != null) {
+    if (value < 1) value = 1;
+    if (value > 365) value = 365;
+
+    input.value = String(value);
+  }
+
+  this.selectExistingChargeTimesPerYear(c, value);
+}
+
+async saveSpecialCharges(): Promise<void> {
+  const newCharge = this.newSpecialCharge();
+if (this.showNewSpecialChargeForm() && !this.isNewSpecialChargeEmpty()) {
+  const err = this.validateSpecialCharge(this.newSpecialCharge());
+  if (err) {
+    await this.ui.alert(err, 'שגיאה');
+    throw new Error(err);
+  }
+
+  await this.createSpecialCharge();
+}
+
+  for (const c of this.specialCharges()) {
+    const err = this.validateSpecialCharge(c);
+    if (err) {
+      await this.ui.alert(err, 'שגיאה');
+      throw new Error(err);
+    }
+
+    await this.updateSpecialCharge(c);
+  }
+}
+private isNewSpecialChargeEmpty(): boolean {
+  const c = this.newSpecialCharge();
+
+  return !c.item?.trim()
+    && c.amount == null
+    && !c.notes?.trim()
+    && !c.warning_note?.trim();
+}
+startEditSpecialCharge(c: SpecialCharge): void {
+  this.editingSpecialChargeId.set(c.id ?? null);
+  this.specialChargeBeforeEdit.set({ ...c });
+}
+
+cancelEditSpecialCharge(c: SpecialCharge): void {
+  const original = this.specialChargeBeforeEdit();
+
+  if (original && c.id === original.id) {
+    Object.assign(c, original);
+  }
+
+  this.editingSpecialChargeId.set(null);
+  this.specialChargeBeforeEdit.set(null);
+}
+getSpecialChargeMode(c: SpecialCharge): SpecialChargeMode {
+  if (c.charge_on_registration) return 'registration';
+  if (c.charge_on_specific_date) return 'specific_date';
+  return 'yearly';
+}
+
+setNewSpecialChargeMode(mode: SpecialChargeMode): void {
+  this.newSpecialCharge.update(c => ({
+    ...c,
+    charge_on_registration: mode === 'registration',
+    charge_on_specific_date: mode === 'specific_date',
+
+    charge_date: mode === 'specific_date' ? c.charge_date : null,
+    first_charge_date: mode === 'yearly' ? c.first_charge_date : null,
+
+    charge_times_per_year: mode === 'yearly' ? (c.charge_times_per_year ?? 1) : null,
+
+    is_required: mode === 'registration' ? c.is_required : false,
+    warning_note: mode === 'registration' ? c.warning_note : null,
+  }));
+}
+
+setExistingSpecialChargeMode(c: SpecialCharge, mode: SpecialChargeMode): void {
+  c.charge_on_registration = mode === 'registration';
+  c.charge_on_specific_date = mode === 'specific_date';
+
+  c.charge_date = mode === 'specific_date' ? c.charge_date : null;
+  c.first_charge_date = mode === 'yearly' ? c.first_charge_date : null;
+
+  c.charge_times_per_year = mode === 'yearly'
+    ? (c.charge_times_per_year ?? 1)
+    : null;
+
+  if (mode !== 'registration') {
+    c.is_required = false;
+    c.warning_note = null;
+  }
+}
+formatDateDisplay(date: string | null): string {
+  if (!date) return '';
+  const [y, m, d] = date.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+onDateInput(value: string) {
+  const parts = value.split('/');
+  if (parts.length === 3) {
+    const [d, m, y] = parts;
+    this.patchNewSpecialCharge({
+      first_charge_date: `${y}-${m}-${d}`
+    });
+  }
+}
+toggleFundingSourceForNewSpecialCharge(sourceId: UUID, checked: boolean): void {
+  const cur = this.newSpecialCharge();
+  const ids = cur.funding_source_ids ?? [];
+
+  this.patchNewSpecialCharge({
+    funding_source_ids: checked
+      ? Array.from(new Set([...ids, sourceId]))
+      : ids.filter(id => id !== sourceId),
+  });
+}
+
+toggleFundingSourceForExistingSpecialCharge(c: SpecialCharge, sourceId: UUID, checked: boolean): void {
+  const ids = c.funding_source_ids ?? [];
+
+  c.funding_source_ids = checked
+    ? Array.from(new Set([...ids, sourceId]))
+    : ids.filter(id => id !== sourceId);
+}
+
+fundingSourceNames(ids: UUID[] | null | undefined): string {
+  if (!ids?.length) return 'כל גורמי המימון';
+
+  const names = this.fundingSources()
+    .filter(fs => ids.includes(fs.id))
+    .map(fs => fs.name);
+
+  return names.length ? names.join(', ') : 'לא נבחרו גורמי מימון';
+}
+validateNewSpecialCharge(): boolean {
+  const c = this.newSpecialCharge();
+  const mode = this.getSpecialChargeMode(c);
+
+  const errors: {
+    item?: string;
+    amount?: string;
+    mode?: string;
+  } = {};
+
+  if (!c.item?.trim()) {
+    errors.item = 'חובה למלא שם פריט';
+  }
+
+  if (c.amount == null || Number(c.amount) <= 0) {
+    errors.amount = 'חובה למלא סכום';
+  }
+
+  if (!mode) {
+    errors.mode = 'חובה לבחור סוג חיוב';
+  }
+
+  this.newSpecialChargeErrors.set(errors);
+  return Object.keys(errors).length === 0;
+}
+cancelNewSpecialCharge(): void {
+  this.showNewSpecialChargeForm.set(false);
+  this.newSpecialChargeErrors.set({});
+
+  this.newSpecialCharge.set({
+    item: '',
+    amount: null,
+    notes: null,
+    charge_on_registration: true,
+    charge_on_specific_date: false,
+    charge_date: null,
+    first_charge_date: null,
+    charge_times_per_year: null,
+    funding_source_ids: this.fundingSources()
+      .filter(fs => fs.is_active)
+      .map(fs => fs.id),
+    is_required: true,
+    warning_note: null,
+    is_active: true,
+    sort_order: 0,
+  });
+}
 }
 

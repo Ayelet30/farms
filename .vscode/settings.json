@@ -2,6 +2,12 @@
   "deno.enablePaths": [
     "supabase/functions"
   ],
+  "files.watcherExclude": {
+  "**/node_modules/**": true,
+  "**/dist/**": true,
+  "**/.angular/**": true,
+  "**/.firebase/**": true
+},
   "deno.lint": true,
   "deno.unstable": [
     "bare-node-builtins",
@@ -24,3 +30,5 @@
   "typescript.tsdk": "node_modules\\typescript\\lib",
   "angular.enable-strict-mode-prompt": false
 }
+
+

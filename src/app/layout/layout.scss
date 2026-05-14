@@ -18,20 +18,26 @@
 }
 
 /* כפתור המבורגר – רק מובייל */
-.hamburger{
-  inset-inline-end: 10px; /* ימין */
-  top: 100%;
-  // transform: translateY(-50%);
-  // width: 0px;
-  height: 30px;
-  // border-radius: 16px;
+.hamburger {
+  position: fixed; /* חשוב */
+  inset-inline-end: 12px; /* ימין */
+  top: calc(var(--header-h) + 8px); /* קצת מתחת להדר */
+
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+
   border: 1px solid #cdd6bf;
   background: #f7f9f4;
-  font-size: 20px;
+
+  font-size: 24px;
   line-height: 1;
-  cursor: pointer;
-  display: none; /* נדלק במובייל */
-  z-index: 6000;
+
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
 }
 
 /* פס “חם” לפתיחה בהובר בדסקטופ */
@@ -156,6 +162,9 @@
     width: 52px;
     height: 52px;
     font-size: 22px;
+  }
+  .hamburger{
+    display: flex;
   }
 }
 

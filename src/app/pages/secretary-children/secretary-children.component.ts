@@ -11,6 +11,7 @@ import {
   ensureTenantContextReady,
   dbTenant,
   getSupabaseClient,
+  getCurrentFarmMetaSync,
 } from '../../services/legacy-compat';
 import type { ChildRow } from '../../Types/detailes.model';
 import { UiDialogService } from '../../services/ui-dialog.service';
@@ -31,6 +32,7 @@ import {
 } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { AddChildWizardComponent } from '../add-child-wizard/add-child-wizard.component';
+import { ActivatedRoute } from '@angular/router';
 
 type SeriesDocRow = {
   lessonId: string;
@@ -43,6 +45,9 @@ type SeriesDocRow = {
   isOpenEnded: boolean | null;
   status: string | null;
   paymentDocsUrl: string | null;
+  paymentPlanId: string | null;
+requiredDocs: string[];
+requireDocsAtBooking: boolean | null;
 };
 
 type ParentBrief = {
@@ -62,11 +67,23 @@ type ChildDetails = {
   gov_id?: string | null;
   birth_date?: string | null;
   gender?: string | null;
-  health_fund?: string | null;
+funding_source_id?: string | null;
   status?: string | null;
   medical_notes?: string | null;
   behavior_notes?: string | null;
   parent?: ParentBrief | null;
+};
+
+type ChildDocumentRow = {
+  id: string;
+  childId: string;
+  documentName: string;
+  bucket: string;
+  filePath: string;
+  fileUrl: string | null;
+  mimeType: string | null;
+  fileSize: number | null;
+  createdAt: string;
 };
 
 type HorseLite = {
@@ -87,7 +104,7 @@ type ChildColumnKey =
   | 'gov_id'
   | 'birth_date'
   | 'gender'
-  | 'health_fund'
+  | 'funding_source_id'
   | 'status'
   | 'parent_status';
 
@@ -117,8 +134,7 @@ export class SecretaryChildrenComponent implements OnInit {
   readonly MAX_MEDICAL_NOTES = 300;
   readonly MAX_BEHAVIOR_NOTES = 300;
 
-  readonly healthFunds = ['כללית', 'מכבי', 'מאוחדת', 'לאומית'] as const;
-
+healthFunds: { id: string; name: string }[] = [];
   readonly statusOptions = [
   { value: 'Active', label: 'פעיל' },
   { value: 'Deleted', label: 'לא פעיל' },
@@ -134,8 +150,7 @@ export class SecretaryChildrenComponent implements OnInit {
     { key: 'gov_id', label: 'תעודת זהות', visible: true },
     { key: 'birth_date', label: 'תאריך לידה', visible: false },
     { key: 'gender', label: 'מין', visible: false },
-    { key: 'health_fund', label: 'קופת חולים', visible: false },
-    { key: 'status', label: 'סטטוס', visible: true },
+    { key: 'funding_source_id', label: 'קופת חולים', visible: false },    { key: 'status', label: 'סטטוס', visible: true },
     { key: 'parent_status', label: 'שיוך להורה', visible: true },
   ];
 
@@ -153,6 +168,13 @@ export class SecretaryChildrenComponent implements OnInit {
   error: string | null = null;
 
   @ViewChild('drawer') drawer!: MatSidenav;
+
+  childDocsLoading = false;
+childDocsError: string | null = null;
+childDocs: ChildDocumentRow[] = [];
+allChildDocs: ChildDocumentRow[] = [];
+uploadingChildDoc = false;
+newChildDocName = '';
 
   selectedId: string | null = null;
   drawerLoading = false;
@@ -190,13 +212,19 @@ uploadingSeriesDocLessonId: string | null = null;
     private dialog: MatDialog,
     private sanitizer: DomSanitizer,
     private router: Router,
+    private route: ActivatedRoute,
   ) {}
 
   async ngOnInit(): Promise<void> {
     try {
       this.loadTablePrefs();
       await ensureTenantContextReady();
+      await this.loadFundingSources();
       await this.loadChildren();
+      const childId = this.route.snapshot.queryParamMap.get('childId');
+if (childId) {
+  setTimeout(() => this.openDetails(childId), 0);
+}
       this.updateStats();
     } catch (e: any) {
       this.error =
@@ -283,7 +311,7 @@ uploadingSeriesDocLessonId: string | null = null;
           gov_id,
           birth_date,
           gender,
-          health_fund,
+          funding_source_id,
           status
         `)
         .order('first_name', { ascending: true })
@@ -612,7 +640,7 @@ private isAllowedReferralFile(file: File): boolean {
           birth_date,
           gender,
           parent_uid,
-          health_fund,
+          funding_source_id,
           status,
           medical_notes,
           behavior_notes
@@ -639,6 +667,7 @@ private isAllowedReferralFile(file: File): boolean {
 
       await this.loadChildTermsSignature(id);
       await this.loadChildSeriesDocs(id);
+      await this.loadChildDocuments(id);
     } catch (e) {
       console.error('loadDrawerData error:', e);
       this.drawerChild = null;
@@ -646,6 +675,172 @@ private isAllowedReferralFile(file: File): boolean {
       this.drawerLoading = false;
     }
   }
+
+  private async loadChildDocuments(childId: string): Promise<void> {
+  this.childDocsLoading = true;
+  this.childDocsError = null;
+  this.childDocs = [];
+
+  try {
+    const db = await this.dbc();
+
+    const { data, error } = await db
+      .from('child_documents')
+      .select(`
+        id,
+        child_id,
+        document_name,
+        bucket,
+        file_path,
+        file_url,
+        mime_type,
+        file_size,
+        created_at
+      `)
+      .eq('child_id', childId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const docs = (data ?? []).map((row: any) => ({
+  id: row.id,
+  childId: row.child_id,
+  documentName: row.document_name,
+  bucket: row.bucket,
+  filePath: row.file_path,
+  fileUrl: row.file_url,
+  mimeType: row.mime_type,
+  fileSize: row.file_size,
+  createdAt: row.created_at,
+}));
+
+this.allChildDocs = docs;
+
+this.childDocs = docs.filter(
+  (doc: { documentName: string; }) => doc.documentName?.trim() !== 'אינטק'
+);
+
+  } catch (e: any) {
+    console.error('loadChildDocuments error:', e);
+    this.childDocsError = e?.message ?? 'שגיאה בטעינת מסמכי הילד';
+  } finally {
+    this.childDocsLoading = false;
+  }
+}
+
+async uploadChildDocument(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+
+  if (!file || !this.drawerChild?.child_uuid) return;
+
+  const docName = this.newChildDocName.trim();
+  if (!docName) {
+    await this.ui.alert('יש להזין שם קובץ לפני ההעלאה.', 'שם קובץ חסר');
+    input.value = '';
+    return;
+  }
+
+  if (!this.isAllowedReferralFile(file)) {
+    await this.ui.alert(
+      'ניתן להעלות רק קובצי PDF או תמונות (PNG/JPG/WEBP).',
+      'קובץ לא נתמך'
+    );
+    input.value = '';
+    return;
+  }
+
+  try {
+    this.uploadingChildDoc = true;
+
+    const db = await this.dbc();
+    const client = getSupabaseClient();
+
+    const childId = this.drawerChild.child_uuid;
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+    const bucketName = 'child-documents';
+
+    const farm = getCurrentFarmMetaSync();
+const schemaName = farm?.schema_name || localStorage.getItem('selectedSchema');
+
+if (!schemaName) {
+  throw new Error('לא נמצאה סכמה פעילה לשמירת המסמך');
+}
+
+const filePath = `${schemaName}/${childId}/${Date.now()}-${crypto.randomUUID()}.${fileExt}`;
+
+    const { error: uploadError } = await client.storage
+      .from(bucketName)
+      .upload(filePath, file, {
+        upsert: false,
+        contentType: file.type || undefined,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: publicData } = client.storage
+      .from(bucketName)
+      .getPublicUrl(filePath);
+
+    const publicUrl = publicData?.publicUrl ?? null;
+
+    const { data, error } = await db
+      .from('child_documents')
+      .insert({
+        child_id: childId,
+        document_name: docName,
+        bucket: bucketName,
+        file_path: filePath,
+        file_url: publicUrl,
+        mime_type: file.type || null,
+        file_size: file.size,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    await this.loadChildDocuments(childId);
+
+    this.newChildDocName = '';
+
+    await this.ui.alert('המסמך הועלה בהצלחה.', 'מסמכי ילד');
+  } catch (e: any) {
+    console.error('uploadChildDocument error:', e);
+    await this.ui.alert('העלאת המסמך נכשלה: ' + (e?.message ?? e), 'שגיאה');
+  } finally {
+    this.uploadingChildDoc = false;
+    input.value = '';
+  }
+}
+
+get intakeDoc(): ChildDocumentRow | null {
+  return this.allChildDocs.find(d => d.documentName?.trim() === 'אינטק') ?? null;
+}
+
+hasIntake(): boolean {
+  return !!this.intakeDoc;
+}
+
+prepareIntakeUpload(): void {
+  this.newChildDocName = 'אינטק';
+}
+
+openChildDocument(doc: ChildDocumentRow): void {
+  if (!doc.fileUrl) {
+    this.ui.alert('אין קישור זמין למסמך.', 'מסמכי ילד');
+    return;
+  }
+
+  this.dialog.open(TermsPdfDialogComponent, {
+    width: 'min(980px, 96vw)',
+    height: 'min(90vh, 900px)',
+    data: {
+      title: doc.documentName,
+      url: this.sanitizer.bypassSecurityTrustResourceUrl(doc.fileUrl),
+    },
+  });
+}
 
   private async loadChildTermsSignature(childId: string) {
     this.termsLoading = true;
@@ -689,17 +884,22 @@ private isAllowedReferralFile(file: File): boolean {
       const { data, error } = await db
         .from('lessons')
         .select(`
-          id,
-          lesson_type,
-          day_of_week,
-          start_time,
-          end_time,
-          anchor_week_start,
-          series_end_date,
-          is_open_ended,
-          status,
-          payment_docs_url
-        `)
+  id,
+  lesson_type,
+  day_of_week,
+  start_time,
+  end_time,
+  anchor_week_start,
+  series_end_date,
+  is_open_ended,
+  status,
+  payment_docs_url,
+  payment_plan_id,
+  payment_plans (
+    required_docs,
+    require_docs_at_booking
+  )
+`)
         .eq('child_id', childId)
         .eq('lesson_type', 'סידרה')
         .order('anchor_week_start', { ascending: false })
@@ -719,6 +919,9 @@ private isAllowedReferralFile(file: File): boolean {
         isOpenEnded: row.is_open_ended ?? null,
         status: row.status ?? null,
         paymentDocsUrl: row.payment_docs_url ?? null,
+        paymentPlanId: row.payment_plan_id ?? null,
+        requiredDocs: row.payment_plans?.required_docs ?? [],
+        requireDocsAtBooking: row.payment_plans?.require_docs_at_booking ?? null,
       }));
     } catch (e: any) {
       console.error('loadChildSeriesDocs error:', e);
@@ -728,6 +931,8 @@ private isAllowedReferralFile(file: File): boolean {
       this.seriesDocsLoading = false;
     }
   }
+
+  
 getChildTitle(): string {
   const gender = this.drawerChild?.gender;
 
@@ -740,6 +945,15 @@ getChildTitle(): string {
     if (gender === 'נקבה') return 'פרטי הילדה';
     return 'פרטי ילד/ה';
   }
+}
+
+seriesRequiresDocs(row: SeriesDocRow): boolean {
+  return !!row.requireDocsAtBooking && Array.isArray(row.requiredDocs) && row.requiredDocs.length > 0;
+}
+
+getRequiredDocsText(row: SeriesDocRow): string {
+  if (!row.requiredDocs?.length) return '';
+  return row.requiredDocs.join(', ');
 }
   getSeriesEndDisplay(row: SeriesDocRow): string {
     if (row.isOpenEnded) return 'סדרה ללא הגבלה';
@@ -815,7 +1029,7 @@ getChildTitle(): string {
           this.hebrewNameValidator(),
         ],
       ],
-      health_fund: [child.health_fund ?? null],
+      funding_source_id: [child.funding_source_id ?? null],
       status: [child.status ?? null],
       medical_notes: [
         child.medical_notes ?? '',
@@ -853,7 +1067,7 @@ getChildTitle(): string {
     const fieldsToCompare: (keyof ChildDetails)[] = [
       'first_name',
       'last_name',
-      'health_fund',
+      'funding_source_id',
       'status',
       'medical_notes',
       'behavior_notes',
@@ -980,6 +1194,25 @@ getChildTitle(): string {
   closeWizard() {
     this.showAddChildWizard = false;
   }
+  private async loadFundingSources(): Promise<void> {
+  const db = await this.dbc();
+
+  const { data, error } = await db
+    .from('funding_sources')
+    .select('id, name')
+    .eq('is_system', true)
+    .eq('is_active', true)
+    .order('name', { ascending: true });
+
+  if (error) throw error;
+
+  this.healthFunds = data ?? [];
+}
+
+getFundingSourceName(id: string | null | undefined): string {
+  if (!id) return '—';
+  return this.healthFunds.find(f => f.id === id)?.name ?? '—';
+}
 }
 
 @Component({
@@ -1084,4 +1317,5 @@ export class TermsPdfDialogComponent {
   close() {
     this.dialog.closeAll();
   }
+  
 }

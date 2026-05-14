@@ -1,73 +1,103 @@
-<header class="site-header">
-  <!-- צד שמאל: שם חווה + תיאור + עיגול לוגו לחיץ -->
-  <div class="left-group">
-   <div class="farm-section">
-<button
-  type="button"
-  class="farm-logo"
-  (click)="goHome()"
-  [title]="farmName || 'עמוד הבית'"
-  [style.background]="farmLogoUrl ? 'center / cover no-repeat url(' + farmLogoUrl + ')' : ''"
->
-  <span *ngIf="!farmLogoUrl" class="logo-initials">{{ farmInitials }}</span>
-</button>
+<header class="site-header" dir="rtl">
+  <!-- ימין: פרטי חווה -->
+  <button
+    type="button"
+    class="farm-logo"
+    (click)="goHome()"
+    [title]="farmName || 'עמוד הבית'"
+    [style.background]="farmLogoUrl ? 'center / cover no-repeat url(' + farmLogoUrl + ')' : ''">
+    <span *ngIf="!farmLogoUrl" class="logo-initials">{{ farmInitials }}</span>
+  </button>
 
-
-<span *ngIf="farmName" class="farm-name">{{ farmName }}</span>
-<span *ngIf="farmNote" class="farm-note">{{ farmNote }}</span>
-
-  <span *ngIf="farmName" class="farm-name">{{ farmName }}</span>
-  <span *ngIf="farmNote" class="farm-note">{{ farmNote }}</span>
-</div>
-
-   
+  <div class="farm-info">
+    <div class="farm-name" *ngIf="farmName">{{ farmName }}</div>
+    <div class="farm-note" *ngIf="farmNote">{{ farmNote }}</div>
   </div>
 
-  <!-- צד ימין: אזור הזדהות/מחליף תפקידים -->
- <div class="auth-section" dir="rtl">
-    <div class="parent-details">
-      <span *ngIf="userName" class="parent-name">
-        <span class="parent-name-text">
-          {{ userName }}
-        </span>
+  <!-- מרכז: משתמש -->
+  <div class="user-area">
+    <span class="user-icon"></span>
 
-        <!-- חץ דרופדאון – רק אם יש יותר מחברות אחת -->
+    <div class="user-text">
+      <div class="user-name-row">
+        <span class="user-name">{{ userName }}</span>
+
         <ng-container *ngIf="memberships.length > 1">
           <button
             type="button"
             class="role-toggle-btn"
             (click)="toggleRoleMenu($event)"
             [class.open]="isRoleMenuOpen"
-            aria-label="החלפת תפקיד"
-          >
+            aria-label="החלפת תפקיד">
             <span class="chevron"></span>
           </button>
 
-          <!-- חלונית בחירה -->
           <ul class="role-menu" *ngIf="isRoleMenuOpen">
             <li
               *ngFor="let m of memberships"
               (click)="onChooseMembership(m)"
-              [class.active]="m.tenant_id === selected?.tenant_id"
-            >
+              [class.active]="m.tenant_id === selected?.tenant_id">
               <div class="role-line">{{ formatMembershipRole(m) }}</div>
               <div class="farm-line">{{ formatMembershipFarm(m) }}</div>
             </li>
           </ul>
         </ng-container>
-      </span>
+      </div>
 
-      <span *ngIf="userRole" class="parent-Role">
-        {{ userRole }}
-      </span>
+      <div class="user-role" *ngIf="userRole">{{ userRole }}</div>
     </div>
+  </div>
 
-    <button
-      class="auth-button"
-      [ngClass]="isLoggedIn ? 'logout' : 'login'"
-      (click)="handleLoginLogout()"
-    >
-      {{ isLoggedIn ? 'התנתק' : 'התחבר' }}
+
+  <!-- שמאל: התנתקות -->
+   
+<div class="header-actions">
+  <button
+    *ngIf="showInstallButton"
+    type="button"
+    class="install-button"
+    (click)="onInstallClick()"
+    aria-label="התקנת האפליקציה">
+    <span class="install-icon"></span>
+    <span class="install-label">התקן אפליקציה</span>
+  </button>
+
+  <button
+    type="button"
+    class="auth-button"
+    [ngClass]="isLoggedIn ? 'logout' : 'login'"
+    (click)="handleLoginLogout()"
+    [attr.aria-label]="isLoggedIn ? 'התנתק' : 'התחבר'">
+    <span class="auth-icon"></span>
+    <span class="auth-label">{{ isLoggedIn ? 'התנתק' : 'התחבר' }}</span>
+  </button>
+</div>
+</header>
+<div class="install-overlay" *ngIf="installGuideOpen" (click)="closeInstallGuide()">
+  <div class="install-modal" dir="rtl" (click)="$event.stopPropagation()">
+    <button type="button" class="install-close" (click)="closeInstallGuide()">×</button>
+
+    <div class="install-modal-icon">📲</div>
+
+    <h2>{{ installGuideTitle }}</h2>
+    <p>{{ installGuideText }}</p>
+
+    <ol class="install-steps" *ngIf="isIosDevice">
+      <li>פתח את האתר דרך Safari.</li>
+      <li>לחץ על כפתור השיתוף <strong>⬆️</strong>.</li>
+      <li>בחרי <strong>הוסף למסך הבית</strong>.</li>
+      <li>לחץ <strong>הוסף</strong>.</li>
+    </ol>
+
+    <ol class="install-steps" *ngIf="isDesktopDevice">
+      <li>פתח את האתר מהטלפון.</li>
+      <li>באנדרואיד השתמש ב־Chrome.</li>
+      <li>באייפון השתמש ב־Safari.</li>
+    </ol>
+
+    <button type="button" class="install-ok" (click)="closeInstallGuide()">
+      הבנתי
     </button>
   </div>
-</header>
+</div>
+

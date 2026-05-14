@@ -27,7 +27,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { dbTenant, getCurrentUserDetails } from '../../services/legacy-compat';
 import { CurrentUserService } from '../../core/auth/current-user.service';
 
-
+import { Router } from '@angular/router';
 
 /* ===================== TYPES ===================== */
 
@@ -140,6 +140,8 @@ private _attendanceStatus: AttendanceStatus = null;
  private presentMarkedNow: boolean = false;
 private noteAddedThisSession = false;
 
+showIntakeModal = false;
+
 // ⚠️ אזהרה – ניסיון סימון נוכחות מוקדם מדי
 showEarlyAttendanceWarning = false;
 private earlyAttendanceTimer: any = null;
@@ -174,6 +176,7 @@ isInitializing = true;   // ⏳ חסימת אזהרות בזמן טעינה
 
 private dbc = dbTenant();
 private cu = inject(CurrentUserService);
+private router = inject(Router);
 
 
   notesGeneral: NoteVM[] = [];
@@ -188,6 +191,9 @@ newOfficeNote = '';
   readyNotes: ReadyNote[] = [];
 
   newNote = '';
+
+  intakeUrl: string | null = null;
+intakeLoading = false;
 
 lessonDetails: LessonDetails = {
   lesson_id: '',
@@ -234,6 +240,11 @@ showCloseWarning: any;
     ];
     return allowed.includes(raw as RoleInTenant) ? (raw as RoleInTenant) : null;
   }
+
+  get isSecretaryView(): boolean {
+  return this.effectiveRole() === 'secretary';
+}
+
 get canEditMakeupAllowed(): boolean {
   const r = this.effectiveRole();
   return r === 'secretary' || r === 'manager' || r === 'admin';
@@ -269,6 +280,7 @@ async ngOnInit() {
   this.isInitializing = true;
 
   await this.loadChildDetails();
+  await this.loadIntakeDocument();
   await this.loadHorses();
   await this.loadArenas();
   await this.loadReadyNotes();
@@ -299,6 +311,7 @@ async ngOnChanges(changes: SimpleChanges) {
 
     if (changes['child']) {
       await this.loadChildDetails();
+      await this.loadIntakeDocument();
     }
 
     await this.loadLessonDetails();
@@ -1153,6 +1166,50 @@ tryClose() {
   this.close.emit();
 }
 
+async loadIntakeDocument() {
+  const childId = this.child?.child_uuid;
+  if (!childId) return;
 
+  this.intakeLoading = true;
+
+  const { data, error } = await this.dbc
+    .from('child_documents')
+    .select('file_url, document_name, created_at')
+    .eq('child_id', childId)
+    .eq('document_name', 'אינטק')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[NOTE] load intake document error', error);
+    this.intakeUrl = null;
+    this.intakeLoading = false;
+    return;
+  }
+
+  this.intakeUrl = data?.file_url ?? null;
+  this.intakeLoading = false;
+}
+
+goToChildCard() {
+  const childId = this.child?.child_uuid;
+  if (!childId) return;
+
+  this.close.emit();
+
+  this.router.navigate(['/secretary/children'], {
+    queryParams: { childId }
+  });
+}
+
+openIntake() {
+  if (!this.intakeUrl) return;
+  this.showIntakeModal = true;
+}
+
+closeIntakeModal() {
+  this.showIntakeModal = false;
+}
 
 }

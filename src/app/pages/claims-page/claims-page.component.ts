@@ -30,6 +30,10 @@ interface LessonClaimRow {
   child_id: string;
   childName: string;
 
+  childIdNumber: string | null;
+  childFirstName: string | null;
+  childLastName: string | null;
+
   start_time: string | null;
   end_time: string | null;
 
@@ -41,6 +45,9 @@ interface LessonClaimRow {
   claimOpened: boolean;
   claimSubmitted: boolean;
   claimStatus: ClaimStatus;
+
+  reportMonth: string; // YYYY-MM
+reportMonthLabel: string; // MM/YYYY
 }
 
 interface FiltersState {
@@ -77,7 +84,8 @@ export class ClaimsPageComponent implements AfterViewInit {
 
   activeTab: HmoTab = 'CLALIT';
 
-  displayedColumns: string[] = [
+  get displayedColumns(): string[] {
+  const base = [
     'select',
     'instructor',
     'child',
@@ -85,10 +93,16 @@ export class ClaimsPageComponent implements AfterViewInit {
     'time',
     'occurred',
     'chargeable',
-    'claimOpened',
-    'claimStatus',
-    'actions',
   ];
+
+  if (this.activeTab === 'CLALIT') {
+    base.push('claimOpened');
+  }
+
+  base.push('claimStatus', 'actions');
+
+  return base;
+}
 
   lessons: LessonClaimRow[] = [];
   dataSource = new MatTableDataSource<LessonClaimRow>([]);
@@ -110,21 +124,204 @@ export class ClaimsPageComponent implements AfterViewInit {
   async ngAfterViewInit() {
     await this.tenantSvc.ensureTenantContextReady?.();
     this.dataSource.paginator = this.paginator;
-    await this.reloadClalit();
+    await this.reloadCurrentTab();
   }
+
+  async onTabChange(index: number) {
+  this.activeTab = index === 0 ? 'CLALIT' : index === 1 ? 'MACCABI' : 'MEUHEDET';
+  this.selectedIds.clear();
+  await this.reloadCurrentTab();
+}
+
+async reportSelectedToFundingSource() {
+  if (!this.selectedRows.length) return;
+
+  if (this.activeTab === 'CLALIT') {
+    await this.submitSelectedClaims();
+    return;
+  }
+
+  if (this.activeTab === 'MACCABI') {
+   // await this.reportToMaccabi();
+   await this.testMaccabiAutomation();
+    return;
+  }
+
+  if (this.activeTab === 'MEUHEDET') {
+    console.log('דיווח למאוחדת:', this.selectedRows);
+    return;
+  }
+}
+
+async testMaccabiAutomation() {
+  const tenant = this.tenantSvc.requireTenant();
+
+  const grouped = new Map<string, any>();
+
+  for (const r of this.selectedRows) {
+    const reportMonth = r.occur_date.slice(0, 7); // 2026-04
+    const key = `${reportMonth}__${r.childIdNumber}`;
+
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        reportMonth,
+        child_id: r.child_id,
+        child_name: r.childName,
+        child_id_number: r.childIdNumber,
+        child_first_name: r.childFirstName,
+        child_last_name: r.childLastName,
+        lessons: [],
+      });
+    }
+
+    grouped.get(key).lessons.push({
+      lesson_id: r.lesson_id,
+      occur_date: r.occur_date,
+      start_time: r.start_time,
+      end_time: r.end_time,
+      instructor_id: r.instructor_id,
+      instructor_name: r.instructorName,
+      attendance_status: r.attendance_status,
+      chargeable: r.chargeable,
+    });
+  }
+
+  const groupsForMaccabi = Array.from(grouped.values());
+
+  console.log('Sending grouped lessons to Maccabi agent:', groupsForMaccabi);
+
+  const res = await fetch('/api/createMaccabiAutomationJob', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      schema: tenant.schema,
+      groups: groupsForMaccabi,
+    }),
+  });
+
+  const data = await res.json();
+  console.log('Maccabi job created:', data);
+
+  if (!data.ok) {
+    alert(data.message || 'שגיאה ביצירת משימת מכבי');
+    return;
+  }
+
+  alert('המשימה נשלחה לאוטומציה. מספר משימה: ' + data.jobId);
+}
+
+async reportToMaccabi() {
+  const res = await fetch('/api/maccabi-report', {
+    method: 'POST',
+    body: JSON.stringify({
+      lessons: this.selectedRows
+    })
+  });
+
+  const data = await res.json();
+  console.log(data);
+}
 
   // =========================================
   // טעינה
   // =========================================
-  private async reloadClalit() {
-    const prevSelected = new Set(this.selectedIds);
+  private async reloadCurrentTab() {
+  const prevSelected = new Set(this.selectedIds);
 
-    await this.loadClaimsLessonsClalit();
-    this.applyFilters();
+  await this.loadClaimsLessons();
+  this.applyFilters();
 
-    const visibleIds = new Set(this.dataSource.data.map(r => r.id));
-    this.selectedIds = new Set(Array.from(prevSelected).filter(id => visibleIds.has(id)));
+  const visibleIds = new Set(this.dataSource.data.map(r => r.id));
+  this.selectedIds = new Set(Array.from(prevSelected).filter(id => visibleIds.has(id)));
+}
+
+private async loadClaimsLessons() {
+  const dbc = dbTenant();
+
+  const fromDate = new Date(Date.now() - 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const toDate = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+  const { data, error } = await dbc
+  .from(this.getViewNameByTab())
+  .select(`
+    lesson_id,
+    occur_date,
+    child_id,
+    child_name,
+
+    child_id_number,
+    child_first_name,
+    child_last_name,
+
+    instructor_id,
+    instructor_name,
+    start_time,
+    end_time,
+    attendance_status,
+    chargeable,
+    claim_opened,
+    claim_submitted,
+    claim_status
+  `)
+    .gte('occur_date', fromDate)
+    .lte('occur_date', toDate)
+    .order('occur_date', { ascending: true })
+    .order('start_time', { ascending: true });
+
+  if (error) {
+    console.error('Error loading claims lessons:', error);
+    this.lessons = [];
+    this.dataSource.data = [];
+    return;
   }
+
+  this.lessons = (data ?? []).map((r: any) => {
+    const lesson_id = String(r.lesson_id);
+    const occur_date = String(r.occur_date);
+
+    const att = String(r.attendance_status ?? 'unknown').trim().toLowerCase();
+    const occurred = [
+  'present',
+  'arrived',
+  'attended',
+  'yes',
+  'הגיע',
+  'נכח',
+  'בוצע',
+].includes(att);
+
+const reportMonth = occur_date.slice(0, 7); // 2026-04
+const [y, m] = reportMonth.split('-');
+const reportMonthLabel = `${m}/${y}`;
+
+    return {
+      id: `${lesson_id}__${occur_date}`,
+      lesson_id,
+      occur_date,
+      instructor_id: r.instructor_id ? String(r.instructor_id) : null,
+      instructorName: String(r.instructor_name ?? ''),
+      child_id: String(r.child_id),
+      childName: String(r.child_name ?? ''),
+      childIdNumber: r.child_id_number ? String(r.child_id_number) : null,
+      childFirstName: r.child_first_name ? String(r.child_first_name) : null,
+      childLastName: r.child_last_name ? String(r.child_last_name) : null,
+      start_time: r.start_time ?? null,
+      end_time: r.end_time ?? null,
+      attendance_status: String(r.attendance_status ?? 'unknown'),
+      occurred,
+      chargeable: Boolean(r.chargeable) && occurred,
+      claimOpened: Boolean(r.claim_opened),
+      claimSubmitted: Boolean(r.claim_submitted),
+      claimStatus: (r.claim_status ?? 'NONE') as ClaimStatus,
+      reportMonth,
+      reportMonthLabel,
+    };
+  });
+
+  this.dataSource.data = this.lessons;
+}
 
   private async loadClaimsLessonsClalit() {
     const dbc = dbTenant();
@@ -173,16 +370,25 @@ export class ClaimsPageComponent implements AfterViewInit {
       const chargeable = Boolean(r.chargeable) && occurred;
       const claimStatus = (r.claim_status ?? 'NONE') as ClaimStatus;
 
+      const  reportMonth = occur_date.slice(0, 7); // 2026-04
+      const [y, m] = reportMonth.split('-');
+      const reportMonthLabel = `${m}/${y}`;
+
       return {
         id: `${lesson_id}__${occur_date}`,
         lesson_id,
         occur_date,
+        reportMonth,
+        reportMonthLabel,
 
         instructor_id: r.instructor_id ? String(r.instructor_id) : null,
         instructorName: String(r.instructor_name ?? ''),
 
         child_id: String(r.child_id),
         childName: String(r.child_name ?? ''),
+        childIdNumber: r.child_id_number ? String(r.child_id_number) : null,
+        childFirstName: r.child_first_name ? String(r.child_first_name) : null,
+        childLastName: r.child_last_name ? String(r.child_last_name) : null,
 
         start_time: r.start_time ?? null,
         end_time: r.end_time ?? null,
@@ -271,8 +477,14 @@ export class ClaimsPageComponent implements AfterViewInit {
   // בחירה
   // =========================================
   isRowSelectable(row: LessonClaimRow): boolean {
-    return row.chargeable && row.claimStatus !== 'APPROVED';
+  if (!row.chargeable) return false;
+
+  if (this.activeTab === 'CLALIT') {
+    return row.claimStatus !== 'APPROVED';
   }
+
+  return true;
+}
 
   isSelected(row: LessonClaimRow): boolean {
     return this.selectedIds.has(row.id);
@@ -293,6 +505,17 @@ export class ClaimsPageComponent implements AfterViewInit {
   getSelectableRowsInPage(): LessonClaimRow[] {
     return this.getCurrentPageRows().filter(r => this.isRowSelectable(r));
   }
+
+  private getViewNameByTab(): string {
+  switch (this.activeTab) {
+    case 'CLALIT':
+      return 'claims_lessons_clalit_v';
+    case 'MACCABI':
+      return 'claims_lessons_maccabi_v';
+    case 'MEUHEDET':
+      return 'claims_lessons_meuhedet_v';
+  }
+}
 
   isAllSelectedOnPage(): boolean {
     const rows = this.getSelectableRowsInPage();
@@ -384,7 +607,7 @@ export class ClaimsPageComponent implements AfterViewInit {
       });
     }
 
-    await this.reloadClalit();
+    await this.reloadCurrentTab();
   }
 
   // =========================================
@@ -405,7 +628,7 @@ export class ClaimsPageComponent implements AfterViewInit {
       if (error) console.error('submit_lesson_claim_clalit failed:', row, error);
     }
 
-    await this.reloadClalit();
+    await this.reloadCurrentTab();
   }
 
   canDeleteClaimRow(row: LessonClaimRow): boolean {
@@ -427,7 +650,7 @@ export class ClaimsPageComponent implements AfterViewInit {
     }
 
     this.selectedIds.delete(row.id);
-    await this.reloadClalit();
+    await this.reloadCurrentTab();
   }
 
   markChargeable(_row: LessonClaimRow) {}

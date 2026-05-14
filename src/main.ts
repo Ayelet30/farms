@@ -9,6 +9,7 @@ import { LOCALE_ID, DEFAULT_CURRENCY_CODE, isDevMode } from '@angular/core';
 
 import './app/core/firebase.client';
 import { provideAnimations } from '@angular/platform-browser/animations';
+import { provideServiceWorker } from '@angular/service-worker';
 
 registerLocaleData(localeHe);
 
@@ -18,7 +19,10 @@ bootstrapApplication(App, {
     provideAnimations(),
     { provide: LOCALE_ID, useValue: 'he' },
     { provide: DEFAULT_CURRENCY_CODE, useValue: 'ILS' },
-    ...appConfig.providers,
+    ...appConfig.providers, provideServiceWorker('ngsw-worker.js', {
+            enabled: !isDevMode(),
+            registrationStrategy: 'registerWhenStable:30000'
+          }),
   ],
 }).catch(err => console.error(err));
 

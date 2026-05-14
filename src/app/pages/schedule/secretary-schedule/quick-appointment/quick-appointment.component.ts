@@ -17,6 +17,7 @@ type ChildRow = {
   status?: string | null;
   medical_notes?: string | null;
   behavior_notes?: string | null;
+  funding_source_id?: string | null;
 };
 
 type InstructorRow = {
@@ -43,6 +44,11 @@ type PaymentPlan = {
   require_docs_at_booking: boolean;
   required_docs: string[] | null;
   funding_source_id: string | null;
+  funding_sources?: {
+  id: string;
+  name: string;
+  is_system: boolean;
+} | null;
 };
 
 type ExistingParticipant = {
@@ -308,7 +314,8 @@ clearChildSelection(): void {
         scheduled_deletion_at,
         status,
         medical_notes,
-        behavior_notes
+        behavior_notes,
+        funding_source_id
       `)
       .in('status', ['Active', 'Deletion Scheduled', 'Pending Deletion Approval']);
 
@@ -360,7 +367,12 @@ clearChildSelection(): void {
         customer_amount,
         require_docs_at_booking,
         required_docs,
-        funding_source_id
+        funding_source_id,
+         funding_sources:funding_source_id (
+    id,
+    name,
+    is_system
+  )
       `)
       .eq('is_active', true)
       .order('name', { ascending: true });
@@ -447,6 +459,7 @@ clearChildSelection(): void {
   if (!this.selectedChildId) return;
 
   const child = this.children.find(c => c.child_uuid === this.selectedChildId);
+  this.selectedPaymentPlanId = null;
   if (child) {
     this.childSearchTerm = `${child.first_name ?? ''} ${child.last_name ?? ''}`.trim();
   }
@@ -525,6 +538,7 @@ clearChildSelection(): void {
     origin?: string;
     maxParticipants: number;
     referralUrl?: string | null;
+    fundingSourceId?: string | null;
   }): Promise<CreateSeriesWithValidationResult | null> {
     const { data, error } = await dbTenant().rpc('create_series_with_validation', {
       p_child_id: this.selectedChildId,
@@ -541,7 +555,7 @@ clearChildSelection(): void {
     p_existing_approval_id: null,
     p_referral_url: params.referralUrl ?? null,
     p_payment_docs_url: null,
-      p_health_fund: null,
+p_funding_source_id: params.fundingSourceId ?? null,
       p_approval_number: null,
       p_total_lessons: null,
       p_origin: params.origin ?? 'secretary',
@@ -679,6 +693,7 @@ if (
           origin: 'secretary',
           referralUrl,
           maxParticipants: this.getEffectiveMaxParticipants(),
+          fundingSourceId: this.selectedChild?.funding_source_id ?? null,
         });
 
         if (!res?.ok) {
@@ -723,6 +738,7 @@ this.referralUrl = null;
           origin: 'secretary',
           maxParticipants: this.slotInfo?.max_participants ?? 1,
             referralUrl,
+            fundingSourceId: this.selectedChild?.funding_source_id ?? null,
         });
 
         if (!res?.ok) {
@@ -761,6 +777,7 @@ this.referralUrl = null;
           origin: 'secretary',
           maxParticipants: this.slotInfo?.max_participants ?? 1,
               referralUrl,
+              fundingSourceId: this.selectedChild?.funding_source_id ?? null,
         });
 
         if (!res?.ok) {
@@ -866,5 +883,22 @@ private async uploadReferralIfNeeded(childId: string): Promise<string | null> {
     console.error('referral upload exception', error);
     throw error;
   }
+}
+get availablePaymentPlans(): PaymentPlan[] {
+  const childFundingSourceId = this.selectedChild?.funding_source_id ?? null;
+
+  return this.paymentPlans.filter(plan => {
+    const source = plan.funding_sources ?? null;
+
+    if (!plan.funding_source_id || !source) {
+      return true;
+    }
+
+    if (source.is_system === false) {
+      return true;
+    }
+
+    return plan.funding_source_id === childFundingSourceId;
+  });
 }
 }

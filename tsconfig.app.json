@@ -5,7 +5,7 @@
   "compilerOptions": {
     "outDir": "./out-tsc/app",
         "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
+    "emitDecoratorMetadata": false,
     "skipLibCheck": true,
 
     "types": []

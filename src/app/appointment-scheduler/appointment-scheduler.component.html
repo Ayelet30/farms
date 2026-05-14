@@ -376,7 +376,7 @@
         בחר/י מסלול תשלום
       </option>
 
-      <option *ngFor="let plan of paymentPlans" [ngValue]="plan.id">
+      <option *ngFor="let plan of availablePaymentPlans" [ngValue]="plan.id">
         {{ plan.name }}
         <ng-container *ngIf="plan.customer_amount != null">
           – {{ plan.customer_amount | number:'1.0-0' }} ₪ לשיעור
@@ -797,15 +797,23 @@
     </p>
   </div>
 </div>
-<div class="slots-list occupancy-slots" dir ='rtl'
-     *ngIf="selectedTab === 'occupancy' && selectedOccupancyCandidate">
+<div
+  class="slots-list occupancy-slots"
+  dir="rtl"
+  *ngIf="
+    selectedTab === 'occupancy' &&
+    selectedChildId &&
+    selectedOccupancyCandidate &&
+    occupancyCandidates.length > 0 &&
+    occupancySlots.length > 0
+  "
+>
   <h4>
     שיעורים זמינים למילוי מקום עבור
     {{ selectedOccupancyCandidate.occur_date }}
   </h4>
 
-  <table *ngIf="occupancySlots.length > 0" dir = 'rtl'>
-    <thead>
+<table dir="rtl">    <thead>
       <tr>
         <th>תאריך</th>
         <th>יום</th>
@@ -841,12 +849,18 @@
 
   <p class="error" *ngIf="occupancySlotsError">{{ occupancySlotsError }}</p>
 
-  <p
-    class="empty-text"
-    *ngIf="!loadingOccupancySlots && !occupancySlotsError && occupancySlots.length === 0"
-  >
-    אין זמינות למילוי מקום בטווח שנבחר.
-  </p>
+ <p
+  class="empty-text"
+  *ngIf="
+    selectedTab === 'occupancy' &&
+    selectedOccupancyCandidate &&
+    !loadingOccupancySlots &&
+    !occupancySlotsError &&
+    occupancySlots.length === 0
+  "
+>
+  אין זמינות למילוי מקום בטווח שנבחר.
+</p>
 </div>
 
  <!-- ======== טאב: שיעור השלמה ======== -->

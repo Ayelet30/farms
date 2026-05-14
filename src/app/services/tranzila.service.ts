@@ -106,9 +106,7 @@ chargeSelectedChargesForParent(args: {
   tenantSchema: string;
   secretaryEmail: string;
   chargeIds: string[];
-  invoiceExtraText?: string | null; 
-
-  
+invoiceExtraLinesByChild?: Record<string, string>;
 }) {
   return firstValueFrom(
     this.http.post<{ ok: boolean; results: any[]; failedCount: number }>(

@@ -88,19 +88,51 @@
           <div class="form-field">
             <label>קופת חולים</label>
             <div class="health-fund-row">
-          <select [(ngModel)]="child.health_fund" (change)="onHealthFundChange()">
-            <option value="" disabled hidden>בחר/י קופה</option>
-            <option *ngFor="let hf of healthFunds" [value]="hf">{{ hf }}</option>
-          </select>
+              <select [(ngModel)]="child.funding_source_id" name="funding_source_id"
+                (ngModelChange)="onFundingSourceChange($event)">
+                <option value="">בחרי קופת חולים</option>
 
-          <span *ngIf="isExemptFromPayment" class="exempt-badge">
-            פטור מתשלום
-          </span>
-        </div>
-            <div class="error-msg" *ngIf="validationErrors['health_fund']">{{ validationErrors['health_fund'] }}</div>
+                <option *ngFor="let hf of healthFunds" [value]="hf.id">
+                  {{ hf.name }}
+                </option>
+              </select>
+
+              <span *ngIf="isExemptFromPayment" class="exempt-badge">
+                פטור מתשלום
+              </span>
+            </div>
+            <div class="error-msg" *ngIf="validationErrors['funding_source_id']">
+              {{ validationErrors['funding_source_id'] }}
+            </div>
           </div>
         </div>
+        <div class="form-field full-width" *ngIf="registrationCharges.length">
+          <label>חיובים בהרשמה</label>
 
+          <div class="registration-charge-row" *ngFor="let c of registrationCharges">
+
+            <!-- חיוב חובה: בלי checkbox בכלל -->
+            <div class="check-row required-charge" *ngIf="c.is_required">
+              <span>
+                {{ c.item }} — {{ c.amount | number:'1.0-2' }} ₪
+              </span>
+            </div>
+
+            <!-- חיוב לא חובה: עם checkbox לבחירת ההורה -->
+            <label class="check-row" *ngIf="!c.is_required">
+              <input type="checkbox" [checked]="c.selected"
+                (change)="onRegistrationChargeToggle(c, $any($event.target).checked)" />
+
+              <span>
+                {{ c.item }} — {{ c.amount | number:'1.0-2' }} ₪
+              </span>
+            </label>
+
+            <div class="warning-note" *ngIf="!c.is_required && c.warning_note && !c.selected">
+              ⚠ {{ c.warning_note }}
+            </div>
+          </div>
+        </div>
         <div class="form-field full-width">
           <label>הערות כלליות / רגישויות</label>
           <textarea rows="3" class="editable-input" [(ngModel)]="child.medical_notes_free" maxlength="4000"></textarea>
@@ -210,88 +242,95 @@
       </div>
 
       <!-- שלב 4: אמצעי תשלום -->
-      <div *ngIf="stepIndex === paymentStepIndex && isParentMode" class="step-pane payment-step">
+      <div *ngIf="stepIndex === paymentStepIndex" class="step-pane payment-step">
+
         <h3 class="step-title">אמצעי תשלום</h3>
 
-        <div class="payment-notes">
-          <div class="info-banner">
-            שימו לב! דמי רישום ייגבו רק מילדים חדשים בחווה — ולא מילדים חדשים באתר.
-          </div>
-
-          <div class="info-banner">
-            הכנסת פרטי האשראי נועדה לצורך חיובים עתידיים מהמערכת בלבד.
-          </div>
+        <!-- מצב פטור -->
+        <div *ngIf="!canEnterPaymentMethod" class="ok-banner">
+          לפי הגדרות חווה אינך צריך להכניס פרטי אשראי.
         </div>
 
-        <p class="step-hint" *ngIf="loadingPaymentProfile">טוען אמצעי תשלום שמור…</p>
+        <!-- מצב שכן צריך -->
+        <ng-container *ngIf="canEnterPaymentMethod">
 
-        <div *ngIf="!loadingPaymentProfile && hasSavedPaymentProfile" class="ok-banner">
-          יש לך כבר אמצעי תשלום שמור במערכת ✅<br />
-          דמי רישום (לאחר אישור מזכירה) והתשלום החודשי ייגבו מכרטיס שמסתיים ב־
-          <b>{{ savedPaymentProfile?.last4 }}</b>.
-          <div class="step-hint small" style="margin-top: 8px;">
-            כדי לשנות את הכרטיס יש לשלוח בקשה דרך
-            <b><a class="inline-link" routerLink="/parent/payments">אמצעי תשלום</a></b>.
-          </div>
-          <p class="step-hint small" style="margin-top: 8px;">* החיוב בפועל יבוצע רק לאחר אישור המזכירה.</p>
-        </div>
+          <div class="payment-notes">
 
-        <div *ngIf="!loadingPaymentProfile && !hasSavedPaymentProfile" class="payment-card">
-          <div class="payment-summary">
-            <div class="summary-row">
-              <span class="summary-label">דמי הרשמה</span>
-              <span class="summary-value">{{ payment.registrationAmount || 0 }} ₪</span>
+            <div class="info-banner" *ngIf="registrationCharges?.length; else noRegCharges">
+              הכנסת פרטי האשראי נועדה לצורך חיובים עתידיים מהמערכת ועבור החיובים המצויינים פה.
             </div>
 
-            <div class="error-msg" *ngIf="validationErrors['registrationAmount']">
-              {{ validationErrors['registrationAmount'] }}
-            </div>
-          </div>
+            <ng-template #noRegCharges>
+              <div class="info-banner">
+                הכנסת פרטי האשראי נועדה לצורך חיובים עתידיים מהמערכת.
+              </div>
+            </ng-template>
 
-          <div class="payment-fields-shell" [class.is-loading]="paymentFieldsLoading">
-            <div class="payment-loading-overlay" *ngIf="paymentFieldsLoading">
-              <div class="spinner"></div>
-              <div class="loading-title">טוען את טרנזילה…</div>
-              <div class="loading-subtitle">מכין עבורך את שדות האשראי בצורה מאובטחת</div>
+            <p class="step-hint" *ngIf="loadingPaymentProfile">
+              טוען אמצעי תשלום שמור…
+            </p>
+
+            <!-- כרטיס שמור -->
+            <div *ngIf="!loadingPaymentProfile && hasSavedPaymentProfile" class="ok-banner">
+              יש לך כבר אמצעי תשלום שמור במערכת ✅<br />
+              הכרטיס מסתיים ב־ <b>{{ savedPaymentProfile?.last4 }}</b>
             </div>
 
-            <div class="payment-fields-wrap">
-              <div class="hf-grid">
-                <div class="hf-box hf-box-wide">
-                  <label>מספר כרטיס</label>
-                  <div id="reg_credit_card_number" class="hf-field"></div>
-                  <div class="error-msg" id="reg_errors_for_credit_card_number"></div>
+            <!-- הכנסת כרטיס -->
+            <div *ngIf="!loadingPaymentProfile && !hasSavedPaymentProfile" class="payment-card">
+
+              <div class="payment-fields-shell" [class.is-loading]="paymentFieldsLoading">
+
+                <div class="payment-loading-overlay" *ngIf="paymentFieldsLoading">
+                  <div class="spinner"></div>
+                  <div class="loading-title">טוען את טרנזילה…</div>
                 </div>
 
-                <div class="hf-box">
-                  <label>תוקף</label>
-                  <div id="reg_expiry" class="hf-field"></div>
-                  <div class="error-msg" id="reg_errors_for_expiry"></div>
-                </div>
+                <div class="hf-grid">
 
-                <div class="hf-box">
-                  <label>CVV</label>
-                  <div id="reg_cvv" class="hf-field"></div>
-                  <div class="error-msg" id="reg_errors_for_cvv"></div>
+                  <div class="hf-box hf-box-wide">
+                    <label>מספר כרטיס</label>
+                    <div id="reg_credit_card_number" class="hf-field"></div>
+                    <div class="error-msg" id="reg_errors_for_credit_card_number"></div>
+                  </div>
+
+                  <div class="hf-box">
+                    <label>תוקף</label>
+                    <div id="reg_expiry" class="hf-field"></div>
+                    <div class="error-msg" id="reg_errors_for_expiry"></div>
+                  </div>
+
+                  <div class="hf-box">
+                    <label>CVV</label>
+                    <div id="reg_cvv" class="hf-field"></div>
+                    <div class="error-msg" id="reg_errors_for_cvv"></div>
+                  </div>
+
                 </div>
               </div>
+
+              <div class="payment-actions">
+                <button class="btn primary" type="button" (click)="tokenizeCard()"
+                  [disabled]="savingToken || paymentFieldsLoading">
+                  {{ savingToken ? 'שומר…' : 'שמירת אמצעי תשלום' }}
+                </button>
+              </div>
+
+              <div *ngIf="tokenSaved" class="ok-banner">
+                אמצעי תשלום נשמר בהצלחה ✅
+              </div>
+
+              <div *ngIf="tokenError" class="error-banner">
+                {{ tokenError }}
+              </div>
+
             </div>
+
           </div>
 
-          <div class="payment-actions">
-            <button class="btn primary" type="button" (click)="tokenizeCard()"
-              [disabled]="savingToken || paymentFieldsLoading">
-              {{ savingToken ? 'שומר…' : 'שמירת אמצעי תשלום' }}
-            </button>
-          </div>
-
-          <div *ngIf="tokenSaved" class="ok-banner">אמצעי תשלום נשמר בהצלחה ✅</div>
-          <div *ngIf="tokenError" class="error-banner">{{ tokenError }}</div>
-
-          <p class="step-hint small">* החיוב בפועל יבוצע רק לאחר אישור המזכירה.</p>
-          <div class="error-msg" *ngIf="validationErrors['token']">{{ validationErrors['token'] }}</div>
-        </div>
+        </ng-container>
       </div>
+
     </div>
 
     <!-- כפתורי ניווט -->

@@ -188,9 +188,7 @@ export class RequestSingleLessonDetailsComponent {
     return this.p?.payment_source ?? this.p?.paymentSource ?? '—';
   }
 
-  get healthFund(): string {
-    return this.p?.health_fund ?? '—';
-  }
+ 
 
   get approvalNumber(): string {
     return this.p?.approval_number ?? '—';
@@ -825,7 +823,7 @@ export class RequestSingleLessonDetailsComponent {
         p_payment_source: p.payment_source ?? null,
         p_existing_approval_id: null,
         p_payment_plan_id: p.payment_plan_id ?? null,
-        p_health_fund: p.health_fund ?? null,
+p_funding_source_id: p.funding_source_id ?? null,
         p_approval_number: p.approval_number ?? null,
         p_total_lessons: p.total_lessons ?? null,
         p_referral_url: p.referral_url ?? null,
@@ -1101,4 +1099,23 @@ const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifySingleL
 
     return json;
   }
+
+  get lessonDateFormatted(): string {
+  const raw =
+    this.request?.fromDate ??
+    this.p?.lesson_date ??
+    this.p?.requested_date ??
+    null;
+
+  if (!raw) return '—';
+
+  const d = this.parseDateOnly(String(raw));
+  if (!d) return '—';
+
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+
+  return `${dd}/${mm}/${yyyy}`;
+}
 }

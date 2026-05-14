@@ -10,6 +10,9 @@ import { computed } from '@angular/core';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { getAuth } from 'firebase/auth';
 import { requireTenant } from '../../services/supabaseClient.service';
+import { Output, EventEmitter } from '@angular/core';
+
+
 type AddChildDetails = {
   request_id: string;
   created_at: string;
@@ -25,8 +28,8 @@ type AddChildDetails = {
   birth_date: string | null;
   age_years: number | null;
   gender: string | null;
-  health_fund: string | null;
-
+funding_source_id: string | null;
+funding_source_name: string | null;
   medical_notes: string | null;
 
   growth_delay: boolean;
@@ -47,6 +50,13 @@ type AddChildDetails = {
   // ✅ חדש - מגיע מה-RPC
   signed_pdf_bucket: string | null;
   signed_pdf_path: string | null;
+
+  registration_charges: {
+  id: string;
+  item: string;
+  amount: number;
+  is_required: boolean;
+}[] | null;
 };
 
 type ToastKind = 'success' | 'error' | 'info';
@@ -63,8 +73,11 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
   @Input({ required: true }) decidedByUid!: string;
 
   @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
-@Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
+  @Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
   @Input() onError?: (e: { requestId?: string; message: string; raw?: any }) => void;
+
+  @Output() approved = new EventEmitter<any>();
+  @Output() rejected = new EventEmitter<any>();
 
   private db = dbTenant();
   private snack = inject(MatSnackBar);
@@ -72,7 +85,6 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
   busy = signal(false);
 action = signal<'approve' | 'reject' | null>(null);
 private tenantSvc = inject(SupabaseTenantService);
-isCreateBillingCharge = signal(false);
 
 busyText = computed(() => {
   switch (this.action()) {
@@ -160,7 +172,6 @@ private async rejectBySystem(reason: string): Promise<void> {
 
   async ngOnInit() {
     await this.loadDetails();
-    await this.loadFarmSettings();
   }
   
 private async callCloud(action: 'approve' | 'reject', extra?: { system?: boolean }) {
@@ -202,20 +213,7 @@ private async callCloud(action: 'approve' | 'reject', extra?: { system?: boolean
       }
     }
   }
- private async loadFarmSettings() {
-  const { data, error } = await this.db
-    .from('farm_settings')
-    .select('iscreatebillingcharge')
-    .maybeSingle();
-
-  if (error) {
-    console.error('loadFarmSettings error', error);
-    return;
-  }
-
-  this.isCreateBillingCharge.set(!!data?.iscreatebillingcharge);
-}
-
+ 
   async loadDetails() {
     this.loading.set(true);
     try {
@@ -330,12 +328,17 @@ private async callCloud(action: 'approve' | 'reject', extra?: { system?: boolean
 
     // ✅ הצלחה ב-DB
     const msg = 'הבקשה אושרה בהצלחה ✅';
+    this.approved.emit({
+      requestId: this.request.id,
+      newStatus: 'APPROVED'
+    });
 
     if (json?.emailOk === false) {
       this.toast('אושר ✅ אבל שליחת מייל נכשלה', 'error'); // כמו אצלך במחיקה
     } else {
       this.toast(msg, 'success');
     }
+
 
     this.onApproved?.({
       requestId: this.request.id,
@@ -392,6 +395,10 @@ async reject(args?: { source: 'user' | 'system'; reason?: string }) {
       : 'REJECTED';
 
     const msg = 'הבקשה נדחתה בהצלחה ✅';
+    this.rejected.emit({
+  requestId: this.request.id,
+  newStatus
+});
 
     if (json?.emailOk === false) {
       this.toast('נדחה ✅ אבל שליחת מייל נכשלה', 'error');
@@ -423,4 +430,7 @@ async reject(args?: { source: 'user' | 'system'; reason?: string }) {
       panelClass: [`sf-toast`, `sf-toast-${type}`],
     });
   }
+  get isPending(): boolean {
+  return this.request?.status === 'PENDING';
+}
 }

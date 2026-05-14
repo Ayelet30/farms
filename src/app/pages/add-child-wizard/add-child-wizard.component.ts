@@ -64,7 +64,14 @@ type FarmDoc = {
   storage_path: string;
   published_at: string;
 };
-
+interface RegistrationSpecialCharge {
+  id: string;
+  item: string;
+  amount: number;
+  warning_note: string | null;
+  is_required: boolean;
+  selected: boolean;
+}
 declare const TzlaHostedFields: any;
 
 type HostedFieldsInstance = {
@@ -108,7 +115,7 @@ export class AddChildWizardComponent implements OnInit {
   // =========================
   // ===== תשלום =====
   // ====================
-
+registrationCharges: RegistrationSpecialCharge[] = [];
 
   private hfReg: HostedFieldsInstance | null = null;
   private thtkReg: string | null = null;
@@ -145,22 +152,21 @@ export class AddChildWizardComponent implements OnInit {
   registrationFee: number | null = null;
 
 get hasRegistrationFee(): boolean {
+
+  // this.registrationFee = 1;
   return (this.registrationFee ?? 0) > 0 && !this.isExemptFromPayment;
+  // להוריד לאחר שמטפלים בדמי רישום וכו!!!
+  //return true;
 }
 
-onHealthFundChange() {
+onFundingSourceChangeForPayment() {
   this.rebuildSteps();
 
-  // אם היינו בשלב תשלום – להחזיר אחורה
   if (!this.hasRegistrationFee && this.stepIndex > this.steps.length - 1) {
     this.stepIndex = this.steps.length - 1;
   }
 }
 
-  get paymentStepIndex(): number {
-    if (!this.isParentMode || !this.hasRegistrationFee) return -1;
-    return 3; // parent: child(0), medical(1), terms(2), payment(3)
-  }
 
   // ===== מצב =====
   get isParentMode() {
@@ -192,13 +198,12 @@ onHealthFundChange() {
     last_name: '',
     birth_date: '',
     gender: '',
-    health_fund: '',
+    funding_source_id: '',
     medical_notes_free: '',
     status: 'Pending Addition Approval' as ChildStatus,
   };
 
-  healthFunds: string[] = ['כללית', 'מאוחדת', 'מכבי', 'לאומית'];
-
+healthFunds: { id: string; name: string }[] = [];
   medical: MedicalFlags = {
     growthDelay: false,
     epilepsy: false,
@@ -221,6 +226,8 @@ onHealthFundChange() {
 
   async ngOnInit() {
     await this.loadRegistrationFeeFromDb();
+      await this.loadHealthFunds(); 
+
 
     if (this.isSecretaryMode) {
       await this.loadParentsForSecretary();
@@ -243,34 +250,74 @@ onHealthFundChange() {
     this.rebuildSteps();
   }
 
-  private rebuildSteps() {
-    const hasFee = this.hasRegistrationFee;
-
-    if (this.isParentMode) {
-      this.steps = ['פרטי ילד', 'שאלון רפואי', 'תקנון', ...(hasFee ? ['אמצעי תשלום'] : [])];
-    } else {
-      this.steps = ['פרטי ילד', 'שאלון רפואי', ...(hasFee ? ['אמצעי תשלום'] : [])];
-    }
+private rebuildSteps() {
+  if (this.isParentMode) {
+    this.steps = ['פרטי ילד', 'שאלון רפואי', 'תקנון', 'אמצעי תשלום'];
+  } else {
+    this.steps = ['פרטי ילד', 'שאלון רפואי', 'אמצעי תשלום'];
   }
+}
 
-  private async loadRegistrationFeeFromDb(): Promise<void> {
-    try {
-      await ensureTenantContextReady()
-      const db = dbTenant();
-      const { data, error } = await db.from('farm_settings').select('registration_fee').limit(1).maybeSingle()
+get paymentStepIndex(): number {
+  return this.steps.indexOf('אמצעי תשלום');
+}
 
-      if (error) throw error;
+get canEnterPaymentMethod(): boolean {
+  return this.isParentMode && !this.isExemptFromPayment;
+}
 
-      this.registrationFee = (data as any)?.registration_fee ?? 0;
+get shouldRequirePaymentMethod(): boolean {
+  return this.canEnterPaymentMethod;
+}
 
-      if (this.hasRegistrationFee) {
-        this.payment.registrationAmount = this.registrationFee ?? 0;
-      }
-    } catch (e) {
-      this.registrationFee = 0;
-    }
+ private async loadRegistrationFeeFromDb(): Promise<void> {
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const { data, error } = await db
+      .from('special_charges')
+      .select('id, item, amount, warning_note, is_required')
+      .eq('is_active', true)
+      .eq('charge_on_registration', true)
+      .order('sort_order', { ascending: true });
+
+    if (error) throw error;
+
+    this.registrationCharges = (data ?? []).map((c: any) => ({
+      id: c.id,
+      item: c.item,
+      amount: Number(c.amount ?? 0),
+      warning_note: c.warning_note ?? null,
+      is_required: !!c.is_required,
+      selected: !!c.is_required,
+    }));
+
+    this.recalculateRegistrationAmount();
+    console.log("!!!!!!!11111111"+ this.recalculateRegistrationAmount());
+  } catch (e) {
+    console.error('loadRegistrationFeeFromDb error', e);
+    this.registrationCharges = [];
+    this.registrationFee = 0;
+    this.payment.registrationAmount = 0;
   }
+}
+recalculateRegistrationAmount(): void {
+  // ✅ להחזיר לאחר שמטפלים בדמי רישום וכו!!!  
+  const total = this.registrationCharges
+    .filter(c => c.selected)
+    .reduce((sum, c) => sum + Number(c.amount || 0), 0);
 
+  //  const total = 1; // ✅ להוריד לאחר שמטפלים בדמי רישום וכו!!!    
+
+  this.registrationFee = total;
+  this.payment.registrationAmount = total;
+}
+onRegistrationChargeToggle(c: RegistrationSpecialCharge, checked: boolean): void {
+  c.selected = checked;
+  this.recalculateRegistrationAmount();
+  console.log("2222222222"+this.recalculateRegistrationAmount());
+}
   // =========================================
   // ===== תקנון: טעינה מ-farm_documents =====
   // =========================================
@@ -370,7 +417,7 @@ onHealthFundChange() {
   }
 
   // ===== ניווט =====
-  nextStep() {
+ nextStep() {
   if (!this.validateCurrentStep()) return;
 
   if (this.stepIndex < this.steps.length - 1) {
@@ -378,14 +425,12 @@ onHealthFundChange() {
   }
 
   if (
-  this.isParentMode &&
-  !this.isExemptFromPayment && // ✅ חדש
-  this.stepIndex === this.paymentStepIndex &&
-  this.hasRegistrationFee &&
-  !this.hasSavedPaymentProfile
-) {
-  setTimeout(() => this.ensureRegHostedFieldsReady(), 0);
-}
+    this.canEnterPaymentMethod &&
+    this.stepIndex === this.paymentStepIndex &&
+    !this.hasSavedPaymentProfile
+  ) {
+    setTimeout(() => this.ensureRegHostedFieldsReady(), 0);
+  }
 }
 
   prevStep() {
@@ -401,13 +446,20 @@ onHealthFundChange() {
   const farm = getCurrentFarmMetaSync();
   return farm?.schema_name === 'raanana_farm';
 }
+get selectedFundingSourceName(): string {
+  return this.healthFunds.find(h => h.id === this.child.funding_source_id)?.name ?? '';
+}
 
 get isMaccabi(): boolean {
-  return this.child.health_fund === 'מכבי';
+  return this.selectedFundingSourceName === 'מכבי';
+}
+
+get isLeumit(): boolean {
+  return this.selectedFundingSourceName === 'לאומית';
 }
 
 get isExemptFromPayment(): boolean {
-  return this.isRaananaFarm && this.isMaccabi;
+  return (this.isRaananaFarm && this.isMaccabi) || (this.isRaananaFarm && this.isLeumit);
 }
 
   allowOnlyNumbers(event: KeyboardEvent) {
@@ -438,8 +490,9 @@ get isExemptFromPayment(): boolean {
     if (!this.child.last_name) this.validationErrors['last_name'] = 'נא להזין שם משפחה';
     if (!this.child.birth_date) this.validationErrors['birth_date'] = 'יש לבחור תאריך לידה';
     if (!this.child.gender) this.validationErrors['gender'] = 'יש לבחור ערך';
-    if (!this.child.health_fund) this.validationErrors['health_fund'] = 'יש לבחור קופת חולים';
-  }
+if (!this.child.funding_source_id) {
+  this.validationErrors['funding_source_id'] = 'יש לבחור קופת חולים';
+}  }
 
   private validateMedical() {
     if (this.medical.autismSpectrum && !this.medical.autismFunction) {
@@ -463,31 +516,25 @@ get isExemptFromPayment(): boolean {
     if (!this.termsSignature.trim()) this.validationErrors['signature'] = 'נא להזין שם לחתימה דיגיטלית';
   }
 
-  private validatePayment() {
-  if (!this.hasRegistrationFee || this.isExemptFromPayment) return;
-    if (!this.hasRegistrationFee) return;
+ private validatePayment() {
+  if (!this.canEnterPaymentMethod) return;
 
-    const v = Number(this.payment.registrationAmount ?? 0);
-    if (!Number.isFinite(v) || v <= 0) {
-      this.validationErrors['registrationAmount'] = 'נא להזין סכום דמי הרשמה';
-    }
-
-    if (!this.hasSavedPaymentProfile && !this.tokenSaved) {
-      this.validationErrors['token'] = 'יש לשמור אמצעי תשלום לפני המשך';
-      this.error = 'יש ללחוץ על "שמירת אמצעי תשלום" לפני המשך';
-    }
+  if (!this.hasSavedPaymentProfile && !this.tokenSaved) {
+    this.validationErrors['token'] = 'יש לשמור אמצעי תשלום לפני המשך';
+    this.error = 'יש ללחוץ על "שמירת אמצעי תשלום" לפני המשך';
   }
+}
 
   // ===== שמירה =====
   async completeWizard() {
-    if (!this.validateCurrentStep()) return;
-
+  
+     if (!this.validateCurrentStep()) return;
+   
     this.saving = true;
     this.error = null;
 
     try {
       const dbc = dbTenant();
-
       let parentUid: string | null = null;
       if (this.isParentMode) {
         const user = await getCurrentUserData();
@@ -528,18 +575,18 @@ get isExemptFromPayment(): boolean {
         last_name: this.child.last_name,
         birth_date: this.child.birth_date,
         gender: this.child.gender,
-        health_fund: this.child.health_fund,
+        funding_source_id: this.child.funding_source_id || null,
         status,
         parent_uid: parentUid,
         medical_notes: medicalNotesCombined || null,
       };
-
+     
       const { data: insertedChild, error: insertChildError } = await dbc
         .from('children')
         .insert(childPayload)
-        .select(
-          'child_uuid, gov_id, first_name, last_name, birth_date, gender, health_fund, medical_notes, status, parent_uid'
-        )
+       .select(
+  'child_uuid, gov_id, first_name, last_name, birth_date, gender, funding_source_id, medical_notes, status, parent_uid'
+)
         .single();
 
       if (insertChildError || !insertedChild) {
@@ -551,8 +598,6 @@ get isExemptFromPayment(): boolean {
         }
         return;
       }
-
-
       const { data: reqData, error: reqErr } = await dbc.rpc('create_child_terms_requirement', {
         p_child_id: insertedChild.child_uuid,
       });
@@ -571,7 +616,14 @@ get isExemptFromPayment(): boolean {
       // במצב הורה – יוצרים גם בקשה למזכירה
       if (this.isParentMode) {
         const cardLast4 = this.savedPaymentProfile?.last4 ?? this.savedToken?.last4 ?? null;
+const requiresPaymentMethod = this.canEnterPaymentMethod;
 
+if (requiresPaymentMethod && !this.hasSavedPaymentProfile && !this.tokenSaved) {
+  this.stepIndex = this.paymentStepIndex;
+  this.validationErrors['token'] = 'יש לשמור אמצעי תשלום לפני שליחת הבקשה';
+  this.error = 'נדרש לשמור אמצעי תשלום לפני שליחת הבקשה';
+  return;
+}
         const secretarialPayload = {
           request_type: 'ADD_CHILD',
           status: 'PENDING',
@@ -584,7 +636,8 @@ get isExemptFromPayment(): boolean {
             last_name: insertedChild.last_name,
             birth_date: insertedChild.birth_date,
             gender: insertedChild.gender,
-            health_fund: insertedChild.health_fund,
+            funding_source_id: insertedChild.funding_source_id,
+            funding_source_name: this.selectedFundingSourceName, 
             medical_notes: insertedChild.medical_notes,
             medical_questionnaire: { ...this.medical },
             terms: {
@@ -594,24 +647,30 @@ get isExemptFromPayment(): boolean {
               document_id: this.activeTermsDoc?.id ?? null,
               document_version: this.activeTermsDoc?.version ?? null,
             },
-            registration_payment: this.hasRegistrationFee
-              ? {
-                  status: 'PENDING',
-                  registration_amount: this.payment.registrationAmount,
-                  method: 'credit_card',
-                  card_last4: cardLast4,
-                  note: cardLast4
-                    ? `חיוב לאחר אישור מזכירה מכרטיס שמסתיים ב-${cardLast4}`
-                    : 'חיוב לאחר אישור מזכירה',
-                }
-              : null,
+           registration_payment: requiresPaymentMethod
+  ? {
+      status: 'PENDING',
+      registration_amount: this.payment.registrationAmount,
+      method: 'credit_card',
+      card_last4: cardLast4,
+
+      selected_optional_special_charge_ids: this.registrationCharges
+        .filter(c => !c.is_required && c.selected)
+        .map(c => c.id),
+
+      note: cardLast4
+        ? `חיוב לאחר אישור מזכירה מכרטיס שמסתיים ב-${cardLast4}`
+        : 'חיוב לאחר אישור מזכירה',
+    }
+  : null,
+            
           },
         };
 
 
         const { error: secretarialError } = await dbc.from('secretarial_requests').insert(secretarialPayload);
 
-        if (secretarialError) {
+         if (secretarialError) {
           this.error = 'הילד נוסף למערכת, אך הייתה שגיאה בשליחת הבקשה למזכירה. אנא צרי קשר עם המשרד.';
           this.childAdded.emit();
           this.closed.emit();
@@ -960,7 +1019,6 @@ get isExemptFromPayment(): boolean {
           }
 
           const tx = response?.transaction_response;
-          console.log('Transaction response:', tx);
           if (!tx?.success) {
             this.tokenError = tx?.error || 'שמירת אמצעי תשלום נכשלה';
             return;
@@ -1007,4 +1065,28 @@ get isExemptFromPayment(): boolean {
       }
     );
   }
+ private async loadHealthFunds(): Promise<void> {
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const { data, error } = await db
+      .from('funding_sources')
+      .select('id, name')
+      .eq('is_system', true)
+      .eq('is_active', true)
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+
+    this.healthFunds = data ?? [];
+  } catch (e) {
+    console.error('loadHealthFunds error', e);
+    this.healthFunds = [];
+  }
+}
+onFundingSourceChange(id: string): void {
+  this.child.funding_source_id = id;
+  this.onFundingSourceChangeForPayment();
+}
 }

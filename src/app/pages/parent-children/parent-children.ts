@@ -62,8 +62,7 @@ export class ParentChildrenComponent implements OnInit {
   // הוספת ילד
   newChild: any = null;
   validationErrors: { [key: string]: string } = {};
-  healthFunds: string[] = ['כללית', 'מאוחדת', 'מכבי', 'לאומית'];
-
+healthFunds: { id: string; name: string }[] = [];
   // הודעות מידע
   infoMessage: string | null = null;
 
@@ -114,7 +113,7 @@ statusClass(st: string): string {
   ========================= */
   private infoTimer: any;
 private readonly CHILD_SELECT =
-  'child_uuid, gov_id, first_name, last_name, birth_date, gender, health_fund, instructor_id, parent_uid, status, medical_notes , scheduled_deletion_at';
+  'child_uuid, gov_id, first_name, last_name, birth_date, gender, funding_source_id, instructor_id, parent_uid, status, medical_notes, scheduled_deletion_at';
  
   /* =========================
      Constructor
@@ -130,6 +129,8 @@ private readonly CHILD_SELECT =
   ========================= */
   async ngOnInit() {
     await this.loadChildren();
+    await this.loadFundingSources();
+
   }
 
   async loadChildren(): Promise<void> {
@@ -279,7 +280,7 @@ if (firstErr || lastErr) {
     first_name: model.first_name,
     last_name: model.last_name,
       birth_date: model.birth_date || null,
-      health_fund: model.health_fund || null,
+funding_source_id: model.funding_source_id || null,
       medical_notes: model.medical_notes || null
     })
     .eq('child_uuid', id)
@@ -298,8 +299,7 @@ if (firstErr || lastErr) {
        first_name: model.first_name,
        last_name: model.last_name,
       birth_date: model.birth_date || null,
-      health_fund: model.health_fund || null,
-      medical_notes: model.medical_notes || null
+funding_source_id: model.funding_source_id || null,      medical_notes: model.medical_notes || null
     };
 
     this.children = [
@@ -576,7 +576,7 @@ const nowIso = this.nowLocalIsoNoTz();
       .update({ status: 'Pending Deletion Approval' })
       .eq('child_uuid', childId)
       .select(
-        'child_uuid, gov_id, first_name, last_name, birth_date, gender, health_fund, medical_notes, parent_uid'
+        'child_uuid, gov_id, first_name, last_name, birth_date, gender, funding_source_id, medical_notes, parent_uid'
       )
       .single();
 
@@ -600,7 +600,8 @@ const nowIso = this.nowLocalIsoNoTz();
         last_name:     updatedChild.last_name,
         birth_date:    updatedChild.birth_date,
         gender:        updatedChild.gender,
-        health_fund:   updatedChild.health_fund,
+funding_source_id: updatedChild.funding_source_id,
+funding_source_name: this.getFundingSourceName(updatedChild.funding_source_id),
         medical_notes: updatedChild.medical_notes,
         remaining_lessons_count: this.pendingDeleteLessonsCount ?? null,
       },
@@ -993,6 +994,24 @@ async openSignedTerms(child: any) {
 closeSignedPopup() {
   this.signedOpen.set(false);
 }
+private async loadFundingSources(): Promise<void> {
+  const { data, error } = await dbTenant()
+    .from('funding_sources')
+    .select('id, name')
+    .eq('is_system', true)
+    .eq('is_active', true)
+    .order('name', { ascending: true });
 
+  if (error) {
+    console.error('loadFundingSources error', error);
+    this.healthFunds = [];
+    return;
+  }
+
+  this.healthFunds = data ?? [];
+}getFundingSourceName(id: string | null | undefined): string {
+  if (!id) return '';
+  return this.healthFunds.find(f => f.id === id)?.name ?? '';
+}
 }
 

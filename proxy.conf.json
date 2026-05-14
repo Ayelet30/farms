@@ -64,5 +64,19 @@
     "changeOrigin": true,
     "secure": true,
     "pathRewrite":{ "^/api/sendEmailGmail$": "/sendEmailGmail" }
+  },
+
+  "/api/testOpenMaccabi": {
+    "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+    "changeOrigin": true,
+    "secure": true,
+    "pathRewrite":{ "^/api/testOpenMaccabi$": "/testOpenMaccabi" }
+  },
+
+  "/api/createMaccabiAutomationJob": {
+    "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+    "changeOrigin": true,
+    "secure": true,
+    "pathRewrite":{ "^/api/createMaccabiAutomationJob$": "/createMaccabiAutomationJob" }
   }
 }

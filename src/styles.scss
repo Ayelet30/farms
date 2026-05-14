@@ -403,5 +403,29 @@ option {
   transform: translateX(-18px);
 }
 
+/* Scrollbar אחיד לכל המערכת */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c7d1a9 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #c7d1a9;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #aebd8b;
+}
+
 
  

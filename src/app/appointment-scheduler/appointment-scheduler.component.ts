@@ -33,6 +33,12 @@ interface PaymentPlan {
   require_docs_at_booking: boolean;
   required_docs: string[] | null;
   funding_source_id: string | null;
+
+  funding_sources?: {
+    id: string;
+    name: string;
+    is_system: boolean;
+  } | null;
 }
 
 interface InstructorDbRow {
@@ -72,7 +78,8 @@ type ExistingSeriesGate =
 interface ApprovalBalance {
   approval_id: string;
   child_id: string;
-  health_fund: string | null;
+  funding_source_id: string | null;
+  funding_source_name?: string | null;
   approval_number: string | null;
   total_lessons: number;
   used_lessons_calc: number;
@@ -504,8 +511,21 @@ private async loadPaymentPlans(): Promise<void> {
   const supa = dbTenant();
   const { data, error } = await supa
     .from('payment_plans')
-    .select('id, name, lesson_price, subsidy_amount, customer_amount, require_docs_at_booking, required_docs, funding_source_id')
-    .eq('is_active', true)
+.select(`
+  id,
+  name,
+  lesson_price,
+  subsidy_amount,
+  customer_amount,
+  require_docs_at_booking,
+  required_docs,
+  funding_source_id,
+  funding_sources:funding_source_id (
+    id,
+    name,
+    is_system
+  )
+`)    .eq('is_active', true)
     .order('name', { ascending: true });
 
   if (error) {
@@ -807,7 +827,7 @@ private async loadChildrenFromCurrentUser(): Promise<void> {
   this.childrenError = null;
 
   const baseSelect =
-    'child_uuid, first_name, last_name, instructor_id, status, gender, birth_date ,scheduled_deletion_at';
+  'child_uuid, first_name, last_name, instructor_id, status, gender, birth_date, scheduled_deletion_at, funding_source_id';
 
   // כמו אצלך: אם בטעות מישהו ישלח select בלי status, נוסיף
   const hasStatus = /(^|,)\s*status\s*(,|$)/.test(baseSelect);
@@ -1223,6 +1243,22 @@ this.seriesCreatedMessage = null;
   this.showInstructorDetails = false;
   this.noInstructorPreference = false;
 
+  // ===== Occupancy reset =====
+this.occupancyCandidates = [];
+this.occupancyCandidatesAll = [];
+
+this.selectedOccupancyCandidate = null;
+
+this.occupancySlots = [];
+this.selectedOccupancySlot = null;
+
+this.occupancyError = null;
+this.occupancySlotsError = null;
+
+this.occupancyCreatedMessage = null;
+
+this.loadingOccupancyCandidates = false;
+this.loadingOccupancySlots = false;
   // אם אין ילד – מנקים רשימת מדריכים ויוצאים
   if (!this.selectedChildId) {
     this.instructors = [];
@@ -1785,8 +1821,10 @@ p_referral_url:
 p_payment_docs_url: uploadedReferralUrl,
 
 // ✅ לבטל לגמרי את אלה כדי שלא יהיו שגיאות קומפילציה:
-p_health_fund: null,
-p_approval_number: null,
+p_funding_source_id:
+  paymentSource === 'health_fund'
+    ? this.selectedChild?.funding_source_id ?? null
+    : null,p_approval_number: null,
 p_total_lessons: null,
 
   p_origin: this.user?.role === 'parent' ? 'parent' : 'secretary',
@@ -1828,96 +1866,6 @@ this.referralUrl = null;
   }
 }
 
-// async createSeriesFromSlot(slot: RecurringSlotWithSkips ): Promise<void> {
-//   if (!this.selectedChildId) return;
-
-//   if (!this.seriesLessonCount) {
-//     this.seriesError = 'יש לבחור כמות שיעורים בסדרה לפני קביעת הסדרה';
-//     return;
-//   }
-
-//   // גם למזכירה חייב להיות מסלול תשלום
-//   if (!this.selectedPaymentPlanId) {
-//     this.seriesError = 'יש לבחור מסלול תשלום';
-//     return;
-//   }
-
-//   const approval = this.selectedApproval;
-//   if (!approval && this.paymentSourceForSeries === 'health_fund') {
-//     this.seriesError = 'לא נבחר אישור טיפול';
-//     return;
-//   }
-
-//   const baseCount = this.seriesLessonCount;
-
-//   const repeatWeeks =
-//     this.paymentSourceForSeries === 'health_fund' && approval
-//       ? Math.min(baseCount, Math.max(1, approval.remaining_lessons))
-//       : baseCount;
-
-//   // ⬅ יום ראשון של השבוע לפי תאריך השיעור הראשון
-//   const anchorWeekStart = this.calcAnchorWeekStart(slot.lesson_date);
-
-//   // ⬅ יום בשבוע מחושב מהתאריך (לא מ-seriesDayOfWeek הריק)
-//   const dayLabel = this.dayOfWeekLabelFromDate(slot.lesson_date);
-
-//   // ⬅ לוודא שאנחנו מכניסים id_number לפי ה־FK ולא uid
-//   let instructorIdNumber: string | null = null;
-
-//   if (this.selectedInstructorId && this.selectedInstructorId !== 'any') {
-//     const selected = this.instructors.find(i =>
-//       i.instructor_uid === this.selectedInstructorId ||
-//       i.instructor_id  === this.selectedInstructorId
-//     );
-//     instructorIdNumber = selected?.instructor_id ?? slot.instructor_id;
-//   } else {
-//     // "כל המדריכים" או לא נבחר – נשען על מה שחוזר מה-RPC
-//     instructorIdNumber = slot.instructor_id;
-//   }
-
-//   const { data, error } = await dbTenant()
-//     .from('lessons')
-//     .insert({
-//       child_id: this.selectedChildId,
-//       instructor_id: instructorIdNumber,
-//       lesson_type: 'סידרה',
-//       status: 'אושר',
-//       day_of_week: dayLabel,                // ⬅ עכשיו ערך תקין: "ראשון"/"שני"...
-//       start_time: slot.start_time,
-//       end_time: slot.end_time,
-//       repeat_weeks: repeatWeeks,
-//       anchor_week_start: anchorWeekStart,
-//       appointment_kind: 'therapy_series',
-//       approval_id:
-//         this.paymentSourceForSeries === 'health_fund' && approval
-//           ? approval.approval_id
-//           : null,
-//       origin: this.user!.role === 'parent' ? 'parent' : 'secretary',
-//       is_tentative: false,
-//       capacity: 1,
-//       current_booked: 1,
-//       payment_source:
-//         this.paymentSourceForSeries === 'health_fund' && approval
-//           ? 'health_fund'
-//           : 'private',
-
-//       // ⬅ ניו מסלול תשלום
-//       payment_plan_id: this.selectedPaymentPlanId,
-//       // payment_docs_url: ... // נוסיף כשנסגור לוגיקת העלאה גם למזכירה
-//     })
-//     .select()
-//     .single();
-
-//   if (error) {
-//     console.error(error);
-//     this.seriesError = 'שגיאה ביצירת הסדרה';
-//     return;
-//   }
-// this.showSuccessToast('הסדרה נוצרה בהצלחה ✔️');
-// await this.onChildChange();
-
-// }
-
 
 onReferralFileSelected(event: Event): void {
   const input = event.target as HTMLInputElement;
@@ -1941,62 +1889,7 @@ onReferralFileSelected(event: Event): void {
   this.referralFile = file;
 }
 
-   // =========================================
-  //   חיפוש חורים להשלמות (find_makeup_slots)
-  // =========================================
 
-  // יצירת שיעור השלמה – יוצר lesson יחיד (repeat_weeks = 1)
-//   async bookMakeupSlot(slot: MakeupSlot): Promise<void> {
-//   if (!this.selectedChildId) return;
-
-//   const dayLabel = this.dayOfWeekLabelFromDate(slot.occur_date);
-//   const anchorWeekStart = this.calcAnchorWeekStart(slot.occur_date);
-
-//   // נחליט מה ה-id_number שנכניס לשיעור
-//   const instructorIdNumber =
-//     this.selectedInstructorId === 'any'
-//       ? slot.instructor_id
-//       : (
-//           this.instructors.find(i =>
-//             i.instructor_uid === this.selectedInstructorId || // uid
-//             i.instructor_id  === this.selectedInstructorId    // במקרה שכבר ת"ז
-//           )?.instructor_id ?? slot.instructor_id              // fallback
-//         );
-
-
-
-//   const { data, error } = await dbTenant()
-//     .from('lessons')
-//     .insert({
-//       child_id: this.selectedChildId,
-//       instructor_id: instructorIdNumber,  // ← שורה מתוקנת
-//       lesson_type: 'השלמה',
-//       status: 'אושר',
-//       day_of_week: dayLabel,
-//       start_time: slot.start_time,
-//       end_time: slot.end_time,
-//       repeat_weeks: 1,
-//       anchor_week_start: anchorWeekStart,
-//       appointment_kind: 'therapy_makeup',
-//       approval_id: this.selectedApproval?.approval_id ?? null,
-//       origin: this.user!.role === 'parent' ? 'parent' : 'secretary',
-//       is_tentative: false,
-//       capacity: 1,
-//       current_booked: 1,
-//       payment_source: this.selectedApproval ? 'health_fund' : 'private',
-//     })
-//     .select()
-//     .single();
-
-//   if (error) {
-//     console.error(error);
-//     this.makeupError = 'שגיאה ביצירת שיעור ההשלמה';
-//     return;
-//   }
-
-//   this.makeupCreatedMessage = 'שיעור ההשלמה נוצר בהצלחה';
-//   await this.onChildChange();
-// }
 async bookMakeupSlot(slot: MakeupSlot): Promise<void> {
   if (!this.selectedChildId || !this.selectedMakeupCandidate) {
     this.makeupError = 'חסר ילד או שיעור מקור להשלמה';
@@ -2218,31 +2111,6 @@ if (updErr) {
     const anchorDate = slot.occur_date;
 const baseLessonUid = this.selectedMakeupCandidate!.lesson_occ_exception_id ?? null;
 
-    // const { error: lessonError } = await supa
-    //   .from('lessons')
-    //   .insert({
-    //     lesson_type: 'השלמה',              // ⬅️ lesson_type = השלמה
-    //     day_of_week: dayLabel,             // ⬅️ יום בשבוע מהתאריך
-    //     start_time: slot.start_time,
-    //     end_time: slot.end_time,
-    //     instructor_id: instructorIdNumber, // ⬅️ ת"ז של המדריך
-    //     status: 'ממתין לאישור',           // ⬅️ בהתאם ל-CHECK בטבלה
-    //     child_id: this.selectedChildId,    // ⬅️ ה-UUID של הילד
-    //     repeat_weeks: 1,                   // ⬅️ תמיד 1
-    //     anchor_week_start: anchorDate,     // ⬅️ תאריך השיעור השלמה
-    //     appointment_kind: 'therapy_makeup',// ⬅️ סוג התור
-    //     origin: 'parent',                  // ⬅️ מקור: הורה
-    //     base_lesson_uid: baseLessonUid,      // ⬅️ קישור ל-lesson_occurrence_exceptions.id
-    //     capacity: 1,
-    //     current_booked: 1,
-    //     payment_source: 'private',         // אם תרצי – אפשר לשנות ללוגיקה של קופה/פרטי
-    //   });
-
-    // if (lessonError) {
-    //   console.error(lessonError);
-    //   this.makeupError = 'שגיאה בשמירת שיעור ההשלמה במערכת';
-    //   return;
-    // }
 
    this.showSuccessToast('בקשת ההשלמה נשלחה למזכירה ✔️');
 this.makeupCreatedMessage = null; // אם את עדיין מציגה אותו איפשהו
@@ -2308,6 +2176,9 @@ async onSeriesSlotChosen(slot: RecurringSlotWithSkips): Promise<void> {
       await this.submitSeriesRequestToSecretary(slot);
     }
   });
+}
+get selectedChild(): ChildWithProfile | null {
+  return this.children.find(c => c.child_uuid === this.selectedChildId) ?? null;
 }
 async createSingleLessonFromSlot(slot: RecurringSlotWithSkips): Promise<void> {
   if (!this.selectedChildId) return;
@@ -2403,8 +2274,10 @@ async createSingleLessonFromSlot(slot: RecurringSlotWithSkips): Promise<void> {
     p_payment_source: paymentSource,
     p_existing_approval_id: paymentSource === 'health_fund' ? existingApprovalId : null,
     p_payment_plan_id: this.selectedPaymentPlanId,
-    p_health_fund: null,
-    p_approval_number: null,
+p_funding_source_id:
+  paymentSource === 'health_fund'
+    ? this.selectedChild?.funding_source_id ?? null
+    : null,    p_approval_number: null,
     p_total_lessons: null,
     p_referral_url:
       paymentSource === 'health_fund' && !existingApprovalId ? uploadedReferralUrl : null,
@@ -4040,7 +3913,26 @@ this.seriesGateMessage =
   `לילד יש סדרה קיימת. ניתן להזמין סדרה חדשה רק החל מ-` +
   `\u200E${this.formatLocalDateDMY(nextStart)}\u200E`;
 }
+get availablePaymentPlans(): PaymentPlan[] {
+  const childFundingSourceId = this.selectedChild?.funding_source_id ?? null;
 
+  return this.paymentPlans.filter(plan => {
+    const source = plan.funding_sources ?? null;
+
+    // אם אין גורם מממן בכלל — להציג
+    if (!plan.funding_source_id || !source) {
+      return true;
+    }
+
+    // גורם מממן שאינו מערכת — תמיד להציג
+    if (source.is_system === false) {
+      return true;
+    }
+
+    // גורם מממן מערכת — להציג רק אם הוא של הילד
+    return plan.funding_source_id === childFundingSourceId;
+  });
+}
 }
 const isTaughtChildGender = (v: any): v is TaughtChildGender =>
   v === 'זכר' || v === 'נקבה';

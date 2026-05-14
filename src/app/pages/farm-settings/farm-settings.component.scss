@@ -1261,4 +1261,125 @@ input[type="time"],
   .short-input {
     max-width: 100%;
   }
+.cols-special-charges {
+  display: grid;
+  grid-template-columns: 1.5fr 0.8fr 1fr 0.6fr 0.6fr 1fr 0.6fr 0.6fr 1fr;
+  gap: 10px;
+  align-items: center;
+}
 
+.special-charges-table .form-control {
+  min-height: 42px;
+}
+
+.special-charges-table .mini-check {
+  justify-content: center;
+}
+
+.special-charges-table .actions-inline {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+}
+.cols-special-charges {
+  display: grid;
+  grid-template-columns:
+    1.4fr
+    0.7fr
+    0.9fr
+    0.55fr
+    1.2fr
+    0.55fr
+    0.9fr
+    0.55fr
+    0.55fr
+    1.2fr
+    1fr;
+  gap: 6px;
+  align-items: center;
+}
+
+.special-charges-table .data-row {
+  padding: 8px;
+}
+
+.special-charges-table .mini-check {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+}
+.special-charge-cards {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.special-charge-card {
+  border: 1px solid #dde3cf;
+  border-radius: 22px;
+  background: #fff;
+  padding: 18px;
+}
+
+.special-charge-card.inactive {
+  opacity: 0.65;
+}
+
+.charge-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.charge-price {
+  font-weight: 800;
+  font-size: 20px;
+  color: #34402b;
+  white-space: nowrap;
+}
+
+.charge-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.charge-warning {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #fff7e6;
+  color: #7a4a00;
+  font-weight: 600;
+}
+
+.amount-input {
+  max-width: 180px;
+}
+.date-input {
+  direction: ltr;
+  text-align: left;
+}
+.full-row {
+  grid-column: 1 / -1;
+}
+
+.checks-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 8px;
+}
+.full-row {
+  grid-column: 1 / -1;
+}
+
+.checks-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 8px;
+}

@@ -106,6 +106,33 @@ farmDaysOff: any[] = [];
   endTime: '',
 };
 
+moveConfirmModal = {
+  open: false,
+  mode: 'single' as 'single' | 'series',
+
+  childName: '',
+  originalDate: '',
+  originalTime: '',
+  originalInstructor: '',
+
+  newDate: '',
+  newStartTime: '',
+  newEndTime: '',
+  newInstructor: '',
+
+  slot: null as any | null,
+};
+
+moveSlotsModal = {
+  open: false,
+  mode: 'single' as 'single' | 'series',
+  loading: false,
+  saving: false,
+  error: '',
+  slots: [] as any[],
+  selectedSlot: null as any | null,
+};
+
   currentRange: { start: string; end: string; viewType: string } | null = null;
   currentViewType:
   | 'timeGridDay'
@@ -135,6 +162,14 @@ farmDaysOff: any[] = [];
   endTime?: string | null;
   reason?: string | null;
   kind?: 'day_off' | 'not_working' | 'farm_off';
+}> = [];
+
+availableDayCells: Array<{
+  date: string;
+  resourceId: string;
+  startTime: string;
+  endTime: string;
+  color: string;
 }> = [];
 
 instructorWeeklyAvailability: Array<{
@@ -373,6 +408,7 @@ async confirmEndSeries(): Promise<void> {
       this.filterLessons();
       this.setScheduleItems();
       this.buildBlockedDayCells(this.currentRange);
+      this.buildAvailableDayCells(this.currentRange);
       this.buildWeekStats();
     }
 
@@ -401,7 +437,61 @@ private addMinutesToHm(hm: string, minutesToAdd: number): string {
   return `${hh}:${mm}`;
 }
 
+private buildAvailableDayCells(range?: { start: string; end: string }): void {
+  const available: Array<{
+    date: string;
+    resourceId: string;
+    startTime: string;
+    endTime: string;
+    color: string;
+  }> = [];
 
+  const from = range?.start?.slice(0, 10) ?? '';
+  const to = range?.end?.slice(0, 10) ?? '';
+
+  if (!from || !to) {
+    this.availableDayCells = [];
+    return;
+  }
+
+  const visibleInstructorIds = new Set(
+    this.instructorResources.map(r => String(r.id))
+  );
+
+  let cur = from;
+  let guard = 0;
+
+  while (cur <= to) {
+    const dow = this.dbDowFromYmd(cur);
+
+    for (const row of this.instructorWeeklyAvailability || []) {
+      const instructorId = String(row.instructor_id_number);
+
+      if (!visibleInstructorIds.has(instructorId)) continue;
+      if (Number(row.day_of_week) !== dow) continue;
+
+      const color =
+        this.instructorColorById.get(instructorId) ||
+        this.getColorForInstructor(instructorId);
+
+      available.push({
+        date: cur,
+        resourceId: instructorId,
+        startTime: String(row.start_time).slice(0, 5),
+        endTime: String(row.end_time).slice(0, 5),
+        color,
+      });
+    }
+
+    const next = this.addOneDayYmdSafe(cur);
+    if (next <= cur) break;
+    cur = next;
+
+    if (++guard > 400) break;
+  }
+
+  this.availableDayCells = available;
+}
 
 private hashString(str: string): number {
   let hash = 0;
@@ -444,6 +534,7 @@ private rebuildInstructorResources(): void {
   this.filterLessons();
   this.setScheduleItems();
   this.buildBlockedDayCells(range);
+  this.buildAvailableDayCells(range);
   this.buildWeekStats();
   this.cdr.detectChanges();
 }
@@ -474,27 +565,66 @@ private ensureInitialDayRange(): { start: string; end: string; viewType: string 
 private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<void> {
   const dbc = dbTenant();
 
-  const { data, error } = await dbc
+  // 1) בקשות ממתינות בלבד
+  const { data: pendingRequests, error: pendingError } = await dbc
     .from('secretarial_requests')
     .select(`
-  id,
-  instructor_id,
-  request_type,
-  status,
-  from_date,
-  to_date,
-  payload,
-  decision_note,
-  sick_note_file_path
-`)
+      id,
+      instructor_id,
+      request_type,
+      status,
+      from_date,
+      to_date,
+      payload,
+      decision_note
+    `)
     .eq('request_type', 'INSTRUCTOR_DAY_OFF')
+    .eq('status', 'PENDING')
     .lte('from_date', endYmd)
     .gte('to_date', startYmd);
 
-  if (error) throw error;
+  if (pendingError) throw pendingError;
 
-  const rows = data ?? [];
-  this.dayRequests = rows.flatMap((row: any) => this.expandRequestRow(row));
+  const pendingRows = (pendingRequests ?? [])
+    .flatMap((row: any) => this.expandRequestRow(row));
+
+  // 2) היעדרויות שאושרו בפועל
+  const { data: unavailabilityRows, error: unavailabilityError } = await dbc
+    .from('instructor_unavailability')
+    .select(`
+      id,
+      instructor_id_number,
+      from_ts,
+      to_ts,
+      reason,
+      all_day,
+      category,
+      sick_note_file_path
+    `)
+    .lte('from_ts', `${endYmd}T23:59:59`)
+    .gte('to_ts', `${startYmd}T00:00:00`);
+
+  if (unavailabilityError) throw unavailabilityError;
+
+  const approvedRows: DayRequestRow[] = (unavailabilityRows ?? []).map((row: any) => {
+    const from = new Date(row.from_ts);
+    const to = new Date(row.to_ts);
+
+    return {
+      id: row.id,
+      instructor_id: String(row.instructor_id_number),
+      request_date: String(row.from_ts).slice(0, 10),
+      request_type: this.mapUnavailabilityCategory(row.category),
+      status: 'approved',
+      note: row.reason ?? null,
+      all_day: row.all_day === true,
+      start_time: row.all_day ? null : from.toTimeString().slice(0, 5),
+      end_time: row.all_day ? null : to.toTimeString().slice(0, 5),
+      sick_note_file_path: row.sick_note_file_path ?? null,
+    };
+  });
+
+  this.dayRequests = [...pendingRows, ...approvedRows];
 }
 
 private expandRequestRow(row: any): DayRequestRow[] {
@@ -523,7 +653,7 @@ private expandRequestRow(row: any): DayRequestRow[] {
       all_day: row.payload?.all_day === true || row.payload?.all_day === 'true',
       start_time: row.payload?.requested_start_time ?? null,
       end_time: row.payload?.requested_end_time ?? null,
-      sick_note_file_path: row.sick_note_file_path ?? null,
+      sick_note_file_path: row.payload?.sick_note_file_path ?? null,
     });
 
     const next = this.addOneDayYmd(current);
@@ -619,76 +749,6 @@ if (from && to) {
     });
   }
 
-  // 2) שעות שהמדריך בכלל לא עובד
-  const availabilityByInstructorAndDow = new Map<string, Array<{ start: string; end: string }>>();
-
-  for (const row of this.instructorWeeklyAvailability || []) {
-    const key = `${row.instructor_id_number}|${row.day_of_week}`;
-    if (!availabilityByInstructorAndDow.has(key)) {
-      availabilityByInstructorAndDow.set(key, []);
-    }
-
-    availabilityByInstructorAndDow.get(key)!.push({
-      start: String(row.start_time).slice(0, 5),
-      end: String(row.end_time).slice(0, 5),
-    });
-  }
-
-  const visibleInstructorIds = new Set(this.instructorResources.map(r => String(r.id)));
-
-  for (const inst of this.instructors) {
-    if (!visibleInstructorIds.has(String(inst.id_number))) continue;
-
-    for (const ymd of dateList) {
-      const d = new Date(ymd + 'T00:00:00');
-      const dow = d.getDay();
-      const key = `${inst.id_number}|${dow}`;
-      const spans = (availabilityByInstructorAndDow.get(key) ?? [])
-        .sort((a, b) => a.start.localeCompare(b.start));
-
-      if (!spans.length) {
-        blocked.push({
-          date: ymd,
-          resourceId: inst.id_number,
-          startTime: '07:00',
-          endTime: '21:00',
-          reason: 'המדריך אינו עובד ביום זה',
-          kind: 'not_working',
-        });
-        continue;
-      }
-
-      let cursor = '07:00';
-
-      for (const span of spans) {
-        if (cursor < span.start) {
-          blocked.push({
-            date: ymd,
-            resourceId: inst.id_number,
-            startTime: cursor,
-            endTime: span.start,
-            reason: 'המדריך אינו עובד בשעות אלה',
-            kind: 'not_working',
-          });
-        }
-
-        if (cursor < span.end) {
-          cursor = span.end;
-        }
-      }
-
-      if (cursor < '21:00') {
-        blocked.push({
-          date: ymd,
-          resourceId: inst.id_number,
-          startTime: cursor,
-          endTime: '21:00',
-          reason: 'המדריך אינו עובד בשעות אלה',
-          kind: 'not_working',
-        });
-      }
-    }
-  }
 
   this.blockedDayCells = blocked;
 }
@@ -808,6 +868,7 @@ async onQuickBookingSaved(): Promise<void> {
     this.filterLessons();
     this.setScheduleItems();
     this.buildBlockedDayCells(this.currentRange);
+    this.buildAvailableDayCells(this.currentRange);
     this.buildWeekStats();
     this.cdr.detectChanges();
   }
@@ -858,6 +919,7 @@ async cancelLessonFromContext(): Promise<void> {
       this.filterLessons();
       this.setScheduleItems();
       this.buildBlockedDayCells(this.currentRange);
+      this.buildAvailableDayCells(this.currentRange);
       this.buildWeekStats();
       this.cdr.detectChanges();
     }
@@ -866,15 +928,17 @@ async cancelLessonFromContext(): Promise<void> {
     await this.ui.alert('שגיאה בביטול השיעור', 'שגיאה');
   }
 }
-
 async openRequest(type: RequestType): Promise<void> {
   const date = this.contextMenu.date;
+  const instructorId = this.contextMenu.instructorId; // המדריך שעליו לחצת בלוז
+
   this.closeContextMenu();
+
   if (!date) return;
 
   const allDay = this.lastAllDayPref;
 
-this.affectedChildren = [];
+  this.affectedChildren = [];
   this.impactReviewMode = false;
   this.impactLoading = false;
   this.selectedSickFile = null;
@@ -890,12 +954,11 @@ this.affectedChildren = [];
     type,
     text: '',
     reviewedImpact: false,
-    instructorId: this.selectedInstructorIds.length === 1 ? this.selectedInstructorIds[0] : '',
+    instructorId: instructorId || '',
   };
 
   this.cdr.detectChanges();
 }
-
 closeRangeModal(): void {
   this.rangeModal.open = false;
   this.rangeModal.reviewedImpact = false;
@@ -1260,7 +1323,12 @@ private async executeInstructorDayOffBySecretary(
 
   const tenantSchema = tenant.schema;
   const tenantId = tenant.id;
+let medicalCertificateUrl: string | null = null;
 
+if (type === 'sick' && this.pendingSickFile) {
+  const tempRequestId = crypto.randomUUID();
+  medicalCertificateUrl = await this.uploadSickFile(this.pendingSickFile, tempRequestId);
+}
   const url =
     'https://us-central1-bereshit-ac5d8.cloudfunctions.net/secretaryCreateInstructorDayOffAndNotify';
 
@@ -1281,6 +1349,7 @@ private async executeInstructorDayOffBySecretary(
       endTime: allDay ? null : toTime,
       requestType: this.mapRequestTypeToDb(type),
       decisionNote: note ?? null,
+      medicalCertificateUrl,
     }),
   });
 
@@ -1347,7 +1416,20 @@ private mapDbRequestType(x: string | null | undefined): RequestType {
       return 'other';
   }
 }
+private mapUnavailabilityCategory(x: string | null | undefined): RequestType {
+  const val = String(x ?? '').toUpperCase().trim();
 
+  switch (val) {
+    case 'HOLIDAY':
+      return 'holiday';
+    case 'SICK':
+      return 'sick';
+    case 'PERSONAL':
+      return 'personal';
+    default:
+      return 'other';
+  }
+}
 private mapDbStatus(x: string | null | undefined): RequestStatus {
   const map: Record<string, RequestStatus> = {
     APPROVED: 'approved',
@@ -1443,7 +1525,7 @@ private async loadInstructors(): Promise<void> {
     );
 
     // 2) עובדים היום לפי זמינות
-    const dow = new Date().getDay(); // 0..6
+    const dow = this.jsDowToDbDow(new Date().getDay());
     const { data: avail, error: e2 } = await dbc
       .from('instructor_weekly_availability')
       .select('instructor_id_number')
@@ -1474,10 +1556,6 @@ private async loadInstructors(): Promise<void> {
     // 4) resources ללוח נקבעים לפי הבחירה הנוכחית
     this.rebuildInstructorResources();
 
-    if (this.currentRange) {
-  this.buildBlockedDayCells(this.currentRange);
-}
-
   } catch (err) {
     console.error('loadInstructors failed', err);
     this.instructorsAll = [];
@@ -1507,6 +1585,7 @@ toggleAllInstructors() {
   this.filterLessons();
   this.setScheduleItems();
   this.buildBlockedDayCells(this.currentRange ?? undefined);
+  this.buildAvailableDayCells(this.currentRange ?? undefined);
   this.buildWeekStats();
 }
 
@@ -1522,6 +1601,7 @@ toggleAllInstructors() {
   this.filterLessons();
   this.setScheduleItems();
   this.buildBlockedDayCells(this.currentRange ?? undefined);
+  this.buildAvailableDayCells(this.currentRange ?? undefined);
   this.buildWeekStats();
 }
 
@@ -1543,6 +1623,7 @@ toggleAllInstructors() {
   this.filterLessons();
   this.setScheduleItems();
   this.buildBlockedDayCells(range);
+  this.buildAvailableDayCells(range);
   this.buildWeekStats();
   this.cdr.detectChanges();
 }
@@ -1808,34 +1889,39 @@ private addOneDayYmd(dateYmd: string): string {
     const childDisplay = age ? `${childName} (${age})` : childName;
 
     return {
-      id: lesson.id,
-      title: childDisplay,
-      start,
-      end,
-      color: lesson.child_color,
-      status: lesson.status,
-      meta: {
-        status: lesson.status ?? '',
-        child_id: lesson.child_id,
-        child_name: childDisplay,
-        instructor_id: lesson.instructor_id,
-        instructor_name: lesson.instructor_name,
-        instructor_color: instructorBorderColor,
-        lesson_type: lessonType,
-        children: childDisplay,
-        horse_name: lesson.horse_name,
-        arena_name: lesson.arena_name,
-        lesson_id: lesson.lesson_id,
-        occur_date: lesson.occur_date,
+  id: lesson.id,
+  title: childDisplay,
+  start,
+  end,
 
-        series_id: lesson.series_id,
-        appointment_kind: lesson.appointment_kind,
-        repeat_weeks: lesson.repeat_weeks,
-        is_open_ended: lesson.is_open_ended,
-        series_end_date: lesson.series_end_date,
-        
-      },
-    } as ScheduleItem;
+  // צבע מלא של המדריך בשיעור תפוס
+  color: instructorBorderColor,
+  backgroundColor: instructorBorderColor,
+  borderColor: instructorBorderColor,
+  textColor: '#ffffff',
+
+  status: lesson.status,
+  meta: {
+    status: lesson.status ?? '',
+    child_id: lesson.child_id,
+    child_name: childDisplay,
+    instructor_id: lesson.instructor_id,
+    instructor_name: lesson.instructor_name,
+    instructor_color: instructorBorderColor,
+    lesson_type: lessonType,
+    children: childDisplay,
+    horse_name: lesson.horse_name,
+    arena_name: lesson.arena_name,
+    lesson_id: lesson.lesson_id,
+    occur_date: lesson.occur_date,
+
+    series_id: lesson.series_id,
+    appointment_kind: lesson.appointment_kind,
+    repeat_weeks: lesson.repeat_weeks,
+    is_open_ended: lesson.is_open_ended,
+    series_end_date: lesson.series_end_date,
+  },
+} as any;
   };
 
   // ✅ מגדירים פעם אחת בתחילת הפונקציה
@@ -1870,7 +1956,11 @@ private addOneDayYmd(dateYmd: string): string {
       },
     })) as any;
 
-    this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
+    this.items = [
+  ...this.items,
+  ...farmOffItems,
+  ...instructorOffItems,
+];
     return;
   }
 
@@ -1952,25 +2042,76 @@ private addOneDayYmd(dateYmd: string): string {
       });
     }
 
-    this.items = [...result, ...farmOffItems, ...instructorOffItems];
+    this.items = [ ...result, ...farmOffItems, ...instructorOffItems];
     return;
   }
 
   // ===== יום =====
   if (this.currentViewType === 'timeGridDay') {
     this.items = src.map(makeLessonEvent);
-    this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
+    this.items = [
+  ...this.items,
+  ...farmOffItems,
+  ...instructorOffItems,
+];
     return;
   }
 
   // ===== ברירת מחדל =====
   this.items = src.map(makeLessonEvent);
-  this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
+  this.items = [
+  ...this.items,
+  ...farmOffItems,
+  ...instructorOffItems,
+];
 }
+
+
+isCancelledContext(): boolean {
+  const status = String(this.contextMenu.status || '').toLowerCase();
+  return status.includes('בוטל') || status.includes('cancel');
+}
+
+isInstructorOffContext(): boolean {
+  const type = String(this.contextMenu.lessonType || this.contextMenu.appointmentKind || '').toLowerCase();
+  const title = String(this.contextMenu.childName || '').toLowerCase();
+
+  return (
+    type.includes('day_off') ||
+    type.includes('unavailability') ||
+    type.includes('holiday') ||
+    title.includes('חופש') ||
+    title.includes('מחלה') ||
+    title.includes('לא זמין')
+  );
+}
+
+canCancelContextLesson(): boolean {
+  return !!this.contextMenu.hasEvent &&
+    !!this.contextMenu.lessonId &&
+    !this.isCancelledContext() &&
+    !this.isInstructorOffContext();
+}
+
+canMoveContextLesson(): boolean {
+  return !!this.contextMenu.hasEvent &&
+    !!this.contextMenu.lessonId &&
+    !this.isCancelledContext() &&
+    !this.isInstructorOffContext();
+}
+
+canEndContextSeries(): boolean {
+  return this.canMoveContextLesson() && this.isSeriesContext();
+}
+
 private instructorDaysOffToItems(): ScheduleItem[] {
+  const selected = new Set(this.selectedInstructorIds.map(String));
+
   return (this.dayRequests ?? [])
     .filter(r => r.status === 'approved' || r.status === 'pending')
+    .filter(r => selected.size === 0 || selected.has(String(r.instructor_id)))
     .map(r => {
+      // המשך הקוד שלך כרגיל
       const isPending = r.status === 'pending';
 
       let bg = '#e5e7eb';
@@ -2120,6 +2261,18 @@ private getColorForInstructor(id: string): string {
   const palette = ['#ff6b6b', '#4dabf7', '#51cf66', '#f59f00', '#845ef7'];
   const idx = this.hashString(id) % palette.length;
   return palette[idx];
+}
+
+private addDaysYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+
+  return [
+    dt.getFullYear(),
+    String(dt.getMonth() + 1).padStart(2, '0'),
+    String(dt.getDate()).padStart(2, '0'),
+  ].join('-');
 }
 
 isSeriesContext(): boolean {
@@ -2400,6 +2553,15 @@ async onToggleMakeupAllowed(checked: boolean) {
   }
 }
 
+private jsDowToDbDow(jsDow: number): number {
+  return jsDow === 0 ? 1 : jsDow + 1;
+}
+
+private dbDowFromYmd(ymd: string): number {
+  const d = new Date(`${ymd}T12:00:00`);
+  return this.jsDowToDbDow(d.getDay());
+}
+
 openMoveChoiceModal(): void {
   this.moveChoiceModal = {
     open: true,
@@ -2431,16 +2593,294 @@ closeMoveChoiceModal(): void {
   this.cdr.detectChanges();
 }
 
-chooseMoveSingleOccurrence(): void {
-  // כאן בשלב הבא נחבר את מודאל רשימת האפשרויות הפנויות
-  console.log('move single occurrence', this.moveChoiceModal);
-  this.closeMoveChoiceModal();
+async chooseMoveSingleOccurrence(): Promise<void> {
+  this.moveChoiceModal.open = false;
+
+  this.moveSlotsModal = {
+    open: true,
+    mode: 'single',
+    loading: true,
+    saving: false,
+    error: '',
+    slots: [],
+    selectedSlot: null,
+  };
+  
+  this.cdr.detectChanges();
+
+  try {
+    const from = this.moveChoiceModal.occurDate;
+    const to = this.addDaysYmd(from, 30);
+
+    const { data, error } = await dbTenant().rpc(
+      'find_makeup_slots_for_lesson_by_id_number',
+      {
+        p_child_id: this.contextMenu.childId,
+        p_instructor_id: null,
+        p_from_date: from,
+        p_to_date: to,
+      }
+    );
+
+    if (error) throw error;
+
+    this.moveSlotsModal.slots = (data ?? []).filter((s: any) => {
+      const sameDate = s.occur_date === this.moveChoiceModal.occurDate;
+      const sameStart = String(s.start_time).slice(0, 5) === String(this.moveChoiceModal.startTime).slice(0, 5);
+      const sameInstructor = String(s.instructor_id) === String(this.moveChoiceModal.instructorId);
+
+      return !(sameDate && sameStart && sameInstructor);
+    });
+  } catch (e) {
+    console.error('load single move slots failed', e);
+    this.moveSlotsModal.error = 'שגיאה בטעינת אפשרויות להזזת שיעור';
+  } finally {
+    this.moveSlotsModal.loading = false;
+    this.cdr.detectChanges();
+  }
 }
 
-chooseMoveWholeSeries(): void {
-  // כאן בשלב הבא נחבר את מודאל הזזת הסדרה + פופאפ אישור
-  console.log('move whole series', this.moveChoiceModal);
-  this.closeMoveChoiceModal();
+selectMoveSlot(slot: any): void {
+  this.moveSlotsModal.selectedSlot = slot;
+}
+
+async confirmMove(): Promise<void> {
+  const slot = this.moveSlotsModal.selectedSlot;
+  if (!slot) return;
+
+  const date = slot.occur_date || slot.lesson_date;
+  const start = String(slot.start_time || slot.start).slice(0, 5);
+  const end = String(slot.end_time || slot.end).slice(0, 5);
+
+  this.moveConfirmModal = {
+    open: true,
+    mode: this.moveSlotsModal.mode,
+
+    childName: this.moveChoiceModal.childName,
+
+    originalDate: this.moveChoiceModal.occurDate,
+    originalTime: `${this.moveChoiceModal.startTime}-${this.moveChoiceModal.endTime || ''}`,
+    originalInstructor: this.moveChoiceModal.instructorName,
+
+    newDate: date,
+    newStartTime: start,
+    newEndTime: end,
+    newInstructor: slot.instructor_name || slot.instructorName || String(slot.instructor_id || ''),
+
+    slot,
+  };
+
+  this.cdr.detectChanges();
+}
+
+closeMoveConfirmModal(): void {
+  this.moveConfirmModal.open = false;
+  this.cdr.detectChanges();
+}
+
+async approveMoveConfirm(): Promise<void> {
+  console.log('approveMoveConfirm clicked', this.moveConfirmModal);
+
+  const slot = this.moveConfirmModal.slot || this.moveSlotsModal.selectedSlot;
+
+  if (!slot) {
+    console.error('No slot found for move approval', {
+      moveConfirmModal: this.moveConfirmModal,
+      moveSlotsModal: this.moveSlotsModal,
+    });
+
+    await this.ui.alert('לא נמצא סלוט להזזה. בחרי שוב אפשרות מהרשימה.', 'שגיאה');
+    return;
+  }
+
+  this.moveConfirmModal.open = false;
+  await this.executeMove(slot);
+}
+
+async executeMove(slot: any): Promise<void> {
+  console.log('executeMove started', {
+    slot,
+    mode: this.moveSlotsModal.mode,
+    moveChoiceModal: this.moveChoiceModal,
+  });
+
+  this.moveSlotsModal.saving = true;
+  this.cdr.detectChanges();
+
+  try {
+    if (this.moveSlotsModal.mode === 'single') {
+      const date = slot.occur_date || slot.lesson_date;
+      const start = String(slot.start_time || slot.start).slice(0, 5);
+      const end = String(slot.end_time || slot.end).slice(0, 5);
+
+      const newStartDatetime = `${date}T${start}:00`;
+      const newEndDatetime = `${date}T${end}:00`;
+
+      const { error } = await dbTenant().rpc('move_lesson_occurrence', {
+        p_lesson_id: this.moveChoiceModal.lessonId,
+        p_occur_date: this.moveChoiceModal.occurDate,
+        p_new_instructor_id: slot.instructor_id,
+        p_new_start_datetime: newStartDatetime,
+        p_new_end_datetime: newEndDatetime,
+        p_note: null,
+        p_created_by_role: 'secretary',
+        p_created_by_uid: null
+      });
+
+      if (error) throw error;
+    }
+
+    if (this.moveSlotsModal.mode === 'series') {
+      const { error } = await dbTenant().rpc('move_lesson_series', {
+        p_lesson_id: this.moveChoiceModal.lessonId,
+        p_new_instructor_id: slot.instructor_id,
+        p_new_day_of_week: slot.day_of_week,
+        p_new_start_time: slot.start_time || slot.start,
+        p_new_end_time: slot.end_time || slot.end,
+      });
+
+      if (error) throw error;
+    }
+
+    if (this.currentRange) {
+      await this.loadLessons({
+        start: this.currentRange.start,
+        end: this.currentRange.end,
+      });
+
+      this.filterLessons();
+      this.setScheduleItems();
+      this.buildBlockedDayCells(this.currentRange);
+      this.buildAvailableDayCells(this.currentRange);
+      this.buildWeekStats();
+    }
+
+    this.moveSlotsModal.open = false;
+    this.moveSlotsModal.selectedSlot = null;
+
+    await this.ui.alert('השיעור עודכן בהצלחה', 'בוצע');
+
+  } catch (e) {
+    console.error('move failed', e);
+    await this.ui.alert('שגיאה בהזזה', 'שגיאה');
+  } finally {
+    this.moveSlotsModal.saving = false;
+    this.cdr.detectChanges();
+  }
+}
+
+async chooseMoveWholeSeries(): Promise<void> {
+  this.moveChoiceModal.open = false;
+
+  this.moveSlotsModal = {
+    open: true,
+    mode: 'series',
+    loading: true,
+    saving: false,
+    error: '',
+    slots: [],
+    selectedSlot: null,
+  };
+
+  this.cdr.detectChanges();
+
+  try {
+    const from = this.moveChoiceModal.occurDate;
+    const to = this.addDaysYmd(from, 90);
+
+    const lesson = this.lessons.find(
+      (l: any) => String(l.lesson_id) === String(this.moveChoiceModal.lessonId)
+    ) as any;
+
+    const isOpenEnded = !!lesson?.is_open_ended;
+    const repeatWeeks = Number(lesson?.repeat_weeks ?? 1);
+
+    const rpcName = isOpenEnded
+      ? 'find_open_ended_series_slots_with_skips'
+      : 'find_series_slots_with_skips';
+
+    const payload = isOpenEnded
+      ? {
+          p_child_id: this.contextMenu.childId,
+          p_from_date: from,
+          p_instructor_id_number: null,
+        }
+      : {
+          p_child_id: this.contextMenu.childId,
+          p_lesson_count: repeatWeeks,
+          p_instructor_id_number: null,
+          p_from_date: from,
+          p_to_date: to,
+        };
+
+    const { data, error } = await dbTenant().rpc(rpcName, payload);
+
+    if (error) throw error;
+
+    this.moveSlotsModal.slots = (data ?? []).map((s: any) => ({
+      occur_date: s.lesson_date,
+      start_time: s.start_time,
+      end_time: s.end_time,
+      instructor_id: s.instructor_id,
+      instructor_name:
+        this.instructors.find(i => String(i.id_number) === String(s.instructor_id))
+          ? `${this.instructors.find(i => String(i.id_number) === String(s.instructor_id))?.first_name ?? ''} ${this.instructors.find(i => String(i.id_number) === String(s.instructor_id))?.last_name ?? ''}`.trim()
+          : s.instructor_id,
+      lesson_ridding_type: s.riding_type_id ?? null,
+      riding_type_name: s.riding_type_name ?? null,
+      remaining_capacity: 1,
+      raw: s,
+    }));
+  } catch (e) {
+    console.error('load series move slots failed', e);
+    this.moveSlotsModal.error = 'שגיאה בטעינת אפשרויות להזזת סדרה';
+  } finally {
+    this.moveSlotsModal.loading = false;
+    this.cdr.detectChanges();
+  }
+}
+
+
+async confirmMoveSelectedSlot(): Promise<void> {
+  const slot = this.moveSlotsModal.selectedSlot;
+  if (!slot) return;
+
+  if (this.moveSlotsModal.mode === 'single') {
+    //await this.confirmMoveSingle(slot);
+    return;
+  }
+
+  //await this.confirmMoveSeries(slot);
+}
+
+moveSlotsPage = 0;
+moveSlotsPageSize = 4;
+
+get pagedMoveSlots(): any[] {
+  const start = this.moveSlotsPage * this.moveSlotsPageSize;
+  return this.moveSlotsModal.slots.slice(start, start + this.moveSlotsPageSize);
+}
+
+get moveSlotsTotalPages(): number {
+  return Math.max(1, Math.ceil(this.moveSlotsModal.slots.length / this.moveSlotsPageSize));
+}
+
+get canPrevMoveSlots(): boolean {
+  return this.moveSlotsPage > 0;
+}
+
+get canNextMoveSlots(): boolean {
+  return this.moveSlotsPage < this.moveSlotsTotalPages - 1;
+}
+
+prevMoveSlotsPage(): void {
+  if (!this.canPrevMoveSlots) return;
+  this.moveSlotsPage--;
+}
+
+nextMoveSlotsPage(): void {
+  if (!this.canNextMoveSlots) return;
+  this.moveSlotsPage++;
 }
 
 }

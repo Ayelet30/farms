@@ -1,4 +1,5 @@
-<div class="schedule-wrap" [class.fullscreen]="isFullscreen">
+<div class="schedule-wrap" [class.fullscreen]="isFullscreen" (touchstart)="onSwipeStart($event)"
+  (touchend)="onSwipeEnd($event)">
   <div class="card calendar-toolbar" *ngIf="showToolbar">
 
     <div class="view-buttons btn-group">
@@ -13,63 +14,63 @@
       </button>
     </div>
 
-    <div class="current-date">{{ currentDate }}</div>
+    <div class="date-nav">
+      <button class="nav-btn" (click)="next()" aria-label="הבא">
+        <span class="chevron left"></span>
+      </button>
+
+
+      <div class="current-date">{{ currentDate }}</div>
+
+      <button class="nav-btn" (click)="prev()" aria-label="קודם">
+        <span class="chevron right"></span>
+      </button>
+    </div>
 
     <div class="actions btn-group">
-      <button (click)="prev()">קודם</button>
       <button (click)="today()">היום</button>
-      <button (click)="next()">הבא</button>
 
       <button class="fullscreen-btn" (click)="toggleFullscreen()">
         {{ isFullscreen ? 'צמצם' : 'מסך מלא' }}
       </button>
 
       <button *ngIf="enableAutoAssign && currentView === 'timeGridDay'" class="assign-btn" type="button"
-        (click)="onAutoAssignClick()">
-        שבץ סוסים ומגרשים
+        (click)="onAutoAssignClick()" title="שבץ סוסים ומגרשים">
+        <span class="desktop-label">שבץ סוסים ומגרשים</span>
+        <span class="mobile-label">שיבוץ</span>
       </button>
     </div>
   </div>
 
   <!-- תצוגת יום מותאמת -->
   <div *ngIf="currentView === 'timeGridDay'" class="bereshit-calendar calendar-host custom-day-host" #calendarHost>
-    <div class="custom-day-grid"
-         [class.single-column-day]="!shouldSplitDayByInstructor"
-         [style.--day-cols]="customDayResources.length"
-         [style.--slot-count]="customDaySlots.length">
+    <div class="custom-day-grid" [class.single-column-day]="!shouldSplitDayByInstructor"
+      [style.--day-cols]="customDayResources.length" [style.--slot-count]="customDaySlots.length">
 
       <!-- כותרות מדריכים - רק למזכירה/מנהלת -->
       <ng-container *ngIf="shouldSplitDayByInstructor">
-        <div *ngFor="let res of customDayResources; let col = index"
-             class="day-resource-header sticky-cell"
-             [style.gridColumn]="col + 1"
-             [style.gridRow]="1">
+        <div *ngFor="let res of customDayResources; let col = index" class="day-resource-header sticky-cell"
+          [style.gridColumn]="col + 1" [style.gridRow]="1">
           {{ res.title }}
         </div>
       </ng-container>
 
       <!-- כותרת עליונה כשאין חלוקה למדריכים -->
-      <div *ngIf="!shouldSplitDayByInstructor"
-           class="day-single-header sticky-cell"
-           [style.gridColumn]="1"
-           [style.gridRow]="1">
+      <div *ngIf="!shouldSplitDayByInstructor" class="day-single-header sticky-cell" [style.gridColumn]="1"
+        [style.gridRow]="1">
         {{ currentDate }}
       </div>
 
       <!-- כותרת פינתית -->
-      <div
-        class="day-corner sticky-cell day-corner-time"
-        [style.gridColumn]="shouldSplitDayByInstructor ? customDayResources.length + 1 : 1"
-        [style.gridRow]="1">
+      <div class="day-corner sticky-cell day-corner-time"
+        [style.gridColumn]="shouldSplitDayByInstructor ? customDayResources.length + 1 : 2" [style.gridRow]="1">
         שעה
       </div>
 
       <!-- עמודת שעות -->
       <ng-container *ngFor="let slot of customDaySlots; let row = index">
-        <div
-          class="day-time-cell day-time-col"
-          [style.gridColumn]="shouldSplitDayByInstructor ? customDayResources.length + 1 : 1"
-          [style.gridRow]="row + 2">
+        <div class="day-time-cell day-time-col"
+          [style.gridColumn]="shouldSplitDayByInstructor ? customDayResources.length + 1 : 2" [style.gridRow]="row + 2">
           {{ slot.label }}
         </div>
       </ng-container>
@@ -77,12 +78,11 @@
       <!-- רקע תאים -->
       <ng-container *ngFor="let slot of customDaySlots; let row = index">
         <ng-container *ngFor="let res of customDayResources; let col = index">
-          <div
-            class="day-bg-cell"
-            [class.blocked-cell]="isBlockedRawCell(res.id, slot.iso)"
+          <div class="day-bg-cell" [class.blocked-cell]="isBlockedRawCell(res.id, slot.iso)"
+            [class.available-cell]="isAvailableRawCell(res.id, slot.iso)"
+            [style.background]="isAvailableRawCell(res.id, slot.iso) ? hexToRgba(getAvailableRawCellColor(res.id, slot.iso), 0.13) : null"
             [attr.title]="isBlockedRawCell(res.id, slot.iso) ? getBlockedReason(res.id, slot.iso) : null"
-            [style.gridColumn]="shouldSplitDayByInstructor ? col + 1 : 2"
-            [style.gridRow]="row + 2"
+            [style.gridColumn]="shouldSplitDayByInstructor ? col + 1 : 1" [style.gridRow]="row + 2"
             (click)="onCustomDateCellClick(slot.iso, res)"
             (contextmenu)="onCustomDateRightClick($event, slot.iso, res)">
           </div>
@@ -90,35 +90,25 @@
       </ng-container>
 
       <!-- שכבת חסימות -->
-      <div
-        *ngFor="let blocked of customDayBlockedCells"
-        class="day-blocked-overlay"
-        [class.kind-day-off]="blocked.kind === 'day_off'"
-        [class.kind-not-working]="blocked.kind === 'not_working'"
+      <div *ngFor="let blocked of customDayBlockedCells" class="day-blocked-overlay"
+        [class.kind-day-off]="blocked.kind === 'day_off'" [class.kind-not-working]="blocked.kind === 'not_working'"
         [class.kind-farm-off]="blocked.kind === 'farm_off'"
-        [style.gridColumn]="shouldSplitDayByInstructor ? blocked.col + 1 : 2"
-        [style.gridRow]="blocked.row + 2 + ' / span ' + blocked.span"
-        [attr.title]="blocked.reason || 'זמן חסום'">
+        [style.gridColumn]="shouldSplitDayByInstructor ? blocked.col + 1 : 1"
+        [style.gridRow]="blocked.row + 2 + ' / span ' + blocked.span" [attr.title]="blocked.reason || 'זמן חסום'">
       </div>
 
       <!-- אירועים -->
-      <div
-        *ngFor="let cluster of customDayClusters"
-        class="day-cluster"
-        [style.gridColumn]="shouldSplitDayByInstructor ? cluster.col + 1 : 2"
+      <div *ngFor="let cluster of customDayClusters" class="day-cluster"
+        [style.gridColumn]="shouldSplitDayByInstructor ? cluster.col + 1 : 1"
         [style.gridRow]="cluster.row + 2 + ' / span ' + cluster.span">
 
         <div class="day-cluster-inner" [class.multi]="cluster.items.length > 1">
-          <button type="button"
-                  *ngFor="let item of cluster.items"
-                  class="day-lesson-card"
-                  [class.status-canceled]="isCanceledItem(item)"
-                  [class.status-pending]="isPendingItem(item)"
-                  [class.status-approved]="isApprovedItem(item)"
-                  [style.borderInlineStartColor]="getInstructorBorderColor(item)"
-                  (contextmenu)="onCustomItemRightClick(item, $event)"
-                  (click)="onCustomItemClick(item, $event)"
-                  [title]="buildCustomItemTitle(item)">
+          <button type="button" *ngFor="let item of cluster.items" class="day-lesson-card"
+            [class.status-canceled]="isCanceledItem(item)" [class.status-pending]="isPendingItem(item)"
+            [class.status-approved]="isApprovedItem(item)"
+            [style.borderInlineStartColor]="getInstructorBorderColor(item)"
+            (contextmenu)="onCustomItemRightClick(item, $event)" (click)="onCustomItemClick(item, $event)"
+            [title]="buildCustomItemTitle(item)">
 
             <div class="day-lesson-main">
               <span class="day-child-name">
@@ -145,6 +135,14 @@
   <div *ngIf="currentView !== 'timeGridDay'" class="bereshit-calendar calendar-host">
     <div #calendarHost class="schedule-host">
       <full-calendar #calendar [options]="calendarOptions"></full-calendar>
+    </div>
+
+
+    <div class="schedule-legend" *ngIf="currentView === 'dayGridMonth'">
+      <div class="legend-item" *ngFor="let item of monthLegend trackBy: trackById">
+        <span class="legend-dot" [ngClass]="item.className"></span>
+        <span>{{ item.label }}</span>
+      </div>
     </div>
   </div>
 </div>

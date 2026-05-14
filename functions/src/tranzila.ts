@@ -977,14 +977,18 @@ export const chargeSelectedChargesForParent = onRequest(
         return;
       }
 
-      const { tenantSchema, parentUid, chargeIds , invoiceExtraText } = req.body as {
-        tenantSchema: string;
-        parentUid: string;
-        chargeIds: string[];
-        secretaryEmail?: string | null;
-        invoiceExtraText?: string | null; // ✅ חדש
-
-      };
+      const {
+  tenantSchema,
+  parentUid,
+  chargeIds,
+  invoiceExtraLinesByChild,
+} = req.body as {
+  tenantSchema: string;
+  parentUid: string;
+  chargeIds: string[];
+  secretaryEmail?: string | null;
+  invoiceExtraLinesByChild?: Record<string, string>;
+};
 
       if (!tenantSchema || !parentUid || !Array.isArray(chargeIds) || !chargeIds.length) {
         res.status(400).json({ ok: false, error: 'missing tenantSchema/parentUid/chargeIds' });
@@ -1164,12 +1168,11 @@ const paymentId = payRow.id as string;
 //   },
 // });
 try {
-  await ensureTranzilaInvoiceForPaymentInternal({
-    tenantSchema,
-    paymentId,
-    extraLineText: (invoiceExtraText ?? '').trim() || null, // ✅ חדש
-
-  });
+await ensureTranzilaInvoiceForPaymentInternal({
+  tenantSchema,
+  paymentId,
+  extraLinesByChild: invoiceExtraLinesByChild,
+});
 } catch (err: any) {
   console.error('[invoice after charge] failed', err?.message || err);
 

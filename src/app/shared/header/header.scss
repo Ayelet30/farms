@@ -2,483 +2,504 @@
 
 .site-header {
   direction: rtl;
-  display: flex;
+  height: 72px;
+  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: 42px minmax(80px, 1fr) auto auto;
   align-items: center;
-  justify-content: space-between; 
-  min-height: 58px;
-  padding: 10px 16px;
+  gap: 10px;
   background: linear-gradient(180deg, var(--cream-top) 0%, var(--cream-bottom) 100%);
   border-bottom: 1px solid var(--gold-soft);
+  color: var(--text-strong);
   position: relative;
-  isolation: isolate;
   z-index: 1000;
+  box-sizing: border-box;
+  overflow: visible;
+}
 
-  > .auth-section { order: 1; }   /* ימין */
-  > .farm-section { order: 2; }   /* שמאל */
+/* ===== Farm ===== */
 
-  .farm-section {
-    display: grid;
-    grid-template-columns: 36px auto;
-    grid-template-rows: auto auto;
-    align-items: center;
-    column-gap: 10px;
-    color: var(--text-strong);
+.farm-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--gold-soft);
+  background-color: var(--cream-top);
+  background-size: cover;
+  background-position: center;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
 
-    &::before {
-      display: none !important;
-      content: none !important;
-    }
+.logo-initials {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-strong);
+}
 
-    .farm-logo {
-      grid-column: 1;
-      grid-row: 1 / span 2;
-      width: 36px;
-      height: 36px;
-      padding: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      border: 1px solid var(--gold-soft);
-      background-color: var(--cream-top);
-      background-position: center;
-      background-size: cover;
-      background-repeat: no-repeat;
-      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
-      overflow: hidden;
-      cursor: pointer;
-      appearance: none;
-      -webkit-appearance: none;
-      line-height: 0;
-      position: relative; 
-      z-index: 1;
-    }
+.farm-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
 
-    .farm-logo img {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      display: block;
-      object-fit: cover;
-    }
+.farm-name {
+  font-size: 17px;
+  font-weight: 850;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-    .farm-logo .logo-initials {
-      width: 100%;
-      height: 100%;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      font-size: 14px;
-      color: var(--text-strong);
-    }
+.farm-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-    .farm-name {
-      grid-column: 2;
-      grid-row: 1;
-      font-weight: 800;
-      font-size: 18px;
-      line-height: 1.1;
-      color: var(--text-strong);
-      letter-spacing: 0.1px;
-    }
+/* ===== User ===== */
 
-    .farm-note {
-      grid-column: 2;
-      grid-row: 2;
-      margin-top: 2px;
-      font-size: 13px;
-      color: var(--text-muted);
-      line-height: 1.15;
-      white-space: nowrap;
-    }
-  }
+.user-area {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
 
-  .auth-section {
-    display: inline-flex;
-    align-items: center;
-    gap: 14px;
-    color: var(--text-strong);
-    font-weight: 500;
-
-    .parent-details {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 2px;
-      position: relative;
-      --avatar: 32px;
-      --avatar-gap: 12px;
-    }
-
-    .parent-name {
-      display: inline-flex;
-      align-items: center;
-      gap: .4rem;
-      padding-inline-end: 14px;
-      border-inline-end: 1px solid var(--gold-soft);
-      color: var(--text-strong);
-      font-weight: 700;
-      line-height: 1;
-
-      &::before {
-        content: "";
-        display: inline-block;
-        width: var(--avatar);
-        height: var(--avatar);
-        margin-inline-end: var(--avatar-gap);
-        border-radius: 50%;
-        background: var(--text-strong);
-        -webkit-mask: url("data:image/svg+xml;utf8,\
+.user-icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  background: var(--text-strong);
+  mask: url("data:image/svg+xml;utf8,\
 <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'>\
-<circle cx='12' cy='9' r='3' fill='currentColor'/>\
-<path d='M5 19c2.1-3.2 4.5-4.8 7-4.8S16.9 15.8 19 19' fill='currentColor'/>\
-</svg>") center / 78% no-repeat;
-        mask: url("data:image/svg+xml;utf8,\
+<circle cx='12' cy='8' r='4' fill='black'/>\
+<path d='M4 20c1.8-4 4.4-6 8-6s6.2 2 8 6' fill='black'/>\
+</svg>") center / 76% no-repeat;
+  -webkit-mask: url("data:image/svg+xml;utf8,\
 <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'>\
-<circle cx='12' cy='9' r='3' fill='currentColor'/>\
-<path d='M5 19c2.1-3.2 4.5-4.8 7-4.8S16.9 15.8 19 19' fill='currentColor'/>\
-</svg>") center / 78% no-repeat;
-        outline: 1px solid var(--gold-soft);
-        outline-offset: -1px;
-        box-shadow: 0 1px 0 rgba(0,0,0,.03);
-      }
-    }
+<circle cx='12' cy='8' r='4' fill='black'/>\
+<path d='M4 20c1.8-4 4.4-6 8-6s6.2 2 8 6' fill='black'/>\
+</svg>") center / 76% no-repeat;
+}
 
-      .parent-name-text {
-    white-space: nowrap;
-  }
-  
-  .parent-Role {
-    padding-right: 50px;
-  }
+.user-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
 
-  .role-toggle-btn {
-    width: 20px;
-    height: 20px;
-    border-radius: 999px;
-    border: 1px solid var(--gold-soft);
-    background: rgba(255, 255, 255, 0.6);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    cursor: pointer;
-    transition: background-color .15s ease, border-color .15s ease, transform .06s ease;
+.user-name-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
 
-    &:hover {
-      background: rgba(255, 255, 255, 0.95);
-      border-color: var(--gold-strong, var(--gold-soft));
-    }
+.user-name {
+  max-width: 130px;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-    &:active {
-      transform: translateY(1px);
-    }
+.user-role {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-muted);
+}
 
-    &:focus-visible {
-      outline: 2px solid var(--gold-soft);
-      outline-offset: 2px;
-    }
+/* ===== Role dropdown ===== */
 
-    .chevron {
-      width: 8px;
-      height: 8px;
-      border-inline-start: 2px solid var(--text-strong);
-      border-block-start: 2px solid var(--text-strong);
-      transform: rotate(135deg); // חץ כלפי מטה
-      transition: transform .15s ease;
-    }
+.role-toggle-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--gold-soft);
+  background: rgba(255, 255, 255, 0.75);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+  flex: 0 0 26px;
+}
 
-    &.open .chevron {
-      transform: rotate(-45deg); // חץ כלפי מעלה
-    }
-  }
+.chevron {
+  width: 8px;
+  height: 8px;
+  border-inline-start: 2px solid var(--text-strong);
+  border-block-start: 2px solid var(--text-strong);
+  transform: rotate(135deg);
+  transition: transform 0.15s ease;
+}
 
+.role-toggle-btn.open .chevron {
+  transform: rotate(-45deg);
+}
 
-  }
+.role-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  inset-inline-end: 0;
+  min-width: 210px;
+  max-width: 86vw;
+  padding: 6px;
+  margin: 0;
+  list-style: none;
+  background: var(--cream-top);
+  border: 1px solid var(--gold-soft);
+  border-radius: 14px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.15);
+  z-index: 9000;
+}
 
+.role-menu li {
+  padding: 9px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
 
-    .auth-button {
-      --padH: 4.8rem;
-      --gap: .4rem;
-      --iconSize: 1.05rem;
+.role-menu li:hover,
+.role-menu li.active {
+  background: var(--cream-bottom);
+}
 
-      min-width: 100px;
-      position: relative;
-      display: grid;
-      direction: rtl;
-      background: transparent;
-      border: 0;
-      color: var(--text-strong);
-      font-weight: 700;
-      line-height: 1;
-      padding: var(--padV) calc(var(--padH) + var(--iconSize) + var(--gap)) var(--padV) var(--padH);
-      border-radius: 8px;
-      cursor: pointer;
-      transition: background-color .15s ease, transform .04s ease;
+.role-line {
+  font-size: 13px;
+  font-weight: 800;
+}
 
-      &::before {
-        content: "";
-        position: absolute;
-        inset-block: 0;
-        margin-block: auto;
-        inset-inline-end: var(--padH);
-        width: var(--iconSize);
-        height: var(--iconSize);
-        background: currentColor;
-        -webkit-mask: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>\
+.farm-line {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ===== Auth ===== */
+
+.auth-button {
+  height: 38px;
+  min-width: 86px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.auth-button:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.auth-icon {
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  mask: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'>\
 <path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/>\
 <polyline points='16 17 21 12 16 7'/>\
 <line x1='21' y1='12' x2='9' y2='12'/>\
 </svg>") center / contain no-repeat;
-        mask: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>\
+  -webkit-mask: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'>\
 <path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/>\
 <polyline points='16 17 21 12 16 7'/>\
 <line x1='21' y1='12' x2='9' y2='12'/>\
 </svg>") center / contain no-repeat;
-        transition: transform .18s ease;
-      }
+}
 
-      &:hover { background-color: rgba(0, 0, 0, 0.04); }
-      &:active { transform: translateY(1px); }
-      &:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
-      &:disabled { opacity: .5; cursor: not-allowed; }
-    }
+.auth-label {
+  font-size: 14px;
+}
 
-    .btn-logout.icon-start {
-      padding: var(--padV) var(--padH) var(--padV) calc(var(--padH) + var(--iconSize) + var(--gap));
-      &::after { inset-inline-end: auto; inset-inline-start: var(--padH); }
-    }
-  }
+.install-button {
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--gold-soft);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  font-weight: 850;
+  white-space: nowrap;
+}
 
+.install-button:hover {
+  background: var(--cream-bottom);
+}
 
-  .parent-name-text {
-    white-space: nowrap;
-  }
+.install-icon {
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  mask: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'>\
+<path d='M12 3v12'/>\
+<path d='M7 10l5 5 5-5'/>\
+<path d='M5 21h14'/>\
+</svg>") center / contain no-repeat;
+  -webkit-mask: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'>\
+<path d='M12 3v12'/>\
+<path d='M7 10l5 5 5-5'/>\
+<path d='M5 21h14'/>\
+</svg>") center / contain no-repeat;
+}
 
-  .role-toggle-btn {
-    width: 20px;
-    height: 20px;
-    border-radius: 999px;
-    border: 1px solid var(--gold-soft);
-    background: rgba(255, 255, 255, 0.6);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+.install-label {
+  font-size: 14px;
+}
+
+.install-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  background: rgba(15, 23, 42, 0.38);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.install-modal {
+  width: min(420px, 80vw);
+  background: var(--cream-top);
+  border: 1px solid var(--gold-soft);
+  border-radius: 24px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
+  padding: 24px 22px 20px;
+  position: relative;
+  text-align: center;
+  color: var(--text-strong);
+}
+
+.install-close {
+  position: absolute;
+  top: 10px;
+  inset-inline-start: 10px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--text-strong);
+}
+
+.install-modal-icon {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 12px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: var(--cream-bottom);
+  border: 1px solid var(--gold-soft);
+  font-size: 28px;
+}
+
+.install-modal h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.install-modal p {
+  margin: 0 0 14px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.install-steps {
+  margin: 12px 0 18px;
+  padding-inline-start: 0;
+  padding-inline-end: 22px;
+  text-align: right;
+  color: var(--text-strong);
+  line-height: 1.9;
+  font-size: 14px;
+}
+
+.install-ok {
+  width: 100%;
+  height: 42px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--text-strong);
+  color: #fff;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .install-button {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
     padding: 0;
-    cursor: pointer;
-    transition: background-color .15s ease, border-color .15s ease, transform .06s ease;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.95);
-      border-color: var(--gold-strong, var(--gold-soft));
-    }
-
-    &:active {
-      transform: translateY(1px);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--gold-soft);
-      outline-offset: 2px;
-    }
-
-    .chevron {
-      width: 8px;
-      height: 8px;
-      border-inline-start: 2px solid var(--text-strong);
-      border-block-start: 2px solid var(--text-strong);
-      transform: rotate(135deg); // חץ כלפי מטה
-      transition: transform .15s ease;
-    }
-
-    &.open .chevron {
-      transform: rotate(-45deg); // חץ כלפי מעלה
-    }
+    border-radius: 50%;
   }
 
-  .role-menu {
-    position: absolute;
-    top: 80%;
-    inset-inline-end: 0;
-    padding: 6px;
-    list-style: none;
-    background: var(--cream-top);
-    border: 1px solid var(--gold-soft);
-    border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, .12);
-    min-width: 220px;
-    z-index: 500;
+  .install-label {
+    display: none;
   }
 
-  .role-menu li {
-    padding: 8px 10px;
-    border-radius: 10px;
-    cursor: pointer;
-    color: var(--text-strong);
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    font-size: 0.82rem;
-
-    &:hover {
-      background: var(--cream-bottom);
-    }
-
-    &.active {
-      background: rgba(0, 0, 0, .03);
-      font-weight: 600;
-    }
-
-    .role-line {
-      font-weight: 600;
-      font-size: 0.86rem;
-    }
-
-    .farm-line {
-      font-size: 0.76rem;
-      color: var(--text-muted);
-    }
+  .install-icon {
+    width: 17px;
+    height: 17px;
   }
 
-  /* --------  טבלטים / מובייל בינוני -------- */
-@media (max-width: 900px) {
-  .site-header {
-    padding: 8px 10px;
-    min-height: 52px;
-  }
-
-  .site-header .farm-section {
-    grid-template-columns: 32px auto;
-  }
-
-  .site-header .farm-section .farm-logo {
-    width: 32px;
-    height: 32px;
-  }
-
-  .site-header .farm-section .farm-name {
-    font-size: 16px;
-  }
-
-  .site-header .farm-section .farm-note {
-    font-size: 12px;
-  }
-
-  .site-header .auth-section {
-    gap: 10px;
-  }
-
-  .site-header .auth-section .parent-name {
-    padding-inline-end: 10px;
-  }
-
-  .site-header .auth-section .auth-button {
-    min-width: 88px;
-    font-size: 0.86rem;
+  .install-modal {
+    border-radius: 22px;
+    padding: 22px 18px 18px;
   }
 }
-/* --------  מובייל אמיתי -------- */
+
+.header-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: end;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* ===== Mobile ===== */
+
 @media (max-width: 600px) {
   .site-header {
-    padding: 6px 8px;
-    min-height: 48px;
-    gap: 6px;
+    height: 64px;
+    padding: 7px 10px;
+    grid-template-columns: 38px minmax(45px, 1fr) minmax(92px, auto) 78px;
+    gap: 7px;
   }
 
-  /* סידור: לוגו וחווה בשורה, פרטי משתמש קומפקטיים */
-  .site-header .left-group {
-    flex: 1 1 auto;
+  .farm-logo {
+    width: 38px;
+    height: 38px;
   }
 
-  .site-header .farm-section .farm-name {
-    font-size: 15px;
+  .farm-name {
+    font-size: 13px;
+    max-width: 80px;
   }
 
-  .site-header .farm-section .farm-note {
-    display: none; // פחות קריא במובייל, מפנה מקום
+  .farm-note {
+    display: none;
   }
 
-  .site-header .auth-section {
-    gap: 6px;
+  .user-area {
+    gap: 5px;
+    justify-self: end;
   }
 
-  .site-header .auth-section .parent-details {
-    --avatar: 28px;
-    --avatar-gap: 8px;
+  .user-icon {
+    width: 24px;
+    height: 24px;
+    flex-basis: 24px;
   }
 
-  .site-header .auth-section .parent-name {
-    border-inline-end: none;
-    padding-inline-end: 0;
+  .user-name {
+    max-width: 76px;
+    font-size: 13px;
+  }
+
+  .user-role {
+    font-size: 10px;
+  }
+
+  .role-toggle-btn {
+    width: 26px;
+    height: 26px;
+  }
+
+  .auth-button {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--gold-soft);
+    background: rgba(255, 255, 255, 0.55);
+  }
+
+  .auth-label {
+    display: none;
+  }
+
+  .auth-icon {
+    width: 17px;
+    height: 17px;
+  }
+
+   .header-actions {
     gap: 4px;
   }
 
-  .site-header .auth-section .parent-name-text {
-    max-width: 110px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    overflow: hidden;
-  }
-
-  .site-header .auth-section .parent-Role {
-    font-size: 11px;
-    padding-inline-start: 0;
-  }
-
-  .site-header .auth-section .auth-button {
-    --padH: 0.5rem;
-    padding-inline: 0.8rem 1.8rem;
-    font-size: 0.8rem;
-  }
-
-  /* החץ – שיהיה טיפה גדול יותר למגע אצבע */
-  .site-header .role-toggle-btn {
-    width: 22px;
-    height: 22px;
-  }
-
-  /* הדרופדאון – צף כמו כרטיס קטן מתחת לשם */
-  .site-header .role-menu {
-    top: 120%;
-    inset-inline-end: 0;
-    min-width: 190px;
-    max-width: 80vw;
-    padding: 4px;
-  }
-
-  .site-header .role-menu li {
-    padding: 8px 10px;
-  }
-
-  .site-header .role-menu .role-line {
-    font-size: 0.82rem;
-  }
-
-  .site-header .role-menu .farm-line {
-    font-size: 0.74rem;
+  .install-button,
+  .auth-button {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
   }
 }
-@media (max-width: 400px) {
+
+@media (max-width: 420px) {
   .site-header {
-    padding-inline: 6px;
+    grid-template-columns: 36px minmax(42px, 1fr) minmax(82px, auto) 74px;
+    padding-inline: 8px;
+    gap: 6px;
   }
 
-  .site-header .farm-section .farm-name {
-    font-size: 14px;
+  .farm-logo {
+    width: 36px;
+    height: 36px;
   }
 
-  .site-header .auth-section .parent-name-text {
-    max-width: 90px;
+  .farm-name {
+    max-width: 64px;
+    font-size: 12px;
   }
 
-  .site-header .auth-section .auth-button {
-    padding-inline: 0.6rem 1.4rem;
+  .user-name {
+    max-width: 62px;
+    font-size: 12px;
+  }
+
+  .user-role {
+    display: none;
+  }
+
+  .auth-button {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
   }
 }
-
-
-

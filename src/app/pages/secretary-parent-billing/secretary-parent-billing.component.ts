@@ -1,24 +1,31 @@
 // src/app/pages/secretary-parent-billing/secretary-parent-billing.component.ts
-import {
-  Component,
-  OnInit,
-  signal,
-  computed,
-  inject,
-} from '@angular/core';
+
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { createParentCredit, getCurrentFarmMetaSync } from '../../services/supabaseClient.service';
 import { MatDialog } from '@angular/material/dialog';
 import { CreditDialogComponent } from './credit-dialog.component';
+import { Component, OnInit, signal, computed, inject, Inject } from '@angular/core';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import {
   PaymentsService,
   ParentChargeRow,
 } from '../../services/payments.service';
-import { dbTenant } from '../../services/supabaseClient.service';
 import { TranzilaService } from '../../services/tranzila.service';
 import { AdditionalChargeDialogComponent } from './additional-charge-dialog.component';
+import { MailService } from '../../services/mail.service';
+import { dbTenant, dbPublic } from '../../services/supabaseClient.service';
+type ChargeWithPaymentStatus = ParentChargeRow & {
+  hasPaymentMethod?: boolean;
+  hasExpiredPaymentMethod?: boolean;
+  paymentBlockReason?: string | null;
+};
+type ParentChildEmailInfo = {
+  first_name: string | null;
+  last_name: string | null;
+  gov_id: string | null;
+};
 @Component({
   selector: 'app-secretary-parent-billing',
   standalone: true,
@@ -26,33 +33,28 @@ import { AdditionalChargeDialogComponent } from './additional-charge-dialog.comp
   templateUrl: './secretary-parent-billing.component.html',
   styleUrls: ['./secretary-parent-billing.component.scss'],
 })
+
 export class SecretaryParentBillingComponent implements OnInit {
+  
 private dialog = inject(MatDialog);
   private tranzila = inject(TranzilaService);
   
   // === פילטרים ===
   parentNameFilter = signal<string>('');
-
+successMessage = signal<string | null>(null);
   // נתונים
-  charges = signal<ParentChargeRow[]>([]);
-
+charges = signal<ChargeWithPaymentStatus[]>([]);
   // סטטוסים
   loading = signal(false);
   error = signal<string | null>(null);
 hasLoadedOnce = signal(false);
   // בחירת חיובים לסליקה
   selectedChargeIds = signal<Set<string>>(new Set());
-
+failedPaymentParentUids = signal<Set<string>>(new Set());
   // טאב פעיל: 'open' | 'all'
   activeTab = signal<'open' | 'all'>('open');
 
-  // טופס זיכוי
-  creditAmount = signal<string>(''); // בש"ח
-  creditReason = signal<string>('');
-  creditSaving = signal(false);
-  creditError = signal<string | null>(null);
-  creditSuccess = signal<string | null>(null);
-
+ 
   detailsOpenFor = signal<string | null>(null);
   detailsLoading = signal(false);
   detailsError = signal<string | null>(null);
@@ -60,17 +62,15 @@ hasLoadedOnce = signal(false);
   detailsItems = signal<any[]>([]);   // lesson items
   detailsPayments = signal<any[]>([]); // credits/payments
 
-  creditParentUid = signal<string | null>(null);
-  creditParentName = signal<string | null>(null);
-  creditRelatedChargeId = signal<string | null>(null);
-
   detailsCredits = signal<any[]>([]);
   private thtk: string | null = null;
-
-invoiceExtraText = '';
+invoiceExtraLinesByChild = signal<Record<string, string>>({});
 billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
-
-  constructor(private payments: PaymentsService) {}
+unbilledWarning = signal<string | null>(null);
+private creditDialogOpen = false;
+private additionalChargeDialogOpen = false;
+  constructor(private payments: PaymentsService,  private mailService: MailService,
+) {}
 
   // === helpers ===
 
@@ -78,12 +78,9 @@ billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
     if (agorot == null) return 0;
     return agorot / 100;
   }
-
- remainingAgorot(c: ParentChargeRow): number {
-    // אם ה־VIEW כבר מחשב – זה השדה המרכזי
-    return c.remaining_agorot ?? 0;
-  }
-
+remainingAgorot(c: ParentChargeRow): number {
+  return this.realRemainingAgorot(c);
+}
   /** חיובים פתוחים (יתרה > 0, לא בוטל) */
   openCharges = computed(() => {
     return this.charges().filter((c) => {
@@ -146,8 +143,47 @@ billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
     const { rows } = await this.payments.listParentCharges({
       limit: 200,
     });
+const parentUids = Array.from(
+  new Set((rows ?? []).map((c: any) => c.parent_uid).filter(Boolean))
+);
 
-    this.charges.set(rows);
+const profilesByParent = new Map<string, any[]>();
+
+if (parentUids.length) {
+  const { data: profiles, error: profilesErr } = await dbTenant()
+    .from('payment_profiles')
+    .select('parent_uid, active, is_default, expiry_month, expiry_year, last4, brand')
+    .in('parent_uid', parentUids)
+    .eq('active', true);
+
+  if (profilesErr) throw profilesErr;
+
+  for (const p of profiles ?? []) {
+    const arr = profilesByParent.get(p.parent_uid) ?? [];
+    arr.push(p);
+    profilesByParent.set(p.parent_uid, arr);
+  }
+}
+
+const rowsWithPaymentStatus = (rows ?? []).map((c: any) => {
+  const profiles = profilesByParent.get(c.parent_uid) ?? [];
+  const hasPaymentMethod = profiles.length > 0;
+  const hasValidPaymentMethod = profiles.some((p) => !this.isCardExpired(p));
+  const hasExpiredPaymentMethod = hasPaymentMethod && !hasValidPaymentMethod;
+
+  return {
+    ...c,
+    hasPaymentMethod,
+    hasExpiredPaymentMethod,
+    paymentBlockReason: !hasPaymentMethod
+      ? 'אין להורה אמצעי תשלום פעיל'
+      : hasExpiredPaymentMethod
+        ? 'כל אמצעי התשלום של ההורה פגי תוקף'
+        : null,
+  };
+});
+
+this.charges.set(rowsWithPaymentStatus);
     this.selectedChargeIds.set(new Set());
     this.hasLoadedOnce.set(true);
   } catch (e: any) {
@@ -166,25 +202,29 @@ billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
   // === בחירת חיובים ===
 
   toggleChargeSelection(chargeId: string, checked: boolean) {
-    const next = new Set(this.selectedChargeIds());
-    if (checked) {
-      next.add(chargeId);
-    } else {
-      next.delete(chargeId);
-    }
-    this.selectedChargeIds.set(next);
+  const next = new Set(this.selectedChargeIds());
+
+  if (checked) {
+    next.add(chargeId);
+  } else {
+    next.delete(chargeId);
   }
 
+  this.selectedChargeIds.set(next);
+}
   toggleSelectAllVisible(checked: boolean) {
-    const next = new Set<string>();
-    if (checked) {
-      for (const c of this.openCharges()) {
-        const remaining = this.remainingAgorot(c);
-        if (remaining > 0) next.add(c.id);
+  const next = new Set<string>();
+
+  if (checked) {
+    for (const c of this.openCharges()) {
+      if (this.canSelectForPayment(c)) {
+        next.add(c.id);
       }
     }
-    this.selectedChargeIds.set(next);
   }
+
+  this.selectedChargeIds.set(next);
+}
 
   isSelected(chargeId: string): boolean {
     return this.selectedChargeIds().has(chargeId);
@@ -198,10 +238,18 @@ billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
   }
 
   onRowCheckboxChange(chargeId: string, event: Event) {
-    const input = event.target as HTMLInputElement | null;
-    const checked = !!input?.checked;
-    this.toggleChargeSelection(chargeId, checked);
+  const input = event.target as HTMLInputElement | null;
+  const checked = !!input?.checked;
+
+  const charge = this.openCharges().find(c => c.id === chargeId);
+
+  if (checked && charge && !this.canSelectForPayment(charge)) {
+    input!.checked = false;
+    return;
   }
+
+  this.toggleChargeSelection(chargeId, checked);
+}
 
   // === חיוב חיובים נבחרים ===
 
@@ -227,17 +275,55 @@ billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
 
     for (const [parentUid, chargeIds] of entries) {
       try {
-        await this.tranzila.chargeSelectedChargesForParent({
-          tenantSchema: schema,
-          parentUid,
-          chargeIds,
-          secretaryEmail: 'ayelethury@gmail.com',
-          invoiceExtraText: this.invoiceExtraText?.trim() || null,
-        });
-      } catch (e: any) {
-        console.error('[ParentBilling] charge failed for parent', parentUid, e);
-        failures.push(parentUid);
-      }
+//         if (parentUid === 'zXWaxymcPSWzbUXYKNzASkhaZaz1') {
+//   throw new Error('בדיקת כישלון חיוב יזומה');
+// }
+      await this.tranzila.chargeSelectedChargesForParent({
+  tenantSchema: schema,
+  parentUid,
+  chargeIds,
+  secretaryEmail: '',
+  invoiceExtraLinesByChild: this.invoiceExtraLinesByChild(),
+});
+    } catch (e: any) {
+  console.error('[ParentBilling] charge failed for parent', parentUid, e);
+  failures.push(parentUid);
+
+  const nextFailed = new Set(this.failedPaymentParentUids());
+  nextFailed.add(parentUid);
+  this.failedPaymentParentUids.set(nextFailed);
+
+  const parentCharge = this.openCharges().find(c => c.parent_uid === parentUid);
+  const parentName =
+    parentCharge?.parent_name ||
+    `${parentCharge?.first_name || ''} ${parentCharge?.last_name || ''}`.trim() ||
+    parentUid;
+
+  const farm = getCurrentFarmMetaSync();
+  const tenantSchema = farm?.schema_name ?? 'public';
+  const farmName = farm?.name ?? 'Smart Farm';
+const children = await this.getParentChildrenForEmail(parentUid);
+const email = this.buildPaymentFailedEmail({
+  parentName,
+  parentUid,
+  chargeIds,
+  farmName,
+  errorMessage: e?.message ?? null,
+  children,
+});
+
+ const secretaryEmails = await this.getSecretaryEmailsForCurrentTenant();
+
+if (secretaryEmails.length) {
+  await this.mailService.sendEmailGmail({
+    tenantSchema,
+    to: secretaryEmails,
+    subject: email.subject,
+    html: email.html,
+    text: email.text,
+  });
+}
+}
     }
 
     await this.loadCharges();
@@ -254,79 +340,42 @@ billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
 
   // === זיכוי הורה ===
 
-  async submitCredit() {
-    this.creditError.set(null);
-    this.creditSuccess.set(null);
+async openCreditForCharge(c: ParentChargeRow) {
+  if (this.creditDialogOpen) return;
 
-    const raw = this.creditAmount();
-    const amountStr = String(raw ?? '').trim();
+  this.creditDialogOpen = true;
 
-    const reason = this.creditReason().trim();
-    
-    const parentUid = this.creditParentUid();
-    if (!parentUid) {
-      this.creditError.set('בחר/י קודם הורה מתוך הטבלה (כפתור "הוסף זיכוי").');
-      return;
-    }
+  try {
+    const children = await this.getChildrenForCharge(c.id);
 
+    const ref = this.dialog.open(CreditDialogComponent, {
+      width: '560px',
+      maxWidth: '92vw',
+      autoFocus: false,
+      panelClass: 'credit-dialog-panel',
+      data: {
+        parentUid: c.parent_uid,
+        parentName: c.parent_name ?? '',
+        relatedChargeId: c.id,
+        children,
+      },
+    });
 
-    const amountNumber = Number(amountStr.replace(',', '.'));
-    if (!amountStr || isNaN(amountNumber) || amountNumber <= 0) {
-      this.creditError.set('יש להזין סכום זיכוי חיובי בש"ח');
-      return;
-    }
-    if (!reason) {
-      this.creditError.set('יש להזין סיבה לזיכוי');
-      return;
-    }
+    ref.afterClosed().subscribe(async (result) => {
+      this.creditDialogOpen = false;
 
-    try {
-      this.creditSaving.set(true);
+      if (result?.saved) {
+        await this.loadCharges();
 
-      await createParentCredit({
-        parent_uid: parentUid,
-        amount_agorot: Math.round(amountNumber * 100),
-        reason,
-        related_charge_id: this.creditRelatedChargeId(),
-      });
-
-
-      this.creditAmount.set('');
-      this.creditReason.set('');
-      this.creditSuccess.set('הזיכוי נשמר בהצלחה');
-      await this.loadCharges();
-    } catch (e: any) {
-      console.error('[ParentBilling] credit error', e);
-      this.creditError.set(e?.message ?? 'שגיאה בשמירת הזיכוי');
-    } finally {
-      this.creditSaving.set(false);
-    }
-  }
-
- 
-
-
-openCreditForCharge(c: ParentChargeRow) {
-  const ref = this.dialog.open(CreditDialogComponent, {
-    width: '560px',
-    maxWidth: '92vw',
-    autoFocus: false,
-    panelClass: 'credit-dialog-panel',
-    data: {
-      parentUid: c.parent_uid,
-      parentName: c.parent_name ?? '',
-      relatedChargeId: c.id,
-    },
-  });
-
-  ref.afterClosed().subscribe(async (result) => {
-    if (result?.saved) {
-      await this.loadCharges();
-      if (this.detailsOpenFor() === c.id) {
+        if (this.detailsOpenFor() === c.id) {
           await this.openChargeDetails(c.id);
-    }
-    }
-  });
+        }
+      }
+    });
+  } catch (e) {
+    this.creditDialogOpen = false;
+    throw e;
+  }
 }
 
   // === תצוגה ===
@@ -335,40 +384,78 @@ openCreditForCharge(c: ParentChargeRow) {
     const val = this.shekelsFromAgorot(agorot);
     return `${val.toFixed(2)} ₪`;
   }
+formatPeriod(c: ParentChargeRow): string {
+  if (!c.period_start && !c.period_end) return '';
 
-  formatPeriod(c: ParentChargeRow): string {
-    if (c.period_start && c.period_end) {
-      return `${c.period_start} – ${c.period_end}`;
-    }
-    return c.period_start || c.period_end || '';
+  const format = (d: string) => {
+    const date = new Date(d);
+    return date.toLocaleDateString('he-IL'); // dd/MM/yyyy
+  };
+
+  if (c.period_start && c.period_end) {
+    return `מ־${format(c.period_start)} עד ${format(c.period_end)}`;
   }
 
-  formatStatus(status: ParentChargeRow['status']): string {
-    switch (status) {
-      case 'draft':
-        return 'טיוטה';
-      case 'pending':
-        return 'ממתין לחיוב';
-      case 'open':
-        return 'פתוח';
-      case 'partial':
-        return 'שולם חלקית';
-      case 'paid':
-        return 'שולם';
-      case 'failed':
-        return 'נכשל';
-      case 'cancelled':
-        return 'בוטל';
-      default:
-        return status ?? '';
-    }
+  if (c.period_start) {
+    return `מ־${format(c.period_start)}`;
   }
 
+  if (c.period_end) {
+    return `עד ${format(c.period_end)}`;
+  }
+
+  return '';
+}
+  formatStatus(c: ParentChargeRow): string {
+  const total = this.chargeTotalAgorot(c);
+  const paid = this.paidAgorot(c);
+  const credits = this.creditsAgorot(c);
+  const remaining = this.realRemainingAgorot(c);
+
+  if (c.status === 'cancelled') return 'בוטל';
+  if (c.status === 'failed') return 'נכשל';
+  if (c.status === 'pending') return 'ממתין לחיוב';
+
+  if (remaining <= 0 && total > 0) {
+    if (paid > 0 && credits > 0) return 'שולם עם זיכוי';
+    if (credits > 0 && paid === 0) return 'נסגר בזיכוי';
+    return 'שולם';
+  }
+
+  if (paid > 0 && remaining > 0) return 'שולם חלקית';
+
+  return 'טיוטה';
+}
  async openChargeDetails(chargeId: string) {
   try {
     this.detailsOpenFor.set(chargeId);
     this.detailsLoading.set(true);
     this.detailsError.set(null);
+   const { data: newAmount, error: recalcErr } = await dbTenant().rpc(
+  'recalc_charge_amount',
+  { p_charge_id: chargeId }
+);
+
+if (recalcErr) throw recalcErr;
+
+if (newAmount != null) {
+  const updated = this.charges().map((c: any) => {
+    if (c.id !== chargeId) return c;
+
+    const paid = c.paid_agorot ?? 0;
+    const credits = c.credits_agorot ?? 0;
+    const newRemaining = Math.max(Number(newAmount) - paid - credits, 0);
+
+    return {
+      ...c,
+      charge_amount_agorot: Number(newAmount),
+      amount_agorot: Number(newAmount),
+      remaining_agorot: newRemaining,
+    };
+  });
+
+  this.charges.set(updated);
+}
 
     const { data: items, error: e1 } = await dbTenant()
       .from('charge_details_with_office_note')
@@ -397,8 +484,19 @@ openCreditForCharge(c: ParentChargeRow) {
 
     const { data: credits, error: e2 } = await dbTenant()
       .from('parent_credits')
-      .select('created_at,amount_agorot,reason,created_by')
-      .eq('related_charge_id', chargeId)
+.select(`
+    id,
+  created_at,
+  amount_agorot,
+  reason,
+  created_by,
+  child_id,
+  children:child_id (
+    first_name,
+    last_name,
+    gov_id
+  )
+`)      .eq('related_charge_id', chargeId)
       .order('created_at', { ascending: true });
 
     if (e2) throw e2;
@@ -428,13 +526,61 @@ detailsCreditsTotalAgorot = computed(() => {
 
 
 
-  async runbilling(runDate?: string) {
-  try {
+async runbilling(runDate?: string, forceIgnoreWarning = false) {
+     try {
     this.loading.set(true);
     this.error.set(null);
-
+    this.successMessage.set(null);
+this.unbilledWarning.set(null);
     const billingDate = runDate || this.billingRunDate() || new Date().toISOString().slice(0, 10);
 const billingDay = Number(billingDate.split('-')[2]);
+
+
+const previousMonthDate = this.getPreviousMonthDate(billingDate);
+const previousMonthStart = previousMonthDate.slice(0, 7) + '-01';
+
+const { data: dismissedWarning, error: dismissedErr } = await dbTenant()
+  .from('billing_warnings_dismissals')
+  .select('id')
+  .eq('warning_type', 'UNBILLED_PREVIOUS_MONTH')
+  .eq('warning_month', previousMonthStart)
+  .maybeSingle();
+
+if (dismissedErr) throw dismissedErr;
+
+const { data: unbilledLessons, error: unbilledErr } = await dbTenant().rpc(
+  'get_unbilled_lessons_for_month',
+  { p_month: previousMonthDate }
+);
+
+if (unbilledErr) throw unbilledErr;
+
+if (
+  unbilledLessons?.length &&
+  !dismissedWarning &&
+  !forceIgnoreWarning
+) {
+  const parentNames = Array.from(
+  new Set(
+    (unbilledLessons ?? []).map((x: any) =>
+      (x.parent_name || x.parent_uid || '').trim()
+    )
+  )
+).filter(Boolean);
+
+const parentsText = parentNames.length
+  ? ` הורים: ${parentNames.join(', ')}.`
+  : '';
+
+this.unbilledWarning.set(
+  `קיים שיעור אחד או יותר בחודש ${previousMonthDate.slice(0, 7)} שלא שולם.` +
+  parentsText +
+  ` כדי להכניס חיוב לשיעור/ים אלה יש להריץ חישוב על החודש עם החיוב החסר.`
+);
+
+  return;
+
+}
     // להביא את כל ההורים שיום החיוב שלהם הוא היום שבתאריך שנבחר
     const { data: parents, error } = await dbTenant()
       .from('parents')
@@ -444,7 +590,59 @@ const billingDay = Number(billingDate.split('-')[2]);
     if (error) throw error;
 
     const list = parents ?? [];
+const targetMonthStart = billingDate.slice(0, 7) + '-01';
 
+const { data: missingCurrentMonth, error: missingCurrentErr } =
+  await dbTenant().rpc('get_unbilled_lessons_for_month', {
+    p_month: targetMonthStart,
+  });
+
+if (missingCurrentErr) throw missingCurrentErr;
+
+const parentUidsToRun = new Set((list ?? []).map((p: any) => p.uid));
+
+const relevantMissing = (missingCurrentMonth ?? []).filter((x: any) =>
+  parentUidsToRun.has(x.parent_uid)
+);
+
+if (relevantMissing.length) {
+  const parentUids = Array.from(
+    new Set(relevantMissing.map((x: any) => x.parent_uid))
+  );
+
+  for (const parentUid of parentUids) {
+    const { data: existingMonthlyCharge, error: existingMonthlyErr } =
+      await dbTenant()
+        .from('charges')
+        .select('id')
+        .eq('parent_uid', parentUid)
+        .eq('billing_month', targetMonthStart)
+        .eq('charge_kind', 'monthly')
+        .maybeSingle();
+
+    if (existingMonthlyErr) throw existingMonthlyErr;
+
+    if (existingMonthlyCharge) {
+      await dbTenant().rpc('create_missing_lessons_charge_for_parent', {
+        p_parent_uid: parentUid,
+        p_month: targetMonthStart,
+      });
+    } else {
+      await dbTenant().rpc('create_monthly_charge_for_parent', {
+        p_parent_uid: parentUid,
+        p_billing_date: billingDate,
+      });
+    }
+  }
+
+  await this.loadCharges();
+
+  this.successMessage.set(
+    `החיוב חושב עבור חודש ${targetMonthStart.slice(0, 7)}. אם היו שיעורים חסרים לחיוב קיים, נוצר עבורם חיוב השלמה.`
+  );
+
+  return;
+}
     let ok = 0;
     let failed = 0;
 
@@ -499,43 +697,61 @@ private getSelectedChargesGroupedByParent(): Record<string, string[]> {
   return grouped;
 }
 async openAdditionalChargeDialog(c: ParentChargeRow) {
-  const ref = this.dialog.open(AdditionalChargeDialogComponent, {
-    width: '420px',
-    data: {
-      parentUid: c.parent_uid,
-      parentName: c.parent_name || `${c.first_name} ${c.last_name}`.trim(),
-    },
-  });
+  if (this.additionalChargeDialogOpen) return;
 
-  ref.afterClosed().subscribe(async (result) => {
-    if (!result?.saved) return;
+  this.additionalChargeDialogOpen = true;
 
-    try {
-      this.loading.set(true);
-      this.error.set(null);
+  try {
+    const children = await this.getChildrenForCharge(c.id);
 
-   const chargeId = await this.createAdditionalCharge({
-  parentUid: c.parent_uid,
-  amountAgorot: result.amountAgorot,
-  description: result.description,
-});
+    const ref = this.dialog.open(AdditionalChargeDialogComponent, {
+      width: '560px',
+      maxWidth: '92vw',
+      autoFocus: false,
+      data: {
+        parentUid: c.parent_uid,
+        parentName: c.parent_name || `${c.first_name} ${c.last_name}`.trim(),
+        children,
+      },
+    });
 
-await this.loadCharges();
+    ref.afterClosed().subscribe(async (result) => {
+      this.additionalChargeDialogOpen = false;
 
-if (this.detailsOpenFor() === c.id || this.detailsOpenFor() === chargeId) {
-  await this.openChargeDetails(chargeId);
-}
-    } catch (e: any) {
-      this.error.set(e?.message ?? 'שגיאה ביצירת חיוב נוסף');
-    } finally {
-      this.loading.set(false);
-    }
-  });
+      if (!result?.saved) return;
+
+      try {
+        this.loading.set(true);
+        this.error.set(null);
+
+        const chargeId = await this.createAdditionalCharge({
+          parentUid: c.parent_uid,
+          amountAgorot: result.amountAgorot,
+          description: result.description,
+          childId: result.childId,
+        });
+
+        await this.loadCharges();
+
+        if (this.detailsOpenFor() === c.id || this.detailsOpenFor() === chargeId) {
+          await this.openChargeDetails(chargeId);
+        }
+      } catch (e: any) {
+        this.error.set(e?.message ?? 'שגיאה ביצירת חיוב נוסף');
+      } finally {
+        this.loading.set(false);
+      }
+    });
+  } catch (e) {
+    this.additionalChargeDialogOpen = false;
+    throw e;
+  }
 }
 private async createAdditionalCharge(args: {
   parentUid: string;
   amountAgorot: number;
   description: string;
+  childId: string;
 }) {
   const now = new Date();
   const isoNow = now.toISOString();
@@ -594,6 +810,7 @@ private async createAdditionalCharge(args: {
     .insert({
       charge_id: chargeId,
       parent_uid: args.parentUid,
+      child_id: args.childId,
       item_type: 'extra',
       item_code: 'extra_manual',
       description: args.description,
@@ -605,6 +822,7 @@ private async createAdditionalCharge(args: {
       metadata: {
         created_by: 'secretary-parent-billing',
         source: 'manual_additional_charge',
+        child_id: args.childId,
       },
       created_at: isoNow,
       updated_at: isoNow,
@@ -614,4 +832,541 @@ private async createAdditionalCharge(args: {
 
   return chargeId;
 }
+private isCardExpired(profile: any): boolean {
+  if (!profile?.expiry_month || !profile?.expiry_year) return false;
+
+  const now = new Date();
+
+  // סוף חודש התוקף
+  const expiryEnd = new Date(
+    Number(profile.expiry_year),
+    Number(profile.expiry_month),
+    0,
+    23,
+    59,
+    59
+  );
+
+  return expiryEnd < now;
+}
+
+canSelectForPayment(c: ChargeWithPaymentStatus): boolean {
+  return (
+    this.remainingAgorot(c) > 0 &&
+    c.status !== 'cancelled' &&
+    c.hasPaymentMethod === true &&
+    c.hasExpiredPaymentMethod !== true
+  );
+}
+isParentPaymentFailed(parentUid: string): boolean {
+  return this.failedPaymentParentUids().has(parentUid);
+}
+private buildPaymentFailedEmail(args: {
+  parentName: string;
+  parentUid: string;
+  chargeIds: string[];
+  farmName: string;
+  errorMessage?: string | null;
+  children?: ParentChildEmailInfo[];
+  
+}) {
+  const parentName = args.parentName || args.parentUid;
+  const subject = `חיוב אשראי נכשל – ${parentName}`;
+const children = args.children ?? [];
+
+const childrenHtml = children.length
+  ? `
+  <p style="margin:14px 0 6px 0;"><b>ילדים משויכים להורה:</b></p>
+  <table style="border-collapse:collapse;width:100%;max-width:520px;">
+    <thead>
+      <tr>
+        <th style="text-align:right;border:1px solid #e5e7eb;padding:6px;background:#f9fafb;">שם הילד/ה</th>
+        <th style="text-align:right;border:1px solid #e5e7eb;padding:6px;background:#f9fafb;">תעודת זהות</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${children.map(child => {
+        const name = `${child.first_name || ''} ${child.last_name || ''}`.trim() || '—';
+        return `
+          <tr>
+            <td style="border:1px solid #e5e7eb;padding:6px;">${this.escapeHtml(name)}</td>
+            <td style="border:1px solid #e5e7eb;padding:6px;">${this.escapeHtml(child.gov_id || '—')}</td>
+          </tr>
+        `;
+      }).join('')}
+    </tbody>
+  </table>
+`
+  : `<p style="margin:14px 0 6px 0;color:#6b7280;">לא נמצאו ילדים משויכים להורה.</p>`;
+  const html = `
+<div style="direction:rtl;font-family:Arial,Helvetica,sans-serif;font-size:16px;color:#111827;">
+  <h2 style="margin:0 0 8px 0;">${args.farmName}</h2>
+
+  <p style="margin:0 0 12px 0;">
+    חיוב אשראי עבור ההורה <b>${parentName}</b> לא עבר.
+  </p>
+
+  <p style="margin:0 0 8px 0;">
+  </p>
+
+  <p style="margin:0 0 8px 0;">
+    <b>מספר חיובים שניסו לחייב:</b> ${args.chargeIds.length}
+  </p>
+  ${childrenHtml}
+
+  ${
+    args.errorMessage
+      ? `<p style="margin:0 0 8px 0;color:#b42318;"><b>שגיאה:</b> ${args.errorMessage}</p>`
+      : ''
+  }
+
+  <hr style="margin:18px 0;border:none;border-top:1px solid #e5e7eb;" />
+  <p style="margin:0;color:#6b7280;font-size:13px;">הודעה אוטומטית ממערכת Smart Farm.</p>
+</div>
+`.trim();
+
+  const text = `
+${args.farmName}
+חיוב אשראי נכשל
+הורה: ${parentName}
+מספר חיובים: ${args.chargeIds.length}
+${args.errorMessage ? `שגיאה: ${args.errorMessage}` : ''}
+`.trim();
+
+  return { subject, html, text };
+}
+private async getSecretaryEmailsForCurrentTenant(): Promise<string[]> {
+  const farm = getCurrentFarmMetaSync();
+  const tenantId = farm?.id;
+
+  if (!tenantId) return [];
+
+  const { data: tenantUsers, error: tuError } = await dbPublic()
+    .from('tenant_users')
+    .select('uid')
+    .eq('tenant_id', tenantId)
+    .eq('role_in_tenant', 'secretary')
+    .eq('is_active', true);
+
+  if (tuError) throw tuError;
+
+  const uids = Array.from(
+    new Set((tenantUsers ?? []).map((x: any) => x.uid).filter(Boolean))
+  );
+
+  if (!uids.length) return [];
+
+  const { data: users, error: usersError } = await dbPublic()
+    .from('users')
+    .select('email')
+    .in('uid', uids)
+    .eq('role', 'secretary');
+
+  if (usersError) throw usersError;
+
+  return Array.from(
+    new Set(
+      (users ?? [])
+        .map((u: any) => String(u.email || '').trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+}
+private async getParentChildrenForEmail(parentUid: string): Promise<ParentChildEmailInfo[]> {
+  const { data, error } = await dbTenant()
+    .from('children')
+    .select('first_name, last_name, gov_id')
+    .eq('parent_uid', parentUid)
+    .order('first_name', { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? []) as ParentChildEmailInfo[];
+}
+private escapeHtml(s: string): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+private getPreviousMonthDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() - 1);
+  return d.toISOString().slice(0, 10);
+}
+async dismissUnbilledWarning() {
+  try {
+    const billingDate =
+      this.billingRunDate() || new Date().toISOString().slice(0, 10);
+
+    const previousMonthDate = this.getPreviousMonthDate(billingDate);
+    const previousMonthStart = previousMonthDate.slice(0, 7) + '-01';
+
+    const { error } = await dbTenant()
+      .from('billing_warnings_dismissals')
+      .upsert(
+        {
+          warning_type: 'UNBILLED_PREVIOUS_MONTH',
+          warning_month: previousMonthStart,
+          note: 'המזכירה בחרה להתעלם מהתראת חיוב חסר בחודש קודם',
+        },
+        {
+          onConflict: 'warning_type,warning_month',
+        }
+      );
+
+    if (error) throw error;
+
+    this.unbilledWarning.set(null);
+  } catch (e: any) {
+    this.error.set(e?.message ?? 'שגיאה בהסרת האזהרה');
+  }
+}
+private async getChildrenForParent(parentUid: string) {
+  const { data, error } = await dbTenant()
+    .from('children')
+    .select('child_uuid, first_name, last_name, gov_id')
+    .eq('parent_uid', parentUid)
+    .order('first_name', { ascending: true });
+
+  if (error) throw error;
+
+  return data ?? [];
+}
+paidAgorot(c: ParentChargeRow): number {
+  return c.paid_agorot ?? 0;
+}
+
+creditsAgorot(c: ParentChargeRow): number {
+  return c.credits_agorot ?? 0;
+}
+
+chargeTotalAgorot(c: ParentChargeRow): number {
+  return c.charge_amount_agorot ?? 0;
+}
+
+finalAmountAfterCreditsAgorot(c: ParentChargeRow): number {
+  return Math.max(
+    this.chargeTotalAgorot(c) - this.creditsAgorot(c),
+    0
+  );
+}
+
+realRemainingAgorot(c: ParentChargeRow): number {
+  return Math.max(
+    this.chargeTotalAgorot(c) -
+      this.paidAgorot(c) -
+      this.creditsAgorot(c),
+    0
+  );
+}
+private async getChildrenForCharge(chargeId: string) {
+  const { data: detailRows, error: detailErr } = await dbTenant()
+    .from('charge_details_with_office_note')
+    .select('child_id')
+    .eq('charge_id', chargeId)
+    .not('child_id', 'is', null);
+
+  if (detailErr) throw detailErr;
+
+  const childIds = Array.from(
+    new Set((detailRows ?? []).map((x: any) => x.child_id).filter(Boolean))
+  );
+
+  if (!childIds.length) return [];
+
+  const { data, error } = await dbTenant()
+    .from('children')
+    .select('child_uuid, first_name, last_name, gov_id')
+    .in('child_uuid', childIds)
+    .order('first_name', { ascending: true });
+
+  if (error) throw error;
+
+  return data ?? [];
+}
+
+// === UX helpers: grouping charges by billing month ===
+private getChargeMonthKey(c: ParentChargeRow): string {
+  const raw =
+    (c as any).billing_month ||
+    c.period_start ||
+    c.period_end ||
+    c.created_at ||
+    new Date().toISOString();
+
+  return String(raw).slice(0, 7);
+}
+
+formatMonthTitle(monthKey: string): string {
+  if (!monthKey) return 'ללא חודש חיוב';
+
+  const [year, month] = monthKey.split('-').map(Number);
+  if (!year || !month) return monthKey;
+
+  const d = new Date(year, month - 1, 1);
+  return d.toLocaleDateString('he-IL', {
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+formatChargeMainTitle(c: ParentChargeRow): string {
+  const month = this.formatMonthTitle(this.getChargeMonthKey(c));
+  const desc = c.description?.trim();
+  return desc ? `${desc} · ${month}` : `חיוב ${month}`;
+}
+
+visibleChargeGroups = computed(() => {
+  const map = new Map<string, ChargeWithPaymentStatus[]>();
+
+  for (const c of this.visibleCharges()) {
+    const key = this.getChargeMonthKey(c);
+    const arr = map.get(key) ?? [];
+    arr.push(c);
+    map.set(key, arr);
+  }
+
+  return Array.from(map.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([monthKey, rows]) => {
+      const totalAgorot = rows.reduce((sum, c) => sum + this.chargeTotalAgorot(c), 0);
+      const remainingAgorot = rows.reduce((sum, c) => sum + this.realRemainingAgorot(c), 0);
+      const paidAgorot = rows.reduce((sum, c) => sum + this.paidAgorot(c), 0);
+      const creditsAgorot = rows.reduce((sum, c) => sum + this.creditsAgorot(c), 0);
+      const selectedCount = rows.filter(c => this.isSelected(c.id)).length;
+      const openCount = rows.filter(c => this.remainingAgorot(c) > 0 && c.status !== 'cancelled').length;
+
+      return {
+        monthKey,
+        title: this.formatMonthTitle(monthKey),
+        rows,
+        totalAgorot,
+        remainingAgorot,
+        paidAgorot,
+        creditsAgorot,
+        selectedCount,
+        openCount,
+      };
+    });
+});
+
+getChargeCardClass(c: ParentChargeRow): string {
+  const remaining = this.realRemainingAgorot(c);
+
+  if (c.status === 'cancelled') return 'charge-card cancelled';
+  if (c.status === 'failed') return 'charge-card failed';
+  if (remaining <= 0 && this.chargeTotalAgorot(c) > 0) return 'charge-card paid';
+  if (c.status === 'pending') return 'charge-card pending';
+  return 'charge-card draft';
+}
+
+shortPeriod(c: ParentChargeRow): string {
+  if (!c.period_start && !c.period_end) return 'לא הוגדרה תקופת חיוב';
+
+  const format = (d: string) => new Date(d).toLocaleDateString('he-IL', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  });
+
+  if (c.period_start && c.period_end) return `${format(c.period_start)}–${format(c.period_end)}`;
+  if (c.period_start) return `מ־${format(c.period_start)}`;
+  return `עד ${format(c.period_end!)}`;
+}
+
+detailsGroupedByChild = computed(() => {
+  const groups = new Map<string, any>();
+
+  const upsert = (key: string, childName: string) => {
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        childName: childName || 'ללא שיוך לילד/ה',
+        items: [],
+        credits: [],
+        itemsTotalAgorot: 0,
+        creditsTotalAgorot: 0,
+        finalAgorot: 0,
+      });
+    }
+
+    return groups.get(key);
+  };
+
+  for (const item of this.detailsItems() ?? []) {
+    const key = item.child_id || 'unknown';
+    const group = upsert(key, item.child_name || 'ללא שיוך לילד/ה');
+
+    group.items.push(item);
+    group.itemsTotalAgorot += Number(item.amount_agorot ?? 0);
+  }
+
+  for (const cr of this.detailsCredits() ?? []) {
+    const childName = cr.children
+      ? `${cr.children.first_name || ''} ${cr.children.last_name || ''}`.trim()
+      : 'ללא שיוך לילד/ה';
+
+    const key = cr.child_id || 'unknown-credit';
+    const group = upsert(key, childName);
+
+    group.credits.push(cr);
+    group.creditsTotalAgorot += Number(cr.amount_agorot ?? 0);
+  }
+
+  return Array.from(groups.values()).map(group => ({
+    ...group,
+    finalAgorot: Math.max(group.itemsTotalAgorot - group.creditsTotalAgorot, 0),
+  }));
+});
+chargeActionLabel(c: ChargeWithPaymentStatus): string {
+  if (!this.canSelectForPayment(c)) return 'לא ניתן לחייב';
+  return this.isSelected(c.id) ? 'נבחר לחיוב' : 'בחר לחיוב';
+}
+
+
+invoiceExtraTextForChild(childId: string): string {
+  return this.invoiceExtraLinesByChild()[childId] ?? '';
+}
+
+setInvoiceExtraTextForChild(childId: string, value: string) {
+  const next = {
+    ...this.invoiceExtraLinesByChild(),
+    [childId]: value,
+  };
+
+  if (!value.trim()) {
+    delete next[childId];
+  }
+
+  this.invoiceExtraLinesByChild.set(next);
+}
+async confirmDeleteCredit(credit: any, chargeId: string) {
+  const ref = this.dialog.open(DeleteCreditConfirmDialogComponent, {
+    width: '420px',
+    maxWidth: '92vw',
+    autoFocus: false,
+    panelClass: 'delete-credit-dialog-panel',
+    data: { credit },
+  });
+
+  ref.afterClosed().subscribe(async (confirmed) => {
+    if (!confirmed) return;
+
+    try {
+      this.detailsLoading.set(true);
+      this.error.set(null);
+
+      const { error } = await dbTenant()
+        .from('parent_credits')
+        .delete()
+        .eq('id', credit.id);
+
+      if (error) throw error;
+
+      await this.loadCharges();
+      await this.openChargeDetails(chargeId);
+    } catch (e: any) {
+      this.error.set(e?.message ?? 'שגיאה במחיקת הזיכוי');
+    } finally {
+      this.detailsLoading.set(false);
+    }
+  });
+}
+}
+@Component({
+  selector: 'app-delete-credit-confirm-dialog',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <div class="simple-confirm-dialog" dir="rtl">
+      <h3>מחיקת זיכוי</h3>
+
+      <p>
+        האם את בטוחה שברצונך למחוק את הזיכוי?
+      </p>
+
+      <p class="note">
+        פעולה זו תמחק את הזיכוי מהחיוב ותעדכן את היתרה לתשלום.
+      </p>
+
+      <div class="dialog-actions">
+        <button type="button" (click)="close(false)">לא</button>
+        <button type="button" class="danger" (click)="close(true)">כן</button>
+      </div>
+    </div>
+  `,
+  styles: [`
+    .simple-confirm-dialog {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 34px 42px 14px;
+      text-align: center;
+      direction: rtl;
+      color: #3f3f3f;
+      font-family: 'Heebo', system-ui, sans-serif;
+    }
+
+    h3 {
+      margin: 0 0 22px;
+      font-size: 23px;
+      font-weight: 900;
+      color: #3f3f3f;
+    }
+
+    p {
+      margin: 0 0 12px;
+      font-size: 18px;
+      line-height: 1.55;
+      font-weight: 500;
+    }
+
+    .note {
+      font-size: 16px;
+      color: #555;
+      margin-bottom: 26px;
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-start;
+      gap: 10px;
+      direction: ltr;
+    }
+
+    button {
+      min-width: 34px;
+      height: 31px;
+      padding: 0 10px;
+      border-radius: 9px;
+      border: 2px solid #3f3f3f;
+      background: #fff;
+      color: #3f3f3f;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    button:hover {
+      background: #f5f7ef;
+    }
+
+    button.danger {
+      color: #b42318;
+      border-color: #b42318;
+    }
+  `],
+})
+export class DeleteCreditConfirmDialogComponent {
+  constructor(
+    private ref: MatDialogRef<DeleteCreditConfirmDialogComponent>,
+    @Inject(MAT_DIALOG_DATA) public data: any
+  ) {}
+
+  close(confirm: boolean) {
+    this.ref.close(confirm);
+  }
 }

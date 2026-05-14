@@ -8,14 +8,7 @@
 <div class="req" *ngIf="details() as d; else loadingTpl">
   <div class="title">הוספת ילד/ה</div>
 
-  <div class="field">
-    <label class="sf-check">
-      <input type="checkbox" [checked]="isCreateBillingCharge()"
-        (change)="isCreateBillingCharge.set($any($event.target).checked)" />
-      ליצור חיוב רישום אוטומטי בעת הוספת ילד
-    </label>
-
-  </div>
+  
 
   <div class="grid">
     <div class="box"><span class="k">הורה:</span><span class="v">{{ d.parent_name || d.parent_uid }}</span></div>
@@ -28,8 +21,10 @@
     <div class="box"><span class="k">גיל:</span><span class="v">{{ d.age_years ?? '—' }}</span></div>
     <div class="box"><span class="k">מין:</span><span class="v">{{ d.gender || '—' }}</span></div>
 
-    <div class="box"><span class="k">קופת חולים:</span><span class="v">{{ d.health_fund || '—' }}</span></div>
-    <div class="box"><span class="k">תאריך לידה:</span><span class="v">{{ d.birth_date | date:'dd/MM/yyyy' }}</span>
+<div class="box">
+  <span class="k">קופת חולים:</span>
+  <span class="v">{{ d.funding_source_name || '—' }}</span>
+</div>    <div class="box"><span class="k">תאריך לידה:</span><span class="v">{{ d.birth_date | date:'dd/MM/yyyy' }}</span>
     </div>
   </div>
 
@@ -82,6 +77,15 @@
       <span class="v" *ngIf="d.card_last4">**** {{ d.card_last4 }}</span>
       <span class="v" *ngIf="!d.card_last4">—</span>
     </div>
+    <div class="charge-breakdown" *ngIf="d.registration_charges?.length">
+  <div class="row" *ngFor="let c of d.registration_charges">
+    <span class="k">{{ c.item }}</span>
+    <span class="v">
+      {{ c.amount | number:'1.0-2' }} ₪
+      <span class="muted" *ngIf="c.is_required">· חובה</span>
+    </span>
+  </div>
+</div>
   </div>
 
   <div class="note">
@@ -89,10 +93,10 @@
     <textarea [(ngModel)]="decisionNote" rows="2" placeholder="הערה פנימית / להורה..."></textarea>
   </div>
 
-  <div class="actions">
-    <button class="btn reject" (click)="reject()" [disabled]="loading()">דחייה</button>
-    <button class="btn approve" (click)="approve()" [disabled]="loading()">אישור</button>
-  </div>
+ <div class="actions" *ngIf="isPending">
+  <button class="btn reject" (click)="reject()" [disabled]="loading()">דחייה</button>
+  <button class="btn approve" (click)="approve()" [disabled]="loading()">אישור</button>
+</div>
 </div>
 
 <ng-template #loadingTpl>

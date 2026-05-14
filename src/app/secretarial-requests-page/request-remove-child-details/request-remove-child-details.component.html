@@ -26,8 +26,7 @@
 
     <div class="row">
       <div class="k">תאריך לידה</div>
-      <div class="v">{{ payload().birth_date || '—' }}</div>
-    </div>
+<div class="v">{{ formatDate(payload().birth_date) }}</div>    </div>
 
     <div class="row">
       <div class="k">מגדר</div>
@@ -35,9 +34,9 @@
     </div>
 
     <div class="row">
-      <div class="k">קופת חולים</div>
-      <div class="v">{{ payload().health_fund || '—' }}</div>
-    </div>
+  <div class="k">קופת חולים</div>
+  <div class="v">{{ payload().funding_source_name || '—' }}</div>
+</div>
 
     <div class="row">
       <div class="k">שיעורים שנותרו</div>
