@@ -45,6 +45,9 @@ interface LessonClaimRow {
   claimOpened: boolean;
   claimSubmitted: boolean;
   claimStatus: ClaimStatus;
+
+  reportMonth: string; // YYYY-MM
+reportMonthLabel: string; // MM/YYYY
 }
 
 interface FiltersState {
@@ -153,26 +156,39 @@ async reportSelectedToFundingSource() {
 async testMaccabiAutomation() {
   const tenant = this.tenantSvc.requireTenant();
 
-  const lessonsForMaccabi = this.selectedRows.map(r => ({
-    lesson_id: r.lesson_id,
-    occur_date: r.occur_date,
+  const grouped = new Map<string, any>();
 
-    child_id: r.child_id,
-    child_name: r.childName,
-    child_id_number: r.childIdNumber,
-    child_first_name: r.childFirstName,
-    child_last_name: r.childLastName,
+  for (const r of this.selectedRows) {
+    const reportMonth = r.occur_date.slice(0, 7); // 2026-04
+    const key = `${reportMonth}__${r.childIdNumber}`;
 
-    instructor_id: r.instructor_id,
-    instructor_name: r.instructorName,
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        reportMonth,
+        child_id: r.child_id,
+        child_name: r.childName,
+        child_id_number: r.childIdNumber,
+        child_first_name: r.childFirstName,
+        child_last_name: r.childLastName,
+        lessons: [],
+      });
+    }
 
-    start_time: r.start_time,
-    end_time: r.end_time,
-    attendance_status: r.attendance_status,
-    chargeable: r.chargeable,
-  }));
+    grouped.get(key).lessons.push({
+      lesson_id: r.lesson_id,
+      occur_date: r.occur_date,
+      start_time: r.start_time,
+      end_time: r.end_time,
+      instructor_id: r.instructor_id,
+      instructor_name: r.instructorName,
+      attendance_status: r.attendance_status,
+      chargeable: r.chargeable,
+    });
+  }
 
-  console.log('Sending lessons to Maccabi agent:', lessonsForMaccabi);
+  const groupsForMaccabi = Array.from(grouped.values());
+
+  console.log('Sending grouped lessons to Maccabi agent:', groupsForMaccabi);
 
   const res = await fetch('/api/createMaccabiAutomationJob', {
     method: 'POST',
@@ -181,7 +197,7 @@ async testMaccabiAutomation() {
     },
     body: JSON.stringify({
       schema: tenant.schema,
-      lessons: lessonsForMaccabi,
+      groups: groupsForMaccabi,
     }),
   });
 
@@ -276,6 +292,10 @@ private async loadClaimsLessons() {
   'בוצע',
 ].includes(att);
 
+const reportMonth = occur_date.slice(0, 7); // 2026-04
+const [y, m] = reportMonth.split('-');
+const reportMonthLabel = `${m}/${y}`;
+
     return {
       id: `${lesson_id}__${occur_date}`,
       lesson_id,
@@ -295,6 +315,8 @@ private async loadClaimsLessons() {
       claimOpened: Boolean(r.claim_opened),
       claimSubmitted: Boolean(r.claim_submitted),
       claimStatus: (r.claim_status ?? 'NONE') as ClaimStatus,
+      reportMonth,
+      reportMonthLabel,
     };
   });
 
@@ -348,10 +370,16 @@ private async loadClaimsLessons() {
       const chargeable = Boolean(r.chargeable) && occurred;
       const claimStatus = (r.claim_status ?? 'NONE') as ClaimStatus;
 
+      const  reportMonth = occur_date.slice(0, 7); // 2026-04
+      const [y, m] = reportMonth.split('-');
+      const reportMonthLabel = `${m}/${y}`;
+
       return {
         id: `${lesson_id}__${occur_date}`,
         lesson_id,
         occur_date,
+        reportMonth,
+        reportMonthLabel,
 
         instructor_id: r.instructor_id ? String(r.instructor_id) : null,
         instructorName: String(r.instructor_name ?? ''),

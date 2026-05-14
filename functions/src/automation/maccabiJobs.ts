@@ -39,7 +39,7 @@ export const createMaccabiAutomationJob = onRequest(
 
     try {
       const schema = String(req.body?.schema || '').trim();
-      const lessons = req.body?.lessons ?? [];
+      const groups = req.body?.groups  ?? [];
 
       if (!schema) {
         res.status(400).json({
@@ -49,10 +49,10 @@ export const createMaccabiAutomationJob = onRequest(
         return;
       }
 
-      if (!Array.isArray(lessons) || lessons.length === 0) {
+      if (!Array.isArray(groups) || groups.length === 0) {
         res.status(400).json({
           ok: false,
-          message: 'No lessons selected',
+          message: 'No groups selected',
         });
         return;
       }
@@ -66,7 +66,7 @@ export const createMaccabiAutomationJob = onRequest(
           schema_name: schema,
           status: 'pending',
           payload: {
-            lessons,
+            groups,
             createdFrom: 'claims-page',
           },
         })
