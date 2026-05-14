@@ -44,8 +44,7 @@ export class ParentScheduleComponent implements OnInit {
     status?: string | null;
   }> = [];
 
-  nextCanceledLessonNote: string | null = null;
-
+nextCanceledLessonNotes: string[] = [];
   lessons: Lesson[] = [];
   filteredLessons: Lesson[] = [];
 
@@ -103,47 +102,42 @@ export class ParentScheduleComponent implements OnInit {
   private calcNextCanceledLesson() {
   const now = new Date();
 
-  const futureLessons = this.filteredLessons
+  const cancelledLessons = this.filteredLessons
     .filter((l: Lesson) => {
       if (!l.start_datetime) return false;
+
       const start = new Date(l.start_datetime);
-      return !isNaN(start.getTime()) && start > now;
+      if (isNaN(start.getTime()) || start <= now) return false;
+
+      const status = String(l.status || '').trim();
+      return status === 'בוטל' || status === 'מבוטל' || !!(l as any).hasPendingCancel;
     })
-    .sort((a: Lesson, b: Lesson) => {
+    .sort((a, b) => {
       return new Date(a.start_datetime!).getTime() - new Date(b.start_datetime!).getTime();
     });
 
-  if (!futureLessons.length) {
-    this.nextCanceledLessonNote = null;
+  if (!cancelledLessons.length) {
+    this.nextCanceledLessonNotes = [];
     return;
   }
 
-  const nextSpecialLesson = futureLessons.find((l: Lesson) => {
-    const status = String(l.status || '').trim();
-    return status === 'בוטל' || status === 'מבוטל' || !!(l as any).hasPendingCancel;
+  this.nextCanceledLessonNotes = cancelledLessons.map((lesson: Lesson) => {
+    const childName = lesson.child_name || 'הילד';
+    const date = new Date(lesson.start_datetime!);
+
+    const formattedDate = date.toLocaleDateString('he-IL', {
+      weekday: 'long',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+
+    if ((lesson as any).hasPendingCancel) {
+      return `${childName} – נשלחה בקשת ביטול לשיעור בתאריך ${formattedDate}`;
+    }
+
+    return `${childName} – השיעור בוטל בתאריך ${formattedDate}`;
   });
-
-  if (!nextSpecialLesson) {
-    this.nextCanceledLessonNote = null;
-    return;
-  }
-
-  const childName = nextSpecialLesson.child_name || 'הילד';
-  const date = new Date(nextSpecialLesson.start_datetime!);
-
-  const formattedDate = date.toLocaleDateString('he-IL', {
-    weekday: 'long',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-
-  if ((nextSpecialLesson as any).hasPendingCancel) {
-    this.nextCanceledLessonNote = `${childName} – נשלחה בקשת ביטול לשיעור הקרוב בתאריך ${formattedDate}`;
-    return;
-  }
-
-  this.nextCanceledLessonNote = `${childName} – השיעור הקרוב בוטל בתאריך ${formattedDate}`;
 }
 
   /* ===================== Load Children ===================== */

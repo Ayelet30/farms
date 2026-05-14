@@ -78,10 +78,9 @@ function fmtTime(t: any) {
   return s.length >= 5 ? s.slice(0, 5) : s;
 }
 
-function toIsoUtc(dateYYYYMMDD: string, timeHHMM: string) {
-  return new Date(`${dateYYYYMMDD}T${timeHHMM}:00Z`).toISOString();
+function toLocalTimestamp(dateYYYYMMDD: string, timeHHMM: string) {
+  return `${dateYYYYMMDD} ${timeHHMM}:00`;
 }
-
 // חפיפת שעות: lesson_start < window_end && lesson_end > window_start
 function overlapsTime(lessonStartHHMM: string, lessonEndHHMM: string, winStartHHMM: string, winEndHHMM: string): boolean {
   return lessonStartHHMM < winEndHHMM && lessonEndHHMM > winStartHHMM;
@@ -203,13 +202,13 @@ console.log('APPROVE FUNCTION CALLED', {
       }
 
       // 2) יצירת Unavailability (כמו RPC)
-    const fromTs = allDay
-  ? toIsoUtc(fromDate, '00:00')
-  : toIsoUtc(fromDate, startTime!);
+ const fromTs = allDay
+  ? toLocalTimestamp(fromDate, '00:00')
+  : toLocalTimestamp(fromDate, startTime!);
 
 const toTs = allDay
-  ? toIsoUtc(toDate, '00:00')
-  : toIsoUtc(toDate, endTime!);
+  ? toLocalTimestamp(toDate, '23:59')
+  : toLocalTimestamp(toDate, endTime!);
       const dayOffCategory = String(payload?.category ?? 'OTHER').trim().toUpperCase();
 
 const freeTextReason =
