@@ -1122,12 +1122,12 @@
         </span>
 
         <span class="chip" *ngIf="getSpecialChargeMode(c) === 'specific_date'">
-          תאריך חיוב: {{ c.charge_date || '—' }}
-        </span>
+תאריך חיוב:
+{{ c.charge_date ? (c.charge_date | date:'dd/MM/yy') : '—' }}        </span>
 
         <span class="chip" *ngIf="getSpecialChargeMode(c) === 'yearly'">
-          שנתי · {{ c.charge_times_per_year || 1 }} פעמים בשנה · התחלה {{ c.first_charge_date || '—' }}
-        </span>
+שנתי · {{ c.charge_times_per_year || 1 }} פעמים בשנה ·
+התחלה {{ c.first_charge_date ? (c.first_charge_date | date:'dd/MM/yy') : '—' }}        </span>
  <span class="chip chip-soft">
     {{ fundingSourceNames(c.funding_source_ids) }}
   </span>
