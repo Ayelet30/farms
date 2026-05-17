@@ -136,7 +136,7 @@ public farmHoursByDay: Record<number, { start: string; end: string }> = {};
   public farmEnd = '17:00';
   public lessonDuration = 60;
   public farmWorkingDays: number[] = [];
-
+public notifDirty = false;
   @Input() mode: 'self' | 'secretary' = 'self';
 
   private _instructorIdNumber: string | null = null;
@@ -934,13 +934,38 @@ private formatDateForDisplay(dateValue: string): string {
 
   /* ===================== NOTIFICATIONS ===================== */
 
-  async saveNotifications() {
-    if (!this.userId) return;
+  canSaveNotifications(): boolean {
+  if (!this.notifDirty) return false;
 
-    const { error } = await dbTenant()
+  if (this.mode === 'secretary') {
+    return !!this.instructorIdNumber;
+  }
+
+  return !!this.userId;
+}
+
+async saveNotifications() {
+  if (this.isBusy()) return;
+
+  if (!this.canSaveNotifications()) {
+    this.toast('אין שינויים לשמירה');
+    return;
+  }
+
+  this.setBusy('save_notifications');
+
+  try {
+    let query = dbTenant()
       .from('instructors')
-      .update({ notify: JSON.stringify(this.notif) })
-      .eq('uid', this.userId);
+      .update({ notify: this.notif });
+
+    if (this.mode === 'secretary') {
+      query = query.eq('id_number', this.instructorIdNumber);
+    } else {
+      query = query.eq('uid', this.userId);
+    }
+
+    const { error } = await query;
 
     if (error) {
       console.error('❌ saveNotifications error', error);
@@ -948,9 +973,12 @@ private formatDateForDisplay(dateValue: string): string {
       return;
     }
 
+    this.notifDirty = false;
     this.toast('✔ העדפות התראות נשמרו');
+  } finally {
+    this.setBusy(null);
   }
-
+}
   /* ===================== IMPACT + CHANGES ===================== */
 private async loadParentsImpactCountOnly(
   dayHebrew: string,
@@ -1554,6 +1582,8 @@ getBusyText(): string {
       return 'מזיזה שיעור...';
     case 'save':
       return 'שומרת זמינות...';
+    case 'save_notifications':
+      return 'שומרת העדפות התראות...';
     default:
       return 'מבצעת פעולה...';
   }
