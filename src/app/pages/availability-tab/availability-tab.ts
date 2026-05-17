@@ -140,7 +140,7 @@ public farmHoursByDay: Record<number, { start: string; end: string }> = {};
   @Input() mode: 'self' | 'secretary' = 'self';
 
   private _instructorIdNumber: string | null = null;
-
+busyAction: string | null = null;
 @Input()
 set instructorIdNumber(v: string | null) {
   this._instructorIdNumber = v;
@@ -688,63 +688,59 @@ private addMinutes(time: string, minutesToAdd: number): string {
 
   /* ===================== SAVE FLOW ===================== */
 
-  async saveAvailability() {
+ async saveAvailability() {
+  if (this.isBusy()) return;
+
+  this.setBusy('save');
+
+  try {
     for (const day of this.days) {
       if (!day.active) continue;
 
-   for (const slot of day.slots) {
-    this.onSlotChange(day, slot);
+      for (const slot of day.slots) {
+        this.onSlotChange(day, slot);
 
-    if (slot.hasError) {
-      this.toast(slot.errorMessage || 'יש שגיאה בטווח שעות');
-      return;
-    }
+        if (slot.hasError) {
+          this.toast(slot.errorMessage || 'יש שגיאה בטווח שעות');
+          return;
+        }
+
         if (!slot.ridingTypeId) {
-      slot.hasError = true;
-      slot.errorMessage = 'חובה לבחור סוג רכיבה';
-      this.toast('חובה לבחור סוג רכיבה');
-      return;
-    }
+          slot.hasError = true;
+          slot.errorMessage = 'חובה לבחור סוג רכיבה';
+          this.toast('חובה לבחור סוג רכיבה');
+          return;
+        }
 
         slot.start = this.normalizeTime(slot.start);
         slot.end = this.normalizeTime(slot.end);
 
-  const dayNum =
-  this.DAY_KEY_TO_NUM[day.key] === 0
-    ? 7
-    : this.DAY_KEY_TO_NUM[day.key];
+        const dayNum = this.toFarmDayNumber(day.key);
+        const farmHours = this.farmHoursByDay[dayNum];
 
-const farmHours = this.farmHoursByDay[dayNum];
-
-if (farmHours) {
-  if (
-    this.toMin(slot.start) < this.toMin(farmHours.start) ||
-    this.toMin(slot.end) > this.toMin(farmHours.end)
-  ) {
-    this.toast(`השעות חייבות להיות בין ${farmHours.start} ל־${farmHours.end}`);
-    return;
-  }
-}
-
+        if (farmHours) {
+          if (
+            this.toMin(slot.start) < this.toMin(farmHours.start) ||
+            this.toMin(slot.end) > this.toMin(farmHours.end)
+          ) {
+            this.toast(`השעות חייבות להיות בין ${farmHours.start} ל־${farmHours.end}`);
+            return;
+          }
+        }
 
         if (this.toMin(slot.end) <= this.toMin(slot.start)) {
           this.toast('שעת סיום חייבת להיות אחרי שעת התחלה');
           return;
         }
-
-        if (!slot.ridingTypeId) {
-          this.toast('חובה לבחור סוג רכיבה');
-          return;
-        }
       }
 
-   if (this.dayHasAnyOverlap(day)) {
-  this.toast(`יש חפיפה בטווחים ביום ${day.label}`);
-  return;
-}
+      if (this.dayHasAnyOverlap(day)) {
+        this.toast(`יש חפיפה בטווחים ביום ${day.label}`);
+        return;
+      }
     }
 
-    if ((!this.allowEdit)&&(this.mode != 'secretary')) {
+    if (!this.allowEdit && this.mode !== 'secretary') {
       this.toast('הזמינות נעולה לעריכה');
       return;
     }
@@ -755,22 +751,27 @@ if (farmHours) {
     }
 
     const changedRanges = this.getChangedAvailabilityRanges();
-this.lastImpactRanges = changedRanges;
+    this.lastImpactRanges = changedRanges;
+
     for (const r of changedRanges) {
       const impact = await this.loadParentsImpactCountOnly(r.dayLabel, r.oldStart, r.oldEnd);
-if (impact && impact.lessons.length > 0) {
-  this.confirmData = impact;
-  return;
-}
+
+      if (impact && impact.lessons.length > 0) {
+        this.confirmData = impact;
+        return;
+      }
     }
 
-    if (this.mode === 'secretary') {
     await this.saveAvailabilityDirect();
-    return;
-  }
 
-    this.lockConfirm = true;
+    if (this.mode !== 'secretary') {
+      await this.lockAvailabilityEdit();
+    }
+
+  } finally {
+    this.setBusy(null);
   }
+}
 getLessonImpactLabel(lesson: ImpactedLesson): string {
   if (lesson.lessonType === 'סידרה') {
     if (lesson.isOpenEnded) {
@@ -906,14 +907,26 @@ private formatDateForDisplay(dateValue: string): string {
     this.allowEdit = false;
   }
 
-  async approveUpdate() {
+ async approveUpdate() {
   if (this.confirmData?.lessons?.length && !this.allImpactedLessonsHandled()) {
     this.toast('יש לטפל בכל השיעורים המושפעים לפני שמירת הזמינות');
     return;
   }
 
+  if (this.isBusy()) return;
+
   this.confirmData = null;
-  this.lockConfirm = true;
+  this.setBusy('save');
+
+  try {
+    await this.saveAvailabilityDirect();
+
+    if (this.mode !== 'secretary') {
+      await this.lockAvailabilityEdit();
+    }
+  } finally {
+    this.setBusy(null);
+  }
 }
   cancelUpdate() {
     this.confirmData = null;
@@ -1182,7 +1195,8 @@ async cancelImpactLessonWithMakeup(lesson: ImpactedLesson): Promise<void> {
     this.toast('חסר תאריך מופע לשיעור הזה');
     return;
   }
-
+if (this.isBusy()) return;
+this.setBusy('cancel_lesson');
   lesson.handling = true;
 const { data: farmSettings } = await dbTenant()
   .from('farm_settings')
@@ -1191,6 +1205,7 @@ const { data: farmSettings } = await dbTenant()
 
 const isBillable =
   farmSettings?.farm_cancel_charge_target === 'cancelled_lesson';
+
   try {
     const { error } = await dbTenant()
       .from('lesson_occurrence_exceptions')
@@ -1215,18 +1230,20 @@ await this.notifyAvailabilityLessonAction({
 });
     this.markImpactLessonHandled(lesson, 'cancelled_with_makeup');
     this.toast('השיעור בוטל עם אפשרות השלמה');
-    await this.refreshImpactLessons();
   } catch (e) {
     console.error('cancelImpactLessonWithMakeup failed', e);
     this.toast('שגיאה בביטול השיעור');
   } finally {
     lesson.handling = false;
     this.cdr.detectChanges();
+      this.setBusy(null);
+
   }
 }
 async endImpactSeries(lesson: ImpactedLesson): Promise<void> {
   if (!lesson.lessonId) return;
-
+if (this.isBusy()) return;
+this.setBusy('end_series');
   const effectiveDate =
   lesson.effectiveOccurDate ||
   lesson.occurDate ||
@@ -1249,18 +1266,20 @@ await this.notifyAvailabilityLessonAction({
 });
     this.markImpactLessonHandled(lesson, 'series_ended');
     this.toast('הסדרה הסתיימה');
-    await this.refreshImpactLessons();
   } catch (e) {
     console.error('endImpactSeries failed', e);
     this.toast('שגיאה בסיום הסדרה');
   } finally {
     lesson.handling = false;
     this.cdr.detectChanges();
+      this.setBusy(null);
+
   }
 }
 async openImpactMoveSingle(lesson: ImpactedLesson): Promise<void> {
   const occurDate = lesson.occurDate || lesson.effectiveOccurDate;
-
+if (this.isBusy()) return;
+this.setBusy('move_slots');
   if (!lesson.childId || !occurDate) {
     this.toast('חסרים נתוני ילד או תאריך');
     return;
@@ -1309,6 +1328,8 @@ this.impactMoveSlotsModal.slots = (data || []).filter((s: any) => {
   } finally {
     this.impactMoveSlotsModal.loading = false;
     this.cdr.detectChanges();
+      this.setBusy(null);
+
   }
 }
 private addDaysYmd(ymd: string, days: number): string {
@@ -1351,6 +1372,8 @@ async approveImpactMoveConfirm(): Promise<void> {
     this.toast('חסר סלוט להזזה');
     return;
   }
+if (this.isBusy()) return;
+this.setBusy('move_lesson');
 
   const date = slot.occur_date || slot.lesson_date;
   const start = String(slot.start_time || slot.start).slice(0, 5);
@@ -1396,6 +1419,8 @@ await this.notifyAvailabilityLessonAction({
   } finally {
     this.impactMoveSlotsModal.saving = false;
     this.cdr.detectChanges();
+      this.setBusy(null);
+
   }
 }
 async openImpactMoveSeries(lesson: ImpactedLesson): Promise<void> {
@@ -1506,6 +1531,31 @@ private async notifyAvailabilityLessonAction(payload: {
   } catch (e) {
     console.error('notifyAvailabilityLessonAction failed', e);
     this.toast('הפעולה בוצעה, אך שליחת מייל נכשלה');
+  }
+}
+private setBusy(action: string | null): void {
+  this.busyAction = action;
+  this.cdr.detectChanges();
+}
+
+isBusy(): boolean {
+  return !!this.busyAction;
+}
+
+getBusyText(): string {
+  switch (this.busyAction) {
+    case 'cancel_lesson':
+      return 'מבטלת שיעור...';
+    case 'end_series':
+      return 'מסיימת סדרה...';
+    case 'move_slots':
+      return 'טוענת אפשרויות הזזה...';
+    case 'move_lesson':
+      return 'מזיזה שיעור...';
+    case 'save':
+      return 'שומרת זמינות...';
+    default:
+      return 'מבצעת פעולה...';
   }
 }
 }

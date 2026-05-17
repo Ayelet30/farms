@@ -1,5 +1,10 @@
 <div class="availability-page">
-
+<div class="busy-overlay" *ngIf="isBusy()">
+  <div class="busy-card">
+    <div class="busy-spinner"></div>
+    <div class="busy-text">{{ getBusyText() }}</div>
+  </div>
+</div>
   <!-- טוסט הודעה -->
   <div class="toast" *ngIf="toastMessage">
     {{ toastMessage }}
@@ -63,7 +68,7 @@
           type="button"
           class="impact-action move"
           (click)="openImpactMoveSeries(lesson)"
-          [disabled]="lesson.handling"
+          [disabled]="isBusy() || lesson.handling"
         >
           הזז סדרה
         </button>
@@ -72,7 +77,8 @@
           type="button"
           class="impact-action danger"
           (click)="endImpactSeries(lesson)"
-          [disabled]="lesson.handling"
+          [disabled]="isBusy() 
+          || lesson.handling"
         >
           בטל סדרה
         </button>
@@ -83,7 +89,7 @@
           type="button"
           class="impact-action move"
           (click)="openImpactMoveSingle(lesson)"
-          [disabled]="lesson.handling"
+          [disabled]="isBusy() || lesson.handling"
         >
           הזז שיעור
         </button>
@@ -92,7 +98,7 @@
           type="button"
           class="impact-action danger"
           (click)="cancelImpactLessonWithMakeup(lesson)"
-          [disabled]="lesson.handling"
+          [disabled]="isBusy() || lesson.handling"
         >
           בטל עם השלמה
         </button>
@@ -121,7 +127,7 @@
      <button
   class="btn primary"
   (click)="approveUpdate()"
-  [disabled]="getPendingImpactedLessonsCount() > 0"
+  [disabled]="isBusy() || getPendingImpactedLessonsCount() > 0"
 >
   אישור ושמירה
 </button>
@@ -169,7 +175,7 @@
       <p>הגדרת ימי עבודה, טווחי שעות וסוג רכיבה לכל טווח.</p>
     </div>
 
-    <button class="btn primary" (click)="saveAvailability()" [disabled]="!isDirty">
+    <button class="btn primary" (click)="saveAvailability()" [disabled]=" isBusy() || !isDirty">
       שמור זמינות
     </button>
   </header>
