@@ -300,7 +300,8 @@
           </div>
 
           <label class="custom-toggle">
-            <input type="checkbox" [(ngModel)]="notif.cancelLesson" [disabled]="!allowEdit" />
+            <input type="checkbox" [(ngModel)]="notif.cancelLesson"   (ngModelChange)="notifDirty = true"
+[disabled]="!allowEdit" />
             <span class="slider" [class.disabled]="!allowEdit"></span>
           </label>
         </div>
@@ -312,7 +313,8 @@
           </div>
 
           <label class="custom-toggle">
-            <input type="checkbox" [(ngModel)]="notif.reminder" [disabled]="!allowEdit" />
+            <input type="checkbox" [(ngModel)]="notif.reminder"   (ngModelChange)="notifDirty = true"
+ [disabled]="!allowEdit" />
             <span class="slider" [class.disabled]="!allowEdit"></span>
           </label>
         </div>
@@ -324,7 +326,8 @@
           </div>
 
           <label class="custom-toggle">
-            <input type="checkbox" [(ngModel)]="notif.monthlyReport" [disabled]="!allowEdit" />
+            <input type="checkbox" [(ngModel)]="notif.monthlyReport"   (ngModelChange)="notifDirty = true"
+ [disabled]="!allowEdit" />
             <span class="slider" [class.disabled]="!allowEdit"></span>
           </label>
         </div>
@@ -332,9 +335,13 @@
       </div>
 
       <div class="card-footer">
-        <button class="btn secondary full" (click)="saveNotifications()" [disabled]="!userId">
-          שמור העדפות התראות
-        </button>
+    <button
+  class="btn secondary full"
+  (click)="saveNotifications()"
+  [disabled]="isBusy() || !canSaveNotifications()"
+>
+  שמור העדפות התראות
+</button>
       </div>
 
     </section>
