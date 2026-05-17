@@ -294,7 +294,6 @@ get shouldRequirePaymentMethod(): boolean {
     }));
 
     this.recalculateRegistrationAmount();
-    console.log("!!!!!!!11111111"+ this.recalculateRegistrationAmount());
   } catch (e) {
     console.error('loadRegistrationFeeFromDb error', e);
     this.registrationCharges = [];
