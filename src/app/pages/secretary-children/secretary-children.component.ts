@@ -1213,6 +1213,36 @@ getFundingSourceName(id: string | null | undefined): string {
   if (!id) return '—';
   return this.healthFunds.find(f => f.id === id)?.name ?? '—';
 }
+private readonly hebrewDayIndex: Record<string, number> = {
+  'ראשון': 0,
+  'שני': 1,
+  'שלישי': 2,
+  'רביעי': 3,
+  'חמישי': 4,
+  'שישי': 5,
+  'שבת': 6,
+};
+
+getSeriesActualStartDate(row: SeriesDocRow): string {
+  if (!row.anchorWeekStart || !row.dayOfWeek) return '—';
+
+  const dayOffset = this.hebrewDayIndex[row.dayOfWeek];
+  if (dayOffset === undefined) return row.anchorWeekStart;
+
+  const [year, month, day] = row.anchorWeekStart.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + dayOffset);
+
+  return this.formatDateDdMmYyyy(date);
+}
+
+private formatDateDdMmYyyy(date: Date): string {
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const yyyy = date.getFullYear();
+
+  return `${dd}/${mm}/${yyyy}`;
+}
 }
 
 @Component({
