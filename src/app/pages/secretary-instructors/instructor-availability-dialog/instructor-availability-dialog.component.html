@@ -1,15 +1,21 @@
 <div class="dlg" dir="rtl">
   <div class="dlg-head">
-    <div class="titles">
-      <div class="h">עריכת שעות עבודה</div>
-      <div class="s" *ngIf="data?.instructorName">{{ data.instructorName }}</div>
-    </div>
+   <div class="availability-dialog-header">
 
-    <button type="button" class="icon" (click)="close()" aria-label="סגור">
-      <mat-icon>close</mat-icon>
-    </button>
+  <div class="availability-dialog-titles">
+    <h1>עריכת שעות עבודה</h1>
+    <p>{{ data.instructorName }}</p>
   </div>
 
+  <button
+    mat-icon-button
+    class="availability-dialog-close"
+    (click)="close()"
+  >
+    ✕
+  </button>
+
+</div>
   <div class="dlg-body">
     <!-- כאן אנחנו "מזריקים" את העורך -->
     <app-availability-tab

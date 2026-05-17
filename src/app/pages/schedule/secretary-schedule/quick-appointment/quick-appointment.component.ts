@@ -569,7 +569,52 @@ p_funding_source_id: params.fundingSourceId ?? null,
 
     return (Array.isArray(data) ? data[0] : data) as CreateSeriesWithValidationResult | null;
   }
+private normalizeTime(t: string | null | undefined): string | null {
+  const s = (t ?? '').trim();
+  if (!s) return null;
+  return s.length === 5 ? `${s}:00` : s;
+}
 
+private async createViaSingleValidation(params: {
+  lessonDate: string;
+  startTime: string;
+  endTime: string;
+  instructorId: string;
+  instructorUid: string;
+  ridingTypeId: string;
+  paymentPlanId: string;
+  origin?: string;
+  maxParticipants: number;
+  referralUrl?: string | null;
+  fundingSourceId?: string | null;
+}): Promise<CreateSeriesWithValidationResult | null> {
+  const { data, error } = await dbTenant().rpc('create_single_lesson_with_validation', {
+    p_child_id: this.selectedChildId,
+    p_instructor_id_number: params.instructorId,
+    p_instructor_uid: params.instructorUid,
+    p_lesson_date: params.lessonDate,
+    p_start_time: this.normalizeTime(params.startTime),
+    p_end_time: this.normalizeTime(params.endTime),
+    p_max_participants: params.maxParticipants,
+    p_payment_source: 'private',
+    p_existing_approval_id: null,
+    p_payment_plan_id: params.paymentPlanId,
+    p_funding_source_id: params.fundingSourceId ?? null,
+    p_approval_number: null,
+    p_total_lessons: null,
+    p_referral_url: params.referralUrl ?? null,
+    p_payment_docs_url: params.referralUrl ?? null,
+    p_riding_type_id: params.ridingTypeId,
+    p_origin: params.origin ?? 'secretary',
+  });
+
+  if (error) {
+    console.error(error);
+    throw new Error('שגיאה ביצירת השיעור הבודד');
+  }
+
+  return (Array.isArray(data) ? data[0] : data) as CreateSeriesWithValidationResult | null;
+}
   async loadMakeupCandidates(): Promise<void> {
     if (!this.selectedChildId) return;
 
@@ -670,8 +715,41 @@ if (
 ) {
   referralUrl = await this.uploadReferralIfNeeded(this.selectedChildId);
 }
+if (this.bookingMode === 'single') {
+  const instructorUid = this.getSelectedInstructorUidOrThrow();
+  const ridingTypeId = this.getEffectiveRidingTypeId();
 
-      if (this.bookingMode === 'single' || this.bookingMode === 'series' || this.bookingMode === 'special') {
+  if (!ridingTypeId) {
+    throw new Error('לא נמצא סוג שיעור עבור הסלוט');
+  }
+
+  const res = await this.createViaSingleValidation({
+    lessonDate: this.date,
+    startTime: this.startTime,
+    endTime: this.endTime,
+    instructorId: this.instructorId,
+    instructorUid,
+    ridingTypeId,
+    paymentPlanId: this.selectedPaymentPlanId!,
+    origin: 'secretary',
+    referralUrl,
+    maxParticipants: this.getEffectiveMaxParticipants(),
+    fundingSourceId: this.selectedChild?.funding_source_id ?? null,
+  });
+
+  if (!res?.ok) {
+    throw new Error(res?.deny_reason || 'לא ניתן ליצור שיעור בודד');
+  }
+
+  this.showSuccess('השיעור הבודד נוצר בהצלחה');
+  this.referralFile = null;
+  this.referralUploadError = null;
+  this.referralUrl = null;
+  this.saved.emit();
+  return;
+}
+
+if (this.bookingMode === 'series') {
         const instructorUid = this.getSelectedInstructorUidOrThrow();
         const ridingTypeId = this.getEffectiveRidingTypeId();
 
@@ -699,14 +777,9 @@ if (
         if (!res?.ok) {
           throw new Error(res?.deny_reason || 'לא ניתן ליצור שיעור/סדרה');
         }
-
-        this.showSuccess(
-          this.bookingMode === 'single'
-            ? 'השיעור הבודד נוצר בהצלחה'
-            : this.bookingMode === 'special'
-            ? 'השיעור נוצר בהצלחה'
-            : 'הסדרה נוצרה בהצלחה'
-        );
+this.showSuccess(
+    'השיעור הבודד נוצר בהצלחה'
+);
         this.referralFile = null;
 this.referralUploadError = null;
 this.referralUrl = null;
