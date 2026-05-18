@@ -2876,31 +2876,47 @@ const rangeDays = this.timeRangeOccupancyRateDays ?? 30;
       this.occupancySlotsError =    `לא נמצאו שיעורים פנויים למילוי מקום בטווח השבועי (מיום ראשון של אותו שבוע ועד אותו יום בשבוע הבא).`;
       return;
     }
-let slots = this.normalizeMakeupSlots(data ?? []);
-// 1) פילטר מחיקה קשיח (בלי grace)
+    let slots = this.normalizeMakeupSlots(data ?? []);
+
 if (this.selectedChildId) {
   slots = this.filterSlotsByHardDeletion(slots, this.selectedChildId);
 }
 
-// 2) הגבלה של “כמה להציג”
 if (this.displayedMakeupLessonsCount != null && this.displayedMakeupLessonsCount > 0) {
   slots = slots.slice(0, this.displayedMakeupLessonsCount);
 }
 
-// 3) עדכון UI
 this.occupancySlots = slots;
 
-// 4) הודעת שגיאה רק אם אין תוצאות
 if (!slots.length) {
-  const hard = this.getChildHardDeletionDate(this.selectedChildId!);
+  const { error: updateError } = await dbTenant()
+    .from('lesson_occurrence_exceptions')
+    .update({ is_makeup_allowed: false })
+    .eq('id', c.lesson_occ_exception_id);
 
-  this.occupancySlotsError = hard
-  ? `אין שיעורים זמינים עד ${hard} (מחיקה מתוכננת).`
-  : `לא נמצאו שיעורים פנויים למילוי מקום בטווח השבועי (מיום ראשון של אותו שבוע ועד אותו יום בשבוע הבא).`;
-} else {
-  this.occupancySlotsError = null;
+  if (updateError) {
+    console.error('failed to disable makeup option', updateError);
+  }
+
+  this.occupancyCandidates = this.occupancyCandidates.filter(
+    x => x.lesson_occ_exception_id !== c.lesson_occ_exception_id
+  );
+
+  this.occupancyCandidatesAll = this.occupancyCandidatesAll.filter(
+    x => x.lesson_occ_exception_id !== c.lesson_occ_exception_id
+  );
+
+  this.selectedOccupancyCandidate = null;
+
+  this.occupancySlotsError =
+    'לא ניתן להשלים שיעור זה, מאחר שטווח הזמן המוגדר להשלמה עבר. השיעור הוסר מרשימת השיעורים שניתן להשלים.';
+
+  this.showErrorToast(this.occupancySlotsError);
+
+  return;
 }
 
+this.occupancySlotsError = null;
   } finally {
     this.loadingOccupancySlots = false;
   }
