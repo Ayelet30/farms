@@ -97,6 +97,7 @@ export class SecretaryParentsComponent implements OnInit {
   searchMode: 'name' | 'id' | 'email' = 'name';
 childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
   statusFilter: 'all' | 'active' | 'inactive' = 'all';
+  paymentFilter: 'all' | 'withPayment' | 'withoutPayment' = 'all';
 
   showSearchPanel = false;
   showColumnsPanel = false;
@@ -236,6 +237,11 @@ drawerPaymentProfiles: PaymentProfileRow[] = [];
 } else if (this.childrenFilter === 'withoutChildren') {
   rows = rows.filter((p) => !p.hasActiveChildren && !p.hasInactiveChildren);
 }
+if (this.paymentFilter === 'withPayment') {
+  rows = rows.filter((p) => !!p.hasPaymentMethod);
+} else if (this.paymentFilter === 'withoutPayment') {
+  rows = rows.filter((p) => !p.hasPaymentMethod);
+}
 
     return rows;
   }
@@ -296,6 +302,7 @@ drawerPaymentProfiles: PaymentProfileRow[] = [];
     this.searchMode = 'name';
     this.statusFilter = 'all';
     this.childrenFilter = 'all';
+    this.paymentFilter = 'all';
     this.updateStats();
   }
 
