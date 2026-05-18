@@ -33,6 +33,8 @@ import {
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { AddChildWizardComponent } from '../add-child-wizard/add-child-wizard.component';
 import { ActivatedRoute } from '@angular/router';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 type SeriesDocRow = {
   lessonId: string;
@@ -590,6 +592,97 @@ private isAllowedReferralFile(file: File): boolean {
       withoutParent: all.filter((c: any) => !c.parent_uid).length,
     };
   }
+
+  exportToExcel(): void {
+  try {
+    const rows = this.filteredChildren.map((child: any) => {
+      const row: Record<string, any> = {};
+
+      this.visibleColumns.forEach((col) => {
+        row[col.label] = this.getExportCellValue(child, col.key);
+      });
+
+      return row;
+    });
+
+    if (!rows.length) {
+      this.ui.alert('אין נתונים לייצוא.', 'ייצוא לאקסל');
+      return;
+    }
+
+    const worksheet: XLSX.WorkSheet = XLSX.utils.json_to_sheet(rows);
+
+    worksheet['!cols'] = this.visibleColumns.map((col) => ({
+      wch: Math.max(col.label.length + 4, 18),
+    }));
+
+    const workbook: XLSX.WorkBook = {
+      Sheets: { ילדים: worksheet },
+      SheetNames: ['ילדים'],
+    };
+
+    const excelBuffer: ArrayBuffer = XLSX.write(workbook, {
+      bookType: 'xlsx',
+      type: 'array',
+    });
+
+    const blob = new Blob([excelBuffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8',
+    });
+
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+
+    saveAs(blob, `children-export-${yyyy}-${mm}-${dd}.xlsx`);
+  } catch (error) {
+    console.error('exportToExcel failed', error);
+    this.ui.alert('אירעה שגיאה בעת ייצוא לאקסל.', 'שגיאה');
+  }
+}
+
+private getExportCellValue(child: any, key: ChildColumnKey): string {
+  switch (key) {
+    case 'first_name':
+      return child.first_name || '—';
+
+    case 'last_name':
+      return child.last_name || '—';
+
+    case 'gov_id':
+      return child.gov_id || '—';
+
+    case 'birth_date':
+      return child.birth_date ? this.formatDateForExcel(child.birth_date) : '—';
+
+    case 'gender':
+      return child.gender || '—';
+
+    case 'funding_source_id':
+      return this.getFundingSourceName(child.funding_source_id) || '—';
+
+    case 'status':
+      return this.isActiveStatus(child.status) ? 'פעיל' : 'לא פעיל';
+
+    case 'parent_status':
+      return child.parent_uid ? 'יש הורה משויך' : 'ללא הורה';
+
+    default:
+      return '—';
+  }
+}
+
+private formatDateForExcel(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+
+  return `${dd}/${mm}/${yyyy}`;
+}
 
   async openDetails(id?: string) {
     if (!id) return;
