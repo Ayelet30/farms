@@ -245,6 +245,15 @@
       <div *ngIf="stepIndex === paymentStepIndex" class="step-pane payment-step">
 
         <h3 class="step-title">אמצעי תשלום</h3>
+        <div *ngIf="isSecretaryMode" class="info-banner">
+          ניתן להזין אמצעי תשלום להורה כבר עכשיו, או לדלג ולהשלים זאת בהמשך מכרטיס ההורה.
+        </div>
+
+        <div *ngIf="isSecretaryMode" class="payment-actions">
+          <button class="btn secondary" type="button" (click)="skipPaymentForSecretary()" [disabled]="saving">
+            דלג ושמור ללא אשראי
+          </button>
+        </div>
 
         <!-- מצב פטור -->
         <div *ngIf="!canEnterPaymentMethod" class="ok-banner">

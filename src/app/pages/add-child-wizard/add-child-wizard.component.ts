@@ -115,6 +115,9 @@ export class AddChildWizardComponent implements OnInit {
   // =========================
   // ===== תשלום =====
   // ====================
+
+  secretarySkippedPayment = false;
+
 registrationCharges: RegistrationSpecialCharge[] = [];
 
   private hfReg: HostedFieldsInstance | null = null;
@@ -258,11 +261,25 @@ private rebuildSteps() {
   }
 }
 
+skipPaymentForSecretary(): void {
+  if (!this.isSecretaryMode) return;
+
+  this.secretarySkippedPayment = true;
+  this.tokenError = null;
+  this.error = null;
+
+  this.completeWizard();
+}
+
 get paymentStepIndex(): number {
   return this.steps.indexOf('אמצעי תשלום');
 }
 
 get canEnterPaymentMethod(): boolean {
+  if (this.isSecretaryMode) {
+    return !this.secretarySkippedPayment;
+  }
+
   return this.isParentMode && !this.isExemptFromPayment;
 }
 
@@ -424,12 +441,12 @@ onRegistrationChargeToggle(c: RegistrationSpecialCharge, checked: boolean): void
   }
 
   if (
-    this.canEnterPaymentMethod &&
-    this.stepIndex === this.paymentStepIndex &&
-    !this.hasSavedPaymentProfile
-  ) {
-    setTimeout(() => this.ensureRegHostedFieldsReady(), 0);
-  }
+  this.stepIndex === this.paymentStepIndex &&
+  this.canEnterPaymentMethod &&
+  !this.hasSavedPaymentProfile
+) {
+  setTimeout(() => this.ensureRegHostedFieldsReady(), 0);
+}
 }
 
   prevStep() {
@@ -515,7 +532,9 @@ if (!this.child.funding_source_id) {
     if (!this.termsSignature.trim()) this.validationErrors['signature'] = 'נא להזין שם לחתימה דיגיטלית';
   }
 
- private validatePayment() {
+private validatePayment() {
+  if (this.isSecretaryMode) return;
+
   if (!this.canEnterPaymentMethod) return;
 
   if (!this.hasSavedPaymentProfile && !this.tokenSaved) {
@@ -863,7 +882,8 @@ if (requiresPaymentMethod && !this.hasSavedPaymentProfile && !this.tokenSaved) {
   }
 
   private async ensureRegHostedFieldsReady() {
-  if (this.isExemptFromPayment) return; // ✅ חוסם לגמרי
+  if (this.isParentMode && this.isExemptFromPayment) return;
+if (this.isSecretaryMode && this.secretarySkippedPayment) return;
 
   if (this.hfReg || this.paymentFieldsLoading) return;
 
@@ -937,7 +957,7 @@ if (requiresPaymentMethod && !this.hasSavedPaymentProfile && !this.tokenSaved) {
   async tokenizeCard() {
     this.tokenError = null;
 
-    if (!this.isParentMode) return;
+    if (!this.isParentMode && !this.isSecretaryMode) return;
 
     if (this.paymentFieldsLoading) {
       this.tokenError = 'שדות התשלום עדיין נטענים';
@@ -950,9 +970,10 @@ if (requiresPaymentMethod && !this.hasSavedPaymentProfile && !this.tokenSaved) {
     }
 
     const user = await getCurrentUserData();
-    const parentUid = user?.uid ?? null;
+
+    const parentUid = this.isParentMode ? user?.uid ?? null  : this.selectedParentUid ?? null;
     if (!parentUid) {
-      this.tokenError = 'לא זוהה הורה מחובר';
+      this.tokenError = 'לא זוהה הורה לשמירת אמצעי התשלום';
       return;
     }
 
