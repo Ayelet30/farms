@@ -862,3 +862,36 @@
   max-width: 500px;
   margin: auto;
 }
+::ng-deep .custom-tooltip {
+  --mdc-plain-tooltip-container-color: transparent !important;
+  --mdc-plain-tooltip-supporting-text-color: #4f5b3d !important;
+}
+
+::ng-deep .custom-tooltip .mdc-tooltip__surface {
+  background: #fffefb !important;
+
+  color: #4f5b3d !important;
+
+  border: 1.5px solid #cfd8bc !important;
+  border-right: 5px solid #8a9362 !important;
+
+  border-radius: 16px !important;
+
+  padding: 12px 16px !important;
+
+  font-size: 13px !important;
+  font-weight: 500 !important;
+
+  line-height: 1.7 !important;
+
+  font-family: "Assistant", "Rubik", sans-serif !important;
+
+  letter-spacing: 0.1px !important;
+box-shadow:
+  0 4px 14px rgba(138, 147, 98, 0.10) !important;
+
+  max-width: 300px !important;
+
+  text-align: right !important;
+  direction: rtl !important;
+}
