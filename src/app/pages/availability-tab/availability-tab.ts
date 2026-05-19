@@ -506,31 +506,40 @@ isFarmWorkingDay(dayKey: string): boolean {
   if (!this.farmWorkingDays.length) return true;
   return this.farmWorkingDays.includes(this.toFarmDayNumber(dayKey));
 }
-  toggleDay(day: DayAvailability) {
-    if (!this.allowEdit) return;
-if (day.active && !day.slots.length) {
-  const dayNum = this.toFarmDayNumber(day.key);
-  const farmHours = this.farmHoursByDay[dayNum];
+  toggleDay(day: DayAvailability, checked: boolean) {
+  if (!this.allowEdit) return;
 
-  const start = farmHours?.start ?? this.farmStart ?? '08:00';
-  const end = this.addMinutes(start, this.lessonDuration || 60);
+  day.active = checked;
 
-  day.slots.push({
-    start,
-    end,
-    ridingTypeId: null,
-    isNew: true,
-    hasError: false,
-    errorMessage: null,
-    prevStart: start,
-    prevEnd: end,
-    originalStart: start,
-    originalEnd: end,
-  });
-}
-    if (!day.active) day.slots = [];
+  if (!checked) {
+    day.slots = [];
     this.isDirty = true;
+    return;
   }
+
+  if (!day.slots.length) {
+    const dayNum = this.toFarmDayNumber(day.key);
+    const farmHours = this.farmHoursByDay[dayNum];
+
+    const start = farmHours?.start ?? this.farmStart ?? '08:00';
+    const end = this.addMinutes(start, this.lessonDuration || 60);
+
+    day.slots.push({
+      start,
+      end,
+      ridingTypeId: null,
+      isNew: true,
+      hasError: false,
+      errorMessage: null,
+      prevStart: start,
+      prevEnd: end,
+      originalStart: start,
+      originalEnd: end,
+    });
+  }
+
+  this.isDirty = true;
+}
 
   markDirty() {
     if (!this.allowEdit) return;
@@ -579,13 +588,13 @@ if (day.active && !day.slots.length) {
   if (farmHours) {
     if (this.toMin(slot.start) < this.toMin(farmHours.start)) {
       slot.hasError = true;
-      slot.errorMessage = `שעת התחלה לא יכולה להיות לפני ${farmHours.start}`;
+  slot.errorMessage = `ביום ${day.label}: שעת התחלה לא יכולה להיות לפני ${farmHours.start}`;
       return;
     }
 
     if (this.toMin(slot.end) > this.toMin(farmHours.end)) {
       slot.hasError = true;
-      slot.errorMessage = `שעת סיום לא יכולה להיות אחרי ${farmHours.end}`;
+  slot.errorMessage = `ביום ${day.label}: שעת סיום לא יכולה להיות אחרי ${farmHours.end}`;
       return;
     }
   }
@@ -601,8 +610,17 @@ if (day.active && !day.slots.length) {
   slot.prevRidingTypeId = slot.ridingTypeId;
 }
 private toFarmDayNumber(dayKey: string): number {
-  const n0 = this.DAY_KEY_TO_NUM[dayKey];
-  return n0 === 0 ? 7 : n0;
+  const map: Record<string, number> = {
+    sun: 1,
+    mon: 2,
+    tue: 3,
+    wed: 4,
+    thu: 5,
+    fri: 6,
+    sat: 7,
+  };
+
+  return map[dayKey];
 }
 
  onRidingTypeChange(day: DayAvailability, slot: TimeSlot) {
@@ -723,14 +741,12 @@ private addMinutes(time: string, minutesToAdd: number): string {
             this.toMin(slot.start) < this.toMin(farmHours.start) ||
             this.toMin(slot.end) > this.toMin(farmHours.end)
           ) {
-            this.toast(`השעות חייבות להיות בין ${farmHours.start} ל־${farmHours.end}`);
-            return;
+this.toast(`ביום ${day.label}: השעות חייבות להיות בין ${farmHours.start} ל־${farmHours.end}`);            return;
           }
         }
 
         if (this.toMin(slot.end) <= this.toMin(slot.start)) {
-          this.toast('שעת סיום חייבת להיות אחרי שעת התחלה');
-          return;
+this.toast(`ביום ${day.label}: שעת סיום חייבת להיות אחרי שעת התחלה`);          return;
         }
       }
 

@@ -198,8 +198,12 @@
               <span class="day-name">{{ day.label }}</span>
 
               <label class="custom-toggle">
-                <input type="checkbox" [(ngModel)]="day.active" (change)="toggleDay(day)"
-                  [disabled]="!allowEdit || !isFarmWorkingDay(day.key)" />
+              <input
+  type="checkbox"
+  [ngModel]="day.active"
+  (ngModelChange)="toggleDay(day, $event)"
+  [disabled]="!allowEdit || !isFarmWorkingDay(day.key)"
+/>
                 <span class="slider" [class.disabled]="!allowEdit"></span>
               </label>
             </div>

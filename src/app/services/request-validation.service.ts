@@ -153,6 +153,7 @@ private normalizeResult(
   if (mode !== 'auto') {
     try {
       // ===== CANCEL_OCCURRENCE =====
+      
       if (row.requestType === 'CANCEL_OCCURRENCE') {
         const fresh = await this.getFreshCancelOccurrenceDateTime(db, row, mode);
 
@@ -161,6 +162,16 @@ private normalizeResult(
 
         if (dateStr) {
           const dt = this.combineDateTime(dateStr, timeStr ?? '00:00');
+          console.log('[CANCEL EXPIRY DEBUG]', {
+  dateStr,
+  timeStr,
+  dt,
+  dtIso: dt.toISOString(),
+  now: new Date(),
+  nowIso: new Date().toISOString(),
+  dtMs: dt.getTime(),
+  nowMs: Date.now(),
+});
           if (dt.getTime() < Date.now()) {
             return { ok: false, reason: 'עבר מועד השיעור לביטול' };
           }
@@ -200,8 +211,8 @@ if (
   }
 
   // fallback רגיל (כמו שהיה)
-  const expiryReason = this.getExpiryReason(row);
-  if (expiryReason) return { ok: false, reason: expiryReason };
+  const expiryReason = await this.getExpiryReason(db, row, mode);
+if (expiryReason) return { ok: false, reason: expiryReason };
   break;
 }
 
@@ -426,8 +437,11 @@ private async checkMakeupSourceStillRelevant(
   // =====================================
   // Expiry
   // =====================================
-  private getExpiryReason(row: UiRequest): string | null {
-    const p: any = row.payload ?? {};
+private async getExpiryReason(
+  db: any,
+  row: UiRequest,
+  mode: ValidationMode
+): Promise<string | null> {    const p: any = row.payload ?? {};
     const now = new Date();
 
     const isPast = (dateStr: string | null | undefined, timeStr?: string | null): boolean => {
@@ -437,10 +451,37 @@ private async checkMakeupSourceStillRelevant(
     };
 
     switch (row.requestType) {
-    case 'CANCEL_OCCURRENCE': {
-  const dateStr = p.occur_date ?? row.fromDate ?? null;
-  const timeStr = null; // ⚠️ אל תשתמשי בשעה מה-payload כי היא לא תמיד נכונה
-  if (isPast(dateStr, timeStr)) return 'עבר מועד השיעור לביטול';
+   case 'CANCEL_OCCURRENCE': {
+  const fresh = await this.getFreshCancelOccurrenceDateTime(db, row, mode);
+
+  const dateStr =
+    fresh?.dateStr ??
+    p.occur_date ??
+    row.fromDate ??
+    null;
+
+  const timeStr = fresh?.timeStr ?? null;
+
+  if (!dateStr || !timeStr) {
+    return null;
+  }
+
+  const dt = this.combineDateTime(dateStr, timeStr);
+
+  console.log('[CANCEL AUTO EXPIRY DEBUG]', {
+    mode,
+    dateStr,
+    timeStr,
+    dt,
+    dtIso: dt.toISOString(),
+    now: new Date(),
+    nowIso: new Date().toISOString(),
+  });
+
+  if (dt.getTime() < Date.now()) {
+    return 'עבר מועד השיעור לביטול';
+  }
+
   return null;
 }
 
@@ -895,8 +936,7 @@ const timeStr =
   row: UiRequest,
   mode: ValidationMode
 ): Promise<{ dateStr: string | null; timeStr: string | null } | null> {
-  if (mode === 'auto') return null;
-
+// מאפשר גם auto וגם approve/reject
   const requestId = row?.id;
   if (!requestId) return null;
 
