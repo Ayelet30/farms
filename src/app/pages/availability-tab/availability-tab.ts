@@ -63,11 +63,6 @@ interface RidingType {
   active: boolean;
 }
 
-interface NotificationPrefs {
-  cancelLesson: boolean;
-  reminder: boolean;
-  monthlyReport: boolean;
-}
 interface ImpactedLesson {
   lessonId: string;
   childId: string;
@@ -136,7 +131,6 @@ public farmHoursByDay: Record<number, { start: string; end: string }> = {};
   public farmEnd = '17:00';
   public lessonDuration = 60;
   public farmWorkingDays: number[] = [];
-public notifDirty = false;
   @Input() mode: 'self' | 'secretary' = 'self';
 
   private _instructorIdNumber: string | null = null;
@@ -169,11 +163,7 @@ impactMoveConfirmModal = {
   newInstructor: '',
   slot: null as any | null,
 };
-  public notif: NotificationPrefs = {
-    cancelLesson: true,
-    reminder: true,
-    monthlyReport: false,
-  };
+  
 
   public confirmData: ConfirmData | null = null;
 
@@ -408,9 +398,7 @@ private async loadRidingTypes() {
     this.instructorIdNumber = data.id_number;
     this.allowEdit = data.allow_availability_edit ?? true;
 
-    if (data.notify) {
-      this.notif = typeof data.notify === 'string' ? JSON.parse(data.notify) : data.notify;
-    }
+  
   }
 
   /* ===================== DEFAULT DAYS ===================== */
@@ -948,53 +936,6 @@ private formatDateForDisplay(dateValue: string): string {
     this.confirmData = null;
   }
 
-  /* ===================== NOTIFICATIONS ===================== */
-
-  canSaveNotifications(): boolean {
-  if (!this.notifDirty) return false;
-
-  if (this.mode === 'secretary') {
-    return !!this.instructorIdNumber;
-  }
-
-  return !!this.userId;
-}
-
-async saveNotifications() {
-  if (this.isBusy()) return;
-
-  if (!this.canSaveNotifications()) {
-    this.toast('אין שינויים לשמירה');
-    return;
-  }
-
-  this.setBusy('save_notifications');
-
-  try {
-    let query = dbTenant()
-      .from('instructors')
-      .update({ notify: this.notif });
-
-    if (this.mode === 'secretary') {
-      query = query.eq('id_number', this.instructorIdNumber);
-    } else {
-      query = query.eq('uid', this.userId);
-    }
-
-    const { error } = await query;
-
-    if (error) {
-      console.error('❌ saveNotifications error', error);
-      this.toast('שגיאה בשמירת התראות');
-      return;
-    }
-
-    this.notifDirty = false;
-    this.toast('✔ העדפות התראות נשמרו');
-  } finally {
-    this.setBusy(null);
-  }
-}
   /* ===================== IMPACT + CHANGES ===================== */
 private async loadParentsImpactCountOnly(
   dayHebrew: string,
