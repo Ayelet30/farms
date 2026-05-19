@@ -407,9 +407,10 @@ onRegistrationChargeToggle(c: RegistrationSpecialCharge, checked: boolean): void
       if (uidToUse) {
         const match = this.parents.find((p) => p.uid === uidToUse);
         if (match) {
-          this.selectedParentUid = match.uid;
-          this.parentInputText = this.formatParentOption(match);
-        }
+  this.selectedParentUid = match.uid;
+  this.parentInputText = this.formatParentOption(match);
+  await this.loadSavedPaymentProfileForParent(match.uid);
+}
       }
     } catch (e: any) {
       this.parents = [];
@@ -425,12 +426,26 @@ onRegistrationChargeToggle(c: RegistrationSpecialCharge, checked: boolean): void
     return id ? `${name} - ${id}` : name || '(ללא שם)';
   }
 
-  onParentInputChange(value: string) {
-    this.parentInputText = value;
-    const lower = (value || '').toLowerCase().trim();
-    const match = this.parents.find((p) => this.formatParentOption(p).toLowerCase() === lower);
-    this.selectedParentUid = match ? match.uid : null;
+  async onParentInputChange(value: string) {
+  this.parentInputText = value;
+
+  const lower = (value || '').toLowerCase().trim();
+  const match = this.parents.find(
+    (p) => this.formatParentOption(p).toLowerCase() === lower
+  );
+
+  this.selectedParentUid = match ? match.uid : null;
+
+  // איפוס מצב אשראי כשמחליפים הורה
+  this.savedPaymentProfile = null;
+  this.tokenSaved = false;
+  this.savedToken = null;
+  this.tokenError = null;
+
+  if (this.selectedParentUid) {
+    await this.loadSavedPaymentProfileForParent(this.selectedParentUid);
   }
+}
 
   // ===== ניווט =====
  nextStep() {
