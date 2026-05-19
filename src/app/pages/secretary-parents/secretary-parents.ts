@@ -6,6 +6,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, A
 import { RouterModule } from '@angular/router';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { TranzilaService } from '../../services/tranzila.service';
 
 import { UiDialogService } from '../../services/ui-dialog.service';
 import {
@@ -22,6 +23,13 @@ import {
 import { PaymentsService } from '../../services/payments.service';
 import { CreateUserService } from '../../services/create-user.service';
 import { MailService } from '../../services/mail.service';
+
+declare const TzlaHostedFields: any;
+
+type HostedFieldsInstance = {
+  charge: (params: any, cb: (err: any, resp: any) => void) => void;
+  onEvent?: (eventName: string, cb: (...args: any[]) => void) => void;
+};
 
 type ParentRow = {
   uid: string;
@@ -97,6 +105,7 @@ export class SecretaryParentsComponent implements OnInit {
   searchMode: 'name' | 'id' | 'email' = 'name';
 childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
   statusFilter: 'all' | 'active' | 'inactive' = 'all';
+  paymentFilter: 'all' | 'withPayment' | 'withoutPayment' = 'all';
 
   showSearchPanel = false;
   showColumnsPanel = false;
@@ -160,6 +169,15 @@ drawerPaymentProfiles: PaymentProfileRow[] = [];
     { value: 'sms', label: 'SMS' },
   ];
 
+  addCardOpen = false;
+savingToken = false;
+tokenSaved = false;
+tokenError: string | null = null;
+
+private hfAdd: HostedFieldsInstance | null = null;
+private thtkAdd: string | null = null;
+private hfInitTried = false;
+
   constructor(
     private ui: UiDialogService,
     private dialog: MatDialog,
@@ -167,6 +185,7 @@ drawerPaymentProfiles: PaymentProfileRow[] = [];
     private fb: FormBuilder,
     private mailService: MailService,
     private pagos: PaymentsService,
+    private tranzila: TranzilaService,
   ) {}
 
   async ngOnInit() {
@@ -236,6 +255,11 @@ drawerPaymentProfiles: PaymentProfileRow[] = [];
 } else if (this.childrenFilter === 'withoutChildren') {
   rows = rows.filter((p) => !p.hasActiveChildren && !p.hasInactiveChildren);
 }
+if (this.paymentFilter === 'withPayment') {
+  rows = rows.filter((p) => !!p.hasPaymentMethod);
+} else if (this.paymentFilter === 'withoutPayment') {
+  rows = rows.filter((p) => !p.hasPaymentMethod);
+}
 
     return rows;
   }
@@ -296,6 +320,7 @@ drawerPaymentProfiles: PaymentProfileRow[] = [];
     this.searchMode = 'name';
     this.statusFilter = 'all';
     this.childrenFilter = 'all';
+    this.paymentFilter = 'all';
     this.updateStats();
   }
 
@@ -1179,4 +1204,229 @@ async setDefaultPaymentProfile(profileId: string) {
     );
   }
 }
+
+openAddCardModal(event?: MouseEvent): void {
+  event?.stopPropagation();
+
+  if (!this.selectedUid || !this.drawerParent) {
+    this.ui.alert('לא נבחר הורה להוספת כרטיס.', 'שגיאה');
+    return;
+  }
+
+  this.addCardOpen = true;
+  this.tokenError = null;
+  this.tokenSaved = false;
+
+  this.hfAdd = null;
+  this.thtkAdd = null;
+  this.hfInitTried = false;
+
+  setTimeout(() => this.ensureAddHostedFieldsReady(), 0);
+}
+
+closeAddCardModal(): void {
+  if (this.savingToken) return;
+
+  this.addCardOpen = false;
+  this.tokenError = null;
+  this.tokenSaved = false;
+
+  this.hfAdd = null;
+  this.thtkAdd = null;
+  this.hfInitTried = false;
+}
+
+private async ensureAddHostedFieldsReady(): Promise<void> {
+  if (this.hfAdd || this.hfInitTried) return;
+
+  this.hfInitTried = true;
+  this.tokenError = null;
+
+  try {
+    const farm = getCurrentFarmMetaSync();
+    const tenantSchema = farm?.schema_name ?? null;
+
+    if (!tenantSchema) {
+      this.tokenError = 'לא זוהתה סכמת חווה';
+      return;
+    }
+
+    const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema);
+    this.thtkAdd = thtk;
+
+    if (!TzlaHostedFields) {
+      this.tokenError = 'רכיב התשלום לא נטען';
+      return;
+    }
+
+    this.hfAdd = TzlaHostedFields.create({
+      sandbox: false,
+      fields: {
+        credit_card_number: {
+          selector: '#sp_credit_card_number',
+          placeholder: '4580 4580 4580 4580',
+          tabindex: 1,
+        },
+        cvv: {
+          selector: '#sp_cvv',
+          placeholder: '123',
+          tabindex: 2,
+        },
+        expiry: {
+          selector: '#sp_expiry',
+          placeholder: '12/26',
+          version: '1',
+        },
+      },
+      styles: {
+        input: {
+          height: '42px',
+          'line-height': '42px',
+          padding: '0 10px',
+          'font-size': '15px',
+          'box-sizing': 'border-box',
+        },
+        select: {
+          height: '42px',
+          'line-height': '42px',
+          padding: '0 10px',
+          'font-size': '15px',
+          'box-sizing': 'border-box',
+        },
+      },
+    });
+  } catch (e: any) {
+    console.error('ensureAddHostedFieldsReady error', e);
+    this.tokenError = e?.message ?? 'שגיאה באתחול שדות האשראי';
+  }
+}
+
+async tokenizeAndSaveCardForSelectedParent(): Promise<void> {
+  this.tokenError = null;
+  this.tokenSaved = false;
+
+  const parentUid = this.selectedUid;
+  const parentEmail = this.drawerParent?.email ?? null;
+
+  if (!parentUid) {
+    this.tokenError = 'לא זוהה הורה לשמירת אמצעי התשלום';
+    return;
+  }
+
+  if (!this.hfAdd || !this.thtkAdd) {
+    this.tokenError = 'שדות התשלום לא מוכנים';
+    return;
+  }
+
+  const farm = getCurrentFarmMetaSync();
+  const tenantSchema = farm?.schema_name ?? undefined;
+
+  if (!tenantSchema) {
+    this.tokenError = 'לא זוהתה סכמת חווה';
+    return;
+  }
+
+  ['credit_card_number', 'expiry', 'cvv'].forEach((k) => {
+    const el = document.getElementById('sp_errors_for_' + k);
+    if (el) el.textContent = '';
+  });
+
+  this.savingToken = true;
+
+  try {
+    const db = dbTenant();
+
+    const { data } = await db
+      .from('billing_terminals')
+      .select('terminal_name,tok_terminal_name,secret_key_charge,secret_key_charge_token')
+      .eq('provider', 'tranzila')
+      .eq('mode', 'prod')
+      .eq('active', true)
+      .order('is_default', { ascending: false })
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const terminalName = data?.terminal_name ?? 'moachapp';
+
+    this.hfAdd.charge(
+      {
+        terminal_name: terminalName,
+        thtk: this.thtkAdd,
+        tran_mode: 'N',
+        tokenize: true,
+        amount: '1',
+        currency_code: 'ILS',
+        payment_plan: 1,
+        response_language: 'hebrew',
+        requested_by_user: 'secretary-parent-card-tokenize',
+        email: parentEmail || undefined,
+        contact: `${this.drawerParent?.first_name ?? ''} ${this.drawerParent?.last_name ?? ''}`.trim() || undefined,
+      },
+      async (err: any, response: any) => {
+        try {
+          if (err?.messages?.length) {
+            err.messages.forEach((msg: any) => {
+              const el = document.getElementById('sp_errors_for_' + msg.param);
+              if (el) el.textContent = msg.message;
+            });
+
+            this.tokenError = 'שגיאה בפרטי הכרטיס';
+            return;
+          }
+
+          const tx = response?.transaction_response;
+
+          if (!tx?.success) {
+            this.tokenError = tx?.error || 'שמירת אמצעי תשלום נכשלה';
+            return;
+          }
+
+          const token = tx?.token;
+
+          if (!token) {
+            this.tokenError = 'לא התקבל טוקן מהסליקה';
+            return;
+          }
+
+          const last4 =
+            tx?.credit_card_last_4_digits ??
+            tx?.last_4 ??
+            (tx?.card_mask ? String(tx.card_mask).slice(-4) : null);
+
+          const brand = tx?.card_type_name ?? tx?.card_type ?? null;
+
+          await this.tranzila.savePaymentMethod({
+            parentUid,
+            tenantSchema,
+            token: String(token),
+            last4: last4 ? String(last4) : null,
+            brand: brand ? String(brand) : null,
+            expiryMonth: tx?.expiry_month ?? null,
+            expiryYear: tx?.expiry_year ?? null,
+          });
+
+          this.tokenSaved = true;
+
+          await this.loadDrawerData(parentUid);
+          await this.loadParents();
+
+          this.closeAddCardModal();
+
+          await this.ui.alert('אמצעי התשלום נשמר בהצלחה.', 'הצלחה');
+        } catch (e: any) {
+          console.error('tokenize callback error', e);
+          this.tokenError = e?.message ?? 'שגיאה בשמירת אמצעי תשלום במערכת';
+        } finally {
+          this.savingToken = false;
+        }
+      }
+    );
+  } catch (e: any) {
+    console.error('tokenizeAndSaveCardForSelectedParent error', e);
+    this.tokenError = e?.message ?? 'שגיאה בשמירת אמצעי תשלום';
+    this.savingToken = false;
+  }
+}
+
 }

@@ -449,6 +449,8 @@ private buildAvailableDayCells(range?: { start: string; end: string }): void {
   const from = range?.start?.slice(0, 10) ?? '';
   const to = range?.end?.slice(0, 10) ?? '';
 
+  console.log('buildAvailableDayCells', { from, to, instructorCount: this.instructorResources.length });
+
   if (!from || !to) {
     this.availableDayCells = [];
     return;
@@ -464,6 +466,7 @@ private buildAvailableDayCells(range?: { start: string; end: string }): void {
   while (cur <= to) {
     const dow = this.dbDowFromYmd(cur);
 
+    console.log('checking availability for', { date: cur, dow, visibleInstructorIds: Array.from(visibleInstructorIds) });
     for (const row of this.instructorWeeklyAvailability || []) {
       const instructorId = String(row.instructor_id_number);
 
@@ -2554,7 +2557,8 @@ async onToggleMakeupAllowed(checked: boolean) {
 }
 
 private jsDowToDbDow(jsDow: number): number {
-  return jsDow === 0 ? 1 : jsDow + 1;
+  console.log('jsDowToDbDow', { jsDow });
+  return jsDow;
 }
 
 private dbDowFromYmd(ymd: string): number {

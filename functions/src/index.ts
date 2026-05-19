@@ -36,7 +36,7 @@ export {
   ensureTranzilaInvoiceForPayment
 } from './tranzilaInvoices.js';
 export { sendEmailGmail } from './email';
-
+export { notifyAvailabilityLessonAction } from './notify-availability-lesson-action';
 //export  *  from "../createParent.js";
 
 

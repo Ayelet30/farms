@@ -245,6 +245,15 @@
       <div *ngIf="stepIndex === paymentStepIndex" class="step-pane payment-step">
 
         <h3 class="step-title">אמצעי תשלום</h3>
+       <div *ngIf="isSecretaryMode && !hasSavedPaymentProfile" class="info-banner">
+  ניתן להזין אמצעי תשלום להורה כבר עכשיו, או לדלג ולהשלים זאת בהמשך מכרטיס ההורה.
+</div>
+
+<div *ngIf="isSecretaryMode && !hasSavedPaymentProfile" class="payment-actions">
+          <button class="btn secondary" type="button" (click)="skipPaymentForSecretary()" [disabled]="saving">
+            דלג ושמור ללא אשראי
+          </button>
+        </div>
 
         <!-- מצב פטור -->
         <div *ngIf="!canEnterPaymentMethod" class="ok-banner">
@@ -253,29 +262,16 @@
 
         <!-- מצב שכן צריך -->
         <ng-container *ngIf="canEnterPaymentMethod">
+<div class="payment-notes">
 
-          <div class="payment-notes">
+  <ng-container *ngIf="!loadingPaymentProfile && hasSavedPaymentProfile; else paymentFormBlock">
+    <div class="ok-banner saved-card-banner">
+      יש לך כבר אמצעי תשלום שמור במערכת ✅<br />
+      הכרטיס מסתיים ב־ <b>{{ savedPaymentProfile?.last4 }}</b>
+    </div>
+  </ng-container>
 
-            <div class="info-banner" *ngIf="registrationCharges?.length; else noRegCharges">
-              הכנסת פרטי האשראי נועדה לצורך חיובים עתידיים מהמערכת ועבור החיובים המצויינים פה.
-            </div>
-
-            <ng-template #noRegCharges>
-              <div class="info-banner">
-                הכנסת פרטי האשראי נועדה לצורך חיובים עתידיים מהמערכת.
-              </div>
-            </ng-template>
-
-            <p class="step-hint" *ngIf="loadingPaymentProfile">
-              טוען אמצעי תשלום שמור…
-            </p>
-
-            <!-- כרטיס שמור -->
-            <div *ngIf="!loadingPaymentProfile && hasSavedPaymentProfile" class="ok-banner">
-              יש לך כבר אמצעי תשלום שמור במערכת ✅<br />
-              הכרטיס מסתיים ב־ <b>{{ savedPaymentProfile?.last4 }}</b>
-            </div>
-
+  <ng-template #paymentFormBlock>
             <!-- הכנסת כרטיס -->
             <div *ngIf="!loadingPaymentProfile && !hasSavedPaymentProfile" class="payment-card">
 
@@ -325,7 +321,7 @@
               </div>
 
             </div>
-
+  </ng-template>
           </div>
 
         </ng-container>

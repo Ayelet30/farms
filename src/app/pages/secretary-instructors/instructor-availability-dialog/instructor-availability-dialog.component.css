@@ -1,0 +1,64 @@
+.availability-dialog-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+
+  padding: 24px 28px 18px;
+
+  background: #f7f8f3;
+  border-bottom: 1px solid #e3e7d8;
+}
+
+.availability-dialog-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.availability-dialog-titles h1 {
+  margin: 0;
+
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.1;
+
+  color: #2f3a1f;
+}
+
+.availability-dialog-titles p {
+  margin: 0;
+
+  font-size: 16px;
+  font-weight: 500;
+
+  color: #6f7661;
+}
+
+.availability-dialog-close {
+  width: 50px !important;
+  height: 50px !important;
+
+  border: 2px solid #2f3a1f;
+  border-radius: 16px;
+
+  background: white !important;
+  color: #2f3a1f !important;
+
+  font-size: 28px !important;
+  font-weight: 700;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  transition: 0.2s ease;
+}
+
+.availability-dialog-close:hover {
+  background: #edf2e4 !important;
+  transform: scale(1.03);
+}

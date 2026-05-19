@@ -84,6 +84,8 @@ type RidingTypeRow = {
   is_active: boolean;
   min_participants?: number | null;
   max_participants?: number | null;
+  spacial_duration?: number | null;
+
 };
 
 type MakeupCandidate = {
@@ -145,7 +147,7 @@ export class QuickAppointmentComponent implements OnInit {
   referralFile: File | null = null;
 referralUrl: string | null = null;
 referralUploadError: string | null = null;
-
+farmLessonDurationMinutes: number | null = null;
   loading = false;
   loadingSlotInfo = false;
   slotInfoError: string | null = null;
@@ -198,6 +200,7 @@ referralUploadError: string | null = null;
       this.loadInstructors(),
       this.loadPaymentPlans(),
       this.loadRidingTypes(),
+      this.loadFarmSettings(),
     ]);
 
     await this.loadSlotInfo();
@@ -389,7 +392,7 @@ clearChildSelection(): void {
   async loadRidingTypes(): Promise<void> {
     const { data, error } = await dbTenant()
       .from('riding_types')
-      .select('id, name, code, is_active, min_participants, max_participants')
+      .select('id, name, code, is_active, min_participants, max_participants,spacial_duration')
       .order('name', { ascending: true });
 
     if (error) {
@@ -569,7 +572,52 @@ p_funding_source_id: params.fundingSourceId ?? null,
 
     return (Array.isArray(data) ? data[0] : data) as CreateSeriesWithValidationResult | null;
   }
+private normalizeTime(t: string | null | undefined): string | null {
+  const s = (t ?? '').trim();
+  if (!s) return null;
+  return s.length === 5 ? `${s}:00` : s;
+}
 
+private async createViaSingleValidation(params: {
+  lessonDate: string;
+  startTime: string;
+  endTime: string;
+  instructorId: string;
+  instructorUid: string;
+  ridingTypeId: string;
+  paymentPlanId: string;
+  origin?: string;
+  maxParticipants: number;
+  referralUrl?: string | null;
+  fundingSourceId?: string | null;
+}): Promise<CreateSeriesWithValidationResult | null> {
+  const { data, error } = await dbTenant().rpc('create_single_lesson_with_validation', {
+    p_child_id: this.selectedChildId,
+    p_instructor_id_number: params.instructorId,
+    p_instructor_uid: params.instructorUid,
+    p_lesson_date: params.lessonDate,
+    p_start_time: this.normalizeTime(params.startTime),
+    p_end_time: this.normalizeTime(params.endTime),
+    p_max_participants: params.maxParticipants,
+    p_payment_source: 'private',
+    p_existing_approval_id: null,
+    p_payment_plan_id: params.paymentPlanId,
+    p_funding_source_id: params.fundingSourceId ?? null,
+    p_approval_number: null,
+    p_total_lessons: null,
+    p_referral_url: params.referralUrl ?? null,
+    p_payment_docs_url: params.referralUrl ?? null,
+    p_riding_type_id: params.ridingTypeId,
+    p_origin: params.origin ?? 'secretary',
+  });
+
+  if (error) {
+    console.error(error);
+    throw new Error('שגיאה ביצירת השיעור הבודד');
+  }
+
+  return (Array.isArray(data) ? data[0] : data) as CreateSeriesWithValidationResult | null;
+}
   async loadMakeupCandidates(): Promise<void> {
     if (!this.selectedChildId) return;
 
@@ -670,8 +718,41 @@ if (
 ) {
   referralUrl = await this.uploadReferralIfNeeded(this.selectedChildId);
 }
+if (this.bookingMode === 'single') {
+  const instructorUid = this.getSelectedInstructorUidOrThrow();
+  const ridingTypeId = this.getEffectiveRidingTypeId();
 
-      if (this.bookingMode === 'single' || this.bookingMode === 'series' || this.bookingMode === 'special') {
+  if (!ridingTypeId) {
+    throw new Error('לא נמצא סוג שיעור עבור הסלוט');
+  }
+
+  const res = await this.createViaSingleValidation({
+    lessonDate: this.date,
+    startTime: this.startTime,
+    endTime: this.getCalculatedEndTime(),
+    instructorId: this.instructorId,
+    instructorUid,
+    ridingTypeId,
+    paymentPlanId: this.selectedPaymentPlanId!,
+    origin: 'secretary',
+    referralUrl,
+    maxParticipants: this.getEffectiveMaxParticipants(),
+    fundingSourceId: this.selectedChild?.funding_source_id ?? null,
+  });
+
+  if (!res?.ok) {
+    throw new Error(res?.deny_reason || 'לא ניתן ליצור שיעור בודד');
+  }
+
+  this.showSuccess('השיעור הבודד נוצר בהצלחה');
+  this.referralFile = null;
+  this.referralUploadError = null;
+  this.referralUrl = null;
+  this.saved.emit();
+  return;
+}
+
+if (this.bookingMode === 'series') {
         const instructorUid = this.getSelectedInstructorUidOrThrow();
         const ridingTypeId = this.getEffectiveRidingTypeId();
 
@@ -699,14 +780,9 @@ if (
         if (!res?.ok) {
           throw new Error(res?.deny_reason || 'לא ניתן ליצור שיעור/סדרה');
         }
-
-        this.showSuccess(
-          this.bookingMode === 'single'
-            ? 'השיעור הבודד נוצר בהצלחה'
-            : this.bookingMode === 'special'
-            ? 'השיעור נוצר בהצלחה'
-            : 'הסדרה נוצרה בהצלחה'
-        );
+this.showSuccess(
+    'השיעור הבודד נוצר בהצלחה'
+);
         this.referralFile = null;
 this.referralUploadError = null;
 this.referralUrl = null;
@@ -900,5 +976,56 @@ get availablePaymentPlans(): PaymentPlan[] {
 
     return plan.funding_source_id === childFundingSourceId;
   });
+}
+async loadFarmSettings(): Promise<void> {
+  const { data, error } = await dbTenant()
+    .from('farm_settings')
+    .select('lesson_duration_minutes')
+    .single();
+
+  if (error) {
+    console.error(error);
+    this.showError('שגיאה בטעינת הגדרות חווה');
+    return;
+  }
+
+  this.farmLessonDurationMinutes = Number(data?.lesson_duration_minutes ?? 0) || null;
+}
+private timeToMinutes(time: string): number {
+  const [h, m] = time.slice(0, 5).split(':').map(Number);
+  return h * 60 + m;
+}
+
+private minutesToTime(totalMinutes: number): string {
+  const normalized = ((totalMinutes % 1440) + 1440) % 1440;
+  const h = Math.floor(normalized / 60);
+  const m = normalized % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+private getEffectiveDurationMinutes(): number {
+  const ridingType =
+    this.bookingMode === 'special'
+      ? this.selectedSpecialRidingType
+      : this.activeRidingTypes.find(r => r.id === this.slotInfo?.riding_type_id);
+
+  const specialDuration = Number(ridingType?.spacial_duration ?? 0);
+
+  if (specialDuration > 0) {
+    return specialDuration;
+  }
+
+  const defaultDuration = Number(this.farmLessonDurationMinutes ?? 0);
+
+  if (defaultDuration > 0) {
+    return defaultDuration;
+  }
+
+  throw new Error('לא הוגדר משך שיעור בסוג השיעור או בהגדרות החווה');
+}
+
+getCalculatedEndTime(): string {
+  const duration = this.getEffectiveDurationMinutes();
+  return this.minutesToTime(this.timeToMinutes(this.startTime) + duration);
 }
 }

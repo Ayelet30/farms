@@ -1233,6 +1233,7 @@
                   type="number"
                   min="1"
                   max="50"
+                  required
                   name="newRidingTypeMin"
                   [ngModel]="newRidingTypeMin()"
                   (ngModelChange)="newRidingTypeMin.set($event); validateParticipants()"
@@ -1249,6 +1250,7 @@
                   type="number"
                   min="1"
                   max="50"
+                  required
                   name="newRidingTypeMax"
                   [ngModel]="newRidingTypeMax()"
                   (ngModelChange)="newRidingTypeMax.set($event); validateParticipants()"
@@ -1300,8 +1302,14 @@
               <button
                 type="button"
                 class="btn btn-primary"
-                [disabled]="!!newRidingTypeCodeError() || !newRidingTypeName().trim()"
-                (click)="addRidingType()"
+[disabled]="
+  !!newRidingTypeCodeError() ||
+  !newRidingTypeName().trim() ||
+  newRidingTypeMin() == null ||
+  newRidingTypeMax() == null ||
+  !!participantsMinError() ||
+  !!participantsMaxError()
+"                (click)="addRidingType()"
               >
                 שמירה
               </button>
