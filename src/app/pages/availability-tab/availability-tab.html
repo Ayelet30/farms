@@ -171,7 +171,6 @@
 
   <header class="page-header">
     <div>
-      <h1>העדפות זמינות והתראות</h1>
       <p>הגדרת ימי עבודה, טווחי שעות וסוג רכיבה לכל טווח.</p>
     </div>
 
@@ -288,67 +287,7 @@
 
     </section>
 
-    <!-- כרטיס התראות -->
-    <section class="card notifications-card">
-      <div class="card-header">
-        <h2>העדפות התראות</h2>
-        <p>בחירה אילו התראות לקבל מהמערכת.</p>
-      </div>
-
-      <div class="notif-list">
-
-        <div class="notif-row">
-          <div class="notif-texts">
-            <div class="notif-title">ביטול שיעור</div>
-            <div class="notif-desc">התראה כאשר שיעור מבוטל.</div>
-          </div>
-
-          <label class="custom-toggle">
-            <input type="checkbox" [(ngModel)]="notif.cancelLesson"   (ngModelChange)="notifDirty = true"
-[disabled]="!allowEdit" />
-            <span class="slider" [class.disabled]="!allowEdit"></span>
-          </label>
-        </div>
-
-        <div class="notif-row">
-          <div class="notif-texts">
-            <div class="notif-title">תזכורת לפני שיעור</div>
-            <div class="notif-desc">התראה קצרה לפני תחילת שיעור.</div>
-          </div>
-
-          <label class="custom-toggle">
-            <input type="checkbox" [(ngModel)]="notif.reminder"   (ngModelChange)="notifDirty = true"
- [disabled]="!allowEdit" />
-            <span class="slider" [class.disabled]="!allowEdit"></span>
-          </label>
-        </div>
-
-        <div class="notif-row">
-          <div class="notif-texts">
-            <div class="notif-title">דוח חודשי במייל</div>
-            <div class="notif-desc">סיכום חודשי יישלח אלייך בדוא"ל.</div>
-          </div>
-
-          <label class="custom-toggle">
-            <input type="checkbox" [(ngModel)]="notif.monthlyReport"   (ngModelChange)="notifDirty = true"
- [disabled]="!allowEdit" />
-            <span class="slider" [class.disabled]="!allowEdit"></span>
-          </label>
-        </div>
-
-      </div>
-
-      <div class="card-footer">
-    <button
-  class="btn secondary full"
-  (click)="saveNotifications()"
-  [disabled]="isBusy() || !canSaveNotifications()"
->
-  שמור העדפות התראות
-</button>
-      </div>
-
-    </section>
+   
 
   </main>
   <div class="overlay" *ngIf="impactMoveSlotsModal.open">

@@ -458,7 +458,20 @@
 .save-btn:active {
   transform: scale(0.99);
 }
+.locked-switch {
+  opacity: 0.85;
+}
 
+.locked-switch .slider {
+  cursor: not-allowed;
+}
+
+.always-on {
+  display: block;
+  font-size: 11px;
+  color: #7c8b5b;
+  margin-top: 2px;
+}
 /* =========================
    Loading
    ========================= */
