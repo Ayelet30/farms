@@ -309,15 +309,19 @@ validateParticipants(): void {
   this.participantsMinError.set(null);
   this.participantsMaxError.set(null);
 
-  if (min != null && (!Number.isFinite(min) || min < 1 || min > 50)) {
+  if (min == null) {
+    this.participantsMinError.set('חובה למלא מינימום משתתפים');
+  } else if (!Number.isFinite(Number(min)) || Number(min) < 1 || Number(min) > 50) {
     this.participantsMinError.set('מינימום חייב להיות בין 1 ל־50');
   }
 
-  if (max != null && (!Number.isFinite(max) || max < 1 || max > 50)) {
+  if (max == null) {
+    this.participantsMaxError.set('חובה למלא מקסימום משתתפים');
+  } else if (!Number.isFinite(Number(max)) || Number(max) < 1 || Number(max) > 50) {
     this.participantsMaxError.set('מקסימום חייב להיות בין 1 ל־50');
   }
 
-  if (min != null && max != null && min > max) {
+  if (min != null && max != null && Number(min) > Number(max)) {
     this.participantsMinError.set('מינימום לא יכול להיות גדול ממקסימום');
     this.participantsMaxError.set('מקסימום לא יכול להיות קטן ממינימום');
   }
@@ -1913,6 +1917,12 @@ async addRidingType(): Promise<void> {
   const code = this.newRidingTypeCode().trim();
   const min = this.newRidingTypeMin();
   const max = this.newRidingTypeMax();
+  this.validateParticipants();
+
+if (this.participantsMinError() || this.participantsMaxError()) {
+  await this.ui.alert('חובה למלא מינימום ומקסימום משתתפים תקינים לפני שמירת סוג רכיבה.', 'שגיאה');
+  return;
+}
   const price = this.newRidingTypeSpecialPrice();
   const duration = this.newRidingTypeSpecialDuration();
 
@@ -1946,28 +1956,7 @@ async addRidingType(): Promise<void> {
     return;
   }
 
-  // ===== מינימום/מקסימום =====
-// ===== מינימום/מקסימום =====
-if (min !== null) {
-  if (!Number.isFinite(min) || min < 1 || min > 50) {
-    await this.ui.alert('מינימום משתתפים חייב להיות בין 1 ל־50.', 'שגיאה');
-    return;
-  }
-}
 
-if (max !== null) {
-  if (!Number.isFinite(max) || max < 1 || max > 50) {
-    await this.ui.alert('מקסימום משתתפים חייב להיות בין 1 ל־50.', 'שגיאה');
-    return;
-  }
-}
-
-if (min !== null && max !== null && min > max) {
-  await this.ui.alert('מינימום משתתפים לא יכול להיות גדול ממקסימום.', 'שגיאה');
-  return;
-}
-
-  // ===== מחיר / משך זמן =====
 // ===== מחיר מיוחד =====
 if (price !== null) {
   if (!Number.isFinite(price) || price < 0 || price > 10000) {
