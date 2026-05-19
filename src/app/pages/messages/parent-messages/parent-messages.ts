@@ -6,6 +6,17 @@ import { db, ensureTenantContextReady } from '../../../services/legacy-compat';
 import { dbTenant } from '../../../services/supabaseClient.service';
 import { fetchMyChildren } from '../../../services/supabaseClient.service';
 
+type ConversationStatus = 'sent' | 'read' | 'pending' | 'completed';
+
+type Conversation = {
+  id: string;
+  subject: string | null;
+  status: ConversationStatus; // העדכון כאן
+  opened_by_parent_uid: string | null;
+  student_id?: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 type Tab = 'threads' | 'new' | 'announcements';
 type FarmSettingsContact = {
@@ -13,14 +24,6 @@ type FarmSettingsContact = {
   main_mail: string | null;
   main_address: string | null;
 
-};
-type Conversation = {
-  id: string;
-  subject: string | null;
-  status: 'open' | 'pending' | 'closed';
-  opened_by_parent_uid: string | null;
-  created_at: string;
-  updated_at: string;
 };
 
 type ConversationMessage = {
@@ -86,7 +89,7 @@ export class ParentMessagesComponent implements OnInit {
   // מנקים תווים שהם לא מספרים
   let cleanPhone = phone.replace(/\D/g, '');   
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent('שלום, אני פונה מהאתר של החווה')}`;
-}
+  }
 
   // פתיחת שיחה חדשה
   newSubject = ''; // <-- לא signal
@@ -96,23 +99,19 @@ export class ParentMessagesComponent implements OnInit {
   selectedFile: File | null = null;
   selectedKidId: string = ''; // ישמור את ה-ID של הילד שנבחר
   kids = signal<any[]>([]);
-  activeThread = signal<any>(null); // שומר את השיחה שכרגע פתוחה במסך
-  messages = signal<any[]>([]);
+
 
 
   // הודעות שידור
   loadingAnn = signal(false);
   announcements = signal<Announcement[]>([]);
-
-   farmSettings: FarmSettingsContact | null = null;
-    workingHours = signal<WorkingHourVm[]>([]);
-
+  farmSettings: FarmSettingsContact | null = null;
+  workingHours = signal<WorkingHourVm[]>([]);
 
   // אופציונלי: אם תרצי להציג ספינר/שגיאה
   loading = signal<boolean>(false);
   errorMsg = signal<string | null>(null);
 
- 
   async ngOnInit() {
   await Promise.all([
       this.loadFarmSettingsContact(),
@@ -241,6 +240,7 @@ private async loadFarmSettingsContact(): Promise<void> {
       this.loading.set(false);
     }
   }
+  
   todayDow = signal<number>(this.jsToDbDow(new Date().getDay())); 
 // getDay(): 0=Sunday ... 6=Saturday
 // אצלך בטבלה: 1..7 (ראשון=1 ... שבת=7)
@@ -290,41 +290,115 @@ private jsToDbDow(js: number): number {
     this.messages.set((data ?? []) as ConversationMessage[]);
   }
 
-  async sendReply() {
-    const body = (this.replyText || '').trim();
-    if (!body || !this.activeConv()) return;
-    const uid = this.myUid();
+  async handleSend() {
+  const isNew = this.tab() === 'new';
+  this.toast.set(null); // איפוס הודעות קודמות
 
-    const { data, error } = await db()
+  // --- שלב א: בדיקות תקינות (וולידציה) תוך שימוש ב-showToast ---
+  
+  if (isNew) {
+    if (!this.newSubject) {
+      this.showToast('יש לבחור נושא לפני השליחה');
+      return;
+    }
+    if (!this.newBody.trim()) {
+      this.showToast('לא ניתן לשלוח הודעה ריקה');
+      return;
+    }
+    if (this.newSubject === 'files') {
+      if (!this.selectedKidId) {
+        this.showToast('יש לבחור ילד עבור שליחת קבצים');
+        return;
+      }
+      if (!this.selectedFile) {
+        this.showToast('יש לבחור קובץ לשליחה');
+        return;
+      }
+    }
+  } else {
+    // בדיקה לתגובה בשיחה קיימת
+    if (!this.replyText.trim()) {
+      this.showToast('לא ניתן לשלוח הודעה ריקה');
+      return;
+    }
+  }
+
+  // --- שלב ב: שליחה לסופבייס ---
+  this.creating.set(true);
+
+  try {
+    const uid = this.myUid();
+    const bodyText = isNew ? this.newBody.trim() : this.replyText.trim();
+    let conversationId: string;
+
+    if (isNew) {
+      // 1. יצירת שיחה חדשה
+      const { data: conv, error: e1 } = await db()
+        .from('conversations')
+        .insert({
+          subject: this.newSubject,
+          status: 'sent', // וי אפור ראשון
+          opened_by_parent_uid: uid,
+          student_id: this.selectedKidId || null
+        })
+        .select().single();
+
+      if (e1) throw e1;
+      conversationId = conv.id;
+    } else {
+      // 2. שיחה קיימת
+      conversationId = this.activeConv()!.id;
+    }
+
+    // 3. יצירת ההודעה
+    const { data: msgData, error: e2 } = await db()
       .from('conversation_messages')
       .insert({
-        conversation_id: this.activeConv()!.id,
-        body_md: body,
+        conversation_id: conversationId,
+        body_md: bodyText,
         sender_role: 'parent',
         sender_uid: uid,
-        has_attachment: false
+        has_attachment: !!this.selectedFile
       })
-      .select()
-      .single();
-    if (error) throw error;
+      .select().single();
 
-    // כשהורה עונה – נשאיר את הסטטוס open
-    await db().from('conversations')
-      .update({ status: 'open' })
-      .eq('id', this.activeConv()!.id);
+    if (e2) throw e2;
 
-    this.messages.update(arr => [...arr, data as ConversationMessage]);
-    this.replyText = '';
+    // --- שלב ג: ניקוי שדות ורענון ממשק ---
+    if (isNew) {
+      this.newBody = '';
+      this.newSubject = '';
+      await this.loadThreads(); 
+      
+      const justCreated = this.threads().find(t => t.id === conversationId);
+      if (justCreated) {
+        await this.openConversation(justCreated);
+      }
+      this.tab.set('threads'); 
+    } else {
+      this.messages.update(arr => [...arr, msgData as ConversationMessage]);
+      this.replyText = ''; 
+    }
+
+    this.selectedFile = null;
+    this.showToast('הודעתך נשלחה בהצלחה');
+
+  } catch (error) {
+    console.error("Error sending message:", error);
+    this.showToast('אופס, משהו השתבש בשליחה. נסו שוב.');
+  } finally {
+    this.creating.set(false);
   }
+}
 
   onFileSelected(event: any) {
   const file = event.target.files[0];
   if (!file) return;
 
   // בדיקת גודל קובץ - מקסימום 5MB לפי האפיון
-  const maxSizeInBytes = 5 * 1024 * 1024; 
+  const maxSizeInBytes = 2 * 1024 * 1024; 
   if (file.size > maxSizeInBytes) {
-    this.toast.set('הקובץ גדול מדי. הגודל המקסימלי המותר הוא 5MB');
+    this.showToast('הקובץ גדול מדי. הגודל המקסימלי המותר הוא 5MB');
     event.target.value = ''; // איפוס הבחירה
     return;
   }
@@ -332,220 +406,29 @@ private jsToDbDow(js: number): number {
   // בדיקת סוג קובץ - JPG, PNG, PDF בלבד
   const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
   if (!allowedTypes.includes(file.type)) {
-    this.toast.set('סוג קובץ לא נתמך. ניתן להעלות PDF, PNG או JPG בלבד');
+    this.showToast('סוג קובץ לא נתמך. ניתן להעלות PDF, PNG או JPG בלבד');
     event.target.value = '';
     return;
   }
 
   this.selectedFile = file;
-  this.toast.set(`קובץ נבחר: ${file.name}`);
-  setTimeout(() => this.toast.set(null), 3000);
-}
+  this.showToast(`קובץ נבחר: ${file.name}`);
+  }
 
-adjustHeight(event: any) {
+  adjustHeight(event: any) {
   const element = event.target;
   element.style.height = 'auto';
   element.style.height = element.scrollHeight + 'px';
-}
+  }
 
-removeFile() {
+  removeFile() {
   this.selectedFile = null;
   // איפוס ה-input של הקובץ ב-HTML כדי שאפשר יהיה לבחור את אותו קובץ שוב
   const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
   if (fileInput) fileInput.value = '';
-}
-
-  async createConversation() {
-  this.toast.set(null);
-
-  // --- שלב א: בדיקות תקינות (וולידציה) ---
-  if (!this.newSubject) {
-    this.toast.set('יש לבחור נושא לפני השליחה');
-    setTimeout(() => this.toast.set(null), 3000);
-    return;
-  }
-  if (!this.newBody.trim()) {
-    this.toast.set('לא ניתן לשלוח הודעה ריקה');
-    setTimeout(() => this.toast.set(null), 3000);
-    return;
-  }
-  if (this.newSubject === 'files') {
-    if (!this.selectedKidId) {
-      this.toast.set('יש לבחור ילד עבור שליחת קבצים');
-      setTimeout(() => this.toast.set(null), 3000);
-      return;
-    }
-    if (!this.selectedFile) {
-      this.toast.set('יש לבחור קובץ לשליחה');
-      setTimeout(() => this.toast.set(null), 3000);
-      return;
-    }
   }
 
-  // --- שלב ב: שליחה לסופבייס ---
-  this.creating.set(true);
-  try {
-    const uid = this.myUid();
-
-    // 1. יצירת שיחה
-    const { data: conv, error: e1 } = await db()
-      .from('conversations')
-      .insert({
-        subject: this.newSubject,
-        status: 'open',
-        opened_by_parent_uid: uid,
-        student_id: this.selectedKidId || null
-      })
-      .select().single();
-
-    if (e1) throw e1;
-
-    // 2. יצירת הודעה ראשונה
-    const { error: e2 } = await db()
-      .from('conversation_messages')
-      .insert({
-        conversation_id: (conv as any).id,
-        body_md: this.newBody.trim(),
-        sender_role: 'parent',
-        sender_uid: uid,
-        has_attachment: !!this.selectedFile
-      });
-
-    if (e2) throw e2;
-
-    // 3. ניקוי שדות
-    this.newSubject = '';
-    this.newBody = '';
-    this.selectedFile = null;
-
-    // 4. השורות החשובות שביקשת:
-    await this.loadThreads(); // טוען את הרשימה המעודכנת מסופבייס
-    const justCreated = this.threads().find(t => t.id === (conv as any).id);
-    
-    if (justCreated) {
-      await this.openConversation(justCreated); // פותח את הצ'אט של השיחה החדשה
-    }
-    
-    this.tab.set('threads'); // מעביר את המשתמש למסך ההודעות
-
-  } catch (error) {
-    this.toast.set('שגיאה ביצירת השיחה');
-  } finally {
-    this.creating.set(false);
-  }
-}
-
-async sendMessage() {
-  const thread = this.activeThread(); // בודק איזו שיחה פתוחה כרגע
-  if (!thread || !this.newBody.trim()) return;
-
-  this.creating.set(true);
-  try {
-    const uid = this.myUid();
-    
-    // מוסיף רק הודעה לטבלת ההודעות, בלי לגעת בטבלת השיחות
-    const { error } = await db()
-      .from('conversation_messages')
-      .insert({
-        conversation_id: thread.id,
-        body_md: this.newBody.trim(),
-        sender_role: 'parent',
-        sender_uid: uid,
-        has_attachment: !!this.selectedFile
-      });
-
-    if (error) throw error;
-
-    // ניקוי ושליחה
-    this.newBody = '';
-    this.selectedFile = null;
-    
-    // רענון ההודעות בשיחה הנוכחית כדי שהבועה החדשה תופיע
-    await this.loadMessages(thread.id); 
-
-  } catch (e) {
-    this.toast.set('שגיאה בשליחת התגובה');
-  } finally {
-    this.creating.set(false);
-  }
-}
-
-// בתוך createConversation, אחרי כל ה-if (validation)
-async performSendMessage() {
-  try {
-    this.loading = true; // אפשר להוסיף משתנה לטעינה
-
-    // 1. קבלת המשתמש המחובר
-    const user = (await dbTenant().auth.getUser()).data.user;
-    if (!user) return;
-
-    // 2. יצירת "שיחה" חדשה בטבלת conversations
-    const { data: conv, error: convErr } = await dbTenant()
-      .from('conversations')
-      .insert({
-        subject: this.newSubject,
-        parent_id: user.id,
-        student_id: this.selectedKidId || null, // אם יש ילד - נשייך
-        status: 'sent' // סטטוס התחלתי
-      })
-      .select()
-      .single();
-
-    if (convErr) throw convErr;
-
-    // 3. יצירת ההודעה הראשונה בתוך השיחה
-    const { error: msgErr } = await dbTenant()
-      .from('messages')
-      .insert({
-        conversation_id: conv.id,
-        body: this.newBody,
-        sender_id: user.id,
-        sender_type: 'parent'
-      });
-
-    if (msgErr) throw msgErr;
-
-    // 4. אם יש קובץ - כאן יבוא הקוד של העלאת הקובץ (Storage)
-    if (this.selectedFile) {
-      await this.uploadFile(conv.id); 
-    }
-
-    // 5. הצלחה!
-    this.toast.set('הודעתך נשלחה בהצלחה וטופלה על ידי המזכירות');
-    this.resetForm(); // פונקציה שתנקה את השדות
-    this.loadThreads(); // רענון רשימת ההודעות
-
-  } catch (err) {
-    console.error("שגיאה בשליחה:", err);
-    this.toast.set('אופס, משהו השתבש בשליחה. נסו שוב.');
-  } finally {
-    this.loading = false;
-  }
-}
-
-async sendMessageToExistingConversation() {
-  const activeId = this.activeThread()?.id; // ה-ID של השיחה שפתוחה עכשיו על המסך
-  if (!activeId) return;
-
-  const uid = this.myUid();
-
-  const { error } = await db()
-    .from('conversation_messages')
-    .insert({
-      conversation_id: activeId,
-      body_md: this.newBody.trim(),
-      sender_role: 'parent',
-      sender_uid: uid,
-      has_attachment: !!this.selectedFile
-    });
-
-  if (!error) {
-    this.newBody = ''; // ניקוי התיבה
-    this.selectedFile = null;
-    await this.loadMessages(activeId); // רענון הבועות על המסך
-  }
-}
-
+  
   async loadAnnouncements() {
     this.loadingAnn.set(true);
     try {
@@ -573,10 +456,13 @@ async sendMessageToExistingConversation() {
       this.loadingAnn.set(false);
     }
   }
+
+  showToast(msg: string) {
+    this.toast.set(msg);
+    setTimeout(() => this.toast.set(null), 3000);
+  }
+
   buildMapsUrl(addr: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
-}
-
-
-
+  }
 }
