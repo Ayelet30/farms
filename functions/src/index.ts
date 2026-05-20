@@ -38,7 +38,7 @@ export {
 export { sendEmailGmail } from './email';
 export { notifyAvailabilityLessonAction } from './notify-availability-lesson-action';
 //export  *  from "../createParent.js";
-
+export { secretaryCancelOccurrenceAndNotify } from './secretary-cancel-occurrence-and-notify';
 
 export {autoRejectRequestAndNotify} from './auto-reject-and-notify'; 
 export { approveRemoveChildAndNotify } from './approve-remove-child-and-notify';
