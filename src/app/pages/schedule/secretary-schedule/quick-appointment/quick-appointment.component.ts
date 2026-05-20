@@ -673,14 +673,7 @@ private async createViaSingleValidation(params: {
       throw new Error('לא נבחר מדריך');
     }
 
-    if (
-  this.bookingMode !== 'makeup' &&
-  this.bookingMode !== 'occupancy' &&
-  this.selectedPaymentPlan?.require_docs_at_booking &&
-  !this.referralFile
-) {
-  throw new Error('למסלול התשלום שנבחר חייבים לצרף הפניה');
-}
+   
 
 if (
   this.bookingMode !== 'makeup' &&
@@ -696,11 +689,11 @@ if (
     if (this.isChildDeletedSoon(child)) {
       throw new Error('לא ניתן לזמן שיעור לילד/ה שמחיקה שלו/ה כבר מתוכננת');
     }
+const eligibility = this.isEligibleForInstructor(child, instructor);
 
-    const eligibility = this.isEligibleForInstructor(child, instructor);
-    if (!eligibility.ok) {
-      throw new Error(eligibility.reason || 'הילד/ה לא מתאים/ה למדריך');
-    }
+if (!eligibility.ok) {
+  console.warn('[INSTRUCTOR ELIGIBILITY WARNING]', eligibility.reason);
+}
   }
 
   async save(): Promise<void> {
@@ -781,8 +774,7 @@ if (this.bookingMode === 'series') {
           throw new Error(res?.deny_reason || 'לא ניתן ליצור שיעור/סדרה');
         }
 this.showSuccess(
-    'השיעור הבודד נוצר בהצלחה'
-);
+'הסדרה נוצרה בהצלחה');
         this.referralFile = null;
 this.referralUploadError = null;
 this.referralUrl = null;
@@ -959,6 +951,20 @@ private async uploadReferralIfNeeded(childId: string): Promise<string | null> {
     console.error('referral upload exception', error);
     throw error;
   }
+}
+get instructorEligibilityWarning(): string | null {
+  if (!this.selectedChild || !this.selectedInstructor) {
+    return null;
+  }
+
+  const result = this.isEligibleForInstructor(
+    this.selectedChild,
+    this.selectedInstructor
+  );
+
+  return result.ok
+    ? null
+    : (result.reason ?? 'אי התאמה למדריך');
 }
 get availablePaymentPlans(): PaymentPlan[] {
   const childFundingSourceId = this.selectedChild?.funding_source_id ?? null;

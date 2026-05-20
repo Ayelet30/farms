@@ -79,7 +79,25 @@ type QuickBookingContext = {
 })
 export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   @ViewChild(ScheduleComponent) scheduleCmp!: ScheduleComponent;
+cancelLessonModal = {
+  open: false,
+  saving: false,
+  error: '',
 
+  lessonId: '',
+  occurDate: '',
+  childId: '',
+  childName: '',
+  instructorId: '',
+  instructorName: '',
+  startTime: '',
+  endTime: '',
+  lateCancelWarning: '',
+makeupDefaultReason: '',
+  note: '',
+  isMakeupAllowed: false,
+  isBillable: false,
+};
   children: ChildRow[] = [];
   lessons: Lesson[] = [];
   filteredLessons: Lesson[] = [];
@@ -882,31 +900,202 @@ closeContextMenu(): void {
   this.contextMenuMode = 'root';
 }
 
-async cancelLessonFromContext(): Promise<void> {
+async openCancelLessonDialog(): Promise<void> {
   const lessonId = this.contextMenu.lessonId;
-  const occurDate = this.contextMenu.date;
+  const occurDate = this.contextMenu.occurDate || this.contextMenu.date;
+
+  if (!lessonId || !occurDate) {
+    this.closeContextMenu();
+    return;
+  }
+
+  this.cancelLessonModal = {
+    open: true,
+    saving: false,
+    error: '',
+
+    lessonId,
+    occurDate,
+    childId: this.contextMenu.childId,
+    childName: this.contextMenu.childName || 'ללא שם',
+    instructorId: this.contextMenu.instructorId,
+    instructorName: this.contextMenu.instructorName || 'ללא מדריך',
+    startTime: this.contextMenu.startTimeOnly || this.contextMenu.time,
+    endTime: this.contextMenu.endTime || '',
+lateCancelWarning: '',
+makeupDefaultReason: '',
+    note: '',
+    isMakeupAllowed: false,
+    isBillable: false,
+  };
 
   this.closeContextMenu();
 
-  if (!lessonId || !occurDate) return;
+  await this.loadSecretaryCancelDefaults();
+
+  this.cdr.detectChanges();
+}
+private async loadSecretaryCancelDefaults(): Promise<void> {
+  const { data, error } = await dbTenant()
+    .from('farm_settings')
+    .select(`
+      cancel_before_hours,
+      max_makeups_in_period,
+      makeups_period_days,
+      farm_cancel_charge_target
+    `)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('load cancel defaults failed', error);
+    return;
+  }
+
+  let isMakeupAllowedDefault = true;
+  let makeupReason = '';
+
+  const childId = this.cancelLessonModal.childId;
+
+  const cancelBeforeHours =
+    data?.cancel_before_hours == null
+      ? null
+      : Number(data.cancel_before_hours);
+
+  const lessonStart = new Date(
+    `${this.cancelLessonModal.occurDate}T${this.cancelLessonModal.startTime}:00`
+  );
+
+  const diffHours =
+    (lessonStart.getTime() - Date.now()) / (1000 * 60 * 60);
+
+  // אזהרה על ביטול מאוחר
+  this.cancelLessonModal.lateCancelWarning =
+    cancelBeforeHours != null &&
+    cancelBeforeHours > 0 &&
+    diffHours < cancelBeforeHours
+      ? `שימי לב: השיעור קורה בעוד פחות מ־${cancelBeforeHours} שעות.`
+      : '';
+
+  // 1. קודם בודקים cancel_before_hours
+  if (
+    cancelBeforeHours != null &&
+    cancelBeforeHours > 0 &&
+    diffHours < cancelBeforeHours
+  ) {
+    isMakeupAllowedDefault = false;
+    makeupReason =
+      `ברירת המחדל היא שלא ניתן להשלמה, כי הביטול מתבצע פחות מ־${cancelBeforeHours} שעות לפני תחילת השיעור.`;
+  }
+
+  // 2. רק אם עבר את בדיקת השעות — בודקים מכסת השלמות בתקופה
+  if (isMakeupAllowedDefault) {
+  const maxMakeupsInPeriod =
+    data?.max_makeups_in_period == null
+      ? null
+      : Number(data.max_makeups_in_period);
+
+  const makeupsPeriodDays =
+    data?.makeups_period_days == null
+      ? null
+      : Number(data.makeups_period_days);
+
+  if (
+    childId &&
+    maxMakeupsInPeriod != null &&
+    makeupsPeriodDays != null &&
+    maxMakeupsInPeriod >= 0 &&
+    makeupsPeriodDays > 0
+  ) {
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - makeupsPeriodDays);
+
+    const fromDateStr = fromDate.toISOString().slice(0, 10);
+
+    const { count, error: countError } = await dbTenant()
+      .from('lessons_occurrences')
+      .select('*', { count: 'exact', head: true })
+      .eq('child_id', childId)
+      .eq('lesson_type', 'השלמה')
+      .gte('occur_date', fromDateStr);
+
+    if (countError) {
+      console.error('makeup count failed', countError);
+    } else {
+      const usedMakeups = count ?? 0;
+
+      if (usedMakeups >= maxMakeupsInPeriod) {
+        isMakeupAllowedDefault = false;
+
+        makeupReason =
+          `ברירת המחדל היא שלא ניתן להשלמה, כי לילד/ה כבר קיימים ${usedMakeups} שיעורי השלמה בתקופה של ${makeupsPeriodDays} ימים. המקסימום המותר הוא ${maxMakeupsInPeriod}.`;
+      }
+    }
+  }
+}
+
+  this.cancelLessonModal.isMakeupAllowed = isMakeupAllowedDefault;
+  this.cancelLessonModal.makeupDefaultReason = makeupReason;
+
+  const chargeTarget =
+    String(data?.farm_cancel_charge_target || 'makeup_lesson');
+
+  this.cancelLessonModal.isBillable =
+    chargeTarget === 'cancelled_lesson';
+}
+closeCancelLessonDialog(): void {
+  if (this.cancelLessonModal.saving) return;
+
+  this.cancelLessonModal.open = false;
+  this.cancelLessonModal.error = '';
+}
+
+async confirmCancelLesson(): Promise<void> {
+  if (!this.cancelLessonModal.lessonId || !this.cancelLessonModal.occurDate) return;
+
+  this.cancelLessonModal.saving = true;
+  this.cancelLessonModal.error = '';
+  this.cdr.detectChanges();
 
   try {
-    const dbc = dbTenant();
+    const authMod = await import('firebase/auth');
+    const auth = authMod.getAuth();
+    const token = await auth.currentUser?.getIdToken();
 
-    const { error } = await dbc
-      .from('lesson_occurrence_exceptions')
-      .upsert(
-        {
-          lesson_id: lessonId,
-          occur_date: occurDate,
-          status: 'בוטל',
-          canceller_role: 'secretary',
-          cancelled_at: new Date().toISOString(),
+    if (!token) throw new Error('לא נמצא טוקן משתמש');
+
+    await ensureTenantContextReady();
+    const tenant = requireTenant();
+
+    const resp = await fetch(
+      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/secretaryCancelOccurrenceAndNotify',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
-        { onConflict: 'lesson_id,occur_date' }
-      );
+        body: JSON.stringify({
+          tenantSchema: tenant.schema,
+          tenantId: tenant.id,
+          lessonId: this.cancelLessonModal.lessonId,
+          occurDate: this.cancelLessonModal.occurDate,
+          note: this.cancelLessonModal.note?.trim() || null,
+          isMakeupAllowed: this.cancelLessonModal.isMakeupAllowed,
+          isBillable: this.cancelLessonModal.isBillable,
+        }),
+      }
+    );
 
-    if (error) throw error;
+    const json = await resp.json().catch(() => null);
+
+    if (!resp.ok) {
+      throw new Error(json?.message || json?.error || 'ביטול השיעור נכשל');
+    }
+this.cancelLessonModal.open = false;
+this.cdr.detectChanges();
+    this.closeCancelLessonDialog();
 
     if (this.currentRange) {
       await this.loadLessons({
@@ -924,11 +1113,15 @@ async cancelLessonFromContext(): Promise<void> {
       this.buildBlockedDayCells(this.currentRange);
       this.buildAvailableDayCells(this.currentRange);
       this.buildWeekStats();
-      this.cdr.detectChanges();
     }
-  } catch (e) {
-    console.error('cancelLessonFromContext failed', e);
-    await this.ui.alert('שגיאה בביטול השיעור', 'שגיאה');
+
+    this.cdr.detectChanges();
+  } catch (e: any) {
+    console.error('confirmCancelLesson failed', e);
+    this.cancelLessonModal.error = e?.message || 'שגיאה בביטול השיעור';
+  } finally {
+    this.cancelLessonModal.saving = false;
+    this.cdr.detectChanges();
   }
 }
 async openRequest(type: RequestType): Promise<void> {
@@ -2885,6 +3078,25 @@ prevMoveSlotsPage(): void {
 nextMoveSlotsPage(): void {
   if (!this.canNextMoveSlots) return;
   this.moveSlotsPage++;
+}
+formatCancelDate(value: string): string {
+  if (!value) return '';
+
+  const [year, month, day] = value.slice(0, 10).split('-');
+  if (!year || !month || !day) return value;
+
+  return `${day}/${month}/${year.slice(2)}`;
+}
+
+formatCancelTimeRange(start: string, end: string): string {
+  const s = String(start || '').slice(0, 5);
+  const e = String(end || '').slice(0, 5);
+
+  if (!s && !e) return '';
+  if (s && !e) return s;
+  if (!s && e) return e;
+
+  return `${s}-${e}`;
 }
 
 }
