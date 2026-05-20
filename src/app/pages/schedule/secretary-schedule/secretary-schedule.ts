@@ -93,7 +93,7 @@ cancelLessonModal = {
   startTime: '',
   endTime: '',
   lateCancelWarning: '',
-
+makeupDefaultReason: '',
   note: '',
   isMakeupAllowed: false,
   isBillable: false,
@@ -923,6 +923,7 @@ async openCancelLessonDialog(): Promise<void> {
     startTime: this.contextMenu.startTimeOnly || this.contextMenu.time,
     endTime: this.contextMenu.endTime || '',
 lateCancelWarning: '',
+makeupDefaultReason: '',
     note: '',
     isMakeupAllowed: false,
     isBillable: false,
@@ -937,7 +938,12 @@ lateCancelWarning: '',
 private async loadSecretaryCancelDefaults(): Promise<void> {
   const { data, error } = await dbTenant()
     .from('farm_settings')
-    .select('suggest_makeup_on_cancel, cancel_before_hours, farm_cancel_charge_target')
+    .select(`
+      cancel_before_hours,
+      max_makeups_in_period,
+      makeups_period_days,
+      farm_cancel_charge_target
+    `)
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -947,19 +953,15 @@ private async loadSecretaryCancelDefaults(): Promise<void> {
     return;
   }
 
-  const suggestMakeup =
-    data?.suggest_makeup_on_cancel === true;
+  let isMakeupAllowedDefault = true;
+  let makeupReason = '';
 
-  const chargeTarget =
-    String(data?.farm_cancel_charge_target || 'makeup_lesson');
-
-  this.cancelLessonModal.isMakeupAllowed = suggestMakeup;
-
-  this.cancelLessonModal.isBillable =
-    chargeTarget === 'cancelled_lesson';
+  const childId = this.cancelLessonModal.childId;
 
   const cancelBeforeHours =
-    Number(data?.cancel_before_hours ?? 0);
+    data?.cancel_before_hours == null
+      ? null
+      : Number(data.cancel_before_hours);
 
   const lessonStart = new Date(
     `${this.cancelLessonModal.occurDate}T${this.cancelLessonModal.startTime}:00`
@@ -968,10 +970,79 @@ private async loadSecretaryCancelDefaults(): Promise<void> {
   const diffHours =
     (lessonStart.getTime() - Date.now()) / (1000 * 60 * 60);
 
+  // אזהרה על ביטול מאוחר
   this.cancelLessonModal.lateCancelWarning =
-    cancelBeforeHours > 0 && diffHours < cancelBeforeHours
+    cancelBeforeHours != null &&
+    cancelBeforeHours > 0 &&
+    diffHours < cancelBeforeHours
       ? `שימי לב: השיעור קורה בעוד פחות מ־${cancelBeforeHours} שעות.`
       : '';
+
+  // 1. קודם בודקים cancel_before_hours
+  if (
+    cancelBeforeHours != null &&
+    cancelBeforeHours > 0 &&
+    diffHours < cancelBeforeHours
+  ) {
+    isMakeupAllowedDefault = false;
+    makeupReason =
+      `ברירת המחדל היא שלא ניתן להשלמה, כי הביטול מתבצע פחות מ־${cancelBeforeHours} שעות לפני תחילת השיעור.`;
+  }
+
+  // 2. רק אם עבר את בדיקת השעות — בודקים מכסת השלמות בתקופה
+  if (isMakeupAllowedDefault) {
+  const maxMakeupsInPeriod =
+    data?.max_makeups_in_period == null
+      ? null
+      : Number(data.max_makeups_in_period);
+
+  const makeupsPeriodDays =
+    data?.makeups_period_days == null
+      ? null
+      : Number(data.makeups_period_days);
+
+  if (
+    childId &&
+    maxMakeupsInPeriod != null &&
+    makeupsPeriodDays != null &&
+    maxMakeupsInPeriod >= 0 &&
+    makeupsPeriodDays > 0
+  ) {
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - makeupsPeriodDays);
+
+    const fromDateStr = fromDate.toISOString().slice(0, 10);
+
+    const { count, error: countError } = await dbTenant()
+      .from('lessons_occurrences')
+      .select('*', { count: 'exact', head: true })
+      .eq('child_id', childId)
+      .eq('lesson_type', 'השלמה')
+      .gte('occur_date', fromDateStr);
+
+    if (countError) {
+      console.error('makeup count failed', countError);
+    } else {
+      const usedMakeups = count ?? 0;
+
+      if (usedMakeups >= maxMakeupsInPeriod) {
+        isMakeupAllowedDefault = false;
+
+        makeupReason =
+          `ברירת המחדל היא שלא ניתן להשלמה, כי לילד/ה כבר קיימים ${usedMakeups} שיעורי השלמה בתקופה של ${makeupsPeriodDays} ימים. המקסימום המותר הוא ${maxMakeupsInPeriod}.`;
+      }
+    }
+  }
+}
+
+  this.cancelLessonModal.isMakeupAllowed = isMakeupAllowedDefault;
+  this.cancelLessonModal.makeupDefaultReason = makeupReason;
+
+  const chargeTarget =
+    String(data?.farm_cancel_charge_target || 'makeup_lesson');
+
+  this.cancelLessonModal.isBillable =
+    chargeTarget === 'cancelled_lesson';
 }
 closeCancelLessonDialog(): void {
   if (this.cancelLessonModal.saving) return;
