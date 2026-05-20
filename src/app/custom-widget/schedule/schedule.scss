@@ -40,7 +40,7 @@
 
 .calendar-toolbar {
   display: grid;
-  grid-template-columns: auto minmax(150px, 220px) auto;
+  grid-template-columns: auto minmax(290px, 220px) auto;
   align-items: center;
   justify-content: center;
   gap: 8px;
@@ -129,8 +129,8 @@
   grid-template-columns: 32px minmax(0, 1fr) 32px;
   align-items: center;
   gap: 6px;
-  max-width: 220px;
-  min-width: 0;
+  max-width: 320px;
+  min-width: 280px;
   background: #f3f6e9;
   border: 1px solid #dbe3cc;
   border-radius: 999px;
@@ -142,9 +142,9 @@
   font-weight: 800;
   font-size: 14px;
   color: #2f3a28;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  overflow: visible;
+  text-overflow: unset;
 }
 
 .nav-btn {
@@ -236,7 +236,7 @@
 
 .custom-day-grid {
   --time-col-width: 64px;
-  --min-resource-col: 170px;
+  --min-resource-col: 190px;
   --slot-row-height: 54px;
 
   display: grid;
@@ -346,7 +346,7 @@
 }
 
 .day-bg-cell.blocked-cell {
-  background: #ececec;
+  background:#ececec;
   cursor: not-allowed;
 }
 
@@ -1117,7 +1117,7 @@
 
 @media (max-width: 1400px) {
   .custom-day-grid {
-    --min-resource-col: 130px;
+    --min-resource-col: 170px;
   }
 
   .day-child-name {

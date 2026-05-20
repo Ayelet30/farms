@@ -332,13 +332,14 @@ getBlockedReason(resourceId: string, slotIso: string): string {
   return match?.reason || '';
 }
 
-  private formatHebrewDayTitle(date: Date): string {
-    return new Intl.DateTimeFormat('he-IL', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    }).format(date);
-  }
+private formatHebrewDayTitle(date: Date): string {
+  return new Intl.DateTimeFormat('he-IL', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+}
 
   private getItemChildAge(item: ScheduleItem): string {
   const age =
