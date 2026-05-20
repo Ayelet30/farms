@@ -103,7 +103,14 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   @Input() enableAutoAssign = false;
   @Input() viewerMode: ViewerMode = 'secretary';
   @Input() blockedDayCells: BlockedDayCell[] = [];
-  @Input() availableDayCells: Array<{  date: string;  resourceId: string;  startTime: string;  endTime: string;  color: string;}> = [];
+  @Input() availableDayCells: Array<{
+  date: string;
+  resourceId: string;
+  startTime: string;
+  endTime: string;
+  color: string;
+  lessonType?: string;
+}> = [];
 
   
   @Output() autoAssignRequested = new EventEmitter<void>();
@@ -741,6 +748,46 @@ buildCustomItemTitle(item: ScheduleItem): string {
     jsEvent: new MouseEvent('click'),
     view: { type: 'timeGridDay' } as any,
   });
+}
+
+isBreakCell(resourceId: string, slotIso: string): boolean {
+
+  if (this.viewerMode !== 'secretary') {
+    return false;
+  }
+
+  const d = new Date(slotIso);
+
+  const ymd = this.toYmd(d);
+
+  const hm = this.minutesToTime(
+    d.getHours() * 60 + d.getMinutes()
+  );
+
+  return (this.availableDayCells || []).some(a => {
+
+    if (String(a.resourceId) !== String(resourceId)) return false;
+
+    if (a.date !== ymd) return false;
+
+    const start = this.toHm(a.startTime);
+    const end = this.toHm(a.endTime);
+
+    console.log('Checking break cell:', { resourceId, slotIso, ymd, hm, start, end, lessonType: a.lessonType });
+
+   const type = String(a.lessonType || '').trim();
+
+    return (
+      hm >= start &&
+      hm < end &&
+      (
+        type === 'הפסקה' ||
+        type === 'break' ||
+        type === 'BREAK'
+      )
+    );
+  });
+
 }
 
   onAutoAssignClick() {

@@ -188,6 +188,7 @@ availableDayCells: Array<{
   startTime: string;
   endTime: string;
   color: string;
+  lessonType?: string;
 }> = [];
 
 instructorWeeklyAvailability: Array<{
@@ -195,6 +196,12 @@ instructorWeeklyAvailability: Array<{
   day_of_week: number;
   start_time: string;
   end_time: string;
+  lesson_ridding_type?: string | null;
+  riding_types?: {
+    id: string;
+    name?: string | null;
+    code?: string | null;
+  } | null;
 }> = [];
 
 quickBooking: QuickBookingContext = {
@@ -328,7 +335,7 @@ private ui = inject(UiDialogService);
 
 const { data: ridingTypes } = await dbTenant()
   .from('riding_types')
-  .select('id, name');
+  .select('id, name, code');
 
 this.ridingTypes = ridingTypes || [];
 
@@ -462,6 +469,7 @@ private buildAvailableDayCells(range?: { start: string; end: string }): void {
     startTime: string;
     endTime: string;
     color: string;
+    lessonType?: string;
   }> = [];
 
   const from = range?.start?.slice(0, 10) ?? '';
@@ -481,6 +489,13 @@ private buildAvailableDayCells(range?: { start: string; end: string }): void {
   let cur = from;
   let guard = 0;
 
+  const ridingTypeById = new Map(
+  this.ridingTypes.map(rt => [
+    String(rt.id),
+    rt
+  ])
+);
+
   while (cur <= to) {
     const dow = this.dbDowFromYmd(cur);
 
@@ -495,14 +510,18 @@ private buildAvailableDayCells(range?: { start: string; end: string }): void {
         this.instructorColorById.get(instructorId) ||
         this.getColorForInstructor(instructorId);
 
-      available.push({
-        date: cur,
-        resourceId: instructorId,
-        startTime: String(row.start_time).slice(0, 5),
-        endTime: String(row.end_time).slice(0, 5),
-        color,
-      });
+     const ridingType = ridingTypeById.get(String(row.lesson_ridding_type || ''));
+
+    available.push({
+      date: cur,
+      resourceId: instructorId,
+      startTime: String(row.start_time).slice(0, 5),
+      endTime: String(row.end_time).slice(0, 5),
+      color,
+      lessonType: ridingType?.name || ridingType?.code || ''
+    });
     }
+    
 
     const next = this.addOneDayYmdSafe(cur);
     if (next <= cur) break;
@@ -690,7 +709,13 @@ private expandRequestRow(row: any): DayRequestRow[] {
 private async loadInstructorWeeklyAvailability(): Promise<void> {
   const { data, error } = await dbTenant()
     .from('instructor_weekly_availability')
-    .select('instructor_id_number, day_of_week, start_time, end_time');
+    .select(`
+      instructor_id_number,
+      day_of_week,
+      start_time,
+      end_time,
+      lesson_ridding_type
+    `);
 
   if (error) {
     console.error('availability load error', error);
@@ -698,12 +723,7 @@ private async loadInstructorWeeklyAvailability(): Promise<void> {
     return;
   }
 
-  this.instructorWeeklyAvailability = (data ?? []) as Array<{
-    instructor_id_number: string;
-    day_of_week: number;
-    start_time: string;
-    end_time: string;
-  }>;
+  this.instructorWeeklyAvailability = data ?? [];
 }
 
 private addOneDayYmdSafe(ymd: string): string {
@@ -1694,7 +1714,7 @@ private calcChildAge(birthDate: string | null): string {
   if (m < 0 || (m === 0 && now.getDate() < d.getDate())) years--;
   return years > 0 ? years.toString() : '';
 }
-ridingTypes: { id: string; name: string }[] = [];
+ridingTypes: { id: string; name: string; code?: string | null }[] = [];
 
 private async loadInstructors(): Promise<void> {
   try {

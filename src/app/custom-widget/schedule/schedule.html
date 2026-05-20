@@ -87,7 +87,7 @@
       <!-- רקע תאים -->
       <ng-container *ngFor="let slot of customDaySlots; let row = index">
         <ng-container *ngFor="let res of customDayResources; let col = index">
-          <div class="day-bg-cell" [class.blocked-cell]="isBlockedRawCell(res.id, slot.iso)"
+          <div class="day-bg-cell" [class.break-cell]="isBreakCell(res.id, slot.iso)" [class.blocked-cell]="isBlockedRawCell(res.id, slot.iso)"
             [class.available-cell]="isAvailableRawCell(res.id, slot.iso)"
             [style.background]="isAvailableRawCell(res.id, slot.iso) ? hexToRgba(getAvailableRawCellColor(res.id, slot.iso), 0.13) : null"
             [attr.title]="isBlockedRawCell(res.id, slot.iso) ? getBlockedReason(res.id, slot.iso) : null"

@@ -1514,3 +1514,56 @@
   font-size: 13px;
   font-weight: 800;
 }
+
+.day-bg-cell.break-cell {
+
+  background-image:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(0,0,0,0.10) 0px,
+      rgba(0,0,0,0.10) 2px,
+      transparent 2px,
+      transparent 8px
+    ) !important;
+
+  background-size: auto;
+}
+
+.btn-icon {
+  display: none;
+}
+
+.btn-text {
+  display: inline;
+}
+
+/* עד 900px — מציגים אייקון ומקטינים */
+@media (max-width: 900px) {
+  .btn-group > button {
+    padding: 5px 8px;
+    min-width: 34px;
+    font-size: 12px;
+  }
+
+  .btn-icon {
+    display: inline;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .btn-text {
+    display: none;
+  }
+}
+
+/* במסכים קטנים מאוד */
+@media (max-width: 600px) {
+  .btn-group > button {
+    padding: 4px 6px;
+    min-width: 30px;
+  }
+
+  .btn-icon {
+    font-size: 14px;
+  }
+}
