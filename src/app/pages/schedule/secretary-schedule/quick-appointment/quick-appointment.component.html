@@ -84,7 +84,12 @@
     placeholder="התחילי להקליד שם ילד/ה"
     autocomplete="off"
   />
-
+<span
+  class="eligibility-warning-dot"
+  *ngIf="instructorEligibilityWarning"
+  [title]="instructorEligibilityWarning"
+>
+</span>
   <div class="qa-child-dropdown" *ngIf="childDropdownOpen">
     <button
       type="button"
@@ -145,8 +150,7 @@
         </select>
 
         <small *ngIf="selectedPaymentPlan?.require_docs_at_booking" class="qa-help-text">
-          למסלול זה נדרשים מסמכים:
-          {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
+למסלול זה ניתן לצרף מסמכים:          {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
           יש להעלות קובץ אחד בלבד.
         </small>
       </div>
@@ -155,8 +159,7 @@
       && bookingMode !== 'occupancy'
       && selectedPaymentPlan?.require_docs_at_booking">
         <label>
-          העלאת הפניה / מסמך נדרש
-          <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length">
+העלאת הפניה / מסמך (אופציונלי)          <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length">
             – {{ selectedPaymentPlan?.required_docs?.join(', ') }}
           </ng-container>
         </label>
