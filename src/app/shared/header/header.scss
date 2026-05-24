@@ -489,12 +489,18 @@
   }
 
   .user-name {
-    max-width: 62px;
-    font-size: 12px;
+    max-width: 58px;
+    font-size: 11px;
   }
 
-  .user-role {
-    display: none;
+    .user-role {
+    display: block;
+    font-size: 9px;
+    line-height: 1;
+    max-width: 62px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .auth-button {
