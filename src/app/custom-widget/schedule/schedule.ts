@@ -814,12 +814,15 @@ isBreakCell(resourceId: string, slotIso: string): boolean {
     sourceView: 'timeGridDay',
   });
 }
+toggleFullscreen() {
+  this.isFullscreen = !this.isFullscreen;
+  document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
 
-  toggleFullscreen() {
-    this.isFullscreen = !this.isFullscreen;
-    document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
-  }
-
+  setTimeout(() => {
+    this.calendarApi?.updateSize();
+    this.cdr.detectChanges();
+  }, 0);
+}
   trackById(i: number, item: any) {
   return item.id;
 }

@@ -21,13 +21,24 @@
   gap: 12px;
   --toolbar-space: 96px;
 }
-
 .schedule-wrap.fullscreen {
   position: fixed;
-  inset: 80px 60px 0 0;
-  z-index: 1000;
+  top: 92px;
+  right: 324px; // רוחב התפריט הימני
+  left: 16px;
+  bottom: 16px;
+  z-index: 900;
   background: #fff;
   padding: 12px;
+  border-radius: 18px;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.schedule-wrap.fullscreen .calendar-host {
+  max-height: none;
+  height: 100%;
+  overflow: auto;
 }
 
 .schedule-wrap.fullscreen .card {
@@ -1151,12 +1162,14 @@
     gap: 8px;
     --toolbar-space: 80px;
   }
-
   .schedule-wrap.fullscreen {
+    top: 70px;
+    right: 0;
+    left: 0;
+    bottom: 0;
     padding: 8px;
-    inset: 60px 0px 0 0;
+    border-radius: 0;
   }
-
   .card.calendar-toolbar {
     padding: 7px 8px;
     border-radius: 14px;
