@@ -420,8 +420,7 @@ clearChildSelection(): void {
         p_instructor_id_number: this.instructorId,
         p_date: this.date,
         p_start_time: this.startTime,
-        p_end_time: this.endTime || null,
-      });
+p_end_time: null,      });
 
       if (error) {
         console.error(error);
@@ -1033,5 +1032,12 @@ private getEffectiveDurationMinutes(): number {
 getCalculatedEndTime(): string {
   const duration = this.getEffectiveDurationMinutes();
   return this.minutesToTime(this.timeToMinutes(this.startTime) + duration);
+}
+get displayEndTime(): string {
+  try {
+    return this.getCalculatedEndTime();
+  } catch {
+    return this.endTime;
+  }
 }
 }

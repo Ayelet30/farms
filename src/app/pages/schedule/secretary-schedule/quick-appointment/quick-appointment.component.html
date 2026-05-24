@@ -5,9 +5,7 @@
     <div class="qa-header">
       <h3>זימון מהיר</h3>
       <div class="qa-subtitle">
-        {{ date }} | {{ startTime }}–{{ endTime }} | {{ instructorName || instructorId }}
-      </div>
-    </div>
+{{ date | date:'dd/MM/yy' }} | {{ displayEndTime }}–{{ startTime }} | {{ instructorName || instructorId }}    </div>
 
     <div class="qa-loading" *ngIf="loadingSlotInfo">
       טוען פרטי סלוט...
