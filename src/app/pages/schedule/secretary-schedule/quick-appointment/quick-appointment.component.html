@@ -36,32 +36,99 @@
           <div class="k">מקום פנוי</div>
           <div class="v">{{ s.remaining_capacity > 0 ? 'כן' : 'לא' }}</div>
         </div>
+        <div class="qa-warnings" *ngIf="visibleQuickWarnings.length">
+
+  <div
+    class="qa-warning-item"
+    *ngFor="let warning of visibleQuickWarnings"
+    [ngClass]="'warning-' + warning.type"
+  >
+
+    <div class="qa-warning-icon">
+      ⚠
+    </div>
+
+    <div class="qa-warning-content">
+
+      <div class="qa-warning-title">
+        {{ warning.message }}
+        <div
+  class="qa-warning-extra"
+  *ngIf="warning.type === 'break_time'"
+>
+שעות ה{{ warning.riding_type_name || 'ההפסקה' }}:    {{ warning.availability_end_time | slice:0:5 }}
+  -
+    {{ warning.availability_start_time | slice:0:5 }}
+
+</div>
+      </div>
+
+      <!-- חריגה מחלון זמינות -->
+      <div
+        class="qa-warning-extra"
+        *ngIf="warning.type === 'outside_availability_window'"
+      >
+        זמינות המדריך:
+                {{ warning.availability_end_time | slice:0:5 }}
+        -
+                {{ warning.availability_start_time | slice:0:5 }}
+
+      </div>
+
+      <!-- קיבולת -->
+      <div
+        class="qa-warning-extra"
+        *ngIf="warning.type === 'capacity_reached'"
+      >
+        שיבוץ קיים:
+        {{ warning.current_participants }}
+        /
+        {{ warning.max_participants }}
+      </div>
+
+      <!-- אי זמינות מדריך -->
+      <div
+  class="qa-warning-extra"
+  *ngIf="warning.type === 'instructor_unavailable'"
+>
+  <div *ngFor="let item of warning.items">
+    <span>
+      סיבת אי־זמינות:
+      {{ item.reason || item.category || 'לא צוינה סיבה' }}
+    </span>
+
+    <span *ngIf="item.from_ts && item.to_ts">
+      |
+      {{ item.from_ts | date:'dd/MM/yy HH:mm' }}
+      -
+      {{ item.to_ts | date:'HH:mm' }}
+    </span>
+  </div>
+</div>
+
+    </div>
+
+  </div>
+
+</div>
       </div>
 
       <div class="qa-participants" *ngIf="s.existing_participants?.length">
         <div class="qa-participants-title">ילדים שכבר משובצים בשעה זו</div>
 
         <div class="mini-box">
-          <div class="mini-head">
-            <div>שם</div>
-            <div class="c">מין</div>
-            <div class="c">גיל</div>
-            <div>יחד איתו</div>
-            <div>הערות</div>
-          </div>
+        <div class="mini-head">
+  <div>שם</div>
+  <div class="c">מין</div>
+  <div class="c">גיל</div>
+  <div>הערות</div>
+</div>
 
           <div class="mini-row" *ngFor="let c of s.existing_participants">
             <div class="cell">{{ c.first_name }} {{ c.last_name }}</div>
             <div class="cell c">{{ c.gender || '—' }}</div>
             <div class="cell c">{{ calcAge(c.birth_date) || '—' }}</div>
-            <div class="cell">
-              <div *ngIf="c.together_from || c.together_to">
-                {{ c.together_from || '—' }} – {{ c.together_to || '—' }}
-              </div>
-              <div class="muted" *ngIf="c.overlap_count != null">
-                ({{ c.overlap_count }} מפגשים יחד)
-              </div>
-            </div>
+            
             <div class="cell notes-cell">
               <span *ngIf="c.medical_notes">🩺 {{ c.medical_notes }}</span>
               <span *ngIf="c.behavior_notes">⚠ {{ c.behavior_notes }}</span>
@@ -180,7 +247,11 @@
 
       <div class="qa-field" *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
         <label>שעת התחלה</label>
-        <input type="time" [(ngModel)]="startTime" />
+       <input
+  type="time"
+  [(ngModel)]="startTime"
+  (ngModelChange)="onStartTimeChange()"
+/>
       </div>
 
      <div class="qa-field" *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
@@ -242,8 +313,8 @@
         </thead>
         <tbody>
           <tr *ngFor="let c of occupancyCandidates" (click)="selectedOccupancyCandidate = c" class="row-pick">
-            <td>{{ c.occur_date }}</td>
-            <td>{{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}</td>
+            <td>{{ c.occur_date | date:'dd/MM/yy' }}</td>
+            <td>{{ c.end_time | slice:0:5 }}–{{ c.start_time | slice:0:5 }}</td>
             <td>{{ c.instructor_name || c.instructor_id }}</td>
             <td>מילוי מקום</td>
             <td>

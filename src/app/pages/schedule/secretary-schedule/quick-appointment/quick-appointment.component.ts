@@ -63,20 +63,50 @@ type ExistingParticipant = {
   together_to?: string | null;
   overlap_count?: number | null;
 };
-
 type QuickSlotInfo = {
   ok: boolean;
   reason: string | null;
+
   riding_type_id: string | null;
   riding_type_name: string | null;
   lesson_type_mode: string | null;
+
   min_participants: number | null;
   max_participants: number;
+
   current_participants: number;
   remaining_capacity: number;
-  existing_participants: ExistingParticipant[];
-};
 
+  availability_start_time?: string | null;
+  availability_end_time?: string | null;
+
+  calculated_start_time?: string | null;
+  calculated_end_time?: string | null;
+
+  farm_days_off?: any[];
+  instructor_unavailability?: any[];
+
+  existing_participants: ExistingParticipant[];
+
+  warnings?: {
+    type: string;
+    message: string;
+
+    items?: any[];
+
+    current_participants?: number;
+    max_participants?: number;
+    min_participants?: number;
+
+    riding_type_name?: string;
+
+    availability_start_time?: string;
+    availability_end_time?: string;
+
+    requested_start_time?: string;
+    requested_end_time?: string;
+  }[];
+};
 type RidingTypeRow = {
   id: string;
   name: string;
@@ -122,7 +152,7 @@ type CreateSeriesWithValidationResult = {
   start_time: string | null;
   end_time: string | null;
   skipped_farm_days_off: string[] | null;
-  skipped_instructor_unavailability: string[] | null;
+  skipped_instructor_unavailability?: string[] | null;
 };
 
 @Component({
@@ -542,7 +572,7 @@ p_end_time: null,      });
     referralUrl?: string | null;
     fundingSourceId?: string | null;
   }): Promise<CreateSeriesWithValidationResult | null> {
-    const { data, error } = await dbTenant().rpc('create_series_with_validation', {
+    const { data, error } = await dbTenant().rpc('create_quick_series_with_override', {
       p_child_id: this.selectedChildId,
       p_instructor_id_number: params.instructorId,
       p_instructor_uid: params.instructorUid,
@@ -560,7 +590,7 @@ p_end_time: null,      });
 p_funding_source_id: params.fundingSourceId ?? null,
       p_approval_number: null,
       p_total_lessons: null,
-      p_origin: params.origin ?? 'secretary',
+p_origin: params.origin ?? 'secretary_quick_override',
       p_max_participants: params.maxParticipants,
     });
 
@@ -590,7 +620,7 @@ private async createViaSingleValidation(params: {
   referralUrl?: string | null;
   fundingSourceId?: string | null;
 }): Promise<CreateSeriesWithValidationResult | null> {
-  const { data, error } = await dbTenant().rpc('create_single_lesson_with_validation', {
+  const { data, error } = await dbTenant().rpc('create_quick_single_lesson_with_override', {
     p_child_id: this.selectedChildId,
     p_instructor_id_number: params.instructorId,
     p_instructor_uid: params.instructorUid,
@@ -607,8 +637,7 @@ private async createViaSingleValidation(params: {
     p_referral_url: params.referralUrl ?? null,
     p_payment_docs_url: params.referralUrl ?? null,
     p_riding_type_id: params.ridingTypeId,
-    p_origin: params.origin ?? 'secretary',
-  });
+p_origin: params.origin ?? 'secretary_quick_override',  });
 
   if (error) {
     console.error(error);
@@ -726,7 +755,7 @@ if (this.bookingMode === 'single') {
     instructorUid,
     ridingTypeId,
     paymentPlanId: this.selectedPaymentPlanId!,
-    origin: 'secretary',
+origin: 'secretary_quick_override',
     referralUrl,
     maxParticipants: this.getEffectiveMaxParticipants(),
     fundingSourceId: this.selectedChild?.funding_source_id ?? null,
@@ -763,7 +792,7 @@ if (this.bookingMode === 'series') {
           paymentPlanId: this.selectedPaymentPlanId!,
           isOpenEnded: seriesParams.p_is_open_ended,
           repeatWeeks: seriesParams.p_repeat_weeks,
-          origin: 'secretary',
+origin: 'secretary_quick_override',
           referralUrl,
           maxParticipants: this.getEffectiveMaxParticipants(),
           fundingSourceId: this.selectedChild?.funding_source_id ?? null,
@@ -792,25 +821,30 @@ this.referralUrl = null;
         if (!ridingTypeId) {
           throw new Error('לא נמצא סוג שיעור עבור החור הנוכחי');
         }
+const { data, error } = await dbTenant().rpc('book_quick_makeup_lesson_with_override', {
+  p_child_id: this.selectedChildId,
+  p_instructor_id_number: this.instructorId,
+  p_instructor_uid: instructorUid,
+  p_occur_date: this.date,
+  p_start_time: this.normalizeTime(this.startTime),
+  p_end_time: this.normalizeTime(this.getCalculatedEndTime()),
+  p_base_lesson_uid: this.selectedMakeupCandidate.lesson_occ_exception_id,
+  p_payment_source: 'private',
+  p_approval_id: null,
+  p_payment_plan_id: this.selectedPaymentPlanId ?? null,
+  p_riding_type_id: ridingTypeId,
+  p_capacity: this.slotInfo?.max_participants ?? 1,
+  p_current_booked: this.slotInfo?.current_participants ?? 0,
+});
 
-        const res = await this.createViaSeriesValidation({
-          startDate: this.date,
-          startTime: this.startTime,
-          instructorId: this.instructorId,
-          instructorUid,
-          ridingTypeId,
-          paymentPlanId: this.selectedPaymentPlanId!,
-          isOpenEnded: false,
-          repeatWeeks: 1,
-          origin: 'secretary',
-          maxParticipants: this.slotInfo?.max_participants ?? 1,
-            referralUrl,
-            fundingSourceId: this.selectedChild?.funding_source_id ?? null,
-        });
+if (error) {
+  console.error(error);
+  throw new Error('שגיאה ביצירת שיעור השלמה');
+}
 
-        if (!res?.ok) {
-          throw new Error(res?.deny_reason || 'לא ניתן ליצור שיעור השלמה');
-        }
+if (!data) {
+  throw new Error('שיעור ההשלמה לא נוצר');
+}
 
         this.showSuccess('שיעור ההשלמה נוצר בהצלחה');
         this.referralFile = null;
@@ -831,26 +865,33 @@ this.referralUrl = null;
         if (!ridingTypeId) {
           throw new Error('לא נמצא סוג שיעור עבור החור הנוכחי');
         }
+const { data, error } = await dbTenant().rpc('book_quick_occupancy_lesson_with_override', {
+  p_child_id: this.selectedChildId,
+  p_instructor_id_number: this.instructorId,
+  p_instructor_uid: instructorUid,
+  p_occur_date: this.date,
+  p_start_time: this.normalizeTime(this.startTime),
+  p_end_time: this.normalizeTime(this.getCalculatedEndTime()),
+  p_base_lesson_uid: this.selectedOccupancyCandidate.lesson_occ_exception_id,
+  p_base_lesson_date: this.selectedOccupancyCandidate.occur_date,
+  p_status: 'אושר',
+  p_origin: 'secretary_quick_override',
+  p_payment_source: 'private',
+  p_approval_id: null,
+  p_payment_plan_id: this.selectedPaymentPlanId ?? null,
+  p_riding_type_id: ridingTypeId,
+  p_capacity: this.slotInfo?.max_participants ?? 1,
+  p_current_booked: this.slotInfo?.current_participants ?? 0,
+});
 
-        const res = await this.createViaSeriesValidation({
-          startDate: this.date,
-          startTime: this.startTime,
-          instructorId: this.instructorId,
-          instructorUid,
-          ridingTypeId,
-          paymentPlanId: this.selectedPaymentPlanId!,
-          isOpenEnded: false,
-          repeatWeeks: 1,
-          origin: 'secretary',
-          maxParticipants: this.slotInfo?.max_participants ?? 1,
-              referralUrl,
-              fundingSourceId: this.selectedChild?.funding_source_id ?? null,
-        });
+if (error) {
+  console.error(error);
+  throw new Error('שגיאה ביצירת שיעור מילוי מקום');
+}
 
-        if (!res?.ok) {
-          throw new Error(res?.deny_reason || 'לא ניתן ליצור שיעור מילוי מקום');
-        }
-
+if (!data) {
+  throw new Error('שיעור מילוי המקום לא נוצר');
+}
         this.showSuccess('שיעור מילוי המקום נוצר בהצלחה');
         this.referralFile = null;
 this.referralUploadError = null;
@@ -1038,6 +1079,30 @@ get displayEndTime(): string {
     return this.getCalculatedEndTime();
   } catch {
     return this.endTime;
+  }
+}
+get visibleQuickWarnings() {
+  const warnings = this.slotInfo?.warnings ?? [];
+  const hasBreak = warnings.some(w => w.type === 'break_time');
+
+  if (!hasBreak) {
+    return warnings;
+  }
+
+  return warnings.filter(w => w.type !== 'capacity_reached');
+}
+async onStartTimeChange(): Promise<void> {
+  this.slotInfo = null;
+  this.slotInfoError = null;
+
+  await this.loadSlotInfo();
+
+  if (this.bookingMode === 'makeup' && this.selectedChildId) {
+    await this.loadMakeupCandidates();
+  }
+
+  if (this.bookingMode === 'occupancy' && this.selectedChildId) {
+    await this.loadOccupancyCandidates();
   }
 }
 }

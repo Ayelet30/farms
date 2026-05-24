@@ -773,7 +773,6 @@ isBreakCell(resourceId: string, slotIso: string): boolean {
     const start = this.toHm(a.startTime);
     const end = this.toHm(a.endTime);
 
-    console.log('Checking break cell:', { resourceId, slotIso, ymd, hm, start, end, lessonType: a.lessonType });
 
    const type = String(a.lessonType || '').trim();
 

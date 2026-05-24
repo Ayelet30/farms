@@ -499,7 +499,6 @@ private buildAvailableDayCells(range?: { start: string; end: string }): void {
   while (cur <= to) {
     const dow = this.dbDowFromYmd(cur);
 
-    console.log('checking availability for', { date: cur, dow, visibleInstructorIds: Array.from(visibleInstructorIds) });
     for (const row of this.instructorWeeklyAvailability || []) {
       const instructorId = String(row.instructor_id_number);
 
