@@ -1,10 +1,15 @@
-import { Component, OnInit, HostListener, inject, EventEmitter, Output, Input } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, inject, EventEmitter, Output, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
 import { LogoutConfirmationComponent } from '../../logout-confirmation/logout-confirmation';
 import { CurrentUserService } from '../../core/auth/current-user.service';
+import { Subscription } from 'rxjs';
+import {
+  ensureTenantContextReady,
+  dbTenant,
+} from '../../services/legacy-compat';
 
 @Component({
   selector: 'app-slider',
@@ -13,7 +18,7 @@ import { CurrentUserService } from '../../core/auth/current-user.service';
   templateUrl: './slider.html',
   styleUrls: ['./slider.scss']
 })
-export class SliderComponent implements OnInit {
+export class SliderComponent implements OnInit, OnDestroy {
 
   @Input() collapsed = false; 
 
@@ -25,8 +30,16 @@ export class SliderComponent implements OnInit {
 
   isDesktop = false;
   role = '';
-  menuItems: Array<{ path: string; label: string; icon: string }> = [];
+  menuItems: Array<{
+  path: string;
+  label: string;
+  icon: string;
+  badge?: number;
+}> = [];
   error: string | undefined;
+
+  pendingRequestsCount = 0;
+  private requestsRealtimeChannel: any = null;
  
 
   async ngOnInit() {
@@ -47,7 +60,18 @@ export class SliderComponent implements OnInit {
     this.setMenuItemsByRole();
 
     this.syncBreakpoint();
+    await this.loadPendingRequestsCount();
+this.listenToRequestsChanges();
   }
+
+  async ngOnDestroy() {
+  const db = dbTenant();
+
+  if (this.requestsRealtimeChannel) {
+    await db.removeChannel(this.requestsRealtimeChannel);
+    this.requestsRealtimeChannel = null;
+  }
+}
 
   @HostListener('window:resize')
   onResize() {
@@ -94,7 +118,7 @@ private setMenuItemsByRole() {
         { path: 'secretary/waitlist',        label: 'רשימת המתנה',      icon: 'waitlist' },
         { path: 'secretary/messages',        label: 'יצירת קשר',            icon: 'messages' },
         { path: 'secretary/monthly-summary', label: 'סיכום וגרפים',      icon: 'bar_chart' },
-        { path: 'secretary/requests',        label: 'בקשות ואישורים',    icon: 'checklist' },
+        { path: 'secretary/requests',        label: 'בקשות ואישורים',    icon: 'checklist', badge: this.pendingRequestsCount },
         { path: 'secretary/payments',        label: 'תשלומים וחשבוניות', icon: 'card' },
         { path: 'secretary/billing',        label: 'ניהול חיובים',       icon: 'billing' },
         { path: 'secretary/claims',        label: 'טיפול בתביעות',       icon: 'claims' },
@@ -147,5 +171,67 @@ private setMenuItemsByRole() {
   }
 
   this.collapsedChange.emit(this.collapsed);
+}
+
+private async loadPendingRequestsCount() {
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const { count, error } = await db
+      .from('v_secretarial_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'PENDING');
+
+    if (error) throw error;
+
+    this.pendingRequestsCount = count ?? 0;
+    this.setMenuItemsByRole();
+
+  } catch (err) {
+    console.error('Failed loading pending requests count', err);
+  }
+}
+
+private async listenToRequestsChanges() {
+  try {
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const schema =
+      (this.cu.current as any)?.schema_name ??
+      (this.cu.current as any)?.tenant_schema ??
+      (this.cu.current as any)?.db_schema ??
+      (this.cu.current as any)?.farm_schema;
+
+    if (!schema) {
+      console.warn('לא נמצא שם סכמה למעקב realtime', this.cu.current);
+      return;
+    }
+
+    if (this.requestsRealtimeChannel) {
+      await db.removeChannel(this.requestsRealtimeChannel);
+    }
+
+    this.requestsRealtimeChannel = db
+      .channel(`secretarial-requests-count-${schema}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema,
+          table: 'secretarial_requests',
+        },
+        async () => {
+          await this.loadPendingRequestsCount();
+        }
+      )
+      .subscribe((status: string) => {
+        console.log('requests realtime status:', status);
+      });
+
+  } catch (err) {
+    console.error('Failed listening to requests changes', err);
+  }
 }
 }
