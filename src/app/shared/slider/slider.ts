@@ -10,6 +10,7 @@ import {
   ensureTenantContextReady,
   dbTenant,
 } from '../../services/legacy-compat';
+import { RequestBadgeService } from '../../services/request-badge.service';
 
 @Component({
   selector: 'app-slider',
@@ -31,15 +32,19 @@ export class SliderComponent implements OnInit, OnDestroy {
   isDesktop = false;
   role = '';
   menuItems: Array<{
-  path: string;
+  path?: string;
   label: string;
-  icon: string;
+  icon?: string;
   badge?: number;
+  section?: boolean;
 }> = [];
   error: string | undefined;
 
   pendingRequestsCount = 0;
   private requestsRealtimeChannel: any = null;
+
+  private badgeService = inject(RequestBadgeService);
+
  
 
   async ngOnInit() {
@@ -60,8 +65,14 @@ export class SliderComponent implements OnInit, OnDestroy {
     this.setMenuItemsByRole();
 
     this.syncBreakpoint();
-    await this.loadPendingRequestsCount();
-this.listenToRequestsChanges();
+    await this.badgeService.init();
+
+this.pendingRequestsCount = this.badgeService.pendingCount();
+
+setInterval(() => {
+  this.pendingRequestsCount = this.badgeService.pendingCount();
+  this.setMenuItemsByRole();
+}, 500);
   }
 
   async ngOnDestroy() {
@@ -107,23 +118,36 @@ private setMenuItemsByRole() {
       break;
 
     case 'secretary':
-      this.menuItems = [
-        { path: 'secretary/parents',         label: 'הורים בחווה',       icon: 'parents' },
-        { path: 'secretary/children',        label: 'ילדים בחווה',       icon: 'children' },
-        { path: 'secretary/instructors',     label: 'מדריכים בחווה',     icon: 'instructor' },
-        { path: 'secretary/horses',        label: 'סוסים בחווה',       icon: 'hors' },
-        { path: 'secretary/arenas',     label: 'מגרשים בחווה',     icon: 'arena' },
-        { path: 'secretary/schedule',        label: 'לו״ז ומעקב',        icon: 'calendar' },
-        { path: 'secretary/appointment',     label: 'זימון תורים',       icon: 'calendar_plus' },
-        { path: 'secretary/waitlist',        label: 'רשימת המתנה',      icon: 'waitlist' },
-        { path: 'secretary/messages',        label: 'יצירת קשר',            icon: 'messages' },
-        { path: 'secretary/monthly-summary', label: 'סיכום וגרפים',      icon: 'bar_chart' },
-        { path: 'secretary/requests',        label: 'בקשות ואישורים',    icon: 'checklist', badge: this.pendingRequestsCount },
-        { path: 'secretary/payments',        label: 'תשלומים וחשבוניות', icon: 'card' },
-        { path: 'secretary/billing',        label: 'ניהול חיובים',       icon: 'billing' },
-        { path: 'secretary/claims',        label: 'טיפול בתביעות',       icon: 'claims' },
-        { path: 'secretary/settings',        label: 'הגדרות חווה',       icon: 'settings' },
-      ];
+  this.menuItems = [
+    { label: 'ניהול חווה', section: true },
+    { path: 'secretary/parents', label: 'הורים בחווה', icon: 'parents' },
+    { path: 'secretary/children', label: 'ילדים בחווה', icon: 'children' },
+    { path: 'secretary/instructors', label: 'מדריכים בחווה', icon: 'instructor' },
+    { path: 'secretary/horses', label: 'סוסים בחווה', icon: 'hors' },
+    { path: 'secretary/arenas', label: 'מגרשים בחווה', icon: 'arena' },
+
+    { label: 'פעילות שוטפת', section: true },
+    { path: 'secretary/schedule', label: 'לו״ז ומעקב', icon: 'calendar' },
+    { path: 'secretary/appointment', label: 'זימון תורים', icon: 'calendar_plus' },
+    { path: 'secretary/waitlist', label: 'רשימת המתנה', icon: 'waitlist' },
+    { path: 'secretary/messages', label: 'יצירת קשר', icon: 'messages' },
+    { path: 'secretary/monthly-summary', label: 'סיכום וגרפים', icon: 'bar_chart' },
+
+    { label: 'בקשות וכספים', section: true },
+    {
+      path: 'secretary/requests',
+      label: 'בקשות ואישורים',
+      icon: 'checklist',
+      badge: this.pendingRequestsCount
+    },
+    { path: 'secretary/payments', label: 'תשלומים וחשבוניות', icon: 'card' },
+    { path: 'secretary/billing', label: 'ניהול חיובים', icon: 'billing' },
+    { path: 'secretary/claims', label: 'טיפול בתביעות', icon: 'claims' },
+
+    { label: 'מערכת', section: true },
+    { path: 'secretary/settings', label: 'הגדרות חווה', icon: 'settings' },
+  ];
+  break;
       break;
 
     case 'admin':

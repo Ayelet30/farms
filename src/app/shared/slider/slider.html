@@ -19,30 +19,29 @@
 
     <!-- side-menu.html -->
     <ul>
-      <li *ngFor="let item of menuItems" (click)="navigateTo(item.path)" [class.active]="isActive(item.path)"
-        [attr.title]="collapsed ? item.label : null">
+      <li *ngFor="let item of menuItems"
+    [class.menu-section]="item.section"
+    [class.active]="!item.section && item.path && isActive(item.path)"
+    [attr.title]="collapsed && !item.section ? item.label : null"
+    (click)="!item.section && item.path && navigateTo(item.path)">
 
-        <span class="label">
+  <ng-container *ngIf="item.section; else menuLink">
+    <span class="section-title">{{ item.label }}</span>
+  </ng-container>
 
-          {{ item.label }}
+  <ng-template #menuLink>
+    <span class="label">{{ item.label }}</span>
 
-        </span>
+    <div class="icon-wrapper">
+      <span class="icon" [ngClass]="'i-' + item.icon"></span>
 
-        <div class="icon-wrapper">
+      <div class="menu-badge" *ngIf="item.badge && item.badge > 0">
+        {{ item.badge }}
+      </div>
+    </div>
+  </ng-template>
 
-          <span class="icon" [ngClass]="'i-' + item.icon">
-
-          </span>
-
-          <div class="menu-badge" *ngIf="item.badge && item.badge>0">
-
-            {{item.badge}}
-
-          </div>
-
-        </div>
-
-      </li>
+</li>
     </ul>
 
   </nav>
