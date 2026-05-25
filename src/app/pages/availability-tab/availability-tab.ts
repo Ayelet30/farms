@@ -54,12 +54,13 @@ interface DayAvailability {
   active: boolean;
   slots: TimeSlot[];
 }
-
 interface RidingType {
   id: UUID;
   code: string;
   name: string;
+  min_participants: number | null;
   max_participants: number | null;
+  special_duration: number | null;
   active: boolean;
 }
 
@@ -352,11 +353,10 @@ private async loadFarmWorkingHours() {
   }
 
   /* ===================== RIDING TYPES ===================== */
-
 private async loadRidingTypes() {
   const { data, error } = await dbTenant()
     .from('riding_types')
-    .select('id, code, name, max_participants, is_active')
+.select('id, code, name, min_participants, max_participants, spacial_duration, is_active')
     .eq('is_active', true)
     .order('name');
 
@@ -366,7 +366,15 @@ private async loadRidingTypes() {
     return;
   }
 
-  this.ridingTypes = (data || []).slice();
+  this.ridingTypes = (data || []).map((rt: any) => ({
+    id: rt.id,
+    code: rt.code,
+    name: rt.name,
+    min_participants: rt.min_participants ?? null,
+    max_participants: rt.max_participants ?? null,
+    special_duration: rt.spacial_duration ?? null,
+    active: rt.is_active,
+  }));
 
   this.ridingTypes.sort((a, b) => {
     const aIsBreak = a.name.includes('הפסק');
@@ -376,6 +384,28 @@ private async loadRidingTypes() {
     if (!aIsBreak && bIsBreak) return -1;
 
     return a.name.localeCompare(b.name, 'he');
+  });
+}
+getAllowedRidingTypesForSlot(slot: TimeSlot): RidingType[] {
+  const currentType = this.ridingTypes.find(rt => rt.id === slot.ridingTypeId);
+
+  if (!currentType) {
+    return this.ridingTypes;
+  }
+
+  const currentMax = currentType.max_participants ?? 0;
+
+  return this.ridingTypes.filter(rt => {
+    // להשאיר את הסוג הנוכחי מוצג
+    if (rt.id === slot.ridingTypeId) return true;
+
+    // חייב להיות אותו spacial_duration בדיוק
+    if (rt.special_duration !== currentType.special_duration) {
+      return false;
+    }
+
+    // חייב לאפשר יותר ילדים
+    return (rt.max_participants ?? 0) > currentMax;
   });
 }
   /* ===================== INSTRUCTOR ===================== */
@@ -515,7 +545,7 @@ isFarmWorkingDay(dayKey: string): boolean {
     day.slots.push({
       start,
       end,
-      ridingTypeId: null,
+      ridingTypeId: this.ridingTypes[0]?.id ?? null,
       isNew: true,
       hasError: false,
       errorMessage: null,
@@ -633,7 +663,7 @@ private toFarmDayNumber(dayKey: string): number {
   day.slots.push({
     start,
     end,
-    ridingTypeId: null,
+    ridingTypeId: this.ridingTypes[0]?.id ?? null,
     isNew: true,
     hasError: false,
     errorMessage: null,
