@@ -258,11 +258,9 @@
   [disabled]="!allowEdit"
   [class.placeholder]="!slot.ridingTypeId"
 >
-  <option [ngValue]="null">בחר סוג רכיבה</option>
-
-  <option *ngFor="let rt of ridingTypes" [ngValue]="rt.id">
-    {{ rt.name }}
-  </option>
+<option *ngFor="let rt of getAllowedRidingTypesForSlot(slot)" [ngValue]="rt.id">
+  {{ rt.name }}
+</option>
 </select>
               </div>
 
