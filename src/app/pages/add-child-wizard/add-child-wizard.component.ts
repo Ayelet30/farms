@@ -242,13 +242,9 @@ healthFunds: { id: string; name: string }[] = [];
     }
 
     // אם הורה ויש שלב תשלום — נביא כרטיס שמור כדי לדלג על Hosted Fields
-    if (this.isParentMode && this.hasRegistrationFee) {
-      const user = await getCurrentUserData();
-      const parentUid = user?.uid ?? null;
-      if (parentUid) {
-        await this.loadSavedPaymentProfileForParent(parentUid);
-      }
-    }
+    if (this.isParentMode) {
+  await this.loadCurrentParentPaymentProfile();
+}
 
     this.rebuildSteps();
   }
@@ -552,7 +548,13 @@ private validatePayment() {
 
   if (!this.canEnterPaymentMethod) return;
 
-  if (!this.hasSavedPaymentProfile && !this.tokenSaved) {
+  // ✅ בדיוק כמו מזכירה: אם יש כרטיס שמור — לא דורשים כלום
+  if (this.hasSavedPaymentProfile) {
+    this.tokenSaved = true;
+    return;
+  }
+
+  if (!this.tokenSaved) {
     this.validationErrors['token'] = 'יש לשמור אמצעי תשלום לפני המשך';
     this.error = 'יש ללחוץ על "שמירת אמצעי תשלום" לפני המשך';
   }
@@ -882,7 +884,11 @@ if (requiresPaymentMethod && !this.hasSavedPaymentProfile && !this.tokenSaved) {
         .maybeSingle();
 
       if (error) throw error;
-
+console.log('[PAYMENT PROFILE DEBUG]', {
+  parentUid,
+  data,
+  error,
+});
       this.savedPaymentProfile = (data as any) ?? null;
 
       if (this.hasSavedPaymentProfile) {
@@ -1123,5 +1129,37 @@ if (this.isSecretaryMode && this.secretarySkippedPayment) return;
 onFundingSourceChange(id: string): void {
   this.child.funding_source_id = id;
   this.onFundingSourceChangeForPayment();
+}
+private async loadCurrentParentPaymentProfile(): Promise<void> {
+  try {
+    await ensureTenantContextReady();
+
+    const user = await getCurrentUserData();
+    const authUid = user?.uid ?? null;
+
+    if (!authUid) return;
+
+    const dbc = dbTenant();
+
+    const { data: parent, error } = await dbc
+      .from('parents')
+      .select('uid')
+      .eq('uid', authUid)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    const parentUid = parent?.uid ?? authUid;
+
+    console.log('[PARENT PAYMENT DEBUG]', {
+      authUid,
+      parentUid,
+    });
+
+    await this.loadSavedPaymentProfileForParent(parentUid);
+  } catch (e) {
+    console.error('loadCurrentParentPaymentProfile error', e);
+    this.savedPaymentProfile = null;
+  }
 }
 }
