@@ -152,9 +152,12 @@
         </div>
       </div>
 
-      <div class="form-error" *ngIf="error">
-        {{ error }}
-      </div>
+  <div class="absence-alert error" *ngIf="error">
+  <div class="alert-icon">!</div>
+  <div class="alert-text">
+    {{ error }}
+  </div>
+</div>
     </div>
 
     <div class="modal-actions">
