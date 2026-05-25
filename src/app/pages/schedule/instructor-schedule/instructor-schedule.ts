@@ -956,7 +956,7 @@ const hasOverlap = await this.hasAnyOverlappingInstructorAbsence(
 );
 
 if (hasOverlap) {
-  this.error = 'כבר קיימת בקשת היעדרות או היעדרות מדריך חופפת בטווח שבחרת';
+  this.error = 'כבר קיימת בקשת היעדרות או יום חופש בטווח שבחרת. יש לבחור תאריך או שעות אחרות.';
   this.cdr.detectChanges();
   return;
 }
@@ -1017,6 +1017,7 @@ this.affectedChildren = [];
     this.cdr.detectChanges();
   }
 }
+
 closeContextMenu(): void {
   this.contextMenu.visible = false;
 }

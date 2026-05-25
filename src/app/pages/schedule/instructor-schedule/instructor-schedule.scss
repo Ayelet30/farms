@@ -8,7 +8,41 @@
   font-size: 11px;
   line-height: 1.15;
 }
+.absence-alert {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+}
 
+.absence-alert.error {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+}
+
+.alert-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #f97316;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  flex: 0 0 22px;
+  margin-top: 2px;
+}
+
+.alert-text {
+  flex: 1;
+  font-weight: 600;
+}
 .bereshit-calendar .secondary-line {
   font-size: 9px;
 }
