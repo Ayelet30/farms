@@ -491,7 +491,7 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
 
             <!-- שעות זמינות ביום שנבחר -->
             <div class="slots-list series-slots" *ngIf="selectedSeriesDate && selectedSeriesDaySlots.length">
-              <h4>שעות זמינות ליום {{ selectedSeriesDate }} להתחלת סדרה</h4>
+              <h4>שעות זמינות ליום {{ selectedSeriesDate | date:'dd/MM/yyyy' }} להתחלת סדרה</h4>
 
               <table>
                 <thead>
@@ -687,7 +687,7 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
 
   <!-- שעות זמינות ביום שנבחר -->
   <div class="slots-list series-slots" *ngIf="selectedSeriesDate && selectedSeriesDaySlots.length">
-    <h4>שעות זמינות ליום {{ selectedSeriesDate }} לשיעור בודד</h4>
+    <h4>שעות זמינות ליום {{ selectedSeriesDate | date:'dd/MM/yyyy' }} לשיעור בודד</h4>
 
     <table>
       <thead>
