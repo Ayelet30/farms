@@ -299,7 +299,12 @@ private async rejectBySystem(reason: string): Promise<void> {
     if (!requestId || !decidedByUid) return;
  // ✅ הולידציה דרך השירות – לפני אישור
  const v = await this.validator.validate(r, 'approve');
-if (!v.ok) { await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית'); return; }
+
+if (!v.ok) {
+  this.showSnack(v.reason ?? 'הבקשה כבר אינה זמינה לאישור', 'error');
+  this.onError?.({ requestId, message: v.reason ?? 'הבקשה כבר אינה זמינה לאישור' });
+  return;
+}
 
 this.loading.set(true);
 try {
@@ -380,8 +385,12 @@ readonly requestNote = computed(() => {
 
   if (!requestId || !decidedByUid) return;
  const v = await this.validator.validate(r, 'reject');
-if (!v.ok) { await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית'); return; }
 
+if (!v.ok) {
+  this.showSnack(v.reason ?? 'הבקשה כבר אינה זמינה לאישור', 'error');
+  this.onError?.({ requestId, message: v.reason ?? 'הבקשה כבר אינה זמינה לאישור' });
+  return;
+}
 this.loading.set(true);
 try {
   const token = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();

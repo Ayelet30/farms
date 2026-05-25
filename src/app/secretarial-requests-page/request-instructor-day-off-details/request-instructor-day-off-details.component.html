@@ -1,104 +1,104 @@
-<div class="busy-overlay" *ngIf="loading()">
-  <div class="busy-card" dir="rtl">
-    <mat-spinner diameter="28"></mat-spinner>
-    <div class="busy-text">{{ busyText() }}</div>
-  </div>
-</div>
-
-<div class="req" *ngIf="req() as r">
-  <div class="req-head">
-   <div class="req-title">
-  {{ getCategoryLabel() }} מדריך
-</div>
-
-    <div class="meta">
-      <div><b>מדריך:</b> {{ r.instructorName || '—' }}</div>
-     <div>
-  <b>מועד:</b>
-  {{ windowText() }}
-</div>
-
-      <div><b>מבקש/ת:</b> {{ r.requestedByName || '—' }}</div>
+  <div class="busy-overlay" *ngIf="loading()">
+    <div class="busy-card" dir="rtl">
+      <mat-spinner diameter="28"></mat-spinner>
+      <div class="busy-text">{{ busyText() }}</div>
     </div>
   </div>
-<div class="detail-row" *ngIf="requestNote()">
-  <div class="label">הערת המדריך/ה</div>
-  <div class="value">{{ requestNote() }}</div>
-</div>
-  <!-- הערה להחלטה: להציג רק כשהבקשה ממתינה (כי אחרת אין מה "להחליט") -->
-  <div class="note-box" *ngIf="canDecide()">
-    <!-- אישור מחלה -->
-<div class="medical-certificate"
-     *ngIf="isSickRequest()">
 
-  <b>אישור מחלה:</b>
-
-  <ng-container *ngIf="medicalCertificateUrl(); else noFile">
-    <a [href]="medicalCertificateUrl()" target="_blank">
-      לצפייה באישור
-    </a>
-  </ng-container>
-
-  <ng-template #noFile>
-    <span class="missing">לא צורף אישור</span>
-  </ng-template>
-</div>
-    <label>הערה להחלטה (אופציונלי)</label>
-    <textarea
-      [ngModel]="decisionNote()"
-      (ngModelChange)="decisionNote.set($event)"
-      rows="2"
-      placeholder="למדריך / לתיעוד..." [disabled]="loading()"></textarea>
+  <div class="req" *ngIf="req() as r">
+    <div class="req-head">
+    <div class="req-title">
+    {{ getCategoryLabel() }} מדריך
   </div>
 
-  <!-- Impact: להציג ולטעון רק כשהבקשה ממתינה -->
-  <section class="impact" *ngIf="shouldShowImpact()">
-    <div class="impact-title">
-      שיעורים שיתבטלו באישור ({{ impactCount() }})
+      <div class="meta">
+        <div><b>מדריך:</b> {{ r.instructorName || '—' }}</div>
+      <div>
+    <b>מועד:</b>
+    {{ windowText() }}
+  </div>
+
+        <div><b>מבקש/ת:</b> {{ r.requestedByName || '—' }}</div>
+      </div>
+    </div>
+  <div class="detail-row" *ngIf="requestNote()">
+    <div class="label">הערת המדריך/ה</div>
+    <div class="value">{{ requestNote() }}</div>
+  </div>
+    <!-- הערה להחלטה: להציג רק כשהבקשה ממתינה (כי אחרת אין מה "להחליט") -->
+    <div class="note-box" *ngIf="canDecide()">
+      <!-- אישור מחלה -->
+  <div class="medical-certificate"
+      *ngIf="isSickRequest()">
+
+    <b>אישור מחלה:</b>
+
+    <ng-container *ngIf="medicalCertificateUrl(); else noFile">
+      <a [href]="medicalCertificateUrl()" target="_blank">
+        לצפייה באישור
+      </a>
+    </ng-container>
+
+    <ng-template #noFile>
+      <span class="missing">לא צורף אישור</span>
+    </ng-template>
+  </div>
+      <label>הערה להחלטה (אופציונלי)</label>
+      <textarea
+        [ngModel]="decisionNote()"
+        (ngModelChange)="decisionNote.set($event)"
+        rows="2"
+        placeholder="למדריך / לתיעוד..." [disabled]="loading()"></textarea>
+    </div>
+
+    <!-- Impact: להציג ולטעון רק כשהבקשה ממתינה -->
+    <section class="impact" *ngIf="shouldShowImpact()">
+      <div class="impact-title">
+        שיעורים שיתבטלו באישור ({{ impactCount() }})
+        <button
+          class="mini"
+          type="button"
+          (click)="loadImpact()"
+          [disabled]="loadingImpact()">
+          רענון רשימה
+        </button>
+      </div>
+
+      <div *ngIf="loadingImpact()">טוען...</div>
+
+      <table *ngIf="!loadingImpact() && impactRows().length">
+        <thead>
+          <tr>
+            <th>תאריך</th>
+            <th>שעה</th>
+            <th>ילד/ה</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let x of impactRows()">
+            <td>{{ x.occur_date | date:'dd/MM/yyyy' }}</td>
+  <td> {{ x.end_time.slice(0,5) }} - {{ x.start_time.slice(0,5) }}</td>
+            <td>{{ x.child_name || '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="empty" *ngIf="!loadingImpact() && !impactRows().length">
+        לא נמצאו שיעורים שיושפעו בטווח הזה.
+      </div>
+    </section>
+
+    <!-- כפתורים: רק כשהבקשה ממתינה -->
+    <div class="actions" *ngIf="canDecide()">
+      <button class="btn reject" type="button" (click)="reject()" [disabled]="loading()">
+        דחייה
+      </button>
       <button
-        class="mini"
+        class="btn approve"
         type="button"
-        (click)="loadImpact()"
-        [disabled]="loadingImpact()">
-        רענון רשימה
+        (click)="approve()"
+        [disabled]="loading() || loadingImpact()">
+        אישור
       </button>
     </div>
-
-    <div *ngIf="loadingImpact()">טוען...</div>
-
-    <table *ngIf="!loadingImpact() && impactRows().length">
-      <thead>
-        <tr>
-          <th>תאריך</th>
-          <th>שעה</th>
-          <th>ילד/ה</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let x of impactRows()">
-          <td>{{ x.occur_date | date:'dd/MM/yyyy' }}</td>
-<td> {{ x.end_time.slice(0,5) }} - {{ x.start_time.slice(0,5) }}</td>
-          <td>{{ x.child_name || '—' }}</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="empty" *ngIf="!loadingImpact() && !impactRows().length">
-      לא נמצאו שיעורים שיושפעו בטווח הזה.
-    </div>
-  </section>
-
-  <!-- כפתורים: רק כשהבקשה ממתינה -->
-  <div class="actions" *ngIf="canDecide()">
-    <button class="btn reject" type="button" (click)="reject()" [disabled]="loading()">
-      דחייה
-    </button>
-    <button
-      class="btn approve"
-      type="button"
-      (click)="approve()"
-      [disabled]="loading() || loadingImpact()">
-      אישור
-    </button>
   </div>
-</div>
