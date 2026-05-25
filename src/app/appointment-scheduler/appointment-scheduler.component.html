@@ -213,47 +213,55 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
 <!-- דיאלוג סדרה - מזכירה (עם דילוגים) -->
 <ng-template #confirmSeriesDialogSecretary let-dialogRef="dialogRef">
   <div dir="rtl" style="padding: 10px; max-width: 350px;">
-<h3>{{ selectedTab === 'single' ? 'אישור קביעת שיעור בודד' : 'אישור בקשת סדרה' }}</h3>
-    סדרה שמתחילה בתאריך
-    <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy'}}</span></b><br>
+    <h3>{{ selectedTab === 'single' ? 'אישור קביעת שיעור בודד' : 'אישור בקשת סדרה' }}</h3>
 
-    <ng-container *ngIf="!isOpenEndedSeries">
-      מסתיימת בתאריך
-      <b><span class="ltr">{{ seriesConfirmData.endDate | date:'dd-MM-yyyy'}}</span></b><br>
+    <ng-container *ngIf="selectedTab === 'single'; else secretarySeriesConfirmText">
+      האם את בטוחה שברצונך לקבוע שיעור בודד בתאריך
+      <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy' }}</span></b><br>
+
+      עם המדריך/ה <b>{{ seriesConfirmData.instructorName }}</b><br>
+      ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
+
+      בשעה
+      <b><span class="ltr time-range">{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</span></b>
     </ng-container>
-    עם המדריך/ה
-<b>{{ seriesConfirmData.instructorName }}</b><br>
 
-    ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
+    <ng-template #secretarySeriesConfirmText>
+      סדרה שמתחילה בתאריך
+      <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy' }}</span></b><br>
 
-    בשעה
-    <b><span class="ltr time-range">{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</span></b>
+      <ng-container *ngIf="!isOpenEndedSeries">
+        מסתיימת בתאריך
+        <b><span class="ltr">{{ seriesConfirmData.endDate | date:'dd-MM-yyyy' }}</span></b><br>
+      </ng-container>
 
-    <!-- פירוט דילוגים בסדרה -->
-    <div
-      style="margin-top:12px"
-      *ngIf="seriesConfirmData.skippedFarm.length || seriesConfirmData.skippedInstructor.length"
-    >
-      <div style="font-weight:700; margin-bottom:6px;">
-        דילוגים בסדרה:
+      עם המדריך/ה <b>{{ seriesConfirmData.instructorName }}</b><br>
+      ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
+
+      בשעה
+      <b><span class="ltr time-range">{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</span></b>
+
+      <div
+        style="margin-top:12px"
+        *ngIf="seriesConfirmData.skippedFarm.length || seriesConfirmData.skippedInstructor.length"
+      >
+        <div style="font-weight:700; margin-bottom:6px;">דילוגים בסדרה:</div>
+
+        <div *ngIf="seriesConfirmData.skippedFarm.length">
+          <div style="font-weight:600;">ימי חופש חווה:</div>
+          <ul style="margin:6px 18px;">
+            <li *ngFor="let d of seriesConfirmData.skippedFarm">{{ d }}</li>
+          </ul>
+        </div>
+
+        <div *ngIf="seriesConfirmData.skippedInstructor.length">
+          <div style="font-weight:600;">אי זמינות מדריך:</div>
+          <ul style="margin:6px 18px;">
+            <li *ngFor="let d of seriesConfirmData.skippedInstructor">{{ d }}</li>
+          </ul>
+        </div>
       </div>
-
-      <!-- ימי חופש חווה -->
-      <div *ngIf="seriesConfirmData.skippedFarm.length">
-        <div style="font-weight:600;">ימי חופש חווה:</div>
-        <ul style="margin:6px 18px;">
-          <li *ngFor="let d of seriesConfirmData.skippedFarm">{{ d }}</li>
-        </ul>
-      </div>
-
-      <!-- אי זמינות מדריך -->
-      <div *ngIf="seriesConfirmData.skippedInstructor.length">
-        <div style="font-weight:600;">אי זמינות מדריך:</div>
-        <ul style="margin:6px 18px;">
-          <li *ngFor="let d of seriesConfirmData.skippedInstructor">{{ d }}</li>
-        </ul>
-      </div>
-    </div>
+    </ng-template>
 
     <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
       <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
@@ -483,7 +491,7 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
 
             <!-- שעות זמינות ביום שנבחר -->
             <div class="slots-list series-slots" *ngIf="selectedSeriesDate && selectedSeriesDaySlots.length">
-              <h4>שעות זמינות ליום {{ selectedSeriesDate }} להתחלת סדרה</h4>
+              <h4>שעות זמינות ליום {{ selectedSeriesDate | date:'dd/MM/yyyy' }} להתחלת סדרה</h4>
 
               <table>
                 <thead>
@@ -679,7 +687,7 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
 
   <!-- שעות זמינות ביום שנבחר -->
   <div class="slots-list series-slots" *ngIf="selectedSeriesDate && selectedSeriesDaySlots.length">
-    <h4>שעות זמינות ליום {{ selectedSeriesDate }} לשיעור בודד</h4>
+    <h4>שעות זמינות ליום {{ selectedSeriesDate | date:'dd/MM/yyyy' }} לשיעור בודד</h4>
 
     <table>
       <thead>

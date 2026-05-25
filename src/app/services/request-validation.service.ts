@@ -16,6 +16,7 @@ import {
 // =====================================
 export enum Check {
   Expiry = 'expiry',
+  PendingStatus = 'pendingStatus',
   Requester = 'requester',
   Child = 'child',
   Instructor = 'instructor',
@@ -44,65 +45,71 @@ type RequestRule = {
 export class RequestValidationService {
   // ✅ פה נשמרים החוקים – כמו שהיה לך בקומפוננטה
   private readonly REQUEST_RULES: Record<RequestType, RequestRule> = {
-    CANCEL_OCCURRENCE: {
-      checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor],
-      allowedChildStatuses: new Set([
-        'Active',
-        'Deletion Scheduled',
-        'Pending Deletion Approval',
-      ]),
-    },
-
-    INSTRUCTOR_DAY_OFF: {
-      checks: [Check.Expiry, Check.Requester, Check.Instructor, Check.FarmDayOff],
-    },
-
-    NEW_SERIES: {
-      checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.InstructorAvailability,Check.FarmDayOff],
-      allowedChildStatuses: new Set([
-        'Active',
-        'Deletion Scheduled',
-        'Pending Deletion Approval',
-      ]),
-    },
-
-    MAKEUP_LESSON: {
-      checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff,Check.InstructorAvailability,Check.MakeupSourceStillRelevant,],
-      allowedChildStatuses: new Set([
-        'Active',
-        'Deletion Scheduled',
-        'Pending Deletion Approval',
-      ]),
-    },
-
-    FILL_IN: {
-      checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff,Check.InstructorAvailability,Check.FillInSourceStillRelevant,],
-      allowedChildStatuses: new Set([
-        'Active',
-        'Deletion Scheduled',
-        'Pending Deletion Approval',
-      ]),
-    },
-
-    ADD_CHILD: {
-      checks: [Check.Expiry, Check.Requester, Check.ParentTarget, Check.Child],
-      allowedChildStatuses: new Set(['Pending Addition Approval']),
-    },
-
-    DELETE_CHILD: {
-      checks: [Check.Expiry, Check.Requester, Check.Child],
-      allowedChildStatuses: new Set(['Pending Deletion Approval']),
-    },
-
-    PARENT_SIGNUP: { checks: [] },
-    OTHER_REQUEST: { checks: [] },
-    SINGLE_LESSON: {
-  checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.InstructorAvailability,Check.FarmDayOff],
+   CANCEL_OCCURRENCE: {
+  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor],
   allowedChildStatuses: new Set([
     'Active',
     'Deletion Scheduled',
     'Pending Deletion Approval',
   ]),
+},
+
+INSTRUCTOR_DAY_OFF: {
+  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Instructor, Check.FarmDayOff],
+},
+
+NEW_SERIES: {
+  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.InstructorAvailability, Check.FarmDayOff],
+  allowedChildStatuses: new Set([
+    'Active',
+    'Deletion Scheduled',
+    'Pending Deletion Approval',
+  ]),
+},
+
+MAKEUP_LESSON: {
+  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff, Check.InstructorAvailability, Check.MakeupSourceStillRelevant],
+  allowedChildStatuses: new Set([
+    'Active',
+    'Deletion Scheduled',
+    'Pending Deletion Approval',
+  ]),
+},
+
+FILL_IN: {
+  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff, Check.InstructorAvailability, Check.FillInSourceStillRelevant],
+  allowedChildStatuses: new Set([
+    'Active',
+    'Deletion Scheduled',
+    'Pending Deletion Approval',
+  ]),
+},
+
+ADD_CHILD: {
+  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.ParentTarget, Check.Child],
+  allowedChildStatuses: new Set(['Pending Addition Approval']),
+},
+
+DELETE_CHILD: {
+  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child],
+  allowedChildStatuses: new Set(['Pending Deletion Approval']),
+},
+
+SINGLE_LESSON: {
+  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.InstructorAvailability, Check.FarmDayOff],
+  allowedChildStatuses: new Set([
+    'Active',
+    'Deletion Scheduled',
+    'Pending Deletion Approval',
+  ]),
+},
+
+PARENT_SIGNUP: {
+  checks: [Check.PendingStatus],
+},
+
+OTHER_REQUEST: {
+  checks: [Check.PendingStatus],
 },
   };
 
@@ -148,6 +155,12 @@ private normalizeResult(
   let r: ValidationResult | null = null;
 
   switch (check) {
+    case Check.PendingStatus: {
+  r = this.normalizeResult(
+    await this.checkRequestStillPending(db, row, mode)
+  );
+  break;
+}
  case Check.Expiry: {
   // 🔁 תמיד רענון נתונים מה-DB לפני approve/reject
   if (mode !== 'auto') {
@@ -1087,6 +1100,47 @@ const { data, error } = await db
     return { ok: true };
   } catch (e: any) {
     const r = this.handleDbFailure(mode, 'checkInstructorAvailabilityConflict', e);
+    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+  }
+}
+private async checkRequestStillPending(
+  db: any,
+  row: UiRequest,
+  mode: ValidationMode
+): Promise<{ ok: boolean; reason?: string }> {
+  if (mode === 'auto') return { ok: true };
+
+  const requestId = row?.id;
+  if (!requestId) {
+    return { ok: false, reason: 'לא נמצא מזהה בקשה' };
+  }
+
+  try {
+    const { data, error } = await db
+      .from('secretarial_requests')
+      .select('id, status')
+      .eq('id', requestId)
+      .maybeSingle();
+
+    if (error) {
+      const r = this.handleDbFailure(mode, 'checkRequestStillPending', error);
+      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    }
+
+    if (!data) {
+      return { ok: false, reason: 'הבקשה לא נמצאה. נסי לרענן את המסך.' };
+    }
+
+    if (data.status !== 'PENDING') {
+      return {
+        ok: false,
+        reason: 'הבקשה כבר טופלה על ידי משתמש אחר. יש לרענן את המסך.',
+      };
+    }
+
+    return { ok: true };
+  } catch (e: any) {
+    const r = this.handleDbFailure(mode, 'checkRequestStillPending', e);
     return r.ok ? { ok: true } : { ok: false, reason: r.reason };
   }
 }
