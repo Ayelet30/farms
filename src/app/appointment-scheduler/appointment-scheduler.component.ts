@@ -1521,7 +1521,7 @@ const requestedLessonCount = isSingle ? 1 : this.seriesLessonCount;
   }
  //const raw = (data ?? []) as RecurringSlotWithSkips[];
 
-const raw: RecurringSlotWithSkips[] = (data ?? []).map((r: any) => ({
+let raw: RecurringSlotWithSkips[] = (data ?? []).map((r: any) => ({
   lesson_date: r.lesson_date,
   start_time: r.start_time,
   end_time: r.end_time,
@@ -1532,6 +1532,12 @@ const raw: RecurringSlotWithSkips[] = (data ?? []).map((r: any) => ({
   riding_type_name: r.riding_type_name ?? null,
 }));
 
+// ✅ בסדרה חדשה: לא להציג ימים שהם עד וכולל יום הסיום של הסדרה הקיימת
+const gate = this.existingSeriesGate;
+
+if (!isSingle && gate.kind === 'regular') {
+  raw = raw.filter(s => s.lesson_date > gate.endDate);
+}
 
 // קודם ממיינים לפי תאריך ואז שעה ואז מדריך,
 // כדי שה"ראשון בזמן" לכל תבנית יהיה באמת הראשון.
@@ -2670,11 +2676,12 @@ async requestSeriesFromSecretary(slot: RecurringSlotWithSkips, dialogTpl: Templa
 getSlotDayLabel(dateStr: string): string {
   return this.dayOfWeekLabelFromDate(dateStr);
 }
-private formatLocalDateDMY(d: Date): string {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${dd}-${mm}-${yyyy}`;
+private formatLocalDateDMY(dateStr: string): string {
+  if (!dateStr) return '';
+
+  const [y, m, d] = dateStr.split('-');
+
+  return `${d}/${m}/${y}`;
 }
 
   /**
@@ -3312,7 +3319,14 @@ isSeriesDisabled(slot: any): boolean {
 }
 
 getSeriesDisabledTooltip(slot: any): string {
-  if (this.selectedSeriesDate && this.isSlotBlockedByDeletion(this.selectedSeriesDate)) {
+  const gate = this.existingSeriesGate;
+
+  if (this.selectedSeriesDate && gate.kind === 'regular') {
+    if (this.selectedSeriesDate <= gate.endDate) {
+      const nextStart = this.addDays(gate.endDate, 1);
+      return `ניתן להתחיל סדרה חדשה רק החל מ-${nextStart}`;
+    }
+  }  if (this.selectedSeriesDate && this.isSlotBlockedByDeletion(this.selectedSeriesDate)) {
     const child = this.children.find(c => c.child_uuid === this.selectedChildId) ?? null;
     const cutoff = this.getChildDeletionCutoffDate(child);
     return `לא ניתן לקבוע שיעורים אחרי תאריך המחיקה (${cutoff})`;
@@ -3765,7 +3779,14 @@ private isDateAfterCutoff(dateStr: string, cutoffDate: string): boolean {
   // השוואה לקסיקוגרפית עובדת ל-YYYY-MM-DD
   return dateStr > cutoffDate;
 }
+private isBeforeAllowedSeriesStart(dateStr: string): boolean {
+  const gate = this.existingSeriesGate;
 
+  if (this.selectedTab !== 'series') return false;
+  if (gate.kind !== 'regular') return false;
+
+  return dateStr <= gate.endDate;
+}
 private isSlotBlockedByDeletion(dateStr: string): boolean {
   const child = this.children.find(c => c.child_uuid === this.selectedChildId) ?? null;
   const cutoff = this.getChildDeletionCutoffDate(child);
@@ -3925,9 +3946,15 @@ private async loadExistingSeriesGateForChild(childId: string): Promise<void> {
 
   this.existingSeriesGate = { kind: 'regular', endDate };
   const nextStart = new Date(this.addDays(endDate, 1));
+const gate = this.existingSeriesGate;
+
+if (gate.kind === 'regular') {
+ const nextStart = this.addDaysLocal(gate.endDate, 1);
+
 this.seriesGateMessage =
   `לילד יש סדרה קיימת. ניתן להזמין סדרה חדשה רק החל מ-` +
   `\u200E${this.formatLocalDateDMY(nextStart)}\u200E`;
+}
 }
 get availablePaymentPlans(): PaymentPlan[] {
   const childFundingSourceId = this.selectedChild?.funding_source_id ?? null;
@@ -3948,6 +3975,18 @@ get availablePaymentPlans(): PaymentPlan[] {
     // גורם מממן מערכת — להציג רק אם הוא של הילד
     return plan.funding_source_id === childFundingSourceId;
   });
+}
+
+private addDaysLocal(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+
+  return `${yy}-${mm}-${dd}`;
 }
 }
 const isTaughtChildGender = (v: any): v is TaughtChildGender =>
