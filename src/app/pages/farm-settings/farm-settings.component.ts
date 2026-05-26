@@ -127,7 +127,25 @@ interface FarmSettings {
 }
 
 type ListNoteId = number;
+type RiderServiceCategory = 'boarding' | 'medical' | 'maintenance' | 'general';
+type RecurrenceUnit = 'day' | 'week' | 'month';
+interface RiderServiceType {
+  id?: UUID;
+  name: string;
+  category: 'boarding' | 'medical' | 'maintenance' | 'general';
 
+  default_price_agorot: number;
+
+  // UI only
+  default_price_shekel?: number | null;
+
+  is_recurring: boolean;
+  default_recurrence_unit: 'day' | 'week' | 'month' | null;
+  default_recurrence_interval: number | null;
+  requires_approval: boolean;
+  is_active: boolean;
+  notes: string | null;
+}
 interface ListNote {
   id: ListNoteId;
   note: string;
@@ -265,6 +283,30 @@ newSpecialChargeErrors = signal<{
 }>({});
   newListNoteText = signal<string>('');
   listNotesExpanded = signal(true);
+  // ====== Rider Service Types ======
+riderServiceTypes = signal<RiderServiceType[]>([]);
+riderServiceTypesExpanded = signal(true);
+showNewRiderServiceTypeForm = signal(false);
+editingRiderServiceTypeId = signal<UUID | null>(null);
+
+newRiderServiceType = signal<RiderServiceType>({
+  name: '',
+  category: 'general',
+  default_price_agorot: 0,
+  default_price_shekel: null,
+  is_recurring: false,
+  default_recurrence_unit: null,
+  default_recurrence_interval: null,
+  requires_approval: true,
+  is_active: true,
+  notes: null,
+});
+
+riderServiceTypeErrors = signal<{
+  name?: string;
+  default_price_agorot?: string;
+  recurrence?: string;
+}>({});
   // ====== Riding Types ======
 
 ridingTypes = signal<RidingType[]>([]);
@@ -302,6 +344,7 @@ charge_times_per_year: null,
 });
 editingSpecialChargeId = signal<UUID | null>(null);
 specialChargeBeforeEdit = signal<SpecialCharge | null>(null);
+
 validateParticipants(): void {
   const min = this.newRidingTypeMin();
   const max = this.newRidingTypeMax();
@@ -460,6 +503,7 @@ hasAnyActiveWorkingDay(): boolean {
       this.loadListNotes(),
       this.loadRidingTypes(),
       this.loadSpecialCharges(),
+      this.loadRiderServiceTypes(),
     ]);
 
     if (!this.workingHours().length) {
@@ -3029,6 +3073,224 @@ cancelNewSpecialCharge(): void {
     is_active: true,
     sort_order: 0,
   });
+}
+private validateRiderServiceTypeForm(): boolean {
+  const s = this.newRiderServiceType();
+  const errors: {
+    name?: string;
+    default_price_agorot?: string;
+    recurrence?: string;
+  } = {};
+
+  if (!s.name.trim()) {
+    errors.name = 'חובה למלא שם שירות';
+  }
+if (s.default_price_shekel == null || Number(s.default_price_shekel) < 0) {
+  errors.default_price_agorot = 'מחיר חייב להיות 0 ומעלה';
+}
+
+  if (s.is_recurring) {
+    if (!s.default_recurrence_unit || !s.default_recurrence_interval) {
+      errors.recurrence = 'בשירות חוזר חובה למלא יחידת חזרה ותדירות';
+    } else if (Number(s.default_recurrence_interval) <= 0) {
+      errors.recurrence = 'תדירות חייבת להיות גדולה מ־0';
+    }
+  }
+
+  this.riderServiceTypeErrors.set(errors);
+  return Object.keys(errors).length === 0;
+}
+
+private servicePriceToAgorot(value: any): number {
+  return Math.round(Number(value || 0) * 100);
+}
+
+private servicePriceFromAgorot(value: any): number {
+  return Number(value || 0) / 100;
+}
+
+async loadRiderServiceTypes(): Promise<void> {
+  const { data, error } = await this.supabase
+    .from('rider_service_types')
+    .select('*')
+    .order('category', { ascending: true })
+    .order('name', { ascending: true });
+
+  if (error) {
+    console.error('loadRiderServiceTypes error', error);
+    await this.ui.alert('לא ניתן לטעון סוגי שירותים.', 'שגיאה');
+    return;
+  }
+
+  this.riderServiceTypes.set(
+    ((data || []) as RiderServiceType[]).map(s => ({
+      ...s,
+      default_price_shekel: this.agorotToShekel(s.default_price_agorot),
+    }))
+  );
+}
+
+toggleNewRiderServiceTypeForm(): void {
+  this.showNewRiderServiceTypeForm.set(!this.showNewRiderServiceTypeForm());
+  this.riderServiceTypeErrors.set({});
+}
+
+resetNewRiderServiceType(): void {
+  this.newRiderServiceType.set({
+    name: '',
+    category: 'general',
+    default_price_agorot: 0,
+    default_price_shekel: null,
+    is_recurring: false,
+    default_recurrence_unit: null,
+    default_recurrence_interval: null,
+    requires_approval: true,
+    is_active: true,
+    notes: null,
+  });
+
+  this.riderServiceTypeErrors.set({});
+}
+
+patchNewRiderServiceType(patch: Partial<RiderServiceType>): void {
+  const current = this.newRiderServiceType();
+
+  const next: RiderServiceType = {
+    ...current,
+    ...patch,
+  };
+
+  if (!next.is_recurring) {
+    next.default_recurrence_unit = null;
+    next.default_recurrence_interval = null;
+  }
+
+  this.newRiderServiceType.set(next);
+  this.validateRiderServiceTypeForm();
+}
+
+async addRiderServiceType(): Promise<void> {
+  if (!this.validateRiderServiceTypeForm()) return;
+
+  const s = this.newRiderServiceType();
+
+  const payload = {
+    name: s.name.trim(),
+    category: s.category,
+default_price_agorot: this.shekelToAgorot(s.default_price_shekel),
+    is_recurring: !!s.is_recurring,
+    default_recurrence_unit: s.is_recurring ? s.default_recurrence_unit : null,
+    default_recurrence_interval: s.is_recurring ? s.default_recurrence_interval : null,
+    requires_approval: !!s.requires_approval,
+    is_active: !!s.is_active,
+    notes: s.notes?.trim() || null,
+  };
+
+  const { error } = await this.supabase
+    .from('rider_service_types')
+    .insert(payload);
+
+  if (error) {
+    console.error('addRiderServiceType error', error);
+    await this.ui.alert('הוספת סוג שירות נכשלה.', 'שגיאה');
+    return;
+  }
+
+  await this.loadRiderServiceTypes();
+  this.resetNewRiderServiceType();
+  this.showNewRiderServiceTypeForm.set(false);
+
+  await this.ui.alert('סוג השירות נוסף בהצלחה.', 'הצלחה');
+}
+
+startEditRiderServiceType(s: RiderServiceType): void {
+  this.editingRiderServiceTypeId.set(s.id ?? null);
+}
+
+cancelEditRiderServiceType(): void {
+  this.editingRiderServiceTypeId.set(null);
+  this.loadRiderServiceTypes();
+}
+
+async updateRiderServiceType(s: RiderServiceType): Promise<void> {
+  if (!s.id) return;
+
+  if (!s.name.trim()) {
+    await this.ui.alert('חובה למלא שם שירות.', 'שגיאה');
+    return;
+  }
+if (s.default_price_shekel == null || Number(s.default_price_shekel) < 0) {
+  await this.ui.alert('מחיר חייב להיות 0 ומעלה.', 'שגיאה');
+  return;
+}
+
+  if (!s.is_recurring) {
+    s.default_recurrence_unit = null;
+    s.default_recurrence_interval = null;
+  }
+
+  const { error } = await this.supabase
+    .from('rider_service_types')
+    .update({
+      name: s.name.trim(),
+      category: s.category,
+default_price_agorot: this.shekelToAgorot(s.default_price_shekel),
+      is_recurring: !!s.is_recurring,
+      default_recurrence_unit: s.is_recurring ? s.default_recurrence_unit : null,
+      default_recurrence_interval: s.is_recurring ? s.default_recurrence_interval : null,
+      requires_approval: !!s.requires_approval,
+      is_active: !!s.is_active,
+      notes: s.notes?.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', s.id);
+
+  if (error) {
+    console.error('updateRiderServiceType error', error);
+    await this.ui.alert('עדכון סוג שירות נכשל.', 'שגיאה');
+    return;
+  }
+
+  this.editingRiderServiceTypeId.set(null);
+  await this.loadRiderServiceTypes();
+  await this.ui.alert('סוג השירות עודכן בהצלחה.', 'הצלחה');
+}
+
+async deleteRiderServiceType(s: RiderServiceType): Promise<void> {
+  if (!s.id) return;
+
+  const ok = await this.ui.confirm({
+    title: 'מחיקת סוג שירות',
+    message: `למחוק את "${s.name}"?`,
+    okText: 'מחיקה',
+    cancelText: 'ביטול',
+    showCancel: true,
+  });
+
+  if (!ok) return;
+
+  const { error } = await this.supabase
+    .from('rider_service_types')
+    .delete()
+    .eq('id', s.id);
+
+  if (error) {
+    console.error('deleteRiderServiceType error', error);
+    await this.ui.alert('מחיקת סוג שירות נכשלה. ייתכן שהוא כבר בשימוש.', 'שגיאה');
+    return;
+  }
+
+  await this.loadRiderServiceTypes();
+}
+private shekelToAgorot(value: any): number {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100);
+}
+
+private agorotToShekel(value: any): number {
+  const n = Number(value ?? 0);
+  return Math.round((n / 100) * 100) / 100;
 }
 }
 

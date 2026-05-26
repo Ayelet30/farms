@@ -1154,7 +1154,310 @@
     </div>
   </ng-template>
 </section>
-     
+     <!-- סוגי שירותים לרוכבים עצמאיים -->
+<section class="settings-card">
+  <div class="section-head">
+    <button
+      type="button"
+      class="section-title-btn"
+      (click)="riderServiceTypesExpanded.set(!riderServiceTypesExpanded())"
+      [attr.aria-expanded]="riderServiceTypesExpanded()"
+    >
+      <span class="chev" [class.open]="riderServiceTypesExpanded()">⌄</span>
+
+      <div class="section-title-wrap">
+        <h2>שירותים לרוכבים עצמאיים</h2>
+        <span class="section-subtitle">
+          הגדרת שירותי פנסיון, חיסונים, פרזול, טיפולים ושירותים כלליים
+        </span>
+      </div>
+    </button>
+
+    <button
+      type="button"
+      class="btn btn-ghost icon-left"
+      (click)="toggleNewRiderServiceTypeForm()"
+      [disabled]="!riderServiceTypesExpanded()"
+    >
+      <span class="plus-icon">＋</span>
+      <span>הוספת שירות</span>
+    </button>
+  </div>
+
+  <ng-container *ngIf="riderServiceTypesExpanded()">
+    <div class="sub-panel" *ngIf="showNewRiderServiceTypeForm()">
+      <div class="sub-panel-title">הוספת שירות חדש</div>
+
+      <div class="form-grid cols-3">
+        <label class="field-card">
+          <span class="field-label">שם שירות</span>
+          <input
+            class="form-control"
+            type="text"
+            name="newRiderServiceName"
+            [ngModel]="newRiderServiceType().name"
+            (ngModelChange)="patchNewRiderServiceType({ name: $event })"
+            placeholder="לדוגמה: חיסון / פנסיון / פרזול"
+          />
+          <small class="field-error" *ngIf="riderServiceTypeErrors().name">
+            {{ riderServiceTypeErrors().name }}
+          </small>
+        </label>
+
+        <label class="field-card">
+          <span class="field-label">קטגוריה</span>
+          <select
+            class="form-control"
+            name="newRiderServiceCategory"
+            [ngModel]="newRiderServiceType().category"
+            (ngModelChange)="patchNewRiderServiceType({ category: $event })"
+          >
+            <option [ngValue]="'boarding'">פנסיון</option>
+            <option [ngValue]="'medical'">רפואי</option>
+            <option [ngValue]="'maintenance'">תחזוקה</option>
+            <option [ngValue]="'general'">כללי</option>
+          </select>
+        </label>
+
+       <label class="field-card">
+  <span class="field-label">מחיר ברירת מחדל (₪)</span>
+  <input
+    class="form-control"
+    type="number"
+    min="0"
+    step="0.5"
+    name="newRiderServicePrice"
+    [ngModel]="newRiderServiceType().default_price_shekel"
+    (ngModelChange)="patchNewRiderServiceType({ default_price_shekel: +$event })"
+    placeholder="לדוגמה: 250"
+  />
+  <small class="field-hint">נשמר במערכת באגורות</small>
+  <small class="field-error" *ngIf="riderServiceTypeErrors().default_price_agorot">
+    {{ riderServiceTypeErrors().default_price_agorot }}
+  </small>
+</label>
+      </div>
+
+      <div class="form-grid cols-3">
+        <label class="field-card field-toggle">
+          <div class="toggle-line">
+            <span class="field-label">שירות חוזר</span>
+            <label class="switch">
+              <input
+                type="checkbox"
+                name="newRiderServiceRecurring"
+                [ngModel]="newRiderServiceType().is_recurring"
+                (ngModelChange)="patchNewRiderServiceType({ is_recurring: $event })"
+              />
+              <span class="switch-ui"></span>
+            </label>
+          </div>
+          <small class="field-hint">למשל פנסיון חודשי או פרזול תקופתי</small>
+        </label>
+
+        <label class="field-card" *ngIf="newRiderServiceType().is_recurring">
+          <span class="field-label">יחידת חזרה</span>
+          <select
+            class="form-control"
+            name="newRiderServiceRecurrenceUnit"
+            [ngModel]="newRiderServiceType().default_recurrence_unit"
+            (ngModelChange)="patchNewRiderServiceType({ default_recurrence_unit: $event })"
+          >
+            <option [ngValue]="null">בחרי</option>
+            <option [ngValue]="'day'">ימים</option>
+            <option [ngValue]="'week'">שבועות</option>
+            <option [ngValue]="'month'">חודשים</option>
+          </select>
+        </label>
+
+        <label class="field-card" *ngIf="newRiderServiceType().is_recurring">
+          <span class="field-label">כל כמה?</span>
+          <input
+            class="form-control"
+            type="number"
+            min="1"
+            step="1"
+            name="newRiderServiceRecurrenceInterval"
+            [ngModel]="newRiderServiceType().default_recurrence_interval"
+            (ngModelChange)="patchNewRiderServiceType({ default_recurrence_interval: +$event })"
+          />
+          <small class="field-error" *ngIf="riderServiceTypeErrors().recurrence">
+            {{ riderServiceTypeErrors().recurrence }}
+          </small>
+        </label>
+      </div>
+
+      <div class="form-grid cols-3">
+        <label class="field-card field-toggle">
+          <div class="toggle-line">
+            <span class="field-label">דורש אישור מזכירה</span>
+            <label class="switch">
+              <input
+                type="checkbox"
+                name="newRiderServiceRequiresApproval"
+                [ngModel]="newRiderServiceType().requires_approval"
+                (ngModelChange)="patchNewRiderServiceType({ requires_approval: $event })"
+              />
+              <span class="switch-ui"></span>
+            </label>
+          </div>
+        </label>
+
+        <label class="field-card field-toggle">
+          <div class="toggle-line">
+            <span class="field-label">פעיל</span>
+            <label class="switch">
+              <input
+                type="checkbox"
+                name="newRiderServiceActive"
+                [ngModel]="newRiderServiceType().is_active"
+                (ngModelChange)="patchNewRiderServiceType({ is_active: $event })"
+              />
+              <span class="switch-ui"></span>
+            </label>
+          </div>
+        </label>
+
+        <label class="field-card">
+          <span class="field-label">הערות</span>
+          <input
+            class="form-control"
+            type="text"
+            maxlength="150"
+            name="newRiderServiceNotes"
+            [ngModel]="newRiderServiceType().notes"
+            (ngModelChange)="patchNewRiderServiceType({ notes: $event })"
+          />
+        </label>
+      </div>
+
+      <div class="panel-actions">
+        <button
+          type="button"
+          class="btn btn-primary"
+          [disabled]="
+            !newRiderServiceType().name.trim() ||
+            !!riderServiceTypeErrors().name ||
+            !!riderServiceTypeErrors().default_price_agorot ||
+            !!riderServiceTypeErrors().recurrence
+          "
+          (click)="addRiderServiceType()"
+        >
+          שמירה
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-ghost"
+          (click)="showNewRiderServiceTypeForm.set(false); resetNewRiderServiceType()"
+        >
+          ביטול
+        </button>
+      </div>
+    </div>
+
+    <div class="data-list" *ngIf="riderServiceTypes().length; else noRiderServiceTypes">
+      <div class="data-head cols-riding">
+        <div>שם</div>
+        <div>סטטוס</div>
+        <div>פעולות</div>
+      </div>
+
+      <div
+        class="data-row cols-riding"
+        *ngFor="let service of riderServiceTypes()"
+        [class.inactive]="!service.is_active"
+      >
+        <ng-container *ngIf="editingRiderServiceTypeId() !== service.id; else editServiceType">
+          <div class="cell-main">
+            <div class="row-title">{{ service.name }}</div>
+            <div class="row-sub">
+              {{
+                service.category === 'boarding' ? 'פנסיון' :
+                service.category === 'medical' ? 'רפואי' :
+                service.category === 'maintenance' ? 'תחזוקה' :
+                'כללי'
+              }}
+· {{ service.default_price_shekel }} ₪
+              <span *ngIf="service.is_recurring">
+                · חוזר כל {{ service.default_recurrence_interval }}
+                {{
+                  service.default_recurrence_unit === 'day' ? 'ימים' :
+                  service.default_recurrence_unit === 'week' ? 'שבועות' :
+                  'חודשים'
+                }}
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <span class="status-chip-tiny" [class.success]="service.is_active" [class.danger]="!service.is_active">
+              {{ service.is_active ? 'פעיל' : 'לא פעיל' }}
+            </span>
+          </div>
+
+          <div class="actions-inline">
+            <button type="button" class="btn btn-text" (click)="startEditRiderServiceType(service)">
+              עריכה
+            </button>
+            <button type="button" class="btn btn-text danger" (click)="deleteRiderServiceType(service)">
+              מחיקה
+            </button>
+          </div>
+        </ng-container>
+
+        <ng-template #editServiceType>
+          <div class="cell-main">
+            <input
+              class="form-control"
+              type="text"
+              [(ngModel)]="service.name"
+              [ngModelOptions]="{ standalone: true }"
+            />
+            <input
+  class="form-control"
+  type="number"
+  min="0"
+  step="0.5"
+  [(ngModel)]="service.default_price_shekel"
+  [ngModelOptions]="{ standalone: true }"
+  placeholder="מחיר ₪"
+/>
+          </div>
+
+          <div>
+            <label class="mini-check">
+              <input
+                type="checkbox"
+                [(ngModel)]="service.is_active"
+                [ngModelOptions]="{ standalone: true }"
+              />
+              <span>פעיל</span>
+            </label>
+          </div>
+
+          <div class="actions-inline">
+            <button type="button" class="btn btn-text" (click)="updateRiderServiceType(service)">
+              שמירה
+            </button>
+            <button type="button" class="btn btn-text" (click)="cancelEditRiderServiceType()">
+              ביטול
+            </button>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+
+    <ng-template #noRiderServiceTypes>
+      <div class="empty-state">
+        <div class="empty-text">עדיין לא הוגדרו שירותים לרוכבים עצמאיים.</div>
+        <button type="button" class="btn btn-ghost" (click)="showNewRiderServiceTypeForm.set(true)">
+          הוספת שירות ראשון
+        </button>
+      </div>
+    </ng-template>
+  </ng-container>
+</section>
 
       <!-- סוגי רכיבה -->
       <section class="settings-card">
