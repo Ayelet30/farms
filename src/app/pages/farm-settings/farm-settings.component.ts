@@ -1554,10 +1554,10 @@ if (
 
 if (
   s.lesson_duration_minutes != null &&
-  (s.lesson_duration_minutes < 10 || s.lesson_duration_minutes > 540)
+  s.lesson_duration_minutes % 15 !== 0
 ) {
   errors.lesson_duration_minutes =
-    'אורך שיעור חייב להיות בין 10 דקות ל־9 שעות (540 דקות)';
+    'אורך שיעור חייב להיות בקפיצות של 15 דקות בלבד';
 }
 
 
