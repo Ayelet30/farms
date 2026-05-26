@@ -3,11 +3,14 @@ import { defineSecret } from 'firebase-functions/params';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
-
+import {
+  sendWhatsappMessage,
+  TWILIO_ACCOUNT_SID_S,
+  TWILIO_AUTH_TOKEN_S,
+} from './whatsapp.service';
 import { SUPABASE_URL_S, SUPABASE_KEY_S } from './gmail/email-core';
 import { notifyUserInternal } from './notify-user-client';
 import { buildSingleLessonStatusEmail } from './email-builders/send-single-lesson-status-email';
-
 const ALLOWED_ORIGINS = new Set<string>([
   'https://smart-farm.org',
   'https://bereshit-ac5d8.web.app',
@@ -15,6 +18,10 @@ const ALLOWED_ORIGINS = new Set<string>([
   'http://localhost:4200',
   'https://localhost:4200',
 ]);
+import {
+  sendVoiceMessage,
+  TWILIO_VOICE_FROM_S,
+} from './voice.service';
 
 function applyCors(req: any, res: any): boolean {
   const origin = String(req.headers.origin || '');
@@ -64,12 +71,60 @@ async function requireAuth(req: any) {
   if (!m) throw new Error('Missing Bearer token');
   return admin.auth().verifyIdToken(m[1]);
 }
+function formatDateDMY(dateStr: string | null): string | null {
+  if (!dateStr) return null;
 
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+
+  return `${day}/${month}/${year}`;
+}
+function toGoogleLocalDateTime(dateStr: string, timeStr: string): string {
+  const [year, month, day] = dateStr.split('-');
+  const [hour, minute] = timeStr.split(':');
+
+  return `${year}${month}${day}T${hour}${minute}00`;
+}
+
+function buildGoogleCalendarLink(params: {
+  title: string;
+  lessonDate: string;
+  startTime: string;
+  endTime: string;
+  details?: string;
+  location?: string;
+}) {
+  const url = new URL('https://calendar.google.com/calendar/render');
+
+  url.searchParams.set('action', 'TEMPLATE');
+  url.searchParams.set('text', params.title);
+  url.searchParams.set(
+    'dates',
+    `${toGoogleLocalDateTime(params.lessonDate, params.startTime)}/${toGoogleLocalDateTime(params.lessonDate, params.endTime)}`
+  );
+  url.searchParams.set('ctz', 'Asia/Jerusalem');
+
+  if (params.details) url.searchParams.set('details', params.details);
+  if (params.location) url.searchParams.set('location', params.location);
+
+  return url.toString();
+}
 export const notifySingleLessonApproved = onRequest(
   {
     region: 'us-central1',
-    secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, INTERNAL_CALL_SECRET_S],
-  },
+secrets: [
+  SUPABASE_URL_S,
+  SUPABASE_KEY_S,
+  INTERNAL_CALL_SECRET_S,
+  // TWILIO_ACCOUNT_SID_S,
+  // TWILIO_AUTH_TOKEN_S,
+  // TWILIO_VOICE_FROM_S,
+],
+   },
   async (req, res) => {
     try {
       if (applyCors(req, res)) return;
@@ -146,7 +201,7 @@ export const notifySingleLessonApproved = onRequest(
 
       const { data: parentRow, error: parErr } = await sbTenant
         .from('parents')
-        .select('first_name, last_name')
+.select('first_name, last_name, phone')
         .eq('uid', childRow.parent_uid)
         .maybeSingle();
       if (parErr) throw parErr;
@@ -231,13 +286,89 @@ export const notifySingleLessonApproved = onRequest(
         mailError = { message: e?.message || String(e) };
         console.warn('notifySingleLessonApproved: mail failed', mailError);
       }
+// let whatsappOk = false;
+// let whatsappError: any = null;
 
+// try {
+//   const rawPhone =
+//     String((parentRow as any)?.phone ?? (parentRow as any)?.phone_number ?? '').trim();
+
+//   if (!rawPhone) {
+//     throw new Error('Parent missing phone number');
+//   }
+  
+// const formattedLessonDate = formatDateDMY(lessonDate);
+
+// let calendarUrl = '';
+
+// if (lessonDate && requestedStartTime && requestedEndTime) {
+//   calendarUrl = buildGoogleCalendarLink({
+//     title: `שיעור רכיבה - ${childName}`,
+//     lessonDate: lessonDate,
+//     startTime: requestedStartTime,
+//     endTime: requestedEndTime,
+//     details: `מדריך/ה: ${instructorName ?? ''}`,
+//     location: farmName,
+//   });
+// }
+// const whatsappText =
+//   `שלום ${parentName},\n\n` +
+//   `הבקשה לשיעור בודד אושרה ✅\n\n` +
+//   `תאריך: ${formattedLessonDate ?? ''}\n` +
+//   `שעה: ${requestedStartTime ?? ''}-${requestedEndTime ?? ''}\n\n` +
+//   (calendarUrl ? `להוספה ליומן Google:\n${calendarUrl}` : '');
+//   await sendWhatsappMessage({
+//   toPhone: rawPhone,
+//   message: whatsappText,
+// });
+
+//   whatsappOk = true;
+// } catch (e: any) {
+//   whatsappOk = false;
+//   whatsappError = { message: e?.message || String(e) };
+//   console.warn('notifySingleLessonApproved: whatsapp failed', whatsappError);
+// }
+// let voiceOk = false;
+// let voiceError: any = null;
+
+// try {
+//   const rawPhone =
+//     String((parentRow as any)?.phone ?? (parentRow as any)?.phone_number ?? '').trim();
+
+//   if (!rawPhone) {
+//     throw new Error('Parent missing phone number');
+//   }
+
+//   const formattedLessonDate = formatDateDMY(lessonDate);
+
+//   const voiceText =
+//     `שלום ${parentName}. ` +
+//     `הבקשה לשיעור בודד עבור ${childName} אושרה. ` +
+//     (formattedLessonDate ? `התאריך הוא ${formattedLessonDate}. ` : '') +
+//     (requestedStartTime ? `השעה היא ${requestedStartTime}. ` : '') +
+//     `תודה, ${farmName}.`;
+
+//   await sendVoiceMessage({
+//     toPhone: rawPhone,
+//     message: voiceText,
+//   });
+
+//   voiceOk = true;
+// } catch (e: any) {
+//   voiceOk = false;
+//   voiceError = { message: e?.message || String(e) };
+//   console.warn('notifySingleLessonApproved: voice failed', voiceError);
+// }
       return void res.status(200).json({
         ok: true,
         mailOk,
+        // whatsappOk,
         warning,
         mail,
         mailError,
+        // whatsappError,
+        // voiceOk,
+        // voiceError,
       });
     } catch (e: any) {
       console.error('notifySingleLessonApproved error', e);
