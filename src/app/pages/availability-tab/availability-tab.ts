@@ -389,22 +389,27 @@ private async loadRidingTypes() {
 getAllowedRidingTypesForSlot(slot: TimeSlot): RidingType[] {
   const currentType = this.ridingTypes.find(rt => rt.id === slot.ridingTypeId);
 
-  if (!currentType) {
-    return this.ridingTypes;
+  // זמינות חדשה — להציג את כל סוגי השיעור הרגילים
+  if (slot.isNew || !currentType) {
+    return this.ridingTypes.filter(rt => rt.code?.trim() !== 'break');
+  }
+
+  // אם הסוג הקיים הוא הפסקה — להציג רק הפסקה
+  if (currentType.code?.trim() === 'break') {
+    return [currentType];
   }
 
   const currentMax = currentType.max_participants ?? 0;
 
   return this.ridingTypes.filter(rt => {
-    // להשאיר את הסוג הנוכחי מוצג
     if (rt.id === slot.ridingTypeId) return true;
 
-    // חייב להיות אותו spacial_duration בדיוק
+    if (rt.code?.trim() === 'break') return false;
+
     if (rt.special_duration !== currentType.special_duration) {
       return false;
     }
 
-    // חייב לאפשר יותר ילדים
     return (rt.max_participants ?? 0) > currentMax;
   });
 }
