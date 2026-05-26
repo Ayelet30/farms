@@ -200,6 +200,29 @@ private dialog = inject(MatDialog);
 
   isMobile = signal(false);
 
+  filtersOpen = signal(false);
+
+toggleFilters() {
+  this.filtersOpen.update(v => !v);
+}
+
+pendingCount = computed(() =>
+  this.allRequests().filter(x=>x.status==="PENDING").length
+);
+
+approvedCount = computed(() =>
+  this.allRequests().filter(x=>x.status==="APPROVED").length
+);
+
+rejectedCount = computed(() =>
+  this.allRequests().filter(
+x=>x.status==="REJECTED" ||
+x.status==="REJECTED_BY_SYSTEM"
+).length
+);
+
+allCount = computed(()=>this.allRequests().length);
+
   @ViewChild('detailsDrawer') detailsDrawer?: MatSidenav;
 
   private selectedIdsSig = signal<Set<string>>(new Set());

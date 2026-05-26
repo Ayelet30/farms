@@ -2,44 +2,51 @@
 <div class="layout" [class.desktop]="isDesktop">
 
   <!-- Drawer/Sidebar -->
-  <nav class="side-menu"
-     [class.collapsed]="isDesktop && collapsed"
-     [class.mobile]="!isDesktop"
-     [class.open]="!isDesktop && !collapsed">
+  <nav class="side-menu" [class.collapsed]="isDesktop && collapsed" [class.mobile]="!isDesktop"
+    [class.open]="!isDesktop && !collapsed">
 
-  <div class="mobile-drawer-head" *ngIf="!isDesktop">
-    <button type="button" class="close-btn" (click)="toggleMenu(true)">✕</button>
-  </div>
+    <div class="mobile-drawer-head" *ngIf="!isDesktop">
+      <button type="button" class="close-btn" (click)="toggleMenu(true)">✕</button>
+    </div>
 
-    <button class="toggle-button"
-            (click)="toggleMenu()"
-            [attr.aria-expanded]="!collapsed"
-            [attr.aria-label]="collapsed ? 'פתח תפריט' : 'סגור תפריט'">
+    <button class="toggle-button" (click)="toggleMenu()" [attr.aria-expanded]="!collapsed"
+      [attr.aria-label]="collapsed ? 'פתח תפריט' : 'סגור תפריט'">
       <svg class="chevron" [class.left]="collapsed" viewBox="0 0 24 24" width="20" height="20" fill="none">
-        <path d="M9 6L15 12L9 18"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"/>
+        <path d="M9 6L15 12L9 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round" />
       </svg>
     </button>
 
     <!-- side-menu.html -->
     <ul>
       <li *ngFor="let item of menuItems"
-          (click)="navigateTo(item.path)"
-          [class.active]="isActive(item.path)"
-          [attr.title]="collapsed ? item.label : null">
-          <span class="label">{{ item.label }}</span>
-          <span class="icon" [ngClass]="'i-' + item.icon"></span>
-      </li>
+    [class.menu-section]="item.section"
+    [class.active]="!item.section && item.path && isActive(item.path)"
+    [attr.title]="collapsed && !item.section ? item.label : null"
+    (click)="!item.section && item.path && navigateTo(item.path)">
+
+  <ng-container *ngIf="item.section; else menuLink">
+    <span class="section-title">{{ item.label }}</span>
+  </ng-container>
+
+  <ng-template #menuLink>
+    <span class="label">{{ item.label }}</span>
+
+    <div class="icon-wrapper">
+      <span class="icon" [ngClass]="'i-' + item.icon"></span>
+
+      <div class="menu-badge" *ngIf="item.badge && item.badge > 0">
+        {{ item.badge }}
+      </div>
+    </div>
+  </ng-template>
+
+</li>
     </ul>
 
   </nav>
 
   <!-- שכבת כיסוי במובייל -->
-  <div class="scrim"
-       *ngIf="!isDesktop && !collapsed"
-       (click)="toggleMenu(true)">
+  <div class="scrim" *ngIf="!isDesktop && !collapsed" (click)="toggleMenu(true)">
   </div>
 </div>
