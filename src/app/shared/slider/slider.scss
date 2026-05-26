@@ -182,7 +182,10 @@
   cursor: pointer;
   text-align: right;
 }
-
+/* 🐎 רוכבים עצמאיים */
+.side-menu .i-rider {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='8.5' cy='7.5' r='2.7'/%3E%3Cpath d='M3.5 18c1.7-3 3.8-4.5 6-4.5 2.3 0 4.4 1.5 6.1 4.5'/%3E%3Cpath d='M15 10.5l2-1.5 3 1v2.5l-1.2 2.2c-.3.5-.5 1.1-.5 1.7V19'/%3E%3Cpath d='M15.5 12.5h2.2'/%3E%3Ccircle cx='19' cy='10' r='.5'/%3E%3C/svg%3E");
+}
 .side-menu ul > li .icon {
   width: 22px;
   height: 22px;

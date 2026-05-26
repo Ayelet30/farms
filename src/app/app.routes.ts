@@ -101,7 +101,6 @@ export const routes: Routes = [
             .then(m => m.InstructorSettingsComponent)
       },
 
-      /* ⭐⭐⭐ חדש — העדפות זמינות ⭐⭐⭐ */
       {
         path: 'availability',
         loadComponent: () =>
@@ -146,6 +145,12 @@ export const routes: Routes = [
           import('./pages/secretary-instructors/secretary-instructors.component')
             .then(m => m.SecretaryInstructorsComponent)
       },
+      {
+  path: 'independent-riders',
+  loadComponent: () =>
+    import('./pages/secretary-independent-riders/secretary-independent-riders')
+      .then(m => m.SecretaryIndependentRidersComponent),
+},
       {
         path: 'horses',
         loadComponent: () =>

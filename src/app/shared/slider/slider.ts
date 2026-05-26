@@ -86,6 +86,7 @@ private setMenuItemsByRole() {
       this.menuItems = [
         { path: 'secretary/parents',         label: 'הורים בחווה',       icon: 'parents' },
         { path: 'secretary/children',        label: 'ילדים בחווה',       icon: 'children' },
+        { path: 'secretary/independent-riders', label: 'רוכבים עצמאיים', icon: 'rider' },
         { path: 'secretary/instructors',     label: 'מדריכים בחווה',     icon: 'instructor' },
         { path: 'secretary/horses',        label: 'סוסים בחווה',       icon: 'hors' },
         { path: 'secretary/arenas',     label: 'מגרשים בחווה',     icon: 'arena' },
