@@ -118,36 +118,24 @@ private setMenuItemsByRole() {
       break;
 
     case 'secretary':
-  this.menuItems = [
-    { label: 'ניהול חווה', section: true },
-    { path: 'secretary/parents', label: 'הורים בחווה', icon: 'parents' },
-    { path: 'secretary/children', label: 'ילדים בחווה', icon: 'children' },
-    { path: 'secretary/instructors', label: 'מדריכים בחווה', icon: 'instructor' },
-    { path: 'secretary/horses', label: 'סוסים בחווה', icon: 'hors' },
-    { path: 'secretary/arenas', label: 'מגרשים בחווה', icon: 'arena' },
-
-    { label: 'פעילות שוטפת', section: true },
-    { path: 'secretary/schedule', label: 'לו״ז ומעקב', icon: 'calendar' },
-    { path: 'secretary/appointment', label: 'זימון תורים', icon: 'calendar_plus' },
-    { path: 'secretary/waitlist', label: 'רשימת המתנה', icon: 'waitlist' },
-    { path: 'secretary/messages', label: 'יצירת קשר', icon: 'messages' },
-    { path: 'secretary/monthly-summary', label: 'סיכום וגרפים', icon: 'bar_chart' },
-
-    { label: 'בקשות וכספים', section: true },
-    {
-      path: 'secretary/requests',
-      label: 'בקשות ואישורים',
-      icon: 'checklist',
-      badge: this.pendingRequestsCount
-    },
-    { path: 'secretary/payments', label: 'תשלומים וחשבוניות', icon: 'card' },
-    { path: 'secretary/billing', label: 'ניהול חיובים', icon: 'billing' },
-    { path: 'secretary/claims', label: 'טיפול בתביעות', icon: 'claims' },
-
-    { label: 'מערכת', section: true },
-    { path: 'secretary/settings', label: 'הגדרות חווה', icon: 'settings' },
-  ];
-  break;
+      this.menuItems = [
+        { path: 'secretary/parents',         label: 'הורים בחווה',       icon: 'parents' },
+        { path: 'secretary/children',        label: 'ילדים בחווה',       icon: 'children' },
+        { path: 'secretary/independent-riders', label: 'רוכבים עצמאיים', icon: 'rider' },
+        { path: 'secretary/instructors',     label: 'מדריכים בחווה',     icon: 'instructor' },
+        { path: 'secretary/horses',        label: 'סוסים בחווה',       icon: 'hors' },
+        { path: 'secretary/arenas',     label: 'מגרשים בחווה',     icon: 'arena' },
+        { path: 'secretary/schedule',        label: 'לו״ז ומעקב',        icon: 'calendar' },
+        { path: 'secretary/appointment',     label: 'זימון תורים',       icon: 'calendar_plus' },
+        { path: 'secretary/waitlist',        label: 'רשימת המתנה',      icon: 'waitlist' },
+        { path: 'secretary/messages',        label: 'יצירת קשר',            icon: 'messages' },
+        { path: 'secretary/monthly-summary', label: 'סיכום וגרפים',      icon: 'bar_chart' },
+        { path: 'secretary/requests',        label: 'בקשות ואישורים',    icon: 'checklist' },
+        { path: 'secretary/payments',        label: 'תשלומים וחשבוניות', icon: 'card' },
+        { path: 'secretary/billing',        label: 'ניהול חיובים',       icon: 'billing' },
+        { path: 'secretary/claims',        label: 'טיפול בתביעות',       icon: 'claims' },
+        { path: 'secretary/settings',        label: 'הגדרות חווה',       icon: 'settings' },
+      ];
       break;
 
     case 'admin':
