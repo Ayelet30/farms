@@ -76,7 +76,7 @@ function validateTenantSchema(schema: string): boolean {
   return /^[a-zA-Z0-9_]+$/.test(schema);
 }
 
-type UserType = 'parent' | 'instructor';
+type UserType = 'parent' | 'instructor' | 'independent';
 
 function toBool(v: any): boolean {
   return v === true || v === 'true' || v === 1 || v === '1';
@@ -130,21 +130,21 @@ export const notifyUser = onRequest(
       const subject = normStr(body.subject, 200);
       const html = normStr(body.html, 80000);
       const text = normStr(body.text, 20000);
-const attachmentsRaw = Array.isArray(body.attachments) ? body.attachments : [];
-const attachments: EmailAttachment[] = attachmentsRaw
-  .map((a: any) => ({
-    filename: normStr(a?.filename, 200),
-    contentType: normStr(a?.contentType, 100),
-    contentBase64: normStr(a?.contentBase64, 15_000_000), // הגבלה גסה כדי לא לקבל מפלצות
-  }))
-.filter((a: EmailAttachment) => a.filename && a.contentType && a.contentBase64);      const toOverride = body.to ? String(body.to).trim() : null;
+      const attachmentsRaw = Array.isArray(body.attachments) ? body.attachments : [];
+      const attachments: EmailAttachment[] = attachmentsRaw
+        .map((a: any) => ({
+          filename: normStr(a?.filename, 200),
+          contentType: normStr(a?.contentType, 100),
+          contentBase64: normStr(a?.contentBase64, 15_000_000), // הגבלה גסה כדי לא לקבל מפלצות
+        }))
+        .filter((a: EmailAttachment) => a.filename && a.contentType && a.contentBase64); const toOverride = body.to ? String(body.to).trim() : null;
 
       if (!tenantSchema) return void res.status(400).json({ error: 'Missing "tenantSchema"' });
       if (!validateTenantSchema(tenantSchema)) return void res.status(400).json({ error: 'Invalid tenantSchema' });
 
       if (!uid) return void res.status(400).json({ error: 'Missing "uid"' });
-      if (userType !== 'parent' && userType !== 'instructor') {
-        return void res.status(400).json({ error: 'userType must be parent|instructor' });
+      if (userType !== 'parent' && userType !== 'instructor' && userType !== 'independent') {
+        return void res.status(400).json({ error: 'userType must be parent|instructor|independent' });
       }
       if (!subject) return void res.status(400).json({ error: 'Missing "subject"' });
       if (!html && !text) return void res.status(400).json({ error: 'Provide "html" or "text"' });
@@ -174,7 +174,7 @@ const attachments: EmailAttachment[] = attachmentsRaw
 
         notify = data.notify ?? {};
         toEmail = toOverride || data.email || null;
-      } else {
+      } else if (userType === 'instructor') {
         // Instructor: notify מהטננט, email מ-public.users
         const { data, error } = await sb
           .schema(tenantSchema)
@@ -198,6 +198,29 @@ const attachments: EmailAttachment[] = attachmentsRaw
         if (uerr) return void res.status(500).json({ error: 'DB error', message: uerr.message });
 
         toEmail = toOverride || urow?.email || null;
+      }
+      else {
+        // Independent rider
+        const { data, error } = await sb
+          .schema(tenantSchema)
+          .from('independent_riders')
+          .select('uid,email,status')
+          .eq('uid', uid)
+          .maybeSingle();
+
+        if (error) return void res.status(500).json({ error: 'DB error', message: error.message });
+        if (!data) return void res.status(404).json({ error: 'Independent rider not found in tenant', tenantSchema });
+
+        if (data.status !== 'active') {
+          return void res.status(200).json({ sent: false, channel: 'email', reason: 'independent_inactive' });
+        }
+
+        notify = {
+          email: true,
+          signupApproved: true,
+        };
+
+        toEmail = toOverride || data.email || null;
       }
 
       // בדיקת העדפות

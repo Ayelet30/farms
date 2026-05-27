@@ -9,32 +9,41 @@ import { ParentHomeComponent } from './parent-home/parent-home';
 // import { BillingErrorComponent } from './billing/billing-error.component';
 
 export const routes: Routes = [
+
   { path: '', redirectTo: 'home', pathMatch: 'full' },
 
   { path: 'home', loadComponent: () => import('./pages/home/home.component').then(m => m.HomeComponent) },
   {
-  path: 'accessibility',
-  loadComponent: () =>
-    import('./pages/accessibility/accessibility.component')
-      .then(m => m.AccessibilityComponent)
-},
+    path: 'accessibility',
+    loadComponent: () =>
+      import('./pages/accessibility/accessibility.component')
+        .then(m => m.AccessibilityComponent)
+  },
 
-{
-  path: 'privacy-policy',
-  loadComponent: () =>
-    import('./pages/privacy-policy/privacy-policy.component')
-      .then(m => m.PrivacyPolicyComponent)
-},
+  {
+    path: 'privacy-policy',
+    loadComponent: () =>
+      import('./pages/privacy-policy/privacy-policy.component')
+        .then(m => m.PrivacyPolicyComponent)
+  },
 
   {
     path: 'checkout/ride/:productId',
     component: OneTimePaymentComponent,
   },
 
- {
-  path: 'register/:farm',
-  loadComponent: () => import('./parent-signup/parent-signup.component').then(m => m.ParentPublicSignupComponent)
- },
+  {
+    path: 'register-independent/:farm',
+    loadComponent: () =>
+      import('./independent-signup/independent-signup.component')
+        .then(m => m.IndependentPublicSignupComponent),
+  },
+
+  {
+    path: 'register/:farm',
+    loadComponent: () => import('./parent-signup/parent-signup.component')
+      .then(m => m.ParentPublicSignupComponent)
+  },
 
 
   { path: 'booking/:type', loadComponent: () => import('./pages/booking/booking.component').then(m => m.BookingComponent) },
@@ -50,7 +59,7 @@ export const routes: Routes = [
     canActivate: [RoleGuard, TenantReadyGuard],
     data: { role: 'parent' },
     children: [
-      { path: '', component: ParentHomeComponent }, 
+      { path: '', component: ParentHomeComponent },
       { path: 'children', loadComponent: () => import('./pages/parent-children/parent-children').then(m => m.ParentChildrenComponent) },
       { path: 'schedule', loadComponent: () => import('./pages/schedule/parent-schedule/parent-schedule').then(m => m.ParentScheduleComponent) },
       { path: 'appointment', loadComponent: () => import('./appointment-scheduler/appointment-scheduler.component').then(m => m.AppointmentSchedulerComponent) },
@@ -87,12 +96,12 @@ export const routes: Routes = [
       {
         path: 'monthly-summary',
         loadComponent: () =>
-        import('./pages/monthly-summary/monthly-summary')
-          .then(m => m.MonthlySummaryComponent),
-          data: {
-            monthlyTitle: 'הסיכום החודשי שלי',
-            yearlyTitle: 'הסיכום השנתי שלי',
-          },
+          import('./pages/monthly-summary/monthly-summary')
+            .then(m => m.MonthlySummaryComponent),
+        data: {
+          monthlyTitle: 'הסיכום החודשי שלי',
+          yearlyTitle: 'הסיכום השנתי שלי',
+        },
       },
       {
         path: 'settings',
@@ -146,11 +155,11 @@ export const routes: Routes = [
             .then(m => m.SecretaryInstructorsComponent)
       },
       {
-  path: 'independent-riders',
-  loadComponent: () =>
-    import('./pages/secretary-independent-riders/secretary-independent-riders')
-      .then(m => m.SecretaryIndependentRidersComponent),
-},
+        path: 'independent-riders',
+        loadComponent: () =>
+          import('./pages/secretary-independent-riders/secretary-independent-riders')
+            .then(m => m.SecretaryIndependentRidersComponent),
+      },
       {
         path: 'horses',
         loadComponent: () =>
@@ -203,13 +212,13 @@ export const routes: Routes = [
       {
         path: 'monthly-summary',
         loadComponent: () =>
-        import('./pages/monthly-summary/monthly-summary')
-          .then(m => m.MonthlySummaryComponent),
-          data: {
-            monthlyTitle: 'הסיכום החודשי של החווה',
-            yearlyTitle: 'הסיכום השנתי של החווה',
-          },
+          import('./pages/monthly-summary/monthly-summary')
+            .then(m => m.MonthlySummaryComponent),
+        data: {
+          monthlyTitle: 'הסיכום החודשי של החווה',
+          yearlyTitle: 'הסיכום השנתי של החווה',
         },
+      },
       {
         path: 'requests',
         loadComponent: () =>
