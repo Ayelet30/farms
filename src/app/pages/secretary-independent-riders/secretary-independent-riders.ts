@@ -85,7 +85,11 @@ export class SecretaryIndependentRidersComponent implements OnInit {
     { key: 'active_services_count', label: 'שירותים פעילים', visible: true },
     { key: 'status', label: 'סטטוס', visible: true },
   ];
+  activeDrawerTab: 'details' | 'horses' | 'services' | 'billing' = 'details';
 
+  drawerHorses: any[] = [];
+  drawerServices: any[] = [];
+  drawerChargeItems: any[] = [];
   stats = {
     total: 0,
     filtered: 0,
@@ -98,7 +102,7 @@ export class SecretaryIndependentRidersComponent implements OnInit {
   constructor(
     private ui: UiDialogService,
     private fb: FormBuilder,
-  ) {}
+  ) { }
 
   async ngOnInit(): Promise<void> {
     this.loadTablePrefs();
@@ -229,6 +233,10 @@ export class SecretaryIndependentRidersComponent implements OnInit {
     this.drawerRider = null;
     this.editMode = false;
     this.originalRider = null;
+    this.activeDrawerTab = 'details';
+    this.drawerHorses = [];
+    this.drawerServices = [];
+    this.drawerChargeItems = [];
 
     this.drawer.open();
     await this.loadDrawerData(uid);
@@ -262,6 +270,11 @@ export class SecretaryIndependentRidersComponent implements OnInit {
       this.drawerRider = data as IndependentRiderRow;
       this.originalRider = structuredClone(this.drawerRider);
       this.buildForm(this.drawerRider);
+      await Promise.all([
+        this.loadDrawerHorses(uid),
+        this.loadDrawerServices(uid),
+        this.loadDrawerChargeItems(uid),
+      ]);
     } catch (e) {
       console.error(e);
       this.drawerRider = null;
@@ -395,5 +408,60 @@ export class SecretaryIndependentRidersComponent implements OnInit {
     } catch {
       // ignore
     }
+  }
+  setDrawerTab(tab: 'details' | 'horses' | 'services' | 'billing'): void {
+    this.activeDrawerTab = tab;
+  }
+
+  private async loadDrawerHorses(uid: string): Promise<void> {
+    const { data, error } = await dbTenant()
+      .from('horses')
+      .select('id, name, age, color, gender, horse_size, is_active, notes')
+      .eq('owner_rider_uid', uid)
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('loadDrawerHorses error', error);
+      this.drawerHorses = [];
+      return;
+    }
+
+    this.drawerHorses = data ?? [];
+  }
+
+  private async loadDrawerServices(uid: string): Promise<void> {
+    const { data, error } = await dbTenant()
+      .from('rider_services')
+      .select('id, service_name, start_date, end_date, status, price_agorot, billing_frequency, notes')
+      .eq('rider_uid', uid)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('loadDrawerServices error', error);
+      this.drawerServices = [];
+      return;
+    }
+
+    this.drawerServices = data ?? [];
+  }
+
+  private async loadDrawerChargeItems(uid: string): Promise<void> {
+    const { data, error } = await dbTenant()
+      .from('rider_charge_items')
+      .select('id, description, service_date, period_start, period_end, quantity, unit_price_agorot, amount_agorot, billing_source, created_at')
+      .eq('rider_uid', uid)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('loadDrawerChargeItems error', error);
+      this.drawerChargeItems = [];
+      return;
+    }
+
+    this.drawerChargeItems = data ?? [];
+  }
+
+  formatAgorot(value: number | null | undefined): string {
+    return `${Number(value || 0) / 100} ₪`;
   }
 }
