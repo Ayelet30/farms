@@ -11,16 +11,16 @@ export class App implements OnInit {
   private router = inject(Router);
   protected title = 'Smart Farm';
 
-  constructor() {}
-
+  constructor() { }
   ngOnInit(): void {
-    const path = window.location.pathname.replace(/^\/+/, ''); // בלי /
-    const isRegister = path.startsWith('register/');           // register/:farm
+    const path = window.location.pathname.replace(/^\/+/, '');
 
-    // אם זה קישור חיצוני ל- register/:farm — לא עושים redirect
-    if (isRegister) return;
+    const isPublicSignup =
+      path.startsWith('register/') ||
+      path.startsWith('register-independent/');
 
-    // אחרת: כל רענון/טעינה -> בית
+    if (isPublicSignup) return;
+
     this.router.navigateByUrl('/', { replaceUrl: true });
   }
 }

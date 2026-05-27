@@ -45,72 +45,76 @@ type RequestRule = {
 export class RequestValidationService {
   // ✅ פה נשמרים החוקים – כמו שהיה לך בקומפוננטה
   private readonly REQUEST_RULES: Record<RequestType, RequestRule> = {
-   CANCEL_OCCURRENCE: {
-  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor],
-  allowedChildStatuses: new Set([
-    'Active',
-    'Deletion Scheduled',
-    'Pending Deletion Approval',
-  ]),
-},
+    CANCEL_OCCURRENCE: {
+      checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor],
+      allowedChildStatuses: new Set([
+        'Active',
+        'Deletion Scheduled',
+        'Pending Deletion Approval',
+      ]),
+    },
 
-INSTRUCTOR_DAY_OFF: {
-  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Instructor, Check.FarmDayOff],
-},
+    INSTRUCTOR_DAY_OFF: {
+      checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Instructor, Check.FarmDayOff],
+    },
 
-NEW_SERIES: {
-  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.InstructorAvailability, Check.FarmDayOff],
-  allowedChildStatuses: new Set([
-    'Active',
-    'Deletion Scheduled',
-    'Pending Deletion Approval',
-  ]),
-},
+    NEW_SERIES: {
+      checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.InstructorAvailability, Check.FarmDayOff],
+      allowedChildStatuses: new Set([
+        'Active',
+        'Deletion Scheduled',
+        'Pending Deletion Approval',
+      ]),
+    },
 
-MAKEUP_LESSON: {
-  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff, Check.InstructorAvailability, Check.MakeupSourceStillRelevant],
-  allowedChildStatuses: new Set([
-    'Active',
-    'Deletion Scheduled',
-    'Pending Deletion Approval',
-  ]),
-},
+    MAKEUP_LESSON: {
+      checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff, Check.InstructorAvailability, Check.MakeupSourceStillRelevant],
+      allowedChildStatuses: new Set([
+        'Active',
+        'Deletion Scheduled',
+        'Pending Deletion Approval',
+      ]),
+    },
 
-FILL_IN: {
-  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff, Check.InstructorAvailability, Check.FillInSourceStillRelevant],
-  allowedChildStatuses: new Set([
-    'Active',
-    'Deletion Scheduled',
-    'Pending Deletion Approval',
-  ]),
-},
+    FILL_IN: {
+      checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff, Check.InstructorAvailability, Check.FillInSourceStillRelevant],
+      allowedChildStatuses: new Set([
+        'Active',
+        'Deletion Scheduled',
+        'Pending Deletion Approval',
+      ]),
+    },
 
-ADD_CHILD: {
-  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.ParentTarget, Check.Child],
-  allowedChildStatuses: new Set(['Pending Addition Approval']),
-},
+    ADD_CHILD: {
+      checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.ParentTarget, Check.Child],
+      allowedChildStatuses: new Set(['Pending Addition Approval']),
+    },
 
-DELETE_CHILD: {
-  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child],
-  allowedChildStatuses: new Set(['Pending Deletion Approval']),
-},
+    DELETE_CHILD: {
+      checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child],
+      allowedChildStatuses: new Set(['Pending Deletion Approval']),
+    },
 
-SINGLE_LESSON: {
-  checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.InstructorAvailability, Check.FarmDayOff],
-  allowedChildStatuses: new Set([
-    'Active',
-    'Deletion Scheduled',
-    'Pending Deletion Approval',
-  ]),
-},
+    SINGLE_LESSON: {
+      checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.InstructorAvailability, Check.FarmDayOff],
+      allowedChildStatuses: new Set([
+        'Active',
+        'Deletion Scheduled',
+        'Pending Deletion Approval',
+      ]),
+    },
 
-PARENT_SIGNUP: {
-  checks: [Check.PendingStatus],
-},
+    PARENT_SIGNUP: {
+      checks: [Check.PendingStatus],
+    },
+    INDEPENDENT_SIGNUP: {
+      checks: [Check.PendingStatus],
+    },
 
-OTHER_REQUEST: {
-  checks: [Check.PendingStatus],
-},
+
+    OTHER_REQUEST: {
+      checks: [Check.PendingStatus],
+    },
   };
 
   // =====================================
@@ -127,22 +131,22 @@ OTHER_REQUEST: {
     const type = row.requestType as RequestType;
     return this.REQUEST_RULES[type] ?? { checks: [Check.Requester] };
   }
-private normalizeResult(
-  r: { ok: boolean; reason?: string }
-): ValidationResult {
-  if (r.ok) {
-    return { ok: true };
+  private normalizeResult(
+    r: { ok: boolean; reason?: string }
+  ): ValidationResult {
+    if (r.ok) {
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      reason: r.reason ?? 'הבקשה אינה תקפה',
+    };
   }
-  return {
-    ok: false,
-    reason: r.reason ?? 'הבקשה אינה תקפה',
-  };
-}
 
   private async validateRequestByRules(
-  row: UiRequest,
-  mode: ValidationMode
-): Promise<ValidationResult> {
+    row: UiRequest,
+    mode: ValidationMode
+  ): Promise<ValidationResult> {
 
     if (!row) return { ok: false, reason: 'בקשה לא תקינה' };
 
@@ -151,145 +155,145 @@ private normalizeResult(
     await ensureTenantContextReady();
     const db = dbTenant();
 
-   for (const check of rules.checks) {
-  let r: ValidationResult | null = null;
+    for (const check of rules.checks) {
+      let r: ValidationResult | null = null;
 
-  switch (check) {
-    case Check.PendingStatus: {
-  r = this.normalizeResult(
-    await this.checkRequestStillPending(db, row, mode)
-  );
-  break;
-}
- case Check.Expiry: {
-  // 🔁 תמיד רענון נתונים מה-DB לפני approve/reject
-  if (mode !== 'auto') {
-    try {
-      // ===== CANCEL_OCCURRENCE =====
-      
-      if (row.requestType === 'CANCEL_OCCURRENCE') {
-        const fresh = await this.getFreshCancelOccurrenceDateTime(db, row, mode);
+      switch (check) {
+        case Check.PendingStatus: {
+          r = this.normalizeResult(
+            await this.checkRequestStillPending(db, row, mode)
+          );
+          break;
+        }
+        case Check.Expiry: {
+          // 🔁 תמיד רענון נתונים מה-DB לפני approve/reject
+          if (mode !== 'auto') {
+            try {
+              // ===== CANCEL_OCCURRENCE =====
 
-        const dateStr = fresh?.dateStr ?? (row.payload?.occur_date ?? row.fromDate ?? null);
-        const timeStr = fresh?.timeStr ?? null;
+              if (row.requestType === 'CANCEL_OCCURRENCE') {
+                const fresh = await this.getFreshCancelOccurrenceDateTime(db, row, mode);
 
-        if (dateStr) {
-          const dt = this.combineDateTime(dateStr, timeStr ?? '00:00');
-          console.log('[CANCEL EXPIRY DEBUG]', {
-  dateStr,
-  timeStr,
-  dt,
-  dtIso: dt.toISOString(),
-  now: new Date(),
-  nowIso: new Date().toISOString(),
-  dtMs: dt.getTime(),
-  nowMs: Date.now(),
-});
-          if (dt.getTime() < Date.now()) {
-            return { ok: false, reason: 'עבר מועד השיעור לביטול' };
+                const dateStr = fresh?.dateStr ?? (row.payload?.occur_date ?? row.fromDate ?? null);
+                const timeStr = fresh?.timeStr ?? null;
+
+                if (dateStr) {
+                  const dt = this.combineDateTime(dateStr, timeStr ?? '00:00');
+                  console.log('[CANCEL EXPIRY DEBUG]', {
+                    dateStr,
+                    timeStr,
+                    dt,
+                    dtIso: dt.toISOString(),
+                    now: new Date(),
+                    nowIso: new Date().toISOString(),
+                    dtMs: dt.getTime(),
+                    nowMs: Date.now(),
+                  });
+                  if (dt.getTime() < Date.now()) {
+                    return { ok: false, reason: 'עבר מועד השיעור לביטול' };
+                  }
+                }
+              }
+
+              // ===== MAKEUP / FILL_IN =====
+              if (
+                row.requestType === 'MAKEUP_LESSON' ||
+                row.requestType === 'FILL_IN' ||
+                row.requestType === 'SINGLE_LESSON'
+              ) {
+                const p: any = row.payload ?? {};
+                const dateStr =
+                  row.fromDate ??
+                  p.lesson_date ??
+                  p.requested_date ??
+                  p.occur_date ??
+                  p.from_date ??
+                  null;
+
+                const startStr = this.normalizeHHMM(
+                  p.requested_start_time ?? p.start_time ?? p.startTime ?? null
+                );
+
+                if (dateStr && startStr) {
+                  const dt = this.combineDateTime(String(dateStr).slice(0, 10), startStr);
+                  if (dt.getTime() < Date.now()) {
+                    return { ok: false, reason: 'עבר מועד השיעור המבוקש' };
+                  }
+                }
+              }
+
+            } catch (e: any) {
+              return this.handleDbFailure(mode, 'expiry fresh check', e);
+            }
           }
+
+          // fallback רגיל (כמו שהיה)
+          const expiryReason = await this.getExpiryReason(db, row, mode);
+          if (expiryReason) return { ok: false, reason: expiryReason };
+          break;
+        }
+
+
+        case Check.Requester: {
+          r = this.normalizeResult(
+            await this.checkRequesterActive(db, row, mode)
+          );
+          break;
+        }
+
+        case Check.Child: {
+          r = this.normalizeResult(
+            await this.checkChildActive(
+              db,
+              row,
+              mode,
+              rules.allowedChildStatuses
+            )
+          );
+          break;
+        }
+
+        case Check.Instructor: {
+          r = this.normalizeResult(
+            await this.checkInstructorActive(db, row, mode)
+          );
+          break;
+        }
+        case Check.InstructorAvailability: {
+          r = this.normalizeResult(
+            await this.checkInstructorAvailabilityConflict(db, row, mode)
+          );
+          break;
+        }
+        case Check.ParentTarget: {
+          r = this.normalizeResult(
+            await this.checkParentActive(db, row, mode)
+          );
+          break;
+        }
+
+        case Check.FarmDayOff: {
+          r = this.normalizeResult(
+            await this.checkFarmDayOffConflict(db, row, mode)
+          );
+          break;
+        }
+        case Check.MakeupSourceStillRelevant: {
+          r = this.normalizeResult(
+            await this.checkMakeupSourceStillRelevant(db, row, mode)
+          );
+          break;
+        }
+        case Check.FillInSourceStillRelevant: {
+          r = this.normalizeResult(
+            await this.checkFillInSourceStillRelevant(db, row, mode)
+          );
+          break;
         }
       }
 
- // ===== MAKEUP / FILL_IN =====
-if (
-  row.requestType === 'MAKEUP_LESSON' ||
-  row.requestType === 'FILL_IN' ||
-  row.requestType === 'SINGLE_LESSON'
-) {
-  const p: any = row.payload ?? {};
-  const dateStr =
-    row.fromDate ??
-    p.lesson_date ??
-    p.requested_date ??
-    p.occur_date ??
-    p.from_date ??
-    null;
-
-  const startStr = this.normalizeHHMM(
-    p.requested_start_time ?? p.start_time ?? p.startTime ?? null
-  );
-
-  if (dateStr && startStr) {
-    const dt = this.combineDateTime(String(dateStr).slice(0, 10), startStr);
-    if (dt.getTime() < Date.now()) {
-      return { ok: false, reason: 'עבר מועד השיעור המבוקש' };
+      if (r && !r.ok) return r;
     }
-  }
-}
-
-    } catch (e:any) {
-      return this.handleDbFailure(mode, 'expiry fresh check', e);
-    }
-  }
-
-  // fallback רגיל (כמו שהיה)
-  const expiryReason = await this.getExpiryReason(db, row, mode);
-if (expiryReason) return { ok: false, reason: expiryReason };
-  break;
-}
-
-
-    case Check.Requester: {
-      r = this.normalizeResult(
-        await this.checkRequesterActive(db, row, mode)
-      );
-      break;
-    }
-
-    case Check.Child: {
-      r = this.normalizeResult(
-        await this.checkChildActive(
-          db,
-          row,
-          mode,
-          rules.allowedChildStatuses
-        )
-      );
-      break;
-    }
-
-    case Check.Instructor: {
-      r = this.normalizeResult(
-        await this.checkInstructorActive(db, row, mode)
-      );
-      break;
-    }
-case Check.InstructorAvailability: {
-  r = this.normalizeResult(
-    await this.checkInstructorAvailabilityConflict(db, row, mode)
-  );
-  break;
-}
-    case Check.ParentTarget: {
-      r = this.normalizeResult(
-        await this.checkParentActive(db, row, mode)
-      );
-      break;
-    }
-
-    case Check.FarmDayOff: {
-      r = this.normalizeResult(
-        await this.checkFarmDayOffConflict(db, row, mode)
-      );
-      break;
-    }
-    case Check.MakeupSourceStillRelevant: {
-  r = this.normalizeResult(
-    await this.checkMakeupSourceStillRelevant(db, row, mode)
-  );
-  break;
-}
-case Check.FillInSourceStillRelevant: {
-  r = this.normalizeResult(
-    await this.checkFillInSourceStillRelevant(db, row, mode)
-  );
-  break;
-}
-  }
-
-  if (r && !r.ok) return r;
-}
 
 
     return { ok: true };
@@ -316,127 +320,127 @@ case Check.FillInSourceStillRelevant: {
     );
   }
   private async checkFillInSourceStillRelevant(
-  db: any,
-  row: UiRequest,
-  mode: ValidationMode
-): Promise<{ ok: boolean; reason?: string }> {
-  try {
-    if (row.requestType !== 'FILL_IN') {
+    db: any,
+    row: UiRequest,
+    mode: ValidationMode
+  ): Promise<{ ok: boolean; reason?: string }> {
+    try {
+      if (row.requestType !== 'FILL_IN') {
+        return { ok: true };
+      }
+
+      const lessonId =
+        row.lessonOccId ??
+        null;
+
+      const p: any = row.payload ?? {};
+      const originalLessonDate =
+        p.original_lesson_date
+          ? String(p.original_lesson_date).slice(0, 10)
+          : null;
+
+      if (!lessonId || !originalLessonDate) {
+        return {
+          ok: false,
+          reason: 'לא ניתן לאתר את השיעור המקורי של בקשת מילוי המקום',
+        };
+      }
+
+      const { data: ex, error } = await db
+        .from('lesson_occurrence_exceptions')
+        .select('id, lesson_id, occur_date, status')
+        .eq('lesson_id', lessonId)
+        .eq('occur_date', originalLessonDate)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!ex) {
+        return {
+          ok: false,
+          reason: 'השיעור המקורי של מילוי המקום כבר לא קיים או לא נמצא',
+        };
+      }
+
+      const status = String(ex.status ?? '').trim();
+
+      if (status === 'הושלם') {
+        return {
+          ok: false,
+          reason: 'בקשת מילוי המקום כבר אינה רלוונטית כי השיעור כבר הושלם',
+        };
+      }
+
       return { ok: true };
+    } catch (e: any) {
+      return this.handleDbFailure(mode, 'checkFillInSourceStillRelevant', e);
     }
-
-    const lessonId =
-      row.lessonOccId ??
-      null;
-
-    const p: any = row.payload ?? {};
-    const originalLessonDate =
-      p.original_lesson_date
-        ? String(p.original_lesson_date).slice(0, 10)
-        : null;
-
-    if (!lessonId || !originalLessonDate) {
-      return {
-        ok: false,
-        reason: 'לא ניתן לאתר את השיעור המקורי של בקשת מילוי המקום',
-      };
-    }
-
-    const { data: ex, error } = await db
-      .from('lesson_occurrence_exceptions')
-      .select('id, lesson_id, occur_date, status')
-      .eq('lesson_id', lessonId)
-      .eq('occur_date', originalLessonDate)
-      .maybeSingle();
-
-    if (error) throw error;
-
-    if (!ex) {
-      return {
-        ok: false,
-        reason: 'השיעור המקורי של מילוי המקום כבר לא קיים או לא נמצא',
-      };
-    }
-
-    const status = String(ex.status ?? '').trim();
-
-    if (status === 'הושלם') {
-      return {
-        ok: false,
-        reason: 'בקשת מילוי המקום כבר אינה רלוונטית כי השיעור כבר הושלם',
-      };
-    }
-
-    return { ok: true };
-  } catch (e: any) {
-    return this.handleDbFailure(mode, 'checkFillInSourceStillRelevant', e);
   }
-}
-private async checkMakeupSourceStillRelevant(
-  db: any,
-  row: UiRequest,
-  mode: ValidationMode
-): Promise<{ ok: boolean; reason?: string }> {
-  try {
-    if (row.requestType !== 'MAKEUP_LESSON') {
+  private async checkMakeupSourceStillRelevant(
+    db: any,
+    row: UiRequest,
+    mode: ValidationMode
+  ): Promise<{ ok: boolean; reason?: string }> {
+    try {
+      if (row.requestType !== 'MAKEUP_LESSON') {
+        return { ok: true };
+      }
+
+      const lessonId =
+        row.lessonOccId ??
+        null;
+
+      const p: any = row.payload ?? {};
+      const originalLessonDate =
+        p.original_lesson_date
+          ? String(p.original_lesson_date).slice(0, 10)
+          : null;
+
+      if (!lessonId || !originalLessonDate) {
+        return {
+          ok: false,
+          reason: 'לא ניתן לאתר את השיעור המקורי של בקשת ההשלמה',
+        };
+      }
+
+      const { data: ex, error } = await db
+        .from('lesson_occurrence_exceptions')
+        .select('id, lesson_id, occur_date, status, is_makeup_allowed')
+        .eq('lesson_id', lessonId)
+        .eq('occur_date', originalLessonDate)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!ex) {
+        return {
+          ok: false,
+          reason: 'השיעור המקורי של ההשלמה כבר לא קיים או לא נמצא',
+        };
+      }
+
+      const status = String(ex.status ?? '').trim();
+      const isMakeupAllowed = ex.is_makeup_allowed === true;
+
+      if (status === 'הושלם') {
+        return {
+          ok: false,
+          reason: 'בקשת ההשלמה כבר אינה רלוונטית כי השיעור כבר הושלם',
+        };
+      }
+
+      if (!isMakeupAllowed) {
+        return {
+          ok: false,
+          reason: 'בקשת ההשלמה כבר אינה רלוונטית כי לא ניתן עוד לבצע השלמה לשיעור זה',
+        };
+      }
+
       return { ok: true };
+    } catch (e: any) {
+      return this.handleDbFailure(mode, 'checkMakeupSourceStillRelevant', e);
     }
-
-    const lessonId =
-      row.lessonOccId ??
-      null;
-
-    const p: any = row.payload ?? {};
-    const originalLessonDate =
-      p.original_lesson_date
-        ? String(p.original_lesson_date).slice(0, 10)
-        : null;
-
-    if (!lessonId || !originalLessonDate) {
-      return {
-        ok: false,
-        reason: 'לא ניתן לאתר את השיעור המקורי של בקשת ההשלמה',
-      };
-    }
-
-    const { data: ex, error } = await db
-      .from('lesson_occurrence_exceptions')
-      .select('id, lesson_id, occur_date, status, is_makeup_allowed')
-      .eq('lesson_id', lessonId)
-      .eq('occur_date', originalLessonDate)
-      .maybeSingle();
-
-    if (error) throw error;
-
-    if (!ex) {
-      return {
-        ok: false,
-        reason: 'השיעור המקורי של ההשלמה כבר לא קיים או לא נמצא',
-      };
-    }
-
-    const status = String(ex.status ?? '').trim();
-    const isMakeupAllowed = ex.is_makeup_allowed === true;
-
-    if (status === 'הושלם') {
-      return {
-        ok: false,
-        reason: 'בקשת ההשלמה כבר אינה רלוונטית כי השיעור כבר הושלם',
-      };
-    }
-
-    if (!isMakeupAllowed) {
-      return {
-        ok: false,
-        reason: 'בקשת ההשלמה כבר אינה רלוונטית כי לא ניתן עוד לבצע השלמה לשיעור זה',
-      };
-    }
-
-    return { ok: true };
-  } catch (e: any) {
-    return this.handleDbFailure(mode, 'checkMakeupSourceStillRelevant', e);
   }
-}
   private handleDbFailure(mode: ValidationMode, context: string, err: any): ValidationResult {
     console.warn(`[VALIDATION][${mode}] ${context} DB failed → skip/restrict`, err);
 
@@ -450,11 +454,12 @@ private async checkMakeupSourceStillRelevant(
   // =====================================
   // Expiry
   // =====================================
-private async getExpiryReason(
-  db: any,
-  row: UiRequest,
-  mode: ValidationMode
-): Promise<string | null> {    const p: any = row.payload ?? {};
+  private async getExpiryReason(
+    db: any,
+    row: UiRequest,
+    mode: ValidationMode
+  ): Promise<string | null> {
+    const p: any = row.payload ?? {};
     const now = new Date();
 
     const isPast = (dateStr: string | null | undefined, timeStr?: string | null): boolean => {
@@ -464,39 +469,39 @@ private async getExpiryReason(
     };
 
     switch (row.requestType) {
-   case 'CANCEL_OCCURRENCE': {
-  const fresh = await this.getFreshCancelOccurrenceDateTime(db, row, mode);
+      case 'CANCEL_OCCURRENCE': {
+        const fresh = await this.getFreshCancelOccurrenceDateTime(db, row, mode);
 
-  const dateStr =
-    fresh?.dateStr ??
-    p.occur_date ??
-    row.fromDate ??
-    null;
+        const dateStr =
+          fresh?.dateStr ??
+          p.occur_date ??
+          row.fromDate ??
+          null;
 
-  const timeStr = fresh?.timeStr ?? null;
+        const timeStr = fresh?.timeStr ?? null;
 
-  if (!dateStr || !timeStr) {
-    return null;
-  }
+        if (!dateStr || !timeStr) {
+          return null;
+        }
 
-  const dt = this.combineDateTime(dateStr, timeStr);
+        const dt = this.combineDateTime(dateStr, timeStr);
 
-  console.log('[CANCEL AUTO EXPIRY DEBUG]', {
-    mode,
-    dateStr,
-    timeStr,
-    dt,
-    dtIso: dt.toISOString(),
-    now: new Date(),
-    nowIso: new Date().toISOString(),
-  });
+        console.log('[CANCEL AUTO EXPIRY DEBUG]', {
+          mode,
+          dateStr,
+          timeStr,
+          dt,
+          dtIso: dt.toISOString(),
+          now: new Date(),
+          nowIso: new Date().toISOString(),
+        });
 
-  if (dt.getTime() < Date.now()) {
-    return 'עבר מועד השיעור לביטול';
-  }
+        if (dt.getTime() < Date.now()) {
+          return 'עבר מועד השיעור לביטול';
+        }
 
-  return null;
-}
+        return null;
+      }
 
 
       case 'INSTRUCTOR_DAY_OFF': {
@@ -511,28 +516,28 @@ private async getExpiryReason(
         if (isPast(start, timeStr ?? '00:00')) return 'עבר מועד תחילת הסדרה';
         return null;
       }
-case 'SINGLE_LESSON': {
-  const dateStr =
-    row.fromDate ??
-    p.lesson_date ??
-    p.requested_date ??
-    p.occur_date ??
-    p.from_date ??
-    null;
+      case 'SINGLE_LESSON': {
+        const dateStr =
+          row.fromDate ??
+          p.lesson_date ??
+          p.requested_date ??
+          p.occur_date ??
+          p.from_date ??
+          null;
 
-  const timeStr =
-    p.requested_start_time ??
-    p.start_time ??
-    p.startTime ??
-    p.time ??
-    null;
+        const timeStr =
+          p.requested_start_time ??
+          p.start_time ??
+          p.startTime ??
+          p.time ??
+          null;
 
-  if (isPast(dateStr, timeStr ?? '00:00')) {
-    return 'עבר מועד השיעור המבוקש';
-  }
+        if (isPast(dateStr, timeStr ?? '00:00')) {
+          return 'עבר מועד השיעור המבוקש';
+        }
 
-  return null;
-}
+        return null;
+      }
       case 'MAKEUP_LESSON':
       case 'FILL_IN': {
         const dateStr = row.fromDate ?? p.occur_date ?? null;
@@ -718,22 +723,22 @@ case 'SINGLE_LESSON': {
         status === 'Deletion Scheduled' &&
         scheduledDeletionAt &&
         (row.requestType === 'MAKEUP_LESSON' || row.requestType === 'FILL_IN' || row.requestType === 'SINGLE_LESSON'
-)
+        )
       ) {
         const p: any = row.payload ?? {};
-      const dateStr =
-  row.fromDate ??
-  p.lesson_date ??
-  p.requested_date ??
-  p.occur_date ??
-  p.from_date ??
-  null;
+        const dateStr =
+          row.fromDate ??
+          p.lesson_date ??
+          p.requested_date ??
+          p.occur_date ??
+          p.from_date ??
+          null;
 
-const timeStr =
-  p.requested_start_time ??
-  p.start_time ??
-  p.startTime ??
-  '00:00';
+        const timeStr =
+          p.requested_start_time ??
+          p.start_time ??
+          p.startTime ??
+          '00:00';
         if (dateStr) {
           const reqDt = this.combineDateTime(String(dateStr), String(timeStr));
           const delDt = new Date(String(scheduledDeletionAt));
@@ -799,12 +804,12 @@ const timeStr =
 
     const p: any = row.payload ?? {};
 
-   const date =
-  row.requestType === 'NEW_SERIES'
-    ? (row.fromDate ?? p.series_start_date ?? p.start_date ?? null)
-    : row.requestType === 'SINGLE_LESSON'
-      ? (row.fromDate ?? p.lesson_date ?? p.requested_date ?? p.from_date ?? null)
-      : (row.fromDate ?? p.occur_date ?? p.from_date ?? null);
+    const date =
+      row.requestType === 'NEW_SERIES'
+        ? (row.fromDate ?? p.series_start_date ?? p.start_date ?? null)
+        : row.requestType === 'SINGLE_LESSON'
+          ? (row.fromDate ?? p.lesson_date ?? p.requested_date ?? p.from_date ?? null)
+          : (row.fromDate ?? p.occur_date ?? p.from_date ?? null);
 
     if (!date) return null;
 
@@ -828,7 +833,7 @@ const timeStr =
   private async checkFarmDayOffConflict(db: any, row: UiRequest, mode: ValidationMode)
     : Promise<{ ok: boolean; reason?: string }> {
 
-    if (!['MAKEUP_LESSON', 'FILL_IN', 'INSTRUCTOR_DAY_OFF', 'NEW_SERIES' , 'SINGLE_LESSON'].includes(row.requestType)) {
+    if (!['MAKEUP_LESSON', 'FILL_IN', 'INSTRUCTOR_DAY_OFF', 'NEW_SERIES', 'SINGLE_LESSON'].includes(row.requestType)) {
       return { ok: true };
     }
 
@@ -944,204 +949,204 @@ const timeStr =
       return r.ok ? { ok: true } : { ok: false, reason: r.reason };
     }
   }
- private async getFreshCancelOccurrenceDateTime(
-  db: any,
-  row: UiRequest,
-  mode: ValidationMode
-): Promise<{ dateStr: string | null; timeStr: string | null } | null> {
-// מאפשר גם auto וגם approve/reject
-  const requestId = row?.id;
-  if (!requestId) return null;
+  private async getFreshCancelOccurrenceDateTime(
+    db: any,
+    row: UiRequest,
+    mode: ValidationMode
+  ): Promise<{ dateStr: string | null; timeStr: string | null } | null> {
+    // מאפשר גם auto וגם approve/reject
+    const requestId = row?.id;
+    if (!requestId) return null;
 
-  const fresh = await this.fetchFreshRequestRow(db, requestId);
-  const p = this.parsePayload(fresh?.payload);
+    const fresh = await this.fetchFreshRequestRow(db, requestId);
+    const p = this.parsePayload(fresh?.payload);
 
-  const dateStr =
-    p?.occur_date
-      ? String(p.occur_date).slice(0, 10)
-      : (fresh?.from_date ? String(fresh.from_date).slice(0, 10) : null);
+    const dateStr =
+      p?.occur_date
+        ? String(p.occur_date).slice(0, 10)
+        : (fresh?.from_date ? String(fresh.from_date).slice(0, 10) : null);
 
-  let timeStr: string | null = null;
+    let timeStr: string | null = null;
 
-  if (fresh?.lesson_occ_id && dateStr) {
-    const { data: occ, error: occErr } = await db
-      .from('lessons_occurrences')
-      .select('start_time')
-      .eq('lesson_id', fresh.lesson_occ_id)
-      .eq('occur_date', dateStr)
-      .maybeSingle();
+    if (fresh?.lesson_occ_id && dateStr) {
+      const { data: occ, error: occErr } = await db
+        .from('lessons_occurrences')
+        .select('start_time')
+        .eq('lesson_id', fresh.lesson_occ_id)
+        .eq('occur_date', dateStr)
+        .maybeSingle();
 
-    if (occErr) throw occErr;
+      if (occErr) throw occErr;
 
-    if (occ?.start_time) {
-      timeStr = String(occ.start_time).slice(0, 5);
-    }
-  }
-
-  return { dateStr, timeStr };
-}
-
-private async fetchFreshRequestRow(db: any, requestId: string) {
-  const { data, error } = await db
-    .from('secretarial_requests')
-    .select('id, request_type, from_date, to_date, payload, lesson_occ_id')
-    .eq('id', requestId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data ?? null;
-}
-
-private parsePayload(p: any): any {
-  try {
-    if (!p) return {};
-    if (typeof p === 'string') return JSON.parse(p);
-    return p;
-  } catch {
-    return {};
-  }
-}
-
-private normalizeHHMM(v: any): string | null {
-  if (v == null) return null;
-  const s = String(v).trim();
-  if (!s) return null;
-  // "10:30:00" -> "10:30"
-  return s.length >= 5 ? s.slice(0, 5) : s;
-}
-private getDayOfWeekForDb(dateStr: string): number {
-  return new Date(`${dateStr}T12:00:00`).getDay();
-}
-private async checkInstructorAvailabilityConflict(
-  db: any,
-  row: UiRequest,
-  mode: ValidationMode
-): Promise<{ ok: boolean; reason?: string }> {
-  if (!['NEW_SERIES', 'MAKEUP_LESSON', 'FILL_IN', 'SINGLE_LESSON'].includes(row.requestType)) {
-    return { ok: true };
-  }
-
-  try {
-    const instructorId = this.getInstructorIdForRequest(row);
-    const w = this.getRequestedDateAndWindow(row);
-
-    if (!instructorId || !w?.date) {
-      return { ok: true };
-    }
-const dayOfWeek = this.getDayOfWeekForDb(w.date);
-
-const reqStartHHMM = `${String(Math.floor(w.startMin / 60)).padStart(2, '0')}:${String(w.startMin % 60).padStart(2, '0')}:00`;
-const reqEndHHMM = `${String(Math.floor(w.endMin / 60)).padStart(2, '0')}:${String(w.endMin % 60).padStart(2, '0')}:00`;
-
-const { data: availabilityRows, error: availabilityError } = await db
-  .from('instructor_weekly_availability')
-  .select('start_time, end_time, lesson_ridding_type, lesson_type_mode')
-  .eq('instructor_id_number', instructorId)
-  .eq('day_of_week', dayOfWeek)
-  .lte('start_time', reqStartHHMM)
-  .gte('end_time', reqEndHHMM);
-
-if (availabilityError) {
-  const r = this.handleDbFailure(mode, 'checkInstructorWeeklyAvailability', availabilityError);
-  return r.ok ? { ok: true } : { ok: false, reason: r.reason };
-}
-
-if (!availabilityRows || availabilityRows.length === 0) {
-  return {
-    ok: false,
-    reason: 'הבקשה נדחתה אוטומטית: המדריך אינו מוגדר כזמין ביום ובשעה המבוקשים.',
-  };
-}
-    const dayStart = `${w.date} 00:00:00`;
-const dayEnd = `${w.date} 23:59:59`;
-
-const { data, error } = await db
-  .from('instructor_unavailability')
-  .select('id, category, reason, from_ts, to_ts, all_day')
-  .eq('instructor_id_number', instructorId)
-  .lte('from_ts', dayEnd)
-  .gte('to_ts', dayStart);
-
-    if (error) {
-      const r = this.handleDbFailure(mode, 'checkInstructorAvailabilityConflict', error);
-      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
-    }
-
-    const rows = data ?? [];
-
-    for (const x of rows) {
-      if (x.all_day === true) {
-        const label = x.reason || x.category || 'חוסר זמינות מדריך';
-
-        return {
-          ok: false,
-          reason: `הבקשה נדחתה אוטומטית: המדריך לא זמין ביום המבוקש (${label}).`,
-        };
-      }
-
-      const fromHHMM = this.normalizeTimeHHMM(x.from_ts);
-      const toHHMM = this.normalizeTimeHHMM(x.to_ts);
-
-      if (!fromHHMM || !toHHMM) continue;
-
-      const fromMin = this.timeToMinutes(fromHHMM);
-      const toMin = this.timeToMinutes(toHHMM);
-
-      if (this.overlapsMinutes(w.startMin, w.endMin, fromMin, toMin)) {
-        const label = x.reason || x.category || 'חוסר זמינות מדריך';
-
-        return {
-          ok: false,
-          reason: `הבקשה נדחתה אוטומטית: המדריך לא זמין בזמן המבוקש (${label}).`,
-        };
+      if (occ?.start_time) {
+        timeStr = String(occ.start_time).slice(0, 5);
       }
     }
 
-    return { ok: true };
-  } catch (e: any) {
-    const r = this.handleDbFailure(mode, 'checkInstructorAvailabilityConflict', e);
-    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
-  }
-}
-private async checkRequestStillPending(
-  db: any,
-  row: UiRequest,
-  mode: ValidationMode
-): Promise<{ ok: boolean; reason?: string }> {
-  if (mode === 'auto') return { ok: true };
-
-  const requestId = row?.id;
-  if (!requestId) {
-    return { ok: false, reason: 'לא נמצא מזהה בקשה' };
+    return { dateStr, timeStr };
   }
 
-  try {
+  private async fetchFreshRequestRow(db: any, requestId: string) {
     const { data, error } = await db
       .from('secretarial_requests')
-      .select('id, status')
+      .select('id, request_type, from_date, to_date, payload, lesson_occ_id')
       .eq('id', requestId)
       .maybeSingle();
 
-    if (error) {
-      const r = this.handleDbFailure(mode, 'checkRequestStillPending', error);
+    if (error) throw error;
+    return data ?? null;
+  }
+
+  private parsePayload(p: any): any {
+    try {
+      if (!p) return {};
+      if (typeof p === 'string') return JSON.parse(p);
+      return p;
+    } catch {
+      return {};
+    }
+  }
+
+  private normalizeHHMM(v: any): string | null {
+    if (v == null) return null;
+    const s = String(v).trim();
+    if (!s) return null;
+    // "10:30:00" -> "10:30"
+    return s.length >= 5 ? s.slice(0, 5) : s;
+  }
+  private getDayOfWeekForDb(dateStr: string): number {
+    return new Date(`${dateStr}T12:00:00`).getDay();
+  }
+  private async checkInstructorAvailabilityConflict(
+    db: any,
+    row: UiRequest,
+    mode: ValidationMode
+  ): Promise<{ ok: boolean; reason?: string }> {
+    if (!['NEW_SERIES', 'MAKEUP_LESSON', 'FILL_IN', 'SINGLE_LESSON'].includes(row.requestType)) {
+      return { ok: true };
+    }
+
+    try {
+      const instructorId = this.getInstructorIdForRequest(row);
+      const w = this.getRequestedDateAndWindow(row);
+
+      if (!instructorId || !w?.date) {
+        return { ok: true };
+      }
+      const dayOfWeek = this.getDayOfWeekForDb(w.date);
+
+      const reqStartHHMM = `${String(Math.floor(w.startMin / 60)).padStart(2, '0')}:${String(w.startMin % 60).padStart(2, '0')}:00`;
+      const reqEndHHMM = `${String(Math.floor(w.endMin / 60)).padStart(2, '0')}:${String(w.endMin % 60).padStart(2, '0')}:00`;
+
+      const { data: availabilityRows, error: availabilityError } = await db
+        .from('instructor_weekly_availability')
+        .select('start_time, end_time, lesson_ridding_type, lesson_type_mode')
+        .eq('instructor_id_number', instructorId)
+        .eq('day_of_week', dayOfWeek)
+        .lte('start_time', reqStartHHMM)
+        .gte('end_time', reqEndHHMM);
+
+      if (availabilityError) {
+        const r = this.handleDbFailure(mode, 'checkInstructorWeeklyAvailability', availabilityError);
+        return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+      }
+
+      if (!availabilityRows || availabilityRows.length === 0) {
+        return {
+          ok: false,
+          reason: 'הבקשה נדחתה אוטומטית: המדריך אינו מוגדר כזמין ביום ובשעה המבוקשים.',
+        };
+      }
+      const dayStart = `${w.date} 00:00:00`;
+      const dayEnd = `${w.date} 23:59:59`;
+
+      const { data, error } = await db
+        .from('instructor_unavailability')
+        .select('id, category, reason, from_ts, to_ts, all_day')
+        .eq('instructor_id_number', instructorId)
+        .lte('from_ts', dayEnd)
+        .gte('to_ts', dayStart);
+
+      if (error) {
+        const r = this.handleDbFailure(mode, 'checkInstructorAvailabilityConflict', error);
+        return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+      }
+
+      const rows = data ?? [];
+
+      for (const x of rows) {
+        if (x.all_day === true) {
+          const label = x.reason || x.category || 'חוסר זמינות מדריך';
+
+          return {
+            ok: false,
+            reason: `הבקשה נדחתה אוטומטית: המדריך לא זמין ביום המבוקש (${label}).`,
+          };
+        }
+
+        const fromHHMM = this.normalizeTimeHHMM(x.from_ts);
+        const toHHMM = this.normalizeTimeHHMM(x.to_ts);
+
+        if (!fromHHMM || !toHHMM) continue;
+
+        const fromMin = this.timeToMinutes(fromHHMM);
+        const toMin = this.timeToMinutes(toHHMM);
+
+        if (this.overlapsMinutes(w.startMin, w.endMin, fromMin, toMin)) {
+          const label = x.reason || x.category || 'חוסר זמינות מדריך';
+
+          return {
+            ok: false,
+            reason: `הבקשה נדחתה אוטומטית: המדריך לא זמין בזמן המבוקש (${label}).`,
+          };
+        }
+      }
+
+      return { ok: true };
+    } catch (e: any) {
+      const r = this.handleDbFailure(mode, 'checkInstructorAvailabilityConflict', e);
       return r.ok ? { ok: true } : { ok: false, reason: r.reason };
     }
-
-    if (!data) {
-      return { ok: false, reason: 'הבקשה לא נמצאה. נסי לרענן את המסך.' };
-    }
-
-    if (data.status !== 'PENDING') {
-      return {
-        ok: false,
-        reason: 'הבקשה כבר טופלה על ידי משתמש אחר. יש לרענן את המסך.',
-      };
-    }
-
-    return { ok: true };
-  } catch (e: any) {
-    const r = this.handleDbFailure(mode, 'checkRequestStillPending', e);
-    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
   }
-}
+  private async checkRequestStillPending(
+    db: any,
+    row: UiRequest,
+    mode: ValidationMode
+  ): Promise<{ ok: boolean; reason?: string }> {
+    if (mode === 'auto') return { ok: true };
+
+    const requestId = row?.id;
+    if (!requestId) {
+      return { ok: false, reason: 'לא נמצא מזהה בקשה' };
+    }
+
+    try {
+      const { data, error } = await db
+        .from('secretarial_requests')
+        .select('id, status')
+        .eq('id', requestId)
+        .maybeSingle();
+
+      if (error) {
+        const r = this.handleDbFailure(mode, 'checkRequestStillPending', error);
+        return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+      }
+
+      if (!data) {
+        return { ok: false, reason: 'הבקשה לא נמצאה. נסי לרענן את המסך.' };
+      }
+
+      if (data.status !== 'PENDING') {
+        return {
+          ok: false,
+          reason: 'הבקשה כבר טופלה על ידי משתמש אחר. יש לרענן את המסך.',
+        };
+      }
+
+      return { ok: true };
+    } catch (e: any) {
+      const r = this.handleDbFailure(mode, 'checkRequestStillPending', e);
+      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    }
+  }
 }

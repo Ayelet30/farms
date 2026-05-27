@@ -84,7 +84,8 @@ export type RequestType =
   | 'MAKEUP_LESSON'
   | 'OTHER_REQUEST'
   | 'PARENT_SIGNUP'
-  | 'FILL_IN';         
+  | 'INDEPENDENT_SIGNUP'
+  | 'FILL_IN';
 
 
 export type RequestStatus =
@@ -132,7 +133,7 @@ export interface UiRequest {
   createdAt: string;
 
   requesterUid: string | null;  // ← חשוב להוספת סינון לפי משתמש
-  requesterRole: string | null,   
+  requesterRole: string | null,
 
   payload: any;
   childId?: string | null;
