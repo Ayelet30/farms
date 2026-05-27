@@ -14,6 +14,8 @@ import { NoteComponent } from '../../Notes/note.component';
 import { UiDialogService } from '../../../services/ui-dialog.service';
 import { requireTenant, supabase } from '../../../services/supabaseClient.service';
 import { QuickAppointmentComponent } from './quick-appointment/quick-appointment.component';
+import { NavigationStart, Router } from '@angular/router';
+import { filter } from 'rxjs/operators';
 
 
 
@@ -278,6 +280,8 @@ rangeModal = {
   instructorId: '',
 };
 
+private isRestoringScheduleState = false;
+
 @HostListener('document:click', ['$event'])
 onDocumentClick(event: MouseEvent): void {
   if (!this.contextMenu.visible) return;
@@ -311,6 +315,9 @@ onEscapeCloseContextMenu(): void {
   this.cdr.detectChanges();
 }
 
+private router = inject(Router);
+private static didClearStateOnThisPageLoad = false;
+
 timeOptions: string[] = Array.from({ length: 24 * 2 }, (_, i) => {
   const hours = Math.floor(i / 2).toString().padStart(2, '0');
   const minutes = ((i % 2) * 30).toString().padStart(2, '0');
@@ -330,6 +337,7 @@ private ui = inject(UiDialogService);
   occurrence: any;
 
   async ngOnInit(): Promise<void> {
+    console.log('🟢 SecretarySchedule INIT');
     try {
       await ensureTenantContextReady();
 
@@ -348,6 +356,17 @@ this.ridingTypes = ridingTypes || [];
       const user = await this.cu.loadUserDetails();
       this.instructorId = (user?.id_number ?? '').toString();
 
+  
+const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+
+if (
+  nav?.type === 'reload' &&
+  !SecretaryScheduleComponent.didClearStateOnThisPageLoad
+) {
+  sessionStorage.removeItem(this.STATE_KEY);
+  SecretaryScheduleComponent.didClearStateOnThisPageLoad = true;
+}
+
       await this.reloadAll();
     } catch (e) {
       console.error('init error', e);
@@ -357,6 +376,7 @@ this.ridingTypes = ridingTypes || [];
   }
 
   ngOnDestroy(): void {
+    console.log('🔴 SecretarySchedule DESTROY');
     try { this.unsubTenantChange?.(); } catch {}
   }
 
@@ -475,8 +495,6 @@ private buildAvailableDayCells(range?: { start: string; end: string }): void {
   const from = range?.start?.slice(0, 10) ?? '';
   const to = range?.end?.slice(0, 10) ?? '';
 
-  console.log('buildAvailableDayCells', { from, to, instructorCount: this.instructorResources.length });
-
   if (!from || !to) {
     this.availableDayCells = [];
     return;
@@ -532,6 +550,7 @@ private buildAvailableDayCells(range?: { start: string; end: string }): void {
   this.availableDayCells = available;
 }
 
+
 private hashString(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -553,29 +572,119 @@ private rebuildInstructorResources(): void {
 
 }
 
- private async reloadAll() {
+private async reloadAll() {
+
+  console.log('🚀 reloadAll START');
+
   await this.loadChildren();
+
   await this.loadInstructors();
+
   await this.loadInstructorWeeklyAvailability();
 
-  const range = this.ensureInitialDayRange();
+  this.restorePageState();
+
+  if (!this.selectedInstructorIds.length) {
+    this.selectedInstructorIds = this.instructors.map(i => String(i.id_number));
+  }
+
+  this.rebuildInstructorResources();
+
+  const range = this.currentRange ?? this.ensureInitialDayRange();
 
   await this.loadLessons(range);
-  await this.loadFarmDaysOffForRange(
-    range.start.slice(0, 10),
-    range.end.slice(0, 10)
-  );
-  await this.loadRequestsForRange(
-    range.start.slice(0, 10),
-    range.end.slice(0, 10)
-  );
+
+  await this.loadFarmDaysOffForRange(range.start.slice(0, 10), range.end.slice(0, 10));
+  await this.loadRequestsForRange(range.start.slice(0, 10), range.end.slice(0, 10));
 
   this.filterLessons();
+
   this.setScheduleItems();
+
   this.buildBlockedDayCells(range);
   this.buildAvailableDayCells(range);
   this.buildWeekStats();
+
+  this.savePageState();
+
+  this.isRestoringScheduleState = true;
+
+const restoredRange = this.currentRange
+  ? { ...this.currentRange }
+  : null;
+
+const restoredViewType = this.currentViewType;
+
+setTimeout(() => {
+  const view =
+    restoredViewType === 'resourceTimeGridDay'
+      ? 'timeGridDay'
+      : restoredViewType === 'resourceTimeGridWeek'
+        ? 'timeGridWeek'
+        : restoredViewType;
+
+  const gotoDate = restoredRange?.start ?? null;
+  this.scheduleCmp?.changeView(view as any);
+
+  if (gotoDate) {
+    this.scheduleCmp?.goToDay(gotoDate);
+  }
+
+  // חשוב! מחזירים את כל הטווח, לא רק start=end
+  if (restoredRange) {
+    this.currentRange = restoredRange;
+  }
+
+  this.currentViewType = restoredViewType as any;
+
+  this.isRestoringScheduleState = false;
+  this.savePageState();
+
   this.cdr.detectChanges();
+}, 300);
+
+  this.cdr.detectChanges();
+}
+
+private readonly STATE_KEY = 'secretary-schedule-state-v1';
+
+private savePageState(): void {
+  const state = {
+    selectedInstructorIds: this.selectedInstructorIds,
+    selectedChildId: this.selectedChild?.child_uuid ?? null,
+    currentRange: this.currentRange,
+    currentViewType: this.currentViewType,
+  };
+
+  sessionStorage.setItem(this.STATE_KEY, JSON.stringify(state));
+
+}
+
+private restorePageState(): void {
+  const raw = sessionStorage.getItem(this.STATE_KEY);
+
+  if (!raw) {
+    console.warn('🟠 RESTORE skipped - no saved state');
+    return;
+  }
+
+  try {
+    const state = JSON.parse(raw);
+
+    this.selectedInstructorIds = Array.isArray(state.selectedInstructorIds)
+      ? state.selectedInstructorIds
+      : [];
+
+    this.currentRange = state.currentRange ?? null;
+    this.currentViewType = state.currentViewType ?? 'timeGridDay';
+
+    if (state.selectedChildId) {
+      this.selectedChild =
+        this.children.find(c => c.child_uuid === state.selectedChildId) ?? null;
+    }
+  } catch (err) {
+    sessionStorage.removeItem(this.STATE_KEY);
+  }
 }
 
 private ensureInitialDayRange(): { start: string; end: string; viewType: string } {
@@ -1802,14 +1911,19 @@ toggleAllInstructors() {
   this.buildBlockedDayCells(this.currentRange ?? undefined);
   this.buildAvailableDayCells(this.currentRange ?? undefined);
   this.buildWeekStats();
+  this.savePageState();
 }
 
 
- toggleInstructor(id: string) {
+toggleInstructor(id: string) {
   if (this.selectedInstructorIds.includes(id)) {
-    this.selectedInstructorIds = this.selectedInstructorIds.filter(x => x !== id);
+    this.selectedInstructorIds =
+      this.selectedInstructorIds.filter(x => x !== id);
   } else {
-    this.selectedInstructorIds = [...this.selectedInstructorIds, id];
+    this.selectedInstructorIds = [
+      ...this.selectedInstructorIds,
+      id
+    ];
   }
 
   this.rebuildInstructorResources();
@@ -1818,21 +1932,21 @@ toggleAllInstructors() {
   this.buildBlockedDayCells(this.currentRange ?? undefined);
   this.buildAvailableDayCells(this.currentRange ?? undefined);
   this.buildWeekStats();
+
+  this.savePageState(); // להוסיף
 }
 
- async onViewRange(range: { start: string; end: string; viewType: string }) {
+async onViewRange(range: { start: string; end: string; viewType: string }) {
+  if (this.isRestoringScheduleState) {
+  return;
+}
+
   this.currentRange = range;
   this.currentViewType = range.viewType as any;
 
   await this.loadLessons({ start: range.start, end: range.end });
-  await this.loadFarmDaysOffForRange(
-    range.start.slice(0, 10),
-    range.end.slice(0, 10)
-  );
-  await this.loadRequestsForRange(
-    range.start.slice(0, 10),
-    range.end.slice(0, 10)
-  );
+  await this.loadFarmDaysOffForRange(range.start.slice(0, 10), range.end.slice(0, 10));
+  await this.loadRequestsForRange(range.start.slice(0, 10), range.end.slice(0, 10));
   await this.loadInstructorWeeklyAvailability();
 
   this.filterLessons();
@@ -1840,6 +1954,15 @@ toggleAllInstructors() {
   this.buildBlockedDayCells(range);
   this.buildAvailableDayCells(range);
   this.buildWeekStats();
+
+  if (!this.isRestoringScheduleState) {
+  this.savePageState();
+
+  console.log('✅ saved from onViewRange', {
+    selectedInstructorIds: this.selectedInstructorIds
+  });
+}
+
   this.cdr.detectChanges();
 }
 
@@ -2769,7 +2892,6 @@ async onToggleMakeupAllowed(checked: boolean) {
 }
 
 private jsDowToDbDow(jsDow: number): number {
-  console.log('jsDowToDbDow', { jsDow });
   return jsDow;
 }
 
@@ -2895,7 +3017,6 @@ closeMoveConfirmModal(): void {
 }
 
 async approveMoveConfirm(): Promise<void> {
-  console.log('approveMoveConfirm clicked', this.moveConfirmModal);
 
   const slot = this.moveConfirmModal.slot || this.moveSlotsModal.selectedSlot;
 
@@ -2914,12 +3035,6 @@ async approveMoveConfirm(): Promise<void> {
 }
 
 async executeMove(slot: any): Promise<void> {
-  console.log('executeMove started', {
-    slot,
-    mode: this.moveSlotsModal.mode,
-    moveChoiceModal: this.moveChoiceModal,
-  });
-
   this.moveSlotsModal.saving = true;
   this.cdr.detectChanges();
 
