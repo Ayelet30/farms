@@ -289,6 +289,50 @@ export const routes: Routes = [
       import('./pages/booking/booking.component')
         .then(m => m.BookingComponent)
   },
-
+  {
+    path: 'independent',
+    loadComponent: () =>
+      import('./layout/layout').then(m => m.LayoutComponent),
+    canActivate: [RoleGuard, TenantReadyGuard],
+    data: { role: 'independent' },
+    children: [
+      {
+        path: '',
+        loadComponent: () =>
+          import('./pages/independent-home/independent-home.component')
+            .then(m => m.IndependentHomeComponent),
+      },
+      // {
+      //   path: 'appointment',
+      //   loadComponent: () =>
+      //     import('./pages/independent-appointment/independent-appointment.component')
+      //       .then(m => m.IndependentAppointmentComponent),
+      // },
+      // {
+      //   path: 'billing',
+      //   loadComponent: () =>
+      //     import('./pages/independent-billing/independent-billing.component')
+      //       .then(m => m.IndependentBillingComponent),
+      // },
+      {
+        path: 'requests',
+        loadComponent: () =>
+          import('./secretarial-requests-page/secretarial-requests-page.component')
+            .then(m => m.SecretarialRequestsPageComponent),
+      },
+      // {
+      //   path: 'details',
+      //   loadComponent: () =>
+      //     import('./pages/independent-details/independent-details.component')
+      //       .then(m => m.IndependentDetailsComponent),
+      // },
+      // {
+      //   path: 'horses',
+      //   loadComponent: () =>
+      //     import('./pages/independent-horses/independent-horses.component')
+      //       .then(m => m.IndependentHorsesComponent),
+      // },
+    ],
+  },
   { path: '**', redirectTo: 'home' },
 ];
