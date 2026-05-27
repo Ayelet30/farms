@@ -44,16 +44,15 @@ export class HeaderComponent implements OnInit {
   farmInitials = '';
   memberships: Membership[] = [];
   selected?: Membership;
-
   private readonly homeRoutes: Record<string, string> = {
     parent: '/parent',
     instructor: '/instructor',
     secretary: '/secretary',
+    independent: '/independent',
     admin: '/admin',
     manager: '/ops',
     coordinator: '/ops',
   };
-
   readonly roleHe: Record<string, string> = {
     instructor: 'מדריך',
     parent: 'הורה',
@@ -61,6 +60,7 @@ export class HeaderComponent implements OnInit {
     admin: 'מנהל מערכת',
     manager: 'מנהל',
     coordinator: 'רכזת',
+    independent: 'רוכב עצמאי',
   };
 
 
@@ -74,33 +74,33 @@ export class HeaderComponent implements OnInit {
 
   deferredPrompt: any = null;
 
-showInstallButton = true;
-installGuideOpen = false;
+  showInstallButton = true;
+  installGuideOpen = false;
 
-isIosDevice = false;
-isAndroidDevice = false;
-isDesktopDevice = false;
-isStandalone = false;
+  isIosDevice = false;
+  isAndroidDevice = false;
+  isDesktopDevice = false;
+  isStandalone = false;
 
-installGuideTitle = '';
-installGuideText = '';
+  installGuideTitle = '';
+  installGuideText = '';
 
-@HostListener('window:beforeinstallprompt', ['$event'])
-onBeforeInstallPrompt(event: any) {
-  event.preventDefault();
-  this.deferredPrompt = event;
+  @HostListener('window:beforeinstallprompt', ['$event'])
+  onBeforeInstallPrompt(event: any) {
+    event.preventDefault();
+    this.deferredPrompt = event;
 
-  if (!this.isStandalone) {
-    this.showInstallButton = true;
+    if (!this.isStandalone) {
+      this.showInstallButton = true;
+    }
   }
-}
 
-@HostListener('window:appinstalled')
-onAppInstalled() {
-  this.deferredPrompt = null;
-  this.showInstallButton = false;
-  localStorage.setItem('smartFarmInstalled', 'true');
-}
+  @HostListener('window:appinstalled')
+  onAppInstalled() {
+    this.deferredPrompt = null;
+    this.showInstallButton = false;
+    localStorage.setItem('smartFarmInstalled', 'true');
+  }
 
   toggleRoleMenu(event: MouseEvent) {
     event.stopPropagation(); // שלא יסגור מיד מה־HostListener
@@ -129,60 +129,60 @@ onAppInstalled() {
   }
 
   async ngOnInit() {
-  await this.cu.waitUntilReady();
+    await this.cu.waitUntilReady();
 
-  this.cu.user$.subscribe((u) => {
-    this.memberships = u?.memberships ?? [];
-    this.selected =
-      this.memberships.find(m => m.tenant_id === u?.selectedTenantId) ||
-      this.memberships[0];
+    this.cu.user$.subscribe((u) => {
+      this.memberships = u?.memberships ?? [];
+      this.selected =
+        this.memberships.find(m => m.tenant_id === u?.selectedTenantId) ||
+        this.memberships[0];
 
-    this.rebindFromStores();
-    this.initInstallState();
-  });
+      this.rebindFromStores();
+      this.initInstallState();
+    });
 
-  this.cu.userDetails$.subscribe(() => this.rebindFromStores());
+    this.cu.userDetails$.subscribe(() => this.rebindFromStores());
 
-  // אם ממש חייבים fallback – אז ורק אם אין memberships נמשוך מהשרת
-  if (!this.memberships.length) {
-    await this.bootstrapMembershipsAndSelection();
+    // אם ממש חייבים fallback – אז ורק אם אין memberships נמשוך מהשרת
+    if (!this.memberships.length) {
+      await this.bootstrapMembershipsAndSelection();
+    }
+
+    await this.loadLogo();
   }
 
-  await this.loadLogo();
-}
 
+  private rebindFromStores() {
+    const cur = this.cu.current;
+    const details = this.cu.snapshot;
 
- private rebindFromStores() {
-  const cur = this.cu.current;
-  const details = this.cu.snapshot;
+    this.isLoggedIn = !!cur;
+    this.userRoleKey = (cur?.role || '').toLowerCase();
+    this.userRole = this.roleHe[this.userRoleKey] || '';
 
-  this.isLoggedIn = !!cur;
-  this.userRoleKey = (cur?.role || '').toLowerCase();
-  this.userRole = this.roleHe[this.userRoleKey] || '';
+    this.userName = (
+      `${details?.first_name ?? ''} ${details?.last_name ?? ''}`.trim() ||
+      cur?.displayName ||
+      ''
+    ) ?? '';
 
-  this.userName = (
-    `${details?.first_name ?? ''} ${details?.last_name ?? ''}`.trim() ||
-    cur?.displayName ||
-    ''
-  ) ?? '';
+    // ===== FARM NAME RESOLUTION =====
+    const selectedTenantId =
+      cur?.selectedTenantId ||
+      this.selected?.tenant_id ||
+      localStorage.getItem('selectedTenant');
 
-  // ===== FARM NAME RESOLUTION =====
-  const selectedTenantId =
-    cur?.selectedTenantId ||
-    this.selected?.tenant_id ||
-    localStorage.getItem('selectedTenant');
+    const selectedMembership =
+      this.memberships.find(m => m.tenant_id === selectedTenantId) ||
+      this.memberships[0];
 
-  const selectedMembership =
-    this.memberships.find(m => m.tenant_id === selectedTenantId) ||
-    this.memberships[0];
+    this.farmName =
+      getCurrentFarmMetaSync()?.name ||
+      selectedMembership?.farm?.name ||
+      undefined;
 
-  this.farmName =
-    getCurrentFarmMetaSync()?.name ||
-    selectedMembership?.farm?.name ||
-    undefined;
-
-  this.farmInitials = this.makeInitials(this.farmName || '');
-}
+    this.farmInitials = this.makeInitials(this.farmName || '');
+  }
 
 
   private async bootstrapMembershipsAndSelection() {
@@ -195,26 +195,26 @@ onAppInstalled() {
       if (this.selected?.tenant_id) {
         localStorage.setItem('selectedTenant', this.selected.tenant_id);
       }
-    } catch {}
-  }
-  
-
-
-private async loadLogo() {
-  const ctx = getCurrentFarmMetaSync();
-  const key = ctx?.schema_name;
-
-  if (!key) {
-    this.farmLogoUrl = null;
-    return;
+    } catch { }
   }
 
-  try {
-    this.farmLogoUrl = await getFarmLogoUrl(key);
-  } catch {
-    this.farmLogoUrl = null;
+
+
+  private async loadLogo() {
+    const ctx = getCurrentFarmMetaSync();
+    const key = ctx?.schema_name;
+
+    if (!key) {
+      this.farmLogoUrl = null;
+      return;
+    }
+
+    try {
+      this.farmLogoUrl = await getFarmLogoUrl(key);
+    } catch {
+      this.farmLogoUrl = null;
+    }
   }
-}
 
   handleLoginLogout() {
     if (!this.isLoggedIn) { this.router.navigate(['/login']); return; }
@@ -238,118 +238,118 @@ private async loadLogo() {
     this.router.navigate([target]);
   }
 
-    private makeInitials(name: string): string {
+  private makeInitials(name: string): string {
     const parts = (name || '').trim().split(/\s+/).slice(0, 2);
     const init = parts.map(p => p[0]?.toUpperCase() || '').join('');
     return init || 'F';
   }
 
-formatMembershipRole(m: Membership): string {
-  const key = (m.role_in_tenant || '').toLowerCase();
-  return this.roleHe[key] || m.role_in_tenant || '';
-}
-
-formatMembershipFarm(m: Membership): string {
-  const ctxName = getCurrentFarmMetaSync()?.name;
-  return m.farm?.name || ctxName || 'חווה ללא שם';
-}
-
-formatMembershipLabel(m: Membership | null | undefined): string {
-  if (!m) return '';
-  return `${this.formatMembershipRole(m)} · ${this.formatMembershipFarm(m)}`;
-}
-
-private initInstallState(): void {
-  const ua = window.navigator.userAgent.toLowerCase();
-
-  this.isIosDevice = /iphone|ipad|ipod/.test(ua);
-  this.isAndroidDevice = /android/.test(ua);
-  this.isDesktopDevice = !this.isIosDevice && !this.isAndroidDevice;
-
-  this.isStandalone =
-    window.matchMedia('(display-mode: standalone)').matches ||
-    (window.navigator as any).standalone === true;
-
-  const alreadyInstalled = localStorage.getItem('smartFarmInstalled') === 'true';
-
-  if (this.isStandalone || alreadyInstalled) {
-    this.showInstallButton = false;
-    return;
+  formatMembershipRole(m: Membership): string {
+    const key = (m.role_in_tenant || '').toLowerCase();
+    return this.roleHe[key] || m.role_in_tenant || '';
   }
 
-  // באייפון אין beforeinstallprompt, לכן מציגים כפתור הדרכה
-  if (this.isIosDevice) {
+  formatMembershipFarm(m: Membership): string {
+    const ctxName = getCurrentFarmMetaSync()?.name;
+    return m.farm?.name || ctxName || 'חווה ללא שם';
+  }
+
+  formatMembershipLabel(m: Membership | null | undefined): string {
+    if (!m) return '';
+    return `${this.formatMembershipRole(m)} · ${this.formatMembershipFarm(m)}`;
+  }
+
+  private initInstallState(): void {
+    const ua = window.navigator.userAgent.toLowerCase();
+
+    this.isIosDevice = /iphone|ipad|ipod/.test(ua);
+    this.isAndroidDevice = /android/.test(ua);
+    this.isDesktopDevice = !this.isIosDevice && !this.isAndroidDevice;
+
+    this.isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true;
+
+    const alreadyInstalled = localStorage.getItem('smartFarmInstalled') === 'true';
+
+    if (this.isStandalone || alreadyInstalled) {
+      this.showInstallButton = false;
+      return;
+    }
+
+    // באייפון אין beforeinstallprompt, לכן מציגים כפתור הדרכה
+    if (this.isIosDevice) {
+      this.showInstallButton = true;
+      return;
+    }
+
+    // באנדרואיד נציג כפתור, אבל ההתקנה תעבוד רק כש־beforeinstallprompt הגיע
+    if (this.isAndroidDevice) {
+      this.showInstallButton = true;
+      return;
+    }
+
+    // במחשב אפשר להשאיר כפתור להסבר/QR בהמשך
     this.showInstallButton = true;
-    return;
   }
 
-  // באנדרואיד נציג כפתור, אבל ההתקנה תעבוד רק כש־beforeinstallprompt הגיע
-  if (this.isAndroidDevice) {
-    this.showInstallButton = true;
-    return;
+  async onInstallClick(): Promise<void> {
+    if (this.isStandalone) {
+      this.showInstallButton = false;
+      return;
+    }
+
+    if (this.isIosDevice) {
+      this.openIosGuide();
+      return;
+    }
+
+    if (this.isAndroidDevice) {
+      await this.installAndroid();
+      return;
+    }
+
+    this.openDesktopGuide();
   }
 
-  // במחשב אפשר להשאיר כפתור להסבר/QR בהמשך
-  this.showInstallButton = true;
-}
+  private async installAndroid(): Promise<void> {
+    if (!this.deferredPrompt) {
+      this.installGuideTitle = 'התקנת האפליקציה';
+      this.installGuideText =
+        'אם חלון ההתקנה לא נפתח, פתח את האתר דרך Chrome באנדרואיד ובחר בתפריט: התקנת האפליקציה או הוסף למסך הבית.';
+      this.installGuideOpen = true;
+      return;
+    }
 
-async onInstallClick(): Promise<void> {
-  if (this.isStandalone) {
-    this.showInstallButton = false;
-    return;
+    this.deferredPrompt.prompt();
+
+    const choiceResult = await this.deferredPrompt.userChoice;
+
+    if (choiceResult?.outcome === 'accepted') {
+      this.showInstallButton = false;
+      localStorage.setItem('smartFarmInstalled', 'true');
+    }
+
+    this.deferredPrompt = null;
   }
 
-  if (this.isIosDevice) {
-    this.openIosGuide();
-    return;
-  }
-
-  if (this.isAndroidDevice) {
-    await this.installAndroid();
-    return;
-  }
-
-  this.openDesktopGuide();
-}
-
-private async installAndroid(): Promise<void> {
-  if (!this.deferredPrompt) {
-    this.installGuideTitle = 'התקנת האפליקציה';
+  private openIosGuide(): void {
+    this.installGuideTitle = 'התקנה באייפון';
     this.installGuideText =
-      'אם חלון ההתקנה לא נפתח, פתח את האתר דרך Chrome באנדרואיד ובחר בתפריט: התקנת האפליקציה או הוסף למסך הבית.';
+      'באייפון ההתקנה נעשית דרך Safari באמצעות הוספה למסך הבית.';
     this.installGuideOpen = true;
-    return;
   }
 
-  this.deferredPrompt.prompt();
-
-  const choiceResult = await this.deferredPrompt.userChoice;
-
-  if (choiceResult?.outcome === 'accepted') {
-    this.showInstallButton = false;
-    localStorage.setItem('smartFarmInstalled', 'true');
+  private openDesktopGuide(): void {
+    this.installGuideTitle = 'התקנה מהטלפון';
+    this.installGuideText =
+      'כדי להתקין את Smart Farm כאפליקציה, פתח את האתר מהטלפון.';
+    this.installGuideOpen = true;
   }
 
-  this.deferredPrompt = null;
-}
-
-private openIosGuide(): void {
-  this.installGuideTitle = 'התקנה באייפון';
-  this.installGuideText =
-    'באייפון ההתקנה נעשית דרך Safari באמצעות הוספה למסך הבית.';
-  this.installGuideOpen = true;
-}
-
-private openDesktopGuide(): void {
-  this.installGuideTitle = 'התקנה מהטלפון';
-  this.installGuideText =
-    'כדי להתקין את Smart Farm כאפליקציה, פתח את האתר מהטלפון.';
-  this.installGuideOpen = true;
-}
-
-closeInstallGuide(): void {
-  this.installGuideOpen = false;
-}
+  closeInstallGuide(): void {
+    this.installGuideOpen = false;
+  }
 
 
 }
