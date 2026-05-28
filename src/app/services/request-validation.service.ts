@@ -110,8 +110,9 @@ export class RequestValidationService {
     INDEPENDENT_SIGNUP: {
       checks: [Check.PendingStatus],
     },
-
-
+    RIDER_SERVICE_REQUEST: {
+      checks: [Check.PendingStatus],
+    },
     OTHER_REQUEST: {
       checks: [Check.PendingStatus],
     },

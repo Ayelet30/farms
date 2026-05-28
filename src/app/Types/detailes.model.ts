@@ -85,6 +85,7 @@ export type RequestType =
   | 'OTHER_REQUEST'
   | 'PARENT_SIGNUP'
   | 'INDEPENDENT_SIGNUP'
+  | 'RIDER_SERVICE_REQUEST'
   | 'FILL_IN';
 
 
