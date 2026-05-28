@@ -303,12 +303,12 @@ export const routes: Routes = [
             .then(m => m.IndependentHomeComponent),
       },
 
-      // {
-      //   path: 'appointment',
-      //   loadComponent: () =>
-      //     import('./pages/independent-appointment/independent-appointment.component')
-      //       .then(m => m.IndependentAppointmentComponent),
-      // },
+      {
+        path: 'appointment',
+        loadComponent: () =>
+          import('./pages/independent-service-request/independent-service-request.component')
+            .then(m => m.IndependentServiceRequestComponent),
+      },
       // {
       //   path: 'billing',
       //   loadComponent: () =>

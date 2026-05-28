@@ -1,0 +1,153 @@
+<div class="service-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <h2>זימון שירות</h2>
+            <p>כאן ניתן להגיש בקשה לשירות עבור אחד הסוסים שלך.</p>
+        </div>
+    </div>
+
+    <div *ngIf="loading" class="state-card">
+        טוען נתונים...
+    </div>
+
+    <div *ngIf="!loading && error" class="state-card error">
+        {{ error }}
+    </div>
+
+    <div *ngIf="!loading && success" class="state-card success">
+        {{ success }}
+    </div>
+
+    <div *ngIf="!loading && !horses.length" class="state-card empty">
+        לא נמצאו סוסים פעילים המשויכים אליך.
+    </div>
+
+    <form *ngIf="!loading && horses.length" class="service-card" (ngSubmit)="submit()">
+
+        <div class="form-grid">
+
+            <div class="field">
+                <label>סוג שירות</label>
+
+                <select [(ngModel)]="form.service_type_id" name="service_type_id" (change)="onServiceChanged()">
+                    <option value="">בחר/י שירות</option>
+
+                    <option *ngFor="let service of serviceTypes" [value]="service.id">
+                        {{ service.name }} · {{ categoryLabel(service.category) }}
+                    </option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label>סוס</label>
+
+                <select [(ngModel)]="form.horse_uid" name="horse_uid">
+                    <option value="">בחר/י סוס</option>
+
+                    <option *ngFor="let horse of horses" [value]="horse.id">
+                        {{ horse.name }}
+                    </option>
+                </select>
+            </div>
+            <div class="field">
+
+
+                <label>תאריך התחלה</label>
+                <small class="field-hint" *ngIf="selectedService?.is_recurring && !form.is_permanent">
+                    תחילת טווח הביצוע
+                </small>
+
+                <input type="date" [(ngModel)]="form.requested_start_date" name="requested_start_date"
+                    [disabled]="form.is_permanent" (change)="recalculatePlannedDates()" />
+            </div>
+
+            <div class="field">
+                <label>תאריך סיום</label>
+                <small class="field-hint" *ngIf="selectedService?.is_recurring && !form.is_permanent">
+                    סוף טווח הביצוע
+                </small>
+
+                <input type="date" [(ngModel)]="form.requested_end_date" name="requested_end_date"
+                    [disabled]="form.is_permanent" (change)="recalculatePlannedDates()" />
+            </div>
+
+        </div>
+
+        <label class="check-row" [class.disabled]="!canBePermanent">
+            <input type="checkbox" [(ngModel)]="form.is_permanent" name="is_permanent" [disabled]="!canBePermanent"
+                (change)="onPermanentChanged()" />
+
+            שירות קבוע
+        </label>
+        <small class="inline-permanent-hint" *ngIf="form.is_permanent">
+            אין צורך בתאריכי התחלה/סיום
+        </small>
+        <div class="hint warning" *ngIf="selectedService && !canBePermanent">
+            {{ permanentDisabledReason }}
+        </div>
+
+        <div class="selected-service" *ngIf="selectedService as service">
+            <h3>פרטי השירות</h3>
+
+            <div class="service-info-grid">
+                <div>
+                    <span>קטגוריה</span>
+                    <b>{{ categoryLabel(service.category) }}</b>
+                </div>
+
+                <div>
+                    <span>מחיר ברירת מחדל</span>
+                    <b>{{ priceText(service.default_price_agorot) }}</b>
+                </div>
+
+                <div>
+                    <span>תדירות</span>
+                    <b>{{ recurrenceText(service) }}</b>
+                </div>
+
+                <div>
+                    <span>דורש אישור</span>
+                    <b>{{ service.requires_approval ? 'כן' : 'לא' }}</b>
+                </div>
+            </div>
+            <div class="planned-dates" *ngIf="plannedDates.length">
+                <h3>תאריכי ביצוע צפויים</h3>
+
+                <div class="date-chips">
+                    <span class="date-chip" *ngFor="let d of plannedDates">
+                        {{ d | date:'dd/MM/yy' }}
+                    </span>
+                </div>
+            </div>
+            <p *ngIf="service.notes">
+                {{ service.notes }}
+            </p>
+        </div>
+        <div class="field" *ngIf="selectedService?.requires_approval">
+            <label>צירוף אישור חובה</label>
+
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png" (change)="onApprovalFileSelected($event)" />
+
+            <small>
+                עבור שירות זה חובה לצרף אישור. ניתן לצרף PDF או תמונה.
+            </small>
+
+            <div class="error-text" *ngIf="approvalFileError">
+                {{ approvalFileError }}
+            </div>
+        </div>
+        <div class="field">
+            <label>הערות לבקשה</label>
+
+            <textarea [(ngModel)]="form.notes" name="notes" rows="4" placeholder="פירוט נוסף למזכירות...">
+      </textarea>
+        </div>
+
+        <div class="actions">
+            <button type="submit" class="btn-submit" [disabled]="submitting">
+                {{ submitting ? 'שולח...' : 'שליחת בקשה' }}
+            </button>
+        </div>
+
+    </form>
+</div>

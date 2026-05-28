@@ -503,6 +503,8 @@ export class SecretarialRequestsPageComponent implements OnInit {
     switch (row.request_type) {
       case 'CANCEL_OCCURRENCE':
         return p.summary || `ביטול שיעור לתאריך ${p.occur_date ?? row.from_date ?? ''}`;
+      case 'RIDER_SERVICE_REQUEST':
+        return p.summary || `בקשה לשירות ${p.service_name ?? ''}`;
       case 'INSTRUCTOR_DAY_OFF': {
         if (p.summary) return p.summary;
 
@@ -653,6 +655,7 @@ export class SecretarialRequestsPageComponent implements OnInit {
       case 'PARENT_SIGNUP': return 'הרשמת הורה';
       case 'INDEPENDENT_SIGNUP': return 'הרשמת רוכב עצמאי';
       case 'SINGLE_LESSON': return 'שיעור בודד';
+      case 'RIDER_SERVICE_REQUEST': return 'בקשת שירות רוכב';
       default: return type;
     }
   }
@@ -688,6 +691,7 @@ export class SecretarialRequestsPageComponent implements OnInit {
       case 'PARENT_SIGNUP': return 'person';
       case 'INDEPENDENT_SIGNUP': return 'directions_run';
       case 'SINGLE_LESSON': return 'event';
+      case 'RIDER_SERVICE_REQUEST': return 'construction';
       default: return 'help';
     }
   }

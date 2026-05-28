@@ -26,21 +26,12 @@
   <!-- Main content -->
   <div class="farm-settings-shell">
     <!-- SETTINGS FORM -->
-    <form
-      *ngIf="settings() as s"
-      class="settings-stack"
-      (ngSubmit)="saveSettings()"
-      autocomplete="off"
-    >
+    <form *ngIf="settings() as s" class="settings-stack" (ngSubmit)="saveSettings()" autocomplete="off">
       <!-- שעות פעילות לפי יום -->
       <section class="settings-card">
         <div class="section-head section-head-split">
-          <button
-            type="button"
-            class="section-title-btn"
-            (click)="toggleWorkingHoursExpanded()"
-            [attr.aria-expanded]="workingHoursExpanded()"
-          >
+          <button type="button" class="section-title-btn" (click)="toggleWorkingHoursExpanded()"
+            [attr.aria-expanded]="workingHoursExpanded()">
             <span class="chev" [class.open]="workingHoursExpanded()">⌄</span>
             <div class="section-title-wrap">
               <h2>שעות פעילות לפי יום</h2>
@@ -54,12 +45,8 @@
               <span class="mini-stat-value">{{ s.timezone || 'Asia/Jerusalem' }}</span>
             </div>
 
-            <button
-              type="button"
-              class="btn btn-primary"
-              (click)="saveWorkingHours()"
-              [disabled]="saving() || loading() || !!workingHoursError() || !canSaveWorkingHours()"
-            >
+            <button type="button" class="btn btn-primary" (click)="saveWorkingHours()"
+              [disabled]="saving() || loading() || !!workingHoursError() || !canSaveWorkingHours()">
               שמירת שעות לפי יום
             </button>
           </div>
@@ -90,68 +77,36 @@
 
               <div class="hours-switch-cell">
                 <label class="switch">
-                  <input
-                    type="checkbox"
-                    class="wh-check"
-                    [(ngModel)]="r.is_open"
-                    name="whOpen{{ r.day_of_week }}"
-                    (ngModelChange)="onFarmOpenToggle(r); onWorkingHoursChanged()"
-                  />
+                  <input type="checkbox" class="wh-check" [(ngModel)]="r.is_open" name="whOpen{{ r.day_of_week }}"
+                    (ngModelChange)="onFarmOpenToggle(r); onWorkingHoursChanged()" />
                   <span class="switch-ui"></span>
                 </label>
               </div>
 
               <div class="hours-time-range">
-                <input
-                  type="time"
-                  class="time-pill"
-                  [(ngModel)]="r.farm_start"
-                  name="whFarmStart{{ r.day_of_week }}"
-                  [disabled]="!r.is_open"
-                  (ngModelChange)="onWorkingHoursTimeChanged()"
-                />
+                <input type="time" class="time-pill" [(ngModel)]="r.farm_start" name="whFarmStart{{ r.day_of_week }}"
+                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursTimeChanged()" />
                 <span class="sep">—</span>
-                <input
-                  type="time"
-                  class="time-pill"
-                  [(ngModel)]="r.farm_end"
-                  name="whFarmEnd{{ r.day_of_week }}"
-                  [disabled]="!r.is_open"
-                  (ngModelChange)="onWorkingHoursTimeChanged()"
-                />
+                <input type="time" class="time-pill" [(ngModel)]="r.farm_end" name="whFarmEnd{{ r.day_of_week }}"
+                  [disabled]="!r.is_open" (ngModelChange)="onWorkingHoursTimeChanged()" />
               </div>
 
               <div class="hours-switch-cell">
                 <label class="switch">
-                  <input
-                    type="checkbox"
-                    class="wh-check"
-                    [(ngModel)]="r.is_offical_open"
+                  <input type="checkbox" class="wh-check" [(ngModel)]="r.is_offical_open"
                     name="whOfficeOpen{{ r.day_of_week }}"
-                    (ngModelChange)="onOfficeOpenToggle(r); onWorkingHoursChanged()"
-                  />
+                    (ngModelChange)="onOfficeOpenToggle(r); onWorkingHoursChanged()" />
                   <span class="switch-ui"></span>
                 </label>
               </div>
 
               <div class="hours-time-range">
-                <input
-                  type="time"
-                  class="time-pill"
-                  [(ngModel)]="r.office_start"
-                  name="whOfficeStart{{ r.day_of_week }}"
-                  [disabled]="!r.is_offical_open"
-                  (ngModelChange)="onWorkingHoursTimeChanged()"
-                />
+                <input type="time" class="time-pill" [(ngModel)]="r.office_start"
+                  name="whOfficeStart{{ r.day_of_week }}" [disabled]="!r.is_offical_open"
+                  (ngModelChange)="onWorkingHoursTimeChanged()" />
                 <span class="sep">—</span>
-                <input
-                  type="time"
-                  class="time-pill"
-                  [(ngModel)]="r.office_end"
-                  name="whOfficeEnd{{ r.day_of_week }}"
-                  [disabled]="!r.is_offical_open"
-                  (ngModelChange)="onWorkingHoursTimeChanged()"
-                />
+                <input type="time" class="time-pill" [(ngModel)]="r.office_end" name="whOfficeEnd{{ r.day_of_week }}"
+                  [disabled]="!r.is_offical_open" (ngModelChange)="onWorkingHoursTimeChanged()" />
               </div>
             </div>
           </div>
@@ -192,13 +147,13 @@
                 <div class="chips-row">
                   <span class="chip">{{ d.recurrence === 'YEARLY' ? 'שנתי' : 'חד פעמי' }}</span>
                   <span class="chip chip-soft">
-  {{ d.is_special_day ? 'יום מיוחד' : 'יום השבתה' }}
-</span>
+                    {{ d.is_special_day ? 'יום מיוחד' : 'יום השבתה' }}
+                  </span>
                   <span class="chip">
                     {{
-                      d.all_day
-                        ? 'כל היום'
-                        : ('החווה עובדת: ' + d.start_time + ' - ' + d.end_time)
+                    d.all_day
+                    ? 'כל היום'
+                    : ('החווה עובדת: ' + d.start_time + ' - ' + d.end_time)
                     }}
                   </span>
                   <span class="chip chip-soft" *ngIf="d.notify_parents_before">
@@ -235,25 +190,16 @@
             <div class="field-head row-between">
               <label class="field-label">מס׳ שיעורים בסדרה (ברירת מחדל)</label>
               <label class="mini-check">
-                <input
-                  type="checkbox"
-                  [checked]="isUnlimitedDefaultLessonsPerSeries()"
-                  (change)="setUnlimitedDefaultLessonsPerSeries($any($event.target).checked)"
-                />
+                <input type="checkbox" [checked]="isUnlimitedDefaultLessonsPerSeries()"
+                  (change)="setUnlimitedDefaultLessonsPerSeries($any($event.target).checked)" />
                 <span>ללא הגבלה</span>
               </label>
             </div>
 
-            <input
-              class="form-control"
-              type="number"
-              min="1"
-              [(ngModel)]="s.default_lessons_per_series"
-              name="default_lessons_per_series"
-              [disabled]="isUnlimitedDefaultLessonsPerSeries()"
+            <input class="form-control" type="number" min="1" [(ngModel)]="s.default_lessons_per_series"
+              name="default_lessons_per_series" [disabled]="isUnlimitedDefaultLessonsPerSeries()"
               [placeholder]="isUnlimitedDefaultLessonsPerSeries() ? 'ללא הגבלה' : ''"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
+              (ngModelChange)="validateSettingsFields(s)" />
 
             <small class="field-error" *ngIf="settingsErrors().default_lessons_per_series">
               {{ settingsErrors().default_lessons_per_series }}
@@ -262,17 +208,9 @@
 
           <label class="field-card">
             <span class="field-label">אורך שיעור (דקות)</span>
-            <input
-              class="form-control"
-              type="number"
-              min="15"
-              max="540"
-              step="15"
-              inputmode="numeric"
-              [(ngModel)]="s.lesson_duration_minutes"
-              name="lesson_duration_minutes"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
+            <input class="form-control" type="number" min="15" max="540" step="15" inputmode="numeric"
+              [(ngModel)]="s.lesson_duration_minutes" name="lesson_duration_minutes"
+              (ngModelChange)="validateSettingsFields(s)" />
             <small class="field-error" *ngIf="settingsErrors().lesson_duration_minutes">
               {{ settingsErrors().lesson_duration_minutes }}
             </small>
@@ -280,17 +218,9 @@
 
           <label class="field-card">
             <span class="field-label">מחיר שיעור רגיל (₪)</span>
-            <input
-              class="form-control"
-              type="number"
-              min="0"
-              max="1000"
-              step="0.5"
-              inputmode="decimal"
-              [(ngModel)]="s.default_lesson_price"
-              name="default_lesson_price"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
+            <input class="form-control" type="number" min="0" max="1000" step="0.5" inputmode="decimal"
+              [(ngModel)]="s.default_lesson_price" name="default_lesson_price"
+              (ngModelChange)="validateSettingsFields(s)" />
             <small class="field-error" *ngIf="settingsErrors().default_lesson_price">
               {{ settingsErrors().default_lesson_price }}
             </small>
@@ -300,15 +230,8 @@
         <div class="form-grid cols-3">
           <label class="field-card">
             <span class="field-label">מקס׳ רוכבים בשיעור קבוצתי</span>
-            <input
-              class="form-control"
-              type="number"
-              min="1"
-              max="10"
-              [(ngModel)]="s.max_group_size"
-              name="max_group_size"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
+            <input class="form-control" type="number" min="1" max="10" [(ngModel)]="s.max_group_size"
+              name="max_group_size" (ngModelChange)="validateSettingsFields(s)" />
             <small class="field-error" *ngIf="settingsErrors().max_group_size">
               {{ settingsErrors().max_group_size }}
             </small>
@@ -318,24 +241,15 @@
             <div class="field-head row-between">
               <label class="field-label">מקס׳ שיעורים בשבוע לילד</label>
               <label class="mini-check">
-                <input
-                  type="checkbox"
-                  [checked]="isUnlimitedLessonsPerWeek()"
-                  (change)="setUnlimitedLessonsPerWeek($any($event.target).checked)"
-                />
+                <input type="checkbox" [checked]="isUnlimitedLessonsPerWeek()"
+                  (change)="setUnlimitedLessonsPerWeek($any($event.target).checked)" />
                 <span>ללא הגבלה</span>
               </label>
             </div>
 
-            <input
-              class="form-control"
-              type="number"
-              min="1"
-              [(ngModel)]="s.max_lessons_per_week_per_child"
-              name="max_lessons_per_week_per_child"
-              [disabled]="isUnlimitedLessonsPerWeek()"
-              [placeholder]="isUnlimitedLessonsPerWeek() ? 'ללא הגבלה' : ''"
-            />
+            <input class="form-control" type="number" min="1" [(ngModel)]="s.max_lessons_per_week_per_child"
+              name="max_lessons_per_week_per_child" [disabled]="isUnlimitedLessonsPerWeek()"
+              [placeholder]="isUnlimitedLessonsPerWeek() ? 'ללא הגבלה' : ''" />
 
             <small class="field-error" *ngIf="settingsErrors().max_lessons_per_week_per_child">
               {{ settingsErrors().max_lessons_per_week_per_child }}
@@ -356,15 +270,9 @@
         <div class="form-grid cols-2">
           <label class="field-card compact-card">
             <span class="field-label">כמה ימים קדימה לחשב לוח זמינות</span>
-            <input
-              class="form-control short-input"
-              type="number"
-              min="1"
-              max="365"
-              [(ngModel)]="s.availability_days_ahead"
-              name="availability_days_ahead"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
+            <input class="form-control short-input" type="number" min="1" max="365"
+              [(ngModel)]="s.availability_days_ahead" name="availability_days_ahead"
+              (ngModelChange)="validateSettingsFields(s)" />
             <small class="field-error" *ngIf="settingsErrors().availability_days_ahead">
               {{ settingsErrors().availability_days_ahead }}
             </small>
@@ -373,16 +281,9 @@
 
           <label class="field-card compact-card">
             <span class="field-label">כמה ימים קדימה הורים יכולים לקבוע שיעור</span>
-            <input
-              class="form-control short-input"
-              type="number"
-              min="0"
-              max="365"
-              [(ngModel)]="s.parent_booking_days_ahead"
-              name="parent_booking_days_ahead"
-              [disabled]="!s.allow_online_booking"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
+            <input class="form-control short-input" type="number" min="0" max="365"
+              [(ngModel)]="s.parent_booking_days_ahead" name="parent_booking_days_ahead"
+              [disabled]="!s.allow_online_booking" (ngModelChange)="validateSettingsFields(s)" />
             <small class="field-error" *ngIf="settingsErrors().parent_booking_days_ahead">
               {{ settingsErrors().parent_booking_days_ahead }}
             </small>
@@ -403,15 +304,8 @@
         <div class="form-grid cols-3">
           <label class="field-card">
             <span class="field-label">ימי אחורה להשלמות</span>
-            <input
-              class="form-control"
-              type="number"
-              min="0"
-              max="365"
-              [(ngModel)]="s.makeup_allowed_days_back"
-              name="makeup_allowed_days_back"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
+            <input class="form-control" type="number" min="0" max="365" [(ngModel)]="s.makeup_allowed_days_back"
+              name="makeup_allowed_days_back" (ngModelChange)="validateSettingsFields(s)" />
             <small class="field-error" *ngIf="settingsErrors().makeup_allowed_days_back">
               {{ settingsErrors().makeup_allowed_days_back }}
             </small>
@@ -419,15 +313,8 @@
 
           <label class="field-card">
             <span class="field-label">ימי השלמה קדימה</span>
-            <input
-              class="form-control"
-              type="number"
-              min="0"
-              max="365"
-              [(ngModel)]="s.makeup_allowed_days_ahead"
-              name="makeup_allowed_days_ahead"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
+            <input class="form-control" type="number" min="0" max="365" [(ngModel)]="s.makeup_allowed_days_ahead"
+              name="makeup_allowed_days_ahead" (ngModelChange)="validateSettingsFields(s)" />
             <small class="field-error" *ngIf="settingsErrors().makeup_allowed_days_ahead">
               {{ settingsErrors().makeup_allowed_days_ahead }}
             </small>
@@ -435,15 +322,8 @@
 
           <label class="field-card">
             <span class="field-label">מקס׳ השלמות בתקופה</span>
-            <input
-              class="form-control"
-              type="number"
-              min="0"
-              max="50"
-              [(ngModel)]="s.max_makeups_in_period"
-              name="max_makeups_in_period"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
+            <input class="form-control" type="number" min="0" max="50" [(ngModel)]="s.max_makeups_in_period"
+              name="max_makeups_in_period" (ngModelChange)="validateSettingsFields(s)" />
             <small class="field-error" *ngIf="settingsErrors().max_makeups_in_period">
               {{ settingsErrors().max_makeups_in_period }}
             </small>
@@ -453,15 +333,8 @@
         <div class="form-grid cols-3">
           <label class="field-card">
             <span class="field-label">גודל תקופה (ימים)</span>
-            <input
-              class="form-control"
-              type="number"
-              min="1"
-              max="365"
-              [(ngModel)]="s.makeups_period_days"
-              name="makeups_period_days"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
+            <input class="form-control" type="number" min="1" max="365" [(ngModel)]="s.makeups_period_days"
+              name="makeups_period_days" (ngModelChange)="validateSettingsFields(s)" />
             <small class="field-error" *ngIf="settingsErrors().makeups_period_days">
               {{ settingsErrors().makeups_period_days }}
             </small>
@@ -469,24 +342,14 @@
 
           <label class="field-card">
             <span class="field-label">מס׳ שיעורי השלמה להצגה</span>
-            <input
-              class="form-control"
-              type="number"
-              min="1"
-              [(ngModel)]="s.displayed_makeup_lessons_count"
-              name="displayed_makeup_lessons_count"
-            />
+            <input class="form-control" type="number" min="1" [(ngModel)]="s.displayed_makeup_lessons_count"
+              name="displayed_makeup_lessons_count" />
           </label>
 
           <label class="field-card">
             <span class="field-label">הפרש מינימלי בין ביטולים (שעות:דקות)</span>
-            <input
-              class="form-control"
-              type="time"
-              [(ngModel)]="s.min_time_between_cancellations"
-              name="min_time_between_cancellations"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
+            <input class="form-control" type="time" [(ngModel)]="s.min_time_between_cancellations"
+              name="min_time_between_cancellations" (ngModelChange)="validateSettingsFields(s)" />
             <small class="field-error" *ngIf="settingsErrors().min_time_between_cancellations">
               {{ settingsErrors().min_time_between_cancellations }}
             </small>
@@ -496,92 +359,72 @@
         <div class="form-grid cols-3">
           <label class="field-card">
             <span class="field-label">ביטול עד (שעות לפני)</span>
-            <input
-              class="form-control"
-              type="number"
-              min="0"
-              max="168"
-              [(ngModel)]="s.cancel_before_hours"
-              name="cancel_before_hours"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
+            <input class="form-control" type="number" min="0" max="168" [(ngModel)]="s.cancel_before_hours"
+              name="cancel_before_hours" (ngModelChange)="validateSettingsFields(s)" />
             <small class="field-error" *ngIf="settingsErrors().cancel_before_hours">
               {{ settingsErrors().cancel_before_hours }}
             </small>
           </label>
-<div class="form-grid cols-3">
-  <label class="field-card field-toggle">
-    <div class="toggle-line">
-      <span class="field-label">חיוב ביטול לפני הדדליין</span>
-      <label class="switch">
-        <input
-          type="checkbox"
-          [(ngModel)]="s.parent_cancel_charge_before_deadline"
-          name="parent_cancel_charge_before_deadline"
-        />
-        <span class="switch-ui"></span>
-      </label>
-    </div>
-    <small class="field-hint">
-      האם לחייב הורה גם אם הביטול בוצע בזמן.
-    </small>
-  </label>
+          <div class="form-grid cols-3">
+            <label class="field-card field-toggle">
+              <div class="toggle-line">
+                <span class="field-label">חיוב ביטול לפני הדדליין</span>
+                <label class="switch">
+                  <input type="checkbox" [(ngModel)]="s.parent_cancel_charge_before_deadline"
+                    name="parent_cancel_charge_before_deadline" />
+                  <span class="switch-ui"></span>
+                </label>
+              </div>
+              <small class="field-hint">
+                האם לחייב הורה גם אם הביטול בוצע בזמן.
+              </small>
+            </label>
 
-  <label class="field-card field-toggle">
-    <div class="toggle-line">
-      <span class="field-label">חיוב ביטול אחרי הדדליין</span>
-      <label class="switch">
-        <input
-          type="checkbox"
-          [(ngModel)]="s.parent_cancel_charge_after_deadline"
-          name="parent_cancel_charge_after_deadline"
-        />
-        <span class="switch-ui"></span>
-      </label>
-    </div>
-    <small class="field-hint">
-      האם לחייב הורה על ביטול מאוחר.
-    </small>
-  </label>
+            <label class="field-card field-toggle">
+              <div class="toggle-line">
+                <span class="field-label">חיוב ביטול אחרי הדדליין</span>
+                <label class="switch">
+                  <input type="checkbox" [(ngModel)]="s.parent_cancel_charge_after_deadline"
+                    name="parent_cancel_charge_after_deadline" />
+                  <span class="switch-ui"></span>
+                </label>
+              </div>
+              <small class="field-hint">
+                האם לחייב הורה על ביטול מאוחר.
+              </small>
+            </label>
 
-  <label class="field-card">
-    <span class="field-label">מועד יצירת החיוב על ביטול</span>
-    <select
-      class="form-control"
-      [(ngModel)]="s.parent_cancel_charge_timing"
-      name="parent_cancel_charge_timing"
-    >
-      <option [ngValue]="'at_cancel'">בעת הביטול</option>
-      <option [ngValue]="'at_makeup'">בעת קביעת השלמה</option>
-    </select>
-    <small class="field-hint">
-      מגדיר מתי בפועל יווצר החיוב על ביטול.
-    </small>
-  </label>
-  <label class="field-card">
-  <span class="field-label">
-    ביטולי חווה – על מה לחייב
-  </span>
+            <label class="field-card">
+              <span class="field-label">מועד יצירת החיוב על ביטול</span>
+              <select class="form-control" [(ngModel)]="s.parent_cancel_charge_timing"
+                name="parent_cancel_charge_timing">
+                <option [ngValue]="'at_cancel'">בעת הביטול</option>
+                <option [ngValue]="'at_makeup'">בעת קביעת השלמה</option>
+              </select>
+              <small class="field-hint">
+                מגדיר מתי בפועל יווצר החיוב על ביטול.
+              </small>
+            </label>
+            <label class="field-card">
+              <span class="field-label">
+                ביטולי חווה – על מה לחייב
+              </span>
 
-  <select
-    class="form-control"
-    [(ngModel)]="s.farm_cancel_charge_target"
-    name="farm_cancel_charge_target"
-  >
-    <option [ngValue]="'cancelled_lesson'">
-      על השיעור שבוטל
-    </option>
+              <select class="form-control" [(ngModel)]="s.farm_cancel_charge_target" name="farm_cancel_charge_target">
+                <option [ngValue]="'cancelled_lesson'">
+                  על השיעור שבוטל
+                </option>
 
-    <option [ngValue]="'makeup_lesson'">
-      על שיעור ההשלמה
-    </option>
-  </select>
+                <option [ngValue]="'makeup_lesson'">
+                  על שיעור ההשלמה
+                </option>
+              </select>
 
-  <small class="field-hint">
-    חל על ביטולים ביוזמת החווה (יום חופש מדריך / יום מיוחד חווה)
-  </small>
-</label>
-</div>
+              <small class="field-hint">
+                חל על ביטולים ביוזמת החווה (יום חופש מדריך / יום מיוחד חווה)
+              </small>
+            </label>
+          </div>
           <label class="field-card">
             <span class="field-label">מדיניות ביטול מאוחר</span>
             <select class="form-control" [(ngModel)]="s.late_cancel_policy" name="late_cancel_policy">
@@ -602,7 +445,7 @@
           </label>
         </div>
 
-       
+
       </section>
 
       <!-- תזכורות והתראות -->
@@ -627,16 +470,9 @@
 
           <label class="field-card">
             <span class="field-label">כמה שעות לפני</span>
-            <input
-              class="form-control"
-              type="number"
-              min="0"
-              max="168"
-              [(ngModel)]="s.reminder_hours_before"
-              name="reminder_hours_before"
-              [disabled]="!s.send_lesson_reminder"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
+            <input class="form-control" type="number" min="0" max="168" [(ngModel)]="s.reminder_hours_before"
+              name="reminder_hours_before" [disabled]="!s.send_lesson_reminder"
+              (ngModelChange)="validateSettingsFields(s)" />
             <small class="field-error" *ngIf="settingsErrors().reminder_hours_before">
               {{ settingsErrors().reminder_hours_before }}
             </small>
@@ -644,12 +480,8 @@
 
           <label class="field-card">
             <span class="field-label">ערוץ תזכורת</span>
-            <select
-              class="form-control"
-              [(ngModel)]="s.reminder_channel"
-              name="reminder_channel"
-              [disabled]="!s.send_lesson_reminder"
-            >
+            <select class="form-control" [(ngModel)]="s.reminder_channel" name="reminder_channel"
+              [disabled]="!s.send_lesson_reminder">
               <option [ngValue]="null">ללא</option>
               <option [ngValue]="'APP'">אפליקציה</option>
               <option [ngValue]="'EMAIL'">אימייל</option>
@@ -696,12 +528,8 @@
             <div class="toggle-line">
               <span class="field-label">תזכורת עם אישור הגעה</span>
               <label class="switch">
-                <input
-                  type="checkbox"
-                  [(ngModel)]="s.reminder_require_confirmation"
-                  name="reminder_require_confirmation"
-                  [disabled]="!s.send_lesson_reminder"
-                />
+                <input type="checkbox" [(ngModel)]="s.reminder_require_confirmation"
+                  name="reminder_require_confirmation" [disabled]="!s.send_lesson_reminder" />
                 <span class="switch-ui"></span>
               </label>
             </div>
@@ -711,12 +539,8 @@
             <div class="toggle-line">
               <span class="field-label">לאפשר ביטול מתוך תזכורת</span>
               <label class="switch">
-                <input
-                  type="checkbox"
-                  [(ngModel)]="s.reminder_allow_cancel_link"
-                  name="reminder_allow_cancel_link"
-                  [disabled]="!s.send_lesson_reminder"
-                />
+                <input type="checkbox" [(ngModel)]="s.reminder_allow_cancel_link" name="reminder_allow_cancel_link"
+                  [disabled]="!s.send_lesson_reminder" />
                 <span class="switch-ui"></span>
               </label>
             </div>
@@ -728,11 +552,7 @@
             <div class="toggle-line">
               <span class="field-label">לשלוח הודעה להורים לפני חופש חווה</span>
               <label class="switch">
-                <input
-                  type="checkbox"
-                  [(ngModel)]="s.notify_before_farm_closure"
-                  name="notify_before_farm_closure"
-                />
+                <input type="checkbox" [(ngModel)]="s.notify_before_farm_closure" name="notify_before_farm_closure" />
                 <span class="switch-ui"></span>
               </label>
             </div>
@@ -740,16 +560,9 @@
 
           <label class="field-card">
             <span class="field-label">כמה שעות לפני</span>
-            <input
-              class="form-control short-input"
-              type="number"
-              min="1"
-              step="1"
-              [(ngModel)]="s.notify_before_farm_closure_hours"
-              name="notify_before_farm_closure_hours"
-              [disabled]="!s.notify_before_farm_closure"
-              (ngModelChange)="validateSettingsFields(s)"
-            />
+            <input class="form-control short-input" type="number" min="1" step="1"
+              [(ngModel)]="s.notify_before_farm_closure_hours" name="notify_before_farm_closure_hours"
+              [disabled]="!s.notify_before_farm_closure" (ngModelChange)="validateSettingsFields(s)" />
             <small class="field-error" *ngIf="settingsErrors().notify_before_farm_closure_hours">
               {{ settingsErrors().notify_before_farm_closure_hours }}
             </small>
@@ -769,14 +582,8 @@
         <div class="form-grid cols-2">
           <label class="field-card">
             <span class="field-label">יום חיוב חודשי (1–28)</span>
-            <input
-              class="form-control short-input"
-              type="number"
-              min="1"
-              max="28"
-              [(ngModel)]="s.monthly_billing_day"
-              name="monthly_billing_day"
-            />
+            <input class="form-control short-input" type="number" min="1" max="28" [(ngModel)]="s.monthly_billing_day"
+              name="monthly_billing_day" />
           </label>
 
           <label class="field-card field-toggle">
@@ -793,681 +600,525 @@
         <div class="form-grid cols-3">
           <label class="field-card">
             <span class="field-label">קנס פיגור (₪)</span>
-            <input
-              class="form-control"
-              type="number"
-              min="0"
-              step="0.5"
-              [(ngModel)]="s.late_payment_fee"
-              name="late_payment_fee"
-            />
+            <input class="form-control" type="number" min="0" step="0.5" [(ngModel)]="s.late_payment_fee"
+              name="late_payment_fee" />
           </label>
 
           <label class="field-card">
             <span class="field-label">אחרי כמה ימים נחשב פיגור</span>
-            <input
-              class="form-control short-input"
-              type="number"
-              min="0"
-              step="1"
-              [(ngModel)]="s.late_payment_grace_days"
-              name="late_payment_grace_days"
-            />
+            <input class="form-control short-input" type="number" min="0" step="1"
+              [(ngModel)]="s.late_payment_grace_days" name="late_payment_grace_days" />
             <small class="field-hint">0 = פיגור מיידי, 7 = שבוע חסד</small>
           </label>
 
           <label class="field-card">
             <span class="field-label">ריבית חודשית (%)</span>
-            <input
-              class="form-control"
-              type="number"
-              min="0"
-              max="100"
-              step="0.1"
-              [(ngModel)]="s.interest_percent_monthly"
-              name="interest_percent_monthly"
-            />
+            <input class="form-control" type="number" min="0" max="100" step="0.1"
+              [(ngModel)]="s.interest_percent_monthly" name="interest_percent_monthly" />
           </label>
         </div>
       </section>
-<!-- חיובים מיוחדים -->
-<section class="settings-card">
-  <div class="section-head">
-    <div class="section-title-wrap">
-      <h2>חיובים מיוחדים</h2>
-      <span class="section-subtitle">
-        ביטוחים, ציוד, קסדה, מכנס רכיבה וכל חיוב נוסף שהחווה רוצה להגדיר
-      </span>
-    </div>
-
-   <button type="button" class="btn btn-ghost icon-left" (click)="toggleNewSpecialChargeForm()">
-  <span class="plus-icon">＋</span>
-  <span>הוספת חיוב</span>
-</button>
-  </div>
-
-  <div class="sub-panel" *ngIf="showNewSpecialChargeForm()">
-    <div class="sub-panel-title">הוספת חיוב מיוחד</div>
-
-    <div class="form-grid cols-3">
-      <label class="field-card">
-        <span class="field-label">פריט</span>
-        <input
-          class="form-control"
-          type="text"
-          [(ngModel)]="newSpecialCharge().item"
-          name="newSpecialChargeItem"
-          placeholder="לדוגמה: ביטוח / קסדה / מכנס רכיבה"
-        />
-         <small class="field-error" *ngIf="newSpecialChargeErrors().item">
-      {{ newSpecialChargeErrors().item }}
-    </small>
-      </label>
-
-      <label class="field-card">
-        <span class="field-label">סכום</span>
-        <input
-          class="form-control"
-          type="number"
-          min="0"
-          step="0.5"
-          [(ngModel)]="newSpecialCharge().amount"
-          name="newSpecialChargeAmount"
-        />
-        <small class="field-error" *ngIf="newSpecialChargeErrors().amount">
-  {{ newSpecialChargeErrors().amount }}
-</small>
- 
-      </label>
-
-    </div>
-
-   <div class="form-grid cols-3">
-  <label class="field-card">
-    <span class="field-label">סוג חיוב</span>
-
-    <select
-      class="form-control"
-      [ngModel]="getSpecialChargeMode(newSpecialCharge())"
-      name="newSpecialChargeMode"
-      (ngModelChange)="setNewSpecialChargeMode($event)"
-    >
-      <option [ngValue]="'registration'">תשלום בהרשמה</option>
-      <option [ngValue]="'specific_date'">תשלום בתאריך ספציפי</option>
-      <option [ngValue]="'yearly'">תשלום שנתי / מחזורי</option>
-    </select>
-  </label>
-  <small class="field-error" *ngIf="newSpecialChargeErrors().mode">
-  {{ newSpecialChargeErrors().mode }}
-</small>
-
-  <label class="field-card" *ngIf="getSpecialChargeMode(newSpecialCharge()) === 'specific_date'">
-    <span class="field-label">תאריך תשלום</span>
-   <input
-  class="form-control date-input"
-  type="date"
-  lang="he-IL"
-  dir="ltr"
-  [(ngModel)]="newSpecialCharge().charge_date"
-  name="newSpecialChargeDate"
-/>
-  </label>
-
-  <label class="field-card" *ngIf="getSpecialChargeMode(newSpecialCharge()) === 'yearly'">
-  <span class="field-label">תדירות חיוב</span>
-
-  <select
-    class="form-control"
-    [ngModel]="newSpecialCharge().charge_times_per_year"
-    name="newSpecialChargeTimesPerYear"
-    (ngModelChange)="selectNewChargeTimesPerYear($event)"
-  >
-    <option [ngValue]="null">בחירת תדירות</option>
-    <option *ngFor="let opt of specialChargeFrequencyOptions" [ngValue]="opt.value">
-      {{ opt.label }}
-    </option>
-  </select>
-</label>
- <label class="field-card" *ngIf="getSpecialChargeMode(newSpecialCharge()) === 'yearly'">
-  <span class="field-label">תאריך לפעם ראשונה</span>
-<input
-  class="form-control date-input"
-  type="date"
-  lang="he-IL"
-  dir="ltr"
-  [(ngModel)]="newSpecialCharge().first_charge_date"
-  name="newSpecialChargeFirstDate"
-/>
-</label>
-</div>
-<div class="form-grid cols-2" *ngIf="getSpecialChargeMode(newSpecialCharge()) === 'registration'">
-  <label class="field-card field-toggle">
-    <div class="toggle-line">
-      <span class="field-label">חובה?</span>
-      <label class="switch">
-        <input
-          type="checkbox"
-          [ngModel]="newSpecialCharge().is_required"
-          name="newSpecialChargeRequired"
-          (ngModelChange)="patchNewSpecialCharge({ is_required: $event })"
-        />
-        <span class="switch-ui"></span>
-      </label>
-    </div>
-  </label>
-
-  <label class="field-card">
-    <span class="field-label">הערת אזהרה אם ההורה לא מסמן</span>
-    <input
-      class="form-control"
-      type="text"
-      [(ngModel)]="newSpecialCharge().warning_note"
-      name="newSpecialChargeWarning"
-      placeholder="לדוגמה: ללא קסדה לא ניתן להשתתף בשיעור"
-    />
-  </label>
-</div>
-<div class="field-card full-row">
-  <span class="field-label">גורמי מימון שהחיוב חל עליהם</span>
-
-  <div class="checks-grid">
-    <label class="mini-check" *ngFor="let fs of fundingSources()">
-      <input
-        type="checkbox"
-        [checked]="(newSpecialCharge().funding_source_ids || []).includes(fs.id)"
-        (change)="toggleFundingSourceForNewSpecialCharge(fs.id, $any($event.target).checked)"
-      />
-      <span>{{ fs.name }}</span>
-    </label>
-  </div>
-</div>
-    <label class="field-card">
-      <span class="field-label">הערות</span>
-      <input
-        class="form-control"
-        type="text"
-        [(ngModel)]="newSpecialCharge().notes"
-        name="newSpecialChargeNotes"
-        placeholder="הערה פנימית למזכירות"
-      />
-    </label>
-
-   <div class="panel-actions">
-  <button type="button" class="btn btn-primary" (click)="createSpecialCharge()">
-    שמירה
-  </button>
-
-  <button type="button" class="btn btn-ghost" (click)="cancelNewSpecialCharge()">
-    ביטול
-  </button>
-</div>
-  </div>
-  
-<div class="special-charge-cards" *ngIf="specialCharges().length; else noSpecialCharges">
-  <div class="special-charge-card" *ngFor="let c of specialCharges()" [class.inactive]="!c.is_active">
-    <ng-container *ngIf="editingSpecialChargeId() === c.id; else viewSpecialChargeCard">
-
-      <div class="charge-card-head">
-        <input class="form-control" [(ngModel)]="c.item" name="specialItem_{{ c.id }}" />
-        <input class="form-control amount-input" type="number" min="0" step="0.5" [(ngModel)]="c.amount" name="specialAmount_{{ c.id }}" />
-      </div>
-
-      <div class="form-grid cols-3">
-        <label class="field-card">
-          <span class="field-label">סוג חיוב</span>
-          <select class="form-control" [ngModel]="getSpecialChargeMode(c)" name="specialMode_{{ c.id }}" (ngModelChange)="setExistingSpecialChargeMode(c, $event)">
-            <option [ngValue]="'registration'">תשלום בהרשמה</option>
-            <option [ngValue]="'specific_date'">תשלום בתאריך ספציפי</option>
-            <option [ngValue]="'yearly'">תשלום שנתי / מחזורי</option>
-          </select>
-        </label>
-
-        <label class="field-card" *ngIf="getSpecialChargeMode(c) === 'specific_date'">
-          <span class="field-label">תאריך חיוב</span>
-<input
-  class="form-control date-input"
-  type="date"
-  lang="he-IL"
-  dir="ltr"
-  [(ngModel)]="c.charge_date"
-  name="specialDate_{{ c.id }}"
-/>        </label>
-
-       <label class="field-card" *ngIf="getSpecialChargeMode(c) === 'yearly'">
-  <span class="field-label">תדירות חיוב</span>
-
-  <select
-    class="form-control"
-    [(ngModel)]="c.charge_times_per_year"
-    name="specialTimesPerYear_{{ c.id }}"
-  >
-    <option *ngFor="let opt of specialChargeFrequencyOptions" [ngValue]="opt.value">
-      {{ opt.label }}
-    </option>
-  </select>
-</label>
-
-        <label class="field-card" *ngIf="getSpecialChargeMode(c) === 'yearly'">
-          <span class="field-label">תאריך לפעם ראשונה</span>
-<input
-  class="form-control date-input"
-  type="date"
-  lang="he-IL"
-  dir="ltr"
-  [(ngModel)]="c.first_charge_date"
-  name="specialFirstChargeDate_{{ c.id }}"
-/>        </label>
-      </div>
-
-      <div class="form-grid cols-2" *ngIf="getSpecialChargeMode(c) === 'registration'">
-        <label class="field-card field-toggle">
-          <div class="toggle-line">
-            <span class="field-label">חובה?</span>
-            <label class="switch">
-              <input type="checkbox" [(ngModel)]="c.is_required" name="specialRequired_{{ c.id }}" />
-              <span class="switch-ui"></span>
-            </label>
+      <!-- חיובים מיוחדים -->
+      <section class="settings-card">
+        <div class="section-head">
+          <div class="section-title-wrap">
+            <h2>חיובים מיוחדים</h2>
+            <span class="section-subtitle">
+              ביטוחים, ציוד, קסדה, מכנס רכיבה וכל חיוב נוסף שהחווה רוצה להגדיר
+            </span>
           </div>
-        </label>
 
-        <label class="field-card">
-          <span class="field-label">הערת אזהרה</span>
-          <input class="form-control" type="text" [(ngModel)]="c.warning_note" name="specialWarning_{{ c.id }}" />
-        </label>
-      </div>
-<div class="field-card full-row">
-  <span class="field-label">גורמי מימון שהחיוב חל עליהם</span>
-
-  <div class="checks-grid">
-    <label class="mini-check" *ngFor="let fs of fundingSources()">
-      <input
-        type="checkbox"
-        [checked]="(c.funding_source_ids || []).includes(fs.id)"
-        (change)="toggleFundingSourceForExistingSpecialCharge(c, fs.id, $any($event.target).checked)"
-        name="specialFunding_{{ c.id }}_{{ fs.id }}"
-      />
-      <span>{{ fs.name }}</span>
-    </label>
-  </div>
-</div>
-      <label class="field-card">
-        <span class="field-label">הערות</span>
-        <input class="form-control" type="text" [(ngModel)]="c.notes" name="specialNotes_{{ c.id }}" />
-      </label>
-
-      <label class="mini-check">
-        <input type="checkbox" [(ngModel)]="c.is_active" name="specialActive_{{ c.id }}" />
-        <span>פעיל</span>
-      </label>
-
- 
-      <div class="actions-inline">
-        <button type="button" class="btn btn-primary" (click)="updateSpecialCharge(c)">שמירה</button>
-        <button type="button" class="btn btn-text" (click)="cancelEditSpecialCharge(c)">ביטול</button>
-      </div>
-    </ng-container>
-
-    <ng-template #viewSpecialChargeCard>
-      <div class="charge-card-head">
-        <div>
-          <div class="row-title">{{ c.item }}</div>
-          <div class="row-sub">{{ c.notes || 'אין הערות' }}</div>
+          <button type="button" class="btn btn-ghost icon-left" (click)="toggleNewSpecialChargeForm()">
+            <span class="plus-icon">＋</span>
+            <span>הוספת חיוב</span>
+          </button>
         </div>
 
-        <div class="charge-price">{{ c.amount | number:'1.0-2' }} ₪</div>
-      </div>
+        <div class="sub-panel" *ngIf="showNewSpecialChargeForm()">
+          <div class="sub-panel-title">הוספת חיוב מיוחד</div>
 
-      <div class="charge-meta">
-        <span class="chip" *ngIf="getSpecialChargeMode(c) === 'registration'">
-          בהרשמה · {{ c.is_required ? 'חובה' : 'לא חובה' }}
-        </span>
+          <div class="form-grid cols-3">
+            <label class="field-card">
+              <span class="field-label">פריט</span>
+              <input class="form-control" type="text" [(ngModel)]="newSpecialCharge().item" name="newSpecialChargeItem"
+                placeholder="לדוגמה: ביטוח / קסדה / מכנס רכיבה" />
+              <small class="field-error" *ngIf="newSpecialChargeErrors().item">
+                {{ newSpecialChargeErrors().item }}
+              </small>
+            </label>
 
-        <span class="chip" *ngIf="getSpecialChargeMode(c) === 'specific_date'">
-תאריך חיוב:
-{{ c.charge_date ? (c.charge_date | date:'dd/MM/yy') : '—' }}        </span>
+            <label class="field-card">
+              <span class="field-label">סכום</span>
+              <input class="form-control" type="number" min="0" step="0.5" [(ngModel)]="newSpecialCharge().amount"
+                name="newSpecialChargeAmount" />
+              <small class="field-error" *ngIf="newSpecialChargeErrors().amount">
+                {{ newSpecialChargeErrors().amount }}
+              </small>
 
-        <span class="chip" *ngIf="getSpecialChargeMode(c) === 'yearly'">
-שנתי · {{ c.charge_times_per_year || 1 }} פעמים בשנה ·
-התחלה {{ c.first_charge_date ? (c.first_charge_date | date:'dd/MM/yy') : '—' }}        </span>
- <span class="chip chip-soft">
-    {{ fundingSourceNames(c.funding_source_ids) }}
-  </span>
-        <span class="status-chip-tiny" [class.success]="c.is_active" [class.danger]="!c.is_active">
-          {{ c.is_active ? 'פעיל' : 'לא פעיל' }}
-        </span>
-      </div>
+            </label>
 
-      <div class="charge-warning" *ngIf="getSpecialChargeMode(c) === 'registration' && c.warning_note">
-        {{ c.warning_note }}
-      </div>
+          </div>
 
-      <div class="actions-inline">
-        <button type="button" class="btn btn-text" (click)="startEditSpecialCharge(c)">עריכה</button>
-        <button type="button" class="btn btn-text danger" (click)="deactivateSpecialCharge(c)">מחיקה</button>
-      </div>
-    </ng-template>
-  </div>
-</div>
-  <ng-template #noSpecialCharges>
-    <div class="empty-state single">
-      עדיין לא הוגדרו חיובים מיוחדים.
-    </div>
-  </ng-template>
-</section>
-     <!-- סוגי שירותים לרוכבים עצמאיים -->
-<section class="settings-card">
-  <div class="section-head">
-    <button
-      type="button"
-      class="section-title-btn"
-      (click)="riderServiceTypesExpanded.set(!riderServiceTypesExpanded())"
-      [attr.aria-expanded]="riderServiceTypesExpanded()"
-    >
-      <span class="chev" [class.open]="riderServiceTypesExpanded()">⌄</span>
+          <div class="form-grid cols-3">
+            <label class="field-card">
+              <span class="field-label">סוג חיוב</span>
 
-      <div class="section-title-wrap">
-        <h2>שירותים לרוכבים עצמאיים</h2>
-        <span class="section-subtitle">
-          הגדרת שירותי פנסיון, חיסונים, פרזול, טיפולים ושירותים כלליים
-        </span>
-      </div>
-    </button>
+              <select class="form-control" [ngModel]="getSpecialChargeMode(newSpecialCharge())"
+                name="newSpecialChargeMode" (ngModelChange)="setNewSpecialChargeMode($event)">
+                <option [ngValue]="'registration'">תשלום בהרשמה</option>
+                <option [ngValue]="'specific_date'">תשלום בתאריך ספציפי</option>
+                <option [ngValue]="'yearly'">תשלום שנתי / מחזורי</option>
+              </select>
+            </label>
+            <small class="field-error" *ngIf="newSpecialChargeErrors().mode">
+              {{ newSpecialChargeErrors().mode }}
+            </small>
 
-    <button
-      type="button"
-      class="btn btn-ghost icon-left"
-      (click)="toggleNewRiderServiceTypeForm()"
-      [disabled]="!riderServiceTypesExpanded()"
-    >
-      <span class="plus-icon">＋</span>
-      <span>הוספת שירות</span>
-    </button>
-  </div>
+            <label class="field-card" *ngIf="getSpecialChargeMode(newSpecialCharge()) === 'specific_date'">
+              <span class="field-label">תאריך תשלום</span>
+              <input class="form-control date-input" type="date" lang="he-IL" dir="ltr"
+                [(ngModel)]="newSpecialCharge().charge_date" name="newSpecialChargeDate" />
+            </label>
 
-  <ng-container *ngIf="riderServiceTypesExpanded()">
-    <div class="sub-panel" *ngIf="showNewRiderServiceTypeForm()">
-      <div class="sub-panel-title">הוספת שירות חדש</div>
+            <label class="field-card" *ngIf="getSpecialChargeMode(newSpecialCharge()) === 'yearly'">
+              <span class="field-label">תדירות חיוב</span>
 
-      <div class="form-grid cols-3">
-        <label class="field-card">
-          <span class="field-label">שם שירות</span>
-          <input
-            class="form-control"
-            type="text"
-            name="newRiderServiceName"
-            [ngModel]="newRiderServiceType().name"
-            (ngModelChange)="patchNewRiderServiceType({ name: $event })"
-            placeholder="לדוגמה: חיסון / פנסיון / פרזול"
-          />
-          <small class="field-error" *ngIf="riderServiceTypeErrors().name">
-            {{ riderServiceTypeErrors().name }}
-          </small>
-        </label>
-
-        <label class="field-card">
-          <span class="field-label">קטגוריה</span>
-          <select
-            class="form-control"
-            name="newRiderServiceCategory"
-            [ngModel]="newRiderServiceType().category"
-            (ngModelChange)="patchNewRiderServiceType({ category: $event })"
-          >
-            <option [ngValue]="'boarding'">פנסיון</option>
-            <option [ngValue]="'medical'">רפואי</option>
-            <option [ngValue]="'maintenance'">תחזוקה</option>
-            <option [ngValue]="'general'">כללי</option>
-          </select>
-        </label>
-
-       <label class="field-card">
-  <span class="field-label">מחיר ברירת מחדל (₪)</span>
-  <input
-    class="form-control"
-    type="number"
-    min="0"
-    step="0.5"
-    name="newRiderServicePrice"
-    [ngModel]="newRiderServiceType().default_price_shekel"
-    (ngModelChange)="patchNewRiderServiceType({ default_price_shekel: +$event })"
-    placeholder="לדוגמה: 250"
-  />
-  <small class="field-hint">נשמר במערכת באגורות</small>
-  <small class="field-error" *ngIf="riderServiceTypeErrors().default_price_agorot">
-    {{ riderServiceTypeErrors().default_price_agorot }}
-  </small>
-</label>
-      </div>
-
-      <div class="form-grid cols-3">
-        <label class="field-card field-toggle">
-          <div class="toggle-line">
-            <span class="field-label">שירות חוזר</span>
-            <label class="switch">
-              <input
-                type="checkbox"
-                name="newRiderServiceRecurring"
-                [ngModel]="newRiderServiceType().is_recurring"
-                (ngModelChange)="patchNewRiderServiceType({ is_recurring: $event })"
-              />
-              <span class="switch-ui"></span>
+              <select class="form-control" [ngModel]="newSpecialCharge().charge_times_per_year"
+                name="newSpecialChargeTimesPerYear" (ngModelChange)="selectNewChargeTimesPerYear($event)">
+                <option [ngValue]="null">בחירת תדירות</option>
+                <option *ngFor="let opt of specialChargeFrequencyOptions" [ngValue]="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </label>
+            <label class="field-card" *ngIf="getSpecialChargeMode(newSpecialCharge()) === 'yearly'">
+              <span class="field-label">תאריך לפעם ראשונה</span>
+              <input class="form-control date-input" type="date" lang="he-IL" dir="ltr"
+                [(ngModel)]="newSpecialCharge().first_charge_date" name="newSpecialChargeFirstDate" />
             </label>
           </div>
-          <small class="field-hint">למשל פנסיון חודשי או פרזול תקופתי</small>
-        </label>
+          <div class="form-grid cols-2" *ngIf="getSpecialChargeMode(newSpecialCharge()) === 'registration'">
+            <label class="field-card field-toggle">
+              <div class="toggle-line">
+                <span class="field-label">חובה?</span>
+                <label class="switch">
+                  <input type="checkbox" [ngModel]="newSpecialCharge().is_required" name="newSpecialChargeRequired"
+                    (ngModelChange)="patchNewSpecialCharge({ is_required: $event })" />
+                  <span class="switch-ui"></span>
+                </label>
+              </div>
+            </label>
 
-        <label class="field-card" *ngIf="newRiderServiceType().is_recurring">
-          <span class="field-label">יחידת חזרה</span>
-          <select
-            class="form-control"
-            name="newRiderServiceRecurrenceUnit"
-            [ngModel]="newRiderServiceType().default_recurrence_unit"
-            (ngModelChange)="patchNewRiderServiceType({ default_recurrence_unit: $event })"
-          >
-            <option [ngValue]="null">בחרי</option>
-            <option [ngValue]="'day'">ימים</option>
-            <option [ngValue]="'week'">שבועות</option>
-            <option [ngValue]="'month'">חודשים</option>
-          </select>
-        </label>
-
-        <label class="field-card" *ngIf="newRiderServiceType().is_recurring">
-          <span class="field-label">כל כמה?</span>
-          <input
-            class="form-control"
-            type="number"
-            min="1"
-            step="1"
-            name="newRiderServiceRecurrenceInterval"
-            [ngModel]="newRiderServiceType().default_recurrence_interval"
-            (ngModelChange)="patchNewRiderServiceType({ default_recurrence_interval: +$event })"
-          />
-          <small class="field-error" *ngIf="riderServiceTypeErrors().recurrence">
-            {{ riderServiceTypeErrors().recurrence }}
-          </small>
-        </label>
-      </div>
-
-      <div class="form-grid cols-3">
-        <label class="field-card field-toggle">
-          <div class="toggle-line">
-            <span class="field-label">דורש אישור מזכירה</span>
-            <label class="switch">
-              <input
-                type="checkbox"
-                name="newRiderServiceRequiresApproval"
-                [ngModel]="newRiderServiceType().requires_approval"
-                (ngModelChange)="patchNewRiderServiceType({ requires_approval: $event })"
-              />
-              <span class="switch-ui"></span>
+            <label class="field-card">
+              <span class="field-label">הערת אזהרה אם ההורה לא מסמן</span>
+              <input class="form-control" type="text" [(ngModel)]="newSpecialCharge().warning_note"
+                name="newSpecialChargeWarning" placeholder="לדוגמה: ללא קסדה לא ניתן להשתתף בשיעור" />
             </label>
           </div>
-        </label>
+          <div class="field-card full-row">
+            <span class="field-label">גורמי מימון שהחיוב חל עליהם</span>
 
-        <label class="field-card field-toggle">
-          <div class="toggle-line">
-            <span class="field-label">פעיל</span>
-            <label class="switch">
-              <input
-                type="checkbox"
-                name="newRiderServiceActive"
-                [ngModel]="newRiderServiceType().is_active"
-                (ngModelChange)="patchNewRiderServiceType({ is_active: $event })"
-              />
-              <span class="switch-ui"></span>
-            </label>
+            <div class="checks-grid">
+              <label class="mini-check" *ngFor="let fs of fundingSources()">
+                <input type="checkbox" [checked]="(newSpecialCharge().funding_source_ids || []).includes(fs.id)"
+                  (change)="toggleFundingSourceForNewSpecialCharge(fs.id, $any($event.target).checked)" />
+                <span>{{ fs.name }}</span>
+              </label>
+            </div>
           </div>
-        </label>
+          <label class="field-card">
+            <span class="field-label">הערות</span>
+            <input class="form-control" type="text" [(ngModel)]="newSpecialCharge().notes" name="newSpecialChargeNotes"
+              placeholder="הערה פנימית למזכירות" />
+          </label>
 
-        <label class="field-card">
-          <span class="field-label">הערות</span>
-          <input
-            class="form-control"
-            type="text"
-            maxlength="150"
-            name="newRiderServiceNotes"
-            [ngModel]="newRiderServiceType().notes"
-            (ngModelChange)="patchNewRiderServiceType({ notes: $event })"
-          />
-        </label>
-      </div>
+          <div class="panel-actions">
+            <button type="button" class="btn btn-primary" (click)="createSpecialCharge()">
+              שמירה
+            </button>
 
-      <div class="panel-actions">
-        <button
-          type="button"
-          class="btn btn-primary"
-          [disabled]="
+            <button type="button" class="btn btn-ghost" (click)="cancelNewSpecialCharge()">
+              ביטול
+            </button>
+          </div>
+        </div>
+
+        <div class="special-charge-cards" *ngIf="specialCharges().length; else noSpecialCharges">
+          <div class="special-charge-card" *ngFor="let c of specialCharges()" [class.inactive]="!c.is_active">
+            <ng-container *ngIf="editingSpecialChargeId() === c.id; else viewSpecialChargeCard">
+
+              <div class="charge-card-head">
+                <input class="form-control" [(ngModel)]="c.item" name="specialItem_{{ c.id }}" />
+                <input class="form-control amount-input" type="number" min="0" step="0.5" [(ngModel)]="c.amount"
+                  name="specialAmount_{{ c.id }}" />
+              </div>
+
+              <div class="form-grid cols-3">
+                <label class="field-card">
+                  <span class="field-label">סוג חיוב</span>
+                  <select class="form-control" [ngModel]="getSpecialChargeMode(c)" name="specialMode_{{ c.id }}"
+                    (ngModelChange)="setExistingSpecialChargeMode(c, $event)">
+                    <option [ngValue]="'registration'">תשלום בהרשמה</option>
+                    <option [ngValue]="'specific_date'">תשלום בתאריך ספציפי</option>
+                    <option [ngValue]="'yearly'">תשלום שנתי / מחזורי</option>
+                  </select>
+                </label>
+
+                <label class="field-card" *ngIf="getSpecialChargeMode(c) === 'specific_date'">
+                  <span class="field-label">תאריך חיוב</span>
+                  <input class="form-control date-input" type="date" lang="he-IL" dir="ltr" [(ngModel)]="c.charge_date"
+                    name="specialDate_{{ c.id }}" /> </label>
+
+                <label class="field-card" *ngIf="getSpecialChargeMode(c) === 'yearly'">
+                  <span class="field-label">תדירות חיוב</span>
+
+                  <select class="form-control" [(ngModel)]="c.charge_times_per_year"
+                    name="specialTimesPerYear_{{ c.id }}">
+                    <option *ngFor="let opt of specialChargeFrequencyOptions" [ngValue]="opt.value">
+                      {{ opt.label }}
+                    </option>
+                  </select>
+                </label>
+
+                <label class="field-card" *ngIf="getSpecialChargeMode(c) === 'yearly'">
+                  <span class="field-label">תאריך לפעם ראשונה</span>
+                  <input class="form-control date-input" type="date" lang="he-IL" dir="ltr"
+                    [(ngModel)]="c.first_charge_date" name="specialFirstChargeDate_{{ c.id }}" /> </label>
+              </div>
+
+              <div class="form-grid cols-2" *ngIf="getSpecialChargeMode(c) === 'registration'">
+                <label class="field-card field-toggle">
+                  <div class="toggle-line">
+                    <span class="field-label">חובה?</span>
+                    <label class="switch">
+                      <input type="checkbox" [(ngModel)]="c.is_required" name="specialRequired_{{ c.id }}" />
+                      <span class="switch-ui"></span>
+                    </label>
+                  </div>
+                </label>
+
+                <label class="field-card">
+                  <span class="field-label">הערת אזהרה</span>
+                  <input class="form-control" type="text" [(ngModel)]="c.warning_note"
+                    name="specialWarning_{{ c.id }}" />
+                </label>
+              </div>
+              <div class="field-card full-row">
+                <span class="field-label">גורמי מימון שהחיוב חל עליהם</span>
+
+                <div class="checks-grid">
+                  <label class="mini-check" *ngFor="let fs of fundingSources()">
+                    <input type="checkbox" [checked]="(c.funding_source_ids || []).includes(fs.id)"
+                      (change)="toggleFundingSourceForExistingSpecialCharge(c, fs.id, $any($event.target).checked)"
+                      name="specialFunding_{{ c.id }}_{{ fs.id }}" />
+                    <span>{{ fs.name }}</span>
+                  </label>
+                </div>
+              </div>
+              <label class="field-card">
+                <span class="field-label">הערות</span>
+                <input class="form-control" type="text" [(ngModel)]="c.notes" name="specialNotes_{{ c.id }}" />
+              </label>
+
+              <label class="mini-check">
+                <input type="checkbox" [(ngModel)]="c.is_active" name="specialActive_{{ c.id }}" />
+                <span>פעיל</span>
+              </label>
+
+
+              <div class="actions-inline">
+                <button type="button" class="btn btn-primary" (click)="updateSpecialCharge(c)">שמירה</button>
+                <button type="button" class="btn btn-text" (click)="cancelEditSpecialCharge(c)">ביטול</button>
+              </div>
+            </ng-container>
+
+            <ng-template #viewSpecialChargeCard>
+              <div class="charge-card-head">
+                <div>
+                  <div class="row-title">{{ c.item }}</div>
+                  <div class="row-sub">{{ c.notes || 'אין הערות' }}</div>
+                </div>
+
+                <div class="charge-price">{{ c.amount | number:'1.0-2' }} ₪</div>
+              </div>
+
+              <div class="charge-meta">
+                <span class="chip" *ngIf="getSpecialChargeMode(c) === 'registration'">
+                  בהרשמה · {{ c.is_required ? 'חובה' : 'לא חובה' }}
+                </span>
+
+                <span class="chip" *ngIf="getSpecialChargeMode(c) === 'specific_date'">
+                  תאריך חיוב:
+                  {{ c.charge_date ? (c.charge_date | date:'dd/MM/yy') : '—' }} </span>
+
+                <span class="chip" *ngIf="getSpecialChargeMode(c) === 'yearly'">
+                  שנתי · {{ c.charge_times_per_year || 1 }} פעמים בשנה ·
+                  התחלה {{ c.first_charge_date ? (c.first_charge_date | date:'dd/MM/yy') : '—' }} </span>
+                <span class="chip chip-soft">
+                  {{ fundingSourceNames(c.funding_source_ids) }}
+                </span>
+                <span class="status-chip-tiny" [class.success]="c.is_active" [class.danger]="!c.is_active">
+                  {{ c.is_active ? 'פעיל' : 'לא פעיל' }}
+                </span>
+              </div>
+
+              <div class="charge-warning" *ngIf="getSpecialChargeMode(c) === 'registration' && c.warning_note">
+                {{ c.warning_note }}
+              </div>
+
+              <div class="actions-inline">
+                <button type="button" class="btn btn-text" (click)="startEditSpecialCharge(c)">עריכה</button>
+                <button type="button" class="btn btn-text danger" (click)="deactivateSpecialCharge(c)">מחיקה</button>
+              </div>
+            </ng-template>
+          </div>
+        </div>
+        <ng-template #noSpecialCharges>
+          <div class="empty-state single">
+            עדיין לא הוגדרו חיובים מיוחדים.
+          </div>
+        </ng-template>
+      </section>
+      <!-- סוגי שירותים לרוכבים עצמאיים -->
+      <section class="settings-card">
+        <div class="section-head">
+          <button type="button" class="section-title-btn"
+            (click)="riderServiceTypesExpanded.set(!riderServiceTypesExpanded())"
+            [attr.aria-expanded]="riderServiceTypesExpanded()">
+            <span class="chev" [class.open]="riderServiceTypesExpanded()">⌄</span>
+
+            <div class="section-title-wrap">
+              <h2>שירותים לרוכבים עצמאיים</h2>
+              <span class="section-subtitle">
+                הגדרת שירותי פנסיון, חיסונים, פרזול, טיפולים ושירותים כלליים
+              </span>
+            </div>
+          </button>
+
+          <button type="button" class="btn btn-ghost icon-left" (click)="toggleNewRiderServiceTypeForm()"
+            [disabled]="!riderServiceTypesExpanded()">
+            <span class="plus-icon">＋</span>
+            <span>הוספת שירות</span>
+          </button>
+        </div>
+
+        <ng-container *ngIf="riderServiceTypesExpanded()">
+          <div class="sub-panel" *ngIf="showNewRiderServiceTypeForm()">
+            <div class="sub-panel-title">הוספת שירות חדש</div>
+
+            <div class="form-grid cols-3">
+              <label class="field-card">
+                <span class="field-label">שם שירות</span>
+                <input class="form-control" type="text" name="newRiderServiceName"
+                  [ngModel]="newRiderServiceType().name" (ngModelChange)="patchNewRiderServiceType({ name: $event })"
+                  placeholder="לדוגמה: חיסון / פנסיון / פרזול" />
+                <small class="field-error" *ngIf="riderServiceTypeErrors().name">
+                  {{ riderServiceTypeErrors().name }}
+                </small>
+              </label>
+
+              <label class="field-card">
+                <span class="field-label">קטגוריה</span>
+                <select class="form-control" name="newRiderServiceCategory" [ngModel]="newRiderServiceType().category"
+                  (ngModelChange)="patchNewRiderServiceType({ category: $event })">
+                  <option [ngValue]="'boarding'">פנסיון</option>
+                  <option [ngValue]="'medical'">רפואי</option>
+                  <option [ngValue]="'maintenance'">תחזוקה</option>
+                  <option [ngValue]="'general'">כללי</option>
+                </select>
+              </label>
+
+              <label class="field-card">
+                <span class="field-label">מחיר ברירת מחדל (₪)</span>
+                <input class="form-control" type="number" min="0" step="0.5" name="newRiderServicePrice"
+                  [ngModel]="newRiderServiceType().default_price_shekel"
+                  (ngModelChange)="patchNewRiderServiceType({ default_price_shekel: +$event })"
+                  placeholder="לדוגמה: 250" />
+                <small class="field-hint">נשמר במערכת באגורות</small>
+                <small class="field-error" *ngIf="riderServiceTypeErrors().default_price_agorot">
+                  {{ riderServiceTypeErrors().default_price_agorot }}
+                </small>
+              </label>
+            </div>
+
+            <div class="form-grid cols-3">
+              <label class="field-card field-toggle">
+                <div class="toggle-line">
+                  <span class="field-label">שירות חוזר</span>
+                  <label class="switch">
+                    <input type="checkbox" name="newRiderServiceRecurring"
+                      [ngModel]="newRiderServiceType().is_recurring"
+                      (ngModelChange)="patchNewRiderServiceType({ is_recurring: $event })" />
+                    <span class="switch-ui"></span>
+                  </label>
+                </div>
+                <small class="field-hint">למשל פנסיון חודשי או פרזול תקופתי</small>
+              </label>
+
+              <label class="field-card" *ngIf="newRiderServiceType().is_recurring">
+                <span class="field-label">יחידת חזרה</span>
+                <select class="form-control" name="newRiderServiceRecurrenceUnit"
+                  [ngModel]="newRiderServiceType().default_recurrence_unit"
+                  (ngModelChange)="patchNewRiderServiceType({ default_recurrence_unit: $event })">
+                  <option [ngValue]="null">בחרי</option>
+                  <option [ngValue]="'day'">ימים</option>
+                  <option [ngValue]="'week'">שבועות</option>
+                  <option [ngValue]="'month'">חודשים</option>
+                </select>
+              </label>
+
+              <label class="field-card" *ngIf="newRiderServiceType().is_recurring">
+                <span class="field-label">כל כמה?</span>
+                <input class="form-control" type="number" min="1" step="1" name="newRiderServiceRecurrenceInterval"
+                  [ngModel]="newRiderServiceType().default_recurrence_interval"
+                  (ngModelChange)="patchNewRiderServiceType({ default_recurrence_interval: +$event })" />
+                <small class="field-error" *ngIf="riderServiceTypeErrors().recurrence">
+                  {{ riderServiceTypeErrors().recurrence }}
+                </small>
+              </label>
+            </div>
+
+            <div class="form-grid cols-3">
+              <label class="field-card field-toggle">
+                <div class="toggle-line">
+                  <span class="field-label">חובה להעלות מסמך למזכירה לאישור</span>
+                  <label class="switch">
+                    <input type="checkbox" name="newRiderServiceRequiresApproval"
+                      [ngModel]="newRiderServiceType().requires_approval"
+                      (ngModelChange)="patchNewRiderServiceType({ requires_approval: $event })" />
+                    <span class="switch-ui"></span>
+                  </label>
+                </div>
+              </label>
+
+              <label class="field-card field-toggle">
+                <div class="toggle-line">
+                  <span class="field-label">פעיל</span>
+                  <label class="switch">
+                    <input type="checkbox" name="newRiderServiceActive" [ngModel]="newRiderServiceType().is_active"
+                      (ngModelChange)="patchNewRiderServiceType({ is_active: $event })" />
+                    <span class="switch-ui"></span>
+                  </label>
+                </div>
+              </label>
+
+              <label class="field-card">
+                <span class="field-label">הערות</span>
+                <input class="form-control" type="text" maxlength="150" name="newRiderServiceNotes"
+                  [ngModel]="newRiderServiceType().notes"
+                  (ngModelChange)="patchNewRiderServiceType({ notes: $event })" />
+              </label>
+            </div>
+
+            <div class="panel-actions">
+              <button type="button" class="btn btn-primary" [disabled]="
             !newRiderServiceType().name.trim() ||
             !!riderServiceTypeErrors().name ||
             !!riderServiceTypeErrors().default_price_agorot ||
             !!riderServiceTypeErrors().recurrence
-          "
-          (click)="addRiderServiceType()"
-        >
-          שמירה
-        </button>
+          " (click)="addRiderServiceType()">
+                שמירה
+              </button>
 
-        <button
-          type="button"
-          class="btn btn-ghost"
-          (click)="showNewRiderServiceTypeForm.set(false); resetNewRiderServiceType()"
-        >
-          ביטול
-        </button>
-      </div>
-    </div>
-
-    <div class="data-list" *ngIf="riderServiceTypes().length; else noRiderServiceTypes">
-      <div class="data-head cols-riding">
-        <div>שם</div>
-        <div>סטטוס</div>
-        <div>פעולות</div>
-      </div>
-
-      <div
-        class="data-row cols-riding"
-        *ngFor="let service of riderServiceTypes()"
-        [class.inactive]="!service.is_active"
-      >
-        <ng-container *ngIf="editingRiderServiceTypeId() !== service.id; else editServiceType">
-          <div class="cell-main">
-            <div class="row-title">{{ service.name }}</div>
-            <div class="row-sub">
-              {{
-                service.category === 'boarding' ? 'פנסיון' :
-                service.category === 'medical' ? 'רפואי' :
-                service.category === 'maintenance' ? 'תחזוקה' :
-                'כללי'
-              }}
-· {{ service.default_price_shekel }} ₪
-              <span *ngIf="service.is_recurring">
-                · חוזר כל {{ service.default_recurrence_interval }}
-                {{
-                  service.default_recurrence_unit === 'day' ? 'ימים' :
-                  service.default_recurrence_unit === 'week' ? 'שבועות' :
-                  'חודשים'
-                }}
-              </span>
+              <button type="button" class="btn btn-ghost"
+                (click)="showNewRiderServiceTypeForm.set(false); resetNewRiderServiceType()">
+                ביטול
+              </button>
             </div>
           </div>
 
-          <div>
-            <span class="status-chip-tiny" [class.success]="service.is_active" [class.danger]="!service.is_active">
-              {{ service.is_active ? 'פעיל' : 'לא פעיל' }}
-            </span>
+          <div class="data-list" *ngIf="riderServiceTypes().length; else noRiderServiceTypes">
+            <div class="data-head cols-riding">
+              <div>שם</div>
+              <div>סטטוס</div>
+              <div>פעולות</div>
+            </div>
+
+            <div class="data-row cols-riding" *ngFor="let service of riderServiceTypes()"
+              [class.inactive]="!service.is_active">
+              <ng-container *ngIf="editingRiderServiceTypeId() !== service.id; else editServiceType">
+                <div class="cell-main">
+                  <div class="row-title">{{ service.name }}</div>
+                  <div class="row-sub">
+                    {{
+                    service.category === 'boarding' ? 'פנסיון' :
+                    service.category === 'medical' ? 'רפואי' :
+                    service.category === 'maintenance' ? 'תחזוקה' :
+                    'כללי'
+                    }}
+                    · {{ service.default_price_shekel }} ₪
+                    <span *ngIf="service.is_recurring">
+                      · חוזר כל {{ service.default_recurrence_interval }}
+                      {{
+                      service.default_recurrence_unit === 'day' ? 'ימים' :
+                      service.default_recurrence_unit === 'week' ? 'שבועות' :
+                      'חודשים'
+                      }}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <span class="status-chip-tiny" [class.success]="service.is_active"
+                    [class.danger]="!service.is_active">
+                    {{ service.is_active ? 'פעיל' : 'לא פעיל' }}
+                  </span>
+                </div>
+
+                <div class="actions-inline">
+                  <button type="button" class="btn btn-text" (click)="startEditRiderServiceType(service)">
+                    עריכה
+                  </button>
+                  <button type="button" class="btn btn-text danger" (click)="deleteRiderServiceType(service)">
+                    מחיקה
+                  </button>
+                </div>
+              </ng-container>
+
+              <ng-template #editServiceType>
+                <div class="cell-main">
+                  <input class="form-control" type="text" [(ngModel)]="service.name"
+                    [ngModelOptions]="{ standalone: true }" />
+                  <input class="form-control" type="number" min="0" step="0.5"
+                    [(ngModel)]="service.default_price_shekel" [ngModelOptions]="{ standalone: true }"
+                    placeholder="מחיר ₪" />
+                </div>
+
+                <div>
+                  <label class="mini-check">
+                    <input type="checkbox" [(ngModel)]="service.is_active" [ngModelOptions]="{ standalone: true }" />
+                    <span>פעיל</span>
+                  </label>
+                </div>
+
+                <div class="actions-inline">
+                  <button type="button" class="btn btn-text" (click)="updateRiderServiceType(service)">
+                    שמירה
+                  </button>
+                  <button type="button" class="btn btn-text" (click)="cancelEditRiderServiceType()">
+                    ביטול
+                  </button>
+                </div>
+              </ng-template>
+            </div>
           </div>
 
-          <div class="actions-inline">
-            <button type="button" class="btn btn-text" (click)="startEditRiderServiceType(service)">
-              עריכה
-            </button>
-            <button type="button" class="btn btn-text danger" (click)="deleteRiderServiceType(service)">
-              מחיקה
-            </button>
-          </div>
+          <ng-template #noRiderServiceTypes>
+            <div class="empty-state">
+              <div class="empty-text">עדיין לא הוגדרו שירותים לרוכבים עצמאיים.</div>
+              <button type="button" class="btn btn-ghost" (click)="showNewRiderServiceTypeForm.set(true)">
+                הוספת שירות ראשון
+              </button>
+            </div>
+          </ng-template>
         </ng-container>
-
-        <ng-template #editServiceType>
-          <div class="cell-main">
-            <input
-              class="form-control"
-              type="text"
-              [(ngModel)]="service.name"
-              [ngModelOptions]="{ standalone: true }"
-            />
-            <input
-  class="form-control"
-  type="number"
-  min="0"
-  step="0.5"
-  [(ngModel)]="service.default_price_shekel"
-  [ngModelOptions]="{ standalone: true }"
-  placeholder="מחיר ₪"
-/>
-          </div>
-
-          <div>
-            <label class="mini-check">
-              <input
-                type="checkbox"
-                [(ngModel)]="service.is_active"
-                [ngModelOptions]="{ standalone: true }"
-              />
-              <span>פעיל</span>
-            </label>
-          </div>
-
-          <div class="actions-inline">
-            <button type="button" class="btn btn-text" (click)="updateRiderServiceType(service)">
-              שמירה
-            </button>
-            <button type="button" class="btn btn-text" (click)="cancelEditRiderServiceType()">
-              ביטול
-            </button>
-          </div>
-        </ng-template>
-      </div>
-    </div>
-
-    <ng-template #noRiderServiceTypes>
-      <div class="empty-state">
-        <div class="empty-text">עדיין לא הוגדרו שירותים לרוכבים עצמאיים.</div>
-        <button type="button" class="btn btn-ghost" (click)="showNewRiderServiceTypeForm.set(true)">
-          הוספת שירות ראשון
-        </button>
-      </div>
-    </ng-template>
-  </ng-container>
-</section>
+      </section>
 
       <!-- סוגי רכיבה -->
       <section class="settings-card">
         <div class="section-head">
-          <button
-            type="button"
-            class="section-title-btn"
-            (click)="ridingTypesExpanded.set(!ridingTypesExpanded())"
-            [attr.aria-expanded]="ridingTypesExpanded()"
-          >
+          <button type="button" class="section-title-btn" (click)="ridingTypesExpanded.set(!ridingTypesExpanded())"
+            [attr.aria-expanded]="ridingTypesExpanded()">
             <span class="chev" [class.open]="ridingTypesExpanded()">⌄</span>
             <div class="section-title-wrap">
               <h2>סוגי רכיבה</h2>
@@ -1475,12 +1126,8 @@
             </div>
           </button>
 
-          <button
-            type="button"
-            class="btn btn-ghost icon-left"
-            (click)="showNewRidingTypeForm.set(true)"
-            [disabled]="!ridingTypesExpanded()"
-          >
+          <button type="button" class="btn btn-ghost icon-left" (click)="showNewRidingTypeForm.set(true)"
+            [disabled]="!ridingTypesExpanded()">
             <span class="plus-icon">＋</span>
             <span>הוספת סוג רכיבה</span>
           </button>
@@ -1493,25 +1140,15 @@
             <div class="form-grid cols-3">
               <label class="field-card">
                 <span class="field-label">שם</span>
-                <input
-                  class="form-control"
-                  type="text"
-                  name="newRidingTypeName"
-                  [ngModel]="newRidingTypeName()"
-                  (ngModelChange)="newRidingTypeName.set($event)"
-                />
+                <input class="form-control" type="text" name="newRidingTypeName" [ngModel]="newRidingTypeName()"
+                  (ngModelChange)="newRidingTypeName.set($event)" />
               </label>
 
               <label class="field-card">
                 <span class="field-label">קוד (אנגלית ללא רווחים)</span>
-                <input
-                  class="form-control"
-                  type="text"
-                  name="newRidingTypeCode"
-                  [ngModel]="newRidingTypeCode()"
+                <input class="form-control" type="text" name="newRidingTypeCode" [ngModel]="newRidingTypeCode()"
                   (ngModelChange)="newRidingTypeCode.set($event); validateRidingTypeCode($event)"
-                  placeholder="GROUP_LESSON"
-                />
+                  placeholder="GROUP_LESSON" />
                 <small class="field-error" *ngIf="newRidingTypeCodeError()">
                   {{ newRidingTypeCodeError() }}
                 </small>
@@ -1519,29 +1156,16 @@
 
               <label class="field-card">
                 <span class="field-label">תיאור</span>
-                <input
-                  class="form-control"
-                  type="text"
-                  maxlength="100"
-                  name="newRidingTypeDesc"
-                  [ngModel]="newRidingTypeDesc()"
-                  (ngModelChange)="newRidingTypeDesc.set($event)"
-                />
+                <input class="form-control" type="text" maxlength="100" name="newRidingTypeDesc"
+                  [ngModel]="newRidingTypeDesc()" (ngModelChange)="newRidingTypeDesc.set($event)" />
                 <small class="field-hint">{{ newRidingTypeDesc().length }}/100 תווים</small>
               </label>
 
               <label class="field-card">
                 <span class="field-label">מינ׳ משתתפים</span>
-                <input
-                  class="form-control"
-                  type="number"
-                  min="1"
-                  max="50"
-                  required
-                  name="newRidingTypeMin"
+                <input class="form-control" type="number" min="1" max="50" required name="newRidingTypeMin"
                   [ngModel]="newRidingTypeMin()"
-                  (ngModelChange)="newRidingTypeMin.set($event); validateParticipants()"
-                />
+                  (ngModelChange)="newRidingTypeMin.set($event); validateParticipants()" />
                 <small class="field-error" *ngIf="participantsMinError()">
                   {{ participantsMinError() }}
                 </small>
@@ -1549,16 +1173,9 @@
 
               <label class="field-card">
                 <span class="field-label">מקס׳ משתתפים</span>
-                <input
-                  class="form-control"
-                  type="number"
-                  min="1"
-                  max="50"
-                  required
-                  name="newRidingTypeMax"
+                <input class="form-control" type="number" min="1" max="50" required name="newRidingTypeMax"
                   [ngModel]="newRidingTypeMax()"
-                  (ngModelChange)="newRidingTypeMax.set($event); validateParticipants()"
-                />
+                  (ngModelChange)="newRidingTypeMax.set($event); validateParticipants()" />
                 <small class="field-error" *ngIf="participantsMaxError()">
                   {{ participantsMaxError() }}
                 </small>
@@ -1566,36 +1183,23 @@
 
               <label class="field-card">
                 <span class="field-label">מחיר מיוחד</span>
-                <input
-                  class="form-control"
-                  type="number"
-                  name="newRidingTypeSpecialPrice"
-                  [ngModel]="newRidingTypeSpecialPrice()"
-                  (ngModelChange)="newRidingTypeSpecialPrice.set($event)"
-                />
+                <input class="form-control" type="number" name="newRidingTypeSpecialPrice"
+                  [ngModel]="newRidingTypeSpecialPrice()" (ngModelChange)="newRidingTypeSpecialPrice.set($event)" />
               </label>
 
               <label class="field-card">
                 <span class="field-label">משך מיוחד (דקות)</span>
-                <input
-                  class="form-control"
-                  type="number"
-                  name="newRidingTypeSpecialDuration"
+                <input class="form-control" type="number" name="newRidingTypeSpecialDuration"
                   [ngModel]="newRidingTypeSpecialDuration()"
-                  (ngModelChange)="newRidingTypeSpecialDuration.set($event)"
-                />
+                  (ngModelChange)="newRidingTypeSpecialDuration.set($event)" />
               </label>
 
               <label class="field-card field-toggle">
                 <div class="toggle-line">
                   <span class="field-label">פעיל</span>
                   <label class="switch">
-                    <input
-                      type="checkbox"
-                      name="newRidingTypeIsActive"
-                      [ngModel]="newRidingTypeIsActive()"
-                      (ngModelChange)="newRidingTypeIsActive.set($event)"
-                    />
+                    <input type="checkbox" name="newRidingTypeIsActive" [ngModel]="newRidingTypeIsActive()"
+                      (ngModelChange)="newRidingTypeIsActive.set($event)" />
                     <span class="switch-ui"></span>
                   </label>
                 </div>
@@ -1603,18 +1207,14 @@
             </div>
 
             <div class="panel-actions">
-              <button
-                type="button"
-                class="btn btn-primary"
-[disabled]="
+              <button type="button" class="btn btn-primary" [disabled]="
   !!newRidingTypeCodeError() ||
   !newRidingTypeName().trim() ||
   newRidingTypeMin() == null ||
   newRidingTypeMax() == null ||
   !!participantsMinError() ||
   !!participantsMaxError()
-"                (click)="addRidingType()"
-              >
+" (click)="addRidingType()">
                 שמירה
               </button>
               <button type="button" class="btn btn-ghost" (click)="showNewRidingTypeForm.set(false)">
@@ -1650,13 +1250,8 @@
 
               <ng-template #editRT>
                 <div class="cell-main">
-                  <input
-                    class="form-control"
-                    type="text"
-                    maxlength="50"
-                    [(ngModel)]="rt.name"
-                    [ngModelOptions]="{ standalone: true }"
-                  />
+                  <input class="form-control" type="text" maxlength="50" [(ngModel)]="rt.name"
+                    [ngModelOptions]="{ standalone: true }" />
                 </div>
 
                 <div>
@@ -1687,11 +1282,7 @@
 
       <!-- Save Settings -->
       <div class="sticky-actions">
-        <button
-          type="submit"
-          class="btn btn-primary btn-lg"
-          [disabled]="saving() || loading() || hasSettingsErrors()"
-        >
+        <button type="submit" class="btn btn-primary btn-lg" [disabled]="saving() || loading() || hasSettingsErrors()">
           שמירת הגדרות
         </button>
       </div>
@@ -1701,12 +1292,8 @@
     <div class="settings-stack secondary-stack">
       <section class="settings-card payment-plans">
         <div class="section-head">
-          <button
-            type="button"
-            class="section-title-btn"
-            (click)="togglePaymentPlansExpanded()"
-            [attr.aria-expanded]="paymentPlansExpanded()"
-          >
+          <button type="button" class="section-title-btn" (click)="togglePaymentPlansExpanded()"
+            [attr.aria-expanded]="paymentPlansExpanded()">
             <span class="chev" [class.open]="paymentPlansExpanded()">⌄</span>
             <div class="section-title-wrap">
               <h2>מסלולי תשלום</h2>
@@ -1714,7 +1301,8 @@
             </div>
           </button>
 
-          <button type="button" class="btn btn-ghost icon-left" (click)="toggleNewPlanForm()" [disabled]="!paymentPlansExpanded()">
+          <button type="button" class="btn btn-ghost icon-left" (click)="toggleNewPlanForm()"
+            [disabled]="!paymentPlansExpanded()">
             <span class="plus-icon">＋</span>
             <span>הוספת מסלול חדש</span>
           </button>
@@ -1752,14 +1340,8 @@
 
               <label class="field-card">
                 <span class="field-label">דרישת מסמכים</span>
-                <textarea
-                  class="form-control textarea"
-                  rows="3"
-                  name="newPlanDocs"
-                  maxlength="350"
-                  [ngModel]="getDocsText(newPlan)"
-                  (ngModelChange)="onNewPlanDocsChange($event)"
-                ></textarea>
+                <textarea class="form-control textarea" rows="3" name="newPlanDocs" maxlength="350"
+                  [ngModel]="getDocsText(newPlan)" (ngModelChange)="onNewPlanDocsChange($event)"></textarea>
                 <small class="field-hint">כל שורה = סוג קובץ</small>
               </label>
 
@@ -1842,17 +1424,20 @@
                 <div class="form-grid cols-3">
                   <label class="field-card">
                     <span class="field-label">שם המסלול</span>
-                    <input class="form-control" type="text" maxlength="60" name="editPlanName_{{p.id}}" [(ngModel)]="p.name" />
+                    <input class="form-control" type="text" maxlength="60" name="editPlanName_{{p.id}}"
+                      [(ngModel)]="p.name" />
                   </label>
 
                   <label class="field-card">
                     <span class="field-label">מחיר נוכחי לשיעור (₪)</span>
-                    <input class="form-control" type="number" name="editPlanLessonPrice_{{p.id}}" [(ngModel)]="p.lesson_price" />
+                    <input class="form-control" type="number" name="editPlanLessonPrice_{{p.id}}"
+                      [(ngModel)]="p.lesson_price" />
                   </label>
 
                   <label class="field-card">
                     <span class="field-label">סבסוד נוכחי (₪)</span>
-                    <input class="form-control" type="number" name="editPlanSubsidy_{{p.id}}" [(ngModel)]="p.subsidy_amount" />
+                    <input class="form-control" type="number" name="editPlanSubsidy_{{p.id}}"
+                      [(ngModel)]="p.subsidy_amount" />
                   </label>
 
                   <label class="field-card">
@@ -1867,14 +1452,8 @@
 
                   <label class="field-card">
                     <span class="field-label">מסמכים נדרשים</span>
-                    <textarea
-                      class="form-control textarea"
-                      rows="3"
-                      name="editPlanDocs_{{p.id}}"
-                      maxlength="350"
-                      [ngModel]="getDocsText(p)"
-                      (ngModelChange)="onDocsTextChange(p, $event)"
-                    ></textarea>
+                    <textarea class="form-control textarea" rows="3" name="editPlanDocs_{{p.id}}" maxlength="350"
+                      [ngModel]="getDocsText(p)" (ngModelChange)="onDocsTextChange(p, $event)"></textarea>
                     <small class="field-hint">כל שורה = סוג קובץ נדרש</small>
                   </label>
 
@@ -1882,7 +1461,8 @@
                     <div class="toggle-line">
                       <span class="field-label">חובה מסמכים בזמן קביעת סדרה</span>
                       <label class="switch">
-                        <input type="checkbox" name="editPlanRequireDocs_{{p.id}}" [(ngModel)]="p.require_docs_at_booking" />
+                        <input type="checkbox" name="editPlanRequireDocs_{{p.id}}"
+                          [(ngModel)]="p.require_docs_at_booking" />
                         <span class="switch-ui"></span>
                       </label>
                     </div>
@@ -1902,18 +1482,21 @@
                 <div class="form-grid cols-3">
                   <label class="field-card">
                     <span class="field-label">תאריך תחולה לשינוי מחיר</span>
-                    <input class="form-control" type="date" name="planVersionDate_{{p.id}}" [(ngModel)]="p.newVersionDate" />
+                    <input class="form-control" type="date" name="planVersionDate_{{p.id}}"
+                      [(ngModel)]="p.newVersionDate" />
                     <small class="field-hint">השינוי יחול על שיעורים מתאריך זה והלאה</small>
                   </label>
 
                   <label class="field-card">
                     <span class="field-label">מחיר חדש לשיעור (₪)</span>
-                    <input class="form-control" type="number" name="planVersionPrice_{{p.id}}" [(ngModel)]="p.newVersionPrice" />
+                    <input class="form-control" type="number" name="planVersionPrice_{{p.id}}"
+                      [(ngModel)]="p.newVersionPrice" />
                   </label>
 
                   <label class="field-card">
                     <span class="field-label">סבסוד חדש (₪)</span>
-                    <input class="form-control" type="number" name="planVersionSubsidy_{{p.id}}" [(ngModel)]="p.newVersionSubsidy" />
+                    <input class="form-control" type="number" name="planVersionSubsidy_{{p.id}}"
+                      [(ngModel)]="p.newVersionSubsidy" />
                   </label>
                 </div>
 
@@ -1959,12 +1542,8 @@
       <!-- FUNDING SOURCES -->
       <section class="settings-card">
         <div class="section-head">
-          <button
-            type="button"
-            class="section-title-btn"
-            (click)="toggleFundingSourcesExpanded()"
-            [attr.aria-expanded]="fundingSourcesExpanded()"
-          >
+          <button type="button" class="section-title-btn" (click)="toggleFundingSourcesExpanded()"
+            [attr.aria-expanded]="fundingSourcesExpanded()">
             <span class="chev" [class.open]="fundingSourcesExpanded()">⌄</span>
             <div class="section-title-wrap">
               <h2>גורמי מימון</h2>
@@ -1972,7 +1551,8 @@
             </div>
           </button>
 
-          <button type="button" class="btn btn-ghost icon-left" (click)="toggleNewFundingForm()" [disabled]="!fundingSourcesExpanded()">
+          <button type="button" class="btn btn-ghost icon-left" (click)="toggleNewFundingForm()"
+            [disabled]="!fundingSourcesExpanded()">
             <span class="plus-icon">＋</span>
             <span>הוספת גורם מימון</span>
           </button>
@@ -1985,14 +1565,8 @@
             <div class="form-grid cols-2">
               <label class="field-card">
                 <span class="field-label">שם גורם המימון</span>
-                <input
-                  class="form-control"
-                  type="text"
-                  maxlength="60"
-                  name="newFundingName"
-                  [ngModel]="newFundingSourceName()"
-                  (ngModelChange)="newFundingSourceName.set($event)"
-                />
+                <input class="form-control" type="text" maxlength="60" name="newFundingName"
+                  [ngModel]="newFundingSourceName()" (ngModelChange)="newFundingSourceName.set($event)" />
               </label>
             </div>
 
@@ -2044,13 +1618,8 @@
                 <div class="form-grid cols-2">
                   <label class="field-card">
                     <span class="field-label">שם גורם מימון</span>
-                    <input
-                      class="form-control"
-                      type="text"
-                      maxlength="60"
-                      name="editFundingName_{{fs.id}}"
-                      [(ngModel)]="fs.name"
-                    />
+                    <input class="form-control" type="text" maxlength="60" name="editFundingName_{{fs.id}}"
+                      [(ngModel)]="fs.name" />
                   </label>
 
                   <label class="field-card field-toggle">
@@ -2084,12 +1653,8 @@
       <!-- LIST NOTES -->
       <section class="settings-card">
         <div class="section-head">
-          <button
-            type="button"
-            class="section-title-btn"
-            (click)="toggleListNotesExpanded()"
-            [attr.aria-expanded]="listNotesExpanded()"
-          >
+          <button type="button" class="section-title-btn" (click)="toggleListNotesExpanded()"
+            [attr.aria-expanded]="listNotesExpanded()">
             <span class="chev" [class.open]="listNotesExpanded()">⌄</span>
             <div class="section-title-wrap">
               <h2>הערות מובנות</h2>
@@ -2097,7 +1662,8 @@
             </div>
           </button>
 
-          <button type="button" class="btn btn-ghost icon-left" (click)="toggleNewListNoteForm()" [disabled]="!listNotesExpanded()">
+          <button type="button" class="btn btn-ghost icon-left" (click)="toggleNewListNoteForm()"
+            [disabled]="!listNotesExpanded()">
             <span class="plus-icon">＋</span>
             <span>הוספת הודעה</span>
           </button>
@@ -2109,15 +1675,9 @@
 
             <label class="field-card">
               <span class="field-label">תוכן ההודעה</span>
-              <input
-                class="form-control"
-                type="text"
-                [ngModel]="newListNoteText()"
-                (ngModelChange)="newListNoteText.set($event)"
-                name="new_list_note"
-                placeholder="לדוגמה: התקדמת יפה"
-                maxlength="250"
-              />
+              <input class="form-control" type="text" [ngModel]="newListNoteText()"
+                (ngModelChange)="newListNoteText.set($event)" name="new_list_note" placeholder="לדוגמה: התקדמת יפה"
+                maxlength="250" />
               <small class="field-hint">עד 250 תווים</small>
             </label>
 
@@ -2147,13 +1707,8 @@
 
               <ng-template #editNoteRow>
                 <div class="cell-main">
-                  <input
-                    class="form-control"
-                    type="text"
-                    [(ngModel)]="n.note"
-                    name="edit_note_{{n.id}}"
-                    maxlength="250"
-                  />
+                  <input class="form-control" type="text" [(ngModel)]="n.note" name="edit_note_{{n.id}}"
+                    maxlength="250" />
                 </div>
 
                 <div class="actions-inline">
@@ -2190,7 +1745,8 @@
       <div class="form-grid cols-2">
         <label class="field-card">
           <span class="field-label">סוג תאריך</span>
-          <select class="form-control" [ngModel]="specialDayForm().calendar_kind" (ngModelChange)="setCalendarKind($event)">
+          <select class="form-control" [ngModel]="specialDayForm().calendar_kind"
+            (ngModelChange)="setCalendarKind($event)">
             <option [ngValue]="'GREGORIAN'">לועזי</option>
             <option [ngValue]="'HEBREW'">עברי</option>
           </select>
@@ -2198,11 +1754,8 @@
 
         <label class="field-card">
           <span class="field-label">חזרתיות</span>
-          <select
-            class="form-control"
-            [ngModel]="specialDayForm().recurrence"
-            (ngModelChange)="patchSpecialDayForm({ recurrence: $event })"
-          >
+          <select class="form-control" [ngModel]="specialDayForm().recurrence"
+            (ngModelChange)="patchSpecialDayForm({ recurrence: $event })">
             <option [ngValue]="'ONCE'">חד פעמי</option>
             <option [ngValue]="'YEARLY'">שנתי</option>
           </select>
@@ -2213,11 +1766,7 @@
         <div class="toggle-line">
           <span class="field-label">כל היום</span>
           <label class="switch">
-            <input
-              type="checkbox"
-              [ngModel]="specialDayForm().all_day"
-              (ngModelChange)="onToggleAllDay($event)"
-            />
+            <input type="checkbox" [ngModel]="specialDayForm().all_day" (ngModelChange)="onToggleAllDay($event)" />
             <span class="switch-ui"></span>
           </label>
         </div>
@@ -2226,22 +1775,14 @@
       <div class="form-grid cols-2" *ngIf="specialDayForm().calendar_kind !== 'HEBREW'">
         <label class="field-card">
           <span class="field-label">מתאריך</span>
-          <input
-            class="form-control"
-            type="date"
-            [ngModel]="specialDayForm().start_date"
-            (ngModelChange)="patchSpecialDayForm({ start_date: $event })"
-          />
+          <input class="form-control" type="date" [ngModel]="specialDayForm().start_date"
+            (ngModelChange)="patchSpecialDayForm({ start_date: $event })" />
         </label>
 
         <label class="field-card">
           <span class="field-label">עד תאריך</span>
-          <input
-            class="form-control"
-            type="date"
-            [ngModel]="specialDayForm().end_date"
-            (ngModelChange)="patchSpecialDayForm({ end_date: $event })"
-          />
+          <input class="form-control" type="date" [ngModel]="specialDayForm().end_date"
+            (ngModelChange)="patchSpecialDayForm({ end_date: $event })" />
         </label>
       </div>
 
@@ -2249,20 +1790,14 @@
         <label class="field-card">
           <span class="field-label">מתאריך (עברי)</span>
           <div class="split-inline">
-            <select
-              class="form-control flex-grow"
-              [ngModel]="specialDayForm().hebrew_month"
-              (ngModelChange)="patchSpecialDayForm({ hebrew_month: $event }); syncHebrewToGregorianDates()"
-            >
+            <select class="form-control flex-grow" [ngModel]="specialDayForm().hebrew_month"
+              (ngModelChange)="patchSpecialDayForm({ hebrew_month: $event }); syncHebrewToGregorianDates()">
               <option [ngValue]="null">חודש</option>
               <option *ngFor="let m of hebrewMonths" [ngValue]="m.value">{{ m.label }}</option>
             </select>
 
-            <select
-              class="form-control day-select"
-              [ngModel]="specialDayForm().hebrew_day"
-              (ngModelChange)="patchSpecialDayForm({ hebrew_day: $event }); syncHebrewToGregorianDates()"
-            >
+            <select class="form-control day-select" [ngModel]="specialDayForm().hebrew_day"
+              (ngModelChange)="patchSpecialDayForm({ hebrew_day: $event }); syncHebrewToGregorianDates()">
               <option [ngValue]="null">יום</option>
               <option *ngFor="let d of hebrewDays" [ngValue]="d">{{ d }}</option>
             </select>
@@ -2274,20 +1809,14 @@
         <label class="field-card">
           <span class="field-label">עד תאריך (עברי)</span>
           <div class="split-inline">
-            <select
-              class="form-control flex-grow"
-              [ngModel]="specialDayForm().hebrew_end_month"
-              (ngModelChange)="patchSpecialDayForm({ hebrew_end_month: $event }); syncHebrewToGregorianDates()"
-            >
+            <select class="form-control flex-grow" [ngModel]="specialDayForm().hebrew_end_month"
+              (ngModelChange)="patchSpecialDayForm({ hebrew_end_month: $event }); syncHebrewToGregorianDates()">
               <option [ngValue]="null">חודש</option>
               <option *ngFor="let m of hebrewMonths" [ngValue]="m.value">{{ m.label }}</option>
             </select>
 
-            <select
-              class="form-control day-select"
-              [ngModel]="specialDayForm().hebrew_end_day"
-              (ngModelChange)="patchSpecialDayForm({ hebrew_end_day: $event }); syncHebrewToGregorianDates()"
-            >
+            <select class="form-control day-select" [ngModel]="specialDayForm().hebrew_end_day"
+              (ngModelChange)="patchSpecialDayForm({ hebrew_end_day: $event }); syncHebrewToGregorianDates()">
               <option [ngValue]="null">יום</option>
               <option *ngFor="let d of hebrewDays" [ngValue]="d">{{ d }}</option>
             </select>
@@ -2305,69 +1834,48 @@
         <div class="form-grid cols-2">
           <label class="field-card">
             <span class="field-label">משעה</span>
-            <input
-              class="form-control"
-              type="time"
-              [ngModel]="specialDayForm().start_time"
-              (ngModelChange)="patchSpecialDayForm({ start_time: $event })"
-            />
+            <input class="form-control" type="time" [ngModel]="specialDayForm().start_time"
+              (ngModelChange)="patchSpecialDayForm({ start_time: $event })" />
           </label>
 
           <label class="field-card">
             <span class="field-label">עד שעה</span>
-            <input
-              class="form-control"
-              type="time"
-              [ngModel]="specialDayForm().end_time"
-              (ngModelChange)="patchSpecialDayForm({ end_time: $event })"
-            />
+            <input class="form-control" type="time" [ngModel]="specialDayForm().end_time"
+              (ngModelChange)="patchSpecialDayForm({ end_time: $event })" />
           </label>
         </div>
       </div>
 
       <label class="field-card">
         <span class="field-label">סיבה</span>
-        <input
-          class="form-control"
-          type="text"
-          maxlength="100"
-          placeholder="לדוגמה: חופשת פסח"
-          [ngModel]="specialDayForm().reason"
-          (ngModelChange)="patchSpecialDayForm({ reason: $event })"
-        />
+        <input class="form-control" type="text" maxlength="100" placeholder="לדוגמה: חופשת פסח"
+          [ngModel]="specialDayForm().reason" (ngModelChange)="patchSpecialDayForm({ reason: $event })" />
       </label>
-<label class="field-card field-toggle">
-  <div class="toggle-line">
-    <span class="field-label">יום מיוחד</span>
-    <label class="switch">
-      <input
-        type="checkbox"
-        [ngModel]="specialDayForm().is_special_day"
-        name="is_special_day"
-        (ngModelChange)="patchSpecialDayForm({ is_special_day: $event })"
-      />
-      <span class="switch-ui"></span>
-    </label>
-  </div>
+      <label class="field-card field-toggle">
+        <div class="toggle-line">
+          <span class="field-label">יום מיוחד</span>
+          <label class="switch">
+            <input type="checkbox" [ngModel]="specialDayForm().is_special_day" name="is_special_day"
+              (ngModelChange)="patchSpecialDayForm({ is_special_day: $event })" />
+            <span class="switch-ui"></span>
+          </label>
+        </div>
 
-  <small class="field-hint">
-    אם מסומן — זה יישמר כיום מיוחד. אם לא מסומן — זה יישמר כיום השבתה.
-  </small>
+        <small class="field-hint">
+          אם מסומן — זה יישמר כיום מיוחד. אם לא מסומן — זה יישמר כיום השבתה.
+        </small>
 
-  <small class="field-hint" *ngIf="specialDayForm().is_special_day">
-    ביום מיוחד החיובים יתבצעו בהתאם ללוגיקה של יום מיוחד.
-  </small>
-</label>
+        <small class="field-hint" *ngIf="specialDayForm().is_special_day">
+          ביום מיוחד החיובים יתבצעו בהתאם ללוגיקה של יום מיוחד.
+        </small>
+      </label>
       <div class="form-grid cols-2">
         <label class="field-card field-toggle">
           <div class="toggle-line">
             <span class="field-label">לשלוח הודעה להורים לפני החופש</span>
             <label class="switch">
-              <input
-                type="checkbox"
-                [ngModel]="specialDayForm().notify_parents_before"
-                (ngModelChange)="patchSpecialDayForm({ notify_parents_before: $event })"
-              />
+              <input type="checkbox" [ngModel]="specialDayForm().notify_parents_before"
+                (ngModelChange)="patchSpecialDayForm({ notify_parents_before: $event })" />
               <span class="switch-ui"></span>
             </label>
           </div>
@@ -2375,15 +1883,10 @@
 
         <label class="field-card">
           <span class="field-label">כמה ימים לפני</span>
-          <input
-            class="form-control short-input"
-            type="number"
-            min="0"
-            step="1"
+          <input class="form-control short-input" type="number" min="0" step="1"
             [ngModel]="specialDayForm().notify_days_before"
             (ngModelChange)="patchSpecialDayForm({ notify_days_before: $event })"
-            [disabled]="!specialDayForm().notify_parents_before"
-          />
+            [disabled]="!specialDayForm().notify_parents_before" />
         </label>
       </div>
 
