@@ -302,6 +302,7 @@ export const routes: Routes = [
           import('./pages/independent-home/independent-home.component')
             .then(m => m.IndependentHomeComponent),
       },
+
       // {
       //   path: 'appointment',
       //   loadComponent: () =>
@@ -320,18 +321,18 @@ export const routes: Routes = [
           import('./secretarial-requests-page/secretarial-requests-page.component')
             .then(m => m.SecretarialRequestsPageComponent),
       },
-      // {
-      //   path: 'details',
-      //   loadComponent: () =>
-      //     import('./pages/independent-details/independent-details.component')
-      //       .then(m => m.IndependentDetailsComponent),
-      // },
-      // {
-      //   path: 'horses',
-      //   loadComponent: () =>
-      //     import('./pages/independent-horses/independent-horses.component')
-      //       .then(m => m.IndependentHorsesComponent),
-      // },
+      {
+        path: 'details',
+        loadComponent: () =>
+          import('./pages/independent-details/independent-details.component')
+            .then(m => m.IndependentDetailsComponent),
+      },
+      {
+        path: 'horses',
+        loadComponent: () =>
+          import('./pages/independent-horses/independent-horses.component')
+            .then(m => m.IndependentHorsesComponent),
+      },
     ],
   },
   { path: '**', redirectTo: 'home' },

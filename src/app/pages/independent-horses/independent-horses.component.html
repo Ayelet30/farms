@@ -1,0 +1,115 @@
+<div class="horses-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <h2>הסוסים שלי</h2>
+            <p>כאן ניתן לצפות בפרטי הסוסים המשויכים אליך.</p>
+        </div>
+    </div>
+
+    <div *ngIf="loading" class="state-card">
+        טוען סוסים...
+    </div>
+
+    <div *ngIf="!loading && error" class="state-card error">
+        {{ error }}
+    </div>
+
+    <div *ngIf="!loading && !error && horses.length === 0" class="state-card empty">
+        לא נמצאו סוסים המשויכים אליך.
+    </div>
+
+    <div *ngIf="!loading && !error && horses.length > 0" class="horses-grid">
+        <article class="horse-card" *ngFor="let horse of horses">
+            <div class="horse-top">
+                <div>
+                    <h3>{{ horse.name }}</h3>
+                    <div class="status" [class.inactive]="!horse.is_active">
+                        {{ horse.is_active ? 'פעיל' : 'לא פעיל' }}
+                    </div>
+                </div>
+
+                <div class="horse-icon">🐴</div>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-item">
+                    <span>גיל</span>
+                    <b>{{ horse.age || '—' }}</b>
+                </div>
+
+                <div class="info-item">
+                    <span>צבע</span>
+                    <b>{{ horse.color || '—' }}</b>
+                </div>
+
+                <div class="info-item">
+                    <span>מין</span>
+                    <b>{{ genderLabel(horse.gender) }}</b>
+                </div>
+
+                <div class="info-item">
+                    <span>גודל</span>
+                    <b>{{ sizeLabel(horse.horse_size) }}</b>
+                </div>
+            </div>
+
+            <div class="section">
+                <h4>טיפולים ותאריכים</h4>
+
+                <div class="treatment-row" [ngClass]="treatmentClass(horse.next_shoeing_date)">
+                    <span>פרזול הבא</span>
+                    <b>{{ dateText(horse.next_shoeing_date) }}</b>
+                </div>
+
+                <div class="treatment-row" [ngClass]="treatmentClass(horse.next_vaccination_date)">
+                    <span>חיסון הבא</span>
+                    <b>{{ dateText(horse.next_vaccination_date) }}</b>
+                </div>
+
+                <div class="treatment-row" [ngClass]="treatmentClass(horse.next_tetanus_date)">
+                    <span>טטנוס</span>
+                    <b>{{ dateText(horse.next_tetanus_date) }}</b>
+                </div>
+
+                <div class="treatment-row" [ngClass]="treatmentClass(horse.next_rabies_date)">
+                    <span>כלבת</span>
+                    <b>{{ dateText(horse.next_rabies_date) }}</b>
+                </div>
+
+                <div class="treatment-row" [ngClass]="treatmentClass(horse.next_flu_date)">
+                    <span>שפעת</span>
+                    <b>{{ dateText(horse.next_flu_date) }}</b>
+                </div>
+
+                <div class="treatment-row" [ngClass]="treatmentClass(horse.next_herpes_date)">
+                    <span>הרפס</span>
+                    <b>{{ dateText(horse.next_herpes_date) }}</b>
+                </div>
+
+                <div class="treatment-row" [ngClass]="treatmentClass(horse.next_west_nile_date)">
+                    <span>קדחת הנילוס</span>
+                    <b>{{ dateText(horse.next_west_nile_date) }}</b>
+                </div>
+            </div>
+
+            <div class="section" *ngIf="horse.food_supplements || horse.horse_equipment || horse.notes">
+                <h4>מידע נוסף</h4>
+
+                <p *ngIf="horse.food_supplements">
+                    <strong>תוספי מזון:</strong>
+                    {{ horse.food_supplements }}
+                </p>
+
+                <p *ngIf="horse.horse_equipment">
+                    <strong>ציוד:</strong>
+                    {{ horse.horse_equipment }}
+                </p>
+
+                <p *ngIf="horse.notes">
+                    <strong>הערות:</strong>
+                    {{ horse.notes }}
+                </p>
+            </div>
+        </article>
+    </div>
+</div>
