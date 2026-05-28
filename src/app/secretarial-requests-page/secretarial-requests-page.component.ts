@@ -131,61 +131,6 @@ export class SecretarialRequestsPageComponent implements OnInit {
   @Input() onError?: (e: any) => void;
   private validation = inject(RequestValidationService);
   private systemRejectedMail = inject(RequestSystemRejectedMailService);
-  // private REQUEST_RULES: Record<RequestType, RequestRule> = {
-  //   CANCEL_OCCURRENCE: {
-  //     checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor],
-  //     allowedChildStatuses: new Set([
-  //       'Active',
-  //       'Deletion Scheduled',
-  //       'Pending Deletion Approval',
-  //     ]),
-  //   },
-
-  //   INSTRUCTOR_DAY_OFF: {
-  //     checks: [Check.Expiry, Check.Requester, Check.Instructor , Check.FarmDayOff],
-  //   },
-
-  //  NEW_SERIES: {
-  //   checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor, Check.FarmDayOff],
-  //   allowedChildStatuses: new Set(['Active','Deletion Scheduled','Pending Deletion Approval']),
-  // },
-
-
-  //   MAKEUP_LESSON: {
-  //     checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor , Check.FarmDayOff],
-  //     allowedChildStatuses: new Set([
-  //       'Active',
-  //       'Deletion Scheduled',
-  //       'Pending Deletion Approval',
-  //     ]),
-  //   },
-
-  //   FILL_IN: {
-  //     checks: [Check.Expiry, Check.Requester, Check.Child, Check.Instructor , Check.FarmDayOff],
-  //     allowedChildStatuses: new Set([
-  //       'Active',
-  //       'Deletion Scheduled',
-  //       'Pending Deletion Approval',
-  //     ]),
-  //   },
-
-  //   ADD_CHILD: {
-  //     checks: [Check.Expiry, Check.Requester, Check.ParentTarget, Check.Child],
-  //     allowedChildStatuses: new Set(['Pending Addition Approval']),
-  //   },
-
-  //   DELETE_CHILD: {
-  //     checks: [Check.Expiry, Check.Requester, Check.Child],
-  //     allowedChildStatuses: new Set(['Pending Deletion Approval']),
-  //   },
-
-  //   PARENT_SIGNUP: {
-  //     checks: [],
-  //   },
-  //   OTHER_REQUEST:{
-  //     checks:[],
-  //   },
-  // };
 
   private cu = inject(CurrentUserService);
   private sanitizer = inject(DomSanitizer);
@@ -193,10 +138,6 @@ export class SecretarialRequestsPageComponent implements OnInit {
   private bo = inject(BreakpointObserver);
   private autoRejectInFlight = false;
   private dialog = inject(MatDialog);
-  // private getRulesFor(row: UiRequest): RequestRule {
-  //   const type = row.requestType as RequestType;
-  // return this.REQUEST_RULES[type] ?? { checks: [Check.Requester] };
-  // }
 
   isMobile = signal(false);
 
@@ -206,22 +147,37 @@ export class SecretarialRequestsPageComponent implements OnInit {
     this.filtersOpen.update(v => !v);
   }
 
+  private requestsForCurrentUser(): UiRequest[] {
+    const list = this.allRequests();
+
+    if (this.isSecretary) {
+      return list;
+    }
+
+    const myUid = this.curentUser?.uid ?? null;
+    if (!myUid) return [];
+
+    return list.filter(r => r.requesterUid === myUid);
+  }
+
   pendingCount = computed(() =>
-    this.allRequests().filter(x => x.status === "PENDING").length
+    this.requestsForCurrentUser().filter(x => x.status === 'PENDING').length
   );
 
   approvedCount = computed(() =>
-    this.allRequests().filter(x => x.status === "APPROVED").length
+    this.requestsForCurrentUser().filter(x => x.status === 'APPROVED').length
   );
 
   rejectedCount = computed(() =>
-    this.allRequests().filter(
-      x => x.status === "REJECTED" ||
-        x.status === "REJECTED_BY_SYSTEM"
+    this.requestsForCurrentUser().filter(
+      x => x.status === 'REJECTED' ||
+        x.status === 'REJECTED_BY_SYSTEM'
     ).length
   );
 
-  allCount = computed(() => this.allRequests().length);
+  allCount = computed(() =>
+    this.requestsForCurrentUser().length
+  );
 
   @ViewChild('detailsDrawer') detailsDrawer?: MatSidenav;
 
@@ -303,15 +259,6 @@ export class SecretarialRequestsPageComponent implements OnInit {
     );
   }
 
-  // private handleDbFailure(mode: ValidationMode, context: string, err: any): ValidationResult {
-  //   console.warn(`[VALIDATION][${mode}] ${context} DB failed → skip/restrict`, err);
-
-  //   // במצב auto: לא מפילים, לא דוחים
-  //   if (mode === 'auto') return { ok: true };
-
-  //   // במצב approve: חוסמים כדי לא לאשר בטעות
-  //   return { ok: false, reason: 'לא ניתן לאמת כרגע (שגיאת מערכת). נסי לרענן/להתחבר מחדש.' };
-  // }
 
   getDetailsComponent(type: string) {
     return this.REQUEST_DETAILS_COMPONENT[type] || null;
