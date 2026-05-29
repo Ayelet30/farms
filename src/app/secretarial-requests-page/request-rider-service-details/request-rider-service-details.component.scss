@@ -1,0 +1,136 @@
+.req {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.req-title {
+    font-weight: 900;
+    font-size: 18px;
+    color: #1f3a2a;
+}
+
+.section {
+    border: 1px solid #d8dfc5;
+    background: #fbfcf6;
+    border-radius: 16px;
+    padding: 14px;
+}
+
+.section h4 {
+    margin: 0 0 10px;
+    font-size: 15px;
+    font-weight: 900;
+    color: #2f3a28;
+}
+
+.meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+    gap: 10px;
+}
+
+.meta-grid div {
+    background: #fff;
+    border: 1px solid #d8dfc5;
+    border-radius: 12px;
+    padding: 10px;
+}
+
+.meta-grid span {
+    display: block;
+    font-size: 12px;
+    color: #6e7462;
+    margin-bottom: 4px;
+}
+
+.meta-grid b {
+    color: #2f3a28;
+}
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.chip {
+    background: #fff;
+    border: 1px solid #d8dfc5;
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-weight: 700;
+}
+
+.file-box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #fff;
+    border: 1px solid #d8dfc5;
+    border-radius: 12px;
+    padding: 10px;
+}
+
+.file-box span,
+.file-box small {
+    color: #6e7462;
+}
+
+.note-box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.note-box label {
+    font-weight: 800;
+}
+
+.note-box textarea {
+    width: 100%;
+    border: 1px solid #cdd6bf;
+    border-radius: 10px;
+    padding: 8px;
+    background: #fff;
+}
+
+.actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.btn {
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-weight: 800;
+    border: 1.5px solid #8a9362;
+    cursor: pointer;
+}
+
+.btn.approve {
+    background: #8a9362;
+    color: #fff;
+}
+
+.btn.reject {
+    background: #fde2e2;
+    border-color: #b91c1c;
+    color: #b91c1c;
+}
+
+.err {
+    padding: 10px;
+    border-radius: 10px;
+    background: #fde2e2;
+    color: #b91c1c;
+    font-weight: 800;
+    border: 1px solid #f1b1b1;
+}
+
+@media (max-width: 700px) {
+    .meta-grid {
+        grid-template-columns: 1fr;
+    }
+}

@@ -45,7 +45,7 @@ export class IndependentServiceRequestComponent implements OnInit {
         horse_uid: '',
         requested_start_date: '',
         requested_end_date: '',
-        is_permanent: false,
+        service_mode: 'once' as 'once' | 'recurring_range' | 'permanent',
         notes: '',
         approval_file: null as File | null,
     };
@@ -165,27 +165,25 @@ export class IndependentServiceRequestComponent implements OnInit {
             this.error = 'יש לבחור סוס';
             return false;
         }
-
-        if (this.form.is_permanent && !service.is_recurring) {
-            this.error = 'לא ניתן לבחור שירות חד־פעמי כשירות קבוע';
+        if (!this.form.requested_start_date) {
+            this.error = this.isOnceMode
+                ? 'יש לבחור תאריך ביצוע'
+                : 'יש לבחור תאריך התחלה';
             return false;
         }
 
-        if (!this.form.is_permanent && !this.form.requested_start_date) {
-            this.error = 'יש לבחור תאריך התחלה';
+        if (this.isRecurringRangeMode && !this.form.requested_end_date) {
+            this.error = 'יש לבחור תאריך סיום לשירות מחזורי';
             return false;
         }
 
         if (
-            !this.form.is_permanent &&
-            this.form.requested_end_date &&
-            this.form.requested_start_date &&
+            this.isRecurringRangeMode &&
             this.form.requested_end_date < this.form.requested_start_date
         ) {
             this.error = 'תאריך סיום לא יכול להיות לפני תאריך התחלה';
             return false;
         }
-
         if (service.requires_approval && !this.form.approval_file) {
             this.approvalFileError = 'חובה לצרף אישור עבור שירות זה';
             return false;
@@ -214,13 +212,7 @@ export class IndependentServiceRequestComponent implements OnInit {
         if (this.form.approval_file) {
             approvalFilePayload = await this.uploadApprovalFile(this.form.approval_file);
         }
-        if (this.form.approval_file) {
-            approvalFilePayload = {
-                name: this.form.approval_file.name,
-                type: this.form.approval_file.type,
-                size: this.form.approval_file.size,
-            };
-        }
+
         try {
             const db = dbTenant();
 
@@ -234,27 +226,35 @@ export class IndependentServiceRequestComponent implements OnInit {
                 horse_uid: horse.id,
                 horse_name: horse.name,
 
-                requested_start_date:
-                    this.form.is_permanent
-                        ? null
-                        : this.form.requested_start_date,
-
-                requested_end_date:
-                    this.form.is_permanent
-                        ? null
-                        : (this.form.requested_end_date || null),
-                is_permanent: this.form.is_permanent,
-
                 default_price_agorot: service.default_price_agorot,
                 is_recurring: service.is_recurring,
                 default_recurrence_unit: service.default_recurrence_unit,
                 default_recurrence_interval: service.default_recurrence_interval,
 
                 notes: this.form.notes?.trim() || null,
+                service_mode: this.form.service_mode,
 
-                summary:
-                    `בקשה לשירות "${service.name}" עבור הסוס/ה ${horse.name}` +
-                    ` מתאריך ${this.form.requested_start_date}`,
+                requested_recurrence_unit:
+                    this.isRecurringRangeMode || this.isPermanentMode
+                        ? service.default_recurrence_unit
+                        : null,
+
+                requested_recurrence_interval:
+                    this.isRecurringRangeMode || this.isPermanentMode
+                        ? service.default_recurrence_interval
+                        : null,
+                requested_start_date: this.form.requested_start_date,
+
+                requested_end_date: this.isRecurringRangeMode
+                    ? this.form.requested_end_date
+                    : null,
+
+                is_permanent: this.isPermanentMode,
+
+                planned_dates: this.isRecurringRangeMode
+                    ? this.plannedDates
+                    : [],
+                summary: this.buildSummary(service.name, horse.name),
                 service_settings: {
                     category: service.category,
                     default_price_agorot: service.default_price_agorot,
@@ -265,7 +265,6 @@ export class IndependentServiceRequestComponent implements OnInit {
                     notes: service.notes,
                 },
 
-                planned_dates: this.plannedDates,
 
                 approval_file: approvalFilePayload,
             };
@@ -280,18 +279,11 @@ export class IndependentServiceRequestComponent implements OnInit {
                     child_id: null,
                     instructor_id: null,
                     lesson_occ_id: null,
-                    from_date:
-                        this.form.is_permanent
-                            ? null
-                            : this.form.requested_start_date,
+                    from_date: this.form.requested_start_date,
 
-                    to_date:
-                        this.form.is_permanent
-                            ? null
-                            : (
-                                this.form.requested_end_date ||
-                                this.form.requested_start_date
-                            ),
+                    to_date: this.isRecurringRangeMode
+                        ? this.form.requested_end_date
+                        : this.form.requested_start_date,
                     payload,
                 });
 
@@ -304,8 +296,7 @@ export class IndependentServiceRequestComponent implements OnInit {
                 horse_uid: '',
                 requested_start_date: '',
                 requested_end_date: '',
-                is_permanent: false,
-                notes: '',
+                service_mode: 'once' as 'once' | 'recurring_range' | 'permanent', notes: '',
                 approval_file: null as File | null,
 
             };
@@ -316,36 +307,25 @@ export class IndependentServiceRequestComponent implements OnInit {
             this.submitting = false;
         }
     }
-    get canBePermanent(): boolean {
-        const s = this.selectedService;
-        return !!s?.is_recurring;
-    }
 
-    get permanentDisabledReason(): string {
-        if (!this.selectedService) return '';
-        if (!this.selectedService.is_recurring) {
-            return 'שירות זה מוגדר כחד־פעמי ולכן לא ניתן לבחור אותו כשירות קבוע';
-        }
-        return '';
-    }
+
     onServiceChanged() {
         const service = this.selectedService;
 
-        if (!service?.is_recurring) {
-            this.form.is_permanent = false;
+        if (!service) {
+            this.form.service_mode = 'once';
+            return;
         }
+
+        this.form.service_mode = service.is_recurring ? 'recurring_range' : 'once';
+
+        this.form.requested_start_date = '';
+        this.form.requested_end_date = '';
+        this.plannedDates = [];
 
         this.recalculatePlannedDates();
     }
-    onPermanentChanged() {
-        if (this.form.is_permanent) {
-            this.form.requested_start_date = '';
-            this.form.requested_end_date = '';
-            this.plannedDates = [];
-        }
 
-        this.recalculatePlannedDates();
-    }
     recalculatePlannedDates() {
         this.plannedDates = [];
 
@@ -354,7 +334,7 @@ export class IndependentServiceRequestComponent implements OnInit {
         if (
             !service ||
             !service.is_recurring ||
-            this.form.is_permanent ||
+            !this.isRecurringRangeMode ||
             !this.form.requested_start_date ||
             !this.form.requested_end_date ||
             !service.default_recurrence_unit ||
@@ -461,5 +441,36 @@ export class IndependentServiceRequestComponent implements OnInit {
             type: file.type,
             size: file.size,
         };
+    }
+    get isRecurringService(): boolean {
+        return !!this.selectedService?.is_recurring;
+    }
+
+    get isOnceMode(): boolean {
+        return this.form.service_mode === 'once';
+    }
+
+    get isRecurringRangeMode(): boolean {
+        return this.form.service_mode === 'recurring_range';
+    }
+
+    get isPermanentMode(): boolean {
+        return this.form.service_mode === 'permanent';
+    }
+    onServiceModeChanged() {
+        this.form.requested_start_date = '';
+        this.form.requested_end_date = '';
+        this.plannedDates = [];
+    }
+    private buildSummary(serviceName: string, horseName: string): string {
+        if (this.isOnceMode) {
+            return `בקשה לשירות "${serviceName}" עבור הסוס/ה ${horseName} בתאריך ${this.form.requested_start_date}`;
+        }
+
+        if (this.isRecurringRangeMode) {
+            return `בקשה לשירות "${serviceName}" עבור הסוס/ה ${horseName} באופן מחזורי מתאריך ${this.form.requested_start_date} עד ${this.form.requested_end_date}`;
+        }
+
+        return `בקשה לשירות "${serviceName}" עבור הסוס/ה ${horseName} כשירות קבוע החל מתאריך ${this.form.requested_start_date}`;
     }
 }
