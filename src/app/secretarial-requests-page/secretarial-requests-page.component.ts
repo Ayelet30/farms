@@ -52,6 +52,7 @@ import { BulkDecisionDialogComponent, BulkDecisionDialogResult } from './bulk-de
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RequestValidationService } from './../services/request-validation.service';
 import { RequestAddIndependentDetailsComponent } from './request-add-independent-details/request-add-independent-details.component';
+import { RequestRiderServiceDetailsComponent } from './request-rider-service-details/request-rider-service-details.component';
 // export enum Check {
 //   Expiry = 'expiry',
 //   Requester = 'requester',
@@ -237,6 +238,7 @@ export class SecretarialRequestsPageComponent implements OnInit {
     MAKEUP_LESSON: RequestMakeupLessonDetailsComponent,
     FILL_IN: RequestFillInDetailsComponent,
     SINGLE_LESSON: RequestSingleLessonDetailsComponent,
+    RIDER_SERVICE_REQUEST: RequestRiderServiceDetailsComponent,
 
   };
 

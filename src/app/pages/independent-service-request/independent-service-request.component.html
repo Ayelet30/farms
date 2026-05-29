@@ -23,7 +23,6 @@
     </div>
 
     <form *ngIf="!loading && horses.length" class="service-card" (ngSubmit)="submit()">
-
         <div class="form-grid">
 
             <div class="field">
@@ -49,41 +48,61 @@
                     </option>
                 </select>
             </div>
-            <div class="field">
 
+            <div class="field service-mode-field">
+                <label>אופי השירות</label>
 
-                <label>תאריך התחלה</label>
-                <small class="field-hint" *ngIf="selectedService?.is_recurring && !form.is_permanent">
-                    תחילת טווח הביצוע
+                <div class="mode-options">
+                    <label class="mode-option" [class.active]="form.service_mode === 'once'">
+                        <input type="radio" name="service_mode" value="once" [(ngModel)]="form.service_mode"
+                            [disabled]="isRecurringService" (change)="onServiceModeChanged()" />
+                        חד־פעמי
+                    </label>
+
+                    <label class="mode-option" [class.active]="form.service_mode === 'recurring_range'">
+                        <input type="radio" name="service_mode" value="recurring_range" [(ngModel)]="form.service_mode"
+                            [disabled]="!isRecurringService" (change)="onServiceModeChanged()" />
+                        מחזורי לתקופה
+                    </label>
+
+                    <label class="mode-option" [class.active]="form.service_mode === 'permanent'">
+                        <input type="radio" name="service_mode" value="permanent" [(ngModel)]="form.service_mode"
+                            [disabled]="!isRecurringService" (change)="onServiceModeChanged()" />
+                        קבוע ללא תאריך סיום
+                    </label>
+                </div>
+
+                <small class="field-hint" *ngIf="!isRecurringService && selectedService">
+                    שירות זה מוגדר כחד־פעמי בלבד.
                 </small>
+            </div>
+            <div class="date-range-card" *ngIf="isRecurringRangeMode">
+
+                <div class="range-grid">
+                    <div class="field">
+                        <label>מתאריך</label>
+                        <input type="date" [(ngModel)]="form.requested_start_date" name="requested_start_date"
+                            (change)="recalculatePlannedDates()" />
+                    </div>
+
+                    <div class="field">
+                        <label>עד תאריך</label>
+                        <input type="date" [(ngModel)]="form.requested_end_date" name="requested_end_date"
+                            (change)="recalculatePlannedDates()" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="field" *ngIf="!isRecurringRangeMode">
+                <label>
+                    {{ isOnceMode ? 'תאריך ביצוע מבוקש' : 'תאריך התחלה' }}
+                </label>
+
+
 
                 <input type="date" [(ngModel)]="form.requested_start_date" name="requested_start_date"
-                    [disabled]="form.is_permanent" (change)="recalculatePlannedDates()" />
+                    (change)="recalculatePlannedDates()" />
             </div>
-
-            <div class="field">
-                <label>תאריך סיום</label>
-                <small class="field-hint" *ngIf="selectedService?.is_recurring && !form.is_permanent">
-                    סוף טווח הביצוע
-                </small>
-
-                <input type="date" [(ngModel)]="form.requested_end_date" name="requested_end_date"
-                    [disabled]="form.is_permanent" (change)="recalculatePlannedDates()" />
-            </div>
-
-        </div>
-
-        <label class="check-row" [class.disabled]="!canBePermanent">
-            <input type="checkbox" [(ngModel)]="form.is_permanent" name="is_permanent" [disabled]="!canBePermanent"
-                (change)="onPermanentChanged()" />
-
-            שירות קבוע
-        </label>
-        <small class="inline-permanent-hint" *ngIf="form.is_permanent">
-            אין צורך בתאריכי התחלה/סיום
-        </small>
-        <div class="hint warning" *ngIf="selectedService && !canBePermanent">
-            {{ permanentDisabledReason }}
         </div>
 
         <div class="selected-service" *ngIf="selectedService as service">
@@ -110,6 +129,7 @@
                     <b>{{ service.requires_approval ? 'כן' : 'לא' }}</b>
                 </div>
             </div>
+
             <div class="planned-dates" *ngIf="plannedDates.length">
                 <h3>תאריכי ביצוע צפויים</h3>
 
@@ -119,10 +139,12 @@
                     </span>
                 </div>
             </div>
+
             <p *ngIf="service.notes">
                 {{ service.notes }}
             </p>
         </div>
+
         <div class="field" *ngIf="selectedService?.requires_approval">
             <label>צירוף אישור חובה</label>
 
@@ -136,11 +158,11 @@
                 {{ approvalFileError }}
             </div>
         </div>
+
         <div class="field">
             <label>הערות לבקשה</label>
 
-            <textarea [(ngModel)]="form.notes" name="notes" rows="4" placeholder="פירוט נוסף למזכירות...">
-      </textarea>
+            <textarea [(ngModel)]="form.notes" name="notes" rows="4" placeholder="פירוט נוסף למזכירות..."></textarea>
         </div>
 
         <div class="actions">
@@ -148,6 +170,5 @@
                 {{ submitting ? 'שולח...' : 'שליחת בקשה' }}
             </button>
         </div>
-
     </form>
 </div>

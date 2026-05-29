@@ -246,3 +246,60 @@ textarea:focus {
     font-weight: 700;
     margin-top: 4px;
 }
+
+.permanent-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.inline-permanent-hint {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.field-hint {
+    margin-top: -2px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.mode-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.mode-option {
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-weight: 700;
+    background: #fff;
+}
+
+.mode-option.active {
+    background: var(--olive);
+    color: #fff;
+    border-color: var(--olive);
+}
+
+.mode-option:has(input:disabled) {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.mode-option input {
+    margin-inline-start: 6px;
+}
+
+.field-hint {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+}
