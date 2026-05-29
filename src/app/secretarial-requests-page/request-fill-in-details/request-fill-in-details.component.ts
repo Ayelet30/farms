@@ -35,24 +35,24 @@ export class RequestFillInDetailsComponent implements OnInit {
   @Input() decidedByUid?: string | null;
   @Input() bulkMode = false;
 
-   @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
-@Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
+  @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
+  @Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
   @Input() onError?: (e: any) => void;
-note = signal<string>('');
+  note = signal<string>('');
 
   @Output() approved = new EventEmitter<{ requestId: string; newStatus: 'APPROVED' }>();
   @Output() rejected = new EventEmitter<{ requestId: string; newStatus: 'REJECTED' | 'REJECTED_BY_SYSTEM' }>();
   @Output() error = new EventEmitter<string>();
 
-  constructor(private snack: MatSnackBar) {}
-private tenantSvc = inject(SupabaseTenantService);
-readonly status = computed(() => (this.request as any)?.status ?? null);
-readonly isPending = computed(() => this.status() === 'PENDING');
-private validator = inject(RequestValidationService);
-bulkWarning: string | null = null;
+  constructor(private snack: MatSnackBar) { }
+  private tenantSvc = inject(SupabaseTenantService);
+  readonly status = computed(() => (this.request as any)?.status ?? null);
+  readonly isPending = computed(() => this.status() === 'PENDING');
+  private validator = inject(RequestValidationService);
+  bulkWarning: string | null = null;
 
-readonly canDecide = computed(() => this.isPending());
-readonly shouldShowFillInTarget = computed(() => this.isPending());
+  readonly canDecide = computed(() => this.isPending());
+  readonly shouldShowFillInTarget = computed(() => this.isPending());
 
   busy = signal(false);
   action = signal<'approve' | 'reject' | null>(null);
@@ -72,16 +72,16 @@ readonly shouldShowFillInTarget = computed(() => this.isPending());
 
   requestId = computed(() => this.request?.id ?? null);
   fromDate = computed(() => this.request?.fromDate ?? this.request?.from_date ?? null);
-  toDate   = computed(() => this.request?.toDate ?? this.request?.to_date ?? null);
+  toDate = computed(() => this.request?.toDate ?? this.request?.to_date ?? null);
   lessonOccId = computed(() => this.request?.lessonOccId ?? this.request?.lesson_occ_id ?? null);
   originalLessonDate = computed(() => {
-  const p: any = this.payload() ?? {};
-  return p.original_lesson_date ? String(p.original_lesson_date) : null;
-});
+    const p: any = this.payload() ?? {};
+    return p.original_lesson_date ? String(p.original_lesson_date) : null;
+  });
   timeRange = computed(() => {
     const p: any = this.payload() ?? {};
     const start = this.normalizeTime(p.requested_start_time ?? null);
-    const end   = this.normalizeTime(p.requested_end_time ?? null);
+    const end = this.normalizeTime(p.requested_end_time ?? null);
     if (!start || start === '—') return '—';
     if (!end || end === '—') return start;
     return `${start}-${end}`;
@@ -99,12 +99,12 @@ readonly shouldShowFillInTarget = computed(() => this.isPending());
   }>(null);
 
   busyText = computed(() => {
-  switch (this.action()) {
-    case 'approve': return 'הבקשה בתהליך אישור…';
-    case 'reject':  return 'הבקשה בתהליך דחייה…';
-    default:        return 'מעבד…';
-  }
-});
+    switch (this.action()) {
+      case 'approve': return 'הבקשה בתהליך אישור…';
+      case 'reject': return 'הבקשה בתהליך דחייה…';
+      default: return 'מעבד…';
+    }
+  });
 
 
   ngOnInit() {
@@ -129,59 +129,59 @@ readonly shouldShowFillInTarget = computed(() => this.isPending());
       verticalPosition: 'top',
     });
   }
-private async rejectBySystem(reason: string): Promise<void> {
-  const r = this.request;
-  if (!r?.id) return;
+  private async rejectBySystem(reason: string): Promise<void> {
+    const r = this.request;
+    if (!r?.id) return;
 
-  try {
-    await this.tenantSvc.ensureTenantContextReady();
-    const tenant = this.tenantSvc.requireTenant();
-    const tenantSchema = tenant.schema;
-    const tenantId = tenant.id;
+    try {
+      await this.tenantSvc.ensureTenantContextReady();
+      const tenant = this.tenantSvc.requireTenant();
+      const tenantSchema = tenant.schema;
+      const tenantId = tenant.id;
 
-    const user = getAuth().currentUser;
-    if (!user) throw new Error('המשתמש לא מחובר');
-    const token = await user.getIdToken();
+      const user = getAuth().currentUser;
+      if (!user) throw new Error('המשתמש לא מחובר');
+      const token = await user.getIdToken();
 
-    const resp = await fetch(
-      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectFillInAndNotify',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          tenantSchema,
-          tenantId,
-          requestId: r.id,
-          // ✅ כאן אנחנו כופים "דחייה ע״י מערכת" עם סיבה
-          decisionNote: (reason || 'הבקשה נדחתה אוטומטית ע״י המערכת').trim(),
-          source: 'system', // אם הפונקציה שלך תומכת בזה (לא חובה)
-        }),
+      const resp = await fetch(
+        'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectFillInAndNotify',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            tenantSchema,
+            tenantId,
+            requestId: r.id,
+            // ✅ כאן אנחנו כופים "דחייה ע״י מערכת" עם סיבה
+            decisionNote: (reason || 'הבקשה נדחתה אוטומטית ע״י המערכת').trim(),
+            source: 'system', // אם הפונקציה שלך תומכת בזה (לא חובה)
+          }),
+        }
+      );
+
+      const raw = await resp.text();
+      let json: any = null;
+      try { json = JSON.parse(raw); } catch { }
+
+      if (!resp.ok || !json?.ok) {
+        throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
       }
-    );
 
-    const raw = await resp.text();
-    let json: any = null;
-    try { json = JSON.parse(raw); } catch {}
+      // ✅ לעדכן UI (כמו בשאר הקומפוננטות)
+      const evt = { requestId: r.id, newStatus: 'REJECTED_BY_SYSTEM' as const };
+      this.rejected.emit(evt);
+      this.onRejected?.(evt);
 
-    if (!resp.ok || !json?.ok) {
-      throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+      // הצלחה בבאלק לא מציגים, אבל זה "אוטומטי" אז אפשר להציג רק אם תרצי
+      if (!this.bulkMode) this.okSnack('הבקשה נדחתה אוטומטית ע״י המערכת');
+    } catch (e: any) {
+      // אם הדחייה האוטומטית נכשלה – נציג error רגיל
+      this.fail(e?.message ?? 'שגיאה בדחייה אוטומטית ע״י המערכת', e);
     }
-
-    // ✅ לעדכן UI (כמו בשאר הקומפוננטות)
-    const evt = { requestId: r.id, newStatus: 'REJECTED_BY_SYSTEM' as const };
-    this.rejected.emit(evt);
-    this.onRejected?.(evt);
-
-    // הצלחה בבאלק לא מציגים, אבל זה "אוטומטי" אז אפשר להציג רק אם תרצי
-    if (!this.bulkMode) this.okSnack('הבקשה נדחתה אוטומטית ע״י המערכת');
-  } catch (e: any) {
-    // אם הדחייה האוטומטית נכשלה – נציג error רגיל
-    this.fail(e?.message ?? 'שגיאה בדחייה אוטומטית ע״י המערכת', e);
   }
-}
 
   private okSnack(msg: string) {
     if (this.bulkMode) return;
@@ -202,80 +202,79 @@ private async rejectBySystem(reason: string): Promise<void> {
     return s;
   }
 
-async loadFillInTarget(): Promise<void> {
-  const lessonId = this.lessonOccId();
-  const originalDate = this.originalLessonDate();
+  async loadFillInTarget(): Promise<void> {
+    const lessonId = this.lessonOccId();
+    const originalDate = this.originalLessonDate();
 
-  if (!lessonId || !originalDate) {
-    this.fillInTarget.set(null);
-    return;
-  }
-
-  this.loadingFillInTarget.set(true);
-  try {
-    await ensureTenantContextReady();
-    const db = await dbTenant();
-
-    // 1) להביא את ה-exception המדויק של השיעור המקורי
-    const { data: ex, error: exErr } = await db
-      .from('lesson_occurrence_exceptions')
-      .select('occur_date, status, note, canceller_role, cancelled_at')
-      .eq('lesson_id', lessonId)
-      .eq('occur_date', originalDate)
-      .maybeSingle();
-
-    if (exErr) throw exErr;
-
-    // 2) להביא את ה-occurrence המדויק
-    const { data: occ, error: occErr } = await db
-      .from('lessons_occurrences')
-      .select('occur_date, start_time, end_time, instructor_id, day_of_week, lesson_type, status')
-      .eq('lesson_id', lessonId)
-      .eq('occur_date', originalDate)
-      .maybeSingle();
-
-    if (occErr) throw occErr;
-    if (!occ) {
+    if (!lessonId || !originalDate) {
       this.fillInTarget.set(null);
       return;
     }
 
-    this.fillInTarget.set({
-      occur_date: String((occ as any).occur_date ?? originalDate),
-      start_time: String((occ as any).start_time ?? ''),
-      end_time: String((occ as any).end_time ?? ''),
-      status_label: ex ? String((ex as any).status ?? null) : null,
-      note: ex ? ((ex as any).note ?? null) : null,
-    });
-  } catch {
-    this.fillInTarget.set(null);
-  } finally {
-    this.loadingFillInTarget.set(false);
+    this.loadingFillInTarget.set(true);
+    try {
+      await ensureTenantContextReady();
+      const db = await dbTenant();
+
+      // 1) להביא את ה-exception המדויק של השיעור המקורי
+      const { data: ex, error: exErr } = await db
+        .from('lesson_occurrence_exceptions')
+        .select('occur_date, status, note, canceller_role, cancelled_at')
+        .eq('lesson_id', lessonId)
+        .eq('occur_date', originalDate)
+        .maybeSingle();
+
+      if (exErr) throw exErr;
+
+      // 2) להביא את ה-occurrence המדויק
+      const { data: occ, error: occErr } = await db
+        .from('lessons_occurrences')
+        .select('occur_date, start_time, end_time, instructor_id, day_of_week, lesson_type, status')
+        .eq('lesson_id', lessonId)
+        .eq('occur_date', originalDate)
+        .maybeSingle();
+
+      if (occErr) throw occErr;
+      if (!occ) {
+        this.fillInTarget.set(null);
+        return;
+      }
+
+      this.fillInTarget.set({
+        occur_date: String((occ as any).occur_date ?? originalDate),
+        start_time: String((occ as any).start_time ?? ''),
+        end_time: String((occ as any).end_time ?? ''),
+        status_label: ex ? String((ex as any).status ?? null) : null,
+        note: ex ? ((ex as any).note ?? null) : null,
+      });
+    } catch {
+      this.fillInTarget.set(null);
+    } finally {
+      this.loadingFillInTarget.set(false);
+    }
   }
-}
 
   // ===== APPROVE =====
   async approve(): Promise<void> {
-    if (this.busy()) return; 
+    if (this.busy()) return;
     this.clearMessages();
     this.action.set('approve');
     this.busy.set(true);
 
-   const r = this.request;
-  if (!r?.id) {
-    this.busy.set(false);
-    this.action.set(null);
-    return;
-  }
+    const r = this.request;
+    if (!r?.id) {
+      this.busy.set(false);
+      this.action.set(null);
+      return;
+    }
 
-  // ✅ בדיקת שירות לפני אישור
-  const v = await this.validator.validate(r, 'approve'); // או השם המדויק אצלך
-  if (!v.ok) {
-    await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
-    this.busy.set(false);
-    this.action.set(null);
-    return; // 👈 חשוב
-  }
+    // ✅ בדיקת שירות לפני אישור
+    const v = await this.validator.validate(r, 'approve'); // או השם המדויק אצלך
+    if (!v.ok) {
+      await this.rejectBySystemAndUpdateUi(v.reason ?? 'הבקשה אינה רלוונטית'); this.busy.set(false);
+      this.action.set(null);
+      return; // 👈 חשוב
+    }
     try {
       await this.tenantSvc.ensureTenantContextReady();
       const tenant = this.tenantSvc.requireTenant();
@@ -303,25 +302,25 @@ async loadFillInTarget(): Promise<void> {
 
       const raw = await resp.text();
       let json: any = null;
-      try { json = JSON.parse(raw); } catch {}
+      try { json = JSON.parse(raw); } catch { }
 
       if (!resp.ok || !json?.ok) {
         throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
       }
-const warn = (json?.warning ?? '').toString().trim();
-if (warn) {
-  this.bulkWarning = warn;
+      const warn = (json?.warning ?? '').toString().trim();
+      if (warn) {
+        this.bulkWarning = warn;
 
-  if (!this.bulkMode) {
-    this.snack.open(warn, 'סגור', {
-      duration: 3500,
-      panelClass: ['snack-warn'], // אם אין לך סטייל כזה, שימי ['snack-reject']
-      direction: 'rtl',
-      horizontalPosition: 'center',
-      verticalPosition: 'top',
-    });
-  }
-}
+        if (!this.bulkMode) {
+          this.snack.open(warn, 'סגור', {
+            duration: 3500,
+            panelClass: ['snack-warn'], // אם אין לך סטייל כזה, שימי ['snack-reject']
+            direction: 'rtl',
+            horizontalPosition: 'center',
+            verticalPosition: 'top',
+          });
+        }
+      }
 
       this.okSnack('אושר ✅');
       const evt = { requestId: r.id, newStatus: 'APPROVED' as const };
@@ -336,88 +335,117 @@ if (warn) {
   }
 
   // ===== REJECT (supports bulk reason) =====
- async reject(): Promise<void> {
-    if (this.busy()) return; 
-   this.clearMessages();
-  this.action.set('reject');
-  this.busy.set(true);
+  async reject(): Promise<void> {
+    if (this.busy()) return;
+    this.clearMessages();
+    this.action.set('reject');
+    this.busy.set(true);
 
-  const r = this.request;
-  if (!r?.id) {
-    this.busy.set(false);
-    this.action.set(null);
-    return;
+    const r = this.request;
+    if (!r?.id) {
+      this.busy.set(false);
+      this.action.set(null);
+      return;
+    }
+
+    // ✅ בדיקת שירות לפני דחייה (כן, גם פה)
+    const v = await this.validator.validate(r, 'reject'); // או 'approve' אם אצלך זה אותו דבר
+    if (!v.ok) {
+      await this.rejectBySystemAndUpdateUi(v.reason ?? 'הבקשה אינה רלוונטית'); this.busy.set(false);
+      this.action.set(null);
+      return; // 👈 חשוב
+    }
+    try {
+      await this.tenantSvc.ensureTenantContextReady();
+      const tenant = this.tenantSvc.requireTenant();
+      const tenantSchema = tenant.schema;
+      const tenantId = tenant.id;
+
+      const user = getAuth().currentUser;
+      if (!user) throw new Error('המשתמש לא מחובר');
+      const token = await user.getIdToken();
+
+      const resp = await fetch('https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectFillInAndNotify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          tenantSchema,
+          tenantId,
+          requestId: this.requestId(),
+          decisionNote: this.note().trim() || null,
+        }),
+      });
+
+      const raw = await resp.text();
+      let json: any = null; try { json = JSON.parse(raw); } catch { }
+      if (!resp.ok || !json?.ok) throw new Error(json?.message || json?.error || raw);
+      const warn = (json?.warning ?? '').toString().trim();
+      if (warn) {
+        this.bulkWarning = warn;
+
+        if (!this.bulkMode) {
+          this.snack.open(warn, 'סגור', {
+            duration: 3500,
+            panelClass: ['snack-warn'],
+            direction: 'rtl',
+            horizontalPosition: 'center',
+            verticalPosition: 'top',
+          });
+        }
+      }
+
+      this.okSnack('נדחה ✅');
+      const evt = { requestId: r.id, newStatus: 'REJECTED' as const };
+      this.rejected.emit(evt);
+      this.onRejected?.(evt);
+    } catch (e: any) {
+      this.fail(e?.message ?? 'שגיאה בדחיית הבקשה', e);
+    } finally {
+      this.busy.set(false);
+      this.action.set(null);
+    }
   }
+  formatDate(value: string | null | undefined): string {
+    if (!value) return '—';
 
-  // ✅ בדיקת שירות לפני דחייה (כן, גם פה)
-  const v = await this.validator.validate(r, 'reject'); // או 'approve' אם אצלך זה אותו דבר
-  if (!v.ok) {
-    await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
-    this.busy.set(false);
-    this.action.set(null);
-    return; // 👈 חשוב
+    const s = String(value).slice(0, 10);
+    const parts = s.split('-');
+
+    if (parts.length !== 3) return s;
+
+    const [yyyy, mm, dd] = parts;
+    return `${dd}/${mm}/${yyyy}`;
   }
-  try {
-    await this.tenantSvc.ensureTenantContextReady();
-    const tenant = this.tenantSvc.requireTenant();
-    const tenantSchema = tenant.schema;
-    const tenantId = tenant.id;
+  private async rejectBySystemAndUpdateUi(reason: string): Promise<void> {
+    await this.rejectBySystem(reason);
 
-    const user = getAuth().currentUser;
-    if (!user) throw new Error('המשתמש לא מחובר');
-    const token = await user.getIdToken();
+    const requestId = this.request?.id ?? this.requestId?.();
+    if (!requestId) return;
 
-    const resp = await fetch('https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectFillInAndNotify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        tenantSchema,
-        tenantId,
-        requestId: this.requestId(),
-        decisionNote: this.note().trim() || null,
-      }),
-    });
+    const msg = `הבקשה לא אושרה ונדחתה אוטומטית על ידי המערכת: ${reason}`;
 
-    const raw = await resp.text();
-    let json: any = null; try { json = JSON.parse(raw); } catch {}
-    if (!resp.ok || !json?.ok) throw new Error(json?.message || json?.error || raw);
-    const warn = (json?.warning ?? '').toString().trim();
-if (warn) {
-  this.bulkWarning = warn;
+    this.errorMsg.set(msg);
 
-  if (!this.bulkMode) {
-    this.snack.open(warn, 'סגור', {
-      duration: 3500,
-      panelClass: ['snack-warn'],
-      direction: 'rtl',
-      horizontalPosition: 'center',
-      verticalPosition: 'top',
-    });
-  }
-}
+    const evt = {
+      requestId,
+      newStatus: 'REJECTED_BY_SYSTEM' as const,
+      message: msg,
+      meta: { reason, source: 'system' },
+    };
 
-    this.okSnack('נדחה ✅');
-    const evt = { requestId: r.id, newStatus: 'REJECTED' as const };
     this.rejected.emit(evt);
     this.onRejected?.(evt);
-  } catch (e: any) {
-    this.fail(e?.message ?? 'שגיאה בדחיית הבקשה', e);
-  } finally {
-    this.busy.set(false);
-    this.action.set(null);
+
+    if (!this.bulkMode) {
+      this.snack.open(msg, 'סגור', {
+        duration: 5000,
+        panelClass: ['snack-reject'],
+        direction: 'rtl',
+        horizontalPosition: 'center',
+        verticalPosition: 'top',
+      });
+    }
   }
-}
-formatDate(value: string | null | undefined): string {
-  if (!value) return '—';
-
-  const s = String(value).slice(0, 10);
-  const parts = s.split('-');
-
-  if (parts.length !== 3) return s;
-
-  const [yyyy, mm, dd] = parts;
-  return `${dd}/${mm}/${yyyy}`;
-}
 }
 
 
