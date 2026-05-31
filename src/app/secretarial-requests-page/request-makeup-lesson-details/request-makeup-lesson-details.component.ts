@@ -29,8 +29,8 @@ export class RequestMakeupLessonDetailsComponent {
   @Input({ required: true }) request!: UiRequest;
   @Input() decidedByUid?: string | null;
   @Input() bulkMode = false;
- @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
-@Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
+  @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
+  @Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
   @Input() onError?: (e: any) => void;
 
   // ===== Outputs שהאב מאזין אליהם ב-onDetailsActivate =====
@@ -38,48 +38,48 @@ export class RequestMakeupLessonDetailsComponent {
   @Output() rejected = new EventEmitter<{ requestId: string; newStatus: 'REJECTED' | 'REJECTED_BY_SYSTEM' }>();
   @Output() error = new EventEmitter<string>();
   ngOnInit() {
-  this.loadingMakeupTarget.set(true);
-  void this.loadMakeupTarget();
-}
-bulkWarning: string | null = null;
-private snackBar = inject(MatSnackBar);
-timeRange = computed(() => {
-  const start = this.normalizeTime(this.payload()?.requested_start_time ?? null);
-  const end = this.normalizeTime(this.payload()?.requested_end_time ?? null);
-  if (!start || start === '—') return '—';
-  if (!end || end === '—') return start;
-  return `${start}-${end}`;
-});
+    this.loadingMakeupTarget.set(true);
+    void this.loadMakeupTarget();
+  }
+  bulkWarning: string | null = null;
+  private snackBar = inject(MatSnackBar);
+  timeRange = computed(() => {
+    const start = this.normalizeTime(this.payload()?.requested_start_time ?? null);
+    const end = this.normalizeTime(this.payload()?.requested_end_time ?? null);
+    if (!start || start === '—') return '—';
+    if (!end || end === '—') return start;
+    return `${start}-${end}`;
+  });
 
-  constructor(private snack: MatSnackBar , private tenantSvc: SupabaseTenantService
-) {}
+  constructor(private snack: MatSnackBar, private tenantSvc: SupabaseTenantService
+  ) { }
 
   busy = signal(false);
-  action = signal<'approve' | 'reject' | null>(null); 
+  action = signal<'approve' | 'reject' | null>(null);
   errorMsg = signal<string | null>(null);
-  loadingMakeupTarget = signal(false);  
+  loadingMakeupTarget = signal(false);
 
-originalLessonDate = computed(() => {
-  const d = this.payload()?.original_lesson_date ?? null;
-  return d ? String(d) : null;
-});
-busyText = computed(() => {
-  switch (this.action()) {
-    case 'approve': return 'הבקשה בתהליך אישור…';
-    case 'reject':  return 'הבקשה בתהליך דחייה…';
-    default:        return 'מעבד…';
-  }
-});
-
-private warnSnack(msg: string) {
-  this.snackBar.open(msg, 'סגור', {
-    duration: 5000,
-    panelClass: ['snack-warning'],
-    horizontalPosition: 'center',
-    verticalPosition: 'bottom',
+  originalLessonDate = computed(() => {
+    const d = this.payload()?.original_lesson_date ?? null;
+    return d ? String(d) : null;
   });
-}
-private validator = inject(RequestValidationService);
+  busyText = computed(() => {
+    switch (this.action()) {
+      case 'approve': return 'הבקשה בתהליך אישור…';
+      case 'reject': return 'הבקשה בתהליך דחייה…';
+      default: return 'מעבד…';
+    }
+  });
+
+  private warnSnack(msg: string) {
+    this.snackBar.open(msg, 'סגור', {
+      duration: 5000,
+      panelClass: ['snack-warning'],
+      horizontalPosition: 'center',
+      verticalPosition: 'bottom',
+    });
+  }
+  private validator = inject(RequestValidationService);
 
   // signal כדי לעבוד יפה עם ngModel
   note = signal<string>(''); // לא חובה
@@ -114,134 +114,134 @@ private validator = inject(RequestValidationService);
     this.bulkWarning = null;
 
   }
-makeupTarget = signal<null | {
-  occur_date: string;
-  start_time: string;
-  end_time: string;
-  instructor_name: string | null;
-}>(null);
+  makeupTarget = signal<null | {
+    occur_date: string;
+    start_time: string;
+    end_time: string;
+    instructor_name: string | null;
+  }>(null);
 
-private fmtName(first?: string | null, last?: string | null): string | null {
-  const f = (first ?? '').trim();
-  const l = (last ?? '').trim();
-  const full = `${f} ${l}`.trim();
-  return full || null;
-}
-private async rejectBySystem(reason: string): Promise<void> {
-  const requestId = this.requestId();
-  if (!requestId) return;
+  private fmtName(first?: string | null, last?: string | null): string | null {
+    const f = (first ?? '').trim();
+    const l = (last ?? '').trim();
+    const full = `${f} ${l}`.trim();
+    return full || null;
+  }
+  private async rejectBySystem(reason: string): Promise<void> {
+    const requestId = this.requestId();
+    if (!requestId) return;
 
-  try {
-    await this.tenantSvc.ensureTenantContextReady();
-    const tenant = this.tenantSvc.requireTenant();
+    try {
+      await this.tenantSvc.ensureTenantContextReady();
+      const tenant = this.tenantSvc.requireTenant();
 
-    const user = getAuth().currentUser;
-    if (!user) throw new Error('המשתמש לא מחובר');
-    const token = await user.getIdToken();
+      const user = getAuth().currentUser;
+      if (!user) throw new Error('המשתמש לא מחובר');
+      const token = await user.getIdToken();
 
-    const resp = await fetch(
-      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectMakeupLessonAndNotify',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          tenantSchema: tenant.schema,
-          tenantId: tenant.id,
-          requestId,
-          decisionNote: (reason || 'הבקשה נדחתה אוטומטית ע״י המערכת').trim(),
-          source: 'system', // ✅ כדי שיקבע REJECTED_BY_SYSTEM
-        }),
+      const resp = await fetch(
+        'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectMakeupLessonAndNotify',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            tenantSchema: tenant.schema,
+            tenantId: tenant.id,
+            requestId,
+            decisionNote: (reason || 'הבקשה נדחתה אוטומטית ע״י המערכת').trim(),
+            source: 'system', // ✅ כדי שיקבע REJECTED_BY_SYSTEM
+          }),
+        }
+      );
+
+      const raw = await resp.text();
+      let json: any = null;
+      try { json = JSON.parse(raw); } catch { }
+
+      if (!resp.ok || !json?.ok) {
+        throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw.slice(0, 300)}`);
       }
-    );
 
-    const raw = await resp.text();
-    let json: any = null;
-    try { json = JSON.parse(raw); } catch {}
+      const newStatus = (json?.status || 'REJECTED_BY_SYSTEM') as 'REJECTED_BY_SYSTEM' | 'REJECTED';
+      // ✅ UI callbacks
+      const evt = { requestId, newStatus };
+      this.rejected.emit(evt);
+      this.onRejected?.(evt);
 
-    if (!resp.ok || !json?.ok) {
-      throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw.slice(0, 300)}`);
+      // ✅ חשוב: לא fail() על הצלחה!
+      // אם המייל נכשל → להציג warning (כמו בשאר הבקשות)
+      if (json?.warning && !this.bulkMode) {
+        this.warnSnack(json.warning); // או infoSnack
+      } else if (!this.bulkMode) {
+        this.okSnack('הבקשה נדחתה אוטומטית ע״י המערכת');
+      }
+
+    } catch (e: any) {
+      this.fail(e?.message ?? 'שגיאה בדחייה אוטומטית ע״י המערכת', e);
     }
-
-const newStatus = (json?.status || 'REJECTED_BY_SYSTEM') as 'REJECTED_BY_SYSTEM' | 'REJECTED';
-    // ✅ UI callbacks
-    const evt = { requestId, newStatus };
-    this.rejected.emit(evt);
-    this.onRejected?.(evt);
-
-    // ✅ חשוב: לא fail() על הצלחה!
-    // אם המייל נכשל → להציג warning (כמו בשאר הבקשות)
-    if (json?.warning && !this.bulkMode) {
-      this.warnSnack(json.warning); // או infoSnack
-    } else if (!this.bulkMode) {
-      this.okSnack('הבקשה נדחתה אוטומטית ע״י המערכת');
-    }
-
-  } catch (e: any) {
-    this.fail(e?.message ?? 'שגיאה בדחייה אוטומטית ע״י המערכת', e);
   }
-}
-async loadMakeupTarget(): Promise<void> {
-  const lessonId = this.lessonOccId();                 // מזהה הסדרה / lesson_id
-  const originalDate = this.originalLessonDate();      // התאריך המקורי שנשלח ב-payload
+  async loadMakeupTarget(): Promise<void> {
+    const lessonId = this.lessonOccId();                 // מזהה הסדרה / lesson_id
+    const originalDate = this.originalLessonDate();      // התאריך המקורי שנשלח ב-payload
 
-  this.loadingMakeupTarget.set(true);
+    this.loadingMakeupTarget.set(true);
 
-  if (!lessonId || !originalDate) {
-    this.makeupTarget.set(null);
-    this.loadingMakeupTarget.set(false);
-    return;
-  }
-
-  try {
-    await ensureTenantContextReady();
-    const db = await dbTenant();
-
-    // 1) להביא occurrence מדויק לפי lesson_id + original_lesson_date
-    const { data: occ, error: occErr } = await db
-      .from('lessons_occurrences')
-      .select('lesson_id, occur_date, start_time, end_time, instructor_id')
-      .eq('lesson_id', lessonId)
-      .eq('occur_date', originalDate)
-      .maybeSingle();
-
-    if (occErr) throw occErr;
-
-    if (!occ) {
+    if (!lessonId || !originalDate) {
       this.makeupTarget.set(null);
+      this.loadingMakeupTarget.set(false);
       return;
     }
 
-    // 2) שם מדריך
-    let instructorName: string | null = null;
-    const instIdNumber = (occ as any).instructor_id as string | null;
+    try {
+      await ensureTenantContextReady();
+      const db = await dbTenant();
 
-    if (instIdNumber) {
-      const { data: inst } = await db
-        .from('instructors')
-        .select('first_name, last_name')
-        .eq('id_number', instIdNumber)
+      // 1) להביא occurrence מדויק לפי lesson_id + original_lesson_date
+      const { data: occ, error: occErr } = await db
+        .from('lessons_occurrences')
+        .select('lesson_id, occur_date, start_time, end_time, instructor_id')
+        .eq('lesson_id', lessonId)
+        .eq('occur_date', originalDate)
         .maybeSingle();
 
-      if (inst) {
-        instructorName = this.fmtName((inst as any).first_name, (inst as any).last_name);
-      }
-    }
+      if (occErr) throw occErr;
 
-    this.makeupTarget.set({
-      occur_date: String((occ as any).occur_date ?? ''),
-      start_time: String((occ as any).start_time ?? ''),
-      end_time: String((occ as any).end_time ?? ''),
-      instructor_name: instructorName,
-    });
-  } catch {
-    this.makeupTarget.set(null);
-  } finally {
-    this.loadingMakeupTarget.set(false);
+      if (!occ) {
+        this.makeupTarget.set(null);
+        return;
+      }
+
+      // 2) שם מדריך
+      let instructorName: string | null = null;
+      const instIdNumber = (occ as any).instructor_id as string | null;
+
+      if (instIdNumber) {
+        const { data: inst } = await db
+          .from('instructors')
+          .select('first_name, last_name')
+          .eq('id_number', instIdNumber)
+          .maybeSingle();
+
+        if (inst) {
+          instructorName = this.fmtName((inst as any).first_name, (inst as any).last_name);
+        }
+      }
+
+      this.makeupTarget.set({
+        occur_date: String((occ as any).occur_date ?? ''),
+        start_time: String((occ as any).start_time ?? ''),
+        end_time: String((occ as any).end_time ?? ''),
+        instructor_name: instructorName,
+      });
+    } catch {
+      this.makeupTarget.set(null);
+    } finally {
+      this.loadingMakeupTarget.set(false);
+    }
   }
-}
   private fail(msg: string, raw?: any) {
     this.errorMsg.set(msg);
     this.error.emit(msg);
@@ -277,307 +277,335 @@ async loadMakeupTarget(): Promise<void> {
   }
 
   // ===== APPROVE =====
-//   async approve(): Promise<void> {
-//     this.clearMessages();
+  //   async approve(): Promise<void> {
+  //     this.clearMessages();
 
-//     const lessonOccId = this.lessonOccId();
-//     const fromDate = this.fromDate();
-//     const toDate = this.toDate();
+  //     const lessonOccId = this.lessonOccId();
+  //     const fromDate = this.fromDate();
+  //     const toDate = this.toDate();
 
-//     if (!lessonOccId || !fromDate || !toDate) {
-//       this.fail('חסרים נתונים בבקשה (lesson_occ_id / from_date / to_date).');
-//       return;
-//     }
-//     if (String(fromDate) !== String(toDate)) {
-//       this.fail('שגיאה: from_date ו־to_date אינם זהים (בבקשת השלמה הם אמורים להיות אותו תאריך).');
-//       return;
-//     }
+  //     if (!lessonOccId || !fromDate || !toDate) {
+  //       this.fail('חסרים נתונים בבקשה (lesson_occ_id / from_date / to_date).');
+  //       return;
+  //     }
+  //     if (String(fromDate) !== String(toDate)) {
+  //       this.fail('שגיאה: from_date ו־to_date אינם זהים (בבקשת השלמה הם אמורים להיות אותו תאריך).');
+  //       return;
+  //     }
 
-//     this.busy.set(true);
-//     try {
-//       await ensureTenantContextReady();
-//       const db = await dbTenant();
-// const originalDate = await this.getOriginalOccurDate(db, lessonOccId);
-// if (!originalDate) {
-//   this.fail('לא נמצא שיעור מקור להשלמה (lesson_occurrence_exceptions).');
-//   return;
-// }
+  //     this.busy.set(true);
+  //     try {
+  //       await ensureTenantContextReady();
+  //       const db = await dbTenant();
+  // const originalDate = await this.getOriginalOccurDate(db, lessonOccId);
+  // if (!originalDate) {
+  //   this.fail('לא נמצא שיעור מקור להשלמה (lesson_occurrence_exceptions).');
+  //   return;
+  // }
 
-// // 1) update lesson_occurrence_exceptions על השיעור המקורי
-// const { error: exErr } = await db
-//   .from(EXCEPTIONS_TABLE)
-//   .update({ status: 'אושר', is_makeup_allowed: false })
-//   .eq('lesson_id', lessonOccId)
-//   .eq('occur_date', originalDate);
+  // // 1) update lesson_occurrence_exceptions על השיעור המקורי
+  // const { error: exErr } = await db
+  //   .from(EXCEPTIONS_TABLE)
+  //   .update({ status: 'אושר', is_makeup_allowed: false })
+  //   .eq('lesson_id', lessonOccId)
+  //   .eq('occur_date', originalDate);
 
-// if (exErr) throw exErr;
+  // if (exErr) throw exErr;
 
-//       // 2) update secretarial_requests -> APPROVED (כמו הסטנדרט אצלך)
-//       const { error: reqErr } = await db
-//         .from(SECRETARIAL_REQUESTS_TABLE)
-//         .update({
-//           status: 'APPROVED',
-//           decided_by_uid: this.decidedByUid ?? null,
-//           decision_note: this.note().trim() || null,
-//           decided_at: new Date().toISOString(),
-//         })
-//         .eq('id', this.requestId())
-//         .eq('status', 'PENDING');
+  //       // 2) update secretarial_requests -> APPROVED (כמו הסטנדרט אצלך)
+  //       const { error: reqErr } = await db
+  //         .from(SECRETARIAL_REQUESTS_TABLE)
+  //         .update({
+  //           status: 'APPROVED',
+  //           decided_by_uid: this.decidedByUid ?? null,
+  //           decision_note: this.note().trim() || null,
+  //           decided_at: new Date().toISOString(),
+  //         })
+  //         .eq('id', this.requestId())
+  //         .eq('status', 'PENDING');
 
-//       if (reqErr) throw reqErr;
+  //       if (reqErr) throw reqErr;
 
-//       this.okSnack('הבקשה אושרה בהצלחה ');
+  //       this.okSnack('הבקשה אושרה בהצלחה ');
 
-//       const evt = { requestId: this.requestId(), newStatus: 'APPROVED' as const };
-//       this.approved.emit(evt);
-//       this.onApproved?.(evt);
-//     } catch (e: any) {
-//       this.fail(e?.message ?? 'שגיאה באישור הבקשה', e);
-//     } finally {
-//       this.busy.set(false);
-//     }
-//   }
-async approve(): Promise<void> {
+  //       const evt = { requestId: this.requestId(), newStatus: 'APPROVED' as const };
+  //       this.approved.emit(evt);
+  //       this.onApproved?.(evt);
+  //     } catch (e: any) {
+  //       this.fail(e?.message ?? 'שגיאה באישור הבקשה', e);
+  //     } finally {
+  //       this.busy.set(false);
+  //     }
+  //   }
+  async approve(): Promise<void> {
     if (this.busy()) return;
-  this.clearMessages();
-  this.action.set('approve');  
-  this.busy.set(true);
-  const r = this.request;
-  if (!r?.id) return;
+    this.clearMessages();
+    this.action.set('approve');
+    this.busy.set(true);
+    const r = this.request;
+    if (!r?.id) return;
 
-  try {
+    try {
       // ✅ ולידציה דרך השירות לפני אישור
-    const v = await this.validator.validate(r, 'approve');
-    if (!v.ok) {
-      await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
-      return; // חשוב
+      const v = await this.validator.validate(r, 'approve');
+      if (!v.ok) {
+        await this.rejectBySystemAndUpdateUi(v.reason ?? 'הבקשה אינה רלוונטית'); return;
+      }
+
+      // ✅ tenant schema/id כמו במחיקת ילד
+      await this.tenantSvc.ensureTenantContextReady();
+      const tenant = this.tenantSvc.requireTenant();
+      const tenantSchema = tenant.schema;
+      const tenantId = tenant.id;
+
+      const url =
+        'https://us-central1-bereshit-ac5d8.cloudfunctions.net/approveMakeupLessonAndNotify';
+
+      const user = getAuth().currentUser;
+      if (!user) throw new Error('המשתמש לא מחובר');
+      const token = await user.getIdToken();
+
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          tenantSchema,
+          tenantId,
+          requestId: r.id,
+        }),
+      });
+
+      const raw = await resp.text();
+      let json: any = null;
+      try { json = JSON.parse(raw); } catch { }
+
+      if (!resp.ok || !json?.ok) {
+        throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+      }
+
+      // ✅ הבקשה אושרה גם אם המייל נכשל
+      const warn = (json?.warning ?? '').toString().trim();
+      if (warn) {
+        this.bulkWarning = warn;
+        if (!this.bulkMode) {
+          this.snack.open(warn, 'סגור', {
+            duration: 3500,
+            panelClass: ['snack-warn'], // אם אין לך, תשתמשי snack-reject
+            direction: 'rtl',
+            horizontalPosition: 'center',
+            verticalPosition: 'top',
+          });
+        }
+      }
+
+
+      this.okSnack('הבקשה אושרה בהצלחה  ');
+      const evt = { requestId: r.id, newStatus: 'APPROVED' as const };
+      this.approved.emit(evt);
+      this.onApproved?.(evt);
+
+    } catch (e: any) {
+      this.fail(e?.message ?? 'שגיאה באישור הבקשה', e);
     }
+    finally {
+      this.busy.set(false);
+      this.action.set(null);
 
-    // ✅ tenant schema/id כמו במחיקת ילד
-    await this.tenantSvc.ensureTenantContextReady();
-    const tenant = this.tenantSvc.requireTenant();
-    const tenantSchema = tenant.schema;
-    const tenantId = tenant.id;
-
-    const url =
-      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/approveMakeupLessonAndNotify';
-
-    const user = getAuth().currentUser;
-    if (!user) throw new Error('המשתמש לא מחובר');
-    const token = await user.getIdToken();
-
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        tenantSchema,
-        tenantId,
-        requestId: r.id,
-      }),
-    });
-
-    const raw = await resp.text();
-    let json: any = null;
-    try { json = JSON.parse(raw); } catch {}
-
-   if (!resp.ok || !json?.ok) {
-  throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
-}
-
-// ✅ הבקשה אושרה גם אם המייל נכשל
-const warn = (json?.warning ?? '').toString().trim();
-if (warn) {
-  this.bulkWarning = warn;
-  if (!this.bulkMode) {
-    this.snack.open(warn, 'סגור', {
-      duration: 3500,
-      panelClass: ['snack-warn'], // אם אין לך, תשתמשי snack-reject
-      direction: 'rtl',
-      horizontalPosition: 'center',
-      verticalPosition: 'top',
-    });
+    }
   }
-}
-
-
-    this.okSnack('הבקשה אושרה בהצלחה  ');
-    const evt = { requestId: r.id, newStatus: 'APPROVED' as const };
-    this.approved.emit(evt);
-    this.onApproved?.(evt);
-
-  } catch (e: any) {
-    this.fail(e?.message ?? 'שגיאה באישור הבקשה', e);
-  }
-  finally{
-          this.busy.set(false);
-      this.action.set(null);    
-
-  }
-}
   // ===== REJECT =====
-//   async reject(): Promise<void> {
-//     this.clearMessages();
+  //   async reject(): Promise<void> {
+  //     this.clearMessages();
 
-//     const lessonOccId = this.lessonOccId();
-//     const fromDate = this.fromDate();
-//     const toDate = this.toDate();
+  //     const lessonOccId = this.lessonOccId();
+  //     const fromDate = this.fromDate();
+  //     const toDate = this.toDate();
 
-//     if (!lessonOccId || !fromDate || !toDate) {
-//       this.fail('חסרים נתונים בבקשה (lesson_occ_id / from_date / to_date).');
-//       return;
-//     }
-//     if (String(fromDate) !== String(toDate)) {
-//       this.fail('שגיאה: from_date ו־to_date אינם זהים (בבקשת השלמה הם אמורים להיות אותו תאריך).');
-//       return;
-//     }
+  //     if (!lessonOccId || !fromDate || !toDate) {
+  //       this.fail('חסרים נתונים בבקשה (lesson_occ_id / from_date / to_date).');
+  //       return;
+  //     }
+  //     if (String(fromDate) !== String(toDate)) {
+  //       this.fail('שגיאה: from_date ו־to_date אינם זהים (בבקשת השלמה הם אמורים להיות אותו תאריך).');
+  //       return;
+  //     }
 
-//     this.busy.set(true);
-//     try {
-//       await ensureTenantContextReady();
-//       const db = await dbTenant();
+  //     this.busy.set(true);
+  //     try {
+  //       await ensureTenantContextReady();
+  //       const db = await dbTenant();
 
-//       // 1) reject request
-//       const { error: reqErr } = await db
-//         .from(SECRETARIAL_REQUESTS_TABLE)
-//         .update({
-//           status: 'REJECTED',
-//           decided_by_uid: this.decidedByUid ?? null,
-//           decision_note: this.note().trim() || null,
-//           decided_at: new Date().toISOString(),
-//         })
-//         .eq('id', this.requestId())
-//         .eq('status', 'PENDING');
+  //       // 1) reject request
+  //       const { error: reqErr } = await db
+  //         .from(SECRETARIAL_REQUESTS_TABLE)
+  //         .update({
+  //           status: 'REJECTED',
+  //           decided_by_uid: this.decidedByUid ?? null,
+  //           decision_note: this.note().trim() || null,
+  //           decided_at: new Date().toISOString(),
+  //         })
+  //         .eq('id', this.requestId())
+  //         .eq('status', 'PENDING');
 
-//       if (reqErr) throw reqErr;
-// const originalDate = await this.getOriginalOccurDate(db, lessonOccId);
-// if (!originalDate) {
-//   this.fail('לא נמצא שיעור מקור להשלמה (lesson_occurrence_exceptions).');
-//   return;
-// }
+  //       if (reqErr) throw reqErr;
+  // const originalDate = await this.getOriginalOccurDate(db, lessonOccId);
+  // if (!originalDate) {
+  //   this.fail('לא נמצא שיעור מקור להשלמה (lesson_occurrence_exceptions).');
+  //   return;
+  // }
 
-// // 2) גם exceptions -> "בוטל" על השיעור המקורי
-// const { error: exErr } = await db
-//   .from(EXCEPTIONS_TABLE)
-//   .update({ status: 'בוטל', is_makeup_allowed: true })
-//   .eq('lesson_id', lessonOccId)
-//   .eq('occur_date', originalDate);
+  // // 2) גם exceptions -> "בוטל" על השיעור המקורי
+  // const { error: exErr } = await db
+  //   .from(EXCEPTIONS_TABLE)
+  //   .update({ status: 'בוטל', is_makeup_allowed: true })
+  //   .eq('lesson_id', lessonOccId)
+  //   .eq('occur_date', originalDate);
 
-// if (exErr) throw exErr;
+  // if (exErr) throw exErr;
 
-//       this.okSnack('הבקשה נדחתה בהצלחה');
+  //       this.okSnack('הבקשה נדחתה בהצלחה');
 
-//       const evt = { requestId: this.requestId(), newStatus: 'REJECTED' as const };
-//       this.rejected.emit(evt);
-//       this.onRejected?.(evt);
-//     } catch (e: any) {
-//       this.fail(e?.message ?? 'שגיאה בדחיית הבקשה', e);
-//     } finally {
-//       this.busy.set(false);
-//     }
-//   }
-async reject(args?: { source?: 'user' | 'system'; reason?: string }): Promise<void> {
+  //       const evt = { requestId: this.requestId(), newStatus: 'REJECTED' as const };
+  //       this.rejected.emit(evt);
+  //       this.onRejected?.(evt);
+  //     } catch (e: any) {
+  //       this.fail(e?.message ?? 'שגיאה בדחיית הבקשה', e);
+  //     } finally {
+  //       this.busy.set(false);
+  //     }
+  //   }
+  async reject(args?: { source?: 'user' | 'system'; reason?: string }): Promise<void> {
     if (this.busy()) return;
-  this.clearMessages();
-  this.action.set('reject');
-  this.busy.set(true);
+    this.clearMessages();
+    this.action.set('reject');
+    this.busy.set(true);
 
-  const r = this.request;
-  if (!r?.id) return;
+    const r = this.request;
+    if (!r?.id) return;
 
-  try {
-     // ✅ ולידציה דרך השירות לפני דחייה
-    // אם הבקשה כבר לא רלוונטית — לא “דחייה רגילה”, אלא REJECTED_BY_SYSTEM
-const v = await this.validator.validate(r, 'reject');
-    if (!v.ok) {
-      await this.rejectBySystem(v.reason ?? 'הבקשה אינה רלוונטית');
-      return;
+    try {
+      // ✅ ולידציה דרך השירות לפני דחייה
+      // אם הבקשה כבר לא רלוונטית — לא “דחייה רגילה”, אלא REJECTED_BY_SYSTEM
+      const v = await this.validator.validate(r, 'reject');
+      if (!v.ok) {
+        await this.rejectBySystemAndUpdateUi(v.reason ?? 'הבקשה אינה רלוונטית'); return;
+      }
+
+      await this.tenantSvc.ensureTenantContextReady();
+      const tenant = this.tenantSvc.requireTenant();
+      const tenantSchema = tenant.schema;
+      const tenantId = tenant.id;
+
+      const user = getAuth().currentUser;
+      if (!user) throw new Error('המשתמש לא מחובר');
+      const token = await user.getIdToken();
+
+      const rejectUrl = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectMakeupLessonAndNotify';
+
+      const decisionNote =
+        (args?.reason ?? this.note()).trim() || null;
+
+      const resp = await fetch(rejectUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          tenantSchema,
+          tenantId,
+          requestId: this.requestId(),
+          decisionNote,
+        }),
+      });
+
+      const raw = await resp.text();
+      let json: any = null;
+      try { json = JSON.parse(raw); } catch { }
+      if (!resp.ok || !json?.ok) {
+        throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+      }
+
+      // ✅ הבקשה אושרה גם אם המייל נכשל
+      const warn = (json?.warning ?? '').toString().trim();
+      if (warn) {
+        this.bulkWarning = warn;
+        if (!this.bulkMode) {
+          this.snack.open(warn, 'סגור', {
+            duration: 3500,
+            panelClass: ['snack-warn'],
+            direction: 'rtl',
+            horizontalPosition: 'center',
+            verticalPosition: 'top',
+          });
+        }
+      }
+
+
+
+      this.okSnack('הבקשה נדחתה בהצלחה');
+      const evt = { requestId: r.id, newStatus: 'REJECTED' as const };
+      this.rejected.emit(evt);
+      this.onRejected?.(evt);
+
+    } catch (e: any) {
+      this.fail(e?.message ?? 'שגיאה בדחיית הבקשה', e);
+    } finally {
+      this.busy.set(false);
+      this.action.set(null);
     }
-
-    await this.tenantSvc.ensureTenantContextReady();
-    const tenant = this.tenantSvc.requireTenant();
-    const tenantSchema = tenant.schema;
-    const tenantId = tenant.id;
-
-    const user = getAuth().currentUser;
-    if (!user) throw new Error('המשתמש לא מחובר');
-    const token = await user.getIdToken();
-
-    const rejectUrl = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectMakeupLessonAndNotify';
-
-    const decisionNote =
-      (args?.reason ?? this.note()).trim() || null;
-
-    const resp = await fetch(rejectUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        tenantSchema,
-        tenantId,
-        requestId: this.requestId(),
-        decisionNote,
-      }),
-    });
-
-    const raw = await resp.text();
-    let json: any = null;
-    try { json = JSON.parse(raw); } catch {}
-   if (!resp.ok || !json?.ok) {
-  throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
-}
-
-// ✅ הבקשה אושרה גם אם המייל נכשל
-const warn = (json?.warning ?? '').toString().trim();
-if (warn) {
-  this.bulkWarning = warn;
-  if (!this.bulkMode) {
-    this.snack.open(warn, 'סגור', {
-      duration: 3500,
-      panelClass: ['snack-warn'],
-      direction: 'rtl',
-      horizontalPosition: 'center',
-      verticalPosition: 'top',
-    });
   }
-}
+  private async getOriginalOccurDate(_db: any, _lessonId: string): Promise<string | null> {
+    const fromPayload = this.originalLessonDate();
+    if (fromPayload) return fromPayload;
 
+    const cached = this.makeupTarget()?.occur_date;
+    if (cached) return String(cached);
 
+    return null;
+  }
+  formatDate(value: string | null | undefined): string {
+    if (!value) return '—';
 
-    this.okSnack('הבקשה נדחתה בהצלחה');
-    const evt = { requestId: r.id, newStatus: 'REJECTED' as const };
+    const s = String(value).slice(0, 10);
+    const parts = s.split('-');
+
+    if (parts.length !== 3) return s;
+
+    const [yyyy, mm, dd] = parts;
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  private async rejectBySystemAndUpdateUi(reason: string): Promise<void> {
+    await this.rejectBySystem(reason);
+
+    const requestId = this.request?.id ?? this.requestId?.();
+    if (!requestId) return;
+
+    const msg = `הבקשה לא אושרה ונדחתה אוטומטית על ידי המערכת: ${reason}`;
+
+    this.errorMsg.set(msg);
+
+    const evt = {
+      requestId,
+      newStatus: 'REJECTED_BY_SYSTEM' as const,
+      message: msg,
+      meta: { reason, source: 'system' },
+    };
+
     this.rejected.emit(evt);
     this.onRejected?.(evt);
 
-  } catch (e: any) {
-    this.fail(e?.message ?? 'שגיאה בדחיית הבקשה', e);
-  } finally {
-    this.busy.set(false);
-    this.action.set(null);
+    if (!this.bulkMode) {
+      this.snack.open(msg, 'סגור', {
+        duration: 5000,
+        panelClass: ['snack-reject'],
+        direction: 'rtl',
+        horizontalPosition: 'center',
+        verticalPosition: 'top',
+      });
+    }
   }
-}
-private async getOriginalOccurDate(_db: any, _lessonId: string): Promise<string | null> {
-  const fromPayload = this.originalLessonDate();
-  if (fromPayload) return fromPayload;
-
-  const cached = this.makeupTarget()?.occur_date;
-  if (cached) return String(cached);
-
-  return null;
-}
-formatDate(value: string | null | undefined): string {
-  if (!value) return '—';
-
-  const s = String(value).slice(0, 10);
-  const parts = s.split('-');
-
-  if (parts.length !== 3) return s;
-
-  const [yyyy, mm, dd] = parts;
-  return `${dd}/${mm}/${yyyy}`;
-}
 }

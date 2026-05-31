@@ -188,7 +188,7 @@ export class RequestSingleLessonDetailsComponent {
     return this.p?.payment_source ?? this.p?.paymentSource ?? '—';
   }
 
- 
+
 
   get approvalNumber(): string {
     return this.p?.approval_number ?? '—';
@@ -202,7 +202,7 @@ export class RequestSingleLessonDetailsComponent {
     return this.p?.lesson_type ?? 'שיעור בודד';
   }
 
-  async ngOnInit() {}
+  async ngOnInit() { }
 
   async approve() {
     return this.approveSelected();
@@ -378,7 +378,7 @@ export class RequestSingleLessonDetailsComponent {
 
     try {
       json = JSON.parse(text);
-    } catch {}
+    } catch { }
 
     if (!resp.ok || json?.ok === false) {
       throw new Error(json?.error || `autoRejectRequestAndNotify failed: ${resp.status}`);
@@ -782,8 +782,7 @@ export class RequestSingleLessonDetailsComponent {
 
     const v = await this.validator.validate(this.request, 'approve');
     if (!v.ok) {
-      await this.rejectBySystem(v.reason);
-      this.loading.set(false);
+      await this.rejectBySystemAndUpdateUi(v.reason); this.loading.set(false);
       this.busy.set(false);
       this.action.set(null);
       return;
@@ -823,7 +822,7 @@ export class RequestSingleLessonDetailsComponent {
         p_payment_source: p.payment_source ?? null,
         p_existing_approval_id: null,
         p_payment_plan_id: p.payment_plan_id ?? null,
-p_funding_source_id: p.funding_source_id ?? null,
+        p_funding_source_id: p.funding_source_id ?? null,
         p_approval_number: p.approval_number ?? null,
         p_total_lessons: p.total_lessons ?? null,
         p_referral_url: p.referral_url ?? null,
@@ -843,8 +842,7 @@ p_funding_source_id: p.funding_source_id ?? null,
           SINGLE_LESSON_DENY_MESSAGES[reasonKey] ??
           `אי אפשר לאשר את השיעור: ${reasonKey || 'סיבה לא ידועה'}`;
 
-        await this.rejectBySystem(msg);
-        this.loading.set(false);
+        await this.rejectBySystemAndUpdateUi(msg); this.loading.set(false);
         this.busy.set(false);
         this.action.set(null);
         return;
@@ -936,8 +934,7 @@ p_funding_source_id: p.funding_source_id ?? null,
 
     const v = await this.validator.validate(this.request, 'reject');
     if (!v.ok) {
-      await this.rejectBySystem(v.reason);
-      this.loading.set(false);
+      await this.rejectBySystemAndUpdateUi(v.reason); this.loading.set(false);
       this.busy.set(false);
       this.action.set(null);
       return;
@@ -1029,7 +1026,7 @@ p_funding_source_id: p.funding_source_id ?? null,
   ): Promise<any> {
     await this.tenantSvc.ensureTenantContextReady();
     const tenant = this.tenantSvc.requireTenant();
-const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifySingleLessonApproved';
+    const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifySingleLessonApproved';
     const user = getAuth().currentUser;
     if (!user) throw new Error('המשתמש לא מחובר');
 
@@ -1054,7 +1051,7 @@ const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifySingleL
 
     try {
       json = JSON.parse(raw);
-    } catch {}
+    } catch { }
 
     if (!resp.ok || !json?.ok) {
       throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
@@ -1067,7 +1064,7 @@ const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifySingleL
     await this.tenantSvc.ensureTenantContextReady();
     const tenant = this.tenantSvc.requireTenant();
 
-  const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifySingleLessonRejected';
+    const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifySingleLessonRejected';
     const user = getAuth().currentUser;
     if (!user) throw new Error('המשתמש לא מחובר');
 
@@ -1091,7 +1088,7 @@ const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifySingleL
 
     try {
       json = JSON.parse(raw);
-    } catch {}
+    } catch { }
 
     if (!resp.ok || !json?.ok) {
       throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
@@ -1101,21 +1098,48 @@ const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifySingleL
   }
 
   get lessonDateFormatted(): string {
-  const raw =
-    this.request?.fromDate ??
-    this.p?.lesson_date ??
-    this.p?.requested_date ??
-    null;
+    const raw =
+      this.request?.fromDate ??
+      this.p?.lesson_date ??
+      this.p?.requested_date ??
+      null;
 
-  if (!raw) return '—';
+    if (!raw) return '—';
 
-  const d = this.parseDateOnly(String(raw));
-  if (!d) return '—';
+    const d = this.parseDateOnly(String(raw));
+    if (!d) return '—';
 
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
 
-  return `${dd}/${mm}/${yyyy}`;
-}
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  private async rejectBySystemAndUpdateUi(reason: string): Promise<void> {
+    await this.rejectBySystem(reason);
+
+    const msg = `הבקשה לא אושרה ונדחתה אוטומטית על ידי המערכת: ${reason}`;
+
+    this.errorMsg.set(msg);
+
+    const payload = {
+      requestId: this.request.id,
+      newStatus: 'REJECTED_BY_SYSTEM' as const,
+      message: msg,
+      meta: { reason, source: 'system' },
+    };
+
+    this.rejected.emit(payload);
+    this.onRejected?.(payload);
+
+    if (!this.bulkMode) {
+      this.snack.open(msg, 'סגור', {
+        duration: 5000,
+        panelClass: ['snack-reject'],
+        direction: 'rtl',
+        horizontalPosition: 'center',
+        verticalPosition: 'top',
+      });
+    }
+  }
 }

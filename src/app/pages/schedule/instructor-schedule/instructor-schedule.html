@@ -7,25 +7,15 @@
   </div>
 
   <div class="schedule-main-card">
-    <app-schedule
-      [items]="items"
-      [resources]="[]"
-     viewerMode="instructor"
-      initialView="timeGridWeek"
-      (eventClick)="onEventClick($event)"
-      (dateClick)="onDateClick($event)"
-      (viewRange)="onViewRangeChange($event)"
+    <app-schedule [items]="items" [resources]="[]" viewerMode="instructor" initialView="timeGridWeek"
+      (eventClick)="onEventClick($event)" (dateClick)="onDateClick($event)" (viewRange)="onViewRangeChange($event)"
       (rightClickDay)="onRightClickDay($event)">
     </app-schedule>
   </div>
 </div>
 
 <!-- תפריט קליק ימני -->
-<div
-  class="context-menu"
-  *ngIf="contextMenu.visible"
-  [style.top.px]="contextMenu.y"
-  [style.left.px]="contextMenu.x"
+<div class="context-menu" *ngIf="contextMenu.visible" [style.top.px]="contextMenu.y" [style.left.px]="contextMenu.x"
   (click)="$event.stopPropagation()">
 
   <button class="context-close" (click)="closeContextMenu()">×</button>
@@ -37,13 +27,8 @@
 </div>
 
 <!-- כרטסת ילד -->
-<app-note
-  *ngIf="selectedChild && selectedOccurrence"
-  [child]="selectedChild"
-  [occurrence]="selectedOccurrence"
-  [attendanceStatus]="attendanceStatus"
-  [role]="currentUserRole"
-  (attendanceChange)="attendanceStatus = $event"
+<app-note *ngIf="selectedChild && selectedOccurrence" [child]="selectedChild" [occurrence]="selectedOccurrence"
+  [attendanceStatus]="attendanceStatus" [role]="currentUserRole" (attendanceChange)="attendanceStatus = $event"
   (close)="onCloseNote()">
 </app-note>
 
@@ -61,35 +46,24 @@
       <div class="compact-grid two-col">
         <div class="field-row">
           <label>מתאריך</label>
-          <input
-            type="date"
-            [(ngModel)]="rangeModal.from"
-            (ngModelChange)="onDateRangeChanged()" />
+          <input type="date" [(ngModel)]="rangeModal.from" (ngModelChange)="onDateRangeChanged()" />
         </div>
 
         <div class="field-row">
           <label>עד תאריך</label>
-          <input
-            type="date"
-            [(ngModel)]="rangeModal.to"
-            (ngModelChange)="onDateRangeChanged()" />
+          <input type="date" [(ngModel)]="rangeModal.to" (ngModelChange)="onDateRangeChanged()" />
         </div>
       </div>
 
       <div class="all-day-row">
-        <input
-          type="checkbox"
-          [(ngModel)]="rangeModal.allDay"
-          (ngModelChange)="onAllDayToggle($event)" />
+        <input type="checkbox" [(ngModel)]="rangeModal.allDay" (ngModelChange)="onAllDayToggle($event)" />
         <label>יום מלא</label>
       </div>
 
       <div *ngIf="!rangeModal.allDay" class="compact-grid two-col">
         <div class="field-row">
           <label>משעה</label>
-          <select
-            [(ngModel)]="rangeModal.fromTime"
-            (ngModelChange)="onTimeChanged()">
+          <select [(ngModel)]="rangeModal.fromTime" (ngModelChange)="onTimeChanged()">
             <option value="">בחר/י שעה</option>
             <option *ngFor="let t of timeOptions" [value]="t">{{ t }}</option>
           </select>
@@ -97,9 +71,7 @@
 
         <div class="field-row">
           <label>עד שעה</label>
-          <select
-            [(ngModel)]="rangeModal.toTime"
-            (ngModelChange)="onTimeChanged()">
+          <select [(ngModel)]="rangeModal.toTime" (ngModelChange)="onTimeChanged()">
             <option value="">בחר/י שעה</option>
             <option *ngFor="let t of timeOptions" [value]="t">{{ t }}</option>
           </select>
@@ -111,10 +83,7 @@
 
         <div class="field-row" *ngIf="rangeModal.type === 'sick'">
           <label>אישור מחלה (אופציונלי)</label>
-          <input
-            type="file"
-            accept=".pdf,image/*"
-            (change)="onSickFileSelected($event)" />
+          <input type="file" accept=".pdf,image/*" (change)="onSickFileSelected($event)" />
         </div>
 
         <textarea [(ngModel)]="rangeModal.text"></textarea>
@@ -152,29 +121,23 @@
         </div>
       </div>
 
-  <div class="absence-alert error" *ngIf="error">
-  <div class="alert-icon">!</div>
-  <div class="alert-text">
-    {{ error }}
-  </div>
-</div>
+      <div class="absence-alert error" *ngIf="error">
+        <div class="alert-icon">!</div>
+        <div class="alert-text">
+          {{ error }}
+        </div>
+      </div>
     </div>
 
     <div class="modal-actions">
       <button type="button" class="cancel" (click)="closeRangeModal()">ביטול</button>
 
-      <button
-        type="button"
-        class="confirm"
-        *ngIf="!rangeModal.reviewedImpact"
+      <button type="button" class="confirm" *ngIf="!rangeModal.reviewedImpact" [disabled]="!!error"
         (click)="onImpactButtonClick()">
         בדיקת השפעה
       </button>
 
-      <button
-        type="button"
-        class="confirm"
-        *ngIf="rangeModal.reviewedImpact"
+      <button type="button" class="confirm" *ngIf="rangeModal.reviewedImpact" [disabled]="!!error"
         (click)="onImpactButtonClick()">
         אישור ושליחה
       </button>
