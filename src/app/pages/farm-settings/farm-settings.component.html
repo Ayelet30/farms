@@ -942,40 +942,10 @@
             </div>
 
             <div class="form-grid cols-3">
-              <label class="field-card field-toggle">
-                <div class="toggle-line">
-                  <span class="field-label">שירות חוזר</span>
-                  <label class="switch">
-                    <input type="checkbox" name="newRiderServiceRecurring"
-                      [ngModel]="newRiderServiceType().is_recurring"
-                      (ngModelChange)="patchNewRiderServiceType({ is_recurring: $event })" />
-                    <span class="switch-ui"></span>
-                  </label>
-                </div>
-                <small class="field-hint">למשל פנסיון חודשי או פרזול תקופתי</small>
-              </label>
 
-              <label class="field-card" *ngIf="newRiderServiceType().is_recurring">
-                <span class="field-label">יחידת חזרה</span>
-                <select class="form-control" name="newRiderServiceRecurrenceUnit"
-                  [ngModel]="newRiderServiceType().default_recurrence_unit"
-                  (ngModelChange)="patchNewRiderServiceType({ default_recurrence_unit: $event })">
-                  <option [ngValue]="null">בחרי</option>
-                  <option [ngValue]="'day'">ימים</option>
-                  <option [ngValue]="'week'">שבועות</option>
-                  <option [ngValue]="'month'">חודשים</option>
-                </select>
-              </label>
 
-              <label class="field-card" *ngIf="newRiderServiceType().is_recurring">
-                <span class="field-label">כל כמה?</span>
-                <input class="form-control" type="number" min="1" step="1" name="newRiderServiceRecurrenceInterval"
-                  [ngModel]="newRiderServiceType().default_recurrence_interval"
-                  (ngModelChange)="patchNewRiderServiceType({ default_recurrence_interval: +$event })" />
-                <small class="field-error" *ngIf="riderServiceTypeErrors().recurrence">
-                  {{ riderServiceTypeErrors().recurrence }}
-                </small>
-              </label>
+
+
             </div>
 
             <div class="form-grid cols-3">
@@ -988,7 +958,24 @@
                       (ngModelChange)="patchNewRiderServiceType({ requires_approval: $event })" />
                     <span class="switch-ui"></span>
                   </label>
+
                 </div>
+              </label>
+              <label class="field-card field-toggle">
+                <div class="toggle-line">
+                  <span class="field-label">נדרשת משימה לביצוע השירות</span>
+
+                  <label class="switch">
+                    <input type="checkbox" name="newRiderServiceRequiresTask"
+                      [ngModel]="newRiderServiceType().requires_task"
+                      (ngModelChange)="patchNewRiderServiceType({ requires_task: $event })" />
+                    <span class="switch-ui"></span>
+                  </label>
+                </div>
+
+                <small class="field-hint">
+                  סמני אם פתיחת השירות צריכה ליצור משימה לצוות, למשל פרזול, חיסון או טיפול.
+                </small>
               </label>
 
               <label class="field-card field-toggle">
@@ -1002,20 +989,14 @@
                 </div>
               </label>
 
-              <label class="field-card">
-                <span class="field-label">הערות</span>
-                <input class="form-control" type="text" maxlength="150" name="newRiderServiceNotes"
-                  [ngModel]="newRiderServiceType().notes"
-                  (ngModelChange)="patchNewRiderServiceType({ notes: $event })" />
-              </label>
+
             </div>
 
             <div class="panel-actions">
               <button type="button" class="btn btn-primary" [disabled]="
             !newRiderServiceType().name.trim() ||
             !!riderServiceTypeErrors().name ||
-            !!riderServiceTypeErrors().default_price_agorot ||
-            !!riderServiceTypeErrors().recurrence
+            !!riderServiceTypeErrors().default_price_agorot
           " (click)="addRiderServiceType()">
                 שמירה
               </button>
@@ -1047,14 +1028,7 @@
                     'כללי'
                     }}
                     · {{ service.default_price_shekel }} ₪
-                    <span *ngIf="service.is_recurring">
-                      · חוזר כל {{ service.default_recurrence_interval }}
-                      {{
-                      service.default_recurrence_unit === 'day' ? 'ימים' :
-                      service.default_recurrence_unit === 'week' ? 'שבועות' :
-                      'חודשים'
-                      }}
-                    </span>
+
                   </div>
                 </div>
 

@@ -25,7 +25,7 @@ type RecurrenceKind = 'ONCE' | 'YEARLY';
 type DayType = 'FULL_DAY' | 'HOURS';
 type SpecialChargeMode = 'registration' | 'specific_date' | 'yearly';
 interface RidingType {
-  
+
   id: UUID;
   code: string;
   name: string;
@@ -52,8 +52,8 @@ interface SpecialCharge {
   charge_on_registration: boolean;
   charge_on_specific_date: boolean;
   charge_date: string | null;
-first_charge_date: string | null;
-charge_times_per_year: number | null;
+  first_charge_date: string | null;
+  charge_times_per_year: number | null;
   funding_source_ids: UUID[];
 
   is_required: boolean;
@@ -78,7 +78,7 @@ interface FarmSettings {
 
   makeup_allowed_days_back: number | null;
   makeup_allowed_days_ahead: number | null;
-    parent_booking_days_ahead?: number | null;
+  parent_booking_days_ahead?: number | null;
   max_makeups_in_period: number | null;
   makeups_period_days: number | null;
   displayed_makeup_lessons_count: number | null;
@@ -86,7 +86,7 @@ interface FarmSettings {
 
   cancel_before_hours: number | null;
   late_cancel_policy: LateCancelPolicy | null;
-  
+
 
   attendance_default: AttendanceDefault | null;
 
@@ -119,7 +119,7 @@ interface FarmSettings {
   allow_online_booking?: boolean | null;
 
   updated_at?: string | null;
-    parent_cancel_charge_before_deadline?: boolean | null;
+  parent_cancel_charge_before_deadline?: boolean | null;
   parent_cancel_charge_after_deadline?: boolean | null;
   parent_cancel_charge_timing?: 'at_cancel' | 'at_makeup' | null;
   farm_cancel_charge_target?: 'cancelled_lesson' | 'makeup_lesson' | null;
@@ -132,19 +132,15 @@ type RecurrenceUnit = 'day' | 'week' | 'month';
 interface RiderServiceType {
   id?: UUID;
   name: string;
-  category: 'boarding' | 'medical' | 'maintenance' | 'general';
-
+  category: RiderServiceCategory;
   default_price_agorot: number;
 
   // UI only
   default_price_shekel?: number | null;
 
-  is_recurring: boolean;
-  default_recurrence_unit: 'day' | 'week' | 'month' | null;
-  default_recurrence_interval: number | null;
   requires_approval: boolean;
   is_active: boolean;
-  notes: string | null;
+  requires_task: boolean;
 }
 interface ListNote {
   id: ListNoteId;
@@ -199,7 +195,7 @@ interface FarmDayOff {
 
   reason: string;
   is_active: boolean;
-is_special_day?: boolean;
+  is_special_day?: boolean;
   created_at?: string;
 
   day_type?: DayType;
@@ -236,15 +232,15 @@ type SettingsErrors = {
   cancel_before_hours?: string;
   parent_booking_days_ahead?: string;
   max_group_size?: string;
-    default_lesson_price?: string;
+  default_lesson_price?: string;
   max_lessons_per_week_per_child?: string;
   makeup_allowed_days_ahead?: string;
   makeup_allowed_days_back?: string;
   max_makeups_in_period?: string;
   makeups_period_days?: string;
   reminder_hours_before?: string;
-notify_before_farm_closure_hours?: string;
-min_time_between_cancellations?: string;
+  notify_before_farm_closure_hours?: string;
+  min_time_between_cancellations?: string;
 
 
 };
@@ -258,142 +254,138 @@ min_time_between_cancellations?: string;
 })
 export class FarmSettingsComponent implements OnInit {
   private readonly SETTINGS_SINGLETON_ID = '00000000-0000-0000-0000-000000000001';
-readonly specialChargeFrequencyOptions = [
-  { value: 1, label: 'פעם בשנה' },
-  { value: 2, label: 'פעמיים בשנה - כל 6 חודשים' },
-  { value: 3, label: '3 פעמים בשנה - כל 4 חודשים' },
-  { value: 4, label: '4 פעמים בשנה - כל 3 חודשים' },
-  { value: 6, label: '6 פעמים בשנה - כל חודשיים' },
-  { value: 12, label: '12 פעמים בשנה - כל חודש' },
-];
+  readonly specialChargeFrequencyOptions = [
+    { value: 1, label: 'פעם בשנה' },
+    { value: 2, label: 'פעמיים בשנה - כל 6 חודשים' },
+    { value: 3, label: '3 פעמים בשנה - כל 4 חודשים' },
+    { value: 4, label: '4 פעמים בשנה - כל 3 חודשים' },
+    { value: 6, label: '6 פעמים בשנה - כל חודשיים' },
+    { value: 12, label: '12 פעמים בשנה - כל חודש' },
+  ];
   private get supabase() {
     return dbTenant();
   }
-private dialog = inject(MatDialog);
+  private dialog = inject(MatDialog);
   private ui = inject(UiDialogService);
 
   // ====== Structured Notes (list_notes) ======
   listNotes = signal<ListNote[]>([]);
   showNewListNoteForm = signal(false);
   editingListNoteId = signal<ListNoteId | null>(null);
-newSpecialChargeErrors = signal<{
-  item?: string;
-  amount?: string;
-  mode?: string;
-}>({});
+  newSpecialChargeErrors = signal<{
+    item?: string;
+    amount?: string;
+    mode?: string;
+  }>({});
   newListNoteText = signal<string>('');
   listNotesExpanded = signal(true);
   // ====== Rider Service Types ======
-riderServiceTypes = signal<RiderServiceType[]>([]);
-riderServiceTypesExpanded = signal(true);
-showNewRiderServiceTypeForm = signal(false);
-editingRiderServiceTypeId = signal<UUID | null>(null);
+  riderServiceTypes = signal<RiderServiceType[]>([]);
+  riderServiceTypesExpanded = signal(true);
+  showNewRiderServiceTypeForm = signal(false);
+  editingRiderServiceTypeId = signal<UUID | null>(null);
 
-newRiderServiceType = signal<RiderServiceType>({
-  name: '',
-  category: 'general',
-  default_price_agorot: 0,
-  default_price_shekel: null,
-  is_recurring: false,
-  default_recurrence_unit: null,
-  default_recurrence_interval: null,
-  requires_approval: true,
-  is_active: true,
-  notes: null,
-});
+  newRiderServiceType = signal<RiderServiceType>({
+    name: '',
+    category: 'general',
+    default_price_agorot: 0,
+    default_price_shekel: null,
+    requires_approval: true,
+    is_active: true,
+    requires_task: true,
+  });
 
-riderServiceTypeErrors = signal<{
-  name?: string;
-  default_price_agorot?: string;
-  recurrence?: string;
-}>({});
+  riderServiceTypeErrors = signal<{
+    name?: string;
+    default_price_agorot?: string;
+  }>({});
   // ====== Riding Types ======
 
-ridingTypes = signal<RidingType[]>([]);
-showNewRidingTypeForm = signal(false);
-editingRidingTypeId = signal<UUID | null>(null);
-newRidingTypeName = signal('');
+  ridingTypes = signal<RidingType[]>([]);
+  showNewRidingTypeForm = signal(false);
+  editingRidingTypeId = signal<UUID | null>(null);
+  newRidingTypeName = signal('');
 
-newRidingTypeDesc = signal('');
+  newRidingTypeDesc = signal('');
 
-newRidingTypeMin = signal<number | null>(null);
-newRidingTypeMax = signal<number | null>(null);
-participantsMinError = signal<string | null>(null);
-participantsMaxError = signal<string | null>(null);
-private tenantSvc = inject(SupabaseTenantService);
-specialCharges = signal<SpecialCharge[]>([]);
-showNewSpecialChargeForm = signal(false);
+  newRidingTypeMin = signal<number | null>(null);
+  newRidingTypeMax = signal<number | null>(null);
+  participantsMinError = signal<string | null>(null);
+  participantsMaxError = signal<string | null>(null);
+  private tenantSvc = inject(SupabaseTenantService);
+  specialCharges = signal<SpecialCharge[]>([]);
+  showNewSpecialChargeForm = signal(false);
 
-newSpecialCharge = signal<SpecialCharge>({
-  item: '',
-  amount: null,
-  notes: null,
-funding_source_ids: [],
-  charge_on_registration: true,
-  charge_on_specific_date: false,
-  charge_date: null,
-  first_charge_date: null,
+  newSpecialCharge = signal<SpecialCharge>({
+    item: '',
+    amount: null,
+    notes: null,
+    funding_source_ids: [],
+    charge_on_registration: true,
+    charge_on_specific_date: false,
+    charge_date: null,
+    first_charge_date: null,
 
 
-charge_times_per_year: null,
-  is_required: true,
-  warning_note: null,
+    charge_times_per_year: null,
+    is_required: true,
+    warning_note: null,
 
-  is_active: true,
-  sort_order: 0,
-});
-editingSpecialChargeId = signal<UUID | null>(null);
-specialChargeBeforeEdit = signal<SpecialCharge | null>(null);
+    is_active: true,
+    sort_order: 0,
+  });
+  editingSpecialChargeId = signal<UUID | null>(null);
+  specialChargeBeforeEdit = signal<SpecialCharge | null>(null);
 
-validateParticipants(): void {
-  const min = this.newRidingTypeMin();
-  const max = this.newRidingTypeMax();
+  validateParticipants(): void {
+    const min = this.newRidingTypeMin();
+    const max = this.newRidingTypeMax();
 
-  this.participantsMinError.set(null);
-  this.participantsMaxError.set(null);
+    this.participantsMinError.set(null);
+    this.participantsMaxError.set(null);
 
-  if (min == null) {
-    this.participantsMinError.set('חובה למלא מינימום משתתפים');
-  } else if (!Number.isFinite(Number(min)) || Number(min) < 1 || Number(min) > 50) {
-    this.participantsMinError.set('מינימום חייב להיות בין 1 ל־50');
+    if (min == null) {
+      this.participantsMinError.set('חובה למלא מינימום משתתפים');
+    } else if (!Number.isFinite(Number(min)) || Number(min) < 1 || Number(min) > 50) {
+      this.participantsMinError.set('מינימום חייב להיות בין 1 ל־50');
+    }
+
+    if (max == null) {
+      this.participantsMaxError.set('חובה למלא מקסימום משתתפים');
+    } else if (!Number.isFinite(Number(max)) || Number(max) < 1 || Number(max) > 50) {
+      this.participantsMaxError.set('מקסימום חייב להיות בין 1 ל־50');
+    }
+
+    if (min != null && max != null && Number(min) > Number(max)) {
+      this.participantsMinError.set('מינימום לא יכול להיות גדול ממקסימום');
+      this.participantsMaxError.set('מקסימום לא יכול להיות קטן ממינימום');
+    }
   }
 
-  if (max == null) {
-    this.participantsMaxError.set('חובה למלא מקסימום משתתפים');
-  } else if (!Number.isFinite(Number(max)) || Number(max) < 1 || Number(max) > 50) {
-    this.participantsMaxError.set('מקסימום חייב להיות בין 1 ל־50');
-  }
+  newRidingTypeCode = signal('');
+  newRidingTypeCodeError = signal<string | null>(null);
 
-  if (min != null && max != null && Number(min) > Number(max)) {
-    this.participantsMinError.set('מינימום לא יכול להיות גדול ממקסימום');
-    this.participantsMaxError.set('מקסימום לא יכול להיות קטן ממינימום');
-  }
-}
-
-newRidingTypeCode = signal('');
-newRidingTypeCodeError = signal<string | null>(null);
-
-newRidingTypeSpecialPrice = signal<number | null>(null);
-newRidingTypeSpecialDuration = signal<number | null>(null);
+  newRidingTypeSpecialPrice = signal<number | null>(null);
+  newRidingTypeSpecialDuration = signal<number | null>(null);
 
 
-newRidingTypeIsActive = signal(true);
+  newRidingTypeIsActive = signal(true);
 
-ridingTypesExpanded = signal(true);
+  ridingTypesExpanded = signal(true);
 
   // שבת: ו׳ מ-16:00 ועד מוצ"ש 19:00
-private readonly SHABBAT_START = '16:00';
-private readonly SHABBAT_END = '19:00';
+  private readonly SHABBAT_START = '16:00';
+  private readonly SHABBAT_END = '19:00';
 
-private isFriday(day: number) { return day === 6; }   // ו'
-private isSaturday(day: number) { return day === 7; } // ש'
+  private isFriday(day: number) { return day === 6; }   // ו'
+  private isSaturday(day: number) { return day === 7; } // ש'
 
   private flashTimer: any = null;
 
-/** יש לפחות יום אחד פעיל (חווה או משרד) */
-hasAnyActiveWorkingDay(): boolean {
-  return this.workingHours().some(r => !!r.is_open || !!r.is_offical_open);
-}
+  /** יש לפחות יום אחד פעיל (חווה או משרד) */
+  hasAnyActiveWorkingDay(): boolean {
+    return this.workingHours().some(r => !!r.is_open || !!r.is_offical_open);
+  }
 
 
   toggleListNotesExpanded(): void {
@@ -489,48 +481,48 @@ hasAnyActiveWorkingDay(): boolean {
 
   // ================================
   async ngOnInit(): Promise<void> {
-  this.loading.set(true);
-  this.error.set(null);
-  this.success.set(null);
+    this.loading.set(true);
+    this.error.set(null);
+    this.success.set(null);
 
-  try {
-    await Promise.all([
-      this.loadSettings(),
-      this.loadFundingSources(),
-      this.loadPaymentPlans(),
-      this.loadFarmDaysOff(),
-      this.loadWorkingHours(),
-      this.loadListNotes(),
-      this.loadRidingTypes(),
-      this.loadSpecialCharges(),
-      this.loadRiderServiceTypes(),
-    ]);
+    try {
+      await Promise.all([
+        this.loadSettings(),
+        this.loadFundingSources(),
+        this.loadPaymentPlans(),
+        this.loadFarmDaysOff(),
+        this.loadWorkingHours(),
+        this.loadListNotes(),
+        this.loadRidingTypes(),
+        this.loadSpecialCharges(),
+        this.loadRiderServiceTypes(),
+      ]);
 
-    if (!this.workingHours().length) {
-      this.workingHours.set(this.enforceShabbatRules(this.buildEmptyWorkingHours()));
-    } else {
-      // ליתר ביטחון אחרי טעינה/seed
-      this.workingHours.set(this.enforceShabbatRules(this.workingHours()));
+      if (!this.workingHours().length) {
+        this.workingHours.set(this.enforceShabbatRules(this.buildEmptyWorkingHours()));
+      } else {
+        // ליתר ביטחון אחרי טעינה/seed
+        this.workingHours.set(this.enforceShabbatRules(this.workingHours()));
+      }
+
+      // פעם אחת בלבד
+      this.workingHoursError.set(this.validateAllWorkingHours());
+    } catch (e) {
+      console.error(e);
+      await this.ui.alert('שגיאה בטעינת הנתונים.', 'שגיאה');
+      this.error.set('שגיאה בטעינת הנתונים.');
+    } finally {
+      this.loading.set(false);
     }
-
-    // פעם אחת בלבד
-    this.workingHoursError.set(this.validateAllWorkingHours());
-  } catch (e) {
-    console.error(e);
-    await this.ui.alert('שגיאה בטעינת הנתונים.', 'שגיאה');
-    this.error.set('שגיאה בטעינת הנתונים.');
-  } finally {
-    this.loading.set(false);
   }
-}
 
   // =============================
   // Helpers
   // =============================
   private clearFocus(): void {
-  const el = document.activeElement as HTMLElement | null;
-  el?.blur();
-}
+    const el = document.activeElement as HTMLElement | null;
+    el?.blur();
+  }
 
   toggleWorkingHoursExpanded(): void {
     this.clearFlash();
@@ -590,26 +582,26 @@ hasAnyActiveWorkingDay(): boolean {
 
 
 
-private clearFlash(): void {
-  this.success.set(null);
-  this.error.set(null);
-  if (this.flashTimer) {
-    clearTimeout(this.flashTimer);
-    this.flashTimer = null;
+  private clearFlash(): void {
+    this.success.set(null);
+    this.error.set(null);
+    if (this.flashTimer) {
+      clearTimeout(this.flashTimer);
+      this.flashTimer = null;
+    }
   }
-}
 
-private flashSuccess(msg: string): void {
-  this.clearFlash();
-  this.success.set(msg);
-  this.flashTimer = setTimeout(() => this.success.set(null), 4000);
-}
+  private flashSuccess(msg: string): void {
+    this.clearFlash();
+    this.success.set(msg);
+    this.flashTimer = setTimeout(() => this.success.set(null), 4000);
+  }
 
-private flashError(msg: string): void {
-  this.clearFlash();
-  this.error.set(msg);
-  this.flashTimer = setTimeout(() => this.error.set(null), 6000);
-}
+  private flashError(msg: string): void {
+    this.clearFlash();
+    this.error.set(msg);
+    this.flashTimer = setTimeout(() => this.error.set(null), 6000);
+  }
 
 
   /** סנכרון עברי->לועזי (start_date/end_date) כדי לשמור DB תקין */
@@ -702,100 +694,100 @@ private flashError(msg: string): void {
   }
 
   private buildEmptyWorkingHours(): FarmWorkingHours[] {
-  const s = this.settings();
-  const defFarmStart = s?.operating_hours_start ?? '08:00';
-  const defFarmEnd = s?.operating_hours_end ?? '20:00';
+    const s = this.settings();
+    const defFarmStart = s?.operating_hours_start ?? '08:00';
+    const defFarmEnd = s?.operating_hours_end ?? '20:00';
 
-  const arr: FarmWorkingHours[] = [];
-  for (let d = 1; d <= 7; d++) {
-    const isSat = d === 7; // שבת
-    arr.push({
-      day_of_week: d,
-      is_open: !isSat,
-      farm_start: isSat ? null : defFarmStart,
-      farm_end: isSat ? null : defFarmEnd,
-      is_offical_open: false,
-      office_start: null,
-      office_end: null,
-    });
+    const arr: FarmWorkingHours[] = [];
+    for (let d = 1; d <= 7; d++) {
+      const isSat = d === 7; // שבת
+      arr.push({
+        day_of_week: d,
+        is_open: !isSat,
+        farm_start: isSat ? null : defFarmStart,
+        farm_end: isSat ? null : defFarmEnd,
+        is_offical_open: false,
+        office_start: null,
+        office_end: null,
+      });
+    }
+    return arr;
   }
-  return arr;
-}
 
-private compareTime(a: string | null, b: string | null): number {
-  if (!a && !b) return 0;
-  if (!a) return -1;
-  if (!b) return 1;
-  return a.localeCompare(b); // עובד ל-HH:MM
-}
+  private compareTime(a: string | null, b: string | null): number {
+    if (!a && !b) return 0;
+    if (!a) return -1;
+    if (!b) return 1;
+    return a.localeCompare(b); // עובד ל-HH:MM
+  }
 
-private enforceShabbatRulesRow(r: FarmWorkingHours): FarmWorkingHours {
-  const next = { ...r };
+  private enforceShabbatRulesRow(r: FarmWorkingHours): FarmWorkingHours {
+    const next = { ...r };
 
-  // שבת (7): אם פתוח, מתחילים לא לפני 19:00
-  if (this.isSaturday(next.day_of_week)) {
-    if (next.is_open) {
-      if (!next.farm_start || this.compareTime(next.farm_start, this.SHABBAT_END) < 0) {
-        next.farm_start = this.SHABBAT_END;
+    // שבת (7): אם פתוח, מתחילים לא לפני 19:00
+    if (this.isSaturday(next.day_of_week)) {
+      if (next.is_open) {
+        if (!next.farm_start || this.compareTime(next.farm_start, this.SHABBAT_END) < 0) {
+          next.farm_start = this.SHABBAT_END;
+        }
+        if (next.farm_end && this.compareTime(next.farm_end, next.farm_start) <= 0) next.farm_end = null;
+      } else {
+        next.farm_start = null;
+        next.farm_end = null;
       }
-      if (next.farm_end && this.compareTime(next.farm_end, next.farm_start) <= 0) next.farm_end = null;
-    } else {
-      next.farm_start = null;
-      next.farm_end = null;
+
+      if (next.is_offical_open) {
+        if (!next.office_start || this.compareTime(next.office_start, this.SHABBAT_END) < 0) {
+          next.office_start = this.SHABBAT_END;
+        }
+        if (next.office_end && this.compareTime(next.office_end, next.office_start) <= 0) next.office_end = null;
+      } else {
+        next.office_start = null;
+        next.office_end = null;
+      }
+
+      return next;
     }
 
-    if (next.is_offical_open) {
-      if (!next.office_start || this.compareTime(next.office_start, this.SHABBAT_END) < 0) {
-        next.office_start = this.SHABBAT_END;
+    // שישי (6): לא לשים שעות אחרי 16:00
+    if (this.isFriday(next.day_of_week)) {
+      const clampEnd = (t: string | null) => (t && this.compareTime(t, this.SHABBAT_START) > 0 ? this.SHABBAT_START : t);
+      const invalidStart = (t: string | null) => (t && this.compareTime(t, this.SHABBAT_START) >= 0);
+
+      if (next.is_open) {
+        if (invalidStart(next.farm_start)) next.farm_start = '08:00';
+        next.farm_end = clampEnd(next.farm_end);
+        if (next.farm_end && next.farm_start && this.compareTime(next.farm_end, next.farm_start) <= 0) next.farm_end = null;
       }
-      if (next.office_end && this.compareTime(next.office_end, next.office_start) <= 0) next.office_end = null;
-    } else {
-      next.office_start = null;
-      next.office_end = null;
+
+      if (next.is_offical_open) {
+        if (invalidStart(next.office_start)) next.office_start = '08:30';
+        next.office_end = clampEnd(next.office_end);
+        if (next.office_end && next.office_start && this.compareTime(next.office_end, next.office_start) <= 0) next.office_end = null;
+      }
+
+      return next;
     }
 
     return next;
   }
 
-  // שישי (6): לא לשים שעות אחרי 16:00
-  if (this.isFriday(next.day_of_week)) {
-    const clampEnd = (t: string | null) => (t && this.compareTime(t, this.SHABBAT_START) > 0 ? this.SHABBAT_START : t);
-    const invalidStart = (t: string | null) => (t && this.compareTime(t, this.SHABBAT_START) >= 0);
-
-    if (next.is_open) {
-      if (invalidStart(next.farm_start)) next.farm_start = '08:00';
-      next.farm_end = clampEnd(next.farm_end);
-      if (next.farm_end && next.farm_start && this.compareTime(next.farm_end, next.farm_start) <= 0) next.farm_end = null;
-    }
-
-    if (next.is_offical_open) {
-      if (invalidStart(next.office_start)) next.office_start = '08:30';
-      next.office_end = clampEnd(next.office_end);
-      if (next.office_end && next.office_start && this.compareTime(next.office_end, next.office_start) <= 0) next.office_end = null;
-    }
-
-    return next;
+  private enforceShabbatRules(rows: FarmWorkingHours[]): FarmWorkingHours[] {
+    // שומר על immutable כדי שה-signal יעדכן UI
+    return rows.map(r => this.enforceShabbatRulesRow(r));
   }
 
-  return next;
-}
 
-private enforceShabbatRules(rows: FarmWorkingHours[]): FarmWorkingHours[] {
-  // שומר על immutable כדי שה-signal יעדכן UI
-  return rows.map(r => this.enforceShabbatRulesRow(r));
-}
+  onWorkingHoursChanged(): void {
+    this.clearFlash();
+    // רק ולידציה (מהיר)
+    this.workingHoursError.set(this.validateAllWorkingHours());
+  }
 
-
- onWorkingHoursChanged(): void {
-  this.clearFlash(); 
-  // רק ולידציה (מהיר)
-  this.workingHoursError.set(this.validateAllWorkingHours());
-}
-
-private applyWorkingHoursRulesAndValidate(): void {
-  this.workingHours.update(rows => this.enforceShabbatRules(rows));
-  this.workingHoursError.set(this.validateAllWorkingHours());
-}
+  private applyWorkingHoursRulesAndValidate(): void {
+    this.workingHours.update(rows => this.enforceShabbatRules(rows));
+    this.workingHoursError.set(this.validateAllWorkingHours());
+  }
 
 
   private validateAllWorkingHours(): string | null {
@@ -807,60 +799,60 @@ private applyWorkingHoursRulesAndValidate(): void {
     return null;
   }
   // ===== Special Day rules (Day 6/7) =====
-private readonly DAY6_CUTOFF = '16:00'; // יום 6
-private readonly DAY7_START  = '19:00'; // יום 7
+  private readonly DAY6_CUTOFF = '16:00'; // יום 6
+  private readonly DAY7_START = '19:00'; // יום 7
 
-private isoDow(isoDate: string | null): number | null {
-  if (!isoDate) return null;
-  // מונע בעיות TZ: בונים "צהריים" מקומי
-  const d = new Date(`${isoDate}T12:00:00`);
-  // JS: 0=Sunday ... 5=Friday ... 6=Saturday
-  return d.getDay();
-}
-
-private clampMin(t: string | null, min: string): string | null {
-  if (!t) return null;
-  return t < min ? min : t;
-}
-private clampMax(t: string | null, max: string): string | null {
-  if (!t) return null;
-  return t > max ? max : t;
-}
-
-private applySpecialDayRules(form: FarmDayOff): FarmDayOff {
-  // אוכפים רק כשזה "חלק מהיום" ובאותו יום (לא טווח)
-  if (form.all_day) return form;
-  if (!form.start_date || !form.end_date) return form;
-  if (form.start_date !== form.end_date) return form;
-
-  const dow = this.isoDow(form.start_date);
-  if (dow == null) return form;
-
-  const next = { ...form };
-
-  // יום 7 (JS Saturday=6): אסור להתחיל לפני 19:00
-  if (dow === 6) {
-    next.start_time = this.clampMin(next.start_time, this.DAY7_START);
-    // אם סיום לפני התחלה -> ננקה כדי שיראו שגיאה
-    if (next.end_time && next.start_time && next.end_time <= next.start_time) {
-      next.end_time = null;
-    }
+  private isoDow(isoDate: string | null): number | null {
+    if (!isoDate) return null;
+    // מונע בעיות TZ: בונים "צהריים" מקומי
+    const d = new Date(`${isoDate}T12:00:00`);
+    // JS: 0=Sunday ... 5=Friday ... 6=Saturday
+    return d.getDay();
   }
 
-  // יום 6 (JS Friday=5): אסור לסיים אחרי 16:00
-  if (dow === 5) {
-    next.end_time = this.clampMax(next.end_time, this.DAY6_CUTOFF);
-    if (next.start_time && next.start_time >= this.DAY6_CUTOFF) {
-      // אם שמו התחלה לא חוקית – נחזיר לברירת מחדל
-      next.start_time = this.settings()?.operating_hours_start ?? '08:00';
-    }
-    if (next.end_time && next.start_time && next.end_time <= next.start_time) {
-      next.end_time = null;
-    }
+  private clampMin(t: string | null, min: string): string | null {
+    if (!t) return null;
+    return t < min ? min : t;
+  }
+  private clampMax(t: string | null, max: string): string | null {
+    if (!t) return null;
+    return t > max ? max : t;
   }
 
-  return next;
-}
+  private applySpecialDayRules(form: FarmDayOff): FarmDayOff {
+    // אוכפים רק כשזה "חלק מהיום" ובאותו יום (לא טווח)
+    if (form.all_day) return form;
+    if (!form.start_date || !form.end_date) return form;
+    if (form.start_date !== form.end_date) return form;
+
+    const dow = this.isoDow(form.start_date);
+    if (dow == null) return form;
+
+    const next = { ...form };
+
+    // יום 7 (JS Saturday=6): אסור להתחיל לפני 19:00
+    if (dow === 6) {
+      next.start_time = this.clampMin(next.start_time, this.DAY7_START);
+      // אם סיום לפני התחלה -> ננקה כדי שיראו שגיאה
+      if (next.end_time && next.start_time && next.end_time <= next.start_time) {
+        next.end_time = null;
+      }
+    }
+
+    // יום 6 (JS Friday=5): אסור לסיים אחרי 16:00
+    if (dow === 5) {
+      next.end_time = this.clampMax(next.end_time, this.DAY6_CUTOFF);
+      if (next.start_time && next.start_time >= this.DAY6_CUTOFF) {
+        // אם שמו התחלה לא חוקית – נחזיר לברירת מחדל
+        next.start_time = this.settings()?.operating_hours_start ?? '08:00';
+      }
+      if (next.end_time && next.start_time && next.end_time <= next.start_time) {
+        next.end_time = null;
+      }
+    }
+
+    return next;
+  }
 
 
   private validateWorkingHoursRow(r: FarmWorkingHours): string | null {
@@ -877,14 +869,14 @@ private applySpecialDayRules(form: FarmDayOff): FarmDayOff {
     }
     // שבת: אם פתוח, לא מתחילים לפני 19:00
     if (this.isSaturday(r.day_of_week)) {
-  if (r.is_open) {
-    if (r.farm_start && r.farm_start < this.SHABBAT_END) return 'בשבת אין להתחיל לפני 19:00.';
-    if (r.farm_end && r.farm_end < this.SHABBAT_END) return 'ביום שישי לא ניתן לסיים לאחר 16:00.';
-  }
-  if (r.is_offical_open) {
-    if (r.office_start && r.office_start < this.SHABBAT_END) return 'בשבת אין לפתוח משרד לפני 19:00.';
- }
-}
+      if (r.is_open) {
+        if (r.farm_start && r.farm_start < this.SHABBAT_END) return 'בשבת אין להתחיל לפני 19:00.';
+        if (r.farm_end && r.farm_end < this.SHABBAT_END) return 'ביום שישי לא ניתן לסיים לאחר 16:00.';
+      }
+      if (r.is_offical_open) {
+        if (r.office_start && r.office_start < this.SHABBAT_END) return 'בשבת אין לפתוח משרד לפני 19:00.';
+      }
+    }
     // שישי: לא מתחילים/מסיימים אחרי 16:00
     if (this.isFriday(r.day_of_week)) {
       if (r.is_open) {
@@ -912,133 +904,133 @@ private applySpecialDayRules(form: FarmDayOff): FarmDayOff {
   }
 
   // ✅ חדש: כשסוגרים חווה - ננקה שעות כדי שלא יישמרו "שעות ישנות"
-onFarmOpenToggle(r: FarmWorkingHours): void {
-  if (!r.is_open) {
-    r.farm_start = null;
-    r.farm_end = null;
-  } else {
-    const s = this.settings();
-    r.farm_start = r.farm_start ?? (s?.operating_hours_start ?? '08:00');
-    r.farm_end = r.farm_end ?? (s?.operating_hours_end ?? '20:00');
+  onFarmOpenToggle(r: FarmWorkingHours): void {
+    if (!r.is_open) {
+      r.farm_start = null;
+      r.farm_end = null;
+    } else {
+      const s = this.settings();
+      r.farm_start = r.farm_start ?? (s?.operating_hours_start ?? '08:00');
+      r.farm_end = r.farm_end ?? (s?.operating_hours_end ?? '20:00');
+    }
+
+    this.applyWorkingHoursRulesAndValidate();
   }
 
-  this.applyWorkingHoursRulesAndValidate();
-}
+  onOfficeOpenToggle(r: FarmWorkingHours): void {
+    if (!r.is_offical_open) {
+      r.office_start = null;
+      r.office_end = null;
+    } else {
+      const s = this.settings();
+      r.office_start = r.office_start ?? (s?.office_hours_start ?? '08:30');
+      r.office_end = r.office_end ?? (s?.office_hours_end ?? '16:00');
+    }
 
-onOfficeOpenToggle(r: FarmWorkingHours): void {
-  if (!r.is_offical_open) {
-    r.office_start = null;
-    r.office_end = null;
-  } else {
-    const s = this.settings();
-    r.office_start = r.office_start ?? (s?.office_hours_start ?? '08:30');
-    r.office_end = r.office_end ?? (s?.office_hours_end ?? '16:00');
+    this.applyWorkingHoursRulesAndValidate();
   }
 
-  this.applyWorkingHoursRulesAndValidate();
-}
-
-onWorkingHoursTimeChanged(): void {
-  this.clearFlash();
-  this.applyWorkingHoursRulesAndValidate();
-}
+  onWorkingHoursTimeChanged(): void {
+    this.clearFlash();
+    this.applyWorkingHoursRulesAndValidate();
+  }
 
   /** יש לפחות יום אחד פתוח בחווה */
-hasAnyFarmOpenDay(): boolean {
-  return this.workingHours().some(r => !!r.is_open);
-}
-
-/** יש לפחות יום אחד פתוח במשרד */
-hasAnyOfficeOpenDay(): boolean {
-  return this.workingHours().some(r => !!r.is_offical_open);
-}
-
-/** יש מינימום הגיוני לשמירה: חווה + משרד */
-canSaveWorkingHours(): boolean {
-  return this.hasAnyFarmOpenDay() && this.hasAnyOfficeOpenDay() && !this.workingHoursError();
-}
-
- async saveWorkingHours(): Promise<void> {
-  this.clearFlash();
-
-  if (!this.hasAnyFarmOpenDay() || !this.hasAnyOfficeOpenDay()) {
-    const msg = !this.hasAnyFarmOpenDay()
-      ? 'חובה לסמן לפחות יום אחד פתוח בחווה.'
-      : 'חובה לסמן לפחות יום אחד פתוח במשרד.';
-
-    await this.ui.alert(msg, 'שגיאה');
-    this.error.set(msg);
-    return;
+  hasAnyFarmOpenDay(): boolean {
+    return this.workingHours().some(r => !!r.is_open);
   }
 
-  const rows = this.workingHours().length
-    ? this.workingHours()
-    : this.buildEmptyWorkingHours();
-
-  const err = this.validateAllWorkingHours();
-  this.workingHoursError.set(err);
-
-  if (err) {
-    await this.ui.alert(err, 'שגיאה');
-    this.error.set(err);
-    return;
+  /** יש לפחות יום אחד פתוח במשרד */
+  hasAnyOfficeOpenDay(): boolean {
+    return this.workingHours().some(r => !!r.is_offical_open);
   }
 
-  const payload = rows.map(r => {
-    const row: any = {
-      day_of_week: r.day_of_week,
+  /** יש מינימום הגיוני לשמירה: חווה + משרד */
+  canSaveWorkingHours(): boolean {
+    return this.hasAnyFarmOpenDay() && this.hasAnyOfficeOpenDay() && !this.workingHoursError();
+  }
 
-      is_open: !!r.is_open,
-      farm_start: r.is_open ? this.timeToDb(r.farm_start) : null,
-      farm_end: r.is_open ? this.timeToDb(r.farm_end) : null,
+  async saveWorkingHours(): Promise<void> {
+    this.clearFlash();
 
-      is_offical_open: !!r.is_offical_open,
-      office_start: r.is_offical_open ? this.timeToDb(r.office_start) : null,
-      office_end: r.is_offical_open ? this.timeToDb(r.office_end) : null,
-    };
+    if (!this.hasAnyFarmOpenDay() || !this.hasAnyOfficeOpenDay()) {
+      const msg = !this.hasAnyFarmOpenDay()
+        ? 'חובה לסמן לפחות יום אחד פתוח בחווה.'
+        : 'חובה לסמן לפחות יום אחד פתוח במשרד.';
 
-    if (r.id) row.id = r.id;
-
-    return row;
-  });
-
-  try {
-    this.saving.set(true);
-    this.error.set(null);
-    this.success.set(null);
-
-    console.log('payload before saveWorkingHours', payload);
-
-    const { error } = await this.supabase
-      .from('farm_working_hours')
-      .upsert(payload, { onConflict: 'day_of_week' });
-
-    if (error) {
-      console.error('saveWorkingHours error', error);
-      await this.ui.alert('שמירת שעות לפי יום נכשלה.', 'שגיאה');
-      this.error.set('שמירת שעות לפי יום נכשלה.');
+      await this.ui.alert(msg, 'שגיאה');
+      this.error.set(msg);
       return;
     }
 
-    this.flashSuccess('שעות לפי יום נשמרו בהצלחה.');
-    await this.ui.alert('שעות לפי יום נשמרו בהצלחה.', 'הצלחה');
+    const rows = this.workingHours().length
+      ? this.workingHours()
+      : this.buildEmptyWorkingHours();
 
-    await this.loadWorkingHours();
-    this.onWorkingHoursChanged();
+    const err = this.validateAllWorkingHours();
+    this.workingHoursError.set(err);
 
-    const s = this.settings();
-    if (s) {
-      const openDays = rows
-        .filter(x => x.is_open)
-        .map(x => x.day_of_week)
-        .sort((a, b) => a - b);
-
-      this.settings.set({ ...s, working_days: openDays });
+    if (err) {
+      await this.ui.alert(err, 'שגיאה');
+      this.error.set(err);
+      return;
     }
-  } finally {
-    this.saving.set(false);
+
+    const payload = rows.map(r => {
+      const row: any = {
+        day_of_week: r.day_of_week,
+
+        is_open: !!r.is_open,
+        farm_start: r.is_open ? this.timeToDb(r.farm_start) : null,
+        farm_end: r.is_open ? this.timeToDb(r.farm_end) : null,
+
+        is_offical_open: !!r.is_offical_open,
+        office_start: r.is_offical_open ? this.timeToDb(r.office_start) : null,
+        office_end: r.is_offical_open ? this.timeToDb(r.office_end) : null,
+      };
+
+      if (r.id) row.id = r.id;
+
+      return row;
+    });
+
+    try {
+      this.saving.set(true);
+      this.error.set(null);
+      this.success.set(null);
+
+      console.log('payload before saveWorkingHours', payload);
+
+      const { error } = await this.supabase
+        .from('farm_working_hours')
+        .upsert(payload, { onConflict: 'day_of_week' });
+
+      if (error) {
+        console.error('saveWorkingHours error', error);
+        await this.ui.alert('שמירת שעות לפי יום נכשלה.', 'שגיאה');
+        this.error.set('שמירת שעות לפי יום נכשלה.');
+        return;
+      }
+
+      this.flashSuccess('שעות לפי יום נשמרו בהצלחה.');
+      await this.ui.alert('שעות לפי יום נשמרו בהצלחה.', 'הצלחה');
+
+      await this.loadWorkingHours();
+      this.onWorkingHoursChanged();
+
+      const s = this.settings();
+      if (s) {
+        const openDays = rows
+          .filter(x => x.is_open)
+          .map(x => x.day_of_week)
+          .sort((a, b) => a - b);
+
+        this.settings.set({ ...s, working_days: openDays });
+      }
+    } finally {
+      this.saving.set(false);
+    }
   }
-}
   // =============================
   // Special Days
   // =============================
@@ -1051,11 +1043,11 @@ canSaveWorkingHours(): boolean {
   }
 
   patchSpecialDayForm(patch: Partial<FarmDayOff>): void {
-  let next = { ...this.specialDayForm(), ...patch };
-  next = this.applySpecialDayRules(next);   // ✅ כאן
-  this.specialDayForm.set(next);
-  this.validateSpecialDayDateRange(next);
-}
+    let next = { ...this.specialDayForm(), ...patch };
+    next = this.applySpecialDayRules(next);   // ✅ כאן
+    this.specialDayForm.set(next);
+    this.validateSpecialDayDateRange(next);
+  }
 
 
   openSpecialDays(): void {
@@ -1089,26 +1081,26 @@ canSaveWorkingHours(): boolean {
     this.showSpecialDaysModal.set(false);
   }
 
- onToggleAllDay(value: boolean): void {
-  const cur = this.specialDayForm();
-  let next: FarmDayOff;
+  onToggleAllDay(value: boolean): void {
+    const cur = this.specialDayForm();
+    let next: FarmDayOff;
 
-  if (value) {
-    next = { ...cur, all_day: true, start_time: null, end_time: null };
-  } else {
-    const s = this.settings();
-    next = {
-      ...cur,
-      all_day: false,
-      start_time: cur.start_time ?? (s?.operating_hours_start ?? '08:00'),
-      end_time: cur.end_time ?? (s?.operating_hours_end ?? '20:00'),
-    };
+    if (value) {
+      next = { ...cur, all_day: true, start_time: null, end_time: null };
+    } else {
+      const s = this.settings();
+      next = {
+        ...cur,
+        all_day: false,
+        start_time: cur.start_time ?? (s?.operating_hours_start ?? '08:00'),
+        end_time: cur.end_time ?? (s?.operating_hours_end ?? '20:00'),
+      };
+    }
+
+    next = this.applySpecialDayRules(next);   // ✅ כאן
+    this.specialDayForm.set(next);
+
   }
-
-  next = this.applySpecialDayRules(next);   // ✅ כאן
-  this.specialDayForm.set(next);
-  
-}
 
 
   private async loadFarmDaysOff(): Promise<void> {
@@ -1152,226 +1144,226 @@ canSaveWorkingHours(): boolean {
 
     this.daysOff.set(list);
   }
-specialDayBusy = signal(false);
-specialDayBusyText = signal('שומרת יום מיוחד, מעדכנת שיעורים ושולחת מיילים...');
- async saveSpecialDay(): Promise<void> {
-  const f = this.specialDayForm();
-  this.validateSpecialDayDateRange(f);
+  specialDayBusy = signal(false);
+  specialDayBusyText = signal('שומרת יום מיוחד, מעדכנת שיעורים ושולחת מיילים...');
+  async saveSpecialDay(): Promise<void> {
+    const f = this.specialDayForm();
+    this.validateSpecialDayDateRange(f);
 
-  if (this.dateRangeError()) {
-    await this.ui.alert(this.dateRangeError()!, 'שגיאה');
-    return;
-  }
-
-  if (!f.reason?.trim()) {
-    await this.ui.alert('חובה למלא סיבה.', 'חסר שדה');
-    return;
-  }
-
-  if (!f.start_date || !f.end_date) {
-    await this.ui.alert('חובה למלא "מתאריך" ו-"עד תאריך".', 'חסר שדה');
-    return;
-  }
-
-  if (!f.all_day) {
-    if (!f.start_time || !f.end_time) {
-      await this.ui.alert('כשזה לא "כל היום" חובה למלא שעות התחלה/סיום.', 'חסר שדה');
+    if (this.dateRangeError()) {
+      await this.ui.alert(this.dateRangeError()!, 'שגיאה');
       return;
     }
 
-    if (f.end_time <= f.start_time) {
-      await this.ui.alert('שעת סיום חייבת להיות אחרי שעת התחלה.', 'שגיאה');
-      return;
-    }
-  }
-
-  const isHebrew = (f.calendar_kind ?? 'GREGORIAN') === 'HEBREW';
-
-  if (isHebrew) {
-    if (!f.hebrew_day || !f.hebrew_month) {
-      await this.ui.alert('חובה לבחור תאריך עברי (חודש + יום).', 'חסר שדה');
-      return;
-    }
-    this.syncHebrewToGregorianDates();
-  }
-
- const previewPayload = {
-  p_start_date: this.specialDayForm().start_date,
-  p_end_date: this.specialDayForm().end_date,
-  p_day_type: f.all_day ? 'FULL_DAY' : 'HOURS',
-  p_start_time: f.all_day ? null : this.timeToDb(f.start_time),
-  p_end_time: f.all_day ? null : this.timeToDb(f.end_time),
-};
-
-  try {
-this.saving.set(true);
-this.specialDayBusy.set(true);
-this.specialDayBusyText.set('שומרת יום מיוחד, מעדכנת שיעורים ושולחת מיילים...');
-    this.error.set(null);
-    this.success.set(null);
-
-    const { data: impacted, error: previewError } = await this.supabase
-      .rpc('preview_farm_day_off_impact', previewPayload);
-
-    if (previewError) {
-      console.error('preview_farm_day_off_impact error', previewError);
-      await this.ui.alert('בדיקת השפעת היום המיוחד נכשלה.', 'שגיאה');
+    if (!f.reason?.trim()) {
+      await this.ui.alert('חובה למלא סיבה.', 'חסר שדה');
       return;
     }
 
-  if (impacted?.length) {
-  const ok = await firstValueFrom(
-    this.dialog
-      .open(SpecialDayImpactDialogComponent, {
-        width: '960px',
-        maxWidth: '95vw',
-        maxHeight: '90vh',
-        autoFocus: false,
-        restoreFocus: false,
-        disableClose: false,
-        data: {
-          reason: f.reason.trim(),
-          startDate: this.specialDayForm().start_date!,
-          endDate: this.specialDayForm().end_date!,
-          allDay: !!f.all_day,
-          rows: impacted as SpecialDayImpactRow[],
-        },
-      })
-      .afterClosed()
-  );
+    if (!f.start_date || !f.end_date) {
+      await this.ui.alert('חובה למלא "מתאריך" ו-"עד תאריך".', 'חסר שדה');
+      return;
+    }
 
-  if (!ok) return;
-}
-    
+    if (!f.all_day) {
+      if (!f.start_time || !f.end_time) {
+        await this.ui.alert('כשזה לא "כל היום" חובה למלא שעות התחלה/סיום.', 'חסר שדה');
+        return;
+      }
 
-    const applyPayload = {
+      if (f.end_time <= f.start_time) {
+        await this.ui.alert('שעת סיום חייבת להיות אחרי שעת התחלה.', 'שגיאה');
+        return;
+      }
+    }
+
+    const isHebrew = (f.calendar_kind ?? 'GREGORIAN') === 'HEBREW';
+
+    if (isHebrew) {
+      if (!f.hebrew_day || !f.hebrew_month) {
+        await this.ui.alert('חובה לבחור תאריך עברי (חודש + יום).', 'חסר שדה');
+        return;
+      }
+      this.syncHebrewToGregorianDates();
+    }
+
+    const previewPayload = {
       p_start_date: this.specialDayForm().start_date,
       p_end_date: this.specialDayForm().end_date,
-      p_reason: f.reason.trim(),
       p_day_type: f.all_day ? 'FULL_DAY' : 'HOURS',
       p_start_time: f.all_day ? null : this.timeToDb(f.start_time),
       p_end_time: f.all_day ? null : this.timeToDb(f.end_time),
-      p_recurrence: f.recurrence ?? 'ONCE',
-      p_calendar_kind: f.calendar_kind ?? 'GREGORIAN',
-      p_hebrew_day: isHebrew ? (this.specialDayForm().hebrew_day ?? null) : null,
-      p_hebrew_month: isHebrew ? (this.specialDayForm().hebrew_month ?? null) : null,
-      p_hebrew_end_day: isHebrew ? (this.specialDayForm().hebrew_end_day ?? this.specialDayForm().hebrew_day ?? null) : null,
-      p_hebrew_end_month: isHebrew ? (this.specialDayForm().hebrew_end_month ?? this.specialDayForm().hebrew_month ?? null) : null,
-      p_notify_parents_before: !!f.notify_parents_before,
-      p_notify_days_before: f.notify_parents_before ? (f.notify_days_before ?? 1) : null,
-      p_is_special_day: !!f.is_special_day,
     };
 
-    const { data: result, error: applyError } = await this.supabase
-      .rpc('create_farm_day_off_and_cancel_lessons', applyPayload);
+    try {
+      this.saving.set(true);
+      this.specialDayBusy.set(true);
+      this.specialDayBusyText.set('שומרת יום מיוחד, מעדכנת שיעורים ושולחת מיילים...');
+      this.error.set(null);
+      this.success.set(null);
 
- 
-if (applyError) {
-  console.error('create_farm_day_off_and_cancel_lessons error', applyError);
-  await this.ui.alert('שמירת יום מיוחד נכשלה.', 'שגיאה');
-  return;
-}
-const normalizedRows = (result ?? []).map((r: any) => ({
-  lesson_id: r.out_lesson_id,
-  occur_date: r.out_occur_date,
-  start_time: r.out_start_time,
-  end_time: r.out_end_time,
-  child_id: r.out_child_id,
-  child_name: r.out_child_name,
-  parent_uid: r.out_parent_uid,
-  parent_name: r.out_parent_name,
-  parent_email: r.out_parent_email,
-  lesson_type: r.out_lesson_type,
-  instructor_id: r.out_instructor_id,
-  instructor_uid: r.out_instructor_uid,
-  instructor_name: r.out_instructor_name,
-}));
-const emailResult = await this.sendFarmDayOffCancellationEmailsViaCloudFunction(
-  normalizedRows,
-  f.reason.trim()
-);
+      const { data: impacted, error: previewError } = await this.supabase
+        .rpc('preview_farm_day_off_impact', previewPayload);
 
-await this.loadFarmDaysOff();
-this.closeSpecialDaysModal();
+      if (previewError) {
+        console.error('preview_farm_day_off_impact error', previewError);
+        await this.ui.alert('בדיקת השפעת היום המיוחד נכשלה.', 'שגיאה');
+        return;
+      }
 
-if (emailResult.failedCount > 0) {
-  await this.ui.alert(
-    `יום מיוחד נשמר והשיעורים בוטלו.\n\nנשלחו ${emailResult.parentSentCount} מיילים להורים ו־${emailResult.instructorSentCount} מיילים למדריכים, אבל ${emailResult.failedCount} שליחות נכשלו.`,
-    'הושלם חלקית'
-  );
-} else {
-  await this.ui.alert(
-    `יום מיוחד נשמר, השיעורים בוטלו, נשלחו ${emailResult.parentSentCount} מיילים להורים ו־${emailResult.instructorSentCount} מיילים למדריכים.`,
-    'הצלחה'
-  );
-}
-  } finally {
-    this.saving.set(false);
-          this.specialDayBusy.set(false);
+      if (impacted?.length) {
+        const ok = await firstValueFrom(
+          this.dialog
+            .open(SpecialDayImpactDialogComponent, {
+              width: '960px',
+              maxWidth: '95vw',
+              maxHeight: '90vh',
+              autoFocus: false,
+              restoreFocus: false,
+              disableClose: false,
+              data: {
+                reason: f.reason.trim(),
+                startDate: this.specialDayForm().start_date!,
+                endDate: this.specialDayForm().end_date!,
+                allDay: !!f.all_day,
+                rows: impacted as SpecialDayImpactRow[],
+              },
+            })
+            .afterClosed()
+        );
+
+        if (!ok) return;
+      }
 
 
-  }
-}
+      const applyPayload = {
+        p_start_date: this.specialDayForm().start_date,
+        p_end_date: this.specialDayForm().end_date,
+        p_reason: f.reason.trim(),
+        p_day_type: f.all_day ? 'FULL_DAY' : 'HOURS',
+        p_start_time: f.all_day ? null : this.timeToDb(f.start_time),
+        p_end_time: f.all_day ? null : this.timeToDb(f.end_time),
+        p_recurrence: f.recurrence ?? 'ONCE',
+        p_calendar_kind: f.calendar_kind ?? 'GREGORIAN',
+        p_hebrew_day: isHebrew ? (this.specialDayForm().hebrew_day ?? null) : null,
+        p_hebrew_month: isHebrew ? (this.specialDayForm().hebrew_month ?? null) : null,
+        p_hebrew_end_day: isHebrew ? (this.specialDayForm().hebrew_end_day ?? this.specialDayForm().hebrew_day ?? null) : null,
+        p_hebrew_end_month: isHebrew ? (this.specialDayForm().hebrew_end_month ?? this.specialDayForm().hebrew_month ?? null) : null,
+        p_notify_parents_before: !!f.notify_parents_before,
+        p_notify_days_before: f.notify_parents_before ? (f.notify_days_before ?? 1) : null,
+        p_is_special_day: !!f.is_special_day,
+      };
 
-private async sendFarmDayOffCancellationEmailsViaCloudFunction(
-  rows: any[],
-  reason: string
-): Promise<{
-  parentSentCount: number;
-  instructorSentCount: number;
-  failedCount: number;
-  skippedCount: number;
-}> {
-  if (!rows.length) {
-    return {
-      parentSentCount: 0,
-      instructorSentCount: 0,
-      failedCount: 0,
-      skippedCount: 0,
-    };
-  }
+      const { data: result, error: applyError } = await this.supabase
+        .rpc('create_farm_day_off_and_cancel_lessons', applyPayload);
 
-  const user = getAuth().currentUser;
-  const token = await user?.getIdToken();
 
-  if (!token) {
-    throw new Error('לא נמצא משתמש מחובר לצורך שליחת מיילים.');
-  }
-await this.tenantSvc.ensureTenantContextReady();
-const tenant = this.tenantSvc.requireTenant();
-const tenantSchema = tenant.schema;
-const tenantId = tenant.id;
+      if (applyError) {
+        console.error('create_farm_day_off_and_cancel_lessons error', applyError);
+        await this.ui.alert('שמירת יום מיוחד נכשלה.', 'שגיאה');
+        return;
+      }
+      const normalizedRows = (result ?? []).map((r: any) => ({
+        lesson_id: r.out_lesson_id,
+        occur_date: r.out_occur_date,
+        start_time: r.out_start_time,
+        end_time: r.out_end_time,
+        child_id: r.out_child_id,
+        child_name: r.out_child_name,
+        parent_uid: r.out_parent_uid,
+        parent_name: r.out_parent_name,
+        parent_email: r.out_parent_email,
+        lesson_type: r.out_lesson_type,
+        instructor_id: r.out_instructor_id,
+        instructor_uid: r.out_instructor_uid,
+        instructor_name: r.out_instructor_name,
+      }));
+      const emailResult = await this.sendFarmDayOffCancellationEmailsViaCloudFunction(
+        normalizedRows,
+        f.reason.trim()
+      );
 
-  const response = await fetch(
-    'https://us-central1-bereshit-ac5d8.cloudfunctions.net/sendFarmDayOffCancellationEmails',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-    body: JSON.stringify({
-  tenantSchema,
-  tenantId,
-  reason,
-  impactedLessons: rows,
-}),
+      await this.loadFarmDaysOff();
+      this.closeSpecialDaysModal();
+
+      if (emailResult.failedCount > 0) {
+        await this.ui.alert(
+          `יום מיוחד נשמר והשיעורים בוטלו.\n\nנשלחו ${emailResult.parentSentCount} מיילים להורים ו־${emailResult.instructorSentCount} מיילים למדריכים, אבל ${emailResult.failedCount} שליחות נכשלו.`,
+          'הושלם חלקית'
+        );
+      } else {
+        await this.ui.alert(
+          `יום מיוחד נשמר, השיעורים בוטלו, נשלחו ${emailResult.parentSentCount} מיילים להורים ו־${emailResult.instructorSentCount} מיילים למדריכים.`,
+          'הצלחה'
+        );
+      }
+    } finally {
+      this.saving.set(false);
+      this.specialDayBusy.set(false);
+
+
     }
-  );
-
-  const json = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(json?.message || json?.error || 'שליחת מיילים נכשלה.');
   }
 
-  return {
-    parentSentCount: Number(json?.parentSentCount ?? 0),
-    instructorSentCount: Number(json?.instructorSentCount ?? 0),
-    failedCount: Number(json?.failedCount ?? 0),
-    skippedCount: Number(json?.skippedCount ?? 0),
-  };
-}
+  private async sendFarmDayOffCancellationEmailsViaCloudFunction(
+    rows: any[],
+    reason: string
+  ): Promise<{
+    parentSentCount: number;
+    instructorSentCount: number;
+    failedCount: number;
+    skippedCount: number;
+  }> {
+    if (!rows.length) {
+      return {
+        parentSentCount: 0,
+        instructorSentCount: 0,
+        failedCount: 0,
+        skippedCount: 0,
+      };
+    }
+
+    const user = getAuth().currentUser;
+    const token = await user?.getIdToken();
+
+    if (!token) {
+      throw new Error('לא נמצא משתמש מחובר לצורך שליחת מיילים.');
+    }
+    await this.tenantSvc.ensureTenantContextReady();
+    const tenant = this.tenantSvc.requireTenant();
+    const tenantSchema = tenant.schema;
+    const tenantId = tenant.id;
+
+    const response = await fetch(
+      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/sendFarmDayOffCancellationEmails',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          tenantSchema,
+          tenantId,
+          reason,
+          impactedLessons: rows,
+        }),
+      }
+    );
+
+    const json = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(json?.message || json?.error || 'שליחת מיילים נכשלה.');
+    }
+
+    return {
+      parentSentCount: Number(json?.parentSentCount ?? 0),
+      instructorSentCount: Number(json?.instructorSentCount ?? 0),
+      failedCount: Number(json?.failedCount ?? 0),
+      skippedCount: Number(json?.skippedCount ?? 0),
+    };
+  }
   async deactivateDayOff(day: FarmDayOff): Promise<void> {
     if (!day.id) return;
 
@@ -1431,13 +1423,13 @@ const tenantId = tenant.id;
         availability_days_ahead: data.availability_days_ahead ?? 30,
 
         default_lessons_per_series:
-  data.default_lessons_per_series ?? 12,
+          data.default_lessons_per_series ?? 12,
 
-parent_booking_days_ahead: data.parent_booking_days_ahead ?? null,
+        parent_booking_days_ahead: data.parent_booking_days_ahead ?? null,
 
         operating_hours_start: this.t5(data.operating_hours_start) ?? '08:00',
         operating_hours_end: this.t5(data.operating_hours_end) ?? '20:00',
-leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
+        leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
 
         office_hours_start: this.t5(data.office_hours_start) ?? '08:30',
         office_hours_end: this.t5(data.office_hours_end) ?? '16:00',
@@ -1458,14 +1450,14 @@ leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
         suggest_makeup_on_cancel: data.suggest_makeup_on_cancel ?? true,
         reminder_require_confirmation: data.reminder_require_confirmation ?? false,
         reminder_allow_cancel_link: data.reminder_allow_cancel_link ?? false,
-           parent_cancel_charge_before_deadline:
+        parent_cancel_charge_before_deadline:
           data.parent_cancel_charge_before_deadline ?? false,
         parent_cancel_charge_after_deadline:
           data.parent_cancel_charge_after_deadline ?? true,
         parent_cancel_charge_timing:
           data.parent_cancel_charge_timing ?? 'at_cancel',
-          farm_cancel_charge_target:
-  data.farm_cancel_charge_target ?? 'makeup_lesson',
+        farm_cancel_charge_target:
+          data.farm_cancel_charge_target ?? 'makeup_lesson',
       };
 
       this.settings.set(s);
@@ -1475,7 +1467,7 @@ leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
     this.settings.set({
       operating_hours_start: '08:00',
       operating_hours_end: '20:00',
-  leave_buffer_minutes: 0, 
+      leave_buffer_minutes: 0,
       office_hours_start: '08:30',
       office_hours_end: '16:00',
 
@@ -1522,158 +1514,158 @@ leave_buffer_minutes: data.leave_buffer_minutes ?? 0,
       max_group_size: 6,
       max_lessons_per_week_per_child: 2,
       allow_online_booking: true,
-      
+
     });
   }
   validateSettingsFields(s: FarmSettings): void {
-  const errors: SettingsErrors = {};
-if (
-  s.default_lesson_price != null &&
-  (s.default_lesson_price < 0 || s.default_lesson_price > 1000)
-) {
-  errors.default_lesson_price = 'מחיר שיעור חייב להיות בין 0 ל־999 ₪';
-}
+    const errors: SettingsErrors = {};
+    if (
+      s.default_lesson_price != null &&
+      (s.default_lesson_price < 0 || s.default_lesson_price > 1000)
+    ) {
+      errors.default_lesson_price = 'מחיר שיעור חייב להיות בין 0 ל־999 ₪';
+    }
 
-if (s.min_time_between_cancellations) {
-  const [h, m] = s.min_time_between_cancellations.split(':').map(Number);
-  if (
-    isNaN(h) || isNaN(m) ||
-    h < 0 || h > 24 ||
-    m < 0 || m > 59
-  ) {
-    errors.min_time_between_cancellations =
-      'הפרש בין ביטולים חייב להיות בפורמט שעות:דקות ועד 24:00';
+    if (s.min_time_between_cancellations) {
+      const [h, m] = s.min_time_between_cancellations.split(':').map(Number);
+      if (
+        isNaN(h) || isNaN(m) ||
+        h < 0 || h > 24 ||
+        m < 0 || m > 59
+      ) {
+        errors.min_time_between_cancellations =
+          'הפרש בין ביטולים חייב להיות בפורמט שעות:דקות ועד 24:00';
+      }
+    }
+    if (
+      s.notify_before_farm_closure_hours != null &&
+      (s.notify_before_farm_closure_hours < 0 || s.notify_before_farm_closure_hours > 720)
+    ) {
+      errors.notify_before_farm_closure_hours =
+        'התראה לפני חופש חווה – בין 0 ל־720 שעות';
+    }
+    if (
+      s.reminder_hours_before != null &&
+      (s.reminder_hours_before < 0 || s.reminder_hours_before > 168)
+    ) {
+      errors.reminder_hours_before =
+        'תזכורת לשיעור – בין 0 ל־168 שעות לפני';
+    }
+
+    if (
+      s.max_lessons_per_week_per_child != null &&
+      (s.max_lessons_per_week_per_child < 1 || s.max_lessons_per_week_per_child > 14)
+    ) {
+      errors.max_lessons_per_week_per_child =
+        'מקסימום שיעורים בשבוע חייב להיות בין 1 ל־14';
+    }
+    if (
+      s.makeup_allowed_days_ahead != null &&
+      (s.makeup_allowed_days_ahead < 0 || s.makeup_allowed_days_ahead > 365)
+    ) {
+      errors.makeup_allowed_days_ahead =
+        'קביעת השלמה קדימה – עד 365 ימים';
+    }
+    if (
+      s.makeup_allowed_days_back != null &&
+      (s.makeup_allowed_days_back < 0 || s.makeup_allowed_days_back > 365)
+    ) {
+      errors.makeup_allowed_days_back =
+        'השלמה אחורה – עד 365 ימים';
+    }
+    if (
+      s.max_makeups_in_period != null &&
+      (s.max_makeups_in_period < 0 || s.max_makeups_in_period > 50)
+    ) {
+      errors.max_makeups_in_period =
+        'מספר השלמות בתקופה חייב להיות בין 0 ל־50';
+    }
+    if (
+      s.makeups_period_days != null &&
+      (s.makeups_period_days < 1 || s.makeups_period_days > 365)
+    ) {
+      errors.makeups_period_days =
+        'תקופת השלמות חייבת להיות בין יום ל־365 ימים';
+    }
+
+    if (
+      s.lesson_duration_minutes != null &&
+      s.lesson_duration_minutes % 15 !== 0
+    ) {
+      errors.lesson_duration_minutes =
+        'אורך שיעור חייב להיות בקפיצות של 15 דקות בלבד';
+    }
+
+
+    if (
+      s.availability_days_ahead != null &&
+      (s.availability_days_ahead < 1 || s.availability_days_ahead > 365)
+    ) {
+      errors.availability_days_ahead = 'טווח חישוב זמינות חייב להיות בין 1 ל־365 ימים';
+    }
+
+    if (
+      s.default_lessons_per_series != null &&
+      (s.default_lessons_per_series < 1 || s.default_lessons_per_series > 100)
+    ) {
+      errors.default_lessons_per_series = 'מספר שיעורים בסדרה חייב להיות בין 1 ל־100';
+    }
+
+    if (
+      s.cancel_before_hours != null &&
+      (s.cancel_before_hours < 0 || s.cancel_before_hours > 168)
+    ) {
+      errors.cancel_before_hours = 'ביטול מראש חייב להיות בין 0 ל־168 שעות';
+    }
+
+    if (
+      s.parent_booking_days_ahead != null &&
+      (s.parent_booking_days_ahead < 0 || s.parent_booking_days_ahead > 365)
+    ) {
+      errors.parent_booking_days_ahead = 'קביעת שיעור קדימה – עד שנה בלבד';
+    }
+
+    if (
+      s.max_group_size != null &&
+      (s.max_group_size < 1 || s.max_group_size > 10)
+    ) {
+      errors.max_group_size = 'גודל קבוצה חייב להיות בין 1 ל־10';
+    }
+
+    this.settingsErrors.set(errors);
   }
-}
-if (
-  s.notify_before_farm_closure_hours != null &&
-  (s.notify_before_farm_closure_hours < 0 || s.notify_before_farm_closure_hours > 720)
-) {
-  errors.notify_before_farm_closure_hours =
-    'התראה לפני חופש חווה – בין 0 ל־720 שעות';
-}
-if (
-  s.reminder_hours_before != null &&
-  (s.reminder_hours_before < 0 || s.reminder_hours_before > 168)
-) {
-  errors.reminder_hours_before =
-    'תזכורת לשיעור – בין 0 ל־168 שעות לפני';
-}
-
-if (
-  s.max_lessons_per_week_per_child != null &&
-  (s.max_lessons_per_week_per_child < 1 || s.max_lessons_per_week_per_child > 14)
-) {
-  errors.max_lessons_per_week_per_child =
-    'מקסימום שיעורים בשבוע חייב להיות בין 1 ל־14';
-}
-if (
-  s.makeup_allowed_days_ahead != null &&
-  (s.makeup_allowed_days_ahead < 0 || s.makeup_allowed_days_ahead > 365)
-) {
-  errors.makeup_allowed_days_ahead =
-    'קביעת השלמה קדימה – עד 365 ימים';
-}
-if (
-  s.makeup_allowed_days_back != null &&
-  (s.makeup_allowed_days_back < 0 || s.makeup_allowed_days_back > 365)
-) {
-  errors.makeup_allowed_days_back =
-    'השלמה אחורה – עד 365 ימים';
-}
-if (
-  s.max_makeups_in_period != null &&
-  (s.max_makeups_in_period < 0 || s.max_makeups_in_period > 50)
-) {
-  errors.max_makeups_in_period =
-    'מספר השלמות בתקופה חייב להיות בין 0 ל־50';
-}
-if (
-  s.makeups_period_days != null &&
-  (s.makeups_period_days < 1 || s.makeups_period_days > 365)
-) {
-  errors.makeups_period_days =
-    'תקופת השלמות חייבת להיות בין יום ל־365 ימים';
-}
-
-if (
-  s.lesson_duration_minutes != null &&
-  s.lesson_duration_minutes % 15 !== 0
-) {
-  errors.lesson_duration_minutes =
-    'אורך שיעור חייב להיות בקפיצות של 15 דקות בלבד';
-}
-
-
-  if (
-    s.availability_days_ahead != null &&
-    (s.availability_days_ahead < 1 || s.availability_days_ahead > 365)
-  ) {
-    errors.availability_days_ahead = 'טווח חישוב זמינות חייב להיות בין 1 ל־365 ימים';
-  }
-
-  if (
-    s.default_lessons_per_series != null &&
-    (s.default_lessons_per_series < 1 || s.default_lessons_per_series > 100)
-  ) {
-    errors.default_lessons_per_series = 'מספר שיעורים בסדרה חייב להיות בין 1 ל־100';
-  }
-
-  if (
-    s.cancel_before_hours != null &&
-    (s.cancel_before_hours < 0 || s.cancel_before_hours > 168)
-  ) {
-    errors.cancel_before_hours = 'ביטול מראש חייב להיות בין 0 ל־168 שעות';
-  }
-
-  if (
-    s.parent_booking_days_ahead != null &&
-    (s.parent_booking_days_ahead < 0 || s.parent_booking_days_ahead > 365)
-  ) {
-    errors.parent_booking_days_ahead = 'קביעת שיעור קדימה – עד שנה בלבד';
-  }
-
-  if (
-    s.max_group_size != null &&
-    (s.max_group_size < 1 || s.max_group_size > 10)
-  ) {
-    errors.max_group_size = 'גודל קבוצה חייב להיות בין 1 ל־10';
-  }
-
-  this.settingsErrors.set(errors);
-}
 
 
   async saveSettings(): Promise<void> {
-    
-    this.clearFlash();  
-    // ⛔ חסימה אם יש שגיאה בשעות פעילות לפי יום
-if (this.workingHoursError()) {
-  const msg = 'לא ניתן לשמור: יש שגיאה בשעות פעילות לפי יום.';
-  await this.ui.alert(msg, 'שגיאה');
-  this.error.set(msg);
-  return;
-}
 
-    this.settingsErrors.set({});  
+    this.clearFlash();
+    // ⛔ חסימה אם יש שגיאה בשעות פעילות לפי יום
+    if (this.workingHoursError()) {
+      const msg = 'לא ניתן לשמור: יש שגיאה בשעות פעילות לפי יום.';
+      await this.ui.alert(msg, 'שגיאה');
+      this.error.set(msg);
+      return;
+    }
+
+    this.settingsErrors.set({});
     this.saving.set(false);
     const current = this.settings();
     if (!current) return;
-this.validateSettingsFields(current);
+    this.validateSettingsFields(current);
 
-if (Object.keys(this.settingsErrors()).length > 0) {
-  this.success.set(null); 
-const messages = Object.values(this.settingsErrors());
-await this.ui.alert(
-  'לא ניתן לשמור:\n\n• ' + messages.join('\n• '),
-  'שגיאה'
-);
+    if (Object.keys(this.settingsErrors()).length > 0) {
+      this.success.set(null);
+      const messages = Object.values(this.settingsErrors());
+      await this.ui.alert(
+        'לא ניתן לשמור:\n\n• ' + messages.join('\n• '),
+        'שגיאה'
+      );
 
-  return;
-}
+      return;
+    }
 
 
-  
+
     if (!this.validateOfficeHours()) {
       await this.ui.alert('יש שגיאה בשעות פעילות המשרד.', 'שגיאה');
       this.error.set('לא ניתן לשמור: יש שגיאה בשעות פעילות המשרד.');
@@ -1725,14 +1717,14 @@ await this.ui.alert(
 
     this.settings.set(s);
     // 🔥 שמירת חיובים מיוחדים
-try {
-  await this.saveSpecialCharges();
-} catch (e) {
-  this.saving.set(false);
-  return; // אם יש שגיאה - לא ממשיכים להצלחה
-}
+    try {
+      await this.saveSpecialCharges();
+    } catch (e) {
+      this.saving.set(false);
+      return; // אם יש שגיאה - לא ממשיכים להצלחה
+    }
     this.flashSuccess('ההגדרות נשמרו בהצלחה.');
-await this.ui.alert('ההגדרות נשמרו בהצלחה.', 'הצלחה');
+    await this.ui.alert('ההגדרות נשמרו בהצלחה.', 'הצלחה');
 
 
     this.saving.set(false);
@@ -1894,12 +1886,12 @@ await this.ui.alert('ההגדרות נשמרו בהצלחה.', 'הצלחה');
     if (!plan.id) return;
     this.editingPlanId.set(plan.id);
   }
-cancelEditPlan(): void {
-  this.editingPlanId.set(null);
-  this.loadPaymentPlans();
+  cancelEditPlan(): void {
+    this.editingPlanId.set(null);
+    this.loadPaymentPlans();
 
-  setTimeout(() => this.clearFocus());
-}
+    setTimeout(() => this.clearFocus());
+  }
 
 
   onDocsTextChange(plan: PaymentPlan, value: string): void {
@@ -1909,228 +1901,228 @@ cancelEditPlan(): void {
   onNewPlanDocsChange(value: string): void {
     this.newPlan.required_docs = value.split('\n').map(v => v.trim()).filter(Boolean);
   }
-// =============================
-// Riding Types
-// =============================
+  // =============================
+  // Riding Types
+  // =============================
 
-hasSettingsErrors = computed(() =>
-  Object.values(this.settingsErrors()).some(v => !!v)
-);
-
-
-private async loadRidingTypes(): Promise<void> {
-  
-const { data, error } = await dbTenant()
-  .from('riding_types')
-  .select('*')
-  .order('name');
-      const filtered = (data ?? []).filter(
-        (    rt: { name: string; }) => rt.name !== 'הפסקה'
+  hasSettingsErrors = computed(() =>
+    Object.values(this.settingsErrors()).some(v => !!v)
   );
 
-  this.ridingTypes.set(filtered);
 
-  if (error) {
-    console.error('loadRidingTypes error', error);
-    this.error.set('לא ניתן לטעון סוגי רכיבה');
-    return;
+  private async loadRidingTypes(): Promise<void> {
+
+    const { data, error } = await dbTenant()
+      .from('riding_types')
+      .select('*')
+      .order('name');
+    const filtered = (data ?? []).filter(
+      (rt: { name: string; }) => rt.name !== 'הפסקה'
+    );
+
+    this.ridingTypes.set(filtered);
+
+    if (error) {
+      console.error('loadRidingTypes error', error);
+      this.error.set('לא ניתן לטעון סוגי רכיבה');
+      return;
+    }
+
+
   }
-
-
-}
-async addRidingType(): Promise<void> {
+  async addRidingType(): Promise<void> {
     if (!this.newRidingTypeName()?.trim()) return;
-  if (this.newRidingTypeCodeError()) return;
+    if (this.newRidingTypeCodeError()) return;
 
-  if (this.newRidingTypeMin() != null && this.newRidingTypeMin()! < 0) return;
-  if (this.newRidingTypeMax() != null && this.newRidingTypeMax()! < 1) return;
-  if (this.newRidingTypeDesc().length > 100) {
-  return;
-}
+    if (this.newRidingTypeMin() != null && this.newRidingTypeMin()! < 0) return;
+    if (this.newRidingTypeMax() != null && this.newRidingTypeMax()! < 1) return;
+    if (this.newRidingTypeDesc().length > 100) {
+      return;
+    }
 
-  if (this.newRidingTypeCodeError() || !this.newRidingTypeName()?.trim()) {
-  return;
-}
+    if (this.newRidingTypeCodeError() || !this.newRidingTypeName()?.trim()) {
+      return;
+    }
 
-  if (this.newRidingTypeCodeError()) {
-  await this.ui.alert(this.newRidingTypeCodeError()!, 'שגיאה');
-  return;
-}
+    if (this.newRidingTypeCodeError()) {
+      await this.ui.alert(this.newRidingTypeCodeError()!, 'שגיאה');
+      return;
+    }
 
-  const name = this.newRidingTypeName().trim();
-  const code = this.newRidingTypeCode().trim();
-  const min = this.newRidingTypeMin();
-  const max = this.newRidingTypeMax();
-  this.validateParticipants();
+    const name = this.newRidingTypeName().trim();
+    const code = this.newRidingTypeCode().trim();
+    const min = this.newRidingTypeMin();
+    const max = this.newRidingTypeMax();
+    this.validateParticipants();
 
-if (this.participantsMinError() || this.participantsMaxError()) {
-  await this.ui.alert('חובה למלא מינימום ומקסימום משתתפים תקינים לפני שמירת סוג רכיבה.', 'שגיאה');
-  return;
-}
-  const price = this.newRidingTypeSpecialPrice();
-  const duration = this.newRidingTypeSpecialDuration();
+    if (this.participantsMinError() || this.participantsMaxError()) {
+      await this.ui.alert('חובה למלא מינימום ומקסימום משתתפים תקינים לפני שמירת סוג רכיבה.', 'שגיאה');
+      return;
+    }
+    const price = this.newRidingTypeSpecialPrice();
+    const duration = this.newRidingTypeSpecialDuration();
 
-  // ===== שם חובה =====
-  if (!name) {
-    await this.ui.alert('חובה למלא שם סוג רכיבה.', 'שגיאה');
-    return;
+    // ===== שם חובה =====
+    if (!name) {
+      await this.ui.alert('חובה למלא שם סוג רכיבה.', 'שגיאה');
+      return;
+    }
+
+    // ===== קוד חובה =====
+    if (!code) {
+      await this.ui.alert('חובה למלא קוד.', 'שגיאה');
+      return;
+    }
+
+    // ===== קוד באנגלית ללא רווחים =====
+    if (!/^[A-Za-z0-9_]+$/.test(code)) {
+      await this.ui.alert('הקוד חייב להיות באנגלית ללא רווחים.', 'שגיאה');
+      return;
+    }
+
+    // ===== בדיקת ייחודיות =====
+    const { data: existing } = await dbTenant()
+      .from('riding_types')
+      .select('id')
+      .eq('code', code)
+      .maybeSingle();
+
+    if (existing) {
+      await this.ui.alert('הקוד כבר קיים במערכת.', 'שגיאה');
+      return;
+    }
+
+
+    // ===== מחיר מיוחד =====
+    if (price !== null) {
+      if (!Number.isFinite(price) || price < 0 || price > 10000) {
+        await this.ui.alert(
+          'מחיר מיוחד חייב להיות בין 0 ל־10,000 ₪.',
+          'שגיאה'
+        );
+        return;
+      }
+    }
+
+    if (duration !== null) {
+      if (!Number.isFinite(duration) || duration <= 0 || duration > 600) {
+        await this.ui.alert(
+          'משך מיוחד חייב להיות בין 1 ל־600 דקות.',
+          'שגיאה'
+        );
+        return;
+      }
+    }
+
+    const { error } = await dbTenant()
+      .from('riding_types')
+      .insert({
+        name,
+        code,
+        description: this.newRidingTypeDesc(),
+        min_participants: min,
+        max_participants: max,
+        spacial_price: price,
+        spacial_duration: duration,
+        is_active: this.newRidingTypeIsActive(),
+      });
+    if (error) {
+      await this.ui.alert(error.message, 'שגיאה');
+      return;
+    }
+
+    this.flashSuccess('סוג רכיבה נשמר בהצלחה.');
+    await this.ui.alert('סוג רכיבה נשמר בהצלחה.', 'הצלחה');
+
+
+    // איפוס
+    this.newRidingTypeName.set('');
+    this.newRidingTypeCode.set('');
+    this.newRidingTypeDesc.set('');
+    this.newRidingTypeMin.set(null);
+    this.newRidingTypeMax.set(null);
+    this.newRidingTypeSpecialPrice.set(null);
+    this.newRidingTypeSpecialDuration.set(null);
+
+    await this.loadRidingTypes();
   }
 
-  // ===== קוד חובה =====
-  if (!code) {
-    await this.ui.alert('חובה למלא קוד.', 'שגיאה');
-    return;
+  private generateCode(name: string): string {
+    return name
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_]/g, '')
+      + '_' + Date.now().toString().slice(-4);
   }
 
-  // ===== קוד באנגלית ללא רווחים =====
-  if (!/^[A-Za-z0-9_]+$/.test(code)) {
-    await this.ui.alert('הקוד חייב להיות באנגלית ללא רווחים.', 'שגיאה');
-    return;
+  startEditRidingType(rt: RidingType): void {
+    this.editingRidingTypeId.set(rt.id);
   }
 
-  // ===== בדיקת ייחודיות =====
-  const { data: existing } = await dbTenant()
-    .from('riding_types')
-    .select('id')
-    .eq('code', code)
-    .maybeSingle();
-
-  if (existing) {
-    await this.ui.alert('הקוד כבר קיים במערכת.', 'שגיאה');
-    return;
+  cancelEditRidingType(): void {
+    this.editingRidingTypeId.set(null);
+    this.loadRidingTypes();
   }
 
+  async updateRidingType(rt: RidingType): Promise<void> {
+    const { error } = await this.supabase
+      .from('riding_types')
+      .update({
+        name: rt.name,
+        is_active: rt.is_active,
+      })
+      .eq('id', rt.id);
 
-// ===== מחיר מיוחד =====
-if (price !== null) {
-  if (!Number.isFinite(price) || price < 0 || price > 10000) {
-    await this.ui.alert(
-      'מחיר מיוחד חייב להיות בין 0 ל־10,000 ₪.',
-      'שגיאה'
-    );
-    return;
+    if (error) {
+      console.error('updateRidingType error', error);
+      await this.ui.alert('עדכון סוג רכיבה נכשל.', 'שגיאה');
+      return;
+    }
+
+    this.editingRidingTypeId.set(null);
+    await this.loadRidingTypes();
   }
-}
 
-if (duration !== null) {
-  if (!Number.isFinite(duration) || duration <= 0 || duration > 600) {
-    await this.ui.alert(
-      'משך מיוחד חייב להיות בין 1 ל־600 דקות.',
-      'שגיאה'
-    );
-    return;
-  }
-}
-
-  const { error } = await dbTenant()
-    .from('riding_types')
-    .insert({
-      name,
-      code,
-      description: this.newRidingTypeDesc(),
-      min_participants: min,
-      max_participants: max,
-      spacial_price: price,
-      spacial_duration: duration,
-      is_active: this.newRidingTypeIsActive(),
+  async deleteRidingType(rt: RidingType): Promise<void> {
+    const ok = await this.ui.confirm({
+      title: 'מחיקת סוג רכיבה',
+      message: `למחוק את "${rt.name}"?`,
+      okText: 'מחיקה',
+      cancelText: 'ביטול',
+      showCancel: true,
     });
-if (error) {
-  await this.ui.alert(error.message, 'שגיאה');
-  return;
-}
 
-this.flashSuccess('סוג רכיבה נשמר בהצלחה.');
-await this.ui.alert('סוג רכיבה נשמר בהצלחה.', 'הצלחה');
+    if (!ok) return;
 
+    const { error } = await this.supabase
+      .from('riding_types')
+      .delete()
+      .eq('id', rt.id);
 
-  // איפוס
-  this.newRidingTypeName.set('');
-  this.newRidingTypeCode.set('');
-  this.newRidingTypeDesc.set('');
-  this.newRidingTypeMin.set(null);
-  this.newRidingTypeMax.set(null);
-  this.newRidingTypeSpecialPrice.set(null);
-  this.newRidingTypeSpecialDuration.set(null);
+    if (error) {
+      console.error('deleteRidingType error', error);
+      await this.ui.alert('מחיקת סוג רכיבה נכשלה.', 'שגיאה');
+      return;
+    }
 
-  await this.loadRidingTypes();
-}
-
-private generateCode(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_]/g, '')
-    + '_' + Date.now().toString().slice(-4);
-}
-
-startEditRidingType(rt: RidingType): void {
-  this.editingRidingTypeId.set(rt.id);
-}
-
-cancelEditRidingType(): void {
-  this.editingRidingTypeId.set(null);
-  this.loadRidingTypes();
-}
-
-async updateRidingType(rt: RidingType): Promise<void> {
-  const { error } = await this.supabase
-    .from('riding_types')
-    .update({
-      name: rt.name,
-      is_active: rt.is_active,
-    })
-    .eq('id', rt.id);
-
-  if (error) {
-    console.error('updateRidingType error', error);
-    await this.ui.alert('עדכון סוג רכיבה נכשל.', 'שגיאה');
-    return;
+    await this.loadRidingTypes();
   }
+  validateRidingTypeCode(value: string): void {
+    const code = value.trim();
 
-  this.editingRidingTypeId.set(null);
-  await this.loadRidingTypes();
-}
+    if (!code) {
+      this.newRidingTypeCodeError.set('חובה למלא קוד');
+      return;
+    }
 
-async deleteRidingType(rt: RidingType): Promise<void> {
-  const ok = await this.ui.confirm({
-    title: 'מחיקת סוג רכיבה',
-    message: `למחוק את "${rt.name}"?`,
-    okText: 'מחיקה',
-    cancelText: 'ביטול',
-    showCancel: true,
-  });
+    if (!/^[A-Za-z0-9_]+$/.test(code)) {
+      this.newRidingTypeCodeError.set('רק אנגלית, מספרים וקו תחתון ללא רווחים');
+      return;
+    }
 
-  if (!ok) return;
-
-  const { error } = await this.supabase
-    .from('riding_types')
-    .delete()
-    .eq('id', rt.id);
-
-  if (error) {
-    console.error('deleteRidingType error', error);
-    await this.ui.alert('מחיקת סוג רכיבה נכשלה.', 'שגיאה');
-    return;
+    this.newRidingTypeCodeError.set(null);
   }
-
-  await this.loadRidingTypes();
-}
-validateRidingTypeCode(value: string): void {
-  const code = value.trim();
-
-  if (!code) {
-    this.newRidingTypeCodeError.set('חובה למלא קוד');
-    return;
-  }
-
-  if (!/^[A-Za-z0-9_]+$/.test(code)) {
-    this.newRidingTypeCodeError.set('רק אנגלית, מספרים וקו תחתון ללא רווחים');
-    return;
-  }
-
-  this.newRidingTypeCodeError.set(null);
-}
 
   private normalizePlanForSave(plan: PaymentPlan): any {
     return {
@@ -2320,539 +2312,452 @@ validateRidingTypeCode(value: string): void {
     });
   }
 
-// =============================
-// Structured Notes (list_notes)
-// =============================
-async loadListNotes(): Promise<void> {
-  try {
-    const { data, error } = await this.supabase
-      .from('list_notes')
-      .select('id, note')
-      .order('id', { ascending: true });
+  // =============================
+  // Structured Notes (list_notes)
+  // =============================
+  async loadListNotes(): Promise<void> {
+    try {
+      const { data, error } = await this.supabase
+        .from('list_notes')
+        .select('id, note')
+        .order('id', { ascending: true });
 
-    if (error) {
-      console.error('loadListNotes error', error);
+      if (error) {
+        console.error('loadListNotes error', error);
+        this.error.set('לא ניתן לטעון הערות מובנות.');
+        return;
+      }
+
+      this.listNotes.set((data ?? []) as ListNote[]);
+    } catch (e) {
+      console.error('loadListNotes exception', e);
       this.error.set('לא ניתן לטעון הערות מובנות.');
-      return;
     }
-
-    this.listNotes.set((data ?? []) as ListNote[]);
-  } catch (e) {
-    console.error('loadListNotes exception', e);
-    this.error.set('לא ניתן לטעון הערות מובנות.');
-  }
-}
-
-toggleNewListNoteForm(): void {
-  const next = !this.showNewListNoteForm();
-  this.showNewListNoteForm.set(next);
-  if (!next) this.newListNoteText.set('');
-}
-
-startEditListNote(n: ListNote): void {
-  this.editingListNoteId.set(n.id);
-}
-
-cancelEditListNote(): void {
-  this.editingListNoteId.set(null);
-  this.loadListNotes();
-}
-
-async addListNote(): Promise<void> {
-  const note = this.newListNoteText().trim();
-  if (!note) {
-    await this.ui.alert('חובה לכתוב הודעה.', 'חסר שדה');
-    return;
-  }
-  if (note.length > 250) {
-    await this.ui.alert('אורך ההודעה מוגבל ל־250 תווים.', 'שגיאה');
-    return;
   }
 
-  try {
-    const { data, error } = await this.supabase
-      .from('list_notes')
-      .insert({ note })
-      .select('id, note')
-      .single();
-
-    if (error) {
-      console.error('addListNote error', error);
-      await this.ui.alert('הוספת הודעה נכשלה.', 'שגיאה');
-      return;
-    }
-
-    this.listNotes.set([...this.listNotes(), data as ListNote]);
-    this.newListNoteText.set('');
-    this.showNewListNoteForm.set(false);
-  } catch (e) {
-    console.error('addListNote exception', e);
-    await this.ui.alert('הוספת הודעה נכשלה.', 'שגיאה');
-  }
-}
-
-async updateListNote(n: ListNote): Promise<void> {
-  const note = (n.note ?? '').trim();
-  if (!note) {
-    await this.ui.alert('הודעה לא יכולה להיות ריקה.', 'שגיאה');
-    return;
-  }
-  if (note.length > 250) {
-    await this.ui.alert('אורך ההודעה מוגבל ל־250 תווים.', 'שגיאה');
-    return;
+  toggleNewListNoteForm(): void {
+    const next = !this.showNewListNoteForm();
+    this.showNewListNoteForm.set(next);
+    if (!next) this.newListNoteText.set('');
   }
 
-  try {
-    const { data, error } = await this.supabase
-      .from('list_notes')
-      .update({ note })
-      .eq('id', n.id)
-      .select('id, note')
-      .single();
+  startEditListNote(n: ListNote): void {
+    this.editingListNoteId.set(n.id);
+  }
 
-    if (error) {
-      console.error('updateListNote error', error);
-      await this.ui.alert('עדכון הודעה נכשל.', 'שגיאה');
-      return;
-    }
-
-    this.listNotes.set(this.listNotes().map(x => (x.id === n.id ? (data as ListNote) : x)));
+  cancelEditListNote(): void {
     this.editingListNoteId.set(null);
-    await this.ui.alert('ההודעה עודכנה.', 'הצלחה');
-  } catch (e) {
-    console.error('updateListNote exception', e);
-    await this.ui.alert('עדכון הודעה נכשל.', 'שגיאה');
+    this.loadListNotes();
   }
-}
 
-async deleteListNote(n: ListNote): Promise<void> {
-  const ok = await this.ui.confirm({
-    title: 'מחיקת הודעה מובנית',
-    message: `למחוק את ההודעה הזו?\n\n"${n.note}"`,
-    okText: 'כן, למחוק',
-    cancelText: 'ביטול',
-    showCancel: true,
-  });
-  if (!ok) return;
-
-  try {
-    const { error } = await this.supabase
-      .from('list_notes')
-      .delete()
-      .eq('id', n.id);
-
-    if (error) {
-      console.error('deleteListNote error', error);
-      await this.ui.alert('מחיקת הודעה נכשלה.', 'שגיאה');
+  async addListNote(): Promise<void> {
+    const note = this.newListNoteText().trim();
+    if (!note) {
+      await this.ui.alert('חובה לכתוב הודעה.', 'חסר שדה');
+      return;
+    }
+    if (note.length > 250) {
+      await this.ui.alert('אורך ההודעה מוגבל ל־250 תווים.', 'שגיאה');
       return;
     }
 
-    this.listNotes.set(this.listNotes().filter(x => x.id !== n.id));
+    try {
+      const { data, error } = await this.supabase
+        .from('list_notes')
+        .insert({ note })
+        .select('id, note')
+        .single();
 
-    // אם מחקת את ההודעה שאת עורכת כרגע — תצאי ממצב עריכה
-    if (this.editingListNoteId() === n.id) {
+      if (error) {
+        console.error('addListNote error', error);
+        await this.ui.alert('הוספת הודעה נכשלה.', 'שגיאה');
+        return;
+      }
+
+      this.listNotes.set([...this.listNotes(), data as ListNote]);
+      this.newListNoteText.set('');
+      this.showNewListNoteForm.set(false);
+    } catch (e) {
+      console.error('addListNote exception', e);
+      await this.ui.alert('הוספת הודעה נכשלה.', 'שגיאה');
+    }
+  }
+
+  async updateListNote(n: ListNote): Promise<void> {
+    const note = (n.note ?? '').trim();
+    if (!note) {
+      await this.ui.alert('הודעה לא יכולה להיות ריקה.', 'שגיאה');
+      return;
+    }
+    if (note.length > 250) {
+      await this.ui.alert('אורך ההודעה מוגבל ל־250 תווים.', 'שגיאה');
+      return;
+    }
+
+    try {
+      const { data, error } = await this.supabase
+        .from('list_notes')
+        .update({ note })
+        .eq('id', n.id)
+        .select('id, note')
+        .single();
+
+      if (error) {
+        console.error('updateListNote error', error);
+        await this.ui.alert('עדכון הודעה נכשל.', 'שגיאה');
+        return;
+      }
+
+      this.listNotes.set(this.listNotes().map(x => (x.id === n.id ? (data as ListNote) : x)));
       this.editingListNoteId.set(null);
+      await this.ui.alert('ההודעה עודכנה.', 'הצלחה');
+    } catch (e) {
+      console.error('updateListNote exception', e);
+      await this.ui.alert('עדכון הודעה נכשל.', 'שגיאה');
+    }
+  }
+
+  async deleteListNote(n: ListNote): Promise<void> {
+    const ok = await this.ui.confirm({
+      title: 'מחיקת הודעה מובנית',
+      message: `למחוק את ההודעה הזו?\n\n"${n.note}"`,
+      okText: 'כן, למחוק',
+      cancelText: 'ביטול',
+      showCancel: true,
+    });
+    if (!ok) return;
+
+    try {
+      const { error } = await this.supabase
+        .from('list_notes')
+        .delete()
+        .eq('id', n.id);
+
+      if (error) {
+        console.error('deleteListNote error', error);
+        await this.ui.alert('מחיקת הודעה נכשלה.', 'שגיאה');
+        return;
+      }
+
+      this.listNotes.set(this.listNotes().filter(x => x.id !== n.id));
+
+      // אם מחקת את ההודעה שאת עורכת כרגע — תצאי ממצב עריכה
+      if (this.editingListNoteId() === n.id) {
+        this.editingListNoteId.set(null);
+      }
+
+      await this.ui.alert('ההודעה נמחקה.', 'הצלחה');
+    } catch (e) {
+      console.error('deleteListNote exception', e);
+      await this.ui.alert('מחיקת הודעה נכשלה.', 'שגיאה');
+    }
+  }
+
+  paymentPlansExpanded = signal(true);
+  fundingSourcesExpanded = signal(true);
+
+  togglePaymentPlansExpanded() {
+    this.clearFlash();
+    this.paymentPlansExpanded.update(v => !v);
+
+    if (!this.paymentPlansExpanded()) {
+      this.showNewPlanForm.set(false);
     }
 
-    await this.ui.alert('ההודעה נמחקה.', 'הצלחה');
-  } catch (e) {
-    console.error('deleteListNote exception', e);
-    await this.ui.alert('מחיקת הודעה נכשלה.', 'שגיאה');
-  }
-}
-
-paymentPlansExpanded = signal(true);
-fundingSourcesExpanded = signal(true);
-
-togglePaymentPlansExpanded() {
-   this.clearFlash(); 
-  this.paymentPlansExpanded.update(v => !v);
-
-  if (!this.paymentPlansExpanded()) {
-    this.showNewPlanForm.set(false);
+    setTimeout(() => this.clearFocus());
   }
 
-  setTimeout(() => this.clearFocus());
-}
 
-
-toggleFundingSourcesExpanded() {
-  this.fundingSourcesExpanded.update(v => !v);
-  if (!this.fundingSourcesExpanded()) this.showNewFundingForm.set(false);
-}
-async loadSpecialCharges(): Promise<void> {
-  const { data, error } = await this.supabase
-    .from('special_charges')
-    .select('*')
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true });
-
-  if (error) {
-    console.error('loadSpecialCharges error', error);
-    this.flashError('טעינת החיובים המיוחדים נכשלה.');
-    return;
+  toggleFundingSourcesExpanded() {
+    this.fundingSourcesExpanded.update(v => !v);
+    if (!this.fundingSourcesExpanded()) this.showNewFundingForm.set(false);
   }
+  async loadSpecialCharges(): Promise<void> {
+    const { data, error } = await this.supabase
+      .from('special_charges')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
 
-  this.specialCharges.set((data || []) as SpecialCharge[]);
-}
-toggleNewSpecialChargeForm(): void {
-  const next = !this.showNewSpecialChargeForm();
-  this.showNewSpecialChargeForm.set(next);
+    if (error) {
+      console.error('loadSpecialCharges error', error);
+      this.flashError('טעינת החיובים המיוחדים נכשלה.');
+      return;
+    }
 
-  if (next) {
-    this.newSpecialCharge.set({
-      item: '',
-      amount: null,
-      notes: null,
-      charge_on_registration: true,
-funding_source_ids: this.fundingSources()
-  .filter(fs => fs.is_active)
-  .map(fs => fs.id),      charge_on_specific_date: false,
-      charge_date: null,
-      first_charge_date: null,
-      charge_times_per_year: null,
-      is_required: true,
-      warning_note: null,
-      is_active: true,
-      sort_order: this.specialCharges().length + 1,
-    });
+    this.specialCharges.set((data || []) as SpecialCharge[]);
   }
-}
-onSpecialChargeDateToggle(c: SpecialCharge): void {
-  if (!c.charge_on_specific_date) {
-    c.charge_date = null;
+  toggleNewSpecialChargeForm(): void {
+    const next = !this.showNewSpecialChargeForm();
+    this.showNewSpecialChargeForm.set(next);
+
+    if (next) {
+      this.newSpecialCharge.set({
+        item: '',
+        amount: null,
+        notes: null,
+        charge_on_registration: true,
+        funding_source_ids: this.fundingSources()
+          .filter(fs => fs.is_active)
+          .map(fs => fs.id), charge_on_specific_date: false,
+        charge_date: null,
+        first_charge_date: null,
+        charge_times_per_year: null,
+        is_required: true,
+        warning_note: null,
+        is_active: true,
+        sort_order: this.specialCharges().length + 1,
+      });
+    }
   }
-}
-validateSpecialCharge(c: SpecialCharge): string | null {
-  if (!c.item?.trim()) return 'חובה להזין שם פריט.';
-  if (c.amount == null || c.amount < 0) return 'חובה להזין סכום תקין.';
-const mode = this.getSpecialChargeMode(c);
-
-if (mode === 'specific_date' && !c.charge_date) {
-  return 'בתשלום בתאריך ספציפי חובה לבחור תאריך.';
-}
-
-if (mode === 'yearly') {
- const allowed = [1, 2, 3, 4, 6, 12];
-
-if (!c.charge_times_per_year || !allowed.includes(Number(c.charge_times_per_year))) {
-  return 'בתשלום מחזורי חובה לבחור תדירות חיוב תקינה.';
-}
-  if (!c.first_charge_date) {
-    return 'בתשלום שנתי חובה לבחור תאריך לפעם הראשונה.';
+  onSpecialChargeDateToggle(c: SpecialCharge): void {
+    if (!c.charge_on_specific_date) {
+      c.charge_date = null;
+    }
   }
-}
-if (c.charge_on_specific_date && !c.charge_date) {
-  return 'כאשר בוחרים תשלום בתאריך ספציפי חובה לבחור תאריך.';
-}
-if (
-  c.charge_times_per_year != null &&
-  (c.charge_times_per_year < 1 || c.charge_times_per_year > 365)
-) {
-  return 'מספר הפעמים בשנה חייב להיות בין 1 ל־365.';
-}
+  validateSpecialCharge(c: SpecialCharge): string | null {
+    if (!c.item?.trim()) return 'חובה להזין שם פריט.';
+    if (c.amount == null || c.amount < 0) return 'חובה להזין סכום תקין.';
+    const mode = this.getSpecialChargeMode(c);
 
-if (mode === 'specific_date' && !c.charge_date) {
-  return 'בתשלום בתאריך ספציפי חובה לבחור תאריך.';
-}
+    if (mode === 'specific_date' && !c.charge_date) {
+      return 'בתשלום בתאריך ספציפי חובה לבחור תאריך.';
+    }
 
-if (mode === 'yearly') {
-  if (!c.charge_times_per_year || c.charge_times_per_year < 1 || c.charge_times_per_year > 365) {
-    return 'בתשלום שנתי חובה להזין כמה פעמים בשנה, בין 1 ל־365.';
+    if (mode === 'yearly') {
+      const allowed = [1, 2, 3, 4, 6, 12];
+
+      if (!c.charge_times_per_year || !allowed.includes(Number(c.charge_times_per_year))) {
+        return 'בתשלום מחזורי חובה לבחור תדירות חיוב תקינה.';
+      }
+      if (!c.first_charge_date) {
+        return 'בתשלום שנתי חובה לבחור תאריך לפעם הראשונה.';
+      }
+    }
+    if (c.charge_on_specific_date && !c.charge_date) {
+      return 'כאשר בוחרים תשלום בתאריך ספציפי חובה לבחור תאריך.';
+    }
+    if (
+      c.charge_times_per_year != null &&
+      (c.charge_times_per_year < 1 || c.charge_times_per_year > 365)
+    ) {
+      return 'מספר הפעמים בשנה חייב להיות בין 1 ל־365.';
+    }
+
+    if (mode === 'specific_date' && !c.charge_date) {
+      return 'בתשלום בתאריך ספציפי חובה לבחור תאריך.';
+    }
+
+    if (mode === 'yearly') {
+      if (!c.charge_times_per_year || c.charge_times_per_year < 1 || c.charge_times_per_year > 365) {
+        return 'בתשלום שנתי חובה להזין כמה פעמים בשנה, בין 1 ל־365.';
+      }
+      if (!c.first_charge_date) {
+        return 'בתשלום שנתי חובה לבחור תאריך לפעם הראשונה.';
+      }
+    }
+    return null;
   }
-if (!c.first_charge_date) {
-  return 'בתשלום שנתי חובה לבחור תאריך לפעם הראשונה.';
-}
-}
-  return null;
-}
-async createSpecialCharge(): Promise<void> {
+  async createSpecialCharge(): Promise<void> {
     if (!this.validateNewSpecialCharge()) {
-    await this.ui.alert('יש למלא את כל שדות החובה בחיוב המיוחד.', 'שדות חסרים');
-    return;
-  }
-  const c = this.newSpecialCharge();
-  const err = this.validateSpecialCharge(c);
-const mode = this.getSpecialChargeMode(c);
-  if (err) {
-    await this.ui.alert(err, 'שגיאה');
-    return;
-  }
+      await this.ui.alert('יש למלא את כל שדות החובה בחיוב המיוחד.', 'שדות חסרים');
+      return;
+    }
+    const c = this.newSpecialCharge();
+    const err = this.validateSpecialCharge(c);
+    const mode = this.getSpecialChargeMode(c);
+    if (err) {
+      await this.ui.alert(err, 'שגיאה');
+      return;
+    }
 
-  const { error } = await this.supabase
-    .from('special_charges')
-    .insert({
-      item: c.item.trim(),
-      amount: c.amount,
-      notes: c.notes?.trim() || null,
-charge_on_registration: mode === 'registration',
-charge_on_specific_date: mode === 'specific_date',
-charge_date: mode === 'specific_date' ? c.charge_date : null,
-first_charge_date: mode === 'yearly' ? c.first_charge_date : null,
-charge_times_per_year: mode === 'yearly' ? Number(c.charge_times_per_year ?? 1) : 1,
-is_required: mode === 'registration' && !!c.is_required,
-funding_source_ids: c.funding_source_ids ?? [],
-warning_note: mode === 'registration' ? (c.warning_note?.trim() || null) : null,
-      is_active: !!c.is_active,
-      sort_order: c.sort_order ?? 0,
+    const { error } = await this.supabase
+      .from('special_charges')
+      .insert({
+        item: c.item.trim(),
+        amount: c.amount,
+        notes: c.notes?.trim() || null,
+        charge_on_registration: mode === 'registration',
+        charge_on_specific_date: mode === 'specific_date',
+        charge_date: mode === 'specific_date' ? c.charge_date : null,
+        first_charge_date: mode === 'yearly' ? c.first_charge_date : null,
+        charge_times_per_year: mode === 'yearly' ? Number(c.charge_times_per_year ?? 1) : 1,
+        is_required: mode === 'registration' && !!c.is_required,
+        funding_source_ids: c.funding_source_ids ?? [],
+        warning_note: mode === 'registration' ? (c.warning_note?.trim() || null) : null,
+        is_active: !!c.is_active,
+        sort_order: c.sort_order ?? 0,
+      });
+
+    if (error) {
+      console.error('createSpecialCharge error', error);
+      await this.ui.alert('שמירת החיוב נכשלה.', 'שגיאה');
+      return;
+    }
+
+    this.showNewSpecialChargeForm.set(false);
+    await this.loadSpecialCharges();
+    this.flashSuccess('החיוב נוסף בהצלחה.');
+  }
+  async updateSpecialCharge(c: SpecialCharge): Promise<void> {
+    if (!c.id) return;
+
+    const err = this.validateSpecialCharge(c);
+    const mode = this.getSpecialChargeMode(c);
+    if (err) {
+      await this.ui.alert(err, 'שגיאה');
+      return;
+    }
+
+    const { error } = await this.supabase
+      .from('special_charges')
+      .update({
+        item: c.item.trim(),
+        amount: c.amount,
+        notes: c.notes?.trim() || null,
+
+        charge_on_registration: !!c.charge_on_registration,
+        charge_on_specific_date: !!c.charge_on_specific_date,
+        charge_date: mode === 'specific_date' ? c.charge_date : null,
+        first_charge_date: mode === 'yearly' ? c.first_charge_date : null,
+        charge_times_per_year: mode === 'yearly' ? Number(c.charge_times_per_year ?? 1) : 1,
+        is_required: !!c.charge_on_registration && !!c.is_required,
+        warning_note: c.charge_on_registration ? (c.warning_note?.trim() || null) : null,
+        funding_source_ids: c.funding_source_ids ?? [],
+        is_active: !!c.is_active,
+        sort_order: c.sort_order ?? 0,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', c.id);
+
+    if (error) {
+      console.error('updateSpecialCharge error', error);
+      await this.ui.alert('עדכון החיוב נכשל.', 'שגיאה');
+      return;
+    }
+
+    await this.loadSpecialCharges();
+    this.flashSuccess('החיוב עודכן בהצלחה.');
+    this.editingSpecialChargeId.set(null);
+    this.specialChargeBeforeEdit.set(null);
+  }
+  async deactivateSpecialCharge(c: SpecialCharge): Promise<void> {
+    if (!c.id) return;
+
+    const confirmed = await this.ui.confirm({
+      title: 'ביטול חיוב מיוחד',
+      message: `להפוך את "${c.item}" ללא פעיל?`,
+      okText: 'כן',
+      cancelText: 'ביטול',
+      showCancel: true,
     });
 
-  if (error) {
-    console.error('createSpecialCharge error', error);
-    await this.ui.alert('שמירת החיוב נכשלה.', 'שגיאה');
-    return;
-  }
+    if (!confirmed) return;
 
-  this.showNewSpecialChargeForm.set(false);
-  await this.loadSpecialCharges();
-  this.flashSuccess('החיוב נוסף בהצלחה.');
-}
-async updateSpecialCharge(c: SpecialCharge): Promise<void> {
-  if (!c.id) return;
+    const { error } = await this.supabase
+      .from('special_charges')
+      .update({
+        is_active: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', c.id);
 
-  const err = this.validateSpecialCharge(c);
-const mode = this.getSpecialChargeMode(c);
-  if (err) {
-    await this.ui.alert(err, 'שגיאה');
-    return;
-  }
-
-  const { error } = await this.supabase
-    .from('special_charges')
-    .update({
-      item: c.item.trim(),
-      amount: c.amount,
-      notes: c.notes?.trim() || null,
-
-      charge_on_registration: !!c.charge_on_registration,
-      charge_on_specific_date: !!c.charge_on_specific_date,
-     charge_date: mode === 'specific_date' ? c.charge_date : null,
-first_charge_date: mode === 'yearly' ? c.first_charge_date : null,
-charge_times_per_year: mode === 'yearly' ? Number(c.charge_times_per_year ?? 1) : 1,
-    is_required: !!c.charge_on_registration && !!c.is_required,
-warning_note: c.charge_on_registration ? (c.warning_note?.trim() || null) : null,
-funding_source_ids: c.funding_source_ids ?? [],
-      is_active: !!c.is_active,
-      sort_order: c.sort_order ?? 0,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', c.id);
-
-  if (error) {
-    console.error('updateSpecialCharge error', error);
-    await this.ui.alert('עדכון החיוב נכשל.', 'שגיאה');
-    return;
-  }
-
-  await this.loadSpecialCharges();
-  this.flashSuccess('החיוב עודכן בהצלחה.');
-this.editingSpecialChargeId.set(null);
-this.specialChargeBeforeEdit.set(null);
-}
-async deactivateSpecialCharge(c: SpecialCharge): Promise<void> {
-  if (!c.id) return;
-
-  const confirmed = await this.ui.confirm({
-    title: 'ביטול חיוב מיוחד',
-    message: `להפוך את "${c.item}" ללא פעיל?`,
-    okText: 'כן',
-    cancelText: 'ביטול',
-    showCancel: true,
-  });
-
-  if (!confirmed) return;
-
-  const { error } = await this.supabase
-    .from('special_charges')
-    .update({
-      is_active: false,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', c.id);
-
-  if (error) {
-    console.error('deactivateSpecialCharge error', error);
-    await this.ui.alert('ביטול החיוב נכשל.', 'שגיאה');
-    return;
-  }
-
-  await this.loadSpecialCharges();
-}
-
-patchNewSpecialCharge(patch: Partial<SpecialCharge>): void {
-  this.newSpecialCharge.update(current => ({
-    ...current,
-    ...patch,
-  }));
-}
-
-onRegistrationChargeToggle(c: SpecialCharge, checked: boolean): void {
-  c.charge_on_registration = checked;
-
-  if (checked) {
-    c.charge_on_specific_date = false;
-    c.charge_date = null;
-  }
-}
-onSpecificDateChargeToggle(c: SpecialCharge, checked: boolean): void {
-  c.charge_on_specific_date = checked;
-
-  if (checked) {
-    c.charge_on_registration = false;
-  } else {
-    c.charge_date = null;
-  }
-}
-
-selectNewChargeOnRegistration(checked: boolean): void {
-  const cur = this.newSpecialCharge();
-
-  let updated = { ...cur, charge_on_registration: checked };
-
-  if (checked) {
-    updated.charge_on_specific_date = false;
-    updated.charge_times_per_year = null;
-    updated.charge_date = null;
-  } else {
-    updated.is_required = false;
-    updated.warning_note = null;
-  }
-
-  this.newSpecialCharge.set(updated);
-}
-
-selectNewChargeOnSpecificDate(checked: boolean): void {
-  this.patchNewSpecialCharge({
-    charge_on_specific_date: checked,
-    charge_on_registration: checked ? false : this.newSpecialCharge().charge_on_registration,
-    charge_times_per_year: checked ? null : this.newSpecialCharge().charge_times_per_year,
-    charge_date: checked ? this.newSpecialCharge().charge_date : null,
-  });
-}
-
-selectNewChargeTimesPerYear(value: any): void {
-  const n = value === '' || value == null ? null : Number(value);
-
-  this.patchNewSpecialCharge({
-    charge_times_per_year: n,
-    charge_on_registration: n != null ? false : this.newSpecialCharge().charge_on_registration,
-    charge_on_specific_date: n != null ? false : this.newSpecialCharge().charge_on_specific_date,
-    charge_date: n != null ? null : this.newSpecialCharge().charge_date,
-  });
-}
-selectExistingChargeOnRegistration(c: SpecialCharge, checked: boolean): void {
-  c.charge_on_registration = checked;
-
-  
-  if (checked) {
-    c.charge_on_specific_date = false;
-    c.charge_date = null;
-    c.charge_times_per_year = null;
-  } else {
-    c.warning_note = null;
-    c.is_required = false;
-
-  }
-}
-selectExistingChargeOnSpecificDate(c: SpecialCharge, checked: boolean): void {
-  c.charge_on_specific_date = checked;
-
-  if (checked) {
-    c.charge_on_registration = false;
-    c.charge_times_per_year = null;
-  } else {
-    c.charge_date = null;
-  }
-}
-selectExistingChargeTimesPerYear(c: SpecialCharge, value: any): void {
-  const n = value === '' || value == null ? null : Number(value);
-  c.charge_times_per_year = n;
-
-  if (n != null) {
-    c.charge_on_registration = false;
-    c.charge_on_specific_date = false;
-    c.charge_date = null;
-  }
-}
-enforceChargeRule(mode: 'registration' | 'date' | 'yearly', value: any): void {
-  const cur = this.newSpecialCharge();
-
-  let updated = { ...cur };
-
-  if (mode === 'registration') {
-    updated.charge_on_registration = value;
-
-    if (value) {
-      updated.charge_on_specific_date = false;
-      updated.charge_times_per_year = null;
-      updated.charge_date = null;
-    }
-  }
-
-  if (mode === 'date') {
-    updated.charge_on_specific_date = value;
-
-    if (value) {
-      updated.charge_on_registration = false;
-      updated.charge_times_per_year = null;
-    } else {
-      updated.charge_date = null;
-    }
-  }
-
-  if (mode === 'yearly') {
-    let n = value === '' || value == null ? null : Number(value);
-
-    if (n != null) {
-      if (n < 1) n = 1;
-      if (n > 365) n = 365;
+    if (error) {
+      console.error('deactivateSpecialCharge error', error);
+      await this.ui.alert('ביטול החיוב נכשל.', 'שגיאה');
+      return;
     }
 
-    updated.charge_times_per_year = n;
-
-    if (n != null) {
-      updated.charge_on_registration = false;
-      updated.charge_on_specific_date = false;
-      updated.charge_date = null;
-    }
+    await this.loadSpecialCharges();
   }
 
-  this.newSpecialCharge.set(updated);
-}
-enforceExistingChargeRule(
-  c: SpecialCharge,
-  mode: 'registration' | 'date' | 'yearly',
-  value: any
-): void {
-  if (mode === 'registration') {
-    c.charge_on_registration = !!value;
+  patchNewSpecialCharge(patch: Partial<SpecialCharge>): void {
+    this.newSpecialCharge.update(current => ({
+      ...current,
+      ...patch,
+    }));
+  }
 
-    if (value) {
+  onRegistrationChargeToggle(c: SpecialCharge, checked: boolean): void {
+    c.charge_on_registration = checked;
+
+    if (checked) {
       c.charge_on_specific_date = false;
-      c.charge_times_per_year = null;
+      c.charge_date = null;
+    }
+  }
+  onSpecificDateChargeToggle(c: SpecialCharge, checked: boolean): void {
+    c.charge_on_specific_date = checked;
+
+    if (checked) {
+      c.charge_on_registration = false;
+    } else {
       c.charge_date = null;
     }
   }
 
-  if (mode === 'date') {
-    c.charge_on_specific_date = !!value;
+  selectNewChargeOnRegistration(checked: boolean): void {
+    const cur = this.newSpecialCharge();
 
-    if (value) {
+    let updated = { ...cur, charge_on_registration: checked };
+
+    if (checked) {
+      updated.charge_on_specific_date = false;
+      updated.charge_times_per_year = null;
+      updated.charge_date = null;
+    } else {
+      updated.is_required = false;
+      updated.warning_note = null;
+    }
+
+    this.newSpecialCharge.set(updated);
+  }
+
+  selectNewChargeOnSpecificDate(checked: boolean): void {
+    this.patchNewSpecialCharge({
+      charge_on_specific_date: checked,
+      charge_on_registration: checked ? false : this.newSpecialCharge().charge_on_registration,
+      charge_times_per_year: checked ? null : this.newSpecialCharge().charge_times_per_year,
+      charge_date: checked ? this.newSpecialCharge().charge_date : null,
+    });
+  }
+
+  selectNewChargeTimesPerYear(value: any): void {
+    const n = value === '' || value == null ? null : Number(value);
+
+    this.patchNewSpecialCharge({
+      charge_times_per_year: n,
+      charge_on_registration: n != null ? false : this.newSpecialCharge().charge_on_registration,
+      charge_on_specific_date: n != null ? false : this.newSpecialCharge().charge_on_specific_date,
+      charge_date: n != null ? null : this.newSpecialCharge().charge_date,
+    });
+  }
+  selectExistingChargeOnRegistration(c: SpecialCharge, checked: boolean): void {
+    c.charge_on_registration = checked;
+
+
+    if (checked) {
+      c.charge_on_specific_date = false;
+      c.charge_date = null;
+      c.charge_times_per_year = null;
+    } else {
+      c.warning_note = null;
+      c.is_required = false;
+
+    }
+  }
+  selectExistingChargeOnSpecificDate(c: SpecialCharge, checked: boolean): void {
+    c.charge_on_specific_date = checked;
+
+    if (checked) {
       c.charge_on_registration = false;
       c.charge_times_per_year = null;
     } else {
       c.charge_date = null;
     }
   }
-
-  if (mode === 'yearly') {
-    let n = value === '' || value == null ? null : Number(value);
-
-    if (n != null) {
-      if (n < 1) n = 1;
-      if (n > 365) n = 365;
-    }
-
+  selectExistingChargeTimesPerYear(c: SpecialCharge, value: any): void {
+    const n = value === '' || value == null ? null : Number(value);
     c.charge_times_per_year = n;
 
     if (n != null) {
@@ -2861,436 +2766,496 @@ enforceExistingChargeRule(
       c.charge_date = null;
     }
   }
-}
-onTimesPerYearChange(value: any): void {
-  let n = value === '' || value == null ? null : Number(value);
+  enforceChargeRule(mode: 'registration' | 'date' | 'yearly', value: any): void {
+    const cur = this.newSpecialCharge();
 
-  if (n != null) {
-    if (n < 1) n = 1;
-    if (n > 365) n = 365;
-  }
+    let updated = { ...cur };
 
-  this.selectNewChargeTimesPerYear(n);
-}
-onNewTimesPerYearInput(event: Event): void {
-  const input = event.target as HTMLInputElement;
+    if (mode === 'registration') {
+      updated.charge_on_registration = value;
 
-  let value = input.value === '' ? null : Number(input.value);
-
-  if (value != null) {
-    if (value < 1) value = 1;
-    if (value > 365) value = 365;
-
-    input.value = String(value);
-  }
-
-  this.selectNewChargeTimesPerYear(value);
-}
-onExistingTimesPerYearInput(c: SpecialCharge, event: Event): void {
-  const input = event.target as HTMLInputElement;
-
-  let value = input.value === '' ? null : Number(input.value);
-
-  if (value != null) {
-    if (value < 1) value = 1;
-    if (value > 365) value = 365;
-
-    input.value = String(value);
-  }
-
-  this.selectExistingChargeTimesPerYear(c, value);
-}
-
-async saveSpecialCharges(): Promise<void> {
-  const newCharge = this.newSpecialCharge();
-if (this.showNewSpecialChargeForm() && !this.isNewSpecialChargeEmpty()) {
-  const err = this.validateSpecialCharge(this.newSpecialCharge());
-  if (err) {
-    await this.ui.alert(err, 'שגיאה');
-    throw new Error(err);
-  }
-
-  await this.createSpecialCharge();
-}
-
-  for (const c of this.specialCharges()) {
-    const err = this.validateSpecialCharge(c);
-    if (err) {
-      await this.ui.alert(err, 'שגיאה');
-      throw new Error(err);
+      if (value) {
+        updated.charge_on_specific_date = false;
+        updated.charge_times_per_year = null;
+        updated.charge_date = null;
+      }
     }
 
-    await this.updateSpecialCharge(c);
+    if (mode === 'date') {
+      updated.charge_on_specific_date = value;
+
+      if (value) {
+        updated.charge_on_registration = false;
+        updated.charge_times_per_year = null;
+      } else {
+        updated.charge_date = null;
+      }
+    }
+
+    if (mode === 'yearly') {
+      let n = value === '' || value == null ? null : Number(value);
+
+      if (n != null) {
+        if (n < 1) n = 1;
+        if (n > 365) n = 365;
+      }
+
+      updated.charge_times_per_year = n;
+
+      if (n != null) {
+        updated.charge_on_registration = false;
+        updated.charge_on_specific_date = false;
+        updated.charge_date = null;
+      }
+    }
+
+    this.newSpecialCharge.set(updated);
   }
-}
-private isNewSpecialChargeEmpty(): boolean {
-  const c = this.newSpecialCharge();
+  enforceExistingChargeRule(
+    c: SpecialCharge,
+    mode: 'registration' | 'date' | 'yearly',
+    value: any
+  ): void {
+    if (mode === 'registration') {
+      c.charge_on_registration = !!value;
 
-  return !c.item?.trim()
-    && c.amount == null
-    && !c.notes?.trim()
-    && !c.warning_note?.trim();
-}
-startEditSpecialCharge(c: SpecialCharge): void {
-  this.editingSpecialChargeId.set(c.id ?? null);
-  this.specialChargeBeforeEdit.set({ ...c });
-}
+      if (value) {
+        c.charge_on_specific_date = false;
+        c.charge_times_per_year = null;
+        c.charge_date = null;
+      }
+    }
 
-cancelEditSpecialCharge(c: SpecialCharge): void {
-  const original = this.specialChargeBeforeEdit();
+    if (mode === 'date') {
+      c.charge_on_specific_date = !!value;
 
-  if (original && c.id === original.id) {
-    Object.assign(c, original);
+      if (value) {
+        c.charge_on_registration = false;
+        c.charge_times_per_year = null;
+      } else {
+        c.charge_date = null;
+      }
+    }
+
+    if (mode === 'yearly') {
+      let n = value === '' || value == null ? null : Number(value);
+
+      if (n != null) {
+        if (n < 1) n = 1;
+        if (n > 365) n = 365;
+      }
+
+      c.charge_times_per_year = n;
+
+      if (n != null) {
+        c.charge_on_registration = false;
+        c.charge_on_specific_date = false;
+        c.charge_date = null;
+      }
+    }
+  }
+  onTimesPerYearChange(value: any): void {
+    let n = value === '' || value == null ? null : Number(value);
+
+    if (n != null) {
+      if (n < 1) n = 1;
+      if (n > 365) n = 365;
+    }
+
+    this.selectNewChargeTimesPerYear(n);
+  }
+  onNewTimesPerYearInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+
+    let value = input.value === '' ? null : Number(input.value);
+
+    if (value != null) {
+      if (value < 1) value = 1;
+      if (value > 365) value = 365;
+
+      input.value = String(value);
+    }
+
+    this.selectNewChargeTimesPerYear(value);
+  }
+  onExistingTimesPerYearInput(c: SpecialCharge, event: Event): void {
+    const input = event.target as HTMLInputElement;
+
+    let value = input.value === '' ? null : Number(input.value);
+
+    if (value != null) {
+      if (value < 1) value = 1;
+      if (value > 365) value = 365;
+
+      input.value = String(value);
+    }
+
+    this.selectExistingChargeTimesPerYear(c, value);
   }
 
-  this.editingSpecialChargeId.set(null);
-  this.specialChargeBeforeEdit.set(null);
-}
-getSpecialChargeMode(c: SpecialCharge): SpecialChargeMode {
-  if (c.charge_on_registration) return 'registration';
-  if (c.charge_on_specific_date) return 'specific_date';
-  return 'yearly';
-}
+  async saveSpecialCharges(): Promise<void> {
+    const newCharge = this.newSpecialCharge();
+    if (this.showNewSpecialChargeForm() && !this.isNewSpecialChargeEmpty()) {
+      const err = this.validateSpecialCharge(this.newSpecialCharge());
+      if (err) {
+        await this.ui.alert(err, 'שגיאה');
+        throw new Error(err);
+      }
 
-setNewSpecialChargeMode(mode: SpecialChargeMode): void {
-  this.newSpecialCharge.update(c => ({
-    ...c,
-    charge_on_registration: mode === 'registration',
-    charge_on_specific_date: mode === 'specific_date',
+      await this.createSpecialCharge();
+    }
 
-    charge_date: mode === 'specific_date' ? c.charge_date : null,
-    first_charge_date: mode === 'yearly' ? c.first_charge_date : null,
+    for (const c of this.specialCharges()) {
+      const err = this.validateSpecialCharge(c);
+      if (err) {
+        await this.ui.alert(err, 'שגיאה');
+        throw new Error(err);
+      }
 
-    charge_times_per_year: mode === 'yearly' ? (c.charge_times_per_year ?? 1) : null,
-
-    is_required: mode === 'registration' ? c.is_required : false,
-    warning_note: mode === 'registration' ? c.warning_note : null,
-  }));
-}
-
-setExistingSpecialChargeMode(c: SpecialCharge, mode: SpecialChargeMode): void {
-  c.charge_on_registration = mode === 'registration';
-  c.charge_on_specific_date = mode === 'specific_date';
-
-  c.charge_date = mode === 'specific_date' ? c.charge_date : null;
-  c.first_charge_date = mode === 'yearly' ? c.first_charge_date : null;
-
-  c.charge_times_per_year = mode === 'yearly'
-    ? (c.charge_times_per_year ?? 1)
-    : null;
-
-  if (mode !== 'registration') {
-    c.is_required = false;
-    c.warning_note = null;
+      await this.updateSpecialCharge(c);
+    }
   }
-}
-formatDateDisplay(date: string | null): string {
-  if (!date) return '';
-  const [y, m, d] = date.split('-');
-  return `${d}/${m}/${y}`;
-}
+  private isNewSpecialChargeEmpty(): boolean {
+    const c = this.newSpecialCharge();
 
-onDateInput(value: string) {
-  const parts = value.split('/');
-  if (parts.length === 3) {
-    const [d, m, y] = parts;
+    return !c.item?.trim()
+      && c.amount == null
+      && !c.notes?.trim()
+      && !c.warning_note?.trim();
+  }
+  startEditSpecialCharge(c: SpecialCharge): void {
+    this.editingSpecialChargeId.set(c.id ?? null);
+    this.specialChargeBeforeEdit.set({ ...c });
+  }
+
+  cancelEditSpecialCharge(c: SpecialCharge): void {
+    const original = this.specialChargeBeforeEdit();
+
+    if (original && c.id === original.id) {
+      Object.assign(c, original);
+    }
+
+    this.editingSpecialChargeId.set(null);
+    this.specialChargeBeforeEdit.set(null);
+  }
+  getSpecialChargeMode(c: SpecialCharge): SpecialChargeMode {
+    if (c.charge_on_registration) return 'registration';
+    if (c.charge_on_specific_date) return 'specific_date';
+    return 'yearly';
+  }
+
+  setNewSpecialChargeMode(mode: SpecialChargeMode): void {
+    this.newSpecialCharge.update(c => ({
+      ...c,
+      charge_on_registration: mode === 'registration',
+      charge_on_specific_date: mode === 'specific_date',
+
+      charge_date: mode === 'specific_date' ? c.charge_date : null,
+      first_charge_date: mode === 'yearly' ? c.first_charge_date : null,
+
+      charge_times_per_year: mode === 'yearly' ? (c.charge_times_per_year ?? 1) : null,
+
+      is_required: mode === 'registration' ? c.is_required : false,
+      warning_note: mode === 'registration' ? c.warning_note : null,
+    }));
+  }
+
+  setExistingSpecialChargeMode(c: SpecialCharge, mode: SpecialChargeMode): void {
+    c.charge_on_registration = mode === 'registration';
+    c.charge_on_specific_date = mode === 'specific_date';
+
+    c.charge_date = mode === 'specific_date' ? c.charge_date : null;
+    c.first_charge_date = mode === 'yearly' ? c.first_charge_date : null;
+
+    c.charge_times_per_year = mode === 'yearly'
+      ? (c.charge_times_per_year ?? 1)
+      : null;
+
+    if (mode !== 'registration') {
+      c.is_required = false;
+      c.warning_note = null;
+    }
+  }
+  formatDateDisplay(date: string | null): string {
+    if (!date) return '';
+    const [y, m, d] = date.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
+  onDateInput(value: string) {
+    const parts = value.split('/');
+    if (parts.length === 3) {
+      const [d, m, y] = parts;
+      this.patchNewSpecialCharge({
+        first_charge_date: `${y}-${m}-${d}`
+      });
+    }
+  }
+  toggleFundingSourceForNewSpecialCharge(sourceId: UUID, checked: boolean): void {
+    const cur = this.newSpecialCharge();
+    const ids = cur.funding_source_ids ?? [];
+
     this.patchNewSpecialCharge({
-      first_charge_date: `${y}-${m}-${d}`
+      funding_source_ids: checked
+        ? Array.from(new Set([...ids, sourceId]))
+        : ids.filter(id => id !== sourceId),
     });
   }
-}
-toggleFundingSourceForNewSpecialCharge(sourceId: UUID, checked: boolean): void {
-  const cur = this.newSpecialCharge();
-  const ids = cur.funding_source_ids ?? [];
 
-  this.patchNewSpecialCharge({
-    funding_source_ids: checked
+  toggleFundingSourceForExistingSpecialCharge(c: SpecialCharge, sourceId: UUID, checked: boolean): void {
+    const ids = c.funding_source_ids ?? [];
+
+    c.funding_source_ids = checked
       ? Array.from(new Set([...ids, sourceId]))
-      : ids.filter(id => id !== sourceId),
-  });
-}
-
-toggleFundingSourceForExistingSpecialCharge(c: SpecialCharge, sourceId: UUID, checked: boolean): void {
-  const ids = c.funding_source_ids ?? [];
-
-  c.funding_source_ids = checked
-    ? Array.from(new Set([...ids, sourceId]))
-    : ids.filter(id => id !== sourceId);
-}
-
-fundingSourceNames(ids: UUID[] | null | undefined): string {
-  if (!ids?.length) return 'כל גורמי המימון';
-
-  const names = this.fundingSources()
-    .filter(fs => ids.includes(fs.id))
-    .map(fs => fs.name);
-
-  return names.length ? names.join(', ') : 'לא נבחרו גורמי מימון';
-}
-validateNewSpecialCharge(): boolean {
-  const c = this.newSpecialCharge();
-  const mode = this.getSpecialChargeMode(c);
-
-  const errors: {
-    item?: string;
-    amount?: string;
-    mode?: string;
-  } = {};
-
-  if (!c.item?.trim()) {
-    errors.item = 'חובה למלא שם פריט';
+      : ids.filter(id => id !== sourceId);
   }
 
-  if (c.amount == null || Number(c.amount) <= 0) {
-    errors.amount = 'חובה למלא סכום';
+  fundingSourceNames(ids: UUID[] | null | undefined): string {
+    if (!ids?.length) return 'כל גורמי המימון';
+
+    const names = this.fundingSources()
+      .filter(fs => ids.includes(fs.id))
+      .map(fs => fs.name);
+
+    return names.length ? names.join(', ') : 'לא נבחרו גורמי מימון';
   }
+  validateNewSpecialCharge(): boolean {
+    const c = this.newSpecialCharge();
+    const mode = this.getSpecialChargeMode(c);
 
-  if (!mode) {
-    errors.mode = 'חובה לבחור סוג חיוב';
-  }
+    const errors: {
+      item?: string;
+      amount?: string;
+      mode?: string;
+    } = {};
 
-  this.newSpecialChargeErrors.set(errors);
-  return Object.keys(errors).length === 0;
-}
-cancelNewSpecialCharge(): void {
-  this.showNewSpecialChargeForm.set(false);
-  this.newSpecialChargeErrors.set({});
-
-  this.newSpecialCharge.set({
-    item: '',
-    amount: null,
-    notes: null,
-    charge_on_registration: true,
-    charge_on_specific_date: false,
-    charge_date: null,
-    first_charge_date: null,
-    charge_times_per_year: null,
-    funding_source_ids: this.fundingSources()
-      .filter(fs => fs.is_active)
-      .map(fs => fs.id),
-    is_required: true,
-    warning_note: null,
-    is_active: true,
-    sort_order: 0,
-  });
-}
-private validateRiderServiceTypeForm(): boolean {
-  const s = this.newRiderServiceType();
-  const errors: {
-    name?: string;
-    default_price_agorot?: string;
-    recurrence?: string;
-  } = {};
-
-  if (!s.name.trim()) {
-    errors.name = 'חובה למלא שם שירות';
-  }
-if (s.default_price_shekel == null || Number(s.default_price_shekel) < 0) {
-  errors.default_price_agorot = 'מחיר חייב להיות 0 ומעלה';
-}
-
-  if (s.is_recurring) {
-    if (!s.default_recurrence_unit || !s.default_recurrence_interval) {
-      errors.recurrence = 'בשירות חוזר חובה למלא יחידת חזרה ותדירות';
-    } else if (Number(s.default_recurrence_interval) <= 0) {
-      errors.recurrence = 'תדירות חייבת להיות גדולה מ־0';
+    if (!c.item?.trim()) {
+      errors.item = 'חובה למלא שם פריט';
     }
+
+    if (c.amount == null || Number(c.amount) <= 0) {
+      errors.amount = 'חובה למלא סכום';
+    }
+
+    if (!mode) {
+      errors.mode = 'חובה לבחור סוג חיוב';
+    }
+
+    this.newSpecialChargeErrors.set(errors);
+    return Object.keys(errors).length === 0;
+  }
+  cancelNewSpecialCharge(): void {
+    this.showNewSpecialChargeForm.set(false);
+    this.newSpecialChargeErrors.set({});
+
+    this.newSpecialCharge.set({
+      item: '',
+      amount: null,
+      notes: null,
+      charge_on_registration: true,
+      charge_on_specific_date: false,
+      charge_date: null,
+      first_charge_date: null,
+      charge_times_per_year: null,
+      funding_source_ids: this.fundingSources()
+        .filter(fs => fs.is_active)
+        .map(fs => fs.id),
+      is_required: true,
+      warning_note: null,
+      is_active: true,
+      sort_order: 0,
+    });
+  }
+  private validateRiderServiceTypeForm(): boolean {
+    const s = this.newRiderServiceType();
+    const errors: {
+      name?: string;
+      default_price_agorot?: string;
+      recurrence?: string;
+    } = {};
+
+    if (!s.name.trim()) {
+      errors.name = 'חובה למלא שם שירות';
+    }
+    if (s.default_price_shekel == null || Number(s.default_price_shekel) < 0) {
+      errors.default_price_agorot = 'מחיר חייב להיות 0 ומעלה';
+    }
+
+    this.riderServiceTypeErrors.set(errors);
+    return Object.keys(errors).length === 0;
   }
 
-  this.riderServiceTypeErrors.set(errors);
-  return Object.keys(errors).length === 0;
-}
-
-private servicePriceToAgorot(value: any): number {
-  return Math.round(Number(value || 0) * 100);
-}
-
-private servicePriceFromAgorot(value: any): number {
-  return Number(value || 0) / 100;
-}
-
-async loadRiderServiceTypes(): Promise<void> {
-  const { data, error } = await this.supabase
-    .from('rider_service_types')
-    .select('*')
-    .order('category', { ascending: true })
-    .order('name', { ascending: true });
-
-  if (error) {
-    console.error('loadRiderServiceTypes error', error);
-    await this.ui.alert('לא ניתן לטעון סוגי שירותים.', 'שגיאה');
-    return;
+  private servicePriceToAgorot(value: any): number {
+    return Math.round(Number(value || 0) * 100);
   }
 
-  this.riderServiceTypes.set(
-    ((data || []) as RiderServiceType[]).map(s => ({
-      ...s,
-      default_price_shekel: this.agorotToShekel(s.default_price_agorot),
-    }))
-  );
-}
-
-toggleNewRiderServiceTypeForm(): void {
-  this.showNewRiderServiceTypeForm.set(!this.showNewRiderServiceTypeForm());
-  this.riderServiceTypeErrors.set({});
-}
-
-resetNewRiderServiceType(): void {
-  this.newRiderServiceType.set({
-    name: '',
-    category: 'general',
-    default_price_agorot: 0,
-    default_price_shekel: null,
-    is_recurring: false,
-    default_recurrence_unit: null,
-    default_recurrence_interval: null,
-    requires_approval: true,
-    is_active: true,
-    notes: null,
-  });
-
-  this.riderServiceTypeErrors.set({});
-}
-
-patchNewRiderServiceType(patch: Partial<RiderServiceType>): void {
-  const current = this.newRiderServiceType();
-
-  const next: RiderServiceType = {
-    ...current,
-    ...patch,
-  };
-
-  if (!next.is_recurring) {
-    next.default_recurrence_unit = null;
-    next.default_recurrence_interval = null;
+  private servicePriceFromAgorot(value: any): number {
+    return Number(value || 0) / 100;
   }
 
-  this.newRiderServiceType.set(next);
-  this.validateRiderServiceTypeForm();
-}
+  async loadRiderServiceTypes(): Promise<void> {
+    const { data, error } = await this.supabase
+      .from('rider_service_types')
+      .select('*')
+      .order('category', { ascending: true })
+      .order('name', { ascending: true });
 
-async addRiderServiceType(): Promise<void> {
-  if (!this.validateRiderServiceTypeForm()) return;
+    if (error) {
+      console.error('loadRiderServiceTypes error', error);
+      await this.ui.alert('לא ניתן לטעון סוגי שירותים.', 'שגיאה');
+      return;
+    }
 
-  const s = this.newRiderServiceType();
-
-  const payload = {
-    name: s.name.trim(),
-    category: s.category,
-default_price_agorot: this.shekelToAgorot(s.default_price_shekel),
-    is_recurring: !!s.is_recurring,
-    default_recurrence_unit: s.is_recurring ? s.default_recurrence_unit : null,
-    default_recurrence_interval: s.is_recurring ? s.default_recurrence_interval : null,
-    requires_approval: !!s.requires_approval,
-    is_active: !!s.is_active,
-    notes: s.notes?.trim() || null,
-  };
-
-  const { error } = await this.supabase
-    .from('rider_service_types')
-    .insert(payload);
-
-  if (error) {
-    console.error('addRiderServiceType error', error);
-    await this.ui.alert('הוספת סוג שירות נכשלה.', 'שגיאה');
-    return;
+    this.riderServiceTypes.set(
+      ((data || []) as RiderServiceType[]).map(s => ({
+        ...s,
+        default_price_shekel: this.agorotToShekel(s.default_price_agorot),
+      }))
+    );
   }
 
-  await this.loadRiderServiceTypes();
-  this.resetNewRiderServiceType();
-  this.showNewRiderServiceTypeForm.set(false);
-
-  await this.ui.alert('סוג השירות נוסף בהצלחה.', 'הצלחה');
-}
-
-startEditRiderServiceType(s: RiderServiceType): void {
-  this.editingRiderServiceTypeId.set(s.id ?? null);
-}
-
-cancelEditRiderServiceType(): void {
-  this.editingRiderServiceTypeId.set(null);
-  this.loadRiderServiceTypes();
-}
-
-async updateRiderServiceType(s: RiderServiceType): Promise<void> {
-  if (!s.id) return;
-
-  if (!s.name.trim()) {
-    await this.ui.alert('חובה למלא שם שירות.', 'שגיאה');
-    return;
-  }
-if (s.default_price_shekel == null || Number(s.default_price_shekel) < 0) {
-  await this.ui.alert('מחיר חייב להיות 0 ומעלה.', 'שגיאה');
-  return;
-}
-
-  if (!s.is_recurring) {
-    s.default_recurrence_unit = null;
-    s.default_recurrence_interval = null;
+  toggleNewRiderServiceTypeForm(): void {
+    this.showNewRiderServiceTypeForm.set(!this.showNewRiderServiceTypeForm());
+    this.riderServiceTypeErrors.set({});
   }
 
-  const { error } = await this.supabase
-    .from('rider_service_types')
-    .update({
+  resetNewRiderServiceType(): void {
+    this.newRiderServiceType.set({
+      name: '',
+      category: 'general',
+      default_price_agorot: 0,
+      default_price_shekel: null,
+      requires_approval: true,
+      is_active: true,
+      requires_task: true,
+    });
+
+    this.riderServiceTypeErrors.set({});
+  }
+
+  patchNewRiderServiceType(patch: Partial<RiderServiceType>): void {
+    const current = this.newRiderServiceType();
+
+    const next: RiderServiceType = {
+      ...current,
+      ...patch,
+    };
+
+    if (patch.category) {
+      next.requires_task = patch.category === 'boarding' ? false : true;
+    }
+
+    this.newRiderServiceType.set(next);
+    this.validateRiderServiceTypeForm();
+  }
+  async addRiderServiceType(): Promise<void> {
+    if (!this.validateRiderServiceTypeForm()) return;
+
+    const s = this.newRiderServiceType();
+
+    const payload = {
       name: s.name.trim(),
       category: s.category,
-default_price_agorot: this.shekelToAgorot(s.default_price_shekel),
-      is_recurring: !!s.is_recurring,
-      default_recurrence_unit: s.is_recurring ? s.default_recurrence_unit : null,
-      default_recurrence_interval: s.is_recurring ? s.default_recurrence_interval : null,
+      default_price_agorot: this.shekelToAgorot(s.default_price_shekel),
       requires_approval: !!s.requires_approval,
       is_active: !!s.is_active,
-      notes: s.notes?.trim() || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', s.id);
+      requires_task: !!s.requires_task,
+    };
+    const { error } = await this.supabase
+      .from('rider_service_types')
+      .insert(payload);
 
-  if (error) {
-    console.error('updateRiderServiceType error', error);
-    await this.ui.alert('עדכון סוג שירות נכשל.', 'שגיאה');
-    return;
+    if (error) {
+      console.error('addRiderServiceType error', error);
+      await this.ui.alert('הוספת סוג שירות נכשלה.', 'שגיאה');
+      return;
+    }
+
+    await this.loadRiderServiceTypes();
+    this.resetNewRiderServiceType();
+    this.showNewRiderServiceTypeForm.set(false);
+
+    await this.ui.alert('סוג השירות נוסף בהצלחה.', 'הצלחה');
   }
 
-  this.editingRiderServiceTypeId.set(null);
-  await this.loadRiderServiceTypes();
-  await this.ui.alert('סוג השירות עודכן בהצלחה.', 'הצלחה');
-}
-
-async deleteRiderServiceType(s: RiderServiceType): Promise<void> {
-  if (!s.id) return;
-
-  const ok = await this.ui.confirm({
-    title: 'מחיקת סוג שירות',
-    message: `למחוק את "${s.name}"?`,
-    okText: 'מחיקה',
-    cancelText: 'ביטול',
-    showCancel: true,
-  });
-
-  if (!ok) return;
-
-  const { error } = await this.supabase
-    .from('rider_service_types')
-    .delete()
-    .eq('id', s.id);
-
-  if (error) {
-    console.error('deleteRiderServiceType error', error);
-    await this.ui.alert('מחיקת סוג שירות נכשלה. ייתכן שהוא כבר בשימוש.', 'שגיאה');
-    return;
+  startEditRiderServiceType(s: RiderServiceType): void {
+    this.editingRiderServiceTypeId.set(s.id ?? null);
   }
 
-  await this.loadRiderServiceTypes();
-}
-private shekelToAgorot(value: any): number {
-  const n = Number(value ?? 0);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.round(n * 100);
-}
+  cancelEditRiderServiceType(): void {
+    this.editingRiderServiceTypeId.set(null);
+    this.loadRiderServiceTypes();
+  }
 
-private agorotToShekel(value: any): number {
-  const n = Number(value ?? 0);
-  return Math.round((n / 100) * 100) / 100;
-}
+  async updateRiderServiceType(s: RiderServiceType): Promise<void> {
+    if (!s.id) return;
+
+    if (!s.name.trim()) {
+      await this.ui.alert('חובה למלא שם שירות.', 'שגיאה');
+      return;
+    }
+    if (s.default_price_shekel == null || Number(s.default_price_shekel) < 0) {
+      await this.ui.alert('מחיר חייב להיות 0 ומעלה.', 'שגיאה');
+      return;
+    }
+
+    const { error } = await this.supabase
+      .from('rider_service_types')
+      .update({
+        name: s.name.trim(),
+        category: s.category,
+        default_price_agorot: this.shekelToAgorot(s.default_price_shekel),
+        requires_approval: !!s.requires_approval,
+        is_active: !!s.is_active,
+        requires_task: !!s.requires_task,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', s.id);
+
+    if (error) {
+      console.error('updateRiderServiceType error', error);
+      await this.ui.alert('עדכון סוג שירות נכשל.', 'שגיאה');
+      return;
+    }
+
+    this.editingRiderServiceTypeId.set(null);
+    await this.loadRiderServiceTypes();
+    await this.ui.alert('סוג השירות עודכן בהצלחה.', 'הצלחה');
+  }
+
+  async deleteRiderServiceType(s: RiderServiceType): Promise<void> {
+    if (!s.id) return;
+
+    const ok = await this.ui.confirm({
+      title: 'מחיקת סוג שירות',
+      message: `למחוק את "${s.name}"?`,
+      okText: 'מחיקה',
+      cancelText: 'ביטול',
+      showCancel: true,
+    });
+
+    if (!ok) return;
+
+    const { error } = await this.supabase
+      .from('rider_service_types')
+      .delete()
+      .eq('id', s.id);
+
+    if (error) {
+      console.error('deleteRiderServiceType error', error);
+      await this.ui.alert('מחיקת סוג שירות נכשלה. ייתכן שהוא כבר בשימוש.', 'שגיאה');
+      return;
+    }
+
+    await this.loadRiderServiceTypes();
+  }
+  private shekelToAgorot(value: number | null | undefined): number {
+    return Math.round(Number(value || 0) * 100);
+  }
+
+  private agorotToShekel(value: number | null | undefined): number {
+    return Number(value || 0) / 100;
+  }
+
 }
 
