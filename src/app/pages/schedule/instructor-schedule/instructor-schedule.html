@@ -132,13 +132,16 @@
     <div class="modal-actions">
       <button type="button" class="cancel" (click)="closeRangeModal()">ביטול</button>
 
-      <button type="button" class="confirm" *ngIf="!rangeModal.reviewedImpact" [disabled]="!!error"
+      <!-- <button type="button" class="confirm" *ngIf="!rangeModal.reviewedImpact" [disabled]="!!error"
         (click)="onImpactButtonClick()">
         בדיקת השפעה
-      </button>
-
+      </button> -->
+      <!-- 
       <button type="button" class="confirm" *ngIf="rangeModal.reviewedImpact" [disabled]="!!error"
         (click)="onImpactButtonClick()">
+        אישור ושליחה
+      </button> -->
+      <button type="button" class="confirm" [disabled]="!!error || impactLoading" (click)="submitRange()">
         אישור ושליחה
       </button>
     </div>
