@@ -1,18 +1,18 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { dbTenant, getCurrentUserData } from '../../services/legacy-compat';
+import { getCurrentUserData } from '../../services/legacy-compat';
+import { dbTenant, supabase } from '../../services/supabaseClient.service';
+import { createClient } from '@supabase/supabase-js';
+import { environment } from '../../../environments/environment';
+
 
 type RiderServiceType = {
     id: string;
     name: string;
     category: string;
     default_price_agorot: number;
-    is_recurring: boolean;
-    default_recurrence_unit: string | null;
-    default_recurrence_interval: number | null;
     requires_approval: boolean;
-    notes: string | null;
 };
 
 type HorseOption = {
@@ -45,11 +45,14 @@ export class IndependentServiceRequestComponent implements OnInit {
         horse_uid: '',
         requested_start_date: '',
         requested_end_date: '',
+
         service_mode: 'once' as 'once' | 'recurring_range' | 'permanent',
+        recurrence_unit: 'month' as 'day' | 'week' | 'month',
+        recurrence_interval: 1,
+
         notes: '',
         approval_file: null as File | null,
     };
-
     async ngOnInit() {
         try {
             const user = await getCurrentUserData();
@@ -79,16 +82,12 @@ export class IndependentServiceRequestComponent implements OnInit {
         const { data, error } = await db
             .from('rider_service_types')
             .select(`
-        id,
-        name,
-        category,
-        default_price_agorot,
-        is_recurring,
-        default_recurrence_unit,
-        default_recurrence_interval,
-        requires_approval,
-        notes
-      `)
+      id,
+      name,
+      category,
+      default_price_agorot,
+      requires_approval
+    `)
             .eq('is_active', true)
             .order('category', { ascending: true })
             .order('name', { ascending: true });
@@ -131,18 +130,6 @@ export class IndependentServiceRequestComponent implements OnInit {
         }
     }
 
-    recurrenceText(service: RiderServiceType | null): string {
-        if (!service?.is_recurring) return 'חד פעמי';
-
-        const interval = service.default_recurrence_interval ?? 1;
-
-        switch (service.default_recurrence_unit) {
-            case 'day': return `כל ${interval} יום`;
-            case 'week': return `כל ${interval} שבוע`;
-            case 'month': return `כל ${interval} חודש`;
-            default: return 'מחזורי';
-        }
-    }
 
     priceText(agorot: number | null | undefined): string {
         const value = (agorot ?? 0) / 100;
@@ -171,7 +158,14 @@ export class IndependentServiceRequestComponent implements OnInit {
                 : 'יש לבחור תאריך התחלה';
             return false;
         }
+        const today = this.todayYmd();
 
+        if (this.form.requested_start_date < today) {
+            this.error = this.isOnceMode
+                ? 'תאריך הביצוע לא יכול להיות לפני היום.'
+                : 'תאריך ההתחלה לא יכול להיות לפני היום.';
+            return false;
+        }
         if (this.isRecurringRangeMode && !this.form.requested_end_date) {
             this.error = 'יש לבחור תאריך סיום לשירות מחזורי';
             return false;
@@ -179,9 +173,21 @@ export class IndependentServiceRequestComponent implements OnInit {
 
         if (
             this.isRecurringRangeMode &&
-            this.form.requested_end_date < this.form.requested_start_date
+            this.form.requested_end_date <= this.form.requested_start_date
         ) {
-            this.error = 'תאריך סיום לא יכול להיות לפני תאריך התחלה';
+            this.error = 'תאריך סיום חייב להיות אחרי תאריך ההתחלה';
+            return false;
+        }
+        if ((this.isRecurringRangeMode || this.isPermanentMode) && !this.form.recurrence_unit) {
+            this.error = 'יש לבחור יחידת ביצוע';
+            return false;
+        }
+
+        if (
+            (this.isRecurringRangeMode || this.isPermanentMode) &&
+            (!this.form.recurrence_interval || this.form.recurrence_interval < 1)
+        ) {
+            this.error = 'יש למלא כל כמה זמן לבצע את השירות';
             return false;
         }
         if (service.requires_approval && !this.form.approval_file) {
@@ -192,8 +198,16 @@ export class IndependentServiceRequestComponent implements OnInit {
         return true;
     }
 
-    async submit() {
+    async submit(event?: Event) {
+        event?.preventDefault();
+        event?.stopPropagation();
+
         if (this.submitting) return;
+
+        if (!this.validate()) {
+            this.scrollToError();
+            return;
+        } if (this.submitting) return;
         if (!this.validate()) return;
 
         const service = this.selectedService;
@@ -203,6 +217,7 @@ export class IndependentServiceRequestComponent implements OnInit {
             this.error = 'בחירה לא תקינה';
             return;
         }
+
 
         this.submitting = true;
         this.error = '';
@@ -215,7 +230,10 @@ export class IndependentServiceRequestComponent implements OnInit {
 
         try {
             const db = dbTenant();
-
+            let approvalFilePayload: any = null;
+            if (this.form.approval_file) {
+                approvalFilePayload = await this.uploadApprovalFile(this.form.approval_file);
+            }
             const payload = {
                 rider_uid: this.userUid,
 
@@ -227,22 +245,13 @@ export class IndependentServiceRequestComponent implements OnInit {
                 horse_name: horse.name,
 
                 default_price_agorot: service.default_price_agorot,
-                is_recurring: service.is_recurring,
-                default_recurrence_unit: service.default_recurrence_unit,
-                default_recurrence_interval: service.default_recurrence_interval,
 
                 notes: this.form.notes?.trim() || null,
+
+                summary: this.buildSummary(service.name, horse.name),
+                approval_file: approvalFilePayload,
                 service_mode: this.form.service_mode,
 
-                requested_recurrence_unit:
-                    this.isRecurringRangeMode || this.isPermanentMode
-                        ? service.default_recurrence_unit
-                        : null,
-
-                requested_recurrence_interval:
-                    this.isRecurringRangeMode || this.isPermanentMode
-                        ? service.default_recurrence_interval
-                        : null,
                 requested_start_date: this.form.requested_start_date,
 
                 requested_end_date: this.isRecurringRangeMode
@@ -251,22 +260,18 @@ export class IndependentServiceRequestComponent implements OnInit {
 
                 is_permanent: this.isPermanentMode,
 
+                recurrence_unit: this.isOnceMode ? null : this.form.recurrence_unit,
+                recurrence_interval: this.isOnceMode ? null : this.form.recurrence_interval,
+
                 planned_dates: this.isRecurringRangeMode
                     ? this.plannedDates
                     : [],
-                summary: this.buildSummary(service.name, horse.name),
+
                 service_settings: {
                     category: service.category,
                     default_price_agorot: service.default_price_agorot,
-                    is_recurring: service.is_recurring,
-                    default_recurrence_unit: service.default_recurrence_unit,
-                    default_recurrence_interval: service.default_recurrence_interval,
                     requires_approval: service.requires_approval,
-                    notes: service.notes,
                 },
-
-
-                approval_file: approvalFilePayload,
             };
 
             const { error } = await db
@@ -290,15 +295,16 @@ export class IndependentServiceRequestComponent implements OnInit {
             if (error) throw error;
 
             this.success = 'הבקשה נשלחה למזכירות בהצלחה ✅';
-
             this.form = {
                 service_type_id: '',
                 horse_uid: '',
                 requested_start_date: '',
                 requested_end_date: '',
-                service_mode: 'once' as 'once' | 'recurring_range' | 'permanent', notes: '',
-                approval_file: null as File | null,
-
+                service_mode: 'once',
+                recurrence_unit: 'month',
+                recurrence_interval: 1,
+                notes: '',
+                approval_file: null,
             };
 
         } catch (e: any) {
@@ -308,37 +314,23 @@ export class IndependentServiceRequestComponent implements OnInit {
         }
     }
 
-
     onServiceChanged() {
-        const service = this.selectedService;
-
-        if (!service) {
-            this.form.service_mode = 'once';
-            return;
-        }
-
-        this.form.service_mode = service.is_recurring ? 'recurring_range' : 'once';
-
         this.form.requested_start_date = '';
         this.form.requested_end_date = '';
+        this.form.service_mode = 'once';
+        this.form.recurrence_unit = 'month';
+        this.form.recurrence_interval = 1;
         this.plannedDates = [];
-
-        this.recalculatePlannedDates();
     }
-
     recalculatePlannedDates() {
         this.plannedDates = [];
 
-        const service = this.selectedService;
-
         if (
-            !service ||
-            !service.is_recurring ||
             !this.isRecurringRangeMode ||
             !this.form.requested_start_date ||
             !this.form.requested_end_date ||
-            !service.default_recurrence_unit ||
-            !service.default_recurrence_interval
+            !this.form.recurrence_unit ||
+            !this.form.recurrence_interval
         ) {
             return;
         }
@@ -355,17 +347,17 @@ export class IndependentServiceRequestComponent implements OnInit {
         while (current <= end && dates.length < 100) {
             dates.push(current.toISOString().slice(0, 10));
 
-            switch (service.default_recurrence_unit) {
+            switch (this.form.recurrence_unit) {
                 case 'day':
-                    current.setDate(current.getDate() + service.default_recurrence_interval);
+                    current.setDate(current.getDate() + this.form.recurrence_interval);
                     break;
 
                 case 'week':
-                    current.setDate(current.getDate() + service.default_recurrence_interval * 7);
+                    current.setDate(current.getDate() + this.form.recurrence_interval * 7);
                     break;
 
                 case 'month':
-                    current.setMonth(current.getMonth() + service.default_recurrence_interval);
+                    current.setMonth(current.getMonth() + this.form.recurrence_interval);
                     break;
             }
         }
@@ -407,43 +399,48 @@ export class IndependentServiceRequestComponent implements OnInit {
     private async uploadApprovalFile(file: File): Promise<{
         bucket: string;
         path: string;
+        publicUrl: string;
         name: string;
         type: string;
         size: number;
     }> {
-        const db = dbTenant();
+        if (!supabase) {
+            throw new Error('Supabase client is not initialized');
+        }
 
-        const safeName = file.name
-            .replace(/\s+/g, '_')
-            .replace(/[^\w.\-א-ת]/g, '');
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'file';
 
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
-        const filePath =
-            `moacha_atarim_app/${this.userUid}/${timestamp}-${safeName}`;
+        const random = Math.random().toString(36).slice(2, 10);
 
-        const { error } = await db.storage
+        const filePath = `${this.userUid}/${timestamp}-${random}.${ext}`;
+
+
+        const { error } = await supabase.storage
             .from('rider-service-approvals')
             .upload(filePath, file, {
-                cacheControl: '3600',
-                upsert: false,
+                upsert: true,
                 contentType: file.type,
             });
 
         if (error) {
+            console.error('UPLOAD RIDER SERVICE APPROVAL ERROR', error);
             throw new Error(`שגיאה בהעלאת הקובץ: ${error.message}`);
         }
+
+        const { data } = supabase.storage
+            .from('rider-service-approvals')
+            .getPublicUrl(filePath);
 
         return {
             bucket: 'rider-service-approvals',
             path: filePath,
+            publicUrl: data.publicUrl,
             name: file.name,
             type: file.type,
             size: file.size,
         };
-    }
-    get isRecurringService(): boolean {
-        return !!this.selectedService?.is_recurring;
     }
 
     get isOnceMode(): boolean {
@@ -460,6 +457,8 @@ export class IndependentServiceRequestComponent implements OnInit {
     onServiceModeChanged() {
         this.form.requested_start_date = '';
         this.form.requested_end_date = '';
+        this.form.recurrence_unit = 'month';
+        this.form.recurrence_interval = 1;
         this.plannedDates = [];
     }
     private buildSummary(serviceName: string, horseName: string): string {
@@ -472,5 +471,54 @@ export class IndependentServiceRequestComponent implements OnInit {
         }
 
         return `בקשה לשירות "${serviceName}" עבור הסוס/ה ${horseName} כשירות קבוע החל מתאריך ${this.form.requested_start_date}`;
+    }
+    private async fixedServiceAlreadyExists(): Promise<boolean> {
+        const service = this.selectedService;
+
+        if (!service || !this.isOnceMode) return false;
+        if (!this.form.horse_uid) return false;
+
+        const db = dbTenant();
+
+        const { data, error } = await db
+            .from('rider_services')
+            .select('id')
+            .eq('rider_uid', this.userUid)
+            .eq('horse_uid', this.form.horse_uid)
+            .eq('service_type_id', service.id)
+            .eq('service_mode', 'once')
+            .eq('start_date', this.form.requested_start_date)
+            .in('status', ['active', 'completed'])
+            .limit(1);
+
+        if (error) throw error;
+
+        return !!data?.length;
+    }
+    private storageClient = createClient(
+        environment.supabaseUrl,
+        environment.supabaseAnonKey
+    );
+    private todayYmd(): string {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+    private scrollToError(): void {
+        setTimeout(() => {
+            const el =
+                document.querySelector('.state-card.error') ||
+                document.querySelector('.error-text') ||
+                document.querySelector('.field-error');
+
+            if (el) {
+                el.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                });
+            }
+        }, 0);
     }
 }

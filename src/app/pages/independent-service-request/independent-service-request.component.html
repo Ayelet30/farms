@@ -21,64 +21,65 @@
     <div *ngIf="!loading && !horses.length" class="state-card empty">
         לא נמצאו סוסים פעילים המשויכים אליך.
     </div>
+    <form *ngIf="!loading && horses.length" class="service-card" (ngSubmit)="submit($event)" novalidate>
+        <section class="form-section">
+            <h3>בחירת שירות</h3>
 
-    <form *ngIf="!loading && horses.length" class="service-card" (ngSubmit)="submit()">
-        <div class="form-grid">
-
-            <div class="field">
-                <label>סוג שירות</label>
-
-                <select [(ngModel)]="form.service_type_id" name="service_type_id" (change)="onServiceChanged()">
-                    <option value="">בחר/י שירות</option>
-
-                    <option *ngFor="let service of serviceTypes" [value]="service.id">
-                        {{ service.name }} · {{ categoryLabel(service.category) }}
-                    </option>
-                </select>
-            </div>
-
-            <div class="field">
-                <label>סוס</label>
-
-                <select [(ngModel)]="form.horse_uid" name="horse_uid">
-                    <option value="">בחר/י סוס</option>
-
-                    <option *ngFor="let horse of horses" [value]="horse.id">
-                        {{ horse.name }}
-                    </option>
-                </select>
-            </div>
-
-            <div class="field service-mode-field">
-                <label>אופי השירות</label>
-
-                <div class="mode-options">
-                    <label class="mode-option" [class.active]="form.service_mode === 'once'">
-                        <input type="radio" name="service_mode" value="once" [(ngModel)]="form.service_mode"
-                            [disabled]="isRecurringService" (change)="onServiceModeChanged()" />
-                        חד־פעמי
-                    </label>
-
-                    <label class="mode-option" [class.active]="form.service_mode === 'recurring_range'">
-                        <input type="radio" name="service_mode" value="recurring_range" [(ngModel)]="form.service_mode"
-                            [disabled]="!isRecurringService" (change)="onServiceModeChanged()" />
-                        מחזורי לתקופה
-                    </label>
-
-                    <label class="mode-option" [class.active]="form.service_mode === 'permanent'">
-                        <input type="radio" name="service_mode" value="permanent" [(ngModel)]="form.service_mode"
-                            [disabled]="!isRecurringService" (change)="onServiceModeChanged()" />
-                        קבוע ללא תאריך סיום
-                    </label>
+            <div class="form-grid">
+                <div class="field">
+                    <label>סוג שירות</label>
+                    <select required [(ngModel)]="form.service_type_id" name="service_type_id"
+                        (change)="onServiceChanged()">
+                        <option value="">בחר/י שירות</option>
+                        <option *ngFor="let service of serviceTypes" [value]="service.id">
+                            {{ service.name }} · {{ categoryLabel(service.category) }}
+                        </option>
+                    </select>
                 </div>
 
-                <small class="field-hint" *ngIf="!isRecurringService && selectedService">
-                    שירות זה מוגדר כחד־פעמי בלבד.
-                </small>
+                <div class="field">
+                    <label>סוס</label>
+                    <select required [(ngModel)]="form.horse_uid" name="horse_uid">
+                        <option value="">בחר/י סוס</option>
+                        <option *ngFor="let horse of horses" [value]="horse.id">
+                            {{ horse.name }}
+                        </option>
+                    </select>
+                </div>
             </div>
-            <div class="date-range-card" *ngIf="isRecurringRangeMode">
+        </section>
 
-                <div class="range-grid">
+        <section class="form-section" *ngIf="selectedService">
+            <h3>אופי השירות</h3>
+
+            <div class="mode-options">
+                <label class="mode-option" [class.active]="form.service_mode === 'once'">
+                    <input type="radio" name="service_mode" value="once" [(ngModel)]="form.service_mode"
+                        (change)="onServiceModeChanged()" />
+                    חד־פעמי
+                </label>
+
+                <label class="mode-option" [class.active]="form.service_mode === 'recurring_range'">
+                    <input type="radio" name="service_mode" value="recurring_range" [(ngModel)]="form.service_mode"
+                        (change)="onServiceModeChanged()" />
+                    מחזורי לתקופה
+                </label>
+
+                <label class="mode-option" [class.active]="form.service_mode === 'permanent'">
+                    <input type="radio" name="service_mode" value="permanent" [(ngModel)]="form.service_mode"
+                        (change)="onServiceModeChanged()" />
+                    קבוע ללא תאריך סיום
+                </label>
+            </div>
+
+            <div class="form-grid dates-grid">
+                <div class="field" *ngIf="!isRecurringRangeMode">
+                    <label>{{ isOnceMode ? 'תאריך ביצוע' : 'תאריך התחלה' }}</label>
+                    <input required type="date" [(ngModel)]="form.requested_start_date" name="requested_start_date"
+                        (change)="recalculatePlannedDates()" />
+                </div>
+
+                <ng-container *ngIf="isRecurringRangeMode">
                     <div class="field">
                         <label>מתאריך</label>
                         <input type="date" [(ngModel)]="form.requested_start_date" name="requested_start_date"
@@ -87,25 +88,32 @@
 
                     <div class="field">
                         <label>עד תאריך</label>
-                        <input type="date" [(ngModel)]="form.requested_end_date" name="requested_end_date"
+                        <input required type="date" [(ngModel)]="form.requested_end_date" name="requested_end_date"
                             (change)="recalculatePlannedDates()" />
                     </div>
-                </div>
+                </ng-container>
+
+                <ng-container *ngIf="isRecurringRangeMode || isPermanentMode">
+                    <div class="field">
+                        <label>יחידת ביצוע</label>
+                        <select [(ngModel)]="form.recurrence_unit" name="recurrence_unit"
+                            (change)="recalculatePlannedDates()">
+                            <option value="day">יום</option>
+                            <option value="week">שבוע</option>
+                            <option value="month">חודש</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label>כל כמה זמן</label>
+                        <input type="number" min="1" [(ngModel)]="form.recurrence_interval" name="recurrence_interval"
+                            (change)="recalculatePlannedDates()" />
+                    </div>
+                </ng-container>
             </div>
+        </section>
 
-            <div class="field" *ngIf="!isRecurringRangeMode">
-                <label>
-                    {{ isOnceMode ? 'תאריך ביצוע מבוקש' : 'תאריך התחלה' }}
-                </label>
-
-
-
-                <input type="date" [(ngModel)]="form.requested_start_date" name="requested_start_date"
-                    (change)="recalculatePlannedDates()" />
-            </div>
-        </div>
-
-        <div class="selected-service" *ngIf="selectedService as service">
+        <section class="selected-service" *ngIf="selectedService as service">
             <h3>פרטי השירות</h3>
 
             <div class="service-info-grid">
@@ -120,11 +128,6 @@
                 </div>
 
                 <div>
-                    <span>תדירות</span>
-                    <b>{{ recurrenceText(service) }}</b>
-                </div>
-
-                <div>
                     <span>דורש אישור</span>
                     <b>{{ service.requires_approval ? 'כן' : 'לא' }}</b>
                 </div>
@@ -132,38 +135,37 @@
 
             <div class="planned-dates" *ngIf="plannedDates.length">
                 <h3>תאריכי ביצוע צפויים</h3>
-
                 <div class="date-chips">
                     <span class="date-chip" *ngFor="let d of plannedDates">
                         {{ d | date:'dd/MM/yy' }}
                     </span>
                 </div>
             </div>
+        </section>
 
-            <p *ngIf="service.notes">
-                {{ service.notes }}
-            </p>
-        </div>
+        <section class="form-section" *ngIf="selectedService?.requires_approval">
+            <h3>צירוף אישור</h3>
 
-        <div class="field" *ngIf="selectedService?.requires_approval">
-            <label>צירוף אישור חובה</label>
+            <div class="field">
+                <label>מסמך אישור חובה</label>
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" (change)="onApprovalFileSelected($event)" />
+                <small>ניתן לצרף PDF או תמונה.</small>
 
-            <input type="file" accept=".pdf,.jpg,.jpeg,.png" (change)="onApprovalFileSelected($event)" />
-
-            <small>
-                עבור שירות זה חובה לצרף אישור. ניתן לצרף PDF או תמונה.
-            </small>
-
-            <div class="error-text" *ngIf="approvalFileError">
-                {{ approvalFileError }}
+                <div class="error-text" *ngIf="approvalFileError">
+                    {{ approvalFileError }}
+                </div>
             </div>
-        </div>
+        </section>
 
-        <div class="field">
-            <label>הערות לבקשה</label>
+        <section class="form-section">
+            <h3>הערות</h3>
 
-            <textarea [(ngModel)]="form.notes" name="notes" rows="4" placeholder="פירוט נוסף למזכירות..."></textarea>
-        </div>
+            <div class="field">
+                <label>הערות לבקשה</label>
+                <textarea [(ngModel)]="form.notes" name="notes" rows="4"
+                    placeholder="פירוט נוסף למזכירות..."></textarea>
+            </div>
+        </section>
 
         <div class="actions">
             <button type="submit" class="btn-submit" [disabled]="submitting">
