@@ -930,8 +930,7 @@ export class InstructorScheduleComponent implements OnInit {
   async submitRange(): Promise<void> {
     this.error = null;
 
-    const { from, to, allDay, fromTime, toTime, type, text, reviewedImpact } = this.rangeModal;
-    this.lastAllDayPref = !!allDay;
+    const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal; this.lastAllDayPref = !!allDay;
 
     if (!from || !to) {
       this.error = 'חובה לבחור מתאריך ועד תאריך';
@@ -975,35 +974,35 @@ export class InstructorScheduleComponent implements OnInit {
       this.cdr.detectChanges();
       return;
     }
-    // שלב 1: בדיקת השפעה
-    if (!reviewedImpact) {
-      try {
-        this.impactLoading = true;
-        this.affectedChildren = [];
-        const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
-        if (hasLessons) {
-          await this.loadAffectedChildrenFromDb(
-            from,
-            to,
-            allDay,
-            allDay ? null : fromTime,
-            allDay ? null : toTime
-          );
-        }
-        this.rangeModal.reviewedImpact = true;
-        this.impactReviewMode = true;
-        this.cdr.detectChanges();
-        return;
-      } catch (err: any) {
-        console.error('submitRange impact check error', err);
-        this.error = err?.message || 'שגיאה בבדיקת ההשפעה של הבקשה';
-        this.cdr.detectChanges();
-        return;
-      } finally {
-        this.impactLoading = false;
-        this.cdr.detectChanges();
-      }
-    }
+    // // שלב 1: בדיקת השפעה
+    // if (!reviewedImpact) {
+    //   try {
+    //     this.impactLoading = true;
+    //     this.affectedChildren = [];
+    //     const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
+    //     if (hasLessons) {
+    //       await this.loadAffectedChildrenFromDb(
+    //         from,
+    //         to,
+    //         allDay,
+    //         allDay ? null : fromTime,
+    //         allDay ? null : toTime
+    //       );
+    //     }
+    //     this.rangeModal.reviewedImpact = true;
+    //     this.impactReviewMode = true;
+    //     this.cdr.detectChanges();
+    //     return;
+    //   } catch (err: any) {
+    //     console.error('submitRange impact check error', err);
+    //     this.error = err?.message || 'שגיאה בבדיקת ההשפעה של הבקשה';
+    //     this.cdr.detectChanges();
+    //     return;
+    //   } finally {
+    //     this.impactLoading = false;
+    //     this.cdr.detectChanges();
+    //   }
+    // }
 
     // שלב 2: שליחה בפועל
     try {
@@ -1050,22 +1049,11 @@ export class InstructorScheduleComponent implements OnInit {
     if (!date) return;
 
     const allDay = this.lastAllDayPref;
-    const farmError = this.validateFarmAvailability(
-      date,
-      date,
-      allDay,
-      allDay ? null : '08:00',
-      allDay ? null : '12:00'
-    );
 
-    if (farmError) {
-      this.error = farmError;
-      this.cdr.detectChanges();
-      return;
-    }
     this.affectedChildren = [];
     this.impactReviewMode = false;
     this.impactLoading = false;
+    this.error = null;
 
     this.rangeModal = {
       open: true,
@@ -1081,6 +1069,11 @@ export class InstructorScheduleComponent implements OnInit {
 
     this.selectedSickFile = null;
     this.pendingSickFile = null;
+
+    this.cdr.detectChanges();
+
+    // ✅ מיד אחרי פתיחת החלון — לבצע בדיקת השפעה
+    await this.refreshAffectedChildrenPreview();
 
     this.cdr.detectChanges();
   }
