@@ -71,7 +71,14 @@ type ToastKind = 'success' | 'error' | 'info';
 // type ValidationResult = { ok: true } | { ok: false; reason: string };
 type RejectSource = 'user' | 'system';
 type RejectArgs = { source: RejectSource; reason?: string };
-type RequesterRole = 'parent' | 'instructor' | 'secretary' | 'admin' | 'manager';
+type RequesterRole =
+  | 'parent'
+  | 'instructor'
+  | 'secretary'
+  | 'admin'
+  | 'manager'
+  | 'independent'
+  | 'independent_rider';
 type CheckKey = 'expiry' | 'requester' | 'child' | 'instructor' | 'parentTarget';
 
 // type RequestRule = {
@@ -158,7 +165,12 @@ export class SecretarialRequestsPageComponent implements OnInit {
     const myUid = this.curentUser?.uid ?? null;
     if (!myUid) return [];
 
-    return list.filter(r => r.requesterUid === myUid);
+    const myRole = this.normalizeRole(this.currentRole);
+
+    return list.filter(r =>
+      r.requesterUid === myUid &&
+      this.normalizeRole(r.requesterRole) === myRole
+    );
   }
 
   pendingCount = computed(() =>
@@ -270,6 +282,16 @@ export class SecretarialRequestsPageComponent implements OnInit {
   private get currentRole(): string | null {
     return (this.curentUser as any)?.role_in_tenant ?? this.curentUser?.role ?? null;
   }
+  private normalizeRole(role: string | null | undefined): string | null {
+    if (!role) return null;
+
+    const r = String(role).trim().toLowerCase();
+
+    if (r === 'independent_rider') return 'independent';
+    if (r === 'rider') return 'independent';
+
+    return r;
+  }
   get isSecretary(): boolean {
     return this.currentRole === 'secretary';
   }
@@ -330,7 +352,10 @@ export class SecretarialRequestsPageComponent implements OnInit {
       // הורה/מדריך רואים רק של עצמם
       if (!this.isSecretary) {
         if (!myUid) return false;
+        const myRole = this.normalizeRole(this.currentRole);
+
         if (r.requesterUid !== myUid) return false;
+        if (this.normalizeRole(r.requesterRole) !== myRole) return false;
       }
 
       if (status !== 'ALL') {
