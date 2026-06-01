@@ -48,8 +48,8 @@ type SeriesDocRow = {
   status: string | null;
   paymentDocsUrl: string | null;
   paymentPlanId: string | null;
-requiredDocs: string[];
-requireDocsAtBooking: boolean | null;
+  requiredDocs: string[];
+  requireDocsAtBooking: boolean | null;
 };
 
 type ParentBrief = {
@@ -69,7 +69,7 @@ type ChildDetails = {
   gov_id?: string | null;
   birth_date?: string | null;
   gender?: string | null;
-funding_source_id?: string | null;
+  funding_source_id?: string | null;
   status?: string | null;
   medical_notes?: string | null;
   behavior_notes?: string | null;
@@ -136,13 +136,13 @@ export class SecretaryChildrenComponent implements OnInit {
   readonly MAX_MEDICAL_NOTES = 300;
   readonly MAX_BEHAVIOR_NOTES = 300;
 
-healthFunds: { id: string; name: string }[] = [];
+  healthFunds: { id: string; name: string }[] = [];
   readonly statusOptions = [
-  { value: 'Active', label: 'פעיל' },
-  { value: 'Deleted', label: 'לא פעיל' },
-  { value: 'Pending Parent Terms', label: 'ממתין לאישור הורה' },
-  { value: 'Pending Addition Approval', label: 'ממתין לאישור מזכירה' },
-];
+    { value: 'Active', label: 'פעיל' },
+    { value: 'Deleted', label: 'לא פעיל' },
+    { value: 'Pending Parent Terms', label: 'ממתין לאישור הורה' },
+    { value: 'Pending Addition Approval', label: 'ממתין לאישור מזכירה' },
+  ];
 
   readonly STORAGE_KEY = 'secretary_children_table_prefs';
 
@@ -152,7 +152,7 @@ healthFunds: { id: string; name: string }[] = [];
     { key: 'gov_id', label: 'תעודת זהות', visible: true },
     { key: 'birth_date', label: 'תאריך לידה', visible: false },
     { key: 'gender', label: 'מין', visible: false },
-    { key: 'funding_source_id', label: 'קופת חולים', visible: false },    { key: 'status', label: 'סטטוס', visible: true },
+    { key: 'funding_source_id', label: 'קופת חולים', visible: false }, { key: 'status', label: 'סטטוס', visible: true },
     { key: 'parent_status', label: 'שיוך להורה', visible: true },
   ];
 
@@ -172,11 +172,11 @@ healthFunds: { id: string; name: string }[] = [];
   @ViewChild('drawer') drawer!: MatSidenav;
 
   childDocsLoading = false;
-childDocsError: string | null = null;
-childDocs: ChildDocumentRow[] = [];
-allChildDocs: ChildDocumentRow[] = [];
-uploadingChildDoc = false;
-newChildDocName = '';
+  childDocsError: string | null = null;
+  childDocs: ChildDocumentRow[] = [];
+  allChildDocs: ChildDocumentRow[] = [];
+  uploadingChildDoc = false;
+  newChildDocName = '';
 
   selectedId: string | null = null;
   drawerLoading = false;
@@ -207,7 +207,7 @@ newChildDocName = '';
   seriesDocsLoading = false;
   seriesDocsError: string | null = null;
   seriesDocs: SeriesDocRow[] = [];
-uploadingSeriesDocLessonId: string | null = null;
+  uploadingSeriesDocLessonId: string | null = null;
   constructor(
     private ui: UiDialogService,
     private fb: FormBuilder,
@@ -215,7 +215,7 @@ uploadingSeriesDocLessonId: string | null = null;
     private sanitizer: DomSanitizer,
     private router: Router,
     private route: ActivatedRoute,
-  ) {}
+  ) { }
 
   async ngOnInit(): Promise<void> {
     try {
@@ -224,9 +224,9 @@ uploadingSeriesDocLessonId: string | null = null;
       await this.loadFundingSources();
       await this.loadChildren();
       const childId = this.route.snapshot.queryParamMap.get('childId');
-if (childId) {
-  setTimeout(() => this.openDetails(childId), 0);
-}
+      if (childId) {
+        setTimeout(() => this.openDetails(childId), 0);
+      }
       this.updateStats();
     } catch (e: any) {
       this.error =
@@ -256,9 +256,9 @@ if (childId) {
     };
   }
 
- isActiveStatus(status: string | null | undefined): boolean {
-  return String(status ?? '').toLowerCase() === 'active';
-}
+  isActiveStatus(status: string | null | undefined): boolean {
+    return String(status ?? '').toLowerCase() === 'active';
+  }
 
   goToChildLessonsHistory() {
     if (!this.drawerChild?.child_uuid) {
@@ -377,93 +377,93 @@ if (childId) {
       console.error('loadHorsesAndChildMapping fatal:', e);
     }
   }
-async uploadSeriesReferral(
-  event: Event,
-  lessonId: string,
-): Promise<void> {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
+  async uploadSeriesReferral(
+    event: Event,
+    lessonId: string,
+  ): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
 
-  if (!file) return;
-  if (!this.isAllowedReferralFile(file)) {
-  await this.ui.alert(
-    'ניתן להעלות רק קובצי PDF או תמונות (PNG/JPG/WEBP).',
-    'קובץ לא נתמך'
-  );
-  input.value = '';
-  return;
-}
-
-  try {
-    this.uploadingSeriesDocLessonId = lessonId;
-
-    const db = await this.dbc();
-    const client = getSupabaseClient();
-
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-    const safeExt = fileExt || 'pdf';
-    const fileName = `${lessonId}-${Date.now()}.${safeExt}`;
-
-    // אפשר לשנות את שם הבאקט לפי מה שיש אצלך בפועל
-    const bucketName = 'referrals';
-    const filePath = `series-referrals/${fileName}`;
-
-    const { error: uploadError } = await client.storage
-      .from(bucketName)
-      .upload(filePath, file, {
-        upsert: true,
-        contentType: file.type || undefined,
-      });
-
-    if (uploadError) throw uploadError;
-
-    const { data: publicData } = client.storage
-      .from(bucketName)
-      .getPublicUrl(filePath);
-
-    const publicUrl = publicData?.publicUrl;
-    if (!publicUrl) {
-      throw new Error('לא נוצר URL למסמך שהועלה');
+    if (!file) return;
+    if (!this.isAllowedReferralFile(file)) {
+      await this.ui.alert(
+        'ניתן להעלות רק קובצי PDF או תמונות (PNG/JPG/WEBP).',
+        'קובץ לא נתמך'
+      );
+      input.value = '';
+      return;
     }
 
-    const { error: updateError } = await db
-      .from('lessons')
-      .update({
-        payment_docs_url: publicUrl,
-      })
-      .eq('id', lessonId);
+    try {
+      this.uploadingSeriesDocLessonId = lessonId;
 
-    if (updateError) throw updateError;
+      const db = await this.dbc();
+      const client = getSupabaseClient();
 
-    this.seriesDocs = this.seriesDocs.map((row) =>
-      row.lessonId === lessonId
-        ? { ...row, paymentDocsUrl: publicUrl }
-        : row
-    );
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+      const safeExt = fileExt || 'pdf';
+      const fileName = `${lessonId}-${Date.now()}.${safeExt}`;
 
-    await this.ui.alert('ההפניה הועלתה ונשמרה בהצלחה.', 'העלאת הפניה');
-  } catch (e: any) {
-    console.error('uploadSeriesReferral error:', e);
-    await this.ui.alert(
-      'העלאת ההפניה נכשלה: ' + (e?.message ?? e),
-      'שגיאה'
-    );
-  } finally {
-    this.uploadingSeriesDocLessonId = null;
-    input.value = '';
+      // אפשר לשנות את שם הבאקט לפי מה שיש אצלך בפועל
+      const bucketName = 'referrals';
+      const filePath = `series-referrals/${fileName}`;
+
+      const { error: uploadError } = await client.storage
+        .from(bucketName)
+        .upload(filePath, file, {
+          upsert: true,
+          contentType: file.type || undefined,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = client.storage
+        .from(bucketName)
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicData?.publicUrl;
+      if (!publicUrl) {
+        throw new Error('לא נוצר URL למסמך שהועלה');
+      }
+
+      const { error: updateError } = await db
+        .from('lessons')
+        .update({
+          payment_docs_url: publicUrl,
+        })
+        .eq('id', lessonId);
+
+      if (updateError) throw updateError;
+
+      this.seriesDocs = this.seriesDocs.map((row) =>
+        row.lessonId === lessonId
+          ? { ...row, paymentDocsUrl: publicUrl }
+          : row
+      );
+
+      await this.ui.alert('ההפניה הועלתה ונשמרה בהצלחה.', 'העלאת הפניה');
+    } catch (e: any) {
+      console.error('uploadSeriesReferral error:', e);
+      await this.ui.alert(
+        'העלאת ההפניה נכשלה: ' + (e?.message ?? e),
+        'שגיאה'
+      );
+    } finally {
+      this.uploadingSeriesDocLessonId = null;
+      input.value = '';
+    }
   }
-}
-private isAllowedReferralFile(file: File): boolean {
-  const allowedMimeTypes = [
-    'application/pdf',
-    'image/png',
-    'image/jpeg',
-    'image/jpg',
-    'image/webp',
-  ];
+  private isAllowedReferralFile(file: File): boolean {
+    const allowedMimeTypes = [
+      'application/pdf',
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+    ];
 
-  return allowedMimeTypes.includes(file.type);
-}
+    return allowedMimeTypes.includes(file.type);
+  }
   get filteredChildren(): ChildRow[] {
     let rows = [...this.children];
 
@@ -486,11 +486,11 @@ private isAllowedReferralFile(file: File): boolean {
     }
 
     if (this.statusFilter !== 'all') {
-  rows = rows.filter((c: any) => {
-    const active = this.isActiveStatus(c.status);
-    return this.statusFilter === 'active' ? active : !active;
-  });
-}
+      rows = rows.filter((c: any) => {
+        const active = this.isActiveStatus(c.status);
+        return this.statusFilter === 'active' ? active : !active;
+      });
+    }
 
     if (this.parentFilter === 'withParent') {
       rows = rows.filter((c: any) => !!c.parent_uid);
@@ -502,8 +502,8 @@ private isAllowedReferralFile(file: File): boolean {
   }
 
   private isChildActive(row: any): boolean {
-  return this.isActiveStatus(row?.status);
-}
+    return this.isActiveStatus(row?.status);
+  }
 
   onFiltersChanged(): void {
     this.updateStats();
@@ -594,95 +594,95 @@ private isAllowedReferralFile(file: File): boolean {
   }
 
   exportToExcel(): void {
-  try {
-    const rows = this.filteredChildren.map((child: any) => {
-      const row: Record<string, any> = {};
+    try {
+      const rows = this.filteredChildren.map((child: any) => {
+        const row: Record<string, any> = {};
 
-      this.visibleColumns.forEach((col) => {
-        row[col.label] = this.getExportCellValue(child, col.key);
+        this.visibleColumns.forEach((col) => {
+          row[col.label] = this.getExportCellValue(child, col.key);
+        });
+
+        return row;
       });
 
-      return row;
-    });
+      if (!rows.length) {
+        this.ui.alert('אין נתונים לייצוא.', 'ייצוא לאקסל');
+        return;
+      }
 
-    if (!rows.length) {
-      this.ui.alert('אין נתונים לייצוא.', 'ייצוא לאקסל');
-      return;
+      const worksheet: XLSX.WorkSheet = XLSX.utils.json_to_sheet(rows);
+
+      worksheet['!cols'] = this.visibleColumns.map((col) => ({
+        wch: Math.max(col.label.length + 4, 18),
+      }));
+
+      const workbook: XLSX.WorkBook = {
+        Sheets: { ילדים: worksheet },
+        SheetNames: ['ילדים'],
+      };
+
+      const excelBuffer: ArrayBuffer = XLSX.write(workbook, {
+        bookType: 'xlsx',
+        type: 'array',
+      });
+
+      const blob = new Blob([excelBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8',
+      });
+
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+
+      saveAs(blob, `children-export-${yyyy}-${mm}-${dd}.xlsx`);
+    } catch (error) {
+      console.error('exportToExcel failed', error);
+      this.ui.alert('אירעה שגיאה בעת ייצוא לאקסל.', 'שגיאה');
     }
-
-    const worksheet: XLSX.WorkSheet = XLSX.utils.json_to_sheet(rows);
-
-    worksheet['!cols'] = this.visibleColumns.map((col) => ({
-      wch: Math.max(col.label.length + 4, 18),
-    }));
-
-    const workbook: XLSX.WorkBook = {
-      Sheets: { ילדים: worksheet },
-      SheetNames: ['ילדים'],
-    };
-
-    const excelBuffer: ArrayBuffer = XLSX.write(workbook, {
-      bookType: 'xlsx',
-      type: 'array',
-    });
-
-    const blob = new Blob([excelBuffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8',
-    });
-
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-
-    saveAs(blob, `children-export-${yyyy}-${mm}-${dd}.xlsx`);
-  } catch (error) {
-    console.error('exportToExcel failed', error);
-    this.ui.alert('אירעה שגיאה בעת ייצוא לאקסל.', 'שגיאה');
   }
-}
 
-private getExportCellValue(child: any, key: ChildColumnKey): string {
-  switch (key) {
-    case 'first_name':
-      return child.first_name || '—';
+  private getExportCellValue(child: any, key: ChildColumnKey): string {
+    switch (key) {
+      case 'first_name':
+        return child.first_name || '—';
 
-    case 'last_name':
-      return child.last_name || '—';
+      case 'last_name':
+        return child.last_name || '—';
 
-    case 'gov_id':
-      return child.gov_id || '—';
+      case 'gov_id':
+        return child.gov_id || '—';
 
-    case 'birth_date':
-      return child.birth_date ? this.formatDateForExcel(child.birth_date) : '—';
+      case 'birth_date':
+        return child.birth_date ? this.formatDateForExcel(child.birth_date) : '—';
 
-    case 'gender':
-      return child.gender || '—';
+      case 'gender':
+        return child.gender || '—';
 
-    case 'funding_source_id':
-      return this.getFundingSourceName(child.funding_source_id) || '—';
+      case 'funding_source_id':
+        return this.getFundingSourceName(child.funding_source_id) || '—';
 
-    case 'status':
-      return this.isActiveStatus(child.status) ? 'פעיל' : 'לא פעיל';
+      case 'status':
+        return this.isActiveStatus(child.status) ? 'פעיל' : 'לא פעיל';
 
-    case 'parent_status':
-      return child.parent_uid ? 'יש הורה משויך' : 'ללא הורה';
+      case 'parent_status':
+        return child.parent_uid ? 'יש הורה משויך' : 'ללא הורה';
 
-    default:
-      return '—';
+      default:
+        return '—';
+    }
   }
-}
 
-private formatDateForExcel(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
+  private formatDateForExcel(value: string): string {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
 
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
 
-  return `${dd}/${mm}/${yyyy}`;
-}
+    return `${dd}/${mm}/${yyyy}`;
+  }
 
   async openDetails(id?: string) {
     if (!id) return;
@@ -770,16 +770,16 @@ private formatDateForExcel(value: string): string {
   }
 
   private async loadChildDocuments(childId: string): Promise<void> {
-  this.childDocsLoading = true;
-  this.childDocsError = null;
-  this.childDocs = [];
+    this.childDocsLoading = true;
+    this.childDocsError = null;
+    this.childDocs = [];
 
-  try {
-    const db = await this.dbc();
+    try {
+      const db = await this.dbc();
 
-    const { data, error } = await db
-      .from('child_documents')
-      .select(`
+      const { data, error } = await db
+        .from('child_documents')
+        .select(`
         id,
         child_id,
         document_name,
@@ -790,150 +790,150 @@ private formatDateForExcel(value: string): string {
         file_size,
         created_at
       `)
-      .eq('child_id', childId)
-      .order('created_at', { ascending: false });
+        .eq('child_id', childId)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    const docs = (data ?? []).map((row: any) => ({
-  id: row.id,
-  childId: row.child_id,
-  documentName: row.document_name,
-  bucket: row.bucket,
-  filePath: row.file_path,
-  fileUrl: row.file_url,
-  mimeType: row.mime_type,
-  fileSize: row.file_size,
-  createdAt: row.created_at,
-}));
+      const docs = (data ?? []).map((row: any) => ({
+        id: row.id,
+        childId: row.child_id,
+        documentName: row.document_name,
+        bucket: row.bucket,
+        filePath: row.file_path,
+        fileUrl: row.file_url,
+        mimeType: row.mime_type,
+        fileSize: row.file_size,
+        createdAt: row.created_at,
+      }));
 
-this.allChildDocs = docs;
+      this.allChildDocs = docs;
 
-this.childDocs = docs.filter(
-  (doc: { documentName: string; }) => doc.documentName?.trim() !== 'אינטק'
-);
+      this.childDocs = docs.filter(
+        (doc: { documentName: string; }) => doc.documentName?.trim() !== 'אינטק'
+      );
 
-  } catch (e: any) {
-    console.error('loadChildDocuments error:', e);
-    this.childDocsError = e?.message ?? 'שגיאה בטעינת מסמכי הילד';
-  } finally {
-    this.childDocsLoading = false;
-  }
-}
-
-async uploadChildDocument(event: Event): Promise<void> {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-
-  if (!file || !this.drawerChild?.child_uuid) return;
-
-  const docName = this.newChildDocName.trim();
-  if (!docName) {
-    await this.ui.alert('יש להזין שם קובץ לפני ההעלאה.', 'שם קובץ חסר');
-    input.value = '';
-    return;
+    } catch (e: any) {
+      console.error('loadChildDocuments error:', e);
+      this.childDocsError = e?.message ?? 'שגיאה בטעינת מסמכי הילד';
+    } finally {
+      this.childDocsLoading = false;
+    }
   }
 
-  if (!this.isAllowedReferralFile(file)) {
-    await this.ui.alert(
-      'ניתן להעלות רק קובצי PDF או תמונות (PNG/JPG/WEBP).',
-      'קובץ לא נתמך'
-    );
-    input.value = '';
-    return;
+  async uploadChildDocument(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+
+    if (!file || !this.drawerChild?.child_uuid) return;
+
+    const docName = this.newChildDocName.trim();
+    if (!docName) {
+      await this.ui.alert('יש להזין שם קובץ לפני ההעלאה.', 'שם קובץ חסר');
+      input.value = '';
+      return;
+    }
+
+    if (!this.isAllowedReferralFile(file)) {
+      await this.ui.alert(
+        'ניתן להעלות רק קובצי PDF או תמונות (PNG/JPG/WEBP).',
+        'קובץ לא נתמך'
+      );
+      input.value = '';
+      return;
+    }
+
+    try {
+      this.uploadingChildDoc = true;
+
+      const db = await this.dbc();
+      const client = getSupabaseClient();
+
+      const childId = this.drawerChild.child_uuid;
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+      const bucketName = 'child-documents';
+
+      const farm = getCurrentFarmMetaSync();
+      const schemaName = farm?.schema_name || localStorage.getItem('selectedSchema');
+
+      if (!schemaName) {
+        throw new Error('לא נמצאה סכמה פעילה לשמירת המסמך');
+      }
+
+      const filePath = `${schemaName}/${childId}/${Date.now()}-${crypto.randomUUID()}.${fileExt}`;
+
+      const { error: uploadError } = await client.storage
+        .from(bucketName)
+        .upload(filePath, file, {
+          upsert: false,
+          contentType: file.type || undefined,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = client.storage
+        .from(bucketName)
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicData?.publicUrl ?? null;
+
+      const { data, error } = await db
+        .from('child_documents')
+        .insert({
+          child_id: childId,
+          document_name: docName,
+          bucket: bucketName,
+          file_path: filePath,
+          file_url: publicUrl,
+          mime_type: file.type || null,
+          file_size: file.size,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await this.loadChildDocuments(childId);
+
+      this.newChildDocName = '';
+
+      await this.ui.alert('המסמך הועלה בהצלחה.', 'מסמכי ילד');
+    } catch (e: any) {
+      console.error('uploadChildDocument error:', e);
+      await this.ui.alert('העלאת המסמך נכשלה: ' + (e?.message ?? e), 'שגיאה');
+    } finally {
+      this.uploadingChildDoc = false;
+      input.value = '';
+    }
   }
 
-  try {
-    this.uploadingChildDoc = true;
-
-    const db = await this.dbc();
-    const client = getSupabaseClient();
-
-    const childId = this.drawerChild.child_uuid;
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-    const bucketName = 'child-documents';
-
-    const farm = getCurrentFarmMetaSync();
-const schemaName = farm?.schema_name || localStorage.getItem('selectedSchema');
-
-if (!schemaName) {
-  throw new Error('לא נמצאה סכמה פעילה לשמירת המסמך');
-}
-
-const filePath = `${schemaName}/${childId}/${Date.now()}-${crypto.randomUUID()}.${fileExt}`;
-
-    const { error: uploadError } = await client.storage
-      .from(bucketName)
-      .upload(filePath, file, {
-        upsert: false,
-        contentType: file.type || undefined,
-      });
-
-    if (uploadError) throw uploadError;
-
-    const { data: publicData } = client.storage
-      .from(bucketName)
-      .getPublicUrl(filePath);
-
-    const publicUrl = publicData?.publicUrl ?? null;
-
-    const { data, error } = await db
-      .from('child_documents')
-      .insert({
-        child_id: childId,
-        document_name: docName,
-        bucket: bucketName,
-        file_path: filePath,
-        file_url: publicUrl,
-        mime_type: file.type || null,
-        file_size: file.size,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    await this.loadChildDocuments(childId);
-
-    this.newChildDocName = '';
-
-    await this.ui.alert('המסמך הועלה בהצלחה.', 'מסמכי ילד');
-  } catch (e: any) {
-    console.error('uploadChildDocument error:', e);
-    await this.ui.alert('העלאת המסמך נכשלה: ' + (e?.message ?? e), 'שגיאה');
-  } finally {
-    this.uploadingChildDoc = false;
-    input.value = '';
-  }
-}
-
-get intakeDoc(): ChildDocumentRow | null {
-  return this.allChildDocs.find(d => d.documentName?.trim() === 'אינטק') ?? null;
-}
-
-hasIntake(): boolean {
-  return !!this.intakeDoc;
-}
-
-prepareIntakeUpload(): void {
-  this.newChildDocName = 'אינטק';
-}
-
-openChildDocument(doc: ChildDocumentRow): void {
-  if (!doc.fileUrl) {
-    this.ui.alert('אין קישור זמין למסמך.', 'מסמכי ילד');
-    return;
+  get intakeDoc(): ChildDocumentRow | null {
+    return this.allChildDocs.find(d => d.documentName?.trim() === 'אינטק') ?? null;
   }
 
-  this.dialog.open(TermsPdfDialogComponent, {
-    width: 'min(980px, 96vw)',
-    height: 'min(90vh, 900px)',
-    data: {
-      title: doc.documentName,
-      url: this.sanitizer.bypassSecurityTrustResourceUrl(doc.fileUrl),
-    },
-  });
-}
+  hasIntake(): boolean {
+    return !!this.intakeDoc;
+  }
+
+  prepareIntakeUpload(): void {
+    this.newChildDocName = 'אינטק';
+  }
+
+  openChildDocument(doc: ChildDocumentRow): void {
+    if (!doc.fileUrl) {
+      this.ui.alert('אין קישור זמין למסמך.', 'מסמכי ילד');
+      return;
+    }
+
+    this.dialog.open(TermsPdfDialogComponent, {
+      width: 'min(980px, 96vw)',
+      height: 'min(90vh, 900px)',
+      data: {
+        title: doc.documentName,
+        url: this.sanitizer.bypassSecurityTrustResourceUrl(doc.fileUrl),
+      },
+    });
+  }
 
   private async loadChildTermsSignature(childId: string) {
     this.termsLoading = true;
@@ -1025,29 +1025,29 @@ openChildDocument(doc: ChildDocumentRow): void {
     }
   }
 
-  
-getChildTitle(): string {
-  const gender = this.drawerChild?.gender;
 
-  if (this.editMode) {
-    if (gender === 'זכר') return 'עריכת הילד';
-    if (gender === 'נקבה') return 'עריכת הילדה';
-    return 'עריכת ילד/ה';
-  } else {
-    if (gender === 'זכר') return 'פרטי הילד';
-    if (gender === 'נקבה') return 'פרטי הילדה';
-    return 'פרטי ילד/ה';
+  getChildTitle(): string {
+    const gender = this.drawerChild?.gender;
+
+    if (this.editMode) {
+      if (gender === 'זכר') return 'עריכת הילד';
+      if (gender === 'נקבה') return 'עריכת הילדה';
+      return 'עריכת ילד/ה';
+    } else {
+      if (gender === 'זכר') return 'פרטי הילד';
+      if (gender === 'נקבה') return 'פרטי הילדה';
+      return 'פרטי ילד/ה';
+    }
   }
-}
 
-seriesRequiresDocs(row: SeriesDocRow): boolean {
-  return !!row.requireDocsAtBooking && Array.isArray(row.requiredDocs) && row.requiredDocs.length > 0;
-}
+  seriesRequiresDocs(row: SeriesDocRow): boolean {
+    return !!row.requireDocsAtBooking && Array.isArray(row.requiredDocs) && row.requiredDocs.length > 0;
+  }
 
-getRequiredDocsText(row: SeriesDocRow): string {
-  if (!row.requiredDocs?.length) return '';
-  return row.requiredDocs.join(', ');
-}
+  getRequiredDocsText(row: SeriesDocRow): string {
+    if (!row.requiredDocs?.length) return '';
+    return row.requiredDocs.join(', ');
+  }
   getSeriesEndDisplay(row: SeriesDocRow): string {
     if (row.isOpenEnded) return 'סדרה ללא הגבלה';
     return row.seriesEndDate || '—';
@@ -1288,54 +1288,76 @@ getRequiredDocsText(row: SeriesDocRow): string {
     this.showAddChildWizard = false;
   }
   private async loadFundingSources(): Promise<void> {
-  const db = await this.dbc();
+    const db = await this.dbc();
 
-  const { data, error } = await db
-    .from('funding_sources')
-    .select('id, name')
-    .eq('is_system', true)
-    .eq('is_active', true)
-    .order('name', { ascending: true });
+    const { data, error } = await db
+      .from('funding_sources')
+      .select('id, name')
+      .eq('is_system', true)
+      .eq('is_active', true)
+      .order('name', { ascending: true });
 
-  if (error) throw error;
+    if (error) throw error;
 
-  this.healthFunds = data ?? [];
-}
+    this.healthFunds = data ?? [];
+  }
 
-getFundingSourceName(id: string | null | undefined): string {
-  if (!id) return '—';
-  return this.healthFunds.find(f => f.id === id)?.name ?? '—';
-}
-private readonly hebrewDayIndex: Record<string, number> = {
-  'ראשון': 0,
-  'שני': 1,
-  'שלישי': 2,
-  'רביעי': 3,
-  'חמישי': 4,
-  'שישי': 5,
-  'שבת': 6,
-};
+  getFundingSourceName(id: string | null | undefined): string {
+    if (!id) return '—';
+    return this.healthFunds.find(f => f.id === id)?.name ?? '—';
+  }
+  private readonly hebrewDayIndex: Record<string, number> = {
+    'ראשון': 0,
+    'שני': 1,
+    'שלישי': 2,
+    'רביעי': 3,
+    'חמישי': 4,
+    'שישי': 5,
+    'שבת': 6,
+  };
 
-getSeriesActualStartDate(row: SeriesDocRow): string {
-  if (!row.anchorWeekStart || !row.dayOfWeek) return '—';
+  getSeriesActualStartDate(row: SeriesDocRow): string {
+    if (!row.anchorWeekStart || !row.dayOfWeek) return '—';
 
-  const dayOffset = this.hebrewDayIndex[row.dayOfWeek];
-  if (dayOffset === undefined) return row.anchorWeekStart;
+    const dayOffset = this.hebrewDayIndex[row.dayOfWeek];
+    if (dayOffset === undefined) return row.anchorWeekStart;
 
-  const [year, month, day] = row.anchorWeekStart.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
-  date.setDate(date.getDate() + dayOffset);
+    const [year, month, day] = row.anchorWeekStart.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() + dayOffset);
 
-  return this.formatDateDdMmYyyy(date);
-}
+    return this.formatDateDdMmYyyy(date);
+  }
 
-private formatDateDdMmYyyy(date: Date): string {
-  const dd = String(date.getDate()).padStart(2, '0');
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const yyyy = date.getFullYear();
+  private formatDateDdMmYyyy(date: Date): string {
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yyyy = date.getFullYear();
 
-  return `${dd}/${mm}/${yyyy}`;
-}
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  getChildAgeDisplay(birthDate: string | null | undefined): string {
+    if (!birthDate) return '';
+
+    const birth = new Date(birthDate);
+    if (Number.isNaN(birth.getTime())) return '';
+
+    const today = new Date();
+
+    let years = today.getFullYear() - birth.getFullYear();
+    let months = today.getMonth() - birth.getMonth();
+
+    if (today.getDate() < birth.getDate()) {
+      months--;
+    }
+
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+
+    return `${years}.${months}`;
+  }
 }
 
 @Component({
@@ -1440,5 +1462,5 @@ export class TermsPdfDialogComponent {
   close() {
     this.dialog.closeAll();
   }
-  
+
 }
