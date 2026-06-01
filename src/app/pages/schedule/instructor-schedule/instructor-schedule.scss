@@ -155,6 +155,11 @@
   position: relative;
 }
 
+.schedule-modal {
+  direction: rtl;
+  text-align: right;
+}
+
 .modal-content {
   padding: 24px 22px 12px;
   overflow-y: auto;
