@@ -4,13 +4,45 @@
 }
 
 /* אם את רוצה לבטל רק בשורות “בקבוצה” */
-:host ::ng-deep .mat-mdc-table tr.group-not-last-row > td.mat-mdc-cell {
+:host ::ng-deep .mat-mdc-table tr.group-not-last-row>td.mat-mdc-cell {
   border-bottom: none !important;
 }
 
 /* וגם ליתר ביטחון – אם הקו יושב על השורה */
 :host ::ng-deep .mat-mdc-table tr.group-not-last-row.mdc-data-table__row {
   border-bottom: none !important;
+}
+
+.page-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  /* הכל לימין */
+  gap: 16px;
+  margin-bottom: 24px;
+  text-align: right;
+}
+
+.page-title {
+  margin: 0;
+  width: 100%;
+  text-align: right;
+}
+
+.back-to-child-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  border: 1px solid #a8b08d;
+  background: #fff;
+  color: #6f7e53;
+
+  padding: 10px 18px;
+  border-radius: 999px;
+
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .monthly {
@@ -588,9 +620,7 @@
         background: #f0f5e6 !important;
       }
 
-      :host ::ng-deep
-        .mat-mdc-option.mdc-list-item--selected
-        .mdc-list-item__primary-text {
+      :host ::ng-deep .mat-mdc-option.mdc-list-item--selected .mdc-list-item__primary-text {
         color: #303827;
         font-weight: 700;
       }
@@ -814,22 +844,23 @@
         font-size: 12px;
         margin-left: 6px;
       }
-          /* ===== Office Note – תיקון למובייל ===== */
-td.mat-column-office_note {
-  display: flex !important;
-  align-items: flex-start;
-  gap: 8px;
-  white-space: normal;
-  line-height: 1.4;
-}
 
-td.mat-column-office_note::before {
-  content: "הערות משרד";
-  font-weight: 600;
-  color: #545b41;
-  font-size: 12px;
-  min-width: 90px;
-}
+      /* ===== Office Note – תיקון למובייל ===== */
+      td.mat-column-office_note {
+        display: flex !important;
+        align-items: flex-start;
+        gap: 8px;
+        white-space: normal;
+        line-height: 1.4;
+      }
+
+      td.mat-column-office_note::before {
+        content: "הערות משרד";
+        font-weight: 600;
+        color: #545b41;
+        font-size: 12px;
+        min-width: 90px;
+      }
 
 
     }
@@ -849,9 +880,11 @@ td.mat-column-office_note::before {
     }
   }
 }
+
 .mat-column-office_note {
   display: table-cell !important;
 }
+
 :host ::ng-deep .mat-column-office_note {
   display: table-cell !important;
   white-space: normal;
