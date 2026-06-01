@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
-import { ActivatedRoute, RouterModule } from '@angular/router'; import * as XLSX from 'xlsx';
+import { Router, RouterModule, ActivatedRoute } from '@angular/router';
+import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { TranzilaService } from '../../services/tranzila.service';
 
@@ -186,6 +187,7 @@ export class SecretaryParentsComponent implements OnInit {
     private pagos: PaymentsService,
     private tranzila: TranzilaService,
     private route: ActivatedRoute,
+    private router: Router,
   ) { }
 
   async ngOnInit() {
@@ -1433,5 +1435,35 @@ export class SecretaryParentsComponent implements OnInit {
       this.savingToken = false;
     }
   }
+  goToChildCard(childId: string): void {
+    if (!childId) return;
 
+    this.router.navigate(['/secretary/children'], {
+      queryParams: { childId },
+    });
+  }
+  getChildStatusLabel(status?: string | null): string {
+    switch ((status || '').trim()) {
+      case 'Active':
+        return 'פעיל';
+
+      case 'Deleted':
+        return 'נמחק';
+
+      case 'Pending Addition Approval':
+        return 'ממתין לאישור הוספה';
+
+      case 'Pending Deletion Approval':
+        return 'ממתין לאישור מחיקה';
+
+      case 'Deletion Scheduled':
+        return 'מחיקה מתוזמנת';
+
+      case 'Pending Parent Terms':
+        return 'ממתין לאישור הורה';
+
+      default:
+        return status || 'לא ידוע';
+    }
+  }
 }
