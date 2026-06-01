@@ -8,6 +8,7 @@
   font-size: 11px;
   line-height: 1.15;
 }
+
 .absence-alert {
   margin-top: 16px;
   padding: 12px 14px;
@@ -43,6 +44,7 @@
   flex: 1;
   font-weight: 600;
 }
+
 .bereshit-calendar .secondary-line {
   font-size: 9px;
 }
@@ -153,13 +155,23 @@
   position: relative;
 }
 
+.schedule-modal {
+  direction: rtl;
+  text-align: right;
+}
+
 .modal-content {
-  padding: 18px 18px 12px;
+  padding: 24px 22px 12px;
   overflow-y: auto;
 }
 
+// .modal-header {
+//   margin-bottom: 10px;
+
+// }
 .modal-header {
   margin-bottom: 10px;
+  padding-left: 44px; // מקום לאיקס
 }
 
 .modal-header h3 {
