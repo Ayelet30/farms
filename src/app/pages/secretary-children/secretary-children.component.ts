@@ -1358,6 +1358,19 @@ export class SecretaryChildrenComponent implements OnInit {
 
     return `${years}.${months}`;
   }
+  goToParentCard(): void {
+    const parentUid = this.drawerChild?.parent_uid;
+
+    if (!parentUid) {
+      return;
+    }
+
+    this.router.navigate(['/secretary/parents'], {
+      queryParams: {
+        parentUid,
+      },
+    });
+  }
 }
 
 @Component({
