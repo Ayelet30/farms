@@ -45,10 +45,10 @@ type PaymentPlan = {
   required_docs: string[] | null;
   funding_source_id: string | null;
   funding_sources?: {
-  id: string;
-  name: string;
-  is_system: boolean;
-} | null;
+    id: string;
+    name: string;
+    is_system: boolean;
+  } | null;
 };
 
 type ExistingParticipant = {
@@ -175,9 +175,9 @@ export class QuickAppointmentComponent implements OnInit {
   private snack = inject(MatSnackBar);
 
   referralFile: File | null = null;
-referralUrl: string | null = null;
-referralUploadError: string | null = null;
-farmLessonDurationMinutes: number | null = null;
+  referralUrl: string | null = null;
+  referralUploadError: string | null = null;
+  farmLessonDurationMinutes: number | null = null;
   loading = false;
   loadingSlotInfo = false;
   slotInfoError: string | null = null;
@@ -232,39 +232,39 @@ farmLessonDurationMinutes: number | null = null;
       this.loadRidingTypes(),
       this.loadFarmSettings(),
     ]);
-
+    this.buildTimeOptions();
     await this.loadSlotInfo();
   }
 
   childSearchTerm = '';
   childDropdownOpen = false;
 
-get filteredChildren(): ChildRow[] {
-  const term = this.childSearchTerm.trim().toLowerCase();
+  get filteredChildren(): ChildRow[] {
+    const term = this.childSearchTerm.trim().toLowerCase();
 
-  if (!term) {
-    return this.children;
+    if (!term) {
+      return this.children;
+    }
+
+    return this.children.filter(child => {
+      const fullName = `${child.first_name ?? ''} ${child.last_name ?? ''}`.trim().toLowerCase();
+      return fullName.includes(term);
+    });
   }
 
-  return this.children.filter(child => {
-    const fullName = `${child.first_name ?? ''} ${child.last_name ?? ''}`.trim().toLowerCase();
-    return fullName.includes(term);
-  });
-}
-
-selectChild(child: ChildRow): void {
-  this.selectedChildId = child.child_uuid;
-  this.childSearchTerm = `${child.first_name ?? ''} ${child.last_name ?? ''}`.trim();
-  this.childDropdownOpen = false;
-  void this.onChildChange();
-}
+  selectChild(child: ChildRow): void {
+    this.selectedChildId = child.child_uuid;
+    this.childSearchTerm = `${child.first_name ?? ''} ${child.last_name ?? ''}`.trim();
+    this.childDropdownOpen = false;
+    void this.onChildChange();
+  }
 
 
-clearChildSelection(): void {
-  this.selectedChildId = null;
-  this.childSearchTerm = '';
-  this.childDropdownOpen = false;
-}
+  clearChildSelection(): void {
+    this.selectedChildId = null;
+    this.childSearchTerm = '';
+    this.childDropdownOpen = false;
+  }
 
   private showError(msg: string): void {
     this.snack.open(msg, 'סגור', { duration: 4500 });
@@ -450,7 +450,8 @@ clearChildSelection(): void {
         p_instructor_id_number: this.instructorId,
         p_date: this.date,
         p_start_time: this.startTime,
-p_end_time: null,      });
+        p_end_time: null,
+      });
 
       if (error) {
         console.error(error);
@@ -488,22 +489,22 @@ p_end_time: null,      });
   }
 
   async onChildChange(): Promise<void> {
-  if (!this.selectedChildId) return;
+    if (!this.selectedChildId) return;
 
-  const child = this.children.find(c => c.child_uuid === this.selectedChildId);
-  this.selectedPaymentPlanId = null;
-  if (child) {
-    this.childSearchTerm = `${child.first_name ?? ''} ${child.last_name ?? ''}`.trim();
-  }
+    const child = this.children.find(c => c.child_uuid === this.selectedChildId);
+    this.selectedPaymentPlanId = null;
+    if (child) {
+      this.childSearchTerm = `${child.first_name ?? ''} ${child.last_name ?? ''}`.trim();
+    }
 
-  if (this.bookingMode === 'makeup') {
-    await this.loadMakeupCandidates();
-  }
+    if (this.bookingMode === 'makeup') {
+      await this.loadMakeupCandidates();
+    }
 
-  if (this.bookingMode === 'occupancy') {
-    await this.loadOccupancyCandidates();
+    if (this.bookingMode === 'occupancy') {
+      await this.loadOccupancyCandidates();
+    }
   }
-}
 
   private getSelectedInstructorUidOrThrow(): string {
     const uid = this.selectedInstructor?.uid ?? null;
@@ -580,17 +581,17 @@ p_end_time: null,      });
       p_start_time: params.startTime,
       p_riding_type_id: params.ridingTypeId,
       p_payment_plan_id: params.paymentPlanId,
-    p_payment_source: 'private',
-    p_is_open_ended: params.isOpenEnded,
-    p_repeat_weeks: params.repeatWeeks,
-    p_series_search_horizon_days: null,
-    p_existing_approval_id: null,
-    p_referral_url: params.referralUrl ?? null,
-    p_payment_docs_url: null,
-p_funding_source_id: params.fundingSourceId ?? null,
+      p_payment_source: 'private',
+      p_is_open_ended: params.isOpenEnded,
+      p_repeat_weeks: params.repeatWeeks,
+      p_series_search_horizon_days: null,
+      p_existing_approval_id: null,
+      p_referral_url: params.referralUrl ?? null,
+      p_payment_docs_url: null,
+      p_funding_source_id: params.fundingSourceId ?? null,
       p_approval_number: null,
       p_total_lessons: null,
-p_origin: params.origin ?? 'secretary_quick_override',
+      p_origin: params.origin ?? 'secretary_quick_override',
       p_max_participants: params.maxParticipants,
     });
 
@@ -601,51 +602,52 @@ p_origin: params.origin ?? 'secretary_quick_override',
 
     return (Array.isArray(data) ? data[0] : data) as CreateSeriesWithValidationResult | null;
   }
-private normalizeTime(t: string | null | undefined): string | null {
-  const s = (t ?? '').trim();
-  if (!s) return null;
-  return s.length === 5 ? `${s}:00` : s;
-}
-
-private async createViaSingleValidation(params: {
-  lessonDate: string;
-  startTime: string;
-  endTime: string;
-  instructorId: string;
-  instructorUid: string;
-  ridingTypeId: string;
-  paymentPlanId: string;
-  origin?: string;
-  maxParticipants: number;
-  referralUrl?: string | null;
-  fundingSourceId?: string | null;
-}): Promise<CreateSeriesWithValidationResult | null> {
-  const { data, error } = await dbTenant().rpc('create_quick_single_lesson_with_override', {
-    p_child_id: this.selectedChildId,
-    p_instructor_id_number: params.instructorId,
-    p_instructor_uid: params.instructorUid,
-    p_lesson_date: params.lessonDate,
-    p_start_time: this.normalizeTime(params.startTime),
-    p_end_time: this.normalizeTime(params.endTime),
-    p_max_participants: params.maxParticipants,
-    p_payment_source: 'private',
-    p_existing_approval_id: null,
-    p_payment_plan_id: params.paymentPlanId,
-    p_funding_source_id: params.fundingSourceId ?? null,
-    p_approval_number: null,
-    p_total_lessons: null,
-    p_referral_url: params.referralUrl ?? null,
-    p_payment_docs_url: params.referralUrl ?? null,
-    p_riding_type_id: params.ridingTypeId,
-p_origin: params.origin ?? 'secretary_quick_override',  });
-
-  if (error) {
-    console.error(error);
-    throw new Error('שגיאה ביצירת השיעור הבודד');
+  private normalizeTime(t: string | null | undefined): string | null {
+    const s = (t ?? '').trim();
+    if (!s) return null;
+    return s.length === 5 ? `${s}:00` : s;
   }
 
-  return (Array.isArray(data) ? data[0] : data) as CreateSeriesWithValidationResult | null;
-}
+  private async createViaSingleValidation(params: {
+    lessonDate: string;
+    startTime: string;
+    endTime: string;
+    instructorId: string;
+    instructorUid: string;
+    ridingTypeId: string;
+    paymentPlanId: string;
+    origin?: string;
+    maxParticipants: number;
+    referralUrl?: string | null;
+    fundingSourceId?: string | null;
+  }): Promise<CreateSeriesWithValidationResult | null> {
+    const { data, error } = await dbTenant().rpc('create_quick_single_lesson_with_override', {
+      p_child_id: this.selectedChildId,
+      p_instructor_id_number: params.instructorId,
+      p_instructor_uid: params.instructorUid,
+      p_lesson_date: params.lessonDate,
+      p_start_time: this.normalizeTime(params.startTime),
+      p_end_time: this.normalizeTime(params.endTime),
+      p_max_participants: params.maxParticipants,
+      p_payment_source: 'private',
+      p_existing_approval_id: null,
+      p_payment_plan_id: params.paymentPlanId,
+      p_funding_source_id: params.fundingSourceId ?? null,
+      p_approval_number: null,
+      p_total_lessons: null,
+      p_referral_url: params.referralUrl ?? null,
+      p_payment_docs_url: params.referralUrl ?? null,
+      p_riding_type_id: params.ridingTypeId,
+      p_origin: params.origin ?? 'secretary_quick_override',
+    });
+
+    if (error) {
+      console.error(error);
+      throw new Error('שגיאה ביצירת השיעור הבודד');
+    }
+
+    return (Array.isArray(data) ? data[0] : data) as CreateSeriesWithValidationResult | null;
+  }
   async loadMakeupCandidates(): Promise<void> {
     if (!this.selectedChildId) return;
 
@@ -701,15 +703,15 @@ p_origin: params.origin ?? 'secretary_quick_override',  });
       throw new Error('לא נבחר מדריך');
     }
 
-   
 
-if (
-  this.bookingMode !== 'makeup' &&
-  this.bookingMode !== 'occupancy' &&
-  !this.selectedPaymentPlanId
-) {
-  throw new Error('יש לבחור מסלול תשלום');
-}
+
+    if (
+      this.bookingMode !== 'makeup' &&
+      this.bookingMode !== 'occupancy' &&
+      !this.selectedPaymentPlanId
+    ) {
+      throw new Error('יש לבחור מסלול תשלום');
+    }
 
     const child = this.selectedChild;
     const instructor = this.selectedInstructor;
@@ -717,14 +719,17 @@ if (
     if (this.isChildDeletedSoon(child)) {
       throw new Error('לא ניתן לזמן שיעור לילד/ה שמחיקה שלו/ה כבר מתוכננת');
     }
-const eligibility = this.isEligibleForInstructor(child, instructor);
+    const eligibility = this.isEligibleForInstructor(child, instructor);
 
-if (!eligibility.ok) {
-  console.warn('[INSTRUCTOR ELIGIBILITY WARNING]', eligibility.reason);
-}
+    if (!eligibility.ok) {
+      console.warn('[INSTRUCTOR ELIGIBILITY WARNING]', eligibility.reason);
+    }
   }
 
   async save(): Promise<void> {
+    if (this.isSlotUnavailable) {
+      return;
+    }
     this.loading = true;
 
     try {
@@ -732,48 +737,48 @@ if (!eligibility.ok) {
 
       let referralUrl: string | null = null;
 
-if (
-  this.bookingMode !== 'makeup' &&
-  this.bookingMode !== 'occupancy' &&
-  this.selectedChildId
-) {
-  referralUrl = await this.uploadReferralIfNeeded(this.selectedChildId);
-}
-if (this.bookingMode === 'single') {
-  const instructorUid = this.getSelectedInstructorUidOrThrow();
-  const ridingTypeId = this.getEffectiveRidingTypeId();
+      if (
+        this.bookingMode !== 'makeup' &&
+        this.bookingMode !== 'occupancy' &&
+        this.selectedChildId
+      ) {
+        referralUrl = await this.uploadReferralIfNeeded(this.selectedChildId);
+      }
+      if (this.bookingMode === 'single') {
+        const instructorUid = this.getSelectedInstructorUidOrThrow();
+        const ridingTypeId = this.getEffectiveRidingTypeId();
 
-  if (!ridingTypeId) {
-    throw new Error('לא נמצא סוג שיעור עבור הסלוט');
-  }
+        if (!ridingTypeId) {
+          throw new Error('לא נמצא סוג שיעור עבור הסלוט');
+        }
 
-  const res = await this.createViaSingleValidation({
-    lessonDate: this.date,
-    startTime: this.startTime,
-    endTime: this.getCalculatedEndTime(),
-    instructorId: this.instructorId,
-    instructorUid,
-    ridingTypeId,
-    paymentPlanId: this.selectedPaymentPlanId!,
-origin: 'secretary_quick_override',
-    referralUrl,
-    maxParticipants: this.getEffectiveMaxParticipants(),
-    fundingSourceId: this.selectedChild?.funding_source_id ?? null,
-  });
+        const res = await this.createViaSingleValidation({
+          lessonDate: this.date,
+          startTime: this.startTime,
+          endTime: this.getCalculatedEndTime(),
+          instructorId: this.instructorId,
+          instructorUid,
+          ridingTypeId,
+          paymentPlanId: this.selectedPaymentPlanId!,
+          origin: 'secretary_quick_override',
+          referralUrl,
+          maxParticipants: this.getEffectiveMaxParticipants(),
+          fundingSourceId: this.selectedChild?.funding_source_id ?? null,
+        });
 
-  if (!res?.ok) {
-    throw new Error(res?.deny_reason || 'לא ניתן ליצור שיעור בודד');
-  }
+        if (!res?.ok) {
+          throw new Error(res?.deny_reason || 'לא ניתן ליצור שיעור בודד');
+        }
 
-  this.showSuccess('השיעור הבודד נוצר בהצלחה');
-  this.referralFile = null;
-  this.referralUploadError = null;
-  this.referralUrl = null;
-  this.saved.emit();
-  return;
-}
+        this.showSuccess('השיעור הבודד נוצר בהצלחה');
+        this.referralFile = null;
+        this.referralUploadError = null;
+        this.referralUrl = null;
+        this.saved.emit();
+        return;
+      }
 
-if (this.bookingMode === 'series') {
+      if (this.bookingMode === 'series') {
         const instructorUid = this.getSelectedInstructorUidOrThrow();
         const ridingTypeId = this.getEffectiveRidingTypeId();
 
@@ -792,7 +797,7 @@ if (this.bookingMode === 'series') {
           paymentPlanId: this.selectedPaymentPlanId!,
           isOpenEnded: seriesParams.p_is_open_ended,
           repeatWeeks: seriesParams.p_repeat_weeks,
-origin: 'secretary_quick_override',
+          origin: 'secretary_quick_override',
           referralUrl,
           maxParticipants: this.getEffectiveMaxParticipants(),
           fundingSourceId: this.selectedChild?.funding_source_id ?? null,
@@ -801,11 +806,11 @@ origin: 'secretary_quick_override',
         if (!res?.ok) {
           throw new Error(res?.deny_reason || 'לא ניתן ליצור שיעור/סדרה');
         }
-this.showSuccess(
-'הסדרה נוצרה בהצלחה');
+        this.showSuccess(
+          'הסדרה נוצרה בהצלחה');
         this.referralFile = null;
-this.referralUploadError = null;
-this.referralUrl = null;
+        this.referralUploadError = null;
+        this.referralUrl = null;
         this.saved.emit();
         return;
       }
@@ -821,35 +826,35 @@ this.referralUrl = null;
         if (!ridingTypeId) {
           throw new Error('לא נמצא סוג שיעור עבור החור הנוכחי');
         }
-const { data, error } = await dbTenant().rpc('book_quick_makeup_lesson_with_override', {
-  p_child_id: this.selectedChildId,
-  p_instructor_id_number: this.instructorId,
-  p_instructor_uid: instructorUid,
-  p_occur_date: this.date,
-  p_start_time: this.normalizeTime(this.startTime),
-  p_end_time: this.normalizeTime(this.getCalculatedEndTime()),
-  p_base_lesson_uid: this.selectedMakeupCandidate.lesson_occ_exception_id,
-  p_payment_source: 'private',
-  p_approval_id: null,
-  p_payment_plan_id: this.selectedPaymentPlanId ?? null,
-  p_riding_type_id: ridingTypeId,
-  p_capacity: this.slotInfo?.max_participants ?? 1,
-  p_current_booked: this.slotInfo?.current_participants ?? 0,
-});
+        const { data, error } = await dbTenant().rpc('book_quick_makeup_lesson_with_override', {
+          p_child_id: this.selectedChildId,
+          p_instructor_id_number: this.instructorId,
+          p_instructor_uid: instructorUid,
+          p_occur_date: this.date,
+          p_start_time: this.normalizeTime(this.startTime),
+          p_end_time: this.normalizeTime(this.getCalculatedEndTime()),
+          p_base_lesson_uid: this.selectedMakeupCandidate.lesson_occ_exception_id,
+          p_payment_source: 'private',
+          p_approval_id: null,
+          p_payment_plan_id: this.selectedPaymentPlanId ?? null,
+          p_riding_type_id: ridingTypeId,
+          p_capacity: this.slotInfo?.max_participants ?? 1,
+          p_current_booked: this.slotInfo?.current_participants ?? 0,
+        });
 
-if (error) {
-  console.error(error);
-  throw new Error('שגיאה ביצירת שיעור השלמה');
-}
+        if (error) {
+          console.error(error);
+          throw new Error('שגיאה ביצירת שיעור השלמה');
+        }
 
-if (!data) {
-  throw new Error('שיעור ההשלמה לא נוצר');
-}
+        if (!data) {
+          throw new Error('שיעור ההשלמה לא נוצר');
+        }
 
         this.showSuccess('שיעור ההשלמה נוצר בהצלחה');
         this.referralFile = null;
-this.referralUploadError = null;
-this.referralUrl = null;
+        this.referralUploadError = null;
+        this.referralUrl = null;
         this.saved.emit();
         return;
       }
@@ -865,37 +870,37 @@ this.referralUrl = null;
         if (!ridingTypeId) {
           throw new Error('לא נמצא סוג שיעור עבור החור הנוכחי');
         }
-const { data, error } = await dbTenant().rpc('book_quick_occupancy_lesson_with_override', {
-  p_child_id: this.selectedChildId,
-  p_instructor_id_number: this.instructorId,
-  p_instructor_uid: instructorUid,
-  p_occur_date: this.date,
-  p_start_time: this.normalizeTime(this.startTime),
-  p_end_time: this.normalizeTime(this.getCalculatedEndTime()),
-  p_base_lesson_uid: this.selectedOccupancyCandidate.lesson_occ_exception_id,
-  p_base_lesson_date: this.selectedOccupancyCandidate.occur_date,
-  p_status: 'אושר',
-  p_origin: 'secretary_quick_override',
-  p_payment_source: 'private',
-  p_approval_id: null,
-  p_payment_plan_id: this.selectedPaymentPlanId ?? null,
-  p_riding_type_id: ridingTypeId,
-  p_capacity: this.slotInfo?.max_participants ?? 1,
-  p_current_booked: this.slotInfo?.current_participants ?? 0,
-});
+        const { data, error } = await dbTenant().rpc('book_quick_occupancy_lesson_with_override', {
+          p_child_id: this.selectedChildId,
+          p_instructor_id_number: this.instructorId,
+          p_instructor_uid: instructorUid,
+          p_occur_date: this.date,
+          p_start_time: this.normalizeTime(this.startTime),
+          p_end_time: this.normalizeTime(this.getCalculatedEndTime()),
+          p_base_lesson_uid: this.selectedOccupancyCandidate.lesson_occ_exception_id,
+          p_base_lesson_date: this.selectedOccupancyCandidate.occur_date,
+          p_status: 'אושר',
+          p_origin: 'secretary_quick_override',
+          p_payment_source: 'private',
+          p_approval_id: null,
+          p_payment_plan_id: this.selectedPaymentPlanId ?? null,
+          p_riding_type_id: ridingTypeId,
+          p_capacity: this.slotInfo?.max_participants ?? 1,
+          p_current_booked: this.slotInfo?.current_participants ?? 0,
+        });
 
-if (error) {
-  console.error(error);
-  throw new Error('שגיאה ביצירת שיעור מילוי מקום');
-}
+        if (error) {
+          console.error(error);
+          throw new Error('שגיאה ביצירת שיעור מילוי מקום');
+        }
 
-if (!data) {
-  throw new Error('שיעור מילוי המקום לא נוצר');
-}
+        if (!data) {
+          throw new Error('שיעור מילוי המקום לא נוצר');
+        }
         this.showSuccess('שיעור מילוי המקום נוצר בהצלחה');
         this.referralFile = null;
-this.referralUploadError = null;
-this.referralUrl = null;
+        this.referralUploadError = null;
+        this.referralUrl = null;
         this.saved.emit();
         return;
       }
@@ -910,199 +915,235 @@ this.referralUrl = null;
   }
 
   onPaymentPlanChange(): void {
-  this.referralUploadError = null;
+    this.referralUploadError = null;
 
-  if (!this.selectedPaymentPlan?.require_docs_at_booking) {
+    if (!this.selectedPaymentPlan?.require_docs_at_booking) {
+      this.referralFile = null;
+      this.referralUrl = null;
+    }
+  }
+
+  onReferralFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+
+    this.referralUploadError = null;
     this.referralFile = null;
-    this.referralUrl = null;
-  }
-}
 
-onReferralFileSelected(event: Event): void {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0] ?? null;
-
-  this.referralUploadError = null;
-  this.referralFile = null;
-
-  if (!file) {
-    return;
-  }
-
-  const allowedMimeTypes = [
-    'application/pdf',
-    'image/png',
-    'image/jpeg',
-    'image/jpg',
-    'image/webp',
-    'image/heic',
-    'image/heif',
-  ];
-
-  const isMimeAllowed = allowedMimeTypes.includes(file.type);
-  const isExtensionAllowed = /\.(pdf|png|jpe?g|webp|heic|heif)$/i.test(file.name);
-
-  if (!isMimeAllowed && !isExtensionAllowed) {
-    this.referralUploadError = 'ניתן להעלות רק PDF או תמונה';
-    return;
-  }
-
-  const maxSizeBytes = 10 * 1024 * 1024; // 10MB
-  if (file.size > maxSizeBytes) {
-    this.referralUploadError = 'הקובץ גדול מדי. ניתן להעלות עד 10MB';
-    return;
-  }
-
-  this.referralFile = file;
-}
-
-private async uploadReferralIfNeeded(childId: string): Promise<string | null> {
-  if (!this.referralFile) {
-    this.referralUrl = null;
-    return null;
-  }
-
-  try {
-    const ext = this.referralFile.name.split('.').pop() || 'bin';
-    const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'bin';
-    const filePath = `referrals/${childId}/${Date.now()}.${safeExt}`;
-
-    const { error: uploadError } = await supabase!
-      .storage
-      .from('referrals')
-      .upload(filePath, this.referralFile, {
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error('referral upload error', uploadError);
-      throw new Error('שגיאה בהעלאת מסמך ההפניה');
+    if (!file) {
+      return;
     }
 
-    const { data: publicData } = supabase!
-      .storage
-      .from('referrals')
-      .getPublicUrl(filePath);
+    const allowedMimeTypes = [
+      'application/pdf',
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+      'image/heic',
+      'image/heif',
+    ];
 
-    const url = publicData?.publicUrl ?? null;
-    this.referralUrl = url;
-    return url;
-  } catch (error) {
-    console.error('referral upload exception', error);
-    throw error;
-  }
-}
-get instructorEligibilityWarning(): string | null {
-  if (!this.selectedChild || !this.selectedInstructor) {
-    return null;
-  }
+    const isMimeAllowed = allowedMimeTypes.includes(file.type);
+    const isExtensionAllowed = /\.(pdf|png|jpe?g|webp|heic|heif)$/i.test(file.name);
 
-  const result = this.isEligibleForInstructor(
-    this.selectedChild,
-    this.selectedInstructor
-  );
-
-  return result.ok
-    ? null
-    : (result.reason ?? 'אי התאמה למדריך');
-}
-get availablePaymentPlans(): PaymentPlan[] {
-  const childFundingSourceId = this.selectedChild?.funding_source_id ?? null;
-
-  return this.paymentPlans.filter(plan => {
-    const source = plan.funding_sources ?? null;
-
-    if (!plan.funding_source_id || !source) {
-      return true;
+    if (!isMimeAllowed && !isExtensionAllowed) {
+      this.referralUploadError = 'ניתן להעלות רק PDF או תמונה';
+      return;
     }
 
-    if (source.is_system === false) {
-      return true;
+    const maxSizeBytes = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSizeBytes) {
+      this.referralUploadError = 'הקובץ גדול מדי. ניתן להעלות עד 10MB';
+      return;
     }
 
-    return plan.funding_source_id === childFundingSourceId;
-  });
-}
-async loadFarmSettings(): Promise<void> {
-  const { data, error } = await dbTenant()
-    .from('farm_settings')
-    .select('lesson_duration_minutes')
-    .single();
-
-  if (error) {
-    console.error(error);
-    this.showError('שגיאה בטעינת הגדרות חווה');
-    return;
+    this.referralFile = file;
   }
 
-  this.farmLessonDurationMinutes = Number(data?.lesson_duration_minutes ?? 0) || null;
-}
-private timeToMinutes(time: string): number {
-  const [h, m] = time.slice(0, 5).split(':').map(Number);
-  return h * 60 + m;
-}
+  private async uploadReferralIfNeeded(childId: string): Promise<string | null> {
+    if (!this.referralFile) {
+      this.referralUrl = null;
+      return null;
+    }
 
-private minutesToTime(totalMinutes: number): string {
-  const normalized = ((totalMinutes % 1440) + 1440) % 1440;
-  const h = Math.floor(normalized / 60);
-  const m = normalized % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
+    try {
+      const ext = this.referralFile.name.split('.').pop() || 'bin';
+      const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'bin';
+      const filePath = `referrals/${childId}/${Date.now()}.${safeExt}`;
 
-private getEffectiveDurationMinutes(): number {
-  const ridingType =
-    this.bookingMode === 'special'
-      ? this.selectedSpecialRidingType
-      : this.activeRidingTypes.find(r => r.id === this.slotInfo?.riding_type_id);
+      const { error: uploadError } = await supabase!
+        .storage
+        .from('referrals')
+        .upload(filePath, this.referralFile, {
+          upsert: false,
+        });
 
-  const specialDuration = Number(ridingType?.spacial_duration ?? 0);
+      if (uploadError) {
+        console.error('referral upload error', uploadError);
+        throw new Error('שגיאה בהעלאת מסמך ההפניה');
+      }
 
-  if (specialDuration > 0) {
-    return specialDuration;
+      const { data: publicData } = supabase!
+        .storage
+        .from('referrals')
+        .getPublicUrl(filePath);
+
+      const url = publicData?.publicUrl ?? null;
+      this.referralUrl = url;
+      return url;
+    } catch (error) {
+      console.error('referral upload exception', error);
+      throw error;
+    }
+  }
+  get instructorEligibilityWarning(): string | null {
+    if (!this.selectedChild || !this.selectedInstructor) {
+      return null;
+    }
+
+    const result = this.isEligibleForInstructor(
+      this.selectedChild,
+      this.selectedInstructor
+    );
+
+    return result.ok
+      ? null
+      : (result.reason ?? 'אי התאמה למדריך');
+  }
+  get availablePaymentPlans(): PaymentPlan[] {
+    const childFundingSourceId = this.selectedChild?.funding_source_id ?? null;
+
+    return this.paymentPlans.filter(plan => {
+      const source = plan.funding_sources ?? null;
+
+      if (!plan.funding_source_id || !source) {
+        return true;
+      }
+
+      if (source.is_system === false) {
+        return true;
+      }
+
+      return plan.funding_source_id === childFundingSourceId;
+    });
+  }
+  async loadFarmSettings(): Promise<void> {
+    const { data, error } = await dbTenant()
+      .from('farm_settings')
+      .select('lesson_duration_minutes')
+      .single();
+
+    if (error) {
+      console.error(error);
+      this.showError('שגיאה בטעינת הגדרות חווה');
+      return;
+    }
+
+    this.farmLessonDurationMinutes = Number(data?.lesson_duration_minutes ?? 0) || null;
+  }
+  private timeToMinutes(time: string): number {
+    const [h, m] = time.slice(0, 5).split(':').map(Number);
+    return h * 60 + m;
   }
 
-  const defaultDuration = Number(this.farmLessonDurationMinutes ?? 0);
-
-  if (defaultDuration > 0) {
-    return defaultDuration;
+  private minutesToTime(totalMinutes: number): string {
+    const normalized = ((totalMinutes % 1440) + 1440) % 1440;
+    const h = Math.floor(normalized / 60);
+    const m = normalized % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
 
-  throw new Error('לא הוגדר משך שיעור בסוג השיעור או בהגדרות החווה');
-}
+  private getEffectiveDurationMinutes(): number {
+    const ridingType =
+      this.bookingMode === 'special'
+        ? this.selectedSpecialRidingType
+        : this.activeRidingTypes.find(r => r.id === this.slotInfo?.riding_type_id);
 
-getCalculatedEndTime(): string {
-  const duration = this.getEffectiveDurationMinutes();
-  return this.minutesToTime(this.timeToMinutes(this.startTime) + duration);
-}
-get displayEndTime(): string {
-  try {
-    return this.getCalculatedEndTime();
-  } catch {
-    return this.endTime;
-  }
-}
-get visibleQuickWarnings() {
-  const warnings = this.slotInfo?.warnings ?? [];
-  const hasBreak = warnings.some(w => w.type === 'break_time');
+    const specialDuration = Number(ridingType?.spacial_duration ?? 0);
 
-  if (!hasBreak) {
-    return warnings;
-  }
+    if (specialDuration > 0) {
+      return specialDuration;
+    }
 
-  return warnings.filter(w => w.type !== 'capacity_reached');
-}
-async onStartTimeChange(): Promise<void> {
-  this.slotInfo = null;
-  this.slotInfoError = null;
+    const defaultDuration = Number(this.farmLessonDurationMinutes ?? 0);
 
-  await this.loadSlotInfo();
+    if (defaultDuration > 0) {
+      return defaultDuration;
+    }
 
-  if (this.bookingMode === 'makeup' && this.selectedChildId) {
-    await this.loadMakeupCandidates();
+    throw new Error('לא הוגדר משך שיעור בסוג השיעור או בהגדרות החווה');
   }
 
-  if (this.bookingMode === 'occupancy' && this.selectedChildId) {
-    await this.loadOccupancyCandidates();
+  getCalculatedEndTime(): string {
+    if (this.isSlotUnavailable) {
+      return this.endTime;
+    }
+
+    const duration = this.getEffectiveDurationMinutes();
+    return this.minutesToTime(this.timeToMinutes(this.startTime) + duration);
   }
-}
+  get displayEndTime(): string {
+    try {
+      return this.getCalculatedEndTime();
+    } catch {
+      return this.endTime;
+    }
+  }
+  get visibleQuickWarnings() {
+    const warnings = this.slotInfo?.warnings ?? [];
+    const hasBreak = warnings.some(w => w.type === 'break_time');
+
+    if (!hasBreak) {
+      return warnings;
+    }
+
+    return warnings.filter(w => w.type !== 'capacity_reached');
+  }
+  async onStartTimeChange(): Promise<void> {
+    this.slotInfo = null;
+    this.slotInfoError = null;
+
+    await this.loadSlotInfo();
+
+    if (this.bookingMode === 'makeup' && this.selectedChildId) {
+      await this.loadMakeupCandidates();
+    }
+
+    if (this.bookingMode === 'occupancy' && this.selectedChildId) {
+      await this.loadOccupancyCandidates();
+    }
+  }
+  get slotUnavailableMessage(): string {
+    const msg = this.slotInfoError || this.slotInfo?.reason || '';
+
+    if (msg === 'missing_riding_type') {
+      return 'לא קיימת זמינות מדריך מתאימה לשעה זו. ייתכן שזה זמן הפסקה או זמן מחוץ ללוח הזמינות.';
+    }
+
+    return msg || 'לא ניתן לזמן שיעור בשעה זו';
+  }
+
+  get isSlotUnavailable(): boolean {
+    return !!this.slotInfoError || (!!this.slotInfo && this.slotInfo.ok === false);
+  }
+
+  get canEditAppointment(): boolean {
+    return !this.loadingSlotInfo && !this.isSlotUnavailable;
+  }
+  timeOptions: string[] = [];
+
+  private buildTimeOptions(): void {
+    const options: string[] = [];
+
+    for (let h = 7; h <= 22; h++) {
+      for (const m of [0, 15, 30, 45]) {
+        options.push(
+          `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+        );
+      }
+    }
+
+    this.timeOptions = options;
+  }
 }

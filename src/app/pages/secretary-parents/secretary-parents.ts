@@ -47,6 +47,7 @@ type ParentRow = {
   hasExpiringPaymentMethod?: boolean;
   defaultPaymentLast4?: string | null;
   defaultPaymentExpiry?: string | null;
+  scheduled_inactive_at?: string | null;
 };
 type PaymentProfileRow = {
   id: string;
@@ -396,8 +397,7 @@ export class SecretaryParentsComponent implements OnInit {
 
       const { data: parentsData, error: parentsErr } = await dbc
         .from('parents')
-        .select('uid, first_name, last_name, id_number, phone, email, is_active, billing_day_of_month')
-        .order('first_name', { ascending: true });
+        .select('uid, first_name, last_name, id_number, phone, email, is_active, billing_day_of_month, scheduled_inactive_at').order('first_name', { ascending: true });
 
       if (parentsErr) throw parentsErr;
 
@@ -508,8 +508,7 @@ export class SecretaryParentsComponent implements OnInit {
       const { data: p, error: pErr } = await db
         .from('parents')
         .select(
-          'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month, is_active'
-        )
+          'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month, is_active, scheduled_inactive_at')
         .eq('uid', cleanUid)
         .maybeSingle();
 
@@ -592,6 +591,7 @@ export class SecretaryParentsComponent implements OnInit {
           : ['inapp'],
         [Validators.required],
       ],
+      inactive_date: [this.todayDate()],
     });
   }
 
@@ -716,35 +716,70 @@ export class SecretaryParentsComponent implements OnInit {
     const newBillingDay = Number(formValue.billing_day);
     const newIsActive = formValue.is_active === true;
     const oldIsActive = this.originalParent.is_active !== false;
+    const becameInactive = oldIsActive === true && newIsActive === false;
 
-    if (newIsActive !== oldIsActive) {
+    if (newIsActive !== oldIsActive && !becameInactive) {
       changes.is_active = newIsActive;
     }
     const oldBillingDay = this.originalParent.billing_day_of_month ?? 10;
     if (newBillingDay !== oldBillingDay) changes.billing_day_of_month = newBillingDay;
 
-    if (Object.keys(changes).length === 0) {
+    if (Object.keys(changes).length === 0 && !becameInactive) {
       this.editMode = false;
       return;
     }
-
     try {
       const db = dbTenant();
       const cleanUid = (this.selectedUid || '').trim();
 
-      const { data, error } = await db
-        .from('parents')
-        .update(changes)
-        .eq('uid', cleanUid)
-        .select(
-          'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month, is_active'
-        )
-        .maybeSingle();
+      let data: any = null;
 
-      if (error) throw error;
+      if (Object.keys(changes).length > 0) {
+        const res = await db
+          .from('parents')
+          .update(changes)
+          .eq('uid', cleanUid)
+          .select(
+            'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month, is_active, scheduled_inactive_at'
+          )
+          .maybeSingle();
 
-      if (!data) {
-        throw new Error('עדכון נכשל: לא נמצא הורה עם ה-uid הזה.');
+        if (res.error) throw res.error;
+
+        if (!res.data) {
+          throw new Error('עדכון נכשל: לא נמצא הורה עם ה-uid הזה.');
+        }
+
+        data = res.data;
+      }
+
+      if (becameInactive) {
+        const inactiveDate = formValue.inactive_date;
+
+        if (!inactiveDate) {
+          await this.ui.alert('חובה לבחור תאריך הפיכת הורה ללא פעיל', 'שגיאה');
+          return;
+        }
+
+        const { error: rpcError } = await db.rpc('schedule_parent_inactivation', {
+          p_parent_uid: cleanUid,
+          p_inactive_date: inactiveDate,
+        });
+
+        if (rpcError) throw rpcError;
+
+        await this.loadParents();
+        await this.loadDrawerData(cleanUid);
+
+        this.editMode = false;
+        const isToday = inactiveDate === this.todayDate();
+
+        await this.ui.alert(
+          isToday
+            ? 'ההורה הפך ללא פעיל. גם ילדיו הועברו לסטטוס לא פעיל והשיעורים העתידיים שלהם בוטלו.'
+            : 'השינויים נשמרו ונקבע תאריך שבו ההורה יהפוך ללא פעיל. באותו תאריך גם ילדיו יהפכו ללא פעילים והשיעורים העתידיים שלהם יבוטלו.',
+          'בוצע'
+        ); return;
       }
 
       this.drawerParent = data as ParentDetailsRow;
@@ -1465,5 +1500,8 @@ export class SecretaryParentsComponent implements OnInit {
       default:
         return status || 'לא ידוע';
     }
+  }
+  todayDate(): string {
+    return new Date().toISOString().slice(0, 10);
   }
 }
