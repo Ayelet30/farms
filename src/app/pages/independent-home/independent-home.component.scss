@@ -1,0 +1,66 @@
+.independent-home {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    background: #f7f8f3;
+    min-height: 100vh;
+}
+
+.hero-card {
+    background: linear-gradient(135deg, #8a9362 0%, #6f7b4f 100%);
+    border-radius: 24px;
+    padding: 32px;
+    color: white;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+.hero-text h1 {
+    margin: 0 0 10px;
+    font-size: 32px;
+    font-weight: 800;
+}
+
+.hero-text p {
+    margin: 0;
+    font-size: 16px;
+    opacity: 0.95;
+}
+
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 18px;
+}
+
+.home-card {
+    background: white;
+    border-radius: 20px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+    transition: 0.2s ease;
+    cursor: pointer;
+}
+
+.home-card:hover {
+    transform: translateY(-3px);
+}
+
+.icon {
+    font-size: 34px;
+}
+
+.title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #2f3a21;
+}
+
+.desc {
+    font-size: 14px;
+    color: #66705a;
+    line-height: 1.5;
+}

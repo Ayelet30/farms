@@ -1,0 +1,136 @@
+<div *ngIf="!loading && independent" class="child-card">
+
+    <div class="child-header">
+
+        <p *ngIf="infoMessage" class="inline-message">
+            {{ infoMessage }}
+        </p>
+
+        <div *ngIf="!isEditing">
+            <h3>
+                {{ independent.first_name }}
+                {{ independent.last_name }}
+            </h3>
+        </div>
+
+        <div *ngIf="isEditing" class="editable-name">
+            <input [(ngModel)]="editableIndependent.first_name" class="editable-input" placeholder="שם פרטי" />
+
+            <input [(ngModel)]="editableIndependent.last_name" class="editable-input" placeholder="שם משפחה" />
+        </div>
+
+        <div class="button-group">
+
+            <button *ngIf="!isEditing" (click)="enableEditing()" class="btn-edit">
+                ✏️ ערוך
+            </button>
+
+            <ng-container *ngIf="isEditing">
+
+                <button (click)="onSaveClick()" class="btn-save">
+                    💾 שמור
+                </button>
+
+                <button (click)="cancelEdit()" class="btn-cancel">
+                    ❌ ביטול
+                </button>
+
+            </ng-container>
+        </div>
+    </div>
+
+    <p>
+        <strong>תעודת זהות:</strong>
+        {{ independent.id_number || '-' }}
+    </p>
+
+    <p>
+        <strong>טלפון:</strong>
+
+        <span *ngIf="!isEditing">
+            {{ independent.phone || '-' }}
+        </span>
+
+        <ng-container *ngIf="isEditing">
+            <input [(ngModel)]="editableIndependent.phone" class="editable-input" />
+
+            <div *ngIf="phoneError" class="error-msg">
+                {{ phoneError }}
+            </div>
+        </ng-container>
+    </p>
+
+    <p>
+        <strong>דוא"ל:</strong>
+
+        <span *ngIf="!isEditing">
+            {{ independent.email || '-' }}
+        </span>
+
+        <ng-container *ngIf="isEditing">
+
+            <input [(ngModel)]="editableIndependent.email" class="editable-input" />
+
+            <div *ngIf="emailError" class="error-msg">
+                {{ emailError }}
+            </div>
+
+        </ng-container>
+    </p>
+
+    <p>
+        <strong>איש קשר לחירום:</strong>
+
+        <span *ngIf="!isEditing">
+            {{ independent.emergency_contact_name || '-' }}
+        </span>
+
+        <input *ngIf="isEditing" [(ngModel)]="editableIndependent.emergency_contact_name" class="editable-input" />
+    </p>
+
+    <p>
+        <strong>טלפון חירום:</strong>
+
+        <span *ngIf="!isEditing">
+            {{ independent.emergency_contact_phone || '-' }}
+        </span>
+
+        <input *ngIf="isEditing" [(ngModel)]="editableIndependent.emergency_contact_phone" class="editable-input" />
+    </p>
+
+    <p>
+        <strong>הערות:</strong>
+
+        <span *ngIf="!isEditing">
+            {{ independent.notes || '-' }}
+        </span>
+
+        <textarea *ngIf="isEditing" [(ngModel)]="editableIndependent.notes" class="editable-input">
+    </textarea>
+    </p>
+
+</div>
+
+<div *ngIf="showConfirmDialog" class="modal-backdrop">
+
+    <div class="modal-panel">
+
+        <h4>אישור שמירת שינויים</h4>
+
+        <p>
+            האם לשמור את השינויים?
+        </p>
+
+        <div class="modal-actions">
+
+            <button class="btn-save" (click)="confirmSave()">
+                💾 שמור
+            </button>
+
+            <button class="btn-cancel" (click)="cancelSaveDialog()">
+                ❌ ביטול
+            </button>
+
+        </div>
+    </div>
+</div>

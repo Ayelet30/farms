@@ -410,7 +410,7 @@ getAllowedRidingTypesForSlot(slot: TimeSlot): RidingType[] {
       return false;
     }
 
-    return (rt.max_participants ?? 0) > currentMax;
+    return (rt.max_participants ?? 0) >= currentMax;
   });
 }
   /* ===================== INSTRUCTOR ===================== */

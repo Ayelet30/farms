@@ -1,0 +1,100 @@
+<div class="req" dir="rtl">
+    <div class="req-title">בקשת שירות לרוכב עצמאי</div>
+
+    <div class="section">
+        <h4>פרטי הבקשה</h4>
+
+        <div class="meta-grid">
+            <div>
+                <span>שירות</span>
+                <b>{{ p.service_name || '—' }}</b>
+            </div>
+
+            <div>
+                <span>קטגוריה</span>
+                <b>{{ categoryLabel }}</b>
+            </div>
+
+            <div>
+                <span>סוס</span>
+                <b>{{ p.horse_name || '—' }}</b>
+            </div>
+
+            <div>
+                <span>אופי השירות</span>
+                <b>{{ serviceModeLabel }}</b>
+            </div>
+
+            <div>
+                <span>תאריך התחלה / ביצוע</span>
+                <b>{{ dateText(p.requested_start_date) }}</b>
+            </div>
+
+            <div>
+                <span>תאריך סיום</span>
+                <b>{{ dateText(p.requested_end_date) }}</b>
+            </div>
+
+            <div>
+                <span>מחיר ברירת מחדל</span>
+                <b>{{ priceText }}</b>
+            </div>
+
+            <div>
+                <span>תדירות</span>
+                <b>{{ recurrenceText }}</b>
+            </div>
+        </div>
+    </div>
+
+    <div class="section" *ngIf="p.planned_dates?.length">
+        <h4>תאריכי ביצוע צפויים</h4>
+
+        <div class="chips">
+            <span class="chip" *ngFor="let d of p.planned_dates">
+                {{ dateText(d) }}
+            </span>
+        </div>
+    </div>
+
+    <div class="section" *ngIf="p.approval_file">
+        <h4>אישור מצורף</h4>
+
+        <div class="file-box">
+            <div>
+                <b>{{ p.approval_file.name || 'קובץ מצורף' }}</b>
+                <span>{{ p.approval_file.type || '' }}</span>
+            </div>
+
+            <small>
+                הנתיב נשמר:
+                {{ p.approval_file.path }}
+            </small>
+        </div>
+    </div>
+
+    <div class="section" *ngIf="p.notes">
+        <h4>הערות הרוכב</h4>
+        <p>{{ p.notes }}</p>
+    </div>
+
+    <div class="note-box">
+        <label>הערה להחלטה</label>
+        <textarea [(ngModel)]="decisionNote" rows="2" [disabled]="busy" placeholder="הערה פנימית / סיבת דחייה...">
+    </textarea>
+    </div>
+
+    <div class="actions" *ngIf="req()?.status === 'PENDING'">
+        <button class="btn reject" type="button" (click)="reject()" [disabled]="busy">
+            דחייה
+        </button>
+
+        <button class="btn approve" type="button" (click)="approve()" [disabled]="busy">
+            אישור
+        </button>
+    </div>
+
+    <div class="err" *ngIf="errText">
+        {{ errText }}
+    </div>
+</div>

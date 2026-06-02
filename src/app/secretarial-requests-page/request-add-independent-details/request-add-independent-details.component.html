@@ -1,0 +1,40 @@
+<div class="busy-overlay" *ngIf="busy()">
+    <div class="busy-card" dir="rtl">
+        <mat-spinner diameter="28"></mat-spinner>
+        <div class="busy-text">{{ busyText() }}</div>
+    </div>
+</div>
+
+<div class="req" dir="rtl">
+    <div class="req-head">
+        <div class="req-title">הוספת רוכב עצמאי חדש</div>
+
+        <div class="meta">
+            <div><b>שם מלא:</b> {{ fullName }}</div>
+            <div><b>טלפון:</b> {{ riderMeta.phone || '—' }}</div>
+            <div><b>אימייל:</b> {{ riderMeta.email || '—' }}</div>
+            <div><b>ת.ז:</b> {{ riderMeta.id_number || '—' }}</div>
+            <div><b>כתובת:</b> {{ riderMeta.address || '—' }}</div>
+            <div><b>העדפות תקשורת:</b> {{ messagePreferencesText }}</div>
+            <div *ngIf="riderMeta.extra_notes"><b>הערות:</b> {{ riderMeta.extra_notes }}</div>
+        </div>
+    </div>
+
+    <div class="note-box">
+        <label>הערה להחלטה (אופציונלי)</label>
+        <textarea [(ngModel)]="decisionNote" rows="2" [disabled]="busy()" placeholder="לתיעוד / למזכירות...">
+    </textarea>
+    </div>
+
+    <div class="actions" *ngIf="isSecretary && isPending">
+        <button class="btn reject" (click)="reject()" [disabled]="loading() || busy()">
+            דחייה
+        </button>
+
+        <button class="btn approve" (click)="approve()" [disabled]="loading() || busy()">
+            אישור
+        </button>
+    </div>
+
+    <div class="err" *ngIf="errText()">{{ errText() }}</div>
+</div>

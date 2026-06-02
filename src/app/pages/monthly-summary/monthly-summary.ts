@@ -2,8 +2,7 @@ import { Component, OnInit, computed, signal, Input, inject } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UiDialogService } from '../../services/ui-dialog.service';
-import { ActivatedRoute } from '@angular/router';
-
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
@@ -28,8 +27,8 @@ type MonthlyReportRow = {
   lesson_date: string | null;
   start_time: string | null;
   end_time: string | null;
- office_note?: string | null;
-   instructor_note?: string | null;
+  office_note?: string | null;
+  instructor_note?: string | null;
 
   status?: string | null;
   child_name?: string | null;
@@ -51,7 +50,7 @@ type MonthlyReportRow = {
 
 interface LessonRow {
   lesson_id: UUID;
-  child_id?: UUID | null; 
+  child_id?: UUID | null;
   office_note?: string | null;
   instructor_note?: string | null;
 
@@ -173,7 +172,7 @@ interface OccWithAttendanceRow {
     MatButtonModule,
     MatTableModule,
     MatProgressSpinnerModule,
-     MatTooltipModule, 
+    MatTooltipModule,
   ],
 })
 export class MonthlySummaryComponent implements OnInit {
@@ -182,29 +181,30 @@ export class MonthlySummaryComponent implements OnInit {
 
   private dbc = this.dbTenantFactory();
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
 
 
 
-readonly isSecretary = signal<boolean>(true);
+  readonly isSecretary = signal<boolean>(true);
 
-readonly baseColumns = [
-  'date',
-  'student',
-  'instructor',
-  'type',
-  'ridingType',
-  'status',
-  'start',
-  'end',
-];
+  readonly baseColumns = [
+    'date',
+    'student',
+    'instructor',
+    'type',
+    'ridingType',
+    'status',
+    'start',
+    'end',
+  ];
 
 
 
-readonly displayedColumns = computed(() =>
-  this.isSecretary()
-    ? [...this.baseColumns, 'office_note', 'instructor_note']
-    : this.baseColumns
-);
+  readonly displayedColumns = computed(() =>
+    this.isSecretary()
+      ? [...this.baseColumns, 'office_note', 'instructor_note']
+      : this.baseColumns
+  );
 
 
   // ✅ Safe debug logger: runs only on localhost/dev and never prints sensitive payloads
@@ -296,7 +296,7 @@ readonly displayedColumns = computed(() =>
   instructorFilter = signal<'all' | string>('all');
   selectedChildId = signal<string | null>(null);
   fromChildCard = signal<boolean>(false);
-selectedChildName = signal<string | null>(null);
+  selectedChildName = signal<string | null>(null);
 
   // DATA
   lessons = signal<LessonRow[]>([]);
@@ -329,10 +329,10 @@ selectedChildName = signal<string | null>(null);
     return window.location.pathname.includes('instructor');
   }
 
- private getFirebaseUidOrNull(): string | null {
-  const fbUser = getAuth().currentUser;
-  return fbUser?.uid ?? null;
-}
+  private getFirebaseUidOrNull(): string | null {
+    const fbUser = getAuth().currentUser;
+    return fbUser?.uid ?? null;
+  }
 
 
   private deriveStatus(raw: MonthlyReportRow): LessonStatus | null {
@@ -391,7 +391,7 @@ selectedChildName = signal<string | null>(null);
     const type = this.typeFilter();
     const statusF = this.statusFilter();
     const instructorF = this.instructorFilter();
-    
+
     const rows = this.lessons();
 
     const map: Record<string, LessonStatus[]> = {
@@ -402,53 +402,52 @@ selectedChildName = signal<string | null>(null);
       all: [],
     };
 
-return rows.filter((l: LessonRow) => {
-  const childName =
-    this.clean(l.child_full_name) ||
-    `${this.clean(l.child_first_name)} ${this.clean(l.child_last_name)}`.trim() ||
-    `${this.clean(l.child?.first_name)} ${this.clean(l.child?.last_name)}`.trim();
+    return rows.filter((l: LessonRow) => {
+      const childName =
+        this.clean(l.child_full_name) ||
+        `${this.clean(l.child_first_name)} ${this.clean(l.child_last_name)}`.trim() ||
+        `${this.clean(l.child?.first_name)} ${this.clean(l.child?.last_name)}`.trim();
 
-  // סוג שיעור
-  if (type === 'regular' && l.lesson_type !== 'רגיל') return false;
-  if (type === 'makeup' && l.lesson_type !== 'השלמה') return false;
+      // סוג שיעור
+      if (type === 'regular' && l.lesson_type !== 'רגיל') return false;
+      if (type === 'makeup' && l.lesson_type !== 'השלמה') return false;
 
-  // סטטוס
-  if (statusF !== 'all') {
-    const allowed = map[statusF];
-    if (!l.status || !allowed.includes(l.status)) return false;
-  }
+      // סטטוס
+      if (statusF !== 'all') {
+        const allowed = map[statusF];
+        if (!l.status || !allowed.includes(l.status)) return false;
+      }
 
-  // מדריך
-  if (instructorF !== 'all') {
-    const instName = this.clean(l.instructor_name);
-    if (instName !== instructorF) return false;
-  }
+      // מדריך
+      if (instructorF !== 'all') {
+        const instName = this.clean(l.instructor_name);
+        if (instName !== instructorF) return false;
+      }
 
-  // 🔹 אם הגענו מכרטיס ילד – סינון לפי child_id בלבד
-// 🔹 אם הגענו מכרטיס ילד – סינון לפי שם הילד
-// 🔒 סינון מכרטסת ילד – ילד אחד בלבד
-if (this.fromChildCard()) {
-  const childId = this.selectedChildId();
-  if (!childId) return true; // ← אל תחסום אם אין מזהה
+      // 🔹 אם הגענו מכרטיס ילד – סינון לפי child_id בלבד
+      // 🔹 אם הגענו מכרטיס ילד – סינון לפי שם הילד
+      // 🔒 סינון מכרטסת ילד – ילד אחד בלבד
+      if (this.fromChildCard()) {
+        const childId = this.selectedChildId();
+        if (!childId) return true; // ← אל תחסום אם אין מזהה
 
-  // השוואה בטוחה (string)
-  if (String(l.child_id) !== String(childId)) return false;
-}
+        // השוואה בטוחה (string)
+        if (String(l.child_id) !== String(childId)) return false;
+      }
 
 
-  // 🔹 חיפוש חופשי כללי
-  if (q) {
-    const hay = `${childName} ${l.lesson_type || ''} ${l.riding_type || ''} ${
-      l.instructor_name || ''
-    }`.toLowerCase();
+      // 🔹 חיפוש חופשי כללי
+      if (q) {
+        const hay = `${childName} ${l.lesson_type || ''} ${l.riding_type || ''} ${l.instructor_name || ''
+          }`.toLowerCase();
 
-    if (!hay.includes(q)) return false;
-  }
+        if (!hay.includes(q)) return false;
+      }
 
-  return true;
-});
+      return true;
+    });
 
-});
+  });
 
   // ===============================
   //            KPIs
@@ -529,20 +528,20 @@ if (this.fromChildCard()) {
     };
   });
 
-ngOnInit(): void {
-  this.route.queryParams.subscribe(params => {
-    const childId = params['childId'] ?? null;
+  ngOnInit(): void {
+    this.route.queryParams.subscribe(params => {
+      const childId = params['childId'] ?? null;
 
-    this.selectedChildId.set(childId);
+      this.selectedChildId.set(childId);
 
-    // 🔒 רק אם באמת הגיע childId – נחשב "מכרטסת ילד"
-    this.fromChildCard.set(
-      params['fromChild'] === 'true' && !!childId
-    );
-  });
+      // 🔒 רק אם באמת הגיע childId – נחשב "מכרטסת ילד"
+      this.fromChildCard.set(
+        params['fromChild'] === 'true' && !!childId
+      );
+    });
 
-  this.load();
-}
+    this.load();
+  }
 
 
 
@@ -581,13 +580,13 @@ ngOnInit(): void {
         .order('start_time', { ascending: true })
         .order('instructor_name', { ascending: true });
 
-     if (this.isInstructor()) {
-  if (!uid) {
-    await this.ui.alert('לא נמצא משתמש מחובר. התחברי מחדש.', 'שגיאה');
-    return;
-  }
-  lessonsQuery = lessonsQuery.eq('instructor_uid', uid);
-}
+      if (this.isInstructor()) {
+        if (!uid) {
+          await this.ui.alert('לא נמצא משתמש מחובר. התחברי מחדש.', 'שגיאה');
+          return;
+        }
+        lessonsQuery = lessonsQuery.eq('instructor_uid', uid);
+      }
 
 
       const [
@@ -624,7 +623,7 @@ ngOnInit(): void {
           .select('occur_date,status,lesson_id,is_cancellation,attendance_status,lesson_type')
           .gte('occur_date', from)
           .lte('occur_date', to),
-         this.dbc
+        this.dbc
           .from('lesson_notes_simple')
           .select('lesson_id, child_id, occur_date, note, category, created_at')
           .gte('occur_date', from)
@@ -641,37 +640,37 @@ ngOnInit(): void {
       const rows = (rawLessons ?? []) as MonthlyReportRow[];
       const noteRows = (notesData ?? []) as LessonNoteRow[];
 
-const noteKey = (lessonId: string | null | undefined, childId: string | null | undefined, occurDate: string | null | undefined): string =>
-  `${lessonId ?? ''}__${childId ?? ''}__${occurDate ?? ''}`;
+      const noteKey = (lessonId: string | null | undefined, childId: string | null | undefined, occurDate: string | null | undefined): string =>
+        `${lessonId ?? ''}__${childId ?? ''}__${occurDate ?? ''}`;
 
-const notesMap = new Map<string, { office_note: string | null; instructor_note: string | null }>();
+      const notesMap = new Map<string, { office_note: string | null; instructor_note: string | null }>();
 
-for (const n of noteRows) {
-  const key = noteKey(n.lesson_id, n.child_id, n.occur_date);
+      for (const n of noteRows) {
+        const key = noteKey(n.lesson_id, n.child_id, n.occur_date);
 
-  if (!notesMap.has(key)) {
-    notesMap.set(key, {
-      office_note: null,
-      instructor_note: null,
-    });
-  }
+        if (!notesMap.has(key)) {
+          notesMap.set(key, {
+            office_note: null,
+            instructor_note: null,
+          });
+        }
 
-  const current = notesMap.get(key)!;
-  const category = (n.category ?? '').trim();
-  const text = (n.note ?? '').trim();
+        const current = notesMap.get(key)!;
+        const category = (n.category ?? '').trim();
+        const text = (n.note ?? '').trim();
 
-  if (!text) continue;
+        if (!text) continue;
 
-  if (category === 'office') {
-    current.office_note = current.office_note
-      ? `${current.office_note} | ${text}`
-      : text;
-  } else if (category === 'general') {
-    current.instructor_note = current.instructor_note
-      ? `${current.instructor_note} | ${text}`
-      : text;
-  }
-}
+        if (category === 'office') {
+          current.office_note = current.office_note
+            ? `${current.office_note} | ${text}`
+            : text;
+        } else if (category === 'general') {
+          current.instructor_note = current.instructor_note
+            ? `${current.instructor_note} | ${text}`
+            : text;
+        }
+      }
 
       // ✅ safe debug: counts only
       this.debug('loaded data', {
@@ -685,87 +684,87 @@ for (const n of noteRows) {
         occAttendance: (occAttData ?? []).length,
       });
 
-     const lessonKey = (raw: MonthlyReportRow): string =>
-  `${raw.lesson_id ?? ''}__${raw.child_id ?? ''}__${raw.lesson_date ?? ''}`;
+      const lessonKey = (raw: MonthlyReportRow): string =>
+        `${raw.lesson_id ?? ''}__${raw.child_id ?? ''}__${raw.lesson_date ?? ''}`;
 
-const dedupedMap = new Map<string, LessonRow>();
+      const dedupedMap = new Map<string, LessonRow>();
 
-for (const raw of rows) {
-  const key = lessonKey(raw);
+      for (const raw of rows) {
+        const key = lessonKey(raw);
 
-  const childFull = this.clean(raw.child_name) || null;
-  const instructorName = this.clean(raw.instructor_name) || null;
-  const lessonType = this.deriveLessonType(raw);
-  const status = this.deriveStatus(raw);
-  const ridingType =
-    this.clean(raw.riding_type_name) || this.clean(raw.riding_type_code) || null;
+        const childFull = this.clean(raw.child_name) || null;
+        const instructorName = this.clean(raw.instructor_name) || null;
+        const lessonType = this.deriveLessonType(raw);
+        const status = this.deriveStatus(raw);
+        const ridingType =
+          this.clean(raw.riding_type_name) || this.clean(raw.riding_type_code) || null;
 
-  const notes = notesMap.get(
-    noteKey(raw.lesson_id ?? null, raw.child_id ?? null, raw.lesson_date ?? null)
-  );
+        const notes = notesMap.get(
+          noteKey(raw.lesson_id ?? null, raw.child_id ?? null, raw.lesson_date ?? null)
+        );
 
-  if (!dedupedMap.has(key)) {
-    dedupedMap.set(key, {
-      lesson_id: (raw.lesson_id ?? '') as UUID,
-      child_id: raw.child_id ?? null,
-      occur_date: raw.lesson_date ?? null,
+        if (!dedupedMap.has(key)) {
+          dedupedMap.set(key, {
+            lesson_id: (raw.lesson_id ?? '') as UUID,
+            child_id: raw.child_id ?? null,
+            occur_date: raw.lesson_date ?? null,
 
-      office_note: notes?.office_note ?? null,
-      instructor_note: notes?.instructor_note ?? null,
+            office_note: notes?.office_note ?? null,
+            instructor_note: notes?.instructor_note ?? null,
 
-      start_time: raw.start_time ? raw.start_time.slice(0, 5) : null,
-      end_time: raw.end_time ? raw.end_time.slice(0, 5) : null,
+            start_time: raw.start_time ? raw.start_time.slice(0, 5) : null,
+            end_time: raw.end_time ? raw.end_time.slice(0, 5) : null,
 
-      lesson_type: lessonType,
-      status,
+            lesson_type: lessonType,
+            status,
 
-      riding_type_code: raw.riding_type_code ?? null,
-      riding_type_name: raw.riding_type_name ?? null,
-      riding_type: ridingType,
+            riding_type_code: raw.riding_type_code ?? null,
+            riding_type_name: raw.riding_type_name ?? null,
+            riding_type: ridingType,
 
-      child_full_name: childFull,
-      child_first_name: null,
-      child_last_name: null,
+            child_full_name: childFull,
+            child_first_name: null,
+            child_last_name: null,
 
-      instructor_name: instructorName,
-      instructor_uid: raw.instructor_uid ?? null,
-    });
-  } else {
-    const existing = dedupedMap.get(key)!;
+            instructor_name: instructorName,
+            instructor_uid: raw.instructor_uid ?? null,
+          });
+        } else {
+          const existing = dedupedMap.get(key)!;
 
-    if (!existing.office_note && notes?.office_note) {
-      existing.office_note = notes.office_note;
-    }
+          if (!existing.office_note && notes?.office_note) {
+            existing.office_note = notes.office_note;
+          }
 
-    if (!existing.instructor_note && notes?.instructor_note) {
-      existing.instructor_note = notes.instructor_note;
-    }
-  }
-}
+          if (!existing.instructor_note && notes?.instructor_note) {
+            existing.instructor_note = notes.instructor_note;
+          }
+        }
+      }
 
-const normalizedLessons = Array.from(dedupedMap.values());
+      const normalizedLessons = Array.from(dedupedMap.values());
 
       this.lessons.set(normalizedLessons);
 
       // ✅ אם הגענו מכרטיס ילד – סינון אוטומטי לפי שם הילד
-// ✅ סינון אוטומטי לפי שם הילד שממנו הגענו (לפי childId)
-if (this.fromChildCard() && this.selectedChildId()) {
-  const childId = this.selectedChildId();
+      // ✅ סינון אוטומטי לפי שם הילד שממנו הגענו (לפי childId)
+      if (this.fromChildCard() && this.selectedChildId()) {
+        const childId = this.selectedChildId();
 
-  const match = normalizedLessons.find(
-    l => l.child_id === childId
-  );
+        const match = normalizedLessons.find(
+          l => l.child_id === childId
+        );
 
-  if (match) {
-    const name =
-      this.clean(match.child_full_name) ||
-      `${this.clean(match.child_first_name)} ${this.clean(match.child_last_name)}`.trim();
+        if (match) {
+          const name =
+            this.clean(match.child_full_name) ||
+            `${this.clean(match.child_first_name)} ${this.clean(match.child_last_name)}`.trim();
 
-    if (name) {
-      this.childSearch.set(name);
-    }
-  }
-}
+          if (name) {
+            this.childSearch.set(name);
+          }
+        }
+      }
 
 
       this.payments.set((paymentsData ?? []) as PaymentRow[]);
@@ -778,11 +777,11 @@ if (this.fromChildCard() && this.selectedChildId()) {
     } catch (err: any) {
       // 🔒 no raw data in error logs
       // eslint-disable-next-line no-console
-     console.error('❌ load summary failed', err?.message || err);
-     await this.ui.alert(
-     'שגיאה בטעינת נתונים: ' + (err?.message || 'בדקי קונסול בדפדפן'),
-     'שגיאה'
-    );
+      console.error('❌ load summary failed', err?.message || err);
+      await this.ui.alert(
+        'שגיאה בטעינת נתונים: ' + (err?.message || 'בדקי קונסול בדפדפן'),
+        'שגיאה'
+      );
 
     } finally {
       this.loading = false;
@@ -882,14 +881,14 @@ if (this.fromChildCard() && this.selectedChildId()) {
     const target = e.target as HTMLInputElement;
     this.search.set(target.value);
   }
-onChildSearchChange(e: Event): void {
-  const target = e.target as HTMLInputElement;
-  this.childSearch.set(target.value);
-}
+  onChildSearchChange(e: Event): void {
+    const target = e.target as HTMLInputElement;
+    this.childSearch.set(target.value);
+  }
 
-clearChildSearch(): void {
-  this.childSearch.set('');
-}
+  clearChildSearch(): void {
+    this.childSearch.set('');
+  }
 
   clearSearch(): void {
     this.search.set('');
@@ -897,49 +896,49 @@ clearChildSearch(): void {
     this.statusFilter.set('all');
     this.instructorFilter.set('all');
   }
-// ===============================
-//        EXCEL EXPORT (SAFE)
-// ===============================
-async exportExcel(): Promise<void> {
-  const rows = this.filteredLessons();
+  // ===============================
+  //        EXCEL EXPORT (SAFE)
+  // ===============================
+  async exportExcel(): Promise<void> {
+    const rows = this.filteredLessons();
 
-  try {
-    const XLSXmod: any = await import('xlsx');
-    const XLSX = XLSXmod.default ?? XLSXmod;
+    try {
+      const XLSXmod: any = await import('xlsx');
+      const XLSX = XLSXmod.default ?? XLSXmod;
 
-    const exportRows = rows.map((r) => ({
-      'תאריך שיעור': r.occur_date ?? '',
-      'תלמיד/ה': (
-        r.child_full_name ||
-        `${this.clean(r.child_first_name)} ${this.clean(r.child_last_name)}`.trim() ||
-        ''
-      ).trim(),
-      'מדריך/ה': r.instructor_name ?? '',
-      'סוג שיעור': r.lesson_type ?? '',
-      'סוג רכיבה': r.riding_type ?? '',
-      סטטוס: r.status ?? '',
-      'הערת משרד': r.office_note ?? '',
-      'שעת התחלה': r.start_time ?? '',
-      'שעת סיום': r.end_time ?? '',
-    }));
+      const exportRows = rows.map((r) => ({
+        'תאריך שיעור': r.occur_date ?? '',
+        'תלמיד/ה': (
+          r.child_full_name ||
+          `${this.clean(r.child_first_name)} ${this.clean(r.child_last_name)}`.trim() ||
+          ''
+        ).trim(),
+        'מדריך/ה': r.instructor_name ?? '',
+        'סוג שיעור': r.lesson_type ?? '',
+        'סוג רכיבה': r.riding_type ?? '',
+        סטטוס: r.status ?? '',
+        'הערת משרד': r.office_note ?? '',
+        'שעת התחלה': r.start_time ?? '',
+        'שעת סיום': r.end_time ?? '',
+      }));
 
-    const ws = XLSX.utils.json_to_sheet(exportRows);
-    const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportRows);
+      const wb = XLSX.utils.book_new();
 
-    const sheetName = this.mode() === 'month' ? 'Monthly' : 'Yearly';
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      const sheetName = this.mode() === 'month' ? 'Monthly' : 'Yearly';
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
-    const fileName =
-      this.mode() === 'month'
-        ? `monthly_${this.year}_${this.month}.xlsx`
-        : `yearly_${this.year}.xlsx`;
+      const fileName =
+        this.mode() === 'month'
+          ? `monthly_${this.year}_${this.month}.xlsx`
+          : `yearly_${this.year}.xlsx`;
 
-    XLSX.writeFile(wb, fileName);
-  } catch (e) {
-    console.error(e);
-    this.ui.alert('חסר xlsx. להריץ: npm i xlsx', 'שגיאה');
+      XLSX.writeFile(wb, fileName);
+    } catch (e) {
+      console.error(e);
+      this.ui.alert('חסר xlsx. להריץ: npm i xlsx', 'שגיאה');
+    }
   }
-}
 
   // ===============================
   //      CHARTS & KPI VIEW
@@ -1253,5 +1252,12 @@ async exportExcel(): Promise<void> {
 
   isGroupMiddle(index: number): boolean {
     return !this.isGroupFirst(index) && !this.isGroupLast(index);
+  }
+  backToChildCard(): void {
+    const childId = this.selectedChildId();
+
+    this.router.navigate(['/secretary/children'], {
+      queryParams: childId ? { childId } : {},
+    });
   }
 }

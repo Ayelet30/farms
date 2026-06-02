@@ -22,7 +22,7 @@ type ToastKind = 'success' | 'error' | 'info';
 @Component({
   selector: 'app-request-instructor-day-off-details',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule , MatProgressSpinnerModule],
+  imports: [CommonModule, FormsModule, MatSnackBarModule, MatProgressSpinnerModule],
   templateUrl: './request-instructor-day-off-details.component.html',
   styleUrls: ['./request-instructor-day-off-details.component.scss'],
 })
@@ -34,102 +34,102 @@ export class RequestInstructorDayOffDetailsComponent {
   // ====== INPUTS → Signals (כדי שהפרטים יתעדכנו תמיד) ======
   private _req = signal<any | null>(null);
   readonly req = this._req;
-readonly status = computed(() => (this.req() as any)?.status ?? null);
-readonly isPending = computed(() => this.status() === 'PENDING');
+  readonly status = computed(() => (this.req() as any)?.status ?? null);
+  readonly isPending = computed(() => this.status() === 'PENDING');
 
-// ✅ האם להציג impact + האם לטעון impact
-readonly shouldShowImpact = computed(() => this.isPending());
-// ✅ האם להציג פעולות (Approve/Reject)
-readonly canDecide = computed(() => this.isPending());
-readonly isSickRequest = computed(() => {
-  const p: any = (this.req() as any)?.payload ?? {};
-  return String(p.category ?? '').toUpperCase() === 'SICK';
-});
+  // ✅ האם להציג impact + האם לטעון impact
+  readonly shouldShowImpact = computed(() => this.isPending());
+  // ✅ האם להציג פעולות (Approve/Reject)
+  readonly canDecide = computed(() => this.isPending());
+  readonly isSickRequest = computed(() => {
+    const p: any = (this.req() as any)?.payload ?? {};
+    return String(p.category ?? '').toUpperCase() === 'SICK';
+  });
 
-readonly medicalCertificateUrl = computed(() => {
-  const p: any = (this.req() as any)?.payload ?? {};
-  const path = p.medical_certificate_url ?? null;
+  readonly medicalCertificateUrl = computed(() => {
+    const p: any = (this.req() as any)?.payload ?? {};
+    const path = p.medical_certificate_url ?? null;
 
-  if (!path) return null;
+    if (!path) return null;
 
-  if (!supabase) {
-    console.error('Supabase client is not initialized');
-    return null;
-  }
+    if (!supabase) {
+      console.error('Supabase client is not initialized');
+      return null;
+    }
 
-  const { data } = supabase.storage
-    .from('sick_notes')
-    .getPublicUrl(path);
+    const { data } = supabase.storage
+      .from('sick_notes')
+      .getPublicUrl(path);
 
-  return data.publicUrl;
-});
-readonly windowText = computed(() => {
-  const r: any = this.req() ?? {};
-  const p: any = r.payload ?? {};
+    return data.publicUrl;
+  });
+  readonly windowText = computed(() => {
+    const r: any = this.req() ?? {};
+    const p: any = r.payload ?? {};
 
-  const from = (r.fromDate ?? p.from_date ?? '').slice(0, 10);
-  const to   = (r.toDate   ?? p.to_date   ?? from).slice(0, 10);
+    const from = (r.fromDate ?? p.from_date ?? '').slice(0, 10);
+    const to = (r.toDate ?? p.to_date ?? from).slice(0, 10);
 
-const allDay =
-  p.all_day === undefined || p.all_day === null
-    ? true
-    : (p.all_day === true || p.all_day === 'true');
+    const allDay =
+      p.all_day === undefined || p.all_day === null
+        ? true
+        : (p.all_day === true || p.all_day === 'true');
 
-  const start = (p.requested_start_time ?? '').toString().slice(0, 5) || null;
-  const end   = (p.requested_end_time   ?? '').toString().slice(0, 5) || null;
+    const start = (p.requested_start_time ?? '').toString().slice(0, 5) || null;
+    const end = (p.requested_end_time ?? '').toString().slice(0, 5) || null;
 
-  const fmt = (d: string) => {
-    try { return new Date(d).toLocaleDateString('he-IL'); }
-    catch { return d; }
-  };
+    const fmt = (d: string) => {
+      try { return new Date(d).toLocaleDateString('he-IL'); }
+      catch { return d; }
+    };
 
-  // 1) יום אחד
-const label = this.getCategoryLabel();
+    // 1) יום אחד
+    const label = this.getCategoryLabel();
 
-// 1) יום אחד
-if (from && to && from === to) {
-  if (allDay) return `${fmt(from)} — ${label} מלא`;
-  if (start && end) return `${fmt(from)} — ${start}–${end}`;
-  if (start && !end) return `${fmt(from)} — החל מ־${start}`;
-  return `${fmt(from)} — ${label}`;
-}
+    // 1) יום אחד
+    if (from && to && from === to) {
+      if (allDay) return `${fmt(from)} — ${label} מלא`;
+      if (start && end) return `${fmt(from)} — ${start}–${end}`;
+      if (start && !end) return `${fmt(from)} — החל מ־${start}`;
+      return `${fmt(from)} — ${label}`;
+    }
 
-// 2) טווח ימים
-if (from && to && from !== to) {
-  if (allDay) return `${fmt(from)}–${fmt(to)} — ${label} מלאה`;
-  if (start && end) return `${fmt(from)}–${fmt(to)} — בכל יום ${start}–${end}`;
-  if (start && !end) return `${fmt(from)}–${fmt(to)} — בכל יום החל מ־${start}`;
-  return `${fmt(from)}–${fmt(to)} — ${label}`;
-}
+    // 2) טווח ימים
+    if (from && to && from !== to) {
+      if (allDay) return `${fmt(from)}–${fmt(to)} — ${label} מלאה`;
+      if (start && end) return `${fmt(from)}–${fmt(to)} — בכל יום ${start}–${end}`;
+      if (start && !end) return `${fmt(from)}–${fmt(to)} — בכל יום החל מ־${start}`;
+      return `${fmt(from)}–${fmt(to)} — ${label}`;
+    }
 
-  // 2) טווח ימים
-  if (from && to && from !== to) {
-    if (allDay) return `${fmt(from)}–${fmt(to)} — חופשה מלאה`;
-    if (start && end) return `${fmt(from)}–${fmt(to)} — בכל יום ${start}–${end}`;
-    if (start && !end) return `${fmt(from)}–${fmt(to)} — בכל יום החל מ־${start}`;
-    return `${fmt(from)}–${fmt(to)} — חופשה`;
-  }
+    // 2) טווח ימים
+    if (from && to && from !== to) {
+      if (allDay) return `${fmt(from)}–${fmt(to)} — חופשה מלאה`;
+      if (start && end) return `${fmt(from)}–${fmt(to)} — בכל יום ${start}–${end}`;
+      if (start && !end) return `${fmt(from)}–${fmt(to)} — בכל יום החל מ־${start}`;
+      return `${fmt(from)}–${fmt(to)} — חופשה`;
+    }
 
-  return '—';
-});
+    return '—';
+  });
 
   @Input({ required: true })
   set request(value: any) {
     this._req.set(value);
   }
-   getCategoryLabel(): string {
-  const p: any = (this.req() as any)?.payload ?? {};
-  const c = String(p.category ?? '').toUpperCase();
+  getCategoryLabel(): string {
+    const p: any = (this.req() as any)?.payload ?? {};
+    const c = String(p.category ?? '').toUpperCase();
 
-  switch (c) {
-    case 'SICK': return 'יום מחלה';
-    case 'HOLIDAY': return 'יום חופש';
-    case 'PERSONAL': return 'יום אישי';
-    case 'OTHER': return 'אחר';
-    default: return 'היעדרות';
+    switch (c) {
+      case 'SICK': return 'יום מחלה';
+      case 'HOLIDAY': return 'יום חופש';
+      case 'PERSONAL': return 'יום אישי';
+      case 'OTHER': return 'אחר';
+      default: return 'היעדרות';
+    }
   }
-}
-private tenantSvc = inject(SupabaseTenantService);
+  private tenantSvc = inject(SupabaseTenantService);
 
   private _decidedByUid = signal<string | null>(null);
   readonly decidedByUidSig = this._decidedByUid;
@@ -138,42 +138,63 @@ private tenantSvc = inject(SupabaseTenantService);
   set decidedByUid(value: string) {
     this._decidedByUid.set(value);
   }
-@Input() bulkMode = false;
-public bulkWarning: string | null = null;
-busy = signal(false);
-action = signal<'approve' | 'reject' | null>(null);
+  @Input() bulkMode = false;
+  public bulkWarning: string | null = null;
+  busy = signal(false);
+  action = signal<'approve' | 'reject' | null>(null);
 
-busyText = computed(() => {
-  switch (this.action()) {
-    case 'approve': return 'הבקשה בתהליך אישור…';
-    case 'reject':  return 'הבקשה בתהליך דחייה…';
-    default:        return 'מעבד…';
-  }
-});
-
-private showSnack(msg: string, type: 'success' | 'error') {
-  if (this.bulkMode && type === 'success') return; // בבאלק לא להציג הצלחות
-  this.snack.open(msg, 'סגור', {
-    duration: 3500,
-    direction: 'rtl',
-    horizontalPosition: 'center',
-    verticalPosition: 'top',
-    panelClass: [type === 'success' ? 'sf-toast-success' : 'sf-toast-error'],
+  busyText = computed(() => {
+    switch (this.action()) {
+      case 'approve': return 'הבקשה בתהליך אישור…';
+      case 'reject': return 'הבקשה בתהליך דחייה…';
+      default: return 'מעבד…';
+    }
   });
-}
-private async readJson(resp: Response) {
-  const raw = await resp.text();
-  let json: any = null;
-  try { json = raw ? JSON.parse(raw) : null; } catch {}
-  if (!resp.ok || !json?.ok) {
-    throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw.slice(0, 300)}`);
-  }
-  return { json, raw };
-}
 
+  private showSnack(msg: string, type: 'success' | 'error') {
+    if (this.bulkMode && type === 'success') return; // בבאלק לא להציג הצלחות
+    this.snack.open(msg, 'סגור', {
+      duration: 3500,
+      direction: 'rtl',
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+      panelClass: [type === 'success' ? 'sf-toast-success' : 'sf-toast-error'],
+    });
+  }
+  private async readJson(resp: Response) {
+    const raw = await resp.text();
+
+    console.log('FUNCTION RAW RESPONSE:', raw);
+
+    let json: any = null;
+
+    try {
+      json = raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      console.error('FAILED TO PARSE JSON', e);
+      throw new Error(`השרת החזיר תשובה לא תקינה: ${raw.slice(0, 300)}`);
+    }
+
+    if (!resp.ok || !json?.ok) {
+      console.error('FUNCTION ERROR RESPONSE', {
+        status: resp.status,
+        json,
+        raw,
+      });
+
+      throw new Error(
+        json?.message ||
+        json?.error ||
+        json?.details ||
+        `HTTP ${resp.status}: ${raw.slice(0, 300)}`
+      );
+    }
+
+    return { json, raw };
+  }
   // callbacks מהאב
   @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
-@Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
+  @Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
   @Input() onError?: (e: { requestId?: string; message: string; raw?: any }) => void;
 
   // ====== UI state ======
@@ -187,22 +208,22 @@ private async readJson(resp: Response) {
 
   // ====== נגזרים ======
   impactCount = computed(() => this.impactRows().length);
-// alias כדי שה-bulk runner שממלא inst.note יעבוד
-note = this.decisionNote;
+  // alias כדי שה-bulk runner שממלא inst.note יעבוד
+  note = this.decisionNote;
 
   constructor() {
     // כל פעם שהבקשה משתנה (לפי id) → טוענים impact מחדש
     effect(() => {
-    const id = this.req()?.id;
-    if (!id) return;
+      const id = this.req()?.id;
+      if (!id) return;
 
-    // איפוס impact רק כשעוברים בקשה
-    this.impactRows.set([]);
+      // איפוס impact רק כשעוברים בקשה
+      this.impactRows.set([]);
 
-    if (this.isPending()) {
-      void this.loadImpact();
-    }
-  });
+      if (this.isPending()) {
+        void this.loadImpact();
+      }
+    });
   }
 
   async loadImpact() {
@@ -232,44 +253,44 @@ note = this.decisionNote;
       this.loadingImpact.set(false);
     }
   }
-private async rejectBySystem(reason: string): Promise<void> {
-  if (!this.request?.id) return;
+  private async rejectBySystem(reason: string): Promise<void> {
+    if (!this.request?.id) return;
 
-  const tenantSchema = requireTenant().schema;               // ✅ schema מה-context
-  const decidedByUid = getAuth().currentUser?.uid ?? null;   // ✅ uid של המשתמש המחובר
+    const tenantSchema = requireTenant().schema;               // ✅ schema מה-context
+    const decidedByUid = getAuth().currentUser?.uid ?? null;   // ✅ uid של המשתמש המחובר
 
-  // אם את רוצה decided_by_uid מתוך טבלת users (ולא uid של Firebase):
-  // const appUser = await getCurrentUserData();
-  // const decidedByUid = appUser?.uid ?? getAuth().currentUser?.uid ?? null;
+    // אם את רוצה decided_by_uid מתוך טבלת users (ולא uid של Firebase):
+    // const appUser = await getCurrentUserData();
+    // const decidedByUid = appUser?.uid ?? getAuth().currentUser?.uid ?? null;
 
-  const idToken = await getAuth().currentUser?.getIdToken();
-  if (!idToken) throw new Error('No Firebase token');
+    const idToken = await getAuth().currentUser?.getIdToken();
+    if (!idToken) throw new Error('No Firebase token');
 
-  const resp = await fetch(
-    'https://us-central1-bereshit-ac5d8.cloudfunctions.net/autoRejectRequestAndNotify',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({
-        tenantSchema,
-        requestId: this.request.id,
-        reason,
-        decidedByUid,
-      }),
+    const resp = await fetch(
+      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/autoRejectRequestAndNotify',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          tenantSchema,
+          requestId: this.request.id,
+          reason,
+          decidedByUid,
+        }),
+      }
+    );
+
+    const text = await resp.text();
+    let json: any = null;
+    try { json = JSON.parse(text); } catch { }
+
+    if (!resp.ok || json?.ok === false) {
+      throw new Error(json?.error || `autoRejectRequestAndNotify failed: ${resp.status}`);
     }
-  );
-
-  const text = await resp.text();
-  let json: any = null;
-  try { json = JSON.parse(text); } catch {}
-
-  if (!resp.ok || json?.ok === false) {
-    throw new Error(json?.error || `autoRejectRequestAndNotify failed: ${resp.status}`);
   }
-}
 
   static async isValidRequset(row: any): Promise<{ ok: boolean; reason?: string }> {
     const end = row?.toDate ?? row?.fromDate ?? null;
@@ -285,11 +306,153 @@ private async rejectBySystem(reason: string): Promise<void> {
   async isValidRequset(): Promise<{ ok: boolean; reason?: string }> {
     return await RequestInstructorDayOffDetailsComponent.isValidRequset(this.req());
   }
-
   async approve() {
     if (this.loading()) return;
-      this.action.set('approve');          // ✅ להוסיף
-  this.loading.set(true);
+
+    const r = this.req();
+    const requestId = r?.id;
+    const decidedByUid = this.decidedByUidSig();
+
+    this.action.set('approve');
+    this.loading.set(true);
+
+    try {
+      if (!requestId) {
+        throw new Error('לא נמצא מזהה בקשה');
+      }
+
+      if (!decidedByUid) {
+        throw new Error('לא נמצא משתמש מאשר');
+      }
+
+      console.log('APPROVE START', {
+        requestId,
+        decidedByUid,
+        request: r,
+      });
+
+      const v = await this.validator.validate(r, 'approve');
+
+      console.log('APPROVE VALIDATION RESULT', v);
+
+      if (!v.ok) {
+        this.showSnack(v.reason ?? 'הבקשה כבר אינה זמינה לאישור', 'error');
+        this.onError?.({
+          requestId,
+          message: v.reason ?? 'הבקשה כבר אינה זמינה לאישור',
+          raw: v,
+        });
+        return;
+      }
+
+      const user = getAuth().currentUser;
+      const token = await user?.getIdToken();
+
+      if (!token) {
+        throw new Error('לא נמצא Firebase token. ייתכן שהמשתמש לא מחובר');
+      }
+
+      await this.tenantSvc.ensureTenantContextReady();
+
+      const tenant = this.tenantSvc.requireTenant();
+      const tenantSchema = tenant.schema;
+      const tenantId = tenant.id;
+
+      const body = {
+        tenantSchema,
+        tenantId,
+        requestId: r.id,
+        decisionNote: this.decisionNote().trim() || null,
+      };
+
+      console.log('APPROVE FETCH BODY', body);
+
+      const resp = await fetch(
+        'https://us-central1-bereshit-ac5d8.cloudfunctions.net/approveInstructorDayOffAndNotify',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
+        }
+      );
+
+      console.log('APPROVE RESPONSE STATUS', resp.status);
+
+      const { json, raw } = await this.readJson(resp);
+
+      console.log('APPROVE RESPONSE JSON', json);
+      console.log('APPROVE RESPONSE RAW', raw);
+
+      this.bulkWarning = null;
+
+      const mailOk = json?.mailOk ?? json?.emailOk;
+      const warnFromServer = (json?.warning ?? '').toString().trim();
+
+      if (mailOk === false) {
+        this.bulkWarning = 'אושר ✅ אבל שליחת מייל נכשלה';
+        const extra = (
+          json?.mailErrors?.[0]?.message ??
+          json?.mailError?.message ??
+          warnFromServer ??
+          ''
+        ).toString().trim();
+
+        this.showSnack(
+          `אושר ✅ אבל שליחת מייל נכשלה${extra ? `: ${extra}` : ''}`,
+          'error'
+        );
+      } else if (warnFromServer) {
+        this.bulkWarning = warnFromServer;
+        this.showSnack(warnFromServer, 'error');
+      } else {
+        this.showSnack('הבקשה אושרה בהצלחה ✅', 'success');
+      }
+
+      const msg = this.bulkWarning
+        ? `אישרת: ${this.getDayOffTitle()}. ${this.bulkWarning}`
+        : `אישרת: ${this.getDayOffTitle()}.`;
+
+      this.toast(msg, this.bulkWarning ? 'info' : 'success');
+
+      this.onApproved?.({
+        requestId: r.id,
+        newStatus: 'APPROVED',
+        message: this.bulkWarning ? `אושר ✅ (${this.bulkWarning})` : 'אושר ✅',
+        meta: { ...(json?.meta ?? {}), warning: this.bulkWarning, mailOk },
+      });
+
+    } catch (e: any) {
+      console.error('APPROVE FAILED', e);
+
+      const msg =
+        e?.message ||
+        e?.error_description ||
+        e?.details ||
+        'שגיאה לא ידועה באישור הבקשה';
+
+      this.showSnack(`לא הצלחתי לאשר את הבקשה: ${msg}`, 'error');
+
+      this.onError?.({
+        requestId,
+        message: msg,
+        raw: e,
+      });
+
+    } finally {
+      this.loading.set(false);
+      this.action.set(null);
+    }
+  }
+  readonly requestNote = computed(() => {
+    const p: any = (this.req() as any)?.payload ?? {};
+    return String(p.note ?? '').trim() || null;
+  });
+  async reject() {
+    if (this.loading()) return;
+    this.action.set('reject');
 
 
     const r = this.req();
@@ -297,163 +460,76 @@ private async rejectBySystem(reason: string): Promise<void> {
     const decidedByUid = this.decidedByUidSig();
 
     if (!requestId || !decidedByUid) return;
- // ✅ הולידציה דרך השירות – לפני אישור
- const v = await this.validator.validate(r, 'approve');
+    const v = await this.validator.validate(r, 'reject');
 
-if (!v.ok) {
-  this.showSnack(v.reason ?? 'הבקשה כבר אינה זמינה לאישור', 'error');
-  this.onError?.({ requestId, message: v.reason ?? 'הבקשה כבר אינה זמינה לאישור' });
-  return;
-}
+    if (!v.ok) {
+      this.showSnack(v.reason ?? 'הבקשה כבר אינה זמינה לאישור', 'error');
+      this.onError?.({ requestId, message: v.reason ?? 'הבקשה כבר אינה זמינה לאישור' });
+      return;
+    }
+    this.loading.set(true);
+    try {
+      const token = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
+      const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectInstructorDayOffAndNotify';
+      await this.tenantSvc.ensureTenantContextReady();
+      const tenant = this.tenantSvc.requireTenant();
+      const tenantSchema = tenant.schema;
+      const tenantId = tenant.id;
 
-this.loading.set(true);
-try {
-  const token = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
-  const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/approveInstructorDayOffAndNotify';
-await this.tenantSvc.ensureTenantContextReady();
-const tenant = this.tenantSvc.requireTenant();
-const tenantSchema = tenant.schema;
-const tenantId = tenant.id;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          tenantSchema,
+          tenantId,
+          requestId: r.id,
+          decisionNote: this.decisionNote().trim() || null,
+        }),
 
-const resp = await fetch(url, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  },
-body: JSON.stringify({
-  tenantSchema,
-  tenantId,
-  requestId: r.id,
-  decisionNote: this.decisionNote().trim() || null,
-}),
-
-});
+      });
 
 
- const { json } = await this.readJson(resp);
+      const { json } = await this.readJson(resp);
 
-this.bulkWarning = null;
+      this.bulkWarning = null;
 
-const mailOk = (json?.mailOk ?? json?.emailOk);
-const warnFromServer = (json?.warning ?? '').toString().trim();
+      const mailOk = (json?.mailOk ?? json?.emailOk);
+      const warnFromServer = (json?.warning ?? '').toString().trim();
 
-if (mailOk === false) {
-  this.bulkWarning = 'אושר ✅ אבל שליחת מייל נכשלה ';
-  const extra = (json?.mailErrors?.[0]?.message ?? json?.mailError?.message ?? warnFromServer ?? '').toString().trim();
-  this.showSnack(`אושר ✅ אבל שליחת מייל נכשלה${extra ? `: ${extra}` : ''}`, 'error');
-} else if (warnFromServer) {
-  // למשל: אין uid למדריך / חלק מההורים נכשלו
-  this.bulkWarning = warnFromServer;
-  this.showSnack(warnFromServer, 'error');
-} else {
-  this.showSnack('הבקשה אושרה בהצלחה ✅', 'success');
-}
+      if (mailOk === false) {
+        this.bulkWarning = 'נדחה ✅ אבל שליחת מייל נכשלה';
+        const extra = (json?.mailError?.message ?? warnFromServer ?? '').toString().trim();
+        this.showSnack(`נדחה ✅ אבל שליחת מייל נכשלה${extra ? `: ${extra}` : ''}`, 'error');
+      } else if (warnFromServer) {
+        this.bulkWarning = warnFromServer;
+        this.showSnack(warnFromServer, 'error');
+      } else {
+        this.showSnack('הבקשה נדחתה בהצלחה ✅', 'success');
+      }
 
-const msg = this.bulkWarning
-  ? `אישרת: ${this.getDayOffTitle()}. ${this.bulkWarning}`
-  : `אישרת: ${this.getDayOffTitle()}.`;
+      const msg = this.bulkWarning
+        ? `דחית את הבקשה: ${this.getDayOffTitle()}. ${this.bulkWarning}`
+        : `דחית את הבקשה: ${this.getDayOffTitle()}.`;
 
-this.toast(msg, this.bulkWarning ? 'info' : 'success');
+      this.toast(msg, 'info');
 
-this.onApproved?.({
-  requestId: r.id,
-  newStatus: 'APPROVED',
-  message: this.bulkWarning ? `אושר ✅ (${this.bulkWarning})` : 'אושר ✅',
-  meta: { ...(json?.meta ?? {}), warning: this.bulkWarning, mailOk },
-});
+      this.onRejected?.({
+        requestId: r.id,
+        newStatus: 'REJECTED',
+        message: this.bulkWarning ? `נדחה ✅ (${this.bulkWarning})` : 'נדחה ✅',
+        meta: { warning: this.bulkWarning, mailOk },
+      });
 
-} finally {
-  this.loading.set(false);
-    this.action.set(null);        
+    } finally {
+      this.loading.set(false);
+      this.action.set(null);
 
-}
+    }
 
   }
-readonly requestNote = computed(() => {
-  const p: any = (this.req() as any)?.payload ?? {};
-  return String(p.note ?? '').trim() || null;
-});
-  async reject() {
-  if (this.loading()) return;
-    this.action.set('reject');      
-
-
-  const r = this.req();
-  const requestId = r?.id;
-  const decidedByUid = this.decidedByUidSig();
-
-  if (!requestId || !decidedByUid) return;
- const v = await this.validator.validate(r, 'reject');
-
-if (!v.ok) {
-  this.showSnack(v.reason ?? 'הבקשה כבר אינה זמינה לאישור', 'error');
-  this.onError?.({ requestId, message: v.reason ?? 'הבקשה כבר אינה זמינה לאישור' });
-  return;
-}
-this.loading.set(true);
-try {
-  const token = await (await import('firebase/auth')).getAuth().currentUser?.getIdToken();
-  const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectInstructorDayOffAndNotify';
-await this.tenantSvc.ensureTenantContextReady();
-const tenant = this.tenantSvc.requireTenant();
-const tenantSchema = tenant.schema;
-const tenantId = tenant.id;
-
-const resp = await fetch(url, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  },
-body: JSON.stringify({
-  tenantSchema,
-  tenantId,
-  requestId: r.id,
-  decisionNote: this.decisionNote().trim() || null,
-}),
-
-});
-
-
-  const { json } = await this.readJson(resp);
-
-this.bulkWarning = null;
-
-const mailOk = (json?.mailOk ?? json?.emailOk);
-const warnFromServer = (json?.warning ?? '').toString().trim();
-
-if (mailOk === false) {
-  this.bulkWarning = 'נדחה ✅ אבל שליחת מייל נכשלה';
-  const extra = (json?.mailError?.message ?? warnFromServer ?? '').toString().trim();
-  this.showSnack(`נדחה ✅ אבל שליחת מייל נכשלה${extra ? `: ${extra}` : ''}`, 'error');
-} else if (warnFromServer) {
-  this.bulkWarning = warnFromServer;
-  this.showSnack(warnFromServer, 'error');
-} else {
-  this.showSnack('הבקשה נדחתה בהצלחה ✅', 'success');
-}
-
-const msg = this.bulkWarning
-  ? `דחית את הבקשה: ${this.getDayOffTitle()}. ${this.bulkWarning}`
-  : `דחית את הבקשה: ${this.getDayOffTitle()}.`;
-
-this.toast(msg, 'info');
-
-this.onRejected?.({
-  requestId: r.id,
-  newStatus: 'REJECTED',
-  message: this.bulkWarning ? `נדחה ✅ (${this.bulkWarning})` : 'נדחה ✅',
-  meta: { warning: this.bulkWarning, mailOk },
-});
-
-} finally {
-  this.loading.set(false);
-    this.action.set(null);          
-
-}
-
-}
 
   private toast(message: string, type: ToastKind = 'info') {
     this.snack.open(message, 'סגור', {
@@ -475,15 +551,15 @@ this.onRejected?.({
     return new Date(`${d}T${t}:00`);
   }
 
-getDayOffTitle(): string {
-  const r = this.req();
-  const name = r?.instructorName || 'המדריך/ה';
-  const from = this.formatDate(r?.fromDate);
-  const to = this.formatDate(r?.toDate || r?.fromDate);
-  const label = this.getCategoryLabel();
+  getDayOffTitle(): string {
+    const r = this.req();
+    const name = r?.instructorName || 'המדריך/ה';
+    const from = this.formatDate(r?.fromDate);
+    const to = this.formatDate(r?.toDate || r?.fromDate);
+    const label = this.getCategoryLabel();
 
-  return from === to
-    ? `${name} – ${label} בתאריך ${from}`
-    : `${name} – ${label} בין ${from} עד ${to}`;
-}
+    return from === to
+      ? `${name} – ${label} בתאריך ${from}`
+      : `${name} – ${label} בין ${from} עד ${to}`;
+  }
 }

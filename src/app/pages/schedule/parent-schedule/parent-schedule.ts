@@ -44,7 +44,7 @@ export class ParentScheduleComponent implements OnInit {
     status?: string | null;
   }> = [];
 
-nextCanceledLessonNotes: string[] = [];
+  nextCanceledLessonNotes: string[] = [];
   lessons: Lesson[] = [];
   filteredLessons: Lesson[] = [];
 
@@ -61,7 +61,7 @@ nextCanceledLessonNotes: string[] = [];
   constructor(
     private dialog: MatDialog,
     private ui: UiDialogService,
-  ) {}
+  ) { }
 
   showToast(msg: string, ms = 3000) {
     this.toastMessage = msg;
@@ -100,45 +100,45 @@ nextCanceledLessonNotes: string[] = [];
   }
 
   private calcNextCanceledLesson() {
-  const now = new Date();
+    const now = new Date();
 
-  const cancelledLessons = this.filteredLessons
-    .filter((l: Lesson) => {
-      if (!l.start_datetime) return false;
+    const cancelledLessons = this.filteredLessons
+      .filter((l: Lesson) => {
+        if (!l.start_datetime) return false;
 
-      const start = new Date(l.start_datetime);
-      if (isNaN(start.getTime()) || start <= now) return false;
+        const start = new Date(l.start_datetime);
+        if (isNaN(start.getTime()) || start <= now) return false;
 
-      const status = String(l.status || '').trim();
-      return status === 'בוטל' || status === 'מבוטל' || !!(l as any).hasPendingCancel;
-    })
-    .sort((a, b) => {
-      return new Date(a.start_datetime!).getTime() - new Date(b.start_datetime!).getTime();
-    });
+        const status = String(l.status || '').trim();
+        return status === 'בוטל' || status === 'מבוטל' || !!(l as any).hasPendingCancel;
+      })
+      .sort((a, b) => {
+        return new Date(a.start_datetime!).getTime() - new Date(b.start_datetime!).getTime();
+      });
 
-  if (!cancelledLessons.length) {
-    this.nextCanceledLessonNotes = [];
-    return;
-  }
-
-  this.nextCanceledLessonNotes = cancelledLessons.map((lesson: Lesson) => {
-    const childName = lesson.child_name || 'הילד';
-    const date = new Date(lesson.start_datetime!);
-
-    const formattedDate = date.toLocaleDateString('he-IL', {
-      weekday: 'long',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-
-    if ((lesson as any).hasPendingCancel) {
-      return `${childName} – נשלחה בקשת ביטול לשיעור בתאריך ${formattedDate}`;
+    if (!cancelledLessons.length) {
+      this.nextCanceledLessonNotes = [];
+      return;
     }
 
-    return `${childName} – השיעור בוטל בתאריך ${formattedDate}`;
-  });
-}
+    this.nextCanceledLessonNotes = cancelledLessons.map((lesson: Lesson) => {
+      const childName = lesson.child_name || 'הילד';
+      const date = new Date(lesson.start_datetime!);
+
+      const formattedDate = date.toLocaleDateString('he-IL', {
+        weekday: 'long',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+
+      if ((lesson as any).hasPendingCancel) {
+        return `${childName} – נשלחה בקשת ביטול לשיעור בתאריך ${formattedDate}`;
+      }
+
+      return `${childName} – השיעור בוטל בתאריך ${formattedDate}`;
+    });
+  }
 
   /* ===================== Load Children ===================== */
 
@@ -368,10 +368,16 @@ nextCanceledLessonNotes: string[] = [];
   }
 
   private filterLessons() {
-    this.filteredLessons =
-      !this.selectedChildId || this.selectedChildId === 'all'
-        ? this.lessons
-        : this.lessons.filter(l => l.child_id === this.selectedChildId);
+    if (!this.selectedChildId || this.selectedChildId === 'all') {
+      this.filteredLessons = this.lessons;
+      return;
+    }
+
+    const selected = String(this.selectedChildId).trim();
+
+    this.filteredLessons = this.lessons.filter(
+      l => String(l.child_id ?? '').trim() === selected
+    );
   }
 
   private isoWithTFallback(s: string | undefined | null, fallbackIso: string): string {
@@ -390,35 +396,34 @@ nextCanceledLessonNotes: string[] = [];
   }
 
   /* ===================== Schedule Items ===================== */
-
   private setScheduleItems() {
-    const base = (this.filteredLessons?.length ? this.filteredLessons : this.lessons) || [];
+    const base = this.filteredLessons || [];
     const uniq = new Map<string, ScheduleItem>();
 
-     for (const lesson of base) {
+    for (const lesson of base) {
 
-  const startFallback = this.getLessonDateTime(lesson.day_of_week, lesson.start_time);
-  const endFallback = this.getLessonDateTime(lesson.day_of_week, lesson.end_time);
+      const startFallback = this.getLessonDateTime(lesson.day_of_week, lesson.start_time);
+      const endFallback = this.getLessonDateTime(lesson.day_of_week, lesson.end_time);
 
-  const start = this.isoWithTFallback(lesson.start_datetime, startFallback);
-  const end = this.isoWithTFallback(lesson.end_datetime, endFallback);
+      const start = this.isoWithTFallback(lesson.start_datetime, startFallback);
+      const end = this.isoWithTFallback(lesson.end_datetime, endFallback);
 
-  if (!start || !end) continue;
+      if (!start || !end) continue;
 
-  const startMs = Date.parse(start);
-  const endMs = Date.parse(end);
+      const startMs = Date.parse(start);
+      const endMs = Date.parse(end);
 
-  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) continue;
+      if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) continue;
 
-  const isPast = startMs < Date.now();
+      const isPast = startMs < Date.now();
 
-  let cancelBlockReason: string | null = null;
+      let cancelBlockReason: string | null = null;
 
-  if (isPast) cancelBlockReason = 'לא ניתן לבטל שיעור שכבר עבר';
-  else if (lesson.lesson_type === 'השלמה') cancelBlockReason = 'לא ניתן לבטל שיעור השלמה';
-  else if (lesson.status === 'הושלם') cancelBlockReason = 'לא ניתן לבטל שיעור שהושלם';
-  else if (lesson.status === 'בוטל') cancelBlockReason = 'השיעור כבר בוטל';
-  else if ((lesson as any).hasPendingCancel) cancelBlockReason = 'כבר נשלחה בקשת ביטול לשיעור זה';
+      if (isPast) cancelBlockReason = 'לא ניתן לבטל שיעור שכבר עבר';
+      else if (lesson.lesson_type === 'השלמה') cancelBlockReason = 'לא ניתן לבטל שיעור השלמה';
+      else if (lesson.status === 'הושלם') cancelBlockReason = 'לא ניתן לבטל שיעור שהושלם';
+      else if (lesson.status === 'בוטל') cancelBlockReason = 'השיעור כבר בוטל';
+      else if ((lesson as any).hasPendingCancel) cancelBlockReason = 'כבר נשלחה בקשת ביטול לשיעור זה';
 
 
 
@@ -443,9 +448,8 @@ nextCanceledLessonNotes: string[] = [];
         else displayTitle = `❌ ${childLabel} (בוטל)`;
       }
 
-      const uid = `${(lesson as any).lesson_id || (lesson as any).id || 'occ'}__${
-        lesson.child_id || 'child'
-      }__${start}`;
+      const uid = `${(lesson as any).lesson_id || (lesson as any).id || 'occ'}__${lesson.child_id || 'child'
+        }__${start}`;
 
       if (!uniq.has(uid)) {
         uniq.set(uid, {
@@ -486,10 +490,10 @@ nextCanceledLessonNotes: string[] = [];
   onEventClick(arg: EventClickArg) {
     const ev = arg.event;
     const ext: any = ev.extendedProps;
-if (ev.start && ev.start.getTime() < Date.now()) {
-  this.showToast('לא ניתן לבטל שיעור שכבר עבר');
-  return;
-}
+    if (ev.start && ev.start.getTime() < Date.now()) {
+      this.showToast('לא ניתן לבטל שיעור שכבר עבר');
+      return;
+    }
 
     if (ext?.hasPendingCancel) {
       this.showToast('כבר נשלחה בקשת ביטול לשיעור זה');
@@ -598,7 +602,7 @@ if (ev.start && ev.start.getTime() < Date.now()) {
 
   /* ===================== Misc ===================== */
 
-  onDateClick(_dateIso: string) {}
+  onDateClick(_dateIso: string) { }
 
   print() {
     window.print();
@@ -629,7 +633,7 @@ if (ev.start && ev.start.getTime() < Date.now()) {
     return;
   }
 
-  openCompletionDialog() {}
+  openCompletionDialog() { }
 
   statusClass(status: string): string {
     switch (status) {
