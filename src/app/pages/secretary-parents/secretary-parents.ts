@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { RouterModule, ActivatedRoute } from '@angular/router';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { TranzilaService } from '../../services/tranzila.service';
@@ -23,6 +23,7 @@ import {
 import { PaymentsService } from '../../services/payments.service';
 import { CreateUserService } from '../../services/create-user.service';
 import { MailService } from '../../services/mail.service';
+
 
 declare const TzlaHostedFields: any;
 
@@ -160,6 +161,7 @@ drawerPaymentProfiles: PaymentProfileRow[] = [];
   readonly MAX_ADDRESS = 30;
   readonly MAX_EXTRA_NOTES = 60;
   readonly MAX_PHONE = 11;
+  
 
   readonly COMM_PREF_OPTIONS = [
     { value: 'inapp', label: 'אפליקציה (In-app)' },
@@ -186,6 +188,7 @@ private hfInitTried = false;
     private mailService: MailService,
     private pagos: PaymentsService,
     private tranzila: TranzilaService,
+    private route: ActivatedRoute,
   ) {}
 
   async ngOnInit() {
@@ -194,6 +197,21 @@ private hfInitTried = false;
       await ensureTenantContextReady();
       await this.loadParents();
       this.updateStats();
+      const parentUid = this.route.snapshot.queryParamMap.get('parentUid');
+      const openDrawer = this.route.snapshot.queryParamMap.get('openDrawer') === 'true';
+
+      if (parentUid) {
+        const found = this.parents.find(p => p.uid === parentUid);
+
+        if (found) {
+          this.searchMode = 'name';
+          this.searchText = `${found.first_name || ''} ${found.last_name || ''}`.trim();
+        }
+
+        if (openDrawer) {
+          setTimeout(() => this.openDetails(parentUid), 0);
+        }
+      }
     } catch (e: any) {
       this.error = e?.message || 'Failed to load parents';
       console.error(e);

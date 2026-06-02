@@ -74,6 +74,8 @@ funding_source_id?: string | null;
   medical_notes?: string | null;
   behavior_notes?: string | null;
   parent?: ParentBrief | null;
+  created_at?: string | null;
+updated_at?: string | null;
 };
 
 type ChildDocumentRow = {
@@ -108,13 +110,29 @@ type ChildColumnKey =
   | 'gender'
   | 'funding_source_id'
   | 'status'
-  | 'parent_status';
+  | 'parent_status'
+  | 'created_at'
+  | 'updated_at';
 
 type ChildColumnDef = {
   key: ChildColumnKey;
   label: string;
   visible: boolean;
 };
+
+type TermsFilter = 'all' | 'signed' | 'missing';
+type IntakeFilter = 'all' | 'exists' | 'missing';
+type ReferralFilter = 'all' | 'exists' | 'missing';
+type SeriesFilter = 'all' | 'active' | 'none';
+type MissingDocsFilter = 'all' | 'missing' | 'complete';
+
+type SavedChildrenFilter = {
+  name: string;
+  filters: any;
+  statusFilter: 'all' | 'active' | 'inactive' | 'pending';
+  parentFilter: 'all' | 'withParent' | 'withoutParent';
+};
+
 
 @Component({
   selector: 'app-secretary-children',
@@ -144,6 +162,55 @@ healthFunds: { id: string; name: string }[] = [];
   { value: 'Pending Addition Approval', label: 'ממתין לאישור מזכירה' },
 ];
 
+advancedFilters = {
+  terms: 'all' as TermsFilter,
+  intake: 'all' as IntakeFilter,
+
+  healthFundId: 'all',
+  gender: 'all',
+
+  birthFrom: '',
+  birthTo: '',
+
+  entryFrom: '',
+  entryTo: '',
+
+  termsFrom: '',
+  termsTo: '',
+
+  lessonFrom: '',
+  lessonTo: '',
+
+  instructorId: 'all',
+  lessonType: 'all',
+  lessonDay: 'all',
+
+  series: 'all' as SeriesFilter,
+  referral: 'all' as ReferralFilter,
+  missingDocs: 'all' as MissingDocsFilter,
+};
+
+instructors: { id_number: string; first_name?: string | null; last_name?: string | null; name?: string | null }[] = [];
+lessonTypes: string[] = [];
+lessonDays: string[] = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
+termsByChild: Record<string, { signed: boolean; signedAt: string | null }> = {};
+intakeByChild: Record<string, boolean> = {};
+
+lessonMetaByChild: Record<string, {
+  instructorIds: string[];
+  lessonTypes: string[];
+  days: string[];
+  hasActiveSeries: boolean;
+  hasReferral: boolean;
+  missingReferral: boolean;
+  missingRequiredDocs: boolean;
+  lessonDates: string[];
+}> = {};
+
+savedFilters: SavedChildrenFilter[] = [];
+readonly FILTERS_STORAGE_KEY = 'secretary_children_saved_filters';
+
   readonly STORAGE_KEY = 'secretary_children_table_prefs';
 
   columns: ChildColumnDef[] = [
@@ -154,6 +221,8 @@ healthFunds: { id: string; name: string }[] = [];
     { key: 'gender', label: 'מין', visible: false },
     { key: 'funding_source_id', label: 'קופת חולים', visible: false },    { key: 'status', label: 'סטטוס', visible: true },
     { key: 'parent_status', label: 'שיוך להורה', visible: true },
+    { key: 'created_at', label: 'כניסה למערכת', visible: false },
+    { key: 'updated_at', label: 'שינוי אחרון', visible: false },
   ];
 
   stats = {
@@ -188,7 +257,7 @@ newChildDocName = '';
 
   searchText = '';
   searchMode: 'name' | 'id' = 'name';
-  statusFilter: 'all' | 'active' | 'inactive' = 'all';
+  statusFilter: 'all' | 'active' | 'inactive' | 'pending' = 'all';
   parentFilter: 'all' | 'withParent' | 'withoutParent' = 'all';
   showSearchPanel = false;
   showColumnsPanel = false;
@@ -207,6 +276,8 @@ newChildDocName = '';
   seriesDocsLoading = false;
   seriesDocsError: string | null = null;
   seriesDocs: SeriesDocRow[] = [];
+
+  
 uploadingSeriesDocLessonId: string | null = null;
   constructor(
     private ui: UiDialogService,
@@ -223,6 +294,8 @@ uploadingSeriesDocLessonId: string | null = null;
       await ensureTenantContextReady();
       await this.loadFundingSources();
       await this.loadChildren();
+      await this.loadFilterLookups();
+      this.loadSavedFilters();
       const childId = this.route.snapshot.queryParamMap.get('childId');
 if (childId) {
   setTimeout(() => this.openDetails(childId), 0);
@@ -314,7 +387,9 @@ if (childId) {
           birth_date,
           gender,
           funding_source_id,
-          status
+          status,
+          created_at,
+          updated_at
         `)
         .order('first_name', { ascending: true })
         .order('last_name', { ascending: true });
@@ -485,10 +560,23 @@ private isAllowedReferralFile(file: File): boolean {
       }
     }
 
-    if (this.statusFilter !== 'all') {
+   if (this.statusFilter !== 'all') {
   rows = rows.filter((c: any) => {
-    const active = this.isActiveStatus(c.status);
-    return this.statusFilter === 'active' ? active : !active;
+    const status = String(c.status ?? '').toLowerCase();
+
+    if (this.statusFilter === 'active') {
+      return status === 'active';
+    }
+
+    if (this.statusFilter === 'inactive') {
+      return status === 'deleted' || status === 'inactive';
+    }
+
+    if (this.statusFilter === 'pending') {
+      return status.includes('pending');
+    }
+
+    return true;
   });
 }
 
@@ -498,6 +586,114 @@ private isAllowedReferralFile(file: File): boolean {
       rows = rows.filter((c: any) => !c.parent_uid);
     }
 
+    const f = this.advancedFilters;
+
+if (f.healthFundId !== 'all') {
+  rows = rows.filter((c: any) => c.funding_source_id === f.healthFundId);
+}
+
+if (f.gender !== 'all') {
+  rows = rows.filter((c: any) => c.gender === f.gender);
+}
+
+if (f.birthFrom) {
+  rows = rows.filter((c: any) => c.birth_date && new Date(c.birth_date) >= new Date(f.birthFrom));
+}
+
+if (f.birthTo) {
+  rows = rows.filter((c: any) => c.birth_date && new Date(c.birth_date) <= this.endOfDay(f.birthTo));
+}
+
+if (f.entryFrom) {
+  rows = rows.filter((c: any) => c.created_at && new Date(c.created_at) >= new Date(f.entryFrom));
+}
+
+if (f.entryTo) {
+  rows = rows.filter((c: any) => c.created_at && new Date(c.created_at) <= this.endOfDay(f.entryTo));
+}
+
+if (f.terms !== 'all') {
+  rows = rows.filter((c: any) => {
+    const signed = !!this.termsByChild[c.child_uuid]?.signed;
+    return f.terms === 'signed' ? signed : !signed;
+  });
+}
+
+if (f.termsFrom) {
+  rows = rows.filter((c: any) => {
+    const signedAt = this.termsByChild[c.child_uuid]?.signedAt;
+    return signedAt && new Date(signedAt) >= new Date(f.termsFrom);
+  });
+}
+
+if (f.termsTo) {
+  rows = rows.filter((c: any) => {
+    const signedAt = this.termsByChild[c.child_uuid]?.signedAt;
+    return signedAt && new Date(signedAt) <= this.endOfDay(f.termsTo);
+  });
+}
+
+if (f.intake !== 'all') {
+  rows = rows.filter((c: any) => {
+    const exists = !!this.intakeByChild[c.child_uuid];
+    return f.intake === 'exists' ? exists : !exists;
+  });
+}
+
+if (f.instructorId !== 'all') {
+  rows = rows.filter((c: any) =>
+    this.lessonMetaByChild[c.child_uuid]?.instructorIds.includes(f.instructorId)
+  );
+}
+
+if (f.lessonType !== 'all') {
+  rows = rows.filter((c: any) =>
+    this.lessonMetaByChild[c.child_uuid]?.lessonTypes.includes(f.lessonType)
+  );
+}
+
+if (f.lessonDay !== 'all') {
+  rows = rows.filter((c: any) =>
+    this.lessonMetaByChild[c.child_uuid]?.days.includes(f.lessonDay)
+  );
+}
+
+if (f.series !== 'all') {
+  rows = rows.filter((c: any) => {
+    const hasSeries = !!this.lessonMetaByChild[c.child_uuid]?.hasActiveSeries;
+    return f.series === 'active' ? hasSeries : !hasSeries;
+  });
+}
+
+if (f.referral !== 'all') {
+  rows = rows.filter((c: any) => {
+    const meta = this.lessonMetaByChild[c.child_uuid];
+    const hasReferral = !!meta?.hasReferral;
+    const missingReferral = !!meta?.missingReferral;
+
+    if (f.referral === 'exists') return hasReferral;
+    return missingReferral;
+  });
+}
+
+if (f.missingDocs !== 'all') {
+  rows = rows.filter((c: any) => {
+    const missing = !!this.lessonMetaByChild[c.child_uuid]?.missingRequiredDocs;
+    return f.missingDocs === 'missing' ? missing : !missing;
+  });
+}
+
+if (f.lessonFrom || f.lessonTo) {
+  rows = rows.filter((c: any) => {
+    const dates = this.lessonMetaByChild[c.child_uuid]?.lessonDates ?? [];
+    return dates.some((d) => {
+      const date = new Date(d);
+      if (f.lessonFrom && date < new Date(f.lessonFrom)) return false;
+      if (f.lessonTo && date > this.endOfDay(f.lessonTo)) return false;
+      return true;
+    });
+  });
+}
     return rows;
   }
 
@@ -505,17 +701,171 @@ private isAllowedReferralFile(file: File): boolean {
   return this.isActiveStatus(row?.status);
 }
 
+private endOfDay(value: string): Date {
+  const d = new Date(value);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+loadSavedFilters(): void {
+  try {
+    const raw = localStorage.getItem(this.FILTERS_STORAGE_KEY);
+    this.savedFilters = raw ? JSON.parse(raw) : [];
+  } catch {
+    this.savedFilters = [];
+  }
+}
+
+saveCurrentFilter(): void {
+  const name = prompt('שם לסינון הקבוע:');
+  if (!name?.trim()) return;
+
+  this.savedFilters.push({
+    name: name.trim(),
+    filters: structuredClone(this.advancedFilters),
+    statusFilter: this.statusFilter,
+    parentFilter: this.parentFilter,
+  });
+
+  localStorage.setItem(this.FILTERS_STORAGE_KEY, JSON.stringify(this.savedFilters));
+}
+
+applySavedFilter(item: SavedChildrenFilter): void {
+  this.advancedFilters = structuredClone(item.filters);
+  this.statusFilter = item.statusFilter;
+  this.parentFilter = item.parentFilter;
+  this.onFiltersChanged();
+}
+
+deleteSavedFilter(index: number): void {
+  this.savedFilters.splice(index, 1);
+  localStorage.setItem(this.FILTERS_STORAGE_KEY, JSON.stringify(this.savedFilters));
+}
+
   onFiltersChanged(): void {
     this.updateStats();
   }
 
-  clearFilters() {
-    this.searchText = '';
-    this.searchMode = 'name';
-    this.statusFilter = 'all';
-    this.parentFilter = 'all';
-    this.updateStats();
+ clearFilters() {
+  this.searchText = '';
+  this.searchMode = 'name';
+  this.statusFilter = 'all';
+  this.parentFilter = 'all';
+
+  this.advancedFilters = {
+    terms: 'all',
+    intake: 'all',
+
+    healthFundId: 'all',
+    gender: 'all',
+
+    birthFrom: '',
+    birthTo: '',
+
+    entryFrom: '',
+    entryTo: '',
+
+    termsFrom: '',
+    termsTo: '',
+
+    lessonFrom: '',
+    lessonTo: '',
+
+    instructorId: 'all',
+    lessonType: 'all',
+    lessonDay: 'all',
+
+    series: 'all',
+    referral: 'all',
+    missingDocs: 'all',
+  };
+
+  this.updateStats();
+}
+
+  get activeFilterChips(): { label: string; clear: () => void }[] {
+  const chips: { label: string; clear: () => void }[] = [];
+  const f = this.advancedFilters;
+
+  if (this.statusFilter !== 'all') {
+    chips.push({
+      label: 'סטטוס: ' + this.getStatusFilterLabel(),
+      clear: () => this.statusFilter = 'all',
+    });
   }
+
+  if (this.parentFilter !== 'all') {
+    chips.push({
+      label: 'שיוך להורה: ' + (this.parentFilter === 'withParent' ? 'יש הורה' : 'ללא הורה'),
+      clear: () => this.parentFilter = 'all',
+    });
+  }
+
+  if (f.terms !== 'all') {
+    chips.push({
+      label: 'תקנון: ' + (f.terms === 'signed' ? 'חתום' : 'לא חתום'),
+      clear: () => f.terms = 'all',
+    });
+  }
+
+  if (f.healthFundId !== 'all') {
+    chips.push({
+      label: 'קופ"ח: ' + this.getFundingSourceName(f.healthFundId),
+      clear: () => f.healthFundId = 'all',
+    });
+  }
+
+  if (f.gender !== 'all') {
+    chips.push({
+      label: 'מגדר: ' + f.gender,
+      clear: () => f.gender = 'all',
+    });
+  }
+
+  if (f.instructorId !== 'all') {
+    chips.push({
+      label: 'מדריך: ' + this.getInstructorName(f.instructorId),
+      clear: () => f.instructorId = 'all',
+    });
+  }
+
+  if (f.lessonFrom || f.lessonTo) {
+    chips.push({
+      label: `שיעורים: ${f.lessonFrom || '...'} - ${f.lessonTo || '...'}`,
+      clear: () => {
+        f.lessonFrom = '';
+        f.lessonTo = '';
+      },
+    });
+  }
+
+  return chips;
+}
+
+getInstructorName(id: string | null | undefined): string {
+  if (!id || id === 'all') return 'כל המדריכים';
+
+  const instructor = this.instructors.find((i) => i.id_number === id);
+
+  if (!instructor) return id;
+
+  const fullName = `${instructor.first_name ?? ''} ${instructor.last_name ?? ''}`.trim();
+
+  return instructor.name || fullName || id;
+}
+
+
+getStatusFilterLabel(): string {
+  if (this.statusFilter === 'active') return 'פעיל';
+  if (this.statusFilter === 'inactive') return 'לא פעיל';
+  if (this.statusFilter === 'pending') return 'ממתין אישור';
+  return 'הכול';
+}
+
+clearChip(chip: { clear: () => void }): void {
+  chip.clear();
+  this.onFiltersChanged();
+}
 
   toggleSearchPanelFromBar() {
     this.panelFocus = 'search';
@@ -641,6 +991,30 @@ private isAllowedReferralFile(file: File): boolean {
     this.ui.alert('אירעה שגיאה בעת ייצוא לאקסל.', 'שגיאה');
   }
 }
+goToParentCard(parentUid?: string | null) {
+  if (!parentUid) {
+    this.ui.alert('לילד הזה אין הורה משויך.', 'כרטיס הורה');
+    return;
+  }
+
+  this.router.navigate(['/secretary/parents'], {
+    queryParams: {
+      parentUid,
+      openDrawer: true,
+    },
+  });
+}
+
+hasActiveAdvancedFilters(): boolean {
+  const f = this.advancedFilters;
+  return (
+    f.terms !== 'all' ||
+    f.intake !== 'all' ||
+    f.healthFundId !== 'all' ||
+    !!f.entryFrom ||
+    !!f.entryTo
+  );
+}
 
 private getExportCellValue(child: any, key: ChildColumnKey): string {
   switch (key) {
@@ -667,6 +1041,12 @@ private getExportCellValue(child: any, key: ChildColumnKey): string {
 
     case 'parent_status':
       return child.parent_uid ? 'יש הורה משויך' : 'ללא הורה';
+
+    case 'created_at':
+      return child.created_at ? this.formatDateForExcel(child.created_at) : '—';
+
+    case 'updated_at':
+      return child.updated_at ? this.formatDateForExcel(child.updated_at) : '—';
 
     default:
       return '—';
@@ -736,7 +1116,9 @@ private formatDateForExcel(value: string): string {
           funding_source_id,
           status,
           medical_notes,
-          behavior_notes
+          behavior_notes,
+          created_at,
+updated_at
         `)
         .eq('child_uuid', id)
         .single();
@@ -1132,11 +1514,23 @@ getRequiredDocsText(row: SeriesDocRow): string {
         child.behavior_notes ?? '',
         [Validators.maxLength(this.MAX_BEHAVIOR_NOTES)],
       ],
+      created_at: [
+        child.created_at ? this.toDateTimeLocal(child.created_at) : '',
+      ],
     });
 
     this.originalChild = { ...child };
     this.editMode = false;
   }
+
+  private toDateTimeLocal(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
   enterEditModeChild() {
     if (!this.drawerChild || !this.childForm) return;
@@ -1152,10 +1546,147 @@ getRequiredDocsText(row: SeriesDocRow): string {
     this.editMode = false;
   }
 
+    private async loadFilterLookups(): Promise<void> {
+  const db = await this.dbc();
+
+  const childIds = this.children
+    .map((c: any) => c.child_uuid)
+    .filter(Boolean);
+
+  if (!childIds.length) return;
+
+  const { data: instructorsData } = await db
+    .from('instructors')
+    .select('id_number, first_name, last_name, name')
+    .order('first_name', { ascending: true });
+
+  this.instructors = instructorsData ?? [];
+
+  const { data: termsData } = await db
+    .from('child_terms_signatures')
+    .select('child_id, signed_pdf_bucket, signed_pdf_path, created_at')
+    .in('child_id', childIds)
+    .not('signed_pdf_bucket', 'is', null)
+    .not('signed_pdf_path', 'is', null);
+
+  this.termsByChild = {};
+  for (const row of termsData ?? []) {
+    const cid = (row as any).child_id;
+    const current = this.termsByChild[cid];
+
+    if (!current || new Date((row as any).created_at) > new Date(current.signedAt || 0)) {
+      this.termsByChild[cid] = {
+        signed: true,
+        signedAt: (row as any).created_at ?? null,
+      };
+    }
+  }
+
+  const { data: docsData } = await db
+    .from('child_documents')
+    .select('child_id, document_name')
+    .in('child_id', childIds);
+
+  this.intakeByChild = {};
+  for (const row of docsData ?? []) {
+    if (String((row as any).document_name ?? '').trim() === 'אינטק') {
+      this.intakeByChild[(row as any).child_id] = true;
+    }
+  }
+
+  const { data: lessonsData } = await db
+    .from('lessons')
+    .select(`
+      id,
+      child_id,
+      instructor_id,
+      lesson_type,
+      day_of_week,
+      anchor_week_start,
+      series_end_date,
+      is_open_ended,
+      status,
+      payment_docs_url,
+      payment_plans (
+        required_docs,
+        require_docs_at_booking
+      )
+    `)
+    .in('child_id', childIds);
+
+  this.lessonMetaByChild = {};
+  const typeSet = new Set<string>();
+
+  for (const row of lessonsData ?? []) {
+    const r: any = row;
+    const cid = r.child_id;
+    if (!cid) continue;
+
+    if (!this.lessonMetaByChild[cid]) {
+      this.lessonMetaByChild[cid] = {
+        instructorIds: [],
+        lessonTypes: [],
+        days: [],
+        hasActiveSeries: false,
+        hasReferral: false,
+        missingReferral: false,
+        missingRequiredDocs: false,
+        lessonDates: [],
+      };
+    }
+
+    const meta = this.lessonMetaByChild[cid];
+
+    if (r.instructor_id && !meta.instructorIds.includes(r.instructor_id)) {
+      meta.instructorIds.push(r.instructor_id);
+    }
+
+    if (r.lesson_type) {
+      typeSet.add(r.lesson_type);
+      if (!meta.lessonTypes.includes(r.lesson_type)) meta.lessonTypes.push(r.lesson_type);
+    }
+
+    if (r.day_of_week && !meta.days.includes(r.day_of_week)) {
+      meta.days.push(r.day_of_week);
+    }
+
+    const isActive = String(r.status ?? '').toLowerCase() === 'active' || r.status === 'אושר';
+    const isSeries = r.lesson_type === 'סידרה' || r.lesson_type === 'סדרה';
+
+    if (isSeries && isActive) {
+      meta.hasActiveSeries = true;
+    }
+
+    if (r.payment_docs_url) {
+      meta.hasReferral = true;
+    }
+
+    const requiresDocs =
+      !!r.payment_plans?.require_docs_at_booking &&
+      Array.isArray(r.payment_plans?.required_docs) &&
+      r.payment_plans.required_docs.length > 0;
+
+    if (requiresDocs && !r.payment_docs_url) {
+      meta.missingReferral = true;
+      meta.missingRequiredDocs = true;
+    }
+
+    if (r.anchor_week_start) {
+      meta.lessonDates.push(r.anchor_week_start);
+    }
+  }
+
+  this.lessonTypes = Array.from(typeSet).sort();
+}
+
   async saveChildEdits() {
     if (!this.drawerChild || !this.childForm || !this.selectedId) return;
 
     const raw = this.childForm.getRawValue();
+
+    if (raw.created_at) {
+  raw.created_at = new Date(raw.created_at).toISOString();
+}
 
     const fieldsToCompare: (keyof ChildDetails)[] = [
       'first_name',
@@ -1164,6 +1695,7 @@ getRequiredDocsText(row: SeriesDocRow): string {
       'status',
       'medical_notes',
       'behavior_notes',
+      'created_at',
     ];
 
     const delta: Partial<ChildDetails> = {};

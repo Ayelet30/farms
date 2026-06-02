@@ -318,6 +318,8 @@ onEscapeCloseContextMenu(): void {
 private router = inject(Router);
 private static didClearStateOnThisPageLoad = false;
 
+private currentCalendarDate: string | null = null;
+
 timeOptions: string[] = Array.from({ length: 24 * 2 }, (_, i) => {
   const hours = Math.floor(i / 2).toString().padStart(2, '0');
   const minutes = ((i % 2) * 30).toString().padStart(2, '0');
@@ -340,6 +342,7 @@ private ui = inject(UiDialogService);
     console.log('🟢 SecretarySchedule INIT');
     try {
       await ensureTenantContextReady();
+      this.clearScheduleStateOnFreshEntry();
 
 const { data: ridingTypes } = await dbTenant()
   .from('riding_types')
@@ -356,17 +359,6 @@ this.ridingTypes = ridingTypes || [];
       const user = await this.cu.loadUserDetails();
       this.instructorId = (user?.id_number ?? '').toString();
 
-  
-const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-
-if (
-  nav?.type === 'reload' &&
-  !SecretaryScheduleComponent.didClearStateOnThisPageLoad
-) {
-  sessionStorage.removeItem(this.STATE_KEY);
-  SecretaryScheduleComponent.didClearStateOnThisPageLoad = true;
-}
-
       await this.reloadAll();
     } catch (e) {
       console.error('init error', e);
@@ -374,6 +366,23 @@ if (
       this.cdr.detectChanges();
     }
   }
+
+private clearScheduleStateOnFreshEntry(): void {
+  const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+
+  const isFreshEntry =
+    nav?.type === 'reload' ||
+    nav?.type === 'navigate';
+
+  const alreadyOpenedInThisTab = sessionStorage.getItem(this.APP_SESSION_KEY) === '1';
+
+  if (isFreshEntry && !alreadyOpenedInThisTab) {
+    sessionStorage.removeItem(this.STATE_KEY);
+  }
+
+  sessionStorage.setItem(this.APP_SESSION_KEY, '1');
+}
+
 
   ngOnDestroy(): void {
     console.log('🔴 SecretarySchedule DESTROY');
@@ -578,11 +587,12 @@ private async reloadAll() {
 
   await this.loadChildren();
 
-  await this.loadInstructors();
-
-  await this.loadInstructorWeeklyAvailability();
-
   this.restorePageState();
+
+  this.isRestoringScheduleState = true;
+
+  await this.loadInstructors();
+  await this.loadInstructorWeeklyAvailability();
 
   if (!this.selectedInstructorIds.length) {
     this.selectedInstructorIds = this.instructors.map(i => String(i.id_number));
@@ -607,8 +617,6 @@ private async reloadAll() {
 
   this.savePageState();
 
-  this.isRestoringScheduleState = true;
-
 const restoredRange = this.currentRange
   ? { ...this.currentRange }
   : null;
@@ -623,29 +631,35 @@ setTimeout(() => {
         ? 'timeGridWeek'
         : restoredViewType;
 
-  const gotoDate = restoredRange?.start ?? null;
-  this.scheduleCmp?.changeView(view as any);
+  const gotoDate =
+    this.currentCalendarDate ||
+    restoredRange?.start?.slice(0, 10) ||
+    null;
 
-  if (gotoDate) {
-    this.scheduleCmp?.goToDay(gotoDate);
-  }
+  const api: any = this.scheduleCmp as any;
 
-  // חשוב! מחזירים את כל הטווח, לא רק start=end
-  if (restoredRange) {
-    this.currentRange = restoredRange;
-  }
+  api?.changeView?.(view);
 
-  this.currentViewType = restoredViewType as any;
+  setTimeout(() => {
+    api?.goToDay?.(gotoDate);
 
-  this.isRestoringScheduleState = false;
-  this.savePageState();
+    if (restoredRange) {
+      this.currentRange = restoredRange;
+    }
 
-  this.cdr.detectChanges();
+    this.currentViewType = restoredViewType as any;
+    this.currentCalendarDate = gotoDate;
+
+    this.isRestoringScheduleState = false;
+    this.savePageState();
+    this.cdr.detectChanges();
+  }, 100);
 }, 300);
 
   this.cdr.detectChanges();
 }
 
+  private readonly APP_SESSION_KEY = 'bereshit-app-opened-v1';
 private readonly STATE_KEY = 'secretary-schedule-state-v1';
 
 private savePageState(): void {
@@ -654,10 +668,10 @@ private savePageState(): void {
     selectedChildId: this.selectedChild?.child_uuid ?? null,
     currentRange: this.currentRange,
     currentViewType: this.currentViewType,
+    currentCalendarDate: this.currentCalendarDate,
   };
 
   sessionStorage.setItem(this.STATE_KEY, JSON.stringify(state));
-
 }
 
 private restorePageState(): void {
@@ -677,6 +691,7 @@ private restorePageState(): void {
 
     this.currentRange = state.currentRange ?? null;
     this.currentViewType = state.currentViewType ?? 'timeGridDay';
+    this.currentCalendarDate = state.currentCalendarDate ?? state.currentRange?.start ?? null;
 
     if (state.selectedChildId) {
       this.selectedChild =
@@ -1862,20 +1877,22 @@ private async loadInstructors(): Promise<void> {
     this.instructorsToday = this.instructors.filter(i => todayIds.has(String(i.id_number)));
 
     // 3) ברירת מחדל לבחירה: רק של היום (או אני אם אני עובד היום)
-    if (!this.selectedInstructorIds.length) {
-      const me = String(this.instructorId || '');
 
-      if (me && this.instructorsToday.some(i => String(i.id_number) === me)) {
-        this.selectedInstructorIds = [me];
-      } else {
-        this.selectedInstructorIds = this.instructorsToday.map(i => String(i.id_number));
-      }
+// אם אין מדריכים מסומנים — תמיד מציגים זמינים היום
+if (!this.selectedInstructorIds.length) {
+  const me = String(this.instructorId || '');
 
-      // אם אין בכלל זמינות היום → fallback: כל הפעילים
-      if (!this.selectedInstructorIds.length) {
-        this.selectedInstructorIds = this.instructors.map(i => String(i.id_number));
-      }
-    }
+  if (me && this.instructorsToday.some(i => String(i.id_number) === me)) {
+    this.selectedInstructorIds = [me];
+  } else {
+    this.selectedInstructorIds = this.instructorsToday.map(i => String(i.id_number));
+  }
+
+  // אם אין מדריכים זמינים היום — fallback לכל הפעילים
+  if (!this.selectedInstructorIds.length) {
+    this.selectedInstructorIds = this.instructors.map(i => String(i.id_number));
+  }
+}
 
     // 4) resources ללוח נקבעים לפי הבחירה הנוכחית
     this.rebuildInstructorResources();
@@ -1943,6 +1960,8 @@ async onViewRange(range: { start: string; end: string; viewType: string }) {
 
   this.currentRange = range;
   this.currentViewType = range.viewType as any;
+
+  this.currentCalendarDate = range.start?.slice(0, 10) ?? null;
 
   await this.loadLessons({ start: range.start, end: range.end });
   await this.loadFarmDaysOffForRange(range.start.slice(0, 10), range.end.slice(0, 10));
