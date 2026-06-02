@@ -1132,6 +1132,7 @@ export class SecretaryChildrenComponent implements OnInit {
         child.behavior_notes ?? '',
         [Validators.maxLength(this.MAX_BEHAVIOR_NOTES)],
       ],
+      inactive_date: [this.todayDate()],
     });
 
     this.originalChild = { ...child };
@@ -1156,7 +1157,9 @@ export class SecretaryChildrenComponent implements OnInit {
     if (!this.drawerChild || !this.childForm || !this.selectedId) return;
 
     const raw = this.childForm.getRawValue();
-
+    const becameInactive =
+      this.isActiveStatus(this.originalChild?.status) &&
+      raw.status === 'Deleted';
     const fieldsToCompare: (keyof ChildDetails)[] = [
       'first_name',
       'last_name',
@@ -1180,7 +1183,37 @@ export class SecretaryChildrenComponent implements OnInit {
       this.editMode = false;
       return;
     }
+    if (becameInactive) {
+      const inactiveDate = raw.inactive_date;
 
+      if (!inactiveDate) {
+        await this.ui.alert('חובה לבחור תאריך הפיכת ילד ללא פעיל', 'שגיאה');
+        return;
+      }
+
+      const db = await this.dbc();
+
+      const { error } = await db.rpc('schedule_child_inactivation', {
+        p_child_uuid: this.selectedId,
+        p_inactive_date: inactiveDate,
+      });
+
+      if (error) throw error;
+
+      await this.loadChildren();
+      await this.openDetails(this.selectedId);
+
+      this.editMode = false;
+
+      await this.ui.alert(
+        inactiveDate === this.todayDate()
+          ? 'הילד הוגדר כלא פעיל והשיעורים שלו נמחקו.'
+          : 'נקבע תאריך עתידי להפיכת הילד ללא פעיל.',
+        'בוצע'
+      );
+
+      return;
+    }
     try {
       const db = await this.dbc();
 
@@ -1370,6 +1403,9 @@ export class SecretaryChildrenComponent implements OnInit {
         parentUid,
       },
     });
+  }
+  todayDate(): string {
+    return new Date().toISOString().slice(0, 10);
   }
 }
 
