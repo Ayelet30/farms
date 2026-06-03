@@ -1051,8 +1051,9 @@
 
               <ng-template #editServiceType>
                 <div class="cell-main">
-                  <input class="form-control" type="text" [(ngModel)]="service.name"
-                    [ngModelOptions]="{ standalone: true }" />
+                  <div class="read-only-field">
+                    {{ service.name }}
+                  </div>
                   <input class="form-control" type="number" min="0" step="0.5"
                     [(ngModel)]="service.default_price_shekel" [ngModelOptions]="{ standalone: true }"
                     placeholder="מחיר ₪" />
