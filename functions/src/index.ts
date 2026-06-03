@@ -31,7 +31,7 @@ export { openClaimsClalit } from './clalit-claims';
 
 export { connectClalitForFarm, connectHmoForFarm } from './connectHmoForFarm';
 
-export { createHostedPaymentUrl, tranzilaHandshake , recordOneTimePayment , savePaymentMethod ,chargeSelectedChargesForParent } from './tranzila.js';
+export { createHostedPaymentUrl, tranzilaHandshake, recordOneTimePayment, savePaymentMethod, chargeSelectedChargesForParent } from './tranzila.js';
 export {
   ensureTranzilaInvoiceForPayment
 } from './tranzilaInvoices.js';
@@ -40,7 +40,7 @@ export { notifyAvailabilityLessonAction } from './notify-availability-lesson-act
 //export  *  from "../createParent.js";
 export { secretaryCancelOccurrenceAndNotify } from './secretary-cancel-occurrence-and-notify';
 
-export {autoRejectRequestAndNotify} from './auto-reject-and-notify'; 
+export { autoRejectRequestAndNotify } from './auto-reject-and-notify';
 export { approveRemoveChildAndNotify } from './approve-remove-child-and-notify';
 export { notifySeriesApproved } from './notifySeriesApproved';
 export { notifySeriesRejected } from './notifySeriesRejected';
@@ -50,8 +50,8 @@ export { approveMakeupLessonAndNotify } from './approveMakeupLessonAndNotify';
 export { rejectMakeupLessonAndNotify } from './rejectMakeupLessonAndNotify';
 export { approveFillInAndNotify } from './approveFillInAndNotify';
 export { rejectFillInAndNotify } from './rejectFillInAndNotify';
-export {approveCancelOccurrenceAndNotify} from './approveCancelOccurrenceAndNotify'
-export {rejectCancelOccurrenceAndNotify} from './rejectCancelOccurrenceAndNotify'
+export { approveCancelOccurrenceAndNotify } from './approveCancelOccurrenceAndNotify'
+export { rejectCancelOccurrenceAndNotify } from './rejectCancelOccurrenceAndNotify'
 export { approveInstructorDayOffAndNotify } from './approve-instructor-day-off-and-notify';
 export { rejectInstructorDayOffAndNotify } from './reject-instructor-day-off-and-notify';
 export { approveAddChildAndNotify } from './approve-add-child-and-notify';
@@ -63,6 +63,10 @@ export { sendFarmDayOffCancellationEmails } from './send-farm-day-off-cancellati
 export { previewInstructorDeactivationImpact } from './preview-instructor-deactivation-impact';
 export { deactivateInstructorAndCancelFutureLessons } from './deactivate-instructor-and-cancel-future-lessons';
 export { createMaccabiAutomationJob } from './automation/maccabiJobs';
+export {
+  approveRiderServiceRequestAndNotify,
+  rejectRiderServiceRequestAndNotify,
+} from './rider-service-request-decision';
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
 
@@ -107,20 +111,20 @@ export const testOpenMaccabi = onRequest(
       return;
     }
 
-   try {
-    console.log('Received request to testOpenMaccabi with body:', req.body);
-  const schema =
-    String(req.query.schema || req.body?.schema || 'bereshit_farm').trim();
+    try {
+      console.log('Received request to testOpenMaccabi with body:', req.body);
+      const schema =
+        String(req.query.schema || req.body?.schema || 'bereshit_farm').trim();
 
-  const { openMaccabiSite } = await import('./automation/maccabiAutomation');
-console.log(`Testing openMaccabiSite with schema: ${schema}`);
-  const result = await openMaccabiSite(schema);
-  res.status(result.ok ? 200 : 500).json(result);
-} catch (error: any) {
-  res.status(500).json({
-    ok: false,
-    message: error?.message ?? 'Unknown error',
-  });
-}
+      const { openMaccabiSite } = await import('./automation/maccabiAutomation');
+      console.log(`Testing openMaccabiSite with schema: ${schema}`);
+      const result = await openMaccabiSite(schema);
+      res.status(result.ok ? 200 : 500).json(result);
+    } catch (error: any) {
+      res.status(500).json({
+        ok: false,
+        message: error?.message ?? 'Unknown error',
+      });
+    }
   }
 );

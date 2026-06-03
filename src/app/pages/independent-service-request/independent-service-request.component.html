@@ -93,7 +93,7 @@
                     </div>
                 </ng-container>
 
-                <ng-container *ngIf="isRecurringRangeMode || isPermanentMode">
+                <ng-container *ngIf="isRecurringRangeMode">
                     <div class="field">
                         <label>יחידת ביצוע</label>
                         <select [(ngModel)]="form.recurrence_unit" name="recurrence_unit"

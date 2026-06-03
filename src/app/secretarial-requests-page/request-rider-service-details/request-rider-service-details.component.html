@@ -1,3 +1,9 @@
+<div class="busy-overlay" *ngIf="busy()">
+    <div class="busy-card" dir="rtl">
+        <mat-spinner diameter="28"></mat-spinner>
+        <div class="busy-text">{{ busyText() }}</div>
+    </div>
+</div>
 <div class="req" dir="rtl">
     <div class="req-title">בקשת שירות לרוכב עצמאי</div>
 
@@ -57,20 +63,10 @@
         </div>
     </div>
 
-    <div class="section" *ngIf="p.approval_file">
-        <h4>אישור מצורף</h4>
-
-        <div class="file-box">
-            <div>
-                <b>{{ p.approval_file.name || 'קובץ מצורף' }}</b>
-                <span>{{ p.approval_file.type || '' }}</span>
-            </div>
-
-            <small>
-                הנתיב נשמר:
-                {{ p.approval_file.path }}
-            </small>
-        </div>
+    <div class="file-box" *ngIf="p.approval_file?.publicUrl">
+        <a [href]="p.approval_file.publicUrl" target="_blank" rel="noopener noreferrer" class="file-link">
+            📎 פתיחת האישור המצורף
+        </a>
     </div>
 
     <div class="section" *ngIf="p.notes">
@@ -80,16 +76,16 @@
 
     <div class="note-box">
         <label>הערה להחלטה</label>
-        <textarea [(ngModel)]="decisionNote" rows="2" [disabled]="busy" placeholder="הערה פנימית / סיבת דחייה...">
+        <textarea [(ngModel)]="decisionNote" rows="2" placeholder="הערה פנימית / סיבת דחייה...">
     </textarea>
     </div>
 
     <div class="actions" *ngIf="req()?.status === 'PENDING'">
-        <button class="btn reject" type="button" (click)="reject()" [disabled]="busy">
+        <button class="btn reject" type="button" (click)="reject()" [disabled]="busy()">
             דחייה
         </button>
 
-        <button class="btn approve" type="button" (click)="approve()" [disabled]="busy">
+        <button class="btn approve" type="button" (click)="approve()" [disabled]="busy()">
             אישור
         </button>
     </div>
