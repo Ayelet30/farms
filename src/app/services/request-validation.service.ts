@@ -511,10 +511,36 @@ export class RequestValidationService {
         return null;
       }
 
-
       case 'INSTRUCTOR_DAY_OFF': {
-        const end = row.toDate ?? row.fromDate ?? null;
-        if (isPast(end, '23:59')) return 'עבר מועד חופשת המדריך';
+        const dateStr = row.toDate ?? row.fromDate ?? null;
+
+        const startTime =
+          p.requested_start_time ??
+          p.start_time ??
+          null;
+
+        const endTime =
+          p.requested_end_time ??
+          p.end_time ??
+          startTime ??
+          null;
+
+        if (!dateStr) return null;
+
+        // אם יש שעת סיום — בודקים לפי שעת הסיום
+        // לדוגמה 12:00-12:30, ובשעה 12:43 כבר עבר
+        if (endTime) {
+          if (isPast(dateStr, endTime)) {
+            return 'עבר מועד חופשת המדריך';
+          }
+          return null;
+        }
+
+        // fallback אם אין שעות בכלל
+        if (isPast(dateStr, '23:59')) {
+          return 'עבר מועד חופשת המדריך';
+        }
+
         return null;
       }
 

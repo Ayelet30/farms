@@ -146,6 +146,64 @@
     background: #e9efdb;
 }
 
+:host {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+.req {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.section,
+.note-box,
+.file-box {
+    width: 100%;
+    max-width: 100%;
+}
+
+.meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.meta-grid>div {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.meta-grid b,
+.meta-grid span {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.note-box textarea {
+    max-width: 100%;
+    resize: vertical;
+}
+
+@media (max-width: 700px) {
+    .meta-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .req-title {
+        font-size: 16px;
+    }
+
+    .section {
+        padding: 12px;
+    }
+}
+
 .busy-overlay {
     position: fixed;
     inset: 0;
