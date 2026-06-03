@@ -1383,11 +1383,32 @@ export class SecretarialRequestsPageComponent implements OnInit {
       let rejected = 0;
 
       for (const r of pending) {
-        // ✅ רק קריטי
         const valid = await this.validation.validate(r, 'auto');
+
+        console.log('[AUTO VALIDATION]', {
+          id: r.id,
+          type: r.requestType,
+          status: r.status,
+          childId: r.childId,
+          valid,
+        });
+
         if (!valid.ok) {
           const reason = valid.reason ?? 'הבקשה אינה רלוונטית (קריטי)';
+
+          console.log('[AUTO REJECT TRY]', {
+            id: r.id,
+            type: r.requestType,
+            reason,
+          });
+
           const ok = await this.rejectBySystem(r, reason);
+
+          console.log('[AUTO REJECT RESULT]', {
+            id: r.id,
+            ok,
+          });
+
           if (ok) rejected++;
         }
       }
