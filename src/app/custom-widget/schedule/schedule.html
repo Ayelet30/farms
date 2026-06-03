@@ -3,27 +3,26 @@
   <div class="card calendar-toolbar" *ngIf="showToolbar">
 
     <div class="view-buttons btn-group">
-  <button (click)="changeView('timeGridDay')" [class.active]="currentView === 'timeGridDay'" title="יומי">
-    <span class="btn-icon">☰</span>
-    <span class="btn-text">יומי</span>
-  </button>
+      <button (click)="changeView('timeGridDay')" [class.active]="currentView === 'timeGridDay'" title="יומי">
+        <span class="btn-icon">☰</span>
+        <span class="btn-text">יומי</span>
+      </button>
 
-  <button (click)="changeView('timeGridWeek')" [class.active]="currentView === 'timeGridWeek'" title="שבועי">
-    <span class="btn-icon">▤</span>
-    <span class="btn-text">שבועי</span>
-  </button>
+      <button (click)="changeView('timeGridWeek')" [class.active]="currentView === 'timeGridWeek'" title="שבועי">
+        <span class="btn-icon">▤</span>
+        <span class="btn-text">שבועי</span>
+      </button>
 
-  <button (click)="changeView('dayGridMonth')" [class.active]="currentView === 'dayGridMonth'" title="חודשי">
-    <span class="btn-icon">▦</span>
-    <span class="btn-text">חודשי</span>
-  </button>
-</div>
+      <button (click)="changeView('dayGridMonth')" [class.active]="currentView === 'dayGridMonth'" title="חודשי">
+        <span class="btn-icon">▦</span>
+        <span class="btn-text">חודשי</span>
+      </button>
+    </div>
 
     <div class="date-nav">
       <button class="nav-btn" (click)="next()" aria-label="הבא">
         <span class="chevron left"></span>
       </button>
-
 
       <div class="current-date">{{ currentDate }}</div>
 
@@ -33,22 +32,22 @@
     </div>
 
     <div class="actions btn-group">
-  <button (click)="today()" title="היום">
-    <span class="btn-icon">◎</span>
-    <span class="btn-text">היום</span>
-  </button>
+      <button (click)="today()" title="היום">
+        <span class="btn-icon">◎</span>
+        <span class="btn-text">היום</span>
+      </button>
 
-  <button class="fullscreen-btn" (click)="toggleFullscreen()" [title]="isFullscreen ? 'צמצם' : 'מסך מלא'">
-    <span class="btn-icon">{{ isFullscreen ? '↙' : '⛶' }}</span>
-    <span class="btn-text">{{ isFullscreen ? 'צמצם' : 'מסך מלא' }}</span>
-  </button>
+      <button class="fullscreen-btn" (click)="toggleFullscreen()" [title]="isFullscreen ? 'צמצם' : 'מסך מלא'">
+        <span class="btn-icon">{{ isFullscreen ? '↙' : '⛶' }}</span>
+        <span class="btn-text">{{ isFullscreen ? 'צמצם' : 'מסך מלא' }}</span>
+      </button>
 
-  <button *ngIf="enableAutoAssign && currentView === 'timeGridDay'" class="assign-btn" type="button"
-    (click)="onAutoAssignClick()" title="שבץ סוסים ומגרשים">
-    <span class="btn-icon">♘</span>
-    <span class="btn-text">שבץ סוסים ומגרשים</span>
-  </button>
-</div>
+      <button *ngIf="enableAutoAssign && currentView === 'timeGridDay'" class="assign-btn" type="button"
+        (click)="onAutoAssignClick()" title="שבץ סוסים ומגרשים">
+        <span class="btn-icon">♘</span>
+        <span class="btn-text">שבץ סוסים ומגרשים</span>
+      </button>
+    </div>
   </div>
 
   <!-- תצוגת יום מותאמת -->
@@ -87,7 +86,8 @@
       <!-- רקע תאים -->
       <ng-container *ngFor="let slot of customDaySlots; let row = index">
         <ng-container *ngFor="let res of customDayResources; let col = index">
-          <div class="day-bg-cell" [class.break-cell]="isBreakCell(res.id, slot.iso)" [class.blocked-cell]="isBlockedRawCell(res.id, slot.iso)"
+          <div class="day-bg-cell" [class.break-cell]="isBreakCell(res.id, slot.iso)"
+            [class.blocked-cell]="isBlockedRawCell(res.id, slot.iso)"
             [class.available-cell]="isAvailableRawCell(res.id, slot.iso)"
             [style.background]="isAvailableRawCell(res.id, slot.iso) ? hexToRgba(getAvailableRawCellColor(res.id, slot.iso), 0.13) : null"
             [attr.title]="isBlockedRawCell(res.id, slot.iso) ? getBlockedReason(res.id, slot.iso) : null"

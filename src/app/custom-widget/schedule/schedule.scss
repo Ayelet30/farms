@@ -21,6 +21,7 @@
   gap: 12px;
   --toolbar-space: 96px;
 }
+
 .schedule-wrap.fullscreen {
   position: fixed;
   top: 92px;
@@ -357,7 +358,7 @@
 }
 
 .day-bg-cell.blocked-cell {
-  background:#ececec;
+  background: #ececec;
   cursor: not-allowed;
 }
 
@@ -1162,6 +1163,7 @@
     gap: 8px;
     --toolbar-space: 80px;
   }
+
   .schedule-wrap.fullscreen {
     top: 70px;
     right: 0;
@@ -1170,6 +1172,7 @@
     padding: 8px;
     border-radius: 0;
   }
+
   .card.calendar-toolbar {
     padding: 7px 8px;
     border-radius: 14px;
@@ -1314,8 +1317,8 @@
 
 }
 
-.fc .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > * {
-    top: -12px;
+.fc .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky>* {
+  top: -12px;
 }
 
 /* =========================
@@ -1354,7 +1357,7 @@
 
   margin: 3px !important;
 
-  box-shadow: 0 2px 6px rgba(0,0,0,0.10);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.10);
 
   font-size: 13px;
   font-weight: 900;
@@ -1508,12 +1511,13 @@
 }
 
 .fc-h-event .fc-event-main {
-    color: black !important;
+  color: black !important;
 }
 
 .bereshit-calendar .month-count-event .fc-event-title {
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
+
 .month-badge-only {
   width: 28px;
   height: 28px;
@@ -1531,13 +1535,11 @@
 .day-bg-cell.break-cell {
 
   background-image:
-    repeating-linear-gradient(
-      -45deg,
-      rgba(0,0,0,0.10) 0px,
-      rgba(0,0,0,0.10) 2px,
+    repeating-linear-gradient(-45deg,
+      rgba(0, 0, 0, 0.10) 0px,
+      rgba(0, 0, 0, 0.10) 2px,
       transparent 2px,
-      transparent 8px
-    ) !important;
+      transparent 8px) !important;
 
   background-size: auto;
 }
@@ -1552,7 +1554,7 @@
 
 /* עד 900px — מציגים אייקון ומקטינים */
 @media (max-width: 900px) {
-  .btn-group > button {
+  .btn-group>button {
     padding: 5px 8px;
     min-width: 34px;
     font-size: 12px;
@@ -1569,14 +1571,74 @@
   }
 }
 
-/* במסכים קטנים מאוד */
 @media (max-width: 600px) {
-  .btn-group > button {
-    padding: 4px 6px;
-    min-width: 30px;
+  .card.calendar-toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "date date"
+      "views actions";
+    gap: 8px;
+    padding: 8px;
+    border-radius: 18px;
+    overflow: visible;
+  }
+
+  .view-buttons {
+    grid-area: views;
+    justify-self: start;
+  }
+
+  .date-nav {
+    grid-area: date;
+    justify-self: center;
+    width: 100%;
+    max-width: 330px;
+    min-width: 0;
+    height: 40px;
+    grid-template-columns: 34px 1fr 34px;
+    padding: 3px 6px;
+  }
+
+  .actions {
+    grid-area: actions;
+    justify-self: end;
+  }
+
+  .date-nav .current-date {
+    font-size: 15px;
+    font-weight: 900;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: unset;
+  }
+
+  .btn-group {
+    height: 38px;
+    padding: 3px;
+    gap: 4px;
+    border-radius: 999px;
+  }
+
+  .btn-group>button {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  .nav-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .btn-text {
+    display: none !important;
   }
 
   .btn-icon {
+    display: inline !important;
     font-size: 14px;
   }
 }
