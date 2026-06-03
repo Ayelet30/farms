@@ -10,7 +10,8 @@ type RiderStatus = 'active' | 'inactive';
 
 type IndependentRiderRow = {
   uid: string;
-  full_name: string;
+  first_name: string | null;
+  last_name: string | null;
   phone?: string | null;
   email?: string | null;
   id_number?: string | null;
@@ -122,7 +123,7 @@ export class SecretaryIndependentRidersComponent implements OnInit {
     if (raw) {
       if (this.searchMode === 'name') {
         const q = raw.toLowerCase();
-        rows = rows.filter(r => (r.full_name || '').toLowerCase().includes(q));
+        rows = rows.filter(r => this.getRiderName(r).toLowerCase().includes(q));
       }
 
       if (this.searchMode === 'id') {
@@ -156,8 +157,9 @@ export class SecretaryIndependentRidersComponent implements OnInit {
 
       const { data, error } = await db
         .from('independent_riders')
-        .select('uid, full_name, phone, email, id_number, birth_date, status, notes')
-        .order('full_name', { ascending: true });
+        .select('uid, first_name, last_name, phone, email, id_number, birth_date, status, notes')
+        .order('first_name', { ascending: true })
+        .order('last_name', { ascending: true });
 
       if (error) throw error;
 
@@ -256,7 +258,9 @@ export class SecretaryIndependentRidersComponent implements OnInit {
     try {
       const { data, error } = await dbTenant()
         .from('independent_riders')
-        .select('uid, full_name, phone, email, id_number, birth_date, status, notes')
+        .select('uid, first_name, last_name, phone, email, id_number, birth_date, status, notes')
+        .order('first_name', { ascending: true })
+        .order('last_name', { ascending: true })
         .eq('uid', uid)
         .maybeSingle();
 
@@ -285,7 +289,8 @@ export class SecretaryIndependentRidersComponent implements OnInit {
 
   private buildForm(rider: IndependentRiderRow): void {
     this.riderForm = this.fb.group({
-      full_name: [rider.full_name ?? '', [Validators.required, Validators.maxLength(80)]],
+      first_name: [rider.first_name ?? '', [Validators.required, Validators.maxLength(40)]],
+      last_name: [rider.last_name ?? '', [Validators.required, Validators.maxLength(40)]],
       phone: [rider.phone ?? '', [Validators.maxLength(20)]],
       email: [rider.email ?? '', [Validators.email, Validators.maxLength(80)]],
       id_number: [rider.id_number ?? '', [Validators.maxLength(20)]],
@@ -318,7 +323,8 @@ export class SecretaryIndependentRidersComponent implements OnInit {
     const v = this.riderForm.getRawValue();
 
     const payload = {
-      full_name: String(v.full_name ?? '').trim(),
+      first_name: String(v.first_name ?? '').trim(),
+      last_name: String(v.last_name ?? '').trim(),
       phone: String(v.phone ?? '').trim() || null,
       email: String(v.email ?? '').trim().toLowerCase() || null,
       id_number: String(v.id_number ?? '').trim() || null,
@@ -333,8 +339,7 @@ export class SecretaryIndependentRidersComponent implements OnInit {
         .from('independent_riders')
         .update(payload)
         .eq('uid', this.selectedUid)
-        .select('uid, full_name, phone, email, id_number, birth_date, status, notes')
-        .maybeSingle();
+        .select('uid, first_name, last_name, phone, email, id_number, birth_date, status, notes').maybeSingle();
 
       if (error) throw error;
 
@@ -463,5 +468,11 @@ export class SecretaryIndependentRidersComponent implements OnInit {
 
   formatAgorot(value: number | null | undefined): string {
     return `${Number(value || 0) / 100} ₪`;
+  }
+  getRiderName(rider: IndependentRiderRow | null | undefined): string {
+    if (!rider) return '—';
+
+    const name = `${rider.first_name || ''} ${rider.last_name || ''}`.trim();
+    return name || '—';
   }
 }
