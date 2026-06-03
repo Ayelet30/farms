@@ -25,6 +25,7 @@ export enum Check {
   MakeupSourceStillRelevant = 'makeupSourceStillRelevant',
   FillInSourceStillRelevant = 'fillInSourceStillRelevant',
   InstructorAvailability = 'instructorAvailability',
+  Rider = 'rider',
 
 }
 
@@ -111,7 +112,7 @@ export class RequestValidationService {
       checks: [Check.PendingStatus],
     },
     RIDER_SERVICE_REQUEST: {
-      checks: [Check.PendingStatus],
+      checks: [Check.PendingStatus, Check.Expiry, Check.Rider],
     },
     OTHER_REQUEST: {
       checks: [Check.PendingStatus],
@@ -234,7 +235,12 @@ export class RequestValidationService {
           break;
         }
 
-
+        case Check.Rider: {
+          r = this.normalizeResult(
+            await this.checkRiderActive(db, row, mode)
+          );
+          break;
+        }
         case Check.Requester: {
           r = this.normalizeResult(
             await this.checkRequesterActive(db, row, mode)
@@ -291,6 +297,7 @@ export class RequestValidationService {
           );
           break;
         }
+
       }
 
       if (r && !r.ok) return r;
@@ -546,7 +553,39 @@ export class RequestValidationService {
         if (isPast(dateStr, timeStr)) return 'עבר מועד השיעור המבוקש';
         return null;
       }
+      case 'RIDER_SERVICE_REQUEST': {
+        const serviceMode = String(p.service_mode ?? '').trim();
 
+        if (serviceMode === 'once') {
+          const dateStr =
+            row.fromDate ??
+            p.requested_start_date ??
+            p.start_date ??
+            null;
+
+          if (isPast(dateStr, '23:59')) {
+            return 'עבר מועד השירות החד־פעמי';
+          }
+
+          return null;
+        }
+
+        if (serviceMode === 'recurring_range') {
+          const endDate =
+            row.toDate ??
+            p.requested_end_date ??
+            p.end_date ??
+            null;
+
+          if (isPast(endDate, '23:59')) {
+            return 'עבר תאריך הסיום של השירות המחזורי';
+          }
+
+          return null;
+        }
+
+        return null;
+      }
       default:
         return null;
     }
@@ -695,7 +734,78 @@ export class RequestValidationService {
       return r.ok ? { ok: true } : { ok: false, reason: r.reason };
     }
   }
+  private async checkRiderActive(
+    db: any,
+    row: UiRequest,
+    mode: ValidationMode
+  ): Promise<{ ok: boolean; reason?: string }> {
+    try {
+      const p: any = row.payload ?? {};
 
+      const riderUid =
+        p.rider_uid ??
+        row.requesterUid ??
+        null;
+
+      if (!riderUid) {
+        return {
+          ok: false,
+          reason: 'לא נמצא רוכב משויך לבקשה',
+        };
+      }
+
+      const { data, error } = await db
+        .from('independent_riders')
+        .select('status')
+        .eq('uid', riderUid)
+        .maybeSingle();
+
+      if (error) {
+        console.error('[checkRiderActive] DB error', error);
+
+        const r = this.handleDbFailure(
+          mode,
+          'checkRiderActive',
+          error
+        );
+
+        return r.ok
+          ? { ok: true }
+          : { ok: false, reason: r.reason };
+      }
+
+      if (!data) {
+        return {
+          ok: false,
+          reason: 'הרוכב אינו קיים במערכת',
+        };
+      }
+
+      const status = String(data.status ?? '').toLowerCase();
+
+      if (status !== 'active') {
+        return {
+          ok: false,
+          reason: `הרוכב אינו פעיל`,
+        };
+      }
+
+      return { ok: true };
+
+    } catch (e: any) {
+      console.error('[checkRiderActive] exception', e);
+
+      const r = this.handleDbFailure(
+        mode,
+        'checkRiderActive',
+        e
+      );
+
+      return r.ok
+        ? { ok: true }
+        : { ok: false, reason: r.reason };
+    }
+  }
   private async checkChildActive(db: any, row: UiRequest, mode: ValidationMode, allowedStatuses?: Set<string>)
     : Promise<{ ok: boolean; reason?: string }> {
 

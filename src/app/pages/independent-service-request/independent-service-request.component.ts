@@ -178,18 +178,7 @@ export class IndependentServiceRequestComponent implements OnInit {
             this.error = 'תאריך סיום חייב להיות אחרי תאריך ההתחלה';
             return false;
         }
-        if ((this.isRecurringRangeMode || this.isPermanentMode) && !this.form.recurrence_unit) {
-            this.error = 'יש לבחור יחידת ביצוע';
-            return false;
-        }
 
-        if (
-            (this.isRecurringRangeMode || this.isPermanentMode) &&
-            (!this.form.recurrence_interval || this.form.recurrence_interval < 1)
-        ) {
-            this.error = 'יש למלא כל כמה זמן לבצע את השירות';
-            return false;
-        }
         if (service.requires_approval && !this.form.approval_file) {
             this.approvalFileError = 'חובה לצרף אישור עבור שירות זה';
             return false;
@@ -258,7 +247,6 @@ export class IndependentServiceRequestComponent implements OnInit {
                     ? this.form.requested_end_date
                     : null,
 
-                is_permanent: this.isPermanentMode,
 
                 recurrence_unit: this.isOnceMode ? null : this.form.recurrence_unit,
                 recurrence_interval: this.isOnceMode ? null : this.form.recurrence_interval,
@@ -451,27 +439,27 @@ export class IndependentServiceRequestComponent implements OnInit {
         return this.form.service_mode === 'recurring_range';
     }
 
-    get isPermanentMode(): boolean {
-        return this.form.service_mode === 'permanent';
-    }
     onServiceModeChanged() {
         this.form.requested_start_date = '';
         this.form.requested_end_date = '';
         this.form.recurrence_unit = 'month';
         this.form.recurrence_interval = 1;
         this.plannedDates = [];
-    }
-    private buildSummary(serviceName: string, horseName: string): string {
+    } private buildSummary(serviceName: string, horseName: string): string {
+        const start = this.formatDateIl(this.form.requested_start_date);
+        const end = this.formatDateIl(this.form.requested_end_date);
+
         if (this.isOnceMode) {
-            return `בקשה לשירות "${serviceName}" עבור הסוס/ה ${horseName} בתאריך ${this.form.requested_start_date}`;
+            return `בקשה לשירות "${serviceName}" עבור הסוס/ה ${horseName} בתאריך ${start}`;
         }
 
         if (this.isRecurringRangeMode) {
-            return `בקשה לשירות "${serviceName}" עבור הסוס/ה ${horseName} באופן מחזורי מתאריך ${this.form.requested_start_date} עד ${this.form.requested_end_date}`;
+            return `בקשה לשירות "${serviceName}" עבור הסוס/ה ${horseName} באופן מחזורי מתאריך ${start} עד ${end}`;
         }
 
-        return `בקשה לשירות "${serviceName}" עבור הסוס/ה ${horseName} כשירות קבוע החל מתאריך ${this.form.requested_start_date}`;
+        return `בקשה לשירות "${serviceName}" עבור הסוס/ה ${horseName} כשירות קבוע החל מתאריך ${start}`;
     }
+
     private async fixedServiceAlreadyExists(): Promise<boolean> {
         const service = this.selectedService;
 
@@ -520,5 +508,16 @@ export class IndependentServiceRequestComponent implements OnInit {
                 });
             }
         }, 0);
+    }
+    private formatDateIl(date: string): string {
+        if (!date) return '';
+
+        const d = new Date(date);
+
+        return d.toLocaleDateString('he-IL', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+        });
     }
 }

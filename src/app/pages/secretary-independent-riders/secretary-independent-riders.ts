@@ -437,7 +437,20 @@ export class SecretaryIndependentRidersComponent implements OnInit {
   private async loadDrawerServices(uid: string): Promise<void> {
     const { data, error } = await dbTenant()
       .from('rider_services')
-      .select('id, service_name, start_date, end_date, status, price_agorot, billing_frequency, notes')
+      .select(`
+      id,
+      service_name,
+      start_date,
+      end_date,
+      status,
+      price_agorot,
+      notes,
+      service_mode,
+      recurrence_unit,
+      recurrence_interval,
+      next_billing_date,
+      last_billed_date
+    `)
       .eq('rider_uid', uid)
       .order('created_at', { ascending: false });
 
