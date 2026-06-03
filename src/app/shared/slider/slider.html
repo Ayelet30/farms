@@ -19,29 +19,28 @@
 
     <!-- side-menu.html -->
     <ul>
-      <li *ngFor="let item of menuItems"
-    [class.menu-section]="item.section"
-    [class.active]="!item.section && item.path && isActive(item.path)"
-    [attr.title]="collapsed && !item.section ? item.label : null"
-    (click)="!item.section && item.path && navigateTo(item.path)">
+      <li *ngFor="let item of menuItems" [class.menu-section]="item.section"
+        [class.active]="!item.section && item.path && isActive(item.path)"
+        [attr.title]="collapsed && !item.section ? item.label : null"
+        (click)="!item.section && item.path && navigateTo(item.path)">
 
-  <ng-container *ngIf="item.section; else menuLink">
-    <span class="section-title">{{ item.label }}</span>
-  </ng-container>
+        <ng-container *ngIf="item.section; else menuLink">
+          <span class="section-title">{{ item.label }}</span>
+        </ng-container>
 
-  <ng-template #menuLink>
-    <span class="label">{{ item.label }}</span>
+        <ng-template #menuLink>
+          <span class="label">{{ item.label }}</span>
 
-    <div class="icon-wrapper">
-      <span class="icon" [ngClass]="'i-' + item.icon"></span>
+          <div class="icon-wrapper">
+            <span class="icon" [ngClass]="'i-' + item.icon"></span>
 
-      <div class="menu-badge" *ngIf="item.badge && item.badge > 0">
-        {{ item.badge }}
-      </div>
-    </div>
-  </ng-template>
+            <div class="menu-badge" *ngIf="item.path?.includes('/requests') && badgeService.pendingCount() > 0">
+              {{ badgeService.pendingCount() }}
+            </div>
+          </div>
+        </ng-template>
 
-</li>
+      </li>
     </ul>
 
   </nav>

@@ -43,9 +43,7 @@ export class SliderComponent implements OnInit, OnDestroy {
   pendingRequestsCount = 0;
   private requestsRealtimeChannel: any = null;
 
-  private badgeService = inject(RequestBadgeService);
-
-
+  badgeService = inject(RequestBadgeService);
 
   async ngOnInit() {
     await this.cu.waitUntilReady();
@@ -65,24 +63,14 @@ export class SliderComponent implements OnInit, OnDestroy {
     this.setMenuItemsByRole();
 
     this.syncBreakpoint();
-    await this.badgeService.init();
 
-    this.pendingRequestsCount = this.badgeService.pendingCount();
+    await this.badgeService.refreshTenant();
 
-    setInterval(() => {
-      this.pendingRequestsCount = this.badgeService.pendingCount();
       this.setMenuItemsByRole();
-    }, 500);
+
   }
 
-  async ngOnDestroy() {
-    const db = dbTenant();
-
-    if (this.requestsRealtimeChannel) {
-      await db.removeChannel(this.requestsRealtimeChannel);
-      this.requestsRealtimeChannel = null;
-    }
-  }
+  async ngOnDestroy() {  }
 
   @HostListener('window:resize')
   onResize() {
@@ -130,7 +118,7 @@ export class SliderComponent implements OnInit, OnDestroy {
           { path: 'secretary/waitlist', label: 'רשימת המתנה', icon: 'waitlist' },
           { path: 'secretary/messages', label: 'יצירת קשר', icon: 'messages' },
           { path: 'secretary/monthly-summary', label: 'סיכום וגרפים', icon: 'bar_chart' },
-          { path: 'secretary/requests', label: 'בקשות ואישורים', icon: 'checklist' },
+          { path: 'secretary/requests', label: 'בקשות ואישורים', icon: 'checklist'},
           { path: 'secretary/payments', label: 'תשלומים וחשבוניות', icon: 'card' },
           { path: 'secretary/billing', label: 'ניהול חיובים', icon: 'billing' },
           { path: 'secretary/claims', label: 'טיפול בתביעות', icon: 'claims' },

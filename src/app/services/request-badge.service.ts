@@ -2,23 +2,45 @@ import { Injectable, signal } from '@angular/core';
 import {
   ensureTenantContextReady,
   dbTenant,
-} from '../services/legacy-compat';
+  getCurrentFarmMetaSync,
+  getSupabaseClient,
+} from '../services/supabaseClient.service';
 
 @Injectable({ providedIn: 'root' })
 export class RequestBadgeService {
   pendingCount = signal(0);
+
   private channel: any = null;
+  private currentSchema: string | null = null;
 
   async init() {
+    await this.refreshTenant();
+  }
+
+  async refreshTenant() {
+    await ensureTenantContextReady();
+
+    const farm = getCurrentFarmMetaSync();
+    const schema = farm?.schema_name ?? null;
+
+    if (!schema) {
+      this.pendingCount.set(0);
+      return;
+    }
+
+    // אם עברנו חווה — מחליפים realtime channel
+    if (schema !== this.currentSchema) {
+      this.currentSchema = schema;
+      await this.listenRealtime(schema);
+    }
+
     await this.reload();
-    await this.listenRealtime();
   }
 
   async reload() {
     await ensureTenantContextReady();
-    const db = dbTenant();
 
-    const { count, error } = await db
+    const { count, error } = await dbTenant()
       .from('v_secretarial_requests')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'PENDING');
@@ -31,35 +53,27 @@ export class RequestBadgeService {
     this.pendingCount.set(count ?? 0);
   }
 
-  decrement() {
-    this.pendingCount.update(v => Math.max(0, v - 1));
-    void this.reload();
-  }
-
-  increment() {
-    this.pendingCount.update(v => v + 1);
-    void this.reload();
-  }
-
-  private async listenRealtime() {
-    const db = dbTenant();
+  private async listenRealtime(schema: string) {
+    const client = getSupabaseClient();
 
     if (this.channel) {
-      await db.removeChannel(this.channel);
+      await client.removeChannel(this.channel);
+      this.channel = null;
     }
 
-    this.channel = db
-      .channel('request-badge-realtime')
+    this.channel = client
+      .channel(`request-badge-${schema}`)
       .on(
         'postgres_changes',
         {
           event: '*',
+          schema,
           table: 'secretarial_requests',
         },
-        () => {
-          void this.reload();
-        }
+        () => void this.reload()
       )
-      .subscribe();
+      .subscribe(status => {
+        console.log('badge realtime status:', schema, status);
+      });
   }
 }
