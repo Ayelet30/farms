@@ -17,12 +17,17 @@
             </span>
 
             <span class="dot">•</span>
-
+            
             <span class="sub-pill" *ngIf="lessonDetails!.start_time">
               <mat-icon>schedule</mat-icon>
               {{ lessonDetails.end_time!.slice(0,5) }}–{{ lessonDetails.start_time!.slice(0,5) }}
             </span>
 
+            <span class="dot">•</span>
+
+            <span class="series-counter" *ngIf="getSeriesLabel()">
+              {{ getSeriesLabel() }}
+            </span>
             <span class="dot">•</span>
 
             <!-- Attendance chip -->

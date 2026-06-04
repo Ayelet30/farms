@@ -834,6 +834,17 @@ input[type="checkbox"] {
   object-fit: contain;
   display: block;
 }
+.series-counter {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #eef4df;
+  color: #5f7834;
+  font-size: 13px;
+  font-weight: 800;
+}
 
 /* ===== Mobile ===== */
 @media (max-width: 768px) {

@@ -1571,6 +1571,31 @@
   }
 }
 
+.attendance-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 900;
+  margin-inline-end: 5px;
+  flex: 0 0 auto;
+}
+
+.attendance-mark.present {
+  background: #e7f6df;
+  color: #2f7d32;
+  border: 1px solid #9bd18c;
+}
+
+.attendance-mark.absent {
+  background: #fdecec;
+  color: #a12626;
+  border: 1px solid #e3a4a4;
+}
+
 @media (max-width: 600px) {
   .card.calendar-toolbar {
     display: grid;

@@ -29,7 +29,7 @@
 <!-- כרטסת ילד -->
 <app-note *ngIf="selectedChild && selectedOccurrence" [child]="selectedChild" [occurrence]="selectedOccurrence"
   [attendanceStatus]="attendanceStatus" [role]="currentUserRole" (attendanceChange)="attendanceStatus = $event"
-  (close)="onCloseNote()">
+  (close)="onCloseNote()" (attendanceChange)="onAttendanceChangedFromNote($event)">
 </app-note>
 
 <!-- מודאל -->

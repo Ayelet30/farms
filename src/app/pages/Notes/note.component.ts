@@ -75,7 +75,14 @@ interface LessonDetails {
   is_billable?: boolean | null;
 
   isCancelled?: boolean;
+
+    appointment_kind?: string | null;
+  repeat_weeks?: number | null;
+  is_open_ended?: boolean | null;
+  series_position?: number | null;
+  series_total?: number | null;
 }
+
 
 interface HorseOption {
   id: string;
@@ -263,7 +270,21 @@ get canSeeOfficeNotes(): boolean {
   return r === 'secretary' || r === 'manager' || r === 'admin';
 }
 
+getSeriesLabel(): string | null {
+  const d = this.lessonDetails;
 
+  if (!d?.series_position) return null;
+
+  if (d.is_open_ended) {
+    return `${d.series_position}/~`;
+  }
+
+  if (d.series_total) {
+    return `${d.series_position}/${d.series_total}`;
+  }
+
+  return null;
+}
 
 get canEditOfficeNotes(): boolean {
   return this.canSeeOfficeNotes;
@@ -381,7 +402,13 @@ private hasAnyNote(): boolean {
 
 
 private recalcPresenceFlags() {
-  // ⛔ שיעור מבוטל – אין שום חובת נוכחות
+  // ✅ רק מדריך מקבל אזהרות/חסימות
+  if (!this.isInstructor()) {
+    this.mustChooseAttendance = false;
+    this.mustFillNoteForPresent = false;
+    return;
+  }
+
   if (this.occurrence?.isCancelled) {
     this.mustChooseAttendance = false;
     this.mustFillNoteForPresent = false;
@@ -389,13 +416,10 @@ private recalcPresenceFlags() {
   }
 
   if (!this.canMarkAttendanceNow()) {
-
-
     this.mustChooseAttendance = false;
     this.mustFillNoteForPresent = false;
     return;
   }
-
 
   this.mustChooseAttendance =
     this.enforceNoteForPresence && !this.attendanceStatus;
@@ -403,7 +427,8 @@ private recalcPresenceFlags() {
   this.mustFillNoteForPresent =
     this.enforceNoteForPresence &&
     this.attendanceStatus === 'present' &&
-    !this.hasAnyNote();
+    this.presentMarkedNow &&
+    !this.noteAddedThisSession;
 }
 
   getTimeString(v?: string | null): string {
@@ -604,7 +629,7 @@ async loadLessonDetails() {
   /** 1️⃣ נתוני שיעור */
   const { data: lesson, error: lessonError } = await this.dbc
     .from('lessons')
-    .select('id, start_time, end_time, lesson_type, status')
+    .select('id, start_time, end_time, lesson_type, status, appointment_kind, repeat_weeks, is_open_ended')
     .eq('id', lessonId)
     .maybeSingle();
 
@@ -632,6 +657,26 @@ if (isCancelled && !exception) {
       { lessonId, occurDate }
     );
   }
+  let seriesPosition: number | null = null;
+
+const isSeries =
+  lesson.appointment_kind === 'therapy_series' ||
+  lesson.is_open_ended === true ||
+  Number(lesson.repeat_weeks ?? 1) > 1;
+
+if (isSeries) {
+  const { count, error: countError } = await this.dbc
+    .from('lessons_occurrences')
+    .select('lesson_id', { count: 'exact', head: true })
+    .eq('lesson_id', lessonId)
+    .lte('occur_date', occurDate)
+    .not('status', 'eq', 'בוטל');
+
+  if (!countError) {
+    seriesPosition = count ?? null;
+  }
+}
+
 if (isCancelled) {
   this.lessonDetails = {
     lesson_id: lesson.id,
@@ -646,6 +691,11 @@ if (isCancelled) {
     arena_name: null,
     is_makeup_allowed: exception?.is_makeup_allowed ?? false,
     is_billable: exception?.is_billable ?? true,
+    appointment_kind: lesson.appointment_kind,
+repeat_weeks: lesson.repeat_weeks,
+is_open_ended: lesson.is_open_ended,
+series_position: seriesPosition,
+series_total: lesson.is_open_ended ? null : lesson.repeat_weeks,
   };
   return;
 }
@@ -684,6 +734,11 @@ if (isCancelled) {
   arena_name: arenaName,
   is_makeup_allowed: exception?.is_makeup_allowed ?? false,
   is_billable: exception?.is_billable ?? true,
+  appointment_kind: lesson.appointment_kind,
+  repeat_weeks: lesson.repeat_weeks,
+  is_open_ended: lesson.is_open_ended,
+  series_position: seriesPosition,
+  series_total: lesson.is_open_ended ? null : lesson.repeat_weeks,
 };
 }
 async onBillableChange(newVal: boolean) {
@@ -826,6 +881,7 @@ private async saveAttendance(status: AttendanceStatus | null) {
       console.error('[ATTENDANCE] delete error', error);
     }
 
+    this.attendanceChange.emit(status);
     return;
   }
 
@@ -1110,24 +1166,22 @@ this.recalcPresenceFlags();
  
 
 private canCloseNow(): boolean {
-  // ✅ רק מדריך כפוף לאכיפה
+  // ✅ מזכירה / מנהל / אדמין / הורה – תמיד יכולים לסגור
+  // רק מדריך חייב נוכחות/הערה
   if (!this.isInstructor()) {
+    this.resetCloseWarnings();
     return true;
   }
 
-  // אם לא אוכפים בכלל - תמיד אפשר לסגור
   if (!this.enforceNoteForPresence) {
     this.resetCloseWarnings();
     return true;
   }
 
-  // ✅ שיעור עתידי / מוקדם מדי לסימון נוכחות → לא חוסמים סגירה
   if (!this.canMarkAttendanceNow()) {
     this.resetCloseWarnings();
     return true;
   }
-
-  // מכאן והלאה: אפשר לסמן נוכחות, אז כן אוכפים
 
   if (!this.attendanceStatus) {
     this.mustChooseAttendance = true;
@@ -1135,13 +1189,15 @@ private canCloseNow(): boolean {
     return false;
   }
 
-  // חובת הערה רק אם "הגיע" סומן עכשיו בסשן הנוכחי
-if (this.attendanceStatus === 'present' && !this.noteAddedThisSession) {
-  this.mustChooseAttendance = false;
-  this.mustFillNoteForPresent = true;
-  return false;
-}
-
+  if (
+    this.attendanceStatus === 'present' &&
+    this.presentMarkedNow &&
+    !this.noteAddedThisSession
+  ) {
+    this.mustChooseAttendance = false;
+    this.mustFillNoteForPresent = true;
+    return false;
+  }
 
   this.resetCloseWarnings();
   return true;

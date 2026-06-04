@@ -120,6 +120,9 @@
             [title]="buildCustomItemTitle(item)">
 
             <div class="day-lesson-main">
+              <span class="attendance-mark present" *ngIf="isPresentItem(item)">✓</span>
+              <span class="attendance-mark absent" *ngIf="isAbsentItem(item)">×</span>
+
               <span class="day-child-name">
                 {{ getCustomDayPrimaryText(item) }}
               </span>

@@ -1129,6 +1129,19 @@ private monthBadgeEvent(
     },
   };
 }
+getAttendanceStatus(item: ScheduleItem): string {
+  return String(this.getItemMeta(item)?.attendance_status || '').trim();
+}
+
+isPresentItem(item: ScheduleItem): boolean {
+  const s = this.getAttendanceStatus(item);
+  return s === 'present' || s === 'הגיע';
+}
+
+isAbsentItem(item: ScheduleItem): boolean {
+  const s = this.getAttendanceStatus(item);
+  return s === 'absent' || s === 'לא הגיע';
+}
 
 private getEventClassNames(item: ScheduleItem): string[] {
   const meta = this.getItemMeta(item);

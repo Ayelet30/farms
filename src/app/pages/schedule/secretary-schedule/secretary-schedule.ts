@@ -38,7 +38,6 @@ type RequestType = 'holiday' | 'sick' | 'personal' | 'other';
 type RequestStatus = 'pending' | 'approved' | 'rejected';
 
 
-
 interface AffectedChild {
   child_uuid: string;
   first_name?: string | null;
@@ -124,6 +123,18 @@ farmDaysOff: any[] = [];
   instructorName: '',
   startTime: '',
   endTime: '',
+};
+
+deleteLessonModal = {
+  open: false,
+  saving: false,
+  error: '',
+  lessonId: '',
+  occurDate: '',
+  childName: '',
+  instructorName: '',
+  lessonType: '',
+  isSeries: false,
 };
 
 moveConfirmModal = {
@@ -265,6 +276,9 @@ isOpenEnded: null as boolean | null,
 seriesEndDate: '' as string,
 occurDate: '' as string,
 startTimeOnly: '' as string,
+
+canDeleteLesson: false as boolean,
+deleteBlockedReason: '' as string,
 };
 
 rangeModal = {
@@ -2035,6 +2049,22 @@ private async loadLessons(
 
     if (err1) throw err1;
 
+    const lessonIds = [...new Set((occData ?? []).map((r: any) => r.lesson_id).filter(Boolean))];
+
+const { data: attendanceData, error: attendanceError } = await dbc
+  .from('lesson_attendance')
+  .select('lesson_id, child_id, occur_date, attendance_status')
+  .in('lesson_id', lessonIds);
+
+if (attendanceError) throw attendanceError;
+
+const attendanceByKey = new Map<string, string>();
+
+for (const a of attendanceData ?? []) {
+  const key = `${a.lesson_id}::${a.child_id}::${a.occur_date}`;
+  attendanceByKey.set(key, String(a.attendance_status || ''));
+}
+
     // 2) משאבי סוס+מגרש לפי אותו טווח
     const { data: resData, error: err2 } = await dbc
       .from('lessons_with_children')
@@ -2078,6 +2108,8 @@ const isMakeupAllowed = r.is_makeup_allowed ?? false;
 
       const key = `${r.lesson_id}::${r.occur_date}`;
       const res = resourceByKey.get(key);
+      const attendanceKey = `${r.lesson_id}::${r.child_id}::${r.occur_date}`;
+const attendanceStatus = attendanceByKey.get(attendanceKey) || '';
 
       return {
   lesson_id: String(r.lesson_id ?? ''),
@@ -2102,6 +2134,7 @@ const isMakeupAllowed = r.is_makeup_allowed ?? false;
   repeat_weeks: r.repeat_weeks,
   is_open_ended: r.is_open_ended,
   series_end_date: r.series_end_date,
+  attendance_status: attendanceStatus,
 } as Lesson;
     });
   } catch (err) {
@@ -2277,6 +2310,7 @@ private addOneDayYmd(dateYmd: string): string {
     repeat_weeks: lesson.repeat_weeks,
     is_open_ended: lesson.is_open_ended,
     series_end_date: lesson.series_end_date,
+    attendance_status: lesson.attendance_status ?? '',
   },
 } as any;
   };
@@ -2441,6 +2475,67 @@ isInstructorOffContext(): boolean {
     title.includes('מחלה') ||
     title.includes('לא זמין')
   );
+}
+
+async onAttendanceChangedFromNote(status: 'present' | 'absent' | null): Promise<void> {
+  if (!this.selectedOccurrence?.lesson_id || !this.selectedOccurrence?.occur_date || !this.selectedChild?.child_uuid) {
+    return;
+  }
+
+  const lessonId = String(this.selectedOccurrence.lesson_id);
+  const occurDate = String(this.selectedOccurrence.occur_date).slice(0, 10);
+  const childId = String(this.selectedChild.child_uuid);
+
+  const normalized =
+    status === 'present'
+      ? 'present'
+      : status === 'absent'
+        ? 'absent'
+        : '';
+
+  const patchItem = (item: any) => {
+    const meta = item.meta || {};
+    const same =
+      String(meta.lesson_id || item.lesson_id || item.id) === lessonId &&
+      String(meta.child_id || item.child_id) === childId &&
+      String(meta.occur_date || item.occur_date).slice(0, 10) === occurDate;
+
+    if (!same) return item;
+
+    return {
+      ...item,
+      meta: {
+        ...meta,
+        attendance_status: normalized,
+      },
+    };
+  };
+
+  this.items = this.items.map(patchItem);
+  this.lessons = this.lessons.map((l: any) => {
+    const same =
+      String(l.lesson_id || l.id) === lessonId &&
+      String(l.child_id) === childId &&
+      String(l.occur_date).slice(0, 10) === occurDate;
+
+    return same ? { ...l, attendance_status: normalized } : l;
+  }) as any;
+
+  this.filteredLessons = this.filteredLessons.map((l: any) => {
+    const same =
+      String(l.lesson_id || l.id) === lessonId &&
+      String(l.child_id) === childId &&
+      String(l.occur_date).slice(0, 10) === occurDate;
+
+    return same ? { ...l, attendance_status: normalized } : l;
+  }) as any;
+
+  this.selectedOccurrence = {
+    ...this.selectedOccurrence,
+    attendance_status: normalized,
+  };
+
+  this.cdr.detectChanges();
 }
 
 canCancelContextLesson(): boolean {
@@ -2694,6 +2789,7 @@ this.contextMenu.isOpenEnded = e.isOpenEnded != null ? !!e.isOpenEnded : null;
 this.contextMenu.seriesEndDate = String(e.seriesEndDate ?? '');
 this.contextMenu.occurDate = String(e.occurDate ?? this.contextMenu.date ?? '');
 this.contextMenu.startTimeOnly = String(e.startTime ?? this.contextMenu.time ?? '');
+this.contextMenu.canDeleteLesson = this.canCancelContextLesson();
 
   this.cdr.detectChanges();
 }
@@ -3250,6 +3346,122 @@ formatCancelTimeRange(start: string, end: string): string {
   if (!s && e) return e;
 
   return `${s}-${e}`;
+}
+
+openDeleteLessonModal(): void {
+  this.deleteLessonModal = {
+    open: true,
+    saving: false,
+    error: '',
+    lessonId: this.contextMenu.lessonId,
+    occurDate: this.contextMenu.occurDate || this.contextMenu.date,
+    childName: this.contextMenu.childName || 'ללא שם',
+    instructorName: this.contextMenu.instructorName || 'ללא מדריך',
+    lessonType: this.contextMenu.lessonType || '',
+    isSeries: this.isSeriesContext(),
+  };
+
+  this.closeContextMenu();
+  this.cdr.detectChanges();
+}
+
+closeDeleteLessonModal(): void {
+  if (this.deleteLessonModal.saving) return;
+  this.deleteLessonModal.open = false;
+  this.deleteLessonModal.error = '';
+}
+
+async confirmDeleteLesson(): Promise<void> {
+  if (!this.deleteLessonModal.lessonId || !this.deleteLessonModal.occurDate) return;
+
+  this.deleteLessonModal.saving = true;
+  this.deleteLessonModal.error = '';
+  this.cdr.detectChanges();
+
+  try {
+    const { data, error } = await dbTenant().rpc('delete_lesson_or_series', {
+        p_lesson_id: this.deleteLessonModal.lessonId,
+        p_occur_date: this.deleteLessonModal.occurDate,
+      });
+
+    if (error) throw error;
+
+    const res = Array.isArray(data) ? data[0] : data;
+
+    if (res?.ok !== true) {
+      this.deleteLessonModal.error = res?.message || 'לא ניתן למחוק';
+      return;
+    }
+
+    this.deleteLessonModal.open = false;
+
+    if (this.currentRange) {
+      await this.loadLessons({
+        start: this.currentRange.start,
+        end: this.currentRange.end,
+      });
+
+      this.filterLessons();
+      this.setScheduleItems();
+      this.buildBlockedDayCells(this.currentRange);
+      this.buildAvailableDayCells(this.currentRange);
+      this.buildWeekStats();
+    }
+  } catch (e: any) {
+    console.error('delete lesson failed', e);
+    this.deleteLessonModal.error = e?.message || 'שגיאה במחיקה';
+  } finally {
+    this.deleteLessonModal.saving = false;
+    this.cdr.detectChanges();
+  }
+}
+
+private canDeleteLessonFromContext(): boolean {
+  const lessonId = this.contextMenu.lessonId;
+  const occurDate = this.contextMenu.occurDate || this.contextMenu.date;
+
+  if (!lessonId || !occurDate) return false;
+
+  const lesson: any =
+    this.lessons.find((l: any) =>
+      String(l.lesson_id || l.id) === String(lessonId) &&
+      String(l.occur_date || '').slice(0, 10) === String(occurDate).slice(0, 10)
+    );
+
+  if (!lesson) return true; // ה-RPC עדיין יבדוק סופית
+
+  const attendance = String(lesson.attendance_status || '').trim();
+
+  const hasAttendance =
+    attendance === 'present' ||
+    attendance === 'absent' ||
+    attendance === 'הגיע' ||
+    attendance === 'לא הגיע';
+
+  if (hasAttendance) return false;
+
+  const isSeries =
+    String(lesson.appointment_kind || this.contextMenu.appointmentKind || '') === 'therapy_series' &&
+    (
+      lesson.is_open_ended === true ||
+      this.contextMenu.isOpenEnded === true ||
+      Number(lesson.repeat_weeks || this.contextMenu.repeatWeeks || 1) > 1 ||
+      ['רגיל', 'סידרה'].includes(String(lesson.lesson_type || this.contextMenu.lessonType || ''))
+    );
+
+  if (!isSeries) return true;
+
+  const firstDate =
+    lesson.first_occur_date ||
+    lesson.series_first_occur_date ||
+    lesson.anchor_occur_date;
+
+  if (firstDate) {
+    return String(firstDate).slice(0, 10) === String(occurDate).slice(0, 10);
+  }
+
+  // אם אין firstDate באובייקט — עדיף לא להציג, כדי לא לתת פעולה שאולי תיחסם
+  return false;
 }
 
 }
