@@ -39,7 +39,7 @@
 
                 <div class="field">
                     <label>סוס</label>
-                    <select required [(ngModel)]="form.horse_uid" name="horse_uid">
+                    <select required [(ngModel)]="form.horse_uid" name="horse_uid" (change)="onHorseChanged()">
                         <option value="">בחר/י סוס</option>
                         <option *ngFor="let horse of horses" [value]="horse.id">
                             {{ horse.name }}
