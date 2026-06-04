@@ -119,6 +119,7 @@ export class SliderComponent implements OnInit, OnDestroy {
           { path: 'secretary/waitlist', label: 'רשימת המתנה', icon: 'waitlist' },
           { path: 'secretary/messages', label: 'יצירת קשר', icon: 'messages' },
           { path: 'secretary/monthly-summary', label: 'סיכום וגרפים', icon: 'bar_chart' },
+          { path: 'secretary/rider-service-tasks', label: 'משימות שירותים', icon: 'checklist' },
           { path: 'secretary/requests', label: 'בקשות ואישורים', icon: 'checklist' },
           { path: 'secretary/payments', label: 'תשלומים וחשבוניות', icon: 'card' },
           { path: 'secretary/billing', label: 'ניהול חיובים', icon: 'billing' },
