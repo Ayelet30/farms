@@ -1,0 +1,116 @@
+<div class="my-services-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <h2>השירותים שלי</h2>
+            <p>כאן ניתן לצפות בכל השירותים שהוזמנו עבורך ועבור הסוסים שלך.</p>
+        </div>
+    </div>
+    <section class="filters-card" *ngIf="!loading">
+        <div class="field">
+            <label>סינון לפי סוס</label>
+            <select [(ngModel)]="selectedHorseUid" (change)="onFiltersChanged()">
+                <option value="">כל הסוסים</option>
+                <option *ngFor="let horse of horses" [value]="horse.id">
+                    {{ horse.name }}
+                </option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label>סינון לפי שירות</label>
+            <select [(ngModel)]="selectedServiceTypeId" (change)="onFiltersChanged()">
+                <option value="">כל השירותים</option>
+                <option *ngFor="let service of serviceTypes" [value]="service.id">
+                    {{ service.name }}
+                </option>
+            </select>
+        </div>
+        <div class="field">
+            <label>סינון לפי סטטוס</label>
+
+            <select [(ngModel)]="selectedStatus" (change)="onFiltersChanged()">
+
+                <option value="">כל הסטטוסים</option>
+
+                <option *ngFor="let status of statusOptions" [value]="status.value">
+
+                    {{ status.label }}
+                </option>
+
+            </select>
+        </div>
+
+        <button type="button" class="clear-btn" (click)="clearFilters()">
+            ניקוי סינון
+        </button>
+    </section>
+
+    <div *ngIf="loading" class="state-card">
+        טוען שירותים...
+    </div>
+
+    <div *ngIf="!loading && error" class="state-card error">
+        {{ error }}
+    </div>
+
+    <div *ngIf="!loading && !error && !services.length" class="state-card empty">
+        עדיין לא קיימים שירותים פעילים או קודמים.
+    </div>
+
+    <div *ngIf="!loading && !error && services.length" class="services-grid">
+        <article class="service-card" *ngFor="let service of services">
+            <div class="card-top">
+                <div>
+                    <h3>{{ service.service_name }}</h3>
+                    <p>{{ service.horses?.name || 'סוס לא ידוע' }}</p>
+                </div>
+
+                <span class="status-badge" [ngClass]="statusClass(service.status)">
+                    {{ statusLabel(service.status) }}
+                </span>
+            </div>
+
+            <div class="info-grid">
+                <div>
+                    <span>אופי שירות</span>
+                    <b>{{ modeLabel(service.service_mode) }}</b>
+                </div>
+
+                <div>
+                    <span>מחיר</span>
+                    <b>{{ priceText(service.price_agorot) }}</b>
+                </div>
+
+                <div>
+                    <span>תאריך התחלה</span>
+                    <b>{{ service.start_date | date:'dd/MM/yyyy' }}</b>
+                </div>
+
+                <div>
+                    <span>תאריך סיום</span>
+                    <b>{{ service.end_date ? (service.end_date | date:'dd/MM/yyyy') : 'ללא תאריך סיום' }}</b>
+                </div>
+
+                <div>
+                    <span>חזרתיות</span>
+                    <b>{{ recurrenceText(service) }}</b>
+                </div>
+
+                <div>
+                    <span>חיוב הבא</span>
+                    <b>{{ service.next_billing_date ? (service.next_billing_date | date:'dd/MM/yyyy') : '—' }}</b>
+                </div>
+
+                <div>
+                    <span>חיוב אחרון</span>
+                    <b>{{ service.last_billed_date ? (service.last_billed_date | date:'dd/MM/yyyy') : '—' }}</b>
+                </div>
+            </div>
+
+            <div class="notes" *ngIf="service.notes">
+                <span>הערות</span>
+                <p>{{ service.notes }}</p>
+            </div>
+        </article>
+    </div>
+</div>
