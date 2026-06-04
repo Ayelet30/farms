@@ -921,11 +921,15 @@
                 <span class="field-label">קטגוריה</span>
                 <select class="form-control" name="newRiderServiceCategory" [ngModel]="newRiderServiceType().category"
                   (ngModelChange)="patchNewRiderServiceType({ category: $event })">
-                  <option [ngValue]="'boarding'">פנסיון</option>
-                  <option [ngValue]="'medical'">רפואי</option>
-                  <option [ngValue]="'maintenance'">תחזוקה</option>
-                  <option [ngValue]="'general'">כללי</option>
+                  <option value="">בחירת קטגוריה</option>
+
+                  <option *ngFor="let category of serviceCategories()" [ngValue]="category.value">
+                    {{ category.label }}
+                  </option>
                 </select>
+                <small class="field-error" *ngIf="riderServiceTypeErrors().category">
+                  {{ riderServiceTypeErrors().category }}
+                </small>
               </label>
 
               <label class="field-card">
@@ -1021,12 +1025,7 @@
                 <div class="cell-main">
                   <div class="row-title">{{ service.name }}</div>
                   <div class="row-sub">
-                    {{
-                    service.category === 'boarding' ? 'פנסיון' :
-                    service.category === 'medical' ? 'רפואי' :
-                    service.category === 'maintenance' ? 'תחזוקה' :
-                    'כללי'
-                    }}
+                    {{ serviceCategoryLabel(service.category) }}
                     · {{ service.default_price_shekel }} ₪
 
                   </div>

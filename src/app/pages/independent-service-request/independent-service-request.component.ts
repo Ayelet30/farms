@@ -5,7 +5,7 @@ import { getCurrentUserData } from '../../services/legacy-compat';
 import { dbTenant, supabase } from '../../services/supabaseClient.service';
 import { createClient } from '@supabase/supabase-js';
 import { environment } from '../../../environments/environment';
-
+import { EnumOptionsService, DbOption } from '../../services/enum-options';
 
 type RiderServiceType = {
     id: string;
@@ -38,6 +38,10 @@ export class IndependentServiceRequestComponent implements OnInit {
 
     serviceTypes: RiderServiceType[] = [];
     horses: HorseOption[] = [];
+    serviceCategories: DbOption[] = [];
+    serviceModes: DbOption[] = [];
+    recurrenceUnits: DbOption[] = [];
+    riderServiceStatuses: DbOption[] = [];
     approvalFileError = '';
     plannedDates: string[] = [];
     form = {
@@ -53,6 +57,9 @@ export class IndependentServiceRequestComponent implements OnInit {
         notes: '',
         approval_file: null as File | null,
     };
+    constructor(
+        private enumOptions: EnumOptionsService
+    ) { }
     async ngOnInit() {
         try {
             const user = await getCurrentUserData();
@@ -63,10 +70,10 @@ export class IndependentServiceRequestComponent implements OnInit {
             }
 
             this.userUid = user.uid;
-
             await Promise.all([
                 this.loadServiceTypes(),
                 this.loadHorses(),
+                this.loadEnumOptions(),
             ]);
 
         } catch (e: any) {
@@ -119,17 +126,47 @@ export class IndependentServiceRequestComponent implements OnInit {
     get selectedHorse(): HorseOption | null {
         return this.horses.find(x => x.id === this.form.horse_uid) ?? null;
     }
+    categoryLabel(category: string | null | undefined): string {
+        if (!category) return '—';
 
-    categoryLabel(category: string): string {
-        switch (category) {
-            case 'boarding': return 'פנסיון';
-            case 'medical': return 'רפואי';
-            case 'maintenance': return 'תחזוקה';
-            case 'general': return 'כללי';
-            default: return category;
-        }
+        return this.serviceCategories.find(x => x.value === category)?.label ?? category;
+    }
+    serviceModeLabel(value: string | null | undefined): string {
+        if (!value) return '—';
+
+        return this.serviceModes.find(x => x.value === value)?.label ?? value;
     }
 
+    recurrenceUnitLabel(value: string | null | undefined): string {
+        if (!value) return '—';
+
+        return this.recurrenceUnits.find(x => x.value === value)?.label ?? value;
+    }
+
+    riderServiceStatusLabel(value: string | null | undefined): string {
+        if (!value) return '—';
+
+        return this.riderServiceStatuses.find(x => x.value === value)?.label ?? value;
+    }
+    private optionValue(options: DbOption[], fallback: string): string {
+        return options[0]?.value ?? fallback;
+    }
+
+    private defaultServiceMode(): string {
+        return this.serviceModes.find(x => x.value === 'once')?.value ?? 'once';
+    }
+
+    private defaultRecurrenceUnit(): string {
+        return this.recurrenceUnits.find(x => x.value === 'month')?.value ?? 'month';
+    }
+
+    private permanentServiceModeValue(): string {
+        return this.serviceModes.find(x => x.value === 'permanent')?.value ?? 'permanent';
+    }
+
+    private activeServiceStatusValue(): string {
+        return this.riderServiceStatuses.find(x => x.value === 'active')?.value ?? 'active';
+    }
 
     priceText(agorot: number | null | undefined): string {
         const value = (agorot ?? 0) / 100;
@@ -300,8 +337,8 @@ export class IndependentServiceRequestComponent implements OnInit {
                 horse_uid: '',
                 requested_start_date: '',
                 requested_end_date: '',
-                service_mode: 'once',
-                recurrence_unit: 'month',
+                service_mode: this.defaultServiceMode() as any,
+                recurrence_unit: this.defaultRecurrenceUnit() as any,
                 recurrence_interval: 1,
                 notes: '',
                 approval_file: null,
@@ -317,8 +354,8 @@ export class IndependentServiceRequestComponent implements OnInit {
     onServiceChanged() {
         this.form.requested_start_date = '';
         this.form.requested_end_date = '';
-        this.form.service_mode = 'once';
-        this.form.recurrence_unit = 'month';
+        this.form.service_mode = this.defaultServiceMode() as any;
+        this.form.recurrence_unit = this.defaultRecurrenceUnit() as any;
         this.form.recurrence_interval = 1;
         this.plannedDates = [];
         this.error = '';
@@ -460,7 +497,7 @@ export class IndependentServiceRequestComponent implements OnInit {
     onServiceModeChanged() {
         this.form.requested_start_date = '';
         this.form.requested_end_date = '';
-        this.form.recurrence_unit = 'month';
+        this.form.recurrence_unit = this.defaultRecurrenceUnit() as any;
         this.form.recurrence_interval = 1;
         this.plannedDates = [];
     } private buildSummary(serviceName: string, horseName: string): string {
@@ -492,8 +529,8 @@ export class IndependentServiceRequestComponent implements OnInit {
             .eq('rider_uid', this.userUid)
             .eq('horse_uid', this.form.horse_uid)
             .eq('service_type_id', service.id)
-            .eq('service_mode', 'permanent')
-            .eq('status', 'active')
+            .eq('service_mode', this.permanentServiceModeValue())
+            .eq('status', this.activeServiceStatusValue())
             .is('end_date', null)
             .limit(1);
 
@@ -537,5 +574,23 @@ export class IndependentServiceRequestComponent implements OnInit {
             month: '2-digit',
             year: 'numeric',
         });
+    }
+    private async loadEnumOptions() {
+        const [
+            serviceCategories,
+            serviceModes,
+            recurrenceUnits,
+            riderServiceStatuses,
+        ] = await Promise.all([
+            this.enumOptions.getServiceCategories(),
+            this.enumOptions.getServiceModes(),
+            this.enumOptions.getRecurrenceUnits(),
+            this.enumOptions.getRiderServiceStatuses(),
+        ]);
+
+        this.serviceCategories = serviceCategories;
+        this.serviceModes = serviceModes;
+        this.recurrenceUnits = recurrenceUnits;
+        this.riderServiceStatuses = riderServiceStatuses;
     }
 }
