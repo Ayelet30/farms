@@ -197,13 +197,25 @@ export class IndependentServiceRequestComponent implements OnInit {
             this.scrollToError();
             return;
         } if (this.submitting) return;
-        if (!this.validate()) return;
 
         const service = this.selectedService;
         const horse = this.selectedHorse;
 
         if (!service || !horse) {
             this.error = 'בחירה לא תקינה';
+            return;
+        }
+        try {
+            const exists = await this.permanentServiceAlreadyExists();
+
+            if (exists) {
+                this.error = 'יש לך את השירות הזה כבר באופן קבוע ולכן לא ניתן להזמין שוב';
+                this.scrollToError();
+                return;
+            }
+        } catch (e: any) {
+            this.error = e?.message || 'שגיאה בבדיקת שירות קיים';
+            this.scrollToError();
             return;
         }
 
@@ -309,6 +321,12 @@ export class IndependentServiceRequestComponent implements OnInit {
         this.form.recurrence_unit = 'month';
         this.form.recurrence_interval = 1;
         this.plannedDates = [];
+        this.error = '';
+        this.success = '';
+        this.approvalFileError = '';
+    }
+    onHorseChanged() {
+        this.error = '';
     }
     recalculatePlannedDates() {
         this.plannedDates = [];
@@ -460,10 +478,10 @@ export class IndependentServiceRequestComponent implements OnInit {
         return `בקשה לשירות "${serviceName}" עבור הסוס/ה ${horseName} כשירות קבוע החל מתאריך ${start}`;
     }
 
-    private async fixedServiceAlreadyExists(): Promise<boolean> {
+    private async permanentServiceAlreadyExists(): Promise<boolean> {
         const service = this.selectedService;
 
-        if (!service || !this.isOnceMode) return false;
+        if (!service) return false;
         if (!this.form.horse_uid) return false;
 
         const db = dbTenant();
@@ -474,9 +492,9 @@ export class IndependentServiceRequestComponent implements OnInit {
             .eq('rider_uid', this.userUid)
             .eq('horse_uid', this.form.horse_uid)
             .eq('service_type_id', service.id)
-            .eq('service_mode', 'once')
-            .eq('start_date', this.form.requested_start_date)
-            .in('status', ['active', 'completed'])
+            .eq('service_mode', 'permanent')
+            .eq('status', 'active')
+            .is('end_date', null)
             .limit(1);
 
         if (error) throw error;
