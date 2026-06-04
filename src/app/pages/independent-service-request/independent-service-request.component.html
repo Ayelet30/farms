@@ -51,24 +51,14 @@
 
         <section class="form-section" *ngIf="selectedService">
             <h3>אופי השירות</h3>
-
             <div class="mode-options">
-                <label class="mode-option" [class.active]="form.service_mode === 'once'">
-                    <input type="radio" name="service_mode" value="once" [(ngModel)]="form.service_mode"
-                        (change)="onServiceModeChanged()" />
-                    חד־פעמי
-                </label>
+                <label class="mode-option" *ngFor="let mode of serviceModes"
+                    [class.active]="form.service_mode === mode.value">
 
-                <label class="mode-option" [class.active]="form.service_mode === 'recurring_range'">
-                    <input type="radio" name="service_mode" value="recurring_range" [(ngModel)]="form.service_mode"
+                    <input type="radio" name="service_mode" [value]="mode.value" [(ngModel)]="form.service_mode"
                         (change)="onServiceModeChanged()" />
-                    מחזורי לתקופה
-                </label>
 
-                <label class="mode-option" [class.active]="form.service_mode === 'permanent'">
-                    <input type="radio" name="service_mode" value="permanent" [(ngModel)]="form.service_mode"
-                        (change)="onServiceModeChanged()" />
-                    קבוע ללא תאריך סיום
+                    {{ mode.label }}
                 </label>
             </div>
 
@@ -98,9 +88,10 @@
                         <label>יחידת ביצוע</label>
                         <select [(ngModel)]="form.recurrence_unit" name="recurrence_unit"
                             (change)="recalculatePlannedDates()">
-                            <option value="day">יום</option>
-                            <option value="week">שבוע</option>
-                            <option value="month">חודש</option>
+
+                            <option *ngFor="let unit of recurrenceUnits" [value]="unit.value">
+                                {{ unit.label }}
+                            </option>
                         </select>
                     </div>
 

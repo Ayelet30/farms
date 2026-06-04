@@ -10,6 +10,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { getAuth } from 'firebase/auth';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
+import { EnumOptionsService, DbOption } from '../../services/enum-options';
 import {
   SpecialDayImpactDialogComponent,
   SpecialDayImpactRow,
@@ -127,12 +128,11 @@ interface FarmSettings {
 }
 
 type ListNoteId = number;
-type RiderServiceCategory = 'boarding' | 'medical' | 'maintenance' | 'general';
 type RecurrenceUnit = 'day' | 'week' | 'month';
 interface RiderServiceType {
   id?: UUID;
   name: string;
-  category: RiderServiceCategory;
+  category: string;
   default_price_agorot: number;
 
   // UI only
@@ -267,6 +267,7 @@ export class FarmSettingsComponent implements OnInit {
   }
   private dialog = inject(MatDialog);
   private ui = inject(UiDialogService);
+  private enumOptions = inject(EnumOptionsService);
 
   // ====== Structured Notes (list_notes) ======
   listNotes = signal<ListNote[]>([]);
@@ -281,13 +282,14 @@ export class FarmSettingsComponent implements OnInit {
   listNotesExpanded = signal(true);
   // ====== Rider Service Types ======
   riderServiceTypes = signal<RiderServiceType[]>([]);
+  serviceCategories = signal<DbOption[]>([]);
   riderServiceTypesExpanded = signal(true);
   showNewRiderServiceTypeForm = signal(false);
   editingRiderServiceTypeId = signal<UUID | null>(null);
 
   newRiderServiceType = signal<RiderServiceType>({
     name: '',
-    category: 'general',
+    category: '',
     default_price_agorot: 0,
     default_price_shekel: null,
     requires_approval: true,
@@ -298,6 +300,7 @@ export class FarmSettingsComponent implements OnInit {
   riderServiceTypeErrors = signal<{
     name?: string;
     default_price_agorot?: string;
+    category?: string;
   }>({});
   // ====== Riding Types ======
 
@@ -496,6 +499,7 @@ export class FarmSettingsComponent implements OnInit {
         this.loadRidingTypes(),
         this.loadSpecialCharges(),
         this.loadRiderServiceTypes(),
+        this.loadServiceCategories(),
       ]);
 
       if (!this.workingHours().length) {
@@ -3072,6 +3076,7 @@ export class FarmSettingsComponent implements OnInit {
       name?: string;
       default_price_agorot?: string;
       recurrence?: string;
+      category?: string;
     } = {};
 
     if (!s.name.trim()) {
@@ -3080,7 +3085,9 @@ export class FarmSettingsComponent implements OnInit {
     if (s.default_price_shekel == null || Number(s.default_price_shekel) < 0) {
       errors.default_price_agorot = 'מחיר חייב להיות 0 ומעלה';
     }
-
+    if (!s.category) {
+      errors.category = 'חובה לבחור קטגוריה';
+    }
     this.riderServiceTypeErrors.set(errors);
     return Object.keys(errors).length === 0;
   }
@@ -3115,14 +3122,21 @@ export class FarmSettingsComponent implements OnInit {
   }
 
   toggleNewRiderServiceTypeForm(): void {
-    this.showNewRiderServiceTypeForm.set(!this.showNewRiderServiceTypeForm());
+    const next = !this.showNewRiderServiceTypeForm();
+    this.showNewRiderServiceTypeForm.set(next);
     this.riderServiceTypeErrors.set({});
+
+    if (next && !this.newRiderServiceType().category) {
+      this.patchNewRiderServiceType({
+        category: this.defaultServiceCategory(),
+      });
+    }
   }
 
   resetNewRiderServiceType(): void {
     this.newRiderServiceType.set({
       name: '',
-      category: 'general',
+      category: this.defaultServiceCategory(),
       default_price_agorot: 0,
       default_price_shekel: null,
       requires_approval: true,
@@ -3132,7 +3146,6 @@ export class FarmSettingsComponent implements OnInit {
 
     this.riderServiceTypeErrors.set({});
   }
-
   patchNewRiderServiceType(patch: Partial<RiderServiceType>): void {
     const current = this.newRiderServiceType();
 
@@ -3140,10 +3153,6 @@ export class FarmSettingsComponent implements OnInit {
       ...current,
       ...patch,
     };
-
-    if (patch.category) {
-      next.requires_task = patch.category === 'boarding' ? false : true;
-    }
 
     this.newRiderServiceType.set(next);
     this.validateRiderServiceTypeForm();
@@ -3256,6 +3265,19 @@ export class FarmSettingsComponent implements OnInit {
   private agorotToShekel(value: number | null | undefined): number {
     return Number(value || 0) / 100;
   }
+  async loadServiceCategories(): Promise<void> {
+    const categories = await this.enumOptions.getServiceCategories();
+    this.serviceCategories.set(categories);
+  }
+  serviceCategoryLabel(value: string | null | undefined): string {
+    if (!value) return '—';
 
+    return this.serviceCategories().find(x => x.value === value)?.label ?? value;
+  }
+  private defaultServiceCategory(): string {
+    return this.serviceCategories().find(x => x.value === 'general')?.value
+      ?? this.serviceCategories()[0]?.value
+      ?? '';
+  }
 }
 
