@@ -67,4 +67,18 @@ export class EnumOptionsService {
 
     return data ?? [];
   }
+  async getRiderServiceTaskStatuses(): Promise<DbOption[]> {
+    const db = dbTenant();
+
+    const { data, error } = await db
+      .from('rider_service_task_status_options')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order');
+
+    if (error) throw error;
+
+    return data ?? [];
+  }
+
 }

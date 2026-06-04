@@ -204,6 +204,12 @@ export const routes: Routes = [
             .then(m => m.SecretaryMessagesComponent)
       },
       {
+        path: 'rider-service-tasks',
+        loadComponent: () =>
+          import('./pages/secretary-rider-service-tasks/secretary-rider-service-tasks')
+            .then(m => m.SecretaryRiderServiceTasksComponent)
+      },
+      {
         path: 'claims',
         loadComponent: () =>
           import('./pages/claims-page/claims-page.component')
