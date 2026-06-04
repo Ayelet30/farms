@@ -66,11 +66,11 @@ export class SliderComponent implements OnInit, OnDestroy {
 
     await this.badgeService.refreshTenant();
 
-      this.setMenuItemsByRole();
+    this.setMenuItemsByRole();
 
   }
 
-  async ngOnDestroy() {  }
+  async ngOnDestroy() { }
 
   @HostListener('window:resize')
   onResize() {
@@ -118,7 +118,7 @@ export class SliderComponent implements OnInit, OnDestroy {
           { path: 'secretary/waitlist', label: 'רשימת המתנה', icon: 'waitlist' },
           { path: 'secretary/messages', label: 'יצירת קשר', icon: 'messages' },
           { path: 'secretary/monthly-summary', label: 'סיכום וגרפים', icon: 'bar_chart' },
-          { path: 'secretary/requests', label: 'בקשות ואישורים', icon: 'checklist'},
+          { path: 'secretary/requests', label: 'בקשות ואישורים', icon: 'checklist' },
           { path: 'secretary/payments', label: 'תשלומים וחשבוניות', icon: 'card' },
           { path: 'secretary/billing', label: 'ניהול חיובים', icon: 'billing' },
           { path: 'secretary/claims', label: 'טיפול בתביעות', icon: 'claims' },
@@ -128,10 +128,12 @@ export class SliderComponent implements OnInit, OnDestroy {
       case 'independent':
         this.menuItems = [
           { path: 'independent/appointment', label: 'זימון שירות', icon: 'calendar_plus' },
+          { path: 'independent/my-services', label: 'השירותים שלי', icon: 'receipt' },
           { path: 'independent/billing', label: 'ניהול חיובים', icon: 'billing' },
           { path: 'independent/requests', label: 'בקשות ואישורים', icon: 'checklist' },
           { path: 'independent/details', label: 'הפרטים שלי', icon: 'user' },
           { path: 'independent/horses', label: 'הסוסים שלי', icon: 'hors' },
+
         ];
         break;
       case 'admin':

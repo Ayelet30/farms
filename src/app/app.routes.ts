@@ -309,6 +309,12 @@ export const routes: Routes = [
           import('./pages/independent-service-request/independent-service-request.component')
             .then(m => m.IndependentServiceRequestComponent),
       },
+      {
+        path: 'my-services',
+        loadComponent: () =>
+          import('./pages/independent-my-services/independent-my-services')
+            .then(m => m.IndependentMyServicesComponent)
+      },
       // {
       //   path: 'billing',
       //   loadComponent: () =>
