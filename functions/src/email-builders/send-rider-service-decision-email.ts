@@ -17,7 +17,7 @@ function fmtDateIL(d: any) {
 }
 
 type Args = {
-    kind: 'approved' | 'rejected';
+    kind: 'approved' | 'rejected' | 'created_by_secretary';
     farmName: string;
     riderName: string;
     horseName?: string | null;
@@ -27,15 +27,24 @@ type Args = {
     toDate?: string | null;
     decisionNote?: string | null;
 };
-
 export function buildRiderServiceDecisionEmail(args: Args) {
     const approved = args.kind === 'approved';
+    const rejected = args.kind === 'rejected';
+    const createdBySecretary = args.kind === 'created_by_secretary';
 
-    const subject = approved
-        ? `בקשת השירות אושרה`
-        : `בקשת השירות נדחתה`;
+    const subject = createdBySecretary
+        ? `נוסף עבורך שירות חדש`
+        : approved
+            ? `בקשת השירות אושרה`
+            : `בקשת השירות נדחתה`;
 
-    const noteTitle = approved ? 'הערה מהמזכירות' : 'סיבת דחייה';
+    const noteTitle = rejected ? 'סיבת דחייה' : 'הערה מהמזכירות';
+
+    const actionText = createdBySecretary
+        ? 'נוסף עבורך על ידי המזכירות'
+        : approved
+            ? 'אושרה'
+            : 'נדחתה';
 
     const note = args.decisionNote
         ? `<p><b>${noteTitle}:</b> ${esc(args.decisionNote)}</p>`
@@ -46,9 +55,9 @@ export function buildRiderServiceDecisionEmail(args: Args) {
       <h2>${esc(args.farmName)}</h2>
       <p>שלום ${esc(args.riderName)},</p>
       <p>
-        בקשת השירות שלך
+        השירות
         <b>${esc(args.serviceName)}</b>
-        ${approved ? 'אושרה' : 'נדחתה'}.
+        ${actionText}.
       </p>
 
       <p><b>סוג שירות:</b> ${esc(args.serviceModeLabel)}</p>
@@ -63,7 +72,7 @@ export function buildRiderServiceDecisionEmail(args: Args) {
     const text =
         `${args.farmName}\n` +
         `שלום ${args.riderName},\n` +
-        `בקשת השירות "${args.serviceName}" ${approved ? 'אושרה' : 'נדחתה'}.\n` +
+        `השירות "${args.serviceName}" ${actionText}.\n` +
         `סוג שירות: ${args.serviceModeLabel}\n` +
         (args.horseName ? `סוס/ה: ${args.horseName}\n` : '') +
         `מתאריך: ${fmtDateIL(args.fromDate)}\n` +

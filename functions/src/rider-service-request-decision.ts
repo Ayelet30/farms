@@ -103,67 +103,80 @@ async function handleRiderServiceDecision(req: any, res: any, status: 'APPROVED'
         const body = req.body || {};
         const tenantSchema = String(body.tenantSchema || '').trim();
         const tenantId = String(body.tenantId || '').trim();
-        const requestId = String(body.requestId || '').trim();
         const decisionNote = body.decisionNote == null ? null : String(body.decisionNote).trim();
+        const source = String(body.source || 'request_approval').trim();
+        const requestId = String(body.requestId || '').trim();
 
+        const isSecretaryCreated = source === 'secretary_created';
+
+        if (!isSecretaryCreated && !requestId) {
+            return void res.status(400).json({ error: 'Missing requestId' });
+        }
         if (!tenantSchema) return void res.status(400).json({ error: 'Missing tenantSchema' });
         if (!tenantId) return void res.status(400).json({ error: 'Missing tenantId' });
-        if (!requestId) return void res.status(400).json({ error: 'Missing requestId' });
 
         const url = envOrSecret(SUPABASE_URL_S, 'SUPABASE_URL')!;
         const key = envOrSecret(SUPABASE_KEY_S, 'SUPABASE_SERVICE_KEY')!;
 
         const sbTenant = createClient(url, key, { db: { schema: tenantSchema } });
         const sbPublic = createClient(url, key, { db: { schema: 'public' } });
+        let reqRow: any = null;
+        let payload: any = {};
 
-        const { data: reqRow, error: reqErr } = await sbTenant
-            .from('secretarial_requests')
-            .select('id,status,request_type,requested_by_uid,from_date,to_date,payload')
-            .eq('id', requestId)
-            .maybeSingle();
+        if (!isSecretaryCreated) {
+            const { data, error: reqErr } = await sbTenant
+                .from('secretarial_requests')
+                .select('id,status,request_type,requested_by_uid,from_date,to_date,payload')
+                .eq('id', requestId)
+                .maybeSingle();
 
-        if (reqErr) throw reqErr;
-        if (!reqRow) return void res.status(404).json({ ok: false, message: 'request not found' });
+            if (reqErr) throw reqErr;
+            if (!data) return void res.status(404).json({ ok: false, message: 'request not found' });
 
-        if (reqRow.request_type !== 'RIDER_SERVICE_REQUEST') {
-            return void res.status(400).json({ ok: false, message: 'Not a RIDER_SERVICE_REQUEST' });
-        }
+            reqRow = data;
 
-        if (reqRow.status !== 'PENDING') {
-            return void res.status(409).json({
-                ok: false,
-                message: 'הבקשה כבר לא במצב ממתין.',
-            });
-        }
+            if (reqRow.request_type !== 'RIDER_SERVICE_REQUEST') {
+                return void res.status(400).json({ ok: false, message: 'Not a RIDER_SERVICE_REQUEST' });
+            }
 
-        const payload = parsePayload((reqRow as any).payload);
+            if (reqRow.status !== 'PENDING') {
+                return void res.status(409).json({
+                    ok: false,
+                    message: 'הבקשה כבר לא במצב ממתין.',
+                });
+            }
 
-        const { data: upd, error: updErr } = await sbTenant
-            .from('secretarial_requests')
-            .update({
-                status,
-                decided_by_uid: decidedByUid,
-                decided_at: new Date().toISOString(),
-                decision_note: decisionNote,
-            })
-            .eq('id', requestId)
-            .eq('status', 'PENDING')
-            .select('id,status')
-            .maybeSingle();
+            payload = parsePayload(reqRow.payload);
 
-        if (updErr) throw updErr;
+            const { data: upd, error: updErr } = await sbTenant
+                .from('secretarial_requests')
+                .update({
+                    status,
+                    decided_by_uid: decidedByUid,
+                    decided_at: new Date().toISOString(),
+                    decision_note: decisionNote,
+                })
+                .eq('id', requestId)
+                .eq('status', 'PENDING')
+                .select('id,status')
+                .maybeSingle();
 
-        if (!upd) {
-            return void res.status(409).json({
-                ok: false,
-                message: 'הבקשה כבר לא במצב ממתין.',
-            });
+            if (updErr) throw updErr;
+
+            if (!upd) {
+                return void res.status(409).json({
+                    ok: false,
+                    message: 'הבקשה כבר לא במצב ממתין.',
+                });
+            }
+        } else {
+            payload = body;
         }
         if (status === 'APPROVED') {
             const serviceMode = String(payload?.service_mode ?? 'once').trim();
 
             const riderUid =
-                String(payload?.rider_uid || (reqRow as any).requested_by_uid || '').trim();
+                String(payload?.rider_uid || reqRow?.requested_by_uid || '').trim();
 
             const horseUid =
                 String(payload?.horse_uid || '').trim();
@@ -180,7 +193,7 @@ async function handleRiderServiceDecision(req: any, res: any, status: 'APPROVED'
 
             const startDate =
                 String(
-                    (reqRow as any).from_date ||
+                    reqRow?.from_date ||
                     payload?.requested_start_date ||
                     payload?.start_date ||
                     ''
@@ -189,7 +202,7 @@ async function handleRiderServiceDecision(req: any, res: any, status: 'APPROVED'
             const endDate =
                 serviceMode === 'recurring_range'
                     ? String(
-                        (reqRow as any).to_date ||
+                        reqRow?.to_date ||
                         payload?.requested_end_date ||
                         payload?.end_date ||
                         ''
@@ -217,14 +230,13 @@ async function handleRiderServiceDecision(req: any, res: any, status: 'APPROVED'
             if (!horseUid) throw new Error('Missing horse_uid');
             if (!serviceTypeId) throw new Error('Missing service_type_id');
             if (!startDate) throw new Error('Missing start_date');
-
-            const { error: serviceInsertErr } = await sbTenant
+            const { data: insertedService, error: serviceInsertErr } = await sbTenant
                 .from('rider_services')
                 .insert({
                     rider_uid: riderUid,
                     horse_uid: horseUid,
                     service_type_id: serviceTypeId,
-                    source_request_id: requestId,
+                    source_request_id: isSecretaryCreated ? null : requestId,
                     service_name: serviceName,
                     start_date: startDate,
                     end_date: endDate,
@@ -236,9 +248,26 @@ async function handleRiderServiceDecision(req: any, res: any, status: 'APPROVED'
                     service_mode: serviceMode,
                     recurrence_unit: recurrenceUnit,
                     recurrence_interval: recurrenceInterval,
-                });
+                })
+                .select('id')
+                .single();
 
             if (serviceInsertErr) throw serviceInsertErr;
+
+            if (insertedService?.id) {
+                const untilDate = new Date();
+                untilDate.setDate(untilDate.getDate() + 90);
+
+                const pUntilDate = untilDate.toISOString().slice(0, 10);
+                const { error: taskGenErr } = await sbTenant.rpc(
+                    'generate_rider_service_tasks_for_service',
+                    {
+                        p_service_id: insertedService.id,
+                    }
+                );
+
+                if (taskGenErr) throw taskGenErr;
+            }
         }
 
         const { data: farmRow } = await sbPublic
@@ -250,7 +279,7 @@ async function handleRiderServiceDecision(req: any, res: any, status: 'APPROVED'
         const farmName = String(farmRow?.name ?? 'החווה').trim() || 'החווה';
 
         const riderUid =
-            String(payload?.rider_uid || (reqRow as any).requested_by_uid || '').trim();
+            String(payload?.rider_uid || reqRow?.requested_by_uid || '').trim();
 
         let riderName =
             String(payload?.rider_name || '').trim() ||
@@ -286,16 +315,19 @@ async function handleRiderServiceDecision(req: any, res: any, status: 'APPROVED'
                 const serviceMode = String(payload?.service_mode ?? '');
 
                 const { subject, html, text } = buildRiderServiceDecisionEmail({
-                    kind: status === 'APPROVED' ? 'approved' : 'rejected',
-                    farmName,
+                    kind: isSecretaryCreated
+                        ? 'created_by_secretary'
+                        : status === 'APPROVED'
+                            ? 'approved'
+                            : 'rejected', farmName,
                     riderName,
                     horseName,
                     serviceName,
                     serviceModeLabel: serviceModeLabel(serviceMode),
-                    fromDate: (reqRow as any).from_date ?? payload?.from_date ?? payload?.start_date ?? null,
+                    fromDate: reqRow?.from_date ?? payload?.from_date ?? payload?.start_date ?? null,
                     toDate: serviceMode === 'permanent'
                         ? null
-                        : ((reqRow as any).to_date ?? payload?.to_date ?? null),
+                        : (reqRow?.to_date ?? payload?.to_date ?? null),
                     decisionNote,
                 });
 
@@ -335,7 +367,13 @@ async function handleRiderServiceDecision(req: any, res: any, status: 'APPROVED'
         });
     }
 }
-
+export const createRiderServiceBySecretaryAndNotify = onRequest(
+    {
+        region: 'us-central1',
+        secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, INTERNAL_CALL_SECRET_S],
+    },
+    async (req, res) => handleRiderServiceDecision(req, res, 'APPROVED')
+);
 export const approveRiderServiceRequestAndNotify = onRequest(
     {
         region: 'us-central1',

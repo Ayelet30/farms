@@ -66,6 +66,7 @@ export { createMaccabiAutomationJob } from './automation/maccabiJobs';
 export {
   approveRiderServiceRequestAndNotify,
   rejectRiderServiceRequestAndNotify,
+  createRiderServiceBySecretaryAndNotify,
 } from './rider-service-request-decision';
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
