@@ -3,6 +3,8 @@ import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/supabaseClient.service';
 import { EnumOptionsService, DbOption } from '../../services/enum-options';
+import { getAuth } from 'firebase/auth';
+import { ensureTenantContextReady, requireTenant } from '../../services/supabaseClient.service';
 
 type Rider = {
   uid: string;
@@ -227,34 +229,9 @@ export class SecretaryRiderServicesComponent implements OnInit {
     this.saving = true;
 
     try {
-      const db = dbTenant();
+      await this.createServiceBySecretary(service);
 
-      const { error } = await db
-        .from('rider_services')
-        .insert({
-          rider_uid: this.selectedRiderUid,
-          horse_uid: this.form.horse_uid,
-          service_type_id: service.id,
-          service_name: service.name,
-
-          start_date: this.form.start_date,
-          end_date: this.isRecurringRangeMode ? this.form.end_date : null,
-
-          status: 'active',
-          price_agorot: this.form.price_agorot,
-
-          service_mode: this.form.service_mode,
-          recurrence_unit: this.isOnceMode ? null : this.form.recurrence_unit,
-          recurrence_interval: this.isOnceMode ? null : this.form.recurrence_interval,
-
-          next_billing_date: this.isOnceMode ? null : this.form.start_date,
-          notes: this.form.notes?.trim() || null,
-        });
-
-      if (error) throw error;
-
-      this.success = 'השירות נוסף לרוכב בהצלחה ✅';
-
+      this.success = 'השירות נוסף, המשימות נוצרו ונשלח מייל לרוכב ✅';
       this.form = {
         horse_uid: '',
         service_type_id: '',
@@ -331,5 +308,53 @@ export class SecretaryRiderServicesComponent implements OnInit {
       month: '2-digit',
       year: 'numeric',
     });
+  }
+  private async createServiceBySecretary(service: ServiceType) {
+    await ensureTenantContextReady();
+
+    const tenant = requireTenant();
+    const token = await getAuth().currentUser?.getIdToken();
+
+    if (!token) throw new Error('המשתמש לא מחובר');
+
+    const res = await fetch(
+      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/createRiderServiceBySecretaryAndNotify',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          source: 'secretary_created',
+          tenantSchema: tenant.schema,
+          tenantId: tenant.id,
+
+          rider_uid: this.selectedRiderUid,
+          horse_uid: this.form.horse_uid,
+          service_type_id: service.id,
+          service_name: service.name,
+          service_category: service.category,
+
+          service_mode: this.form.service_mode,
+          start_date: this.form.start_date,
+          end_date: this.isRecurringRangeMode ? this.form.end_date : null,
+
+          recurrence_unit: this.isOnceMode ? null : this.form.recurrence_unit,
+          recurrence_interval: this.isOnceMode ? null : this.form.recurrence_interval,
+
+          default_price_agorot: this.form.price_agorot,
+          notes: this.form.notes?.trim() || null,
+        }),
+      }
+    );
+
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok || json?.ok === false) {
+      throw new Error(json?.message || json?.error || 'שגיאה בהוספת השירות');
+    }
+
+    return json;
   }
 }
