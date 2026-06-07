@@ -84,6 +84,7 @@ type ParentColumnDef = {
   visible: boolean;
 };
 
+
 @Component({
   selector: 'app-secretary-parents',
   standalone: true,
@@ -131,6 +132,10 @@ export class SecretaryParentsComponent implements OnInit {
 
   parentForm!: FormGroup;
   editMode = false;
+
+  private addCardLockedParentUid: string | null = null;
+private saveRequestId: string | null = null;
+
   private originalParent: ParentDetailsRow | null = null;
 
   readonly STORAGE_KEY = 'secretary_parents_table_prefs';
@@ -1279,6 +1284,9 @@ export class SecretaryParentsComponent implements OnInit {
     this.thtkAdd = null;
     this.hfInitTried = false;
 
+    this.addCardLockedParentUid = this.selectedUid;
+    this.saveRequestId = crypto.randomUUID();
+
     setTimeout(() => this.ensureAddHostedFieldsReady(), 0);
   }
 
@@ -1292,6 +1300,9 @@ export class SecretaryParentsComponent implements OnInit {
     this.hfAdd = null;
     this.thtkAdd = null;
     this.hfInitTried = false;
+    
+    this.addCardLockedParentUid = null;
+    this.saveRequestId = null;
   }
 
   private async ensureAddHostedFieldsReady(): Promise<void> {
@@ -1360,38 +1371,43 @@ export class SecretaryParentsComponent implements OnInit {
   }
 
   async tokenizeAndSaveCardForSelectedParent(): Promise<void> {
-    this.tokenError = null;
-    this.tokenSaved = false;
+  if (this.savingToken) return;
 
-    const parentUid = this.selectedUid;
-    const parentEmail = this.drawerParent?.email ?? null;
+  this.tokenError = null;
+  this.tokenSaved = false;
 
-    if (!parentUid) {
-      this.tokenError = 'לא זוהה הורה לשמירת אמצעי התשלום';
-      return;
-    }
+  const parentUid = this.addCardLockedParentUid;
+  const requestId = this.saveRequestId;
 
-    if (!this.hfAdd || !this.thtkAdd) {
-      this.tokenError = 'שדות התשלום לא מוכנים';
-      return;
-    }
+  if (!parentUid || !requestId) {
+    this.tokenError = 'לא זוהה הורה לשמירת אמצעי התשלום';
+    return;
+  }
 
+  if (this.selectedUid !== parentUid) {
+    this.tokenError = 'ההורה השתנה בזמן שמירת הכרטיס. סגרי ופתחי מחדש.';
+    return;
+  }
+
+  this.savingToken = true;
+
+  try {
     const farm = getCurrentFarmMetaSync();
-    const tenantSchema = farm?.schema_name ?? undefined;
+const tenantSchema = farm?.schema_name ?? null;
 
-    if (!tenantSchema) {
-      this.tokenError = 'לא זוהתה סכמת חווה';
-      return;
-    }
+if (!tenantSchema) {
+  this.tokenError = 'לא זוהתה סכמת חווה';
+  this.savingToken = false;
+  return;
+}
 
-    ['credit_card_number', 'expiry', 'cvv'].forEach((k) => {
-      const el = document.getElementById('sp_errors_for_' + k);
-      if (el) el.textContent = '';
-    });
+const parentEmail = this.drawerParent?.email ?? null;
 
-    this.savingToken = true;
-
-    try {
+if (!this.hfAdd || !this.thtkAdd) {
+  this.tokenError = 'שדות התשלום לא מוכנים';
+  this.savingToken = false;
+  return;
+}
       const db = dbTenant();
 
       const { data } = await db

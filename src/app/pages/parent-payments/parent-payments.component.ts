@@ -293,13 +293,23 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
   }
 
   // אותו tokenize כמו באשף הוספת ילד
-  async tokenizeAndSaveCard() {
-    this.tokenError.set(null);
+    async tokenizeAndSaveCard() {
+  if (this.savingToken()) return;
 
-    if (!this.hfAdd || !this.thtkAdd) {
-      this.tokenError.set('שדות התשלום לא מוכנים');
-      return;
-    }
+  this.tokenError.set(null);
+  this.tokenSaved.set(false);
+
+  if (!this.hfAdd || !this.thtkAdd) {
+    this.tokenError.set('שדות התשלום לא מוכנים');
+    return;
+  }
+
+  if (!this.parentUid) {
+    this.tokenError.set('לא זוהה הורה מחובר');
+    return;
+  }
+
+  this.savingToken.set(true);
     if (!this.parentUid) {
       this.tokenError.set('לא זוהה הורה מחובר');
       return;
@@ -319,9 +329,6 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
       const el = document.getElementById('pm_errors_for_' + k);
       if (el) el.textContent = '';
     });
-
-     this.savingToken.set(true);
-    this.tokenSaved.set(false);
 
     const dbc = this.ppDb.db();
 

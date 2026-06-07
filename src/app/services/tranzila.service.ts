@@ -63,6 +63,11 @@ export interface TranzilaChargeResponse {
   tranzila: any;
 }
 
+export type SavePaymentMethodResult =
+  | { ok: true; is_default: boolean }
+  | { ok: false; error: string };
+  
+
 @Injectable({ providedIn: 'root' })
 export class TranzilaService {
 
@@ -86,7 +91,7 @@ export class TranzilaService {
     return res.url;
   }
 
-  savePaymentMethod(args: {
+savePaymentMethod(args: {
   parentUid: string;
   tenantSchema: string;
   token: string;
@@ -96,7 +101,10 @@ export class TranzilaService {
   expiryYear?: string | null;
 }) {
   return firstValueFrom(
-    this.http.post(`${this.base}/savePaymentMethod`, args)
+    this.http.post<SavePaymentMethodResult>(
+      `${this.base}/savePaymentMethod`,
+      args
+    )
   );
 }
 
