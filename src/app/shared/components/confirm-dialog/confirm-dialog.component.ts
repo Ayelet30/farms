@@ -11,7 +11,9 @@ import { MatButtonModule } from '@angular/material/button';
   <div dir="rtl" class="dlg">
     <h3 class="title">{{ data.title }}</h3>
     <p class="msg">{{ data.message }}</p>
-
+<div class="dialog-danger-text" *ngIf="data.dangerText">
+  {{ data.dangerText }}
+</div>
     <div class="actions">
     <button
   mat-button
@@ -38,12 +40,19 @@ import { MatButtonModule } from '@angular/material/button';
     .title { margin: 0 0 10px; font-weight: 800; }
     .msg { margin: 0 0 16px; line-height: 1.4; font-weight: 600; }
     .actions { display:flex; gap:8px; justify-content:flex-end; }
+    .dialog-danger-text {
+  margin-top: 14px;
+  color: #dc2626;
+  font-weight: 800;
+  text-align: center;
+  font-size: 16px;
+}
   `],
 })
 export class ConfirmDialogComponent {
   constructor(
     private ref: MatDialogRef<ConfirmDialogComponent>,
     @Inject(MAT_DIALOG_DATA) public data: any
-  ) {}
+  ) { }
   close(v: boolean) { this.ref.close(v); }
 }

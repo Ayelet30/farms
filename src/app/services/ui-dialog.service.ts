@@ -8,6 +8,7 @@ export type UiConfirmOptions = {
   title: string;
   message: string;
   okText?: string;
+  dangerText?: string;
   cancelText?: string;
   showCancel?: boolean; // ברירת מחדל true
 };
@@ -29,12 +30,13 @@ export class UiDialogService {
     const ref = this.dialog.open(ConfirmDialogComponent, {
       width: '420px',
       disableClose: true,
-     panelClass: 'ui-confirm-dialog',
-     backdropClass: 'ui-backdrop',      
+      panelClass: 'ui-confirm-dialog',
+      backdropClass: 'ui-backdrop',
       data: {
         title: opts.title,
         message: opts.message,
         okText: opts.okText ?? 'אישור',
+        dangerText: opts.dangerText,
         cancelText: opts.cancelText ?? 'ביטול',
         showCancel: opts.showCancel ?? true,
       },
