@@ -456,15 +456,30 @@ export class SecretaryHorsesComponent implements OnInit {
     await this.ui.alert('המשימה נשמרה בהצלחה.', 'הצלחה');
   }
   get visibleTasksByHorse(): Record<string, HorseServiceTask[]> {
-    const result: Record<string, HorseServiceTask[]> = {};
+    return this.tasksByHorse;
+  }
+  isTaskOverdue(task: HorseServiceTask): boolean {
+    if (task.status !== 'open') return false;
+    if (!task.due_date) return false;
 
-    for (const horseId of Object.keys(this.tasksByHorse)) {
-      result[horseId] = this.tasksByHorse[horseId].filter(
-        t => t.status === 'completed' || t.status === 'cancelled'
-      );
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const due = new Date(task.due_date);
+    due.setHours(0, 0, 0, 0);
+
+    return due.getTime() < today.getTime();
+  }
+
+  taskStatusLabel(task: HorseServiceTask): string {
+    if (this.isTaskOverdue(task)) return 'באיחור';
+
+    switch (task.status) {
+      case 'open': return 'פתוח';
+      case 'completed': return 'בוצע';
+      case 'cancelled': return 'בוטל';
+      default: return task.status;
     }
-
-    return result;
   }
   private async saveEditingHorseTasks(horseId: string): Promise<void> {
     const tasks = this.tasksByHorse[horseId] ?? [];
@@ -484,6 +499,7 @@ export class SecretaryHorsesComponent implements OnInit {
           cancelled_at: t.status === 'cancelled'
             ? (t.cancelled_at ?? new Date().toISOString())
             : null,
+          cancellation_note: t.status === 'cancelled' ? t.cancellation_note : null,
         })
         .eq('id', t.id)
     );
