@@ -95,7 +95,7 @@ interface HorseAlert {
 export class SecretaryHorsesComponent implements OnInit {
   private ui = inject(UiDialogService);
   tasksByHorse: Record<string, HorseServiceTask[]> = {};
-
+  activeTab: 'active' | 'inactive' = 'active';
   horses: Horse[] = [];
   editing: Horse | null = null;
 
@@ -256,7 +256,14 @@ export class SecretaryHorsesComponent implements OnInit {
 
         if (error) throw error;
       }
-      if (payload.id) {
+      const originalHorse = payload.id
+        ? this.horses.find(h => h.id === payload.id)
+        : null;
+
+      const horseWasDeactivated =
+        originalHorse?.is_active === true && payload.is_active === false;
+
+      if (payload.id && !horseWasDeactivated) {
         await this.saveEditingHorseTasks(payload.id);
       }
       this.editing = null;
@@ -268,37 +275,6 @@ export class SecretaryHorsesComponent implements OnInit {
     }
   }
 
-  async confirmDelete(horse: Horse): Promise<void> {
-    const ok = await this.ui.confirm({
-      title: 'מחיקת סוס',
-      message: `למחוק את הסוס "${horse.name}"?`,
-      okText: 'כן, למחוק',
-      cancelText: 'ביטול',
-      showCancel: true,
-    });
-
-    if (!ok) return;
-
-    if (!horse.id) {
-      await this.ui.alert('לא נמצא מזהה לסוס (id).', 'שגיאה');
-      return;
-    }
-
-    try {
-      const { error } = await dbTenant()
-        .from('horses')
-        .delete()
-        .eq('id', horse.id);
-
-      if (error) throw error;
-
-      await this.loadHorses();
-      await this.ui.alert('הסוס נמחק בהצלחה.', 'הצלחה');
-    } catch (e: any) {
-      console.error('delete horse failed', e);
-      await this.ui.alert('מחיקת הסוס נכשלה: ' + (e?.message ?? 'שגיאה'), 'שגיאה');
-    }
-  }
 
   genderLabel(gender?: HorseGender): string {
     switch (gender) {
@@ -388,7 +364,7 @@ export class SecretaryHorsesComponent implements OnInit {
   private buildAlerts(): void {
     const alerts: HorseAlert[] = [];
 
-    for (const h of this.horses) {
+    for (const h of this.horses.filter(h => h.is_active)) {
       this.addAlertIfRelevant(alerts, h, 'shoeing', h.next_shoeing_date);
       this.addAlertIfRelevant(alerts, h, 'teeth', h.next_teeth_date);
 
@@ -508,5 +484,38 @@ export class SecretaryHorsesComponent implements OnInit {
 
     const failed = results.find(r => r.error);
     if (failed?.error) throw failed.error;
+  }
+  async toggleHorseActiveStatus(): Promise<void> {
+    if (!this.editing) return;
+
+    if (this.editing.is_active) {
+      const ok = await this.ui.confirm({
+        title: 'הפיכת סוס ללא פעיל',
+        message:
+          'האם את בטוחה? ברגע שהסוס יהפוך ללא פעיל, כל השירותים והמשימות המשויכים אליו יבוטלו.',
+        dangerText: 'פעולה זו בלתי הפיכה.',
+        okText: 'כן, להפוך ללא פעיל',
+        cancelText: 'ביטול',
+        showCancel: true,
+      });
+      if (!ok) return;
+    }
+
+    this.editing.is_active = !this.editing.is_active;
+  }
+  get filteredHorses(): Horse[] {
+    return this.horses.filter(h =>
+      this.activeTab === 'active'
+        ? h.is_active
+        : !h.is_active
+    );
+  }
+
+  get activeHorsesCount(): number {
+    return this.horses.filter(h => h.is_active).length;
+  }
+
+  get inactiveHorsesCount(): number {
+    return this.horses.filter(h => !h.is_active).length;
   }
 }
