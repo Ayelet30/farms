@@ -50,6 +50,22 @@ interface Horse {
   next_herpes_date?: string | null;
   next_west_nile_date?: string | null;
 }
+interface HorseServiceTask {
+  id: string;
+  rider_service_id: string;
+  rider_uid: string;
+  horse_uid: string;
+  service_type_id: string;
+  service_name: string;
+  due_date: string;
+  status: 'open' | 'completed' | 'cancelled' | string;
+  completed_at: string | null;
+  completed_by_uid: string | null;
+  notes: string | null;
+  cancelled_at: string | null;
+  cancelled_by_uid: string | null;
+  cancellation_note: string | null;
+}
 
 type AlertKind =
   | 'shoeing'
@@ -78,6 +94,7 @@ interface HorseAlert {
 })
 export class SecretaryHorsesComponent implements OnInit {
   private ui = inject(UiDialogService);
+  tasksByHorse: Record<string, HorseServiceTask[]> = {};
 
   horses: Horse[] = [];
   editing: Horse | null = null;
@@ -86,9 +103,9 @@ export class SecretaryHorsesComponent implements OnInit {
   loading = false;
 
   readonly ALERT_HORIZON_DAYS = 30;
-
   async ngOnInit(): Promise<void> {
     await this.loadHorses();
+    await this.loadHorseTasks();
   }
 
   async loadHorses(): Promise<void> {
@@ -104,6 +121,7 @@ export class SecretaryHorsesComponent implements OnInit {
 
       this.horses = (data ?? []) as Horse[];
       this.buildAlerts();
+      await this.loadHorseTasks();
     } catch (e: any) {
       console.error('Failed to load horses', e);
       this.horses = [];
@@ -238,7 +256,9 @@ export class SecretaryHorsesComponent implements OnInit {
 
         if (error) throw error;
       }
-
+      if (payload.id) {
+        await this.saveEditingHorseTasks(payload.id);
+      }
       this.editing = null;
       await this.loadHorses();
       await this.ui.alert('הסוס נשמר בהצלחה.', 'הצלחה');
@@ -384,5 +404,93 @@ export class SecretaryHorsesComponent implements OnInit {
       const bTime = new Date(b.dueDate).getTime();
       return aTime - bTime;
     });
+  }
+  async loadHorseTasks(): Promise<void> {
+    const horseIds = this.horses
+      .map(h => h.id)
+      .filter(Boolean) as string[];
+
+    if (!horseIds.length) {
+      this.tasksByHorse = {};
+      return;
+    }
+
+    const { data, error } = await dbTenant()
+      .from('rider_service_tasks')
+      .select('*')
+      .in('horse_uid', horseIds)
+      .order('due_date', { ascending: false });
+
+    if (error) {
+      console.error(error);
+      await this.ui.alert('שגיאה בטעינת שירותי הסוסים.', 'שגיאה');
+      return;
+    }
+
+    this.tasksByHorse = {};
+
+    for (const task of (data ?? []) as HorseServiceTask[]) {
+      if (!this.tasksByHorse[task.horse_uid]) {
+        this.tasksByHorse[task.horse_uid] = [];
+      }
+
+      this.tasksByHorse[task.horse_uid].push(task);
+    }
+  }
+  async saveTask(task: HorseServiceTask): Promise<void> {
+    const { error } = await dbTenant()
+      .from('rider_service_tasks')
+      .update({
+        status: task.status,
+        due_date: task.due_date,
+        notes: task.notes,
+      })
+      .eq('id', task.id);
+
+    if (error) {
+      console.error(error);
+      await this.ui.alert('שמירת המשימה נכשלה.', 'שגיאה');
+      return;
+    }
+
+    await this.ui.alert('המשימה נשמרה בהצלחה.', 'הצלחה');
+  }
+  get visibleTasksByHorse(): Record<string, HorseServiceTask[]> {
+    const result: Record<string, HorseServiceTask[]> = {};
+
+    for (const horseId of Object.keys(this.tasksByHorse)) {
+      result[horseId] = this.tasksByHorse[horseId].filter(
+        t => t.status === 'completed' || t.status === 'cancelled'
+      );
+    }
+
+    return result;
+  }
+  private async saveEditingHorseTasks(horseId: string): Promise<void> {
+    const tasks = this.tasksByHorse[horseId] ?? [];
+
+    if (!tasks.length) return;
+
+    const updates = tasks.map(t =>
+      dbTenant()
+        .from('rider_service_tasks')
+        .update({
+          due_date: t.due_date,
+          status: t.status,
+          notes: t.notes,
+          completed_at: t.status === 'completed'
+            ? (t.completed_at ?? new Date().toISOString())
+            : null,
+          cancelled_at: t.status === 'cancelled'
+            ? (t.cancelled_at ?? new Date().toISOString())
+            : null,
+        })
+        .eq('id', t.id)
+    );
+
+    const results = await Promise.all(updates);
+
+    const failed = results.find(r => r.error);
+    if (failed?.error) throw failed.error;
   }
 }
