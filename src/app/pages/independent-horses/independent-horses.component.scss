@@ -181,6 +181,110 @@
     line-height: 1.5;
 }
 
+.horse-services-section {
+    margin-top: 18px;
+}
+
+.services-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.service-item {
+    border: 1px solid #e2dcc8;
+    border-radius: 16px;
+    padding: 12px 14px;
+    background: #fffdf7;
+}
+
+.service-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.service-main strong {
+    display: block;
+    color: #38452a;
+    font-size: 15px;
+}
+
+.service-main span {
+    color: #777;
+    font-size: 13px;
+}
+
+.service-status {
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.service-item.open .service-status {
+    background: #eef4ff;
+    color: #2457a6;
+}
+
+.service-item.completed .service-status {
+    background: #edf7e8;
+    color: #4d7c2f;
+}
+
+.service-item.cancelled {
+    border-color: #e2dcc8;
+    background: #fffdf7;
+}
+
+.open-task .service-status {
+    background: #eef4ff;
+    color: #2457a6;
+}
+
+.service-item.cancelled .service-status {
+    background: #fde2e2;
+    color: #b42318;
+}
+
+.service-note,
+.service-cancel-note {
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.service-note {
+    color: #5f5a4d;
+}
+
+.service-cancel-note {
+    color: #b42318;
+    font-weight: 700;
+}
+
+.empty-services {
+    color: #888;
+    font-size: 14px;
+}
+
+.overdue-task {
+    border: 2px solid #dc2626;
+    background: #fff0f0;
+}
+
+.late-badge {
+    margin-top: 4px;
+    display: inline-block;
+    background: #dc2626;
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+
 @media (max-width: 640px) {
     .horses-page {
         padding: 14px;

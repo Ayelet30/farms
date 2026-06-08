@@ -23,7 +23,19 @@ type Horse = {
     next_herpes_date: string | null;
     next_west_nile_date: string | null;
 };
+type HorseTaskStatus = 'open' | 'completed' | 'cancelled';
 
+type HorseServiceTask = {
+    id: string;
+    horse_uid: string;
+    service_name: string;
+    due_date: string;
+    status: HorseTaskStatus;
+    notes: string | null;
+    cancellation_note: string | null;
+    completed_at: string | null;
+    cancelled_at: string | null;
+};
 @Component({
     selector: 'app-independent-horses',
     standalone: true,
@@ -35,7 +47,7 @@ export class IndependentHorsesComponent implements OnInit {
     loading = true;
     error = '';
     horses: Horse[] = [];
-
+    tasksByHorse: Record<string, HorseServiceTask[]> = {};
     async ngOnInit() {
         try {
             const user = await getCurrentUserData();
@@ -79,6 +91,7 @@ export class IndependentHorsesComponent implements OnInit {
             }
 
             this.horses = data ?? [];
+            await this.loadHorseTasks(user.uid);
         } catch (e: any) {
             this.error = e?.message || 'שגיאה לא צפויה';
         } finally {
@@ -150,5 +163,88 @@ export class IndependentHorsesComponent implements OnInit {
         if (this.isPast(value)) return 'danger';
         if (this.isSoon(value)) return 'soon';
         return '';
+    }
+    private async loadHorseTasks(riderUid: string): Promise<void> {
+        const horseIds = this.horses.map(h => h.id);
+
+        if (!horseIds.length) {
+            this.tasksByHorse = {};
+            return;
+        }
+
+        const { data, error } = await dbTenant()
+            .from('rider_service_tasks')
+            .select(`
+      id,
+      horse_uid,
+      service_name,
+      due_date,
+      status,
+      notes,
+      cancellation_note,
+      completed_at,
+      cancelled_at
+    `)
+            .eq('rider_uid', riderUid)
+            .in('horse_uid', horseIds)
+            .order('due_date', { ascending: false });
+
+        if (error) {
+            console.error(error);
+            return;
+        }
+
+        this.tasksByHorse = {};
+
+        for (const task of (data ?? []) as HorseServiceTask[]) {
+            if (!this.tasksByHorse[task.horse_uid]) {
+                this.tasksByHorse[task.horse_uid] = [];
+            }
+
+            this.tasksByHorse[task.horse_uid].push(task);
+        }
+    }
+    statusLabel(status: HorseTaskStatus): string {
+        switch (status) {
+            case 'open': return 'פתוח';
+            case 'completed': return 'בוצע';
+            case 'cancelled': return 'בוטל';
+            default: return status;
+        }
+    }
+
+    statusClass(status: HorseTaskStatus): string {
+        switch (status) {
+            case 'open': return 'open';
+            case 'completed': return 'completed';
+            case 'cancelled': return 'cancelled';
+            default: return '';
+        }
+    }
+    isOverdue(task: HorseServiceTask): boolean {
+        if (task.status !== 'open') return false;
+        if (!task.due_date) return false;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const due = new Date(task.due_date);
+        due.setHours(0, 0, 0, 0);
+
+        return due.getTime() < today.getTime();
+    }
+    daysLate(task: HorseServiceTask): number {
+        if (!this.isOverdue(task)) return 0;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const due = new Date(task.due_date);
+        due.setHours(0, 0, 0, 0);
+
+        return Math.floor(
+            (today.getTime() - due.getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
     }
 }

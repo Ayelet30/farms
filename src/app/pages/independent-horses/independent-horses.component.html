@@ -91,6 +91,46 @@
                     <b>{{ dateText(horse.next_west_nile_date) }}</b>
                 </div>
             </div>
+            <div class="section horse-services-section">
+                <h4>שירותים ומשימות</h4>
+
+                <div *ngIf="!tasksByHorse[horse.id]?.length" class="empty-services">
+                    אין שירותים או משימות להצגה עבור הסוס הזה.
+                </div>
+
+                <div class="services-list" *ngIf="tasksByHorse[horse.id]?.length">
+                    <div class="service-item" *ngFor="let task of tasksByHorse[horse.id]" [ngClass]="{
+    'overdue-task': isOverdue(task),
+    'cancelled': task.status === 'cancelled',
+    'completed': task.status === 'completed',
+      'open-task': task.status === 'open' && !isOverdue(task)
+
+  }">
+                        <div class="service-main">
+                            <div>
+                                <strong>{{ task.service_name }}</strong>
+                                <span>{{ dateText(task.due_date) }}</span>
+
+                                <div class="late-badge" *ngIf="isOverdue(task)">
+                                    באיחור של {{ daysLate(task) }} ימים
+                                </div>
+                            </div>
+
+                            <span class="service-status">
+                                {{ statusLabel(task.status) }}
+                            </span>
+                        </div>
+
+                        <div class="service-note" *ngIf="task.notes">
+                            הערה: {{ task.notes }}
+                        </div>
+
+                        <div class="service-cancel-note" *ngIf="task.status === 'cancelled' && task.cancellation_note">
+                            סיבת ביטול: {{ task.cancellation_note }}
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <div class="section" *ngIf="horse.food_supplements || horse.horse_equipment || horse.notes">
                 <h4>מידע נוסף</h4>
