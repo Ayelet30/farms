@@ -177,7 +177,7 @@ export class SecretaryRiderServicesComponent implements OnInit {
     this.success = '';
 
     if (!this.selectedRiderUid) {
-      this.error = 'יש לבחור רוכב עצמאי';
+      this.error = 'יש לבחור רוכב';
       return false;
     }
 
