@@ -61,7 +61,7 @@
 
                             <div class="services-edit-list" *ngIf="servicesByHorse[horse.id]?.length">
                                 <div class="service-edit-card" *ngFor="let service of servicesByHorse[horse.id]"
-                                    [class.cancelled-task]="service.status === 'cancelled'">
+                                    [class.cancelled-task]="service.status === 'cancelled' || isServicePendingCancel(service)">
                                     <div class="service-edit-title-row">
                                         <div>
                                             <div class="service-edit-title">{{ service.service_name }}</div>
@@ -73,8 +73,8 @@
                                         <span class="task-status" [class.status-active]="service.status === 'active'"
                                             [class.status-completed]="service.status === 'completed'"
                                             [class.status-cancelled]="service.status === 'cancelled'">
-                                            {{ serviceStatusLabel(service.status) }}
-                                        </span>
+                                            {{ isServicePendingCancel(service) ? 'יסומן לביטול' :
+                                            serviceStatusLabel(service.status) }} </span>
                                     </div>
 
                                     <div class="task-cancel-note"
@@ -100,7 +100,7 @@
                             <div class="services-edit-list" *ngIf="tasksByHorse[horse.id]?.length">
                                 <div class="service-edit-card" *ngFor="let task of tasksByHorse[horse.id]"
                                     [class.overdue-task]="isOverdue(task)"
-                                    [class.cancelled-task]="task.status === 'cancelled'">
+                                    [class.cancelled-task]="task.status === 'cancelled' || isTaskPendingCancel(task)">
                                     <div class="service-edit-title-row">
                                         <div>
                                             <div class="service-edit-title">{{ task.service_name }}</div>
@@ -110,8 +110,8 @@
                                         </div>
 
                                         <span class="task-status" [class.overdue-status]="isOverdue(task)">
-                                            {{ isOverdue(task) ? 'באיחור' : statusLabel(task.status) }}
-                                        </span>
+                                            {{ isTaskPendingCancel(task) ? 'יסומן לביטול' : (isOverdue(task) ? 'באיחור'
+                                            : statusLabel(task.status)) }} </span>
                                     </div>
 
                                     <div class="late-badge" *ngIf="isOverdue(task)">
@@ -265,7 +265,7 @@
                     </div>
 
                     <div class="horse-task-line" *ngFor="let service of servicesByHorse[h.id]"
-                        [class.cancelled-task]="service.status === 'cancelled'">
+                        [class.cancelled-task]="service.status === 'cancelled' || isServicePendingCancel(service)">
 
                         <div class="task-main-line">
                             <span class="key">{{ service.service_name }}</span>
@@ -276,8 +276,8 @@
                             <span class="task-status" [class.status-active]="service.status === 'active'"
                                 [class.status-completed]="service.status === 'completed'"
                                 [class.status-cancelled]="service.status === 'cancelled'">
-                                {{ serviceStatusLabel(service.status) }}
-                            </span>
+                                {{ isServicePendingCancel(service) ? 'יסומן לביטול' : serviceStatusLabel(service.status)
+                                }} </span>
                         </div>
 
                         <div class="task-cancel-note"
@@ -306,7 +306,8 @@
                     </div>
 
                     <div class="horse-task-line" *ngFor="let task of tasksByHorse[h.id]"
-                        [class.cancelled-task]="task.status === 'cancelled'" [class.overdue-task]="isOverdue(task)">
+                        [class.cancelled-task]="task.status === 'cancelled' || isTaskPendingCancel(task)"
+                        [class.overdue-task]="isOverdue(task)">
 
                         <div class="task-main-line">
                             <span class="key">{{ task.service_name }}</span>
@@ -319,8 +320,8 @@
                                 [class.status-completed]="task.status === 'completed'"
                                 [class.status-cancelled]="task.status === 'cancelled'"
                                 [class.overdue-status]="isOverdue(task)">
-                                {{ isOverdue(task) ? 'באיחור' : statusLabel(task.status) }}
-                            </span>
+                                {{ isTaskPendingCancel(task) ? 'יסומן לביטול' : (isOverdue(task) ? 'באיחור' :
+                                statusLabel(task.status)) }} </span>
                         </div>
 
                         <div class="task-note" *ngIf="task.notes">
