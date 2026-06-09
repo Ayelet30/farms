@@ -322,6 +322,7 @@ export class SecretaryIndependentRidersComponent implements OnInit {
 
     const v = this.riderForm.getRawValue();
 
+
     const payload = {
       first_name: String(v.first_name ?? '').trim(),
       last_name: String(v.last_name ?? '').trim(),
@@ -462,7 +463,16 @@ export class SecretaryIndependentRidersComponent implements OnInit {
 
     this.drawerServices = data ?? [];
   }
+  get isChangingRiderToInactive(): boolean {
+    if (!this.editMode || !this.originalRider || !this.riderForm) return false;
 
+    return (this.originalRider.status || 'active') === 'active'
+      && this.riderForm.get('status')?.value === 'inactive';
+  }
+
+  get activeDrawerServicesCount(): number {
+    return this.drawerServices.filter(s => s.status === 'active').length;
+  }
   private async loadDrawerChargeItems(uid: string): Promise<void> {
     const { data, error } = await dbTenant()
       .from('rider_charge_items')
