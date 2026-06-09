@@ -49,6 +49,16 @@ interface Horse {
   next_flu_date?: string | null;
   next_herpes_date?: string | null;
   next_west_nile_date?: string | null;
+
+  owner_rider_uid?: string | null;
+  owner_rider_name?: string | null;
+}
+interface Rider {
+  uid: string;
+  first_name: string | null;
+  last_name: string | null;
+  full_name?: string | null;
+  status?: 'active' | 'inactive' | string | null;
 }
 interface HorseServiceTask {
   id: string;
@@ -96,7 +106,7 @@ export class SecretaryHorsesComponent implements OnInit {
   private ui = inject(UiDialogService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
-
+  riders: Rider[] = [];
   returnRiderUid: string | null = null;
   tasksByHorse: Record<string, HorseServiceTask[]> = {};
   activeTab: 'active' | 'inactive' = 'active';
@@ -111,7 +121,7 @@ export class SecretaryHorsesComponent implements OnInit {
     const horseId = this.route.snapshot.queryParamMap.get('horseId');
     this.returnRiderUid = this.route.snapshot.queryParamMap.get('returnRiderUid');
 
-
+    await this.loadRiders();
     await this.loadHorses();
     await this.loadHorseTasks();
 
@@ -123,6 +133,36 @@ export class SecretaryHorsesComponent implements OnInit {
         this.editHorse(horse);
       }
     }
+  } async loadRiders(): Promise<void> {
+    const { data, error } = await dbTenant()
+      .from('independent_riders')
+      .select('uid, first_name, last_name, status')
+      .order('first_name', { ascending: true })
+      .order('last_name', { ascending: true });
+
+    if (error) {
+      console.error(error);
+      this.riders = [];
+      return;
+    }
+
+    this.riders = data ?? [];
+  }
+
+  riderLabel(rider: Rider): string {
+    const name =
+      `${rider.first_name || ''} ${rider.last_name || ''}`.trim()
+      || rider.full_name
+      || rider.uid;
+
+    return name;
+  }
+
+  ownerName(uid: string | null | undefined): string {
+    if (!uid) return '';
+
+    const rider = this.riders.find(r => r.uid === uid);
+    return rider ? this.riderLabel(rider) : '';
   }
   backToRider(): void {
 
@@ -168,6 +208,7 @@ export class SecretaryHorsesComponent implements OnInit {
       color: null,
       gender: null,
       horse_size: null,
+      owner_rider_uid: null,
 
       max_continuous_minutes: 60,
       max_daily_minutes: 240,
@@ -241,7 +282,7 @@ export class SecretaryHorsesComponent implements OnInit {
         color: payload.color,
         gender: payload.gender,
         horse_size: payload.horse_size,
-
+        owner_rider_uid: payload.owner_rider_uid || null,
         max_continuous_minutes: payload.max_continuous_minutes,
         max_daily_minutes: payload.max_daily_minutes,
         min_break_minutes: payload.min_break_minutes,

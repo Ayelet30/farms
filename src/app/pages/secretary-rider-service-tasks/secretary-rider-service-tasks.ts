@@ -90,7 +90,7 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
   taskStatusOptions: DbOption[] = [];
   serviceModeOptions: DbOption[] = [];
   recurrenceUnitOptions: DbOption[] = [];
-
+  hasOpenTasks = false;
   async ngOnInit() {
     await this.initPage();
     await Promise.all([
@@ -99,21 +99,18 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
       this.loadTasks(),
     ]);
   }
-
   private async initPage() {
     this.loading = true;
     this.error = '';
-    await Promise.all([
-      this.loadEnumOptions(),
-      this.loadServiceTypes(),
-      this.loadRiders(),
-      this.loadHorses(),
-      this.loadTasks(),
-    ]);
+    this.success = '';
 
     try {
+      await this.loadEnumOptions();
       await Promise.all([
-        this.loadEnumOptions(),
+        this.loadServiceTypes(),
+        this.loadRiders(),
+        this.loadHorses(),
+        this.loadHasOpenTasks(),
         this.loadTasks(),
       ]);
     } catch (e: any) {
@@ -122,7 +119,6 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
       this.loading = false;
     }
   }
-
   private async loadEnumOptions() {
     const [
       taskStatuses,
@@ -250,8 +246,7 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
       if (error) throw error;
 
       await this.loadTasks();
-
-      this.success = 'המשימות רועננו בהצלחה ✅';
+      await this.loadHasOpenTasks();
 
     } catch (e: any) {
       this.error = e?.message || 'שגיאה ברענון המשימות';
@@ -516,6 +511,7 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
         await this.cancelTask(group.nearestTask, result.note);
       } else {
         await this.cancelWholeService(group, result.note);
+        await this.loadHasOpenTasks();
       }
     });
   }
@@ -531,6 +527,19 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
     ref.afterClosed().subscribe(async result => {
       if (!result) return;
       await this.cancelTask(task, result.note);
+      await this.loadHasOpenTasks();
     });
+  }
+  private async loadHasOpenTasks() {
+    const db = dbTenant();
+
+    const { count, error } = await db
+      .from('rider_service_tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'open');
+
+    if (error) throw error;
+
+    this.hasOpenTasks = (count ?? 0) > 0;
   }
 }
