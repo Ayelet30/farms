@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/supabaseClient.service';
 import { UiDialogService } from '../../services/ui-dialog.service';
-
+import { Router, ActivatedRoute } from '@angular/router';
 type HorseGender = 'male' | 'female' | 'gelding' | null;
 type HorseSize = 'pony_small' | 'pony_large' | 'horse' | null;
 
@@ -94,6 +94,10 @@ interface HorseAlert {
 })
 export class SecretaryHorsesComponent implements OnInit {
   private ui = inject(UiDialogService);
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
+
+  returnRiderUid: string | null = null;
   tasksByHorse: Record<string, HorseServiceTask[]> = {};
   activeTab: 'active' | 'inactive' = 'active';
   horses: Horse[] = [];
@@ -104,10 +108,35 @@ export class SecretaryHorsesComponent implements OnInit {
 
   readonly ALERT_HORIZON_DAYS = 30;
   async ngOnInit(): Promise<void> {
+    const horseId = this.route.snapshot.queryParamMap.get('horseId');
+    this.returnRiderUid = this.route.snapshot.queryParamMap.get('returnRiderUid');
+
+
     await this.loadHorses();
     await this.loadHorseTasks();
-  }
 
+    if (horseId) {
+      const horse = this.horses.find(h => h.id === horseId);
+
+      if (horse) {
+        this.activeTab = horse.is_active ? 'active' : 'inactive';
+        this.editHorse(horse);
+      }
+    }
+  }
+  backToRider(): void {
+
+    if (!this.returnRiderUid) {
+      this.router.navigate(['/secretary/independent-riders']);
+      return;
+    }
+
+    this.router.navigate(['/secretary/independent-riders'], {
+      queryParams: {
+        riderUid: this.returnRiderUid,
+      },
+    });
+  }
   async loadHorses(): Promise<void> {
     this.loading = true;
 

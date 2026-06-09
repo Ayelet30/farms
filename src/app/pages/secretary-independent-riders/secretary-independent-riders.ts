@@ -5,6 +5,7 @@ import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { RouterModule } from '@angular/router';
 import { dbTenant } from '../../services/legacy-compat';
 import { UiDialogService } from '../../services/ui-dialog.service';
+import { ActivatedRoute, Router } from '@angular/router';
 
 type RiderStatus = 'active' | 'inactive';
 
@@ -103,12 +104,26 @@ export class SecretaryIndependentRidersComponent implements OnInit {
   constructor(
     private ui: UiDialogService,
     private fb: FormBuilder,
+    private route: ActivatedRoute,
+    private router: Router,
   ) { }
-
   async ngOnInit(): Promise<void> {
     this.loadTablePrefs();
     await this.loadRiders();
+
+    const riderUid = this.route.snapshot.queryParamMap.get('riderUid');
+
+    if (riderUid) {
+      await this.openDetails(riderUid);
+
+      this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: {},
+        replaceUrl: true,
+      });
+    }
   }
+
 
   @HostListener('document:click')
   closePanelsOnOutsideClick(): void {
@@ -498,4 +513,28 @@ export class SecretaryIndependentRidersComponent implements OnInit {
     const name = `${rider.first_name || ''} ${rider.last_name || ''}`.trim();
     return name || '—';
   }
+  openHorse(horseId: string): void {
+    this.router.navigate(
+      ['/secretary/horses'],
+      {
+        queryParams: {
+          horseId
+        }
+      }
+    );
+  }
+  openHorseFromRider(horseId: string): void {
+    const riderUid = this.drawerRider?.uid || this.selectedUid;
+
+
+    if (!horseId || !riderUid) return;
+
+    this.router.navigate(['/secretary/horses'], {
+      queryParams: {
+        horseId,
+        returnRiderUid: riderUid,
+      },
+    });
+  }
+
 }
