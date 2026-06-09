@@ -1,7 +1,9 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { dbTenant, getCurrentUserData } from '../../services/legacy-compat';
-
+import { FormsModule } from '@angular/forms';
+import { UiDialogService } from '../../services/ui-dialog.service';
+import { inject } from '@angular/core';
 type Horse = {
     id: string;
     name: string;
@@ -36,10 +38,23 @@ type HorseServiceTask = {
     completed_at: string | null;
     cancelled_at: string | null;
 };
+type RiderServiceStatus = 'active' | 'completed' | 'cancelled';
+type RiderService = {
+    id: string;
+    rider_uid: string;
+    horse_uid: string;
+    service_name: string;
+    start_date: string;
+    end_date: string | null;
+    status: RiderServiceStatus;
+    service_mode: string;
+    cancellation_note: string | null;
+    cancelled_at: string | null;
+};
 @Component({
     selector: 'app-independent-horses',
     standalone: true,
-    imports: [CommonModule],
+    imports: [CommonModule, FormsModule],
     templateUrl: './independent-horses.component.html',
     styleUrls: ['./independent-horses.component.scss'],
 })
@@ -48,6 +63,10 @@ export class IndependentHorsesComponent implements OnInit {
     error = '';
     horses: Horse[] = [];
     tasksByHorse: Record<string, HorseServiceTask[]> = {};
+    private ui = inject(UiDialogService);
+    servicesByHorse: Record<string, RiderService[]> = {};
+    editingHorseId: string | null = null;
+    editHorseDraft: Partial<Horse> = {};
     async ngOnInit() {
         try {
             const user = await getCurrentUserData();
@@ -92,6 +111,7 @@ export class IndependentHorsesComponent implements OnInit {
 
             this.horses = data ?? [];
             await this.loadHorseTasks(user.uid);
+            await this.loadHorseServices(user.uid);
         } catch (e: any) {
             this.error = e?.message || 'שגיאה לא צפויה';
         } finally {
@@ -246,5 +266,177 @@ export class IndependentHorsesComponent implements OnInit {
             (today.getTime() - due.getTime()) /
             (1000 * 60 * 60 * 24)
         );
+    }
+    private async loadHorseServices(riderUid: string): Promise<void> {
+        const horseIds = this.horses.map(h => h.id);
+
+        if (!horseIds.length) {
+            this.servicesByHorse = {};
+            return;
+        }
+
+        const { data, error } = await dbTenant()
+            .from('rider_services')
+            .select(`
+      id,
+      rider_uid,
+      horse_uid,
+      service_name,
+      start_date,
+      end_date,
+      status,
+      service_mode,
+      cancellation_note,
+      cancelled_at
+    `)
+            .eq('rider_uid', riderUid)
+            .in('horse_uid', horseIds)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error(error);
+            return;
+        }
+
+        this.servicesByHorse = {};
+
+        for (const service of (data ?? []) as RiderService[]) {
+            if (!this.servicesByHorse[service.horse_uid]) {
+                this.servicesByHorse[service.horse_uid] = [];
+            }
+
+            this.servicesByHorse[service.horse_uid].push(service);
+        }
+    }
+    startEditHorse(horse: Horse): void {
+        this.editingHorseId = horse.id;
+        this.editHorseDraft = {
+            color: horse.color,
+            is_active: horse.is_active,
+        };
+    }
+
+    cancelEditHorse(): void {
+        this.editingHorseId = null;
+        this.editHorseDraft = {};
+    }
+    async saveHorseEdit(horse: Horse): Promise<void> {
+        const oldActive = horse.is_active;
+        const newActive = this.editHorseDraft.is_active as boolean;
+
+        if (oldActive === true && newActive === false) {
+            const ok = await this.ui.confirm({
+                title: 'הפיכת סוס ללא פעיל',
+                message: 'האם את בטוחה? הפיכת הסוס ללא פעיל תבטל את השירותים שלו, וביטול השירותים יבטל את המשימות הפתוחות שלהם.',
+                dangerText: 'משימות שבוצעו לא ישתנו.',
+                okText: 'כן, להפוך ללא פעיל',
+                cancelText: 'ביטול',
+                showCancel: true,
+            });
+
+            if (!ok) return;
+        }
+
+        const { error } = await dbTenant()
+            .from('horses')
+            .update({
+                color: this.editHorseDraft.color ?? null,
+                is_active: newActive,
+            })
+            .eq('id', horse.id);
+
+        if (error) {
+            console.error(error);
+            await this.ui.alert('שמירת הסוס נכשלה.', 'שגיאה');
+            return;
+        }
+
+        horse.color = this.editHorseDraft.color ?? null;
+        horse.is_active = newActive;
+
+        this.cancelEditHorse();
+
+        const user = await getCurrentUserData();
+        if (user?.uid) {
+            await this.loadHorseServices(user.uid);
+            await this.loadHorseTasks(user.uid);
+        }
+
+        await this.ui.alert('הסוס נשמר בהצלחה.', 'הצלחה');
+    }
+    async cancelService(service: RiderService): Promise<void> {
+        if (service.status === 'cancelled') return;
+
+        const ok = await this.ui.confirm({
+            title: 'ביטול שירות',
+            message: `האם לבטל את השירות "${service.service_name}"? ביטול שירות יבטל אוטומטית את כל המשימות הפתוחות תחתיו.`,
+            dangerText: 'משימות שבוצעו לא ישתנו.',
+            okText: 'כן, לבטל שירות',
+            cancelText: 'ביטול',
+            showCancel: true,
+        });
+
+        if (!ok) return;
+
+        const { error } = await dbTenant()
+            .from('rider_services')
+            .update({
+                status: 'cancelled',
+                cancelled_at: new Date().toISOString(),
+                cancellation_note: 'השירות בוטל על ידי הרוכב',
+            })
+            .eq('id', service.id);
+
+        if (error) {
+            console.error(error);
+            await this.ui.alert('ביטול השירות נכשל.', 'שגיאה');
+            return;
+        }
+
+        const user = await getCurrentUserData();
+        if (user?.uid) {
+            await this.loadHorseServices(user.uid);
+            await this.loadHorseTasks(user.uid);
+        }
+    }
+    async cancelTask(task: HorseServiceTask): Promise<void> {
+        if (task.status !== 'open') return;
+
+        const ok = await this.ui.confirm({
+            title: 'ביטול משימה',
+            message: `האם לבטל את המשימה "${task.service_name}"?`,
+            okText: 'כן, לבטל משימה',
+            cancelText: 'ביטול',
+            showCancel: true,
+        });
+
+        if (!ok) return;
+
+        const { error } = await dbTenant()
+            .from('rider_service_tasks')
+            .update({
+                status: 'cancelled',
+                cancelled_at: new Date().toISOString(),
+                cancellation_note: 'המשימה בוטלה על ידי הרוכב',
+            })
+            .eq('id', task.id);
+
+        if (error) {
+            console.error(error);
+            await this.ui.alert('ביטול המשימה נכשל.', 'שגיאה');
+            return;
+        }
+
+        task.status = 'cancelled';
+        task.cancelled_at = new Date().toISOString();
+        task.cancellation_note = 'המשימה בוטלה על ידי הרוכב';
+    }
+    serviceStatusLabel(status: RiderServiceStatus): string {
+        switch (status) {
+            case 'active': return 'פעיל';
+            case 'completed': return 'בוצע';
+            case 'cancelled': return 'בוטל';
+            default: return String(status);
+        }
     }
 }
