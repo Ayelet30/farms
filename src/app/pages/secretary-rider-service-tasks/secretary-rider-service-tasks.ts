@@ -93,11 +93,6 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
   hasOpenTasks = false;
   async ngOnInit() {
     await this.initPage();
-    await Promise.all([
-      this.loadEnumOptions(),
-      this.loadServiceTypes(),
-      this.loadTasks(),
-    ]);
   }
   private async initPage() {
     this.loading = true;
@@ -254,7 +249,16 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
       this.refreshing = false;
     }
   }
+  today = this.getToday();
 
+  private getToday(): string {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+
+    return `${y}-${m}-${day}`;
+  }
   async markAsDone(task: ServiceTask) {
     if (this.actionLoadingId) return;
 
@@ -279,8 +283,8 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
 
       if (error) throw error;
 
-      this.tasks = this.tasks.filter(x => x.id !== task.id);
-      this.success = 'המשימה סומנה כבוצעה בהצלחה ✅';
+      await this.loadTasks();
+      await this.loadHasOpenTasks(); this.success = 'המשימה סומנה כבוצעה בהצלחה ✅';
 
     } catch (e: any) {
       this.error = e?.message || 'שגיאה בסימון המשימה כבוצעה';
@@ -541,5 +545,24 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
     if (error) throw error;
 
     this.hasOpenTasks = (count ?? 0) > 0;
+  }
+  isDueTomorrow(task: ServiceTask): boolean {
+    if (task.status !== 'open') return false;
+
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const y = tomorrow.getFullYear();
+    const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const d = String(tomorrow.getDate()).padStart(2, '0');
+
+    return task.due_date === `${y}-${m}-${d}`;
+  }
+  isDueToday(task: ServiceTask): boolean {
+    return task.status === 'open' &&
+      task.due_date === this.todayYmd();
+  }
+  isUrgent(task: ServiceTask): boolean {
+    return this.isDueToday(task) || this.isDueTomorrow(task);
   }
 }

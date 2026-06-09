@@ -59,7 +59,16 @@ export class SecretaryRiderServicesComponent implements OnInit {
     price_agorot: 0,
     notes: '',
   };
+  today = this.todayYmd();
 
+  private todayYmd(): string {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+
+    return `${y}-${m}-${day}`;
+  }
   async ngOnInit() {
     try {
       await Promise.all([
@@ -195,6 +204,10 @@ export class SecretaryRiderServicesComponent implements OnInit {
       this.error = 'יש לבחור תאריך התחלה';
       return false;
     }
+    if (this.form.start_date < this.today) {
+      this.error = 'תאריך התחלה לא יכול להיות לפני היום';
+      return false;
+    }
 
     if (this.isRecurringRangeMode && !this.form.end_date) {
       this.error = 'בשירות מחזורי יש לבחור תאריך סיום';
@@ -203,6 +216,10 @@ export class SecretaryRiderServicesComponent implements OnInit {
 
     if (this.isRecurringRangeMode && this.form.end_date < this.form.start_date) {
       this.error = 'תאריך סיום לא יכול להיות לפני תאריך התחלה';
+      return false;
+    }
+    if (this.isRecurringRangeMode && this.form.end_date < this.today) {
+      this.error = 'תאריך סיום לא יכול להיות לפני היום';
       return false;
     }
 
