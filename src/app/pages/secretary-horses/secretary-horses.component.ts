@@ -514,23 +514,22 @@ export class SecretaryHorsesComponent implements OnInit {
     const failed = results.find(r => r.error);
     if (failed?.error) throw failed.error;
   }
-  async toggleHorseActiveStatus(): Promise<void> {
+  toggleHorseActiveStatus(): void {
     if (!this.editing) return;
 
-    if (this.editing.is_active) {
-      const ok = await this.ui.confirm({
-        title: 'הפיכת סוס ללא פעיל',
-        message:
-          'האם את בטוחה? ברגע שהסוס יהפוך ללא פעיל, כל השירותים והמשימות המשויכים אליו יבוטלו.',
-        dangerText: 'פעולה זו בלתי הפיכה.',
-        okText: 'כן, להפוך ללא פעיל',
-        cancelText: 'ביטול',
-        showCancel: true,
-      });
-      if (!ok) return;
-    }
-
     this.editing.is_active = !this.editing.is_active;
+  }
+  get isDeactivatingHorse(): boolean {
+    if (!this.editing?.id) return false;
+
+    const originalHorse = this.horses.find(
+      h => h.id === this.editing?.id
+    );
+
+    return (
+      originalHorse?.is_active === true &&
+      this.editing.is_active === false
+    );
   }
   get filteredHorses(): Horse[] {
     return this.horses.filter(h =>
