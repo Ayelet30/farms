@@ -299,13 +299,7 @@ export class SecretaryRiderServicesComponent implements OnInit {
       .eq('status', 'active')
       .limit(1);
 
-    console.log('CHECK PERMANENT SERVICE', {
-      rider_uid: this.selectedRiderUid,
-      horse_uid: this.form.horse_uid,
-      service_type_id: this.form.service_type_id,
-      data,
-      error,
-    });
+
 
     if (error) {
       console.error('שגיאה בבדיקת שירות קבוע:', error);

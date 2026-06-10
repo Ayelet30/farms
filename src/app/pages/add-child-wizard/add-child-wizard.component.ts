@@ -118,7 +118,7 @@ export class AddChildWizardComponent implements OnInit {
 
   secretarySkippedPayment = false;
 
-registrationCharges: RegistrationSpecialCharge[] = [];
+  registrationCharges: RegistrationSpecialCharge[] = [];
 
   private hfReg: HostedFieldsInstance | null = null;
   private thtkReg: string | null = null;
@@ -154,21 +154,21 @@ registrationCharges: RegistrationSpecialCharge[] = [];
   // ===== דמי הרשמה =====
   registrationFee: number | null = null;
 
-get hasRegistrationFee(): boolean {
+  get hasRegistrationFee(): boolean {
 
-  // this.registrationFee = 1;
-  return (this.registrationFee ?? 0) > 0 && !this.isExemptFromPayment;
-  // להוריד לאחר שמטפלים בדמי רישום וכו!!!
-  //return true;
-}
-
-onFundingSourceChangeForPayment() {
-  this.rebuildSteps();
-
-  if (!this.hasRegistrationFee && this.stepIndex > this.steps.length - 1) {
-    this.stepIndex = this.steps.length - 1;
+    // this.registrationFee = 1;
+    return (this.registrationFee ?? 0) > 0 && !this.isExemptFromPayment;
+    // להוריד לאחר שמטפלים בדמי רישום וכו!!!
+    //return true;
   }
-}
+
+  onFundingSourceChangeForPayment() {
+    this.rebuildSteps();
+
+    if (!this.hasRegistrationFee && this.stepIndex > this.steps.length - 1) {
+      this.stepIndex = this.steps.length - 1;
+    }
+  }
 
 
   // ===== מצב =====
@@ -206,7 +206,7 @@ onFundingSourceChangeForPayment() {
     status: 'Pending Addition Approval' as ChildStatus,
   };
 
-healthFunds: { id: string; name: string }[] = [];
+  healthFunds: { id: string; name: string }[] = [];
   medical: MedicalFlags = {
     growthDelay: false,
     epilepsy: false,
@@ -229,7 +229,7 @@ healthFunds: { id: string; name: string }[] = [];
 
   async ngOnInit() {
     await this.loadRegistrationFeeFromDb();
-      await this.loadHealthFunds(); 
+    await this.loadHealthFunds();
 
 
     if (this.isSecretaryMode) {
@@ -243,93 +243,92 @@ healthFunds: { id: string; name: string }[] = [];
 
     // אם הורה ויש שלב תשלום — נביא כרטיס שמור כדי לדלג על Hosted Fields
     if (this.isParentMode) {
-  await this.loadCurrentParentPaymentProfile();
-}
+      await this.loadCurrentParentPaymentProfile();
+    }
 
     this.rebuildSteps();
   }
 
-private rebuildSteps() {
-  if (this.isParentMode) {
-    this.steps = ['פרטי ילד', 'שאלון רפואי', 'תקנון', 'אמצעי תשלום'];
-  } else {
-    this.steps = ['פרטי ילד', 'שאלון רפואי', 'אמצעי תשלום'];
-  }
-}
-
-skipPaymentForSecretary(): void {
-  if (!this.isSecretaryMode) return;
-
-  this.secretarySkippedPayment = true;
-  this.tokenError = null;
-  this.error = null;
-
-  this.completeWizard();
-}
-
-get paymentStepIndex(): number {
-  return this.steps.indexOf('אמצעי תשלום');
-}
-
-get canEnterPaymentMethod(): boolean {
-  if (this.isSecretaryMode) {
-    return !this.secretarySkippedPayment;
+  private rebuildSteps() {
+    if (this.isParentMode) {
+      this.steps = ['פרטי ילד', 'שאלון רפואי', 'תקנון', 'אמצעי תשלום'];
+    } else {
+      this.steps = ['פרטי ילד', 'שאלון רפואי', 'אמצעי תשלום'];
+    }
   }
 
-  return this.isParentMode && !this.isExemptFromPayment;
-}
+  skipPaymentForSecretary(): void {
+    if (!this.isSecretaryMode) return;
 
-get shouldRequirePaymentMethod(): boolean {
-  return this.canEnterPaymentMethod;
-}
+    this.secretarySkippedPayment = true;
+    this.tokenError = null;
+    this.error = null;
 
- private async loadRegistrationFeeFromDb(): Promise<void> {
-  try {
-    await ensureTenantContextReady();
-    const db = dbTenant();
+    this.completeWizard();
+  }
 
-    const { data, error } = await db
-      .from('special_charges')
-      .select('id, item, amount, warning_note, is_required')
-      .eq('is_active', true)
-      .eq('charge_on_registration', true)
-      .order('sort_order', { ascending: true });
+  get paymentStepIndex(): number {
+    return this.steps.indexOf('אמצעי תשלום');
+  }
 
-    if (error) throw error;
+  get canEnterPaymentMethod(): boolean {
+    if (this.isSecretaryMode) {
+      return !this.secretarySkippedPayment;
+    }
 
-    this.registrationCharges = (data ?? []).map((c: any) => ({
-      id: c.id,
-      item: c.item,
-      amount: Number(c.amount ?? 0),
-      warning_note: c.warning_note ?? null,
-      is_required: !!c.is_required,
-      selected: !!c.is_required,
-    }));
+    return this.isParentMode && !this.isExemptFromPayment;
+  }
 
+  get shouldRequirePaymentMethod(): boolean {
+    return this.canEnterPaymentMethod;
+  }
+
+  private async loadRegistrationFeeFromDb(): Promise<void> {
+    try {
+      await ensureTenantContextReady();
+      const db = dbTenant();
+
+      const { data, error } = await db
+        .from('special_charges')
+        .select('id, item, amount, warning_note, is_required')
+        .eq('is_active', true)
+        .eq('charge_on_registration', true)
+        .order('sort_order', { ascending: true });
+
+      if (error) throw error;
+
+      this.registrationCharges = (data ?? []).map((c: any) => ({
+        id: c.id,
+        item: c.item,
+        amount: Number(c.amount ?? 0),
+        warning_note: c.warning_note ?? null,
+        is_required: !!c.is_required,
+        selected: !!c.is_required,
+      }));
+
+      this.recalculateRegistrationAmount();
+    } catch (e) {
+      console.error('loadRegistrationFeeFromDb error', e);
+      this.registrationCharges = [];
+      this.registrationFee = 0;
+      this.payment.registrationAmount = 0;
+    }
+  }
+  recalculateRegistrationAmount(): void {
+    // ✅ להחזיר לאחר שמטפלים בדמי רישום וכו!!!  
+    const total = this.registrationCharges
+      .filter(c => c.selected)
+      .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+
+    //  const total = 1; // ✅ להוריד לאחר שמטפלים בדמי רישום וכו!!!    
+
+    this.registrationFee = total;
+    this.payment.registrationAmount = total;
+  }
+  onRegistrationChargeToggle(c: RegistrationSpecialCharge, checked: boolean): void {
+    c.selected = checked;
     this.recalculateRegistrationAmount();
-  } catch (e) {
-    console.error('loadRegistrationFeeFromDb error', e);
-    this.registrationCharges = [];
-    this.registrationFee = 0;
-    this.payment.registrationAmount = 0;
   }
-}
-recalculateRegistrationAmount(): void {
-  // ✅ להחזיר לאחר שמטפלים בדמי רישום וכו!!!  
-  const total = this.registrationCharges
-    .filter(c => c.selected)
-    .reduce((sum, c) => sum + Number(c.amount || 0), 0);
-
-  //  const total = 1; // ✅ להוריד לאחר שמטפלים בדמי רישום וכו!!!    
-
-  this.registrationFee = total;
-  this.payment.registrationAmount = total;
-}
-onRegistrationChargeToggle(c: RegistrationSpecialCharge, checked: boolean): void {
-  c.selected = checked;
-  this.recalculateRegistrationAmount();
-  console.log("2222222222"+this.recalculateRegistrationAmount());
-}
   // =========================================
   // ===== תקנון: טעינה מ-farm_documents =====
   // =========================================
@@ -403,10 +402,10 @@ onRegistrationChargeToggle(c: RegistrationSpecialCharge, checked: boolean): void
       if (uidToUse) {
         const match = this.parents.find((p) => p.uid === uidToUse);
         if (match) {
-  this.selectedParentUid = match.uid;
-  this.parentInputText = this.formatParentOption(match);
-  await this.loadSavedPaymentProfileForParent(match.uid);
-}
+          this.selectedParentUid = match.uid;
+          this.parentInputText = this.formatParentOption(match);
+          await this.loadSavedPaymentProfileForParent(match.uid);
+        }
       }
     } catch (e: any) {
       this.parents = [];
@@ -423,42 +422,42 @@ onRegistrationChargeToggle(c: RegistrationSpecialCharge, checked: boolean): void
   }
 
   async onParentInputChange(value: string) {
-  this.parentInputText = value;
+    this.parentInputText = value;
 
-  const lower = (value || '').toLowerCase().trim();
-  const match = this.parents.find(
-    (p) => this.formatParentOption(p).toLowerCase() === lower
-  );
+    const lower = (value || '').toLowerCase().trim();
+    const match = this.parents.find(
+      (p) => this.formatParentOption(p).toLowerCase() === lower
+    );
 
-  this.selectedParentUid = match ? match.uid : null;
+    this.selectedParentUid = match ? match.uid : null;
 
-  // איפוס מצב אשראי כשמחליפים הורה
-  this.savedPaymentProfile = null;
-  this.tokenSaved = false;
-  this.savedToken = null;
-  this.tokenError = null;
+    // איפוס מצב אשראי כשמחליפים הורה
+    this.savedPaymentProfile = null;
+    this.tokenSaved = false;
+    this.savedToken = null;
+    this.tokenError = null;
 
-  if (this.selectedParentUid) {
-    await this.loadSavedPaymentProfileForParent(this.selectedParentUid);
+    if (this.selectedParentUid) {
+      await this.loadSavedPaymentProfileForParent(this.selectedParentUid);
+    }
   }
-}
 
   // ===== ניווט =====
- nextStep() {
-  if (!this.validateCurrentStep()) return;
+  nextStep() {
+    if (!this.validateCurrentStep()) return;
 
-  if (this.stepIndex < this.steps.length - 1) {
-    this.stepIndex++;
+    if (this.stepIndex < this.steps.length - 1) {
+      this.stepIndex++;
+    }
+
+    if (
+      this.stepIndex === this.paymentStepIndex &&
+      this.canEnterPaymentMethod &&
+      !this.hasSavedPaymentProfile
+    ) {
+      setTimeout(() => this.ensureRegHostedFieldsReady(), 0);
+    }
   }
-
-  if (
-  this.stepIndex === this.paymentStepIndex &&
-  this.canEnterPaymentMethod &&
-  !this.hasSavedPaymentProfile
-) {
-  setTimeout(() => this.ensureRegHostedFieldsReady(), 0);
-}
-}
 
   prevStep() {
     if (this.stepIndex > 0) this.stepIndex--;
@@ -469,25 +468,25 @@ onRegistrationChargeToggle(c: RegistrationSpecialCharge, checked: boolean): void
     this.closed.emit();
   }
 
- get isRaananaFarm(): boolean {
-  const farm = getCurrentFarmMetaSync();
-  return farm?.schema_name === 'raanana_farm';
-}
-get selectedFundingSourceName(): string {
-  return this.healthFunds.find(h => h.id === this.child.funding_source_id)?.name ?? '';
-}
+  get isRaananaFarm(): boolean {
+    const farm = getCurrentFarmMetaSync();
+    return farm?.schema_name === 'raanana_farm';
+  }
+  get selectedFundingSourceName(): string {
+    return this.healthFunds.find(h => h.id === this.child.funding_source_id)?.name ?? '';
+  }
 
-get isMaccabi(): boolean {
-  return this.selectedFundingSourceName === 'מכבי';
-}
+  get isMaccabi(): boolean {
+    return this.selectedFundingSourceName === 'מכבי';
+  }
 
-get isLeumit(): boolean {
-  return this.selectedFundingSourceName === 'לאומית';
-}
+  get isLeumit(): boolean {
+    return this.selectedFundingSourceName === 'לאומית';
+  }
 
-get isExemptFromPayment(): boolean {
-  return (this.isRaananaFarm && this.isMaccabi) || (this.isRaananaFarm && this.isLeumit);
-}
+  get isExemptFromPayment(): boolean {
+    return (this.isRaananaFarm && this.isMaccabi) || (this.isRaananaFarm && this.isLeumit);
+  }
 
   allowOnlyNumbers(event: KeyboardEvent) {
     if (!/^\d$/.test(event.key)) event.preventDefault();
@@ -517,9 +516,10 @@ get isExemptFromPayment(): boolean {
     if (!this.child.last_name) this.validationErrors['last_name'] = 'נא להזין שם משפחה';
     if (!this.child.birth_date) this.validationErrors['birth_date'] = 'יש לבחור תאריך לידה';
     if (!this.child.gender) this.validationErrors['gender'] = 'יש לבחור ערך';
-if (!this.child.funding_source_id) {
-  this.validationErrors['funding_source_id'] = 'יש לבחור קופת חולים';
-}  }
+    if (!this.child.funding_source_id) {
+      this.validationErrors['funding_source_id'] = 'יש לבחור קופת חולים';
+    }
+  }
 
   private validateMedical() {
     if (this.medical.autismSpectrum && !this.medical.autismFunction) {
@@ -543,28 +543,28 @@ if (!this.child.funding_source_id) {
     if (!this.termsSignature.trim()) this.validationErrors['signature'] = 'נא להזין שם לחתימה דיגיטלית';
   }
 
-private validatePayment() {
-  if (this.isSecretaryMode) return;
+  private validatePayment() {
+    if (this.isSecretaryMode) return;
 
-  if (!this.canEnterPaymentMethod) return;
+    if (!this.canEnterPaymentMethod) return;
 
-  // ✅ בדיוק כמו מזכירה: אם יש כרטיס שמור — לא דורשים כלום
-  if (this.hasSavedPaymentProfile) {
-    this.tokenSaved = true;
-    return;
+    // ✅ בדיוק כמו מזכירה: אם יש כרטיס שמור — לא דורשים כלום
+    if (this.hasSavedPaymentProfile) {
+      this.tokenSaved = true;
+      return;
+    }
+
+    if (!this.tokenSaved) {
+      this.validationErrors['token'] = 'יש לשמור אמצעי תשלום לפני המשך';
+      this.error = 'יש ללחוץ על "שמירת אמצעי תשלום" לפני המשך';
+    }
   }
-
-  if (!this.tokenSaved) {
-    this.validationErrors['token'] = 'יש לשמור אמצעי תשלום לפני המשך';
-    this.error = 'יש ללחוץ על "שמירת אמצעי תשלום" לפני המשך';
-  }
-}
 
   // ===== שמירה =====
   async completeWizard() {
-  
-     if (!this.validateCurrentStep()) return;
-   
+
+    if (!this.validateCurrentStep()) return;
+
     this.saving = true;
     this.error = null;
 
@@ -615,13 +615,13 @@ private validatePayment() {
         parent_uid: parentUid,
         medical_notes: medicalNotesCombined || null,
       };
-     
+
       const { data: insertedChild, error: insertChildError } = await dbc
         .from('children')
         .insert(childPayload)
-       .select(
-  'child_uuid, gov_id, first_name, last_name, birth_date, gender, funding_source_id, medical_notes, status, parent_uid'
-)
+        .select(
+          'child_uuid, gov_id, first_name, last_name, birth_date, gender, funding_source_id, medical_notes, status, parent_uid'
+        )
         .single();
 
       if (insertChildError || !insertedChild) {
@@ -637,7 +637,7 @@ private validatePayment() {
         p_child_id: insertedChild.child_uuid,
       });
 
- 
+
       if (reqErr) throw reqErr;
 
       // ✅ במצב הורה: אחרי יצירת הילד — חותמים ושומרים PDF חתום
@@ -651,14 +651,14 @@ private validatePayment() {
       // במצב הורה – יוצרים גם בקשה למזכירה
       if (this.isParentMode) {
         const cardLast4 = this.savedPaymentProfile?.last4 ?? this.savedToken?.last4 ?? null;
-const requiresPaymentMethod = this.canEnterPaymentMethod;
+        const requiresPaymentMethod = this.canEnterPaymentMethod;
 
-if (requiresPaymentMethod && !this.hasSavedPaymentProfile && !this.tokenSaved) {
-  this.stepIndex = this.paymentStepIndex;
-  this.validationErrors['token'] = 'יש לשמור אמצעי תשלום לפני שליחת הבקשה';
-  this.error = 'נדרש לשמור אמצעי תשלום לפני שליחת הבקשה';
-  return;
-}
+        if (requiresPaymentMethod && !this.hasSavedPaymentProfile && !this.tokenSaved) {
+          this.stepIndex = this.paymentStepIndex;
+          this.validationErrors['token'] = 'יש לשמור אמצעי תשלום לפני שליחת הבקשה';
+          this.error = 'נדרש לשמור אמצעי תשלום לפני שליחת הבקשה';
+          return;
+        }
         const secretarialPayload = {
           request_type: 'ADD_CHILD',
           status: 'PENDING',
@@ -672,7 +672,7 @@ if (requiresPaymentMethod && !this.hasSavedPaymentProfile && !this.tokenSaved) {
             birth_date: insertedChild.birth_date,
             gender: insertedChild.gender,
             funding_source_id: insertedChild.funding_source_id,
-            funding_source_name: this.selectedFundingSourceName, 
+            funding_source_name: this.selectedFundingSourceName,
             medical_notes: insertedChild.medical_notes,
             medical_questionnaire: { ...this.medical },
             terms: {
@@ -682,30 +682,30 @@ if (requiresPaymentMethod && !this.hasSavedPaymentProfile && !this.tokenSaved) {
               document_id: this.activeTermsDoc?.id ?? null,
               document_version: this.activeTermsDoc?.version ?? null,
             },
-           registration_payment: requiresPaymentMethod
-  ? {
-      status: 'PENDING',
-      registration_amount: this.payment.registrationAmount,
-      method: 'credit_card',
-      card_last4: cardLast4,
+            registration_payment: requiresPaymentMethod
+              ? {
+                status: 'PENDING',
+                registration_amount: this.payment.registrationAmount,
+                method: 'credit_card',
+                card_last4: cardLast4,
 
-      selected_optional_special_charge_ids: this.registrationCharges
-        .filter(c => !c.is_required && c.selected)
-        .map(c => c.id),
+                selected_optional_special_charge_ids: this.registrationCharges
+                  .filter(c => !c.is_required && c.selected)
+                  .map(c => c.id),
 
-      note: cardLast4
-        ? `חיוב לאחר אישור מזכירה מכרטיס שמסתיים ב-${cardLast4}`
-        : 'חיוב לאחר אישור מזכירה',
-    }
-  : null,
-            
+                note: cardLast4
+                  ? `חיוב לאחר אישור מזכירה מכרטיס שמסתיים ב-${cardLast4}`
+                  : 'חיוב לאחר אישור מזכירה',
+              }
+              : null,
+
           },
         };
 
 
         const { error: secretarialError } = await dbc.from('secretarial_requests').insert(secretarialPayload);
 
-         if (secretarialError) {
+        if (secretarialError) {
           this.error = 'הילד נוסף למערכת, אך הייתה שגיאה בשליחת הבקשה למזכירה. אנא צרי קשר עם המשרד.';
           this.childAdded.emit();
           this.closed.emit();
@@ -884,11 +884,7 @@ if (requiresPaymentMethod && !this.hasSavedPaymentProfile && !this.tokenSaved) {
         .maybeSingle();
 
       if (error) throw error;
-console.log('[PAYMENT PROFILE DEBUG]', {
-  parentUid,
-  data,
-  error,
-});
+
       this.savedPaymentProfile = (data as any) ?? null;
 
       if (this.hasSavedPaymentProfile) {
@@ -903,77 +899,77 @@ console.log('[PAYMENT PROFILE DEBUG]', {
   }
 
   private async ensureRegHostedFieldsReady() {
-  if (this.isParentMode && this.isExemptFromPayment) return;
-if (this.isSecretaryMode && this.secretarySkippedPayment) return;
+    if (this.isParentMode && this.isExemptFromPayment) return;
+    if (this.isSecretaryMode && this.secretarySkippedPayment) return;
 
-  if (this.hfReg || this.paymentFieldsLoading) return;
+    if (this.hfReg || this.paymentFieldsLoading) return;
 
-  this.tokenError = null;
-  this.paymentFieldsLoading = true;
+    this.tokenError = null;
+    this.paymentFieldsLoading = true;
 
-  try {
-    const farm = getCurrentFarmMetaSync();
-    const tenantSchema = farm?.schema_name ?? null;
+    try {
+      const farm = getCurrentFarmMetaSync();
+      const tenantSchema = farm?.schema_name ?? null;
 
-    if (!tenantSchema) {
-      this.tokenError = 'לא זוהה סכמת חווה';
-      return;
+      if (!tenantSchema) {
+        this.tokenError = 'לא זוהה סכמת חווה';
+        return;
+      }
+
+      const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema);
+      this.thtkReg = thtk;
+
+      if (!TzlaHostedFields) {
+        this.tokenError = 'רכיב התשלום לא נטען';
+        return;
+      }
+
+      this.hfReg = TzlaHostedFields.create({
+        sandbox: false,
+        fields: {
+          credit_card_number: {
+            selector: '#reg_credit_card_number',
+            placeholder: '4580 4580 4580 4580',
+            tabindex: 1,
+          },
+          cvv: {
+            selector: '#reg_cvv',
+            placeholder: '123',
+            tabindex: 2,
+          },
+          expiry: {
+            selector: '#reg_expiry',
+            placeholder: '12/26',
+            version: '1',
+          },
+        },
+        styles: {
+          input: {
+            height: '44px',
+            'line-height': '44px',
+            padding: '0 12px',
+            'font-size': '15px',
+            'box-sizing': 'border-box',
+            'background-color': 'transparent',
+          },
+          select: {
+            height: '44px',
+            'line-height': '44px',
+            padding: '0 12px',
+            'font-size': '15px',
+            'box-sizing': 'border-box',
+            'background-color': 'transparent',
+          },
+        },
+      });
+
+      this.hfReg?.onEvent?.('validityChange', () => { });
+    } catch (e: any) {
+      this.tokenError = e?.message ?? 'שגיאה באתחול שדות האשראי';
+    } finally {
+      this.paymentFieldsLoading = false;
     }
-
-    const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema);
-    this.thtkReg = thtk;
-
-    if (!TzlaHostedFields) {
-      this.tokenError = 'רכיב התשלום לא נטען';
-      return;
-    }
-
-    this.hfReg = TzlaHostedFields.create({
-      sandbox: false,
-      fields: {
-        credit_card_number: {
-          selector: '#reg_credit_card_number',
-          placeholder: '4580 4580 4580 4580',
-          tabindex: 1,
-        },
-        cvv: {
-          selector: '#reg_cvv',
-          placeholder: '123',
-          tabindex: 2,
-        },
-        expiry: {
-          selector: '#reg_expiry',
-          placeholder: '12/26',
-          version: '1',
-        },
-      },
-      styles: {
-        input: {
-          height: '44px',
-          'line-height': '44px',
-          padding: '0 12px',
-          'font-size': '15px',
-          'box-sizing': 'border-box',
-          'background-color': 'transparent',
-        },
-        select: {
-          height: '44px',
-          'line-height': '44px',
-          padding: '0 12px',
-          'font-size': '15px',
-          'box-sizing': 'border-box',
-          'background-color': 'transparent',
-        },
-      },
-    });
-
-    this.hfReg?.onEvent?.('validityChange', () => {});
-  } catch (e: any) {
-    this.tokenError = e?.message ?? 'שגיאה באתחול שדות האשראי';
-  } finally {
-    this.paymentFieldsLoading = false;
   }
-}
 
   async tokenizeCard() {
     this.tokenError = null;
@@ -992,7 +988,7 @@ if (this.isSecretaryMode && this.secretarySkippedPayment) return;
 
     const user = await getCurrentUserData();
 
-    const parentUid = this.isParentMode ? user?.uid ?? null  : this.selectedParentUid ?? null;
+    const parentUid = this.isParentMode ? user?.uid ?? null : this.selectedParentUid ?? null;
     if (!parentUid) {
       this.tokenError = 'לא זוהה הורה לשמירת אמצעי התשלום';
       return;
@@ -1017,36 +1013,36 @@ if (this.isSecretaryMode && this.secretarySkippedPayment) return;
     const dbc = dbTenant();
 
     const { data, error } = await dbc
-    .from('billing_terminals')
-    .select(
-      'terminal_name,tok_terminal_name,secret_key_charge,secret_key_charge_token',
-    )
-    .eq('provider', 'tranzila')
-    .eq('mode', 'prod')
-    .eq('active', true)
-    .order('is_default', { ascending: false })
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+      .from('billing_terminals')
+      .select(
+        'terminal_name,tok_terminal_name,secret_key_charge,secret_key_charge_token',
+      )
+      .eq('provider', 'tranzila')
+      .eq('mode', 'prod')
+      .eq('active', true)
+      .order('is_default', { ascending: false })
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     const terminalName = data?.terminal_name ?? 'moachapp';
 
     this.hfReg.charge(
       {
-         terminal_name: terminalName,
-          thtk: this.thtkReg,
+        terminal_name: terminalName,
+        thtk: this.thtkReg,
 
-          tran_mode: 'N',       // J2 Validate בלבד
-          tokenize: true,       // חובה כדי לקבל טוקן
-          amount: '1',          // לפי התיעוד amount חובה, אבל ב־N לא אמור להיות חיוב
-          currency_code: 'ILS',
-          payment_plan: 1,
+        tran_mode: 'N',       // J2 Validate בלבד
+        tokenize: true,       // חובה כדי לקבל טוקן
+        amount: '1',          // לפי התיעוד amount חובה, אבל ב־N לא אמור להיות חיוב
+        currency_code: 'ILS',
+        payment_plan: 1,
 
-          response_language: 'hebrew',
-          requested_by_user: 'registration-tokenize',
+        response_language: 'hebrew',
+        requested_by_user: 'registration-tokenize',
 
-          email: user?.email ?? undefined,
-          contact: `${this.child.first_name} ${this.child.last_name}`.trim() || undefined,
+        email: user?.email ?? undefined,
+        contact: `${this.child.first_name} ${this.child.last_name}`.trim() || undefined,
       },
       async (err: any, response: any) => {
         try {
@@ -1106,60 +1102,57 @@ if (this.isSecretaryMode && this.secretarySkippedPayment) return;
       }
     );
   }
- private async loadHealthFunds(): Promise<void> {
-  try {
-    await ensureTenantContextReady();
-    const db = dbTenant();
+  private async loadHealthFunds(): Promise<void> {
+    try {
+      await ensureTenantContextReady();
+      const db = dbTenant();
 
-    const { data, error } = await db
-      .from('funding_sources')
-      .select('id, name')
-      .eq('is_system', true)
-      .eq('is_active', true)
-      .order('name', { ascending: true });
+      const { data, error } = await db
+        .from('funding_sources')
+        .select('id, name')
+        .eq('is_system', true)
+        .eq('is_active', true)
+        .order('name', { ascending: true });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    this.healthFunds = data ?? [];
-  } catch (e) {
-    console.error('loadHealthFunds error', e);
-    this.healthFunds = [];
+      this.healthFunds = data ?? [];
+    } catch (e) {
+      console.error('loadHealthFunds error', e);
+      this.healthFunds = [];
+    }
   }
-}
-onFundingSourceChange(id: string): void {
-  this.child.funding_source_id = id;
-  this.onFundingSourceChangeForPayment();
-}
-private async loadCurrentParentPaymentProfile(): Promise<void> {
-  try {
-    await ensureTenantContextReady();
-
-    const user = await getCurrentUserData();
-    const authUid = user?.uid ?? null;
-
-    if (!authUid) return;
-
-    const dbc = dbTenant();
-
-    const { data: parent, error } = await dbc
-      .from('parents')
-      .select('uid')
-      .eq('uid', authUid)
-      .maybeSingle();
-
-    if (error) throw error;
-
-    const parentUid = parent?.uid ?? authUid;
-
-    console.log('[PARENT PAYMENT DEBUG]', {
-      authUid,
-      parentUid,
-    });
-
-    await this.loadSavedPaymentProfileForParent(parentUid);
-  } catch (e) {
-    console.error('loadCurrentParentPaymentProfile error', e);
-    this.savedPaymentProfile = null;
+  onFundingSourceChange(id: string): void {
+    this.child.funding_source_id = id;
+    this.onFundingSourceChangeForPayment();
   }
-}
+  private async loadCurrentParentPaymentProfile(): Promise<void> {
+    try {
+      await ensureTenantContextReady();
+
+      const user = await getCurrentUserData();
+      const authUid = user?.uid ?? null;
+
+      if (!authUid) return;
+
+      const dbc = dbTenant();
+
+      const { data: parent, error } = await dbc
+        .from('parents')
+        .select('uid')
+        .eq('uid', authUid)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const parentUid = parent?.uid ?? authUid;
+
+
+
+      await this.loadSavedPaymentProfileForParent(parentUid);
+    } catch (e) {
+      console.error('loadCurrentParentPaymentProfile error', e);
+      this.savedPaymentProfile = null;
+    }
+  }
 }
