@@ -335,7 +335,6 @@ export class IndependentHorsesComponent implements OnInit {
             await this.ui.alert('לא בוצעו שינויים לשמירה.', 'אין שינויים');
             return;
         }
-        console.log('SUMMARY:', JSON.stringify(summary));
         const ok = await this.ui.confirm({
             title: 'אישור שמירת שינויים',
             message: summary,

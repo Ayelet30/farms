@@ -181,16 +181,7 @@ export class RequestValidationService {
 
                 if (dateStr) {
                   const dt = this.combineDateTime(dateStr, timeStr ?? '00:00');
-                  console.log('[CANCEL EXPIRY DEBUG]', {
-                    dateStr,
-                    timeStr,
-                    dt,
-                    dtIso: dt.toISOString(),
-                    now: new Date(),
-                    nowIso: new Date().toISOString(),
-                    dtMs: dt.getTime(),
-                    nowMs: Date.now(),
-                  });
+
                   if (dt.getTime() < Date.now()) {
                     return { ok: false, reason: 'עבר מועד השיעור לביטול' };
                   }
@@ -494,15 +485,6 @@ export class RequestValidationService {
 
         const dt = this.combineDateTime(dateStr, timeStr);
 
-        console.log('[CANCEL AUTO EXPIRY DEBUG]', {
-          mode,
-          dateStr,
-          timeStr,
-          dt,
-          dtIso: dt.toISOString(),
-          now: new Date(),
-          nowIso: new Date().toISOString(),
-        });
 
         if (dt.getTime() < Date.now()) {
           return 'עבר מועד השיעור לביטול';

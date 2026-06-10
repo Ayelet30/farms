@@ -20,7 +20,6 @@ export class IndependentPublicSignupComponent {
     form!: FormGroup;
 
     constructor(private fb: FormBuilder, private route: ActivatedRoute) {
-        console.log('Independent signup loaded');
         this.farmCode = (this.route.snapshot.paramMap.get('farm') || 'bereshit_farm').toLowerCase();
 
         this.form = this.fb.group({

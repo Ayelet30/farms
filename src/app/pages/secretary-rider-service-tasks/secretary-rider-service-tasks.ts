@@ -232,16 +232,14 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
     try {
       const db = dbTenant();
 
-      const untilDate = this.addDaysYmd(90);
-
-      const { error } = await db.rpc('generate_rider_service_tasks', {
-        p_until_date: untilDate,
-      });
+      const { error } = await db.rpc('generate_next_rider_service_tasks');
 
       if (error) throw error;
 
       await this.loadTasks();
       await this.loadHasOpenTasks();
+
+      this.success = 'המשימות רועננו בהצלחה';
 
     } catch (e: any) {
       this.error = e?.message || 'שגיאה ברענון המשימות';
@@ -327,16 +325,6 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
     return `${value.toLocaleString('he-IL')} ₪`;
   }
 
-  private addDaysYmd(days: number): string {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-
-    return `${y}-${m}-${day}`;
-  }
   toggleExpanded(serviceId: string) {
     if (this.expandedServiceIds.has(serviceId)) {
       this.expandedServiceIds.delete(serviceId);

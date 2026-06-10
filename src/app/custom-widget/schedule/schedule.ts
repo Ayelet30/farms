@@ -89,7 +89,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   @ViewChild('calendarHost', { static: false }) calendarHost?: ElementRef<HTMLElement>;
 
   private boundContextMenuHandler?: (e: MouseEvent) => void;
-  
+
 
   @Input() items: ScheduleItem[] = [];
   @Input() initialView: ViewName = 'timeGridDay';
@@ -104,15 +104,15 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   @Input() viewerMode: ViewerMode = 'secretary';
   @Input() blockedDayCells: BlockedDayCell[] = [];
   @Input() availableDayCells: Array<{
-  date: string;
-  resourceId: string;
-  startTime: string;
-  endTime: string;
-  color: string;
-  lessonType?: string;
-}> = [];
+    date: string;
+    resourceId: string;
+    startTime: string;
+    endTime: string;
+    color: string;
+    lessonType?: string;
+  }> = [];
 
-  
+
   @Output() autoAssignRequested = new EventEmitter<void>();
   @Output() eventClick = new EventEmitter<EventClickArg>();
   @Output() dateClick = new EventEmitter<DateClickArg>();
@@ -130,28 +130,28 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   }>();
 
   @Output() rightClickEvent = new EventEmitter<{
-  jsEvent: MouseEvent;
-  dateStr: string;
-  endStr?: string | null;
-  resourceId?: string | null;
-  resourceTitle?: string | null;
-  sourceView?: 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth';
-  eventId?: string | null;
-  lessonId?: string | null;
-  childId?: string | null;
-  childName?: string | null;
-  lessonType?: string | null;
-  status?: string | null;
-  seriesId?: string | null;
-appointmentKind?: string | null;
-repeatWeeks?: number | null;
-isOpenEnded?: boolean | null;
-seriesEndDate?: string | null;
-occurDate?: string | null;
-startTime?: string | null;
-endTimeOnly?: string | null;
-}>();
-  
+    jsEvent: MouseEvent;
+    dateStr: string;
+    endStr?: string | null;
+    resourceId?: string | null;
+    resourceTitle?: string | null;
+    sourceView?: 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth';
+    eventId?: string | null;
+    lessonId?: string | null;
+    childId?: string | null;
+    childName?: string | null;
+    lessonType?: string | null;
+    status?: string | null;
+    seriesId?: string | null;
+    appointmentKind?: string | null;
+    repeatWeeks?: number | null;
+    isOpenEnded?: boolean | null;
+    seriesEndDate?: string | null;
+    occurDate?: string | null;
+    startTime?: string | null;
+    endTimeOnly?: string | null;
+  }>();
+
   customDayBlockedCells: CustomDayBlockedCell[] = [];
 
   currentView: ViewName = this.initialView;
@@ -168,7 +168,7 @@ endTimeOnly?: string | null;
   private isNarrow600 = window.innerWidth < 600;
 
   @HostListener('window:resize')
-  
+
   onResize() {
     const next = window.innerWidth < 600;
     if (next === this.isNarrow600) return;
@@ -183,13 +183,13 @@ endTimeOnly?: string | null;
   private lastRangeKey = '';
 
   readonly monthLegend = [
-  { className: 'legend-approved', label: 'שיעורים פעילים' },
-  { className: 'legend-canceled', label: 'שיעורים מבוטלים' },
-  { className: 'legend-pending', label: 'בקשות / ממתינים' },
-  { className: 'legend-farm-off', label: 'חופשת חווה' },
-  { className: 'legend-instructor-off', label: 'חופשת מדריך' },
-];
-  
+    { className: 'legend-approved', label: 'שיעורים פעילים' },
+    { className: 'legend-canceled', label: 'שיעורים מבוטלים' },
+    { className: 'legend-pending', label: 'בקשות / ממתינים' },
+    { className: 'legend-farm-off', label: 'חופשת חווה' },
+    { className: 'legend-instructor-off', label: 'חופשת מדריך' },
+  ];
+
 
   constructor(
     private cdr: ChangeDetectorRef,
@@ -203,16 +203,16 @@ endTimeOnly?: string | null;
   }
 
   get shouldSplitDayByInstructor(): boolean {
-  return this.viewerMode === 'manager' || this.viewerMode === 'secretary';
-}
+    return this.viewerMode === 'manager' || this.viewerMode === 'secretary';
+  }
 
-get isParentView(): boolean {
-  return this.viewerMode === 'parent';
-}
+  get isParentView(): boolean {
+    return this.viewerMode === 'parent';
+  }
 
-get isInstructorView(): boolean {
-  return this.viewerMode === 'instructor';
-}
+  get isInstructorView(): boolean {
+    return this.viewerMode === 'instructor';
+  }
 
   private pad(n: number): string {
     return String(n).padStart(2, '0');
@@ -239,35 +239,35 @@ get isInstructorView(): boolean {
   }
 
   private swipeStartX = 0;
-private swipeStartY = 0;
+  private swipeStartY = 0;
 
-onSwipeStart(event: TouchEvent): void {
-  const touch = event.changedTouches[0];
-  this.swipeStartX = touch.clientX;
-  this.swipeStartY = touch.clientY;
-}
-
-onSwipeEnd(event: TouchEvent): void {
-  const touch = event.changedTouches[0];
-
-  const deltaX = touch.clientX - this.swipeStartX;
-  const deltaY = touch.clientY - this.swipeStartY;
-
-  const minSwipe = 60;
-  const maxVerticalMove = 45;
-
-  if (Math.abs(deltaX) < minSwipe) return;
-  if (Math.abs(deltaY) > maxVerticalMove) return;
-
-  // RTL:
-  // גרירה שמאלה = הבא
-  // גרירה ימינה = הקודם
-  if (deltaX < 0) {
-    this.next();
-  } else {
-    this.prev();
+  onSwipeStart(event: TouchEvent): void {
+    const touch = event.changedTouches[0];
+    this.swipeStartX = touch.clientX;
+    this.swipeStartY = touch.clientY;
   }
-}
+
+  onSwipeEnd(event: TouchEvent): void {
+    const touch = event.changedTouches[0];
+
+    const deltaX = touch.clientX - this.swipeStartX;
+    const deltaY = touch.clientY - this.swipeStartY;
+
+    const minSwipe = 60;
+    const maxVerticalMove = 45;
+
+    if (Math.abs(deltaX) < minSwipe) return;
+    if (Math.abs(deltaY) > maxVerticalMove) return;
+
+    // RTL:
+    // גרירה שמאלה = הבא
+    // גרירה ימינה = הקודם
+    if (deltaX < 0) {
+      this.next();
+    } else {
+      this.prev();
+    }
+  }
 
   private isoToMinutes(iso: string): number {
     const d = new Date(iso);
@@ -294,137 +294,137 @@ onSwipeEnd(event: TouchEvent): void {
   }
 
   private toHm(value: string | null | undefined): string {
-  return String(value || '').slice(0, 5);
-}
+    return String(value || '').slice(0, 5);
+  }
 
-private getSlotStepMinutes(): number {
-  return 30;
-}
+  private getSlotStepMinutes(): number {
+    return 30;
+  }
 
-isBlockedRawCell(resourceId: string, slotIso: string): boolean {
-  const d = new Date(slotIso);
-  const ymd = this.toYmd(d);
-  const hm = this.minutesToTime(d.getHours() * 60 + d.getMinutes());
+  isBlockedRawCell(resourceId: string, slotIso: string): boolean {
+    const d = new Date(slotIso);
+    const ymd = this.toYmd(d);
+    const hm = this.minutesToTime(d.getHours() * 60 + d.getMinutes());
 
-  return (this.blockedDayCells || []).some(b => {
-    if (String(b.resourceId) !== String(resourceId)) return false;
-    if (b.date !== ymd) return false;
+    return (this.blockedDayCells || []).some(b => {
+      if (String(b.resourceId) !== String(resourceId)) return false;
+      if (b.date !== ymd) return false;
 
-    const bStart = this.toHm(b.startTime);
-    const bEnd = this.toHm(
-      b.endTime || this.minutesToTime(this.parseTimeToMinutes(bStart) + this.getSlotStepMinutes())
-    );
+      const bStart = this.toHm(b.startTime);
+      const bEnd = this.toHm(
+        b.endTime || this.minutesToTime(this.parseTimeToMinutes(bStart) + this.getSlotStepMinutes())
+      );
 
-    return hm >= bStart && hm < bEnd;
-  });
-}
+      return hm >= bStart && hm < bEnd;
+    });
+  }
 
-getBlockedReason(resourceId: string, slotIso: string): string {
-  const d = new Date(slotIso);
-  const ymd = this.toYmd(d);
-  const hm = this.minutesToTime(d.getHours() * 60 + d.getMinutes());
+  getBlockedReason(resourceId: string, slotIso: string): string {
+    const d = new Date(slotIso);
+    const ymd = this.toYmd(d);
+    const hm = this.minutesToTime(d.getHours() * 60 + d.getMinutes());
 
-  const match = (this.blockedDayCells || []).find(b => {
-    if (String(b.resourceId) !== String(resourceId)) return false;
-    if (b.date !== ymd) return false;
+    const match = (this.blockedDayCells || []).find(b => {
+      if (String(b.resourceId) !== String(resourceId)) return false;
+      if (b.date !== ymd) return false;
 
-    const bStart = this.toHm(b.startTime);
-    const bEnd = this.toHm(
-      b.endTime || this.minutesToTime(this.parseTimeToMinutes(bStart) + this.getSlotStepMinutes())
-    );
+      const bStart = this.toHm(b.startTime);
+      const bEnd = this.toHm(
+        b.endTime || this.minutesToTime(this.parseTimeToMinutes(bStart) + this.getSlotStepMinutes())
+      );
 
-    return hm >= bStart && hm < bEnd;
-  });
+      return hm >= bStart && hm < bEnd;
+    });
 
-  return match?.reason || '';
-}
+    return match?.reason || '';
+  }
 
-private formatHebrewDayTitle(date: Date): string {
-  return new Intl.DateTimeFormat('he-IL', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(date);
-}
+  private formatHebrewDayTitle(date: Date): string {
+    return new Intl.DateTimeFormat('he-IL', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(date);
+  }
 
   private getItemChildAge(item: ScheduleItem): string {
-  const age =
-    this.getItemMeta(item)?.child_age ??
-    this.getItemMeta(item)?.age ??
-    '';
-  return String(age || '');
-}
-
-getCustomDayPrimaryText(item: ScheduleItem): string {
-  const childName = this.getItemChildName(item);
-  const instructorName = this.getItemInstructorName(item);
-  const age = this.getItemChildAge(item);
-
-  if (this.isParentView) {
-    return [childName, instructorName].filter(Boolean).join(' • ');
+    const age =
+      this.getItemMeta(item)?.child_age ??
+      this.getItemMeta(item)?.age ??
+      '';
+    return String(age || '');
   }
 
-  if (this.isInstructorView) {
-    return age ? `${childName} (${age})` : childName;
+  getCustomDayPrimaryText(item: ScheduleItem): string {
+    const childName = this.getItemChildName(item);
+    const instructorName = this.getItemInstructorName(item);
+    const age = this.getItemChildAge(item);
+
+    if (this.isParentView) {
+      return [childName, instructorName].filter(Boolean).join(' • ');
+    }
+
+    if (this.isInstructorView) {
+      return age ? `${childName} (${age})` : childName;
+    }
+
+    return childName;
   }
 
-  return childName;
-}
+  getCustomDaySecondaryText(item: ScheduleItem): string {
+    const horse = this.getHorseName(item);
+    const arena = this.getArenaName(item);
 
-getCustomDaySecondaryText(item: ScheduleItem): string {
-  const horse = this.getHorseName(item);
-  const arena = this.getArenaName(item);
+    if (this.isInstructorView) {
+      return [horse, arena].filter(Boolean).join(' • ');
+    }
 
-  if (this.isInstructorView) {
-    return [horse, arena].filter(Boolean).join(' • ');
+    return '';
   }
 
-  return '';
-}
+  buildCustomItemTitle(item: ScheduleItem): string {
+    if (this.isParentView) {
+      return [
+        this.getItemChildName(item),
+        this.getItemInstructorName(item),
+        this.getItemLessonType(item),
+      ].filter(Boolean).join(' • ');
+    }
 
-buildCustomItemTitle(item: ScheduleItem): string {
-  if (this.isParentView) {
+    if (this.isInstructorView) {
+      return [
+        this.getItemChildName(item),
+        this.getItemChildAge(item) ? `גיל: ${this.getItemChildAge(item)}` : '',
+        this.getHorseName(item),
+        this.getArenaName(item),
+      ].filter(Boolean).join(' • ');
+    }
+
     return [
       this.getItemChildName(item),
-      this.getItemInstructorName(item),
       this.getItemLessonType(item),
-    ].filter(Boolean).join(' • ');
-  }
-
-  if (this.isInstructorView) {
-    return [
-      this.getItemChildName(item),
-      this.getItemChildAge(item) ? `גיל: ${this.getItemChildAge(item)}` : '',
       this.getHorseName(item),
       this.getArenaName(item),
     ].filter(Boolean).join(' • ');
   }
 
-  return [
-    this.getItemChildName(item),
-    this.getItemLessonType(item),
-    this.getHorseName(item),
-    this.getArenaName(item),
-  ].filter(Boolean).join(' • ');
-}
+  private mapView(view: ViewName): string {
+    const hasRes = !!(this.resources && this.resources.length);
 
- private mapView(view: ViewName): string {
-  const hasRes = !!(this.resources && this.resources.length);
-
-  if (view === 'timeGridDay') {
-    if (hasRes && this.shouldSplitDayByInstructor) {
-      return 'resourceTimeGridDay';
+    if (view === 'timeGridDay') {
+      if (hasRes && this.shouldSplitDayByInstructor) {
+        return 'resourceTimeGridDay';
+      }
+      return 'timeGridDay';
     }
-    return 'timeGridDay';
-  }
 
-  if (view === 'timeGridWeek') {
-    return 'timeGridWeek';
-  }
+    if (view === 'timeGridWeek') {
+      return 'timeGridWeek';
+    }
 
-  return view;
-}
+    return view;
+  }
 
   private hebDayLetter(date: Date): string {
     const map = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
@@ -513,24 +513,24 @@ buildCustomItemTitle(item: ScheduleItem): string {
   }
 
   isCanceledItem(item: ScheduleItem): boolean {
-  const meta = this.getItemMeta(item);
+    const meta = this.getItemMeta(item);
 
-  const rawStatus = String(
-    (item as any)?.status ||
-    meta?.status ||
-    meta?.attendance_status ||
-    meta?.lesson_status ||
-    ''
-  ).trim().toUpperCase();
+    const rawStatus = String(
+      (item as any)?.status ||
+      meta?.status ||
+      meta?.attendance_status ||
+      meta?.lesson_status ||
+      ''
+    ).trim().toUpperCase();
 
-  return (
-    rawStatus.includes('CANCEL') ||
-    rawStatus.includes('CANCELED') ||
-    rawStatus.includes('CANCELLED') ||
-    rawStatus.includes('בוטל') ||
-    rawStatus.includes('מבוטל')
-  );
-}
+    return (
+      rawStatus.includes('CANCEL') ||
+      rawStatus.includes('CANCELED') ||
+      rawStatus.includes('CANCELLED') ||
+      rawStatus.includes('בוטל') ||
+      rawStatus.includes('מבוטל')
+    );
+  }
 
   isPendingItem(item: ScheduleItem): boolean {
     const s = String(
@@ -549,18 +549,18 @@ buildCustomItemTitle(item: ScheduleItem): string {
   }
 
   private emitCustomDayRange(): void {
-  const ymd = this.toYmd(this.customDayDate);
-  const nextKey = `timeGridDay|${ymd}|${ymd}`;
+    const ymd = this.toYmd(this.customDayDate);
+    const nextKey = `timeGridDay|${ymd}|${ymd}`;
 
-  if (this.lastRangeKey === nextKey) return;
-  this.lastRangeKey = nextKey;
+    if (this.lastRangeKey === nextKey) return;
+    this.lastRangeKey = nextKey;
 
-  this.viewRange.emit({
-    start: ymd,
-    end: ymd,
-    viewType: 'timeGridDay',
-  });
-}
+    this.viewRange.emit({
+      start: ymd,
+      end: ymd,
+      viewType: 'timeGridDay',
+    });
+  }
 
   private deriveResourcesFromItems(): ScheduleResource[] {
     const map = new Map<string, ScheduleResource>();
@@ -581,127 +581,127 @@ buildCustomItemTitle(item: ScheduleItem): string {
     return Array.from(map.values());
   }
 
- private rebuildCustomDayView(): void {
-  const ymd = this.toYmd(this.customDayDate);
+  private rebuildCustomDayView(): void {
+    const ymd = this.toYmd(this.customDayDate);
 
-  const minMinutes = this.parseTimeToMinutes(String(this.slotMinTime || '07:00:00'));
-  const maxMinutes = this.parseTimeToMinutes(String(this.slotMaxTime || '21:00:00'));
-  const slotStep = 30;
+    const minMinutes = this.parseTimeToMinutes(String(this.slotMinTime || '07:00:00'));
+    const maxMinutes = this.parseTimeToMinutes(String(this.slotMaxTime || '21:00:00'));
+    const slotStep = 30;
 
-  this.customDaySlots = [];
-  for (let m = minMinutes; m < maxMinutes; m += slotStep) {
-    this.customDaySlots.push({
-      label: this.minutesToTime(m),
-      iso: `${ymd}T${this.minutesToTime(m)}:00`,
-      minutes: m,
-    });
-  }
-
-  if (this.shouldSplitDayByInstructor) {
-    const inputResources = (this.resources || []).map((r: any) => ({
-      id: String(r.id),
-      title: String(r.title || ''),
-    }));
-
-    this.customDayResources =
-      inputResources.length > 0 ? inputResources : this.deriveResourcesFromItems();
-  } else {
-    this.customDayResources = [
-      {
-        id: 'single-day-column',
-        title: '',
-      },
-    ];
-  }
-
-  const resourceIndex = new Map<string, number>();
-  this.customDayResources.forEach((r, idx) => resourceIndex.set(r.id, idx));
-
-  const visibleItems = (this.items || []).filter((item: any) => {
-    if (!item?.start) return false;
-
-    const itemDate = new Date(item.start);
-    const itemYmd = this.toYmd(itemDate);
-
-    if (itemYmd !== ymd) return false;
-
-    const meta = item?.meta || {};
-    if (meta?.isSummaryDay || meta?.isSummarySlot || meta?.isInstructorHeader) return false;
-    if (meta?.isFarmDayOff) return false;
-
-    return true;
-  });
-
-  const grouped = new Map<string, CustomDayCluster>();
-  const fallbackMin = this.customDaySlots[0]?.minutes ?? minMinutes;
-
-  for (const item of visibleItems) {
-    const startIso = String((item as any).start || '');
-    const endIso = String((item as any).end || '');
-
-    const startMinutes = this.isoToMinutes(startIso);
-    const endMinutes = this.isoToMinutes(endIso);
-
-    const row = Math.max(0, Math.floor((startMinutes - fallbackMin) / slotStep));
-    const durationMinutes = Math.max(slotStep, endMinutes - startMinutes);
-    const span = Math.max(1, Math.ceil(durationMinutes / slotStep));
-
-    const col = this.shouldSplitDayByInstructor
-      ? (resourceIndex.get(this.getItemInstructorId(item)) ?? 0)
-      : 0;
-
-    const key = this.shouldSplitDayByInstructor
-      ? `${this.getItemInstructorId(item)}|${startMinutes}`
-      : `single|${startMinutes}`;
-
-    if (!grouped.has(key)) {
-      grouped.set(key, {
-        key,
-        col,
-        row,
-        span,
-        items: [],
+    this.customDaySlots = [];
+    for (let m = minMinutes; m < maxMinutes; m += slotStep) {
+      this.customDaySlots.push({
+        label: this.minutesToTime(m),
+        iso: `${ymd}T${this.minutesToTime(m)}:00`,
+        minutes: m,
       });
     }
 
-    grouped.get(key)!.items.push(item);
-  }
+    if (this.shouldSplitDayByInstructor) {
+      const inputResources = (this.resources || []).map((r: any) => ({
+        id: String(r.id),
+        title: String(r.title || ''),
+      }));
 
-  this.customDayClusters = Array.from(grouped.values())
-    .sort((a, b) => a.row - b.row || a.col - b.col);
+      this.customDayResources =
+        inputResources.length > 0 ? inputResources : this.deriveResourcesFromItems();
+    } else {
+      this.customDayResources = [
+        {
+          id: 'single-day-column',
+          title: '',
+        },
+      ];
+    }
 
-  const blockedCells: CustomDayBlockedCell[] = [];
+    const resourceIndex = new Map<string, number>();
+    this.customDayResources.forEach((r, idx) => resourceIndex.set(r.id, idx));
 
-  for (const b of this.blockedDayCells || []) {
-    if (b.date !== ymd) continue;
+    const visibleItems = (this.items || []).filter((item: any) => {
+      if (!item?.start) return false;
 
-    const col = this.shouldSplitDayByInstructor
-      ? this.customDayResources.findIndex(r => String(r.id) === String(b.resourceId))
-      : 0;
+      const itemDate = new Date(item.start);
+      const itemYmd = this.toYmd(itemDate);
 
-    if (col < 0) continue;
+      if (itemYmd !== ymd) return false;
 
-    const startMinutes = this.parseTimeToMinutes(this.toHm(b.startTime));
-    const endMinutes = this.parseTimeToMinutes(
-      this.toHm(b.endTime || this.minutesToTime(startMinutes + slotStep))
-    );
+      const meta = item?.meta || {};
+      if (meta?.isSummaryDay || meta?.isSummarySlot || meta?.isInstructorHeader) return false;
+      if (meta?.isFarmDayOff) return false;
 
-    const row = Math.max(0, Math.floor((startMinutes - fallbackMin) / slotStep));
-    const durationMinutes = Math.max(slotStep, endMinutes - startMinutes);
-    const span = Math.max(1, Math.ceil(durationMinutes / slotStep));
-
-    blockedCells.push({
-      key: `${b.resourceId}|${b.date}|${b.startTime}|${b.endTime ?? ''}`,
-      col,
-      row,
-      span,
-      reason: b.reason ?? '',
-      kind: b.kind ?? 'day_off',
+      return true;
     });
-  }
 
-  this.customDayBlockedCells = blockedCells;
-}
+    const grouped = new Map<string, CustomDayCluster>();
+    const fallbackMin = this.customDaySlots[0]?.minutes ?? minMinutes;
+
+    for (const item of visibleItems) {
+      const startIso = String((item as any).start || '');
+      const endIso = String((item as any).end || '');
+
+      const startMinutes = this.isoToMinutes(startIso);
+      const endMinutes = this.isoToMinutes(endIso);
+
+      const row = Math.max(0, Math.floor((startMinutes - fallbackMin) / slotStep));
+      const durationMinutes = Math.max(slotStep, endMinutes - startMinutes);
+      const span = Math.max(1, Math.ceil(durationMinutes / slotStep));
+
+      const col = this.shouldSplitDayByInstructor
+        ? (resourceIndex.get(this.getItemInstructorId(item)) ?? 0)
+        : 0;
+
+      const key = this.shouldSplitDayByInstructor
+        ? `${this.getItemInstructorId(item)}|${startMinutes}`
+        : `single|${startMinutes}`;
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          key,
+          col,
+          row,
+          span,
+          items: [],
+        });
+      }
+
+      grouped.get(key)!.items.push(item);
+    }
+
+    this.customDayClusters = Array.from(grouped.values())
+      .sort((a, b) => a.row - b.row || a.col - b.col);
+
+    const blockedCells: CustomDayBlockedCell[] = [];
+
+    for (const b of this.blockedDayCells || []) {
+      if (b.date !== ymd) continue;
+
+      const col = this.shouldSplitDayByInstructor
+        ? this.customDayResources.findIndex(r => String(r.id) === String(b.resourceId))
+        : 0;
+
+      if (col < 0) continue;
+
+      const startMinutes = this.parseTimeToMinutes(this.toHm(b.startTime));
+      const endMinutes = this.parseTimeToMinutes(
+        this.toHm(b.endTime || this.minutesToTime(startMinutes + slotStep))
+      );
+
+      const row = Math.max(0, Math.floor((startMinutes - fallbackMin) / slotStep));
+      const durationMinutes = Math.max(slotStep, endMinutes - startMinutes);
+      const span = Math.max(1, Math.ceil(durationMinutes / slotStep));
+
+      blockedCells.push({
+        key: `${b.resourceId}|${b.date}|${b.startTime}|${b.endTime ?? ''}`,
+        col,
+        row,
+        span,
+        reason: b.reason ?? '',
+        kind: b.kind ?? 'day_off',
+      });
+    }
+
+    this.customDayBlockedCells = blockedCells;
+  }
 
 
   onCustomItemClick(item: ScheduleItem, ev: MouseEvent): void {
@@ -736,118 +736,118 @@ buildCustomItemTitle(item: ScheduleItem): string {
   }
 
   onCustomDateCellClick(iso: string, resource?: ScheduleResource | null): void {
-  if (resource?.id && this.isBlockedRawCell(resource.id, iso)) {
-    return;
+    if (resource?.id && this.isBlockedRawCell(resource.id, iso)) {
+      return;
+    }
+
+    this.dateClick.emit({
+      date: new Date(iso),
+      dateStr: iso,
+      allDay: false,
+      dayEl: null as any,
+      jsEvent: new MouseEvent('click'),
+      view: { type: 'timeGridDay' } as any,
+    });
   }
 
-  this.dateClick.emit({
-    date: new Date(iso),
-    dateStr: iso,
-    allDay: false,
-    dayEl: null as any,
-    jsEvent: new MouseEvent('click'),
-    view: { type: 'timeGridDay' } as any,
-  });
-}
+  isBreakCell(resourceId: string, slotIso: string): boolean {
 
-isBreakCell(resourceId: string, slotIso: string): boolean {
+    if (this.viewerMode !== 'secretary') {
+      return false;
+    }
 
-  if (this.viewerMode !== 'secretary') {
-    return false;
-  }
+    const d = new Date(slotIso);
 
-  const d = new Date(slotIso);
+    const ymd = this.toYmd(d);
 
-  const ymd = this.toYmd(d);
-
-  const hm = this.minutesToTime(
-    d.getHours() * 60 + d.getMinutes()
-  );
-
-  return (this.availableDayCells || []).some(a => {
-
-    if (String(a.resourceId) !== String(resourceId)) return false;
-
-    if (a.date !== ymd) return false;
-
-    const start = this.toHm(a.startTime);
-    const end = this.toHm(a.endTime);
-
-
-   const type = String(a.lessonType || '').trim();
-
-    return (
-      hm >= start &&
-      hm < end &&
-      (
-        type === 'הפסקה' ||
-        type === 'break' ||
-        type === 'BREAK'
-      )
+    const hm = this.minutesToTime(
+      d.getHours() * 60 + d.getMinutes()
     );
-  });
 
-}
+    return (this.availableDayCells || []).some(a => {
+
+      if (String(a.resourceId) !== String(resourceId)) return false;
+
+      if (a.date !== ymd) return false;
+
+      const start = this.toHm(a.startTime);
+      const end = this.toHm(a.endTime);
+
+
+      const type = String(a.lessonType || '').trim();
+
+      return (
+        hm >= start &&
+        hm < end &&
+        (
+          type === 'הפסקה' ||
+          type === 'break' ||
+          type === 'BREAK'
+        )
+      );
+    });
+
+  }
 
   onAutoAssignClick() {
     this.autoAssignRequested.emit();
   }
 
- onCustomDateRightClick(
-  event: MouseEvent,
-  iso: string,
-  resource?: ScheduleResource | null
-) {
-  event.preventDefault();
-  event.stopPropagation();
+  onCustomDateRightClick(
+    event: MouseEvent,
+    iso: string,
+    resource?: ScheduleResource | null
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
 
-  if (resource?.id && this.isBlockedRawCell(resource.id, iso)) {
-    return;
+    if (resource?.id && this.isBlockedRawCell(resource.id, iso)) {
+      return;
+    }
+
+    this.rightClickDay.emit({
+      jsEvent: event,
+      dateStr: iso,
+      resourceId: resource?.id ?? null,
+      resourceTitle: resource?.title ?? null,
+      sourceView: 'timeGridDay',
+    });
   }
+  toggleFullscreen() {
+    this.isFullscreen = !this.isFullscreen;
+    document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
 
-  this.rightClickDay.emit({
-    jsEvent: event,
-    dateStr: iso,
-    resourceId: resource?.id ?? null,
-    resourceTitle: resource?.title ?? null,
-    sourceView: 'timeGridDay',
-  });
-}
-toggleFullscreen() {
-  this.isFullscreen = !this.isFullscreen;
-  document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
-
-  setTimeout(() => {
-    this.calendarApi?.updateSize();
-    this.cdr.detectChanges();
-  }, 0);
-}
+    setTimeout(() => {
+      this.calendarApi?.updateSize();
+      this.cdr.detectChanges();
+    }, 0);
+  }
   trackById(i: number, item: any) {
-  return item.id;
-}
+    return item.id;
+  }
 
   changeView(view: ViewName) {
-  this.currentView = view;
-  
+    this.currentView = view;
 
-  if (view === 'timeGridDay') {
-    const api = this.calendarApi;
 
-    // אם באים משבוע/חודש - נבחר יום ברור
-    // אפשר לבחור את היום הנוכחי, או את היום שבו הפוקוס נמצא
-    const baseDate = api ? new Date(api.view.currentStart) : new Date();
+    if (view === 'timeGridDay') {
+      const api = this.calendarApi;
 
-    this.customDayDate = this.cloneDate(baseDate);
-    this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
+      // אם באים משבוע/חודש - נבחר יום ברור
+      // אפשר לבחור את היום הנוכחי, או את היום שבו הפוקוס נמצא
+      const baseDate = api ? new Date(api.view.currentStart) : new Date();
 
-    this.lastRangeKey = '';
-    this.emitCustomDayRange();
-    this.rebuildCustomDayView();
-    return;
+      this.customDayDate = this.cloneDate(baseDate);
+      this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
+
+      this.lastRangeKey = '';
+      this.emitCustomDayRange();
+      this.rebuildCustomDayView();
+      return;
+    }
+
+    setTimeout(() => this.applyCurrentView(), 0);
   }
-
-  setTimeout(() => this.applyCurrentView(), 0);
-}
 
   prev() {
     if (this.currentView === 'timeGridDay') {
@@ -893,47 +893,47 @@ toggleFullscreen() {
   }
 
   goToDay(date: string | Date): void {
-  const nextDate = date instanceof Date ? this.cloneDate(date) : new Date(date);
+    const nextDate = date instanceof Date ? this.cloneDate(date) : new Date(date);
 
-  if (Number.isNaN(nextDate.getTime())) {
-    console.warn('goToDay received invalid date:', date);
-    return;
-  }
-
-  if (this.currentView === 'timeGridDay') {
-    this.customDayDate = this.cloneDate(nextDate);
-    this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
-    this.emitCustomDayRange();
-    this.rebuildCustomDayView();
-    this.cdr.detectChanges();
-    return;
-  }
-
-  const api = this.calendarApi;
-  if (!api) return;
-
-  api.gotoDate(nextDate);
-
-  const mapped = this.mapView(this.currentView);
-  api.changeView(mapped, nextDate);
-
-  // this.currentDate =
-  //   this.currentView === 'timeGridDay'
-  //     ? this.formatHebrewDayTitle(nextDate)
-  //     : api.view.title;
-
-  if (
-    mapped === 'timeGridDay' ||
-    mapped === 'resourceTimeGridDay' ||
-    mapped === 'timeGridWeek'
-  ) {
-    if (this.isToday(nextDate)) {
-      api.scrollToTime(this.nowScroll());
+    if (Number.isNaN(nextDate.getTime())) {
+      console.warn('goToDay received invalid date:', date);
+      return;
     }
-  }
 
-  this.cdr.detectChanges();
-}
+    if (this.currentView === 'timeGridDay') {
+      this.customDayDate = this.cloneDate(nextDate);
+      this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
+      this.emitCustomDayRange();
+      this.rebuildCustomDayView();
+      this.cdr.detectChanges();
+      return;
+    }
+
+    const api = this.calendarApi;
+    if (!api) return;
+
+    api.gotoDate(nextDate);
+
+    const mapped = this.mapView(this.currentView);
+    api.changeView(mapped, nextDate);
+
+    // this.currentDate =
+    //   this.currentView === 'timeGridDay'
+    //     ? this.formatHebrewDayTitle(nextDate)
+    //     : api.view.title;
+
+    if (
+      mapped === 'timeGridDay' ||
+      mapped === 'resourceTimeGridDay' ||
+      mapped === 'timeGridWeek'
+    ) {
+      if (this.isToday(nextDate)) {
+        api.scrollToTime(this.nowScroll());
+      }
+    }
+
+    this.cdr.detectChanges();
+  }
 
   private applyCurrentView() {
     const api = this.calendarApi;
@@ -960,210 +960,205 @@ toggleFullscreen() {
     }
   }
 
- private applyItems() {
-  const api = this.calendarApi;
-  if (!api) return;
+  private applyItems() {
+    const api = this.calendarApi;
+    if (!api) return;
 
-  api.getEventSources().forEach(s => s.remove());
-  api.addEventSource(this.buildFullCalendarEvents());
-}
-
-  private buildFullCalendarEvents(): EventInput[] {
-  if (this.currentView === 'dayGridMonth') {
-    return this.buildMonthSummaryEvents();
+    api.getEventSources().forEach(s => s.remove());
+    api.addEventSource(this.buildFullCalendarEvents());
   }
 
-  return this.items.flatMap<EventInput>((i: any) => {
-    const isFarmOff = i.meta?.isFarmDayOff === true || i.meta?.isFarmDayOff === 'true';
+  private buildFullCalendarEvents(): EventInput[] {
+    if (this.currentView === 'dayGridMonth') {
+      return this.buildMonthSummaryEvents();
+    }
 
-    if (isFarmOff) {
+    return this.items.flatMap<EventInput>((i: any) => {
+      const isFarmOff = i.meta?.isFarmDayOff === true || i.meta?.isFarmDayOff === 'true';
+
+      if (isFarmOff) {
+        return [{
+          id: i.id,
+          title: i.title || 'חופשת חווה',
+          start: i.start,
+          end: i.end,
+          allDay: true,
+          classNames: ['farm-day-off'],
+          extendedProps: {
+            isFarmDayOff: true,
+            meta: i.meta,
+          },
+        }];
+      }
+
       return [{
         id: i.id,
-        title: i.title || 'חופשת חווה',
-        start: i.start,
-        end: i.end,
-        allDay: true,
-        classNames: ['farm-day-off'],
+        title: i.title,
+        start: this.normalizeFcDate(i.start),
+        end: this.normalizeFcDate(i.end),
+        backgroundColor: i.color,
+        borderColor: i.color,
+        resourceId: i.meta?.instructor_id || undefined,
+        classNames: this.getEventClassNames(i),
         extendedProps: {
-          isFarmDayOff: true,
+          lesson_id: i.meta?.lesson_id,
           meta: i.meta,
+          instructor_color: i.meta?.instructor_color,
+          status: i.status,
+          child_id: i.meta?.child_id,
+          child_name: i.meta?.child_name,
+          instructor_id: i.meta?.instructor_id,
+          instructor_name: i.meta?.instructor_name,
+          lesson_type: i.meta?.lesson_type,
+          children: i.meta?.children,
+          occur_date: i.meta?.occur_date,
+          isSummaryDay: i.meta?.isSummaryDay,
+          isSummarySlot: i.meta?.isSummarySlot,
+          isInstructorHeader: i.meta?.isInstructorHeader,
+          horse_name: i.meta?.horse_name,
+          arena_name: i.meta?.arena_name,
+          isFarmDayOff: i.meta?.isFarmDayOff,
+          isInstructorDayOff: i.meta?.isInstructorDayOff,
+          isPendingInstructorDayOff: i.meta?.isPendingInstructorDayOff,
         },
       }];
+    });
+  }
+
+  private buildMonthSummaryEvents(): EventInput[] {
+    const byDate = new Map<string, {
+      approved: number;
+      canceled: number;
+      pending: number;
+      farmOff: number;
+      instructorOff: number;
+    }>();
+
+    const ensure = (date: string) => {
+      if (!byDate.has(date)) {
+        byDate.set(date, {
+          approved: 0,
+          canceled: 0,
+          pending: 0,
+          farmOff: 0,
+          instructorOff: 0,
+        });
+      }
+      return byDate.get(date)!;
+    };
+
+    for (const item of this.items || []) {
+      const start = (item as any).start;
+      if (!start) continue;
+
+      const date = this.toYmd(new Date(start));
+      const meta = this.getItemMeta(item);
+      const bucket = ensure(date);
+
+      if (meta?.isFarmDayOff === true || meta?.isFarmDayOff === 'true') {
+        bucket.farmOff++;
+        continue;
+      }
+
+      if (meta?.isInstructorDayOff === true || meta?.isInstructorDayOff === 'true') {
+        bucket.instructorOff++;
+        continue;
+      }
+
+
+      if (this.isCanceledItem(item)) {
+        bucket.canceled++;
+        continue;
+      }
+
+      if (this.isPendingItem(item)) {
+        bucket.pending++;
+        continue;
+      }
+
+      bucket.approved++;
     }
 
-    return [{
-      id: i.id,
-      title: i.title,
-      start: this.normalizeFcDate(i.start),
-      end: this.normalizeFcDate(i.end),
-      backgroundColor: i.color,
-      borderColor: i.color,
-      resourceId: i.meta?.instructor_id || undefined,
-      classNames: this.getEventClassNames(i),
+    const events: EventInput[] = [];
+
+    for (const [date, c] of byDate.entries()) {
+      if (c.approved > 0) {
+        events.push(this.monthBadgeEvent(date, c.approved, 'status-approved', 'שיעורים פעילים'));
+      }
+
+      if (c.canceled > 0) {
+        events.push(this.monthBadgeEvent(date, c.canceled, 'status-canceled', 'שיעורים מבוטלים'));
+      }
+
+      if (c.pending > 0) {
+        events.push(this.monthBadgeEvent(date, c.pending, 'status-pending', 'בקשות / ממתינים'));
+      }
+
+      if (c.farmOff > 0) {
+        events.push(this.monthBadgeEvent(date, 'ח', 'farm-day-off', 'חופשת חווה'));
+      }
+
+      if (c.instructorOff > 0) {
+        events.push(this.monthBadgeEvent(date, 'מ', 'instructor-day-off', 'חופשת מדריך'));
+      }
+    }
+
+    return events;
+  }
+
+  private monthBadgeEvent(
+    date: string,
+    title: string | number,
+    className: string,
+    tooltip: string
+  ): EventInput {
+    return {
+      id: `month-${className}-${date}`,
+      title: String(title),
+      start: date,
+      allDay: true,
+      classNames: ['month-count-event', className],
       extendedProps: {
-        lesson_id: i.meta?.lesson_id,
-        meta: i.meta,
-        instructor_color: i.meta?.instructor_color,
-        status: i.status,
-        child_id: i.meta?.child_id,
-        child_name: i.meta?.child_name,
-        instructor_id: i.meta?.instructor_id,
-        instructor_name: i.meta?.instructor_name,
-        lesson_type: i.meta?.lesson_type,
-        children: i.meta?.children,
-        occur_date: i.meta?.occur_date,
-        isSummaryDay: i.meta?.isSummaryDay,
-        isSummarySlot: i.meta?.isSummarySlot,
-        isInstructorHeader: i.meta?.isInstructorHeader,
-        horse_name: i.meta?.horse_name,
-        arena_name: i.meta?.arena_name,
-        isFarmDayOff: i.meta?.isFarmDayOff,
-        isInstructorDayOff: i.meta?.isInstructorDayOff,
-        isPendingInstructorDayOff: i.meta?.isPendingInstructorDayOff,
+        tooltip,
+        isMonthSummary: true,
       },
-    }];
-  });
-}
+    };
+  }
+  getAttendanceStatus(item: ScheduleItem): string {
+    return String(this.getItemMeta(item)?.attendance_status || '').trim();
+  }
 
-private buildMonthSummaryEvents(): EventInput[] {
-  const byDate = new Map<string, {
-    approved: number;
-    canceled: number;
-    pending: number;
-    farmOff: number;
-    instructorOff: number;
-  }>();
+  isPresentItem(item: ScheduleItem): boolean {
+    const s = this.getAttendanceStatus(item);
+    return s === 'present' || s === 'הגיע';
+  }
 
-  const ensure = (date: string) => {
-    if (!byDate.has(date)) {
-      byDate.set(date, {
-        approved: 0,
-        canceled: 0,
-        pending: 0,
-        farmOff: 0,
-        instructorOff: 0,
-      });
-    }
-    return byDate.get(date)!;
-  };
+  isAbsentItem(item: ScheduleItem): boolean {
+    const s = this.getAttendanceStatus(item);
+    return s === 'absent' || s === 'לא הגיע';
+  }
 
-  for (const item of this.items || []) {
-    const start = (item as any).start;
-    if (!start) continue;
-
-    const date = this.toYmd(new Date(start));
+  private getEventClassNames(item: ScheduleItem): string[] {
     const meta = this.getItemMeta(item);
-    const bucket = ensure(date);
 
     if (meta?.isFarmDayOff === true || meta?.isFarmDayOff === 'true') {
-      bucket.farmOff++;
-      continue;
+      return ['farm-day-off'];
     }
 
     if (meta?.isInstructorDayOff === true || meta?.isInstructorDayOff === 'true') {
-      bucket.instructorOff++;
-      continue;
+      return ['instructor-day-off'];
     }
-    console.log('MONTH ITEM STATUS:', {
-  title: (item as any).title,
-  status: (item as any).status,
-  metaStatus: this.getItemMeta(item)?.status,
-  meta: this.getItemMeta(item),
-});
 
     if (this.isCanceledItem(item)) {
-      bucket.canceled++;
-      continue;
+      return ['status-canceled'];
     }
 
     if (this.isPendingItem(item)) {
-      bucket.pending++;
-      continue;
+      return ['status-pending'];
     }
 
-    bucket.approved++;
+    return ['status-approved'];
   }
-
-  const events: EventInput[] = [];
-
-  for (const [date, c] of byDate.entries()) {
-    if (c.approved > 0) {
-      events.push(this.monthBadgeEvent(date, c.approved, 'status-approved', 'שיעורים פעילים'));
-    }
-
-    if (c.canceled > 0) {
-      events.push(this.monthBadgeEvent(date, c.canceled, 'status-canceled', 'שיעורים מבוטלים'));
-    }
-
-    if (c.pending > 0) {
-      events.push(this.monthBadgeEvent(date, c.pending, 'status-pending', 'בקשות / ממתינים'));
-    }
-
-    if (c.farmOff > 0) {
-      events.push(this.monthBadgeEvent(date, 'ח', 'farm-day-off', 'חופשת חווה'));
-    }
-
-    if (c.instructorOff > 0) {
-      events.push(this.monthBadgeEvent(date, 'מ', 'instructor-day-off', 'חופשת מדריך'));
-    }
-  }
-
-  return events;
-}
-
-private monthBadgeEvent(
-  date: string,
-  title: string | number,
-  className: string,
-  tooltip: string
-): EventInput {
-  return {
-    id: `month-${className}-${date}`,
-    title: String(title),
-    start: date,
-    allDay: true,
-    classNames: ['month-count-event', className],
-    extendedProps: {
-      tooltip,
-      isMonthSummary: true,
-    },
-  };
-}
-getAttendanceStatus(item: ScheduleItem): string {
-  return String(this.getItemMeta(item)?.attendance_status || '').trim();
-}
-
-isPresentItem(item: ScheduleItem): boolean {
-  const s = this.getAttendanceStatus(item);
-  return s === 'present' || s === 'הגיע';
-}
-
-isAbsentItem(item: ScheduleItem): boolean {
-  const s = this.getAttendanceStatus(item);
-  return s === 'absent' || s === 'לא הגיע';
-}
-
-private getEventClassNames(item: ScheduleItem): string[] {
-  const meta = this.getItemMeta(item);
-
-  if (meta?.isFarmDayOff === true || meta?.isFarmDayOff === 'true') {
-    return ['farm-day-off'];
-  }
-
-  if (meta?.isInstructorDayOff === true || meta?.isInstructorDayOff === 'true') {
-    return ['instructor-day-off'];
-  }
-
-  if (this.isCanceledItem(item)) {
-    return ['status-canceled'];
-  }
-
-  if (this.isPendingItem(item)) {
-    return ['status-pending'];
-  }
-
-  return ['status-approved'];
-}
 
   private extractDateFromRightClick(
     target: HTMLElement,
@@ -1216,22 +1211,22 @@ private getEventClassNames(item: ScheduleItem): string[] {
     dayHeaderContent: this.dayHeaderContentFactory(),
 
     dateClick: (info: DateClickArg) => {
-  // נשמור גם emit החוצה אם צריך
-  this.dateClick.emit(info);
+      // נשמור גם emit החוצה אם צריך
+      this.dateClick.emit(info);
 
-  // אם לוחצים בשבוע/חודש – קופצים ליום
-  if (this.currentView === 'timeGridWeek' || this.currentView === 'dayGridMonth') {
-    this.changeView('timeGridDay');
+      // אם לוחצים בשבוע/חודש – קופצים ליום
+      if (this.currentView === 'timeGridWeek' || this.currentView === 'dayGridMonth') {
+        this.changeView('timeGridDay');
 
-    setTimeout(() => {
-      this.goToDay(info.date);
-    }, 0);
-  }
-},
+        setTimeout(() => {
+          this.goToDay(info.date);
+        }, 0);
+      }
+    },
     eventClick: (arg: EventClickArg) => this.eventClick.emit(arg),
 
     eventContent: (arg) => {
-      
+
       const { event } = arg;
       const meta = event.extendedProps['meta'] || {};
 
@@ -1319,31 +1314,31 @@ private getEventClassNames(item: ScheduleItem): string[] {
       const isCanceled = ['בוטל', 'מבוטל', 'CANCELED', 'CANCELLED'].includes(rawStatus);
 
       const childName =
-  event.extendedProps['child_name'] ||
-  event.extendedProps['children'] ||
-  event.title ||
-  '';
+        event.extendedProps['child_name'] ||
+        event.extendedProps['children'] ||
+        event.title ||
+        '';
 
-const instructorName = event.extendedProps['instructor_name'] || '';
-const horse = event.extendedProps['horse_name'] || '';
-const arena = event.extendedProps['arena_name'] || '';
-const childAge = event.extendedProps['child_age'] || event.extendedProps['age'] || '';
+      const instructorName = event.extendedProps['instructor_name'] || '';
+      const horse = event.extendedProps['horse_name'] || '';
+      const arena = event.extendedProps['arena_name'] || '';
+      const childAge = event.extendedProps['child_age'] || event.extendedProps['age'] || '';
 
-let mainText = childName;
-let secondaryText = '';
+      let mainText = childName;
+      let secondaryText = '';
 
-if (this.viewerMode === 'parent') {
-  mainText = [childName, instructorName].filter(Boolean).join(' • ');
-}
+      if (this.viewerMode === 'parent') {
+        mainText = [childName, instructorName].filter(Boolean).join(' • ');
+      }
 
-if (this.viewerMode === 'instructor') {
-  mainText = childAge ? `${childName} (${childAge})` : childName;
-  secondaryText = [horse, arena].filter(Boolean).join(' • ');
-}
+      if (this.viewerMode === 'instructor') {
+        mainText = childAge ? `${childName} (${childAge})` : childName;
+        secondaryText = [horse, arena].filter(Boolean).join(' • ');
+      }
 
-if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
-  secondaryText = [horse, arena].filter(Boolean).join(' • ');
-}
+      if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
+        secondaryText = [horse, arena].filter(Boolean).join(' • ');
+      }
 
       const lessonType = event.extendedProps['lesson_type'] || '';
       const lessonTypeShort = this.getLessonTypeShort(lessonType);
@@ -1368,8 +1363,8 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
           .filter(Boolean)
           .join(' • ');
 
-       return {
-  html: `
+        return {
+          html: `
     <div class="event-box lesson-card">
       <div class="main-line">
         <span class="child-main-name" title="${this.escapeHtml(mainText)}">
@@ -1382,11 +1377,11 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
       </div>
 
       ${!isWeekView && secondaryText
-        ? `<div class="secondary-line">${this.escapeHtml(secondaryText)}</div>`
-        : ''}
+              ? `<div class="secondary-line">${this.escapeHtml(secondaryText)}</div>`
+              : ''}
     </div>
   `,
-};
+        };
       }
 
       const secondaryLine =
@@ -1498,70 +1493,70 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
       });
 
       info.el.addEventListener('contextmenu', (ev: MouseEvent) => {
-  ev.preventDefault();
-  ev.stopPropagation();
+        ev.preventDefault();
+        ev.stopPropagation();
 
-  const meta = info.event.extendedProps?.meta || info.event.extendedProps || {};
+        const meta = info.event.extendedProps?.meta || info.event.extendedProps || {};
 
-  this.rightClickEvent.emit({
-  jsEvent: ev,
-  dateStr: info.event.start ? info.event.start.toISOString() : '',
-  endStr: info.event.end ? info.event.end.toISOString() : null,
-  resourceId: String(meta?.instructor_id || info.event.getResources?.()?.[0]?.id || ''),
-  resourceTitle: String(meta?.instructor_name || ''),
-  sourceView: this.currentView,
-  eventId: String(info.event.id || ''),
-  lessonId: String(meta?.lesson_id || ''),
-  childId: String(meta?.child_id || ''),
-  childName: String(meta?.child_name || ''),
-  lessonType: String(meta?.lesson_type || ''),
-  status: String(meta?.status || ''),
-  seriesId: meta?.series_id ? String(meta.series_id) : null,
-  appointmentKind: meta?.appointment_kind ? String(meta.appointment_kind) : null,
-  repeatWeeks: meta?.repeat_weeks != null ? Number(meta.repeat_weeks) : null,
-  isOpenEnded: meta?.is_open_ended != null ? !!meta.is_open_ended : null,
-  seriesEndDate: meta?.series_end_date ? String(meta.series_end_date) : null,
-  occurDate: meta?.occur_date ? String(meta.occur_date) : null,
-  startTime: meta?.start_time ? String(meta.start_time) : null,
-  endTimeOnly: meta?.end_time ? String(meta.end_time) : null,
-});
-});
+        this.rightClickEvent.emit({
+          jsEvent: ev,
+          dateStr: info.event.start ? info.event.start.toISOString() : '',
+          endStr: info.event.end ? info.event.end.toISOString() : null,
+          resourceId: String(meta?.instructor_id || info.event.getResources?.()?.[0]?.id || ''),
+          resourceTitle: String(meta?.instructor_name || ''),
+          sourceView: this.currentView,
+          eventId: String(info.event.id || ''),
+          lessonId: String(meta?.lesson_id || ''),
+          childId: String(meta?.child_id || ''),
+          childName: String(meta?.child_name || ''),
+          lessonType: String(meta?.lesson_type || ''),
+          status: String(meta?.status || ''),
+          seriesId: meta?.series_id ? String(meta.series_id) : null,
+          appointmentKind: meta?.appointment_kind ? String(meta.appointment_kind) : null,
+          repeatWeeks: meta?.repeat_weeks != null ? Number(meta.repeat_weeks) : null,
+          isOpenEnded: meta?.is_open_ended != null ? !!meta.is_open_ended : null,
+          seriesEndDate: meta?.series_end_date ? String(meta.series_end_date) : null,
+          occurDate: meta?.occur_date ? String(meta.occur_date) : null,
+          startTime: meta?.start_time ? String(meta.start_time) : null,
+          endTimeOnly: meta?.end_time ? String(meta.end_time) : null,
+        });
+      });
     },
-    
+
 
     datesSet: (info: DatesSetArg) => {
-  setTimeout(() => {
-    const toLocalYMD = (d: Date) =>
-      `${d.getFullYear()}-${this.pad(d.getMonth() + 1)}-${this.pad(d.getDate())}`;
+      setTimeout(() => {
+        const toLocalYMD = (d: Date) =>
+          `${d.getFullYear()}-${this.pad(d.getMonth() + 1)}-${this.pad(d.getDate())}`;
 
-    const start = info.start;
-    const endExclusive = info.end;
-    const endInclusive = new Date(endExclusive);
+        const start = info.start;
+        const endExclusive = info.end;
+        const endInclusive = new Date(endExclusive);
 
-    const isSingleDay =
-      info.view.type === 'timeGridDay' ||
-      info.view.type === 'resourceTimeGridDay';
+        const isSingleDay =
+          info.view.type === 'timeGridDay' ||
+          info.view.type === 'resourceTimeGridDay';
 
-    if (!isSingleDay) {
-      endInclusive.setDate(endInclusive.getDate() - 1);
-    }
+        if (!isSingleDay) {
+          endInclusive.setDate(endInclusive.getDate() - 1);
+        }
 
-    const startYmd = toLocalYMD(start);
-    const endYmd = toLocalYMD(endInclusive);
-    const nextKey = `${info.view.type}|${startYmd}|${endYmd}`;
+        const startYmd = toLocalYMD(start);
+        const endYmd = toLocalYMD(endInclusive);
+        const nextKey = `${info.view.type}|${startYmd}|${endYmd}`;
 
-    if (this.lastRangeKey !== nextKey) {
-      this.lastRangeKey = nextKey;
-      this.viewRange.emit({
-        start: startYmd,
-        end: endYmd,
-        viewType: info.view.type,
-      });
-    }
+        if (this.lastRangeKey !== nextKey) {
+          this.lastRangeKey = nextKey;
+          this.viewRange.emit({
+            start: startYmd,
+            end: endYmd,
+            viewType: info.view.type,
+          });
+        }
 
-    this.currentDate = info.view.title;
-  }, 0);
-},
+        this.currentDate = info.view.title;
+      }, 0);
+    },
 
   };
 
@@ -1587,39 +1582,39 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
     }
   }
 
- ngOnChanges(changes: SimpleChanges) {
-  if (changes['items']) {
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['items']) {
+      if (this.currentView === 'timeGridDay') {
+        this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
+        this.rebuildCustomDayView();
+      } else {
+        setTimeout(() => this.applyItems(), 0);
+      }
+    }
+
+    if (changes['resources'] && this.currentView !== 'timeGridDay') {
+      setTimeout(() => {
+        const api = this.calendarApi;
+        if (!api) return;
+        api.setOption('resources', this.resources || []);
+      }, 0);
+    }
     if (this.currentView === 'timeGridDay') {
-      this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
-      this.rebuildCustomDayView();
-    } else {
-      setTimeout(() => this.applyItems(), 0);
+      if (
+        changes['items'] ||
+        changes['resources'] ||
+        changes['slotMinTime'] ||
+        changes['slotMaxTime'] ||
+        changes['initialView'] ||
+        changes['blockedDayCells'] ||
+        changes['availableDayCells']
+      ) {
+        this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
+        this.rebuildCustomDayView();
+      }
+      return;
     }
   }
-
-  if (changes['resources'] && this.currentView !== 'timeGridDay') {
-    setTimeout(() => {
-      const api = this.calendarApi;
-      if (!api) return;
-      api.setOption('resources', this.resources || []);
-    }, 0);
-  }
-  if (this.currentView === 'timeGridDay') {
- if (
-  changes['items'] ||
-  changes['resources'] ||
-  changes['slotMinTime'] ||
-  changes['slotMaxTime'] ||
-  changes['initialView'] ||
-  changes['blockedDayCells'] ||
-  changes['availableDayCells']
-) {
-  this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
-  this.rebuildCustomDayView();
-}
-  return;
-}
-}
 
   private bindContextMenu(): void {
     if (!this.calendarHost?.nativeElement) return;
@@ -1657,71 +1652,71 @@ if (this.viewerMode === 'manager' || this.viewerMode === 'secretary') {
     );
   }
 
- onCustomItemRightClick(item: ScheduleItem, ev: MouseEvent): void {
-  ev.preventDefault();
-  ev.stopPropagation();
+  onCustomItemRightClick(item: ScheduleItem, ev: MouseEvent): void {
+    ev.preventDefault();
+    ev.stopPropagation();
 
-  const meta = this.getItemMeta(item) || {};
-  const startIso = String((item as any).start || '');
-  const endIso = String((item as any).end || '');
+    const meta = this.getItemMeta(item) || {};
+    const startIso = String((item as any).start || '');
+    const endIso = String((item as any).end || '');
 
-  this.rightClickEvent.emit({
-    jsEvent: ev,
-    dateStr: startIso,
-    endStr: endIso || null,
-    resourceId: this.getItemInstructorId(item) || null,
-    resourceTitle: this.getItemInstructorName(item) || null,
-    sourceView: 'timeGridDay',
-    eventId: String((item as any).id || ''),
-    lessonId: String(meta.lesson_id || ''),
-    childId: String(meta.child_id || ''),
-    childName: String(meta.child_name || ''),
-    lessonType: String(meta.lesson_type || ''),
-    status: String((item as any).status || meta.status || ''),
-    seriesId: meta?.series_id ? String(meta.series_id) : null,
-    appointmentKind: meta?.appointment_kind ? String(meta.appointment_kind) : null,
-    repeatWeeks: meta?.repeat_weeks != null ? Number(meta.repeat_weeks) : null,
-    isOpenEnded: meta?.is_open_ended != null ? !!meta.is_open_ended : null,
-    seriesEndDate: meta?.series_end_date ? String(meta.series_end_date) : null,
-    occurDate: meta?.occur_date ? String(meta.occur_date) : null,
-    startTime: meta?.start_time ? String(meta.start_time) : String(startIso).slice(11, 16),
-    endTimeOnly: meta?.end_time ? String(meta.end_time) : (endIso ? String(endIso).slice(11, 16) : null),
-  });
-}
-
-isAvailableRawCell(resourceId: string, slotIso: string): boolean {
-  return !!this.getAvailableRawCellColor(resourceId, slotIso);
-}
-
-getAvailableRawCellColor(resourceId: string, slotIso: string): string {
-  const d = new Date(slotIso);
-  const ymd = this.toYmd(d);
-  const hm = this.minutesToTime(d.getHours() * 60 + d.getMinutes());
-
-  const match = (this.availableDayCells || []).find(a => {
-    if (String(a.resourceId) !== String(resourceId)) return false;
-    if (a.date !== ymd) return false;
-
-    const start = this.toHm(a.startTime);
-    const end = this.toHm(a.endTime);
-
-    return hm >= start && hm < end;
-  });
-
-  return match?.color || '';
-}
-
-hexToRgba(hex: string, alpha: number): string {
-  const clean = String(hex || '').replace('#', '').trim();
-
-  if (!/^[0-9a-fA-F]{6}$/.test(clean)) {
-    return `rgba(116, 140, 64, ${alpha})`;
+    this.rightClickEvent.emit({
+      jsEvent: ev,
+      dateStr: startIso,
+      endStr: endIso || null,
+      resourceId: this.getItemInstructorId(item) || null,
+      resourceTitle: this.getItemInstructorName(item) || null,
+      sourceView: 'timeGridDay',
+      eventId: String((item as any).id || ''),
+      lessonId: String(meta.lesson_id || ''),
+      childId: String(meta.child_id || ''),
+      childName: String(meta.child_name || ''),
+      lessonType: String(meta.lesson_type || ''),
+      status: String((item as any).status || meta.status || ''),
+      seriesId: meta?.series_id ? String(meta.series_id) : null,
+      appointmentKind: meta?.appointment_kind ? String(meta.appointment_kind) : null,
+      repeatWeeks: meta?.repeat_weeks != null ? Number(meta.repeat_weeks) : null,
+      isOpenEnded: meta?.is_open_ended != null ? !!meta.is_open_ended : null,
+      seriesEndDate: meta?.series_end_date ? String(meta.series_end_date) : null,
+      occurDate: meta?.occur_date ? String(meta.occur_date) : null,
+      startTime: meta?.start_time ? String(meta.start_time) : String(startIso).slice(11, 16),
+      endTimeOnly: meta?.end_time ? String(meta.end_time) : (endIso ? String(endIso).slice(11, 16) : null),
+    });
   }
 
-  const r = parseInt(clean.slice(0, 2), 16);
-  const g = parseInt(clean.slice(2, 4), 16);
-  const b = parseInt(clean.slice(4, 6), 16);
+  isAvailableRawCell(resourceId: string, slotIso: string): boolean {
+    return !!this.getAvailableRawCellColor(resourceId, slotIso);
+  }
 
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
+  getAvailableRawCellColor(resourceId: string, slotIso: string): string {
+    const d = new Date(slotIso);
+    const ymd = this.toYmd(d);
+    const hm = this.minutesToTime(d.getHours() * 60 + d.getMinutes());
+
+    const match = (this.availableDayCells || []).find(a => {
+      if (String(a.resourceId) !== String(resourceId)) return false;
+      if (a.date !== ymd) return false;
+
+      const start = this.toHm(a.startTime);
+      const end = this.toHm(a.endTime);
+
+      return hm >= start && hm < end;
+    });
+
+    return match?.color || '';
+  }
+
+  hexToRgba(hex: string, alpha: number): string {
+    const clean = String(hex || '').replace('#', '').trim();
+
+    if (!/^[0-9a-fA-F]{6}$/.test(clean)) {
+      return `rgba(116, 140, 64, ${alpha})`;
+    }
+
+    const r = parseInt(clean.slice(0, 2), 16);
+    const g = parseInt(clean.slice(2, 4), 16);
+    const b = parseInt(clean.slice(4, 6), 16);
+
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
 }

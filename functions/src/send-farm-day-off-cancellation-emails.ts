@@ -130,10 +130,10 @@ export const sendFarmDayOffCancellationEmails = onRequest(
       if (req.method !== 'POST') {
         return void res.status(405).json({ error: 'Method not allowed' });
       }
-const internalSecret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
-if (!internalSecret) {
-  throw new Error('Missing INTERNAL_CALL_SECRET');
-}
+      const internalSecret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
+      if (!internalSecret) {
+        throw new Error('Missing INTERNAL_CALL_SECRET');
+      }
       let decoded: any = null;
       if (!isInternalCall(req)) {
         decoded = await requireAuth(req);
@@ -175,17 +175,17 @@ if (!internalSecret) {
         if (!grouped.has(email)) grouped.set(email, []);
         grouped.get(email)!.push(row);
       }
-const groupedInstructors = new Map<string, ImpactedLesson[]>();
+      const groupedInstructors = new Map<string, ImpactedLesson[]>();
 
-for (const row of impactedLessons) {
-  const uid = normStr(row.instructor_uid, 200);
-  if (!uid) continue;
+      for (const row of impactedLessons) {
+        const uid = normStr(row.instructor_uid, 200);
+        if (!uid) continue;
 
-  if (!groupedInstructors.has(uid)) groupedInstructors.set(uid, []);
-  groupedInstructors.get(uid)!.push(row);
-}
-let parentSentCount = 0;
-let instructorSentCount = 0;
+        if (!groupedInstructors.has(uid)) groupedInstructors.set(uid, []);
+        groupedInstructors.get(uid)!.push(row);
+      }
+      let parentSentCount = 0;
+      let instructorSentCount = 0;
       let sentCount = 0;
       let failedCount = 0;
       let skippedCount = 0;
@@ -259,7 +259,7 @@ let instructorSentCount = 0;
             html,
             fromName: 'Smart-Farm',
           });
-parentSentCount++;
+          parentSentCount++;
         } catch (e: any) {
           failedCount++;
           failures.push({
@@ -269,43 +269,43 @@ parentSentCount++;
           console.error('sendFarmDayOffCancellationEmails failed', email, e);
         }
       }
-for (const [uid, rows] of groupedInstructors.entries()) {
-  if (!rows.length) {
-    skippedCount++;
-    continue;
-  }
+      for (const [uid, rows] of groupedInstructors.entries()) {
+        if (!rows.length) {
+          skippedCount++;
+          continue;
+        }
 
-  const instructorName = normStr(rows[0]?.instructor_name || 'מדריך/ה יקר/ה', 120);
-  const safeInstructorName = escapeHtml(instructorName);
+        const instructorName = normStr(rows[0]?.instructor_name || 'מדריך/ה יקר/ה', 120);
+        const safeInstructorName = escapeHtml(instructorName);
 
-  const htmlItems = rows
-    .map((row) => {
-      const childName = escapeHtml(normStr(row.child_name || 'ללא שם', 150));
-      const occurDate = escapeHtml(normStr(row.occur_date || '', 50));
-      const start = escapeHtml(toHourMinute(row.start_time));
-      const end = escapeHtml(toHourMinute(row.end_time));
-      const lessonType = escapeHtml(normStr(row.lesson_type || '', 100));
-      const lessonTypeText = lessonType ? ` – ${lessonType}` : '';
+        const htmlItems = rows
+          .map((row) => {
+            const childName = escapeHtml(normStr(row.child_name || 'ללא שם', 150));
+            const occurDate = escapeHtml(normStr(row.occur_date || '', 50));
+            const start = escapeHtml(toHourMinute(row.start_time));
+            const end = escapeHtml(toHourMinute(row.end_time));
+            const lessonType = escapeHtml(normStr(row.lesson_type || '', 100));
+            const lessonTypeText = lessonType ? ` – ${lessonType}` : '';
 
-      return `<li><strong>${childName}</strong> – ${occurDate} – ${start}-${end}${lessonTypeText}</li>`;
-    })
-    .join('');
+            return `<li><strong>${childName}</strong> – ${occurDate} – ${start}-${end}${lessonTypeText}</li>`;
+          })
+          .join('');
 
-  const textItems = rows
-    .map((row) => {
-      const childName = normStr(row.child_name || 'ללא שם', 150);
-      const occurDate = normStr(row.occur_date || '', 50);
-      const start = toHourMinute(row.start_time);
-      const end = toHourMinute(row.end_time);
-      const lessonType = normStr(row.lesson_type || '', 100);
+        const textItems = rows
+          .map((row) => {
+            const childName = normStr(row.child_name || 'ללא שם', 150);
+            const occurDate = normStr(row.occur_date || '', 50);
+            const start = toHourMinute(row.start_time);
+            const end = toHourMinute(row.end_time);
+            const lessonType = normStr(row.lesson_type || '', 100);
 
-      return `- ${childName} | ${occurDate} | ${start}-${end}${lessonType ? ` | ${lessonType}` : ''}`;
-    })
-    .join('\n');
+            return `- ${childName} | ${occurDate} | ${start}-${end}${lessonType ? ` | ${lessonType}` : ''}`;
+          })
+          .join('\n');
 
-  const subject = 'עדכון מהחווה: שיעורים בוטלו עקב יום מיוחד';
+        const subject = 'עדכון מהחווה: שיעורים בוטלו עקב יום מיוחד';
 
-  const html = `
+        const html = `
     <div dir="rtl" style="font-family: Arial, sans-serif; line-height: 1.7; color: #1f2937;">
       <p>שלום ${safeInstructorName},</p>
       <p>עקב <strong>${escapeHtml(reason)}</strong>, השיעורים הבאים שלך בוטלו:</p>
@@ -317,73 +317,72 @@ for (const [uid, rows] of groupedInstructors.entries()) {
     </div>
   `;
 
-  const text = [
-    `שלום ${instructorName},`,
-    '',
-    `עקב ${reason}, השיעורים הבאים שלך בוטלו:`,
-    textItems,
-    '',
-    'לשאלות נוספות ניתן לפנות למזכירות.',
-    '',
-    'בברכה,',
-    'צוות החווה',
-  ].join('\n');
+        const text = [
+          `שלום ${instructorName},`,
+          '',
+          `עקב ${reason}, השיעורים הבאים שלך בוטלו:`,
+          textItems,
+          '',
+          'לשאלות נוספות ניתן לפנות למזכירות.',
+          '',
+          'בברכה,',
+          'צוות החווה',
+        ].join('\n');
 
-  try {
-    const r = await fetch(NOTIFY_USER_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Internal-Secret': internalSecret,
-      },
-      body: JSON.stringify({
-        tenantSchema,
-        userType: 'instructor',
-        uid,
-        category: 'cancelLesson',
-forceEmail: true,
-        subject,
-        html,
-        text,
-      }),
-    });
+        try {
+          const r = await fetch(NOTIFY_USER_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Internal-Secret': internalSecret,
+            },
+            body: JSON.stringify({
+              tenantSchema,
+              userType: 'instructor',
+              uid,
+              category: 'cancelLesson',
+              forceEmail: true,
+              subject,
+              html,
+              text,
+            }),
+          });
 
-    const json: any = await r.json().catch(() => ({}));
+          const json: any = await r.json().catch(() => ({}));
 
-    if (!r.ok) {
-      failedCount++;
-      failures.push({
-        email: `instructor:${uid}`,
-        error: json?.message || json?.error || r.statusText,
+          if (!r.ok) {
+            failedCount++;
+            failures.push({
+              email: `instructor:${uid}`,
+              error: json?.message || json?.error || r.statusText,
+            });
+            console.error('notify instructor failed', uid, json);
+            continue;
+          }
+
+          if (json?.sent === true) {
+            instructorSentCount++;
+          } else {
+            skippedCount++;
+          }
+        } catch (e: any) {
+          failedCount++;
+          failures.push({
+            email: `instructor:${uid}`,
+            error: e?.message || String(e),
+          });
+          console.error('notify instructor exception', uid, e);
+        }
+      }
+      return void res.status(200).json({
+        ok: true,
+        parentSentCount,
+        instructorSentCount,
+        failedCount,
+        skippedCount,
+        failures,
+        sentBy: decoded.uid,
       });
-      console.error('notify instructor failed', uid, json);
-      continue;
-    }
-
-    if (json?.sent === true) {
-      instructorSentCount++;
-    } else {
-      skippedCount++;
-      console.log('notify instructor skipped', uid, json?.reason);
-    }
-  } catch (e: any) {
-    failedCount++;
-    failures.push({
-      email: `instructor:${uid}`,
-      error: e?.message || String(e),
-    });
-    console.error('notify instructor exception', uid, e);
-  }
-}
-    return void res.status(200).json({
-  ok: true,
-  parentSentCount,
-  instructorSentCount,
-  failedCount,
-  skippedCount,
-  failures,
-  sentBy: decoded.uid,
-});
     } catch (e: any) {
       console.error('sendFarmDayOffCancellationEmails error', e);
       return void res.status(500).json({
