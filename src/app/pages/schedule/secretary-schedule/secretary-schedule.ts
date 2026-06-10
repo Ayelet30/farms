@@ -1988,38 +1988,37 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     if (!this.isRestoringScheduleState) {
       this.savePageState();
 
-      selectedInstructorIds: this.selectedInstructorIds
-    });
+
+    }
+
+    this.cdr.detectChanges();
   }
 
-  this.cdr.detectChanges();
-}
 
-
-private async loadLessons(
-    range ?: { start: string; end: string }
-  ): Promise < void> {
+  private async loadLessons(
+    range?: { start: string; end: string }
+  ): Promise<void> {
     try {
       const childIds = this.children.map(c => c.child_uuid).filter(Boolean);
-      if(!childIds.length) {
-  this.lessons = [];
-  return;
-}
+      if (!childIds.length) {
+        this.lessons = [];
+        return;
+      }
 
-const dbc = dbTenant();
+      const dbc = dbTenant();
 
-const today = new Date().toISOString().slice(0, 10);
-const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000)
-  .toISOString()
-  .slice(0, 10);
+      const today = new Date().toISOString().slice(0, 10);
+      const in8Weeks = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000)
+        .toISOString()
+        .slice(0, 10);
 
-const from = range?.start ?? today;
-const to = range?.end ?? in8Weeks;
+      const from = range?.start ?? today;
+      const to = range?.end ?? in8Weeks;
 
-// 1) השיעורים עצמם (כמו שהיה)
-const { data: occData, error: err1 } = await dbc
-  .from('lessons_occurrences')
-  .select(`
+      // 1) השיעורים עצמם (כמו שהיה)
+      const { data: occData, error: err1 } = await dbc
+        .from('lessons_occurrences')
+        .select(`
   lesson_id,
   child_id,
   day_of_week,
@@ -2038,112 +2037,112 @@ const { data: occData, error: err1 } = await dbc
   series_end_date
 `)
 
-  .in('child_id', childIds)
-  .gte('occur_date', from)
-  .lte('occur_date', to)
-  .order('start_datetime', { ascending: true });
+        .in('child_id', childIds)
+        .gte('occur_date', from)
+        .lte('occur_date', to)
+        .order('start_datetime', { ascending: true });
 
-if (err1) throw err1;
+      if (err1) throw err1;
 
-const lessonIds = [...new Set((occData ?? []).map((r: any) => r.lesson_id).filter(Boolean))];
+      const lessonIds = [...new Set((occData ?? []).map((r: any) => r.lesson_id).filter(Boolean))];
 
-const { data: attendanceData, error: attendanceError } = await dbc
-  .from('lesson_attendance')
-  .select('lesson_id, child_id, occur_date, attendance_status')
-  .in('lesson_id', lessonIds);
+      const { data: attendanceData, error: attendanceError } = await dbc
+        .from('lesson_attendance')
+        .select('lesson_id, child_id, occur_date, attendance_status')
+        .in('lesson_id', lessonIds);
 
-if (attendanceError) throw attendanceError;
+      if (attendanceError) throw attendanceError;
 
-const attendanceByKey = new Map<string, string>();
+      const attendanceByKey = new Map<string, string>();
 
-for (const a of attendanceData ?? []) {
-  const key = `${a.lesson_id}::${a.child_id}::${a.occur_date}`;
-  attendanceByKey.set(key, String(a.attendance_status || ''));
-}
+      for (const a of attendanceData ?? []) {
+        const key = `${a.lesson_id}::${a.child_id}::${a.occur_date}`;
+        attendanceByKey.set(key, String(a.attendance_status || ''));
+      }
 
-// 2) משאבי סוס+מגרש לפי אותו טווח
-const { data: resData, error: err2 } = await dbc
-  .from('lessons_with_children')
-  .select('lesson_id, occur_date, horse_name, arena_name')
-  .in('child_id', childIds)
-  .gte('occur_date', from)
-  .lte('occur_date', to);
+      // 2) משאבי סוס+מגרש לפי אותו טווח
+      const { data: resData, error: err2 } = await dbc
+        .from('lessons_with_children')
+        .select('lesson_id, occur_date, horse_name, arena_name')
+        .in('child_id', childIds)
+        .gte('occur_date', from)
+        .lte('occur_date', to);
 
-if (err2) throw err2;
+      if (err2) throw err2;
 
-// 3) בניית Map לפי (lesson_id + occur_date)
-const resourceByKey = new Map<
-  string,
-  { horse_name: string | null; arena_name: string | null }
->();
+      // 3) בניית Map לפי (lesson_id + occur_date)
+      const resourceByKey = new Map<
+        string,
+        { horse_name: string | null; arena_name: string | null }
+      >();
 
-for (const row of resData ?? []) {
-  const key = `${row.lesson_id}::${row.occur_date}`;
-  resourceByKey.set(key, {
-    horse_name: row.horse_name ?? null,
-    arena_name: row.arena_name ?? null,
-  });
-}
+      for (const row of resData ?? []) {
+        const key = `${row.lesson_id}::${row.occur_date}`;
+        resourceByKey.set(key, {
+          horse_name: row.horse_name ?? null,
+          arena_name: row.arena_name ?? null,
+        });
+      }
 
-// 4) מיפוי לשיעורים + הוספת horse/arena מה-Map
-const nameByChild = new Map(
-  this.children.map(c => [
-    c.child_uuid,
-    `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim(),
-  ])
-);
+      // 4) מיפוי לשיעורים + הוספת horse/arena מה-Map
+      const nameByChild = new Map(
+        this.children.map(c => [
+          c.child_uuid,
+          `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim(),
+        ])
+      );
 
-const instructorNameById = new Map(
-  this.instructorsAll.map(i => [
-    i.id_number,
-    `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim(),]));
+      const instructorNameById = new Map(
+        this.instructorsAll.map(i => [
+          i.id_number,
+          `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim(),]));
 
-this.lessons = (occData ?? []).map((r: any) => {
-  const finalStatus = r.status;
-  const isMakeupAllowed = r.is_makeup_allowed ?? false;
+      this.lessons = (occData ?? []).map((r: any) => {
+        const finalStatus = r.status;
+        const isMakeupAllowed = r.is_makeup_allowed ?? false;
 
-  const key = `${r.lesson_id}::${r.occur_date}`;
-  const res = resourceByKey.get(key);
-  const attendanceKey = `${r.lesson_id}::${r.child_id}::${r.occur_date}`;
-  const attendanceStatus = attendanceByKey.get(attendanceKey) || '';
+        const key = `${r.lesson_id}::${r.occur_date}`;
+        const res = resourceByKey.get(key);
+        const attendanceKey = `${r.lesson_id}::${r.child_id}::${r.occur_date}`;
+        const attendanceStatus = attendanceByKey.get(attendanceKey) || '';
 
-  return {
-    lesson_id: String(r.lesson_id ?? ''),
-    id: String(r.lesson_id ?? ''),
-    child_id: r.child_id,
-    day_of_week: r.day_of_week,
-    start_time: r.start_time,
-    end_time: r.end_time,
-    lesson_type: r.lesson_type,
-    instructor_id: r.instructor_id ?? '',
-    instructor_name: instructorNameById.get(r.instructor_id) || '',
-    child_color: this.getColorForChild(r.child_id),
-    child_name: nameByChild.get(r.child_id) || '',
-    start_datetime: r.start_datetime ?? null,
-    status: finalStatus,
-    end_datetime: r.end_datetime ?? null,
-    occur_date: r.occur_date ?? null,
-    horse_name: res?.horse_name ?? null,
-    arena_name: res?.arena_name ?? null,
-    series_id: r.series_id,
-    appointment_kind: r.appointment_kind,
-    repeat_weeks: r.repeat_weeks,
-    is_open_ended: r.is_open_ended,
-    series_end_date: r.series_end_date,
-    attendance_status: attendanceStatus,
-  } as Lesson;
-});
-  } catch (err) {
-  console.error('loadLessons failed', err);
-  this.lessons = [];
-}
-}
-private async loadFarmDaysOffForRange(startYmd: string, endYmd: string): Promise < void> {
-  const dbc = dbTenant();
+        return {
+          lesson_id: String(r.lesson_id ?? ''),
+          id: String(r.lesson_id ?? ''),
+          child_id: r.child_id,
+          day_of_week: r.day_of_week,
+          start_time: r.start_time,
+          end_time: r.end_time,
+          lesson_type: r.lesson_type,
+          instructor_id: r.instructor_id ?? '',
+          instructor_name: instructorNameById.get(r.instructor_id) || '',
+          child_color: this.getColorForChild(r.child_id),
+          child_name: nameByChild.get(r.child_id) || '',
+          start_datetime: r.start_datetime ?? null,
+          status: finalStatus,
+          end_datetime: r.end_datetime ?? null,
+          occur_date: r.occur_date ?? null,
+          horse_name: res?.horse_name ?? null,
+          arena_name: res?.arena_name ?? null,
+          series_id: r.series_id,
+          appointment_kind: r.appointment_kind,
+          repeat_weeks: r.repeat_weeks,
+          is_open_ended: r.is_open_ended,
+          series_end_date: r.series_end_date,
+          attendance_status: attendanceStatus,
+        } as Lesson;
+      });
+    } catch (err) {
+      console.error('loadLessons failed', err);
+      this.lessons = [];
+    }
+  }
+  private async loadFarmDaysOffForRange(startYmd: string, endYmd: string): Promise<void> {
+    const dbc = dbTenant();
 
-  const { data, error } = await dbc
-    .from('farm_days_off')
-    .select(`
+    const { data, error } = await dbc
+      .from('farm_days_off')
+      .select(`
       id,
       reason,
       start_date,
@@ -2153,1311 +2152,1311 @@ private async loadFarmDaysOffForRange(startYmd: string, endYmd: string): Promise
       end_time,
       is_active
     `)
-    .eq('is_active', true)
-    .lte('start_date', endYmd)
-    .gte('end_date', startYmd);
+      .eq('is_active', true)
+      .lte('start_date', endYmd)
+      .gte('end_date', startYmd);
 
-  if(error) throw error;
+    if (error) throw error;
 
-  this.farmDaysOff = data ?? [];
-}
+    this.farmDaysOff = data ?? [];
+  }
 
   /** סינון שיעורים לפי מדריכים מסומנים + טווח תצוגה */
- private filterLessons(): void {
-  let src =[...this.lessons];
+  private filterLessons(): void {
+    let src = [...this.lessons];
 
-  const selected = this.selectedInstructorIds.filter(Boolean);
-  if(selected.length) {
-  src = src.filter(l => selected.includes(String(l.instructor_id ?? '')));
-} else {
-  src = [];
-}
+    const selected = this.selectedInstructorIds.filter(Boolean);
+    if (selected.length) {
+      src = src.filter(l => selected.includes(String(l.instructor_id ?? '')));
+    } else {
+      src = [];
+    }
 
-if (this.currentRange) {
-  const { start, end } = this.currentRange;
-  src = src.filter(l => {
-    const d =
-      (l as any).occur_date ||
-      ((l as any).start_datetime
-        ? (l as any).start_datetime.slice(0, 10)
-        : '');
-    if (!d) return true;
-    return d >= start && d <= end;
-  });
-}
-
-// ✅ כאן בדיוק מוסיפים את הסינון של חופשת מדריך
-src = src.filter((l: any) => {
-  const lessonDate =
-    l.occur_date ||
-    (l.start_datetime ? String(l.start_datetime).slice(0, 10) : '');
-
-  if (!lessonDate) return true;
-
-  const startIso =
-    this.buildDateTime(l.occur_date, l.start_time) ??
-    this.ensureIso(
-      l.start_datetime as any,
-      l.start_time as any,
-      l.occur_date as any
-    );
-
-  const endIsoRaw =
-    this.buildDateTime(l.occur_date, l.end_time) ??
-    this.ensureIso(
-      l.end_datetime as any,
-      l.end_time as any,
-      l.occur_date as any
-    );
-
-  const endIso = this.ensureEndAfterStart(startIso, endIsoRaw);
-
-  return !this.isLessonBlockedByInstructorOff(
-    String(l.instructor_id ?? ''),
-    lessonDate,
-    new Date(startIso),
-    new Date(endIso)
-  );
-});
-
-this.filteredLessons = src;
-}
-private addOneDayYmd(dateYmd: string): string {
-  const [y, m, d] = dateYmd.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() + 1);
-
-  const yy = dt.getFullYear();
-  const mm = String(dt.getMonth() + 1).padStart(2, '0');
-  const dd = String(dt.getDate()).padStart(2, '0');
-  return `${yy}-${mm}-${dd}`;
-}
- private setScheduleItems(): void {
-  const src = this.filteredLessons;
-
-  const getDate = (l: any): string | null => {
-    if (l.occur_date) return l.occur_date;
-    if (l.start_datetime) return String(l.start_datetime).slice(0, 10);
-    return null;
-  };
-
-  const makeLessonEvent = (lesson: any): ScheduleItem => {
-    const instructorId = String(lesson.instructor_id || '');
-
-    const colorFromDb = this.instructorColorById.get(instructorId);
-
-    const instructorBorderColor =
-      colorFromDb && colorFromDb.trim() !== ''
-        ? colorFromDb
-        : this.getColorForInstructor(instructorId);
-
-    const start =
-      this.buildDateTime(lesson.occur_date, lesson.start_time) ??
-      this.ensureIso(
-        lesson.start_datetime as any,
-        lesson.start_time as any,
-        lesson.occur_date as any
-      );
-
-    let end =
-      this.buildDateTime(lesson.occur_date, lesson.end_time) ??
-      this.ensureIso(
-        lesson.end_datetime as any,
-        lesson.end_time as any,
-        lesson.occur_date as any
-      );
-
-    end = this.ensureEndAfterStart(start, end);
-
-    const childName = lesson.child_name ?? '';
-    const lessonType = lesson.lesson_type ?? '';
-    const age = this.childAgeById.get(lesson.child_id) || '';
-    const childDisplay = age ? `${childName} (${age})` : childName;
-
-    return {
-      id: lesson.id,
-      title: childDisplay,
-      start,
-      end,
-
-      // צבע מלא של המדריך בשיעור תפוס
-      color: instructorBorderColor,
-      backgroundColor: instructorBorderColor,
-      borderColor: instructorBorderColor,
-      textColor: '#ffffff',
-
-      status: lesson.status,
-      meta: {
-        status: lesson.status ?? '',
-        child_id: lesson.child_id,
-        child_name: childDisplay,
-        instructor_id: lesson.instructor_id,
-        instructor_name: lesson.instructor_name,
-        instructor_color: instructorBorderColor,
-        lesson_type: lessonType,
-        children: childDisplay,
-        horse_name: lesson.horse_name,
-        arena_name: lesson.arena_name,
-        lesson_id: lesson.lesson_id,
-        occur_date: lesson.occur_date,
-
-        series_id: lesson.series_id,
-        appointment_kind: lesson.appointment_kind,
-        repeat_weeks: lesson.repeat_weeks,
-        is_open_ended: lesson.is_open_ended,
-        series_end_date: lesson.series_end_date,
-        attendance_status: lesson.attendance_status ?? '',
-      },
-    } as any;
-  };
-
-  // ✅ מגדירים פעם אחת בתחילת הפונקציה
-  const farmOffItems = this.farmDaysOffToItems();
-  const instructorOffItems = this.instructorDaysOffToItems();
-
-  // ===== חודשי =====
-  if(this.currentViewType === 'dayGridMonth') {
-  const perDay = new Map<string, number>();
-
-  src.forEach(l => {
-    const d = getDate(l);
-    if (!d) return;
-    perDay.set(d, (perDay.get(d) || 0) + 1);
-  });
-
-  this.items = Array.from(perDay.entries()).map(([date, count]) => ({
-    id: `sum-day-${date}`,
-    title: `${count} שיעורים`,
-    start: `${date}T00:00:00`,
-    end: `${date}T23:59:59`,
-    color: 'transparent',
-    status: 'אושר',
-    meta: {
-      status: '',
-      child_id: '',
-      child_name: '',
-      instructor_id: '',
-      instructor_name: '',
-      lesson_type: 'summary-day',
-      isSummaryDay: '1',
-    },
-  })) as any;
-
-  this.items = [
-    ...this.items,
-    ...farmOffItems,
-    ...instructorOffItems,
-  ];
-  return;
-}
-
-// ===== שבוע =====
-if (this.currentViewType === 'timeGridWeek') {
-  type Key = string;
-
-  const perDayInstructor = new Map<Key, {
-    date: string;
-    instructor_id: string;
-    instructor_name: string;
-    count: number;
-  }>();
-
-  for (const l of src) {
-    const d = getDate(l);
-    if (!d) continue;
-
-    const instId = (l as any).instructor_id || '';
-    const instName = (l as any).instructor_name || 'ללא מדריך';
-    const key: Key = `${d}|${instId}`;
-
-    if (!perDayInstructor.has(key)) {
-      perDayInstructor.set(key, {
-        date: d,
-        instructor_id: instId,
-        instructor_name: instName,
-        count: 0,
+    if (this.currentRange) {
+      const { start, end } = this.currentRange;
+      src = src.filter(l => {
+        const d =
+          (l as any).occur_date ||
+          ((l as any).start_datetime
+            ? (l as any).start_datetime.slice(0, 10)
+            : '');
+        if (!d) return true;
+        return d >= start && d <= end;
       });
     }
-    perDayInstructor.get(key)!.count++;
+
+    // ✅ כאן בדיוק מוסיפים את הסינון של חופשת מדריך
+    src = src.filter((l: any) => {
+      const lessonDate =
+        l.occur_date ||
+        (l.start_datetime ? String(l.start_datetime).slice(0, 10) : '');
+
+      if (!lessonDate) return true;
+
+      const startIso =
+        this.buildDateTime(l.occur_date, l.start_time) ??
+        this.ensureIso(
+          l.start_datetime as any,
+          l.start_time as any,
+          l.occur_date as any
+        );
+
+      const endIsoRaw =
+        this.buildDateTime(l.occur_date, l.end_time) ??
+        this.ensureIso(
+          l.end_datetime as any,
+          l.end_time as any,
+          l.occur_date as any
+        );
+
+      const endIso = this.ensureEndAfterStart(startIso, endIsoRaw);
+
+      return !this.isLessonBlockedByInstructorOff(
+        String(l.instructor_id ?? ''),
+        lessonDate,
+        new Date(startIso),
+        new Date(endIso)
+      );
+    });
+
+    this.filteredLessons = src;
   }
+  private addOneDayYmd(dateYmd: string): string {
+    const [y, m, d] = dateYmd.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + 1);
 
-  const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
-
-  const perDate = new Map<string, {
-    date: string;
-    instructor_id: string;
-    instructor_name: string;
-    count: number;
-  }[]>();
-
-  for (const g of perDayInstructor.values()) {
-    if (!perDate.has(g.date)) perDate.set(g.date, []);
-    perDate.get(g.date)!.push(g);
+    const yy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
   }
+  private setScheduleItems(): void {
+    const src = this.filteredLessons;
 
-  const result: ScheduleItem[] = [];
+    const getDate = (l: any): string | null => {
+      if (l.occur_date) return l.occur_date;
+      if (l.start_datetime) return String(l.start_datetime).slice(0, 10);
+      return null;
+    };
 
-  for (const [date, groups] of perDate.entries()) {
-    groups.sort((a, b) =>
-      a.instructor_name.localeCompare(b.instructor_name, 'he')
-    );
+    const makeLessonEvent = (lesson: any): ScheduleItem => {
+      const instructorId = String(lesson.instructor_id || '');
 
-    groups.forEach((g, idxInDay) => {
-      const baseHour = 7;
-      const startHour = baseHour + idxInDay;
-      const endHour = startHour;
+      const colorFromDb = this.instructorColorById.get(instructorId);
 
-      const start = `${date}T${pad(startHour)}:00:00`;
-      const end = `${date}T${pad(endHour)}:50:00`;
+      const instructorBorderColor =
+        colorFromDb && colorFromDb.trim() !== ''
+          ? colorFromDb
+          : this.getColorForInstructor(instructorId);
 
-      result.push({
-        id: `sum-week-${date}-${g.instructor_id}`,
-        title: `${g.instructor_name} · ${g.count} שיעורים`,
+      const start =
+        this.buildDateTime(lesson.occur_date, lesson.start_time) ??
+        this.ensureIso(
+          lesson.start_datetime as any,
+          lesson.start_time as any,
+          lesson.occur_date as any
+        );
+
+      let end =
+        this.buildDateTime(lesson.occur_date, lesson.end_time) ??
+        this.ensureIso(
+          lesson.end_datetime as any,
+          lesson.end_time as any,
+          lesson.occur_date as any
+        );
+
+      end = this.ensureEndAfterStart(start, end);
+
+      const childName = lesson.child_name ?? '';
+      const lessonType = lesson.lesson_type ?? '';
+      const age = this.childAgeById.get(lesson.child_id) || '';
+      const childDisplay = age ? `${childName} (${age})` : childName;
+
+      return {
+        id: lesson.id,
+        title: childDisplay,
         start,
         end,
+
+        // צבע מלא של המדריך בשיעור תפוס
+        color: instructorBorderColor,
+        backgroundColor: instructorBorderColor,
+        borderColor: instructorBorderColor,
+        textColor: '#ffffff',
+
+        status: lesson.status,
+        meta: {
+          status: lesson.status ?? '',
+          child_id: lesson.child_id,
+          child_name: childDisplay,
+          instructor_id: lesson.instructor_id,
+          instructor_name: lesson.instructor_name,
+          instructor_color: instructorBorderColor,
+          lesson_type: lessonType,
+          children: childDisplay,
+          horse_name: lesson.horse_name,
+          arena_name: lesson.arena_name,
+          lesson_id: lesson.lesson_id,
+          occur_date: lesson.occur_date,
+
+          series_id: lesson.series_id,
+          appointment_kind: lesson.appointment_kind,
+          repeat_weeks: lesson.repeat_weeks,
+          is_open_ended: lesson.is_open_ended,
+          series_end_date: lesson.series_end_date,
+          attendance_status: lesson.attendance_status ?? '',
+        },
+      } as any;
+    };
+
+    // ✅ מגדירים פעם אחת בתחילת הפונקציה
+    const farmOffItems = this.farmDaysOffToItems();
+    const instructorOffItems = this.instructorDaysOffToItems();
+
+    // ===== חודשי =====
+    if (this.currentViewType === 'dayGridMonth') {
+      const perDay = new Map<string, number>();
+
+      src.forEach(l => {
+        const d = getDate(l);
+        if (!d) return;
+        perDay.set(d, (perDay.get(d) || 0) + 1);
+      });
+
+      this.items = Array.from(perDay.entries()).map(([date, count]) => ({
+        id: `sum-day-${date}`,
+        title: `${count} שיעורים`,
+        start: `${date}T00:00:00`,
+        end: `${date}T23:59:59`,
+        color: 'transparent',
         status: 'אושר',
         meta: {
           status: '',
           child_id: '',
           child_name: '',
-          instructor_id: g.instructor_id,
-          instructor_name: g.instructor_name,
-          lesson_type: 'summary-week',
-          isSummarySlot: '1',
+          instructor_id: '',
+          instructor_name: '',
+          lesson_type: 'summary-day',
+          isSummaryDay: '1',
         },
-      } as ScheduleItem);
-    });
-  }
-
-  this.items = [...result, ...farmOffItems, ...instructorOffItems];
-  return;
-}
-
-// ===== יום =====
-if (this.currentViewType === 'timeGridDay') {
-  this.items = src.map(makeLessonEvent);
-  this.items = [
-    ...this.items,
-    ...farmOffItems,
-    ...instructorOffItems,
-  ];
-  return;
-}
-
-// ===== ברירת מחדל =====
-this.items = src.map(makeLessonEvent);
-this.items = [
-  ...this.items,
-  ...farmOffItems,
-  ...instructorOffItems,
-];
-}
-
-
-isCancelledContext(): boolean {
-  const status = String(this.contextMenu.status || '').toLowerCase();
-  return status.includes('בוטל') || status.includes('cancel');
-}
-
-isInstructorOffContext(): boolean {
-  const type = String(this.contextMenu.lessonType || this.contextMenu.appointmentKind || '').toLowerCase();
-  const title = String(this.contextMenu.childName || '').toLowerCase();
-
-  return (
-    type.includes('day_off') ||
-    type.includes('unavailability') ||
-    type.includes('holiday') ||
-    title.includes('חופש') ||
-    title.includes('מחלה') ||
-    title.includes('לא זמין')
-  );
-}
-
-async onAttendanceChangedFromNote(status: 'present' | 'absent' | null): Promise < void> {
-  if(!this.selectedOccurrence?.lesson_id || !this.selectedOccurrence?.occur_date || !this.selectedChild?.child_uuid) {
-  return;
-}
-
-const lessonId = String(this.selectedOccurrence.lesson_id);
-const occurDate = String(this.selectedOccurrence.occur_date).slice(0, 10);
-const childId = String(this.selectedChild.child_uuid);
-
-const normalized =
-  status === 'present'
-    ? 'present'
-    : status === 'absent'
-      ? 'absent'
-      : '';
-
-const patchItem = (item: any) => {
-  const meta = item.meta || {};
-  const same =
-    String(meta.lesson_id || item.lesson_id || item.id) === lessonId &&
-    String(meta.child_id || item.child_id) === childId &&
-    String(meta.occur_date || item.occur_date).slice(0, 10) === occurDate;
-
-  if (!same) return item;
-
-  return {
-    ...item,
-    meta: {
-      ...meta,
-      attendance_status: normalized,
-    },
-  };
-};
-
-this.items = this.items.map(patchItem);
-this.lessons = this.lessons.map((l: any) => {
-  const same =
-    String(l.lesson_id || l.id) === lessonId &&
-    String(l.child_id) === childId &&
-    String(l.occur_date).slice(0, 10) === occurDate;
-
-  return same ? { ...l, attendance_status: normalized } : l;
-}) as any;
-
-this.filteredLessons = this.filteredLessons.map((l: any) => {
-  const same =
-    String(l.lesson_id || l.id) === lessonId &&
-    String(l.child_id) === childId &&
-    String(l.occur_date).slice(0, 10) === occurDate;
-
-  return same ? { ...l, attendance_status: normalized } : l;
-}) as any;
-
-this.selectedOccurrence = {
-  ...this.selectedOccurrence,
-  attendance_status: normalized,
-};
-
-this.cdr.detectChanges();
-}
-
-canCancelContextLesson(): boolean {
-  return !!this.contextMenu.hasEvent &&
-    !!this.contextMenu.lessonId &&
-    !this.isCancelledContext() &&
-    !this.isInstructorOffContext();
-}
-
-canMoveContextLesson(): boolean {
-  return !!this.contextMenu.hasEvent &&
-    !!this.contextMenu.lessonId &&
-    !this.isCancelledContext() &&
-    !this.isInstructorOffContext();
-}
-
-canEndContextSeries(): boolean {
-  return this.canMoveContextLesson() && this.isSeriesContext();
-}
-
-private instructorDaysOffToItems(): ScheduleItem[] {
-  const selected = new Set(this.selectedInstructorIds.map(String));
-
-  return (this.dayRequests ?? [])
-    .filter(r => r.status === 'approved' || r.status === 'pending')
-    .filter(r => selected.size === 0 || selected.has(String(r.instructor_id)))
-    .map(r => {
-      // המשך הקוד שלך כרגיל
-      const isPending = r.status === 'pending';
-
-      let bg = '#e5e7eb';
-      let text = '#374151';
-
-      switch (r.request_type) {
-        case 'holiday':
-          bg = isPending ? '#fff8e7' : '#fef3c7';
-          text = '#92400e';
-          break;
-        case 'sick':
-          bg = isPending ? '#fff4e5' : '#ffe4e6';
-          text = isPending ? '#9a6700' : '#9f1239';
-          break;
-        case 'personal':
-          bg = isPending ? '#fff7e8' : '#ede9fe';
-          text = isPending ? '#9a6700' : '#5b21b6';
-          break;
-        default:
-          bg = isPending ? '#fff8e7' : '#e5e7eb';
-          text = isPending ? '#9a6700' : '#374151';
-          break;
-      }
-
-      const start = r.all_day || !r.start_time
-        ? `${r.request_date}T00:00:00`
-        : `${r.request_date}T${r.start_time}:00`;
-
-      const end = r.all_day || !r.end_time
-        ? `${r.request_date}T23:59:59`
-        : `${r.request_date}T${r.end_time}:00`;
-
-      const inst = this.instructorsAll.find(
-        i => String(i.id_number) === String(r.instructor_id)
-      );
-      const instructorName = `${inst?.first_name ?? ''} ${inst?.last_name ?? ''}`.trim();
-
-      return {
-        id: `instructor_off_${r.id}_${r.request_date}_${r.instructor_id}`,
-        title: isPending
-          ? `${instructorName} — ${this.getRequestLabel(r.request_type)}`
-          : `${instructorName} — ${this.getRequestLabel(r.request_type)}`,
-        start,
-        end,
-        allDay: false,
-        display: 'block',
-        overlap: false,
-        color: bg,
-        textColor: text,
-        classNames: [isPending ? 'pending-instructor-day-off' : 'instructor-day-off'],
-        status: isPending ? 'PENDING' as any : 'APPROVED' as any,
-        meta: {
-          isInstructorDayOff: isPending ? undefined : 'true',
-          isPendingInstructorDayOff: isPending ? 'true' : undefined,
-          request_type: r.request_type,
-          note: r.note ?? null,
-          instructor_id: r.instructor_id,
-          instructor_name: instructorName,
-        } as any,
-      } as ScheduleItem;
-    });
-}
-
-private isLessonBlockedByInstructorOff(
-  instructorId: string,
-  lessonDate: string,
-  lessonStart ?: Date,
-  lessonEnd ?: Date
-): boolean {
-  return (this.dayRequests ?? []).some(r => {
-    if (r.status !== 'approved') return false;
-    if (String(r.instructor_id) !== String(instructorId)) return false;
-    if (r.request_date !== lessonDate) return false;
-
-    // יום מלא
-    if (r.all_day === true) return true;
-
-    // אם אין שעות - לא לחסום
-    if (!r.start_time || !r.end_time) return false;
-    if (!lessonStart || !lessonEnd) return false;
-
-    const offStart = new Date(`${lessonDate}T${r.start_time}`);
-    const offEnd = new Date(`${lessonDate}T${r.end_time}`);
-
-    return lessonStart < offEnd && lessonEnd > offStart;
-  });
-}
-private farmDaysOffToItems(): ScheduleItem[] {
-  return (this.farmDaysOff ?? []).map((d: any) => {
-    const isFullDay = String(d.day_type || '').toUpperCase() === 'FULL_DAY';
-
-    const start = isFullDay
-      ? String(d.start_date).slice(0, 10)
-      : `${d.start_date}T${String(d.start_time).slice(0, 5)}:00`;
-
-    const end = isFullDay
-      ? `${String(d.end_date).slice(0, 10)}T23:59:59`
-      : `${d.start_date}T${String(d.end_time).slice(0, 5)}:00`;
-
-    return {
-      id: `farm_off_${d.id}`,
-      title: d.reason?.trim()
-        ? ` ${d.reason}`
-        : ' חופשת חווה',
-      start,
-      end,
-      allDay: isFullDay,
-      display: 'block',
-      color: 'rgba(255, 183, 77, 0.35)',
-      textColor: '#1f2a1f',
-      status: 'farm_day_off' as any,
-      meta: {
-        isFarmDayOff: 'true',
-      } as any,
-    };
-  });
-}
-  private ensureIso(datetime ?: string | null, time ?: string | null, baseDate ?: string | null): string {
-  if (datetime && typeof datetime === 'string' && datetime.includes('T')) return datetime;
-
-  if (datetime && typeof datetime === 'string' && datetime.trim() !== '') {
-    return datetime.replace(' ', 'T');
-  }
-
-  const base = baseDate ? new Date(baseDate) : new Date();
-  const d = new Date(base);
-  if (time) {
-    const [hh, mm] = String(time).split(':').map((x) => parseInt(x, 10) || 0);
-    d.setHours(hh, mm, 0, 0);
-  }
-  return this.toLocalIso(d);
-}
-
-  private toLocalIso(date: Date): string {
-  const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
-    date.getHours()
-  )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-}
-
-  private getColorForChild(child_id: string): string {
-  const index = this.children.findIndex((c) => c.child_uuid === child_id);
-  const colors = ['#d8f3dc', '#fbc4ab', '#cdb4db', '#b5ead7', '#ffdac1'];
-  return colors[(index >= 0 ? index : 0) % colors.length];
-}
-private getColorForInstructor(id: string): string {
-  const palette = ['#ff6b6b', '#4dabf7', '#51cf66', '#f59f00', '#845ef7'];
-  const idx = this.hashString(id) % palette.length;
-  return palette[idx];
-}
-
-private addDaysYmd(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() + days);
-
-  return [
-    dt.getFullYear(),
-    String(dt.getMonth() + 1).padStart(2, '0'),
-    String(dt.getDate()).padStart(2, '0'),
-  ].join('-');
-}
-
-isSeriesContext(): boolean {
-  return (
-    this.contextMenu.appointmentKind === 'therapy_series' ||
-    !!this.contextMenu.seriesId ||
-    !!this.contextMenu.isOpenEnded ||
-    (this.contextMenu.repeatWeeks ?? 0) > 1
-  );
-}
-
-onRightClickEvent(e: any): void {
-  if(!e?.jsEvent) return;
-
-  e.jsEvent.preventDefault();
-  e.jsEvent.stopPropagation();
-
-  const dateStr = typeof e.dateStr === 'string' ? e.dateStr : '';
-  if(!dateStr) return;
-
-  const localYmd = this.extractYmd(dateStr);
-  const localHm = dateStr.includes('T') ? this.extractHm(dateStr) : '';
-
-  let localEndHm = '';
-  if(typeof e.endStr === 'string' && e.endStr.includes('T')) {
-  localEndHm = this.extractHm(e.endStr);
-}
-
-const MENU_WIDTH = 220;
-const MENU_HEIGHT = 230;
-const EDGE_GAP = 12;
-
-let x = e.jsEvent.clientX;
-let y = e.jsEvent.clientY;
-
-const maxX = window.innerWidth - MENU_WIDTH - EDGE_GAP;
-const maxY = window.innerHeight - MENU_HEIGHT - EDGE_GAP;
-
-x = Math.max(EDGE_GAP, Math.min(x, maxX));
-y = Math.max(EDGE_GAP, Math.min(y, maxY));
-
-this.contextMenu.visible = true;
-this.contextMenu.x = x;
-this.contextMenu.y = y;
-this.contextMenu.date = localYmd;
-this.contextMenu.time = localHm;
-this.contextMenu.endTime = localEndHm;
-this.contextMenu.instructorId = String(e.resourceId ?? '');
-this.contextMenu.instructorName = String(e.resourceTitle ?? '');
-this.contextMenu.hasEvent = true;
-this.contextMenu.eventId = String(e.eventId ?? '');
-this.contextMenu.lessonId = String(e.lessonId ?? '');
-this.contextMenu.childId = String(e.childId ?? '');
-this.contextMenu.childName = String(e.childName ?? '');
-this.contextMenu.lessonType = String(e.lessonType ?? '');
-this.contextMenu.status = String(e.status ?? '');
-this.contextMenuMode = 'root';
-this.contextMenu.seriesId = String(e.seriesId ?? '');
-this.contextMenu.appointmentKind = String(e.appointmentKind ?? '');
-this.contextMenu.repeatWeeks = e.repeatWeeks != null ? Number(e.repeatWeeks) : null;
-this.contextMenu.isOpenEnded = e.isOpenEnded != null ? !!e.isOpenEnded : null;
-this.contextMenu.seriesEndDate = String(e.seriesEndDate ?? '');
-this.contextMenu.occurDate = String(e.occurDate ?? this.contextMenu.date ?? '');
-this.contextMenu.startTimeOnly = String(e.startTime ?? this.contextMenu.time ?? '');
-this.contextMenu.canDeleteLesson = this.canCancelContextLesson();
-
-this.cdr.detectChanges();
-}
-
-onEventClick(arg: EventClickArg): void {
-  const ext: any = arg.event.extendedProps || {};
-  const meta: any = ext.meta || ext;
-
-  const childId =
-    meta.child_id ||
-    ext.child_id ||
-    null;
-
-  if(!childId) {
-    console.warn('❌ secretary onEventClick – no child_id', ext);
-    this.selectedChild = null;
-    this.selectedOccurrence = null;
-    return;
-  }
-
-  const child =
-    this.children.find(c => c.child_uuid === childId) ?? null;
-
-  this.selectedChild = child ? { ...child } : null;
-
-  // 🔑 lesson_id – לוקחים מה-meta או מה-id של האירוע
-  let lessonId: string | null = meta.lesson_id ?? null;
-
-
-  if(!lessonId && arg.event.id) {
-  lessonId = String(arg.event.id);
-}
-
-// 🔑 occur_date
-const occurDate =
-  meta.occur_date ??
-  (arg.event.start
-    ? arg.event.start.toISOString().slice(0, 10)
-    : null);
-
-const rawStatus = String(meta.status ?? '').toLowerCase();
-const isCancelled =
-  rawStatus.includes('בוטל') ||
-  rawStatus.includes('מבוטל') ||
-  rawStatus.includes('cancel');
-
-this.selectedOccurrence = {
-  lesson_id: lessonId,
-  child_id: childId,
-  occur_date: occurDate,
-  status: meta.status ?? null,
-  lesson_type: meta.lesson_type ?? null,
-  start: arg.event.start,
-  end: arg.event.end
-};
-
-
-this.cdr.detectChanges();
-}
-
-onDateClick(arg: any): void {
-  const dateStr = arg?.dateStr ??
-    (arg?.date ? arg.date.toISOString().slice(0, 10) : '');
-
-  if(!dateStr) return;
-
-  if(this.currentViewType === 'dayGridMonth' || this.currentViewType === 'timeGridWeek') {
-  if (this.scheduleCmp) {
-    this.scheduleCmp.goToDay(dateStr);
-  }
-  return;
-}
-  }
-
-  private buildDateTime(dateStr ?: string | null, timeStr ?: string | null): string | null {
-  if (!dateStr || !timeStr) return null;
-
-  // time יכול להגיע HH:mm או HH:mm:ss
-  const t = String(timeStr).length === 5 ? `${timeStr}:00` : String(timeStr);
-  return `${dateStr}T${t}`;
-}
-
-private ensureEndAfterStart(startIso: string, endIso: string): string {
-  // אם בטעות end קטן מ-start (בעיה של נתונים/יום מתחלף) – נשאיר מינימום 30 דק
-  const s = new Date(startIso).getTime();
-  const e = new Date(endIso).getTime();
-  if (isNaN(s) || isNaN(e)) return endIso;
-  if (e > s) return endIso;
-
-  // fallback: +30 דקות
-  return this.toLocalIso(new Date(s + 30 * 60 * 1000));
-}
-
-
-  private buildWeekStats(): void {
-  if(this.currentViewType !== 'timeGridWeek') {
-  this.weekInstructorStats = [];
-  return;
-}
-
-const stats = new Map<string, { instructor_id: string; instructor_name: string; totalLessons: number }>();
-
-for (const l of this.filteredLessons) {
-  const id = (l as any).instructor_id || '';
-  if (!id) continue;
-  const key = id;
-  const name = (l as any).instructor_name || id;
-
-  if (!stats.has(key)) {
-    stats.set(key, { instructor_id: id, instructor_name: name, totalLessons: 0 });
-  }
-  stats.get(key)!.totalLessons++;
-}
-
-this.weekInstructorStats = Array.from(stats.values()).sort((a, b) =>
-  a.instructor_name.localeCompare(b.instructor_name, 'he')
-);
-  }
-
-  async autoAssignForCurrentDay(): Promise < void> {
-  // רק בתצוגת יום, ובלוח של המזכירה
-  if(
-    !this.currentRange ||
-    !(
-      this.currentViewType === 'timeGridDay' ||
-      this.currentViewType === 'resourceTimeGridDay'
-    )
-  ) {
-  return;
-}
-
-const day = this.currentRange.start; // start==end בתצוגת יום
-if (!day) return;
-
-if (this.autoAssignLoading) return;
-this.autoAssignLoading = true;
-
-try {
-  const dbc = dbTenant();
-
-  const p_date = String(day).slice(0, 10); // YYYY-MM-DD
-
-
-  const { data, error } = await dbc.rpc(
-    'auto_assign_horses_and_arenas',
-    { p_date: day } // טיפוס DATE ב-Postgres
-  );
-
-  if (error) throw error;
-
-  // אחרי השיבוץ – לטעון מחדש את השיעורים של היום
-  await this.loadLessons({ start: day, end: day });
-  this.filterLessons();
-  this.setScheduleItems();
-  this.buildWeekStats();
-  this.cdr.detectChanges();
-
-  await this.ui.alert(
-    'שובצו סוסים ומגרשים לשיעורים של היום. ניתן לערוך שיעור-שיעור בממשק המתאים.',
-    'הצלחה'
-  );
-} catch (e: any) {
-  console.error('autoAssignForCurrentDay failed', e);
-  await this.ui.alert(
-    'שיבוץ סוסים ומגרשים נכשל: ' + (e?.message ?? e),
-    'שגיאה'
-  );
-
-} finally {
-  this.autoAssignLoading = false;
-}
-}
-
-async onToggleMakeupAllowed(checked: boolean) {
-  try {
-    await ensureTenantContextReady();
-
-    const lessonId = this.occurrence?.lesson_id;
-    const occurDate = this.occurrence?.occur_date;
-
-    if (!lessonId || !occurDate) {
-      console.warn('❌ Missing lesson_id / occur_date', this.occurrence);
+      })) as any;
+
+      this.items = [
+        ...this.items,
+        ...farmOffItems,
+        ...instructorOffItems,
+      ];
       return;
     }
 
-    const dbc = dbTenant();
+    // ===== שבוע =====
+    if (this.currentViewType === 'timeGridWeek') {
+      type Key = string;
 
-    const { error } = await dbc
-      .from('lesson_occurrence_exceptions')
-      .upsert(
-        {
-          lesson_id: lessonId,
-          occur_date: occurDate,
-          status: 'בוטל',                // חייב לפי CHECK
-          is_makeup_allowed: checked,
-          canceller_role: 'secretary',
-          cancelled_at: new Date().toISOString(),
+      const perDayInstructor = new Map<Key, {
+        date: string;
+        instructor_id: string;
+        instructor_name: string;
+        count: number;
+      }>();
+
+      for (const l of src) {
+        const d = getDate(l);
+        if (!d) continue;
+
+        const instId = (l as any).instructor_id || '';
+        const instName = (l as any).instructor_name || 'ללא מדריך';
+        const key: Key = `${d}|${instId}`;
+
+        if (!perDayInstructor.has(key)) {
+          perDayInstructor.set(key, {
+            date: d,
+            instructor_id: instId,
+            instructor_name: instName,
+            count: 0,
+          });
+        }
+        perDayInstructor.get(key)!.count++;
+      }
+
+      const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
+
+      const perDate = new Map<string, {
+        date: string;
+        instructor_id: string;
+        instructor_name: string;
+        count: number;
+      }[]>();
+
+      for (const g of perDayInstructor.values()) {
+        if (!perDate.has(g.date)) perDate.set(g.date, []);
+        perDate.get(g.date)!.push(g);
+      }
+
+      const result: ScheduleItem[] = [];
+
+      for (const [date, groups] of perDate.entries()) {
+        groups.sort((a, b) =>
+          a.instructor_name.localeCompare(b.instructor_name, 'he')
+        );
+
+        groups.forEach((g, idxInDay) => {
+          const baseHour = 7;
+          const startHour = baseHour + idxInDay;
+          const endHour = startHour;
+
+          const start = `${date}T${pad(startHour)}:00:00`;
+          const end = `${date}T${pad(endHour)}:50:00`;
+
+          result.push({
+            id: `sum-week-${date}-${g.instructor_id}`,
+            title: `${g.instructor_name} · ${g.count} שיעורים`,
+            start,
+            end,
+            status: 'אושר',
+            meta: {
+              status: '',
+              child_id: '',
+              child_name: '',
+              instructor_id: g.instructor_id,
+              instructor_name: g.instructor_name,
+              lesson_type: 'summary-week',
+              isSummarySlot: '1',
+            },
+          } as ScheduleItem);
+        });
+      }
+
+      this.items = [...result, ...farmOffItems, ...instructorOffItems];
+      return;
+    }
+
+    // ===== יום =====
+    if (this.currentViewType === 'timeGridDay') {
+      this.items = src.map(makeLessonEvent);
+      this.items = [
+        ...this.items,
+        ...farmOffItems,
+        ...instructorOffItems,
+      ];
+      return;
+    }
+
+    // ===== ברירת מחדל =====
+    this.items = src.map(makeLessonEvent);
+    this.items = [
+      ...this.items,
+      ...farmOffItems,
+      ...instructorOffItems,
+    ];
+  }
+
+
+  isCancelledContext(): boolean {
+    const status = String(this.contextMenu.status || '').toLowerCase();
+    return status.includes('בוטל') || status.includes('cancel');
+  }
+
+  isInstructorOffContext(): boolean {
+    const type = String(this.contextMenu.lessonType || this.contextMenu.appointmentKind || '').toLowerCase();
+    const title = String(this.contextMenu.childName || '').toLowerCase();
+
+    return (
+      type.includes('day_off') ||
+      type.includes('unavailability') ||
+      type.includes('holiday') ||
+      title.includes('חופש') ||
+      title.includes('מחלה') ||
+      title.includes('לא זמין')
+    );
+  }
+
+  async onAttendanceChangedFromNote(status: 'present' | 'absent' | null): Promise<void> {
+    if (!this.selectedOccurrence?.lesson_id || !this.selectedOccurrence?.occur_date || !this.selectedChild?.child_uuid) {
+      return;
+    }
+
+    const lessonId = String(this.selectedOccurrence.lesson_id);
+    const occurDate = String(this.selectedOccurrence.occur_date).slice(0, 10);
+    const childId = String(this.selectedChild.child_uuid);
+
+    const normalized =
+      status === 'present'
+        ? 'present'
+        : status === 'absent'
+          ? 'absent'
+          : '';
+
+    const patchItem = (item: any) => {
+      const meta = item.meta || {};
+      const same =
+        String(meta.lesson_id || item.lesson_id || item.id) === lessonId &&
+        String(meta.child_id || item.child_id) === childId &&
+        String(meta.occur_date || item.occur_date).slice(0, 10) === occurDate;
+
+      if (!same) return item;
+
+      return {
+        ...item,
+        meta: {
+          ...meta,
+          attendance_status: normalized,
         },
-        { onConflict: 'lesson_id,occur_date' }
-      );
-
-    if (error) throw error;
-
-    // ✅ עדכון מיידי ב-UI
-    this.occurrence = {
-      ...this.occurrence,
-      is_makeup_allowed: checked,
+      };
     };
 
-  } catch (e) {
-    console.error('toggle makeup failed', e);
-    await this.ui.alert('שגיאה בעדכון "ניתן להשלמה"', 'שגיאה');
+    this.items = this.items.map(patchItem);
+    this.lessons = this.lessons.map((l: any) => {
+      const same =
+        String(l.lesson_id || l.id) === lessonId &&
+        String(l.child_id) === childId &&
+        String(l.occur_date).slice(0, 10) === occurDate;
 
-  }
-}
+      return same ? { ...l, attendance_status: normalized } : l;
+    }) as any;
 
-private jsDowToDbDow(jsDow: number): number {
-  return jsDow;
-}
+    this.filteredLessons = this.filteredLessons.map((l: any) => {
+      const same =
+        String(l.lesson_id || l.id) === lessonId &&
+        String(l.child_id) === childId &&
+        String(l.occur_date).slice(0, 10) === occurDate;
 
-private dbDowFromYmd(ymd: string): number {
-  const d = new Date(`${ymd}T12:00:00`);
-  return this.jsDowToDbDow(d.getDay());
-}
+      return same ? { ...l, attendance_status: normalized } : l;
+    }) as any;
 
-openMoveChoiceModal(): void {
-  this.moveChoiceModal = {
-    open: true,
-    lessonId: this.contextMenu.lessonId,
-    occurDate: this.contextMenu.occurDate || this.contextMenu.date,
-    childName: this.contextMenu.childName,
-    instructorId: this.contextMenu.instructorId,
-    instructorName: this.contextMenu.instructorName,
-    startTime: this.contextMenu.startTimeOnly || this.contextMenu.time,
-    endTime: this.contextMenu.endTime || '',
-  };
+    this.selectedOccurrence = {
+      ...this.selectedOccurrence,
+      attendance_status: normalized,
+    };
 
-  this.closeContextMenu();
-  this.cdr.detectChanges();
-}
-
-closeMoveChoiceModal(): void {
-  this.moveChoiceModal = {
-    open: false,
-    lessonId: '',
-    occurDate: '',
-    childName: '',
-    instructorId: '',
-    instructorName: '',
-    startTime: '',
-    endTime: '',
-  };
-
-  this.cdr.detectChanges();
-}
-
-async chooseMoveSingleOccurrence(): Promise < void> {
-  this.moveChoiceModal.open = false;
-
-  this.moveSlotsModal = {
-    open: true,
-    mode: 'single',
-    loading: true,
-    saving: false,
-    error: '',
-    slots: [],
-    selectedSlot: null,
-  };
-
-  this.cdr.detectChanges();
-
-  try {
-    const from = this.moveChoiceModal.occurDate;
-    const to = this.addDaysYmd(from, 30);
-
-    const { data, error } = await dbTenant().rpc(
-      'find_makeup_slots_for_lesson_by_id_number',
-      {
-        p_child_id: this.contextMenu.childId,
-        p_instructor_id: null,
-        p_from_date: from,
-        p_to_date: to,
-      }
-    );
-
-    if(error) throw error;
-
-    this.moveSlotsModal.slots = (data ?? []).filter((s: any) => {
-      const sameDate = s.occur_date === this.moveChoiceModal.occurDate;
-      const sameStart = String(s.start_time).slice(0, 5) === String(this.moveChoiceModal.startTime).slice(0, 5);
-      const sameInstructor = String(s.instructor_id) === String(this.moveChoiceModal.instructorId);
-
-      return !(sameDate && sameStart && sameInstructor);
-    });
-  } catch(e) {
-    console.error('load single move slots failed', e);
-    this.moveSlotsModal.error = 'שגיאה בטעינת אפשרויות להזזת שיעור';
-  } finally {
-    this.moveSlotsModal.loading = false;
     this.cdr.detectChanges();
   }
-}
 
-selectMoveSlot(slot: any): void {
-  this.moveSlotsModal.selectedSlot = slot;
-}
-
-async confirmMove(): Promise < void> {
-  const slot = this.moveSlotsModal.selectedSlot;
-  if(!slot) return;
-
-  const date = slot.occur_date || slot.lesson_date;
-  const start = String(slot.start_time || slot.start).slice(0, 5);
-  const end = String(slot.end_time || slot.end).slice(0, 5);
-
-  this.moveConfirmModal = {
-    open: true,
-    mode: this.moveSlotsModal.mode,
-
-    childName: this.moveChoiceModal.childName,
-
-    originalDate: this.moveChoiceModal.occurDate,
-    originalTime: `${this.moveChoiceModal.startTime}-${this.moveChoiceModal.endTime || ''}`,
-    originalInstructor: this.moveChoiceModal.instructorName,
-
-    newDate: date,
-    newStartTime: start,
-    newEndTime: end,
-    newInstructor: slot.instructor_name || slot.instructorName || String(slot.instructor_id || ''),
-
-    slot,
-  };
-
-  this.cdr.detectChanges();
-}
-
-closeMoveConfirmModal(): void {
-  this.moveConfirmModal.open = false;
-  this.cdr.detectChanges();
-}
-
-async approveMoveConfirm(): Promise < void> {
-
-  const slot = this.moveConfirmModal.slot || this.moveSlotsModal.selectedSlot;
-
-  if(!slot) {
-    console.error('No slot found for move approval', {
-      moveConfirmModal: this.moveConfirmModal,
-      moveSlotsModal: this.moveSlotsModal,
-    });
-
-    await this.ui.alert('לא נמצא סלוט להזזה. בחרי שוב אפשרות מהרשימה.', 'שגיאה');
-    return;
+  canCancelContextLesson(): boolean {
+    return !!this.contextMenu.hasEvent &&
+      !!this.contextMenu.lessonId &&
+      !this.isCancelledContext() &&
+      !this.isInstructorOffContext();
   }
 
-  this.moveConfirmModal.open = false;
-  await this.executeMove(slot);
-}
+  canMoveContextLesson(): boolean {
+    return !!this.contextMenu.hasEvent &&
+      !!this.contextMenu.lessonId &&
+      !this.isCancelledContext() &&
+      !this.isInstructorOffContext();
+  }
 
-async executeMove(slot: any): Promise < void> {
-  this.moveSlotsModal.saving = true;
-  this.cdr.detectChanges();
+  canEndContextSeries(): boolean {
+    return this.canMoveContextLesson() && this.isSeriesContext();
+  }
 
-  try {
-    if(this.moveSlotsModal.mode === 'single') {
-  const date = slot.occur_date || slot.lesson_date;
-  const start = String(slot.start_time || slot.start).slice(0, 5);
-  const end = String(slot.end_time || slot.end).slice(0, 5);
+  private instructorDaysOffToItems(): ScheduleItem[] {
+    const selected = new Set(this.selectedInstructorIds.map(String));
 
-  const newStartDatetime = `${date}T${start}:00`;
-  const newEndDatetime = `${date}T${end}:00`;
+    return (this.dayRequests ?? [])
+      .filter(r => r.status === 'approved' || r.status === 'pending')
+      .filter(r => selected.size === 0 || selected.has(String(r.instructor_id)))
+      .map(r => {
+        // המשך הקוד שלך כרגיל
+        const isPending = r.status === 'pending';
 
-  const { error } = await dbTenant().rpc('move_lesson_occurrence', {
-    p_lesson_id: this.moveChoiceModal.lessonId,
-    p_occur_date: this.moveChoiceModal.occurDate,
-    p_new_instructor_id: slot.instructor_id,
-    p_new_start_datetime: newStartDatetime,
-    p_new_end_datetime: newEndDatetime,
-    p_note: null,
-    p_created_by_role: 'secretary',
-    p_created_by_uid: null
-  });
+        let bg = '#e5e7eb';
+        let text = '#374151';
 
-  if (error) throw error;
-}
+        switch (r.request_type) {
+          case 'holiday':
+            bg = isPending ? '#fff8e7' : '#fef3c7';
+            text = '#92400e';
+            break;
+          case 'sick':
+            bg = isPending ? '#fff4e5' : '#ffe4e6';
+            text = isPending ? '#9a6700' : '#9f1239';
+            break;
+          case 'personal':
+            bg = isPending ? '#fff7e8' : '#ede9fe';
+            text = isPending ? '#9a6700' : '#5b21b6';
+            break;
+          default:
+            bg = isPending ? '#fff8e7' : '#e5e7eb';
+            text = isPending ? '#9a6700' : '#374151';
+            break;
+        }
 
-if (this.moveSlotsModal.mode === 'series') {
-  const { error } = await dbTenant().rpc('move_lesson_series', {
-    p_lesson_id: this.moveChoiceModal.lessonId,
-    p_new_instructor_id: slot.instructor_id,
-    p_new_day_of_week: slot.day_of_week,
-    p_new_start_time: slot.start_time || slot.start,
-    p_new_end_time: slot.end_time || slot.end,
-  });
+        const start = r.all_day || !r.start_time
+          ? `${r.request_date}T00:00:00`
+          : `${r.request_date}T${r.start_time}:00`;
 
-  if (error) throw error;
-}
+        const end = r.all_day || !r.end_time
+          ? `${r.request_date}T23:59:59`
+          : `${r.request_date}T${r.end_time}:00`;
 
-if (this.currentRange) {
-  await this.loadLessons({
-    start: this.currentRange.start,
-    end: this.currentRange.end,
-  });
+        const inst = this.instructorsAll.find(
+          i => String(i.id_number) === String(r.instructor_id)
+        );
+        const instructorName = `${inst?.first_name ?? ''} ${inst?.last_name ?? ''}`.trim();
 
-  this.filterLessons();
-  this.setScheduleItems();
-  this.buildBlockedDayCells(this.currentRange);
-  this.buildAvailableDayCells(this.currentRange);
-  this.buildWeekStats();
-}
+        return {
+          id: `instructor_off_${r.id}_${r.request_date}_${r.instructor_id}`,
+          title: isPending
+            ? `${instructorName} — ${this.getRequestLabel(r.request_type)}`
+            : `${instructorName} — ${this.getRequestLabel(r.request_type)}`,
+          start,
+          end,
+          allDay: false,
+          display: 'block',
+          overlap: false,
+          color: bg,
+          textColor: text,
+          classNames: [isPending ? 'pending-instructor-day-off' : 'instructor-day-off'],
+          status: isPending ? 'PENDING' as any : 'APPROVED' as any,
+          meta: {
+            isInstructorDayOff: isPending ? undefined : 'true',
+            isPendingInstructorDayOff: isPending ? 'true' : undefined,
+            request_type: r.request_type,
+            note: r.note ?? null,
+            instructor_id: r.instructor_id,
+            instructor_name: instructorName,
+          } as any,
+        } as ScheduleItem;
+      });
+  }
 
-this.moveSlotsModal.open = false;
-this.moveSlotsModal.selectedSlot = null;
+  private isLessonBlockedByInstructorOff(
+    instructorId: string,
+    lessonDate: string,
+    lessonStart?: Date,
+    lessonEnd?: Date
+  ): boolean {
+    return (this.dayRequests ?? []).some(r => {
+      if (r.status !== 'approved') return false;
+      if (String(r.instructor_id) !== String(instructorId)) return false;
+      if (r.request_date !== lessonDate) return false;
 
-await this.ui.alert('השיעור עודכן בהצלחה', 'בוצע');
+      // יום מלא
+      if (r.all_day === true) return true;
 
-  } catch (e) {
-  console.error('move failed', e);
-  await this.ui.alert('שגיאה בהזזה', 'שגיאה');
-} finally {
-  this.moveSlotsModal.saving = false;
-  this.cdr.detectChanges();
-}
-}
+      // אם אין שעות - לא לחסום
+      if (!r.start_time || !r.end_time) return false;
+      if (!lessonStart || !lessonEnd) return false;
 
-async chooseMoveWholeSeries(): Promise < void> {
-  this.moveChoiceModal.open = false;
+      const offStart = new Date(`${lessonDate}T${r.start_time}`);
+      const offEnd = new Date(`${lessonDate}T${r.end_time}`);
 
-  this.moveSlotsModal = {
-    open: true,
-    mode: 'series',
-    loading: true,
-    saving: false,
-    error: '',
-    slots: [],
-    selectedSlot: null,
-  };
+      return lessonStart < offEnd && lessonEnd > offStart;
+    });
+  }
+  private farmDaysOffToItems(): ScheduleItem[] {
+    return (this.farmDaysOff ?? []).map((d: any) => {
+      const isFullDay = String(d.day_type || '').toUpperCase() === 'FULL_DAY';
 
-  this.cdr.detectChanges();
+      const start = isFullDay
+        ? String(d.start_date).slice(0, 10)
+        : `${d.start_date}T${String(d.start_time).slice(0, 5)}:00`;
 
-  try {
-    const from = this.moveChoiceModal.occurDate;
-    const to = this.addDaysYmd(from, 90);
+      const end = isFullDay
+        ? `${String(d.end_date).slice(0, 10)}T23:59:59`
+        : `${d.start_date}T${String(d.end_time).slice(0, 5)}:00`;
 
-    const lesson = this.lessons.find(
-      (l: any) => String(l.lesson_id) === String(this.moveChoiceModal.lessonId)
-    ) as any;
+      return {
+        id: `farm_off_${d.id}`,
+        title: d.reason?.trim()
+          ? ` ${d.reason}`
+          : ' חופשת חווה',
+        start,
+        end,
+        allDay: isFullDay,
+        display: 'block',
+        color: 'rgba(255, 183, 77, 0.35)',
+        textColor: '#1f2a1f',
+        status: 'farm_day_off' as any,
+        meta: {
+          isFarmDayOff: 'true',
+        } as any,
+      };
+    });
+  }
+  private ensureIso(datetime?: string | null, time?: string | null, baseDate?: string | null): string {
+    if (datetime && typeof datetime === 'string' && datetime.includes('T')) return datetime;
 
-    const isOpenEnded = !!lesson?.is_open_ended;
-    const repeatWeeks = Number(lesson?.repeat_weeks ?? 1);
+    if (datetime && typeof datetime === 'string' && datetime.trim() !== '') {
+      return datetime.replace(' ', 'T');
+    }
 
-    const rpcName = isOpenEnded
-      ? 'find_open_ended_series_slots_with_skips'
-      : 'find_series_slots_with_skips';
+    const base = baseDate ? new Date(baseDate) : new Date();
+    const d = new Date(base);
+    if (time) {
+      const [hh, mm] = String(time).split(':').map((x) => parseInt(x, 10) || 0);
+      d.setHours(hh, mm, 0, 0);
+    }
+    return this.toLocalIso(d);
+  }
 
-    const payload = isOpenEnded
-      ? {
-        p_child_id: this.contextMenu.childId,
-        p_from_date: from,
-        p_instructor_id_number: null,
+  private toLocalIso(date: Date): string {
+    const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+      date.getHours()
+    )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  }
+
+  private getColorForChild(child_id: string): string {
+    const index = this.children.findIndex((c) => c.child_uuid === child_id);
+    const colors = ['#d8f3dc', '#fbc4ab', '#cdb4db', '#b5ead7', '#ffdac1'];
+    return colors[(index >= 0 ? index : 0) % colors.length];
+  }
+  private getColorForInstructor(id: string): string {
+    const palette = ['#ff6b6b', '#4dabf7', '#51cf66', '#f59f00', '#845ef7'];
+    const idx = this.hashString(id) % palette.length;
+    return palette[idx];
+  }
+
+  private addDaysYmd(ymd: string, days: number): string {
+    const [y, m, d] = ymd.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + days);
+
+    return [
+      dt.getFullYear(),
+      String(dt.getMonth() + 1).padStart(2, '0'),
+      String(dt.getDate()).padStart(2, '0'),
+    ].join('-');
+  }
+
+  isSeriesContext(): boolean {
+    return (
+      this.contextMenu.appointmentKind === 'therapy_series' ||
+      !!this.contextMenu.seriesId ||
+      !!this.contextMenu.isOpenEnded ||
+      (this.contextMenu.repeatWeeks ?? 0) > 1
+    );
+  }
+
+  onRightClickEvent(e: any): void {
+    if (!e?.jsEvent) return;
+
+    e.jsEvent.preventDefault();
+    e.jsEvent.stopPropagation();
+
+    const dateStr = typeof e.dateStr === 'string' ? e.dateStr : '';
+    if (!dateStr) return;
+
+    const localYmd = this.extractYmd(dateStr);
+    const localHm = dateStr.includes('T') ? this.extractHm(dateStr) : '';
+
+    let localEndHm = '';
+    if (typeof e.endStr === 'string' && e.endStr.includes('T')) {
+      localEndHm = this.extractHm(e.endStr);
+    }
+
+    const MENU_WIDTH = 220;
+    const MENU_HEIGHT = 230;
+    const EDGE_GAP = 12;
+
+    let x = e.jsEvent.clientX;
+    let y = e.jsEvent.clientY;
+
+    const maxX = window.innerWidth - MENU_WIDTH - EDGE_GAP;
+    const maxY = window.innerHeight - MENU_HEIGHT - EDGE_GAP;
+
+    x = Math.max(EDGE_GAP, Math.min(x, maxX));
+    y = Math.max(EDGE_GAP, Math.min(y, maxY));
+
+    this.contextMenu.visible = true;
+    this.contextMenu.x = x;
+    this.contextMenu.y = y;
+    this.contextMenu.date = localYmd;
+    this.contextMenu.time = localHm;
+    this.contextMenu.endTime = localEndHm;
+    this.contextMenu.instructorId = String(e.resourceId ?? '');
+    this.contextMenu.instructorName = String(e.resourceTitle ?? '');
+    this.contextMenu.hasEvent = true;
+    this.contextMenu.eventId = String(e.eventId ?? '');
+    this.contextMenu.lessonId = String(e.lessonId ?? '');
+    this.contextMenu.childId = String(e.childId ?? '');
+    this.contextMenu.childName = String(e.childName ?? '');
+    this.contextMenu.lessonType = String(e.lessonType ?? '');
+    this.contextMenu.status = String(e.status ?? '');
+    this.contextMenuMode = 'root';
+    this.contextMenu.seriesId = String(e.seriesId ?? '');
+    this.contextMenu.appointmentKind = String(e.appointmentKind ?? '');
+    this.contextMenu.repeatWeeks = e.repeatWeeks != null ? Number(e.repeatWeeks) : null;
+    this.contextMenu.isOpenEnded = e.isOpenEnded != null ? !!e.isOpenEnded : null;
+    this.contextMenu.seriesEndDate = String(e.seriesEndDate ?? '');
+    this.contextMenu.occurDate = String(e.occurDate ?? this.contextMenu.date ?? '');
+    this.contextMenu.startTimeOnly = String(e.startTime ?? this.contextMenu.time ?? '');
+    this.contextMenu.canDeleteLesson = this.canCancelContextLesson();
+
+    this.cdr.detectChanges();
+  }
+
+  onEventClick(arg: EventClickArg): void {
+    const ext: any = arg.event.extendedProps || {};
+    const meta: any = ext.meta || ext;
+
+    const childId =
+      meta.child_id ||
+      ext.child_id ||
+      null;
+
+    if (!childId) {
+      console.warn('❌ secretary onEventClick – no child_id', ext);
+      this.selectedChild = null;
+      this.selectedOccurrence = null;
+      return;
+    }
+
+    const child =
+      this.children.find(c => c.child_uuid === childId) ?? null;
+
+    this.selectedChild = child ? { ...child } : null;
+
+    // 🔑 lesson_id – לוקחים מה-meta או מה-id של האירוע
+    let lessonId: string | null = meta.lesson_id ?? null;
+
+
+    if (!lessonId && arg.event.id) {
+      lessonId = String(arg.event.id);
+    }
+
+    // 🔑 occur_date
+    const occurDate =
+      meta.occur_date ??
+      (arg.event.start
+        ? arg.event.start.toISOString().slice(0, 10)
+        : null);
+
+    const rawStatus = String(meta.status ?? '').toLowerCase();
+    const isCancelled =
+      rawStatus.includes('בוטל') ||
+      rawStatus.includes('מבוטל') ||
+      rawStatus.includes('cancel');
+
+    this.selectedOccurrence = {
+      lesson_id: lessonId,
+      child_id: childId,
+      occur_date: occurDate,
+      status: meta.status ?? null,
+      lesson_type: meta.lesson_type ?? null,
+      start: arg.event.start,
+      end: arg.event.end
+    };
+
+
+    this.cdr.detectChanges();
+  }
+
+  onDateClick(arg: any): void {
+    const dateStr = arg?.dateStr ??
+      (arg?.date ? arg.date.toISOString().slice(0, 10) : '');
+
+    if (!dateStr) return;
+
+    if (this.currentViewType === 'dayGridMonth' || this.currentViewType === 'timeGridWeek') {
+      if (this.scheduleCmp) {
+        this.scheduleCmp.goToDay(dateStr);
       }
-      : {
-        p_child_id: this.contextMenu.childId,
-        p_lesson_count: repeatWeeks,
-        p_instructor_id_number: null,
-        p_from_date: from,
-        p_to_date: to,
+      return;
+    }
+  }
+
+  private buildDateTime(dateStr?: string | null, timeStr?: string | null): string | null {
+    if (!dateStr || !timeStr) return null;
+
+    // time יכול להגיע HH:mm או HH:mm:ss
+    const t = String(timeStr).length === 5 ? `${timeStr}:00` : String(timeStr);
+    return `${dateStr}T${t}`;
+  }
+
+  private ensureEndAfterStart(startIso: string, endIso: string): string {
+    // אם בטעות end קטן מ-start (בעיה של נתונים/יום מתחלף) – נשאיר מינימום 30 דק
+    const s = new Date(startIso).getTime();
+    const e = new Date(endIso).getTime();
+    if (isNaN(s) || isNaN(e)) return endIso;
+    if (e > s) return endIso;
+
+    // fallback: +30 דקות
+    return this.toLocalIso(new Date(s + 30 * 60 * 1000));
+  }
+
+
+  private buildWeekStats(): void {
+    if (this.currentViewType !== 'timeGridWeek') {
+      this.weekInstructorStats = [];
+      return;
+    }
+
+    const stats = new Map<string, { instructor_id: string; instructor_name: string; totalLessons: number }>();
+
+    for (const l of this.filteredLessons) {
+      const id = (l as any).instructor_id || '';
+      if (!id) continue;
+      const key = id;
+      const name = (l as any).instructor_name || id;
+
+      if (!stats.has(key)) {
+        stats.set(key, { instructor_id: id, instructor_name: name, totalLessons: 0 });
+      }
+      stats.get(key)!.totalLessons++;
+    }
+
+    this.weekInstructorStats = Array.from(stats.values()).sort((a, b) =>
+      a.instructor_name.localeCompare(b.instructor_name, 'he')
+    );
+  }
+
+  async autoAssignForCurrentDay(): Promise<void> {
+    // רק בתצוגת יום, ובלוח של המזכירה
+    if (
+      !this.currentRange ||
+      !(
+        this.currentViewType === 'timeGridDay' ||
+        this.currentViewType === 'resourceTimeGridDay'
+      )
+    ) {
+      return;
+    }
+
+    const day = this.currentRange.start; // start==end בתצוגת יום
+    if (!day) return;
+
+    if (this.autoAssignLoading) return;
+    this.autoAssignLoading = true;
+
+    try {
+      const dbc = dbTenant();
+
+      const p_date = String(day).slice(0, 10); // YYYY-MM-DD
+
+
+      const { data, error } = await dbc.rpc(
+        'auto_assign_horses_and_arenas',
+        { p_date: day } // טיפוס DATE ב-Postgres
+      );
+
+      if (error) throw error;
+
+      // אחרי השיבוץ – לטעון מחדש את השיעורים של היום
+      await this.loadLessons({ start: day, end: day });
+      this.filterLessons();
+      this.setScheduleItems();
+      this.buildWeekStats();
+      this.cdr.detectChanges();
+
+      await this.ui.alert(
+        'שובצו סוסים ומגרשים לשיעורים של היום. ניתן לערוך שיעור-שיעור בממשק המתאים.',
+        'הצלחה'
+      );
+    } catch (e: any) {
+      console.error('autoAssignForCurrentDay failed', e);
+      await this.ui.alert(
+        'שיבוץ סוסים ומגרשים נכשל: ' + (e?.message ?? e),
+        'שגיאה'
+      );
+
+    } finally {
+      this.autoAssignLoading = false;
+    }
+  }
+
+  async onToggleMakeupAllowed(checked: boolean) {
+    try {
+      await ensureTenantContextReady();
+
+      const lessonId = this.occurrence?.lesson_id;
+      const occurDate = this.occurrence?.occur_date;
+
+      if (!lessonId || !occurDate) {
+        console.warn('❌ Missing lesson_id / occur_date', this.occurrence);
+        return;
+      }
+
+      const dbc = dbTenant();
+
+      const { error } = await dbc
+        .from('lesson_occurrence_exceptions')
+        .upsert(
+          {
+            lesson_id: lessonId,
+            occur_date: occurDate,
+            status: 'בוטל',                // חייב לפי CHECK
+            is_makeup_allowed: checked,
+            canceller_role: 'secretary',
+            cancelled_at: new Date().toISOString(),
+          },
+          { onConflict: 'lesson_id,occur_date' }
+        );
+
+      if (error) throw error;
+
+      // ✅ עדכון מיידי ב-UI
+      this.occurrence = {
+        ...this.occurrence,
+        is_makeup_allowed: checked,
       };
 
-    const { data, error } = await dbTenant().rpc(rpcName, payload);
+    } catch (e) {
+      console.error('toggle makeup failed', e);
+      await this.ui.alert('שגיאה בעדכון "ניתן להשלמה"', 'שגיאה');
 
-    if(error) throw error;
+    }
+  }
 
-    this.moveSlotsModal.slots = (data ?? []).map((s: any) => ({
-      occur_date: s.lesson_date,
-      start_time: s.start_time,
-      end_time: s.end_time,
-      instructor_id: s.instructor_id,
-      instructor_name:
-        this.instructors.find(i => String(i.id_number) === String(s.instructor_id))
-          ? `${this.instructors.find(i => String(i.id_number) === String(s.instructor_id))?.first_name ?? ''} ${this.instructors.find(i => String(i.id_number) === String(s.instructor_id))?.last_name ?? ''}`.trim()
-          : s.instructor_id,
-      lesson_ridding_type: s.riding_type_id ?? null,
-      riding_type_name: s.riding_type_name ?? null,
-      remaining_capacity: 1,
-      raw: s,
-    }));
-  } catch(e) {
-    console.error('load series move slots failed', e);
-    this.moveSlotsModal.error = 'שגיאה בטעינת אפשרויות להזזת סדרה';
-  } finally {
-    this.moveSlotsModal.loading = false;
+  private jsDowToDbDow(jsDow: number): number {
+    return jsDow;
+  }
+
+  private dbDowFromYmd(ymd: string): number {
+    const d = new Date(`${ymd}T12:00:00`);
+    return this.jsDowToDbDow(d.getDay());
+  }
+
+  openMoveChoiceModal(): void {
+    this.moveChoiceModal = {
+      open: true,
+      lessonId: this.contextMenu.lessonId,
+      occurDate: this.contextMenu.occurDate || this.contextMenu.date,
+      childName: this.contextMenu.childName,
+      instructorId: this.contextMenu.instructorId,
+      instructorName: this.contextMenu.instructorName,
+      startTime: this.contextMenu.startTimeOnly || this.contextMenu.time,
+      endTime: this.contextMenu.endTime || '',
+    };
+
+    this.closeContextMenu();
     this.cdr.detectChanges();
   }
-}
 
+  closeMoveChoiceModal(): void {
+    this.moveChoiceModal = {
+      open: false,
+      lessonId: '',
+      occurDate: '',
+      childName: '',
+      instructorId: '',
+      instructorName: '',
+      startTime: '',
+      endTime: '',
+    };
 
-async confirmMoveSelectedSlot(): Promise < void> {
-  const slot = this.moveSlotsModal.selectedSlot;
-  if(!slot) return;
-
-  if(this.moveSlotsModal.mode === 'single') {
-  //await this.confirmMoveSingle(slot);
-  return;
-}
-
-  //await this.confirmMoveSeries(slot);
-}
-
-moveSlotsPage = 0;
-moveSlotsPageSize = 4;
-
-get pagedMoveSlots(): any[] {
-  const start = this.moveSlotsPage * this.moveSlotsPageSize;
-  return this.moveSlotsModal.slots.slice(start, start + this.moveSlotsPageSize);
-}
-
-get moveSlotsTotalPages(): number {
-  return Math.max(1, Math.ceil(this.moveSlotsModal.slots.length / this.moveSlotsPageSize));
-}
-
-get canPrevMoveSlots(): boolean {
-  return this.moveSlotsPage > 0;
-}
-
-get canNextMoveSlots(): boolean {
-  return this.moveSlotsPage < this.moveSlotsTotalPages - 1;
-}
-
-prevMoveSlotsPage(): void {
-  if(!this.canPrevMoveSlots) return;
-  this.moveSlotsPage--;
-}
-
-nextMoveSlotsPage(): void {
-  if(!this.canNextMoveSlots) return;
-  this.moveSlotsPage++;
-}
-formatCancelDate(value: string): string {
-  if (!value) return '';
-
-  const [year, month, day] = value.slice(0, 10).split('-');
-  if (!year || !month || !day) return value;
-
-  return `${day}/${month}/${year.slice(2)}`;
-}
-
-formatCancelTimeRange(start: string, end: string): string {
-  const s = String(start || '').slice(0, 5);
-  const e = String(end || '').slice(0, 5);
-
-  if (!s && !e) return '';
-  if (s && !e) return s;
-  if (!s && e) return e;
-
-  return `${s}-${e}`;
-}
-
-openDeleteLessonModal(): void {
-  this.deleteLessonModal = {
-    open: true,
-    saving: false,
-    error: '',
-    lessonId: this.contextMenu.lessonId,
-    occurDate: this.contextMenu.occurDate || this.contextMenu.date,
-    childName: this.contextMenu.childName || 'ללא שם',
-    instructorName: this.contextMenu.instructorName || 'ללא מדריך',
-    lessonType: this.contextMenu.lessonType || '',
-    isSeries: this.isSeriesContext(),
-  };
-
-  this.closeContextMenu();
-  this.cdr.detectChanges();
-}
-
-closeDeleteLessonModal(): void {
-  if(this.deleteLessonModal.saving) return;
-  this.deleteLessonModal.open = false;
-  this.deleteLessonModal.error = '';
-}
-
-async confirmDeleteLesson(): Promise < void> {
-  if(!this.deleteLessonModal.lessonId || !this.deleteLessonModal.occurDate) return;
-
-  this.deleteLessonModal.saving = true;
-  this.deleteLessonModal.error = '';
-  this.cdr.detectChanges();
-
-  try {
-    const { data, error } = await dbTenant().rpc('delete_lesson_or_series', {
-      p_lesson_id: this.deleteLessonModal.lessonId,
-      p_occur_date: this.deleteLessonModal.occurDate,
-    });
-
-    if(error) throw error;
-
-    const res = Array.isArray(data) ? data[0] : data;
-
-    if(res?.ok !== true) {
-  this.deleteLessonModal.error = res?.message || 'לא ניתן למחוק';
-  return;
-}
-
-this.deleteLessonModal.open = false;
-
-if (this.currentRange) {
-  await this.loadLessons({
-    start: this.currentRange.start,
-    end: this.currentRange.end,
-  });
-
-  this.filterLessons();
-  this.setScheduleItems();
-  this.buildBlockedDayCells(this.currentRange);
-  this.buildAvailableDayCells(this.currentRange);
-  this.buildWeekStats();
-}
-  } catch (e: any) {
-  console.error('delete lesson failed', e);
-  this.deleteLessonModal.error = e?.message || 'שגיאה במחיקה';
-} finally {
-  this.deleteLessonModal.saving = false;
-  this.cdr.detectChanges();
-}
-}
-
-private canDeleteLessonFromContext(): boolean {
-  const lessonId = this.contextMenu.lessonId;
-  const occurDate = this.contextMenu.occurDate || this.contextMenu.date;
-
-  if (!lessonId || !occurDate) return false;
-
-  const lesson: any =
-    this.lessons.find((l: any) =>
-      String(l.lesson_id || l.id) === String(lessonId) &&
-      String(l.occur_date || '').slice(0, 10) === String(occurDate).slice(0, 10)
-    );
-
-  if (!lesson) return true; // ה-RPC עדיין יבדוק סופית
-
-  const attendance = String(lesson.attendance_status || '').trim();
-
-  const hasAttendance =
-    attendance === 'present' ||
-    attendance === 'absent' ||
-    attendance === 'הגיע' ||
-    attendance === 'לא הגיע';
-
-  if (hasAttendance) return false;
-
-  const isSeries =
-    String(lesson.appointment_kind || this.contextMenu.appointmentKind || '') === 'therapy_series' &&
-    (
-      lesson.is_open_ended === true ||
-      this.contextMenu.isOpenEnded === true ||
-      Number(lesson.repeat_weeks || this.contextMenu.repeatWeeks || 1) > 1 ||
-      ['רגיל', 'סידרה'].includes(String(lesson.lesson_type || this.contextMenu.lessonType || ''))
-    );
-
-  if (!isSeries) return true;
-
-  const firstDate =
-    lesson.first_occur_date ||
-    lesson.series_first_occur_date ||
-    lesson.anchor_occur_date;
-
-  if (firstDate) {
-    return String(firstDate).slice(0, 10) === String(occurDate).slice(0, 10);
+    this.cdr.detectChanges();
   }
 
-  // אם אין firstDate באובייקט — עדיף לא להציג, כדי לא לתת פעולה שאולי תיחסם
-  return false;
-}
+  async chooseMoveSingleOccurrence(): Promise<void> {
+    this.moveChoiceModal.open = false;
+
+    this.moveSlotsModal = {
+      open: true,
+      mode: 'single',
+      loading: true,
+      saving: false,
+      error: '',
+      slots: [],
+      selectedSlot: null,
+    };
+
+    this.cdr.detectChanges();
+
+    try {
+      const from = this.moveChoiceModal.occurDate;
+      const to = this.addDaysYmd(from, 30);
+
+      const { data, error } = await dbTenant().rpc(
+        'find_makeup_slots_for_lesson_by_id_number',
+        {
+          p_child_id: this.contextMenu.childId,
+          p_instructor_id: null,
+          p_from_date: from,
+          p_to_date: to,
+        }
+      );
+
+      if (error) throw error;
+
+      this.moveSlotsModal.slots = (data ?? []).filter((s: any) => {
+        const sameDate = s.occur_date === this.moveChoiceModal.occurDate;
+        const sameStart = String(s.start_time).slice(0, 5) === String(this.moveChoiceModal.startTime).slice(0, 5);
+        const sameInstructor = String(s.instructor_id) === String(this.moveChoiceModal.instructorId);
+
+        return !(sameDate && sameStart && sameInstructor);
+      });
+    } catch (e) {
+      console.error('load single move slots failed', e);
+      this.moveSlotsModal.error = 'שגיאה בטעינת אפשרויות להזזת שיעור';
+    } finally {
+      this.moveSlotsModal.loading = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  selectMoveSlot(slot: any): void {
+    this.moveSlotsModal.selectedSlot = slot;
+  }
+
+  async confirmMove(): Promise<void> {
+    const slot = this.moveSlotsModal.selectedSlot;
+    if (!slot) return;
+
+    const date = slot.occur_date || slot.lesson_date;
+    const start = String(slot.start_time || slot.start).slice(0, 5);
+    const end = String(slot.end_time || slot.end).slice(0, 5);
+
+    this.moveConfirmModal = {
+      open: true,
+      mode: this.moveSlotsModal.mode,
+
+      childName: this.moveChoiceModal.childName,
+
+      originalDate: this.moveChoiceModal.occurDate,
+      originalTime: `${this.moveChoiceModal.startTime}-${this.moveChoiceModal.endTime || ''}`,
+      originalInstructor: this.moveChoiceModal.instructorName,
+
+      newDate: date,
+      newStartTime: start,
+      newEndTime: end,
+      newInstructor: slot.instructor_name || slot.instructorName || String(slot.instructor_id || ''),
+
+      slot,
+    };
+
+    this.cdr.detectChanges();
+  }
+
+  closeMoveConfirmModal(): void {
+    this.moveConfirmModal.open = false;
+    this.cdr.detectChanges();
+  }
+
+  async approveMoveConfirm(): Promise<void> {
+
+    const slot = this.moveConfirmModal.slot || this.moveSlotsModal.selectedSlot;
+
+    if (!slot) {
+      console.error('No slot found for move approval', {
+        moveConfirmModal: this.moveConfirmModal,
+        moveSlotsModal: this.moveSlotsModal,
+      });
+
+      await this.ui.alert('לא נמצא סלוט להזזה. בחרי שוב אפשרות מהרשימה.', 'שגיאה');
+      return;
+    }
+
+    this.moveConfirmModal.open = false;
+    await this.executeMove(slot);
+  }
+
+  async executeMove(slot: any): Promise<void> {
+    this.moveSlotsModal.saving = true;
+    this.cdr.detectChanges();
+
+    try {
+      if (this.moveSlotsModal.mode === 'single') {
+        const date = slot.occur_date || slot.lesson_date;
+        const start = String(slot.start_time || slot.start).slice(0, 5);
+        const end = String(slot.end_time || slot.end).slice(0, 5);
+
+        const newStartDatetime = `${date}T${start}:00`;
+        const newEndDatetime = `${date}T${end}:00`;
+
+        const { error } = await dbTenant().rpc('move_lesson_occurrence', {
+          p_lesson_id: this.moveChoiceModal.lessonId,
+          p_occur_date: this.moveChoiceModal.occurDate,
+          p_new_instructor_id: slot.instructor_id,
+          p_new_start_datetime: newStartDatetime,
+          p_new_end_datetime: newEndDatetime,
+          p_note: null,
+          p_created_by_role: 'secretary',
+          p_created_by_uid: null
+        });
+
+        if (error) throw error;
+      }
+
+      if (this.moveSlotsModal.mode === 'series') {
+        const { error } = await dbTenant().rpc('move_lesson_series', {
+          p_lesson_id: this.moveChoiceModal.lessonId,
+          p_new_instructor_id: slot.instructor_id,
+          p_new_day_of_week: slot.day_of_week,
+          p_new_start_time: slot.start_time || slot.start,
+          p_new_end_time: slot.end_time || slot.end,
+        });
+
+        if (error) throw error;
+      }
+
+      if (this.currentRange) {
+        await this.loadLessons({
+          start: this.currentRange.start,
+          end: this.currentRange.end,
+        });
+
+        this.filterLessons();
+        this.setScheduleItems();
+        this.buildBlockedDayCells(this.currentRange);
+        this.buildAvailableDayCells(this.currentRange);
+        this.buildWeekStats();
+      }
+
+      this.moveSlotsModal.open = false;
+      this.moveSlotsModal.selectedSlot = null;
+
+      await this.ui.alert('השיעור עודכן בהצלחה', 'בוצע');
+
+    } catch (e) {
+      console.error('move failed', e);
+      await this.ui.alert('שגיאה בהזזה', 'שגיאה');
+    } finally {
+      this.moveSlotsModal.saving = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  async chooseMoveWholeSeries(): Promise<void> {
+    this.moveChoiceModal.open = false;
+
+    this.moveSlotsModal = {
+      open: true,
+      mode: 'series',
+      loading: true,
+      saving: false,
+      error: '',
+      slots: [],
+      selectedSlot: null,
+    };
+
+    this.cdr.detectChanges();
+
+    try {
+      const from = this.moveChoiceModal.occurDate;
+      const to = this.addDaysYmd(from, 90);
+
+      const lesson = this.lessons.find(
+        (l: any) => String(l.lesson_id) === String(this.moveChoiceModal.lessonId)
+      ) as any;
+
+      const isOpenEnded = !!lesson?.is_open_ended;
+      const repeatWeeks = Number(lesson?.repeat_weeks ?? 1);
+
+      const rpcName = isOpenEnded
+        ? 'find_open_ended_series_slots_with_skips'
+        : 'find_series_slots_with_skips';
+
+      const payload = isOpenEnded
+        ? {
+          p_child_id: this.contextMenu.childId,
+          p_from_date: from,
+          p_instructor_id_number: null,
+        }
+        : {
+          p_child_id: this.contextMenu.childId,
+          p_lesson_count: repeatWeeks,
+          p_instructor_id_number: null,
+          p_from_date: from,
+          p_to_date: to,
+        };
+
+      const { data, error } = await dbTenant().rpc(rpcName, payload);
+
+      if (error) throw error;
+
+      this.moveSlotsModal.slots = (data ?? []).map((s: any) => ({
+        occur_date: s.lesson_date,
+        start_time: s.start_time,
+        end_time: s.end_time,
+        instructor_id: s.instructor_id,
+        instructor_name:
+          this.instructors.find(i => String(i.id_number) === String(s.instructor_id))
+            ? `${this.instructors.find(i => String(i.id_number) === String(s.instructor_id))?.first_name ?? ''} ${this.instructors.find(i => String(i.id_number) === String(s.instructor_id))?.last_name ?? ''}`.trim()
+            : s.instructor_id,
+        lesson_ridding_type: s.riding_type_id ?? null,
+        riding_type_name: s.riding_type_name ?? null,
+        remaining_capacity: 1,
+        raw: s,
+      }));
+    } catch (e) {
+      console.error('load series move slots failed', e);
+      this.moveSlotsModal.error = 'שגיאה בטעינת אפשרויות להזזת סדרה';
+    } finally {
+      this.moveSlotsModal.loading = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+
+  async confirmMoveSelectedSlot(): Promise<void> {
+    const slot = this.moveSlotsModal.selectedSlot;
+    if (!slot) return;
+
+    if (this.moveSlotsModal.mode === 'single') {
+      //await this.confirmMoveSingle(slot);
+      return;
+    }
+
+    //await this.confirmMoveSeries(slot);
+  }
+
+  moveSlotsPage = 0;
+  moveSlotsPageSize = 4;
+
+  get pagedMoveSlots(): any[] {
+    const start = this.moveSlotsPage * this.moveSlotsPageSize;
+    return this.moveSlotsModal.slots.slice(start, start + this.moveSlotsPageSize);
+  }
+
+  get moveSlotsTotalPages(): number {
+    return Math.max(1, Math.ceil(this.moveSlotsModal.slots.length / this.moveSlotsPageSize));
+  }
+
+  get canPrevMoveSlots(): boolean {
+    return this.moveSlotsPage > 0;
+  }
+
+  get canNextMoveSlots(): boolean {
+    return this.moveSlotsPage < this.moveSlotsTotalPages - 1;
+  }
+
+  prevMoveSlotsPage(): void {
+    if (!this.canPrevMoveSlots) return;
+    this.moveSlotsPage--;
+  }
+
+  nextMoveSlotsPage(): void {
+    if (!this.canNextMoveSlots) return;
+    this.moveSlotsPage++;
+  }
+  formatCancelDate(value: string): string {
+    if (!value) return '';
+
+    const [year, month, day] = value.slice(0, 10).split('-');
+    if (!year || !month || !day) return value;
+
+    return `${day}/${month}/${year.slice(2)}`;
+  }
+
+  formatCancelTimeRange(start: string, end: string): string {
+    const s = String(start || '').slice(0, 5);
+    const e = String(end || '').slice(0, 5);
+
+    if (!s && !e) return '';
+    if (s && !e) return s;
+    if (!s && e) return e;
+
+    return `${s}-${e}`;
+  }
+
+  openDeleteLessonModal(): void {
+    this.deleteLessonModal = {
+      open: true,
+      saving: false,
+      error: '',
+      lessonId: this.contextMenu.lessonId,
+      occurDate: this.contextMenu.occurDate || this.contextMenu.date,
+      childName: this.contextMenu.childName || 'ללא שם',
+      instructorName: this.contextMenu.instructorName || 'ללא מדריך',
+      lessonType: this.contextMenu.lessonType || '',
+      isSeries: this.isSeriesContext(),
+    };
+
+    this.closeContextMenu();
+    this.cdr.detectChanges();
+  }
+
+  closeDeleteLessonModal(): void {
+    if (this.deleteLessonModal.saving) return;
+    this.deleteLessonModal.open = false;
+    this.deleteLessonModal.error = '';
+  }
+
+  async confirmDeleteLesson(): Promise<void> {
+    if (!this.deleteLessonModal.lessonId || !this.deleteLessonModal.occurDate) return;
+
+    this.deleteLessonModal.saving = true;
+    this.deleteLessonModal.error = '';
+    this.cdr.detectChanges();
+
+    try {
+      const { data, error } = await dbTenant().rpc('delete_lesson_or_series', {
+        p_lesson_id: this.deleteLessonModal.lessonId,
+        p_occur_date: this.deleteLessonModal.occurDate,
+      });
+
+      if (error) throw error;
+
+      const res = Array.isArray(data) ? data[0] : data;
+
+      if (res?.ok !== true) {
+        this.deleteLessonModal.error = res?.message || 'לא ניתן למחוק';
+        return;
+      }
+
+      this.deleteLessonModal.open = false;
+
+      if (this.currentRange) {
+        await this.loadLessons({
+          start: this.currentRange.start,
+          end: this.currentRange.end,
+        });
+
+        this.filterLessons();
+        this.setScheduleItems();
+        this.buildBlockedDayCells(this.currentRange);
+        this.buildAvailableDayCells(this.currentRange);
+        this.buildWeekStats();
+      }
+    } catch (e: any) {
+      console.error('delete lesson failed', e);
+      this.deleteLessonModal.error = e?.message || 'שגיאה במחיקה';
+    } finally {
+      this.deleteLessonModal.saving = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  private canDeleteLessonFromContext(): boolean {
+    const lessonId = this.contextMenu.lessonId;
+    const occurDate = this.contextMenu.occurDate || this.contextMenu.date;
+
+    if (!lessonId || !occurDate) return false;
+
+    const lesson: any =
+      this.lessons.find((l: any) =>
+        String(l.lesson_id || l.id) === String(lessonId) &&
+        String(l.occur_date || '').slice(0, 10) === String(occurDate).slice(0, 10)
+      );
+
+    if (!lesson) return true; // ה-RPC עדיין יבדוק סופית
+
+    const attendance = String(lesson.attendance_status || '').trim();
+
+    const hasAttendance =
+      attendance === 'present' ||
+      attendance === 'absent' ||
+      attendance === 'הגיע' ||
+      attendance === 'לא הגיע';
+
+    if (hasAttendance) return false;
+
+    const isSeries =
+      String(lesson.appointment_kind || this.contextMenu.appointmentKind || '') === 'therapy_series' &&
+      (
+        lesson.is_open_ended === true ||
+        this.contextMenu.isOpenEnded === true ||
+        Number(lesson.repeat_weeks || this.contextMenu.repeatWeeks || 1) > 1 ||
+        ['רגיל', 'סידרה'].includes(String(lesson.lesson_type || this.contextMenu.lessonType || ''))
+      );
+
+    if (!isSeries) return true;
+
+    const firstDate =
+      lesson.first_occur_date ||
+      lesson.series_first_occur_date ||
+      lesson.anchor_occur_date;
+
+    if (firstDate) {
+      return String(firstDate).slice(0, 10) === String(occurDate).slice(0, 10);
+    }
+
+    // אם אין firstDate באובייקט — עדיף לא להציג, כדי לא לתת פעולה שאולי תיחסם
+    return false;
+  }
 
 }
