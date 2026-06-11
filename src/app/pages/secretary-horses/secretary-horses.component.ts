@@ -19,6 +19,11 @@ interface RiderService {
   price_agorot: number | null;
   notes: string | null;
   cancellation_note: string | null;
+
+  rider_service_types?: {
+    name: string | null;
+    category: string | null;
+  } | null;
 }
 interface Horse {
   id?: string;
@@ -91,6 +96,24 @@ export class SecretaryHorsesComponent implements OnInit {
   horseOwnershipFilter: 'all' | 'farm' | 'private' = 'all';
   privateOwnerFilterUid = '';
   horseNameFilter = '';
+  editingServiceId: string | null = null;
+  editingTaskId: string | null = null;
+
+  openServiceEdit(id: string): void {
+    this.editingServiceId = id;
+  }
+
+  closeServiceEdit(): void {
+    this.editingServiceId = null;
+  }
+
+  openTaskEdit(id: string): void {
+    this.editingTaskId = id;
+  }
+
+  closeTaskEdit(): void {
+    this.editingTaskId = null;
+  }
   async ngOnInit(): Promise<void> {
     const horseId = this.route.snapshot.queryParamMap.get('horseId');
     this.returnRiderUid = this.route.snapshot.queryParamMap.get('returnRiderUid');
@@ -361,6 +384,7 @@ export class SecretaryHorsesComponent implements OnInit {
     }
 
     await this.ui.alert('המשימה נשמרה בהצלחה.', 'הצלחה');
+    this.closeTaskEdit();
   }
   get visibleTasksByHorse(): Record<string, HorseServiceTask[]> {
     return this.tasksByHorse;
@@ -490,7 +514,13 @@ export class SecretaryHorsesComponent implements OnInit {
 
     const { data, error } = await dbTenant()
       .from('rider_services')
-      .select('*')
+      .select(`
+      *,
+      rider_service_types (
+        name,
+        category
+      )
+    `)
       .in('horse_uid', horseIds)
       .order('created_at', { ascending: false });
 
@@ -508,6 +538,21 @@ export class SecretaryHorsesComponent implements OnInit {
       }
 
       this.servicesByHorse[service.horse_uid].push(service);
+    }
+  }
+  serviceModeLabel(mode: string | null | undefined): string {
+    switch (mode) {
+      case 'once':
+        return 'חד פעמי';
+
+      case 'recurring_range':
+        return 'מחזורי';
+
+      case 'permanent':
+        return 'קבוע';
+
+      default:
+        return mode ?? '—';
     }
   }
   async saveService(service: RiderService): Promise<void> {
@@ -532,6 +577,7 @@ export class SecretaryHorsesComponent implements OnInit {
     await this.loadHorseServices();
     await this.loadHorseTasks();
     await this.ui.alert('השירות נשמר בהצלחה.', 'הצלחה');
+    this.closeServiceEdit();
   }
   get regularActiveRiders(): Rider[] {
     return this.riders.filter(r =>
