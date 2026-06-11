@@ -90,30 +90,22 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
   taskStatusOptions: DbOption[] = [];
   serviceModeOptions: DbOption[] = [];
   recurrenceUnitOptions: DbOption[] = [];
-
+  hasOpenTasks = false;
   async ngOnInit() {
     await this.initPage();
-    await Promise.all([
-      this.loadEnumOptions(),
-      this.loadServiceTypes(),
-      this.loadTasks(),
-    ]);
   }
-
   private async initPage() {
     this.loading = true;
     this.error = '';
-    await Promise.all([
-      this.loadEnumOptions(),
-      this.loadServiceTypes(),
-      this.loadRiders(),
-      this.loadHorses(),
-      this.loadTasks(),
-    ]);
+    this.success = '';
 
     try {
+      await this.loadEnumOptions();
       await Promise.all([
-        this.loadEnumOptions(),
+        this.loadServiceTypes(),
+        this.loadRiders(),
+        this.loadHorses(),
+        this.loadHasOpenTasks(),
         this.loadTasks(),
       ]);
     } catch (e: any) {
@@ -122,7 +114,6 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
       this.loading = false;
     }
   }
-
   private async loadEnumOptions() {
     const [
       taskStatuses,
@@ -241,17 +232,14 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
     try {
       const db = dbTenant();
 
-      const untilDate = this.addDaysYmd(90);
-
-      const { error } = await db.rpc('generate_rider_service_tasks', {
-        p_until_date: untilDate,
-      });
+      const { error } = await db.rpc('generate_next_rider_service_tasks');
 
       if (error) throw error;
 
       await this.loadTasks();
+      await this.loadHasOpenTasks();
 
-      this.success = 'המשימות רועננו בהצלחה ✅';
+      this.success = 'המשימות רועננו בהצלחה';
 
     } catch (e: any) {
       this.error = e?.message || 'שגיאה ברענון המשימות';
@@ -259,7 +247,16 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
       this.refreshing = false;
     }
   }
+  today = this.getToday();
 
+  private getToday(): string {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+
+    return `${y}-${m}-${day}`;
+  }
   async markAsDone(task: ServiceTask) {
     if (this.actionLoadingId) return;
 
@@ -284,8 +281,8 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
 
       if (error) throw error;
 
-      this.tasks = this.tasks.filter(x => x.id !== task.id);
-      this.success = 'המשימה סומנה כבוצעה בהצלחה ✅';
+      await this.loadTasks();
+      await this.loadHasOpenTasks(); this.success = 'המשימה סומנה כבוצעה בהצלחה ✅';
 
     } catch (e: any) {
       this.error = e?.message || 'שגיאה בסימון המשימה כבוצעה';
@@ -328,16 +325,6 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
     return `${value.toLocaleString('he-IL')} ₪`;
   }
 
-  private addDaysYmd(days: number): string {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-
-    return `${y}-${m}-${day}`;
-  }
   toggleExpanded(serviceId: string) {
     if (this.expandedServiceIds.has(serviceId)) {
       this.expandedServiceIds.delete(serviceId);
@@ -516,6 +503,7 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
         await this.cancelTask(group.nearestTask, result.note);
       } else {
         await this.cancelWholeService(group, result.note);
+        await this.loadHasOpenTasks();
       }
     });
   }
@@ -531,6 +519,38 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
     ref.afterClosed().subscribe(async result => {
       if (!result) return;
       await this.cancelTask(task, result.note);
+      await this.loadHasOpenTasks();
     });
+  }
+  private async loadHasOpenTasks() {
+    const db = dbTenant();
+
+    const { count, error } = await db
+      .from('rider_service_tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'open');
+
+    if (error) throw error;
+
+    this.hasOpenTasks = (count ?? 0) > 0;
+  }
+  isDueTomorrow(task: ServiceTask): boolean {
+    if (task.status !== 'open') return false;
+
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const y = tomorrow.getFullYear();
+    const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const d = String(tomorrow.getDate()).padStart(2, '0');
+
+    return task.due_date === `${y}-${m}-${d}`;
+  }
+  isDueToday(task: ServiceTask): boolean {
+    return task.status === 'open' &&
+      task.due_date === this.todayYmd();
+  }
+  isUrgent(task: ServiceTask): boolean {
+    return this.isDueToday(task) || this.isDueTomorrow(task);
   }
 }

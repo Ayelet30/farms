@@ -255,10 +255,7 @@ async function handleRiderServiceDecision(req: any, res: any, status: 'APPROVED'
             if (serviceInsertErr) throw serviceInsertErr;
 
             if (insertedService?.id) {
-                const untilDate = new Date();
-                untilDate.setDate(untilDate.getDate() + 90);
 
-                const pUntilDate = untilDate.toISOString().slice(0, 10);
                 const { error: taskGenErr } = await sbTenant.rpc(
                     'generate_rider_service_tasks_for_service',
                     {

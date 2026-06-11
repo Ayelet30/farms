@@ -1003,7 +1003,6 @@ export class FarmSettingsComponent implements OnInit {
       this.error.set(null);
       this.success.set(null);
 
-      console.log('payload before saveWorkingHours', payload);
 
       const { error } = await this.supabase
         .from('farm_working_hours')

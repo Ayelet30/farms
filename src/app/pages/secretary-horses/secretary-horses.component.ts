@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/supabaseClient.service';
 import { UiDialogService } from '../../services/ui-dialog.service';
-
+import { Router, ActivatedRoute } from '@angular/router';
 type HorseGender = 'male' | 'female' | 'gelding' | null;
 type HorseSize = 'pony_small' | 'pony_large' | 'horse' | null;
 
@@ -49,6 +49,32 @@ interface Horse {
   next_flu_date?: string | null;
   next_herpes_date?: string | null;
   next_west_nile_date?: string | null;
+
+  owner_rider_uid?: string | null;
+  owner_rider_name?: string | null;
+}
+interface Rider {
+  uid: string;
+  first_name: string | null;
+  last_name: string | null;
+  full_name?: string | null;
+  status?: 'active' | 'inactive' | string | null;
+}
+interface HorseServiceTask {
+  id: string;
+  rider_service_id: string;
+  rider_uid: string;
+  horse_uid: string;
+  service_type_id: string;
+  service_name: string;
+  due_date: string;
+  status: 'open' | 'completed' | 'cancelled' | string;
+  completed_at: string | null;
+  completed_by_uid: string | null;
+  notes: string | null;
+  cancelled_at: string | null;
+  cancelled_by_uid: string | null;
+  cancellation_note: string | null;
 }
 
 type AlertKind =
@@ -78,7 +104,12 @@ interface HorseAlert {
 })
 export class SecretaryHorsesComponent implements OnInit {
   private ui = inject(UiDialogService);
-
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
+  riders: Rider[] = [];
+  returnRiderUid: string | null = null;
+  tasksByHorse: Record<string, HorseServiceTask[]> = {};
+  activeTab: 'active' | 'inactive' = 'active';
   horses: Horse[] = [];
   editing: Horse | null = null;
 
@@ -86,11 +117,66 @@ export class SecretaryHorsesComponent implements OnInit {
   loading = false;
 
   readonly ALERT_HORIZON_DAYS = 30;
-
   async ngOnInit(): Promise<void> {
+    const horseId = this.route.snapshot.queryParamMap.get('horseId');
+    this.returnRiderUid = this.route.snapshot.queryParamMap.get('returnRiderUid');
+
+    await this.loadRiders();
     await this.loadHorses();
+    await this.loadHorseTasks();
+
+    if (horseId) {
+      const horse = this.horses.find(h => h.id === horseId);
+
+      if (horse) {
+        this.activeTab = horse.is_active ? 'active' : 'inactive';
+        this.editHorse(horse);
+      }
+    }
+  } async loadRiders(): Promise<void> {
+    const { data, error } = await dbTenant()
+      .from('independent_riders')
+      .select('uid, first_name, last_name, status')
+      .order('first_name', { ascending: true })
+      .order('last_name', { ascending: true });
+
+    if (error) {
+      console.error(error);
+      this.riders = [];
+      return;
+    }
+
+    this.riders = data ?? [];
   }
 
+  riderLabel(rider: Rider): string {
+    const name =
+      `${rider.first_name || ''} ${rider.last_name || ''}`.trim()
+      || rider.full_name
+      || rider.uid;
+
+    return name;
+  }
+
+  ownerName(uid: string | null | undefined): string {
+    if (!uid) return '';
+
+    const rider = this.riders.find(r => r.uid === uid);
+    return rider ? this.riderLabel(rider) : '';
+  }
+  backToRider(): void {
+
+    if (!this.returnRiderUid) {
+      this.router.navigate(['/secretary/independent-riders']);
+      return;
+    }
+
+    this.router.navigate(['/secretary/independent-riders'], {
+      queryParams: {
+        riderUid: this.returnRiderUid,
+      },
+    });
+  }
   async loadHorses(): Promise<void> {
     this.loading = true;
 
@@ -104,6 +190,7 @@ export class SecretaryHorsesComponent implements OnInit {
 
       this.horses = (data ?? []) as Horse[];
       this.buildAlerts();
+      await this.loadHorseTasks();
     } catch (e: any) {
       console.error('Failed to load horses', e);
       this.horses = [];
@@ -121,6 +208,7 @@ export class SecretaryHorsesComponent implements OnInit {
       color: null,
       gender: null,
       horse_size: null,
+      owner_rider_uid: null,
 
       max_continuous_minutes: 60,
       max_daily_minutes: 240,
@@ -194,7 +282,7 @@ export class SecretaryHorsesComponent implements OnInit {
         color: payload.color,
         gender: payload.gender,
         horse_size: payload.horse_size,
-
+        owner_rider_uid: payload.owner_rider_uid || null,
         max_continuous_minutes: payload.max_continuous_minutes,
         max_daily_minutes: payload.max_daily_minutes,
         min_break_minutes: payload.min_break_minutes,
@@ -238,7 +326,16 @@ export class SecretaryHorsesComponent implements OnInit {
 
         if (error) throw error;
       }
+      const originalHorse = payload.id
+        ? this.horses.find(h => h.id === payload.id)
+        : null;
 
+      const horseWasDeactivated =
+        originalHorse?.is_active === true && payload.is_active === false;
+
+      if (payload.id && !horseWasDeactivated) {
+        await this.saveEditingHorseTasks(payload.id);
+      }
       this.editing = null;
       await this.loadHorses();
       await this.ui.alert('הסוס נשמר בהצלחה.', 'הצלחה');
@@ -248,37 +345,6 @@ export class SecretaryHorsesComponent implements OnInit {
     }
   }
 
-  async confirmDelete(horse: Horse): Promise<void> {
-    const ok = await this.ui.confirm({
-      title: 'מחיקת סוס',
-      message: `למחוק את הסוס "${horse.name}"?`,
-      okText: 'כן, למחוק',
-      cancelText: 'ביטול',
-      showCancel: true,
-    });
-
-    if (!ok) return;
-
-    if (!horse.id) {
-      await this.ui.alert('לא נמצא מזהה לסוס (id).', 'שגיאה');
-      return;
-    }
-
-    try {
-      const { error } = await dbTenant()
-        .from('horses')
-        .delete()
-        .eq('id', horse.id);
-
-      if (error) throw error;
-
-      await this.loadHorses();
-      await this.ui.alert('הסוס נמחק בהצלחה.', 'הצלחה');
-    } catch (e: any) {
-      console.error('delete horse failed', e);
-      await this.ui.alert('מחיקת הסוס נכשלה: ' + (e?.message ?? 'שגיאה'), 'שגיאה');
-    }
-  }
 
   genderLabel(gender?: HorseGender): string {
     switch (gender) {
@@ -368,7 +434,7 @@ export class SecretaryHorsesComponent implements OnInit {
   private buildAlerts(): void {
     const alerts: HorseAlert[] = [];
 
-    for (const h of this.horses) {
+    for (const h of this.horses.filter(h => h.is_active)) {
       this.addAlertIfRelevant(alerts, h, 'shoeing', h.next_shoeing_date);
       this.addAlertIfRelevant(alerts, h, 'teeth', h.next_teeth_date);
 
@@ -384,5 +450,141 @@ export class SecretaryHorsesComponent implements OnInit {
       const bTime = new Date(b.dueDate).getTime();
       return aTime - bTime;
     });
+  }
+  async loadHorseTasks(): Promise<void> {
+    const horseIds = this.horses
+      .map(h => h.id)
+      .filter(Boolean) as string[];
+
+    if (!horseIds.length) {
+      this.tasksByHorse = {};
+      return;
+    }
+
+    const { data, error } = await dbTenant()
+      .from('rider_service_tasks')
+      .select('*')
+      .in('horse_uid', horseIds)
+      .order('due_date', { ascending: false });
+
+    if (error) {
+      console.error(error);
+      await this.ui.alert('שגיאה בטעינת שירותי הסוסים.', 'שגיאה');
+      return;
+    }
+
+    this.tasksByHorse = {};
+
+    for (const task of (data ?? []) as HorseServiceTask[]) {
+      if (!this.tasksByHorse[task.horse_uid]) {
+        this.tasksByHorse[task.horse_uid] = [];
+      }
+
+      this.tasksByHorse[task.horse_uid].push(task);
+    }
+  }
+  async saveTask(task: HorseServiceTask): Promise<void> {
+    const { error } = await dbTenant()
+      .from('rider_service_tasks')
+      .update({
+        status: task.status,
+        due_date: task.due_date,
+        notes: task.notes,
+      })
+      .eq('id', task.id);
+
+    if (error) {
+      console.error(error);
+      await this.ui.alert('שמירת המשימה נכשלה.', 'שגיאה');
+      return;
+    }
+
+    await this.ui.alert('המשימה נשמרה בהצלחה.', 'הצלחה');
+  }
+  get visibleTasksByHorse(): Record<string, HorseServiceTask[]> {
+    return this.tasksByHorse;
+  }
+  isTaskOverdue(task: HorseServiceTask): boolean {
+    if (task.status !== 'open') return false;
+    if (!task.due_date) return false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const due = new Date(task.due_date);
+    due.setHours(0, 0, 0, 0);
+
+    return due.getTime() < today.getTime();
+  }
+
+  taskStatusLabel(task: HorseServiceTask): string {
+    if (this.isTaskOverdue(task)) return 'באיחור';
+
+    switch (task.status) {
+      case 'open': return 'פתוח';
+      case 'completed': return 'בוצע';
+      case 'cancelled': return 'בוטל';
+      default: return task.status;
+    }
+  }
+  private async saveEditingHorseTasks(horseId: string): Promise<void> {
+    const tasks = this.tasksByHorse[horseId] ?? [];
+
+    if (!tasks.length) return;
+
+    const updates = tasks.map(t =>
+      dbTenant()
+        .from('rider_service_tasks')
+        .update({
+          due_date: t.due_date,
+          status: t.status,
+          notes: t.notes,
+          completed_at: t.status === 'completed'
+            ? (t.completed_at ?? new Date().toISOString())
+            : null,
+          cancelled_at: t.status === 'cancelled'
+            ? (t.cancelled_at ?? new Date().toISOString())
+            : null,
+          cancellation_note: t.status === 'cancelled' ? t.cancellation_note : null,
+        })
+        .eq('id', t.id)
+    );
+
+    const results = await Promise.all(updates);
+
+    const failed = results.find(r => r.error);
+    if (failed?.error) throw failed.error;
+  }
+  toggleHorseActiveStatus(): void {
+    if (!this.editing) return;
+
+    this.editing.is_active = !this.editing.is_active;
+  }
+  get isDeactivatingHorse(): boolean {
+    if (!this.editing?.id) return false;
+
+    const originalHorse = this.horses.find(
+      h => h.id === this.editing?.id
+    );
+
+    return (
+      originalHorse?.is_active === true &&
+      this.editing.is_active === false
+    );
+  }
+  get filteredHorses(): Horse[] {
+    return this.horses.filter(h =>
+      this.activeTab === 'active'
+        ? h.is_active
+        : !h.is_active
+    );
+  }
+
+  get activeHorsesCount(): number {
+    return this.horses.filter(h => h.is_active).length;
+  }
+
+  get inactiveHorsesCount(): number {
+    return this.horses.filter(h => !h.is_active).length;
   }
 }

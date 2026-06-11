@@ -59,7 +59,16 @@ export class SecretaryRiderServicesComponent implements OnInit {
     price_agorot: 0,
     notes: '',
   };
+  today = this.todayYmd();
 
+  private todayYmd(): string {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+
+    return `${y}-${m}-${day}`;
+  }
   async ngOnInit() {
     try {
       await Promise.all([
@@ -177,7 +186,7 @@ export class SecretaryRiderServicesComponent implements OnInit {
     this.success = '';
 
     if (!this.selectedRiderUid) {
-      this.error = 'יש לבחור רוכב עצמאי';
+      this.error = 'יש לבחור רוכב';
       return false;
     }
 
@@ -195,6 +204,10 @@ export class SecretaryRiderServicesComponent implements OnInit {
       this.error = 'יש לבחור תאריך התחלה';
       return false;
     }
+    if (this.form.start_date < this.today) {
+      this.error = 'תאריך התחלה לא יכול להיות לפני היום';
+      return false;
+    }
 
     if (this.isRecurringRangeMode && !this.form.end_date) {
       this.error = 'בשירות מחזורי יש לבחור תאריך סיום';
@@ -203,6 +216,10 @@ export class SecretaryRiderServicesComponent implements OnInit {
 
     if (this.isRecurringRangeMode && this.form.end_date < this.form.start_date) {
       this.error = 'תאריך סיום לא יכול להיות לפני תאריך התחלה';
+      return false;
+    }
+    if (this.isRecurringRangeMode && this.form.end_date < this.today) {
+      this.error = 'תאריך סיום לא יכול להיות לפני היום';
       return false;
     }
 
@@ -282,13 +299,7 @@ export class SecretaryRiderServicesComponent implements OnInit {
       .eq('status', 'active')
       .limit(1);
 
-    console.log('CHECK PERMANENT SERVICE', {
-      rider_uid: this.selectedRiderUid,
-      horse_uid: this.form.horse_uid,
-      service_type_id: this.form.service_type_id,
-      data,
-      error,
-    });
+
 
     if (error) {
       console.error('שגיאה בבדיקת שירות קבוע:', error);

@@ -164,7 +164,6 @@ export class RequestInstructorDayOffDetailsComponent {
   private async readJson(resp: Response) {
     const raw = await resp.text();
 
-    console.log('FUNCTION RAW RESPONSE:', raw);
 
     let json: any = null;
 
@@ -325,15 +324,10 @@ export class RequestInstructorDayOffDetailsComponent {
         throw new Error('לא נמצא משתמש מאשר');
       }
 
-      console.log('APPROVE START', {
-        requestId,
-        decidedByUid,
-        request: r,
-      });
+
 
       const v = await this.validator.validate(r, 'approve');
 
-      console.log('APPROVE VALIDATION RESULT', v);
 
       if (!v.ok) {
         this.showSnack(v.reason ?? 'הבקשה כבר אינה זמינה לאישור', 'error');
@@ -365,7 +359,6 @@ export class RequestInstructorDayOffDetailsComponent {
         decisionNote: this.decisionNote().trim() || null,
       };
 
-      console.log('APPROVE FETCH BODY', body);
 
       const resp = await fetch(
         'https://us-central1-bereshit-ac5d8.cloudfunctions.net/approveInstructorDayOffAndNotify',
@@ -379,12 +372,9 @@ export class RequestInstructorDayOffDetailsComponent {
         }
       );
 
-      console.log('APPROVE RESPONSE STATUS', resp.status);
 
       const { json, raw } = await this.readJson(resp);
 
-      console.log('APPROVE RESPONSE JSON', json);
-      console.log('APPROVE RESPONSE RAW', raw);
 
       this.bulkWarning = null;
 
