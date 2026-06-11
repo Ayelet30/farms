@@ -93,15 +93,7 @@ export class IndependentHorsesComponent implements OnInit {
           notes,
           food_supplements,
           horse_equipment,
-          last_shoeing_date,
-          next_shoeing_date,
-          last_vaccination_date,
-          next_vaccination_date,
-          next_tetanus_date,
-          next_rabies_date,
-          next_flu_date,
-          next_herpes_date,
-          next_west_nile_date
+          
         `)
                 .eq('owner_rider_uid', user.uid)
                 .order('name', { ascending: true });

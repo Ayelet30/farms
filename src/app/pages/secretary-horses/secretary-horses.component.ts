@@ -28,40 +28,17 @@ interface Horse {
 
   gender?: HorseGender;
   horse_size?: HorseSize;
-
+  shoeing_notes: string | null;
   max_continuous_minutes: number;
   max_daily_minutes: number;
   min_break_minutes: number;
   is_active: boolean;
 
   notes?: string | null;
-
-  // פירזול
-  last_shoeing_date?: string | null;
-  next_shoeing_date?: string | null;
-  shoeing_notes?: string | null;
-
-  // שיניים
-  last_teeth_date?: string | null;
-  next_teeth_date?: string | null;
-
+  is_farm_horse: boolean;
   // תוספות
   food_supplements?: string | null;
   horse_equipment?: string | null;
-
-  // חיסונים שהיו
-  last_tetanus_date?: string | null;
-  last_rabies_date?: string | null;
-  last_flu_date?: string | null;
-  last_herpes_date?: string | null;
-  last_west_nile_date?: string | null;
-
-  // חיסונים עתידיים
-  next_tetanus_date?: string | null;
-  next_rabies_date?: string | null;
-  next_flu_date?: string | null;
-  next_herpes_date?: string | null;
-  next_west_nile_date?: string | null;
 
   owner_rider_uid?: string | null;
   owner_rider_name?: string | null;
@@ -72,6 +49,7 @@ interface Rider {
   last_name: string | null;
   full_name?: string | null;
   status?: 'active' | 'inactive' | string | null;
+  is_farm_responsible?: boolean;
 }
 interface HorseServiceTask {
   id: string;
@@ -90,23 +68,6 @@ interface HorseServiceTask {
   cancellation_note: string | null;
 }
 
-type AlertKind =
-  | 'shoeing'
-  | 'teeth'
-  | 'tetanus'
-  | 'rabies'
-  | 'flu'
-  | 'herpes'
-  | 'west_nile';
-
-interface HorseAlert {
-  horseId: string;
-  horseName: string;
-  kind: AlertKind;
-  dueDate: string; // ISO
-  overdue: boolean;
-  daysDiff: number; // חיובי = עתיד, שלילי = איחור
-}
 
 @Component({
   selector: 'app-secretary-horses',
@@ -126,10 +87,10 @@ export class SecretaryHorsesComponent implements OnInit {
   horses: Horse[] = [];
   editing: Horse | null = null;
   servicesByHorse: Record<string, RiderService[]> = {};
-  alerts: HorseAlert[] = [];
   loading = false;
-
-  readonly ALERT_HORIZON_DAYS = 30;
+  horseOwnershipFilter: 'all' | 'farm' | 'private' = 'all';
+  privateOwnerFilterUid = '';
+  horseNameFilter = '';
   async ngOnInit(): Promise<void> {
     const horseId = this.route.snapshot.queryParamMap.get('horseId');
     this.returnRiderUid = this.route.snapshot.queryParamMap.get('returnRiderUid');
@@ -149,8 +110,7 @@ export class SecretaryHorsesComponent implements OnInit {
   } async loadRiders(): Promise<void> {
     const { data, error } = await dbTenant()
       .from('independent_riders')
-      .select('uid, first_name, last_name, status')
-      .order('first_name', { ascending: true })
+      .select('uid, first_name, last_name, full_name, status, is_farm_responsible').order('first_name', { ascending: true })
       .order('last_name', { ascending: true });
 
     if (error) {
@@ -202,13 +162,11 @@ export class SecretaryHorsesComponent implements OnInit {
       if (error) throw error;
 
       this.horses = (data ?? []) as Horse[];
-      this.buildAlerts();
       await this.loadHorseTasks();
       await this.loadHorseServices();
     } catch (e: any) {
       console.error('Failed to load horses', e);
       this.horses = [];
-      this.alerts = [];
       await this.ui.alert('אירעה שגיאה בטעינת הסוסים.', 'שגיאה');
     } finally {
       this.loading = false;
@@ -230,27 +188,12 @@ export class SecretaryHorsesComponent implements OnInit {
       is_active: true,
       notes: null,
 
-      last_shoeing_date: null,
-      next_shoeing_date: null,
       shoeing_notes: null,
-
-      last_teeth_date: null,
-      next_teeth_date: null,
+      is_farm_horse: true,
 
       food_supplements: null,
       horse_equipment: null,
 
-      last_tetanus_date: null,
-      last_rabies_date: null,
-      last_flu_date: null,
-      last_herpes_date: null,
-      last_west_nile_date: null,
-
-      next_tetanus_date: null,
-      next_rabies_date: null,
-      next_flu_date: null,
-      next_herpes_date: null,
-      next_west_nile_date: null,
     };
   }
 
@@ -302,28 +245,10 @@ export class SecretaryHorsesComponent implements OnInit {
         min_break_minutes: payload.min_break_minutes,
         is_active: payload.is_active,
         notes: payload.notes,
-
-        last_shoeing_date: payload.last_shoeing_date,
-        next_shoeing_date: payload.next_shoeing_date,
-        shoeing_notes: payload.shoeing_notes,
-
-        last_teeth_date: payload.last_teeth_date,
-        next_teeth_date: payload.next_teeth_date,
-
+        is_farm_horse: payload.is_farm_horse,
         food_supplements: payload.food_supplements,
         horse_equipment: payload.horse_equipment,
 
-        last_tetanus_date: payload.last_tetanus_date,
-        last_rabies_date: payload.last_rabies_date,
-        last_flu_date: payload.last_flu_date,
-        last_herpes_date: payload.last_herpes_date,
-        last_west_nile_date: payload.last_west_nile_date,
-
-        next_tetanus_date: payload.next_tetanus_date,
-        next_rabies_date: payload.next_rabies_date,
-        next_flu_date: payload.next_flu_date,
-        next_herpes_date: payload.next_herpes_date,
-        next_west_nile_date: payload.next_west_nile_date,
       };
 
       if (payload.id) {
@@ -386,85 +311,7 @@ export class SecretaryHorsesComponent implements OnInit {
     }
   }
 
-  kindLabel(kind: AlertKind): string {
-    switch (kind) {
-      case 'shoeing':
-        return 'פרזול';
-      case 'teeth':
-        return 'שיניים';
-      case 'tetanus':
-        return 'טטנוס';
-      case 'rabies':
-        return 'כלבת';
-      case 'flu':
-        return 'שפעת';
-      case 'herpes':
-        return 'הרפס';
-      case 'west_nile':
-        return 'קדחת הנילוס';
-      default:
-        return kind;
-    }
-  }
 
-  private parseDate(d: string | null | undefined): Date | null {
-    if (!d) return null;
-    const dt = new Date(d);
-    return isNaN(dt.getTime()) ? null : dt;
-  }
-
-  private daysBetween(a: Date, b: Date): number {
-    const msPerDay = 1000 * 60 * 60 * 24;
-    const diff = a.getTime() - b.getTime();
-    return Math.round(diff / msPerDay);
-  }
-
-  private addAlertIfRelevant(
-    alerts: HorseAlert[],
-    horse: Horse,
-    kind: AlertKind,
-    dateStr?: string | null
-  ): void {
-    if (!horse.id) return;
-
-    const due = this.parseDate(dateStr ?? null);
-    if (!due) return;
-
-    const today = new Date();
-    const daysDiff = this.daysBetween(due, today);
-
-    if (daysDiff > this.ALERT_HORIZON_DAYS) return;
-
-    alerts.push({
-      horseId: horse.id,
-      horseName: horse.name,
-      kind,
-      dueDate: due.toISOString(),
-      overdue: daysDiff < 0,
-      daysDiff,
-    });
-  }
-
-  private buildAlerts(): void {
-    const alerts: HorseAlert[] = [];
-
-    for (const h of this.horses.filter(h => h.is_active)) {
-      this.addAlertIfRelevant(alerts, h, 'shoeing', h.next_shoeing_date);
-      this.addAlertIfRelevant(alerts, h, 'teeth', h.next_teeth_date);
-
-      this.addAlertIfRelevant(alerts, h, 'tetanus', h.next_tetanus_date);
-      this.addAlertIfRelevant(alerts, h, 'rabies', h.next_rabies_date);
-      this.addAlertIfRelevant(alerts, h, 'flu', h.next_flu_date);
-      this.addAlertIfRelevant(alerts, h, 'herpes', h.next_herpes_date);
-      this.addAlertIfRelevant(alerts, h, 'west_nile', h.next_west_nile_date);
-    }
-
-    this.alerts = alerts.sort((a, b) => {
-      const aTime = new Date(a.dueDate).getTime();
-      const bTime = new Date(b.dueDate).getTime();
-      return aTime - bTime;
-    });
-  }
   async loadHorseTasks(): Promise<void> {
     const horseIds = this.horses
       .map(h => h.id)
@@ -587,11 +434,33 @@ export class SecretaryHorsesComponent implements OnInit {
     );
   }
   get filteredHorses(): Horse[] {
-    return this.horses.filter(h =>
-      this.activeTab === 'active'
-        ? h.is_active
-        : !h.is_active
-    );
+    const name = this.horseNameFilter.trim().toLowerCase();
+
+    return this.horses.filter(h => {
+      const matchesTab =
+        this.activeTab === 'active'
+          ? h.is_active
+          : !h.is_active;
+
+      const matchesOwnership =
+        this.horseOwnershipFilter === 'all'
+          ? true
+          : this.horseOwnershipFilter === 'farm'
+            ? h.is_farm_horse
+            : !h.is_farm_horse;
+
+      const matchesOwner =
+        this.horseOwnershipFilter === 'private' && this.privateOwnerFilterUid
+          ? h.owner_rider_uid === this.privateOwnerFilterUid
+          : true;
+
+      const matchesName =
+        this.horseNameFilter
+          ? h.name === this.horseNameFilter
+          : true;
+
+      return matchesTab && matchesOwnership && matchesOwner && matchesName;
+    });
   }
 
   get activeHorsesCount(): number {
@@ -663,5 +532,44 @@ export class SecretaryHorsesComponent implements OnInit {
     await this.loadHorseServices();
     await this.loadHorseTasks();
     await this.ui.alert('השירות נשמר בהצלחה.', 'הצלחה');
+  }
+  get regularActiveRiders(): Rider[] {
+    return this.riders.filter(r =>
+      r.status === 'active' && !r.is_farm_responsible
+    );
+  }
+  onHorseOwnershipFilterChanged(): void {
+    this.horseNameFilter = '';
+    this.privateOwnerFilterUid = '';
+  }
+  get horsesForNameFilter(): Horse[] {
+    return this.horses.filter(h => {
+      const matchesTab =
+        this.activeTab === 'active'
+          ? h.is_active
+          : !h.is_active;
+
+      const matchesOwnership =
+        this.horseOwnershipFilter === 'all'
+          ? true
+          : this.horseOwnershipFilter === 'farm'
+            ? h.is_farm_horse
+            : !h.is_farm_horse;
+
+      return matchesTab && matchesOwnership;
+    });
+  }
+  get farmResponsibles(): Rider[] {
+    return this.riders.filter(r =>
+      r.status === 'active' && r.is_farm_responsible
+    );
+  }
+  ownerTypeLabel(uid: string | null | undefined): string {
+    if (!uid) return '';
+
+    const rider = this.riders.find(r => r.uid === uid);
+    if (!rider) return '';
+
+    return rider.is_farm_responsible ? 'אחראי חווה' : 'רוכב עצמאי';
   }
 }
