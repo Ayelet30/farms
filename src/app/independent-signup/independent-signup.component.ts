@@ -30,6 +30,7 @@ export class IndependentPublicSignupComponent {
             id_number: ['', [Validators.required, Validators.pattern(/^\d{9}$/)]],
             address: ['', [Validators.required, Validators.maxLength(60)]],
             extra_notes: ['', [Validators.maxLength(300)]],
+            is_farm_responsible: [false],
             prefs: this.fb.group({
                 inapp: [{ value: true, disabled: true }],
                 email: [false],
@@ -71,6 +72,7 @@ export class IndependentPublicSignupComponent {
                 extra_notes: (v.extra_notes || '').trim() || null,
                 message_preferences: this.buildPrefs(v),
                 referral_url: window.location.href,
+                is_farm_responsible: !!v.is_farm_responsible,
             };
             const res = await fetch(
                 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/publicCreateIndependentSignupRequest',
