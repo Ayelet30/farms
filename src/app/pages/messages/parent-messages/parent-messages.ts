@@ -264,11 +264,15 @@ private jsToDbDow(js: number): number {
     this.loadingThreads.set(true);
     try {
       const uid = this.myUid();
-      const { data, error } = await db()
+      const dbc = await dbTenant(); // <--- מעבר ללקוח החווה
+      
+      const { data, error } = await dbc
         .from('conversations')
-        .select('id, subject, status, opened_by_parent_uid, created_at, updated_at')
-        .eq('opened_by_parent_uid', uid)
+        // טריק ה-Alias: מושך את parent_id ומחזיר אותו כ-opened_by_parent_uid בשביל הקוד
+        .select('id, subject, status, opened_by_parent_uid:parent_id, created_at, updated_at')
+        .eq('parent_id', uid) // סינון לפי העמודה החדשה בדאטה-בייס
         .order('updated_at', { ascending: false });
+
       if (error) throw error;
       this.threads.set((data ?? []) as Conversation[]);
       if (!this.activeConv() && this.threads().length) {
@@ -281,11 +285,15 @@ private jsToDbDow(js: number): number {
 
   async openConversation(c: Conversation) {
     this.activeConv.set(c);
-    const { data, error } = await db(this.currentSchema)
+    const dbc = await dbTenant(); // <--- מעבר ללקוח החווה
+    
+    const { data, error } = await dbc
       .from('conversation_messages')
-      .select('*')
+      // הופך את עמודת body מהדאטה-בייס ל-body_md שהקוד וה-HTML שלכם מצפים לקבל
+      .select('id, conversation_id, body_md:body, sender_role, sender_uid, created_at')
       .eq('conversation_id', c.id)
       .order('created_at', { ascending: true });
+
     if (error) throw error;
     this.messages.set((data ?? []) as ConversationMessage[]);
   }
@@ -318,10 +326,10 @@ private jsToDbDow(js: number): number {
 
     try {
       const uid = this.myUid();
-      const tenantDb = await dbTenant();
+      const dbc = await dbTenant();
 
       // 1. יצירת שיחה חדשה בטבלה
-      const { data: conv, error: e1 } = await tenantDb 
+      const { data: conv, error: e1 } = await dbc 
         .from('conversations')
         .insert({
           subject: this.newSubject,
@@ -334,7 +342,7 @@ private jsToDbDow(js: number): number {
       if (e1) throw e1;
 
       // 2. יצירת ההודעה הראשונה המשוייכת לשיחה
-      const { error: e2 } = await tenantDb 
+      const { error: e2 } = await dbc 
         .from('conversation_messages')
         .insert({
           conversation_id: conv.id,
@@ -375,7 +383,6 @@ private jsToDbDow(js: number): number {
   async sendReply() {
     this.toast.set(null);
 
-    // וולידציה לתגובה
     if (!this.activeConv()) {
       this.showToast('לא נבחרה שיחה פעילה להגבת תגובה');
       return;
@@ -390,23 +397,25 @@ private jsToDbDow(js: number): number {
     try {
       const uid = this.myUid();
       const conversationId = this.activeConv()!.id;
+      const dbc = await dbTenant(); // <--- מעבר ללקוח החווה
 
-      // 1. יצירת הודעה חדשה בטבלת ההודעות
-      const { data: msgData, error: e2 } = await db()
+      // 1. יצירת הודעה חדשה בטבלת ההודעות של החווה
+      const { data: msgData, error: e2 } = await dbc
         .from('conversation_messages')
         .insert({
           conversation_id: conversationId,
-          body_md: this.replyText.trim(),
+          body: this.replyText.trim(), // עבודה מול עמודת body באותיות קטנות
           sender_role: 'parent',
           sender_uid: uid,
-          has_attachment: !!this.selectedFile
+          attachments: this.selectedFile ? [this.selectedFile.name] : null
         })
-        .select().single();
+        .select('id, conversation_id, body_md:body, sender_role, sender_uid, created_at')
+        .single();
 
       if (e2) throw e2;
 
-      // 2. עדכון סטטוס השיחה ל-open ועדכון זמן עדכון (כדי שתקפוץ לראש הרשימה)
-      await db()
+      // 2. עדכון סטטוס השיחה ל-open
+      await dbc
         .from('conversations')
         .update({ 
           status: 'open',
@@ -414,14 +423,11 @@ private jsToDbDow(js: number): number {
         })
         .eq('id', conversationId);
 
-      // 3. עדכון השרשור המקומי (פוש לתוך המערך בשביל תצוגה מיידית)
       this.messages.update(arr => [...arr, msgData as ConversationMessage]);
       this.replyText = ''; 
       this.selectedFile = null;
       
-      // רענון רשימת השרשורים הכללית בשביל עדכון זמנים/סטטוסים ברקע
       await this.loadThreads();
-      
       this.showToast('התגובה נשלחה בהצלחה');
 
     } catch (error) {
