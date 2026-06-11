@@ -6,7 +6,20 @@ import { UiDialogService } from '../../services/ui-dialog.service';
 import { Router, ActivatedRoute } from '@angular/router';
 type HorseGender = 'male' | 'female' | 'gelding' | null;
 type HorseSize = 'pony_small' | 'pony_large' | 'horse' | null;
-
+interface RiderService {
+  id: string;
+  rider_uid: string;
+  horse_uid: string;
+  service_type_id: string;
+  service_name: string;
+  start_date: string | null;
+  end_date: string | null;
+  status: 'active' | 'cancelled' | string;
+  service_mode: 'once' | 'recurring_range' | 'permanent' | string;
+  price_agorot: number | null;
+  notes: string | null;
+  cancellation_note: string | null;
+}
 interface Horse {
   id?: string;
   name: string;
@@ -112,7 +125,7 @@ export class SecretaryHorsesComponent implements OnInit {
   activeTab: 'active' | 'inactive' = 'active';
   horses: Horse[] = [];
   editing: Horse | null = null;
-
+  servicesByHorse: Record<string, RiderService[]> = {};
   alerts: HorseAlert[] = [];
   loading = false;
 
@@ -191,6 +204,7 @@ export class SecretaryHorsesComponent implements OnInit {
       this.horses = (data ?? []) as Horse[];
       this.buildAlerts();
       await this.loadHorseTasks();
+      await this.loadHorseServices();
     } catch (e: any) {
       console.error('Failed to load horses', e);
       this.horses = [];
@@ -586,5 +600,68 @@ export class SecretaryHorsesComponent implements OnInit {
 
   get inactiveHorsesCount(): number {
     return this.horses.filter(h => !h.is_active).length;
+  }
+  taskStatusClass(task: HorseServiceTask): string {
+    if (this.isTaskOverdue(task)) return 'overdue-status';
+
+    switch (task.status) {
+      case 'open': return 'open-status';
+      case 'completed': return 'completed-status';
+      case 'cancelled': return 'cancelled-status';
+      default: return '';
+    }
+  }
+  async loadHorseServices(): Promise<void> {
+    const horseIds = this.horses.map(h => h.id).filter(Boolean) as string[];
+
+    if (!horseIds.length) {
+      this.servicesByHorse = {};
+      return;
+    }
+
+    const { data, error } = await dbTenant()
+      .from('rider_services')
+      .select('*')
+      .in('horse_uid', horseIds)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error(error);
+      await this.ui.alert('שגיאה בטעינת שירותי הסוסים.', 'שגיאה');
+      return;
+    }
+
+    this.servicesByHorse = {};
+
+    for (const service of (data ?? []) as RiderService[]) {
+      if (!this.servicesByHorse[service.horse_uid]) {
+        this.servicesByHorse[service.horse_uid] = [];
+      }
+
+      this.servicesByHorse[service.horse_uid].push(service);
+    }
+  }
+  async saveService(service: RiderService): Promise<void> {
+    const { error } = await dbTenant()
+      .from('rider_services')
+      .update({
+        start_date: service.start_date,
+        end_date: service.end_date,
+        status: service.status,
+        price_agorot: service.price_agorot,
+        notes: service.notes,
+        cancellation_note: service.status === 'cancelled' ? service.cancellation_note : null,
+      })
+      .eq('id', service.id);
+
+    if (error) {
+      console.error(error);
+      await this.ui.alert('שמירת השירות נכשלה.', 'שגיאה');
+      return;
+    }
+
+    await this.loadHorseServices();
+    await this.loadHorseTasks();
+    await this.ui.alert('השירות נשמר בהצלחה.', 'הצלחה');
   }
 }
