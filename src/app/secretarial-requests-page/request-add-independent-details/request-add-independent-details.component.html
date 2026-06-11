@@ -15,6 +15,9 @@
             <div><b>אימייל:</b> {{ riderMeta.email || '—' }}</div>
             <div><b>ת.ז:</b> {{ riderMeta.id_number || '—' }}</div>
             <div><b>כתובת:</b> {{ riderMeta.address || '—' }}</div>
+            <div class="farm-responsible" *ngIf="riderMeta.is_farm_responsible">
+                ⚠️ שימו לב: המבקש/ת משמש/ת כאחראי/ת חווה
+            </div>
             <div><b>העדפות תקשורת:</b> {{ messagePreferencesText }}</div>
             <div *ngIf="riderMeta.extra_notes"><b>הערות:</b> {{ riderMeta.extra_notes }}</div>
         </div>

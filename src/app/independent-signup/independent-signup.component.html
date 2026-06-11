@@ -80,6 +80,14 @@
                 <label><input type="checkbox" formControlName="sms" /> SMS</label>
                 <label><input type="checkbox" formControlName="whatsapp" /> וואטסאפ</label>
             </fieldset>
+            <fieldset class="prefs-box">
+                <legend>תפקיד בחווה</legend>
+
+                <label>
+                    <input type="checkbox" formControlName="is_farm_responsible" />
+                    אחראי/ת חווה
+                </label>
+            </fieldset>
 
             <div class="actions">
                 <button type="submit" class="save" [disabled]="submitting">

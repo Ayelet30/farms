@@ -21,7 +21,9 @@ type IndependentMeta = {
     address?: string;
     extra_notes?: string | null;
     message_preferences?: string[];
+    is_farm_responsible?: boolean;
     [k: string]: any;
+
 };
 
 type ToastKind = 'success' | 'error' | 'info';
