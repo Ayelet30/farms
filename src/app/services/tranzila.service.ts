@@ -65,7 +65,15 @@ export interface TranzilaChargeResponse {
 
 export type SavePaymentMethodResult =
   | { ok: true; is_default: boolean }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      message?: string;
+      existingParentUid?: string;
+      existingProfileId?: string;
+      last4?: string | null;
+      brand?: string | null;
+    };
   
 
 @Injectable({ providedIn: 'root' })
