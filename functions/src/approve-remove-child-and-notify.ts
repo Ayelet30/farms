@@ -80,6 +80,8 @@ export const approveRemoveChildAndNotify = onRequest(
       const childId = String(body.childId || '').trim();
       const requestId = String(body.requestId || '').trim();
       const tenantId = String(body.tenantId || '').trim();
+      const decisionNoteRaw = body.decisionNote ?? body.decision_note ?? null;
+      const decisionNote = decisionNoteRaw == null ? null : String(decisionNoteRaw).trim();
 
       if (!tenantSchema) return void res.status(400).json({ error: 'Missing tenantSchema' });
       if (!childId) return void res.status(400).json({ error: 'Missing childId' });
@@ -122,20 +124,20 @@ export const approveRemoveChildAndNotify = onRequest(
       if (!scheduledIso) throw new Error('schedule_child_deletion returned empty scheduledDeletionAt');
 
       const scheduledDate = String(scheduledIso).slice(0, 10);
-// 1.1) delete child special charge state
-const { error: specialStateDeleteErr } = await sbTenant
-  .from('child_special_charge_state')
-  .delete()
-  .eq('child_id', childId);
+      // 1.1) delete child special charge state
+      const { error: specialStateDeleteErr } = await sbTenant
+        .from('child_special_charge_state')
+        .delete()
+        .eq('child_id', childId);
 
-if (specialStateDeleteErr) throw specialStateDeleteErr;
+      if (specialStateDeleteErr) throw specialStateDeleteErr;
       // 2) update request approved
       const updatePayload: any = {
         status: 'APPROVED',
         decided_at: new Date().toISOString(),
       };
       if (decidedByUid) updatePayload.decided_by_uid = decidedByUid;
-
+      if (decisionNote) updatePayload.decision_note = decisionNote;
       const { data: upd, error: updErr } = await sbTenant
         .from('secretarial_requests')
         .update(updatePayload)
@@ -224,55 +226,55 @@ if (specialStateDeleteErr) throw specialStateDeleteErr;
       const willHappen = rows.filter(r => !r.willCancel);
       const willCancel = rows.filter(r => r.willCancel);
 
-     // ✅ 6) build + notify via notifyUser (soft-fail)
-const { subject, html, text } = buildChildRemovalEmail({
-  kind: 'approved',
-  parentName,
-  childName,
-  farmName,
-  scheduledDeletionAtIso: String(scheduledIso),
-  willHappen,
-  willCancel,
-  graceDays,
-});
+      // ✅ 6) build + notify via notifyUser (soft-fail)
+      const { subject, html, text } = buildChildRemovalEmail({
+        kind: 'approved',
+        parentName,
+        childName,
+        farmName,
+        scheduledDeletionAtIso: String(scheduledIso),
+        willHappen,
+        willCancel,
+        graceDays,
+      });
 
-let emailOk = true;
-let emailError: string | null = null;
-let mail: any = null;
+      let emailOk = true;
+      let emailError: string | null = null;
+      let mail: any = null;
 
-try {
-  mail = await notifyUserInternal({
-    tenantSchema,
-    userType: 'parent',
-    uid: childRow.parent_uid,
-    subject,
-    html,
-    text,
-    category: 'child_removal',
-    forceEmail: true,
-  });
+      try {
+        mail = await notifyUserInternal({
+          tenantSchema,
+          userType: 'parent',
+          uid: childRow.parent_uid,
+          subject,
+          html,
+          text,
+          category: 'child_removal',
+          forceEmail: true,
+        });
 
-  // אם notifyUserInternal מחזיר ok=false בלי לזרוק
-  if (mail && (mail.ok === false || mail.emailOk === false)) {
-    emailOk = false;
-    emailError =
-      String(mail.message ?? mail.error ?? mail.emailError ?? 'שליחת מייל נכשלה')
-        .slice(0, 300);
-  }
-} catch (err: any) {
-  emailOk = false;
-  emailError = String(err?.message ?? err ?? 'שליחת מייל נכשלה').slice(0, 300);
-  console.warn('approveRemoveChildAndNotify: email failed but approval OK', err);
-}
+        // אם notifyUserInternal מחזיר ok=false בלי לזרוק
+        if (mail && (mail.ok === false || mail.emailOk === false)) {
+          emailOk = false;
+          emailError =
+            String(mail.message ?? mail.error ?? mail.emailError ?? 'שליחת מייל נכשלה')
+              .slice(0, 300);
+        }
+      } catch (err: any) {
+        emailOk = false;
+        emailError = String(err?.message ?? err ?? 'שליחת מייל נכשלה').slice(0, 300);
+        console.warn('approveRemoveChildAndNotify: email failed but approval OK', err);
+      }
 
-// ✅ חשוב: ok:true תמיד כי אישור + schedule ב-DB הצליחו
-return void res.status(200).json({
-  ok: true,
-  scheduledDeletionAt: scheduledIso,
-  emailOk,
-  emailError,
-  mail,
-});
+      // ✅ חשוב: ok:true תמיד כי אישור + schedule ב-DB הצליחו
+      return void res.status(200).json({
+        ok: true,
+        scheduledDeletionAt: scheduledIso,
+        emailOk,
+        emailError,
+        mail,
+      });
 
     } catch (e: any) {
       console.error('approveRemoveChildAndNotify error', e);

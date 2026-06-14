@@ -1255,7 +1255,7 @@ export class RequestValidationService {
         return { ok: false, reason: 'הבקשה לא נמצאה. נסי לרענן את המסך.' };
       }
 
-      if (data.status !== 'PENDING') {
+      if (data.status !== 'PENDING' && data.status != 'REJECTED_BY_SYSTEM') {
         return {
           ok: false,
           reason: 'הבקשה כבר טופלה על ידי משתמש אחר. יש לרענן את המסך.',
