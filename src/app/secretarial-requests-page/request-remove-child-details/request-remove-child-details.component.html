@@ -26,7 +26,8 @@
 
     <div class="row">
       <div class="k">תאריך לידה</div>
-<div class="v">{{ formatDate(payload().birth_date) }}</div>    </div>
+      <div class="v">{{ formatDate(payload().birth_date) }}</div>
+    </div>
 
     <div class="row">
       <div class="k">מגדר</div>
@@ -34,9 +35,9 @@
     </div>
 
     <div class="row">
-  <div class="k">קופת חולים</div>
-  <div class="v">{{ payload().funding_source_name || '—' }}</div>
-</div>
+      <div class="k">קופת חולים</div>
+      <div class="v">{{ payload().funding_source_name || '—' }}</div>
+    </div>
 
     <div class="row">
       <div class="k">שיעורים שנותרו</div>
@@ -50,8 +51,7 @@
       {{ remainingError() }}
     </div>
 
-    <div class="remain-empty"
-         *ngIf="!loadingRemaining() && !remainingError() && remainingLessons().length === 0">
+    <div class="remain-empty" *ngIf="!loadingRemaining() && !remainingError() && remainingLessons().length === 0">
       אין שיעורים עתידיים לילד/ה.
     </div>
 
@@ -81,24 +81,28 @@
     <div class="meta" *ngIf="req()">
       <div><span class="mk">נוצר:</span> {{ req()!.createdAt | date:'dd/MM/yyyy HH:mm' }}</div>
     </div>
-<div class="decision-banner"
-     *ngIf="decisionMsg()"
-     [class.ok]="decisionType()==='success'"
-     [class.err]="decisionType()==='error'">
-  {{ decisionMsg() }}
-</div>
+    <div class="decision-banner" *ngIf="decisionMsg()" [class.ok]="decisionType()==='success'"
+      [class.err]="decisionType()==='error'">
+      {{ decisionMsg() }}
+    </div>
+    <div class="decision-note-box" *ngIf="canDecide()">
+      <label>הערה להחלטה</label>
 
+      <textarea rows="3" placeholder="אפשר להזין הערה שתישמר עם ההחלטה..." [(ngModel)]="decisionNote"
+        [disabled]="busy()">
+  </textarea>
+    </div>
     <div class="actions" *ngIf="canDecide()">
       <button mat-stroked-button type="button" class="action reject" (click)="reject()">
         דחייה
       </button>
 
-    <button mat-flat-button type="button" class="action approve" (click)="approve()">
-  אישור
-</button>
+      <button mat-flat-button type="button" class="action approve" (click)="approve()">
+        אישור
+      </button>
 
     </div>
 
-   
+
   </div>
 </div>
