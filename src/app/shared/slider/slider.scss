@@ -113,6 +113,23 @@
   transform: rotate(180deg);
 }
 
+.side-menu ul > li.disabled {
+  opacity: .45;
+  filter: grayscale(1);
+  cursor: not-allowed;
+}
+
+.side-menu ul > li.disabled:hover {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+
+.side-menu ul > li.disabled .label::after {
+  content: ' 🔒';
+  font-size: 13px;
+}
+
 @media (max-width: 1023.98px) {
   .side-menu.mobile.open .toggle-button {
     display: none;

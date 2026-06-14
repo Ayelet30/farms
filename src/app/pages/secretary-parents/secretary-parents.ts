@@ -833,7 +833,7 @@ private saveRequestId: string | null = null;
     const ref = this.dialog.open(AddParentDialogComponent, {
       width: '700px',
       maxWidth: '90vw',
-      height: '90vh',
+      maxHeight: '90vh',
       panelClass: 'parent-dialog',
       disableClose: true,
     });
