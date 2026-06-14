@@ -115,7 +115,7 @@ export class SliderComponent implements OnInit, OnDestroy {
           { path: 'secretary/arenas', label: 'מגרשים בחווה', icon: 'arena' },
           { path: 'secretary/schedule', label: 'לו״ז ומעקב', icon: 'calendar' },
           { path: 'secretary/appointment', label: 'זימון תורים', icon: 'calendar_plus' },
-          { path: 'secretary/rider-services', label: 'זימון שירות לרוכב', icon: 'receipt' },
+          { path: 'secretary/rider-services', label: 'זימון שירות לסוס', icon: 'receipt' },
           { path: 'secretary/waitlist', label: 'רשימת המתנה', icon: 'waitlist' },
           { path: 'secretary/messages', label: 'יצירת קשר', icon: 'messages' },
           { path: 'secretary/monthly-summary', label: 'סיכום וגרפים', icon: 'bar_chart' },

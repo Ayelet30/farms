@@ -190,50 +190,9 @@
             </div>
 
             <div class="card-section">
-                <div class="row" *ngIf="h.next_shoeing_date || h.next_vaccination_date">
-                    <span class="key">טיפולים קרובים:</span>
-                    <span class="muted">
-                        <ng-container *ngIf="h.next_shoeing_date">
-                            פרזול: {{ dateText(h.next_shoeing_date) }}
-                        </ng-container>
 
-                        <ng-container *ngIf="h.next_vaccination_date">
-                            · חיסון: {{ dateText(h.next_vaccination_date) }}
-                        </ng-container>
-                    </span>
-                </div>
 
-                <div class="row" *ngIf="
-            h.next_tetanus_date ||
-            h.next_rabies_date ||
-            h.next_flu_date ||
-            h.next_herpes_date ||
-            h.next_west_nile_date
-          ">
-                    <span class="key">חיסונים קרובים:</span>
 
-                    <span class="muted">
-                        <ng-container *ngIf="h.next_tetanus_date">
-                            טטנוס: {{ dateText(h.next_tetanus_date) }}
-                        </ng-container>
-
-                        <ng-container *ngIf="h.next_rabies_date">
-                            · כלבת: {{ dateText(h.next_rabies_date) }}
-                        </ng-container>
-
-                        <ng-container *ngIf="h.next_flu_date">
-                            · שפעת: {{ dateText(h.next_flu_date) }}
-                        </ng-container>
-
-                        <ng-container *ngIf="h.next_herpes_date">
-                            · הרפס: {{ dateText(h.next_herpes_date) }}
-                        </ng-container>
-
-                        <ng-container *ngIf="h.next_west_nile_date">
-                            · קדחת הנילוס: {{ dateText(h.next_west_nile_date) }}
-                        </ng-container>
-                    </span>
-                </div>
 
                 <div class="row" *ngIf="h.food_supplements">
                     <span class="key">תוספי מזון:</span>

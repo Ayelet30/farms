@@ -148,6 +148,7 @@ export const publicCreateIndependentSignupRequest = onRequest(
         extra_notes: extra_notes || null,
         message_preferences,
         referral_url: normStr(body.referral_url, 400) || null,
+        is_farm_responsible: body.is_farm_responsible === true,
         public_meta: {
           origin: req.headers.origin || null,
           user_agent: req.headers['user-agent'] || null,
@@ -988,15 +989,18 @@ export const approveIndependentSignupRequest = onRequest(
           {
             uid,
             full_name: `${first_name} ${last_name}`.trim(),
+            first_name,
+            last_name,
             phone: phone || null,
             email,
             id_number: id_number || null,
             notes: extra_notes || null,
             status: 'active',
+            is_farm_responsible: p.is_farm_responsible === true,
           },
           {
             onConflict: 'uid',
-            ignoreDuplicates: true,
+            ignoreDuplicates: true
           }
         );
 
