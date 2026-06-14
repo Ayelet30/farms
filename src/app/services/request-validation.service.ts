@@ -1173,7 +1173,7 @@ export class RequestValidationService {
       if (!availabilityRows || availabilityRows.length === 0) {
         return {
           ok: false,
-          reason: 'הבקשה נדחתה אוטומטית: המדריך אינו מוגדר כזמין ביום ובשעה המבוקשים.',
+          reason: 'המדריך אינו מוגדר כזמין ביום ובשעה המבוקשים.',
         };
       }
       const dayStart = `${w.date} 00:00:00`;

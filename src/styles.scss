@@ -12,7 +12,12 @@
 :root {
   --font-ui: "Heebo", system-ui, -apple-system, "Segoe UI", "Tahoma", Arial, sans-serif;
 }
-html, body { font-family: var(--font-ui); }
+
+html,
+body {
+  font-family: var(--font-ui);
+}
+
 body {
   font-family: 'Heebo', sans-serif;
 }
@@ -87,6 +92,7 @@ body {
   overflow: hidden;
   background: #fff;
 }
+
 .list-block .wh-check:active {
   transform: translateY(1px);
 }
@@ -117,6 +123,7 @@ body {
   cursor: not-allowed;
   opacity: .75;
 }
+
 /* ✅ Working Hours checkboxes – same green + same size */
 .list-block .wh-check {
   -webkit-appearance: none;
@@ -138,27 +145,51 @@ body {
   background: #fff;
 }
 
-html, body { height: 100%; }
-body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+}
 
 /* דיאלוג הורים – עטיפה חיצונית */
 .parent-dialog .mat-mdc-dialog-container .mdc-dialog__surface {
-  background: #fffef7;                     /* כמו מסך ההזמנה */
+  background: #fffef7;
+  /* כמו מסך ההזמנה */
   border-radius: 20px !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
 
-  max-height: calc(100vh - 80px);          /* רווח מלמעלה ומלמטה */
-  overflow-y: auto !important;
-  overflow-x: hidden;
-  padding: 20px 22px 22px !important;  /* רווח פנימי יפה */
+  max-height: calc(100vh - 80px);
+  /* רווח מלמעלה ומלמטה */
+  overflow: hidden;
+  /* פינות מעוגלות נקיות */
+  padding: 20px 22px 22px !important;
+  /* רווח פנימי יפה */
 }
 
-.head{display:flex; align-items:center; gap:10px; margin-bottom:8px}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px
+}
 
-.table{width:100%; border-collapse: collapse; margin-top:8px}
-    .table th,.table td{border-bottom:1px solid #e2e8f0; padding:6px}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px
+}
 
-    /* רשימות ה־slots – טבלה תואמת */
+.table th,
+.table td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 6px
+}
+
+/* רשימות ה־slots – טבלה תואמת */
 /* טבלאות בתוך slots-list – גם בזימון תורים וגם בבקשות */
 .slots-list {
   margin-top: 12px;
@@ -232,12 +263,15 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 
 /* FIX גלובלי לכל select */
 select {
-  background-color: #ffffff !important;   /* רקע */
-  color: #333 !important;                 /* טקסט */
+  background-color: #ffffff !important;
+  /* רקע */
+  color: #333 !important;
+  /* טקסט */
   border: 1px solid #ccc !important;
   border-radius: 8px !important;
   padding: 6px 10px !important;
-  appearance: auto !important;            /* מחזיר את חץ הבחירה */
+  appearance: auto !important;
+  /* מחזיר את חץ הבחירה */
   -webkit-appearance: auto !important;
   -moz-appearance: auto !important;
 }
@@ -249,13 +283,16 @@ option {
 
 /* tooltip כללי – הכיתה שמוגדרת ב-matTooltipClass */
 .custom-tooltip {
-  background-color: #ecf3ec;         /* רקע כהה-ירקרק במקום שחור */
-  color: #f7fbea;                    /* טקסט בהיר */
+  background-color: #ecf3ec;
+  /* רקע כהה-ירקרק במקום שחור */
+  color: #f7fbea;
+  /* טקסט בהיר */
   padding: 8px 12px;
   border-radius: 12px;
   font-size: 13px;
   line-height: 1.4;
-  text-align: right;                 /* עברית */
+  text-align: right;
+  /* עברית */
   box-shadow: 0 4px 10px rgba(175, 15, 15, 0.2);
 }
 
@@ -264,6 +301,7 @@ option {
   background-color: #d5ddd5;
   color: #f7fbea;
 }
+
 /* רקע כהה עדין */
 .ui-confirm-backdrop {
   background: rgba(0, 0, 0, 0.35) !important;
@@ -271,10 +309,11 @@ option {
 
 /* הקופסה של הדיאלוג */
 .ui-confirm-dialog .mat-mdc-dialog-container .mdc-dialog__surface {
-  background: #fbf8ef !important; /* שמנת */
+  background: #fbf8ef !important;
+  /* שמנת */
   border: 2px solid #8a9362 !important;
   border-radius: 22px !important;
-  box-shadow: 0 18px 40px rgba(0,0,0,.2) !important;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, .2) !important;
   padding: 14px 18px 12px !important;
   direction: rtl;
 }
@@ -317,7 +356,8 @@ option {
 /* הכפתור השמנתי (כמו "ביטול") */
 .ui-confirm-dialog .btn-cancel.mat-mdc-button,
 .ui-confirm-dialog .btn-cancel.mat-mdc-button-base {
-  background: #fbf8ef !important; /* שמנת */
+  background: #fbf8ef !important;
+  /* שמנת */
   color: #6f7e3f !important;
   border: 2px solid #6f7e3f !important;
   border-radius: 999px !important;
@@ -325,20 +365,38 @@ option {
   font-weight: 800 !important;
   min-width: 96px;
 }
-/* הצלחה – ירוק עדין */
-.snack-success {
-  background: #6f7e3f !important; /* הירוק של האתר */
-  color: #fff !important;
+
+.snack-success,
+.snack-reject,
+.snack-warn {
+  direction: rtl;
   font-weight: 700;
-  border-radius: 14px;
 }
 
-/* דחייה – אדום עדין */
+.snack-success {
+  --mdc-snackbar-container-color: #f8f7ef;
+  --mdc-snackbar-supporting-text-color: #6f7e3f;
+  --mat-snack-bar-button-color: #6f7e3f;
+}
+
 .snack-reject {
-  background: #c62828 !important;
-  color: #fff !important;
-  font-weight: 700;
-  border-radius: 14px;
+  --mdc-snackbar-container-color: #fff7f7;
+  --mdc-snackbar-supporting-text-color: #9f1d1d;
+  --mat-snack-bar-button-color: #9f1d1d;
+}
+
+.snack-warn {
+  --mdc-snackbar-container-color: #fff8e6;
+  --mdc-snackbar-supporting-text-color: #8a5a00;
+  --mat-snack-bar-button-color: #8a5a00;
+}
+
+.snack-success .mdc-snackbar__surface,
+.snack-reject .mdc-snackbar__surface,
+.snack-warn .mdc-snackbar__surface {
+  border-radius: 14px !important;
+  border: 1px solid #c7d1a9;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12) !important;
 }
 
 /* כפתור "סגור" */
@@ -352,6 +410,7 @@ option {
 .cdk-overlay-pane {
   z-index: 99999 !important;
 }
+
 .ui-bulk-report-dialog .mat-mdc-dialog-container {
   padding: 0 !important;
   border-radius: 18px !important;
@@ -360,21 +419,21 @@ option {
 
 .ui-bulk-report-dialog .mdc-dialog__surface {
   background: transparent !important;
-  box-shadow: 0 18px 60px rgba(0,0,0,0.18) !important;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.18) !important;
 }
 
- 
+
 .custom-toggle {
   position: relative;
   width: 40px;
   height: 22px;
   display: inline-block;
 }
- 
+
 .custom-toggle input {
   display: none;
 }
- 
+
 .custom-toggle .slider {
   position: absolute;
   inset: 0;
@@ -382,7 +441,7 @@ option {
   background: #d7ddcc;
   transition: 0.2s;
 }
- 
+
 .custom-toggle .slider::before {
   content: '';
   position: absolute;
@@ -393,14 +452,14 @@ option {
   top: 3px;
   right: 3px;
   transition: 0.2s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
- 
-.custom-toggle input:checked + .slider {
+
+.custom-toggle input:checked+.slider {
   background: var(--primary, #4b6b2f);
 }
- 
-.custom-toggle input:checked + .slider::before {
+
+.custom-toggle input:checked+.slider::before {
   transform: translateX(-18px);
 }
 
@@ -427,6 +486,3 @@ option {
 *::-webkit-scrollbar-thumb:hover {
   background: #aebd8b;
 }
-
-
- 
