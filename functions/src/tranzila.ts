@@ -492,6 +492,7 @@ export const savePaymentProfileFromTx = onRequest(
         })
         .select('id')
         .single();
+        
 
       if (error) { res.status(500).json({ ok:false, error:error.message }); return; }
 
@@ -1406,28 +1407,70 @@ export const savePaymentMethod = onRequest(
       const expMonth = normalizeExpiryMonth(expiryMonth);
     const expYear  = normalizeExpiryYear(expiryYear);
 
-    const { error: insErr } = await sb
-      .from('payment_profiles')
-      .upsert(
-        {
-          parent_uid: String(parentUid),
-          token_ref: String(token),
-          last4: last4 ?? null,
-          brand: brand ?? null,
-          expiry_month: expMonth,
-          expiry_year: expYear,
-          active: true,
-          is_default: shouldBeDefault,
-        },
-        { onConflict: 'parent_uid,token_ref' },
-      );
+const { data: existingToken, error: existingTokenErr } = await sb
+  .from('payment_profiles')
+  .select('id, parent_uid, last4, brand, active, is_default')
+  .eq('token_ref', String(token))
+  .eq('active', true)
+  .maybeSingle();
 
+if (existingTokenErr) {
+  console.error('[savePaymentMethod] existing token query error', existingTokenErr);
+  res.status(500).json({
+    ok: false,
+    error: existingTokenErr.message,
+  });
+  return;
+}
 
-      if (insErr) {
-        console.error('[savePaymentMethod] upsert error', insErr);
-        res.status(500).json({ ok: false, error: insErr.message });
-        return;
-      }
+if (existingToken) {
+  res.status(409).json({
+    ok: false,
+    error: 'CARD_ALREADY_EXISTS',
+    message: `הכרטיס שהוסף כבר קיים אצל ההורה ${existingToken.parent_uid}`,
+    existingParentUid: existingToken.parent_uid,
+    existingProfileId: existingToken.id,
+    last4: existingToken.last4,
+    brand: existingToken.brand,
+  });
+  return;
+}
+
+const { error: insErr } = await sb
+  .from('payment_profiles')
+  .insert({
+    parent_uid: String(parentUid),
+    token_ref: String(token),
+    last4: last4 ?? null,
+    brand: brand ?? null,
+    expiry_month: expMonth,
+    expiry_year: expYear,
+    active: true,
+    is_default: shouldBeDefault,
+  });
+
+  if (insErr) {
+  console.error('[savePaymentMethod] insert error', insErr);
+
+  if (insErr.code === '23505') {
+    res.status(409).json({
+      ok: false,
+      error: 'CARD_ALREADY_EXISTS',
+      message: 'הכרטיס שהוסף כבר קיים במערכת',
+      details: insErr.details,
+    });
+    return;
+  }
+
+  res.status(500).json({
+    ok: false,
+    error: insErr.message,
+    details: insErr.details,
+    hint: insErr.hint,
+    code: insErr.code,
+  });
+  return;
+}
 
       res.json({ ok: true, is_default: shouldBeDefault });
       return;

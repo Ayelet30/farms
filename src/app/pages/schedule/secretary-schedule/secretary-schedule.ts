@@ -857,6 +857,7 @@ readonly weekDays = [
   }
 
   private async loadInstructorWeeklyAvailability(): Promise<void> {
+    await ensureTenantContextReady();
     const { data, error } = await dbTenant()
       .from('instructor_weekly_availability')
       .select(`
@@ -1832,6 +1833,7 @@ readonly weekDays = [
   }
   /** ילדים פעילים */
   private async loadChildren(): Promise<void> {
+    await ensureTenantContextReady();
     try {
       const dbc = dbTenant();
       const { data, error } = await dbc
@@ -1867,6 +1869,7 @@ readonly weekDays = [
   ridingTypes: { id: string; name: string; code?: string | null }[] = [];
 
   private async loadInstructors(): Promise<void> {
+    await ensureTenantContextReady();
     try {
       const dbc = dbTenant();
 

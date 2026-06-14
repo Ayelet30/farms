@@ -9,8 +9,37 @@ import { Subscription } from 'rxjs';
 import {
   ensureTenantContextReady,
   dbTenant,
+  dbPublic,
+  getCurrentFarmMetaSync,
 } from '../../services/legacy-compat';
 import { RequestBadgeService } from '../../services/request-badge.service';
+
+type FarmFeature =
+  | 'therapeutic_core'
+  | 'farm_operations_advanced'
+  | 'independent_riders'
+  | 'rider_services'
+  | 'payment_methods'
+  | 'invoices'
+  | 'billing'
+  | 'recurring_charges'
+  | 'kupah_reports'
+  | 'kupah_updates'
+  | 'claims'
+  | 'kupah_automation'
+  | 'communications'
+  | 'documents'
+  | 'reminders';
+
+type MenuItem = {
+  path?: string;
+  label: string;
+  icon?: string;
+  badge?: number;
+  section?: boolean;
+  featureKey?: FarmFeature;
+  disabled?: boolean;
+};
 
 @Component({
   selector: 'app-slider',
@@ -31,13 +60,8 @@ export class SliderComponent implements OnInit, OnDestroy {
 
   isDesktop = false;
   role = '';
-  menuItems: Array<{
-    path?: string;
-    label: string;
-    icon?: string;
-    badge?: number;
-    section?: boolean;
-  }> = [];
+  menuItems: MenuItem[] = [];
+  enabledFeatures = new Set<string>();
   error: string | undefined;
 
   pendingRequestsCount = 0;
@@ -45,30 +69,39 @@ export class SliderComponent implements OnInit, OnDestroy {
 
   badgeService = inject(RequestBadgeService);
 
-  async ngOnInit() {
-    await this.cu.waitUntilReady();
+ async ngOnInit() {
+  await this.cu.waitUntilReady();
 
-    // האזנה לשינויים בתפקיד
-    this.cu.user$.subscribe(u => {
-      const roleKey = (u?.role || '').toLowerCase();
-      if (roleKey !== this.role) {
-        this.role = roleKey;
-        this.setMenuItemsByRole();
-      }
-    });
+  await ensureTenantContextReady();
+  await this.loadEnabledFeatures();
 
-    // אתחול ראשוני
-    const cur = this.cu.current;
-    this.role = (cur?.role || '').toLowerCase();
-    this.setMenuItemsByRole();
+  this.cu.user$.subscribe(async u => {
+    const roleKey = (u?.role || '').toLowerCase();
 
-    this.syncBreakpoint();
+    if (roleKey !== this.role) {
+      this.role = roleKey;
+      await this.loadEnabledFeatures();
+      this.setMenuItemsByRole();
+    }
+  });
 
-    await this.badgeService.refreshTenant();
+  const cur = this.cu.current;
+  this.role = (cur?.role || '').toLowerCase();
 
-    this.setMenuItemsByRole();
+  this.setMenuItemsByRole();
+  this.syncBreakpoint();
 
-  }
+  await this.badgeService.refreshTenant();
+
+  this.setMenuItemsByRole();
+}
+
+private applyLicense(items: MenuItem[]): MenuItem[] {
+  return items.map(item => ({
+    ...item,
+    disabled: !!item.featureKey && !this.enabledFeatures.has(item.featureKey)
+  }));
+}
 
   async ngOnDestroy() { }
 
@@ -106,26 +139,34 @@ export class SliderComponent implements OnInit, OnDestroy {
         break;
 
       case 'secretary':
-        this.menuItems = [
-          { path: 'secretary/parents', label: 'הורים בחווה', icon: 'parents' },
-          { path: 'secretary/children', label: 'ילדים בחווה', icon: 'children' },
-          { path: 'secretary/independent-riders', label: 'רוכבים עצמאיים', icon: 'rider' },
-          { path: 'secretary/instructors', label: 'מדריכים בחווה', icon: 'instructor' },
-          { path: 'secretary/horses', label: 'סוסים בחווה', icon: 'hors' },
-          { path: 'secretary/arenas', label: 'מגרשים בחווה', icon: 'arena' },
-          { path: 'secretary/schedule', label: 'לו״ז ומעקב', icon: 'calendar' },
-          { path: 'secretary/appointment', label: 'זימון תורים', icon: 'calendar_plus' },
-          { path: 'secretary/rider-services', label: 'זימון שירות לסוס', icon: 'receipt' },
-          { path: 'secretary/waitlist', label: 'רשימת המתנה', icon: 'waitlist' },
-          { path: 'secretary/messages', label: 'יצירת קשר', icon: 'messages' },
-          { path: 'secretary/monthly-summary', label: 'סיכום וגרפים', icon: 'bar_chart' },
-          { path: 'secretary/rider-service-tasks', label: 'משימות שירותים', icon: 'checklist' },
-          { path: 'secretary/requests', label: 'בקשות ואישורים', icon: 'checklist' },
-          { path: 'secretary/payments', label: 'תשלומים וחשבוניות', icon: 'card' },
-          { path: 'secretary/billing', label: 'ניהול חיובים', icon: 'billing' },
-          { path: 'secretary/claims', label: 'טיפול בתביעות', icon: 'claims' },
-          { path: 'secretary/settings', label: 'הגדרות חווה', icon: 'settings' },
-        ];
+        this.menuItems = this.applyLicense([
+          { path: 'secretary/parents', label: 'הורים בחווה', icon: 'parents', featureKey: 'therapeutic_core' },
+          { path: 'secretary/children', label: 'ילדים בחווה', icon: 'children', featureKey: 'therapeutic_core' },
+
+          { path: 'secretary/independent-riders', label: 'רוכבים עצמאיים', icon: 'rider', featureKey: 'independent_riders' },
+
+          { path: 'secretary/instructors', label: 'מדריכים בחווה', icon: 'instructor', featureKey: 'therapeutic_core' },
+          { path: 'secretary/horses', label: 'סוסים בחווה', icon: 'hors', featureKey: 'therapeutic_core' },
+          { path: 'secretary/arenas', label: 'מגרשים בחווה', icon: 'arena', featureKey: 'farm_operations_advanced' },
+
+          { path: 'secretary/schedule', label: 'לו״ז ומעקב', icon: 'calendar', featureKey: 'therapeutic_core' },
+          { path: 'secretary/appointment', label: 'זימון תורים', icon: 'calendar_plus', featureKey: 'therapeutic_core' },
+
+          { path: 'secretary/rider-services', label: 'זימון שירות לסוס', icon: 'receipt', featureKey: 'rider_services' },
+          { path: 'secretary/rider-service-tasks', label: 'משימות שירותים', icon: 'checklist', featureKey: 'rider_services' },
+
+          { path: 'secretary/waitlist', label: 'רשימת המתנה', icon: 'waitlist', featureKey: 'therapeutic_core' },
+          { path: 'secretary/messages', label: 'יצירת קשר', icon: 'messages', featureKey: 'communications' },
+          { path: 'secretary/monthly-summary', label: 'סיכום וגרפים', icon: 'bar_chart', featureKey: 'farm_operations_advanced' },
+
+          { path: 'secretary/requests', label: 'בקשות ואישורים', icon: 'checklist', featureKey: 'therapeutic_core' },
+
+          { path: 'secretary/payments', label: 'תשלומים וחשבוניות', icon: 'card', featureKey: 'invoices' },
+          { path: 'secretary/billing', label: 'ניהול חיובים', icon: 'billing', featureKey: 'billing' },
+          { path: 'secretary/claims', label: 'טיפול בתביעות', icon: 'claims', featureKey: 'claims' },
+
+          { path: 'secretary/settings', label: 'הגדרות חווה', icon: 'settings', featureKey: 'therapeutic_core' },
+        ]);
         break;
       case 'independent':
         this.menuItems = [
@@ -153,14 +194,21 @@ export class SliderComponent implements OnInit, OnDestroy {
   }
 
 
-  /** מעבר לנתיב שנבחר בתפריט */
-  navigateTo(path: string) {
-    this.router.navigate([path]);
-    if (!this.isDesktop) {
-      this.collapsed = true;
-      this.collapsedChange.emit(true);
-    }
+navigateToItem(item: MenuItem) {
+  if (item.disabled) {
+    alert(`הרישיון שנרכש לחווה אינו כולל את האפשרות: ${item.label}`);
+    return;
   }
+
+  if (!item.path) return;
+
+  this.router.navigate([item.path]);
+
+  if (!this.isDesktop) {
+    this.collapsed = true;
+    this.collapsedChange.emit(true);
+  }
+}
 
   toggleMenu(force?: boolean) {
     this.collapsed = typeof force === 'boolean' ? force : !this.collapsed;
@@ -238,12 +286,44 @@ export class SliderComponent implements OnInit, OnDestroy {
             await this.loadPendingRequestsCount();
           }
         )
-        .subscribe((status: string) => {
-          console.log('requests realtime status:', status);
-        });
 
     } catch (err) {
       console.error('Failed listening to requests changes', err);
     }
   }
+
+private async loadEnabledFeatures() {
+  try {
+    await ensureTenantContextReady();
+
+    const farmMeta: any = getCurrentFarmMetaSync?.();
+
+    const schemaName =
+      farmMeta?.schema_name ||
+      farmMeta?.schemaName ||
+      farmMeta?.tenant_schema ||
+      farmMeta?.db_schema ||
+      farmMeta?.farm_schema;
+
+    if (!schemaName) {
+      this.enabledFeatures = new Set();
+      return;
+    }
+
+   const { data, error } = await dbPublic()
+  .rpc('get_enabled_features_for_schema', {
+    p_schema_name: schemaName
+  });
+
+    if (error) throw error;
+
+    this.enabledFeatures = new Set(
+      (data ?? []).map((x: any) => x.feature_key)
+    );
+
+  } catch (err) {
+    console.error('Failed loading enabled farm features', err);
+    this.enabledFeatures = new Set();
+  }
+}
 }

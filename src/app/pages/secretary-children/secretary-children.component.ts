@@ -1542,12 +1542,20 @@ updated_at
 
   if (!childIds.length) return;
 
-  const { data: instructorsData } = await db
-    .from('instructors')
-    .select('id_number, first_name, last_name, name')
-    .order('first_name', { ascending: true });
+const { data: instructorsData, error: instructorsError } = await db
+  .from('instructors')
+  .select('id_number, first_name, last_name')
+  .order('first_name', { ascending: true });
 
-  this.instructors = instructorsData ?? [];
+if (instructorsError) {
+  console.error('load instructors failed:', instructorsError);
+  this.instructors = [];
+} else {
+  this.instructors = (instructorsData ?? []).map((i: any) => ({
+    ...i,
+    name: `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim(),
+  }));
+}
 
   const { data: termsData } = await db
     .from('child_terms_signatures')
