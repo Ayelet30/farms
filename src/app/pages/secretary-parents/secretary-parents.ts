@@ -833,7 +833,7 @@ private saveRequestId: string | null = null;
     const ref = this.dialog.open(AddParentDialogComponent, {
       width: '700px',
       maxWidth: '90vw',
-      height: '90vh',
+      maxHeight: '90vh',
       panelClass: 'parent-dialog',
       disableClose: true,
     });
@@ -1496,11 +1496,28 @@ if (!this.hfAdd || !this.thtkAdd) {
           }
         }
       );
-    } catch (e: any) {
-      console.error('tokenizeAndSaveCardForSelectedParent error', e);
-      this.tokenError = e?.message ?? 'שגיאה בשמירת אמצעי תשלום';
-      this.savingToken = false;
-    }
+   } catch (e: any) {
+  console.error('[tokenizeAndSaveCard] save error', e);
+
+  const body = e?.error;
+
+  if (e?.status === 409 && body?.error === 'CARD_ALREADY_EXISTS') {
+    this.tokenError =
+      body.message ||
+      `הכרטיס שהוסף כבר קיים אצל ההורה ${body.existingParentUid || ''}`;
+
+    this.savingToken = false;
+    return;
+  }
+
+  this.tokenError =
+    body?.message ||
+    body?.error ||
+    e?.message ||
+    'שגיאה בשמירת אמצעי תשלום במערכת';
+
+  this.savingToken = false;
+}
   }
   goToChildCard(childId: string): void {
     if (!childId) return;

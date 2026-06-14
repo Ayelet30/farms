@@ -19,10 +19,12 @@
 
     <!-- side-menu.html -->
     <ul>
-      <li *ngFor="let item of menuItems" [class.menu-section]="item.section"
+      <li *ngFor="let item of menuItems"
+        [class.menu-section]="item.section"
         [class.active]="!item.section && item.path && isActive(item.path)"
+        [class.disabled]="item.disabled"
         [attr.title]="collapsed && !item.section ? item.label : null"
-        (click)="!item.section && item.path && navigateTo(item.path)">
+        (click)="!item.section && navigateToItem(item)">
 
         <ng-container *ngIf="item.section; else menuLink">
           <span class="section-title">{{ item.label }}</span>
