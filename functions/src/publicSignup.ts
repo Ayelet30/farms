@@ -122,7 +122,7 @@ export const publicCreateIndependentSignupRequest = onRequest(
                 ? 'raanana_farm'
                 : farmCode === 'raanana_farm'
                   ? 'raanana_farm'
-                  : farmCode === 'good_point'
+                  : farmCode === 'good_point_farm'
                   ? 'good_point'
                   : farmCode === 'moach'
                     ? 'moacha_atarim_app'
