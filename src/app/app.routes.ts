@@ -210,6 +210,12 @@ export const routes: Routes = [
             .then(m => m.SecretaryRiderServiceTasksComponent)
       },
       {
+        path: 'rider-billing',
+        loadComponent: () =>
+          import('./pages/secretary-rider-billing/secretary-rider-billing.component')
+            .then(m => m.SecretaryRiderBillingComponent),
+      },
+      {
         path: 'claims',
         loadComponent: () =>
           import('./pages/claims-page/claims-page.component')

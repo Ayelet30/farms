@@ -29,7 +29,8 @@ type FarmFeature =
   | 'kupah_automation'
   | 'communications'
   | 'documents'
-  | 'reminders';
+  | 'reminders'
+  | 'rider_billing';
 
 type MenuItem = {
   path?: string;
@@ -69,39 +70,39 @@ export class SliderComponent implements OnInit, OnDestroy {
 
   badgeService = inject(RequestBadgeService);
 
- async ngOnInit() {
-  await this.cu.waitUntilReady();
+  async ngOnInit() {
+    await this.cu.waitUntilReady();
 
-  await ensureTenantContextReady();
-  await this.loadEnabledFeatures();
+    await ensureTenantContextReady();
+    await this.loadEnabledFeatures();
 
-  this.cu.user$.subscribe(async u => {
-    const roleKey = (u?.role || '').toLowerCase();
+    this.cu.user$.subscribe(async u => {
+      const roleKey = (u?.role || '').toLowerCase();
 
-    if (roleKey !== this.role) {
-      this.role = roleKey;
-      await this.loadEnabledFeatures();
-      this.setMenuItemsByRole();
-    }
-  });
+      if (roleKey !== this.role) {
+        this.role = roleKey;
+        await this.loadEnabledFeatures();
+        this.setMenuItemsByRole();
+      }
+    });
 
-  const cur = this.cu.current;
-  this.role = (cur?.role || '').toLowerCase();
+    const cur = this.cu.current;
+    this.role = (cur?.role || '').toLowerCase();
 
-  this.setMenuItemsByRole();
-  this.syncBreakpoint();
+    this.setMenuItemsByRole();
+    this.syncBreakpoint();
 
-  await this.badgeService.refreshTenant();
+    await this.badgeService.refreshTenant();
 
-  this.setMenuItemsByRole();
-}
+    this.setMenuItemsByRole();
+  }
 
-private applyLicense(items: MenuItem[]): MenuItem[] {
-  return items.map(item => ({
-    ...item,
-    disabled: !!item.featureKey && !this.enabledFeatures.has(item.featureKey)
-  }));
-}
+  private applyLicense(items: MenuItem[]): MenuItem[] {
+    return items.map(item => ({
+      ...item,
+      disabled: !!item.featureKey && !this.enabledFeatures.has(item.featureKey)
+    }));
+  }
 
   async ngOnDestroy() { }
 
@@ -163,6 +164,13 @@ private applyLicense(items: MenuItem[]): MenuItem[] {
 
           { path: 'secretary/payments', label: 'תשלומים וחשבוניות', icon: 'card', featureKey: 'invoices' },
           { path: 'secretary/billing', label: 'ניהול חיובים', icon: 'billing', featureKey: 'billing' },
+
+          {
+            path: 'secretary/rider-billing',
+            label: 'חיובי רוכבים',
+            icon: 'rider_billing',
+            featureKey: 'billing'
+          },
           { path: 'secretary/claims', label: 'טיפול בתביעות', icon: 'claims', featureKey: 'claims' },
 
           { path: 'secretary/settings', label: 'הגדרות חווה', icon: 'settings', featureKey: 'therapeutic_core' },
@@ -194,21 +202,21 @@ private applyLicense(items: MenuItem[]): MenuItem[] {
   }
 
 
-navigateToItem(item: MenuItem) {
-  if (item.disabled) {
-    alert(`הרישיון שנרכש לחווה אינו כולל את האפשרות: ${item.label}`);
-    return;
+  navigateToItem(item: MenuItem) {
+    if (item.disabled) {
+      alert(`הרישיון שנרכש לחווה אינו כולל את האפשרות: ${item.label}`);
+      return;
+    }
+
+    if (!item.path) return;
+
+    this.router.navigate([item.path]);
+
+    if (!this.isDesktop) {
+      this.collapsed = true;
+      this.collapsedChange.emit(true);
+    }
   }
-
-  if (!item.path) return;
-
-  this.router.navigate([item.path]);
-
-  if (!this.isDesktop) {
-    this.collapsed = true;
-    this.collapsedChange.emit(true);
-  }
-}
 
   toggleMenu(force?: boolean) {
     this.collapsed = typeof force === 'boolean' ? force : !this.collapsed;
@@ -292,38 +300,38 @@ navigateToItem(item: MenuItem) {
     }
   }
 
-private async loadEnabledFeatures() {
-  try {
-    await ensureTenantContextReady();
+  private async loadEnabledFeatures() {
+    try {
+      await ensureTenantContextReady();
 
-    const farmMeta: any = getCurrentFarmMetaSync?.();
+      const farmMeta: any = getCurrentFarmMetaSync?.();
 
-    const schemaName =
-      farmMeta?.schema_name ||
-      farmMeta?.schemaName ||
-      farmMeta?.tenant_schema ||
-      farmMeta?.db_schema ||
-      farmMeta?.farm_schema;
+      const schemaName =
+        farmMeta?.schema_name ||
+        farmMeta?.schemaName ||
+        farmMeta?.tenant_schema ||
+        farmMeta?.db_schema ||
+        farmMeta?.farm_schema;
 
-    if (!schemaName) {
+      if (!schemaName) {
+        this.enabledFeatures = new Set();
+        return;
+      }
+
+      const { data, error } = await dbPublic()
+        .rpc('get_enabled_features_for_schema', {
+          p_schema_name: schemaName
+        });
+
+      if (error) throw error;
+
+      this.enabledFeatures = new Set(
+        (data ?? []).map((x: any) => x.feature_key)
+      );
+
+    } catch (err) {
+      console.error('Failed loading enabled farm features', err);
       this.enabledFeatures = new Set();
-      return;
     }
-
-   const { data, error } = await dbPublic()
-  .rpc('get_enabled_features_for_schema', {
-    p_schema_name: schemaName
-  });
-
-    if (error) throw error;
-
-    this.enabledFeatures = new Set(
-      (data ?? []).map((x: any) => x.feature_key)
-    );
-
-  } catch (err) {
-    console.error('Failed loading enabled farm features', err);
-    this.enabledFeatures = new Set();
   }
-}
 }
