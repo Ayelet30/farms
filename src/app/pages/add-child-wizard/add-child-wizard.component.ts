@@ -96,6 +96,8 @@ export class AddChildWizardComponent implements OnInit {
   private tranzila = inject(TranzilaService);
   private sanitizer = inject(DomSanitizer);
 
+  private tokenCallbackHandled = false;
+
   // =========================
   // ===== תקנון (Parent) =====
   // =========================
@@ -455,6 +457,8 @@ export class AddChildWizardComponent implements OnInit {
       this.canEnterPaymentMethod &&
       !this.hasSavedPaymentProfile
     ) {
+      this.destroyRegHostedFields();
+      this.tokenCallbackHandled = false;
       setTimeout(() => this.ensureRegHostedFieldsReady(), 0);
     }
   }
@@ -464,9 +468,13 @@ export class AddChildWizardComponent implements OnInit {
   }
 
   close() {
-    if (this.saving) return;
-    this.closed.emit();
-  }
+  if (this.saving) return;
+
+  this.destroyRegHostedFields();
+  this.tokenCallbackHandled = false;
+
+  this.closed.emit();
+}
 
   get isRaananaFarm(): boolean {
     const farm = getCurrentFarmMetaSync();
@@ -972,6 +980,7 @@ export class AddChildWizardComponent implements OnInit {
   }
 
   async tokenizeCard() {
+    if (this.savingToken) return;
     this.tokenError = null;
 
     if (!this.isParentMode && !this.isSecretaryMode) return;
@@ -1045,6 +1054,8 @@ export class AddChildWizardComponent implements OnInit {
         contact: `${this.child.first_name} ${this.child.last_name}`.trim() || undefined,
       },
       async (err: any, response: any) => {
+        if (this.tokenCallbackHandled) return;
+        this.tokenCallbackHandled = true;
         try {
           if (err?.messages?.length) {
             err.messages.forEach((msg: any) => {
@@ -1155,4 +1166,24 @@ export class AddChildWizardComponent implements OnInit {
       this.savedPaymentProfile = null;
     }
   }
+  private destroyRegHostedFields(): void {
+  try {
+    const anyHf = this.hfReg as any;
+
+    if (anyHf?.destroy) anyHf.destroy();
+    if (anyHf?.remove) anyHf.remove();
+    if (anyHf?.unmount) anyHf.unmount();
+  } catch (e) {
+    console.warn('[registration][HF_DESTROY_FAILED]', e);
+  }
+
+  this.hfReg = null;
+  this.thtkReg = null;
+  this.paymentFieldsLoading = false;
+
+  ['reg_credit_card_number', 'reg_cvv', 'reg_expiry'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+}
 }

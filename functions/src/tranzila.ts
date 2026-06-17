@@ -1380,16 +1380,43 @@ export const savePaymentMethod = onRequest(
         return;
       }
 
-      const { parentUid, tenantSchema, token, last4, brand, expiryMonth, expiryYear } = req.body as any;
+      const {
+        parentUid,
+        tenantSchema,
+        token,
+        last4,
+        brand,
+        expiryMonth,
+        expiryYear,
+      } = req.body as any;
 
       if (!tenantSchema || !parentUid || !token) {
-        res.status(400).json({ ok: false, error: 'missing tenantSchema/parentUid/token' });
+        res.status(400).json({
+          ok: false,
+          error: 'missing tenantSchema/parentUid/token',
+        });
         return;
       }
 
       const sb = getSupabaseForTenant(String(tenantSchema));
 
-      // האם כבר יש default פעיל?
+      const { data: targetParent, error: parentErr } = await sb
+        .from('parents')
+        .select('uid, first_name, last_name')
+        .eq('uid', String(parentUid))
+        .maybeSingle();
+
+      if (parentErr) throw parentErr;
+
+      if (!targetParent) {
+        res.status(404).json({
+          ok: false,
+          error: 'PARENT_NOT_FOUND',
+          message: 'ההורה שאליו מנסים לשמור כרטיס לא נמצא',
+        });
+        return;
+      }
+
       const { data: existingDefault, error: defErr } = await sb
         .from('payment_profiles')
         .select('id')
@@ -1398,85 +1425,89 @@ export const savePaymentMethod = onRequest(
         .eq('is_default', true)
         .limit(1);
 
-      if (defErr) {
-        console.error('[savePaymentMethod] default query error', defErr);
-      }
+      if (defErr) throw defErr;
 
       const shouldBeDefault = !(existingDefault?.length);
 
       const expMonth = normalizeExpiryMonth(expiryMonth);
-    const expYear  = normalizeExpiryYear(expiryYear);
+      const expYear = normalizeExpiryYear(expiryYear);
 
-const { data: existingToken, error: existingTokenErr } = await sb
-  .from('payment_profiles')
-  .select('id, parent_uid, last4, brand, active, is_default')
-  .eq('token_ref', String(token))
-  .eq('active', true)
-  .maybeSingle();
+      const { data: existingToken, error: existingTokenErr } = await sb
+        .from('payment_profiles')
+        .select('id, parent_uid, last4, brand')
+        .eq('token_ref', String(token))
+        .eq('active', true)
+        .maybeSingle();
 
-if (existingTokenErr) {
-  console.error('[savePaymentMethod] existing token query error', existingTokenErr);
-  res.status(500).json({
-    ok: false,
-    error: existingTokenErr.message,
-  });
-  return;
-}
+      if (existingTokenErr) throw existingTokenErr;
 
-if (existingToken) {
-  res.status(409).json({
-    ok: false,
-    error: 'CARD_ALREADY_EXISTS',
-    message: `הכרטיס שהוסף כבר קיים אצל ההורה ${existingToken.parent_uid}`,
-    existingParentUid: existingToken.parent_uid,
-    existingProfileId: existingToken.id,
-    last4: existingToken.last4,
-    brand: existingToken.brand,
-  });
-  return;
-}
+      if (existingToken) {
+        const { data: existingParent } = await sb
+          .from('parents')
+          .select('uid, first_name, last_name')
+          .eq('uid', existingToken.parent_uid)
+          .maybeSingle();
 
-const { error: insErr } = await sb
-  .from('payment_profiles')
-  .insert({
-    parent_uid: String(parentUid),
-    token_ref: String(token),
-    last4: last4 ?? null,
-    brand: brand ?? null,
-    expiry_month: expMonth,
-    expiry_year: expYear,
-    active: true,
-    is_default: shouldBeDefault,
-  });
+        const existingParentName = existingParent
+          ? `${existingParent.first_name || ''} ${existingParent.last_name || ''}`.trim()
+          : '';
 
-  if (insErr) {
-  console.error('[savePaymentMethod] insert error', insErr);
+        res.status(409).json({
+          ok: false,
+          error: 'CARD_ALREADY_EXISTS',
+          message: existingParentName
+            ? `הכרטיס כבר קיים אצל ${existingParentName}`
+            : 'הכרטיס כבר קיים במערכת',
+          existingParentUid: existingToken.parent_uid,
+          existingParentName,
+          existingProfileId: existingToken.id,
+          last4: existingToken.last4,
+          brand: existingToken.brand,
+        });
+        return;
+      }
 
-  if (insErr.code === '23505') {
-    res.status(409).json({
-      ok: false,
-      error: 'CARD_ALREADY_EXISTS',
-      message: 'הכרטיס שהוסף כבר קיים במערכת',
-      details: insErr.details,
-    });
-    return;
-  }
+      const { data: inserted, error: insErr } = await sb
+        .from('payment_profiles')
+        .insert({
+          parent_uid: String(parentUid),
+          token_ref: String(token),
+          last4: last4 ?? null,
+          brand: brand ?? null,
+          expiry_month: expMonth,
+          expiry_year: expYear,
+          active: true,
+          is_default: shouldBeDefault,
+        })
+        .select('id')
+        .single();
 
-  res.status(500).json({
-    ok: false,
-    error: insErr.message,
-    details: insErr.details,
-    hint: insErr.hint,
-    code: insErr.code,
-  });
-  return;
-}
+      if (insErr) {
+        if (insErr.code === '23505') {
+          res.status(409).json({
+            ok: false,
+            error: 'CARD_ALREADY_EXISTS',
+            message: 'הכרטיס שהוסף כבר קיים במערכת',
+          });
+          return;
+        }
 
-      res.json({ ok: true, is_default: shouldBeDefault });
+        throw insErr;
+      }
+
+      res.json({
+        ok: true,
+        is_default: shouldBeDefault,
+        profileId: inserted.id,
+      });
       return;
     } catch (e: any) {
       console.error('[savePaymentMethod] error', e);
-      res.status(500).json({ ok: false, error: e?.message ?? 'internal error' });
+
+      res.status(500).json({
+        ok: false,
+        error: e?.message ?? 'internal error',
+      });
       return;
     }
   },

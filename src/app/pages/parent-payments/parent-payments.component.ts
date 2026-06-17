@@ -86,6 +86,8 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
   private hfAdd: HostedFieldsInstance | null = null;
   private thtkAdd: string | null = null;
 
+  private tokenCallbackHandled = false;
+
   private savedToken: {
     token: string;
     last4: string | null;
@@ -220,19 +222,23 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
   // מודל הוספת כרטיס
   // =========================
   openAddCardModal() {
-    this.addCardOpen.set(true);
-    this.tokenError.set(null);
-    this.tokenSaved.set(false);
-    this.savedToken = null;
+  this.destroyHostedFields();
+  this.tokenCallbackHandled = false;
 
-    // לאחר פתיחת מודל: ה-DOM קיים → אפשר לאתחל HF
-    queueMicrotask(() => this.ensureAddHostedFieldsReady());
-  }
+  this.addCardOpen.set(true);
+  this.tokenError.set(null);
+  this.tokenSaved.set(false);
+  this.savedToken = null;
+
+  queueMicrotask(() => this.ensureAddHostedFieldsReady());
+}
 
   closeAddCardModal() {
-    if (this.savingToken()) return;
-    this.addCardOpen.set(false);
-  }
+  if (this.savingToken()) return;
+
+  this.destroyHostedFields();
+  this.addCardOpen.set(false);
+}
 
   private async ensureAddHostedFieldsReady() {
     if (this.hfAdd) return;
@@ -318,10 +324,6 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
   }
 
   this.savingToken.set(true);
-    if (!this.parentUid) {
-      this.tokenError.set('לא זוהה הורה מחובר');
-      return;
-    }
 
      await this.tenantBoot.ensureReady();
     const farm = this.tenantBoot.getFarmMetaSync();
@@ -446,4 +448,25 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
   trackById(_i: number, x: { id: string }) {
     return x.id;
   }
+
+  private destroyHostedFields(): void {
+  try {
+    const anyHf = this.hfAdd as any;
+
+    if (anyHf?.destroy) anyHf.destroy();
+    if (anyHf?.remove) anyHf.remove();
+    if (anyHf?.unmount) anyHf.unmount();
+  } catch (e) {
+    console.warn('[parent-payments][HF_DESTROY_FAILED]', e);
+  }
+
+  this.hfAdd = null;
+  this.thtkAdd = null;
+  this.hfInitTried = false;
+
+  ['pm_credit_card_number', 'pm_cvv', 'pm_expiry'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+}
 }
