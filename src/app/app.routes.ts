@@ -334,6 +334,13 @@ export const routes: Routes = [
             .then(m => m.IndependentMyServicesComponent)
       },
       // {
+      //   path: 'payments',
+      //   loadComponent: () =>
+      //     import('./pages/independent-rider-payments/independent-rider-payments')
+      //       .then(m => m.IndependentRiderPaymentsComponent)
+      // },
+
+      // {
       //   path: 'billing',
       //   loadComponent: () =>
       //     import('./pages/independent-billing/independent-billing.component')

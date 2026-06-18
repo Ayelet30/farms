@@ -31,7 +31,7 @@ export { openClaimsClalit } from './clalit-claims';
 
 export { connectClalitForFarm, connectHmoForFarm } from './connectHmoForFarm';
 
-export { createHostedPaymentUrl, tranzilaHandshake, recordOneTimePayment, savePaymentMethod, chargeSelectedChargesForParent } from './tranzila.js';
+export { createHostedPaymentUrl, tranzilaHandshake, recordOneTimePayment, savePaymentMethod, chargeSelectedChargesForParent, saveIndependentRiderPaymentMethod } from './tranzila.js';
 export {
   ensureTranzilaInvoiceForPayment
 } from './tranzilaInvoices.js';
