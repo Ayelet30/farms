@@ -1173,7 +1173,7 @@ export class RequestValidationService {
       if (!availabilityRows || availabilityRows.length === 0) {
         return {
           ok: false,
-          reason: 'הבקשה נדחתה אוטומטית: המדריך אינו מוגדר כזמין ביום ובשעה המבוקשים.',
+          reason: 'המדריך אינו מוגדר כזמין ביום ובשעה המבוקשים.',
         };
       }
       const dayStart = `${w.date} 00:00:00`;
@@ -1255,7 +1255,7 @@ export class RequestValidationService {
         return { ok: false, reason: 'הבקשה לא נמצאה. נסי לרענן את המסך.' };
       }
 
-      if (data.status !== 'PENDING') {
+      if (data.status !== 'PENDING' && data.status != 'REJECTED_BY_SYSTEM') {
         return {
           ok: false,
           reason: 'הבקשה כבר טופלה על ידי משתמש אחר. יש לרענן את המסך.',

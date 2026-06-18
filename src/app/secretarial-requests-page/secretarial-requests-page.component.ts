@@ -63,7 +63,11 @@ import { RequestRiderServiceDetailsComponent } from './request-rider-service-det
 
 // }
 
-
+type RequestTypeOption = {
+  value: 'ALL' | RequestType;
+  label: string;
+  roles: string[];
+};
 type ToastKind = 'success' | 'error' | 'info';
 
 // type ValidationMode = 'auto' | 'approve';
@@ -150,7 +154,34 @@ export class SecretarialRequestsPageComponent implements OnInit {
   isMobile = signal(false);
 
   filtersOpen = signal(false);
+  requestTypeOptions: RequestTypeOption[] = [
+    { value: 'CANCEL_OCCURRENCE', label: 'ביטול שיעור', roles: ['parent'] },
+    { value: 'NEW_SERIES', label: 'סדרת שיעורים', roles: ['parent'] },
+    { value: 'ADD_CHILD', label: 'הוספת ילד/ה', roles: ['parent'] },
+    { value: 'DELETE_CHILD', label: 'מחיקת ילד/ה', roles: ['parent'] },
+    { value: 'MAKEUP_LESSON', label: 'שיעור פיצוי', roles: ['parent'] },
+    { value: 'SINGLE_LESSON', label: 'שיעור בודד', roles: ['parent'] },
 
+    { value: 'INSTRUCTOR_DAY_OFF', label: 'יום חופש מדריך', roles: ['instructor'] },
+    { value: 'FILL_IN', label: 'מילוי מקום', roles: ['instructor'] },
+
+    { value: 'PARENT_SIGNUP', label: 'הרשמת הורה', roles: ['secretary'] },
+    { value: 'INDEPENDENT_SIGNUP', label: 'הרשמת רוכב עצמאי', roles: ['secretary'] },
+    { value: 'RIDER_SERVICE_REQUEST', label: 'בקשת שירות רוכב', roles: ['independent', 'secretary'] },
+    { value: 'OTHER_REQUEST' as RequestType, label: 'אחר', roles: ['secretary'] },
+  ];
+  get visibleRequestTypeOptions(): RequestTypeOption[] {
+    if (this.isSecretary) {
+      return this.requestTypeOptions;
+    }
+
+    const role = this.normalizeRole(this.currentRole);
+    if (!role) return [];
+
+    return this.requestTypeOptions.filter(x =>
+      x.roles.includes(role)
+    );
+  }
   toggleFilters() {
     this.filtersOpen.update(v => !v);
   }
