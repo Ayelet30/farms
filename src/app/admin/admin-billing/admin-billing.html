@@ -1,0 +1,419 @@
+<section class="billing-page" dir="rtl">
+  <header class="page-header">
+    <div>
+      <h1>מעקב תשלומי חוות</h1>
+      <p>ניהול תשלום התקנה, חיוב חודשי, חיובים חד פעמיים, זיכויים ותשלומים שהתקבלו בדרך אחרת</p>
+    </div>
+
+    <div class="header-actions">
+      <button class="secondary" (click)="loadData()" [disabled]="loading()">רענון</button>
+
+      <button (click)="showCustomerForm = !showCustomerForm">
+        {{ showCustomerForm ? 'סגירת הוספה' : 'הוספת חווה לחיוב' }}
+      </button>
+    </div>
+  </header>
+
+  <div *ngIf="loading()" class="notice loading">טוען...</div>
+  <div *ngIf="error()" class="notice error">{{ error() }}</div>
+  <div *ngIf="success()" class="notice success">{{ success() }}</div>
+
+  <section *ngIf="showCustomerForm" class="card form-card">
+    <h2>הוספת חווה למעקב חיובים</h2>
+
+    <div class="form-grid">
+      <label>
+        שם חווה / לקוח
+        <input [(ngModel)]="newCustomer.farm_name" />
+      </label>
+
+      <label>
+        איש קשר
+        <input [(ngModel)]="newCustomer.contact_name" />
+      </label>
+
+      <label>
+        אימייל לקבלות
+        <input [(ngModel)]="newCustomer.email" type="email" />
+      </label>
+
+      <label>
+        טלפון
+        <input [(ngModel)]="newCustomer.phone" />
+      </label>
+
+      <label>
+        ח.פ / עוסק
+        <input [(ngModel)]="newCustomer.business_id" />
+      </label>
+    </div>
+
+    <div class="form-actions">
+      <button (click)="createCustomer()" [disabled]="loading()">שמירת חווה</button>
+      <button class="secondary" (click)="resetCustomerForm()">ניקוי</button>
+    </div>
+  </section>
+
+  <section *ngIf="showChargeForm" class="card form-card">
+    <h2>
+      {{ paymentForm.payment_type === 'credit' ? 'הוספת זיכוי' : 'יצירת חיוב' }}
+      <span *ngIf="selectedFarmName">- {{ selectedFarmName }}</span>
+    </h2>
+
+    <div class="form-grid">
+      <label>
+        לקוח
+        <select [(ngModel)]="paymentForm.customer_id">
+          <option value="">בחרי לקוח</option>
+          <option *ngFor="let c of customers()" [value]="c.id">
+            {{ c.farm_name }} - {{ c.email }}
+          </option>
+        </select>
+      </label>
+
+      <label>
+        סוג פעולה
+        <select [(ngModel)]="paymentForm.payment_type">
+          <option value="one_time">חיוב חד פעמי</option>
+          <option value="monthly">חיוב חודשי</option>
+          <option value="credit">זיכוי</option>
+        </select>
+      </label>
+
+      <label>
+        סכום בש״ח
+        <input [(ngModel)]="paymentForm.amount" type="number" min="0" />
+      </label>
+
+      <label>
+        תיאור
+        <input [(ngModel)]="paymentForm.description" />
+      </label>
+
+      <label *ngIf="paymentForm.payment_type === 'monthly'">
+        יום חיוב בחודש
+        <input [(ngModel)]="paymentForm.billing_day" type="number" min="1" max="28" />
+      </label>
+    </div>
+
+    <div class="form-actions">
+      <button (click)="createPaymentLink()" [disabled]="loading()">
+        {{ paymentForm.payment_type === 'credit' ? 'יצירת זיכוי' : 'יצירת קישור תשלום' }}
+      </button>
+
+      <button class="secondary" (click)="showChargeForm = false; resetPaymentForm()">
+        ביטול
+      </button>
+    </div>
+  </section>
+
+  <section *ngIf="showManualPaymentForm" class="card form-card">
+    <h2>סימון תשלום שהתקבל בדרך אחרת</h2>
+
+    <div class="form-grid">
+      <label>
+        חווה
+        <input [(ngModel)]="manualPaymentForm.farm_name" readonly />
+      </label>
+
+      <label>
+        סוג תשלום
+        <select [(ngModel)]="manualPaymentForm.payment_type">
+          <option value="setup">תשלום התקנה</option>
+          <option value="one_time">חיוב חד פעמי</option>
+          <option value="monthly">תשלום חודשי</option>
+          <option value="credit">זיכוי</option>
+        </select>
+      </label>
+
+      <label>
+        סכום בש״ח
+        <input [(ngModel)]="manualPaymentForm.amount" type="number" min="0" />
+      </label>
+
+      <label>
+        אמצעי תשלום
+        <select [(ngModel)]="manualPaymentForm.manual_payment_method">
+          <option value="העברה בנקאית">העברה בנקאית</option>
+          <option value="מזומן">מזומן</option>
+          <option value="צ׳ק">צ׳ק</option>
+          <option value="ביט">ביט</option>
+          <option value="אשראי חיצוני">אשראי חיצוני</option>
+          <option value="אחר">אחר</option>
+        </select>
+      </label>
+
+      <label>
+        תיאור
+        <input [(ngModel)]="manualPaymentForm.description" />
+      </label>
+
+      <label>
+        קישור לקבלה
+        <input
+          [(ngModel)]="manualPaymentForm.receipt_url"
+          placeholder="https://..."
+        />
+      </label>
+
+      <label>
+        שם קובץ קבלה
+        <input
+          [(ngModel)]="manualPaymentForm.receipt_file_name"
+          placeholder="receipt.pdf"
+        />
+      </label>
+    </div>
+
+    <div class="form-actions">
+      <button (click)="markPaidManually()" [disabled]="loading()">
+        שמירת תשלום ידני
+      </button>
+
+      <button class="secondary" (click)="showManualPaymentForm = false">
+        ביטול
+      </button>
+    </div>
+  </section>
+
+  <section class="card full">
+    <h2>חוות במעקב</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>שם החווה</th>
+            <th>נוצרה</th>
+            <th>תשלום התקנה</th>
+            <th>תשלום חודשי</th>
+            <th>חיוב אחרון</th>
+            <th>פעולות</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr *ngFor="let row of farmRows()">
+            <td>
+              <strong>{{ row.farm_name }}</strong>
+
+              <div class="muted" *ngIf="row.email">{{ row.email }}</div>
+              <div class="muted" *ngIf="row.phone">{{ row.phone }}</div>
+              <div class="muted" *ngIf="row.contact_person">
+                איש קשר: {{ row.contact_person }}
+              </div>
+              <div class="muted" *ngIf="row.schema_name">
+                {{ row.schema_name }}
+              </div>
+            </td>
+
+            <td>
+              <ng-container *ngIf="row.billing_customer_created_at; else farmCreated">
+                {{ row.billing_customer_created_at | date:'dd/MM/yyyy' }}
+              </ng-container>
+
+              <ng-template #farmCreated>
+                <span class="muted">קיימת במערכת</span>
+              </ng-template>
+            </td>
+
+            <td>
+              <span
+                class="status"
+                [class.paid]="row.setup_payment_status === 'paid'"
+                [class.failed]="row.setup_payment_status === 'failed'"
+                [class.pending]="row.setup_payment_status === 'pending'"
+              >
+                {{ statusText(row.setup_payment_status) }}
+              </span>
+
+              <div *ngIf="row.setup_amount_agorot" class="muted">
+                {{ row.setup_amount_agorot / 100 | number:'1.0-2' }} ₪
+              </div>
+
+              <div *ngIf="row.setup_paid_manually" class="muted">
+                שולם בדרך אחרת
+              </div>
+
+              <a
+                *ngIf="row.setup_receipt_url"
+                class="receipt-link"
+                [href]="row.setup_receipt_url"
+                target="_blank"
+                rel="noopener"
+              >
+                צפייה בקבלה
+              </a>
+            </td>
+
+            <td>
+              <ng-container *ngIf="row.monthly_amount_agorot; else noMonthly">
+                <strong>{{ row.monthly_amount_agorot / 100 | number:'1.0-2' }} ₪</strong>
+
+                <div class="muted">
+                  יום חיוב: {{ row.billing_day || '-' }}
+                </div>
+
+                <div>
+                  <span class="status" [class.paid]="row.monthly_active">
+                    {{ row.monthly_active ? 'פעיל' : 'לא פעיל' }}
+                  </span>
+                </div>
+              </ng-container>
+
+             <ng-template #noMonthly>
+  <span class="muted no-data">
+    אין חיוב חודשי
+  </span>
+</ng-template>
+            </td>
+
+            <td>
+              <ng-container *ngIf="row.last_payment_at; else noLastPayment">
+                <strong>
+                  {{ row.last_payment_amount_agorot / 100 | number:'1.0-2' }} ₪
+                </strong>
+
+                <div class="muted">
+                  {{ row.last_payment_at | date:'dd/MM/yyyy HH:mm' }}
+                </div>
+
+                <div class="muted">
+                  {{ paymentTypeText(row.last_payment_type) }}
+                </div>
+
+                <span
+                  class="status"
+                  [class.paid]="row.last_payment_status === 'paid'"
+                  [class.failed]="row.last_payment_status === 'failed'"
+                  [class.pending]="row.last_payment_status === 'pending'"
+                >
+                  {{ statusText(row.last_payment_status) }}
+                </span>
+
+                <div *ngIf="row.last_paid_manually" class="muted">
+                  שולם בדרך אחרת
+                </div>
+
+                <a
+                  *ngIf="row.last_receipt_url"
+                  class="receipt-link"
+                  [href]="row.last_receipt_url"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  קבלה
+                </a>
+              </ng-container>
+
+              <ng-template #noLastPayment>
+                <span class="muted">אין עדיין חיובים</span>
+              </ng-template>
+            </td>
+
+            <td class="actions">
+              <button (click)="openOneTimeCharge(row)">
+                חיוב בודד
+              </button>
+
+              <button (click)="openMonthlyCharge(row)">
+                חיוב חודשי
+              </button>
+
+              <button class="credit" (click)="openCredit(row)">
+                זיכוי
+              </button>
+
+              <button class="secondary" (click)="openManualPayment(row, 'setup')">
+                סימון התקנה שולמה
+              </button>
+
+              <button class="secondary" (click)="openManualPayment(row, 'one_time')">
+                שולם בדרך אחרת
+              </button>
+            </td>
+          </tr>
+
+          <tr *ngIf="!farmRows().length && !loading()">
+            <td colspan="6" class="empty">
+              אין עדיין חוות במעקב חיובים
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card full">
+    <h2>חיובים אחרונים</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>לקוח</th>
+            <th>סכום</th>
+            <th>סוג</th>
+            <th>סטטוס</th>
+            <th>תיאור</th>
+            <th>תאריך</th>
+            <th>קבלה</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr *ngFor="let p of payments()">
+            <td>{{ p.farm_billing_customers?.farm_name }}</td>
+
+            <td>
+              {{ p.amount_agorot / 100 | number:'1.2-2' }} ₪
+            </td>
+
+            <td>{{ paymentTypeText(p.payment_type) }}</td>
+
+            <td>
+              <span
+                class="status"
+                [class.paid]="p.status === 'paid'"
+                [class.failed]="p.status === 'failed'"
+                [class.pending]="p.status === 'pending'"
+              >
+                {{ statusText(p.status) }}
+              </span>
+
+              <div *ngIf="p.paid_manually" class="muted">
+                שולם בדרך אחרת
+              </div>
+            </td>
+
+            <td>{{ p.description }}</td>
+
+            <td>{{ p.created_at | date:'dd/MM/yyyy HH:mm' }}</td>
+
+            <td>
+              <a
+                *ngIf="p.receipt_url"
+                class="receipt-link"
+                [href]="p.receipt_url"
+                target="_blank"
+                rel="noopener"
+              >
+                צפייה
+              </a>
+
+              <button *ngIf="p.status === 'paid'" (click)="resendReceipt(p.id)">
+                שלח שוב
+              </button>
+            </td>
+          </tr>
+
+          <tr *ngIf="!payments().length && !loading()">
+            <td colspan="7" class="empty">
+              אין עדיין חיובים
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>

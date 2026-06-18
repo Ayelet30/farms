@@ -283,6 +283,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('../admin-hmo/admin-hmo-integrations.page').then(m => m.AdminHmoIntegrationsPage)
       },
+      {
+      path: 'billing',
+      loadComponent: () =>
+        import('./admin/admin-billing/admin-billing')
+          .then(m => m.AdminBillingComponent)
+    }
       // {
       //   path: 'addChildren',
       //   loadComponent: () =>
