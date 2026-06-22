@@ -118,8 +118,19 @@ export class TranzilaService {
       )
     );
   }
-
-
+  chargeSelectedChargesForRider(args: {
+    riderUid: string;
+    tenantSchema: string;
+    secretaryEmail: string;
+    chargeIds: string[];
+  }) {
+    return firstValueFrom(
+      this.http.post<{ ok: boolean; results: any[]; failedCount?: number }>(
+        `https://us-central1-bereshit-ac5d8.cloudfunctions.net/chargeSelectedChargesForRider`,
+        args
+      )
+    );
+  }
   chargeSelectedChargesForParent(args: {
     parentUid: string;
     tenantSchema: string;

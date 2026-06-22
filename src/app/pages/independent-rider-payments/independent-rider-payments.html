@@ -27,11 +27,25 @@
                 </div>
 
                 <div class="right">
-                    <button class="btn secondary" type="button" (click)="setDefault(p.id)" [disabled]="p.is_default">
+                    <span *ngIf="p.is_default" class="badge">
+                        ברירת מחדל
+                    </span>
+
+                    <span *ngIf="!p.active" class="badge danger">
+                        לא פעיל
+                    </span>
+
+                    <span *ngIf="p.active && isExpired(p)" class="badge danger">
+                        פג תוקף
+                    </span>
+
+                    <span *ngIf="p.active && isExpiringSoon(p)" class="badge warning">
+                        תוקף קרוב
+                    </span>
+
+                    <button *ngIf="canSetDefault(p)" class="btn secondary" type="button" (click)="setDefault(p.id)">
                         קבע כברירת מחדל
                     </button>
-
-                    <span *ngIf="p.is_default" class="badge">ברירת מחדל</span>
                 </div>
             </div>
         </div>

@@ -28,7 +28,8 @@ const TRANZILA_APP_KEY_S = defineSecret('TRANZILA_APP_KEY');
 const TRANZILA_SECRET_S = defineSecret('TRANZILA_SECRET');
 
 const PUBLIC_BASE_URL_S = defineSecret('PUBLIC_BASE_URL');
-
+const NOTIFY_USER_URL =
+  'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifyUser';
 
 const mailTransport = nodemailer.createTransport({
   host: "smtp.gmail.com",
@@ -1194,7 +1195,587 @@ export const chargeSelectedChargesForParent = onRequest(
   },
 );
 
+export const chargeSelectedChargesForRider = onRequest(
+  {
+    invoker: 'public',
+    secrets: [
+      SUPABASE_URL_S,
+      SUPABASE_KEY_S,
+      INTERNAL_CALL_SECRET_S,
+      TRANZILA_PASSWORD_S,
+      TRANZILA_PASSWORD_TOKEN_S,
+      TRANZILA_APP_KEY_S,
+      TRANZILA_SECRET_S,
+    ],
+  },
+  async (req, res) => {
+    try {
+      if (handleCors(req, res)) return;
 
+      if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+      }
+
+      const { tenantSchema, riderUid, chargeIds } = req.body as {
+        tenantSchema: string;
+        riderUid: string;
+        chargeIds: string[];
+        secretaryEmail?: string | null;
+      };
+
+      if (!tenantSchema || !riderUid || !Array.isArray(chargeIds) || !chargeIds.length) {
+        res.status(400).json({
+          ok: false,
+          error: 'missing tenantSchema/riderUid/chargeIds',
+        });
+        return;
+      }
+
+      const sb = getSupabaseForTenant(tenantSchema);
+
+      const terminal = await loadDefaultBillingTerminal({
+        sbTenant: sb,
+        provider: 'tranzila',
+        mode: 'prod',
+      });
+
+      if (!terminal.tok_terminal_name) {
+        res.status(500).json({
+          ok: false,
+          error: 'tok_terminal_name not configured in billing_terminals',
+        });
+        return;
+      }
+
+      const { data: profiles, error: pErr } = await sb
+        .from('independent_rider_payment_profiles')
+        .select('id, token_ref, last4, brand, is_default, created_at, expiry_month, expiry_year')
+        .eq('rider_uid', riderUid)
+        .eq('active', true)
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (pErr) throw pErr;
+
+      const activeProfiles = (profiles ?? []).filter((p: any) => !isPaymentProfileExpired(p));
+
+      if (!activeProfiles.length) {
+        res.status(400).json({
+          ok: false,
+          error: profiles?.length
+            ? 'all rider payment profiles are expired'
+            : 'no active payment profiles for rider',
+        });
+        return;
+      }
+
+      const { data: charges, error: cErr } = await sb
+        .from('rider_charges')
+        .select('id, rider_uid, status, description, amount_agorot, paid_agorot')
+        .in('id', chargeIds)
+        .eq('rider_uid', riderUid);
+
+      if (cErr) throw cErr;
+
+      const byId = new Map((charges ?? []).map((c: any) => [c.id, c]));
+      const missing = chargeIds.filter((id) => !byId.has(id));
+
+      if (missing.length) {
+        res.status(404).json({
+          ok: false,
+          error: `rider charges not found: ${missing.join(',')}`,
+        });
+        return;
+      }
+
+      const results: any[] = [];
+
+      for (const chargeId of chargeIds) {
+        const charge: any = byId.get(chargeId);
+
+        if (String(charge.status) === 'paid') {
+          results.push({ chargeId, skipped: true, reason: 'already_paid' });
+          continue;
+        }
+
+        if (String(charge.status) === 'cancelled') {
+          results.push({ chargeId, skipped: true, reason: 'cancelled' });
+          continue;
+        }
+
+        const creditsAgorot = await getRiderChargeCreditsAgorot(sb, chargeId);
+
+        const amountAgorot = Math.max(
+          Number(charge.amount_agorot ?? 0) -
+          Number(charge.paid_agorot ?? 0) -
+          creditsAgorot,
+          0
+        );
+
+        if (!Number.isFinite(amountAgorot) || amountAgorot <= 0) {
+          results.push({ chargeId, skipped: true, reason: 'amount_is_zero' });
+          continue;
+        }
+
+        let charged = false;
+        let usedProfile: any = null;
+        let providerId: string | null = null;
+        let lastErrMsg = 'charge failed';
+
+        for (const prof of activeProfiles) {
+          const attempt = await chargeByToken({
+            terminalName: terminal.tok_terminal_name,
+            token: String(prof.token_ref),
+            amountAgorot,
+            description: charge.description ?? 'Rider charge',
+            expiryMonth: prof.expiry_month,
+            expiryYear: prof.expiry_year,
+          });
+
+          if (attempt.ok) {
+            charged = true;
+            usedProfile = prof;
+            providerId = attempt.provider_id;
+            break;
+          }
+
+          lastErrMsg = attempt.error || 'charge failed';
+        }
+
+        if (!charged) {
+          await sb
+            .from('rider_charges')
+            .update({
+              status: 'failed',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', chargeId);
+
+          results.push({
+            ok: false,
+            chargeId,
+            error: lastErrMsg,
+          });
+
+          continue;
+        }
+
+        const amountNis = Number((amountAgorot / 100).toFixed(2));
+        const nowIso = new Date().toISOString();
+
+        const { data: payRow, error: payErr } = await sb
+          .from('independent_rider_payments')
+          .insert({
+            rider_uid: riderUid,
+            payment_profile_id: usedProfile?.id ?? null,
+            amount: amountNis,
+            currency: 'ILS',
+            method: 'credit_card',
+            status: 'succeeded',
+            provider: 'tranzila',
+            provider_transaction_id: providerId,
+            tranzila_invoice_url: null,
+            date: nowIso,
+            created_at: nowIso,
+            updated_at: nowIso,
+          })
+          .select('id')
+          .single();
+
+        if (payErr) throw new Error(payErr.message);
+
+        const paymentId = payRow.id as string;
+
+        await sb
+          .from('rider_charges')
+          .update({
+            status: 'paid',
+            paid_agorot: Number(charge.paid_agorot ?? 0) + amountAgorot,
+            updated_at: nowIso,
+          })
+          .eq('id', chargeId);
+
+        try {
+          const invoice = await ensureTranzilaInvoiceForRiderPaymentInternal({
+            sb,
+            tenantSchema,
+            riderUid,
+            chargeId,
+            paymentId,
+            paymentProfileId: usedProfile?.id ?? null,
+            amountAgorot,
+          });
+
+          await sb
+            .from('independent_rider_payments')
+            .update({
+              tranzila_invoice_url: invoice.invoiceUrl,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', paymentId);
+
+          results.push({
+            ok: true,
+            chargeId,
+            paymentId,
+            providerId,
+            invoiceUrl: invoice.invoiceUrl,
+          });
+        } catch (invoiceErr: any) {
+          console.error('[rider invoice after charge] failed', invoiceErr?.message || invoiceErr);
+
+          results.push({
+            ok: true,
+            chargeId,
+            paymentId,
+            providerId,
+            invoice_error: invoiceErr?.message ?? 'invoice failed',
+          });
+        }
+      }
+
+      res.json({
+        ok: true,
+        results,
+        failedCount: results.filter((r) => r.ok === false).length,
+      });
+    } catch (e: any) {
+      console.error('[chargeSelectedChargesForRider] error:', e);
+      res.status(500).json({
+        ok: false,
+        error: e?.message ?? 'internal error',
+      });
+    }
+  }
+);
+
+function isPaymentProfileExpired(profile: any): boolean {
+  if (!profile?.expiry_month || !profile?.expiry_year) return false;
+
+  const expiryEnd = new Date(
+    Number(profile.expiry_year),
+    Number(profile.expiry_month),
+    0,
+    23,
+    59,
+    59
+  );
+
+  return expiryEnd < new Date();
+}
+
+async function getRiderChargeCreditsAgorot(
+  sb: SupabaseClient,
+  chargeId: string
+): Promise<number> {
+  const { data, error } = await sb
+    .from('rider_credits')
+    .select('amount_agorot')
+    .eq('related_charge_id', chargeId);
+
+  if (error) throw error;
+
+  return (data ?? []).reduce(
+    (sum: number, row: any) => sum + Number(row.amount_agorot ?? 0),
+    0
+  );
+}
+
+async function ensureTranzilaInvoiceForRiderPaymentInternal(args: {
+  sb: SupabaseClient;
+  tenantSchema: string;
+  riderUid: string;
+  chargeId: string;
+  paymentId: string;
+  paymentProfileId?: string | null;
+  amountAgorot: number;
+}): Promise<{
+  invoiceUrl: string;
+  documentId: string | null;
+  documentNumber: string | null;
+  retrievalKey: string;
+}> {
+  const {
+    sb,
+    tenantSchema,
+    riderUid,
+    chargeId,
+    paymentId,
+    paymentProfileId,
+    amountAgorot,
+  } = args;
+
+  const { data: rider, error: riderErr } = await sb
+    .from('independent_riders')
+    .select('uid, full_name, email, id_number, phone')
+    .eq('uid', riderUid)
+    .maybeSingle();
+
+  if (riderErr) throw new Error(`independent_riders query failed: ${riderErr.message}`);
+  if (!rider) throw new Error('rider not found');
+
+  const { data: itemsRows, error: itemsErr } = await sb
+    .from('rider_charge_details')
+    .select(`
+      id,
+      charge_id,
+      item_date,
+      service_name,
+      quantity,
+      unit_price_agorot,
+      amount_agorot,
+      description,
+      horse_name
+    `)
+    .eq('charge_id', chargeId)
+    .order('item_date', { ascending: true });
+
+  if (itemsErr) throw new Error(`rider_charge_details query failed: ${itemsErr.message}`);
+
+  const items = (itemsRows ?? []).map((item: any) => {
+    const serviceName = item.service_name || item.description || 'שירות רוכב עצמאי';
+    const horsePart = item.horse_name ? ` - ${item.horse_name}` : '';
+    const datePart = item.item_date ? ` - ${item.item_date}` : '';
+
+    return {
+      name: `${serviceName}${horsePart}${datePart}`.slice(0, 120),
+      unit_price: Number((Number(item.unit_price_agorot ?? item.amount_agorot ?? 0) / 100).toFixed(2)),
+      units_number: Number(item.quantity || 1),
+      unit_type: 1,
+      currency_code: 'ILS',
+    };
+  });
+
+  const { data: creditsRows, error: creditsErr } = await sb
+    .from('rider_credits')
+    .select('amount_agorot, reason')
+    .eq('related_charge_id', chargeId);
+
+  if (creditsErr) throw new Error(`rider_credits query failed: ${creditsErr.message}`);
+
+  for (const credit of creditsRows ?? []) {
+    items.push({
+      name: `זיכוי: ${credit.reason || ''}`.slice(0, 120),
+      unit_price: Number((-Math.abs(Number(credit.amount_agorot ?? 0)) / 100).toFixed(2)),
+      units_number: 1,
+      unit_type: 1,
+      currency_code: 'ILS',
+    });
+  }
+
+  if (!items.length) {
+    throw new Error('no rider charge items found for invoice');
+  }
+  const totalNis = Number(
+    items.reduce((sum: number, item: any) => {
+      return sum + Number(item.unit_price || 0) * Number(item.units_number || 1);
+    }, 0).toFixed(2)
+  );
+
+  if (!Number.isFinite(totalNis) || totalNis <= 0) {
+    throw new Error('invoice amount must be positive');
+  }
+  let ccLast4: string | undefined;
+
+  if (paymentProfileId) {
+    const { data: prof, error: profErr } = await sb
+      .from('independent_rider_payment_profiles')
+      .select('id, brand, last4')
+      .eq('id', paymentProfileId)
+      .maybeSingle();
+
+    if (profErr) throw new Error(`independent_rider_payment_profiles query failed: ${profErr.message}`);
+    ccLast4 = String(prof?.last4 ?? '').trim().slice(-4) || undefined;
+  }
+
+  const terminal = await loadDefaultBillingTerminal({
+    sbTenant: sb,
+    provider: 'tranzila',
+    mode: 'prod',
+  });
+
+  const auth = buildTranzilaAuth();
+  const documentDate = new Date().toISOString().slice(0, 10);
+  const vatPercent = documentDate >= '2025-01-01' ? 18 : 17;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-tranzila-api-app-key': auth.appKey,
+    'X-tranzila-api-request-time': auth.requestTime,
+    'X-tranzila-api-nonce': auth.nonce,
+    'X-tranzila-api-access-token': auth.accessToken,
+  };
+
+  const clientCompany = [
+    rider.full_name || 'רוכב עצמאי',
+    rider.id_number || null,
+  ].filter(Boolean).join('\n');
+
+  const payload: any = {
+    terminal_name: terminal.terminal_name,
+    document_date: documentDate,
+    document_type: 'IR',
+    document_language: 'heb',
+    document_currency_code: 'ILS',
+    action: 1,
+    vat_percent: vatPercent,
+    client_company: clientCompany,
+    client_email: rider.email ?? undefined,
+    items,
+    payments: [
+      {
+        payment_method: 1,
+        payment_date: documentDate,
+        amount: totalNis,
+        currency_code: 'ILS',
+        cc_last_4_digits: ccLast4 || undefined,
+        cc_credit_term: 1,
+      },
+    ],
+    response_language: 'eng',
+  };
+
+  const resp = await fetch('https://billing5.tranzila.com/api/documents_db/create_document', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  const rawText = await resp.text();
+  let json: any = null;
+
+  try {
+    json = JSON.parse(rawText);
+  } catch { }
+
+  if (!resp.ok || !json || String(json.status_code) !== '0') {
+    throw new Error(`tranzila rider create_document failed: ${json?.status_msg ?? rawText}`);
+  }
+
+  const documentId = json?.document?.id ? String(json.document.id) : null;
+  const documentNumber = json?.document?.number ? String(json.document.number) : null;
+
+  const retrievalKey =
+    json?.retrieval_key ??
+    json?.document?.retrieval_key ??
+    json?.retrievalKey ??
+    null;
+
+  if (!retrievalKey) {
+    throw new Error('missing retrieval_key from tranzila rider invoice');
+  }
+
+  const tranzilaPdfUrl = `https://my.tranzila.com/api/get_financial_document/${retrievalKey}`;
+
+  const pdfResp = await fetch(tranzilaPdfUrl);
+
+  if (!pdfResp.ok) {
+    throw new Error(`failed to fetch rider invoice PDF: HTTP ${pdfResp.status}`);
+  }
+
+  const pdfBuffer = Buffer.from(await pdfResp.arrayBuffer());
+
+  const bucket = 'payments-invoices';
+  const monthYear = `${documentDate.slice(5, 7)}-${documentDate.slice(0, 4)}`;
+  const path = `${tenantSchema}/rider-invoices/${monthYear}/${paymentId}.pdf`;
+
+  const { error: uploadErr } = await sb.storage
+    .from(bucket)
+    .upload(path, pdfBuffer, {
+      contentType: 'application/pdf',
+      upsert: true,
+    });
+
+  if (uploadErr) {
+    throw new Error(`rider invoice storage upload failed: ${uploadErr.message}`);
+  }
+
+  const { data: pub } = sb.storage.from(bucket).getPublicUrl(path);
+  const invoiceUrl = (pub as any).publicUrl + '?v=' + Date.now();
+
+  try {
+    await sendRiderInvoiceViaNotifyUser({
+      tenantSchema,
+      riderUid,
+      riderFullName: rider.full_name ?? null,
+      documentNumber,
+      invoiceUrl,
+      pdfBuffer,
+    });
+  } catch (mailErr: any) {
+    console.error('[rider invoice mail] failed', mailErr?.message || mailErr);
+  }
+
+  return {
+    invoiceUrl,
+    documentId,
+    documentNumber,
+    retrievalKey: String(retrievalKey),
+  };
+}
+async function sendRiderInvoiceViaNotifyUser(args: {
+  tenantSchema: string;
+  riderUid: string;
+  riderFullName: string | null;
+  documentNumber: string | null;
+  invoiceUrl: string;
+  pdfBuffer: Buffer;
+}) {
+  const internalSecret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
+  if (!internalSecret) throw new Error('Missing INTERNAL_CALL_SECRET');
+
+  const riderName = args.riderFullName || 'רוכב/ת';
+
+  const payload = {
+    tenantSchema: args.tenantSchema,
+
+    // חשוב: אצלך notifyUser מצפה ל-independent, לא independent_rider
+    userType: 'independent',
+    uid: args.riderUid,
+
+    forceEmail: true,
+    subject: `חשבונית ${args.documentNumber ?? ''}`.trim(),
+    html: `
+      <div dir="rtl" style="font-family: Arial, sans-serif">
+        <p>שלום ${riderName},</p>
+        <p>מצורפת החשבונית עבור התשלום שבוצע.</p>
+        <p>תודה,<br/>Smart Farm</p>
+      </div>
+    `.trim(),
+    attachments: [
+      {
+        filename: `invoice-${args.documentNumber ?? 'payment'}.pdf`,
+        contentType: 'application/pdf',
+        contentBase64: args.pdfBuffer.toString('base64'),
+      },
+    ],
+  };
+
+  const r = await fetch(NOTIFY_USER_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Internal-Secret': internalSecret,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json: any = await r.json().catch(() => ({}));
+
+  console.log('[sendRiderInvoiceViaNotifyUser] response', {
+    status: r.status,
+    sent: json?.sent,
+    reason: json?.reason,
+    to: json?.to,
+  });
+
+  if (!r.ok) {
+    throw new Error(`notifyUser failed: ${json?.message || json?.error || r.statusText}`);
+  }
+
+  return json;
+}
 
 
 // ===================================================================

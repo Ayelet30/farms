@@ -21,6 +21,7 @@ type ProfileVM = {
   brand: string | null;
   last4: string | null;
   is_default: boolean;
+  active: boolean;
   created_at: string;
   expiry_month?: number | null;
   expiry_year?: number | null;
@@ -94,9 +95,8 @@ export class IndependentRiderPaymentsComponent implements OnInit {
 
     const { data, error } = await dbc
       .from('independent_rider_payment_profiles')
-      .select('id,brand,last4,is_default,created_at,expiry_month,expiry_year')
+      .select('id,brand,last4,is_default,active,created_at,expiry_month,expiry_year')
       .eq('rider_uid', this.riderUid)
-      .eq('active', true)
       .order('is_default', { ascending: false })
       .order('created_at', { ascending: true });
 
@@ -111,6 +111,7 @@ export class IndependentRiderPaymentsComponent implements OnInit {
         created_at: new Date(x.created_at).toLocaleString('he-IL'),
         expiry_month: x.expiry_month ?? null,
         expiry_year: x.expiry_year ?? null,
+        active: x.active !== false,
       })),
     );
   }
@@ -393,5 +394,36 @@ export class IndependentRiderPaymentsComponent implements OnInit {
 
   trackById(_i: number, x: { id: string }) {
     return x.id;
+  }
+  isExpired(p: ProfileVM): boolean {
+    if (!p.expiry_month || !p.expiry_year) return false;
+
+    const year = p.expiry_year < 100 ? 2000 + p.expiry_year : p.expiry_year;
+    const month = p.expiry_month;
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
+    return year < currentYear || (year === currentYear && month < currentMonth);
+  }
+
+  canSetDefault(p: ProfileVM): boolean {
+    return !p.is_default && p.active && !this.isExpired(p);
+  }
+  isExpiringSoon(p: ProfileVM): boolean {
+    if (!p.expiry_month || !p.expiry_year) return false;
+    if (this.isExpired(p)) return false;
+
+    const year = p.expiry_year < 100 ? 2000 + p.expiry_year : p.expiry_year;
+
+    const expiryDate = new Date(year, p.expiry_month - 1, 1);
+    const now = new Date();
+
+    const monthsDiff =
+      (expiryDate.getFullYear() - now.getFullYear()) * 12 +
+      (expiryDate.getMonth() - now.getMonth());
+
+    return monthsDiff <= 3;
   }
 }
