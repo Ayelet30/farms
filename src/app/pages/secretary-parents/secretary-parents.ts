@@ -1223,14 +1223,14 @@ private hfInitTried = false;
 
 // ===== Credit card / drawer state =====
 
-private newRequestId(): string {
-  return typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
+  private newRequestId(): string {
+    return typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
 
-private resetAddCardState(destroyHostedFields = true): void {
-  if (destroyHostedFields) this.destroyHostedFields();
+  private resetAddCardState(destroyHostedFields = true): void {
+    if (destroyHostedFields) this.destroyHostedFields();
 
   this.addCardOpen = false;
   this.savingToken = false;
@@ -1241,109 +1241,109 @@ private resetAddCardState(destroyHostedFields = true): void {
   this.addCardLockedParentUid = null;
   this.saveRequestId = null;
 
-  this.hfAdd = null;
-  this.thtkAdd = null;
-  this.hfInitTried = false;
-}
-
-private isActiveAddCardSession(parentUid: string | null, requestId: string | null): boolean {
-  return !!parentUid
-    && !!requestId
-    && this.addCardOpen
-    && this.addCardLockedParentUid === parentUid
-    && this.saveRequestId === requestId;
-}
-
-async openDetails(uid: string) {
-  const cleanUid = (uid || '').trim();
-
-  if (!cleanUid) {
-    await this.ui.alert('שגיאה: uid ריק. לא ניתן לפתוח פרטי הורה.', 'שגיאה');
-    return;
+    this.hfAdd = null;
+    this.thtkAdd = null;
+    this.hfInitTried = false;
   }
 
-  this.resetAddCardState(true);
+  private isActiveAddCardSession(parentUid: string | null, requestId: string | null): boolean {
+    return !!parentUid
+      && !!requestId
+      && this.addCardOpen
+      && this.addCardLockedParentUid === parentUid
+      && this.saveRequestId === requestId;
+  }
 
-  this.selectedUid = cleanUid;
-  this.drawerParent = null;
-  this.drawerChildren = [];
-  this.drawerPaymentProfiles = [];
-  this.editMode = false;
-  this.originalParent = null;
+  async openDetails(uid: string) {
+    const cleanUid = (uid || '').trim();
 
-  await this.drawer.open();
-  await this.loadDrawerData(cleanUid);
-}
-
-closeDetails() {
-  this.resetAddCardState(true);
-
-  this.drawer.close();
-  this.selectedUid = null;
-  this.drawerParent = null;
-  this.drawerChildren = [];
-  this.drawerPaymentProfiles = [];
-  this.editMode = false;
-  this.originalParent = null;
-  this.drawerLoading = false;
-  this.drawerLoadRequestId = null;
-}
-
-private async loadDrawerData(uid: string) {
-  const cleanUid = (uid || '').trim();
-  if (!cleanUid) return;
-
-  const requestId = this.newRequestId();
-  this.drawerLoadRequestId = requestId;
-
-  this.drawerLoading = true;
-  this.drawerPaymentProfiles = [];
-
-  try {
-    const db = dbTenant();
-
-    const { data: p, error: pErr } = await db
-      .from('parents')
-      .select('uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month, is_active, scheduled_inactive_at')
-      .eq('uid', cleanUid)
-      .maybeSingle();
-
-    if (this.drawerLoadRequestId !== requestId || this.selectedUid !== cleanUid) return;
-    if (pErr) throw pErr;
-
-    if (!p) {
-      this.drawerParent = null;
-      this.originalParent = null;
-      this.drawerChildren = [];
-      this.drawerPaymentProfiles = [];
-      await this.ui.alert('לא נמצאה רשומת הורה עבור המשתמש הזה.', 'לא נמצא');
+    if (!cleanUid) {
+      await this.ui.alert('שגיאה: uid ריק. לא ניתן לפתוח פרטי הורה.', 'שגיאה');
       return;
     }
 
-    const [{ data: kids, error: kidsErr }, { data: profiles, error: profilesErr }] =
-      await Promise.all([
-        db
-          .from('children')
-          .select('child_uuid, first_name, last_name, parent_uid, gender, status, birth_date, gov_id')
-          .eq('parent_uid', cleanUid)
-          .order('first_name', { ascending: true }),
+    this.resetAddCardState(true);
 
-        db
-          .from('payment_profiles')
-          .select('id, parent_uid, brand, last4, expiry_month, expiry_year, active, is_default, created_at')
-          .eq('parent_uid', cleanUid)
-          .eq('active', true)
-          .order('is_default', { ascending: false })
-          .order('created_at', { ascending: false }),
-      ]);
+    this.selectedUid = cleanUid;
+    this.drawerParent = null;
+    this.drawerChildren = [];
+    this.drawerPaymentProfiles = [];
+    this.editMode = false;
+    this.originalParent = null;
 
-    if (this.drawerLoadRequestId !== requestId || this.selectedUid !== cleanUid) return;
-    if (kidsErr) throw kidsErr;
-    if (profilesErr) throw profilesErr;
+    await this.drawer.open();
+    await this.loadDrawerData(cleanUid);
+  }
 
-    this.drawerParent = p as ParentDetailsRow;
-    this.originalParent = structuredClone(this.drawerParent);
-    this.buildParentForm(this.drawerParent);
+  closeDetails() {
+    this.resetAddCardState(true);
+
+    this.drawer.close();
+    this.selectedUid = null;
+    this.drawerParent = null;
+    this.drawerChildren = [];
+    this.drawerPaymentProfiles = [];
+    this.editMode = false;
+    this.originalParent = null;
+    this.drawerLoading = false;
+    this.drawerLoadRequestId = null;
+  }
+
+  private async loadDrawerData(uid: string) {
+    const cleanUid = (uid || '').trim();
+    if (!cleanUid) return;
+
+    const requestId = this.newRequestId();
+    this.drawerLoadRequestId = requestId;
+
+    this.drawerLoading = true;
+    this.drawerPaymentProfiles = [];
+
+    try {
+      const db = dbTenant();
+
+      const { data: p, error: pErr } = await db
+        .from('parents')
+        .select('uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month, is_active, scheduled_inactive_at')
+        .eq('uid', cleanUid)
+        .maybeSingle();
+
+      if (this.drawerLoadRequestId !== requestId || this.selectedUid !== cleanUid) return;
+      if (pErr) throw pErr;
+
+      if (!p) {
+        this.drawerParent = null;
+        this.originalParent = null;
+        this.drawerChildren = [];
+        this.drawerPaymentProfiles = [];
+        await this.ui.alert('לא נמצאה רשומת הורה עבור המשתמש הזה.', 'לא נמצא');
+        return;
+      }
+
+      const [{ data: kids, error: kidsErr }, { data: profiles, error: profilesErr }] =
+        await Promise.all([
+          db
+            .from('children')
+            .select('child_uuid, first_name, last_name, parent_uid, gender, status, birth_date, gov_id')
+            .eq('parent_uid', cleanUid)
+            .order('first_name', { ascending: true }),
+
+          db
+            .from('payment_profiles')
+            .select('id, parent_uid, brand, last4, expiry_month, expiry_year, active, is_default, created_at')
+            .eq('parent_uid', cleanUid)
+            .eq('active', true)
+            .order('is_default', { ascending: false })
+            .order('created_at', { ascending: false }),
+        ]);
+
+      if (this.drawerLoadRequestId !== requestId || this.selectedUid !== cleanUid) return;
+      if (kidsErr) throw kidsErr;
+      if (profilesErr) throw profilesErr;
+
+      this.drawerParent = p as ParentDetailsRow;
+      this.originalParent = structuredClone(this.drawerParent);
+      this.buildParentForm(this.drawerParent);
 
     this.drawerChildren = kids ?? [];
     this.drawerPaymentProfiles = profiles ?? [];
@@ -1361,14 +1361,13 @@ private async loadDrawerData(uid: string) {
       this.drawerLoading = false;
     }
   }
-}
 
-openAddCardModal(event?: MouseEvent): void {
-  event?.stopPropagation();
+  openAddCardModal(event?: MouseEvent): void {
+    event?.stopPropagation();
 
-  if (this.savingToken) return;
+    if (this.savingToken) return;
 
-  const parentUid = (this.selectedUid || '').trim();
+    const parentUid = (this.selectedUid || '').trim();
 
   if (!parentUid || !this.drawerParent || this.drawerParent.uid !== parentUid) {
     this.ui.alert('לא נבחר הורה תקין להוספת כרטיס.', 'שגיאה');
@@ -1397,71 +1396,72 @@ openAddCardModal(event?: MouseEvent): void {
   }, 0);
 }
 
-closeAddCardModal(): void {
-  if (this.savingToken) return;
-  this.resetAddCardState(true);
-}
+  closeAddCardModal(): void {
+    if (this.savingToken) return;
+    this.resetAddCardState(true);
+  }
 
-private async ensureAddHostedFieldsReady(parentUid: string, requestId: string): Promise<void> {
-  if (!this.isActiveAddCardSession(parentUid, requestId)) return;
-  if (this.hfAdd || this.hfInitTried) return;
-
-  this.hfInitTried = true;
-  this.tokenError = null;
-
-  try {
-    const farm = getCurrentFarmMetaSync();
-    const tenantSchema = farm?.schema_name ?? null;
-
-    if (!tenantSchema) {
-      this.tokenError = 'לא זוהתה סכמת חווה';
-      return;
-    }
-
-    const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema);
-
+  private async ensureAddHostedFieldsReady(parentUid: string, requestId: string): Promise<void> {
     if (!this.isActiveAddCardSession(parentUid, requestId)) return;
+    if (this.hfAdd || this.hfInitTried) return;
 
-    this.thtkAdd = thtk;
+    this.hfInitTried = true;
+    this.tokenError = null;
 
-    if (typeof TzlaHostedFields === 'undefined' || !TzlaHostedFields) {
-      this.tokenError = 'רכיב התשלום לא נטען';
-      return;
-    }
+    try {
+      const farm = getCurrentFarmMetaSync();
+      const tenantSchema = farm?.schema_name ?? null;
 
-    this.hfAdd = TzlaHostedFields.create({
-      sandbox: false,
-      fields: {
-        credit_card_number: {
-          selector: '#sp_credit_card_number',
-          placeholder: '4580 4580 4580 4580',
-          tabindex: 1,
+      if (!tenantSchema) {
+        this.tokenError = 'לא זוהתה סכמת חווה';
+        return;
+      }
+
+      const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema);
+
+      if (!this.isActiveAddCardSession(parentUid, requestId)) return;
+
+      this.thtkAdd = thtk;
+
+      if (typeof TzlaHostedFields === 'undefined' || !TzlaHostedFields) {
+        this.tokenError = 'רכיב התשלום לא נטען';
+        return;
+      }
+
+      this.hfAdd = TzlaHostedFields.create({
+        sandbox: false,
+        fields: {
+          credit_card_number: {
+            selector: '#sp_credit_card_number',
+            placeholder: '4580 4580 4580 4580',
+            tabindex: 1,
+          },
+          cvv: {
+            selector: '#sp_cvv',
+            placeholder: '123',
+            tabindex: 2,
+          },
+          expiry: {
+            selector: '#sp_expiry',
+            placeholder: '12/26',
+            version: '1',
+          },
         },
-        cvv: {
-          selector: '#sp_cvv',
-          placeholder: '123',
-          tabindex: 2,
-        },
-        expiry: {
-          selector: '#sp_expiry',
-          placeholder: '12/26',
-          version: '1',
-        },
-      },
-      styles: {
-        input: {
-          height: '42px',
-          'line-height': '42px',
-          padding: '0 10px',
-          'font-size': '15px',
-          'box-sizing': 'border-box',
-        },
-        select: {
-          height: '42px',
-          'line-height': '42px',
-          padding: '0 10px',
-          'font-size': '15px',
-          'box-sizing': 'border-box',
+        styles: {
+          input: {
+            height: '42px',
+            'line-height': '42px',
+            padding: '0 10px',
+            'font-size': '15px',
+            'box-sizing': 'border-box',
+          },
+          select: {
+            height: '42px',
+            'line-height': '42px',
+            padding: '0 10px',
+            'font-size': '15px',
+            'box-sizing': 'border-box',
+          },
         },
       },
     });
@@ -1472,7 +1472,6 @@ private async ensureAddHostedFieldsReady(parentUid: string, requestId: string): 
       this.tokenError = e?.message ?? 'שגיאה באתחול שדות האשראי';
     }
   }
-}
 
 async tokenizeAndSaveCardForSelectedParent(): Promise<void> {
   if (this.savingToken) return;
@@ -1634,24 +1633,24 @@ async tokenizeAndSaveCardForSelectedParent(): Promise<void> {
   );
 }
 
-private destroyHostedFields(): void {
-  try {
-    const anyHf = this.hfAdd as any;
+  private destroyHostedFields(): void {
+    try {
+      const anyHf = this.hfAdd as any;
 
-    if (anyHf?.destroy) anyHf.destroy();
-    if (anyHf?.remove) anyHf.remove();
-    if (anyHf?.unmount) anyHf.unmount();
-  } catch (e) {
-    console.warn('[ADD_CARD][HF_DESTROY_FAILED]', e);
+      if (anyHf?.destroy) anyHf.destroy();
+      if (anyHf?.remove) anyHf.remove();
+      if (anyHf?.unmount) anyHf.unmount();
+    } catch (e) {
+      console.warn('[ADD_CARD][HF_DESTROY_FAILED]', e);
+    }
+
+    this.hfAdd = null;
+    this.thtkAdd = null;
+    this.hfInitTried = false;
+
+    ['sp_credit_card_number', 'sp_cvv', 'sp_expiry'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '';
+    });
   }
-
-  this.hfAdd = null;
-  this.thtkAdd = null;
-  this.hfInitTried = false;
-
-  ['sp_credit_card_number', 'sp_cvv', 'sp_expiry'].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = '';
-  });
-}
 }
