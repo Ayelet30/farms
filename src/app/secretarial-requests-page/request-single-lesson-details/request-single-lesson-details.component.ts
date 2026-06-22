@@ -877,7 +877,15 @@ export class RequestSingleLessonDetailsComponent {
         requestId: this.request.id,
         newStatus: 'APPROVED' as const,
       };
-
+      if (!this.bulkMode) {
+        this.snack.open('הבקשה אושרה בהצלחה.', 'סגור', {
+          duration: 3000,
+          panelClass: ['snack-success'],
+          direction: 'rtl',
+          horizontalPosition: 'center',
+          verticalPosition: 'top',
+        });
+      }
       this.approved.emit(payload);
       this.onApproved?.(payload);
 
@@ -977,7 +985,15 @@ export class RequestSingleLessonDetailsComponent {
         requestId: this.request.id,
         newStatus: 'REJECTED' as const,
       };
-
+      if (!this.bulkMode) {
+        this.snack.open('הבקשה נדחתה בהצלחה.', 'סגור', {
+          duration: 3000,
+          panelClass: ['snack-success'],
+          direction: 'rtl',
+          horizontalPosition: 'center',
+          verticalPosition: 'top',
+        });
+      }
       this.rejected.emit(payload);
       this.onRejected?.(payload);
 
