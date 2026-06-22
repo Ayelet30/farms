@@ -130,9 +130,10 @@ export class InstructorScheduleComponent implements OnInit {
   currentUserRole: RoleInTenant = 'instructor';
 
   private lastRange: { start: string; end: string } | null = null;
-  timeOptions: string[] = Array.from({ length: 24 * 2 }, (_, i) => {
-    const hours = Math.floor(i / 2).toString().padStart(2, '0');
-    const minutes = ((i % 2) * 30).toString().padStart(2, '0');
+  timeOptions: string[] = Array.from({ length: 24 * 4 }, (_, i) => {
+    const hours = Math.floor(i / 4).toString().padStart(2, '0');
+    const minutes = ((i % 4) * 15).toString().padStart(2, '0');
+
     return `${hours}:${minutes}`;
   });
   /* ------- תפריט קליק ימני ------- */
@@ -370,53 +371,53 @@ export class InstructorScheduleComponent implements OnInit {
   }
 
   onAttendanceChangedFromNote(status: 'present' | 'absent' | null): void {
-  if (!this.selectedOccurrence?.lesson_id || !this.selectedOccurrence?.occur_date || !this.selectedChild?.child_uuid) {
-    return;
-  }
+    if (!this.selectedOccurrence?.lesson_id || !this.selectedOccurrence?.occur_date || !this.selectedChild?.child_uuid) {
+      return;
+    }
 
-  const lessonId = String(this.selectedOccurrence.lesson_id);
-  const occurDate = String(this.selectedOccurrence.occur_date).slice(0, 10);
-  const childId = String(this.selectedChild.child_uuid);
+    const lessonId = String(this.selectedOccurrence.lesson_id);
+    const occurDate = String(this.selectedOccurrence.occur_date).slice(0, 10);
+    const childId = String(this.selectedChild.child_uuid);
 
-  const normalized =
-    status === 'present'
-      ? 'present'
-      : status === 'absent'
-        ? 'absent'
-        : '';
+    const normalized =
+      status === 'present'
+        ? 'present'
+        : status === 'absent'
+          ? 'absent'
+          : '';
 
-  const isSame = (obj: any): boolean =>
-    String(obj?.meta?.lesson_id || obj?.lesson_id || obj?.id || '').includes(lessonId) &&
-    String(obj?.meta?.child_id || obj?.child_id || '') === childId &&
-    String(obj?.meta?.occur_date || obj?.occur_date || '').slice(0, 10) === occurDate;
+    const isSame = (obj: any): boolean =>
+      String(obj?.meta?.lesson_id || obj?.lesson_id || obj?.id || '').includes(lessonId) &&
+      String(obj?.meta?.child_id || obj?.child_id || '') === childId &&
+      String(obj?.meta?.occur_date || obj?.occur_date || '').slice(0, 10) === occurDate;
 
-  this.lessons = this.lessons.map((l: any) =>
-    isSame(l)
-      ? { ...l, attendance_status: normalized }
-      : l
-  ) as any;
+    this.lessons = this.lessons.map((l: any) =>
+      isSame(l)
+        ? { ...l, attendance_status: normalized }
+        : l
+    ) as any;
 
-  this.items = this.items.map((item: any) =>
-    isSame(item)
-      ? {
+    this.items = this.items.map((item: any) =>
+      isSame(item)
+        ? {
           ...item,
           meta: {
             ...(item.meta || {}),
             attendance_status: normalized,
           },
         }
-      : item
-  );
+        : item
+    );
 
-  this.selectedOccurrence = {
-    ...this.selectedOccurrence,
-    attendance_status: normalized,
-  };
+    this.selectedOccurrence = {
+      ...this.selectedOccurrence,
+      attendance_status: normalized,
+    };
 
-  this.attendanceStatus = status;
+    this.attendanceStatus = status;
 
-  this.cdr.detectChanges();
-}
+    this.cdr.detectChanges();
+  }
 
   private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<void> {
 
