@@ -117,8 +117,7 @@
     </div>
 
     <!-- שיבוץ קיים / משתתפים -->
-    <div class="subcard" *ngIf="existingParticipants().length">
-
+    <div class="subcard" *ngIf="canViewExistingPlacement && existingParticipants().length">
       <div class="row" *ngIf="participantsCapacity() as cap">
         <div class="k">שיבוץ קיים</div>
         <div class="v">{{ cap.current }} / {{ cap.max }}</div>
