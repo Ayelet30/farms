@@ -227,3 +227,23 @@ select {
     opacity: 0.55;
     pointer-events: none;
 }
+
+.badge {
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.badge.warning {
+    background: #fff3cd;
+    color: #b26a00;
+    border: 1px solid #ffd666;
+}
+
+.badge.danger {
+    background: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}

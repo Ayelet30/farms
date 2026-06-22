@@ -7,7 +7,8 @@ import { MatDialog } from '@angular/material/dialog';
 import { inject } from '@angular/core';
 import { RiderCreditDialogComponent } from './rider-credit-dialog.component';
 import { RiderAdditionalChargeDialogComponent } from './rider-additional-charge-dialog.component';
-
+import { TranzilaService } from '../../services/tranzila.service';
+import { getCurrentFarmMetaSync } from '../../services/supabaseClient.service';
 type RiderChargeRow = {
     id: string;
     rider_uid: string;
@@ -58,6 +59,8 @@ export class SecretaryRiderBillingComponent implements OnInit {
     detailsError = signal<string | null>(null);
     detailsItems = signal<any[]>([]);
     private dialog = inject(MatDialog);
+    private tranzila = inject(TranzilaService);
+    failedPaymentRiderUids = signal<Set<string>>(new Set());
     async ngOnInit() {
         await this.loadCharges();
     }
@@ -256,46 +259,70 @@ export class SecretaryRiderBillingComponent implements OnInit {
         return this.selectedChargeIds().has(chargeId);
     }
 
-    async markSelectedAsPaid() {
-        const ids = Array.from(this.selectedChargeIds());
-        if (!ids.length) return;
+    async chargeSelected() {
+        if (!this.anySelected()) return;
 
         try {
             this.loading.set(true);
             this.error.set(null);
+            this.successMessage.set(null);
 
-            const { error } = await dbTenant()
-                .from('rider_charges')
-                .update({
-                    status: 'paid',
-                    paid_agorot: 0, // נעדכן מיד לפי הסכום בפועל בשלב הבא
-                    updated_at: new Date().toISOString(),
-                })
-                .in('id', ids);
+            const farm = getCurrentFarmMetaSync();
+            const schema = farm?.schema_name ?? 'public';
 
-            if (error) throw error;
+            const grouped = this.getSelectedChargesGroupedByRider();
+            const entries = Object.entries(grouped);
 
-            for (const id of ids) {
-                const charge = this.charges().find(c => c.id === id);
-                if (!charge) continue;
+            const failures: string[] = [];
 
-                await dbTenant()
-                    .from('rider_charges')
-                    .update({
-                        paid_agorot: charge.amount_agorot,
-                        status: 'paid',
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq('id', id);
+            for (const [riderUid, chargeIds] of entries) {
+                try {
+                    await this.tranzila.chargeSelectedChargesForRider({
+                        tenantSchema: schema,
+                        riderUid,
+                        chargeIds,
+                        secretaryEmail: '',
+                    });
+                } catch (e: any) {
+                    console.error('[RiderBilling] charge failed for rider', riderUid, e);
+
+                    failures.push(riderUid);
+
+                    const nextFailed = new Set(this.failedPaymentRiderUids());
+                    nextFailed.add(riderUid);
+                    this.failedPaymentRiderUids.set(nextFailed);
+                }
             }
 
             await this.loadCharges();
-            this.successMessage.set('החיובים סומנו כשולמו.');
+
+            if (failures.length) {
+                this.error.set(`חלק מהחיובים לא חויבו. מספר רוכבים שנכשלו: ${failures.length}`);
+            } else {
+                this.successMessage.set('החיובים חויבו בהצלחה והחשבוניות הופקו.');
+            }
         } catch (e: any) {
-            this.error.set(e?.message ?? 'שגיאה בסימון חיובים כשולמו');
+            this.error.set(e?.message ?? 'שגיאה בחיוב רוכבים');
         } finally {
             this.loading.set(false);
         }
+    }
+
+    private getSelectedChargesGroupedByRider(): Record<string, string[]> {
+        const ids = this.selectedChargeIds();
+        const grouped: Record<string, string[]> = {};
+
+        for (const c of this.openCharges()) {
+            if (!ids.has(c.id)) continue;
+
+            if (!grouped[c.rider_uid]) {
+                grouped[c.rider_uid] = [];
+            }
+
+            grouped[c.rider_uid].push(c.id);
+        }
+
+        return grouped;
     }
 
     remainingAgorot(c: RiderChargeRow): number {
