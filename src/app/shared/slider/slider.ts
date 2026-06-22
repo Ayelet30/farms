@@ -30,7 +30,6 @@ type FarmFeature =
   | 'communications'
   | 'documents'
   | 'reminders'
-  | 'tasks'
   | 'rider_billing';
 
 type MenuItem = {
@@ -162,7 +161,7 @@ export class SliderComponent implements OnInit, OnDestroy {
           { path: 'secretary/monthly-summary', label: 'סיכום וגרפים', icon: 'bar_chart', featureKey: 'farm_operations_advanced' },
 
           { path: 'secretary/requests', label: 'בקשות ואישורים', icon: 'checklist', featureKey: 'therapeutic_core' },
-          { path: 'secretary/tasks', label: 'משימות', icon: 'tasks', featureKey: 'tasks' },
+          { path: 'secretary/tasks', label: 'משימות', icon: 'tasks', featureKey: 'therapeutic_core' },
           { path: 'secretary/payments', label: 'תשלומים וחשבוניות', icon: 'card', featureKey: 'invoices' },
           { path: 'secretary/billing', label: 'ניהול חיובים', icon: 'billing', featureKey: 'billing' },
 

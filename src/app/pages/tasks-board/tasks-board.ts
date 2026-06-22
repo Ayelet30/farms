@@ -4,6 +4,10 @@ import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/supabaseClient.service';
 import { getCurrentUserData } from '../../services/legacy-compat';
 import { UiDialogService } from '../../services/ui-dialog.service';
+import {
+  DragDropModule,
+  CdkDragDrop,
+} from '@angular/cdk/drag-drop';
 
 type TaskSourceType = 'horse_task' | 'general_task';
 type TaskStatus = 'open' | 'in_progress' | 'completed' | 'cancelled';
@@ -54,7 +58,7 @@ type NewTaskForm = {
 @Component({
   selector: 'app-tasks-board',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, DragDropModule],
   templateUrl: './tasks-board.html',
   styleUrls: ['./tasks-board.scss'],
 })
@@ -72,6 +76,10 @@ export class TasksBoardComponent implements OnInit {
   staff: StaffOption[] = [];
   horses: HorseOption[] = [];
 
+  selectedTask: BoardTask | null = null;
+showTaskDetailsModal = false;
+showCreateTaskModal = false;
+
   searchText = '';
   selectedAssigneeUid = '';
   selectedSourceType: '' | TaskSourceType = '';
@@ -79,9 +87,17 @@ export class TasksBoardComponent implements OnInit {
   selectedDateFrom = '';
   selectedDateTo = '';
 
-  showCreateForm = false;
 
   newTask: NewTaskForm = this.emptyForm();
+  columnIds = ['open', 'in_progress', 'completed'];
+
+async onTaskDropped(event: CdkDragDrop<BoardTask[]>, newStatus: TaskStatus): Promise<void> {
+  const task = event.item.data as BoardTask;
+
+  if (!task || task.status === newStatus) return;
+
+  await this.updateTaskStatus(task, newStatus);
+}
 
   columns: { key: TaskStatus; label: string }[] = [
     { key: 'open', label: 'פתוח' },
@@ -260,7 +276,7 @@ export class TasksBoardComponent implements OnInit {
       }
 
       this.newTask = this.emptyForm();
-      this.showCreateForm = false;
+      this.showCreateTaskModal = false;
 
       await this.loadTasks();
 
@@ -398,6 +414,68 @@ export class TasksBoardComponent implements OnInit {
       this.error = e?.message || 'שגיאה בשמירת המשימה';
     }
   }
+  openCreateTaskModal(): void {
+  this.newTask = this.emptyForm();
+  this.showCreateTaskModal = true;
+}
+
+closeCreateTaskModal(): void {
+  this.showCreateTaskModal = false;
+}
+
+openTaskDetails(task: BoardTask): void {
+  this.selectedTask = structuredClone(task);
+  this.showTaskDetailsModal = true;
+}
+
+closeTaskDetails(): void {
+  this.selectedTask = null;
+  this.showTaskDetailsModal = false;
+}
+
+async saveSelectedTask(): Promise<void> {
+  if (!this.selectedTask) return;
+
+  await this.saveInlineTask(this.selectedTask);
+
+  this.closeTaskDetails();
+}
+
+async completeSelectedTask(): Promise<void> {
+  if (!this.selectedTask) return;
+
+  await this.updateTaskStatus(
+    this.selectedTask,
+    'completed'
+  );
+
+  this.closeTaskDetails();
+}
+
+async moveSelectedTaskToProgress(): Promise<void> {
+  if (!this.selectedTask) return;
+
+  await this.updateTaskStatus(
+    this.selectedTask,
+    'in_progress'
+  );
+
+  this.closeTaskDetails();
+}
+
+async cancelSelectedTask(): Promise<void> {
+  if (!this.selectedTask) return;
+
+  await this.cancelTask(this.selectedTask);
+
+  this.closeTaskDetails();
+}
+
+dateTimeText(value: string | null): string {
+  if (!value) return '—';
+
+  return new Date(value).toLocaleString('he-IL');
+}
 
   private async loadStaff(): Promise<void> {
     const db = dbTenant();
