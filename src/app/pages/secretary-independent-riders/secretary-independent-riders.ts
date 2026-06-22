@@ -3,10 +3,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { RouterModule } from '@angular/router';
-import { dbTenant } from '../../services/legacy-compat';
 import { UiDialogService } from '../../services/ui-dialog.service';
 import { ActivatedRoute, Router } from '@angular/router';
-
+import { dbTenant, getCurrentFarmMetaSync } from '../../services/legacy-compat';
+import { TranzilaService } from '../../services/tranzila.service';
 type RiderStatus = 'active' | 'inactive';
 
 type IndependentRiderRow = {
@@ -38,7 +38,23 @@ type RiderColumnDef = {
   label: string;
   visible: boolean;
 };
+declare const TzlaHostedFields: any;
 
+type HostedFieldsInstance = {
+  charge: (params: any, cb: (err: any, resp: any) => void) => void;
+};
+
+type RiderPaymentProfileRow = {
+  id: string;
+  rider_uid: string;
+  brand?: string | null;
+  last4?: string | null;
+  expiry_month?: number | null;
+  expiry_year?: number | null;
+  active: boolean;
+  is_default: boolean;
+  created_at?: string;
+};
 @Component({
   selector: 'app-secretary-independent-riders',
   standalone: true,
@@ -74,6 +90,7 @@ export class SecretaryIndependentRidersComponent implements OnInit {
 
   editMode = false;
   riderForm!: FormGroup;
+  hfLoading = false;
   private originalRider: IndependentRiderRow | null = null;
 
   readonly STORAGE_KEY = 'secretary_independent_riders_table_prefs';
@@ -87,8 +104,7 @@ export class SecretaryIndependentRidersComponent implements OnInit {
     { key: 'active_services_count', label: 'שירותים פעילים', visible: true },
     { key: 'status', label: 'סטטוס', visible: true },
   ];
-  activeDrawerTab: 'details' | 'horses' | 'services' | 'billing' = 'details';
-
+  activeDrawerTab: 'details' | 'horses' | 'services' | 'billing' | 'payments' = 'details';
   drawerHorses: any[] = [];
   drawerServices: any[] = [];
   drawerChargeItems: any[] = [];
@@ -100,12 +116,23 @@ export class SecretaryIndependentRidersComponent implements OnInit {
     withHorses: 0,
     withServices: 0,
   };
+  drawerPaymentProfiles: RiderPaymentProfileRow[] = [];
 
+  addCardOpen = false;
+  savingToken = false;
+  tokenSaved = false;
+  tokenError: string | null = null;
+
+  private hfAdd: HostedFieldsInstance | null = null;
+  private thtkAdd: string | null = null;
+  private hfInitTried = false;
+  private addCardLockedRiderUid: string | null = null;
   constructor(
     private ui: UiDialogService,
     private fb: FormBuilder,
     private route: ActivatedRoute,
     private router: Router,
+    private tranzila: TranzilaService,
   ) { }
   async ngOnInit(): Promise<void> {
     this.loadTablePrefs();
@@ -293,6 +320,7 @@ export class SecretaryIndependentRidersComponent implements OnInit {
         this.loadDrawerHorses(uid),
         this.loadDrawerServices(uid),
         this.loadDrawerChargeItems(uid),
+        this.loadDrawerPaymentProfiles(uid),
       ]);
     } catch (e) {
       console.error(e);
@@ -430,7 +458,7 @@ export class SecretaryIndependentRidersComponent implements OnInit {
       // ignore
     }
   }
-  setDrawerTab(tab: 'details' | 'horses' | 'services' | 'billing'): void {
+  setDrawerTab(tab: 'details' | 'horses' | 'services' | 'billing' | 'payments'): void {
     this.activeDrawerTab = tab;
   }
 
@@ -491,9 +519,28 @@ export class SecretaryIndependentRidersComponent implements OnInit {
   private async loadDrawerChargeItems(uid: string): Promise<void> {
     const { data, error } = await dbTenant()
       .from('rider_charge_items')
-      .select('id, description, service_date, period_start, period_end, quantity, unit_price_agorot, amount_agorot, billing_source, created_at')
+      .select(`
+      id,
+      charge_id,
+      rider_uid,
+      rider_service_id,
+      rider_service_task_id,
+      horse_uid,
+      service_type_id,
+      item_date,
+      service_name,
+      quantity,
+      unit_price_agorot,
+      amount_agorot,
+      description,
+      office_note,
+      metadata,
+      item_type,
+      item_code,
+      created_at
+    `)
       .eq('rider_uid', uid)
-      .order('created_at', { ascending: false });
+      .order('item_date', { ascending: false });
 
     if (error) {
       console.error('loadDrawerChargeItems error', error);
@@ -503,7 +550,6 @@ export class SecretaryIndependentRidersComponent implements OnInit {
 
     this.drawerChargeItems = data ?? [];
   }
-
   formatAgorot(value: number | null | undefined): string {
     return `${Number(value || 0) / 100} ₪`;
   }
@@ -535,6 +581,381 @@ export class SecretaryIndependentRidersComponent implements OnInit {
         returnRiderUid: riderUid,
       },
     });
+  }
+  private async loadDrawerPaymentProfiles(uid: string): Promise<void> {
+    const { data, error } = await dbTenant()
+      .from('independent_rider_payment_profiles')
+      .select('id, rider_uid, brand, last4, expiry_month, expiry_year, active, is_default, created_at')
+      .eq('rider_uid', uid)
+      .eq('active', true)
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('loadDrawerPaymentProfiles error', error);
+      this.drawerPaymentProfiles = [];
+      return;
+    }
+
+    this.drawerPaymentProfiles = data ?? [];
+  }
+
+  formatExpiry(month?: number | null, year?: number | null): string {
+    if (!month || !year) return '—';
+    return `${String(month).padStart(2, '0')}/${String(year).slice(-2)}`;
+  }
+
+
+
+  async setDefaultRiderPaymentProfile(profileId: string): Promise<void> {
+    if (!this.selectedUid) return;
+
+    const profile = this.drawerPaymentProfiles.find(p => p.id === profileId);
+
+    if (profile && this.isExpiredPayment(profile)) {
+      await this.ui.alert('לא ניתן להגדיר כרטיס שפג תוקפו כברירת מחדל.', 'שגיאה');
+      return;
+    }
+    try {
+      const db = dbTenant();
+
+      const clear = await db
+        .from('independent_rider_payment_profiles')
+        .update({ is_default: false })
+        .eq('rider_uid', this.selectedUid);
+
+      if (clear.error) throw clear.error;
+
+      const upd = await db
+        .from('independent_rider_payment_profiles')
+        .update({ is_default: true })
+        .eq('id', profileId)
+        .eq('rider_uid', this.selectedUid);
+
+      if (upd.error) throw upd.error;
+
+      await this.loadDrawerPaymentProfiles(this.selectedUid);
+    } catch (e: any) {
+      await this.ui.alert(e?.message ?? 'לא ניתן היה לשנות כרטיס ברירת מחדל', 'שגיאה');
+    }
+  }
+
+  async removeRiderPaymentProfile(profileId: string): Promise<void> {
+    if (!this.selectedUid) return;
+    const ok = await this.ui.confirm({
+      title: 'הסרת אמצעי תשלום',
+      message: 'להסיר את אמצעי התשלום מהרוכב?',
+      cancelText: 'ביטול',
+      showCancel: true,
+    });
+
+    if (!ok) return;
+
+    try {
+      const { error } = await dbTenant()
+        .from('independent_rider_payment_profiles')
+        .update({ active: false, is_default: false })
+        .eq('id', profileId)
+        .eq('rider_uid', this.selectedUid);
+
+      if (error) throw error;
+
+      await this.loadDrawerPaymentProfiles(this.selectedUid);
+    } catch (e: any) {
+      await this.ui.alert(e?.message ?? 'לא ניתן להסיר אמצעי תשלום', 'שגיאה');
+    }
+  }
+  openAddCardModal(event?: MouseEvent): void {
+    event?.stopPropagation();
+
+    if (!this.selectedUid) {
+      this.tokenError = 'לא נבחר רוכב';
+      return;
+    }
+
+    this.addCardLockedRiderUid = this.selectedUid;
+    this.addCardOpen = true;
+    this.savingToken = false;
+    this.tokenSaved = false;
+    this.tokenError = null;
+
+    this.hfAdd = null;
+    this.thtkAdd = null;
+    this.hfInitTried = false;
+    this.hfLoading = true;
+
+    setTimeout(() => this.ensureAddHostedFieldsReady(), 0);
+  }
+
+  closeAddCardModal(): void {
+
+    if (this.savingToken) return;
+    this.clearHostedFieldsDom();
+    this.hfLoading = false;
+    this.addCardOpen = false;
+    this.hfAdd = null;
+    this.thtkAdd = null;
+    this.hfInitTried = false;
+    this.addCardLockedRiderUid = null;
+  }
+  private clearHostedFieldsDom(): void {
+    [
+      'sec_ir_pm_credit_card_number',
+      'sec_ir_pm_expiry',
+      'sec_ir_pm_cvv',
+      'sec_ir_pm_errors_for_credit_card_number',
+      'sec_ir_pm_errors_for_expiry',
+      'sec_ir_pm_errors_for_cvv'
+    ].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.innerHTML = '';
+        el.textContent = '';
+      }
+    });
+  }
+  private async ensureAddHostedFieldsReady(): Promise<void> {
+    if (this.hfAdd || this.hfInitTried) return;
+    this.hfInitTried = true;
+    this.hfLoading = true;
+
+    try {
+      const farm = getCurrentFarmMetaSync();
+      const tenantSchema = farm?.schema_name ?? null;
+
+      if (!tenantSchema) {
+        this.tokenError = 'לא זוהתה סכמת חווה';
+        this.hfLoading = false;
+        return;
+      }
+
+      const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema);
+      this.thtkAdd = thtk;
+
+      this.hfAdd = TzlaHostedFields.create({
+        sandbox: false,
+        fields: {
+          credit_card_number: {
+            selector: '#sec_ir_pm_credit_card_number',
+            placeholder: '4580 4580 4580 4580',
+            tabindex: 1,
+          },
+          expiry: {
+            selector: '#sec_ir_pm_expiry',
+            placeholder: '12/26',
+            version: '1',
+            tabindex: 2,
+          },
+          cvv: {
+            selector: '#sec_ir_pm_cvv',
+            placeholder: '123',
+            tabindex: 3,
+          },
+        },
+        styles: {
+          input: {
+            height: '42px',
+            'line-height': '42px',
+            padding: '0 10px',
+            'font-size': '15px',
+            'box-sizing': 'border-box',
+          },
+          select: {
+            height: '42px',
+            'line-height': '42px',
+            padding: '0 10px',
+            'font-size': '15px',
+            'box-sizing': 'border-box',
+          },
+        },
+      });
+
+      setTimeout(() => {
+        this.hfLoading = false;
+      }, 500);
+
+    } catch (e: any) {
+      this.hfLoading = false;
+      this.tokenError = e?.message ?? 'שגיאה באתחול שדות האשראי';
+    }
+  }
+
+  async tokenizeAndSaveCardForSelectedRider(): Promise<void> {
+    if (this.savingToken) return;
+
+    this.tokenError = null;
+    this.tokenSaved = false;
+
+    const riderUid = this.addCardLockedRiderUid;
+
+    if (!riderUid || !this.hfAdd || !this.thtkAdd) {
+      this.tokenError = 'שדות התשלום לא מוכנים';
+      return;
+    }
+
+    this.savingToken = true;
+
+    try {
+      const farm = getCurrentFarmMetaSync();
+      const tenantSchema = farm?.schema_name ?? null;
+
+      if (!tenantSchema) {
+        this.tokenError = 'לא זוהתה סכמת חווה';
+        this.savingToken = false;
+        return;
+      }
+
+      const { data } = await dbTenant()
+        .from('billing_terminals')
+        .select('terminal_name')
+        .eq('provider', 'tranzila')
+        .eq('mode', 'prod')
+        .eq('active', true)
+        .order('is_default', { ascending: false })
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const terminalName = data?.terminal_name ?? 'moachapp';
+      const riderEmail = this.drawerRider?.email ?? undefined;
+
+      this.hfAdd.charge(
+        {
+          terminal_name: terminalName,
+          thtk: this.thtkAdd,
+          currency_code: 'ILS',
+          amount: '1.00',
+          tran_mode: 'N',
+          tokenize: true,
+          response_language: 'hebrew',
+          requested_by_user: 'secretary-independent-rider-tokenize',
+          email: riderEmail,
+          contact: riderEmail,
+        },
+        async (err: any, response: any) => {
+          try {
+            if (err?.messages?.length) {
+              err.messages.forEach((msg: any) => {
+                const el = document.getElementById('sec_ir_pm_errors_for_' + msg.param); if (el) el.textContent = msg.message;
+              });
+
+              this.tokenError = 'שגיאה בפרטי הכרטיס';
+              return;
+            }
+
+            const tx = response?.transaction_response;
+
+            if (!tx?.success) {
+              this.tokenError = tx?.error || 'שמירת אמצעי תשלום נכשלה';
+              return;
+            }
+
+            const token = tx?.token;
+
+            if (!token) {
+              this.tokenError = 'לא התקבל טוקן מהסליקה';
+              return;
+            }
+
+            const last4 =
+              tx?.credit_card_last_4_digits ??
+              tx?.last_4 ??
+              (tx?.card_mask ? String(tx.card_mask).slice(-4) : null);
+
+            const brand = tx?.card_type_name ?? tx?.card_type ?? null;
+
+            await this.tranzila.savePaymentMethod({
+              userType: 'independent_rider',
+              riderUid,
+              parentUid: null,
+              tenantSchema,
+              token: String(token),
+              last4: last4 ? String(last4) : null,
+              brand: brand ? String(brand) : null,
+              expiryMonth: tx?.expiry_month ?? null,
+              expiryYear: tx?.expiry_year ?? null,
+            });
+
+            await this.loadDrawerPaymentProfiles(riderUid);
+
+            this.addCardOpen = false;
+            this.hfAdd = null;
+            this.thtkAdd = null;
+            this.hfInitTried = false;
+            this.hfLoading = false;
+            this.addCardLockedRiderUid = null;
+            this.tokenSaved = false;
+            this.tokenError = null;
+
+            await this.ui.alert('אמצעי התשלום נשמר בהצלחה.', 'הצלחה');
+          } catch (e: any) {
+            if (e?.status === 409) {
+              if (e?.error?.error === 'CARD_EXISTS_FOR_ANOTHER_USER') {
+                this.tokenError = 'האשראי קיים אצל משתמש אחר ולא ניתן לשמור אותו';
+                return;
+              }
+
+              if (e?.error?.error === 'CARD_ALREADY_EXISTS') {
+                this.tokenError = 'לא ניתן לשמור אותו כרטיס אשראי פעמיים';
+                return;
+              }
+            }
+
+            this.tokenError =
+              e?.error?.message ||
+              e?.error?.error ||
+              e?.message ||
+              'שגיאה בשמירת אמצעי תשלום במערכת';
+          } finally {
+            this.savingToken = false;
+          }
+        },
+      );
+    } catch (e: any) {
+      this.tokenError = e?.message ?? 'שגיאה בשמירת אמצעי תשלום';
+      this.savingToken = false;
+    }
+  }
+  async tokenizeAndSaveCard(): Promise<void> {
+    await this.tokenizeAndSaveCardForSelectedRider();
+  }
+  isExpiredPayment(profile: { expiry_month?: number | null; expiry_year?: number | null }): boolean {
+    if (!profile.expiry_month || !profile.expiry_year) return false;
+
+    const now = new Date();
+
+    const endOfExpiryMonth = new Date(
+      Number(profile.expiry_year),
+      Number(profile.expiry_month),
+      0,
+      23,
+      59,
+      59
+    );
+
+    return endOfExpiryMonth < now;
+  }
+
+  isExpiringSoon(profile: { expiry_month?: number | null; expiry_year?: number | null }): boolean {
+    if (!profile.expiry_month || !profile.expiry_year) return false;
+
+    if (this.isExpiredPayment(profile)) return false;
+
+    const now = new Date();
+
+    const endOfExpiryMonth = new Date(
+      Number(profile.expiry_year),
+      Number(profile.expiry_month),
+      0,
+      23,
+      59,
+      59
+    );
+
+    const diffDays =
+      (endOfExpiryMonth.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+
+    return diffDays <= 60;
   }
 
 }
