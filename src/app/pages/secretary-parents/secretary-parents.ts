@@ -133,20 +133,19 @@ export class SecretaryParentsComponent implements OnInit {
   parentForm!: FormGroup;
   editMode = false;
 
-  private tokenCallbackHandled = false;
-  private addCardLockedParentUid: string | null = null;
   private saveRequestId: string | null = null;
-  private drawerLoadRequestId: string | null = null;
+  private tokenCallbackHandled = false;
+private addCardLockedParentUid: string | null = null;
+drawerLoadRequestId: string | null = null;
 
-  addCardOpen = false;
-  savingToken = false;
-  tokenSaved = false;
-  tokenError: string | null = null;
+addCardOpen = false;
+savingToken = false;
+tokenSaved = false;
+tokenError: string | null = null;
 
-  private hfAdd: HostedFieldsInstance | null = null;
-  private thtkAdd: string | null = null;
-  private hfInitTried = false;
-
+private hfAdd: HostedFieldsInstance | null = null;
+private thtkAdd: string | null = null;
+private hfInitTried = false;
 
   private originalParent: ParentDetailsRow | null = null;
 
@@ -179,7 +178,7 @@ export class SecretaryParentsComponent implements OnInit {
   readonly MAX_ADDRESS = 30;
   readonly MAX_EXTRA_NOTES = 60;
   readonly MAX_PHONE = 11;
-
+  
 
   readonly COMM_PREF_OPTIONS = [
     { value: 'inapp', label: 'אפליקציה (In-app)' },
@@ -199,7 +198,7 @@ export class SecretaryParentsComponent implements OnInit {
     private tranzila: TranzilaService,
     private route: ActivatedRoute,
     private router: Router,
-  ) { }
+  ) {}
 
   async ngOnInit() {
     try {
@@ -1222,8 +1221,7 @@ export class SecretaryParentsComponent implements OnInit {
     return new Date().toISOString().slice(0, 10);
   }
 
-
-  // ===== Credit card / drawer state =====
+// ===== Credit card / drawer state =====
 
   private newRequestId(): string {
     return typeof crypto !== 'undefined' && crypto.randomUUID
@@ -1234,14 +1232,14 @@ export class SecretaryParentsComponent implements OnInit {
   private resetAddCardState(destroyHostedFields = true): void {
     if (destroyHostedFields) this.destroyHostedFields();
 
-    this.addCardOpen = false;
-    this.savingToken = false;
-    this.tokenSaved = false;
-    this.tokenError = null;
+  this.addCardOpen = false;
+  this.savingToken = false;
+  this.tokenSaved = false;
+  this.tokenError = null;
+  this.tokenCallbackHandled = false;
 
-    this.tokenCallbackHandled = false;
-    this.addCardLockedParentUid = null;
-    this.saveRequestId = null;
+  this.addCardLockedParentUid = null;
+  this.saveRequestId = null;
 
     this.hfAdd = null;
     this.thtkAdd = null;
@@ -1347,20 +1345,20 @@ export class SecretaryParentsComponent implements OnInit {
       this.originalParent = structuredClone(this.drawerParent);
       this.buildParentForm(this.drawerParent);
 
-      this.drawerChildren = kids ?? [];
-      this.drawerPaymentProfiles = profiles ?? [];
-    } catch (e) {
-      console.error(e);
-      if (this.drawerLoadRequestId === requestId) {
-        this.drawerChildren = [];
-        this.drawerParent = null;
-        this.originalParent = null;
-        this.drawerPaymentProfiles = [];
-      }
-    } finally {
-      if (this.drawerLoadRequestId === requestId) {
-        this.drawerLoading = false;
-      }
+    this.drawerChildren = kids ?? [];
+    this.drawerPaymentProfiles = profiles ?? [];
+  } catch (e) {
+    console.error(e);
+
+    if (this.drawerLoadRequestId === requestId) {
+      this.drawerChildren = [];
+      this.drawerParent = null;
+      this.originalParent = null;
+      this.drawerPaymentProfiles = [];
+    }
+  } finally {
+    if (this.drawerLoadRequestId === requestId) {
+      this.drawerLoading = false;
     }
   }
 
@@ -1371,23 +1369,32 @@ export class SecretaryParentsComponent implements OnInit {
 
     const parentUid = (this.selectedUid || '').trim();
 
-    if (!parentUid || !this.drawerParent || this.drawerParent.uid !== parentUid) {
-      this.ui.alert('לא נבחר הורה תקין להוספת כרטיס.', 'שגיאה');
-      return;
-    }
-
-    const requestId = this.newRequestId();
-
-    this.addCardOpen = true;
-    this.addCardLockedParentUid = parentUid;
-    this.saveRequestId = requestId;
-
-    setTimeout(() => {
-      if (this.isActiveAddCardSession(parentUid, requestId)) {
-        this.ensureAddHostedFieldsReady(parentUid, requestId);
-      }
-    }, 0);
+  if (!parentUid || !this.drawerParent || this.drawerParent.uid !== parentUid) {
+    this.ui.alert('לא נבחר הורה תקין להוספת כרטיס.', 'שגיאה');
+    return;
   }
+
+  const requestId = this.newRequestId();
+
+  this.destroyHostedFields();
+
+  this.addCardOpen = true;
+  this.savingToken = false;
+  this.tokenSaved = false;
+  this.tokenError = null;
+  this.tokenCallbackHandled = false;
+
+  this.addCardLockedParentUid = parentUid;
+  this.saveRequestId = requestId;
+
+  this.hfAdd = null;
+  this.thtkAdd = null;
+  this.hfInitTried = false;
+
+  setTimeout(() => {
+    this.ensureAddHostedFieldsReady(parentUid, requestId);
+  }, 0);
+}
 
   closeAddCardModal(): void {
     if (this.savingToken) return;
@@ -1456,193 +1463,175 @@ export class SecretaryParentsComponent implements OnInit {
             'box-sizing': 'border-box',
           },
         },
-      });
-    } catch (e: any) {
-      console.error('ensureAddHostedFieldsReady error', e);
-      if (this.isActiveAddCardSession(parentUid, requestId)) {
-        this.tokenError = e?.message ?? 'שגיאה באתחול שדות האשראי';
-      }
+      },
+    });
+  } catch (e: any) {
+    console.error('ensureAddHostedFieldsReady error', e);
+
+    if (this.isActiveAddCardSession(parentUid, requestId)) {
+      this.tokenError = e?.message ?? 'שגיאה באתחול שדות האשראי';
     }
   }
 
-  async tokenizeAndSaveCardForSelectedParent(): Promise<void> {
-    if (this.savingToken) return;
+async tokenizeAndSaveCardForSelectedParent(): Promise<void> {
+  if (this.savingToken) return;
 
-    const parentUid = this.addCardLockedParentUid;
-    const requestId = this.saveRequestId;
+  this.tokenError = null;
+  this.tokenSaved = false;
 
-    this.tokenError = null;
-    this.tokenSaved = false;
+  const parentUid = this.addCardLockedParentUid;
+  const requestId = this.saveRequestId;
 
-    if (!this.isActiveAddCardSession(parentUid, requestId)) {
-      this.tokenError = 'חלון האשראי אינו שייך להורה הנוכחי. סגרי ופתחי מחדש.';
-      return;
-    }
+  if (!parentUid || !requestId) {
+    this.tokenError = 'לא זוהה הורה לשמירת אמצעי התשלום';
+    return;
+  }
 
-    if (!parentUid || !requestId || this.selectedUid !== parentUid || this.drawerParent?.uid !== parentUid) {
-      this.tokenError = 'ההורה השתנה בזמן שמירת הכרטיס. סגרי ופתחי מחדש.';
-      return;
-    }
+  if (this.selectedUid !== parentUid || this.drawerParent?.uid !== parentUid) {
+    this.tokenError = 'ההורה השתנה בזמן שמירת הכרטיס. סגרי ופתחי מחדש.';
+    return;
+  }
 
-    if (!this.hfAdd || !this.thtkAdd) {
-      this.tokenError = 'שדות התשלום לא מוכנים';
-      return;
-    }
+  if (!this.hfAdd || !this.thtkAdd) {
+    this.tokenError = 'שדות התשלום לא מוכנים';
+    return;
+  }
 
-    this.savingToken = true;
-    this.tokenCallbackHandled = false;
+  this.savingToken = true;
 
-    try {
-      const farm = getCurrentFarmMetaSync();
-      const tenantSchema = farm?.schema_name ?? null;
+  const farm = getCurrentFarmMetaSync();
+  const tenantSchema = farm?.schema_name ?? null;
 
-      if (!tenantSchema) {
-        this.tokenError = 'לא זוהתה סכמת חווה';
-        this.savingToken = false;
-        return;
-      }
+  if (!tenantSchema) {
+    this.tokenError = 'לא זוהתה סכמת חווה';
+    this.savingToken = false;
+    return;
+  }
 
-      const db = dbTenant();
+  const parentEmail = this.drawerParent?.email ?? null;
+  const parentContact =
+    `${this.drawerParent?.first_name ?? ''} ${this.drawerParent?.last_name ?? ''}`.trim();
 
-      const { data } = await db
-        .from('billing_terminals')
-        .select('terminal_name')
-        .eq('provider', 'tranzila')
-        .eq('mode', 'prod')
-        .eq('active', true)
-        .order('is_default', { ascending: false })
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+  this.hfAdd.charge(
+    {
+      terminal_name: 'moachapp',
+      thtk: this.thtkAdd,
+      tran_mode: 'N',
+      tokenize: true,
+      amount: '1',
+      currency_code: 'ILS',
+      payment_plan: 1,
+      response_language: 'hebrew',
+      requested_by_user: `secretary-parent-card-tokenize-${requestId}`,
+      email: parentEmail || undefined,
+      contact: parentContact || undefined,
+    },
+    async (err: any, response: any) => {
+      if (!this.isActiveAddCardSession(parentUid, requestId)) return;
+      if (this.tokenCallbackHandled) return;
 
-      if (!this.isActiveAddCardSession(parentUid, requestId)) {
-        this.savingToken = false;
-        return;
-      }
+      this.tokenCallbackHandled = true;
 
-      const terminalName = data?.terminal_name ?? 'moachapp';
-      const parentEmail = this.drawerParent?.email ?? null;
-      const parentContact =
-        `${this.drawerParent?.first_name ?? ''} ${this.drawerParent?.last_name ?? ''}`.trim();
+      try {
+        if (err?.messages?.length) {
+          err.messages.forEach((msg: any) => {
+            const el = document.getElementById('sp_errors_for_' + msg.param);
+            if (el) el.textContent = msg.message;
+          });
 
-      const lockedParent =
-        structuredClone(this.drawerParent);
-
-      this.hfAdd.charge(
-        {
-          terminal_name: terminalName,
-          thtk: this.thtkAdd,
-          tran_mode: 'N',
-          tokenize: true,
-          amount: '1',
-          currency_code: 'ILS',
-          payment_plan: 1,
-          response_language: 'hebrew',
-          requested_by_user: `secretary-parent-card-tokenize-${requestId}`,
-          email: parentEmail || undefined,
-          contact: parentContact || undefined,
-        },
-        async (err: any, response: any) => {
-          if (!this.isActiveAddCardSession(parentUid, requestId)) return;
-          if (this.tokenCallbackHandled) return;
-
-          this.tokenCallbackHandled = true;
-
-          try {
-            if (err?.messages?.length) {
-              err.messages.forEach((msg: any) => {
-                const el = document.getElementById('sp_errors_for_' + msg.param);
-                if (el) el.textContent = msg.message;
-              });
-
-              this.tokenError = 'שגיאה בפרטי הכרטיס';
-              return;
-            }
-
-            const tx = response?.transaction_response;
-
-            if (!tx?.success) {
-              this.tokenError = tx?.error || 'שמירת אמצעי תשלום נכשלה';
-              return;
-            }
-
-            const token = tx?.token;
-
-            if (!token) {
-              this.tokenError = 'לא התקבל טוקן מהסליקה';
-              return;
-            }
-
-            if (!this.isActiveAddCardSession(parentUid, requestId)) return;
-
-            const last4 =
-              tx?.credit_card_last_4_digits ??
-              tx?.last_4 ??
-              (tx?.card_mask ? String(tx.card_mask).slice(-4) : null);
-
-            const brand = tx?.card_type_name ?? tx?.card_type ?? null;
-
-            await this.tranzila.savePaymentMethod({
-              parentUid,
-              tenantSchema,
-              token: String(token),
-              last4: last4 ? String(last4) : null,
-              brand: brand ? String(brand) : null,
-              expiryMonth: tx?.expiry_month ?? null,
-              expiryYear: tx?.expiry_year ?? null,
-            });
-
-            if (!this.isActiveAddCardSession(parentUid, requestId)) return;
-
-            this.tokenSaved = true;
-
-            await this.ui.alert('אמצעי התשלום נשמר בהצלחה.', 'הצלחה');
-
-            if (!this.isActiveAddCardSession(parentUid, requestId)) return;
-
-            this.resetAddCardState(true);
-
-            if (this.selectedUid === parentUid) {
-              await this.loadDrawerData(parentUid);
-            }
-
-            await this.loadParents();
-          } catch (e: any) {
-            const body = e?.error;
-
-            if (e?.status === 409 && body?.error === 'CARD_ALREADY_EXISTS') {
-              this.tokenError =
-                body.message ||
-                `הכרטיס שהוסף כבר קיים אצל ההורה ${body.existingParentUid || ''}`;
-              return;
-            }
-
-            this.tokenError =
-              body?.message ||
-              body?.error ||
-              e?.message ||
-              'שגיאה בשמירת אמצעי תשלום במערכת';
-          } finally {
-            if (this.isActiveAddCardSession(parentUid, requestId)) {
-              this.savingToken = false;
-            }
-          }
+          this.tokenError = 'שגיאה בפרטי הכרטיס';
+          return;
         }
-      );
-    } catch (e: any) {
-      const body = e?.error;
 
-      if (this.isActiveAddCardSession(parentUid, requestId)) {
+        const tx = response?.transaction_response;
+
+        if (!tx?.success) {
+          this.tokenError = tx?.error || 'שמירת אמצעי תשלום נכשלה';
+          return;
+        }
+
+        const tokenRef =
+          tx?.token ||
+          tx?.card_token ||
+          tx?.Token ||
+          response?.token;
+
+        const last4 =
+          tx?.last4 ||
+          tx?.ccno_last4 ||
+          tx?.card_last4 ||
+          response?.last4;
+
+        const brand =
+          tx?.brand ||
+          tx?.card_brand ||
+          response?.brand ||
+          null;
+
+        const expiryMonth =
+          tx?.expiry_month?.toString() ||
+          tx?.expmonth?.toString() ||
+          response?.expiry_month?.toString() ||
+          null;
+
+        const expiryYear =
+          tx?.expiry_year?.toString() ||
+          tx?.expyear?.toString() ||
+          response?.expiry_year?.toString() ||
+          null;
+
+        if (!tokenRef) {
+          this.tokenError = 'התקבל אישור מטרנזילה אבל לא התקבל token לכרטיס';
+          return;
+        }
+
+        await this.tranzila.savePaymentMethod({
+            tenantSchema,
+            parentUid,
+            token: tokenRef,
+            last4,
+            brand,
+            expiryMonth,
+            expiryYear,
+            userType: 'parent',
+          });
+
+        this.tokenSaved = true;
+
+        await this.ui.alert('אמצעי התשלום נשמר בהצלחה.', 'הצלחה');
+
+        if (!this.isActiveAddCardSession(parentUid, requestId)) return;
+
+        this.resetAddCardState(true);
+
+        if (this.selectedUid === parentUid) {
+          await this.loadDrawerData(parentUid);
+        }
+
+        await this.loadParents();
+      } catch (e: any) {
+        const body = e?.error;
+
+        if (e?.status === 409 && body?.error === 'CARD_ALREADY_EXISTS') {
+          this.tokenError =
+            body.message ||
+            `הכרטיס שהוסף כבר קיים אצל ההורה ${body.existingParentUid || ''}`;
+          return;
+        }
+
         this.tokenError =
           body?.message ||
           body?.error ||
           e?.message ||
           'שגיאה בשמירת אמצעי תשלום במערכת';
-
-        this.savingToken = false;
+      } finally {
+        if (this.isActiveAddCardSession(parentUid, requestId)) {
+          this.savingToken = false;
+        }
       }
     }
-  }
+  );
+}
 
   private destroyHostedFields(): void {
     try {
