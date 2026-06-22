@@ -1,5 +1,3 @@
-src/app/pages/independent-rider-payments/independent-rider-payments.component.html
-
 <div class="card" *ngIf="!loading(); else loadingTpl" dir="rtl">
     <div class="top-row">
         <h2 class="title">אמצעי תשלום</h2>
@@ -11,7 +9,6 @@ src/app/pages/independent-rider-payments/independent-rider-payments.component.ht
 
     <div class="error" *ngIf="error()">{{ error() }}</div>
 
-    <!-- ===================== כרטיסים שמורים ===================== -->
     <div class="section">
         <div class="section-title">כרטיסים שמורים</div>
 
@@ -19,14 +16,10 @@ src/app/pages/independent-rider-payments/independent-rider-payments.component.ht
             <div class="profile" *ngFor="let p of profiles(); trackBy: trackById">
                 <div class="left">
                     <div class="brand">{{ p.brand || 'כרטיס' }}</div>
-
-                    <div class="last4">
-                        •••• {{ p.last4 || '----' }}
-                    </div>
+                    <div class="last4">•••• {{ p.last4 || '----' }}</div>
 
                     <div class="created">
                         נוסף: {{ p.created_at }}
-
                         <span class="muted" *ngIf="p.expiry_month && p.expiry_year">
                             · תוקף: {{ p.expiry_month }}/{{ p.expiry_year }}
                         </span>
@@ -38,9 +31,7 @@ src/app/pages/independent-rider-payments/independent-rider-payments.component.ht
                         קבע כברירת מחדל
                     </button>
 
-                    <span *ngIf="p.is_default" class="badge">
-                        ברירת מחדל
-                    </span>
+                    <span *ngIf="p.is_default" class="badge">ברירת מחדל</span>
                 </div>
             </div>
         </div>
@@ -55,19 +46,20 @@ src/app/pages/independent-rider-payments/independent-rider-payments.component.ht
         </div>
     </div>
 
-    <!-- ===================== חשבוניות ===================== -->
     <div class="section">
         <div class="section-title">חשבוניות (חשבונית מס / קבלה)</div>
 
-        <div class="invoices" *ngIf="invoices().length; else noInvoices">
-            <div class="invoice" *ngFor="let inv of invoices(); trackBy: trackById">
-                <div class="inv-date">{{ inv.date }}</div>
-                <div class="inv-amount">{{ inv.amountNis }}</div>
-                <div class="inv-method muted">{{ inv.method || '-' }}</div>
+        <div class="invoices" *ngIf="payments().length; else noInvoices">
+            <div class="invoice" *ngFor="let pay of payments(); trackBy: trackById">
+                <div class="inv-date">{{ pay.date }}</div>
+                <div class="inv-amount">{{ pay.amountNis }}</div>
+                <div class="inv-method muted">{{ pay.method || '-' }}</div>
 
-                <a class="btn ghost" [href]="inv.invoice_url" target="_blank" rel="noopener">
+                <a *ngIf="pay.invoice_url" class="btn ghost" [href]="pay.invoice_url" target="_blank" rel="noopener">
                     פתיחה
                 </a>
+
+                <span *ngIf="!pay.invoice_url" class="muted">-</span>
             </div>
         </div>
 
@@ -77,7 +69,6 @@ src/app/pages/independent-rider-payments/independent-rider-payments.component.ht
     </div>
 </div>
 
-<!-- ===================== מודל צף: הוספת כרטיס חדש ===================== -->
 <div class="modal-backdrop" [class.is-open]="addCardOpen()">
     <div class="modal" dir="rtl" role="dialog" aria-modal="true" aria-label="הוספת כרטיס חדש">
         <div class="modal-header">
@@ -90,37 +81,31 @@ src/app/pages/independent-rider-payments/independent-rider-payments.component.ht
 
         <div class="modal-body">
             <div class="hint">
-                הכרטיס יישמר לשימוש עתידי. בפועל לא יתבצע חיוב כאן
-                (אימות טוקן בלבד).
+                הכרטיס יישמר לשימוש עתידי. בפועל לא יתבצע חיוב כאן (אימות טוקן בלבד).
             </div>
+            <div class="hf-grid" [class.is-disabled]="savingToken()">
+                <div class="hf-grid">
+                    <div class="hf-box">
+                        <label>מספר כרטיס</label>
+                        <div id="ir_pm_credit_card_number"></div>
+                        <div class="hf-error" id="ir_pm_errors_for_credit_card_number"></div>
+                    </div>
 
-            <div class="hf-grid">
-                <div class="hf-box">
-                    <label>מספר כרטיס</label>
-                    <div id="pm_credit_card_number"></div>
-                    <div class="hf-error" id="pm_errors_for_credit_card_number"></div>
+                    <div class="hf-box">
+                        <label>תוקף</label>
+                        <div id="ir_pm_expiry"></div>
+                        <div class="hf-error" id="ir_pm_errors_for_expiry"></div>
+                    </div>
+
+                    <div class="hf-box">
+                        <label>CVV</label>
+                        <div id="ir_pm_cvv"></div>
+                        <div class="hf-error" id="ir_pm_errors_for_cvv"></div>
+                    </div>
                 </div>
-
-                <div class="hf-box">
-                    <label>תוקף</label>
-                    <div id="pm_expiry"></div>
-                    <div class="hf-error" id="pm_errors_for_expiry"></div>
-                </div>
-
-                <div class="hf-box">
-                    <label>CVV</label>
-                    <div id="pm_cvv"></div>
-                    <div class="hf-error" id="pm_errors_for_cvv"></div>
-                </div>
             </div>
-
-            <div class="error-banner" *ngIf="tokenError()">
-                {{ tokenError() }}
-            </div>
-
-            <div class="ok-banner" *ngIf="tokenSaved()">
-                אמצעי תשלום נשמר בהצלחה ✅
-            </div>
+            <div class="error-banner" *ngIf="tokenError()">{{ tokenError() }}</div>
+            <div class="ok-banner" *ngIf="tokenSaved()">אמצעי תשלום נשמר בהצלחה ✅</div>
         </div>
 
         <div class="modal-footer">
@@ -136,5 +121,5 @@ src/app/pages/independent-rider-payments/independent-rider-payments.component.ht
 </div>
 
 <ng-template #loadingTpl>
-    <div class="card" dir="rtl">טוען…</div>
+    <div class="card">טוען…</div>
 </ng-template>

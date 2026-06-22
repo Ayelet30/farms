@@ -134,7 +134,7 @@ export class SecretaryParentsComponent implements OnInit {
   editMode = false;
 
   private addCardLockedParentUid: string | null = null;
-private saveRequestId: string | null = null;
+  private saveRequestId: string | null = null;
 
   private originalParent: ParentDetailsRow | null = null;
 
@@ -167,7 +167,7 @@ private saveRequestId: string | null = null;
   readonly MAX_ADDRESS = 30;
   readonly MAX_EXTRA_NOTES = 60;
   readonly MAX_PHONE = 11;
-  
+
 
   readonly COMM_PREF_OPTIONS = [
     { value: 'inapp', label: 'אפליקציה (In-app)' },
@@ -196,7 +196,7 @@ private saveRequestId: string | null = null;
     private tranzila: TranzilaService,
     private route: ActivatedRoute,
     private router: Router,
-  ) {}
+  ) { }
 
   async ngOnInit() {
     try {
@@ -1300,7 +1300,7 @@ private saveRequestId: string | null = null;
     this.hfAdd = null;
     this.thtkAdd = null;
     this.hfInitTried = false;
-    
+
     this.addCardLockedParentUid = null;
     this.saveRequestId = null;
   }
@@ -1371,43 +1371,43 @@ private saveRequestId: string | null = null;
   }
 
   async tokenizeAndSaveCardForSelectedParent(): Promise<void> {
-  if (this.savingToken) return;
+    if (this.savingToken) return;
 
-  this.tokenError = null;
-  this.tokenSaved = false;
+    this.tokenError = null;
+    this.tokenSaved = false;
 
-  const parentUid = this.addCardLockedParentUid;
-  const requestId = this.saveRequestId;
+    const parentUid = this.addCardLockedParentUid;
+    const requestId = this.saveRequestId;
 
-  if (!parentUid || !requestId) {
-    this.tokenError = 'לא זוהה הורה לשמירת אמצעי התשלום';
-    return;
-  }
+    if (!parentUid || !requestId) {
+      this.tokenError = 'לא זוהה הורה לשמירת אמצעי התשלום';
+      return;
+    }
 
-  if (this.selectedUid !== parentUid) {
-    this.tokenError = 'ההורה השתנה בזמן שמירת הכרטיס. סגרי ופתחי מחדש.';
-    return;
-  }
+    if (this.selectedUid !== parentUid) {
+      this.tokenError = 'ההורה השתנה בזמן שמירת הכרטיס. סגרי ופתחי מחדש.';
+      return;
+    }
 
-  this.savingToken = true;
+    this.savingToken = true;
 
-  try {
-    const farm = getCurrentFarmMetaSync();
-const tenantSchema = farm?.schema_name ?? null;
+    try {
+      const farm = getCurrentFarmMetaSync();
+      const tenantSchema = farm?.schema_name ?? null;
 
-if (!tenantSchema) {
-  this.tokenError = 'לא זוהתה סכמת חווה';
-  this.savingToken = false;
-  return;
-}
+      if (!tenantSchema) {
+        this.tokenError = 'לא זוהתה סכמת חווה';
+        this.savingToken = false;
+        return;
+      }
 
-const parentEmail = this.drawerParent?.email ?? null;
+      const parentEmail = this.drawerParent?.email ?? null;
 
-if (!this.hfAdd || !this.thtkAdd) {
-  this.tokenError = 'שדות התשלום לא מוכנים';
-  this.savingToken = false;
-  return;
-}
+      if (!this.hfAdd || !this.thtkAdd) {
+        this.tokenError = 'שדות התשלום לא מוכנים';
+        this.savingToken = false;
+        return;
+      }
       const db = dbTenant();
 
       const { data } = await db
@@ -1487,7 +1487,7 @@ if (!this.hfAdd || !this.thtkAdd) {
 
             this.closeAddCardModal();
 
-            await this.ui.alert('אמצעי התשלום נשמר בהצלחה.', 'הצלחה');
+            await this.ui.alert('אמצעי התשלום נשמר בהצלחה.');
           } catch (e: any) {
             console.error('tokenize callback error', e);
             this.tokenError = e?.message ?? 'שגיאה בשמירת אמצעי תשלום במערכת';
@@ -1496,28 +1496,28 @@ if (!this.hfAdd || !this.thtkAdd) {
           }
         }
       );
-   } catch (e: any) {
-  console.error('[tokenizeAndSaveCard] save error', e);
+    } catch (e: any) {
+      console.error('[tokenizeAndSaveCard] save error', e);
 
-  const body = e?.error;
+      const body = e?.error;
 
-  if (e?.status === 409 && body?.error === 'CARD_ALREADY_EXISTS') {
-    this.tokenError =
-      body.message ||
-      `הכרטיס שהוסף כבר קיים אצל ההורה ${body.existingParentUid || ''}`;
+      if (e?.status === 409 && body?.error === 'CARD_ALREADY_EXISTS') {
+        this.tokenError =
+          body.message ||
+          `הכרטיס שהוסף כבר קיים אצל ההורה ${body.existingParentUid || ''}`;
 
-    this.savingToken = false;
-    return;
-  }
+        this.savingToken = false;
+        return;
+      }
 
-  this.tokenError =
-    body?.message ||
-    body?.error ||
-    e?.message ||
-    'שגיאה בשמירת אמצעי תשלום במערכת';
+      this.tokenError =
+        body?.message ||
+        body?.error ||
+        e?.message ||
+        'שגיאה בשמירת אמצעי תשלום במערכת';
 
-  this.savingToken = false;
-}
+      this.savingToken = false;
+    }
   }
   goToChildCard(childId: string): void {
     if (!childId) return;
