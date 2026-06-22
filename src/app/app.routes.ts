@@ -244,6 +244,12 @@ export const routes: Routes = [
             .then(m => m.SecretarialRequestsPageComponent)
       },
       {
+        path: 'tasks',
+        loadComponent: () =>
+          import('./pages/tasks-board/tasks-board')
+            .then(m => m.TasksBoardComponent)
+      },
+      {
         path: 'payments',
         loadComponent: () =>
           import('./pages/secretary-payments/secretary-payments.component')

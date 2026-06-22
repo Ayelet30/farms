@@ -1,0 +1,238 @@
+<section class="tasks-page" dir="rtl">
+  <header class="page-header">
+    <div>
+      <h1>לוח משימות</h1>
+      <p>ניהול משימות כלליות ומשימות סוסים במקום אחד</p>
+    </div>
+
+    <div class="header-actions">
+      <button class="secondary" type="button" (click)="loadTasks()">
+        רענון
+      </button>
+
+      <button class="primary" type="button" (click)="showCreateForm = !showCreateForm">
+        + משימה חדשה
+      </button>
+    </div>
+  </header>
+
+  <div *ngIf="error" class="alert error">{{ error }}</div>
+  <div *ngIf="success" class="alert success">{{ success }}</div>
+
+  <section class="create-card" *ngIf="showCreateForm">
+    <h2>יצירת משימה חדשה</h2>
+
+    <div class="form-grid">
+      <label>
+        סוג משימה
+        <select [(ngModel)]="newTask.taskKind">
+          <option value="general">משימה כללית</option>
+          <option value="horse">משימה קשורה לסוס</option>
+        </select>
+      </label>
+
+      <label>
+        כותרת
+        <input [(ngModel)]="newTask.title" placeholder="לדוגמה: להתקשר להורה / לבדוק ציוד" />
+      </label>
+
+      <label>
+        משויך אל
+        <select [(ngModel)]="newTask.assigned_to_uid">
+          <option value="">בחירה</option>
+          <option *ngFor="let user of staff" [value]="user.uid">
+            {{ user.name }} — {{ user.role }}
+          </option>
+        </select>
+      </label>
+
+      <label>
+        תאריך יעד
+        <input type="date" [(ngModel)]="newTask.due_date" />
+      </label>
+
+      <label>
+        דחיפות
+        <select [(ngModel)]="newTask.priority">
+          <option value="low">נמוכה</option>
+          <option value="normal">רגילה</option>
+          <option value="high">גבוהה</option>
+          <option value="urgent">דחופה</option>
+        </select>
+      </label>
+
+      <label *ngIf="newTask.taskKind === 'horse'">
+        סוס
+        <select [(ngModel)]="newTask.horse_uid">
+          <option value="">בחירת סוס</option>
+          <option *ngFor="let horse of horses" [value]="horse.id">
+            {{ horse.name }}
+          </option>
+        </select>
+      </label>
+
+      <label class="full">
+        פירוט
+        <textarea [(ngModel)]="newTask.description" rows="3"></textarea>
+      </label>
+    </div>
+
+    <div class="form-actions">
+      <button class="primary" type="button" [disabled]="saving" (click)="createTask()">
+        {{ saving ? 'שומר...' : 'שמירת משימה' }}
+      </button>
+
+      <button class="secondary" type="button" (click)="showCreateForm = false">
+        ביטול
+      </button>
+    </div>
+  </section>
+
+  <section class="filters">
+    <input
+      [(ngModel)]="searchText"
+      placeholder="חיפוש לפי כותרת, פירוט, אחראי או סוס"
+    />
+
+    <select *ngIf="canSeeAllTasks" [(ngModel)]="selectedAssigneeUid" (change)="loadTasks()">
+      <option value="">כל המשתמשים</option>
+      <option *ngFor="let user of staff" [value]="user.uid">
+        {{ user.name }}
+      </option>
+    </select>
+
+    <select [(ngModel)]="selectedSourceType" (change)="loadTasks()">
+      <option value="">כל סוגי המשימות</option>
+      <option value="general_task">משימות כלליות</option>
+      <option value="horse_task">משימות סוסים</option>
+    </select>
+
+    <select [(ngModel)]="selectedPriority" (change)="loadTasks()">
+      <option value="">כל הדחיפויות</option>
+      <option value="low">נמוכה</option>
+      <option value="normal">רגילה</option>
+      <option value="high">גבוהה</option>
+      <option value="urgent">דחופה</option>
+    </select>
+
+    <input type="date" [(ngModel)]="selectedDateFrom" (change)="loadTasks()" />
+    <input type="date" [(ngModel)]="selectedDateTo" (change)="loadTasks()" />
+
+    <button type="button" class="secondary" (click)="clearFilters()">
+      ניקוי
+    </button>
+  </section>
+
+  <div *ngIf="loading" class="loading">
+    טוען משימות...
+  </div>
+
+  <section class="board" *ngIf="!loading">
+    <div class="column" *ngFor="let column of columns">
+      <div class="column-header">
+        <h2>{{ column.label }}</h2>
+        <span>{{ tasksByStatus(column.key).length }}</span>
+      </div>
+
+      <div class="task-list">
+        <article
+          class="task-card"
+          *ngFor="let task of tasksByStatus(column.key)"
+          [ngClass]="taskClass(task)"
+        >
+          <div class="task-top">
+            <span class="source">{{ sourceLabel(task.source_type) }}</span>
+            <span class="priority">{{ priorityLabel(task.priority) }}</span>
+          </div>
+
+          <input class="task-title" [(ngModel)]="task.title" />
+
+          <textarea
+            class="task-desc"
+            [(ngModel)]="task.description"
+            rows="2"
+            placeholder="פירוט משימה"
+          ></textarea>
+
+          <div class="task-meta">
+            <span>אחראי: {{ assignedName(task.assigned_to_uid) }}</span>
+
+            <span *ngIf="task.horse_uid">
+              סוס: {{ task.horse_name || horseName(task.horse_uid) }}
+            </span>
+
+            <span *ngIf="task.due_date">
+              יעד: {{ task.due_date | date:'dd/MM/yyyy' }}
+            </span>
+
+            <span *ngIf="isOverdue(task)" class="late">
+              באיחור
+            </span>
+
+            <span *ngIf="isDueToday(task)" class="today-label">
+              להיום
+            </span>
+          </div>
+
+          <div class="inline-edit">
+            <label>
+              תאריך
+              <input type="date" [(ngModel)]="task.due_date" />
+            </label>
+
+            <label *ngIf="task.source_type === 'general_task'">
+              דחיפות
+              <select [(ngModel)]="task.priority">
+                <option value="low">נמוכה</option>
+                <option value="normal">רגילה</option>
+                <option value="high">גבוהה</option>
+                <option value="urgent">דחופה</option>
+              </select>
+            </label>
+
+            <label *ngIf="task.source_type === 'general_task' && canSeeAllTasks">
+              אחראי
+              <select [(ngModel)]="task.assigned_to_uid">
+                <option *ngFor="let user of staff" [value]="user.uid">
+                  {{ user.name }}
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <div class="task-actions">
+            <button type="button" class="secondary" (click)="saveInlineTask(task)">
+              שמירה
+            </button>
+
+            <button
+              type="button"
+              class="secondary"
+              *ngIf="task.status === 'open'"
+              (click)="updateTaskStatus(task, 'in_progress')"
+            >
+              העבר לטיפול
+            </button>
+
+            <button
+              type="button"
+              class="primary"
+              *ngIf="task.status !== 'completed'"
+              (click)="updateTaskStatus(task, 'completed')"
+            >
+              בוצע
+            </button>
+
+            <button type="button" class="danger" (click)="cancelTask(task)">
+              ביטול
+            </button>
+          </div>
+        </article>
+
+        <div class="empty" *ngIf="tasksByStatus(column.key).length === 0">
+          אין משימות
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
