@@ -32,7 +32,11 @@ export class RequestMakeupLessonDetailsComponent {
   @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
   @Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
   @Input() onError?: (e: any) => void;
+  @Input() isSecretary = false;
 
+  get canViewExistingPlacement(): boolean {
+    return this.isSecretary === true;
+  }
   // ===== Outputs שהאב מאזין אליהם ב-onDetailsActivate =====
   @Output() approved = new EventEmitter<{ requestId: string; newStatus: 'APPROVED' }>();
   @Output() rejected = new EventEmitter<{ requestId: string; newStatus: 'REJECTED' | 'REJECTED_BY_SYSTEM' }>();

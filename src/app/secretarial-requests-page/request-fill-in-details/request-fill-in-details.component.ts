@@ -39,7 +39,11 @@ export class RequestFillInDetailsComponent implements OnInit {
   @Input() onRejected?: (e: { requestId: string; newStatus: | 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
   @Input() onError?: (e: any) => void;
   note = signal<string>('');
+  @Input() isSecretary = false;
 
+  get canViewExistingPlacement(): boolean {
+    return this.isSecretary === true;
+  }
   @Output() approved = new EventEmitter<{ requestId: string; newStatus: 'APPROVED' }>();
   @Output() rejected = new EventEmitter<{ requestId: string; newStatus: 'REJECTED' | 'REJECTED_BY_SYSTEM' }>();
   @Output() error = new EventEmitter<string>();

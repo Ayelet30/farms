@@ -68,7 +68,11 @@ export class RequestSingleLessonDetailsComponent {
   req = () => this.request;
 
   @Input() bulkMode?: boolean;
+  @Input() isSecretary = false;
 
+  get canViewExistingPlacement(): boolean {
+    return this.isSecretary === true;
+  }
   @Input({ required: true })
   set request(v: UiRequest) {
     this._request = v;

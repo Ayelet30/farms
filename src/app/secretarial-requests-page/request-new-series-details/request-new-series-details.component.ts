@@ -99,6 +99,11 @@ export class SecretarialSeriesRequestsComponent {
     void this.loadChildName();
 
   }
+  @Input() isSecretary = false;
+
+  get canViewExistingPlacement(): boolean {
+    return this.isSecretary === true;
+  }
   busyText = computed(() => {
     switch (this.action()) {
       case 'approve': return 'הבקשה בתהליך אישור…';
