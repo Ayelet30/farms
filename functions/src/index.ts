@@ -68,6 +68,16 @@ export {
   rejectRiderServiceRequestAndNotify,
   createRiderServiceBySecretaryAndNotify,
 } from './rider-service-request-decision';
+
+export {
+  upsertFarmBillingCustomer,
+  createFarmBillingPaymentLink,
+  markFarmBillingPaidManually,
+  setFarmBillingStopped,
+  cancelFarmBillingPayment,
+  sendFarmBillingReceipt,
+  cronMonthlyFarmBilling,
+} from './farm-billing';
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
 

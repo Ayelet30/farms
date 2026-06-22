@@ -93,6 +93,10 @@
         "function": "tranzilaHandshake"
       },
       {
+        "source": "/api/markFarmBillingPaidManually",
+        "function": "markFarmBillingPaidManually"
+      },
+      {
         "source": "/api/recordOneTimePayment",
         "function": "recordOneTimePayment"
       },

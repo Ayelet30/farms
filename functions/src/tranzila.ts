@@ -1431,9 +1431,7 @@ export const savePaymentMethod = onRequest(
         .eq('is_default', true)
         .limit(1);
 
-      if (defErr) {
-        console.error('[savePaymentMethod] default query error', defErr);
-      }
+      if (defErr) throw defErr;
 
       const shouldBeDefault = !(existingDefault?.length);
 

@@ -78,5 +78,36 @@
     "changeOrigin": true,
     "secure": true,
     "pathRewrite":{ "^/api/createMaccabiAutomationJob$": "/createMaccabiAutomationJob" }
+  },
+
+  "/api/markFarmBillingPaidManually": {
+    "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+    "changeOrigin": true,
+    "secure": true,
+    "pathRewrite":{ "^/api/markFarmBillingPaidManually$": "/markFarmBillingPaidManually" }
+  },
+  "/api/upsertFarmBillingCustomer": {
+  "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+  "changeOrigin": true,
+  "secure": true,
+  "pathRewrite": {
+    "^/api/upsertFarmBillingCustomer$": "/upsertFarmBillingCustomer"
   }
+},
+"/api/setFarmBillingStopped": {
+  "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+  "changeOrigin": true,
+  "secure": true,
+  "pathRewrite": {
+    "^/api/setFarmBillingStopped$": "/setFarmBillingStopped"
+  }
+},
+"/api/cancelFarmBillingPayment": {
+  "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+  "changeOrigin": true,
+  "secure": true,
+  "pathRewrite": {
+    "^/api/cancelFarmBillingPayment$": "/cancelFarmBillingPayment"
+  }
+}
 }
