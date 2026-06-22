@@ -1,0 +1,139 @@
+<div class="card" *ngIf="!loading(); else loadingTpl" dir="rtl">
+    <div class="top-row">
+        <h2 class="title">אמצעי תשלום</h2>
+
+        <button class="btn primary" type="button" (click)="openAddCardModal()">
+            הוספת כרטיס חדש
+        </button>
+    </div>
+
+    <div class="error" *ngIf="error()">{{ error() }}</div>
+
+    <div class="section">
+        <div class="section-title">כרטיסים שמורים</div>
+
+        <div class="profiles" *ngIf="profiles().length; else noProfiles">
+            <div class="profile" *ngFor="let p of profiles(); trackBy: trackById">
+                <div class="left">
+                    <div class="brand">{{ p.brand || 'כרטיס' }}</div>
+                    <div class="last4">•••• {{ p.last4 || '----' }}</div>
+
+                    <div class="created">
+                        נוסף: {{ p.created_at }}
+                        <span class="muted" *ngIf="p.expiry_month && p.expiry_year">
+                            · תוקף: {{ p.expiry_month }}/{{ p.expiry_year }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="right">
+                    <span *ngIf="p.is_default" class="badge">
+                        ברירת מחדל
+                    </span>
+
+                    <span *ngIf="!p.active" class="badge danger">
+                        לא פעיל
+                    </span>
+
+                    <span *ngIf="p.active && isExpired(p)" class="badge danger">
+                        פג תוקף
+                    </span>
+
+                    <span *ngIf="p.active && isExpiringSoon(p)" class="badge warning">
+                        תוקף קרוב
+                    </span>
+
+                    <button *ngIf="canSetDefault(p)" class="btn secondary" type="button" (click)="setDefault(p.id)">
+                        קבע כברירת מחדל
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <ng-template #noProfiles>
+            <div class="empty">אין אמצעי תשלום שמורים.</div>
+        </ng-template>
+
+        <div class="hint">
+            אין אפשרות להסיר כרטיסים. ניתן רק להגדיר ברירת מחדל.
+            אם החיוב בכרטיס ברירת המחדל נכשל – המערכת תנסה את הבא בתור.
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">חשבוניות (חשבונית מס / קבלה)</div>
+
+        <div class="invoices" *ngIf="payments().length; else noInvoices">
+            <div class="invoice" *ngFor="let pay of payments(); trackBy: trackById">
+                <div class="inv-date">{{ pay.date }}</div>
+                <div class="inv-amount">{{ pay.amountNis }}</div>
+                <div class="inv-method muted">{{ pay.method || '-' }}</div>
+
+                <a *ngIf="pay.invoice_url" class="btn ghost" [href]="pay.invoice_url" target="_blank" rel="noopener">
+                    פתיחה
+                </a>
+
+                <span *ngIf="!pay.invoice_url" class="muted">-</span>
+            </div>
+        </div>
+
+        <ng-template #noInvoices>
+            <div class="empty">אין חשבוניות להצגה.</div>
+        </ng-template>
+    </div>
+</div>
+
+<div class="modal-backdrop" [class.is-open]="addCardOpen()">
+    <div class="modal" dir="rtl" role="dialog" aria-modal="true" aria-label="הוספת כרטיס חדש">
+        <div class="modal-header">
+            <div class="modal-title">הוספת כרטיס חדש</div>
+
+            <button class="icon-btn" type="button" (click)="closeAddCardModal()" [disabled]="savingToken()">
+                ✕
+            </button>
+        </div>
+
+        <div class="modal-body">
+            <div class="hint">
+                הכרטיס יישמר לשימוש עתידי. בפועל לא יתבצע חיוב כאן (אימות טוקן בלבד).
+            </div>
+            <div class="hf-grid" [class.is-disabled]="savingToken()">
+                <div class="hf-grid">
+                    <div class="hf-box">
+                        <label>מספר כרטיס</label>
+                        <div id="ir_pm_credit_card_number"></div>
+                        <div class="hf-error" id="ir_pm_errors_for_credit_card_number"></div>
+                    </div>
+
+                    <div class="hf-box">
+                        <label>תוקף</label>
+                        <div id="ir_pm_expiry"></div>
+                        <div class="hf-error" id="ir_pm_errors_for_expiry"></div>
+                    </div>
+
+                    <div class="hf-box">
+                        <label>CVV</label>
+                        <div id="ir_pm_cvv"></div>
+                        <div class="hf-error" id="ir_pm_errors_for_cvv"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="error-banner" *ngIf="tokenError()">{{ tokenError() }}</div>
+            <div class="ok-banner" *ngIf="tokenSaved()">אמצעי תשלום נשמר בהצלחה ✅</div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn ghost" type="button" (click)="closeAddCardModal()" [disabled]="savingToken()">
+                ביטול
+            </button>
+
+            <button class="btn primary" type="button" (click)="tokenizeAndSaveCard()" [disabled]="savingToken()">
+                {{ savingToken() ? 'שומר…' : 'שמירת אמצעי תשלום' }}
+            </button>
+        </div>
+    </div>
+</div>
+
+<ng-template #loadingTpl>
+    <div class="card">טוען…</div>
+</ng-template>

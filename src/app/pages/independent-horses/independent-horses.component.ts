@@ -92,7 +92,7 @@ export class IndependentHorsesComponent implements OnInit {
           is_active,
           notes,
           food_supplements,
-          horse_equipment,
+          horse_equipment
           
         `)
                 .eq('owner_rider_uid', user.uid)

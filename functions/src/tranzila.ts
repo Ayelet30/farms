@@ -28,16 +28,17 @@ const TRANZILA_APP_KEY_S = defineSecret('TRANZILA_APP_KEY');
 const TRANZILA_SECRET_S = defineSecret('TRANZILA_SECRET');
 
 const PUBLIC_BASE_URL_S = defineSecret('PUBLIC_BASE_URL');
-
+const NOTIFY_USER_URL =
+  'https://us-central1-bereshit-ac5d8.cloudfunctions.net/notifyUser';
 
 const mailTransport = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
-  secure: false, 
+  secure: false,
   auth: {
-    user: "ayelethury@gmail.com", 
+    user: "ayelethury@gmail.com",
     pass: "jlmb ezch pkrs ifce",
-  }  ,
+  },
 });
 
 
@@ -247,7 +248,7 @@ export const createHostedPaymentUrl = onRequest(
       }
 
       const baseRaw = envOrSecret(PUBLIC_BASE_URL_S, 'PUBLIC_BASE_URL');
-     
+
       if (!baseRaw) {
         res.status(500).json({ error: 'Missing PUBLIC_BASE_URL' });
         return;
@@ -258,39 +259,39 @@ export const createHostedPaymentUrl = onRequest(
       const sumNis = (amount / 100).toFixed(2);
 
       const tenantSchema = String(req.body.tenantSchema ?? '').trim();
-      if (!tenantSchema) { res.status(400).json({ error:'missing tenantSchema' }); return; }
+      if (!tenantSchema) { res.status(400).json({ error: 'missing tenantSchema' }); return; }
 
       const cfg = await getTranzilaConfigForTenant({ tenantSchema, mode: 'prod' });
 
-      const supplier = cfg.terminalName; 
+      const supplier = cfg.terminalName;
 
       if (!supplier) {
-              res.status(500).json({ error: 'Missing TRANZILA_SUPPLIER(_ID)' });
-              return;
-            }
+        res.status(500).json({ error: 'Missing TRANZILA_SUPPLIER(_ID)' });
+        return;
+      }
       const hpp = new URL(`https://direct.tranzila.com/${supplier}/tranDirect.asp`);
 
       const params = new URLSearchParams({
-      supplier,
-      sum: sumNis,
-      currency: '1',
-      orderid: String(orderId),
+        supplier,
+        sum: sumNis,
+        currency: '1',
+        orderid: String(orderId),
 
-      tranmode: 'AK',
-      cred_type: '1',          // tokenization
+        tranmode: 'AK',
+        cred_type: '1',          // tokenization
 
-      contact: email,
-      email,
+        contact: email,
+        email,
 
-      success_url: successUrl,
-      error_url: errorUrl,
+        success_url: successUrl,
+        error_url: errorUrl,
 
-      custom_uid: uid,
-      custom_schema: tenantSchema,
-    });
+        custom_uid: uid,
+        custom_schema: tenantSchema,
+      });
 
-    hpp.search = params.toString();
-    res.json({ url: hpp.toString() });
+      hpp.search = params.toString();
+      res.json({ url: hpp.toString() });
 
       return;
     } catch (e: any) {
@@ -418,30 +419,30 @@ async function chargeByToken(args: {
   const ct = resp.headers.get('content-type') || '';
   const raw = ct.includes('application/json') ? await resp.json() : await resp.text();
 
- const json = isObj(raw) ? (raw as any) : null;
-const tr = isObj(json?.transaction_result) ? (json!.transaction_result as any) : null;
+  const json = isObj(raw) ? (raw as any) : null;
+  const tr = isObj(json?.transaction_result) ? (json!.transaction_result as any) : null;
 
-// ✅ קביעת הצלחה לפי המבנה האמיתי שחוזר מטרנזילה
-const ok =
-  (json?.error_code === 0 && String(json?.message).toLowerCase() === 'success') ||
-  (tr?.processor_response_code === '000') ||
-  (Number(tr?.transaction_resource) === 0);
+  // ✅ קביעת הצלחה לפי המבנה האמיתי שחוזר מטרנזילה
+  const ok =
+    (json?.error_code === 0 && String(json?.message).toLowerCase() === 'success') ||
+    (tr?.processor_response_code === '000') ||
+    (Number(tr?.transaction_resource) === 0);
 
-// ✅ מזהה עסקה
-const providerId =
-  (tr?.transaction_id ?? tr?.ConfirmationCode ?? tr?.auth_number ?? null) != null
-    ? String(tr?.transaction_id ?? tr?.ConfirmationCode ?? tr?.auth_number)
-    : null;
+  // ✅ מזהה עסקה
+  const providerId =
+    (tr?.transaction_id ?? tr?.ConfirmationCode ?? tr?.auth_number ?? null) != null
+      ? String(tr?.transaction_id ?? tr?.ConfirmationCode ?? tr?.auth_number)
+      : null;
 
-if (ok) return { ok: true, provider_id: providerId, raw };
+  if (ok) return { ok: true, provider_id: providerId, raw };
 
-// אם לא ok — להוציא הודעת שגיאה הגיונית
-const errMsg =
-  tr?.processor_response_code
-    ? `processor_response_code=${tr.processor_response_code}`
-    : (json?.error ?? json?.error_message ?? json?.message ?? 'charge failed');
+  // אם לא ok — להוציא הודעת שגיאה הגיונית
+  const errMsg =
+    tr?.processor_response_code
+      ? `processor_response_code=${tr.processor_response_code}`
+      : (json?.error ?? json?.error_message ?? json?.message ?? 'charge failed');
 
-return { ok: false, provider_id: providerId, raw, error: errMsg };
+  return { ok: false, provider_id: providerId, raw, error: errMsg };
 }
 
 
@@ -460,7 +461,7 @@ export const savePaymentProfileFromTx = onRequest(
       };
 
       if (!parentUid || !tx?.token) {
-        res.status(400).json({ ok:false, error:'missing parentUid/tx.token' });
+        res.status(400).json({ ok: false, error: 'missing parentUid/tx.token' });
         return;
       }
 
@@ -492,14 +493,14 @@ export const savePaymentProfileFromTx = onRequest(
         })
         .select('id')
         .single();
-        
 
-      if (error) { res.status(500).json({ ok:false, error:error.message }); return; }
 
-      res.json({ ok:true, profileId: inserted.id });
-    } catch (e:any) {
+      if (error) { res.status(500).json({ ok: false, error: error.message }); return; }
+
+      res.json({ ok: true, profileId: inserted.id });
+    } catch (e: any) {
       console.error('[savePaymentProfileFromTx] error', e);
-      res.status(500).json({ ok:false, error: e?.message ?? 'internal error' });
+      res.status(500).json({ ok: false, error: e?.message ?? 'internal error' });
     }
   }
 );
@@ -658,7 +659,7 @@ export const tranzilaHandshake = onRequest(
       console.log('[tranzilaHandshake] req.query:', req.query);
 
       const tenantSchema = String(req.query.tenantSchema ?? '').trim();
-      if (!tenantSchema) { res.status(400).json({ ok:false, error:'missing tenantSchema' }); return; }
+      if (!tenantSchema) { res.status(400).json({ ok: false, error: 'missing tenantSchema' }); return; }
 
       const cfg = await getTranzilaConfigForTenant({ tenantSchema, mode: 'prod' });
 
@@ -668,7 +669,7 @@ export const tranzilaHandshake = onRequest(
 
       url.searchParams.set('supplier', cfg.terminalName);
       url.searchParams.set('sum', sum);
-      url.searchParams.set('TranzilaPW', cfg.passwordCharge); 
+      url.searchParams.set('TranzilaPW', cfg.passwordCharge);
 
       const resp = await fetch(url.toString(), { method: 'GET' });
       const text = await resp.text();
@@ -683,7 +684,7 @@ export const tranzilaHandshake = onRequest(
 
       const thtk = kv['thtk'];
       if (!resp.ok || !thtk) {
-        res.status(resp.status || 500).json({ ok:false, error:'Failed to get thtk', body: kv });
+        res.status(resp.status || 500).json({ ok: false, error: 'Failed to get thtk', body: kv });
         return;
       }
 
@@ -691,7 +692,7 @@ export const tranzilaHandshake = onRequest(
       res.json({ thtk, terminal_name: cfg.terminalName });
     } catch (err: any) {
       console.error('[tranzilaHandshake] error:', err);
-      res.status(500).json({ ok:false, error: err?.message || 'internal error' });
+      res.status(500).json({ ok: false, error: err?.message || 'internal error' });
     }
   },
 );
@@ -741,16 +742,16 @@ async function recordPaymentInDb(args: { sb?: any; tenantSchema?: any; parentUid
   const sbTenant = sb; // כי יצרת אותו כבר עם schema=tenantSchema ב-getSupabaseForTenant
 
   const paymentRow = {
-  parent_uid: parentUid ?? null,
-  amount: amountNis,
-  date: today,
-  method,
-  invoice_url: null,
+    parent_uid: parentUid ?? null,
+    amount: amountNis,
+    date: today,
+    method,
+    invoice_url: null,
 
-  // ✅ החדש:
-  payment_method: args.payment_method ?? 'credit_card',
-  payment_profile_id: args.payment_profile_id ?? null,
-};
+    // ✅ החדש:
+    payment_method: args.payment_method ?? 'credit_card',
+    payment_profile_id: args.payment_profile_id ?? null,
+  };
 
 
   const { data: inserted, error: payErr } = await sbTenant
@@ -979,17 +980,17 @@ export const chargeSelectedChargesForParent = onRequest(
       }
 
       const {
-  tenantSchema,
-  parentUid,
-  chargeIds,
-  invoiceExtraLinesByChild,
-} = req.body as {
-  tenantSchema: string;
-  parentUid: string;
-  chargeIds: string[];
-  secretaryEmail?: string | null;
-  invoiceExtraLinesByChild?: Record<string, string>;
-};
+        tenantSchema,
+        parentUid,
+        chargeIds,
+        invoiceExtraLinesByChild,
+      } = req.body as {
+        tenantSchema: string;
+        parentUid: string;
+        chargeIds: string[];
+        secretaryEmail?: string | null;
+        invoiceExtraLinesByChild?: Record<string, string>;
+      };
 
       if (!tenantSchema || !parentUid || !Array.isArray(chargeIds) || !chargeIds.length) {
         res.status(400).json({ ok: false, error: 'missing tenantSchema/parentUid/chargeIds' });
@@ -1009,7 +1010,7 @@ export const chargeSelectedChargesForParent = onRequest(
 
       const tokenTerminalPassword = await accessSecret(terminal.secret_key_charge_token!);
 
-    
+
       // B) טוענים כרטיסים פעילים של ההורה + החיובים
 
       // 1) כרטיסים פעילים (default ראשון)
@@ -1079,13 +1080,13 @@ export const chargeSelectedChargesForParent = onRequest(
           const orderId = `ch_${chargeId}_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
 
           const attempt = await chargeByToken({
-          terminalName: terminal.tok_terminal_name ?? terminal.tok_terminal_name!,
-          token: String(prof.token_ref),
-          amountAgorot,
-          description: ch.description ?? 'Monthly charge',
-          expiryMonth: (prof as any).expiry_month,
-          expiryYear:  (prof as any).expiry_year,
-        });
+            terminalName: terminal.tok_terminal_name ?? terminal.tok_terminal_name!,
+            token: String(prof.token_ref),
+            amountAgorot,
+            description: ch.description ?? 'Monthly charge',
+            expiryMonth: (prof as any).expiry_month,
+            expiryYear: (prof as any).expiry_year,
+          });
 
           if (attempt.ok) {
             charged = true;
@@ -1110,81 +1111,81 @@ export const chargeSelectedChargesForParent = onRequest(
         //להוסיף בקשת חשבונית מטרנזילה שוהם 
         //שליחה במייל להורה - שוהם 
         // שוהם - שמירת חשבונית בענן לפי תקיית חווה+ תקיית
-       // הצלחה: עדכון charge
-await sb
-  .from('charges')
-  .update({
-    status: 'paid',
-    provider_id: providerId,
-    profile_id: usedProfile?.id ?? null,
-    updated_at: new Date().toISOString(),
-  })
-  .eq('id', chargeId);
+        // הצלחה: עדכון charge
+        await sb
+          .from('charges')
+          .update({
+            status: 'paid',
+            provider_id: providerId,
+            profile_id: usedProfile?.id ?? null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', chargeId);
 
-// ✅ 1) INSERT ל-payments
-const amountNis = Number(amountAgorot) / 100;
-const today = new Date().toISOString().slice(0, 10);
+        // ✅ 1) INSERT ל-payments
+        const amountNis = Number(amountAgorot) / 100;
+        const today = new Date().toISOString().slice(0, 10);
 
-const { data: payRow, error: payErr } = await sb
-  .from('payments')
-  .insert({
-    parent_uid: parentUid,
-    amount: amountNis,
-    date: today,
+        const { data: payRow, error: payErr } = await sb
+          .from('payments')
+          .insert({
+            parent_uid: parentUid,
+            amount: amountNis,
+            date: today,
 
-    // סוג פעולה פנימי אצלך (one_time/charge וכו')
-    method: 'charge',
+            // סוג פעולה פנימי אצלך (one_time/charge וכו')
+            method: 'charge',
 
-    // ✅ החדש לפי הטבלה שלך:
-    payment_method: 'credit_card',            // enum public.payment_method
-    payment_profile_id: usedProfile?.id ?? null,
+            // ✅ החדש לפי הטבלה שלך:
+            payment_method: 'credit_card',            // enum public.payment_method
+            payment_profile_id: usedProfile?.id ?? null,
 
-    // אופציונלי: לשמור גם last4/brand אין לך בעמודות כרגע, אז לא.
-    invoice_url: null,
-    charge_id: chargeId,
-  })
-  .select('id')
-  .single();
+            // אופציונלי: לשמור גם last4/brand אין לך בעמודות כרגע, אז לא.
+            invoice_url: null,
+            charge_id: chargeId,
+          })
+          .select('id')
+          .single();
 
 
-if (payErr) {
-  console.error('[chargeSelectedChargesForParent] payments insert error:', payErr);
-  // אם את רוצה לא להפיל סליקה שכבר הצליחה, אפשר רק ללוג ולהמשיך
-  // אבל עדיף להחזיר שגיאה כדי שתדעי לתקן.
-  throw new Error(payErr.message);
-}
+        if (payErr) {
+          console.error('[chargeSelectedChargesForParent] payments insert error:', payErr);
+          // אם את רוצה לא להפיל סליקה שכבר הצליחה, אפשר רק ללוג ולהמשיך
+          // אבל עדיף להחזיר שגיאה כדי שתדעי לתקן.
+          throw new Error(payErr.message);
+        }
 
-const paymentId = payRow.id as string;
+        const paymentId = payRow.id as string;
 
-// ✅ 2) יצירת PDF + העלאה + עדכון invoice_url
-// await generateAndAttachReceiptUrlOnly({
-//   sb,
-//   tenantSchema,
-//   paymentId,
-//   amountAgorot,
-//   tx: {
-//     transaction_id: providerId,
-//     credit_card_last_4_digits: usedProfile?.last4,
-//     card_type_name: usedProfile?.brand,
-//   },
-// });
-try {
-await ensureTranzilaInvoiceForPaymentInternal({
-  tenantSchema,
-  paymentId,
-  extraLinesByChild: invoiceExtraLinesByChild,
-});
-} catch (err: any) {
-  console.error('[invoice after charge] failed', err?.message || err);
+        // ✅ 2) יצירת PDF + העלאה + עדכון invoice_url
+        // await generateAndAttachReceiptUrlOnly({
+        //   sb,
+        //   tenantSchema,
+        //   paymentId,
+        //   amountAgorot,
+        //   tx: {
+        //     transaction_id: providerId,
+        //     credit_card_last_4_digits: usedProfile?.last4,
+        //     card_type_name: usedProfile?.brand,
+        //   },
+        // });
+        try {
+          await ensureTranzilaInvoiceForPaymentInternal({
+            tenantSchema,
+            paymentId,
+            extraLinesByChild: invoiceExtraLinesByChild,
+          });
+        } catch (err: any) {
+          console.error('[invoice after charge] failed', err?.message || err);
 
-  // לא מפילים סליקה – רק מסמנים שהחשבונית נכשלה
-  await sb.from('payments').update({
-    invoice_status: 'failed',
-    invoice_updated_at: new Date().toISOString(),
-  }).eq('id', paymentId);
-}
+          // לא מפילים סליקה – רק מסמנים שהחשבונית נכשלה
+          await sb.from('payments').update({
+            invoice_status: 'failed',
+            invoice_updated_at: new Date().toISOString(),
+          }).eq('id', paymentId);
+        }
 
-}
+      }
 
       res.json({ ok: true, results });
     } catch (e: any) {
@@ -1194,7 +1195,587 @@ await ensureTranzilaInvoiceForPaymentInternal({
   },
 );
 
+export const chargeSelectedChargesForRider = onRequest(
+  {
+    invoker: 'public',
+    secrets: [
+      SUPABASE_URL_S,
+      SUPABASE_KEY_S,
+      INTERNAL_CALL_SECRET_S,
+      TRANZILA_PASSWORD_S,
+      TRANZILA_PASSWORD_TOKEN_S,
+      TRANZILA_APP_KEY_S,
+      TRANZILA_SECRET_S,
+    ],
+  },
+  async (req, res) => {
+    try {
+      if (handleCors(req, res)) return;
 
+      if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+      }
+
+      const { tenantSchema, riderUid, chargeIds } = req.body as {
+        tenantSchema: string;
+        riderUid: string;
+        chargeIds: string[];
+        secretaryEmail?: string | null;
+      };
+
+      if (!tenantSchema || !riderUid || !Array.isArray(chargeIds) || !chargeIds.length) {
+        res.status(400).json({
+          ok: false,
+          error: 'missing tenantSchema/riderUid/chargeIds',
+        });
+        return;
+      }
+
+      const sb = getSupabaseForTenant(tenantSchema);
+
+      const terminal = await loadDefaultBillingTerminal({
+        sbTenant: sb,
+        provider: 'tranzila',
+        mode: 'prod',
+      });
+
+      if (!terminal.tok_terminal_name) {
+        res.status(500).json({
+          ok: false,
+          error: 'tok_terminal_name not configured in billing_terminals',
+        });
+        return;
+      }
+
+      const { data: profiles, error: pErr } = await sb
+        .from('independent_rider_payment_profiles')
+        .select('id, token_ref, last4, brand, is_default, created_at, expiry_month, expiry_year')
+        .eq('rider_uid', riderUid)
+        .eq('active', true)
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (pErr) throw pErr;
+
+      const activeProfiles = (profiles ?? []).filter((p: any) => !isPaymentProfileExpired(p));
+
+      if (!activeProfiles.length) {
+        res.status(400).json({
+          ok: false,
+          error: profiles?.length
+            ? 'all rider payment profiles are expired'
+            : 'no active payment profiles for rider',
+        });
+        return;
+      }
+
+      const { data: charges, error: cErr } = await sb
+        .from('rider_charges')
+        .select('id, rider_uid, status, description, amount_agorot, paid_agorot')
+        .in('id', chargeIds)
+        .eq('rider_uid', riderUid);
+
+      if (cErr) throw cErr;
+
+      const byId = new Map((charges ?? []).map((c: any) => [c.id, c]));
+      const missing = chargeIds.filter((id) => !byId.has(id));
+
+      if (missing.length) {
+        res.status(404).json({
+          ok: false,
+          error: `rider charges not found: ${missing.join(',')}`,
+        });
+        return;
+      }
+
+      const results: any[] = [];
+
+      for (const chargeId of chargeIds) {
+        const charge: any = byId.get(chargeId);
+
+        if (String(charge.status) === 'paid') {
+          results.push({ chargeId, skipped: true, reason: 'already_paid' });
+          continue;
+        }
+
+        if (String(charge.status) === 'cancelled') {
+          results.push({ chargeId, skipped: true, reason: 'cancelled' });
+          continue;
+        }
+
+        const creditsAgorot = await getRiderChargeCreditsAgorot(sb, chargeId);
+
+        const amountAgorot = Math.max(
+          Number(charge.amount_agorot ?? 0) -
+          Number(charge.paid_agorot ?? 0) -
+          creditsAgorot,
+          0
+        );
+
+        if (!Number.isFinite(amountAgorot) || amountAgorot <= 0) {
+          results.push({ chargeId, skipped: true, reason: 'amount_is_zero' });
+          continue;
+        }
+
+        let charged = false;
+        let usedProfile: any = null;
+        let providerId: string | null = null;
+        let lastErrMsg = 'charge failed';
+
+        for (const prof of activeProfiles) {
+          const attempt = await chargeByToken({
+            terminalName: terminal.tok_terminal_name,
+            token: String(prof.token_ref),
+            amountAgorot,
+            description: charge.description ?? 'Rider charge',
+            expiryMonth: prof.expiry_month,
+            expiryYear: prof.expiry_year,
+          });
+
+          if (attempt.ok) {
+            charged = true;
+            usedProfile = prof;
+            providerId = attempt.provider_id;
+            break;
+          }
+
+          lastErrMsg = attempt.error || 'charge failed';
+        }
+
+        if (!charged) {
+          await sb
+            .from('rider_charges')
+            .update({
+              status: 'failed',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', chargeId);
+
+          results.push({
+            ok: false,
+            chargeId,
+            error: lastErrMsg,
+          });
+
+          continue;
+        }
+
+        const amountNis = Number((amountAgorot / 100).toFixed(2));
+        const nowIso = new Date().toISOString();
+
+        const { data: payRow, error: payErr } = await sb
+          .from('independent_rider_payments')
+          .insert({
+            rider_uid: riderUid,
+            payment_profile_id: usedProfile?.id ?? null,
+            amount: amountNis,
+            currency: 'ILS',
+            method: 'credit_card',
+            status: 'succeeded',
+            provider: 'tranzila',
+            provider_transaction_id: providerId,
+            tranzila_invoice_url: null,
+            date: nowIso,
+            created_at: nowIso,
+            updated_at: nowIso,
+          })
+          .select('id')
+          .single();
+
+        if (payErr) throw new Error(payErr.message);
+
+        const paymentId = payRow.id as string;
+
+        await sb
+          .from('rider_charges')
+          .update({
+            status: 'paid',
+            paid_agorot: Number(charge.paid_agorot ?? 0) + amountAgorot,
+            updated_at: nowIso,
+          })
+          .eq('id', chargeId);
+
+        try {
+          const invoice = await ensureTranzilaInvoiceForRiderPaymentInternal({
+            sb,
+            tenantSchema,
+            riderUid,
+            chargeId,
+            paymentId,
+            paymentProfileId: usedProfile?.id ?? null,
+            amountAgorot,
+          });
+
+          await sb
+            .from('independent_rider_payments')
+            .update({
+              tranzila_invoice_url: invoice.invoiceUrl,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', paymentId);
+
+          results.push({
+            ok: true,
+            chargeId,
+            paymentId,
+            providerId,
+            invoiceUrl: invoice.invoiceUrl,
+          });
+        } catch (invoiceErr: any) {
+          console.error('[rider invoice after charge] failed', invoiceErr?.message || invoiceErr);
+
+          results.push({
+            ok: true,
+            chargeId,
+            paymentId,
+            providerId,
+            invoice_error: invoiceErr?.message ?? 'invoice failed',
+          });
+        }
+      }
+
+      res.json({
+        ok: true,
+        results,
+        failedCount: results.filter((r) => r.ok === false).length,
+      });
+    } catch (e: any) {
+      console.error('[chargeSelectedChargesForRider] error:', e);
+      res.status(500).json({
+        ok: false,
+        error: e?.message ?? 'internal error',
+      });
+    }
+  }
+);
+
+function isPaymentProfileExpired(profile: any): boolean {
+  if (!profile?.expiry_month || !profile?.expiry_year) return false;
+
+  const expiryEnd = new Date(
+    Number(profile.expiry_year),
+    Number(profile.expiry_month),
+    0,
+    23,
+    59,
+    59
+  );
+
+  return expiryEnd < new Date();
+}
+
+async function getRiderChargeCreditsAgorot(
+  sb: SupabaseClient,
+  chargeId: string
+): Promise<number> {
+  const { data, error } = await sb
+    .from('rider_credits')
+    .select('amount_agorot')
+    .eq('related_charge_id', chargeId);
+
+  if (error) throw error;
+
+  return (data ?? []).reduce(
+    (sum: number, row: any) => sum + Number(row.amount_agorot ?? 0),
+    0
+  );
+}
+
+async function ensureTranzilaInvoiceForRiderPaymentInternal(args: {
+  sb: SupabaseClient;
+  tenantSchema: string;
+  riderUid: string;
+  chargeId: string;
+  paymentId: string;
+  paymentProfileId?: string | null;
+  amountAgorot: number;
+}): Promise<{
+  invoiceUrl: string;
+  documentId: string | null;
+  documentNumber: string | null;
+  retrievalKey: string;
+}> {
+  const {
+    sb,
+    tenantSchema,
+    riderUid,
+    chargeId,
+    paymentId,
+    paymentProfileId,
+    amountAgorot,
+  } = args;
+
+  const { data: rider, error: riderErr } = await sb
+    .from('independent_riders')
+    .select('uid, full_name, email, id_number, phone')
+    .eq('uid', riderUid)
+    .maybeSingle();
+
+  if (riderErr) throw new Error(`independent_riders query failed: ${riderErr.message}`);
+  if (!rider) throw new Error('rider not found');
+
+  const { data: itemsRows, error: itemsErr } = await sb
+    .from('rider_charge_details')
+    .select(`
+      id,
+      charge_id,
+      item_date,
+      service_name,
+      quantity,
+      unit_price_agorot,
+      amount_agorot,
+      description,
+      horse_name
+    `)
+    .eq('charge_id', chargeId)
+    .order('item_date', { ascending: true });
+
+  if (itemsErr) throw new Error(`rider_charge_details query failed: ${itemsErr.message}`);
+
+  const items = (itemsRows ?? []).map((item: any) => {
+    const serviceName = item.service_name || item.description || 'שירות רוכב עצמאי';
+    const horsePart = item.horse_name ? ` - ${item.horse_name}` : '';
+    const datePart = item.item_date ? ` - ${item.item_date}` : '';
+
+    return {
+      name: `${serviceName}${horsePart}${datePart}`.slice(0, 120),
+      unit_price: Number((Number(item.unit_price_agorot ?? item.amount_agorot ?? 0) / 100).toFixed(2)),
+      units_number: Number(item.quantity || 1),
+      unit_type: 1,
+      currency_code: 'ILS',
+    };
+  });
+
+  const { data: creditsRows, error: creditsErr } = await sb
+    .from('rider_credits')
+    .select('amount_agorot, reason')
+    .eq('related_charge_id', chargeId);
+
+  if (creditsErr) throw new Error(`rider_credits query failed: ${creditsErr.message}`);
+
+  for (const credit of creditsRows ?? []) {
+    items.push({
+      name: `זיכוי: ${credit.reason || ''}`.slice(0, 120),
+      unit_price: Number((-Math.abs(Number(credit.amount_agorot ?? 0)) / 100).toFixed(2)),
+      units_number: 1,
+      unit_type: 1,
+      currency_code: 'ILS',
+    });
+  }
+
+  if (!items.length) {
+    throw new Error('no rider charge items found for invoice');
+  }
+  const totalNis = Number(
+    items.reduce((sum: number, item: any) => {
+      return sum + Number(item.unit_price || 0) * Number(item.units_number || 1);
+    }, 0).toFixed(2)
+  );
+
+  if (!Number.isFinite(totalNis) || totalNis <= 0) {
+    throw new Error('invoice amount must be positive');
+  }
+  let ccLast4: string | undefined;
+
+  if (paymentProfileId) {
+    const { data: prof, error: profErr } = await sb
+      .from('independent_rider_payment_profiles')
+      .select('id, brand, last4')
+      .eq('id', paymentProfileId)
+      .maybeSingle();
+
+    if (profErr) throw new Error(`independent_rider_payment_profiles query failed: ${profErr.message}`);
+    ccLast4 = String(prof?.last4 ?? '').trim().slice(-4) || undefined;
+  }
+
+  const terminal = await loadDefaultBillingTerminal({
+    sbTenant: sb,
+    provider: 'tranzila',
+    mode: 'prod',
+  });
+
+  const auth = buildTranzilaAuth();
+  const documentDate = new Date().toISOString().slice(0, 10);
+  const vatPercent = documentDate >= '2025-01-01' ? 18 : 17;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-tranzila-api-app-key': auth.appKey,
+    'X-tranzila-api-request-time': auth.requestTime,
+    'X-tranzila-api-nonce': auth.nonce,
+    'X-tranzila-api-access-token': auth.accessToken,
+  };
+
+  const clientCompany = [
+    rider.full_name || 'רוכב עצמאי',
+    rider.id_number || null,
+  ].filter(Boolean).join('\n');
+
+  const payload: any = {
+    terminal_name: terminal.terminal_name,
+    document_date: documentDate,
+    document_type: 'IR',
+    document_language: 'heb',
+    document_currency_code: 'ILS',
+    action: 1,
+    vat_percent: vatPercent,
+    client_company: clientCompany,
+    client_email: rider.email ?? undefined,
+    items,
+    payments: [
+      {
+        payment_method: 1,
+        payment_date: documentDate,
+        amount: totalNis,
+        currency_code: 'ILS',
+        cc_last_4_digits: ccLast4 || undefined,
+        cc_credit_term: 1,
+      },
+    ],
+    response_language: 'eng',
+  };
+
+  const resp = await fetch('https://billing5.tranzila.com/api/documents_db/create_document', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  const rawText = await resp.text();
+  let json: any = null;
+
+  try {
+    json = JSON.parse(rawText);
+  } catch { }
+
+  if (!resp.ok || !json || String(json.status_code) !== '0') {
+    throw new Error(`tranzila rider create_document failed: ${json?.status_msg ?? rawText}`);
+  }
+
+  const documentId = json?.document?.id ? String(json.document.id) : null;
+  const documentNumber = json?.document?.number ? String(json.document.number) : null;
+
+  const retrievalKey =
+    json?.retrieval_key ??
+    json?.document?.retrieval_key ??
+    json?.retrievalKey ??
+    null;
+
+  if (!retrievalKey) {
+    throw new Error('missing retrieval_key from tranzila rider invoice');
+  }
+
+  const tranzilaPdfUrl = `https://my.tranzila.com/api/get_financial_document/${retrievalKey}`;
+
+  const pdfResp = await fetch(tranzilaPdfUrl);
+
+  if (!pdfResp.ok) {
+    throw new Error(`failed to fetch rider invoice PDF: HTTP ${pdfResp.status}`);
+  }
+
+  const pdfBuffer = Buffer.from(await pdfResp.arrayBuffer());
+
+  const bucket = 'payments-invoices';
+  const monthYear = `${documentDate.slice(5, 7)}-${documentDate.slice(0, 4)}`;
+  const path = `${tenantSchema}/rider-invoices/${monthYear}/${paymentId}.pdf`;
+
+  const { error: uploadErr } = await sb.storage
+    .from(bucket)
+    .upload(path, pdfBuffer, {
+      contentType: 'application/pdf',
+      upsert: true,
+    });
+
+  if (uploadErr) {
+    throw new Error(`rider invoice storage upload failed: ${uploadErr.message}`);
+  }
+
+  const { data: pub } = sb.storage.from(bucket).getPublicUrl(path);
+  const invoiceUrl = (pub as any).publicUrl + '?v=' + Date.now();
+
+  try {
+    await sendRiderInvoiceViaNotifyUser({
+      tenantSchema,
+      riderUid,
+      riderFullName: rider.full_name ?? null,
+      documentNumber,
+      invoiceUrl,
+      pdfBuffer,
+    });
+  } catch (mailErr: any) {
+    console.error('[rider invoice mail] failed', mailErr?.message || mailErr);
+  }
+
+  return {
+    invoiceUrl,
+    documentId,
+    documentNumber,
+    retrievalKey: String(retrievalKey),
+  };
+}
+async function sendRiderInvoiceViaNotifyUser(args: {
+  tenantSchema: string;
+  riderUid: string;
+  riderFullName: string | null;
+  documentNumber: string | null;
+  invoiceUrl: string;
+  pdfBuffer: Buffer;
+}) {
+  const internalSecret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
+  if (!internalSecret) throw new Error('Missing INTERNAL_CALL_SECRET');
+
+  const riderName = args.riderFullName || 'רוכב/ת';
+
+  const payload = {
+    tenantSchema: args.tenantSchema,
+
+    // חשוב: אצלך notifyUser מצפה ל-independent, לא independent_rider
+    userType: 'independent',
+    uid: args.riderUid,
+
+    forceEmail: true,
+    subject: `חשבונית ${args.documentNumber ?? ''}`.trim(),
+    html: `
+      <div dir="rtl" style="font-family: Arial, sans-serif">
+        <p>שלום ${riderName},</p>
+        <p>מצורפת החשבונית עבור התשלום שבוצע.</p>
+        <p>תודה,<br/>Smart Farm</p>
+      </div>
+    `.trim(),
+    attachments: [
+      {
+        filename: `invoice-${args.documentNumber ?? 'payment'}.pdf`,
+        contentType: 'application/pdf',
+        contentBase64: args.pdfBuffer.toString('base64'),
+      },
+    ],
+  };
+
+  const r = await fetch(NOTIFY_USER_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Internal-Secret': internalSecret,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json: any = await r.json().catch(() => ({}));
+
+  console.log('[sendRiderInvoiceViaNotifyUser] response', {
+    status: r.status,
+    sent: json?.sent,
+    reason: json?.reason,
+    to: json?.to,
+  });
+
+  if (!r.ok) {
+    throw new Error(`notifyUser failed: ${json?.message || json?.error || r.statusText}`);
+  }
+
+  return json;
+}
 
 
 // ===================================================================
@@ -1233,7 +1814,7 @@ export const recordOneTimePayment = onRequest(
 
       const paymentId = await recordPaymentInDb({
         sb,
-        tenantSchema: tenantSchema ,
+        tenantSchema: tenantSchema,
         parentUid: parentUid ?? null,
         farmId: undefined,
         amountAgorot,
@@ -1312,7 +1893,7 @@ async function generateAndSendReceipt(args: {
   const BUCKET_NAME = 'payments-invoices';
   const filePath = `receipts/${tenantSchema || 'public'}/${paymentId}.pdf`;
 
-  
+
 
   const { error: uploadErr } = await sb.storage
     .from(BUCKET_NAME)
@@ -1365,7 +1946,6 @@ async function generateAndSendReceipt(args: {
     ],
   });
 }
-
 export const savePaymentMethod = onRequest(
   {
     invoker: 'public',
@@ -1381,7 +1961,9 @@ export const savePaymentMethod = onRequest(
       }
 
       const {
+        userType,
         parentUid,
+        riderUid,
         tenantSchema,
         token,
         last4,
@@ -1390,37 +1972,42 @@ export const savePaymentMethod = onRequest(
         expiryYear,
       } = req.body as any;
 
-      if (!tenantSchema || !parentUid || !token) {
+      const isIndependentRider = userType === 'independent_rider';
+
+      const ownerUid = isIndependentRider ? riderUid : parentUid;
+
+      if (!tenantSchema || !ownerUid || !token) {
         res.status(400).json({
           ok: false,
-          error: 'missing tenantSchema/parentUid/token',
+          error: isIndependentRider
+            ? 'missing tenantSchema/riderUid/token'
+            : 'missing tenantSchema/parentUid/token',
         });
         return;
       }
 
       const sb = getSupabaseForTenant(String(tenantSchema));
 
-      const { data: targetParent, error: parentErr } = await sb
-        .from('parents')
-        .select('uid, first_name, last_name')
-        .eq('uid', String(parentUid))
-        .maybeSingle();
+      const tableName = isIndependentRider
+        ? 'independent_rider_payment_profiles'
+        : 'payment_profiles';
 
-      if (parentErr) throw parentErr;
+      const uidColumn = isIndependentRider
+        ? 'rider_uid'
+        : 'parent_uid';
 
-      if (!targetParent) {
-        res.status(404).json({
-          ok: false,
-          error: 'PARENT_NOT_FOUND',
-          message: 'ההורה שאליו מנסים לשמור כרטיס לא נמצא',
-        });
-        return;
-      }
+      const existingOwnerKey = isIndependentRider
+        ? 'existingRiderUid'
+        : 'existingParentUid';
 
+      const expMonth = normalizeExpiryMonth(expiryMonth);
+      const expYear = normalizeExpiryYear(expiryYear);
+
+      // האם כבר יש default פעיל לאותו משתמש
       const { data: existingDefault, error: defErr } = await sb
-        .from('payment_profiles')
+        .from(tableName)
         .select('id')
-        .eq('parent_uid', String(parentUid))
+        .eq(uidColumn, String(ownerUid))
         .eq('active', true)
         .eq('is_default', true)
         .limit(1);
@@ -1429,81 +2016,123 @@ export const savePaymentMethod = onRequest(
 
       const shouldBeDefault = !(existingDefault?.length);
 
-      const expMonth = normalizeExpiryMonth(expiryMonth);
-      const expYear = normalizeExpiryYear(expiryYear);
-
+      // בדיקה אם הטוקן כבר קיים באותה טבלה
       const { data: existingToken, error: existingTokenErr } = await sb
-        .from('payment_profiles')
-        .select('id, parent_uid, last4, brand')
+        .from(tableName)
+        .select(`id, ${uidColumn}, last4, brand, active, is_default`)
+        .eq('provider', 'tranzila')
         .eq('token_ref', String(token))
-        .eq('active', true)
         .maybeSingle();
 
-      if (existingTokenErr) throw existingTokenErr;
-
-      if (existingToken) {
-        const { data: existingParent } = await sb
-          .from('parents')
-          .select('uid, first_name, last_name')
-          .eq('uid', existingToken.parent_uid)
-          .maybeSingle();
-
-        const existingParentName = existingParent
-          ? `${existingParent.first_name || ''} ${existingParent.last_name || ''}`.trim()
-          : '';
-
-        res.status(409).json({
+      if (existingTokenErr) {
+        console.error('[savePaymentMethod] existing token query error', existingTokenErr);
+        res.status(500).json({
           ok: false,
-          error: 'CARD_ALREADY_EXISTS',
-          message: existingParentName
-            ? `הכרטיס כבר קיים אצל ${existingParentName}`
-            : 'הכרטיס כבר קיים במערכת',
-          existingParentUid: existingToken.parent_uid,
-          existingParentName,
-          existingProfileId: existingToken.id,
-          last4: existingToken.last4,
-          brand: existingToken.brand,
+          error: existingTokenErr.message,
         });
         return;
       }
 
-      const { data: inserted, error: insErr } = await sb
-        .from('payment_profiles')
-        .insert({
-          parent_uid: String(parentUid),
-          token_ref: String(token),
-          last4: last4 ?? null,
-          brand: brand ?? null,
-          expiry_month: expMonth,
-          expiry_year: expYear,
-          active: true,
+      if (existingToken) {
+        const existingOwnerUid = isIndependentRider
+          ? (existingToken as any).rider_uid
+          : (existingToken as any).parent_uid;
+
+        if (String(existingOwnerUid) !== String(ownerUid)) {
+          res.status(409).json({
+            ok: false,
+            error: 'CARD_EXISTS_FOR_ANOTHER_USER',
+            message: 'האשראי קיים אצל משתמש אחר ולא ניתן לשמור אותו',
+          });
+          return;
+        }
+
+        if (existingToken.active === true) {
+          res.status(409).json({
+            ok: false,
+            error: 'CARD_ALREADY_EXISTS',
+            message: 'לא ניתן לשמור אותו כרטיס אשראי פעמיים',
+          });
+          return;
+        }
+
+
+        const { error: reactivateErr } = await sb
+          .from(tableName)
+          .update({
+            active: true,
+            is_default: shouldBeDefault,
+            last4: last4 ?? existingToken.last4 ?? null,
+            brand: brand ?? existingToken.brand ?? null,
+            expiry_month: expMonth,
+            expiry_year: expYear,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingToken.id);
+
+        if (reactivateErr) {
+          res.status(500).json({
+            ok: false,
+            error: reactivateErr.message,
+          });
+          return;
+        }
+
+        res.json({
+          ok: true,
           is_default: shouldBeDefault,
-        })
-        .select('id')
-        .single();
+          reactivated: true,
+        });
+        return;
+      }
+
+      const insertPayload = {
+        [uidColumn]: String(ownerUid),
+        provider: 'tranzila',
+        token_ref: String(token),
+        last4: last4 ?? null,
+        brand: brand ?? null,
+        expiry_month: expMonth,
+        expiry_year: expYear,
+        active: true,
+        is_default: shouldBeDefault,
+      };
+
+      const { error: insErr } = await sb
+        .from(tableName)
+        .insert(insertPayload);
 
       if (insErr) {
+        console.error('[savePaymentMethod] insert error', insErr);
+
         if (insErr.code === '23505') {
           res.status(409).json({
             ok: false,
             error: 'CARD_ALREADY_EXISTS',
             message: 'הכרטיס שהוסף כבר קיים במערכת',
+            details: insErr.details,
           });
           return;
         }
 
-        throw insErr;
+        res.status(500).json({
+          ok: false,
+          error: insErr.message,
+          details: insErr.details,
+          hint: insErr.hint,
+          code: insErr.code,
+        });
+        return;
       }
 
       res.json({
         ok: true,
         is_default: shouldBeDefault,
-        profileId: inserted.id,
+        userType: isIndependentRider ? 'independent_rider' : 'parent',
       });
       return;
     } catch (e: any) {
       console.error('[savePaymentMethod] error', e);
-
       res.status(500).json({
         ok: false,
         error: e?.message ?? 'internal error',
@@ -1512,7 +2141,6 @@ export const savePaymentMethod = onRequest(
     }
   },
 );
-
 function normalizeExpiryYear(y: any): number | null {
   if (y === null || y === undefined || y === '') return null;
   const n = Number(y);

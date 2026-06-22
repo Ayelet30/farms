@@ -181,8 +181,9 @@ export class SliderComponent implements OnInit, OnDestroy {
         this.menuItems = [
           { path: 'independent/appointment', label: 'זימון שירות', icon: 'calendar_plus' },
           { path: 'independent/my-services', label: 'השירותים שלי', icon: 'receipt' },
-          { path: 'independent/billing', label: 'ניהול חיובים', icon: 'billing' },
+          // { path: 'independent/billing', label: 'ניהול חיובים', icon: 'billing' },
           { path: 'independent/requests', label: 'בקשות ואישורים', icon: 'checklist' },
+          { path: 'independent/payments', label: 'אמצעי תשלום', icon: 'billing' },
           { path: 'independent/details', label: 'הפרטים שלי', icon: 'user' },
           { path: 'independent/horses', label: 'הסוסים שלי', icon: 'hors' },
 

@@ -38,11 +38,13 @@
 
     <div class="row">
       <div class="k">תאריך התחלה</div>
-<div class="v">{{ formatDate(startDate) }}</div>    </div>
+      <div class="v">{{ formatDate(startDate) }}</div>
+    </div>
 
     <div class="row" *ngIf="!isOpenEnded">
       <div class="k">תאריך סיום</div>
-<div class="v">{{ formatDate(endDate) }}</div>    </div>
+      <div class="v">{{ formatDate(endDate) }}</div>
+    </div>
 
     <div class="row">
       <div class="k">מדריך/ה</div>
@@ -81,7 +83,7 @@
 
     <div class="row" *ngIf="isOpenEnded">
       <div class="k">חלון בדיקה (ימים)</div>
-<div class="v">{{ seriesSearchHorizonDays }}</div>
+      <div class="v">{{ seriesSearchHorizonDays }}</div>
     </div>
 
     <div class="row">
@@ -115,42 +117,41 @@
     </div>
 
     <!-- שיבוץ קיים / משתתפים -->
-    <div class="subcard" *ngIf="existingParticipants().length">
-
+    <div class="subcard" *ngIf="canViewExistingPlacement && existingParticipants().length">
       <div class="row" *ngIf="participantsCapacity() as cap">
         <div class="k">שיבוץ קיים</div>
         <div class="v">{{ cap.current }} / {{ cap.max }}</div>
       </div>
 
       <div class="mini-box">
-      <div class="mini-head">
-  <div>שם</div>
-  <div class="c">מין</div>
-  <div class="c">גיל</div>
-  <div>יחד איתו</div>
-  <div>הערות</div>
-</div>
+        <div class="mini-head">
+          <div>שם</div>
+          <div class="c">מין</div>
+          <div class="c">גיל</div>
+          <div>תאריכים משותפים</div>
+          <div>הערות</div>
+        </div>
 
 
-      <div class="mini-row" *ngFor="let c of existingParticipants()">
-  <div class="cell">{{ c.first_name }} {{ c.last_name }}</div>
-  <div class="cell c">{{ c.gender || '—' }}</div>
-  <div class="cell c">{{ calcAge(c.birth_date) }}</div>
+        <div class="mini-row" *ngFor="let c of existingParticipants()">
+          <div class="cell">{{ c.first_name }} {{ c.last_name }}</div>
+          <div class="cell c">{{ c.gender || '—' }}</div>
+          <div class="cell c">{{ calcAge(c.birth_date) }}</div>
 
-  <div class="cell">
-    <div>
-      {{ c.together_from | date:'dd/MM/yyyy' }} – {{ c.together_to | date:'dd/MM/yyyy' }}
-    </div>
-    <div class="muted">
-      ({{ c.overlap_count }} מפגשים יחד)
-    </div>
-  </div>
+          <div class="cell">
+            <div>
+              {{ c.together_from | date:'dd/MM/yyyy' }} – {{ c.together_to | date:'dd/MM/yyyy' }}
+            </div>
+            <div class="muted">
+              ({{ c.overlap_count }} מפגשים יחד)
+            </div>
+          </div>
 
-  <div class="cell notes-cell">
-    <span *ngIf="c.medical_notes">🩺 {{ c.medical_notes }}</span>
-    <span *ngIf="c.behavior_notes">⚠ {{ c.behavior_notes }}</span>
-  </div>
-</div>
+          <div class="cell notes-cell">
+            <span *ngIf="c.medical_notes">🩺 {{ c.medical_notes }}</span>
+            <span *ngIf="c.behavior_notes">⚠ {{ c.behavior_notes }}</span>
+          </div>
+        </div>
 
       </div>
 
@@ -160,29 +161,21 @@
       <div><span class="mk">נוצר:</span> {{ req()!.createdAt | date:'dd/MM/yyyy HH:mm' }}</div>
     </div>
 
-    <textarea
-      class="note"
-      *ngIf="canDecide()"
-      [(ngModel)]="note"
-      [disabled]="busy()"
+    <textarea class="note" *ngIf="canDecide()" [(ngModel)]="note" [disabled]="busy()"
       placeholder="סיבה לדחייה (אופציונלי)">
     </textarea>
 
-    
+
 
     <div class="actions" *ngIf="canDecide()">
-      <button mat-stroked-button type="button" class="action reject"
-              (click)="rejectSelected()"
-              [disabled]="loading() || busy()">
+      <button mat-stroked-button type="button" class="action reject" (click)="rejectSelected()"
+        [disabled]="loading() || busy()">
         דחייה
       </button>
 
-      <button mat-flat-button type="button" class="action approve"
-              (click)="approveSelected()"
-              [disabled]="loading() || !canApprove() || busy()"
-              [matTooltip]="approveTooltip || ''"
-              [matTooltipDisabled]="!approveTooltip"
-              matTooltipPosition="above">
+      <button mat-flat-button type="button" class="action approve" (click)="approveSelected()"
+        [disabled]="loading() || !canApprove() || busy()" [matTooltip]="approveTooltip || ''"
+        [matTooltipDisabled]="!approveTooltip" matTooltipPosition="above">
         אישור
       </button>
     </div>

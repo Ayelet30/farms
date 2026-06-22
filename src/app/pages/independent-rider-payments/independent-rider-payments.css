@@ -1,0 +1,249 @@
+.card {
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    padding: 18px;
+    background: var(--panel-bg, #fff);
+}
+
+.top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+
+    .title {
+        margin: 0;
+    }
+}
+
+.section {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.section-title {
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.profiles,
+.invoices {
+    display: grid;
+    gap: 10px;
+}
+
+.profile,
+.invoice {
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 14px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.6);
+}
+
+.left {
+    display: grid;
+    gap: 2px;
+}
+
+.brand {
+    font-weight: 700;
+}
+
+.last4 {
+    opacity: 0.9;
+}
+
+.created {
+    opacity: 0.75;
+    font-size: 13px;
+}
+
+.right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.badge {
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(0, 128, 0, 0.08);
+    border: 1px solid rgba(0, 128, 0, 0.25);
+    font-size: 12px;
+}
+
+.empty,
+.hint {
+    opacity: 0.75;
+    font-size: 13px;
+}
+
+.muted {
+    opacity: 0.7;
+}
+
+.error {
+    color: #b00020;
+    margin-top: 8px;
+}
+
+.btn {
+    border-radius: 999px;
+    padding: 10px 14px;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    background: #fff;
+    cursor: pointer;
+}
+
+.btn.primary {
+    background: var(--brand, #6b7f3b);
+    color: #fff;
+    border-color: transparent;
+}
+
+.btn.secondary {
+    background: #fff;
+}
+
+.btn.ghost {
+    background: transparent;
+}
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    z-index: 5000;
+
+    &.is-open {
+        display: flex;
+    }
+}
+
+.modal {
+    height: -webkit-fill-available;
+    width: min(684px, 75vw);
+    margin-top: 70px;
+    background: var(--panel-bg, #fff);
+    border-radius: 18px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+
+    .modal-title {
+        font-weight: 800;
+    }
+}
+
+.icon-btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.modal-body {
+    padding: 14px 16px;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 14px 16px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.hf-grid {
+    display: grid;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.hf-box {
+    max-height: 50px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 14px;
+    padding: 10px;
+    background: #fff;
+}
+
+.hf-error {
+    color: #b00020;
+    font-size: 12px;
+    margin-top: 6px;
+}
+
+.ok-banner {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(0, 128, 0, 0.08);
+    border: 1px solid rgba(0, 128, 0, 0.2);
+}
+
+.error-banner {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(176, 0, 32, 0.08);
+    border: 1px solid rgba(176, 0, 32, 0.2);
+}
+
+input {
+    padding: 0 8px;
+    font-size: 15px;
+    box-sizing: border-box;
+    height: 10% !important;
+}
+
+input,
+select {
+    padding: 0 8px;
+    font-size: 15px;
+    box-sizing: border-box;
+    height: 10% !important;
+}
+
+.hf-grid.is-disabled {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.badge {
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.badge.warning {
+    background: #fff3cd;
+    color: #b26a00;
+    border: 1px solid #ffd666;
+}
+
+.badge.danger {
+    background: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}

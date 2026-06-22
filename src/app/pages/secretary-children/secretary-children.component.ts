@@ -75,7 +75,7 @@ type ChildDetails = {
   behavior_notes?: string | null;
   parent?: ParentBrief | null;
   created_at?: string | null;
-updated_at?: string | null;
+  updated_at?: string | null;
 };
 
 type ChildDocumentRow = {
@@ -156,60 +156,58 @@ export class SecretaryChildrenComponent implements OnInit {
 
   healthFunds: { id: string; name: string }[] = [];
   readonly statusOptions = [
-  { value: 'Active', label: 'פעיל' },
-  { value: 'Deleted', label: 'לא פעיל' },
-  { value: 'Pending Parent Terms', label: 'ממתין לאישור הורה' },
-  { value: 'Pending Addition Approval', label: 'ממתין לאישור מזכירה' },
-];
+    { value: 'Active', label: 'פעיל' },
+    { value: 'Deleted', label: 'לא פעיל' },
+  ];
 
-advancedFilters = {
-  terms: 'all' as TermsFilter,
-  intake: 'all' as IntakeFilter,
+  advancedFilters = {
+    terms: 'all' as TermsFilter,
+    intake: 'all' as IntakeFilter,
 
-  healthFundId: 'all',
-  gender: 'all',
+    healthFundId: 'all',
+    gender: 'all',
 
-  birthFrom: '',
-  birthTo: '',
+    birthFrom: '',
+    birthTo: '',
 
-  entryFrom: '',
-  entryTo: '',
+    entryFrom: '',
+    entryTo: '',
 
-  termsFrom: '',
-  termsTo: '',
+    termsFrom: '',
+    termsTo: '',
 
-  lessonFrom: '',
-  lessonTo: '',
+    lessonFrom: '',
+    lessonTo: '',
 
-  instructorId: 'all',
-  lessonType: 'all',
-  lessonDay: 'all',
+    instructorId: 'all',
+    lessonType: 'all',
+    lessonDay: 'all',
 
-  series: 'all' as SeriesFilter,
-  referral: 'all' as ReferralFilter,
-  missingDocs: 'all' as MissingDocsFilter,
-};
+    series: 'all' as SeriesFilter,
+    referral: 'all' as ReferralFilter,
+    missingDocs: 'all' as MissingDocsFilter,
+  };
 
-instructors: { id_number: string; first_name?: string | null; last_name?: string | null; name?: string | null }[] = [];
-lessonTypes: string[] = [];
-lessonDays: string[] = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  instructors: { id_number: string; first_name?: string | null; last_name?: string | null; name?: string | null }[] = [];
+  lessonTypes: string[] = [];
+  lessonDays: string[] = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
-termsByChild: Record<string, { signed: boolean; signedAt: string | null }> = {};
-intakeByChild: Record<string, boolean> = {};
+  termsByChild: Record<string, { signed: boolean; signedAt: string | null }> = {};
+  intakeByChild: Record<string, boolean> = {};
 
-lessonMetaByChild: Record<string, {
-  instructorIds: string[];
-  lessonTypes: string[];
-  days: string[];
-  hasActiveSeries: boolean;
-  hasReferral: boolean;
-  missingReferral: boolean;
-  missingRequiredDocs: boolean;
-  lessonDates: string[];
-}> = {};
+  lessonMetaByChild: Record<string, {
+    instructorIds: string[];
+    lessonTypes: string[];
+    days: string[];
+    hasActiveSeries: boolean;
+    hasReferral: boolean;
+    missingReferral: boolean;
+    missingRequiredDocs: boolean;
+    lessonDates: string[];
+  }> = {};
 
-savedFilters: SavedChildrenFilter[] = [];
-readonly FILTERS_STORAGE_KEY = 'secretary_children_saved_filters';
+  savedFilters: SavedChildrenFilter[] = [];
+  readonly FILTERS_STORAGE_KEY = 'secretary_children_saved_filters';
 
   readonly STORAGE_KEY = 'secretary_children_table_prefs';
 
@@ -277,8 +275,8 @@ readonly FILTERS_STORAGE_KEY = 'secretary_children_saved_filters';
   seriesDocsError: string | null = null;
   seriesDocs: SeriesDocRow[] = [];
 
-  
-uploadingSeriesDocLessonId: string | null = null;
+
+  uploadingSeriesDocLessonId: string | null = null;
   constructor(
     private ui: UiDialogService,
     private fb: FormBuilder,
@@ -560,25 +558,25 @@ uploadingSeriesDocLessonId: string | null = null;
       }
     }
 
-   if (this.statusFilter !== 'all') {
-  rows = rows.filter((c: any) => {
-    const status = String(c.status ?? '').toLowerCase();
+    if (this.statusFilter !== 'all') {
+      rows = rows.filter((c: any) => {
+        const status = String(c.status ?? '').toLowerCase();
 
-    if (this.statusFilter === 'active') {
-      return status === 'active';
+        if (this.statusFilter === 'active') {
+          return status === 'active';
+        }
+
+        if (this.statusFilter === 'inactive') {
+          return status === 'deleted' || status === 'inactive';
+        }
+
+        if (this.statusFilter === 'pending') {
+          return status.includes('pending');
+        }
+
+        return true;
+      });
     }
-
-    if (this.statusFilter === 'inactive') {
-      return status === 'deleted' || status === 'inactive';
-    }
-
-    if (this.statusFilter === 'pending') {
-      return status.includes('pending');
-    }
-
-    return true;
-  });
-}
 
     if (this.parentFilter === 'withParent') {
       rows = rows.filter((c: any) => !!c.parent_uid);
@@ -588,284 +586,284 @@ uploadingSeriesDocLessonId: string | null = null;
 
     const f = this.advancedFilters;
 
-if (f.healthFundId !== 'all') {
-  rows = rows.filter((c: any) => c.funding_source_id === f.healthFundId);
-}
+    if (f.healthFundId !== 'all') {
+      rows = rows.filter((c: any) => c.funding_source_id === f.healthFundId);
+    }
 
-if (f.gender !== 'all') {
-  rows = rows.filter((c: any) => c.gender === f.gender);
-}
+    if (f.gender !== 'all') {
+      rows = rows.filter((c: any) => c.gender === f.gender);
+    }
 
-if (f.birthFrom) {
-  rows = rows.filter((c: any) => c.birth_date && new Date(c.birth_date) >= new Date(f.birthFrom));
-}
+    if (f.birthFrom) {
+      rows = rows.filter((c: any) => c.birth_date && new Date(c.birth_date) >= new Date(f.birthFrom));
+    }
 
-if (f.birthTo) {
-  rows = rows.filter((c: any) => c.birth_date && new Date(c.birth_date) <= this.endOfDay(f.birthTo));
-}
+    if (f.birthTo) {
+      rows = rows.filter((c: any) => c.birth_date && new Date(c.birth_date) <= this.endOfDay(f.birthTo));
+    }
 
-if (f.entryFrom) {
-  rows = rows.filter((c: any) => c.created_at && new Date(c.created_at) >= new Date(f.entryFrom));
-}
+    if (f.entryFrom) {
+      rows = rows.filter((c: any) => c.created_at && new Date(c.created_at) >= new Date(f.entryFrom));
+    }
 
-if (f.entryTo) {
-  rows = rows.filter((c: any) => c.created_at && new Date(c.created_at) <= this.endOfDay(f.entryTo));
-}
+    if (f.entryTo) {
+      rows = rows.filter((c: any) => c.created_at && new Date(c.created_at) <= this.endOfDay(f.entryTo));
+    }
 
-if (f.terms !== 'all') {
-  rows = rows.filter((c: any) => {
-    const signed = !!this.termsByChild[c.child_uuid]?.signed;
-    return f.terms === 'signed' ? signed : !signed;
-  });
-}
+    if (f.terms !== 'all') {
+      rows = rows.filter((c: any) => {
+        const signed = !!this.termsByChild[c.child_uuid]?.signed;
+        return f.terms === 'signed' ? signed : !signed;
+      });
+    }
 
-if (f.termsFrom) {
-  rows = rows.filter((c: any) => {
-    const signedAt = this.termsByChild[c.child_uuid]?.signedAt;
-    return signedAt && new Date(signedAt) >= new Date(f.termsFrom);
-  });
-}
+    if (f.termsFrom) {
+      rows = rows.filter((c: any) => {
+        const signedAt = this.termsByChild[c.child_uuid]?.signedAt;
+        return signedAt && new Date(signedAt) >= new Date(f.termsFrom);
+      });
+    }
 
-if (f.termsTo) {
-  rows = rows.filter((c: any) => {
-    const signedAt = this.termsByChild[c.child_uuid]?.signedAt;
-    return signedAt && new Date(signedAt) <= this.endOfDay(f.termsTo);
-  });
-}
+    if (f.termsTo) {
+      rows = rows.filter((c: any) => {
+        const signedAt = this.termsByChild[c.child_uuid]?.signedAt;
+        return signedAt && new Date(signedAt) <= this.endOfDay(f.termsTo);
+      });
+    }
 
-if (f.intake !== 'all') {
-  rows = rows.filter((c: any) => {
-    const exists = !!this.intakeByChild[c.child_uuid];
-    return f.intake === 'exists' ? exists : !exists;
-  });
-}
+    if (f.intake !== 'all') {
+      rows = rows.filter((c: any) => {
+        const exists = !!this.intakeByChild[c.child_uuid];
+        return f.intake === 'exists' ? exists : !exists;
+      });
+    }
 
-if (f.instructorId !== 'all') {
-  rows = rows.filter((c: any) =>
-    this.lessonMetaByChild[c.child_uuid]?.instructorIds.includes(f.instructorId)
-  );
-}
+    if (f.instructorId !== 'all') {
+      rows = rows.filter((c: any) =>
+        this.lessonMetaByChild[c.child_uuid]?.instructorIds.includes(f.instructorId)
+      );
+    }
 
-if (f.lessonType !== 'all') {
-  rows = rows.filter((c: any) =>
-    this.lessonMetaByChild[c.child_uuid]?.lessonTypes.includes(f.lessonType)
-  );
-}
+    if (f.lessonType !== 'all') {
+      rows = rows.filter((c: any) =>
+        this.lessonMetaByChild[c.child_uuid]?.lessonTypes.includes(f.lessonType)
+      );
+    }
 
-if (f.lessonDay !== 'all') {
-  rows = rows.filter((c: any) =>
-    this.lessonMetaByChild[c.child_uuid]?.days.includes(f.lessonDay)
-  );
-}
+    if (f.lessonDay !== 'all') {
+      rows = rows.filter((c: any) =>
+        this.lessonMetaByChild[c.child_uuid]?.days.includes(f.lessonDay)
+      );
+    }
 
-if (f.series !== 'all') {
-  rows = rows.filter((c: any) => {
-    const hasSeries = !!this.lessonMetaByChild[c.child_uuid]?.hasActiveSeries;
-    return f.series === 'active' ? hasSeries : !hasSeries;
-  });
-}
+    if (f.series !== 'all') {
+      rows = rows.filter((c: any) => {
+        const hasSeries = !!this.lessonMetaByChild[c.child_uuid]?.hasActiveSeries;
+        return f.series === 'active' ? hasSeries : !hasSeries;
+      });
+    }
 
-if (f.referral !== 'all') {
-  rows = rows.filter((c: any) => {
-    const meta = this.lessonMetaByChild[c.child_uuid];
-    const hasReferral = !!meta?.hasReferral;
-    const missingReferral = !!meta?.missingReferral;
+    if (f.referral !== 'all') {
+      rows = rows.filter((c: any) => {
+        const meta = this.lessonMetaByChild[c.child_uuid];
+        const hasReferral = !!meta?.hasReferral;
+        const missingReferral = !!meta?.missingReferral;
 
-    if (f.referral === 'exists') return hasReferral;
-    return missingReferral;
-  });
-}
+        if (f.referral === 'exists') return hasReferral;
+        return missingReferral;
+      });
+    }
 
-if (f.missingDocs !== 'all') {
-  rows = rows.filter((c: any) => {
-    const missing = !!this.lessonMetaByChild[c.child_uuid]?.missingRequiredDocs;
-    return f.missingDocs === 'missing' ? missing : !missing;
-  });
-}
+    if (f.missingDocs !== 'all') {
+      rows = rows.filter((c: any) => {
+        const missing = !!this.lessonMetaByChild[c.child_uuid]?.missingRequiredDocs;
+        return f.missingDocs === 'missing' ? missing : !missing;
+      });
+    }
 
-if (f.lessonFrom || f.lessonTo) {
-  rows = rows.filter((c: any) => {
-    const dates = this.lessonMetaByChild[c.child_uuid]?.lessonDates ?? [];
-    return dates.some((d) => {
-      const date = new Date(d);
-      if (f.lessonFrom && date < new Date(f.lessonFrom)) return false;
-      if (f.lessonTo && date > this.endOfDay(f.lessonTo)) return false;
-      return true;
-    });
-  });
-}
+    if (f.lessonFrom || f.lessonTo) {
+      rows = rows.filter((c: any) => {
+        const dates = this.lessonMetaByChild[c.child_uuid]?.lessonDates ?? [];
+        return dates.some((d) => {
+          const date = new Date(d);
+          if (f.lessonFrom && date < new Date(f.lessonFrom)) return false;
+          if (f.lessonTo && date > this.endOfDay(f.lessonTo)) return false;
+          return true;
+        });
+      });
+    }
     return rows;
   }
 
   private isChildActive(row: any): boolean {
-  return this.isActiveStatus(row?.status);
-}
-
-private endOfDay(value: string): Date {
-  const d = new Date(value);
-  d.setHours(23, 59, 59, 999);
-  return d;
-}
-
-loadSavedFilters(): void {
-  try {
-    const raw = localStorage.getItem(this.FILTERS_STORAGE_KEY);
-    this.savedFilters = raw ? JSON.parse(raw) : [];
-  } catch {
-    this.savedFilters = [];
+    return this.isActiveStatus(row?.status);
   }
-}
 
-saveCurrentFilter(): void {
-  const name = prompt('שם לסינון הקבוע:');
-  if (!name?.trim()) return;
+  private endOfDay(value: string): Date {
+    const d = new Date(value);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }
 
-  this.savedFilters.push({
-    name: name.trim(),
-    filters: structuredClone(this.advancedFilters),
-    statusFilter: this.statusFilter,
-    parentFilter: this.parentFilter,
-  });
+  loadSavedFilters(): void {
+    try {
+      const raw = localStorage.getItem(this.FILTERS_STORAGE_KEY);
+      this.savedFilters = raw ? JSON.parse(raw) : [];
+    } catch {
+      this.savedFilters = [];
+    }
+  }
 
-  localStorage.setItem(this.FILTERS_STORAGE_KEY, JSON.stringify(this.savedFilters));
-}
+  saveCurrentFilter(): void {
+    const name = prompt('שם לסינון הקבוע:');
+    if (!name?.trim()) return;
 
-applySavedFilter(item: SavedChildrenFilter): void {
-  this.advancedFilters = structuredClone(item.filters);
-  this.statusFilter = item.statusFilter;
-  this.parentFilter = item.parentFilter;
-  this.onFiltersChanged();
-}
+    this.savedFilters.push({
+      name: name.trim(),
+      filters: structuredClone(this.advancedFilters),
+      statusFilter: this.statusFilter,
+      parentFilter: this.parentFilter,
+    });
 
-deleteSavedFilter(index: number): void {
-  this.savedFilters.splice(index, 1);
-  localStorage.setItem(this.FILTERS_STORAGE_KEY, JSON.stringify(this.savedFilters));
-}
+    localStorage.setItem(this.FILTERS_STORAGE_KEY, JSON.stringify(this.savedFilters));
+  }
+
+  applySavedFilter(item: SavedChildrenFilter): void {
+    this.advancedFilters = structuredClone(item.filters);
+    this.statusFilter = item.statusFilter;
+    this.parentFilter = item.parentFilter;
+    this.onFiltersChanged();
+  }
+
+  deleteSavedFilter(index: number): void {
+    this.savedFilters.splice(index, 1);
+    localStorage.setItem(this.FILTERS_STORAGE_KEY, JSON.stringify(this.savedFilters));
+  }
 
   onFiltersChanged(): void {
     this.updateStats();
   }
 
- clearFilters() {
-  this.searchText = '';
-  this.searchMode = 'name';
-  this.statusFilter = 'all';
-  this.parentFilter = 'all';
+  clearFilters() {
+    this.searchText = '';
+    this.searchMode = 'name';
+    this.statusFilter = 'all';
+    this.parentFilter = 'all';
 
-  this.advancedFilters = {
-    terms: 'all',
-    intake: 'all',
+    this.advancedFilters = {
+      terms: 'all',
+      intake: 'all',
 
-    healthFundId: 'all',
-    gender: 'all',
+      healthFundId: 'all',
+      gender: 'all',
 
-    birthFrom: '',
-    birthTo: '',
+      birthFrom: '',
+      birthTo: '',
 
-    entryFrom: '',
-    entryTo: '',
+      entryFrom: '',
+      entryTo: '',
 
-    termsFrom: '',
-    termsTo: '',
+      termsFrom: '',
+      termsTo: '',
 
-    lessonFrom: '',
-    lessonTo: '',
+      lessonFrom: '',
+      lessonTo: '',
 
-    instructorId: 'all',
-    lessonType: 'all',
-    lessonDay: 'all',
+      instructorId: 'all',
+      lessonType: 'all',
+      lessonDay: 'all',
 
-    series: 'all',
-    referral: 'all',
-    missingDocs: 'all',
-  };
+      series: 'all',
+      referral: 'all',
+      missingDocs: 'all',
+    };
 
-  this.updateStats();
-}
+    this.updateStats();
+  }
 
   get activeFilterChips(): { label: string; clear: () => void }[] {
-  const chips: { label: string; clear: () => void }[] = [];
-  const f = this.advancedFilters;
+    const chips: { label: string; clear: () => void }[] = [];
+    const f = this.advancedFilters;
 
-  if (this.statusFilter !== 'all') {
-    chips.push({
-      label: 'סטטוס: ' + this.getStatusFilterLabel(),
-      clear: () => this.statusFilter = 'all',
-    });
+    if (this.statusFilter !== 'all') {
+      chips.push({
+        label: 'סטטוס: ' + this.getStatusFilterLabel(),
+        clear: () => this.statusFilter = 'all',
+      });
+    }
+
+    if (this.parentFilter !== 'all') {
+      chips.push({
+        label: 'שיוך להורה: ' + (this.parentFilter === 'withParent' ? 'יש הורה' : 'ללא הורה'),
+        clear: () => this.parentFilter = 'all',
+      });
+    }
+
+    if (f.terms !== 'all') {
+      chips.push({
+        label: 'תקנון: ' + (f.terms === 'signed' ? 'חתום' : 'לא חתום'),
+        clear: () => f.terms = 'all',
+      });
+    }
+
+    if (f.healthFundId !== 'all') {
+      chips.push({
+        label: 'קופ"ח: ' + this.getFundingSourceName(f.healthFundId),
+        clear: () => f.healthFundId = 'all',
+      });
+    }
+
+    if (f.gender !== 'all') {
+      chips.push({
+        label: 'מגדר: ' + f.gender,
+        clear: () => f.gender = 'all',
+      });
+    }
+
+    if (f.instructorId !== 'all') {
+      chips.push({
+        label: 'מדריך: ' + this.getInstructorName(f.instructorId),
+        clear: () => f.instructorId = 'all',
+      });
+    }
+
+    if (f.lessonFrom || f.lessonTo) {
+      chips.push({
+        label: `שיעורים: ${f.lessonFrom || '...'} - ${f.lessonTo || '...'}`,
+        clear: () => {
+          f.lessonFrom = '';
+          f.lessonTo = '';
+        },
+      });
+    }
+
+    return chips;
   }
 
-  if (this.parentFilter !== 'all') {
-    chips.push({
-      label: 'שיוך להורה: ' + (this.parentFilter === 'withParent' ? 'יש הורה' : 'ללא הורה'),
-      clear: () => this.parentFilter = 'all',
-    });
+  getInstructorName(id: string | null | undefined): string {
+    if (!id || id === 'all') return 'כל המדריכים';
+
+    const instructor = this.instructors.find((i) => i.id_number === id);
+
+    if (!instructor) return id;
+
+    const fullName = `${instructor.first_name ?? ''} ${instructor.last_name ?? ''}`.trim();
+
+    return instructor.name || fullName || id;
   }
 
-  if (f.terms !== 'all') {
-    chips.push({
-      label: 'תקנון: ' + (f.terms === 'signed' ? 'חתום' : 'לא חתום'),
-      clear: () => f.terms = 'all',
-    });
+
+  getStatusFilterLabel(): string {
+    if (this.statusFilter === 'active') return 'פעיל';
+    if (this.statusFilter === 'inactive') return 'לא פעיל';
+    if (this.statusFilter === 'pending') return 'ממתין אישור';
+    return 'הכול';
   }
 
-  if (f.healthFundId !== 'all') {
-    chips.push({
-      label: 'קופ"ח: ' + this.getFundingSourceName(f.healthFundId),
-      clear: () => f.healthFundId = 'all',
-    });
+  clearChip(chip: { clear: () => void }): void {
+    chip.clear();
+    this.onFiltersChanged();
   }
-
-  if (f.gender !== 'all') {
-    chips.push({
-      label: 'מגדר: ' + f.gender,
-      clear: () => f.gender = 'all',
-    });
-  }
-
-  if (f.instructorId !== 'all') {
-    chips.push({
-      label: 'מדריך: ' + this.getInstructorName(f.instructorId),
-      clear: () => f.instructorId = 'all',
-    });
-  }
-
-  if (f.lessonFrom || f.lessonTo) {
-    chips.push({
-      label: `שיעורים: ${f.lessonFrom || '...'} - ${f.lessonTo || '...'}`,
-      clear: () => {
-        f.lessonFrom = '';
-        f.lessonTo = '';
-      },
-    });
-  }
-
-  return chips;
-}
-
-getInstructorName(id: string | null | undefined): string {
-  if (!id || id === 'all') return 'כל המדריכים';
-
-  const instructor = this.instructors.find((i) => i.id_number === id);
-
-  if (!instructor) return id;
-
-  const fullName = `${instructor.first_name ?? ''} ${instructor.last_name ?? ''}`.trim();
-
-  return instructor.name || fullName || id;
-}
-
-
-getStatusFilterLabel(): string {
-  if (this.statusFilter === 'active') return 'פעיל';
-  if (this.statusFilter === 'inactive') return 'לא פעיל';
-  if (this.statusFilter === 'pending') return 'ממתין אישור';
-  return 'הכול';
-}
-
-clearChip(chip: { clear: () => void }): void {
-  chip.clear();
-  this.onFiltersChanged();
-}
 
   toggleSearchPanelFromBar() {
     this.panelFocus = 'search';
@@ -985,23 +983,23 @@ clearChip(chip: { clear: () => void }): void {
       const mm = String(now.getMonth() + 1).padStart(2, '0');
       const dd = String(now.getDate()).padStart(2, '0');
 
-    saveAs(blob, `children-export-${yyyy}-${mm}-${dd}.xlsx`);
-  } catch (error) {
-    console.error('exportToExcel failed', error);
-    this.ui.alert('אירעה שגיאה בעת ייצוא לאקסל.', 'שגיאה');
+      saveAs(blob, `children-export-${yyyy}-${mm}-${dd}.xlsx`);
+    } catch (error) {
+      console.error('exportToExcel failed', error);
+      this.ui.alert('אירעה שגיאה בעת ייצוא לאקסל.', 'שגיאה');
+    }
   }
-}
 
-hasActiveAdvancedFilters(): boolean {
-  const f = this.advancedFilters;
-  return (
-    f.terms !== 'all' ||
-    f.intake !== 'all' ||
-    f.healthFundId !== 'all' ||
-    !!f.entryFrom ||
-    !!f.entryTo
-  );
-}
+  hasActiveAdvancedFilters(): boolean {
+    const f = this.advancedFilters;
+    return (
+      f.terms !== 'all' ||
+      f.intake !== 'all' ||
+      f.healthFundId !== 'all' ||
+      !!f.entryFrom ||
+      !!f.entryTo
+    );
+  }
 
   private getExportCellValue(child: any, key: ChildColumnKey): string {
     switch (key) {
@@ -1029,16 +1027,16 @@ hasActiveAdvancedFilters(): boolean {
       case 'parent_status':
         return child.parent_uid ? 'יש הורה משויך' : 'ללא הורה';
 
-    case 'created_at':
-      return child.created_at ? this.formatDateForExcel(child.created_at) : '—';
+      case 'created_at':
+        return child.created_at ? this.formatDateForExcel(child.created_at) : '—';
 
-    case 'updated_at':
-      return child.updated_at ? this.formatDateForExcel(child.updated_at) : '—';
+      case 'updated_at':
+        return child.updated_at ? this.formatDateForExcel(child.updated_at) : '—';
 
-    default:
-      return '—';
+      default:
+        return '—';
+    }
   }
-}
 
   private formatDateForExcel(value: string): string {
     const d = new Date(value);
@@ -1511,13 +1509,13 @@ updated_at
   }
 
   private toDateTimeLocal(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
 
-  const pad = (n: number) => String(n).padStart(2, '0');
+    const pad = (n: number) => String(n).padStart(2, '0');
 
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
 
   enterEditModeChild() {
     if (!this.drawerChild || !this.childForm) return;
@@ -1533,65 +1531,65 @@ updated_at
     this.editMode = false;
   }
 
-    private async loadFilterLookups(): Promise<void> {
-  const db = await this.dbc();
+  private async loadFilterLookups(): Promise<void> {
+    const db = await this.dbc();
 
-  const childIds = this.children
-    .map((c: any) => c.child_uuid)
-    .filter(Boolean);
+    const childIds = this.children
+      .map((c: any) => c.child_uuid)
+      .filter(Boolean);
 
-  if (!childIds.length) return;
+    if (!childIds.length) return;
 
-const { data: instructorsData, error: instructorsError } = await db
-  .from('instructors')
-  .select('id_number, first_name, last_name')
-  .order('first_name', { ascending: true });
+    const { data: instructorsData, error: instructorsError } = await db
+      .from('instructors')
+      .select('id_number, first_name, last_name')
+      .order('first_name', { ascending: true });
 
-if (instructorsError) {
-  console.error('load instructors failed:', instructorsError);
-  this.instructors = [];
-} else {
-  this.instructors = (instructorsData ?? []).map((i: any) => ({
-    ...i,
-    name: `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim(),
-  }));
-}
-
-  const { data: termsData } = await db
-    .from('child_terms_signatures')
-    .select('child_id, signed_pdf_bucket, signed_pdf_path, created_at')
-    .in('child_id', childIds)
-    .not('signed_pdf_bucket', 'is', null)
-    .not('signed_pdf_path', 'is', null);
-
-  this.termsByChild = {};
-  for (const row of termsData ?? []) {
-    const cid = (row as any).child_id;
-    const current = this.termsByChild[cid];
-
-    if (!current || new Date((row as any).created_at) > new Date(current.signedAt || 0)) {
-      this.termsByChild[cid] = {
-        signed: true,
-        signedAt: (row as any).created_at ?? null,
-      };
+    if (instructorsError) {
+      console.error('load instructors failed:', instructorsError);
+      this.instructors = [];
+    } else {
+      this.instructors = (instructorsData ?? []).map((i: any) => ({
+        ...i,
+        name: `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim(),
+      }));
     }
-  }
 
-  const { data: docsData } = await db
-    .from('child_documents')
-    .select('child_id, document_name')
-    .in('child_id', childIds);
+    const { data: termsData } = await db
+      .from('child_terms_signatures')
+      .select('child_id, signed_pdf_bucket, signed_pdf_path, created_at')
+      .in('child_id', childIds)
+      .not('signed_pdf_bucket', 'is', null)
+      .not('signed_pdf_path', 'is', null);
 
-  this.intakeByChild = {};
-  for (const row of docsData ?? []) {
-    if (String((row as any).document_name ?? '').trim() === 'אינטק') {
-      this.intakeByChild[(row as any).child_id] = true;
+    this.termsByChild = {};
+    for (const row of termsData ?? []) {
+      const cid = (row as any).child_id;
+      const current = this.termsByChild[cid];
+
+      if (!current || new Date((row as any).created_at) > new Date(current.signedAt || 0)) {
+        this.termsByChild[cid] = {
+          signed: true,
+          signedAt: (row as any).created_at ?? null,
+        };
+      }
     }
-  }
 
-  const { data: lessonsData } = await db
-    .from('lessons')
-    .select(`
+    const { data: docsData } = await db
+      .from('child_documents')
+      .select('child_id, document_name')
+      .in('child_id', childIds);
+
+    this.intakeByChild = {};
+    for (const row of docsData ?? []) {
+      if (String((row as any).document_name ?? '').trim() === 'אינטק') {
+        this.intakeByChild[(row as any).child_id] = true;
+      }
+    }
+
+    const { data: lessonsData } = await db
+      .from('lessons')
+      .select(`
       id,
       child_id,
       instructor_id,
@@ -1607,72 +1605,72 @@ if (instructorsError) {
         require_docs_at_booking
       )
     `)
-    .in('child_id', childIds);
+      .in('child_id', childIds);
 
-  this.lessonMetaByChild = {};
-  const typeSet = new Set<string>();
+    this.lessonMetaByChild = {};
+    const typeSet = new Set<string>();
 
-  for (const row of lessonsData ?? []) {
-    const r: any = row;
-    const cid = r.child_id;
-    if (!cid) continue;
+    for (const row of lessonsData ?? []) {
+      const r: any = row;
+      const cid = r.child_id;
+      if (!cid) continue;
 
-    if (!this.lessonMetaByChild[cid]) {
-      this.lessonMetaByChild[cid] = {
-        instructorIds: [],
-        lessonTypes: [],
-        days: [],
-        hasActiveSeries: false,
-        hasReferral: false,
-        missingReferral: false,
-        missingRequiredDocs: false,
-        lessonDates: [],
-      };
+      if (!this.lessonMetaByChild[cid]) {
+        this.lessonMetaByChild[cid] = {
+          instructorIds: [],
+          lessonTypes: [],
+          days: [],
+          hasActiveSeries: false,
+          hasReferral: false,
+          missingReferral: false,
+          missingRequiredDocs: false,
+          lessonDates: [],
+        };
+      }
+
+      const meta = this.lessonMetaByChild[cid];
+
+      if (r.instructor_id && !meta.instructorIds.includes(r.instructor_id)) {
+        meta.instructorIds.push(r.instructor_id);
+      }
+
+      if (r.lesson_type) {
+        typeSet.add(r.lesson_type);
+        if (!meta.lessonTypes.includes(r.lesson_type)) meta.lessonTypes.push(r.lesson_type);
+      }
+
+      if (r.day_of_week && !meta.days.includes(r.day_of_week)) {
+        meta.days.push(r.day_of_week);
+      }
+
+      const isActive = String(r.status ?? '').toLowerCase() === 'active' || r.status === 'אושר';
+      const isSeries = r.lesson_type === 'סידרה' || r.lesson_type === 'סדרה';
+
+      if (isSeries && isActive) {
+        meta.hasActiveSeries = true;
+      }
+
+      if (r.payment_docs_url) {
+        meta.hasReferral = true;
+      }
+
+      const requiresDocs =
+        !!r.payment_plans?.require_docs_at_booking &&
+        Array.isArray(r.payment_plans?.required_docs) &&
+        r.payment_plans.required_docs.length > 0;
+
+      if (requiresDocs && !r.payment_docs_url) {
+        meta.missingReferral = true;
+        meta.missingRequiredDocs = true;
+      }
+
+      if (r.anchor_week_start) {
+        meta.lessonDates.push(r.anchor_week_start);
+      }
     }
 
-    const meta = this.lessonMetaByChild[cid];
-
-    if (r.instructor_id && !meta.instructorIds.includes(r.instructor_id)) {
-      meta.instructorIds.push(r.instructor_id);
-    }
-
-    if (r.lesson_type) {
-      typeSet.add(r.lesson_type);
-      if (!meta.lessonTypes.includes(r.lesson_type)) meta.lessonTypes.push(r.lesson_type);
-    }
-
-    if (r.day_of_week && !meta.days.includes(r.day_of_week)) {
-      meta.days.push(r.day_of_week);
-    }
-
-    const isActive = String(r.status ?? '').toLowerCase() === 'active' || r.status === 'אושר';
-    const isSeries = r.lesson_type === 'סידרה' || r.lesson_type === 'סדרה';
-
-    if (isSeries && isActive) {
-      meta.hasActiveSeries = true;
-    }
-
-    if (r.payment_docs_url) {
-      meta.hasReferral = true;
-    }
-
-    const requiresDocs =
-      !!r.payment_plans?.require_docs_at_booking &&
-      Array.isArray(r.payment_plans?.required_docs) &&
-      r.payment_plans.required_docs.length > 0;
-
-    if (requiresDocs && !r.payment_docs_url) {
-      meta.missingReferral = true;
-      meta.missingRequiredDocs = true;
-    }
-
-    if (r.anchor_week_start) {
-      meta.lessonDates.push(r.anchor_week_start);
-    }
+    this.lessonTypes = Array.from(typeSet).sort();
   }
-
-  this.lessonTypes = Array.from(typeSet).sort();
-}
 
   async saveChildEdits() {
     if (!this.drawerChild || !this.childForm || !this.selectedId) return;
@@ -1684,8 +1682,8 @@ if (instructorsError) {
       raw.status === 'Deleted';
 
     if (raw.created_at) {
-  raw.created_at = new Date(raw.created_at).toISOString();
-}
+      raw.created_at = new Date(raw.created_at).toISOString();
+    }
 
     const fieldsToCompare: (keyof ChildDetails)[] = [
       'first_name',
