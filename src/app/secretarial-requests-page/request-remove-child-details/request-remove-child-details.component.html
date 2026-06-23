@@ -85,22 +85,16 @@
       [class.err]="decisionType()==='error'">
       {{ decisionMsg() }}
     </div>
-    <div class="decision-note-box" *ngIf="canDecide()">
-      <label>הערה להחלטה</label>
-
-      <textarea rows="3" placeholder="אפשר להזין הערה שתישמר עם ההחלטה..." [(ngModel)]="decisionNote"
-        [disabled]="busy()">
-  </textarea>
-    </div>
+    <textarea class="note" *ngIf="canDecide()" rows="3" placeholder="הערה פנימית / סיבת דחייה (אופציונלי)"
+      [(ngModel)]="decisionNote" [disabled]="busy()"></textarea>
     <div class="actions" *ngIf="canDecide()">
-      <button mat-stroked-button type="button" class="action reject" (click)="reject()">
+      <button mat-stroked-button type="button" class="action reject" (click)="reject()" [disabled]="busy()">
         דחייה
       </button>
 
-      <button mat-flat-button type="button" class="action approve" (click)="approve()">
+      <button mat-flat-button type="button" class="action approve" (click)="approve()" [disabled]="busy()">
         אישור
       </button>
-
     </div>
 
 

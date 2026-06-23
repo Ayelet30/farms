@@ -5,39 +5,71 @@
     </div>
 </div>
 
-<div class="req" dir="rtl">
-    <div class="req-head">
-        <div class="req-title">הוספת רוכב עצמאי חדש</div>
-
-        <div class="meta">
-            <div><b>שם מלא:</b> {{ fullName }}</div>
-            <div><b>טלפון:</b> {{ riderMeta.phone || '—' }}</div>
-            <div><b>אימייל:</b> {{ riderMeta.email || '—' }}</div>
-            <div><b>ת.ז:</b> {{ riderMeta.id_number || '—' }}</div>
-            <div><b>כתובת:</b> {{ riderMeta.address || '—' }}</div>
-            <div class="farm-responsible" *ngIf="riderMeta.is_farm_responsible">
-                ⚠️ שימו לב: המבקש/ת משמש/ת כאחראי/ת חווה
-            </div>
-            <div><b>העדפות תקשורת:</b> {{ messagePreferencesText }}</div>
-            <div *ngIf="riderMeta.extra_notes"><b>הערות:</b> {{ riderMeta.extra_notes }}</div>
+<div class="wrap" dir="rtl">
+    <div class="head">
+        <div class="title">
+            <mat-icon class="ico">directions_run</mat-icon>
+            פרטי בקשה להוספת רוכב עצמאי חדש
         </div>
     </div>
 
-    <div class="note-box">
-        <label>הערה להחלטה (אופציונלי)</label>
-        <textarea [(ngModel)]="decisionNote" rows="2" [disabled]="busy()" placeholder="לתיעוד / למזכירות...">
-    </textarea>
+    <div class="card">
+        <div class="child-status-alert farm-responsible" *ngIf="riderMeta.is_farm_responsible">
+            שימו לב: המבקש/ת משמש/ת כאחראי/ת חווה
+        </div>
+
+        <div class="row">
+            <div class="k">שם מלא</div>
+            <div class="v strong">{{ fullName || '—' }}</div>
+        </div>
+
+        <div class="row">
+            <div class="k">טלפון</div>
+            <div class="v">{{ riderMeta.phone || '—' }}</div>
+        </div>
+
+        <div class="row">
+            <div class="k">אימייל</div>
+            <div class="v">{{ riderMeta.email || '—' }}</div>
+        </div>
+
+        <div class="row">
+            <div class="k">ת״ז</div>
+            <div class="v">{{ riderMeta.id_number || '—' }}</div>
+        </div>
+
+        <div class="row">
+            <div class="k">כתובת</div>
+            <div class="v">{{ riderMeta.address || '—' }}</div>
+        </div>
+
+        <div class="row">
+            <div class="k">העדפות תקשורת</div>
+            <div class="v">{{ messagePreferencesText || '—' }}</div>
+        </div>
+
+        <div class="row" *ngIf="riderMeta.extra_notes">
+            <div class="k">הערות</div>
+            <div class="v">{{ riderMeta.extra_notes }}</div>
+        </div>
+
+        <textarea class="note" *ngIf="isSecretary && isPending" [(ngModel)]="decisionNote" rows="2" [disabled]="busy()"
+            placeholder="הערה פנימית / סיבת דחייה (אופציונלי)"></textarea>
+
+        <div class="hint error" *ngIf="errText()">
+            {{ errText() }}
+        </div>
+
+        <div class="actions" *ngIf="isSecretary && isPending">
+            <button mat-stroked-button type="button" class="action reject" (click)="reject()"
+                [disabled]="loading() || busy()">
+                דחייה
+            </button>
+
+            <button mat-flat-button type="button" class="action approve" (click)="approve()"
+                [disabled]="loading() || busy()">
+                אישור
+            </button>
+        </div>
     </div>
-
-    <div class="actions" *ngIf="isSecretary && isPending">
-        <button class="btn reject" (click)="reject()" [disabled]="loading() || busy()">
-            דחייה
-        </button>
-
-        <button class="btn approve" (click)="approve()" [disabled]="loading() || busy()">
-            אישור
-        </button>
-    </div>
-
-    <div class="err" *ngIf="errText()">{{ errText() }}</div>
 </div>

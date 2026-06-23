@@ -9,6 +9,7 @@ import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { getAuth } from 'firebase/auth';
 import { requireTenant, supabase } from '../../services/supabaseClient.service';
+import { MatIcon } from "@angular/material/icon";
 type ImpactRow = {
   occur_date: string; // date
   start_time: string; // time
@@ -22,7 +23,7 @@ type ToastKind = 'success' | 'error' | 'info';
 @Component({
   selector: 'app-request-instructor-day-off-details',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule, MatProgressSpinnerModule],
+  imports: [CommonModule, FormsModule, MatSnackBarModule, MatProgressSpinnerModule, MatIcon],
   templateUrl: './request-instructor-day-off-details.component.html',
   styleUrls: ['./request-instructor-day-off-details.component.scss'],
 })

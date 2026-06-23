@@ -40,7 +40,7 @@ type ToastKind = 'success' | 'error' | 'info';
         MatProgressSpinnerModule,
     ],
     templateUrl: './request-add-independent-details.component.html',
-    styleUrls: ['./request-add-independent-details.component.css'],
+    styleUrls: ['./request-add-independent-details.component.scss'],
 })
 export class RequestAddIndependentDetailsComponent {
     private _req = signal<UiRequest | null>(null);

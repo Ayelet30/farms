@@ -14,12 +14,10 @@
   </div>
 
   <div class="card">
-
     <div class="child-status-alert" *ngIf="errorMsg() as t">
       {{ t }}
     </div>
 
-    <!-- מי -->
     <div class="row">
       <div class="k">שם ילד/ה</div>
       <div class="v strong">{{ r.childName || '—' }}</div>
@@ -30,16 +28,16 @@
       <div class="v">{{ r.instructorName || '—' }}</div>
     </div>
 
-    <!-- חלון/תאריך מבוקש -->
-    <div class="section">
-      <div class="section-title">
-        <mat-icon class="sec-ico">event</mat-icon>
+    <div class="subcard">
+      <div class="subcard-title">
+        <mat-icon class="sub-ico">event</mat-icon>
         שיבוץ מבוקש (המילוי)
       </div>
 
       <div class="row">
         <div class="k">תאריך</div>
-<div class="v">{{ formatDate(r.fromDate || r.from_date) }}</div>      </div>
+        <div class="v">{{ formatDate(r.fromDate || r.from_date) }}</div>
+      </div>
 
       <div class="row">
         <div class="k">שעה</div>
@@ -47,25 +45,25 @@
       </div>
     </div>
 
-    <!-- השיעור שמחליפים (שבוטל) -->
-<div class="section" *ngIf="shouldShowFillInTarget()">
-      <div class="section-title">
-        <mat-icon class="sec-ico warn">event_busy</mat-icon>
+    <div class="subcard" *ngIf="shouldShowFillInTarget()">
+      <div class="subcard-title">
+        <mat-icon class="sub-ico warn">event_busy</mat-icon>
         מחליף את השיעור שבוטל
       </div>
 
-      <div class="row muted" *ngIf="loadingFillInTarget()">
+      <div class="hint" *ngIf="loadingFillInTarget()">
         טוען פרטי השיעור שבוטל…
       </div>
 
-      <div class="row error" *ngIf="!loadingFillInTarget() && !fillInTarget()">
+      <div class="hint error" *ngIf="!loadingFillInTarget() && !fillInTarget()">
         לא נמצא שיעור שבוטל / יעד מילוי מקום
       </div>
 
       <ng-container *ngIf="!loadingFillInTarget() && fillInTarget() as t">
         <div class="row">
           <div class="k">תאריך</div>
-<div class="v">{{ formatDate(t.occur_date) }}</div>        </div>
+          <div class="v">{{ formatDate(t.occur_date) }}</div>
+        </div>
 
         <div class="row">
           <div class="k">שעה</div>
@@ -74,8 +72,6 @@
           </div>
         </div>
 
-      
-
         <div class="row" *ngIf="t.note">
           <div class="k">הערה</div>
           <div class="v">{{ t.note }}</div>
@@ -83,32 +79,17 @@
       </ng-container>
     </div>
 
-    <!-- note רק ידני -->
-    <textarea
-  class="note"
-  *ngIf="canDecide() && !bulkMode"
-  [ngModel]="note()"
-  [disabled]="busy()"
-  (ngModelChange)="note.set($event)"
-  placeholder="סיבה לדחייה (אופציונלי)"
-  
-  >
-</textarea>
+    <textarea class="note" *ngIf="canDecide() && !bulkMode" [ngModel]="note()" [disabled]="busy()"
+      (ngModelChange)="note.set($event)" placeholder="הערה פנימית / סיבת דחייה (אופציונלי)"></textarea>
 
-
-<div class="actions" *ngIf="canDecide()">
-      <button mat-stroked-button class="action reject"
-              (click)="reject()"
-              [disabled]="busy()">
+    <div class="actions" *ngIf="canDecide()">
+      <button mat-stroked-button type="button" class="action reject" (click)="reject()" [disabled]="busy()">
         דחייה
       </button>
 
-      <button mat-flat-button class="action approve"
-              (click)="approve()"
-              [disabled]="busy()">
+      <button mat-flat-button type="button" class="action approve" (click)="approve()" [disabled]="busy()">
         אישור
       </button>
     </div>
-
   </div>
 </div>

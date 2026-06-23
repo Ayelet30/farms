@@ -57,7 +57,7 @@ type RemainingLessonVM = {
   standalone: true,
   imports: [CommonModule, MatIconModule, MatButtonModule, MatSnackBarModule, MatProgressSpinnerModule, FormsModule],
   templateUrl: './request-remove-child-details.component.html',
-  styleUrls: ['./request-remove-child-details.component.css'],
+  styleUrls: ['./request-remove-child-details.component.scss'],
 })
 export class RequestRemoveChildDetailsComponent {
 

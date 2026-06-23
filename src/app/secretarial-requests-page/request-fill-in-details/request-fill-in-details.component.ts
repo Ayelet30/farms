@@ -28,7 +28,7 @@ const EXCEPTIONS_TABLE = 'lesson_occurrence_exceptions';
     MatProgressSpinnerModule,
   ],
   templateUrl: './request-fill-in-details.component.html',
-  styleUrls: ['./request-fill-in-details.component.css'],
+  styleUrls: ['./request-fill-in-details.component.scss'],
 })
 export class RequestFillInDetailsComponent implements OnInit {
   @Input({ required: true }) request!: UiRequest;

@@ -1,38 +1,38 @@
-.req { display:flex; flex-direction:column; gap:12px; }
-.title { font-weight:900; font-size:16px; color:#1f3a2a; }
+@import "../../../styles/request-details-common";
 
-.grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-.box { background:#fff; border:1px solid #dfe7d7; border-radius:12px; padding:10px; }
-.k { color:#586141; font-weight:800; margin-left:8px; }
-.v { color:#1f3a2a; font-weight:800; }
-.muted { color:#586141; font-weight:700; }
+/* ייחודי להוספת ילד/ה */
 
-.section { background:#f7f9f4; border:1px solid #cdd6bf; border-radius:12px; padding:10px; }
-.sec-title { font-weight:900; color:#586141; margin-bottom:6px; }
-.row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-.sep { color:#8a9362; font-weight:900; }
+.subcard-title {
+  font-weight: 900;
+  color: #1f3a2a;
+  margin-bottom: 8px;
+}
 
-.chips { display:flex; flex-wrap:wrap; gap:8px; }
-.chip { background:#eef4e5; border:1px solid #cdd6bf; border-radius:999px; padding:4px 10px; font-weight:900; color:#1f3a2a; }
+.mini-action {
+  border-radius: 999px;
+  padding: 6px 12px;
+  border: 1px solid #8a9362;
+  background: #eef4e5;
+  color: #1f3a2a;
+  font-weight: 900;
+  cursor: pointer;
+}
 
-.notes { margin-top:8px; }
-.note textarea { width:100%; border:1px solid #cdd6bf; border-radius:12px; padding:10px; background:#fff; }
+.mini-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
-.actions { display:flex; gap:8px; justify-content:flex-end; }
-.btn { border-radius:10px; padding:8px 14px; font-weight:900; border:1.5px solid #8a9362; background:#fff; color:#1f3a2a; }
-.btn.approve { background:#8a9362; color:#fff; }
-.btn.reject { background:#fde2e2; border-color:#b91c1c; color:#b91c1c; }
-
-.btn.view-signed { background:#eef4e5; border-color:#8a9362; }
-.btn:disabled { opacity:0.6; cursor:default; }
-
-.loading { padding:10px; font-weight:800; color:#586141; }
+.charge-breakdown {
+  margin-top: 8px;
+}
 
 /* ===== Popup Signed PDF ===== */
-.popup-backdrop{
+
+.popup-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.35);
+  background: rgba(0, 0, 0, .35);
   z-index: 9999;
   display: flex;
   align-items: center;
@@ -40,82 +40,63 @@
   padding: 12px;
 }
 
-.popup{
+.popup {
   width: min(980px, 85vw);
   height: min(620px, 70vh);
-  margin-top: 150px;
   background: #fff;
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 18px 60px rgba(0,0,0,.22);
-  display:flex;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, .22);
+  display: flex;
   flex-direction: column;
 }
 
-.popup-head{
-  display:flex;
-  align-items:center;
+.popup-head {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
   background: #f7f9f4;
   border-bottom: 1px solid #cdd6bf;
 }
 
-.popup-title{
+.popup-title {
   font-weight: 900;
-  color:#1f3a2a;
+  color: #1f3a2a;
 }
 
-.popup-actions{
-  display:flex;
-  align-items:center;
+.popup-actions {
+  display: flex;
+  align-items: center;
   gap: 10px;
 }
 
-.btn-link{
+.btn-link {
   font-weight: 900;
-  color:#1f3a2a;
+  color: #1f3a2a;
   text-decoration: underline;
 }
 
-.popup-body{
-  flex:1;
-  background:#fff;
+.popup-body {
+  flex: 1;
+  background: #fff;
 }
 
-.pdf-frame{
-  width:100%;
-  height:100%;
-  border:0;
+.pdf-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
-.empty{
+.empty {
   padding: 18px;
   font-weight: 800;
-  color:#586141;
-}
-.busy-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.18);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
+  color: #586141;
 }
 
-.busy-card {
-  background: #fff;
-  border-radius: 14px;
-  padding: 16px 18px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-  min-width: 240px;
-}
-
-.busy-text {
-  font-size: 14px;
-  font-weight: 600;
+@media (max-width: 700px) {
+  .popup {
+    width: 94vw;
+    height: 75vh;
+  }
 }
