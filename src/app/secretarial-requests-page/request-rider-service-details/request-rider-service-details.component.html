@@ -4,93 +4,109 @@
         <div class="busy-text">{{ busyText() }}</div>
     </div>
 </div>
-<div class="req" dir="rtl">
-    <div class="req-title">בקשת שירות לרוכב עצמאי</div>
 
-    <div class="section">
-        <h4>פרטי הבקשה</h4>
-
-        <div class="meta-grid">
-            <div>
-                <span>שירות</span>
-                <b>{{ p.service_name || '—' }}</b>
-            </div>
-
-            <div>
-                <span>קטגוריה</span>
-                <b>{{ categoryLabel }}</b>
-            </div>
-
-            <div>
-                <span>סוס</span>
-                <b>{{ p.horse_name || '—' }}</b>
-            </div>
-
-            <div>
-                <span>אופי השירות</span>
-                <b>{{ serviceModeLabel }}</b>
-            </div>
-
-            <div>
-                <span>תאריך התחלה / ביצוע</span>
-                <b>{{ dateText(p.requested_start_date) }}</b>
-            </div>
-
-            <div>
-                <span>תאריך סיום</span>
-                <b>{{ dateText(p.requested_end_date) }}</b>
-            </div>
-
-            <div>
-                <span>מחיר ברירת מחדל</span>
-                <b>{{ priceText }}</b>
-            </div>
-
-            <div>
-                <span>תדירות</span>
-                <b>{{ recurrenceText }}</b>
-            </div>
+<div class="wrap" dir="rtl" *ngIf="req() as r">
+    <div class="head">
+        <div class="title">
+            <mat-icon class="ico">construction</mat-icon>
+            פרטי בקשה לשירות רוכב עצמאי
         </div>
     </div>
 
-    <div class="section" *ngIf="p.planned_dates?.length">
-        <h4>תאריכי ביצוע צפויים</h4>
-
-        <div class="chips">
-            <span class="chip" *ngFor="let d of p.planned_dates">
-                {{ dateText(d) }}
-            </span>
+    <div class="card">
+        <div class="row">
+            <div class="k">שירות</div>
+            <div class="v strong">{{ p.service_name || '—' }}</div>
         </div>
-    </div>
 
-    <div class="file-box" *ngIf="p.approval_file?.publicUrl">
-        <a [href]="p.approval_file.publicUrl" target="_blank" rel="noopener noreferrer" class="file-link">
-            📎 פתיחת האישור המצורף
-        </a>
-    </div>
+        <div class="row">
+            <div class="k">קטגוריה</div>
+            <div class="v">{{ categoryLabel || '—' }}</div>
+        </div>
 
-    <div class="section" *ngIf="p.notes">
-        <h4>הערות הרוכב</h4>
-        <p>{{ p.notes }}</p>
-    </div>
+        <div class="row">
+            <div class="k">סוס</div>
+            <div class="v">{{ p.horse_name || '—' }}</div>
+        </div>
 
-    <div class="note-box">
-        <label>הערה להחלטה</label>
-        <textarea [(ngModel)]="decisionNote" rows="2" placeholder="הערה פנימית / סיבת דחייה...">
-    </textarea>
-    </div>
+        <div class="row">
+            <div class="k">אופי השירות</div>
+            <div class="v">{{ serviceModeLabel || '—' }}</div>
+        </div>
 
-    <div class="actions" *ngIf="req()?.status === 'PENDING'">
-        <button class="btn reject" type="button" (click)="reject()" [disabled]="busy()">
-            דחייה
-        </button>
+        <div class="row">
+            <div class="k">תאריך התחלה / ביצוע</div>
+            <div class="v">{{ dateText(p.requested_start_date) }}</div>
+        </div>
 
-        <button class="btn approve" type="button" (click)="approve()" [disabled]="busy()">
-            אישור
-        </button>
-    </div>
+        <div class="row">
+            <div class="k">תאריך סיום</div>
+            <div class="v">{{ dateText(p.requested_end_date) }}</div>
+        </div>
 
-    <div class="err" *ngIf="errText">
-        {{ errText }}
+        <div class="row">
+            <div class="k">מחיר ברירת מחדל</div>
+            <div class="v">{{ priceText || '—' }}</div>
+        </div>
+
+        <div class="row">
+            <div class="k">תדירות</div>
+            <div class="v">{{ recurrenceText || '—' }}</div>
+        </div>
+
+        <div class="row" *ngIf="p.planned_dates?.length">
+            <div class="k">תאריכי ביצוע צפויים</div>
+            <div class="v">
+                <ul class="list-inline">
+                    <li *ngFor="let d of p.planned_dates">
+                        {{ dateText(d) }}
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="k">קובץ אישור</div>
+            <div class="v">
+                <ng-container *ngIf="p.approval_file?.publicUrl; else noApprovalFile">
+                    <a [href]="p.approval_file.publicUrl" target="_blank" rel="noopener noreferrer">
+                        פתיחת האישור המצורף
+                    </a>
+                </ng-container>
+
+                <ng-template #noApprovalFile>—</ng-template>
+            </div>
+        </div>
+
+        <div class="row" *ngIf="p.notes">
+            <div class="k">הערות הרוכב</div>
+            <div class="v">{{ p.notes }}</div>
+        </div>
+
+        <div class="meta" *ngIf="r.createdAt">
+            <div>
+                <span class="mk">נוצר:</span>
+                {{ r.createdAt | date:'dd/MM/yyyy HH:mm' }}
+            </div>
+        </div>
+
+        <textarea class="note" *ngIf="r.status === 'PENDING'" [(ngModel)]="decisionNote" [disabled]="busy()"
+            placeholder="הערה פנימית / סיבת דחייה..."></textarea>
+
+        <div class="hint error" *ngIf="errText">
+            {{ errText }}
+        </div>
+
+        <div class="actions" *ngIf="r.status === 'PENDING'">
+
+            <button mat-stroked-button type="button" class="action reject" (click)="reject()" [disabled]="busy()">
+                דחייה
+            </button>
+
+            <button mat-flat-button type="button" class="action approve" (click)="approve()" [disabled]="busy()">
+                אישור
+            </button>
+
+        </div>
     </div>
 </div>

@@ -22,7 +22,7 @@ type UiRequest = any;
   standalone: true,
   imports: [CommonModule, FormsModule, MatIconModule, MatButtonModule, MatSnackBarModule, MatProgressSpinnerModule],
   templateUrl: './request-makeup-lesson-details.component.html',
-  styleUrls: ['./request-makeup-lesson-details.component.css'],
+  styleUrls: ['./request-makeup-lesson-details.component.scss'],
 })
 export class RequestMakeupLessonDetailsComponent {
   // ===== Inputs שהאב משתמש בהם (גם ב-UI וגם ב-bulk) =====

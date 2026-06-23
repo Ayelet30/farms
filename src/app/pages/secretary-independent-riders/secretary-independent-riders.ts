@@ -479,7 +479,9 @@ export class SecretaryIndependentRidersComponent implements OnInit {
   }
 
   private async loadDrawerServices(uid: string): Promise<void> {
-    const { data, error } = await dbTenant()
+    const db = dbTenant();
+
+    const { data: services, error: servicesError } = await db
       .from('rider_services')
       .select(`
       id,
@@ -491,20 +493,48 @@ export class SecretaryIndependentRidersComponent implements OnInit {
       notes,
       service_mode,
       recurrence_unit,
-      recurrence_interval,
-      next_billing_date,
-      last_billed_date
+      recurrence_interval
     `)
       .eq('rider_uid', uid)
+      .eq('status', 'active')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('loadDrawerServices error', error);
+    if (servicesError) {
+      console.error('loadDrawerServices error', servicesError);
       this.drawerServices = [];
       return;
     }
 
-    this.drawerServices = data ?? [];
+    const serviceIds = (services ?? []).map((s: any) => s.id);
+
+    if (serviceIds.length === 0) {
+      this.drawerServices = [];
+      return;
+    }
+
+    const { data: tasks, error: tasksError } = await db
+      .from('rider_service_tasks')
+      .select('id, rider_service_id, due_date, status')
+      .in('rider_service_id', serviceIds)
+      .eq('status', 'open')
+      .order('due_date', { ascending: true });
+
+    if (tasksError) {
+      console.error('loadDrawerServices tasks error', tasksError);
+    }
+
+    const nextTaskByServiceId = new Map<string, any>();
+
+    (tasks ?? []).forEach((task: any) => {
+      if (!nextTaskByServiceId.has(task.rider_service_id)) {
+        nextTaskByServiceId.set(task.rider_service_id, task);
+      }
+    });
+
+    this.drawerServices = (services ?? []).map((service: any) => ({
+      ...service,
+      next_open_task: nextTaskByServiceId.get(service.id) ?? null,
+    }));
   }
   get isChangingRiderToInactive(): boolean {
     if (!this.editMode || !this.originalRider || !this.riderForm) return false;

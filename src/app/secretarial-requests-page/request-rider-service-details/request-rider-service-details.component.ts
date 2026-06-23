@@ -8,10 +8,11 @@ import { getAuth } from 'firebase/auth';
 import { RequestValidationService } from '../../services/request-validation.service';
 import { ensureTenantContextReady, requireTenant } from '../../services/supabaseClient.service';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatIcon } from "@angular/material/icon";
 @Component({
     selector: 'app-request-rider-service-details',
     standalone: true,
-    imports: [CommonModule, FormsModule, MatProgressSpinnerModule],
+    imports: [CommonModule, FormsModule, MatProgressSpinnerModule, MatIcon],
     templateUrl: './request-rider-service-details.component.html',
     styleUrls: ['./request-rider-service-details.component.scss'],
 })

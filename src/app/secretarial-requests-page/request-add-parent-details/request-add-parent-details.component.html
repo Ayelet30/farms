@@ -5,34 +5,56 @@
   </div>
 </div>
 
-<div class="req" dir="rtl">
-  <div class="req-head">
-    <div class="req-title">הוספת הורה חדש</div>
-
-    <div class="meta">
-      <div><b>שם מלא:</b> {{ fullName }}</div>
-      <div><b>טלפון:</b> {{ parentMeta.phone || '—' }}</div>
-      <div><b>אימייל:</b> {{ parentMeta.email || '—' }}</div>
-      <div><b>ת.ז:</b> {{ parentMeta.id_number || '—' }}</div>
-      <div><b>כתובת:</b> {{ parentMeta.address || '—' }}</div>
+<div class="wrap" dir="rtl">
+  <div class="head">
+    <div class="title">
+      <mat-icon class="ico">person_add</mat-icon>
+      פרטי בקשה להוספת הורה חדש
     </div>
   </div>
 
-  <div class="note-box">
-    <label>הערה להחלטה (אופציונלי)</label>
-    <textarea [(ngModel)]="decisionNote" rows="2"  [disabled]="busy()" placeholder="לתיעוד / למזכירות..."></textarea>
+  <div class="card">
+    <div class="row">
+      <div class="k">שם מלא</div>
+      <div class="v strong">{{ fullName || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">טלפון</div>
+      <div class="v">{{ parentMeta.phone || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">אימייל</div>
+      <div class="v">{{ parentMeta.email || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">ת״ז</div>
+      <div class="v">{{ parentMeta.id_number || '—' }}</div>
+    </div>
+
+    <div class="row">
+      <div class="k">כתובת</div>
+      <div class="v">{{ parentMeta.address || '—' }}</div>
+    </div>
+
+    <textarea class="note" *ngIf="isSecretary && isPending" [(ngModel)]="decisionNote" rows="2" [disabled]="busy()"
+      placeholder="הערה פנימית / סיבת דחייה (אופציונלי)"></textarea>
+
+    <div class="hint error" *ngIf="errText()">
+      {{ errText() }}
+    </div>
+
+    <div class="actions" *ngIf="isSecretary && isPending">
+      <button mat-stroked-button type="button" class="action reject" (click)="reject()"
+        [disabled]="loading() || busy()">
+        דחייה
+      </button>
+
+      <button mat-flat-button type="button" class="action approve" (click)="approve()" [disabled]="loading() || busy()">
+        אישור
+      </button>
+    </div>
   </div>
-
-  <div class="actions" *ngIf="isSecretary && isPending">
-  <button class="btn reject" (click)="reject()" [disabled]="loading() || busy()">
-    דחייה
-  </button>
-
-  <button class="btn approve" (click)="approve()" [disabled]="loading() || busy()">
-    אישור
-  </button>
-</div>
-
-  <div class="err" *ngIf="errText()">{{ errText() }}</div>
-
 </div>

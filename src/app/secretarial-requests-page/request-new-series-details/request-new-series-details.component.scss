@@ -1,168 +1,8 @@
-.wrap {
-  display: grid;
-  gap: 10px;
-}
+@import '../../../styles/request-details-common';
 
-.head {
-  display: grid;
-  gap: 4px;
-  padding: 6px 4px;
-}
+/* ===== דברים ייחודיים לסדרת שיעורים ===== */
 
-.title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 900;
-  color: #1f3a2a;
-}
-
-.ico {
-  transform: scale(1.05);
-}
-
-.card {
-  border: 1px solid #cdd6bf;
-  background: #fff;
-  border-radius: 14px;
-  padding: 12px;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, .05);
-}
-
-.row {
-  display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px dashed #e6ecdd;
-}
-
-.row:last-child {
-  border-bottom: none;
-}
-
-.k {
-  font-weight: 900;
-  color: #586141;
-}
-
-.v {
-  font-weight: 800;
-  color: #2b2b2b;
-  word-break: break-word;
-}
-
-.v.strong {
-  color: #1f3a2a;
-}
-
-.meta {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #eef1ea;
-  display: grid;
-  gap: 6px;
-  font-size: 13px;
-  color: #586141;
-  font-weight: 800;
-}
-
-.mk {
-  font-weight: 900;
-  color: #2b2b2b;
-  margin-left: 6px;
-}
-
-.actions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-start;
-  margin-top: 12px;
-}
-
-/* כפתורי Material – התאמה למראה המערכת */
-.action {
-  font-weight: 900;
-  border-radius: 12px !important;
-  padding: 10px 16px !important;
-}
-
-/* דחייה - קו אדום עדין */
-.action.reject {
-  border-color: #f3b3b3 !important;
-  color: #b91c1c !important;
-  background: #fff !important;
-}
-
-/* אישור - ירוק עדין בסגנון מערכת */
-.action.approve {
-  background: #8a9362 !important;
-  color: #fff !important;
-}
-
-/* textarea כמו אצלך */
-.note {
-  width: 100%;
-  min-height: 64px;
-  margin-top: 10px;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid #e6ecdd;
-  font-weight: 800;
-}
-
-.hint {
-  font-size: 12px;
-  font-weight: 800;
-  color: #8a9362;
-}
-
-.hint.error {
-  color: #b91c1c;
-}
-
-/* banner */
-.child-status-alert {
-  margin: 12px 0;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid #f2b4b4;
-  background: #fff0f0;
-  color: #a40000;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-/* רשימות דילוגים */
-.list-inline {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.list-inline li {
-  border: 1px solid #e6ecdd;
-  background: #f7f9f4;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-weight: 800;
-  font-size: 13px;
-  color: #2b2b2b;
-}
-
-/* subcard (משתתפים) */
-.subcard {
-  margin-top: 10px;
-  border: 1px solid #e6ecdd;
-  border-radius: 12px;
-  padding: 10px;
-  background: #f9fafb;
-}
-
-/* “טבלה” כמו remain-box אבל מותאם למשתתפים */
+/* טבלת משתתפים / שיבוץ קיים */
 .mini-box {
   margin-top: 10px;
   border: 1px solid #e6ecdd;
@@ -213,28 +53,33 @@
   font-size: 13px;
 }
 
-.busy-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.18);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
+.muted {
+  color: #586141;
+  font-size: 12px;
+  font-weight: 800;
+  margin-top: 3px;
 }
 
-.busy-card {
-  background: #fff;
-  border-radius: 14px;
-  padding: 16px 18px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-  min-width: 240px;
+/* קישור קובץ הפניה */
+a {
+  color: #4f5d2f;
+  font-weight: 900;
+  text-decoration: none;
 }
 
-.busy-text {
-  font-size: 14px;
-  font-weight: 600;
+a:hover {
+  text-decoration: underline;
+}
+
+/* התאמה למובייל/רוחב צר של חלון צדדי */
+@media (max-width: 700px) {
+
+  .mini-head,
+  .mini-row {
+    grid-template-columns: 1fr;
+  }
+
+  .c {
+    text-align: right;
+  }
 }
