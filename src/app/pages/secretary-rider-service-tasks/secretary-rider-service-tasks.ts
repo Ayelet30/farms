@@ -41,6 +41,12 @@ type ServiceTask = {
     recurrence_interval: number | null;
     price_agorot: number;
   } | null;
+  completed_by_name?: string | null;
+  execution_note?: string | null;
+  cancelled_at?: string | null;
+  cancelled_by_uid?: string | null;
+  cancelled_by_name?: string | null;
+  cancellation_note?: string | null;
 };
 type RiderOption = {
   uid: string;
@@ -95,7 +101,8 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
   success = '';
 
   tasks: ServiceTask[] = [];
-
+  selectedTask: ServiceTask | null = null;
+  showTaskDetailsModal = false;
   taskStatusOptions: DbOption[] = [];
   serviceModeOptions: DbOption[] = [];
   recurrenceUnitOptions: DbOption[] = [];
@@ -176,8 +183,14 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
         due_date,
         status,
         completed_at,
-        completed_by_uid,
-        notes,
+completed_by_uid,
+completed_by_name,
+execution_note,
+cancelled_at,
+cancelled_by_uid,
+cancelled_by_name,
+cancellation_note,
+notes,
         horses:horse_uid (
           name
         ),
@@ -195,7 +208,7 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
   price_agorot
 )
       `)
-      .in('status', ['open', 'in_progress']);
+      .in('status', ['open', 'in_progress', 'completed']);
     if (this.selectedServiceTypeId) {
       query = query.eq('service_type_id', this.selectedServiceTypeId);
     }
@@ -404,9 +417,11 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
     this.serviceTypes = data ?? [];
   }
   isOverdue(task: ServiceTask): boolean {
-    return task.status === 'open' && task.due_date < this.todayYmd();
+    return (
+      (task.status === 'open' || task.status === 'in_progress') &&
+      task.due_date < this.todayYmd()
+    );
   }
-
   displayStatus(task: ServiceTask): string {
     if (this.isOverdue(task)) return 'באיחור';
     return this.statusLabel(task.status);
@@ -511,8 +526,7 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
           updated_at: now,
         })
         .eq('rider_service_id', group.rider_service_id)
-        .eq('status', 'open');
-
+        .in('status', ['open', 'in_progress']);
       if (tasksError) throw tasksError;
 
       await this.loadTasks();
@@ -584,15 +598,18 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
     const { count, error } = await db
       .from('rider_service_tasks')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'open');
-
+      .in('status', ['open', 'in_progress']);
     if (error) throw error;
 
     this.hasOpenTasks = (count ?? 0) > 0;
   }
   isDueTomorrow(task: ServiceTask): boolean {
-    if (task.status !== 'open') return false;
-
+    if (
+      task.status !== 'open' &&
+      task.status !== 'in_progress'
+    ) {
+      return false;
+    }
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
 
@@ -603,8 +620,10 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
     return task.due_date === `${y}-${m}-${d}`;
   }
   isDueToday(task: ServiceTask): boolean {
-    return task.status === 'open' &&
-      task.due_date === this.todayYmd();
+    return (
+      (task.status === 'open' || task.status === 'in_progress') &&
+      task.due_date === this.todayYmd()
+    );
   }
   isUrgent(task: ServiceTask): boolean {
     return this.isDueToday(task) || this.isDueTomorrow(task);
@@ -811,5 +830,108 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
       ...this.taskGroups,
       ...extraGroups,
     ];
+  }
+  openTaskDetails(task: ServiceTask): void {
+    this.selectedTask = { ...task };
+    this.showTaskDetailsModal = true;
+  }
+
+  closeTaskDetails(): void {
+    this.selectedTask = null;
+    this.showTaskDetailsModal = false;
+  }
+  async moveTaskToProgress(task: ServiceTask): Promise<void> {
+    if (this.actionLoadingId) return;
+
+    this.actionLoadingId = task.id;
+    this.error = '';
+    this.success = '';
+
+    try {
+      const { error } = await dbTenant()
+        .from('rider_service_tasks')
+        .update({
+          status: 'in_progress',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', task.id);
+
+      if (error) throw error;
+
+      await this.loadTasks();
+      await this.loadHasOpenTasks();
+
+      if (this.selectedTask?.id === task.id) {
+        this.selectedTask.status = 'in_progress';
+      }
+
+      this.success = 'המשימה הועברה לטיפול';
+    } catch (e: any) {
+      this.error = e?.message || 'שגיאה בהעברת המשימה לטיפול';
+    } finally {
+      this.actionLoadingId = '';
+    }
+  }
+  dateTimeText(value: string | null | undefined): string {
+    if (!value) return '—';
+
+    return new Date(value).toLocaleString('he-IL');
+  }
+  async reopenCompletedTask(task: ServiceTask): Promise<void> {
+    if (this.actionLoadingId) return;
+
+    this.actionLoadingId = task.id;
+
+    try {
+      const { error } = await dbTenant()
+        .from('rider_service_tasks')
+        .update({
+          status: 'in_progress',
+          completed_at: null,
+          completed_by_uid: null,
+          completed_by_name: null,
+          execution_note: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', task.id);
+
+      if (error) throw error;
+
+      await this.loadTasks();
+      await this.loadHasOpenTasks();
+      this.closeTaskDetails();
+
+      this.success = 'המשימה הוחזרה לטיפול';
+    } catch (e: any) {
+      this.error = e?.message || 'שגיאה בהחזרת המשימה לטיפול';
+    } finally {
+      this.actionLoadingId = '';
+    }
+  }
+  async updateCompletedTaskPerformer(task: ServiceTask): Promise<void> {
+    if (!task.completed_by_uid) {
+      this.error = 'חובה לבחור מי ביצע';
+      return;
+    }
+
+    const performer = this.performers.find(p => p.uid === task.completed_by_uid);
+
+    const { error } = await dbTenant()
+      .from('rider_service_tasks')
+      .update({
+        completed_by_uid: task.completed_by_uid,
+        completed_by_name: performer?.name ?? null,
+        execution_note: task.execution_note ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', task.id);
+
+    if (error) {
+      this.error = error.message;
+      return;
+    }
+
+    await this.loadTasks();
+    this.success = 'פרטי הביצוע עודכנו';
   }
 }
