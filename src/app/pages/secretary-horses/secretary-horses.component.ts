@@ -4,6 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { dbTenant } from '../../services/supabaseClient.service';
 import { UiDialogService } from '../../services/ui-dialog.service';
 import { Router, ActivatedRoute } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
+import { getCurrentUserData } from '../../services/legacy-compat';
+import { ServiceTaskActionDialogComponent } from '../secretary-rider-service-tasks/service-task-action-dialog.component';
 type HorseGender = 'male' | 'female' | 'gelding' | null;
 type HorseSize = 'pony_small' | 'pony_large' | 'horse' | null;
 interface RiderService {
@@ -24,6 +27,9 @@ interface RiderService {
     name: string | null;
     category: string | null;
   } | null;
+  cancelled_at: string | null;
+  cancelled_by_uid: string | null;
+  cancelled_by_name?: string | null;
 }
 interface Horse {
   id?: string;
@@ -71,7 +77,15 @@ interface HorseServiceTask {
   cancelled_at: string | null;
   cancelled_by_uid: string | null;
   cancellation_note: string | null;
+  completed_by_name?: string | null;
+  cancelled_by_name?: string | null;
+  execution_note?: string | null;
 }
+type PerformerOption = {
+  uid: string;
+  name: string;
+  role: string;
+};
 
 
 @Component({
@@ -98,10 +112,17 @@ export class SecretaryHorsesComponent implements OnInit {
   horseNameFilter = '';
   editingServiceId: string | null = null;
   editingTaskId: string | null = null;
-
+  performers: PerformerOption[] = [];
+  selectedHistoryHorse: Horse | null = null;
+  showHorseHistoryModal = false;
+  historyTab: 'services' | 'tasks' = 'tasks';
+  historyServiceTypeId = '';
+  serviceTypes: { id: string; name: string }[] = [];
   openServiceEdit(id: string): void {
     this.editingServiceId = id;
   }
+  private dialog = inject(MatDialog);
+  currentUser: any = null;
 
   closeServiceEdit(): void {
     this.editingServiceId = null;
@@ -117,8 +138,10 @@ export class SecretaryHorsesComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     const horseId = this.route.snapshot.queryParamMap.get('horseId');
     this.returnRiderUid = this.route.snapshot.queryParamMap.get('returnRiderUid');
-
+    this.currentUser = await getCurrentUserData();
     await this.loadRiders();
+    await this.loadPerformers();
+    await this.loadServiceTypes();
     await this.loadHorses();
     await this.loadHorseTasks();
 
@@ -374,6 +397,18 @@ export class SecretaryHorsesComponent implements OnInit {
         status: task.status,
         due_date: task.due_date,
         notes: task.notes,
+        completed_at: task.status === 'completed'
+          ? (task.completed_at ?? new Date().toISOString())
+          : null,
+        completed_by_uid: task.status === 'completed' ? task.completed_by_uid : null,
+        completed_by_name: task.status === 'completed' ? task.completed_by_name : null,
+        execution_note: task.status === 'completed' ? task.execution_note : null,
+        cancelled_at: task.status === 'cancelled'
+          ? (task.cancelled_at ?? new Date().toISOString())
+          : null,
+        cancelled_by_uid: task.status === 'cancelled' ? task.cancelled_by_uid : null,
+        cancelled_by_name: task.status === 'cancelled' ? task.cancelled_by_name : null,
+        cancellation_note: task.status === 'cancelled' ? task.cancellation_note : null,
       })
       .eq('id', task.id);
 
@@ -387,11 +422,22 @@ export class SecretaryHorsesComponent implements OnInit {
     this.closeTaskEdit();
   }
   get visibleTasksByHorse(): Record<string, HorseServiceTask[]> {
-    return this.tasksByHorse;
+    const result: Record<string, HorseServiceTask[]> = {};
+
+    for (const horseId of Object.keys(this.tasksByHorse)) {
+      result[horseId] = this.tasksByHorse[horseId]
+        .filter(t => t.status === 'open' || t.status === 'in_progress');
+    }
+
+    return result;
   }
   isTaskOverdue(task: HorseServiceTask): boolean {
-    if (task.status !== 'open') return false;
-    if (!task.due_date) return false;
+    if (
+      task.status !== 'open' &&
+      task.status !== 'in_progress'
+    ) {
+      return false;
+    } if (!task.due_date) return false;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -409,6 +455,7 @@ export class SecretaryHorsesComponent implements OnInit {
       case 'open': return 'פתוח';
       case 'completed': return 'בוצע';
       case 'cancelled': return 'בוטל';
+      case 'in_progress': return 'בטיפול';
       default: return task.status;
     }
   }
@@ -565,6 +612,11 @@ export class SecretaryHorsesComponent implements OnInit {
         price_agorot: service.price_agorot,
         notes: service.notes,
         cancellation_note: service.status === 'cancelled' ? service.cancellation_note : null,
+        cancelled_at: service.status === 'cancelled'
+          ? (service.cancelled_at ?? new Date().toISOString())
+          : null,
+        cancelled_by_uid: service.status === 'cancelled' ? service.cancelled_by_uid : null,
+        cancelled_by_name: service.status === 'cancelled' ? service.cancelled_by_name : null,
       })
       .eq('id', service.id);
 
@@ -617,5 +669,116 @@ export class SecretaryHorsesComponent implements OnInit {
     if (!rider) return '';
 
     return rider.is_farm_responsible ? 'אחראי חווה' : 'רוכב עצמאי';
+  }
+  async loadPerformers(): Promise<void> {
+    const db = dbTenant();
+    const performers: PerformerOption[] = [];
+
+    const { data: secretaries, error: secError } = await db
+      .from('secretaries')
+      .select('uid, first_name, last_name')
+      .order('first_name', { ascending: true });
+
+    if (secError) throw secError;
+
+    for (const s of secretaries ?? []) {
+      performers.push({
+        uid: s.uid,
+        name: `${s.first_name || ''} ${s.last_name || ''}`.trim() || s.uid,
+        role: 'מזכירות',
+      });
+    }
+
+    const { data: riders, error: riderError } = await db
+      .from('independent_riders')
+      .select('uid, full_name, first_name, last_name')
+      .eq('status', 'active')
+      .eq('is_farm_responsible', true)
+      .order('full_name', { ascending: true });
+
+    if (riderError) throw riderError;
+
+    for (const r of riders ?? []) {
+      performers.push({
+        uid: r.uid,
+        name: r.full_name || `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.uid,
+        role: 'מטעם החווה',
+      });
+    }
+
+    this.performers = performers;
+  }
+
+  async loadServiceTypes(): Promise<void> {
+    const { data, error } = await dbTenant()
+      .from('rider_service_types')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('name');
+
+    if (error) throw error;
+
+    this.serviceTypes = data ?? [];
+  }
+  cancelServiceFromHorse(service: RiderService): void {
+    const ref = this.dialog.open(ServiceTaskActionDialogComponent, {
+      width: '580px',
+      data: {
+        title: 'סיום שירות',
+        message: `סיום השירות "${service.service_name}" הוא פעולה בלתי הפיכה. כל המשימות העתידיות של השירות יבוטלו והשירות יהפוך ללא פעיל. להמשיך?`,
+        confirmText: 'כן, סיים שירות',
+        performers: this.performers,
+        defaultPerformerUid: this.currentUser?.uid || '',
+        noteLabel: 'סיבת סיום שירות',
+        notePlaceholder: 'אפשר לציין למה השירות הסתיים...',
+      },
+    });
+
+    ref.afterClosed().subscribe(async result => {
+      if (!result) return;
+
+      service.status = 'cancelled';
+      service.cancelled_at = new Date().toISOString();
+      service.cancelled_by_uid = result.performerUid;
+      service.cancelled_by_name = result.performerName;
+      service.cancellation_note = result.note;
+
+      await this.saveService(service);
+    });
+  }
+  openHorseHistory(horse: Horse): void {
+    this.selectedHistoryHorse = horse;
+    this.historyTab = 'tasks';
+    this.historyServiceTypeId = '';
+    this.showHorseHistoryModal = true;
+  }
+
+  closeHorseHistory(): void {
+    this.selectedHistoryHorse = null;
+    this.showHorseHistoryModal = false;
+  }
+
+  historyTasks(): HorseServiceTask[] {
+    if (!this.selectedHistoryHorse?.id) return [];
+
+    let tasks = this.tasksByHorse[this.selectedHistoryHorse.id] ?? [];
+
+    if (this.historyServiceTypeId) {
+      tasks = tasks.filter(t => t.service_type_id === this.historyServiceTypeId);
+    }
+
+    return tasks;
+  }
+
+  historyServices(): RiderService[] {
+    if (!this.selectedHistoryHorse?.id) return [];
+
+    let services = this.servicesByHorse[this.selectedHistoryHorse.id] ?? [];
+
+    if (this.historyServiceTypeId) {
+      services = services.filter(s => s.service_type_id === this.historyServiceTypeId);
+    }
+
+    return services;
   }
 }

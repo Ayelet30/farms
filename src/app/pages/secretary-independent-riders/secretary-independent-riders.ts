@@ -516,7 +516,7 @@ export class SecretaryIndependentRidersComponent implements OnInit {
       .from('rider_service_tasks')
       .select('id, rider_service_id, due_date, status')
       .in('rider_service_id', serviceIds)
-      .eq('status', 'open')
+      .in('status', ['open', 'in_progress'])
       .order('due_date', { ascending: true });
 
     if (tasksError) {
