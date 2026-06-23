@@ -6,6 +6,11 @@ import { getCurrentUserData } from '../../services/legacy-compat';
 import { FormsModule } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
 import { CancelServiceTaskDialogComponent } from './cancel-service-task-dialog.component';
+import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
+import {
+  ServiceTaskActionDialogComponent,
+  TaskPerformerOption,
+} from './service-task-action-dialog.component';
 type ServiceTask = {
   id: string;
   rider_service_id: string;
@@ -52,14 +57,18 @@ type TaskGroup = {
   service_name: string;
   riderName: string;
   horseName: string;
-  nearestTask: ServiceTask;
+  nearestTask: ServiceTask | null;
   tasks: ServiceTask[];
+  hasFutureTaskExpected?: boolean;
+  nextExpectedDate?: string | null;
 };
+type ServiceTaskStatus = 'open' | 'in_progress' | 'completed' | 'cancelled';
+
 
 @Component({
   selector: 'app-secretary-rider-service-tasks',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, DragDropModule],
   templateUrl: './secretary-rider-service-tasks.html',
   styleUrls: ['./secretary-rider-service-tasks.css'],
 })
@@ -91,17 +100,36 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
   serviceModeOptions: DbOption[] = [];
   recurrenceUnitOptions: DbOption[] = [];
   hasOpenTasks = false;
+  viewMode: 'list' | 'board' = 'list';
+  boardColumns: { key: ServiceTaskStatus; label: string }[] = [
+    { key: 'open', label: 'פתוח' },
+    { key: 'in_progress', label: 'בטיפול' },
+    { key: 'completed', label: 'בוצע' },
+  ];
+  performers: TaskPerformerOption[] = [];
+  currentUser: any = null;
+  taskClass(task: ServiceTask): string {
+    if (this.isOverdue(task)) return 'overdue';
+    if (this.isDueToday(task)) return 'today';
+    if (this.isUrgent(task)) return 'urgent';
+    return '';
+  }
+  showActiveServicesWithoutOpenTasks = false;
+  boardColumnIds = this.boardColumns.map(c => c.key);
   async ngOnInit() {
     await this.initPage();
   }
+
   private async initPage() {
     this.loading = true;
     this.error = '';
     this.success = '';
+    this.currentUser = await getCurrentUserData();
 
     try {
       await this.loadEnumOptions();
       await Promise.all([
+        this.loadPerformers(),
         this.loadServiceTypes(),
         this.loadRiders(),
         this.loadHorses(),
@@ -166,8 +194,8 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
   recurrence_interval,
   price_agorot
 )
-      `).eq('status', 'open');
-
+      `)
+      .in('status', ['open', 'in_progress']);
     if (this.selectedServiceTypeId) {
       query = query.eq('service_type_id', this.selectedServiceTypeId);
     }
@@ -191,6 +219,9 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
     const { data, error } = await query.order('due_date', { ascending: true });
     this.tasks = data ?? [];
     this.buildTaskGroups();
+    if (this.showActiveServicesWithoutOpenTasks) {
+      await this.loadActiveServicesWithoutOpenTasks();
+    }
   }
   private buildTaskGroups() {
     const map = new Map<string, ServiceTask[]>();
@@ -260,36 +291,55 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
   async markAsDone(task: ServiceTask) {
     if (this.actionLoadingId) return;
 
+    const ref = this.dialog.open(ServiceTaskActionDialogComponent, {
+      width: '560px',
+      data: {
+        title: 'סימון משימה כבוצעה',
+        message: `האם את בטוחה שברצונך לסמן את המשימה "${task.service_name}" לסוס "${task.horses?.name || 'סוס לא ידוע'}" כבוצעה?`,
+        confirmText: 'כן, סמן כבוצע',
+        performers: this.performers,
+        defaultPerformerUid: this.currentUser?.uid || '',
+        noteLabel: 'הערת ביצוע',
+        notePlaceholder: 'לדוגמה: בוצע בפועל, הערות טיפול, מי נכח וכו׳',
+      },
+    });
 
-    this.actionLoadingId = task.id;
-    this.error = '';
-    this.success = '';
+    ref.afterClosed().subscribe(async result => {
+      if (!result) return;
 
-    try {
-      const user = await getCurrentUserData();
-      const db = dbTenant();
+      this.actionLoadingId = task.id;
+      this.error = '';
+      this.success = '';
 
-      const { error } = await db
-        .from('rider_service_tasks')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          completed_by_uid: user?.uid ?? null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', task.id);
+      try {
+        const db = dbTenant();
 
-      if (error) throw error;
+        const { error } = await db
+          .from('rider_service_tasks')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            completed_by_uid: result.performerUid,
+            completed_by_name: result.performerName,
+            execution_note: result.note,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', task.id);
 
-      await this.loadTasks();
-      await this.loadHasOpenTasks(); this.success = 'המשימה סומנה כבוצעה בהצלחה ✅';
+        if (error) throw error;
 
-    } catch (e: any) {
-      this.error = e?.message || 'שגיאה בסימון המשימה כבוצעה';
-    } finally {
-      this.actionLoadingId = '';
-    }
+        await this.loadTasks();
+        await this.loadHasOpenTasks();
+
+        this.success = 'המשימה סומנה כבוצעה בהצלחה ✅';
+      } catch (e: any) {
+        this.error = e?.message || 'שגיאה בסימון המשימה כבוצעה';
+      } finally {
+        this.actionLoadingId = '';
+      }
+    });
   }
+
 
   optionLabel(options: DbOption[], value: string | null | undefined): string {
     if (!value) return '—';
@@ -369,7 +419,12 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
   }
-  async cancelTask(task: ServiceTask, note: string | null) {
+  async cancelTask(
+    task: ServiceTask,
+    note: string | null,
+    performerUid?: string,
+    performerName?: string
+  ) {
     this.actionLoadingId = task.id;
 
     try {
@@ -382,7 +437,8 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
         .update({
           status: 'cancelled',
           cancelled_at: now,
-          cancelled_by_uid: user?.uid ?? null,
+          cancelled_by_uid: performerUid,
+          cancelled_by_name: performerName,
           cancellation_note: note,
           updated_at: now,
         })
@@ -417,7 +473,12 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
       this.actionLoadingId = '';
     }
   }
-  async cancelWholeService(group: TaskGroup, note: string | null) {
+  async cancelWholeService(
+    group: TaskGroup,
+    note: string | null,
+    performerUid?: string,
+    performerName?: string
+  ) {
     this.actionLoadingId = group.rider_service_id;
 
     try {
@@ -430,7 +491,8 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
         .update({
           status: 'cancelled',
           cancelled_at: now,
-          cancelled_by_uid: user?.uid ?? null,
+          cancelled_by_uid: performerUid,
+          cancelled_by_name: performerName,
           cancellation_note: note,
           updated_at: now,
         })
@@ -443,7 +505,8 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
         .update({
           status: 'cancelled',
           cancelled_at: now,
-          cancelled_by_uid: user?.uid ?? null,
+          cancelled_by_uid: performerUid,
+          cancelled_by_name: performerName,
           cancellation_note: note,
           updated_at: now,
         })
@@ -487,38 +550,31 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
 
     this.horses = data ?? [];
   }
-  openCancelDialog(group: TaskGroup) {
-    const ref = this.dialog.open(CancelServiceTaskDialogComponent, {
-      width: '520px',
-      data: {
-        message: `מה תרצי לבטל עבור השירות "${group.service_name}"?`,
-        allowServiceCancel: true,
-      },
-    });
 
-    ref.afterClosed().subscribe(async result => {
-      if (!result) return;
-
-      if (result.scope === 'task') {
-        await this.cancelTask(group.nearestTask, result.note);
-      } else {
-        await this.cancelWholeService(group, result.note);
-        await this.loadHasOpenTasks();
-      }
-    });
-  }
   openCancelTaskDialog(task: ServiceTask) {
-    const ref = this.dialog.open(CancelServiceTaskDialogComponent, {
-      width: '520px',
+    const ref = this.dialog.open(ServiceTaskActionDialogComponent, {
+      width: '560px',
       data: {
+        title: 'ביטול משימה',
         message: `לבטל את המשימה "${task.service_name}" לתאריך ${task.due_date}?`,
-        allowServiceCancel: false,
+        confirmText: 'כן, בטל משימה',
+        performers: this.performers,
+        defaultPerformerUid: this.currentUser?.uid || '',
+        noteLabel: 'סיבת ביטול',
+        notePlaceholder: 'חובה לבחור מבצע. הערה מומלצת אך לא חובה...',
       },
     });
 
     ref.afterClosed().subscribe(async result => {
       if (!result) return;
-      await this.cancelTask(task, result.note);
+
+      await this.cancelTask(
+        task,
+        result.note,
+        result.performerUid,
+        result.performerName
+      );
+
       await this.loadHasOpenTasks();
     });
   }
@@ -552,5 +608,208 @@ export class SecretaryRiderServiceTasksComponent implements OnInit {
   }
   isUrgent(task: ServiceTask): boolean {
     return this.isDueToday(task) || this.isDueTomorrow(task);
+  }
+  setViewMode(mode: 'list' | 'board') {
+    this.viewMode = mode;
+  }
+
+
+  tasksByStatus(status: ServiceTaskStatus): ServiceTask[] {
+    return this.tasks.filter(t => t.status === status);
+  }
+
+  async onTaskDropped(
+    event: CdkDragDrop<ServiceTask[]>,
+    newStatus: ServiceTaskStatus
+  ) {
+    const task = event.item.data as ServiceTask;
+
+    if (!task || task.status === newStatus) return;
+
+    if (newStatus === 'completed') {
+      await this.markAsDone(task);
+      return;
+    }
+
+    const { error } = await dbTenant()
+      .from('rider_service_tasks')
+      .update({
+        status: newStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', task.id);
+
+    if (error) {
+      this.error = error.message;
+      return;
+    }
+
+    await this.loadTasks();
+  }
+  private async loadPerformers() {
+    const db = dbTenant();
+
+    const performers: TaskPerformerOption[] = [];
+
+    const { data: secretaries, error: secError } = await db
+      .from('secretaries')
+      .select('uid, first_name, last_name')
+      .order('first_name', { ascending: true });
+
+    if (secError) throw secError;
+
+    for (const s of secretaries ?? []) {
+      performers.push({
+        uid: s.uid,
+        name: `${s.first_name || ''} ${s.last_name || ''}`.trim() || s.uid,
+        role: 'מזכירות',
+      });
+    }
+
+    const { data: farmRiders, error: ridersError } = await db
+      .from('independent_riders')
+      .select('uid, full_name, first_name, last_name')
+      .eq('status', 'active')
+      .eq('is_farm_responsible', true)
+      .order('full_name', { ascending: true });
+
+    if (ridersError) throw ridersError;
+
+    for (const r of farmRiders ?? []) {
+      performers.push({
+        uid: r.uid,
+        name:
+          r.full_name ||
+          `${r.first_name || ''} ${r.last_name || ''}`.trim() ||
+          r.uid,
+        role: 'רוכב מטעם החווה',
+      });
+    }
+
+    const map = new Map<string, TaskPerformerOption>();
+
+    for (const p of performers) {
+      if (!map.has(p.uid)) map.set(p.uid, p);
+    }
+
+    this.performers = Array.from(map.values());
+  }
+  finishService(group: TaskGroup) {
+    const ref = this.dialog.open(ServiceTaskActionDialogComponent, {
+      width: '580px',
+      data: {
+        title: 'סיום שירות',
+        message: `סיום השירות "${group.service_name}" הוא פעולה בלתי הפיכה. כל המשימות העתידיות של השירות יבוטלו והשירות יהפוך ללא פעיל. להמשיך?`,
+        confirmText: 'כן, סיים שירות',
+        performers: this.performers,
+        defaultPerformerUid: this.currentUser?.uid || '',
+        noteLabel: 'הערת סיום שירות',
+        notePlaceholder: 'אפשר לציין למה השירות הסתיים...',
+      },
+    });
+
+    ref.afterClosed().subscribe(async result => {
+      if (!result) return;
+
+      await this.cancelWholeService(
+        group,
+        result.note,
+        result.performerUid,
+        result.performerName
+      );
+
+      await this.loadHasOpenTasks();
+    });
+  }
+  private serviceShouldHaveFutureTasks(service: any): boolean {
+    if (!service) return false;
+
+    if (service.status && service.status !== 'active') return false;
+
+    if (service.service_mode === 'once') {
+      return false;
+    }
+
+    if (!service.recurrence_unit || !service.recurrence_interval) {
+      return false;
+    }
+
+    if (service.service_mode === 'recurring_range') {
+      if (!service.end_date) return false;
+      return service.end_date >= this.todayYmd();
+    }
+
+    if (service.service_mode === 'permanent') {
+      return true;
+    }
+
+    return false;
+  }
+  private async loadActiveServicesWithoutOpenTasks() {
+    const db = dbTenant();
+
+    const existingServiceIds = new Set(
+      this.taskGroups.map(g => g.rider_service_id)
+    );
+
+    let query = db
+      .from('rider_services')
+      .select(`
+      id,
+      rider_uid,
+      horse_uid,
+      service_type_id,
+      service_name,
+      start_date,
+      end_date,
+      status,
+      service_mode,
+      recurrence_unit,
+      recurrence_interval,
+      independent_riders:rider_uid (
+        first_name,
+        last_name
+      ),
+      horses:horse_uid (
+        name
+      )
+    `)
+      .eq('status', 'active');
+
+    if (this.selectedServiceTypeId) {
+      query = query.eq('service_type_id', this.selectedServiceTypeId);
+    }
+
+    if (this.selectedRiderUid) {
+      query = query.eq('rider_uid', this.selectedRiderUid);
+    }
+
+    if (this.selectedHorseUid) {
+      query = query.eq('horse_uid', this.selectedHorseUid);
+    }
+
+    const { data, error } = await query.order('start_date', { ascending: true });
+
+    if (error) throw error;
+
+    const extraGroups = (data ?? [])
+      .filter((service: any) => !existingServiceIds.has(service.id))
+      .filter((service: any) =>
+        this.serviceShouldHaveFutureTasks(service)
+      ).map((service: any) => ({
+        rider_service_id: service.id,
+        service_name: service.service_name,
+        riderName: `${service.independent_riders?.first_name || ''} ${service.independent_riders?.last_name || ''}`.trim(),
+        horseName: service.horses?.name || 'סוס לא ידוע',
+        nearestTask: null,
+        tasks: [],
+        hasFutureTaskExpected: true,
+        nextExpectedDate: service.start_date ?? null,
+      }));
+
+    this.taskGroups = [
+      ...this.taskGroups,
+      ...extraGroups,
+    ];
   }
 }
