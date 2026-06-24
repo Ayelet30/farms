@@ -97,7 +97,11 @@
             <div class="hint">
                 הכרטיס יישמר לשימוש עתידי. בפועל לא יתבצע חיוב כאן (אימות טוקן בלבד).
             </div>
-            <div class="hf-grid" [class.is-disabled]="savingToken()">
+            <div class="hf-loading" *ngIf="hostedFieldsLoading()">
+                <div class="spinner"></div>
+                <div>טוען שדות אשראי…</div>
+            </div>
+            <div class="hf-grid" [class.is-disabled]="savingToken() || hostedFieldsLoading() || !hostedFieldsReady()">
                 <div class="hf-grid">
                     <div class="hf-box">
                         <label>מספר כרטיס</label>
@@ -127,7 +131,8 @@
                 ביטול
             </button>
 
-            <button class="btn primary" type="button" (click)="tokenizeAndSaveCard()" [disabled]="savingToken()">
+            <button class="btn primary" type="button" (click)="tokenizeAndSaveCard()"
+                [disabled]="savingToken() || hostedFieldsLoading() || !hostedFieldsReady()">
                 {{ savingToken() ? 'שומר…' : 'שמירת אמצעי תשלום' }}
             </button>
         </div>
