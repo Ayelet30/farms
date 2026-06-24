@@ -56,7 +56,14 @@ export class RequestValidationService {
     },
 
     INSTRUCTOR_DAY_OFF: {
-      checks: [Check.PendingStatus, Check.Expiry, Check.Requester, Check.Instructor, Check.FarmDayOff],
+      checks: [
+        Check.PendingStatus,
+        Check.Expiry,
+        Check.Requester,
+        Check.Instructor,
+        Check.FarmDayOff,
+        Check.InstructorAvailability,
+      ],
     },
 
     NEW_SERIES: {
@@ -1141,11 +1148,20 @@ export class RequestValidationService {
     row: UiRequest,
     mode: ValidationMode
   ): Promise<{ ok: boolean; reason?: string }> {
-    if (!['NEW_SERIES', 'MAKEUP_LESSON', 'FILL_IN', 'SINGLE_LESSON'].includes(row.requestType)) {
+    if (![
+      'NEW_SERIES',
+      'MAKEUP_LESSON',
+      'FILL_IN',
+      'SINGLE_LESSON',
+      'INSTRUCTOR_DAY_OFF',
+    ].includes(row.requestType)) {
       return { ok: true };
     }
 
     try {
+      if (row.requestType === 'INSTRUCTOR_DAY_OFF') {
+        return await this.checkInstructorDayOffInsideWeeklyAvailability(db, row, mode);
+      }
       const instructorId = this.getInstructorIdForRequest(row);
       const w = this.getRequestedDateAndWindow(row);
 
@@ -1267,5 +1283,113 @@ export class RequestValidationService {
       const r = this.handleDbFailure(mode, 'checkRequestStillPending', e);
       return r.ok ? { ok: true } : { ok: false, reason: r.reason };
     }
+  }
+  private async checkInstructorDayOffInsideWeeklyAvailability(
+    db: any,
+    row: UiRequest,
+    mode: ValidationMode
+  ): Promise<{ ok: boolean; reason?: string }> {
+    try {
+      const instructorId = this.getInstructorIdForRequest(row);
+
+      const from = String(row.fromDate ?? row.payload?.from_date ?? '').slice(0, 10);
+      const to = String(row.toDate ?? row.payload?.to_date ?? from).slice(0, 10);
+
+      if (!instructorId || !from || !to) {
+        return { ok: true };
+      }
+
+      const p: any = row.payload ?? {};
+
+      const allDay =
+        p.all_day === undefined || p.all_day === null
+          ? true
+          : p.all_day === true || p.all_day === 'true';
+
+      const reqStartHHMM = this.normalizeTimeHHMM(
+        p.requested_start_time ?? p.start_time ?? null
+      );
+
+      const reqEndHHMM = this.normalizeTimeHHMM(
+        p.requested_end_time ?? p.end_time ?? null
+      );
+
+      const { data, error } = await db
+        .from('instructor_weekly_availability')
+        .select('day_of_week, start_time, end_time')
+        .eq('instructor_id_number', instructorId);
+
+      if (error) {
+        const r = this.handleDbFailure(mode, 'checkInstructorDayOffInsideWeeklyAvailability', error);
+        return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+      }
+
+      let current = from;
+
+      while (current <= to) {
+        const dayOfWeek = this.getDayOfWeekForDb(current);
+
+        const rowsForDay = (data ?? []).filter(
+          (x: any) => Number(x.day_of_week) === dayOfWeek
+        );
+
+        if (!rowsForDay.length) {
+          return {
+            ok: false,
+            reason: `הבקשה נדחתה אוטומטית: בתאריך ${this.formatDateHe(current)} המדריך אינו מוגדר כעובד.`,
+          };
+        }
+
+        if (!allDay) {
+          if (!reqStartHHMM || !reqEndHHMM) {
+            return {
+              ok: false,
+              reason: `הבקשה נדחתה אוטומטית: חסרות שעות התחלה/סיום לבקשת ההיעדרות.`,
+            };
+          }
+
+          const reqStartMin = this.timeToMinutes(reqStartHHMM);
+          const reqEndMin = this.timeToMinutes(reqEndHHMM);
+
+          const covered = rowsForDay.some((x: any) => {
+            const start = this.normalizeTimeHHMM(x.start_time);
+            const end = this.normalizeTimeHHMM(x.end_time);
+            if (!start || !end) return false;
+
+            return reqStartMin >= this.timeToMinutes(start)
+              && reqEndMin <= this.timeToMinutes(end);
+          });
+
+          if (!covered) {
+            return {
+              ok: false,
+              reason: `הבקשה נדחתה אוטומטית: השעות המבוקשות בתאריך ${this.formatDateHe(current)} מחוץ לשעות העבודה של המדריך.`,
+            };
+          }
+        }
+
+        current = this.addOneDayYmd(current);
+      }
+
+      return { ok: true };
+    } catch (e: any) {
+      const r = this.handleDbFailure(mode, 'checkInstructorDayOffInsideWeeklyAvailability', e);
+      return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+    }
+  }
+  private addOneDayYmd(dateYmd: string): string {
+    const [y, m, d] = dateYmd.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + 1);
+
+    return [
+      dt.getFullYear(),
+      String(dt.getMonth() + 1).padStart(2, '0'),
+      String(dt.getDate()).padStart(2, '0'),
+    ].join('-');
+  }
+
+  private formatDateHe(dateYmd: string): string {
+    return new Date(`${dateYmd}T00:00:00`).toLocaleDateString('he-IL');
   }
 }
