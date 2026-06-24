@@ -154,31 +154,31 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     slot: null as any | null,
   };
 
-moveSlotsModal = {
-  open: false,
-  mode: 'single' as 'single' | 'series',
-  loading: false,
-  saving: false,
-  error: '',
-  slots: [] as any[],
-  selectedSlot: null as any | null,
-};
+  moveSlotsModal = {
+    open: false,
+    mode: 'single' as 'single' | 'series',
+    loading: false,
+    saving: false,
+    error: '',
+    slots: [] as any[],
+    selectedSlot: null as any | null,
+  };
 
-moveSlotFilters = {
-  instructorId: '',
-  dayOfWeek: '',
-};
+  moveSlotFilters = {
+    instructorId: '',
+    dayOfWeek: '',
+  };
 
-readonly weekDays = [
-  { value: '', label: 'כל הימים' },
-  { value: 'ראשון', label: 'ראשון' },
-  { value: 'שני', label: 'שני' },
-  { value: 'שלישי', label: 'שלישי' },
-  { value: 'רביעי', label: 'רביעי' },
-  { value: 'חמישי', label: 'חמישי' },
-  { value: 'שישי', label: 'שישי' },
-  { value: 'שבת', label: 'שבת' },
-];
+  readonly weekDays = [
+    { value: '', label: 'כל הימים' },
+    { value: 'ראשון', label: 'ראשון' },
+    { value: 'שני', label: 'שני' },
+    { value: 'שלישי', label: 'שלישי' },
+    { value: 'רביעי', label: 'רביעי' },
+    { value: 'חמישי', label: 'חמישי' },
+    { value: 'שישי', label: 'שישי' },
+    { value: 'שבת', label: 'שבת' },
+  ];
 
   currentRange: { start: string; end: string; viewType: string } | null = null;
   currentViewType:
@@ -1140,14 +1140,16 @@ readonly weekDays = [
 
     const diffHours =
       (lessonStart.getTime() - Date.now()) / (1000 * 60 * 60);
-
+    const hoursText =
+      cancelBeforeHours === 1
+        ? 'שעה'
+        : `${cancelBeforeHours} שעות`;
     // אזהרה על ביטול מאוחר
     this.cancelLessonModal.lateCancelWarning =
       cancelBeforeHours != null &&
         cancelBeforeHours > 0 &&
         diffHours < cancelBeforeHours
-        ? `שימי לב: השיעור קורה בעוד פחות מ־${cancelBeforeHours} שעות.`
-        : '';
+        ? `לתשומת ליבך, מועד תחילת השיעור חל בעוד פחות מ־${hoursText}.` : '';
 
     // 1. קודם בודקים cancel_before_hours
     if (
@@ -2780,33 +2782,33 @@ readonly weekDays = [
     x = Math.max(EDGE_GAP, Math.min(x, maxX));
     y = Math.max(EDGE_GAP, Math.min(y, maxY));
 
-  this.contextMenu.visible = true;
-  this.contextMenu.x = x;
-  this.contextMenu.y = y;
-  this.contextMenu.date = localYmd;
-  this.contextMenu.time = localHm;
-  this.contextMenu.endTime = localEndHm;
-  this.contextMenu.instructorId = String(e.resourceId ?? '');
-  this.contextMenu.instructorName = String(e.resourceTitle ?? '');
-  this.contextMenu.hasEvent = true;
-  this.contextMenu.eventId = String(e.eventId ?? '');
-  this.contextMenu.lessonId = String(e.lessonId ?? '');
-  this.contextMenu.childId = String(e.childId ?? '');
-  this.contextMenu.childName = String(e.childName ?? '');
-  this.contextMenu.lessonType = String(e.lessonType ?? '');
-  this.contextMenu.status = String(e.status ?? '');
-  this.contextMenuMode = 'root';
-  this.contextMenu.seriesId = String(e.seriesId ?? '');
-this.contextMenu.appointmentKind = String(e.appointmentKind ?? '');
-this.contextMenu.repeatWeeks = e.repeatWeeks != null ? Number(e.repeatWeeks) : null;
-this.contextMenu.isOpenEnded = e.isOpenEnded != null ? !!e.isOpenEnded : null;
-this.contextMenu.seriesEndDate = String(e.seriesEndDate ?? '');
-this.contextMenu.occurDate = String(e.occurDate ?? this.contextMenu.date ?? '');
-this.contextMenu.startTimeOnly = String(e.startTime ?? this.contextMenu.time ?? '');
-this.contextMenu.canDeleteLesson = false;
-this.contextMenu.deleteBlockedReason = '';
+    this.contextMenu.visible = true;
+    this.contextMenu.x = x;
+    this.contextMenu.y = y;
+    this.contextMenu.date = localYmd;
+    this.contextMenu.time = localHm;
+    this.contextMenu.endTime = localEndHm;
+    this.contextMenu.instructorId = String(e.resourceId ?? '');
+    this.contextMenu.instructorName = String(e.resourceTitle ?? '');
+    this.contextMenu.hasEvent = true;
+    this.contextMenu.eventId = String(e.eventId ?? '');
+    this.contextMenu.lessonId = String(e.lessonId ?? '');
+    this.contextMenu.childId = String(e.childId ?? '');
+    this.contextMenu.childName = String(e.childName ?? '');
+    this.contextMenu.lessonType = String(e.lessonType ?? '');
+    this.contextMenu.status = String(e.status ?? '');
+    this.contextMenuMode = 'root';
+    this.contextMenu.seriesId = String(e.seriesId ?? '');
+    this.contextMenu.appointmentKind = String(e.appointmentKind ?? '');
+    this.contextMenu.repeatWeeks = e.repeatWeeks != null ? Number(e.repeatWeeks) : null;
+    this.contextMenu.isOpenEnded = e.isOpenEnded != null ? !!e.isOpenEnded : null;
+    this.contextMenu.seriesEndDate = String(e.seriesEndDate ?? '');
+    this.contextMenu.occurDate = String(e.occurDate ?? this.contextMenu.date ?? '');
+    this.contextMenu.startTimeOnly = String(e.startTime ?? this.contextMenu.time ?? '');
+    this.contextMenu.canDeleteLesson = false;
+    this.contextMenu.deleteBlockedReason = '';
 
-this.checkDeletePermissionForContext();
+    this.checkDeletePermissionForContext();
 
     this.cdr.detectChanges();
   }
@@ -2884,27 +2886,27 @@ this.checkDeletePermissionForContext();
   private buildDateTime(dateStr?: string | null, timeStr?: string | null): string | null {
     if (!dateStr || !timeStr) return null;
 
-  // time יכול להגיע HH:mm או HH:mm:ss
-  const t = String(timeStr).length === 5 ? `${timeStr}:00` : String(timeStr);
-  return `${dateStr}T${t}`;
-}
-
-private async checkDeletePermissionForContext(): Promise<void> {
-  const lessonId = this.contextMenu.lessonId;
-  const occurDate = this.contextMenu.occurDate || this.contextMenu.date;
-
-  this.contextMenu.canDeleteLesson = false;
-  this.contextMenu.deleteBlockedReason = '';
-
-  if (!lessonId || !occurDate) {
-    this.cdr.detectChanges();
-    return;
+    // time יכול להגיע HH:mm או HH:mm:ss
+    const t = String(timeStr).length === 5 ? `${timeStr}:00` : String(timeStr);
+    return `${dateStr}T${t}`;
   }
 
-  try {
-    const { data: clicked, error: clickedError } = await dbTenant()
-      .from('lessons_occurrences')
-      .select(`
+  private async checkDeletePermissionForContext(): Promise<void> {
+    const lessonId = this.contextMenu.lessonId;
+    const occurDate = this.contextMenu.occurDate || this.contextMenu.date;
+
+    this.contextMenu.canDeleteLesson = false;
+    this.contextMenu.deleteBlockedReason = '';
+
+    if (!lessonId || !occurDate) {
+      this.cdr.detectChanges();
+      return;
+    }
+
+    try {
+      const { data: clicked, error: clickedError } = await dbTenant()
+        .from('lessons_occurrences')
+        .select(`
         lesson_id,
         child_id,
         occur_date,
@@ -2913,87 +2915,87 @@ private async checkDeletePermissionForContext(): Promise<void> {
         repeat_weeks,
         is_open_ended
       `)
-      .eq('lesson_id', lessonId)
-      .eq('occur_date', occurDate)
-      .maybeSingle();
+        .eq('lesson_id', lessonId)
+        .eq('occur_date', occurDate)
+        .maybeSingle();
 
-    if (clickedError) throw clickedError;
+      if (clickedError) throw clickedError;
 
-    if (!clicked) {
-      this.contextMenu.deleteBlockedReason = 'השיעור לא נמצא';
-      return;
-    }
+      if (!clicked) {
+        this.contextMenu.deleteBlockedReason = 'השיעור לא נמצא';
+        return;
+      }
 
-    const isSeries =
-      !!clicked.series_id ||
-      clicked.appointment_kind === 'therapy_series' ||
-      clicked.is_open_ended === true ||
-      Number(clicked.repeat_weeks || 1) > 1;
+      const isSeries =
+        !!clicked.series_id ||
+        clicked.appointment_kind === 'therapy_series' ||
+        clicked.is_open_ended === true ||
+        Number(clicked.repeat_weeks || 1) > 1;
 
-    // שיעור חד פעמי: מותר רק אם אין לו נוכחות
-    if (!isSeries) {
-      const { count, error } = await dbTenant()
+      // שיעור חד פעמי: מותר רק אם אין לו נוכחות
+      if (!isSeries) {
+        const { count, error } = await dbTenant()
+          .from('lesson_attendance')
+          .select('*', { count: 'exact', head: true })
+          .eq('lesson_id', clicked.lesson_id)
+          .eq('child_id', clicked.child_id)
+          .eq('occur_date', occurDate)
+          .in('attendance_status', ['present', 'absent', 'הגיע', 'לא הגיע']);
+
+        if (error) throw error;
+
+        this.contextMenu.canDeleteLesson = (count ?? 0) === 0;
+        this.contextMenu.deleteBlockedReason =
+          this.contextMenu.canDeleteLesson ? '' : 'כבר נרשמה נוכחות לשיעור';
+        return;
+      }
+
+      // סדרה: קודם בודקים שזה המופע הראשון
+      const q = dbTenant()
+        .from('lessons_occurrences')
+        .select('lesson_id, child_id, occur_date')
+        .order('occur_date', { ascending: true });
+
+      const { data: seriesRows, error: seriesError } = clicked.series_id
+        ? await q.eq('series_id', clicked.series_id)
+        : await q.eq('lesson_id', clicked.lesson_id).eq('child_id', clicked.child_id);
+
+      if (seriesError) throw seriesError;
+
+      const rows = seriesRows ?? [];
+      const firstDate = rows[0]?.occur_date?.slice(0, 10);
+
+      if (!firstDate || firstDate !== occurDate.slice(0, 10)) {
+        this.contextMenu.canDeleteLesson = false;
+        this.contextMenu.deleteBlockedReason = 'מחיקת סדרה אפשרית רק מהמופע הראשון';
+        return;
+      }
+
+      // סדרה: אסור אם יש נוכחות באחד השיעורים
+      const lessonIds = [...new Set(rows.map((r: { lesson_id: any; }) => r.lesson_id).filter(Boolean))];
+      const dates = [...new Set(rows.map((r: { occur_date: any; }) => r.occur_date).filter(Boolean))];
+
+      const { count: attendanceCount, error: attendanceError } = await dbTenant()
         .from('lesson_attendance')
         .select('*', { count: 'exact', head: true })
-        .eq('lesson_id', clicked.lesson_id)
-        .eq('child_id', clicked.child_id)
-        .eq('occur_date', occurDate)
+        .in('lesson_id', lessonIds)
+        .in('occur_date', dates)
         .in('attendance_status', ['present', 'absent', 'הגיע', 'לא הגיע']);
 
-      if (error) throw error;
+      if (attendanceError) throw attendanceError;
 
-      this.contextMenu.canDeleteLesson = (count ?? 0) === 0;
+      this.contextMenu.canDeleteLesson = (attendanceCount ?? 0) === 0;
       this.contextMenu.deleteBlockedReason =
-        this.contextMenu.canDeleteLesson ? '' : 'כבר נרשמה נוכחות לשיעור';
-      return;
-    }
+        this.contextMenu.canDeleteLesson ? '' : 'כבר נרשמה נוכחות באחד משיעורי הסדרה';
 
-    // סדרה: קודם בודקים שזה המופע הראשון
-    const q = dbTenant()
-      .from('lessons_occurrences')
-      .select('lesson_id, child_id, occur_date')
-      .order('occur_date', { ascending: true });
-
-    const { data: seriesRows, error: seriesError } = clicked.series_id
-      ? await q.eq('series_id', clicked.series_id)
-      : await q.eq('lesson_id', clicked.lesson_id).eq('child_id', clicked.child_id);
-
-    if (seriesError) throw seriesError;
-
-    const rows = seriesRows ?? [];
-    const firstDate = rows[0]?.occur_date?.slice(0, 10);
-
-    if (!firstDate || firstDate !== occurDate.slice(0, 10)) {
+    } catch (err) {
+      console.error('checkDeletePermissionForContext failed', err);
       this.contextMenu.canDeleteLesson = false;
-      this.contextMenu.deleteBlockedReason = 'מחיקת סדרה אפשרית רק מהמופע הראשון';
-      return;
+      this.contextMenu.deleteBlockedReason = 'שגיאה בבדיקת אפשרות מחיקה';
+    } finally {
+      this.cdr.detectChanges();
     }
-
-    // סדרה: אסור אם יש נוכחות באחד השיעורים
-    const lessonIds = [...new Set(rows.map((r: { lesson_id: any; }) => r.lesson_id).filter(Boolean))];
-    const dates = [...new Set(rows.map((r: { occur_date: any; }) => r.occur_date).filter(Boolean))];
-
-    const { count: attendanceCount, error: attendanceError } = await dbTenant()
-      .from('lesson_attendance')
-      .select('*', { count: 'exact', head: true })
-      .in('lesson_id', lessonIds)
-      .in('occur_date', dates)
-      .in('attendance_status', ['present', 'absent', 'הגיע', 'לא הגיע']);
-
-    if (attendanceError) throw attendanceError;
-
-    this.contextMenu.canDeleteLesson = (attendanceCount ?? 0) === 0;
-    this.contextMenu.deleteBlockedReason =
-      this.contextMenu.canDeleteLesson ? '' : 'כבר נרשמה נוכחות באחד משיעורי הסדרה';
-
-  } catch (err) {
-    console.error('checkDeletePermissionForContext failed', err);
-    this.contextMenu.canDeleteLesson = false;
-    this.contextMenu.deleteBlockedReason = 'שגיאה בבדיקת אפשרות מחיקה';
-  } finally {
-    this.cdr.detectChanges();
   }
-}
 
   private ensureEndAfterStart(startIso: string, endIso: string): string {
     // אם בטעות end קטן מ-start (בעיה של נתונים/יום מתחלף) – נשאיר מינימום 30 דק
@@ -3172,24 +3174,24 @@ private async checkDeletePermissionForContext(): Promise<void> {
   async chooseMoveSingleOccurrence(): Promise<void> {
     this.moveChoiceModal.open = false;
 
-  this.moveSlotsModal = {
-    open: true,
-    mode: 'single',
-    loading: true,
-    saving: false,
-    error: '',
-    slots: [],
-    selectedSlot: null,
-  };
+    this.moveSlotsModal = {
+      open: true,
+      mode: 'single',
+      loading: true,
+      saving: false,
+      error: '',
+      slots: [],
+      selectedSlot: null,
+    };
 
-  this.moveSlotFilters = {
-  instructorId: '',
-  dayOfWeek: '',
-};
+    this.moveSlotFilters = {
+      instructorId: '',
+      dayOfWeek: '',
+    };
 
-this.moveSlotsPage = 0;
-  
-  this.cdr.detectChanges();
+    this.moveSlotsPage = 0;
+
+    this.cdr.detectChanges();
 
     try {
       const from = this.moveChoiceModal.occurDate;
@@ -3306,26 +3308,26 @@ this.moveSlotsPage = 0;
         if (error) throw error;
       }
 
-    if (this.moveSlotsModal.mode === 'series') {
-      const slot = this.moveConfirmModal.slot;
+      if (this.moveSlotsModal.mode === 'series') {
+        const slot = this.moveConfirmModal.slot;
 
-      const newDate = slot.occur_date || slot.lesson_date;
+        const newDate = slot.occur_date || slot.lesson_date;
 
-      const { data, error } = await dbTenant().rpc('move_lesson_series', {
-        p_lesson_id: this.moveChoiceModal.lessonId,
-        p_effective_occur_date: this.moveChoiceModal.occurDate,
+        const { data, error } = await dbTenant().rpc('move_lesson_series', {
+          p_lesson_id: this.moveChoiceModal.lessonId,
+          p_effective_occur_date: this.moveChoiceModal.occurDate,
 
-        p_new_instructor_id: slot.instructor_id || slot.instructor_id_number,
-        p_new_day_of_week: slot.day_of_week || this.getHebrewDayNameFromDate(newDate),
-        p_new_start_time: (slot.start_time || slot.start || '').slice(0, 5),
-        p_new_end_time: (slot.end_time || slot.end || '').slice(0, 5),
-      });
+          p_new_instructor_id: slot.instructor_id || slot.instructor_id_number,
+          p_new_day_of_week: slot.day_of_week || this.getHebrewDayNameFromDate(newDate),
+          p_new_start_time: (slot.start_time || slot.start || '').slice(0, 5),
+          p_new_end_time: (slot.end_time || slot.end || '').slice(0, 5),
+        });
 
-    if (error) throw error;
-    if (data?.ok === false) {
-      throw new Error(data.message || 'הזזת הסדרה נכשלה');
-    }
-    }
+        if (error) throw error;
+        if (data?.ok === false) {
+          throw new Error(data.message || 'הזזת הסדרה נכשלה');
+        }
+      }
 
       if (this.currentRange) {
         await this.loadLessons({
@@ -3345,40 +3347,40 @@ this.moveSlotsPage = 0;
 
       await this.ui.alert('השיעור עודכן בהצלחה', 'בוצע');
 
-  } catch (e) {
-    console.error('move failed', e);
-    await this.ui.alert('שגיאה בהזזה', 'שגיאה');
-  } finally {
-    this.moveSlotsModal.saving = false;
-    this.cdr.detectChanges();
+    } catch (e) {
+      console.error('move failed', e);
+      await this.ui.alert('שגיאה בהזזה', 'שגיאה');
+    } finally {
+      this.moveSlotsModal.saving = false;
+      this.cdr.detectChanges();
+    }
   }
-}
 
-private getHebrewDayNameFromDate(ymd: string): string {
-  const d = new Date(`${ymd}T00:00:00`);
-  const days = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-  return days[d.getDay()];
-}
+  private getHebrewDayNameFromDate(ymd: string): string {
+    const d = new Date(`${ymd}T00:00:00`);
+    const days = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+    return days[d.getDay()];
+  }
 
   async chooseMoveWholeSeries(): Promise<void> {
     this.moveChoiceModal.open = false;
 
-  this.moveSlotsModal = {
-    open: true,
-    mode: 'series',
-    loading: true,
-    saving: false,
-    error: '',
-    slots: [],
-    selectedSlot: null,
-  };
+    this.moveSlotsModal = {
+      open: true,
+      mode: 'series',
+      loading: true,
+      saving: false,
+      error: '',
+      slots: [],
+      selectedSlot: null,
+    };
 
-  this.moveSlotFilters = {
-  instructorId: '',
-  dayOfWeek: '',
-};
+    this.moveSlotFilters = {
+      instructorId: '',
+      dayOfWeek: '',
+    };
 
-this.moveSlotsPage = 0;
+    this.moveSlotsPage = 0;
 
     this.cdr.detectChanges();
 
@@ -3451,55 +3453,55 @@ this.moveSlotsPage = 0;
     //await this.confirmMoveSeries(slot);
   }
 
-moveSlotsPage = 0;
-moveSlotsPageSize = 4;
+  moveSlotsPage = 0;
+  moveSlotsPageSize = 4;
 
-get filteredMoveSlots(): any[] {
-  return (this.moveSlotsModal.slots || []).filter((slot: any) => {
-    const slotInstructorId = String(
-      slot.instructor_id ||
-      slot.instructor_id_number ||
-      ''
-    );
+  get filteredMoveSlots(): any[] {
+    return (this.moveSlotsModal.slots || []).filter((slot: any) => {
+      const slotInstructorId = String(
+        slot.instructor_id ||
+        slot.instructor_id_number ||
+        ''
+      );
 
-    const slotDate = slot.occur_date || slot.lesson_date || '';
-    const slotDay =
-      slot.day_of_week ||
-      this.getHebrewDayNameFromDate(slotDate);
+      const slotDate = slot.occur_date || slot.lesson_date || '';
+      const slotDay =
+        slot.day_of_week ||
+        this.getHebrewDayNameFromDate(slotDate);
 
-    const byInstructor =
-      !this.moveSlotFilters.instructorId ||
-      slotInstructorId === String(this.moveSlotFilters.instructorId);
+      const byInstructor =
+        !this.moveSlotFilters.instructorId ||
+        slotInstructorId === String(this.moveSlotFilters.instructorId);
 
-    const byDay =
-      !this.moveSlotFilters.dayOfWeek ||
-      slotDay === this.moveSlotFilters.dayOfWeek;
+      const byDay =
+        !this.moveSlotFilters.dayOfWeek ||
+        slotDay === this.moveSlotFilters.dayOfWeek;
 
-    return byInstructor && byDay;
-  });
-}
+      return byInstructor && byDay;
+    });
+  }
 
-get pagedMoveSlots(): any[] {
-  const start = this.moveSlotsPage * this.moveSlotsPageSize;
-  return this.filteredMoveSlots.slice(start, start + this.moveSlotsPageSize);
-}
+  get pagedMoveSlots(): any[] {
+    const start = this.moveSlotsPage * this.moveSlotsPageSize;
+    return this.filteredMoveSlots.slice(start, start + this.moveSlotsPageSize);
+  }
 
-get moveSlotsTotalPages(): number {
-  return Math.max(1, Math.ceil(this.filteredMoveSlots.length / this.moveSlotsPageSize));
-}
+  get moveSlotsTotalPages(): number {
+    return Math.max(1, Math.ceil(this.filteredMoveSlots.length / this.moveSlotsPageSize));
+  }
 
   get canPrevMoveSlots(): boolean {
     return this.moveSlotsPage > 0;
   }
 
-get canNextMoveSlots(): boolean {
-  return this.moveSlotsPage < this.moveSlotsTotalPages - 1;
-}
+  get canNextMoveSlots(): boolean {
+    return this.moveSlotsPage < this.moveSlotsTotalPages - 1;
+  }
 
-onMoveSlotFiltersChanged(): void {
-  this.moveSlotsPage = 0;
-  this.moveSlotsModal.selectedSlot = null;
-}
+  onMoveSlotFiltersChanged(): void {
+    this.moveSlotsPage = 0;
+    this.moveSlotsModal.selectedSlot = null;
+  }
 
 
 
