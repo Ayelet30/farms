@@ -79,19 +79,19 @@ export class BulkDecisionDialogComponent {
     this.reasonsById.set({ ...cur, [id]: v });
   }
 
-   getReason(id: string): string {
+  getReason(id: string): string {
     return (this.reasonsById()[id] ?? '').toString();
   }
   canConfirm = computed(() => {
-  // גם בדחייה – לא מחייבים סיבה
-  return true;
-});
+    // גם בדחייה – לא מחייבים סיבה
+    return true;
+  });
 
   closeNo() {
     this.ref.close({ confirmed: false });
   }
 
-    closeYes() {
+  closeYes() {
     if (this.isReject()) {
       const items = this.data.items ?? [];
 
@@ -118,19 +118,19 @@ export class BulkDecisionDialogComponent {
 
   trackById = (_: number, r: any) => r?.id;
 
-getTypeLabel(type: string): string {
-  switch (type) {
-    case 'DELETE_CHILD': return 'מחיקת ילד/ה';
-    case 'NEW_SERIES': return 'סדרת שיעורים';
-    case 'CANCEL_OCCURRENCE': return 'ביטול שיעור';
-    case 'INSTRUCTOR_DAY_OFF': return 'יום חופש מדריך';
-    case 'ADD_CHILD': return 'הוספת ילד/ה';
-    case 'MAKEUP_LESSON': return 'שיעור פיצוי';
-    case 'FILL_IN': return 'מילוי מקום';
-    case 'PARENT_SIGNUP': return 'הרשמת הורה';
-    case 'SINGLE_LESSON' : return 'שיעור בודד'; 
-    default: return type || '—';
+  getTypeLabel(type: string): string {
+    switch (type) {
+      case 'DELETE_CHILD': return 'מחיקת ילד/ה';
+      case 'NEW_SERIES': return 'סדרת שיעורים';
+      case 'CANCEL_OCCURRENCE': return 'ביטול שיעור';
+      case 'INSTRUCTOR_DAY_OFF': return 'יום חופש מדריך';
+      case 'ADD_CHILD': return 'הוספת ילד/ה';
+      case 'MAKEUP_LESSON': return 'שיעור השלמה';
+      case 'FILL_IN': return 'מילוי מקום';
+      case 'PARENT_SIGNUP': return 'הרשמת הורה';
+      case 'SINGLE_LESSON': return 'שיעור בודד';
+      default: return type || '—';
+    }
   }
-}
 
 }
