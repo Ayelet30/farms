@@ -159,7 +159,7 @@ export class SecretarialRequestsPageComponent implements OnInit {
     { value: 'NEW_SERIES', label: 'סדרת שיעורים', roles: ['parent'] },
     { value: 'ADD_CHILD', label: 'הוספת ילד/ה', roles: ['parent'] },
     { value: 'DELETE_CHILD', label: 'מחיקת ילד/ה', roles: ['parent'] },
-    { value: 'MAKEUP_LESSON', label: 'שיעור פיצוי', roles: ['parent'] },
+    { value: 'MAKEUP_LESSON', label: 'שיעור השלמה', roles: ['parent'] },
     { value: 'SINGLE_LESSON', label: 'שיעור בודד', roles: ['parent'] },
 
     { value: 'INSTRUCTOR_DAY_OFF', label: 'יום חופש מדריך', roles: ['instructor'] },

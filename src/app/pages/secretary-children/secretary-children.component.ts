@@ -76,6 +76,8 @@ type ChildDetails = {
   parent?: ParentBrief | null;
   created_at?: string | null;
   updated_at?: string | null;
+  deletion_requested_at?: string | null;
+  scheduled_deletion_at?: string | null;
 };
 
 type ChildDocumentRow = {
@@ -387,7 +389,8 @@ export class SecretaryChildrenComponent implements OnInit {
           funding_source_id,
           status,
           created_at,
-          updated_at
+          updated_at,deletion_requested_at,
+scheduled_deletion_at
         `)
         .order('first_name', { ascending: true })
         .order('last_name', { ascending: true });
@@ -1103,7 +1106,9 @@ export class SecretaryChildrenComponent implements OnInit {
           medical_notes,
           behavior_notes,
           created_at,
-updated_at
+updated_at,
+deletion_requested_at,
+scheduled_deletion_at
         `)
         .eq('child_uuid', id)
         .single();
@@ -1502,6 +1507,11 @@ updated_at
       created_at: [
         child.created_at ? this.toDateTimeLocal(child.created_at) : '',
       ],
+      inactive_date: [
+        child.scheduled_deletion_at
+          ? String(child.scheduled_deletion_at).slice(0, 10)
+          : this.todayDate(),
+      ],
     });
 
     this.originalChild = { ...child };
@@ -1676,11 +1686,13 @@ updated_at
     if (!this.drawerChild || !this.childForm || !this.selectedId) return;
 
     const raw = this.childForm.getRawValue();
-
     const becameInactive =
       this.isActiveStatus(this.originalChild?.status) &&
       raw.status === 'Deleted';
 
+    const becameActive =
+      !this.isActiveStatus(this.originalChild?.status) &&
+      raw.status === 'Active';
     if (raw.created_at) {
       raw.created_at = new Date(raw.created_at).toISOString();
     }
@@ -1696,7 +1708,17 @@ updated_at
     ];
 
     const delta: Partial<ChildDetails> = {};
-
+    if (
+      this.isActiveStatus(raw.status) &&
+      this.drawerChild?.scheduled_deletion_at &&
+      raw.inactive_date
+    ) {
+      (delta as any).scheduled_deletion_at = raw.inactive_date;
+    }
+    if (becameActive) {
+      (delta as any).deletion_requested_at = null;
+      (delta as any).scheduled_deletion_at = null;
+    }
     for (const key of fieldsToCompare) {
       const oldVal = (this.originalChild as any)?.[key] ?? null;
       const newVal = (raw as any)?.[key] ?? null;
@@ -1704,7 +1726,13 @@ updated_at
         (delta as any)[key] = newVal;
       }
     }
-
+    if (
+      this.isActiveStatus(raw.status) &&
+      this.drawerChild?.scheduled_deletion_at &&
+      raw.inactive_date
+    ) {
+      (delta as any).scheduled_deletion_at = raw.inactive_date;
+    }
     if (Object.keys(delta).length === 0) {
       this.editMode = false;
       return;
@@ -1719,10 +1747,14 @@ updated_at
 
       const db = await this.dbc();
 
-      const { error } = await db.rpc('schedule_child_inactivation', {
-        p_child_uuid: this.selectedId,
-        p_inactive_date: inactiveDate,
-      });
+      const { error } = await db
+        .from('children')
+        .update({
+          status: inactiveDate === this.todayDate() ? 'Deleted' : this.originalChild?.status,
+          deletion_requested_at: new Date().toISOString(),
+          scheduled_deletion_at: inactiveDate,
+        })
+        .eq('child_uuid', this.selectedId);
 
       if (error) throw error;
 
@@ -1933,6 +1965,44 @@ updated_at
   todayDate(): string {
     return new Date().toISOString().slice(0, 10);
   }
+  async cancelScheduledChildDeletion(): Promise<void> {
+    if (!this.selectedId) return;
+
+    const ok = await this.ui.confirm({
+      title: 'ביטול מחיקה עתידית',
+      message: 'לבטל את ההפיכה העתידית ללא פעיל? הילד יישאר פעיל והתאריכים יימחקו.',
+      okText: 'כן, לבטל',
+      cancelText: 'לא',
+      dangerText: 'ביטול מחיקה עתידית',
+    });
+    if (!ok) return;
+
+    try {
+      const db = await this.dbc();
+
+      const { error } = await db
+        .from('children')
+        .update({
+          status: 'Active',
+          deletion_requested_at: null,
+          scheduled_deletion_at: null,
+        })
+        .eq('child_uuid', this.selectedId);
+
+      if (error) throw error;
+
+      await this.loadChildren();
+      await this.openDetails(this.selectedId);
+
+      await this.ui.alert('המחיקה העתידית בוטלה בהצלחה.', 'בוצע');
+    } catch (e: any) {
+      console.error(e);
+      await this.ui.alert(
+        'ביטול המחיקה העתידית נכשל: ' + (e?.message ?? e),
+        'שגיאה'
+      );
+    }
+  }
 }
 
 @Component({
@@ -2036,6 +2106,9 @@ export class TermsPdfDialogComponent {
 
   close() {
     this.dialog.closeAll();
+  }
+  todayDate(): string {
+    return new Date().toISOString().slice(0, 10);
   }
 
 }

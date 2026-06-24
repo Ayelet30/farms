@@ -1011,6 +1011,19 @@ export class InstructorScheduleComponent implements OnInit {
       this.cdr.detectChanges();
       return;
     }
+    const instructorAvailabilityError = await this.validateInstructorAvailability(
+      from,
+      to,
+      allDay,
+      allDay ? null : fromTime,
+      allDay ? null : toTime
+    );
+
+    if (instructorAvailabilityError) {
+      this.error = instructorAvailabilityError;
+      this.cdr.detectChanges();
+      return;
+    }
     const hasOverlap = await this.hasAnyOverlappingInstructorAbsence(
       from,
       to,
@@ -2059,6 +2072,57 @@ export class InstructorScheduleComponent implements OnInit {
   private formatDateForMsg(dateYmd: string): string {
     const [y, m, d] = dateYmd.split('-');
     return `${d}/${m}/${y}`;
+  }
+  private async validateInstructorAvailability(
+    fromDate: string,
+    toDate: string,
+    allDay: boolean,
+    fromTime: string | null,
+    toTime: string | null
+  ): Promise<string | null> {
+
+    const { data, error } = await dbTenant()
+      .from('instructor_weekly_availability')
+      .select('day_of_week, start_time, end_time')
+      .eq('instructor_id_number', this.instructorId);
+
+    if (error) throw error;
+
+    let current = fromDate;
+
+    while (current <= toDate) {
+
+      const dayNum = new Date(current).getDay(); // 0-6
+
+      const rowsForDay = (data ?? []).filter(
+        (r: any) => Number(r.day_of_week) === dayNum
+      );
+
+      // אין בכלל שעות עבודה ביום הזה
+      if (!rowsForDay.length) {
+        return `לא ניתן להגיש בקשת היעדרות בתאריך ${this.formatDateForMsg(current)} כי המדריך אינו עובד ביום זה.`;
+      }
+
+      if (!allDay) {
+        const reqStart = String(fromTime).slice(0, 5);
+        const reqEnd = String(toTime).slice(0, 5);
+
+        const insideWorkingHours = rowsForDay.some((r: any) => {
+          const start = String(r.start_time).slice(0, 5);
+          const end = String(r.end_time).slice(0, 5);
+
+          return reqStart >= start && reqEnd <= end;
+        });
+
+        if (!insideWorkingHours) {
+          return `לא ניתן להגיש בקשה מחוץ לשעות העבודה של המדריך בתאריך ${this.formatDateForMsg(current)}.`;
+        }
+      }
+
+      current = this.addOneDayYmd(current);
+    }
+
+    return null;
   }
 }
 

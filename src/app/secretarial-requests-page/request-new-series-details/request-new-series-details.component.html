@@ -56,6 +56,10 @@
       <div class="v">{{ requestedStartTime || '—' }}</div>
     </div>
 
+    <div class="row" *ngIf="requestedEndTimeFromRequest !== '—'">
+      <div class="k">שעת סיום מבוקשת</div>
+      <div class="v">{{ requestedEndTimeFromRequest }}</div>
+    </div>
     <div class="row">
       <div class="k">סוג סדרה</div>
       <div class="v">{{ isOpenEnded ? 'ללא הגבלה' : 'מוגבלת' }}</div>

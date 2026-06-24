@@ -1098,7 +1098,10 @@ export class QuickAppointmentComponent implements OnInit {
       return warnings;
     }
 
-    return warnings.filter(w => w.type !== 'capacity_reached');
+    return warnings.filter(w =>
+      w.type !== 'outside_availability_window' &&
+      w.type !== 'capacity_reached'
+    );
   }
   async onStartTimeChange(): Promise<void> {
     this.slotInfo = null;

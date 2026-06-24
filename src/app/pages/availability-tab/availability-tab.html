@@ -1,10 +1,10 @@
 <div class="availability-page">
-<div class="busy-overlay" *ngIf="isBusy()">
-  <div class="busy-card">
-    <div class="busy-spinner"></div>
-    <div class="busy-text">{{ getBusyText() }}</div>
+  <div class="busy-overlay" *ngIf="isBusy()">
+    <div class="busy-card">
+      <div class="busy-spinner"></div>
+      <div class="busy-text">{{ getBusyText() }}</div>
+    </div>
   </div>
-</div>
   <!-- טוסט הודעה -->
   <div class="toast" *ngIf="toastMessage">
     {{ toastMessage }}
@@ -31,106 +31,97 @@
           </svg>
         </div>
 
-        <div class="dialog-titles">
+        <div class="dialog-titles" *ngIf="canHandleImpactedLessons(); else instructorImpactTitle">
           <h2>אישור שינויים בזמינות</h2>
           <p>השינויים משפיעים על שיעורים מתוכננים</p>
         </div>
+
+        <ng-template #instructorImpactTitle>
+          <div class="dialog-titles">
+            <h2>לא ניתן להשלים את השינוי</h2>
+            <p>קיימים שיעורים שיושפעו משינוי הזמינות</p>
+          </div>
+        </ng-template>
       </div>
 
-  <div class="danger-impact-warning" *ngIf="confirmData?.lessons?.length">
-  <strong>שימי לב!</strong>
-  הזזות, ביטולים וסיום סדרות מתבצעים מיד והם בלתי הפיכים.
-  גם אם בסוף לא תסיימי את עריכת הזמינות ולא תלחצי על שמירה — הפעולות שכבר ביצעת יישארו במערכת.
-</div>
+      <div class="danger-impact-warning" *ngIf="confirmData?.lessons?.length && canHandleImpactedLessons()">
+        <strong>שימי לב!</strong>
+        הזזות, ביטולים וסיום סדרות מתבצעים מיד והם בלתי הפיכים.
+        גם אם בסוף לא תסיימי את עריכת הזמינות ולא תלחצי על שמירה — הפעולות שכבר ביצעת יישארו במערכת.
+      </div>
+      <div class="impact-box" *ngIf="confirmData?.lessons?.length">
+        <strong>שיעורים שהשינוי ישפיע עליהם</strong>
+      </div>
 
-<div class="impact-box" *ngIf="confirmData?.lessons?.length">
-  <strong>שיעורים שהשינוי ישפיע עליהם</strong>
-</div>
+      <div class="impact-box success" *ngIf="!confirmData?.lessons?.length">
+        לא נמצאו שיעורים שמושפעים משינוי זה.
+      </div>
+      <div class="impacted-list" *ngIf="confirmData?.lessons?.length">
+        <div class="impacted-row" *ngFor="let lesson of confirmData.lessons">
 
-<div class="impact-box success" *ngIf="!confirmData?.lessons?.length">
-  לא נמצאו שיעורים שמושפעים משינוי זה.
-</div>
-<div class="impacted-list" *ngIf="confirmData?.lessons?.length">
-  <div class="impacted-row" *ngFor="let lesson of confirmData.lessons">
+          <div class="impacted-main">
+            <strong>{{ lesson.childName }}</strong>
+            <span>{{ getLessonImpactLabel(lesson) }}</span>
+          </div>
 
-    <div class="impacted-main">
-      <strong>{{ lesson.childName }}</strong>
-      <span>{{ getLessonImpactLabel(lesson) }}</span>
-    </div>
+          <div class="impacted-sub">
+            {{ lesson.dayOfWeek }} · {{ lesson.endTime }}–{{ lesson.startTime }}
 
-    <div class="impacted-sub">
-      {{ lesson.dayOfWeek }} · {{ lesson.startTime }}–{{ lesson.endTime }}
-    </div>
+          </div>
 
-    <div class="impact-actions" *ngIf="!lesson.handled">
-      <ng-container *ngIf="isSeriesImpactLesson(lesson); else singleLessonActions">
-        <button
-          type="button"
-          class="impact-action move"
-          (click)="openImpactMoveSeries(lesson)"
-          [disabled]="isBusy() || lesson.handling"
-        >
-          הזז סדרה
-        </button>
+          <div class="impact-actions" *ngIf="canHandleImpactedLessons() && !lesson.handled"> <ng-container
+              *ngIf="isSeriesImpactLesson(lesson); else singleLessonActions">
+              <button type="button" class="impact-action move" (click)="openImpactMoveSeries(lesson)"
+                [disabled]="isBusy() || lesson.handling">
+                הזז סדרה
+              </button>
 
-        <button
-          type="button"
-          class="impact-action danger"
-          (click)="endImpactSeries(lesson)"
-          [disabled]="isBusy() 
-          || lesson.handling"
-        >
-          בטל סדרה
-        </button>
-      </ng-container>
+              <button type="button" class="impact-action danger" (click)="endImpactSeries(lesson)" [disabled]="isBusy() 
+          || lesson.handling">
+                בטל סדרה
+              </button>
+            </ng-container>
 
-      <ng-template #singleLessonActions>
-        <button
-          type="button"
-          class="impact-action move"
-          (click)="openImpactMoveSingle(lesson)"
-          [disabled]="isBusy() || lesson.handling"
-        >
-          הזז שיעור
-        </button>
+            <ng-template #singleLessonActions>
+              <button type="button" class="impact-action move" (click)="openImpactMoveSingle(lesson)"
+                [disabled]="isBusy() || lesson.handling">
+                הזז שיעור
+              </button>
 
-        <button
-          type="button"
-          class="impact-action danger"
-          (click)="cancelImpactLessonWithMakeup(lesson)"
-          [disabled]="isBusy() || lesson.handling"
-        >
-          בטל עם השלמה
-        </button>
-      </ng-template>
-    </div>
+              <button type="button" class="impact-action danger" (click)="cancelImpactLessonWithMakeup(lesson)"
+                [disabled]="isBusy() || lesson.handling">
+                בטל עם השלמה
+              </button>
+            </ng-template>
+          </div>
 
-    <div class="impact-done" *ngIf="lesson.handled">
-      טופל
-    </div>
+          <div class="impact-done" *ngIf="lesson.handled">
+            טופל
+          </div>
 
-  </div>
-</div>
-      <div class="note-box">
-        <svg class="note-icon" width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="11" fill="#FFFBE6" />
-          <path d="M12 6a4 4 0 0 0-2 7.5V16h4v-2.5A4 4 0 0 0 12 6Z" stroke="#D28A00" stroke-width="1.8"
-            stroke-linecap="round" />
-          <path d="M10 17h4" stroke="#D28A00" stroke-width="2" stroke-linecap="round" />
-        </svg>
-        <span>המזכירה תקבל התראה ותתאם מול ההורים לפני שינוי בפועל של שיעורים.</span>
+        </div>
+      </div>
+      <div class="secretary-required-alert" *ngIf="!canHandleImpactedLessons()">
+        <mat-icon class="alert-icon">support_agent</mat-icon>
+
+        <div class="alert-content">
+          <div class="alert-title">
+            נדרשת פנייה למזכירה
+          </div>
+
+          <div class="alert-text">
+            קיימים שיעורים שיושפעו משינוי הזמינות.
+            לצורך עדכון הזמינות יש לפנות למזכירה שתטפל בשיעורים המושפעים.
+          </div>
+        </div>
       </div>
 
       <div class="dialog-actions">
-        <button class="btn ghost" (click)="cancelUpdate()">ביטול</button>
-
-     <button
-  class="btn primary"
-  (click)="approveUpdate()"
-  [disabled]="isBusy() || getPendingImpactedLessonsCount() > 0"
->
-  אישור ושמירה
-</button>
+        <button class="btn ghost" (click)="cancelUpdate()">הבנתי</button>
+        <button *ngIf="canHandleImpactedLessons()" class="btn primary" (click)="approveUpdate()"
+          [disabled]="isBusy() || getPendingImpactedLessonsCount() > 0">
+          אישור ושמירה
+        </button>
       </div>
 
     </div>
@@ -197,12 +188,8 @@
               <span class="day-name">{{ day.label }}</span>
 
               <label class="custom-toggle">
-              <input
-  type="checkbox"
-  [ngModel]="day.active"
-  (ngModelChange)="toggleDay(day, $event)"
-  [disabled]="!allowEdit || !isFarmWorkingDay(day.key)"
-/>
+                <input type="checkbox" [ngModel]="day.active" (ngModelChange)="toggleDay(day, $event)"
+                  [disabled]="!allowEdit || !isFarmWorkingDay(day.key)" />
                 <span class="slider" [class.disabled]="!allowEdit"></span>
               </label>
             </div>
@@ -227,41 +214,27 @@
 
 
                 <!-- התחלה -->
-       <select
-  class="simple-time-select"
-  [(ngModel)]="slot.start"
-  (focus)="onSlotFocus(slot)"
-  (ngModelChange)="onSlotChange(day, slot)"
-  [disabled]="!allowEdit"
->
-  <option *ngFor="let t of timeOptions" [ngValue]="t">
-    {{ t }}
-  </option>
-</select>
+                <select class="simple-time-select" [(ngModel)]="slot.start" (focus)="onSlotFocus(slot)"
+                  (ngModelChange)="onSlotChange(day, slot)" [disabled]="!allowEdit">
+                  <option *ngFor="let t of timeOptions" [ngValue]="t">
+                    {{ t }}
+                  </option>
+                </select>
                 <!-- סיום -->
-              <select
-  class="simple-time-select"
-  [(ngModel)]="slot.end"
-  (focus)="onSlotFocus(slot)"
-  (ngModelChange)="onSlotChange(day, slot)"
-  [disabled]="!allowEdit"
->
-  <option *ngFor="let t of timeOptions" [ngValue]="t">
-    {{ t }}
-  </option>
-</select>
+                <select class="simple-time-select" [(ngModel)]="slot.end" (focus)="onSlotFocus(slot)"
+                  (ngModelChange)="onSlotChange(day, slot)" [disabled]="!allowEdit">
+                  <option *ngFor="let t of timeOptions" [ngValue]="t">
+                    {{ t }}
+                  </option>
+                </select>
                 <!-- סוג רכיבה -->
-          <select
-  class="simple-lesson-select"
-  [(ngModel)]="slot.ridingTypeId"
-  (change)="onRidingTypeChange(day, slot)"
-  [disabled]="!allowEdit"
-  [class.placeholder]="!slot.ridingTypeId"
->
-<option *ngFor="let rt of getAllowedRidingTypesForSlot(slot)" [ngValue]="rt.id">
-  {{ rt.name }}
-</option>
-</select>
+                <select class="simple-lesson-select" [(ngModel)]="slot.ridingTypeId"
+                  (change)="onRidingTypeChange(day, slot)" [disabled]="!allowEdit"
+                  [class.placeholder]="!slot.ridingTypeId">
+                  <option *ngFor="let rt of getAllowedRidingTypesForSlot(slot)" [ngValue]="rt.id">
+                    {{ rt.name }}
+                  </option>
+                </select>
               </div>
 
             </div>
@@ -285,82 +258,75 @@
 
     </section>
 
-   
+
 
   </main>
   <div class="overlay" *ngIf="impactMoveSlotsModal.open">
-  <div class="confirm-dialog move-dialog">
-    <button class="icon-btn close" (click)="impactMoveSlotsModal.open = false">×</button>
+    <div class="confirm-dialog move-dialog">
+      <button class="icon-btn close" (click)="impactMoveSlotsModal.open = false">×</button>
 
-    <div class="dialog-titles">
-      <h2>הזזת שיעור</h2>
-      <p>בחרי מועד חדש לשיעור.</p>
-    </div>
+      <div class="dialog-titles">
+        <h2>הזזת שיעור</h2>
+        <p>בחרי מועד חדש לשיעור.</p>
+      </div>
 
-    <div class="impact-box" *ngIf="impactMoveSlotsModal.loading">
-      טוען אפשרויות פנויות...
-    </div>
+      <div class="impact-box" *ngIf="impactMoveSlotsModal.loading">
+        טוען אפשרויות פנויות...
+      </div>
 
-    <div class="slot-error" *ngIf="impactMoveSlotsModal.error">
-      {{ impactMoveSlotsModal.error }}
-    </div>
+      <div class="slot-error" *ngIf="impactMoveSlotsModal.error">
+        {{ impactMoveSlotsModal.error }}
+      </div>
 
-    <div class="impact-box" *ngIf="!impactMoveSlotsModal.loading && !impactMoveSlotsModal.slots.length">
-      לא נמצאו אפשרויות פנויות.
-    </div>
+      <div class="impact-box" *ngIf="!impactMoveSlotsModal.loading && !impactMoveSlotsModal.slots.length">
+        לא נמצאו אפשרויות פנויות.
+      </div>
 
-    <div class="move-slots-list" *ngIf="impactMoveSlotsModal.slots.length">
-      <div
-        class="move-slot-row"
-        *ngFor="let slot of impactMoveSlotsModal.slots"
-        [class.selected]="impactMoveSlotsModal.selectedSlot === slot"
-        (click)="selectImpactMoveSlot(slot)"
-      >
-        <strong>{{ slot.occur_date }}</strong>
-        <span>{{ slot.start_time | slice:0:5 }}–{{ slot.end_time | slice:0:5 }}</span>
-        <span>{{ slot.instructor_name }}</span>
+      <div class="move-slots-list" *ngIf="impactMoveSlotsModal.slots.length">
+        <div class="move-slot-row" *ngFor="let slot of impactMoveSlotsModal.slots"
+          [class.selected]="impactMoveSlotsModal.selectedSlot === slot" (click)="selectImpactMoveSlot(slot)">
+          <strong>{{ slot.occur_date }}</strong>
+          <span>{{ slot.start_time | slice:0:5 }}–{{ slot.end_time | slice:0:5 }}</span>
+          <span>{{ slot.instructor_name }}</span>
+        </div>
+      </div>
+
+      <div class="dialog-actions">
+        <button class="btn ghost" (click)="impactMoveSlotsModal.open = false">ביטול</button>
+        <button class="btn primary" [disabled]="!impactMoveSlotsModal.selectedSlot || impactMoveSlotsModal.saving"
+          (click)="confirmImpactMove()">
+          אישור
+        </button>
       </div>
     </div>
+  </div>
+  <div class="overlay" *ngIf="impactMoveConfirmModal.open">
+    <div class="confirm-dialog">
+      <button class="icon-btn close" (click)="impactMoveConfirmModal.open = false">×</button>
 
-    <div class="dialog-actions">
-      <button class="btn ghost" (click)="impactMoveSlotsModal.open = false">ביטול</button>
-      <button
-        class="btn primary"
-        [disabled]="!impactMoveSlotsModal.selectedSlot || impactMoveSlotsModal.saving"
-        (click)="confirmImpactMove()"
-      >
-        אישור
-      </button>
+      <div class="dialog-titles">
+        <h2>אישור הזזת שיעור</h2>
+        <p>שימי לב: פעולה זו מתבצעת מיד ולא תלויה בשמירת הזמינות.</p>
+      </div>
+
+      <div class="impact-box">
+        <strong>{{ impactMoveConfirmModal.childName }}</strong>
+        <br />
+        {{ impactMoveConfirmModal.originalDate | date:'dd/MM/yy' }} · <span dir="ltr" class="time-ltr">
+          {{ impactMoveConfirmModal.originalTime }}
+        </span> <br />
+        ←
+        <br />
+        {{ impactMoveConfirmModal.newDate | date:'dd/MM/yy' }} · <span dir="ltr" class="time-ltr">
+          {{ impactMoveConfirmModal.newTime }}
+        </span> <br />
+        {{ impactMoveConfirmModal.newInstructor }}
+      </div>
+
+      <div class="dialog-actions">
+        <button class="btn ghost" (click)="impactMoveConfirmModal.open = false">ביטול</button>
+        <button class="btn primary" (click)="approveImpactMoveConfirm()">אישור הזזה</button>
+      </div>
     </div>
   </div>
-</div>
-<div class="overlay" *ngIf="impactMoveConfirmModal.open">
-  <div class="confirm-dialog">
-    <button class="icon-btn close" (click)="impactMoveConfirmModal.open = false">×</button>
-
-    <div class="dialog-titles">
-      <h2>אישור הזזת שיעור</h2>
-      <p>שימי לב: פעולה זו מתבצעת מיד ולא תלויה בשמירת הזמינות.</p>
-    </div>
-
-    <div class="impact-box">
-      <strong>{{ impactMoveConfirmModal.childName }}</strong>
-      <br />
-{{ impactMoveConfirmModal.originalDate | date:'dd/MM/yy' }} · <span dir="ltr" class="time-ltr">
-  {{ impactMoveConfirmModal.originalTime }}
-</span>   <br />
-      ←
-      <br />
-{{ impactMoveConfirmModal.newDate | date:'dd/MM/yy' }} · <span dir="ltr" class="time-ltr">
-  {{ impactMoveConfirmModal.newTime }}
-</span>    <br />
-      {{ impactMoveConfirmModal.newInstructor }}
-    </div>
-
-    <div class="dialog-actions">
-      <button class="btn ghost" (click)="impactMoveConfirmModal.open = false">ביטול</button>
-      <button class="btn primary" (click)="approveImpactMoveConfirm()">אישור הזזה</button>
-    </div>
-  </div>
-</div>
 </div>

@@ -3,461 +3,571 @@
 </div>
 
 <ng-container *ngIf="shouldShowAppointmentScheduler">
-<div class="appt-wrapper" dir="rtl">
-  <!-- בחירת ילד + אישורים -->
-  <div class="appt-card">
-    <h2>זימון תורים</h2>
+  <div class="appt-wrapper" dir="rtl">
+    <!-- בחירת ילד + אישורים -->
+    <div class="appt-card">
+      <h2>זימון תורים</h2>
 
-    <div class="appt-header-row">
+      <div class="appt-header-row">
 
-      <!-- טור ימין: בחירת ילד -->
-      <div class="appt-field-group child-group">
-        <span class="appt-field-label">ילד/ה</span>
+        <!-- טור ימין: בחירת ילד -->
+        <div class="appt-field-group child-group">
+          <span class="appt-field-label">ילד/ה</span>
 
-        <mat-select #childSelect class="appt-select" [(ngModel)]="selectedChildId" (selectionChange)="onChildChange()"
-        [disabled]="childrenLoading || !children.length"
-   placeholder="בחר/י ילד">
-          <!-- שורת חיפוש -->
-          <mat-option class="search-option" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()">
-            <input matInput type="text" placeholder="חיפוש לפי שם ילד/ה..." [(ngModel)]="childSearchTerm"
-              (ngModelChange)="filterChildren()" (keydown.enter)="selectFirstChildFromSearch($event)"
-              (click)="$event.stopPropagation()" class="search-input" />
-          </mat-option>
+          <mat-select #childSelect class="appt-select" [(ngModel)]="selectedChildId" (selectionChange)="onChildChange()"
+            [disabled]="childrenLoading || !children.length" placeholder="בחר/י ילד">
+            <!-- שורת חיפוש -->
+            <mat-option class="search-option" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()">
+              <input matInput type="text" placeholder="חיפוש לפי שם ילד/ה..." [(ngModel)]="childSearchTerm"
+                (ngModelChange)="filterChildren()" (keydown.enter)="selectFirstChildFromSearch($event)"
+                (click)="$event.stopPropagation()" class="search-input" />
+            </mat-option>
 
-          <!-- אופציות -->
-          <mat-option *ngFor="let child of filteredChildren" [value]="child.child_uuid">
-            {{ child.first_name }} {{ child.last_name }}
-          </mat-option>
-        </mat-select>
+            <!-- אופציות -->
+            <mat-option *ngFor="let child of filteredChildren" [value]="child.child_uuid">
+              {{ child.first_name }} {{ child.last_name }}
+            </mat-option>
+          </mat-select>
 
-      </div>
+        </div>
 
-      <div class="appt-field-group instructor-group">
-        <span class="appt-field-label">מדריך</span>
-<div
-  class="field-wrap"
-  [class.is-disabled]="!selectedChildId"
-  (click)="!selectedChildId && showUiHint('instructor', missingInstructorMsg)"
->
-        <mat-select #instructorSelect class="appt-select" [ngClass]="{ disabled: !selectedChildId }"
-          [(ngModel)]="selectedInstructorId" (selectionChange)="onInstructorChange()" [disabled]="!selectedChildId || loadingInstructors || !instructors.length"
-          placeholder="בחר/י מדריך">
-          <!-- שורת חיפוש -->
-          <mat-option class="search-option" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()">
-            <input matInput type="text" placeholder="חיפוש לפי שם מדריך..." [(ngModel)]="instructorSearchTerm"
-              (ngModelChange)="filterInstructors()" (keydown.enter)="selectFirstInstructorFromSearch($event)"
-              (click)="$event.stopPropagation()" class="search-input" />
-          </mat-option>
+        <div class="appt-field-group instructor-group">
+          <span class="appt-field-label">מדריך</span>
+          <div class="field-wrap" [class.is-disabled]="!selectedChildId"
+            (click)="!selectedChildId && showUiHint('instructor', missingInstructorMsg)">
+            <mat-select #instructorSelect class="appt-select" [ngClass]="{ disabled: !selectedChildId }"
+              [(ngModel)]="selectedInstructorId" (selectionChange)="onInstructorChange()"
+              [disabled]="!selectedChildId || loadingInstructors || !instructors.length" placeholder="בחר/י מדריך">
+              <!-- שורת חיפוש -->
+              <mat-option class="search-option" (click)="$event.stopPropagation()"
+                (mousedown)="$event.stopPropagation()">
+                <input matInput type="text" placeholder="חיפוש לפי שם מדריך..." [(ngModel)]="instructorSearchTerm"
+                  (ngModelChange)="filterInstructors()" (keydown.enter)="selectFirstInstructorFromSearch($event)"
+                  (click)="$event.stopPropagation()" class="search-input" />
+              </mat-option>
 
-          <!-- אופציה של "כל המדריכים" -->
-         <mat-option *ngIf="instructors.length" value="any">כל המדריכים</mat-option>
+              <!-- אופציה של "כל המדריכים" -->
+              <mat-option *ngIf="instructors.length" value="any">כל המדריכים</mat-option>
 
 
-          <!-- אופציות – רשימה מסוננת -->
-          <!-- <mat-option *ngFor="let ins of filteredInstructors" [value]="ins.instructor_uid">
+              <!-- אופציות – רשימה מסוננת -->
+              <!-- <mat-option *ngFor="let ins of filteredInstructors" [value]="ins.instructor_uid">
             {{ ins.full_name }}
           </mat-option> -->
-          <!-- אופציות – רשימה מסוננת -->
-<mat-option
-  *ngFor="let ins of filteredInstructors"
-  [value]="ins.instructor_uid"
-  [matTooltip]="isSecretary && !ins.isEligible ? ins.ineligibleReasonText : ''"
-  [matTooltipDisabled]="!(isSecretary && !ins.isEligible)"
-  matTooltipPosition="left"
->
-  <span class="instructor-option">
-    <!-- נקודה אדומה רק למזכירה ורק אם לא מתאים -->
-    <span
-      *ngIf="isSecretary && !ins.isEligible"
-      class="dot dot-red"
-      aria-hidden="true"
-    ></span>
+              <!-- אופציות – רשימה מסוננת -->
+              <mat-option *ngFor="let ins of filteredInstructors" [value]="ins.instructor_uid"
+                [matTooltip]="isSecretary && !ins.isEligible ? ins.ineligibleReasonText : ''"
+                [matTooltipDisabled]="!(isSecretary && !ins.isEligible)" matTooltipPosition="left">
+                <span class="instructor-option">
+                  <!-- נקודה אדומה רק למזכירה ורק אם לא מתאים -->
+                  <span *ngIf="isSecretary && !ins.isEligible" class="dot dot-red" aria-hidden="true"></span>
 
-    <span class="name">{{ ins.full_name }}</span>
-  </span>
-</mat-option>
+                  <span class="name">{{ ins.full_name }}</span>
+                </span>
+              </mat-option>
 
-        </mat-select>
-      
-          <small class="hint" *ngIf="uiHint['instructor']">{{ uiHint['instructor'] }}</small>
+            </mat-select>
 
-      </div>
+            <small class="hint" *ngIf="uiHint['instructor']">{{ uiHint['instructor'] }}</small>
+
+          </div>
 
 
-    </div>
-      <div *ngIf="!loadingInstructors && instructorsError" class="error">
-  {{ instructorsError }}
-</div>
-
-  </div>
-
-  <!-- כרטיס מידע על המדריך שנבחר -->
-  <div *ngIf="selectedInstructor && !noInstructorPreference && showInstructorDetails" class="instructor-card">
-    <!-- כפתור איקס לסגירה -->
-    <button type="button" class="instructor-close" (click)="showInstructorDetails = false"
-      aria-label="סגירת פרטי מדריך">
-      ✕
-    </button>
-
-    <div class="instructor-card-header">
-      <div class="instructor-name">
-        {{ selectedInstructor.full_name }}
-      </div>
-    </div>
-
-    <div class="instructor-card-body">
-      <!-- עמודת מידע טקסטואלי -->
-      <div class="instructor-info-col">
-        <div class="instructor-line" *ngIf="selectedInstructor.gender">
-          <span class="label">מין:</span>
-          <span class="value">{{ selectedInstructor.gender }}</span>
         </div>
-      </div>
-
-     <div class="instructor-line" *ngIf="selectedInstructor.about">
-  <span class="label">אודות:</span>
-  <span class="value about-text">
-    {{ selectedInstructor.about }}
-  </span>
-</div>
-
-
-
-<div class="instructor-cert-col" *ngIf="selectedInstructor?.certificate?.trim() as cert">
-  <div class="instructor-line">
-    <span class="label">תעודה:</span>
-    <span class="value">
-      <a [href]="cert" target="_blank" rel="noopener noreferrer">
-        <img [src]="cert" alt="תעודת מדריך" class="certificate-thumb" />
-      </a>
-    </span>
-  </div>
-</div>
-
-
-    </div>
-
-  </div>
-
- <div class="appt-tabs">
-
-  <!-- Series -->
-  <div class="tab-wrap" (click)="onTabClick('series')">
-    <button
-      type="button"
-      class="appt-tab"
-      [class.active]="selectedTab === 'series'"
-      [class.tab-disabled]="tabsLocked"
-      matTooltip="קביעת סדרת טיפולים קבועה באותו יום ושעה (לדוגמה: כל חמישי 16:00)"
-      matTooltipPosition="above"
-      matTooltipClass="custom-tooltip"
-      [matTooltipDisabled]="tabsLocked"
-    >
-      סדרת טיפולים
-    </button>
-  </div>
-<!-- Single -->
-<div class="tab-wrap" (click)="onTabClick('single')">
-  <button
-    type="button"
-    class="appt-tab"
-    [class.active]="selectedTab === 'single'"
-    [class.tab-disabled]="tabsLocked"
-    matTooltip="קביעת שיעור בודד בתאריך ושעה מסוימים"
-    matTooltipPosition="above"
-    matTooltipClass="custom-tooltip"
-    [matTooltipDisabled]="tabsLocked"
-  >
-    הזמנת שיעור בודד
-  </button>
-</div>
-  <!-- Makeup -->
-  <div class="tab-wrap" (click)="onTabClick('makeup')">
-    <button
-      type="button"
-      class="appt-tab"
-      [class.active]="selectedTab === 'makeup'"
-      [class.tab-disabled]="tabsLocked"
-matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול שיעור ע״י הורה, בהתאם להגדרות הזכאות במערכת."      matTooltipPosition="above"
-      matTooltipClass="custom-tooltip"
-      [matTooltipDisabled]="tabsLocked"
-    >
-      שיעור השלמה
-    </button>
-  </div>
-
-  <!-- Occupancy -->
-  <div class="tab-wrap" (click)="onTabClick('occupancy')">
-    <button
-      type="button"
-      class="appt-tab"
-      [class.active]="selectedTab === 'occupancy'"
-      [class.tab-disabled]="tabsLocked"
-      matTooltip="שיעורים שבוטלו על ידי מדריך וזמינים למילוי מקום"
-      matTooltipPosition="above"
-      matTooltipClass="custom-tooltip"
-      [matTooltipDisabled]="tabsLocked"
-    >
-      מילוי מקום
-    </button>
-  </div>
-
-</div>
-
-<!-- הודעה רק אחרי ניסיון לחיצה על טאבים נעולים -->
-<small class="hint" *ngIf="uiHint['tab']">{{ uiHint['tab'] }}</small>
-
-</div>
-
-
-<!-- דיאלוג סדרה - מזכירה (עם דילוגים) -->
-<ng-template #confirmSeriesDialogSecretary let-dialogRef="dialogRef">
-  <div dir="rtl" style="padding: 10px; max-width: 350px;">
-    <h3>{{ selectedTab === 'single' ? 'אישור קביעת שיעור בודד' : 'אישור בקשת סדרה' }}</h3>
-
-    <ng-container *ngIf="selectedTab === 'single'; else secretarySeriesConfirmText">
-      האם את בטוחה שברצונך לקבוע שיעור בודד בתאריך
-      <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy' }}</span></b><br>
-
-      עם המדריך/ה <b>{{ seriesConfirmData.instructorName }}</b><br>
-      ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
-
-      בשעה
-      <b><span class="ltr time-range">{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</span></b>
-    </ng-container>
-
-    <ng-template #secretarySeriesConfirmText>
-      סדרה שמתחילה בתאריך
-      <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy' }}</span></b><br>
-
-      <ng-container *ngIf="!isOpenEndedSeries">
-        מסתיימת בתאריך
-        <b><span class="ltr">{{ seriesConfirmData.endDate | date:'dd-MM-yyyy' }}</span></b><br>
-      </ng-container>
-
-      עם המדריך/ה <b>{{ seriesConfirmData.instructorName }}</b><br>
-      ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
-
-      בשעה
-      <b><span class="ltr time-range">{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</span></b>
-
-      <div
-        style="margin-top:12px"
-        *ngIf="seriesConfirmData.skippedFarm.length || seriesConfirmData.skippedInstructor.length"
-      >
-        <div style="font-weight:700; margin-bottom:6px;">דילוגים בסדרה:</div>
-
-        <div *ngIf="seriesConfirmData.skippedFarm.length">
-          <div style="font-weight:600;">ימי חופש חווה:</div>
-          <ul style="margin:6px 18px;">
-            <li *ngFor="let d of seriesConfirmData.skippedFarm">{{ d }}</li>
-          </ul>
+        <div *ngIf="!loadingInstructors && instructorsError" class="error">
+          {{ instructorsError }}
         </div>
 
-        <div *ngIf="seriesConfirmData.skippedInstructor.length">
-          <div style="font-weight:600;">אי זמינות מדריך:</div>
-          <ul style="margin:6px 18px;">
-            <li *ngFor="let d of seriesConfirmData.skippedInstructor">{{ d }}</li>
-          </ul>
+      </div>
+
+      <!-- כרטיס מידע על המדריך שנבחר -->
+      <div *ngIf="selectedInstructor && !noInstructorPreference && showInstructorDetails" class="instructor-card">
+        <!-- כפתור איקס לסגירה -->
+        <button type="button" class="instructor-close" (click)="showInstructorDetails = false"
+          aria-label="סגירת פרטי מדריך">
+          ✕
+        </button>
+
+        <div class="instructor-card-header">
+          <div class="instructor-name">
+            {{ selectedInstructor.full_name }}
+          </div>
+        </div>
+
+        <div class="instructor-card-body">
+          <!-- עמודת מידע טקסטואלי -->
+          <div class="instructor-info-col">
+            <div class="instructor-line" *ngIf="selectedInstructor.gender">
+              <span class="label">מין:</span>
+              <span class="value">{{ selectedInstructor.gender }}</span>
+            </div>
+          </div>
+
+          <div class="instructor-line" *ngIf="selectedInstructor.about">
+            <span class="label">אודות:</span>
+            <span class="value about-text">
+              {{ selectedInstructor.about }}
+            </span>
+          </div>
+
+
+
+          <div class="instructor-cert-col" *ngIf="selectedInstructor?.certificate?.trim() as cert">
+            <div class="instructor-line">
+              <span class="label">תעודה:</span>
+              <span class="value">
+                <a [href]="cert" target="_blank" rel="noopener noreferrer">
+                  <img [src]="cert" alt="תעודת מדריך" class="certificate-thumb" />
+                </a>
+              </span>
+            </div>
+          </div>
+
+
+        </div>
+
+      </div>
+
+      <div class="appt-tabs">
+
+        <!-- Series -->
+        <div class="tab-wrap" (click)="onTabClick('series')">
+          <button type="button" class="appt-tab" [class.active]="selectedTab === 'series'"
+            [class.tab-disabled]="tabsLocked"
+            matTooltip="קביעת סדרת טיפולים קבועה באותו יום ושעה (לדוגמה: כל חמישי 16:00)" matTooltipPosition="above"
+            matTooltipClass="custom-tooltip" [matTooltipDisabled]="tabsLocked">
+            סדרת טיפולים
+          </button>
+        </div>
+        <!-- Single -->
+        <div class="tab-wrap" (click)="onTabClick('single')">
+          <button type="button" class="appt-tab" [class.active]="selectedTab === 'single'"
+            [class.tab-disabled]="tabsLocked" matTooltip="קביעת שיעור בודד בתאריך ושעה מסוימים"
+            matTooltipPosition="above" matTooltipClass="custom-tooltip" [matTooltipDisabled]="tabsLocked">
+            הזמנת שיעור בודד
+          </button>
+        </div>
+        <!-- Makeup -->
+        <div class="tab-wrap" (click)="onTabClick('makeup')">
+          <button type="button" class="appt-tab" [class.active]="selectedTab === 'makeup'"
+            [class.tab-disabled]="tabsLocked"
+            matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול שיעור ע״י הורה, בהתאם להגדרות הזכאות במערכת."
+            matTooltipPosition="above" matTooltipClass="custom-tooltip" [matTooltipDisabled]="tabsLocked">
+            שיעור השלמה
+          </button>
+        </div>
+
+        <!-- Occupancy -->
+        <div class="tab-wrap" (click)="onTabClick('occupancy')">
+          <button type="button" class="appt-tab" [class.active]="selectedTab === 'occupancy'"
+            [class.tab-disabled]="tabsLocked" matTooltip="שיעורים שבוטלו על ידי מדריך וזמינים למילוי מקום"
+            matTooltipPosition="above" matTooltipClass="custom-tooltip" [matTooltipDisabled]="tabsLocked">
+            מילוי מקום
+          </button>
+        </div>
+
+      </div>
+
+      <!-- הודעה רק אחרי ניסיון לחיצה על טאבים נעולים -->
+      <small class="hint" *ngIf="uiHint['tab']">{{ uiHint['tab'] }}</small>
+
+    </div>
+
+
+    <!-- דיאלוג סדרה - מזכירה (עם דילוגים) -->
+    <ng-template #confirmSeriesDialogSecretary let-dialogRef="dialogRef">
+      <div dir="rtl" style="padding: 10px; max-width: 350px;">
+        <h3>{{ selectedTab === 'single' ? 'אישור קביעת שיעור בודד' : 'אישור בקשת סדרה' }}</h3>
+
+        <ng-container *ngIf="selectedTab === 'single'; else secretarySeriesConfirmText">
+          האם את בטוחה שברצונך לקבוע שיעור בודד בתאריך
+          <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy' }}</span></b><br>
+
+          עם המדריך/ה <b>{{ seriesConfirmData.instructorName }}</b><br>
+          ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
+
+          בשעה
+          <b><span class="ltr time-range">{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</span></b>
+        </ng-container>
+
+        <ng-template #secretarySeriesConfirmText>
+          סדרה שמתחילה בתאריך
+          <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy' }}</span></b><br>
+
+          <ng-container *ngIf="!isOpenEndedSeries">
+            מסתיימת בתאריך
+            <b><span class="ltr">{{ seriesConfirmData.endDate | date:'dd-MM-yyyy' }}</span></b><br>
+          </ng-container>
+
+          עם המדריך/ה <b>{{ seriesConfirmData.instructorName }}</b><br>
+          ביום <b>{{ seriesConfirmData.dayLabel }}</b><br>
+
+          בשעה
+          <b><span class="ltr time-range">{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</span></b>
+
+          <div style="margin-top:12px"
+            *ngIf="seriesConfirmData.skippedFarm.length || seriesConfirmData.skippedInstructor.length">
+            <div style="font-weight:700; margin-bottom:6px;">דילוגים בסדרה:</div>
+
+            <div *ngIf="seriesConfirmData.skippedFarm.length">
+              <div style="font-weight:600;">ימי חופש חווה:</div>
+              <ul style="margin:6px 18px;">
+                <li *ngFor="let d of seriesConfirmData.skippedFarm">{{ d }}</li>
+              </ul>
+            </div>
+
+            <div *ngIf="seriesConfirmData.skippedInstructor.length">
+              <div style="font-weight:600;">אי זמינות מדריך:</div>
+              <ul style="margin:6px 18px;">
+                <li *ngFor="let d of seriesConfirmData.skippedInstructor">{{ d }}</li>
+              </ul>
+            </div>
+          </div>
+        </ng-template>
+
+        <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+          <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
+          <button class="btn-ok" (click)="dialogRef.close(true)">כן</button>
         </div>
       </div>
     </ng-template>
 
-    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
-      <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
-      <button class="btn-ok" (click)="dialogRef.close(true)">כן</button>
-    </div>
-  </div>
-</ng-template>
 
-
-<!-- דיאלוג סדרה - הורה (בלי דילוגים) -->
-<ng-template #confirmSeriesDialogParent let-dialogRef="dialogRef">
-  <div dir="rtl" style="padding: 10px; max-width: 350px;">
-<h3>{{ selectedTab === 'single' ? 'אישור הזמנת שיעור בודד' : 'אישור הזמנת סדרה' }}</h3>
-<ng-container *ngIf="selectedTab === 'single'; else seriesText">
-  האם אתה בטוח שברצונך להזמין שיעור בודד בתאריך
-  <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy' }}</span></b>
-</ng-container>
-
-<ng-template #seriesText>
-  האם אתה בטוח שברצונך להזמין סדרה שמתחילה בתאריך
-  <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy' }}</span></b>
-</ng-template>
-
-   <ng-container *ngIf="selectedTab !== 'single' && !isOpenEndedSeries">
-  ומסתיימת בתאריך
-  <b><span class="ltr">{{ seriesConfirmData.endDate | date:'dd-MM-yyyy' }}</span></b>
-</ng-container>
-
-    <br />
-
-    בשעות
-    <b><span class="ltr time-range">{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</span></b>
-
-    בימי <b>{{ seriesConfirmData.dayLabel }}</b>
-
-    <ng-container *ngIf="seriesConfirmData.instructorName">
-      <br />
-      עם המדריך/ה <b>{{ seriesConfirmData.instructorName }}</b>
-    </ng-container>
- <ng-container *ngIf="cancelbeforehours != null">
-      <br />
-      <small style="color:#666;">
-        ניתן לבטל עד {{ cancelbeforehours }} שעות לפני תחילת השיעור
-      </small>
-    </ng-container>
-    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
-      <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
-      <button class="btn-ok" (click)="dialogRef.close(true)">כן</button>
-    </div>
-  </div>
-</ng-template>
-<div *ngIf="selectedTab === 'series'" class="appt-card">
-<div *ngIf="seriesGateMessage" class="info">
-  {{ seriesGateMessage }}
-</div>
-<ng-container *ngIf="existingSeriesGate.kind !== 'open_ended' && existingSeriesGate.kind !== 'pending_request'">
-    <div class="appt-form-row">
-     <div class="appt-field-group">
-  <span class="appt-field-label">כמות שיעורים בסדרה</span>
-
-  <div
-    class="field-wrap"
-    [class.is-disabled]="!canChooseSeriesCount || isOpenEndedSeries"
-    (click)="(!canChooseSeriesCount || isOpenEndedSeries) && showUiHint('seriesCount', isOpenEndedSeries ? 'מסומן ללא הגבלה – אין צורך לבחור כמות' : missingSeriesCountMsg)"
-  >
-   <select
-  class="appt-select"
-  [(ngModel)]="seriesLessonCount"
-  (ngModelChange)="onSeriesLessonCountChange($event)"
-  [disabled]="!canChooseSeriesCount || isOpenEndedSeries"
->
-  <!-- אם מסומן "ללא הגבלה" - מציגים אופציה ויזואלית -->
-  <option *ngIf="isOpenEndedSeries" [ngValue]="null">
-    ללא הגבלה
-  </option>
-
-  <!-- מצב רגיל -->
-  <option *ngIf="!isOpenEndedSeries" [ngValue]="null" disabled hidden>
-    בחר/י כמות מפגשים
-  </option>
-
-  <option *ngFor="let n of seriesLessonCountOptions" [ngValue]="n">
-    {{ n }} מפגשים
-  </option>
-</select>
-
-
-    <small class="hint" *ngIf="uiHint['seriesCount']">{{ uiHint['seriesCount'] }}</small>
-  </div>
-
-  <!-- שורה של "ללא הגבלה" -->
- <label class="unlimited-row" *ngIf="canUseOpenEndedSeries">
-  <input
-    type="checkbox"
-    [(ngModel)]="isOpenEndedSeries"
-    (change)="onUnlimitedSeriesToggle()"
-  />
-  סדרה ללא הגבלת שיעורים
-</label>
-
-</div>
-
-<!-- מסלול תשלום -->
-<div class="appt-field-group">
-  <span class="appt-field-label">מסלול תשלום</span>
-
-  <div
-    class="field-wrap"
-    [class.is-disabled]="paymentLocked"
-    (click)="paymentLocked && showUiHint('payment', missingPaymentPlanMsg)"
-  >
-    <select
-  class="appt-select"
-  [(ngModel)]="selectedPaymentPlanId"
-  (ngModelChange)="onPaymentPlanChange($event)"
->
-
-      <option [ngValue]="null" disabled hidden>
-        בחר/י מסלול תשלום
-      </option>
-
-      <option *ngFor="let plan of availablePaymentPlans" [ngValue]="plan.id">
-        {{ plan.name }}
-        <ng-container *ngIf="plan.customer_amount != null">
-          – {{ plan.customer_amount | number:'1.0-0' }} ₪ לשיעור
+    <!-- דיאלוג סדרה - הורה (בלי דילוגים) -->
+    <ng-template #confirmSeriesDialogParent let-dialogRef="dialogRef">
+      <div dir="rtl" style="padding: 10px; max-width: 350px;">
+        <h3>{{ selectedTab === 'single' ? 'אישור הזמנת שיעור בודד' : 'אישור הזמנת סדרה' }}</h3>
+        <ng-container *ngIf="selectedTab === 'single'; else seriesText">
+          האם אתה בטוח שברצונך להזמין שיעור בודד בתאריך
+          <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy' }}</span></b>
         </ng-container>
-      </option>
-    </select>
 
-    <small class="hint" *ngIf="uiHint['payment']">{{ uiHint['payment'] }}</small>
+        <ng-template #seriesText>
+          האם אתה בטוח שברצונך להזמין סדרה שמתחילה בתאריך
+          <b><span class="ltr">{{ seriesConfirmData.startDate | date:'dd-MM-yyyy' }}</span></b>
+        </ng-template>
 
- <small
-  *ngIf="selectedPaymentPlan?.require_docs_at_booking"
-  style="color:#888; display:block; margin-top:4px;"
->
-  <ng-container *ngIf="isSecretary; else parentDocsMsg">
-    למסלול זה ניתן לצרף מסמכים:
-    {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
-  </ng-container>
+        <ng-container *ngIf="selectedTab !== 'single' && !isOpenEndedSeries">
+          ומסתיימת בתאריך
+          <b><span class="ltr">{{ seriesConfirmData.endDate | date:'dd-MM-yyyy' }}</span></b>
+        </ng-container>
 
-  <ng-template #parentDocsMsg>
-    למסלול זה נדרשים מסמכים:
-    {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
-  </ng-template>
+        <br />
 
-  יש להעלות תמיד קובץ אחד בלבד.
-</small>
-  </div>
-</div>
+        בשעות
+        <b><span class="ltr time-range">{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</span></b>
 
-<!-- העלאת מסמך רק אם המסלול דורש -->
-<div class="appt-form-row" *ngIf="selectedPaymentPlan?.require_docs_at_booking">
-  <div class="appt-field-group">
-  <span class="appt-field-label">
-  {{ isSecretary ? 'העלאת מסמך למסלול (אופציונלי)' : 'העלאת מסמך למסלול' }}
+        בימי <b>{{ seriesConfirmData.dayLabel }}</b>
 
-  <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length">
-    – {{ selectedPaymentPlan?.required_docs?.join(', ') }}
-  </ng-container>
-</span>
-    <input
-      type="file"
-      class="appt-input"
-      (change)="onReferralFileSelected($event)"
-      accept=".pdf,image/*"
-    />
+        <ng-container *ngIf="seriesConfirmData.instructorName">
+          <br />
+          עם המדריך/ה <b>{{ seriesConfirmData.instructorName }}</b>
+        </ng-container>
+        <ng-container *ngIf="cancelbeforehours != null">
+          <br />
+          <small style="color:#666;">
+            ניתן לבטל עד {{ cancelbeforehours }} שעות לפני תחילת השיעור
+          </small>
+        </ng-container>
+        <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+          <button class="btn-cancel" (click)="dialogRef.close(false)">לא</button>
+          <button class="btn-ok" (click)="dialogRef.close(true)">כן</button>
+        </div>
+      </div>
+    </ng-template>
+    <div *ngIf="selectedTab === 'series'" class="appt-card">
+      <div *ngIf="seriesGateMessage" class="info">
+        {{ seriesGateMessage }}
+      </div>
+      <ng-container *ngIf="existingSeriesGate.kind !== 'open_ended' && existingSeriesGate.kind !== 'pending_request'">
+        <div class="appt-form-row">
+          <div class="appt-field-group">
+            <span class="appt-field-label">כמות שיעורים בסדרה</span>
 
-    <small style="color:#888; display:block; margin-top:6px;">
-      <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length; else genericDocsText">
-        יש לצרף את המסמכים הנדרשים למסלול:
-        {{ selectedPaymentPlan?.required_docs?.join(', ') }}.
+            <div class="field-wrap" [class.is-disabled]="!canChooseSeriesCount || isOpenEndedSeries"
+              (click)="(!canChooseSeriesCount || isOpenEndedSeries) && showUiHint('seriesCount', isOpenEndedSeries ? 'מסומן ללא הגבלה – אין צורך לבחור כמות' : missingSeriesCountMsg)">
+              <select class="appt-select" [(ngModel)]="seriesLessonCount"
+                (ngModelChange)="onSeriesLessonCountChange($event)"
+                [disabled]="!canChooseSeriesCount || isOpenEndedSeries">
+                <!-- אם מסומן "ללא הגבלה" - מציגים אופציה ויזואלית -->
+                <option *ngIf="isOpenEndedSeries" [ngValue]="null">
+                  ללא הגבלה
+                </option>
+
+                <!-- מצב רגיל -->
+                <option *ngIf="!isOpenEndedSeries" [ngValue]="null" disabled hidden>
+                  בחר/י כמות מפגשים
+                </option>
+
+                <option *ngFor="let n of seriesLessonCountOptions" [ngValue]="n">
+                  {{ n }} מפגשים
+                </option>
+              </select>
+
+
+              <small class="hint" *ngIf="uiHint['seriesCount']">{{ uiHint['seriesCount'] }}</small>
+            </div>
+
+            <!-- שורה של "ללא הגבלה" -->
+            <label class="unlimited-row" *ngIf="canUseOpenEndedSeries">
+              <input type="checkbox" [(ngModel)]="isOpenEndedSeries" (change)="onUnlimitedSeriesToggle()" />
+              סדרה ללא הגבלת שיעורים
+            </label>
+
+          </div>
+
+          <!-- מסלול תשלום -->
+          <div class="appt-field-group">
+            <span class="appt-field-label">מסלול תשלום</span>
+
+            <div class="field-wrap" [class.is-disabled]="paymentLocked"
+              (click)="paymentLocked && showUiHint('payment', missingPaymentPlanMsg)">
+              <select class="appt-select" [(ngModel)]="selectedPaymentPlanId"
+                (ngModelChange)="onPaymentPlanChange($event)">
+
+                <option [ngValue]="null" disabled hidden>
+                  בחר/י מסלול תשלום
+                </option>
+
+                <option *ngFor="let plan of availablePaymentPlans" [ngValue]="plan.id">
+                  {{ plan.name }}
+                  <ng-container *ngIf="plan.customer_amount != null">
+                    – {{ plan.customer_amount | number:'1.0-0' }} ₪ לשיעור
+                  </ng-container>
+                </option>
+              </select>
+
+              <small class="hint" *ngIf="uiHint['payment']">{{ uiHint['payment'] }}</small>
+
+              <small *ngIf="selectedPaymentPlan?.require_docs_at_booking"
+                style="color:#888; display:block; margin-top:4px;">
+                <ng-container *ngIf="isSecretary; else parentDocsMsg">
+                  למסלול זה ניתן לצרף מסמכים:
+                  {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
+                </ng-container>
+
+                <ng-template #parentDocsMsg>
+                  למסלול זה נדרשים מסמכים:
+                  {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
+                </ng-template>
+
+                יש להעלות תמיד קובץ אחד בלבד.
+              </small>
+            </div>
+          </div>
+
+          <!-- העלאת מסמך רק אם המסלול דורש -->
+          <div class="appt-form-row" *ngIf="selectedPaymentPlan?.require_docs_at_booking">
+            <div class="appt-field-group">
+              <span class="appt-field-label">
+                {{ isSecretary ? 'העלאת מסמך למסלול (אופציונלי)' : 'העלאת מסמך למסלול' }}
+
+                <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length">
+                  – {{ selectedPaymentPlan?.required_docs?.join(', ') }}
+                </ng-container>
+              </span>
+              <input type="file" class="appt-input" (change)="onReferralFileSelected($event)" accept=".pdf,image/*" />
+
+              <small style="color:#888; display:block; margin-top:6px;">
+                <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length; else genericDocsText">
+                  יש לצרף את המסמכים הנדרשים למסלול:
+                  {{ selectedPaymentPlan?.required_docs?.join(', ') }}.
+                </ng-container>
+
+                <ng-template #genericDocsText>
+                  יש לצרף את המסמכים הנדרשים בהתאם למסלול שנבחר.
+                </ng-template>
+
+                ההעלאה מתבצעת תמיד כקובץ אחד בלבד.
+                אם יש כמה מסמכים, יש לאחד אותם לקובץ אחד לפני ההעלאה.
+              </small>
+
+              <div *ngIf="referralFile" class="file-name">
+                הקובץ שנבחר: <b>{{ referralFile.name }}</b>
+              </div>
+
+              <p class="error" *ngIf="referralUploadError">{{ referralUploadError }}</p>
+            </div>
+          </div>
+
+          <div class="appt-form-row">
+            <div class="appt-field-group">
+              <span class="appt-field-label">יום תחילת סדרה בשבוע</span>
+
+              <!-- פריסה דו-עמודתית: ימין קלנדר, שמאל שעות -->
+              <div class="series-layout" *ngIf="canShowSeriesCalendar; else seriesCalendarLocked">
+                <!-- קלנדר קטן לחיפוש סדרות -->
+                <div class="series-calendar">
+                  <div class="calendar-header">
+                    <button type="button" (click)="goToPrevMonth()">&lt;</button>
+                    <span>
+                      {{ currentCalendarMonth + 1 }}/{{ currentCalendarYear }}
+                    </span>
+                    <button type="button" (click)="goToNextMonth()">&gt;</button>
+                  </div>
+
+                  <div class="calendar-grid">
+                    <!-- כותרות ימים -->
+                    <div class="calendar-day-name">א'</div>
+                    <div class="calendar-day-name">ב'</div>
+                    <div class="calendar-day-name">ג'</div>
+                    <div class="calendar-day-name">ד'</div>
+                    <div class="calendar-day-name">ה'</div>
+                    <div class="calendar-day-name">ו'</div>
+                    <div class="calendar-day-name">ש'</div>
+
+                    <!-- הימים עצמם -->
+                    <div *ngFor="let d of seriesCalendarDays" class="calendar-day" [ngClass]="{
+              'not-current': !d.isCurrentMonth,
+              'has-slots': d.hasSlots,
+              'selected-day': d.date === selectedSeriesDate
+            }" (click)="onSeriesCalendarDayClick(d)">
+                      <span class="day-label" *ngIf="d.label">{{ d.label }}</span>
+                      <span class="day-dot" *ngIf="d.hasSlots"></span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- שעות זמינות ביום שנבחר -->
+                <div class="slots-list series-slots" *ngIf="selectedSeriesDate && selectedSeriesDaySlots.length">
+                  <h4>שעות זמינות ליום {{ selectedSeriesDate | date:'dd/MM/yyyy' }} להתחלת סדרה</h4>
+
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>שעה</th>
+                        <th>מדריך</th>
+                        <th>סוג שיעור</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr *ngFor="let s of selectedSeriesDaySlots">
+                        <td>
+                          <span class="time-range">
+                            {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
+                          </span>
+                        </td>
+                        <td>{{ s.instructor_name || s.instructor_id }}</td>
+                        <td>{{ s.riding_type_name || '—' }}</td>
+
+                        <td>
+                          <span class="tooltip-wrap" [matTooltip]="getSeriesDisabledTooltip(s)"
+                            matTooltipPosition="above" [matTooltipDisabled]="!isSeriesDisabled(s)">
+                            <button type="button" class="appt-cta" (click)="onSeriesSlotChosen(s)"
+                              [disabled]="isSeriesDisabled(s)"
+                              [attr.aria-disabled]="isSeriesDisabled(s) ? 'true' : null">
+                              בקש סדרה במועד זה
+                            </button>
+                          </span>
+
+
+
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+              </div> <!-- /series-layout -->
+              <ng-template #seriesCalendarLocked>
+                <div class="empty-text" style="margin-top:10px;">
+                  כדי לראות זמינות – בחרי כמות שיעורים בסדרה או סמני “סדרה ללא הגבלת שיעורים”.
+                </div>
+              </ng-template>
+
+            </div>
+          </div>
+
+        </div>
+
+
+        <p class="error" *ngIf="seriesError">{{ seriesError }}</p>
+        <p class="success" *ngIf="seriesCreatedMessage">
+          {{ seriesCreatedMessage }}
+        </p>
       </ng-container>
-
-      <ng-template #genericDocsText>
-        יש לצרף את המסמכים הנדרשים בהתאם למסלול שנבחר.
-      </ng-template>
-
-      ההעלאה מתבצעת תמיד כקובץ אחד בלבד.
-      אם יש כמה מסמכים, יש לאחד אותם לקובץ אחד לפני ההעלאה.
-    </small>
-
-    <div *ngIf="referralFile" class="file-name">
-      הקובץ שנבחר: <b>{{ referralFile.name }}</b>
     </div>
+    <div *ngIf="selectedTab === 'single'" class="appt-card">
 
-    <p class="error" *ngIf="referralUploadError">{{ referralUploadError }}</p>
-  </div>
-</div>
-
-    <div class="appt-form-row">
+      <!-- מסלול תשלום -->
       <div class="appt-field-group">
-        <span class="appt-field-label">יום תחילת סדרה בשבוע</span>
+        <span class="appt-field-label">מסלול תשלום</span>
 
-          <!-- פריסה דו-עמודתית: ימין קלנדר, שמאל שעות -->
-<div class="series-layout" *ngIf="canShowSeriesCalendar; else seriesCalendarLocked">
-            <!-- קלנדר קטן לחיפוש סדרות -->
+        <div class="field-wrap" [class.is-disabled]="paymentLocked"
+          (click)="paymentLocked && showUiHint('payment', missingPaymentPlanMsg)">
+          <select class="appt-select" [(ngModel)]="selectedPaymentPlanId" (ngModelChange)="onPaymentPlanChange($event)">
+
+            <option [ngValue]="null" disabled hidden>
+              בחר/י מסלול תשלום
+            </option>
+
+            <option *ngFor="let plan of paymentPlans" [ngValue]="plan.id">
+              {{ plan.name }}
+              <ng-container *ngIf="plan.customer_amount != null">
+                – {{ plan.customer_amount | number:'1.0-0' }} ₪ לשיעור
+              </ng-container>
+            </option>
+          </select>
+
+          <small class="hint" *ngIf="uiHint['payment']">{{ uiHint['payment'] }}</small>
+
+          <small *ngIf="selectedPaymentPlan?.require_docs_at_booking"
+            style="color:#888; display:block; margin-top:4px;">
+            <ng-container *ngIf="isSecretary; else parentDocsMsg">
+              למסלול זה ניתן לצרף מסמכים:
+              {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
+            </ng-container>
+
+            <ng-template #parentDocsMsg>
+              למסלול זה נדרשים מסמכים:
+              {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
+            </ng-template>
+
+            יש להעלות תמיד קובץ אחד בלבד.
+          </small>
+        </div>
+      </div>
+
+      <!-- העלאת מסמך רק אם המסלול דורש -->
+      <div class="appt-form-row" *ngIf="selectedPaymentPlan?.require_docs_at_booking">
+        <div class="appt-field-group">
+          <span class="appt-field-label">
+            {{ isSecretary ? 'העלאת מסמך למסלול (אופציונלי)' : 'העלאת מסמך למסלול' }}
+
+            <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length">
+              – {{ selectedPaymentPlan?.required_docs?.join(', ') }}
+            </ng-container>
+          </span>
+          <input type="file" class="appt-input" (change)="onReferralFileSelected($event)" accept=".pdf,image/*" />
+
+          <small style="color:#888; display:block; margin-top:6px;">
+            <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length; else genericDocsText">
+              יש לצרף את המסמכים הנדרשים למסלול:
+              {{ selectedPaymentPlan?.required_docs?.join(', ') }}.
+            </ng-container>
+
+            <ng-template #genericDocsText>
+              יש לצרף את המסמכים הנדרשים בהתאם למסלול שנבחר.
+            </ng-template>
+
+            ההעלאה מתבצעת תמיד כקובץ אחד בלבד.
+            אם יש כמה מסמכים, יש לאחד אותם לקובץ אחד לפני ההעלאה.
+          </small>
+
+          <div *ngIf="referralFile" class="file-name">
+            הקובץ שנבחר: <b>{{ referralFile.name }}</b>
+          </div>
+
+          <p class="error" *ngIf="referralUploadError">{{ referralUploadError }}</p>
+        </div>
+      </div>
+
+      <div class="appt-form-row">
+        <div class="appt-field-group">
+          <span class="appt-field-label">יום השיעור בשבוע </span>
+          <div class="series-layout" *ngIf="canShowSeriesCalendar; else singleCalendarLocked">
+            <!-- קלנדר קטן -->
             <div class="series-calendar">
               <div class="calendar-header">
                 <button type="button" (click)="goToPrevMonth()">&lt;</button>
@@ -468,7 +578,6 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
               </div>
 
               <div class="calendar-grid">
-                <!-- כותרות ימים -->
                 <div class="calendar-day-name">א'</div>
                 <div class="calendar-day-name">ב'</div>
                 <div class="calendar-day-name">ג'</div>
@@ -477,12 +586,11 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
                 <div class="calendar-day-name">ו'</div>
                 <div class="calendar-day-name">ש'</div>
 
-                <!-- הימים עצמם -->
                 <div *ngFor="let d of seriesCalendarDays" class="calendar-day" [ngClass]="{
-              'not-current': !d.isCurrentMonth,
-              'has-slots': d.hasSlots,
-              'selected-day': d.date === selectedSeriesDate
-            }" (click)="onSeriesCalendarDayClick(d)">
+          'not-current': !d.isCurrentMonth,
+          'has-slots': d.hasSlots,
+          'selected-day': d.date === selectedSeriesDate
+        }" (click)="onSeriesCalendarDayClick(d)">
                   <span class="day-label" *ngIf="d.label">{{ d.label }}</span>
                   <span class="day-dot" *ngIf="d.hasSlots"></span>
                 </div>
@@ -491,7 +599,7 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
 
             <!-- שעות זמינות ביום שנבחר -->
             <div class="slots-list series-slots" *ngIf="selectedSeriesDate && selectedSeriesDaySlots.length">
-              <h4>שעות זמינות ליום {{ selectedSeriesDate | date:'dd/MM/yyyy' }} להתחלת סדרה</h4>
+              <h4>שעות זמינות ליום {{ selectedSeriesDate | date:'dd/MM/yyyy' }} לשיעור בודד</h4>
 
               <table>
                 <thead>
@@ -504,242 +612,38 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
                 </thead>
                 <tbody>
                   <tr *ngFor="let s of selectedSeriesDaySlots">
-<td>
-  <span class="time-range">
-    {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
-  </span>
-</td>
-                    <td>{{ s.instructor_name || s.instructor_id }}</td>
-<td>{{ s.riding_type_name || '—' }}</td>
-
                     <td>
-               <span
-          class="tooltip-wrap"
-          [matTooltip]="getSeriesDisabledTooltip(s)"
-          matTooltipPosition="above"
-          [matTooltipDisabled]="!isSeriesDisabled(s)"
-        >
-          <button
-            type="button"
-            class="appt-cta"
-            (click)="onSeriesSlotChosen(s)"
-            [disabled]="isSeriesDisabled(s)"
-            [attr.aria-disabled]="isSeriesDisabled(s) ? 'true' : null"
-          >
-            בקש סדרה במועד זה
-          </button>
-        </span>
-
-
-
+                      <span class="time-range">
+                        {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
+                      </span>
+                    </td>
+                    <td>{{ s.instructor_name || s.instructor_id }}</td>
+                    <td>{{ s.riding_type_name || '—' }}</td>
+                    <td>
+                      <span class="tooltip-wrap" [matTooltip]="getSeriesDisabledTooltip(s)" matTooltipPosition="above"
+                        [matTooltipDisabled]="!isSeriesDisabled(s)">
+                        <button type="button" class="appt-cta" (click)="onSeriesSlotChosen(s)"
+                          [disabled]="isSeriesDisabled(s)">
+                          בקש שיעור בודד במועד זה
+                        </button>
+                      </span>
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
-
-          </div> <!-- /series-layout -->
-          <ng-template #seriesCalendarLocked>
-  <div class="empty-text" style="margin-top:10px;">
-    כדי לראות זמינות – בחרי כמות שיעורים בסדרה או סמני “סדרה ללא הגבלת שיעורים”.
-  </div>
-</ng-template>
-
+          </div>
+          <ng-template #singleCalendarLocked>
+            <div class="empty-text" style="margin-top:10px;">
+              כדי לראות זמינות – בחרי מדריך ומסלול תשלום.
+            </div>
+          </ng-template>
         </div>
       </div>
 
-    </div>
-
-
-    <p class="error" *ngIf="seriesError">{{ seriesError }}</p>
-    <p class="success" *ngIf="seriesCreatedMessage">
-      {{ seriesCreatedMessage }}
-    </p>
-</ng-container>
-  </div>
-<div *ngIf="selectedTab === 'single'" class="appt-card">
-
-<!-- מסלול תשלום -->
-<div class="appt-field-group">
-  <span class="appt-field-label">מסלול תשלום</span>
-
-  <div
-    class="field-wrap"
-    [class.is-disabled]="paymentLocked"
-    (click)="paymentLocked && showUiHint('payment', missingPaymentPlanMsg)"
-  >
-    <select
-  class="appt-select"
-  [(ngModel)]="selectedPaymentPlanId"
-  (ngModelChange)="onPaymentPlanChange($event)"
->
-
-      <option [ngValue]="null" disabled hidden>
-        בחר/י מסלול תשלום
-      </option>
-
-      <option *ngFor="let plan of paymentPlans" [ngValue]="plan.id">
-        {{ plan.name }}
-        <ng-container *ngIf="plan.customer_amount != null">
-          – {{ plan.customer_amount | number:'1.0-0' }} ₪ לשיעור
-        </ng-container>
-      </option>
-    </select>
-
-    <small class="hint" *ngIf="uiHint['payment']">{{ uiHint['payment'] }}</small>
-
- <small
-  *ngIf="selectedPaymentPlan?.require_docs_at_booking"
-  style="color:#888; display:block; margin-top:4px;"
->
-  <ng-container *ngIf="isSecretary; else parentDocsMsg">
-    למסלול זה ניתן לצרף מסמכים:
-    {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
-  </ng-container>
-
-  <ng-template #parentDocsMsg>
-    למסלול זה נדרשים מסמכים:
-    {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
-  </ng-template>
-
-  יש להעלות תמיד קובץ אחד בלבד.
-</small>
-  </div>
-</div>
-
-<!-- העלאת מסמך רק אם המסלול דורש -->
-<div class="appt-form-row" *ngIf="selectedPaymentPlan?.require_docs_at_booking">
-  <div class="appt-field-group">
-  <span class="appt-field-label">
-  {{ isSecretary ? 'העלאת מסמך למסלול (אופציונלי)' : 'העלאת מסמך למסלול' }}
-
-  <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length">
-    – {{ selectedPaymentPlan?.required_docs?.join(', ') }}
-  </ng-container>
-</span>
-    <input
-      type="file"
-      class="appt-input"
-      (change)="onReferralFileSelected($event)"
-      accept=".pdf,image/*"
-    />
-
-    <small style="color:#888; display:block; margin-top:6px;">
-      <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length; else genericDocsText">
-        יש לצרף את המסמכים הנדרשים למסלול:
-        {{ selectedPaymentPlan?.required_docs?.join(', ') }}.
-      </ng-container>
-
-      <ng-template #genericDocsText>
-        יש לצרף את המסמכים הנדרשים בהתאם למסלול שנבחר.
-      </ng-template>
-
-      ההעלאה מתבצעת תמיד כקובץ אחד בלבד.
-      אם יש כמה מסמכים, יש לאחד אותם לקובץ אחד לפני ההעלאה.
-    </small>
-
-    <div *ngIf="referralFile" class="file-name">
-      הקובץ שנבחר: <b>{{ referralFile.name }}</b>
-    </div>
-
-    <p class="error" *ngIf="referralUploadError">{{ referralUploadError }}</p>
-  </div>
-</div>
-
-  <div class="appt-form-row">
-    <div class="appt-field-group">
-      <span class="appt-field-label">יום השיעור בשבוע </span>
-<div class="series-layout" *ngIf="canShowSeriesCalendar; else singleCalendarLocked">
-  <!-- קלנדר קטן -->
-  <div class="series-calendar">
-    <div class="calendar-header">
-      <button type="button" (click)="goToPrevMonth()">&lt;</button>
-      <span>
-        {{ currentCalendarMonth + 1 }}/{{ currentCalendarYear }}
-      </span>
-      <button type="button" (click)="goToNextMonth()">&gt;</button>
-    </div>
-
-    <div class="calendar-grid">
-      <div class="calendar-day-name">א'</div>
-      <div class="calendar-day-name">ב'</div>
-      <div class="calendar-day-name">ג'</div>
-      <div class="calendar-day-name">ד'</div>
-      <div class="calendar-day-name">ה'</div>
-      <div class="calendar-day-name">ו'</div>
-      <div class="calendar-day-name">ש'</div>
-
-      <div
-        *ngFor="let d of seriesCalendarDays"
-        class="calendar-day"
-        [ngClass]="{
-          'not-current': !d.isCurrentMonth,
-          'has-slots': d.hasSlots,
-          'selected-day': d.date === selectedSeriesDate
-        }"
-        (click)="onSeriesCalendarDayClick(d)"
-      >
-        <span class="day-label" *ngIf="d.label">{{ d.label }}</span>
-        <span class="day-dot" *ngIf="d.hasSlots"></span>
-      </div>
+      <p class="error" *ngIf="seriesError">{{ seriesError }}</p>
     </div>
   </div>
-
-  <!-- שעות זמינות ביום שנבחר -->
-  <div class="slots-list series-slots" *ngIf="selectedSeriesDate && selectedSeriesDaySlots.length">
-    <h4>שעות זמינות ליום {{ selectedSeriesDate | date:'dd/MM/yyyy' }} לשיעור בודד</h4>
-
-    <table>
-      <thead>
-        <tr>
-          <th>שעה</th>
-          <th>מדריך</th>
-          <th>סוג שיעור</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let s of selectedSeriesDaySlots">
-          <td>
-            <span class="time-range">
-              {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
-            </span>
-          </td>
-          <td>{{ s.instructor_name || s.instructor_id }}</td>
-          <td>{{ s.riding_type_name || '—' }}</td>
-          <td>
-            <span
-              class="tooltip-wrap"
-              [matTooltip]="getSeriesDisabledTooltip(s)"
-              matTooltipPosition="above"
-              [matTooltipDisabled]="!isSeriesDisabled(s)"
-            >
-              <button
-                type="button"
-                class="appt-cta"
-                (click)="onSeriesSlotChosen(s)"
-                [disabled]="isSeriesDisabled(s)"
-              >
-                בקש שיעור בודד במועד זה
-              </button>
-            </span>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-      <ng-template #singleCalendarLocked>
-        <div class="empty-text" style="margin-top:10px;">
-          כדי לראות זמינות – בחרי מדריך ומסלול תשלום.
-        </div>
-      </ng-template>
-    </div>
-  </div>
-
-  <p class="error" *ngIf="seriesError">{{ seriesError }}</p>
-</div>
-</div>
 </ng-container>
 <!-- ======== טאב: מילוי מקום ======== -->
 <div *ngIf="selectedTab === 'occupancy'" class="appt-card" dir="rtl">
@@ -752,75 +656,62 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
 
     <ng-container *ngIf="!loadingOccupancyCandidates && occupancyCandidates.length > 0">
       <table class="appt-table occupancy-table">
-  <thead>
-    <tr>
-      <th>תאריך</th>
-      <th>יום</th>
-      <th>שעה</th>
-      <th>מדריך</th>
-      <!-- <th>סטטוס</th> -->
-      <th></th>
-    </tr>
-  </thead>
+        <thead>
+          <tr>
+            <th>תאריך</th>
+            <th>יום</th>
+            <th>שעה</th>
+            <th>מדריך</th>
+            <!-- <th>סטטוס</th> -->
+            <th></th>
+          </tr>
+        </thead>
 
-  <tbody>
-    <tr
-      *ngFor="let o of occupancyCandidates"
-      [ngClass]="{
+        <tbody>
+          <tr *ngFor="let o of occupancyCandidates" [ngClass]="{
         'occupancy-row-selected':
           selectedOccupancyCandidate?.lesson_id === o.lesson_id &&
           selectedOccupancyCandidate?.occur_date === o.occur_date
-      }"
-    >
-<td><span class="date-ltr">{{ o.occur_date | date:'dd-MM-yyyy' }}</span></td>
-<td>{{ getSlotDayLabel(o.occur_date) }}</td>
-<td>
-  <span class="time-range">
-    {{ o.start_time | slice:0:5 }}–{{ o.end_time | slice:0:5 }}
-  </span>
-</td>
-<td>{{ getInstructorDisplayName(o.instructor_id) }}</td>
-      <!-- <td>{{ o.status }}</td> -->
-      <td>
-        <button
-          type="button"
-          class="appt-cta"
-          (click)="openOccupancySlotsForCandidate(o)"
-        >
-          להשלמת שיעור זה
-        </button>
-      </td>
-    </tr>
-  </tbody>
-</table>
+      }">
+            <td><span class="date-ltr">{{ o.occur_date | date:'dd-MM-yyyy' }}</span></td>
+            <td>{{ getSlotDayLabel(o.occur_date) }}</td>
+            <td>
+              <span class="time-range">
+                {{ o.start_time | slice:0:5 }}–{{ o.end_time | slice:0:5 }}
+              </span>
+            </td>
+            <td>{{ getInstructorDisplayName(o.instructor_id) }}</td>
+            <!-- <td>{{ o.status }}</td> -->
+            <td>
+              <button type="button" class="appt-cta" (click)="openOccupancySlotsForCandidate(o)">
+                להשלמת שיעור זה
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
     </ng-container>
 
-    <p
-      class="empty-text"
-      *ngIf="!loadingOccupancyCandidates && !occupancyCandidates.length"
-    >
+    <p class="empty-text" *ngIf="!loadingOccupancyCandidates && !occupancyCandidates.length">
       אין כרגע שיעורים שמחפשים מילוי מקום.
     </p>
   </div>
 </div>
-<div
-  class="slots-list occupancy-slots"
-  dir="rtl"
-  *ngIf="
+<div class="slots-list occupancy-slots" dir="rtl" *ngIf="
     selectedTab === 'occupancy' &&
     selectedChildId &&
     selectedOccupancyCandidate &&
     occupancyCandidates.length > 0 &&
     occupancySlots.length > 0
-  "
->
+  ">
   <h4>
     שיעורים זמינים למילוי מקום עבור
     {{ selectedOccupancyCandidate.occur_date }}
   </h4>
 
-<table dir="rtl">    <thead>
+  <table dir="rtl">
+    <thead>
       <tr>
         <th>תאריך</th>
         <th>יום</th>
@@ -833,19 +724,19 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
 
     <tbody>
       <tr *ngFor="let s of occupancySlots">
-<td><span class="date-ltr">{{ s.occur_date | date:'dd-MM-yyyy' }}</span></td>
+        <td><span class="date-ltr">{{ s.occur_date | date:'dd-MM-yyyy' }}</span></td>
         <td>{{ getSlotDayLabel(s.occur_date) }}</td>
-<td>
-  <span class="time-range">
-    {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
-  </span>
-</td>
+        <td>
+          <span class="time-range">
+            {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
+          </span>
+        </td>
         <td>{{ s.instructor_name || s.instructor_id }}</td>
         <td>{{ getLessonTypeLabel(s) }}</td>
         <td>
-         <button type="button" class="appt-cta" (click)="onOccupancySlotChosen(s)">
-  קבע שיעור מילוי מקום
-</button>
+          <button type="button" class="appt-cta" (click)="onOccupancySlotChosen(s)">
+            קבע שיעור מילוי מקום
+          </button>
 
         </td>
       </tr>
@@ -856,21 +747,18 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
 
   <p class="error" *ngIf="occupancySlotsError">{{ occupancySlotsError }}</p>
 
- <p
-  class="empty-text"
-  *ngIf="
+  <p class="empty-text" *ngIf="
     selectedTab === 'occupancy' &&
     selectedOccupancyCandidate &&
     !loadingOccupancySlots &&
     !occupancySlotsError &&
     occupancySlots.length === 0
-  "
->
-  אין זמינות למילוי מקום בטווח שנבחר.
-</p>
+  ">
+    אין זמינות למילוי מקום בטווח שנבחר.
+  </p>
 </div>
 
- <!-- ======== טאב: שיעור השלמה ======== -->
+<!-- ======== טאב: שיעור השלמה ======== -->
 <div *ngIf="selectedTab === 'makeup'" class="appt-card" dir="rtl">
   <h3>שיעורים שמחפשים השלמה </h3>
 
@@ -894,22 +782,19 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
         </thead>
 
         <tbody>
-          <tr
-            *ngFor="let c of makeupCandidates"
-            [ngClass]="{
+          <tr *ngFor="let c of makeupCandidates" [ngClass]="{
               'makeup-row-selected':
                 selectedMakeupCandidate?.lesson_id === c.lesson_id &&
                 selectedMakeupCandidate?.occur_date === c.occur_date
-            }"
-          >
-<td><span class="date-ltr">{{ c.occur_date | date:'dd-MM-yyyy' }}</span></td>
-            <td>{{  dayOfWeekLabelFromDate(c.occur_date)  }}</td>
-<td>
-  <span class="time-range">
-    {{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}
-  </span>
-</td>
-<td>{{ getInstructorDisplayName(c.instructor_id) }}</td>
+            }">
+            <td><span class="date-ltr">{{ c.occur_date | date:'dd-MM-yyyy' }}</span></td>
+            <td>{{ dayOfWeekLabelFromDate(c.occur_date) }}</td>
+            <td>
+              <span class="time-range">
+                {{ c.start_time | slice:0:5 }}–{{ c.end_time | slice:0:5 }}
+              </span>
+            </td>
+            <td>{{ getInstructorDisplayName(c.instructor_id) }}</td>
             <td>
               <button type="button" class="appt-cta" (click)="openHolesForCandidate(c)">
                 להשלמת שיעור זה
@@ -945,13 +830,13 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
 
       <tbody>
         <tr *ngFor="let s of candidateSlots">
-<td><span class="date-ltr">{{ s.occur_date | date:'dd-MM-yyyy' }}</span></td>
+          <td><span class="date-ltr">{{ s.occur_date | date:'dd-MM-yyyy' }}</span></td>
           <td>{{ getSlotDayLabel(s.occur_date) }}</td>
-<td>
-  <span class="time-range">
-    {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
-  </span>
-</td>
+          <td>
+            <span class="time-range">
+              {{ s.start_time | slice:0:5 }}–{{ s.end_time | slice:0:5 }}
+            </span>
+          </td>
           <td>{{ s.instructor_name || s.instructor_id }}</td>
           <td>{{ getLessonTypeLabel(s) }}</td>
           <td>
@@ -966,30 +851,30 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
     <p *ngIf="loadingCandidateSlots">טוען חורים פנויים...</p>
     <p class="error" *ngIf="candidateSlotsError">{{ candidateSlotsError }}</p>
   </div>
-<ng-template #confirmMakeupDialogSecretary let-dialogRef="dialogRef">
-  <div dir="rtl" style="padding: 10px; max-width: 380px;">
-    <h3>אישור קביעת שיעור השלמה</h3>
+  <ng-template #confirmMakeupDialogSecretary let-dialogRef="dialogRef">
+    <div dir="rtl" style="padding: 10px; max-width: 380px;">
+      <h3>אישור קביעת שיעור השלמה</h3>
 
-    <p>
-      האם את בטוחה שברצונך <b>לקבוע</b> שיעור השלמה לתאריך
-      <b>{{ confirmData.newDate }}</b>
-      בשעות <b><span class="time-range">{{ confirmData.newStart }}–{{ confirmData.newEnd }}</span></b>
-      עם המדריך/ה <b>{{ confirmData.newInstructorName }}</b>
+      <p>
+        האם את בטוחה שברצונך <b>לקבוע</b> שיעור השלמה לתאריך
+        <b>{{ confirmData.newDate }}</b>
+        בשעות <b><span class="time-range">{{ confirmData.newStart }}–{{ confirmData.newEnd }}</span></b>
+        עם המדריך/ה <b>{{ confirmData.newInstructorName }}</b>
 
-      <br /><br />
+        <br /><br />
 
-      במקום השיעור בתאריך
-      <b>{{ confirmData.oldDate }}</b>
-      בשעות <b><span class="time-range">{{ confirmData.oldStart }}–{{ confirmData.oldEnd }}</span></b>
-      עם המדריך/ה <b>{{ confirmData.oldInstructorName }}</b>
-    </p>
+        במקום השיעור בתאריך
+        <b>{{ confirmData.oldDate }}</b>
+        בשעות <b><span class="time-range">{{ confirmData.oldStart }}–{{ confirmData.oldEnd }}</span></b>
+        עם המדריך/ה <b>{{ confirmData.oldInstructorName }}</b>
+      </p>
 
-    <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 20px;">
-      <button mat-button (click)="dialogRef.close(false)">ביטול</button>
-      <button mat-raised-button color="primary" (click)="dialogRef.close(true)">אישור</button>
+      <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 20px;">
+        <button mat-button (click)="dialogRef.close(false)">ביטול</button>
+        <button mat-raised-button color="primary" (click)="dialogRef.close(true)">אישור</button>
+      </div>
     </div>
-  </div>
-</ng-template>
+  </ng-template>
 
   <!-- דיאלוג אישור להורה -->
   <ng-template #confirmMakeupDialog let-dialogRef="dialogRef">
@@ -998,9 +883,9 @@ matTooltip="שיעורים הזכאים להשלמה בעקבות ביטול ש�
 
       <p>
         האם את בטוחה שברצונך לבקש שיעור השלמה
-        לתאריך <b>{{ confirmData.newDate }}</b>
-בשעות <b><span class="time-range">{{ confirmData.newStart }}–{{ confirmData.newEnd }}</span></b>
-עם המדריך/ה <b>{{ confirmData.newInstructorName }}</b>
+        לתאריך <b>{{ confirmData.newDate | date:'dd-MM-yyyy' }}</b>
+        בשעות <b><span class="time-range">{{ confirmData.newStart }}–{{ confirmData.newEnd }}</span></b>
+        עם המדריך/ה <b>{{ confirmData.newInstructorName }}</b>
 
         במקום השיעור בתאריך
         <b>{{ confirmData.oldDate | date:'dd-MM-yyyy' }}</b>

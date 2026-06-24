@@ -326,12 +326,39 @@ export class RequestInstructorDayOffDetailsComponent {
       }
 
 
+      const p: any = r?.payload ?? {};
+
+      const instructorId = String(
+        r?.instructorId ??
+        r?.instructor_id ??
+        r?.instructor_id_number ??
+        ''
+      ).trim();
+
+      const fromDate = String(r?.fromDate ?? r?.from_date ?? '').slice(0, 10);
+      const toDate = String(r?.toDate ?? r?.to_date ?? fromDate).slice(0, 10);
+
+      const allDay =
+        p.all_day === undefined || p.all_day === null
+          ? true
+          : p.all_day === true || p.all_day === 'true';
+
+      const fromTime = p.requested_start_time?.toString().slice(0, 5) ?? null;
+      const toTime = p.requested_end_time?.toString().slice(0, 5) ?? null;
+
 
       const v = await this.validator.validate(r, 'approve');
 
 
       if (!v.ok) {
+        await this.rejectBySystem(v.reason);
         this.showSnack(v.reason ?? 'הבקשה כבר אינה זמינה לאישור', 'error');
+        this.onRejected?.({
+          requestId,
+          newStatus: 'REJECTED_BY_SYSTEM',
+          message: v.reason,
+        });
+
         this.onError?.({
           requestId,
           message: v.reason ?? 'הבקשה כבר אינה זמינה לאישור',
@@ -552,5 +579,32 @@ export class RequestInstructorDayOffDetailsComponent {
     return from === to
       ? `${name} – ${label} בתאריך ${from}`
       : `${name} – ${label} בין ${from} עד ${to}`;
+  }
+
+
+  private getDayOfWeek0To6(dateYmd: string): number {
+    const [y, m, d] = dateYmd.split('-').map(Number);
+    return new Date(y, m - 1, d).getDay(); // ראשון=0, שני=1 ... שבת=6
+  }
+
+  private formatDateForMsg(dateYmd: string): string {
+    return new Date(`${dateYmd}T00:00:00`).toLocaleDateString('he-IL');
+  }
+
+  private getDayOfWeek(dateYmd: string): number {
+    const [y, m, d] = dateYmd.split('-').map(Number);
+    return new Date(y, m - 1, d).getDay() + 1;
+  }
+
+  private addOneDayYmd(dateYmd: string): string {
+    const [y, m, d] = dateYmd.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + 1);
+
+    return [
+      dt.getFullYear(),
+      String(dt.getMonth() + 1).padStart(2, '0'),
+      String(dt.getDate()).padStart(2, '0'),
+    ].join('-');
   }
 }
