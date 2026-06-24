@@ -57,7 +57,8 @@ export class IndependentRiderPaymentsComponent implements OnInit {
   savingToken = signal(false);
   tokenSaved = signal(false);
   tokenError = signal<string | null>(null);
-
+  hostedFieldsLoading = signal(false);
+  hostedFieldsReady = signal(false);
   private hfAdd: HostedFieldsInstance | null = null;
   private thtkAdd: string | null = null;
   private hfInitTried = false;
@@ -172,10 +173,11 @@ export class IndependentRiderPaymentsComponent implements OnInit {
     this.addCardOpen.set(true);
     this.tokenError.set(null);
     this.tokenSaved.set(false);
+    this.hostedFieldsLoading.set(true);
+    this.hostedFieldsReady.set(false);
 
     queueMicrotask(() => this.ensureAddHostedFieldsReady());
   }
-
   closeAddCardModal() {
     if (this.savingToken()) return;
     this.addCardOpen.set(false);
@@ -191,6 +193,7 @@ export class IndependentRiderPaymentsComponent implements OnInit {
 
       if (!tenantSchema) {
         this.tokenError.set('לא זוהתה סכמת חווה');
+        this.hostedFieldsLoading.set(false);
         return;
       }
 
@@ -238,9 +241,15 @@ export class IndependentRiderPaymentsComponent implements OnInit {
           },
         },
       });
+      setTimeout(() => {
+        this.hostedFieldsLoading.set(false);
+        this.hostedFieldsReady.set(true);
+      }, 700);
     } catch (e: any) {
-      console.error('[independent rider pm] HF init error', e);
+      this.hostedFieldsLoading.set(false);
+      this.hostedFieldsReady.set(false);
       this.tokenError.set(e?.message ?? 'שגיאה באתחול שדות האשראי');
+      this.hostedFieldsLoading.set(false);
     }
   }
 
@@ -252,11 +261,13 @@ export class IndependentRiderPaymentsComponent implements OnInit {
 
     if (!this.hfAdd || !this.thtkAdd) {
       this.tokenError.set('שדות התשלום לא מוכנים');
+      this.hostedFieldsLoading.set(false);
       return;
     }
 
     if (!this.riderUid) {
       this.tokenError.set('לא זוהה רוכב עצמאי מחובר');
+      this.hostedFieldsLoading.set(false);
       return;
     }
 
@@ -269,6 +280,7 @@ export class IndependentRiderPaymentsComponent implements OnInit {
 
       if (!tenantSchema) {
         this.tokenError.set('לא זוהתה סכמת חווה');
+        this.hostedFieldsLoading.set(false);
         return;
       }
 
@@ -313,6 +325,7 @@ export class IndependentRiderPaymentsComponent implements OnInit {
                 if (el) el.textContent = msg.message;
               });
               this.tokenError.set('שגיאה בפרטי הכרטיס');
+              this.hostedFieldsLoading.set(false);
               return;
             }
 
@@ -320,6 +333,7 @@ export class IndependentRiderPaymentsComponent implements OnInit {
 
             if (!tx?.success) {
               this.tokenError.set(tx?.error || 'שמירת אמצעי תשלום נכשלה');
+              this.hostedFieldsLoading.set(false);
               return;
             }
 
@@ -327,6 +341,7 @@ export class IndependentRiderPaymentsComponent implements OnInit {
 
             if (!token) {
               this.tokenError.set('לא התקבל טוקן מהסליקה');
+              this.hostedFieldsLoading.set(false);
               return;
             }
 
