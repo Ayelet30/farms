@@ -138,6 +138,10 @@ export class SecretaryParentsComponent implements OnInit {
   private saveRequestId: string | null = null;
   private drawerLoadRequestId: string | null = null;
 
+  cardFieldsLoading = false;
+
+
+
   addCardOpen = false;
   savingToken = false;
   tokenSaved = false;
@@ -1382,6 +1386,10 @@ export class SecretaryParentsComponent implements OnInit {
     this.addCardLockedParentUid = parentUid;
     this.saveRequestId = requestId;
 
+    this.tokenError = null;
+this.tokenSaved = false;
+this.cardFieldsLoading = true;
+
     setTimeout(() => {
       if (this.isActiveAddCardSession(parentUid, requestId)) {
         this.ensureAddHostedFieldsReady(parentUid, requestId);
@@ -1442,22 +1450,26 @@ export class SecretaryParentsComponent implements OnInit {
         },
         styles: {
           input: {
-            height: '42px',
-            'line-height': '42px',
+            height: '30px',
+            'line-height': '30px',
             padding: '0 10px',
             'font-size': '15px',
             'box-sizing': 'border-box',
           },
           select: {
-            height: '42px',
-            'line-height': '42px',
+            height: '30px',
+            'line-height': '30px',
             padding: '0 10px',
             'font-size': '15px',
             'box-sizing': 'border-box',
           },
         },
       });
+
+      this.cardFieldsLoading = false;
     } catch (e: any) {
+      
+      this.cardFieldsLoading = false;
       console.error('ensureAddHostedFieldsReady error', e);
       if (this.isActiveAddCardSession(parentUid, requestId)) {
         this.tokenError = e?.message ?? 'שגיאה באתחול שדות האשראי';
@@ -1528,6 +1540,11 @@ export class SecretaryParentsComponent implements OnInit {
       const lockedParent =
         structuredClone(this.drawerParent);
 
+        this.hfAdd.onEvent?.('change', () => {
+          this.tokenError = null;
+          this.tokenSaved = false;
+        });
+
       this.hfAdd.charge(
         {
           terminal_name: terminalName,
@@ -1594,19 +1611,19 @@ export class SecretaryParentsComponent implements OnInit {
 
             if (!this.isActiveAddCardSession(parentUid, requestId)) return;
 
-            this.tokenSaved = true;
+             if (this.selectedUid === parentUid) {
+              await this.loadDrawerData(parentUid);
+              }
+              await this.loadParents();
 
-            await this.ui.alert('אמצעי התשלום נשמר בהצלחה.', 'הצלחה');
+              this.tokenSaved = true;
+
+              await this.ui.alert('אמצעי התשלום נשמר בהצלחה', 'בוצע');
+
+              this.resetAddCardState(true);
 
             if (!this.isActiveAddCardSession(parentUid, requestId)) return;
 
-            this.resetAddCardState(true);
-
-            if (this.selectedUid === parentUid) {
-              await this.loadDrawerData(parentUid);
-            }
-
-            await this.loadParents();
           } catch (e: any) {
             const body = e?.error;
 

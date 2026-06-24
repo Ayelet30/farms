@@ -254,6 +254,7 @@ textarea {
 
 /* ===== hosted fields wrappers ===== */
 .hf-box {
+  max-height: 50px;
   display: flex;
   flex-direction: column;
   gap: 6px;
