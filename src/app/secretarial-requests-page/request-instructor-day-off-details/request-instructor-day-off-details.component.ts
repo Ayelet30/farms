@@ -152,14 +152,24 @@ export class RequestInstructorDayOffDetailsComponent {
     }
   });
 
-  private showSnack(msg: string, type: 'success' | 'error') {
-    if (this.bulkMode && type === 'success') return; // בבאלק לא להציג הצלחות
-    this.snack.open(msg, 'סגור', {
-      duration: 3500,
+  private showSnack(
+    msg: string,
+    type: 'success' | 'error' | 'systemReject'
+  ) {
+    if (this.bulkMode && type === 'success') return;
+
+    this.snack.open(msg, 'סגירה', {
+      duration: 3000,
       direction: 'rtl',
       horizontalPosition: 'center',
       verticalPosition: 'top',
-      panelClass: [type === 'success' ? 'sf-toast-success' : 'sf-toast-error'],
+      panelClass: [
+        type === 'success'
+          ? 'app-toast-success'
+          : type === 'systemReject'
+            ? 'app-toast-system-reject'
+            : 'app-toast-error'
+      ],
     });
   }
   private async readJson(resp: Response) {
@@ -426,7 +436,7 @@ export class RequestInstructorDayOffDetailsComponent {
         this.bulkWarning = warnFromServer;
         this.showSnack(warnFromServer, 'error');
       } else {
-        this.showSnack('הבקשה אושרה בהצלחה ✅', 'success');
+        this.showSnack('הבקשה אושרה בהצלחה ', 'success');
       }
 
       const msg = this.bulkWarning
@@ -525,7 +535,7 @@ export class RequestInstructorDayOffDetailsComponent {
         this.bulkWarning = warnFromServer;
         this.showSnack(warnFromServer, 'error');
       } else {
-        this.showSnack('הבקשה נדחתה בהצלחה ✅', 'success');
+        this.showSnack('הבקשה נדחתה בהצלחה ', 'success');
       }
 
       const msg = this.bulkWarning
@@ -549,12 +559,22 @@ export class RequestInstructorDayOffDetailsComponent {
 
   }
 
-  private toast(message: string, type: ToastKind = 'info') {
-    this.snack.open(message, 'סגור', {
+  private toast(
+    message: string,
+    type: 'success' | 'error' | 'info' | 'systemReject' = 'info'
+  ) {
+    this.snack.open(message, 'סגירה', {
       duration: 3500,
+      direction: 'rtl',
       horizontalPosition: 'center',
-      verticalPosition: 'bottom',
-      panelClass: [`sf-toast`, `sf-toast-${type}`],
+      verticalPosition: 'top',
+      panelClass: [
+        type === 'success' || type === 'info'
+          ? 'app-toast-success'
+          : type === 'systemReject'
+            ? 'app-toast-system-reject'
+            : 'app-toast-error'
+      ],
     });
   }
 

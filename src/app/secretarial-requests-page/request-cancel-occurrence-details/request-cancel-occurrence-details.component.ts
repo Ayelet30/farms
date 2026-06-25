@@ -29,7 +29,7 @@ type ToastKind = 'success' | 'error' | 'info';
 @Component({
   selector: 'app-request-cancel-occurrence-details',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule ,MatProgressSpinnerModule],
+  imports: [CommonModule, FormsModule, MatSnackBarModule, MatProgressSpinnerModule],
   templateUrl: './request-cancel-occurrence-details.component.html',
   styleUrls: ['./request-cancel-occurrence-details.component.scss'],
 })
@@ -37,46 +37,56 @@ export class RequestCancelOccurrenceDetailsComponent implements OnInit {
   @Input({ required: true }) request!: any;      // UiRequest
   @Input({ required: true }) decidedByUid!: string;
 
-  @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED' ; message?: string; meta?: any }) => void;
+  @Input() onApproved?: (e: { requestId: string; newStatus: 'APPROVED'; message?: string; meta?: any }) => void;
   @Input() onRejected?: (e: { requestId: string; newStatus: 'REJECTED' | 'REJECTED_BY_SYSTEM'; message?: string; meta?: any }) => void;
   @Input() onError?: (e: { requestId?: string; message: string; raw?: any }) => void;
-@Input() bulkMode = false;
-public bulkWarning: string | null = null;
-private validator = inject(RequestValidationService);
-busy = signal(false);
-action = signal<'approve' | 'reject' | null>(null);
-busyText = computed(() => {
-  switch (this.action()) {
-    case 'approve': return 'הבקשה בתהליך אישור…';
-    case 'reject':  return 'הבקשה בתהליך דחייה…';
-    default:        return 'מעבד…';
-  }
-});
-
-private showSnack(msg: string, type: 'success' | 'error') {
-  if (this.bulkMode && type === 'success') return; // ✅ בבאלק לא להציג הצלחות
-  this.snack.open(msg, 'סגור', {
-    duration: 3500,
-    direction: 'rtl',
-    horizontalPosition: 'center',
-    verticalPosition: 'top',
-    panelClass: [type === 'success' ? 'sf-toast-success' : 'sf-toast-error'],
+  @Input() bulkMode = false;
+  public bulkWarning: string | null = null;
+  private validator = inject(RequestValidationService);
+  busy = signal(false);
+  action = signal<'approve' | 'reject' | null>(null);
+  busyText = computed(() => {
+    switch (this.action()) {
+      case 'approve': return 'הבקשה בתהליך אישור…';
+      case 'reject': return 'הבקשה בתהליך דחייה…';
+      default: return 'מעבד…';
+    }
   });
-}
 
-private db!: ReturnType<typeof dbTenant>;
+  private showSnack(
+    msg: string,
+    type: 'success' | 'error' | 'systemReject'
+  ) {
+    if (this.bulkMode && type === 'success') return;
+
+    this.snack.open(msg, 'סגירה', {
+      duration: 3000,
+      direction: 'rtl',
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+      panelClass: [
+        type === 'success'
+          ? 'app-toast-success'
+          : type === 'systemReject'
+            ? 'app-toast-system-reject'
+            : 'app-toast-error'
+      ],
+    });
+  }
+
+  private db!: ReturnType<typeof dbTenant>;
   private snack = inject(MatSnackBar);
-private tenantSvc = inject(SupabaseTenantService);
+  private tenantSvc = inject(SupabaseTenantService);
 
   loading = signal(false);
   details = signal<CancelDetails | null>(null);
   decisionNote = '';
 
- async ngOnInit() {
-  await ensureTenantContextReady();
-  this.db = dbTenant();
-  await this.loadDetails();
-}
+  async ngOnInit() {
+    await ensureTenantContextReady();
+    this.db = dbTenant();
+    await this.loadDetails();
+  }
 
 
   async loadDetails() {
@@ -116,267 +126,275 @@ private tenantSvc = inject(SupabaseTenantService);
   }
 
   async approve() {
-  if (this.loading()) return;
-    this.action.set('approve');     
+    if (this.loading()) return;
+    this.action.set('approve');
 
-  this.loading.set(true);
-const v = await this.validator.validate(this.request, 'approve');
-if (!v.ok) {
-  try {
-    const json = await this.rejectBySystem(v.reason);
-    const d = this.details();
+    this.loading.set(true);
+    const v = await this.validator.validate(this.request, 'approve');
+    if (!v.ok) {
+      try {
+        const json = await this.rejectBySystem(v.reason);
+        const d = this.details();
 
-    this.toast('הבקשה נדחתה אוטומטית על ידי המערכת', 'info');
+        this.toast('הבקשה נדחתה אוטומטית ע״י המערכת', 'systemReject');
+        this.onRejected?.({
+          requestId: this.request.id,
+          newStatus: 'REJECTED_BY_SYSTEM',
+          message: v.reason ?? 'נדחה אוטומטית',
+          meta: {
+            ...(d ?? {}),
+            reason: v.reason ?? null,
+            server: json ?? null,
+          },
+        });
+      } catch (e: any) {
+        const msg = e?.message || 'שגיאה בדחייה אוטומטית';
+        this.toast(msg, 'error');
+        this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
+      } finally {
+        this.loading.set(false);
+        this.action.set(null);
+      }
+      return;
+    }
 
-    this.onRejected?.({
-      requestId: this.request.id,
-      newStatus: 'REJECTED_BY_SYSTEM',
-      message: v.reason ?? 'נדחה אוטומטית',
-      meta: {
-        ...(d ?? {}),
-        reason: v.reason ?? null,
-        server: json ?? null,
-      },
-    });
-  } catch (e: any) {
-    const msg = e?.message || 'שגיאה בדחייה אוטומטית';
-    this.toast(msg, 'error');
-    this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
-  } finally {
-    this.loading.set(false);
-    this.action.set(null);
-  }
-  return;
-}
 
+    try {
+      await this.tenantSvc.ensureTenantContextReady();
+      const tenant = this.tenantSvc.requireTenant();
+      const tenantSchema = tenant.schema;
+      const tenantId = tenant.id;
 
-  try {
-    await this.tenantSvc.ensureTenantContextReady();
-    const tenant = this.tenantSvc.requireTenant();
-    const tenantSchema = tenant.schema;
-    const tenantId = tenant.id;
+      const user = getAuth().currentUser;
+      if (!user) throw new Error('המשתמש לא מחובר');
+      const token = await user.getIdToken();
 
-    const user = getAuth().currentUser;
-    if (!user) throw new Error('המשתמש לא מחובר');
-    const token = await user.getIdToken();
+      const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/approveCancelOccurrenceAndNotify';
 
-    const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/approveCancelOccurrenceAndNotify';
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          tenantSchema,
+          tenantId,
+          requestId: this.request.id,
+          decisionNote: this.decisionNote || null,
+        }),
+      });
 
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        tenantSchema,
-        tenantId,
+      const raw = await resp.text();
+      let json: any = null;
+      try { json = JSON.parse(raw); } catch { }
+
+      if (!resp.ok || !json?.ok) {
+        throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+      }
+      this.bulkWarning = null;
+
+      // תומך בשני שמות מפתחות אפשריים מהשרת
+      const mailOk = (json?.mailOk ?? json?.emailOk);
+      const warnFromServer = (json?.warning ?? '').toString().trim();
+
+      if (mailOk === false) {
+        this.bulkWarning = 'אושרה ✅ אבל לא נשלח מייל להורה';
+        const extra = (json?.mailError?.message ?? json?.emailError ?? warnFromServer ?? '').toString().trim();
+        this.showSnack(`אושר ✅ אבל שליחת מייל נכשלה${extra ? `: ${extra}` : ''}`, 'error');
+      } else if (warnFromServer) {
+        // אם אצלך לפעמים מחזירים warning בלי mailOk
+        this.bulkWarning = warnFromServer;
+        this.showSnack(warnFromServer, 'error');
+      } else {
+        this.showSnack('הבקשה אושרה בהצלחה ', 'success');
+      }
+
+      const d = this.details();
+      const who = d?.child_name ? `ל${d.child_name}` : 'לילד/ה';
+      const when = d?.occur_date ? `בתאריך ${this.formatDate(d.occur_date)}` : '';
+      const msg = `אישרת ביטול שיעור ${who} ${when}.`;
+
+      this.toast(msg, 'success');
+
+      this.onApproved?.({
         requestId: this.request.id,
-        decisionNote: this.decisionNote || null,
-      }),
-    });
+        newStatus: 'APPROVED',
+        message: this.bulkWarning ? `אושר ✅ (${this.bulkWarning})` : 'אושר ✅',
+        meta: { ...(d ?? {}), warning: this.bulkWarning, mailOk },
+      });
 
-    const raw = await resp.text();
+    } catch (e: any) {
+      console.error(e);
+      const msg = e?.message || 'שגיאה באישור בקשת ביטול';
+      this.toast(msg, 'error');
+      this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
+    } finally {
+      this.loading.set(false);
+      this.action.set(null);
+
+    }
+  }
+  async reject() {
+    if (this.loading()) return;
+    this.action.set('reject');
+
+    this.loading.set(true);
+    const v = await this.validator.validate(this.request, 'reject');
+    if (!v.ok) {
+      try {
+        const json = await this.rejectBySystem(v.reason);
+        const d = this.details();
+
+        this.toast('הבקשה נדחתה אוטומטית ע״י המערכת', 'systemReject');
+        this.onRejected?.({
+          requestId: this.request.id,
+          newStatus: 'REJECTED_BY_SYSTEM',
+          message: v.reason ?? 'נדחה אוטומטית',
+          meta: {
+            ...(d ?? {}),
+            reason: v.reason ?? null,
+            server: json ?? null,
+          },
+        });
+      } catch (e: any) {
+        const msg = e?.message || 'שגיאה בדחייה אוטומטית';
+        this.toast(msg, 'error');
+        this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
+      } finally {
+        this.loading.set(false);
+        this.action.set(null);
+      }
+      return;
+    }
+
+
+    try {
+      await this.tenantSvc.ensureTenantContextReady();
+      const tenant = this.tenantSvc.requireTenant();
+      const tenantSchema = tenant.schema;
+      const tenantId = tenant.id;
+
+      const user = getAuth().currentUser;
+      if (!user) throw new Error('המשתמש לא מחובר');
+      const token = await user.getIdToken();
+
+      const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectCancelOccurrenceAndNotify';
+
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          tenantSchema,
+          tenantId,
+          requestId: this.request.id,
+          decisionNote: this.decisionNote || null,
+        }),
+      });
+
+      const raw = await resp.text();
+      let json: any = null;
+      try { json = JSON.parse(raw); } catch { }
+
+      if (!resp.ok || !json?.ok) {
+        throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+      }
+      this.bulkWarning = null;
+
+      const mailOk = (json?.mailOk ?? json?.emailOk);
+      const warnFromServer = (json?.warning ?? '').toString().trim();
+
+      if (mailOk === false) {
+        this.bulkWarning = 'נדחתה ✅ אבל לא נשלח מייל להורה';
+        const extra = (json?.mailError?.message ?? json?.emailError ?? warnFromServer ?? '').toString().trim();
+        this.showSnack(`נדחה ✅ אבל שליחת מייל נכשלה${extra ? `: ${extra}` : ''}`, 'error');
+      } else if (warnFromServer) {
+        this.bulkWarning = warnFromServer;
+        this.showSnack(warnFromServer, 'error');
+      } else {
+        this.showSnack('הבקשה נדחתה בהצלחה ', 'success');
+      }
+
+
+      const d = this.details();
+      const who = d?.child_name ? `ל${d.child_name}` : 'לילד/ה';
+      const msg = `דחית בקשת ביטול שיעור ${who}.`;
+
+      this.toast(msg, 'info');
+      this.onRejected?.({
+        requestId: this.request.id,
+        newStatus: 'REJECTED',
+        message: this.bulkWarning ? `נדחה ✅ (${this.bulkWarning})` : 'נדחה ✅',
+        meta: { ...(d ?? {}), warning: this.bulkWarning, mailOk },
+      });
+
+
+    } catch (e: any) {
+      console.error(e);
+      const msg = e?.message || 'שגיאה בדחיית הבקשה';
+      this.toast(msg, 'error');
+      this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
+    } finally {
+      this.loading.set(false);
+      this.action.set(null);
+
+    }
+  }
+  private async rejectBySystem(reason: string): Promise<any> {
+    if (!this.request?.id) return null;
+
+    const tenantSchema = requireTenant().schema;
+    const decidedByUid = getAuth().currentUser?.uid ?? null;
+
+    const idToken = await getAuth().currentUser?.getIdToken();
+    if (!idToken) throw new Error('No Firebase token');
+
+    const resp = await fetch(
+      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/autoRejectRequestAndNotify',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          tenantSchema,
+          requestId: this.request.id,
+          reason,
+          decidedByUid,
+        }),
+      }
+    );
+
+    const text = await resp.text();
     let json: any = null;
-    try { json = JSON.parse(raw); } catch {}
+    try { json = JSON.parse(text); } catch { }
 
-    if (!resp.ok || !json?.ok) {
-      throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+    if (!resp.ok || json?.ok === false) {
+      throw new Error(json?.error || json?.message || `autoRejectRequestAndNotify failed: ${resp.status}`);
     }
-this.bulkWarning = null;
 
-// תומך בשני שמות מפתחות אפשריים מהשרת
-const mailOk = (json?.mailOk ?? json?.emailOk);
-const warnFromServer = (json?.warning ?? '').toString().trim();
-
-if (mailOk === false) {
-  this.bulkWarning = 'אושרה ✅ אבל לא נשלח מייל להורה';
-  const extra = (json?.mailError?.message ?? json?.emailError ?? warnFromServer ?? '').toString().trim();
-  this.showSnack(`אושר ✅ אבל שליחת מייל נכשלה${extra ? `: ${extra}` : ''}`, 'error');
-} else if (warnFromServer) {
-  // אם אצלך לפעמים מחזירים warning בלי mailOk
-  this.bulkWarning = warnFromServer;
-  this.showSnack(warnFromServer, 'error');
-} else {
-  this.showSnack('הבקשה אושרה בהצלחה ✅', 'success');
-}
-
-    const d = this.details();
-    const who = d?.child_name ? `ל${d.child_name}` : 'לילד/ה';
-    const when = d?.occur_date ? `בתאריך ${this.formatDate(d.occur_date)}` : '';
-    const msg = `אישרת ביטול שיעור ${who} ${when}.`;
-
-    this.toast(msg, 'success');
-
-    this.onApproved?.({
-  requestId: this.request.id,
-  newStatus: 'APPROVED',
-  message: this.bulkWarning ? `אושר ✅ (${this.bulkWarning})` : 'אושר ✅',
-  meta: { ...(d ?? {}), warning: this.bulkWarning, mailOk },
-});
-
-  } catch (e: any) {
-    console.error(e);
-    const msg = e?.message || 'שגיאה באישור בקשת ביטול';
-    this.toast(msg, 'error');
-    this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
-  } finally {
-    this.loading.set(false);
-      this.action.set(null);            
-
+    return json;
   }
-}
-async reject() {
-  if (this.loading()) return;
-    this.action.set('reject');        
-
-  this.loading.set(true);
- const v = await this.validator.validate(this.request, 'reject');
-if (!v.ok) {
-  try {
-    const json = await this.rejectBySystem(v.reason);
-    const d = this.details();
-
-    this.toast('הבקשה נדחתה אוטומטית על ידי המערכת', 'info');
-
-    this.onRejected?.({
-      requestId: this.request.id,
-      newStatus: 'REJECTED_BY_SYSTEM',
-      message: v.reason ?? 'נדחה אוטומטית',
-      meta: {
-        ...(d ?? {}),
-        reason: v.reason ?? null,
-        server: json ?? null,
-      },
-    });
-  } catch (e: any) {
-    const msg = e?.message || 'שגיאה בדחייה אוטומטית';
-    this.toast(msg, 'error');
-    this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
-  } finally {
-    this.loading.set(false);
-    this.action.set(null);
-  }
-  return;
-}
-
-
-  try {
-    await this.tenantSvc.ensureTenantContextReady();
-    const tenant = this.tenantSvc.requireTenant();
-    const tenantSchema = tenant.schema;
-    const tenantId = tenant.id;
-
-    const user = getAuth().currentUser;
-    if (!user) throw new Error('המשתמש לא מחובר');
-    const token = await user.getIdToken();
-
-    const url = 'https://us-central1-bereshit-ac5d8.cloudfunctions.net/rejectCancelOccurrenceAndNotify';
-
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        tenantSchema,
-        tenantId,
-        requestId: this.request.id,
-        decisionNote: this.decisionNote || null,
-      }),
-    });
-
-    const raw = await resp.text();
-    let json: any = null;
-    try { json = JSON.parse(raw); } catch {}
-
-    if (!resp.ok || !json?.ok) {
-      throw new Error(json?.message || json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
-    }
-this.bulkWarning = null;
-
-const mailOk = (json?.mailOk ?? json?.emailOk);
-const warnFromServer = (json?.warning ?? '').toString().trim();
-
-if (mailOk === false) {
-  this.bulkWarning = 'נדחתה ✅ אבל לא נשלח מייל להורה';
-  const extra = (json?.mailError?.message ?? json?.emailError ?? warnFromServer ?? '').toString().trim();
-  this.showSnack(`נדחה ✅ אבל שליחת מייל נכשלה${extra ? `: ${extra}` : ''}`, 'error');
-} else if (warnFromServer) {
-  this.bulkWarning = warnFromServer;
-  this.showSnack(warnFromServer, 'error');
-} else {
-  this.showSnack('הבקשה נדחתה בהצלחה ✅', 'success');
-}
-
-
-    const d = this.details();
-    const who = d?.child_name ? `ל${d.child_name}` : 'לילד/ה';
-    const msg = `דחית בקשת ביטול שיעור ${who}.`;
-
-    this.toast(msg, 'info');
-this.onRejected?.({
-  requestId: this.request.id,
-  newStatus: 'REJECTED',
-  message: this.bulkWarning ? `נדחה ✅ (${this.bulkWarning})` : 'נדחה ✅',
-  meta: { ...(d ?? {}), warning: this.bulkWarning, mailOk },
-});
-
-
-  } catch (e: any) {
-    console.error(e);
-    const msg = e?.message || 'שגיאה בדחיית הבקשה';
-    this.toast(msg, 'error');
-    this.onError?.({ requestId: this.request?.id, message: msg, raw: e });
-  } finally {
-    this.loading.set(false);
-    this.action.set(null);               
-
-  }
-}
-private async rejectBySystem(reason: string): Promise<any> {
-  if (!this.request?.id) return null;
-
-  const tenantSchema = requireTenant().schema;
-  const decidedByUid = getAuth().currentUser?.uid ?? null;
-
-  const idToken = await getAuth().currentUser?.getIdToken();
-  if (!idToken) throw new Error('No Firebase token');
-
-  const resp = await fetch(
-    'https://us-central1-bereshit-ac5d8.cloudfunctions.net/autoRejectRequestAndNotify',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({
-        tenantSchema,
-        requestId: this.request.id,
-        reason,
-        decidedByUid,
-      }),
-    }
-  );
-
-  const text = await resp.text();
-  let json: any = null;
-  try { json = JSON.parse(text); } catch {}
-
-  if (!resp.ok || json?.ok === false) {
-    throw new Error(json?.error || json?.message || `autoRejectRequestAndNotify failed: ${resp.status}`);
-  }
-
-  return json;
-}
-  private toast(message: string, type: ToastKind = 'info') {
-    this.snack.open(message, 'סגור', {
+  private toast(
+    message: string,
+    type: 'success' | 'error' | 'info' | 'systemReject' = 'info'
+  ) {
+    this.snack.open(message, 'סגירה', {
       duration: 3500,
+      direction: 'rtl',
       horizontalPosition: 'center',
-      verticalPosition: 'bottom',
-      panelClass: [`sf-toast`, `sf-toast-${type}`],
+      verticalPosition: 'top',
+      panelClass: [
+        type === 'success' || type === 'info'
+          ? 'app-toast-success'
+          : type === 'systemReject'
+            ? 'app-toast-system-reject'
+            : 'app-toast-error'
+      ],
     });
   }
 

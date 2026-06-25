@@ -257,8 +257,8 @@
         בשעות
         <b><span class="ltr time-range">{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</span></b>
 
-        בימי <b>{{ seriesConfirmData.dayLabel }}</b>
-
+        {{ selectedTab === 'single' ? 'ביום' : 'בימי' }}
+        <b>{{ seriesConfirmData.dayLabel }}</b>
         <ng-container *ngIf="seriesConfirmData.instructorName">
           <br />
           עם המדריך/ה <b>{{ seriesConfirmData.instructorName }}</b>
@@ -796,9 +796,13 @@
             </td>
             <td>{{ getInstructorDisplayName(c.instructor_id) }}</td>
             <td>
-              <button type="button" class="appt-cta" (click)="openHolesForCandidate(c)">
-                להשלמת שיעור זה
-              </button>
+              <span [matTooltip]="tabsLocked ? 'יש לבחור מדריך.' : ''" [matTooltipDisabled]="!tabsLocked">
+
+                <button type="button" class="appt-cta" (click)="openHolesForCandidate(c)" [disabled]="tabsLocked">
+                  להשלמת שיעור זה
+                </button>
+
+              </span>
             </td>
           </tr>
         </tbody>
@@ -840,9 +844,14 @@
           <td>{{ s.instructor_name || s.instructor_id }}</td>
           <td>{{ getLessonTypeLabel(s) }}</td>
           <td>
-            <button type="button" class="appt-cta" (click)="onMakeupSlotChosen(s)">
-              קבע שיעור השלמה
-            </button>
+            <span [matTooltip]="tabsLocked ? 'יש לבחור מדריך לפני שניתן לקבוע שיעור השלמה.' : ''"
+              [matTooltipDisabled]="!tabsLocked">
+
+              <button type="button" class="appt-cta" (click)="onMakeupSlotChosen(s)" [disabled]="tabsLocked">
+                קבע שיעור השלמה
+              </button>
+
+            </span>
           </td>
         </tr>
       </tbody>

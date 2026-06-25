@@ -154,20 +154,26 @@ export class RequestRemoveChildDetailsComponent {
   decisionMsg = signal<string | null>(null);
   decisionType = signal<'success' | 'error' | null>(null);
 
-  private showSnack(msg: string, type: 'success' | 'error') {
-    this.decisionMsg.set(msg);
-    this.decisionType.set(type);
+  private showSnack(
+    msg: string,
+    type: 'success' | 'error' | 'systemReject'
+  ) {
     if (this.bulkMode && type === 'success') return;
 
-    this.snack.open(msg, 'סגור', {
+    this.snack.open(msg, 'סגירה', {
       duration: 3000,
       direction: 'rtl',
       horizontalPosition: 'center',
       verticalPosition: 'top',
-      panelClass: [type === 'success' ? 'snack-success' : 'snack-error'],
+      panelClass: [
+        type === 'success'
+          ? 'app-toast-success'
+          : type === 'systemReject'
+            ? 'app-toast-system-reject'
+            : 'app-toast-error'
+      ],
     });
   }
-
   private getChildId(): string | null {
     const r = this.req();
     const p = this.payload();
@@ -368,7 +374,7 @@ export class RequestRemoveChildDetailsComponent {
         this.bulkWarning = 'אושרה ✅ אבל לא נשלח מייל להורה';
         this.showSnack(`אושר ✅ אבל שליחת מייל נכשלה`, 'error');
       } else {
-        this.showSnack('הבקשה אושרה בהצלחה ✅', 'success');
+        this.showSnack('הבקשה אושרה בהצלחה ', 'success');
       }
 
 
@@ -462,7 +468,7 @@ export class RequestRemoveChildDetailsComponent {
         this.bulkWarning = 'נדחתה ✅ אבל לא נשלח מייל להורה';
         this.showSnack(`נדחה ✅ אבל שליחת מייל נכשלה`, 'error');
       } else {
-        this.showSnack('הבקשה נדחתה בהצלחה ✅', 'success');
+        this.showSnack('הבקשה נדחתה בהצלחה', 'success');
       }
 
 

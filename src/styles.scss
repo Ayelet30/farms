@@ -373,10 +373,23 @@ option {
   font-weight: 700;
 }
 
-.snack-success {
-  --mdc-snackbar-container-color: #f8f7ef;
-  --mdc-snackbar-supporting-text-color: #6f7e3f;
-  --mat-snack-bar-button-color: #6f7e3f;
+.snack-success,
+.appt-snackbar-success {
+  --mdc-snackbar-container-color: #202225;
+  --mdc-snackbar-supporting-text-color: #e8e8e8;
+  --mat-snack-bar-button-color: #cfcfcf;
+
+  direction: rtl;
+  font-weight: 600;
+}
+
+.snack-success .mdc-snackbar__surface,
+.appt-snackbar-success .mdc-snackbar__surface {
+  border-radius: 14px !important;
+  min-width: 680px;
+  max-width: 90vw;
+  padding: 6px 18px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35) !important;
 }
 
 .snack-reject {
@@ -399,12 +412,75 @@ option {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12) !important;
 }
 
-/* כפתור "סגור" */
-.mat-mdc-snack-bar-action {
-  color: #fff !important;
-  font-weight: 800;
+.app-toast-success,
+.app-toast-system-reject,
+.app-toast-error {
+  direction: rtl;
 }
 
+.app-toast-success {
+  --mdc-snackbar-container-color: #fffdf5 !important;
+  --mdc-snackbar-supporting-text-color: #3f4d24 !important;
+  --mat-snack-bar-button-color: #5f6f35 !important;
+}
+
+.app-toast-system-reject {
+  --mdc-snackbar-container-color: #fff1f1 !important;
+  --mdc-snackbar-supporting-text-color: #8f1d1d !important;
+  --mat-snack-bar-button-color: #8f1d1d !important;
+}
+
+.app-toast-error {
+  --mdc-snackbar-container-color: #fff7f7 !important;
+  --mdc-snackbar-supporting-text-color: #9f1d1d !important;
+  --mat-snack-bar-button-color: #9f1d1d !important;
+}
+
+.app-toast-success .mat-mdc-snackbar-surface,
+.app-toast-system-reject .mat-mdc-snackbar-surface,
+.app-toast-error .mat-mdc-snackbar-surface,
+.app-toast-success .mdc-snackbar__surface,
+.app-toast-system-reject .mdc-snackbar__surface,
+.app-toast-error .mdc-snackbar__surface {
+  border-radius: 22px !important;
+  box-shadow: 0 12px 30px rgba(74, 86, 45, 0.16) !important;
+  padding: 8px 20px !important;
+  min-width: 460px;
+  max-width: 90vw;
+}
+
+.app-toast-success .mat-mdc-snackbar-surface,
+.app-toast-success .mdc-snackbar__surface {
+  border: 1.5px solid #b9c993;
+}
+
+.app-toast-system-reject .mat-mdc-snackbar-surface,
+.app-toast-system-reject .mdc-snackbar__surface,
+.app-toast-error .mat-mdc-snackbar-surface,
+.app-toast-error .mdc-snackbar__surface {
+  border: 1.5px solid #e5a6a6;
+}
+
+.app-toast-success .mat-mdc-snack-bar-label,
+.app-toast-system-reject .mat-mdc-snack-bar-label,
+.app-toast-error .mat-mdc-snack-bar-label,
+.app-toast-success .mdc-snackbar__label,
+.app-toast-system-reject .mdc-snackbar__label,
+.app-toast-error .mdc-snackbar__label {
+  font-family: "Heebo", Arial, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 900 !important;
+}
+
+.app-toast-success .mat-mdc-snack-bar-action,
+.app-toast-system-reject .mat-mdc-snack-bar-action,
+.app-toast-error .mat-mdc-snack-bar-action {
+  font-family: "Heebo", Arial, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  border-radius: 999px !important;
+  padding: 4px 14px !important;
+}
 
 .cdk-overlay-container,
 .cdk-overlay-pane {

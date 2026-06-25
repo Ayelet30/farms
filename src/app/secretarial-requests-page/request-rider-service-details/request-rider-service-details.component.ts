@@ -9,10 +9,11 @@ import { RequestValidationService } from '../../services/request-validation.serv
 import { ensureTenantContextReady, requireTenant } from '../../services/supabaseClient.service';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIcon } from "@angular/material/icon";
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 @Component({
     selector: 'app-request-rider-service-details',
     standalone: true,
-    imports: [CommonModule, FormsModule, MatProgressSpinnerModule, MatIcon],
+    imports: [CommonModule, FormsModule, MatProgressSpinnerModule, MatIcon, MatSnackBarModule],
     templateUrl: './request-rider-service-details.component.html',
     styleUrls: ['./request-rider-service-details.component.scss'],
 })
@@ -150,11 +151,13 @@ export class RequestRiderServiceDetailsComponent {
             const ev = { requestId: r.id, newStatus: 'APPROVED' as const };
             this.onApproved?.(ev);
             this.approved.emit(ev);
+            this.showSnack('הבקשה אושרה בהצלחה', 'success');
         } catch (e: any) {
             const msg = e?.message || 'שגיאה באישור בקשת השירות';
             this.errText = msg;
             this.onError?.({ requestId: r?.id, message: msg, raw: e });
             this.error.emit(msg);
+            this.showSnack(msg, 'error');
         } finally {
             this.busy.set(false);
             this.action.set(null);
@@ -186,11 +189,13 @@ export class RequestRiderServiceDetailsComponent {
             const ev = { requestId: r.id, newStatus: 'REJECTED' as const };
             this.onRejected?.(ev);
             this.rejected.emit(ev);
+            this.showSnack('הבקשה נדחתה בהצלחה', 'success');
         } catch (e: any) {
             const msg = e?.message || 'שגיאה בדחיית בקשת השירות';
             this.errText = msg;
             this.onError?.({ requestId: r?.id, message: msg, raw: e });
             this.error.emit(msg);
+            this.showSnack(msg, 'error');
         } finally {
             this.busy.set(false);
             this.action.set(null);
@@ -288,10 +293,28 @@ export class RequestRiderServiceDetailsComponent {
 
             this.onRejected?.(ev as any);
             this.rejected.emit(ev as any);
+            this.showSnack('הבקשה נדחתה אוטומטית ע"י המערכת', 'systemReject');
 
         } catch (e) {
             console.error('rejectBySystem failed', e);
             throw e;
         }
+    }
+    private snack = inject(MatSnackBar);
+
+    private showSnack(msg: string, type: 'success' | 'error' | 'systemReject') {
+        this.snack.open(msg, 'סגירה', {
+            duration: 3000,
+            direction: 'rtl',
+            horizontalPosition: 'center',
+            verticalPosition: 'top',
+            panelClass: [
+                type === 'success'
+                    ? 'app-toast-success'
+                    : type === 'systemReject'
+                        ? 'app-toast-system-reject'
+                        : 'app-toast-error'
+            ],
+        });
     }
 }

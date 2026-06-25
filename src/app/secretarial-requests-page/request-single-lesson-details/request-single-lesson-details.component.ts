@@ -734,7 +734,6 @@ export class RequestSingleLessonDetailsComponent {
 
   async approveSelected() {
     if (this.loading()) return;
-
     this.action.set('approve');
     this.busy.set(true);
     this.loading.set(true);
@@ -878,7 +877,7 @@ export class RequestSingleLessonDetailsComponent {
         newStatus: 'APPROVED' as const,
       };
       if (!this.bulkMode) {
-        this.snack.open('הבקשה אושרה בהצלחה.', 'סגור', {
+        this.snack.open('הבקשה אושרה בהצלחה', 'סגור', {
           duration: 3000,
           panelClass: ['snack-success'],
           direction: 'rtl',
@@ -1138,7 +1137,7 @@ export class RequestSingleLessonDetailsComponent {
   private async rejectBySystemAndUpdateUi(reason: string): Promise<void> {
     await this.rejectBySystem(reason);
 
-    const msg = `הבקשה לא אושרה ונדחתה אוטומטית על ידי המערכת: ${reason}`;
+    const msg = `לא אושר: ${reason}`;
 
     this.errorMsg.set(msg);
 

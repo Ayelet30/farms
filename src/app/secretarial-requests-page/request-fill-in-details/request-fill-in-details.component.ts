@@ -426,7 +426,7 @@ export class RequestFillInDetailsComponent implements OnInit {
     const requestId = this.request?.id ?? this.requestId?.();
     if (!requestId) return;
 
-    const msg = `הבקשה לא אושרה ונדחתה אוטומטית על ידי המערכת: ${reason}`;
+    const msg = `לא אושר: ${reason}`;
 
     this.errorMsg.set(msg);
 

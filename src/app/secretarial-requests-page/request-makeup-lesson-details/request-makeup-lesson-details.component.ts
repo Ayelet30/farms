@@ -397,7 +397,7 @@ export class RequestMakeupLessonDetailsComponent {
         if (!this.bulkMode) {
           this.snack.open(warn, 'סגור', {
             duration: 3500,
-            panelClass: ['snack-warn'], // אם אין לך, תשתמשי snack-reject
+            panelClass: ['snack-warn'],
             direction: 'rtl',
             horizontalPosition: 'center',
             verticalPosition: 'top',
@@ -406,7 +406,7 @@ export class RequestMakeupLessonDetailsComponent {
       }
 
 
-      this.okSnack('הבקשה אושרה בהצלחה  ');
+      this.okSnack('הבקשה אושרה בהצלחה ');
       const evt = { requestId: r.id, newStatus: 'APPROVED' as const };
       this.approved.emit(evt);
       this.onApproved?.(evt);
@@ -588,7 +588,7 @@ export class RequestMakeupLessonDetailsComponent {
     const requestId = this.request?.id ?? this.requestId?.();
     if (!requestId) return;
 
-    const msg = `הבקשה לא אושרה ונדחתה אוטומטית על ידי המערכת: ${reason}`;
+    const msg = `לא אושר: ${reason}`;
 
     this.errorMsg.set(msg);
 

@@ -126,26 +126,45 @@ export class RequestAddIndependentDetailsComponent {
         return await RequestAddIndependentDetailsComponent.isValidRequset();
     }
 
-    private showSnack(msg: string, type: 'success' | 'error') {
+    private showSnack(
+        msg: string,
+        type: 'success' | 'error' | 'systemReject'
+    ) {
         if (this.bulkMode && type === 'success') return;
 
-        this.snack.open(msg, 'סגור', {
+        this.snack.open(msg, 'סגירה', {
             duration: 3000,
             direction: 'rtl',
             horizontalPosition: 'center',
             verticalPosition: 'top',
-            panelClass: [type === 'success' ? 'snack-success' : 'snack-error'],
+            panelClass: [
+                type === 'success'
+                    ? 'app-toast-success'
+                    : type === 'systemReject'
+                        ? 'app-toast-system-reject'
+                        : 'app-toast-error'
+            ],
+        });
+    }
+    private toast(
+        message: string,
+        type: 'success' | 'error' | 'info' | 'systemReject' = 'info'
+    ) {
+        this.snack.open(message, 'סגירה', {
+            duration: 3500,
+            direction: 'rtl',
+            horizontalPosition: 'center',
+            verticalPosition: 'top',
+            panelClass: [
+                type === 'success' || type === 'info'
+                    ? 'app-toast-success'
+                    : type === 'systemReject'
+                        ? 'app-toast-system-reject'
+                        : 'app-toast-error'
+            ],
         });
     }
 
-    private toast(message: string, type: ToastKind = 'info') {
-        this.snack.open(message, 'סגור', {
-            duration: 3500,
-            horizontalPosition: 'center',
-            verticalPosition: 'bottom',
-            panelClass: [`sf-toast`, `sf-toast-${type}`],
-        });
-    }
 
     private async rejectBySystem(reason: string): Promise<void> {
         const db = dbTenant();
@@ -314,7 +333,7 @@ export class RequestAddIndependentDetailsComponent {
                 this.bulkWarning = 'נדחתה ✅ אבל לא נשלח מייל לרוכב העצמאי';
                 this.showSnack('נדחה ✅ אבל שליחת מייל נכשלה', 'error');
             } else {
-                this.showSnack('בקשת הרוכב העצמאי נדחתה בהצלחה ✅', 'success');
+                this.showSnack('בקשת הרוכב העצמאי נדחתה בהצלחה', 'success');
             }
 
         } catch (e: any) {

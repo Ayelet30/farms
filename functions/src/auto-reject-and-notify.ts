@@ -85,7 +85,7 @@ export const autoRejectRequestAndNotify = onRequest(
         .update({
           status: 'REJECTED_BY_SYSTEM',
           decision_note: String(reason).trim(),
-          decided_by_uid: decidedByUid ?? null,
+          decided_by_uid: null,
           decided_at: new Date().toISOString(),
         })
         .eq('id', requestId)
