@@ -538,6 +538,12 @@ export class AppointmentSchedulerComponent implements OnInit {
 
 
   async openHolesForCandidate(c: MakeupCandidate): Promise<void> {
+    if (this.tabsLocked) {
+      this.selectedMakeupCandidate = null;
+      this.candidateSlots = [];
+      this.showUiHint('tab', this.missingTabMsg);
+      return;
+    }
     if (!this.selectedChildId) {
       this.candidateSlotsError = 'יש לבחור ילד';
       return;
@@ -2003,11 +2009,14 @@ export class AppointmentSchedulerComponent implements OnInit {
   }
 
   async onMakeupSlotChosen(slot: MakeupSlot): Promise<void> {
+    if (this.tabsLocked) {
+      this.showErrorToast('יש לבחור ילד/ה ומדריך לפני קביעת שיעור השלמה');
+      return;
+    }
+
     if (this.isSecretary) {
-      // מזכירה – קובעת שיעור מיד
       await this.bookMakeupSlot(slot);
     } else {
-      // הורה – שולח בקשה למזכירה (הפונקציה הקיימת שלך)
       await this.requestMakeupFromSecretary(slot);
     }
   }
