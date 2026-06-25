@@ -877,7 +877,7 @@ export class RequestSingleLessonDetailsComponent {
         newStatus: 'APPROVED' as const,
       };
       if (!this.bulkMode) {
-        this.snack.open('הבקשה אושרה בהצלחה.', 'סגור', {
+        this.snack.open('הבקשה אושרה בהצלחה', 'סגור', {
           duration: 3000,
           panelClass: ['snack-success'],
           direction: 'rtl',

@@ -328,7 +328,7 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
       });
 
       // ✅ הצלחה ב-DB
-      const msg = 'הבקשה אושרה בהצלחה ✅';
+      const msg = 'הבקשה אושרה בהצלחה';
       this.approved.emit({
         requestId: this.request.id,
         newStatus: 'APPROVED'
@@ -395,7 +395,7 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
         ? 'REJECTED_BY_SYSTEM'
         : 'REJECTED';
 
-      const msg = 'הבקשה נדחתה בהצלחה ✅';
+      const msg = 'הבקשה נדחתה בהצלחה';
       this.rejected.emit({
         requestId: this.request.id,
         newStatus
@@ -423,12 +423,22 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
       this.action.set(null);
     }
   }
-  private toast(message: string, type: ToastKind = 'info') {
-    this.snack.open(message, 'סגור', {
+  private toast(
+    message: string,
+    type: 'success' | 'error' | 'info' | 'systemReject' = 'info'
+  ) {
+    this.snack.open(message, 'סגירה', {
       duration: 3500,
+      direction: 'rtl',
       horizontalPosition: 'center',
-      verticalPosition: 'bottom',
-      panelClass: [`sf-toast`, `sf-toast-${type}`],
+      verticalPosition: 'top',
+      panelClass: [
+        type === 'success' || type === 'info'
+          ? 'app-toast-success'
+          : type === 'systemReject'
+            ? 'app-toast-system-reject'
+            : 'app-toast-error'
+      ],
     });
   }
   get isPending(): boolean {

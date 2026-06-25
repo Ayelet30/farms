@@ -70,19 +70,26 @@ export class RequestAddParentDetailsComponent {
     }
   });
 
-  private showSnack(msg: string, type: 'success' | 'error') {
-    // אם אין לך bulkMode – אפשר להשאיר בלי ה-if הזה
+  private showSnack(
+    msg: string,
+    type: 'success' | 'error' | 'systemReject'
+  ) {
     if (this.bulkMode && type === 'success') return;
 
-    this.snack.open(msg, 'סגור', {
+    this.snack.open(msg, 'סגירה', {
       duration: 3000,
       direction: 'rtl',
       horizontalPosition: 'center',
       verticalPosition: 'top',
-      panelClass: [type === 'success' ? 'snack-success' : 'snack-error'],
+      panelClass: [
+        type === 'success'
+          ? 'app-toast-success'
+          : type === 'systemReject'
+            ? 'app-toast-system-reject'
+            : 'app-toast-error'
+      ],
     });
   }
-
   private tenantBoot = inject(TenantBootstrapService);
 
   private cu = inject(CurrentUserService);
@@ -152,12 +159,22 @@ export class RequestAddParentDetailsComponent {
     return await RequestAddParentDetailsComponent.isValidRequset();
   }
 
-  private toast(message: string, type: ToastKind = 'info') {
-    this.snack.open(message, 'סגור', {
+  private toast(
+    message: string,
+    type: 'success' | 'error' | 'info' | 'systemReject' = 'info'
+  ) {
+    this.snack.open(message, 'סגירה', {
       duration: 3500,
+      direction: 'rtl',
       horizontalPosition: 'center',
-      verticalPosition: 'bottom',
-      panelClass: [`sf-toast`, `sf-toast-${type}`],
+      verticalPosition: 'top',
+      panelClass: [
+        type === 'success' || type === 'info'
+          ? 'app-toast-success'
+          : type === 'systemReject'
+            ? 'app-toast-system-reject'
+            : 'app-toast-error'
+      ],
     });
   }
 
@@ -289,7 +306,7 @@ export class RequestAddParentDetailsComponent {
         this.bulkWarning = 'אושרה ✅ אבל לא נשלח מייל להורה';
         this.showSnack(`אושר ✅ אבל שליחת מייל נכשלה`, 'error');
       } else {
-        this.showSnack('הבקשה אושרה בהצלחה ✅', 'success');
+        this.showSnack('הבקשה אושרה בהצלחה ', 'success');
       }
 
     } catch (e: any) {
@@ -364,7 +381,7 @@ export class RequestAddParentDetailsComponent {
         this.bulkWarning = 'נדחתה ✅ אבל לא נשלח מייל להורה';
         this.showSnack(`נדחה ✅ אבל שליחת מייל נכשלה`, 'error');
       } else {
-        this.showSnack('הבקשה נדחתה בהצלחה ✅', 'success');
+        this.showSnack('הבקשה נדחתה בהצלחה ', 'success');
       }
     } catch (e: any) {
       const msg = e?.message || 'שגיאה בדחיית הבקשה';
