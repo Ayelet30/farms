@@ -1145,14 +1145,23 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
         ? 'שעה'
         : `${cancelBeforeHours} שעות`;
     // אזהרה על ביטול מאוחר
-    this.cancelLessonModal.lateCancelWarning =
-      cancelBeforeHours != null &&
-        cancelBeforeHours > 0 &&
-        diffHours < cancelBeforeHours
-        ? `לתשומת ליבך, מועד תחילת השיעור חל בעוד פחות מ־${hoursText}.` : '';
+    const isPastLesson = diffHours < 0;
 
-    // 1. קודם בודקים cancel_before_hours
-    if (
+
+    this.cancelLessonModal.lateCancelWarning =
+      isPastLesson
+        ? 'לתשומת ליבך, השיעור שאת עומדת לבטל כבר התקיים.'
+        : cancelBeforeHours != null &&
+          cancelBeforeHours > 0 &&
+          diffHours < cancelBeforeHours
+          ? `לתשומת ליבך, מועד תחילת השיעור חל בעוד פחות מ־${hoursText}.`
+          : '';
+
+    if (isPastLesson) {
+      isMakeupAllowedDefault = false;
+      makeupReason =
+        'ברירת המחדל היא שלא ניתן להשלמה, כי השיעור כבר התקיים.';
+    } else if (
       cancelBeforeHours != null &&
       cancelBeforeHours > 0 &&
       diffHours < cancelBeforeHours
