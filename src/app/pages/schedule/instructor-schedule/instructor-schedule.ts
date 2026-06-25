@@ -2100,7 +2100,7 @@ export class InstructorScheduleComponent implements OnInit {
 
       // אין בכלל שעות עבודה ביום הזה
       if (!rowsForDay.length) {
-        return `לא ניתן להגיש בקשת היעדרות בתאריך ${this.formatDateForMsg(current)} כי המדריך אינו עובד ביום זה.`;
+        return `לא ניתן להגיש בקשת היעדרות עבור התאריך ${this.formatDateForMsg(current)} מאחר שלפי הגדרות זמינות אינך עובד ביום זה.`;
       }
 
       if (!allDay) {
