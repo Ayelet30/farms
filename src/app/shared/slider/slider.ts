@@ -161,14 +161,13 @@ export class SliderComponent implements OnInit, OnDestroy {
           { path: 'secretary/monthly-summary', label: 'סיכום וגרפים', icon: 'bar_chart', featureKey: 'farm_operations_advanced' },
 
           { path: 'secretary/requests', label: 'בקשות ואישורים', icon: 'checklist', featureKey: 'therapeutic_core' },
-          { path: 'secretary/tasks', label: 'משימות', icon: 'tasks', featureKey: 'therapeutic_core' },
           { path: 'secretary/payments', label: 'תשלומים וחשבוניות', icon: 'card', featureKey: 'invoices' },
           { path: 'secretary/billing', label: 'ניהול חיובים', icon: 'billing', featureKey: 'billing' },
 
           {
             path: 'secretary/rider-billing',
             label: 'חיובי רוכבים',
-            icon: 'rider_billing',
+            icon: 'billing',
             featureKey: 'billing'
           },
           { path: 'secretary/claims', label: 'טיפול בתביעות', icon: 'claims', featureKey: 'claims' },
