@@ -257,8 +257,8 @@
         בשעות
         <b><span class="ltr time-range">{{ seriesConfirmData.startTime }}–{{ seriesConfirmData.endTime }}</span></b>
 
-        בימי <b>{{ seriesConfirmData.dayLabel }}</b>
-
+        {{ selectedTab === 'single' ? 'ביום' : 'בימי' }}
+        <b>{{ seriesConfirmData.dayLabel }}</b>
         <ng-container *ngIf="seriesConfirmData.instructorName">
           <br />
           עם המדריך/ה <b>{{ seriesConfirmData.instructorName }}</b>

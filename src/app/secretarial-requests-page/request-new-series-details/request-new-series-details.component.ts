@@ -367,7 +367,7 @@ export class SecretarialSeriesRequestsComponent {
     const requestId = this.request?.id;
     if (!requestId) return;
 
-    const msg = `הבקשה לא אושרה ונדחתה אוטומטית על ידי המערכת: ${reason}`;
+    const msg = `לא אושר: ${reason}`;
 
     this.errorMsg.set(msg);
 
