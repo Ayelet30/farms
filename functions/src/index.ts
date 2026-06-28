@@ -33,7 +33,7 @@ export { connectClalitForFarm, connectHmoForFarm } from './connectHmoForFarm';
 
 export { createHostedPaymentUrl, tranzilaHandshake, recordOneTimePayment, savePaymentMethod, chargeSelectedChargesForParent, chargeSelectedChargesForRider } from './tranzila.js';
 export {
-  ensureTranzilaInvoiceForPayment
+  ensureTranzilaInvoiceForPayment, ensureTranzilaInvoiceForRiderPayment
 } from './tranzilaInvoices.js';
 export { sendEmailGmail } from './email';
 export { notifyAvailabilityLessonAction } from './notify-availability-lesson-action';
