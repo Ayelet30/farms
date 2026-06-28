@@ -243,12 +243,7 @@ export const routes: Routes = [
           import('./secretarial-requests-page/secretarial-requests-page.component')
             .then(m => m.SecretarialRequestsPageComponent)
       },
-      {
-        path: 'tasks',
-        loadComponent: () =>
-          import('./pages/tasks-board/tasks-board')
-            .then(m => m.TasksBoardComponent)
-      },
+
       {
         path: 'payments',
         loadComponent: () =>
@@ -296,11 +291,11 @@ export const routes: Routes = [
           import('../admin-hmo/admin-hmo-integrations.page').then(m => m.AdminHmoIntegrationsPage)
       },
       {
-      path: 'billing',
-      loadComponent: () =>
-        import('./admin/admin-billing/admin-billing')
-          .then(m => m.AdminBillingComponent)
-    }
+        path: 'billing',
+        loadComponent: () =>
+          import('./admin/admin-billing/admin-billing')
+            .then(m => m.AdminBillingComponent)
+      }
       // {
       //   path: 'addChildren',
       //   loadComponent: () =>

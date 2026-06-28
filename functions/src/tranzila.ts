@@ -6,7 +6,7 @@ import * as crypto from 'crypto';
 import fetch from 'node-fetch';
 import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
-import { ensureTranzilaInvoiceForPaymentInternal } from './tranzilaInvoices';
+import { ensureTranzilaInvoiceForPaymentInternal, ensureTranzilaInvoiceForRiderPaymentInternal } from './tranzilaInvoices';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 
 
@@ -1368,6 +1368,7 @@ export const chargeSelectedChargesForRider = onRequest(
           .from('independent_rider_payments')
           .insert({
             rider_uid: riderUid,
+            rider_charge_id: chargeId,
             payment_profile_id: usedProfile?.id ?? null,
             amount: amountNis,
             currency: 'ILS',
@@ -1482,300 +1483,69 @@ async function getRiderChargeCreditsAgorot(
   );
 }
 
-async function ensureTranzilaInvoiceForRiderPaymentInternal(args: {
-  sb: SupabaseClient;
-  tenantSchema: string;
-  riderUid: string;
-  chargeId: string;
-  paymentId: string;
-  paymentProfileId?: string | null;
-  amountAgorot: number;
-}): Promise<{
-  invoiceUrl: string;
-  documentId: string | null;
-  documentNumber: string | null;
-  retrievalKey: string;
-}> {
-  const {
-    sb,
-    tenantSchema,
-    riderUid,
-    chargeId,
-    paymentId,
-    paymentProfileId,
-    amountAgorot,
-  } = args;
 
-  const { data: rider, error: riderErr } = await sb
-    .from('independent_riders')
-    .select('uid, full_name, email, id_number, phone')
-    .eq('uid', riderUid)
-    .maybeSingle();
+// async function sendRiderInvoiceViaNotifyUser(args: {
+//   tenantSchema: string;
+//   riderUid: string;
+//   riderFullName: string | null;
+//   documentNumber: string | null;
+//   invoiceUrl: string;
+//   pdfBuffer: Buffer;
+// }) {
+//   const internalSecret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
+//   if (!internalSecret) throw new Error('Missing INTERNAL_CALL_SECRET');
 
-  if (riderErr) throw new Error(`independent_riders query failed: ${riderErr.message}`);
-  if (!rider) throw new Error('rider not found');
+//   const riderName = args.riderFullName || 'רוכב/ת';
 
-  const { data: itemsRows, error: itemsErr } = await sb
-    .from('rider_charge_details')
-    .select(`
-      id,
-      charge_id,
-      item_date,
-      service_name,
-      quantity,
-      unit_price_agorot,
-      amount_agorot,
-      description,
-      horse_name
-    `)
-    .eq('charge_id', chargeId)
-    .order('item_date', { ascending: true });
+//   const payload = {
+//     tenantSchema: args.tenantSchema,
 
-  if (itemsErr) throw new Error(`rider_charge_details query failed: ${itemsErr.message}`);
+//     // חשוב: אצלך notifyUser מצפה ל-independent, לא independent_rider
+//     userType: 'independent',
+//     uid: args.riderUid,
 
-  const items = (itemsRows ?? []).map((item: any) => {
-    const serviceName = item.service_name || item.description || 'שירות רוכב עצמאי';
-    const horsePart = item.horse_name ? ` - ${item.horse_name}` : '';
-    const datePart = item.item_date ? ` - ${item.item_date}` : '';
+//     forceEmail: true,
+//     subject: `חשבונית ${args.documentNumber ?? ''}`.trim(),
+//     html: `
+//       <div dir="rtl" style="font-family: Arial, sans-serif">
+//         <p>שלום ${riderName},</p>
+//         <p>מצורפת החשבונית עבור התשלום שבוצע.</p>
+//         <p>תודה,<br/>Smart Farm</p>
+//       </div>
+//     `.trim(),
+//     attachments: [
+//       {
+//         filename: `invoice-${args.documentNumber ?? 'payment'}.pdf`,
+//         contentType: 'application/pdf',
+//         contentBase64: args.pdfBuffer.toString('base64'),
+//       },
+//     ],
+//   };
 
-    return {
-      name: `${serviceName}${horsePart}${datePart}`.slice(0, 120),
-      unit_price: Number((Number(item.unit_price_agorot ?? item.amount_agorot ?? 0) / 100).toFixed(2)),
-      units_number: Number(item.quantity || 1),
-      unit_type: 1,
-      currency_code: 'ILS',
-    };
-  });
+//   const r = await fetch(NOTIFY_USER_URL, {
+//     method: 'POST',
+//     headers: {
+//       'Content-Type': 'application/json',
+//       'X-Internal-Secret': internalSecret,
+//     },
+//     body: JSON.stringify(payload),
+//   });
 
-  const { data: creditsRows, error: creditsErr } = await sb
-    .from('rider_credits')
-    .select('amount_agorot, reason')
-    .eq('related_charge_id', chargeId);
+//   const json: any = await r.json().catch(() => ({}));
 
-  if (creditsErr) throw new Error(`rider_credits query failed: ${creditsErr.message}`);
+//   console.log('[sendRiderInvoiceViaNotifyUser] response', {
+//     status: r.status,
+//     sent: json?.sent,
+//     reason: json?.reason,
+//     to: json?.to,
+//   });
 
-  for (const credit of creditsRows ?? []) {
-    items.push({
-      name: `זיכוי: ${credit.reason || ''}`.slice(0, 120),
-      unit_price: Number((-Math.abs(Number(credit.amount_agorot ?? 0)) / 100).toFixed(2)),
-      units_number: 1,
-      unit_type: 1,
-      currency_code: 'ILS',
-    });
-  }
+//   if (!r.ok) {
+//     throw new Error(`notifyUser failed: ${json?.message || json?.error || r.statusText}`);
+//   }
 
-  if (!items.length) {
-    throw new Error('no rider charge items found for invoice');
-  }
-  const totalNis = Number(
-    items.reduce((sum: number, item: any) => {
-      return sum + Number(item.unit_price || 0) * Number(item.units_number || 1);
-    }, 0).toFixed(2)
-  );
-
-  if (!Number.isFinite(totalNis) || totalNis <= 0) {
-    throw new Error('invoice amount must be positive');
-  }
-  let ccLast4: string | undefined;
-
-  if (paymentProfileId) {
-    const { data: prof, error: profErr } = await sb
-      .from('independent_rider_payment_profiles')
-      .select('id, brand, last4')
-      .eq('id', paymentProfileId)
-      .maybeSingle();
-
-    if (profErr) throw new Error(`independent_rider_payment_profiles query failed: ${profErr.message}`);
-    ccLast4 = String(prof?.last4 ?? '').trim().slice(-4) || undefined;
-  }
-
-  const terminal = await loadDefaultBillingTerminal({
-    sbTenant: sb,
-    provider: 'tranzila',
-    mode: 'prod',
-  });
-
-  const auth = buildTranzilaAuth();
-  const documentDate = new Date().toISOString().slice(0, 10);
-  const vatPercent = documentDate >= '2025-01-01' ? 18 : 17;
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'X-tranzila-api-app-key': auth.appKey,
-    'X-tranzila-api-request-time': auth.requestTime,
-    'X-tranzila-api-nonce': auth.nonce,
-    'X-tranzila-api-access-token': auth.accessToken,
-  };
-
-  const clientCompany = [
-    rider.full_name || 'רוכב עצמאי',
-    rider.id_number || null,
-  ].filter(Boolean).join('\n');
-
-  const payload: any = {
-    terminal_name: terminal.terminal_name,
-    document_date: documentDate,
-    document_type: 'IR',
-    document_language: 'heb',
-    document_currency_code: 'ILS',
-    action: 1,
-    vat_percent: vatPercent,
-    client_company: clientCompany,
-    client_email: rider.email ?? undefined,
-    items,
-    payments: [
-      {
-        payment_method: 1,
-        payment_date: documentDate,
-        amount: totalNis,
-        currency_code: 'ILS',
-        cc_last_4_digits: ccLast4 || undefined,
-        cc_credit_term: 1,
-      },
-    ],
-    response_language: 'eng',
-  };
-
-  const resp = await fetch('https://billing5.tranzila.com/api/documents_db/create_document', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-  });
-
-  const rawText = await resp.text();
-  let json: any = null;
-
-  try {
-    json = JSON.parse(rawText);
-  } catch { }
-
-  if (!resp.ok || !json || String(json.status_code) !== '0') {
-    throw new Error(`tranzila rider create_document failed: ${json?.status_msg ?? rawText}`);
-  }
-
-  const documentId = json?.document?.id ? String(json.document.id) : null;
-  const documentNumber = json?.document?.number ? String(json.document.number) : null;
-
-  const retrievalKey =
-    json?.retrieval_key ??
-    json?.document?.retrieval_key ??
-    json?.retrievalKey ??
-    null;
-
-  if (!retrievalKey) {
-    throw new Error('missing retrieval_key from tranzila rider invoice');
-  }
-
-  const tranzilaPdfUrl = `https://my.tranzila.com/api/get_financial_document/${retrievalKey}`;
-
-  const pdfResp = await fetch(tranzilaPdfUrl);
-
-  if (!pdfResp.ok) {
-    throw new Error(`failed to fetch rider invoice PDF: HTTP ${pdfResp.status}`);
-  }
-
-  const pdfBuffer = Buffer.from(await pdfResp.arrayBuffer());
-
-  const bucket = 'payments-invoices';
-  const monthYear = `${documentDate.slice(5, 7)}-${documentDate.slice(0, 4)}`;
-  const path = `${tenantSchema}/rider-invoices/${monthYear}/${paymentId}.pdf`;
-
-  const { error: uploadErr } = await sb.storage
-    .from(bucket)
-    .upload(path, pdfBuffer, {
-      contentType: 'application/pdf',
-      upsert: true,
-    });
-
-  if (uploadErr) {
-    throw new Error(`rider invoice storage upload failed: ${uploadErr.message}`);
-  }
-
-  const { data: pub } = sb.storage.from(bucket).getPublicUrl(path);
-  const invoiceUrl = (pub as any).publicUrl + '?v=' + Date.now();
-
-  try {
-    await sendRiderInvoiceViaNotifyUser({
-      tenantSchema,
-      riderUid,
-      riderFullName: rider.full_name ?? null,
-      documentNumber,
-      invoiceUrl,
-      pdfBuffer,
-    });
-  } catch (mailErr: any) {
-    console.error('[rider invoice mail] failed', mailErr?.message || mailErr);
-  }
-
-  return {
-    invoiceUrl,
-    documentId,
-    documentNumber,
-    retrievalKey: String(retrievalKey),
-  };
-}
-async function sendRiderInvoiceViaNotifyUser(args: {
-  tenantSchema: string;
-  riderUid: string;
-  riderFullName: string | null;
-  documentNumber: string | null;
-  invoiceUrl: string;
-  pdfBuffer: Buffer;
-}) {
-  const internalSecret = envOrSecret(INTERNAL_CALL_SECRET_S, 'INTERNAL_CALL_SECRET');
-  if (!internalSecret) throw new Error('Missing INTERNAL_CALL_SECRET');
-
-  const riderName = args.riderFullName || 'רוכב/ת';
-
-  const payload = {
-    tenantSchema: args.tenantSchema,
-
-    // חשוב: אצלך notifyUser מצפה ל-independent, לא independent_rider
-    userType: 'independent',
-    uid: args.riderUid,
-
-    forceEmail: true,
-    subject: `חשבונית ${args.documentNumber ?? ''}`.trim(),
-    html: `
-      <div dir="rtl" style="font-family: Arial, sans-serif">
-        <p>שלום ${riderName},</p>
-        <p>מצורפת החשבונית עבור התשלום שבוצע.</p>
-        <p>תודה,<br/>Smart Farm</p>
-      </div>
-    `.trim(),
-    attachments: [
-      {
-        filename: `invoice-${args.documentNumber ?? 'payment'}.pdf`,
-        contentType: 'application/pdf',
-        contentBase64: args.pdfBuffer.toString('base64'),
-      },
-    ],
-  };
-
-  const r = await fetch(NOTIFY_USER_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Internal-Secret': internalSecret,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const json: any = await r.json().catch(() => ({}));
-
-  console.log('[sendRiderInvoiceViaNotifyUser] response', {
-    status: r.status,
-    sent: json?.sent,
-    reason: json?.reason,
-    to: json?.to,
-  });
-
-  if (!r.ok) {
-    throw new Error(`notifyUser failed: ${json?.message || json?.error || r.statusText}`);
-  }
-
-  return json;
-}
+//   return json;
+// }
 
 
 // ===================================================================

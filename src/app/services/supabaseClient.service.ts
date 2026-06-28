@@ -126,7 +126,7 @@ export function db(schema?: string) {
   const effectiveSchema = schema ?? requireTenant().schema;
   if (!_schemaClients[effectiveSchema]) _schemaClients[effectiveSchema] = base.schema(effectiveSchema);
   return _schemaClients[effectiveSchema];
-}let _dbTenantImpl = () => db();
+} let _dbTenantImpl = () => db();
 let _dbPublicImpl = () => db('public');
 
 export function dbTenant() {
@@ -156,7 +156,7 @@ export async function setTenantContext(ctx: TenantContext) {
     currentTenant = { ...ctx };
     authBearer = ctx.accessToken ?? null;
     supabase = makeClient();
-    clearDbCache(); 
+    clearDbCache();
     clearTimeout(refreshTimer);
     if (authBearer) scheduleTokenRefresh(authBearer);
     notifyTenantChange();                 // <-- הוספה
@@ -171,7 +171,7 @@ export async function clearTenantContext() {
   clearTimeout(refreshTimer);
   refreshTimer = null;
   supabase = makeClient();
-  clearDbCache(); 
+  clearDbCache();
   try { await supabase.auth.signOut(); } catch { }
   notifyTenantChange();                   // <-- הוספה
 }
@@ -353,35 +353,35 @@ async function resolveRoleAndFarm(
 let userCache: { key: string; data: UserDetails; expires: number } | null = null;
 
 export async function getCurrentUserDetails(
- select = 'uid, first_name, last_name, id_number',
+  select = 'uid, first_name, last_name, id_number',
   options?: { cacheMs?: number }
 ): Promise<UserDetails | null> {
   const tenant = requireTenant();
   const fbUser = getAuth().currentUser;
 
-  
+
   if (!fbUser) throw new Error('No Firebase user is logged in.');
-  
+
   const ttl = options?.cacheMs ?? 60_000;
   const cacheKey = `${tenant.schema}|${fbUser.uid}|${select}`;
   if (userCache && userCache.key === cacheKey && userCache.expires > Date.now()) return userCache.data;
-  
+
   const dbcTenant = db();         // סכימת הטננט הנוכחית
   const dbcPublic = db('public');
-  
+
   // ננעלים לטננט הנבחר כדי לא להתבלבל בין חוות שונות
   const { targetTable, role, role_in_tenant, roleId, farmId, farmName } =
-  await resolveRoleAndFarm(dbcTenant, dbcPublic, fbUser.uid, { tenantId: tenant.id });
-  
-  
+    await resolveRoleAndFarm(dbcTenant, dbcPublic, fbUser.uid, { tenantId: tenant.id });
+
+
   if (!targetTable) return null;
-  
+
   // במקום maybeSingle: מביאים את כל הרשומות עבור ה-uid ובוחרים אחת דטרמיניסטית
   const { data: rows, error } = await dbcTenant
-  .from(targetTable)
-  .select('*')                 // מביא * כדי שנוכל לדרג לפי שדות אם קיימים
-  .eq('uid', fbUser.uid);
-  
+    .from(targetTable)
+    .select('*')                 // מביא * כדי שנוכל לדרג לפי שדות אם קיימים
+    .eq('uid', fbUser.uid);
+
   if (error) throw error;
 
 
@@ -404,7 +404,7 @@ export async function getCurrentUserDetails(
     // 2) לפי updated_at אם קיים
     if (filtered.some(r => 'updated_at' in r && r.updated_at)) {
       filtered = [...filtered].sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
-       return filtered[0];
+      return filtered[0];
     }
 
     // 3) לפי created_at אם קיים
@@ -420,7 +420,7 @@ export async function getCurrentUserDetails(
         const bx = typeof b.id === 'number' ? b.id : parseInt(b.id, 10) || 0;
         return bx - ax;
       });
-       return filtered[0];
+      return filtered[0];
     }
 
     // 5)fallback: פשוט הראשונה בסדר קבוע
@@ -432,8 +432,8 @@ export async function getCurrentUserDetails(
 
   const result: UserDetails = {
     uid: rec.uid ?? fbUser.uid,
-   first_name: rec.first_name ?? null,
-    last_name:  rec.last_name  ?? null,
+    first_name: rec.first_name ?? null,
+    last_name: rec.last_name ?? null,
     id_number: rec.id_number ?? null,
     address,
     phone: rec.phone ?? null,
@@ -624,7 +624,7 @@ export async function selectMembership(tenantId: string, roleInTenant?: string):
   // ✅ מעדכנים רק את הממברשיפ שבאמת בחרנו (tenant + role)
   membershipsCache = list.map(m =>
     m.tenant_id === chosen.tenant_id &&
-    m.role_in_tenant === chosen.role_in_tenant
+      m.role_in_tenant === chosen.role_in_tenant
       ? normalized
       : m
   );
@@ -670,7 +670,7 @@ export async function getCurrentParentDetails(
 }
 
 export async function fetchCurrentParentDetails(
- select = 'uid, first_name, last_name, phone, email, id_number, address',
+  select = 'uid, first_name, last_name, phone, email, id_number, address',
   options?: { cacheMs?: number }
 ): Promise<{ ok: boolean; data: ParentDetails | null; error?: string }> {
   try {
@@ -683,7 +683,7 @@ export async function fetchCurrentParentDetails(
 
 /** ===================== CHILDREN API (per-tenant) ===================== **/
 export async function getMyChildren(
- select = 'child_uuid, first_name, last_name, gov_id, birth_date, parent_uid, status'
+  select = 'child_uuid, first_name, last_name, gov_id, birth_date, parent_uid, status'
 ): Promise<ChildRow[]> {
   await ensureTenantContextReady();
 
@@ -697,13 +697,13 @@ export async function getMyChildren(
     .eq('parent_uid', uid)                   // ✅ סינון לפי ההורה המחובר
     .order('first_name', { ascending: true })
     .order('last_name', { ascending: true });
- 
+
   if (error) throw error;
   return (data ?? []) as unknown as ChildRow[];
 }
 
 export async function fetchMyChildren(
-select = 'child_uuid, first_name, last_name, gov_id, birth_date, parent_uid, status'
+  select = 'child_uuid, first_name, last_name, gov_id, birth_date, parent_uid, status'
 ): Promise<{ ok: boolean; data: ChildRow[]; error?: string }> {
   try {
     const data = await getMyChildren(select);
@@ -784,16 +784,16 @@ export async function rpcGetRequiredAgreements(childId: string, parentUid: strin
 export async function insertAgreementAcceptance(
   db: any,
   opts: {
-  versionId: string;
-  parentUid: string;
-  childId?: string | null;
-  firstNameSnapshot?: string | null;
-  lastNameSnapshot?: string | null;
-  roleSnapshot?: string | null;
-  ip?: string | null;
-  userAgent?: string | null;
-  signaturePath?: string | null;
-}) {
+    versionId: string;
+    parentUid: string;
+    childId?: string | null;
+    firstNameSnapshot?: string | null;
+    lastNameSnapshot?: string | null;
+    roleSnapshot?: string | null;
+    ip?: string | null;
+    userAgent?: string | null;
+    signaturePath?: string | null;
+  }) {
   const { data, error } = await db().from('user_agreement_acceptances').insert({
     agreement_version_id: opts.versionId,
     parent_user_id: opts.parentUid,
@@ -828,7 +828,7 @@ export type ListParentsOpts = {
   search?: string | null;
   limit?: number;
   offset?: number;
- orderBy?: 'first_name' | 'last_name' | 'created_at';
+  orderBy?: 'first_name' | 'last_name' | 'created_at';
   ascending?: boolean;
 };
 
@@ -841,14 +841,29 @@ export type SecretaryChargeRow = {
   parent_email: string | null;
   amount: number;
   method: 'one_time' | 'subscription';
+  payment_method: string | null;   // 👈 להוסיף
   date: string;                 // YYYY-MM-DD מהטבלה
   invoice_url: string | null;
-  is_external: boolean;   
-   invoice_status?: string | null;
-  tranzila_invoice_url?: string | null;  
+  is_external: boolean;
+  invoice_status?: string | null;
+  tranzila_invoice_url?: string | null;
   office_note: string | null;     // uid = 1111.. או ללא התאמת הורה
 };
-
+export type SecretaryRiderPaymentRow = {
+  id: string;
+  rider_uid: string;
+  rider_name: string;
+  rider_phone: string | null;
+  rider_email: string | null;
+  rider_status: string | null;
+  amount: number;
+  method: string | null;
+  status: string;
+  date: string;
+  invoice_url: string | null;
+  tranzila_invoice_url: string | null;
+  charge_id: string | null;
+};
 export type ParentChargeRow = {
   id: string;
   parent_uid: string;
@@ -874,7 +889,7 @@ export type ListChargesForSecretaryOpts = {
 
 /** מחזיר את כל ההורים בחווה (כלומר בסכימת ה-tenant הנוכחי) */
 export async function listParents(opts: ListParentsOpts = {}): Promise<{ rows: ParentRow[]; count?: number | null }> {
-  const tenant = requireTenant();    
+  const tenant = requireTenant();
 
   const dbc = db(tenant.schema);
 
@@ -883,9 +898,9 @@ export async function listParents(opts: ListParentsOpts = {}): Promise<{ rows: P
 
   if (opts.search?.trim()) {
     const s = `%${opts.search.trim()}%`;
-  q = q.or(`first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
+    q = q.or(`first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
   }
-const orderBy = opts.orderBy ?? 'last_name, first_name';
+  const orderBy = opts.orderBy ?? 'last_name, first_name';
   const ascending = opts.ascending ?? true;
   q = q.order(orderBy, { ascending });
 
@@ -894,7 +909,7 @@ const orderBy = opts.orderBy ?? 'last_name, first_name';
   q = q.range(offset, offset + limit - 1);
 
   const { data, error, count } = await q;
-  
+
   if (error) throw error;
 
 
@@ -903,7 +918,7 @@ const orderBy = opts.orderBy ?? 'last_name, first_name';
 
 
 export async function listInbox(options?: {
-  status?: ('open'|'pending'|'closed')[]; search?: string | null; limit?: number; offset?: number;
+  status?: ('open' | 'pending' | 'closed')[]; search?: string | null; limit?: number; offset?: number;
 }): Promise<Conversation[]> {
   const dbc = db(); // סכימת ה-tenant
   let q = dbc.from('conversations')
@@ -1042,7 +1057,38 @@ export async function listAllChargesForSecretary(opts: {
     count: count ?? null,
   };
 }
+export async function listAllRiderPaymentsForSecretary(opts: {
+  limit: number;
+  offset: number;
+  search: string | null;
+}): Promise<{ rows: SecretaryRiderPaymentRow[]; count: number | null }> {
+  const { limit, offset, search } = opts;
 
+  let query = dbTenant()
+    .from('v_secretary_rider_payments')
+    .select('*', { count: 'exact' })
+    .order('date', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (search) {
+    const s = `%${search}%`;
+    query = query.or(
+      `rider_name.ilike.${s},rider_phone.ilike.${s},rider_email.ilike.${s},rider_uid.ilike.${s}`
+    );
+  }
+
+  const { data, error, count } = await query;
+
+  if (error) {
+    console.error('[listAllRiderPaymentsForSecretary] error', error);
+    throw error;
+  }
+
+  return {
+    rows: (data as SecretaryRiderPaymentRow[]) ?? [],
+    count: count ?? null,
+  };
+}
 export async function listChargesForParent(args: {
   parentUid: string;
 }): Promise<ParentChargeRow[]> {
