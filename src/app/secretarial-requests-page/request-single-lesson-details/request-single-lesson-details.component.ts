@@ -879,8 +879,7 @@ export class RequestSingleLessonDetailsComponent {
       if (!this.bulkMode) {
         this.snack.open('הבקשה אושרה בהצלחה', 'סגור', {
           duration: 3000,
-          panelClass: ['snack-success'],
-          direction: 'rtl',
+          panelClass: ['app-toast-success'], direction: 'rtl',
           horizontalPosition: 'center',
           verticalPosition: 'top',
         });
@@ -987,8 +986,7 @@ export class RequestSingleLessonDetailsComponent {
       if (!this.bulkMode) {
         this.snack.open('הבקשה נדחתה בהצלחה.', 'סגור', {
           duration: 3000,
-          panelClass: ['snack-success'],
-          direction: 'rtl',
+          panelClass: ['app-toast-success'], direction: 'rtl',
           horizontalPosition: 'center',
           verticalPosition: 'top',
         });
@@ -1154,8 +1152,7 @@ export class RequestSingleLessonDetailsComponent {
     if (!this.bulkMode) {
       this.snack.open(msg, 'סגור', {
         duration: 5000,
-        panelClass: ['snack-reject'],
-        direction: 'rtl',
+        panelClass: ['app-toast-system-reject'], direction: 'rtl',
         horizontalPosition: 'center',
         verticalPosition: 'top',
       });

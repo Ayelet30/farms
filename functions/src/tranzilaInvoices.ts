@@ -321,15 +321,31 @@ async function saveInvoicePdfToSupabase(params: {
   const monthYear = monthYearFolder(paymentDate);
   const path = `${tenantSchema}/invoices/${monthYear}/${paymentId}/${childId}.pdf`;
   // 3) upload to Supabase Storage
-  const { error: uploadErr } = await sb.storage
-    .from(bucket)
-    .upload(path, pdfBuffer, {
-      contentType: "application/pdf",
-      upsert: true, // אם מפיקים שוב – ידרוס ולא ייכשל
+  let uploadErr: any = null;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const res = await sb.storage
+      .from(bucket)
+      .upload(path, pdfBuffer, {
+        contentType: "application/pdf",
+        upsert: true,
+      });
+
+    uploadErr = res.error;
+
+    if (!uploadErr) break;
+
+    console.error('[invoice storage upload retry]', {
+      attempt,
+      message: uploadErr.message,
     });
 
-  if (uploadErr) throw new Error(`supabase storage upload failed: ${uploadErr.message}`);
+    await new Promise(resolve => setTimeout(resolve, attempt * 800));
+  }
 
+  if (uploadErr) {
+    throw new Error(`supabase storage upload failed: ${uploadErr.message}`);
+  }
   return { bucket, path };
 }
 export const ensureTranzilaInvoiceForRiderPayment = onRequest(
@@ -697,8 +713,15 @@ export const ensureTranzilaInvoiceForPayment = onRequest(
       });
       res.json(out);
     } catch (e: any) {
-      console.error("[ensureTranzilaInvoiceForPayment] error:", e);
-      res.status(500).json({ ok: false, error: e?.message ?? "internal error" });
+      console.error("[ensureTranzilaInvoiceForPayment] error full:", {
+        message: e?.message,
+        stack: e?.stack,
+      });
+
+      res.status(500).json({
+        ok: false,
+        error: e?.message ?? "internal error",
+      });
     }
   }
 );
@@ -709,13 +732,25 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
   tenantSchema: string;
   paymentId: string;
   extraLinesByChild?: Record<string, string>;
-}): Promise<{
-  ok: boolean;
-  from_cache: boolean;
-  invoices: any[];
-}> {
+  paymentMethod?: 'credit_card' | 'cash' | 'bank_transfer' | 'check';
+  paymentMeta?: {
+    bank?: string | null;
+    bank_branch?: string | null;
+    bank_account?: string | null;
+    cheque_number?: string | null;
+    reference?: string | null;
+  };
+})
+
+  : Promise<{
+    ok: boolean;
+    from_cache: boolean;
+    invoices: any[];
+  }> {
 
   const { tenantSchema, paymentId } = args;
+  const paymentMethod = args.paymentMethod ?? 'credit_card';
+  const paymentMeta = args.paymentMeta ?? {};
   const extraLinesByChild = args.extraLinesByChild ?? {};
   const sb = getSupabaseForTenant(tenantSchema);
   const rid = crypto.randomBytes(6).toString("hex");
@@ -980,7 +1015,33 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
       });
       continue;
     }
+    const paymentPayload: any = {
+      payment_method:
+        paymentMethod === 'cash'
+          ? 5
+          : paymentMethod === 'credit_card'
+            ? 1
+            : 10,
 
+      payment_date: paymentDate,
+      amount: childNetILS,
+      currency_code: "ILS",
+    };
+
+    if (paymentMethod === 'credit_card') {
+      paymentPayload.cc_last_4_digits = ccLast4 || undefined;
+      paymentPayload.cc_credit_term = 1;
+    }
+
+    if (paymentMethod === 'bank_transfer') {
+      paymentPayload.other_payment_type =
+        `העברה בנקאית - אסמכתא ${paymentMeta.reference || ''}`.trim();
+    }
+
+    if (paymentMethod === 'check') {
+      paymentPayload.other_payment_type =
+        `שיק מספר ${paymentMeta.cheque_number || ''}`.trim();
+    }
     const payload: any = {
       terminal_name: terminal.terminal_name,
       document_date: documentDate,
@@ -992,16 +1053,7 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
       client_company: buildClientCompanyBlock(parentFullName, parentIdNumber),
       client_email: parentEmail ?? undefined,
       items: childItems,
-      payments: [
-        {
-          payment_method: 1,
-          payment_date: paymentDate,
-          amount: childNetILS,
-          currency_code: "ILS",
-          cc_last_4_digits: ccLast4 || undefined,
-          cc_credit_term: 1,
-        },
-      ],
+      payments: [paymentPayload],
       response_language: "eng",
     };
 
@@ -1020,7 +1072,13 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
         invoice_status: "failed",
         invoice_updated_at: new Date().toISOString(),
       }).eq("id", paymentId);
-
+      console.error('[Tranzila create_document failed]', {
+        childId,
+        status: resp.status,
+        rawText,
+        json,
+        paymentPayload,
+      });
       throw new Error(`tranzila create_document failed for child ${childId}: ${json?.status_msg ?? rawText}`);
     }
 

@@ -1194,7 +1194,235 @@ export const chargeSelectedChargesForParent = onRequest(
     }
   },
 );
+export const
+  createManualPaymentAndInvoice = onRequest(
+    {
+      invoker: 'public',
+      secrets: [
+        SUPABASE_URL_S,
+        SUPABASE_KEY_S,
+        TRANZILA_APP_KEY_S,
+        TRANZILA_SECRET_S,
+        INTERNAL_CALL_SECRET_S,
+      ],
+    },
+    async (req, res) => {
+      try {
+        if (handleCors(req, res)) return;
 
+        if (req.method !== 'POST') {
+          res.status(405).send('Method Not Allowed');
+          return;
+        }
+
+        const {
+          tenantSchema,
+          parentUid,
+          chargeId,
+          paymentMethod,
+          reference,
+          checkNumber,
+          bank,
+          bankBranch,
+          bankAccount,
+          shouldCreateInvoice,
+          invoiceExtraLinesByChild,
+        } = req.body as {
+          tenantSchema: string;
+          parentUid: string;
+          chargeId: string;
+          paymentMethod: 'cash' | 'bank_transfer' | 'check';
+          reference?: string | null;
+          checkNumber?: string | null;
+          bank?: string | null;
+          bankBranch?: string | null;
+          bankAccount?: string | null;
+          shouldCreateInvoice?: boolean;
+          invoiceExtraLinesByChild?: Record<string, string>;
+        };
+
+        if (!tenantSchema || !parentUid || !chargeId || !paymentMethod) {
+          res.status(400).json({
+            ok: false,
+            error: 'missing tenantSchema/parentUid/chargeId/paymentMethod',
+          });
+          return;
+        }
+
+        if (!['cash', 'bank_transfer', 'check'].includes(paymentMethod)) {
+          res.status(400).json({
+            ok: false,
+            error: 'invalid paymentMethod',
+          });
+          return;
+        }
+
+        if (paymentMethod === 'bank_transfer' && !String(reference || '').trim()) {
+          res.status(400).json({
+            ok: false,
+            error: 'missing bank transfer reference',
+          });
+          return;
+        }
+
+        if (paymentMethod === 'check' && !String(checkNumber || '').trim()) {
+          res.status(400).json({
+            ok: false,
+            error: 'missing check number',
+          });
+          return;
+        }
+
+        const sb = getSupabaseForTenant(tenantSchema);
+
+        const { data: charge, error: chargeErr } = await sb
+          .from('charges')
+          .select('id,parent_uid,status,description')
+          .eq('id', chargeId)
+          .eq('parent_uid', parentUid)
+          .maybeSingle();
+
+        if (chargeErr) throw chargeErr;
+
+        if (!charge) {
+          res.status(404).json({
+            ok: false,
+            error: 'charge not found',
+          });
+          return;
+        }
+
+        if (String(charge.status) === 'paid' || String(charge.status) === 'succeeded') {
+          res.json({
+            ok: true,
+            skipped: true,
+            reason: 'already_paid',
+          });
+          return;
+        }
+
+        const { data: amountRow, error: amountErr } = await sb
+          .from('v_parent_charges')
+          .select('id,remaining_agorot')
+          .eq('id', chargeId)
+          .eq('parent_uid', parentUid)
+          .maybeSingle();
+
+        if (amountErr) throw amountErr;
+
+        const amountAgorot = Number(amountRow?.remaining_agorot ?? 0);
+
+        if (!Number.isFinite(amountAgorot) || amountAgorot <= 0) {
+          res.json({
+            ok: true,
+            skipped: true,
+            reason: 'amount_is_zero',
+          });
+          return;
+        }
+
+        const nowIso = new Date().toISOString();
+        const today = nowIso.slice(0, 10);
+        const amountNis = Number((amountAgorot / 100).toFixed(2));
+
+        let officeNote: string | null = null;
+
+        if (paymentMethod === 'bank_transfer') {
+          officeNote = `העברה בנקאית - אסמכתא: ${String(reference).trim()}`;
+        }
+
+        if (paymentMethod === 'check') {
+          officeNote = `שיק מספר: ${String(checkNumber).trim()}`;
+        }
+
+        if (paymentMethod === 'cash') {
+          officeNote = 'תשלום מזומן';
+        }
+
+        const { data: paymentRow, error: paymentErr } = await sb
+          .from('payments')
+          .insert({
+            parent_uid: parentUid,
+            amount: amountNis,
+            date: today,
+            method: paymentMethod,
+            payment_method: paymentMethod,
+            payment_profile_id: null,
+            invoice_url: null,
+            charge_id: chargeId,
+            office_note: officeNote,
+            invoice_status: shouldCreateInvoice ? 'pending' : 'none',
+          })
+          .select('id')
+          .single();
+
+        if (paymentErr) throw new Error(paymentErr.message);
+
+        const paymentId = paymentRow.id as string;
+
+        await sb
+          .from('charges')
+          .update({
+            status: 'paid',
+            provider_id: null,
+            profile_id: null,
+            updated_at: nowIso,
+          })
+          .eq('id', chargeId);
+
+        let invoiceUrl: string | null = null;
+        let invoiceError: string | null = null;
+
+        if (shouldCreateInvoice === true) {
+          try {
+            const invoice =
+              await ensureTranzilaInvoiceForPaymentInternal({
+                tenantSchema,
+                paymentId,
+                extraLinesByChild: invoiceExtraLinesByChild,
+                paymentMethod,
+                paymentMeta: {
+                  reference: reference || null,
+                  cheque_number: checkNumber || null,
+                },
+              } as any);
+            invoiceUrl =
+              (invoice as any)?.invoiceUrl ??
+              (invoice as any)?.tranzilaInvoiceUrl ??
+              null;
+          } catch (err: any) {
+            invoiceError = err?.message ?? 'invoice failed';
+
+            console.error('[manual payment invoice] failed', invoiceError);
+
+            await sb
+              .from('payments')
+              .update({
+                invoice_status: 'failed',
+                invoice_updated_at: new Date().toISOString(),
+              })
+              .eq('id', paymentId);
+          }
+        }
+
+        res.json({
+          ok: true,
+          paymentId,
+          chargeId,
+          amountAgorot,
+          paymentMethod,
+          invoiceUrl,
+          invoiceError,
+        });
+      } catch (e: any) {
+        console.error('[createManualPaymentAndInvoice] error:', e);
+        res.status(500).json({
+          ok: false,
+          error: e?.message ?? 'internal error',
+        });
+      }
+    }
+  );
 export const chargeSelectedChargesForRider = onRequest(
   {
     invoker: 'public',
