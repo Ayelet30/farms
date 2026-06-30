@@ -350,9 +350,9 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
   private currentCalendarDate: string | null = null;
 
-  timeOptions: string[] = Array.from({ length: 24 * 2 }, (_, i) => {
-    const hours = Math.floor(i / 2).toString().padStart(2, '0');
-    const minutes = ((i % 2) * 30).toString().padStart(2, '0');
+  timeOptions: string[] = Array.from({ length: 24 * 4 }, (_, i) => {
+    const hours = Math.floor(i / 4).toString().padStart(2, '0');
+    const minutes = ((i % 4) * 15).toString().padStart(2, '0');
     return `${hours}:${minutes}`;
   });
   private lastAllDayPref = true;
