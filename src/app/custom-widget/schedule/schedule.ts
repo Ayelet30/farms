@@ -1223,8 +1223,16 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
         }, 0);
       }
     },
-    eventClick: (arg: EventClickArg) => this.eventClick.emit(arg),
+    eventClick: (arg: EventClickArg) => {
 
+      // בתצוגה חודשית - עיגולי הסיכום אינם לחיצים
+      if (arg.event.extendedProps['isMonthSummary']) {
+        arg.jsEvent.preventDefault();
+        return;
+      }
+
+      this.eventClick.emit(arg);
+    },
     eventContent: (arg) => {
 
       const { event } = arg;
