@@ -197,7 +197,15 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   ) {
     changeDetection: ChangeDetectionStrategy.OnPush
   }
+  get legendItems() {
+    if (this.viewerMode === 'parent') {
+      return this.monthLegend.filter(
+        x => x.className !== 'legend-instructor-off'
+      );
+    }
 
+    return this.monthLegend;
+  }
   get calendarApi() {
     return this.calendarComponent?.getApi();
   }
@@ -1223,8 +1231,16 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
         }, 0);
       }
     },
-    eventClick: (arg: EventClickArg) => this.eventClick.emit(arg),
+    eventClick: (arg: EventClickArg) => {
 
+      // בתצוגה חודשית - עיגולי הסיכום אינם לחיצים
+      if (arg.event.extendedProps['isMonthSummary']) {
+        arg.jsEvent.preventDefault();
+        return;
+      }
+
+      this.eventClick.emit(arg);
+    },
     eventContent: (arg) => {
 
       const { event } = arg;

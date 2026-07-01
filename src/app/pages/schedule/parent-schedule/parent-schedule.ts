@@ -561,7 +561,29 @@ export class ParentScheduleComponent implements OnInit {
     this.filterLessons();
     this.setScheduleItems();
   }
+  private getCancelRequestErrorMessage(err: any): string {
+    const msg = String(
+      err?.message ||
+      err?.error?.message ||
+      err?.details ||
+      err?.hint ||
+      ''
+    ).toLowerCase();
 
+    if (
+      msg.includes('already') ||
+      msg.includes('cancel') ||
+      msg.includes('stale') ||
+      msg.includes('updated') ||
+      msg.includes('not found') ||
+      msg.includes('no rows') ||
+      msg.includes('0 rows')
+    ) {
+      return 'הפעולה לא בוצעה. פרטי השיעור השתנו מאז טעינת המסך. אנא רעננו את הנתונים ונסו שוב.';
+    }
+
+    return 'לא ניתן היה לשלוח את בקשת הביטול. אנא רעננו את הנתונים ונסו שוב.';
+  }
   private async handleCancelRequest(lessonId: string, reason: string, occurDate: string) {
     try {
       await ensureTenantContextReady();
@@ -582,21 +604,17 @@ export class ParentScheduleComponent implements OnInit {
       if (error) throw error;
 
       this.markLessonAsPendingCancel(lessonId);
-      this.ui.alert('בקשת הביטול נשלחה למזכירה.');
+      // this.ui.alert('בקשת הביטול נשלחה למזכירה.');
       this.showToast('בקשת הביטול נשלחה למזכירה');
       setTimeout(() => this.refresh(), 300);
     } catch (err: any) {
-      const msg = err?.message || err?.error?.message || err?.details || '';
-
-      if (String(msg).includes('already exists')) {
-        this.showToast('כבר נשלחה בקשת ביטול לשיעור זה');
-        await this.refresh();
-        return;
-      }
-
       console.error('cancel request error', err);
-      this.ui.alert('אירעה שגיאה בעת שליחת בקשת הביטול');
-      this.showToast('אירעה שגיאה בעת שליחת בקשת הביטול');
+
+      const message = this.getCancelRequestErrorMessage(err);
+
+      await this.ui.alert(message, 'לא ניתן לבטל שיעור');
+
+      await this.refresh();
     }
   }
 

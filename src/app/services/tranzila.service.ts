@@ -179,9 +179,23 @@ export class TranzilaService {
     );
   }
 
-
-
-
+  createManualPaymentAndInvoice(args: {
+    tenantSchema: string;
+    parentUid: string;
+    chargeId: string;
+    paymentMethod: 'cash' | 'bank_transfer' | 'check';
+    reference?: string | null;
+    checkNumber?: string | null;
+    shouldCreateInvoice: boolean;
+    invoiceExtraLinesByChild?: Record<string, string>;
+  }) {
+    return firstValueFrom(
+      this.http.post<{ ok: boolean; paymentId: string; invoiceUrl?: string | null }>(
+        `https://us-central1-bereshit-ac5d8.cloudfunctions.net/createManualPaymentAndInvoice`,
+        args
+      )
+    );
+  }
 
 
 }

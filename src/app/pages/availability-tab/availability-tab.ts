@@ -1583,7 +1583,7 @@ export class AvailabilityTabComponent implements OnInit {
       case 'move_lesson':
         return 'מזיזה שיעור...';
       case 'save':
-        return 'שומרת זמינות...';
+        return 'מתבצעת שמירת זמינות...';
       case 'save_notifications':
         return 'שומרת העדפות התראות...';
       default:
