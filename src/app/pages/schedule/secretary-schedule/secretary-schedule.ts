@@ -3181,58 +3181,62 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   }
 
   async chooseMoveSingleOccurrence(): Promise<void> {
-    this.moveChoiceModal.open = false;
+  if (this.moveSlotsModal.loading) return;
 
-    this.moveSlotsModal = {
-      open: true,
-      mode: 'single',
-      loading: true,
-      saving: false,
-      error: '',
-      slots: [],
-      selectedSlot: null,
-    };
+  const childId = this.contextMenu.childId;
+  const lessonDate = this.moveChoiceModal.occurDate;
 
-    this.moveSlotFilters = {
-      instructorId: '',
-      dayOfWeek: '',
-    };
+  this.moveChoiceModal.open = false;
 
-    this.moveSlotsPage = 0;
+  this.moveSlotsModal = {
+    open: true,
+    mode: 'single',
+    loading: true,
+    saving: false,
+    error: '',
+    slots: [],
+    selectedSlot: null,
+  };
 
+  this.moveSlotFilters = {
+    instructorId: '',
+    dayOfWeek: '',
+  };
+
+  this.moveSlotsPage = 0;
+  this.cdr.detectChanges();
+
+  try {
+    const { data, error } = await dbTenant().rpc(
+      'find_makeup_slots_week_to_week',
+      {
+        p_child_id: childId,
+        p_instructor_id: null,
+        p_lesson_date: lessonDate,
+      }
+    );
+
+    if (error) throw error;
+
+    this.moveSlotsModal.slots = (data ?? []).filter((s: any) => {
+      const sameDate = s.occur_date === this.moveChoiceModal.occurDate;
+      const sameStart =
+        String(s.start_time).slice(0, 5) ===
+        String(this.moveChoiceModal.startTime).slice(0, 5);
+      const sameInstructor =
+        String(s.instructor_id) ===
+        String(this.moveChoiceModal.instructorId);
+
+      return !(sameDate && sameStart && sameInstructor);
+    });
+  } catch (e) {
+    console.error('load single move slots failed', e);
+    this.moveSlotsModal.error = 'שגיאה בטעינת אפשרויות להזזת שיעור';
+  } finally {
+    this.moveSlotsModal.loading = false;
     this.cdr.detectChanges();
-
-    try {
-      const from = this.moveChoiceModal.occurDate;
-      const to = this.addDaysYmd(from, 30);
-
-      const { data, error } = await dbTenant().rpc(
-        'find_makeup_slots_for_lesson_by_id_number',
-        {
-          p_child_id: this.contextMenu.childId,
-          p_instructor_id: null,
-          p_from_date: from,
-          p_to_date: to,
-        }
-      );
-
-      if (error) throw error;
-
-      this.moveSlotsModal.slots = (data ?? []).filter((s: any) => {
-        const sameDate = s.occur_date === this.moveChoiceModal.occurDate;
-        const sameStart = String(s.start_time).slice(0, 5) === String(this.moveChoiceModal.startTime).slice(0, 5);
-        const sameInstructor = String(s.instructor_id) === String(this.moveChoiceModal.instructorId);
-
-        return !(sameDate && sameStart && sameInstructor);
-      });
-    } catch (e) {
-      console.error('load single move slots failed', e);
-      this.moveSlotsModal.error = 'שגיאה בטעינת אפשרויות להזזת שיעור';
-    } finally {
-      this.moveSlotsModal.loading = false;
-      this.cdr.detectChanges();
-    }
   }
+}
 
   selectMoveSlot(slot: any): void {
     this.moveSlotsModal.selectedSlot = slot;

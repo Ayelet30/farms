@@ -35,6 +35,15 @@ type ParentChildEmailInfo = {
 })
 
 export class SecretaryParentBillingComponent implements OnInit {
+
+  chargesSummary = signal({
+  totalCharges: 0,
+  openCharges: 0,
+  totalAgorot: 0,
+  paidAgorot: 0,
+  creditsAgorot: 0,
+  remainingAgorot: 0,
+});
   
 private dialog = inject(MatDialog);
   private tranzila = inject(TranzilaService);
@@ -69,6 +78,29 @@ billingRunDate = signal<string>(new Date().toISOString().slice(0, 10));
 unbilledWarning = signal<string | null>(null);
 private creditDialogOpen = false;
 private additionalChargeDialogOpen = false;
+
+// להוסיף ליד signals הקיימים
+dateFrom = signal<string>(this.getCurrentMonthStart());
+dateTo = signal<string>(this.getCurrentMonthEnd());
+
+pageSize = signal<number>(50);
+pageIndex = signal<number>(0);
+totalChargesCount = signal<number>(0);
+
+totalPages = computed(() =>
+  Math.max(Math.ceil(this.totalChargesCount() / this.pageSize()), 1)
+);
+
+pageFrom = computed(() =>
+  this.totalChargesCount() === 0 ? 0 : this.pageIndex() * this.pageSize() + 1
+);
+
+pageTo = computed(() =>
+  Math.min((this.pageIndex() + 1) * this.pageSize(), this.totalChargesCount())
+);
+
+canGoPrev = computed(() => this.pageIndex() > 0);
+canGoNext = computed(() => this.pageIndex() + 1 < this.totalPages());
   constructor(private payments: PaymentsService,  private mailService: MailService,
 ) {}
 
@@ -129,7 +161,7 @@ remainingAgorot(c: ParentChargeRow): number {
     await this.loadCharges();
   }
 
-  async loadCharges() {
+async loadCharges() {
   const farm = getCurrentFarmMetaSync();
   const tenantSchema = farm?.schema_name ?? null;
 
@@ -140,50 +172,67 @@ remainingAgorot(c: ParentChargeRow): number {
     const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema ?? 'public');
     this.thtk = thtk;
 
-    const { rows } = await this.payments.listParentCharges({
-      limit: 200,
-    });
-const parentUids = Array.from(
-  new Set((rows ?? []).map((c: any) => c.parent_uid).filter(Boolean))
-);
-
-const profilesByParent = new Map<string, any[]>();
-
-if (parentUids.length) {
-  const { data: profiles, error: profilesErr } = await dbTenant()
-    .from('payment_profiles')
-    .select('parent_uid, active, is_default, expiry_month, expiry_year, last4, brand')
-    .in('parent_uid', parentUids)
-    .eq('active', true);
-
-  if (profilesErr) throw profilesErr;
-
-  for (const p of profiles ?? []) {
-    const arr = profilesByParent.get(p.parent_uid) ?? [];
-    arr.push(p);
-    profilesByParent.set(p.parent_uid, arr);
-  }
-}
-
-const rowsWithPaymentStatus = (rows ?? []).map((c: any) => {
-  const profiles = profilesByParent.get(c.parent_uid) ?? [];
-  const hasPaymentMethod = profiles.length > 0;
-  const hasValidPaymentMethod = profiles.some((p) => !this.isCardExpired(p));
-  const hasExpiredPaymentMethod = hasPaymentMethod && !hasValidPaymentMethod;
-
-  return {
-    ...c,
-    hasPaymentMethod,
-    hasExpiredPaymentMethod,
-    paymentBlockReason: !hasPaymentMethod
-      ? 'אין להורה אמצעי תשלום פעיל'
-      : hasExpiredPaymentMethod
-        ? 'כל אמצעי התשלום של ההורה פגי תוקף'
-        : null,
-  };
+   const { rows, count } = await this.payments.listParentCharges({
+  limit: this.pageSize(),
+  offset: this.pageIndex() * this.pageSize(),
+  onlyOpen: this.activeTab() === 'open',
+  parentName: this.parentNameFilter(),
+  dateFrom: this.dateFrom(),
+  dateTo: this.dateTo(),
 });
 
-this.charges.set(rowsWithPaymentStatus);
+this.totalChargesCount.set(count ?? 0);
+
+const summary = await this.payments.getParentChargesSummary({
+  onlyOpen: this.activeTab() === 'open',
+  parentName: this.parentNameFilter(),
+  dateFrom: this.dateFrom(),
+  dateTo: this.dateTo(),
+});
+
+this.chargesSummary.set(summary);
+
+    const parentUids = Array.from(
+      new Set((rows ?? []).map((c: any) => c.parent_uid).filter(Boolean))
+    );
+
+    const profilesByParent = new Map<string, any[]>();
+
+    if (parentUids.length) {
+      const { data: profiles, error: profilesErr } = await dbTenant()
+        .from('payment_profiles')
+        .select('parent_uid, active, is_default, expiry_month, expiry_year, last4, brand')
+        .in('parent_uid', parentUids)
+        .eq('active', true);
+
+      if (profilesErr) throw profilesErr;
+
+      for (const p of profiles ?? []) {
+        const arr = profilesByParent.get(p.parent_uid) ?? [];
+        arr.push(p);
+        profilesByParent.set(p.parent_uid, arr);
+      }
+    }
+
+    const rowsWithPaymentStatus = (rows ?? []).map((c: any) => {
+      const profiles = profilesByParent.get(c.parent_uid) ?? [];
+      const hasPaymentMethod = profiles.length > 0;
+      const hasValidPaymentMethod = profiles.some((p) => !this.isCardExpired(p));
+      const hasExpiredPaymentMethod = hasPaymentMethod && !hasValidPaymentMethod;
+
+      return {
+        ...c,
+        hasPaymentMethod,
+        hasExpiredPaymentMethod,
+        paymentBlockReason: !hasPaymentMethod
+          ? 'אין להורה אמצעי תשלום פעיל'
+          : hasExpiredPaymentMethod
+            ? 'כל אמצעי התשלום של ההורה פגי תוקף'
+            : null,
+      };
+    });
+
+    this.charges.set(rowsWithPaymentStatus);
     this.selectedChargeIds.set(new Set());
     this.hasLoadedOnce.set(true);
   } catch (e: any) {
@@ -194,10 +243,6 @@ this.charges.set(rowsWithPaymentStatus);
     this.loading.set(false);
   }
 }
-  // שינוי סינון UID
-  async onParentNameFilterChange(name: string) {
-    this.parentNameFilter.set(name);
-  }
 
   // === בחירת חיובים ===
 
@@ -1086,6 +1131,63 @@ private async getChildrenForCharge(chargeId: string) {
   if (error) throw error;
 
   return data ?? [];
+}
+
+
+private getCurrentMonthStart(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+private getCurrentMonthEnd(): string {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0)
+    .toISOString()
+    .slice(0, 10);
+}
+
+async applyFilters() {
+  this.pageIndex.set(0);
+  this.detailsOpenFor.set(null);
+  await this.loadCharges();
+}
+
+async clearDateFilterToCurrentMonth() {
+  this.dateFrom.set(this.getCurrentMonthStart());
+  this.dateTo.set(this.getCurrentMonthEnd());
+  await this.applyFilters();
+}
+
+async goToPage(page: number) {
+  if (page < 0 || page >= this.totalPages()) return;
+
+  this.pageIndex.set(page);
+  this.detailsOpenFor.set(null);
+  await this.loadCharges();
+}
+
+async nextPage() {
+  await this.goToPage(this.pageIndex() + 1);
+}
+
+async prevPage() {
+  await this.goToPage(this.pageIndex() - 1);
+}
+
+async onPageSizeChange(size: string | number) {
+  this.pageSize.set(Number(size));
+  this.pageIndex.set(0);
+  await this.loadCharges();
+}
+
+async onParentNameFilterChange(name: string) {
+  this.parentNameFilter.set(name);
+  await this.applyFilters();
+}
+
+async onTabChange(tab: 'open' | 'all') {
+  this.activeTab.set(tab);
+  await this.applyFilters();
 }
 
 // === UX helpers: grouping charges by billing month ===
