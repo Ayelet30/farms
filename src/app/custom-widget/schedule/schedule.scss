@@ -1446,6 +1446,11 @@
   border: none !important;
 }
 
+.fc-event.month-count-event {
+  pointer-events: none;
+  cursor: default;
+}
+
 .bereshit-calendar .month-count-event .fc-event-main {
   display: flex;
   gap: 6px;
