@@ -17,7 +17,7 @@
             </span>
 
             <span class="dot">•</span>
-            
+
             <span class="sub-pill" *ngIf="lessonDetails!.start_time">
               <mat-icon>schedule</mat-icon>
               {{ lessonDetails.end_time!.slice(0,5) }}–{{ lessonDetails.start_time!.slice(0,5) }}
@@ -179,7 +179,7 @@
               <div class="st-txt">
                 <div class="st-title">שיעור מבוטל</div>
                 <div class="st-sub">
-                  {{ lessonDetails!.is_makeup_allowed ? 'מותר להשלמה' : 'אסור להשלמה' }}
+                  {{ lessonDetails!.is_makeup_allowed ? 'זכאי להשלמה ' : 'אינו זכאי להשלמה ' }}
                   <span class="sep">•</span>
                   {{ (lessonDetails!.is_billable ?? true) ? 'מחויב בתשלום' : 'לא מחויב בתשלום' }}
                 </div>
