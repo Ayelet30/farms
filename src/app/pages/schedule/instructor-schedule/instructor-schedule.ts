@@ -1408,6 +1408,9 @@ export class InstructorScheduleComponent implements OnInit {
   ): Promise<boolean> {
     const dbc = dbTenant();
 
+    const reqStartTime = allDay ? '00:00' : String(fromTime ?? '').slice(0, 5);
+    const reqEndTime = allDay ? '23:59' : String(toTime ?? '').slice(0, 5);
+
     const { data, error } = await dbc
       .from('secretarial_requests')
       .select('id, from_date, to_date, status, payload')
@@ -1423,32 +1426,39 @@ export class InstructorScheduleComponent implements OnInit {
       const existingFrom = String(r.from_date).slice(0, 10);
       const existingTo = String(r.to_date || r.from_date).slice(0, 10);
 
-      if (!this.datesOverlap(fromDate, toDate, existingFrom, existingTo)) {
-        continue;
-      }
+      let current = fromDate;
 
-      const existingAllDay =
-        r.payload?.all_day === true || r.payload?.all_day === 'true';
+      while (current <= toDate) {
+        if (current >= existingFrom && current <= existingTo) {
+          const existingAllDay =
+            r.payload?.all_day === true || r.payload?.all_day === 'true';
 
-      if (allDay || existingAllDay) {
-        return true;
-      }
+          const existingStart = existingAllDay
+            ? '00:00'
+            : String(r.payload?.requested_start_time ?? '').slice(0, 5);
 
-      const existingStart = r.payload?.requested_start_time?.slice(0, 5);
-      const existingEnd = r.payload?.requested_end_time?.slice(0, 5);
+          const existingEnd = existingAllDay
+            ? '23:59'
+            : String(r.payload?.requested_end_time ?? '').slice(0, 5);
 
-      if (!fromTime || !toTime || !existingStart || !existingEnd) {
-        return true;
-      }
+          // אם בקשה קיימת בלי שעות — רק אם היא באמת יום מלא
+          if (!existingStart || !existingEnd) {
+            if (existingAllDay || allDay) return true;
+            current = this.addOneDayYmd(current);
+            continue;
+          }
 
-      if (this.timeRangesOverlap(fromTime, toTime, existingStart, existingEnd)) {
-        return true;
+          if (this.timeRangesOverlap(reqStartTime, reqEndTime, existingStart, existingEnd)) {
+            return true;
+          }
+        }
+
+        current = this.addOneDayYmd(current);
       }
     }
 
     return false;
   }
-
   private async hasOverlappingInstructorUnavailability(
     fromDate: string,
     toDate: string,

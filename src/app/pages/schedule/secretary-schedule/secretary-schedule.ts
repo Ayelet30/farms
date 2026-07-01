@@ -1150,7 +1150,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
     this.cancelLessonModal.lateCancelWarning =
       isPastLesson
-        ? 'לתשומת ליבך, השיעור שאת עומדת לבטל כבר התקיים.'
+        ? 'לתשומת ליבך, השיעור שבכוונתך לבטל כבר התקיים.'
         : cancelBeforeHours != null &&
           cancelBeforeHours > 0 &&
           diffHours < cancelBeforeHours
