@@ -78,6 +78,7 @@ type ChildDetails = {
   updated_at?: string | null;
   deletion_requested_at?: string | null;
   scheduled_deletion_at?: string | null;
+  deletion_note?: string | null;
 };
 
 type ChildDocumentRow = {
@@ -390,7 +391,7 @@ export class SecretaryChildrenComponent implements OnInit {
           status,
           created_at,
           updated_at,deletion_requested_at,
-scheduled_deletion_at
+scheduled_deletion_at,deletion_note
         `)
         .order('first_name', { ascending: true })
         .order('last_name', { ascending: true });
@@ -1108,7 +1109,7 @@ scheduled_deletion_at
           created_at,
 updated_at,
 deletion_requested_at,
-scheduled_deletion_at
+scheduled_deletion_at,deletion_note
         `)
         .eq('child_uuid', id)
         .single();
@@ -1512,6 +1513,10 @@ scheduled_deletion_at
           ? String(child.scheduled_deletion_at).slice(0, 10)
           : this.todayDate(),
       ],
+      deletion_note: [
+        child.deletion_note ?? '',
+        [Validators.maxLength(300)],
+      ],
     });
 
     this.originalChild = { ...child };
@@ -1747,14 +1752,13 @@ scheduled_deletion_at
 
       const db = await this.dbc();
 
-      const { error } = await db
-        .from('children')
-        .update({
-          status: inactiveDate === this.todayDate() ? 'Deleted' : this.originalChild?.status,
-          deletion_requested_at: new Date().toISOString(),
-          scheduled_deletion_at: inactiveDate,
-        })
-        .eq('child_uuid', this.selectedId);
+      const deletionNote = String(raw.deletion_note ?? '').trim();
+
+      const { error } = await db.rpc('schedule_child_inactivation', {
+        p_child_uuid: this.selectedId,
+        p_inactive_date: inactiveDate,
+        p_deletion_note: deletionNote || null,
+      });
 
       if (error) throw error;
 
@@ -1986,6 +1990,8 @@ scheduled_deletion_at
           status: 'Active',
           deletion_requested_at: null,
           scheduled_deletion_at: null,
+          deletion_note: null,
+
         })
         .eq('child_uuid', this.selectedId);
 
