@@ -622,8 +622,9 @@
                     <td>
                       <span class="tooltip-wrap" [matTooltip]="getSeriesDisabledTooltip(s)" matTooltipPosition="above"
                         [matTooltipDisabled]="!isSeriesDisabled(s)">
+
                         <button type="button" class="appt-cta" (click)="onSeriesSlotChosen(s)"
-                          [disabled]="isSeriesDisabled(s)">
+                          [disabled]="isSeriesDisabled(s)" [attr.aria-disabled]="isSeriesDisabled(s) ? 'true' : null">
                           בקש שיעור בודד במועד זה
                         </button>
                       </span>
