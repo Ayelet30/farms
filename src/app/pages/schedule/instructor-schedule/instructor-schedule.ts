@@ -420,33 +420,97 @@ export class InstructorScheduleComponent implements OnInit {
   }
 
   private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<void> {
-
     const dbc = dbTenant();
 
-    const { data, error } = await dbc
+    // בקשות קיימות
+    const { data: requests, error: requestsError } = await dbc
       .from('secretarial_requests')
-      .select(
-        `id,
+      .select(`
+      id,
       instructor_id,
       request_type,
       status,
       from_date,
       to_date,
       payload,
-      decision_note`,
-      )
+      decision_note
+    `)
       .eq('instructor_id', this.instructorId)
       .eq('request_type', 'INSTRUCTOR_DAY_OFF')
       .lte('from_date', endYmd)
       .gte('to_date', startYmd);
 
-    if (error) throw error;
+    if (requestsError) throw requestsError;
 
-    const rows = data ?? [];
-    this.dayRequests = rows.flatMap((row: any) => this.expandRequestRow(row));
+    const requestRows = (requests ?? []).flatMap((row: any) =>
+      this.expandRequestRow(row)
+    );
 
+    // היעדרויות שאושרו בפועל (גם כאלה שנוצרו ע"י מזכירה)
+    const { data: unavailabilityRows, error: unavailabilityError } = await dbc
+      .from('instructor_unavailability')
+      .select(`
+      id,
+      instructor_id_number,
+      from_ts,
+      to_ts,
+      reason,
+      all_day,
+      category,
+      sick_note_file_path
+    `)
+      .eq('instructor_id_number', this.instructorId)
+      .lte('from_ts', `${endYmd}T23:59:59`)
+      .gte('to_ts', `${startYmd}T00:00:00`);
+
+    if (unavailabilityError) throw unavailabilityError;
+
+    const approvedRows: DayRequestRow[] = (unavailabilityRows ?? []).map((row: any) => {
+      const from = new Date(row.from_ts);
+      const to = new Date(row.to_ts);
+
+      return {
+        id: `unavailability_${row.id}`,
+        instructor_id: String(row.instructor_id_number),
+        request_date: String(row.from_ts).slice(0, 10),
+        request_type: this.mapUnavailabilityCategory(row.category),
+        status: 'approved',
+        note: row.reason || 'זמן לא זמין',
+        all_day: row.all_day === true,
+        start_time: row.all_day ? null : from.toTimeString().slice(0, 5),
+        end_time: row.all_day ? null : to.toTimeString().slice(0, 5),
+        sick_note_file_path: row.sick_note_file_path ?? null,
+      };
+    });
+
+    const filteredRequestRows = requestRows.filter((req: DayRequestRow) => {
+      if (req.status !== 'approved') {
+        return true;
+      }
+
+      return !approvedRows.some((app: DayRequestRow) =>
+        app.instructor_id === req.instructor_id &&
+        app.request_date === req.request_date &&
+        app.request_type === req.request_type &&
+        (app.start_time ?? '').slice(0, 5) === (req.start_time ?? '').slice(0, 5) &&
+        (app.end_time ?? '').slice(0, 5) === (req.end_time ?? '').slice(0, 5)
+      );
+    });
+
+    this.dayRequests = [...filteredRequestRows, ...approvedRows];
   }
-
+  private mapUnavailabilityCategory(category: string): RequestType {
+    switch ((category ?? '').toLowerCase()) {
+      case 'holiday':
+        return 'holiday';
+      case 'sick':
+        return 'sick';
+      case 'personal':
+        return 'personal';
+      default:
+        return 'other';
+    }
+  }
   private expandRequestRow(row: any): DayRequestRow[] {
     const res: DayRequestRow[] = [];
 
@@ -1754,41 +1818,62 @@ export class InstructorScheduleComponent implements OnInit {
       })
       .map(r => {
         const isPending = r.status === 'pending';
+        const isDirectUnavailability = String(r.id).startsWith('unavailability_');
 
         let bg = '#e5e7eb';
         let text = '#374151';
 
-        switch (r.request_type) {
-          case 'holiday':
-            bg = isPending ? '#fff8e7' : '#fef3c7';
-            text = '#92400e';
-            break;
-          case 'sick':
-            bg = isPending ? '#fff4e5' : '#ffe4e6';
-            text = isPending ? '#9a6700' : '#9f1239';
-            break;
-          case 'personal':
-            bg = isPending ? '#fff7e8' : '#ede9fe';
-            text = isPending ? '#9a6700' : '#5b21b6';
-            break;
-          default:
-            bg = isPending ? '#fff8e7' : '#e5e7eb';
-            text = isPending ? '#9a6700' : '#374151';
+        if (isDirectUnavailability) {
+          switch (r.request_type) {
+            case 'holiday':
+              bg = '#dcfce7';
+              text = '#166534';
+              break;
+            case 'sick':
+              bg = '#ffe4e6';
+              text = '#9f1239';
+              break;
+            case 'personal':
+              bg = '#ede9fe';
+              text = '#5b21b6';
+              break;
+            default:
+              bg = '#e5e7eb';
+              text = '#374151';
+          }
+        } else {
+          switch (r.request_type) {
+            case 'holiday':
+              bg = isPending ? '#fff8e7' : '#fef3c7';
+              text = '#92400e';
+              break;
+            case 'sick':
+              bg = isPending ? '#fff4e5' : '#ffe4e6';
+              text = isPending ? '#9a6700' : '#9f1239';
+              break;
+            case 'personal':
+              bg = isPending ? '#fff7e8' : '#ede9fe';
+              text = isPending ? '#9a6700' : '#5b21b6';
+              break;
+            default:
+              bg = isPending ? '#fff8e7' : '#e5e7eb';
+              text = isPending ? '#9a6700' : '#374151';
+          }
         }
 
-        const start = r.all_day || !r.start_time
-          ? `${r.request_date}T00:00:00`
-          : `${r.request_date}T${r.start_time}:00`;
+        const start =
+          r.all_day || !r.start_time
+            ? `${r.request_date}T00:00:00`
+            : `${r.request_date}T${r.start_time}:00`;
 
-        const end = r.all_day || !r.end_time
-          ? `${r.request_date}T23:59:59`
-          : `${r.request_date}T${r.end_time}:00`;
+        const end =
+          r.all_day || !r.end_time
+            ? `${r.request_date}T23:59:59`
+            : `${r.request_date}T${r.end_time}:00`;
 
         return {
           id: `instructor_off_${r.id}_${r.request_date}`,
-          title: isPending
-            ? `${this.getRequestLabel(r.request_type)}`
-            : `${this.getRequestLabel(r.request_type)}`,
+          title: `${this.getRequestLabel(r.request_type)}`,
           start,
           end,
           allDay: false,
@@ -1796,11 +1881,22 @@ export class InstructorScheduleComponent implements OnInit {
           overlap: false,
           color: bg,
           textColor: text,
-          classNames: [isPending ? 'pending-instructor-day-off' : 'instructor-day-off'],
-          status: isPending ? 'PENDING' as any : 'APPROVED' as any,
+          classNames: [
+            isDirectUnavailability
+              ? 'direct-instructor-unavailability'
+              : isPending
+                ? 'pending-instructor-day-off'
+                : 'instructor-day-off'
+          ],
+          status: isDirectUnavailability
+            ? 'UNAVAILABLE' as any
+            : isPending
+              ? 'PENDING' as any
+              : 'APPROVED' as any,
           meta: {
-            isInstructorDayOff: isPending ? undefined : 'true',
+            isInstructorDayOff: !isPending && !isDirectUnavailability ? 'true' : undefined,
             isPendingInstructorDayOff: isPending ? 'true' : undefined,
+            isDirectInstructorUnavailability: isDirectUnavailability ? 'true' : undefined,
             request_type: r.request_type,
             note: r.note ?? null,
             instructor_id: this.instructorId,
@@ -1808,7 +1904,6 @@ export class InstructorScheduleComponent implements OnInit {
         } as ScheduleItem;
       });
   }
-
   private farmDaysOffToItems(): ScheduleItem[] {
     return (this.farmDaysOff ?? []).map((d: any) => {
       const isFullDay = String(d.day_type || '').toUpperCase() === 'FULL_DAY';
