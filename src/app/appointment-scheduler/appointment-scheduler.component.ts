@@ -3319,43 +3319,75 @@ export class AppointmentSchedulerComponent implements OnInit {
     }
   }
   isSeriesDisabled(slot: any): boolean {
-    if (this.selectedSeriesDate && this.isSlotBlockedByDeletion(this.selectedSeriesDate)) {
+    const isPast =
+      !!this.selectedSeriesDate &&
+      this.isPastSeriesSlot(this.selectedSeriesDate, slot.start_time);
+
+    if (isPast) return true;
+
+    if (
+      this.selectedSeriesDate &&
+      this.isSlotBlockedByDeletion(this.selectedSeriesDate)
+    ) {
       return true;
     }
 
-    return (
-      (this.selectedSeriesDate &&
-        this.isPastSeriesSlot(this.selectedSeriesDate, slot.start_time)) ||
-      !this.canRequestSeries
-    );
+    if (!this.selectedPaymentPlanId) return true;
+
+    // שיעור בודד לא נחסם בגלל סדרה קיימת
+    if (this.selectedTab === 'single') {
+      return false;
+    }
+
+    return !this.canRequestSeries;
   }
 
   getSeriesDisabledTooltip(slot: any): string {
-    const gate = this.existingSeriesGate;
+    if (!this.selectedSeriesDate) return '';
 
-    if (this.selectedSeriesDate && gate.kind === 'regular') {
-      if (this.selectedSeriesDate <= gate.endDate) {
-        const nextStart = this.addDays(gate.endDate, 1);
-        return `ניתן להתחיל סדרה חדשה רק החל מ-${nextStart}`;
-      }
-    } if (this.selectedSeriesDate && this.isSlotBlockedByDeletion(this.selectedSeriesDate)) {
-      const child = this.children.find(c => c.child_uuid === this.selectedChildId) ?? null;
-      const cutoff = this.getChildDeletionCutoffDate(child);
-      return `לא ניתן לקבוע שיעורים אחרי תאריך המחיקה (${cutoff})`;
+    // 1) הכי חשוב: זמן שעבר
+    if (this.isPastSeriesSlot(this.selectedSeriesDate, slot.start_time)) {
+      return 'לא ניתן להזמין שיעור בשעה שכבר עברה';
     }
 
-    if (this.selectedSeriesDate && this.isPastSeriesSlot(this.selectedSeriesDate, slot.start_time)) {
-      return 'לא ניתן להתחיל סדרה זו היום בשעה זו כי השעה חלפה';
+    // 2) מסלול תשלום
+    if (!this.selectedPaymentPlanId) {
+      return 'יש לבחור מסלול תשלום לפני הזמנת השיעור';
+    }
+
+    // 3) מחיקה מתוכננת
+    if (this.isSlotBlockedByDeletion(this.selectedSeriesDate)) {
+      const child = this.children.find(
+        c => c.child_uuid === this.selectedChildId
+      ) ?? null;
+
+      const cutoff = this.getChildDeletionCutoffDate(child);
+      return cutoff
+        ? `לא ניתן להזמין שיעורים לאחר ${cutoff}`
+        : 'לא ניתן להזמין שיעור בתאריך זה';
+    }
+
+    // מכאן והלאה — רק סדרה, לא שיעור בודד
+    if (this.selectedTab === 'single') {
+      return '';
+    }
+
+    const gate = this.existingSeriesGate;
+
+    if (
+      gate.kind === 'regular' &&
+      this.selectedSeriesDate <= gate.endDate
+    ) {
+      const nextStart = this.addDaysLocal(gate.endDate, 1);
+      return `ניתן להתחיל סדרה חדשה רק החל מ-${this.formatLocalDateDMY(nextStart)}`;
     }
 
     if (!this.canRequestSeries) {
-      return 'נדרש לבחור מסלול תשלום / לצרף הפניה לפני בקשת סדרה';
+      return 'לא ניתן ליצור סדרה בתנאים הנוכחיים';
     }
 
     return '';
   }
-
-
   onOpenEndedSeriesToggle(checked: boolean): void {
     this.isOpenEndedSeries = checked;
 
