@@ -72,7 +72,8 @@
         <div class="impact-row" *ngFor="let x of impactRows()">
           <div class="cell">{{ x.occur_date | date:'dd/MM/yyyy' }}</div>
           <div class="cell">
-            {{ x.end_time.slice(0,5) }} - {{ x.start_time.slice(0,5) }}
+            {{ x.start_time.slice(0,5) }} - {{ x.end_time.slice(0,5) }}
+
           </div>
           <div class="cell">{{ x.child_name || '—' }}</div>
         </div>

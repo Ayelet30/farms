@@ -1,66 +1,60 @@
 .independent-home {
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    background: #f7f8f3;
-    min-height: 100vh;
-}
-
-.hero-card {
-    background: linear-gradient(135deg, #8a9362 0%, #6f7b4f 100%);
-    border-radius: 24px;
     padding: 32px;
-    color: white;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+    max-width: 1400px;
+    margin: 0 auto;
 }
 
-.hero-text h1 {
-    margin: 0 0 10px;
-    font-size: 32px;
-    font-weight: 800;
+.independent-home h1 {
+    text-align: center;
+    margin-bottom: 12px;
 }
 
-.hero-text p {
-    margin: 0;
-    font-size: 16px;
-    opacity: 0.95;
+.subtitle {
+    text-align: center;
+    font-size: 17px;
+    color: #666;
+    max-width: 900px;
+    margin: 0 auto 20px;
+    line-height: 1.8;
+}
+
+.home-hint {
+    display: block;
+    text-align: center;
+    color: #7d8a63;
+    margin-bottom: 30px;
+    font-weight: 500;
 }
 
 .cards-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 24px;
 }
 
-.home-card {
-    background: white;
-    border-radius: 20px;
-    padding: 22px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
-    transition: 0.2s ease;
-    cursor: pointer;
+.guide-card {
+    background: #fff;
+    border-radius: 18px;
+    padding: 24px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .08);
+    transition: .2s;
 }
 
-.home-card:hover {
+.guide-card:hover {
     transform: translateY(-3px);
 }
 
-.icon {
-    font-size: 34px;
+.guide-card h2 {
+    margin-top: 0;
+    color: #6f7b4f;
 }
 
-.title {
-    font-size: 18px;
-    font-weight: 800;
-    color: #2f3a21;
+.guide-card p,
+.guide-card li {
+    line-height: 1.8;
 }
 
-.desc {
-    font-size: 14px;
-    color: #66705a;
-    line-height: 1.5;
+.guide-card ol,
+.guide-card ul {
+    padding-right: 20px;
 }
