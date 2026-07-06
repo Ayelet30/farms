@@ -1296,10 +1296,10 @@ ${args.errorMessage ? `שגיאה: ${args.errorMessage}` : ''}
       finalAgorot: Math.max(group.itemsTotalAgorot - group.creditsTotalAgorot, 0),
     }));
   });
-  chargeActionLabel(c: ChargeWithPaymentStatus): string {
-    if (!this.canSelectForPayment(c)) return 'לא ניתן לחייב';
-    return this.isSelected(c.id) ? 'נבחר לחיוב' : 'בחר לחיוב';
-  }
+  // chargeActionLabel(c: ChargeWithPaymentStatus): string {
+  //   if (!this.canSelectForPayment(c)) return 'לא ניתן לחייב';
+  //   return this.isSelected(c.id) ? 'נבחר לחיוב' : 'בחר לחיוב';
+  // }
 
 
   invoiceExtraTextForChild(childId: string): string {
