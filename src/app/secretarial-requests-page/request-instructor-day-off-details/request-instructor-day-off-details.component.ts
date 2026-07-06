@@ -83,23 +83,22 @@ export class RequestInstructorDayOffDetailsComponent {
       try { return new Date(d).toLocaleDateString('he-IL'); }
       catch { return d; }
     };
-
+    const timeRange = (start: string, end: string) =>
+      `\u200E${start}-${end}\u200E`;
     // 1) יום אחד
     const label = this.getCategoryLabel();
 
     // 1) יום אחד
     if (from && to && from === to) {
       if (allDay) return `${fmt(from)} — ${label} מלא`;
-      if (start && end) return `${fmt(from)} — ${start}–${end}`;
-      if (start && !end) return `${fmt(from)} — החל מ־${start}`;
+      if (start && end) return `${fmt(from)} — ${timeRange(start, end)}`; if (start && !end) return `${fmt(from)} — החל מ־${start}`;
       return `${fmt(from)} — ${label}`;
     }
 
     // 2) טווח ימים
     if (from && to && from !== to) {
       if (allDay) return `${fmt(from)}–${fmt(to)} — ${label} מלאה`;
-      if (start && end) return `${fmt(from)}–${fmt(to)} — בכל יום ${start}–${end}`;
-      if (start && !end) return `${fmt(from)}–${fmt(to)} — בכל יום החל מ־${start}`;
+      if (start && end) return `${fmt(from)}–${fmt(to)} — בכל יום ${timeRange(start, end)}`; if (start && !end) return `${fmt(from)}–${fmt(to)} — בכל יום החל מ־${start}`;
       return `${fmt(from)}–${fmt(to)} — ${label}`;
     }
 
