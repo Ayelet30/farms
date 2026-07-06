@@ -278,6 +278,8 @@ export const publicCreateParentSignupRequest = onRequest(
               ? 'bereshit_farm'
               : farmCode === 'raanana'
                 ? 'raanana_farm'
+                : farmCode === 'good_point'
+                  ? 'good_point_farm'
                 : farmCode === 'moach'
                   ? 'moacha_atarim_app'
                   : '';
