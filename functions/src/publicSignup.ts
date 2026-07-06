@@ -59,6 +59,7 @@ export const publicCreateIndependentSignupRequest = onRequest(
   },
   async (req, res): Promise<void> => {
     try {
+      console.log('publicCreateIndependentSignupRequest', req.method, req.headers.origin);
       if (cors(req, res)) return;
 
       if (req.method !== 'POST') {
@@ -69,6 +70,7 @@ export const publicCreateIndependentSignupRequest = onRequest(
       const body = req.body || {};
 
       const farmCode = normStr(body.farmCode, 50).toLowerCase();
+      console.log('publicCreateIndependentSignupRequest body', body, 'farmCode', farmCode);
 
       const first_name = normStr(body.first_name, 15);
       const last_name = normStr(body.last_name, 20);
