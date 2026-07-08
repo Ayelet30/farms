@@ -87,6 +87,27 @@
       <div class="label">בוטלו</div>
     </mat-card>
 
+    <mat-card class="kpi red clickable" [class.selected]="selectedKpi === 'canceled_by_parents'"
+  (click)="onKpiClick('canceled_by_parents')">
+  <mat-icon>family_restroom</mat-icon>
+  <div class="value">{{ kpis().canceledByParents }}</div>
+  <div class="label">בוטלו ע״י הורים</div>
+</mat-card>
+
+<mat-card class="kpi orange clickable" [class.selected]="selectedKpi === 'canceled_by_team'"
+  (click)="onKpiClick('canceled_by_team')">
+  <mat-icon>support_agent</mat-icon>
+  <div class="value">{{ kpis().canceledByFarmOrInstructor }}</div>
+  <div class="label">בוטלו ע״י צוות</div>
+</mat-card>
+
+<mat-card class="kpi green clickable" [class.selected]="selectedKpi === 'completed_makeups'"
+  (click)="onKpiClick('completed_makeups')">
+  <mat-icon>published_with_changes</mat-icon>
+  <div class="value">{{ kpis().completedMakeups }}</div>
+  <div class="label">השלמות שבוצעו</div>
+</mat-card>
+
     <mat-card class="kpi purple clickable" [class.selected]="selectedKpi === 'worked_hours'"
       (click)="onKpiClick('worked_hours')">
       <mat-icon>schedule</mat-icon>
@@ -265,6 +286,10 @@
         <mat-icon>table_chart</mat-icon>
         {{ mode() === 'month' ? 'ייצוא חודשי ל־Excel' : 'ייצוא שנתי ל־Excel' }}
       </button>
+      <button mat-stroked-button class="excel-btn-header" (click)="exportInstructorsMonthlyReport()">
+  <mat-icon>schedule</mat-icon>
+  דוח שעות מדריכים
+</button>
     </div>
 
     <!-- סינון וחיפוש -->

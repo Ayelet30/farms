@@ -45,6 +45,16 @@
   cursor: pointer;
 }
 
+.export-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.payroll-btn {
+  background: #eef4e3 !important;
+}
+
 .monthly {
   direction: rtl;
   text-align: right;

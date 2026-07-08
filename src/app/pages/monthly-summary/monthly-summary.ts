@@ -46,6 +46,11 @@ type MonthlyReportRow = {
   child_id?: UUID | null;
   instructor_id?: string | number | null;
   lesson_price_agorot?: number | null;
+
+  canceller_role?: string | null;
+  is_billable?: boolean | null;
+  is_makeup_allowed?: boolean | null;
+  occur_date?: string | null;
 };
 
 interface LessonRow {
@@ -83,6 +88,11 @@ interface LessonRow {
   instructor_last_name?: string | null;
 
   instructor_name?: string | null;
+   lesson_price_agorot?: number | null;
+
+  canceller_role?: string | null;
+  is_billable?: boolean | null;
+  is_makeup_allowed?: boolean | null;
 }
 interface LessonNoteRow {
   lesson_id: UUID;
@@ -107,6 +117,7 @@ interface CancelExceptionRow {
   note?: string | null;
 }
 
+
 interface Insights {
   totalLessons: number;
   cancelPct: number;
@@ -124,6 +135,9 @@ interface Kpis {
   privCount: number;
   groupCount: number;
   income: number;
+  canceledByFarmOrInstructor: number;
+canceledByParents: number;
+completedMakeups: number;
 }
 
 type KpiKey =
@@ -133,7 +147,10 @@ type KpiKey =
   | 'pending'
   | 'canceled'
   | 'worked_hours'
-  | 'income';
+  | 'income'
+  | 'canceled_by_parents'
+| 'canceled_by_team'
+| 'completed_makeups';
 
 export interface ChartPoint {
   label: string;
@@ -197,6 +214,12 @@ export class MonthlySummaryComponent implements OnInit {
     'start',
     'end',
   ];
+
+  lesson_price_agorot?: number | null;
+
+  canceller_role?: string | null;
+is_billable?: boolean | null;
+is_makeup_allowed?: boolean | null;
 
 
 
@@ -267,6 +290,9 @@ export class MonthlySummaryComponent implements OnInit {
     canceled: [],
     worked_hours: [],
     income: [],
+    canceled_by_parents: [],
+    canceled_by_team: [],
+    completed_makeups: [],
   };
 
   maxIndex(series: 'priv' | 'group'): number {
@@ -335,6 +361,7 @@ export class MonthlySummaryComponent implements OnInit {
   }
 
 
+  
   private deriveStatus(raw: MonthlyReportRow): LessonStatus | null {
     const s = this.clean(raw.status);
 
@@ -453,7 +480,12 @@ export class MonthlySummaryComponent implements OnInit {
   //            KPIs
   // ===============================
   kpis = computed<Kpis>(() => {
-    const all = this.lessons();
+    
+    const monthPrefix = `${this.year}-${String(this.month).padStart(2, '0')}`;
+
+    const all = this.mode() === 'month'
+  ? this.lessons().filter(l => l.occur_date?.startsWith(monthPrefix))
+  : this.lessons();
     const cancels = this.cancelExceptions();
     const payRows = this.payments();
     const occs = this.occurrences();
@@ -469,6 +501,8 @@ export class MonthlySummaryComponent implements OnInit {
     const totalForSuccess = occAtt.length;
     const successPct = totalForSuccess > 0 ? Math.round((successCount / totalForSuccess) * 100) : 0;
 
+    
+
     if (!all.length && !cancels.length) {
       return {
         workedHours: '0:00',
@@ -479,6 +513,9 @@ export class MonthlySummaryComponent implements OnInit {
         privCount: 0,
         groupCount: 0,
         income,
+        canceledByFarmOrInstructor: 0,
+        canceledByParents: 0,
+        completedMakeups: 0,
       };
     }
 
@@ -486,10 +523,6 @@ export class MonthlySummaryComponent implements OnInit {
     const done = all.filter((l: LessonRow) => l.status && doneStatuses.includes(l.status));
 
     const pendingCount = this.countPendingOccurrences(occs);
-
-    const canceledInLessons = all.filter((l: LessonRow) => l.status === 'בוטל').length;
-    const canceledByExceptions = cancels.length;
-    const canceled = canceledInLessons + canceledByExceptions;
 
     let minutes = 0;
     for (const l of done) {
@@ -516,6 +549,24 @@ export class MonthlySummaryComponent implements OnInit {
       else groupCount++;
     }
 
+    const canceledRows = all.filter(l => l.status === 'בוטל');
+
+const canceledByParents = canceledRows.filter(l =>
+  l.canceller_role === 'parent'
+).length;
+
+const canceledByFarmOrInstructor = canceledRows.filter(l =>
+  ['admin', 'manager', 'secretary', 'instructor'].includes(l.canceller_role ?? '')
+).length;
+
+const completedMakeups = all.filter(l =>
+  l.lesson_type === 'השלמה' &&
+  (l.status === 'אושר' || l.status === 'הושלם')
+).length;
+
+const canceled = canceledRows.length;
+
+
     return {
       workedHours,
       canceled,
@@ -525,6 +576,9 @@ export class MonthlySummaryComponent implements OnInit {
       privCount,
       groupCount,
       income,
+      canceledByFarmOrInstructor,
+      canceledByParents,
+      completedMakeups,
     };
   });
 
@@ -543,7 +597,12 @@ export class MonthlySummaryComponent implements OnInit {
     this.load();
   }
 
-
+private toLocalDateString(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 
   async load(): Promise<void> {
@@ -556,13 +615,13 @@ export class MonthlySummaryComponent implements OnInit {
       if (this.mode() === 'month') {
         const monthStart = new Date(this.year, this.month - 1, 1);
         const monthEnd = new Date(this.year, this.month, 0);
-        from = monthStart.toISOString().slice(0, 10);
-        to = monthEnd.toISOString().slice(0, 10);
+        from = this.toLocalDateString(monthStart);
+to = this.toLocalDateString(monthEnd);
       } else {
         const yearStart = new Date(this.year, 0, 1);
         const yearEnd = new Date(this.year, 11, 31);
-        from = yearStart.toISOString().slice(0, 10);
-        to = yearEnd.toISOString().slice(0, 10);
+        from = this.toLocalDateString(yearStart);
+        to = this.toLocalDateString(yearEnd);
       }
 
       // 🔒 no printing uid
@@ -577,8 +636,7 @@ export class MonthlySummaryComponent implements OnInit {
         .gte('lesson_date', from)
         .lte('lesson_date', to)
         .order('lesson_date', { ascending: true })
-        .order('start_time', { ascending: true })
-        .order('instructor_name', { ascending: true });
+        .order('start_time', { ascending: true });
 
       if (this.isInstructor()) {
         if (!uid) {
@@ -685,7 +743,7 @@ export class MonthlySummaryComponent implements OnInit {
       });
 
       const lessonKey = (raw: MonthlyReportRow): string =>
-        `${raw.lesson_id ?? ''}__${raw.child_id ?? ''}__${raw.lesson_date ?? ''}`;
+        `${raw.lesson_id ?? ''}__${raw.child_id ?? ''}__${raw.lesson_date  ?? ''}`;
 
       const dedupedMap = new Map<string, LessonRow>();
 
@@ -700,14 +758,14 @@ export class MonthlySummaryComponent implements OnInit {
           this.clean(raw.riding_type_name) || this.clean(raw.riding_type_code) || null;
 
         const notes = notesMap.get(
-          noteKey(raw.lesson_id ?? null, raw.child_id ?? null, raw.lesson_date ?? null)
+          noteKey(raw.lesson_id ?? null, raw.child_id ?? null, raw.lesson_date  ?? null)
         );
 
         if (!dedupedMap.has(key)) {
           dedupedMap.set(key, {
             lesson_id: (raw.lesson_id ?? '') as UUID,
             child_id: raw.child_id ?? null,
-            occur_date: raw.lesson_date ?? null,
+            occur_date: raw.lesson_date  ?? null,
 
             office_note: notes?.office_note ?? null,
             instructor_note: notes?.instructor_note ?? null,
@@ -728,6 +786,11 @@ export class MonthlySummaryComponent implements OnInit {
 
             instructor_name: instructorName,
             instructor_uid: raw.instructor_uid ?? null,
+            lesson_price_agorot: raw.lesson_price_agorot ?? null,
+
+            canceller_role: raw.canceller_role ?? null,
+            is_billable: raw.is_billable ?? true,
+            is_makeup_allowed: raw.is_makeup_allowed ?? false,
           });
         } else {
           const existing = dedupedMap.get(key)!;
@@ -857,6 +920,8 @@ export class MonthlySummaryComponent implements OnInit {
     this.load();
   }
 
+  
+
   onMonthChange(): void {
     this.load();
   }
@@ -940,6 +1005,118 @@ export class MonthlySummaryComponent implements OnInit {
     }
   }
 
+  private lessonMinutes(l: LessonRow): number {
+  if (!l.start_time || !l.end_time) return 0;
+
+  const s = new Date(`1970-01-01T${l.start_time}`);
+  const e = new Date(`1970-01-01T${l.end_time}`);
+
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return 0;
+
+  return Math.max(0, Math.round((e.getTime() - s.getTime()) / 60000));
+}
+
+private minutesToHours(minutes: number): number {
+  return Math.round((minutes / 60) * 100) / 100;
+}
+
+private isBillableLesson(l: LessonRow): boolean {
+  return (l.status === 'אושר' || l.status === 'הושלם')
+    && l.is_billable !== false;
+}
+
+async exportInstructorsMonthlyReport(): Promise<void> {
+  if (this.mode() !== 'month') {
+    await this.ui.alert('דוח שעות מדריכים זמין כרגע לפי חודש בלבד.', 'שימי לב');
+    return;
+  }
+
+  const rows = this.lessons()
+  .filter((l) => this.isBillableLesson(l))
+  .filter((l) => !!l.instructor_name);
+
+  try {
+    const XLSXmod: any = await import('xlsx');
+    const XLSX = XLSXmod.default ?? XLSXmod;
+
+    type Summary = {
+      instructorName: string;
+      ridingType: string;
+      lessonsCount: number;
+      minutes: number;
+    };
+
+    const map = new Map<string, Summary>();
+
+    for (const l of rows) {
+      const instructorName = this.clean(l.instructor_name) || 'ללא מדריך';
+      const ridingType =
+        this.clean(l.riding_type_name) ||
+        this.clean(l.riding_type_code) ||
+        'ללא סוג שיעור';
+
+      const key = `${instructorName}__${ridingType}`;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          instructorName,
+          ridingType,
+          lessonsCount: 0,
+          minutes: 0,
+        });
+      }
+
+      const item = map.get(key)!;
+      item.lessonsCount += 1;
+      item.minutes += this.lessonMinutes(l);
+    }
+
+    const summaryRows = Array.from(map.values())
+      .sort((a, b) =>
+        a.instructorName.localeCompare(b.instructorName, 'he') ||
+        a.ridingType.localeCompare(b.ridingType, 'he')
+      )
+      .map((r) => ({
+        'מדריך/ה': r.instructorName,
+        'סוג שיעור / רכיבה': r.ridingType,
+        'מספר שיעורים שביצע': r.lessonsCount,
+        'סה״כ שעות': this.minutesToHours(r.minutes),
+      }));
+
+    const detailsRows = rows.map((l) => ({
+      'תאריך': l.occur_date ?? '',
+      'מדריך/ה': l.instructor_name ?? '',
+      'תלמיד/ה': l.child_full_name ?? '',
+      'סוג שיעור': l.lesson_type ?? '',
+      'סוג רכיבה': l.riding_type_name || l.riding_type_code || '',
+      'סטטוס': l.status ?? '',
+      'שעת התחלה': l.start_time ?? '',
+      'שעת סיום': l.end_time ?? '',
+      'משך בשעות': this.minutesToHours(this.lessonMinutes(l)),
+      'מחיר שיעור': (l.lesson_price_agorot ?? 0) / 100,
+    }));
+
+    const wb = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(summaryRows),
+      'סיכום מדריכים'
+    );
+
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(detailsRows),
+      'פירוט שיעורים לחיוב'
+    );
+
+    XLSX.writeFile(wb, `instructors_hours_${this.year}_${this.month}.xlsx`);
+  } catch (e) {
+    console.error(e);
+    this.ui.alert('חסר xlsx. להריץ: npm i xlsx', 'שגיאה');
+  }
+}
+
   // ===============================
   //      CHARTS & KPI VIEW
   // ===============================
@@ -999,14 +1176,6 @@ export class MonthlySummaryComponent implements OnInit {
       if (this.clean(o.status) === 'ממתין לאישור') {
         pendingByMonth[m]++;
       }
-    }
-
-    for (const c of cancels) {
-      if (!c.occur_date) continue;
-      const d = new Date(c.occur_date);
-      if (isNaN(d.getTime())) continue;
-      const m = d.getMonth();
-      canceledByMonth[m]++;
     }
 
     for (const p of pays) {
