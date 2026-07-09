@@ -50,6 +50,8 @@ type SeriesDocRow = {
   paymentPlanId: string | null;
   requiredDocs: string[];
   requireDocsAtBooking: boolean | null;
+  instructorId: string | null;
+  instructorName: string | null;
 };
 
 type ParentBrief = {
@@ -1308,6 +1310,42 @@ scheduled_deletion_at,deletion_note
     });
   }
 
+  async deleteChildDocument(doc: ChildDocumentRow): Promise<void> {
+  const ok = confirm(`האם את בטוחה שאת רוצה למחוק את הקובץ "${doc.documentName}"?`);
+  if (!ok) return;
+
+  try {
+    const db = await this.dbc();
+    const client = getSupabaseClient();
+
+    if (doc.bucket && doc.filePath) {
+      const { error: storageError } = await client.storage
+        .from(doc.bucket)
+        .remove([doc.filePath]);
+
+      if (storageError) {
+        console.warn('Storage delete failed:', storageError);
+      }
+    }
+
+    const { error } = await db
+      .from('child_documents')
+      .delete()
+      .eq('id', doc.id);
+
+    if (error) throw error;
+
+    if (this.drawerChild?.child_uuid) {
+      await this.loadChildDocuments(this.drawerChild.child_uuid);
+    }
+
+    await this.ui.alert('הקובץ נמחק בהצלחה.', 'מסמכי ילד');
+  } catch (e: any) {
+    console.error('deleteChildDocument error:', e);
+    await this.ui.alert('מחיקת הקובץ נכשלה: ' + (e?.message ?? e), 'שגיאה');
+  }
+}
+
   private async loadChildTermsSignature(childId: string) {
     this.termsLoading = true;
     try {
@@ -1361,6 +1399,7 @@ scheduled_deletion_at,deletion_note
   status,
   payment_docs_url,
   payment_plan_id,
+  instructor_id,
   payment_plans (
     required_docs,
     require_docs_at_booking
@@ -1374,21 +1413,51 @@ scheduled_deletion_at,deletion_note
 
       if (error) throw error;
 
-      this.seriesDocs = (data ?? []).map((row: any) => ({
-        lessonId: row.id,
-        lessonType: row.lesson_type ?? null,
-        dayOfWeek: row.day_of_week ?? null,
-        startTime: row.start_time ?? null,
-        endTime: row.end_time ?? null,
-        anchorWeekStart: row.anchor_week_start ?? null,
-        seriesEndDate: row.series_end_date ?? null,
-        isOpenEnded: row.is_open_ended ?? null,
-        status: row.status ?? null,
-        paymentDocsUrl: row.payment_docs_url ?? null,
-        paymentPlanId: row.payment_plan_id ?? null,
-        requiredDocs: row.payment_plans?.required_docs ?? [],
-        requireDocsAtBooking: row.payment_plans?.require_docs_at_booking ?? null,
-      }));
+      const rows = data ?? [];
+
+const instructorIds = Array.from(
+  new Set(rows.map((r: any) => r.instructor_id).filter(Boolean))
+);
+
+let instructorNameById: Record<string, string> = {};
+
+if (instructorIds.length) {
+  const { data: instRaw, error: instError } = await db
+    .from('instructors')
+    .select('id_number, first_name, last_name')
+    .in('id_number', instructorIds);
+
+  if (instError) throw instError;
+
+  instructorNameById = Object.fromEntries(
+    (instRaw ?? []).map((i: any) => [
+      i.id_number,
+      `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim(),
+    ])
+  );
+}
+
+this.seriesDocs = rows.map((row: any) => ({
+  lessonId: row.id,
+  lessonType: row.lesson_type ?? null,
+  dayOfWeek: row.day_of_week ?? null,
+  startTime: row.start_time ?? null,
+  endTime: row.end_time ?? null,
+  anchorWeekStart: row.anchor_week_start ?? null,
+  seriesEndDate: row.series_end_date ?? null,
+  isOpenEnded: row.is_open_ended ?? null,
+  status: row.status ?? null,
+  paymentDocsUrl: row.payment_docs_url ?? null,
+  paymentPlanId: row.payment_plan_id ?? null,
+  requiredDocs: row.payment_plans?.required_docs ?? [],
+  requireDocsAtBooking: row.payment_plans?.require_docs_at_booking ?? null,
+  instructorId: row.instructor_id ?? null,
+  instructorName: row.instructor_id
+    ? instructorNameById[row.instructor_id] ?? row.instructor_id
+    : null,
+}));
+
+
     } catch (e: any) {
       console.error('loadChildSeriesDocs error:', e);
       this.seriesDocsError = e?.message ?? 'שגיאה בטעינת סדרות והפניות';
