@@ -3394,65 +3394,107 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     };
 
     this.moveSlotsPage = 0;
-
     this.cdr.detectChanges();
 
     try {
       const from = this.moveChoiceModal.occurDate;
-      const to = this.addDaysYmd(from, 90);
+
+      // כמו בהזזת שיעור בודד — לא מריצים חיפוש ענק
+      const to = this.addDaysYmd(from, 30);
 
       const lesson = this.lessons.find(
         (l: any) => String(l.lesson_id) === String(this.moveChoiceModal.lessonId)
       ) as any;
 
-      const isOpenEnded = !!lesson?.is_open_ended;
-      const repeatWeeks = Number(lesson?.repeat_weeks ?? 1);
+      const isOpenEnded =
+        lesson?.is_open_ended === true ||
+        this.contextMenu.isOpenEnded === true;
 
-      const rpcName = isOpenEnded
-        ? 'find_open_ended_series_slots_with_skips'
-        : 'find_series_slots_with_skips';
+      /**
+       * לא מחפשים סדרה פתוחה "לנצח".
+       * מציגים מועמדים לפי חלון קצר, ואת האימות הסופי נותנים ל־move_lesson_series.
+       */
+      const repeatWeeks = Number(
+        lesson?.repeat_weeks ??
+        this.contextMenu.repeatWeeks ??
+        1
+      );
 
-      const payload = isOpenEnded
-        ? {
+      const lessonCountForSearch = isOpenEnded
+        ? 4
+        : Math.max(1, Math.min(repeatWeeks || 1, 8));
+
+      const { data, error } = await dbTenant().rpc(
+        'find_series_slots_with_skips',
+        {
           p_child_id: this.contextMenu.childId,
-          p_from_date: from,
-          p_instructor_id_number: null,
-        }
-        : {
-          p_child_id: this.contextMenu.childId,
-          p_lesson_count: repeatWeeks,
+          p_lesson_count: lessonCountForSearch,
           p_instructor_id_number: null,
           p_from_date: from,
           p_to_date: to,
-        };
-
-      const { data, error } = await dbTenant().rpc(rpcName, payload);
+        }
+      );
 
       if (error) throw error;
 
-      this.moveSlotsModal.slots = (data ?? []).map((s: any) => ({
-        occur_date: s.lesson_date,
-        start_time: s.start_time,
-        end_time: s.end_time,
-        instructor_id: s.instructor_id,
-        instructor_name:
-          this.instructors.find(i => String(i.id_number) === String(s.instructor_id))
-            ? `${this.instructors.find(i => String(i.id_number) === String(s.instructor_id))?.first_name ?? ''} ${this.instructors.find(i => String(i.id_number) === String(s.instructor_id))?.last_name ?? ''}`.trim()
-            : s.instructor_id,
-        lesson_ridding_type: s.riding_type_id ?? null,
-        riding_type_name: s.riding_type_name ?? null,
-        remaining_capacity: 1,
-        raw: s,
-      }));
-    } catch (e) {
+      this.moveSlotsModal.slots = (data ?? [])
+        .map((s: any) => {
+          const instructorId = String(
+            s.instructor_id ||
+            s.instructor_id_number ||
+            ''
+          );
+
+          const inst = this.instructors.find(
+            i => String(i.id_number) === instructorId
+          );
+
+          return {
+            occur_date: s.lesson_date || s.occur_date,
+            start_time: s.start_time,
+            end_time: s.end_time,
+            instructor_id: instructorId,
+            instructor_name: inst
+              ? `${inst.first_name ?? ''} ${inst.last_name ?? ''}`.trim()
+              : instructorId,
+            day_of_week:
+              s.day_of_week ||
+              this.getHebrewDayNameFromDate(s.lesson_date || s.occur_date),
+            lesson_ridding_type: s.riding_type_id ?? null,
+            riding_type_name: s.riding_type_name ?? null,
+            remaining_capacity: 1,
+            raw: s,
+          };
+        })
+        .filter((s: any) => {
+          const sameDate =
+            String(s.occur_date).slice(0, 10) ===
+            String(this.moveChoiceModal.occurDate).slice(0, 10);
+
+          const sameStart =
+            String(s.start_time).slice(0, 5) ===
+            String(this.moveChoiceModal.startTime).slice(0, 5);
+
+          const sameInstructor =
+            String(s.instructor_id) ===
+            String(this.moveChoiceModal.instructorId);
+
+          return !(sameDate && sameStart && sameInstructor);
+        });
+
+      if (!this.moveSlotsModal.slots.length) {
+        this.moveSlotsModal.error =
+          'לא נמצאו אפשרויות פנויות ב־30 הימים הקרובים.';
+      }
+    } catch (e: any) {
       console.error('load series move slots failed', e);
-      this.moveSlotsModal.error = 'שגיאה בטעינת אפשרויות להזזת סדרה';
+      this.moveSlotsModal.error =
+        e?.message || 'שגיאה בטעינת אפשרויות להזזת סדרה';
     } finally {
       this.moveSlotsModal.loading = false;
       this.cdr.detectChanges();
     }
   }
-
 
   async confirmMoveSelectedSlot(): Promise<void> {
     const slot = this.moveSlotsModal.selectedSlot;
