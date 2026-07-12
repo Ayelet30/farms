@@ -16,7 +16,10 @@ import { requireTenant, supabase } from '../../../services/supabaseClient.servic
 import { QuickAppointmentComponent } from './quick-appointment/quick-appointment.component';
 import { NavigationStart, Router } from '@angular/router';
 import { filter } from 'rxjs/operators';
-
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatNativeDateModule } from '@angular/material/core';
 
 
 type ChildRow = {
@@ -74,7 +77,10 @@ type QuickBookingContext = {
 @Component({
   selector: 'app-secretary-schedule',
   standalone: true,
-  imports: [CommonModule, FormsModule, ScheduleComponent, NoteComponent, QuickAppointmentComponent],
+  imports: [CommonModule, FormsModule, ScheduleComponent, NoteComponent, QuickAppointmentComponent, MatFormFieldModule,
+    MatInputModule,
+    MatDatepickerModule,
+    MatNativeDateModule,],
   templateUrl: './secretary-schedule.html',
   styleUrls: ['./secretary-schedule.css'],
 })
@@ -113,17 +119,19 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   items: ScheduleItem[] = [];
 
   isFullscreen = false;
-
   moveChoiceModal = {
     open: false,
     lessonId: '',
     occurDate: '',
+    childId: '',
     childName: '',
     instructorId: '',
     instructorName: '',
     startTime: '',
     endTime: '',
+    isOpenEnded: false,
   };
+
 
   deleteLessonModal = {
     open: false,
@@ -175,7 +183,9 @@ onWindowScroll(): void {
     instructorId: '',
     dayOfWeek: '',
   };
-
+  moveSearch = {
+    fromDate: null as Date | null,
+  };
   readonly weekDays = [
     { value: '', label: 'כל הימים' },
     { value: 'ראשון', label: 'ראשון' },
@@ -2509,13 +2519,22 @@ onWindowScroll(): void {
     );
   }
 
-  async onAttendanceChangedFromNote(status: 'present' | 'absent' | null): Promise<void> {
-    if (!this.selectedOccurrence?.lesson_id || !this.selectedOccurrence?.occur_date || !this.selectedChild?.child_uuid) {
+  onAttendanceChangedFromNote(
+    status: 'present' | 'absent' | null
+  ): void {
+    if (
+      !this.selectedOccurrence?.lesson_id ||
+      !this.selectedOccurrence?.occur_date ||
+      !this.selectedChild?.child_uuid
+    ) {
       return;
     }
 
     const lessonId = String(this.selectedOccurrence.lesson_id);
-    const occurDate = String(this.selectedOccurrence.occur_date).slice(0, 10);
+    const occurDate = String(
+      this.selectedOccurrence.occur_date
+    ).slice(0, 10);
+
     const childId = String(this.selectedChild.child_uuid);
 
     const normalized =
@@ -2523,49 +2542,77 @@ onWindowScroll(): void {
         ? 'present'
         : status === 'absent'
           ? 'absent'
-          : '';
+          : null;
 
-    const patchItem = (item: any) => {
-      const meta = item.meta || {};
-      const same =
-        String(meta.lesson_id || item.lesson_id || item.id) === lessonId &&
-        String(meta.child_id || item.child_id) === childId &&
-        String(meta.occur_date || item.occur_date).slice(0, 10) === occurDate;
+    const isSameOccurrence = (obj: any): boolean => {
+      const meta = obj?.meta ?? {};
 
-      if (!same) return item;
+      const objLessonId = String(
+        meta.lesson_id ??
+        obj?.lesson_id ??
+        ''
+      );
 
-      return {
-        ...item,
-        meta: {
-          ...meta,
+      const objChildId = String(
+        meta.child_id ??
+        obj?.child_id ??
+        ''
+      );
+
+      const objOccurDate = String(
+        meta.occur_date ??
+        obj?.occur_date ??
+        ''
+      ).slice(0, 10);
+
+      return (
+        objLessonId === lessonId &&
+        objChildId === childId &&
+        objOccurDate === occurDate
+      );
+    };
+
+    // עדכון האירוע בלוח
+    this.items = this.items.map((item: any) =>
+      isSameOccurrence(item)
+        ? {
+          ...item,
+          meta: {
+            ...(item.meta ?? {}),
+            attendance_status: normalized,
+          },
+        }
+        : item
+    );
+
+    // עדכון רשימת השיעורים המקומית
+    this.lessons = this.lessons.map((lesson: any) =>
+      isSameOccurrence(lesson)
+        ? {
+          ...lesson,
           attendance_status: normalized,
-        },
-      };
-    };
+        }
+        : lesson
+    ) as any;
 
-    this.items = this.items.map(patchItem);
-    this.lessons = this.lessons.map((l: any) => {
-      const same =
-        String(l.lesson_id || l.id) === lessonId &&
-        String(l.child_id) === childId &&
-        String(l.occur_date).slice(0, 10) === occurDate;
+    // עדכון הרשימה המסוננת
+    this.filteredLessons = this.filteredLessons.map((lesson: any) =>
+      isSameOccurrence(lesson)
+        ? {
+          ...lesson,
+          attendance_status: normalized,
+        }
+        : lesson
+    ) as any;
 
-      return same ? { ...l, attendance_status: normalized } : l;
-    }) as any;
-
-    this.filteredLessons = this.filteredLessons.map((l: any) => {
-      const same =
-        String(l.lesson_id || l.id) === lessonId &&
-        String(l.child_id) === childId &&
-        String(l.occur_date).slice(0, 10) === occurDate;
-
-      return same ? { ...l, attendance_status: normalized } : l;
-    }) as any;
-
-    this.selectedOccurrence = {
-      ...this.selectedOccurrence,
-      attendance_status: normalized,
-    };
+    /*
+     * חשוב מאוד:
+     * לא ליצור selectedOccurrence חדש,
+     * כי זה מפעיל מחדש את ngOnChanges של app-note.
+     */
+    if (this.selectedOccurrence) {
+      this.selectedOccurrence.attendance_status = normalized;
+    }
 
     this.cdr.detectChanges();
   }
@@ -3161,89 +3208,159 @@ onWindowScroll(): void {
       open: true,
       lessonId: this.contextMenu.lessonId,
       occurDate: this.contextMenu.occurDate || this.contextMenu.date,
+      childId: this.contextMenu.childId,
       childName: this.contextMenu.childName,
       instructorId: this.contextMenu.instructorId,
       instructorName: this.contextMenu.instructorName,
       startTime: this.contextMenu.startTimeOnly || this.contextMenu.time,
       endTime: this.contextMenu.endTime || '',
+      isOpenEnded: this.contextMenu.isOpenEnded === true,
     };
+
+    this.moveSearch.fromDate = this.ymdToDate(
+      this.moveChoiceModal.occurDate
+    );
 
     this.closeContextMenu();
     this.cdr.detectChanges();
   }
+  private ymdToDate(ymd: string): Date | null {
+    if (!ymd) return null;
 
+    const [y, m, d] = ymd.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  private dateToYmd(date: Date | null): string {
+    if (!date) return '';
+
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+
+    return `${y}-${m}-${d}`;
+  }
+  private getMoveSearchFromDateYmd(): string {
+    return this.dateToYmd(this.moveSearch.fromDate) || this.moveChoiceModal.occurDate;
+  }
   closeMoveChoiceModal(): void {
     this.moveChoiceModal = {
       open: false,
       lessonId: '',
       occurDate: '',
+      childId: '',
       childName: '',
       instructorId: '',
       instructorName: '',
       startTime: '',
       endTime: '',
+      isOpenEnded: false,
     };
 
     this.cdr.detectChanges();
   }
-
   async chooseMoveSingleOccurrence(): Promise<void> {
-  if (this.moveSlotsModal.loading) return;
+    if (this.moveSlotsModal.loading) return;
 
-  const childId = this.contextMenu.childId;
-  const lessonDate = this.moveChoiceModal.occurDate;
+    const childId = this.moveChoiceModal.childId;
+    const searchFromDate =
+      this.getMoveSearchFromDateYmd() ||
+      this.moveChoiceModal.occurDate;
 
-  this.moveChoiceModal.open = false;
 
-  this.moveSlotsModal = {
-    open: true,
-    mode: 'single',
-    loading: true,
-    saving: false,
-    error: '',
-    slots: [],
-    selectedSlot: null,
-  };
+    this.moveChoiceModal.open = false;
 
-  this.moveSlotFilters = {
-    instructorId: '',
-    dayOfWeek: '',
-  };
+    this.moveSlotsModal = {
+      open: true,
+      mode: 'single',
+      loading: true,
+      saving: false,
+      error: '',
+      slots: [],
+      selectedSlot: null,
+    };
 
-  this.moveSlotsPage = 0;
-  this.cdr.detectChanges();
+    this.moveSlotFilters = {
+      instructorId: '',
+      dayOfWeek: '',
+    };
 
-  try {
-    const { data, error } = await dbTenant().rpc(
-      'find_makeup_slots_week_to_week',
-      {
-        p_child_id: childId,
-        p_instructor_id: null,
-        p_lesson_date: lessonDate,
-      }
-    );
-
-    if (error) throw error;
-
-    this.moveSlotsModal.slots = (data ?? []).filter((s: any) => {
-      const sameDate = s.occur_date === this.moveChoiceModal.occurDate;
-      const sameStart =
-        String(s.start_time).slice(0, 5) ===
-        String(this.moveChoiceModal.startTime).slice(0, 5);
-      const sameInstructor =
-        String(s.instructor_id) ===
-        String(this.moveChoiceModal.instructorId);
-
-      return !(sameDate && sameStart && sameInstructor);
-    });
-  } catch (e) {
-    console.error('load single move slots failed', e);
-    this.moveSlotsModal.error = 'שגיאה בטעינת אפשרויות להזזת שיעור';
-  } finally {
-    this.moveSlotsModal.loading = false;
+    this.moveSlotsPage = 0;
     this.cdr.detectChanges();
+
+    try {
+      const { data, error } = await dbTenant().rpc(
+        'find_makeup_slots_week_to_week',
+        {
+          p_child_id: childId,
+          p_instructor_id: null,
+          p_lesson_date: searchFromDate,
+        }
+      );
+
+      if (error) throw error;
+
+      this.moveSlotsModal.slots = (data ?? [])
+        .filter((s: any) => {
+          const slotDate = String(
+            s.occur_date || s.lesson_date || ''
+          ).slice(0, 10);
+
+          // לא מציגים שום תוצאה לפני התאריך שנבחר
+          if (!slotDate || slotDate < searchFromDate) {
+            return false;
+          }
+
+          const slotStart = String(
+            s.start_time || s.start || ''
+          ).slice(0, 5);
+
+          const slotInstructor = String(
+            s.instructor_id ||
+            s.instructor_id_number ||
+            ''
+          );
+
+          const sameDate =
+            slotDate ===
+            String(this.moveChoiceModal.occurDate).slice(0, 10);
+
+          const sameStart =
+            slotStart ===
+            String(this.moveChoiceModal.startTime).slice(0, 5);
+
+          const sameInstructor =
+            slotInstructor ===
+            String(this.moveChoiceModal.instructorId);
+
+          return !(sameDate && sameStart && sameInstructor);
+        })
+        .sort((a: any, b: any) => {
+          const dateA = String(a.occur_date || a.lesson_date || '');
+          const dateB = String(b.occur_date || b.lesson_date || '');
+
+          const dateCompare = dateA.localeCompare(dateB);
+          if (dateCompare !== 0) return dateCompare;
+
+          return String(a.start_time || a.start || '')
+            .localeCompare(String(b.start_time || b.start || ''));
+        })
+        .slice(0, 10);
+
+      if (!this.moveSlotsModal.slots.length) {
+        this.moveSlotsModal.error =
+          'לא נמצאו אפשרויות פנויות החל מהתאריך שנבחר.';
+      }
+    } catch (e: any) {
+      console.error('load single move slots failed', e);
+
+      this.moveSlotsModal.error =
+        e?.message || 'שגיאה בטעינת אפשרויות להזזת שיעור';
+    } finally {
+      this.moveSlotsModal.loading = false;
+      this.cdr.detectChanges();
+    }
   }
-}
 
   selectMoveSlot(slot: any): void {
     this.moveSlotsModal.selectedSlot = slot;
@@ -3332,15 +3449,16 @@ onWindowScroll(): void {
         const slot = this.moveConfirmModal.slot;
 
         const newDate = slot.occur_date || slot.lesson_date;
+        const start = String(slot.start_time || slot.start).slice(0, 5);
+        const end = String(slot.end_time || slot.end).slice(0, 5);
 
         const { data, error } = await dbTenant().rpc('move_lesson_series', {
           p_lesson_id: this.moveChoiceModal.lessonId,
           p_effective_occur_date: this.moveChoiceModal.occurDate,
-
           p_new_instructor_id: slot.instructor_id || slot.instructor_id_number,
-          p_new_day_of_week: slot.day_of_week || this.getHebrewDayNameFromDate(newDate),
-          p_new_start_time: (slot.start_time || slot.start || '').slice(0, 5),
-          p_new_end_time: (slot.end_time || slot.end || '').slice(0, 5),
+          p_new_day_of_week: this.dayNameFromYmd(newDate),
+          p_new_start_time: start,
+          p_new_end_time: end,
         });
 
         if (error) throw error;
@@ -3375,7 +3493,11 @@ onWindowScroll(): void {
       this.cdr.detectChanges();
     }
   }
-
+  private dayNameFromYmd(ymd: string): string {
+    const days = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+    const [y, m, d] = ymd.split('-').map(Number);
+    return days[new Date(y, m - 1, d).getDay()];
+  }
   private getHebrewDayNameFromDate(ymd: string): string {
     const d = new Date(`${ymd}T00:00:00`);
     const days = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
@@ -3383,6 +3505,20 @@ onWindowScroll(): void {
   }
 
   async chooseMoveWholeSeries(): Promise<void> {
+    if (this.moveSlotsModal.loading) return;
+
+    const childId = this.moveChoiceModal.childId;
+    const lessonId = this.moveChoiceModal.lessonId;
+    const effectiveDate = this.moveChoiceModal.occurDate;
+
+    if (!childId || !lessonId || !effectiveDate) {
+      await this.ui.alert(
+        'לא נמצאו פרטי הסדרה או הילד. יש לסגור ולנסות שוב.',
+        'שגיאה'
+      );
+      return;
+    }
+
     this.moveChoiceModal.open = false;
 
     this.moveSlotsModal = {
@@ -3404,43 +3540,38 @@ onWindowScroll(): void {
     this.cdr.detectChanges();
 
     try {
-      const from = this.moveChoiceModal.occurDate;
+      const from =
+        this.getMoveSearchFromDateYmd() ||
+        effectiveDate;
 
-      // כמו בהזזת שיעור בודד — לא מריצים חיפוש ענק
-      const to = this.addDaysYmd(from, 30);
+      // טווח החיפוש רחב, אך יוצגו רק 10 מועמדים
+      const to = this.addDaysYmd(from, 10);
 
-      const lesson = this.lessons.find(
-        (l: any) => String(l.lesson_id) === String(this.moveChoiceModal.lessonId)
-      ) as any;
-
-      const isOpenEnded =
-        lesson?.is_open_ended === true ||
-        this.contextMenu.isOpenEnded === true;
-
-      /**
-       * לא מחפשים סדרה פתוחה "לנצח".
-       * מציגים מועמדים לפי חלון קצר, ואת האימות הסופי נותנים ל־move_lesson_series.
+      /*
+       * אנחנו מחפשים מועדים מועמדים להתחלת הסדרה.
+       * האימות המלא של כל הסדרה יתבצע בזמן move_lesson_series.
+       *
+       * שימוש בכל מספר השיעורים שנותרו יחד עם חלון מוגבל
+       * גורם לכך שכמעט תמיד חוזרות אפס תוצאות.
        */
-      const repeatWeeks = Number(
-        lesson?.repeat_weeks ??
-        this.contextMenu.repeatWeeks ??
-        1
-      );
+      const lessonCountForSearch = 1;
 
-      const lessonCountForSearch = isOpenEnded
-        ? 4
-        : Math.max(1, Math.min(repeatWeeks || 1, 8));
+      const payload = {
+        p_child_id: childId,
+        p_lesson_count: lessonCountForSearch,
+        p_instructor_id_number: null,
+        p_from_date: from,
+        p_to_date: to,
+      };
+
+
 
       const { data, error } = await dbTenant().rpc(
         'find_series_slots_with_skips',
-        {
-          p_child_id: this.contextMenu.childId,
-          p_lesson_count: lessonCountForSearch,
-          p_instructor_id_number: null,
-          p_from_date: from,
-          p_to_date: to,
-        }
+        payload
       );
+
+
 
       if (error) throw error;
 
@@ -3456,27 +3587,48 @@ onWindowScroll(): void {
             i => String(i.id_number) === instructorId
           );
 
+          const occurDate =
+            s.lesson_date ||
+            s.occur_date ||
+            '';
+
           return {
-            occur_date: s.lesson_date || s.occur_date,
-            start_time: s.start_time,
-            end_time: s.end_time,
+            occur_date: occurDate,
+            lesson_date: occurDate,
+            start_time: String(
+              s.start_time || s.start || ''
+            ).slice(0, 5),
+            end_time: String(
+              s.end_time || s.end || ''
+            ).slice(0, 5),
             instructor_id: instructorId,
             instructor_name: inst
               ? `${inst.first_name ?? ''} ${inst.last_name ?? ''}`.trim()
               : instructorId,
             day_of_week:
               s.day_of_week ||
-              this.getHebrewDayNameFromDate(s.lesson_date || s.occur_date),
-            lesson_ridding_type: s.riding_type_id ?? null,
-            riding_type_name: s.riding_type_name ?? null,
-            remaining_capacity: 1,
+              this.getHebrewDayNameFromDate(occurDate),
+            lesson_ridding_type:
+              s.riding_type_id ?? null,
+            riding_type_name:
+              s.riding_type_name ?? null,
+            remaining_capacity:
+              s.remaining_capacity ?? 1,
             raw: s,
           };
         })
         .filter((s: any) => {
+          if (
+            !s.occur_date ||
+            !s.start_time ||
+            !s.instructor_id
+          ) {
+            return false;
+          }
+
           const sameDate =
             String(s.occur_date).slice(0, 10) ===
-            String(this.moveChoiceModal.occurDate).slice(0, 10);
+            String(effectiveDate).slice(0, 10);
 
           const sameStart =
             String(s.start_time).slice(0, 5) ===
@@ -3487,16 +3639,31 @@ onWindowScroll(): void {
             String(this.moveChoiceModal.instructorId);
 
           return !(sameDate && sameStart && sameInstructor);
-        });
+        })
+        .sort((a: any, b: any) => {
+          const dateCompare =
+            String(a.occur_date).localeCompare(
+              String(b.occur_date)
+            );
+
+          if (dateCompare !== 0) return dateCompare;
+
+          return String(a.start_time).localeCompare(
+            String(b.start_time)
+          );
+        })
+        .slice(0, 10);
 
       if (!this.moveSlotsModal.slots.length) {
         this.moveSlotsModal.error =
-          'לא נמצאו אפשרויות פנויות ב־30 הימים הקרובים.';
+          `לא נמצאו אפשרויות פנויות בין ${from} ל־${to}.`;
       }
     } catch (e: any) {
       console.error('load series move slots failed', e);
+
       this.moveSlotsModal.error =
-        e?.message || 'שגיאה בטעינת אפשרויות להזזת סדרה';
+        e?.message ||
+        'שגיאה בטעינת אפשרויות להזזת סדרה';
     } finally {
       this.moveSlotsModal.loading = false;
       this.cdr.detectChanges();
@@ -3711,5 +3878,23 @@ onWindowScroll(): void {
     // אם אין firstDate באובייקט — עדיף לא להציג, כדי לא לתת פעולה שאולי תיחסם
     return false;
   }
+  private async getRemainingSeriesLessonsCountForMove(
+    lessonId: string,
+    fromOccurDate: string
+  ): Promise<number> {
+    const { data, error } = await dbTenant().rpc(
+      'count_remaining_series_lessons_for_move',
+      {
+        p_lesson_id: lessonId,
+        p_from_date: fromOccurDate,
+      }
+    );
 
+    if (error) {
+      console.error('count remaining series failed', error);
+      return 1;
+    }
+
+    return Number(data || 1);
+  }
 }
