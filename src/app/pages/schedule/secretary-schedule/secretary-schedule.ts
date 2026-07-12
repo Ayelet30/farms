@@ -154,6 +154,13 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     slot: null as any | null,
   };
 
+  compactScheduleBars = false;
+
+@HostListener('window:scroll')
+onWindowScroll(): void {
+  this.compactScheduleBars = window.scrollY > 80;
+}
+
   moveSlotsModal = {
     open: false,
     mode: 'single' as 'single' | 'series',

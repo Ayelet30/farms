@@ -18,7 +18,7 @@
 .schedule-wrap {
   display: grid;
   grid-template-rows: auto 1fr;
-  gap: 12px;
+  gap: 2px;
   --toolbar-space: 96px;
 }
 
@@ -60,6 +60,8 @@
   overflow-y: hidden;
   white-space: nowrap;
   scrollbar-width: none;
+  margin: 0;
+  border-radius: 12px;
 }
 
 .calendar-toolbar::-webkit-scrollbar {
