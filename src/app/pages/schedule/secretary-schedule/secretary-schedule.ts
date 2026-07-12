@@ -119,17 +119,19 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   items: ScheduleItem[] = [];
 
   isFullscreen = false;
-
   moveChoiceModal = {
     open: false,
     lessonId: '',
     occurDate: '',
+    childId: '',
     childName: '',
     instructorId: '',
     instructorName: '',
     startTime: '',
     endTime: '',
+    isOpenEnded: false,
   };
+
 
   deleteLessonModal = {
     open: false,
@@ -3162,14 +3164,19 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       open: true,
       lessonId: this.contextMenu.lessonId,
       occurDate: this.contextMenu.occurDate || this.contextMenu.date,
+      childId: this.contextMenu.childId,
       childName: this.contextMenu.childName,
       instructorId: this.contextMenu.instructorId,
       instructorName: this.contextMenu.instructorName,
       startTime: this.contextMenu.startTimeOnly || this.contextMenu.time,
       endTime: this.contextMenu.endTime || '',
+      isOpenEnded: this.contextMenu.isOpenEnded === true,
     };
 
-    this.moveSearch.fromDate = this.ymdToDate(this.moveChoiceModal.occurDate);
+    this.moveSearch.fromDate = this.ymdToDate(
+      this.moveChoiceModal.occurDate
+    );
+
     this.closeContextMenu();
     this.cdr.detectChanges();
   }
@@ -3197,21 +3204,30 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       open: false,
       lessonId: '',
       occurDate: '',
+      childId: '',
       childName: '',
       instructorId: '',
       instructorName: '',
       startTime: '',
       endTime: '',
+      isOpenEnded: false,
     };
 
     this.cdr.detectChanges();
   }
-
   async chooseMoveSingleOccurrence(): Promise<void> {
     if (this.moveSlotsModal.loading) return;
 
-    const childId = this.contextMenu.childId;
+    const childId = this.moveChoiceModal.childId;
     const lessonDate = this.moveChoiceModal.occurDate;
+
+    if (!childId || !lessonDate) {
+      await this.ui.alert(
+        'לא נמצאו פרטי הילד או תאריך השיעור. יש לסגור ולנסות שוב.',
+        'שגיאה'
+      );
+      return;
+    }
 
     this.moveChoiceModal.open = false;
 
@@ -3245,20 +3261,45 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
       if (error) throw error;
 
-      this.moveSlotsModal.slots = (data ?? []).filter((s: any) => {
-        const sameDate = s.occur_date === this.moveChoiceModal.occurDate;
-        const sameStart =
-          String(s.start_time).slice(0, 5) ===
-          String(this.moveChoiceModal.startTime).slice(0, 5);
-        const sameInstructor =
-          String(s.instructor_id) ===
-          String(this.moveChoiceModal.instructorId);
+      this.moveSlotsModal.slots = (data ?? [])
+        .filter((s: any) => {
+          const slotDate = String(
+            s.occur_date || s.lesson_date || ''
+          ).slice(0, 10);
 
-        return !(sameDate && sameStart && sameInstructor);
-      });
-    } catch (e) {
+          const slotStart = String(
+            s.start_time || s.start || ''
+          ).slice(0, 5);
+
+          const slotInstructor = String(
+            s.instructor_id || s.instructor_id_number || ''
+          );
+
+          const sameDate =
+            slotDate ===
+            String(this.moveChoiceModal.occurDate).slice(0, 10);
+
+          const sameStart =
+            slotStart ===
+            String(this.moveChoiceModal.startTime).slice(0, 5);
+
+          const sameInstructor =
+            slotInstructor ===
+            String(this.moveChoiceModal.instructorId);
+
+          return !(sameDate && sameStart && sameInstructor);
+        })
+        .slice(0, 10);
+
+      if (!this.moveSlotsModal.slots.length) {
+        this.moveSlotsModal.error =
+          'לא נמצאו אפשרויות פנויות החל מהתאריך שנבחר.';
+      }
+    } catch (e: any) {
       console.error('load single move slots failed', e);
-      this.moveSlotsModal.error = 'שגיאה בטעינת אפשרויות להזזת שיעור';
+
+      this.moveSlotsModal.error =
+        e?.message || 'שגיאה בטעינת אפשרויות להזזת שיעור';
     } finally {
       this.moveSlotsModal.loading = false;
       this.cdr.detectChanges();
@@ -3408,6 +3449,20 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   }
 
   async chooseMoveWholeSeries(): Promise<void> {
+    if (this.moveSlotsModal.loading) return;
+
+    const childId = this.moveChoiceModal.childId;
+    const lessonId = this.moveChoiceModal.lessonId;
+    const effectiveDate = this.moveChoiceModal.occurDate;
+
+    if (!childId || !lessonId || !effectiveDate) {
+      await this.ui.alert(
+        'לא נמצאו פרטי הסדרה או הילד. יש לסגור ולנסות שוב.',
+        'שגיאה'
+      );
+      return;
+    }
+
     this.moveChoiceModal.open = false;
 
     this.moveSlotsModal = {
@@ -3430,45 +3485,38 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
     try {
       const from =
-        this.dateToYmd(this.moveSearch.fromDate) ||
-        this.moveChoiceModal.occurDate;
+        this.getMoveSearchFromDateYmd() ||
+        effectiveDate;
 
+      // טווח החיפוש רחב, אך יוצגו רק 10 מועמדים
       const to = this.addDaysYmd(from, 10);
 
-
-      const lesson = this.lessons.find(
-        (l: any) => String(l.lesson_id) === String(this.moveChoiceModal.lessonId)
-      ) as any;
-
-      const isOpenEnded =
-        lesson?.is_open_ended === true ||
-        this.contextMenu.isOpenEnded === true;
-
-      /**
-       * לא מחפשים סדרה פתוחה "לנצח".
-       * מציגים מועמדים לפי חלון קצר, ואת האימות הסופי נותנים ל־move_lesson_series.
+      /*
+       * אנחנו מחפשים מועדים מועמדים להתחלת הסדרה.
+       * האימות המלא של כל הסדרה יתבצע בזמן move_lesson_series.
+       *
+       * שימוש בכל מספר השיעורים שנותרו יחד עם חלון מוגבל
+       * גורם לכך שכמעט תמיד חוזרות אפס תוצאות.
        */
-      const lessonCountForSearch = await this.getRemainingSeriesLessonsCountForMove(
-        this.moveChoiceModal.lessonId,
-        this.moveChoiceModal.occurDate
-      );
-      console.log({
-        from,
-        to,
-        lessonCountForSearch,
-        childId: this.contextMenu.childId,
-      });
+      const lessonCountForSearch = 1;
+
+      const payload = {
+        p_child_id: childId,
+        p_lesson_count: lessonCountForSearch,
+        p_instructor_id_number: null,
+        p_from_date: from,
+        p_to_date: to,
+      };
+
+
+
       const { data, error } = await dbTenant().rpc(
         'find_series_slots_with_skips',
-        {
-          p_child_id: this.contextMenu.childId,
-          p_lesson_count: lessonCountForSearch,
-          p_instructor_id_number: null,
-          p_from_date: from,
-          p_to_date: to,
-        }
+        payload
       );
-      console.log('RPC result', data, error);
+
+
+
       if (error) throw error;
 
       this.moveSlotsModal.slots = (data ?? [])
@@ -3483,27 +3531,48 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
             i => String(i.id_number) === instructorId
           );
 
+          const occurDate =
+            s.lesson_date ||
+            s.occur_date ||
+            '';
+
           return {
-            occur_date: s.lesson_date || s.occur_date,
-            start_time: s.start_time,
-            end_time: s.end_time,
+            occur_date: occurDate,
+            lesson_date: occurDate,
+            start_time: String(
+              s.start_time || s.start || ''
+            ).slice(0, 5),
+            end_time: String(
+              s.end_time || s.end || ''
+            ).slice(0, 5),
             instructor_id: instructorId,
             instructor_name: inst
               ? `${inst.first_name ?? ''} ${inst.last_name ?? ''}`.trim()
               : instructorId,
             day_of_week:
               s.day_of_week ||
-              this.getHebrewDayNameFromDate(s.lesson_date || s.occur_date),
-            lesson_ridding_type: s.riding_type_id ?? null,
-            riding_type_name: s.riding_type_name ?? null,
-            remaining_capacity: 1,
+              this.getHebrewDayNameFromDate(occurDate),
+            lesson_ridding_type:
+              s.riding_type_id ?? null,
+            riding_type_name:
+              s.riding_type_name ?? null,
+            remaining_capacity:
+              s.remaining_capacity ?? 1,
             raw: s,
           };
         })
         .filter((s: any) => {
+          if (
+            !s.occur_date ||
+            !s.start_time ||
+            !s.instructor_id
+          ) {
+            return false;
+          }
+
           const sameDate =
             String(s.occur_date).slice(0, 10) ===
-            String(this.moveChoiceModal.occurDate).slice(0, 10);
+            String(effectiveDate).slice(0, 10);
 
           const sameStart =
             String(s.start_time).slice(0, 5) ===
@@ -3515,16 +3584,30 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
           return !(sameDate && sameStart && sameInstructor);
         })
+        .sort((a: any, b: any) => {
+          const dateCompare =
+            String(a.occur_date).localeCompare(
+              String(b.occur_date)
+            );
+
+          if (dateCompare !== 0) return dateCompare;
+
+          return String(a.start_time).localeCompare(
+            String(b.start_time)
+          );
+        })
         .slice(0, 10);
 
       if (!this.moveSlotsModal.slots.length) {
         this.moveSlotsModal.error =
-          'לא נמצאו אפשרויות פנויות ב־30 הימים הקרובים.';
+          `לא נמצאו אפשרויות פנויות בין ${from} ל־${to}.`;
       }
     } catch (e: any) {
       console.error('load series move slots failed', e);
+
       this.moveSlotsModal.error =
-        e?.message || 'שגיאה בטעינת אפשרויות להזזת סדרה';
+        e?.message ||
+        'שגיאה בטעינת אפשרויות להזזת סדרה';
     } finally {
       this.moveSlotsModal.loading = false;
       this.cdr.detectChanges();
