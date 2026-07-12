@@ -3219,15 +3219,10 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     if (this.moveSlotsModal.loading) return;
 
     const childId = this.moveChoiceModal.childId;
-    const lessonDate = this.moveChoiceModal.occurDate;
+    const searchFromDate =
+      this.getMoveSearchFromDateYmd() ||
+      this.moveChoiceModal.occurDate;
 
-    if (!childId || !lessonDate) {
-      await this.ui.alert(
-        'לא נמצאו פרטי הילד או תאריך השיעור. יש לסגור ולנסות שוב.',
-        'שגיאה'
-      );
-      return;
-    }
 
     this.moveChoiceModal.open = false;
 
@@ -3255,7 +3250,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
         {
           p_child_id: childId,
           p_instructor_id: null,
-          p_lesson_date: lessonDate,
+          p_lesson_date: searchFromDate,
         }
       );
 
@@ -3267,12 +3262,19 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
             s.occur_date || s.lesson_date || ''
           ).slice(0, 10);
 
+          // לא מציגים שום תוצאה לפני התאריך שנבחר
+          if (!slotDate || slotDate < searchFromDate) {
+            return false;
+          }
+
           const slotStart = String(
             s.start_time || s.start || ''
           ).slice(0, 5);
 
           const slotInstructor = String(
-            s.instructor_id || s.instructor_id_number || ''
+            s.instructor_id ||
+            s.instructor_id_number ||
+            ''
           );
 
           const sameDate =
@@ -3288,6 +3290,16 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
             String(this.moveChoiceModal.instructorId);
 
           return !(sameDate && sameStart && sameInstructor);
+        })
+        .sort((a: any, b: any) => {
+          const dateA = String(a.occur_date || a.lesson_date || '');
+          const dateB = String(b.occur_date || b.lesson_date || '');
+
+          const dateCompare = dateA.localeCompare(dateB);
+          if (dateCompare !== 0) return dateCompare;
+
+          return String(a.start_time || a.start || '')
+            .localeCompare(String(b.start_time || b.start || ''));
         })
         .slice(0, 10);
 
