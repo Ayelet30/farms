@@ -28,10 +28,9 @@
 
 <!-- כרטסת ילד -->
 <app-note *ngIf="selectedChild && selectedOccurrence" [child]="selectedChild" [occurrence]="selectedOccurrence"
-  [attendanceStatus]="attendanceStatus" [role]="currentUserRole" (attendanceChange)="attendanceStatus = $event"
-  (close)="onCloseNote()" (attendanceChange)="onAttendanceChangedFromNote($event)">
+  [attendanceStatus]="attendanceStatus" [role]="currentUserRole"
+  (attendanceChange)="onAttendanceChangedFromNote($event)" (close)="onCloseNote()">
 </app-note>
-
 <!-- מודאל -->
 <div class="modal-backdrop" *ngIf="rangeModal.open" (click)="closeRangeModal()">
   <div class="modal schedule-modal" (click)="$event.stopPropagation()">
