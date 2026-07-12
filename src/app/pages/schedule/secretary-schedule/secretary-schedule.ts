@@ -2512,13 +2512,22 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     );
   }
 
-  async onAttendanceChangedFromNote(status: 'present' | 'absent' | null): Promise<void> {
-    if (!this.selectedOccurrence?.lesson_id || !this.selectedOccurrence?.occur_date || !this.selectedChild?.child_uuid) {
+  onAttendanceChangedFromNote(
+    status: 'present' | 'absent' | null
+  ): void {
+    if (
+      !this.selectedOccurrence?.lesson_id ||
+      !this.selectedOccurrence?.occur_date ||
+      !this.selectedChild?.child_uuid
+    ) {
       return;
     }
 
     const lessonId = String(this.selectedOccurrence.lesson_id);
-    const occurDate = String(this.selectedOccurrence.occur_date).slice(0, 10);
+    const occurDate = String(
+      this.selectedOccurrence.occur_date
+    ).slice(0, 10);
+
     const childId = String(this.selectedChild.child_uuid);
 
     const normalized =
@@ -2526,49 +2535,77 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
         ? 'present'
         : status === 'absent'
           ? 'absent'
-          : '';
+          : null;
 
-    const patchItem = (item: any) => {
-      const meta = item.meta || {};
-      const same =
-        String(meta.lesson_id || item.lesson_id || item.id) === lessonId &&
-        String(meta.child_id || item.child_id) === childId &&
-        String(meta.occur_date || item.occur_date).slice(0, 10) === occurDate;
+    const isSameOccurrence = (obj: any): boolean => {
+      const meta = obj?.meta ?? {};
 
-      if (!same) return item;
+      const objLessonId = String(
+        meta.lesson_id ??
+        obj?.lesson_id ??
+        ''
+      );
 
-      return {
-        ...item,
-        meta: {
-          ...meta,
+      const objChildId = String(
+        meta.child_id ??
+        obj?.child_id ??
+        ''
+      );
+
+      const objOccurDate = String(
+        meta.occur_date ??
+        obj?.occur_date ??
+        ''
+      ).slice(0, 10);
+
+      return (
+        objLessonId === lessonId &&
+        objChildId === childId &&
+        objOccurDate === occurDate
+      );
+    };
+
+    // עדכון האירוע בלוח
+    this.items = this.items.map((item: any) =>
+      isSameOccurrence(item)
+        ? {
+          ...item,
+          meta: {
+            ...(item.meta ?? {}),
+            attendance_status: normalized,
+          },
+        }
+        : item
+    );
+
+    // עדכון רשימת השיעורים המקומית
+    this.lessons = this.lessons.map((lesson: any) =>
+      isSameOccurrence(lesson)
+        ? {
+          ...lesson,
           attendance_status: normalized,
-        },
-      };
-    };
+        }
+        : lesson
+    ) as any;
 
-    this.items = this.items.map(patchItem);
-    this.lessons = this.lessons.map((l: any) => {
-      const same =
-        String(l.lesson_id || l.id) === lessonId &&
-        String(l.child_id) === childId &&
-        String(l.occur_date).slice(0, 10) === occurDate;
+    // עדכון הרשימה המסוננת
+    this.filteredLessons = this.filteredLessons.map((lesson: any) =>
+      isSameOccurrence(lesson)
+        ? {
+          ...lesson,
+          attendance_status: normalized,
+        }
+        : lesson
+    ) as any;
 
-      return same ? { ...l, attendance_status: normalized } : l;
-    }) as any;
-
-    this.filteredLessons = this.filteredLessons.map((l: any) => {
-      const same =
-        String(l.lesson_id || l.id) === lessonId &&
-        String(l.child_id) === childId &&
-        String(l.occur_date).slice(0, 10) === occurDate;
-
-      return same ? { ...l, attendance_status: normalized } : l;
-    }) as any;
-
-    this.selectedOccurrence = {
-      ...this.selectedOccurrence,
-      attendance_status: normalized,
-    };
+    /*
+     * חשוב מאוד:
+     * לא ליצור selectedOccurrence חדש,
+     * כי זה מפעיל מחדש את ngOnChanges של app-note.
+     */
+    if (this.selectedOccurrence) {
+      this.selectedOccurrence.attendance_status = normalized;
+    }
 
     this.cdr.detectChanges();
   }

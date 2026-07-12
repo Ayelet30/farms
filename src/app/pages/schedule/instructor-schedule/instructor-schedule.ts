@@ -231,20 +231,19 @@ export class InstructorScheduleComponent implements OnInit {
     const { data, error } = await dbc
       .from('lessons_occurrences')
       .select(`
-      lesson_id,
-      child_id,
-      instructor_id,
-      lesson_type,
-      status,
-      start_datetime,
-      end_datetime,
-      occur_date,
-      start_time      
-    `)
+    lesson_id,
+    child_id,
+    instructor_id,
+    lesson_type,
+    status,
+    start_datetime,
+    end_datetime,
+    occur_date,
+    start_time
+  `)
       .eq('instructor_id', this.instructorId)
       .gte('occur_date', startYmd)
       .lte('occur_date', endYmd);
-
     if (error) throw error;
 
     this.lessons = data ?? [];
@@ -370,31 +369,68 @@ export class InstructorScheduleComponent implements OnInit {
     this.farmDaysOff = data ?? [];
   }
 
-  onAttendanceChangedFromNote(status: 'present' | 'absent' | null): void {
-    if (!this.selectedOccurrence?.lesson_id || !this.selectedOccurrence?.occur_date || !this.selectedChild?.child_uuid) {
+  onAttendanceChangedFromNote(
+    status: 'present' | 'absent' | null
+  ): void {
+    this.attendanceStatus = status;
+
+    const lessonId = String(
+      this.selectedOccurrence?.lesson_id ?? ''
+    );
+
+    const occurDate = String(
+      this.selectedOccurrence?.occur_date ?? ''
+    ).slice(0, 10);
+
+    const childId = String(
+      this.selectedChild?.child_uuid ?? ''
+    );
+
+    if (!lessonId || !occurDate || !childId) {
+      this.cdr.detectChanges();
       return;
     }
-
-    const lessonId = String(this.selectedOccurrence.lesson_id);
-    const occurDate = String(this.selectedOccurrence.occur_date).slice(0, 10);
-    const childId = String(this.selectedChild.child_uuid);
 
     const normalized =
       status === 'present'
         ? 'present'
         : status === 'absent'
           ? 'absent'
-          : '';
+          : null;
 
-    const isSame = (obj: any): boolean =>
-      String(obj?.meta?.lesson_id || obj?.lesson_id || obj?.id || '').includes(lessonId) &&
-      String(obj?.meta?.child_id || obj?.child_id || '') === childId &&
-      String(obj?.meta?.occur_date || obj?.occur_date || '').slice(0, 10) === occurDate;
+    const isSame = (obj: any): boolean => {
+      const objLessonId = String(
+        obj?.meta?.lesson_id ??
+        obj?.lesson_id ??
+        ''
+      );
 
-    this.lessons = this.lessons.map((l: any) =>
-      isSame(l)
-        ? { ...l, attendance_status: normalized }
-        : l
+      const objChildId = String(
+        obj?.meta?.child_id ??
+        obj?.child_id ??
+        ''
+      );
+
+      const objOccurDate = String(
+        obj?.meta?.occur_date ??
+        obj?.occur_date ??
+        ''
+      ).slice(0, 10);
+
+      return (
+        objLessonId === lessonId &&
+        objChildId === childId &&
+        objOccurDate === occurDate
+      );
+    };
+
+    this.lessons = this.lessons.map((lesson: any) =>
+      isSame(lesson)
+        ? {
+          ...lesson,
+          attendance_status: normalized,
+        }
+        : lesson
     ) as any;
 
     this.items = this.items.map((item: any) =>
@@ -402,23 +438,25 @@ export class InstructorScheduleComponent implements OnInit {
         ? {
           ...item,
           meta: {
-            ...(item.meta || {}),
+            ...(item.meta ?? {}),
             attendance_status: normalized,
           },
         }
         : item
     );
 
-    this.selectedOccurrence = {
-      ...this.selectedOccurrence,
-      attendance_status: normalized,
-    };
-
-    this.attendanceStatus = status;
+    /*
+     * חשוב:
+     * לא ליצור selectedOccurrence חדש.
+     * יצירת אובייקט חדש מפעילה ngOnChanges ב־NoteComponent,
+     * שטוען מהמסד לפני שהשמירה הסתיימה ומחזיר null.
+     */
+    if (this.selectedOccurrence) {
+      this.selectedOccurrence.attendance_status = normalized;
+    }
 
     this.cdr.detectChanges();
   }
-
   private async loadRequestsForRange(startYmd: string, endYmd: string): Promise<void> {
     const dbc = dbTenant();
 
@@ -758,7 +796,7 @@ export class InstructorScheduleComponent implements OnInit {
             status: l.status,
             lesson_type: lessonTypeLabel,
 
-            // ✅ חדש: מעבירים ל-UI/NoteComponent
+
             horse_name: l.horse_name ?? null,
             arena_name: l.arena_name ?? null,
             occur_date: (l.occur_date ?? '').slice(0, 10),
@@ -860,39 +898,45 @@ export class InstructorScheduleComponent implements OnInit {
       rawStatus.includes('cancel');
 
     // occurrence ל-NoteComponent
+    const attendanceRaw = String(
+      metaProps.attendance_status ??
+      extProps.attendance_status ??
+      '',
+    ).toLowerCase();
+
+    let normalizedAttendance: 'present' | 'absent' | null = null;
+
+    if (attendanceRaw === 'present' || attendanceRaw === 'הגיע') {
+      normalizedAttendance = 'present';
+    } else if (
+      attendanceRaw === 'absent' ||
+      attendanceRaw === 'לא הגיע'
+    ) {
+      normalizedAttendance = 'absent';
+    }
+
+    this.attendanceStatus = normalizedAttendance;
+
     this.selectedOccurrence = {
       lesson_id: lessonId,
       child_id: childId,
       occur_date:
         metaProps.occur_date ??
-        (arg.event.start ? arg.event.start.toISOString().slice(0, 10) : null),
+        (arg.event.start
+          ? arg.event.start.toLocaleDateString('sv-SE')
+          : null),
 
       status: metaProps.status ?? extProps.status ?? null,
       lesson_type: lessonTypeLabel,
       start: arg.event.start,
       end: arg.event.end,
       isCancelled,
-      // משאבים
+
+      attendance_status: normalizedAttendance,
+
       horse_name: metaProps.horse_name ?? null,
       arena_name: metaProps.arena_name ?? null,
     };
-
-    // נוכחות
-    const attendanceRaw = String(
-      metaProps.attendance_status ??
-      extProps.attendance_status ??
-      metaProps.status ??
-      extProps.status ??
-      '',
-    ).toLowerCase();
-
-    if (attendanceRaw === 'present' || attendanceRaw === 'הגיע') {
-      this.attendanceStatus = 'present';
-    } else if (attendanceRaw === 'absent' || attendanceRaw === 'לא הגיע') {
-      this.attendanceStatus = 'absent';
-    } else {
-      this.attendanceStatus = null;
-    }
 
     this.cdr.detectChanges();
   }
