@@ -145,22 +145,24 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     isSeries: false,
   };
 
-  moveConfirmModal = {
-    open: false,
-    mode: 'single' as 'single' | 'series',
+moveConfirmModal = {
+  open: false,
+  mode: 'single' as 'single' | 'series',
 
-    childName: '',
-    originalDate: '',
-    originalTime: '',
-    originalInstructor: '',
+  childName: '',
+  originalDate: '',
+  originalTime: '',
+  originalInstructor: '',
 
-    newDate: '',
-    newStartTime: '',
-    newEndTime: '',
-    newInstructor: '',
+  newDate: '',
+  newStartTime: '',
+  newEndTime: '',
+  newInstructor: '',
 
-    slot: null as any | null,
-  };
+  isPastDate: false,
+
+  slot: null as any | null,
+};
 
   compactScheduleBars = false;
 
@@ -184,8 +186,9 @@ onWindowScroll(): void {
     dayOfWeek: '',
   };
   moveSearch = {
-    fromDate: null as Date | null,
-  };
+  fromDate: null as Date | null,
+  isPastDate: false,
+};
   readonly weekDays = [
     { value: '', label: 'כל הימים' },
     { value: 'ראשון', label: 'ראשון' },
@@ -412,6 +415,72 @@ onWindowScroll(): void {
       this.cdr.detectChanges();
     }
   }
+
+ onMoveSearchDateChanged(): void {
+  this.moveSlotsModal.error = '';
+  this.moveSlotsModal.selectedSlot = null;
+
+  const selectedDate = this.moveSearch.fromDate;
+
+  if (!selectedDate) {
+    this.moveSearch.isPastDate = false;
+    this.cdr.detectChanges();
+    return;
+  }
+
+  const selected = new Date(
+    selectedDate.getFullYear(),
+    selectedDate.getMonth(),
+    selectedDate.getDate()
+  );
+
+  const now = new Date();
+
+  const today = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  );
+
+  this.moveSearch.isPastDate = selected < today;
+
+  if (
+    this.moveSlotsModal.mode === 'series' &&
+    this.moveSearch.isPastDate
+  ) {
+    this.moveSlotsModal.error =
+      'לא ניתן להעביר סדרה לתאריך שכבר עבר';
+  }
+
+  this.cdr.detectChanges();
+}
+
+async recalculateMoveSlots(): Promise<void> {
+  if (!this.moveSearch.fromDate) {
+    this.moveSlotsModal.error = 'יש לבחור תאריך';
+    return;
+  }
+
+  if (
+    this.moveSlotsModal.mode === 'series' &&
+    this.moveSearch.isPastDate
+  ) {
+    this.moveSlotsModal.error =
+      'לא ניתן להעביר סדרה לתאריך שכבר עבר';
+    return;
+  }
+
+  this.moveSlotsModal.error = '';
+  this.moveSlotsModal.selectedSlot = null;
+  this.moveSlotsPage = 0;
+
+  if (this.moveSlotsModal.mode === 'single') {
+    await this.chooseMoveSingleOccurrence();
+    return;
+  }
+
+  await this.chooseMoveWholeSeries();
+}
 
   private clearScheduleStateOnFreshEntry(): void {
     const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
@@ -3366,6 +3435,22 @@ onWindowScroll(): void {
     this.moveSlotsModal.selectedSlot = slot;
   }
 
+  private isYmdBeforeToday(ymd: string): boolean {
+  if (!ymd) return false;
+
+  const [year, month, day] = ymd.split('-').map(Number);
+  const selected = new Date(year, month - 1, day);
+
+  const now = new Date();
+  const today = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  );
+
+  return selected < today;
+}
+
   async confirmMove(): Promise<void> {
     const slot = this.moveSlotsModal.selectedSlot;
     if (!slot) return;
@@ -3374,23 +3459,40 @@ onWindowScroll(): void {
     const start = String(slot.start_time || slot.start).slice(0, 5);
     const end = String(slot.end_time || slot.end).slice(0, 5);
 
-    this.moveConfirmModal = {
-      open: true,
-      mode: this.moveSlotsModal.mode,
+    const newDateYmd = String(date).slice(0, 10);
 
-      childName: this.moveChoiceModal.childName,
+    if (
+  this.moveSlotsModal.mode === 'series' &&
+  this.isYmdBeforeToday(newDateYmd)
+) {
+  this.moveSlotsModal.error =
+    'לא ניתן להעביר סדרה לתאריך שכבר עבר';
 
-      originalDate: this.moveChoiceModal.occurDate,
-      originalTime: `${this.moveChoiceModal.startTime}-${this.moveChoiceModal.endTime || ''}`,
-      originalInstructor: this.moveChoiceModal.instructorName,
+  this.moveSlotsModal.selectedSlot = null;
+  this.cdr.detectChanges();
+  return;
+}
 
-      newDate: date,
-      newStartTime: start,
-      newEndTime: end,
-      newInstructor: slot.instructor_name || slot.instructorName || String(slot.instructor_id || ''),
+this.moveConfirmModal = {
+  open: true,
+  mode: this.moveSlotsModal.mode,
 
-      slot,
-    };
+  childName: this.moveChoiceModal.childName,
+  originalDate: this.moveChoiceModal.occurDate,
+  originalTime: `${this.moveChoiceModal.startTime}-${this.moveChoiceModal.endTime || ''}`,
+  originalInstructor: this.moveChoiceModal.instructorName,
+
+  newDate: newDateYmd,
+  newStartTime: start,
+  newEndTime: end,
+  newInstructor:
+    slot.instructor_name ||
+    slot.instructorName ||
+    String(slot.instructor_id || ''),
+
+  isPastDate: this.isYmdBeforeToday(newDateYmd),
+  slot,
+};
 
     this.cdr.detectChanges();
   }
@@ -3423,6 +3525,21 @@ onWindowScroll(): void {
     this.cdr.detectChanges();
 
     try {
+
+      const targetDate = String(
+  slot.occur_date ||
+  slot.lesson_date ||
+  ''
+).slice(0, 10);
+
+if (
+  this.moveSlotsModal.mode === 'series' &&
+  this.isYmdBeforeToday(targetDate)
+) {
+  throw new Error(
+    'לא ניתן להעביר סדרה לתאריך שכבר עבר'
+  );
+}
       if (this.moveSlotsModal.mode === 'single') {
         const date = slot.occur_date || slot.lesson_date;
         const start = String(slot.start_time || slot.start).slice(0, 5);
@@ -3434,7 +3551,7 @@ onWindowScroll(): void {
         const { error } = await dbTenant().rpc('move_lesson_occurrence', {
           p_lesson_id: this.moveChoiceModal.lessonId,
           p_occur_date: this.moveChoiceModal.occurDate,
-          p_new_instructor_id: slot.instructor_id,
+          p_new_instructor_id: slot.instructor_id || slot.instructor_id_number,
           p_new_start_datetime: newStartDatetime,
           p_new_end_datetime: newEndDatetime,
           p_note: null,
@@ -3679,7 +3796,7 @@ onWindowScroll(): void {
       return;
     }
 
-    //await this.confirmMoveSeries(slot);
+    
   }
 
   moveSlotsPage = 0;
@@ -3731,8 +3848,6 @@ onWindowScroll(): void {
     this.moveSlotsPage = 0;
     this.moveSlotsModal.selectedSlot = null;
   }
-
-
 
   prevMoveSlotsPage(): void {
     if (!this.canPrevMoveSlots) return;
