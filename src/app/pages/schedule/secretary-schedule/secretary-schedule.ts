@@ -265,6 +265,7 @@ onWindowScroll(): void {
   instructorsAll: InstructorRow[] = [];    // כל המדריכים (פעילים)
   instructorsToday: InstructorRow[] = [];  // רק העובדים היום (פעילים + זמינות)
 
+  scheduleReloading = false;
   dayRequests: DayRequestRow[] = [];
   affectedChildren: AffectedChild[] = [];
   impactReviewMode = false;
@@ -415,6 +416,59 @@ onWindowScroll(): void {
       this.cdr.detectChanges();
     }
   }
+
+  async onScheduleReloadRequested(range: {
+  start: string;
+  end: string;
+  viewType: string;
+}): Promise<void> {
+  if (this.scheduleReloading) return;
+
+  this.scheduleReloading = true;
+
+  try {
+    this.currentRange = {
+      start: range.start,
+      end: range.end,
+      viewType: range.viewType,
+    };
+
+    await this.loadLessons({
+      start: range.start,
+      end: range.end,
+    });
+
+    await this.loadFarmDaysOffForRange(
+      range.start,
+      range.end
+    );
+
+    await this.loadRequestsForRange(
+      range.start,
+      range.end
+    );
+
+    await this.loadInstructorWeeklyAvailability();
+
+    this.filterLessons();
+    this.setScheduleItems();
+    this.buildBlockedDayCells(this.currentRange);
+    this.buildAvailableDayCells(this.currentRange);
+    this.buildWeekStats();
+
+    this.cdr.detectChanges();
+  } catch (error) {
+    console.error('schedule reload failed', error);
+
+    await this.ui.alert(
+      'לא הצלחנו לטעון מחדש את הלוח. נסי שוב.',
+      'שגיאה'
+    );
+  } finally {
+    this.scheduleReloading = false;
+    this.cdr.detectChanges();
+  }
+}
 
  onMoveSearchDateChanged(): void {
   this.moveSlotsModal.error = '';

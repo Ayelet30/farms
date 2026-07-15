@@ -104,6 +104,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   @Input() enableAutoAssign = false;
   @Input() viewerMode: ViewerMode = 'secretary';
   @Input() blockedDayCells: BlockedDayCell[] = [];
+  @Input() reloadLoading = false;
   @Input() availableDayCells: Array<{
     date: string;
     resourceId: string;
@@ -129,6 +130,12 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
     resourceTitle?: string | null;
     sourceView?: 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth';
   }>();
+
+  @Output() reloadRequested = new EventEmitter<{
+  start: string;
+  end: string;
+  viewType: ViewName;
+}>();
 
   @Output() rightClickEvent = new EventEmitter<{
     jsEvent: MouseEvent;
@@ -277,6 +284,39 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
       this.prev();
     }
   }
+
+  reloadCurrentView(): void {
+  let start: string;
+  let end: string;
+
+  if (this.currentView === 'timeGridDay') {
+    const ymd = this.toYmd(this.customDayDate);
+
+    start = ymd;
+    end = ymd;
+  } else {
+    const api = this.calendarApi;
+
+    if (!api) return;
+
+    start = this.toYmd(api.view.activeStart);
+
+    /*
+     * activeEnd ב־FullCalendar הוא תאריך סיום לא כולל,
+     * לכן מורידים יום אחד.
+     */
+    const inclusiveEnd = new Date(api.view.activeEnd);
+    inclusiveEnd.setDate(inclusiveEnd.getDate() - 1);
+
+    end = this.toYmd(inclusiveEnd);
+  }
+
+  this.reloadRequested.emit({
+    start,
+    end,
+    viewType: this.currentView,
+  });
+}
 
   private isoToMinutes(iso: string): number {
     const d = new Date(iso);
