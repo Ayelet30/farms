@@ -90,6 +90,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
 
   private boundContextMenuHandler?: (e: MouseEvent) => void;
 
+  private lessonsLoadRequestId = 0;
 
   @Input() items: ScheduleItem[] = [];
   @Input() initialView: ViewName = 'timeGridDay';
@@ -392,31 +393,42 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   }
 
   buildCustomItemTitle(item: ScheduleItem): string {
+    const parts: string[] = [];
+
     if (this.isParentView) {
-      return [
+      parts.push(
         this.getItemChildName(item),
         this.getItemInstructorName(item),
-        this.getItemLessonType(item),
-      ].filter(Boolean).join(' • ');
-    }
-
-    if (this.isInstructorView) {
-      return [
+        this.getItemLessonType(item)
+      );
+    } else if (this.isInstructorView) {
+      parts.push(
         this.getItemChildName(item),
-        this.getItemChildAge(item) ? `גיל: ${this.getItemChildAge(item)}` : '',
+
+        this.getItemChildAge(item)
+          ? `גיל: ${this.getItemChildAge(item)}`
+          : '',
+
         this.getHorseName(item),
-        this.getArenaName(item),
-      ].filter(Boolean).join(' • ');
+        this.getArenaName(item)
+      );
+    } else {
+      parts.push(
+        this.getItemChildName(item),
+        this.getItemLessonType(item),
+        this.getHorseName(item),
+        this.getArenaName(item)
+      );
     }
 
-    return [
-      this.getItemChildName(item),
-      this.getItemLessonType(item),
-      this.getHorseName(item),
-      this.getArenaName(item),
-    ].filter(Boolean).join(' • ');
-  }
+    if (this.isSingleOccurrenceMove(item)) {
+      parts.push(this.getSingleMoveTooltip(item));
+    }
 
+    return parts
+      .filter(Boolean)
+      .join(' • ');
+  }
   private mapView(view: ViewName): string {
     const hasRes = !!(this.resources && this.resources.length);
 
@@ -712,36 +724,81 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   }
 
 
-  onCustomItemClick(item: ScheduleItem, ev: MouseEvent): void {
-    ev.stopPropagation();
+  // onCustomItemClick(item: ScheduleItem, ev: MouseEvent): void {
+  //   ev.stopPropagation();
 
-    const payload: any = {
-      event: {
-        id: (item as any).id,
-        title: (item as any).title,
-        start: new Date(String((item as any).start)),
-        end: new Date(String((item as any).end)),
-        extendedProps: {
-          ...(item as any),
-          ...(this.getItemMeta(item) || {}),
-          meta: this.getItemMeta(item) || {},
-          status: (item as any).status,
-          child_id: this.getItemMeta(item)?.child_id,
-          child_name: this.getItemChildName(item),
-          instructor_id: this.getItemInstructorId(item),
-          instructor_name: this.getItemInstructorName(item),
-          lesson_type: this.getItemLessonType(item),
-          horse_name: this.getHorseName(item),
-          arena_name: this.getArenaName(item),
-        },
+  //   const payload: any = {
+  //     event: {
+  //       id: (item as any).id,
+  //       title: (item as any).title,
+  //       start: new Date(String((item as any).start)),
+  //       end: new Date(String((item as any).end)),
+  //       extendedProps: {
+  //         ...this.getItemMeta(item),
+  //       },
+  //     },
+  //     jsEvent: ev,
+  //     el: ev.currentTarget as HTMLElement,
+  //     view: { type: 'timeGridDay' },
+  //   };
+
+  //   this.eventClick.emit(payload);
+  // }
+
+  onCustomItemClick(
+  item: ScheduleItem,
+  jsEvent: MouseEvent
+): void {
+  jsEvent.preventDefault();
+  jsEvent.stopPropagation();
+
+  const meta = (item as any)?.meta ?? {};
+
+  const startValue = (item as any)?.start ?? null;
+  const endValue = (item as any)?.end ?? null;
+
+  const fakeEventArg: any = {
+    event: {
+      id: String(
+        meta.lesson_id ??
+        (item as any)?.id ??
+        ''
+      ),
+
+      title: String(
+        (item as any)?.title ??
+        ''
+      ),
+
+      start: startValue
+        ? new Date(startValue)
+        : null,
+
+      end: endValue
+        ? new Date(endValue)
+        : null,
+
+      startStr:
+        String(startValue ?? ''),
+
+      endStr:
+        String(endValue ?? ''),
+
+      /*
+       * זה החלק שהיה חסר:
+       * כל שדות ההעברה עוברים הלאה.
+       */
+      extendedProps: {
+        ...meta,
+        meta,
       },
-      jsEvent: ev,
-      el: ev.currentTarget as HTMLElement,
-      view: { type: 'timeGridDay' },
-    };
+    },
 
-    this.eventClick.emit(payload);
-  }
+    jsEvent,
+  };
+
+  this.eventClick.emit(fakeEventArg);
+}
 
   onCustomDateCellClick(iso: string, resource?: ScheduleResource | null): void {
     if (resource?.id && this.isBlockedRawCell(resource.id, iso)) {
@@ -834,28 +891,34 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
     return item.id;
   }
 
-  changeView(view: ViewName) {
-    this.currentView = view;
-
-
-    if (view === 'timeGridDay') {
-      const api = this.calendarApi;
-
-      // אם באים משבוע/חודש - נבחר יום ברור
-      // אפשר לבחור את היום הנוכחי, או את היום שבו הפוקוס נמצא
-      const baseDate = api ? new Date(api.view.currentStart) : new Date();
-
-      this.customDayDate = this.cloneDate(baseDate);
-      this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
-
-      this.lastRangeKey = '';
-      this.emitCustomDayRange();
-      this.rebuildCustomDayView();
-      return;
-    }
-
-    setTimeout(() => this.applyCurrentView(), 0);
+  changeView(view: ViewName): void {
+  if (view === this.currentView) {
+    return;
   }
+
+  if (view === 'timeGridDay') {
+    const api = this.calendarApi;
+
+    /*
+     * getDate() מייצג את התאריך שהלוח ממוקד בו,
+     * ולא בהכרח את היום הראשון בטווח.
+     */
+    const baseDate =
+      api?.getDate()
+        ? this.cloneDate(api.getDate())
+        : this.cloneDate(this.customDayDate || new Date());
+
+    this.openCustomDay(baseDate);
+    return;
+  }
+
+  this.currentView = view;
+
+  setTimeout(() => {
+    this.applyCurrentView();
+    this.cdr.detectChanges();
+  }, 0);
+}
 
   prev() {
     if (this.currentView === 'timeGridDay') {
@@ -899,6 +962,52 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
 
     this.calendarApi?.today();
   }
+
+  private openCustomDay(date: Date | string): void {
+  const parsed =
+    date instanceof Date
+      ? this.cloneDate(date)
+      : this.parseYmdAsLocalDate(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    console.warn('openCustomDay received invalid date:', date);
+    return;
+  }
+
+  /*
+   * עוברים ישירות לתצוגת היום המותאמת.
+   * לא קוראים קודם ל-changeView('timeGridDay'),
+   * כדי למנוע טעינה מיותרת של תחילת החודש.
+   */
+  this.currentView = 'timeGridDay';
+  this.customDayDate = this.cloneDate(parsed);
+  this.currentDate =
+    this.formatHebrewDayTitle(this.customDayDate);
+
+  /*
+   * מאפשרים emit חדש גם אם אותו יום כבר הופיע בעבר.
+   */
+  this.lastRangeKey = '';
+
+  this.emitCustomDayRange();
+  this.rebuildCustomDayView();
+  this.cdr.detectChanges();
+}
+
+private parseYmdAsLocalDate(value: string): Date {
+  const ymd = String(value || '').slice(0, 10);
+  const [year, month, day] = ymd.split('-').map(Number);
+
+  if (!year || !month || !day) {
+    return new Date(NaN);
+  }
+
+  /*
+   * לא להשתמש ב-new Date('YYYY-MM-DD'),
+   * מפני שהוא עלול להתפרש כ-UTC.
+   */
+  return new Date(year, month - 1, day);
+}
 
   goToDay(date: string | Date): void {
     const nextDate = date instanceof Date ? this.cloneDate(date) : new Date(date);
@@ -995,6 +1104,103 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
           extendedProps: {
             isFarmDayOff: true,
             meta: i.meta,
+            ...i.meta,
+
+            lesson_id: i.meta?.lesson_id,
+            instructor_color: i.meta?.instructor_color,
+            status: i.status ?? i.meta?.status,
+
+            child_id: i.meta?.child_id,
+            child_name: i.meta?.child_name,
+
+            instructor_id: i.meta?.instructor_id,
+            instructor_name: i.meta?.instructor_name,
+
+            lesson_type: i.meta?.lesson_type,
+            children: i.meta?.children,
+
+            occur_date: i.meta?.occur_date,
+            start_time: i.meta?.start_time,
+            end_time: i.meta?.end_time,
+            start_datetime: i.meta?.start_datetime,
+            end_datetime: i.meta?.end_datetime,
+
+            attendance_status: i.meta?.attendance_status,
+
+            /*
+             * פרטי העברה חד־פעמית
+             */
+            occurrence_change_id:
+              i.meta?.occurrence_change_id,
+
+            occurrence_change_type:
+              i.meta?.occurrence_change_type,
+
+            is_single_occurrence_move:
+              i.meta?.is_single_occurrence_move,
+
+            original_occur_date:
+              i.meta?.original_occur_date,
+
+            original_instructor_id:
+              i.meta?.original_instructor_id,
+
+            original_instructor_name:
+              i.meta?.original_instructor_name,
+
+            new_instructor_id:
+              i.meta?.new_instructor_id,
+
+            new_instructor_name:
+              i.meta?.new_instructor_name,
+
+            original_start_time:
+              i.meta?.original_start_time,
+
+            original_end_time:
+              i.meta?.original_end_time,
+
+            new_start_time:
+              i.meta?.new_start_time,
+
+            new_end_time:
+              i.meta?.new_end_time,
+
+            original_day_of_week:
+              i.meta?.original_day_of_week,
+
+            new_day_of_week:
+              i.meta?.new_day_of_week,
+
+            original_start_datetime:
+              i.meta?.original_start_datetime,
+
+            new_start_datetime:
+              i.meta?.new_start_datetime,
+
+            new_end_datetime:
+              i.meta?.new_end_datetime,
+
+            occurrence_change_note:
+              i.meta?.occurrence_change_note,
+
+            occurrence_change_created_at:
+              i.meta?.occurrence_change_created_at,
+
+            /*
+             * שדות קיימים
+             */
+            isSummaryDay: i.meta?.isSummaryDay,
+            isSummarySlot: i.meta?.isSummarySlot,
+            isInstructorHeader: i.meta?.isInstructorHeader,
+
+            horse_name: i.meta?.horse_name,
+            arena_name: i.meta?.arena_name,
+
+            // isFarmDayOff: i.meta?.isFarmDayOff,
+            isInstructorDayOff: i.meta?.isInstructorDayOff,
+            isPendingInstructorDayOff:
+              i.meta?.isPendingInstructorDayOff,
           },
         }];
       }
@@ -1008,27 +1214,149 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
         borderColor: i.color,
         resourceId: i.meta?.instructor_id || undefined,
         classNames: this.getEventClassNames(i),
-        extendedProps: {
-          lesson_id: i.meta?.lesson_id,
-          meta: i.meta,
-          instructor_color: i.meta?.instructor_color,
-          status: i.status,
-          child_id: i.meta?.child_id,
-          child_name: i.meta?.child_name,
-          instructor_id: i.meta?.instructor_id,
-          instructor_name: i.meta?.instructor_name,
-          lesson_type: i.meta?.lesson_type,
-          children: i.meta?.children,
-          occur_date: i.meta?.occur_date,
-          isSummaryDay: i.meta?.isSummaryDay,
-          isSummarySlot: i.meta?.isSummarySlot,
-          isInstructorHeader: i.meta?.isInstructorHeader,
-          horse_name: i.meta?.horse_name,
-          arena_name: i.meta?.arena_name,
-          isFarmDayOff: i.meta?.isFarmDayOff,
-          isInstructorDayOff: i.meta?.isInstructorDayOff,
-          isPendingInstructorDayOff: i.meta?.isPendingInstructorDayOff,
-        },
+       extendedProps: {
+  /*
+   * חשוב: שיטוח כל ה-meta באירוע הרגיל,
+   * לא רק באירוע חופשת חווה.
+   */
+  ...i.meta,
+  meta: i.meta,
+
+  lesson_id:
+    i.meta?.lesson_id,
+
+  instructor_color:
+    i.meta?.instructor_color,
+
+  status:
+    i.status ?? i.meta?.status,
+
+  child_id:
+    i.meta?.child_id,
+
+  child_name:
+    i.meta?.child_name,
+
+  child_age:
+    i.meta?.child_age,
+
+  instructor_id:
+    i.meta?.instructor_id,
+
+  instructor_name:
+    i.meta?.instructor_name,
+
+  lesson_type:
+    i.meta?.lesson_type,
+
+  children:
+    i.meta?.children,
+
+  occur_date:
+    i.meta?.occur_date,
+
+  start_time:
+    i.meta?.start_time,
+
+  end_time:
+    i.meta?.end_time,
+
+  start_datetime:
+    i.meta?.start_datetime,
+
+  end_datetime:
+    i.meta?.end_datetime,
+
+  attendance_status:
+    i.meta?.attendance_status,
+
+  horse_name:
+    i.meta?.horse_name,
+
+  arena_name:
+    i.meta?.arena_name,
+
+  /*
+   * העברה חד־פעמית
+   */
+  occurrence_change_id:
+    i.meta?.occurrence_change_id,
+
+  occurrence_change_type:
+    i.meta?.occurrence_change_type,
+
+  is_single_occurrence_move:
+    i.meta?.is_single_occurrence_move,
+
+  original_occur_date:
+    i.meta?.original_occur_date,
+
+  original_instructor_id:
+    i.meta?.original_instructor_id,
+
+  original_instructor_name:
+    i.meta?.original_instructor_name,
+
+  new_instructor_id:
+    i.meta?.new_instructor_id,
+
+  new_instructor_name:
+    i.meta?.new_instructor_name,
+
+  original_start_time:
+    i.meta?.original_start_time,
+
+  original_end_time:
+    i.meta?.original_end_time,
+
+  new_start_time:
+    i.meta?.new_start_time,
+
+  new_end_time:
+    i.meta?.new_end_time,
+
+  original_day_of_week:
+    i.meta?.original_day_of_week,
+
+  new_day_of_week:
+    i.meta?.new_day_of_week,
+
+  original_start_datetime:
+    i.meta?.original_start_datetime,
+
+  new_start_datetime:
+    i.meta?.new_start_datetime,
+
+  new_end_datetime:
+    i.meta?.new_end_datetime,
+
+  occurrence_change_note:
+    i.meta?.occurrence_change_note,
+
+  occurrence_change_created_at:
+    i.meta?.occurrence_change_created_at,
+
+  /*
+   * שדות מערכת
+   */
+  isSummaryDay:
+    i.meta?.isSummaryDay,
+
+  isSummarySlot:
+    i.meta?.isSummarySlot,
+
+  isInstructorHeader:
+    i.meta?.isInstructorHeader,
+
+  isFarmDayOff:
+    i.meta?.isFarmDayOff,
+
+  isInstructorDayOff:
+    i.meta?.isInstructorDayOff,
+
+  isPendingInstructorDayOff:
+    i.meta?.isPendingInstructorDayOff,
+},
       }];
     });
   }
@@ -1218,29 +1546,49 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
     eventShortHeight: 34,
     dayHeaderContent: this.dayHeaderContentFactory(),
 
-    dateClick: (info: DateClickArg) => {
-      // נשמור גם emit החוצה אם צריך
-      this.dateClick.emit(info);
+   dateClick: (info: DateClickArg) => {
+  const sourceView = this.currentView;
 
-      // אם לוחצים בשבוע/חודש – קופצים ליום
-      if (this.currentView === 'timeGridWeek' || this.currentView === 'dayGridMonth') {
-        this.changeView('timeGridDay');
+  /*
+   * מחודש/שבוע עוברים ישירות ליום שנלחץ.
+   * אין changeView ואז goToDay — רק מעבר אחד.
+   */
+  if (
+    sourceView === 'dayGridMonth' ||
+    sourceView === 'timeGridWeek'
+  ) {
+    info.jsEvent?.preventDefault();
+    info.jsEvent?.stopPropagation();
 
-        setTimeout(() => {
-          this.goToDay(info.date);
-        }, 0);
-      }
-    },
+    this.openCustomDay(info.date);
+    return;
+  }
+
+  /*
+   * בתצוגת יום רגילה ממשיכים להעביר את הלחיצה להורה,
+   * למשל לצורך זימון מהיר.
+   */
+  this.dateClick.emit(info);
+},
     eventClick: (arg: EventClickArg) => {
+  if (arg.event.extendedProps['isMonthSummary']) {
+    arg.jsEvent.preventDefault();
+    arg.jsEvent.stopPropagation();
 
-      // בתצוגה חודשית - עיגולי הסיכום אינם לחיצים
-      if (arg.event.extendedProps['isMonthSummary']) {
-        arg.jsEvent.preventDefault();
-        return;
-      }
+    const eventDate =
+      arg.event.startStr ||
+      arg.event.start?.toLocaleDateString('sv-SE') ||
+      '';
 
-      this.eventClick.emit(arg);
-    },
+    if (eventDate) {
+      this.openCustomDay(eventDate);
+    }
+
+    return;
+  }
+
+  this.eventClick.emit(arg);
+},
     eventContent: (arg) => {
 
       const { event } = arg;
@@ -1359,6 +1707,61 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
       const lessonType = event.extendedProps['lesson_type'] || '';
       const lessonTypeShort = this.getLessonTypeShort(lessonType);
 
+      const isSingleMove =
+        event.extendedProps['is_single_occurrence_move'] === true ||
+        event.extendedProps['is_single_occurrence_move'] === 'true' ||
+        event.extendedProps['occurrence_change_type'] === 'MOVE' ||
+        meta?.is_single_occurrence_move === true ||
+        meta?.is_single_occurrence_move === 'true' ||
+        meta?.occurrence_change_type === 'MOVE';
+
+        console.log('isSingleMove', isSingleMove, event.extendedProps['occurrence_change_type'], meta?.occurrence_change_type);
+
+      const originalInstructorName = String(
+        event.extendedProps['original_instructor_name'] ??
+        meta?.original_instructor_name ??
+        ''
+      ).trim();
+
+      const originalOccurDate = String(
+        event.extendedProps['original_occur_date'] ??
+        meta?.original_occur_date ??
+        ''
+      ).slice(0, 10);
+
+      const originalStartTime = String(
+        event.extendedProps['original_start_time'] ??
+        meta?.original_start_time ??
+        ''
+      ).slice(0, 5);
+
+      const moveTooltip = isSingleMove
+        ? [
+          'הועבר ח״פ',
+          originalInstructorName
+            ? `ממדריך ${originalInstructorName}`
+            : '',
+          originalOccurDate
+            ? `ביום ${this.formatDisplayDate(originalOccurDate)}`
+            : '',
+          originalStartTime
+            ? `בשעה ${originalStartTime}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' ')
+        : '';
+
+      const singleMoveBadge = isSingleMove
+        ? `
+      <span
+        class="mini-badge single-move-badge"
+        title="${this.escapeHtml(moveTooltip)}">
+        ח״פ
+      </span>
+    `
+        : '';
+
       const isWeekView =
         arg.view.type === 'timeGridWeek' ||
         arg.view.type === 'resourceTimeGridWeek';
@@ -1381,15 +1784,26 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
 
         return {
           html: `
-    <div class="event-box lesson-card">
+    <div
+  class="event-box lesson-card ${isSingleMove ? 'single-move-card' : ''}"
+  title="${this.escapeHtml(moveTooltip)}">
       <div class="main-line">
         <span class="child-main-name" title="${this.escapeHtml(mainText)}">
           ${this.escapeHtml(mainText)}
         </span>
 
         <span class="badges">
-          ${lessonTypeShort ? `<span class="mini-badge type-badge">${this.escapeHtml(lessonTypeShort)}</span>` : ''}
-        </span>
+  ${singleMoveBadge}
+
+  ${lessonTypeShort
+              ? `
+          <span class="mini-badge type-badge">
+            ${this.escapeHtml(lessonTypeShort)}
+          </span>
+        `
+              : ''
+            }
+</span>
       </div>
 
       ${!isWeekView && secondaryText
@@ -1413,14 +1827,26 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
 
       return {
         html: `
-          <div class="event-box lesson-card">
+          <div
+  class="event-box lesson-card ${isSingleMove ? 'single-move-card' : ''}"
+  title="${this.escapeHtml(moveTooltip)}">
             <div class="main-line">
               <span class="child-main-name" title="${this.escapeHtml(childName)}">
                 ${this.escapeHtml(childName)}
               </span>
 
               <span class="badges">
-                ${lessonTypeShort ? `<span class="mini-badge type-badge">${this.escapeHtml(lessonTypeShort)}</span>` : ''}
+  ${singleMoveBadge}
+
+  ${lessonTypeShort
+            ? `
+          <span class="mini-badge type-badge">
+            ${this.escapeHtml(lessonTypeShort)}
+          </span>
+        `
+            : ''
+          }
+</span>
               </span>
             </div>
 
@@ -1720,6 +2146,57 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
     });
 
     return match?.color || '';
+  }
+
+  isSingleOccurrenceMove(item: ScheduleItem): boolean {
+    const meta = this.getItemMeta(item);
+
+    return (
+      meta?.is_single_occurrence_move === true ||
+      meta?.is_single_occurrence_move === 'true' ||
+      meta?.occurrence_change_type === 'MOVE'
+    );
+  }
+
+  private formatDisplayDate(value: any): string {
+    const raw = String(value || '').slice(0, 10);
+    const [year, month, day] = raw.split('-');
+
+    if (!year || !month || !day) {
+      return raw;
+    }
+
+    return `${day}/${month}/${year}`;
+  }
+
+  getSingleMoveTooltip(item: ScheduleItem): string {
+    if (!this.isSingleOccurrenceMove(item)) {
+      return '';
+    }
+
+    const meta = this.getItemMeta(item);
+
+    const instructorName =
+      String(meta?.original_instructor_name || '').trim() ||
+      'מדריך לא ידוע';
+
+    const originalDate = this.formatDisplayDate(
+      meta?.original_occur_date ||
+      meta?.original_start_datetime
+    );
+
+    const originalTime = String(
+      meta?.original_start_time || ''
+    ).slice(0, 5);
+
+    return [
+      'הועבר ח״פ',
+      `ממדריך ${instructorName}`,
+      originalDate ? `ביום ${originalDate}` : '',
+      originalTime ? `בשעה ${originalTime}` : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
   }
 
   hexToRgba(hex: string, alpha: number): string {

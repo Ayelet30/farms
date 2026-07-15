@@ -637,6 +637,31 @@ async loadLessonDetails() {
     console.error('[loadLessonDetails] lesson error', lessonError);
     return;
   }
+  /*
+ * זמן האוקורנס בפועל קודם לזמן הבסיסי של הסדרה.
+ */
+const actualStartTime =
+  this.occurrence?.new_start_time ??
+  this.occurrence?.start_time ??
+  this.extractOccurrenceTime(
+    this.occurrence?.new_start_datetime
+  ) ??
+  this.extractOccurrenceTime(
+    this.occurrence?.start_datetime
+  ) ??
+  lesson.start_time;
+
+const actualEndTime =
+  this.occurrence?.new_end_time ??
+  this.occurrence?.end_time ??
+  this.extractOccurrenceTime(
+    this.occurrence?.new_end_datetime
+  ) ??
+  this.extractOccurrenceTime(
+    this.occurrence?.end_datetime
+  ) ??
+  lesson.end_time;
+
     /** 3️⃣ חריג – השלמה */
   const { data: exception, error: excError } = await this.dbc
     .from('lesson_occurrence_exceptions')
@@ -680,8 +705,8 @@ if (isSeries) {
 if (isCancelled) {
   this.lessonDetails = {
     lesson_id: lesson.id,
-    start_time: lesson.start_time,
-    end_time: lesson.end_time,
+    start_time: actualStartTime,
+    end_time: actualEndTime,
     lesson_type: lesson.lesson_type,
     status: this.occurrence?.status ?? lesson.status,
     isCancelled: true,
@@ -723,8 +748,8 @@ series_total: lesson.is_open_ended ? null : lesson.repeat_weeks,
 
   this.lessonDetails = {
   lesson_id: lesson.id,
-  start_time: lesson.start_time,
-  end_time: lesson.end_time,
+  start_time: actualStartTime,
+  end_time: actualEndTime,
   lesson_type: lesson.lesson_type,
   status: this.occurrence?.status ?? lesson.status,
   isCancelled: this.occurrence?.isCancelled === true,
@@ -741,6 +766,36 @@ series_total: lesson.is_open_ended ? null : lesson.repeat_weeks,
   series_total: lesson.is_open_ended ? null : lesson.repeat_weeks,
 };
 }
+
+private extractOccurrenceTime(
+  value: string | Date | null | undefined
+): string | null {
+  if (!value) return null;
+
+  /*
+   * timestamp ללא timezone:
+   * 2026-07-20T11:45:00
+   */
+  if (typeof value === 'string') {
+    const match = value.match(/[T ](\d{2}):(\d{2})/);
+
+    if (match) {
+      return `${match[1]}:${match[2]}`;
+    }
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return [
+    String(parsed.getHours()).padStart(2, '0'),
+    String(parsed.getMinutes()).padStart(2, '0'),
+  ].join(':');
+}
+
 async onBillableChange(newVal: boolean) {
   if (!this.canEditBillingFlag) return;
 
@@ -940,6 +995,100 @@ async setAttendance(status: AttendanceStatus) {
 
   await this.saveAttendance(status);
   this.recalcPresenceFlags();
+}
+
+getMoveOfficeNote(): string {
+  const occurrence = this.occurrence;
+  console.log('[getMoveOfficeNote] occurrence', this.occurrence);
+
+  const isMoved =
+    occurrence?.is_single_occurrence_move === true ||
+    occurrence?.is_single_occurrence_move === 'true' ||
+    occurrence?.occurrence_change_type === 'MOVE';
+
+    console.log('[getMoveOfficeNote] isMoved', isMoved);
+
+  if (!isMoved) {
+    return '';
+  }
+
+  const oldInstructor =
+    String(
+      occurrence?.original_instructor_name || ''
+    ).trim() || 'מדריך לא ידוע';
+
+  const newInstructor =
+    String(
+      occurrence?.new_instructor_name ||
+      occurrence?.instructor_name ||
+      ''
+    ).trim() || 'מדריך לא ידוע';
+
+  const oldDate = this.formatOccurrenceDate(
+    occurrence?.original_occur_date ||
+    occurrence?.original_start_datetime
+  );
+
+  /*
+   * occur_date הוא כבר המועד החדש בפועל בלוח.
+   * עדיף אותו על המרה מחדש של timestamptz.
+   */
+  const newDate = this.formatOccurrenceDate(
+    occurrence?.occur_date ||
+    occurrence?.new_start_datetime
+  );
+
+  const oldStart = this.getTimeString(
+    occurrence?.original_start_time
+  );
+
+  const oldEnd = this.getTimeString(
+    occurrence?.original_end_time
+  );
+
+  const newStart = this.getTimeString(
+    occurrence?.new_start_time ||
+    occurrence?.start_time
+  );
+
+  const newEnd = this.getTimeString(
+    occurrence?.new_end_time ||
+    occurrence?.end_time
+  );
+
+  const oldTime = oldStart
+    ? `${oldStart}${oldEnd ? `–${oldEnd}` : ''}`
+    : '';
+
+  const newTime = newStart
+    ? `${newStart}${newEnd ? `–${newEnd}` : ''}`
+    : '';
+
+    console.log('[getMoveOfficeNote] oldInstructor', oldInstructor);
+
+  return [
+    `הועבר מ־${oldInstructor}`,
+    oldDate ? `ביום ${oldDate}` : '',
+    oldTime ? `בשעה ${oldTime}` : '',
+
+    `אל ${newInstructor}`,
+    newDate ? `ביום ${newDate}` : '',
+    newTime ? `בשעה ${newTime}` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+    
+}
+
+private formatOccurrenceDate(value: any): string {
+  const raw = String(value || '').slice(0, 10);
+  const [year, month, day] = raw.split('-');
+
+  if (!year || !month || !day) {
+    return raw;
+  }
+
+  return `${day}/${month}/${year}`;
 }
 
   /* ===================== NOTES ===================== */

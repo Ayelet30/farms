@@ -2132,26 +2132,69 @@ async recalculateMoveSlots(): Promise<void> {
       const to = range?.end ?? in8Weeks;
 
       // 1) השיעורים עצמם (כמו שהיה)
-      const { data: occData, error: err1 } = await dbc
-        .from('lessons_occurrences')
-        .select(`
-  lesson_id,
-  child_id,
-  day_of_week,
-  start_time,
-  end_time,
-  lesson_type,
-  status,
-  instructor_id,
-  start_datetime,
-  end_datetime,
-  occur_date,
-  series_id,
-  appointment_kind,
-  repeat_weeks,
-  is_open_ended,
-  series_end_date
-`)
+       const { data: occData, error: err1 } = await dbc
+  .from('lessons_occurrences')
+  .select(`
+    lesson_id,
+    child_id,
+
+    day_of_week,
+    start_time,
+    end_time,
+
+    lesson_type,
+    status,
+    instructor_id,
+
+    start_datetime,
+    end_datetime,
+    occur_date,
+
+    series_id,
+    appointment_kind,
+    repeat_weeks,
+    is_open_ended,
+    series_end_date,
+
+    approval_id,
+    is_cancellation,
+    is_makeup_target,
+    payment_plan_id,
+    lesson_price_agorot,
+    canceller_role,
+    is_billable,
+    is_makeup_allowed,
+
+    occurrence_change_id,
+    occurrence_change_type,
+    is_single_occurrence_move,
+
+    original_occur_date,
+
+    original_instructor_id,
+    original_instructor_name,
+
+    new_instructor_id,
+    new_instructor_name,
+
+    original_start_time,
+    original_end_time,
+
+    new_start_time,
+    new_end_time,
+
+    original_day_of_week,
+    new_day_of_week,
+
+    original_start_datetime,
+    new_start_datetime,
+    new_end_datetime,
+
+    occurrence_change_note,
+    occurrence_change_created_at,
+    occurrence_change_created_by_role,
+    occurrence_change_created_by_uid
+  `)
 
         .in('child_id', childIds)
         .gte('occur_date', from)
@@ -2159,6 +2202,7 @@ async recalculateMoveSlots(): Promise<void> {
         .order('start_datetime', { ascending: true });
 
       if (err1) throw err1;
+
 
       const lessonIds = [...new Set((occData ?? []).map((r: any) => r.lesson_id).filter(Boolean))];
 
@@ -2223,6 +2267,7 @@ async recalculateMoveSlots(): Promise<void> {
         const attendanceStatus = attendanceByKey.get(attendanceKey) || '';
 
         return {
+          ...r,
           lesson_id: String(r.lesson_id ?? ''),
           id: String(r.lesson_id ?? ''),
           child_id: r.child_id,
@@ -2246,6 +2291,7 @@ async recalculateMoveSlots(): Promise<void> {
           is_open_ended: r.is_open_ended,
           series_end_date: r.series_end_date,
           attendance_status: attendanceStatus,
+        
         } as Lesson;
       });
     } catch (err) {
@@ -2416,12 +2462,72 @@ async recalculateMoveSlots(): Promise<void> {
           lesson_id: lesson.lesson_id,
           occur_date: lesson.occur_date,
 
+          start_time: lesson.start_time ?? null,
+          end_time: lesson.end_time ?? null,
+          start_datetime: lesson.start_datetime ?? null,
+          end_datetime: lesson.end_datetime ?? null,
+
           series_id: lesson.series_id,
           appointment_kind: lesson.appointment_kind,
           repeat_weeks: lesson.repeat_weeks,
           is_open_ended: lesson.is_open_ended,
           series_end_date: lesson.series_end_date,
           attendance_status: lesson.attendance_status ?? '',
+         is_single_occurrence_move: lesson.is_single_occurrence_move === true,
+
+  occurrence_change_id:
+    lesson.occurrence_change_id ?? null,
+
+  occurrence_change_type:
+    lesson.occurrence_change_type ?? null,
+
+  original_occur_date:
+    lesson.original_occur_date ?? null,
+
+  original_instructor_id:
+    lesson.original_instructor_id ?? null,
+
+  original_instructor_name:
+    lesson.original_instructor_name ?? null,
+
+  new_instructor_id:
+    lesson.new_instructor_id ?? null,
+
+  new_instructor_name:
+    lesson.new_instructor_name ?? null,
+
+  original_start_time:
+    lesson.original_start_time ?? null,
+
+  original_end_time:
+    lesson.original_end_time ?? null,
+
+  new_start_time:
+    lesson.new_start_time ?? null,
+
+  new_end_time:
+    lesson.new_end_time ?? null,
+
+  original_day_of_week:
+    lesson.original_day_of_week ?? null,
+
+  new_day_of_week:
+    lesson.new_day_of_week ?? null,
+
+  original_start_datetime:
+    lesson.original_start_datetime ?? null,
+
+  new_start_datetime:
+    lesson.new_start_datetime ?? null,
+
+  new_end_datetime:
+    lesson.new_end_datetime ?? null,
+
+  occurrence_change_note:
+    lesson.occurrence_change_note ?? null,
+
+  occurrence_change_created_at:
+    lesson.occurrence_change_created_at ?? null,
         },
       } as any;
     };
@@ -2988,14 +3094,171 @@ async recalculateMoveSlots(): Promise<void> {
       rawStatus.includes('cancel');
 
     this.selectedOccurrence = {
-      lesson_id: lessonId,
-      child_id: childId,
-      occur_date: occurDate,
-      status: meta.status ?? null,
-      lesson_type: meta.lesson_type ?? null,
-      start: arg.event.start,
-      end: arg.event.end
-    };
+  ...ext,
+  ...meta,
+
+  lesson_id:
+    lessonId,
+
+  child_id:
+    childId,
+
+  occur_date:
+    occurDate,
+
+  status:
+    meta.status ??
+    ext.status ??
+    null,
+
+  lesson_type:
+    meta.lesson_type ??
+    ext.lesson_type ??
+    null,
+
+  start:
+    arg.event.start,
+
+  end:
+    arg.event.end,
+
+  start_time:
+    meta.start_time ??
+    ext.start_time ??
+    null,
+
+  end_time:
+    meta.end_time ??
+    ext.end_time ??
+    null,
+
+  start_datetime:
+    meta.start_datetime ??
+    ext.start_datetime ??
+    arg.event.startStr ??
+    null,
+
+  end_datetime:
+    meta.end_datetime ??
+    ext.end_datetime ??
+    arg.event.endStr ??
+    null,
+
+  attendance_status:
+    meta.attendance_status ??
+    ext.attendance_status ??
+    null,
+
+  instructor_id:
+    meta.instructor_id ??
+    ext.instructor_id ??
+    null,
+
+  instructor_name:
+    meta.instructor_name ??
+    ext.instructor_name ??
+    meta.new_instructor_name ??
+    ext.new_instructor_name ??
+    null,
+
+  occurrence_change_id:
+    meta.occurrence_change_id ??
+    ext.occurrence_change_id ??
+    null,
+
+  occurrence_change_type:
+    meta.occurrence_change_type ??
+    ext.occurrence_change_type ??
+    null,
+
+  is_single_occurrence_move:
+    meta.is_single_occurrence_move === true ||
+    meta.is_single_occurrence_move === 'true' ||
+    ext.is_single_occurrence_move === true ||
+    ext.is_single_occurrence_move === 'true' ||
+    meta.occurrence_change_type === 'MOVE' ||
+    ext.occurrence_change_type === 'MOVE',
+
+  original_occur_date:
+    meta.original_occur_date ??
+    ext.original_occur_date ??
+    null,
+
+  original_instructor_id:
+    meta.original_instructor_id ??
+    ext.original_instructor_id ??
+    null,
+
+  original_instructor_name:
+    meta.original_instructor_name ??
+    ext.original_instructor_name ??
+    null,
+
+  new_instructor_id:
+    meta.new_instructor_id ??
+    ext.new_instructor_id ??
+    null,
+
+  new_instructor_name:
+    meta.new_instructor_name ??
+    ext.new_instructor_name ??
+    null,
+
+  original_start_time:
+    meta.original_start_time ??
+    ext.original_start_time ??
+    null,
+
+  original_end_time:
+    meta.original_end_time ??
+    ext.original_end_time ??
+    null,
+
+  new_start_time:
+    meta.new_start_time ??
+    ext.new_start_time ??
+    null,
+
+  new_end_time:
+    meta.new_end_time ??
+    ext.new_end_time ??
+    null,
+
+  original_day_of_week:
+    meta.original_day_of_week ??
+    ext.original_day_of_week ??
+    null,
+
+  new_day_of_week:
+    meta.new_day_of_week ??
+    ext.new_day_of_week ??
+    null,
+
+  original_start_datetime:
+    meta.original_start_datetime ??
+    ext.original_start_datetime ??
+    null,
+
+  new_start_datetime:
+    meta.new_start_datetime ??
+    ext.new_start_datetime ??
+    null,
+
+  new_end_datetime:
+    meta.new_end_datetime ??
+    ext.new_end_datetime ??
+    null,
+
+  occurrence_change_note:
+    meta.occurrence_change_note ??
+    ext.occurrence_change_note ??
+    null,
+
+  occurrence_change_created_at:
+    meta.occurrence_change_created_at ??
+    ext.occurrence_change_created_at ??
+    null,
+};
 
 
     this.cdr.detectChanges();
@@ -3699,13 +3962,52 @@ private buildLocalDateTime(
   const newEndDatetime =
     this.buildLocalDateTime(date, end);
 
-  console.log('move datetime values', {
-    selectedDate: date,
-    selectedStart: start,
-    selectedEnd: end,
-    sentStart: newStartDatetime,
-    sentEnd: newEndDatetime,
-  });
+ const oldInstructorName =
+  String(
+    this.moveChoiceModal.instructorName || ''
+  ).trim() || 'מדריך לא ידוע';
+
+const newInstructorName =
+  String(
+    slot.instructor_name ||
+    slot.instructorName ||
+    newInstructorId
+  ).trim();
+
+const originalDate =
+  String(
+    this.moveChoiceModal.occurDate || ''
+  ).slice(0, 10);
+
+const originalStartTime =
+  String(
+    this.moveChoiceModal.startTime || ''
+  ).slice(0, 5);
+
+const originalEndTime =
+  String(
+    this.moveChoiceModal.endTime || ''
+  ).slice(0, 5);
+
+const moveNote = [
+  'השיעור הועבר באופן חד־פעמי',
+  `מ־${oldInstructorName}`,
+  originalDate
+    ? `בתאריך ${originalDate}`
+    : '',
+  originalStartTime
+    ? `בשעה ${originalStartTime}${originalEndTime ? `–${originalEndTime}` : ''}`
+    : '',
+  `ל־${newInstructorName}`,
+  date
+    ? `בתאריך ${date}`
+    : '',
+  start
+    ? `בשעה ${start}${end ? `–${end}` : ''}`
+    : '',
+]
+  .filter(Boolean)
+  .join(' ');
 
   const { data, error } = await dbTenant().rpc(
     'move_lesson_occurrence',
@@ -3725,7 +4027,7 @@ private buildLocalDateTime(
       p_new_end_datetime:
         newEndDatetime,
 
-      p_note: null,
+      p_note: moveNote,
       p_created_by_role: 'secretary',
       p_created_by_uid: null,
     }
@@ -3733,7 +4035,6 @@ private buildLocalDateTime(
 
   if (error) throw error;
 
-  console.log('move result', data);
 }
 
     if (this.moveSlotsModal.mode === 'series') {

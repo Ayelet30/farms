@@ -128,7 +128,16 @@
               </span>
 
               <span class="day-badges">
-                <span class="mini-badge type-badge" *ngIf="getItemLessonTypeShort(item)">
+                <span
+                  *ngIf="isSingleOccurrenceMove(item)"
+                  class="mini-badge single-move-badge"
+                  [title]="getSingleMoveTooltip(item)">
+                  ⇄
+                </span>
+
+                <span
+                  class="mini-badge type-badge"
+                  *ngIf="getItemLessonTypeShort(item)">
                   {{ getItemLessonTypeShort(item) }}
                 </span>
               </span>
