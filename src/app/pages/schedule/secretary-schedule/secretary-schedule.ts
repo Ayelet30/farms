@@ -2366,36 +2366,102 @@ confirmManualMove(): void {
     this.savePageState(); // להוסיף
   }
 
-  async onViewRange(range: { start: string; end: string; viewType: string }) {
-    if (this.isRestoringScheduleState) {
-      return;
-    }
-
-    this.currentRange = range;
-    this.currentViewType = range.viewType as any;
-
-    this.currentCalendarDate = range.start?.slice(0, 10) ?? null;
-
-    await this.loadLessons({ start: range.start, end: range.end });
-    await this.loadFarmDaysOffForRange(range.start.slice(0, 10), range.end.slice(0, 10));
-    await this.loadRequestsForRange(range.start.slice(0, 10), range.end.slice(0, 10));
-    await this.loadInstructorWeeklyAvailability();
-
-    this.filterLessons();
-    this.setScheduleItems();
-    this.buildBlockedDayCells(range);
-    this.buildAvailableDayCells(range);
-    this.buildWeekStats();
-
-    if (!this.isRestoringScheduleState) {
-      this.savePageState();
-
-
-    }
-
-    this.cdr.detectChanges();
+ async onViewRange(range: {
+  start: string;
+  end: string;
+  viewType: string;
+}): Promise<void> {
+  if (this.isRestoringScheduleState) {
+    return;
   }
 
+  this.currentRange = range;
+  this.currentViewType = range.viewType as any;
+
+  const selectedDate = range.start?.slice(0, 10) ?? '';
+
+  this.currentCalendarDate = selectedDate || null;
+
+  /*
+   * עדכון אוטומטי של המדריכים מתבצע רק כשהגענו לתצוגת יום.
+   * כך ניווט בתוך תצוגת שבוע או חודש לא משנה את הסינון.
+   */
+  const isDayView =
+    range.viewType === 'timeGridDay' ||
+    range.viewType === 'resourceTimeGridDay';
+
+  if (isDayView && selectedDate) {
+    await this.loadInstructorWeeklyAvailability();
+    this.selectWorkingInstructorsForDay(selectedDate);
+  }
+
+  await this.loadLessons({
+    start: range.start,
+    end: range.end
+  });
+
+  await this.loadFarmDaysOffForRange(
+    range.start.slice(0, 10),
+    range.end.slice(0, 10)
+  );
+
+  await this.loadRequestsForRange(
+    range.start.slice(0, 10),
+    range.end.slice(0, 10)
+  );
+
+  /*
+   * בשבוע ובחודש עדיין צריך לטעון זמינויות לצביעת התאים,
+   * אך בלי לשנות את המדריכים המסומנים.
+   */
+  if (!isDayView) {
+    await this.loadInstructorWeeklyAvailability();
+  }
+
+  this.filterLessons();
+  this.setScheduleItems();
+  this.buildBlockedDayCells(range);
+  this.buildAvailableDayCells(range);
+  this.buildWeekStats();
+
+  if (!this.isRestoringScheduleState) {
+    this.savePageState();
+  }
+
+  this.cdr.detectChanges();
+}
+
+private selectWorkingInstructorsForDay(dateYmd: string): void {
+  if (!dateYmd) return;
+
+  const dow = this.dbDowFromYmd(dateYmd);
+
+  const workingInstructorIds = new Set(
+    (this.instructorWeeklyAvailability ?? [])
+      .filter(row => Number(row.day_of_week) === dow)
+      .map(row => String(row.instructor_id_number))
+  );
+
+  // רק מדריכים פעילים שעובדים ביום שנבחר
+  this.instructorsToday = this.instructors.filter(instructor =>
+    workingInstructorIds.has(String(instructor.id_number))
+  );
+
+  // אם יש מדריכים שעובדים באותו יום – בוחרים רק אותם
+  if (this.instructorsToday.length) {
+    this.selectedInstructorIds = this.instructorsToday.map(
+      instructor => String(instructor.id_number)
+    );
+  } else {
+    // אותה התנהגות כמו בטעינה הראשונה:
+    // אם לא הוגדרה זמינות לאותו יום, מציגים את כל הפעילים
+    this.selectedInstructorIds = this.instructors.map(
+      instructor => String(instructor.id_number)
+    );
+  }
+
+  this.rebuildInstructorResources();
+}
 
   private async loadLessons(
     range?: { start: string; end: string }

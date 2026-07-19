@@ -177,6 +177,8 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
 
   @HostListener('window:resize')
 
+  
+
   onResize() {
     const next = window.innerWidth < 600;
     if (next === this.isNarrow600) return;
@@ -918,15 +920,26 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
       sourceView: 'timeGridDay',
     });
   }
-  toggleFullscreen() {
-    this.isFullscreen = !this.isFullscreen;
-    document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
 
-    setTimeout(() => {
-      this.calendarApi?.updateSize();
-      this.cdr.detectChanges();
-    }, 0);
-  }
+  toggleFullscreen(): void {
+  this.isFullscreen = !this.isFullscreen;
+
+  document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
+
+  window.dispatchEvent(
+    new CustomEvent('schedule-fullscreen-change', {
+      detail: {
+        fullscreen: this.isFullscreen
+      }
+    })
+  );
+
+  setTimeout(() => {
+    this.calendarApi?.updateSize();
+    this.cdr.detectChanges();
+  }, 50);
+}
+
   trackById(i: number, item: any) {
     return item.id;
   }
