@@ -138,6 +138,15 @@ type SavedChildrenFilter = {
   parentFilter: 'all' | 'withParent' | 'withoutParent';
 };
 
+type ExistsFilter = 'all' | 'exists' | 'missing';
+
+type HelmetFilter =
+  | 'all'
+  | 'exists'
+  | 'missing'
+  | 'purchased'
+  | 'home';
+
 
 @Component({
   selector: 'app-secretary-children',
@@ -191,6 +200,10 @@ export class SecretaryChildrenComponent implements OnInit {
     series: 'all' as SeriesFilter,
     referral: 'all' as ReferralFilter,
     missingDocs: 'all' as MissingDocsFilter,
+
+    healthDeclaration: 'all' as ExistsFilter,
+    paymentCard: 'all' as ExistsFilter,
+    helmet: 'all' as HelmetFilter,
   };
 
   instructors: { id_number: string; first_name?: string | null; last_name?: string | null; name?: string | null }[] = [];
@@ -199,6 +212,10 @@ export class SecretaryChildrenComponent implements OnInit {
 
   termsByChild: Record<string, { signed: boolean; signedAt: string | null }> = {};
   intakeByChild: Record<string, boolean> = {};
+
+  healthDeclarationByChild: Record<string, boolean> = {};
+paymentCardByParent: Record<string, boolean> = {};
+
 
   lessonMetaByChild: Record<string, {
     instructorIds: string[];
@@ -237,6 +254,16 @@ export class SecretaryChildrenComponent implements OnInit {
     withoutParent: 0,
   };
 
+  parentsByUid: Record<
+  string,
+  {
+    uid: string;
+    first_name: string;
+    last_name: string;
+    email: string | null;
+  }
+> = {};
+
   children: ChildRow[] = [];
   isLoading = true;
   error: string | null = null;
@@ -260,7 +287,7 @@ export class SecretaryChildrenComponent implements OnInit {
 
   searchText = '';
   searchMode: 'name' | 'id' = 'name';
-  statusFilter: 'all' | 'active' | 'inactive' | 'pending' = 'all';
+  statusFilter: 'all' | 'active' | 'inactive' | 'pending' = 'active';
   parentFilter: 'all' | 'withParent' | 'withoutParent' = 'all';
   showSearchPanel = false;
   showColumnsPanel = false;
@@ -401,6 +428,7 @@ scheduled_deletion_at,deletion_note
       if (error) throw error;
 
       this.children = (data ?? []) as ChildRow[];
+      await this.loadParentsForChildren();
       this.updateStats();
     } catch (e: any) {
       this.error = e?.message ?? 'Failed to fetch children.';
@@ -411,6 +439,46 @@ scheduled_deletion_at,deletion_note
       await this.loadHorsesAndChildMapping();
     }
   }
+
+  private async loadParentsForChildren(): Promise<void> {
+  try {
+    const parentUids = Array.from(
+      new Set(
+        this.children
+          .map((child: any) => child.parent_uid)
+          .filter(Boolean)
+      )
+    ) as string[];
+
+    this.parentsByUid = {};
+
+    if (!parentUids.length) return;
+
+    const db = await this.dbc();
+
+    const { data, error } = await db
+      .from('parents')
+      .select('uid, first_name, last_name, email')
+      .in('uid', parentUids);
+
+    if (error) throw error;
+
+    this.parentsByUid = Object.fromEntries(
+      (data ?? []).map((parent: any) => [
+        parent.uid,
+        {
+          uid: parent.uid,
+          first_name: parent.first_name ?? '',
+          last_name: parent.last_name ?? '',
+          email: parent.email ?? null,
+        },
+      ])
+    );
+  } catch (error) {
+    console.error('loadParentsForChildren failed:', error);
+    this.parentsByUid = {};
+  }
+}
 
   private async loadHorsesAndChildMapping(): Promise<void> {
     try {
@@ -701,6 +769,88 @@ scheduled_deletion_at,deletion_note
     return rows;
   }
 
+  get filteredChildrenParents(): Array<{
+  uid: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+}> {
+  const uniqueParents = new Map<
+    string,
+    {
+      uid: string;
+      first_name: string;
+      last_name: string;
+      email: string;
+    }
+  >();
+
+  for (const child of this.filteredChildren as any[]) {
+    const parentUid = child.parent_uid;
+
+    if (!parentUid) continue;
+
+    const parent = this.parentsByUid[parentUid];
+    const email = String(parent?.email ?? '')
+      .trim()
+      .toLowerCase();
+
+    if (!parent || !this.isValidEmail(email)) continue;
+
+    uniqueParents.set(parentUid, {
+      uid: parentUid,
+      first_name: parent.first_name,
+      last_name: parent.last_name,
+      email,
+    });
+  }
+
+  return Array.from(uniqueParents.values());
+}
+
+private isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+async sendEmailToFilteredChildrenParents(): Promise<void> {
+  const parents = this.filteredChildrenParents;
+
+  if (!parents.length) {
+    await this.ui.alert(
+      'לא נמצאו כתובות מייל תקינות להורי הילדים המוצגים.',
+      'שליחת הודעה'
+    );
+    return;
+  }
+
+  const emails = parents.map(parent => parent.email);
+
+  await navigator.clipboard.writeText(emails.join('; '));
+
+  if (emails.length > 80) {
+    window.open(
+      'https://mail.google.com/mail/?view=cm&fs=1',
+      '_blank'
+    );
+
+    await this.ui.alert(
+      `${emails.length} כתובות הועתקו ללוח.\n` +
+      `בגלל כמות הנמענים, יש להדביק אותן ידנית בשדה BCC.`,
+      'כתובות הועתקו'
+    );
+
+    return;
+  }
+
+  const bcc = encodeURIComponent(emails.join(','));
+  const subject = encodeURIComponent('הודעה מחוות בראשית');
+
+  const gmailUrl =
+    `https://mail.google.com/mail/?view=cm&fs=1&bcc=${bcc}&su=${subject}`;
+
+  window.open(gmailUrl, '_blank');
+}
+
   private isChildActive(row: any): boolean {
     return this.isActiveStatus(row?.status);
   }
@@ -753,7 +903,7 @@ scheduled_deletion_at,deletion_note
   clearFilters() {
     this.searchText = '';
     this.searchMode = 'name';
-    this.statusFilter = 'all';
+    this.statusFilter = 'active';
     this.parentFilter = 'all';
 
     this.advancedFilters = {
@@ -782,6 +932,10 @@ scheduled_deletion_at,deletion_note
       series: 'all',
       referral: 'all',
       missingDocs: 'all',
+
+      healthDeclaration: 'all',
+      paymentCard: 'all',
+      helmet: 'all',
     };
 
     this.updateStats();
@@ -1665,11 +1819,30 @@ this.seriesDocs = rows.map((row: any) => ({
       .in('child_id', childIds);
 
     this.intakeByChild = {};
-    for (const row of docsData ?? []) {
-      if (String((row as any).document_name ?? '').trim() === 'אינטק') {
-        this.intakeByChild[(row as any).child_id] = true;
-      }
-    }
+this.healthDeclarationByChild = {};
+
+for (const row of docsData ?? []) {
+  const childId = String((row as any).child_id ?? '');
+  const documentName = String(
+    (row as any).document_name ?? ''
+  )
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!childId) continue;
+
+  if (documentName === 'אינטק') {
+    this.intakeByChild[childId] = true;
+  }
+
+  if (
+    documentName === 'הצהרת בריאות' ||
+    documentName === 'הצהרת בריאות חתומה' ||
+    documentName.includes('הצהרת בריאות')
+  ) {
+    this.healthDeclarationByChild[childId] = true;
+  }
+}
 
     const { data: lessonsData } = await db
       .from('lessons')

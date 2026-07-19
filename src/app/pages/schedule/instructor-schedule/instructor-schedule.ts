@@ -231,16 +231,44 @@ export class InstructorScheduleComponent implements OnInit {
     const { data, error } = await dbc
       .from('lessons_occurrences')
       .select(`
-    lesson_id,
-    child_id,
-    instructor_id,
-    lesson_type,
-    status,
-    start_datetime,
-    end_datetime,
-    occur_date,
-    start_time
-  `)
+  lesson_id,
+  child_id,
+  instructor_id,
+  lesson_type,
+  status,
+
+  start_datetime,
+  end_datetime,
+  occur_date,
+  start_time,
+  end_time,
+
+  occurrence_change_id,
+  occurrence_change_type,
+  is_single_occurrence_move,
+
+  original_occur_date,
+  original_instructor_id,
+  original_instructor_name,
+
+  new_instructor_id,
+  new_instructor_name,
+
+  original_start_time,
+  original_end_time,
+  new_start_time,
+  new_end_time,
+
+  original_day_of_week,
+  new_day_of_week,
+
+  original_start_datetime,
+  new_start_datetime,
+  new_end_datetime,
+
+  occurrence_change_note,
+  occurrence_change_created_at
+`)
       .eq('instructor_id', this.instructorId)
       .gte('occur_date', startYmd)
       .lte('occur_date', endYmd);
@@ -791,18 +819,88 @@ export class InstructorScheduleComponent implements OnInit {
           meta: {
             child_id: l.child_id,
             child_name: name,
+
             instructor_id: l.instructor_id,
-            instructor_name: '',
+            instructor_name: l.new_instructor_name ?? '',
+
             status: l.status,
             lesson_type: lessonTypeLabel,
 
-
             horse_name: l.horse_name ?? null,
             arena_name: l.arena_name ?? null,
-            occur_date: (l.occur_date ?? '').slice(0, 10),
+
+            occur_date:
+              String(l.occur_date ?? '').slice(0, 10),
+
             lesson_id: l.lesson_id,
 
-            instructor_color: this.instructorColor,
+            start_time: l.start_time ?? null,
+            end_time: l.end_time ?? null,
+            start_datetime: l.start_datetime ?? null,
+            end_datetime: l.end_datetime ?? null,
+
+            attendance_status:
+              l.attendance_status ?? null,
+
+            is_single_occurrence_move:
+              l.is_single_occurrence_move === true,
+
+            occurrence_change_id:
+              l.occurrence_change_id ?? null,
+
+            occurrence_change_type:
+              l.occurrence_change_type ?? null,
+
+            original_occur_date:
+              l.original_occur_date ?? null,
+
+            original_instructor_id:
+              l.original_instructor_id ?? null,
+
+            original_instructor_name:
+              l.original_instructor_name ?? null,
+
+            new_instructor_id:
+              l.new_instructor_id ?? null,
+
+            new_instructor_name:
+              l.new_instructor_name ?? null,
+
+            original_start_time:
+              l.original_start_time ?? null,
+
+            original_end_time:
+              l.original_end_time ?? null,
+
+            new_start_time:
+              l.new_start_time ?? null,
+
+            new_end_time:
+              l.new_end_time ?? null,
+
+            original_day_of_week:
+              l.original_day_of_week ?? null,
+
+            new_day_of_week:
+              l.new_day_of_week ?? null,
+
+            original_start_datetime:
+              l.original_start_datetime ?? null,
+
+            new_start_datetime:
+              l.new_start_datetime ?? null,
+
+            new_end_datetime:
+              l.new_end_datetime ?? null,
+
+            occurrence_change_note:
+              l.occurrence_change_note ?? null,
+
+            occurrence_change_created_at:
+              l.occurrence_change_created_at ?? null,
+
+            instructor_color:
+              this.instructorColor,
           } as any,
           status: l.status as any,
         };
@@ -917,26 +1015,196 @@ export class InstructorScheduleComponent implements OnInit {
 
     this.attendanceStatus = normalizedAttendance;
 
-    this.selectedOccurrence = {
-      lesson_id: lessonId,
-      child_id: childId,
-      occur_date:
-        metaProps.occur_date ??
-        (arg.event.start
-          ? arg.event.start.toLocaleDateString('sv-SE')
-          : null),
+   const props = arg.event.extendedProps || {};
 
-      status: metaProps.status ?? extProps.status ?? null,
-      lesson_type: lessonTypeLabel,
-      start: arg.event.start,
-      end: arg.event.end,
-      isCancelled,
+this.selectedOccurrence = {
+  ...metaProps,
+  ...extProps,
 
-      attendance_status: normalizedAttendance,
+  lesson_id:
+    lessonId,
 
-      horse_name: metaProps.horse_name ?? null,
-      arena_name: metaProps.arena_name ?? null,
-    };
+  child_id:
+    childId,
+
+  occur_date:
+    metaProps.occur_date ??
+    extProps.occur_date ??
+    (
+      arg.event.start
+        ? arg.event.start.toLocaleDateString('sv-SE')
+        : null
+    ),
+
+  status:
+    metaProps.status ??
+    extProps.status ??
+    null,
+
+  lesson_type:
+    lessonTypeLabel,
+
+  start:
+    arg.event.start,
+
+  end:
+    arg.event.end,
+
+  /*
+   * זמן האוקורנס בפועל.
+   */
+  start_datetime:
+    metaProps.start_datetime ??
+    extProps.start_datetime ??
+    arg.event.startStr ??
+    null,
+
+  end_datetime:
+    metaProps.end_datetime ??
+    extProps.end_datetime ??
+    arg.event.endStr ??
+    null,
+
+  start_time:
+    metaProps.start_time ??
+    extProps.start_time ??
+    (
+      arg.event.start
+        ? `${String(arg.event.start.getHours()).padStart(2, '0')}:${String(
+            arg.event.start.getMinutes()
+          ).padStart(2, '0')}`
+        : null
+    ),
+
+  end_time:
+    metaProps.end_time ??
+    extProps.end_time ??
+    (
+      arg.event.end
+        ? `${String(arg.event.end.getHours()).padStart(2, '0')}:${String(
+            arg.event.end.getMinutes()
+          ).padStart(2, '0')}`
+        : null
+    ),
+
+  isCancelled,
+
+  attendance_status:
+    normalizedAttendance,
+
+  horse_name:
+    metaProps.horse_name ??
+    extProps.horse_name ??
+    null,
+
+  arena_name:
+    metaProps.arena_name ??
+    extProps.arena_name ??
+    null,
+
+  instructor_id:
+    metaProps.instructor_id ??
+    extProps.instructor_id ??
+    this.instructorId,
+
+  instructor_name:
+    metaProps.instructor_name ??
+    extProps.instructor_name ??
+    null,
+
+  occurrence_change_id:
+    metaProps.occurrence_change_id ??
+    extProps.occurrence_change_id ??
+    null,
+
+  occurrence_change_type:
+    metaProps.occurrence_change_type ??
+    extProps.occurrence_change_type ??
+    null,
+
+  is_single_occurrence_move:
+    metaProps.is_single_occurrence_move === true ||
+    metaProps.is_single_occurrence_move === 'true' ||
+    extProps.is_single_occurrence_move === true ||
+    extProps.is_single_occurrence_move === 'true' ||
+    metaProps.occurrence_change_type === 'MOVE' ||
+    extProps.occurrence_change_type === 'MOVE',
+
+  original_occur_date:
+    metaProps.original_occur_date ??
+    extProps.original_occur_date ??
+    null,
+
+  original_instructor_id:
+    metaProps.original_instructor_id ??
+    extProps.original_instructor_id ??
+    null,
+
+  original_instructor_name:
+    metaProps.original_instructor_name ??
+    extProps.original_instructor_name ??
+    null,
+
+  new_instructor_id:
+    metaProps.new_instructor_id ??
+    extProps.new_instructor_id ??
+    null,
+
+  new_instructor_name:
+    metaProps.new_instructor_name ??
+    extProps.new_instructor_name ??
+    null,
+
+  original_start_time:
+    metaProps.original_start_time ??
+    extProps.original_start_time ??
+    null,
+
+  original_end_time:
+    metaProps.original_end_time ??
+    extProps.original_end_time ??
+    null,
+
+  new_start_time:
+    metaProps.new_start_time ??
+    extProps.new_start_time ??
+    null,
+
+  new_end_time:
+    metaProps.new_end_time ??
+    extProps.new_end_time ??
+    null,
+
+  original_day_of_week:
+    metaProps.original_day_of_week ??
+    extProps.original_day_of_week ??
+    null,
+
+  new_day_of_week:
+    metaProps.new_day_of_week ??
+    extProps.new_day_of_week ??
+    null,
+
+  original_start_datetime:
+    metaProps.original_start_datetime ??
+    extProps.original_start_datetime ??
+    null,
+
+  new_start_datetime:
+    metaProps.new_start_datetime ??
+    extProps.new_start_datetime ??
+    null,
+
+  new_end_datetime:
+    metaProps.new_end_datetime ??
+    extProps.new_end_datetime ??
+    null,
+
+  occurrence_change_note:
+    metaProps.occurrence_change_note ??
+    extProps.occurrence_change_note ??
+    null,
+};
 
     this.cdr.detectChanges();
   }

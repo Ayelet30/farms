@@ -130,6 +130,8 @@ export class SecretaryParentsComponent implements OnInit {
     gov_id?: string | null;
   }> = [];
 
+  readonly MAX_ID_NUMBER = 9;
+
   parentForm!: FormGroup;
   editMode = false;
 
@@ -367,6 +369,34 @@ export class SecretaryParentsComponent implements OnInit {
     this.saveTablePrefs();
   }
 
+  private normalizeIdNumber(value: any): string {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
+private israeliIdValidator(): ValidatorFn {
+  return (control: AbstractControl): ValidationErrors | null => {
+    const raw = this.normalizeIdNumber(control.value);
+
+    if (!raw) return null;
+    if (raw.length !== 9) return { israelIdLength: true };
+
+    const sum = raw
+      .split('')
+      .map(Number)
+      .reduce((total, digit, index) => {
+        let value = digit * ((index % 2) + 1);
+
+        if (value > 9) {
+          value -= 9;
+        }
+
+        return total + value;
+      }, 0);
+
+    return sum % 10 === 0 ? null : { israelIdInvalid: true };
+  };
+}
+
   moveColumnLeft(index: number): void {
     if (index <= 0) return;
     const arr = [...this.columns];
@@ -509,7 +539,14 @@ export class SecretaryParentsComponent implements OnInit {
         parent.last_name ?? '',
         [Validators.required, Validators.maxLength(this.MAX_LAST_NAME)],
       ],
-      id_number: [{ value: parent.id_number ?? '', disabled: true }],
+      id_number: [
+  parent.id_number ?? '',
+  [
+    Validators.required,
+    Validators.pattern(/^\d{9}$/),
+    this.israeliIdValidator(),
+  ],
+],
       phone: [
         parent.phone ?? '',
         [
@@ -601,6 +638,20 @@ export class SecretaryParentsComponent implements OnInit {
     if (ln?.errors?.['required']) msgs.push('שם משפחה: שדה חובה');
     if (ln?.errors?.['maxlength']) msgs.push(`שם משפחה: עד ${this.MAX_LAST_NAME} תווים`);
 
+    const idNumber = this.parentForm.get('id_number');
+
+    if (idNumber?.errors?.['required']) {
+      msgs.push('תעודת זהות: שדה חובה');
+    }
+
+    if (idNumber?.errors?.['pattern'] || idNumber?.errors?.['israelIdLength']) {
+      msgs.push('תעודת זהות: יש להזין 9 ספרות');
+    }
+
+    if (idNumber?.errors?.['israelIdInvalid']) {
+      msgs.push('תעודת זהות: המספר אינו תקין');
+    }
+
     const email = this.parentForm.get('email');
     if (email?.errors?.['required']) msgs.push('אימייל: שדה חובה');
     if (email?.errors?.['email']) msgs.push('אימייל: פורמט לא תקין');
@@ -637,6 +688,7 @@ export class SecretaryParentsComponent implements OnInit {
 
     const first_name = String(formValue.first_name ?? '').trim();
     const last_name = String(formValue.last_name ?? '').trim();
+    const id_number = this.normalizeIdNumber(formValue.id_number);
     const email = String(formValue.email ?? '').trim().toLowerCase();
     const address = String(formValue.address ?? '').trim();
     const extra_notes = String(formValue.extra_notes ?? '');
@@ -645,6 +697,7 @@ export class SecretaryParentsComponent implements OnInit {
 
     if (first_name !== (this.originalParent.first_name ?? '')) changes.first_name = first_name;
     if (last_name !== (this.originalParent.last_name ?? '')) changes.last_name = last_name;
+    if (id_number !== (this.originalParent.id_number ?? '')) changes.id_number = id_number;
     if (formValue.phone !== this.originalParent.phone) changes.phone = formValue.phone;
     if (email !== (this.originalParent.email ?? '')) changes.email = email;
     if (address !== (this.originalParent.address ?? '')) changes.address = address || null;
@@ -675,6 +728,31 @@ export class SecretaryParentsComponent implements OnInit {
     try {
       const db = dbTenant();
       const cleanUid = (this.selectedUid || '').trim();
+
+      if (changes.id_number) {
+  const { data: existingParent, error: duplicateError } = await db
+    .from('parents')
+    .select('uid, first_name, last_name')
+    .eq('id_number', changes.id_number)
+    .neq('uid', cleanUid)
+    .maybeSingle();
+
+  if (duplicateError) {
+    throw duplicateError;
+  }
+
+  if (existingParent) {
+    const existingName =
+      `${existingParent.first_name ?? ''} ${existingParent.last_name ?? ''}`.trim();
+
+    await this.ui.alert(
+      `תעודת הזהות כבר משויכת להורה אחר${existingName ? `: ${existingName}` : ''}.`,
+      'תעודת זהות קיימת'
+    );
+
+    return;
+  }
+}
 
       let data: any = null;
 
@@ -751,6 +829,7 @@ export class SecretaryParentsComponent implements OnInit {
       await this.ui.alert(e?.message || 'שמירת השינויים נכשלה', 'שמירה נכשלה');
     }
   }
+
 
   openAddParentDialog() {
     const ref = this.dialog.open(AddParentDialogComponent, {
@@ -894,6 +973,22 @@ export class SecretaryParentsComponent implements OnInit {
       }
     });
   }
+
+  
+  onParentIdInput(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const cleanValue = input.value.replace(/\D/g, '').slice(0, 9);
+
+  input.value = cleanValue;
+
+  this.parentForm
+    .get('id_number')
+    ?.setValue(cleanValue, { emitEvent: false });
+
+  this.parentForm
+    .get('id_number')
+    ?.markAsTouched();
+}
 
   private getTenantSchemaOrThrow(): string {
     const farm = getCurrentFarmMetaSync();

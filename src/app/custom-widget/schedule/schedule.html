@@ -37,6 +37,24 @@
         <span class="btn-text">היום</span>
       </button>
 
+      <button
+  type="button"
+  class="reload-btn"
+  [disabled]="reloadLoading"
+  (click)="reloadCurrentView()"
+  [title]="reloadLoading ? 'טוען מחדש…' : 'טען מחדש את הלוח'">
+
+  <span
+    class="btn-icon"
+    [class.spinning]="reloadLoading">
+    ↻
+  </span>
+
+  <span class="btn-text">
+    {{ reloadLoading ? 'טוען…' : 'רענן' }}
+  </span>
+</button>
+
       <button class="fullscreen-btn" (click)="toggleFullscreen()" [title]="isFullscreen ? 'צמצם' : 'מסך מלא'">
         <span class="btn-icon">{{ isFullscreen ? '↙' : '⛶' }}</span>
         <span class="btn-text">{{ isFullscreen ? 'צמצם' : 'מסך מלא' }}</span>
@@ -128,7 +146,16 @@
               </span>
 
               <span class="day-badges">
-                <span class="mini-badge type-badge" *ngIf="getItemLessonTypeShort(item)">
+                <span
+                  *ngIf="isSingleOccurrenceMove(item)"
+                  class="mini-badge single-move-badge"
+                  [title]="getSingleMoveTooltip(item)">
+                  ⇄
+                </span>
+
+                <span
+                  class="mini-badge type-badge"
+                  *ngIf="getItemLessonTypeShort(item)">
                   {{ getItemLessonTypeShort(item) }}
                 </span>
               </span>

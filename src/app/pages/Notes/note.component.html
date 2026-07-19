@@ -85,7 +85,6 @@
     <!-- BODY (single scroll) -->
     <div class="sheet-body" #scrollable>
       <ng-container *ngIf="!isInitializing">
-
         <!-- QUICK CHILD SUMMARY -->
         <section class="block" *ngIf="childDetails">
           <div class="block-title">
@@ -157,6 +156,19 @@
             <span>פרטי שיעור</span>
           </div>
 
+          <div
+            class="lesson-move-info"
+            *ngIf="getMoveOfficeNote() as moveNote">
+
+            <div class="lesson-move-info-head">
+              <mat-icon>swap_horiz</mat-icon>
+              <span>העברה חד־פעמית</span>
+            </div>
+
+            <div class="lesson-move-info-text">
+              {{ moveNote }}
+            </div>
+          </div>
           <div class="meta-grid">
             <div class="meta">
               <span class="k">סוג שיעור</span>
