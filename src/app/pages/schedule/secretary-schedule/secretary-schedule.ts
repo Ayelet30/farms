@@ -181,6 +181,19 @@ onWindowScroll(): void {
     selectedSlot: null as any | null,
   };
 
+  manualMoveModal = {
+  open: false,
+  saving: false,
+  error: '',
+
+  date: '',
+  startTime: '',
+  endTime: '',
+  instructorId: '',
+
+  confirmOverride: false,
+};
+
   moveSlotFilters = {
     instructorId: '',
     dayOfWeek: '',
@@ -470,6 +483,87 @@ onWindowScroll(): void {
   }
 }
 
+openManualMoveModal(): void {
+  if (this.moveSlotsModal.mode !== 'single') {
+    this.moveSlotsModal.error =
+      'הזזה לזמן ספציפי אפשרית רק עבור שיעור בודד';
+    return;
+  }
+
+  const originalStart =
+    String(this.moveChoiceModal.startTime || '').slice(0, 5);
+
+  const originalEnd =
+    String(this.moveChoiceModal.endTime || '').slice(0, 5);
+
+  this.manualMoveModal = {
+    open: true,
+    saving: false,
+    error: '',
+
+    date:
+      this.dateToYmd(this.moveSearch.fromDate) ||
+      this.moveChoiceModal.occurDate,
+
+    startTime: originalStart,
+
+    endTime:
+      originalEnd ||
+      this.addMinutesToHm(originalStart || '08:00', 30),
+
+    instructorId:
+      String(this.moveChoiceModal.instructorId || ''),
+
+    confirmOverride: false,
+  };
+
+  this.cdr.detectChanges();
+}
+
+closeManualMoveModal(): void {
+  if (this.manualMoveModal.saving) return;
+
+  this.manualMoveModal.open = false;
+  this.manualMoveModal.error = '';
+  this.manualMoveModal.confirmOverride = false;
+
+  this.cdr.detectChanges();
+}
+
+onManualMoveStartTimeChanged(): void {
+  const start = this.manualMoveModal.startTime;
+
+  if (!start) return;
+
+  const originalStart =
+    String(this.moveChoiceModal.startTime || '').slice(0, 5);
+
+  const originalEnd =
+    String(this.moveChoiceModal.endTime || '').slice(0, 5);
+
+  let durationMinutes = 30;
+
+  if (originalStart && originalEnd) {
+    const [startHour, startMinute] =
+      originalStart.split(':').map(Number);
+
+    const [endHour, endMinute] =
+      originalEnd.split(':').map(Number);
+
+    const calculatedDuration =
+      endHour * 60 +
+      endMinute -
+      (startHour * 60 + startMinute);
+
+    if (calculatedDuration > 0) {
+      durationMinutes = calculatedDuration;
+    }
+  }
+
+  this.manualMoveModal.endTime =
+    this.addMinutesToHm(start, durationMinutes);
+}
+
  onMoveSearchDateChanged(): void {
   this.moveSlotsModal.error = '';
   this.moveSlotsModal.selectedSlot = null;
@@ -651,13 +745,140 @@ async recalculateMoveSlots(): Promise<void> {
     return `${hh}:${mm}`;
   }
 
-  private addMinutesToHm(hm: string, minutesToAdd: number): string {
-    const [h, m] = hm.split(':').map(Number);
-    const total = h * 60 + m + minutesToAdd;
-    const hh = String(Math.floor(total / 60)).padStart(2, '0');
-    const mm = String(total % 60).padStart(2, '0');
-    return `${hh}:${mm}`;
+  private addMinutesToHm(
+  hm: string,
+  minutesToAdd: number
+): string {
+  const [h, m] = hm.split(':').map(Number);
+
+  const total =
+    ((h * 60 + m + minutesToAdd) % (24 * 60) + 24 * 60) %
+    (24 * 60);
+
+  const hh =
+    String(Math.floor(total / 60)).padStart(2, '0');
+
+  const mm =
+    String(total % 60).padStart(2, '0');
+
+  return `${hh}:${mm}`;
+}
+
+confirmManualMove(): void {
+  this.manualMoveModal.error = '';
+
+  const date =
+    String(this.manualMoveModal.date || '').slice(0, 10);
+
+  const start =
+    String(this.manualMoveModal.startTime || '').slice(0, 5);
+
+  const end =
+    String(this.manualMoveModal.endTime || '').slice(0, 5);
+
+  const instructorId =
+    String(this.manualMoveModal.instructorId || '').trim();
+
+  if (!date) {
+    this.manualMoveModal.error = 'יש לבחור תאריך';
+    return;
   }
+
+  if (!start) {
+    this.manualMoveModal.error = 'יש לבחור שעת התחלה';
+    return;
+  }
+
+  if (!end) {
+    this.manualMoveModal.error = 'יש לבחור שעת סיום';
+    return;
+  }
+
+  if (start >= end) {
+    this.manualMoveModal.error =
+      'שעת הסיום חייבת להיות אחרי שעת ההתחלה';
+    return;
+  }
+
+  if (!instructorId) {
+    this.manualMoveModal.error = 'יש לבחור מדריך';
+    return;
+  }
+
+  if (!this.manualMoveModal.confirmOverride) {
+    this.manualMoveModal.error =
+      'יש לאשר שההזזה תתבצע גם אם המועד חורג מכללי המערכת';
+    return;
+  }
+
+  const instructor =
+    this.instructors.find(
+      inst =>
+        String(inst.id_number) === instructorId
+    );
+
+  const instructorName = instructor
+    ? `${instructor.first_name ?? ''} ${instructor.last_name ?? ''}`.trim()
+    : instructorId;
+
+  /*
+   * בונים slot ידני באותו מבנה שבו משתמשת
+   * רשימת האפשרויות הפנויות.
+   */
+  const manualSlot = {
+    occur_date: date,
+    lesson_date: date,
+
+    start_time: start,
+    end_time: end,
+
+    instructor_id: instructorId,
+    instructor_id_number: instructorId,
+
+    instructor_name: instructorName,
+
+    /*
+     * מידע תצוגתי בלבד.
+     */
+    is_manual_override: true,
+  };
+
+  this.moveConfirmModal = {
+    open: true,
+    mode: 'single',
+
+    childName:
+      this.moveChoiceModal.childName,
+
+    originalDate:
+      this.moveChoiceModal.occurDate,
+
+    originalTime:
+      `${this.moveChoiceModal.startTime}` +
+      `${
+        this.moveChoiceModal.endTime
+          ? `–${this.moveChoiceModal.endTime}`
+          : ''
+      }`,
+
+    originalInstructor:
+      this.moveChoiceModal.instructorName,
+
+    newDate: date,
+    newStartTime: start,
+    newEndTime: end,
+    newInstructor: instructorName,
+
+    isPastDate:
+      this.isYmdBeforeToday(date),
+
+    slot: manualSlot,
+  };
+
+  this.manualMoveModal.open = false;
+
+  this.cdr.detectChanges();
+}
 
   private buildAvailableDayCells(range?: { start: string; end: string }): void {
     const available: Array<{
@@ -3752,7 +3973,7 @@ async recalculateMoveSlots(): Promise<void> {
     this.moveSlotsModal.selectedSlot = slot;
   }
 
-  private isYmdBeforeToday(ymd: string): boolean {
+ isYmdBeforeToday(ymd: string): boolean {
   if (!ymd) return false;
 
   const [year, month, day] = ymd.split('-').map(Number);
@@ -4043,8 +4264,13 @@ const originalEndTime =
     this.moveChoiceModal.endTime || ''
   ).slice(0, 5);
 
+const isManualOverride =
+  slot?.is_manual_override === true;
+
 const moveNote = [
-  'השיעור הועבר באופן חד־פעמי',
+  isManualOverride
+    ? 'השיעור הועבר באופן חד־פעמי בדריסת כללי המערכת'
+    : 'השיעור הועבר באופן חד־פעמי',
   `מ־${oldInstructorName}`,
   originalDate
     ? `בתאריך ${originalDate}`
