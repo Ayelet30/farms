@@ -1201,8 +1201,11 @@ export class FarmSettingsComponent implements OnInit {
     try {
       this.saving.set(true);
       this.specialDayBusy.set(true);
-      this.specialDayBusyText.set('שומרת יום מיוחד, מעדכנת שיעורים ושולחת מיילים...');
-      this.error.set(null);
+      this.specialDayBusyText.set(
+        f.notify_parents_before
+          ? 'שומרת יום מיוחד, מעדכנת שיעורים ושולחת מיילים...'
+          : 'שומרת יום מיוחד ומעדכנת שיעורים...'
+      ); this.error.set(null);
       this.success.set(null);
 
       const { data: impacted, error: previewError } = await this.supabase
@@ -1229,6 +1232,7 @@ export class FarmSettingsComponent implements OnInit {
                 startDate: this.specialDayForm().start_date!,
                 endDate: this.specialDayForm().end_date!,
                 allDay: !!f.all_day,
+                notifyParents: !!f.notify_parents_before,
                 rows: impacted as SpecialDayImpactRow[],
               },
             })
@@ -1281,17 +1285,33 @@ export class FarmSettingsComponent implements OnInit {
         instructor_uid: r.out_instructor_uid,
         instructor_name: r.out_instructor_name,
       }));
-      const emailResult = await this.sendFarmDayOffCancellationEmailsViaCloudFunction(
-        normalizedRows,
-        f.reason.trim()
-      );
+      let emailResult = {
+        parentSentCount: 0,
+        instructorSentCount: 0,
+        failedCount: 0,
+        skippedCount: 0,
+      };
+
+      if (f.notify_parents_before) {
+        emailResult =
+          await this.sendFarmDayOffCancellationEmailsViaCloudFunction(
+            normalizedRows,
+            f.reason.trim()
+          );
+      }
 
       await this.loadFarmDaysOff();
       this.closeSpecialDaysModal();
-
-      if (emailResult.failedCount > 0) {
+      if (!f.notify_parents_before) {
         await this.ui.alert(
-          `יום מיוחד נשמר והשיעורים בוטלו.\n\nנשלחו ${emailResult.parentSentCount} מיילים להורים ו־${emailResult.instructorSentCount} מיילים למדריכים, אבל ${emailResult.failedCount} שליחות נכשלו.`,
+          'יום מיוחד נשמר והשיעורים בוטלו. לא נשלחו מיילים.',
+          'הצלחה'
+        );
+      } else if (emailResult.failedCount > 0) {
+        await this.ui.alert(
+          `יום מיוחד נשמר והשיעורים בוטלו.
+
+נשלחו ${emailResult.parentSentCount} מיילים להורים ו־${emailResult.instructorSentCount} מיילים למדריכים, אבל ${emailResult.failedCount} שליחות נכשלו.`,
           'הושלם חלקית'
         );
       } else {
