@@ -293,13 +293,16 @@ onWindowScroll(): void {
     switch (this.busyAction()) {
       case 'check-impact':
         return 'בודק השפעת בקשה…';
+
       case 'submit-day-off':
-        return 'היעדרות בתהליך עדכון ושליחת מיילים…';
+        return this.rangeModal.notifyParents
+          ? 'היעדרות בתהליך עדכון ושליחת מיילים להורים ולמדריך…'
+          : 'היעדרות בתהליך עדכון ושליחת מייל למדריך…';
+
       default:
         return 'מעבד…';
     }
   });
-
 
   contextMenu = {
     visible: false,
@@ -342,6 +345,7 @@ onWindowScroll(): void {
     text: '',
     reviewedImpact: false,
     instructorId: '',
+    notifyParents: true,
   };
 
   private isRestoringScheduleState = false;
@@ -1694,6 +1698,9 @@ confirmManualMove(): void {
       text: '',
       reviewedImpact: false,
       instructorId: instructorId || '',
+
+      // ברירת המחדל: לשלוח מיילים
+      notifyParents: true,
     };
 
     this.cdr.detectChanges();
@@ -1727,6 +1734,7 @@ confirmManualMove(): void {
       text,
       reviewedImpact,
       instructorId,
+      notifyParents,
     } = this.rangeModal;
 
     this.lastAllDayPref = !!allDay;
@@ -1799,7 +1807,8 @@ confirmManualMove(): void {
         allDay ? null : fromTime,
         allDay ? null : toTime,
         type,
-        text?.trim() || null
+        text?.trim() || null,
+        notifyParents
       );
 
       this.closeRangeModal();
@@ -2048,6 +2057,7 @@ confirmManualMove(): void {
     toTime: string | null,
     type: RequestType,
     note: string | null,
+    notifyParents: boolean,
   ): Promise<void> {
     const authMod = await import('firebase/auth');
     const auth = authMod.getAuth();
@@ -2089,6 +2099,7 @@ confirmManualMove(): void {
         requestType: this.mapRequestTypeToDb(type),
         decisionNote: note ?? null,
         medicalCertificateUrl,
+        notifyParents,
       }),
     });
 
