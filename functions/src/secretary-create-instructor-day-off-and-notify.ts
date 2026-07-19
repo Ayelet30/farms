@@ -219,10 +219,13 @@ export const secretaryCreateInstructorDayOffAndNotify = onRequest(
       const endTime = fmtTime(body.endTime);
 
       const requestType = normalizeRequestType(body.requestType);
-      
+
       const decisionNote =
         body.decisionNote == null ? null : String(body.decisionNote).trim();
-
+      const notifyParents =
+        body.notifyParents === undefined || body.notifyParents === null
+          ? true
+          : body.notifyParents === true || body.notifyParents === 'true';
       if (!tenantSchema) {
         return void res.status(400).json({ error: 'Missing tenantSchema' });
       }
@@ -256,36 +259,36 @@ export const secretaryCreateInstructorDayOffAndNotify = onRequest(
       const sbPublic = createClient(url, key, { db: { schema: 'public' } });
 
       // 1) יצירת Unavailability
-     const fromTs = allDay
-  ? toLocalTimestamp(fromDate, '00:00')
-  : toLocalTimestamp(fromDate, startTime!);
+      const fromTs = allDay
+        ? toLocalTimestamp(fromDate, '00:00')
+        : toLocalTimestamp(fromDate, startTime!);
 
-const toTs = allDay
-  ? toLocalTimestamp(toDate, '23:59')
-  : toLocalTimestamp(toDate, endTime!);
-     const reason =
-  decisionNote?.trim() === ''
-    ? null
-    : decisionNote?.trim() ?? null;
-const sickNoteFilePath =
-  body.medicalCertificateUrl == null ||
-  String(body.medicalCertificateUrl).trim() === ''
-    ? null
-    : String(body.medicalCertificateUrl).trim();
-    const { error: unErr } = await sbTenant
-  .from('instructor_unavailability')
-  .insert({
-    instructor_id_number: instructorId,
-    from_ts: fromTs,
-    to_ts: toTs,
+      const toTs = allDay
+        ? toLocalTimestamp(toDate, '23:59')
+        : toLocalTimestamp(toDate, endTime!);
+      const reason =
+        decisionNote?.trim() === ''
+          ? null
+          : decisionNote?.trim() ?? null;
+      const sickNoteFilePath =
+        body.medicalCertificateUrl == null ||
+          String(body.medicalCertificateUrl).trim() === ''
+          ? null
+          : String(body.medicalCertificateUrl).trim();
+      const { error: unErr } = await sbTenant
+        .from('instructor_unavailability')
+        .insert({
+          instructor_id_number: instructorId,
+          from_ts: fromTs,
+          to_ts: toTs,
 
-    reason,
-    all_day: allDay,
+          reason,
+          all_day: allDay,
 
-    category: requestType, 
-    sick_note_file_path:
-      requestType === 'SICK' ? sickNoteFilePath : null, 
-  } as any);
+          category: requestType,
+          sick_note_file_path:
+            requestType === 'SICK' ? sickNoteFilePath : null,
+        } as any);
       if (unErr) throw unErr;
 
       // 2) occurrences בטווח
@@ -417,7 +420,7 @@ const sickNoteFilePath =
       const mailResults: any[] = [];
 
       // 6.1 מדריך — ניסוח חדש
-           // 6.1 מדריך — משתמשים באותו builder כמו בפונקציית האישור
+      // 6.1 מדריך — משתמשים באותו builder כמו בפונקציית האישור
       try {
         if (instructorUid) {
           const { subject, html, text } = buildInstructorDayOffDecisionEmail({
@@ -456,57 +459,83 @@ const sickNoteFilePath =
         mailErrors.push({ to: 'instructor', message: e?.message || String(e) });
       }
       // 6.2 הורים — משתמשים באותו builder הקיים
-      for (const [parentUid, items] of parentBuckets.entries()) {
-        try {
-          const { data: par, error: parErr } = await sbTenant
-            .from('parents')
-            .select('first_name,last_name')
-            .eq('uid', parentUid)
-            .maybeSingle();
+      if (notifyParents) {
+        for (const [parentUid, items] of parentBuckets.entries()) {
+          try {
+            const { data: par, error: parErr } = await sbTenant
+              .from('parents')
+              .select('first_name,last_name')
+              .eq('uid', parentUid)
+              .maybeSingle();
 
-          if (parErr) throw parErr;
+            if (parErr) throw parErr;
 
-          const parentName =
-            fullName((par as any)?.first_name ?? null, (par as any)?.last_name ?? null) || 'הורה';
+            const parentName =
+              fullName(
+                (par as any)?.first_name ?? null,
+                (par as any)?.last_name ?? null
+              ) || 'הורה';
 
-          const { subject, html, text } = buildInstructorDayOffDecisionEmail({
-            kind: 'approved_parent',
-            farmName,
-            parentName,
-            instructorName: instructorName ?? 'המדריך/ה',
-            fromDate,
-            toDate,
-            allDay,
-            startTime,
-            endTime,
-            decisionNote,
-            cancellations: items
-              .sort((a, b) => a.occur_date.localeCompare(b.occur_date))
-              .map(x => ({
-                occurDate: x.occur_date,
-                startTime: x.start_time,
-                endTime: x.end_time,
-                childName: x.child_name,
-              })),
-          });
+            const { subject, html, text } =
+              buildInstructorDayOffDecisionEmail({
+                kind: 'approved_parent',
+                farmName,
+                parentName,
+                instructorName: instructorName ?? 'המדריך/ה',
+                fromDate,
+                toDate,
+                allDay,
+                startTime,
+                endTime,
+                decisionNote,
+                cancellations: items
+                  .sort((a, b) =>
+                    a.occur_date.localeCompare(b.occur_date)
+                  )
+                  .map(x => ({
+                    occurDate: x.occur_date,
+                    startTime: x.start_time,
+                    endTime: x.end_time,
+                    childName: x.child_name,
+                  })),
+              });
 
-          const rMail = await notifyUserInternal({
-            tenantSchema,
-            userType: 'parent',
-            uid: parentUid,
-            subject,
-            html,
-            text,
-            category: 'instructor_day_off',
-            forceEmail: true,
-          });
+            const rMail = await notifyUserInternal({
+              tenantSchema,
+              userType: 'parent',
+              uid: parentUid,
+              subject,
+              html,
+              text,
+              category: 'instructor_day_off',
+              forceEmail: true,
+            });
 
-          mailResults.push({ to: `parent:${parentUid}`, ok: true, result: rMail });
-        } catch (e: any) {
-          mailOk = false;
-          warnings.push('יום החופש עודכן ובוצעו ביטולים, אך שליחת מייל לחלק מההורים נכשלה.');
-          mailErrors.push({ to: `parent:${parentUid}`, message: e?.message || String(e) });
+            mailResults.push({
+              to: `parent:${parentUid}`,
+              ok: true,
+              result: rMail,
+            });
+          } catch (e: any) {
+            mailOk = false;
+
+            warnings.push(
+              'יום החופש עודכן ובוצעו ביטולים, אך שליחת מייל לחלק מההורים נכשלה.'
+            );
+
+            mailErrors.push({
+              to: `parent:${parentUid}`,
+              message: e?.message || String(e),
+            });
+          }
         }
+      } else {
+        mailResults.push({
+          to: 'parents',
+          ok: true,
+          skipped: true,
+          reason: 'notifyParents=false',
+        });
       }
 
       const warning = warnings.length ? warnings.join(' ') : null;
@@ -526,6 +555,7 @@ const sickNoteFilePath =
           endTime,
           instructorId,
           requestType,
+          notifyParents,
         },
       });
     } catch (e: any) {

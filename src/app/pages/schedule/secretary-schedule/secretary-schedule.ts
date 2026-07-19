@@ -269,13 +269,16 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     switch (this.busyAction()) {
       case 'check-impact':
         return 'בודק השפעת בקשה…';
+
       case 'submit-day-off':
-        return 'היעדרות בתהליך עדכון ושליחת מיילים…';
+        return this.rangeModal.notifyParents
+          ? 'היעדרות בתהליך עדכון ושליחת מיילים להורים ולמדריך…'
+          : 'היעדרות בתהליך עדכון ושליחת מייל למדריך…';
+
       default:
         return 'מעבד…';
     }
   });
-
 
   contextMenu = {
     visible: false,
@@ -318,6 +321,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     text: '',
     reviewedImpact: false,
     instructorId: '',
+    notifyParents: true,
   };
 
   private isRestoringScheduleState = false;
@@ -1343,6 +1347,9 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       text: '',
       reviewedImpact: false,
       instructorId: instructorId || '',
+
+      // ברירת המחדל: לשלוח מיילים
+      notifyParents: true,
     };
 
     this.cdr.detectChanges();
@@ -1376,6 +1383,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       text,
       reviewedImpact,
       instructorId,
+      notifyParents,
     } = this.rangeModal;
 
     this.lastAllDayPref = !!allDay;
@@ -1448,7 +1456,8 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
         allDay ? null : fromTime,
         allDay ? null : toTime,
         type,
-        text?.trim() || null
+        text?.trim() || null,
+        notifyParents
       );
 
       this.closeRangeModal();
@@ -1697,6 +1706,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     toTime: string | null,
     type: RequestType,
     note: string | null,
+    notifyParents: boolean,
   ): Promise<void> {
     const authMod = await import('firebase/auth');
     const auth = authMod.getAuth();
@@ -1738,6 +1748,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
         requestType: this.mapRequestTypeToDb(type),
         decisionNote: note ?? null,
         medicalCertificateUrl,
+        notifyParents,
       }),
     });
 
