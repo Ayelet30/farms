@@ -24,6 +24,8 @@ import {
 import { CreateUserService } from '../../services/create-user.service';
 import { TaughtChildGender } from '../../Types/detailes.model';
 import { max } from 'rxjs';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 type InstructorRow = {
   id_number: string;
@@ -131,7 +133,7 @@ bulkBusyMessage = signal<string>('');
 
   // 🔍 חיפוש + סינונים
   searchText = '';
-  searchMode: 'name' | 'id' = 'name';
+  searchMode: 'all' | 'name' | 'id' | 'phone' | 'email' = 'all';
 
   statusFilter: 'all' | 'active' | 'inactive' = 'all';
   makeupFilter: 'all' | 'accepts' | 'not_accepts' = 'all';
@@ -244,13 +246,16 @@ sanitizeAddress(v: any): string {
     const q = (this.searchText || '').trim().toLowerCase();
     if (q) {
       rows = rows.filter((i) => {
-        if (this.searchMode === 'name') {
-          const hay = `${i.first_name || ''} ${i.last_name || ''}`.toLowerCase();
-          return hay.includes(q);
-        }
-
-        const id = (i.id_number || '').toString().trim();
-        return id === q;
+        const name = `${i.first_name || ''} ${i.last_name || ''}`.toLowerCase();
+        const id = String(i.id_number || '').trim();
+        const phone = String(i.phone || '').replace(/\D/g, '');
+        const email = String(i.email || '').toLowerCase();
+        const numericQuery = q.replace(/\D/g, '');
+        if (this.searchMode === 'name') return name.includes(q);
+        if (this.searchMode === 'id') return id === q;
+        if (this.searchMode === 'phone') return !!numericQuery && phone.includes(numericQuery);
+        if (this.searchMode === 'email') return email.includes(q);
+        return name.includes(q) || id.includes(q) || (!!numericQuery && phone.includes(numericQuery)) || email.includes(q);
       });
     }
 
@@ -291,10 +296,131 @@ sanitizeAddress(v: any): string {
 
   clearFilters() {
     this.searchText = '';
-    this.searchMode = 'name';
+    this.searchMode = 'all';
     this.statusFilter = 'all';
     this.makeupFilter = 'all';
     this.genderFilter = 'all';
+  }
+
+  exportInstructorsToExcel(): void {
+    const rows = this.filteredInstructors.map(i => ({
+      'שם פרטי': i.first_name || '', 'שם משפחה': i.last_name || '',
+      'תעודת זהות': i.id_number || '', 'טלפון': i.phone || '', 'אימייל': i.email || '',
+      'סטטוס': this.statusLabel(i.status), 'מגדר': i.gender || '—',
+      'מקבל/ת השלמות': i.accepts_makeup_others ? 'כן' : 'לא',
+      'רשאי/ת לערוך זמינות': i.allow_availability_edit ? 'כן' : 'לא',
+    }));
+    if (!rows.length) {
+      void this.ui.alert('אין מדריכים התואמים לחיפוש ולסינון.', 'ייצוא לאקסל');
+      return;
+    }
+    this.saveWorkbook('מדריכים', rows, [16, 16, 16, 16, 28, 14, 12, 18, 22], `instructors-${this.fileDate()}.xlsx`);
+  }
+
+  async exportWeeklyHoursReport(): Promise<void> {
+    const instructors = this.filteredInstructors;
+    if (!instructors.length) {
+      await this.ui.alert('אין מדריכים התואמים לחיפוש ולסינון.', 'דוח שעות מדריכים');
+      return;
+    }
+    this.bulkBusy.set(true);
+    this.bulkBusyMessage.set('מכינים דוח שעות מדריכים...');
+    try {
+      const ids = instructors.map(i => i.id_number).filter(Boolean);
+      const { data, error } = await dbTenant()
+        .from('instructor_weekly_availability')
+        .select('instructor_id_number, day_of_week, start_time, end_time, lesson_type_mode')
+        .in('instructor_id_number', ids)
+        .order('day_of_week', { ascending: true })
+        .order('start_time', { ascending: true });
+      if (error) throw error;
+
+      const availability = (data ?? []) as InstructorWeeklyAvailabilityRow[];
+      const rows: Record<string, any>[] = [];
+      for (const instructor of instructors) {
+        const own = availability.filter(a => a.instructor_id_number === instructor.id_number);
+        const days = [...new Set(own.map(a => a.day_of_week))].sort((a, b) => a - b);
+        if (!days.length) {
+          rows.push(this.makeHoursRow(instructor, null, [], []));
+          continue;
+        }
+        for (const day of days) {
+          const slots = own.filter(a => a.day_of_week === day && a.start_time && a.end_time);
+          const work = slots.filter(a => a.lesson_type_mode !== 'break')
+            .map(a => [this.timeToMinutes(a.start_time!), this.timeToMinutes(a.end_time!)] as [number, number]);
+          const breaks = slots.filter(a => a.lesson_type_mode === 'break')
+            .map(a => [this.timeToMinutes(a.start_time!), this.timeToMinutes(a.end_time!)] as [number, number]);
+          rows.push(this.makeHoursRow(instructor, day, work, breaks));
+        }
+      }
+      this.saveWorkbook('דוח שעות שבועי', rows, [20, 16, 20, 28, 25, 14, 16, 14], `instructor-weekly-hours-${this.fileDate()}.xlsx`);
+    } catch (e: any) {
+      console.error('exportWeeklyHoursReport failed', e);
+      await this.ui.alert(e?.message || 'הפקת דוח השעות נכשלה.', 'שגיאה');
+    } finally {
+      this.bulkBusy.set(false);
+      this.bulkBusyMessage.set('');
+    }
+  }
+
+  private makeHoursRow(instructor: InstructorRow, day: number | null, work: Array<[number, number]>, breaks: Array<[number, number]>): Record<string, any> {
+    const mergedWork = this.mergeIntervals(work);
+    const mergedBreaks = this.mergeIntervals(breaks);
+    const grossMinutes = this.sumIntervals(mergedWork);
+    const breakMinutes = this.intersectionMinutes(mergedWork, mergedBreaks);
+    return {
+      'שם מדריך/ה': `${instructor.first_name || ''} ${instructor.last_name || ''}`.trim(),
+      'תעודת זהות': instructor.id_number,
+      'יום': day === null ? 'לא הוגדר לוח שבועי' : this.dayOfWeekToLabel(day),
+      'שעות עבודה': mergedWork.length ? mergedWork.map(x => this.intervalLabel(x)).join(', ') : '—',
+      'הפסקות': mergedBreaks.length ? mergedBreaks.map(x => this.intervalLabel(x)).join(', ') : '—',
+      'שעות ברוטו': this.minutesAsHours(grossMinutes),
+      'דקות הפסקה': breakMinutes,
+      'שעות נטו': this.minutesAsHours(Math.max(0, grossMinutes - breakMinutes)),
+    };
+  }
+
+  private timeToMinutes(value: string): number {
+    const [h, m] = String(value).split(':').map(Number);
+    return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+  }
+  private mergeIntervals(intervals: Array<[number, number]>): Array<[number, number]> {
+    const sorted = intervals.filter(([s, e]) => e > s).sort((a, b) => a[0] - b[0]);
+    const merged: Array<[number, number]> = [];
+    for (const [start, end] of sorted) {
+      const last = merged[merged.length - 1];
+      if (!last || start > last[1]) merged.push([start, end]);
+      else last[1] = Math.max(last[1], end);
+    }
+    return merged;
+  }
+  private sumIntervals(intervals: Array<[number, number]>): number {
+    return intervals.reduce((sum, [start, end]) => sum + Math.max(0, end - start), 0);
+  }
+  private intersectionMinutes(work: Array<[number, number]>, breaks: Array<[number, number]>): number {
+    let total = 0;
+    for (const [ws, we] of work) for (const [bs, be] of breaks) total += Math.max(0, Math.min(we, be) - Math.max(ws, bs));
+    return total;
+  }
+  private intervalLabel([start, end]: [number, number]): string {
+    return `${this.minutesToClock(start)}–${this.minutesToClock(end)}`;
+  }
+  private minutesToClock(minutes: number): string {
+    return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+  }
+  private minutesAsHours(minutes: number): number { return Number((minutes / 60).toFixed(2)); }
+  private fileDate(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  private saveWorkbook(sheetName: string, rows: Record<string, any>[], widths: number[], fileName: string): void {
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet['!cols'] = widths.map(wch => ({ wch }));
+    if (worksheet['!ref']) worksheet['!autofilter'] = { ref: worksheet['!ref'] };
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' }), fileName);
   }
 
   // ======= lifecycle =======
