@@ -99,22 +99,34 @@ export class ParentScheduleComponent implements OnInit {
     return start.toISOString().slice(0, 10);
   }
 
-  private calcNextCanceledLesson() {
+  private calcNextCanceledLesson(): void {
     const now = new Date();
 
     const cancelledLessons = this.filteredLessons
-      .filter((l: Lesson) => {
-        if (!l.start_datetime) return false;
+      .filter((lesson: Lesson) => {
+        if (!lesson.start_datetime) {
+          return false;
+        }
 
-        const start = new Date(l.start_datetime);
-        if (isNaN(start.getTime()) || start <= now) return false;
+        const lessonDate = new Date(lesson.start_datetime);
 
-        const status = String(l.status || '').trim();
-        return status === 'בוטל' || status === 'מבוטל' || !!(l as any).hasPendingCancel;
+        if (Number.isNaN(lessonDate.getTime()) || lessonDate <= now) {
+          return false;
+        }
+
+        const status = String(lesson.status ?? '').trim();
+
+        return (
+          status === 'בוטל' ||
+          status === 'מבוטל' ||
+          !!(lesson as any).hasPendingCancel
+        );
       })
-      .sort((a, b) => {
-        return new Date(a.start_datetime!).getTime() - new Date(b.start_datetime!).getTime();
-      });
+      .sort(
+        (a, b) =>
+          new Date(a.start_datetime!).getTime() -
+          new Date(b.start_datetime!).getTime()
+      );
 
     if (!cancelledLessons.length) {
       this.nextCanceledLessonNotes = [];
@@ -122,10 +134,10 @@ export class ParentScheduleComponent implements OnInit {
     }
 
     this.nextCanceledLessonNotes = cancelledLessons.map((lesson: Lesson) => {
-      const childName = lesson.child_name || 'הילד';
-      const date = new Date(lesson.start_datetime!);
+      const childName = lesson.child_name?.trim() || 'הילד/ה';
+      const lessonDate = new Date(lesson.start_datetime!);
 
-      const formattedDate = date.toLocaleDateString('he-IL', {
+      const formattedDate = lessonDate.toLocaleDateString('he-IL', {
         weekday: 'long',
         day: '2-digit',
         month: '2-digit',
@@ -133,10 +145,10 @@ export class ParentScheduleComponent implements OnInit {
       });
 
       if ((lesson as any).hasPendingCancel) {
-        return `${childName} – נשלחה בקשת ביטול לשיעור בתאריך ${formattedDate}`;
+        return `לתשומת ליבך: נשלחה בקשת ביטול עבור השיעור של ${childName}, שתוכנן ליום ${formattedDate}.`;
       }
 
-      return `${childName} – השיעור בוטל בתאריך ${formattedDate}`;
+      return `לתשומת ליבך: השיעור של ${childName}, שתוכנן ליום ${formattedDate}, בוטל.`;
     });
   }
 

@@ -1866,7 +1866,11 @@ export class AppointmentSchedulerComponent implements OnInit {
       const res = (Array.isArray(data) ? data[0] : data) as CreateSeriesWithValidationResult | null;
 
       if (!res?.ok) {
-        const msg = res?.deny_reason || 'לא ניתן ליצור סדרה (ולידציה נכשלה)';
+        const msg = this.getBookingErrorMessage(
+          res?.deny_reason,
+          'לא ניתן ליצור את הסדרה. יש לרענן את הזמינות ולנסות שוב.'
+        );
+
         this.seriesError = msg;
         this.showErrorToast(msg);
         return;
@@ -2323,12 +2327,15 @@ export class AppointmentSchedulerComponent implements OnInit {
       const res = Array.isArray(data) ? data[0] : data;
 
       if (!res?.ok) {
-        const msg = res?.deny_reason || 'לא ניתן ליצור שיעור בודד';
+        const msg = this.getBookingErrorMessage(
+          res?.deny_reason,
+          'לא ניתן ליצור את השיעור הבודד. יש לרענן את הזמינות ולנסות שוב.'
+        );
+
         this.seriesError = msg;
         this.showErrorToast(msg);
         return;
       }
-
       this.showSuccessToast('השיעור הבודד נוצר בהצלחה ✔️');
       await this.onChildChange();
     } finally {
@@ -3409,7 +3416,45 @@ export class AppointmentSchedulerComponent implements OnInit {
       this.searchRecurringSlots();
     }
   }
+  private getBookingErrorMessage(
+    reason: string | null | undefined,
+    fallback: string
+  ): string {
+    const messages: Record<string, string> = {
+      instructor_unavailable:
+        'לא ניתן לקבוע את השיעור במועד זה, משום שהמדריך אינו זמין.',
 
+      farm_unavailable:
+        'לא ניתן לקבוע את השיעור במועד זה, משום שהחווה אינה פעילה.',
+
+      instructor_day_off:
+        'לא ניתן לקבוע את השיעור במועד זה, משום שלמדריך יש יום חופש.',
+
+      slot_unavailable:
+        'המועד שנבחר אינו זמין עוד. יש לבחור מועד אחר.',
+
+      lesson_conflict:
+        'לא ניתן לקבוע את השיעור משום שקיימת התנגשות עם שיעור אחר.',
+
+      child_unavailable:
+        'לא ניתן לקבוע את השיעור במועד זה עבור הילד שנבחר.',
+
+      approval_not_found:
+        'לא נמצא אישור טיפול מתאים.',
+
+      approval_insufficient_balance:
+        'לא נותרה יתרת שיעורים מספקת באישור הטיפול.',
+
+      invalid_payment_plan:
+        'מסלול התשלום שנבחר אינו תקין.',
+    };
+
+    if (!reason) {
+      return fallback;
+    }
+
+    return messages[reason] ?? fallback;
+  }
   onUnlimitedSeriesToggle(): void {
     this.clearUiHint('seriesCount');
 

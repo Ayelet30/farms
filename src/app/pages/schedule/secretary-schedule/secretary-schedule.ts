@@ -119,6 +119,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   items: ScheduleItem[] = [];
 
   isFullscreen = false;
+  showSeriesInstructorSelection = false;
   moveChoiceModal = {
     open: false,
     lessonId: '',
@@ -145,31 +146,31 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     isSeries: false,
   };
 
-moveConfirmModal = {
-  open: false,
-  mode: 'single' as 'single' | 'series',
+  moveConfirmModal = {
+    open: false,
+    mode: 'single' as 'single' | 'series',
 
-  childName: '',
-  originalDate: '',
-  originalTime: '',
-  originalInstructor: '',
+    childName: '',
+    originalDate: '',
+    originalTime: '',
+    originalInstructor: '',
 
-  newDate: '',
-  newStartTime: '',
-  newEndTime: '',
-  newInstructor: '',
+    newDate: '',
+    newStartTime: '',
+    newEndTime: '',
+    newInstructor: '',
 
-  isPastDate: false,
+    isPastDate: false,
 
-  slot: null as any | null,
-};
+    slot: null as any | null,
+  };
 
   compactScheduleBars = false;
 
-@HostListener('window:scroll')
-onWindowScroll(): void {
-  this.compactScheduleBars = window.scrollY > 80;
-}
+  @HostListener('window:scroll')
+  onWindowScroll(): void {
+    this.compactScheduleBars = window.scrollY > 80;
+  }
 
   moveSlotsModal = {
     open: false,
@@ -182,26 +183,26 @@ onWindowScroll(): void {
   };
 
   manualMoveModal = {
-  open: false,
-  saving: false,
-  error: '',
+    open: false,
+    saving: false,
+    error: '',
 
-  date: '',
-  startTime: '',
-  endTime: '',
-  instructorId: '',
+    date: '',
+    startTime: '',
+    endTime: '',
+    instructorId: '',
 
-  confirmOverride: false,
-};
+    confirmOverride: false,
+  };
 
   moveSlotFilters = {
     instructorId: '',
     dayOfWeek: '',
   };
   moveSearch = {
-  fromDate: null as Date | null,
-  isPastDate: false,
-};
+    fromDate: null as Date | null,
+    isPastDate: false,
+  };
   readonly weekDays = [
     { value: '', label: 'כל הימים' },
     { value: 'ראשון', label: 'ראשון' },
@@ -435,204 +436,204 @@ onWindowScroll(): void {
   }
 
   async onScheduleReloadRequested(range: {
-  start: string;
-  end: string;
-  viewType: string;
-}): Promise<void> {
-  if (this.scheduleReloading) return;
+    start: string;
+    end: string;
+    viewType: string;
+  }): Promise<void> {
+    if (this.scheduleReloading) return;
 
-  this.scheduleReloading = true;
+    this.scheduleReloading = true;
 
-  try {
-    this.currentRange = {
-      start: range.start,
-      end: range.end,
-      viewType: range.viewType,
-    };
+    try {
+      this.currentRange = {
+        start: range.start,
+        end: range.end,
+        viewType: range.viewType,
+      };
 
-    await this.loadLessons({
-      start: range.start,
-      end: range.end,
-    });
+      await this.loadLessons({
+        start: range.start,
+        end: range.end,
+      });
 
-    await this.loadFarmDaysOffForRange(
-      range.start,
-      range.end
-    );
+      await this.loadFarmDaysOffForRange(
+        range.start,
+        range.end
+      );
 
-    await this.loadRequestsForRange(
-      range.start,
-      range.end
-    );
+      await this.loadRequestsForRange(
+        range.start,
+        range.end
+      );
 
-    await this.loadInstructorWeeklyAvailability();
+      await this.loadInstructorWeeklyAvailability();
 
-    this.filterLessons();
-    this.setScheduleItems();
-    this.buildBlockedDayCells(this.currentRange);
-    this.buildAvailableDayCells(this.currentRange);
-    this.buildWeekStats();
+      this.filterLessons();
+      this.setScheduleItems();
+      this.buildBlockedDayCells(this.currentRange);
+      this.buildAvailableDayCells(this.currentRange);
+      this.buildWeekStats();
 
-    this.cdr.detectChanges();
-  } catch (error) {
-    console.error('schedule reload failed', error);
+      this.cdr.detectChanges();
+    } catch (error) {
+      console.error('schedule reload failed', error);
 
-    await this.ui.alert(
-      'לא הצלחנו לטעון מחדש את הלוח. נסי שוב.',
-      'שגיאה'
-    );
-  } finally {
-    this.scheduleReloading = false;
-    this.cdr.detectChanges();
-  }
-}
-
-openManualMoveModal(): void {
-  if (this.moveSlotsModal.mode !== 'single') {
-    this.moveSlotsModal.error =
-      'הזזה לזמן ספציפי אפשרית רק עבור שיעור בודד';
-    return;
-  }
-
-  const originalStart =
-    String(this.moveChoiceModal.startTime || '').slice(0, 5);
-
-  const originalEnd =
-    String(this.moveChoiceModal.endTime || '').slice(0, 5);
-
-  this.manualMoveModal = {
-    open: true,
-    saving: false,
-    error: '',
-
-    date:
-      this.dateToYmd(this.moveSearch.fromDate) ||
-      this.moveChoiceModal.occurDate,
-
-    startTime: originalStart,
-
-    endTime:
-      originalEnd ||
-      this.addMinutesToHm(originalStart || '08:00', 30),
-
-    instructorId:
-      String(this.moveChoiceModal.instructorId || ''),
-
-    confirmOverride: false,
-  };
-
-  this.cdr.detectChanges();
-}
-
-closeManualMoveModal(): void {
-  if (this.manualMoveModal.saving) return;
-
-  this.manualMoveModal.open = false;
-  this.manualMoveModal.error = '';
-  this.manualMoveModal.confirmOverride = false;
-
-  this.cdr.detectChanges();
-}
-
-onManualMoveStartTimeChanged(): void {
-  const start = this.manualMoveModal.startTime;
-
-  if (!start) return;
-
-  const originalStart =
-    String(this.moveChoiceModal.startTime || '').slice(0, 5);
-
-  const originalEnd =
-    String(this.moveChoiceModal.endTime || '').slice(0, 5);
-
-  let durationMinutes = 30;
-
-  if (originalStart && originalEnd) {
-    const [startHour, startMinute] =
-      originalStart.split(':').map(Number);
-
-    const [endHour, endMinute] =
-      originalEnd.split(':').map(Number);
-
-    const calculatedDuration =
-      endHour * 60 +
-      endMinute -
-      (startHour * 60 + startMinute);
-
-    if (calculatedDuration > 0) {
-      durationMinutes = calculatedDuration;
+      await this.ui.alert(
+        'לא הצלחנו לטעון מחדש את הלוח. נסי שוב.',
+        'שגיאה'
+      );
+    } finally {
+      this.scheduleReloading = false;
+      this.cdr.detectChanges();
     }
   }
 
-  this.manualMoveModal.endTime =
-    this.addMinutesToHm(start, durationMinutes);
-}
+  openManualMoveModal(): void {
+    if (this.moveSlotsModal.mode !== 'single') {
+      this.moveSlotsModal.error =
+        'הזזה לזמן ספציפי אפשרית רק עבור שיעור בודד';
+      return;
+    }
 
- onMoveSearchDateChanged(): void {
-  this.moveSlotsModal.error = '';
-  this.moveSlotsModal.selectedSlot = null;
+    const originalStart =
+      String(this.moveChoiceModal.startTime || '').slice(0, 5);
 
-  const selectedDate = this.moveSearch.fromDate;
+    const originalEnd =
+      String(this.moveChoiceModal.endTime || '').slice(0, 5);
 
-  if (!selectedDate) {
-    this.moveSearch.isPastDate = false;
+    this.manualMoveModal = {
+      open: true,
+      saving: false,
+      error: '',
+
+      date:
+        this.dateToYmd(this.moveSearch.fromDate) ||
+        this.moveChoiceModal.occurDate,
+
+      startTime: originalStart,
+
+      endTime:
+        originalEnd ||
+        this.addMinutesToHm(originalStart || '08:00', 30),
+
+      instructorId:
+        String(this.moveChoiceModal.instructorId || ''),
+
+      confirmOverride: false,
+    };
+
     this.cdr.detectChanges();
-    return;
   }
 
-  const selected = new Date(
-    selectedDate.getFullYear(),
-    selectedDate.getMonth(),
-    selectedDate.getDate()
-  );
+  closeManualMoveModal(): void {
+    if (this.manualMoveModal.saving) return;
 
-  const now = new Date();
+    this.manualMoveModal.open = false;
+    this.manualMoveModal.error = '';
+    this.manualMoveModal.confirmOverride = false;
 
-  const today = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
-  );
-
-  this.moveSearch.isPastDate = selected < today;
-
-  if (
-    this.moveSlotsModal.mode === 'series' &&
-    this.moveSearch.isPastDate
-  ) {
-    this.moveSlotsModal.error =
-      'לא ניתן להעביר סדרה לתאריך שכבר עבר';
+    this.cdr.detectChanges();
   }
 
-  this.cdr.detectChanges();
-}
+  onManualMoveStartTimeChanged(): void {
+    const start = this.manualMoveModal.startTime;
 
-async recalculateMoveSlots(): Promise<void> {
-  if (!this.moveSearch.fromDate) {
-    this.moveSlotsModal.error = 'יש לבחור תאריך';
-    return;
+    if (!start) return;
+
+    const originalStart =
+      String(this.moveChoiceModal.startTime || '').slice(0, 5);
+
+    const originalEnd =
+      String(this.moveChoiceModal.endTime || '').slice(0, 5);
+
+    let durationMinutes = 30;
+
+    if (originalStart && originalEnd) {
+      const [startHour, startMinute] =
+        originalStart.split(':').map(Number);
+
+      const [endHour, endMinute] =
+        originalEnd.split(':').map(Number);
+
+      const calculatedDuration =
+        endHour * 60 +
+        endMinute -
+        (startHour * 60 + startMinute);
+
+      if (calculatedDuration > 0) {
+        durationMinutes = calculatedDuration;
+      }
+    }
+
+    this.manualMoveModal.endTime =
+      this.addMinutesToHm(start, durationMinutes);
   }
 
-  if (
-    this.moveSlotsModal.mode === 'series' &&
-    this.moveSearch.isPastDate
-  ) {
-    this.moveSlotsModal.error =
-      'לא ניתן להעביר סדרה לתאריך שכבר עבר';
-    return;
+  onMoveSearchDateChanged(): void {
+    this.moveSlotsModal.error = '';
+    this.moveSlotsModal.selectedSlot = null;
+
+    const selectedDate = this.moveSearch.fromDate;
+
+    if (!selectedDate) {
+      this.moveSearch.isPastDate = false;
+      this.cdr.detectChanges();
+      return;
+    }
+
+    const selected = new Date(
+      selectedDate.getFullYear(),
+      selectedDate.getMonth(),
+      selectedDate.getDate()
+    );
+
+    const now = new Date();
+
+    const today = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+
+    this.moveSearch.isPastDate = selected < today;
+
+    if (
+      this.moveSlotsModal.mode === 'series' &&
+      this.moveSearch.isPastDate
+    ) {
+      this.moveSlotsModal.error =
+        'לא ניתן להעביר סדרה לתאריך שכבר עבר';
+    }
+
+    this.cdr.detectChanges();
   }
 
-  this.moveSlotsModal.error = '';
-  this.moveSlotsModal.selectedSlot = null;
-  this.moveSlotsPage = 0;
+  async recalculateMoveSlots(): Promise<void> {
+    if (!this.moveSearch.fromDate) {
+      this.moveSlotsModal.error = 'יש לבחור תאריך';
+      return;
+    }
 
-  if (this.moveSlotsModal.mode === 'single') {
-    await this.chooseMoveSingleOccurrence();
-    return;
+    if (
+      this.moveSlotsModal.mode === 'series' &&
+      this.moveSearch.isPastDate
+    ) {
+      this.moveSlotsModal.error =
+        'לא ניתן להעביר סדרה לתאריך שכבר עבר';
+      return;
+    }
+
+    this.moveSlotsModal.error = '';
+    this.moveSlotsModal.selectedSlot = null;
+    this.moveSlotsPage = 0;
+
+    if (this.moveSlotsModal.mode === 'single') {
+      await this.chooseMoveSingleOccurrence();
+      return;
+    }
+
+    await this.chooseMoveWholeSeries();
   }
-
-  await this.chooseMoveWholeSeries();
-}
 
   private clearScheduleStateOnFreshEntry(): void {
     const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
@@ -750,139 +751,138 @@ async recalculateMoveSlots(): Promise<void> {
   }
 
   private addMinutesToHm(
-  hm: string,
-  minutesToAdd: number
-): string {
-  const [h, m] = hm.split(':').map(Number);
+    hm: string,
+    minutesToAdd: number
+  ): string {
+    const [h, m] = hm.split(':').map(Number);
 
-  const total =
-    ((h * 60 + m + minutesToAdd) % (24 * 60) + 24 * 60) %
-    (24 * 60);
+    const total =
+      ((h * 60 + m + minutesToAdd) % (24 * 60) + 24 * 60) %
+      (24 * 60);
 
-  const hh =
-    String(Math.floor(total / 60)).padStart(2, '0');
+    const hh =
+      String(Math.floor(total / 60)).padStart(2, '0');
 
-  const mm =
-    String(total % 60).padStart(2, '0');
+    const mm =
+      String(total % 60).padStart(2, '0');
 
-  return `${hh}:${mm}`;
-}
-
-confirmManualMove(): void {
-  this.manualMoveModal.error = '';
-
-  const date =
-    String(this.manualMoveModal.date || '').slice(0, 10);
-
-  const start =
-    String(this.manualMoveModal.startTime || '').slice(0, 5);
-
-  const end =
-    String(this.manualMoveModal.endTime || '').slice(0, 5);
-
-  const instructorId =
-    String(this.manualMoveModal.instructorId || '').trim();
-
-  if (!date) {
-    this.manualMoveModal.error = 'יש לבחור תאריך';
-    return;
+    return `${hh}:${mm}`;
   }
 
-  if (!start) {
-    this.manualMoveModal.error = 'יש לבחור שעת התחלה';
-    return;
-  }
+  confirmManualMove(): void {
+    this.manualMoveModal.error = '';
 
-  if (!end) {
-    this.manualMoveModal.error = 'יש לבחור שעת סיום';
-    return;
-  }
+    const date =
+      String(this.manualMoveModal.date || '').slice(0, 10);
 
-  if (start >= end) {
-    this.manualMoveModal.error =
-      'שעת הסיום חייבת להיות אחרי שעת ההתחלה';
-    return;
-  }
+    const start =
+      String(this.manualMoveModal.startTime || '').slice(0, 5);
 
-  if (!instructorId) {
-    this.manualMoveModal.error = 'יש לבחור מדריך';
-    return;
-  }
+    const end =
+      String(this.manualMoveModal.endTime || '').slice(0, 5);
 
-  if (!this.manualMoveModal.confirmOverride) {
-    this.manualMoveModal.error =
-      'יש לאשר שההזזה תתבצע גם אם המועד חורג מכללי המערכת';
-    return;
-  }
+    const instructorId =
+      String(this.manualMoveModal.instructorId || '').trim();
 
-  const instructor =
-    this.instructors.find(
-      inst =>
-        String(inst.id_number) === instructorId
-    );
+    if (!date) {
+      this.manualMoveModal.error = 'יש לבחור תאריך';
+      return;
+    }
 
-  const instructorName = instructor
-    ? `${instructor.first_name ?? ''} ${instructor.last_name ?? ''}`.trim()
-    : instructorId;
+    if (!start) {
+      this.manualMoveModal.error = 'יש לבחור שעת התחלה';
+      return;
+    }
 
-  /*
-   * בונים slot ידני באותו מבנה שבו משתמשת
-   * רשימת האפשרויות הפנויות.
-   */
-  const manualSlot = {
-    occur_date: date,
-    lesson_date: date,
+    if (!end) {
+      this.manualMoveModal.error = 'יש לבחור שעת סיום';
+      return;
+    }
 
-    start_time: start,
-    end_time: end,
+    if (start >= end) {
+      this.manualMoveModal.error =
+        'שעת הסיום חייבת להיות אחרי שעת ההתחלה';
+      return;
+    }
 
-    instructor_id: instructorId,
-    instructor_id_number: instructorId,
+    if (!instructorId) {
+      this.manualMoveModal.error = 'יש לבחור מדריך';
+      return;
+    }
 
-    instructor_name: instructorName,
+    if (!this.manualMoveModal.confirmOverride) {
+      this.manualMoveModal.error =
+        'יש לאשר שההזזה תתבצע גם אם המועד חורג מכללי המערכת';
+      return;
+    }
+
+    const instructor =
+      this.instructors.find(
+        inst =>
+          String(inst.id_number) === instructorId
+      );
+
+    const instructorName = instructor
+      ? `${instructor.first_name ?? ''} ${instructor.last_name ?? ''}`.trim()
+      : instructorId;
 
     /*
-     * מידע תצוגתי בלבד.
+     * בונים slot ידני באותו מבנה שבו משתמשת
+     * רשימת האפשרויות הפנויות.
      */
-    is_manual_override: true,
-  };
+    const manualSlot = {
+      occur_date: date,
+      lesson_date: date,
 
-  this.moveConfirmModal = {
-    open: true,
-    mode: 'single',
+      start_time: start,
+      end_time: end,
 
-    childName:
-      this.moveChoiceModal.childName,
+      instructor_id: instructorId,
+      instructor_id_number: instructorId,
 
-    originalDate:
-      this.moveChoiceModal.occurDate,
+      instructor_name: instructorName,
 
-    originalTime:
-      `${this.moveChoiceModal.startTime}` +
-      `${
-        this.moveChoiceModal.endTime
+      /*
+       * מידע תצוגתי בלבד.
+       */
+      is_manual_override: true,
+    };
+
+    this.moveConfirmModal = {
+      open: true,
+      mode: 'single',
+
+      childName:
+        this.moveChoiceModal.childName,
+
+      originalDate:
+        this.moveChoiceModal.occurDate,
+
+      originalTime:
+        `${this.moveChoiceModal.startTime}` +
+        `${this.moveChoiceModal.endTime
           ? `–${this.moveChoiceModal.endTime}`
           : ''
-      }`,
+        }`,
 
-    originalInstructor:
-      this.moveChoiceModal.instructorName,
+      originalInstructor:
+        this.moveChoiceModal.instructorName,
 
-    newDate: date,
-    newStartTime: start,
-    newEndTime: end,
-    newInstructor: instructorName,
+      newDate: date,
+      newStartTime: start,
+      newEndTime: end,
+      newInstructor: instructorName,
 
-    isPastDate:
-      this.isYmdBeforeToday(date),
+      isPastDate:
+        this.isYmdBeforeToday(date),
 
-    slot: manualSlot,
-  };
+      slot: manualSlot,
+    };
 
-  this.manualMoveModal.open = false;
+    this.manualMoveModal.open = false;
 
-  this.cdr.detectChanges();
-}
+    this.cdr.detectChanges();
+  }
 
   private buildAvailableDayCells(range?: { start: string; end: string }): void {
     const available: Array<{
@@ -2484,9 +2484,9 @@ private selectWorkingInstructorsForDay(dateYmd: string): void {
       const to = range?.end ?? in8Weeks;
 
       // 1) השיעורים עצמם (כמו שהיה)
-       const { data: occData, error: err1 } = await dbc
-  .from('lessons_occurrences')
-  .select(`
+      const { data: occData, error: err1 } = await dbc
+        .from('lessons_occurrences')
+        .select(`
     lesson_id,
     child_id,
 
@@ -2643,7 +2643,7 @@ private selectWorkingInstructorsForDay(dateYmd: string): void {
           is_open_ended: r.is_open_ended,
           series_end_date: r.series_end_date,
           attendance_status: attendanceStatus,
-        
+
         } as Lesson;
       });
     } catch (err) {
@@ -2825,61 +2825,61 @@ private selectWorkingInstructorsForDay(dateYmd: string): void {
           is_open_ended: lesson.is_open_ended,
           series_end_date: lesson.series_end_date,
           attendance_status: lesson.attendance_status ?? '',
-         is_single_occurrence_move: lesson.is_single_occurrence_move === true,
+          is_single_occurrence_move: lesson.is_single_occurrence_move === true,
 
-  occurrence_change_id:
-    lesson.occurrence_change_id ?? null,
+          occurrence_change_id:
+            lesson.occurrence_change_id ?? null,
 
-  occurrence_change_type:
-    lesson.occurrence_change_type ?? null,
+          occurrence_change_type:
+            lesson.occurrence_change_type ?? null,
 
-  original_occur_date:
-    lesson.original_occur_date ?? null,
+          original_occur_date:
+            lesson.original_occur_date ?? null,
 
-  original_instructor_id:
-    lesson.original_instructor_id ?? null,
+          original_instructor_id:
+            lesson.original_instructor_id ?? null,
 
-  original_instructor_name:
-    lesson.original_instructor_name ?? null,
+          original_instructor_name:
+            lesson.original_instructor_name ?? null,
 
-  new_instructor_id:
-    lesson.new_instructor_id ?? null,
+          new_instructor_id:
+            lesson.new_instructor_id ?? null,
 
-  new_instructor_name:
-    lesson.new_instructor_name ?? null,
+          new_instructor_name:
+            lesson.new_instructor_name ?? null,
 
-  original_start_time:
-    lesson.original_start_time ?? null,
+          original_start_time:
+            lesson.original_start_time ?? null,
 
-  original_end_time:
-    lesson.original_end_time ?? null,
+          original_end_time:
+            lesson.original_end_time ?? null,
 
-  new_start_time:
-    lesson.new_start_time ?? null,
+          new_start_time:
+            lesson.new_start_time ?? null,
 
-  new_end_time:
-    lesson.new_end_time ?? null,
+          new_end_time:
+            lesson.new_end_time ?? null,
 
-  original_day_of_week:
-    lesson.original_day_of_week ?? null,
+          original_day_of_week:
+            lesson.original_day_of_week ?? null,
 
-  new_day_of_week:
-    lesson.new_day_of_week ?? null,
+          new_day_of_week:
+            lesson.new_day_of_week ?? null,
 
-  original_start_datetime:
-    lesson.original_start_datetime ?? null,
+          original_start_datetime:
+            lesson.original_start_datetime ?? null,
 
-  new_start_datetime:
-    lesson.new_start_datetime ?? null,
+          new_start_datetime:
+            lesson.new_start_datetime ?? null,
 
-  new_end_datetime:
-    lesson.new_end_datetime ?? null,
+          new_end_datetime:
+            lesson.new_end_datetime ?? null,
 
-  occurrence_change_note:
-    lesson.occurrence_change_note ?? null,
+          occurrence_change_note:
+            lesson.occurrence_change_note ?? null,
 
-  occurrence_change_created_at:
-    lesson.occurrence_change_created_at ?? null,
+          occurrence_change_created_at:
+            lesson.occurrence_change_created_at ?? null,
         },
       } as any;
     };
@@ -3161,7 +3161,199 @@ private selectWorkingInstructorsForDay(dateYmd: string): void {
   canEndContextSeries(): boolean {
     return this.canMoveContextLesson() && this.isSeriesContext();
   }
+  async chooseMoveWholeSeries(): Promise<void> {
+    if (this.moveSlotsModal.loading) return;
 
+    const childId = this.moveChoiceModal.childId;
+    const lessonId = this.moveChoiceModal.lessonId;
+    const effectiveDate = this.moveChoiceModal.occurDate;
+    const selectedInstructorId =
+      String(this.moveSlotFilters.instructorId || '').trim();
+
+    if (!selectedInstructorId) {
+      await this.ui.alert(
+        'יש לבחור מדריך לפני חיפוש אפשרויות להזזת הסדרה.',
+        'בחירת מדריך'
+      );
+      return;
+    }
+    if (!childId || !lessonId || !effectiveDate) {
+      await this.ui.alert(
+        'לא נמצאו פרטי הסדרה או הילד. יש לסגור ולנסות שוב.',
+        'שגיאה'
+      );
+      return;
+    }
+
+    this.moveChoiceModal.open = false;
+
+    /*
+     * לא מאפסים כאן את moveSlotFilters,
+     * כדי לשמור את המדריך שהמשתמש בחר.
+     */
+    this.moveSlotsModal = {
+      ...this.moveSlotsModal,
+      open: true,
+      mode: 'series',
+      loading: true,
+      saving: false,
+      error: '',
+      slots: [],
+      selectedSlot: null,
+    };
+
+    this.moveSlotsPage = 0;
+    this.cdr.detectChanges();
+
+    try {
+      const from =
+        this.getMoveSearchFromDateYmd() ||
+        effectiveDate;
+
+      const to = this.addDaysYmd(from, 10);
+
+      const selectedInstructorId =
+        String(this.moveSlotFilters.instructorId || '').trim();
+
+      const payload = {
+        p_child_id: childId,
+        p_lesson_count: 1,
+
+        p_instructor_id_number: selectedInstructorId,
+        p_from_date: from,
+        p_to_date: to,
+      };
+
+      console.log('series slots search payload', payload);
+
+      const { data, error } = await dbTenant().rpc(
+        'find_series_slots_with_skips',
+        payload
+      );
+
+      if (error) throw error;
+
+      this.moveSlotsModal.slots = (data ?? [])
+        .map((s: any) => {
+          const instructorId = String(
+            s.instructor_id ||
+            s.instructor_id_number ||
+            ''
+          );
+
+          const instructor = this.instructors.find(
+            i => String(i.id_number) === instructorId
+          );
+
+          const occurDate =
+            s.lesson_date ||
+            s.occur_date ||
+            '';
+
+          return {
+            occur_date: occurDate,
+            lesson_date: occurDate,
+
+            start_time: String(
+              s.start_time || s.start || ''
+            ).slice(0, 5),
+
+            end_time: String(
+              s.end_time || s.end || ''
+            ).slice(0, 5),
+
+            instructor_id: instructorId,
+
+            instructor_name: instructor
+              ? `${instructor.first_name ?? ''} ${instructor.last_name ?? ''}`.trim()
+              : instructorId,
+
+            day_of_week:
+              s.day_of_week ||
+              this.getHebrewDayNameFromDate(occurDate),
+
+            lesson_ridding_type:
+              s.riding_type_id ?? null,
+
+            riding_type_name:
+              s.riding_type_name ?? null,
+
+            remaining_capacity:
+              s.remaining_capacity ?? 1,
+
+            raw: s,
+          };
+        })
+        .filter((slot: any) => {
+          if (
+            !slot.occur_date ||
+            !slot.start_time ||
+            !slot.instructor_id
+          ) {
+            return false;
+          }
+
+          const sameDate =
+            String(slot.occur_date).slice(0, 10) ===
+            String(effectiveDate).slice(0, 10);
+
+          const sameStart =
+            String(slot.start_time).slice(0, 5) ===
+            String(this.moveChoiceModal.startTime).slice(0, 5);
+
+          const sameInstructor =
+            String(slot.instructor_id) ===
+            String(this.moveChoiceModal.instructorId);
+
+          return !(sameDate && sameStart && sameInstructor);
+        })
+        .sort((a: any, b: any) => {
+          const dateCompare =
+            String(a.occur_date).localeCompare(
+              String(b.occur_date)
+            );
+
+          if (dateCompare !== 0) return dateCompare;
+
+          return String(a.start_time).localeCompare(
+            String(b.start_time)
+          );
+        })
+        .slice(0, 10);
+
+      if (!this.moveSlotsModal.slots.length) {
+        const instructorName =
+          selectedInstructorId
+            ? this.getInstructorNameById(selectedInstructorId)
+            : '';
+
+        this.moveSlotsModal.error =
+          selectedInstructorId
+            ? `לא נמצאו אפשרויות פנויות אצל ${instructorName} בין ${from} ל־${to}.`
+            : `לא נמצאו אפשרויות פנויות בין ${from} ל־${to}.`;
+      }
+    } catch (e: any) {
+      console.error('load series move slots failed', e);
+
+      this.moveSlotsModal.error =
+        e?.message ||
+        'שגיאה בטעינת אפשרויות להזזת סדרה';
+    } finally {
+      this.moveSlotsModal.loading = false;
+      this.cdr.detectChanges();
+    }
+  }
+  private getInstructorNameById(instructorId: string): string {
+    const instructor = this.instructors.find(
+      item => String(item.id_number) === String(instructorId)
+    );
+
+    if (!instructor) {
+      return instructorId;
+    }
+
+    return `${instructor.first_name ?? ''} ${instructor.last_name ?? ''}`.trim();
+  }
   private instructorDaysOffToItems(): ScheduleItem[] {
     const selected = new Set(this.selectedInstructorIds.map(String));
 
@@ -3446,171 +3638,171 @@ private selectWorkingInstructorsForDay(dateYmd: string): void {
       rawStatus.includes('cancel');
 
     this.selectedOccurrence = {
-  ...ext,
-  ...meta,
+      ...ext,
+      ...meta,
 
-  lesson_id:
-    lessonId,
+      lesson_id:
+        lessonId,
 
-  child_id:
-    childId,
+      child_id:
+        childId,
 
-  occur_date:
-    occurDate,
+      occur_date:
+        occurDate,
 
-  status:
-    meta.status ??
-    ext.status ??
-    null,
+      status:
+        meta.status ??
+        ext.status ??
+        null,
 
-  lesson_type:
-    meta.lesson_type ??
-    ext.lesson_type ??
-    null,
+      lesson_type:
+        meta.lesson_type ??
+        ext.lesson_type ??
+        null,
 
-  start:
-    arg.event.start,
+      start:
+        arg.event.start,
 
-  end:
-    arg.event.end,
+      end:
+        arg.event.end,
 
-  start_time:
-    meta.start_time ??
-    ext.start_time ??
-    null,
+      start_time:
+        meta.start_time ??
+        ext.start_time ??
+        null,
 
-  end_time:
-    meta.end_time ??
-    ext.end_time ??
-    null,
+      end_time:
+        meta.end_time ??
+        ext.end_time ??
+        null,
 
-  start_datetime:
-    meta.start_datetime ??
-    ext.start_datetime ??
-    arg.event.startStr ??
-    null,
+      start_datetime:
+        meta.start_datetime ??
+        ext.start_datetime ??
+        arg.event.startStr ??
+        null,
 
-  end_datetime:
-    meta.end_datetime ??
-    ext.end_datetime ??
-    arg.event.endStr ??
-    null,
+      end_datetime:
+        meta.end_datetime ??
+        ext.end_datetime ??
+        arg.event.endStr ??
+        null,
 
-  attendance_status:
-    meta.attendance_status ??
-    ext.attendance_status ??
-    null,
+      attendance_status:
+        meta.attendance_status ??
+        ext.attendance_status ??
+        null,
 
-  instructor_id:
-    meta.instructor_id ??
-    ext.instructor_id ??
-    null,
+      instructor_id:
+        meta.instructor_id ??
+        ext.instructor_id ??
+        null,
 
-  instructor_name:
-    meta.instructor_name ??
-    ext.instructor_name ??
-    meta.new_instructor_name ??
-    ext.new_instructor_name ??
-    null,
+      instructor_name:
+        meta.instructor_name ??
+        ext.instructor_name ??
+        meta.new_instructor_name ??
+        ext.new_instructor_name ??
+        null,
 
-  occurrence_change_id:
-    meta.occurrence_change_id ??
-    ext.occurrence_change_id ??
-    null,
+      occurrence_change_id:
+        meta.occurrence_change_id ??
+        ext.occurrence_change_id ??
+        null,
 
-  occurrence_change_type:
-    meta.occurrence_change_type ??
-    ext.occurrence_change_type ??
-    null,
+      occurrence_change_type:
+        meta.occurrence_change_type ??
+        ext.occurrence_change_type ??
+        null,
 
-  is_single_occurrence_move:
-    meta.is_single_occurrence_move === true ||
-    meta.is_single_occurrence_move === 'true' ||
-    ext.is_single_occurrence_move === true ||
-    ext.is_single_occurrence_move === 'true' ||
-    meta.occurrence_change_type === 'MOVE' ||
-    ext.occurrence_change_type === 'MOVE',
+      is_single_occurrence_move:
+        meta.is_single_occurrence_move === true ||
+        meta.is_single_occurrence_move === 'true' ||
+        ext.is_single_occurrence_move === true ||
+        ext.is_single_occurrence_move === 'true' ||
+        meta.occurrence_change_type === 'MOVE' ||
+        ext.occurrence_change_type === 'MOVE',
 
-  original_occur_date:
-    meta.original_occur_date ??
-    ext.original_occur_date ??
-    null,
+      original_occur_date:
+        meta.original_occur_date ??
+        ext.original_occur_date ??
+        null,
 
-  original_instructor_id:
-    meta.original_instructor_id ??
-    ext.original_instructor_id ??
-    null,
+      original_instructor_id:
+        meta.original_instructor_id ??
+        ext.original_instructor_id ??
+        null,
 
-  original_instructor_name:
-    meta.original_instructor_name ??
-    ext.original_instructor_name ??
-    null,
+      original_instructor_name:
+        meta.original_instructor_name ??
+        ext.original_instructor_name ??
+        null,
 
-  new_instructor_id:
-    meta.new_instructor_id ??
-    ext.new_instructor_id ??
-    null,
+      new_instructor_id:
+        meta.new_instructor_id ??
+        ext.new_instructor_id ??
+        null,
 
-  new_instructor_name:
-    meta.new_instructor_name ??
-    ext.new_instructor_name ??
-    null,
+      new_instructor_name:
+        meta.new_instructor_name ??
+        ext.new_instructor_name ??
+        null,
 
-  original_start_time:
-    meta.original_start_time ??
-    ext.original_start_time ??
-    null,
+      original_start_time:
+        meta.original_start_time ??
+        ext.original_start_time ??
+        null,
 
-  original_end_time:
-    meta.original_end_time ??
-    ext.original_end_time ??
-    null,
+      original_end_time:
+        meta.original_end_time ??
+        ext.original_end_time ??
+        null,
 
-  new_start_time:
-    meta.new_start_time ??
-    ext.new_start_time ??
-    null,
+      new_start_time:
+        meta.new_start_time ??
+        ext.new_start_time ??
+        null,
 
-  new_end_time:
-    meta.new_end_time ??
-    ext.new_end_time ??
-    null,
+      new_end_time:
+        meta.new_end_time ??
+        ext.new_end_time ??
+        null,
 
-  original_day_of_week:
-    meta.original_day_of_week ??
-    ext.original_day_of_week ??
-    null,
+      original_day_of_week:
+        meta.original_day_of_week ??
+        ext.original_day_of_week ??
+        null,
 
-  new_day_of_week:
-    meta.new_day_of_week ??
-    ext.new_day_of_week ??
-    null,
+      new_day_of_week:
+        meta.new_day_of_week ??
+        ext.new_day_of_week ??
+        null,
 
-  original_start_datetime:
-    meta.original_start_datetime ??
-    ext.original_start_datetime ??
-    null,
+      original_start_datetime:
+        meta.original_start_datetime ??
+        ext.original_start_datetime ??
+        null,
 
-  new_start_datetime:
-    meta.new_start_datetime ??
-    ext.new_start_datetime ??
-    null,
+      new_start_datetime:
+        meta.new_start_datetime ??
+        ext.new_start_datetime ??
+        null,
 
-  new_end_datetime:
-    meta.new_end_datetime ??
-    ext.new_end_datetime ??
-    null,
+      new_end_datetime:
+        meta.new_end_datetime ??
+        ext.new_end_datetime ??
+        null,
 
-  occurrence_change_note:
-    meta.occurrence_change_note ??
-    ext.occurrence_change_note ??
-    null,
+      occurrence_change_note:
+        meta.occurrence_change_note ??
+        ext.occurrence_change_note ??
+        null,
 
-  occurrence_change_created_at:
-    meta.occurrence_change_created_at ??
-    ext.occurrence_change_created_at ??
-    null,
-};
+      occurrence_change_created_at:
+        meta.occurrence_change_created_at ??
+        ext.occurrence_change_created_at ??
+        null,
+    };
 
 
     this.cdr.detectChanges();
@@ -3906,6 +4098,13 @@ private selectWorkingInstructorsForDay(dateYmd: string): void {
     );
 
     this.closeContextMenu();
+    this.showSeriesInstructorSelection = false;
+    this.moveSlotFilters.instructorId = '';
+    this.cdr.detectChanges();
+  }
+  openSeriesInstructorSelection(): void {
+    this.showSeriesInstructorSelection = true;
+    this.moveSlotFilters.instructorId = '';
     this.cdr.detectChanges();
   }
   private ymdToDate(ymd: string): Date | null {
@@ -4050,136 +4249,136 @@ private selectWorkingInstructorsForDay(dateYmd: string): void {
     this.moveSlotsModal.selectedSlot = slot;
   }
 
- isYmdBeforeToday(ymd: string): boolean {
-  if (!ymd) return false;
+  isYmdBeforeToday(ymd: string): boolean {
+    if (!ymd) return false;
 
-  const [year, month, day] = ymd.split('-').map(Number);
-  const selected = new Date(year, month - 1, day);
+    const [year, month, day] = ymd.split('-').map(Number);
+    const selected = new Date(year, month - 1, day);
 
-  const now = new Date();
-  const today = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
-  );
+    const now = new Date();
+    const today = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
 
-  return selected < today;
-}
+    return selected < today;
+  }
 
   confirmMove(): void {
-  const slot = this.moveSlotsModal.selectedSlot;
-  if (!slot) return;
+    const slot = this.moveSlotsModal.selectedSlot;
+    if (!slot) return;
 
-  const date = String(
-    slot.occur_date ||
-    slot.lesson_date ||
-    ''
-  ).slice(0, 10);
+    const date = String(
+      slot.occur_date ||
+      slot.lesson_date ||
+      ''
+    ).slice(0, 10);
 
-  const start = String(
-    slot.start_time ||
-    slot.start ||
-    ''
-  ).slice(0, 5);
+    const start = String(
+      slot.start_time ||
+      slot.start ||
+      ''
+    ).slice(0, 5);
 
-  const end = String(
-    slot.end_time ||
-    slot.end ||
-    ''
-  ).slice(0, 5);
+    const end = String(
+      slot.end_time ||
+      slot.end ||
+      ''
+    ).slice(0, 5);
 
-  const instructorId = String(
-    slot.instructor_id ||
-    slot.instructor_id_number ||
-    ''
-  );
+    const instructorId = String(
+      slot.instructor_id ||
+      slot.instructor_id_number ||
+      ''
+    );
 
-  if (!date || !start || !end || !instructorId) {
-    this.moveSlotsModal.error =
-      'חסרים פרטים באפשרות שנבחרה';
+    if (!date || !start || !end || !instructorId) {
+      this.moveSlotsModal.error =
+        'חסרים פרטים באפשרות שנבחרה';
 
-    return;
-  }
+      return;
+    }
 
-  if (
-    this.moveSlotsModal.mode === 'series' &&
-    this.isYmdBeforeToday(date)
-  ) {
-    this.moveSlotsModal.error =
-      'לא ניתן להעביר סדרה לתאריך שכבר עבר';
+    if (
+      this.moveSlotsModal.mode === 'series' &&
+      this.isYmdBeforeToday(date)
+    ) {
+      this.moveSlotsModal.error =
+        'לא ניתן להעביר סדרה לתאריך שכבר עבר';
 
-    this.moveSlotsModal.selectedSlot = null;
+      this.moveSlotsModal.selectedSlot = null;
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.moveConfirmModal = {
+      open: true,
+      mode: this.moveSlotsModal.mode,
+
+      childName:
+        this.moveChoiceModal.childName,
+
+      /*
+       * כאן מציגים למשתמש את המיקום הנוכחי
+       * של השיעור, גם אם הוא כבר הוזז בעבר.
+       */
+      originalDate:
+        this.moveChoiceModal.occurDate,
+
+      originalTime:
+        `${this.moveChoiceModal.startTime}` +
+        `${this.moveChoiceModal.endTime
+          ? `–${this.moveChoiceModal.endTime}`
+          : ''
+        }`,
+
+      originalInstructor:
+        this.moveChoiceModal.instructorName,
+
+      newDate:
+        date,
+
+      newStartTime:
+        start,
+
+      newEndTime:
+        end,
+
+      newInstructor:
+        slot.instructor_name ||
+        slot.instructorName ||
+        instructorId,
+
+      isPastDate:
+        this.isYmdBeforeToday(date),
+
+      slot,
+    };
+
     this.cdr.detectChanges();
-    return;
   }
 
-  this.moveConfirmModal = {
-    open: true,
-    mode: this.moveSlotsModal.mode,
+  private buildLocalDateTime(
+    ymd: string,
+    hm: string
+  ): string {
+    const normalizedDate = String(ymd || '').slice(0, 10);
+    const normalizedTime = String(hm || '').slice(0, 5);
 
-    childName:
-      this.moveChoiceModal.childName,
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate) ||
+      !/^\d{2}:\d{2}$/.test(normalizedTime)
+    ) {
+      throw new Error('תאריך או שעה אינם תקינים');
+    }
 
     /*
-     * כאן מציגים למשתמש את המיקום הנוכחי
-     * של השיעור, גם אם הוא כבר הוזז בעבר.
+     * אין כאן Date ואין toISOString.
+     * השעה נשלחת בדיוק כפי שנבחרה.
      */
-    originalDate:
-      this.moveChoiceModal.occurDate,
-
-    originalTime:
-      `${this.moveChoiceModal.startTime}` +
-      `${this.moveChoiceModal.endTime
-        ? `–${this.moveChoiceModal.endTime}`
-        : ''
-      }`,
-
-    originalInstructor:
-      this.moveChoiceModal.instructorName,
-
-    newDate:
-      date,
-
-    newStartTime:
-      start,
-
-    newEndTime:
-      end,
-
-    newInstructor:
-      slot.instructor_name ||
-      slot.instructorName ||
-      instructorId,
-
-    isPastDate:
-      this.isYmdBeforeToday(date),
-
-    slot,
-  };
-
-  this.cdr.detectChanges();
-}
-
-private buildLocalDateTime(
-  ymd: string,
-  hm: string
-): string {
-  const normalizedDate = String(ymd || '').slice(0, 10);
-  const normalizedTime = String(hm || '').slice(0, 5);
-
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate) ||
-    !/^\d{2}:\d{2}$/.test(normalizedTime)
-  ) {
-    throw new Error('תאריך או שעה אינם תקינים');
+    return `${normalizedDate}T${normalizedTime}:00`;
   }
-
-  /*
-   * אין כאן Date ואין toISOString.
-   * השעה נשלחת בדיוק כפי שנבחרה.
-   */
-  return `${normalizedDate}T${normalizedTime}:00`;
-}
 
   closeMoveConfirmModal(): void {
     this.moveConfirmModal.open = false;
@@ -4187,312 +4386,312 @@ private buildLocalDateTime(
   }
 
   async approveMoveConfirm(): Promise<void> {
-  if (this.moveSlotsModal.saving) return;
+    if (this.moveSlotsModal.saving) return;
 
-  const slot =
-    this.moveConfirmModal.slot ||
-    this.moveSlotsModal.selectedSlot;
+    const slot =
+      this.moveConfirmModal.slot ||
+      this.moveSlotsModal.selectedSlot;
 
-  if (!slot) {
-    console.error(
-      'No slot found for move approval',
-      {
-        moveConfirmModal: this.moveConfirmModal,
-        moveSlotsModal: this.moveSlotsModal,
-      }
-    );
-
-    await this.ui.alert(
-      'לא נמצא סלוט להזזה. בחרי שוב אפשרות מהרשימה.',
-      'שגיאה'
-    );
-
-    return;
-  }
-
-  await this.executeMove(slot);
-}
-
-  async executeMove(slot: any): Promise<void> {
-  if (this.moveSlotsModal.saving) return;
-
-  this.moveSlotsModal.saving = true;
-  this.moveSlotsModal.error = '';
-  this.cdr.detectChanges();
-
-  try {
-    const targetDate = String(
-      slot?.occur_date ||
-      slot?.lesson_date ||
-      ''
-    ).slice(0, 10);
-
-    const start = String(
-      slot?.start_time ||
-      slot?.start ||
-      ''
-    ).slice(0, 5);
-
-    const end = String(
-      slot?.end_time ||
-      slot?.end ||
-      ''
-    ).slice(0, 5);
-
-    const newInstructorId = String(
-      slot?.instructor_id ||
-      slot?.instructor_id_number ||
-      ''
-    );
-
-    if (!targetDate) {
-      throw new Error('לא נמצא תאריך יעד');
-    }
-
-    if (!start || !end) {
-      throw new Error('לא נמצאו שעות היעד');
-    }
-
-    if (!newInstructorId) {
-      throw new Error('לא נמצא מדריך יעד');
-    }
-
-    if (start >= end) {
-      throw new Error(
-        'שעת הסיום חייבת להיות אחרי שעת ההתחלה'
-      );
-    }
-
-    /*
-     * סדרה אינה יכולה לעבור לתאריך עבר.
-     */
-    if (
-      this.moveSlotsModal.mode === 'series' &&
-      this.isYmdBeforeToday(targetDate)
-    ) {
-      throw new Error(
-        'לא ניתן להעביר סדרה לתאריך שכבר עבר'
-      );
-    }
-
-    if (this.moveSlotsModal.mode === 'single') {
-  const date = String(
-    slot.occur_date ||
-    slot.lesson_date ||
-    ''
-  ).slice(0, 10);
-
-  const start = String(
-    slot.start_time ||
-    slot.start ||
-    ''
-  ).slice(0, 5);
-
-  const end = String(
-    slot.end_time ||
-    slot.end ||
-    ''
-  ).slice(0, 5);
-
-  const newInstructorId = String(
-    slot.instructor_id ||
-    slot.instructor_id_number ||
-    ''
-  );
-
-  if (!date || !start || !end) {
-    throw new Error('חסרים תאריך או שעות יעד');
-  }
-
-  if (!newInstructorId) {
-    throw new Error('לא נמצא מדריך יעד');
-  }
-
-  const newStartDatetime =
-    this.buildLocalDateTime(date, start);
-
-  const newEndDatetime =
-    this.buildLocalDateTime(date, end);
-
- const oldInstructorName =
-  String(
-    this.moveChoiceModal.instructorName || ''
-  ).trim() || 'מדריך לא ידוע';
-
-const newInstructorName =
-  String(
-    slot.instructor_name ||
-    slot.instructorName ||
-    newInstructorId
-  ).trim();
-
-const originalDate =
-  String(
-    this.moveChoiceModal.occurDate || ''
-  ).slice(0, 10);
-
-const originalStartTime =
-  String(
-    this.moveChoiceModal.startTime || ''
-  ).slice(0, 5);
-
-const originalEndTime =
-  String(
-    this.moveChoiceModal.endTime || ''
-  ).slice(0, 5);
-
-const isManualOverride =
-  slot?.is_manual_override === true;
-
-const moveNote = [
-  isManualOverride
-    ? 'השיעור הועבר באופן חד־פעמי בדריסת כללי המערכת'
-    : 'השיעור הועבר באופן חד־פעמי',
-  `מ־${oldInstructorName}`,
-  originalDate
-    ? `בתאריך ${originalDate}`
-    : '',
-  originalStartTime
-    ? `בשעה ${originalStartTime}${originalEndTime ? `–${originalEndTime}` : ''}`
-    : '',
-  `ל־${newInstructorName}`,
-  date
-    ? `בתאריך ${date}`
-    : '',
-  start
-    ? `בשעה ${start}${end ? `–${end}` : ''}`
-    : '',
-]
-  .filter(Boolean)
-  .join(' ');
-
-  const { data, error } = await dbTenant().rpc(
-    'move_lesson_occurrence',
-    {
-      p_lesson_id:
-        this.moveChoiceModal.lessonId,
-
-      p_occur_date:
-        this.moveChoiceModal.occurDate,
-
-      p_new_instructor_id:
-        newInstructorId,
-
-      p_new_start_datetime:
-        newStartDatetime,
-
-      p_new_end_datetime:
-        newEndDatetime,
-
-      p_note: moveNote,
-      p_created_by_role: 'secretary',
-      p_created_by_uid: null,
-    }
-  );
-
-  if (error) throw error;
-
-}
-
-    if (this.moveSlotsModal.mode === 'series') {
-      const { data, error } = await dbTenant().rpc(
-        'move_lesson_series',
+    if (!slot) {
+      console.error(
+        'No slot found for move approval',
         {
-          p_lesson_id:
-            this.moveChoiceModal.lessonId,
-
-          /*
-           * זה התאריך שממנו מפצלים את הסדרה הישנה.
-           */
-          p_effective_occur_date:
-            this.moveChoiceModal.occurDate,
-
-          /*
-           * אם כבר הוספת את הפרמטר החדש ל-RPC
-           * של הסדרה, השאירי אותו.
-           */
-          p_new_first_occur_date:
-            targetDate,
-
-          p_new_instructor_id:
-            newInstructorId,
-
-          p_new_day_of_week:
-            this.dayNameFromYmd(targetDate),
-
-          p_new_start_time:
-            start,
-
-          p_new_end_time:
-            end,
+          moveConfirmModal: this.moveConfirmModal,
+          moveSlotsModal: this.moveSlotsModal,
         }
       );
 
-      if (error) throw error;
-
-      if (data?.ok === false) {
-        throw new Error(
-          data?.message ||
-          'הזזת הסדרה נכשלה'
-        );
-      }
-    }
-
-    /*
-     * סגירת החלונות רק אחרי הצלחה.
-     */
-    this.moveConfirmModal.open = false;
-    this.moveSlotsModal.open = false;
-    this.moveSlotsModal.selectedSlot = null;
-    this.moveConfirmModal.slot = null;
-
-    /*
-     * טעינה מחדש של הטווח הנוכחי.
-     */
-    if (this.currentRange) {
-      await this.loadLessons({
-        start: this.currentRange.start,
-        end: this.currentRange.end,
-      });
-
-      await this.loadRequestsForRange(
-        this.currentRange.start.slice(0, 10),
-        this.currentRange.end.slice(0, 10)
+      await this.ui.alert(
+        'לא נמצא סלוט להזזה. בחרי שוב אפשרות מהרשימה.',
+        'שגיאה'
       );
 
-      this.filterLessons();
-      this.setScheduleItems();
-      this.buildBlockedDayCells(this.currentRange);
-      this.buildAvailableDayCells(this.currentRange);
-      this.buildWeekStats();
+      return;
     }
 
-    await this.ui.alert(
-      this.moveSlotsModal.mode === 'series'
-        ? 'הסדרה הוזזה בהצלחה'
-        : 'השיעור הוזז בהצלחה',
-      'בוצע'
-    );
-  } catch (e: any) {
-    console.error('move failed', e);
-
-    const message =
-      e?.message ||
-      e?.details ||
-      e?.hint ||
-      'שגיאה בהזזת השיעור';
-
-    this.moveSlotsModal.error = message;
-
-    await this.ui.alert(
-      message,
-      'שגיאה'
-    );
-  } finally {
-    this.moveSlotsModal.saving = false;
-    this.cdr.detectChanges();
+    await this.executeMove(slot);
   }
-}
+
+  async executeMove(slot: any): Promise<void> {
+    if (this.moveSlotsModal.saving) return;
+
+    this.moveSlotsModal.saving = true;
+    this.moveSlotsModal.error = '';
+    this.cdr.detectChanges();
+
+    try {
+      const targetDate = String(
+        slot?.occur_date ||
+        slot?.lesson_date ||
+        ''
+      ).slice(0, 10);
+
+      const start = String(
+        slot?.start_time ||
+        slot?.start ||
+        ''
+      ).slice(0, 5);
+
+      const end = String(
+        slot?.end_time ||
+        slot?.end ||
+        ''
+      ).slice(0, 5);
+
+      const newInstructorId = String(
+        slot?.instructor_id ||
+        slot?.instructor_id_number ||
+        ''
+      );
+
+      if (!targetDate) {
+        throw new Error('לא נמצא תאריך יעד');
+      }
+
+      if (!start || !end) {
+        throw new Error('לא נמצאו שעות היעד');
+      }
+
+      if (!newInstructorId) {
+        throw new Error('לא נמצא מדריך יעד');
+      }
+
+      if (start >= end) {
+        throw new Error(
+          'שעת הסיום חייבת להיות אחרי שעת ההתחלה'
+        );
+      }
+
+      /*
+       * סדרה אינה יכולה לעבור לתאריך עבר.
+       */
+      if (
+        this.moveSlotsModal.mode === 'series' &&
+        this.isYmdBeforeToday(targetDate)
+      ) {
+        throw new Error(
+          'לא ניתן להעביר סדרה לתאריך שכבר עבר'
+        );
+      }
+
+      if (this.moveSlotsModal.mode === 'single') {
+        const date = String(
+          slot.occur_date ||
+          slot.lesson_date ||
+          ''
+        ).slice(0, 10);
+
+        const start = String(
+          slot.start_time ||
+          slot.start ||
+          ''
+        ).slice(0, 5);
+
+        const end = String(
+          slot.end_time ||
+          slot.end ||
+          ''
+        ).slice(0, 5);
+
+        const newInstructorId = String(
+          slot.instructor_id ||
+          slot.instructor_id_number ||
+          ''
+        );
+
+        if (!date || !start || !end) {
+          throw new Error('חסרים תאריך או שעות יעד');
+        }
+
+        if (!newInstructorId) {
+          throw new Error('לא נמצא מדריך יעד');
+        }
+
+        const newStartDatetime =
+          this.buildLocalDateTime(date, start);
+
+        const newEndDatetime =
+          this.buildLocalDateTime(date, end);
+
+        const oldInstructorName =
+          String(
+            this.moveChoiceModal.instructorName || ''
+          ).trim() || 'מדריך לא ידוע';
+
+        const newInstructorName =
+          String(
+            slot.instructor_name ||
+            slot.instructorName ||
+            newInstructorId
+          ).trim();
+
+        const originalDate =
+          String(
+            this.moveChoiceModal.occurDate || ''
+          ).slice(0, 10);
+
+        const originalStartTime =
+          String(
+            this.moveChoiceModal.startTime || ''
+          ).slice(0, 5);
+
+        const originalEndTime =
+          String(
+            this.moveChoiceModal.endTime || ''
+          ).slice(0, 5);
+
+        const isManualOverride =
+          slot?.is_manual_override === true;
+
+        const moveNote = [
+          isManualOverride
+            ? 'השיעור הועבר באופן חד־פעמי בדריסת כללי המערכת'
+            : 'השיעור הועבר באופן חד־פעמי',
+          `מ־${oldInstructorName}`,
+          originalDate
+            ? `בתאריך ${originalDate}`
+            : '',
+          originalStartTime
+            ? `בשעה ${originalStartTime}${originalEndTime ? `–${originalEndTime}` : ''}`
+            : '',
+          `ל־${newInstructorName}`,
+          date
+            ? `בתאריך ${date}`
+            : '',
+          start
+            ? `בשעה ${start}${end ? `–${end}` : ''}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' ');
+
+        const { data, error } = await dbTenant().rpc(
+          'move_lesson_occurrence',
+          {
+            p_lesson_id:
+              this.moveChoiceModal.lessonId,
+
+            p_occur_date:
+              this.moveChoiceModal.occurDate,
+
+            p_new_instructor_id:
+              newInstructorId,
+
+            p_new_start_datetime:
+              newStartDatetime,
+
+            p_new_end_datetime:
+              newEndDatetime,
+
+            p_note: moveNote,
+            p_created_by_role: 'secretary',
+            p_created_by_uid: null,
+          }
+        );
+
+        if (error) throw error;
+
+      }
+
+      if (this.moveSlotsModal.mode === 'series') {
+        const { data, error } = await dbTenant().rpc(
+          'move_lesson_series',
+          {
+            p_lesson_id:
+              this.moveChoiceModal.lessonId,
+
+            /*
+             * זה התאריך שממנו מפצלים את הסדרה הישנה.
+             */
+            p_effective_occur_date:
+              this.moveChoiceModal.occurDate,
+
+            /*
+             * אם כבר הוספת את הפרמטר החדש ל-RPC
+             * של הסדרה, השאירי אותו.
+             */
+            p_new_first_occur_date:
+              targetDate,
+
+            p_new_instructor_id:
+              newInstructorId,
+
+            p_new_day_of_week:
+              this.dayNameFromYmd(targetDate),
+
+            p_new_start_time:
+              start,
+
+            p_new_end_time:
+              end,
+          }
+        );
+
+        if (error) throw error;
+
+        if (data?.ok === false) {
+          throw new Error(
+            data?.message ||
+            'הזזת הסדרה נכשלה'
+          );
+        }
+      }
+
+      /*
+       * סגירת החלונות רק אחרי הצלחה.
+       */
+      this.moveConfirmModal.open = false;
+      this.moveSlotsModal.open = false;
+      this.moveSlotsModal.selectedSlot = null;
+      this.moveConfirmModal.slot = null;
+
+      /*
+       * טעינה מחדש של הטווח הנוכחי.
+       */
+      if (this.currentRange) {
+        await this.loadLessons({
+          start: this.currentRange.start,
+          end: this.currentRange.end,
+        });
+
+        await this.loadRequestsForRange(
+          this.currentRange.start.slice(0, 10),
+          this.currentRange.end.slice(0, 10)
+        );
+
+        this.filterLessons();
+        this.setScheduleItems();
+        this.buildBlockedDayCells(this.currentRange);
+        this.buildAvailableDayCells(this.currentRange);
+        this.buildWeekStats();
+      }
+
+      await this.ui.alert(
+        this.moveSlotsModal.mode === 'series'
+          ? 'הסדרה הוזזה בהצלחה'
+          : 'השיעור הוזז בהצלחה',
+        'בוצע'
+      );
+    } catch (e: any) {
+      console.error('move failed', e);
+
+      const message =
+        e?.message ||
+        e?.details ||
+        e?.hint ||
+        'שגיאה בהזזת השיעור';
+
+      this.moveSlotsModal.error = message;
+
+      await this.ui.alert(
+        message,
+        'שגיאה'
+      );
+    } finally {
+      this.moveSlotsModal.saving = false;
+      this.cdr.detectChanges();
+    }
+  }
 
 
   private dayNameFromYmd(ymd: string): string {
@@ -4506,171 +4705,174 @@ const moveNote = [
     return days[d.getDay()];
   }
 
-  async chooseMoveWholeSeries(): Promise<void> {
-    if (this.moveSlotsModal.loading) return;
+  // async chooseMoveWholeSeries(): Promise<void> {
+  //   if (this.moveSlotsModal.loading) return;
 
-    const childId = this.moveChoiceModal.childId;
-    const lessonId = this.moveChoiceModal.lessonId;
-    const effectiveDate = this.moveChoiceModal.occurDate;
+  //   const childId = this.moveChoiceModal.childId;
+  //   const lessonId = this.moveChoiceModal.lessonId;
+  //   const effectiveDate = this.moveChoiceModal.occurDate;
 
-    if (!childId || !lessonId || !effectiveDate) {
-      await this.ui.alert(
-        'לא נמצאו פרטי הסדרה או הילד. יש לסגור ולנסות שוב.',
-        'שגיאה'
-      );
-      return;
-    }
+  //   if (!childId || !lessonId || !effectiveDate) {
+  //     await this.ui.alert(
+  //       'לא נמצאו פרטי הסדרה או הילד. יש לסגור ולנסות שוב.',
+  //       'שגיאה'
+  //     );
+  //     return;
+  //   }
 
-    this.moveChoiceModal.open = false;
+  //   this.moveChoiceModal.open = false;
 
-    this.moveSlotsModal = {
-      open: true,
-      mode: 'series',
-      loading: true,
-      saving: false,
-      error: '',
-      slots: [],
-      selectedSlot: null,
-    };
+  //   this.moveSlotsModal = {
+  //     open: true,
+  //     mode: 'series',
+  //     loading: true,
+  //     saving: false,
+  //     error: '',
+  //     slots: [],
+  //     selectedSlot: null,
+  //   };
 
-    this.moveSlotFilters = {
-      instructorId: '',
-      dayOfWeek: '',
-    };
+  //   this.moveSlotFilters = {
+  //     instructorId: '',
+  //     dayOfWeek: '',
+  //   };
 
-    this.moveSlotsPage = 0;
-    this.cdr.detectChanges();
+  //   this.moveSlotsPage = 0;
+  //   this.cdr.detectChanges();
 
-    try {
-      const from =
-        this.getMoveSearchFromDateYmd() ||
-        effectiveDate;
+  //   try {
+  //     const from =
+  //       this.getMoveSearchFromDateYmd() ||
+  //       effectiveDate;
 
-      // טווח החיפוש רחב, אך יוצגו רק 10 מועמדים
-      const to = this.addDaysYmd(from, 10);
+  //     // טווח החיפוש רחב, אך יוצגו רק 10 מועמדים
+  //     const to = this.addDaysYmd(from, 10);
 
-      /*
-       * אנחנו מחפשים מועדים מועמדים להתחלת הסדרה.
-       * האימות המלא של כל הסדרה יתבצע בזמן move_lesson_series.
-       *
-       * שימוש בכל מספר השיעורים שנותרו יחד עם חלון מוגבל
-       * גורם לכך שכמעט תמיד חוזרות אפס תוצאות.
-       */
-      const lessonCountForSearch = 1;
+  //     /*
+  //      * אנחנו מחפשים מועדים מועמדים להתחלת הסדרה.
+  //      * האימות המלא של כל הסדרה יתבצע בזמן move_lesson_series.
+  //      *
+  //      * שימוש בכל מספר השיעורים שנותרו יחד עם חלון מוגבל
+  //      * גורם לכך שכמעט תמיד חוזרות אפס תוצאות.
+  //      */
+  //     const lessonCountForSearch = 1;
+  //     const selectedInstructorId =
+  //       String(this.moveSlotFilters.instructorId || '').trim();
 
-      const payload = {
-        p_child_id: childId,
-        p_lesson_count: lessonCountForSearch,
-        p_instructor_id_number: null,
-        p_from_date: from,
-        p_to_date: to,
-      };
+  //     const payload = {
+  //       p_child_id: childId,
+  //       p_lesson_count: lessonCountForSearch,
+
+  //       p_instructor_id_number:
+  //         selectedInstructorId || null,
+
+  //       p_from_date: from,
+  //       p_to_date: to,
+  //     };
+
+  //     const { data, error } = await dbTenant().rpc(
+  //       'find_series_slots_with_skips',
+  //       payload
+  //     );
 
 
 
-      const { data, error } = await dbTenant().rpc(
-        'find_series_slots_with_skips',
-        payload
-      );
+  //     if (error) throw error;
 
+  //     this.moveSlotsModal.slots = (data ?? [])
+  //       .map((s: any) => {
+  //         const instructorId = String(
+  //           s.instructor_id ||
+  //           s.instructor_id_number ||
+  //           ''
+  //         );
 
+  //         const inst = this.instructors.find(
+  //           i => String(i.id_number) === instructorId
+  //         );
 
-      if (error) throw error;
+  //         const occurDate =
+  //           s.lesson_date ||
+  //           s.occur_date ||
+  //           '';
 
-      this.moveSlotsModal.slots = (data ?? [])
-        .map((s: any) => {
-          const instructorId = String(
-            s.instructor_id ||
-            s.instructor_id_number ||
-            ''
-          );
+  //         return {
+  //           occur_date: occurDate,
+  //           lesson_date: occurDate,
+  //           start_time: String(
+  //             s.start_time || s.start || ''
+  //           ).slice(0, 5),
+  //           end_time: String(
+  //             s.end_time || s.end || ''
+  //           ).slice(0, 5),
+  //           instructor_id: instructorId,
+  //           instructor_name: inst
+  //             ? `${inst.first_name ?? ''} ${inst.last_name ?? ''}`.trim()
+  //             : instructorId,
+  //           day_of_week:
+  //             s.day_of_week ||
+  //             this.getHebrewDayNameFromDate(occurDate),
+  //           lesson_ridding_type:
+  //             s.riding_type_id ?? null,
+  //           riding_type_name:
+  //             s.riding_type_name ?? null,
+  //           remaining_capacity:
+  //             s.remaining_capacity ?? 1,
+  //           raw: s,
+  //         };
+  //       })
+  //       .filter((s: any) => {
+  //         if (
+  //           !s.occur_date ||
+  //           !s.start_time ||
+  //           !s.instructor_id
+  //         ) {
+  //           return false;
+  //         }
 
-          const inst = this.instructors.find(
-            i => String(i.id_number) === instructorId
-          );
+  //         const sameDate =
+  //           String(s.occur_date).slice(0, 10) ===
+  //           String(effectiveDate).slice(0, 10);
 
-          const occurDate =
-            s.lesson_date ||
-            s.occur_date ||
-            '';
+  //         const sameStart =
+  //           String(s.start_time).slice(0, 5) ===
+  //           String(this.moveChoiceModal.startTime).slice(0, 5);
 
-          return {
-            occur_date: occurDate,
-            lesson_date: occurDate,
-            start_time: String(
-              s.start_time || s.start || ''
-            ).slice(0, 5),
-            end_time: String(
-              s.end_time || s.end || ''
-            ).slice(0, 5),
-            instructor_id: instructorId,
-            instructor_name: inst
-              ? `${inst.first_name ?? ''} ${inst.last_name ?? ''}`.trim()
-              : instructorId,
-            day_of_week:
-              s.day_of_week ||
-              this.getHebrewDayNameFromDate(occurDate),
-            lesson_ridding_type:
-              s.riding_type_id ?? null,
-            riding_type_name:
-              s.riding_type_name ?? null,
-            remaining_capacity:
-              s.remaining_capacity ?? 1,
-            raw: s,
-          };
-        })
-        .filter((s: any) => {
-          if (
-            !s.occur_date ||
-            !s.start_time ||
-            !s.instructor_id
-          ) {
-            return false;
-          }
+  //         const sameInstructor =
+  //           String(s.instructor_id) ===
+  //           String(this.moveChoiceModal.instructorId);
 
-          const sameDate =
-            String(s.occur_date).slice(0, 10) ===
-            String(effectiveDate).slice(0, 10);
+  //         return !(sameDate && sameStart && sameInstructor);
+  //       })
+  //       .sort((a: any, b: any) => {
+  //         const dateCompare =
+  //           String(a.occur_date).localeCompare(
+  //             String(b.occur_date)
+  //           );
 
-          const sameStart =
-            String(s.start_time).slice(0, 5) ===
-            String(this.moveChoiceModal.startTime).slice(0, 5);
+  //         if (dateCompare !== 0) return dateCompare;
 
-          const sameInstructor =
-            String(s.instructor_id) ===
-            String(this.moveChoiceModal.instructorId);
+  //         return String(a.start_time).localeCompare(
+  //           String(b.start_time)
+  //         );
+  //       })
+  //       .slice(0, 10);
 
-          return !(sameDate && sameStart && sameInstructor);
-        })
-        .sort((a: any, b: any) => {
-          const dateCompare =
-            String(a.occur_date).localeCompare(
-              String(b.occur_date)
-            );
+  //     if (!this.moveSlotsModal.slots.length) {
+  //       this.moveSlotsModal.error =
+  //         `לא נמצאו אפשרויות פנויות בין ${from} ל־${to}.`;
+  //     }
+  //   } catch (e: any) {
+  //     console.error('load series move slots failed', e);
 
-          if (dateCompare !== 0) return dateCompare;
-
-          return String(a.start_time).localeCompare(
-            String(b.start_time)
-          );
-        })
-        .slice(0, 10);
-
-      if (!this.moveSlotsModal.slots.length) {
-        this.moveSlotsModal.error =
-          `לא נמצאו אפשרויות פנויות בין ${from} ל־${to}.`;
-      }
-    } catch (e: any) {
-      console.error('load series move slots failed', e);
-
-      this.moveSlotsModal.error =
-        e?.message ||
-        'שגיאה בטעינת אפשרויות להזזת סדרה';
-    } finally {
-      this.moveSlotsModal.loading = false;
-      this.cdr.detectChanges();
-    }
-  }
+  //     this.moveSlotsModal.error =
+  //       e?.message ||
+  //       'שגיאה בטעינת אפשרויות להזזת סדרה';
+  //   } finally {
+  //     this.moveSlotsModal.loading = false;
+  //     this.cdr.detectChanges();
+  //   }
+  // }
 
   async confirmMoveSelectedSlot(): Promise<void> {
     const slot = this.moveSlotsModal.selectedSlot;
@@ -4681,7 +4883,7 @@ const moveNote = [
       return;
     }
 
-    
+
   }
 
   moveSlotsPage = 0;
