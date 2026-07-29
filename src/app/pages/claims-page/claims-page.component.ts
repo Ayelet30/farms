@@ -1,4 +1,4 @@
-import { Component, ViewChild, AfterViewInit } from '@angular/core';
+import { Component, ViewChild, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -10,6 +10,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
 import { MatTableDataSource } from '@angular/material/table';
+import { HelthAgentService } from '../../services/helth-agent.service';
 
 import { dbTenant, ensureTenantContextReady } from '../../services/supabaseClient.service';
 import { ClaimsApiService, ClaimOpenItem } from '../../services/claims-api.service';
@@ -77,10 +78,17 @@ interface FiltersState {
   templateUrl: './claims-page.component.html',
   styleUrls: ['./claims-page.component.scss'],
 })
-export class ClaimsPageComponent implements AfterViewInit {
+export class ClaimsPageComponent implements AfterViewInit, OnDestroy {
   constructor(private claimsApi: ClaimsApiService,
-              private tenantSvc: SupabaseTenantService
+              private tenantSvc: SupabaseTenantService,
+              private healthAgent: HelthAgentService
   ) {}
+
+  agentInstalled = false;
+agentChecking = false;
+agentVersion: string | null = null;
+
+private agentCheckTimer: ReturnType<typeof setInterval> | null = null;
 
   activeTab: HmoTab = 'CLALIT';
 
@@ -122,10 +130,44 @@ export class ClaimsPageComponent implements AfterViewInit {
   };
 
   async ngAfterViewInit() {
-    await this.tenantSvc.ensureTenantContextReady?.();
-    this.dataSource.paginator = this.paginator;
-    await this.reloadCurrentTab();
+  await this.tenantSvc.ensureTenantContextReady?.();
+
+  this.dataSource.paginator = this.paginator;
+
+  await this.checkHealthAgent();
+  await this.reloadCurrentTab();
+
+  this.agentCheckTimer = setInterval(() => {
+    void this.checkHealthAgent();
+  }, 15_000);
+}
+
+  ngOnDestroy(): void {
+  if (this.agentCheckTimer) {
+    clearInterval(this.agentCheckTimer);
+    this.agentCheckTimer = null;
   }
+}
+
+async checkHealthAgent(): Promise<void> {
+  if (this.agentChecking) return;
+
+  this.agentChecking = true;
+
+  try {
+    const health = await this.healthAgent.checkHealth();
+
+    this.agentInstalled = Boolean(health?.ok);
+    this.agentVersion = health?.version ?? null;
+  } finally {
+    this.agentChecking = false;
+  }
+}
+
+downloadHealthAgent(): void {
+  window.location.href =
+    'https://YOUR-DOMAIN.co.il/downloads/bereshit-maccabi-agent-setup.exe';
+}
 
   async onTabChange(index: number) {
   this.activeTab = index === 0 ? 'CLALIT' : index === 1 ? 'MACCABI' : 'MEUHEDET';

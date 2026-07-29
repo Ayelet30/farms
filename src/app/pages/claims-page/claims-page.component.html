@@ -79,13 +79,65 @@
         פתיחת תביעות למסומנים
       </button>
 
-      <button class="pill-btn primary" [disabled]="selectedIds.size === 0" (click)="reportSelectedToFundingSource()">
+     <button class="pill-btn primary" [disabled]="selectedIds.size === 0" (click)="reportSelectedToFundingSource()">
         {{ activeTab === 'MACCABI' ? 'דווח למכבי' :
         activeTab === 'MEUHEDET' ? 'דווח למאוחדת' :
         'הגשת תביעות מסומנות' }}
       </button>
     </div>
   </div>
+
+  <div
+  *ngIf="activeTab === 'MACCABI'"
+  class="card agent-card"
+  [class.agent-ready]="agentInstalled"
+  [class.agent-missing]="!agentInstalled">
+
+  <div class="agent-info">
+    <div class="agent-status-icon">
+      {{ agentChecking ? '…' : agentInstalled ? '✓' : '!' }}
+    </div>
+
+    <div>
+      <strong>
+        {{
+          agentChecking
+            ? 'בודק את תוכנת הדיווח...'
+            : agentInstalled
+              ? 'תוכנת הדיווח למכבי פעילה'
+              : 'תוכנת הדיווח למכבי אינה פעילה'
+        }}
+      </strong>
+
+      <p *ngIf="agentInstalled">
+        ניתן לשלוח שיעורים לדיווח.
+        <span *ngIf="agentVersion">גרסה {{ agentVersion }}</span>
+      </p>
+
+      <p *ngIf="!agentInstalled && !agentChecking">
+        יש להתקין ולהפעיל את תוכנת הדיווח לפני שליחת שיעורים למכבי.
+      </p>
+    </div>
+  </div>
+
+  <div class="agent-actions">
+    <button
+      type="button"
+      class="pill-btn ghost"
+      (click)="checkHealthAgent()"
+      [disabled]="agentChecking">
+      בדיקה מחדש
+    </button>
+
+    <button
+      *ngIf="!agentInstalled"
+      type="button"
+      class="pill-btn primary"
+      (click)="downloadHealthAgent()">
+      הורדת תוכנת הדיווח
+    </button>
+  </div>
+</div>
 
   <!-- טבלה -->
   <div class="card table-card">
