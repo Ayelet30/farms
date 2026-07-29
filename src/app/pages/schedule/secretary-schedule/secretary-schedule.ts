@@ -2467,12 +2467,6 @@ private selectWorkingInstructorsForDay(dateYmd: string): void {
     range?: { start: string; end: string }
   ): Promise<void> {
     try {
-      const childIds = this.children.map(c => c.child_uuid).filter(Boolean);
-      if (!childIds.length) {
-        this.lessons = [];
-        return;
-      }
-
       const dbc = dbTenant();
 
       const today = new Date().toISOString().slice(0, 10);
@@ -2548,12 +2542,38 @@ private selectWorkingInstructorsForDay(dateYmd: string): void {
     occurrence_change_created_by_uid
   `)
 
-        .in('child_id', childIds)
         .gte('occur_date', from)
         .lte('occur_date', to)
         .order('start_datetime', { ascending: true });
 
       if (err1) throw err1;
+
+      const occurrenceChildIds = [
+  ...new Set(
+    (occData ?? [])
+      .map((row: any) => String(row.child_id ?? ''))
+      .filter(Boolean)
+  ),
+];
+
+let scheduleChildren: ChildRow[] = [];
+
+if (occurrenceChildIds.length) {
+  const { data: childrenData, error: childrenError } = await dbc
+    .from('children')
+    .select(`
+      child_uuid,
+      first_name,
+      last_name,
+      birth_date,
+      status
+    `)
+    .in('child_uuid', occurrenceChildIds);
+
+  if (childrenError) throw childrenError;
+
+  scheduleChildren = (childrenData ?? []) as ChildRow[];
+}
 
 
       const lessonIds = [...new Set((occData ?? []).map((r: any) => r.lesson_id).filter(Boolean))];
@@ -2573,14 +2593,21 @@ private selectWorkingInstructorsForDay(dateYmd: string): void {
       }
 
       // 2) משאבי סוס+מגרש לפי אותו טווח
-      const { data: resData, error: err2 } = await dbc
-        .from('lessons_with_children')
-        .select('lesson_id, occur_date, horse_name, arena_name')
-        .in('child_id', childIds)
-        .gte('occur_date', from)
-        .lte('occur_date', to);
+      let resData: any[] = [];
 
-      if (err2) throw err2;
+if (occurrenceChildIds.length) {
+  const { data, error: err2 } = await dbc
+    .from('lessons_with_children')
+    .select('lesson_id, child_id, occur_date, horse_name, arena_name')
+    .in('child_id', occurrenceChildIds)
+    .gte('occur_date', from)
+    .lte('occur_date', to);
+
+  if (err2) throw err2;
+
+  resData = data ?? [];
+}
+
 
       // 3) בניית Map לפי (lesson_id + occur_date)
       const resourceByKey = new Map<
@@ -2598,11 +2625,11 @@ private selectWorkingInstructorsForDay(dateYmd: string): void {
 
       // 4) מיפוי לשיעורים + הוספת horse/arena מה-Map
       const nameByChild = new Map(
-        this.children.map(c => [
-          c.child_uuid,
-          `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim(),
-        ])
-      );
+  scheduleChildren.map(c => [
+    c.child_uuid,
+    `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim(),
+  ])
+);
 
       const instructorNameById = new Map(
         this.instructorsAll.map(i => [
