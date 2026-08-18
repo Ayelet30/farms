@@ -69,6 +69,8 @@ export {
   createRiderServiceBySecretaryAndNotify,
 } from './rider-service-request-decision';
 
+export { maccabiAgentApi,} from './maccabi-agent-api';
+
 export {
   upsertFarmBillingCustomer,
   createFarmBillingPaymentLink,

@@ -1,256 +1,594 @@
-<div class="page-wrap">
-  <!-- כותרת -->
-  <div class="card header-card">
+<div class="page-wrap" dir="rtl">
+  <header class="card header-card">
     <div class="title-block">
-      <h2>תביעות</h2>
-      <p class="subtitle">ניהול תביעות לפי קופה: פתיחה, סימון, והגשה.</p>
+      <h1>דיווח שיעורים לקופות</h1>
+      <p>איתור, בדיקה ושליחת שיעורים לדיווח במקום אחד</p>
     </div>
-  </div>
 
-  <!-- טאבים -->
-  <mat-tab-group class="tabs-shell" (selectedIndexChange)="onTabChange($event)">
+    <button
+      type="button"
+      class="refresh-btn"
+      [disabled]="loading"
+      (click)="reloadCurrentTab()"
+    >
+      <span class="refresh-icon" [class.spinning]="loading">↻</span>
+      {{ loading ? 'טוען...' : 'רענון נתונים' }}
+    </button>
+  </header>
+
+  <mat-tab-group
+    class="tabs-shell"
+    (selectedIndexChange)="onTabChange($event)"
+  >
     <mat-tab label="כללית"></mat-tab>
     <mat-tab label="מכבי"></mat-tab>
     <mat-tab label="מאוחדת"></mat-tab>
   </mat-tab-group>
-  <!-- פילטרים -->
-  <div class="card filters-card">
+
+  <section
+    *ngIf="activeTab === 'MACCABI'"
+    class="agent-banner"
+    [class.online]="agentInstalled"
+    [class.offline]="!agentInstalled && !agentChecking"
+  >
+    <span class="agent-status-dot"></span>
+<div class="agent-copy">
+  <strong>
+    {{
+      agentChecking
+        ? 'בודק את תוכנת הדיווח...'
+        : agentInstalled
+          ? 'תוכנת הדיווח למכבי פעילה'
+          : 'תוכנת הדיווח למכבי אינה פעילה'
+    }}
+  </strong>
+
+  <span *ngIf="agentInstalled">
+    ניתן לשלוח שיעורים לדיווח
+    <ng-container *ngIf="agentVersion">
+      · גרסה {{ agentVersion }}
+    </ng-container>
+  </span>
+
+  <span *ngIf="!agentInstalled && !agentChecking">
+    יש להתקין ולהפעיל את התוכנה לפני שליחת שיעורים.
+  </span>
+
+  <span
+    *ngIf="agentDownloadError"
+    class="agent-download-error"
+    role="alert"
+  >
+    {{ agentDownloadError }}
+  </span>
+</div>
+
+    <button
+  *ngIf="!agentInstalled && !agentChecking"
+  type="button"
+  class="pill-btn primary"
+  [disabled]="agentDownloading"
+  (click)="downloadHealthAgent()"
+>
+  {{
+    agentDownloading
+      ? 'מכין הורדה...'
+      : 'הורדת תוכנת הדיווח'
+  }}
+</button>
+  </section>
+
+  <section
+    class="summary-grid"
+    aria-label="סינון מהיר לפי מצב דיווח"
+  >
+    <button
+      type="button"
+      class="summary-card ready"
+      [class.active]="filters.reportState === 'REPORTABLE'"
+      (click)="setReportFilter('REPORTABLE')"
+    >
+      <span>מוכנים לדיווח</span>
+      <strong>{{ reportableCount }}</strong>
+      <small>לחצי להצגת השיעורים</small>
+    </button>
+
+    <button
+      type="button"
+      class="summary-card waiting"
+      [class.active]="filters.reportState === 'PENDING'"
+      (click)="setReportFilter('PENDING')"
+    >
+      <span>ממתינים / בתהליך</span>
+      <strong>{{ pendingCount }}</strong>
+      <small>נשלחו לאוטומציה</small>
+    </button>
+
+    <button
+      type="button"
+      class="summary-card done"
+      [class.active]="filters.reportState === 'DONE'"
+      (click)="setReportFilter('DONE')"
+    >
+      <span>דווחו בהצלחה</span>
+      <strong>{{ doneCount }}</strong>
+      <small>הדיווח הושלם</small>
+    </button>
+
+    <button
+      type="button"
+      class="summary-card failed"
+      [class.active]="filters.reportState === 'FAILED'"
+      (click)="setReportFilter('FAILED')"
+    >
+      <span>דיווחים שנכשלו</span>
+      <strong>{{ failedCount }}</strong>
+      <small>דורשים טיפול</small>
+    </button>
+  </section>
+
+  <section class="card filters-card">
+    <div class="section-title">
+      <div>
+        <h2>חיפוש וסינון</h2>
+        <span>{{ dataSource.data.length }} שיעורים בתוצאות</span>
+      </div>
+
+      <button
+        type="button"
+        class="link-btn"
+        (click)="resetFilters()"
+      >
+        איפוס הכול
+      </button>
+    </div>
+
     <div class="filters-grid">
+      <label class="filter-field">
+        <span>ילד או תעודת זהות</span>
 
-      <div class="filter-field">
-        <label>חיפוש ילד</label>
-        <input type="text" [(ngModel)]="filters.childText" (input)="applyFilters()" placeholder="שם ילד" />
-      </div>
+        <input
+          type="search"
+          [(ngModel)]="filters.childText"
+          (input)="applyFilters()"
+          placeholder="שם הילד או תעודת זהות"
+        />
+      </label>
 
-      <div class="filter-field">
-        <label>חיפוש מדריך</label>
-        <input type="text" [(ngModel)]="filters.instructorText" (input)="applyFilters()" placeholder="שם מדריך" />
-      </div>
+      <label class="filter-field">
+        <span>מדריך</span>
 
-      <div class="filter-field">
-        <label>מתאריך</label>
-        <input type="date" [(ngModel)]="filters.dateFrom" (change)="applyFilters()" [max]="filters.dateTo || null" />
-      </div>
+        <input
+          type="search"
+          [(ngModel)]="filters.instructorText"
+          (input)="applyFilters()"
+          placeholder="שם המדריך"
+        />
+      </label>
 
-      <div class="filter-field">
-        <label>עד תאריך</label>
-        <input type="date" [(ngModel)]="filters.dateTo" (change)="applyFilters()" [min]="filters.dateFrom || null" />
-      </div>
+      <label class="filter-field">
+        <span>חודש דיווח</span>
 
-      <div class="filter-field">
-        <label>סטטוס תביעה</label>
-        <mat-select [(ngModel)]="filters.claimStatus" (selectionChange)="applyFilters()">
-          <mat-option value="ALL">הכל</mat-option>
-          <mat-option value="NONE">ללא</mat-option>
-          <mat-option value="OPENED_NOT_SUBMITTED">נפתחה (לא הוגשה)</mat-option>
-          <mat-option value="PENDING">הוגשה - ממתינה</mat-option>
-          <mat-option value="APPROVED">אושרה</mat-option>
-          <mat-option value="REJECTED">נדחתה</mat-option>
+        <mat-select
+          [(ngModel)]="filters.reportMonth"
+          (selectionChange)="applyFilters()"
+        >
+          <mat-option value="">כל החודשים</mat-option>
+
+          <mat-option
+            *ngFor="let month of reportMonths"
+            [value]="month"
+          >
+            {{ reportMonthLabel(month) }}
+          </mat-option>
         </mat-select>
-      </div>
+      </label>
 
-      <div class="filter-field">
-        <label>מחויב בתשלום</label>
-        <mat-select [(ngModel)]="filters.chargeable" (selectionChange)="applyFilters()">
-          <mat-option value="ALL">הכל</mat-option>
+      <label class="filter-field">
+        <span>מצב דיווח</span>
+
+        <mat-select
+          [(ngModel)]="filters.reportState"
+          (selectionChange)="applyFilters()"
+        >
+          <mat-option value="ALL">כל המצבים</mat-option>
+          <mat-option value="REPORTABLE">מוכן לדיווח</mat-option>
+          <mat-option value="NOT_REPORTED">טרם דווח</mat-option>
+          <mat-option value="PENDING">ממתין / בתהליך</mat-option>
+          <mat-option value="DONE">דווח</mat-option>
+          <mat-option value="FAILED">נכשל</mat-option>
+          <mat-option value="BLOCKED">חסום לדיווח</mat-option>
+        </mat-select>
+      </label>
+
+      <label class="filter-field">
+        <span>התקיים</span>
+
+        <mat-select
+          [(ngModel)]="filters.occurred"
+          (selectionChange)="applyFilters()"
+        >
+          <mat-option value="ALL">הכול</mat-option>
           <mat-option value="YES">כן</mat-option>
           <mat-option value="NO">לא</mat-option>
         </mat-select>
-      </div>
+      </label>
 
-      <div class="filter-actions">
-        <button class="pill-btn ghost" type="button" (click)="resetFilters()">
-          איפוס סינון
-        </button>
-      </div>
+      <label class="filter-field">
+        <span>מחויב לקופה</span>
+
+        <mat-select
+          [(ngModel)]="filters.chargeable"
+          (selectionChange)="applyFilters()"
+        >
+          <mat-option value="ALL">הכול</mat-option>
+          <mat-option value="YES">כן</mat-option>
+          <mat-option value="NO">לא</mat-option>
+        </mat-select>
+      </label>
+
+      <label
+        *ngIf="activeTab === 'MACCABI'"
+        class="filter-field"
+      >
+        <span>תעודת זהות</span>
+
+        <mat-select
+          [(ngModel)]="filters.missingId"
+          (selectionChange)="applyFilters()"
+        >
+          <mat-option value="ALL">הכול</mat-option>
+          <mat-option value="NO">קיימת</mat-option>
+          <mat-option value="YES">חסרה</mat-option>
+        </mat-select>
+      </label>
+
+      <label class="filter-field">
+        <span>מתאריך</span>
+
+        <input
+          type="date"
+          [(ngModel)]="filters.dateFrom"
+          (change)="applyFilters()"
+          [max]="filters.dateTo || null"
+        />
+      </label>
+
+      <label class="filter-field">
+        <span>עד תאריך</span>
+
+        <input
+          type="date"
+          [(ngModel)]="filters.dateTo"
+          (change)="applyFilters()"
+          [min]="filters.dateFrom || null"
+        />
+      </label>
     </div>
-  </div>
+  </section>
 
-  <!-- פעולות כלליות -->
-  <div class="actions-row">
-    <div class="chips">
-      <span class="chip">מוצגים: {{ dataSource.data.length }}</span>
-      <span class="chip">מסומנים: {{ selectedIds.size }}</span>
+  <section
+    class="selection-bar"
+    [class.visible]="selectedCount > 0"
+  >
+    <div class="selection-details">
+      <strong>{{ selectedCount }} שיעורים נבחרו</strong>
+
+      <button
+        type="button"
+        class="selection-link"
+        (click)="clearSelection()"
+      >
+        ניקוי בחירה
+      </button>
     </div>
 
-    <div class="top-actions">
-      <button *ngIf="activeTab === 'CLALIT'" class="pill-btn" [disabled]="!canOpenSelectedClaims"
-        (click)="openSelectedClaims()">
-        פתיחת תביעות למסומנים
+    <div class="selection-actions">
+      <button
+        type="button"
+        class="pill-btn dark-ghost"
+        (click)="selectAllFiltered()"
+      >
+        בחירת כל המתאימים בתוצאות
       </button>
 
-     <button class="pill-btn primary" [disabled]="selectedIds.size === 0" (click)="reportSelectedToFundingSource()">
-        {{ activeTab === 'MACCABI' ? 'דווח למכבי' :
-        activeTab === 'MEUHEDET' ? 'דווח למאוחדת' :
-        'הגשת תביעות מסומנות' }}
+      <button
+        *ngIf="activeTab === 'CLALIT'"
+        type="button"
+        class="pill-btn"
+        [disabled]="!canOpenSelectedClaims || sending"
+        (click)="openSelectedClaims()"
+      >
+        פתיחת תביעות
       </button>
-    </div>
-  </div>
 
-  <div
-  *ngIf="activeTab === 'MACCABI'"
-  class="card agent-card"
-  [class.agent-ready]="agentInstalled"
-  [class.agent-missing]="!agentInstalled">
-
-  <div class="agent-info">
-    <div class="agent-status-icon">
-      {{ agentChecking ? '…' : agentInstalled ? '✓' : '!' }}
-    </div>
-
-    <div>
-      <strong>
+      <button
+        type="button"
+        class="pill-btn primary"
+        [disabled]="
+          selectedCount === 0 ||
+          sending ||
+          (activeTab === 'MACCABI' && !agentInstalled)
+        "
+        (click)="reportSelectedToFundingSource()"
+      >
         {{
-          agentChecking
-            ? 'בודק את תוכנת הדיווח...'
-            : agentInstalled
-              ? 'תוכנת הדיווח למכבי פעילה'
-              : 'תוכנת הדיווח למכבי אינה פעילה'
+          sending
+            ? 'שולח...'
+            : activeTab === 'MACCABI'
+              ? 'שליחה לדיווח למכבי'
+              : activeTab === 'MEUHEDET'
+                ? 'דיווח למאוחדת'
+                : 'הגשת התביעות'
         }}
-      </strong>
-
-      <p *ngIf="agentInstalled">
-        ניתן לשלוח שיעורים לדיווח.
-        <span *ngIf="agentVersion">גרסה {{ agentVersion }}</span>
-      </p>
-
-      <p *ngIf="!agentInstalled && !agentChecking">
-        יש להתקין ולהפעיל את תוכנת הדיווח לפני שליחת שיעורים למכבי.
-      </p>
+      </button>
     </div>
-  </div>
+  </section>
 
-  <div class="agent-actions">
-    <button
-      type="button"
-      class="pill-btn ghost"
-      (click)="checkHealthAgent()"
-      [disabled]="agentChecking">
-      בדיקה מחדש
+  <section *ngIf="loadError" class="error-banner">
+    <span>{{ loadError }}</span>
+
+    <button type="button" (click)="reloadCurrentTab()">
+      ניסיון נוסף
     </button>
+  </section>
 
-    <button
-      *ngIf="!agentInstalled"
-      type="button"
-      class="pill-btn primary"
-      (click)="downloadHealthAgent()">
-      הורדת תוכנת הדיווח
-    </button>
-  </div>
-</div>
-
-  <!-- טבלה -->
-  <div class="card table-card">
+  <section class="card table-card">
     <div class="table-wrap">
-      <table mat-table [dataSource]="dataSource" class="claims-table">
-
-        <!-- בחירה -->
+      <table
+        mat-table
+        [dataSource]="dataSource"
+        class="claims-table"
+      >
         <ng-container matColumnDef="select">
-          <th mat-header-cell *matHeaderCellDef class="col-select">
-            <mat-checkbox [checked]="isAllSelectedOnPage()" [indeterminate]="isSomeSelectedOnPage()"
-              (change)="masterToggle($event.checked)">
-            </mat-checkbox>
+          <th
+            mat-header-cell
+            *matHeaderCellDef
+            class="col-select"
+          >
+            <mat-checkbox
+              [checked]="isAllSelectedOnPage()"
+              [indeterminate]="isSomeSelectedOnPage()"
+              (change)="masterToggle($event.checked)"
+              aria-label="בחירת כל השיעורים הזמינים בעמוד"
+            ></mat-checkbox>
           </th>
 
-          <td mat-cell *matCellDef="let row" class="col-select">
-            <mat-checkbox [disabled]="!isRowSelectable(row)" [checked]="isSelected(row)"
-              (change)="toggleRow(row, $event.checked)">
-            </mat-checkbox>
+          <td
+            mat-cell
+            *matCellDef="let row"
+            class="col-select"
+          >
+            <mat-checkbox
+              [disabled]="!isRowSelectable(row)"
+              [checked]="isSelected(row)"
+              [title]="rowBlockReason(row)"
+              (change)="toggleRow(row, $event.checked)"
+            ></mat-checkbox>
           </td>
         </ng-container>
 
-        <!-- מדריך -->
         <ng-container matColumnDef="instructor">
-          <th mat-header-cell *matHeaderCellDef>מדריך</th>
-          <td mat-cell *matCellDef="let row">{{ row.instructorName }}</td>
-        </ng-container>
+          <th mat-header-cell *matHeaderCellDef>
+            מדריך
+          </th>
 
-        <!-- ילד -->
-        <ng-container matColumnDef="child">
-          <th mat-header-cell *matHeaderCellDef>ילד</th>
-          <td mat-cell *matCellDef="let row">{{ row.childName }}</td>
-        </ng-container>
-
-        <!-- תאריך -->
-        <ng-container matColumnDef="date">
-          <th mat-header-cell *matHeaderCellDef>תאריך</th>
-          <td mat-cell *matCellDef="let row">{{ row.occur_date }}</td>
-        </ng-container>
-
-        <!-- שעה -->
-        <ng-container matColumnDef="time">
-          <th mat-header-cell *matHeaderCellDef>שעה</th>
           <td mat-cell *matCellDef="let row">
-            {{ (row.start_time || '').toString().slice(0, 5) }}
-            <span *ngIf="row.end_time"> - {{ (row.end_time || '').toString().slice(0, 5) }}</span>
+            {{ row.instructorName || '—' }}
           </td>
         </ng-container>
 
-        <!-- התקיים -->
-        <ng-container matColumnDef="occurred">
-          <th mat-header-cell *matHeaderCellDef>התקיים</th>
+        <ng-container matColumnDef="child">
+          <th mat-header-cell *matHeaderCellDef>
+            ילד
+          </th>
+
           <td mat-cell *matCellDef="let row">
-            <span class="pill" [class.ok]="row.occurred" [class.no]="!row.occurred">
+            <strong class="child-name">
+              {{ row.childName || '—' }}
+            </strong>
+
+            <small
+              *ngIf="activeTab === 'MACCABI'"
+              class="secondary-value"
+              [class.missing]="!row.childIdNumber"
+            >
+              {{
+                row.childIdNumber ||
+                  'חסרה תעודת זהות'
+              }}
+            </small>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="date">
+          <th mat-header-cell *matHeaderCellDef>
+            תאריך
+          </th>
+
+          <td mat-cell *matCellDef="let row">
+            {{ row.occur_date | date: 'dd/MM/yyyy' }}
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="time">
+          <th mat-header-cell *matHeaderCellDef>
+            שעה
+          </th>
+
+          <td mat-cell *matCellDef="let row">
+            {{ (row.start_time || '').slice(0, 5) }}
+
+            <span *ngIf="row.end_time">
+              –
+              {{ row.end_time.slice(0, 5) }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="occurred">
+          <th mat-header-cell *matHeaderCellDef>
+            התקיים
+          </th>
+
+          <td mat-cell *matCellDef="let row">
+            <span
+              class="pill"
+              [class.ok]="row.occurred"
+              [class.no]="!row.occurred"
+            >
               {{ row.occurred ? 'כן' : 'לא' }}
             </span>
           </td>
         </ng-container>
 
-        <!-- מחויב -->
         <ng-container matColumnDef="chargeable">
-          <th mat-header-cell *matHeaderCellDef>מחויב</th>
+          <th mat-header-cell *matHeaderCellDef>
+            מחויב לקופה
+          </th>
+
           <td mat-cell *matCellDef="let row">
-            <span class="pill" [class.ok]="row.chargeable" [class.no]="!row.chargeable">
+            <span
+              class="pill"
+              [class.ok]="row.chargeable"
+              [class.no]="!row.chargeable"
+            >
               {{ row.chargeable ? 'כן' : 'לא' }}
             </span>
           </td>
         </ng-container>
 
-        <!-- נפתחה תביעה -->
         <ng-container matColumnDef="claimOpened">
-          <th mat-header-cell *matHeaderCellDef>נפתחה תביעה</th>
+          <th mat-header-cell *matHeaderCellDef>
+            נפתחה תביעה
+          </th>
+
           <td mat-cell *matCellDef="let row">
-            <span class="pill" [class.ok]="row.claimOpened" [class.no]="!row.claimOpened">
+            <span
+              class="pill"
+              [class.ok]="row.claimOpened"
+              [class.neutral]="!row.claimOpened"
+            >
               {{ row.claimOpened ? 'כן' : 'לא' }}
             </span>
           </td>
         </ng-container>
 
-        <!-- סטטוס -->
         <ng-container matColumnDef="claimStatus">
-          <th mat-header-cell *matHeaderCellDef>סטטוס תביעה</th>
+          <th mat-header-cell *matHeaderCellDef>
+            מצב דיווח
+          </th>
+
           <td mat-cell *matCellDef="let row">
-            <span class="pill status-pill" [ngClass]="statusClass(row.claimStatus)">
-              {{ statusLabel(row.claimStatus) }}
+            <span
+              class="pill status-pill"
+              [ngClass]="
+                activeTab === 'MACCABI'
+                  ? displayStatusClass(row.displayStatus)
+                  : statusClass(row.claimStatus)
+              "
+            >
+              {{
+                activeTab === 'MACCABI'
+                  ? row.displayStatusText
+                  : statusLabel(row.claimStatus)
+              }}
             </span>
+
+            <small
+              *ngIf="row.automationError"
+              class="automation-error"
+              [title]="row.automationError"
+            >
+              {{ row.automationError }}
+            </small>
           </td>
         </ng-container>
 
-        <!-- פעולות -->
         <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef class="col-actions">פעולות</th>
-          <td mat-cell *matCellDef="let row" class="col-actions actions-cell">
-            <button class="pill-btn tiny" type="button" disabled title="מחויב נגזר מהמערכת">
-              מחויב
-            </button>
+          <th
+            mat-header-cell
+            *matHeaderCellDef
+            class="col-actions"
+          >
+            הערה / פעולה
+          </th>
 
-            <button class="pill-btn tiny danger" type="button" *ngIf="canDeleteClaimRow(row)"
-              (click)="deleteClaimRow(row)">
+          <td
+            mat-cell
+            *matCellDef="let row"
+            class="col-actions"
+          >
+            <span
+              *ngIf="!isRowSelectable(row)"
+              class="block-reason"
+            >
+              {{ rowBlockReason(row) }}
+            </span>
+
+            <span
+              *ngIf="isRowSelectable(row)"
+              class="ready-label"
+            >
+              מוכן לדיווח
+            </span>
+
+            <button
+              *ngIf="canDeleteClaimRow(row)"
+              type="button"
+              class="pill-btn tiny danger"
+              (click)="deleteClaimRow(row)"
+            >
               מחיקת תביעה
             </button>
           </td>
         </ng-container>
 
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr
+          mat-header-row
+          *matHeaderRowDef="displayedColumns"
+        ></tr>
 
-        <tr mat-row *matRowDef="let row; columns: displayedColumns" [class.row-disabled]="!row.chargeable">
-        </tr>
-
+        <tr
+          mat-row
+          *matRowDef="
+            let row;
+            columns: displayedColumns
+          "
+          [class.row-disabled]="!isRowSelectable(row)"
+          [class.row-selected]="isSelected(row)"
+        ></tr>
       </table>
+
+      <div
+        *ngIf="loading"
+        class="table-loading"
+      >
+        <span class="loader"></span>
+        <strong>טוען שיעורים...</strong>
+      </div>
+
+      <div
+        *ngIf="!loading && dataSource.data.length === 0"
+        class="empty-state"
+      >
+        <strong>לא נמצאו שיעורים</strong>
+        <span>נסי לשנות או לאפס את הסינון.</span>
+
+        <button
+          type="button"
+          class="pill-btn"
+          (click)="resetFilters()"
+        >
+          איפוס סינון
+        </button>
+      </div>
     </div>
 
-    <mat-paginator [pageSize]="25" [pageSizeOptions]="[10,25,50,100]"></mat-paginator>
-  </div>
-
-
+    <mat-paginator
+      [pageSize]="25"
+      [pageSizeOptions]="[10, 25, 50, 100]"
+      showFirstLastButtons
+    ></mat-paginator>
+  </section>
 </div>

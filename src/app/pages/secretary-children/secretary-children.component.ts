@@ -350,14 +350,36 @@ paymentCardByParent: Record<string, boolean> = {};
     return this.columns.filter((c) => c.visible);
   }
 
-  private hebrewNameValidator(): (c: AbstractControl) => ValidationErrors | null {
-    const re = /^[\u0590-\u05FF\s'"\-]+$/;
-    return (c: AbstractControl) => {
-      const v = String(c.value ?? '').trim();
-      if (!v) return null;
-      return re.test(v) ? null : { hebrewName: true };
-    };
-  }
+  private hebrewNameValidator(): (
+  control: AbstractControl
+) => ValidationErrors | null {
+  const hebrewNameRegex = /^[\u0590-\u05FF\s'"\-]+$/;
+
+  return (control: AbstractControl): ValidationErrors | null => {
+    const value = String(control.value ?? '')
+      .normalize('NFKC')
+      .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '')
+      .replace(/\u00A0/g, ' ')
+      .trim();
+
+    if (!value) {
+      return null;
+    }
+
+    return hebrewNameRegex.test(value)
+      ? null
+      : { hebrewName: true };
+  };
+}
+
+private cleanHebrewName(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFKC')
+    .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
   isActiveStatus(status: string | null | undefined): boolean {
     return String(status ?? '').toLowerCase() === 'active';
@@ -1703,7 +1725,7 @@ this.seriesDocs = rows.map((row: any) => ({
   private buildChildForm(child: ChildDetails) {
     this.childForm = this.fb.group({
       first_name: [
-        child.first_name ?? '',
+        this.cleanHebrewName(child.first_name),
         [
           Validators.required,
           Validators.maxLength(this.MAX_NAME_LEN),
@@ -1711,7 +1733,7 @@ this.seriesDocs = rows.map((row: any) => ({
         ],
       ],
       last_name: [
-        child.last_name ?? '',
+        this.cleanHebrewName(child.last_name),
         [
           Validators.required,
           Validators.maxLength(this.MAX_NAME_LEN),
@@ -1756,9 +1778,19 @@ this.seriesDocs = rows.map((row: any) => ({
   }
 
   enterEditModeChild() {
-    if (!this.drawerChild || !this.childForm) return;
-    this.editMode = true;
+  if (!this.drawerChild || !this.childForm) return;
+
+  this.editMode = true;
+
+  if (this.childForm.invalid) {
+    this.childForm.markAllAsTouched();
+
+    console.log('❌ הטופס אינו תקין');
+    console.log('שגיאת שם פרטי:', this.childForm.get('first_name')?.errors);
+    console.log('שגיאת שם משפחה:', this.childForm.get('last_name')?.errors);
+    console.log('ערכי הטופס:', this.childForm.getRawValue());
   }
+}
 
   cancelChildEdit() {
     if (!this.originalChild) {
@@ -1933,6 +1965,24 @@ for (const row of docsData ?? []) {
     if (!this.drawerChild || !this.childForm || !this.selectedId) return;
 
     const raw = this.childForm.getRawValue();
+    raw.first_name = this.cleanHebrewName(raw.first_name);
+raw.last_name = this.cleanHebrewName(raw.last_name);
+
+this.childForm.patchValue(
+  {
+    first_name: raw.first_name,
+    last_name: raw.last_name,
+  },
+  { emitEvent: false }
+);
+
+this.childForm.updateValueAndValidity();
+
+if (this.childForm.invalid) {
+  this.childForm.markAllAsTouched();
+  return;
+}
+
     const becameInactive =
       this.isActiveStatus(this.originalChild?.status) &&
       raw.status === 'Deleted';

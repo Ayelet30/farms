@@ -321,6 +321,21 @@ function buildTranzilaAuthV2() {
   // אבל לרוב עובד גם אקראי כל בקשה כל עוד 40 תווים:
   const nonce = crypto.randomBytes(20).toString('hex'); // 40 chars
 
+  console.log('[TRANZILA TEMP DEBUG] auth source values', appKey, secret);
+
+  console.log('[TRANZILA TEMP DEBUG] auth source values', {
+  app_key: maskSecret(appKey),
+  secret: maskSecret(secret),
+
+  app_key_source: TRANZILA_APP_KEY_S.value()
+    ? 'Firebase Secret: TRANZILA_APP_KEY'
+    : 'process.env.TRANZILA_APP_KEY',
+
+  secret_source: TRANZILA_SECRET_S.value()
+    ? 'Firebase Secret: TRANZILA_SECRET'
+    : 'process.env.TRANZILA_SECRET',
+});
+
   // CryptoJS.HmacSHA256(app_key, secret + timestamp + nonce).toString(Hex)
   const key = `${secret}${timestamp}${nonce}`;
   const accessToken = crypto
@@ -346,6 +361,18 @@ type TranzilaApiResponse = {
 
 function isObj(x: unknown): x is Record<string, any> {
   return !!x && typeof x === 'object';
+}
+
+function maskSecret(value: unknown): string {
+  const str = String(value ?? '');
+
+  if (!str) return '[EMPTY]';
+
+  if (str.length <= 8) {
+    return `${str.slice(0, 2)}***${str.slice(-2)} (length=${str.length})`;
+  }
+
+  return `${str.slice(0, 4)}...${str.slice(-4)} (length=${str.length})`;
 }
 
 
@@ -418,6 +445,13 @@ async function chargeByToken(args: {
 
   const ct = resp.headers.get('content-type') || '';
   const raw = ct.includes('application/json') ? await resp.json() : await resp.text();
+
+  console.log('[TRANZILA TEMP DEBUG] response', {
+  httpStatus: resp.status,
+  httpOk: resp.ok,
+  contentType: ct,
+  raw,
+});
 
   const json = isObj(raw) ? (raw as any) : null;
   const tr = isObj(json?.transaction_result) ? (json!.transaction_result as any) : null;
@@ -1009,6 +1043,21 @@ export const chargeSelectedChargesForParent = onRequest(
       }
 
       const tokenTerminalPassword = await accessSecret(terminal.secret_key_charge_token!);
+
+      console.log('[TRANZILA TEMP DEBUG] terminal configuration', {
+      tenantSchema,
+
+      terminal_name: terminal.terminal_name,
+      tok_terminal_name: terminal.tok_terminal_name,
+
+      secret_key_charge: terminal.secret_key_charge,
+      secret_key_charge_token: terminal.secret_key_charge_token,
+
+      token_terminal_password: maskSecret(tokenTerminalPassword),
+
+      // חשוב: הסיסמה נטענה, אבל אינה משמשת כרגע ב-chargeByToken
+      token_password_is_actually_used: false,
+    });
 
 
       // B) טוענים כרטיסים פעילים של ההורה + החיובים
