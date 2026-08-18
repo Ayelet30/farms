@@ -307,6 +307,12 @@ paymentCardByParent: Record<string, boolean> = {};
   seriesDocsError: string | null = null;
   seriesDocs: SeriesDocRow[] = [];
 
+  seriesEndEditor = {
+  lessonId: null as string | null,
+  endDate: '',
+  saving: false,
+  error: '',
+};
 
   uploadingSeriesDocLessonId: string | null = null;
   constructor(
@@ -1667,9 +1673,20 @@ this.seriesDocs = rows.map((row: any) => ({
     return row.requiredDocs.join(', ');
   }
   getSeriesEndDisplay(row: SeriesDocRow): string {
-    if (row.isOpenEnded) return 'סדרה ללא הגבלה';
-    return row.seriesEndDate || '—';
+  if (row.seriesEndDate) {
+    return row.seriesEndDate;
   }
+
+  if (row.isOpenEnded) {
+    return 'סדרה ללא הגבלה';
+  }
+
+  return '—';
+}
+
+isSeriesCurrentlyOpen(row: SeriesDocRow): boolean {
+  return row.isOpenEnded === true && !row.seriesEndDate;
+}
 
   async openTermsPdf() {
     if (!this.termsBucket || !this.termsPath) {
@@ -1960,6 +1977,137 @@ for (const row of docsData ?? []) {
 
     this.lessonTypes = Array.from(typeSet).sort();
   }
+
+  openSeriesEndEditor(row: SeriesDocRow): void {
+  this.seriesEndEditor = {
+    lessonId: row.lessonId,
+    endDate: '',
+    saving: false,
+    error: '',
+  };
+}
+
+closeSeriesEndEditor(): void {
+  if (this.seriesEndEditor.saving) return;
+
+  this.seriesEndEditor = {
+    lessonId: null,
+    endDate: '',
+    saving: false,
+    error: '',
+  };
+}
+
+private getSeriesActualStartDateIso(row: SeriesDocRow): string | null {
+  if (!row.anchorWeekStart) return null;
+
+  const dayOffset = row.dayOfWeek
+    ? this.hebrewDayIndex[row.dayOfWeek]
+    : undefined;
+
+  if (dayOffset === undefined) {
+    return row.anchorWeekStart.slice(0, 10);
+  }
+
+  const [year, month, day] = row.anchorWeekStart
+    .slice(0, 10)
+    .split('-')
+    .map(Number);
+
+  if (!year || !month || !day) return null;
+
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + dayOffset);
+
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+getSeriesStartDateForInput(row: SeriesDocRow): string | null {
+  return this.getSeriesActualStartDateIso(row);
+}
+
+async confirmSeriesEnd(row: SeriesDocRow): Promise<void> {
+  if (
+    this.seriesEndEditor.lessonId !== row.lessonId ||
+    this.seriesEndEditor.saving
+  ) {
+    return;
+  }
+
+  this.seriesEndEditor.error = '';
+
+  const endDate = this.seriesEndEditor.endDate;
+  const startDate = this.getSeriesActualStartDateIso(row);
+
+  if (!endDate) {
+    this.seriesEndEditor.error = 'יש לבחור תאריך סיום.';
+    return;
+  }
+
+  if (!startDate) {
+    this.seriesEndEditor.error =
+      'לא ניתן לזהות את תאריך תחילת הסדרה.';
+    return;
+  }
+
+  // השוואה תקינה מפני ששני התאריכים בפורמט YYYY-MM-DD
+  if (endDate <= startDate) {
+    this.seriesEndEditor.error =
+      `תאריך הסיום חייב להיות מאוחר מתאריך תחילת הסדרה ` +
+      `(${this.formatIsoDateForDisplay(startDate)}).`;
+    return;
+  }
+
+  this.seriesEndEditor.saving = true;
+
+  try {
+    const db = await this.dbc();
+
+    const { error } = await db.rpc('end_lesson_series', {
+      p_lesson_id: row.lessonId,
+      p_effective_occur_date: endDate,
+      p_note: null,
+    });
+
+    if (error) throw error;
+
+    const childId = this.drawerChild?.child_uuid;
+
+    this.seriesEndEditor = {
+  lessonId: null,
+  endDate: '',
+  saving: false,
+  error: '',
+};
+
+    if (childId) {
+      await this.loadChildSeriesDocs(childId);
+    }
+
+    await this.ui.alert(
+      `הסדרה הסתיימה בהצלחה מתאריך ${this.formatIsoDateForDisplay(endDate)}.`,
+      'סיום סדרה'
+    );
+  } catch (error: any) {
+    console.error('confirmSeriesEnd error:', error);
+
+    this.seriesEndEditor.saving = false;
+    this.seriesEndEditor.error =
+      error?.message || 'אירעה שגיאה בסיום הסדרה.';
+  }
+}
+
+private formatIsoDateForDisplay(value: string): string {
+  const [year, month, day] = value.split('-');
+
+  if (!year || !month || !day) return value;
+
+  return `${day}/${month}/${year}`;
+}
 
   async saveChildEdits() {
     if (!this.drawerChild || !this.childForm || !this.selectedId) return;
