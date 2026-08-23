@@ -75,6 +75,20 @@ interface DayRequestRow {
   sick_note_file_path?: string | null;
 }
 
+type InstructorBreakOccurrence = {
+  occurrence_key: string;
+  source_type: 'WEEKLY' | 'ADDED';
+  weekly_availability_id: string | null;
+  exception_id: string | null;
+  instructor_id_number: string;
+  break_date: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  override_action: string;
+  is_overridden: boolean;
+};
+
 
 /* ------------ COMPONENT ------------ */
 @Component({
@@ -112,6 +126,7 @@ export class InstructorScheduleComponent implements OnInit {
   lessons: Lesson[] = [];
   children: Child[] = [];
   items: ScheduleItem[] = [];
+  breakOccurrences: InstructorBreakOccurrence[] = [];
   dayRequests: DayRequestRow[] = [];
   farmDaysOff: any[] = [];
   farmWorkingHours: any[] = [];
@@ -142,6 +157,22 @@ export class InstructorScheduleComponent implements OnInit {
     x: 0,
     y: 0,
     date: '' as string,
+    time: '' as string,
+    hasEvent: false,
+    lessonStatus: '' as string,
+    breakOccurrence: null as InstructorBreakOccurrence | null,
+  };
+
+  breakModal = {
+    open: false,
+    saving: false,
+    error: '',
+    mode: 'add' as 'add' | 'shorten' | 'cancel',
+    occurrence: null as InstructorBreakOccurrence | null,
+    date: '',
+    startTime: '',
+    endTime: '',
+    maxEndTime: '',
   };
   // 🔔 הורים שנפגעים מהחופש
   affectedChildren: Child[] = [];
@@ -193,6 +224,7 @@ export class InstructorScheduleComponent implements OnInit {
 
 
       await this.loadLessonsForRange(startYmd, endYmd);
+      await this.loadBreakOccurrences(startYmd, endYmd);
 
       // ✅ חדש: טעינת סוס+מגרש והזרקה לתוך lessons
       await this.loadLessonResourcesForRange(startYmd, endYmd);
@@ -223,6 +255,92 @@ export class InstructorScheduleComponent implements OnInit {
 
 
   /* ------------ LOADERS ------------ */
+
+  private async loadBreakOccurrences(
+    start: string,
+    end: string
+  ): Promise<void> {
+    const { data, error } = await dbTenant()
+      .from('instructor_break_occurrences')
+      .select(`
+        occurrence_key,
+        source_type,
+        weekly_availability_id,
+        exception_id,
+        instructor_id_number,
+        break_date,
+        start_time,
+        end_time,
+        duration_minutes,
+        override_action,
+        is_overridden
+      `)
+      .eq('instructor_id_number', this.instructorId)
+      .gte('break_date', String(start).slice(0, 10))
+      .lte('break_date', String(end).slice(0, 10))
+      .order('break_date')
+      .order('start_time');
+
+    if (error) throw error;
+
+    this.breakOccurrences =
+      (data ?? []) as InstructorBreakOccurrence[];
+  }
+
+  private findBreakOccurrence(
+    date: string,
+    time: string
+  ): InstructorBreakOccurrence | null {
+    if (!date || !time) return null;
+
+    const requested = String(time).slice(0, 5);
+
+    return this.breakOccurrences.find(occurrence =>
+      String(occurrence.break_date).slice(0, 10) === date &&
+      requested >= String(occurrence.start_time).slice(0, 5) &&
+      requested < String(occurrence.end_time).slice(0, 5)
+    ) ?? null;
+  }
+
+  private addBreakMinutes(time: string, minutes: number): string {
+    const [hours, mins] = String(time).slice(0, 5).split(':').map(Number);
+    const total = hours * 60 + mins + minutes;
+
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  }
+
+private makeBreakScheduleItems(): ScheduleItem[] {
+  return this.breakOccurrences.map(
+    (occurrence): ScheduleItem => ({
+      id: occurrence.occurrence_key,
+      title: 'הפסקה',
+
+      start: `${occurrence.break_date}T${String(
+        occurrence.start_time
+      ).slice(0, 8)}`,
+
+      end: `${occurrence.break_date}T${String(
+        occurrence.end_time
+      ).slice(0, 8)}`,
+
+      color: '#9da77d',
+
+      status: 'אושר',
+
+      meta: {
+        is_break: 'true',
+        child_name: 'הפסקה',
+        instructor_id: String(this.instructorId),
+        instructor_name: '',
+        instructor_color: '#9da77d',
+        lesson_type: 'BREAK',
+        occur_date: String(occurrence.break_date),
+        start_time: String(occurrence.start_time),
+        end_time: String(occurrence.end_time),
+      },
+    })
+  );
+}
 
   private async loadLessonsForRange(startYmd: string, endYmd: string): Promise<void> {
 
@@ -910,7 +1028,12 @@ export class InstructorScheduleComponent implements OnInit {
     const farmOffItems = this.farmDaysOffToItems();
     const instructorOffItems = this.instructorDaysOffToItems();
 
-    this.items = [...this.items, ...farmOffItems, ...instructorOffItems];
+    this.items = [
+      ...this.items,
+      ...this.makeBreakScheduleItems(),
+      ...farmOffItems,
+      ...instructorOffItems,
+    ];
 
   }
 
@@ -937,6 +1060,12 @@ export class InstructorScheduleComponent implements OnInit {
   onEventClick(arg: EventClickArg): void {
     const evAny: any = arg.event;
     const eventId = String(evAny?.id || '');
+    const eventProps: any = evAny?.extendedProps || {};
+
+    if (eventProps?.meta?.is_break || eventProps?.is_break) {
+      return;
+    }
+
     // 🔒 חופשת חווה – לא פותחים כרטסת
     if (eventId.startsWith('farm_off_')) {
       return;
@@ -1249,8 +1378,207 @@ this.selectedOccurrence = {
     this.contextMenu.x = x;
     this.contextMenu.y = y;
     this.contextMenu.date = localYmd;
+    this.contextMenu.time =
+      typeof e.dateStr === 'string' && e.dateStr.includes('T')
+        ? e.dateStr.slice(11, 16)
+        : '';
+    this.contextMenu.hasEvent = false;
+    this.contextMenu.lessonStatus = '';
+    this.contextMenu.breakOccurrence = this.findBreakOccurrence(
+      localYmd,
+      this.contextMenu.time
+    );
 
     this.cdr.detectChanges();
+  }
+
+  onRightClickEvent(event: any): void {
+    if (!event?.jsEvent || !event?.dateStr) return;
+
+    this.onRightClickDay(event);
+    this.contextMenu.hasEvent = true;
+    this.contextMenu.lessonStatus = String(event.status || '');
+    this.contextMenu.breakOccurrence = this.findBreakOccurrence(
+      this.contextMenu.date,
+      this.contextMenu.time
+    );
+    this.cdr.detectChanges();
+  }
+
+  canAddBreakFromContext(): boolean {
+    const status = this.contextMenu.lessonStatus.toUpperCase();
+    const isCanceled =
+      status.includes('CANCEL') ||
+      status.includes('בוטל') ||
+      status.includes('מבוטל');
+
+    return (
+      !!this.contextMenu.date &&
+      !!this.contextMenu.time &&
+      !this.contextMenu.breakOccurrence &&
+      (!this.contextMenu.hasEvent || isCanceled)
+    );
+  }
+
+  openAddBreakModal(): void {
+    if (!this.canAddBreakFromContext()) return;
+
+    const startTime = this.contextMenu.time;
+    const maxEndTime = this.addBreakMinutes(startTime, 30);
+
+    this.breakModal = {
+      open: true,
+      saving: false,
+      error: '',
+      mode: 'add',
+      occurrence: null,
+      date: this.contextMenu.date,
+      startTime,
+      endTime: maxEndTime,
+      maxEndTime,
+    };
+
+    this.closeContextMenu();
+  }
+
+  openShortenBreakModal(): void {
+    const occurrence = this.contextMenu.breakOccurrence;
+    if (!occurrence || occurrence.source_type !== 'WEEKLY') return;
+
+    const startTime = String(occurrence.start_time).slice(0, 5);
+    const maxEndTime = String(occurrence.end_time).slice(0, 5);
+    const suggestedEnd = this.addBreakMinutes(startTime, 15);
+
+    this.breakModal = {
+      open: true,
+      saving: false,
+      error: '',
+      mode: 'shorten',
+      occurrence,
+      date: String(occurrence.break_date).slice(0, 10),
+      startTime,
+      endTime: suggestedEnd < maxEndTime ? suggestedEnd : maxEndTime,
+      maxEndTime,
+    };
+
+    this.closeContextMenu();
+  }
+
+  openCancelBreakModal(): void {
+    const occurrence = this.contextMenu.breakOccurrence;
+    if (!occurrence) return;
+
+    this.breakModal = {
+      open: true,
+      saving: false,
+      error: '',
+      mode: 'cancel',
+      occurrence,
+      date: String(occurrence.break_date).slice(0, 10),
+      startTime: String(occurrence.start_time).slice(0, 5),
+      endTime: String(occurrence.end_time).slice(0, 5),
+      maxEndTime: String(occurrence.end_time).slice(0, 5),
+    };
+
+    this.closeContextMenu();
+  }
+
+  closeBreakModal(): void {
+    if (this.breakModal.saving) return;
+    this.breakModal.open = false;
+    this.breakModal.error = '';
+  }
+
+  async saveBreakModal(): Promise<void> {
+    if (this.breakModal.saving) return;
+
+    this.breakModal.error = '';
+
+    if (this.breakModal.mode !== 'cancel') {
+      if (
+        !this.breakModal.endTime ||
+        this.breakModal.endTime <= this.breakModal.startTime ||
+        this.breakModal.endTime > this.breakModal.maxEndTime
+      ) {
+        this.breakModal.error = 'ניתן לקצר את ההפסקה בלבד, ולא להאריך אותה.';
+        return;
+      }
+
+      if (
+        this.breakModal.mode === 'shorten' &&
+        this.breakModal.endTime === this.breakModal.maxEndTime
+      ) {
+        this.breakModal.error = 'יש לבחור שעת סיום מוקדמת יותר.';
+        return;
+      }
+    }
+
+    this.breakModal.saving = true;
+
+    try {
+      const user = await this.cu.loadUserDetails();
+      const userId = String(user?.uid || '') || null;
+      const occurrence = this.breakModal.occurrence;
+      let response: any;
+
+      if (this.breakModal.mode === 'add') {
+        response = await dbTenant().rpc('add_one_time_instructor_break', {
+          p_instructor_id_number: this.instructorId,
+          p_break_date: this.breakModal.date,
+          p_start_time: this.breakModal.startTime,
+          p_end_time: this.breakModal.endTime,
+          p_created_by_uid: userId,
+          p_created_by_role: 'instructor',
+        });
+      } else if (this.breakModal.mode === 'shorten') {
+        response = await dbTenant().rpc('shorten_weekly_break_occurrence', {
+          p_weekly_availability_id: occurrence?.weekly_availability_id,
+          p_break_date: this.breakModal.date,
+          p_new_start_time: this.breakModal.startTime,
+          p_new_end_time: this.breakModal.endTime,
+          p_created_by_uid: userId,
+          p_created_by_role: 'instructor',
+        });
+      } else if (occurrence?.source_type === 'ADDED') {
+        response = await dbTenant().rpc('cancel_break_exception', {
+          p_exception_id: occurrence.exception_id,
+          p_canceled_by_uid: userId,
+          p_canceled_by_role: 'instructor',
+          p_cancel_reason: 'ביטול הפסקה חד־פעמית',
+        });
+      } else {
+        response = await dbTenant().rpc('cancel_weekly_break_occurrence', {
+          p_weekly_availability_id: occurrence?.weekly_availability_id,
+          p_break_date: this.breakModal.date,
+          p_created_by_uid: userId,
+          p_created_by_role: 'instructor',
+        });
+      }
+
+      if (response?.error) throw response.error;
+
+      this.breakModal.open = false;
+
+      if (this.lastRange) {
+        await this.loadBreakOccurrences(
+          this.lastRange.start,
+          this.lastRange.end
+        );
+      } else {
+        await this.loadBreakOccurrences(
+          this.breakModal.date,
+          this.breakModal.date
+        );
+      }
+
+      this.setScheduleItems();
+    } catch (error: any) {
+      this.breakModal.error =
+        error?.message || 'לא ניתן היה לעדכן את ההפסקה.';
+    } finally {
+      this.breakModal.saving = false;
+      this.cdr.detectChanges();
+    }
   }
 
   /* ------------ שינוי טווח תצוגה ------------ */
@@ -1292,6 +1620,7 @@ this.selectedOccurrence = {
       this.loading = true;
 
       await this.loadLessonsForRange(startYmd, endYmd);
+      await this.loadBreakOccurrences(startYmd, endYmd);
       await this.loadLessonResourcesForRange(startYmd, endYmd);
 
       const ids = Array.from(

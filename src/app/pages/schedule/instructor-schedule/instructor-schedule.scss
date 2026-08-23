@@ -56,6 +56,75 @@
   font-size: 9px;
 }
 
+.break-modal-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 30000 !important;
+
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+
+  padding: 28px 16px;
+  overflow-y: auto;
+
+  background: rgba(21, 24, 18, 0.34);
+}
+
+.break-management-modal {
+  width: min(600px, calc(100vw - 32px));
+  max-height: calc(100dvh - 56px);
+
+  direction: rtl;
+  text-align: right;
+}
+
+.break-management-modal .modal-content,
+.break-management-modal .modal-header,
+.break-management-modal .modal-header h3,
+.break-management-modal .modal-header p,
+.break-management-modal .field-row,
+.break-management-modal .field-row label,
+.break-management-modal .form-error,
+.break-management-modal .note-box,
+.break-management-modal p {
+  text-align: right;
+}
+
+.break-management-modal .compact-grid,
+.break-management-modal .modal-actions {
+  direction: rtl;
+}
+
+.break-management-modal .modal-actions {
+  justify-content: flex-start;
+}
+
+.break-management-modal input[type="time"] {
+  width: 100%;
+  box-sizing: border-box;
+
+  direction: ltr;
+  text-align: right;
+}
+
+.break-management-modal .modal-close {
+  left: 14px;
+  right: auto;
+}
+
+@media (max-width: 700px) {
+  .break-modal-backdrop {
+    padding: 12px 8px;
+    align-items: center;
+  }
+
+  .break-management-modal {
+    width: 100%;
+    max-height: calc(100dvh - 24px);
+  }
+}
+
 .bereshit-calendar .event-box.instructor-day-off-box,
 .bereshit-calendar .event-box.pending-day-off-box,
 .bereshit-calendar .event-box.farm-day-off-text,

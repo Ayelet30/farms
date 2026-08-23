@@ -999,14 +999,11 @@ async setAttendance(status: AttendanceStatus) {
 
 getMoveOfficeNote(): string {
   const occurrence = this.occurrence;
-  console.log('[getMoveOfficeNote] occurrence', this.occurrence);
 
   const isMoved =
     occurrence?.is_single_occurrence_move === true ||
     occurrence?.is_single_occurrence_move === 'true' ||
     occurrence?.occurrence_change_type === 'MOVE';
-
-    console.log('[getMoveOfficeNote] isMoved', isMoved);
 
   if (!isMoved) {
     return '';
@@ -1063,8 +1060,6 @@ getMoveOfficeNote(): string {
   const newTime = newStart
     ? `${newStart}${newEnd ? `–${newEnd}` : ''}`
     : '';
-
-    console.log('[getMoveOfficeNote] oldInstructor', oldInstructor);
 
   return [
     `הועבר מ־${oldInstructor}`,

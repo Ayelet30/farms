@@ -73,6 +73,33 @@ type QuickBookingContext = {
   instructorName: string;
 };
 
+type InstructorWeeklyAvailabilityRow = {
+  id: string;
+  instructor_id_number: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  lesson_type_mode?: string | null;
+  lesson_ridding_type?: string | null;
+  valid_from: string;
+  valid_until?: string | null;
+  replaced_by_id?: string | null;
+};
+
+type InstructorBreakOccurrence = {
+  occurrence_key: string;
+  source_type: 'WEEKLY' | 'ADDED';
+  weekly_availability_id: string | null;
+  exception_id: string | null;
+  instructor_id_number: string;
+  break_date: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  override_action: string;
+  is_overridden: boolean;
+};
+
 
 @Component({
   selector: 'app-secretary-schedule',
@@ -254,18 +281,22 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     lessonType?: string;
   }> = [];
 
-  instructorWeeklyAvailability: Array<{
-    instructor_id_number: string;
-    day_of_week: number;
-    start_time: string;
-    end_time: string;
-    lesson_ridding_type?: string | null;
-    riding_types?: {
-      id: string;
-      name?: string | null;
-      code?: string | null;
-    } | null;
-  }> = [];
+  instructorWeeklyAvailability: InstructorWeeklyAvailabilityRow[] = [];
+  breakOccurrences: InstructorBreakOccurrence[] = [];
+
+  breakModal = {
+    open: false,
+    saving: false,
+    error: '',
+    mode: 'add' as 'add' | 'shorten' | 'cancel',
+    occurrence: null as InstructorBreakOccurrence | null,
+    instructorId: '',
+    instructorName: '',
+    date: '',
+    startTime: '',
+    endTime: '',
+    maxEndTime: '',
+  };
 
   quickBooking: QuickBookingContext = {
     open: false,
@@ -333,6 +364,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
     canDeleteLesson: false as boolean,
     deleteBlockedReason: '' as string,
+    breakOccurrence: null as InstructorBreakOccurrence | null,
   };
 
   rangeModal = {
@@ -467,6 +499,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       );
 
       await this.loadInstructorWeeklyAvailability();
+      await this.loadBreakOccurrences(range.start, range.end);
 
       this.filterLessons();
       this.setScheduleItems();
@@ -884,73 +917,129 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  private buildAvailableDayCells(range?: { start: string; end: string }): void {
-    const available: Array<{
-      date: string;
-      resourceId: string;
-      startTime: string;
-      endTime: string;
-      color: string;
-      lessonType?: string;
-    }> = [];
+  private buildAvailableDayCells(
+  range?: { start: string; end: string }
+): void {
+  const available: Array<{
+    date: string;
+    resourceId: string;
+    startTime: string;
+    endTime: string;
+    color: string;
+    lessonType?: string;
+  }> = [];
 
-    const from = range?.start?.slice(0, 10) ?? '';
-    const to = range?.end?.slice(0, 10) ?? '';
+  const from = range?.start?.slice(0, 10) ?? '';
+  const to = range?.end?.slice(0, 10) ?? '';
 
-    if (!from || !to) {
-      this.availableDayCells = [];
-      return;
-    }
+  if (!from || !to) {
+    this.availableDayCells = [];
+    return;
+  }
 
-    const visibleInstructorIds = new Set(
-      this.instructorResources.map(r => String(r.id))
-    );
+  const visibleInstructorIds = new Set(
+    this.instructorResources.map(resource => String(resource.id))
+  );
 
-    let cur = from;
-    let guard = 0;
+  const ridingTypeById = new Map(
+    this.ridingTypes.map(ridingType => [
+      String(ridingType.id),
+      ridingType,
+    ])
+  );
 
-    const ridingTypeById = new Map(
-      this.ridingTypes.map(rt => [
-        String(rt.id),
-        rt
-      ])
-    );
+  let currentDate = from;
+  let guard = 0;
 
-    while (cur <= to) {
-      const dow = this.dbDowFromYmd(cur);
+  while (currentDate <= to) {
+    const dayOfWeek = this.dbDowFromYmd(currentDate);
 
-      for (const row of this.instructorWeeklyAvailability || []) {
-        const instructorId = String(row.instructor_id_number);
+    for (const row of this.instructorWeeklyAvailability) {
+      const instructorId = String(row.instructor_id_number);
 
-        if (!visibleInstructorIds.has(instructorId)) continue;
-        if (Number(row.day_of_week) !== dow) continue;
-
-        const color =
-          this.instructorColorById.get(instructorId) ||
-          this.getColorForInstructor(instructorId);
-
-        const ridingType = ridingTypeById.get(String(row.lesson_ridding_type || ''));
-
-        available.push({
-          date: cur,
-          resourceId: instructorId,
-          startTime: String(row.start_time).slice(0, 5),
-          endTime: String(row.end_time).slice(0, 5),
-          color,
-          lessonType: ridingType?.name || ridingType?.code || ''
-        });
+      if (!visibleInstructorIds.has(instructorId)) {
+        continue;
       }
 
+      if (Number(row.day_of_week) !== dayOfWeek) {
+        continue;
+      }
 
-      const next = this.addOneDayYmdSafe(cur);
-      if (next <= cur) break;
-      cur = next;
+      if (!this.isWeeklyAvailabilityEffectiveOn(row, currentDate)) {
+        continue;
+      }
 
-      if (++guard > 400) break;
+      const color =
+        this.instructorColorById.get(instructorId) ||
+        this.getColorForInstructor(instructorId);
+
+      const ridingType = ridingTypeById.get(
+        String(row.lesson_ridding_type || '')
+      );
+
+      available.push({
+        date: currentDate,
+        resourceId: instructorId,
+        startTime: String(row.start_time).slice(0, 5),
+        endTime: String(row.end_time).slice(0, 5),
+        color,
+        lessonType: ridingType?.name || ridingType?.code || '',
+      });
     }
 
-    this.availableDayCells = available;
+    const nextDate = this.addOneDayYmdSafe(currentDate);
+
+    if (nextDate <= currentDate) {
+      break;
+    }
+
+    currentDate = nextDate;
+
+    if (++guard > 400) {
+      console.warn('buildAvailableDayCells stopped by guard');
+      break;
+    }
   }
+
+  // הפסקה נשארת חלק מזמן העבודה של המדריך,
+  // ולכן גם הרקע שלה חייב לקבל את צבע הזמינות שלו.
+  for (const occurrence of this.breakOccurrences || []) {
+    const instructorId = String(
+      occurrence.instructor_id_number || ''
+    );
+
+    const breakDate = String(
+      occurrence.break_date || ''
+    ).slice(0, 10);
+
+    if (!instructorId || !breakDate) {
+      continue;
+    }
+
+    if (!visibleInstructorIds.has(instructorId)) {
+      continue;
+    }
+
+    if (breakDate < from || breakDate > to) {
+      continue;
+    }
+
+    const color =
+      this.instructorColorById.get(instructorId) ||
+      this.getColorForInstructor(instructorId);
+
+    available.push({
+      date: breakDate,
+      resourceId: instructorId,
+      startTime: String(occurrence.start_time).slice(0, 5),
+      endTime: String(occurrence.end_time).slice(0, 5),
+      color,
+      lessonType: 'הפסקה',
+    });
+  }
+
+  this.availableDayCells = available;
+}
 
 
   private hashString(str: string): number {
@@ -995,6 +1084,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     const range = this.currentRange ?? this.ensureInitialDayRange();
 
     await this.loadLessons(range);
+    await this.loadBreakOccurrences(range.start, range.end);
 
     await this.loadFarmDaysOffForRange(range.start.slice(0, 10), range.end.slice(0, 10));
     await this.loadRequestsForRange(range.start.slice(0, 10), range.end.slice(0, 10));
@@ -1223,15 +1313,22 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
   private async loadInstructorWeeklyAvailability(): Promise<void> {
     await ensureTenantContextReady();
+
     const { data, error } = await dbTenant()
       .from('instructor_weekly_availability')
       .select(`
-      instructor_id_number,
-      day_of_week,
-      start_time,
-      end_time,
-      lesson_ridding_type
-    `);
+        id,
+        instructor_id_number,
+        day_of_week,
+        start_time,
+        end_time,
+        lesson_type_mode,
+        lesson_ridding_type,
+        valid_from,
+        valid_until,
+        replaced_by_id
+      `)
+      .order('valid_from', { ascending: true });
 
     if (error) {
       console.error('availability load error', error);
@@ -1239,7 +1336,70 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.instructorWeeklyAvailability = data ?? [];
+    this.instructorWeeklyAvailability =
+      (data ?? []) as InstructorWeeklyAvailabilityRow[];
+  }
+
+  private async loadBreakOccurrences(
+    start: string,
+    end: string
+  ): Promise<void> {
+    const { data, error } = await dbTenant()
+      .from('instructor_break_occurrences')
+      .select(`
+        occurrence_key,
+        source_type,
+        weekly_availability_id,
+        exception_id,
+        instructor_id_number,
+        break_date,
+        start_time,
+        end_time,
+        duration_minutes,
+        override_action,
+        is_overridden
+      `)
+      .gte('break_date', String(start).slice(0, 10))
+      .lte('break_date', String(end).slice(0, 10))
+      .order('break_date')
+      .order('start_time');
+
+    if (error) throw error;
+
+    this.breakOccurrences =
+      (data ?? []) as InstructorBreakOccurrence[];
+  }
+
+  private findBreakOccurrence(
+    instructorId: string,
+    date: string,
+    time: string
+  ): InstructorBreakOccurrence | null {
+    if (!instructorId || !date || !time) return null;
+
+    const requested = String(time).slice(0, 5);
+
+    return this.breakOccurrences.find(occurrence =>
+      String(occurrence.instructor_id_number) === String(instructorId) &&
+      String(occurrence.break_date).slice(0, 10) === date &&
+      requested >= String(occurrence.start_time).slice(0, 5) &&
+      requested < String(occurrence.end_time).slice(0, 5)
+    ) ?? null;
+  }
+
+  private isWeeklyAvailabilityEffectiveOn(
+    row: InstructorWeeklyAvailabilityRow,
+    ymd: string
+  ): boolean {
+    const validFrom = String(row.valid_from || '').slice(0, 10);
+    const validUntil = row.valid_until
+      ? String(row.valid_until).slice(0, 10)
+      : null;
+
+    if (!validFrom || ymd < validFrom) return false;
+    if (validUntil && ymd > validUntil) return false;
+
+    return true;
   }
 
   private addOneDayYmdSafe(ymd: string): string {
@@ -1351,6 +1511,11 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     this.contextMenu.childName = '';
     this.contextMenu.lessonType = '';
     this.contextMenu.status = '';
+    this.contextMenu.breakOccurrence = this.findBreakOccurrence(
+      this.contextMenu.instructorId,
+      localYmd,
+      localHm
+    );
     this.contextMenuMode = 'root';
 
     this.cdr.detectChanges();
@@ -1434,6 +1599,179 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   closeContextMenu(): void {
     this.contextMenu.visible = false;
     this.contextMenuMode = 'root';
+  }
+
+  canAddBreakFromContext(): boolean {
+    return (
+      !!this.contextMenu.instructorId &&
+      !!this.contextMenu.date &&
+      !!this.contextMenu.time &&
+      !this.contextMenu.breakOccurrence &&
+      (!this.contextMenu.hasEvent || this.isCancelledContext())
+    );
+  }
+
+  openAddBreakModal(): void {
+    if (!this.canAddBreakFromContext()) return;
+
+    const startTime = String(this.contextMenu.time).slice(0, 5);
+    const maxEndTime = this.addMinutesToHm(startTime, 30);
+
+    this.breakModal = {
+      open: true,
+      saving: false,
+      error: '',
+      mode: 'add',
+      occurrence: null,
+      instructorId: this.contextMenu.instructorId,
+      instructorName: this.contextMenu.instructorName,
+      date: this.contextMenu.date,
+      startTime,
+      endTime: maxEndTime,
+      maxEndTime,
+    };
+
+    this.closeContextMenu();
+  }
+
+  openShortenBreakModal(): void {
+    const occurrence = this.contextMenu.breakOccurrence;
+    if (!occurrence || occurrence.source_type !== 'WEEKLY') return;
+
+    const startTime = String(occurrence.start_time).slice(0, 5);
+    const currentEndTime = String(occurrence.end_time).slice(0, 5);
+    const suggestedEnd = this.addMinutesToHm(startTime, 15);
+
+    this.breakModal = {
+      open: true,
+      saving: false,
+      error: '',
+      mode: 'shorten',
+      occurrence,
+      instructorId: occurrence.instructor_id_number,
+      instructorName: this.contextMenu.instructorName,
+      date: String(occurrence.break_date).slice(0, 10),
+      startTime,
+      endTime: suggestedEnd < currentEndTime ? suggestedEnd : currentEndTime,
+      maxEndTime: currentEndTime,
+    };
+
+    this.closeContextMenu();
+  }
+
+  openCancelBreakModal(): void {
+    const occurrence = this.contextMenu.breakOccurrence;
+    if (!occurrence) return;
+
+    this.breakModal = {
+      open: true,
+      saving: false,
+      error: '',
+      mode: 'cancel',
+      occurrence,
+      instructorId: occurrence.instructor_id_number,
+      instructorName: this.contextMenu.instructorName,
+      date: String(occurrence.break_date).slice(0, 10),
+      startTime: String(occurrence.start_time).slice(0, 5),
+      endTime: String(occurrence.end_time).slice(0, 5),
+      maxEndTime: String(occurrence.end_time).slice(0, 5),
+    };
+
+    this.closeContextMenu();
+  }
+
+  closeBreakModal(): void {
+    if (this.breakModal.saving) return;
+    this.breakModal.open = false;
+    this.breakModal.error = '';
+  }
+
+  async saveBreakModal(): Promise<void> {
+    if (this.breakModal.saving) return;
+
+    this.breakModal.error = '';
+
+    if (this.breakModal.mode !== 'cancel') {
+      if (
+        !this.breakModal.endTime ||
+        this.breakModal.endTime <= this.breakModal.startTime ||
+        this.breakModal.endTime > this.breakModal.maxEndTime
+      ) {
+        this.breakModal.error = 'ניתן לקצר את ההפסקה בלבד, ולא להאריך אותה.';
+        return;
+      }
+
+      if (
+        this.breakModal.mode === 'shorten' &&
+        this.breakModal.endTime === this.breakModal.maxEndTime
+      ) {
+        this.breakModal.error = 'יש לבחור שעת סיום מוקדמת יותר.';
+        return;
+      }
+    }
+
+    this.breakModal.saving = true;
+
+    try {
+      const user = await this.cu.loadUserDetails();
+      const userId = String((user as any)?.uid || '') || null;
+      const occurrence = this.breakModal.occurrence;
+
+      let response: any;
+
+      if (this.breakModal.mode === 'add') {
+        response = await dbTenant().rpc('add_one_time_instructor_break', {
+          p_instructor_id_number: this.breakModal.instructorId,
+          p_break_date: this.breakModal.date,
+          p_start_time: this.breakModal.startTime,
+          p_end_time: this.breakModal.endTime,
+          p_created_by_uid: userId,
+          p_created_by_role: 'secretary',
+        });
+      } else if (this.breakModal.mode === 'shorten') {
+        response = await dbTenant().rpc('shorten_weekly_break_occurrence', {
+          p_weekly_availability_id: occurrence?.weekly_availability_id,
+          p_break_date: this.breakModal.date,
+          p_new_start_time: this.breakModal.startTime,
+          p_new_end_time: this.breakModal.endTime,
+          p_created_by_uid: userId,
+          p_created_by_role: 'secretary',
+        });
+      } else if (occurrence?.source_type === 'ADDED') {
+        response = await dbTenant().rpc('cancel_break_exception', {
+          p_exception_id: occurrence.exception_id,
+          p_canceled_by_uid: userId,
+          p_canceled_by_role: 'secretary',
+          p_cancel_reason: 'ביטול הפסקה חד־פעמית',
+        });
+      } else {
+        response = await dbTenant().rpc('cancel_weekly_break_occurrence', {
+          p_weekly_availability_id: occurrence?.weekly_availability_id,
+          p_break_date: this.breakModal.date,
+          p_created_by_uid: userId,
+          p_created_by_role: 'secretary',
+        });
+      }
+
+      if (response?.error) throw response.error;
+
+      this.breakModal.open = false;
+
+      if (this.currentRange) {
+  await this.loadBreakOccurrences(
+    this.currentRange.start,
+    this.currentRange.end
+  );
+
+  this.buildAvailableDayCells(this.currentRange);
+}
+    } catch (error: any) {
+      this.breakModal.error =
+        error?.message || 'לא ניתן היה לעדכן את ההפסקה.';
+    } finally {
+      this.breakModal.saving = false;
+      this.cdr.detectChanges();
+    }
   }
 
   async openCancelLessonDialog(): Promise<void> {
@@ -2278,10 +2616,14 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
       // 2) עובדים היום לפי זמינות
       const dow = this.jsDowToDbDow(new Date().getDay());
+      const today = this.dateToYmd(new Date());
+
       const { data: avail, error: e2 } = await dbc
         .from('instructor_weekly_availability')
-        .select('instructor_id_number')
-        .eq('day_of_week', dow);
+        .select('instructor_id_number, valid_from, valid_until')
+        .eq('day_of_week', dow)
+        .lte('valid_from', today)
+        .or(`valid_until.is.null,valid_until.gte.${today}`);
 
       if (e2) throw e2;
 
@@ -2399,6 +2741,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     start: range.start,
     end: range.end
   });
+  await this.loadBreakOccurrences(range.start, range.end);
 
   await this.loadFarmDaysOffForRange(
     range.start.slice(0, 10),
@@ -2438,7 +2781,10 @@ private selectWorkingInstructorsForDay(dateYmd: string): void {
 
   const workingInstructorIds = new Set(
     (this.instructorWeeklyAvailability ?? [])
-      .filter(row => Number(row.day_of_week) === dow)
+      .filter(row =>
+        Number(row.day_of_week) === dow &&
+        this.isWeeklyAvailabilityEffectiveOn(row, dateYmd)
+      )
       .map(row => String(row.instructor_id_number))
   );
 
@@ -3606,6 +3952,7 @@ if (occurrenceChildIds.length) {
     this.contextMenu.childName = String(e.childName ?? '');
     this.contextMenu.lessonType = String(e.lessonType ?? '');
     this.contextMenu.status = String(e.status ?? '');
+    this.contextMenu.breakOccurrence = null;
     this.contextMenuMode = 'root';
     this.contextMenu.seriesId = String(e.seriesId ?? '');
     this.contextMenu.appointmentKind = String(e.appointmentKind ?? '');
