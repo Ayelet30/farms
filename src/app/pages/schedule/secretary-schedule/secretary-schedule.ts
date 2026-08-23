@@ -3531,6 +3531,124 @@ if (occurrenceChildIds.length) {
       !this.isInstructorOffContext();
   }
 
+  canRestoreContextLesson(): boolean {
+  return (
+    !!this.contextMenu.hasEvent &&
+    !!this.contextMenu.lessonId &&
+    !!(
+      this.contextMenu.occurDate ||
+      this.contextMenu.date
+    ) &&
+    this.isCancelledContext() &&
+    !this.isInstructorOffContext()
+  );
+}
+
+async restoreCancelledLesson(): Promise<void> {
+  const lessonId = String(
+    this.contextMenu.lessonId || ''
+  ).trim();
+
+  const occurDate = String(
+    this.contextMenu.occurDate ||
+    this.contextMenu.date ||
+    ''
+  ).slice(0, 10);
+
+  const childName = String(
+    this.contextMenu.childName || 'הילד'
+  ).trim();
+
+  if (!lessonId || !occurDate) {
+    this.closeContextMenu();
+
+    await this.ui.alert(
+      'לא נמצאו פרטי השיעור המבוטל.',
+      'שגיאה'
+    );
+
+    return;
+  }
+
+  this.closeContextMenu();
+
+  const approved = window.confirm(
+    `האם להחזיר את השיעור של ${childName} בתאריך ${occurDate}?`
+  );
+
+  if (!approved) {
+    return;
+  }
+
+  try {
+    await ensureTenantContextReady();
+
+    const { data, error } = await dbTenant()
+      .from('lesson_occurrence_exceptions')
+      .delete()
+      .eq('lesson_id', lessonId)
+      .eq('occur_date', occurDate)
+      .eq('status', 'בוטל')
+      .select('lesson_id, occur_date');
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data?.length) {
+      throw new Error(
+        'לא נמצאה רשומת ביטול לשיעור, או שאין הרשאה להחזיר אותו.'
+      );
+    }
+
+    if (this.currentRange) {
+      await this.loadLessons({
+        start: this.currentRange.start,
+        end: this.currentRange.end,
+      });
+
+      await this.loadRequestsForRange(
+        this.currentRange.start.slice(0, 10),
+        this.currentRange.end.slice(0, 10)
+      );
+
+      this.filterLessons();
+      this.setScheduleItems();
+
+      this.buildBlockedDayCells(
+        this.currentRange
+      );
+
+      this.buildAvailableDayCells(
+        this.currentRange
+      );
+
+      this.buildWeekStats();
+    }
+
+    this.cdr.detectChanges();
+
+    await this.ui.alert(
+      `השיעור של ${childName} הוחזר בהצלחה.`,
+      'בוצע'
+    );
+
+  } catch (error: any) {
+    console.error(
+      'restoreCancelledLesson failed',
+      error
+    );
+
+    await this.ui.alert(
+      error?.message ||
+        'לא הצלחנו להחזיר את השיעור. נסי שוב.',
+      'שגיאה'
+    );
+
+    this.cdr.detectChanges();
+  }
+}
+
   canMoveContextLesson(): boolean {
     return !!this.contextMenu.hasEvent &&
       !!this.contextMenu.lessonId &&
