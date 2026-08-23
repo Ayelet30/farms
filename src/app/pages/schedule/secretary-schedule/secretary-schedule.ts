@@ -133,6 +133,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     isBillable: false,
   };
   children: ChildRow[] = [];
+  scheduleChildrenById = new Map<string, ChildRow>();
   lessons: Lesson[] = [];
   filteredLessons: Lesson[] = [];
   selectedChild: ChildRow | null = null;
@@ -2919,6 +2920,12 @@ if (occurrenceChildIds.length) {
   if (childrenError) throw childrenError;
 
   scheduleChildren = (childrenData ?? []) as ChildRow[];
+  this.scheduleChildrenById = new Map(
+  scheduleChildren.map(child => [
+    String(child.child_uuid),
+    child,
+  ])
+);
 }
 
 
@@ -3985,10 +3992,30 @@ if (occurrenceChildIds.length) {
       return;
     }
 
-    const child =
-      this.children.find(c => c.child_uuid === childId) ?? null;
+    const normalizedChildId = String(childId);
 
-    this.selectedChild = child ? { ...child } : null;
+const child =
+  this.children.find(
+    c => String(c.child_uuid) === normalizedChildId
+  ) ??
+  this.scheduleChildrenById.get(normalizedChildId) ??
+  null;
+
+if (!child) {
+  console.warn(
+    'הילד מופיע בלוח אך לא נמצא בנתוני הילדים',
+    {
+      childId: normalizedChildId,
+      event: ext,
+    }
+  );
+
+  this.selectedChild = null;
+  this.selectedOccurrence = null;
+  return;
+}
+
+this.selectedChild = { ...child };
 
     // 🔑 lesson_id – לוקחים מה-meta או מה-id של האירוע
     let lessonId: string | null = meta.lesson_id ?? null;
