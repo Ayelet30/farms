@@ -3057,64 +3057,99 @@ if (occurrenceChildIds.length) {
 
   /** סינון שיעורים לפי מדריכים מסומנים + טווח תצוגה */
   private filterLessons(): void {
-    let src = [...this.lessons];
+  let src = [...this.lessons];
 
-    const selected = this.selectedInstructorIds.filter(Boolean);
-    if (selected.length) {
-      src = src.filter(l => selected.includes(String(l.instructor_id ?? '')));
-    } else {
-      src = [];
-    }
+  const selected = this.selectedInstructorIds.filter(Boolean);
 
-    if (this.currentRange) {
-      const { start, end } = this.currentRange;
-      src = src.filter(l => {
-        const d =
-          (l as any).occur_date ||
-          ((l as any).start_datetime
-            ? (l as any).start_datetime.slice(0, 10)
-            : '');
-        if (!d) return true;
-        return d >= start && d <= end;
-      });
-    }
-
-    // ✅ כאן בדיוק מוסיפים את הסינון של חופשת מדריך
-    src = src.filter((l: any) => {
-      const lessonDate =
-        l.occur_date ||
-        (l.start_datetime ? String(l.start_datetime).slice(0, 10) : '');
-
-      if (!lessonDate) return true;
-
-      const startIso =
-        this.buildDateTime(l.occur_date, l.start_time) ??
-        this.ensureIso(
-          l.start_datetime as any,
-          l.start_time as any,
-          l.occur_date as any
-        );
-
-      const endIsoRaw =
-        this.buildDateTime(l.occur_date, l.end_time) ??
-        this.ensureIso(
-          l.end_datetime as any,
-          l.end_time as any,
-          l.occur_date as any
-        );
-
-      const endIso = this.ensureEndAfterStart(startIso, endIsoRaw);
-
-      return !this.isLessonBlockedByInstructorOff(
-        String(l.instructor_id ?? ''),
-        lessonDate,
-        new Date(startIso),
-        new Date(endIso)
-      );
-    });
-
-    this.filteredLessons = src;
+  if (selected.length) {
+    src = src.filter(lesson =>
+      selected.includes(String(lesson.instructor_id ?? ''))
+    );
+  } else {
+    src = [];
   }
+
+  if (this.currentRange) {
+    const { start, end } = this.currentRange;
+
+    src = src.filter((lesson: any) => {
+      const lessonDate =
+        lesson.occur_date ||
+        (
+          lesson.start_datetime
+            ? String(lesson.start_datetime).slice(0, 10)
+            : ''
+        );
+
+      if (!lessonDate) {
+        return true;
+      }
+
+      return lessonDate >= start && lessonDate <= end;
+    });
+  }
+
+  src = src.filter((lesson: any) => {
+    const rawStatus = String(
+      lesson.status ?? ''
+    ).trim().toLowerCase();
+
+    const isCancelled =
+      lesson.is_cancellation === true ||
+      lesson.is_cancellation === 'true' ||
+      rawStatus.includes('בוטל') ||
+      rawStatus.includes('מבוטל') ||
+      rawStatus.includes('cancel');
+
+    // שיעור מבוטל נשאר גלוי גם במהלך חופשת מדריך.
+    if (isCancelled) {
+      return true;
+    }
+
+    const lessonDate =
+      lesson.occur_date ||
+      (
+        lesson.start_datetime
+          ? String(lesson.start_datetime).slice(0, 10)
+          : ''
+      );
+
+    if (!lessonDate) {
+      return true;
+    }
+
+    const startIso =
+      this.buildDateTime(lessonDate, lesson.start_time) ??
+      this.ensureIso(
+        lesson.start_datetime as any,
+        lesson.start_time as any,
+        lessonDate as any
+      );
+
+    const endIsoRaw =
+      this.buildDateTime(lessonDate, lesson.end_time) ??
+      this.ensureIso(
+        lesson.end_datetime as any,
+        lesson.end_time as any,
+        lessonDate as any
+      );
+
+    const endIso = this.ensureEndAfterStart(
+      startIso,
+      endIsoRaw
+    );
+
+    return !this.isLessonBlockedByInstructorOff(
+      String(lesson.instructor_id ?? ''),
+      lessonDate,
+      new Date(startIso),
+      new Date(endIso)
+    );
+  });
+
+  this.filteredLessons = src;
+}
+
   private addOneDayYmd(dateYmd: string): string {
     const [y, m, d] = dateYmd.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
@@ -3182,7 +3217,32 @@ if (occurrenceChildIds.length) {
         status: lesson.status,
         meta: {
           status: lesson.status ?? '',
-          child_id: lesson.child_id,
+
+is_cancellation:
+  lesson.is_cancellation === true ||
+  lesson.is_cancellation === 'true',
+
+is_billable:
+  lesson.is_billable === true ||
+  lesson.is_billable === 'true',
+
+is_makeup_allowed:
+  lesson.is_makeup_allowed === true ||
+  lesson.is_makeup_allowed === 'true',
+
+canceller_role:
+  lesson.canceller_role ?? null,
+
+approval_id:
+  lesson.approval_id ?? null,
+
+payment_plan_id:
+  lesson.payment_plan_id ?? null,
+
+lesson_price_agorot:
+  lesson.lesson_price_agorot ?? null,
+
+child_id: lesson.child_id,
           child_name: childDisplay,
           instructor_id: lesson.instructor_id,
           instructor_name: lesson.instructor_name,
@@ -3905,8 +3965,8 @@ async restoreCancelledLesson(): Promise<void> {
           start,
           end,
           allDay: false,
-          display: 'block',
-          overlap: false,
+          display: isPending ? 'block' : 'background',
+overlap: true,
           color: bg,
           textColor: text,
           classNames: [isPending ? 'pending-instructor-day-off' : 'instructor-day-off'],
