@@ -936,3 +936,12 @@ input[type="checkbox"] {
     transform: rotate(360deg);
   }
 }
+
+.att-chip.can-delete-attendance {
+  cursor: pointer;
+  user-select: none;
+}
+
+.att-chip.can-delete-attendance:hover {
+  opacity: 0.8;
+}

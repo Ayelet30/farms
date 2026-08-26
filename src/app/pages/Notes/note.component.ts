@@ -147,6 +147,14 @@ private _attendanceStatus: AttendanceStatus = null;
  private presentMarkedNow: boolean = false;
 private noteAddedThisSession = false;
 
+private attendanceClickTimer: ReturnType<typeof setTimeout> | null = null;
+
+isDeletingAttendance = false;
+
+get canDeleteAttendance(): boolean {
+  return this.effectiveRole() === 'secretary';
+}
+
 showIntakeModal = false;
 
 // ⚠️ אזהרה – ניסיון סימון נוכחות מוקדם מדי
@@ -394,6 +402,166 @@ private hasAnyNote(): boolean {
       this.notesBehavioral.length >
     0
   );
+}
+
+onAttendanceClick(
+  event: MouseEvent,
+  status: 'present' | 'absent'
+): void {
+  event.stopPropagation();
+
+  if (!this.canEditNotes || this.isDeletingAttendance) {
+    return;
+  }
+
+  if (!this.canMarkAttendanceNow()) {
+    this.onAttendanceAttempt();
+    return;
+  }
+
+  /*
+   * עבור מדריך אין מחיקה בדאבל קליק,
+   * ולכן שומרים מיד.
+   */
+  if (!this.canDeleteAttendance) {
+    void this.setAttendance(status);
+    return;
+  }
+
+  /*
+   * עבור מזכירה מחכים מעט כדי להבדיל
+   * בין לחיצה רגילה ללחיצה כפולה.
+   */
+  if (this.attendanceClickTimer) {
+    clearTimeout(this.attendanceClickTimer);
+  }
+
+  this.attendanceClickTimer = setTimeout(() => {
+    this.attendanceClickTimer = null;
+    void this.setAttendance(status);
+  }, 250);
+}
+
+async onAttendanceDoubleClick(
+  event: MouseEvent,
+  status?: 'present' | 'absent'
+): Promise<void> {
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (this.attendanceClickTimer) {
+    clearTimeout(this.attendanceClickTimer);
+    this.attendanceClickTimer = null;
+  }
+
+  if (!this.canDeleteAttendance || this.isDeletingAttendance) {
+    return;
+  }
+
+  /*
+   * מחיקה אפשרית רק כשכבר קיימת נוכחות.
+   */
+  if (!this.attendanceStatus) {
+    return;
+  }
+
+  /*
+   * אם הלחיצה הייתה על אחד הכפתורים,
+   * מוחקים רק כשהוא הכפתור המסומן.
+   */
+  if (status && this.attendanceStatus !== status) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    'האם להסיר לחלוטין את סימון הנוכחות של השיעור?'
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  await this.deleteAttendance();
+}
+
+private async deleteAttendance(): Promise<void> {
+  /*
+   * בדיקת הרשאה גם בפונקציית המחיקה עצמה,
+   * ולא רק ברמת התצוגה.
+   */
+  if (!this.canDeleteAttendance) {
+    console.warn(
+      '[ATTENDANCE] delete blocked: only a secretary may delete attendance'
+    );
+    return;
+  }
+
+  const lessonId = this.occurrence?.lesson_id;
+  const occurDate = this.getOccurDateForDb();
+  const childId = this.child?.child_uuid;
+
+  if (!lessonId || !occurDate || !childId) {
+    console.error('[ATTENDANCE] missing identifiers for deletion', {
+      lessonId,
+      occurDate,
+      childId,
+    });
+    return;
+  }
+
+  this.isDeletingAttendance = true;
+
+  try {
+    const { data, error } = await this.dbc
+      .from('lesson_attendance')
+      .delete()
+      .eq('lesson_id', lessonId)
+      .eq('occur_date', occurDate)
+      .eq('child_id', childId)
+      .select('lesson_id');
+
+    if (error) {
+      console.error('[ATTENDANCE] delete error', error);
+
+      window.alert('לא ניתן למחוק את סימון הנוכחות.');
+
+      return;
+    }
+
+    if (!data?.length) {
+      console.warn(
+        '[ATTENDANCE] no attendance row was deleted',
+        {
+          lessonId,
+          occurDate,
+          childId,
+        }
+      );
+
+      window.alert(
+        'סימון הנוכחות לא נמחק. ייתכן שאין הרשאת מחיקה במסד הנתונים.'
+      );
+
+      return;
+    }
+
+    /*
+     * משתמשים ישירות בשדה הפנימי מכיוון שה-setter
+     * הנוכחי מתעלם מ-null כשכבר קיים ערך קודם.
+     */
+  this._attendanceStatus = null;
+
+this.presentMarkedNow = false;
+this.noteAddedThisSession = false;
+
+this.resetCloseWarnings();
+this.recalcPresenceFlags();
+
+this.attendanceChange.emit(null);
+
+  } finally {
+    this.isDeletingAttendance = false;
+  }
 }
 
 

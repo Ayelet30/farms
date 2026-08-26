@@ -3056,30 +3056,39 @@ if (occurrenceChildIds.length) {
   }
 
   /** סינון שיעורים לפי מדריכים מסומנים + טווח תצוגה */
-  private filterLessons(): void {
+private filterLessons(): void {
   let src = [...this.lessons];
 
-  const selected = this.selectedInstructorIds.filter(Boolean);
+  const selected = this.selectedInstructorIds
+    .filter(Boolean)
+    .map(String);
 
-  if (selected.length) {
-    src = src.filter(lesson =>
-      selected.includes(String(lesson.instructor_id ?? ''))
-    );
-  } else {
-    src = [];
+  if (!selected.length) {
+    this.filteredLessons = [];
+    return;
   }
 
+  src = src.filter((lesson: any) =>
+    selected.includes(
+      String(lesson.instructor_id ?? '')
+    )
+  );
+
   if (this.currentRange) {
-    const { start, end } = this.currentRange;
+    const start = String(
+      this.currentRange.start ?? ''
+    ).slice(0, 10);
+
+    const end = String(
+      this.currentRange.end ?? ''
+    ).slice(0, 10);
 
     src = src.filter((lesson: any) => {
-      const lessonDate =
-        lesson.occur_date ||
-        (
-          lesson.start_datetime
-            ? String(lesson.start_datetime).slice(0, 10)
-            : ''
-        );
+      const lessonDate = String(
+        lesson.occur_date ??
+        lesson.start_datetime ??
+        ''
+      ).slice(0, 10);
 
       if (!lessonDate) {
         return true;
@@ -3089,63 +3098,9 @@ if (occurrenceChildIds.length) {
     });
   }
 
-  src = src.filter((lesson: any) => {
-    const rawStatus = String(
-      lesson.status ?? ''
-    ).trim().toLowerCase();
-
-    const isCancelled =
-      lesson.is_cancellation === true ||
-      lesson.is_cancellation === 'true' ||
-      rawStatus.includes('בוטל') ||
-      rawStatus.includes('מבוטל') ||
-      rawStatus.includes('cancel');
-
-    // שיעור מבוטל נשאר גלוי גם במהלך חופשת מדריך.
-    if (isCancelled) {
-      return true;
-    }
-
-    const lessonDate =
-      lesson.occur_date ||
-      (
-        lesson.start_datetime
-          ? String(lesson.start_datetime).slice(0, 10)
-          : ''
-      );
-
-    if (!lessonDate) {
-      return true;
-    }
-
-    const startIso =
-      this.buildDateTime(lessonDate, lesson.start_time) ??
-      this.ensureIso(
-        lesson.start_datetime as any,
-        lesson.start_time as any,
-        lessonDate as any
-      );
-
-    const endIsoRaw =
-      this.buildDateTime(lessonDate, lesson.end_time) ??
-      this.ensureIso(
-        lesson.end_datetime as any,
-        lesson.end_time as any,
-        lessonDate as any
-      );
-
-    const endIso = this.ensureEndAfterStart(
-      startIso,
-      endIsoRaw
-    );
-
-    return !this.isLessonBlockedByInstructorOff(
-      String(lesson.instructor_id ?? ''),
-      lessonDate,
-      new Date(startIso),
-      new Date(endIso)
-    );
-  });
+  // לא מסתירים שיעורים בגלל חופשת מדריך.
+  // החופשה מוצגת כרקע, והשיעורים עצמם מופיעים מעליה.
+  // כך מוצגים גם שיעורים מבוטלים וגם שיעורים שהוחזרו.
 
   this.filteredLessons = src;
 }
@@ -3605,9 +3560,9 @@ child_id: lesson.child_id,
 }
 
 async restoreCancelledLesson(): Promise<void> {
-  const lessonId = String(
-    this.contextMenu.lessonId || ''
-  ).trim();
+ const lessonId = this.normalizeUuid(
+  this.contextMenu.lessonId
+);
 
   const occurDate = String(
     this.contextMenu.occurDate ||
@@ -3620,6 +3575,11 @@ async restoreCancelledLesson(): Promise<void> {
   ).trim();
 
   if (!lessonId || !occurDate) {
+  console.error('Invalid restore lesson context', {
+    lessonId: this.contextMenu.lessonId,
+    occurDate,
+    contextMenu: this.contextMenu,
+  });
     this.closeContextMenu();
 
     await this.ui.alert(
@@ -4092,6 +4052,90 @@ overlap: true,
     );
   }
 
+  private normalizeUuid(value: unknown): string {
+  const normalized = String(value ?? '')
+    .trim()
+    .replace(/^["']+|["']+$/g, '');
+
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  return uuidPattern.test(normalized)
+    ? normalized
+    : '';
+}
+
+private resolveLessonIdFromRightClick(
+  event: any,
+  occurDate: string,
+  startTime: string
+): string {
+  // קודם בודקים את המזהים שהגיעו מ-app-schedule
+  const directLessonId =
+    this.normalizeUuid(event?.lessonId) ||
+    this.normalizeUuid(event?.lesson_id) ||
+    this.normalizeUuid(event?.eventId);
+
+  if (directLessonId) {
+    return directLessonId;
+  }
+
+  const childId = String(
+    event?.childId ??
+    event?.child_id ??
+    ''
+  );
+
+  const instructorId = String(
+    event?.resourceId ??
+    event?.instructorId ??
+    event?.instructor_id ??
+    ''
+  );
+
+  const normalizedStartTime = String(
+    event?.startTime ??
+    startTime ??
+    ''
+  ).slice(0, 5);
+
+  // אם app-schedule שלח מזהה שגוי, מאתרים את השיעור
+  // לפי הילד, התאריך, השעה והמדריך.
+  const matchingLesson = this.filteredLessons.find((lesson: any) => {
+    const lessonDate = String(
+      lesson.occur_date ??
+      lesson.start_datetime ??
+      ''
+    ).slice(0, 10);
+
+    const lessonStart = String(
+      lesson.start_time ??
+      lesson.start_datetime?.slice(11, 16) ??
+      ''
+    ).slice(0, 5);
+
+    const sameChild =
+      !childId ||
+      String(lesson.child_id ?? '') === childId;
+
+    const sameInstructor =
+      !instructorId ||
+      String(lesson.instructor_id ?? '') === instructorId;
+
+    return (
+      lessonDate === occurDate &&
+      lessonStart === normalizedStartTime &&
+      sameChild &&
+      sameInstructor
+    );
+  });
+
+  return this.normalizeUuid(
+    matchingLesson?.lesson_id ??
+    matchingLesson?.id
+  );
+}
+
   onRightClickEvent(e: any): void {
     if (!e?.jsEvent) return;
 
@@ -4132,8 +4176,30 @@ overlap: true,
     this.contextMenu.instructorName = String(e.resourceTitle ?? '');
     this.contextMenu.hasEvent = true;
     this.contextMenu.eventId = String(e.eventId ?? '');
-    this.contextMenu.lessonId = String(e.lessonId ?? '');
-    this.contextMenu.childId = String(e.childId ?? '');
+
+this.contextMenu.childId = String(
+  e.childId ??
+  e.child_id ??
+  ''
+);
+
+this.contextMenu.lessonId =
+  this.resolveLessonIdFromRightClick(
+    e,
+    localYmd,
+    localHm
+  );
+
+if (!this.contextMenu.lessonId) {
+  console.error(
+    'לא נמצא UUID תקין של השיעור בלחיצה ימנית',
+    {
+      event: e,
+      date: localYmd,
+      time: localHm,
+    }
+  );
+}
     this.contextMenu.childName = String(e.childName ?? '');
     this.contextMenu.lessonType = String(e.lessonType ?? '');
     this.contextMenu.status = String(e.status ?? '');
