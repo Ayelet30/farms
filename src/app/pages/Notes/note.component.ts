@@ -1380,7 +1380,14 @@ if (this.childDetails?.behavior_notes?.trim()) {
 
   addReadyNote(content: string) {
     if (!this.canEditNotes) return;
-    this.newNote = content;
+
+    const noteToAdd = content.trim();
+    if (!noteToAdd) return;
+
+    const currentText = this.newNote.trimEnd();
+    this.newNote = currentText
+      ? `${currentText}\n${noteToAdd}`
+      : noteToAdd;
   }
 
   async addNote() {

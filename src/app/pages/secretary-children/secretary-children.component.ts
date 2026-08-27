@@ -2415,16 +2415,10 @@ if (this.childForm.invalid) {
     ];
 
     const delta: Partial<ChildDetails> = {};
-    if (
-      this.isActiveStatus(raw.status) &&
-      this.drawerChild?.scheduled_deletion_at &&
-      raw.inactive_date
-    ) {
-      (delta as any).scheduled_deletion_at = raw.inactive_date;
-    }
     if (becameActive) {
       (delta as any).deletion_requested_at = null;
       (delta as any).scheduled_deletion_at = null;
+      (delta as any).deletion_note = null;
     }
     for (const key of fieldsToCompare) {
       const oldVal = (this.originalChild as any)?.[key] ?? null;
@@ -2433,13 +2427,16 @@ if (this.childForm.invalid) {
         (delta as any)[key] = newVal;
       }
     }
+
     if (
-      this.isActiveStatus(raw.status) &&
-      this.drawerChild?.scheduled_deletion_at &&
-      raw.inactive_date
-    ) {
-      (delta as any).scheduled_deletion_at = raw.inactive_date;
-    }
+  raw.status === 'Active' &&
+  this.drawerChild?.scheduled_deletion_at
+) {
+  (delta as any).deletion_requested_at = null;
+  (delta as any).scheduled_deletion_at = null;
+  (delta as any).deletion_note = null;
+}
+
     if (Object.keys(delta).length === 0) {
       this.editMode = false;
       return;
