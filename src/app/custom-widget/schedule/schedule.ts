@@ -40,6 +40,20 @@ type ScheduleResource = {
   title: string;
 };
 
+type ScheduleBreakOccurrence = {
+  occurrence_key: string;
+  source_type: 'WEEKLY' | 'ADDED';
+  weekly_availability_id: string | null;
+  exception_id: string | null;
+  instructor_id_number: string;
+  break_date: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  override_action: string;
+  is_overridden: boolean;
+};
+
 interface CustomDaySlot {
   label: string;
   iso: string;
@@ -103,6 +117,8 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   @Input() showToolbar = true;
   @Input() enableAutoAssign = false;
   @Input() viewerMode: ViewerMode = 'secretary';
+  @Input() viewerInstructorId = '';
+  @Input() breakOccurrences: ScheduleBreakOccurrence[] = [];
   @Input() blockedDayCells: BlockedDayCell[] = [];
   @Input() reloadLoading = false;
   @Input() availableDayCells: Array<{
@@ -176,6 +192,8 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   private isNarrow600 = window.innerWidth < 600;
 
   @HostListener('window:resize')
+
+  
 
   onResize() {
     const next = window.innerWidth < 600;
@@ -856,42 +874,32 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   }
 
   isBreakCell(resourceId: string, slotIso: string): boolean {
-
-    if (this.viewerMode !== 'secretary') {
+    if (
+      this.viewerMode !== 'secretary' &&
+      this.viewerMode !== 'manager' &&
+      this.viewerMode !== 'instructor'
+    ) {
       return false;
     }
 
-    const d = new Date(slotIso);
+    const date = new Date(slotIso);
+    const breakDate = this.toYmd(date);
+    const slotStart = date.getHours() * 60 + date.getMinutes();
+    const slotEnd = slotStart + 30;
+    const instructorId =
+      this.viewerMode === 'instructor'
+        ? String(this.viewerInstructorId || '')
+        : String(resourceId || '');
 
-    const ymd = this.toYmd(d);
+    return (this.breakOccurrences || []).some(occurrence => {
+      if (String(occurrence.instructor_id_number) !== instructorId) return false;
+      if (String(occurrence.break_date).slice(0, 10) !== breakDate) return false;
 
-    const hm = this.minutesToTime(
-      d.getHours() * 60 + d.getMinutes()
-    );
+      const breakStart = this.parseTimeToMinutes(occurrence.start_time);
+      const breakEnd = this.parseTimeToMinutes(occurrence.end_time);
 
-    return (this.availableDayCells || []).some(a => {
-
-      if (String(a.resourceId) !== String(resourceId)) return false;
-
-      if (a.date !== ymd) return false;
-
-      const start = this.toHm(a.startTime);
-      const end = this.toHm(a.endTime);
-
-
-      const type = String(a.lessonType || '').trim();
-
-      return (
-        hm >= start &&
-        hm < end &&
-        (
-          type === 'הפסקה' ||
-          type === 'break' ||
-          type === 'BREAK'
-        )
-      );
+      return breakStart < slotEnd && breakEnd > slotStart;
     });
-
   }
 
   onAutoAssignClick() {
@@ -913,20 +921,34 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
     this.rightClickDay.emit({
       jsEvent: event,
       dateStr: iso,
-      resourceId: resource?.id ?? null,
+      resourceId:
+        this.viewerMode === 'instructor'
+          ? this.viewerInstructorId || null
+          : resource?.id ?? null,
       resourceTitle: resource?.title ?? null,
       sourceView: 'timeGridDay',
     });
   }
-  toggleFullscreen() {
-    this.isFullscreen = !this.isFullscreen;
-    document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
 
-    setTimeout(() => {
-      this.calendarApi?.updateSize();
-      this.cdr.detectChanges();
-    }, 0);
-  }
+  toggleFullscreen(): void {
+  this.isFullscreen = !this.isFullscreen;
+
+  document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
+
+  window.dispatchEvent(
+    new CustomEvent('schedule-fullscreen-change', {
+      detail: {
+        fullscreen: this.isFullscreen
+      }
+    })
+  );
+
+  setTimeout(() => {
+    this.calendarApi?.updateSize();
+    this.cdr.detectChanges();
+  }, 50);
+}
+
   trackById(i: number, item: any) {
     return item.id;
   }
@@ -2089,7 +2111,9 @@ private parseYmdAsLocalDate(value: string): Date {
         changes['slotMaxTime'] ||
         changes['initialView'] ||
         changes['blockedDayCells'] ||
-        changes['availableDayCells']
+        changes['availableDayCells'] ||
+        changes['breakOccurrences'] ||
+        changes['viewerInstructorId']
       ) {
         this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
         this.rebuildCustomDayView();

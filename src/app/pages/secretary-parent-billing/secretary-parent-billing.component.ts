@@ -64,6 +64,75 @@ private dialog = inject(MatDialog);
   // טאב פעיל: 'open' | 'all'
   activeTab = signal<'open' | 'all'>('open');
 
+  billingToolsOpen = signal(false);
+  onlyOfficeNotes = signal(false);
+
+  collectionRate = computed(() => {
+    const { totalAgorot, paidAgorot, creditsAgorot } = this.chargesSummary();
+    const total = Number(totalAgorot ?? 0);
+    return total > 0
+      ? Math.min(100, Math.max(0, Math.round((Number(paidAgorot ?? 0) + Number(creditsAgorot ?? 0)) / total * 100)))
+      : 0;
+  });
+
+  selectableVisibleCharges = computed(() =>
+    this.visibleCharges().filter((charge) => this.canSelectForPayment(charge))
+  );
+
+  allVisibleSelected = computed(() => {
+    const rows = this.selectableVisibleCharges();
+    return rows.length > 0 && rows.every((row) => this.selectedChargeIds().has(row.id));
+  });
+
+  someVisibleSelected = computed(() => {
+    const rows = this.selectableVisibleCharges();
+    const count = rows.filter((row) => this.selectedChargeIds().has(row.id)).length;
+    return count > 0 && count < rows.length;
+  });
+
+  blockedChargesCount = computed(() =>
+    this.charges().filter((charge) => this.remainingAgorot(charge) > 0 && !!charge.paymentBlockReason).length
+  );
+
+  failedChargesCount = computed(() =>
+    this.charges().filter((charge) => charge.status === 'failed' || this.isParentPaymentFailed(charge.parent_uid)).length
+  );
+
+  officeNotesCount = computed(() =>
+    this.charges().filter((charge) => this.hasOfficeNote(charge)).length
+  );
+
+  selectedParentsCount = computed(() => new Set(
+    this.charges().filter((charge) => this.selectedChargeIds().has(charge.id)).map((charge) => charge.parent_uid)
+  ).size);
+
+  visiblePeriodLabel = computed(() => {
+    const from = this.dateFrom();
+    const to = this.dateTo();
+    const format = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString('he-IL');
+    if (from && to) return `${format(from)} – ${format(to)}`;
+    if (from) return `מתאריך ${format(from)}`;
+    if (to) return `עד ${format(to)}`;
+    return 'כל התקופות';
+  });
+
+  activeDetailsCharge = computed(() =>
+    this.charges().find((charge) => charge.id === this.detailsOpenFor()) ?? null
+  );
+
+  detailsOfficeNotes = computed(() => {
+    const notes = new Map<string, { text: string; childName: string; occurDate: string | null }>();
+    for (const item of this.detailsItems() ?? []) {
+      const text = String(item.office_note ?? '').trim();
+      if (!text || text.toLowerCase() === 'false') continue;
+      const childName = String(item.child_name ?? '').trim() || 'ללא שם ילד';
+      const occurDate = item.occur_date ?? null;
+      notes.set(`${childName}|${occurDate}|${text}`, { text, childName, occurDate });
+    }
+    return Array.from(notes.values());
+  });
+
+
 
   detailsOpenFor = signal<string | null>(null);
   detailsLoading = signal(false);
@@ -122,19 +191,16 @@ canGoNext = computed(() => this.pageIndex() + 1 < this.totalPages());
     });
   });
 
-  /** מה שמוצג בטבלה, לפי הטאב */
+  /** Visible rows are scoped to the currently loaded server page. */
   visibleCharges = computed(() => {
-    const base =
-      this.activeTab() === 'open' ? this.openCharges() : this.charges();
-
+    const base = this.activeTab() === 'open' ? this.openCharges() : this.charges();
     const filter = this.parentNameFilter().toLowerCase().trim();
-    if (!filter) return base;
 
-    return base.filter((c) => {
-      const name = (c.parent_name || `${c.first_name} ${c.last_name}` || '')
-        .toLowerCase();
-
-      return name.includes(filter);
+    return base.filter((charge) => {
+      const name = (charge.parent_name || `${charge.first_name ?? ''} ${charge.last_name ?? ''}`)
+        .toLowerCase().trim();
+      return (!filter || name.includes(filter)) &&
+        (!this.onlyOfficeNotes() || this.hasOfficeNote(charge));
     });
   });
   /** סכום חיובים נבחרים */
@@ -155,6 +221,65 @@ canGoNext = computed(() => this.pageIndex() + 1 < this.totalPages());
     return this.selectedChargeIds().size > 0;
   }
 
+
+  toggleBillingTools(): void {
+    this.billingToolsOpen.update((open) => !open);
+  }
+
+  clearSelection(): void {
+    this.selectedChargeIds.set(new Set());
+  }
+
+  toggleOfficeNotesFilter(): void {
+    this.onlyOfficeNotes.update((enabled) => !enabled);
+    this.clearSelection();
+  }
+
+  hasOfficeNote(charge: ParentChargeRow): boolean {
+    const note = (charge as any).office_note;
+    if (note === true) return true;
+    if (note == null || note === false) return false;
+    const normalized = String(note).trim().toLowerCase();
+    return normalized.length > 0 && normalized !== 'false' && normalized !== '0';
+  }
+
+  officeNotePreview(charge: ParentChargeRow): string | null {
+    const note = (charge as any).office_note;
+    if (note == null || typeof note === 'boolean') return null;
+    const text = String(note).trim();
+    return text && !['true', 'false', '0'].includes(text.toLowerCase()) ? text : null;
+  }
+
+  chargeParentName(charge: ParentChargeRow): string {
+    return String(charge.parent_name ?? '').trim() ||
+      [charge.first_name, charge.last_name].filter(Boolean).join(' ').trim() || 'הורה ללא שם';
+  }
+
+  chargeStatusClass(charge: ChargeWithPaymentStatus): string {
+    if (charge.status === 'failed' || this.isParentPaymentFailed(charge.parent_uid)) return 'status-failed';
+    if (charge.status === 'cancelled') return 'status-cancelled';
+    if (charge.paymentBlockReason) return 'status-blocked';
+    if (this.realRemainingAgorot(charge) <= 0 && this.chargeTotalAgorot(charge) > 0) return 'status-paid';
+    return this.paidAgorot(charge) > 0 ? 'status-partial' : 'status-open';
+  }
+
+  chargeStatusLabel(charge: ChargeWithPaymentStatus): string {
+    if (this.isParentPaymentFailed(charge.parent_uid)) return 'סליקה נכשלה';
+    if (charge.paymentBlockReason) return charge.hasExpiredPaymentMethod ? 'כרטיס פג תוקף' : 'חסר אמצעי תשלום';
+    return this.formatStatus(charge);
+  }
+
+  closeChargeDetails(): void {
+    this.detailsOpenFor.set(null);
+    this.detailsLoading.set(false);
+    this.detailsError.set(null);
+    this.detailsItems.set([]);
+    this.detailsCredits.set([]);
+  }
+
+  onDetailsBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closeChargeDetails();
+  }
 
   // === lifecycle ===
 
@@ -259,16 +384,11 @@ this.chargesSummary.set(summary);
     this.selectedChargeIds.set(next);
   }
   toggleSelectAllVisible(checked: boolean) {
-    const next = new Set<string>();
-
-    if (checked) {
-      for (const c of this.openCharges()) {
-        if (this.canSelectForPayment(c)) {
-          next.add(c.id);
-        }
-      }
+    const next = new Set(this.selectedChargeIds());
+    for (const charge of this.selectableVisibleCharges()) {
+      if (checked) next.add(charge.id);
+      else next.delete(charge.id);
     }
-
     this.selectedChargeIds.set(next);
   }
 
@@ -477,6 +597,8 @@ this.chargesSummary.set(summary);
       this.detailsOpenFor.set(chargeId);
       this.detailsLoading.set(true);
       this.detailsError.set(null);
+      this.detailsItems.set([]);
+      this.detailsCredits.set([]);
       const { data: newAmount, error: recalcErr } = await dbTenant().rpc(
         'recalc_charge_amount',
         { p_charge_id: chargeId }

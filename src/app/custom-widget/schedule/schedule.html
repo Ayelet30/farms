@@ -37,23 +37,17 @@
         <span class="btn-text">היום</span>
       </button>
 
-      <button
-  type="button"
-  class="reload-btn"
-  [disabled]="reloadLoading"
-  (click)="reloadCurrentView()"
-  [title]="reloadLoading ? 'טוען מחדש…' : 'טען מחדש את הלוח'">
+      <button type="button" class="reload-btn" [disabled]="reloadLoading" (click)="reloadCurrentView()"
+        [title]="reloadLoading ? 'טוען מחדש…' : 'טען מחדש את הלוח'">
 
-  <span
-    class="btn-icon"
-    [class.spinning]="reloadLoading">
-    ↻
-  </span>
+        <span class="btn-icon" [class.spinning]="reloadLoading">
+          ↻
+        </span>
 
-  <span class="btn-text">
-    {{ reloadLoading ? 'טוען…' : 'רענן' }}
-  </span>
-</button>
+        <span class="btn-text">
+          {{ reloadLoading ? 'טוען…' : 'רענן' }}
+        </span>
+      </button>
 
       <button class="fullscreen-btn" (click)="toggleFullscreen()" [title]="isFullscreen ? 'צמצם' : 'מסך מלא'">
         <span class="btn-icon">{{ isFullscreen ? '↙' : '⛶' }}</span>
@@ -106,9 +100,14 @@
         <ng-container *ngFor="let res of customDayResources; let col = index">
           <div class="day-bg-cell" [class.break-cell]="isBreakCell(res.id, slot.iso)"
             [class.blocked-cell]="isBlockedRawCell(res.id, slot.iso)"
-            [class.available-cell]="isAvailableRawCell(res.id, slot.iso)"
-            [style.background]="isAvailableRawCell(res.id, slot.iso) ? hexToRgba(getAvailableRawCellColor(res.id, slot.iso), 0.13) : null"
-            [attr.title]="isBlockedRawCell(res.id, slot.iso) ? getBlockedReason(res.id, slot.iso) : null"
+            [class.available-cell]="isAvailableRawCell(res.id, slot.iso)" [style.backgroundColor]="
+  isAvailableRawCell(res.id, slot.iso)
+    ? hexToRgba(
+        getAvailableRawCellColor(res.id, slot.iso),
+        0.13
+      )
+    : null
+" [attr.title]="isBlockedRawCell(res.id, slot.iso) ? getBlockedReason(res.id, slot.iso) : null"
             [style.gridColumn]="shouldSplitDayByInstructor ? col + 1 : 1" [style.gridRow]="row + 2"
             (click)="onCustomDateCellClick(slot.iso, res)"
             (contextmenu)="onCustomDateRightClick($event, slot.iso, res)">
@@ -146,16 +145,12 @@
               </span>
 
               <span class="day-badges">
-                <span
-                  *ngIf="isSingleOccurrenceMove(item)"
-                  class="mini-badge single-move-badge"
+                <span *ngIf="isSingleOccurrenceMove(item)" class="mini-badge single-move-badge"
                   [title]="getSingleMoveTooltip(item)">
                   ⇄
                 </span>
 
-                <span
-                  class="mini-badge type-badge"
-                  *ngIf="getItemLessonTypeShort(item)">
+                <span class="mini-badge type-badge" *ngIf="getItemLessonTypeShort(item)">
                   {{ getItemLessonTypeShort(item) }}
                 </span>
               </span>

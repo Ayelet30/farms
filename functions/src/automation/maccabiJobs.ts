@@ -1,16 +1,8 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
-import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = defineSecret('SUPABASE_URL');
 const SUPABASE_SERVICE_KEY = defineSecret('SUPABASE_SERVICE_KEY');
-
-function supabaseForSchema(schema: string) {
-  return createClient(SUPABASE_URL.value(), SUPABASE_SERVICE_KEY.value(), {
-    db: { schema },
-    auth: { persistSession: false },
-  });
-}
 
 export const createMaccabiAutomationJob = onRequest(
   {
@@ -18,12 +10,9 @@ export const createMaccabiAutomationJob = onRequest(
     timeoutSeconds: 60,
     memory: '512MiB',
     secrets: [SUPABASE_URL, SUPABASE_SERVICE_KEY],
+    cors: true,
   },
   async (req, res) => {
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type');
-
     if (req.method === 'OPTIONS') {
       res.status(204).send('');
       return;
@@ -38,8 +27,8 @@ export const createMaccabiAutomationJob = onRequest(
     }
 
     try {
-      const schema = String(req.body?.schema || '').trim();
-      const groups = req.body?.groups  ?? [];
+      const schema = String(req.body?.schema ?? '').trim();
+      const groups = req.body?.groups ?? [];
 
       if (!schema) {
         res.status(400).json({
@@ -57,9 +46,26 @@ export const createMaccabiAutomationJob = onRequest(
         return;
       }
 
-      const sb = supabaseForSchema(schema);
+      /*
+       * הייבוא מתבצע רק כאשר הפונקציה באמת מופעלת,
+       * ולא בזמן Firebase function discovery.
+       */
+      const { createClient } = await import('@supabase/supabase-js');
 
-      const { data, error } = await sb
+      const supabase = createClient(
+        SUPABASE_URL.value(),
+        SUPABASE_SERVICE_KEY.value(),
+        {
+          db: {
+            schema,
+          },
+          auth: {
+            persistSession: false,
+          },
+        }
+      );
+
+      const { data, error } = await supabase
         .from('automation_jobs')
         .insert({
           provider: 'MACCABI',
@@ -83,10 +89,20 @@ export const createMaccabiAutomationJob = onRequest(
         status: data.status,
         message: 'Maccabi automation job created',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : String(error);
+
+      console.error(
+        'createMaccabiAutomationJob failed:',
+        error
+      );
+
       res.status(500).json({
         ok: false,
-        message: error?.message ?? 'Unknown error',
+        message,
       });
     }
   }

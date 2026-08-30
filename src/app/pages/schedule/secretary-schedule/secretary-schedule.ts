@@ -73,6 +73,33 @@ type QuickBookingContext = {
   instructorName: string;
 };
 
+type InstructorWeeklyAvailabilityRow = {
+  id: string;
+  instructor_id_number: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  lesson_type_mode?: string | null;
+  lesson_ridding_type?: string | null;
+  valid_from: string;
+  valid_until?: string | null;
+  replaced_by_id?: string | null;
+};
+
+type InstructorBreakOccurrence = {
+  occurrence_key: string;
+  source_type: 'WEEKLY' | 'ADDED';
+  weekly_availability_id: string | null;
+  exception_id: string | null;
+  instructor_id_number: string;
+  break_date: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  override_action: string;
+  is_overridden: boolean;
+};
+
 
 @Component({
   selector: 'app-secretary-schedule',
@@ -106,6 +133,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     isBillable: false,
   };
   children: ChildRow[] = [];
+  scheduleChildrenById = new Map<string, ChildRow>();
   lessons: Lesson[] = [];
   filteredLessons: Lesson[] = [];
   selectedChild: ChildRow | null = null;
@@ -254,18 +282,22 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     lessonType?: string;
   }> = [];
 
-  instructorWeeklyAvailability: Array<{
-    instructor_id_number: string;
-    day_of_week: number;
-    start_time: string;
-    end_time: string;
-    lesson_ridding_type?: string | null;
-    riding_types?: {
-      id: string;
-      name?: string | null;
-      code?: string | null;
-    } | null;
-  }> = [];
+  instructorWeeklyAvailability: InstructorWeeklyAvailabilityRow[] = [];
+  breakOccurrences: InstructorBreakOccurrence[] = [];
+
+  breakModal = {
+    open: false,
+    saving: false,
+    error: '',
+    mode: 'add' as 'add' | 'shorten' | 'cancel',
+    occurrence: null as InstructorBreakOccurrence | null,
+    instructorId: '',
+    instructorName: '',
+    date: '',
+    startTime: '',
+    endTime: '',
+    maxEndTime: '',
+  };
 
   quickBooking: QuickBookingContext = {
     open: false,
@@ -333,6 +365,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
     canDeleteLesson: false as boolean,
     deleteBlockedReason: '' as string,
+    breakOccurrence: null as InstructorBreakOccurrence | null,
   };
 
   rangeModal = {
@@ -467,6 +500,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       );
 
       await this.loadInstructorWeeklyAvailability();
+      await this.loadBreakOccurrences(range.start, range.end);
 
       this.filterLessons();
       this.setScheduleItems();
@@ -884,73 +918,129 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  private buildAvailableDayCells(range?: { start: string; end: string }): void {
-    const available: Array<{
-      date: string;
-      resourceId: string;
-      startTime: string;
-      endTime: string;
-      color: string;
-      lessonType?: string;
-    }> = [];
+  private buildAvailableDayCells(
+  range?: { start: string; end: string }
+): void {
+  const available: Array<{
+    date: string;
+    resourceId: string;
+    startTime: string;
+    endTime: string;
+    color: string;
+    lessonType?: string;
+  }> = [];
 
-    const from = range?.start?.slice(0, 10) ?? '';
-    const to = range?.end?.slice(0, 10) ?? '';
+  const from = range?.start?.slice(0, 10) ?? '';
+  const to = range?.end?.slice(0, 10) ?? '';
 
-    if (!from || !to) {
-      this.availableDayCells = [];
-      return;
-    }
+  if (!from || !to) {
+    this.availableDayCells = [];
+    return;
+  }
 
-    const visibleInstructorIds = new Set(
-      this.instructorResources.map(r => String(r.id))
-    );
+  const visibleInstructorIds = new Set(
+    this.instructorResources.map(resource => String(resource.id))
+  );
 
-    let cur = from;
-    let guard = 0;
+  const ridingTypeById = new Map(
+    this.ridingTypes.map(ridingType => [
+      String(ridingType.id),
+      ridingType,
+    ])
+  );
 
-    const ridingTypeById = new Map(
-      this.ridingTypes.map(rt => [
-        String(rt.id),
-        rt
-      ])
-    );
+  let currentDate = from;
+  let guard = 0;
 
-    while (cur <= to) {
-      const dow = this.dbDowFromYmd(cur);
+  while (currentDate <= to) {
+    const dayOfWeek = this.dbDowFromYmd(currentDate);
 
-      for (const row of this.instructorWeeklyAvailability || []) {
-        const instructorId = String(row.instructor_id_number);
+    for (const row of this.instructorWeeklyAvailability) {
+      const instructorId = String(row.instructor_id_number);
 
-        if (!visibleInstructorIds.has(instructorId)) continue;
-        if (Number(row.day_of_week) !== dow) continue;
-
-        const color =
-          this.instructorColorById.get(instructorId) ||
-          this.getColorForInstructor(instructorId);
-
-        const ridingType = ridingTypeById.get(String(row.lesson_ridding_type || ''));
-
-        available.push({
-          date: cur,
-          resourceId: instructorId,
-          startTime: String(row.start_time).slice(0, 5),
-          endTime: String(row.end_time).slice(0, 5),
-          color,
-          lessonType: ridingType?.name || ridingType?.code || ''
-        });
+      if (!visibleInstructorIds.has(instructorId)) {
+        continue;
       }
 
+      if (Number(row.day_of_week) !== dayOfWeek) {
+        continue;
+      }
 
-      const next = this.addOneDayYmdSafe(cur);
-      if (next <= cur) break;
-      cur = next;
+      if (!this.isWeeklyAvailabilityEffectiveOn(row, currentDate)) {
+        continue;
+      }
 
-      if (++guard > 400) break;
+      const color =
+        this.instructorColorById.get(instructorId) ||
+        this.getColorForInstructor(instructorId);
+
+      const ridingType = ridingTypeById.get(
+        String(row.lesson_ridding_type || '')
+      );
+
+      available.push({
+        date: currentDate,
+        resourceId: instructorId,
+        startTime: String(row.start_time).slice(0, 5),
+        endTime: String(row.end_time).slice(0, 5),
+        color,
+        lessonType: ridingType?.name || ridingType?.code || '',
+      });
     }
 
-    this.availableDayCells = available;
+    const nextDate = this.addOneDayYmdSafe(currentDate);
+
+    if (nextDate <= currentDate) {
+      break;
+    }
+
+    currentDate = nextDate;
+
+    if (++guard > 400) {
+      console.warn('buildAvailableDayCells stopped by guard');
+      break;
+    }
   }
+
+  // הפסקה נשארת חלק מזמן העבודה של המדריך,
+  // ולכן גם הרקע שלה חייב לקבל את צבע הזמינות שלו.
+  for (const occurrence of this.breakOccurrences || []) {
+    const instructorId = String(
+      occurrence.instructor_id_number || ''
+    );
+
+    const breakDate = String(
+      occurrence.break_date || ''
+    ).slice(0, 10);
+
+    if (!instructorId || !breakDate) {
+      continue;
+    }
+
+    if (!visibleInstructorIds.has(instructorId)) {
+      continue;
+    }
+
+    if (breakDate < from || breakDate > to) {
+      continue;
+    }
+
+    const color =
+      this.instructorColorById.get(instructorId) ||
+      this.getColorForInstructor(instructorId);
+
+    available.push({
+      date: breakDate,
+      resourceId: instructorId,
+      startTime: String(occurrence.start_time).slice(0, 5),
+      endTime: String(occurrence.end_time).slice(0, 5),
+      color,
+      lessonType: 'הפסקה',
+    });
+  }
+
+  this.availableDayCells = available;
+}
 
 
   private hashString(str: string): number {
@@ -995,6 +1085,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     const range = this.currentRange ?? this.ensureInitialDayRange();
 
     await this.loadLessons(range);
+    await this.loadBreakOccurrences(range.start, range.end);
 
     await this.loadFarmDaysOffForRange(range.start.slice(0, 10), range.end.slice(0, 10));
     await this.loadRequestsForRange(range.start.slice(0, 10), range.end.slice(0, 10));
@@ -1223,15 +1314,22 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
   private async loadInstructorWeeklyAvailability(): Promise<void> {
     await ensureTenantContextReady();
+
     const { data, error } = await dbTenant()
       .from('instructor_weekly_availability')
       .select(`
-      instructor_id_number,
-      day_of_week,
-      start_time,
-      end_time,
-      lesson_ridding_type
-    `);
+        id,
+        instructor_id_number,
+        day_of_week,
+        start_time,
+        end_time,
+        lesson_type_mode,
+        lesson_ridding_type,
+        valid_from,
+        valid_until,
+        replaced_by_id
+      `)
+      .order('valid_from', { ascending: true });
 
     if (error) {
       console.error('availability load error', error);
@@ -1239,7 +1337,70 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.instructorWeeklyAvailability = data ?? [];
+    this.instructorWeeklyAvailability =
+      (data ?? []) as InstructorWeeklyAvailabilityRow[];
+  }
+
+  private async loadBreakOccurrences(
+    start: string,
+    end: string
+  ): Promise<void> {
+    const { data, error } = await dbTenant()
+      .from('instructor_break_occurrences')
+      .select(`
+        occurrence_key,
+        source_type,
+        weekly_availability_id,
+        exception_id,
+        instructor_id_number,
+        break_date,
+        start_time,
+        end_time,
+        duration_minutes,
+        override_action,
+        is_overridden
+      `)
+      .gte('break_date', String(start).slice(0, 10))
+      .lte('break_date', String(end).slice(0, 10))
+      .order('break_date')
+      .order('start_time');
+
+    if (error) throw error;
+
+    this.breakOccurrences =
+      (data ?? []) as InstructorBreakOccurrence[];
+  }
+
+  private findBreakOccurrence(
+    instructorId: string,
+    date: string,
+    time: string
+  ): InstructorBreakOccurrence | null {
+    if (!instructorId || !date || !time) return null;
+
+    const requested = String(time).slice(0, 5);
+
+    return this.breakOccurrences.find(occurrence =>
+      String(occurrence.instructor_id_number) === String(instructorId) &&
+      String(occurrence.break_date).slice(0, 10) === date &&
+      requested >= String(occurrence.start_time).slice(0, 5) &&
+      requested < String(occurrence.end_time).slice(0, 5)
+    ) ?? null;
+  }
+
+  private isWeeklyAvailabilityEffectiveOn(
+    row: InstructorWeeklyAvailabilityRow,
+    ymd: string
+  ): boolean {
+    const validFrom = String(row.valid_from || '').slice(0, 10);
+    const validUntil = row.valid_until
+      ? String(row.valid_until).slice(0, 10)
+      : null;
+
+    if (!validFrom || ymd < validFrom) return false;
+    if (validUntil && ymd > validUntil) return false;
+
+    return true;
   }
 
   private addOneDayYmdSafe(ymd: string): string {
@@ -1351,6 +1512,11 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     this.contextMenu.childName = '';
     this.contextMenu.lessonType = '';
     this.contextMenu.status = '';
+    this.contextMenu.breakOccurrence = this.findBreakOccurrence(
+      this.contextMenu.instructorId,
+      localYmd,
+      localHm
+    );
     this.contextMenuMode = 'root';
 
     this.cdr.detectChanges();
@@ -1434,6 +1600,179 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   closeContextMenu(): void {
     this.contextMenu.visible = false;
     this.contextMenuMode = 'root';
+  }
+
+  canAddBreakFromContext(): boolean {
+    return (
+      !!this.contextMenu.instructorId &&
+      !!this.contextMenu.date &&
+      !!this.contextMenu.time &&
+      !this.contextMenu.breakOccurrence &&
+      (!this.contextMenu.hasEvent || this.isCancelledContext())
+    );
+  }
+
+  openAddBreakModal(): void {
+    if (!this.canAddBreakFromContext()) return;
+
+    const startTime = String(this.contextMenu.time).slice(0, 5);
+    const maxEndTime = this.addMinutesToHm(startTime, 30);
+
+    this.breakModal = {
+      open: true,
+      saving: false,
+      error: '',
+      mode: 'add',
+      occurrence: null,
+      instructorId: this.contextMenu.instructorId,
+      instructorName: this.contextMenu.instructorName,
+      date: this.contextMenu.date,
+      startTime,
+      endTime: maxEndTime,
+      maxEndTime,
+    };
+
+    this.closeContextMenu();
+  }
+
+  openShortenBreakModal(): void {
+    const occurrence = this.contextMenu.breakOccurrence;
+    if (!occurrence || occurrence.source_type !== 'WEEKLY') return;
+
+    const startTime = String(occurrence.start_time).slice(0, 5);
+    const currentEndTime = String(occurrence.end_time).slice(0, 5);
+    const suggestedEnd = this.addMinutesToHm(startTime, 15);
+
+    this.breakModal = {
+      open: true,
+      saving: false,
+      error: '',
+      mode: 'shorten',
+      occurrence,
+      instructorId: occurrence.instructor_id_number,
+      instructorName: this.contextMenu.instructorName,
+      date: String(occurrence.break_date).slice(0, 10),
+      startTime,
+      endTime: suggestedEnd < currentEndTime ? suggestedEnd : currentEndTime,
+      maxEndTime: currentEndTime,
+    };
+
+    this.closeContextMenu();
+  }
+
+  openCancelBreakModal(): void {
+    const occurrence = this.contextMenu.breakOccurrence;
+    if (!occurrence) return;
+
+    this.breakModal = {
+      open: true,
+      saving: false,
+      error: '',
+      mode: 'cancel',
+      occurrence,
+      instructorId: occurrence.instructor_id_number,
+      instructorName: this.contextMenu.instructorName,
+      date: String(occurrence.break_date).slice(0, 10),
+      startTime: String(occurrence.start_time).slice(0, 5),
+      endTime: String(occurrence.end_time).slice(0, 5),
+      maxEndTime: String(occurrence.end_time).slice(0, 5),
+    };
+
+    this.closeContextMenu();
+  }
+
+  closeBreakModal(): void {
+    if (this.breakModal.saving) return;
+    this.breakModal.open = false;
+    this.breakModal.error = '';
+  }
+
+  async saveBreakModal(): Promise<void> {
+    if (this.breakModal.saving) return;
+
+    this.breakModal.error = '';
+
+    if (this.breakModal.mode !== 'cancel') {
+      if (
+        !this.breakModal.endTime ||
+        this.breakModal.endTime <= this.breakModal.startTime ||
+        this.breakModal.endTime > this.breakModal.maxEndTime
+      ) {
+        this.breakModal.error = 'ניתן לקצר את ההפסקה בלבד, ולא להאריך אותה.';
+        return;
+      }
+
+      if (
+        this.breakModal.mode === 'shorten' &&
+        this.breakModal.endTime === this.breakModal.maxEndTime
+      ) {
+        this.breakModal.error = 'יש לבחור שעת סיום מוקדמת יותר.';
+        return;
+      }
+    }
+
+    this.breakModal.saving = true;
+
+    try {
+      const user = await this.cu.loadUserDetails();
+      const userId = String((user as any)?.uid || '') || null;
+      const occurrence = this.breakModal.occurrence;
+
+      let response: any;
+
+      if (this.breakModal.mode === 'add') {
+        response = await dbTenant().rpc('add_one_time_instructor_break', {
+          p_instructor_id_number: this.breakModal.instructorId,
+          p_break_date: this.breakModal.date,
+          p_start_time: this.breakModal.startTime,
+          p_end_time: this.breakModal.endTime,
+          p_created_by_uid: userId,
+          p_created_by_role: 'secretary',
+        });
+      } else if (this.breakModal.mode === 'shorten') {
+        response = await dbTenant().rpc('shorten_weekly_break_occurrence', {
+          p_weekly_availability_id: occurrence?.weekly_availability_id,
+          p_break_date: this.breakModal.date,
+          p_new_start_time: this.breakModal.startTime,
+          p_new_end_time: this.breakModal.endTime,
+          p_created_by_uid: userId,
+          p_created_by_role: 'secretary',
+        });
+      } else if (occurrence?.source_type === 'ADDED') {
+        response = await dbTenant().rpc('cancel_break_exception', {
+          p_exception_id: occurrence.exception_id,
+          p_canceled_by_uid: userId,
+          p_canceled_by_role: 'secretary',
+          p_cancel_reason: 'ביטול הפסקה חד־פעמית',
+        });
+      } else {
+        response = await dbTenant().rpc('cancel_weekly_break_occurrence', {
+          p_weekly_availability_id: occurrence?.weekly_availability_id,
+          p_break_date: this.breakModal.date,
+          p_created_by_uid: userId,
+          p_created_by_role: 'secretary',
+        });
+      }
+
+      if (response?.error) throw response.error;
+
+      this.breakModal.open = false;
+
+      if (this.currentRange) {
+  await this.loadBreakOccurrences(
+    this.currentRange.start,
+    this.currentRange.end
+  );
+
+  this.buildAvailableDayCells(this.currentRange);
+}
+    } catch (error: any) {
+      this.breakModal.error =
+        error?.message || 'לא ניתן היה לעדכן את ההפסקה.';
+    } finally {
+      this.breakModal.saving = false;
+      this.cdr.detectChanges();
+    }
   }
 
   async openCancelLessonDialog(): Promise<void> {
@@ -2278,10 +2617,14 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
       // 2) עובדים היום לפי זמינות
       const dow = this.jsDowToDbDow(new Date().getDay());
+      const today = this.dateToYmd(new Date());
+
       const { data: avail, error: e2 } = await dbc
         .from('instructor_weekly_availability')
-        .select('instructor_id_number')
-        .eq('day_of_week', dow);
+        .select('instructor_id_number, valid_from, valid_until')
+        .eq('day_of_week', dow)
+        .lte('valid_from', today)
+        .or(`valid_until.is.null,valid_until.gte.${today}`);
 
       if (e2) throw e2;
 
@@ -2366,47 +2709,111 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     this.savePageState(); // להוסיף
   }
 
-  async onViewRange(range: { start: string; end: string; viewType: string }) {
-    if (this.isRestoringScheduleState) {
-      return;
-    }
-
-    this.currentRange = range;
-    this.currentViewType = range.viewType as any;
-
-    this.currentCalendarDate = range.start?.slice(0, 10) ?? null;
-
-    await this.loadLessons({ start: range.start, end: range.end });
-    await this.loadFarmDaysOffForRange(range.start.slice(0, 10), range.end.slice(0, 10));
-    await this.loadRequestsForRange(range.start.slice(0, 10), range.end.slice(0, 10));
-    await this.loadInstructorWeeklyAvailability();
-
-    this.filterLessons();
-    this.setScheduleItems();
-    this.buildBlockedDayCells(range);
-    this.buildAvailableDayCells(range);
-    this.buildWeekStats();
-
-    if (!this.isRestoringScheduleState) {
-      this.savePageState();
-
-
-    }
-
-    this.cdr.detectChanges();
+ async onViewRange(range: {
+  start: string;
+  end: string;
+  viewType: string;
+}): Promise<void> {
+  if (this.isRestoringScheduleState) {
+    return;
   }
 
+  this.currentRange = range;
+  this.currentViewType = range.viewType as any;
+
+  const selectedDate = range.start?.slice(0, 10) ?? '';
+
+  this.currentCalendarDate = selectedDate || null;
+
+  /*
+   * עדכון אוטומטי של המדריכים מתבצע רק כשהגענו לתצוגת יום.
+   * כך ניווט בתוך תצוגת שבוע או חודש לא משנה את הסינון.
+   */
+  const isDayView =
+    range.viewType === 'timeGridDay' ||
+    range.viewType === 'resourceTimeGridDay';
+
+  if (isDayView && selectedDate) {
+    await this.loadInstructorWeeklyAvailability();
+    this.selectWorkingInstructorsForDay(selectedDate);
+  }
+
+  await this.loadLessons({
+    start: range.start,
+    end: range.end
+  });
+  await this.loadBreakOccurrences(range.start, range.end);
+
+  await this.loadFarmDaysOffForRange(
+    range.start.slice(0, 10),
+    range.end.slice(0, 10)
+  );
+
+  await this.loadRequestsForRange(
+    range.start.slice(0, 10),
+    range.end.slice(0, 10)
+  );
+
+  /*
+   * בשבוע ובחודש עדיין צריך לטעון זמינויות לצביעת התאים,
+   * אך בלי לשנות את המדריכים המסומנים.
+   */
+  if (!isDayView) {
+    await this.loadInstructorWeeklyAvailability();
+  }
+
+  this.filterLessons();
+  this.setScheduleItems();
+  this.buildBlockedDayCells(range);
+  this.buildAvailableDayCells(range);
+  this.buildWeekStats();
+
+  if (!this.isRestoringScheduleState) {
+    this.savePageState();
+  }
+
+  this.cdr.detectChanges();
+}
+
+private selectWorkingInstructorsForDay(dateYmd: string): void {
+  if (!dateYmd) return;
+
+  const dow = this.dbDowFromYmd(dateYmd);
+
+  const workingInstructorIds = new Set(
+    (this.instructorWeeklyAvailability ?? [])
+      .filter(row =>
+        Number(row.day_of_week) === dow &&
+        this.isWeeklyAvailabilityEffectiveOn(row, dateYmd)
+      )
+      .map(row => String(row.instructor_id_number))
+  );
+
+  // רק מדריכים פעילים שעובדים ביום שנבחר
+  this.instructorsToday = this.instructors.filter(instructor =>
+    workingInstructorIds.has(String(instructor.id_number))
+  );
+
+  // אם יש מדריכים שעובדים באותו יום – בוחרים רק אותם
+  if (this.instructorsToday.length) {
+    this.selectedInstructorIds = this.instructorsToday.map(
+      instructor => String(instructor.id_number)
+    );
+  } else {
+    // אותה התנהגות כמו בטעינה הראשונה:
+    // אם לא הוגדרה זמינות לאותו יום, מציגים את כל הפעילים
+    this.selectedInstructorIds = this.instructors.map(
+      instructor => String(instructor.id_number)
+    );
+  }
+
+  this.rebuildInstructorResources();
+}
 
   private async loadLessons(
     range?: { start: string; end: string }
   ): Promise<void> {
     try {
-      const childIds = this.children.map(c => c.child_uuid).filter(Boolean);
-      if (!childIds.length) {
-        this.lessons = [];
-        return;
-      }
-
       const dbc = dbTenant();
 
       const today = new Date().toISOString().slice(0, 10);
@@ -2482,12 +2889,44 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     occurrence_change_created_by_uid
   `)
 
-        .in('child_id', childIds)
         .gte('occur_date', from)
         .lte('occur_date', to)
         .order('start_datetime', { ascending: true });
 
       if (err1) throw err1;
+
+      const occurrenceChildIds = [
+  ...new Set(
+    (occData ?? [])
+      .map((row: any) => String(row.child_id ?? ''))
+      .filter(Boolean)
+  ),
+];
+
+let scheduleChildren: ChildRow[] = [];
+
+if (occurrenceChildIds.length) {
+  const { data: childrenData, error: childrenError } = await dbc
+    .from('children')
+    .select(`
+      child_uuid,
+      first_name,
+      last_name,
+      birth_date,
+      status
+    `)
+    .in('child_uuid', occurrenceChildIds);
+
+  if (childrenError) throw childrenError;
+
+  scheduleChildren = (childrenData ?? []) as ChildRow[];
+  this.scheduleChildrenById = new Map(
+  scheduleChildren.map(child => [
+    String(child.child_uuid),
+    child,
+  ])
+);
+}
 
 
       const lessonIds = [...new Set((occData ?? []).map((r: any) => r.lesson_id).filter(Boolean))];
@@ -2507,14 +2946,21 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       }
 
       // 2) משאבי סוס+מגרש לפי אותו טווח
-      const { data: resData, error: err2 } = await dbc
-        .from('lessons_with_children')
-        .select('lesson_id, occur_date, horse_name, arena_name')
-        .in('child_id', childIds)
-        .gte('occur_date', from)
-        .lte('occur_date', to);
+      let resData: any[] = [];
 
-      if (err2) throw err2;
+if (occurrenceChildIds.length) {
+  const { data, error: err2 } = await dbc
+    .from('lessons_with_children')
+    .select('lesson_id, child_id, occur_date, horse_name, arena_name')
+    .in('child_id', occurrenceChildIds)
+    .gte('occur_date', from)
+    .lte('occur_date', to);
+
+  if (err2) throw err2;
+
+  resData = data ?? [];
+}
+
 
       // 3) בניית Map לפי (lesson_id + occur_date)
       const resourceByKey = new Map<
@@ -2532,11 +2978,11 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
       // 4) מיפוי לשיעורים + הוספת horse/arena מה-Map
       const nameByChild = new Map(
-        this.children.map(c => [
-          c.child_uuid,
-          `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim(),
-        ])
-      );
+  scheduleChildren.map(c => [
+    c.child_uuid,
+    `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim(),
+  ])
+);
 
       const instructorNameById = new Map(
         this.instructorsAll.map(i => [
@@ -2610,65 +3056,55 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   }
 
   /** סינון שיעורים לפי מדריכים מסומנים + טווח תצוגה */
-  private filterLessons(): void {
-    let src = [...this.lessons];
+private filterLessons(): void {
+  let src = [...this.lessons];
 
-    const selected = this.selectedInstructorIds.filter(Boolean);
-    if (selected.length) {
-      src = src.filter(l => selected.includes(String(l.instructor_id ?? '')));
-    } else {
-      src = [];
-    }
+  const selected = this.selectedInstructorIds
+    .filter(Boolean)
+    .map(String);
 
-    if (this.currentRange) {
-      const { start, end } = this.currentRange;
-      src = src.filter(l => {
-        const d =
-          (l as any).occur_date ||
-          ((l as any).start_datetime
-            ? (l as any).start_datetime.slice(0, 10)
-            : '');
-        if (!d) return true;
-        return d >= start && d <= end;
-      });
-    }
-
-    // ✅ כאן בדיוק מוסיפים את הסינון של חופשת מדריך
-    src = src.filter((l: any) => {
-      const lessonDate =
-        l.occur_date ||
-        (l.start_datetime ? String(l.start_datetime).slice(0, 10) : '');
-
-      if (!lessonDate) return true;
-
-      const startIso =
-        this.buildDateTime(l.occur_date, l.start_time) ??
-        this.ensureIso(
-          l.start_datetime as any,
-          l.start_time as any,
-          l.occur_date as any
-        );
-
-      const endIsoRaw =
-        this.buildDateTime(l.occur_date, l.end_time) ??
-        this.ensureIso(
-          l.end_datetime as any,
-          l.end_time as any,
-          l.occur_date as any
-        );
-
-      const endIso = this.ensureEndAfterStart(startIso, endIsoRaw);
-
-      return !this.isLessonBlockedByInstructorOff(
-        String(l.instructor_id ?? ''),
-        lessonDate,
-        new Date(startIso),
-        new Date(endIso)
-      );
-    });
-
-    this.filteredLessons = src;
+  if (!selected.length) {
+    this.filteredLessons = [];
+    return;
   }
+
+  src = src.filter((lesson: any) =>
+    selected.includes(
+      String(lesson.instructor_id ?? '')
+    )
+  );
+
+  if (this.currentRange) {
+    const start = String(
+      this.currentRange.start ?? ''
+    ).slice(0, 10);
+
+    const end = String(
+      this.currentRange.end ?? ''
+    ).slice(0, 10);
+
+    src = src.filter((lesson: any) => {
+      const lessonDate = String(
+        lesson.occur_date ??
+        lesson.start_datetime ??
+        ''
+      ).slice(0, 10);
+
+      if (!lessonDate) {
+        return true;
+      }
+
+      return lessonDate >= start && lessonDate <= end;
+    });
+  }
+
+  // לא מסתירים שיעורים בגלל חופשת מדריך.
+  // החופשה מוצגת כרקע, והשיעורים עצמם מופיעים מעליה.
+  // כך מוצגים גם שיעורים מבוטלים וגם שיעורים שהוחזרו.
+
+  this.filteredLessons = src;
+}
+
   private addOneDayYmd(dateYmd: string): string {
     const [y, m, d] = dateYmd.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
@@ -2736,7 +3172,32 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
         status: lesson.status,
         meta: {
           status: lesson.status ?? '',
-          child_id: lesson.child_id,
+
+is_cancellation:
+  lesson.is_cancellation === true ||
+  lesson.is_cancellation === 'true',
+
+is_billable:
+  lesson.is_billable === true ||
+  lesson.is_billable === 'true',
+
+is_makeup_allowed:
+  lesson.is_makeup_allowed === true ||
+  lesson.is_makeup_allowed === 'true',
+
+canceller_role:
+  lesson.canceller_role ?? null,
+
+approval_id:
+  lesson.approval_id ?? null,
+
+payment_plan_id:
+  lesson.payment_plan_id ?? null,
+
+lesson_price_agorot:
+  lesson.lesson_price_agorot ?? null,
+
+child_id: lesson.child_id,
           child_name: childDisplay,
           instructor_id: lesson.instructor_id,
           instructor_name: lesson.instructor_name,
@@ -3085,6 +3546,129 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       !this.isInstructorOffContext();
   }
 
+  canRestoreContextLesson(): boolean {
+  return (
+    !!this.contextMenu.hasEvent &&
+    !!this.contextMenu.lessonId &&
+    !!(
+      this.contextMenu.occurDate ||
+      this.contextMenu.date
+    ) &&
+    this.isCancelledContext() &&
+    !this.isInstructorOffContext()
+  );
+}
+
+async restoreCancelledLesson(): Promise<void> {
+ const lessonId = this.normalizeUuid(
+  this.contextMenu.lessonId
+);
+
+  const occurDate = String(
+    this.contextMenu.occurDate ||
+    this.contextMenu.date ||
+    ''
+  ).slice(0, 10);
+
+  const childName = String(
+    this.contextMenu.childName || 'הילד'
+  ).trim();
+
+  if (!lessonId || !occurDate) {
+  console.error('Invalid restore lesson context', {
+    lessonId: this.contextMenu.lessonId,
+    occurDate,
+    contextMenu: this.contextMenu,
+  });
+    this.closeContextMenu();
+
+    await this.ui.alert(
+      'לא נמצאו פרטי השיעור המבוטל.',
+      'שגיאה'
+    );
+
+    return;
+  }
+
+  this.closeContextMenu();
+
+  const approved = window.confirm(
+    `האם להחזיר את השיעור של ${childName} בתאריך ${occurDate}?`
+  );
+
+  if (!approved) {
+    return;
+  }
+
+  try {
+    await ensureTenantContextReady();
+
+    const { data, error } = await dbTenant()
+      .from('lesson_occurrence_exceptions')
+      .delete()
+      .eq('lesson_id', lessonId)
+      .eq('occur_date', occurDate)
+      .eq('status', 'בוטל')
+      .select('lesson_id, occur_date');
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data?.length) {
+      throw new Error(
+        'לא נמצאה רשומת ביטול לשיעור, או שאין הרשאה להחזיר אותו.'
+      );
+    }
+
+    if (this.currentRange) {
+      await this.loadLessons({
+        start: this.currentRange.start,
+        end: this.currentRange.end,
+      });
+
+      await this.loadRequestsForRange(
+        this.currentRange.start.slice(0, 10),
+        this.currentRange.end.slice(0, 10)
+      );
+
+      this.filterLessons();
+      this.setScheduleItems();
+
+      this.buildBlockedDayCells(
+        this.currentRange
+      );
+
+      this.buildAvailableDayCells(
+        this.currentRange
+      );
+
+      this.buildWeekStats();
+    }
+
+    this.cdr.detectChanges();
+
+    await this.ui.alert(
+      `השיעור של ${childName} הוחזר בהצלחה.`,
+      'בוצע'
+    );
+
+  } catch (error: any) {
+    console.error(
+      'restoreCancelledLesson failed',
+      error
+    );
+
+    await this.ui.alert(
+      error?.message ||
+        'לא הצלחנו להחזיר את השיעור. נסי שוב.',
+      'שגיאה'
+    );
+
+    this.cdr.detectChanges();
+  }
+}
+
   canMoveContextLesson(): boolean {
     return !!this.contextMenu.hasEvent &&
       !!this.contextMenu.lessonId &&
@@ -3341,8 +3925,8 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
           start,
           end,
           allDay: false,
-          display: 'block',
-          overlap: false,
+          display: isPending ? 'block' : 'background',
+overlap: true,
           color: bg,
           textColor: text,
           classNames: [isPending ? 'pending-instructor-day-off' : 'instructor-day-off'],
@@ -3468,6 +4052,90 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     );
   }
 
+  private normalizeUuid(value: unknown): string {
+  const normalized = String(value ?? '')
+    .trim()
+    .replace(/^["']+|["']+$/g, '');
+
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  return uuidPattern.test(normalized)
+    ? normalized
+    : '';
+}
+
+private resolveLessonIdFromRightClick(
+  event: any,
+  occurDate: string,
+  startTime: string
+): string {
+  // קודם בודקים את המזהים שהגיעו מ-app-schedule
+  const directLessonId =
+    this.normalizeUuid(event?.lessonId) ||
+    this.normalizeUuid(event?.lesson_id) ||
+    this.normalizeUuid(event?.eventId);
+
+  if (directLessonId) {
+    return directLessonId;
+  }
+
+  const childId = String(
+    event?.childId ??
+    event?.child_id ??
+    ''
+  );
+
+  const instructorId = String(
+    event?.resourceId ??
+    event?.instructorId ??
+    event?.instructor_id ??
+    ''
+  );
+
+  const normalizedStartTime = String(
+    event?.startTime ??
+    startTime ??
+    ''
+  ).slice(0, 5);
+
+  // אם app-schedule שלח מזהה שגוי, מאתרים את השיעור
+  // לפי הילד, התאריך, השעה והמדריך.
+  const matchingLesson = this.filteredLessons.find((lesson: any) => {
+    const lessonDate = String(
+      lesson.occur_date ??
+      lesson.start_datetime ??
+      ''
+    ).slice(0, 10);
+
+    const lessonStart = String(
+      lesson.start_time ??
+      lesson.start_datetime?.slice(11, 16) ??
+      ''
+    ).slice(0, 5);
+
+    const sameChild =
+      !childId ||
+      String(lesson.child_id ?? '') === childId;
+
+    const sameInstructor =
+      !instructorId ||
+      String(lesson.instructor_id ?? '') === instructorId;
+
+    return (
+      lessonDate === occurDate &&
+      lessonStart === normalizedStartTime &&
+      sameChild &&
+      sameInstructor
+    );
+  });
+
+  return this.normalizeUuid(
+    matchingLesson?.lesson_id ??
+    matchingLesson?.id
+  );
+}
+
   onRightClickEvent(e: any): void {
     if (!e?.jsEvent) return;
 
@@ -3508,11 +4176,34 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     this.contextMenu.instructorName = String(e.resourceTitle ?? '');
     this.contextMenu.hasEvent = true;
     this.contextMenu.eventId = String(e.eventId ?? '');
-    this.contextMenu.lessonId = String(e.lessonId ?? '');
-    this.contextMenu.childId = String(e.childId ?? '');
+
+this.contextMenu.childId = String(
+  e.childId ??
+  e.child_id ??
+  ''
+);
+
+this.contextMenu.lessonId =
+  this.resolveLessonIdFromRightClick(
+    e,
+    localYmd,
+    localHm
+  );
+
+if (!this.contextMenu.lessonId) {
+  console.error(
+    'לא נמצא UUID תקין של השיעור בלחיצה ימנית',
+    {
+      event: e,
+      date: localYmd,
+      time: localHm,
+    }
+  );
+}
     this.contextMenu.childName = String(e.childName ?? '');
     this.contextMenu.lessonType = String(e.lessonType ?? '');
     this.contextMenu.status = String(e.status ?? '');
+    this.contextMenu.breakOccurrence = null;
     this.contextMenuMode = 'root';
     this.contextMenu.seriesId = String(e.seriesId ?? '');
     this.contextMenu.appointmentKind = String(e.appointmentKind ?? '');
@@ -3545,10 +4236,30 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const child =
-      this.children.find(c => c.child_uuid === childId) ?? null;
+    const normalizedChildId = String(childId);
 
-    this.selectedChild = child ? { ...child } : null;
+const child =
+  this.children.find(
+    c => String(c.child_uuid) === normalizedChildId
+  ) ??
+  this.scheduleChildrenById.get(normalizedChildId) ??
+  null;
+
+if (!child) {
+  console.warn(
+    'הילד מופיע בלוח אך לא נמצא בנתוני הילדים',
+    {
+      childId: normalizedChildId,
+      event: ext,
+    }
+  );
+
+  this.selectedChild = null;
+  this.selectedOccurrence = null;
+  return;
+}
+
+this.selectedChild = { ...child };
 
     // 🔑 lesson_id – לוקחים מה-meta או מה-id של האירוע
     let lessonId: string | null = meta.lesson_id ?? null;

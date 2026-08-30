@@ -54,6 +54,24 @@ type SeriesDocRow = {
   instructorName: string | null;
 };
 
+type ChildLessonHistoryRow = {
+  lessonId: string;
+  occurDate: string;
+  dayOfWeek: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  instructorId: string | null;
+  instructorName: string | null;
+  lessonType: string | null;
+  status: string;
+  attendanceStatus: string | null;
+  isCancellation: boolean;
+  isBillable: boolean | null;
+  isMakeupAllowed: boolean | null;
+  officeNotes: string | null;
+  makeupLessonText: string | null;
+};
+
 type ParentBrief = {
   uid: string;
   first_name: string;
@@ -307,6 +325,22 @@ paymentCardByParent: Record<string, boolean> = {};
   seriesDocsError: string | null = null;
   seriesDocs: SeriesDocRow[] = [];
 
+  showLessonsHistory = false;
+  lessonsHistoryLoading = false;
+  lessonsHistoryError: string | null = null;
+  lessonsHistory: ChildLessonHistoryRow[] = [];
+  lessonsHistoryFrom = '';
+lessonsHistoryTo = '';
+lessonsHistoryStatus = 'all';
+
+lessonsHistoryDateSort: 'asc' | 'desc' = 'desc';
+
+  seriesEndEditor = {
+  lessonId: null as string | null,
+  endDate: '',
+  saving: false,
+  error: '',
+};
 
   uploadingSeriesDocLessonId: string | null = null;
   constructor(
@@ -350,31 +384,284 @@ paymentCardByParent: Record<string, boolean> = {};
     return this.columns.filter((c) => c.visible);
   }
 
-  private hebrewNameValidator(): (c: AbstractControl) => ValidationErrors | null {
-    const re = /^[\u0590-\u05FF\s'"\-]+$/;
-    return (c: AbstractControl) => {
-      const v = String(c.value ?? '').trim();
-      if (!v) return null;
-      return re.test(v) ? null : { hebrewName: true };
-    };
-  }
+  private hebrewNameValidator(): (
+  control: AbstractControl
+) => ValidationErrors | null {
+  const hebrewNameRegex = /^[\u0590-\u05FF\s'"\-]+$/;
+
+  return (control: AbstractControl): ValidationErrors | null => {
+    const value = String(control.value ?? '')
+      .normalize('NFKC')
+      .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '')
+      .replace(/\u00A0/g, ' ')
+      .trim();
+
+    if (!value) {
+      return null;
+    }
+
+    return hebrewNameRegex.test(value)
+      ? null
+      : { hebrewName: true };
+  };
+}
+
+private cleanHebrewName(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFKC')
+    .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
   isActiveStatus(status: string | null | undefined): boolean {
     return String(status ?? '').toLowerCase() === 'active';
   }
 
-  goToChildLessonsHistory() {
-    if (!this.drawerChild?.child_uuid) {
-      this.ui.alert('לא ניתן לעבור להיסטוריית שיעורים – ילד לא מזוהה', 'שיעורים');
-      return;
-    }
+ async goToChildLessonsHistory(): Promise<void> {
+  if (!this.drawerChild?.child_uuid) {
+    await this.ui.alert(
+      'לא ניתן לפתוח את השיעורים – ילד לא מזוהה',
+      'שיעורים'
+    );
 
-    this.router.navigate(['/secretary/monthly-summary'], {
-      queryParams: {
-        childId: this.drawerChild.child_uuid,
-        fromChild: true,
-      },
-    });
+    return;
+  }
+
+  const today = new Date();
+
+  const firstDayOfCurrentMonth = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    1
+  );
+
+  const lastDayOfNextMonth = new Date(
+    today.getFullYear(),
+    today.getMonth() + 2,
+    0
+  );
+
+  this.lessonsHistoryFrom = this.formatLessonsHistoryDate(
+    firstDayOfCurrentMonth
+  );
+
+  this.lessonsHistoryTo = this.formatLessonsHistoryDate(
+    lastDayOfNextMonth
+  );
+
+  this.lessonsHistoryStatus = 'all';
+  this.lessonsHistoryDateSort = 'desc';
+
+  this.showLessonsHistory = true;
+
+  await this.loadChildLessonsHistory();
+}
+
+private formatLessonsHistoryDate(date: Date): string {
+  const year = date.getFullYear();
+
+  const month = String(
+    date.getMonth() + 1
+  ).padStart(2, '0');
+
+  const day = String(
+    date.getDate()
+  ).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+toggleLessonsHistoryDateSort(): void {
+  this.lessonsHistoryDateSort =
+    this.lessonsHistoryDateSort === 'asc'
+      ? 'desc'
+      : 'asc';
+
+  this.lessonsHistory = [...this.lessonsHistory].sort(
+    (first, second) => {
+      const firstDate = first.occurDate ?? '';
+      const secondDate = second.occurDate ?? '';
+
+      const dateComparison = firstDate.localeCompare(secondDate);
+
+      if (dateComparison !== 0) {
+        return this.lessonsHistoryDateSort === 'asc'
+          ? dateComparison
+          : -dateComparison;
+      }
+
+      const firstTime = first.startTime ?? '';
+      const secondTime = second.startTime ?? '';
+
+      return this.lessonsHistoryDateSort === 'asc'
+        ? firstTime.localeCompare(secondTime)
+        : secondTime.localeCompare(firstTime);
+    }
+  );
+}
+
+  closeChildLessonsHistory(): void {
+    this.showLessonsHistory = false;
+    this.lessonsHistoryError = null;
+  }
+
+  async loadChildLessonsHistory(): Promise<void> {
+    const childId = this.drawerChild?.child_uuid;
+    if (!childId || this.lessonsHistoryLoading) return;
+
+    this.lessonsHistoryLoading = true;
+    this.lessonsHistoryError = null;
+
+    try {
+      const db = await this.dbc();
+      let query = db
+        .from('lessons_occurrences')
+        .select('*')
+        .eq('child_id', childId)
+        .order('occur_date', {
+  ascending: this.lessonsHistoryDateSort === 'asc',
+})
+.order('start_time', {
+  ascending: this.lessonsHistoryDateSort === 'asc',
+});
+
+      if (this.lessonsHistoryFrom) {
+        query = query.gte('occur_date', this.lessonsHistoryFrom);
+      }
+      if (this.lessonsHistoryTo) {
+        query = query.lte('occur_date', this.lessonsHistoryTo);
+      }
+
+      const { data, error } = await query.limit(1000);
+      if (error) throw error;
+
+      const rawRows = data ?? [];
+      const instructorIds = Array.from(new Set(
+        rawRows
+          .map((row: any) => row.instructor_id ?? row.instructor_id_number)
+          .filter(Boolean),
+      ));
+
+      let instructorNameById: Record<string, string> = {};
+      if (instructorIds.length) {
+        const { data: instructorsData, error: instructorsError } = await db
+          .from('instructors')
+          .select('id_number, first_name, last_name')
+          .in('id_number', instructorIds);
+
+        if (instructorsError) throw instructorsError;
+        instructorNameById = Object.fromEntries(
+          (instructorsData ?? []).map((instructor: any) => [
+            instructor.id_number,
+            `${instructor.first_name ?? ''} ${instructor.last_name ?? ''}`.trim(),
+          ]),
+        );
+      }
+
+      this.lessonsHistory = rawRows.map((row: any) => {
+        const instructorId = row.instructor_id ?? row.instructor_id_number ?? null;
+        const isCancellation = Boolean(
+          row.is_cancellation || row.canceled_at ||
+          ['canceled', 'cancelled', 'בוטל', 'מבוטל'].includes(
+            String(row.status ?? row.lesson_status ?? '').toLowerCase(),
+          ),
+        );
+
+        return {
+          lessonId: String(row.lesson_id ?? row.id ?? ''),
+          occurDate: row.occur_date ?? row.occurrence_date ?? row.lesson_date,
+          dayOfWeek: row.day_of_week ?? null,
+          startTime: row.start_time ?? null,
+          endTime: row.end_time ?? null,
+          instructorId,
+          instructorName:
+            row.instructor_name ??
+            (instructorId ? instructorNameById[instructorId] : null) ??
+            null,
+          lessonType: row.lesson_type ?? row.appointment_kind ?? null,
+          status: this.getLessonHistoryStatus(row, isCancellation),
+          attendanceStatus: row.attendance_status ?? row.attendance ?? null,
+          isCancellation,
+          isBillable: this.nullableBoolean(row.is_billable ?? row.chargeable),
+          isMakeupAllowed: this.nullableBoolean(row.is_makeup_allowed),
+          officeNotes: row.office_notes ?? row.secretary_notes ?? row.notes ?? null,
+          makeupLessonText:
+            row.makeup_lesson_text ?? row.makeup_for_text ??
+            (row.makeup_for_lesson_id ? `שיעור ${row.makeup_for_lesson_id}` : null) ??
+            (row.completed_by_lesson_id ? `הושלם בשיעור ${row.completed_by_lesson_id}` : null),
+        } as ChildLessonHistoryRow;
+      });
+    } catch (e: any) {
+      console.error('loadChildLessonsHistory error:', e);
+      this.lessonsHistory = [];
+      this.lessonsHistoryError = e?.message ?? 'שגיאה בטעינת היסטוריית השיעורים';
+    } finally {
+      this.lessonsHistoryLoading = false;
+    }
+  }
+
+  get filteredLessonsHistory(): ChildLessonHistoryRow[] {
+    if (this.lessonsHistoryStatus === 'all') return this.lessonsHistory;
+    return this.lessonsHistory.filter(row => row.status === this.lessonsHistoryStatus);
+  }
+
+  private nullableBoolean(value: unknown): boolean | null {
+    return typeof value === 'boolean' ? value : null;
+  }
+
+  private getLessonHistoryStatus(row: any, isCancellation: boolean): string {
+    if (isCancellation) return 'בוטל';
+    if (row.completed_by_lesson_id || row.makeup_completed_at) return 'הושלם';
+    if (row.moved_to_date || row.is_moved) return 'הועבר';
+
+    const raw = String(row.lesson_status ?? row.status ?? '').toLowerCase();
+    if (['done', 'completed', 'התקיים'].includes(raw)) return 'התקיים';
+    if (['approved', 'אושר'].includes(raw)) return 'מאושר';
+    if (['pending', 'ממתין'].includes(raw)) return 'ממתין';
+
+    const occurDate = String(row.occur_date ?? row.occurrence_date ?? row.lesson_date ?? '');
+    return occurDate && occurDate < this.todayDate() ? 'התקיים' : 'עתידי';
+  }
+
+  lessonAttendanceLabel(value: string | null): string {
+    const normalized = String(value ?? '').toUpperCase();
+    if (['V', 'PRESENT', 'ATTENDED', 'נוכח'].includes(normalized)) return 'נכח/ה';
+    if (['X', 'ABSENT', 'לא נוכח'].includes(normalized)) return 'לא נכח/ה';
+    return value || 'לא דווח';
+  }
+
+  yesNoUnknown(value: boolean | null): string {
+    if (value === true) return 'כן';
+    if (value === false) return 'לא';
+    return '—';
+  }
+
+  exportChildLessonsHistory(): void {
+    const rows = this.filteredLessonsHistory.map((row, index) => ({
+      'מספר': index + 1,
+      'תאריך': row.occurDate ? this.formatDateForExcel(row.occurDate) : '—',
+      'יום': row.dayOfWeek ?? '—',
+      'שעה': `${this.formatTimeShort(row.startTime)}–${this.formatTimeShort(row.endTime)}`,
+      'מדריך': row.instructorName ?? '—',
+      'סוג שיעור': row.lessonType ?? '—',
+      'סטטוס': row.status,
+      'נוכחות': this.lessonAttendanceLabel(row.attendanceStatus),
+      'מחויב': this.yesNoUnknown(row.isBillable),
+      'ניתן להשלמה': this.yesNoUnknown(row.isMakeupAllowed),
+      'שיעור השלמה': row.makeupLessonText ?? '—',
+      'הערת משרד': row.officeNotes ?? '',
+    }));
+
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    sheet['!cols'] = [8, 13, 10, 15, 20, 18, 14, 14, 12, 16, 30, 35]
+      .map(width => ({ wch: width }));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, 'שיעורי הילד');
+    const file = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const childName = `${this.drawerChild?.first_name ?? ''}-${this.drawerChild?.last_name ?? ''}`;
+    saveAs(new Blob([file]), `שיעורים-${childName || 'ילד'}.xlsx`);
   }
 
   goToParentPaymentsFromChild() {
@@ -1232,6 +1519,9 @@ async sendEmailToFilteredChildrenParents(): Promise<void> {
     this.seriesDocs = [];
     this.seriesDocsLoading = false;
     this.seriesDocsError = null;
+    this.showLessonsHistory = false;
+    this.lessonsHistory = [];
+    this.lessonsHistoryError = null;
   }
 
   openAddChildDialog() {
@@ -1645,9 +1935,20 @@ this.seriesDocs = rows.map((row: any) => ({
     return row.requiredDocs.join(', ');
   }
   getSeriesEndDisplay(row: SeriesDocRow): string {
-    if (row.isOpenEnded) return 'סדרה ללא הגבלה';
-    return row.seriesEndDate || '—';
+  if (row.seriesEndDate) {
+    return row.seriesEndDate;
   }
+
+  if (row.isOpenEnded) {
+    return 'סדרה ללא הגבלה';
+  }
+
+  return '—';
+}
+
+isSeriesCurrentlyOpen(row: SeriesDocRow): boolean {
+  return row.isOpenEnded === true && !row.seriesEndDate;
+}
 
   async openTermsPdf() {
     if (!this.termsBucket || !this.termsPath) {
@@ -1703,7 +2004,7 @@ this.seriesDocs = rows.map((row: any) => ({
   private buildChildForm(child: ChildDetails) {
     this.childForm = this.fb.group({
       first_name: [
-        child.first_name ?? '',
+        this.cleanHebrewName(child.first_name),
         [
           Validators.required,
           Validators.maxLength(this.MAX_NAME_LEN),
@@ -1711,7 +2012,7 @@ this.seriesDocs = rows.map((row: any) => ({
         ],
       ],
       last_name: [
-        child.last_name ?? '',
+        this.cleanHebrewName(child.last_name),
         [
           Validators.required,
           Validators.maxLength(this.MAX_NAME_LEN),
@@ -1756,9 +2057,19 @@ this.seriesDocs = rows.map((row: any) => ({
   }
 
   enterEditModeChild() {
-    if (!this.drawerChild || !this.childForm) return;
-    this.editMode = true;
+  if (!this.drawerChild || !this.childForm) return;
+
+  this.editMode = true;
+
+  if (this.childForm.invalid) {
+    this.childForm.markAllAsTouched();
+
+    console.log('❌ הטופס אינו תקין');
+    console.log('שגיאת שם פרטי:', this.childForm.get('first_name')?.errors);
+    console.log('שגיאת שם משפחה:', this.childForm.get('last_name')?.errors);
+    console.log('ערכי הטופס:', this.childForm.getRawValue());
   }
+}
 
   cancelChildEdit() {
     if (!this.originalChild) {
@@ -1929,10 +2240,159 @@ for (const row of docsData ?? []) {
     this.lessonTypes = Array.from(typeSet).sort();
   }
 
+  openSeriesEndEditor(row: SeriesDocRow): void {
+  this.seriesEndEditor = {
+    lessonId: row.lessonId,
+    endDate: '',
+    saving: false,
+    error: '',
+  };
+}
+
+closeSeriesEndEditor(): void {
+  if (this.seriesEndEditor.saving) return;
+
+  this.seriesEndEditor = {
+    lessonId: null,
+    endDate: '',
+    saving: false,
+    error: '',
+  };
+}
+
+private getSeriesActualStartDateIso(row: SeriesDocRow): string | null {
+  if (!row.anchorWeekStart) return null;
+
+  const dayOffset = row.dayOfWeek
+    ? this.hebrewDayIndex[row.dayOfWeek]
+    : undefined;
+
+  if (dayOffset === undefined) {
+    return row.anchorWeekStart.slice(0, 10);
+  }
+
+  const [year, month, day] = row.anchorWeekStart
+    .slice(0, 10)
+    .split('-')
+    .map(Number);
+
+  if (!year || !month || !day) return null;
+
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + dayOffset);
+
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+getSeriesStartDateForInput(row: SeriesDocRow): string | null {
+  return this.getSeriesActualStartDateIso(row);
+}
+
+async confirmSeriesEnd(row: SeriesDocRow): Promise<void> {
+  if (
+    this.seriesEndEditor.lessonId !== row.lessonId ||
+    this.seriesEndEditor.saving
+  ) {
+    return;
+  }
+
+  this.seriesEndEditor.error = '';
+
+  const endDate = this.seriesEndEditor.endDate;
+  const startDate = this.getSeriesActualStartDateIso(row);
+
+  if (!endDate) {
+    this.seriesEndEditor.error = 'יש לבחור תאריך סיום.';
+    return;
+  }
+
+  if (!startDate) {
+    this.seriesEndEditor.error =
+      'לא ניתן לזהות את תאריך תחילת הסדרה.';
+    return;
+  }
+
+  // השוואה תקינה מפני ששני התאריכים בפורמט YYYY-MM-DD
+  if (endDate <= startDate) {
+    this.seriesEndEditor.error =
+      `תאריך הסיום חייב להיות מאוחר מתאריך תחילת הסדרה ` +
+      `(${this.formatIsoDateForDisplay(startDate)}).`;
+    return;
+  }
+
+  this.seriesEndEditor.saving = true;
+
+  try {
+    const db = await this.dbc();
+
+    const { error } = await db.rpc('end_lesson_series', {
+      p_lesson_id: row.lessonId,
+      p_effective_occur_date: endDate,
+      p_note: null,
+    });
+
+    if (error) throw error;
+
+    const childId = this.drawerChild?.child_uuid;
+
+    this.seriesEndEditor = {
+  lessonId: null,
+  endDate: '',
+  saving: false,
+  error: '',
+};
+
+    if (childId) {
+      await this.loadChildSeriesDocs(childId);
+    }
+
+    await this.ui.alert(
+      `הסדרה הסתיימה בהצלחה מתאריך ${this.formatIsoDateForDisplay(endDate)}.`,
+      'סיום סדרה'
+    );
+  } catch (error: any) {
+    console.error('confirmSeriesEnd error:', error);
+
+    this.seriesEndEditor.saving = false;
+    this.seriesEndEditor.error =
+      error?.message || 'אירעה שגיאה בסיום הסדרה.';
+  }
+}
+
+private formatIsoDateForDisplay(value: string): string {
+  const [year, month, day] = value.split('-');
+
+  if (!year || !month || !day) return value;
+
+  return `${day}/${month}/${year}`;
+}
+
   async saveChildEdits() {
     if (!this.drawerChild || !this.childForm || !this.selectedId) return;
 
     const raw = this.childForm.getRawValue();
+    raw.first_name = this.cleanHebrewName(raw.first_name);
+raw.last_name = this.cleanHebrewName(raw.last_name);
+
+this.childForm.patchValue(
+  {
+    first_name: raw.first_name,
+    last_name: raw.last_name,
+  },
+  { emitEvent: false }
+);
+
+this.childForm.updateValueAndValidity();
+
+if (this.childForm.invalid) {
+  this.childForm.markAllAsTouched();
+  return;
+}
+
     const becameInactive =
       this.isActiveStatus(this.originalChild?.status) &&
       raw.status === 'Deleted';
@@ -1955,16 +2415,10 @@ for (const row of docsData ?? []) {
     ];
 
     const delta: Partial<ChildDetails> = {};
-    if (
-      this.isActiveStatus(raw.status) &&
-      this.drawerChild?.scheduled_deletion_at &&
-      raw.inactive_date
-    ) {
-      (delta as any).scheduled_deletion_at = raw.inactive_date;
-    }
     if (becameActive) {
       (delta as any).deletion_requested_at = null;
       (delta as any).scheduled_deletion_at = null;
+      (delta as any).deletion_note = null;
     }
     for (const key of fieldsToCompare) {
       const oldVal = (this.originalChild as any)?.[key] ?? null;
@@ -1973,13 +2427,16 @@ for (const row of docsData ?? []) {
         (delta as any)[key] = newVal;
       }
     }
+
     if (
-      this.isActiveStatus(raw.status) &&
-      this.drawerChild?.scheduled_deletion_at &&
-      raw.inactive_date
-    ) {
-      (delta as any).scheduled_deletion_at = raw.inactive_date;
-    }
+  raw.status === 'Active' &&
+  this.drawerChild?.scheduled_deletion_at
+) {
+  (delta as any).deletion_requested_at = null;
+  (delta as any).scheduled_deletion_at = null;
+  (delta as any).deletion_note = null;
+}
+
     if (Object.keys(delta).length === 0) {
       this.editMode = false;
       return;

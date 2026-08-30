@@ -8,6 +8,7 @@ import {
   SUPABASE_URL_S,
   SUPABASE_KEY_S,
 } from "./gmail/email-core";
+import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 
 
 
@@ -30,10 +31,15 @@ function vatPercentByDate(docDate: string) {
 // ===== Types =====
 type BillingTerminalRow = {
   terminal_name: string;
+  tok_terminal_name: string | null;
+
   mode: string;
   active: boolean;
   is_default: boolean;
   provider?: string;
+
+  secret_key_app_key: string | null;
+  secret_key_api_secret: string | null;
 };
 
 type PaymentRow = {
@@ -106,6 +112,50 @@ function envOrSecret(s: ReturnType<typeof defineSecret>, name: string) {
   return s.value() || process.env[name];
 }
 
+const secretManagerClient =
+  new SecretManagerServiceClient();
+
+const secretValueCache =
+  new Map<string, string>();
+
+async function accessSecret(
+  resourceName: string
+): Promise<string> {
+  const normalizedName =
+    String(resourceName ?? "").trim();
+
+  if (!normalizedName) {
+    throw new Error(
+      "Missing Secret Manager resource name"
+    );
+  }
+
+  const cached =
+    secretValueCache.get(normalizedName);
+
+  if (cached) {
+    return cached;
+  }
+
+  const [version] =
+    await secretManagerClient.accessSecretVersion({
+      name: normalizedName,
+    });
+
+  const value =
+    version.payload?.data?.toString("utf8").trim() ?? "";
+
+  if (!value) {
+    throw new Error(
+      `Secret is empty: ${normalizedName}`
+    );
+  }
+
+  secretValueCache.set(normalizedName, value);
+
+  return value;
+}
+
 function getSupabaseForTenant(schema?: string | null): SupabaseClient {
   const url = envOrSecret(SUPABASE_URL_S, "SUPABASE_URL");
   const key = envOrSecret(SUPABASE_KEY_S, "SUPABASE_SERVICE_KEY");
@@ -125,18 +175,44 @@ function handleCors(req: any, res: any): boolean {
   return false;
 }
 
-function buildTranzilaAuth() {
-  const appKey = envOrSecret(TRANZILA_APP_KEY_S, "TRANZILA_APP_KEY");
-  const secret = envOrSecret(TRANZILA_SECRET_S, "TRANZILA_SECRET");
-  if (!appKey || !secret) throw new Error("Missing Tranzila API keys (APP_KEY/SECRET)");
+function buildTranzilaAuth(args: {
+  appKey: string;
+  apiSecret: string;
+}) {
+  const appKey =
+    String(args.appKey ?? "").trim();
 
-  const requestTime = Math.floor(Date.now() / 1000).toString();
-  const nonce = crypto.randomBytes(20).toString("hex"); // 40 chars
-  const key = `${secret}${requestTime}${nonce}`;
-  const accessToken = crypto.createHmac("sha256", key).update(appKey).digest("hex");
+  const apiSecret =
+    String(args.apiSecret ?? "").trim();
 
-  return { appKey, requestTime, nonce, accessToken };
+  if (!appKey || !apiSecret) {
+    throw new Error(
+      "Missing tenant-specific Tranzila APP_KEY/API_SECRET"
+    );
+  }
+
+  const requestTime =
+    Math.floor(Date.now() / 1000).toString();
+
+  const nonce =
+    crypto.randomBytes(20).toString("hex");
+
+  const signingKey =
+    `${apiSecret}${requestTime}${nonce}`;
+
+  const accessToken = crypto
+    .createHmac("sha256", signingKey)
+    .update(appKey)
+    .digest("hex");
+
+  return {
+    appKey,
+    requestTime,
+    nonce,
+    accessToken,
+  };
 }
+
 async function sendSplitInvoicesViaNotifyUser(params: {
   sb: SupabaseClient;
   tenantSchema: string;
@@ -269,19 +345,51 @@ async function sendSplitInvoicesViaNotifyUser(params: {
 //   if (!r.ok) throw new Error(`notifyUser failed: ${j?.message || j?.error || r.statusText}`);
 //   return j;
 // }
-async function loadDefaultBillingTerminal(sbTenant: SupabaseClient): Promise<BillingTerminalRow> {
+async function loadDefaultBillingTerminal(
+  sbTenant: SupabaseClient
+): Promise<BillingTerminalRow> {
   const { data, error } = await sbTenant
     .from("billing_terminals")
-    .select("terminal_name,mode,active,is_default")
+    .select(`
+      terminal_name,
+      tok_terminal_name,
+      mode,
+      active,
+      is_default,
+      provider,
+      secret_key_app_key,
+      secret_key_api_secret
+    `)
     .eq("provider", "tranzila")
     .eq("mode", "prod")
     .eq("active", true)
-    .order("is_default", { ascending: false })
+    .order("is_default", {
+      ascending: false,
+    })
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(`billing_terminals query failed: ${error.message}`);
-  if (!data?.terminal_name) throw new Error("No active billing terminal configured (terminal_name missing)");
+  if (error) {
+    throw new Error(
+      `billing_terminals query failed: ${error.message}`
+    );
+  }
+
+  if (!data?.terminal_name) {
+    throw new Error(
+      "No active Tranzila terminal configured"
+    );
+  }
+
+  if (
+    !data.secret_key_app_key ||
+    !data.secret_key_api_secret
+  ) {
+    throw new Error(
+      "Tranzila API secret names are not configured for tenant"
+    );
+  }
+
   return data as BillingTerminalRow;
 }
 
@@ -548,8 +656,24 @@ export async function ensureTranzilaInvoiceForRiderPaymentInternal(args: {
     ccLast4 = String(prof?.last4 ?? '').trim().slice(-4) || undefined;
   }
 
-  const terminal = await loadDefaultBillingTerminal(sb);
-  const auth = buildTranzilaAuth();
+  const terminal =
+  await loadDefaultBillingTerminal(sb);
+
+const [tenantAppKey, tenantApiSecret] =
+  await Promise.all([
+    accessSecret(
+      terminal.secret_key_app_key!
+    ),
+
+    accessSecret(
+      terminal.secret_key_api_secret!
+    ),
+  ]);
+
+const auth = buildTranzilaAuth({
+  appKey: tenantAppKey,
+  apiSecret: tenantApiSecret,
+});
   const documentDate = new Date().toISOString().slice(0, 10);
   const vatPercent = documentDate >= '2025-01-01' ? 18 : 17;
 
@@ -784,6 +908,8 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
     const pr = parent as ParentRow | null;
     parentFullName = safeFullName(pr?.first_name, pr?.last_name);
     parentIdNumber = pr?.id_number ?? null;
+
+    parentEmail =  pr?.email?.trim() || null;
   }
 
   // Cache hit
@@ -970,11 +1096,43 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
 
     throw new Error("no invoice items grouped by child");
   }
-  // ===== 4) terminal =====
-  const terminal = await loadDefaultBillingTerminal(sb);
+  // ===== 4) Tenant Tranzila configuration =====
+const terminal =
+  await loadDefaultBillingTerminal(sb);
 
-  // ===== 5) Tranzila create_document =====
-  const auth = buildTranzilaAuth();
+const [tenantAppKey, tenantApiSecret] =
+  await Promise.all([
+    accessSecret(
+      terminal.secret_key_app_key!
+    ),
+
+    accessSecret(
+      terminal.secret_key_api_secret!
+    ),
+  ]);
+
+console.log("[TRanzila Invoice Tenant Config]", {
+  tenantSchema,
+
+  terminal_name:
+    terminal.terminal_name,
+
+  app_key_secret_name:
+    terminal.secret_key_app_key,
+
+  api_secret_name:
+    terminal.secret_key_api_secret,
+
+  has_parent_email:
+    !!parentEmail,
+});
+
+// ===== 5) Tranzila create_document =====
+const auth = buildTranzilaAuth({
+  appKey: tenantAppKey,
+  apiSecret: tenantApiSecret,
+});
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-tranzila-api-app-key": auth.appKey,

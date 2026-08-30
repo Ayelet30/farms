@@ -111,6 +111,17 @@ export class SliderComponent implements OnInit, OnDestroy {
     this.syncBreakpoint();
   }
 
+  @HostListener('window:schedule-fullscreen-change', ['$event'])
+onScheduleFullscreenChange(event: Event): void {
+  const customEvent = event as CustomEvent<{
+    fullscreen: boolean;
+  }>;
+
+  if (customEvent.detail?.fullscreen) {
+    this.toggleMenu(true);
+  }
+}
+
   /** בונה את התפריט לפי תפקיד המשתמש */
   // slider.ts
   private setMenuItemsByRole() {

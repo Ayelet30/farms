@@ -1,37 +1,48 @@
-<div class="schedule-page instructor-page" dir="rtl">
+<div class="schedule-page instructor-page">
   <div class="top-strip">
     <div class="top-strip-head">
       <h2>לוח מדריך</h2>
-      <p>צפייה בשיעורים, חופשות חווה ובקשות היעדרות</p>
+      <p>צפייה בשיעורים, הפסקות, חופשות חווה ובקשות היעדרות</p>
     </div>
   </div>
 
   <div class="schedule-main-card">
-    <app-schedule [items]="items" [resources]="[]" viewerMode="instructor" initialView="timeGridWeek"
+    <app-schedule [items]="items" [resources]="[]" [breakOccurrences]="breakOccurrences"
+      [viewerInstructorId]="instructorId" viewerMode="instructor" initialView="timeGridWeek"
       (eventClick)="onEventClick($event)" (dateClick)="onDateClick($event)" (viewRange)="onViewRangeChange($event)"
-      (rightClickDay)="onRightClickDay($event)">
+      (rightClickDay)="onRightClickDay($event)" (rightClickEvent)="onRightClickEvent($event)">
     </app-schedule>
   </div>
 </div>
 
-<!-- תפריט קליק ימני -->
 <div class="context-menu" *ngIf="contextMenu.visible" [style.top.px]="contextMenu.y" [style.left.px]="contextMenu.x"
   (click)="$event.stopPropagation()">
 
   <button class="context-close" (click)="closeContextMenu()">×</button>
 
-  <button (click)="openRequest('holiday')">️ יום חופש</button>
-  <button (click)="openRequest('sick')"> יום מחלה</button>
-  <button (click)="openRequest('personal')"> יום אישי</button>
-  <button (click)="openRequest('other')"> אחר</button>
+  <button *ngIf="canAddBreakFromContext()" (click)="openAddBreakModal()">
+    הוסף הפסקה
+  </button>
+
+  <button *ngIf="contextMenu.breakOccurrence?.source_type === 'WEEKLY'" (click)="openShortenBreakModal()">
+    קצר הפסקה להיום
+  </button>
+
+  <button *ngIf="contextMenu.breakOccurrence" (click)="openCancelBreakModal()">
+    {{ contextMenu.breakOccurrence!.source_type === 'ADDED' ? 'בטל הפסקה חד־פעמית' : 'בטל הפסקה להיום' }}
+  </button>
+
+  <button (click)="openRequest('holiday')">יום חופש</button>
+  <button (click)="openRequest('sick')">יום מחלה</button>
+  <button (click)="openRequest('personal')">יום אישי</button>
+  <button (click)="openRequest('other')">אחר</button>
 </div>
 
-<!-- כרטסת ילד -->
 <app-note *ngIf="selectedChild && selectedOccurrence" [child]="selectedChild" [occurrence]="selectedOccurrence"
   [attendanceStatus]="attendanceStatus" [role]="currentUserRole"
   (attendanceChange)="onAttendanceChangedFromNote($event)" (close)="onCloseNote()">
 </app-note>
-<!-- מודאל -->
+
 <div class="modal-backdrop" *ngIf="rangeModal.open" (click)="closeRangeModal()">
   <div class="modal schedule-modal" (click)="$event.stopPropagation()">
     <button type="button" class="modal-close" (click)="closeRangeModal()">×</button>
@@ -108,9 +119,7 @@
             <div class="index-pill">{{ i + 1 }}</div>
             <div class="entity-text">
               <div class="entity-name">{{ c.first_name }} {{ c.last_name }}</div>
-              <div class="entity-sub">
-                גיל: {{ c.age ?? 'לא ידוע' }}
-              </div>
+              <div class="entity-sub">גיל: {{ c.age ?? 'לא ידוע' }}</div>
             </div>
           </div>
         </div>
@@ -122,9 +131,7 @@
 
       <div class="absence-alert error" *ngIf="error">
         <div class="alert-icon">!</div>
-        <div class="alert-text">
-          {{ error }}
-        </div>
+        <div class="alert-text">{{ error }}</div>
       </div>
     </div>
 
@@ -136,6 +143,62 @@
 
         {{ isSubmitting ? 'שולח...' : 'אישור ושליחה' }}
 
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop break-modal-backdrop" *ngIf="breakModal.open" (click)="closeBreakModal()">
+
+  <div class="modal schedule-modal break-management-modal" (click)="$event.stopPropagation()">
+    <button type="button" class="modal-close" (click)="closeBreakModal()">×</button>
+
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>
+          {{ breakModal.mode === 'add' ? 'הוספת הפסקה חד־פעמית' : breakModal.mode === 'shorten' ? 'קיצור הפסקה' : 'ביטול
+          הפסקה' }}
+        </h3>
+        <p>{{ breakModal.date | date:'dd/MM/yyyy' }}</p>
+      </div>
+
+      <div class="compact-grid two-col" *ngIf="breakModal.mode !== 'cancel'">
+        <div class="field-row">
+          <label>משעה</label>
+          <input type="time" [value]="breakModal.startTime" readonly />
+        </div>
+
+        <div class="field-row">
+          <label>עד שעה</label>
+          <input type="time" [(ngModel)]="breakModal.endTime" [min]="breakModal.startTime" [max]="breakModal.maxEndTime"
+            step="900" />
+        </div>
+      </div>
+
+      <div class="note-box" *ngIf="breakModal.mode === 'add'">
+        ברירת המחדל היא חצי שעה. אפשר לקצר את ההפסקה, אך לא להאריך אותה.
+      </div>
+
+      <div class="note-box" *ngIf="breakModal.mode === 'shorten'">
+        השינוי חל על ההפסקה בתאריך הנבחר בלבד.
+      </div>
+
+      <div class="note-box" *ngIf="breakModal.mode === 'cancel'">
+        ההפסקה לא תופיע בתאריך הנבחר ולא תיכלל בחישוב שעות העבודה.
+      </div>
+
+      <div class="absence-alert error" *ngIf="breakModal.error">
+        <div class="alert-icon">!</div>
+        <div class="alert-text">{{ breakModal.error }}</div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="cancel" [disabled]="breakModal.saving" (click)="closeBreakModal()">
+        ביטול
+      </button>
+      <button type="button" class="confirm" [disabled]="breakModal.saving" (click)="saveBreakModal()">
+        {{ breakModal.saving ? 'שומר...' : breakModal.mode === 'cancel' ? 'אישור ביטול' : 'שמירה' }}
       </button>
     </div>
   </div>

@@ -62,12 +62,14 @@ export { secretaryCreateInstructorDayOffAndNotify } from './secretary-create-ins
 export { sendFarmDayOffCancellationEmails } from './send-farm-day-off-cancellation-emails';
 export { previewInstructorDeactivationImpact } from './preview-instructor-deactivation-impact';
 export { deactivateInstructorAndCancelFutureLessons } from './deactivate-instructor-and-cancel-future-lessons';
-// export { createMaccabiAutomationJob } from './automation/maccabiJobs';
+export { createMaccabiAutomationJob } from './automation/maccabiJobs';
 export {
   approveRiderServiceRequestAndNotify,
   rejectRiderServiceRequestAndNotify,
   createRiderServiceBySecretaryAndNotify,
 } from './rider-service-request-decision';
+
+export { maccabiAgentApi,} from './maccabi-agent-api';
 
 export {
   upsertFarmBillingCustomer,
