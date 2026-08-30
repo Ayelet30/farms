@@ -147,6 +147,7 @@ export class InstructorScheduleComponent implements OnInit {
   affectedChildren: Child[] = [];
   impactReviewMode = false;
   impactLoading = false;
+  isSubmitting = false;
 
   /* ------- מודאל לטווח תאריכים ------- */
   rangeModal = {
@@ -1015,196 +1016,196 @@ export class InstructorScheduleComponent implements OnInit {
 
     this.attendanceStatus = normalizedAttendance;
 
-   const props = arg.event.extendedProps || {};
+    const props = arg.event.extendedProps || {};
 
-this.selectedOccurrence = {
-  ...metaProps,
-  ...extProps,
+    this.selectedOccurrence = {
+      ...metaProps,
+      ...extProps,
 
-  lesson_id:
-    lessonId,
+      lesson_id:
+        lessonId,
 
-  child_id:
-    childId,
+      child_id:
+        childId,
 
-  occur_date:
-    metaProps.occur_date ??
-    extProps.occur_date ??
-    (
-      arg.event.start
-        ? arg.event.start.toLocaleDateString('sv-SE')
-        : null
-    ),
+      occur_date:
+        metaProps.occur_date ??
+        extProps.occur_date ??
+        (
+          arg.event.start
+            ? arg.event.start.toLocaleDateString('sv-SE')
+            : null
+        ),
 
-  status:
-    metaProps.status ??
-    extProps.status ??
-    null,
+      status:
+        metaProps.status ??
+        extProps.status ??
+        null,
 
-  lesson_type:
-    lessonTypeLabel,
+      lesson_type:
+        lessonTypeLabel,
 
-  start:
-    arg.event.start,
+      start:
+        arg.event.start,
 
-  end:
-    arg.event.end,
+      end:
+        arg.event.end,
 
-  /*
-   * זמן האוקורנס בפועל.
-   */
-  start_datetime:
-    metaProps.start_datetime ??
-    extProps.start_datetime ??
-    arg.event.startStr ??
-    null,
+      /*
+       * זמן האוקורנס בפועל.
+       */
+      start_datetime:
+        metaProps.start_datetime ??
+        extProps.start_datetime ??
+        arg.event.startStr ??
+        null,
 
-  end_datetime:
-    metaProps.end_datetime ??
-    extProps.end_datetime ??
-    arg.event.endStr ??
-    null,
+      end_datetime:
+        metaProps.end_datetime ??
+        extProps.end_datetime ??
+        arg.event.endStr ??
+        null,
 
-  start_time:
-    metaProps.start_time ??
-    extProps.start_time ??
-    (
-      arg.event.start
-        ? `${String(arg.event.start.getHours()).padStart(2, '0')}:${String(
-            arg.event.start.getMinutes()
-          ).padStart(2, '0')}`
-        : null
-    ),
+      start_time:
+        metaProps.start_time ??
+        extProps.start_time ??
+        (
+          arg.event.start
+            ? `${String(arg.event.start.getHours()).padStart(2, '0')}:${String(
+              arg.event.start.getMinutes()
+            ).padStart(2, '0')}`
+            : null
+        ),
 
-  end_time:
-    metaProps.end_time ??
-    extProps.end_time ??
-    (
-      arg.event.end
-        ? `${String(arg.event.end.getHours()).padStart(2, '0')}:${String(
-            arg.event.end.getMinutes()
-          ).padStart(2, '0')}`
-        : null
-    ),
+      end_time:
+        metaProps.end_time ??
+        extProps.end_time ??
+        (
+          arg.event.end
+            ? `${String(arg.event.end.getHours()).padStart(2, '0')}:${String(
+              arg.event.end.getMinutes()
+            ).padStart(2, '0')}`
+            : null
+        ),
 
-  isCancelled,
+      isCancelled,
 
-  attendance_status:
-    normalizedAttendance,
+      attendance_status:
+        normalizedAttendance,
 
-  horse_name:
-    metaProps.horse_name ??
-    extProps.horse_name ??
-    null,
+      horse_name:
+        metaProps.horse_name ??
+        extProps.horse_name ??
+        null,
 
-  arena_name:
-    metaProps.arena_name ??
-    extProps.arena_name ??
-    null,
+      arena_name:
+        metaProps.arena_name ??
+        extProps.arena_name ??
+        null,
 
-  instructor_id:
-    metaProps.instructor_id ??
-    extProps.instructor_id ??
-    this.instructorId,
+      instructor_id:
+        metaProps.instructor_id ??
+        extProps.instructor_id ??
+        this.instructorId,
 
-  instructor_name:
-    metaProps.instructor_name ??
-    extProps.instructor_name ??
-    null,
+      instructor_name:
+        metaProps.instructor_name ??
+        extProps.instructor_name ??
+        null,
 
-  occurrence_change_id:
-    metaProps.occurrence_change_id ??
-    extProps.occurrence_change_id ??
-    null,
+      occurrence_change_id:
+        metaProps.occurrence_change_id ??
+        extProps.occurrence_change_id ??
+        null,
 
-  occurrence_change_type:
-    metaProps.occurrence_change_type ??
-    extProps.occurrence_change_type ??
-    null,
+      occurrence_change_type:
+        metaProps.occurrence_change_type ??
+        extProps.occurrence_change_type ??
+        null,
 
-  is_single_occurrence_move:
-    metaProps.is_single_occurrence_move === true ||
-    metaProps.is_single_occurrence_move === 'true' ||
-    extProps.is_single_occurrence_move === true ||
-    extProps.is_single_occurrence_move === 'true' ||
-    metaProps.occurrence_change_type === 'MOVE' ||
-    extProps.occurrence_change_type === 'MOVE',
+      is_single_occurrence_move:
+        metaProps.is_single_occurrence_move === true ||
+        metaProps.is_single_occurrence_move === 'true' ||
+        extProps.is_single_occurrence_move === true ||
+        extProps.is_single_occurrence_move === 'true' ||
+        metaProps.occurrence_change_type === 'MOVE' ||
+        extProps.occurrence_change_type === 'MOVE',
 
-  original_occur_date:
-    metaProps.original_occur_date ??
-    extProps.original_occur_date ??
-    null,
+      original_occur_date:
+        metaProps.original_occur_date ??
+        extProps.original_occur_date ??
+        null,
 
-  original_instructor_id:
-    metaProps.original_instructor_id ??
-    extProps.original_instructor_id ??
-    null,
+      original_instructor_id:
+        metaProps.original_instructor_id ??
+        extProps.original_instructor_id ??
+        null,
 
-  original_instructor_name:
-    metaProps.original_instructor_name ??
-    extProps.original_instructor_name ??
-    null,
+      original_instructor_name:
+        metaProps.original_instructor_name ??
+        extProps.original_instructor_name ??
+        null,
 
-  new_instructor_id:
-    metaProps.new_instructor_id ??
-    extProps.new_instructor_id ??
-    null,
+      new_instructor_id:
+        metaProps.new_instructor_id ??
+        extProps.new_instructor_id ??
+        null,
 
-  new_instructor_name:
-    metaProps.new_instructor_name ??
-    extProps.new_instructor_name ??
-    null,
+      new_instructor_name:
+        metaProps.new_instructor_name ??
+        extProps.new_instructor_name ??
+        null,
 
-  original_start_time:
-    metaProps.original_start_time ??
-    extProps.original_start_time ??
-    null,
+      original_start_time:
+        metaProps.original_start_time ??
+        extProps.original_start_time ??
+        null,
 
-  original_end_time:
-    metaProps.original_end_time ??
-    extProps.original_end_time ??
-    null,
+      original_end_time:
+        metaProps.original_end_time ??
+        extProps.original_end_time ??
+        null,
 
-  new_start_time:
-    metaProps.new_start_time ??
-    extProps.new_start_time ??
-    null,
+      new_start_time:
+        metaProps.new_start_time ??
+        extProps.new_start_time ??
+        null,
 
-  new_end_time:
-    metaProps.new_end_time ??
-    extProps.new_end_time ??
-    null,
+      new_end_time:
+        metaProps.new_end_time ??
+        extProps.new_end_time ??
+        null,
 
-  original_day_of_week:
-    metaProps.original_day_of_week ??
-    extProps.original_day_of_week ??
-    null,
+      original_day_of_week:
+        metaProps.original_day_of_week ??
+        extProps.original_day_of_week ??
+        null,
 
-  new_day_of_week:
-    metaProps.new_day_of_week ??
-    extProps.new_day_of_week ??
-    null,
+      new_day_of_week:
+        metaProps.new_day_of_week ??
+        extProps.new_day_of_week ??
+        null,
 
-  original_start_datetime:
-    metaProps.original_start_datetime ??
-    extProps.original_start_datetime ??
-    null,
+      original_start_datetime:
+        metaProps.original_start_datetime ??
+        extProps.original_start_datetime ??
+        null,
 
-  new_start_datetime:
-    metaProps.new_start_datetime ??
-    extProps.new_start_datetime ??
-    null,
+      new_start_datetime:
+        metaProps.new_start_datetime ??
+        extProps.new_start_datetime ??
+        null,
 
-  new_end_datetime:
-    metaProps.new_end_datetime ??
-    extProps.new_end_datetime ??
-    null,
+      new_end_datetime:
+        metaProps.new_end_datetime ??
+        extProps.new_end_datetime ??
+        null,
 
-  occurrence_change_note:
-    metaProps.occurrence_change_note ??
-    extProps.occurrence_change_note ??
-    null,
-};
+      occurrence_change_note:
+        metaProps.occurrence_change_note ??
+        extProps.occurrence_change_note ??
+        null,
+    };
 
     this.cdr.detectChanges();
   }
@@ -1354,97 +1355,89 @@ this.selectedOccurrence = {
 
   /* ------------ REQUEST UI ------------ */
   async submitRange(): Promise<void> {
+    // 🔒 מונע כמה שליחות במקביל
+    if (this.isSubmitting) {
+      return;
+    }
+
+    this.isSubmitting = true;
     this.error = null;
 
-    const { from, to, allDay, fromTime, toTime, type, text } = this.rangeModal; this.lastAllDayPref = !!allDay;
-
-    if (!from || !to) {
-      this.error = 'חובה לבחור מתאריך ועד תאריך';
-      return;
-    }
-
-    if (!allDay) {
-      if (!fromTime || !toTime) {
-        this.error = 'חובה לבחור שעות התחלה וסיום';
-        return;
-      }
-
-      if (fromTime >= toTime) {
-        this.error = 'שעת הסיום חייבת להיות אחרי שעת ההתחלה';
-        return;
-      }
-    }
-    const farmError = this.validateFarmAvailability(
-      from,
-      to,
-      allDay,
-      allDay ? null : fromTime,
-      allDay ? null : toTime
-    );
-
-    if (farmError) {
-      this.error = farmError;
-      this.cdr.detectChanges();
-      return;
-    }
-    const instructorAvailabilityError = await this.validateInstructorAvailability(
-      from,
-      to,
-      allDay,
-      allDay ? null : fromTime,
-      allDay ? null : toTime
-    );
-
-    if (instructorAvailabilityError) {
-      this.error = instructorAvailabilityError;
-      this.cdr.detectChanges();
-      return;
-    }
-    const hasOverlap = await this.hasAnyOverlappingInstructorAbsence(
-      from,
-      to,
-      allDay,
-      allDay ? null : fromTime,
-      allDay ? null : toTime
-    );
-
-    if (hasOverlap) {
-      this.error = 'כבר קיימת בקשת היעדרות או יום חופש בטווח שבחרת. יש לבחור תאריך או שעות אחרות.';
-      this.cdr.detectChanges();
-      return;
-    }
-    // // שלב 1: בדיקת השפעה
-    // if (!reviewedImpact) {
-    //   try {
-    //     this.impactLoading = true;
-    //     this.affectedChildren = [];
-    //     const hasLessons = await this.hasLessonsInRangeFromDb(from, to);
-    //     if (hasLessons) {
-    //       await this.loadAffectedChildrenFromDb(
-    //         from,
-    //         to,
-    //         allDay,
-    //         allDay ? null : fromTime,
-    //         allDay ? null : toTime
-    //       );
-    //     }
-    //     this.rangeModal.reviewedImpact = true;
-    //     this.impactReviewMode = true;
-    //     this.cdr.detectChanges();
-    //     return;
-    //   } catch (err: any) {
-    //     console.error('submitRange impact check error', err);
-    //     this.error = err?.message || 'שגיאה בבדיקת ההשפעה של הבקשה';
-    //     this.cdr.detectChanges();
-    //     return;
-    //   } finally {
-    //     this.impactLoading = false;
-    //     this.cdr.detectChanges();
-    //   }
-    // }
-
-    // שלב 2: שליחה בפועל
     try {
+      const {
+        from,
+        to,
+        allDay,
+        fromTime,
+        toTime,
+        type,
+        text
+      } = this.rangeModal;
+
+      this.lastAllDayPref = !!allDay;
+
+      if (!from || !to) {
+        this.error = 'חובה לבחור מתאריך ועד תאריך';
+        return;
+      }
+
+      if (!allDay) {
+        if (!fromTime || !toTime) {
+          this.error = 'חובה לבחור שעות התחלה וסיום';
+          return;
+        }
+
+        if (fromTime >= toTime) {
+          this.error = 'שעת הסיום חייבת להיות אחרי שעת ההתחלה';
+          return;
+        }
+      }
+
+      const farmError = this.validateFarmAvailability(
+        from,
+        to,
+        allDay,
+        allDay ? null : fromTime,
+        allDay ? null : toTime
+      );
+
+      if (farmError) {
+        this.error = farmError;
+        this.cdr.detectChanges();
+        return;
+      }
+
+      const instructorAvailabilityError =
+        await this.validateInstructorAvailability(
+          from,
+          to,
+          allDay,
+          allDay ? null : fromTime,
+          allDay ? null : toTime
+        );
+
+      if (instructorAvailabilityError) {
+        this.error = instructorAvailabilityError;
+        this.cdr.detectChanges();
+        return;
+      }
+
+      const hasOverlap =
+        await this.hasAnyOverlappingInstructorAbsence(
+          from,
+          to,
+          allDay,
+          allDay ? null : fromTime,
+          allDay ? null : toTime
+        );
+
+      if (hasOverlap) {
+        this.error =
+          'כבר קיימת בקשת היעדרות או יום חופש בטווח שבחרת. יש לבחור תאריך או שעות אחרות.';
+        this.cdr.detectChanges();
+        return;
+      }
+
       await this.saveRangeRequest(
         from,
         to,
@@ -1452,7 +1445,7 @@ this.selectedOccurrence = {
         allDay ? null : fromTime,
         allDay ? null : toTime,
         type,
-        text?.trim() || null,
+        text?.trim() || null
       );
 
       this.rangeModal.open = false;
@@ -1463,10 +1456,13 @@ this.selectedOccurrence = {
       this.selectedSickFile = null;
       this.pendingSickFile = null;
 
-      this.cdr.detectChanges();
     } catch (err: any) {
       console.error('submitRange save error', err);
       this.error = err?.message || 'שגיאה בשמירת הבקשה';
+
+    } finally {
+      // 🔓 רק לאחר שכל התהליך הסתיים
+      this.isSubmitting = false;
       this.cdr.detectChanges();
     }
   }
