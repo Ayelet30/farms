@@ -841,7 +841,7 @@ const actualEndTime =
   if (excError) {
     console.error('[loadLessonDetails] exception error', excError);
   }
-  
+
   const isCancelled = this.occurrence?.isCancelled === true
   || (this.occurrence?.status ?? lesson.status) === 'בוטל';
 if (isCancelled && !exception) {
@@ -882,6 +882,8 @@ if (isCancelled) {
     horse_name: null,
     arena_id: null,
     arena_name: null,
+    // הערכים נשמרים בזמן הביטול לפי ברירת המחדל של החווה,
+    // וניתנים לשינוי ידני על ידי המזכירה.
     is_makeup_allowed: exception?.is_makeup_allowed ?? false,
     is_billable: exception?.is_billable ?? true,
     appointment_kind: lesson.appointment_kind,
@@ -973,9 +975,15 @@ async onBillableChange(newVal: boolean) {
 
   const { error } = await this.dbc
     .from('lesson_occurrence_exceptions')
-    .update({ is_billable: newVal })
-    .eq('lesson_id', lessonId)
-    .eq('occur_date', occurDate);
+    .upsert(
+      {
+        lesson_id: lessonId,
+        occur_date: occurDate,
+        is_billable: newVal,
+        is_makeup_allowed: this.lessonDetails.is_makeup_allowed ?? false,
+      },
+      { onConflict: 'lesson_id,occur_date' }
+    );
 
   if (error) {
     console.error('[onBillableChange] update error', error);
@@ -1057,9 +1065,15 @@ async onBillableChange(newVal: boolean) {
 
   const { error } = await this.dbc
     .from('lesson_occurrence_exceptions')
-    .update({ is_makeup_allowed: newVal })
-    .eq('lesson_id', lessonId)
-    .eq('occur_date', occurDate);
+    .upsert(
+      {
+        lesson_id: lessonId,
+        occur_date: occurDate,
+        is_makeup_allowed: newVal,
+        is_billable: this.lessonDetails.is_billable ?? true,
+      },
+      { onConflict: 'lesson_id,occur_date' }
+    );
 
   if (error) {
     console.error('[onMakeupAllowedChange] update error', error);

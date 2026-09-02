@@ -227,9 +227,9 @@
               </div>
             </div>
 
-            <!-- רק למזכירה/מנהל/אדמין -->
+            <!-- ברירת המחדל מגיעה מהגדרות החווה בזמן הביטול;
+                 מזכירה/מנהל/אדמין יכולים לדרוס אותה עבור הביטול המסוים. -->
             <div class="st-actions" *ngIf="canEditMakeupAllowed || canEditBillingFlag">
-              <!-- 🟢 עריכה רק למזכירה/מנהל/אדמין <span class="slider" [class.disabled]="!allowEdit"></span>-->
               <label *ngIf="canEditMakeupAllowed" class="wh-check ng-pristine ng-valid ng-touched">
                 <input type="checkbox" [(ngModel)]="lessonDetails.is_makeup_allowed"
                   (ngModelChange)="onMakeupAllowedChange($event)" />

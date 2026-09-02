@@ -296,150 +296,159 @@
       <section class="settings-card">
         <div class="section-head">
           <div class="section-title-wrap">
-            <h2>ביטולים / השלמות / נוכחות</h2>
-            <span class="section-subtitle">חוקי ביטול, השלמה, קנסות ונוכחות ברירת מחדל</span>
+            <h2>ביטולים והשלמות</h2>
+            <span class="section-subtitle">הגדרות נפרדות לביטול על ידי הורה ולביטול על ידי החווה או מדריך</span>
           </div>
         </div>
 
-        <div class="form-grid cols-3">
-          <label class="field-card">
-            <span class="field-label">ימי אחורה להשלמות</span>
-            <input class="form-control" type="number" min="0" max="365" [(ngModel)]="s.makeup_allowed_days_back"
-              name="makeup_allowed_days_back" (ngModelChange)="validateSettingsFields(s)" />
-            <small class="field-error" *ngIf="settingsErrors().makeup_allowed_days_back">
-              {{ settingsErrors().makeup_allowed_days_back }}
-            </small>
-          </label>
-
-          <label class="field-card">
-            <span class="field-label">ימי השלמה קדימה</span>
-            <input class="form-control" type="number" min="0" max="365" [(ngModel)]="s.makeup_allowed_days_ahead"
-              name="makeup_allowed_days_ahead" (ngModelChange)="validateSettingsFields(s)" />
-            <small class="field-error" *ngIf="settingsErrors().makeup_allowed_days_ahead">
-              {{ settingsErrors().makeup_allowed_days_ahead }}
-            </small>
-          </label>
-
-          <label class="field-card">
-            <span class="field-label">מקס׳ השלמות בתקופה</span>
-            <input class="form-control" type="number" min="0" max="50" [(ngModel)]="s.max_makeups_in_period"
-              name="max_makeups_in_period" (ngModelChange)="validateSettingsFields(s)" />
-            <small class="field-error" *ngIf="settingsErrors().max_makeups_in_period">
-              {{ settingsErrors().max_makeups_in_period }}
-            </small>
-          </label>
-        </div>
-
-        <div class="form-grid cols-3">
-          <label class="field-card">
-            <span class="field-label">גודל תקופה (ימים)</span>
-            <input class="form-control" type="number" min="1" max="365" [(ngModel)]="s.makeups_period_days"
-              name="makeups_period_days" (ngModelChange)="validateSettingsFields(s)" />
-            <small class="field-error" *ngIf="settingsErrors().makeups_period_days">
-              {{ settingsErrors().makeups_period_days }}
-            </small>
-          </label>
-
-          <label class="field-card">
-            <span class="field-label">מס׳ שיעורי השלמה להצגה</span>
-            <input class="form-control" type="number" min="1" [(ngModel)]="s.displayed_makeup_lessons_count"
-              name="displayed_makeup_lessons_count" />
-          </label>
-
-          <label class="field-card">
-            <span class="field-label">הפרש מינימלי בין ביטולים (שעות:דקות)</span>
-            <input class="form-control" type="time" [(ngModel)]="s.min_time_between_cancellations"
-              name="min_time_between_cancellations" (ngModelChange)="validateSettingsFields(s)" />
-            <small class="field-error" *ngIf="settingsErrors().min_time_between_cancellations">
-              {{ settingsErrors().min_time_between_cancellations }}
-            </small>
-          </label>
-        </div>
-
-        <div class="form-grid cols-3">
-          <label class="field-card">
-            <span class="field-label">ביטול עד (שעות לפני)</span>
-            <input class="form-control" type="number" min="0" max="168" [(ngModel)]="s.cancel_before_hours"
-              name="cancel_before_hours" (ngModelChange)="validateSettingsFields(s)" />
-            <small class="field-error" *ngIf="settingsErrors().cancel_before_hours">
-              {{ settingsErrors().cancel_before_hours }}
-            </small>
-          </label>
+        <div class="cancellation-common">
+          <h3>הגדרות כלליות</h3>
           <div class="form-grid cols-3">
-            <label class="field-card field-toggle">
-              <div class="toggle-line">
-                <span class="field-label">חיוב ביטול לפני הדדליין</span>
-                <label class="switch">
-                  <input type="checkbox" [(ngModel)]="s.parent_cancel_charge_before_deadline"
-                    name="parent_cancel_charge_before_deadline" />
-                  <span class="switch-ui"></span>
-                </label>
-              </div>
-              <small class="field-hint">
-                האם לחייב הורה גם אם הביטול בוצע בזמן.
-              </small>
-            </label>
-
-            <label class="field-card field-toggle">
-              <div class="toggle-line">
-                <span class="field-label">חיוב ביטול אחרי הדדליין</span>
-                <label class="switch">
-                  <input type="checkbox" [(ngModel)]="s.parent_cancel_charge_after_deadline"
-                    name="parent_cancel_charge_after_deadline" />
-                  <span class="switch-ui"></span>
-                </label>
-              </div>
-              <small class="field-hint">
-                האם לחייב הורה על ביטול מאוחר.
-              </small>
-            </label>
-
             <label class="field-card">
-              <span class="field-label">מועד יצירת החיוב על ביטול</span>
-              <select class="form-control" [(ngModel)]="s.parent_cancel_charge_timing"
-                name="parent_cancel_charge_timing">
-                <option [ngValue]="'at_cancel'">בעת הביטול</option>
-                <option [ngValue]="'at_makeup'">בעת קביעת השלמה</option>
-              </select>
-              <small class="field-hint">
-                מגדיר מתי בפועל יווצר החיוב על ביטול.
-              </small>
+              <span class="field-label">ימים אחורה למימוש השלמה</span>
+              <input class="form-control" type="number" min="0" max="365" [(ngModel)]="s.makeup_allowed_days_back"
+                name="makeup_allowed_days_back" (ngModelChange)="validateSettingsFields(s)" />
+              <small class="field-error" *ngIf="settingsErrors().makeup_allowed_days_back">{{ settingsErrors().makeup_allowed_days_back }}</small>
             </label>
             <label class="field-card">
-              <span class="field-label">
-                ביטולי חווה – על מה לחייב
-              </span>
-
-              <select class="form-control" [(ngModel)]="s.farm_cancel_charge_target" name="farm_cancel_charge_target">
-                <option [ngValue]="'cancelled_lesson'">
-                  על השיעור שבוטל
-                </option>
-
-                <option [ngValue]="'makeup_lesson'">
-                  על שיעור ההשלמה
-                </option>
-              </select>
-
-              <small class="field-hint">
-                חל על ביטולים ביוזמת החווה (יום חופש מדריך / יום מיוחד חווה)
-              </small>
+              <span class="field-label">ימים קדימה לקביעת השלמה</span>
+              <input class="form-control" type="number" min="0" max="365" [(ngModel)]="s.makeup_allowed_days_ahead"
+                name="makeup_allowed_days_ahead" (ngModelChange)="validateSettingsFields(s)" />
+              <small class="field-error" *ngIf="settingsErrors().makeup_allowed_days_ahead">{{ settingsErrors().makeup_allowed_days_ahead }}</small>
+            </label>
+            <label class="field-card">
+              <span class="field-label">מספר השלמות להצגה</span>
+              <input class="form-control" type="number" min="1" [(ngModel)]="s.displayed_makeup_lessons_count"
+                name="displayed_makeup_lessons_count" />
+            </label>
+            <label class="field-card">
+              <span class="field-label">הפרש מינימלי בין ביטולים</span>
+              <input class="form-control" type="time" [(ngModel)]="s.min_time_between_cancellations"
+                name="min_time_between_cancellations" (ngModelChange)="validateSettingsFields(s)" />
+              <small class="field-error" *ngIf="settingsErrors().min_time_between_cancellations">{{ settingsErrors().min_time_between_cancellations }}</small>
             </label>
           </div>
+        </div>
+
+        <div class="cancellation-policy-grid">
+          <section class="policy-panel policy-panel--parent">
+            <div class="policy-panel-head">
+              <div class="policy-icon"><mat-icon>family_restroom</mat-icon></div>
+              <div>
+                <h3>ביטול על ידי הורה</h3>
+                <p>מכסת השלמות וכללי החיוב כאשר ההורה מבטל</p>
+              </div>
+            </div>
+
+            <div class="policy-fields">
+              <label class="field-card">
+                <span class="field-label">מספר השלמות בתקופה</span>
+                <input class="form-control" type="number" min="0" max="50" [(ngModel)]="s.max_makeups_in_period"
+                  name="max_makeups_in_period" (ngModelChange)="validateSettingsFields(s)" />
+                <small class="field-error" *ngIf="settingsErrors().max_makeups_in_period">{{ settingsErrors().max_makeups_in_period }}</small>
+              </label>
+              <label class="field-card">
+                <span class="field-label">אורך התקופה (ימים)</span>
+                <input class="form-control" type="number" min="1" max="365" [(ngModel)]="s.makeups_period_days"
+                  name="makeups_period_days" (ngModelChange)="validateSettingsFields(s)" />
+                <small class="field-error" *ngIf="settingsErrors().makeups_period_days">{{ settingsErrors().makeups_period_days }}</small>
+                <small class="field-hint">למשל: 1 השלמה ב־90 ימים = השלמה אחת ברבעון</small>
+              </label>
+              <label class="field-card">
+                <span class="field-label">ביטול בזמן (שעות לפני)</span>
+                <input class="form-control" type="number" min="0" max="168" [(ngModel)]="s.cancel_before_hours"
+                  name="cancel_before_hours" (ngModelChange)="validateSettingsFields(s)" />
+                <small class="field-error" *ngIf="settingsErrors().cancel_before_hours">{{ settingsErrors().cancel_before_hours }}</small>
+              </label>
+              <div class="field-card field-toggle">
+                <div class="toggle-line">
+                  <span class="field-label">הביטול מחויב כשבוצע בזמן</span>
+                  <label class="switch"><input type="checkbox" [(ngModel)]="s.parent_cancel_charge_before_deadline" name="parent_cancel_charge_before_deadline" /><span class="switch-ui"></span></label>
+                </div>
+              </div>
+              <div class="field-card field-toggle">
+                <div class="toggle-line">
+                  <span class="field-label">הביטול מחויב כשבוצע באיחור</span>
+                  <label class="switch"><input type="checkbox" [(ngModel)]="s.parent_cancel_charge_after_deadline" name="parent_cancel_charge_after_deadline" /><span class="switch-ui"></span></label>
+                </div>
+              </div>
+              <div class="field-card field-toggle">
+                <div class="toggle-line">
+                  <span class="field-label">שיעור ההשלמה מחויב</span>
+                  <label class="switch"><input type="checkbox" [(ngModel)]="s.parent_makeup_is_billable" name="parent_makeup_is_billable" /><span class="switch-ui"></span></label>
+                </div>
+                <small class="field-hint">האם לייצר חיוב נוסף כאשר שיעור ההשלמה מתקיים</small>
+              </div>
+              <label class="field-card">
+                <span class="field-label">מועד יצירת החיוב</span>
+                <select class="form-control" [(ngModel)]="s.parent_cancel_charge_timing" name="parent_cancel_charge_timing">
+                  <option [ngValue]="'at_cancel'">בעת הביטול</option>
+                  <option [ngValue]="'at_makeup'">בעת קביעת ההשלמה</option>
+                </select>
+                <small class="field-hint">השדה הקיים נשמר לתאימות עם מנגנון החיוב</small>
+              </label>
+            </div>
+          </section>
+
+          <section class="policy-panel policy-panel--farm">
+            <div class="policy-panel-head">
+              <div class="policy-icon"><mat-icon>home_work</mat-icon></div>
+              <div>
+                <h3>ביטול על ידי החווה או מדריך</h3>
+                <p>חל על ביטולי מדריך, יום חופש ויום מיוחד של החווה</p>
+              </div>
+            </div>
+
+            <div class="policy-fields">
+              <label class="field-card">
+                <span class="field-label">מספר השלמות בתקופה</span>
+                <input class="form-control" type="number" min="0" max="50" [(ngModel)]="s.farm_max_makeups_in_period"
+                  name="farm_max_makeups_in_period" (ngModelChange)="validateSettingsFields(s)" />
+                <small class="field-error" *ngIf="settingsErrors().farm_max_makeups_in_period">{{ settingsErrors().farm_max_makeups_in_period }}</small>
+              </label>
+              <label class="field-card">
+                <span class="field-label">אורך התקופה (ימים)</span>
+                <input class="form-control" type="number" min="1" max="365" [(ngModel)]="s.farm_makeups_period_days"
+                  name="farm_makeups_period_days" (ngModelChange)="validateSettingsFields(s)" />
+                <small class="field-error" *ngIf="settingsErrors().farm_makeups_period_days">{{ settingsErrors().farm_makeups_period_days }}</small>
+              </label>
+              <div class="field-card field-toggle">
+                <div class="toggle-line">
+                  <span class="field-label">השיעור שבוטל מחויב</span>
+                  <label class="switch"><input type="checkbox" [(ngModel)]="s.farm_cancel_is_billable" name="farm_cancel_is_billable" /><span class="switch-ui"></span></label>
+                </div>
+              </div>
+              <div class="field-card field-toggle">
+                <div class="toggle-line">
+                  <span class="field-label">שיעור ההשלמה מחויב</span>
+                  <label class="switch"><input type="checkbox" [(ngModel)]="s.farm_makeup_is_billable" name="farm_makeup_is_billable" /><span class="switch-ui"></span></label>
+                </div>
+              </div>
+              <label class="field-card legacy-setting">
+                <span class="field-label">יעד החיוב במנגנון הקיים</span>
+                <select class="form-control" [(ngModel)]="s.farm_cancel_charge_target" name="farm_cancel_charge_target">
+                  <option [ngValue]="'cancelled_lesson'">השיעור שבוטל</option>
+                  <option [ngValue]="'makeup_lesson'">שיעור ההשלמה</option>
+                </select>
+                <small class="field-hint">נשמר לתאימות עם פונקציות קיימות</small>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <div class="cancellation-footer-grid">
           <label class="field-card">
             <span class="field-label">מדיניות ביטול מאוחר</span>
             <select class="form-control" [(ngModel)]="s.late_cancel_policy" name="late_cancel_policy">
-              <option [ngValue]="'CHARGE_FULL'">חיוב מלא</option>
-              <option [ngValue]="'CHARGE_PARTIAL'">חיוב חלקי</option>
-              <option [ngValue]="'NO_CHARGE'">ללא חיוב</option>
-              <option [ngValue]="'NO_MAKEUP'">אין השלמה</option>
+              <option [ngValue]="'CHARGE_FULL'">חיוב מלא</option><option [ngValue]="'CHARGE_PARTIAL'">חיוב חלקי</option>
+              <option [ngValue]="'NO_CHARGE'">ללא חיוב</option><option [ngValue]="'NO_MAKEUP'">אין השלמה</option>
             </select>
           </label>
-
           <label class="field-card">
             <span class="field-label">ברירת מחדל לנוכחות</span>
             <select class="form-control" [(ngModel)]="s.attendance_default" name="attendance_default">
-              <option [ngValue]="'ASSUME_ATTENDED'">נחשב “הגיע” אם לא סומן</option>
-              <option [ngValue]="'ASSUME_ABSENT'">נחשב “לא הגיע” אם לא סומן</option>
+              <option [ngValue]="'ASSUME_ATTENDED'">נחשב „הגיע“ אם לא סומן</option>
+              <option [ngValue]="'ASSUME_ABSENT'">נחשב „לא הגיע“ אם לא סומן</option>
               <option [ngValue]="'REQUIRE_MARKING'">חובה סימון</option>
             </select>
           </label>
@@ -1377,7 +1386,7 @@
               </div>
 
               <div>
-                <span class="chip" *ngIf="p.required_docs?.length; else noDocs">
+                <span class="chip" *ngIf="p.required_docs!.length; else noDocs">
                   {{ p.required_docs.length }} סוגי מסמכים
                 </span>
                 <ng-template #noDocs>
