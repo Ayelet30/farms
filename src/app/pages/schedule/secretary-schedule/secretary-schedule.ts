@@ -515,7 +515,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
         start: range.start,
         end: range.end,
       });
-          
+
       await this.loadBreakOccurrences(range.start, range.end);
 
       this.filterLessons();
@@ -935,54 +935,109 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   }
 
   private buildAvailableDayCells(
-  range?: { start: string; end: string }
-): void {
-  const available: Array<{
-    date: string;
-    resourceId: string;
-    startTime: string;
-    endTime: string;
-    color: string;
-    lessonType?: string;
-  }> = [];
+    range?: { start: string; end: string }
+  ): void {
+    const available: Array<{
+      date: string;
+      resourceId: string;
+      startTime: string;
+      endTime: string;
+      color: string;
+      lessonType?: string;
+    }> = [];
 
-  const from = range?.start?.slice(0, 10) ?? '';
-  const to = range?.end?.slice(0, 10) ?? '';
+    const from = range?.start?.slice(0, 10) ?? '';
+    const to = range?.end?.slice(0, 10) ?? '';
 
-  if (!from || !to) {
-    this.availableDayCells = [];
-    return;
-  }
+    if (!from || !to) {
+      this.availableDayCells = [];
+      return;
+    }
 
-  const visibleInstructorIds = new Set(
-    this.instructorResources.map(resource => String(resource.id))
-  );
+    const visibleInstructorIds = new Set(
+      this.instructorResources.map(resource => String(resource.id))
+    );
 
-  const ridingTypeById = new Map(
-    this.ridingTypes.map(ridingType => [
-      String(ridingType.id),
-      ridingType,
-    ])
-  );
+    const ridingTypeById = new Map(
+      this.ridingTypes.map(ridingType => [
+        String(ridingType.id),
+        ridingType,
+      ])
+    );
 
-  let currentDate = from;
-  let guard = 0;
+    let currentDate = from;
+    let guard = 0;
 
-  while (currentDate <= to) {
-    const dayOfWeek = this.dbDowFromYmd(currentDate);
+    while (currentDate <= to) {
+      const dayOfWeek = this.dbDowFromYmd(currentDate);
 
-    for (const row of this.instructorWeeklyAvailability) {
-      const instructorId = String(row.instructor_id_number);
+      for (const row of this.instructorWeeklyAvailability) {
+        const instructorId = String(row.instructor_id_number);
+
+        if (!visibleInstructorIds.has(instructorId)) {
+          continue;
+        }
+
+        if (Number(row.day_of_week) !== dayOfWeek) {
+          continue;
+        }
+
+        if (!this.isWeeklyAvailabilityEffectiveOn(row, currentDate)) {
+          continue;
+        }
+
+        const color =
+          this.instructorColorById.get(instructorId) ||
+          this.getColorForInstructor(instructorId);
+
+        const ridingType = ridingTypeById.get(
+          String(row.lesson_ridding_type || '')
+        );
+
+        available.push({
+          date: currentDate,
+          resourceId: instructorId,
+          startTime: String(row.start_time).slice(0, 5),
+          endTime: String(row.end_time).slice(0, 5),
+          color,
+          lessonType: ridingType?.name || ridingType?.code || '',
+        });
+      }
+
+      const nextDate = this.addOneDayYmdSafe(currentDate);
+
+      if (nextDate <= currentDate) {
+        break;
+      }
+
+      currentDate = nextDate;
+
+      if (++guard > 400) {
+        console.warn('buildAvailableDayCells stopped by guard');
+        break;
+      }
+    }
+
+    // הפסקה נשארת חלק מזמן העבודה של המדריך,
+    // ולכן גם הרקע שלה חייב לקבל את צבע הזמינות שלו.
+    for (const occurrence of this.breakOccurrences || []) {
+      const instructorId = String(
+        occurrence.instructor_id_number || ''
+      );
+
+      const breakDate = String(
+        occurrence.break_date || ''
+      ).slice(0, 10);
+
+      if (!instructorId || !breakDate) {
+        continue;
+      }
 
       if (!visibleInstructorIds.has(instructorId)) {
         continue;
       }
 
-      if (Number(row.day_of_week) !== dayOfWeek) {
-        continue;
-      }
-
-      if (!this.isWeeklyAvailabilityEffectiveOn(row, currentDate)) {
+      if (breakDate < from || breakDate > to) {
         continue;
       }
 
@@ -990,73 +1045,18 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
         this.instructorColorById.get(instructorId) ||
         this.getColorForInstructor(instructorId);
 
-      const ridingType = ridingTypeById.get(
-        String(row.lesson_ridding_type || '')
-      );
-
       available.push({
-        date: currentDate,
+        date: breakDate,
         resourceId: instructorId,
-        startTime: String(row.start_time).slice(0, 5),
-        endTime: String(row.end_time).slice(0, 5),
+        startTime: String(occurrence.start_time).slice(0, 5),
+        endTime: String(occurrence.end_time).slice(0, 5),
         color,
-        lessonType: ridingType?.name || ridingType?.code || '',
+        lessonType: 'הפסקה',
       });
     }
 
-    const nextDate = this.addOneDayYmdSafe(currentDate);
-
-    if (nextDate <= currentDate) {
-      break;
-    }
-
-    currentDate = nextDate;
-
-    if (++guard > 400) {
-      console.warn('buildAvailableDayCells stopped by guard');
-      break;
-    }
+    this.availableDayCells = available;
   }
-
-  // הפסקה נשארת חלק מזמן העבודה של המדריך,
-  // ולכן גם הרקע שלה חייב לקבל את צבע הזמינות שלו.
-  for (const occurrence of this.breakOccurrences || []) {
-    const instructorId = String(
-      occurrence.instructor_id_number || ''
-    );
-
-    const breakDate = String(
-      occurrence.break_date || ''
-    ).slice(0, 10);
-
-    if (!instructorId || !breakDate) {
-      continue;
-    }
-
-    if (!visibleInstructorIds.has(instructorId)) {
-      continue;
-    }
-
-    if (breakDate < from || breakDate > to) {
-      continue;
-    }
-
-    const color =
-      this.instructorColorById.get(instructorId) ||
-      this.getColorForInstructor(instructorId);
-
-    available.push({
-      date: breakDate,
-      resourceId: instructorId,
-      startTime: String(occurrence.start_time).slice(0, 5),
-      endTime: String(occurrence.end_time).slice(0, 5),
-      color,
-      lessonType: 'הפסקה',
-    });
-  }
-
-  this.availableDayCells = available;
-}
 
 
   private hashString(str: string): number {
@@ -1091,7 +1091,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
     await this.loadInstructors();
     await this.loadInstructorWeeklyAvailability();
-    
+
     const range = this.currentRange ?? this.ensureInitialDayRange();
 
     const isDayView =
@@ -1442,7 +1442,10 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     return `${yy}-${mm}-${dd}`;
   }
 
-  private buildBlockedDayCells(range?: { start: string; end: string }): void {
+  private buildBlockedDayCells(
+    range?: { start: string; end: string }
+  ): void {
+
     const blocked: Array<{
       date: string;
       resourceId: string;
@@ -1456,6 +1459,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     const to = range?.end?.slice(0, 10) ?? '';
 
     const dateList: string[] = [];
+
     if (from && to) {
       let cur = from;
       let guard = 0;
@@ -1472,16 +1476,37 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       }
     }
 
-    // 1) היעדרויות מדריך
+    // ============================================================
+    // 1. היעדרויות מדריך
+    // ============================================================
+
     for (const req of this.dayRequests) {
-      if (!req.instructor_id || !req.request_date) continue;
-      if (req.status !== 'approved' && req.status !== 'pending') continue;
+
+      if (!req.instructor_id || !req.request_date) {
+        continue;
+      }
+
+      if (
+        req.status !== 'approved' &&
+        req.status !== 'pending'
+      ) {
+        continue;
+      }
 
       blocked.push({
         date: req.request_date,
         resourceId: req.instructor_id,
-        startTime: req.all_day ? '07:00' : (req.start_time?.slice(0, 5) || '07:00'),
-        endTime: req.all_day ? '21:00' : (req.end_time?.slice(0, 5) || '21:00'),
+
+        startTime:
+          req.all_day
+            ? '07:00'
+            : (req.start_time?.slice(0, 5) || '07:00'),
+
+        endTime:
+          req.all_day
+            ? '21:00'
+            : (req.end_time?.slice(0, 5) || '21:00'),
+
         reason:
           req.request_type === 'sick'
             ? 'מדריך ביום מחלה'
@@ -1490,14 +1515,90 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
               : req.request_type === 'personal'
                 ? 'מדריך ביום אישי'
                 : 'מדריך לא זמין',
+
         kind: 'day_off',
       });
     }
 
 
-    this.blockedDayCells = blocked;
-  }
+    // ============================================================
+    // 2. חופשות חווה
+    // ============================================================
 
+    const visibleInstructorIds =
+      (this.instructorResources ?? [])
+        .map(resource => String(resource.id))
+        .filter(Boolean);
+
+
+    for (const farmOff of this.farmDaysOff ?? []) {
+
+      if (!farmOff?.start_date || !farmOff?.end_date) {
+        continue;
+      }
+
+      const offStart =
+        String(farmOff.start_date).slice(0, 10);
+
+      const offEnd =
+        String(farmOff.end_date).slice(0, 10);
+
+      const isFullDay =
+        String(farmOff.day_type || '')
+          .trim()
+          .toUpperCase() === 'FULL_DAY';
+
+      const startTime =
+        isFullDay
+          ? '07:00'
+          : String(farmOff.start_time || '07:00').slice(0, 5);
+
+      const endTime =
+        isFullDay
+          ? '21:00'
+          : String(farmOff.end_time || '21:00').slice(0, 5);
+
+      const reason =
+        String(farmOff.reason || '').trim();
+
+      for (const date of dateList) {
+
+        // היום הזה לא נמצא בתוך טווח החופש
+        if (date < offStart || date > offEnd) {
+          continue;
+        }
+
+        /*
+         * חופשת חווה חוסמת את כל המדריכים,
+         * ולכן יוצרים תא חסום לכל resource שמוצג בלוח.
+         */
+        for (const instructorId of visibleInstructorIds) {
+
+          blocked.push({
+            date,
+            resourceId: instructorId,
+            startTime,
+            endTime,
+
+            reason:
+              reason
+                ? `חופשת חווה – ${reason}`
+                : 'חופשת חווה',
+
+            kind: 'farm_off',
+          });
+        }
+      }
+    }
+
+
+    this.blockedDayCells = blocked;
+
+    console.log(
+      '[SECRETARY BLOCKED DAY CELLS]',
+      this.blockedDayCells
+    );
+  }
 
   onRightClickDay(e: any): void {
     if (!e?.jsEvent) return;
@@ -1786,13 +1887,13 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       this.breakModal.open = false;
 
       if (this.currentRange) {
-  await this.loadBreakOccurrences(
-    this.currentRange.start,
-    this.currentRange.end
-  );
+        await this.loadBreakOccurrences(
+          this.currentRange.start,
+          this.currentRange.end
+        );
 
-  this.buildAvailableDayCells(this.currentRange);
-}
+        this.buildAvailableDayCells(this.currentRange);
+      }
     } catch (error: any) {
       this.breakModal.error =
         error?.message || 'לא ניתן היה לעדכן את ההפסקה.';
@@ -2736,106 +2837,106 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     this.savePageState(); // להוסיף
   }
 
- async onViewRange(range: {
-  start: string;
-  end: string;
-  viewType: string;
-}): Promise<void> {
-  if (this.isRestoringScheduleState) {
-    return;
-  }
+  async onViewRange(range: {
+    start: string;
+    end: string;
+    viewType: string;
+  }): Promise<void> {
+    if (this.isRestoringScheduleState) {
+      return;
+    }
 
-  this.currentRange = range;
-  this.currentViewType = range.viewType as any;
+    this.currentRange = range;
+    this.currentViewType = range.viewType as any;
 
-  const selectedDate = range.start?.slice(0, 10) ?? '';
+    const selectedDate = range.start?.slice(0, 10) ?? '';
 
-  this.currentCalendarDate = selectedDate || null;
+    this.currentCalendarDate = selectedDate || null;
 
-  /*
-   * עדכון אוטומטי של המדריכים מתבצע רק כשהגענו לתצוגת יום.
-   * כך ניווט בתוך תצוגת שבוע או חודש לא משנה את הסינון.
-   */
-  const isDayView =
-    range.viewType === 'timeGridDay' ||
-    range.viewType === 'resourceTimeGridDay';
+    /*
+     * עדכון אוטומטי של המדריכים מתבצע רק כשהגענו לתצוגת יום.
+     * כך ניווט בתוך תצוגת שבוע או חודש לא משנה את הסינון.
+     */
+    const isDayView =
+      range.viewType === 'timeGridDay' ||
+      range.viewType === 'resourceTimeGridDay';
 
-  if (isDayView && selectedDate) {
-    await this.loadInstructorWeeklyAvailability();
-    this.selectWorkingInstructorsForDay(selectedDate);
-  }
+    if (isDayView && selectedDate) {
+      await this.loadInstructorWeeklyAvailability();
+      this.selectWorkingInstructorsForDay(selectedDate);
+    }
 
-  await this.loadLessons({
-    start: range.start,
-    end: range.end
-  });
-  await this.loadBreakOccurrences(range.start, range.end);
+    await this.loadLessons({
+      start: range.start,
+      end: range.end
+    });
+    await this.loadBreakOccurrences(range.start, range.end);
 
-  await this.loadFarmDaysOffForRange(
-    range.start.slice(0, 10),
-    range.end.slice(0, 10)
-  );
-
-  await this.loadRequestsForRange(
-    range.start.slice(0, 10),
-    range.end.slice(0, 10)
-  );
-
-  /*
-   * בשבוע ובחודש עדיין צריך לטעון זמינויות לצביעת התאים,
-   * אך בלי לשנות את המדריכים המסומנים.
-   */
-  if (!isDayView) {
-    await this.loadInstructorWeeklyAvailability();
-  }
-
-  this.filterLessons();
-  this.setScheduleItems();
-  this.buildBlockedDayCells(range);
-  this.buildAvailableDayCells(range);
-  this.buildWeekStats();
-
-  if (!this.isRestoringScheduleState) {
-    this.savePageState();
-  }
-
-  this.cdr.detectChanges();
-}
-
-private selectWorkingInstructorsForDay(dateYmd: string): void {
-  if (!dateYmd) return;
-
-  const dow = this.dbDowFromYmd(dateYmd);
-
-  const workingInstructorIds = new Set(
-    (this.instructorWeeklyAvailability ?? [])
-      .filter(row =>
-        Number(row.day_of_week) === dow &&
-        this.isWeeklyAvailabilityEffectiveOn(row, dateYmd)
-      )
-      .map(row => String(row.instructor_id_number))
-  );
-
-  // רק מדריכים פעילים שעובדים ביום שנבחר
-  this.instructorsToday = this.instructors.filter(instructor =>
-    workingInstructorIds.has(String(instructor.id_number))
-  );
-
-  // אם יש מדריכים שעובדים באותו יום – בוחרים רק אותם
-  if (this.instructorsToday.length) {
-    this.selectedInstructorIds = this.instructorsToday.map(
-      instructor => String(instructor.id_number)
+    await this.loadFarmDaysOffForRange(
+      range.start.slice(0, 10),
+      range.end.slice(0, 10)
     );
-  } else {
-    // אותה התנהגות כמו בטעינה הראשונה:
-    // אם לא הוגדרה זמינות לאותו יום, מציגים את כל הפעילים
-    this.selectedInstructorIds = this.instructors.map(
-      instructor => String(instructor.id_number)
+
+    await this.loadRequestsForRange(
+      range.start.slice(0, 10),
+      range.end.slice(0, 10)
     );
+
+    /*
+     * בשבוע ובחודש עדיין צריך לטעון זמינויות לצביעת התאים,
+     * אך בלי לשנות את המדריכים המסומנים.
+     */
+    if (!isDayView) {
+      await this.loadInstructorWeeklyAvailability();
+    }
+
+    this.filterLessons();
+    this.setScheduleItems();
+    this.buildBlockedDayCells(range);
+    this.buildAvailableDayCells(range);
+    this.buildWeekStats();
+
+    if (!this.isRestoringScheduleState) {
+      this.savePageState();
+    }
+
+    this.cdr.detectChanges();
   }
 
-  this.rebuildInstructorResources();
-}
+  private selectWorkingInstructorsForDay(dateYmd: string): void {
+    if (!dateYmd) return;
+
+    const dow = this.dbDowFromYmd(dateYmd);
+
+    const workingInstructorIds = new Set(
+      (this.instructorWeeklyAvailability ?? [])
+        .filter(row =>
+          Number(row.day_of_week) === dow &&
+          this.isWeeklyAvailabilityEffectiveOn(row, dateYmd)
+        )
+        .map(row => String(row.instructor_id_number))
+    );
+
+    // רק מדריכים פעילים שעובדים ביום שנבחר
+    this.instructorsToday = this.instructors.filter(instructor =>
+      workingInstructorIds.has(String(instructor.id_number))
+    );
+
+    // אם יש מדריכים שעובדים באותו יום – בוחרים רק אותם
+    if (this.instructorsToday.length) {
+      this.selectedInstructorIds = this.instructorsToday.map(
+        instructor => String(instructor.id_number)
+      );
+    } else {
+      // אותה התנהגות כמו בטעינה הראשונה:
+      // אם לא הוגדרה זמינות לאותו יום, מציגים את כל הפעילים
+      this.selectedInstructorIds = this.instructors.map(
+        instructor => String(instructor.id_number)
+      );
+    }
+
+    this.rebuildInstructorResources();
+  }
 
   private async loadLessons(
     range?: { start: string; end: string }
@@ -2923,37 +3024,37 @@ private selectWorkingInstructorsForDay(dateYmd: string): void {
       if (err1) throw err1;
 
       const occurrenceChildIds = [
-  ...new Set(
-    (occData ?? [])
-      .map((row: any) => String(row.child_id ?? ''))
-      .filter(Boolean)
-  ),
-];
+        ...new Set(
+          (occData ?? [])
+            .map((row: any) => String(row.child_id ?? ''))
+            .filter(Boolean)
+        ),
+      ];
 
-let scheduleChildren: ChildRow[] = [];
+      let scheduleChildren: ChildRow[] = [];
 
-if (occurrenceChildIds.length) {
-  const { data: childrenData, error: childrenError } = await dbc
-    .from('children')
-    .select(`
+      if (occurrenceChildIds.length) {
+        const { data: childrenData, error: childrenError } = await dbc
+          .from('children')
+          .select(`
       child_uuid,
       first_name,
       last_name,
       birth_date,
       status
     `)
-    .in('child_uuid', occurrenceChildIds);
+          .in('child_uuid', occurrenceChildIds);
 
-  if (childrenError) throw childrenError;
+        if (childrenError) throw childrenError;
 
-  scheduleChildren = (childrenData ?? []) as ChildRow[];
-  this.scheduleChildrenById = new Map(
-  scheduleChildren.map(child => [
-    String(child.child_uuid),
-    child,
-  ])
-);
-}
+        scheduleChildren = (childrenData ?? []) as ChildRow[];
+        this.scheduleChildrenById = new Map(
+          scheduleChildren.map(child => [
+            String(child.child_uuid),
+            child,
+          ])
+        );
+      }
 
 
       const lessonIds = [...new Set((occData ?? []).map((r: any) => r.lesson_id).filter(Boolean))];
@@ -2980,18 +3081,18 @@ if (occurrenceChildIds.length) {
       // 2) משאבי סוס+מגרש לפי אותו טווח
       let resData: any[] = [];
 
-if (occurrenceChildIds.length) {
-  const { data, error: err2 } = await dbc
-    .from('lessons_with_children')
-    .select('lesson_id, child_id, occur_date, horse_name, arena_name')
-    .in('child_id', occurrenceChildIds)
-    .gte('occur_date', from)
-    .lte('occur_date', to);
+      if (occurrenceChildIds.length) {
+        const { data, error: err2 } = await dbc
+          .from('lessons_with_children')
+          .select('lesson_id, child_id, occur_date, horse_name, arena_name')
+          .in('child_id', occurrenceChildIds)
+          .gte('occur_date', from)
+          .lte('occur_date', to);
 
-  if (err2) throw err2;
+        if (err2) throw err2;
 
-  resData = data ?? [];
-}
+        resData = data ?? [];
+      }
 
 
       // 3) בניית Map לפי (lesson_id + occur_date)
@@ -3010,11 +3111,11 @@ if (occurrenceChildIds.length) {
 
       // 4) מיפוי לשיעורים + הוספת horse/arena מה-Map
       const nameByChild = new Map(
-  scheduleChildren.map(c => [
-    c.child_uuid,
-    `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim(),
-  ])
-);
+        scheduleChildren.map(c => [
+          c.child_uuid,
+          `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim(),
+        ])
+      );
 
       const instructorNameById = new Map(
         this.instructorsAll.map(i => [
@@ -3088,54 +3189,54 @@ if (occurrenceChildIds.length) {
   }
 
   /** סינון שיעורים לפי מדריכים מסומנים + טווח תצוגה */
-private filterLessons(): void {
-  let src = [...this.lessons];
+  private filterLessons(): void {
+    let src = [...this.lessons];
 
-  const selected = this.selectedInstructorIds
-    .filter(Boolean)
-    .map(String);
+    const selected = this.selectedInstructorIds
+      .filter(Boolean)
+      .map(String);
 
-  if (!selected.length) {
-    this.filteredLessons = [];
-    return;
-  }
+    if (!selected.length) {
+      this.filteredLessons = [];
+      return;
+    }
 
-  src = src.filter((lesson: any) =>
-    selected.includes(
-      String(lesson.instructor_id ?? '')
-    )
-  );
+    src = src.filter((lesson: any) =>
+      selected.includes(
+        String(lesson.instructor_id ?? '')
+      )
+    );
 
-  if (this.currentRange) {
-    const start = String(
-      this.currentRange.start ?? ''
-    ).slice(0, 10);
-
-    const end = String(
-      this.currentRange.end ?? ''
-    ).slice(0, 10);
-
-    src = src.filter((lesson: any) => {
-      const lessonDate = String(
-        lesson.occur_date ??
-        lesson.start_datetime ??
-        ''
+    if (this.currentRange) {
+      const start = String(
+        this.currentRange.start ?? ''
       ).slice(0, 10);
 
-      if (!lessonDate) {
-        return true;
-      }
+      const end = String(
+        this.currentRange.end ?? ''
+      ).slice(0, 10);
 
-      return lessonDate >= start && lessonDate <= end;
-    });
+      src = src.filter((lesson: any) => {
+        const lessonDate = String(
+          lesson.occur_date ??
+          lesson.start_datetime ??
+          ''
+        ).slice(0, 10);
+
+        if (!lessonDate) {
+          return true;
+        }
+
+        return lessonDate >= start && lessonDate <= end;
+      });
+    }
+
+    // לא מסתירים שיעורים בגלל חופשת מדריך.
+    // החופשה מוצגת כרקע, והשיעורים עצמם מופיעים מעליה.
+    // כך מוצגים גם שיעורים מבוטלים וגם שיעורים שהוחזרו.
+
+    this.filteredLessons = src;
   }
-
-  // לא מסתירים שיעורים בגלל חופשת מדריך.
-  // החופשה מוצגת כרקע, והשיעורים עצמם מופיעים מעליה.
-  // כך מוצגים גם שיעורים מבוטלים וגם שיעורים שהוחזרו.
-
-  this.filteredLessons = src;
-}
 
   private addOneDayYmd(dateYmd: string): string {
     const [y, m, d] = dateYmd.split('-').map(Number);
@@ -3205,31 +3306,31 @@ private filterLessons(): void {
         meta: {
           status: lesson.status ?? '',
 
-is_cancellation:
-  lesson.is_cancellation === true ||
-  lesson.is_cancellation === 'true',
+          is_cancellation:
+            lesson.is_cancellation === true ||
+            lesson.is_cancellation === 'true',
 
-is_billable:
-  lesson.is_billable === true ||
-  lesson.is_billable === 'true',
+          is_billable:
+            lesson.is_billable === true ||
+            lesson.is_billable === 'true',
 
-is_makeup_allowed:
-  lesson.is_makeup_allowed === true ||
-  lesson.is_makeup_allowed === 'true',
+          is_makeup_allowed:
+            lesson.is_makeup_allowed === true ||
+            lesson.is_makeup_allowed === 'true',
 
-canceller_role:
-  lesson.canceller_role ?? null,
+          canceller_role:
+            lesson.canceller_role ?? null,
 
-approval_id:
-  lesson.approval_id ?? null,
+          approval_id:
+            lesson.approval_id ?? null,
 
-payment_plan_id:
-  lesson.payment_plan_id ?? null,
+          payment_plan_id:
+            lesson.payment_plan_id ?? null,
 
-lesson_price_agorot:
-  lesson.lesson_price_agorot ?? null,
+          lesson_price_agorot:
+            lesson.lesson_price_agorot ?? null,
 
-child_id: lesson.child_id,
+          child_id: lesson.child_id,
           child_name: childDisplay,
           instructor_id: lesson.instructor_id,
           instructor_name: lesson.instructor_name,
@@ -3579,127 +3680,127 @@ child_id: lesson.child_id,
   }
 
   canRestoreContextLesson(): boolean {
-  return (
-    !!this.contextMenu.hasEvent &&
-    !!this.contextMenu.lessonId &&
-    !!(
+    return (
+      !!this.contextMenu.hasEvent &&
+      !!this.contextMenu.lessonId &&
+      !!(
+        this.contextMenu.occurDate ||
+        this.contextMenu.date
+      ) &&
+      this.isCancelledContext() &&
+      !this.isInstructorOffContext()
+    );
+  }
+
+  async restoreCancelledLesson(): Promise<void> {
+    const lessonId = this.normalizeUuid(
+      this.contextMenu.lessonId
+    );
+
+    const occurDate = String(
       this.contextMenu.occurDate ||
-      this.contextMenu.date
-    ) &&
-    this.isCancelledContext() &&
-    !this.isInstructorOffContext()
-  );
-}
+      this.contextMenu.date ||
+      ''
+    ).slice(0, 10);
 
-async restoreCancelledLesson(): Promise<void> {
- const lessonId = this.normalizeUuid(
-  this.contextMenu.lessonId
-);
+    const childName = String(
+      this.contextMenu.childName || 'הילד'
+    ).trim();
 
-  const occurDate = String(
-    this.contextMenu.occurDate ||
-    this.contextMenu.date ||
-    ''
-  ).slice(0, 10);
+    if (!lessonId || !occurDate) {
+      console.error('Invalid restore lesson context', {
+        lessonId: this.contextMenu.lessonId,
+        occurDate,
+        contextMenu: this.contextMenu,
+      });
+      this.closeContextMenu();
 
-  const childName = String(
-    this.contextMenu.childName || 'הילד'
-  ).trim();
+      await this.ui.alert(
+        'לא נמצאו פרטי השיעור המבוטל.',
+        'שגיאה'
+      );
 
-  if (!lessonId || !occurDate) {
-  console.error('Invalid restore lesson context', {
-    lessonId: this.contextMenu.lessonId,
-    occurDate,
-    contextMenu: this.contextMenu,
-  });
+      return;
+    }
+
     this.closeContextMenu();
 
-    await this.ui.alert(
-      'לא נמצאו פרטי השיעור המבוטל.',
-      'שגיאה'
+    const approved = window.confirm(
+      `האם להחזיר את השיעור של ${childName} בתאריך ${occurDate}?`
     );
 
-    return;
-  }
-
-  this.closeContextMenu();
-
-  const approved = window.confirm(
-    `האם להחזיר את השיעור של ${childName} בתאריך ${occurDate}?`
-  );
-
-  if (!approved) {
-    return;
-  }
-
-  try {
-    await ensureTenantContextReady();
-
-    const { data, error } = await dbTenant()
-      .from('lesson_occurrence_exceptions')
-      .delete()
-      .eq('lesson_id', lessonId)
-      .eq('occur_date', occurDate)
-      .eq('status', 'בוטל')
-      .select('lesson_id, occur_date');
-
-    if (error) {
-      throw error;
+    if (!approved) {
+      return;
     }
 
-    if (!data?.length) {
-      throw new Error(
-        'לא נמצאה רשומת ביטול לשיעור, או שאין הרשאה להחזיר אותו.'
+    try {
+      await ensureTenantContextReady();
+
+      const { data, error } = await dbTenant()
+        .from('lesson_occurrence_exceptions')
+        .delete()
+        .eq('lesson_id', lessonId)
+        .eq('occur_date', occurDate)
+        .eq('status', 'בוטל')
+        .select('lesson_id, occur_date');
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.length) {
+        throw new Error(
+          'לא נמצאה רשומת ביטול לשיעור, או שאין הרשאה להחזיר אותו.'
+        );
+      }
+
+      if (this.currentRange) {
+        await this.loadLessons({
+          start: this.currentRange.start,
+          end: this.currentRange.end,
+        });
+
+        await this.loadRequestsForRange(
+          this.currentRange.start.slice(0, 10),
+          this.currentRange.end.slice(0, 10)
+        );
+
+        this.filterLessons();
+        this.setScheduleItems();
+
+        this.buildBlockedDayCells(
+          this.currentRange
+        );
+
+        this.buildAvailableDayCells(
+          this.currentRange
+        );
+
+        this.buildWeekStats();
+      }
+
+      this.cdr.detectChanges();
+
+      await this.ui.alert(
+        `השיעור של ${childName} הוחזר בהצלחה.`,
+        'בוצע'
       );
-    }
 
-    if (this.currentRange) {
-      await this.loadLessons({
-        start: this.currentRange.start,
-        end: this.currentRange.end,
-      });
-
-      await this.loadRequestsForRange(
-        this.currentRange.start.slice(0, 10),
-        this.currentRange.end.slice(0, 10)
+    } catch (error: any) {
+      console.error(
+        'restoreCancelledLesson failed',
+        error
       );
 
-      this.filterLessons();
-      this.setScheduleItems();
-
-      this.buildBlockedDayCells(
-        this.currentRange
-      );
-
-      this.buildAvailableDayCells(
-        this.currentRange
-      );
-
-      this.buildWeekStats();
-    }
-
-    this.cdr.detectChanges();
-
-    await this.ui.alert(
-      `השיעור של ${childName} הוחזר בהצלחה.`,
-      'בוצע'
-    );
-
-  } catch (error: any) {
-    console.error(
-      'restoreCancelledLesson failed',
-      error
-    );
-
-    await this.ui.alert(
-      error?.message ||
+      await this.ui.alert(
+        error?.message ||
         'לא הצלחנו להחזיר את השיעור. נסי שוב.',
-      'שגיאה'
-    );
+        'שגיאה'
+      );
 
-    this.cdr.detectChanges();
+      this.cdr.detectChanges();
+    }
   }
-}
 
   canMoveContextLesson(): boolean {
     return !!this.contextMenu.hasEvent &&
@@ -3958,7 +4059,7 @@ async restoreCancelledLesson(): Promise<void> {
           end,
           allDay: false,
           display: isPending ? 'block' : 'background',
-overlap: true,
+          overlap: true,
           color: bg,
           textColor: text,
           classNames: [isPending ? 'pending-instructor-day-off' : 'instructor-day-off'],
@@ -4085,88 +4186,88 @@ overlap: true,
   }
 
   private normalizeUuid(value: unknown): string {
-  const normalized = String(value ?? '')
-    .trim()
-    .replace(/^["']+|["']+$/g, '');
+    const normalized = String(value ?? '')
+      .trim()
+      .replace(/^["']+|["']+$/g, '');
 
-  const uuidPattern =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuidPattern =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-  return uuidPattern.test(normalized)
-    ? normalized
-    : '';
-}
-
-private resolveLessonIdFromRightClick(
-  event: any,
-  occurDate: string,
-  startTime: string
-): string {
-  // קודם בודקים את המזהים שהגיעו מ-app-schedule
-  const directLessonId =
-    this.normalizeUuid(event?.lessonId) ||
-    this.normalizeUuid(event?.lesson_id) ||
-    this.normalizeUuid(event?.eventId);
-
-  if (directLessonId) {
-    return directLessonId;
+    return uuidPattern.test(normalized)
+      ? normalized
+      : '';
   }
 
-  const childId = String(
-    event?.childId ??
-    event?.child_id ??
-    ''
-  );
+  private resolveLessonIdFromRightClick(
+    event: any,
+    occurDate: string,
+    startTime: string
+  ): string {
+    // קודם בודקים את המזהים שהגיעו מ-app-schedule
+    const directLessonId =
+      this.normalizeUuid(event?.lessonId) ||
+      this.normalizeUuid(event?.lesson_id) ||
+      this.normalizeUuid(event?.eventId);
 
-  const instructorId = String(
-    event?.resourceId ??
-    event?.instructorId ??
-    event?.instructor_id ??
-    ''
-  );
+    if (directLessonId) {
+      return directLessonId;
+    }
 
-  const normalizedStartTime = String(
-    event?.startTime ??
-    startTime ??
-    ''
-  ).slice(0, 5);
-
-  // אם app-schedule שלח מזהה שגוי, מאתרים את השיעור
-  // לפי הילד, התאריך, השעה והמדריך.
-  const matchingLesson = this.filteredLessons.find((lesson: any) => {
-    const lessonDate = String(
-      lesson.occur_date ??
-      lesson.start_datetime ??
+    const childId = String(
+      event?.childId ??
+      event?.child_id ??
       ''
-    ).slice(0, 10);
+    );
 
-    const lessonStart = String(
-      lesson.start_time ??
-      lesson.start_datetime?.slice(11, 16) ??
+    const instructorId = String(
+      event?.resourceId ??
+      event?.instructorId ??
+      event?.instructor_id ??
+      ''
+    );
+
+    const normalizedStartTime = String(
+      event?.startTime ??
+      startTime ??
       ''
     ).slice(0, 5);
 
-    const sameChild =
-      !childId ||
-      String(lesson.child_id ?? '') === childId;
+    // אם app-schedule שלח מזהה שגוי, מאתרים את השיעור
+    // לפי הילד, התאריך, השעה והמדריך.
+    const matchingLesson = this.filteredLessons.find((lesson: any) => {
+      const lessonDate = String(
+        lesson.occur_date ??
+        lesson.start_datetime ??
+        ''
+      ).slice(0, 10);
 
-    const sameInstructor =
-      !instructorId ||
-      String(lesson.instructor_id ?? '') === instructorId;
+      const lessonStart = String(
+        lesson.start_time ??
+        lesson.start_datetime?.slice(11, 16) ??
+        ''
+      ).slice(0, 5);
 
-    return (
-      lessonDate === occurDate &&
-      lessonStart === normalizedStartTime &&
-      sameChild &&
-      sameInstructor
+      const sameChild =
+        !childId ||
+        String(lesson.child_id ?? '') === childId;
+
+      const sameInstructor =
+        !instructorId ||
+        String(lesson.instructor_id ?? '') === instructorId;
+
+      return (
+        lessonDate === occurDate &&
+        lessonStart === normalizedStartTime &&
+        sameChild &&
+        sameInstructor
+      );
+    });
+
+    return this.normalizeUuid(
+      matchingLesson?.lesson_id ??
+      matchingLesson?.id
     );
-  });
-
-  return this.normalizeUuid(
-    matchingLesson?.lesson_id ??
-    matchingLesson?.id
-  );
-}
+  }
 
   onRightClickEvent(e: any): void {
     if (!e?.jsEvent) return;
@@ -4209,29 +4310,29 @@ private resolveLessonIdFromRightClick(
     this.contextMenu.hasEvent = true;
     this.contextMenu.eventId = String(e.eventId ?? '');
 
-this.contextMenu.childId = String(
-  e.childId ??
-  e.child_id ??
-  ''
-);
+    this.contextMenu.childId = String(
+      e.childId ??
+      e.child_id ??
+      ''
+    );
 
-this.contextMenu.lessonId =
-  this.resolveLessonIdFromRightClick(
-    e,
-    localYmd,
-    localHm
-  );
+    this.contextMenu.lessonId =
+      this.resolveLessonIdFromRightClick(
+        e,
+        localYmd,
+        localHm
+      );
 
-if (!this.contextMenu.lessonId) {
-  console.error(
-    'לא נמצא UUID תקין של השיעור בלחיצה ימנית',
-    {
-      event: e,
-      date: localYmd,
-      time: localHm,
+    if (!this.contextMenu.lessonId) {
+      console.error(
+        'לא נמצא UUID תקין של השיעור בלחיצה ימנית',
+        {
+          event: e,
+          date: localYmd,
+          time: localHm,
+        }
+      );
     }
-  );
-}
     this.contextMenu.childName = String(e.childName ?? '');
     this.contextMenu.lessonType = String(e.lessonType ?? '');
     this.contextMenu.status = String(e.status ?? '');
@@ -4270,28 +4371,28 @@ if (!this.contextMenu.lessonId) {
 
     const normalizedChildId = String(childId);
 
-const child =
-  this.children.find(
-    c => String(c.child_uuid) === normalizedChildId
-  ) ??
-  this.scheduleChildrenById.get(normalizedChildId) ??
-  null;
+    const child =
+      this.children.find(
+        c => String(c.child_uuid) === normalizedChildId
+      ) ??
+      this.scheduleChildrenById.get(normalizedChildId) ??
+      null;
 
-if (!child) {
-  console.warn(
-    'הילד מופיע בלוח אך לא נמצא בנתוני הילדים',
-    {
-      childId: normalizedChildId,
-      event: ext,
+    if (!child) {
+      console.warn(
+        'הילד מופיע בלוח אך לא נמצא בנתוני הילדים',
+        {
+          childId: normalizedChildId,
+          event: ext,
+        }
+      );
+
+      this.selectedChild = null;
+      this.selectedOccurrence = null;
+      return;
     }
-  );
 
-  this.selectedChild = null;
-  this.selectedOccurrence = null;
-  return;
-}
-
-this.selectedChild = { ...child };
+    this.selectedChild = { ...child };
 
     // 🔑 lesson_id – לוקחים מה-meta או מה-id של האירוע
     let lessonId: string | null = meta.lesson_id ?? null;
