@@ -771,13 +771,13 @@
       .modal-overlay {
           position: fixed !important;
 
-          top: 0 !important;
+          top: 96px !important;
           right: 0 !important;
           bottom: 0 !important;
           left: 0 !important;
 
           width: 100vw !important;
-          height: 100dvh !important;
+          height: calc(100dvh - 96px) !important;
 
           padding: 0 !important;
           margin: 0 !important;
@@ -797,14 +797,13 @@
           width: 100% !important;
           max-width: none !important;
 
-          height: 100dvh !important;
+          height: calc(100dvh - 96px) !important;
           max-height: none !important;
 
           margin: 0 !important;
           padding: 0 !important;
 
-          overflow-x: hidden !important;
-          overflow-y: auto !important;
+          overflow: hidden !important;
 
           border-radius: 0 !important;
 
@@ -815,15 +814,21 @@
           width: 100% !important;
           min-width: 0 !important;
 
-          min-height: 100dvh;
+          height: calc(100dvh - 96px) !important;
+          min-height: 0 !important;
 
           margin: 0 !important;
-          padding: 14px !important;
+          padding: 0 !important;
 
           border: 0 !important;
           border-radius: 0 !important;
 
           box-sizing: border-box;
+
+          display: flex;
+          flex-direction: column;
+
+          overflow: hidden;
       }
 
       /* ==============================
@@ -831,17 +836,16 @@
      ============================== */
 
       .entity-edit-modal .edit-header {
-          position: sticky;
-          top: 0;
-
-          z-index: 20;
+          position: relative;
 
           width: 100%;
 
           background: var(--panel);
 
-          padding: 10px 0 12px;
-          margin-bottom: 12px;
+          padding: 14px;
+          margin: 0;
+
+          border-bottom: 1px solid var(--line);
 
           box-sizing: border-box;
       }
@@ -857,9 +861,19 @@
           width: 100%;
           min-width: 0;
 
+          flex: 1 1 auto;
+          min-height: 0;
+
+          overflow-y: auto;
+          overflow-x: hidden;
+
+          padding: 14px;
+
           gap: 14px;
 
           box-sizing: border-box;
+
+          -webkit-overflow-scrolling: touch;
       }
 
       .form-row,
