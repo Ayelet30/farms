@@ -149,7 +149,7 @@ export const secretaryCancelOccurrenceAndNotify = onRequest(
             occur_date: occurDate,
             status: 'בוטל',
             note,
-            canceller_role: 'secretary',
+            cancellerRole: req.body?.cancellerRole === 'parent'  ? 'parent' : 'parent',
             cancelled_at: new Date().toISOString(),
             is_makeup_allowed: isMakeupAllowed,
             is_billable: isBillable,

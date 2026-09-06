@@ -365,7 +365,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   }
 
   private getSlotStepMinutes(): number {
-    return 30;
+    return 15;
   }
 
   isBlockedRawCell(resourceId: string, slotIso: string): boolean {
@@ -664,7 +664,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
 
     const minMinutes = this.parseTimeToMinutes(String(this.slotMinTime || '07:00:00'));
     const maxMinutes = this.parseTimeToMinutes(String(this.slotMaxTime || '21:00:00'));
-    const slotStep = 30;
+    const slotStep = this.getSlotStepMinutes();
 
     this.customDaySlots = [];
     for (let m = minMinutes; m < maxMinutes; m += slotStep) {
@@ -885,7 +885,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
     const date = new Date(slotIso);
     const breakDate = this.toYmd(date);
     const slotStart = date.getHours() * 60 + date.getMinutes();
-    const slotEnd = slotStart + 30;
+    const slotEnd = slotStart + this.getSlotStepMinutes();
     const instructorId =
       this.viewerMode === 'instructor'
         ? String(this.viewerInstructorId || '')
@@ -1591,8 +1591,9 @@ private parseYmdAsLocalDate(value: string): Date {
     eventDisplay: 'block',
     nowIndicator: true,
     scrollTime: '07:00:00',
-    slotDuration: '00:30:00',
-    snapDuration: '00:30:00',
+    slotDuration: '00:15:00',
+    slotLabelInterval: '00:15:00',
+    snapDuration: '00:15:00',
     timeZone: 'local',
     events: [],
     resources: [],

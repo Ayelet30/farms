@@ -193,8 +193,8 @@
               </option>
             </select>
 
-            <small *ngIf="selectedPaymentPlan!.require_docs_at_booking" class="qa-help-text">
-              למסלול זה ניתן לצרף מסמכים: {{ selectedPaymentPlan!.required_docs!.join(', ') || 'ע״פ הנחיות החווה' }}.
+            <small *ngIf="selectedPaymentPlan?.require_docs_at_booking" class="qa-help-text">
+              למסלול זה ניתן לצרף מסמכים: {{ (selectedPaymentPlan!.required_docs ?? []).join(', ') || 'ע״פ הנחיות החווה' }}
               יש להעלות קובץ אחד בלבד.
             </small>
           </div>
@@ -203,8 +203,8 @@
          && bookingMode !== 'occupancy'
          && selectedPaymentPlan?.require_docs_at_booking">
             <label>
-              העלאת הפניה / מסמך (אופציונלי) <ng-container *ngIf="selectedPaymentPlan!.required_docs!.length">
-                – {{ selectedPaymentPlan!.required_docs!.join(', ') }}
+              העלאת הפניה / מסמך (אופציונלי) <ng-container *ngIf="selectedPaymentPlan?.required_docs!.length">
+                – {{ selectedPaymentPlan!.required_docs?.join(', ') }}
               </ng-container>
             </label>
 
@@ -224,23 +224,23 @@
             </small>
           </div>
 
-          <div class="qa-field"
-            *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
-            <label>שעת התחלה</label>
-            <select [(ngModel)]="startTime" (ngModelChange)="onStartTimeChange()">
-              <option *ngFor="let t of timeOptions" [ngValue]="t">
-                {{ t }}
-              </option>
-            </select>
-          </div>
+ <div class="qa-field"
+  *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
+  <label>שעת התחלה</label>
 
-          <div class="qa-field"
-            *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
-            <label>שעת סיום</label>
-            <div class="qa-readonly-time">
-              {{ displayEndTime | slice:0:5 }}
-            </div>
-          </div>
+  <div class="qa-readonly-time" dir="ltr">
+    {{ startTime | slice:0:5 }}
+  </div>
+</div>
+
+<div class="qa-field"
+  *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
+  <label>שעת סיום</label>
+
+  <div class="qa-readonly-time" dir="ltr">
+    {{ displayEndTime | slice:0:5 }}
+  </div>
+</div>
         </div>
       </fieldset>
 
