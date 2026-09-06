@@ -4,6 +4,7 @@ import { dbTenant, getCurrentUserData } from '../../services/legacy-compat';
 import { FormsModule } from '@angular/forms';
 import { UiDialogService } from '../../services/ui-dialog.service';
 import { inject } from '@angular/core';
+import { Router } from '@angular/router';
 type Horse = {
     id: string;
     name: string;
@@ -64,6 +65,7 @@ export class IndependentHorsesComponent implements OnInit {
     horses: Horse[] = [];
     tasksByHorse: Record<string, HorseServiceTask[]> = {};
     private ui = inject(UiDialogService);
+    private router = inject(Router);
     servicesByHorse: Record<string, RiderService[]> = {};
     editingHorseId: string | null = null;
     editHorseDraft: Partial<Horse> = {};
@@ -476,5 +478,15 @@ export class IndependentHorsesComponent implements OnInit {
         }
 
         return changes.map(change => change.trim()).join('\n\n');
+    }
+    goToServiceRequest(horse: Horse): void {
+        this.router.navigate(
+            ['/independent/appointment'],
+            {
+                queryParams: {
+                    horseId: horse.id,
+                },
+            }
+        );
     }
 }

@@ -320,3 +320,190 @@
     gap: 4px;
     font-size: 0.9rem;
 }
+
+.my-horses-section {
+    margin-top: 28px;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.section-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 800;
+}
+
+.section-header p {
+    margin: 4px 0 0;
+    color: #7b806e;
+    font-size: 14px;
+}
+
+.horses-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    min-width: 36px;
+    height: 36px;
+
+    padding: 0 10px;
+
+    border-radius: 999px;
+
+    background: #eaf1dc;
+    color: #607a35;
+
+    font-weight: 800;
+}
+
+.horses-list-section {
+    margin-bottom: 26px;
+}
+
+.horses-list-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    margin: 0 0 10px;
+
+    font-size: 17px;
+    font-weight: 800;
+
+    color: #35422c;
+}
+
+.horses-list-title span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    min-width: 24px;
+    height: 24px;
+
+    padding: 0 7px;
+
+    border-radius: 999px;
+
+    background: #e9f1d8;
+
+    font-size: 12px;
+}
+
+.horses-list-title.inactive-title {
+    color: #73776d;
+}
+
+.horses-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.horse-row {
+    width: 100%;
+
+    background: #fff;
+
+    border: 1px solid #d7dfc3;
+    border-radius: 14px;
+
+    padding: 14px 16px;
+
+    box-sizing: border-box;
+}
+
+.horse-row.inactive-row {
+    background: #fafafa;
+}
+
+.horse-row-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 12px;
+
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+
+    border-bottom: 1px solid #edf0e6;
+}
+
+.horse-name {
+    font-size: 17px;
+    font-weight: 800;
+    color: #303b29;
+}
+
+.horse-status {
+    display: inline-flex;
+    align-items: center;
+
+    padding: 4px 10px;
+
+    border-radius: 999px;
+
+    background: #e9f3dc;
+    color: #66843b;
+
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.horse-status.inactive {
+    background: #eef0f2;
+    color: #747982;
+}
+
+.horse-row-details {
+    display: grid;
+    grid-template-columns:
+        100px minmax(120px, 1fr) 120px 120px minmax(200px, 2fr);
+
+    gap: 14px;
+
+    align-items: start;
+}
+
+.horse-row-details>div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+
+    min-width: 0;
+}
+
+.field-label {
+    color: #8a8e81;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.horse-row-details span:last-child {
+    color: #3f4838;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+
+.horse-note {
+    min-width: 0;
+}
+
+.empty-horses {
+    padding: 16px;
+
+    border: 1px solid #e2e8d3;
+    border-radius: 14px;
+
+    background: #fafbf5;
+
+    color: #6e7462;
+}

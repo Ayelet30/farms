@@ -766,7 +766,16 @@ export class InstructorScheduleComponent implements OnInit {
   }
 
 
+  private isCancelledLesson(lesson: any): boolean {
+    const rawStatus = String(lesson?.status ?? '').trim();
+    const upperStatus = rawStatus.toUpperCase();
 
+    return (
+      upperStatus.includes('CANCEL') ||
+      rawStatus.includes('בוטל') ||
+      rawStatus.includes('מבוטל')
+    );
+  }
   /* ------------ ITEM MAPPING ------------ */
   private setScheduleItems(): void {
 
@@ -791,11 +800,12 @@ export class InstructorScheduleComponent implements OnInit {
       const startDate = new Date(startISO);
       const endDate = new Date(endISO);
 
-      // ⛔ חופשת מדריך
-      if (this.isLessonBlockedByInstructorOff(baseDate, startDate, endDate)) {
+      if (
+        this.isLessonBlockedByInstructorOff(baseDate, startDate, endDate) &&
+        !this.isCancelledLesson(l)
+      ) {
         return false;
       }
-
 
       return true;
     });
@@ -821,8 +831,12 @@ export class InstructorScheduleComponent implements OnInit {
         const endDate = new Date(endISO);
 
         // ⛔ חופשת מדריך
-        if (this.isLessonBlockedByInstructorOff(day, startDate, endDate)) continue;
-
+        if (
+          this.isLessonBlockedByInstructorOff(day, startDate, endDate) &&
+          !this.isCancelledLesson(l)
+        ) {
+          continue;
+        }
         // ⛔ חופשת חווה
         if (this.isLessonBlockedByFarmOff(startDate, endDate)) continue;
 
@@ -890,12 +904,13 @@ export class InstructorScheduleComponent implements OnInit {
           return false;
         }
 
-        // ⛔ חופשת מדריך
-        if (this.isLessonBlockedByInstructorOff(baseDate, start, end)
+
+        if (
+          this.isLessonBlockedByInstructorOff(baseDate, start, end) &&
+          !this.isCancelledLesson(l)
         ) {
           return false;
         }
-
         return true;
 
       })
@@ -2537,8 +2552,12 @@ export class InstructorScheduleComponent implements OnInit {
           start,
           end,
           allDay: false,
-          display: 'block',
-          overlap: false,
+          display:
+            isPending || isDirectUnavailability
+              ? 'block'
+              : 'background',
+
+          overlap: true,
           color: bg,
           textColor: text,
           classNames: [
