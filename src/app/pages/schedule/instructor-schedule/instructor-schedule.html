@@ -7,10 +7,11 @@
   </div>
 
   <div class="schedule-main-card">
-    <app-schedule [items]="items" [resources]="[]" [breakOccurrences]="breakOccurrences"
-      [viewerInstructorId]="instructorId" viewerMode="instructor" initialView="timeGridWeek"
-      (eventClick)="onEventClick($event)" (dateClick)="onDateClick($event)" (viewRange)="onViewRangeChange($event)"
-      (rightClickDay)="onRightClickDay($event)" (rightClickEvent)="onRightClickEvent($event)">
+    <app-schedule [items]="items" [resources]="[]" [availableDayCells]="instructorAvailableDayCells"
+      [breakOccurrences]="breakOccurrences" [viewerInstructorId]="instructorId" viewerMode="instructor"
+      initialView="timeGridWeek" (eventClick)="onEventClick($event)" (dateClick)="onDateClick($event)"
+      (viewRange)="onViewRangeChange($event)" (rightClickDay)="onRightClickDay($event)"
+      (rightClickEvent)="onRightClickEvent($event)">
     </app-schedule>
   </div>
 </div>

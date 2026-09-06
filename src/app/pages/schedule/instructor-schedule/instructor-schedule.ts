@@ -130,6 +130,14 @@ export class InstructorScheduleComponent implements OnInit {
   dayRequests: DayRequestRow[] = [];
   farmDaysOff: any[] = [];
   farmWorkingHours: any[] = [];
+  instructorWorkingHours: any[] = [];
+  instructorAvailableDayCells: Array<{
+    date: string;
+    resourceId: string;
+    startTime: string;
+    endTime: string;
+    color: string;
+  }> = [];
   farmAvailabilityError: string | null = null;
 
   /** ילד שנבחר – לכרטיסיית ההערות */
@@ -242,6 +250,13 @@ export class InstructorScheduleComponent implements OnInit {
       await this.loadRequestsForRange(startYmd, endYmd);
       await this.loadFarmDaysOffForRange(startYmd, endYmd);
       await this.loadFarmWorkingHours();
+      await this.loadInstructorWorkingHours();
+      this.buildInstructorAvailableDayCells(
+        startYmd,
+        endYmd
+      );
+
+      this.setScheduleItems();
       this.setScheduleItems();
       this.updateCurrentDateFromCalendar();
     } catch (err: any) {
@@ -310,38 +325,38 @@ export class InstructorScheduleComponent implements OnInit {
     return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
   }
 
-private makeBreakScheduleItems(): ScheduleItem[] {
-  return this.breakOccurrences.map(
-    (occurrence): ScheduleItem => ({
-      id: occurrence.occurrence_key,
-      title: 'הפסקה',
+  private makeBreakScheduleItems(): ScheduleItem[] {
+    return this.breakOccurrences.map(
+      (occurrence): ScheduleItem => ({
+        id: occurrence.occurrence_key,
+        title: 'הפסקה',
 
-      start: `${occurrence.break_date}T${String(
-        occurrence.start_time
-      ).slice(0, 8)}`,
+        start: `${occurrence.break_date}T${String(
+          occurrence.start_time
+        ).slice(0, 8)}`,
 
-      end: `${occurrence.break_date}T${String(
-        occurrence.end_time
-      ).slice(0, 8)}`,
+        end: `${occurrence.break_date}T${String(
+          occurrence.end_time
+        ).slice(0, 8)}`,
 
-      color: '#9da77d',
+        color: '#9da77d',
 
-      status: 'אושר',
+        status: 'אושר',
 
-      meta: {
-        is_break: 'true',
-        child_name: 'הפסקה',
-        instructor_id: String(this.instructorId),
-        instructor_name: '',
-        instructor_color: '#9da77d',
-        lesson_type: 'BREAK',
-        occur_date: String(occurrence.break_date),
-        start_time: String(occurrence.start_time),
-        end_time: String(occurrence.end_time),
-      },
-    })
-  );
-}
+        meta: {
+          is_break: 'true',
+          child_name: 'הפסקה',
+          instructor_id: String(this.instructorId),
+          instructor_name: '',
+          instructor_color: '#9da77d',
+          lesson_type: 'BREAK',
+          occur_date: String(occurrence.break_date),
+          start_time: String(occurrence.start_time),
+          end_time: String(occurrence.end_time),
+        },
+      })
+    );
+  }
 
   private async loadLessonsForRange(startYmd: string, endYmd: string): Promise<void> {
 
@@ -1633,9 +1648,17 @@ private makeBreakScheduleItems(): ScheduleItem[] {
       } else {
         this.children = [];
       }
-
       await this.loadRequestsForRange(startYmd, endYmd);
       await this.loadFarmDaysOffForRange(startYmd, endYmd);
+
+      if (!this.instructorWorkingHours.length) {
+        await this.loadInstructorWorkingHours();
+      }
+
+      this.buildInstructorAvailableDayCells(
+        startYmd,
+        endYmd
+      );
 
       this.setScheduleItems();
       this.updateCurrentDateFromCalendar();
@@ -2865,6 +2888,83 @@ private makeBreakScheduleItems(): ScheduleItem[] {
     }
 
     return null;
+  }
+  private async loadInstructorWorkingHours(): Promise<void> {
+    if (!this.instructorId) {
+      this.instructorWorkingHours = [];
+      return;
+    }
+
+    const { data, error } = await dbTenant()
+      .from('instructor_weekly_availability')
+      .select('day_of_week, start_time, end_time')
+      .eq('instructor_id_number', this.instructorId)
+      .order('day_of_week')
+      .order('start_time');
+
+    if (error) {
+      console.error('[loadInstructorWorkingHours]', error);
+      throw error;
+    }
+
+    this.instructorWorkingHours = data ?? [];
+  }
+  private buildInstructorAvailableDayCells(
+    startYmd: string,
+    endYmd: string
+  ): void {
+
+    const cells: Array<{
+      date: string;
+      resourceId: string;
+      startTime: string;
+      endTime: string;
+      color: string;
+    }> = [];
+
+    let current = startYmd;
+
+    while (current <= endYmd) {
+
+      // 0 = ראשון ... 5 = שישי ... 6 = שבת
+      const dayOfWeek =
+        new Date(`${current}T12:00:00`).getDay();
+
+      const rowsForDay =
+        (this.instructorWorkingHours ?? []).filter(
+          (row: any) =>
+            Number(row.day_of_week) === dayOfWeek &&
+            row.start_time &&
+            row.end_time
+        );
+
+      for (const row of rowsForDay) {
+        cells.push({
+          date: current,
+
+          /*
+           * חשוב מאוד:
+           * בתצוגת מדריך יומית ScheduleComponent
+           * משתמש בעמודה הזאת ולא ב-instructorId.
+           */
+          resourceId: 'single-day-column',
+
+          startTime: String(row.start_time).slice(0, 5),
+          endTime: String(row.end_time).slice(0, 5),
+
+          color: this.instructorColor || '#748c40',
+        });
+      }
+
+      current = this.addOneDayYmd(current);
+    }
+
+    this.instructorAvailableDayCells = cells;
+
+    console.log(
+      '[INSTRUCTOR AVAILABLE CELLS]',
+      this.instructorAvailableDayCells
+    );
   }
 }
 
