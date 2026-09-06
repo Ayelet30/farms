@@ -6,7 +6,7 @@ import { dbTenant, supabase } from '../../services/supabaseClient.service';
 import { createClient } from '@supabase/supabase-js';
 import { environment } from '../../../environments/environment';
 import { EnumOptionsService, DbOption } from '../../services/enum-options';
-
+import { ActivatedRoute } from '@angular/router';
 type RiderServiceType = {
     id: string;
     name: string;
@@ -58,7 +58,8 @@ export class IndependentServiceRequestComponent implements OnInit {
         approval_file: null as File | null,
     };
     constructor(
-        private enumOptions: EnumOptionsService
+        private enumOptions: EnumOptionsService,
+        private route: ActivatedRoute
     ) { }
     async ngOnInit() {
         try {
@@ -75,7 +76,16 @@ export class IndependentServiceRequestComponent implements OnInit {
                 this.loadHorses(),
                 this.loadEnumOptions(),
             ]);
+            const horseId = this.route.snapshot.queryParamMap.get('horseId');
 
+            if (horseId) {
+                const horseExists = this.horses.some(h => h.id === horseId);
+
+                if (horseExists) {
+                    this.form.horse_uid = horseId;
+                    this.onHorseChanged();
+                }
+            }
         } catch (e: any) {
             this.error = e?.message || 'שגיאה בטעינת הנתונים';
         } finally {
