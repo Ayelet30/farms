@@ -54,26 +54,25 @@
             {{ c.first_name }} {{ c.last_name }}
           </h3>
           <span class="age-badge warn" *ngIf="isPendingAdd(c?.status)">
-  ממתין לאישור הוספה
-</span>
+            ממתין לאישור הוספה
+          </span>
           <span class="age-badge warn" *ngIf="isPendingDelete(c?.status)">
             ממתין לאישור מחיקה
           </span>
-<span class="age-badge danger" *ngIf="isDeletionScheduled(c?.status)">
-  {{ deletionScheduledText(c) }}
-</span>
+          <span class="age-badge danger" *ngIf="isDeletionScheduled(c?.status)">
+            {{ deletionScheduledText(c) }}
+          </span>
 
           <span class="age-badge" *ngIf="c.birth_date">גיל: {{ getAge(c.birth_date) }} </span>
-        <span class="age-badge" *ngIf="c.funding_source_id">
-  {{ getFundingSourceName(c.funding_source_id) }}
-</span>
+          <span class="age-badge" *ngIf="c.funding_source_id">
+            {{ getFundingSourceName(c.funding_source_id) }}
+          </span>
         </div>
 
         <div class="actions">
           <div class="actions">
-<button *ngIf="!editing[childId(c)] && !isPendingAdd(c?.status)"
-             class="icon-btn" type="button" (click)="startEdit(c)"
-              aria-label="עריכה">
+            <button *ngIf="!editing[childId(c)] && !isPendingAdd(c?.status)" class="icon-btn" type="button"
+              (click)="startEdit(c)" aria-label="עריכה">
               <svg class="icon" aria-hidden="true">
                 <use href="assets/icons/feather-slim.svg#edit" />
               </svg>
@@ -86,17 +85,14 @@
               </svg>
             </button>
 
-          <button *ngIf="!editing[childId(c)] 
+            <button *ngIf="!editing[childId(c)] 
               && !isPendingDelete(c?.status) 
-              && !isDeletionScheduled(c?.status)"
-        class="icon-btn danger"
-        type="button"
-        (click)="confirmDeleteChild(c)"
-        aria-label="מחיקה">
-  <svg class="icon" aria-hidden="true">
-    <use href="assets/icons/feather-slim.svg#trash" />
-  </svg>
-</button>
+              && !isDeletionScheduled(c?.status)" class="icon-btn danger" type="button" (click)="confirmDeleteChild(c)"
+              aria-label="מחיקה">
+              <svg class="icon" aria-hidden="true">
+                <use href="assets/icons/feather-slim.svg#trash" />
+              </svg>
+            </button>
 
             <button *ngIf="editing[childId(c)]" class="icon-btn" type="button" (click)="cancelEdit(c)"
               aria-label="ביטול" title="ביטול">
@@ -112,10 +108,8 @@
       <!-- התור הבא -->
       <div class="card-section">
         <div class="section-title">התור הבא</div>
-       <ng-container
-  [ngTemplateOutlet]="nextTpl"
-  [ngTemplateOutletContext]="{ $implicit: getNextAppointment(c) }">
-</ng-container>
+        <ng-container [ngTemplateOutlet]="nextTpl" [ngTemplateOutletContext]="{ $implicit: getNextAppointment(c) }">
+        </ng-container>
 
       </div>
 
@@ -147,12 +141,12 @@
 
         <div class="form-row">
           <label>קופת חולים</label>
-         <select [(ngModel)]="editables[c.child_uuid!].funding_source_id" class="editable-input">
-  <option value="" disabled hidden>בחר קופה</option>
-  <option *ngFor="let fund of healthFunds" [value]="fund.id">
-    {{ fund.name }}
-  </option>
-</select>
+          <select [(ngModel)]="editables[c.child_uuid!].funding_source_id" class="editable-input">
+            <option value="" disabled hidden>בחר קופה</option>
+            <option *ngFor="let fund of healthFunds" [value]="fund.id">
+              {{ fund.name }}
+            </option>
+          </select>
         </div>
         <div class="form-row">
           <label>הערות רפואיות</label>
@@ -189,9 +183,8 @@
           <span>ביטול בקשת מחיקה</span>
         </button>
 
-        <button   *ngIf="!isPendingDelete(c?.status)"
- class="cta-btn primary" type="button" (click)="goToBooking(c)"
-        [attr.aria-disabled]="(isPendingAdd(c?.status) || isPendingDelete(c?.status)) ? 'true' : null"
+        <button *ngIf="!isPendingDelete(c?.status)" class="cta-btn primary" type="button" (click)="goToBooking(c)"
+          [attr.aria-disabled]="(isPendingAdd(c?.status) || isPendingDelete(c?.status)) ? 'true' : null"
           [title]="isPendingAdd(c?.status) ? 'הוספת הילד טרם אושרה' : null">
           <svg class="icon" aria-hidden="true">
             <use href="assets/icons/feather-slim.svg#calendar" />
@@ -209,34 +202,34 @@
   </div>
 
   <!-- History Modal -->
-<div class="dialog-overlay" *ngIf="showHistory">
-  <div class="history-modal">
-    <div class="history-head">
-      <h3 class="history-title">היסטוריית שיעורים — {{ historyChildName }}</h3>
-      <button class="card-close small" (click)="closeHistory()" aria-label="סגור">✕</button>
-    </div>
-
-    <div class="history-body">
-      <div *ngIf="historyLoading" class="history-loading">טוען…</div>
-
-      <div *ngIf="!historyLoading && historyItems.length === 0" class="history-empty">
-        אין היסטוריה להצגה
+  <div class="dialog-overlay" *ngIf="showHistory">
+    <div class="history-modal">
+      <div class="history-head">
+        <h3 class="history-title">היסטוריית שיעורים — {{ historyChildName }}</h3>
+        <button class="card-close small" (click)="closeHistory()" aria-label="סגור">✕</button>
       </div>
 
-      <ul class="history-list" *ngIf="!historyLoading && historyItems.length > 0">
-        <li *ngFor="let h of historyItems; let i = index" class="history-item">
-          <div class="line">
-            <span class="when">{{ h.date }} • {{ h.time }}</span>
-            <span class="sep" *ngIf="h.instructor">•</span>
-            <span class="with" *ngIf="h.instructor">עם {{ h.instructor }}</span>
-            <span class="badge" [ngClass]="statusClass(h.status)">{{ h.status }}</span>
-          </div>
-          <div class="muted" *ngIf="h.lesson_type">סוג שיעור: {{ h.lesson_type }}</div>
-        </li>
-      </ul>
+      <div class="history-body">
+        <div *ngIf="historyLoading" class="history-loading">טוען…</div>
+
+        <div *ngIf="!historyLoading && historyItems.length === 0" class="history-empty">
+          אין היסטוריה להצגה
+        </div>
+
+        <ul class="history-list" *ngIf="!historyLoading && historyItems.length > 0">
+          <li *ngFor="let h of historyItems; let i = index" class="history-item">
+            <div class="line">
+              <span class="when">{{ h.date }} • {{ h.time }}</span>
+              <span class="sep" *ngIf="h.instructor">•</span>
+              <span class="with" *ngIf="h.instructor">עם {{ h.instructor }}</span>
+              <span class="badge" [ngClass]="statusClass(h.status)">{{ h.status }}</span>
+            </div>
+            <div class="muted" *ngIf="h.lesson_type">סוג שיעור: {{ h.lesson_type }}</div>
+          </li>
+        </ul>
+      </div>
     </div>
   </div>
-</div>
 
   <div class="overlay" *ngIf="showDeleteConfirm">
     <div class="confirm-dialog" dir="rtl">
@@ -263,8 +256,16 @@
       </p>
 
       <div class="dialog-actions">
-        <button type="button" class="btn-cancel" (click)="cancelDelete()">לא</button>
-        <button type="button" class="btn-ok" (click)="deleteChild()">כן, שלחי בקשה למחיקה</button>
+        <button type="button" class="btn-cancel" (click)="cancelDelete()" [disabled]="deleteChildInFlight">
+          לא
+        </button> <button type="button" class="btn-ok" (click)="deleteChild()" [disabled]="deleteChildInFlight"
+          [attr.aria-busy]="deleteChildInFlight ? 'true' : null">
+
+          {{ deleteChildInFlight
+          ? 'שולח בקשה...'
+          : 'כן, שלחי בקשה למחיקה' }}
+
+        </button>
       </div>
     </div>
   </div>
@@ -305,33 +306,29 @@
     [childName]="termsSignChildName || ''" (signed)="onTermsSigned()"
     (closed)="closeTermsSign()"></app-child-terms-sign>
 
-    <!-- Popup -->
-<div class="popup-backdrop" *ngIf="signedOpen()" (click)="closeSignedPopup()">
-  <div class="popup" (click)="$event.stopPropagation()">
-    <div class="popup-head">
-      <div class="title">תקנון חתום</div>
+  <!-- Popup -->
+  <div class="popup-backdrop" *ngIf="signedOpen()" (click)="closeSignedPopup()">
+    <div class="popup" (click)="$event.stopPropagation()">
+      <div class="popup-head">
+        <div class="title">תקנון חתום</div>
 
-      <div class="actions">
-        <a *ngIf="signedDocUrlRaw()"
-           class="btn-link"
-           [href]="signedDocUrlRaw()!"
-           target="_blank"
-           rel="noopener">
-          פתיחה בלשונית חדשה
-        </a>
+        <div class="actions">
+          <a *ngIf="signedDocUrlRaw()" class="btn-link" [href]="signedDocUrlRaw()!" target="_blank" rel="noopener">
+            פתיחה בלשונית חדשה
+          </a>
 
-        <button type="button" class="btn" (click)="closeSignedPopup()">סגור</button>
+          <button type="button" class="btn" (click)="closeSignedPopup()">סגור</button>
+        </div>
       </div>
-    </div>
 
-    <div class="popup-body" *ngIf="signedDocUrlSafe(); else noSigned">
-      <iframe class="pdf-frame" [src]="signedDocUrlSafe()"></iframe>
-    </div>
-
-    <ng-template #noSigned>
-      <div class="empty">
-        עדיין אין תקנון חתום לילד הזה.
+      <div class="popup-body" *ngIf="signedDocUrlSafe(); else noSigned">
+        <iframe class="pdf-frame" [src]="signedDocUrlSafe()"></iframe>
       </div>
-    </ng-template>
+
+      <ng-template #noSigned>
+        <div class="empty">
+          עדיין אין תקנון חתום לילד הזה.
+        </div>
+      </ng-template>
+    </div>
   </div>
-</div>
