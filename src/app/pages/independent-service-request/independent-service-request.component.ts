@@ -6,7 +6,7 @@ import { dbTenant, supabase } from '../../services/supabaseClient.service';
 import { createClient } from '@supabase/supabase-js';
 import { environment } from '../../../environments/environment';
 import { EnumOptionsService, DbOption } from '../../services/enum-options';
-
+import { ActivatedRoute } from '@angular/router';
 type RiderServiceType = {
     id: string;
     name: string;
@@ -58,7 +58,8 @@ export class IndependentServiceRequestComponent implements OnInit {
         approval_file: null as File | null,
     };
     constructor(
-        private enumOptions: EnumOptionsService
+        private enumOptions: EnumOptionsService,
+        private route: ActivatedRoute
     ) { }
     async ngOnInit() {
         try {
@@ -75,7 +76,16 @@ export class IndependentServiceRequestComponent implements OnInit {
                 this.loadHorses(),
                 this.loadEnumOptions(),
             ]);
+            const horseId = this.route.snapshot.queryParamMap.get('horseId');
 
+            if (horseId) {
+                const horseExists = this.horses.some(h => h.id === horseId);
+
+                if (horseExists) {
+                    this.form.horse_uid = horseId;
+                    this.onHorseChanged();
+                }
+            }
         } catch (e: any) {
             this.error = e?.message || 'שגיאה בטעינת הנתונים';
         } finally {
@@ -260,11 +270,6 @@ export class IndependentServiceRequestComponent implements OnInit {
         this.submitting = true;
         this.error = '';
         this.success = '';
-        let approvalFilePayload: any = null;
-
-        if (this.form.approval_file) {
-            approvalFilePayload = await this.uploadApprovalFile(this.form.approval_file);
-        }
 
         try {
             const db = dbTenant();
@@ -332,6 +337,7 @@ export class IndependentServiceRequestComponent implements OnInit {
             if (error) throw error;
 
             this.success = 'הבקשה נשלחה למזכירות בהצלחה ✅';
+
             this.form = {
                 service_type_id: '',
                 horse_uid: '',
@@ -343,6 +349,11 @@ export class IndependentServiceRequestComponent implements OnInit {
                 notes: '',
                 approval_file: null,
             };
+
+            this.plannedDates = [];
+            this.approvalFileError = '';
+
+            this.scrollToSuccess();
 
         } catch (e: any) {
             this.error = e?.message || 'שגיאה בשליחת הבקשה';
@@ -592,5 +603,17 @@ export class IndependentServiceRequestComponent implements OnInit {
         this.serviceModes = serviceModes;
         this.recurrenceUnits = recurrenceUnits;
         this.riderServiceStatuses = riderServiceStatuses;
+    }
+    private scrollToSuccess(): void {
+        setTimeout(() => {
+            const el = document.querySelector('.state-card.success');
+
+            if (el) {
+                el.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                });
+            }
+        }, 0);
     }
 }
