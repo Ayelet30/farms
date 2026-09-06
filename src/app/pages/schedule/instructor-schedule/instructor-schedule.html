@@ -7,27 +7,16 @@
   </div>
 
   <div class="schedule-main-card">
-    <app-schedule
-      [items]="items"
-      [resources]="[]"
-      [breakOccurrences]="breakOccurrences"
-      [viewerInstructorId]="instructorId"
-      viewerMode="instructor"
-      initialView="timeGridWeek"
-      (eventClick)="onEventClick($event)"
-      (dateClick)="onDateClick($event)"
-      (viewRange)="onViewRangeChange($event)"
-      (rightClickDay)="onRightClickDay($event)"
+    <app-schedule [items]="items" [resources]="[]" [availableDayCells]="instructorAvailableDayCells"
+      [breakOccurrences]="breakOccurrences" [viewerInstructorId]="instructorId" viewerMode="instructor"
+      initialView="timeGridWeek" (eventClick)="onEventClick($event)" (dateClick)="onDateClick($event)"
+      (viewRange)="onViewRangeChange($event)" (rightClickDay)="onRightClickDay($event)"
       (rightClickEvent)="onRightClickEvent($event)">
     </app-schedule>
   </div>
 </div>
 
-<div
-  class="context-menu"
-  *ngIf="contextMenu.visible"
-  [style.top.px]="contextMenu.y"
-  [style.left.px]="contextMenu.x"
+<div class="context-menu" *ngIf="contextMenu.visible" [style.top.px]="contextMenu.y" [style.left.px]="contextMenu.x"
   (click)="$event.stopPropagation()">
 
   <button class="context-close" (click)="closeContextMenu()">×</button>
@@ -36,9 +25,7 @@
     הוסף הפסקה
   </button>
 
-  <button
-    *ngIf="contextMenu.breakOccurrence?.source_type === 'WEEKLY'"
-    (click)="openShortenBreakModal()">
+  <button *ngIf="contextMenu.breakOccurrence?.source_type === 'WEEKLY'" (click)="openShortenBreakModal()">
     קצר הפסקה להיום
   </button>
 
@@ -52,14 +39,9 @@
   <button (click)="openRequest('other')">אחר</button>
 </div>
 
-<app-note
-  *ngIf="selectedChild && selectedOccurrence"
-  [child]="selectedChild"
-  [occurrence]="selectedOccurrence"
-  [attendanceStatus]="attendanceStatus"
-  [role]="currentUserRole"
-  (attendanceChange)="onAttendanceChangedFromNote($event)"
-  (close)="onCloseNote()">
+<app-note *ngIf="selectedChild && selectedOccurrence" [child]="selectedChild" [occurrence]="selectedOccurrence"
+  [attendanceStatus]="attendanceStatus" [role]="currentUserRole"
+  (attendanceChange)="onAttendanceChangedFromNote($event)" (close)="onCloseNote()">
 </app-note>
 
 <div class="modal-backdrop" *ngIf="rangeModal.open" (click)="closeRangeModal()">
@@ -156,27 +138,27 @@
 
     <div class="modal-actions">
       <button type="button" class="cancel" (click)="closeRangeModal()">ביטול</button>
-      <button type="button" class="confirm" [disabled]="!!error || impactLoading" (click)="submitRange()">
-        אישור ושליחה
+
+      <button type="button" class="confirm" [disabled]="!!error || impactLoading || isSubmitting"
+        (click)="submitRange()">
+
+        {{ isSubmitting ? 'שולח...' : 'אישור ושליחה' }}
+
       </button>
     </div>
   </div>
 </div>
 
-<div
-  class="modal-backdrop break-modal-backdrop"
-  *ngIf="breakModal.open"
-  (click)="closeBreakModal()">
+<div class="modal-backdrop break-modal-backdrop" *ngIf="breakModal.open" (click)="closeBreakModal()">
 
-  <div
-    class="modal schedule-modal break-management-modal"
-    (click)="$event.stopPropagation()">
+  <div class="modal schedule-modal break-management-modal" (click)="$event.stopPropagation()">
     <button type="button" class="modal-close" (click)="closeBreakModal()">×</button>
 
     <div class="modal-content">
       <div class="modal-header">
         <h3>
-          {{ breakModal.mode === 'add' ? 'הוספת הפסקה חד־פעמית' : breakModal.mode === 'shorten' ? 'קיצור הפסקה' : 'ביטול הפסקה' }}
+          {{ breakModal.mode === 'add' ? 'הוספת הפסקה חד־פעמית' : breakModal.mode === 'shorten' ? 'קיצור הפסקה' : 'ביטול
+          הפסקה' }}
         </h3>
         <p>{{ breakModal.date | date:'dd/MM/yyyy' }}</p>
       </div>
@@ -189,11 +171,7 @@
 
         <div class="field-row">
           <label>עד שעה</label>
-          <input
-            type="time"
-            [(ngModel)]="breakModal.endTime"
-            [min]="breakModal.startTime"
-            [max]="breakModal.maxEndTime"
+          <input type="time" [(ngModel)]="breakModal.endTime" [min]="breakModal.startTime" [max]="breakModal.maxEndTime"
             step="900" />
         </div>
       </div>

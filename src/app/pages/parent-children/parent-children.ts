@@ -21,10 +21,10 @@ type OccurrenceRow = {
   status?: string | null;
   lesson_type?: 'רגיל' | 'השלמה' | string | null;
 };
-type InstructorRow = { 
-  id_number: string; 
-  first_name: string | null; 
-  last_name: string | null; 
+type InstructorRow = {
+  id_number: string;
+  first_name: string | null;
+  last_name: string | null;
 };
 
 
@@ -38,7 +38,7 @@ type ChildStatus = 'Active' | 'Pending Deletion Approval' | 'Pending Addition Ap
   imports: [CommonModule, FormsModule, NgClass, NgTemplateOutlet, AddChildWizardComponent, ChildTermsSignComponent],
   templateUrl: './parent-children.html',
   styleUrls: ['./parent-children.css'],
- 
+
 })
 export class ParentChildrenComponent implements OnInit {
 
@@ -62,66 +62,66 @@ export class ParentChildrenComponent implements OnInit {
   // הוספת ילד
   newChild: any = null;
   validationErrors: { [key: string]: string } = {};
-healthFunds: { id: string; name: string }[] = [];
+  healthFunds: { id: string; name: string }[] = [];
   // הודעות מידע
   infoMessage: string | null = null;
 
   // מחיקה/עזיבה
   showDeleteConfirm = false;
   pendingDeleteId: string | null = null;
-
+  deleteChildInFlight = false;
   showAddChildWizard = false;
 
   //חתימת תקנון
   termsStatusByChild: Record<string, { is_signed: boolean; signed_at: string | null; required_version: number | null }> = {};
-showTermsSign = false;
-termsSignChildId: string | null = null;
-termsSignChildName: string | null = null;
+  showTermsSign = false;
+  termsSignChildId: string | null = null;
+  termsSignChildName: string | null = null;
 
-signedOpen = signal(false);
-loadingSigned = signal(false);
+  signedOpen = signal(false);
+  loadingSigned = signal(false);
 
-signedDocUrlRaw = signal<string | null>(null);
-signedDocUrlSafe = signal<SafeResourceUrl | null>(null);
+  signedDocUrlRaw = signal<string | null>(null);
+  signedDocUrlSafe = signal<SafeResourceUrl | null>(null);
 
 
   // ---- History modal state ----
-showHistory = false;
-historyLoading = false;
-historyChildName = '';
-historyItems: { date: string; time: string; instructor?: string; status: string; lesson_type?: string }[] = [];
-@ViewChild('newChildSection') newChildSection?: ElementRef<HTMLDivElement>;
+  showHistory = false;
+  historyLoading = false;
+  historyChildName = '';
+  historyItems: { date: string; time: string; instructor?: string; status: string; lesson_type?: string }[] = [];
+  @ViewChild('newChildSection') newChildSection?: ElementRef<HTMLDivElement>;
 
-// לשימוש בדיאלוג
-pendingDeleteChildName: string | null = null;
-pendingDeleteLessonsCount: number | null = null;
+  // לשימוש בדיאלוג
+  pendingDeleteChildName: string | null = null;
+  pendingDeleteLessonsCount: number | null = null;
 
 
-// תגית צבע לפי סטטוס להדפסה ב־[ngClass]
-statusClass(st: string): string {
-  switch (st) {
-    case 'הושלם': return 'st-done';
-    case 'אושר': return 'st-approved';
-    case 'בוטל': return 'st-cancel';
-    case 'ממתין לאישור': return 'st-pending';
-    default: return 'st-other';
+  // תגית צבע לפי סטטוס להדפסה ב־[ngClass]
+  statusClass(st: string): string {
+    switch (st) {
+      case 'הושלם': return 'st-done';
+      case 'אושר': return 'st-approved';
+      case 'בוטל': return 'st-cancel';
+      case 'ממתין לאישור': return 'st-pending';
+      default: return 'st-other';
+    }
   }
-}
 
   /* =========================
      Private fields
   ========================= */
   private infoTimer: any;
-private readonly CHILD_SELECT =
-  'child_uuid, gov_id, first_name, last_name, birth_date, gender, funding_source_id, instructor_id, parent_uid, status, medical_notes, scheduled_deletion_at';
- 
+  private readonly CHILD_SELECT =
+    'child_uuid, gov_id, first_name, last_name, birth_date, gender, funding_source_id, instructor_id, parent_uid, status, medical_notes, scheduled_deletion_at';
+
   /* =========================
      Constructor
   ========================= */
- constructor(
-  private router: Router,
-  private sanitizer: DomSanitizer
-) {}
+  constructor(
+    private router: Router,
+    private sanitizer: DomSanitizer
+  ) { }
 
 
   /* =========================
@@ -137,9 +137,9 @@ private readonly CHILD_SELECT =
     this.loading = true;
 
     const baseSelect =
-    this.CHILD_SELECT && this.CHILD_SELECT.trim().length
-  ? this.CHILD_SELECT
-  : 'child_uuid, first_name, last_name, status';
+      this.CHILD_SELECT && this.CHILD_SELECT.trim().length
+        ? this.CHILD_SELECT
+        : 'child_uuid, first_name, last_name, status';
     const hasStatus = /(^|,)\s*status\s*(,|$)/.test(baseSelect);
     const selectWithStatus = hasStatus ? baseSelect : `${baseSelect}, status`;
 
@@ -150,7 +150,7 @@ private readonly CHILD_SELECT =
       this.error = res.error;
       return;
     }
-const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמחק)
+    const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמחק)
 
     this.children = rows;
     await this.loadTermsStatuses();
@@ -158,13 +158,13 @@ const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמ�
 
     // ברירת מחדל – מציג עד 4 פעילים ראשונים
     if (this.selectedIds.size === 0) {
-  const actives = rows.filter(r => this.isActiveStatus(r.status));
-  const pendings = rows.filter(r => !this.isActiveStatus(r.status) && !this.isDeletedStatus(r.status));
-  const initial = [...actives, ...pendings].slice(0, this.maxSelected);
+      const actives = rows.filter(r => this.isActiveStatus(r.status));
+      const pendings = rows.filter(r => !this.isActiveStatus(r.status) && !this.isDeletedStatus(r.status));
+      const initial = [...actives, ...pendings].slice(0, this.maxSelected);
 
-  this.selectedIds = new Set(initial.map(r => this.childId(r)).filter(Boolean) as string[]);
-  initial.forEach(c => this.ensureEditable(c));
-}
+      this.selectedIds = new Set(initial.map(r => this.childId(r)).filter(Boolean) as string[]);
+      initial.forEach(c => this.ensureEditable(c));
+    }
 
 
     await this.loadNextAppointments();
@@ -189,8 +189,8 @@ const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמ�
   }
 
   isActiveChild(c: any): boolean {
-  return this.isActiveStatus(c?.['status']);
-}
+    return this.isActiveStatus(c?.['status']);
+  }
 
 
   toggleChildSelection(child: any) {
@@ -198,10 +198,10 @@ const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמ�
     if (!id) return;
 
     // לא פעיל? הצגת הודעה בלבד
-   if (!this.canOpenCardByStatus(child?.status)) {
-  this.showInfo('ילד זה נמחק, פנה למזכירות');
-  return;
-}
+    if (!this.canOpenCardByStatus(child?.status)) {
+      this.showInfo('ילד זה נמחק, פנה למזכירות');
+      return;
+    }
 
 
     // כבר פתוח → סגירה
@@ -223,19 +223,19 @@ const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמ�
   }
 
   closeCard(child: any) {
-  const id = this.childId(child);
-  if (!id) return;
-  this.selectedIds.delete(id);
-  delete this.editing[id];
-  delete this.editables[id];
+    const id = this.childId(child);
+    if (!id) return;
+    this.selectedIds.delete(id);
+    delete this.editing[id];
+    delete this.editables[id];
 
-  // ניקוי הודעת הזמנה (אם קיימת)
-  if (this.bookingMsgTimers[id]) {
-    clearTimeout(this.bookingMsgTimers[id]);
-    delete this.bookingMsgTimers[id];
+    // ניקוי הודעת הזמנה (אם קיימת)
+    if (this.bookingMsgTimers[id]) {
+      clearTimeout(this.bookingMsgTimers[id]);
+      delete this.bookingMsgTimers[id];
+    }
+    delete this.bookingMsg[id];
   }
-  delete this.bookingMsg[id];
-}
 
   trackByChild = (_: number, item: any) => this.childId(item);
 
@@ -258,65 +258,65 @@ const rows = (res.data ?? []) as ChildRow[]; // מציגים גם Deleted (נמ�
   }
 
   async saveChild(child: any) {
-  const id = this.childId(child);
-  if (!id) {
-    this.error = 'חסר מזהה ילד (child_uuid).';
-    return;
+    const id = this.childId(child);
+    if (!id) {
+      this.error = 'חסר מזהה ילד (child_uuid).';
+      return;
+    }
+
+    const model = this.editables[id];
+    const firstErr = this.validateChildName(model.first_name, 'שם פרטי');
+    const lastErr = this.validateChildName(model.last_name, 'שם משפחה');
+
+    if (firstErr || lastErr) {
+      // אפשר הודעה בכרטיס או באנר כללי
+      this.showCardMessage(id, firstErr ?? lastErr ?? 'שגיאה בטופס');
+      return;
+    }
+
+    const { error } = await dbTenant()
+      .from('children')
+      .update({
+        first_name: model.first_name,
+        last_name: model.last_name,
+        birth_date: model.birth_date || null,
+        funding_source_id: model.funding_source_id || null,
+        medical_notes: model.medical_notes || null
+      })
+      .eq('child_uuid', id)
+      .select('child_uuid')
+      .single();
+
+    if (error) {
+      this.error = error.message ?? 'שגיאה בשמירה';
+      return;
+    }
+
+    const idx = this.children.findIndex(c => this.childId(c) === id);
+    if (idx !== -1) {
+      const updated = {
+        ...this.children[idx],
+        first_name: model.first_name,
+        last_name: model.last_name,
+        birth_date: model.birth_date || null,
+        funding_source_id: model.funding_source_id || null, medical_notes: model.medical_notes || null
+      };
+
+      this.children = [
+        ...this.children.slice(0, idx),
+        updated,
+        ...this.children.slice(idx + 1)
+      ];
+
+      this.editables[id] = {
+        ...updated,
+        age: updated.birth_date ? this.getAge(updated.birth_date) : null
+      };
+    }
+
+    this.editing[id] = false;
+    this.showInfo('השינויים נשמרו בהצלחה');
   }
-
-  const model = this.editables[id];
-const firstErr = this.validateChildName(model.first_name, 'שם פרטי');
-const lastErr  = this.validateChildName(model.last_name, 'שם משפחה');
-
-if (firstErr || lastErr) {
-  // אפשר הודעה בכרטיס או באנר כללי
-  this.showCardMessage(id, firstErr ?? lastErr ?? 'שגיאה בטופס');
-  return;
-}
-
-  const { error } = await dbTenant()
-    .from('children')
-    .update({
-    first_name: model.first_name,
-    last_name: model.last_name,
-      birth_date: model.birth_date || null,
-funding_source_id: model.funding_source_id || null,
-      medical_notes: model.medical_notes || null
-    })
-    .eq('child_uuid', id)
-    .select('child_uuid')
-    .single();
-
-  if (error) {
-    this.error = error.message ?? 'שגיאה בשמירה';
-    return;
-  }
-
-  const idx = this.children.findIndex(c => this.childId(c) === id);
-  if (idx !== -1) {
-    const updated = {
-      ...this.children[idx],
-       first_name: model.first_name,
-       last_name: model.last_name,
-      birth_date: model.birth_date || null,
-funding_source_id: model.funding_source_id || null,      medical_notes: model.medical_notes || null
-    };
-
-    this.children = [
-      ...this.children.slice(0, idx),
-      updated,
-      ...this.children.slice(idx + 1)
-    ];
-
-    this.editables[id] = {
-      ...updated,
-      age: updated.birth_date ? this.getAge(updated.birth_date) : null
-    };
-  }
-
-  this.editing[id] = false;
-  this.showInfo('השינויים נשמרו בהצלחה');
-}
 
 
   cancelEdit(child: any) {
@@ -332,23 +332,23 @@ funding_source_id: model.funding_source_id || null,      medical_notes: model.me
   ========================= */
   private isSameLocalDate(a: Date, b: Date): boolean {
     return a.getFullYear() === b.getFullYear()
-        && a.getMonth() === b.getMonth()
-        && a.getDate() === b.getDate();
+      && a.getMonth() === b.getMonth()
+      && a.getDate() === b.getDate();
   }
 
   // “התור הבא” מכלול הילדים – מתוך lessons_occurrences
   private async loadNextAppointments(): Promise<void> {
     const ids = this.children
-  .filter(c => !this.isDeletedStatus(c.status))
-  .map(c => this.childId(c))
-  .filter(Boolean) as string[];
+      .filter(c => !this.isDeletedStatus(c.status))
+      .map(c => this.childId(c))
+      .filter(Boolean) as string[];
 
     if (!ids.length) return;
 
     this.nextAppointments = {};
     ids.forEach(id => (this.nextAppointments[id] = null));
 
-const nowIso = this.nowLocalIsoNoTz(); 
+    const nowIso = this.nowLocalIsoNoTz();
     const dbc = dbTenant();
 
     const { data: occRaw, error } = await dbc
@@ -377,9 +377,9 @@ const nowIso = this.nowLocalIsoNoTz();
         .in('id_number', instrIds);
 
       const inst = (instRaw ?? []) as InstructorRow[];
-    instructorNameById = Object.fromEntries(
-    inst.map(i => [i.id_number, `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()])
-    ) as Record<string, string>;
+      instructorNameById = Object.fromEntries(
+        inst.map(i => [i.id_number, `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()])
+      ) as Record<string, string>;
 
     }
 
@@ -388,29 +388,29 @@ const nowIso = this.nowLocalIsoNoTz();
       const cid = o.child_id;
       if (!cid || this.nextAppointments[cid]) continue;
 
-  
-const ts = this.occTs(o.start_datetime);
-if (!Number.isFinite(ts)) continue;
 
-if (ts < Date.now()) {
-  // עבר כבר (גם אם ה-DB החזיר אותו) -> מדלגים וממשיכים לחפש את הבא
-  continue;
-}
+      const ts = this.occTs(o.start_datetime);
+      if (!Number.isFinite(ts)) continue;
 
-const dt = new Date(ts);
-this.nextAppointments[cid] = {
-  date: this.fmtDateHe(dt),
-  time: this.fmtTimeHe(dt),
-  instructor: instructorNameById[o.instructor_id ?? ''],
-  isToday: this.isSameLocalDate(dt, new Date()),
-  _ts: ts
-};
+      if (ts < Date.now()) {
+        // עבר כבר (גם אם ה-DB החזיר אותו) -> מדלגים וממשיכים לחפש את הבא
+        continue;
+      }
+
+      const dt = new Date(ts);
+      this.nextAppointments[cid] = {
+        date: this.fmtDateHe(dt),
+        time: this.fmtTimeHe(dt),
+        instructor: instructorNameById[o.instructor_id ?? ''],
+        isToday: this.isSameLocalDate(dt, new Date()),
+        _ts: ts
+      };
 
 
     }
   }
 
-    openAddChildWizard() {
+  openAddChildWizard() {
     this.showAddChildWizard = true;
   }
 
@@ -427,17 +427,17 @@ this.nextAppointments[cid] = {
 
   // “פעילות אחרונה” – מופע אחרון בעבר (הושלם/אושר)
   private async loadLastActivities(): Promise<void> {
-const ids = this.children
-  .filter(c => !this.isDeletedStatus(c.status))
-  .map(c => this.childId(c))
-  .filter(Boolean) as string[];
+    const ids = this.children
+      .filter(c => !this.isDeletedStatus(c.status))
+      .map(c => this.childId(c))
+      .filter(Boolean) as string[];
     if (!ids.length) return;
 
     this.lastActivities = {};
     ids.forEach(id => (this.lastActivities[id] = null));
 
     const dbc = dbTenant();
-const nowIso = this.nowLocalIsoNoTz(); 
+    const nowIso = this.nowLocalIsoNoTz();
 
     const { data: occRaw, error } = await dbc
       .from('lessons_occurrences')
@@ -463,7 +463,7 @@ const nowIso = this.nowLocalIsoNoTz();
         .in('id_number', instrIds);
       const inst = (instRaw ?? []) as InstructorRow[];
       instructorNameById = Object.fromEntries(
-       inst.map(i => [i.id_number, `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()])
+        inst.map(i => [i.id_number, `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()])
       ) as Record<string, string>;
 
     }
@@ -473,19 +473,19 @@ const nowIso = this.nowLocalIsoNoTz();
       const cid = o.child_id;
       if (!cid || this.lastActivities[cid]) continue;
 
-     const ts = this.occTs(o.start_datetime);
-if (!Number.isFinite(ts)) continue;
+      const ts = this.occTs(o.start_datetime);
+      if (!Number.isFinite(ts)) continue;
 
-// "פעילות אחרונה" חייב להיות באמת בעבר
-if (ts > Date.now()) continue;
+      // "פעילות אחרונה" חייב להיות באמת בעבר
+      if (ts > Date.now()) continue;
 
-const dt = new Date(ts);
-this.lastActivities[cid] = {
-  date: this.fmtDateHe(dt),
-  time: this.fmtTimeHe(dt),
-  instructor: instructorNameById[o.instructor_id ?? ''] || undefined,
-  pendingCompletion: o.status !== 'הושלם'
-};
+      const dt = new Date(ts);
+      this.lastActivities[cid] = {
+        date: this.fmtDateHe(dt),
+        time: this.fmtTimeHe(dt),
+        instructor: instructorNameById[o.instructor_id ?? ''] || undefined,
+        pendingCompletion: o.status !== 'הושלם'
+      };
 
     }
   }
@@ -503,30 +503,30 @@ this.lastActivities[cid] = {
     const id = this.childId(child);
     return id ? this.lastActivities[id] ?? null : null;
   }
-private nowLocalIsoNoTz(): string {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mi = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`; // בלי Z
-}
+  private nowLocalIsoNoTz(): string {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`; // בלי Z
+  }
 
   /* =========================
      Delete / Leave (logical)
   ========================= */
   async confirmDeleteChild(child: any) {
-     if (this.isPendingDelete(child?.status)) {
-    this.showInfo('כבר נשלחה בקשת מחיקה עבור ילד זה וממתינה לאישור המזכירות.');
-    return;
-  }
+    if (this.isPendingDelete(child?.status)) {
+      this.showInfo('כבר נשלחה בקשת מחיקה עבור ילד זה וממתינה לאישור המזכירות.');
+      return;
+    }
     const id = this.childId(child);
     if (!id) return;
 
     const dbc = dbTenant();
-const nowIso = this.nowLocalIsoNoTz();
+    const nowIso = this.nowLocalIsoNoTz();
 
     // סטייט לדיאלוג
     this.pendingDeleteId = id;
@@ -552,84 +552,194 @@ const nowIso = this.nowLocalIsoNoTz();
   }
 
 
-   async deleteChild() {
-    if (!this.pendingDeleteId) return;
+  async deleteChild(): Promise<void> {
+    // 🔒 כבר מתבצעת שליחה
+    if (this.deleteChildInFlight) {
+      return;
+    }
+
+    if (!this.pendingDeleteId) {
+      return;
+    }
+
+    this.deleteChildInFlight = true;
+    this.error = undefined;
 
     const childId = this.pendingDeleteId;
-    const dbc = dbTenant();
 
-    // מי ההורה?
-    const user = await getCurrentUserData();
-    const parentUid = user?.uid ?? null;
+    try {
+      const dbc = dbTenant();
 
-    if (!parentUid) {
-      this.error = 'שגיאה: לא נמצאו פרטי הורה מחובר';
-      return;
+      // מי ההורה?
+      const user = await getCurrentUserData();
+      const parentUid = user?.uid ?? null;
+
+      if (!parentUid) {
+        this.error = 'שגיאה: לא נמצאו פרטי הורה מחובר';
+        return;
+      }
+
+      /*
+       * 🔒 בדיקה נוספת מול DB:
+       * אולי כבר קיימת בקשת מחיקה פתוחה לילד הזה.
+       */
+      const {
+        data: existingRequest,
+        error: existingRequestError
+      } = await dbc
+        .from('secretarial_requests')
+        .select('id')
+        .eq('child_id', childId)
+        .eq('request_type', 'DELETE_CHILD')
+        .eq('status', 'PENDING')
+        .limit(1)
+        .maybeSingle();
+
+      if (existingRequestError) {
+        throw existingRequestError;
+      }
+
+      if (existingRequest) {
+        this.showInfo(
+          'כבר קיימת בקשת מחיקה עבור ילד זה וממתינה לאישור המזכירות.'
+        );
+
+        this.showDeleteConfirm = false;
+        return;
+      }
+
+      /*
+       * 1. מעדכנים סטטוס הילד.
+       *
+       * חשוב: התנאי eq('status', 'Active')
+       * מונע מאותה פעולה להתבצע שוב אם הסטטוס כבר השתנה.
+       */
+      const {
+        data: updatedChild,
+        error: updateError,
+      } = await dbc
+        .from('children')
+        .update({
+          status: 'Pending Deletion Approval'
+        })
+        .eq('child_uuid', childId)
+        .eq('status', 'Active')
+        .select(`
+        child_uuid,
+        gov_id,
+        first_name,
+        last_name,
+        birth_date,
+        gender,
+        funding_source_id,
+        medical_notes,
+        parent_uid
+      `)
+        .maybeSingle();
+
+      if (updateError) {
+        console.error(
+          'שגיאה בעדכון סטטוס הילד למחיקה:',
+          updateError
+        );
+
+        throw updateError;
+      }
+
+      /*
+       * אם לא חזרה שורה:
+       * כנראה הסטטוס כבר אינו Active.
+       */
+      if (!updatedChild) {
+        this.showInfo(
+          'כבר קיימת בקשת מחיקה עבור ילד זה או שהילד אינו פעיל.'
+        );
+
+        this.showDeleteConfirm = false;
+        await this.loadChildren();
+        return;
+      }
+
+      // 2. יצירת בקשה למזכירה
+      const secretarialPayload: any = {
+        request_type: 'DELETE_CHILD',
+        status: 'PENDING',
+        requested_by_uid: parentUid,
+        requested_by_role: 'parent',
+        child_id: updatedChild.child_uuid,
+
+        payload: {
+          gov_id: updatedChild.gov_id,
+          first_name: updatedChild.first_name,
+          last_name: updatedChild.last_name,
+          birth_date: updatedChild.birth_date,
+          gender: updatedChild.gender,
+
+          funding_source_id:
+            updatedChild.funding_source_id,
+
+          funding_source_name:
+            this.getFundingSourceName(
+              updatedChild.funding_source_id
+            ),
+
+          medical_notes:
+            updatedChild.medical_notes,
+
+          remaining_lessons_count:
+            this.pendingDeleteLessonsCount ?? null,
+        },
+      };
+
+      const {
+        error: secretarialError
+      } = await dbc
+        .from('secretarial_requests')
+        .insert(secretarialPayload);
+
+      if (secretarialError) {
+        console.error(
+          'שגיאה ביצירת בקשה למחיקת ילד במזכירות:',
+          secretarialError
+        );
+
+        /*
+         * שימי לב:
+         * הילד כבר עבר ל-Pending Deletion Approval.
+         */
+        this.showInfo(
+          'הבקשה להסרת הילד נרשמה חלקית – אנא צרי קשר עם המשרד לווידוא.'
+        );
+
+        return;
+      }
+
+      this.showInfo(
+        'הבקשה להסרת הילד נשלחה למזכירה ותמתין לאישור.'
+      );
+
+      // 3. סוגרים את המודאל
+      this.selectedIds.delete(childId);
+      this.showDeleteConfirm = false;
+
+      this.pendingDeleteId = null;
+      this.pendingDeleteChildName = null;
+      this.pendingDeleteLessonsCount = null;
+
+      await this.loadChildren();
+
+    } catch (err: any) {
+      console.error('deleteChild error:', err);
+
+      this.error =
+        err?.message ??
+        'אירעה שגיאה בשליחת בקשת המחיקה';
+
+    } finally {
+      this.deleteChildInFlight = false;
     }
-
-    // 1) עדכון סטטוס הילד ל־Pending Deletion Approval + שליפה לצורך payload
-    const {
-      data: updatedChild,
-      error: updateError,
-    } = await dbc
-      .from('children')
-      .update({ status: 'Pending Deletion Approval' })
-      .eq('child_uuid', childId)
-      .select(
-        'child_uuid, gov_id, first_name, last_name, birth_date, gender, funding_source_id, medical_notes, parent_uid'
-      )
-      .single();
-
-    if (updateError || !updatedChild) {
-      console.error('שגיאה בעדכון סטטוס הילד למחיקה:', updateError);
-      this.error = updateError?.message ?? 'שגיאה במחיקת הילד';
-      return;
-    }
-
-    // 2) יצירת בקשה למזכירה בטבלת secretarial_requests
-    const secretarialPayload: any = {
-      // אם ב-ENUM בבסיס נתונים זה כתוב אחרת (למשל DELET_CHILD) – תחליפי כאן
-      request_type: 'DELETE_CHILD',
-      status: 'PENDING',
-      requested_by_uid: parentUid,
-      requested_by_role: 'parent',
-      child_id: updatedChild.child_uuid,
-      payload: {
-        gov_id:        updatedChild.gov_id,
-        first_name:    updatedChild.first_name,
-        last_name:     updatedChild.last_name,
-        birth_date:    updatedChild.birth_date,
-        gender:        updatedChild.gender,
-funding_source_id: updatedChild.funding_source_id,
-funding_source_name: this.getFundingSourceName(updatedChild.funding_source_id),
-        medical_notes: updatedChild.medical_notes,
-        remaining_lessons_count: this.pendingDeleteLessonsCount ?? null,
-      },
-      // created_at – מגיע מ-default של ה-DB
-    };
-
-    const { error: secretarialError } = await dbc
-      .from('secretarial_requests')
-      .insert(secretarialPayload);
-
-    if (secretarialError) {
-      console.error('שגיאה ביצירת בקשה למחיקת ילד במזכירות:', secretarialError);
-      this.showInfo('הבקשה להסרת הילד נרשמה חלקית – אנא צרי קשר עם המשרד לווידוא.');
-    } else {
-      this.showInfo('הבקשה להסרת הילד נשלחה למזכירה ותמתין לאישור.');
-    }
-
-    // 3) ניקוי סטייט ורענון
-    this.selectedIds.delete(childId);
-    this.showDeleteConfirm = false;
-    this.pendingDeleteId = null;
-    this.pendingDeleteChildName = null;
-    this.pendingDeleteLessonsCount = null;
-
-    await this.loadChildren();
   }
-
-   cancelDelete() {
+  cancelDelete() {
     this.showDeleteConfirm = false;
     this.pendingDeleteId = null;
     this.pendingDeleteChildName = null;
@@ -639,97 +749,97 @@ funding_source_name: this.getFundingSourceName(updatedChild.funding_source_id),
   /* =========================
      Navigation
   ========================= */
-// הודעת "הזמן תור" פר-כרטיס (child_uuid) + טיימר ניקוי
-public bookingMsg: Record<string, string | null> = {};
-private bookingMsgTimers: Record<string, any> = {};
+  // הודעת "הזמן תור" פר-כרטיס (child_uuid) + טיימר ניקוי
+  public bookingMsg: Record<string, string | null> = {};
+  private bookingMsgTimers: Record<string, any> = {};
 
-// הצגת הודעה בכרטיס מסוים, וניקוי אוטומטי אחרי ms
-public showCardMessage(childId: string, text: string, ms = 6000) {
-  if (!childId) return;
-  // נקה טיימר קודם אם קיים
-  if (this.bookingMsgTimers[childId]) {
-    clearTimeout(this.bookingMsgTimers[childId]);
-    delete this.bookingMsgTimers[childId];
-  }
-  this.bookingMsg[childId] = text;
-  this.bookingMsgTimers[childId] = setTimeout(() => {
-    this.bookingMsg[childId] = null;
-    delete this.bookingMsgTimers[childId];
-  }, ms);
-}
-
-goToBooking(child: any) {
-  const id = this.childId(child);
-  if (!id) return;
-
-  // אם מחכה לאישור הוספה
-  if (this.isPendingAdd(child?.status)) {
-    this.showCardMessage(id, 'הוספת הילד טרם אושרה');
-    return;
+  // הצגת הודעה בכרטיס מסוים, וניקוי אוטומטי אחרי ms
+  public showCardMessage(childId: string, text: string, ms = 6000) {
+    if (!childId) return;
+    // נקה טיימר קודם אם קיים
+    if (this.bookingMsgTimers[childId]) {
+      clearTimeout(this.bookingMsgTimers[childId]);
+      delete this.bookingMsgTimers[childId];
+    }
+    this.bookingMsg[childId] = text;
+    this.bookingMsgTimers[childId] = setTimeout(() => {
+      this.bookingMsg[childId] = null;
+      delete this.bookingMsgTimers[childId];
+    }, ms);
   }
 
+  goToBooking(child: any) {
+    const id = this.childId(child);
+    if (!id) return;
 
-  // ניווט
-  this.router.navigate(['parent/appointment'], { queryParams: { needApprove: true, childId: child?.child_uuid } });
-}
+    // אם מחכה לאישור הוספה
+    if (this.isPendingAdd(child?.status)) {
+      this.showCardMessage(id, 'הוספת הילד טרם אושרה');
+      return;
+    }
 
-//ביטול בקשת מחיקה
-public cancelDeletionRequestInFlight: Record<string, boolean> = {};
 
-public async cancelDeletionRequest(child: any) {
-  const id = this.childId(child);
-  if (!id) return;
+    // ניווט
+    this.router.navigate(['parent/appointment'], { queryParams: { needApprove: true, childId: child?.child_uuid } });
+  }
 
-  this.cancelDeletionRequestInFlight[id] = true;
+  //ביטול בקשת מחיקה
+  public cancelDeletionRequestInFlight: Record<string, boolean> = {};
 
-  // 1) מחזירים את הילד ל-Active
-  const { data: updatedChild, error: childErr } = await dbTenant()
-    .from('children')
-    .update({ status: 'Active' })
-    .eq('child_uuid', id)
-    .select('status')
-    .single();
+  public async cancelDeletionRequest(child: any) {
+    const id = this.childId(child);
+    if (!id) return;
 
-  if (childErr) {
+    this.cancelDeletionRequestInFlight[id] = true;
+
+    // 1) מחזירים את הילד ל-Active
+    const { data: updatedChild, error: childErr } = await dbTenant()
+      .from('children')
+      .update({ status: 'Active' })
+      .eq('child_uuid', id)
+      .select('status')
+      .single();
+
+    if (childErr) {
+      this.cancelDeletionRequestInFlight[id] = false;
+      this.showCardMessage(id, 'שגיאה בביטול הבקשה. נסי שוב.');
+      return;
+    }
+
+    // 2) מסמנים את בקשת המזכירות כ-בוטלה ע"י המבקש
+    // חשוב: child_id הוא UUID בטבלה, אז כאן חייב להיות UUID אמיתי (child_uuid)
+    const { error: reqErr } = await dbTenant()
+      .from('secretarial_requests')
+      .update({
+        status: 'CANCELLED_BY_REQUESTER',
+        decided_at: new Date().toISOString(),
+        decision_note: 'בוטל על ידי המבקש'
+      })
+      .eq('child_id', id)
+      .eq('request_type', 'DELETE_CHILD')           // ⬅️ תעדכני לערך האמיתי אצלך
+      .in('status', ['PENDING'])     // ⬅️ תעדכני לסטטוסים הפתוחים אצלך
+      .is('decided_at', null);                      // כדי לא לדרוס החלטות קיימות
+
     this.cancelDeletionRequestInFlight[id] = false;
-    this.showCardMessage(id, 'שגיאה בביטול הבקשה. נסי שוב.');
-    return;
+
+    if (reqErr) {
+      // הילד כבר חזר ל-Active, אז זו הודעת אזהרה נפרדת
+      this.showCardMessage(id, 'הבקשה בוטלה לילד, אבל עדכון סטטוס הבקשה למזכירות נכשל.');
+      return;
+    }
+
+    // 3) עדכון לוקאלי
+    const idx = this.children.findIndex(c => this.childId(c) === id);
+    if (idx !== -1) {
+      this.children = [
+        ...this.children.slice(0, idx),
+        { ...this.children[idx], status: updatedChild.status } as any,
+        ...this.children.slice(idx + 1)
+      ];
+    }
+
+    this.showCardMessage(id, 'בקשת המחיקה בוטלה');
   }
-
-  // 2) מסמנים את בקשת המזכירות כ-בוטלה ע"י המבקש
-  // חשוב: child_id הוא UUID בטבלה, אז כאן חייב להיות UUID אמיתי (child_uuid)
-  const { error: reqErr } = await dbTenant()
-    .from('secretarial_requests')
-    .update({
-      status: 'CANCELLED_BY_REQUESTER',
-      decided_at: new Date().toISOString(),
-      decision_note: 'בוטל על ידי המבקש'
-    })
-    .eq('child_id', id)
-    .eq('request_type', 'DELETE_CHILD')           // ⬅️ תעדכני לערך האמיתי אצלך
-    .in('status', ['PENDING'])     // ⬅️ תעדכני לסטטוסים הפתוחים אצלך
-    .is('decided_at', null);                      // כדי לא לדרוס החלטות קיימות
-
-  this.cancelDeletionRequestInFlight[id] = false;
-
-  if (reqErr) {
-    // הילד כבר חזר ל-Active, אז זו הודעת אזהרה נפרדת
-    this.showCardMessage(id, 'הבקשה בוטלה לילד, אבל עדכון סטטוס הבקשה למזכירות נכשל.');
-    return;
-  }
-
-  // 3) עדכון לוקאלי
-  const idx = this.children.findIndex(c => this.childId(c) === id);
-  if (idx !== -1) {
-    this.children = [
-      ...this.children.slice(0, idx),
-      { ...this.children[idx], status: updatedChild.status } as any,
-      ...this.children.slice(idx + 1)
-    ];
-  }
-
-  this.showCardMessage(id, 'בקשת המחיקה בוטלה');
-}
 
   /* =========================
      Helpers (formatting & UX)
@@ -760,258 +870,258 @@ public async cancelDeletionRequest(child: any) {
     this.infoTimer = setTimeout(() => (this.infoMessage = null), ms);
   }
   openHistory(child: any) {
-  const id = this.childId(child);
-  if (!id) return;
-  this.historyChildName = `${child.first_name || ''} ${child.last_name || ''}`.trim();
-  this.showHistory = true;
-  this.loadChildHistory(id);
-}
+    const id = this.childId(child);
+    if (!id) return;
+    this.historyChildName = `${child.first_name || ''} ${child.last_name || ''}`.trim();
+    this.showHistory = true;
+    this.loadChildHistory(id);
+  }
 
-closeHistory() {
-  this.showHistory = false;
-  this.historyItems = [];
-  this.historyLoading = false;
-}
-
-private async loadChildHistory(childId: string) {
-  this.historyLoading = true;
-
-  const dbc = dbTenant();
-const nowIso = this.nowLocalIsoNoTz(); 
-
-  // כל המופעים בעבר (מאז הכניסה למערכת ועד עכשיו)
-  const { data: occRaw, error } = await dbc
-    .from('lessons_occurrences')
-    .select('start_datetime, instructor_id, status, lesson_type')
-    .eq('child_id', childId)
-    .lte('start_datetime', nowIso)
-    .order('start_datetime', { ascending: false });
-
-  if (error) {
-    console.error('שגיאה בטעינת היסטוריה:', error);
+  closeHistory() {
+    this.showHistory = false;
+    this.historyItems = [];
     this.historyLoading = false;
-    return;
   }
 
-  const occs = (occRaw ?? []) as OccurrenceRow[];
+  private async loadChildHistory(childId: string) {
+    this.historyLoading = true;
 
-  // שמות מדריכים
-  const instrIds = Array.from(new Set(occs.map(o => o.instructor_id).filter(Boolean))) as string[];
-  let nameById: Record<string, string> = {};
-  if (instrIds.length) {
-    const { data: instRaw } = await dbc
-      .from('instructors')
-      .select('id_number, first_name, last_name')
-      .in('id_number', instrIds);
-      const inst = (instRaw ?? []) as InstructorRow[];
-      nameById = Object.fromEntries(
-      inst.map(i => [
-     i.id_number,
-    `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()
-  ])
-) as Record<string, string>;
-
-  }
-
-  this.historyItems = occs.map(o => {
-    const dt = new Date(o.start_datetime);
-    return {
-      date: this.fmtDateHe(dt),
-      time: this.fmtTimeHe(dt),
-      instructor: nameById[o.instructor_id ?? ''] || undefined,
-      status: o.status || '',
-      lesson_type: o.lesson_type || undefined
-    };
-  });
-
-  this.historyLoading = false;
-}
-// ===== Status helpers (public so template can call) =====
-public isActiveStatus = (st?: string | null): boolean =>
-  st === 'Active';
-
-public isPendingAdd = (st?: string | null): boolean =>
-  st === 'Pending Addition Approval';
-
-public isPendingDelete = (st?: string | null): boolean =>
-  st === 'Pending Deletion Approval';
-
-public isDeletedStatus = (st?: string | null): boolean =>
-  st === 'Deleted';
-
-// מותר לפתוח כרטיס? (הכול מלבד Deleted)
-public canOpenCardByStatus = (st?: string | null): boolean =>
-  !this.isDeletedStatus(st);
-
-// מותר להזמין תור? (Active או Pending Deletion Approval)
-public canBookByStatus = (st?: string | null): boolean =>
-  st === 'Active' || st === 'Pending Deletion Approval';
-private validateChildName(value: string, label: string): string | null {
-  const v = (value ?? '').trim();
-
-  if (!v) return `${label} הוא שדה חובה`;
-  if (v.length > 15) return `${label} יכול להכיל עד 15 תווים`;
-  if (/\d/.test(v)) return `${label} לא יכול להכיל מספרים`;
-
-  return null;
-}
-private occTs(start_datetime: string): number {
-  if (!start_datetime) return NaN;
-
-  // אם יש Z או offset (+02:00) -> אפשר לתת ל-Date לפרש
-  const hasTz = /([zZ]|[+\-]\d{2}:\d{2})$/.test(start_datetime);
-  if (hasTz) return new Date(start_datetime).getTime();
-
-  // בלי TZ -> מפרשים כלוקאל (ישראל) בצורה ידנית
-  const s = String(start_datetime).trim().replace(' ', 'T'); // "2026-02-10T15:00:00"
-  const [datePart, timePart = '00:00:00'] = s.split('T');
-  const [y, m, d] = datePart.split('-').map(Number);
-  const [hh = 0, mm = 0, ss = 0] = timePart.split(':').map(Number);
-
-  return new Date(y, (m - 1), d, hh, mm, ss, 0).getTime();
-}
-
-async loadTermsStatuses() {
-  try {
-    const { data, error } = await dbTenant().rpc('get_my_children_terms_status');
-    if (error) throw error;
-
-    const rows = (data ?? []) as any[];
-    const map: any = {};
-    for (const r of rows) {
-      map[String(r.child_id)] = {
-        is_signed: !!r.is_signed,
-        signed_at: r.signed_at ?? null,
-        required_version: r.required_version ?? null
-      };
-    }
-    this.termsStatusByChild = map;
-  } catch (e) {
-    console.error('loadTermsStatuses failed', e);
-    // לא חוסמים UI של הילדים בגלל זה
-  }
-}
-public isDeletionScheduled = (st?: string | null): boolean =>
-  st === 'Deletion Scheduled';
-
-private parseTs(v: any): number {
-  if (!v) return NaN;
-  // Supabase לרוב מחזיר ISO עם tz, אבל נשמור על בטיחות
-  const s = String(v);
-  const hasTz = /([zZ]|[+\-]\d{2}:\d{2})$/.test(s);
-  return new Date(hasTz ? s : `${s}Z`).getTime();
-}
-
-public deletionScheduledText(child: any): string | null {
-  if (!this.isDeletionScheduled(child?.status)) return null;
-
-  const ts = this.parseTs(child?.scheduled_deletion_at);
-  if (!Number.isFinite(ts)) return 'מחיקה מתבצעת בקרוב';
-
-  const msLeft = ts - Date.now();
-  const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
-
-  // אם הגיע הזמן/עבר -> עדיין סטטוס Deletion Scheduled אבל ימים 0
-  return `מחיקה מתבצעת בעוד ${daysLeft} ימים`;
-}
-
-isChildTermsSigned(childId: string): boolean {
-  return !!this.termsStatusByChild?.[childId]?.is_signed;
-}
-
-openTermsSign(child: any) {
-  const id = this.childId(child);
-  if (!id) return;
-  this.termsSignChildId = id;
-  this.termsSignChildName = `${child.first_name || ''} ${child.last_name || ''}`.trim();
-  this.showTermsSign = true;
-}
-
-onTermsSigned() {
-  // רענון סטטוסים בלבד
-  this.loadTermsStatuses();
-  this.showTermsSign = false;
-  this.termsSignChildId = null;
-  this.termsSignChildName = null;
-}
-
-closeTermsSign() {
-  this.showTermsSign = false;
-  this.termsSignChildId = null;
-  this.termsSignChildName = null;
-}
-
-async openSignedTerms(child: any) {
-  this.error = undefined;
-
-  const cid = this.childId(child); // <-- UUID אמיתי
-  if (!cid) return void (this.error = 'חסר childId');
-
-  this.loadingSigned.set(true);
-
-  try {
     const dbc = dbTenant();
-    const client = getSupabaseClient();
+    const nowIso = this.nowLocalIsoNoTz();
 
-    const { data, error } = await dbc
-      .from('child_terms_signatures')
-      .select('signed_pdf_bucket, signed_pdf_path')
-      .eq('child_id', cid)              // ✅ נסי קודם ככה
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // כל המופעים בעבר (מאז הכניסה למערכת ועד עכשיו)
+    const { data: occRaw, error } = await dbc
+      .from('lessons_occurrences')
+      .select('start_datetime, instructor_id, status, lesson_type')
+      .eq('child_id', childId)
+      .lte('start_datetime', nowIso)
+      .order('start_datetime', { ascending: false });
 
-
-    if (error) throw error;
-
-    const bucket = data?.signed_pdf_bucket ?? null;
-    const path = data?.signed_pdf_path ?? null;
-
-    if (!bucket || !path) {
-      this.signedDocUrlRaw.set(null);
-      this.signedDocUrlSafe.set(null);
-      this.signedOpen.set(true);
+    if (error) {
+      console.error('שגיאה בטעינת היסטוריה:', error);
+      this.historyLoading = false;
       return;
     }
 
-    const { data: pub } = client.storage.from(bucket).getPublicUrl(path);
-    let url = pub?.publicUrl ?? null;
+    const occs = (occRaw ?? []) as OccurrenceRow[];
 
-    if (url) url = `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+    // שמות מדריכים
+    const instrIds = Array.from(new Set(occs.map(o => o.instructor_id).filter(Boolean))) as string[];
+    let nameById: Record<string, string> = {};
+    if (instrIds.length) {
+      const { data: instRaw } = await dbc
+        .from('instructors')
+        .select('id_number, first_name, last_name')
+        .in('id_number', instrIds);
+      const inst = (instRaw ?? []) as InstructorRow[];
+      nameById = Object.fromEntries(
+        inst.map(i => [
+          i.id_number,
+          `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()
+        ])
+      ) as Record<string, string>;
 
-    this.signedDocUrlRaw.set(url);
-    this.signedDocUrlSafe.set(url ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null);
-    this.signedOpen.set(true);
-  } catch (e: any) {
-    console.error(e);
-    this.error = e?.message ?? 'שגיאה בפתיחת תקנון חתום';
-  } finally {
-    this.loadingSigned.set(false);
+    }
+
+    this.historyItems = occs.map(o => {
+      const dt = new Date(o.start_datetime);
+      return {
+        date: this.fmtDateHe(dt),
+        time: this.fmtTimeHe(dt),
+        instructor: nameById[o.instructor_id ?? ''] || undefined,
+        status: o.status || '',
+        lesson_type: o.lesson_type || undefined
+      };
+    });
+
+    this.historyLoading = false;
   }
-}
+  // ===== Status helpers (public so template can call) =====
+  public isActiveStatus = (st?: string | null): boolean =>
+    st === 'Active';
 
+  public isPendingAdd = (st?: string | null): boolean =>
+    st === 'Pending Addition Approval';
 
-closeSignedPopup() {
-  this.signedOpen.set(false);
-}
-private async loadFundingSources(): Promise<void> {
-  const { data, error } = await dbTenant()
-    .from('funding_sources')
-    .select('id, name')
-    .eq('is_system', true)
-    .eq('is_active', true)
-    .order('name', { ascending: true });
+  public isPendingDelete = (st?: string | null): boolean =>
+    st === 'Pending Deletion Approval';
 
-  if (error) {
-    console.error('loadFundingSources error', error);
-    this.healthFunds = [];
-    return;
+  public isDeletedStatus = (st?: string | null): boolean =>
+    st === 'Deleted';
+
+  // מותר לפתוח כרטיס? (הכול מלבד Deleted)
+  public canOpenCardByStatus = (st?: string | null): boolean =>
+    !this.isDeletedStatus(st);
+
+  // מותר להזמין תור? (Active או Pending Deletion Approval)
+  public canBookByStatus = (st?: string | null): boolean =>
+    st === 'Active' || st === 'Pending Deletion Approval';
+  private validateChildName(value: string, label: string): string | null {
+    const v = (value ?? '').trim();
+
+    if (!v) return `${label} הוא שדה חובה`;
+    if (v.length > 15) return `${label} יכול להכיל עד 15 תווים`;
+    if (/\d/.test(v)) return `${label} לא יכול להכיל מספרים`;
+
+    return null;
+  }
+  private occTs(start_datetime: string): number {
+    if (!start_datetime) return NaN;
+
+    // אם יש Z או offset (+02:00) -> אפשר לתת ל-Date לפרש
+    const hasTz = /([zZ]|[+\-]\d{2}:\d{2})$/.test(start_datetime);
+    if (hasTz) return new Date(start_datetime).getTime();
+
+    // בלי TZ -> מפרשים כלוקאל (ישראל) בצורה ידנית
+    const s = String(start_datetime).trim().replace(' ', 'T'); // "2026-02-10T15:00:00"
+    const [datePart, timePart = '00:00:00'] = s.split('T');
+    const [y, m, d] = datePart.split('-').map(Number);
+    const [hh = 0, mm = 0, ss = 0] = timePart.split(':').map(Number);
+
+    return new Date(y, (m - 1), d, hh, mm, ss, 0).getTime();
   }
 
-  this.healthFunds = data ?? [];
-}getFundingSourceName(id: string | null | undefined): string {
-  if (!id) return '';
-  return this.healthFunds.find(f => f.id === id)?.name ?? '';
-}
+  async loadTermsStatuses() {
+    try {
+      const { data, error } = await dbTenant().rpc('get_my_children_terms_status');
+      if (error) throw error;
+
+      const rows = (data ?? []) as any[];
+      const map: any = {};
+      for (const r of rows) {
+        map[String(r.child_id)] = {
+          is_signed: !!r.is_signed,
+          signed_at: r.signed_at ?? null,
+          required_version: r.required_version ?? null
+        };
+      }
+      this.termsStatusByChild = map;
+    } catch (e) {
+      console.error('loadTermsStatuses failed', e);
+      // לא חוסמים UI של הילדים בגלל זה
+    }
+  }
+  public isDeletionScheduled = (st?: string | null): boolean =>
+    st === 'Deletion Scheduled';
+
+  private parseTs(v: any): number {
+    if (!v) return NaN;
+    // Supabase לרוב מחזיר ISO עם tz, אבל נשמור על בטיחות
+    const s = String(v);
+    const hasTz = /([zZ]|[+\-]\d{2}:\d{2})$/.test(s);
+    return new Date(hasTz ? s : `${s}Z`).getTime();
+  }
+
+  public deletionScheduledText(child: any): string | null {
+    if (!this.isDeletionScheduled(child?.status)) return null;
+
+    const ts = this.parseTs(child?.scheduled_deletion_at);
+    if (!Number.isFinite(ts)) return 'מחיקה מתבצעת בקרוב';
+
+    const msLeft = ts - Date.now();
+    const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+
+    // אם הגיע הזמן/עבר -> עדיין סטטוס Deletion Scheduled אבל ימים 0
+    return `מחיקה מתבצעת בעוד ${daysLeft} ימים`;
+  }
+
+  isChildTermsSigned(childId: string): boolean {
+    return !!this.termsStatusByChild?.[childId]?.is_signed;
+  }
+
+  openTermsSign(child: any) {
+    const id = this.childId(child);
+    if (!id) return;
+    this.termsSignChildId = id;
+    this.termsSignChildName = `${child.first_name || ''} ${child.last_name || ''}`.trim();
+    this.showTermsSign = true;
+  }
+
+  onTermsSigned() {
+    // רענון סטטוסים בלבד
+    this.loadTermsStatuses();
+    this.showTermsSign = false;
+    this.termsSignChildId = null;
+    this.termsSignChildName = null;
+  }
+
+  closeTermsSign() {
+    this.showTermsSign = false;
+    this.termsSignChildId = null;
+    this.termsSignChildName = null;
+  }
+
+  async openSignedTerms(child: any) {
+    this.error = undefined;
+
+    const cid = this.childId(child); // <-- UUID אמיתי
+    if (!cid) return void (this.error = 'חסר childId');
+
+    this.loadingSigned.set(true);
+
+    try {
+      const dbc = dbTenant();
+      const client = getSupabaseClient();
+
+      const { data, error } = await dbc
+        .from('child_terms_signatures')
+        .select('signed_pdf_bucket, signed_pdf_path')
+        .eq('child_id', cid)              // ✅ נסי קודם ככה
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+
+      if (error) throw error;
+
+      const bucket = data?.signed_pdf_bucket ?? null;
+      const path = data?.signed_pdf_path ?? null;
+
+      if (!bucket || !path) {
+        this.signedDocUrlRaw.set(null);
+        this.signedDocUrlSafe.set(null);
+        this.signedOpen.set(true);
+        return;
+      }
+
+      const { data: pub } = client.storage.from(bucket).getPublicUrl(path);
+      let url = pub?.publicUrl ?? null;
+
+      if (url) url = `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+
+      this.signedDocUrlRaw.set(url);
+      this.signedDocUrlSafe.set(url ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null);
+      this.signedOpen.set(true);
+    } catch (e: any) {
+      console.error(e);
+      this.error = e?.message ?? 'שגיאה בפתיחת תקנון חתום';
+    } finally {
+      this.loadingSigned.set(false);
+    }
+  }
+
+
+  closeSignedPopup() {
+    this.signedOpen.set(false);
+  }
+  private async loadFundingSources(): Promise<void> {
+    const { data, error } = await dbTenant()
+      .from('funding_sources')
+      .select('id, name')
+      .eq('is_system', true)
+      .eq('is_active', true)
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('loadFundingSources error', error);
+      this.healthFunds = [];
+      return;
+    }
+
+    this.healthFunds = data ?? [];
+  } getFundingSourceName(id: string | null | undefined): string {
+    if (!id) return '';
+    return this.healthFunds.find(f => f.id === id)?.name ?? '';
+  }
 }
 

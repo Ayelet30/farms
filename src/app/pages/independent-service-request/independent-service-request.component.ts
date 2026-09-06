@@ -260,11 +260,6 @@ export class IndependentServiceRequestComponent implements OnInit {
         this.submitting = true;
         this.error = '';
         this.success = '';
-        let approvalFilePayload: any = null;
-
-        if (this.form.approval_file) {
-            approvalFilePayload = await this.uploadApprovalFile(this.form.approval_file);
-        }
 
         try {
             const db = dbTenant();
@@ -332,6 +327,7 @@ export class IndependentServiceRequestComponent implements OnInit {
             if (error) throw error;
 
             this.success = 'הבקשה נשלחה למזכירות בהצלחה ✅';
+
             this.form = {
                 service_type_id: '',
                 horse_uid: '',
@@ -343,6 +339,11 @@ export class IndependentServiceRequestComponent implements OnInit {
                 notes: '',
                 approval_file: null,
             };
+
+            this.plannedDates = [];
+            this.approvalFileError = '';
+
+            this.scrollToSuccess();
 
         } catch (e: any) {
             this.error = e?.message || 'שגיאה בשליחת הבקשה';
@@ -592,5 +593,17 @@ export class IndependentServiceRequestComponent implements OnInit {
         this.serviceModes = serviceModes;
         this.recurrenceUnits = recurrenceUnits;
         this.riderServiceStatuses = riderServiceStatuses;
+    }
+    private scrollToSuccess(): void {
+        setTimeout(() => {
+            const el = document.querySelector('.state-card.success');
+
+            if (el) {
+                el.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                });
+            }
+        }, 0);
     }
 }
