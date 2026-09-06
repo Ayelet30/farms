@@ -500,6 +500,22 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       );
 
       await this.loadInstructorWeeklyAvailability();
+
+      const isDayView =
+        range.viewType === 'timeGridDay' ||
+        range.viewType === 'resourceTimeGridDay';
+
+      if (isDayView && range.start) {
+        this.selectWorkingInstructorsForDay(
+          String(range.start).slice(0, 10)
+        );
+      }
+
+      await this.loadLessons({
+        start: range.start,
+        end: range.end,
+      });
+          
       await this.loadBreakOccurrences(range.start, range.end);
 
       this.filterLessons();
@@ -1075,6 +1091,18 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
     await this.loadInstructors();
     await this.loadInstructorWeeklyAvailability();
+    
+    const range = this.currentRange ?? this.ensureInitialDayRange();
+
+    const isDayView =
+      range.viewType === 'timeGridDay' ||
+      range.viewType === 'resourceTimeGridDay';
+
+    if (isDayView && range.start) {
+      this.selectWorkingInstructorsForDay(
+        String(range.start).slice(0, 10)
+      );
+    }
 
     if (!this.selectedInstructorIds.length) {
       this.selectedInstructorIds = this.instructors.map(i => String(i.id_number));
@@ -1082,7 +1110,6 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
     this.rebuildInstructorResources();
 
-    const range = this.currentRange ?? this.ensureInitialDayRange();
 
     await this.loadLessons(range);
     await this.loadBreakOccurrences(range.start, range.end);
@@ -2941,8 +2968,13 @@ if (occurrenceChildIds.length) {
       const attendanceByKey = new Map<string, string>();
 
       for (const a of attendanceData ?? []) {
-        const key = `${a.lesson_id}::${a.child_id}::${a.occur_date}`;
-        attendanceByKey.set(key, String(a.attendance_status || ''));
+        const attendanceDate = String(a.occur_date ?? '').slice(0, 10);
+        const key = `${String(a.lesson_id)}::${attendanceDate}`;
+
+        attendanceByKey.set(
+          key,
+          String(a.attendance_status ?? '')
+        );
       }
 
       // 2) משאבי סוס+מגרש לפי אותו טווח
@@ -2995,7 +3027,7 @@ if (occurrenceChildIds.length) {
 
         const key = `${r.lesson_id}::${r.occur_date}`;
         const res = resourceByKey.get(key);
-        const attendanceKey = `${r.lesson_id}::${r.child_id}::${r.occur_date}`;
+        const attendanceKey = `${String(r.lesson_id)}::${String(r.occur_date ?? '').slice(0, 10)}`;
         const attendanceStatus = attendanceByKey.get(attendanceKey) || '';
 
         return {

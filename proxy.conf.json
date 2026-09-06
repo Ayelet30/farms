@@ -109,5 +109,23 @@
   "pathRewrite": {
     "^/api/cancelFarmBillingPayment$": "/cancelFarmBillingPayment"
   }
-}
+},
+  "/api/ensureTranzilaInvoiceForPayment": {
+    "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+    "secure": true,
+    "changeOrigin": true,
+    "logLevel": "debug",
+    "pathRewrite": {
+      "^/api/ensureTranzilaInvoiceForPayment": "/ensureTranzilaInvoiceForPayment"
+    }
+  },
+  "/api/ensureTranzilaInvoiceForRiderPayment": {
+    "target": "https://us-central1-bereshit-ac5d8.cloudfunctions.net",
+    "secure": true,
+    "changeOrigin": true,
+    "logLevel": "debug",
+    "pathRewrite": {
+      "^/api/ensureTranzilaInvoiceForRiderPayment": "/ensureTranzilaInvoiceForRiderPayment"
+    }
+  }
 }

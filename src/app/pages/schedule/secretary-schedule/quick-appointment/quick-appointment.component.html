@@ -104,7 +104,7 @@
           </div>
         </div>
 
-        <div class="qa-participants" *ngIf="s.existing_participants?.length">
+        <div class="qa-participants" *ngIf="s.existing_participants!.length">
           <div class="qa-participants-title">ילדים שכבר משובצים בשעה זו</div>
 
           <div class="mini-box">
@@ -193,8 +193,8 @@
               </option>
             </select>
 
-            <small *ngIf="selectedPaymentPlan?.require_docs_at_booking" class="qa-help-text">
-              למסלול זה ניתן לצרף מסמכים: {{ selectedPaymentPlan?.required_docs?.join(', ') || 'ע״פ הנחיות החווה' }}.
+            <small *ngIf="selectedPaymentPlan!.require_docs_at_booking" class="qa-help-text">
+              למסלול זה ניתן לצרף מסמכים: {{ selectedPaymentPlan!.required_docs!.join(', ') || 'ע״פ הנחיות החווה' }}.
               יש להעלות קובץ אחד בלבד.
             </small>
           </div>
@@ -203,8 +203,8 @@
          && bookingMode !== 'occupancy'
          && selectedPaymentPlan?.require_docs_at_booking">
             <label>
-              העלאת הפניה / מסמך (אופציונלי) <ng-container *ngIf="selectedPaymentPlan?.required_docs?.length">
-                – {{ selectedPaymentPlan?.required_docs?.join(', ') }}
+              העלאת הפניה / מסמך (אופציונלי) <ng-container *ngIf="selectedPaymentPlan!.required_docs!.length">
+                – {{ selectedPaymentPlan!.required_docs!.join(', ') }}
               </ng-container>
             </label>
 

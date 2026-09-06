@@ -221,50 +221,142 @@ export class SecretaryPaymentsComponent implements OnInit {
     return this.tenantSvc.requireTenant().schema;
   }
 
-  async createOrFetchInvoice(r: SecretaryChargeRow) {
-    const tenantSchema = await this.getTenantSchemaOrThrow();
+  async createOrFetchInvoice(r: SecretaryChargeRow): Promise<void> {
+  if (this.invoiceLoading.has(r.id)) return;
 
-    this.invoiceLoading.add(r.id);
+  const cachedInvoices =
+    this.parentInvoicesByPayment.get(r.id);
+
+  if (cachedInvoices?.length) {
+    if (cachedInvoices.length === 1) {
+      const cachedUrl =
+        cachedInvoices[0].invoice_url ||
+        cachedInvoices[0].tranzila_pdf_url;
+
+      if (cachedUrl) {
+        window.open(
+          cachedUrl,
+          '_blank',
+          'noopener,noreferrer'
+        );
+      }
+
+      return;
+    }
+
+    this.expandedInvoicePaymentId.set(r.id);
+    return;
+  }
+
+  const win = window.open('about:blank', '_blank');
+
+  if (win) {
+    writeInvoiceLoadingPage(win);
+  }
+
+  this.invoiceLoading.add(r.id);
+
+  try {
+    const tenantSchema =
+      await this.getTenantSchemaOrThrow();
+
+    const resp = await fetch(
+      '/api/ensureTranzilaInvoiceForPayment',
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type': 'application/json',
+        },
+
+        body: JSON.stringify({
+          tenantSchema,
+          paymentId: r.id,
+        }),
+      }
+    );
+
+    const raw = await resp.text();
+
+    let json: any = null;
 
     try {
-      const resp = await fetch(
-        'https://ensuretranzilainvoiceforpayment-wxi37vbfra-uc.a.run.app',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tenantSchema, paymentId: r.id }),
-        }
-      );
-
-      const raw = await resp.text();
-      let json: any = null;
-
-      try {
-        json = JSON.parse(raw);
-      } catch { }
-
-      if (!resp.ok || !json?.ok) {
-        throw new Error(json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
-      }
-
-      const invoices = json.invoices ?? [];
-
-      if (!invoices.length) {
-        throw new Error('לא נמצאו חשבוניות לתשלום');
-      }
-
-      if (invoices.length === 1) {
-        const url = invoices[0].invoice_url || invoices[0].tranzila_pdf_url;
-        window.open(url, '_blank', 'noopener,noreferrer');
-        return;
-      }
-
-      this.parentInvoicesByPayment.set(r.id, invoices);
-      this.expandedInvoicePaymentId.set(r.id);
-    } finally {
-      this.invoiceLoading.delete(r.id);
+      json = JSON.parse(raw);
+    } catch {
+      // הטיפול יתבצע בהמשך לפי resp.ok
     }
+
+    if (!resp.ok || !json?.ok) {
+      throw new Error(
+        json?.error ||
+        `HTTP ${resp.status}: ${raw.slice(0, 300)}`
+      );
+    }
+
+    const invoices: any[] = json.invoices ?? [];
+
+    if (!invoices.length) {
+      throw new Error(
+        'לא נמצאו חשבוניות עבור התשלום'
+      );
+    }
+
+    this.parentInvoicesByPayment.set(
+      r.id,
+      invoices
+    );
+
+    if (invoices.length === 1) {
+      const url =
+        invoices[0].invoice_url ||
+        invoices[0].tranzila_pdf_url;
+
+      if (!url) {
+        throw new Error(
+          'החשבונית נוצרה אך לא התקבל קישור לפתיחה'
+        );
+      }
+
+      if (win) {
+        try {
+          (win as any).opener = null;
+        } catch {}
+
+        win.location.replace(url);
+        win.focus?.();
+      } else {
+        window.open(
+          url,
+          '_blank',
+          'noopener,noreferrer'
+        );
+      }
+    } else {
+      if (win) win.close();
+
+      this.expandedInvoicePaymentId.set(r.id);
+    }
+
+    await this.loadPage();
+  } catch (e: any) {
+    if (win) win.close();
+
+    const message =
+      e?.message ||
+      'אירעה שגיאה ביצירת החשבונית';
+
+    console.error(
+      '[createOrFetchInvoice] failed',
+      e
+    );
+
+    this.error.set(message);
+    alert(message);
+  } finally {
+    this.invoiceLoading.delete(r.id);
   }
+}
+
   async setTab(tab: 'parents' | 'riders') {
     if (this.activeTab() === tab) return;
 
@@ -292,16 +384,20 @@ export class SecretaryPaymentsComponent implements OnInit {
       const tenantSchema = await this.getTenantSchemaOrThrow();
 
       const resp = await fetch(
-        'https://ensuretranzilainvoiceforriderpayment-wxi37vbfra-uc.a.run.app',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tenantSchema,
-            paymentId: r.id,
-          }),
-        }
-      );
+  '/api/ensureTranzilaInvoiceForRiderPayment',
+  {
+    method: 'POST',
+
+    headers: {
+      'Content-Type': 'application/json',
+    },
+
+    body: JSON.stringify({
+      tenantSchema,
+      paymentId: r.id,
+    }),
+  }
+);
 
       const raw = await resp.text();
 

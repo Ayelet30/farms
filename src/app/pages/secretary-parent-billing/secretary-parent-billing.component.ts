@@ -773,69 +773,77 @@ this.chargesSummary.set(summary);
         parentUidsToRun.has(x.parent_uid)
       );
 
-      if (relevantMissing.length) {
-        const parentUids = Array.from(
-          new Set(relevantMissing.map((x: any) => x.parent_uid))
-        );
+      const parentsWithMissingLessons = new Set(
+        relevantMissing.map((x: any) => x.parent_uid)
+      );
 
-        for (const parentUid of parentUids) {
+      let ok = 0;
+      let failed = 0;
+
+      for (const p of list) {
+        try {
           const { data: existingMonthlyCharge, error: existingMonthlyErr } =
             await dbTenant()
               .from('charges')
-              .select('id')
-              .eq('parent_uid', parentUid)
+              .select('id,status')
+              .eq('parent_uid', p.uid)
               .eq('billing_month', targetMonthStart)
               .eq('charge_kind', 'monthly')
               .maybeSingle();
 
           if (existingMonthlyErr) throw existingMonthlyErr;
 
-          if (existingMonthlyCharge) {
-            await dbTenant().rpc('create_missing_lessons_charge_for_parent', {
-              p_parent_uid: parentUid,
-              p_month: targetMonthStart,
-            });
-          } else {
-            await dbTenant().rpc('create_monthly_charge_for_parent', {
-              p_parent_uid: parentUid,
-              p_billing_date: billingDate,
-            });
+          if (!existingMonthlyCharge || existingMonthlyCharge.status === 'draft') {
+            // חיוב חדש או טיוטה: בונים את כל שורות החיוב מחדש.
+            // כך מתווספים שיעורים חדשים ומוסרים שיעורים שכבר אינם לחיוב.
+            const { error: rpcError } = await dbTenant().rpc(
+              'create_monthly_charge_for_parent',
+              {
+                p_parent_uid: p.uid,
+                p_billing_date: billingDate,
+              }
+            );
+
+            if (rpcError) throw rpcError;
+            ok++;
+            continue;
           }
-        }
 
-        await this.loadCharges();
+          if (parentsWithMissingLessons.has(p.uid)) {
+            // חיוב שכבר אינו טיוטה נשאר ללא שינוי.
+            // שיעורים חדשים נכנסים לחיוב השלמה נפרד.
+            const { error: missingRpcError } = await dbTenant().rpc(
+              'create_missing_lessons_charge_for_parent',
+              {
+                p_parent_uid: p.uid,
+                p_month: targetMonthStart,
+              }
+            );
 
-        this.successMessage.set(
-          `החיוב חושב עבור חודש ${targetMonthStart.slice(0, 7)}. אם היו שיעורים חסרים לחיוב קיים, נוצר עבורם חיוב השלמה.`
-        );
+            if (missingRpcError) throw missingRpcError;
+          }
 
-        return;
-      }
-      let ok = 0;
-      let failed = 0;
-
-      for (const p of list) {
-        const { error: rpcError } = await dbTenant().rpc('create_monthly_charge_for_parent', {
-          p_parent_uid: p.uid,
-          p_billing_date: billingDate,
-        });
-
-        if (rpcError) {
+          ok++;
+        } catch (rpcError: any) {
           failed++;
-          console.error('RPC failed', {
+          console.error('Billing calculation failed', {
             parentUid: p.uid,
             billingDate,
-            message: rpcError.message,
-            code: rpcError.code,
-            details: rpcError.details,
-            hint: rpcError.hint,
+            message: rpcError?.message,
+            code: rpcError?.code,
+            details: rpcError?.details,
+            hint: rpcError?.hint,
           });
-        } else {
-          ok++;
         }
       }
 
       await this.loadCharges();
+
+      if (failed === 0) {
+        this.successMessage.set(
+          `החיובים חושבו מחדש עבור חודש ${targetMonthStart.slice(0, 7)}.`
+        );
+      }
 
       if (failed > 0) {
         this.error.set(`החיוב הורץ חלקית. הצליחו: ${ok}, נכשלו: ${failed}`);

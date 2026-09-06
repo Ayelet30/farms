@@ -15,6 +15,7 @@ import {
   SpecialDayImpactDialogComponent,
   SpecialDayImpactRow,
 } from './special-day-impact-dialog/special-day-impact-dialog.component';
+import { MatIconModule } from '@angular/material/icon';
 type UUID = string;
 
 type LateCancelPolicy = 'CHARGE_FULL' | 'CHARGE_PARTIAL' | 'NO_CHARGE' | 'NO_MAKEUP';
@@ -124,6 +125,11 @@ interface FarmSettings {
   parent_cancel_charge_after_deadline?: boolean | null;
   parent_cancel_charge_timing?: 'at_cancel' | 'at_makeup' | null;
   farm_cancel_charge_target?: 'cancelled_lesson' | 'makeup_lesson' | null;
+  parent_makeup_is_billable?: boolean | null;
+  farm_max_makeups_in_period?: number | null;
+  farm_makeups_period_days?: number | null;
+  farm_cancel_is_billable?: boolean | null;
+  farm_makeup_is_billable?: boolean | null;
   is_special_day?: boolean;
 }
 
@@ -238,6 +244,8 @@ type SettingsErrors = {
   makeup_allowed_days_back?: string;
   max_makeups_in_period?: string;
   makeups_period_days?: string;
+  farm_max_makeups_in_period?: string;
+  farm_makeups_period_days?: string;
   reminder_hours_before?: string;
   notify_before_farm_closure_hours?: string;
   min_time_between_cancellations?: string;
@@ -248,7 +256,7 @@ type SettingsErrors = {
 @Component({
   selector: 'app-farm-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MatIconModule],
   templateUrl: './farm-settings.component.html',
   styleUrls: ['./farm-settings.component.scss'],
 })
@@ -1481,6 +1489,18 @@ export class FarmSettingsComponent implements OnInit {
           data.parent_cancel_charge_timing ?? 'at_cancel',
         farm_cancel_charge_target:
           data.farm_cancel_charge_target ?? 'makeup_lesson',
+        parent_makeup_is_billable:
+          data.parent_makeup_is_billable ?? false,
+        farm_max_makeups_in_period:
+          data.farm_max_makeups_in_period ?? data.max_makeups_in_period ?? 1,
+        farm_makeups_period_days:
+          data.farm_makeups_period_days ?? data.makeups_period_days ?? 90,
+        farm_cancel_is_billable:
+          data.farm_cancel_is_billable ??
+          data.farm_cancel_charge_target === 'cancelled_lesson',
+        farm_makeup_is_billable:
+          data.farm_makeup_is_billable ??
+          data.farm_cancel_charge_target !== 'cancelled_lesson',
       };
 
       this.settings.set(s);
@@ -1533,6 +1553,17 @@ export class FarmSettingsComponent implements OnInit {
       suggest_makeup_on_cancel: true,
       reminder_require_confirmation: false,
       reminder_allow_cancel_link: true,
+
+      parent_cancel_charge_before_deadline: false,
+      parent_cancel_charge_after_deadline: true,
+      parent_cancel_charge_timing: 'at_cancel',
+      parent_makeup_is_billable: false,
+
+      farm_max_makeups_in_period: 1,
+      farm_makeups_period_days: 90,
+      farm_cancel_is_billable: false,
+      farm_makeup_is_billable: true,
+      farm_cancel_charge_target: 'makeup_lesson',
 
       max_group_size: 6,
       max_lessons_per_week_per_child: 2,
@@ -1609,6 +1640,22 @@ export class FarmSettingsComponent implements OnInit {
     ) {
       errors.makeups_period_days =
         'תקופת השלמות חייבת להיות בין יום ל־365 ימים';
+    }
+
+    if (
+      s.farm_max_makeups_in_period != null &&
+      (s.farm_max_makeups_in_period < 0 || s.farm_max_makeups_in_period > 50)
+    ) {
+      errors.farm_max_makeups_in_period =
+        'מספר השלמות בגין ביטול חווה חייב להיות בין 0 ל־50';
+    }
+
+    if (
+      s.farm_makeups_period_days != null &&
+      (s.farm_makeups_period_days < 1 || s.farm_makeups_period_days > 365)
+    ) {
+      errors.farm_makeups_period_days =
+        'תקופת ההשלמות של החווה חייבת להיות בין יום ל־365 ימים';
     }
 
     if (
