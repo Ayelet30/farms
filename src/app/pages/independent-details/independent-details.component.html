@@ -110,7 +110,145 @@
     </p>
 
 </div>
+<section *ngIf="!loading && independent" class="my-horses-section">
 
+    <div class="section-header">
+        <div>
+            <h2>הסוסים שלי</h2>
+            <p>הסוסים המשויכים אליך בחווה</p>
+        </div>
+
+        <span class="horses-count">
+            {{ horses.length }}
+        </span>
+    </div>
+
+    <div *ngIf="!horses.length" class="empty-horses">
+        לא נמצאו סוסים המשויכים אליך.
+    </div>
+
+    <!-- פעילים -->
+    <div *ngIf="activeHorses.length" class="horses-list-section">
+
+        <h3 class="horses-list-title">
+            פעילים
+            <span>{{ activeHorses.length }}</span>
+        </h3>
+
+        <div class="horses-list">
+
+            <div class="horse-row" *ngFor="let horse of activeHorses">
+
+                <div class="horse-row-header">
+                    <strong class="horse-name">
+                        {{ horse.name || '-' }}
+                    </strong>
+
+                    <span class="horse-status">
+                        פעיל
+                    </span>
+                </div>
+
+                <div class="horse-row-details">
+
+                    <div>
+                        <span class="field-label">גיל</span>
+                        <span>{{ horse.age ?? '-' }}</span>
+                    </div>
+
+                    <div>
+                        <span class="field-label">צבע</span>
+                        <span>{{ horse.color || '-' }}</span>
+                    </div>
+
+                    <div>
+                        <span class="field-label">מין</span>
+                        <span>
+                            {{ horse.gender ? genderLabel(horse.gender) : '-' }}
+                        </span>
+                    </div>
+
+                    <div>
+                        <span class="field-label">גודל</span>
+                        <span>
+                            {{ horse.horse_size ? sizeLabel(horse.horse_size) : '-' }}
+                        </span>
+                    </div>
+
+                    <div class="horse-note">
+                        <span class="field-label">הערה</span>
+                        <span>{{ horse.notes || '-' }}</span>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- לא פעילים -->
+    <div *ngIf="inactiveHorses.length" class="horses-list-section">
+
+        <h3 class="horses-list-title inactive-title">
+            לא פעילים
+            <span>{{ inactiveHorses.length }}</span>
+        </h3>
+
+        <div class="horses-list">
+
+            <div class="horse-row inactive-row" *ngFor="let horse of inactiveHorses">
+
+                <div class="horse-row-header">
+                    <strong class="horse-name">
+                        {{ horse.name || '-' }}
+                    </strong>
+
+                    <span class="horse-status inactive">
+                        לא פעיל
+                    </span>
+                </div>
+
+                <div class="horse-row-details">
+
+                    <div>
+                        <span class="field-label">גיל</span>
+                        <span>{{ horse.age ?? '-' }}</span>
+                    </div>
+
+                    <div>
+                        <span class="field-label">צבע</span>
+                        <span>{{ horse.color || '-' }}</span>
+                    </div>
+
+                    <div>
+                        <span class="field-label">מין</span>
+                        <span>
+                            {{ horse.gender ? genderLabel(horse.gender) : '-' }}
+                        </span>
+                    </div>
+
+                    <div>
+                        <span class="field-label">גודל</span>
+                        <span>
+                            {{ horse.horse_size ? sizeLabel(horse.horse_size) : '-' }}
+                        </span>
+                    </div>
+
+                    <div class="horse-note">
+                        <span class="field-label">הערה</span>
+                        <span>{{ horse.notes || '-' }}</span>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+</section>
 <div *ngIf="showConfirmDialog" class="modal-backdrop">
 
     <div class="modal-panel">

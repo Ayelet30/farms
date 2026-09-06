@@ -6,7 +6,16 @@ import {
     dbTenant,
     getCurrentUserData,
 } from '../../services/legacy-compat';
-
+type Horse = {
+    id: string;
+    name: string;
+    age: number | null;
+    color: string | null;
+    gender: string | null;
+    horse_size: string | null;
+    is_active: boolean;
+    notes: string | null;
+};
 @Component({
     selector: 'app-independent-details',
     standalone: true,
@@ -16,7 +25,7 @@ import {
 })
 export class IndependentDetailsComponent
     implements OnInit, OnDestroy {
-
+    horses: Horse[] = [];
     independent: any = null;
 
     loading = true;
@@ -78,7 +87,7 @@ export class IndependentDetailsComponent
             }
 
             this.independent = data;
-
+            await this.loadHorses(user.uid);
             this.editableIndependent = {
                 first_name: data.first_name ?? '',
                 last_name: data.last_name ?? '',
@@ -226,5 +235,65 @@ export class IndependentDetailsComponent
         this.infoTimer = setTimeout(() => {
             this.infoMessage = null;
         }, ms);
+    }
+    private async loadHorses(riderUid: string): Promise<void> {
+        const { data, error } = await dbTenant()
+            .from('horses')
+            .select(`
+            id,
+            name,
+            age,
+            color,
+            gender,
+            horse_size,
+            is_active,
+            notes
+        `)
+            .eq('owner_rider_uid', riderUid)
+            .order('name', { ascending: true });
+
+        if (error) {
+            console.error('loadHorses failed', error);
+            this.horses = [];
+            return;
+        }
+
+        this.horses = (data ?? []) as Horse[];
+    }
+    genderLabel(value: string | null): string {
+        switch (value) {
+            case 'male':
+                return 'זכר';
+            case 'female':
+                return 'נקבה';
+            case 'gelding':
+                return 'מסורס';
+            default:
+                return '—';
+        }
+    }
+
+    sizeLabel(value: string | null): string {
+        switch (value) {
+            case 'pony_small':
+                return 'פוני קטן';
+            case 'pony_large':
+                return 'פוני גדול';
+            case 'horse':
+                return 'סוס';
+            default:
+                return '—';
+        }
+    }
+    get activeHorses(): Horse[] {
+        return this.horses
+            .filter(h => h.is_active)
+            .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+    }
+
+    get inactiveHorses(): Horse[] {
+        return this.horses
+            .filter(h => !h.is_active)
+            .sort((a, b) => a.name.localeCompare(b.name, 'he'));
     }
 }
