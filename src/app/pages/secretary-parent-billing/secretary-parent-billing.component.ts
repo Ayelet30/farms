@@ -60,6 +60,7 @@ private dialog = inject(MatDialog);
   hasLoadedOnce = signal(false);
   // בחירת חיובים לסליקה
   selectedChargeIds = signal<Set<string>>(new Set());
+  recalculatingChargeIds = signal<Set<string>>(new Set());
   failedPaymentParentUids = signal<Set<string>>(new Set());
   // טאב פעיל: 'open' | 'all'
   activeTab = signal<'open' | 'all'>('open');
@@ -394,6 +395,56 @@ this.chargesSummary.set(summary);
 
   isSelected(chargeId: string): boolean {
     return this.selectedChargeIds().has(chargeId);
+  }
+
+  canRecalculateParentCharge(charge: ParentChargeRow): boolean {
+    return charge.status === 'draft' &&
+      String((charge as any).charge_kind ?? 'monthly') === 'monthly';
+  }
+
+  isRecalculatingParentCharge(chargeId: string): boolean {
+    return this.recalculatingChargeIds().has(chargeId);
+  }
+
+  async recalculateParentCharge(charge: ParentChargeRow): Promise<void> {
+    if (!this.canRecalculateParentCharge(charge)) return;
+
+    const parentName = this.chargeParentName(charge);
+    const confirmed = window.confirm(
+      `לחשב מחדש את חיוב הטיוטה של ${parentName}?\n\n` +
+      `שורות השיעורים ייבנו מחדש לפי הנתונים וההגדרות העדכניים.`
+    );
+
+    if (!confirmed) return;
+
+    const next = new Set(this.recalculatingChargeIds());
+    next.add(charge.id);
+    this.recalculatingChargeIds.set(next);
+    this.error.set(null);
+    this.successMessage.set(null);
+
+    try {
+      const { error } = await dbTenant().rpc('recalculate_draft_charge', {
+        p_charge_id: charge.id,
+      });
+
+      if (error) throw error;
+
+      await this.loadCharges();
+
+      if (this.detailsOpenFor() === charge.id) {
+        await this.openChargeDetails(charge.id);
+      }
+
+      this.successMessage.set(`החיוב של ${parentName} חושב מחדש בהצלחה.`);
+    } catch (e: any) {
+      console.error('[recalculateParentCharge] failed', e);
+      this.error.set(e?.message ?? `חישוב החיוב של ${parentName} נכשל.`);
+    } finally {
+      const updated = new Set(this.recalculatingChargeIds());
+      updated.delete(charge.id);
+      this.recalculatingChargeIds.set(updated);
+    }
   }
 
   // handlers מה־template
