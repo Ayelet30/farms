@@ -16,6 +16,7 @@ import {
   listAllRiderPaymentsForSecretary,
   SecretaryChargeRow,
   SecretaryRiderPaymentRow,
+
 } from '../../services/supabaseClient.service';
 function writeInvoiceLoadingPage(win: Window) {
   win.document.open();
@@ -222,140 +223,140 @@ export class SecretaryPaymentsComponent implements OnInit {
   }
 
   async createOrFetchInvoice(r: SecretaryChargeRow): Promise<void> {
-  if (this.invoiceLoading.has(r.id)) return;
+    if (this.invoiceLoading.has(r.id)) return;
 
-  const cachedInvoices =
-    this.parentInvoicesByPayment.get(r.id);
+    const cachedInvoices =
+      this.parentInvoicesByPayment.get(r.id);
 
-  if (cachedInvoices?.length) {
-    if (cachedInvoices.length === 1) {
-      const cachedUrl =
-        cachedInvoices[0].invoice_url ||
-        cachedInvoices[0].tranzila_pdf_url;
+    if (cachedInvoices?.length) {
+      if (cachedInvoices.length === 1) {
+        const cachedUrl =
+          cachedInvoices[0].invoice_url ||
+          cachedInvoices[0].tranzila_pdf_url;
 
-      if (cachedUrl) {
-        window.open(
-          cachedUrl,
-          '_blank',
-          'noopener,noreferrer'
-        );
+        if (cachedUrl) {
+          window.open(
+            cachedUrl,
+            '_blank',
+            'noopener,noreferrer'
+          );
+        }
+
+        return;
       }
 
+      this.expandedInvoicePaymentId.set(r.id);
       return;
     }
 
-    this.expandedInvoicePaymentId.set(r.id);
-    return;
-  }
+    const win = window.open('about:blank', '_blank');
 
-  const win = window.open('about:blank', '_blank');
+    if (win) {
+      writeInvoiceLoadingPage(win);
+    }
 
-  if (win) {
-    writeInvoiceLoadingPage(win);
-  }
-
-  this.invoiceLoading.add(r.id);
-
-  try {
-    const tenantSchema =
-      await this.getTenantSchemaOrThrow();
-
-    const resp = await fetch(
-      '/api/ensureTranzilaInvoiceForPayment',
-      {
-        method: 'POST',
-
-        headers: {
-          'Content-Type': 'application/json',
-        },
-
-        body: JSON.stringify({
-          tenantSchema,
-          paymentId: r.id,
-        }),
-      }
-    );
-
-    const raw = await resp.text();
-
-    let json: any = null;
+    this.invoiceLoading.add(r.id);
 
     try {
-      json = JSON.parse(raw);
-    } catch {
-      // הטיפול יתבצע בהמשך לפי resp.ok
-    }
+      const tenantSchema =
+        await this.getTenantSchemaOrThrow();
 
-    if (!resp.ok || !json?.ok) {
-      throw new Error(
-        json?.error ||
-        `HTTP ${resp.status}: ${raw.slice(0, 300)}`
+      const resp = await fetch(
+        '/api/ensureTranzilaInvoiceForPayment',
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type': 'application/json',
+          },
+
+          body: JSON.stringify({
+            tenantSchema,
+            paymentId: r.id,
+          }),
+        }
       );
-    }
 
-    const invoices: any[] = json.invoices ?? [];
+      const raw = await resp.text();
 
-    if (!invoices.length) {
-      throw new Error(
-        'לא נמצאו חשבוניות עבור התשלום'
-      );
-    }
+      let json: any = null;
 
-    this.parentInvoicesByPayment.set(
-      r.id,
-      invoices
-    );
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        // הטיפול יתבצע בהמשך לפי resp.ok
+      }
 
-    if (invoices.length === 1) {
-      const url =
-        invoices[0].invoice_url ||
-        invoices[0].tranzila_pdf_url;
-
-      if (!url) {
+      if (!resp.ok || !json?.ok) {
         throw new Error(
-          'החשבונית נוצרה אך לא התקבל קישור לפתיחה'
+          json?.error ||
+          `HTTP ${resp.status}: ${raw.slice(0, 300)}`
         );
       }
 
-      if (win) {
-        try {
-          (win as any).opener = null;
-        } catch {}
+      const invoices: any[] = json.invoices ?? [];
 
-        win.location.replace(url);
-        win.focus?.();
+      if (!invoices.length) {
+        throw new Error(
+          'לא נמצאו חשבוניות עבור התשלום'
+        );
+      }
+
+      this.parentInvoicesByPayment.set(
+        r.id,
+        invoices
+      );
+
+      if (invoices.length === 1) {
+        const url =
+          invoices[0].invoice_url ||
+          invoices[0].tranzila_pdf_url;
+
+        if (!url) {
+          throw new Error(
+            'החשבונית נוצרה אך לא התקבל קישור לפתיחה'
+          );
+        }
+
+        if (win) {
+          try {
+            (win as any).opener = null;
+          } catch { }
+
+          win.location.replace(url);
+          win.focus?.();
+        } else {
+          window.open(
+            url,
+            '_blank',
+            'noopener,noreferrer'
+          );
+        }
       } else {
-        window.open(
-          url,
-          '_blank',
-          'noopener,noreferrer'
-        );
+        if (win) win.close();
+
+        this.expandedInvoicePaymentId.set(r.id);
       }
-    } else {
+
+      await this.loadPage();
+    } catch (e: any) {
       if (win) win.close();
 
-      this.expandedInvoicePaymentId.set(r.id);
+      const message =
+        e?.message ||
+        'אירעה שגיאה ביצירת החשבונית';
+
+      console.error(
+        '[createOrFetchInvoice] failed',
+        e
+      );
+
+      this.error.set(message);
+      alert(message);
+    } finally {
+      this.invoiceLoading.delete(r.id);
     }
-
-    await this.loadPage();
-  } catch (e: any) {
-    if (win) win.close();
-
-    const message =
-      e?.message ||
-      'אירעה שגיאה ביצירת החשבונית';
-
-    console.error(
-      '[createOrFetchInvoice] failed',
-      e
-    );
-
-    this.error.set(message);
-    alert(message);
-  } finally {
-    this.invoiceLoading.delete(r.id);
   }
-}
 
   async setTab(tab: 'parents' | 'riders') {
     if (this.activeTab() === tab) return;
@@ -384,20 +385,20 @@ export class SecretaryPaymentsComponent implements OnInit {
       const tenantSchema = await this.getTenantSchemaOrThrow();
 
       const resp = await fetch(
-  '/api/ensureTranzilaInvoiceForRiderPayment',
-  {
-    method: 'POST',
+        '/api/ensureTranzilaInvoiceForRiderPayment',
+        {
+          method: 'POST',
 
-    headers: {
-      'Content-Type': 'application/json',
-    },
+          headers: {
+            'Content-Type': 'application/json',
+          },
 
-    body: JSON.stringify({
-      tenantSchema,
-      paymentId: r.id,
-    }),
-  }
-);
+          body: JSON.stringify({
+            tenantSchema,
+            paymentId: r.id,
+          }),
+        }
+      );
 
       const raw = await resp.text();
 

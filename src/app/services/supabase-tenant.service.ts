@@ -84,7 +84,7 @@ export class SupabaseTenantService {
     this.refreshTimer = null;
     this.supabase = this.makeClient();
     this.clearDbCache();
-    try { await this.supabase.auth.signOut(); } catch {}
+    try { await this.supabase.auth.signOut(); } catch { }
     this.notifyTenantChange();
   }
 
@@ -98,8 +98,7 @@ export class SupabaseTenantService {
   async bootstrapSupabaseSession(tenantId?: string, roleInTenant?: RoleInTenant): Promise<BootstrapResp> {
     const user = getAuth().currentUser;
     if (!user) throw new Error('No Firebase user');
-    const idToken = await user.getIdToken(true);
-
+    const idToken = await user.getIdToken();
     const qs = new URLSearchParams();
     if (tenantId) { qs.set('tenantId', tenantId); qs.set('tenant_id', tenantId); }
     if (roleInTenant) { qs.set('role', roleInTenant); qs.set('role_in_tenant', roleInTenant); }
@@ -107,7 +106,7 @@ export class SupabaseTenantService {
     const url = qs.toString() ? `${LOGIN_BOOTSTRAP_URL}?${qs}` : LOGIN_BOOTSTRAP_URL;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` } });
     const raw = await res.text();
-    let parsed: any = null; try { parsed = JSON.parse(raw); } catch {}
+    let parsed: any = null; try { parsed = JSON.parse(raw); } catch { }
     if (!res.ok) throw new Error(parsed?.error || `loginBootstrap failed: ${res.status}`);
 
     const data = parsed as BootstrapResp;
@@ -165,18 +164,18 @@ export class SupabaseTenantService {
     const url = (data?.logo_url || '').trim();
     return url || null;
   }
-async getFarmLogoUrl(schemaName: string): Promise<string | null> {
-  const { data, error } = await this.dbPublic()
-    .from('farms')
-    .select('logo_url')
-    .eq('schema_name', schemaName)
-    .maybeSingle();
+  async getFarmLogoUrl(schemaName: string): Promise<string | null> {
+    const { data, error } = await this.dbPublic()
+      .from('farms')
+      .select('logo_url')
+      .eq('schema_name', schemaName)
+      .maybeSingle();
 
-  if (error) throw error;
+    if (error) throw error;
 
-  const url = (data?.logo_url || '').trim();
-  return url || null;
-}
+    const url = (data?.logo_url || '').trim();
+    return url || null;
+  }
 
   // ---------- memberships ----------
   clearMembershipCache() { this.membershipsCache = []; }
@@ -217,51 +216,51 @@ async getFarmLogoUrl(schemaName: string): Promise<string | null> {
   }
 
   async selectMembership(tenantId: string, roleInTenant?: RoleInTenant): Promise<Membership> {
-  const list = await this.listMembershipsForCurrentUser(true);
+    const list = await this.listMembershipsForCurrentUser(true);
 
-  // ❌ היה:
-  // const chosen = list.find(m => m.tenant_id === tenantId) ?? list[0];
+    // ❌ היה:
+    // const chosen = list.find(m => m.tenant_id === tenantId) ?? list[0];
 
-  // ✅ אותו רעיון – tenant + role
-  const chosen =
-    list.find(m =>
-      m.tenant_id === tenantId &&
-      (!roleInTenant || m.role_in_tenant === roleInTenant)
-    ) ??
-    list.find(m => m.tenant_id === tenantId) ??
-    list[0];
+    // ✅ אותו רעיון – tenant + role
+    const chosen =
+      list.find(m =>
+        m.tenant_id === tenantId &&
+        (!roleInTenant || m.role_in_tenant === roleInTenant)
+      ) ??
+      list.find(m => m.tenant_id === tenantId) ??
+      list[0];
 
-  if (!chosen) throw new Error('No memberships');
+    if (!chosen) throw new Error('No memberships');
 
-  let boot = await this.bootstrapSupabaseSession(tenantId, roleInTenant ?? chosen.role_in_tenant);
+    let boot = await this.bootstrapSupabaseSession(tenantId, roleInTenant ?? chosen.role_in_tenant);
 
-  if (boot?.farm?.id !== tenantId) {
-    boot = await this.bootstrapSupabaseSession(tenantId, roleInTenant ?? chosen.role_in_tenant);
+    if (boot?.farm?.id !== tenantId) {
+      boot = await this.bootstrapSupabaseSession(tenantId, roleInTenant ?? chosen.role_in_tenant);
+    }
+
+    const normalized: Membership = {
+      tenant_id: boot.farm.id,
+      role_in_tenant: (boot.role_in_tenant as RoleInTenant) ?? chosen.role_in_tenant,
+      farm: boot.farm,
+    };
+
+    this.clearDbCache();
+    this.userCache = null;
+    this.clearMembershipCache();
+
+    this.currentFarmMeta = boot.farm;
+
+    // ✅ לעדכן רק את אותו membership
+    this.membershipsCache = list.map(m =>
+      m.tenant_id === chosen.tenant_id &&
+        m.role_in_tenant === chosen.role_in_tenant
+        ? normalized
+        : m
+    );
+
+    localStorage.setItem('selectedTenant', normalized.tenant_id);
+    return normalized;
   }
-
-  const normalized: Membership = {
-    tenant_id: boot.farm.id,
-    role_in_tenant: (boot.role_in_tenant as RoleInTenant) ?? chosen.role_in_tenant,
-    farm: boot.farm,
-  };
-
-  this.clearDbCache();
-  this.userCache = null;
-  this.clearMembershipCache();
-
-  this.currentFarmMeta = boot.farm;
-
-  // ✅ לעדכן רק את אותו membership
-  this.membershipsCache = list.map(m =>
-    m.tenant_id === chosen.tenant_id &&
-    m.role_in_tenant === chosen.role_in_tenant
-      ? normalized
-      : m
-  );
-
-  localStorage.setItem('selectedTenant', normalized.tenant_id);
-  return normalized;
-}
 
 
   // ---------- user details (כולל בחירה דטרמיניסטית) ----------
@@ -274,7 +273,7 @@ async getFarmLogoUrl(schemaName: string): Promise<string | null> {
 
   private async resolveRoleAndFarm(uid: string, opts: { tenantId?: string | null, roleInTenant?: string | null } = {}) {
     let ctxTenantId: string | null = null;
-    try { ctxTenantId = this.requireTenant().id; } catch {}
+    try { ctxTenantId = this.requireTenant().id; } catch { }
 
     const wantedTenantId = opts.tenantId ?? ctxTenantId ?? null;
     const wantedRole = opts.roleInTenant ?? null;
@@ -341,8 +340,7 @@ async getFarmLogoUrl(schemaName: string): Promise<string | null> {
     return { targetTable, role: roleStr ?? null, role_in_tenant, roleId, farmId, farmName };
   }
 
-  async getCurrentUserDetails( select = 'uid, first_name, last_name, id_number',options?: { cacheMs?: number }): Promise<any | null>
- {
+  async getCurrentUserDetails(select = 'uid, first_name, last_name, id_number', options?: { cacheMs?: number }): Promise<any | null> {
     const tenant = this.requireTenant();
     const fbUser = getAuth().currentUser;
     if (!fbUser) throw new Error('No Firebase user is logged in.');
@@ -392,7 +390,7 @@ async getFarmLogoUrl(schemaName: string): Promise<string | null> {
     const result = {
       uid: rec.uid ?? fbUser.uid,
       first_name: rec.first_name ?? null,
-     last_name:  rec.last_name  ?? null,
+      last_name: rec.last_name ?? null,
       id_number: rec.id_number ?? null,
       address,
       phone: rec.phone ?? null,
@@ -408,7 +406,7 @@ async getFarmLogoUrl(schemaName: string): Promise<string | null> {
   }
 
   // ---------- parents / children ----------
- async getCurrentParentDetails(select = 'uid, first_name, last_name, id_number, address, phone, email'): Promise<any | null> {
+  async getCurrentParentDetails(select = 'uid, first_name, last_name, id_number, address, phone, email'): Promise<any | null> {
     const tenant = this.requireTenant();
     const fbUser = getAuth().currentUser;
     if (!fbUser) throw new Error('No Firebase user is logged in.');
@@ -426,17 +424,17 @@ async getFarmLogoUrl(schemaName: string): Promise<string | null> {
   }
 
   async getMyChildren(
-  select = 'id:child_uuid, first_name, last_name, gov_id, birth_date, parent_id:parent_uid, status'
-) {
-  await this.ensureTenantContextReady();
-  const { data, error } = await this.db()
-    .from('children')
-    .select(select)
-    .order('first_name', { ascending: true })
-    .order('last_name', { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as any[];
-}
+    select = 'id:child_uuid, first_name, last_name, gov_id, birth_date, parent_id:parent_uid, status'
+  ) {
+    await this.ensureTenantContextReady();
+    const { data, error } = await this.db()
+      .from('children')
+      .select(select)
+      .order('first_name', { ascending: true })
+      .order('last_name', { ascending: true });
+    if (error) throw error;
+    return (data ?? []) as any[];
+  }
 
 
   // ---------- agreements ----------
@@ -449,51 +447,51 @@ async getFarmLogoUrl(schemaName: string): Promise<string | null> {
     return (data ?? []) as any[];
   }
 
-async insertAgreementAcceptance(opts: {
-  versionId: string;
-  parentUid: string;
-  childId?: string | null;
-  firstNameSnapshot?: string | null;
-  lastNameSnapshot?: string | null;
-  roleSnapshot?: string | null;
-  ip?: string | null;
-  userAgent?: string | null;
-  signaturePath?: string | null;
-}) {
-  
-  const splitFull = (full?: string | null) => {
-    const s = (full ?? '').trim().replace(/\s+/g, ' ');
-    if (!s) return { first: '', last: '' };
-    const parts = s.split(' ');
-    return parts.length === 1
-      ? { first: parts[0], last: '' }
-      : { first: parts[0], last: parts.slice(1).join(' ') };
-  };
- const firstSnap = opts.firstNameSnapshot ?? null;
-const lastSnap  = opts.lastNameSnapshot  ?? null;
- 
-  const { data, error } = await this.db().from('user_agreement_acceptances').insert({
-    agreement_version_id: opts.versionId,
-    parent_user_id: opts.parentUid,
-    child_id: opts.childId ?? null,
+  async insertAgreementAcceptance(opts: {
+    versionId: string;
+    parentUid: string;
+    childId?: string | null;
+    firstNameSnapshot?: string | null;
+    lastNameSnapshot?: string | null;
+    roleSnapshot?: string | null;
+    ip?: string | null;
+    userAgent?: string | null;
+    signaturePath?: string | null;
+  }) {
 
-    // שמות העמודות בטבלה:
-    first_name_snapshot: firstSnap,
-    last_name_snapshot:  lastSnap,
+    const splitFull = (full?: string | null) => {
+      const s = (full ?? '').trim().replace(/\s+/g, ' ');
+      if (!s) return { first: '', last: '' };
+      const parts = s.split(' ');
+      return parts.length === 1
+        ? { first: parts[0], last: '' }
+        : { first: parts[0], last: parts.slice(1).join(' ') };
+    };
+    const firstSnap = opts.firstNameSnapshot ?? null;
+    const lastSnap = opts.lastNameSnapshot ?? null;
 
-    role_snapshot: opts.roleSnapshot ?? 'parent',
-    ip: opts.ip ?? null,
-    user_agent: opts.userAgent ?? (typeof navigator !== 'undefined' ? navigator.userAgent : null),
-    signature_path: opts.signaturePath ?? null,
-  }).select().single();
+    const { data, error } = await this.db().from('user_agreement_acceptances').insert({
+      agreement_version_id: opts.versionId,
+      parent_user_id: opts.parentUid,
+      child_id: opts.childId ?? null,
 
-  if (error) throw error;
-  return data;
-}
+      // שמות העמודות בטבלה:
+      first_name_snapshot: firstSnap,
+      last_name_snapshot: lastSnap,
+
+      role_snapshot: opts.roleSnapshot ?? 'parent',
+      ip: opts.ip ?? null,
+      user_agent: opts.userAgent ?? (typeof navigator !== 'undefined' ? navigator.userAgent : null),
+      signature_path: opts.signaturePath ?? null,
+    }).select().single();
+
+    if (error) throw error;
+    return data;
+  }
 
 
   // ---------- messaging ----------
-  async listInbox(options?: { status?: ('open'|'pending'|'closed')[]; search?: string | null; limit?: number; offset?: number; }) {
+  async listInbox(options?: { status?: ('open' | 'pending' | 'closed')[]; search?: string | null; limit?: number; offset?: number; }) {
     let q = this.db().from('conversations')
       .select('id, subject, status, updated_at, created_at, opened_by_parent_uid, tags')
       .order('updated_at', { ascending: false });
@@ -515,7 +513,7 @@ const lastSnap  = opts.lastNameSnapshot  ?? null;
     ]);
     if (e2) throw e2;
     return { conv: (conv as any) ?? null, msgs: (msgs ?? []) as any[] };
-    }
+  }
 
   async replyToThread(conversationId: string, body_md: string) {
     const me = await this.getCurrentUserDetails('uid, role_in_tenant', { cacheMs: 0 });
@@ -597,7 +595,7 @@ const lastSnap  = opts.lastNameSnapshot  ?? null;
   }
 
   private notifyTenantChange() {
-    for (const cb of this.tenantListeners) { try { cb(this.currentTenant); } catch {} }
+    for (const cb of this.tenantListeners) { try { cb(this.currentTenant); } catch { } }
   }
 
   private scheduleTokenRefresh(jwt: string) {
