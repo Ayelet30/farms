@@ -542,26 +542,33 @@ async function chargeByToken(args: {
     ? (json.transaction_result as any)
     : null;
 
-  const successFromResponse =
-    json?.error_code === 0 &&
-    String(json?.message ?? '').toLowerCase() === 'success';
+  // const successFromResponse =
+  //   json?.error_code === 0 &&
+  //   String(json?.message ?? '').toLowerCase() === 'success';
 
-  const successFromProcessor =
-    transactionResult?.processor_response_code === '000';
+  // const successFromProcessor =
+  //   transactionResult?.processor_response_code === '000';
 
-  const successFromResource =
-    transactionResult?.transaction_resource !== undefined &&
-    transactionResult?.transaction_resource !== null &&
-    Number(transactionResult.transaction_resource) === 0;
+  // const successFromResource =
+  //   transactionResult?.transaction_resource !== undefined &&
+  //   transactionResult?.transaction_resource !== null &&
+  //   Number(transactionResult.transaction_resource) === 0;
+
+  // const ok =
+  //   resp.ok &&
+  //   (
+  //     successFromResponse ||
+  //     successFromProcessor ||
+  //     successFromResource
+  //   );
+  const processorCode =
+    String(
+      transactionResult?.processor_response_code ?? ''
+    ).trim();
 
   const ok =
     resp.ok &&
-    (
-      successFromResponse ||
-      successFromProcessor ||
-      successFromResource
-    );
-
+    processorCode === '000';
   const providerIdRaw =
     transactionResult?.transaction_id ??
     transactionResult?.ConfirmationCode ??
@@ -584,17 +591,24 @@ async function chargeByToken(args: {
     };
   }
 
+  // const errorMessage =
+  //   transactionResult?.processor_response_code
+  //     ? `processor_response_code=${transactionResult.processor_response_code}`
+  //     : json?.error ||
+  //     json?.error_message ||
+  //     json?.message ||
+  //     (
+  //       json?.error_code !== undefined
+  //         ? `Tranzila error_code=${json.error_code}`
+  //         : `Tranzila HTTP ${resp.status}`
+  //     );
   const errorMessage =
-    transactionResult?.processor_response_code
-      ? `processor_response_code=${transactionResult.processor_response_code}`
+    processorCode && processorCode !== '000'
+      ? `Tranzila declined: processor_response_code=${processorCode}`
       : json?.error ||
-        json?.error_message ||
-        json?.message ||
-        (
-          json?.error_code !== undefined
-            ? `Tranzila error_code=${json.error_code}`
-            : `Tranzila HTTP ${resp.status}`
-        );
+      json?.error_message ||
+      json?.message ||
+      `Tranzila HTTP ${resp.status}`;
 
   return {
     ok: false,
@@ -1166,44 +1180,44 @@ export const chargeSelectedChargesForParent = onRequest(
       const terminal = await loadDefaultBillingTerminal({ sbTenant: sb, provider: 'tranzila', mode: 'prod' });
 
       if (!terminal.tok_terminal_name) {
-  res.status(500).json({
-    ok: false,
-    error: 'tok_terminal_name not configured in billing_terminals',
-  });
+        res.status(500).json({
+          ok: false,
+          error: 'tok_terminal_name not configured in billing_terminals',
+        });
 
-  return;
-}
+        return;
+      }
 
-if (
-  !terminal.secret_key_app_key ||
-  !terminal.secret_key_api_secret
-) {
-  res.status(500).json({
-    ok: false,
-    error:
-      'Tenant Tranzila API secrets are not configured in billing_terminals',
-  });
+      if (
+        !terminal.secret_key_app_key ||
+        !terminal.secret_key_api_secret
+      ) {
+        res.status(500).json({
+          ok: false,
+          error:
+            'Tenant Tranzila API secrets are not configured in billing_terminals',
+        });
 
-  return;
-}
+        return;
+      }
 
-const [tenantAppKey, tenantApiSecret] = await Promise.all([
-  accessSecret(terminal.secret_key_app_key),
-  accessSecret(terminal.secret_key_api_secret),
-]);
+      const [tenantAppKey, tenantApiSecret] = await Promise.all([
+        accessSecret(terminal.secret_key_app_key),
+        accessSecret(terminal.secret_key_api_secret),
+      ]);
 
-console.log('[TRANZILA TENANT CONFIG]', {
-  tenantSchema,
+      console.log('[TRANZILA TENANT CONFIG]', {
+        tenantSchema,
 
-  terminal_name: terminal.terminal_name,
-  tok_terminal_name: terminal.tok_terminal_name,
+        terminal_name: terminal.terminal_name,
+        tok_terminal_name: terminal.tok_terminal_name,
 
-  app_key_secret_name: terminal.secret_key_app_key,
-  api_secret_name: terminal.secret_key_api_secret,
+        app_key_secret_name: terminal.secret_key_app_key,
+        api_secret_name: terminal.secret_key_api_secret,
 
-  app_key: maskSecret(tenantAppKey),
-  api_secret: maskSecret(tenantApiSecret),
-});
+        app_key: maskSecret(tenantAppKey),
+        api_secret: maskSecret(tenantApiSecret),
+      });
 
       if (!terminal.terminal_name) {
         res.status(500).json({ ok: false, error: 'terminal_name not configured in billing_terminals' });
@@ -1213,19 +1227,19 @@ console.log('[TRANZILA TENANT CONFIG]', {
       const tokenTerminalPassword = await accessSecret(terminal.secret_key_charge_token!);
 
       console.log('[TRANZILA TEMP DEBUG] terminal configuration', {
-      tenantSchema,
+        tenantSchema,
 
-      terminal_name: terminal.terminal_name,
-      tok_terminal_name: terminal.tok_terminal_name,
+        terminal_name: terminal.terminal_name,
+        tok_terminal_name: terminal.tok_terminal_name,
 
-      secret_key_charge: terminal.secret_key_charge,
-      secret_key_charge_token: terminal.secret_key_charge_token,
+        secret_key_charge: terminal.secret_key_charge,
+        secret_key_charge_token: terminal.secret_key_charge_token,
 
-      token_terminal_password: maskSecret(tokenTerminalPassword),
+        token_terminal_password: maskSecret(tokenTerminalPassword),
 
-      // חשוב: הסיסמה נטענה, אבל אינה משמשת כרגע ב-chargeByToken
-      token_password_is_actually_used: false,
-    });
+        // חשוב: הסיסמה נטענה, אבל אינה משמשת כרגע ב-chargeByToken
+        token_password_is_actually_used: false,
+      });
 
 
       // B) טוענים כרטיסים פעילים של ההורה + החיובים
@@ -1297,23 +1311,23 @@ console.log('[TRANZILA TENANT CONFIG]', {
           const orderId = `ch_${chargeId}_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
 
           const attempt = await chargeByToken({
-  terminalName: terminal.tok_terminal_name,
+            terminalName: terminal.tok_terminal_name,
 
-  appKey: tenantAppKey,
+            appKey: tenantAppKey,
 
-  apiSecret: tenantApiSecret,
+            apiSecret: tenantApiSecret,
 
-  token: String(prof.token_ref),
+            token: String(prof.token_ref),
 
-  amountAgorot,
+            amountAgorot,
 
-  description:
-    ch.description ?? 'Monthly charge',
+            description:
+              ch.description ?? 'Monthly charge',
 
-  expiryMonth: prof.expiry_month,
+            expiryMonth: prof.expiry_month,
 
-  expiryYear: prof.expiry_year,
-});
+            expiryYear: prof.expiry_year,
+          });
 
           if (attempt.ok) {
             charged = true;
@@ -1413,63 +1427,63 @@ console.log('[TRANZILA TENANT CONFIG]', {
         }
 
         results.push({
-  ok: true,
-  chargeId,
-  paymentId,
-  providerId,
-  paymentProfileId: usedProfile?.id ?? null,
-});
+          ok: true,
+          chargeId,
+          paymentId,
+          providerId,
+          paymentProfileId: usedProfile?.id ?? null,
+        });
 
       }
 
       const failedResults = results.filter(
-  (result: any) => result.ok === false
-);
+        (result: any) => result.ok === false
+      );
 
-const successfulResults = results.filter(
-  (result: any) => result.ok === true
-);
+      const successfulResults = results.filter(
+        (result: any) => result.ok === true
+      );
 
-const skippedResults = results.filter(
-  (result: any) => result.skipped === true
-);
+      const skippedResults = results.filter(
+        (result: any) => result.skipped === true
+      );
 
-if (failedResults.length > 0) {
-  const errorMessage = failedResults
-    .map(
-      (result: any) =>
-        result.error || 'החיוב נכשל'
-    )
-    .join(', ');
+      if (failedResults.length > 0) {
+        const errorMessage = failedResults
+          .map(
+            (result: any) =>
+              result.error || 'החיוב נכשל'
+          )
+          .join(', ');
 
-  res.status(400).json({
-    ok: false,
+        res.status(400).json({
+          ok: false,
 
-    error: errorMessage,
+          error: errorMessage,
 
-    results,
+          results,
 
-    failedCount: failedResults.length,
+          failedCount: failedResults.length,
 
-    successfulCount: successfulResults.length,
+          successfulCount: successfulResults.length,
 
-    skippedCount: skippedResults.length,
-  });
+          skippedCount: skippedResults.length,
+        });
 
-  return;
-}
+        return;
+      }
 
-res.json({
-  ok: true,
+      res.json({
+        ok: true,
 
-  results,
+        results,
 
-  failedCount: 0,
+        failedCount: 0,
 
-  successfulCount: successfulResults.length,
+        successfulCount: successfulResults.length,
 
-  skippedCount: skippedResults.length,
-});
+        skippedCount: skippedResults.length,
+      });
     } catch (e: any) {
       console.error('[chargeSelectedChargesForParent] error:', e);
       res.status(500).json({ ok: false, error: e?.message ?? 'internal error' });
@@ -1759,46 +1773,46 @@ export const chargeSelectedChargesForRider = onRequest(
       }
 
       if (
-  !terminal.secret_key_app_key ||
-  !terminal.secret_key_api_secret
-) {
-  res.status(500).json({
-    ok: false,
+        !terminal.secret_key_app_key ||
+        !terminal.secret_key_api_secret
+      ) {
+        res.status(500).json({
+          ok: false,
 
-    error:
-      'Tenant Tranzila API secrets are not configured in billing_terminals',
-  });
+          error:
+            'Tenant Tranzila API secrets are not configured in billing_terminals',
+        });
 
-  return;
-}
+        return;
+      }
 
-const [tenantAppKey, tenantApiSecret] =
-  await Promise.all([
-    accessSecret(terminal.secret_key_app_key),
+      const [tenantAppKey, tenantApiSecret] =
+        await Promise.all([
+          accessSecret(terminal.secret_key_app_key),
 
-    accessSecret(terminal.secret_key_api_secret),
-  ]);
+          accessSecret(terminal.secret_key_api_secret),
+        ]);
 
-console.log('[TRANZILA RIDER TENANT CONFIG]', {
-  tenantSchema,
+      console.log('[TRANZILA RIDER TENANT CONFIG]', {
+        tenantSchema,
 
-  terminal_name: terminal.terminal_name,
+        terminal_name: terminal.terminal_name,
 
-  tok_terminal_name:
-    terminal.tok_terminal_name,
+        tok_terminal_name:
+          terminal.tok_terminal_name,
 
-  app_key_secret_name:
-    terminal.secret_key_app_key,
+        app_key_secret_name:
+          terminal.secret_key_app_key,
 
-  api_secret_name:
-    terminal.secret_key_api_secret,
+        api_secret_name:
+          terminal.secret_key_api_secret,
 
-  app_key:
-    maskSecret(tenantAppKey),
+        app_key:
+          maskSecret(tenantAppKey),
 
-  api_secret:
-    maskSecret(tenantApiSecret),
-});
+        api_secret:
+          maskSecret(tenantApiSecret),
+      });
 
       const { data: profiles, error: pErr } = await sb
         .from('independent_rider_payment_profiles')
@@ -1876,24 +1890,24 @@ console.log('[TRANZILA RIDER TENANT CONFIG]', {
         let lastErrMsg = 'charge failed';
 
         for (const prof of activeProfiles) {
-        const attempt = await chargeByToken({
-  terminalName: terminal.tok_terminal_name,
+          const attempt = await chargeByToken({
+            terminalName: terminal.tok_terminal_name,
 
-  appKey: tenantAppKey,
+            appKey: tenantAppKey,
 
-  apiSecret: tenantApiSecret,
+            apiSecret: tenantApiSecret,
 
-  token: String(prof.token_ref),
+            token: String(prof.token_ref),
 
-  amountAgorot,
+            amountAgorot,
 
-  description:
-    charge.description ?? 'Rider charge',
+            description:
+              charge.description ?? 'Rider charge',
 
-  expiryMonth: prof.expiry_month,
+            expiryMonth: prof.expiry_month,
 
-  expiryYear: prof.expiry_year,
-});
+            expiryYear: prof.expiry_year,
+          });
 
           if (attempt.ok) {
             charged = true;
