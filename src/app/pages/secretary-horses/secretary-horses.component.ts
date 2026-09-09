@@ -106,6 +106,7 @@ export class SecretaryHorsesComponent implements OnInit {
   horses: Horse[] = [];
   editing: Horse | null = null;
   horseNameError = '';
+  horseAgeError = '';
   servicesByHorse: Record<string, RiderService[]> = {};
   loading = false;
   savingHorse = false;
@@ -269,6 +270,19 @@ export class SecretaryHorsesComponent implements OnInit {
       this.horseNameError = 'שם הסוס יכול להכיל עד 15 תווים';
       return;
     }
+    this.horseAgeError = '';
+
+    if (
+      this.editing.age != null &&
+      (
+        !Number.isFinite(Number(this.editing.age)) ||
+        Number(this.editing.age) < 0 ||
+        Number(this.editing.age) > 60
+      )
+    ) {
+      this.horseAgeError = 'יש להזין גיל בין 0 ל־60';
+      return;
+    }
 
     this.savingHorse = true;
 
@@ -347,14 +361,16 @@ export class SecretaryHorsesComponent implements OnInit {
         'הצלחה'
       );
 
-    } catch (e: any) {
+    }
+    catch (e: any) {
       console.error('saveHorse failed', e);
 
       await this.ui.alert(
-        'שמירת הסוס נכשלה: ' + (e?.message ?? 'שגיאה'),
+        'לא ניתן היה לשמור את פרטי הסוס. יש לבדוק את הנתונים ולנסות שוב.',
         'שגיאה'
       );
-    } finally {
+    }
+    finally {
       this.savingHorse = false;
     }
   }
