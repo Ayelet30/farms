@@ -835,19 +835,33 @@
      HEADER
      ============================== */
 
+
       .entity-edit-modal .edit-header {
           position: relative;
 
           width: 100%;
+          min-height: 66px;
 
           background: var(--panel);
 
-          padding: 14px;
+          /* מקום לכפתור התפריט בצד ימין */
+          padding: 14px 82px 14px 14px;
+
           margin: 0;
 
           border-bottom: 1px solid var(--line);
 
           box-sizing: border-box;
+
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+      }
+
+      .entity-edit-modal .edit-title {
+          min-width: 0;
+          margin: 0;
+          line-height: 1.3;
       }
 
       /* ==============================

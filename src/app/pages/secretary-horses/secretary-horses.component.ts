@@ -105,8 +105,10 @@ export class SecretaryHorsesComponent implements OnInit {
   activeTab: 'active' | 'inactive' = 'active';
   horses: Horse[] = [];
   editing: Horse | null = null;
+  horseNameError = '';
   servicesByHorse: Record<string, RiderService[]> = {};
   loading = false;
+  savingHorse = false;
   horseOwnershipFilter: 'all' | 'farm' | 'private' = 'all';
   privateOwnerFilterUid = '';
   horseNameFilter = '';
@@ -118,6 +120,7 @@ export class SecretaryHorsesComponent implements OnInit {
   historyTab: 'services' | 'tasks' = 'tasks';
   historyServiceTypeId = '';
   serviceTypes: { id: string; name: string }[] = [];
+  horseFormSubmitted = false;
   openServiceEdit(id: string): void {
     this.editingServiceId = id;
   }
@@ -220,6 +223,9 @@ export class SecretaryHorsesComponent implements OnInit {
   }
 
   newHorse(): void {
+    this.horseFormSubmitted = false;
+    this.horseNameError = '';
+
     this.editing = {
       name: '',
       age: null,
@@ -239,10 +245,8 @@ export class SecretaryHorsesComponent implements OnInit {
 
       food_supplements: null,
       horse_equipment: null,
-
     };
   }
-
   editHorse(horse: Horse): void {
     this.editing = { ...horse };
   }
@@ -252,12 +256,21 @@ export class SecretaryHorsesComponent implements OnInit {
   }
 
   async saveHorse(): Promise<void> {
-    if (!this.editing) return;
+    if (!this.editing || this.savingHorse) return;
+
+    this.horseFormSubmitted = true;
+    this.horseNameError = '';
 
     if (!this.editing.name || !this.editing.name.trim()) {
-      await this.ui.alert('שם הסוס הוא שדה חובה.', 'חסר שדה');
+      this.horseNameError = 'יש להזין שם לסוס';
       return;
     }
+    if (this.editing.name.trim().length > 15) {
+      this.horseNameError = 'שם הסוס יכול להכיל עד 15 תווים';
+      return;
+    }
+
+    this.savingHorse = true;
 
     const payload: Horse = {
       ...this.editing,
@@ -294,7 +307,6 @@ export class SecretaryHorsesComponent implements OnInit {
         is_farm_horse: payload.is_farm_horse,
         food_supplements: payload.food_supplements,
         horse_equipment: payload.horse_equipment,
-
       };
 
       if (payload.id) {
@@ -311,25 +323,41 @@ export class SecretaryHorsesComponent implements OnInit {
 
         if (error) throw error;
       }
+
       const originalHorse = payload.id
         ? this.horses.find(h => h.id === payload.id)
         : null;
 
       const horseWasDeactivated =
-        originalHorse?.is_active === true && payload.is_active === false;
+        originalHorse?.is_active === true &&
+        payload.is_active === false;
 
       if (payload.id && !horseWasDeactivated) {
         await this.saveEditingHorseTasks(payload.id);
       }
+
       this.editing = null;
+
       await this.loadHorses();
-      await this.ui.alert('הסוס נשמר בהצלחה.', 'הצלחה');
+
+      await this.ui.alert(
+        payload.id
+          ? 'הסוס עודכן בהצלחה.'
+          : 'הסוס נוסף בהצלחה.',
+        'הצלחה'
+      );
+
     } catch (e: any) {
       console.error('saveHorse failed', e);
-      await this.ui.alert('שמירת הסוס נכשלה: ' + (e?.message ?? 'שגיאה'), 'שגיאה');
+
+      await this.ui.alert(
+        'שמירת הסוס נכשלה: ' + (e?.message ?? 'שגיאה'),
+        'שגיאה'
+      );
+    } finally {
+      this.savingHorse = false;
     }
   }
-
 
   genderLabel(gender?: HorseGender): string {
     switch (gender) {
