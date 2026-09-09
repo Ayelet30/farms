@@ -258,7 +258,13 @@ export class SecretaryHorsesComponent implements OnInit {
       await this.ui.alert('שם הסוס הוא שדה חובה.', 'חסר שדה');
       return;
     }
-
+    if (this.editing.name.trim().length > 15) {
+      await this.ui.alert(
+        'שם הסוס יכול להכיל עד 15 תווים.',
+        'שם ארוך מדי'
+      );
+      return;
+    }
     const payload: Horse = {
       ...this.editing,
       name: this.editing.name.trim(),
