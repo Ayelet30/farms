@@ -105,6 +105,7 @@ export class SecretaryHorsesComponent implements OnInit {
   activeTab: 'active' | 'inactive' = 'active';
   horses: Horse[] = [];
   editing: Horse | null = null;
+  horseNameError = '';
   servicesByHorse: Record<string, RiderService[]> = {};
   loading = false;
   savingHorse = false;
@@ -119,6 +120,7 @@ export class SecretaryHorsesComponent implements OnInit {
   historyTab: 'services' | 'tasks' = 'tasks';
   historyServiceTypeId = '';
   serviceTypes: { id: string; name: string }[] = [];
+  horseFormSubmitted = false;
   openServiceEdit(id: string): void {
     this.editingServiceId = id;
   }
@@ -221,6 +223,9 @@ export class SecretaryHorsesComponent implements OnInit {
   }
 
   newHorse(): void {
+    this.horseFormSubmitted = false;
+    this.horseNameError = '';
+
     this.editing = {
       name: '',
       age: null,
@@ -240,10 +245,8 @@ export class SecretaryHorsesComponent implements OnInit {
 
       food_supplements: null,
       horse_equipment: null,
-
     };
   }
-
   editHorse(horse: Horse): void {
     this.editing = { ...horse };
   }
@@ -255,16 +258,15 @@ export class SecretaryHorsesComponent implements OnInit {
   async saveHorse(): Promise<void> {
     if (!this.editing || this.savingHorse) return;
 
+    this.horseFormSubmitted = true;
+    this.horseNameError = '';
+
     if (!this.editing.name || !this.editing.name.trim()) {
-      await this.ui.alert('שם הסוס הוא שדה חובה.', 'חסר שדה');
+      this.horseNameError = 'יש להזין שם לסוס';
       return;
     }
-
     if (this.editing.name.trim().length > 15) {
-      await this.ui.alert(
-        'שם הסוס יכול להכיל עד 15 תווים.',
-        'שם ארוך מדי'
-      );
+      this.horseNameError = 'שם הסוס יכול להכיל עד 15 תווים';
       return;
     }
 
