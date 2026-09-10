@@ -1236,14 +1236,33 @@ export class SecretaryParentsComponent implements OnInit {
   }
   async removePaymentProfile(profileId: string) {
     if (!this.selectedUid || !this.drawerParent) return;
-    const profile = this.drawerPaymentProfiles.find(p => p.id === profileId);
 
-    // 👉 כאן מכניסים את ה־message הדינמי
+    const profile = this.drawerPaymentProfiles.find(
+      p => p.id === profileId
+    );
+
+    if (!profile) return;
+
+    const otherActiveProfiles = this.drawerPaymentProfiles.filter(
+      p => p.id !== profileId && p.active
+    );
+
+    const isOnlyPaymentMethod =
+      otherActiveProfiles.length === 0;
+
+    let message = 'להסיר את אמצעי התשלום הזה?';
+
+    if (isOnlyPaymentMethod) {
+      message =
+        'זהו אמצעי התשלום היחיד המשויך להורה. לאחר הסרתו לא יהיה להורה אמצעי תשלום פעיל. האם להסיר אותו?';
+    } else if (profile.is_default) {
+      message =
+        'הכרטיס הזה הוא ברירת המחדל. לאחר הסרתו יוגדר אמצעי תשלום אחר כברירת מחדל. האם להמשיך?';
+    }
+
     const ok = await this.ui.confirm({
       title: 'מחיקת אמצעי תשלום',
-      message: profile?.is_default
-        ? 'הכרטיס הזה הוא ברירת מחדל. יוגדר כרטיס אחר כברירת מחדל. להמשיך?'
-        : 'להסיר את אמצעי התשלום הזה?'
+      message,
     });
 
     if (!ok) return;
@@ -1265,7 +1284,10 @@ export class SecretaryParentsComponent implements OnInit {
     await this.loadDrawerData(this.selectedUid);
     await this.loadParents();
 
-    await this.ui.alert('אמצעי התשלום הוסר בהצלחה', 'בוצע');
+    await this.ui.alert(
+      'אמצעי התשלום הוסר בהצלחה',
+      'בוצע'
+    );
   }
   formatExpiry(month?: number | null, year?: number | null): string {
     if (!month || !year) return '—';
