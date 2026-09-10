@@ -323,8 +323,11 @@ export class IndependentHorsesComponent implements OnInit {
     }
     async saveHorseEdit(horse: Horse): Promise<void> {
         const newActive = this.editHorseDraft.is_active as boolean;
-        const newColor =
-            String(this.editHorseDraft.color ?? '').trim() || null;
+
+        const isDeactivating =
+            horse.is_active === true &&
+            newActive === false; const newColor =
+                String(this.editHorseDraft.color ?? '').trim() || null;
         const summary = this.buildEditSummary(horse);
 
         if (summary === 'לא בוצעו שינויים.') {
@@ -334,14 +337,13 @@ export class IndependentHorsesComponent implements OnInit {
         const ok = await this.ui.confirm({
             title: 'אישור שמירת שינויים',
             message: summary,
-            dangerText: newActive === false
-                ? 'הפיכת הסוס ללא פעיל תבטל את השירותים והמשימות העתידיות שלו.'
+            dangerText: isDeactivating
+                ? 'שינוי סטטוס הסוס ל״לא פעיל״ יבטל באופן אוטומטי את השירותים והמשימות העתידיות שלו.'
                 : '',
             okText: 'כן, לשמור שינויים',
             cancelText: 'חזרה לעריכה',
             showCancel: true,
         });
-
         if (!ok) return;
 
         const db = dbTenant();
@@ -452,35 +454,57 @@ export class IndependentHorsesComponent implements OnInit {
                 `צבע: ${oldColor || '—'} ← ${newColor || '—'}`
             );
         }
+
         const newActive = this.editHorseDraft.is_active as boolean;
 
+        const isDeactivating =
+            horse.is_active === true &&
+            newActive === false;
+
         if (horse.is_active !== newActive) {
-            changes.push(`סטטוס סוס: ${horse.is_active ? 'פעיל' : 'לא פעיל'} ← ${newActive ? 'פעיל' : 'לא פעיל'}`);
+            changes.push(
+                `סטטוס סוס: ${horse.is_active ? 'פעיל' : 'לא פעיל'} ← ${newActive ? 'פעיל' : 'לא פעיל'}`
+            );
         }
 
         const services = this.servicesByHorse[horse.id] || [];
         const tasks = this.tasksByHorse[horse.id] || [];
 
-        const cancelledServices = services.filter(s => this.pendingCancelledServiceIds.has(s.id));
-        const cancelledTasks = tasks.filter(t => this.pendingCancelledTaskIds.has(t.id));
+        const cancelledServices = services.filter(
+            s => this.pendingCancelledServiceIds.has(s.id)
+        );
 
-        if (cancelledServices.length) {
-            changes.push(
-                `שירותים לביטול: ${cancelledServices.map(s => s.service_name).join(', ')}`
-            );
-        }
+        const cancelledTasks = tasks.filter(
+            t => this.pendingCancelledTaskIds.has(t.id)
+        );
 
-        if (cancelledTasks.length) {
-            changes.push(
-                `משימות לביטול: ${cancelledTasks.map(t => t.service_name).join(', ')}`
-            );
+        // אם הסוס הופך ללא פעיל -
+        // הביטולים הם חלק מהשלכות שינוי הסטטוס ולא מוצגים כשינוי נפרד
+        if (!isDeactivating) {
+            if (cancelledServices.length) {
+                changes.push(
+                    `שירותים לביטול: ${cancelledServices
+                        .map(s => s.service_name)
+                        .join(', ')}`
+                );
+            }
+
+            if (cancelledTasks.length) {
+                changes.push(
+                    `משימות לביטול: ${cancelledTasks
+                        .map(t => t.service_name)
+                        .join(', ')}`
+                );
+            }
         }
 
         if (!changes.length) {
             return 'לא בוצעו שינויים.';
         }
 
-        return changes.map(change => change.trim()).join('\n\n');
+        return changes
+            .map(change => change.trim())
+            .join('\n\n');
     }
     goToServiceRequest(horse: Horse): void {
         this.router.navigate(
