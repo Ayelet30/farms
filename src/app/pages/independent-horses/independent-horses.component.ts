@@ -323,6 +323,8 @@ export class IndependentHorsesComponent implements OnInit {
     }
     async saveHorseEdit(horse: Horse): Promise<void> {
         const newActive = this.editHorseDraft.is_active as boolean;
+        const newColor =
+            String(this.editHorseDraft.color ?? '').trim() || null;
         const summary = this.buildEditSummary(horse);
 
         if (summary === 'לא בוצעו שינויים.') {
@@ -347,7 +349,7 @@ export class IndependentHorsesComponent implements OnInit {
         const { error: horseError } = await db
             .from('horses')
             .update({
-                color: this.editHorseDraft.color ?? null,
+                color: newColor,
                 is_active: newActive,
             })
             .eq('id', horse.id);
@@ -392,7 +394,7 @@ export class IndependentHorsesComponent implements OnInit {
             }
         }
 
-        horse.color = this.editHorseDraft.color ?? null;
+        horse.color = newColor;
         horse.is_active = newActive;
 
         this.cancelEditHorse();
@@ -442,13 +444,14 @@ export class IndependentHorsesComponent implements OnInit {
     private buildEditSummary(horse: Horse): string {
         const changes: string[] = [];
 
-        const oldColor = horse.color || '—';
-        const newColor = String(this.editHorseDraft.color ?? '').trim() || '—';
+        const oldColor = String(horse.color ?? '').trim();
+        const newColor = String(this.editHorseDraft.color ?? '').trim();
 
         if (oldColor !== newColor) {
-            changes.push(`צבע: ${oldColor} ← ${newColor}`);
+            changes.push(
+                `צבע: ${oldColor || '—'} ← ${newColor || '—'}`
+            );
         }
-
         const newActive = this.editHorseDraft.is_active as boolean;
 
         if (horse.is_active !== newActive) {
