@@ -116,14 +116,18 @@
 }
 
 .modal-backdrop {
-    position: fixed;
-    inset: 0;
+    position: fixed !important;
+    inset: 0 !important;
+
     background: rgba(0, 0, 0, 0.35);
+
     display: none;
     align-items: center;
     justify-content: center;
+
     padding: 18px;
-    z-index: 5000;
+
+    z-index: 2147483000 !important;
 
     &.is-open {
         display: flex;
@@ -131,14 +135,39 @@
 }
 
 .modal {
-    height: -webkit-fill-available;
-    width: min(684px, 75vw);
-    margin-top: 70px;
+    width: min(684px, calc(100vw - 36px));
+    max-height: calc(100dvh - 36px);
+
     background: var(--panel-bg, #fff);
     border-radius: 18px;
     border: 1px solid rgba(0, 0, 0, 0.12);
     box-shadow: 0 14px 40px rgba(0, 0, 0, 0.18);
+
+    display: flex;
+    flex-direction: column;
+
     overflow: hidden;
+}
+
+.modal-header {
+    flex: 0 0 auto;
+}
+
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-start;
+    gap: 10px;
+
+    padding: 14px 16px;
+
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    background: var(--panel-bg, #fff);
+
+    flex: 0 0 auto;
+    flex-shrink: 0;
+
+    z-index: 2;
 }
 
 .modal-header {
@@ -160,17 +189,8 @@
     font-size: 18px;
 }
 
-.modal-body {
-    padding: 14px 16px;
-}
 
-.modal-footer {
-    display: flex;
-    justify-content: flex-start;
-    gap: 10px;
-    padding: 14px 16px;
-    border-top: 1px solid rgba(0, 0, 0, 0.08);
-}
+
 
 .hf-grid {
     display: grid;
@@ -260,6 +280,16 @@ select {
     font-weight: 800;
 }
 
+.modal-body {
+    padding: 14px 16px;
+
+    flex: 1 1 auto;
+    min-height: 0;
+
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
 .spinner {
     width: 18px;
     height: 18px;
@@ -277,5 +307,76 @@ select {
 @keyframes spin {
     to {
         transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 640px) {
+
+    .modal-backdrop {
+        position: fixed !important;
+        inset: 0 !important;
+
+        width: 100vw;
+        height: 100dvh;
+
+        display: none;
+
+        justify-content: center;
+        align-items: center;
+
+        /* שומרים מקום ל-header העליון */
+        padding:
+            110px 12px 18px;
+
+        box-sizing: border-box;
+
+        z-index: 2147483000 !important;
+
+        overflow: hidden;
+    }
+
+    .modal-backdrop.is-open {
+        display: flex;
+    }
+
+    .modal {
+        width: 100%;
+        max-width: 620px;
+
+        /* הגובה מחושב רק לפי האזור הפנוי */
+        max-height: calc(100dvh - 128px);
+
+        margin: 0;
+
+        display: flex;
+        flex-direction: column;
+
+        overflow: hidden;
+
+        border-radius: 18px;
+    }
+
+    .modal-header {
+        flex: 0 0 auto;
+        background: var(--panel-bg, #fff);
+    }
+
+    .modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    .modal-footer {
+        flex: 0 0 auto;
+
+        background: var(--panel-bg, #fff);
+    }
+
+    .modal-footer .btn {
+        flex: 1;
+        min-height: 44px;
     }
 }
