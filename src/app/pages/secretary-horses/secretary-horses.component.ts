@@ -122,6 +122,12 @@ export class SecretaryHorsesComponent implements OnInit {
   historyServiceTypeId = '';
   serviceTypes: { id: string; name: string }[] = [];
   horseFormSubmitted = false;
+  readonly MAX_HORSE_COLOR = 30;
+  readonly MAX_HORSE_TEXT = 250;
+  horseColorError = '';
+  horseShoeingNotesError = '';
+  horseFoodSupplementsError = '';
+  horseEquipmentError = '';
   openServiceEdit(id: string): void {
     this.editingServiceId = id;
   }
@@ -283,14 +289,56 @@ export class SecretaryHorsesComponent implements OnInit {
       this.horseAgeError = 'יש להזין גיל בין 0 ל־60';
       return;
     }
+    this.horseColorError = '';
+    this.horseShoeingNotesError = '';
+    this.horseFoodSupplementsError = '';
+    this.horseEquipmentError = '';
 
+    if (
+      String(this.editing.color ?? '').trim().length >
+      this.MAX_HORSE_COLOR
+    ) {
+      this.horseColorError =
+        `צבע הסוס יכול להכיל עד ${this.MAX_HORSE_COLOR} תווים`;
+      return;
+    }
+
+    if (
+      String(this.editing.shoeing_notes ?? '').trim().length >
+      this.MAX_HORSE_TEXT
+    ) {
+      this.horseShoeingNotesError =
+        `הערות לפרזול יכולות להכיל עד ${this.MAX_HORSE_TEXT} תווים`;
+      return;
+    }
+
+    if (
+      String(this.editing.food_supplements ?? '').trim().length >
+      this.MAX_HORSE_TEXT
+    ) {
+      this.horseFoodSupplementsError =
+        `תוספות מזון יכולות להכיל עד ${this.MAX_HORSE_TEXT} תווים`;
+      return;
+    }
+
+    if (
+      String(this.editing.horse_equipment ?? '').trim().length >
+      this.MAX_HORSE_TEXT
+    ) {
+      this.horseEquipmentError =
+        `ציוד הסוס יכול להכיל עד ${this.MAX_HORSE_TEXT} תווים`;
+      return;
+    }
     this.savingHorse = true;
 
     const payload: Horse = {
       ...this.editing,
       name: this.editing.name.trim(),
+      color: String(this.editing.color ?? '').trim() || null,
+      shoeing_notes: String(this.editing.shoeing_notes ?? '').trim() || null,
+      food_supplements: String(this.editing.food_supplements ?? '').trim() || null,
+      horse_equipment: String(this.editing.horse_equipment ?? '').trim() || null,
     };
-
     if (payload.age === undefined) payload.age = null;
     if (payload.color === undefined) payload.color = null;
     if (payload.gender === undefined) payload.gender = null;
@@ -318,6 +366,7 @@ export class SecretaryHorsesComponent implements OnInit {
         min_break_minutes: payload.min_break_minutes,
         is_active: payload.is_active,
         notes: payload.notes,
+        shoeing_notes: payload.shoeing_notes, // ← להוסיף
         is_farm_horse: payload.is_farm_horse,
         food_supplements: payload.food_supplements,
         horse_equipment: payload.horse_equipment,
