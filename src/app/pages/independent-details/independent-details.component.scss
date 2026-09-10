@@ -507,3 +507,15 @@
 
     color: #6e7462;
 }
+
+.editable-name {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+.editable-name .editable-input {
+    width: 100%;
+    box-sizing: border-box;
+}
