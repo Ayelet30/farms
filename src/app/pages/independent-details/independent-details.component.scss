@@ -211,6 +211,16 @@
         gap: 10px;
     }
 
+    .edit-actions-bottom {
+        width: 100%;
+        margin-top: 20px;
+    }
+
+    .edit-actions-bottom .btn-save,
+    .edit-actions-bottom .btn-cancel {
+        flex: 1;
+    }
+
     .button-group {
         justify-content: flex-start;
     }
@@ -513,6 +523,14 @@
     flex-direction: column;
     gap: 10px;
     width: 100%;
+}
+
+.edit-actions-bottom {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
 }
 
 .editable-name .editable-input {
