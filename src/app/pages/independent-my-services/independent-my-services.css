@@ -48,6 +48,11 @@
     border-radius: 22px;
     padding: 20px;
     box-shadow: 0 8px 22px rgba(34, 51, 39, 0.08);
+
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
 .card-top {
@@ -97,23 +102,32 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
 
-    div {
-        background: #f8f4ea;
-        border-radius: 14px;
-        padding: 12px;
-    }
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
 
-    span {
-        display: block;
-        font-size: 12px;
-        color: #7a7f75;
-        margin-bottom: 5px;
-    }
+.info-grid>div {
+    background: #f8f4ea;
+    border-radius: 14px;
+    padding: 12px;
 
-    b {
-        color: #2d4636;
-        font-size: 14px;
-    }
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.info-grid b {
+    display: block;
+
+    color: #2d4636;
+    font-size: 14px;
+
+    max-width: 100%;
+
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .notes {
@@ -179,19 +193,58 @@
 }
 
 @media (max-width: 600px) {
+
     .my-services-page {
-        padding: 16px;
+        padding: 12px;
+        width: 100%;
+        box-sizing: border-box;
+        overflow-x: hidden;
     }
 
     .services-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .service-card {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+
+        padding: 16px;
+
+        box-sizing: border-box;
     }
 
     .info-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+
+        gap: 10px;
+    }
+
+    .info-grid>div {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+
+        box-sizing: border-box;
     }
 
     .card-top {
         flex-direction: column;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .card-top>div {
+        width: 100%;
+        min-width: 0;
     }
 }

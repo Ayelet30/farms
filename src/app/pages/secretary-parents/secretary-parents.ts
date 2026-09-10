@@ -38,9 +38,15 @@ type ParentRow = {
   last_name: string;
   id_number?: string | null;
   billing_day_of_month?: number | null;
+
   phone?: string | null;
+  secondary_phone?: string | null;
+
   email?: string | null;
+  secondary_email?: string | null;
+
   is_active?: boolean | null;
+
   hasActiveChildren?: boolean;
   hasInactiveChildren?: boolean;
   paymentProfilesCount?: number;
@@ -370,32 +376,32 @@ export class SecretaryParentsComponent implements OnInit {
   }
 
   private normalizeIdNumber(value: any): string {
-  return String(value ?? '').replace(/\D/g, '');
-}
+    return String(value ?? '').replace(/\D/g, '');
+  }
 
-private israeliIdValidator(): ValidatorFn {
-  return (control: AbstractControl): ValidationErrors | null => {
-    const raw = this.normalizeIdNumber(control.value);
+  private israeliIdValidator(): ValidatorFn {
+    return (control: AbstractControl): ValidationErrors | null => {
+      const raw = this.normalizeIdNumber(control.value);
 
-    if (!raw) return null;
-    if (raw.length !== 9) return { israelIdLength: true };
+      if (!raw) return null;
+      if (raw.length !== 9) return { israelIdLength: true };
 
-    const sum = raw
-      .split('')
-      .map(Number)
-      .reduce((total, digit, index) => {
-        let value = digit * ((index % 2) + 1);
+      const sum = raw
+        .split('')
+        .map(Number)
+        .reduce((total, digit, index) => {
+          let value = digit * ((index % 2) + 1);
 
-        if (value > 9) {
-          value -= 9;
-        }
+          if (value > 9) {
+            value -= 9;
+          }
 
-        return total + value;
-      }, 0);
+          return total + value;
+        }, 0);
 
-    return sum % 10 === 0 ? null : { israelIdInvalid: true };
-  };
-}
+      return sum % 10 === 0 ? null : { israelIdInvalid: true };
+    };
+  }
 
   moveColumnLeft(index: number): void {
     if (index <= 0) return;
@@ -455,8 +461,19 @@ private israeliIdValidator(): ValidatorFn {
 
       const { data: parentsData, error: parentsErr } = await dbc
         .from('parents')
-        .select('uid, first_name, last_name, id_number, phone, email, is_active, billing_day_of_month, scheduled_inactive_at').order('first_name', { ascending: true });
-
+        .select(`
+  uid,
+  first_name,
+  last_name,
+  id_number,
+  phone,
+  secondary_phone,
+  email,
+  secondary_email,
+  is_active,
+  billing_day_of_month,
+  scheduled_inactive_at
+`)
       if (parentsErr) throw parentsErr;
 
       const parents = (parentsData ?? []) as ParentRow[];
@@ -540,13 +557,13 @@ private israeliIdValidator(): ValidatorFn {
         [Validators.required, Validators.maxLength(this.MAX_LAST_NAME)],
       ],
       id_number: [
-  parent.id_number ?? '',
-  [
-    Validators.required,
-    Validators.pattern(/^\d{9}$/),
-    this.israeliIdValidator(),
-  ],
-],
+        parent.id_number ?? '',
+        [
+          Validators.required,
+          Validators.pattern(/^\d{9}$/),
+          this.israeliIdValidator(),
+        ],
+      ],
       phone: [
         parent.phone ?? '',
         [
@@ -730,29 +747,29 @@ private israeliIdValidator(): ValidatorFn {
       const cleanUid = (this.selectedUid || '').trim();
 
       if (changes.id_number) {
-  const { data: existingParent, error: duplicateError } = await db
-    .from('parents')
-    .select('uid, first_name, last_name')
-    .eq('id_number', changes.id_number)
-    .neq('uid', cleanUid)
-    .maybeSingle();
+        const { data: existingParent, error: duplicateError } = await db
+          .from('parents')
+          .select('uid, first_name, last_name')
+          .eq('id_number', changes.id_number)
+          .neq('uid', cleanUid)
+          .maybeSingle();
 
-  if (duplicateError) {
-    throw duplicateError;
-  }
+        if (duplicateError) {
+          throw duplicateError;
+        }
 
-  if (existingParent) {
-    const existingName =
-      `${existingParent.first_name ?? ''} ${existingParent.last_name ?? ''}`.trim();
+        if (existingParent) {
+          const existingName =
+            `${existingParent.first_name ?? ''} ${existingParent.last_name ?? ''}`.trim();
 
-    await this.ui.alert(
-      `תעודת הזהות כבר משויכת להורה אחר${existingName ? `: ${existingName}` : ''}.`,
-      'תעודת זהות קיימת'
-    );
+          await this.ui.alert(
+            `תעודת הזהות כבר משויכת להורה אחר${existingName ? `: ${existingName}` : ''}.`,
+            'תעודת זהות קיימת'
+          );
 
-    return;
-  }
-}
+          return;
+        }
+      }
 
       let data: any = null;
 
@@ -974,21 +991,21 @@ private israeliIdValidator(): ValidatorFn {
     });
   }
 
-  
+
   onParentIdInput(event: Event): void {
-  const input = event.target as HTMLInputElement;
-  const cleanValue = input.value.replace(/\D/g, '').slice(0, 9);
+    const input = event.target as HTMLInputElement;
+    const cleanValue = input.value.replace(/\D/g, '').slice(0, 9);
 
-  input.value = cleanValue;
+    input.value = cleanValue;
 
-  this.parentForm
-    .get('id_number')
-    ?.setValue(cleanValue, { emitEvent: false });
+    this.parentForm
+      .get('id_number')
+      ?.setValue(cleanValue, { emitEvent: false });
 
-  this.parentForm
-    .get('id_number')
-    ?.markAsTouched();
-}
+    this.parentForm
+      .get('id_number')
+      ?.markAsTouched();
+  }
 
   private getTenantSchemaOrThrow(): string {
     const farm = getCurrentFarmMetaSync();
@@ -1219,14 +1236,33 @@ private israeliIdValidator(): ValidatorFn {
   }
   async removePaymentProfile(profileId: string) {
     if (!this.selectedUid || !this.drawerParent) return;
-    const profile = this.drawerPaymentProfiles.find(p => p.id === profileId);
 
-    // 👉 כאן מכניסים את ה־message הדינמי
+    const profile = this.drawerPaymentProfiles.find(
+      p => p.id === profileId
+    );
+
+    if (!profile) return;
+
+    const otherActiveProfiles = this.drawerPaymentProfiles.filter(
+      p => p.id !== profileId && p.active
+    );
+
+    const isOnlyPaymentMethod =
+      otherActiveProfiles.length === 0;
+
+    let message = 'להסיר את אמצעי התשלום הזה?';
+
+    if (isOnlyPaymentMethod) {
+      message =
+        'זהו אמצעי התשלום היחיד המשויך להורה. לאחר הסרתו לא יהיה להורה אמצעי תשלום פעיל. האם להסיר אותו?';
+    } else if (profile.is_default) {
+      message =
+        'הכרטיס הזה הוא ברירת המחדל. לאחר הסרתו יוגדר אמצעי תשלום אחר כברירת מחדל. האם להמשיך?';
+    }
+
     const ok = await this.ui.confirm({
       title: 'מחיקת אמצעי תשלום',
-      message: profile?.is_default
-        ? 'הכרטיס הזה הוא ברירת מחדל. יוגדר כרטיס אחר כברירת מחדל. להמשיך?'
-        : 'להסיר את אמצעי התשלום הזה?'
+      message,
     });
 
     if (!ok) return;
@@ -1248,7 +1284,10 @@ private israeliIdValidator(): ValidatorFn {
     await this.loadDrawerData(this.selectedUid);
     await this.loadParents();
 
-    await this.ui.alert('אמצעי התשלום הוסר בהצלחה', 'בוצע');
+    await this.ui.alert(
+      'אמצעי התשלום הוסר בהצלחה',
+      'בוצע'
+    );
   }
   formatExpiry(month?: number | null, year?: number | null): string {
     if (!month || !year) return '—';
@@ -1482,8 +1521,8 @@ private israeliIdValidator(): ValidatorFn {
     this.saveRequestId = requestId;
 
     this.tokenError = null;
-this.tokenSaved = false;
-this.cardFieldsLoading = true;
+    this.tokenSaved = false;
+    this.cardFieldsLoading = true;
 
     setTimeout(() => {
       if (this.isActiveAddCardSession(parentUid, requestId)) {
@@ -1563,7 +1602,7 @@ this.cardFieldsLoading = true;
 
       this.cardFieldsLoading = false;
     } catch (e: any) {
-      
+
       this.cardFieldsLoading = false;
       console.error('ensureAddHostedFieldsReady error', e);
       if (this.isActiveAddCardSession(parentUid, requestId)) {
@@ -1635,10 +1674,10 @@ this.cardFieldsLoading = true;
       const lockedParent =
         structuredClone(this.drawerParent);
 
-        this.hfAdd.onEvent?.('change', () => {
-          this.tokenError = null;
-          this.tokenSaved = false;
-        });
+      this.hfAdd.onEvent?.('change', () => {
+        this.tokenError = null;
+        this.tokenSaved = false;
+      });
 
       this.hfAdd.charge(
         {
@@ -1706,16 +1745,16 @@ this.cardFieldsLoading = true;
 
             if (!this.isActiveAddCardSession(parentUid, requestId)) return;
 
-             if (this.selectedUid === parentUid) {
+            if (this.selectedUid === parentUid) {
               await this.loadDrawerData(parentUid);
-              }
-              await this.loadParents();
+            }
+            await this.loadParents();
 
-              this.tokenSaved = true;
+            this.tokenSaved = true;
 
-              await this.ui.alert('אמצעי התשלום נשמר בהצלחה', 'בוצע');
+            await this.ui.alert('אמצעי התשלום נשמר בהצלחה', 'בוצע');
 
-              this.resetAddCardState(true);
+            this.resetAddCardState(true);
 
             if (!this.isActiveAddCardSession(parentUid, requestId)) return;
 
