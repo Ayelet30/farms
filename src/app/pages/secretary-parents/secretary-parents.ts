@@ -1497,80 +1497,162 @@ this.cardFieldsLoading = true;
     this.resetAddCardState(true);
   }
 
-  private async ensureAddHostedFieldsReady(parentUid: string, requestId: string): Promise<void> {
-    if (!this.isActiveAddCardSession(parentUid, requestId)) return;
-    if (this.hfAdd || this.hfInitTried) return;
+ private async ensureAddHostedFieldsReady(
+  parentUid: string,
+  requestId: string,
+  retryCount = 0
+): Promise<void> {
 
-    this.hfInitTried = true;
-    this.tokenError = null;
+  if (!this.isActiveAddCardSession(parentUid, requestId)) return;
 
-    try {
-      const farm = getCurrentFarmMetaSync();
-      const tenantSchema = farm?.schema_name ?? null;
+  // בניסיון הראשון בלבד נמנע מאתחול כפול
+  if (retryCount === 0 && (this.hfAdd || this.hfInitTried)) return;
 
-      if (!tenantSchema) {
-        this.tokenError = 'לא זוהתה סכמת חווה';
-        return;
-      }
+  this.hfInitTried = true;
+  this.tokenError = null;
+  this.cardFieldsLoading = true;
 
-      const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema);
+  try {
+    const farm = getCurrentFarmMetaSync();
+    const tenantSchema = farm?.schema_name ?? null;
 
-      if (!this.isActiveAddCardSession(parentUid, requestId)) return;
-
-      this.thtkAdd = thtk;
-
-      if (typeof TzlaHostedFields === 'undefined' || !TzlaHostedFields) {
-        this.tokenError = 'רכיב התשלום לא נטען';
-        return;
-      }
-
-      this.hfAdd = TzlaHostedFields.create({
-        sandbox: false,
-        fields: {
-          credit_card_number: {
-            selector: '#sp_credit_card_number',
-            placeholder: '4580 4580 4580 4580',
-            tabindex: 1,
-          },
-          cvv: {
-            selector: '#sp_cvv',
-            placeholder: '123',
-            tabindex: 2,
-          },
-          expiry: {
-            selector: '#sp_expiry',
-            placeholder: '12/26',
-            version: '1',
-          },
-        },
-        styles: {
-          input: {
-            height: '30px',
-            'line-height': '30px',
-            padding: '0 10px',
-            'font-size': '15px',
-            'box-sizing': 'border-box',
-          },
-          select: {
-            height: '30px',
-            'line-height': '30px',
-            padding: '0 10px',
-            'font-size': '15px',
-            'box-sizing': 'border-box',
-          },
-        },
-      });
-
-      this.cardFieldsLoading = false;
-    } catch (e: any) {
-      
-      this.cardFieldsLoading = false;
-      console.error('ensureAddHostedFieldsReady error', e);
-      if (this.isActiveAddCardSession(parentUid, requestId)) {
-        this.tokenError = e?.message ?? 'שגיאה באתחול שדות האשראי';
-      }
+    if (!tenantSchema) {
+      throw new Error('לא זוהתה סכמת חווה');
     }
+
+    const { thtk } =
+      await this.tranzila.getHandshakeToken(tenantSchema);
+
+    if (!this.isActiveAddCardSession(parentUid, requestId)) return;
+
+    if (!thtk) {
+      throw new Error('לא התקבל handshake token');
+    }
+
+    this.thtkAdd = thtk;
+
+    if (
+      typeof TzlaHostedFields === 'undefined' ||
+      !TzlaHostedFields
+    ) {
+      throw new Error('רכיב התשלום לא נטען');
+    }
+
+    // מוודאים שה-DOM של המודל כבר קיים
+    const cardElement =
+      document.getElementById('sp_credit_card_number');
+
+    const cvvElement =
+      document.getElementById('sp_cvv');
+
+    const expiryElement =
+      document.getElementById('sp_expiry');
+
+    if (!cardElement || !cvvElement || !expiryElement) {
+      throw new Error('שדות האשראי עדיין לא מוכנים');
+    }
+
+    this.hfAdd = TzlaHostedFields.create({
+      sandbox: false,
+
+      fields: {
+        credit_card_number: {
+          selector: '#sp_credit_card_number',
+          placeholder: '4580 4580 4580 4580',
+          tabindex: 1,
+        },
+
+        cvv: {
+          selector: '#sp_cvv',
+          placeholder: '123',
+          tabindex: 2,
+        },
+
+        expiry: {
+          selector: '#sp_expiry',
+          placeholder: '12/26',
+          version: '1',
+        },
+      },
+
+      styles: {
+        input: {
+          height: '30px',
+          'line-height': '30px',
+          padding: '0 10px',
+          'font-size': '15px',
+          'box-sizing': 'border-box',
+        },
+
+        select: {
+          height: '30px',
+          'line-height': '30px',
+          padding: '0 10px',
+          'font-size': '15px',
+          'box-sizing': 'border-box',
+        },
+      },
+    });
+
+    if (!this.hfAdd) {
+      throw new Error('רכיב האשראי לא אותחל');
+    }
+
+    if (!this.isActiveAddCardSession(parentUid, requestId)) {
+      this.destroyHostedFields();
+      return;
+    }
+
+    this.cardFieldsLoading = false;
+
+  } catch (e: any) {
+
+    console.error(
+      '[ADD_CARD][HOSTED_FIELDS_INIT_FAILED]',
+      {
+        retryCount,
+        error: e
+      }
+    );
+
+    if (!this.isActiveAddCardSession(parentUid, requestId)) {
+      return;
+    }
+
+    // ניסיון תיקון אוטומטי אחד
+    if (retryCount < 1) {
+
+      console.warn(
+        '[ADD_CARD] Hosted Fields init failed - retrying...'
+      );
+
+      this.destroyHostedFields();
+
+      this.hfInitTried = false;
+      this.tokenError = null;
+
+      await new Promise(resolve =>
+        setTimeout(resolve, 300)
+      );
+
+      if (!this.isActiveAddCardSession(parentUid, requestId)) {
+        return;
+      }
+
+      return this.ensureAddHostedFieldsReady(
+        parentUid,
+        requestId,
+        retryCount + 1
+      );
+    }
+
+    this.cardFieldsLoading = false;
+
+    this.tokenError =
+      e?.message ??
+      'שגיאה באתחול שדות האשראי';
   }
+}
 
   async tokenizeAndSaveCardForSelectedParent(): Promise<void> {
     if (this.savingToken) return;

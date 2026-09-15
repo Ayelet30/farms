@@ -255,6 +255,9 @@ async function sendSplitInvoicesViaNotifyUser(params: {
     tenantSchema,
     userType: "parent",
     uid: parentUid,
+    // חשבונית היא מסמך כספי שחייב להישלח גם אם ההורה לא סימן
+    // העדפת דיוור כללית במערכת.
+    forceEmail: true,
     subject: `חשבוניות עבור התשלום`,
     html: `
       <div dir="rtl" style="font-family: Arial, sans-serif">
@@ -286,8 +289,10 @@ async function sendSplitInvoicesViaNotifyUser(params: {
     attachments: attachments.length,
   });
 
-  if (!r.ok) {
-    throw new Error(`notifyUser failed: ${j?.message || j?.error || r.statusText}`);
+  if (!r.ok || j?.sent !== true) {
+    throw new Error(
+      `notifyUser failed: ${j?.message || j?.error || j?.reason || r.statusText || 'email was not sent'}`
+    );
   }
 
   return j;

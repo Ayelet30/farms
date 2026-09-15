@@ -1328,7 +1328,11 @@ console.log('[TRANZILA TENANT CONFIG]', {
         if (!charged) {
           await sb
             .from('charges')
-            .update({ status: 'failed', updated_at: new Date().toISOString() })
+            .update({
+              status: 'failed',
+              failure_reason: lastErrMsg,
+              updated_at: new Date().toISOString(),
+            })
             .eq('id', chargeId);
 
           results.push({ ok: false, chargeId, error: lastErrMsg });
@@ -1345,6 +1349,7 @@ console.log('[TRANZILA TENANT CONFIG]', {
             status: 'paid',
             provider_id: providerId,
             profile_id: usedProfile?.id ?? null,
+            failure_reason: null,
             updated_at: new Date().toISOString(),
           })
           .eq('id', chargeId);
