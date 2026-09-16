@@ -154,14 +154,13 @@ export const notifyUser = onRequest(
       });
 
       let notify: any = {};
-      let toEmail: string | null = null;
-
+      let toEmails: string[] = [];
       if (userType === 'parent') {
         // Parent: email מהטננט
         const { data, error } = await sb
           .schema(tenantSchema)
           .from('parents')
-          .select('uid,email,notify,is_active')
+          .select('uid,email,notify,secondary_email,is_active')
           .eq('uid', uid)
           .maybeSingle();
 
@@ -173,7 +172,16 @@ export const notifyUser = onRequest(
         }
 
         notify = data.notify ?? {};
-        toEmail = toOverride || data.email || null;
+
+        toEmails = toOverride
+          ? [toOverride]
+          : Array.from(
+            new Set(
+              [data.email, data.secondary_email]
+                .map(email => String(email ?? '').trim())
+                .filter(Boolean)
+            )
+          );
       } else if (userType === 'instructor') {
         // Instructor: notify מהטננט, email מ-public.users
         const { data, error } = await sb
@@ -197,7 +205,11 @@ export const notifyUser = onRequest(
 
         if (uerr) return void res.status(500).json({ error: 'DB error', message: uerr.message });
 
-        toEmail = toOverride || urow?.email || null;
+        toEmails = toOverride
+          ? [toOverride]
+          : urow?.email
+            ? [urow.email]
+            : [];
       }
       else {
         // Independent rider
@@ -220,7 +232,11 @@ export const notifyUser = onRequest(
           signupApproved: true,
         };
 
-        toEmail = toOverride || data.email || null;
+        toEmails = toOverride
+          ? [toOverride]
+          : data.email
+            ? [data.email]
+            : [];
       }
 
       // בדיקת העדפות
@@ -236,7 +252,7 @@ export const notifyUser = onRequest(
         });
       }
 
-      if (!toEmail) {
+      if (!toEmails.length) {
         return void res.status(200).json({
           sent: false,
           channel: 'email',
@@ -250,12 +266,11 @@ export const notifyUser = onRequest(
       // קריאה ל-sendEmailGmail שלך
       const payload: any = {
         tenantSchema,
-        to: [toEmail],
+        to: toEmails,
         subject,
         html: html || undefined,
         text: text || undefined,
         attachments: attachments.length ? attachments : undefined,
-
       };
       const r = await fetch(SEND_EMAIL_GMAIL_URL, {
         method: 'POST',
@@ -282,7 +297,7 @@ export const notifyUser = onRequest(
         tenantSchema,
         userType,
         uid,
-        to: toEmail,
+        to: toEmails,
         category: category || null,
         providerResult: json,
       });

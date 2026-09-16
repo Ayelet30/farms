@@ -19,11 +19,11 @@ type ParentNotify = {
   styleUrls: ['./parent-details.css']
 })
 
-export class ParentDetailsComponent implements OnInit, OnDestroy  {
+export class ParentDetailsComponent implements OnInit, OnDestroy {
 
-ngOnDestroy() {
-  if (this.infoTimer) clearTimeout(this.infoTimer);
-}
+  ngOnDestroy() {
+    if (this.infoTimer) clearTimeout(this.infoTimer);
+  }
   parent: any = null;
   children: any[] = [];
   visibleChildren: any[] = [];
@@ -33,36 +33,38 @@ ngOnDestroy() {
   error?: string;
 
 
-editableParent: any = {
-  first_name: '',
-  last_name: '',
-  address: '',
-  phone: '',
-  email: '',
-  notify: {
-    email: true,
-    sms: false,
-    whatsapp: false,
-  } as ParentNotify,
-};
+  editableParent: any = {
+    first_name: '',
+    last_name: '',
+    address: '',
+    phone: '',
+    secondary_phone: '',
+    email: '',
+    secondary_email: '',
+    notify: {
+      email: true,
+      sms: false,
+      whatsapp: false,
+    } as ParentNotify,
+  };
 
-showConfirmDialog = false;
-
+  showConfirmDialog = false;
+  secondaryPhoneError = '';
+  secondaryEmailError = '';
 
   phoneError = '';
   emailError = '';
   infoMessage: string | null = null;
-private infoTimer: ReturnType<typeof setTimeout> | null = null;
+  private infoTimer: ReturnType<typeof setTimeout> | null = null;
 
 
   // SELECT מפורש
- private readonly PARENT_SELECT =
-  'uid, id_number, first_name, last_name, address, phone, email, notify, billing_day_of_month';
+  private readonly PARENT_SELECT =
+    'uid, id_number, first_name, last_name, address, phone, secondary_phone, email, secondary_email, notify, billing_day_of_month';
 
-
- private readonly CHILD_SELECT =
- 'child_uuid, first_name, last_name, gov_id, birth_date, gender, funding_source_id, status, medical_notes, parent_uid';
-   async ngOnInit() {
+  private readonly CHILD_SELECT =
+    'child_uuid, first_name, last_name, gov_id, birth_date, gender, funding_source_id, status, medical_notes, parent_uid';
+  async ngOnInit() {
     try {
       const user = await getCurrentUserData();
       if (!user?.uid) {
@@ -88,19 +90,21 @@ private infoTimer: ReturnType<typeof setTimeout> | null = null;
 
       this.parent = parentData;
 
-this.editableParent = {
-  first_name: parentData.first_name ?? '',
-  last_name:  parentData.last_name ?? '',
-  address:    parentData.address ?? '',
-  phone:      parentData.phone ?? '',
-  email:      parentData.email ?? '',
-  notify: {
-    email:    parentData.notify?.email ?? true,
-    sms:      parentData.notify?.sms ?? false,
-    whatsapp: parentData.notify?.whatsapp ?? false,
-  } as ParentNotify,
-};
 
+      this.editableParent = {
+        first_name: parentData.first_name ?? '',
+        last_name: parentData.last_name ?? '',
+        address: parentData.address ?? '',
+        phone: parentData.phone ?? '',
+        secondary_phone: parentData.secondary_phone ?? '',
+        email: parentData.email ?? '',
+        secondary_email: parentData.secondary_email ?? '',
+        notify: {
+          email: parentData.notify?.email ?? true,
+          sms: parentData.notify?.sms ?? false,
+          whatsapp: parentData.notify?.whatsapp ?? false,
+        } as ParentNotify,
+      };
 
       // שליפת הילדים של ההורה
       const { data: childrenData, error: childrenError } = await dbc
@@ -125,52 +129,71 @@ this.editableParent = {
 
   getStatusText(status: string): string {
     switch (status) {
-       case 'Active':
-      return 'פעיל';
+      case 'Active':
+        return 'פעיל';
 
-    case 'Pending Addition Approval':
-      return 'ממתין לאישור הוספת ילד';
+      case 'Pending Addition Approval':
+        return 'ממתין לאישור הוספת ילד';
 
-    case 'Pending Deletion Approval':
-      return 'ממתין לאישור מחיקה';
+      case 'Pending Deletion Approval':
+        return 'ממתין לאישור מחיקה';
 
-    case 'Deleted':
-      return 'נמחק';
+      case 'Deleted':
+        return 'נמחק';
 
-    default:
-      return 'לא ידוע';}
+      default:
+        return 'לא ידוע';
+    }
   }
-private showInfo(msg: string, ms = 5000) {
-  this.infoMessage = msg;
-  if (this.infoTimer) clearTimeout(this.infoTimer);
-  this.infoTimer = setTimeout(() => {
-    this.infoMessage = null;
-    this.infoTimer = null;
-  }, ms);
-}
+  private showInfo(msg: string, ms = 5000) {
+    this.infoMessage = msg;
+    if (this.infoTimer) clearTimeout(this.infoTimer);
+    this.infoTimer = setTimeout(() => {
+      this.infoMessage = null;
+      this.infoTimer = null;
+    }, ms);
+  }
 
-private validateParent(): boolean {
-  // ולידציה לטלפון
-  const phoneRegex = /^05\d{8}$/;
-  if (!phoneRegex.test(this.editableParent.phone || '')) {
-    this.phoneError = 'מספר טלפון לא תקין. יש להזין מספר סלולרי בן 10 ספרות המתחיל ב-05.';
-    return false;
-  } else {
+  private validateParent(): boolean {
+    const phoneRegex = /^05\d{8}$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
     this.phoneError = '';
-  }
-
-  // ולידציה לאימייל
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(this.editableParent.email || '')) {
-    this.emailError = 'כתובת מייל לא תקינה.';
-    return false;
-  } else {
     this.emailError = '';
+    this.secondaryPhoneError = '';
+    this.secondaryEmailError = '';
+
+    if (!phoneRegex.test(this.editableParent.phone || '')) {
+      this.phoneError =
+        'מספר טלפון לא תקין. יש להזין מספר סלולרי בן 10 ספרות המתחיל ב-05.';
+      return false;
+    }
+
+    if (
+      this.editableParent.secondary_phone &&
+      !phoneRegex.test(this.editableParent.secondary_phone)
+    ) {
+      this.secondaryPhoneError =
+        'מספר הטלפון הנוסף אינו תקין.';
+      return false;
+    }
+
+    if (!emailRegex.test(this.editableParent.email || '')) {
+      this.emailError = 'כתובת מייל לא תקינה.';
+      return false;
+    }
+
+    if (
+      this.editableParent.secondary_email &&
+      !emailRegex.test(this.editableParent.secondary_email)
+    ) {
+      this.secondaryEmailError =
+        'כתובת המייל הנוספת אינה תקינה.';
+      return false;
+    }
+
+    return true;
   }
-
-  return true;
-}
-
 
   getAge(dateString: string): number {
     if (!dateString) return 0;
@@ -180,26 +203,28 @@ private validateParent(): boolean {
   }
 
   enableEditing() {
-  this.isEditing = true;
-  this.phoneError = '';
-  this.emailError = '';
-  this.error = undefined;
+    this.isEditing = true;
+    this.phoneError = '';
+    this.emailError = '';
+    this.error = undefined;
 
-  this.editableParent = {
-    first_name: this.parent?.first_name ?? '',
-    last_name:  this.parent?.last_name ?? '',
-    address:    this.parent?.address ?? '',
-    phone:      this.parent?.phone ?? '',
-    email:      this.parent?.email ?? '',
-    notify: {
-      email:    this.parent?.notify?.email ?? true,
-      sms:      this.parent?.notify?.sms ?? false,
-      whatsapp: this.parent?.notify?.whatsapp ?? false,
-    } as ParentNotify,
-  };
+    this.editableParent = {
+      first_name: this.parent?.first_name ?? '',
+      last_name: this.parent?.last_name ?? '',
+      address: this.parent?.address ?? '',
+      phone: this.parent?.phone ?? '',
+      secondary_phone: this.parent?.secondary_phone ?? '',
+      email: this.parent?.email ?? '',
+      secondary_email: this.parent?.secondary_email ?? '',
+      notify: {
+        email: this.parent?.notify?.email ?? true,
+        sms: this.parent?.notify?.sms ?? false,
+        whatsapp: this.parent?.notify?.whatsapp ?? false,
+      } as ParentNotify,
+    };
 
-  this.infoMessage = null;
-}
+    this.infoMessage = null;
+  }
 
 
   cancelEdit() {
@@ -209,58 +234,60 @@ private validateParent(): boolean {
     this.error = undefined;
     this.editableParent = { ...this.parent };
   }
-// בתוך ParentDetailsComponent
+  // בתוך ParentDetailsComponent
 
-onSaveClick() {
-  this.error = undefined;
+  onSaveClick() {
+    this.error = undefined;
 
-  // אם יש שגיאות – לא נפתח מודאל
-  if (!this.validateParent()) {
-    return;
-  }
-
-  this.showConfirmDialog = true;
-}
-confirmSave() {
-  this.showConfirmDialog = false;
-  this.saveParent();
-}
-
-cancelSaveDialog() {
-  this.showConfirmDialog = false;     // לסגור מודאל
-  this.cancelEdit();                  // ⬅️ לצאת ממצב עריכה ולהחזיר ערכים מקוריים
-}
-
-
-  async saveParent() {
-  try {
-    const dbc = dbTenant();
-
-   const { error } = await dbc
-  .from('parents')
-  .update({
-    first_name: this.editableParent.first_name,
-    last_name:  this.editableParent.last_name,
-    address:    this.editableParent.address,
-    phone:      this.editableParent.phone,
-    email:      this.editableParent.email,
-    notify:     this.editableParent.notify,  
-  })
-  .eq('uid', this.parent.uid);
-
-
-    if (error) {
-      this.error = error.message ?? 'שגיאה בשמירת פרטי ההורה';
+    // אם יש שגיאות – לא נפתח מודאל
+    if (!this.validateParent()) {
       return;
     }
 
-    this.parent = { ...this.editableParent };
-    this.isEditing = false;
-    this.error = undefined;
-    this.showInfo('פרטי ההורה נשמרו בהצלחה');
-  } catch (e: any) {
-    this.error = e?.message ?? 'שגיאה לא צפויה בשמירה';
+    this.showConfirmDialog = true;
   }
-}
+  confirmSave() {
+    this.showConfirmDialog = false;
+    this.saveParent();
+  }
+
+  cancelSaveDialog() {
+    this.showConfirmDialog = false;     // לסגור מודאל
+    this.cancelEdit();                  // ⬅️ לצאת ממצב עריכה ולהחזיר ערכים מקוריים
+  }
+
+
+  async saveParent() {
+    try {
+      const dbc = dbTenant();
+
+      const { error } = await dbc
+        .from('parents')
+        .update({
+          first_name: this.editableParent.first_name,
+          last_name: this.editableParent.last_name,
+          address: this.editableParent.address,
+          phone: this.editableParent.phone,
+          secondary_phone: this.editableParent.secondary_phone,
+          email: this.editableParent.email,
+          secondary_email: this.editableParent.secondary_email,
+          notify: this.editableParent.notify,
+        })
+        .eq('uid', this.parent.uid);
+
+
+      if (error) {
+        this.error = error.message ?? 'שגיאה בשמירת פרטי ההורה';
+        return;
+      }
+
+      this.parent = { ...this.editableParent };
+      this.isEditing = false;
+      this.error = undefined;
+      this.showInfo('פרטי ההורה נשמרו בהצלחה');
+    } catch (e: any) {
+      this.error = e?.message ?? 'שגיאה לא צפויה בשמירה';
+    }
+  }
 
 }

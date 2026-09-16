@@ -19,23 +19,10 @@
             <input [(ngModel)]="editableIndependent.last_name" class="editable-input" placeholder="שם משפחה" />
         </div>
 
-        <div class="button-group">
-
-            <button *ngIf="!isEditing" (click)="enableEditing()" class="btn-edit">
+        <div class="button-group" *ngIf="!isEditing">
+            <button (click)="enableEditing()" class="btn-edit">
                 ✏️ ערוך
             </button>
-
-            <ng-container *ngIf="isEditing">
-
-                <button (click)="onSaveClick()" class="btn-save">
-                    💾 שמור
-                </button>
-
-                <button (click)="cancelEdit()" class="btn-cancel">
-                    ❌ ביטול
-                </button>
-
-            </ng-container>
         </div>
     </div>
 
@@ -108,7 +95,17 @@
         <textarea *ngIf="isEditing" [(ngModel)]="editableIndependent.notes" class="editable-input">
     </textarea>
     </p>
+    <div class="edit-actions-bottom" *ngIf="isEditing">
 
+        <button (click)="onSaveClick()" class="btn-save">
+            💾 שמור
+        </button>
+
+        <button (click)="cancelEdit()" class="btn-cancel">
+            ❌ ביטול
+        </button>
+
+    </div>
 </div>
 <section *ngIf="!loading && independent" class="my-horses-section">
 

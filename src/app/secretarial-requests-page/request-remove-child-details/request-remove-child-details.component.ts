@@ -74,6 +74,7 @@ export class RequestRemoveChildDetailsComponent {
   // ✅ זה מה שמשתמשים בו בקוד ובתבנית: req()
   readonly req = this._req;
   public bulkWarning: string | null = null;
+  @Input() isSecretary = false;
 
   @Input() decidedByUid?: string;
 
@@ -147,7 +148,7 @@ export class RequestRemoveChildDetailsComponent {
     });
   }
   canDecide(): boolean {
-    return this.req()?.status === 'PENDING';
+    return this.isSecretary && this.req()?.status === 'PENDING';
   }
 
 

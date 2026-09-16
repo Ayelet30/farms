@@ -77,10 +77,6 @@
         "function": "publicCreateParentSignupRequest"
       },
       {
-        "source": "/api/approveParentSignupRequest",
-        "function": "approveParentSignupRequest"
-      },
-      {
         "source": "/api/chargeSelectedChargesForParent",
         "function": "chargeSelectedChargesForParent"
       },
@@ -115,6 +111,14 @@
       {
         "source": "/api/createMaccabiAutomationJob",
         "function": "createMaccabiAutomationJob"
+      },
+      {
+        "source": "/api/ensureTranzilaInvoiceForPayment",
+        "function": "ensureTranzilaInvoiceForPayment"
+      },
+      {
+        "source": "/api/ensureTranzilaInvoiceForRiderPayment",
+        "function": "ensureTranzilaInvoiceForRiderPayment"
       },
       {
         "source": "/api/**",

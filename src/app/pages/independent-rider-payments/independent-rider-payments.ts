@@ -171,20 +171,48 @@ export class IndependentRiderPaymentsComponent implements OnInit {
   }
   openAddCardModal() {
     this.addCardOpen.set(true);
+
     this.tokenError.set(null);
     this.tokenSaved.set(false);
+
+    // אם שדות האשראי כבר אותחלו בעבר,
+    // אין צורך ליצור אותם מחדש
+    if (this.hfAdd) {
+      this.hostedFieldsLoading.set(false);
+      this.hostedFieldsReady.set(true);
+      return;
+    }
+
     this.hostedFieldsLoading.set(true);
     this.hostedFieldsReady.set(false);
 
-    queueMicrotask(() => this.ensureAddHostedFieldsReady());
+    queueMicrotask(() => {
+      this.ensureAddHostedFieldsReady();
+    });
   }
   closeAddCardModal() {
     if (this.savingToken()) return;
-    this.addCardOpen.set(false);
-  }
 
+    this.addCardOpen.set(false);
+
+    this.tokenError.set(null);
+    this.tokenSaved.set(false);
+
+    // חשוב: לא להשאיר spinner פעיל בזמן שהחלון סגור
+    this.hostedFieldsLoading.set(false);
+  }
   private async ensureAddHostedFieldsReady() {
-    if (this.hfAdd || this.hfInitTried) return;
+
+    if (this.hfAdd) {
+      this.hostedFieldsLoading.set(false);
+      this.hostedFieldsReady.set(true);
+      return;
+    }
+
+    if (this.hfInitTried) {
+      return;
+    }
+
     this.hfInitTried = true;
 
     try {

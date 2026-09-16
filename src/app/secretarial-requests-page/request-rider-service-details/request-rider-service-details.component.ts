@@ -20,11 +20,13 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 export class RequestRiderServiceDetailsComponent {
     private _request = signal<UiRequest | null>(null);
     private validation = inject(RequestValidationService);
+
     @Input({ required: true })
     set request(value: UiRequest) {
         this._request.set(value);
-
     }
+
+    @Input() isSecretary = false;
 
     req = this._request;
 

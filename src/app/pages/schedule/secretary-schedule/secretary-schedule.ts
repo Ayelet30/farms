@@ -1,6 +1,19 @@
 import { ChangeDetectorRef, Component, OnInit, OnDestroy, inject, ViewChild, signal, computed, HostListener } from '@angular/core'; import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
+  Overlay,
+  OverlayModule,
+  OverlayRef
+} from '@angular/cdk/overlay';
+
+import {
+  ComponentPortal
+} from '@angular/cdk/portal';
+
+import {
+  Subscription
+} from 'rxjs';
+import {
   dbTenant,
   ensureTenantContextReady,
   onTenantChange
@@ -20,7 +33,6 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatNativeDateModule } from '@angular/material/core';
-
 
 type ChildRow = {
   child_uuid: string;
@@ -104,10 +116,10 @@ type InstructorBreakOccurrence = {
 @Component({
   selector: 'app-secretary-schedule',
   standalone: true,
-  imports: [CommonModule, FormsModule, ScheduleComponent, NoteComponent, QuickAppointmentComponent, MatFormFieldModule,
+  imports: [CommonModule, FormsModule, ScheduleComponent, NoteComponent, OverlayModule, MatFormFieldModule,
     MatInputModule,
     MatDatepickerModule,
-    MatNativeDateModule,],
+    MatNativeDateModule],
   templateUrl: './secretary-schedule.html',
   styleUrls: ['./secretary-schedule.css'],
 })
@@ -132,6 +144,11 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     isMakeupAllowed: false,
     isBillable: false,
   };
+  private overlay = inject(Overlay);
+
+  private quickBookingOverlayRef: OverlayRef | null = null;
+
+  private quickBookingSubscriptions = new Subscription();
   children: ChildRow[] = [];
   scheduleChildrenById = new Map<string, ChildRow>();
   lessons: Lesson[] = [];
@@ -1691,13 +1708,26 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       instructorId,
       instructorName,
     };
-
+    this.openQuickBookingOverlay();
     this.closeContextMenu();
     this.cdr.detectChanges();
   }
 
   closeQuickBooking(): void {
     this.quickBooking.open = false;
+
+    this.closeQuickBookingOverlay();
+  }
+  private closeQuickBookingOverlay(): void {
+
+    this.quickBookingSubscriptions.unsubscribe();
+    this.quickBookingSubscriptions =
+      new Subscription();
+
+    if (this.quickBookingOverlayRef) {
+      this.quickBookingOverlayRef.dispose();
+      this.quickBookingOverlayRef = null;
+    }
   }
 
   async onQuickBookingSaved(): Promise<void> {
@@ -1939,9 +1969,9 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }
   private async loadSecretaryCancelDefaults(): Promise<void> {
-  const { data: settings, error } = await dbTenant()
-    .from('farm_settings')
-    .select(`
+    const { data: settings, error } = await dbTenant()
+      .from('farm_settings')
+      .select(`
       cancel_before_hours,
       max_makeups_in_period,
       makeups_period_days,
@@ -1951,157 +1981,157 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       parent_cancel_charge_timing,
       parent_makeup_is_billable
     `)
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  if (error) {
-    console.error('load parent cancellation defaults failed', error);
-    this.cancelLessonModal.error =
-      'לא ניתן היה לטעון את הגדרות הביטול של החווה.';
-    return;
-  }
+    if (error) {
+      console.error('load parent cancellation defaults failed', error);
+      this.cancelLessonModal.error =
+        'לא ניתן היה לטעון את הגדרות הביטול של החווה.';
+      return;
+    }
 
-  const childId = this.cancelLessonModal.childId;
+    const childId = this.cancelLessonModal.childId;
 
-  const cancelBeforeHours =
-    settings?.cancel_before_hours == null
-      ? 0
-      : Number(settings.cancel_before_hours);
+    const cancelBeforeHours =
+      settings?.cancel_before_hours == null
+        ? 0
+        : Number(settings.cancel_before_hours);
 
-  const rawStartTime =
-    String(this.cancelLessonModal.startTime || '').slice(0, 5);
+    const rawStartTime =
+      String(this.cancelLessonModal.startTime || '').slice(0, 5);
 
-  const lessonStart = new Date(
-    `${this.cancelLessonModal.occurDate}T${rawStartTime}:00`
-  );
-
-  const diffHours =
-    (lessonStart.getTime() - Date.now()) / (1000 * 60 * 60);
-
-  const isPastLesson = diffHours < 0;
-
-  const isAfterDeadline =
-    isPastLesson ||
-    (
-      cancelBeforeHours > 0 &&
-      diffHours < cancelBeforeHours
+    const lessonStart = new Date(
+      `${this.cancelLessonModal.occurDate}T${rawStartTime}:00`
     );
 
-  /*
-   * חיוב ביטול הורה:
-   * לפני מועד הביטול – לפי parent_cancel_charge_before_deadline
-   * לאחר מועד הביטול – לפי parent_cancel_charge_after_deadline
-   */
-  this.cancelLessonModal.isBillable = isAfterDeadline
-    ? settings?.parent_cancel_charge_after_deadline === true
-    : settings?.parent_cancel_charge_before_deadline === true;
+    const diffHours =
+      (lessonStart.getTime() - Date.now()) / (1000 * 60 * 60);
 
-  /*
-   * זכאות ראשונית להשלמה לפי הגדרות החווה.
-   * ביטול מאוחר או ביטול שיעור שכבר עבר אינם זכאים להשלמה.
-   */
-  let isMakeupAllowed =
-    settings?.suggest_makeup_on_cancel === true &&
-    !isAfterDeadline;
+    const isPastLesson = diffHours < 0;
 
-  let makeupReason = '';
+    const isAfterDeadline =
+      isPastLesson ||
+      (
+        cancelBeforeHours > 0 &&
+        diffHours < cancelBeforeHours
+      );
 
-  if (isPastLesson) {
-    makeupReason =
-      'לא ניתן להשלמה, משום שמועד השיעור כבר עבר.';
-  } else if (isAfterDeadline) {
+    /*
+     * חיוב ביטול הורה:
+     * לפני מועד הביטול – לפי parent_cancel_charge_before_deadline
+     * לאחר מועד הביטול – לפי parent_cancel_charge_after_deadline
+     */
+    this.cancelLessonModal.isBillable = isAfterDeadline
+      ? settings?.parent_cancel_charge_after_deadline === true
+      : settings?.parent_cancel_charge_before_deadline === true;
+
+    /*
+     * זכאות ראשונית להשלמה לפי הגדרות החווה.
+     * ביטול מאוחר או ביטול שיעור שכבר עבר אינם זכאים להשלמה.
+     */
+    let isMakeupAllowed =
+      settings?.suggest_makeup_on_cancel === true &&
+      !isAfterDeadline;
+
+    let makeupReason = '';
+
+    if (isPastLesson) {
+      makeupReason =
+        'לא ניתן להשלמה, משום שמועד השיעור כבר עבר.';
+    } else if (isAfterDeadline) {
+      const hoursText =
+        cancelBeforeHours === 1
+          ? 'שעה'
+          : `${cancelBeforeHours} שעות`;
+
+      makeupReason =
+        `לא ניתן להשלמה, משום שהביטול בוצע פחות מ־${hoursText} לפני השיעור.`;
+    } else if (settings?.suggest_makeup_on_cancel !== true) {
+      makeupReason =
+        'לפי הגדרות החווה, ביטול הורה אינו מזכה בשיעור השלמה.';
+    }
+
+    /*
+     * בדיקת מכסת השלמות רק כאשר קיימת זכאות בסיסית.
+     */
+    if (isMakeupAllowed && childId) {
+      const maxMakeupsInPeriod =
+        settings?.max_makeups_in_period == null
+          ? null
+          : Number(settings.max_makeups_in_period);
+
+      const makeupsPeriodDays =
+        settings?.makeups_period_days == null
+          ? null
+          : Number(settings.makeups_period_days);
+
+      if (
+        maxMakeupsInPeriod != null &&
+        makeupsPeriodDays != null &&
+        maxMakeupsInPeriod >= 0 &&
+        makeupsPeriodDays > 0
+      ) {
+        const fromDate = new Date();
+
+        fromDate.setDate(
+          fromDate.getDate() - makeupsPeriodDays
+        );
+
+        const fromDateStr =
+          fromDate.toISOString().slice(0, 10);
+
+        const { count, error: countError } = await dbTenant()
+          .from('lessons_occurrences')
+          .select('*', {
+            count: 'exact',
+            head: true,
+          })
+          .eq('child_id', childId)
+          .eq('lesson_type', 'השלמה')
+          .gte('occur_date', fromDateStr);
+
+        if (countError) {
+          console.error(
+            'parent makeup count failed',
+            countError
+          );
+        } else {
+          const usedMakeups = count ?? 0;
+
+          if (usedMakeups >= maxMakeupsInPeriod) {
+            isMakeupAllowed = false;
+
+            makeupReason =
+              `לא ניתן להשלמה: קיימים כבר ${usedMakeups} שיעורי השלמה ` +
+              `בתקופה של ${makeupsPeriodDays} ימים. ` +
+              `המכסה היא ${maxMakeupsInPeriod}.`;
+          }
+        }
+      }
+    }
+
+    this.cancelLessonModal.isMakeupAllowed =
+      isMakeupAllowed;
+
+    this.cancelLessonModal.makeupDefaultReason =
+      makeupReason;
+
     const hoursText =
       cancelBeforeHours === 1
         ? 'שעה'
         : `${cancelBeforeHours} שעות`;
 
-    makeupReason =
-      `לא ניתן להשלמה, משום שהביטול בוצע פחות מ־${hoursText} לפני השיעור.`;
-  } else if (settings?.suggest_makeup_on_cancel !== true) {
-    makeupReason =
-      'לפי הגדרות החווה, ביטול הורה אינו מזכה בשיעור השלמה.';
+    this.cancelLessonModal.lateCancelWarning =
+      isPastLesson
+        ? 'לתשומת ליבך, מועד השיעור כבר עבר.'
+        : isAfterDeadline
+          ? `זהו ביטול מאוחר — פחות מ־${hoursText} לפני תחילת השיעור.`
+          : '';
+
+    this.cdr.detectChanges();
   }
-
-  /*
-   * בדיקת מכסת השלמות רק כאשר קיימת זכאות בסיסית.
-   */
-  if (isMakeupAllowed && childId) {
-    const maxMakeupsInPeriod =
-      settings?.max_makeups_in_period == null
-        ? null
-        : Number(settings.max_makeups_in_period);
-
-    const makeupsPeriodDays =
-      settings?.makeups_period_days == null
-        ? null
-        : Number(settings.makeups_period_days);
-
-    if (
-      maxMakeupsInPeriod != null &&
-      makeupsPeriodDays != null &&
-      maxMakeupsInPeriod >= 0 &&
-      makeupsPeriodDays > 0
-    ) {
-      const fromDate = new Date();
-
-      fromDate.setDate(
-        fromDate.getDate() - makeupsPeriodDays
-      );
-
-      const fromDateStr =
-        fromDate.toISOString().slice(0, 10);
-
-      const { count, error: countError } = await dbTenant()
-        .from('lessons_occurrences')
-        .select('*', {
-          count: 'exact',
-          head: true,
-        })
-        .eq('child_id', childId)
-        .eq('lesson_type', 'השלמה')
-        .gte('occur_date', fromDateStr);
-
-      if (countError) {
-        console.error(
-          'parent makeup count failed',
-          countError
-        );
-      } else {
-        const usedMakeups = count ?? 0;
-
-        if (usedMakeups >= maxMakeupsInPeriod) {
-          isMakeupAllowed = false;
-
-          makeupReason =
-            `לא ניתן להשלמה: קיימים כבר ${usedMakeups} שיעורי השלמה ` +
-            `בתקופה של ${makeupsPeriodDays} ימים. ` +
-            `המכסה היא ${maxMakeupsInPeriod}.`;
-        }
-      }
-    }
-  }
-
-  this.cancelLessonModal.isMakeupAllowed =
-    isMakeupAllowed;
-
-  this.cancelLessonModal.makeupDefaultReason =
-    makeupReason;
-
-  const hoursText =
-    cancelBeforeHours === 1
-      ? 'שעה'
-      : `${cancelBeforeHours} שעות`;
-
-  this.cancelLessonModal.lateCancelWarning =
-    isPastLesson
-      ? 'לתשומת ליבך, מועד השיעור כבר עבר.'
-      : isAfterDeadline
-        ? `זהו ביטול מאוחר — פחות מ־${hoursText} לפני תחילת השיעור.`
-        : '';
-
-  this.cdr.detectChanges();
-}
   closeCancelLessonDialog(): void {
     if (this.cancelLessonModal.saving) return;
 
@@ -2135,18 +2165,18 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-          tenantSchema: tenant.schema,
-          tenantId: tenant.id,
-          lessonId: this.cancelLessonModal.lessonId,
-          occurDate: this.cancelLessonModal.occurDate,
-          note: this.cancelLessonModal.note?.trim() || null,
+            tenantSchema: tenant.schema,
+            tenantId: tenant.id,
+            lessonId: this.cancelLessonModal.lessonId,
+            occurDate: this.cancelLessonModal.occurDate,
+            note: this.cancelLessonModal.note?.trim() || null,
 
-          // ביטול פרטני מתוך הלו"ז הוא ביטול שהתקבל מההורה
-          cancellerRole: 'parent',
+            // ביטול פרטני מתוך הלו"ז הוא ביטול שהתקבל מההורה
+            cancellerRole: 'parent',
 
-          isMakeupAllowed: this.cancelLessonModal.isMakeupAllowed,
-          isBillable: this.cancelLessonModal.isBillable,
-        }),
+            isMakeupAllowed: this.cancelLessonModal.isMakeupAllowed,
+            isBillable: this.cancelLessonModal.isBillable,
+          }),
         }
       );
 
@@ -5924,5 +5954,72 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     }
 
     return Number(data || 1);
+  }
+  private openQuickBookingOverlay(): void {
+
+    this.closeQuickBookingOverlay();
+
+    const positionStrategy = this.overlay
+      .position()
+      .global()
+      .centerHorizontally()
+      .centerVertically();
+
+    this.quickBookingOverlayRef = this.overlay.create({
+      positionStrategy,
+
+      hasBackdrop: false,
+
+      scrollStrategy:
+        this.overlay.scrollStrategies.block(),
+
+      width: '100vw',
+      height: '100dvh',
+
+      panelClass: 'quick-booking-overlay-panel',
+    });
+
+    const portal =
+      new ComponentPortal(QuickAppointmentComponent);
+
+    const componentRef =
+      this.quickBookingOverlayRef.attach(portal);
+
+    componentRef.setInput(
+      'date',
+      this.quickBooking.date
+    );
+
+    componentRef.setInput(
+      'startTime',
+      this.quickBooking.startTime
+    );
+
+    componentRef.setInput(
+      'endTime',
+      this.quickBooking.endTime
+    );
+
+    componentRef.setInput(
+      'instructorId',
+      this.quickBooking.instructorId
+    );
+
+    componentRef.setInput(
+      'instructorName',
+      this.quickBooking.instructorName
+    );
+
+    this.quickBookingSubscriptions.add(
+      componentRef.instance.close.subscribe(() => {
+        this.closeQuickBooking();
+      })
+    );
+
+    this.quickBookingSubscriptions.add(
+      componentRef.instance.saved.subscribe(() => {
+        this.onQuickBookingSaved();
+      })
+    );
   }
 }

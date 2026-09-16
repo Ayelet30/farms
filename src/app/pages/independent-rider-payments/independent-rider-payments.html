@@ -102,24 +102,22 @@
                 <div>טוען שדות אשראי…</div>
             </div>
             <div class="hf-grid" [class.is-disabled]="savingToken() || hostedFieldsLoading() || !hostedFieldsReady()">
-                <div class="hf-grid">
-                    <div class="hf-box">
-                        <label>מספר כרטיס</label>
-                        <div id="ir_pm_credit_card_number"></div>
-                        <div class="hf-error" id="ir_pm_errors_for_credit_card_number"></div>
-                    </div>
+                <div class="hf-box">
+                    <label>מספר כרטיס</label>
+                    <div id="ir_pm_credit_card_number"></div>
+                    <div class="hf-error" id="ir_pm_errors_for_credit_card_number"></div>
+                </div>
 
-                    <div class="hf-box">
-                        <label>תוקף</label>
-                        <div id="ir_pm_expiry"></div>
-                        <div class="hf-error" id="ir_pm_errors_for_expiry"></div>
-                    </div>
+                <div class="hf-box">
+                    <label>תוקף</label>
+                    <div id="ir_pm_expiry"></div>
+                    <div class="hf-error" id="ir_pm_errors_for_expiry"></div>
+                </div>
 
-                    <div class="hf-box">
-                        <label>CVV</label>
-                        <div id="ir_pm_cvv"></div>
-                        <div class="hf-error" id="ir_pm_errors_for_cvv"></div>
-                    </div>
+                <div class="hf-box">
+                    <label>CVV</label>
+                    <div id="ir_pm_cvv"></div>
+                    <div class="hf-error" id="ir_pm_errors_for_cvv"></div>
                 </div>
             </div>
             <div class="error-banner" *ngIf="tokenError()">{{ tokenError() }}</div>

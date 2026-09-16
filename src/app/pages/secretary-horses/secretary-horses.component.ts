@@ -105,8 +105,11 @@ export class SecretaryHorsesComponent implements OnInit {
   activeTab: 'active' | 'inactive' = 'active';
   horses: Horse[] = [];
   editing: Horse | null = null;
+  horseNameError = '';
+  horseAgeError = '';
   servicesByHorse: Record<string, RiderService[]> = {};
   loading = false;
+  savingHorse = false;
   horseOwnershipFilter: 'all' | 'farm' | 'private' = 'all';
   privateOwnerFilterUid = '';
   horseNameFilter = '';
@@ -118,6 +121,13 @@ export class SecretaryHorsesComponent implements OnInit {
   historyTab: 'services' | 'tasks' = 'tasks';
   historyServiceTypeId = '';
   serviceTypes: { id: string; name: string }[] = [];
+  horseFormSubmitted = false;
+  readonly MAX_HORSE_COLOR = 30;
+  readonly MAX_HORSE_TEXT = 250;
+  horseColorError = '';
+  horseShoeingNotesError = '';
+  horseFoodSupplementsError = '';
+  horseEquipmentError = '';
   openServiceEdit(id: string): void {
     this.editingServiceId = id;
   }
@@ -220,6 +230,9 @@ export class SecretaryHorsesComponent implements OnInit {
   }
 
   newHorse(): void {
+    this.horseFormSubmitted = false;
+    this.horseNameError = '';
+
     this.editing = {
       name: '',
       age: null,
@@ -239,10 +252,8 @@ export class SecretaryHorsesComponent implements OnInit {
 
       food_supplements: null,
       horse_equipment: null,
-
     };
   }
-
   editHorse(horse: Horse): void {
     this.editing = { ...horse };
   }
@@ -252,18 +263,82 @@ export class SecretaryHorsesComponent implements OnInit {
   }
 
   async saveHorse(): Promise<void> {
-    if (!this.editing) return;
+    if (!this.editing || this.savingHorse) return;
+
+    this.horseFormSubmitted = true;
+    this.horseNameError = '';
 
     if (!this.editing.name || !this.editing.name.trim()) {
-      await this.ui.alert('שם הסוס הוא שדה חובה.', 'חסר שדה');
+      this.horseNameError = 'יש להזין שם לסוס';
       return;
     }
+    if (this.editing.name.trim().length > 15) {
+      this.horseNameError = 'שם הסוס יכול להכיל עד 15 תווים';
+      return;
+    }
+    this.horseAgeError = '';
+
+    if (
+      this.editing.age != null &&
+      (
+        !Number.isFinite(Number(this.editing.age)) ||
+        Number(this.editing.age) < 0 ||
+        Number(this.editing.age) > 60
+      )
+    ) {
+      this.horseAgeError = 'יש להזין גיל בין 0 ל־60';
+      return;
+    }
+    this.horseColorError = '';
+    this.horseShoeingNotesError = '';
+    this.horseFoodSupplementsError = '';
+    this.horseEquipmentError = '';
+
+    if (
+      String(this.editing.color ?? '').trim().length >
+      this.MAX_HORSE_COLOR
+    ) {
+      this.horseColorError =
+        `צבע הסוס יכול להכיל עד ${this.MAX_HORSE_COLOR} תווים`;
+      return;
+    }
+
+    if (
+      String(this.editing.shoeing_notes ?? '').trim().length >
+      this.MAX_HORSE_TEXT
+    ) {
+      this.horseShoeingNotesError =
+        `הערות לפרזול יכולות להכיל עד ${this.MAX_HORSE_TEXT} תווים`;
+      return;
+    }
+
+    if (
+      String(this.editing.food_supplements ?? '').trim().length >
+      this.MAX_HORSE_TEXT
+    ) {
+      this.horseFoodSupplementsError =
+        `תוספות מזון יכולות להכיל עד ${this.MAX_HORSE_TEXT} תווים`;
+      return;
+    }
+
+    if (
+      String(this.editing.horse_equipment ?? '').trim().length >
+      this.MAX_HORSE_TEXT
+    ) {
+      this.horseEquipmentError =
+        `ציוד הסוס יכול להכיל עד ${this.MAX_HORSE_TEXT} תווים`;
+      return;
+    }
+    this.savingHorse = true;
 
     const payload: Horse = {
       ...this.editing,
       name: this.editing.name.trim(),
+      color: String(this.editing.color ?? '').trim() || null,
+      shoeing_notes: String(this.editing.shoeing_notes ?? '').trim() || null,
+      food_supplements: String(this.editing.food_supplements ?? '').trim() || null,
+      horse_equipment: String(this.editing.horse_equipment ?? '').trim() || null,
     };
-
     if (payload.age === undefined) payload.age = null;
     if (payload.color === undefined) payload.color = null;
     if (payload.gender === undefined) payload.gender = null;
@@ -291,10 +366,10 @@ export class SecretaryHorsesComponent implements OnInit {
         min_break_minutes: payload.min_break_minutes,
         is_active: payload.is_active,
         notes: payload.notes,
+        shoeing_notes: payload.shoeing_notes, // ← להוסיף
         is_farm_horse: payload.is_farm_horse,
         food_supplements: payload.food_supplements,
         horse_equipment: payload.horse_equipment,
-
       };
 
       if (payload.id) {
@@ -311,25 +386,43 @@ export class SecretaryHorsesComponent implements OnInit {
 
         if (error) throw error;
       }
+
       const originalHorse = payload.id
         ? this.horses.find(h => h.id === payload.id)
         : null;
 
       const horseWasDeactivated =
-        originalHorse?.is_active === true && payload.is_active === false;
+        originalHorse?.is_active === true &&
+        payload.is_active === false;
 
       if (payload.id && !horseWasDeactivated) {
         await this.saveEditingHorseTasks(payload.id);
       }
+
       this.editing = null;
+
       await this.loadHorses();
-      await this.ui.alert('הסוס נשמר בהצלחה.', 'הצלחה');
-    } catch (e: any) {
+
+      await this.ui.alert(
+        payload.id
+          ? 'הסוס עודכן בהצלחה.'
+          : 'הסוס נוסף בהצלחה.',
+        'הצלחה'
+      );
+
+    }
+    catch (e: any) {
       console.error('saveHorse failed', e);
-      await this.ui.alert('שמירת הסוס נכשלה: ' + (e?.message ?? 'שגיאה'), 'שגיאה');
+
+      await this.ui.alert(
+        'לא ניתן היה לשמור את פרטי הסוס. יש לבדוק את הנתונים ולנסות שוב.',
+        'שגיאה'
+      );
+    }
+    finally {
+      this.savingHorse = false;
     }
   }
-
 
   genderLabel(gender?: HorseGender): string {
     switch (gender) {

@@ -90,15 +90,15 @@
             </div>
         </div>
 
-        <textarea class="note" *ngIf="r.status === 'PENDING'" [(ngModel)]="decisionNote" [disabled]="busy()"
-            placeholder="הערה פנימית / סיבת דחייה..."></textarea>
+        <textarea class="note" *ngIf="isSecretary && r.status === 'PENDING'" [(ngModel)]="decisionNote"
+            [disabled]="busy()" placeholder="הערה פנימית / סיבת דחייה...">
+</textarea>
 
         <div class="hint error" *ngIf="errText">
             {{ errText }}
         </div>
 
-        <div class="actions" *ngIf="r.status === 'PENDING'">
-
+        <div class="actions" *ngIf="isSecretary && r.status === 'PENDING'">
             <button mat-stroked-button type="button" class="action reject" (click)="reject()" [disabled]="busy()">
                 דחייה
             </button>

@@ -562,3 +562,17 @@ option {
 *::-webkit-scrollbar-thumb:hover {
   background: #aebd8b;
 }
+
+.cdk-overlay-container {
+  z-index: 2147483647 !important;
+}
+
+.quick-booking-overlay-panel {
+  width: 100vw !important;
+  height: 100dvh !important;
+
+  max-width: none !important;
+  max-height: none !important;
+
+  display: block;
+}
