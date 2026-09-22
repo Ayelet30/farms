@@ -1346,173 +1346,373 @@
           </div>
 
           <div class="data-list" *ngIf="paymentPlans().length; else noPlans">
-            <div class="data-head cols-plans">
-              <div>מסלול</div>
-              <div>מחירים</div>
-              <div>לקוח משלם</div>
-              <div>גורם מימון</div>
-              <div>מסמכים</div>
-              <div>פעולות</div>
-            </div>
 
-            <div class="data-row cols-plans" *ngFor="let p of paymentPlans()" [class.inactive]="p.is_active === false">
-              <div class="cell-main">
-                <div class="row-title">{{ p.name }}</div>
-                <div class="row-sub" *ngIf="p.is_active === false">
-                  <span class="status-chip-tiny danger">לא פעיל</span>
-                </div>
-              </div>
+  <div class="data-head cols-plans">
+    <div>מסלול</div>
+    <div>מחירים</div>
+    <div>לקוח משלם</div>
+    <div>גורם מימון</div>
+    <div>מסמכים</div>
+    <div>פעולות</div>
+  </div>
 
-              <div class="price-col">
-                <div class="chips-stack">
-                  <span class="chip">מחיר שיעור: {{ (p.lesson_price || 0) | number:'1.0-0' }} ₪</span>
-                  <span class="chip" *ngIf="(p.subsidy_amount || 0) > 0; else noSubsidy">
-                    סבסוד: {{ p.subsidy_amount | number:'1.0-0' }} ₪
-                  </span>
-                  <ng-template #noSubsidy>
-                    <span class="chip chip-muted">סבסוד: 0 ₪</span>
-                  </ng-template>
-                </div>
-              </div>
+  <ng-container *ngFor="let p of paymentPlans()">
 
-              <div>
-                <span class="chip chip-highlight">
-                  {{ getCustomerAmount(p) | number:'1.0-0' }} ₪
-                </span>
-              </div>
+    <!-- שורת המסלול -->
+    <div
+      class="data-row cols-plans"
+      [class.inactive]="p.is_active === false">
 
-              <div>
-                <span class="chip">{{ getFundingName(p.funding_source_id || null) }}</span>
-              </div>
+      <div class="cell-main">
+        <div class="row-title">{{ p.name }}</div>
 
-              <div>
-                <span class="chip" *ngIf="p.required_docs!.length; else noDocs">
-                  {{ p.required_docs.length }} סוגי מסמכים
-                </span>
-                <ng-template #noDocs>
-                  <span class="chip chip-muted">אין מסמכים נדרשים</span>
-                </ng-template>
-              </div>
+        <div class="row-sub" *ngIf="p.is_active === false">
+          <span class="status-chip-tiny danger">
+            לא פעיל
+          </span>
+        </div>
+      </div>
 
-              <div class="actions-inline">
-                <button type="button" class="btn btn-text" (click)="startEditPlan(p)">עריכה</button>
-                <button type="button" class="btn btn-text danger" (click)="deletePaymentPlan(p)">מחיקה</button>
-              </div>
-            </div>
+      <div class="price-col">
+        <div class="chips-stack">
 
-            <ng-container *ngFor="let p of paymentPlans()">
-              <div class="sub-panel" *ngIf="editingPlanId() === p.id">
-                <div class="sub-panel-title">עריכת מסלול — {{ p.name }}</div>
+          <span class="chip">
+            מחיר שיעור:
+            {{ (p.lesson_price || 0) | number:'1.0-0' }} ₪
+          </span>
 
-                <div class="form-grid cols-3">
-                  <label class="field-card">
-                    <span class="field-label">שם המסלול</span>
-                    <input class="form-control" type="text" maxlength="60" name="editPlanName_{{p.id}}"
-                      [(ngModel)]="p.name" />
-                  </label>
+          <span
+            class="chip"
+            *ngIf="(p.subsidy_amount || 0) > 0; else noSubsidy">
 
-                  <label class="field-card">
-                    <span class="field-label">מחיר נוכחי לשיעור (₪)</span>
-                    <input class="form-control" type="number" name="editPlanLessonPrice_{{p.id}}"
-                      [(ngModel)]="p.lesson_price" />
-                  </label>
+            סבסוד:
+            {{ p.subsidy_amount | number:'1.0-0' }} ₪
 
-                  <label class="field-card">
-                    <span class="field-label">סבסוד נוכחי (₪)</span>
-                    <input class="form-control" type="number" name="editPlanSubsidy_{{p.id}}"
-                      [(ngModel)]="p.subsidy_amount" />
-                  </label>
+          </span>
 
-                  <label class="field-card">
-                    <span class="field-label">גורם מימון</span>
-                    <select class="form-control" name="editPlanFunding_{{p.id}}" [(ngModel)]="p.funding_source_id">
-                      <option [ngValue]="null">ללא</option>
-                      <option *ngFor="let fs of fundingSources()" [ngValue]="fs.id" [disabled]="!fs.is_active">
-                        {{ fs.name }}<ng-container *ngIf="!fs.is_active"> (לא פעיל)</ng-container>
-                      </option>
-                    </select>
-                  </label>
+          <ng-template #noSubsidy>
+            <span class="chip chip-muted">
+              סבסוד: 0 ₪
+            </span>
+          </ng-template>
 
-                  <label class="field-card">
-                    <span class="field-label">מסמכים נדרשים</span>
-                    <textarea class="form-control textarea" rows="3" name="editPlanDocs_{{p.id}}" maxlength="350"
-                      [ngModel]="getDocsText(p)" (ngModelChange)="onDocsTextChange(p, $event)"></textarea>
-                    <small class="field-hint">כל שורה = סוג קובץ נדרש</small>
-                  </label>
+        </div>
+      </div>
 
-                  <label class="field-card field-toggle">
-                    <div class="toggle-line">
-                      <span class="field-label">חובה מסמכים בזמן קביעת סדרה</span>
-                      <label class="switch">
-                        <input type="checkbox" name="editPlanRequireDocs_{{p.id}}"
-                          [(ngModel)]="p.require_docs_at_booking" />
-                        <span class="switch-ui"></span>
-                      </label>
-                    </div>
-                  </label>
+      <div>
+        <span class="chip chip-highlight">
+          {{ getCustomerAmount(p) | number:'1.0-0' }} ₪
+        </span>
+      </div>
 
-                  <label class="field-card field-toggle">
-                    <div class="toggle-line">
-                      <span class="field-label">מסלול פעיל</span>
-                      <label class="switch">
-                        <input type="checkbox" name="editPlanIsActive_{{p.id}}" [(ngModel)]="p.is_active" />
-                        <span class="switch-ui"></span>
-                      </label>
-                    </div>
-                  </label>
-                </div>
+      <div>
+        <span class="chip">
+          {{ getFundingName(p.funding_source_id || null) }}
+        </span>
+      </div>
 
-                <div class="form-grid cols-3">
-                  <label class="field-card">
-                    <span class="field-label">תאריך תחולה לשינוי מחיר</span>
-                    <input class="form-control" type="date" name="planVersionDate_{{p.id}}"
-                      [(ngModel)]="p.newVersionDate" />
-                    <small class="field-hint">השינוי יחול על שיעורים מתאריך זה והלאה</small>
-                  </label>
+      <div>
 
-                  <label class="field-card">
-                    <span class="field-label">מחיר חדש לשיעור (₪)</span>
-                    <input class="form-control" type="number" name="planVersionPrice_{{p.id}}"
-                      [(ngModel)]="p.newVersionPrice" />
-                  </label>
+        <span
+          class="chip"
+          *ngIf="p.required_docs!.length; else noDocs">
 
-                  <label class="field-card">
-                    <span class="field-label">סבסוד חדש (₪)</span>
-                    <input class="form-control" type="number" name="planVersionSubsidy_{{p.id}}"
-                      [(ngModel)]="p.newVersionSubsidy" />
-                  </label>
-                </div>
+          {{ p.required_docs.length }} סוגי מסמכים
 
-                <div class="history-box" *ngIf="p.versions?.length">
-                  <div class="history-title">היסטוריית מחירים</div>
+        </span>
 
-                  <div class="history-line" *ngFor="let v of p.versions">
-                    <span class="history-date">מ־{{ v.valid_from | date:'dd/MM/yyyy' }}</span>
-                    <span class="chip">מחיר: {{ v.lesson_price | number:'1.0-0' }} ₪</span>
-                    <span class="chip" *ngIf="(v.subsidy_amount || 0) > 0">
-                      סבסוד: {{ v.subsidy_amount | number:'1.0-0' }} ₪
-                    </span>
-                    <span class="chip chip-highlight">
-                      לקוח משלם: {{ v.customer_amount | number:'1.0-0' }} ₪
-                    </span>
-                  </div>
-                </div>
+        <ng-template #noDocs>
+          <span class="chip chip-muted">
+            אין מסמכים נדרשים
+          </span>
+        </ng-template>
 
-                <div class="panel-actions">
-                  <button type="button" class="btn btn-primary" (click)="savePlanPriceVersion(p)">
-                    שמירת שינוי מחיר עם היסטוריה
-                  </button>
-                  <button type="button" class="btn btn-ghost" (click)="updatePaymentPlan(p)">
-                    שמירת שינויים כלליים
-                  </button>
-                  <button type="button" class="btn btn-ghost" (click)="cancelEditPlan()">
-                    ביטול
-                  </button>
-                </div>
-              </div>
-            </ng-container>
+      </div>
+
+      <div class="actions-inline">
+
+        <button
+          type="button"
+          class="btn btn-text"
+          (click)="startEditPlan(p)">
+          עריכה
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-text danger"
+          (click)="deletePaymentPlan(p)">
+          מחיקה
+        </button>
+
+      </div>
+    </div>
+
+
+    <!-- טופס עריכה -->
+    <div
+      class="sub-panel"
+      *ngIf="editingPlanId() === p.id">
+
+      <div class="sub-panel-title">
+        עריכת מסלול — {{ p.name }}
+      </div>
+
+      <div class="form-grid cols-3">
+
+        <label class="field-card">
+          <span class="field-label">שם המסלול</span>
+
+          <input
+            class="form-control"
+            type="text"
+            maxlength="60"
+            name="editPlanName_{{p.id}}"
+            [(ngModel)]="p.name" />
+        </label>
+
+        <label class="field-card">
+          <span class="field-label">
+            מחיר נוכחי לשיעור (₪)
+          </span>
+
+          <input
+            class="form-control"
+            type="number"
+            name="editPlanLessonPrice_{{p.id}}"
+            [(ngModel)]="p.lesson_price" />
+        </label>
+
+        <label class="field-card">
+          <span class="field-label">
+            סבסוד נוכחי (₪)
+          </span>
+
+          <input
+            class="form-control"
+            type="number"
+            name="editPlanSubsidy_{{p.id}}"
+            [(ngModel)]="p.subsidy_amount" />
+        </label>
+
+        <label class="field-card">
+          <span class="field-label">
+            גורם מימון
+          </span>
+
+          <select
+            class="form-control"
+            name="editPlanFunding_{{p.id}}"
+            [(ngModel)]="p.funding_source_id">
+
+            <option [ngValue]="null">
+              ללא
+            </option>
+
+            <option
+              *ngFor="let fs of fundingSources()"
+              [ngValue]="fs.id"
+              [disabled]="!fs.is_active">
+
+              {{ fs.name }}
+
+              <ng-container *ngIf="!fs.is_active">
+                (לא פעיל)
+              </ng-container>
+
+            </option>
+
+          </select>
+        </label>
+
+        <label class="field-card">
+          <span class="field-label">
+            מסמכים נדרשים
+          </span>
+
+          <textarea
+            class="form-control textarea"
+            rows="3"
+            name="editPlanDocs_{{p.id}}"
+            maxlength="350"
+            [ngModel]="getDocsText(p)"
+            (ngModelChange)="onDocsTextChange(p, $event)">
+          </textarea>
+
+          <small class="field-hint">
+            כל שורה = סוג קובץ נדרש
+          </small>
+        </label>
+
+        <label class="field-card field-toggle">
+
+          <div class="toggle-line">
+
+            <span class="field-label">
+              חובה מסמכים בזמן קביעת סדרה
+            </span>
+
+            <label class="switch">
+
+              <input
+                type="checkbox"
+                name="editPlanRequireDocs_{{p.id}}"
+                [(ngModel)]="p.require_docs_at_booking" />
+
+              <span class="switch-ui"></span>
+
+            </label>
+
           </div>
+        </label>
 
+        <label class="field-card field-toggle">
+
+          <div class="toggle-line">
+
+            <span class="field-label">
+              מסלול פעיל
+            </span>
+
+            <label class="switch">
+
+              <input
+                type="checkbox"
+                name="editPlanIsActive_{{p.id}}"
+                [(ngModel)]="p.is_active" />
+
+              <span class="switch-ui"></span>
+
+            </label>
+
+          </div>
+        </label>
+
+      </div>
+
+
+      <div class="form-grid cols-3">
+
+        <label class="field-card">
+          <span class="field-label">
+            תאריך תחולה לשינוי מחיר
+          </span>
+
+          <input
+            class="form-control"
+            type="date"
+            name="planVersionDate_{{p.id}}"
+            [(ngModel)]="p.newVersionDate" />
+
+          <small class="field-hint">
+            השינוי יחול על שיעורים מתאריך זה והלאה
+          </small>
+        </label>
+
+        <label class="field-card">
+
+          <span class="field-label">
+            מחיר חדש לשיעור (₪)
+          </span>
+
+          <input
+            class="form-control"
+            type="number"
+            name="planVersionPrice_{{p.id}}"
+            [(ngModel)]="p.newVersionPrice" />
+
+        </label>
+
+        <label class="field-card">
+
+          <span class="field-label">
+            סבסוד חדש (₪)
+          </span>
+
+          <input
+            class="form-control"
+            type="number"
+            name="planVersionSubsidy_{{p.id}}"
+            [(ngModel)]="p.newVersionSubsidy" />
+
+        </label>
+
+      </div>
+
+
+      <div class="history-box" *ngIf="p.versions?.length">
+
+        <div class="history-title">
+          היסטוריית מחירים
+        </div>
+
+        <div
+          class="history-line"
+          *ngFor="let v of p.versions">
+
+          <span class="history-date">
+            מ־{{ v.valid_from | date:'dd/MM/yyyy' }}
+          </span>
+
+          <span class="chip">
+            מחיר:
+            {{ v.lesson_price | number:'1.0-0' }} ₪
+          </span>
+
+          <span
+            class="chip"
+            *ngIf="(v.subsidy_amount || 0) > 0">
+
+            סבסוד:
+            {{ v.subsidy_amount | number:'1.0-0' }} ₪
+
+          </span>
+
+          <span class="chip chip-highlight">
+            לקוח משלם:
+            {{ v.customer_amount | number:'1.0-0' }} ₪
+          </span>
+
+        </div>
+      </div>
+
+
+      <div class="panel-actions">
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="savePlanPriceVersion(p)">
+
+          שמירת שינוי מחיר עם היסטוריה
+
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-ghost"
+          (click)="updatePaymentPlan(p)">
+
+          שמירת שינויים כלליים
+
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-ghost"
+          (click)="cancelEditPlan()">
+
+          ביטול
+
+        </button>
+
+      </div>
+
+    </div>
+
+  </ng-container>
+
+</div>
           <ng-template #noPlans>
             <div class="empty-state">
               <div class="empty-text">עדיין אין מסלולי תשלום מוגדרים.</div>
