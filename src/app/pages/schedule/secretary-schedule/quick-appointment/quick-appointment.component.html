@@ -135,9 +135,14 @@
 
             <input type="text" [(ngModel)]="childSearchTerm" (focus)="childDropdownOpen = true"
               placeholder="בחר/י ילד/ה" autocomplete="off" />
-            <span class="eligibility-warning-dot" *ngIf="instructorEligibilityWarning"
-              [title]="instructorEligibilityWarning">
-            </span>
+            <div class="eligibility-warning" *ngIf="instructorEligibilityWarning">
+              <span class="eligibility-warning-icon">⚠</span>
+
+              <div class="eligibility-warning-content">
+                <strong>אי־התאמה למדריך</strong>
+                <span>{{ instructorEligibilityWarning }}</span>
+              </div>
+            </div>
             <div class="qa-child-dropdown" *ngIf="childDropdownOpen">
               <button type="button" class="qa-child-option" *ngFor="let child of filteredChildren"
                 (click)="selectChild(child)">

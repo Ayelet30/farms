@@ -305,19 +305,31 @@ export class QuickAppointmentComponent implements OnInit {
     if (age != null && !Number.isNaN(age)) {
       if (gender === 'זכר') {
         if (instructor.min_age_years_male != null && age < instructor.min_age_years_male) {
-          return { ok: false, reason: 'גיל הילד נמוך מטווח המדריך' };
+          return {
+            ok: false,
+            reason: 'גיל הילד/ה אינו תואם לטווח הגילאים שהמדריך מוגדר ללמד.'
+          };
         }
         if (instructor.max_age_years_male != null && age > instructor.max_age_years_male) {
-          return { ok: false, reason: 'גיל הילד גבוה מטווח המדריך' };
+          return {
+            ok: false,
+            reason: 'גיל הילד/ה אינו תואם לטווח הגילאים שהמדריך מוגדר ללמד.'
+          };
         }
       }
 
       if (gender === 'נקבה') {
         if (instructor.min_age_years_female != null && age < instructor.min_age_years_female) {
-          return { ok: false, reason: 'גיל הילדה נמוך מטווח המדריך' };
+          return {
+            ok: false,
+            reason: 'גיל הילד/ה אינו תואם לטווח הגילאים שהמדריך מוגדר ללמד.'
+          };
         }
         if (instructor.max_age_years_female != null && age > instructor.max_age_years_female) {
-          return { ok: false, reason: 'גיל הילדה גבוה מטווח המדריך' };
+          return {
+            ok: false,
+            reason: 'גיל הילד/ה אינו תואם לטווח הגילאים שהמדריך מוגדר ללמד.'
+          };
         }
       }
     }
