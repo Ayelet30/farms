@@ -109,13 +109,12 @@ export class SecretaryParentsComponent implements OnInit {
   @ViewChild('drawer') drawer!: MatSidenav;
 
   parents: ParentRow[] = [];
-
+  savingEdit = false;
   searchText = '';
   searchMode: 'name' | 'id' | 'email' = 'name';
   childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
   statusFilter: 'all' | 'active' | 'inactive' = 'all';
   paymentFilter: 'all' | 'withPayment' | 'withoutPayment' = 'all';
-
   showSearchPanel = false;
   showColumnsPanel = false;
   panelFocus: 'search' | 'filter' = 'search';
@@ -594,6 +593,8 @@ export class SecretaryParentsComponent implements OnInit {
   }
 
   enterEditMode() {
+    this.savingEdit = false;
+
     if (!this.drawerParent) return;
     this.editMode = true;
     this.buildParentForm(this.drawerParent);
@@ -689,6 +690,7 @@ export class SecretaryParentsComponent implements OnInit {
   }
 
   async saveParentEdits() {
+
     if (!this.drawerParent || !this.originalParent || !this.selectedUid) return;
 
     if (this.parentForm.invalid) {
@@ -742,6 +744,11 @@ export class SecretaryParentsComponent implements OnInit {
       this.editMode = false;
       return;
     }
+
+    if (this.savingEdit) return;
+
+    this.savingEdit = true;
+
     try {
       const db = dbTenant();
       const cleanUid = (this.selectedUid || '').trim();
@@ -843,7 +850,12 @@ export class SecretaryParentsComponent implements OnInit {
       this.editMode = false;
     } catch (e: any) {
       console.error(e);
-      await this.ui.alert(e?.message || 'שמירת השינויים נכשלה', 'שמירה נכשלה');
+      await this.ui.alert(
+        e?.message || 'שמירת השינויים נכשלה',
+        'שמירה נכשלה'
+      );
+    } finally {
+      this.savingEdit = false;
     }
   }
 
@@ -1395,6 +1407,8 @@ export class SecretaryParentsComponent implements OnInit {
   }
 
   async openDetails(uid: string) {
+    this.savingEdit = false;
+
     const cleanUid = (uid || '').trim();
 
     if (!cleanUid) {
