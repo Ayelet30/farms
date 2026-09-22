@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 
-export interface AgentHealthResponse {
+export interface HealthAgentResponse {
   ok: boolean;
   app: string;
   version?: string;
@@ -17,46 +17,38 @@ export class HelthAgentService {
   private readonly healthUrl =
     'http://127.0.0.1:38473/health';
 
-  async checkHealth(
-    timeoutMs = 3000
-  ): Promise<AgentHealthResponse | null> {
-    const controller = new AbortController();
-
-    const timeout = window.setTimeout(() => {
-      controller.abort();
-    }, timeoutMs);
-
+  async checkHealth(): Promise<HealthAgentResponse | null> {
     try {
-      const response = await fetch(this.healthUrl, {
-        method: 'GET',
-        cache: 'no-store',
-        signal: controller.signal,
-      });
+      const response = await fetch(
+  this.healthUrl,
+  {
+    method: 'GET',
+    cache: 'no-store',
+  }
+);
 
       if (!response.ok) {
         return null;
       }
 
-      const data =
-        (await response.json()) as Partial<AgentHealthResponse>;
+      const health =
+        (await response.json()) as HealthAgentResponse;
 
       if (
-        data.ok !== true ||
-        data.app !== 'moach-maccabi-agent'
+        health.ok !== true ||
+        health.app !== 'moach-maccabi-agent'
       ) {
         return null;
       }
 
-      return data as AgentHealthResponse;
+      return health;
     } catch (error) {
       console.warn(
-        'Maccabi agent health check failed:',
+        'Maccabi Agent health check failed:',
         error
       );
 
       return null;
-    } finally {
-      window.clearTimeout(timeout);
     }
   }
 }
