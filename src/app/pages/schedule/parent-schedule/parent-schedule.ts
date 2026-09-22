@@ -55,7 +55,7 @@ export class ParentScheduleComponent implements OnInit {
   items: ScheduleItem[] = [];
   selectedChildId: string = 'all';
   dropdownOpen = false;
-
+  farmWorkingHours: any[] = [];
   toastMessage: string | null = null;
 
   constructor(
@@ -74,6 +74,7 @@ export class ParentScheduleComponent implements OnInit {
     this.startDate = this.getStartOfWeek();
     this.endDate = this.getEndOfWeek();
 
+    await this.loadFarmWorkingHours();
     await this.loadChildren();
     await this.loadLessons();
 
@@ -81,7 +82,25 @@ export class ParentScheduleComponent implements OnInit {
     this.setScheduleItems();
     this.calcNextCanceledLesson();
   }
+  private async loadFarmWorkingHours(): Promise<void> {
+    const { data, error } = await dbTenant()
+      .from('farm_working_hours')
+      .select(`
+      day_of_week,
+      is_open,
+      farm_start,
+      farm_end
+    `)
+      .order('day_of_week', { ascending: true });
 
+    if (error) {
+      console.error('[loadFarmWorkingHours]', error);
+      this.farmWorkingHours = [];
+      return;
+    }
+
+    this.farmWorkingHours = data ?? [];
+  }
   /* ===================== Dates ===================== */
 
   private getStartOfWeek(): string {
