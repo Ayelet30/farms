@@ -492,7 +492,27 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       this.cdr.detectChanges();
     }
   }
+  isInstructorAvailableOnContextDay(): boolean {
+    const instructorId = String(
+      this.contextMenu.instructorId || ''
+    ).trim();
 
+    const date = String(
+      this.contextMenu.date || ''
+    ).slice(0, 10);
+
+    if (!instructorId || !date) {
+      return false;
+    }
+
+    const dayOfWeek = this.dbDowFromYmd(date);
+
+    return (this.instructorWeeklyAvailability ?? []).some(row =>
+      String(row.instructor_id_number) === instructorId &&
+      Number(row.day_of_week) === dayOfWeek &&
+      this.isWeeklyAvailabilityEffectiveOn(row, date)
+    );
+  }
   async onScheduleReloadRequested(range: {
     start: string;
     end: string;
