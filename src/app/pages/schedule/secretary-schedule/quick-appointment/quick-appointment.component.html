@@ -134,7 +134,7 @@
             <label>ילד/ה</label>
 
             <input type="text" [(ngModel)]="childSearchTerm" (focus)="childDropdownOpen = true"
-              placeholder="התחילי להקליד שם ילד/ה" autocomplete="off" />
+              placeholder="בחר/י ילד/ה" autocomplete="off" />
             <span class="eligibility-warning-dot" *ngIf="instructorEligibilityWarning"
               [title]="instructorEligibilityWarning">
             </span>
@@ -194,7 +194,8 @@
             </select>
 
             <small *ngIf="selectedPaymentPlan?.require_docs_at_booking" class="qa-help-text">
-              למסלול זה ניתן לצרף מסמכים: {{ (selectedPaymentPlan!.required_docs ?? []).join(', ') || 'ע״פ הנחיות החווה' }}
+              למסלול זה ניתן לצרף מסמכים: {{ (selectedPaymentPlan!.required_docs ?? []).join(', ') || 'ע״פ הנחיות החווה'
+              }}
               יש להעלות קובץ אחד בלבד.
             </small>
           </div>
@@ -224,23 +225,23 @@
             </small>
           </div>
 
- <div class="qa-field"
-  *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
-  <label>שעת התחלה</label>
+          <div class="qa-field"
+            *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
+            <label>שעת התחלה</label>
 
-  <div class="qa-readonly-time" dir="ltr">
-    {{ startTime | slice:0:5 }}
-  </div>
-</div>
+            <div class="qa-readonly-time" dir="ltr">
+              {{ startTime | slice:0:5 }}
+            </div>
+          </div>
 
-<div class="qa-field"
-  *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
-  <label>שעת סיום</label>
+          <div class="qa-field"
+            *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
+            <label>שעת סיום</label>
 
-  <div class="qa-readonly-time" dir="ltr">
-    {{ displayEndTime | slice:0:5 }}
-  </div>
-</div>
+            <div class="qa-readonly-time" dir="ltr">
+              {{ displayEndTime | slice:0:5 }}
+            </div>
+          </div>
         </div>
       </fieldset>
 
