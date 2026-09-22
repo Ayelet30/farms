@@ -121,6 +121,12 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   @Input() breakOccurrences: ScheduleBreakOccurrence[] = [];
   @Input() blockedDayCells: BlockedDayCell[] = [];
   @Input() reloadLoading = false;
+  @Input() farmWorkingHours: Array<{
+    day_of_week: number;
+    is_open: boolean;
+    farm_start: string | null;
+    farm_end: string | null;
+  }> = [];
   @Input() availableDayCells: Array<{
     date: string;
     resourceId: string;
@@ -148,10 +154,10 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   }>();
 
   @Output() reloadRequested = new EventEmitter<{
-  start: string;
-  end: string;
-  viewType: ViewName;
-}>();
+    start: string;
+    end: string;
+    viewType: ViewName;
+  }>();
 
   @Output() rightClickEvent = new EventEmitter<{
     jsEvent: MouseEvent;
@@ -193,7 +199,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
 
   @HostListener('window:resize')
 
-  
+
 
   onResize() {
     const next = window.innerWidth < 600;
@@ -271,7 +277,76 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
     const m = minutes % 60;
     return `${this.pad(h)}:${this.pad(m)}`;
   }
+  private normalizeTimeForCalendar(value: string | null | undefined): string {
+    const hm = String(value || '').slice(0, 5);
 
+    if (!/^\d{2}:\d{2}$/.test(hm)) {
+      return '';
+    }
+
+    return `${hm}:00`;
+  }
+
+  private getDayScheduleRange(date: Date): {
+    min: string;
+    max: string;
+  } {
+    // JavaScript: ראשון=0 ... שבת=6
+    // DB:         ראשון=1 ... שבת=7
+    const dayOfWeek = date.getDay() + 1;
+
+    const row = (this.farmWorkingHours || []).find(
+      x => Number(x.day_of_week) === dayOfWeek
+    );
+
+    if (
+      row?.is_open &&
+      row.farm_start &&
+      row.farm_end
+    ) {
+      return {
+        min: this.normalizeTimeForCalendar(row.farm_start),
+        max: this.normalizeTimeForCalendar(row.farm_end),
+      };
+    }
+
+    return {
+      min: this.slotMinTime,
+      max: this.slotMaxTime,
+    };
+  }
+  private getWeekScheduleRange(): {
+    min: string;
+    max: string;
+  } {
+    const openDays = (this.farmWorkingHours || []).filter(
+      x => x.is_open && x.farm_start && x.farm_end
+    );
+
+    if (!openDays.length) {
+      return {
+        min: this.slotMinTime,
+        max: this.slotMaxTime,
+      };
+    }
+
+    const minMinutes = Math.min(
+      ...openDays.map(x =>
+        this.parseTimeToMinutes(String(x.farm_start))
+      )
+    );
+
+    const maxMinutes = Math.max(
+      ...openDays.map(x =>
+        this.parseTimeToMinutes(String(x.farm_end))
+      )
+    );
+
+    return {
+      min: `${this.minutesToTime(minMinutes)}:00`,
+      max: `${this.minutesToTime(maxMinutes)}:00`,
+    };
+  }
   private swipeStartX = 0;
   private swipeStartY = 0;
 
@@ -304,37 +379,37 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   }
 
   reloadCurrentView(): void {
-  let start: string;
-  let end: string;
+    let start: string;
+    let end: string;
 
-  if (this.currentView === 'timeGridDay') {
-    const ymd = this.toYmd(this.customDayDate);
+    if (this.currentView === 'timeGridDay') {
+      const ymd = this.toYmd(this.customDayDate);
 
-    start = ymd;
-    end = ymd;
-  } else {
-    const api = this.calendarApi;
+      start = ymd;
+      end = ymd;
+    } else {
+      const api = this.calendarApi;
 
-    if (!api) return;
+      if (!api) return;
 
-    start = this.toYmd(api.view.activeStart);
+      start = this.toYmd(api.view.activeStart);
 
-    /*
-     * activeEnd ב־FullCalendar הוא תאריך סיום לא כולל,
-     * לכן מורידים יום אחד.
-     */
-    const inclusiveEnd = new Date(api.view.activeEnd);
-    inclusiveEnd.setDate(inclusiveEnd.getDate() - 1);
+      /*
+       * activeEnd ב־FullCalendar הוא תאריך סיום לא כולל,
+       * לכן מורידים יום אחד.
+       */
+      const inclusiveEnd = new Date(api.view.activeEnd);
+      inclusiveEnd.setDate(inclusiveEnd.getDate() - 1);
 
-    end = this.toYmd(inclusiveEnd);
+      end = this.toYmd(inclusiveEnd);
+    }
+
+    this.reloadRequested.emit({
+      start,
+      end,
+      viewType: this.currentView,
+    });
   }
-
-  this.reloadRequested.emit({
-    start,
-    end,
-    viewType: this.currentView,
-  });
-}
 
   private isoToMinutes(iso: string): number {
     const d = new Date(iso);
@@ -661,9 +736,10 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
 
   private rebuildCustomDayView(): void {
     const ymd = this.toYmd(this.customDayDate);
+    const dayRange = this.getDayScheduleRange(this.customDayDate);
 
-    const minMinutes = this.parseTimeToMinutes(String(this.slotMinTime || '07:00:00'));
-    const maxMinutes = this.parseTimeToMinutes(String(this.slotMaxTime || '21:00:00'));
+    const minMinutes = this.parseTimeToMinutes(dayRange.min);
+    const maxMinutes = this.parseTimeToMinutes(dayRange.max);
     const slotStep = this.getSlotStepMinutes();
 
     this.customDaySlots = [];
@@ -804,59 +880,59 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   // }
 
   onCustomItemClick(
-  item: ScheduleItem,
-  jsEvent: MouseEvent
-): void {
-  jsEvent.preventDefault();
-  jsEvent.stopPropagation();
+    item: ScheduleItem,
+    jsEvent: MouseEvent
+  ): void {
+    jsEvent.preventDefault();
+    jsEvent.stopPropagation();
 
-  const meta = (item as any)?.meta ?? {};
+    const meta = (item as any)?.meta ?? {};
 
-  const startValue = (item as any)?.start ?? null;
-  const endValue = (item as any)?.end ?? null;
+    const startValue = (item as any)?.start ?? null;
+    const endValue = (item as any)?.end ?? null;
 
-  const fakeEventArg: any = {
-    event: {
-      id: String(
-        meta.lesson_id ??
-        (item as any)?.id ??
-        ''
-      ),
+    const fakeEventArg: any = {
+      event: {
+        id: String(
+          meta.lesson_id ??
+          (item as any)?.id ??
+          ''
+        ),
 
-      title: String(
-        (item as any)?.title ??
-        ''
-      ),
+        title: String(
+          (item as any)?.title ??
+          ''
+        ),
 
-      start: startValue
-        ? new Date(startValue)
-        : null,
+        start: startValue
+          ? new Date(startValue)
+          : null,
 
-      end: endValue
-        ? new Date(endValue)
-        : null,
+        end: endValue
+          ? new Date(endValue)
+          : null,
 
-      startStr:
-        String(startValue ?? ''),
+        startStr:
+          String(startValue ?? ''),
 
-      endStr:
-        String(endValue ?? ''),
+        endStr:
+          String(endValue ?? ''),
 
-      /*
-       * זה החלק שהיה חסר:
-       * כל שדות ההעברה עוברים הלאה.
-       */
-      extendedProps: {
-        ...meta,
-        meta,
+        /*
+         * זה החלק שהיה חסר:
+         * כל שדות ההעברה עוברים הלאה.
+         */
+        extendedProps: {
+          ...meta,
+          meta,
+        },
       },
-    },
 
-    jsEvent,
-  };
+      jsEvent,
+    };
 
-  this.eventClick.emit(fakeEventArg);
-}
+    this.eventClick.emit(fakeEventArg);
+  }
 
   onCustomDateCellClick(iso: string, resource?: ScheduleResource | null): void {
     if (resource?.id && this.isBlockedRawCell(resource.id, iso)) {
@@ -931,56 +1007,56 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   }
 
   toggleFullscreen(): void {
-  this.isFullscreen = !this.isFullscreen;
+    this.isFullscreen = !this.isFullscreen;
 
-  document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
+    document.body.style.overflow = this.isFullscreen ? 'hidden' : '';
 
-  window.dispatchEvent(
-    new CustomEvent('schedule-fullscreen-change', {
-      detail: {
-        fullscreen: this.isFullscreen
-      }
-    })
-  );
+    window.dispatchEvent(
+      new CustomEvent('schedule-fullscreen-change', {
+        detail: {
+          fullscreen: this.isFullscreen
+        }
+      })
+    );
 
-  setTimeout(() => {
-    this.calendarApi?.updateSize();
-    this.cdr.detectChanges();
-  }, 50);
-}
+    setTimeout(() => {
+      this.calendarApi?.updateSize();
+      this.cdr.detectChanges();
+    }, 50);
+  }
 
   trackById(i: number, item: any) {
     return item.id;
   }
 
   changeView(view: ViewName): void {
-  if (view === this.currentView) {
-    return;
+    if (view === this.currentView) {
+      return;
+    }
+
+    if (view === 'timeGridDay') {
+      const api = this.calendarApi;
+
+      /*
+       * getDate() מייצג את התאריך שהלוח ממוקד בו,
+       * ולא בהכרח את היום הראשון בטווח.
+       */
+      const baseDate =
+        api?.getDate()
+          ? this.cloneDate(api.getDate())
+          : this.cloneDate(this.customDayDate || new Date());
+
+      this.openCustomDay(baseDate);
+      return;
+    }
+
+    this.currentView = view;
+
+    setTimeout(() => {
+      this.applyCurrentView();
+      this.cdr.detectChanges();
+    }, 0);
   }
-
-  if (view === 'timeGridDay') {
-    const api = this.calendarApi;
-
-    /*
-     * getDate() מייצג את התאריך שהלוח ממוקד בו,
-     * ולא בהכרח את היום הראשון בטווח.
-     */
-    const baseDate =
-      api?.getDate()
-        ? this.cloneDate(api.getDate())
-        : this.cloneDate(this.customDayDate || new Date());
-
-    this.openCustomDay(baseDate);
-    return;
-  }
-
-  this.currentView = view;
-
-  setTimeout(() => {
-    this.applyCurrentView();
-    this.cdr.detectChanges();
-  }, 0);
-}
 
   prev() {
     if (this.currentView === 'timeGridDay') {
@@ -1026,50 +1102,50 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   }
 
   private openCustomDay(date: Date | string): void {
-  const parsed =
-    date instanceof Date
-      ? this.cloneDate(date)
-      : this.parseYmdAsLocalDate(date);
+    const parsed =
+      date instanceof Date
+        ? this.cloneDate(date)
+        : this.parseYmdAsLocalDate(date);
 
-  if (Number.isNaN(parsed.getTime())) {
-    console.warn('openCustomDay received invalid date:', date);
-    return;
+    if (Number.isNaN(parsed.getTime())) {
+      console.warn('openCustomDay received invalid date:', date);
+      return;
+    }
+
+    /*
+     * עוברים ישירות לתצוגת היום המותאמת.
+     * לא קוראים קודם ל-changeView('timeGridDay'),
+     * כדי למנוע טעינה מיותרת של תחילת החודש.
+     */
+    this.currentView = 'timeGridDay';
+    this.customDayDate = this.cloneDate(parsed);
+    this.currentDate =
+      this.formatHebrewDayTitle(this.customDayDate);
+
+    /*
+     * מאפשרים emit חדש גם אם אותו יום כבר הופיע בעבר.
+     */
+    this.lastRangeKey = '';
+
+    this.emitCustomDayRange();
+    this.rebuildCustomDayView();
+    this.cdr.detectChanges();
   }
 
-  /*
-   * עוברים ישירות לתצוגת היום המותאמת.
-   * לא קוראים קודם ל-changeView('timeGridDay'),
-   * כדי למנוע טעינה מיותרת של תחילת החודש.
-   */
-  this.currentView = 'timeGridDay';
-  this.customDayDate = this.cloneDate(parsed);
-  this.currentDate =
-    this.formatHebrewDayTitle(this.customDayDate);
+  private parseYmdAsLocalDate(value: string): Date {
+    const ymd = String(value || '').slice(0, 10);
+    const [year, month, day] = ymd.split('-').map(Number);
 
-  /*
-   * מאפשרים emit חדש גם אם אותו יום כבר הופיע בעבר.
-   */
-  this.lastRangeKey = '';
+    if (!year || !month || !day) {
+      return new Date(NaN);
+    }
 
-  this.emitCustomDayRange();
-  this.rebuildCustomDayView();
-  this.cdr.detectChanges();
-}
-
-private parseYmdAsLocalDate(value: string): Date {
-  const ymd = String(value || '').slice(0, 10);
-  const [year, month, day] = ymd.split('-').map(Number);
-
-  if (!year || !month || !day) {
-    return new Date(NaN);
+    /*
+     * לא להשתמש ב-new Date('YYYY-MM-DD'),
+     * מפני שהוא עלול להתפרש כ-UTC.
+     */
+    return new Date(year, month - 1, day);
   }
-
-  /*
-   * לא להשתמש ב-new Date('YYYY-MM-DD'),
-   * מפני שהוא עלול להתפרש כ-UTC.
-   */
-  return new Date(year, month - 1, day);
-}
 
   goToDay(date: string | Date): void {
     const nextDate = date instanceof Date ? this.cloneDate(date) : new Date(date);
@@ -1120,9 +1196,15 @@ private parseYmdAsLocalDate(value: string): Date {
 
     const mapped = this.mapView(this.currentView);
     api.changeView(mapped);
+    if (this.currentView === 'timeGridWeek') {
+      const weekRange = this.getWeekScheduleRange();
 
-    api.setOption('slotMinTime', this.slotMinTime);
-    api.setOption('slotMaxTime', this.slotMaxTime);
+      api.setOption('slotMinTime', weekRange.min);
+      api.setOption('slotMaxTime', weekRange.max);
+    } else {
+      api.setOption('slotMinTime', this.slotMinTime);
+      api.setOption('slotMaxTime', this.slotMaxTime);
+    }
     api.setOption('allDaySlot', this.allDaySlot);
     api.setOption('resources', this.resources || []);
     api.getEventSources().forEach(s => s.remove());
@@ -1276,149 +1358,149 @@ private parseYmdAsLocalDate(value: string): Date {
         borderColor: i.color,
         resourceId: i.meta?.instructor_id || undefined,
         classNames: this.getEventClassNames(i),
-       extendedProps: {
-  /*
-   * חשוב: שיטוח כל ה-meta באירוע הרגיל,
-   * לא רק באירוע חופשת חווה.
-   */
-  ...i.meta,
-  meta: i.meta,
+        extendedProps: {
+          /*
+           * חשוב: שיטוח כל ה-meta באירוע הרגיל,
+           * לא רק באירוע חופשת חווה.
+           */
+          ...i.meta,
+          meta: i.meta,
 
-  lesson_id:
-    i.meta?.lesson_id,
+          lesson_id:
+            i.meta?.lesson_id,
 
-  instructor_color:
-    i.meta?.instructor_color,
+          instructor_color:
+            i.meta?.instructor_color,
 
-  status:
-    i.status ?? i.meta?.status,
+          status:
+            i.status ?? i.meta?.status,
 
-  child_id:
-    i.meta?.child_id,
+          child_id:
+            i.meta?.child_id,
 
-  child_name:
-    i.meta?.child_name,
+          child_name:
+            i.meta?.child_name,
 
-  child_age:
-    i.meta?.child_age,
+          child_age:
+            i.meta?.child_age,
 
-  instructor_id:
-    i.meta?.instructor_id,
+          instructor_id:
+            i.meta?.instructor_id,
 
-  instructor_name:
-    i.meta?.instructor_name,
+          instructor_name:
+            i.meta?.instructor_name,
 
-  lesson_type:
-    i.meta?.lesson_type,
+          lesson_type:
+            i.meta?.lesson_type,
 
-  children:
-    i.meta?.children,
+          children:
+            i.meta?.children,
 
-  occur_date:
-    i.meta?.occur_date,
+          occur_date:
+            i.meta?.occur_date,
 
-  start_time:
-    i.meta?.start_time,
+          start_time:
+            i.meta?.start_time,
 
-  end_time:
-    i.meta?.end_time,
+          end_time:
+            i.meta?.end_time,
 
-  start_datetime:
-    i.meta?.start_datetime,
+          start_datetime:
+            i.meta?.start_datetime,
 
-  end_datetime:
-    i.meta?.end_datetime,
+          end_datetime:
+            i.meta?.end_datetime,
 
-  attendance_status:
-    i.meta?.attendance_status,
+          attendance_status:
+            i.meta?.attendance_status,
 
-  horse_name:
-    i.meta?.horse_name,
+          horse_name:
+            i.meta?.horse_name,
 
-  arena_name:
-    i.meta?.arena_name,
+          arena_name:
+            i.meta?.arena_name,
 
-  /*
-   * העברה חד־פעמית
-   */
-  occurrence_change_id:
-    i.meta?.occurrence_change_id,
+          /*
+           * העברה חד־פעמית
+           */
+          occurrence_change_id:
+            i.meta?.occurrence_change_id,
 
-  occurrence_change_type:
-    i.meta?.occurrence_change_type,
+          occurrence_change_type:
+            i.meta?.occurrence_change_type,
 
-  is_single_occurrence_move:
-    i.meta?.is_single_occurrence_move,
+          is_single_occurrence_move:
+            i.meta?.is_single_occurrence_move,
 
-  original_occur_date:
-    i.meta?.original_occur_date,
+          original_occur_date:
+            i.meta?.original_occur_date,
 
-  original_instructor_id:
-    i.meta?.original_instructor_id,
+          original_instructor_id:
+            i.meta?.original_instructor_id,
 
-  original_instructor_name:
-    i.meta?.original_instructor_name,
+          original_instructor_name:
+            i.meta?.original_instructor_name,
 
-  new_instructor_id:
-    i.meta?.new_instructor_id,
+          new_instructor_id:
+            i.meta?.new_instructor_id,
 
-  new_instructor_name:
-    i.meta?.new_instructor_name,
+          new_instructor_name:
+            i.meta?.new_instructor_name,
 
-  original_start_time:
-    i.meta?.original_start_time,
+          original_start_time:
+            i.meta?.original_start_time,
 
-  original_end_time:
-    i.meta?.original_end_time,
+          original_end_time:
+            i.meta?.original_end_time,
 
-  new_start_time:
-    i.meta?.new_start_time,
+          new_start_time:
+            i.meta?.new_start_time,
 
-  new_end_time:
-    i.meta?.new_end_time,
+          new_end_time:
+            i.meta?.new_end_time,
 
-  original_day_of_week:
-    i.meta?.original_day_of_week,
+          original_day_of_week:
+            i.meta?.original_day_of_week,
 
-  new_day_of_week:
-    i.meta?.new_day_of_week,
+          new_day_of_week:
+            i.meta?.new_day_of_week,
 
-  original_start_datetime:
-    i.meta?.original_start_datetime,
+          original_start_datetime:
+            i.meta?.original_start_datetime,
 
-  new_start_datetime:
-    i.meta?.new_start_datetime,
+          new_start_datetime:
+            i.meta?.new_start_datetime,
 
-  new_end_datetime:
-    i.meta?.new_end_datetime,
+          new_end_datetime:
+            i.meta?.new_end_datetime,
 
-  occurrence_change_note:
-    i.meta?.occurrence_change_note,
+          occurrence_change_note:
+            i.meta?.occurrence_change_note,
 
-  occurrence_change_created_at:
-    i.meta?.occurrence_change_created_at,
+          occurrence_change_created_at:
+            i.meta?.occurrence_change_created_at,
 
-  /*
-   * שדות מערכת
-   */
-  isSummaryDay:
-    i.meta?.isSummaryDay,
+          /*
+           * שדות מערכת
+           */
+          isSummaryDay:
+            i.meta?.isSummaryDay,
 
-  isSummarySlot:
-    i.meta?.isSummarySlot,
+          isSummarySlot:
+            i.meta?.isSummarySlot,
 
-  isInstructorHeader:
-    i.meta?.isInstructorHeader,
+          isInstructorHeader:
+            i.meta?.isInstructorHeader,
 
-  isFarmDayOff:
-    i.meta?.isFarmDayOff,
+          isFarmDayOff:
+            i.meta?.isFarmDayOff,
 
-  isInstructorDayOff:
-    i.meta?.isInstructorDayOff,
+          isInstructorDayOff:
+            i.meta?.isInstructorDayOff,
 
-  isPendingInstructorDayOff:
-    i.meta?.isPendingInstructorDayOff,
-},
+          isPendingInstructorDayOff:
+            i.meta?.isPendingInstructorDayOff,
+        },
       }];
     });
   }
@@ -1609,49 +1691,49 @@ private parseYmdAsLocalDate(value: string): Date {
     eventShortHeight: 34,
     dayHeaderContent: this.dayHeaderContentFactory(),
 
-   dateClick: (info: DateClickArg) => {
-  const sourceView = this.currentView;
+    dateClick: (info: DateClickArg) => {
+      const sourceView = this.currentView;
 
-  /*
-   * מחודש/שבוע עוברים ישירות ליום שנלחץ.
-   * אין changeView ואז goToDay — רק מעבר אחד.
-   */
-  if (
-    sourceView === 'dayGridMonth' ||
-    sourceView === 'timeGridWeek'
-  ) {
-    info.jsEvent?.preventDefault();
-    info.jsEvent?.stopPropagation();
+      /*
+       * מחודש/שבוע עוברים ישירות ליום שנלחץ.
+       * אין changeView ואז goToDay — רק מעבר אחד.
+       */
+      if (
+        sourceView === 'dayGridMonth' ||
+        sourceView === 'timeGridWeek'
+      ) {
+        info.jsEvent?.preventDefault();
+        info.jsEvent?.stopPropagation();
 
-    this.openCustomDay(info.date);
-    return;
-  }
+        this.openCustomDay(info.date);
+        return;
+      }
 
-  /*
-   * בתצוגת יום רגילה ממשיכים להעביר את הלחיצה להורה,
-   * למשל לצורך זימון מהיר.
-   */
-  this.dateClick.emit(info);
-},
+      /*
+       * בתצוגת יום רגילה ממשיכים להעביר את הלחיצה להורה,
+       * למשל לצורך זימון מהיר.
+       */
+      this.dateClick.emit(info);
+    },
     eventClick: (arg: EventClickArg) => {
-  if (arg.event.extendedProps['isMonthSummary']) {
-    arg.jsEvent.preventDefault();
-    arg.jsEvent.stopPropagation();
+      if (arg.event.extendedProps['isMonthSummary']) {
+        arg.jsEvent.preventDefault();
+        arg.jsEvent.stopPropagation();
 
-    const eventDate =
-      arg.event.startStr ||
-      arg.event.start?.toLocaleDateString('sv-SE') ||
-      '';
+        const eventDate =
+          arg.event.startStr ||
+          arg.event.start?.toLocaleDateString('sv-SE') ||
+          '';
 
-    if (eventDate) {
-      this.openCustomDay(eventDate);
-    }
+        if (eventDate) {
+          this.openCustomDay(eventDate);
+        }
 
-    return;
-  }
+        return;
+      }
 
-  this.eventClick.emit(arg);
-},
+      this.eventClick.emit(arg);
+    },
     eventContent: (arg) => {
 
       const { event } = arg;
@@ -1778,7 +1860,7 @@ private parseYmdAsLocalDate(value: string): Date {
         meta?.is_single_occurrence_move === 'true' ||
         meta?.occurrence_change_type === 'MOVE';
 
-        console.log('isSingleMove', isSingleMove, event.extendedProps['occurrence_change_type'], meta?.occurrence_change_type);
+      console.log('isSingleMove', isSingleMove, event.extendedProps['occurrence_change_type'], meta?.occurrence_change_type);
 
       const originalInstructorName = String(
         event.extendedProps['original_instructor_name'] ??

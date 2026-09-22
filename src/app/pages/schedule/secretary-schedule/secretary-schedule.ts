@@ -162,7 +162,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
   instructorId = '';
   items: ScheduleItem[] = [];
-
+  farmWorkingHours: any[] = [];
   isFullscreen = false;
   showSeriesInstructorSelection = false;
   moveChoiceModal = {
@@ -460,6 +460,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     try {
       await ensureTenantContextReady();
+
       this.clearScheduleStateOnFreshEntry();
 
       const { data: ridingTypes } = await dbTenant()
@@ -468,16 +469,23 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
       this.ridingTypes = ridingTypes || [];
 
-      await ensureTenantContextReady();
+      // שעות פעילות החווה
+      await this.loadFarmWorkingHours();
 
-      this.unsubTenantChange = onTenantChange(async () => {
-        await this.reloadAll();
-      });
-
+      // המשתמש הנוכחי
       const user = await this.cu.loadUserDetails();
       this.instructorId = (user?.id_number ?? '').toString();
 
+      // טוען את כל נתוני הלוז:
+      // מדריכים, זמינויות, שיעורים וכו'
       await this.reloadAll();
+
+      // במקרה של מעבר בין חוות
+      this.unsubTenantChange = onTenantChange(async () => {
+        await this.loadFarmWorkingHours();
+        await this.reloadAll();
+      });
+
     } catch (e) {
       console.error('init error', e);
     } finally {
@@ -6021,5 +6029,24 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
         this.onQuickBookingSaved();
       })
     );
+  }
+  private async loadFarmWorkingHours(): Promise<void> {
+    const { data, error } = await dbTenant()
+      .from('farm_working_hours')
+      .select(`
+      day_of_week,
+      is_open,
+      farm_start,
+      farm_end
+    `)
+      .order('day_of_week', { ascending: true });
+
+    if (error) {
+      console.error('[loadFarmWorkingHours]', error);
+      this.farmWorkingHours = [];
+      return;
+    }
+
+    this.farmWorkingHours = data ?? [];
   }
 }
