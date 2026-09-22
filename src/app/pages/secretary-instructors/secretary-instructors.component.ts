@@ -905,7 +905,7 @@ export class SecretaryInstructorsComponent implements OnInit {
   async saveEditFromDrawer() {
     if (!this.drawerInstructor || !this.editModel) return;
     this.bulkBusy.set(true);
-    this.bulkBusyMessage.set('הנתונים נבדקים...');
+    this.bulkBusyMessage.set('הנתונים נשמרים...');
     this.editModel = {
       ...this.editModel,
       first_name: this.sanitizeName(this.editModel.first_name),
