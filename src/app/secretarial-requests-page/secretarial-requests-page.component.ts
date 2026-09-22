@@ -1,1167 +1,1116 @@
-  import {
-    Component,
-    OnInit,
-    signal,
-    inject,
-    Input,
-    computed,
-  } from '@angular/core';
-  import { CommonModule } from '@angular/common';
-  import { FormsModule } from '@angular/forms';
-  import { MatIconModule } from '@angular/material/icon';
-  import { MatButtonModule } from '@angular/material/button';
-  import { MatSidenavModule } from '@angular/material/sidenav';
-  import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-  import { Subscription } from 'rxjs';
-  import { BreakpointObserver } from '@angular/cdk/layout';
-  import { ViewChild } from '@angular/core';
-  import { MatSidenav } from '@angular/material/sidenav';
-  import { RequestRemoveChildDetailsComponent } from './request-remove-child-details/request-remove-child-details.component';
-  import { BulkRunReportDialogComponent } from './bulk-run-report-dialog/bulk-run-report-dialog.component';
-  import { RequestSystemRejectedMailService } from '../services/request-system-rejected-mail.service';
+import {
+  Component,
+  OnInit,
+  signal,
+  inject,
+  Input,
+  computed,
+} from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatSidenavModule } from '@angular/material/sidenav';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { Subscription } from 'rxjs';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { ViewChild } from '@angular/core';
+import { MatSidenav } from '@angular/material/sidenav';
+import { RequestRemoveChildDetailsComponent } from './request-remove-child-details/request-remove-child-details.component';
+import { BulkRunReportDialogComponent } from './bulk-run-report-dialog/bulk-run-report-dialog.component';
+import { RequestSystemRejectedMailService } from '../services/request-system-rejected-mail.service';
 
 
-  import {
-    ensureTenantContextReady,
-    dbTenant,
-  } from '../services/legacy-compat';
+import {
+  ensureTenantContextReady,
+  dbTenant,
+} from '../services/legacy-compat';
 
-  import {
-    RequestStatus,
-    RequestType,
-    SecretarialRequestDbRow,
-    UiRequest,
-  } from '../Types/detailes.model';
+import {
+  RequestStatus,
+  RequestType,
+  SecretarialRequestDbRow,
+  UiRequest,
+} from '../Types/detailes.model';
 
-  import { CurrentUserService } from '../core/auth/current-user.service';
-  import { EnvironmentInjector, ViewContainerRef } from '@angular/core';
-
-
-  // קומפוננטות פרטים (נטענות לפי סוג)
-  import { RequestInstructorDayOffDetailsComponent } from './request-instructor-day-off-details/request-instructor-day-off-details.component';
-  import { RequestCancelOccurrenceDetailsComponent } from './request-cancel-occurrence-details/request-cancel-occurrence-details.component';
-  import { RequestAddChildDetailsComponent } from './request-add-child-details/request-add-child-details.component';
-  import { SecretarialSeriesRequestsComponent } from './request-new-series-details/request-new-series-details.component';
-  import { RequestAddParentDetailsComponent } from './request-add-parent-details/request-add-parent-details.component';
-  import { RequestMakeupLessonDetailsComponent } from './request-makeup-lesson-details/request-makeup-lesson-details.component';
-  import { RequestFillInDetailsComponent } from './request-fill-in-details/request-fill-in-details.component';
-  import { RequestSingleLessonDetailsComponent } from './request-single-lesson-details/request-single-lesson-details.component';
-  import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-  import { firstValueFrom } from 'rxjs';
-  import { BulkDecisionDialogComponent, BulkDecisionDialogResult } from './bulk-decision-dialog/bulk-decision-dialog.component';
-  import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-  import { RequestValidationService } from './../services/request-validation.service';
-  import { RequestAddIndependentDetailsComponent } from './request-add-independent-details/request-add-independent-details.component';
-  import { RequestRiderServiceDetailsComponent } from './request-rider-service-details/request-rider-service-details.component';
-  // export enum Check {
-  //   Expiry = 'expiry',
-  //   Requester = 'requester',
-  //   Child = 'child',
-  //   Instructor = 'instructor',
-  //   ParentTarget = 'parentTarget',
-  //   FarmDayOff = 'farmDayOff', 
-
-  // }
-
-  type RequestTypeOption = {
-    value: 'ALL' | RequestType;
-    label: string;
-    roles: string[];
-  };
-  type ToastKind = 'success' | 'error' | 'info';
-
-  // type ValidationMode = 'auto' | 'approve';
-
-  // type ValidationResult = { ok: true } | { ok: false; reason: string };
-  type RejectSource = 'user' | 'system';
-  type RejectArgs = { source: RejectSource; reason?: string };
-  type RequesterRole =
-    | 'parent'
-    | 'instructor'
-    | 'secretary'
-    | 'admin'
-    | 'manager'
-    | 'independent'
-    | 'independent_rider';
-  type CheckKey = 'expiry' | 'requester' | 'child' | 'instructor' | 'parentTarget';
-
-  // type RequestRule = {
-  //   checks: Check[];
-  //   allowedChildStatuses?: Set<string>;
-  // };
-  type BulkOutcomeKind = 'success' | 'systemRejected' | 'notProcessed';
-
-  type BulkRunItemReport = {
-    id: string;
-    requestType: RequestType | string;
-    summary?: string;
-    requestedByName?: string;
-    childName?: string;
-    instructorName?: string;
-
-    action: 'approve' | 'reject';
-    kind: BulkOutcomeKind;
-
-    // אם זו דחייה אוטומטית: למה
-    systemReason?: string;
-
-    // אם נכשל: הודעת שגיאה
-    errorMessage?: string;
-    warningMessage?: string;
-  };
-
-  type BulkRunReport = {
-    action: 'approve' | 'reject';
-    total: number;
-
-    successCount: number;
-    systemRejectedCount: number;
-    notProcessedCount: number;
-
-    results: BulkRunItemReport[];
-
-    success: BulkRunItemReport[];
-    systemRejected: BulkRunItemReport[];
-    notProcessed: BulkRunItemReport[];
-  };
+import { CurrentUserService } from '../core/auth/current-user.service';
+import { EnvironmentInjector, ViewContainerRef } from '@angular/core';
 
 
+// קומפוננטות פרטים (נטענות לפי סוג)
+import { RequestInstructorDayOffDetailsComponent } from './request-instructor-day-off-details/request-instructor-day-off-details.component';
+import { RequestCancelOccurrenceDetailsComponent } from './request-cancel-occurrence-details/request-cancel-occurrence-details.component';
+import { RequestAddChildDetailsComponent } from './request-add-child-details/request-add-child-details.component';
+import { SecretarialSeriesRequestsComponent } from './request-new-series-details/request-new-series-details.component';
+import { RequestAddParentDetailsComponent } from './request-add-parent-details/request-add-parent-details.component';
+import { RequestMakeupLessonDetailsComponent } from './request-makeup-lesson-details/request-makeup-lesson-details.component';
+import { RequestFillInDetailsComponent } from './request-fill-in-details/request-fill-in-details.component';
+import { RequestSingleLessonDetailsComponent } from './request-single-lesson-details/request-single-lesson-details.component';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { firstValueFrom } from 'rxjs';
+import { BulkDecisionDialogComponent, BulkDecisionDialogResult } from './bulk-decision-dialog/bulk-decision-dialog.component';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { RequestValidationService } from './../services/request-validation.service';
+import { RequestAddIndependentDetailsComponent } from './request-add-independent-details/request-add-independent-details.component';
+import { RequestRiderServiceDetailsComponent } from './request-rider-service-details/request-rider-service-details.component';
+// export enum Check {
+//   Expiry = 'expiry',
+//   Requester = 'requester',
+//   Child = 'child',
+//   Instructor = 'instructor',
+//   ParentTarget = 'parentTarget',
+//   FarmDayOff = 'farmDayOff', 
+
+// }
+
+type RequestTypeOption = {
+  value: 'ALL' | RequestType;
+  label: string;
+  roles: string[];
+};
+type ToastKind = 'success' | 'error' | 'info';
+
+// type ValidationMode = 'auto' | 'approve';
+
+// type ValidationResult = { ok: true } | { ok: false; reason: string };
+type RejectSource = 'user' | 'system';
+type RejectArgs = { source: RejectSource; reason?: string };
+type RequesterRole =
+  | 'parent'
+  | 'instructor'
+  | 'secretary'
+  | 'admin'
+  | 'manager'
+  | 'independent'
+  | 'independent_rider';
+type CheckKey = 'expiry' | 'requester' | 'child' | 'instructor' | 'parentTarget';
+
+// type RequestRule = {
+//   checks: Check[];
+//   allowedChildStatuses?: Set<string>;
+// };
+type BulkOutcomeKind = 'success' | 'systemRejected' | 'notProcessed';
+
+type BulkRunItemReport = {
+  id: string;
+  requestType: RequestType | string;
+  summary?: string;
+  requestedByName?: string;
+  childName?: string;
+  instructorName?: string;
+
+  action: 'approve' | 'reject';
+  kind: BulkOutcomeKind;
+
+  // אם זו דחייה אוטומטית: למה
+  systemReason?: string;
+
+  // אם נכשל: הודעת שגיאה
+  errorMessage?: string;
+  warningMessage?: string;
+};
+
+type BulkRunReport = {
+  action: 'approve' | 'reject';
+  total: number;
+
+  successCount: number;
+  systemRejectedCount: number;
+  notProcessedCount: number;
+
+  results: BulkRunItemReport[];
+
+  success: BulkRunItemReport[];
+  systemRejected: BulkRunItemReport[];
+  notProcessed: BulkRunItemReport[];
+};
 
 
-  @Component({
-    selector: 'app-secretarial-requests-page',
-    standalone: true,
-    imports: [CommonModule, FormsModule, MatIconModule, MatButtonModule, MatSidenavModule, MatSidenavModule, MatDialogModule, MatProgressSpinnerModule
-    ],
-    templateUrl: './secretarial-requests-page.component.html',
-    styleUrls: ['./secretarial-requests-page.component.css'],
-  })
-  export class SecretarialRequestsPageComponent implements OnInit {
-    // אם את רוצה שמי שמחזיק את הקומפוננטה יקבל callbacks גם כן
-    @Input() onApproved?: (e: any) => void;
-    @Input() onRejected?: (e: any) => void;
-    @Input() onError?: (e: any) => void;
-    private validation = inject(RequestValidationService);
-    private systemRejectedMail = inject(RequestSystemRejectedMailService);
 
-    private cu = inject(CurrentUserService);
-    private sanitizer = inject(DomSanitizer);
-    private detailsSubs: Subscription[] = [];
-    private bo = inject(BreakpointObserver);
-    private autoRejectInFlight = false;
-    private dialog = inject(MatDialog);
 
-    isMobile = signal(false);
+@Component({
+  selector: 'app-secretarial-requests-page',
+  standalone: true,
+  imports: [CommonModule, FormsModule, MatIconModule, MatButtonModule, MatSidenavModule, MatSidenavModule, MatDialogModule, MatProgressSpinnerModule
+  ],
+  templateUrl: './secretarial-requests-page.component.html',
+  styleUrls: ['./secretarial-requests-page.component.css'],
+})
+export class SecretarialRequestsPageComponent implements OnInit {
+  // אם את רוצה שמי שמחזיק את הקומפוננטה יקבל callbacks גם כן
+  @Input() onApproved?: (e: any) => void;
+  @Input() onRejected?: (e: any) => void;
+  @Input() onError?: (e: any) => void;
+  private validation = inject(RequestValidationService);
+  private systemRejectedMail = inject(RequestSystemRejectedMailService);
 
-    filtersOpen = signal(false);
-    requestTypeOptions: RequestTypeOption[] = [
-      { value: 'CANCEL_OCCURRENCE', label: 'ביטול שיעור', roles: ['parent'] },
-      { value: 'NEW_SERIES', label: 'סדרת שיעורים', roles: ['parent'] },
-      { value: 'ADD_CHILD', label: 'הוספת ילד/ה', roles: ['parent'] },
-      { value: 'DELETE_CHILD', label: 'מחיקת ילד/ה', roles: ['parent'] },
-      { value: 'MAKEUP_LESSON', label: 'שיעור השלמה', roles: ['parent'] },
-      { value: 'SINGLE_LESSON', label: 'שיעור בודד', roles: ['parent'] },
+  private cu = inject(CurrentUserService);
+  private sanitizer = inject(DomSanitizer);
+  private detailsSubs: Subscription[] = [];
+  private bo = inject(BreakpointObserver);
+  private autoRejectInFlight = false;
+  private dialog = inject(MatDialog);
 
-      { value: 'INSTRUCTOR_DAY_OFF', label: 'יום חופש מדריך', roles: ['instructor'] },
-      { value: 'FILL_IN', label: 'מילוי מקום', roles: ['instructor'] },
+  isMobile = signal(false);
 
-      { value: 'PARENT_SIGNUP', label: 'הרשמת הורה', roles: ['secretary'] },
-      { value: 'INDEPENDENT_SIGNUP', label: 'הרשמת רוכב עצמאי', roles: ['secretary'] },
-      { value: 'RIDER_SERVICE_REQUEST', label: 'בקשת שירות רוכב', roles: ['independent', 'secretary'] },
-      { value: 'OTHER_REQUEST' as RequestType, label: 'אחר', roles: ['secretary'] },
-    ];
-    get visibleRequestTypeOptions(): RequestTypeOption[] {
-      if (this.isSecretary) {
-        return this.requestTypeOptions;
-      }
+  filtersOpen = signal(false);
+  requestTypeOptions: RequestTypeOption[] = [
+    { value: 'CANCEL_OCCURRENCE', label: 'ביטול שיעור', roles: ['parent'] },
+    { value: 'NEW_SERIES', label: 'סדרת שיעורים', roles: ['parent'] },
+    { value: 'ADD_CHILD', label: 'הוספת ילד/ה', roles: ['parent'] },
+    { value: 'DELETE_CHILD', label: 'מחיקת ילד/ה', roles: ['parent'] },
+    { value: 'MAKEUP_LESSON', label: 'שיעור השלמה', roles: ['parent'] },
+    { value: 'SINGLE_LESSON', label: 'שיעור בודד', roles: ['parent'] },
 
-      const role = this.normalizeRole(this.currentRole);
-      if (!role) return [];
+    { value: 'INSTRUCTOR_DAY_OFF', label: 'יום חופש מדריך', roles: ['instructor'] },
+    { value: 'FILL_IN', label: 'מילוי מקום', roles: ['instructor'] },
 
-      return this.requestTypeOptions.filter(x =>
-        x.roles.includes(role)
-      );
-    }
-    toggleFilters() {
-      this.filtersOpen.update(v => !v);
+    { value: 'PARENT_SIGNUP', label: 'הרשמת הורה', roles: ['secretary'] },
+    { value: 'INDEPENDENT_SIGNUP', label: 'הרשמת רוכב עצמאי', roles: ['secretary'] },
+    { value: 'RIDER_SERVICE_REQUEST', label: 'בקשת שירות רוכב', roles: ['independent', 'secretary'] },
+    { value: 'OTHER_REQUEST' as RequestType, label: 'אחר', roles: ['secretary'] },
+  ];
+  get visibleRequestTypeOptions(): RequestTypeOption[] {
+    if (this.isSecretary) {
+      return this.requestTypeOptions;
     }
 
-    private requestsForCurrentUser(): UiRequest[] {
-      const list = this.allRequests();
+    const role = this.normalizeRole(this.currentRole);
+    if (!role) return [];
 
-      if (this.isSecretary) {
-        return list;
-      }
-
-      const myUid = this.curentUser?.uid ?? null;
-      if (!myUid) return [];
-
-      const myRole = this.normalizeRole(this.currentRole);
-
-      return list.filter(r =>
-        r.requesterUid === myUid &&
-        this.normalizeRole(r.requesterRole) === myRole
-      );
-    }
-
-    pendingCount = computed(() =>
-      this.requestsForCurrentUser().filter(x => x.status === 'PENDING').length
+    return this.requestTypeOptions.filter(x =>
+      x.roles.includes(role)
     );
+  }
+  toggleFilters() {
+    this.filtersOpen.update(v => !v);
+  }
 
-    approvedCount = computed(() =>
-      this.requestsForCurrentUser().filter(x => x.status === 'APPROVED').length
+  private requestsForCurrentUser(): UiRequest[] {
+    const list = this.allRequests();
+
+    if (this.isSecretary) {
+      return list;
+    }
+
+    const myUid = this.curentUser?.uid ?? null;
+    if (!myUid) return [];
+
+    const myRole = this.normalizeRole(this.currentRole);
+
+    return list.filter(r =>
+      r.requesterUid === myUid &&
+      this.normalizeRole(r.requesterRole) === myRole
     );
+  }
 
-    rejectedCount = computed(() =>
-      this.requestsForCurrentUser().filter(
-        x => x.status === 'REJECTED' ||
-          x.status === 'REJECTED_BY_SYSTEM'
-      ).length
-    );
+  pendingCount = computed(() =>
+    this.requestsForCurrentUser().filter(x => x.status === 'PENDING').length
+  );
 
-    allCount = computed(() =>
-      this.requestsForCurrentUser().length
-    );
+  approvedCount = computed(() =>
+    this.requestsForCurrentUser().filter(x => x.status === 'APPROVED').length
+  );
 
-    @ViewChild('detailsDrawer') detailsDrawer?: MatSidenav;
+  rejectedCount = computed(() =>
+    this.requestsForCurrentUser().filter(
+      x => x.status === 'REJECTED' ||
+        x.status === 'REJECTED_BY_SYSTEM'
+    ).length
+  );
 
-    private selectedIdsSig = signal<Set<string>>(new Set());
-    @ViewChild('bulkHost', { read: ViewContainerRef })
-    bulkHost?: ViewContainerRef;
-    private envInj = inject(EnvironmentInjector);
+  allCount = computed(() =>
+    this.requestsForCurrentUser().length
+  );
 
-    selectedCount() {
-      return this.selectedIdsSig().size;
-    }
+  @ViewChild('detailsDrawer') detailsDrawer?: MatSidenav;
 
+  private selectedIdsSig = signal<Set<string>>(new Set());
+  @ViewChild('bulkHost', { read: ViewContainerRef })
+  bulkHost?: ViewContainerRef;
+  private envInj = inject(EnvironmentInjector);
 
-    onChildApprovedBound = (e: any) => this.onChildApproved(e);
-    onChildRejectedBound = (e: any) => this.onChildRejected(e);
-    onChildErrorBound = (e: any) => this.onChildError(e?.message ?? String(e));
-
-
-    curentUser = this.cu.current;  // CurrentUser | null
-
-    // ===== UI: Toast =====
-    toastOpen = signal(false);
-    toastText = signal('');
-    toastKind = signal<ToastKind>('info');
-    private toastTimer: any = null;
-
-    private showToast(text: string, kind: ToastKind = 'info') {
-      this.toastText.set(text);
-      this.toastKind.set(kind);
-      this.toastOpen.set(true);
-
-      if (this.toastTimer) clearTimeout(this.toastTimer);
-      this.toastTimer = setTimeout(() => this.toastOpen.set(false), 3200);
-    }
-    private async sendSystemRejectedMail(row: UiRequest, reason?: string): Promise<void> {
-      try {
-        await this.systemRejectedMail.send({
-          id: row.id,
-          requestType: row.requestType,
-          reason: reason ?? null,
-          decidedByUid: this.curentUser?.uid ?? null,
-        });
-      } catch (e: any) {
-        console.error('sendSystemRejectedMail failed', row.id, e);
-        throw e;
-      }
-    }
-    // ===== מיפוי קומפוננטת פרטים לפי סוג =====
-    REQUEST_DETAILS_COMPONENT: Record<string, any> = {
-      INSTRUCTOR_DAY_OFF: RequestInstructorDayOffDetailsComponent,
-      CANCEL_OCCURRENCE: RequestCancelOccurrenceDetailsComponent,
-      ADD_CHILD: RequestAddChildDetailsComponent,
-      DELETE_CHILD: RequestRemoveChildDetailsComponent,
-      NEW_SERIES: SecretarialSeriesRequestsComponent,
-      PARENT_SIGNUP: RequestAddParentDetailsComponent,
-      INDEPENDENT_SIGNUP: RequestAddIndependentDetailsComponent,
-      MAKEUP_LESSON: RequestMakeupLessonDetailsComponent,
-      FILL_IN: RequestFillInDetailsComponent,
-      SINGLE_LESSON: RequestSingleLessonDetailsComponent,
-      RIDER_SERVICE_REQUEST: RequestRiderServiceDetailsComponent,
-
-    };
-
-    private isDbFailure(err: any): boolean {
-      const msg = String(err?.message ?? err ?? '').toLowerCase();
-      // supabase-js errors / fetch
-      return (
-        msg.includes('failed to fetch') ||
-        msg.includes('network') ||
-        msg.includes('timeout') ||
-        msg.includes('502') ||
-        msg.includes('503') ||
-        msg.includes('500') ||
-        msg.includes('400') ||
-        msg.includes('jwt') ||
-        msg.includes('permission') ||
-        msg.includes('rls') ||
-        msg.includes('schema') ||
-        msg.includes('tenant')
-      );
-    }
+  selectedCount() {
+    return this.selectedIdsSig().size;
+  }
 
 
-    getDetailsComponent(type: string) {
-      return this.REQUEST_DETAILS_COMPONENT[type] || null;
-    }
-
-    // ===== עזרי רול =====
-    private get currentRole(): string | null {
-      return (this.curentUser as any)?.role_in_tenant ?? this.curentUser?.role ?? null;
-    }
-    private normalizeRole(role: string | null | undefined): string | null {
-      if (!role) return null;
-
-      const r = String(role).trim().toLowerCase();
-
-      if (r === 'independent_rider') return 'independent';
-      if (r === 'rider') return 'independent';
-
-      return r;
-    }
-    get isSecretary(): boolean {
-      return this.currentRole === 'secretary';
-    }
-    get isParent(): boolean {
-      return this.currentRole === 'parent';
-    }
-    get isInstructor(): boolean {
-      return this.currentRole === 'instructor';
-    }
-
-    // ===== helpers להצגת קבצים/URL בפרטים (אם צריך) =====
-    looksLikeUrl(v: string): boolean {
-      return /^https?:\/\/\S+$/i.test(v);
-    }
-    isImageUrl(u: string): boolean {
-      return /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(u);
-    }
-    isPdfUrl(u: string): boolean {
-      return /\.pdf(\?.*)?$/i.test(u);
-    }
-    safeUrl(u: string): SafeResourceUrl {
-      return this.sanitizer.bypassSecurityTrustResourceUrl(u);
-    }
-    bulkBusy = signal(false);
-    bulkBusyMode = signal<'approve' | 'reject' | null>(null);
-
-    // ===== פילטרים =====
-    statusFilter = signal<RequestStatus | 'ALL'>('PENDING');
-    dateFilterMode: 'CREATED_AT' | 'REQUEST_WINDOW' = 'CREATED_AT';
-    dateFrom: string | null = null;
-    dateTo: string | null = null;
-    searchTerm = '';
-    typeFilter: 'ALL' | RequestType = 'ALL';
-
-    // ===== נתונים =====
-    private allRequests = signal<UiRequest[]>([]);
-    loading = signal(false);
-    loadError = signal<string | null>(null);
-
-    // ===== פרטים =====
-    detailsOpened = false;
-    selectedRequest: UiRequest | null = null;
-    indexOfRowSelected: number | null = null;
-
-    // ===== רשימה מסוננת =====
-    get filteredRequestsList(): UiRequest[] {
-      const list = this.allRequests();
-      const status = this.statusFilter();
-      const term = this.searchTerm.trim().toLowerCase();
-      const type = this.typeFilter;
-
-      const from = this.dateFrom ? new Date(this.dateFrom) : null;
-      const to = this.dateTo ? new Date(this.dateTo) : null;
-
-      const myUid = this.curentUser?.uid ?? null;
-
-      return list.filter((r) => {
-        // הורה/מדריך רואים רק של עצמם
-        if (!this.isSecretary) {
-          if (!myUid) return false;
-          const myRole = this.normalizeRole(this.currentRole);
-
-          if (r.requesterUid !== myUid) return false;
-          if (this.normalizeRole(r.requesterRole) !== myRole) return false;
-        }
-
-        if (status !== 'ALL') {
-          if (status === 'REJECTED' && r.status === 'REJECTED_BY_SYSTEM') {
-            // include system rejections under rejected tab
-          } else if (r.status !== status) return false;
-        }
-        if (type !== 'ALL' && r.requestType !== type) return false;
-
-        if (from || to) {
-          const startEnd =
-            this.dateFilterMode === 'CREATED_AT'
-              ? { start: new Date(r.createdAt), end: new Date(r.createdAt) }
-              : this.getRequestWindow(r);
-
-          const start = startEnd.start;
-          const end = startEnd.end;
-
-          if (from && end < from) return false;
-          if (to) {
-            const toEnd = new Date(to);
-            toEnd.setHours(23, 59, 59, 999);
-            if (start > toEnd) return false;
-          }
-        }
-
-        if (term) {
-          const haystack = (
-            (r.summary ?? '') +
-            ' ' +
-            (r.requestedByName ?? '') +
-            ' ' +
-            (r.childName ?? '') +
-            ' ' +
-            (r.instructorName ?? '')
-          ).toLowerCase();
-
-          if (!haystack.includes(term)) return false;
-        }
-
-        return true;
-      });
-    }
-    selectedVisibleRequest = computed<UiRequest | null>(() => {
-      const sel = this.selectedRequest;
-      if (!sel) return null;
-
-      // אם הבקשה כבר לא קיימת בכלל (אחרי reload)
-      const exists = this.allRequests().some(x => x.id === sel.id);
-      if (!exists) return null;
-
-      // אם היא לא עוברת את הפילטר הנוכחי → לא להציג פרטים
-      const isVisible = this.filteredRequestsList.some(x => x.id === sel.id);
-      if (!isVisible) return null;
-
-      // אם את רוצה: רק בקשות ממתינות יציגו פרטים (לא חובה)
-      // if (sel.status !== 'PENDING') return null;
-
-      return sel;
-    });
-
-    private getRequestWindow(r: UiRequest): { start: Date; end: Date } {
-      const fd = r.fromDate ? new Date(r.fromDate) : null;
-      const td = r.toDate ? new Date(r.toDate) : null;
-
-      if (fd && td) return { start: fd, end: td };
-      if (fd && !td) return { start: fd, end: fd };
-
-      const p: any = r.payload || {};
-      const occur = p.occur_date ? new Date(p.occur_date) : null;
-      if (occur) return { start: occur, end: occur };
-
-      const c = new Date(r.createdAt);
-      return { start: c, end: c };
-    }
-
-    async ngOnInit() {
-      this.bo.observe(['(max-width: 900px)']).subscribe(r => {
-        const mobile = r.matches;
-        this.isMobile.set(mobile);
-
-        // כשעוברים לדסקטופ - לא להשאיר drawer פתוח
-        if (!mobile) {
-          this.detailsDrawer?.close();
-        }
-      });
-
-      await this.loadRequestsFromDb();
-    }
-
-    // --------------------------------------------------
-    // טעינה מה־DB
-    // --------------------------------------------------
-    async loadRequestsFromDb() {
-      this.loading.set(true);
-      this.loadError.set(null);
-
-      try {
-        await ensureTenantContextReady();
-        const db = dbTenant();
-
-        const res = await db
-          .from('v_secretarial_requests')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        const data = res.data as any[] | null;
-        const error = res.error;
-        if (error) throw error;
-
-        const mapped: UiRequest[] =
-          data?.map((row: any) => this.mapRowToUi(row)) ?? [];
-
-        this.allRequests.set(mapped);
-
-        // ✅ חדש: רק בדיקות קריטיות בעמוד (Active וכו')
-        void this.autoRejectCriticalInvalidRequests('load');
-      } catch (err: any) {
-        console.error('Failed to load v_secretarial_requests', err);
-        this.loadError.set('אירעה שגיאה בטעינת הבקשות מהמערכת.');
-      } finally {
-        this.loading.set(false);
-      }
-    }
-
-    private mapRowToUi(row: any): UiRequest {
-      const payload = { ...(row.payload ?? {}) };
+  onChildApprovedBound = (e: any) => this.onChildApproved(e);
+  onChildRejectedBound = (e: any) => this.onChildRejected(e);
+  onChildErrorBound = (e: any) => this.onChildError(e?.message ?? String(e));
 
 
-      payload.category =
-        payload.category ??
-        row.day_off_category ??
-        row.category ??
-        null;
+  curentUser = this.cu.current;  // CurrentUser | null
 
+  // ===== UI: Toast =====
+  toastOpen = signal(false);
+  toastText = signal('');
+  toastKind = signal<ToastKind>('info');
+  private toastTimer: any = null;
 
-      return {
+  private showToast(text: string, kind: ToastKind = 'info') {
+    this.toastText.set(text);
+    this.toastKind.set(kind);
+    this.toastOpen.set(true);
+
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => this.toastOpen.set(false), 3200);
+  }
+  private async sendSystemRejectedMail(row: UiRequest, reason?: string): Promise<void> {
+    try {
+      await this.systemRejectedMail.send({
         id: row.id,
-        requestType: row.request_type,
-        status: row.status,
-
-        summary: this.buildSummary(row as SecretarialRequestDbRow, payload),
-        requestedByName: this.getRequesterDisplay(row),
-        childName: row.child_name || undefined,
-        instructorName: row.instructor_name || undefined,
-
-        fromDate: row.from_date,
-        toDate: row.to_date,
-        createdAt: row.created_at,
-
-        requesterUid: row.requested_by_uid,
-        requesterRole: row.requested_by_role ?? null,
-
-        payload, // ✅ חשוב
-        childId: row.child_id ?? null,
-        instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
-        lessonOccId: row.lesson_occ_id ?? null,
-        decisionNote: row.decision_note ?? null,
-      };
+        requestType: row.requestType,
+        reason: reason ?? null,
+        decidedByUid: this.curentUser?.uid ?? null,
+      });
+    } catch (e: any) {
+      console.error('sendSystemRejectedMail failed', row.id, e);
+      throw e;
     }
-    private getDayOffCategoryLabel(p: any): string {
-      const key = String(p?.category ?? '').toUpperCase().trim();
-      switch (key) {
-        case 'HOLIDAY': return 'יום חופש';
-        case 'SICK': return 'יום מחלה';
-        case 'PERSONAL': return 'יום אישי';
-        case 'OTHER': return 'בקשה אחרת';
-        default: return 'בקשה אחרת';
+  }
+  // ===== מיפוי קומפוננטת פרטים לפי סוג =====
+  REQUEST_DETAILS_COMPONENT: Record<string, any> = {
+    INSTRUCTOR_DAY_OFF: RequestInstructorDayOffDetailsComponent,
+    CANCEL_OCCURRENCE: RequestCancelOccurrenceDetailsComponent,
+    ADD_CHILD: RequestAddChildDetailsComponent,
+    DELETE_CHILD: RequestRemoveChildDetailsComponent,
+    NEW_SERIES: SecretarialSeriesRequestsComponent,
+    PARENT_SIGNUP: RequestAddParentDetailsComponent,
+    INDEPENDENT_SIGNUP: RequestAddIndependentDetailsComponent,
+    MAKEUP_LESSON: RequestMakeupLessonDetailsComponent,
+    FILL_IN: RequestFillInDetailsComponent,
+    SINGLE_LESSON: RequestSingleLessonDetailsComponent,
+    RIDER_SERVICE_REQUEST: RequestRiderServiceDetailsComponent,
+
+  };
+
+  private isDbFailure(err: any): boolean {
+    const msg = String(err?.message ?? err ?? '').toLowerCase();
+    // supabase-js errors / fetch
+    return (
+      msg.includes('failed to fetch') ||
+      msg.includes('network') ||
+      msg.includes('timeout') ||
+      msg.includes('502') ||
+      msg.includes('503') ||
+      msg.includes('500') ||
+      msg.includes('400') ||
+      msg.includes('jwt') ||
+      msg.includes('permission') ||
+      msg.includes('rls') ||
+      msg.includes('schema') ||
+      msg.includes('tenant')
+    );
+  }
+
+
+  getDetailsComponent(type: string) {
+    return this.REQUEST_DETAILS_COMPONENT[type] || null;
+  }
+
+  // ===== עזרי רול =====
+  private get currentRole(): string | null {
+    return (this.curentUser as any)?.role_in_tenant ?? this.curentUser?.role ?? null;
+  }
+  private normalizeRole(role: string | null | undefined): string | null {
+    if (!role) return null;
+
+    const r = String(role).trim().toLowerCase();
+
+    if (r === 'independent_rider') return 'independent';
+    if (r === 'rider') return 'independent';
+
+    return r;
+  }
+  get isSecretary(): boolean {
+    return this.currentRole === 'secretary';
+  }
+  get isParent(): boolean {
+    return this.currentRole === 'parent';
+  }
+  get isInstructor(): boolean {
+    return this.currentRole === 'instructor';
+  }
+
+  // ===== helpers להצגת קבצים/URL בפרטים (אם צריך) =====
+  looksLikeUrl(v: string): boolean {
+    return /^https?:\/\/\S+$/i.test(v);
+  }
+  isImageUrl(u: string): boolean {
+    return /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(u);
+  }
+  isPdfUrl(u: string): boolean {
+    return /\.pdf(\?.*)?$/i.test(u);
+  }
+  safeUrl(u: string): SafeResourceUrl {
+    return this.sanitizer.bypassSecurityTrustResourceUrl(u);
+  }
+  bulkBusy = signal(false);
+  bulkBusyMode = signal<'approve' | 'reject' | null>(null);
+
+  // ===== פילטרים =====
+  statusFilter = signal<RequestStatus | 'ALL'>('PENDING');
+  dateFilterMode: 'CREATED_AT' | 'REQUEST_WINDOW' = 'CREATED_AT';
+  dateFrom: string | null = null;
+  dateTo: string | null = null;
+  searchTerm = '';
+  typeFilter: 'ALL' | RequestType = 'ALL';
+
+  // ===== נתונים =====
+  private allRequests = signal<UiRequest[]>([]);
+  loading = signal(false);
+  loadError = signal<string | null>(null);
+
+  // ===== פרטים =====
+  detailsOpened = false;
+  selectedRequest: UiRequest | null = null;
+  indexOfRowSelected: number | null = null;
+
+  // ===== רשימה מסוננת =====
+  get filteredRequestsList(): UiRequest[] {
+    const list = this.allRequests();
+    const status = this.statusFilter();
+    const term = this.searchTerm.trim().toLowerCase();
+    const type = this.typeFilter;
+
+    const from = this.dateFrom ? new Date(this.dateFrom) : null;
+    const to = this.dateTo ? new Date(this.dateTo) : null;
+
+    const myUid = this.curentUser?.uid ?? null;
+
+    return list.filter((r) => {
+      // הורה/מדריך רואים רק של עצמם
+      if (!this.isSecretary) {
+        if (!myUid) return false;
+        const myRole = this.normalizeRole(this.currentRole);
+
+        if (r.requesterUid !== myUid) return false;
+        if (this.normalizeRole(r.requesterRole) !== myRole) return false;
       }
-    }
-    private buildSummary(row: any, p: any): string {
-      switch (row.request_type) {
-        case 'CANCEL_OCCURRENCE':
-          return p.summary || `ביטול שיעור לתאריך ${p.occur_date ?? row.from_date ?? ''}`;
-        case 'RIDER_SERVICE_REQUEST':
-          return p.summary || `בקשה לשירות ${p.service_name ?? ''}`;
-        case 'INSTRUCTOR_DAY_OFF': {
-          if (p.summary) return p.summary;
 
-          const from = (row.from_date ?? '').slice(0, 10);
-          const to = (row.to_date ?? row.from_date ?? '').slice(0, 10);
-          const name = row.instructor_name ?? '';
+      if (status !== 'ALL') {
+        if (status === 'REJECTED' && r.status === 'REJECTED_BY_SYSTEM') {
+          // include system rejections under rejected tab
+        } else if (r.status !== status) return false;
+      }
+      if (type !== 'ALL' && r.requestType !== type) return false;
 
-          const catLabel = this.getDayOffCategoryLabel(p); // ✅ יום חופש / יום מחלה / יום אישי...
-          const allDay = !!p.all_day;
+      if (from || to) {
+        const startEnd =
+          this.dateFilterMode === 'CREATED_AT'
+            ? { start: new Date(r.createdAt), end: new Date(r.createdAt) }
+            : this.getRequestWindow(r);
 
-          const start = (p.requested_start_time ?? '').toString().slice(0, 5) || null;
-          const end = (p.requested_end_time ?? '').toString().slice(0, 5) || null;
+        const start = startEnd.start;
+        const end = startEnd.end;
 
-          // יום אחד
-          if (from && to && from === to) {
-            if (allDay) return `יום חופש מלא למדריך/ה ${name} בתאריך ${from}`;
-            if (start && end) return `יום חופש למדריך/ה ${name} בתאריך ${from} (${end}–${start})`;
-            return `יום חופש למדריך/ה ${name} בתאריך ${from}`;
-          }
-
-          // טווח ימים
-          if (from && to && from !== to) {
-            if (allDay) return `חופשה מלאה למדריך/ה ${name} בין ${from}–${to}`;
-            if (start && end) return `חופשה למדריך/ה ${name} בין ${from}–${to} (בכל יום ${end}–${start})`;
-            return `חופשה למדריך/ה ${name} בין ${from}–${to}`;
-          }
-
-          return `${catLabel} למדריך/ה ${name}`;
+        if (from && end < from) return false;
+        if (to) {
+          const toEnd = new Date(to);
+          toEnd.setHours(23, 59, 59, 999);
+          if (start > toEnd) return false;
         }
-
-        case 'NEW_SERIES':
-          return p.summary || 'בקשה לפתיחת סדרת שיעורים';
-        case 'ADD_CHILD':
-          return p.summary || 'בקשה להוספת ילד למערכת';
-        case 'DELETE_CHILD':
-          return p.summary || 'בקשה למחיקת ילד מהמערכת';
-        case 'MAKEUP_LESSON':
-          return p.summary || 'בקשה לשיעור השלמה';
-        case 'PARENT_SIGNUP':
-          return p.summary || 'בקשה להרשמת הורה למערכת';
-        case 'INDEPENDENT_SIGNUP':
-          return p.summary || 'בקשה להרשמת רוכב עצמאי למערכת';
-        case 'FILL_IN':
-          return p.summary || `מילוי מקום בשיעור ${p.occur_date ?? row.from_date ?? ''}`;
-        case 'SINGLE_LESSON':
-          return p.summary || 'שיעור בודד';
-
-
-        default:
-          return p.summary || 'כללי';
       }
-    }
 
-    private getRequesterDisplay(row: any): string {
-      const uid = row.requested_by_uid;
-      const name = row.requested_by_name;
-      if (uid != "PUBLIC" && String(uid).trim()) return String(name);
+      if (term) {
+        const haystack = (
+          (r.summary ?? '') +
+          ' ' +
+          (r.requestedByName ?? '') +
+          ' ' +
+          (r.childName ?? '') +
+          ' ' +
+          (r.instructorName ?? '')
+        ).toLowerCase();
 
-      // אחרת: ננסה לחלץ שם מה-payload (במיוחד ל-PARENT_SIGNUP)
-      const p: any = row.payload ?? {};
-
-      // השדות אצלך בפועל בשורש
-      const first = (p.first_name ?? p.firstName ?? p?.parent?.first_name ?? p?.parent?.firstName ?? '').toString().trim();
-      const last = (p.last_name ?? p.lastName ?? p?.parent?.last_name ?? p?.parent?.lastName ?? '').toString().trim();
-
-      const full = `${first} ${last}`.trim();
-      if (full) return full;
-
-      return '—';
-    }
-
-
-    // --------------------------------------------------
-    // UI actions
-    // --------------------------------------------------
-    clearFilters() {
-      this.dateFrom = null;
-      this.dateTo = null;
-      this.searchTerm = '';
-      this.typeFilter = 'ALL';
-      this.dateFilterMode = 'CREATED_AT';
-      this.statusFilter.set('PENDING');
-    }
-
-
-    openDetails(row: UiRequest) {
-      this.selectedRequest = row;
-      this.indexOfRowSelected = this.filteredRequestsList.indexOf(row);
-      this.detailsOpened = true;
-
-      // ✅ במובייל לפתוח את הדראור
-      if (this.isMobile()) {
-        this.detailsDrawer?.open();
+        if (!haystack.includes(term)) return false;
       }
-    }
 
+      return true;
+    });
+  }
+  selectedVisibleRequest = computed<UiRequest | null>(() => {
+    const sel = this.selectedRequest;
+    if (!sel) return null;
 
+    // אם הבקשה כבר לא קיימת בכלל (אחרי reload)
+    const exists = this.allRequests().some(x => x.id === sel.id);
+    if (!exists) return null;
 
-    closeDetails() {
-      this.detailsOpened = false;
-      this.indexOfRowSelected = null;
-      this.selectedRequest = null;
+    // אם היא לא עוברת את הפילטר הנוכחי → לא להציג פרטים
+    const isVisible = this.filteredRequestsList.some(x => x.id === sel.id);
+    if (!isVisible) return null;
 
-      if (this.isMobile()) {
+    // אם את רוצה: רק בקשות ממתינות יציגו פרטים (לא חובה)
+    // if (sel.status !== 'PENDING') return null;
+
+    return sel;
+  });
+
+  private getRequestWindow(r: UiRequest): { start: Date; end: Date } {
+    const fd = r.fromDate ? new Date(r.fromDate) : null;
+    const td = r.toDate ? new Date(r.toDate) : null;
+
+    if (fd && td) return { start: fd, end: td };
+    if (fd && !td) return { start: fd, end: fd };
+
+    const p: any = r.payload || {};
+    const occur = p.occur_date ? new Date(p.occur_date) : null;
+    if (occur) return { start: occur, end: occur };
+
+    const c = new Date(r.createdAt);
+    return { start: c, end: c };
+  }
+
+  async ngOnInit() {
+    this.bo.observe(['(max-width: 900px)']).subscribe(r => {
+      const mobile = r.matches;
+      this.isMobile.set(mobile);
+
+      // כשעוברים לדסקטופ - לא להשאיר drawer פתוח
+      if (!mobile) {
         this.detailsDrawer?.close();
       }
+    });
+
+    await this.loadRequestsFromDb();
+  }
+
+  // --------------------------------------------------
+  // טעינה מה־DB
+  // --------------------------------------------------
+  async loadRequestsFromDb() {
+    this.loading.set(true);
+    this.loadError.set(null);
+
+    try {
+      await ensureTenantContextReady();
+      const db = dbTenant();
+
+      const res = await db
+        .from('v_secretarial_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      const data = res.data as any[] | null;
+      const error = res.error;
+      if (error) throw error;
+
+      const mapped: UiRequest[] =
+        data?.map((row: any) => this.mapRowToUi(row)) ?? [];
+
+      this.allRequests.set(mapped);
+
+      // ✅ חדש: רק בדיקות קריטיות בעמוד (Active וכו')
+      void this.autoRejectCriticalInvalidRequests('load');
+    } catch (err: any) {
+      console.error('Failed to load v_secretarial_requests', err);
+      this.loadError.set('אירעה שגיאה בטעינת הבקשות מהמערכת.');
+    } finally {
+      this.loading.set(false);
     }
+  }
+
+  private mapRowToUi(row: any): UiRequest {
+    const payload = { ...(row.payload ?? {}) };
 
 
-    
-async reloadRequests(): Promise<void> {
-  await this.loadRequestsFromDb();
-}
-    // --------------------------------------------------
-    // סטטוס chips
-    // --------------------------------------------------
-    getStatusClass(status: RequestStatus): string {
-      switch (status) {
-        case 'PENDING': return 'status-chip pending';
-        case 'APPROVED': return 'status-chip approved';
-        case 'REJECTED': return 'status-chip rejected';
-        case 'REJECTED_BY_SYSTEM': return 'status-chip rejected';
-        case 'CANCELLED_BY_REQUESTER': return 'status-chip cancelled';
-        default: return 'status-chip';
-      }
-    }
+    payload.category =
+      payload.category ??
+      row.day_off_category ??
+      row.category ??
+      null;
 
-    getStatusLabel(status: RequestStatus): string {
-      switch (status) {
-        case 'PENDING': return 'ממתין';
-        case 'APPROVED': return 'מאושר';
-        case 'REJECTED': return 'נדחה';
-        case 'CANCELLED_BY_REQUESTER': return 'בוטל ע״י המבקש/ת';
-        case 'REJECTED_BY_SYSTEM': return 'נדחה על ידי המערכת';
-        default: return status;
-      }
-    }
 
-    getRequestTypeLabel(type: RequestType): string {
-      switch (type) {
-        case 'CANCEL_OCCURRENCE': return 'ביטול שיעור';
-        case 'INSTRUCTOR_DAY_OFF': return 'יום חופש מדריך';
-        case 'NEW_SERIES': return 'סדרת שיעורים';
-        case 'ADD_CHILD': return 'הוספת ילד/ה';
-        case 'DELETE_CHILD': return 'מחיקת ילד/ה';
-        case 'MAKEUP_LESSON': return 'שיעור השלמה';
-        case 'FILL_IN': return 'מילוי מקום';
-        case 'PARENT_SIGNUP': return 'הרשמת הורה';
-        case 'INDEPENDENT_SIGNUP': return 'הרשמת רוכב עצמאי';
-        case 'SINGLE_LESSON': return 'שיעור בודד';
-        case 'RIDER_SERVICE_REQUEST': return 'בקשת שירות רוכב';
-        default: return type;
-      }
-    }
-    getRequestTypeLabelRow(r: UiRequest): string {
-      if (r.requestType === 'INSTRUCTOR_DAY_OFF') {
-        return this.getDayOffCategoryLabel(r.payload);
-      }
-      return this.getRequestTypeLabel(r.requestType);
-    }
+    return {
+      id: row.id,
+      requestType: row.request_type,
+      status: row.status,
 
-    getRequestTypeIconRow(r: UiRequest): string {
-      if (r.requestType === 'INSTRUCTOR_DAY_OFF') {
-        const key = String(r.payload?.category ?? '').toUpperCase().trim();
-        switch (key) {
-          case 'SICK': return 'healing';
-          case 'PERSONAL': return 'person';
-          case 'OTHER': return 'help';
-          case 'HOLIDAY': return 'beach_access';
-          default: return 'beach_access';
+      summary: this.buildSummary(row as SecretarialRequestDbRow, payload),
+      requestedByName: this.getRequesterDisplay(row),
+      childName: row.child_name || undefined,
+      instructorName: row.instructor_name || undefined,
+
+      fromDate: row.from_date,
+      toDate: row.to_date,
+      createdAt: row.created_at,
+
+      requesterUid: row.requested_by_uid,
+      requesterRole: row.requested_by_role ?? null,
+
+      payload, // ✅ חשוב
+      childId: row.child_id ?? null,
+      instructorId: row.instructor_id_number ?? row.instructor_id ?? null,
+      lessonOccId: row.lesson_occ_id ?? null,
+      decisionNote: row.decision_note ?? null,
+    };
+  }
+  private getDayOffCategoryLabel(p: any): string {
+    const key = String(p?.category ?? '').toUpperCase().trim();
+    switch (key) {
+      case 'HOLIDAY': return 'יום חופש';
+      case 'SICK': return 'יום מחלה';
+      case 'PERSONAL': return 'יום אישי';
+      case 'OTHER': return 'בקשה אחרת';
+      default: return 'בקשה אחרת';
+    }
+  }
+  private buildSummary(row: any, p: any): string {
+    switch (row.request_type) {
+      case 'CANCEL_OCCURRENCE':
+        return p.summary || `ביטול שיעור לתאריך ${p.occur_date ?? row.from_date ?? ''}`;
+      case 'RIDER_SERVICE_REQUEST':
+        return p.summary || `בקשה לשירות ${p.service_name ?? ''}`;
+      case 'INSTRUCTOR_DAY_OFF': {
+        if (p.summary) return p.summary;
+
+        const from = (row.from_date ?? '').slice(0, 10);
+        const to = (row.to_date ?? row.from_date ?? '').slice(0, 10);
+        const name = row.instructor_name ?? '';
+
+        const catLabel = this.getDayOffCategoryLabel(p); // ✅ יום חופש / יום מחלה / יום אישי...
+        const allDay = !!p.all_day;
+
+        const start = (p.requested_start_time ?? '').toString().slice(0, 5) || null;
+        const end = (p.requested_end_time ?? '').toString().slice(0, 5) || null;
+
+        // יום אחד
+        if (from && to && from === to) {
+          if (allDay) return `יום חופש מלא למדריך/ה ${name} בתאריך ${from}`;
+          if (start && end) return `יום חופש למדריך/ה ${name} בתאריך ${from} (${end}–${start})`;
+          return `יום חופש למדריך/ה ${name} בתאריך ${from}`;
         }
+
+        // טווח ימים
+        if (from && to && from !== to) {
+          if (allDay) return `חופשה מלאה למדריך/ה ${name} בין ${from}–${to}`;
+          if (start && end) return `חופשה למדריך/ה ${name} בין ${from}–${to} (בכל יום ${end}–${start})`;
+          return `חופשה למדריך/ה ${name} בין ${from}–${to}`;
+        }
+
+        return `${catLabel} למדריך/ה ${name}`;
       }
-      return this.getRequestTypeIcon(r.requestType);
+
+      case 'NEW_SERIES':
+        return p.summary || 'בקשה לפתיחת סדרת שיעורים';
+      case 'ADD_CHILD':
+        return p.summary || 'בקשה להוספת ילד למערכת';
+      case 'DELETE_CHILD':
+        return p.summary || 'בקשה למחיקת ילד מהמערכת';
+      case 'MAKEUP_LESSON':
+        return p.summary || 'בקשה לשיעור השלמה';
+      case 'PARENT_SIGNUP':
+        return p.summary || 'בקשה להרשמת הורה למערכת';
+      case 'INDEPENDENT_SIGNUP':
+        return p.summary || 'בקשה להרשמת רוכב עצמאי למערכת';
+      case 'FILL_IN':
+        return p.summary || `מילוי מקום בשיעור ${p.occur_date ?? row.from_date ?? ''}`;
+      case 'SINGLE_LESSON':
+        return p.summary || 'שיעור בודד';
+
+
+      default:
+        return p.summary || 'כללי';
     }
-    getRequestTypeIcon(type: RequestType): string {
-      switch (type) {
-        case 'CANCEL_OCCURRENCE': return 'event_busy';
-        case 'INSTRUCTOR_DAY_OFF': return 'beach_access';
-        case 'NEW_SERIES': return 'repeat';
-        case 'ADD_CHILD': return 'person_add';
-        case 'DELETE_CHILD': return 'person_remove';
-        case 'MAKEUP_LESSON': return 'school';
-        case 'FILL_IN': return 'swap_horiz';
-        case 'PARENT_SIGNUP': return 'person';
-        case 'INDEPENDENT_SIGNUP': return 'directions_run';
-        case 'SINGLE_LESSON': return 'event';
-        case 'RIDER_SERVICE_REQUEST': return 'construction';
-        default: return 'help';
+  }
+
+  private getRequesterDisplay(row: any): string {
+    const uid = row.requested_by_uid;
+    const name = row.requested_by_name;
+    if (uid != "PUBLIC" && String(uid).trim()) return String(name);
+
+    // אחרת: ננסה לחלץ שם מה-payload (במיוחד ל-PARENT_SIGNUP)
+    const p: any = row.payload ?? {};
+
+    // השדות אצלך בפועל בשורש
+    const first = (p.first_name ?? p.firstName ?? p?.parent?.first_name ?? p?.parent?.firstName ?? '').toString().trim();
+    const last = (p.last_name ?? p.lastName ?? p?.parent?.last_name ?? p?.parent?.lastName ?? '').toString().trim();
+
+    const full = `${first} ${last}`.trim();
+    if (full) return full;
+
+    return '—';
+  }
+
+
+  // --------------------------------------------------
+  // UI actions
+  // --------------------------------------------------
+  clearFilters() {
+    this.dateFrom = null;
+    this.dateTo = null;
+    this.searchTerm = '';
+    this.typeFilter = 'ALL';
+    this.dateFilterMode = 'CREATED_AT';
+    this.statusFilter.set('PENDING');
+  }
+
+
+  openDetails(row: UiRequest) {
+    this.selectedRequest = row;
+    this.indexOfRowSelected = this.filteredRequestsList.indexOf(row);
+    this.detailsOpened = true;
+
+    // ✅ במובייל לפתוח את הדראור
+    if (this.isMobile()) {
+      this.detailsDrawer?.open();
+    }
+  }
+
+
+
+  closeDetails() {
+    this.detailsOpened = false;
+    this.indexOfRowSelected = null;
+    this.selectedRequest = null;
+
+    if (this.isMobile()) {
+      this.detailsDrawer?.close();
+    }
+  }
+
+
+
+  async reloadRequests(): Promise<void> {
+    await this.loadRequestsFromDb();
+  }
+  // --------------------------------------------------
+  // סטטוס chips
+  // --------------------------------------------------
+  getStatusClass(status: RequestStatus): string {
+    switch (status) {
+      case 'PENDING': return 'status-chip pending';
+      case 'APPROVED': return 'status-chip approved';
+      case 'REJECTED': return 'status-chip rejected';
+      case 'REJECTED_BY_SYSTEM': return 'status-chip rejected';
+      case 'CANCELLED_BY_REQUESTER': return 'status-chip cancelled';
+      default: return 'status-chip';
+    }
+  }
+
+  getStatusLabel(status: RequestStatus): string {
+    switch (status) {
+      case 'PENDING': return 'ממתין';
+      case 'APPROVED': return 'מאושר';
+      case 'REJECTED': return 'נדחה';
+      case 'CANCELLED_BY_REQUESTER': return 'בוטל ע״י המבקש/ת';
+      case 'REJECTED_BY_SYSTEM': return 'נדחה על ידי המערכת';
+      default: return status;
+    }
+  }
+
+  getRequestTypeLabel(type: RequestType): string {
+    switch (type) {
+      case 'CANCEL_OCCURRENCE': return 'ביטול שיעור';
+      case 'INSTRUCTOR_DAY_OFF': return 'יום חופש מדריך';
+      case 'NEW_SERIES': return 'סדרת שיעורים';
+      case 'ADD_CHILD': return 'הוספת ילד/ה';
+      case 'DELETE_CHILD': return 'מחיקת ילד/ה';
+      case 'MAKEUP_LESSON': return 'שיעור השלמה';
+      case 'FILL_IN': return 'מילוי מקום';
+      case 'PARENT_SIGNUP': return 'הרשמת הורה';
+      case 'INDEPENDENT_SIGNUP': return 'הרשמת רוכב עצמאי';
+      case 'SINGLE_LESSON': return 'שיעור בודד';
+      case 'RIDER_SERVICE_REQUEST': return 'בקשת שירות רוכב';
+      default: return type;
+    }
+  }
+  getRequestTypeLabelRow(r: UiRequest): string {
+    if (r.requestType === 'INSTRUCTOR_DAY_OFF') {
+      return this.getDayOffCategoryLabel(r.payload);
+    }
+    return this.getRequestTypeLabel(r.requestType);
+  }
+
+  getRequestTypeIconRow(r: UiRequest): string {
+    if (r.requestType === 'INSTRUCTOR_DAY_OFF') {
+      const key = String(r.payload?.category ?? '').toUpperCase().trim();
+      switch (key) {
+        case 'SICK': return 'healing';
+        case 'PERSONAL': return 'person';
+        case 'OTHER': return 'help';
+        case 'HOLIDAY': return 'beach_access';
+        default: return 'beach_access';
       }
     }
+    return this.getRequestTypeIcon(r.requestType);
+  }
+  getRequestTypeIcon(type: RequestType): string {
+    switch (type) {
+      case 'CANCEL_OCCURRENCE': return 'event_busy';
+      case 'INSTRUCTOR_DAY_OFF': return 'beach_access';
+      case 'NEW_SERIES': return 'repeat';
+      case 'ADD_CHILD': return 'person_add';
+      case 'DELETE_CHILD': return 'person_remove';
+      case 'MAKEUP_LESSON': return 'extension';
+      case 'FILL_IN': return 'swap_horiz';
+      case 'PARENT_SIGNUP': return 'person';
+      case 'INDEPENDENT_SIGNUP': return 'directions_run';
+      case 'SINGLE_LESSON': return 'event';
+      case 'RIDER_SERVICE_REQUEST': return 'construction';
+      default: return 'help';
+    }
+  }
 
-    // --------------------------------------------------
-    // PATCH מקומי = הסוד שהופך את זה ל"מרנדר מיד"
-    // --------------------------------------------------
-    private patchRequestStatus(requestId: string, newStatus: RequestStatus) {
-      const arr = this.allRequests();
-      const idx = arr.findIndex(x => x.id === requestId);
-      if (idx === -1) return;
+  // --------------------------------------------------
+  // PATCH מקומי = הסוד שהופך את זה ל"מרנדר מיד"
+  // --------------------------------------------------
+  private patchRequestStatus(requestId: string, newStatus: RequestStatus) {
+    const arr = this.allRequests();
+    const idx = arr.findIndex(x => x.id === requestId);
+    if (idx === -1) return;
 
-      const updated = [...arr];
-      updated[idx] = { ...updated[idx], status: newStatus };
-      this.allRequests.set(updated);
+    const updated = [...arr];
+    updated[idx] = { ...updated[idx], status: newStatus };
+    this.allRequests.set(updated);
 
-      // ✅ אם זו הבקשה שנבחרה - תמיד לנקות פרטים
-      if (this.selectedRequest?.id === requestId) {
-        this.closeDetails();
-      }
+    // ✅ אם זו הבקשה שנבחרה - תמיד לנקות פרטים
+    if (this.selectedRequest?.id === requestId) {
+      this.closeDetails();
+    }
+  }
+
+  onRequestError = async (e: { requestId?: string; message: string; raw?: any }) => {
+    // אם זה “not pending” → סנכרון מהשרת כדי לא להישאר במצב מוזר
+    const msg = (e?.message || '').toLowerCase();
+    if (msg.includes('not pending')) {
+      this.showToast('הסטטוס כבר עודכן. מסנכרנת רשימה…', 'info');
+      await this.loadRequestsFromDb();
+      return;
     }
 
-    onRequestError = async (e: { requestId?: string; message: string; raw?: any }) => {
-      // אם זה “not pending” → סנכרון מהשרת כדי לא להישאר במצב מוזר
-      const msg = (e?.message || '').toLowerCase();
-      if (msg.includes('not pending')) {
-        this.showToast('הסטטוס כבר עודכן. מסנכרנת רשימה…', 'info');
-        await this.loadRequestsFromDb();
-        return;
-      }
+    this.showToast(e.message || 'שגיאה', 'error');
+    this.onError?.(e);
+  };
 
-      this.showToast(e.message || 'שגיאה', 'error');
-      this.onError?.(e);
+  async cancelSelected() {
+    const current = this.selectedRequest;
+    if (!current || !this.curentUser) return;
+    if (this.isSecretary) return;
+    if (current.status !== 'PENDING') return;
+
+    try {
+      const db = dbTenant();
+      const { error } = await db
+        .from('secretarial_requests')
+        .update({ status: 'CANCELLED_BY_REQUESTER' })
+        .eq('id', current.id)
+        .eq('requested_by_uid', this.curentUser.uid);
+
+      if (error) throw error;
+
+      this.patchRequestStatus(current.id, 'CANCELLED_BY_REQUESTER');
+      this.showToast('הבקשה בוטלה', 'info');
+      void this.loadRequestsFromDb();
+    } catch (err: any) {
+      console.error(err);
+      await this.onRequestError({ requestId: current.id, message: err?.message || 'שגיאה בביטול הבקשה', raw: err });
+    }
+  }
+
+
+  onDetailsActivate(instance: any) {
+    // ניקוי חיבורים קודמים (כדי לא לצבור סאבסקריפשנים)
+    this.detailsSubs.forEach(s => s.unsubscribe());
+    this.detailsSubs = [];
+
+    if (instance?.approved?.subscribe) {
+      this.detailsSubs.push(
+        instance.approved.subscribe((e: any) => this.onAnyApproved(e))
+      );
+    }
+
+    if (instance?.rejected?.subscribe) {
+      this.detailsSubs.push(
+        instance.rejected.subscribe((e: any) => this.onAnyRejected(e))
+      );
+    }
+
+    if (instance?.error?.subscribe) {
+      this.detailsSubs.push(
+        instance.error.subscribe((msg: string) => this.onAnyError(msg))
+      );
+    }
+
+    const current = this.selectedRequest;
+    if (current) {
+      this.wrapApproveWithValidation(instance, current);
+    }
+  }
+
+  onChildApproved(e: { requestId: string }) {
+    this.loadRequestsFromDb();   // סנכרון מלא מהרקע
+    this.closeDetails();
+  }
+
+  onChildRejected(e: { requestId: string }) {
+    this.loadRequestsFromDb();
+    this.closeDetails();
+  }
+
+  onChildError(e: { requestId: string }) {
+    this.loadRequestsFromDb();
+    this.closeDetails();
+  }
+
+
+  private onAnyApproved(e: { requestId: string; newStatus: 'APPROVED' }) {
+    this.patchRequestStatus(e.requestId, 'APPROVED'); // נעלם מ"ממתינים" מיד
+    this.closeDetails();
+  }
+
+  private onAnyRejected(e: { requestId: string; newStatus: RequestStatus }) {
+    this.patchRequestStatus(e.requestId, e.newStatus ?? 'REJECTED');
+    this.closeDetails();
+  }
+
+  private onAnyError(msg: string) {
+    // פה את יכולה לעשות snackbar מרכזי אם בא לך
+    console.error('request details error:', msg);
+  }
+
+  isRowSelectable(row: UiRequest): boolean {
+    return this.isSecretary && row.status === 'PENDING';
+  }
+
+  isSelected(row: UiRequest): boolean {
+    return this.selectedIdsSig().has(row.id);
+  }
+
+  clearSelection() {
+    this.selectedIdsSig.set(new Set());
+  }
+
+  toggleRowSelection(row: UiRequest, ev: Event) {
+    ev.stopPropagation();
+    if (!this.isRowSelectable(row)) return;
+
+    const next = new Set(this.selectedIdsSig());
+    next.has(row.id) ? next.delete(row.id) : next.add(row.id);
+    this.selectedIdsSig.set(next);
+  }
+
+  toggleSelectAll(ev: Event) {
+    ev.stopPropagation();
+
+    const selectable = this.filteredRequestsList.filter(r => this.isRowSelectable(r));
+    const current = this.selectedIdsSig();
+
+    const allChecked = selectable.length > 0 && selectable.every(r => current.has(r.id));
+    const next = new Set(current);
+
+    if (allChecked) {
+      selectable.forEach(r => next.delete(r.id));
+    } else {
+      selectable.forEach(r => next.add(r.id));
+    }
+
+    this.selectedIdsSig.set(next);
+  }
+
+  isAllSelectableChecked(): boolean {
+    const selectable = this.filteredRequestsList.filter(r => this.isRowSelectable(r));
+    if (!selectable.length) return false;
+    const current = this.selectedIdsSig();
+    return selectable.every(r => current.has(r.id));
+  }
+
+  isSomeSelectableChecked(): boolean {
+    const selectable = this.filteredRequestsList.filter(r => this.isRowSelectable(r));
+    if (!selectable.length) return false;
+    const current = this.selectedIdsSig();
+    const some = selectable.some(r => current.has(r.id));
+    const all = selectable.every(r => current.has(r.id));
+    return some && !all;
+  }
+
+  private getSelectedRowsPending(): UiRequest[] {
+    const selected = this.selectedIdsSig();
+    return this.filteredRequestsList.filter(r => selected.has(r.id) && this.isRowSelectable(r));
+  }
+
+  private async runDecisionViaDetailsComponent(
+    row: UiRequest,
+    action: 'approve' | 'reject',
+    rejectArgs?: RejectArgs
+  ): Promise<BulkRunItemReport> {
+
+    if (row.status !== 'PENDING') {
+      return {
+        id: row.id,
+        requestType: row.requestType,
+        summary: row.summary,
+        requestedByName: row.requestedByName,
+        childName: row.childName,
+        instructorName: row.instructorName,
+        action,
+        kind: 'notProcessed',
+        errorMessage: 'לא ניתן לבצע פעולה על בקשה שאינה ממתינה',
+      };
+    }
+    if (!this.bulkHost) {
+      return {
+        id: row.id,
+        requestType: row.requestType,
+        summary: row.summary,
+        requestedByName: row.requestedByName,
+        childName: row.childName,
+        instructorName: row.instructorName,
+        action,
+        kind: 'notProcessed',
+        errorMessage: 'bulkHost לא מאותחל',
+      };
+    }
+
+    const cmp = this.getDetailsComponent(row.requestType);
+    if (!cmp) {
+      return {
+        id: row.id,
+        requestType: row.requestType,
+        summary: row.summary,
+        requestedByName: row.requestedByName,
+        childName: row.childName,
+        instructorName: row.instructorName,
+        action,
+        kind: 'notProcessed',
+        errorMessage: `אין קומפוננטת פרטים לסוג ${row.requestType}`,
+      };
+    }
+
+    // יצירה בזיכרון (לא מוצג)
+    const ref = this.bulkHost.createComponent(cmp, { environmentInjector: this.envInj });
+    const inst: any = ref.instance;
+
+    // להזין Inputs בסיסיים
+    inst.request = row;
+    inst.decidedByUid = this.curentUser?.uid;
+    inst.bulkMode = true; // ✅ מונע confirm dialogs פנימיים
+
+    // callbacks לעדכון מיידי
+    inst.onApproved = (e: any) => {
+      this.patchRequestStatus(row.id, 'APPROVED');
+      const next = new Set(this.selectedIdsSig());
+      next.delete(row.id);
+      this.selectedIdsSig.set(next);
+    };
+    inst.onRejected = (e: any) => {
+      const status = e?.newStatus ?? 'REJECTED';
+      this.patchRequestStatus(row.id, status);
+      const next = new Set(this.selectedIdsSig());
+      next.delete(row.id);
+      this.selectedIdsSig.set(next);
     };
 
-    async cancelSelected() {
-      const current = this.selectedRequest;
-      if (!current || !this.curentUser) return;
-      if (this.isSecretary) return;
-      if (current.status !== 'PENDING') return;
+    try {
+      const mode = action === 'approve' ? 'approve' : 'reject';
+      const valid = await this.validation.validate(row, mode);
 
-      try {
-        const db = dbTenant();
-        const { error } = await db
-          .from('secretarial_requests')
-          .update({ status: 'CANCELLED_BY_REQUESTER' })
-          .eq('id', current.id)
-          .eq('requested_by_uid', this.curentUser.uid);
+      if (!valid.ok) {
+        const reason = valid.reason ?? 'בקשה לא רלוונטית';
+        const didReject = await this.rejectBySystem(row, reason);
 
-        if (error) throw error;
+        // אם הצלחנו לדחות ע"י מערכת => נדחו על ידי המערכת
+        if (didReject) {
+          return {
+            id: row.id,
+            requestType: row.requestType,
+            summary: row.summary,
+            requestedByName: row.requestedByName,
+            childName: row.childName,
+            instructorName: row.instructorName,
+            action,
+            kind: 'systemRejected',
+            systemReason: reason,
+            warningMessage: undefined,
+          };
+        }
 
-        this.patchRequestStatus(current.id, 'CANCELLED_BY_REQUESTER');
-        this.showToast('הבקשה בוטלה', 'info');
-        void this.loadRequestsFromDb();
-      } catch (err: any) {
-        console.error(err);
-        await this.onRequestError({ requestId: current.id, message: err?.message || 'שגיאה בביטול הבקשה', raw: err });
+        // אם לא הצליח לעדכן סטטוס ל-REJECTED_BY_SYSTEM (כבר טופל וכו')
+        // מבחינתך לא מציגים "נכשלו" — אז ננסה להביא מטא מה-DB ולסווג לפי סטטוס בפועל:
+        const meta = await this.fetchDecisionMeta(row.id);
+        if (meta.status === 'REJECTED_BY_SYSTEM') {
+          return {
+            id: row.id,
+            requestType: row.requestType,
+            summary: row.summary,
+            requestedByName: row.requestedByName,
+            childName: row.childName,
+            instructorName: row.instructorName,
+            action,
+            kind: 'systemRejected',
+            systemReason: meta.note ?? reason,
+            warningMessage: undefined,
+          };
+        }
+
+        // אם לא נדחה בפועל ע"י מערכת — אין קטגוריה של "נכשלו",
+        // אז נסווג כהצלחה עם אזהרה “לא בוצעה פעולה” כדי לא לשקר שסטטוס השתנה:
+        return {
+          id: row.id,
+          requestType: row.requestType,
+          summary: row.summary,
+          requestedByName: row.requestedByName,
+          childName: row.childName,
+          instructorName: row.instructorName,
+          action,
+          kind: 'notProcessed',
+          warningMessage: `לא ניתן היה לדחות ע"י המערכת בפועל (ייתכן שהבקשה כבר טופלה).`,
+        };
       }
-    }
 
+      const before = row.status;
 
-    onDetailsActivate(instance: any) {
-      // ניקוי חיבורים קודמים (כדי לא לצבור סאבסקריפשנים)
-      this.detailsSubs.forEach(s => s.unsubscribe());
-      this.detailsSubs = [];
+      // ✅ לבחור מתודה לפי הקומפוננטה
+      const methodName =
+        action === 'approve'
+          ? (typeof inst?.approveSelected === 'function' ? 'approveSelected' : 'approve')
+          : (typeof inst?.rejectSelected === 'function' ? 'rejectSelected' : 'reject');
 
-      if (instance?.approved?.subscribe) {
-        this.detailsSubs.push(
-          instance.approved.subscribe((e: any) => this.onAnyApproved(e))
-        );
+      const fn = inst?.[methodName];
+      if (typeof fn !== 'function') {
+        return {
+          id: row.id,
+          requestType: row.requestType,
+          summary: row.summary,
+          requestedByName: row.requestedByName,
+          childName: row.childName,
+          instructorName: row.instructorName,
+          action,
+          kind: 'notProcessed',
+          errorMessage: `לקומפוננטה אין מתודה ${methodName}()`,
+        };
       }
 
-      if (instance?.rejected?.subscribe) {
-        this.detailsSubs.push(
-          instance.rejected.subscribe((e: any) => this.onAnyRejected(e))
-        );
-      }
 
-      if (instance?.error?.subscribe) {
-        this.detailsSubs.push(
-          instance.error.subscribe((msg: string) => this.onAnyError(msg))
-        );
-      }
+      let warning: string | null = null;
 
-      const current = this.selectedRequest;
-      if (current) {
-        this.wrapApproveWithValidation(instance, current);
-      }
-    }
+      if (action === 'reject') {
+        const reason = rejectArgs?.reason?.trim() ?? '';
 
-    onChildApproved(e: { requestId: string }) {
-      this.loadRequestsFromDb();   // סנכרון מלא מהרקע
-      this.closeDetails();
-    }
+        if (typeof inst?.note?.set === 'function') inst.note.set(reason);
+        else if ('note' in inst) inst.note = reason;
 
-    onChildRejected(e: { requestId: string }) {
-      this.loadRequestsFromDb();
-      this.closeDetails();
-    }
+        await fn.call(inst, rejectArgs ?? { source: 'user', reason });
+        warning = (inst?.bulkWarning ?? null) as string | null;
 
-    onChildError(e: { requestId: string }) {
-      this.loadRequestsFromDb();
-      this.closeDetails();
-    }
-
-
-    private onAnyApproved(e: { requestId: string; newStatus: 'APPROVED' }) {
-      this.patchRequestStatus(e.requestId, 'APPROVED'); // נעלם מ"ממתינים" מיד
-      this.closeDetails();
-    }
-
-    private onAnyRejected(e: { requestId: string; newStatus: RequestStatus }) {
-      this.patchRequestStatus(e.requestId, e.newStatus ?? 'REJECTED');
-      this.closeDetails();
-    }
-
-    private onAnyError(msg: string) {
-      // פה את יכולה לעשות snackbar מרכזי אם בא לך
-      console.error('request details error:', msg);
-    }
-
-    isRowSelectable(row: UiRequest): boolean {
-      return this.isSecretary && row.status === 'PENDING';
-    }
-
-    isSelected(row: UiRequest): boolean {
-      return this.selectedIdsSig().has(row.id);
-    }
-
-    clearSelection() {
-      this.selectedIdsSig.set(new Set());
-    }
-
-    toggleRowSelection(row: UiRequest, ev: Event) {
-      ev.stopPropagation();
-      if (!this.isRowSelectable(row)) return;
-
-      const next = new Set(this.selectedIdsSig());
-      next.has(row.id) ? next.delete(row.id) : next.add(row.id);
-      this.selectedIdsSig.set(next);
-    }
-
-    toggleSelectAll(ev: Event) {
-      ev.stopPropagation();
-
-      const selectable = this.filteredRequestsList.filter(r => this.isRowSelectable(r));
-      const current = this.selectedIdsSig();
-
-      const allChecked = selectable.length > 0 && selectable.every(r => current.has(r.id));
-      const next = new Set(current);
-
-      if (allChecked) {
-        selectable.forEach(r => next.delete(r.id));
       } else {
-        selectable.forEach(r => next.add(r.id));
+        await fn.call(inst);
+        warning = (inst?.bulkWarning ?? null) as string | null;
       }
 
-      this.selectedIdsSig.set(next);
-    }
-
-    isAllSelectableChecked(): boolean {
-      const selectable = this.filteredRequestsList.filter(r => this.isRowSelectable(r));
-      if (!selectable.length) return false;
-      const current = this.selectedIdsSig();
-      return selectable.every(r => current.has(r.id));
-    }
-
-    isSomeSelectableChecked(): boolean {
-      const selectable = this.filteredRequestsList.filter(r => this.isRowSelectable(r));
-      if (!selectable.length) return false;
-      const current = this.selectedIdsSig();
-      const some = selectable.some(r => current.has(r.id));
-      const all = selectable.every(r => current.has(r.id));
-      return some && !all;
-    }
-
-    private getSelectedRowsPending(): UiRequest[] {
-      const selected = this.selectedIdsSig();
-      return this.filteredRequestsList.filter(r => selected.has(r.id) && this.isRowSelectable(r));
-    }
-
-    private async runDecisionViaDetailsComponent(
-      row: UiRequest,
-      action: 'approve' | 'reject',
-      rejectArgs?: RejectArgs
-    ): Promise<BulkRunItemReport> {
-
-      if (row.status !== 'PENDING') {
-        return {
-          id: row.id,
-          requestType: row.requestType,
-          summary: row.summary,
-          requestedByName: row.requestedByName,
-          childName: row.childName,
-          instructorName: row.instructorName,
-          action,
-          kind: 'notProcessed',
-          errorMessage: 'לא ניתן לבצע פעולה על בקשה שאינה ממתינה',
-        };
-      }
-      if (!this.bulkHost) {
-        return {
-          id: row.id,
-          requestType: row.requestType,
-          summary: row.summary,
-          requestedByName: row.requestedByName,
-          childName: row.childName,
-          instructorName: row.instructorName,
-          action,
-          kind: 'notProcessed',
-          errorMessage: 'bulkHost לא מאותחל',
-        };
-      }
-
-      const cmp = this.getDetailsComponent(row.requestType);
-      if (!cmp) {
-        return {
-          id: row.id,
-          requestType: row.requestType,
-          summary: row.summary,
-          requestedByName: row.requestedByName,
-          childName: row.childName,
-          instructorName: row.instructorName,
-          action,
-          kind: 'notProcessed',
-          errorMessage: `אין קומפוננטת פרטים לסוג ${row.requestType}`,
-        };
-      }
-
-      // יצירה בזיכרון (לא מוצג)
-      const ref = this.bulkHost.createComponent(cmp, { environmentInjector: this.envInj });
-      const inst: any = ref.instance;
-
-      // להזין Inputs בסיסיים
-      inst.request = row;
-      inst.decidedByUid = this.curentUser?.uid;
-      inst.bulkMode = true; // ✅ מונע confirm dialogs פנימיים
-
-      // callbacks לעדכון מיידי
-      inst.onApproved = (e: any) => {
-        this.patchRequestStatus(row.id, 'APPROVED');
-        const next = new Set(this.selectedIdsSig());
-        next.delete(row.id);
-        this.selectedIdsSig.set(next);
-      };
-      inst.onRejected = (e: any) => {
-        const status = e?.newStatus ?? 'REJECTED';
-        this.patchRequestStatus(row.id, status);
-        const next = new Set(this.selectedIdsSig());
-        next.delete(row.id);
-        this.selectedIdsSig.set(next);
-      };
-
-      try {
-        const mode = action === 'approve' ? 'approve' : 'reject';
-        const valid = await this.validation.validate(row, mode);
-
-        if (!valid.ok) {
-          const reason = valid.reason ?? 'בקשה לא רלוונטית';
-          const didReject = await this.rejectBySystem(row, reason);
-
-          // אם הצלחנו לדחות ע"י מערכת => נדחו על ידי המערכת
-          if (didReject) {
-            return {
-              id: row.id,
-              requestType: row.requestType,
-              summary: row.summary,
-              requestedByName: row.requestedByName,
-              childName: row.childName,
-              instructorName: row.instructorName,
-              action,
-              kind: 'systemRejected',
-              systemReason: reason,
-              warningMessage: undefined,
-            };
-          }
-
-          // אם לא הצליח לעדכן סטטוס ל-REJECTED_BY_SYSTEM (כבר טופל וכו')
-          // מבחינתך לא מציגים "נכשלו" — אז ננסה להביא מטא מה-DB ולסווג לפי סטטוס בפועל:
-          const meta = await this.fetchDecisionMeta(row.id);
-          if (meta.status === 'REJECTED_BY_SYSTEM') {
-            return {
-              id: row.id,
-              requestType: row.requestType,
-              summary: row.summary,
-              requestedByName: row.requestedByName,
-              childName: row.childName,
-              instructorName: row.instructorName,
-              action,
-              kind: 'systemRejected',
-              systemReason: meta.note ?? reason,
-              warningMessage: undefined,
-            };
-          }
-
-          // אם לא נדחה בפועל ע"י מערכת — אין קטגוריה של "נכשלו",
-          // אז נסווג כהצלחה עם אזהרה “לא בוצעה פעולה” כדי לא לשקר שסטטוס השתנה:
-          return {
-            id: row.id,
-            requestType: row.requestType,
-            summary: row.summary,
-            requestedByName: row.requestedByName,
-            childName: row.childName,
-            instructorName: row.instructorName,
-            action,
-            kind: 'notProcessed',
-            warningMessage: `לא ניתן היה לדחות ע"י המערכת בפועל (ייתכן שהבקשה כבר טופלה).`,
-          };
-        }
-
-        const before = row.status;
-
-        // ✅ לבחור מתודה לפי הקומפוננטה
-        const methodName =
-          action === 'approve'
-            ? (typeof inst?.approveSelected === 'function' ? 'approveSelected' : 'approve')
-            : (typeof inst?.rejectSelected === 'function' ? 'rejectSelected' : 'reject');
-
-        const fn = inst?.[methodName];
-        if (typeof fn !== 'function') {
-          return {
-            id: row.id,
-            requestType: row.requestType,
-            summary: row.summary,
-            requestedByName: row.requestedByName,
-            childName: row.childName,
-            instructorName: row.instructorName,
-            action,
-            kind: 'notProcessed',
-            errorMessage: `לקומפוננטה אין מתודה ${methodName}()`,
-          };
-        }
 
 
-        let warning: string | null = null;
+      // ✅ אם לא השתנה סטטוס (לא קרא update/emit) – להחזיר כישלון כדי לא לשקר
+      // (בד"כ קומפוננטה תקרא onRejected/onApproved ותעשה patchRequestStatus)
+      const afterLocal =
+        this.allRequests().find(x => x.id === row.id)?.status ?? before;
 
-        if (action === 'reject') {
-          const reason = rejectArgs?.reason?.trim() ?? '';
+      if (afterLocal === 'PENDING') {
+        const meta = await this.fetchDecisionMeta(row.id);
 
-          if (typeof inst?.note?.set === 'function') inst.note.set(reason);
-          else if ('note' in inst) inst.note = reason;
-
-          await fn.call(inst, rejectArgs ?? { source: 'user', reason });
-          warning = (inst?.bulkWarning ?? null) as string | null;
-
-        } else {
-          await fn.call(inst);
-          warning = (inst?.bulkWarning ?? null) as string | null;
-        }
-
-
-
-        // ✅ אם לא השתנה סטטוס (לא קרא update/emit) – להחזיר כישלון כדי לא לשקר
-        // (בד"כ קומפוננטה תקרא onRejected/onApproved ותעשה patchRequestStatus)
-        const afterLocal =
-          this.allRequests().find(x => x.id === row.id)?.status ?? before;
-
-        if (afterLocal === 'PENDING') {
-          const meta = await this.fetchDecisionMeta(row.id);
-
-          if (meta.status === 'REJECTED_BY_SYSTEM') {
-            return {
-              id: row.id,
-              requestType: row.requestType,
-              summary: row.summary,
-              requestedByName: row.requestedByName,
-              childName: row.childName,
-              instructorName: row.instructorName,
-              action,
-              kind: 'systemRejected',
-              systemReason: (meta.note ?? '').trim() || 'נדחה אוטומטית ע״י המערכת',
-            };
-          }
-
-          // אם DB כבר אישר/דחה (מישהו אחר), נסווג כלא טופל ונציג סטטוס בפועל
-          if (meta.status && meta.status !== 'PENDING') {
-            return {
-              id: row.id,
-              requestType: row.requestType,
-              summary: row.summary,
-              requestedByName: row.requestedByName,
-              childName: row.childName,
-              instructorName: row.instructorName,
-              action,
-              kind: 'notProcessed',
-              errorMessage: `הבקשה כבר טופלה במערכת (סטטוס: ${meta.status}).`,
-              warningMessage: warning || undefined,
-
-            };
-          }
-
-          // נשאר PENDING בפועל => באמת לא טופל
-          return {
-            id: row.id,
-            requestType: row.requestType,
-            summary: row.summary,
-            requestedByName: row.requestedByName,
-            childName: row.childName,
-            instructorName: row.instructorName,
-            action,
-            kind: 'notProcessed',
-            errorMessage: 'לא בוצעה פעולה על הבקשה (נשארה ממתינה).',
-            warningMessage: warning || undefined,
-
-
-          };
-        }
-
-
-        if (afterLocal === 'REJECTED_BY_SYSTEM') {
-          const meta = await this.fetchDecisionMeta(row.id);
-
+        if (meta.status === 'REJECTED_BY_SYSTEM') {
           return {
             id: row.id,
             requestType: row.requestType,
@@ -1175,22 +1124,8 @@ async reloadRequests(): Promise<void> {
           };
         }
 
-        return {
-          id: row.id,
-          requestType: row.requestType,
-          summary: row.summary,
-          requestedByName: row.requestedByName,
-          childName: row.childName,
-          instructorName: row.instructorName,
-          action,
-          kind: 'success',
-          warningMessage: warning || undefined,
-
-        };
-      } catch (e: any) {
-        const meta = await this.fetchDecisionMeta(row.id);
-
-        if (meta.status === 'REJECTED_BY_SYSTEM') {
+        // אם DB כבר אישר/דחה (מישהו אחר), נסווג כלא טופל ונציג סטטוס בפועל
+        if (meta.status && meta.status !== 'PENDING') {
           return {
             id: row.id,
             requestType: row.requestType,
@@ -1199,17 +1134,14 @@ async reloadRequests(): Promise<void> {
             childName: row.childName,
             instructorName: row.instructorName,
             action,
-            kind: 'systemRejected',
-            systemReason: meta.note?.trim() || 'נדחה אוטומטית ע״י המערכת',
+            kind: 'notProcessed',
+            errorMessage: `הבקשה כבר טופלה במערכת (סטטוס: ${meta.status}).`,
+            warningMessage: warning || undefined,
+
           };
         }
 
-        // ✅ פה הקסם: אם DB שם reason אמיתי, נשתמש בו
-        const msg =
-          meta.note?.trim() ||
-          e?.message ||
-          String(e);
-
+        // נשאר PENDING בפועל => באמת לא טופל
         return {
           id: row.id,
           requestType: row.requestType,
@@ -1219,594 +1151,662 @@ async reloadRequests(): Promise<void> {
           instructorName: row.instructorName,
           action,
           kind: 'notProcessed',
-          errorMessage: msg,
+          errorMessage: 'לא בוצעה פעולה על הבקשה (נשארה ממתינה).',
+          warningMessage: warning || undefined,
+
+
         };
       }
 
-    }
-    private async enrichBulkReportFromDb(report: BulkRunReport): Promise<BulkRunReport> {
-      const updatedResults: BulkRunItemReport[] = [];
 
-      for (const r of report.results) {
-        const meta = await this.fetchDecisionMeta(r.id);
+      if (afterLocal === 'REJECTED_BY_SYSTEM') {
+        const meta = await this.fetchDecisionMeta(row.id);
 
-        // 1) אם ה-DB דחה אוטומטית – תמיד "נדחו ע״י המערכת"
-        if (meta.status === 'REJECTED_BY_SYSTEM') {
-          updatedResults.push({
-            ...r,
-            kind: 'systemRejected',
-            systemReason: (meta.note ?? '').trim() || r.systemReason || 'נדחה אוטומטית ע״י המערכת',
-            errorMessage: undefined,
-          });
-          continue;
-        }
-
-        // 2) אם בפועל כבר APPROVED/REJECTED – זה "הצליחו" (גם אם ה-UI לא פאטצ׳)
-        if (meta.status === 'APPROVED' || meta.status === 'REJECTED') {
-          updatedResults.push({
-            ...r,
-            kind: 'success',
-            errorMessage: undefined,
-          });
-          continue;
-        }
-
-        // 3) אם בפועל PENDING / null – זה "לא טופלו"
-        // ננקה מערכתית שדות סיבה/שגיאה אם צריך, או נשאיר errorMessage להצגה
-        updatedResults.push({
-          ...r,
-          kind: r.kind === 'success' ? 'success' : 'notProcessed',
-          systemReason: undefined,
-        });
-      }
-
-      return this.buildBulkReport(report.action, updatedResults);
-    }
-
-
-    async bulkApproveSelected() {
-      if (this.bulkBusy()) return;
-
-      if (!this.isSecretary || !this.curentUser) return;
-
-      const rows = this.getSelectedRowsPending();
-      if (!rows.length) return;
-
-      const dlg = await this.openBulkDecisionDialog('approve', rows);
-      if (!dlg?.confirmed) return;
-
-      this.bulkBusyMode.set('approve');
-      this.bulkBusy.set(true);
-
-      try {
-        const results: BulkRunItemReport[] = [];
-
-        for (const r of rows) {
-          const res = await this.runDecisionViaDetailsComponent(r, 'approve');
-          results.push(res);
-
-          const next = new Set(this.selectedIdsSig());
-          next.delete(r.id);
-          this.selectedIdsSig.set(next);
-        }
-
-        const report = this.buildBulkReport('approve', results);
-
-        // ה-toast הקיים שלך יכול להישאר (רשות)
-        if (report.successCount) this.showToast(`אושרו ${report.successCount} בקשות`, 'success');
-        if (report.systemRejectedCount) this.showToast(`נדחו אוטומטית ${report.systemRejectedCount}`, 'info');
-
-        await this.loadRequestsFromDb();
-        await this.autoRejectCriticalInvalidRequests('postBulk');
-        this.clearSelection();
-
-        // ✅ הפופאפ דוח בסוף (אחרי סנכרון)
-        const enriched = await this.enrichBulkReportFromDb(report);
-        this.openBulkRunReportDialog(enriched);
-      } finally {
-        this.bulkBusy.set(false);
-        this.bulkBusyMode.set(null);
-      }
-    }
-
-    async bulkRejectSelected() {
-      if (this.bulkBusy()) return;
-
-      if (!this.isSecretary || !this.curentUser) return;
-
-      const rows = this.getSelectedRowsPending();
-      if (!rows.length) return;
-
-      const ref = this.dialog.open(BulkDecisionDialogComponent, {
-        data: {
-          mode: 'reject',
-          title: 'דחיית בקשות מסומנות',
-          items: rows.map(r => ({
-            id: r.id,
-            requestType: r.requestType,
-            requestedByName: r.requestedByName,
-            summary: r.summary,
-            childName: r.childName,
-            instructorName: r.instructorName,
-            createdAt: r.createdAt,
-          })),
-        },
-        disableClose: true,
-        panelClass: 'ui-confirm-dialog',
-        backdropClass: 'ui-confirm-backdrop',
-      });
-
-      const result = await firstValueFrom(ref.afterClosed());
-      if (!result?.confirmed) return;
-
-      const reasonsById = result.reasonsById ?? {};
-
-      this.bulkBusyMode.set('reject');
-      this.bulkBusy.set(true);
-
-      try {
-        const results: BulkRunItemReport[] = [];
-
-        for (const r of rows) {
-          const reason = (reasonsById[r.id] ?? '').trim();
-          const res = await this.runDecisionViaDetailsComponent(r, 'reject', { source: 'user', reason });
-          results.push(res);
-
-          const next = new Set(this.selectedIdsSig());
-          next.delete(r.id);
-          this.selectedIdsSig.set(next);
-        }
-
-        const report = this.buildBulkReport('reject', results);
-
-        if (report.successCount) this.showToast(`נדחו ${report.successCount} בקשות`, 'success');
-        if (report.systemRejectedCount) this.showToast(`נדחו אוטומטית ${report.systemRejectedCount}`, 'info');
-
-        await this.loadRequestsFromDb();
-        await this.autoRejectCriticalInvalidRequests('postBulk');
-        this.clearSelection();
-        const enriched = await this.enrichBulkReportFromDb(report);
-        this.openBulkRunReportDialog(enriched);
-      } finally {
-        this.bulkBusy.set(false);
-        this.bulkBusyMode.set(null);
-      }
-    }
-
-
-    private wrapApproveWithValidation(instance: any, row: UiRequest) {
-      if (row.status !== 'PENDING') return;
-      const wrap = (methodName: 'approve' | 'approveSelected') => {
-        const original = instance?.[methodName];
-        if (typeof original !== 'function') return;
-        if (original.__sfWrapped) return;
-
-        const wrapped = async () => {
-          const valid = await this.validation.validate(row, 'approve');
-          if (!valid.ok) {
-            await this.rejectBySystem(row, valid.reason ?? 'בקשה לא רלוונטית');
-            return;
-          }
-
-          return original.call(instance);
+        return {
+          id: row.id,
+          requestType: row.requestType,
+          summary: row.summary,
+          requestedByName: row.requestedByName,
+          childName: row.childName,
+          instructorName: row.instructorName,
+          action,
+          kind: 'systemRejected',
+          systemReason: (meta.note ?? '').trim() || 'נדחה אוטומטית ע״י המערכת',
         };
-
-        wrapped.__sfWrapped = true;
-        instance[methodName] = wrapped;
-      };
-
-      wrap('approve');
-      wrap('approveSelected');
-    }
-    get hasSelectableRows(): boolean {
-      return this.filteredRequestsList.some(r => this.isRowSelectable(r));
-    }
-
-    private async autoRejectCriticalInvalidRequests(context: 'load' | 'postBulk') {
-      if (!this.isSecretary || !this.curentUser) return;
-      if (this.autoRejectInFlight) return;
-      this.autoRejectInFlight = true;
-
-      try {
-        const pending = this.allRequests().filter(r => r.status === 'PENDING');
-        if (!pending.length) return;
-
-        let rejected = 0;
-
-        for (const r of pending) {
-          const valid = await this.validation.validate(r, 'auto');
-
-
-
-          if (!valid.ok) {
-            const reason = valid.reason ?? 'הבקשה אינה רלוונטית (קריטי)';
-
-
-            const ok = await this.rejectBySystem(r, reason);
-
-
-
-            if (ok) rejected++;
-          }
-        }
-
-        if (rejected > 0) {
-          this.showToast(
-            context === 'postBulk'
-              ? `נדחו אוטומטית ${rejected} בקשות לא רלוונטיות (קריטי) אחרי פעולה`
-              : `נדחו אוטומטית ${rejected} בקשות לא רלוונטיות (קריטי)`,
-            'info'
-          );
-        }
-      } finally {
-        this.autoRejectInFlight = false;
       }
-    }
-
-
-    private combineDateTime(dateStr: string, timeStr?: string | null): Date {
-      const d = dateStr?.slice(0, 10);
-      const t = (timeStr ?? '00:00').slice(0, 5);
-      return new Date(`${d}T${t}:00`);
-    }
-
-    private getChildIdForRequest(row: UiRequest): string | null {
-      const p: any = row.payload ?? {};
-      return row.childId ?? p.child_id ?? p.childId ?? null;
-    }
-
-    private getInstructorIdForRequest(row: UiRequest): string | null {
-      const p: any = row.payload ?? {};
-      return (
-        row.instructorId ??
-        p.instructor_id_number ??
-        p.instructor_id ??
-        p.instructorId ??
-        null
-      );
-    }
-
-
-    private getParentUidForRequest(row: UiRequest): string | null {
-      const p: any = row.payload ?? {};
-      const uid = row.requesterUid;
-      if (uid && uid !== 'PUBLIC') return uid;
-      return p.parent_uid ?? p.parent?.uid ?? p.uid ?? null;
-    }
-
-
-
-    private normalizeTimeHHMM(v: any): string | null {
-      if (v == null) return null;
-      const s = String(v).trim();
-      if (!s) return null;
-
-      // אם הגיע ISO עם תאריך (נדיר אצלך אבל שיהיה)
-      // "2026-02-18T10:29:00.000Z" -> "10:29"
-      if (s.includes('T')) {
-        const timePart = s.split('T')[1] ?? '';
-        return timePart.slice(0, 5);
-      }
-
-      // "10:29:00" -> "10:29"
-      if (s.length >= 5) return s.slice(0, 5);
-
-      return null;
-    }
-
-    private timeToMinutes(hhmm: string): number {
-      const [hh, mm] = hhmm.split(':');
-      const h = Number(hh);
-      const m = Number(mm);
-      if (Number.isNaN(h) || Number.isNaN(m)) return 0;
-      return h * 60 + m;
-    }
-
-    // חפיפה של דקות: [aStart,aEnd) מול [bStart,bEnd)
-    private overlapsMinutes(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
-      if (aEnd <= aStart || bEnd <= bStart) return false;
-      return aStart < bEnd && bStart < aEnd;
-    }
-
-    private getRequestedDateAndWindow(row: UiRequest): { date: string; startMin: number; endMin: number } | null {
-      const p: any = row.payload ?? {};
-
-      // תאריך רלוונטי
-      const date =
-        (row.requestType === 'NEW_SERIES'
-          ? (row.fromDate ?? p.series_start_date ?? p.start_date ?? null)
-          : (row.fromDate ?? p.occur_date ?? p.from_date ?? null)
-        );
-
-      if (!date) return null;
-
-      // שעות רלוונטיות
-      const startHHMM = this.normalizeTimeHHMM(
-        p.requested_start_time ?? p.start_time ?? p.startTime ?? p.time ?? null
-      );
-
-      // ✅ חדש: סוף מפורש מה־payload
-      const endHHMM = this.normalizeTimeHHMM(
-        p.requested_end_time ?? p.end_time ?? p.endTime ?? null
-      );
-
-      if (!startHHMM) return null;
-
-      const startMin = this.timeToMinutes(startHHMM);
-
-      // fallback אם אין requested_end_time
-      let endMin: number;
-      if (endHHMM) {
-        endMin = this.timeToMinutes(endHHMM);
-      } else {
-        // ברירת מחדל (אם עדיין לא שולחים end): 30 דקות
-        endMin = startMin + 30;
-      }
-
-      return { date: String(date).slice(0, 10), startMin, endMin };
-    }
-
-
-    private shouldValidateInstructor(row: UiRequest): boolean {
-      switch (row.requestType) {
-        case 'INSTRUCTOR_DAY_OFF':
-        case 'CANCEL_OCCURRENCE':
-        case 'NEW_SERIES':
-        case 'MAKEUP_LESSON':
-        case 'FILL_IN':
-          return true;
-        default:
-          return false;
-      }
-    }
-
-
-    private normalizeTimeToSeconds(t: string | null | undefined): string | null {
-      if (!t) return null;
-      const s = t.trim();
-      if (!s) return null;
-      if (s.length === 5) return `${s}:00`;
-      return s;
-    }
-
-
-    private async rejectBySystem(row: UiRequest, reason: string): Promise<boolean> {
-      if (!row?.id) return false;
-
-      await ensureTenantContextReady();
-      const db = dbTenant();
-
-      const note = (reason || 'בקשה לא תקינה').trim();
-      const decidedBy = this.curentUser?.uid ?? null;
-
-      const cfg = this.systemRejectedMail.getConfig(row.requestType as RequestType);
-
-      if (!cfg) {
-        console.warn('No system rejection config for request type:', row.requestType);
-        return false;
-      }
-
-      try {
-        // --------------------------------------------------
-        // מצב 1: פונקציית ענן עושה גם reject וגם notify
-        // --------------------------------------------------
-        if (cfg.mode === 'rejectAndNotify') {
-          const result = await this.systemRejectedMail.send({
-            id: row.id,
-            requestType: row.requestType,
-            reason: note,
-            decidedByUid: decidedBy,
-          });
-
-          const meta = await this.fetchDecisionMeta(row.id);
-
-          if (meta.status === 'REJECTED_BY_SYSTEM') {
-            this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
-            await this.loadRequestsFromDb();
-            this.closeDetails();
-            return true;
-          }
-
-          return false;
-        }
-
-        // --------------------------------------------------
-        // מצב 2: Angular עושה reject, ענן רק שולח מייל
-        // --------------------------------------------------
-        const { data, error } = await db
-          .from('secretarial_requests')
-          .update({
-            status: 'REJECTED_BY_SYSTEM',
-            decided_by_uid: decidedBy,
-            decision_note: note,
-            decided_at: new Date().toISOString(),
-          })
-          .eq('id', row.id)
-          .eq('status', 'PENDING')
-          .select('id')
-          .maybeSingle();
-
-        if (error) throw error;
-
-        if (data) {
-          this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
-
-          await this.sendSystemRejectedMail(row, note);
-
-          await this.loadRequestsFromDb();
-          this.closeDetails();
-
-          return true;
-        }
-
-        const meta = await this.fetchDecisionMeta(row.id);
-
-        if (meta.status === 'REJECTED_BY_SYSTEM') {
-          this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
-          await this.loadRequestsFromDb();
-          this.closeDetails();
-          return true;
-        }
-
-        return false;
-      } catch (e) {
-        console.error('rejectBySystem failed', e);
-
-        const meta = await this.fetchDecisionMeta(row.id);
-        if (meta.status === 'REJECTED_BY_SYSTEM') {
-          this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
-          await this.loadRequestsFromDb();
-          this.closeDetails();
-          return true;
-        }
-
-        return false;
-      }
-    }
-    private getRequesterRoleForRequest(row: UiRequest): RequesterRole | null {
-      const p: any = row.payload ?? {};
-      return (row as any).requesterRole ?? p.requested_by_role ?? p.requestedByRole ?? null;
-    }
-
-    // private async checkRequesterActive(
-    //   db: any,
-    //   row: UiRequest,
-    //   mode: ValidationMode
-    // ): Promise<{ ok: boolean; reason?: string }> {
-
-    //   const uid = row.requesterUid;
-    // const role = this.getRequesterRoleForRequest(row); 
-
-    //   if (!uid || !role) return { ok: true };
-
-    //   try {
-    //     switch (role) {
-
-    //       case 'parent': {
-    //         const { data, error } = await db
-    //           .from('parents')
-    //           .select('is_active')
-    //           .eq('uid', uid)
-    //           .maybeSingle();
-
-    //         if (error) return this.handleDbFailure(mode, 'checkRequesterActive(parent)', error);
-    //         if (data?.is_active === false) {
-    //           return { ok: false, reason: 'ההורה שהגיש את הבקשה אינו פעיל' };
-    //         }
-    //         return { ok: true };
-    //       }
-
-    //       case 'instructor': {
-    //         const { data, error } = await db
-    //           .from('instructors')
-    //           .select('status')
-    //           .eq('uid', uid)   // 👈 חשוב: לפי uid, לא id_number
-    //           .maybeSingle();
-
-    //         if (error) return this.handleDbFailure(mode, 'checkRequesterActive(instructor)', error);
-    //         if (!data) {
-    //           return mode === 'auto'
-    //             ? { ok: true }
-    //             : { ok: false, reason: 'המדריך מגיש הבקשה לא נמצא במערכת' };
-    //         }
-    //         if (data.status !== 'Active') {
-    //           return { ok: false, reason: `המדריך מגיש הבקשה אינו פעיל (סטטוס: ${data.status})` };
-    //         }
-    //         return { ok: true };
-    //       }
-
-    //       case 'secretary':
-    //       case 'manager':
-    //       case 'admin':
-    //         return { ok: true };
-
-    //       default:
-    //         return { ok: true };
-    //     }
-    //   } catch (e: any) {
-    //     return this.handleDbFailure(mode, 'checkRequesterActive', e);
-    //   }
-    // }
-    private async openBulkDecisionDialog(
-      mode: 'approve' | 'reject',
-      rows: UiRequest[]
-    ): Promise<BulkDecisionDialogResult> {
-      const items = rows.map(r => ({
-        id: r.id,
-        requestType: this.getRequestTypeLabel(r.requestType), // ✅ יפה בעברית
-        requestedByName: r.requestedByName,
-        summary: r.summary,
-        childName: r.childName,
-        instructorName: r.instructorName,
-        createdAt: r.createdAt,
-      }));
-
-      const ref = this.dialog.open(BulkDecisionDialogComponent, {
-        data: {
-          mode,
-          title: mode === 'approve' ? 'אישור בקשות מסומנות' : 'דחיית בקשות מסומנות',
-          items,
-        },
-        disableClose: true,
-        panelClass: 'ui-bulk-dialog',
-        backdropClass: 'ui-confirm-backdrop',
-      });
-
-      return (await firstValueFrom(ref.afterClosed())) ?? { confirmed: false };
-    }
-    private openBulkRunReportDialog(report: BulkRunReport) {
-      this.dialog.open(BulkRunReportDialogComponent, {
-        data: report,
-        disableClose: false,
-        panelClass: 'ui-bulk-report-dialog',
-        backdropClass: 'ui-confirm-backdrop',
-      });
-    }
-    private async fetchDecisionMeta(requestId: string): Promise<{ status: string | null; note: string | null }> {
-      try {
-        await ensureTenantContextReady();
-        const db = dbTenant();
-
-        const { data, error } = await db
-          .from('secretarial_requests')
-          .select('status, decision_note')
-          .eq('id', requestId)
-          .maybeSingle();
-
-        if (error) throw error;
-
-        const status = (data as any)?.status ?? null;
-        const noteRaw = (data as any)?.decision_note ?? null;
-        const note = noteRaw && String(noteRaw).trim() ? String(noteRaw).trim() : null;
-
-        return { status, note };
-      } catch (e) {
-        console.warn('fetchDecisionMeta failed', requestId, e);
-        return { status: null, note: null };
-      }
-    }
-
-    private buildBulkReport(action: 'approve' | 'reject', results: BulkRunItemReport[]): BulkRunReport {
-      const success = results.filter(r => r.kind === 'success');
-      const systemRejected = results.filter(r => r.kind === 'systemRejected');
-      const notProcessed = results.filter(r => r.kind === 'notProcessed');
 
       return {
+        id: row.id,
+        requestType: row.requestType,
+        summary: row.summary,
+        requestedByName: row.requestedByName,
+        childName: row.childName,
+        instructorName: row.instructorName,
         action,
-        total: results.length,
+        kind: 'success',
+        warningMessage: warning || undefined,
 
-        successCount: success.length,
-        systemRejectedCount: systemRejected.length,
-        notProcessedCount: notProcessed.length,
+      };
+    } catch (e: any) {
+      const meta = await this.fetchDecisionMeta(row.id);
 
-        results,
-        success,
-        systemRejected,
-        notProcessed,
+      if (meta.status === 'REJECTED_BY_SYSTEM') {
+        return {
+          id: row.id,
+          requestType: row.requestType,
+          summary: row.summary,
+          requestedByName: row.requestedByName,
+          childName: row.childName,
+          instructorName: row.instructorName,
+          action,
+          kind: 'systemRejected',
+          systemReason: meta.note?.trim() || 'נדחה אוטומטית ע״י המערכת',
+        };
+      }
+
+      // ✅ פה הקסם: אם DB שם reason אמיתי, נשתמש בו
+      const msg =
+        meta.note?.trim() ||
+        e?.message ||
+        String(e);
+
+      return {
+        id: row.id,
+        requestType: row.requestType,
+        summary: row.summary,
+        requestedByName: row.requestedByName,
+        childName: row.childName,
+        instructorName: row.instructorName,
+        action,
+        kind: 'notProcessed',
+        errorMessage: msg,
       };
     }
 
   }
+  private async enrichBulkReportFromDb(report: BulkRunReport): Promise<BulkRunReport> {
+    const updatedResults: BulkRunItemReport[] = [];
+
+    for (const r of report.results) {
+      const meta = await this.fetchDecisionMeta(r.id);
+
+      // 1) אם ה-DB דחה אוטומטית – תמיד "נדחו ע״י המערכת"
+      if (meta.status === 'REJECTED_BY_SYSTEM') {
+        updatedResults.push({
+          ...r,
+          kind: 'systemRejected',
+          systemReason: (meta.note ?? '').trim() || r.systemReason || 'נדחה אוטומטית ע״י המערכת',
+          errorMessage: undefined,
+        });
+        continue;
+      }
+
+      // 2) אם בפועל כבר APPROVED/REJECTED – זה "הצליחו" (גם אם ה-UI לא פאטצ׳)
+      if (meta.status === 'APPROVED' || meta.status === 'REJECTED') {
+        updatedResults.push({
+          ...r,
+          kind: 'success',
+          errorMessage: undefined,
+        });
+        continue;
+      }
+
+      // 3) אם בפועל PENDING / null – זה "לא טופלו"
+      // ננקה מערכתית שדות סיבה/שגיאה אם צריך, או נשאיר errorMessage להצגה
+      updatedResults.push({
+        ...r,
+        kind: r.kind === 'success' ? 'success' : 'notProcessed',
+        systemReason: undefined,
+      });
+    }
+
+    return this.buildBulkReport(report.action, updatedResults);
+  }
+
+
+  async bulkApproveSelected() {
+    if (this.bulkBusy()) return;
+
+    if (!this.isSecretary || !this.curentUser) return;
+
+    const rows = this.getSelectedRowsPending();
+    if (!rows.length) return;
+
+    const dlg = await this.openBulkDecisionDialog('approve', rows);
+    if (!dlg?.confirmed) return;
+
+    this.bulkBusyMode.set('approve');
+    this.bulkBusy.set(true);
+
+    try {
+      const results: BulkRunItemReport[] = [];
+
+      for (const r of rows) {
+        const res = await this.runDecisionViaDetailsComponent(r, 'approve');
+        results.push(res);
+
+        const next = new Set(this.selectedIdsSig());
+        next.delete(r.id);
+        this.selectedIdsSig.set(next);
+      }
+
+      const report = this.buildBulkReport('approve', results);
+
+      // ה-toast הקיים שלך יכול להישאר (רשות)
+      if (report.successCount) this.showToast(`אושרו ${report.successCount} בקשות`, 'success');
+      if (report.systemRejectedCount) this.showToast(`נדחו אוטומטית ${report.systemRejectedCount}`, 'info');
+
+      await this.loadRequestsFromDb();
+      await this.autoRejectCriticalInvalidRequests('postBulk');
+      this.clearSelection();
+
+      // ✅ הפופאפ דוח בסוף (אחרי סנכרון)
+      const enriched = await this.enrichBulkReportFromDb(report);
+      this.openBulkRunReportDialog(enriched);
+    } finally {
+      this.bulkBusy.set(false);
+      this.bulkBusyMode.set(null);
+    }
+  }
+
+  async bulkRejectSelected() {
+    if (this.bulkBusy()) return;
+
+    if (!this.isSecretary || !this.curentUser) return;
+
+    const rows = this.getSelectedRowsPending();
+    if (!rows.length) return;
+
+    const ref = this.dialog.open(BulkDecisionDialogComponent, {
+      data: {
+        mode: 'reject',
+        title: 'דחיית בקשות מסומנות',
+        items: rows.map(r => ({
+          id: r.id,
+          requestType: r.requestType,
+          requestedByName: r.requestedByName,
+          summary: r.summary,
+          childName: r.childName,
+          instructorName: r.instructorName,
+          createdAt: r.createdAt,
+        })),
+      },
+      disableClose: true,
+      panelClass: 'ui-confirm-dialog',
+      backdropClass: 'ui-confirm-backdrop',
+    });
+
+    const result = await firstValueFrom(ref.afterClosed());
+    if (!result?.confirmed) return;
+
+    const reasonsById = result.reasonsById ?? {};
+
+    this.bulkBusyMode.set('reject');
+    this.bulkBusy.set(true);
+
+    try {
+      const results: BulkRunItemReport[] = [];
+
+      for (const r of rows) {
+        const reason = (reasonsById[r.id] ?? '').trim();
+        const res = await this.runDecisionViaDetailsComponent(r, 'reject', { source: 'user', reason });
+        results.push(res);
+
+        const next = new Set(this.selectedIdsSig());
+        next.delete(r.id);
+        this.selectedIdsSig.set(next);
+      }
+
+      const report = this.buildBulkReport('reject', results);
+
+      if (report.successCount) this.showToast(`נדחו ${report.successCount} בקשות`, 'success');
+      if (report.systemRejectedCount) this.showToast(`נדחו אוטומטית ${report.systemRejectedCount}`, 'info');
+
+      await this.loadRequestsFromDb();
+      await this.autoRejectCriticalInvalidRequests('postBulk');
+      this.clearSelection();
+      const enriched = await this.enrichBulkReportFromDb(report);
+      this.openBulkRunReportDialog(enriched);
+    } finally {
+      this.bulkBusy.set(false);
+      this.bulkBusyMode.set(null);
+    }
+  }
+
+
+  private wrapApproveWithValidation(instance: any, row: UiRequest) {
+    if (row.status !== 'PENDING') return;
+    const wrap = (methodName: 'approve' | 'approveSelected') => {
+      const original = instance?.[methodName];
+      if (typeof original !== 'function') return;
+      if (original.__sfWrapped) return;
+
+      const wrapped = async () => {
+        const valid = await this.validation.validate(row, 'approve');
+        if (!valid.ok) {
+          await this.rejectBySystem(row, valid.reason ?? 'בקשה לא רלוונטית');
+          return;
+        }
+
+        return original.call(instance);
+      };
+
+      wrapped.__sfWrapped = true;
+      instance[methodName] = wrapped;
+    };
+
+    wrap('approve');
+    wrap('approveSelected');
+  }
+  get hasSelectableRows(): boolean {
+    return this.filteredRequestsList.some(r => this.isRowSelectable(r));
+  }
+
+  private async autoRejectCriticalInvalidRequests(context: 'load' | 'postBulk') {
+    if (!this.isSecretary || !this.curentUser) return;
+    if (this.autoRejectInFlight) return;
+    this.autoRejectInFlight = true;
+
+    try {
+      const pending = this.allRequests().filter(r => r.status === 'PENDING');
+      if (!pending.length) return;
+
+      let rejected = 0;
+
+      for (const r of pending) {
+        const valid = await this.validation.validate(r, 'auto');
+
+
+
+        if (!valid.ok) {
+          const reason = valid.reason ?? 'הבקשה אינה רלוונטית (קריטי)';
+
+
+          const ok = await this.rejectBySystem(r, reason);
+
+
+
+          if (ok) rejected++;
+        }
+      }
+
+      if (rejected > 0) {
+        this.showToast(
+          context === 'postBulk'
+            ? `נדחו אוטומטית ${rejected} בקשות לא רלוונטיות (קריטי) אחרי פעולה`
+            : `נדחו אוטומטית ${rejected} בקשות לא רלוונטיות (קריטי)`,
+          'info'
+        );
+      }
+    } finally {
+      this.autoRejectInFlight = false;
+    }
+  }
+
+
+  private combineDateTime(dateStr: string, timeStr?: string | null): Date {
+    const d = dateStr?.slice(0, 10);
+    const t = (timeStr ?? '00:00').slice(0, 5);
+    return new Date(`${d}T${t}:00`);
+  }
+
+  private getChildIdForRequest(row: UiRequest): string | null {
+    const p: any = row.payload ?? {};
+    return row.childId ?? p.child_id ?? p.childId ?? null;
+  }
+
+  private getInstructorIdForRequest(row: UiRequest): string | null {
+    const p: any = row.payload ?? {};
+    return (
+      row.instructorId ??
+      p.instructor_id_number ??
+      p.instructor_id ??
+      p.instructorId ??
+      null
+    );
+  }
+
+
+  private getParentUidForRequest(row: UiRequest): string | null {
+    const p: any = row.payload ?? {};
+    const uid = row.requesterUid;
+    if (uid && uid !== 'PUBLIC') return uid;
+    return p.parent_uid ?? p.parent?.uid ?? p.uid ?? null;
+  }
+
+
+
+  private normalizeTimeHHMM(v: any): string | null {
+    if (v == null) return null;
+    const s = String(v).trim();
+    if (!s) return null;
+
+    // אם הגיע ISO עם תאריך (נדיר אצלך אבל שיהיה)
+    // "2026-02-18T10:29:00.000Z" -> "10:29"
+    if (s.includes('T')) {
+      const timePart = s.split('T')[1] ?? '';
+      return timePart.slice(0, 5);
+    }
+
+    // "10:29:00" -> "10:29"
+    if (s.length >= 5) return s.slice(0, 5);
+
+    return null;
+  }
+
+  private timeToMinutes(hhmm: string): number {
+    const [hh, mm] = hhmm.split(':');
+    const h = Number(hh);
+    const m = Number(mm);
+    if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+    return h * 60 + m;
+  }
+
+  // חפיפה של דקות: [aStart,aEnd) מול [bStart,bEnd)
+  private overlapsMinutes(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+    if (aEnd <= aStart || bEnd <= bStart) return false;
+    return aStart < bEnd && bStart < aEnd;
+  }
+
+  private getRequestedDateAndWindow(row: UiRequest): { date: string; startMin: number; endMin: number } | null {
+    const p: any = row.payload ?? {};
+
+    // תאריך רלוונטי
+    const date =
+      (row.requestType === 'NEW_SERIES'
+        ? (row.fromDate ?? p.series_start_date ?? p.start_date ?? null)
+        : (row.fromDate ?? p.occur_date ?? p.from_date ?? null)
+      );
+
+    if (!date) return null;
+
+    // שעות רלוונטיות
+    const startHHMM = this.normalizeTimeHHMM(
+      p.requested_start_time ?? p.start_time ?? p.startTime ?? p.time ?? null
+    );
+
+    // ✅ חדש: סוף מפורש מה־payload
+    const endHHMM = this.normalizeTimeHHMM(
+      p.requested_end_time ?? p.end_time ?? p.endTime ?? null
+    );
+
+    if (!startHHMM) return null;
+
+    const startMin = this.timeToMinutes(startHHMM);
+
+    // fallback אם אין requested_end_time
+    let endMin: number;
+    if (endHHMM) {
+      endMin = this.timeToMinutes(endHHMM);
+    } else {
+      // ברירת מחדל (אם עדיין לא שולחים end): 30 דקות
+      endMin = startMin + 30;
+    }
+
+    return { date: String(date).slice(0, 10), startMin, endMin };
+  }
+
+
+  private shouldValidateInstructor(row: UiRequest): boolean {
+    switch (row.requestType) {
+      case 'INSTRUCTOR_DAY_OFF':
+      case 'CANCEL_OCCURRENCE':
+      case 'NEW_SERIES':
+      case 'MAKEUP_LESSON':
+      case 'FILL_IN':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+
+  private normalizeTimeToSeconds(t: string | null | undefined): string | null {
+    if (!t) return null;
+    const s = t.trim();
+    if (!s) return null;
+    if (s.length === 5) return `${s}:00`;
+    return s;
+  }
+
+
+  private async rejectBySystem(row: UiRequest, reason: string): Promise<boolean> {
+    if (!row?.id) return false;
+
+    await ensureTenantContextReady();
+    const db = dbTenant();
+
+    const note = (reason || 'בקשה לא תקינה').trim();
+    const decidedBy = this.curentUser?.uid ?? null;
+
+    const cfg = this.systemRejectedMail.getConfig(row.requestType as RequestType);
+
+    if (!cfg) {
+      console.warn('No system rejection config for request type:', row.requestType);
+      return false;
+    }
+
+    try {
+      // --------------------------------------------------
+      // מצב 1: פונקציית ענן עושה גם reject וגם notify
+      // --------------------------------------------------
+      if (cfg.mode === 'rejectAndNotify') {
+        const result = await this.systemRejectedMail.send({
+          id: row.id,
+          requestType: row.requestType,
+          reason: note,
+          decidedByUid: decidedBy,
+        });
+
+        const meta = await this.fetchDecisionMeta(row.id);
+
+        if (meta.status === 'REJECTED_BY_SYSTEM') {
+          this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
+          await this.loadRequestsFromDb();
+          this.closeDetails();
+          return true;
+        }
+
+        return false;
+      }
+
+      // --------------------------------------------------
+      // מצב 2: Angular עושה reject, ענן רק שולח מייל
+      // --------------------------------------------------
+      const { data, error } = await db
+        .from('secretarial_requests')
+        .update({
+          status: 'REJECTED_BY_SYSTEM',
+          decided_by_uid: decidedBy,
+          decision_note: note,
+          decided_at: new Date().toISOString(),
+        })
+        .eq('id', row.id)
+        .eq('status', 'PENDING')
+        .select('id')
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
+
+        await this.sendSystemRejectedMail(row, note);
+
+        await this.loadRequestsFromDb();
+        this.closeDetails();
+
+        return true;
+      }
+
+      const meta = await this.fetchDecisionMeta(row.id);
+
+      if (meta.status === 'REJECTED_BY_SYSTEM') {
+        this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
+        await this.loadRequestsFromDb();
+        this.closeDetails();
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      console.error('rejectBySystem failed', e);
+
+      const meta = await this.fetchDecisionMeta(row.id);
+      if (meta.status === 'REJECTED_BY_SYSTEM') {
+        this.patchRequestStatus(row.id, 'REJECTED_BY_SYSTEM');
+        await this.loadRequestsFromDb();
+        this.closeDetails();
+        return true;
+      }
+
+      return false;
+    }
+  }
+  private getRequesterRoleForRequest(row: UiRequest): RequesterRole | null {
+    const p: any = row.payload ?? {};
+    return (row as any).requesterRole ?? p.requested_by_role ?? p.requestedByRole ?? null;
+  }
+
+  // private async checkRequesterActive(
+  //   db: any,
+  //   row: UiRequest,
+  //   mode: ValidationMode
+  // ): Promise<{ ok: boolean; reason?: string }> {
+
+  //   const uid = row.requesterUid;
+  // const role = this.getRequesterRoleForRequest(row); 
+
+  //   if (!uid || !role) return { ok: true };
+
+  //   try {
+  //     switch (role) {
+
+  //       case 'parent': {
+  //         const { data, error } = await db
+  //           .from('parents')
+  //           .select('is_active')
+  //           .eq('uid', uid)
+  //           .maybeSingle();
+
+  //         if (error) return this.handleDbFailure(mode, 'checkRequesterActive(parent)', error);
+  //         if (data?.is_active === false) {
+  //           return { ok: false, reason: 'ההורה שהגיש את הבקשה אינו פעיל' };
+  //         }
+  //         return { ok: true };
+  //       }
+
+  //       case 'instructor': {
+  //         const { data, error } = await db
+  //           .from('instructors')
+  //           .select('status')
+  //           .eq('uid', uid)   // 👈 חשוב: לפי uid, לא id_number
+  //           .maybeSingle();
+
+  //         if (error) return this.handleDbFailure(mode, 'checkRequesterActive(instructor)', error);
+  //         if (!data) {
+  //           return mode === 'auto'
+  //             ? { ok: true }
+  //             : { ok: false, reason: 'המדריך מגיש הבקשה לא נמצא במערכת' };
+  //         }
+  //         if (data.status !== 'Active') {
+  //           return { ok: false, reason: `המדריך מגיש הבקשה אינו פעיל (סטטוס: ${data.status})` };
+  //         }
+  //         return { ok: true };
+  //       }
+
+  //       case 'secretary':
+  //       case 'manager':
+  //       case 'admin':
+  //         return { ok: true };
+
+  //       default:
+  //         return { ok: true };
+  //     }
+  //   } catch (e: any) {
+  //     return this.handleDbFailure(mode, 'checkRequesterActive', e);
+  //   }
+  // }
+  private async openBulkDecisionDialog(
+    mode: 'approve' | 'reject',
+    rows: UiRequest[]
+  ): Promise<BulkDecisionDialogResult> {
+    const items = rows.map(r => ({
+      id: r.id,
+      requestType: this.getRequestTypeLabel(r.requestType), // ✅ יפה בעברית
+      requestedByName: r.requestedByName,
+      summary: r.summary,
+      childName: r.childName,
+      instructorName: r.instructorName,
+      createdAt: r.createdAt,
+    }));
+
+    const ref = this.dialog.open(BulkDecisionDialogComponent, {
+      data: {
+        mode,
+        title: mode === 'approve' ? 'אישור בקשות מסומנות' : 'דחיית בקשות מסומנות',
+        items,
+      },
+      disableClose: true,
+      panelClass: 'ui-bulk-dialog',
+      backdropClass: 'ui-confirm-backdrop',
+    });
+
+    return (await firstValueFrom(ref.afterClosed())) ?? { confirmed: false };
+  }
+  private openBulkRunReportDialog(report: BulkRunReport) {
+    this.dialog.open(BulkRunReportDialogComponent, {
+      data: report,
+      disableClose: false,
+      panelClass: 'ui-bulk-report-dialog',
+      backdropClass: 'ui-confirm-backdrop',
+    });
+  }
+  private async fetchDecisionMeta(requestId: string): Promise<{ status: string | null; note: string | null }> {
+    try {
+      await ensureTenantContextReady();
+      const db = dbTenant();
+
+      const { data, error } = await db
+        .from('secretarial_requests')
+        .select('status, decision_note')
+        .eq('id', requestId)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const status = (data as any)?.status ?? null;
+      const noteRaw = (data as any)?.decision_note ?? null;
+      const note = noteRaw && String(noteRaw).trim() ? String(noteRaw).trim() : null;
+
+      return { status, note };
+    } catch (e) {
+      console.warn('fetchDecisionMeta failed', requestId, e);
+      return { status: null, note: null };
+    }
+  }
+
+  private buildBulkReport(action: 'approve' | 'reject', results: BulkRunItemReport[]): BulkRunReport {
+    const success = results.filter(r => r.kind === 'success');
+    const systemRejected = results.filter(r => r.kind === 'systemRejected');
+    const notProcessed = results.filter(r => r.kind === 'notProcessed');
+
+    return {
+      action,
+      total: results.length,
+
+      successCount: success.length,
+      systemRejectedCount: systemRejected.length,
+      notProcessedCount: notProcessed.length,
+
+      results,
+      success,
+      systemRejected,
+      notProcessed,
+    };
+  }
+
+}
 
 
 
