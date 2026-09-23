@@ -176,7 +176,11 @@
 
           <div class="qa-field" *ngIf="bookingMode === 'series' && seriesMode === 'fixed'">
             <label>כמה מפגשים</label>
-            <input type="number" min="1" [(ngModel)]="repeatWeeks" />
+            <input type="number" min="1" max="50" [(ngModel)]="repeatWeeks" />
+
+            <small class="qa-error" *ngIf="repeatWeeks !== null && (repeatWeeks < 1 || repeatWeeks > 50)">
+              ניתן ליצור סדרה של עד 50 מפגשים.
+            </small>
           </div>
 
           <div class="qa-field" *ngIf="bookingMode === 'special'">

@@ -541,8 +541,13 @@ export class QuickAppointmentComponent implements OnInit {
       }
 
       const weeks = Number(this.repeatWeeks || 0);
-      if (!weeks || weeks < 1) {
+
+      if (!Number.isInteger(weeks) || weeks < 1) {
         throw new Error('יש לבחור כמות מפגשים תקינה');
+      }
+
+      if (weeks > 50) {
+        throw new Error('ניתן ליצור סדרה של עד 50 מפגשים');
       }
 
       return {
