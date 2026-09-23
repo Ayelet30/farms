@@ -315,6 +315,17 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
       max: this.slotMaxTime,
     };
   }
+  get customDayReady(): boolean {
+    if (this.currentView !== 'timeGridDay') {
+      return true;
+    }
+
+    if (!this.shouldSplitDayByInstructor) {
+      return true;
+    }
+
+    return this.customDayResources.length > 0;
+  }
   private getWeekScheduleRange(): {
     min: string;
     max: string;

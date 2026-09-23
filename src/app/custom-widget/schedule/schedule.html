@@ -64,9 +64,10 @@
 
   <!-- תצוגת יום מותאמת -->
   <div *ngIf="currentView === 'timeGridDay'" class="bereshit-calendar calendar-host custom-day-host" #calendarHost>
-    <div class="custom-day-grid" [class.single-column-day]="!shouldSplitDayByInstructor"
-      [style.--day-cols]="customDayResources.length" [style.--slot-count]="customDaySlots.length">
 
+    <div *ngIf="customDayReady; else dayLoading" class="custom-day-grid"
+      [class.single-column-day]="!shouldSplitDayByInstructor" [style.--day-cols]="customDayResources.length"
+      [style.--slot-count]="customDaySlots.length">
       <!-- כותרות מדריכים - רק למזכירה/מנהלת -->
       <ng-container *ngIf="shouldSplitDayByInstructor">
         <div *ngFor="let res of customDayResources; let col = index" class="day-resource-header sticky-cell"
@@ -163,8 +164,15 @@
         </div>
       </div>
     </div>
-  </div>
 
+    <ng-template #dayLoading>
+      <div class="day-loading-placeholder">
+        <div class="day-loading-spinner"></div>
+        <span>טוען לוח...</span>
+      </div>
+    </ng-template>
+
+  </div>
   <!-- שבוע/חודש נשארים FullCalendar -->
   <div *ngIf="currentView !== 'timeGridDay'" class="bereshit-calendar calendar-host">
     <div #calendarHost class="schedule-host">
