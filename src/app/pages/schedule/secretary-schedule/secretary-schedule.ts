@@ -1651,6 +1651,10 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     e.jsEvent.preventDefault();
     e.jsEvent.stopPropagation();
 
+    // סוגרים כרטיס ילד פתוח
+    this.selectedChild = null;
+    this.selectedOccurrence = null;
+
     const dateStr = typeof e.dateStr === 'string' ? e.dateStr : '';
     if (!dateStr) return;
 
@@ -4381,6 +4385,10 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     e.jsEvent.preventDefault();
     e.jsEvent.stopPropagation();
 
+    // אם כרטיס הילד פתוח - סוגרים אותו
+    this.selectedChild = null;
+    this.selectedOccurrence = null;
+
     const dateStr = typeof e.dateStr === 'string' ? e.dateStr : '';
     if (!dateStr) return;
 
@@ -4460,6 +4468,9 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   }
 
   onEventClick(arg: EventClickArg): void {
+    // אם תפריט קליק ימני פתוח - סוגרים אותו
+    this.closeContextMenu();
+
     const ext: any = arg.event.extendedProps || {};
     const meta: any = ext.meta || ext;
 
