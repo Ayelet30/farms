@@ -36,25 +36,39 @@
 
     <mat-form-field appearance="outline" class="full-width">
       <mat-label>סיבת ביטול</mat-label>
+
       <mat-select [(ngModel)]="reasonType">
-        <mat-option value="sick">הילד/ה חולה</mat-option>
-        <mat-option value="personal">סיבה אישית</mat-option>
-        <mat-option value="other">אחר</mat-option>
+
+        <mat-select-trigger>
+          {{
+          reasonType === 'sick'
+          ? 'הילד/ה חולה'
+          : reasonType === 'personal'
+          ? 'סיבה אישית'
+          : reasonType === 'other'
+          ? 'אחר'
+          : 'יש לבחור סיבה'
+          }}
+        </mat-select-trigger>
+
+        <mat-option value="sick">
+          הילד/ה חולה
+        </mat-option>
+
+        <mat-option value="personal">
+          סיבה אישית
+        </mat-option>
+
+        <mat-option value="other">
+          אחר
+        </mat-option>
+
       </mat-select>
     </mat-form-field>
 
-    <mat-form-field
-      *ngIf="reasonType === 'other' || reasonType === 'personal'"
-      appearance="outline"
-      class="full-width"
-    >
+    <mat-form-field *ngIf="reasonType === 'other' || reasonType === 'personal'" appearance="outline" class="full-width">
       <mat-label>פירוט נוסף (אופציונלי)</mat-label>
-      <textarea
-        matInput
-        rows="3"
-        [(ngModel)]="reasonText"
-        placeholder="כתבי כאן פירוט קצר"
-      ></textarea>
+      <textarea matInput rows="3" [(ngModel)]="reasonText" placeholder="כתבי כאן פירוט קצר"></textarea>
     </mat-form-field>
 
     <div class="error" *ngIf="error">{{ error }}</div>
@@ -68,16 +82,10 @@
   </ng-template>
 </div>
 
-  <div mat-dialog-actions align="end" class="dialog-actions">
+<div mat-dialog-actions align="end" class="dialog-actions">
   <button mat-button (click)="onClose()" [disabled]="loading">סגור</button>
-  <button
-    mat-flat-button
-    color="primary"
-    *ngIf="data.canCancel"
-    (click)="onConfirm()"
-    [disabled]="!canSubmit || loading"
-  >
+  <button mat-flat-button color="primary" *ngIf="data.canCancel" (click)="onConfirm()"
+    [disabled]="!canSubmit || loading">
     שליחת בקשת ביטול
   </button>
 </div>
-

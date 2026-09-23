@@ -21,7 +21,7 @@ export interface CancelLessonDialogData {
   lessonType?: string | null;
   status?: string | null;
   canCancel: boolean;
-    isMakeupAllowed?: boolean;
+  isMakeupAllowed?: boolean;
 }
 
 @Component({
@@ -40,37 +40,46 @@ export interface CancelLessonDialogData {
   styleUrls: ['./cancel-lesson-dialog.component.scss'],
 })
 export class CancelLessonDialogComponent {
-  reasonType: 'sick' | 'personal' | 'other' = 'sick';
-  reasonText = '';
+  reasonType: 'sick' | 'personal' | 'other' | null = null; reasonText = '';
   loading = false;
   error: string | null = null;
 
   constructor(
     private dialogRef: MatDialogRef<CancelLessonDialogComponent>,
     @Inject(MAT_DIALOG_DATA) public data: CancelLessonDialogData
-  ) {}
+  ) { }
 
   get canSubmit(): boolean {
     if (!this.data.canCancel) return false;
+
+    // חובה לבחור סיבה
+    if (!this.reasonType) return false;
+
+    // אם נבחר "אחר" - חובה לתת פירוט
     if (this.reasonType === 'other') {
       return this.reasonText.trim().length >= 3;
     }
+
     return true;
   }
-
   private buildReason(): string {
+    if (!this.reasonType) {
+      throw new Error('לא נבחרה סיבת ביטול');
+    }
+
     let base =
       this.reasonType === 'sick'
         ? 'הילד/ה חולה'
         : this.reasonType === 'personal'
-        ? 'סיבה אישית'
-        : 'אחר';
+          ? 'סיבה אישית'
+          : 'אחר';
+
     if (this.reasonText.trim()) {
       base += ` – ${this.reasonText.trim()}`;
     }
+
     return base;
   }
-
   onConfirm() {
     if (!this.canSubmit) return;
     this.loading = true;
