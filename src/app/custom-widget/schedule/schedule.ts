@@ -74,7 +74,7 @@ interface BlockedDayCell {
   startTime: string;         // HH:mm
   endTime?: string | null;   // HH:mm
   reason?: string | null;
-  kind?: 'day_off' | 'not_working' | 'farm_off';
+  kind?: 'day_off' | 'not_working' | 'farm_off' | 'instructor_off';
 }
 
 interface CustomDayBlockedCell {
@@ -83,7 +83,7 @@ interface CustomDayBlockedCell {
   row: number;
   span: number;
   reason?: string | null;
-  kind?: 'day_off' | 'not_working' | 'farm_off';
+  kind?: 'day_off' | 'not_working' | 'farm_off' | 'instructor_off';
 }
 
 type ViewerMode = 'manager' | 'secretary' | 'instructor' | 'parent';
@@ -2369,5 +2369,10 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
     const b = parseInt(clean.slice(4, 6), 16);
 
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  isInstructorDayOffItem(item: any): boolean {
+    const meta = item?.meta || {};
+    return meta?.isInstructorDayOff === true ||
+      meta?.isInstructorDayOff === 'true';
   }
 }

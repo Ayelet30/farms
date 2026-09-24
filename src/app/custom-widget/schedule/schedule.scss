@@ -34,6 +34,11 @@
   }
 }
 
+.day-blocked-overlay.kind-instructor-off {
+  background: rgba(255, 193, 7, 0.22) !important;
+  border: 1px solid rgba(224, 168, 0, 0.55) !important;
+}
+
 .card {
   background: #fff;
   border: 1px solid #e5e5e5;
@@ -676,6 +681,18 @@
   background: #e8f5e9;
   border-color: #66bb6a;
   color: #1b5e20;
+}
+
+.day-lesson-card.instructor-day-off {
+  background: #fff4cc !important;
+  background-color: #fff4cc !important;
+  border-color: #e0a800 !important;
+  color: #7a5600 !important;
+}
+
+.day-lesson-card.instructor-day-off:hover {
+  background: #ffedaa !important;
+  background-color: #ffedaa !important;
 }
 
 .day-lesson-card.status-pending {

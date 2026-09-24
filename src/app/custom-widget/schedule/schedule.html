@@ -120,6 +120,7 @@
       <div *ngFor="let blocked of customDayBlockedCells" class="day-blocked-overlay"
         [class.kind-day-off]="blocked.kind === 'day_off'" [class.kind-not-working]="blocked.kind === 'not_working'"
         [class.kind-farm-off]="blocked.kind === 'farm_off'"
+        [class.kind-instructor-off]="blocked.kind === 'instructor_off'"
         [style.gridColumn]="shouldSplitDayByInstructor ? blocked.col + 1 : 1"
         [style.gridRow]="blocked.row + 2 + ' / span ' + blocked.span" [attr.title]="blocked.reason || 'זמן חסום'">
       </div>
@@ -132,7 +133,7 @@
         <div class="day-cluster-inner" [class.multi]="cluster.items.length > 1">
           <button type="button" *ngFor="let item of cluster.items" class="day-lesson-card"
             [class.status-canceled]="isCanceledItem(item)" [class.status-pending]="isPendingItem(item)"
-            [class.status-approved]="isApprovedItem(item)"
+            [class.status-approved]="isApprovedItem(item)" [class.instructor-day-off]="isInstructorDayOffItem(item)"
             [style.borderInlineStartColor]="getInstructorBorderColor(item)"
             (contextmenu)="onCustomItemRightClick(item, $event)" (click)="onCustomItemClick(item, $event)"
             [title]="buildCustomItemTitle(item)">

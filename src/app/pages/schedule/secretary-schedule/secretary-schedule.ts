@@ -287,7 +287,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     startTime: string;
     endTime?: string | null;
     reason?: string | null;
-    kind?: 'day_off' | 'not_working' | 'farm_off';
+    kind?: 'day_off' | 'not_working' | 'farm_off' | 'instructor_off';
   }> = [];
 
   availableDayCells: Array<{
@@ -1497,7 +1497,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       startTime: string;
       endTime?: string | null;
       reason?: string | null;
-      kind?: 'day_off' | 'not_working' | 'farm_off';
+      kind?: 'day_off' | 'not_working' | 'farm_off' | 'instructor_off';
     }> = [];
 
     const from = range?.start?.slice(0, 10) ?? '';
@@ -1561,7 +1561,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
                 ? 'מדריך ביום אישי'
                 : 'מדריך לא זמין',
 
-        kind: 'day_off',
+        kind: 'instructor_off',
       });
     }
 
