@@ -12,6 +12,7 @@ type PaymentMethod = 'credit_card' | 'cash' | 'bank_transfer' | 'check';
   template: `
     <div class="dialog" dir="rtl">
       <h2>גביית חיובים</h2>
+<div class="rows-scroll">
 
       <div class="row" *ngFor="let row of rows">
         <div class="info">
@@ -28,23 +29,24 @@ type PaymentMethod = 'credit_card' | 'cash' | 'bank_transfer' | 'check';
           <option value="check">שיק</option>
         </select>
 
-    <input
-  class="reference-input"
-  *ngIf="row.paymentMethod === 'bank_transfer'"
-  [(ngModel)]="row.reference"
-  placeholder="מספר אסמכתא"
-/>
+          <input
+           class="reference-input"
+               *ngIf="row.paymentMethod === 'bank_transfer'"
+             [(ngModel)]="row.reference"
+               placeholder="מספר אסמכתא"
+                   />
 
        <input
-  class="reference-input"
-  *ngIf="row.paymentMethod === 'check'"
-  [(ngModel)]="row.checkNumber"
-  placeholder="מספר שיק"
-/>
+               class="reference-input"
+              *ngIf="row.paymentMethod === 'check'"
+                   [(ngModel)]="row.checkNumber"
+                 placeholder="מספר שיק"
+                   />
         <label class="invoice-check">
           <input type="checkbox" [(ngModel)]="row.shouldCreateInvoice" />
           להפיק חשבונית/קבלה
         </label>
+      </div>
       </div>
 
       <div class="error" *ngIf="error()">{{ error() }}</div>
@@ -56,10 +58,16 @@ type PaymentMethod = 'credit_card' | 'cash' | 'bank_transfer' | 'check';
     </div>
   `,
   styles: [`
-    .dialog {
-      padding: 24px;
-      font-family: Heebo, Arial, sans-serif;
-    }
+   .dialog {
+  padding: 24px;
+  font-family: Heebo, Arial, sans-serif;
+
+  display: flex;
+  flex-direction: column;
+
+  max-height: 85vh;
+  box-sizing: border-box;
+}
 
     h2 {
       margin: 0 0 18px;
@@ -99,13 +107,19 @@ grid-template-columns: 1.3fr 1fr 180px 1fr;      gap: 10px;
       white-space: nowrap;
     }
 
-    .actions {
-      display: flex;
-      justify-content: flex-start;
-      gap: 10px;
-      margin-top: 20px;
-      direction: ltr;
-    }
+   .actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 10px;
+
+  margin-top: 20px;
+  padding-top: 16px;
+
+  border-top: 1px solid #eee;
+  direction: ltr;
+
+  flex-shrink: 0;
+}
 
     button {
       border-radius: 8px;
@@ -119,7 +133,15 @@ grid-template-columns: 1.3fr 1fr 180px 1fr;      gap: 10px;
       background: #333;
       color: white;
     }
+.rows-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
 
+  flex: 1;
+  min-height: 0;
+
+  padding-left: 6px;
+}
     .error {
       margin-top: 12px;
       color: #b42318;

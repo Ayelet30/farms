@@ -160,7 +160,7 @@ export class SecretaryParentBillingComponent implements OnInit {
   pageIndex = signal<number>(0);
   totalChargesCount = signal<number>(0);
   openChargesCount = signal<number>(0);
-allChargesCount = signal<number>(0);
+  allChargesCount = signal<number>(0);
 
   totalPages = computed(() =>
     Math.max(Math.ceil(this.totalChargesCount() / this.pageSize()), 1)
@@ -350,27 +350,27 @@ allChargesCount = signal<number>(0);
         dateTo: this.dateTo(),
       });
       const [openResult, allResult] = await Promise.all([
-  this.payments.listParentCharges({
-    limit: 1,
-    offset: 0,
-    onlyOpen: true,
-    parentName: this.parentNameFilter(),
-    dateFrom: this.dateFrom(),
-    dateTo: this.dateTo(),
-  }),
+        this.payments.listParentCharges({
+          limit: 1,
+          offset: 0,
+          onlyOpen: true,
+          parentName: this.parentNameFilter(),
+          dateFrom: this.dateFrom(),
+          dateTo: this.dateTo(),
+        }),
 
-  this.payments.listParentCharges({
-    limit: 1,
-    offset: 0,
-    onlyOpen: false,
-    parentName: this.parentNameFilter(),
-    dateFrom: this.dateFrom(),
-    dateTo: this.dateTo(),
-  }),
-]);
+        this.payments.listParentCharges({
+          limit: 1,
+          offset: 0,
+          onlyOpen: false,
+          parentName: this.parentNameFilter(),
+          dateFrom: this.dateFrom(),
+          dateTo: this.dateTo(),
+        }),
+      ]);
 
-this.openChargesCount.set(openResult.count ?? 0);
-this.allChargesCount.set(allResult.count ?? 0);
+      this.openChargesCount.set(openResult.count ?? 0);
+      this.allChargesCount.set(allResult.count ?? 0);
 
       this.totalChargesCount.set(count ?? 0);
 
@@ -1207,7 +1207,9 @@ this.allChargesCount.set(allResult.count ?? 0);
     const ref = this.dialog.open(CollectPaymentsDialogComponent, {
       width: '820px',
       maxWidth: '96vw',
+      maxHeight: '90vh',
       autoFocus: false,
+      panelClass: 'collect-payments-dialog-panel',
       data: { charges: selected },
     });
 
