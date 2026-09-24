@@ -50,9 +50,19 @@
     </ng-container>
   </span>
 
-  <span *ngIf="!agentInstalled && !agentChecking">
-    יש להתקין ולהפעיל את התוכנה לפני שליחת שיעורים.
+  <span *ngIf=" (!agentInstalled || agentUpdateAvailable) && !agentChecking">
+   {{
+  agentDownloading
+    ? 'מכין הורדה...'
+    : agentUpdateAvailable
+      ? 'הורדת עדכון ' + latestAgentVersion
+      : 'הורדת תוכנת הדיווח'
+}}
   </span>
+  <span *ngIf="agentInstalled && agentUpdateAvailable">
+  קיימת גרסה חדשה {{ latestAgentVersion }}
+  · הגרסה המותקנת {{ agentVersion }}
+</span>
 
   <span
     *ngIf="agentDownloadError"
@@ -134,16 +144,43 @@
         <span>{{ dataSource.data.length }} שיעורים בתוצאות</span>
       </div>
 
-      <button
-        type="button"
-        class="link-btn"
-        (click)="resetFilters()"
-      >
-        איפוס הכול
-      </button>
+      <div class="section-actions">
+        <button
+          *ngIf="activeTab === 'MACCABI'"
+          type="button"
+          class="link-btn"
+          [class.active]="groupByChildId"
+          [attr.aria-pressed]="groupByChildId"
+          (click)="toggleGroupByChildId()"
+        >
+          {{ groupByChildId ? 'ביטול קיבוץ לפי ת״ז' : 'קיבוץ לפי ת״ז' }}
+        </button>
+
+        <button
+          type="button"
+          class="link-btn"
+          [attr.aria-expanded]="filtersExpanded"
+          aria-controls="claims-filters-grid"
+          (click)="toggleFilters()"
+        >
+          {{ filtersExpanded ? 'כיווץ סינונים ▲' : 'הרחבת סינונים ▼' }}
+        </button>
+
+        <button
+          type="button"
+          class="link-btn"
+          (click)="resetFilters()"
+        >
+          איפוס הכול
+        </button>
+      </div>
     </div>
 
-    <div class="filters-grid">
+    <div
+      *ngIf="filtersExpanded"
+      id="claims-filters-grid"
+      class="filters-grid"
+    >
       <label class="filter-field">
         <span>ילד או תעודת זהות</span>
 

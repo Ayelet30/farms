@@ -839,6 +839,7 @@ export type SecretaryChargeRow = {
   parent_name: string;
   parent_phone: string | null;
   parent_email: string | null;
+  card_last4: string | null;
   amount: number;
   method: 'one_time' | 'subscription';
   payment_method: string | null;   // 👈 להוסיף
@@ -863,6 +864,7 @@ export type SecretaryRiderPaymentRow = {
   invoice_url: string | null;
   tranzila_invoice_url: string | null;
   charge_id: string | null;
+  card_last4: string | null;
 };
 export type ParentChargeRow = {
   id: string;
@@ -1038,12 +1040,20 @@ export async function listAllChargesForSecretary(opts: {
     .range(offset, offset + limit - 1);
 
   if (search) {
-    // חיפוש לפי שם, טלפון, מייל או UID
-    const s = `%${search}%`;
+  const cleanSearch = search.trim();
+  const digitsOnly = cleanSearch.replace(/\D/g, '');
+
+  if (/^\d{4}$/.test(digitsOnly)) {
+    // חיפוש מדויק לפי ארבע ספרות אחרונות
+    query = query.eq('card_last4', digitsOnly);
+  } else {
+    const s = `%${cleanSearch}%`;
+
     query = query.or(
       `parent_name.ilike.${s},parent_phone.ilike.${s},parent_email.ilike.${s},parent_uid.ilike.${s}`
     );
   }
+}
 
   const { data, error, count } = await query;
 
@@ -1071,11 +1081,19 @@ export async function listAllRiderPaymentsForSecretary(opts: {
     .range(offset, offset + limit - 1);
 
   if (search) {
-    const s = `%${search}%`;
+  const cleanSearch = search.trim();
+  const digitsOnly = cleanSearch.replace(/\D/g, '');
+
+  if (/^\d{4}$/.test(digitsOnly)) {
+    query = query.eq('card_last4', digitsOnly);
+  } else {
+    const s = `%${cleanSearch}%`;
+
     query = query.or(
       `rider_name.ilike.${s},rider_phone.ilike.${s},rider_email.ilike.${s},rider_uid.ilike.${s}`
     );
   }
+}
 
   const { data, error, count } = await query;
 

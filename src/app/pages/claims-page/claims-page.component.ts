@@ -18,7 +18,6 @@ import {
   MatPaginatorModule,
 } from '@angular/material/paginator';
 
-import { HelthAgentService } from '../../services/helth-agent.service';
 import { dbTenant } from '../../services/supabaseClient.service';
 import {
   ClaimsApiService,
@@ -119,15 +118,19 @@ interface FiltersState {
 export class ClaimsPageComponent implements AfterViewInit, OnDestroy {
   constructor(
     private claimsApi: ClaimsApiService,
-    private tenantSvc: SupabaseTenantService,
-    private healthAgent: HelthAgentService
+    private tenantSvc: SupabaseTenantService
   ) {}
 
   agentDownloading = false;
 agentDownloadError: string | null = null;
 
-private readonly maccabiAgentDownloadUrl =
-  'https://aztgdhcvucvpvsmusfpz.supabase.co/storage/v1/object/public/agent-releases/maccabi/1.0.0/MoachMaccabiAgent-Setup-1.0.0.exe';
+private readonly maccabiAgentManifestUrl =
+  'https://aztgdhcvucvpvsmusfpz.supabase.co/storage/v1/object/public/agent-releases/maccabi/latest.json';
+
+latestAgentVersion: string | null = null;
+latestAgentDownloadUrl: string | null = null;
+agentUpdateAvailable = false;
+
 
   activeTab: HmoTab = 'CLALIT';
 
@@ -149,6 +152,9 @@ private readonly maccabiAgentDownloadUrl =
   @ViewChild(MatPaginator) paginator!: MatPaginator;
 
   filters: FiltersState = this.createDefaultFilters();
+
+  filtersExpanded = true;
+  groupByChildId = false;
 
   get displayedColumns(): string[] {
     const columns = [
@@ -174,6 +180,8 @@ private readonly maccabiAgentDownloadUrl =
     await this.tenantSvc.ensureTenantContextReady?.();
 
     this.dataSource.paginator = this.paginator;
+
+    await this.loadLatestAgentRelease();
 
     await this.checkHealthAgent();
     await this.reloadCurrentTab();
@@ -215,31 +223,64 @@ private readonly maccabiAgentDownloadUrl =
 
     this.selectedIds.clear();
     this.filters = this.createDefaultFilters();
+    this.groupByChildId = false;
 
     await this.reloadCurrentTab();
   }
 
-  async checkHealthAgent(): Promise<void> {
-    if (this.agentChecking) {
-      return;
-    }
-
-    this.agentChecking = true;
-
-    try {
-      const health = await this.healthAgent.checkHealth();
-
-      this.agentInstalled = Boolean(health?.ok);
-      this.agentVersion = health?.version ?? null;
-    } catch {
-      this.agentInstalled = false;
-      this.agentVersion = null;
-    } finally {
-      this.agentChecking = false;
-    }
+ async checkHealthAgent(): Promise<void> {
+  if (this.agentChecking) {
+    return;
   }
 
-  async downloadHealthAgent(): Promise<void> {
+  this.agentChecking = true;
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    3_000
+  );
+
+  try {
+    const response = await fetch(
+      'http://127.0.0.1:38473/health',
+      {
+        method: 'GET',
+        cache: 'no-store',
+        signal: controller.signal,
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Agent health check returned ${response.status}`
+      );
+    }
+
+    const health = await response.json();
+
+    this.agentInstalled =
+      health?.ok === true &&
+      health?.app === 'moach-maccabi-agent';
+
+    this.agentVersion = this.agentInstalled
+      ? health?.version ?? null
+      : null;
+
+  } catch (error) {
+    console.error('Health Agent check failed:', error);
+
+    this.agentInstalled = false;
+    this.agentVersion = null;
+  } finally {
+    window.clearTimeout(timeoutId);
+    this.agentChecking = false;
+  }
+
+  this.updateAgentVersionState();
+}
+
+async downloadHealthAgent(): Promise<void> {
   if (this.agentDownloading) {
     return;
   }
@@ -248,37 +289,33 @@ private readonly maccabiAgentDownloadUrl =
   this.agentDownloadError = null;
 
   try {
-    /*
-     * בדיקה מקדימה מאפשרת להציג הודעה ברורה אם NetFree,
-     * הדפדפן או שרת הקבצים חוסמים את הכתובת.
-     */
-    const response = await fetch(this.maccabiAgentDownloadUrl, {
-      method: 'HEAD',
-      cache: 'no-store',
-    });
+    await this.loadLatestAgentRelease();
 
-    if (!response.ok) {
+    if (!this.latestAgentDownloadUrl) {
       throw new Error(
-        `Download file returned HTTP ${response.status}`
+        'לא נמצאה גרסה זמינה להורדה.'
       );
     }
 
-    const downloadLink = document.createElement('a');
+    const link = document.createElement('a');
 
-    downloadLink.href = this.maccabiAgentDownloadUrl;
-    downloadLink.target = '_blank';
-    downloadLink.rel = 'noopener noreferrer';
-    downloadLink.download =
-      'MoachMaccabiAgent-Setup-1.0.0.exe';
+    link.href = this.latestAgentDownloadUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
 
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    downloadLink.remove();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   } catch (error) {
-    console.error('downloadHealthAgent failed:', error);
+    console.error(
+      'Agent download failed:',
+      error
+    );
 
     this.agentDownloadError =
-      'לא הצלחנו להתחיל את ההורדה. ייתכן שסינון האינטרנט חסם את קובץ ההתקנה. ניתן לפנות לתמיכה או לנסות שוב.';
+      error instanceof Error
+        ? error.message
+        : 'לא הצלחנו להוריד את תוכנת הדיווח.';
   } finally {
     this.agentDownloading = false;
   }
@@ -632,7 +669,7 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
       return true;
     });
 
-    this.dataSource.data = filtered;
+    this.dataSource.data = this.sortFilteredRows(filtered);
 
     const filteredIds = new Set(filtered.map((row) => row.id));
 
@@ -643,6 +680,52 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
     }
 
     this.paginator?.firstPage();
+  }
+
+  toggleFilters(): void {
+    this.filtersExpanded = !this.filtersExpanded;
+  }
+
+  toggleGroupByChildId(): void {
+    if (this.activeTab !== 'MACCABI') {
+      return;
+    }
+
+    this.groupByChildId = !this.groupByChildId;
+    this.applyFilters();
+  }
+
+  private sortFilteredRows(rows: LessonClaimRow[]): LessonClaimRow[] {
+    if (!this.groupByChildId || this.activeTab !== 'MACCABI') {
+      return rows;
+    }
+
+    return [...rows].sort((a, b) => {
+      // תעודת הזהות היא מפתח הקיבוץ. במקרה שהיא חסרה משתמשים
+      // במזהה הילד, כדי שגם הרשומות החסרות יישארו יחד.
+      const aChildKey = a.childIdNumber || a.child_id;
+      const bChildKey = b.childIdNumber || b.child_id;
+
+      const childComparison = aChildKey.localeCompare(
+        bChildKey,
+        'he',
+        { numeric: true, sensitivity: 'base' }
+      );
+
+      if (childComparison !== 0) {
+        return childComparison;
+      }
+
+      const dateComparison = b.occur_date.localeCompare(a.occur_date);
+
+      if (dateComparison !== 0) {
+        return dateComparison;
+      }
+
+      return String(a.start_time ?? '').localeCompare(
+        String(b.start_time ?? '')
+      );
+    });
   }
 
   private matchesReportState(
@@ -1167,4 +1250,92 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
   displayStatusClass(status: string): string {
     return `st-${status.toLowerCase()}`;
   }
+
+  private compareVersions(
+  installed: string,
+  latest: string
+): number {
+  const installedParts = installed
+    .split('.')
+    .map((value) => Number(value) || 0);
+
+  const latestParts = latest
+    .split('.')
+    .map((value) => Number(value) || 0);
+
+  const length = Math.max(
+    installedParts.length,
+    latestParts.length
+  );
+
+  for (let index = 0; index < length; index += 1) {
+    const installedValue =
+      installedParts[index] ?? 0;
+
+    const latestValue =
+      latestParts[index] ?? 0;
+
+    if (installedValue < latestValue) {
+      return -1;
+    }
+
+    if (installedValue > latestValue) {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
+private updateAgentVersionState(): void {
+  this.agentUpdateAvailable =
+    Boolean(
+      this.agentInstalled &&
+      this.agentVersion &&
+      this.latestAgentVersion &&
+      this.compareVersions(
+        this.agentVersion,
+        this.latestAgentVersion
+      ) < 0
+    );
+}
+
+async loadLatestAgentRelease(): Promise<void> {
+  try {
+    const response = await fetch(
+      `${this.maccabiAgentManifestUrl}?t=${Date.now()}`,
+      {
+        cache: 'no-store',
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Manifest request failed: ${response.status}`
+      );
+    }
+
+    const manifest = await response.json();
+
+    this.latestAgentVersion =
+      String(manifest?.version ?? '').trim() || null;
+
+    this.latestAgentDownloadUrl =
+      String(
+        manifest?.downloadUrl ?? ''
+      ).trim() || null;
+
+    this.updateAgentVersionState();
+  } catch (error) {
+    console.error(
+      'Could not load latest Agent release:',
+      error
+    );
+
+    this.latestAgentVersion = null;
+    this.latestAgentDownloadUrl = null;
+    this.agentUpdateAvailable = false;
+  }
+}
+
 }

@@ -101,6 +101,17 @@ function toHourMinute(value: any): string {
   return s.length >= 5 ? s.slice(0, 5) : s;
 }
 
+function formatDateIL(value: any): string {
+  const s = String(value ?? '').trim();
+  if (!s) return '';
+
+  const dateOnly = s.slice(0, 10);
+  const match = dateOnly.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) return `${match[3]}.${match[2]}.${match[1]}`;
+
+  return s;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -213,57 +224,79 @@ export const sendFarmDayOffCancellationEmails = onRequest(
           continue;
         }
 
-        const parentName = normStr(rows[0]?.parent_name || 'הורה יקר/ה', 120);
-        const safeParentName = escapeHtml(parentName);
+        const instructorName = normStr(rows[0]?.instructor_name || 'המדריך/ה', 120);
+        const safeInstructorName = escapeHtml(instructorName);
 
         const htmlItems = rows
           .map((row) => {
             const childName = escapeHtml(normStr(row.child_name || 'ללא שם', 150));
-            const occurDate = escapeHtml(normStr(row.occur_date || '', 50));
+            const occurDate = escapeHtml(formatDateIL(row.occur_date));
             const start = escapeHtml(toHourMinute(row.start_time));
-            const end = escapeHtml(toHourMinute(row.end_time));
-            const lessonType = escapeHtml(normStr(row.lesson_type || '', 100));
-
-            const lessonTypeText = lessonType ? ` – ${lessonType}` : '';
-            return `<li><strong>${childName}</strong> – ${occurDate} – ${start}-${end}${lessonTypeText}</li>`;
+            return `
+              <p>
+                <strong>
+                  הטיפול של ${childName}, שיתקיים בתאריך ${occurDate}
+                  בשעה ${start}, מבוטל ואינו מחויב.
+                </strong>
+              </p>
+            `;
           })
           .join('');
 
         const textItems = rows
           .map((row) => {
             const childName = normStr(row.child_name || 'ללא שם', 150);
-            const occurDate = normStr(row.occur_date || '', 50);
+            const occurDate = formatDateIL(row.occur_date);
             const start = toHourMinute(row.start_time);
-            const end = toHourMinute(row.end_time);
-            const lessonType = normStr(row.lesson_type || '', 100);
-            return `- ${childName} | ${occurDate} | ${start}-${end}${lessonType ? ` | ${lessonType}` : ''}`;
+            return `הטיפול של ${childName}, שיתקיים בתאריך ${occurDate} בשעה ${start}, מבוטל ואינו מחויב.`;
           })
-          .join('\n');
+          .join('\n\n');
 
-        const subject = 'עדכון מהחווה: שיעור בוטל עקב יום מיוחד';
+        const subject = 'עדכון מחוות בראשית – ביטול טיפול';
 
         const html = `
           <div dir="rtl" style="font-family: Arial, sans-serif; line-height: 1.7; color: #1f2937;">
-            <p>שלום ${safeParentName},</p>
-            <p>עקב <strong>${escapeHtml(reason)}</strong>, השיעורים הבאים בוטלו:</p>
-            <ul style="padding-right: 18px;">
-              ${htmlItems}
-            </ul>
-            <p>לשאלות נוספות ניתן לפנות למזכירות.</p>
-            <p>בברכה,<br>צוות החווה</p>
+            <p><strong>הורים יקרים, שלום וברכה,</strong></p>
+
+            <p>
+              עקב היעדרות של המדריך/ה ${safeInstructorName}
+              בשל מחלה / יום חופש,
+            </p>
+
+            ${htmlItems}
+
+            <p>
+              <strong>שימו לב –</strong>
+              הביטול תקף למטופלים של ${safeInstructorName} בלבד.
+              טיפולים אצל מדריכים אחרים מתקיימים כרגיל.
+            </p>
+
+            <p>
+              ככל שיתאפשר ובהתאם לזמינות הקיימת במערכת,
+              החווה תיצור קשר להציע מועד חלופי.
+            </p>
+
+            <p><strong>טיפול חלופי שיתקיים יחויב כרגיל.</strong></p>
+
+            <p>בברכה,<br>חוות בראשית.</p>
           </div>
         `;
 
         const text = [
-          `שלום ${parentName},`,
+          'הורים יקרים, שלום וברכה,',
           '',
-          `עקב ${reason}, השיעורים הבאים בוטלו:`,
+          `עקב היעדרות של המדריך/ה ${instructorName} בשל מחלה / יום חופש,`,
+          '',
           textItems,
           '',
-          'לשאלות נוספות ניתן לפנות למזכירות.',
+          `שימו לב – הביטול תקף למטופלים של ${instructorName} בלבד. טיפולים אצל מדריכים אחרים מתקיימים כרגיל.`,
+          '',
+          'ככל שיתאפשר ובהתאם לזמינות הקיימת במערכת, החווה תיצור קשר להציע מועד חלופי.',
+          '',
+          'טיפול חלופי שיתקיים יחויב כרגיל.',
           '',
           'בברכה,',
-          'צוות החווה',
+          'חוות בראשית.',
         ].join('\n');
 
         try {

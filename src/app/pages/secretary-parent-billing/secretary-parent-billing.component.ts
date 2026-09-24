@@ -23,11 +23,18 @@ type ChargeWithPaymentStatus = ParentChargeRow & {
   paymentBlockReason?: string | null;
 
   collectedPaymentMethod?: string | null;
+  failure_reason?: string | null;
 };
 type ParentChildEmailInfo = {
   first_name: string | null;
   last_name: string | null;
   gov_id: string | null;
+};
+type PaymentRunReportRow = {
+  parentName: string;
+  amountAgorot: number;
+  status: 'success' | 'failed';
+  reason: string;
 };
 @Component({
   selector: 'app-secretary-parent-billing',
@@ -372,7 +379,7 @@ export class SecretaryParentBillingComponent implements OnInit {
       this.openChargesCount.set(openResult.count ?? 0);
       this.allChargesCount.set(allResult.count ?? 0);
 
-      this.totalChargesCount.set(count ?? 0);
+this.totalChargesCount.set(count ?? 0);
 
       const summary = await this.payments.getParentChargesSummary({
         onlyOpen: this.activeTab() === 'open',
@@ -450,22 +457,17 @@ export class SecretaryParentBillingComponent implements OnInit {
         const hasExpiredPaymentMethod =
           hasPaymentMethod && !hasValidPaymentMethod;
 
-        return {
-          ...c,
-
-          hasPaymentMethod,
-          hasExpiredPaymentMethod,
-
-          paymentBlockReason: !hasPaymentMethod
-            ? 'אין להורה אמצעי תשלום פעיל'
-            : hasExpiredPaymentMethod
-              ? 'כל אמצעי התשלום של ההורה פגי תוקף'
-              : null,
-
-          collectedPaymentMethod:
-            paymentMethodByCharge.get(c.id) ?? null,
-        };
-      });
+      return {
+        ...c,
+        hasPaymentMethod,
+        hasExpiredPaymentMethod,
+        paymentBlockReason: !hasPaymentMethod
+          ? 'אין להורה אמצעי תשלום פעיל'
+          : hasExpiredPaymentMethod
+            ? 'כל אמצעי התשלום של ההורה פגי תוקף'
+            : null,
+      };
+    });
 
       this.charges.set(rowsWithPaymentStatus);
       this.selectedChargeIds.set(new Set());
@@ -1219,6 +1221,8 @@ export class SecretaryParentBillingComponent implements OnInit {
     });
   }
   async collectSelectedPayments(rows: any[]) {
+    const reportRows: PaymentRunReportRow[] = [];
+
     try {
       this.loading.set(true);
       this.error.set(null);
@@ -1227,27 +1231,54 @@ export class SecretaryParentBillingComponent implements OnInit {
       const farm = getCurrentFarmMetaSync();
       const schema = farm?.schema_name ?? 'public';
 
+      // כל חיוב מטופל בנפרד: כישלון של הורה אחד לא עוצר את יתר הקבוצה.
       for (const row of rows) {
-        if (row.paymentMethod === 'credit_card') {
-          await this.tranzila.chargeSelectedChargesForParent({
-            tenantSchema: schema,
-            parentUid: row.parentUid,
-            chargeIds: [row.chargeId],
-            secretaryEmail: '',
-            invoiceExtraLinesByChild: this.invoiceExtraLinesByChild(),
+        try {
+          if (row.paymentMethod === 'credit_card') {
+            await this.tranzila.chargeSelectedChargesForParent({
+              tenantSchema: schema,
+              parentUid: row.parentUid,
+              chargeIds: [row.chargeId],
+              secretaryEmail: '',
+              invoiceExtraLinesByChild: this.invoiceExtraLinesByChild(),
+            });
+          } else {
+            await this.tranzila.createManualPaymentAndInvoice({
+              tenantSchema: schema,
+              parentUid: row.parentUid,
+              chargeId: row.chargeId,
+              paymentMethod: row.paymentMethod,
+
+              reference: row.reference || null,
+              checkNumber: row.checkNumber || null,
+
+              shouldCreateInvoice: row.shouldCreateInvoice === true,
+              invoiceExtraLinesByChild: this.invoiceExtraLinesByChild(),
+            });
+          }
+
+          reportRows.push({
+            parentName: row.parentName || row.parentUid || 'הורה לא ידוע',
+            amountAgorot: Number(row.amountAgorot ?? 0),
+            status: 'success',
+            reason: 'החיוב עבר בהצלחה',
           });
-        } else {
-          await this.tranzila.createManualPaymentAndInvoice({
-            tenantSchema: schema,
-            parentUid: row.parentUid,
-            chargeId: row.chargeId,
-            paymentMethod: row.paymentMethod,
+        } catch (rowError: any) {
+          console.error('[collectSelectedPayments] charge failed:', row, rowError);
 
-            reference: row.reference || null,
-            checkNumber: row.checkNumber || null,
+          if (row.parentUid) {
+            const nextFailedParents = new Set(this.failedPaymentParentUids());
+            nextFailedParents.add(row.parentUid);
+            this.failedPaymentParentUids.set(nextFailedParents);
+          }
 
-            shouldCreateInvoice: row.shouldCreateInvoice === true,
-            invoiceExtraLinesByChild: this.invoiceExtraLinesByChild(),
+          const serverError = paymentFailureReason(rowError);
+          const parentLabel = row.parentName || row.parentUid || 'הורה לא ידוע';
+          reportRows.push({
+            parentName: parentLabel,
+            amountAgorot: Number(row.amountAgorot ?? 0),
+            status: 'failed',
+            reason: serverError,
           });
         }
       }
@@ -1255,14 +1286,8 @@ export class SecretaryParentBillingComponent implements OnInit {
       this.successMessage.set('הגבייה בוצעה בהצלחה');
 
       await this.loadCharges();
-
       this.selectedChargeIds.set(new Set());
-
-      setTimeout(() => {
-        if (this.successMessage() === 'הגבייה בוצעה בהצלחה') {
-          this.successMessage.set(null);
-        }
-      }, 4000);
+      this.successMessage.set('הגבייה בוצעה בהצלחה');
     } catch (e: any) {
       console.error('[collectSelectedPayments] error full:', e);
 
@@ -1864,4 +1889,163 @@ export class DeleteCreditConfirmDialogComponent {
     this.ref.close(confirm);
   }
 
+}
+
+/** ממיר שגיאות טכניות של חברת האשראי להסבר ברור למשתמשת. */
+function paymentFailureReason(error: any): string {
+    const raw = String(
+      error?.error?.error ||
+      error?.error?.message ||
+      error?.message ||
+      ''
+    ).trim();
+
+    const responseCode = raw.match(/processor_response_code\s*[=:]\s*(\d{3})/i)?.[1];
+    const tranzilaReasons: Record<string, string> = {
+      '001': 'הכרטיס חסום. יש לבקש מההורה אמצעי תשלום אחר או לפנות לחברת האשראי.',
+      '004': 'העסקה לא אושרה על ידי חברת האשראי. ניתן לפנות לחברת האשראי לבירור ולקבלת מספר אישור, או לנסות אמצעי תשלום אחר.',
+      '005': 'הכרטיס זוהה ככרטיס מזויף ויש להחרימו. אין לנסות לחייב אותו שוב.',
+      '006': 'פרטי האימות של הכרטיס שגויים (CVV או מספר זהות). יש לבדוק את הפרטים ולנסות שוב.',
+      '007': 'אימות נתוני העסקה המאובטחת נכשל. יש לפנות לחברת האשראי או לנסות אמצעי תשלום אחר.',
+      '008': 'בדיקת פרטי הכתובת של הכרטיס נכשלה. יש לבדוק את הפרטים או לפנות לחברת האשראי.',
+      '009': 'החיוב נדחה עקב תקלה בתקשורת עם חברת האשראי. ניתן לנסות שוב, ואם התקלה נמשכת לפנות לחברת האשראי.',
+      '010': 'התקבל אישור חלקי בלבד לעסקה. יש לפנות לחברת האשראי או לבחור אמצעי תשלום אחר.',
+      '011': 'העסקה נדחתה עקב חוסר בתנאי ההטבה או הזכאות הנדרשים בכרטיס.',
+      '012': 'אין למסוף אישור לסלוק כרטיס מסוג זה. יש להשתמש בכרטיס אחר או לפנות לחברת האשראי.',
+      '013': 'העסקה נדחתה עקב קוד יתרה שגוי.',
+      '014': 'הכרטיס אינו משויך לרשת הסליקה המתאימה. יש להשתמש באמצעי תשלום אחר.',
+      '015': 'הכרטיס אינו בתוקף או שתאריך התוקף שהוזן שגוי. יש לעדכן את פרטי הכרטיס.',
+      '016': 'אין לבית העסק הרשאה לבצע עסקה במטבע שנבחר.',
+      '017': 'אין לבית העסק הרשאה לסוג האשראי שנבחר. יש לנסות אמצעי תשלום אחר.',
+      '026': 'אימות מספר הזהות נכשל. יש לבדוק את מספר הזהות או לפנות לחברת האשראי.',
+      '041': 'העסקה מחייבת בדיקת יתרה מול חברת האשראי לפני ביצוע החיוב.',
+      '042': 'העסקה אינה עומדת בתנאי בדיקת היתרה הנדרשים. יש לפנות לחברת האשראי.',
+      '051': 'חסרים נתונים נדרשים לביצוע העסקה. יש לבדוק את פרטי הכרטיס.',
+      '052': 'חסרים נתונים נדרשים לביצוע העסקה. יש לבדוק את פרטי הכרטיס.',
+      '053': 'חסרים נתונים נדרשים לביצוע העסקה. יש לבדוק את פרטי הכרטיס.',
+      '055': 'חסרים נתונים נדרשים לביצוע העסקה. יש לבדוק את פרטי הכרטיס.',
+      '056': 'חסרים נתונים נדרשים לביצוע העסקה. יש לבדוק את פרטי הכרטיס.',
+      '057': 'חסרים נתונים נדרשים לביצוע העסקה. יש לבדוק את פרטי הכרטיס.',
+    };
+
+    if (responseCode) {
+      return tranzilaReasons[responseCode] ||
+        'העסקה נדחתה על ידי חברת האשראי. יש לפנות לחברת האשראי לבירור או לנסות אמצעי תשלום אחר.';
+    }
+
+    const normalized = raw.toLowerCase();
+    if (normalized.includes('no active payment profiles')) {
+      return 'לא נמצא להורה אמצעי תשלום פעיל. יש לעדכן כרטיס אשראי ולנסות שוב.';
+    }
+    if (normalized.includes('expired')) {
+      return 'תוקף כרטיס האשראי פג. יש לעדכן אמצעי תשלום ולנסות שוב.';
+    }
+    if (normalized.includes('amount_is_zero')) {
+      return 'לא קיימת יתרה לחיוב ולכן לא בוצעה עסקה.';
+    }
+
+    return 'החיוב לא עבר. יש לבדוק את אמצעי התשלום או לפנות לחברת האשראי לבירור.';
+}
+
+@Component({
+  selector: 'app-payment-run-report-dialog',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <section class="run-report" dir="rtl">
+      <header>
+        <div>
+          <h2>דוח הרצת גבייה</h2>
+          <p>ההרצה הסתיימה. ניתן לעבור על התוצאות לפני איפוס הבחירות.</p>
+        </div>
+      </header>
+
+      <div class="summary">
+        <div class="summary-card total"><strong>{{ data.totalCount }}</strong><span>סה״כ</span></div>
+        <div class="summary-card success"><strong>{{ data.succeededCount }}</strong><span>עברו</span></div>
+        <div class="summary-card failed"><strong>{{ data.failedCount }}</strong><span>נכשלו</span></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>הורה</th>
+              <th>סכום</th>
+              <th>תוצאה</th>
+              <th>סיבה / פירוט</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of data.rows">
+              <td class="parent-name">{{ row.parentName }}</td>
+              <td>{{ formatNis(row.amountAgorot) }}</td>
+              <td>
+                <span class="status" [class.success]="row.status === 'success'" [class.failed]="row.status === 'failed'">
+                  {{ row.status === 'success' ? 'עבר' : 'נכשל' }}
+                </span>
+              </td>
+              <td class="reason">{{ row.reason }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <footer>
+        <span>בלחיצה על אישור כל הבחירות יבוטלו.</span>
+        <button type="button" (click)="approve()">אישור וסגירת הדוח</button>
+      </footer>
+    </section>
+  `,
+  styles: [`
+    .run-report { padding: 28px; color: #25352d; font-family: 'Heebo', system-ui, sans-serif; }
+    h2 { margin: 0 0 4px; font-size: 25px; font-weight: 900; }
+    header p { margin: 0; color: #66746d; }
+    .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 22px 0; }
+    .summary-card { padding: 14px; border: 1px solid #dfe5e1; border-radius: 14px; background: #f7f9f7; text-align: center; }
+    .summary-card strong { display: block; font-size: 25px; }
+    .summary-card span { font-size: 14px; font-weight: 700; }
+    .summary-card.success { background: #edf8f0; color: #18733a; }
+    .summary-card.failed { background: #fff0ef; color: #b42318; }
+    .table-wrap { max-height: 48vh; overflow: auto; border: 1px solid #dfe5e1; border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; min-width: 620px; }
+    th, td { padding: 11px 12px; border-bottom: 1px solid #e8ece9; text-align: right; vertical-align: top; }
+    th { position: sticky; top: 0; z-index: 1; background: #f3f6f4; font-size: 13px; }
+    .parent-name { font-weight: 800; }
+    .reason { max-width: 310px; overflow-wrap: anywhere; }
+    .status { display: inline-block; min-width: 55px; padding: 3px 9px; border-radius: 999px; text-align: center; font-weight: 800; }
+    .status.success { color: #18733a; background: #dff3e5; }
+    .status.failed { color: #b42318; background: #ffe2df; }
+    footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 20px; }
+    footer span { color: #66746d; font-size: 14px; }
+    button { border: 0; border-radius: 10px; padding: 11px 18px; background: #284f3b; color: white; font: inherit; font-weight: 800; cursor: pointer; }
+    button:hover { background: #1d3f2f; }
+    @media (max-width: 600px) {
+      .run-report { padding: 18px; }
+      .summary { gap: 7px; }
+      footer { align-items: stretch; flex-direction: column; }
+    }
+  `],
+})
+export class PaymentRunReportDialogComponent {
+  constructor(
+    private ref: MatDialogRef<PaymentRunReportDialogComponent>,
+    @Inject(MAT_DIALOG_DATA) public data: {
+      totalCount: number;
+      succeededCount: number;
+      failedCount: number;
+      rows: PaymentRunReportRow[];
+    }
+  ) {}
+
+  formatNis(amountAgorot: number): string {
+    return new Intl.NumberFormat('he-IL', {
+      style: 'currency',
+      currency: 'ILS',
+    }).format(Number(amountAgorot ?? 0) / 100);
+  }
+
+  approve(): void {
+    this.ref.close(true);
+  }
 }

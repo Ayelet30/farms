@@ -47,9 +47,22 @@ type SeriesDocRow = {
   isOpenEnded: boolean | null;
   status: string | null;
   paymentDocsUrl: string | null;
+
   paymentPlanId: string | null;
+  paymentPlanName: string | null;
+
+  currentPaymentPlanId: string | null;
+  currentPaymentPlanName: string | null;
+
+  paymentPlanSchedule: {
+    paymentPlanId: string;
+    paymentPlanName: string;
+    effectiveFrom: string;
+  }[];
+
   requiredDocs: string[];
   requireDocsAtBooking: boolean | null;
+
   instructorId: string | null;
   instructorName: string | null;
 };
@@ -234,6 +247,19 @@ export class SecretaryChildrenComponent implements OnInit {
   healthDeclarationByChild: Record<string, boolean> = {};
   paymentCardByParent: Record<string, boolean> = {};
 
+  paymentPlanOptions: {
+    id: string;
+    name: string;
+  }[] = [];
+
+  seriesPaymentPlanEditor = {
+    lessonId: null as string | null,
+    paymentPlanId: null as string | null,
+    effectiveFrom: '',
+    saving: false,
+    error: '',
+  };
+
 
   lessonMetaByChild: Record<string, {
     instructorIds: string[];
@@ -332,7 +358,6 @@ export class SecretaryChildrenComponent implements OnInit {
   lessonsHistoryFrom = '';
   lessonsHistoryTo = '';
   lessonsHistoryStatus = 'all';
-
   lessonsHistoryDateSort: 'asc' | 'desc' = 'desc';
 
   seriesEndEditor = {
@@ -357,6 +382,7 @@ export class SecretaryChildrenComponent implements OnInit {
       this.loadTablePrefs();
       await ensureTenantContextReady();
       await this.loadFundingSources();
+      await this.loadPaymentPlanOptions();
       await this.loadChildren();
       await this.loadFilterLookups();
       this.loadSavedFilters();
@@ -421,90 +447,39 @@ export class SecretaryChildrenComponent implements OnInit {
 
   async goToChildLessonsHistory(): Promise<void> {
     if (!this.drawerChild?.child_uuid) {
-      await this.ui.alert(
-        'לא ניתן לפתוח את השיעורים – ילד לא מזוהה',
-        'שיעורים'
-      );
-
+      await this.ui.alert('לא ניתן לפתוח את השיעורים – ילד לא מזוהה', 'שיעורים');
       return;
     }
 
-    const today = new Date();
-
-    const firstDayOfCurrentMonth = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      1
-    );
-
-    const lastDayOfNextMonth = new Date(
-      today.getFullYear(),
-      today.getMonth() + 2,
-      0
-    );
-
-    this.lessonsHistoryFrom = this.formatLessonsHistoryDate(
-      firstDayOfCurrentMonth
-    );
-
-    this.lessonsHistoryTo = this.formatLessonsHistoryDate(
-      lastDayOfNextMonth
-    );
-
-    this.lessonsHistoryStatus = 'all';
-    this.lessonsHistoryDateSort = 'desc';
-
     this.showLessonsHistory = true;
-
     await this.loadChildLessonsHistory();
-  }
-
-  private formatLessonsHistoryDate(date: Date): string {
-    const year = date.getFullYear();
-
-    const month = String(
-      date.getMonth() + 1
-    ).padStart(2, '0');
-
-    const day = String(
-      date.getDate()
-    ).padStart(2, '0');
-
-    return `${year}-${month}-${day}`;
-  }
-
-  toggleLessonsHistoryDateSort(): void {
-    this.lessonsHistoryDateSort =
-      this.lessonsHistoryDateSort === 'asc'
-        ? 'desc'
-        : 'asc';
-
-    this.lessonsHistory = [...this.lessonsHistory].sort(
-      (first, second) => {
-        const firstDate = first.occurDate ?? '';
-        const secondDate = second.occurDate ?? '';
-
-        const dateComparison = firstDate.localeCompare(secondDate);
-
-        if (dateComparison !== 0) {
-          return this.lessonsHistoryDateSort === 'asc'
-            ? dateComparison
-            : -dateComparison;
-        }
-
-        const firstTime = first.startTime ?? '';
-        const secondTime = second.startTime ?? '';
-
-        return this.lessonsHistoryDateSort === 'asc'
-          ? firstTime.localeCompare(secondTime)
-          : secondTime.localeCompare(firstTime);
-      }
-    );
   }
 
   closeChildLessonsHistory(): void {
     this.showLessonsHistory = false;
     this.lessonsHistoryError = null;
+  }
+
+  private async loadPaymentPlanOptions(): Promise<void> {
+    try {
+      const db = await this.dbc();
+
+      const { data, error } = await db
+        .from('payment_plans')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+
+      this.paymentPlanOptions = (data ?? []).map((row: any) => ({
+        id: row.id,
+        name: row.name,
+      }));
+    } catch (e) {
+      console.error('loadPaymentPlanOptions error:', e);
+      this.paymentPlanOptions = [];
+    }
   }
 
   async loadChildLessonsHistory(): Promise<void> {
@@ -520,12 +495,7 @@ export class SecretaryChildrenComponent implements OnInit {
         .from('lessons_occurrences')
         .select('*')
         .eq('child_id', childId)
-        .order('occur_date', {
-          ascending: this.lessonsHistoryDateSort === 'asc',
-        })
-        .order('start_time', {
-          ascending: this.lessonsHistoryDateSort === 'asc',
-        });
+        .order('occur_date', { ascending: false });
 
       if (this.lessonsHistoryFrom) {
         query = query.gte('occur_date', this.lessonsHistoryFrom);
@@ -603,8 +573,24 @@ export class SecretaryChildrenComponent implements OnInit {
   }
 
   get filteredLessonsHistory(): ChildLessonHistoryRow[] {
-    if (this.lessonsHistoryStatus === 'all') return this.lessonsHistory;
-    return this.lessonsHistory.filter(row => row.status === this.lessonsHistoryStatus);
+    let rows = [...this.lessonsHistory];
+
+    if (this.lessonsHistoryStatus !== 'all') {
+      rows = rows.filter(
+        row => row.status === this.lessonsHistoryStatus
+      );
+    }
+
+    rows.sort((a, b) => {
+      const aDate = a.occurDate ?? '';
+      const bDate = b.occurDate ?? '';
+
+      return this.lessonsHistoryDateSort === 'asc'
+        ? aDate.localeCompare(bDate)
+        : bDate.localeCompare(aDate);
+    });
+
+    return rows;
   }
 
   private nullableBoolean(value: unknown): boolean | null {
@@ -1821,7 +1807,7 @@ scheduled_deletion_at,deletion_note
     }
   }
 
-  private async loadChildSeriesDocs(childId: string) {
+  private async loadChildSeriesDocs(childId: string): Promise<void> {
     this.seriesDocsLoading = true;
     this.seriesDocsError = null;
     this.seriesDocs = [];
@@ -1832,23 +1818,24 @@ scheduled_deletion_at,deletion_note
       const { data, error } = await db
         .from('lessons')
         .select(`
-  id,
-  lesson_type,
-  day_of_week,
-  start_time,
-  end_time,
-  anchor_week_start,
-  series_end_date,
-  is_open_ended,
-  status,
-  payment_docs_url,
-  payment_plan_id,
-  instructor_id,
-  payment_plans (
-    required_docs,
-    require_docs_at_booking
-  )
-`)
+        id,
+        lesson_type,
+        day_of_week,
+        start_time,
+        end_time,
+        anchor_week_start,
+        series_end_date,
+        is_open_ended,
+        status,
+        payment_docs_url,
+        payment_plan_id,
+        instructor_id,
+        payment_plans (
+          name,
+          required_docs,
+          require_docs_at_booking
+        )
+      `)
         .eq('child_id', childId)
         .eq('lesson_type', 'סידרה')
         .order('anchor_week_start', { ascending: false })
@@ -1859,8 +1846,16 @@ scheduled_deletion_at,deletion_note
 
       const rows = data ?? [];
 
+      // -----------------------------
+      // שמות מדריכים
+      // -----------------------------
+
       const instructorIds = Array.from(
-        new Set(rows.map((r: any) => r.instructor_id).filter(Boolean))
+        new Set(
+          rows
+            .map((r: any) => r.instructor_id)
+            .filter(Boolean)
+        )
       );
 
       let instructorNameById: Record<string, string> = {};
@@ -1881,36 +1876,295 @@ scheduled_deletion_at,deletion_note
         );
       }
 
-      this.seriesDocs = rows.map((row: any) => ({
-        lessonId: row.id,
-        lessonType: row.lesson_type ?? null,
-        dayOfWeek: row.day_of_week ?? null,
-        startTime: row.start_time ?? null,
-        endTime: row.end_time ?? null,
-        anchorWeekStart: row.anchor_week_start ?? null,
-        seriesEndDate: row.series_end_date ?? null,
-        isOpenEnded: row.is_open_ended ?? null,
-        status: row.status ?? null,
-        paymentDocsUrl: row.payment_docs_url ?? null,
-        paymentPlanId: row.payment_plan_id ?? null,
-        requiredDocs: row.payment_plans?.required_docs ?? [],
-        requireDocsAtBooking: row.payment_plans?.require_docs_at_booking ?? null,
-        instructorId: row.instructor_id ?? null,
-        instructorName: row.instructor_id
-          ? instructorNameById[row.instructor_id] ?? row.instructor_id
-          : null,
-      }));
+      // -----------------------------
+      // שינויי מסלול לפי תאריך
+      // -----------------------------
 
+      const lessonIds = rows
+        .map((r: any) => r.id)
+        .filter(Boolean);
+
+      let periods: any[] = [];
+
+      if (lessonIds.length) {
+        const { data: periodsData, error: periodsError } = await db
+          .from('lesson_payment_plan_periods')
+          .select(`
+          id,
+          lesson_id,
+          payment_plan_id,
+          effective_from,
+          created_at
+        `)
+          .in('lesson_id', lessonIds)
+          .order('effective_from', { ascending: true });
+
+        if (periodsError) throw periodsError;
+
+        periods = periodsData ?? [];
+      }
+
+      // -----------------------------
+      // שמות כל מסלולי התשלום
+      // כולל מסלולים לא פעילים
+      // -----------------------------
+
+      const allPaymentPlanIds = Array.from(
+        new Set(
+          [
+            ...rows.map((r: any) => r.payment_plan_id),
+            ...periods.map((p: any) => p.payment_plan_id),
+          ].filter(Boolean)
+        )
+      );
+
+      let paymentPlanNameById: Record<string, string> = {};
+
+      if (allPaymentPlanIds.length) {
+        const { data: plansData, error: plansError } = await db
+          .from('payment_plans')
+          .select('id, name')
+          .in('id', allPaymentPlanIds);
+
+        if (plansError) throw plansError;
+
+        paymentPlanNameById = Object.fromEntries(
+          (plansData ?? []).map((p: any) => [
+            p.id,
+            p.name,
+          ])
+        );
+      }
+
+      const today = this.getTodayIsoDate();
+
+      // -----------------------------
+      // בניית הסדרות למסך
+      // -----------------------------
+
+      this.seriesDocs = rows.map((row: any) => {
+        const paymentPlanData = Array.isArray(row.payment_plans)
+          ? row.payment_plans[0]
+          : row.payment_plans;
+
+        const seriesPeriods = periods
+          .filter((p: any) => p.lesson_id === row.id)
+          .sort((a: any, b: any) =>
+            String(a.effective_from).localeCompare(
+              String(b.effective_from)
+            )
+          );
+
+        const currentPeriod = [...seriesPeriods]
+          .filter((p: any) =>
+            String(p.effective_from) <= today
+          )
+          .sort((a: any, b: any) =>
+            String(b.effective_from).localeCompare(
+              String(a.effective_from)
+            )
+          )[0];
+
+        const basePaymentPlanId =
+          row.payment_plan_id ?? null;
+
+        const currentPaymentPlanId =
+          currentPeriod?.payment_plan_id ??
+          basePaymentPlanId;
+
+        return {
+          lessonId: row.id,
+          lessonType: row.lesson_type ?? null,
+          dayOfWeek: row.day_of_week ?? null,
+          startTime: row.start_time ?? null,
+          endTime: row.end_time ?? null,
+          anchorWeekStart: row.anchor_week_start ?? null,
+          seriesEndDate: row.series_end_date ?? null,
+          isOpenEnded: row.is_open_ended ?? null,
+          status: row.status ?? null,
+          paymentDocsUrl: row.payment_docs_url ?? null,
+
+          paymentPlanId: basePaymentPlanId,
+
+          paymentPlanName: basePaymentPlanId
+            ? (
+              paymentPlanNameById[basePaymentPlanId] ??
+              paymentPlanData?.name ??
+              null
+            )
+            : null,
+
+          currentPaymentPlanId,
+
+          currentPaymentPlanName: currentPaymentPlanId
+            ? paymentPlanNameById[currentPaymentPlanId] ?? null
+            : null,
+
+          paymentPlanSchedule: seriesPeriods.map((p: any) => ({
+            paymentPlanId: p.payment_plan_id,
+
+            paymentPlanName:
+              paymentPlanNameById[p.payment_plan_id] ??
+              'מסלול לא ידוע',
+
+            effectiveFrom: p.effective_from,
+          })),
+
+          requiredDocs:
+            paymentPlanData?.required_docs ?? [],
+
+          requireDocsAtBooking:
+            paymentPlanData?.require_docs_at_booking ?? null,
+
+          instructorId:
+            row.instructor_id ?? null,
+
+          instructorName: row.instructor_id
+            ? (
+              instructorNameById[row.instructor_id] ??
+              row.instructor_id
+            )
+            : null,
+        } as SeriesDocRow;
+      });
 
     } catch (e: any) {
       console.error('loadChildSeriesDocs error:', e);
-      this.seriesDocsError = e?.message ?? 'שגיאה בטעינת סדרות והפניות';
+
+      this.seriesDocsError =
+        e?.message ??
+        'שגיאה בטעינת סדרות והפניות';
+
       this.seriesDocs = [];
     } finally {
       this.seriesDocsLoading = false;
     }
   }
 
+  toggleLessonsHistoryDateSort(): void {
+    this.lessonsHistoryDateSort =
+      this.lessonsHistoryDateSort === 'asc'
+        ? 'desc'
+        : 'asc';
+  }
+
+  getTodayIsoDate(): string {
+    const d = new Date();
+
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  openSeriesPaymentPlanEditor(series: SeriesDocRow): void {
+    if (
+      this.seriesEndEditor.lessonId === series.lessonId
+    ) {
+      this.closeSeriesEndEditor();
+    }
+
+    this.seriesPaymentPlanEditor = {
+      lessonId: series.lessonId,
+
+      paymentPlanId:
+        series.currentPaymentPlanId ??
+        series.paymentPlanId ??
+        null,
+
+      effectiveFrom: this.getTodayIsoDate(),
+
+      saving: false,
+      error: '',
+    };
+  }
+
+  closeSeriesPaymentPlanEditor(): void {
+    if (this.seriesPaymentPlanEditor.saving) return;
+
+    this.seriesPaymentPlanEditor = {
+      lessonId: null,
+      paymentPlanId: null,
+      effectiveFrom: '',
+      saving: false,
+      error: '',
+    };
+  }
+
+  async saveSeriesPaymentPlan(series: SeriesDocRow): Promise<void> {
+    const paymentPlanId = this.seriesPaymentPlanEditor.paymentPlanId;
+    const effectiveFrom = this.seriesPaymentPlanEditor.effectiveFrom;
+
+    this.seriesPaymentPlanEditor.error = '';
+
+    if (!paymentPlanId) {
+      this.seriesPaymentPlanEditor.error = 'יש לבחור מסלול תשלום.';
+      return;
+    }
+
+    if (!effectiveFrom) {
+      this.seriesPaymentPlanEditor.error = 'יש לבחור תאריך תחולה.';
+      return;
+    }
+
+    const childId = this.drawerChild?.child_uuid ?? null;
+
+    this.seriesPaymentPlanEditor.saving = true;
+
+    try {
+      const db = await this.dbc();
+
+      const { error } = await db.rpc('change_series_payment_plan', {
+        p_lesson_id: series.lessonId,
+        p_payment_plan_id: paymentPlanId,
+        p_effective_from: effectiveFrom,
+        p_created_by_uid: null,
+        p_note: 'שינוי מסלול מכרטיס ילד',
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      /*
+       * חשוב:
+       * מיד לאחר השמירה טוענים מחדש מה-DB.
+       * לא מעדכנים רק מקומית את שם המסלול,
+       * כדי שגם היסטוריית המסלולים והמסלול האפקטיבי
+       * יחושבו מחדש לפי הנתונים האמיתיים.
+       */
+      if (childId) {
+        await this.loadChildSeriesDocs(childId);
+      }
+
+      /*
+       * איפוס ישיר של העורך.
+       * לא משתמשים כאן ב-closeSeriesPaymentPlanEditor()
+       * כי בזמן הזה saving עדיין true.
+       */
+      this.seriesPaymentPlanEditor = {
+        lessonId: null,
+        paymentPlanId: null,
+        effectiveFrom: '',
+        saving: false,
+        error: '',
+      };
+
+      await this.ui.alert(
+        'מסלול התשלום עודכן בהצלחה.',
+        'שינוי מסלול תשלום'
+      );
+
+    } catch (e: any) {
+      console.error('[saveSeriesPaymentPlan] failed', e);
+
+      this.seriesPaymentPlanEditor.saving = false;
+
+      this.seriesPaymentPlanEditor.error =
+        e?.message ?? 'שמירת מסלול התשלום נכשלה.';
+    }
+  }
 
   getChildTitle(): string {
     const gender = this.drawerChild?.gender;
@@ -2417,11 +2671,16 @@ scheduled_deletion_at,deletion_note
     ];
 
     const delta: Partial<ChildDetails> = {};
-
+    if (
+      this.isActiveStatus(raw.status) &&
+      this.drawerChild?.scheduled_deletion_at &&
+      raw.inactive_date
+    ) {
+      (delta as any).scheduled_deletion_at = raw.inactive_date;
+    }
     if (becameActive) {
       (delta as any).deletion_requested_at = null;
       (delta as any).scheduled_deletion_at = null;
-      (delta as any).deletion_note = null;
     }
 
     for (const key of fieldsToCompare) {
@@ -2432,16 +2691,13 @@ scheduled_deletion_at,deletion_note
         (delta as any)[key] = newVal;
       }
     }
-
     if (
-      raw.status === 'Active' &&
-      this.drawerChild?.scheduled_deletion_at
+      this.isActiveStatus(raw.status) &&
+      this.drawerChild?.scheduled_deletion_at &&
+      raw.inactive_date
     ) {
-      (delta as any).deletion_requested_at = null;
-      (delta as any).scheduled_deletion_at = null;
-      (delta as any).deletion_note = null;
+      (delta as any).scheduled_deletion_at = raw.inactive_date;
     }
-
     if (Object.keys(delta).length === 0) {
       this.editMode = false;
       return;

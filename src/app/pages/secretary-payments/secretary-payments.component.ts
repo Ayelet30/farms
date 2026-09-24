@@ -101,6 +101,9 @@ export class SecretaryPaymentsComponent implements OnInit {
   pageSize = 50;
   pageIndex = signal(0);
 
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
+private loadRequestId = 0;
+
   // סכום בעמוד
   pageTotalAmount = computed(() =>
     this.rows().reduce((sum, r) => sum + (r.amount || 0), 0)
@@ -174,11 +177,19 @@ export class SecretaryPaymentsComponent implements OnInit {
       this.loading.set(false);
     }
   }
-  async onSearchChange(term: string) {
-    this.searchTerm.set(term);
-    this.pageIndex.set(0);
-    await this.loadPage();
+  onSearchChange(term: string): void {
+  this.searchTerm.set(term);
+  this.pageIndex.set(0);
+
+  if (this.searchTimer) {
+    clearTimeout(this.searchTimer);
   }
+
+  this.searchTimer = setTimeout(() => {
+    void this.loadPage();
+  }, 350);
+}
+
 
   async nextPage() {
     if (!this.canNext()) return;
@@ -359,13 +370,19 @@ export class SecretaryPaymentsComponent implements OnInit {
   }
 
   async setTab(tab: 'parents' | 'riders') {
-    if (this.activeTab() === tab) return;
+  if (this.activeTab() === tab) return;
 
-    this.activeTab.set(tab);
-    this.pageIndex.set(0);
-    this.searchTerm.set('');
-    await this.loadPage();
+  if (this.searchTimer) {
+    clearTimeout(this.searchTimer);
+    this.searchTimer = null;
   }
+
+  this.activeTab.set(tab);
+  this.pageIndex.set(0);
+  this.searchTerm.set('');
+
+  await this.loadPage();
+}
 
   currentTotalCount(): number | null {
     return this.activeTab() === 'parents'

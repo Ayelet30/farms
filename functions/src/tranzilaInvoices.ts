@@ -287,8 +287,10 @@ async function sendSplitInvoicesViaNotifyUser(params: {
     attachments: attachments.length,
   });
 
-  if (!r.ok) {
-    throw new Error(`notifyUser failed: ${j?.message || j?.error || r.statusText}`);
+  if (!r.ok || j?.sent !== true) {
+    throw new Error(
+      `notifyUser failed: ${j?.message || j?.error || j?.reason || r.statusText || 'email was not sent'}`
+    );
   }
 
   return j;
