@@ -255,6 +255,7 @@ async function sendSplitInvoicesViaNotifyUser(params: {
     tenantSchema,
     userType: "parent",
     uid: parentUid,
+    forceEmail: true,
     subject: `חשבוניות עבור התשלום`,
     html: `
       <div dir="rtl" style="font-family: Arial, sans-serif">
@@ -657,23 +658,23 @@ export async function ensureTranzilaInvoiceForRiderPaymentInternal(args: {
   }
 
   const terminal =
-  await loadDefaultBillingTerminal(sb);
+    await loadDefaultBillingTerminal(sb);
 
-const [tenantAppKey, tenantApiSecret] =
-  await Promise.all([
-    accessSecret(
-      terminal.secret_key_app_key!
-    ),
+  const [tenantAppKey, tenantApiSecret] =
+    await Promise.all([
+      accessSecret(
+        terminal.secret_key_app_key!
+      ),
 
-    accessSecret(
-      terminal.secret_key_api_secret!
-    ),
-  ]);
+      accessSecret(
+        terminal.secret_key_api_secret!
+      ),
+    ]);
 
-const auth = buildTranzilaAuth({
-  appKey: tenantAppKey,
-  apiSecret: tenantApiSecret,
-});
+  const auth = buildTranzilaAuth({
+    appKey: tenantAppKey,
+    apiSecret: tenantApiSecret,
+  });
   const documentDate = new Date().toISOString().slice(0, 10);
   const vatPercent = documentDate >= '2025-01-01' ? 18 : 17;
 
@@ -909,7 +910,7 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
     parentFullName = safeFullName(pr?.first_name, pr?.last_name);
     parentIdNumber = pr?.id_number ?? null;
 
-    parentEmail =  pr?.email?.trim() || null;
+    parentEmail = pr?.email?.trim() || null;
   }
 
   // Cache hit
@@ -1097,41 +1098,41 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
     throw new Error("no invoice items grouped by child");
   }
   // ===== 4) Tenant Tranzila configuration =====
-const terminal =
-  await loadDefaultBillingTerminal(sb);
+  const terminal =
+    await loadDefaultBillingTerminal(sb);
 
-const [tenantAppKey, tenantApiSecret] =
-  await Promise.all([
-    accessSecret(
-      terminal.secret_key_app_key!
-    ),
+  const [tenantAppKey, tenantApiSecret] =
+    await Promise.all([
+      accessSecret(
+        terminal.secret_key_app_key!
+      ),
 
-    accessSecret(
-      terminal.secret_key_api_secret!
-    ),
-  ]);
+      accessSecret(
+        terminal.secret_key_api_secret!
+      ),
+    ]);
 
-console.log("[TRanzila Invoice Tenant Config]", {
-  tenantSchema,
+  console.log("[TRanzila Invoice Tenant Config]", {
+    tenantSchema,
 
-  terminal_name:
-    terminal.terminal_name,
+    terminal_name:
+      terminal.terminal_name,
 
-  app_key_secret_name:
-    terminal.secret_key_app_key,
+    app_key_secret_name:
+      terminal.secret_key_app_key,
 
-  api_secret_name:
-    terminal.secret_key_api_secret,
+    api_secret_name:
+      terminal.secret_key_api_secret,
 
-  has_parent_email:
-    !!parentEmail,
-});
+    has_parent_email:
+      !!parentEmail,
+  });
 
-// ===== 5) Tranzila create_document =====
-const auth = buildTranzilaAuth({
-  appKey: tenantAppKey,
-  apiSecret: tenantApiSecret,
-});
+  // ===== 5) Tranzila create_document =====
+  const auth = buildTranzilaAuth({
+    appKey: tenantAppKey,
+    apiSecret: tenantApiSecret,
+  });
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
