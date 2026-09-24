@@ -791,8 +791,27 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
       if (itemYmd !== ymd) return false;
 
       const meta = item?.meta || {};
-      if (meta?.isSummaryDay || meta?.isSummarySlot || meta?.isInstructorHeader) return false;
-      if (meta?.isFarmDayOff) return false;
+      if (
+        meta?.isSummaryDay ||
+        meta?.isSummarySlot ||
+        meta?.isInstructorHeader
+      ) {
+        return false;
+      }
+
+      if (
+        meta?.isFarmDayOff === true ||
+        meta?.isFarmDayOff === 'true'
+      ) {
+        return false;
+      }
+
+      if (
+        meta?.isInstructorDayOff === true ||
+        meta?.isInstructorDayOff === 'true'
+      ) {
+        return false;
+      }
 
       return true;
     });
@@ -1001,10 +1020,6 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
     event.preventDefault();
     event.stopPropagation();
 
-    if (resource?.id && this.isBlockedRawCell(resource.id, iso)) {
-      return;
-    }
-
     this.rightClickDay.emit({
       jsEvent: event,
       dateStr: iso,
@@ -1202,11 +1217,22 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   }
 
   private applyCurrentView() {
+    this.debugViewState('BEFORE applyCurrentView');
     const api = this.calendarApi;
     if (!api) return;
 
     const mapped = this.mapView(this.currentView);
+
+    console.log('[SCHEDULE applyCurrentView]', {
+      currentView: this.currentView,
+      mapped,
+      beforeFcView: api.view.type,
+    });
     api.changeView(mapped);
+    console.log('[SCHEDULE applyCurrentView AFTER]', {
+      currentView: this.currentView,
+      fcView: api.view.type,
+    });
     if (this.currentView === 'timeGridWeek') {
       const weekRange = this.getWeekScheduleRange();
 
@@ -2123,6 +2149,12 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
 
 
     datesSet: (info: DatesSetArg) => {
+      console.log('[SCHEDULE datesSet]', {
+        currentView: this.currentView,
+        fcView: info.view.type,
+        start: info.start,
+        end: info.end,
+      });
       setTimeout(() => {
         const toLocalYMD = (d: Date) =>
           `${d.getFullYear()}-${this.pad(d.getMonth() + 1)}-${this.pad(d.getDate())}`;
@@ -2181,6 +2213,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   }
 
   ngOnChanges(changes: SimpleChanges) {
+    this.debugViewState('ngOnChanges');
     if (changes['items']) {
       if (this.currentView === 'timeGridDay') {
         this.currentDate = this.formatHebrewDayTitle(this.customDayDate);
@@ -2374,5 +2407,18 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
     const meta = item?.meta || {};
     return meta?.isInstructorDayOff === true ||
       meta?.isInstructorDayOff === 'true';
+  }
+  private debugViewState(source: string): void {
+    const api = this.calendarApi;
+
+    console.log('[SCHEDULE VIEW DEBUG]', {
+      source,
+      currentView: this.currentView,
+      initialView: this.initialView,
+      fullCalendarView: api?.view?.type ?? 'NO API',
+      fullCalendarDate: api?.getDate?.(),
+      items: this.items?.length ?? 0,
+      resources: this.resources?.length ?? 0,
+    });
   }
 }

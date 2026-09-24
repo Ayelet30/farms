@@ -509,7 +509,7 @@
 
 .day-bg-cell.blocked-cell {
   background: #ececec;
-  cursor: not-allowed;
+  cursor: context-menu;
 }
 
 .day-resource-header,
@@ -693,6 +693,10 @@
 .day-lesson-card.instructor-day-off:hover {
   background: #ffedaa !important;
   background-color: #ffedaa !important;
+}
+
+.day-blocked-overlay {
+  pointer-events: none;
 }
 
 .day-lesson-card.status-pending {

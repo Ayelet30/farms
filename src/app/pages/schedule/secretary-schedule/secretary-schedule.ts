@@ -4394,7 +4394,44 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
     const localYmd = this.extractYmd(dateStr);
     const localHm = dateStr.includes('T') ? this.extractHm(dateStr) : '';
+    // בתצוגה שבועית קליק ימני על כל דבר משמש רק להיעדרות מדריך
+    if (this.isWeeklyView) {
+      const MENU_WIDTH = 210;
+      const MENU_HEIGHT = 260;
+      const EDGE_GAP = 12;
 
+      let x = e.jsEvent.clientX;
+      let y = e.jsEvent.clientY;
+
+      const maxX = window.innerWidth - MENU_WIDTH - EDGE_GAP;
+      const maxY = window.innerHeight - MENU_HEIGHT - EDGE_GAP;
+
+      x = Math.max(EDGE_GAP, Math.min(x, maxX));
+      y = Math.max(EDGE_GAP, Math.min(y, maxY));
+
+      this.contextMenu.visible = true;
+      this.contextMenu.x = x;
+      this.contextMenu.y = y;
+
+      this.contextMenu.date = localYmd;
+      this.contextMenu.time = localHm;
+
+      this.contextMenu.instructorId = String(e.resourceId ?? '');
+      this.contextMenu.instructorName = String(e.resourceTitle ?? '');
+
+      this.contextMenu.hasEvent = false;
+      this.contextMenu.eventId = '';
+      this.contextMenu.lessonId = '';
+      this.contextMenu.childId = '';
+      this.contextMenu.childName = '';
+      this.contextMenu.lessonType = '';
+      this.contextMenu.status = '';
+      this.contextMenu.breakOccurrence = null;
+
+      this.contextMenuMode = 'root';
+      this.cdr.detectChanges();
+      return;
+    }
     let localEndHm = '';
     if (typeof e.endStr === 'string' && e.endStr.includes('T')) {
       localEndHm = this.extractHm(e.endStr);
@@ -6079,5 +6116,11 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     }
 
     this.farmWorkingHours = data ?? [];
+  }
+  get isWeeklyView(): boolean {
+    return (
+      this.currentViewType === 'timeGridWeek' ||
+      this.currentViewType === 'resourceTimeGridWeek'
+    );
   }
 }
