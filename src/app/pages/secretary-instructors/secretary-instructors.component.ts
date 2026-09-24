@@ -97,6 +97,8 @@ export class SecretaryInstructorsComponent implements OnInit {
   // לו"ז שבועי במצב עריכה
   editAvailability: InstructorWeeklyAvailabilityRow[] = [];
   drawerUnavailability: InstructorUnavailabilityRow[] = [];
+  showUnavailabilitySection = false;
+  showSickNotesSection = false;
   dayOfWeekToLabel(d?: number | null): string {
     switch (d) {
       case 0: return 'ראשון';
@@ -580,6 +582,8 @@ export class SecretaryInstructorsComponent implements OnInit {
     this.drawerAvailability = [];
     this.editAvailability = [];
     this.drawerUnavailability = [];
+    this.showUnavailabilitySection = false;
+    this.showSickNotesSection = false;
 
     this.drawer.open();
     await this.loadDrawerData(this.selectedIdNumber!);
@@ -1642,5 +1646,10 @@ ${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התח�
 
     // מספר ישראלי בן 10 ספרות שמתחיל ב-0
     return /^0\d{9}$/.test(phone);
+  }
+  get sickNotes(): InstructorUnavailabilityRow[] {
+    return (this.drawerUnavailability || []).filter(
+      row => !!row.sick_note_file_path
+    );
   }
 }
