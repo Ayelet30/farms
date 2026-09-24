@@ -1144,8 +1144,30 @@ export class QuickAppointmentComponent implements OnInit {
     return msg || 'לא ניתן לזמן שיעור בשעה זו';
   }
 
+  get hasInstructorUnavailability(): boolean {
+    return (this.slotInfo?.warnings ?? []).some(
+      warning => warning.type === 'instructor_unavailable'
+    );
+  }
+
   get isSlotUnavailable(): boolean {
-    return !!this.slotInfoError || (!!this.slotInfo && this.slotInfo.ok === false);
+    if (this.loadingSlotInfo) {
+      return false;
+    }
+
+    if (this.slotInfoError) {
+      return true;
+    }
+
+    if (!this.slotInfo) {
+      return true;
+    }
+
+    if (!this.slotInfo.riding_type_id) {
+      return true;
+    }
+
+    return false;
   }
 
   get canEditAppointment(): boolean {
