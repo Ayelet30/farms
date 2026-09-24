@@ -904,8 +904,7 @@ export class SecretaryInstructorsComponent implements OnInit {
 
   async saveEditFromDrawer() {
     if (!this.drawerInstructor || !this.editModel) return;
-    this.bulkBusy.set(true);
-    this.bulkBusyMessage.set('הנתונים נשמרים...');
+
     this.editModel = {
       ...this.editModel,
       first_name: this.sanitizeName(this.editModel.first_name),
@@ -949,7 +948,10 @@ export class SecretaryInstructorsComponent implements OnInit {
       return;
     }
     const email = rawEmail;
-
+    // רק אחרי שכל הוולידציות עברו בהצלחה מתחילים מצב שמירה
+    this.bulkBusy.set(true);
+    this.bulkBusyMessage.set('הנתונים נשמרים...');
+    this.savingEdit = true;
     this.savingEdit = true;
 
     try {
@@ -1628,5 +1630,17 @@ ${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התח�
     return fromDate === toDate
       ? `${fromDate} · ${fromTime}–${toTime}`
       : `${fromDate} ${fromTime} – ${toDate} ${toTime}`;
+  }
+  sanitizePhone(value: string | null | undefined): string {
+    return String(value ?? '')
+      .replace(/\D/g, '')
+      .slice(0, 10);
+  }
+
+  isValidIsraeliPhone(value: string | null | undefined): boolean {
+    const phone = this.sanitizePhone(value);
+
+    // מספר ישראלי בן 10 ספרות שמתחיל ב-0
+    return /^0\d{9}$/.test(phone);
   }
 }
