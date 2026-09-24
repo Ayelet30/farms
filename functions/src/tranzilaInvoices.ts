@@ -1425,3 +1425,224 @@ async function enrichParentInvoices(sb: SupabaseClient, invoices: any[]) {
     })
   );
 }
+export async function resendExistingParentInvoicesInternal(params: {
+  tenantSchema: string;
+  paymentId: string;
+  dryRun?: boolean;
+}) {
+  const { tenantSchema, paymentId, dryRun = true } = params;
+
+  const sb = getSupabaseForTenant(tenantSchema);
+
+  const { data: payment, error: paymentErr } = await sb
+    .from("payments")
+    .select("id, parent_uid, amount, date, payment_method, invoice_status")
+    .eq("id", paymentId)
+    .maybeSingle();
+  if (paymentErr) {
+    throw new Error(`payment lookup failed: ${paymentErr.message}`);
+  }
+
+  if (!payment) {
+    throw new Error(`payment not found: ${paymentId}`);
+  }
+
+  if (!payment.parent_uid) {
+    throw new Error(`payment has no parent_uid: ${paymentId}`);
+  }
+
+  // if (payment.payment_method !== "credit_card") {
+  //   throw new Error(
+  //     `payment ${paymentId} is not credit_card (${payment.payment_method})`
+  //   );
+  // }
+
+  const { data: existingInvoices, error: invoicesErr } = await sb
+    .from("payment_invoices")
+    .select("*")
+    .eq("payment_id", paymentId);
+
+  if (invoicesErr) {
+    throw new Error(
+      `payment_invoices lookup failed: ${invoicesErr.message}`
+    );
+  }
+
+  if (!existingInvoices?.length) {
+    throw new Error(`no existing invoices found for payment ${paymentId}`);
+  }
+
+  const { data: parent, error: parentErr } = await sb
+    .from("parents")
+    .select("uid, first_name, last_name, email")
+    .eq("uid", payment.parent_uid)
+    .maybeSingle();
+
+  if (parentErr) {
+    throw new Error(`parent lookup failed: ${parentErr.message}`);
+  }
+
+  if (!parent) {
+    throw new Error(`parent not found: ${payment.parent_uid}`);
+  }
+
+  const parentFullName =
+    `${parent.first_name || ""} ${parent.last_name || ""}`.trim();
+
+  if (!parent.email?.trim()) {
+    throw new Error(`parent has no email: ${payment.parent_uid}`);
+  }
+
+  const enrichedInvoices = await enrichParentInvoices(
+    sb,
+    existingInvoices
+  );
+
+  // בדיקה בלבד
+  if (dryRun) {
+    return {
+      ok: true,
+      dryRun: true,
+      paymentId,
+      parentUid: payment.parent_uid,
+      parentName: parentFullName,
+      email: parent.email,
+      amount: payment.amount,
+      date: payment.date,
+      invoicesCount: enrichedInvoices.length,
+    };
+  }
+
+  // שליחת החשבוניות הקיימות בלבד
+  const farmName = await getFarmNameBySchema(tenantSchema);
+
+  await sendSplitInvoicesViaNotifyUser({
+    sb,
+    tenantSchema,
+    parentUid: payment.parent_uid,
+    parentFullName,
+    farmName,
+    invoices: enrichedInvoices,
+  });
+
+  return {
+    ok: true,
+    dryRun: false,
+    sent: true,
+    paymentId,
+    parentUid: payment.parent_uid,
+    parentName: parentFullName,
+    email: parent.email,
+    invoicesCount: enrichedInvoices.length,
+  };
+}
+export const resendParentInvoiceEmails = onRequest(
+  {
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+
+    secrets: [
+      SUPABASE_URL_S,
+      SUPABASE_KEY_S,
+      INTERNAL_CALL_SECRET_S,
+    ],
+  },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") {
+        res.status(405).json({
+          ok: false,
+          error: "Method not allowed",
+        });
+        return;
+      }
+
+      const tenantSchema = String(
+        req.body?.tenantSchema || ""
+      ).trim();
+
+      const dryRun = req.body?.dryRun !== false;
+
+      if (!tenantSchema) {
+        res.status(400).json({
+          ok: false,
+          error: "tenantSchema is required",
+        });
+        return;
+      }
+
+      /*
+       * רשימה סגורה של תשלומי האשראי שאושרו לשליחה מחדש.
+       * תשלום המזומן של רות וליס אינו נמצא כאן.
+       */const paymentIds = [
+        ''
+      ];
+
+
+      const results: any[] = [];
+
+      // בכוונה אחד-אחד ולא Promise.all,
+      // כדי לא להפציץ את Storage/notifyUser.
+      for (const paymentId of paymentIds) {
+        try {
+          const result =
+            await resendExistingParentInvoicesInternal({
+              tenantSchema,
+              paymentId,
+              dryRun,
+            });
+
+          results.push({
+            status: dryRun ? "would_send" : "sent",
+            ...result,
+          });
+        } catch (err: any) {
+          console.error(
+            "[resendParentInvoiceEmails] failed",
+            paymentId,
+            err?.message || err
+          );
+
+          results.push({
+            paymentId,
+            status: "failed",
+            error: err?.message || String(err),
+          });
+        }
+      }
+
+      const sent = results.filter(
+        (r) => r.status === "sent"
+      ).length;
+
+      const wouldSend = results.filter(
+        (r) => r.status === "would_send"
+      ).length;
+
+      const failed = results.filter(
+        (r) => r.status === "failed"
+      ).length;
+
+      res.status(200).json({
+        ok: failed === 0,
+        dryRun,
+        total: paymentIds.length,
+        sent,
+        wouldSend,
+        failed,
+        results,
+      });
+    } catch (err: any) {
+      console.error(
+        "[resendParentInvoiceEmails] fatal",
+        err
+      );
+
+      res.status(500).json({
+        ok: false,
+        error: err?.message || String(err),
+      });
+    }
+  }
+);
