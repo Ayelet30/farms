@@ -113,6 +113,7 @@ function escapeHtml(value: string): string {
 export const sendFarmDayOffCancellationEmails = onRequest(
   {
     region: 'us-central1',
+    timeoutSeconds: 300,
     secrets: [
       SUPABASE_URL_S,
       SUPABASE_KEY_S,
@@ -186,10 +187,25 @@ export const sendFarmDayOffCancellationEmails = onRequest(
       }
       let parentSentCount = 0;
       let instructorSentCount = 0;
-      let sentCount = 0;
       let failedCount = 0;
       let skippedCount = 0;
-      const failures: Array<{ email: string; error: string }> = [];
+
+      const failures: Array<{
+        email: string;
+        name?: string;
+        type?: 'parent' | 'instructor';
+        error: string;
+      }> = [];
+
+      const successfulParents: Array<{
+        name: string;
+        email: string;
+      }> = [];
+
+      const successfulInstructors: Array<{
+        name: string;
+        uid: string;
+      }> = [];
 
       for (const [email, rows] of grouped.entries()) {
         if (!rows.length) {
@@ -251,6 +267,11 @@ export const sendFarmDayOffCancellationEmails = onRequest(
         ].join('\n');
 
         try {
+          console.log('[FARM DAY OFF EMAIL] sending parent', {
+            email,
+            lessons: rows.length,
+          });
+
           await sendEmailCore({
             tenantSchema,
             to: [email],
@@ -259,13 +280,30 @@ export const sendFarmDayOffCancellationEmails = onRequest(
             html,
             fromName: 'Smart-Farm',
           });
+
+          console.log('[FARM DAY OFF EMAIL] parent sent successfully', {
+            email,
+          });
+
           parentSentCount++;
+          successfulParents.push({
+            name: parentName,
+            email,
+          });
         } catch (e: any) {
           failedCount++;
-          failures.push({
+
+          console.error('[FARM DAY OFF EMAIL] parent FAILED', {
             email,
             error: e?.message || String(e),
           });
+          failures.push({
+            email,
+            name: parentName,
+            type: 'parent',
+            error: e?.message || String(e),
+          });
+
           console.error('sendFarmDayOffCancellationEmails failed', email, e);
         }
       }
@@ -353,26 +391,269 @@ export const sendFarmDayOffCancellationEmails = onRequest(
           if (!r.ok) {
             failedCount++;
             failures.push({
+              name: instructorName,
+              type: 'instructor',
               email: `instructor:${uid}`,
               error: json?.message || json?.error || r.statusText,
             });
             console.error('notify instructor failed', uid, json);
             continue;
           }
-
           if (json?.sent === true) {
             instructorSentCount++;
+
+            successfulInstructors.push({
+              name: instructorName,
+              uid,
+            });
           } else {
-            skippedCount++;
+            failedCount++;
+
+            failures.push({
+              email: `instructor:${uid}`,
+              name: instructorName,
+              type: 'instructor',
+              error: json?.reason || 'ההודעה לא נשלחה',
+            });
           }
         } catch (e: any) {
           failedCount++;
           failures.push({
+            name: instructorName,
+            type: 'instructor',
             email: `instructor:${uid}`,
             error: e?.message || String(e),
           });
           console.error('notify instructor exception', uid, e);
         }
+      }
+      // ============================================================
+      // Send delivery summary to the secretary who performed the action
+      // ============================================================
+
+      let secretarySummaryEmailSent = false;
+      let secretarySummaryEmailError: string | null = null;
+
+      try {
+        // If this request came from the frontend, decoded.uid is the
+        // authenticated secretary who performed the action.
+        if (decoded?.uid && decoded.uid !== 'INTERNAL') {
+          const secretaryUser = await admin.auth().getUser(decoded.uid);
+          const secretaryEmail = normStr(secretaryUser.email, 200);
+
+          if (secretaryEmail && looksLikeEmail(secretaryEmail)) {
+            const secretaryName =
+              normStr(secretaryUser.displayName || 'מזכירה', 120);
+
+            const successfulParentsHtml = successfulParents.length
+              ? successfulParents
+                .map(
+                  (item) =>
+                    `<li>✅ <strong>${escapeHtml(item.name)}</strong> – ${escapeHtml(item.email)}</li>`
+                )
+                .join('')
+              : '<li>לא נשלחו הודעות להורים.</li>';
+
+            const successfulParentsText = successfulParents.length
+              ? successfulParents
+                .map((item) => `✓ ${item.name} – ${item.email}`)
+                .join('\n')
+              : 'לא נשלחו הודעות להורים.';
+
+            const successfulInstructorsHtml = successfulInstructors.length
+              ? successfulInstructors
+                .map(
+                  (item) =>
+                    `<li>✅ <strong>${escapeHtml(item.name)}</strong></li>`
+                )
+                .join('')
+              : '<li>לא נשלחו הודעות למדריכים.</li>';
+
+            const successfulInstructorsText = successfulInstructors.length
+              ? successfulInstructors
+                .map((item) => `✓ ${item.name}`)
+                .join('\n')
+              : 'לא נשלחו הודעות למדריכים.';
+
+            const failuresHtml = failures.length
+              ? failures
+                .map((item) => {
+                  const typeText =
+                    item.type === 'instructor' ? 'מדריך/ה' : 'הורה';
+
+                  return `
+                <li style="margin-bottom: 10px;">
+                  ❌ <strong>${escapeHtml(item.name || item.email)}</strong>
+                  (${typeText})
+                  <br>
+                  <span>${escapeHtml(item.email)}</span>
+                  <br>
+                  <span style="color:#b91c1c;">
+                    סיבה: ${escapeHtml(item.error)}
+                  </span>
+                </li>
+              `;
+                })
+                .join('')
+              : '<li style="color:#15803d;"><strong>לא נמצאו שגיאות בשליחה.</strong></li>';
+
+            const failuresText = failures.length
+              ? failures
+                .map((item) => {
+                  const typeText =
+                    item.type === 'instructor' ? 'מדריך/ה' : 'הורה';
+
+                  return `✗ ${item.name || item.email} (${typeText}) | ${item.email} | סיבה: ${item.error}`;
+                })
+                .join('\n')
+              : 'לא נמצאו שגיאות בשליחה.';
+
+            const totalSuccessful =
+              parentSentCount + instructorSentCount;
+
+            const summarySubject =
+              failures.length > 0
+                ? `סיכום שליחת הודעות – יום מיוחד בחווה (${failures.length} שגיאות)`
+                : 'סיכום שליחת הודעות – יום מיוחד בחווה – הכל נשלח בהצלחה';
+
+            const summaryHtml = `
+        <div
+          dir="rtl"
+          style="
+            font-family: Arial, sans-serif;
+            line-height: 1.7;
+            color: #1f2937;
+            max-width: 700px;
+          "
+        >
+          <h2 style="margin-bottom: 8px;">
+            סיכום שליחת הודעות
+          </h2>
+
+          <p>
+            שלום ${escapeHtml(secretaryName)},
+          </p>
+
+          <p>
+            הסתיימה שליחת ההודעות בעקבות
+            <strong>${escapeHtml(reason)}</strong>.
+          </p>
+
+          <div
+            style="
+              padding: 14px;
+              background: #f3f4f6;
+              border-radius: 8px;
+              margin: 18px 0;
+            "
+          >
+            <strong>סיכום:</strong><br>
+            נשלחו בהצלחה: ${totalSuccessful}<br>
+            הורים: ${parentSentCount}<br>
+            מדריכים: ${instructorSentCount}<br>
+            כשלים: ${failures.length}<br>
+            דולגו: ${skippedCount}
+          </div>
+
+          <h3>הורים שקיבלו את ההודעה בהצלחה</h3>
+          <ul style="padding-right: 20px;">
+            ${successfulParentsHtml}
+          </ul>
+
+          <h3>מדריכים שקיבלו את ההודעה בהצלחה</h3>
+          <ul style="padding-right: 20px;">
+            ${successfulInstructorsHtml}
+          </ul>
+
+          <h3>שגיאות / הודעות שלא נשלחו</h3>
+          <ul style="padding-right: 20px;">
+            ${failuresHtml}
+          </ul>
+
+          <p style="margin-top: 25px;">
+            בברכה,<br>
+            Smart-Farm
+          </p>
+        </div>
+      `;
+
+            const summaryText = [
+              `שלום ${secretaryName},`,
+              '',
+              `הסתיימה שליחת ההודעות בעקבות: ${reason}`,
+              '',
+              'סיכום:',
+              `נשלחו בהצלחה: ${totalSuccessful}`,
+              `הורים: ${parentSentCount}`,
+              `מדריכים: ${instructorSentCount}`,
+              `כשלים: ${failures.length}`,
+              `דולגו: ${skippedCount}`,
+              '',
+              'הורים שקיבלו את ההודעה בהצלחה:',
+              successfulParentsText,
+              '',
+              'מדריכים שקיבלו את ההודעה בהצלחה:',
+              successfulInstructorsText,
+              '',
+              'שגיאות / הודעות שלא נשלחו:',
+              failuresText,
+              '',
+              'בברכה,',
+              'Smart-Farm',
+            ].join('\n');
+
+            await sendEmailCore({
+              tenantSchema,
+              to: [secretaryEmail],
+              subject: summarySubject,
+              text: summaryText,
+              html: summaryHtml,
+              fromName: 'Smart-Farm',
+            });
+
+            secretarySummaryEmailSent = true;
+
+            console.log(
+              '[FARM DAY OFF EMAIL] secretary summary sent successfully',
+              {
+                secretaryUid: decoded.uid,
+                secretaryEmail,
+                parentSentCount,
+                instructorSentCount,
+                failedCount,
+                skippedCount,
+              }
+            );
+          } else {
+            secretarySummaryEmailError =
+              'Secretary does not have a valid email address';
+
+            console.error(
+              '[FARM DAY OFF EMAIL] secretary has no valid email',
+              {
+                secretaryUid: decoded.uid,
+              }
+            );
+          }
+        } else {
+          secretarySummaryEmailError =
+            'Request was internal - no authenticated secretary';
+
+          console.log(
+            '[FARM DAY OFF EMAIL] summary email skipped - internal request'
+          );
+        }
+      } catch (e: any) {
+        secretarySummaryEmailError =
+          e?.message || String(e);
+
+        console.error(
+          '[FARM DAY OFF EMAIL] failed to send secretary summary',
+          {
+            secretaryUid: decoded?.uid,
+            error: secretarySummaryEmailError,
+          }
+        );
       }
       return void res.status(200).json({
         ok: true,
@@ -381,6 +662,10 @@ export const sendFarmDayOffCancellationEmails = onRequest(
         failedCount,
         skippedCount,
         failures,
+
+        secretarySummaryEmailSent,
+        secretarySummaryEmailError,
+
         sentBy: decoded.uid,
       });
     } catch (e: any) {
