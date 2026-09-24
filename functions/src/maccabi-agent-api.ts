@@ -561,56 +561,206 @@ export const maccabiAgentApi = onRequest(
       // =====================================================
 
       if (action === 'complete') {
-        const {
-          data: completedRows,
-          error: completeError,
-        } = await tenantSupabase
-          .from('automation_jobs')
-          .update({
-            status: 'done',
-            finished_at: nowIso,
-            lease_expires_at: null,
+  const rawResult =
+    req.body?.result;
 
-            result: {
-              success: true,
-              ...(req.body?.result ?? {}),
-            },
+  if (
+    !rawResult ||
+    typeof rawResult !== 'object' ||
+    Array.isArray(rawResult)
+  ) {
+    res.status(400).json({
+      ok: false,
+      message:
+        'Missing or invalid job result',
+    });
 
-            error: null,
-          })
-          .eq('id', jobId)
-          .eq('status', 'running')
-          .eq(
-            'agent_installation_id',
-            agentInstallation.id
-          )
-          .select('id');
+    return;
+  }
 
-        if (completeError) {
-          throw new Error(
-            `Could not complete job: ${completeError.message}`
-          );
-        }
+  const jobResult =
+    rawResult as Record<string, any>;
 
-        if (!completedRows?.length) {
-          res.status(409).json({
-            ok: false,
-            message:
-              'Job is not running or does not belong to this Agent',
-          });
+  const lessonResults =
+    Array.isArray(
+      jobResult.lessonResults
+    )
+      ? jobResult.lessonResults
+      : [];
 
-          return;
-        }
+  const successCount =
+    lessonResults.filter(
+      (item: any) =>
+        item?.status === 'success'
+    ).length;
 
-        res.status(200).json({
-          ok: true,
-          jobId,
-          status: 'done',
-        });
+  const failedCount =
+    lessonResults.filter(
+      (item: any) =>
+        item?.status === 'failed'
+    ).length;
 
-        return;
-      }
+  const unknownCount =
+    lessonResults.filter(
+      (item: any) =>
+        item?.status === 'unknown'
+    ).length;
 
+  /*
+   * משתמשים בסיכום שהגיע מה־Agent,
+   * אבל מחשבים מחדש אם הוא אינו קיים.
+   */
+  const normalizedSummary = {
+    successCount:
+      Number(
+        jobResult.summary
+          ?.successCount
+      ) || successCount,
+
+    failedCount:
+      Number(
+        jobResult.summary
+          ?.failedCount
+      ) || failedCount,
+
+    unknownCount:
+      Number(
+        jobResult.summary
+          ?.unknownCount
+      ) || unknownCount,
+  };
+
+  const hasResults =
+    lessonResults.length > 0;
+
+  const allSucceeded =
+    hasResults &&
+    normalizedSummary.failedCount === 0 &&
+    normalizedSummary.unknownCount === 0;
+
+  const allFailed =
+    hasResults &&
+    normalizedSummary.successCount === 0 &&
+    normalizedSummary.failedCount > 0 &&
+    normalizedSummary.unknownCount === 0;
+
+  const partial =
+    normalizedSummary.successCount > 0 &&
+    (
+      normalizedSummary.failedCount > 0 ||
+      normalizedSummary.unknownCount > 0
+    );
+
+  /*
+   * מוצאים שגיאה אמיתית ראשונה,
+   * לצורך Job שכולו נכשל.
+   */
+  const firstFailure =
+    lessonResults.find(
+      (item: any) =>
+        item?.status === 'failed'
+    );
+
+  const firstFailureMessage =
+    firstFailure?.error
+      ? String(firstFailure.error)
+      : null;
+
+  /*
+   * Job מעורב נשמר כ־done משום שהוא הסתיים,
+   * אבל success נשאר false וכל שיעור מוצג
+   * לפי lessonResults.
+   *
+   * רק כאשר כל השיעורים נכשלו,
+   * סטטוס ה־Job יהיה failed.
+   */
+  const databaseStatus =
+    allFailed
+      ? 'failed'
+      : 'done';
+
+  const normalizedResult = {
+    ...jobResult,
+
+    /*
+     * חשוב: לא להכריח success:true.
+     */
+    success: allSucceeded,
+    partial,
+
+    summary:
+      normalizedSummary,
+
+    lessonResults,
+  };
+
+  const {
+    data: completedRows,
+    error: completeError,
+  } = await tenantSupabase
+    .from('automation_jobs')
+    .update({
+      status:
+        databaseStatus,
+
+      finished_at:
+        nowIso,
+
+      lease_expires_at:
+        null,
+
+      result:
+        normalizedResult,
+
+      error:
+        allFailed
+          ? (
+              firstFailureMessage ??
+              'כל השיעורים במשימה נכשלו'
+            )
+          : null,
+    })
+    .eq('id', jobId)
+    .eq('status', 'running')
+    .eq(
+      'agent_installation_id',
+      agentInstallation.id
+    )
+    .select('id');
+
+  if (completeError) {
+    throw new Error(
+      `Could not complete job: ${completeError.message}`
+    );
+  }
+
+  if (!completedRows?.length) {
+    res.status(409).json({
+      ok: false,
+      message:
+        'Job is not running or does not belong to this Agent',
+    });
+
+    return;
+  }
+
+  res.status(200).json({
+    ok: true,
+    jobId,
+    status:
+      databaseStatus,
+
+    success:
+      allSucceeded,
+
+    partial,
+
+    summary:
+      normalizedSummary,
+  });
+
+  return;
+}
       // =====================================================
       // FAIL
       // =====================================================

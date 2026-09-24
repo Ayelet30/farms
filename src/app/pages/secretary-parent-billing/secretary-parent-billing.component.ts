@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { createParentCredit, getCurrentFarmMetaSync } from '../../services/supabaseClient.service';
 import { MatDialog } from '@angular/material/dialog';
+import { firstValueFrom } from 'rxjs';
 import { CreditDialogComponent } from './credit-dialog.component';
 import { Component, OnInit, signal, computed, inject, Inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
@@ -65,6 +66,9 @@ export class SecretaryParentBillingComponent implements OnInit {
   charges = signal<ChargeWithPaymentStatus[]>([]);
   // סטטוסים
   loading = signal(false);
+  paymentProcessing = signal(false);
+  paymentReportOpen = signal(false);
+  paymentProgress = signal({ completed: 0, total: 0 });
   error = signal<string | null>(null);
   hasLoadedOnce = signal(false);
   // בחירת חיובים לסליקה
@@ -337,7 +341,7 @@ allChargesCount = signal<number>(0);
     await this.loadCharges();
   }
 
-  async loadCharges() {
+  async loadCharges(preserveSelection = false) {
     const farm = getCurrentFarmMetaSync();
     const tenantSchema = farm?.schema_name ?? null;
 
@@ -470,7 +474,7 @@ this.totalChargesCount.set(count ?? 0);
     });
 
       this.charges.set(rowsWithPaymentStatus);
-      this.selectedChargeIds.set(new Set());
+      if (!preserveSelection) this.selectedChargeIds.set(new Set());
       this.hasLoadedOnce.set(true);
     } catch (e: any) {
       console.error('[ParentBilling] load error', e);
@@ -1193,6 +1197,7 @@ this.totalChargesCount.set(count ?? 0);
     );
   }
   async openChargeSelectedDialog() {
+    if (this.paymentProcessing() || this.paymentReportOpen() || this.loading()) return;
     const selected = this.openCharges()
       .filter(c => this.selectedChargeIds().has(c.id))
       .map(c => ({
@@ -1214,22 +1219,24 @@ this.totalChargesCount.set(count ?? 0);
     });
 
     ref.afterClosed().subscribe(async result => {
-      if (!result?.confirmed) return;
+      if (!result?.confirmed || !Array.isArray(result.rows)) return;
       await this.collectSelectedPayments(result.rows);
     });
   }
-  async collectSelectedPayments(rows: any[]) {
+  async collectSelectedPayments(rows: any[]): Promise<void> {
+    // The guard is set synchronously, before the first await.
+    if (this.paymentProcessing() || this.paymentReportOpen() || !rows?.length) return;
+    this.paymentProcessing.set(true);
+    this.paymentProgress.set({ completed: 0, total: rows.length });
+    this.error.set(null);
+    this.successMessage.set(null);
     const reportRows: PaymentRunReportRow[] = [];
 
     try {
-      this.loading.set(true);
-      this.error.set(null);
-      this.successMessage.set(null);
-
       const farm = getCurrentFarmMetaSync();
       const schema = farm?.schema_name ?? 'public';
 
-      // כל חיוב מטופל בנפרד: כישלון של הורה אחד לא עוצר את יתר הקבוצה.
+      // Continue with the remaining rows when one payment fails.
       for (const row of rows) {
         try {
           if (row.paymentMethod === 'credit_card') {
@@ -1246,15 +1253,12 @@ this.totalChargesCount.set(count ?? 0);
               parentUid: row.parentUid,
               chargeId: row.chargeId,
               paymentMethod: row.paymentMethod,
-
               reference: row.reference || null,
               checkNumber: row.checkNumber || null,
-
               shouldCreateInvoice: row.shouldCreateInvoice === true,
               invoiceExtraLinesByChild: this.invoiceExtraLinesByChild(),
             });
           }
-
           reportRows.push({
             parentName: row.parentName || row.parentUid || 'הורה לא ידוע',
             amountAgorot: Number(row.amountAgorot ?? 0),
@@ -1263,41 +1267,51 @@ this.totalChargesCount.set(count ?? 0);
           });
         } catch (rowError: any) {
           console.error('[collectSelectedPayments] charge failed:', row, rowError);
-
           if (row.parentUid) {
-            const nextFailedParents = new Set(this.failedPaymentParentUids());
-            nextFailedParents.add(row.parentUid);
-            this.failedPaymentParentUids.set(nextFailedParents);
+            const failed = new Set(this.failedPaymentParentUids());
+            failed.add(row.parentUid);
+            this.failedPaymentParentUids.set(failed);
           }
-
-          const serverError = paymentFailureReason(rowError);
-          const parentLabel = row.parentName || row.parentUid || 'הורה לא ידוע';
           reportRows.push({
-            parentName: parentLabel,
+            parentName: row.parentName || row.parentUid || 'הורה לא ידוע',
             amountAgorot: Number(row.amountAgorot ?? 0),
             status: 'failed',
-            reason: serverError,
+            reason: paymentFailureReason(rowError),
           });
+        } finally {
+          this.paymentProgress.update(progress => ({ ...progress, completed: progress.completed + 1 }));
         }
       }
 
-      this.successMessage.set('הגבייה בוצעה בהצלחה');
-
-      await this.loadCharges();
-      this.selectedChargeIds.set(new Set());
-      this.successMessage.set('הגבייה בוצעה בהצלחה');
+      // Refresh the amounts without clearing the selection ahead of report approval.
+      await this.loadCharges(true);
+      const failedCount = reportRows.filter(row => row.status === 'failed').length;
+      this.paymentReportOpen.set(true);
+      const reportRef = this.dialog.open(PaymentRunReportDialogComponent, {
+        width: '880px',
+        maxWidth: '96vw',
+        autoFocus: false,
+        disableClose: true,
+        data: {
+          totalCount: reportRows.length,
+          succeededCount: reportRows.length - failedCount,
+          failedCount,
+          rows: reportRows,
+        },
+      });
+      const approved = await firstValueFrom(reportRef.afterClosed());
+      if (approved === true) {
+        this.clearSelection();
+        this.successMessage.set(
+          `הגבייה הסתיימה: ${reportRows.length - failedCount} הצליחו, ${failedCount} נכשלו.`
+        );
+      }
     } catch (e: any) {
-      console.error('[collectSelectedPayments] error full:', e);
-
-      const serverError =
-        e?.error?.error ||
-        e?.error?.message ||
-        e?.message ||
-        'שגיאה בביצוע הגבייה';
-
-      this.error.set(serverError);
+      console.error('[collectSelectedPayments] error:', e);
+      this.error.set(e?.message ?? 'שגיאה בביצוע הגבייה או בהצגת הדוח');
     } finally {
-      this.loading.set(false);
+      this.paymentReportOpen.set(false);
+      this.paymentProcessing.set(false);
     }
   }
 
