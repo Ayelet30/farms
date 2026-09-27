@@ -69,6 +69,13 @@ interface InstructorDetailsRow extends InstructorRow {
   color_hex?: string | null;
   birth_date?: string | null;        // מגיע מ-Supabase כ-'YYYY-MM-DD'
 }
+interface SickNoteFile {
+  id: string;
+  unavailability_id: string;
+  file_name: string;
+  storage_path: string;
+  created_at: string;
+}
 interface InstructorUnavailabilityRow {
   id: string;
   instructor_id_number: string;
@@ -77,7 +84,7 @@ interface InstructorUnavailabilityRow {
   reason?: string | null;
   all_day: boolean;
   category?: string | null;
-  sick_note_file_path?: string | null;
+  sick_note_file_path?: string[] | null;
 }
 
 @Component({
@@ -99,6 +106,13 @@ export class SecretaryInstructorsComponent implements OnInit {
   drawerUnavailability: InstructorUnavailabilityRow[] = [];
   showUnavailabilitySection = false;
   showSickNotesSection = false;
+  sickFiles: SickNoteFile[] = [];
+
+  selectedSickDay: InstructorUnavailabilityRow | null = null;
+
+  sickFilesBusy = false;
+
+  sickFilesError = '';
   dayOfWeekToLabel(d?: number | null): string {
     switch (d) {
       case 0: return 'ראשון';
@@ -1651,5 +1665,176 @@ ${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התח�
     return (this.drawerUnavailability || []).filter(
       row => !!row.sick_note_file_path
     );
+  }
+  filesForDay(day: InstructorUnavailabilityRow): string[] {
+    return day.sick_note_file_path ?? [];
+  }
+
+  openSickFiles(day: InstructorUnavailabilityRow): void {
+    this.selectedSickDay = day;
+  }
+
+  async uploadSickFiles(
+    day: InstructorUnavailabilityRow,
+    event: Event
+  ): Promise<void> {
+    if (!supabase) return;
+
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+
+    if (!files.length || this.sickFilesBusy) return;
+
+    this.sickFilesBusy = true;
+
+    try {
+      for (const file of files) {
+        if (![
+          'application/pdf',
+          'image/jpeg',
+          'image/png',
+          'image/webp'
+        ].includes(file.type)) {
+          throw new Error('ניתן להעלות PDF או תמונה בלבד');
+        }
+
+        if (file.size > 10 * 1024 * 1024) {
+          throw new Error('גודל קובץ מרבי: 10MB');
+        }
+
+        const extension = file.name.split('.').pop();
+        const path =
+          `${day.instructor_id_number}/${day.id}/` +
+          `${crypto.randomUUID()}.${extension}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('sick_notes')
+          .upload(path, file, {
+            contentType: file.type,
+            upsert: false
+          });
+
+        if (uploadError) throw uploadError;
+
+        const updatedPaths = [...this.filesForDay(day), path];
+
+        const { data: updatedRows, error: updateError } =
+          await dbTenant()
+            .from('instructor_unavailability')
+            .update({
+              sick_note_file_path: updatedPaths
+            })
+            .eq('id', day.id)
+            .eq('instructor_id_number', day.instructor_id_number)
+            .select('id, sick_note_file_path');
+
+        if (updateError || updatedRows?.length !== 1) {
+
+          await supabase.storage
+            .from('sick_notes')
+            .remove([path]);
+
+          throw updateError || new Error(
+            'יום המחלה לא עודכן במסד הנתונים'
+          );
+        }
+
+        day.sick_note_file_path =
+          updatedRows[0].sick_note_file_path;
+
+      }
+      await this.ui.alert(
+        files.length === 1
+          ? 'אישור המחלה הועלה בהצלחה'
+          : `${files.length} אישורי מחלה הועלו בהצלחה`,
+        'העלאה הושלמה'
+      );
+    } catch (error: any) {
+      await this.ui.alert(
+        error?.message || 'העלאת הקובץ נכשלה',
+        'שגיאה'
+      );
+    } finally {
+      this.sickFilesBusy = false;
+    }
+    const { data: existingDay, error: readError } =
+      await dbTenant()
+        .from('instructor_unavailability')
+        .select('id, instructor_id_number, sick_note_file_path')
+        .eq('id', day.id);
+
+  }
+
+  async viewSickFile(path: string): Promise<void> {
+    if (!supabase) return;
+
+    const { data, error } = await supabase.storage
+      .from('sick_notes')
+      .createSignedUrl(path, 60);
+
+    if (error || !data?.signedUrl) {
+      await this.ui.alert('פתיחת הקובץ נכשלה', 'שגיאה');
+      return;
+    }
+
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  async deleteSickFile(path: string): Promise<void> {
+    if (!supabase || !this.selectedSickDay || this.sickFilesBusy) {
+      return;
+    }
+
+    const confirmed = await this.ui.confirm({
+      title: 'מחיקת אישור מחלה',
+      message: 'האם למחוק את הקובץ?',
+      okText: 'מחק',
+      cancelText: 'ביטול',
+      showCancel: true
+    });
+
+    if (!confirmed) return;
+
+    this.sickFilesBusy = true;
+
+    try {
+      const day = this.selectedSickDay;
+
+      const updatedPaths = this.filesForDay(day)
+        .filter(existingPath => existingPath !== path);
+
+      // מעדכנים תחילה את רשימת הנתיבים.
+      const { error: updateError } = await dbTenant()
+        .from('instructor_unavailability')
+        .update({ sick_note_file_path: updatedPaths })
+        .eq('id', day.id);
+
+      if (updateError) throw updateError;
+
+      const { error: storageError } = await supabase.storage
+        .from('sick_notes')
+        .remove([path]);
+
+      if (storageError) {
+        // שחזור הנתיב במקרה של כישלון המחיקה.
+        await dbTenant()
+          .from('instructor_unavailability')
+          .update({ sick_note_file_path: this.filesForDay(day) })
+          .eq('id', day.id);
+
+        throw storageError;
+      }
+
+      day.sick_note_file_path = updatedPaths;
+
+    } catch (error: any) {
+      await this.ui.alert(
+        error?.message || 'מחיקת הקובץ נכשלה',
+        'שגיאה'
+      );
+    } finally {
+      this.sickFilesBusy = false;
+    }
   }
 }
