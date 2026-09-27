@@ -320,8 +320,7 @@ export const sendFarmDayOffCancellationEmails = onRequest(
 
           parentSentCount++;
           successfulParents.push({
-            name: parentName,
-            email,
+            name: instructorName, email,
           });
         } catch (e: any) {
           failedCount++;
@@ -332,8 +331,7 @@ export const sendFarmDayOffCancellationEmails = onRequest(
           });
           failures.push({
             email,
-            name: parentName,
-            type: 'parent',
+            name: instructorName, type: 'parent',
             error: e?.message || String(e),
           });
 
