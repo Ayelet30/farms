@@ -113,6 +113,10 @@
         "function": "createMaccabiAutomationJob"
       },
       {
+        "source": "/api/createClalitAutomationJob",
+        "function": "createClalitAutomationJob"
+      },
+      {
         "source": "/api/ensureTranzilaInvoiceForPayment",
         "function": "ensureTranzilaInvoiceForPayment"
       },

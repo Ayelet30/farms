@@ -146,7 +146,7 @@
 
       <div class="section-actions">
         <button
-          *ngIf="activeTab === 'MACCABI'"
+          *ngIf="activeTab === 'MACCABI' || activeTab === 'CLALIT'"
           type="button"
           class="link-btn"
           [class.active]="groupByChildId"
@@ -239,6 +239,20 @@
       </label>
 
       <label class="filter-field">
+        <span>נוכחות</span>
+
+        <mat-select
+          [(ngModel)]="filters.attendance"
+          (selectionChange)="applyFilters()"
+        >
+          <mat-option value="ALL">כל מצבי הנוכחות</mat-option>
+          <mat-option value="present">נכח</mat-option>
+          <mat-option value="absent">לא הגיע</mat-option>
+          <mat-option value="unknown">לא דווחה נוכחות</mat-option>
+        </mat-select>
+      </label>
+
+      <label class="filter-field">
         <span>התקיים</span>
 
         <mat-select
@@ -265,7 +279,7 @@
       </label>
 
       <label
-        *ngIf="activeTab === 'MACCABI'"
+        *ngIf="activeTab === 'MACCABI' || activeTab === 'CLALIT'"
         class="filter-field"
       >
         <span>תעודת זהות</span>
@@ -330,16 +344,6 @@
       </button>
 
       <button
-        *ngIf="activeTab === 'CLALIT'"
-        type="button"
-        class="pill-btn"
-        [disabled]="!canOpenSelectedClaims || sending"
-        (click)="openSelectedClaims()"
-      >
-        פתיחת תביעות
-      </button>
-
-      <button
         type="button"
         class="pill-btn primary"
         [disabled]="
@@ -356,7 +360,7 @@
               ? 'שליחה לדיווח למכבי'
               : activeTab === 'MEUHEDET'
                 ? 'דיווח למאוחדת'
-                : 'הגשת התביעות'
+                : 'שליחה לדיווח לכללית'
         }}
       </button>
     </div>
@@ -426,7 +430,6 @@
             </strong>
 
             <small
-              *ngIf="activeTab === 'MACCABI'"
               class="secondary-value"
               [class.missing]="!row.childIdNumber"
             >
@@ -460,6 +463,21 @@
               –
               {{ row.end_time.slice(0, 5) }}
             </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="attendance">
+          <th mat-header-cell *matHeaderCellDef>
+            נוכחות
+          </th>
+
+          <td mat-cell *matCellDef="let row">
+            {{
+              row.attendance_status === 'present' ? 'נכח' :
+              row.attendance_status === 'absent' ? 'לא הגיע' :
+              row.attendance_status === 'unknown' ? 'לא דווחה נוכחות' :
+              row.attendance_status
+            }}
           </td>
         </ng-container>
 
