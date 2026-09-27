@@ -281,8 +281,10 @@ export class ParentDetailsComponent implements OnInit, OnDestroy {
         return;
       }
 
-      this.parent = { ...this.editableParent };
-      this.isEditing = false;
+      this.parent = {
+        ...this.parent,
+        ...this.editableParent
+      }; this.isEditing = false;
       this.error = undefined;
       this.showInfo('פרטי ההורה נשמרו בהצלחה');
     } catch (e: any) {

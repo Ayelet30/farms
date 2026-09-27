@@ -64,9 +64,10 @@
 
   <!-- תצוגת יום מותאמת -->
   <div *ngIf="currentView === 'timeGridDay'" class="bereshit-calendar calendar-host custom-day-host" #calendarHost>
-    <div class="custom-day-grid" [class.single-column-day]="!shouldSplitDayByInstructor"
-      [style.--day-cols]="customDayResources.length" [style.--slot-count]="customDaySlots.length">
 
+    <div *ngIf="customDayReady; else dayLoading" class="custom-day-grid"
+      [class.single-column-day]="!shouldSplitDayByInstructor" [style.--day-cols]="customDayResources.length"
+      [style.--slot-count]="customDaySlots.length">
       <!-- כותרות מדריכים - רק למזכירה/מנהלת -->
       <ng-container *ngIf="shouldSplitDayByInstructor">
         <div *ngFor="let res of customDayResources; let col = index" class="day-resource-header sticky-cell"
@@ -119,6 +120,7 @@
       <div *ngFor="let blocked of customDayBlockedCells" class="day-blocked-overlay"
         [class.kind-day-off]="blocked.kind === 'day_off'" [class.kind-not-working]="blocked.kind === 'not_working'"
         [class.kind-farm-off]="blocked.kind === 'farm_off'"
+        [class.kind-instructor-off]="blocked.kind === 'instructor_off'"
         [style.gridColumn]="shouldSplitDayByInstructor ? blocked.col + 1 : 1"
         [style.gridRow]="blocked.row + 2 + ' / span ' + blocked.span" [attr.title]="blocked.reason || 'זמן חסום'">
       </div>
@@ -131,7 +133,7 @@
         <div class="day-cluster-inner" [class.multi]="cluster.items.length > 1">
           <button type="button" *ngFor="let item of cluster.items" class="day-lesson-card"
             [class.status-canceled]="isCanceledItem(item)" [class.status-pending]="isPendingItem(item)"
-            [class.status-approved]="isApprovedItem(item)"
+            [class.status-approved]="isApprovedItem(item)" [class.instructor-day-off]="isInstructorDayOffItem(item)"
             [style.borderInlineStartColor]="getInstructorBorderColor(item)"
             (contextmenu)="onCustomItemRightClick(item, $event)" (click)="onCustomItemClick(item, $event)"
             [title]="buildCustomItemTitle(item)">
@@ -163,8 +165,15 @@
         </div>
       </div>
     </div>
-  </div>
 
+    <ng-template #dayLoading>
+      <div class="day-loading-placeholder">
+        <div class="day-loading-spinner"></div>
+        <span>טוען לוח...</span>
+      </div>
+    </ng-template>
+
+  </div>
   <!-- שבוע/חודש נשארים FullCalendar -->
   <div *ngIf="currentView !== 'timeGridDay'" class="bereshit-calendar calendar-host">
     <div #calendarHost class="schedule-host">
