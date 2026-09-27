@@ -1639,10 +1639,6 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
     this.blockedDayCells = blocked;
 
-    console.log(
-      '[SECRETARY BLOCKED DAY CELLS]',
-      this.blockedDayCells
-    );
   }
 
   onRightClickDay(e: any): void {
@@ -3985,7 +3981,6 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
         p_to_date: to,
       };
 
-      console.log('series slots search payload', payload);
 
       const { data, error } = await dbTenant().rpc(
         'find_series_slots_with_skips',

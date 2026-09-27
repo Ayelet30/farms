@@ -2318,10 +2318,7 @@ scheduled_deletion_at,deletion_note
     if (this.childForm.invalid) {
       this.childForm.markAllAsTouched();
 
-      console.log('❌ הטופס אינו תקין');
-      console.log('שגיאת שם פרטי:', this.childForm.get('first_name')?.errors);
-      console.log('שגיאת שם משפחה:', this.childForm.get('last_name')?.errors);
-      console.log('ערכי הטופס:', this.childForm.getRawValue());
+
     }
   }
 
