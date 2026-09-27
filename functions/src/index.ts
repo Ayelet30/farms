@@ -63,6 +63,8 @@ export { sendFarmDayOffCancellationEmails } from './send-farm-day-off-cancellati
 export { previewInstructorDeactivationImpact } from './preview-instructor-deactivation-impact';
 export { deactivateInstructorAndCancelFutureLessons } from './deactivate-instructor-and-cancel-future-lessons';
 export { createMaccabiAutomationJob } from './automation/maccabiJobs';
+export { createClalitAutomationJob } from './automation/clalitjobs';
+export { clalitAgentApi } from './automation/clalitAgentApi';
 export {
   approveRiderServiceRequestAndNotify,
   rejectRiderServiceRequestAndNotify,

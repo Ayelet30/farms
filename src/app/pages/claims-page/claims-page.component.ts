@@ -19,6 +19,7 @@ import {
 } from '@angular/material/paginator';
 
 import { dbTenant } from '../../services/supabaseClient.service';
+import { getAuth } from 'firebase/auth';
 import {
   ClaimsApiService,
   ClaimOpenItem,
@@ -67,6 +68,10 @@ interface LessonClaimRow {
 
   occurred: boolean;
   chargeable: boolean;
+  exceptionStatus: string | null;
+  isCancellation: boolean;
+  occurrenceBillable: boolean | null;
+  cancellerRole: string | null;
 
   claimOpened: boolean;
   claimSubmitted: boolean;
@@ -85,6 +90,7 @@ interface FiltersState {
   childText: string;
   instructorText: string;
 
+  attendance: 'ALL' | 'present' | 'absent' | 'unknown';
   occurred: 'ALL' | 'YES' | 'NO';
   chargeable: 'ALL' | 'YES' | 'NO';
   claimStatus: 'ALL' | ClaimStatus;
@@ -163,6 +169,7 @@ agentUpdateAvailable = false;
       'child',
       'date',
       'time',
+      'attendance',
       'occurred',
       'chargeable',
     ];
@@ -202,6 +209,7 @@ agentUpdateAvailable = false;
     return {
       childText: '',
       instructorText: '',
+      attendance: 'ALL',
       occurred: 'ALL',
       chargeable: 'ALL',
       claimStatus: 'ALL',
@@ -442,8 +450,66 @@ async downloadHealthAgent(): Promise<void> {
     }
   }
 
+  const occurrences = new Map<string, any>();
+
+  if (this.activeTab === 'MACCABI' || this.activeTab === 'CLALIT') {
+    let occurrencePage = 0;
+    let moreOccurrences = true;
+
+    while (moreOccurrences) {
+      const { data, error } = await dbc
+        .from('lessons_occurrences')
+        .select('lesson_id, occur_date, child_id, status, is_cancellation, canceller_role, is_billable')
+        .gte('occur_date', fromDate)
+        .lte('occur_date', toDate)
+        .order('occur_date', { ascending: true })
+        .order('lesson_id', { ascending: true })
+        .range(occurrencePage * pageSize, (occurrencePage + 1) * pageSize - 1);
+
+      if (error) throw error;
+
+      for (const item of data ?? []) {
+        occurrences.set(
+          `${item.lesson_id}__${item.occur_date}__${item.child_id}`,
+          item
+        );
+      }
+
+      moreOccurrences = (data?.length ?? 0) === pageSize;
+      occurrencePage++;
+      if (occurrencePage >= 20 && moreOccurrences) {
+        throw new Error('Too many lesson occurrences to classify Maccabi claims safely');
+      }
+    }
+  }
+
+  // The Clalit view currently has no child_id_number column.
+  if (this.activeTab === 'CLALIT') {
+    const ids = [...new Set(allRows.map((row: any) => String(row.child_id)))];
+    const idNumbers = new Map<string, string>();
+    for (let offset = 0; offset < ids.length; offset += 200) {
+      const { data, error } = await dbc.from('children')
+        .select('child_uuid,gov_id')
+        .in('child_uuid', ids.slice(offset, offset + 200));
+      if (error) throw error;
+      for (const child of data ?? []) {
+        if (child.gov_id) {
+          idNumbers.set(String(child.child_uuid), String(child.gov_id));
+        }
+      }
+    }
+    for (const row of allRows) {
+      row.child_id_number = idNumbers.get(String(row.child_id)) ?? null;
+    }
+  }
+
   this.lessons = allRows.map((row: any) =>
-    this.mapLessonRow(row)
+    this.mapLessonRow(
+      row,
+      occurrences.get(
+        `${row.lesson_id}__${row.occur_date}__${row.child_id}`
+      ) ?? null
+    )
   );
 
   const monthDebug = this.lessons.reduce(
@@ -472,7 +538,7 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
   );
 }
 
-  private mapLessonRow(row: any): LessonClaimRow {
+  private mapLessonRow(row: any, occurrence: any = null): LessonClaimRow {
     const lessonId = String(row.lesson_id);
     const occurDate = String(row.occur_date);
 
@@ -480,7 +546,7 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
       row.attendance_status ?? 'unknown'
     )
       .trim()
-      .toLowerCase();
+      .toLowerCase() || 'unknown';
 
     const occurred = [
       'present',
@@ -493,7 +559,10 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
     ].includes(attendanceStatus);
 
     const rawChargeable = Boolean(row.chargeable);
-    const chargeable = rawChargeable && occurred;
+    // Maccabi plan subsidy is independent of the farm's attendance billing flag.
+    // A no-show is still reportable to Maccabi.
+    const chargeable = rawChargeable &&
+      (this.activeTab === 'MACCABI' || this.activeTab === 'CLALIT' || occurred);
 
     const reportMonth = occurDate.slice(0, 7);
     const [year, month] = reportMonth.split('-');
@@ -504,12 +573,20 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
 
     const displayStatus = String(
       row.display_status ??
-        (row.claim_submitted ? 'DONE' : 'NOT_REPORTED')
+        (this.activeTab === 'CLALIT'
+          ? row.claim_status === 'APPROVED' ? 'DONE'
+            : row.claim_status === 'PENDING' ? 'PENDING'
+            : row.claim_status === 'REJECTED' ? 'FAILED'
+            : row.claim_submitted ? 'PENDING' : 'NOT_REPORTED'
+          : row.claim_submitted ? 'DONE' : 'NOT_REPORTED')
     );
 
     const displayStatusText = String(
       row.display_status_text ??
-        (row.claim_submitted ? 'דווח' : 'טרם דווח')
+        (displayStatus === 'DONE' ? 'דווח'
+          : displayStatus === 'PENDING' ? 'ממתין'
+          : displayStatus === 'FAILED' ? 'נכשל'
+          : 'טרם דווח')
     );
 
     return {
@@ -540,12 +617,14 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
       start_time: row.start_time ?? null,
       end_time: row.end_time ?? null,
 
-      attendance_status: String(
-        row.attendance_status ?? 'unknown'
-      ),
+      attendance_status: attendanceStatus,
 
       occurred,
       chargeable,
+      exceptionStatus: occurrence?.status ?? null,
+      isCancellation: Boolean(occurrence?.is_cancellation),
+      occurrenceBillable: occurrence?.is_billable ?? null,
+      cancellerRole: occurrence?.canceller_role ?? null,
 
       claimOpened: Boolean(row.claim_opened),
       claimSubmitted: Boolean(row.claim_submitted),
@@ -605,6 +684,13 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
       if (
         instructorSearch &&
         !normalize(row.instructorName).includes(instructorSearch)
+      ) {
+        return false;
+      }
+
+      if (
+        filter.attendance !== 'ALL' &&
+        normalize(row.attendance_status) !== filter.attendance
       ) {
         return false;
       }
@@ -687,7 +773,7 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
   }
 
   toggleGroupByChildId(): void {
-    if (this.activeTab !== 'MACCABI') {
+    if (this.activeTab !== 'MACCABI' && this.activeTab !== 'CLALIT') {
       return;
     }
 
@@ -696,7 +782,7 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
   }
 
   private sortFilteredRows(rows: LessonClaimRow[]): LessonClaimRow[] {
-    if (!this.groupByChildId || this.activeTab !== 'MACCABI') {
+    if (!this.groupByChildId || (this.activeTab !== 'MACCABI' && this.activeTab !== 'CLALIT')) {
       return rows;
     }
 
@@ -763,23 +849,43 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
   }
 
   isRowSelectable(row: LessonClaimRow): boolean {
-    if (!row.occurred || !row.chargeable) {
-      return false;
-    }
+    if (this.activeTab === 'MACCABI' || this.activeTab === 'CLALIT') {
+      const cancelled = row.isCancellation || row.exceptionStatus === 'בוטל';
+      const billableCancellation = cancelled &&
+        row.occurrenceBillable === true &&
+        (row.cancellerRole === 'parent' || row.cancellerRole === null);
+      const absentWithoutCancellation = row.attendance_status === 'absent' && !cancelled;
 
-    if (this.activeTab === 'MACCABI') {
-      return row.canSelectClaim && Boolean(row.childIdNumber);
+      return row.chargeable &&
+        (this.activeTab !== 'MACCABI' || row.canSelectClaim) &&
+        Boolean(row.childIdNumber) &&
+        (!cancelled || billableCancellation) &&
+        (row.occurred || absentWithoutCancellation || billableCancellation) &&
+        (this.activeTab !== 'CLALIT' ||
+          !row.claimSubmitted &&
+          row.claimStatus !== 'APPROVED' &&
+          row.claimStatus !== 'PENDING');
     }
-
-    if (this.activeTab === 'CLALIT') {
-      return row.claimStatus !== 'APPROVED';
-    }
-
-    return true;
+    return row.occurred && row.chargeable;
   }
 
   rowBlockReason(row: LessonClaimRow): string {
-    if (!row.occurred) {
+    if (this.activeTab === 'MACCABI' || this.activeTab === 'CLALIT') {
+      const cancelled = row.isCancellation || row.exceptionStatus === 'בוטל';
+      if (cancelled &&
+          (row.occurrenceBillable !== true ||
+           !['parent', null].includes(row.cancellerRole))) {
+        return 'ביטול שאינו מסומן לחיוב הורה';
+      }
+      if (!row.chargeable) return 'השיעור אינו מחויב לקופה';
+      if (!row.childIdNumber) return 'חסרה תעודת זהות לילד';
+      if (!row.occurred && row.attendance_status !== 'absent' &&
+          !cancelled) {
+        return 'לא דווחה נוכחות או ביטול הורה';
+      }
+    }
+
+    if (this.activeTab === 'MEUHEDET' && !row.occurred) {
       return 'השיעור לא סומן כהתקיים';
     }
 
@@ -788,7 +894,7 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
     }
 
     if (
-      this.activeTab === 'MACCABI' &&
+      (this.activeTab === 'MACCABI' || this.activeTab === 'CLALIT') &&
       !row.childIdNumber
     ) {
       return 'חסרה תעודת זהות לילד';
@@ -968,7 +1074,7 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
 
     try {
       if (this.activeTab === 'CLALIT') {
-        await this.submitSelectedClaims();
+        await this.reportToClalitAutomation();
         return;
       }
 
@@ -983,6 +1089,54 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
       );
     } finally {
       this.sending = false;
+    }
+  }
+
+  private async reportToClalitAutomation(): Promise<void> {
+    const selected = this.selectedRows.filter((row) => this.isRowSelectable(row));
+    if (!selected.length) {
+      alert('לא נבחרו שיעורים שניתן לדווח לכללית.');
+      return;
+    }
+
+    const user = getAuth().currentUser;
+    if (!user) {
+      alert('יש להתחבר מחדש לפני יצירת משימת הדיווח.');
+      return;
+    }
+
+    try {
+      const claims = (await user.getIdTokenResult()).claims;
+console.log('Clalit authorization check', {
+  requestedSchema: this.tenantSvc.requireTenant().schema,
+  farm_schema: claims['farm_schema'],
+  role: claims['role'],
+});
+      const response = await fetch('/api/createClalitAutomationJob', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${await user.getIdToken()}`,
+        },
+        body: JSON.stringify({
+          schema: this.tenantSvc.requireTenant().schema,
+          lessons: selected.map((row) => ({
+            lesson_id: row.lesson_id,
+            occur_date: row.occur_date,
+            child_id: row.child_id,
+          })),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.message || `שגיאת שרת ${response.status}`);
+      }
+      this.selectedIds.clear();
+      alert(`נוצרה משימת כללית עבור ${result.lessonCount} שיעורים. מספר משימה: ${result.jobId}`);
+      await this.reloadCurrentTab();
+    } catch (error) {
+      console.error('createClalitAutomationJob failed:', error);
+      alert(error instanceof Error ? error.message : 'לא הצלחנו ליצור משימת כללית.');
     }
   }
 
