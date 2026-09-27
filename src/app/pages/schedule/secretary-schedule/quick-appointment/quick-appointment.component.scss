@@ -542,3 +542,39 @@
     width: 100%;
   }
 }
+
+.eligibility-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+
+  margin-top: 8px;
+  padding: 9px 11px;
+
+  border: 1px solid #f1b8b8;
+  border-radius: 8px;
+  background: #fff5f5;
+
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.eligibility-warning-icon {
+  flex: 0 0 auto;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.eligibility-warning-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.eligibility-warning-content strong {
+  font-weight: 600;
+}
+
+.eligibility-warning-content span {
+  font-size: 12px;
+}

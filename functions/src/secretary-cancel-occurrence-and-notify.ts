@@ -141,6 +141,12 @@ export const secretaryCancelOccurrenceAndNotify = onRequest(
 
       if (!childId) throw new Error('Occurrence missing child_id');
 
+      const cancellerRole =
+        req.body?.cancellerRole === 'parent'
+          ? 'parent'
+          : 'secretary';
+
+
       const { error: upsertErr } = await sbTenant
         .from('lesson_occurrence_exceptions')
         .upsert(
@@ -149,7 +155,7 @@ export const secretaryCancelOccurrenceAndNotify = onRequest(
             occur_date: occurDate,
             status: 'בוטל',
             note,
-            cancellerRole: req.body?.cancellerRole === 'parent'  ? 'parent' : 'parent',
+            canceller_role: cancellerRole,
             cancelled_at: new Date().toISOString(),
             is_makeup_allowed: isMakeupAllowed,
             is_billable: isBillable,
@@ -158,7 +164,6 @@ export const secretaryCancelOccurrenceAndNotify = onRequest(
         );
 
       if (upsertErr) throw upsertErr;
-
       const { data: childRow, error: childErr } = await sbTenant
         .from('children')
         .select('parent_uid, first_name, last_name')
@@ -181,24 +186,24 @@ export const secretaryCancelOccurrenceAndNotify = onRequest(
 
       const parentName =
         fullName(parentRow?.first_name ?? null, parentRow?.last_name ?? null) ?? 'הורה';
-let instructorName: string | null = null;
-let instructorUid: string | null = null;
+      let instructorName: string | null = null;
+      let instructorUid: string | null = null;
 
-if (instructorId) {
-  const { data: instructorRow, error: instructorErr } = await sbTenant
-    .from('instructors')
-    .select('uid, first_name, last_name')
-    .eq('id_number', instructorId)
-    .maybeSingle();
+      if (instructorId) {
+        const { data: instructorRow, error: instructorErr } = await sbTenant
+          .from('instructors')
+          .select('uid, first_name, last_name')
+          .eq('id_number', instructorId)
+          .maybeSingle();
 
-  if (instructorErr) throw instructorErr;
+        if (instructorErr) throw instructorErr;
 
-  instructorName =
-    fullName(instructorRow?.first_name ?? null, instructorRow?.last_name ?? null);
+        instructorName =
+          fullName(instructorRow?.first_name ?? null, instructorRow?.last_name ?? null);
 
-  instructorUid =
-    instructorRow?.uid ? String(instructorRow.uid) : null;
-}
+        instructorUid =
+          instructorRow?.uid ? String(instructorRow.uid) : null;
+      }
       const { data: farmRow, error: farmErr } = await sbPublic
         .from('farms')
         .select('name')

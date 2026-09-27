@@ -287,7 +287,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     startTime: string;
     endTime?: string | null;
     reason?: string | null;
-    kind?: 'day_off' | 'not_working' | 'farm_off';
+    kind?: 'day_off' | 'not_working' | 'farm_off' | 'instructor_off';
   }> = [];
 
   availableDayCells: Array<{
@@ -492,7 +492,27 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       this.cdr.detectChanges();
     }
   }
+  isInstructorAvailableOnContextDay(): boolean {
+    const instructorId = String(
+      this.contextMenu.instructorId || ''
+    ).trim();
 
+    const date = String(
+      this.contextMenu.date || ''
+    ).slice(0, 10);
+
+    if (!instructorId || !date) {
+      return false;
+    }
+
+    const dayOfWeek = this.dbDowFromYmd(date);
+
+    return (this.instructorWeeklyAvailability ?? []).some(row =>
+      String(row.instructor_id_number) === instructorId &&
+      Number(row.day_of_week) === dayOfWeek &&
+      this.isWeeklyAvailabilityEffectiveOn(row, date)
+    );
+  }
   async onScheduleReloadRequested(range: {
     start: string;
     end: string;
@@ -1477,7 +1497,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       startTime: string;
       endTime?: string | null;
       reason?: string | null;
-      kind?: 'day_off' | 'not_working' | 'farm_off';
+      kind?: 'day_off' | 'not_working' | 'farm_off' | 'instructor_off';
     }> = [];
 
     const from = range?.start?.slice(0, 10) ?? '';
@@ -1541,7 +1561,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
                 ? 'מדריך ביום אישי'
                 : 'מדריך לא זמין',
 
-        kind: 'day_off',
+        kind: 'instructor_off',
       });
     }
 
@@ -1630,6 +1650,10 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
     e.jsEvent.preventDefault();
     e.jsEvent.stopPropagation();
+
+    // סוגרים כרטיס ילד פתוח
+    this.selectedChild = null;
+    this.selectedOccurrence = null;
 
     const dateStr = typeof e.dateStr === 'string' ? e.dateStr : '';
     if (!dateStr) return;
@@ -4361,12 +4385,53 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     e.jsEvent.preventDefault();
     e.jsEvent.stopPropagation();
 
+    // אם כרטיס הילד פתוח - סוגרים אותו
+    this.selectedChild = null;
+    this.selectedOccurrence = null;
+
     const dateStr = typeof e.dateStr === 'string' ? e.dateStr : '';
     if (!dateStr) return;
 
     const localYmd = this.extractYmd(dateStr);
     const localHm = dateStr.includes('T') ? this.extractHm(dateStr) : '';
+    // בתצוגה שבועית קליק ימני על כל דבר משמש רק להיעדרות מדריך
+    if (this.isWeeklyView) {
+      const MENU_WIDTH = 210;
+      const MENU_HEIGHT = 260;
+      const EDGE_GAP = 12;
 
+      let x = e.jsEvent.clientX;
+      let y = e.jsEvent.clientY;
+
+      const maxX = window.innerWidth - MENU_WIDTH - EDGE_GAP;
+      const maxY = window.innerHeight - MENU_HEIGHT - EDGE_GAP;
+
+      x = Math.max(EDGE_GAP, Math.min(x, maxX));
+      y = Math.max(EDGE_GAP, Math.min(y, maxY));
+
+      this.contextMenu.visible = true;
+      this.contextMenu.x = x;
+      this.contextMenu.y = y;
+
+      this.contextMenu.date = localYmd;
+      this.contextMenu.time = localHm;
+
+      this.contextMenu.instructorId = String(e.resourceId ?? '');
+      this.contextMenu.instructorName = String(e.resourceTitle ?? '');
+
+      this.contextMenu.hasEvent = false;
+      this.contextMenu.eventId = '';
+      this.contextMenu.lessonId = '';
+      this.contextMenu.childId = '';
+      this.contextMenu.childName = '';
+      this.contextMenu.lessonType = '';
+      this.contextMenu.status = '';
+      this.contextMenu.breakOccurrence = null;
+
+      this.contextMenuMode = 'root';
+      this.cdr.detectChanges();
+      return;
+    }
     let localEndHm = '';
     if (typeof e.endStr === 'string' && e.endStr.includes('T')) {
       localEndHm = this.extractHm(e.endStr);
@@ -4440,6 +4505,9 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   }
 
   onEventClick(arg: EventClickArg): void {
+    // אם תפריט קליק ימני פתוח - סוגרים אותו
+    this.closeContextMenu();
+
     const ext: any = arg.event.extendedProps || {};
     const meta: any = ext.meta || ext;
 
@@ -6048,5 +6116,11 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     }
 
     this.farmWorkingHours = data ?? [];
+  }
+  get isWeeklyView(): boolean {
+    return (
+      this.currentViewType === 'timeGridWeek' ||
+      this.currentViewType === 'resourceTimeGridWeek'
+    );
   }
 }

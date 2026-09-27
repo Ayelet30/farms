@@ -134,10 +134,15 @@
             <label>ילד/ה</label>
 
             <input type="text" [(ngModel)]="childSearchTerm" (focus)="childDropdownOpen = true"
-              placeholder="התחילי להקליד שם ילד/ה" autocomplete="off" />
-            <span class="eligibility-warning-dot" *ngIf="instructorEligibilityWarning"
-              [title]="instructorEligibilityWarning">
-            </span>
+              placeholder="בחר/י ילד/ה" autocomplete="off" />
+            <div class="eligibility-warning" *ngIf="instructorEligibilityWarning">
+              <span class="eligibility-warning-icon">⚠</span>
+
+              <div class="eligibility-warning-content">
+                <strong>אי־התאמה למדריך</strong>
+                <span>{{ instructorEligibilityWarning }}</span>
+              </div>
+            </div>
             <div class="qa-child-dropdown" *ngIf="childDropdownOpen">
               <button type="button" class="qa-child-option" *ngFor="let child of filteredChildren"
                 (click)="selectChild(child)">
@@ -171,7 +176,11 @@
 
           <div class="qa-field" *ngIf="bookingMode === 'series' && seriesMode === 'fixed'">
             <label>כמה מפגשים</label>
-            <input type="number" min="1" [(ngModel)]="repeatWeeks" />
+            <input type="number" min="1" max="50" [(ngModel)]="repeatWeeks" />
+
+            <small class="qa-error" *ngIf="repeatWeeks !== null && (repeatWeeks < 1 || repeatWeeks > 50)">
+              ניתן ליצור סדרה של עד 50 מפגשים.
+            </small>
           </div>
 
           <div class="qa-field" *ngIf="bookingMode === 'special'">
@@ -194,7 +203,8 @@
             </select>
 
             <small *ngIf="selectedPaymentPlan?.require_docs_at_booking" class="qa-help-text">
-              למסלול זה ניתן לצרף מסמכים: {{ (selectedPaymentPlan!.required_docs ?? []).join(', ') || 'ע״פ הנחיות החווה' }}
+              למסלול זה ניתן לצרף מסמכים: {{ (selectedPaymentPlan!.required_docs ?? []).join(', ') || 'ע״פ הנחיות החווה'
+              }}
               יש להעלות קובץ אחד בלבד.
             </small>
           </div>
@@ -224,23 +234,23 @@
             </small>
           </div>
 
- <div class="qa-field"
-  *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
-  <label>שעת התחלה</label>
+          <div class="qa-field"
+            *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
+            <label>שעת התחלה</label>
 
-  <div class="qa-readonly-time" dir="ltr">
-    {{ startTime | slice:0:5 }}
-  </div>
-</div>
+            <div class="qa-readonly-time" dir="ltr">
+              {{ startTime | slice:0:5 }}
+            </div>
+          </div>
 
-<div class="qa-field"
-  *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
-  <label>שעת סיום</label>
+          <div class="qa-field"
+            *ngIf="bookingMode === 'single' || bookingMode === 'series' || bookingMode === 'special'">
+            <label>שעת סיום</label>
 
-  <div class="qa-readonly-time" dir="ltr">
-    {{ displayEndTime | slice:0:5 }}
-  </div>
-</div>
+            <div class="qa-readonly-time" dir="ltr">
+              {{ displayEndTime | slice:0:5 }}
+            </div>
+          </div>
         </div>
       </fieldset>
 

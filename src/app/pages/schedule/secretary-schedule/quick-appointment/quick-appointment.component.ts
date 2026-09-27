@@ -305,19 +305,31 @@ export class QuickAppointmentComponent implements OnInit {
     if (age != null && !Number.isNaN(age)) {
       if (gender === 'זכר') {
         if (instructor.min_age_years_male != null && age < instructor.min_age_years_male) {
-          return { ok: false, reason: 'גיל הילד נמוך מטווח המדריך' };
+          return {
+            ok: false,
+            reason: 'גיל הילד/ה אינו תואם לטווח הגילאים שהמדריך מוגדר ללמד.'
+          };
         }
         if (instructor.max_age_years_male != null && age > instructor.max_age_years_male) {
-          return { ok: false, reason: 'גיל הילד גבוה מטווח המדריך' };
+          return {
+            ok: false,
+            reason: 'גיל הילד/ה אינו תואם לטווח הגילאים שהמדריך מוגדר ללמד.'
+          };
         }
       }
 
       if (gender === 'נקבה') {
         if (instructor.min_age_years_female != null && age < instructor.min_age_years_female) {
-          return { ok: false, reason: 'גיל הילדה נמוך מטווח המדריך' };
+          return {
+            ok: false,
+            reason: 'גיל הילד/ה אינו תואם לטווח הגילאים שהמדריך מוגדר ללמד.'
+          };
         }
         if (instructor.max_age_years_female != null && age > instructor.max_age_years_female) {
-          return { ok: false, reason: 'גיל הילדה גבוה מטווח המדריך' };
+          return {
+            ok: false,
+            reason: 'גיל הילד/ה אינו תואם לטווח הגילאים שהמדריך מוגדר ללמד.'
+          };
         }
       }
     }
@@ -529,8 +541,13 @@ export class QuickAppointmentComponent implements OnInit {
       }
 
       const weeks = Number(this.repeatWeeks || 0);
-      if (!weeks || weeks < 1) {
+
+      if (!Number.isInteger(weeks) || weeks < 1) {
         throw new Error('יש לבחור כמות מפגשים תקינה');
+      }
+
+      if (weeks > 50) {
+        throw new Error('ניתן ליצור סדרה של עד 50 מפגשים');
       }
 
       return {
@@ -1127,8 +1144,30 @@ export class QuickAppointmentComponent implements OnInit {
     return msg || 'לא ניתן לזמן שיעור בשעה זו';
   }
 
+  get hasInstructorUnavailability(): boolean {
+    return (this.slotInfo?.warnings ?? []).some(
+      warning => warning.type === 'instructor_unavailable'
+    );
+  }
+
   get isSlotUnavailable(): boolean {
-    return !!this.slotInfoError || (!!this.slotInfo && this.slotInfo.ok === false);
+    if (this.loadingSlotInfo) {
+      return false;
+    }
+
+    if (this.slotInfoError) {
+      return true;
+    }
+
+    if (!this.slotInfo) {
+      return true;
+    }
+
+    if (!this.slotInfo.riding_type_id) {
+      return true;
+    }
+
+    return false;
   }
 
   get canEditAppointment(): boolean {
