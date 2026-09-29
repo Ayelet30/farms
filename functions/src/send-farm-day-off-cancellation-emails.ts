@@ -225,6 +225,7 @@ export const sendFarmDayOffCancellationEmails = onRequest(
         }
 
         const instructorName = normStr(rows[0]?.instructor_name || 'המדריך/ה', 120);
+        const parentName = normStr(rows[0]?.parent_name || 'הורה', 120);
         const safeInstructorName = escapeHtml(instructorName);
 
         const htmlItems = rows

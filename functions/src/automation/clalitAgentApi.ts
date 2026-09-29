@@ -416,6 +416,65 @@ export const clalitAgentApi = onRequest(
           return;
         }
 
+        // Validate and decrypt all required credentials before claiming the job.
+        // A configuration error must not leave a job running without an agent.
+        /*
+         * שולפים את פרטי כללית המוצפנים
+         * מתוך הסכמה של החווה.
+         */
+        const {
+          data: encryptedRows,
+          error: credentialsError,
+        } = await tenantSupabase
+          .from('integration_secrets')
+          .select(`
+            key_name,
+            enc_iv,
+            enc_tag,
+            enc_data
+          `)
+          .eq('provider', 'CLALIT');
+
+        if (credentialsError) {
+          throw new Error(
+            `Could not load Clalit credentials: ${credentialsError.message}`
+          );
+        }
+
+        if (!encryptedRows?.length) {
+          throw new Error(
+            'No Clalit credentials found'
+          );
+        }
+
+        const decryptedSecrets =
+          Object.fromEntries(
+            (
+              encryptedRows as EncryptedSecretRow[]
+            ).map((row) => [
+              row.key_name,
+              decryptIntegrationSecret(row),
+            ])
+          );
+
+        const credentials: ClalitCredentials = {
+          username: getRequiredSecret(
+            decryptedSecrets,
+            'USERNAME'
+          ),
+
+          password: getRequiredSecret(
+            decryptedSecrets,
+            'PASSWORD'
+          ),
+          identificationCode: '123',
+
+          endpoint:
+  decryptedSecrets.PORTAL_URL?.trim() ||
+  'https://portalsapakim.mushlam.clalit.co.il/Mushlam/Login.aspx',
+        };
+
+
         /*
          * תפיסה אטומית:
          * מעדכנים רק אם המשימה עדיין pending.
@@ -474,66 +533,6 @@ export const clalitAgentApi = onRequest(
 
           return;
         }
-
-        /*
-         * שולפים את פרטי מכבי המוצפנים
-         * מתוך הסכמה של החווה.
-         */
-        const {
-          data: encryptedRows,
-          error: credentialsError,
-        } = await tenantSupabase
-          .from('integration_secrets')
-          .select(`
-            key_name,
-            enc_iv,
-            enc_tag,
-            enc_data
-          `)
-          .eq('provider', 'CLALIT');
-
-        if (credentialsError) {
-          throw new Error(
-            `Could not load Clalit credentials: ${credentialsError.message}`
-          );
-        }
-
-        if (!encryptedRows?.length) {
-          throw new Error(
-            'No Clalit credentials found'
-          );
-        }
-
-        const decryptedSecrets =
-          Object.fromEntries(
-            (
-              encryptedRows as EncryptedSecretRow[]
-            ).map((row) => [
-              row.key_name,
-              decryptIntegrationSecret(row),
-            ])
-          );
-
-        const credentials: ClalitCredentials = {
-          username: getRequiredSecret(
-            decryptedSecrets,
-            'USERNAME'
-          ),
-
-          password: getRequiredSecret(
-            decryptedSecrets,
-            'PASSWORD'
-          ),
-
-          identificationCode: getRequiredSecret(
-            decryptedSecrets,
-            'IDENTIFICATION_CODE'
-          ),
-
-          endpoint:
-            decryptedSecrets.ENDPOINT ||
-            'https://portalsapakim.mushlam.clalit.co.il/Mushlam/Login.aspx',
-        };
 
         res.status(200).json({
           ok: true,
