@@ -2273,6 +2273,10 @@ scheduled_deletion_at,deletion_note
           this.hebrewNameValidator(),
         ],
       ],
+      gov_id: [
+        child.gov_id ?? '',
+        [Validators.pattern(/^\d{9}$/)],
+      ],
       funding_source_id: [child.funding_source_id ?? null],
       status: [child.status ?? null],
       medical_notes: [
@@ -2630,6 +2634,13 @@ scheduled_deletion_at,deletion_note
 
     const raw = this.childForm.getRawValue();
 
+    raw.gov_id = String(raw.gov_id ?? '').trim();
+
+    this.childForm.patchValue(
+      { gov_id: raw.gov_id },
+      { emitEvent: false }
+    );
+
     raw.first_name = this.cleanHebrewName(raw.first_name);
     raw.last_name = this.cleanHebrewName(raw.last_name);
 
@@ -2661,6 +2672,7 @@ scheduled_deletion_at,deletion_note
     }
 
     const fieldsToCompare: (keyof ChildDetails)[] = [
+      'gov_id',
       'first_name',
       'last_name',
       'funding_source_id',

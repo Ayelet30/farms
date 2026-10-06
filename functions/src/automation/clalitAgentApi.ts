@@ -614,7 +614,7 @@ export const clalitAgentApi = onRequest(
         }
         const previous = job.result?.checkpoints?.[lessonKey] ?? null;
         const claimNumber = String(req.body?.claimNumber ?? previous?.claimNumber ?? '').trim();
-        if ((phase === 'claim_opened' || phase === 'payment_sent') && !claimNumber) {
+        if (phase === 'payment_sent' && !claimNumber) {
           res.status(400).json({ ok: false, message: 'Claim number is required' });
           return;
         }
