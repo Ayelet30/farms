@@ -2073,7 +2073,9 @@ scheduled_deletion_at,deletion_note
         series.paymentPlanId ??
         null,
 
-      effectiveFrom: this.getTodayIsoDate(),
+      effectiveFrom: this.isSeriesCurrentlyOpen(series)
+  ? this.getTodayIsoDate()
+  : '',
 
       saving: false,
       error: '',
@@ -2107,6 +2109,34 @@ scheduled_deletion_at,deletion_note
       this.seriesPaymentPlanEditor.error = 'יש לבחור תאריך תחולה.';
       return;
     }
+
+    const startDate = this.getSeriesActualStartDateIso(series);
+const endDate = series.seriesEndDate?.slice(0, 10);
+
+if (!startDate) {
+  this.seriesPaymentPlanEditor.error =
+    'לא ניתן לזהות את תאריך תחילת הסדרה.';
+  return;
+}
+
+if (effectiveFrom < startDate) {
+  this.seriesPaymentPlanEditor.error =
+    'תאריך תחולת המסלול לא יכול להיות לפני תחילת הסדרה.';
+  return;
+}
+
+if (endDate && effectiveFrom > endDate) {
+  this.seriesPaymentPlanEditor.error =
+    'תאריך תחולת המסלול לא יכול להיות אחרי סיום הסדרה.';
+  return;
+}
+
+if (
+  this.seriesPaymentPlanEditor.saving ||
+  this.seriesPaymentPlanEditor.lessonId !== series.lessonId
+) {
+  return;
+}
 
     const childId = this.drawerChild?.child_uuid ?? null;
 
