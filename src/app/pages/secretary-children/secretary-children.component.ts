@@ -2663,14 +2663,6 @@ scheduled_deletion_at,deletion_note
       this.isActiveStatus(this.originalChild?.status) &&
       raw.status === 'Deleted';
 
-    const becameActive =
-      !this.isActiveStatus(this.originalChild?.status) &&
-      raw.status === 'Active';
-
-    if (raw.created_at) {
-      raw.created_at = new Date(raw.created_at).toISOString();
-    }
-
     const fieldsToCompare: (keyof ChildDetails)[] = [
       'gov_id',
       'first_name',
@@ -2683,17 +2675,6 @@ scheduled_deletion_at,deletion_note
     ];
 
     const delta: Partial<ChildDetails> = {};
-    if (
-      this.isActiveStatus(raw.status) &&
-      this.drawerChild?.scheduled_deletion_at &&
-      raw.inactive_date
-    ) {
-      (delta as any).scheduled_deletion_at = raw.inactive_date;
-    }
-    if (becameActive) {
-      (delta as any).deletion_requested_at = null;
-      (delta as any).scheduled_deletion_at = null;
-    }
 
     for (const key of fieldsToCompare) {
       const oldVal = (this.originalChild as any)?.[key] ?? null;
@@ -2703,13 +2684,24 @@ scheduled_deletion_at,deletion_note
         (delta as any)[key] = newVal;
       }
     }
-    if (
-      this.isActiveStatus(raw.status) &&
-      this.drawerChild?.scheduled_deletion_at &&
-      raw.inactive_date
-    ) {
-      (delta as any).scheduled_deletion_at = raw.inactive_date;
-    }
+
+    // שמירה כפעיל מבטלת כל תכנון להפיכה ללא פעיל,
+// גם אם הילד כבר מוצג כפעיל ונשאר לו תכנון ישן.
+if (
+  this.isActiveStatus(raw.status) &&
+  (
+    !this.isActiveStatus(this.originalChild?.status) ||
+    this.drawerChild?.scheduled_deletion_at != null ||
+    this.drawerChild?.deletion_requested_at != null ||
+    this.drawerChild?.deletion_note != null
+  )
+) {
+  (delta as any).status = 'Active';
+  (delta as any).deletion_requested_at = null;
+  (delta as any).scheduled_deletion_at = null;
+  (delta as any).deletion_note = null;
+}
+    
     if (Object.keys(delta).length === 0) {
       this.editMode = false;
       return;
