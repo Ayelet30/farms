@@ -324,6 +324,42 @@
   grid-column: 1 / -1;
 }
 
+.lesson-move-info {
+  margin-bottom: 12px;
+  padding: 11px 12px;
+
+  border: 1px solid #dcc987;
+  border-inline-start: 4px solid #c79528;
+  border-radius: 12px;
+
+  background: #fff9e8;
+  color: #5f4a18;
+}
+
+.lesson-move-info-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  margin-bottom: 5px;
+
+  font-size: 13px;
+  font-weight: 900;
+
+  mat-icon {
+    width: 19px;
+    height: 19px;
+    font-size: 19px;
+    color: #98701a;
+  }
+}
+
+.lesson-move-info-text {
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.65;
+}
+
 /* ===== Segmented attendance ===== */
 .segmented {
   display: flex;
@@ -834,6 +870,17 @@ input[type="checkbox"] {
   object-fit: contain;
   display: block;
 }
+.series-counter {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #eef4df;
+  color: #5f7834;
+  font-size: 13px;
+  font-weight: 800;
+}
 
 /* ===== Mobile ===== */
 @media (max-width: 768px) {
@@ -888,4 +935,13 @@ input[type="checkbox"] {
   to {
     transform: rotate(360deg);
   }
+}
+
+.att-chip.can-delete-attendance {
+  cursor: pointer;
+  user-select: none;
+}
+
+.att-chip.can-delete-attendance:hover {
+  opacity: 0.8;
 }

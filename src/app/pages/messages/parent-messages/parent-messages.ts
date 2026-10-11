@@ -71,7 +71,7 @@ type WorkingHourVm = WorkingHourRow & {
 })
 export class ParentMessagesComponent implements OnInit {
 
-  
+
   tab = signal<Tab>('threads');
 
   // שיחות
@@ -81,14 +81,14 @@ export class ParentMessagesComponent implements OnInit {
   messages = signal<ConversationMessage[]>([]);
   replyText = ''; // <-- לא signal כדי לעבוד עם ngModel
 
-  
+
   get whatsappLink(): string {
-  // אם אין טלפון ב-Supabase, נשתמש במספר ברירת מחדל לבדיקה
-  const phone = this.farmSettings?.main_phone || '0501234567'; 
-  
-  // מנקים תווים שהם לא מספרים
-  let cleanPhone = phone.replace(/\D/g, '');   
-  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent('שלום, אני פונה מהאתר של החווה')}`;
+    // אם אין טלפון ב-Supabase, נשתמש במספר ברירת מחדל לבדיקה
+    const phone = this.farmSettings?.main_phone || '0501234567';
+
+    // מנקים תווים שהם לא מספרים
+    let cleanPhone = phone.replace(/\D/g, '');
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent('שלום, אני פונה מהאתר של החווה')}`;
   }
 
   // פתיחת שיחה חדשה
@@ -113,20 +113,20 @@ export class ParentMessagesComponent implements OnInit {
   errorMsg = signal<string | null>(null);
 
   async ngOnInit() {
-  await Promise.all([
+    await Promise.all([
       this.loadFarmSettingsContact(),
       this.loadWorkingHours(),
     ]);
     await ensureTenantContextReady();
     await Promise.all([
-      this.loadThreads(), 
-      this.loadAnnouncements(), 
-      this.loadKids() 
+      this.loadThreads(),
+      this.loadAnnouncements(),
+      this.loadKids()
     ]);
   }
 
   async loadKids() {
-  // הפעלת הפונקציה המוכנה של המערכת
+    // הפעלת הפונקציה המוכנה של המערכת
     const res = await fetchMyChildren('child_uuid, first_name, last_name, status');
 
     if (!res.ok) {
@@ -137,11 +137,10 @@ export class ParentMessagesComponent implements OnInit {
     // המרת הנתונים לפורמט שה-HTML שלנו מכיר
     // אנחנו משלבים שם פרטי ומשפחה לתוך student_name
     const mappedKids = (res.data ?? []).map((child: any) => ({
-    id: child.child_uuid,
-    student_name: `${child.first_name} ${child.last_name}`
+      id: child.child_uuid,
+      student_name: `${child.first_name} ${child.last_name}`
     }));
 
-    console.log("הילדים נטענו בהצלחה:", mappedKids);
     this.kids.set(mappedKids);
   }
 
@@ -149,41 +148,41 @@ export class ParentMessagesComponent implements OnInit {
     try {
       const dbc = await dbTenant();
 
-   const { data, error } = await dbc
-  .from('farm_working_hours')
-  .select('day_of_week,is_open,is_offical_open,farm_start,farm_end,office_start,office_end')
-  .order('day_of_week', { ascending: true });
+      const { data, error } = await dbc
+        .from('farm_working_hours')
+        .select('day_of_week,is_open,is_offical_open,farm_start,farm_end,office_start,office_end')
+        .order('day_of_week', { ascending: true });
 
-if (error) throw error;
+      if (error) throw error;
 
-const rows = (data ?? []) as WorkingHourRow[];
+      const rows = (data ?? []) as WorkingHourRow[];
 
-this.workingHours.set(
-  rows.map((r) => {
-    const isAnyOpen = !!(r.is_open || r.is_offical_open);
+      this.workingHours.set(
+        rows.map((r) => {
+          const isAnyOpen = !!(r.is_open || r.is_offical_open);
 
-    return {
-      ...r,
-      dayLabel: this.dayLabel(r.day_of_week),
-      isAnyOpen,
+          return {
+            ...r,
+            dayLabel: this.dayLabel(r.day_of_week),
+            isAnyOpen,
 
-      // חווה נשלטת ע"י is_open
-      farmRangeText: r.is_open ? this.rangeText(r.farm_start, r.farm_end) : '—',
+            // חווה נשלטת ע"י is_open
+            farmRangeText: r.is_open ? this.rangeText(r.farm_start, r.farm_end) : '—',
 
-      // משרד נשלט ע"י is_offical_open
-      officeRangeText: r.is_offical_open
-        ? this.rangeText(r.office_start, r.office_end)
-        : '—',
-    };
-  })
-);
+            // משרד נשלט ע"י is_offical_open
+            officeRangeText: r.is_offical_open
+              ? this.rangeText(r.office_start, r.office_end)
+              : '—',
+          };
+        })
+      );
 
     } catch (e: any) {
       console.error('Failed to load farm_working_hours:', e);
       // לא חייבים להפיל את כל הדף — אפשר פשוט לא להציג טבלה
     }
-   }
-    private dayLabel(d: number): string {
+  }
+  private dayLabel(d: number): string {
     // 1..7 לפי הטבלה שלך
     switch (d) {
       case 1: return 'ראשון';
@@ -208,7 +207,7 @@ this.workingHours.set(
     return t.slice(0, 5);
   }
 
-private async loadFarmSettingsContact(): Promise<void> {
+  private async loadFarmSettingsContact(): Promise<void> {
     this.loading.set(true);
     this.errorMsg.set(null);
 
@@ -229,30 +228,30 @@ private async loadFarmSettingsContact(): Promise<void> {
       this.farmSettings = {
         main_phone: data?.main_phone ?? null,
         main_mail: data?.main_mail ?? null,
-         main_address: data?.main_address ?? null,
+        main_address: data?.main_address ?? null,
 
       };
     } catch (e: any) {
       console.error('Failed to load farm_settings contact:', e);
-      this.farmSettings = { main_phone: null, main_mail: null , main_address: null};
+      this.farmSettings = { main_phone: null, main_mail: null, main_address: null };
       this.errorMsg.set('לא הצלחנו לטעון את פרטי יצירת הקשר. נסי שוב מאוחר יותר.');
     } finally {
       this.loading.set(false);
     }
   }
-  
-  todayDow = signal<number>(this.jsToDbDow(new Date().getDay())); 
-// getDay(): 0=Sunday ... 6=Saturday
-// אצלך בטבלה: 1..7 (ראשון=1 ... שבת=7)
 
-isToday(dow: number): boolean {
-  return dow === this.todayDow();
-}
+  todayDow = signal<number>(this.jsToDbDow(new Date().getDay()));
+  // getDay(): 0=Sunday ... 6=Saturday
+  // אצלך בטבלה: 1..7 (ראשון=1 ... שבת=7)
 
-private jsToDbDow(js: number): number {
-  // 0 (Sun) -> 1, 1 (Mon) -> 2 ... 6 (Sat) -> 7
-  return js + 1;
-}
+  isToday(dow: number): boolean {
+    return dow === this.todayDow();
+  }
+
+  private jsToDbDow(js: number): number {
+    // 0 (Sun) -> 1, 1 (Mon) -> 2 ... 6 (Sat) -> 7
+    return js + 1;
+  }
 
   private myUid(): string {
     const uid = getAuth().currentUser?.uid;
@@ -353,6 +352,7 @@ private jsToDbDow(js: number): number {
         });
 
       if (e2) throw e2;
+      if (e2) throw e2;
 
       // 3. ניקוי שדות ורענון ממשק
       this.newBody = '';
@@ -439,43 +439,43 @@ private jsToDbDow(js: number): number {
   }
 
   onFileSelected(event: any) {
-  const file = event.target.files[0];
-  if (!file) return;
+    const file = event.target.files[0];
+    if (!file) return;
 
-  // בדיקת גודל קובץ - מקסימום 5MB לפי האפיון
-  const maxSizeInBytes = 2 * 1024 * 1024; 
-  if (file.size > maxSizeInBytes) {
-    this.showToast('הקובץ גדול מדי. הגודל המקסימלי המותר הוא 5MB');
-    event.target.value = ''; // איפוס הבחירה
-    return;
-  }
+    // בדיקת גודל קובץ - מקסימום 5MB לפי האפיון
+    const maxSizeInBytes = 2 * 1024 * 1024;
+    if (file.size > maxSizeInBytes) {
+      this.showToast('הקובץ גדול מדי. הגודל המקסימלי המותר הוא 5MB');
+      event.target.value = ''; // איפוס הבחירה
+      return;
+    }
 
-  // בדיקת סוג קובץ - JPG, PNG, PDF בלבד
-  const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
-  if (!allowedTypes.includes(file.type)) {
-    this.showToast('סוג קובץ לא נתמך. ניתן להעלות PDF, PNG או JPG בלבד');
-    event.target.value = '';
-    return;
-  }
+    // בדיקת סוג קובץ - JPG, PNG, PDF בלבד
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      this.showToast('סוג קובץ לא נתמך. ניתן להעלות PDF, PNG או JPG בלבד');
+      event.target.value = '';
+      return;
+    }
 
-  this.selectedFile = file;
-  this.showToast(`קובץ נבחר: ${file.name}`);
+    this.selectedFile = file;
+    this.showToast(`קובץ נבחר: ${file.name}`);
   }
 
   adjustHeight(event: any) {
-  const element = event.target;
-  element.style.height = 'auto';
-  element.style.height = element.scrollHeight + 'px';
+    const element = event.target;
+    element.style.height = 'auto';
+    element.style.height = element.scrollHeight + 'px';
   }
 
   removeFile() {
-  this.selectedFile = null;
-  // איפוס ה-input של הקובץ ב-HTML כדי שאפשר יהיה לבחור את אותו קובץ שוב
-  const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-  if (fileInput) fileInput.value = '';
+    this.selectedFile = null;
+    // איפוס ה-input של הקובץ ב-HTML כדי שאפשר יהיה לבחור את אותו קובץ שוב
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    if (fileInput) fileInput.value = '';
   }
 
-  
+
   async loadAnnouncements() {
     this.loadingAnn.set(true);
     try {
@@ -510,6 +510,6 @@ private jsToDbDow(js: number): number {
   }
 
   buildMapsUrl(addr: string): string {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
   }
 }

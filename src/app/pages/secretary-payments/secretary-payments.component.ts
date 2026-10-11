@@ -13,7 +13,10 @@ import { ActivatedRoute } from '@angular/router';
 
 import {
   listAllChargesForSecretary,
+  listAllRiderPaymentsForSecretary,
   SecretaryChargeRow,
+  SecretaryRiderPaymentRow,
+
 } from '../../services/supabaseClient.service';
 function writeInvoiceLoadingPage(win: Window) {
   win.document.open();
@@ -98,47 +101,75 @@ export class SecretaryPaymentsComponent implements OnInit {
   pageSize = 50;
   pageIndex = signal(0);
 
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
+private loadRequestId = 0;
+
   // סכום בעמוד
   pageTotalAmount = computed(() =>
     this.rows().reduce((sum, r) => sum + (r.amount || 0), 0)
 
-  
-  );
-tenantSchema: string | null = null;
 
+  );
+  tenantSchema: string | null = null;
+  activeTab = signal<'parents' | 'riders'>('parents');
+
+  riderRows = signal<SecretaryRiderPaymentRow[]>([]);
+  riderTotalCount = signal<number | null>(null);
+
+  activeRowsTotal = computed(() => {
+    if (this.activeTab() === 'parents') {
+      return this.rows().reduce((sum, r) => sum + (r.amount || 0), 0);
+    }
+
+    return this.riderRows().reduce((sum, r) => sum + (r.amount || 0), 0);
+  });
+
+  parentInvoicesByPayment = new Map<string, any[]>();
+  expandedInvoicePaymentId = signal<string | null>(null);
   constructor(
-  private tenantSvc: SupabaseTenantService,
+    private tenantSvc: SupabaseTenantService,
     private route: ActivatedRoute
 
   ) {
-    
+
   }
-invoiceLoading = new Set<string>(); // paymentId
+  invoiceLoading = new Set<string>(); // paymentId
 
-async ngOnInit() {
-  const parentUid = this.route.snapshot.queryParamMap.get('parentUid');
+  async ngOnInit() {
+    const parentUid = this.route.snapshot.queryParamMap.get('parentUid');
 
-  if (parentUid) {
-    this.searchTerm.set(parentUid);
-    this.pageIndex.set(0);
+    if (parentUid) {
+      this.searchTerm.set(parentUid);
+      this.pageIndex.set(0);
+    }
+
+    await this.loadPage();
   }
-
-  await this.loadPage();
-}
 
   private async loadPage() {
     try {
       this.loading.set(true);
       this.error.set(null);
 
-      const { rows, count } = await listAllChargesForSecretary({
-        limit: this.pageSize,
-        offset: this.pageIndex() * this.pageSize,
-        search: this.searchTerm().trim() || null,
-      });
+      if (this.activeTab() === 'parents') {
+        const { rows, count } = await listAllChargesForSecretary({
+          limit: this.pageSize,
+          offset: this.pageIndex() * this.pageSize,
+          search: this.searchTerm().trim() || null,
+        });
 
-      this.rows.set(rows);
-      this.totalCount.set(count ?? null);
+        this.rows.set(rows);
+        this.totalCount.set(count ?? null);
+      } else {
+        const { rows, count } = await listAllRiderPaymentsForSecretary({
+          limit: this.pageSize,
+          offset: this.pageIndex() * this.pageSize,
+          search: this.searchTerm().trim() || null,
+        });
+
+        this.riderRows.set(rows);
+        this.riderTotalCount.set(count ?? null);
+      }
     } catch (e: any) {
       console.error('[SecretaryPayments] load error', e);
       this.error.set(e?.message ?? 'שגיאה בטעינת התשלומים');
@@ -146,12 +177,19 @@ async ngOnInit() {
       this.loading.set(false);
     }
   }
+  onSearchChange(term: string): void {
+  this.searchTerm.set(term);
+  this.pageIndex.set(0);
 
-  async onSearchChange(term: string) {
-    this.searchTerm.set(term);
-    this.pageIndex.set(0);
-    await this.loadPage();
+  if (this.searchTimer) {
+    clearTimeout(this.searchTimer);
   }
+
+  this.searchTimer = setTimeout(() => {
+    void this.loadPage();
+  }, 350);
+}
+
 
   async nextPage() {
     if (!this.canNext()) return;
@@ -170,9 +208,15 @@ async ngOnInit() {
   }
 
   canNext(): boolean {
-    const count = this.totalCount();
-    if (count == null) return this.rows().length === this.pageSize;
-    return (this.pageIndex() + 1) * this.pageSize < count;
+    const count = this.currentTotalCount();
+
+    if (this.activeTab() === 'parents') {
+      if (count == null) return this.rows().length === this.pageSize;
+    } else {
+      if (count == null) return this.riderRows().length === this.pageSize;
+    }
+
+    return (this.pageIndex() + 1) * this.pageSize < count!;
   }
 
   formatMethod(method: SecretaryChargeRow['method']): string {
@@ -185,70 +229,260 @@ async ngOnInit() {
     return `${amount.toFixed(2)} ₪`;
   }
   private async getTenantSchemaOrThrow(): Promise<string> {
-  await this.tenantSvc.ensureTenantContextReady();
-  return this.tenantSvc.requireTenant().schema;
-}
-
-async createOrFetchInvoice(r: any) {
-const win = window.open('about:blank', '_blank');
-  if (win) {
-    writeInvoiceLoadingPage(win); // 👈 מסך טעינה
+    await this.tenantSvc.ensureTenantContextReady();
+    return this.tenantSvc.requireTenant().schema;
   }
-  // ✅ לפתוח בלי noopener/noreferrer כדי שתישאר שליטה על הטאב
 
-  try {
-  this.invoiceLoading.add(r.id);
+  async createOrFetchInvoice(r: SecretaryChargeRow): Promise<void> {
+    if (this.invoiceLoading.has(r.id)) return;
 
-    const tenantSchema = await this.getTenantSchemaOrThrow();
+    const cachedInvoices =
+      this.parentInvoicesByPayment.get(r.id);
 
-    const resp = await fetch(
-      'https://ensuretranzilainvoiceforpayment-wxi37vbfra-uc.a.run.app',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantSchema, paymentId: r.id }),
+    if (cachedInvoices?.length) {
+      if (cachedInvoices.length === 1) {
+        const cachedUrl =
+          cachedInvoices[0].invoice_url ||
+          cachedInvoices[0].tranzila_pdf_url;
+
+        if (cachedUrl) {
+          window.open(
+            cachedUrl,
+            '_blank',
+            'noopener,noreferrer'
+          );
+        }
+
+        return;
       }
-    );
 
-    const raw = await resp.text();
-    let json: any = null;
-    try { json = JSON.parse(raw); } catch {}
-
-    if (!resp.ok || !json?.ok) {
-      if (win) win.close();
-      throw new Error(json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+      this.expandedInvoicePaymentId.set(r.id);
+      return;
     }
 
-    const url = json.url as string;
-    if (!url) {
-      if (win) win.close();
-      throw new Error(`missing url in response: ${raw?.slice(0, 300)}`);
-    }
+    const win = window.open('about:blank', '_blank');
 
-    r.invoice_url = url;
-    r.invoice_status = 'ready'; // כדי שהכפתור יתחלף מיד ללינק
-
-
-    // ✅ הגנה מפני reverse-tabnabbing בלי לאבד שליטה בטאב
-    try {
-      (win as any).opener = null;
-    } catch {}
-
-    // ✅ עדיף replace כדי לא להשאיר "about:blank" בהיסטוריה
     if (win) {
-      win.location.replace(url);
-      win.focus?.();
-      
-      await this.loadPage();
-
-    } else {
-      // fallback אם popup נחסם
-      window.open(url, '_blank', 'noopener,noreferrer');
+      writeInvoiceLoadingPage(win);
     }
 
-  } finally {
-    this.invoiceLoading.delete(r.id);
+    this.invoiceLoading.add(r.id);
+
+    try {
+      const tenantSchema =
+        await this.getTenantSchemaOrThrow();
+
+      const resp = await fetch(
+        '/api/ensureTranzilaInvoiceForPayment',
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type': 'application/json',
+          },
+
+          body: JSON.stringify({
+            tenantSchema,
+            paymentId: r.id,
+          }),
+        }
+      );
+
+      const raw = await resp.text();
+
+      let json: any = null;
+
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        // הטיפול יתבצע בהמשך לפי resp.ok
+      }
+
+      if (!resp.ok || !json?.ok) {
+        throw new Error(
+          json?.error ||
+          `HTTP ${resp.status}: ${raw.slice(0, 300)}`
+        );
+      }
+
+      const invoices: any[] = json.invoices ?? [];
+
+      if (!invoices.length) {
+        throw new Error(
+          'לא נמצאו חשבוניות עבור התשלום'
+        );
+      }
+
+      this.parentInvoicesByPayment.set(
+        r.id,
+        invoices
+      );
+
+      if (invoices.length === 1) {
+        const url =
+          invoices[0].invoice_url ||
+          invoices[0].tranzila_pdf_url;
+
+        if (!url) {
+          throw new Error(
+            'החשבונית נוצרה אך לא התקבל קישור לפתיחה'
+          );
+        }
+
+        if (win) {
+          try {
+            (win as any).opener = null;
+          } catch { }
+
+          win.location.replace(url);
+          win.focus?.();
+        } else {
+          window.open(
+            url,
+            '_blank',
+            'noopener,noreferrer'
+          );
+        }
+      } else {
+        if (win) win.close();
+
+        this.expandedInvoicePaymentId.set(r.id);
+      }
+
+      await this.loadPage();
+    } catch (e: any) {
+      if (win) win.close();
+
+      const message =
+        e?.message ||
+        'אירעה שגיאה ביצירת החשבונית';
+
+      console.error(
+        '[createOrFetchInvoice] failed',
+        e
+      );
+
+      this.error.set(message);
+      alert(message);
+    } finally {
+      this.invoiceLoading.delete(r.id);
+    }
   }
+
+  async setTab(tab: 'parents' | 'riders') {
+  if (this.activeTab() === tab) return;
+
+  if (this.searchTimer) {
+    clearTimeout(this.searchTimer);
+    this.searchTimer = null;
+  }
+
+  this.activeTab.set(tab);
+  this.pageIndex.set(0);
+  this.searchTerm.set('');
+
+  await this.loadPage();
 }
 
+  currentTotalCount(): number | null {
+    return this.activeTab() === 'parents'
+      ? this.totalCount()
+      : this.riderTotalCount();
+  }
+  async createOrFetchRiderInvoice(r: SecretaryRiderPaymentRow) {
+    const win = window.open('about:blank', '_blank');
+
+    if (win) {
+      writeInvoiceLoadingPage(win);
+    }
+
+    try {
+      this.invoiceLoading.add(r.id);
+
+      const tenantSchema = await this.getTenantSchemaOrThrow();
+
+      const resp = await fetch(
+        '/api/ensureTranzilaInvoiceForRiderPayment',
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type': 'application/json',
+          },
+
+          body: JSON.stringify({
+            tenantSchema,
+            paymentId: r.id,
+          }),
+        }
+      );
+
+      const raw = await resp.text();
+
+      let json: any = null;
+      try {
+        json = JSON.parse(raw);
+      } catch { }
+
+      if (!resp.ok || !json?.ok) {
+        if (win) win.close();
+        throw new Error(json?.error || `HTTP ${resp.status}: ${raw?.slice(0, 300)}`);
+      }
+
+      const url = json.url as string;
+
+      if (!url) {
+        if (win) win.close();
+        throw new Error(`missing url in response: ${raw?.slice(0, 300)}`);
+      }
+
+      r.invoice_url = url;
+      r.tranzila_invoice_url = url;
+
+      try {
+        (win as any).opener = null;
+      } catch { }
+
+      if (win) {
+        win.location.replace(url);
+        win.focus?.();
+        await this.loadPage();
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } finally {
+      this.invoiceLoading.delete(r.id);
+    }
+  }
+  formatRiderMethod(method: string | null): string {
+    if (method === 'credit_card') return 'כרטיס אשראי';
+    if (method === 'bank_transfer') return 'העברה בנקאית';
+    if (method === 'cash') return 'מזומן';
+    return method || '-';
+  }
+  formatPaymentKind(method: string | null): string {
+    if (method === 'charge') return 'חיוב';
+    if (method === 'subscription') return 'מנוי חודשי';
+    if (method === 'one_time') return 'תשלום חד־פעמי';
+    return method || '-';
+  }
+
+  formatPaymentMethod(method: string | null): string {
+    switch (method) {
+      case 'credit_card':
+        return 'כרטיס אשראי';
+
+      case 'bank_transfer':
+        return 'העברה בנקאית';
+
+      case 'cash':
+        return 'מזומן';
+
+      case 'check':
+        return 'צ׳ק';
+
+      default:
+        return method ?? '-';
+    }
+  }
 }

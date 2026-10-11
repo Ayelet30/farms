@@ -40,7 +40,7 @@
         "headers": [
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://firebaseinstallations.googleapis.com https://api.tranzila.com https://hf.tranzila.com https://*.supabase.co https://us-central1-bereshit-ac5d8.cloudfunctions.net https://fonts.gstatic.com https://fonts.googleapis.com https://code.jquery.com; img-src 'self' data: blob: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com https://www.google.com https://hf.tranzila.com https://api.tranzila.com https://code.jquery.com; style-src 'self' 'unsafe-inline' https: https://fonts.googleapis.com; frame-src 'self' https://hf.tranzila.com https://*.supabase.co https://www.google.com; font-src 'self' data: https: https://fonts.gstatic.com https://hf.tranzila.com; media-src 'self' blob: data: https: https://hf.tranzila.com;"
+            "value": "default-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://firebaseinstallations.googleapis.com https://api.tranzila.com https://hf.tranzila.com https://*.supabase.co wss://*.supabase.co https://us-central1-bereshit-ac5d8.cloudfunctions.net https://fonts.gstatic.com https://fonts.googleapis.com https://code.jquery.com http://127.0.0.1:38473 http://localhost:38473; img-src 'self' data: blob: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com https://www.google.com https://hf.tranzila.com https://api.tranzila.com https://code.jquery.com; style-src 'self' 'unsafe-inline' https: https://fonts.googleapis.com; frame-src 'self' https://hf.tranzila.com https://*.supabase.co https://www.google.com ; font-src 'self' data: https: https://fonts.gstatic.com https://hf.tranzila.com; media-src 'self' blob: data: https: https://hf.tranzila.com;"
           }
         ]
       },
@@ -77,10 +77,6 @@
         "function": "publicCreateParentSignupRequest"
       },
       {
-        "source": "/api/approveParentSignupRequest",
-        "function": "approveParentSignupRequest"
-      },
-      {
         "source": "/api/chargeSelectedChargesForParent",
         "function": "chargeSelectedChargesForParent"
       },
@@ -91,6 +87,10 @@
       {
         "source": "/api/tranzilaHandshake",
         "function": "tranzilaHandshake"
+      },
+      {
+        "source": "/api/markFarmBillingPaidManually",
+        "function": "markFarmBillingPaidManually"
       },
       {
         "source": "/api/recordOneTimePayment",
@@ -111,6 +111,18 @@
       {
         "source": "/api/createMaccabiAutomationJob",
         "function": "createMaccabiAutomationJob"
+      },
+      {
+        "source": "/api/createClalitAutomationJob",
+        "function": "createClalitAutomationJob"
+      },
+      {
+        "source": "/api/ensureTranzilaInvoiceForPayment",
+        "function": "ensureTranzilaInvoiceForPayment"
+      },
+      {
+        "source": "/api/ensureTranzilaInvoiceForRiderPayment",
+        "function": "ensureTranzilaInvoiceForRiderPayment"
       },
       {
         "source": "/api/**",

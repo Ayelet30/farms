@@ -3,14 +3,19 @@
   <div class="card calendar-toolbar" *ngIf="showToolbar">
 
     <div class="view-buttons btn-group">
-      <button (click)="changeView('timeGridDay')" [class.active]="currentView === 'timeGridDay'">
-        יומי
+      <button (click)="changeView('timeGridDay')" [class.active]="currentView === 'timeGridDay'" title="יומי">
+        <span class="btn-icon">☰</span>
+        <span class="btn-text">יומי</span>
       </button>
-      <button (click)="changeView('timeGridWeek')" [class.active]="currentView === 'timeGridWeek'">
-        שבועי
+
+      <button (click)="changeView('timeGridWeek')" [class.active]="currentView === 'timeGridWeek'" title="שבועי">
+        <span class="btn-icon">▤</span>
+        <span class="btn-text">שבועי</span>
       </button>
-      <button (click)="changeView('dayGridMonth')" [class.active]="currentView === 'dayGridMonth'">
-        חודשי
+
+      <button (click)="changeView('dayGridMonth')" [class.active]="currentView === 'dayGridMonth'" title="חודשי">
+        <span class="btn-icon">▦</span>
+        <span class="btn-text">חודשי</span>
       </button>
     </div>
 
@@ -18,7 +23,6 @@
       <button class="nav-btn" (click)="next()" aria-label="הבא">
         <span class="chevron left"></span>
       </button>
-
 
       <div class="current-date">{{ currentDate }}</div>
 
@@ -28,25 +32,42 @@
     </div>
 
     <div class="actions btn-group">
-      <button (click)="today()">היום</button>
+      <button (click)="today()" title="היום">
+        <span class="btn-icon">◎</span>
+        <span class="btn-text">היום</span>
+      </button>
 
-      <button class="fullscreen-btn" (click)="toggleFullscreen()">
-        {{ isFullscreen ? 'צמצם' : 'מסך מלא' }}
+      <button type="button" class="reload-btn" [disabled]="reloadLoading" (click)="reloadCurrentView()"
+        [title]="reloadLoading ? 'טוען מחדש…' : 'טען מחדש את הלוח'">
+
+        <span class="btn-icon" [class.spinning]="reloadLoading">
+          ↻
+        </span>
+
+        <span class="btn-text">
+          {{ reloadLoading ? 'טוען…' : 'רענן' }}
+        </span>
+      </button>
+
+      <button class="fullscreen-btn" (click)="toggleFullscreen()" [title]="isFullscreen ? 'צמצם' : 'מסך מלא'">
+        <span class="btn-icon">{{ isFullscreen ? '↙' : '⛶' }}</span>
+        <span class="btn-text">{{ isFullscreen ? 'צמצם' : 'מסך מלא' }}</span>
       </button>
 
       <button *ngIf="enableAutoAssign && currentView === 'timeGridDay'" class="assign-btn" type="button"
         (click)="onAutoAssignClick()" title="שבץ סוסים ומגרשים">
-        <span class="desktop-label">שבץ סוסים ומגרשים</span>
-        <span class="mobile-label">שיבוץ</span>
+        <span class="btn-icon">♘</span>
+        <span class="btn-text">שבץ סוסים ומגרשים</span>
       </button>
     </div>
   </div>
 
   <!-- תצוגת יום מותאמת -->
   <div *ngIf="currentView === 'timeGridDay'" class="bereshit-calendar calendar-host custom-day-host" #calendarHost>
-    <div class="custom-day-grid" [class.single-column-day]="!shouldSplitDayByInstructor"
-      [style.--day-cols]="customDayResources.length" [style.--slot-count]="customDaySlots.length">
 
+    <div *ngIf="customDayReady; else dayLoading" class="custom-day-grid"
+      [class.single-column-day]="!shouldSplitDayByInstructor" [style.--day-cols]="customDayResources.length"
+      [style.--slot-count]="customDaySlots.length">
       <!-- כותרות מדריכים - רק למזכירה/מנהלת -->
       <ng-container *ngIf="shouldSplitDayByInstructor">
         <div *ngFor="let res of customDayResources; let col = index" class="day-resource-header sticky-cell"
@@ -78,10 +99,16 @@
       <!-- רקע תאים -->
       <ng-container *ngFor="let slot of customDaySlots; let row = index">
         <ng-container *ngFor="let res of customDayResources; let col = index">
-          <div class="day-bg-cell" [class.blocked-cell]="isBlockedRawCell(res.id, slot.iso)"
-            [class.available-cell]="isAvailableRawCell(res.id, slot.iso)"
-            [style.background]="isAvailableRawCell(res.id, slot.iso) ? hexToRgba(getAvailableRawCellColor(res.id, slot.iso), 0.13) : null"
-            [attr.title]="isBlockedRawCell(res.id, slot.iso) ? getBlockedReason(res.id, slot.iso) : null"
+          <div class="day-bg-cell" [class.break-cell]="isBreakCell(res.id, slot.iso)"
+            [class.blocked-cell]="isBlockedRawCell(res.id, slot.iso)"
+            [class.available-cell]="isAvailableRawCell(res.id, slot.iso)" [style.backgroundColor]="
+  isAvailableRawCell(res.id, slot.iso)
+    ? hexToRgba(
+        getAvailableRawCellColor(res.id, slot.iso),
+        0.13
+      )
+    : null
+" [attr.title]="isBlockedRawCell(res.id, slot.iso) ? getBlockedReason(res.id, slot.iso) : null"
             [style.gridColumn]="shouldSplitDayByInstructor ? col + 1 : 1" [style.gridRow]="row + 2"
             (click)="onCustomDateCellClick(slot.iso, res)"
             (contextmenu)="onCustomDateRightClick($event, slot.iso, res)">
@@ -93,6 +120,7 @@
       <div *ngFor="let blocked of customDayBlockedCells" class="day-blocked-overlay"
         [class.kind-day-off]="blocked.kind === 'day_off'" [class.kind-not-working]="blocked.kind === 'not_working'"
         [class.kind-farm-off]="blocked.kind === 'farm_off'"
+        [class.kind-instructor-off]="blocked.kind === 'instructor_off'"
         [style.gridColumn]="shouldSplitDayByInstructor ? blocked.col + 1 : 1"
         [style.gridRow]="blocked.row + 2 + ' / span ' + blocked.span" [attr.title]="blocked.reason || 'זמן חסום'">
       </div>
@@ -105,17 +133,25 @@
         <div class="day-cluster-inner" [class.multi]="cluster.items.length > 1">
           <button type="button" *ngFor="let item of cluster.items" class="day-lesson-card"
             [class.status-canceled]="isCanceledItem(item)" [class.status-pending]="isPendingItem(item)"
-            [class.status-approved]="isApprovedItem(item)"
+            [class.status-approved]="isApprovedItem(item)" [class.instructor-day-off]="isInstructorDayOffItem(item)"
             [style.borderInlineStartColor]="getInstructorBorderColor(item)"
             (contextmenu)="onCustomItemRightClick(item, $event)" (click)="onCustomItemClick(item, $event)"
             [title]="buildCustomItemTitle(item)">
 
             <div class="day-lesson-main">
+              <span class="attendance-mark present" *ngIf="isPresentItem(item)">✓</span>
+              <span class="attendance-mark absent" *ngIf="isAbsentItem(item)">×</span>
+
               <span class="day-child-name">
                 {{ getCustomDayPrimaryText(item) }}
               </span>
 
               <span class="day-badges">
+                <span *ngIf="isSingleOccurrenceMove(item)" class="mini-badge single-move-badge"
+                  [title]="getSingleMoveTooltip(item)">
+                  ⇄
+                </span>
+
                 <span class="mini-badge type-badge" *ngIf="getItemLessonTypeShort(item)">
                   {{ getItemLessonTypeShort(item) }}
                 </span>
@@ -129,8 +165,15 @@
         </div>
       </div>
     </div>
-  </div>
 
+    <ng-template #dayLoading>
+      <div class="day-loading-placeholder">
+        <div class="day-loading-spinner"></div>
+        <span>טוען לוח...</span>
+      </div>
+    </ng-template>
+
+  </div>
   <!-- שבוע/חודש נשארים FullCalendar -->
   <div *ngIf="currentView !== 'timeGridDay'" class="bereshit-calendar calendar-host">
     <div #calendarHost class="schedule-host">
@@ -139,7 +182,7 @@
 
 
     <div class="schedule-legend" *ngIf="currentView === 'dayGridMonth'">
-      <div class="legend-item" *ngFor="let item of monthLegend trackBy: trackById">
+      <div class="legend-item" *ngFor="let item of legendItems">
         <span class="legend-dot" [ngClass]="item.className"></span>
         <span>{{ item.label }}</span>
       </div>

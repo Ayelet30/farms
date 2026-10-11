@@ -1,0 +1,539 @@
+/* ===== Parent card – Olive/Cream, RTL ===== */
+:host {
+    direction: rtl;
+    --panel: #fff;
+    --bg-cream: #fffcf5;
+    --ink: #2f3a28;
+    --ink-muted: #6e7462;
+    --line: #cfd7b9;
+    --olive-50: #f3f6e9;
+    --olive-100: #e8efd8;
+    --olive-300: #c7d1a9;
+    --olive-600: #748c40;
+    --olive-700: #5d7234;
+    --danger: #c84f4f;
+    font-family: "Heebo", system-ui, Arial, sans-serif;
+    color: var(--ink);
+}
+
+/* כרטיס הורה */
+.child-card {
+    background: var(--panel);
+    border: 1.5px solid var(--line);
+    border-radius: 18px;
+    padding: 16px 18px;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, .04);
+}
+
+/* כותרת + כפתורים */
+.child-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.child-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--ink);
+}
+
+.inline-message {
+    grid-column: 1 / -1;
+    background: var(--olive-50);
+    border: 1px solid var(--olive-300);
+    color: var(--ink);
+    border-radius: 12px;
+    padding: 8px 10px;
+    font-weight: 700;
+}
+
+/* מצב עריכה – כותרת ניתנת לעריכה */
+.editable-title {
+    width: 100%;
+    border: 1.5px solid var(--line);
+    border-radius: 12px;
+    padding: 8px 10px;
+    font-weight: 800;
+    font-size: 18px;
+    color: var(--ink);
+    background: #fff;
+    outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.editable-title:focus {
+    border-color: var(--olive-600);
+    box-shadow: 0 0 0 3px rgba(116, 140, 64, .12);
+}
+
+/* זוגות שדה:תוכן – מיושרים יפה בשתי עמודות */
+.child-card p {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+}
+
+.child-card p strong {
+    color: var(--ink);
+    font-weight: 800;
+}
+
+/* קלטים */
+.editable-input {
+    width: 80%;
+    border: 1.5px solid var(--line);
+    border-radius: 12px;
+    padding: 8px 10px;
+    background: #fff;
+    color: var(--ink);
+    outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.editable-input:focus {
+    border-color: var(--olive-600);
+    box-shadow: 0 0 0 3px rgba(116, 140, 64, .12);
+}
+
+/* הודעות שגיאה */
+.error-msg {
+    grid-column: 2 / -1;
+    margin-top: 4px;
+    font-size: 12px;
+    color: #b91c1c;
+}
+
+/* כפתורים */
+.button-group {
+    display: inline-flex;
+    gap: 8px;
+}
+
+.button-group .btn-edit,
+.button-group .btn-save,
+.button-group .btn-cancel {
+    appearance: none;
+    border-radius: 9999px;
+    padding: 8px 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+
+/* ערוך – משני */
+.btn-edit {
+    border: 1.5px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+}
+
+.btn-edit:hover {
+    background: var(--olive-50);
+    border-color: var(--olive-300);
+}
+
+/* שמור – ראשי */
+.btn-save {
+    border: 1.5px solid var(--olive-600);
+    background: var(--olive-600);
+    color: #fff;
+}
+
+.btn-save:hover {
+    background: var(--olive-700);
+    border-color: var(--olive-700);
+}
+
+/* ביטול – סכנה עדינה */
+.btn-cancel {
+    border: 1.5px solid var(--danger);
+    color: #b61f1f;
+    background: #fff;
+}
+
+.btn-cancel:hover {
+    background: #fdeaea;
+}
+
+/* ===== רשימת ילדים ===== */
+.children-list {
+    margin-top: 14px;
+    background: var(--panel);
+    border: 1.5px solid var(--line);
+    border-radius: 18px;
+    padding: 14px 16px;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, .04);
+}
+
+.children-list h3 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.children-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.children-list li {
+    background: var(--bg-cream);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 8px 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.children-list li strong {
+    font-weight: 800;
+}
+
+/* הודעה כשאין ילדים */
+:host p {
+    color: var(--ink);
+}
+
+/* ===== רספונסיביות ===== */
+@media (max-width: 640px) {
+    .child-header {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .edit-actions-bottom {
+        width: 100%;
+        margin-top: 20px;
+    }
+
+    .edit-actions-bottom .btn-save,
+    .edit-actions-bottom .btn-cancel {
+        flex: 1;
+    }
+
+    .button-group {
+        justify-content: flex-start;
+    }
+
+    .child-card p {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+
+    .error-msg {
+        grid-column: 1 / -1;
+    }
+}
+
+/* ===== מודאל אישור שמירה ===== */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+}
+
+.modal-panel {
+    background: var(--panel);
+    border-radius: 16px;
+    padding: 16px 18px;
+    border: 1.5px solid var(--olive-300);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+    max-width: 360px;
+    width: 90%;
+    text-align: center;
+}
+
+.modal-panel h4 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--ink);
+}
+
+.modal-panel p {
+    margin: 0;
+    color: var(--ink-muted);
+}
+
+.modal-actions {
+    margin-top: 14px;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+}
+
+/* אזור דרכי התקשרות */
+.contact-methods {
+    margin-top: 10px;
+}
+
+.contact-methods strong {
+    display: inline-block;
+    margin-bottom: 6px;
+}
+
+/* קונטיינר הצ'יפים */
+.contact-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* צ'יפ בודד */
+.contact-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    /* קפסולה */
+    background-color: #f7f6ef;
+    /* שמנת בהירה */
+    border: 1px solid #c6d5b3;
+    /* ירקרק עדין */
+    font-size: 0.88rem;
+    color: #344023;
+    /* ירוק כהה – כמו שאר הטקסטים */
+    white-space: nowrap;
+}
+
+/* צ'יפ ריק (אין העדפות) */
+.contact-tag-empty {
+    opacity: 0.7;
+    font-style: italic;
+}
+
+/* מצב עריכה – צ'קבוקסים */
+.contact-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin-top: 4px;
+}
+
+.contact-checkboxes label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.9rem;
+}
+
+.my-horses-section {
+    margin-top: 28px;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.section-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 800;
+}
+
+.section-header p {
+    margin: 4px 0 0;
+    color: #7b806e;
+    font-size: 14px;
+}
+
+.horses-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    min-width: 36px;
+    height: 36px;
+
+    padding: 0 10px;
+
+    border-radius: 999px;
+
+    background: #eaf1dc;
+    color: #607a35;
+
+    font-weight: 800;
+}
+
+.horses-list-section {
+    margin-bottom: 26px;
+}
+
+.horses-list-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    margin: 0 0 10px;
+
+    font-size: 17px;
+    font-weight: 800;
+
+    color: #35422c;
+}
+
+.horses-list-title span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    min-width: 24px;
+    height: 24px;
+
+    padding: 0 7px;
+
+    border-radius: 999px;
+
+    background: #e9f1d8;
+
+    font-size: 12px;
+}
+
+.horses-list-title.inactive-title {
+    color: #73776d;
+}
+
+.horses-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.horse-row {
+    width: 100%;
+
+    background: #fff;
+
+    border: 1px solid #d7dfc3;
+    border-radius: 14px;
+
+    padding: 14px 16px;
+
+    box-sizing: border-box;
+}
+
+.horse-row.inactive-row {
+    background: #fafafa;
+}
+
+.horse-row-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 12px;
+
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+
+    border-bottom: 1px solid #edf0e6;
+}
+
+.horse-name {
+    font-size: 17px;
+    font-weight: 800;
+    color: #303b29;
+}
+
+.horse-status {
+    display: inline-flex;
+    align-items: center;
+
+    padding: 4px 10px;
+
+    border-radius: 999px;
+
+    background: #e9f3dc;
+    color: #66843b;
+
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.horse-status.inactive {
+    background: #eef0f2;
+    color: #747982;
+}
+
+.horse-row-details {
+    display: grid;
+    grid-template-columns:
+        100px minmax(120px, 1fr) 120px 120px minmax(200px, 2fr);
+
+    gap: 14px;
+
+    align-items: start;
+}
+
+.horse-row-details>div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+
+    min-width: 0;
+}
+
+.field-label {
+    color: #8a8e81;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.horse-row-details span:last-child {
+    color: #3f4838;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+
+.horse-note {
+    min-width: 0;
+}
+
+.empty-horses {
+    padding: 16px;
+
+    border: 1px solid #e2e8d3;
+    border-radius: 14px;
+
+    background: #fafbf5;
+
+    color: #6e7462;
+}
+
+.editable-name {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+.edit-actions-bottom {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+}
+
+.editable-name .editable-input {
+    width: 100%;
+    box-sizing: border-box;
+}

@@ -70,7 +70,6 @@ function createSupabaseMock() {
 
   const supabase: any = {
     schema: (name: string) => {
-      // חשוב: לא לשבור אם קוראים schema('moacha_atarim_app')
       return {
         from: (_table: string) => q,
       };
@@ -86,24 +85,24 @@ describe('FarmSettingsComponent - Structured Notes', () => {
   let ui: jasmine.SpyObj<UiDialogService>;
   let supa: ReturnType<typeof createSupabaseMock>;
 
- beforeEach(async () => {
-  supa = createSupabaseMock();
+  beforeEach(async () => {
+    supa = createSupabaseMock();
 
-  setDbTenantForTests(() => supa.supabase); 
+    setDbTenantForTests(() => supa.supabase);
 
-  ui = jasmine.createSpyObj<UiDialogService>('UiDialogService', ['alert', 'confirm']);
-  ui.alert.and.resolveTo();
-  ui.confirm.and.resolveTo(true);
+    ui = jasmine.createSpyObj<UiDialogService>('UiDialogService', ['alert', 'confirm']);
+    ui.alert.and.resolveTo();
+    ui.confirm.and.resolveTo(true);
 
-  await TestBed.configureTestingModule({
-    imports: [FarmSettingsComponent],
-    providers: [{ provide: UiDialogService, useValue: ui }],
-  }).compileComponents();
-});
+    await TestBed.configureTestingModule({
+      imports: [FarmSettingsComponent],
+      providers: [{ provide: UiDialogService, useValue: ui }],
+    }).compileComponents();
+  });
 
-afterEach(() => {
-  resetDbForTests(); 
-});
+  afterEach(() => {
+    resetDbForTests();
+  });
 
 
   it('loadListNotes: טוען הערות מהטבלה list_notes', async () => {

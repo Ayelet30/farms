@@ -1,25 +1,52 @@
-import { Component, ViewChild, AfterViewInit } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  OnDestroy,
+  ViewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { MatTabsModule } from '@angular/material/tabs';
-import { MatTableModule } from '@angular/material/table';
+import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
-import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
-import { MatTableDataSource } from '@angular/material/table';
+import {
+  MatPaginator,
+  MatPaginatorModule,
+} from '@angular/material/paginator';
 
-import { dbTenant, ensureTenantContextReady } from '../../services/supabaseClient.service';
-import { ClaimsApiService, ClaimOpenItem } from '../../services/claims-api.service';
+import { dbTenant } from '../../services/supabaseClient.service';
+import { getAuth } from 'firebase/auth';
+import {
+  ClaimsApiService,
+  ClaimOpenItem,
+} from '../../services/claims-api.service';
 import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 
 type HmoTab = 'CLALIT' | 'MACCABI' | 'MEUHEDET';
-type ClaimStatus = 'NONE' | 'OPENED_NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED';
+
+type ClaimStatus =
+  | 'NONE'
+  | 'OPENED_NOT_SUBMITTED'
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED';
+
+type ReportFilter =
+  | 'ALL'
+  | 'REPORTABLE'
+  | 'NOT_REPORTED'
+  | 'PENDING'
+  | 'RUNNING'
+  | 'DONE'
+  | 'FAILED'
+  | 'BLOCKED';
 
 interface LessonClaimRow {
-  id: string; // `${lesson_id}__${occur_date}`
+  id: string;
 
   lesson_id: string;
   occur_date: string;
@@ -41,23 +68,40 @@ interface LessonClaimRow {
 
   occurred: boolean;
   chargeable: boolean;
+  exceptionStatus: string | null;
+  isCancellation: boolean;
+  occurrenceBillable: boolean | null;
+  cancellerRole: string | null;
 
   claimOpened: boolean;
   claimSubmitted: boolean;
   claimStatus: ClaimStatus;
 
-  reportMonth: string; // YYYY-MM
-reportMonthLabel: string; // MM/YYYY
+  displayStatus: string;
+  displayStatusText: string;
+  canSelectClaim: boolean;
+  automationError: string | null;
+
+  reportMonth: string;
+  reportMonthLabel: string;
 }
 
 interface FiltersState {
   childText: string;
   instructorText: string;
+
+  attendance: 'ALL' | 'present' | 'absent' | 'unknown';
   occurred: 'ALL' | 'YES' | 'NO';
   chargeable: 'ALL' | 'YES' | 'NO';
   claimStatus: 'ALL' | ClaimStatus;
-  dateFrom: string; // YYYY-MM-DD
-  dateTo: string;   // YYYY-MM-DD
+
+  dateFrom: string;
+  dateTo: string;
+
+  reportState: ReportFilter;
+  reportMonth: string;
+
+  missingId: 'ALL' | 'YES' | 'NO';
 }
 
 @Component({
@@ -77,184 +121,267 @@ interface FiltersState {
   templateUrl: './claims-page.component.html',
   styleUrls: ['./claims-page.component.scss'],
 })
-export class ClaimsPageComponent implements AfterViewInit {
-  constructor(private claimsApi: ClaimsApiService,
-              private tenantSvc: SupabaseTenantService
+export class ClaimsPageComponent implements AfterViewInit, OnDestroy {
+  constructor(
+    private claimsApi: ClaimsApiService,
+    private tenantSvc: SupabaseTenantService
   ) {}
+
+  agentDownloading = false;
+agentDownloadError: string | null = null;
+
+private readonly maccabiAgentManifestUrl =
+  'https://aztgdhcvucvpvsmusfpz.supabase.co/storage/v1/object/public/agent-releases/maccabi/latest.json';
+
+latestAgentVersion: string | null = null;
+latestAgentDownloadUrl: string | null = null;
+agentUpdateAvailable = false;
+
 
   activeTab: HmoTab = 'CLALIT';
 
-  get displayedColumns(): string[] {
-  const base = [
-    'select',
-    'instructor',
-    'child',
-    'date',
-    'time',
-    'occurred',
-    'chargeable',
-  ];
+  agentInstalled = false;
+  agentChecking = false;
+  agentVersion: string | null = null;
 
-  if (this.activeTab === 'CLALIT') {
-    base.push('claimOpened');
-  }
+  loading = false;
+  loadError: string | null = null;
+  sending = false;
 
-  base.push('claimStatus', 'actions');
-
-  return base;
-}
+  private agentCheckTimer: ReturnType<typeof setInterval> | null = null;
 
   lessons: LessonClaimRow[] = [];
   dataSource = new MatTableDataSource<LessonClaimRow>([]);
 
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-
   selectedIds = new Set<string>();
 
-  filters: FiltersState = {
-    childText: '',
-    instructorText: '',
-    occurred: 'ALL',
-    chargeable: 'ALL',
-    claimStatus: 'ALL',
-    dateFrom: '',
-    dateTo: '',
-  };
+  @ViewChild(MatPaginator) paginator!: MatPaginator;
 
-  async ngAfterViewInit() {
+  filters: FiltersState = this.createDefaultFilters();
+
+  filtersExpanded = true;
+  groupByChildId = false;
+
+  get displayedColumns(): string[] {
+    const columns = [
+      'select',
+      'instructor',
+      'child',
+      'date',
+      'time',
+      'attendance',
+      'occurred',
+      'chargeable',
+    ];
+
+    if (this.activeTab === 'CLALIT') {
+      columns.push('claimOpened');
+    }
+
+    columns.push('claimStatus', 'actions');
+
+    return columns;
+  }
+
+  async ngAfterViewInit(): Promise<void> {
     await this.tenantSvc.ensureTenantContextReady?.();
+
     this.dataSource.paginator = this.paginator;
+
+    await this.loadLatestAgentRelease();
+
+    await this.checkHealthAgent();
+    await this.reloadCurrentTab();
+
+    this.agentCheckTimer = setInterval(() => {
+      void this.checkHealthAgent();
+    }, 15_000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.agentCheckTimer) {
+      clearInterval(this.agentCheckTimer);
+      this.agentCheckTimer = null;
+    }
+  }
+
+  private createDefaultFilters(): FiltersState {
+    return {
+      childText: '',
+      instructorText: '',
+      attendance: 'ALL',
+      occurred: 'ALL',
+      chargeable: 'ALL',
+      claimStatus: 'ALL',
+      dateFrom: '',
+      dateTo: '',
+      reportState: 'ALL',
+      reportMonth: '',
+      missingId: 'ALL',
+    };
+  }
+
+  async onTabChange(index: number): Promise<void> {
+    this.activeTab =
+      index === 0
+        ? 'CLALIT'
+        : index === 1
+          ? 'MACCABI'
+          : 'MEUHEDET';
+
+    this.selectedIds.clear();
+    this.filters = this.createDefaultFilters();
+    this.groupByChildId = false;
+
     await this.reloadCurrentTab();
   }
 
-  async onTabChange(index: number) {
-  this.activeTab = index === 0 ? 'CLALIT' : index === 1 ? 'MACCABI' : 'MEUHEDET';
-  this.selectedIds.clear();
-  await this.reloadCurrentTab();
-}
-
-async reportSelectedToFundingSource() {
-  if (!this.selectedRows.length) return;
-
-  if (this.activeTab === 'CLALIT') {
-    await this.submitSelectedClaims();
+ async checkHealthAgent(): Promise<void> {
+  if (this.agentChecking) {
     return;
   }
 
-  if (this.activeTab === 'MACCABI') {
-   // await this.reportToMaccabi();
-   await this.testMaccabiAutomation();
-    return;
-  }
+  this.agentChecking = true;
 
-  if (this.activeTab === 'MEUHEDET') {
-    console.log('דיווח למאוחדת:', this.selectedRows);
-    return;
-  }
-}
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    3_000
+  );
 
-async testMaccabiAutomation() {
-  const tenant = this.tenantSvc.requireTenant();
+  try {
+    const response = await fetch(
+      'http://127.0.0.1:38473/health',
+      {
+        method: 'GET',
+        cache: 'no-store',
+        signal: controller.signal,
+      }
+    );
 
-  const grouped = new Map<string, any>();
-
-  for (const r of this.selectedRows) {
-    const reportMonth = r.occur_date.slice(0, 7); // 2026-04
-    const key = `${reportMonth}__${r.childIdNumber}`;
-
-    if (!grouped.has(key)) {
-      grouped.set(key, {
-        reportMonth,
-        child_id: r.child_id,
-        child_name: r.childName,
-        child_id_number: r.childIdNumber,
-        child_first_name: r.childFirstName,
-        child_last_name: r.childLastName,
-        lessons: [],
-      });
+    if (!response.ok) {
+      throw new Error(
+        `Agent health check returned ${response.status}`
+      );
     }
 
-    grouped.get(key).lessons.push({
-      lesson_id: r.lesson_id,
-      occur_date: r.occur_date,
-      start_time: r.start_time,
-      end_time: r.end_time,
-      instructor_id: r.instructor_id,
-      instructor_name: r.instructorName,
-      attendance_status: r.attendance_status,
-      chargeable: r.chargeable,
-    });
+    const health = await response.json();
+
+    this.agentInstalled =
+      health?.ok === true &&
+      health?.app === 'moach-maccabi-agent';
+
+    this.agentVersion = this.agentInstalled
+      ? health?.version ?? null
+      : null;
+
+  } catch (error) {
+    console.error('Health Agent check failed:', error);
+
+    this.agentInstalled = false;
+    this.agentVersion = null;
+  } finally {
+    window.clearTimeout(timeoutId);
+    this.agentChecking = false;
   }
 
-  const groupsForMaccabi = Array.from(grouped.values());
+  this.updateAgentVersionState();
+}
 
-  console.log('Sending grouped lessons to Maccabi agent:', groupsForMaccabi);
-
-  const res = await fetch('/api/createMaccabiAutomationJob', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      schema: tenant.schema,
-      groups: groupsForMaccabi,
-    }),
-  });
-
-  const data = await res.json();
-  console.log('Maccabi job created:', data);
-
-  if (!data.ok) {
-    alert(data.message || 'שגיאה ביצירת משימת מכבי');
+async downloadHealthAgent(): Promise<void> {
+  if (this.agentDownloading) {
     return;
   }
 
-  alert('המשימה נשלחה לאוטומציה. מספר משימה: ' + data.jobId);
+  this.agentDownloading = true;
+  this.agentDownloadError = null;
+
+  try {
+    await this.loadLatestAgentRelease();
+
+    if (!this.latestAgentDownloadUrl) {
+      throw new Error(
+        'לא נמצאה גרסה זמינה להורדה.'
+      );
+    }
+
+    const link = document.createElement('a');
+
+    link.href = this.latestAgentDownloadUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch (error) {
+    console.error(
+      'Agent download failed:',
+      error
+    );
+
+    this.agentDownloadError =
+      error instanceof Error
+        ? error.message
+        : 'לא הצלחנו להוריד את תוכנת הדיווח.';
+  } finally {
+    this.agentDownloading = false;
+  }
 }
 
-async reportToMaccabi() {
-  const res = await fetch('/api/maccabi-report', {
-    method: 'POST',
-    body: JSON.stringify({
-      lessons: this.selectedRows
-    })
-  });
+  async reloadCurrentTab(): Promise<void> {
+    if (this.loading) {
+      return;
+    }
 
-  const data = await res.json();
-  console.log(data);
-}
+    this.loading = true;
+    this.loadError = null;
 
-  // =========================================
-  // טעינה
-  // =========================================
-  private async reloadCurrentTab() {
-  const prevSelected = new Set(this.selectedIds);
+    const previousSelected = new Set(this.selectedIds);
 
-  await this.loadClaimsLessons();
-  this.applyFilters();
+    try {
+      await this.loadClaimsLessons();
+      this.applyFilters();
 
-  const visibleIds = new Set(this.dataSource.data.map(r => r.id));
-  this.selectedIds = new Set(Array.from(prevSelected).filter(id => visibleIds.has(id)));
-}
+      const visibleIds = new Set(
+        this.dataSource.data.map((row) => row.id)
+      );
 
-private async loadClaimsLessons() {
+      this.selectedIds = new Set(
+        Array.from(previousSelected).filter((id) => visibleIds.has(id))
+      );
+    } catch (error) {
+      console.error('reloadCurrentTab failed:', error);
+
+      this.loadError = 'לא הצלחנו לטעון את נתוני השיעורים.';
+      this.lessons = [];
+      this.dataSource.data = [];
+      this.selectedIds.clear();
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  private async loadClaimsLessons(): Promise<void> {
   const dbc = dbTenant();
 
-  const fromDate = new Date(Date.now() - 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
-  const toDate = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const fromDate = new Date(
+    Date.now() - 8 * 7 * 24 * 60 * 60 * 1000
+  )
+    .toISOString()
+    .slice(0, 10);
 
-  const { data, error } = await dbc
-  .from(this.getViewNameByTab())
-  .select(`
+  const toDate = new Date(
+    Date.now() + 8 * 7 * 24 * 60 * 60 * 1000
+  )
+    .toISOString()
+    .slice(0, 10);
+
+  const commonColumns = `
     lesson_id,
     occur_date,
     child_id,
     child_name,
-
-    child_id_number,
-    child_first_name,
-    child_last_name,
-
     instructor_id,
     instructor_name,
     start_time,
@@ -264,314 +391,853 @@ private async loadClaimsLessons() {
     claim_opened,
     claim_submitted,
     claim_status
-  `)
-    .gte('occur_date', fromDate)
-    .lte('occur_date', toDate)
-    .order('occur_date', { ascending: true })
-    .order('start_time', { ascending: true });
+  `;
 
-  if (error) {
-    console.error('Error loading claims lessons:', error);
-    this.lessons = [];
-    this.dataSource.data = [];
-    return;
-  }
+  const maccabiColumns = `,
+    child_id_number,
+    child_first_name,
+    child_last_name,
+    display_status,
+    display_status_text,
+    can_select_claim,
+    automation_error
+  `;
 
-  this.lessons = (data ?? []).map((r: any) => {
-    const lesson_id = String(r.lesson_id);
-    const occur_date = String(r.occur_date);
+  const selectedColumns =
+    commonColumns +
+    (this.activeTab === 'MACCABI'
+      ? maccabiColumns
+      : '');
 
-    const att = String(r.attendance_status ?? 'unknown').trim().toLowerCase();
-    const occurred = [
-  'present',
-  'arrived',
-  'attended',
-  'yes',
-  'הגיע',
-  'נכח',
-  'בוצע',
-].includes(att);
+  const pageSize = 1000;
+  const allRows: any[] = [];
 
-const reportMonth = occur_date.slice(0, 7); // 2026-04
-const [y, m] = reportMonth.split('-');
-const reportMonthLabel = `${m}/${y}`;
+  let page = 0;
+  let hasMore = true;
 
-    return {
-      id: `${lesson_id}__${occur_date}`,
-      lesson_id,
-      occur_date,
-      instructor_id: r.instructor_id ? String(r.instructor_id) : null,
-      instructorName: String(r.instructor_name ?? ''),
-      child_id: String(r.child_id),
-      childName: String(r.child_name ?? ''),
-      childIdNumber: r.child_id_number ? String(r.child_id_number) : null,
-      childFirstName: r.child_first_name ? String(r.child_first_name) : null,
-      childLastName: r.child_last_name ? String(r.child_last_name) : null,
-      start_time: r.start_time ?? null,
-      end_time: r.end_time ?? null,
-      attendance_status: String(r.attendance_status ?? 'unknown'),
-      occurred,
-      chargeable: Boolean(r.chargeable) && occurred,
-      claimOpened: Boolean(r.claim_opened),
-      claimSubmitted: Boolean(r.claim_submitted),
-      claimStatus: (r.claim_status ?? 'NONE') as ClaimStatus,
-      reportMonth,
-      reportMonthLabel,
-    };
-  });
-
-  this.dataSource.data = this.lessons;
-}
-
-  private async loadClaimsLessonsClalit() {
-    const dbc = dbTenant();
-
-    const fromDate = new Date(Date.now() - 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
-    const toDate   = new Date(Date.now() + 8 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  while (hasMore) {
+    const rangeFrom = page * pageSize;
+    const rangeTo = rangeFrom + pageSize - 1;
 
     const { data, error } = await dbc
-      .from('claims_lessons_clalit_v')
-      .select(`
-        lesson_id,
-        occur_date,
-        child_id,
-        child_name,
-        instructor_id,
-        instructor_name,
-        start_time,
-        end_time,
-        attendance_status,
-        chargeable,
-        claim_opened,
-        claim_submitted,
-        claim_status
-      `)
+      .from(this.getViewNameByTab())
+      .select(selectedColumns)
       .gte('occur_date', fromDate)
       .lte('occur_date', toDate)
-      .order('occur_date', { ascending: true })
-      .order('start_time', { ascending: true });
+      .order('occur_date', { ascending: false })
+      .order('start_time', { ascending: true })
+      .order('lesson_id', { ascending: true })
+      .range(rangeFrom, rangeTo);
 
     if (error) {
-      console.error('Error loading claims lessons:', error);
-      this.lessons = [];
-      this.dataSource.data = [];
-      return;
+      throw error;
     }
 
-    const rows = (data ?? []) as any[];
+    const currentRows = data ?? [];
 
-    const mapped: LessonClaimRow[] = rows.map((r: any) => {
-      const lesson_id = String(r.lesson_id);
-      const occur_date = String(r.occur_date);
+    allRows.push(...currentRows);
 
-      const att = String(r.attendance_status ?? 'unknown').toLowerCase();
-      const occurred = ['present', 'arrived', 'attended', 'yes'].includes(att);
+    hasMore = currentRows.length === pageSize;
+    page++;
 
-      const chargeable = Boolean(r.chargeable) && occurred;
-      const claimStatus = (r.claim_status ?? 'NONE') as ClaimStatus;
+    // מנגנון הגנה מפני לולאה בלתי מוגבלת
+    if (page >= 20) {
+      console.warn(
+        'Claims loading stopped after 20,000 rows'
+      );
 
-      const  reportMonth = occur_date.slice(0, 7); // 2026-04
-      const [y, m] = reportMonth.split('-');
-      const reportMonthLabel = `${m}/${y}`;
-
-      return {
-        id: `${lesson_id}__${occur_date}`,
-        lesson_id,
-        occur_date,
-        reportMonth,
-        reportMonthLabel,
-
-        instructor_id: r.instructor_id ? String(r.instructor_id) : null,
-        instructorName: String(r.instructor_name ?? ''),
-
-        child_id: String(r.child_id),
-        childName: String(r.child_name ?? ''),
-        childIdNumber: r.child_id_number ? String(r.child_id_number) : null,
-        childFirstName: r.child_first_name ? String(r.child_first_name) : null,
-        childLastName: r.child_last_name ? String(r.child_last_name) : null,
-
-        start_time: r.start_time ?? null,
-        end_time: r.end_time ?? null,
-
-        attendance_status: String(r.attendance_status ?? 'unknown'),
-        occurred,
-        chargeable,
-
-        claimOpened: Boolean(r.claim_opened),
-        claimSubmitted: Boolean(r.claim_submitted),
-        claimStatus,
-      };
-    });
-
-    this.lessons = mapped;
-    this.dataSource.data = mapped;
+      hasMore = false;
+    }
   }
 
-  // =========================================
-  // סינון
-  // =========================================
-  applyFilters() {
-    const f = this.filters;
-    const norm = (s: string) => (s || '').trim().toLowerCase();
+  const occurrences = new Map<string, any>();
 
-    const childQ = norm(f.childText);
-    const instQ = norm(f.instructorText);
+  if (this.activeTab === 'MACCABI' || this.activeTab === 'CLALIT') {
+    let occurrencePage = 0;
+    let moreOccurrences = true;
 
-    const from = f.dateFrom ? new Date(f.dateFrom) : null;
-    const to = f.dateTo ? new Date(f.dateTo) : null;
+    while (moreOccurrences) {
+      const { data, error } = await dbc
+        .from('lessons_occurrences')
+        .select('lesson_id, occur_date, child_id, status, is_cancellation, canceller_role, is_billable')
+        .gte('occur_date', fromDate)
+        .lte('occur_date', toDate)
+        .order('occur_date', { ascending: true })
+        .order('lesson_id', { ascending: true })
+        .range(occurrencePage * pageSize, (occurrencePage + 1) * pageSize - 1);
 
-    const filtered = this.lessons.filter((r) => {
-      if (childQ && !norm(r.childName).includes(childQ)) return false;
-      if (instQ && !norm(r.instructorName).includes(instQ)) return false;
+      if (error) throw error;
 
-      if (f.occurred !== 'ALL') {
-        const want = f.occurred === 'YES';
-        if (r.occurred !== want) return false;
+      for (const item of data ?? []) {
+        occurrences.set(
+          `${item.lesson_id}__${item.occur_date}__${item.child_id}`,
+          item
+        );
       }
 
-      if (f.chargeable !== 'ALL') {
-        const want = f.chargeable === 'YES';
-        if (r.chargeable !== want) return false;
+      moreOccurrences = (data?.length ?? 0) === pageSize;
+      occurrencePage++;
+      if (occurrencePage >= 20 && moreOccurrences) {
+        throw new Error('Too many lesson occurrences to classify Maccabi claims safely');
+      }
+    }
+  }
+
+  // The Clalit view currently has no child_id_number column.
+  if (this.activeTab === 'CLALIT') {
+    const ids = [...new Set(allRows.map((row: any) => String(row.child_id)))];
+    const idNumbers = new Map<string, string>();
+    for (let offset = 0; offset < ids.length; offset += 200) {
+      const { data, error } = await dbc.from('children')
+        .select('child_uuid,gov_id')
+        .in('child_uuid', ids.slice(offset, offset + 200));
+      if (error) throw error;
+      for (const child of data ?? []) {
+        if (child.gov_id) {
+          idNumbers.set(String(child.child_uuid), String(child.gov_id));
+        }
+      }
+    }
+    for (const row of allRows) {
+      row.child_id_number = idNumbers.get(String(row.child_id)) ?? null;
+    }
+  }
+
+  this.lessons = allRows.map((row: any) =>
+    this.mapLessonRow(
+      row,
+      occurrences.get(
+        `${row.lesson_id}__${row.occur_date}__${row.child_id}`
+      ) ?? null
+    )
+  );
+
+  const monthDebug = this.lessons.reduce(
+  (result, row) => {
+    const key = row.reportMonth || 'EMPTY';
+
+    result[key] = (result[key] ?? 0) + 1;
+
+    return result;
+  },
+  {} as Record<string, number>
+);
+
+console.log('CLAIMS MONTH DEBUG:', monthDebug);
+console.log('REPORT MONTH OPTIONS:', this.reportMonths);
+
+  this.dataSource.data = this.lessons;
+
+  console.log(
+    `Loaded ${this.lessons.length} claims lessons`,
+    {
+      tab: this.activeTab,
+      fromDate,
+      toDate,
+    }
+  );
+}
+
+  private mapLessonRow(row: any, occurrence: any = null): LessonClaimRow {
+    const lessonId = String(row.lesson_id);
+    const occurDate = String(row.occur_date);
+
+    const attendanceStatus = String(
+      row.attendance_status ?? 'unknown'
+    )
+      .trim()
+      .toLowerCase() || 'unknown';
+
+    const occurred = [
+      'present',
+      'arrived',
+      'attended',
+      'yes',
+      'הגיע',
+      'נכח',
+      'בוצע',
+    ].includes(attendanceStatus);
+
+    const rawChargeable = Boolean(row.chargeable);
+    // Maccabi plan subsidy is independent of the farm's attendance billing flag.
+    // A no-show is still reportable to Maccabi.
+    const chargeable = rawChargeable &&
+      (this.activeTab === 'MACCABI' || this.activeTab === 'CLALIT' || occurred);
+
+    const reportMonth = occurDate.slice(0, 7);
+    const [year, month] = reportMonth.split('-');
+
+    const childIdNumber = row.child_id_number
+      ? String(row.child_id_number)
+      : null;
+
+    const displayStatus = String(
+      row.display_status ??
+        (this.activeTab === 'CLALIT'
+          ? row.claim_status === 'APPROVED' ? 'DONE'
+            : row.claim_status === 'PENDING' ? 'PENDING'
+            : row.claim_status === 'REJECTED' ? 'FAILED'
+            : row.claim_submitted ? 'PENDING' : 'NOT_REPORTED'
+          : row.claim_submitted ? 'DONE' : 'NOT_REPORTED')
+    );
+
+    const displayStatusText = String(
+      row.display_status_text ??
+        (displayStatus === 'DONE' ? 'דווח'
+          : displayStatus === 'PENDING' ? 'ממתין'
+          : displayStatus === 'FAILED' ? 'נכשל'
+          : 'טרם דווח')
+    );
+
+    return {
+      id: `${lessonId}__${occurDate}`,
+
+      lesson_id: lessonId,
+      occur_date: occurDate,
+
+      instructor_id: row.instructor_id
+        ? String(row.instructor_id)
+        : null,
+
+      instructorName: String(row.instructor_name ?? ''),
+
+      child_id: String(row.child_id),
+      childName: String(row.child_name ?? ''),
+
+      childIdNumber,
+
+      childFirstName: row.child_first_name
+        ? String(row.child_first_name)
+        : null,
+
+      childLastName: row.child_last_name
+        ? String(row.child_last_name)
+        : null,
+
+      start_time: row.start_time ?? null,
+      end_time: row.end_time ?? null,
+
+      attendance_status: attendanceStatus,
+
+      occurred,
+      chargeable,
+      exceptionStatus: occurrence?.status ?? null,
+      isCancellation: Boolean(occurrence?.is_cancellation),
+      occurrenceBillable: occurrence?.is_billable ?? null,
+      cancellerRole: occurrence?.canceller_role ?? null,
+
+      claimOpened: Boolean(row.claim_opened),
+      claimSubmitted: Boolean(row.claim_submitted),
+
+      claimStatus: (row.claim_status ?? 'NONE') as ClaimStatus,
+
+      displayStatus,
+      displayStatusText,
+
+      canSelectClaim:
+        this.activeTab === 'MACCABI'
+          ? Boolean(row.can_select_claim) && Boolean(childIdNumber)
+          : chargeable,
+
+      automationError: row.automation_error
+        ? String(row.automation_error)
+        : null,
+
+      reportMonth,
+      reportMonthLabel: `${month}/${year}`,
+    };
+  }
+
+  private getViewNameByTab(): string {
+    switch (this.activeTab) {
+      case 'CLALIT':
+        return 'claims_lessons_clalit_v';
+
+      case 'MACCABI':
+        return 'claims_lessons_maccabi_v';
+
+      case 'MEUHEDET':
+        return 'claims_lessons_meuhedet_v';
+    }
+  }
+
+  applyFilters(): void {
+    const filter = this.filters;
+
+    const normalize = (value: string | null | undefined): string =>
+      String(value ?? '')
+        .trim()
+        .toLowerCase();
+
+    const childSearch = normalize(filter.childText);
+    const instructorSearch = normalize(filter.instructorText);
+
+    const filtered = this.lessons.filter((row) => {
+      if (
+        childSearch &&
+        !normalize(row.childName).includes(childSearch) &&
+        !normalize(row.childIdNumber).includes(childSearch)
+      ) {
+        return false;
       }
 
-      if (f.claimStatus !== 'ALL') {
-        if (r.claimStatus !== f.claimStatus) return false;
+      if (
+        instructorSearch &&
+        !normalize(row.instructorName).includes(instructorSearch)
+      ) {
+        return false;
       }
 
-      if (from) {
-        const d = new Date(r.occur_date);
-        if (d < from) return false;
+      if (
+        filter.attendance !== 'ALL' &&
+        normalize(row.attendance_status) !== filter.attendance
+      ) {
+        return false;
       }
-      if (to) {
-        const d = new Date(r.occur_date);
-        if (d > to) return false;
+
+      if (filter.occurred !== 'ALL') {
+        const expected = filter.occurred === 'YES';
+
+        if (row.occurred !== expected) {
+          return false;
+        }
+      }
+
+      if (filter.chargeable !== 'ALL') {
+        const expected = filter.chargeable === 'YES';
+
+        if (row.chargeable !== expected) {
+          return false;
+        }
+      }
+
+      if (
+        filter.claimStatus !== 'ALL' &&
+        row.claimStatus !== filter.claimStatus
+      ) {
+        return false;
+      }
+
+      if (
+        filter.reportMonth &&
+        row.reportMonth !== filter.reportMonth
+      ) {
+        return false;
+      }
+
+      if (filter.missingId !== 'ALL') {
+        const isMissing = !row.childIdNumber;
+        const expectedMissing = filter.missingId === 'YES';
+
+        if (isMissing !== expectedMissing) {
+          return false;
+        }
+      }
+
+      if (!this.matchesReportState(row, filter.reportState)) {
+        return false;
+      }
+
+      if (
+        filter.dateFrom &&
+        row.occur_date < filter.dateFrom
+      ) {
+        return false;
+      }
+
+      if (
+        filter.dateTo &&
+        row.occur_date > filter.dateTo
+      ) {
+        return false;
       }
 
       return true;
     });
 
-    this.dataSource.data = filtered;
+    this.dataSource.data = this.sortFilteredRows(filtered);
 
-    const visibleIds = new Set(filtered.map(x => x.id));
+    const filteredIds = new Set(filtered.map((row) => row.id));
+
     for (const id of Array.from(this.selectedIds)) {
-      if (!visibleIds.has(id)) this.selectedIds.delete(id);
+      if (!filteredIds.has(id)) {
+        this.selectedIds.delete(id);
+      }
     }
 
-    if (this.paginator) this.paginator.firstPage();
+    this.paginator?.firstPage();
   }
 
-  resetFilters() {
-    this.filters = {
-      childText: '',
-      instructorText: '',
-      occurred: 'ALL',
-      chargeable: 'ALL',
-      claimStatus: 'ALL',
-      dateFrom: '',
-      dateTo: '',
-    };
+  toggleFilters(): void {
+    this.filtersExpanded = !this.filtersExpanded;
+  }
+
+  toggleGroupByChildId(): void {
+    if (this.activeTab !== 'MACCABI' && this.activeTab !== 'CLALIT') {
+      return;
+    }
+
+    this.groupByChildId = !this.groupByChildId;
     this.applyFilters();
   }
 
-  // =========================================
-  // בחירה
-  // =========================================
-  isRowSelectable(row: LessonClaimRow): boolean {
-  if (!row.chargeable) return false;
+  private sortFilteredRows(rows: LessonClaimRow[]): LessonClaimRow[] {
+    if (!this.groupByChildId || (this.activeTab !== 'MACCABI' && this.activeTab !== 'CLALIT')) {
+      return rows;
+    }
 
-  if (this.activeTab === 'CLALIT') {
-    return row.claimStatus !== 'APPROVED';
+    return [...rows].sort((a, b) => {
+      // תעודת הזהות היא מפתח הקיבוץ. במקרה שהיא חסרה משתמשים
+      // במזהה הילד, כדי שגם הרשומות החסרות יישארו יחד.
+      const aChildKey = a.childIdNumber || a.child_id;
+      const bChildKey = b.childIdNumber || b.child_id;
+
+      const childComparison = aChildKey.localeCompare(
+        bChildKey,
+        'he',
+        { numeric: true, sensitivity: 'base' }
+      );
+
+      if (childComparison !== 0) {
+        return childComparison;
+      }
+
+      const dateComparison = b.occur_date.localeCompare(a.occur_date);
+
+      if (dateComparison !== 0) {
+        return dateComparison;
+      }
+
+      return String(a.start_time ?? '').localeCompare(
+        String(b.start_time ?? '')
+      );
+    });
   }
 
-  return true;
-}
+  private matchesReportState(
+    row: LessonClaimRow,
+    reportState: ReportFilter
+  ): boolean {
+    switch (reportState) {
+      case 'ALL':
+        return true;
+
+      case 'REPORTABLE':
+        return this.isRowSelectable(row);
+
+      case 'BLOCKED':
+        return !this.isRowSelectable(row);
+
+      case 'PENDING':
+        return ['PENDING', 'RUNNING'].includes(row.displayStatus);
+
+      default:
+        return row.displayStatus === reportState;
+    }
+  }
+
+  resetFilters(): void {
+    this.filters = this.createDefaultFilters();
+    this.applyFilters();
+  }
+
+  setReportFilter(value: ReportFilter): void {
+    this.filters.reportState =
+      this.filters.reportState === value ? 'ALL' : value;
+
+    this.applyFilters();
+  }
+
+  isRowSelectable(row: LessonClaimRow): boolean {
+    if (this.activeTab === 'MACCABI' || this.activeTab === 'CLALIT') {
+      const cancelled = row.isCancellation || row.exceptionStatus === 'בוטל';
+      const billableCancellation = cancelled &&
+        row.occurrenceBillable === true &&
+        (row.cancellerRole === 'parent' || row.cancellerRole === null);
+      const absentWithoutCancellation = row.attendance_status === 'absent' && !cancelled;
+
+      return row.chargeable &&
+        (this.activeTab !== 'MACCABI' || row.canSelectClaim) &&
+        Boolean(row.childIdNumber) &&
+        (!cancelled || billableCancellation) &&
+        (row.occurred || absentWithoutCancellation || billableCancellation) &&
+        (this.activeTab !== 'CLALIT' ||
+          !row.claimSubmitted &&
+          row.claimStatus !== 'APPROVED' &&
+          row.claimStatus !== 'PENDING');
+    }
+    return row.occurred && row.chargeable;
+  }
+
+  rowBlockReason(row: LessonClaimRow): string {
+    if (this.activeTab === 'MACCABI' || this.activeTab === 'CLALIT') {
+      const cancelled = row.isCancellation || row.exceptionStatus === 'בוטל';
+      if (cancelled &&
+          (row.occurrenceBillable !== true ||
+           !['parent', null].includes(row.cancellerRole))) {
+        return 'ביטול שאינו מסומן לחיוב הורה';
+      }
+      if (!row.chargeable) return 'השיעור אינו מחויב לקופה';
+      if (!row.childIdNumber) return 'חסרה תעודת זהות לילד';
+      if (!row.occurred && row.attendance_status !== 'absent' &&
+          !cancelled) {
+        return 'לא דווחה נוכחות או ביטול הורה';
+      }
+    }
+
+    if (this.activeTab === 'MEUHEDET' && !row.occurred) {
+      return 'השיעור לא סומן כהתקיים';
+    }
+
+    if (!row.chargeable) {
+      return 'השיעור אינו מחויב לקופה';
+    }
+
+    if (
+      (this.activeTab === 'MACCABI' || this.activeTab === 'CLALIT') &&
+      !row.childIdNumber
+    ) {
+      return 'חסרה תעודת זהות לילד';
+    }
+
+    if (row.displayStatus === 'DONE') {
+      return 'השיעור כבר דווח';
+    }
+
+    if (row.displayStatus === 'RUNNING') {
+      return 'הדיווח מתבצע כעת';
+    }
+
+    if (row.displayStatus === 'PENDING') {
+      return 'השיעור ממתין לדיווח';
+    }
+
+    return this.isRowSelectable(row)
+      ? ''
+      : 'לא ניתן לדווח את השיעור';
+  }
+
+  get reportableCount(): number {
+    return this.lessons.filter((row) =>
+      this.isRowSelectable(row)
+    ).length;
+  }
+
+  get pendingCount(): number {
+    return this.lessons.filter((row) =>
+      ['PENDING', 'RUNNING'].includes(row.displayStatus)
+    ).length;
+  }
+
+  get doneCount(): number {
+    return this.lessons.filter(
+      (row) => row.displayStatus === 'DONE'
+    ).length;
+  }
+
+  get failedCount(): number {
+    return this.lessons.filter(
+      (row) => row.displayStatus === 'FAILED'
+    ).length;
+  }
+
+  get reportMonths(): string[] {
+    return [
+      ...new Set(this.lessons.map((row) => row.reportMonth)),
+    ].sort().reverse();
+  }
+
+  reportMonthLabel(value: string): string {
+    const [year, month] = value.split('-');
+    return `${month}/${year}`;
+  }
+
+  get selectedCount(): number {
+    return this.selectedIds.size;
+  }
+
+  get selectedRows(): LessonClaimRow[] {
+    const rowsById = new Map(
+      this.lessons.map((row) => [row.id, row])
+    );
+
+    return Array.from(this.selectedIds)
+      .map((id) => rowsById.get(id))
+      .filter((row): row is LessonClaimRow => Boolean(row));
+  }
 
   isSelected(row: LessonClaimRow): boolean {
     return this.selectedIds.has(row.id);
   }
 
-  toggleRow(row: LessonClaimRow, checked: boolean) {
-    if (!this.isRowSelectable(row)) return;
-    checked ? this.selectedIds.add(row.id) : this.selectedIds.delete(row.id);
+  toggleRow(row: LessonClaimRow, checked: boolean): void {
+    if (!this.isRowSelectable(row)) {
+      return;
+    }
+
+    if (checked) {
+      this.selectedIds.add(row.id);
+    } else {
+      this.selectedIds.delete(row.id);
+    }
   }
 
   getCurrentPageRows(): LessonClaimRow[] {
-    const data = this.dataSource.data || [];
-    if (!this.paginator) return data;
-    const start = this.paginator.pageIndex * this.paginator.pageSize;
-    return data.slice(start, start + this.paginator.pageSize);
+    const rows = this.dataSource.data ?? [];
+
+    if (!this.paginator) {
+      return rows;
+    }
+
+    const start =
+      this.paginator.pageIndex * this.paginator.pageSize;
+
+    return rows.slice(
+      start,
+      start + this.paginator.pageSize
+    );
   }
 
   getSelectableRowsInPage(): LessonClaimRow[] {
-    return this.getCurrentPageRows().filter(r => this.isRowSelectable(r));
+    return this.getCurrentPageRows().filter((row) =>
+      this.isRowSelectable(row)
+    );
   }
-
-  private getViewNameByTab(): string {
-  switch (this.activeTab) {
-    case 'CLALIT':
-      return 'claims_lessons_clalit_v';
-    case 'MACCABI':
-      return 'claims_lessons_maccabi_v';
-    case 'MEUHEDET':
-      return 'claims_lessons_meuhedet_v';
-  }
-}
 
   isAllSelectedOnPage(): boolean {
     const rows = this.getSelectableRowsInPage();
-    return rows.length > 0 && rows.every(r => this.selectedIds.has(r.id));
+
+    return (
+      rows.length > 0 &&
+      rows.every((row) => this.selectedIds.has(row.id))
+    );
   }
 
   isSomeSelectedOnPage(): boolean {
     const rows = this.getSelectableRowsInPage();
-    if (rows.length === 0) return false;
-    const any = rows.some(r => this.selectedIds.has(r.id));
-    return any && !this.isAllSelectedOnPage();
+
+    if (!rows.length) {
+      return false;
+    }
+
+    const someSelected = rows.some((row) =>
+      this.selectedIds.has(row.id)
+    );
+
+    return someSelected && !this.isAllSelectedOnPage();
   }
 
-  masterToggle(checked: boolean) {
+  masterToggle(checked: boolean): void {
     const rows = this.getSelectableRowsInPage();
-    for (const r of rows) checked ? this.selectedIds.add(r.id) : this.selectedIds.delete(r.id);
+
+    for (const row of rows) {
+      if (checked) {
+        this.selectedIds.add(row.id);
+      } else {
+        this.selectedIds.delete(row.id);
+      }
+    }
   }
 
-  // =========================================
-  // תנאי כפתורים
-  // =========================================
-  get selectedRows(): LessonClaimRow[] {
-    const map = new Map(this.lessons.map(r => [r.id, r]));
-    return Array.from(this.selectedIds)
-      .map(id => map.get(id))
-      .filter((x): x is LessonClaimRow => !!x);
+  selectAllFiltered(): void {
+    this.dataSource.data
+      .filter((row) => this.isRowSelectable(row))
+      .forEach((row) => this.selectedIds.add(row.id));
+  }
+
+  clearSelection(): void {
+    this.selectedIds.clear();
   }
 
   get canOpenSelectedClaims(): boolean {
-    return this.selectedRows.some(r => r.chargeable && r.claimStatus === 'NONE');
-  }
-
-  get canSubmitSelectedClaims(): boolean {
-    return this.selectedRows.some(r =>
-      r.chargeable && (r.claimStatus === 'OPENED_NOT_SUBMITTED' || r.claimStatus === 'REJECTED')
+    return this.selectedRows.some(
+      (row) =>
+        row.chargeable &&
+        row.claimStatus === 'NONE'
     );
   }
 
-  // =========================================
-  // פתיחת תביעה דרך Firebase
-  // =========================================
-  async openSelectedClaims() {
+  async reportSelectedToFundingSource(): Promise<void> {
+    if (!this.selectedRows.length || this.sending) {
+      return;
+    }
 
+    if (
+      this.activeTab === 'MACCABI' &&
+      !this.agentInstalled
+    ) {
+      alert('יש להפעיל את תוכנת הדיווח למכבי.');
+      return;
+    }
+
+    this.sending = true;
+
+    try {
+      if (this.activeTab === 'CLALIT') {
+        await this.reportToClalitAutomation();
+        return;
+      }
+
+      if (this.activeTab === 'MACCABI') {
+        await this.reportToMaccabiAutomation();
+        return;
+      }
+
+      console.log(
+        'דיווח למאוחדת:',
+        this.selectedRows
+      );
+    } finally {
+      this.sending = false;
+    }
+  }
+
+  private async reportToClalitAutomation(): Promise<void> {
+    const selected = this.selectedRows.filter((row) => this.isRowSelectable(row));
+    if (!selected.length) {
+      alert('לא נבחרו שיעורים שניתן לדווח לכללית.');
+      return;
+    }
+
+    const user = getAuth().currentUser;
+    if (!user) {
+      alert('יש להתחבר מחדש לפני יצירת משימת הדיווח.');
+      return;
+    }
+
+    try {
+      const claims = (await user.getIdTokenResult()).claims;
+console.log('Clalit authorization check', {
+  requestedSchema: this.tenantSvc.requireTenant().schema,
+  farm_schema: claims['farm_schema'],
+  role: claims['role'],
+});
+      const response = await fetch('/api/createClalitAutomationJob', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${await user.getIdToken()}`,
+        },
+        body: JSON.stringify({
+          schema: this.tenantSvc.requireTenant().schema,
+          lessons: selected.map((row) => ({
+            lesson_id: row.lesson_id,
+            occur_date: row.occur_date,
+            child_id: row.child_id,
+          })),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.message || `שגיאת שרת ${response.status}`);
+      }
+      this.selectedIds.clear();
+      alert(`נוצרה משימת כללית עבור ${result.lessonCount} שיעורים. מספר משימה: ${result.jobId}`);
+      await this.reloadCurrentTab();
+    } catch (error) {
+      console.error('createClalitAutomationJob failed:', error);
+      alert(error instanceof Error ? error.message : 'לא הצלחנו ליצור משימת כללית.');
+    }
+  }
+
+  private async reportToMaccabiAutomation(): Promise<void> {
     const tenant = this.tenantSvc.requireTenant();
-    const tenantSchema = tenant.schema;
-    const tenantId = tenant.id;
 
-    const targets = this.selectedRows.filter(r => r.chargeable && r.claimStatus === 'NONE');
-    if (!targets.length) return;
+    const selectedRows = this.selectedRows.filter((row) =>
+      this.isRowSelectable(row)
+    );
 
-    // TODO: כרגע דמו סטטי. בהמשך נשלוף מה-DB לפי lesson_id/occur_date
-    const schema = tenantSchema; 
-    const items: ClaimOpenItem[] = targets.map(r => ({
-      lesson_id: r.lesson_id,
-      occur_date: r.occur_date,
+    if (!selectedRows.length) {
+      alert('לא נבחרו שיעורים שניתן לדווח.');
+      return;
+    }
 
+    const grouped = new Map<string, any>();
+
+    for (const row of selectedRows) {
+      const reportMonth = row.occur_date.slice(0, 7);
+      const key = `${reportMonth}__${row.childIdNumber}`;
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          reportMonth,
+          child_id: row.child_id,
+          child_name: row.childName,
+          child_id_number: row.childIdNumber,
+          child_first_name: row.childFirstName,
+          child_last_name: row.childLastName,
+          lessons: [],
+        });
+      }
+
+      grouped.get(key).lessons.push({
+        lesson_id: row.lesson_id,
+        occur_date: row.occur_date,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        instructor_id: row.instructor_id,
+        instructor_name: row.instructorName,
+        attendance_status: row.attendance_status,
+        chargeable: row.chargeable,
+      });
+    }
+
+    const response = await fetch(
+      '/api/createMaccabiAutomationJob',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          schema: tenant.schema,
+          groups: Array.from(grouped.values()),
+        }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result?.ok) {
+      console.error(
+        'createMaccabiAutomationJob failed:',
+        result
+      );
+
+      alert(
+        result?.message ??
+          'שגיאה ביצירת משימת הדיווח למכבי.'
+      );
+
+      return;
+    }
+
+    alert(
+      `המשימה נשלחה לאוטומציה.\nמספר משימה: ${result.jobId}`
+    );
+
+    this.selectedIds.clear();
+    await this.reloadCurrentTab();
+  }
+
+  async openSelectedClaims(): Promise<void> {
+    const tenant = this.tenantSvc.requireTenant();
+
+    const targets = this.selectedRows.filter(
+      (row) =>
+        row.chargeable &&
+        row.claimStatus === 'NONE'
+    );
+
+    if (!targets.length) {
+      return;
+    }
+
+    const items: ClaimOpenItem[] = targets.map((row) => ({
+      lesson_id: row.lesson_id,
+      occur_date: row.occur_date,
+
+      // TODO: להחליף בשליפה מה־DB.
       insuredId: '333570000',
       insuredFirstName: 'איל',
       insuredLastName: 'בדיר',
@@ -586,66 +1252,110 @@ const reportMonthLabel = `${m}/${y}`;
     }));
 
     try {
-      const res = await this.claimsApi.openClaimsClalit({ schema, items });
-
-      const bad = res.results?.filter(x => !x.ok) ?? [];
-      if (bad.length) {
-        console.warn('FAILED ITEMS:', bad.map(x => ({
-          lesson_id: x.lesson_id,
-          occur_date: x.occur_date,
-          resultCode: x.resultCode,
-          errorDescription: x.errorDescription,
-          answerDetails: x.answerDetails,
-        })));
-      }
-
-    } catch (e: any) {
-      console.error('openClaimsClalit failed:', {
-        code: e?.code,
-        message: e?.message,
-        details: e?.details,
+      const result = await this.claimsApi.openClaimsClalit({
+        schema: tenant.schema,
+        items,
       });
+
+      const failed =
+        result.results?.filter((item) => !item.ok) ?? [];
+
+      if (failed.length) {
+        console.warn('Claims failed:', failed);
+        alert(
+          `${failed.length} תביעות לא נפתחו. הפרטים הודפסו בקונסול.`
+        );
+      }
+    } catch (error) {
+      console.error('openClaimsClalit failed:', error);
+      alert('אירעה שגיאה בפתיחת התביעות.');
     }
 
     await this.reloadCurrentTab();
   }
 
-  // =========================================
-  // עדיין RPC (בינתיים)
-  // =========================================
-  async submitSelectedClaims() {
+  async submitSelectedClaims(): Promise<void> {
     const dbc = dbTenant();
-    const targets = this.selectedRows.filter(r =>
-      r.chargeable && (r.claimStatus === 'OPENED_NOT_SUBMITTED' || r.claimStatus === 'REJECTED')
-    );
-    if (!targets.length) return;
 
-    for (const row of targets) {
-      const { error } = await dbc.rpc('submit_lesson_claim_clalit', {
-        p_lesson_id: row.lesson_id,
-        p_occur_date: row.occur_date,
-      });
-      if (error) console.error('submit_lesson_claim_clalit failed:', row, error);
+    const targets = this.selectedRows.filter(
+      (row) =>
+        row.chargeable &&
+        (
+          row.claimStatus === 'OPENED_NOT_SUBMITTED' ||
+          row.claimStatus === 'REJECTED'
+        )
+    );
+
+    if (!targets.length) {
+      return;
     }
 
+    for (const row of targets) {
+      const { error } = await dbc.rpc(
+        'submit_lesson_claim_clalit',
+        {
+          p_lesson_id: row.lesson_id,
+          p_occur_date: row.occur_date,
+        }
+      );
+
+      if (error) {
+        console.error(
+          'submit_lesson_claim_clalit failed:',
+          row,
+          error
+        );
+      }
+    }
+
+    this.selectedIds.clear();
     await this.reloadCurrentTab();
   }
 
   canDeleteClaimRow(row: LessonClaimRow): boolean {
-    return row.claimOpened && (row.claimStatus === 'OPENED_NOT_SUBMITTED' || row.claimStatus === 'REJECTED');
+    return (
+      this.activeTab === 'CLALIT' &&
+      row.claimOpened &&
+      (
+        row.claimStatus === 'OPENED_NOT_SUBMITTED' ||
+        row.claimStatus === 'REJECTED'
+      )
+    );
   }
 
-  async deleteClaimRow(row: LessonClaimRow) {
-    if (!this.canDeleteClaimRow(row)) return;
+  async deleteClaimRow(
+    row: LessonClaimRow
+  ): Promise<void> {
+    if (!this.canDeleteClaimRow(row)) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `למחוק את התביעה של ${row.childName} מתאריך ${row.occur_date}?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
 
     const dbc = dbTenant();
-    const { error } = await dbc.rpc('delete_lesson_claim_clalit', {
-      p_lesson_id: row.lesson_id,
-      p_occur_date: row.occur_date,
-    });
+
+    const { error } = await dbc.rpc(
+      'delete_lesson_claim_clalit',
+      {
+        p_lesson_id: row.lesson_id,
+        p_occur_date: row.occur_date,
+      }
+    );
 
     if (error) {
-      console.error('delete_lesson_claim_clalit failed:', row, error);
+      console.error(
+        'delete_lesson_claim_clalit failed:',
+        row,
+        error
+      );
+
+      alert('מחיקת התביעה נכשלה.');
       return;
     }
 
@@ -653,25 +1363,133 @@ const reportMonthLabel = `${m}/${y}`;
     await this.reloadCurrentTab();
   }
 
-  markChargeable(_row: LessonClaimRow) {}
+  statusLabel(status: ClaimStatus): string {
+    switch (status) {
+      case 'NONE':
+        return 'ללא תביעה';
 
-  statusLabel(s: ClaimStatus): string {
-    switch (s) {
-      case 'NONE': return 'ללא';
-      case 'OPENED_NOT_SUBMITTED': return 'נפתחה (לא הוגשה)';
-      case 'PENDING': return 'הוגשה - ממתינה';
-      case 'APPROVED': return 'אושרה';
-      case 'REJECTED': return 'נדחתה';
+      case 'OPENED_NOT_SUBMITTED':
+        return 'נפתחה ולא הוגשה';
+
+      case 'PENDING':
+        return 'הוגשה וממתינה';
+
+      case 'APPROVED':
+        return 'אושרה';
+
+      case 'REJECTED':
+        return 'נדחתה';
     }
   }
 
-  statusClass(s: ClaimStatus): string {
-    switch (s) {
-      case 'NONE': return 'st-none';
-      case 'OPENED_NOT_SUBMITTED': return 'st-opened';
-      case 'PENDING': return 'st-pending';
-      case 'APPROVED': return 'st-approved';
-      case 'REJECTED': return 'st-rejected';
+  statusClass(status: ClaimStatus): string {
+    switch (status) {
+      case 'NONE':
+        return 'st-none';
+
+      case 'OPENED_NOT_SUBMITTED':
+        return 'st-opened';
+
+      case 'PENDING':
+        return 'st-pending';
+
+      case 'APPROVED':
+        return 'st-approved';
+
+      case 'REJECTED':
+        return 'st-rejected';
     }
   }
+
+  displayStatusClass(status: string): string {
+    return `st-${status.toLowerCase()}`;
+  }
+
+  private compareVersions(
+  installed: string,
+  latest: string
+): number {
+  const installedParts = installed
+    .split('.')
+    .map((value) => Number(value) || 0);
+
+  const latestParts = latest
+    .split('.')
+    .map((value) => Number(value) || 0);
+
+  const length = Math.max(
+    installedParts.length,
+    latestParts.length
+  );
+
+  for (let index = 0; index < length; index += 1) {
+    const installedValue =
+      installedParts[index] ?? 0;
+
+    const latestValue =
+      latestParts[index] ?? 0;
+
+    if (installedValue < latestValue) {
+      return -1;
+    }
+
+    if (installedValue > latestValue) {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
+private updateAgentVersionState(): void {
+  this.agentUpdateAvailable =
+    Boolean(
+      this.agentInstalled &&
+      this.agentVersion &&
+      this.latestAgentVersion &&
+      this.compareVersions(
+        this.agentVersion,
+        this.latestAgentVersion
+      ) < 0
+    );
+}
+
+async loadLatestAgentRelease(): Promise<void> {
+  try {
+    const response = await fetch(
+      `${this.maccabiAgentManifestUrl}?t=${Date.now()}`,
+      {
+        cache: 'no-store',
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Manifest request failed: ${response.status}`
+      );
+    }
+
+    const manifest = await response.json();
+
+    this.latestAgentVersion =
+      String(manifest?.version ?? '').trim() || null;
+
+    this.latestAgentDownloadUrl =
+      String(
+        manifest?.downloadUrl ?? ''
+      ).trim() || null;
+
+    this.updateAgentVersionState();
+  } catch (error) {
+    console.error(
+      'Could not load latest Agent release:',
+      error
+    );
+
+    this.latestAgentVersion = null;
+    this.latestAgentDownloadUrl = null;
+    this.agentUpdateAvailable = false;
+  }
+}
+
 }

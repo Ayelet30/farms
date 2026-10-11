@@ -2,20 +2,20 @@
   <div class="child-header">
     <p *ngIf="infoMessage" class="inline-message" aria-live="polite">{{ infoMessage }}</p>
     <div *ngIf="!isEditing">
-  <h3>{{ parent.first_name }} {{ parent.last_name }}</h3>
+      <h3>{{ parent.first_name }} {{ parent.last_name }}</h3>
 
     </div>
-   <div *ngIf="isEditing" class="editable-name">
-  <input [(ngModel)]="editableParent.first_name" class="editable-input" placeholder="שם פרטי" />
-  <input [(ngModel)]="editableParent.last_name" class="editable-input" placeholder="שם משפחה" />
-</div>
-   <div class="button-group">
-  <button *ngIf="!isEditing" (click)="isEditing = true" class="btn-edit">✏️ ערוך</button>
-  <ng-container *ngIf="isEditing">
-<button (click)="onSaveClick()" class="btn-save">💾 שמור</button>
-    <button (click)="cancelEdit()" class="btn-cancel">❌ ביטול</button>
-  </ng-container>
-</div>
+    <div *ngIf="isEditing" class="editable-name">
+      <input [(ngModel)]="editableParent.first_name" class="editable-input" placeholder="שם פרטי" />
+      <input [(ngModel)]="editableParent.last_name" class="editable-input" placeholder="שם משפחה" />
+    </div>
+    <div class="button-group">
+      <button *ngIf="!isEditing" (click)="isEditing = true" class="btn-edit">✏️ ערוך</button>
+      <ng-container *ngIf="isEditing">
+        <button (click)="onSaveClick()" class="btn-save">💾 שמור</button>
+        <button (click)="cancelEdit()" class="btn-cancel">❌ ביטול</button>
+      </ng-container>
+    </div>
 
   </div>
 
@@ -26,75 +26,90 @@
     <span *ngIf="!isEditing">{{ parent.address || '-' }}</span>
     <input *ngIf="isEditing" [(ngModel)]="editableParent.address" class="editable-input" />
   </p>
-<p>
-  <strong>טלפון:</strong>
-  <span *ngIf="!isEditing">{{ parent.phone || '-' }}</span>
-  <ng-container *ngIf="isEditing">
-    <input [(ngModel)]="editableParent.phone" class="editable-input" />
-    <div *ngIf="phoneError" class="error-msg">{{ phoneError }}</div>
-  </ng-container>
-</p>
+  <p>
+    <strong>טלפון:</strong>
+    <span *ngIf="!isEditing">{{ parent.phone || '-' }}</span>
+    <ng-container *ngIf="isEditing">
+      <input [(ngModel)]="editableParent.phone" class="editable-input" />
+      <div *ngIf="phoneError" class="error-msg">{{ phoneError }}</div>
+    </ng-container>
+  </p>
+  <p>
+    <strong>טלפון נוסף:</strong>
 
-<p>
-  <strong>יום חיוב חודשי:</strong>
-  {{ parent?.billing_day_of_month }} -       ניתן לשינוי ע״י מזכירה בלבד      
-</p>
+    <span *ngIf="!isEditing">
+      {{ parent.secondary_phone || '-' }}
+    </span>
 
+    <input *ngIf="isEditing" [(ngModel)]="editableParent.secondary_phone" class="editable-input" />
+  </p>
 
-<p>
-  <strong>דוא"ל:</strong>
-  <span *ngIf="!isEditing">{{ parent.email || '-' }}</span>
-  <ng-container *ngIf="isEditing">
-    <input [(ngModel)]="editableParent.email" type="email" class="editable-input" />
-    <div *ngIf="emailError" class="error-msg">{{ emailError }}</div>
-  </ng-container>
-</p>
-<!-- דרכי התקשרות -->
-<div class="contact-methods">
-  <strong>דרכי התקשרות:</strong>
-
-  <!-- מצב תצוגה -->
- <div *ngIf="!isEditing" class="contact-tags">
-  <span *ngIf="parent?.notify?.email" class="contact-tag">דוא"ל</span>
-  <span *ngIf="parent?.notify?.sms" class="contact-tag">SMS</span>
-  <span *ngIf="parent?.notify?.whatsapp" class="contact-tag">ווטסאפ</span>
-  <span *ngIf="!parent?.notify" class="contact-tag contact-tag-empty">אין העדפות</span>
-</div>
+  <p>
+    <strong>יום חיוב חודשי:</strong>
+    {{ parent?.billing_day_of_month }} - ניתן לשינוי ע״י מזכירה בלבד
+  </p>
 
 
-  <!-- מצב עריכה -->
-  <div *ngIf="isEditing" class="contact-checkboxes">
-    <label>
-      <input type="checkbox" [(ngModel)]="editableParent.notify.email" />
-      דוא"ל
-    </label>
-    <label>
-      <input type="checkbox" [(ngModel)]="editableParent.notify.sms" />
-      SMS
-    </label>
-    <label>
-      <input type="checkbox" [(ngModel)]="editableParent.notify.whatsapp" />
-      ווטסאפ
-    </label>
+  <p>
+    <strong>דוא"ל:</strong>
+    <span *ngIf="!isEditing">{{ parent.email || '-' }}</span>
+    <ng-container *ngIf="isEditing">
+      <input [(ngModel)]="editableParent.email" type="email" class="editable-input" />
+      <div *ngIf="emailError" class="error-msg">{{ emailError }}</div>
+    </ng-container>
+  </p>
+  <p>
+    <strong>דוא"ל נוסף:</strong>
+
+    <span *ngIf="!isEditing">
+      {{ parent.secondary_email || '-' }}
+    </span>
+
+    <input *ngIf="isEditing" [(ngModel)]="editableParent.secondary_email" type="email" class="editable-input" />
+  </p>
+  <!-- דרכי התקשרות -->
+  <div class="contact-methods">
+    <strong>דרכי התקשרות:</strong>
+
+    <!-- מצב תצוגה -->
+    <div *ngIf="!isEditing" class="contact-tags">
+      <span *ngIf="parent?.notify?.email" class="contact-tag">דוא"ל</span>
+      <span *ngIf="parent?.notify?.sms" class="contact-tag">SMS</span>
+      <span *ngIf="parent?.notify?.whatsapp" class="contact-tag">ווטסאפ</span>
+      <span *ngIf="!parent?.notify" class="contact-tag contact-tag-empty">אין העדפות</span>
+    </div>
+
+
+    <!-- מצב עריכה -->
+    <div *ngIf="isEditing" class="contact-checkboxes">
+      <label>
+        <input type="checkbox" [(ngModel)]="editableParent.notify.email" />
+        דוא"ל
+      </label>
+      <label>
+        <input type="checkbox" [(ngModel)]="editableParent.notify.sms" />
+        SMS
+      </label>
+      <label>
+        <input type="checkbox" [(ngModel)]="editableParent.notify.whatsapp" />
+        ווטסאפ
+      </label>
+    </div>
   </div>
-</div>
 
 </div>
 
 <div *ngIf="!loading && visibleChildren.length > 0" class="children-list">
   <h3>🧒 הילדים שלי</h3>
   <ul>
-  <li *ngFor="let child of visibleChildren">
-  <strong>{{ child.first_name }} {{ child.last_name }}</strong> –
+    <li *ngFor="let child of visibleChildren">
+      <strong>{{ child.first_name }} {{ child.last_name }}</strong> –
       גיל: {{ getAge(child.birth_date) }} –
       סטטוס: {{ getStatusText(child.status) }}
     </li>
   </ul>
 </div>
-<div
-  *ngIf="showConfirmDialog"
-  class="modal-backdrop"
->
+<div *ngIf="showConfirmDialog" class="modal-backdrop">
   <div class="modal-panel" role="dialog" aria-modal="true">
     <h4>אישור שמירת שינויים</h4>
     <p>האם את בטוחה שברצונך לשמור את השינויים בפרטי ההורה?</p>

@@ -12,7 +12,7 @@ const NOTIFY_USER_URL =
 
 export async function notifyUserInternal(payload: {
   tenantSchema: string;
-  userType: 'parent' | 'instructor';
+  userType: 'parent' | 'instructor' | 'independent';
   uid: string;
   subject: string;
   html?: string;

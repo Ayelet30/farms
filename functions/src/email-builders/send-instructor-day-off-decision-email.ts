@@ -83,41 +83,74 @@ export function buildInstructorDayOffDecisionEmail(args: Args) {
   const farmName = esc(args.farmName);
 
   if (args.kind === 'approved_parent') {
-    const subject = `עדכון מהחווה: שיעורים בוטלו`;
-    const list = (args.cancellations ?? []).map(x => {
-      const line = `${fmtDateIL(x.occurDate)} • ${esc(x.childName)} • ${esc(x.startTime ?? '')}-${esc(x.endTime ?? '')}`;
-      return `<li>${line}</li>`;
-    }).join('');
+  const subject = `עדכון מחוות בראשית – ביטול טיפול`;
+  const instructorName = esc(args.instructorName);
 
-    const note = args.decisionNote ? `<p><b>הערה מהמזכירות:</b> ${esc(args.decisionNote)}</p>` : '';
+  const cancelledTreatmentsHtml = (args.cancellations ?? [])
+    .map(x => `
+      <p>
+        <strong>
+          הטיפול של ${esc(x.childName)}, שיתקיים בתאריך
+          ${esc(fmtDateIL(x.occurDate))} בשעה
+          ${esc(x.startTime ?? '')}, מבוטל ואינו מחויב.
+        </strong>
+      </p>
+    `)
+    .join('');
 
-    const html = `
-      <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.5">
-        <h2>${farmName}</h2>
-        <p>שלום ${esc(args.parentName)},</p>
-        ${note}
-        <p עקב חופשת מדריך השיעורים הבאים בוטלו:</p>
-        <ul>${list || '<li>(לא נמצאו שיעורים לשיוך)</li>'}</ul>
-        <p>שיעור מילוי מקום יש לקבוע דרך דף זימון תור באתר או באפליקציה. לחילופין - ניתן ליצור קשר עם המזכירות</p>
-      </div>
-    `.trim();
+  const cancelledTreatmentsText = (args.cancellations ?? [])
+    .map(x =>
+      `הטיפול של ${x.childName}, שיתקיים בתאריך ` +
+      `${fmtDateIL(x.occurDate)} בשעה ${x.startTime ?? ''}, ` +
+      `מבוטל ואינו מחויב.`
+    )
+    .join('\n');
 
-    const textLines = (args.cancellations ?? []).map(x =>
-      `${fmtDateIL(x.occurDate)} | ${x.childName} | ${(x.startTime ?? '')}-${(x.endTime ?? '')}`
-    );
+  const html = `
+    <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.7">
+      <p><strong>הורים יקרים, שלום וברכה,</strong></p>
 
-    const text =
-      `${args.farmName}\n` +
-      `שלום ${args.parentName},\n` +
-      `אושרה בקשת חופש למדריך/ה ${args.instructorName}.\n` +
-      `חלון החופש: ${windowText(args)}\n` +
-      (args.decisionNote ? `הערה: ${args.decisionNote}\n` : '') +
-      `השיעורים שבוטלו:\n` +
-      (textLines.length ? textLines.join('\n') : '(לא נמצאו שיעורים לשיוך)') +
-      `\n`;
+      <p>
+        עקב היעדרות של המדריך/ה ${instructorName}
+        בשל מחלה / יום חופש,
+      </p>
 
-    return { subject, html, text };
-  }
+      ${cancelledTreatmentsHtml}
+
+      <p>
+        <strong>שימו לב –</strong>
+        הביטול תקף למטופלים של ${instructorName} בלבד.
+        טיפולים אצל מדריכים אחרים מתקיימים כרגיל.
+      </p>
+
+      <p>
+        ככל שיתאפשר ובהתאם לזמינות הקיימת במערכת,
+        החווה תיצור קשר להציע מועד חלופי.
+      </p>
+
+      <p><strong>טיפול חלופי שיתקיים יחויב כרגיל.</strong></p>
+
+      <p>
+        בברכה,<br>
+        חוות בראשית.
+      </p>
+    </div>
+  `.trim();
+
+  const text =
+    `הורים יקרים, שלום וברכה,\n\n` +
+    `עקב היעדרות של המדריך/ה ${args.instructorName} בשל מחלה / יום חופש,\n\n` +
+    `${cancelledTreatmentsText}\n\n` +
+    `שימו לב – הביטול תקף למטופלים של ${args.instructorName} בלבד. ` +
+    `טיפולים אצל מדריכים אחרים מתקיימים כרגיל.\n\n` +
+    `ככל שיתאפשר ובהתאם לזמינות הקיימת במערכת, ` +
+    `החווה תיצור קשר להציע מועד חלופי.\n\n` +
+    `טיפול חלופי שיתקיים יחויב כרגיל.\n\n` +
+    `בברכה,\n\n` +
+    `חוות בראשית.`;
+
+  return { subject, html, text };
+}
 
   if (args.kind === 'approved_instructor') {
     const subject = `הבקשה לחופש אושרה`;

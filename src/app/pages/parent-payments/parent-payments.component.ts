@@ -46,9 +46,17 @@ type InvoiceVM = {
   method: string | null;
 };
 
-type SavePaymentMethodResult =
+export type SavePaymentMethodResult =
   | { ok: true; is_default: boolean }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      message?: string;
+      existingParentUid?: string;
+      existingProfileId?: string;
+      last4?: string | null;
+      brand?: string | null;
+    };
 
 @Component({
   selector: 'app-parent-payments',
@@ -77,6 +85,8 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
 
   private hfAdd: HostedFieldsInstance | null = null;
   private thtkAdd: string | null = null;
+
+  private tokenCallbackHandled = false;
 
   private savedToken: {
     token: string;
@@ -212,19 +222,23 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
   // מודל הוספת כרטיס
   // =========================
   openAddCardModal() {
-    this.addCardOpen.set(true);
-    this.tokenError.set(null);
-    this.tokenSaved.set(false);
-    this.savedToken = null;
+  this.destroyHostedFields();
+  this.tokenCallbackHandled = false;
 
-    // לאחר פתיחת מודל: ה-DOM קיים → אפשר לאתחל HF
-    queueMicrotask(() => this.ensureAddHostedFieldsReady());
-  }
+  this.addCardOpen.set(true);
+  this.tokenError.set(null);
+  this.tokenSaved.set(false);
+  this.savedToken = null;
+
+  queueMicrotask(() => this.ensureAddHostedFieldsReady());
+}
 
   closeAddCardModal() {
-    if (this.savingToken()) return;
-    this.addCardOpen.set(false);
-  }
+  if (this.savingToken()) return;
+
+  this.destroyHostedFields();
+  this.addCardOpen.set(false);
+}
 
   private async ensureAddHostedFieldsReady() {
     if (this.hfAdd) return;
@@ -293,17 +307,23 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
   }
 
   // אותו tokenize כמו באשף הוספת ילד
-  async tokenizeAndSaveCard() {
-    this.tokenError.set(null);
+    async tokenizeAndSaveCard() {
+  if (this.savingToken()) return;
 
-    if (!this.hfAdd || !this.thtkAdd) {
-      this.tokenError.set('שדות התשלום לא מוכנים');
-      return;
-    }
-    if (!this.parentUid) {
-      this.tokenError.set('לא זוהה הורה מחובר');
-      return;
-    }
+  this.tokenError.set(null);
+  this.tokenSaved.set(false);
+
+  if (!this.hfAdd || !this.thtkAdd) {
+    this.tokenError.set('שדות התשלום לא מוכנים');
+    return;
+  }
+
+  if (!this.parentUid) {
+    this.tokenError.set('לא זוהה הורה מחובר');
+    return;
+  }
+
+  this.savingToken.set(true);
 
      await this.tenantBoot.ensureReady();
     const farm = this.tenantBoot.getFarmMetaSync();
@@ -319,9 +339,6 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
       const el = document.getElementById('pm_errors_for_' + k);
       if (el) el.textContent = '';
     });
-
-     this.savingToken.set(true);
-    this.tokenSaved.set(false);
 
     const dbc = this.ppDb.db();
 
@@ -431,4 +448,25 @@ export class ParentPaymentsComponent implements OnInit, AfterViewInit {
   trackById(_i: number, x: { id: string }) {
     return x.id;
   }
+
+  private destroyHostedFields(): void {
+  try {
+    const anyHf = this.hfAdd as any;
+
+    if (anyHf?.destroy) anyHf.destroy();
+    if (anyHf?.remove) anyHf.remove();
+    if (anyHf?.unmount) anyHf.unmount();
+  } catch (e) {
+    console.warn('[parent-payments][HF_DESTROY_FAILED]', e);
+  }
+
+  this.hfAdd = null;
+  this.thtkAdd = null;
+  this.hfInitTried = false;
+
+  ['pm_credit_card_number', 'pm_cvv', 'pm_expiry'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+}
 }

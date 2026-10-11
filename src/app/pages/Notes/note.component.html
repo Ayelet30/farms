@@ -25,6 +25,11 @@
 
             <span class="dot">•</span>
 
+            <span class="series-counter" *ngIf="getSeriesLabel()">
+              {{ getSeriesLabel() }}
+            </span>
+            <span class="dot">•</span>
+
             <!-- Attendance chip -->
             <!-- Attendance / Cancelled chip -->
             <!-- Attendance / Cancelled chip -->
@@ -37,9 +42,17 @@
 
             <ng-template #attendanceBlock>
               <span class="att-chip" *ngIf="attendanceStatus" [class.present]="attendanceStatus === 'present'"
-                [class.absent]="attendanceStatus === 'absent'">
+                [class.absent]="attendanceStatus === 'absent'" [class.can-delete-attendance]="canDeleteAttendance"
+                [attr.title]="
+    canDeleteAttendance
+      ? 'לחיצה כפולה להסרת סימון הנוכחות'
+      : null
+  " (dblclick)="onAttendanceDoubleClick($event)">
 
-                <mat-icon>{{ attendanceStatus === 'present' ? 'check_circle' : 'cancel' }}</mat-icon>
+                <mat-icon>
+                  {{ attendanceStatus === 'present' ? 'check_circle' : 'cancel' }}
+                </mat-icon>
+
                 {{ attendanceStatus === 'present' ? 'הגיע' : 'לא הגיע' }}
               </span>
 
@@ -80,7 +93,6 @@
     <!-- BODY (single scroll) -->
     <div class="sheet-body" #scrollable>
       <ng-container *ngIf="!isInitializing">
-
         <!-- QUICK CHILD SUMMARY -->
         <section class="block" *ngIf="childDetails">
           <div class="block-title">
@@ -131,18 +143,41 @@
             <span>נוכחות</span>
           </div>
 
-          <div class="segmented" (click)="onAttendanceAttempt()">
-            <button type="button" mat-stroked-button class="seg" [class.active]="attendanceStatus === 'present'"
-              [disabled]="!canMarkAttendanceNow()" (click)="setAttendance('present')">
-              הגיע
-            </button>
+          <div class="segmented">
+  <button
+    type="button"
+    mat-stroked-button
+    class="seg"
+    [class.active]="attendanceStatus === 'present'"
+    [disabled]="!canMarkAttendanceNow() || isDeletingAttendance"
+    [attr.title]="
+      canDeleteAttendance && attendanceStatus === 'present'
+        ? 'לחיצה כפולה להסרת הנוכחות'
+        : null
+    "
+    (click)="onAttendanceClick($event, 'present')"
+    (dblclick)="onAttendanceDoubleClick($event, 'present')">
 
-            <button type="button" mat-stroked-button class="seg seg--danger"
-              [class.active]="attendanceStatus === 'absent'" [disabled]="!canMarkAttendanceNow()"
-              (click)="setAttendance('absent')">
-              לא הגיע
-            </button>
-          </div>
+    הגיע
+  </button>
+
+  <button
+    type="button"
+    mat-stroked-button
+    class="seg seg--danger"
+    [class.active]="attendanceStatus === 'absent'"
+    [disabled]="!canMarkAttendanceNow() || isDeletingAttendance"
+    [attr.title]="
+      canDeleteAttendance && attendanceStatus === 'absent'
+        ? 'לחיצה כפולה להסרת הנוכחות'
+        : null
+    "
+    (click)="onAttendanceClick($event, 'absent')"
+    (dblclick)="onAttendanceDoubleClick($event, 'absent')">
+
+    לא הגיע
+  </button>
+</div>
         </section>
 
         <!-- LESSON DETAILS -->
@@ -152,6 +187,17 @@
             <span>פרטי שיעור</span>
           </div>
 
+          <div class="lesson-move-info" *ngIf="getMoveOfficeNote() as moveNote">
+
+            <div class="lesson-move-info-head">
+              <mat-icon>swap_horiz</mat-icon>
+              <span>העברה חד־פעמית</span>
+            </div>
+
+            <div class="lesson-move-info-text">
+              {{ moveNote }}
+            </div>
+          </div>
           <div class="meta-grid">
             <div class="meta">
               <span class="k">סוג שיעור</span>
@@ -174,16 +220,16 @@
               <div class="st-txt">
                 <div class="st-title">שיעור מבוטל</div>
                 <div class="st-sub">
-                  {{ lessonDetails!.is_makeup_allowed ? 'מותר להשלמה' : 'אסור להשלמה' }}
+                  {{ lessonDetails!.is_makeup_allowed ? 'זכאי להשלמה ' : 'אינו זכאי להשלמה ' }}
                   <span class="sep">•</span>
                   {{ (lessonDetails!.is_billable ?? true) ? 'מחויב בתשלום' : 'לא מחויב בתשלום' }}
                 </div>
               </div>
             </div>
 
-            <!-- רק למזכירה/מנהל/אדמין -->
+            <!-- ברירת המחדל מגיעה מהגדרות החווה בזמן הביטול;
+                 מזכירה/מנהל/אדמין יכולים לדרוס אותה עבור הביטול המסוים. -->
             <div class="st-actions" *ngIf="canEditMakeupAllowed || canEditBillingFlag">
-              <!-- 🟢 עריכה רק למזכירה/מנהל/אדמין <span class="slider" [class.disabled]="!allowEdit"></span>-->
               <label *ngIf="canEditMakeupAllowed" class="wh-check ng-pristine ng-valid ng-touched">
                 <input type="checkbox" [(ngModel)]="lessonDetails.is_makeup_allowed"
                   (ngModelChange)="onMakeupAllowedChange($event)" />

@@ -24,6 +24,8 @@ import {
 import { CreateUserService } from '../../services/create-user.service';
 import { TaughtChildGender } from '../../Types/detailes.model';
 import { max } from 'rxjs';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 type InstructorRow = {
   id_number: string;
@@ -36,7 +38,7 @@ type InstructorRow = {
   gender?: string | null;
   accepts_makeup_others?: boolean | null;
   allow_availability_edit?: boolean | null;
-    color_hex?: string | null;
+  color_hex?: string | null;
 };
 
 interface InstructorWeeklyAvailabilityRow {
@@ -64,8 +66,15 @@ interface InstructorDetailsRow extends InstructorRow {
   certificate?: string | null;
   photo_url?: string | null;
   notify?: any | null; // jsonb הגדרות התראות
-color_hex?: string | null;
+  color_hex?: string | null;
   birth_date?: string | null;        // מגיע מ-Supabase כ-'YYYY-MM-DD'
+}
+interface SickNoteFile {
+  id: string;
+  unavailability_id: string;
+  file_name: string;
+  storage_path: string;
+  created_at: string;
 }
 interface InstructorUnavailabilityRow {
   id: string;
@@ -75,7 +84,7 @@ interface InstructorUnavailabilityRow {
   reason?: string | null;
   all_day: boolean;
   category?: string | null;
-  sick_note_file_path?: string | null;
+  sick_note_file_path?: string[] | null;
 }
 
 @Component({
@@ -94,19 +103,28 @@ export class SecretaryInstructorsComponent implements OnInit {
 
   // לו"ז שבועי במצב עריכה
   editAvailability: InstructorWeeklyAvailabilityRow[] = [];
-drawerUnavailability: InstructorUnavailabilityRow[] = [];
+  drawerUnavailability: InstructorUnavailabilityRow[] = [];
+  showUnavailabilitySection = false;
+  showSickNotesSection = false;
+  sickFiles: SickNoteFile[] = [];
+
+  selectedSickDay: InstructorUnavailabilityRow | null = null;
+
+  sickFilesBusy = false;
+
+  sickFilesError = '';
   dayOfWeekToLabel(d?: number | null): string {
-  switch (d) {
-    case 0: return 'ראשון';
-    case 1: return 'שני';
-    case 2: return 'שלישי';
-    case 3: return 'רביעי';
-    case 4: return 'חמישי';
-    case 5: return 'שישי';
-    case 6: return 'שבת';
-    default: return '—';
+    switch (d) {
+      case 0: return 'ראשון';
+      case 1: return 'שני';
+      case 2: return 'שלישי';
+      case 3: return 'רביעי';
+      case 4: return 'חמישי';
+      case 5: return 'שישי';
+      case 6: return 'שבת';
+      default: return '—';
+    }
   }
-}
   ridingTypeName(id: string | null): string {
     if (!id) return '—';
     const rt = this.ridingTypes.find(r => r.id === id);
@@ -122,8 +140,8 @@ drawerUnavailability: InstructorUnavailabilityRow[] = [];
       default: return '—';
     }
   }
-bulkBusy = signal(false);
-bulkBusyMessage = signal<string>('');
+  bulkBusy = signal(false);
+  bulkBusyMessage = signal<string>('');
   // ======= מצב עריכה במגירה =======
   editMode = false;
   editModel: InstructorDetailsRow | null = null;
@@ -131,7 +149,7 @@ bulkBusyMessage = signal<string>('');
 
   // 🔍 חיפוש + סינונים
   searchText = '';
-  searchMode: 'name' | 'id' = 'name';
+  searchMode: 'all' | 'name' | 'id' | 'phone' | 'email' = 'all';
 
   statusFilter: 'all' | 'active' | 'inactive' = 'all';
   makeupFilter: 'all' | 'accepts' | 'not_accepts' = 'all';
@@ -153,19 +171,19 @@ bulkBusyMessage = signal<string>('');
     private dialog: MatDialog,
     private createUserService: CreateUserService,
     private mailService: MailService
-  ) {}
+  ) { }
 
   // =========================
   // ✅ ולידציות/סניטציה נקודתיות לשדות שביקשת
   // =========================
 
   /** שם פרטי/משפחה: עברית/אנגלית + רווח/גרש/מקף, מקס 40 (כמו ב-HTML) */
- sanitizeName(v: any): string {
-  let s = (v ?? '').toString();
-  s = s.replace(/[^A-Za-z\u0590-\u05FF\s'’\-]/g, '');
-  s = s.replace(/\s{2,}/g, ' ').trim();
-  return s.slice(0, 25);
-}
+  sanitizeName(v: any): string {
+    let s = (v ?? '').toString();
+    s = s.replace(/[^A-Za-z\u0590-\u05FF\s'’\-]/g, '');
+    s = s.replace(/\s{2,}/g, ' ').trim();
+    return s.slice(0, 25);
+  }
 
 
   /** השכלה: טקסט חופשי "סביר", מקס 80 (כמו ב-HTML) */
@@ -177,12 +195,12 @@ bulkBusyMessage = signal<string>('');
 
 
   /** כתובת: טקסט חופשי, אבל בלי תווים "מוזרים", מקס 120 (כמו ב-HTML) */
-sanitizeAddress(v: any): string {
-  let s = (v ?? '').toString();
-  s = s.replace(/[^A-Za-z\u0590-\u05FF0-9\s.,'’"\-\/]/g, '');
-  s = s.replace(/\s{2,}/g, ' ').trim();
-  return s.slice(0, 60);
-}
+  sanitizeAddress(v: any): string {
+    let s = (v ?? '').toString();
+    s = s.replace(/[^A-Za-z\u0590-\u05FF0-9\s.,'’"\-\/]/g, '');
+    s = s.replace(/\s{2,}/g, ' ').trim();
+    return s.slice(0, 60);
+  }
 
   /** רישיון מדריך: מותר אותיות/מספרים/מקף/סלאש/רווח, מקס 30 (כמו ב-HTML) */
   sanitizeLicense(v: any): string {
@@ -192,10 +210,10 @@ sanitizeAddress(v: any): string {
     return s.slice(0, 30);
   }
   sanitizeAbout(v: any): string {
-  let s = (v ?? '').toString();
-  s = s.replace(/\s{2,}/g, ' ').trim();
-  return s.slice(0, 200);
-}
+    let s = (v ?? '').toString();
+    s = s.replace(/\s{2,}/g, ' ').trim();
+    return s.slice(0, 200);
+  }
 
   openAvailabilityDialog() {
     const ins = this.drawerInstructor;
@@ -244,13 +262,16 @@ sanitizeAddress(v: any): string {
     const q = (this.searchText || '').trim().toLowerCase();
     if (q) {
       rows = rows.filter((i) => {
-        if (this.searchMode === 'name') {
-          const hay = `${i.first_name || ''} ${i.last_name || ''}`.toLowerCase();
-          return hay.includes(q);
-        }
-
-        const id = (i.id_number || '').toString().trim();
-        return id === q;
+        const name = `${i.first_name || ''} ${i.last_name || ''}`.toLowerCase();
+        const id = String(i.id_number || '').trim();
+        const phone = String(i.phone || '').replace(/\D/g, '');
+        const email = String(i.email || '').toLowerCase();
+        const numericQuery = q.replace(/\D/g, '');
+        if (this.searchMode === 'name') return name.includes(q);
+        if (this.searchMode === 'id') return id === q;
+        if (this.searchMode === 'phone') return !!numericQuery && phone.includes(numericQuery);
+        if (this.searchMode === 'email') return email.includes(q);
+        return name.includes(q) || id.includes(q) || (!!numericQuery && phone.includes(numericQuery)) || email.includes(q);
       });
     }
 
@@ -291,10 +312,131 @@ sanitizeAddress(v: any): string {
 
   clearFilters() {
     this.searchText = '';
-    this.searchMode = 'name';
+    this.searchMode = 'all';
     this.statusFilter = 'all';
     this.makeupFilter = 'all';
     this.genderFilter = 'all';
+  }
+
+  exportInstructorsToExcel(): void {
+    const rows = this.filteredInstructors.map(i => ({
+      'שם פרטי': i.first_name || '', 'שם משפחה': i.last_name || '',
+      'תעודת זהות': i.id_number || '', 'טלפון': i.phone || '', 'אימייל': i.email || '',
+      'סטטוס': this.statusLabel(i.status), 'מגדר': i.gender || '—',
+      'מקבל/ת השלמות': i.accepts_makeup_others ? 'כן' : 'לא',
+      'רשאי/ת לערוך זמינות': i.allow_availability_edit ? 'כן' : 'לא',
+    }));
+    if (!rows.length) {
+      void this.ui.alert('אין מדריכים התואמים לחיפוש ולסינון.', 'ייצוא לאקסל');
+      return;
+    }
+    this.saveWorkbook('מדריכים', rows, [16, 16, 16, 16, 28, 14, 12, 18, 22], `instructors-${this.fileDate()}.xlsx`);
+  }
+
+  async exportWeeklyHoursReport(): Promise<void> {
+    const instructors = this.filteredInstructors;
+    if (!instructors.length) {
+      await this.ui.alert('אין מדריכים התואמים לחיפוש ולסינון.', 'דוח שעות מדריכים');
+      return;
+    }
+    this.bulkBusy.set(true);
+    this.bulkBusyMessage.set('מכינים דוח שעות מדריכים...');
+    try {
+      const ids = instructors.map(i => i.id_number).filter(Boolean);
+      const { data, error } = await dbTenant()
+        .from('instructor_weekly_availability')
+        .select('instructor_id_number, day_of_week, start_time, end_time, lesson_type_mode')
+        .in('instructor_id_number', ids)
+        .order('day_of_week', { ascending: true })
+        .order('start_time', { ascending: true });
+      if (error) throw error;
+
+      const availability = (data ?? []) as InstructorWeeklyAvailabilityRow[];
+      const rows: Record<string, any>[] = [];
+      for (const instructor of instructors) {
+        const own = availability.filter(a => a.instructor_id_number === instructor.id_number);
+        const days = [...new Set(own.map(a => a.day_of_week))].sort((a, b) => a - b);
+        if (!days.length) {
+          rows.push(this.makeHoursRow(instructor, null, [], []));
+          continue;
+        }
+        for (const day of days) {
+          const slots = own.filter(a => a.day_of_week === day && a.start_time && a.end_time);
+          const work = slots.filter(a => a.lesson_type_mode !== 'break')
+            .map(a => [this.timeToMinutes(a.start_time!), this.timeToMinutes(a.end_time!)] as [number, number]);
+          const breaks = slots.filter(a => a.lesson_type_mode === 'break')
+            .map(a => [this.timeToMinutes(a.start_time!), this.timeToMinutes(a.end_time!)] as [number, number]);
+          rows.push(this.makeHoursRow(instructor, day, work, breaks));
+        }
+      }
+      this.saveWorkbook('דוח שעות שבועי', rows, [20, 16, 20, 28, 25, 14, 16, 14], `instructor-weekly-hours-${this.fileDate()}.xlsx`);
+    } catch (e: any) {
+      console.error('exportWeeklyHoursReport failed', e);
+      await this.ui.alert(e?.message || 'הפקת דוח השעות נכשלה.', 'שגיאה');
+    } finally {
+      this.bulkBusy.set(false);
+      this.bulkBusyMessage.set('');
+    }
+  }
+
+  private makeHoursRow(instructor: InstructorRow, day: number | null, work: Array<[number, number]>, breaks: Array<[number, number]>): Record<string, any> {
+    const mergedWork = this.mergeIntervals(work);
+    const mergedBreaks = this.mergeIntervals(breaks);
+    const grossMinutes = this.sumIntervals(mergedWork);
+    const breakMinutes = this.intersectionMinutes(mergedWork, mergedBreaks);
+    return {
+      'שם מדריך/ה': `${instructor.first_name || ''} ${instructor.last_name || ''}`.trim(),
+      'תעודת זהות': instructor.id_number,
+      'יום': day === null ? 'לא הוגדר לוח שבועי' : this.dayOfWeekToLabel(day),
+      'שעות עבודה': mergedWork.length ? mergedWork.map(x => this.intervalLabel(x)).join(', ') : '—',
+      'הפסקות': mergedBreaks.length ? mergedBreaks.map(x => this.intervalLabel(x)).join(', ') : '—',
+      'שעות ברוטו': this.minutesAsHours(grossMinutes),
+      'דקות הפסקה': breakMinutes,
+      'שעות נטו': this.minutesAsHours(Math.max(0, grossMinutes - breakMinutes)),
+    };
+  }
+
+  private timeToMinutes(value: string): number {
+    const [h, m] = String(value).split(':').map(Number);
+    return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+  }
+  private mergeIntervals(intervals: Array<[number, number]>): Array<[number, number]> {
+    const sorted = intervals.filter(([s, e]) => e > s).sort((a, b) => a[0] - b[0]);
+    const merged: Array<[number, number]> = [];
+    for (const [start, end] of sorted) {
+      const last = merged[merged.length - 1];
+      if (!last || start > last[1]) merged.push([start, end]);
+      else last[1] = Math.max(last[1], end);
+    }
+    return merged;
+  }
+  private sumIntervals(intervals: Array<[number, number]>): number {
+    return intervals.reduce((sum, [start, end]) => sum + Math.max(0, end - start), 0);
+  }
+  private intersectionMinutes(work: Array<[number, number]>, breaks: Array<[number, number]>): number {
+    let total = 0;
+    for (const [ws, we] of work) for (const [bs, be] of breaks) total += Math.max(0, Math.min(we, be) - Math.max(ws, bs));
+    return total;
+  }
+  private intervalLabel([start, end]: [number, number]): string {
+    return `${this.minutesToClock(start)}–${this.minutesToClock(end)}`;
+  }
+  private minutesToClock(minutes: number): string {
+    return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+  }
+  private minutesAsHours(minutes: number): number { return Number((minutes / 60).toFixed(2)); }
+  private fileDate(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  private saveWorkbook(sheetName: string, rows: Record<string, any>[], widths: number[], fileName: string): void {
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet['!cols'] = widths.map(wch => ({ wch }));
+    if (worksheet['!ref']) worksheet['!autofilter'] = { ref: worksheet['!ref'] };
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' }), fileName);
   }
 
   // ======= lifecycle =======
@@ -454,6 +596,8 @@ sanitizeAddress(v: any): string {
     this.drawerAvailability = [];
     this.editAvailability = [];
     this.drawerUnavailability = [];
+    this.showUnavailabilitySection = false;
+    this.showSickNotesSection = false;
 
     this.drawer.open();
     await this.loadDrawerData(this.selectedIdNumber!);
@@ -555,7 +699,7 @@ sanitizeAddress(v: any): string {
         taught_child_genders: ins.taught_child_genders
           ? [...ins.taught_child_genders]
           : [],
-        
+
       };
 
       // ---- לטעון לו"ז שבועי מהטבלה instructor_weekly_availability ----
@@ -581,8 +725,8 @@ sanitizeAddress(v: any): string {
         this.editAvailability = this.drawerAvailability.map(a => ({ ...a }));
       }
       const { data: unavailability, error: unErr } = await dbcTenant
-  .from('instructor_unavailability')
-  .select(`
+        .from('instructor_unavailability')
+        .select(`
     id,
     instructor_id_number,
     from_ts,
@@ -592,15 +736,15 @@ sanitizeAddress(v: any): string {
     category,
     sick_note_file_path
   `)
-  .eq('instructor_id_number', id_number)
-  .order('from_ts', { ascending: false });
+        .eq('instructor_id_number', id_number)
+        .order('from_ts', { ascending: false });
 
-if (unErr) {
-  console.error('failed loading instructor unavailability', unErr);
-  this.drawerUnavailability = [];
-} else {
-  this.drawerUnavailability = (unavailability ?? []) as InstructorUnavailabilityRow[];
-}
+      if (unErr) {
+        console.error('failed loading instructor unavailability', unErr);
+        this.drawerUnavailability = [];
+      } else {
+        this.drawerUnavailability = (unavailability ?? []) as InstructorUnavailabilityRow[];
+      }
     } catch (e: any) {
       console.error('[INSTRUCTORS] loadDrawerData failed:', e);
       this.error = e?.message || 'טעינת פרטי מדריך נכשלה';
@@ -661,7 +805,7 @@ if (unErr) {
     if (this.hasUnsavedChanges()) {
       const ok = await this.ui.confirm({
         title: 'אישור ביטול',
-        message: 'את בטוחה שתרצי לבטל את השינויים?',
+        message: 'לבטל את השינויים ?',
         okText: 'כן, לבטל',
         cancelText: 'לא',
         showCancel: true,
@@ -777,180 +921,231 @@ if (unErr) {
   }
 
   async saveEditFromDrawer() {
-  if (!this.drawerInstructor || !this.editModel) return;
-this.bulkBusy.set(true);
-this.bulkBusyMessage.set('הנתונים נבדקים...');
-  this.editModel = {
-    ...this.editModel,
-    first_name: this.sanitizeName(this.editModel.first_name),
-    last_name: this.sanitizeName(this.editModel.last_name),
-    education: this.sanitizeEducation(this.editModel.education),
-    address: this.sanitizeAddress(this.editModel.address),
-    license_id: this.sanitizeLicense(this.editModel.license_id),
-  };
+    if (!this.drawerInstructor || !this.editModel) return;
 
-  const m = this.editModel;
-
-  const missing: string[] = [];
-  if (!m.first_name?.trim()) missing.push('שם פרטי');
-  if (!m.last_name?.trim()) missing.push('שם משפחה');
-  if (!m.phone?.trim()) missing.push('טלפון');
-  if (!m.email?.trim()) missing.push('אימייל');
-
-  const ageErr = this.validateGenderAges(m);
-  if (ageErr) {
-    await this.ui.alert(ageErr, 'שגיאת טווח גילאים');
-    return;
-  }
-
-  if (missing.length) {
-    await this.ui.alert('שדות חובה חסרים: ' + missing.join(', '), 'חסרים פרטים');
-    return;
-  }
-
-  const rawPhone = (m.phone ?? '').trim();
-  const phoneRe = /^0(5\d|[2-9])\d{7}$/;
-  if (!rawPhone || !phoneRe.test(rawPhone)) {
-    await this.ui.alert('טלפון לא תקין. בדקי קידומת ומספר (10 ספרות).', 'שגיאת טלפון');
-    return;
-  }
-  const phone = rawPhone;
-
-  const rawEmail = (m.email ?? '').trim().toLowerCase();
-  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!rawEmail || !emailRe.test(rawEmail)) {
-    await this.ui.alert('אימייל לא תקין.', 'שגיאת אימייל');
-    return;
-  }
-  const email = rawEmail;
-
-  this.savingEdit = true;
-
-  try {
-    const dbcTenant = dbTenant();
-
-    const updates: any = {
-      non_therapy_riding_types: m.non_therapy_riding_types ?? [],
-      first_name: m.first_name.trim(),
-      last_name: m.last_name.trim(),
-      phone,
-      status: this.normalizeStatus(m.status),
-      address: m.address?.trim() || null,
-      license_id: m.license_id?.trim() || null,
-      education: m.education?.trim() || null,
-      about: m.about ? this.sanitizeAbout(m.about) : null,
-      birth_date: m.birth_date ?? null,
-      notify: m.notify ?? {
-        email: false,
-        sms: false,
-        whatsapp: false,
-        voice: false,
-      },
-      default_lesson_duration_min: m.default_lesson_duration_min ?? null,
-      min_age_years_male: m.min_age_years_male ?? null,
-      max_age_years_male: m.max_age_years_male ?? null,
-      min_age_years_female: m.min_age_years_female ?? null,
-      max_age_years_female: m.max_age_years_female ?? null,
-      accepts_makeup_others: m.accepts_makeup_others ?? null,
-      allow_availability_edit: m.allow_availability_edit ?? null,
-      taught_child_genders: m.taught_child_genders ?? null,
-      color_hex: m.color_hex || '#4dabf7',
+    this.editModel = {
+      ...this.editModel,
+      first_name: this.sanitizeName(this.editModel.first_name),
+      last_name: this.sanitizeName(this.editModel.last_name),
+      education: this.sanitizeEducation(this.editModel.education),
+      address: this.sanitizeAddress(this.editModel.address),
+      license_id: this.sanitizeLicense(this.editModel.license_id),
     };
 
-    const oldStatus = this.normalizeStatus(this.drawerInstructor.status);
-    const newStatus = this.normalizeStatus(m.status);
-    const isBecomingInactive = oldStatus === 'Active' && newStatus === 'Inactive';
+    const m = this.editModel;
 
-    const tenantSchema = this.getTenantSchemaOrThrow();
-    const tenantId = this.getTenantIdOrThrow();
-    const fromDate = new Date().toISOString().slice(0, 10);
-if (isBecomingInactive) {
-  this.bulkBusyMessage.set('נבדקת השפעת השינוי על שיעורים עתידיים...');}
-  if (isBecomingInactive) {
-      const preview = await this.callPreviewInstructorDeactivationImpact({
-        tenantSchema,
-        instructorIdNumber: this.drawerInstructor.id_number,
-        fromDate,
-      });
+    const missing: string[] = [];
+    if (!m.first_name?.trim()) missing.push('שם פרטי');
+    if (!m.last_name?.trim()) missing.push('שם משפחה');
+    if (!m.phone?.trim()) missing.push('טלפון');
+    if (!m.email?.trim()) missing.push('אימייל');
 
-      const items = Array.isArray(preview?.items) ? preview.items : [];
-      let confirmed = true;
+    const ageErr = this.validateGenderAges(m);
+    if (ageErr) {
+      await this.ui.alert(ageErr, 'שגיאת טווח גילאים');
+      return;
+    }
 
-      if (items.length > 0) {
-        this.bulkBusy.set(false);
-this.bulkBusyMessage.set('');
-        const ref = this.dialog.open(InstructorDeactivationImpactDialogComponent, {
-          width: '900px',
-          maxWidth: '96vw',
-          disableClose: true,
-          data: {
-            instructorName:
-              `${this.drawerInstructor.first_name ?? ''} ${this.drawerInstructor.last_name ?? ''}`.trim(),
-            impactCount: preview?.impactCount ?? items.length,
-            items,
-          },
-        });
+    if (missing.length) {
+      await this.ui.alert('שדות חובה חסרים: ' + missing.join(', '), 'חסרים פרטים');
+      return;
+    }
 
-        confirmed = !!(await ref.afterClosed().toPromise());
-      } else {
-        confirmed = await this.ui.confirm({
-          title: 'אישור שינוי סטטוס',
-          message: 'לא נמצאו שיעורים עתידיים למדריך/ה זה/זו. האם להפוך ללא פעיל/ה?',
-          okText: 'כן',
-          cancelText: 'לא',
-          showCancel: true,
-        });
+    const rawPhone = (m.phone ?? '').trim();
+    const phoneRe = /^0(5\d|[2-9])\d{7}$/;
+    if (!rawPhone || !phoneRe.test(rawPhone)) {
+      await this.ui.alert('טלפון לא תקין. בדקי קידומת ומספר (10 ספרות).', 'שגיאת טלפון');
+      return;
+    }
+    const phone = rawPhone;
+
+    const rawEmail = (m.email ?? '').trim().toLowerCase();
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!rawEmail || !emailRe.test(rawEmail)) {
+      await this.ui.alert('אימייל לא תקין.', 'שגיאת אימייל');
+      return;
+    }
+    const email = rawEmail;
+    // רק אחרי שכל הוולידציות עברו בהצלחה מתחילים מצב שמירה
+    this.bulkBusy.set(true);
+    this.bulkBusyMessage.set('הנתונים נשמרים...');
+    this.savingEdit = true;
+    this.savingEdit = true;
+
+    try {
+      const dbcTenant = dbTenant();
+
+      const updates: any = {
+        non_therapy_riding_types: m.non_therapy_riding_types ?? [],
+        first_name: m.first_name.trim(),
+        last_name: m.last_name.trim(),
+        phone,
+        status: this.normalizeStatus(m.status),
+        address: m.address?.trim() || null,
+        license_id: m.license_id?.trim() || null,
+        education: m.education?.trim() || null,
+        about: m.about ? this.sanitizeAbout(m.about) : null,
+        birth_date: m.birth_date ?? null,
+        notify: m.notify ?? {
+          email: false,
+          sms: false,
+          whatsapp: false,
+          voice: false,
+        },
+        default_lesson_duration_min: m.default_lesson_duration_min ?? null,
+        min_age_years_male: m.min_age_years_male ?? null,
+        max_age_years_male: m.max_age_years_male ?? null,
+        min_age_years_female: m.min_age_years_female ?? null,
+        max_age_years_female: m.max_age_years_female ?? null,
+        accepts_makeup_others: m.accepts_makeup_others ?? null,
+        allow_availability_edit: m.allow_availability_edit ?? null,
+        taught_child_genders: m.taught_child_genders ?? null,
+        color_hex: m.color_hex || '#4dabf7',
+      };
+
+      const oldStatus = this.normalizeStatus(this.drawerInstructor.status);
+      const newStatus = this.normalizeStatus(m.status);
+      const isBecomingInactive = oldStatus === 'Active' && newStatus === 'Inactive';
+
+      const tenantSchema = this.getTenantSchemaOrThrow();
+      const tenantId = this.getTenantIdOrThrow();
+      const fromDate = new Date().toISOString().slice(0, 10);
+      if (isBecomingInactive) {
+        this.bulkBusyMessage.set('נבדקת השפעת השינוי על שיעורים עתידיים...');
       }
+      if (isBecomingInactive) {
+        const preview = await this.callPreviewInstructorDeactivationImpact({
+          tenantSchema,
+          instructorIdNumber: this.drawerInstructor.id_number,
+          fromDate,
+        });
 
-      if (!confirmed) {
+        const items = Array.isArray(preview?.items) ? preview.items : [];
+        let confirmed = true;
+
+        if (items.length > 0) {
+          this.bulkBusy.set(false);
+          this.bulkBusyMessage.set('');
+          const ref = this.dialog.open(InstructorDeactivationImpactDialogComponent, {
+            width: '900px',
+            maxWidth: '96vw',
+            disableClose: true,
+            data: {
+              instructorName:
+                `${this.drawerInstructor.first_name ?? ''} ${this.drawerInstructor.last_name ?? ''}`.trim(),
+              impactCount: preview?.impactCount ?? items.length,
+              items,
+            },
+          });
+
+          confirmed = !!(await ref.afterClosed().toPromise());
+        } else {
+          confirmed = await this.ui.confirm({
+            title: 'אישור שינוי סטטוס',
+            message: 'לא נמצאו שיעורים עתידיים למדריך/ה זה/זו. האם להפוך ללא פעיל/ה?',
+            okText: 'כן',
+            cancelText: 'לא',
+            showCancel: true,
+          });
+        }
+
+        if (!confirmed) {
+          return;
+        }
+        this.bulkBusy.set(true);
+        this.bulkBusyMessage.set('מעדכנים את המדריך ומבטלים שיעורים...');
+        // קודם נעדכן את שאר השדות, בלי status
+        const regularUpdates = { ...updates };
+        delete regularUpdates.status;
+
+        const { data: partialUpdated, error: partialErr } = await dbcTenant
+          .from('instructors')
+          .update(regularUpdates)
+          .eq('id_number', this.drawerInstructor.id_number)
+          .select('*')
+          .maybeSingle();
+
+        if (partialErr) throw partialErr;
+
+        // users
+        const uid = (this.drawerInstructor.uid || '').trim();
+        if (uid) {
+          await this.createUserInSupabase(uid, email, 'instructor', phone);
+        }
+
+        // עכשיו פונקציית ענן תעדכן ל-Inactive + תבטל שיעורים + תשלח מיילים
+        const deactivationRes = await this.callDeactivateInstructorAndCancelFutureLessons({
+          tenantSchema,
+          tenantId,
+          instructorIdNumber: this.drawerInstructor.id_number,
+          fromDate,
+          decisionNote: 'בוטל עקב הפיכת מדריך ללא פעיל',
+        });
+
+        const updated = (partialUpdated as InstructorDetailsRow) || {
+          ...this.drawerInstructor,
+          ...regularUpdates,
+        };
+
+        this.drawerInstructor = {
+          ...this.drawerInstructor,
+          ...updated,
+          status: 'Inactive',
+          email,
+          phone,
+        };
+
+        this.editModel = {
+          ...this.drawerInstructor,
+          status: 'Inactive',
+          taught_child_genders: this.drawerInstructor.taught_child_genders
+            ? [...this.drawerInstructor.taught_child_genders]
+            : [],
+        };
+
+        this.editMode = false;
+        await this.loadInstructors();
+
+        if (deactivationRes?.warning) {
+          await this.ui.alert(
+            `המדריך/ה עודכן/ה ללא פעיל/ה. ${deactivationRes.warning}`,
+            'הפעולה הושלמה עם אזהרות'
+          );
+        }
+
         return;
       }
-this.bulkBusy.set(true);
-this.bulkBusyMessage.set('מעדכנים את המדריך ומבטלים שיעורים...');
-      // קודם נעדכן את שאר השדות, בלי status
-      const regularUpdates = { ...updates };
-      delete regularUpdates.status;
 
-      const { data: partialUpdated, error: partialErr } = await dbcTenant
+      // זרימה רגילה - אם לא הופכים ללא פעיל
+      const { data, error } = await dbcTenant
         .from('instructors')
-        .update(regularUpdates)
+        .update(updates)
         .eq('id_number', this.drawerInstructor.id_number)
         .select('*')
         .maybeSingle();
 
-      if (partialErr) throw partialErr;
+      if (error) throw error;
 
-      // users
       const uid = (this.drawerInstructor.uid || '').trim();
       if (uid) {
         await this.createUserInSupabase(uid, email, 'instructor', phone);
       }
 
-      // עכשיו פונקציית ענן תעדכן ל-Inactive + תבטל שיעורים + תשלח מיילים
-      const deactivationRes = await this.callDeactivateInstructorAndCancelFutureLessons({
-        tenantSchema,
-        tenantId,
-        instructorIdNumber: this.drawerInstructor.id_number,
-        fromDate,
-        decisionNote: 'בוטל עקב הפיכת מדריך ללא פעיל',
-      });
-
-      const updated = (partialUpdated as InstructorDetailsRow) || {
+      const updated = (data as InstructorDetailsRow) || {
         ...this.drawerInstructor,
-        ...regularUpdates,
+        ...updates,
       };
 
       this.drawerInstructor = {
         ...this.drawerInstructor,
         ...updated,
-        status: 'Inactive',
         email,
         phone,
       };
 
       this.editModel = {
         ...this.drawerInstructor,
-        status: 'Inactive',
+        status: this.normalizeStatus(this.drawerInstructor.status),
         taught_child_genders: this.drawerInstructor.taught_child_genders
           ? [...this.drawerInstructor.taught_child_genders]
           : [],
@@ -958,62 +1153,14 @@ this.bulkBusyMessage.set('מעדכנים את המדריך ומבטלים שיע
 
       this.editMode = false;
       await this.loadInstructors();
-
-      if (deactivationRes?.warning) {
-        await this.ui.alert(
-          `המדריך/ה עודכן/ה ללא פעיל/ה. ${deactivationRes.warning}`,
-          'הפעולה הושלמה עם אזהרות'
-        );
-      }
-
-      return;
+    } catch (e: any) {
+      await this.ui.alert(e?.message || 'שמירת פרטי המדריך נכשלה', 'שמירה נכשלה');
+    } finally {
+      this.savingEdit = false;
+      this.bulkBusy.set(false);
+      this.bulkBusyMessage.set('');
     }
-
-    // זרימה רגילה - אם לא הופכים ללא פעיל
-    const { data, error } = await dbcTenant
-      .from('instructors')
-      .update(updates)
-      .eq('id_number', this.drawerInstructor.id_number)
-      .select('*')
-      .maybeSingle();
-
-    if (error) throw error;
-
-    const uid = (this.drawerInstructor.uid || '').trim();
-    if (uid) {
-      await this.createUserInSupabase(uid, email, 'instructor', phone);
-    }
-
-    const updated = (data as InstructorDetailsRow) || {
-      ...this.drawerInstructor,
-      ...updates,
-    };
-
-    this.drawerInstructor = {
-      ...this.drawerInstructor,
-      ...updated,
-      email,
-      phone,
-    };
-
-    this.editModel = {
-      ...this.drawerInstructor,
-      status: this.normalizeStatus(this.drawerInstructor.status),
-      taught_child_genders: this.drawerInstructor.taught_child_genders
-        ? [...this.drawerInstructor.taught_child_genders]
-        : [],
-    };
-
-    this.editMode = false;
-    await this.loadInstructors();
-  } catch (e: any) {
-    await this.ui.alert(e?.message || 'שמירת פרטי המדריך נכשלה', 'שמירה נכשלה');
-  } finally {
-    this.savingEdit = false;
-    this.bulkBusy.set(false);
-    this.bulkBusyMessage.set('');
   }
-}
   // ======= דיאלוג הוספת מדריך =======
 
   openAddInstructorDialog() {
@@ -1102,7 +1249,7 @@ this.bulkBusyMessage.set('מעדכנים את המדריך ומבטלים שיע
         await this.ui.alert('שדות חובה חסרים: ' + missing.join(', '), 'חסרים פרטים');
         return;
       }
-      
+
 
       // ✅ ולידציה מייל/טלפון גם בהוספה (כמו בעריכה)
       const phoneRe = /^0(5\d|[2-9])\d{7}$/;
@@ -1272,7 +1419,7 @@ ${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התח�
 
     const { error } = await dbcPublic
       .from('users')
-      .upsert(row, { onConflict: 'uid' ,  ignoreDuplicates: true,});
+      .upsert(row, { onConflict: 'uid', ignoreDuplicates: true, });
 
     if (error) {
       throw new Error(`users upsert failed: ${error.message}`);
@@ -1297,7 +1444,7 @@ ${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התח�
           is_active: true,
         },
         {
-          onConflict: 'tenant_id,uid,role_in_tenant' , ignoreDuplicates: true,
+          onConflict: 'tenant_id,uid,role_in_tenant', ignoreDuplicates: true,
         }
       );
 
@@ -1338,11 +1485,11 @@ ${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התח�
         accepts_makeup_others: true,
         allow_availability_edit: true,
       }
-     , 
-     {
-        onConflict: 'uid' ,  ignoreDuplicates: true,
-      },
-    )
+        ,
+        {
+          onConflict: 'uid', ignoreDuplicates: true,
+        },
+      )
       .select('*')
       .single();
 
@@ -1352,154 +1499,342 @@ ${payload.password ? `סיסמה זמנית: ${payload.password}\n` : ''}התח�
 
     return data;
   }
-//   private getTenantSchemaOrThrow(): string {
-//   const schema = localStorage.getItem('selectedSchema') || '';
-//   if (!schema) throw new Error('לא נמצא tenant schema פעיל');
-//   return schema;
-// }
+  //   private getTenantSchemaOrThrow(): string {
+  //   const schema = localStorage.getItem('selectedSchema') || '';
+  //   if (!schema) throw new Error('לא נמצא tenant schema פעיל');
+  //   return schema;
+  // }
 
-private getTenantIdOrThrow(): string {
-  const tenantId = localStorage.getItem('selectedTenant') || '';
-  if (!tenantId) throw new Error('לא נמצא tenant פעיל');
-  return tenantId;
-}
+  private getTenantIdOrThrow(): string {
+    const tenantId = localStorage.getItem('selectedTenant') || '';
+    if (!tenantId) throw new Error('לא נמצא tenant פעיל');
+    return tenantId;
+  }
 
-private async getFirebaseAuthToken(): Promise<string> {
-  const authMod = await import('firebase/auth');
-  const auth = authMod.getAuth();
-  const user = auth.currentUser;
-  if (!user) throw new Error('המשתמש לא מחובר');
-  return user.getIdToken();
-}
+  private async getFirebaseAuthToken(): Promise<string> {
+    const authMod = await import('firebase/auth');
+    const auth = authMod.getAuth();
+    const user = auth.currentUser;
+    if (!user) throw new Error('המשתמש לא מחובר');
+    return user.getIdToken();
+  }
 
-private async callPreviewInstructorDeactivationImpact(payload: {
-  tenantSchema: string;
-  instructorIdNumber: string;
-  fromDate: string;
-}) {
-  const token = await this.getFirebaseAuthToken();
+  private async callPreviewInstructorDeactivationImpact(payload: {
+    tenantSchema: string;
+    instructorIdNumber: string;
+    fromDate: string;
+  }) {
+    const token = await this.getFirebaseAuthToken();
 
-  const resp = await fetch(
-    'https://us-central1-bereshit-ac5d8.cloudfunctions.net/previewInstructorDeactivationImpact',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
+    const resp = await fetch(
+      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/previewInstructorDeactivationImpact',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok || json?.ok === false) {
+      throw new Error(json?.message || json?.error || 'Preview נכשל');
     }
-  );
-
-  const json = await resp.json().catch(() => ({}));
-  if (!resp.ok || json?.ok === false) {
-    throw new Error(json?.message || json?.error || 'Preview נכשל');
+    return json;
   }
-  return json;
-}
 
-private async callDeactivateInstructorAndCancelFutureLessons(payload: {
-  tenantSchema: string;
-  tenantId: string;
-  instructorIdNumber: string;
-  fromDate: string;
-  decisionNote?: string | null;
-}) {
-  const token = await this.getFirebaseAuthToken();
+  private async callDeactivateInstructorAndCancelFutureLessons(payload: {
+    tenantSchema: string;
+    tenantId: string;
+    instructorIdNumber: string;
+    fromDate: string;
+    decisionNote?: string | null;
+  }) {
+    const token = await this.getFirebaseAuthToken();
 
-  const resp = await fetch(
-    'https://us-central1-bereshit-ac5d8.cloudfunctions.net/deactivateInstructorAndCancelFutureLessons',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
+    const resp = await fetch(
+      'https://us-central1-bereshit-ac5d8.cloudfunctions.net/deactivateInstructorAndCancelFutureLessons',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok || json?.ok === false) {
+      throw new Error(json?.message || json?.error || 'עדכון מדריך וביטול שיעורים נכשל');
     }
-  );
-
-  const json = await resp.json().catch(() => ({}));
-  if (!resp.ok || json?.ok === false) {
-    throw new Error(json?.message || json?.error || 'עדכון מדריך וביטול שיעורים נכשל');
+    return json;
   }
-  return json;
-}
-dayOffCategoryLabel(category?: string | null): string {
-  switch (String(category ?? '').toUpperCase()) {
-    case 'SICK': return 'יום מחלה';
-    case 'HOLIDAY': return 'יום חופש';
-    case 'PERSONAL': return 'יום אישי';
-    case 'OTHER': return 'אחר';
-    default: return 'היעדרות';
-  }
-}
-
-formatDateTime(v?: string | null): string {
-  if (!v) return '—';
-
-  const s = String(v);
-  const date = this.formatDateOnly(s);
-  const time = this.formatTimeOnly(s);
-
-  return time ? `${date} ${time}` : date;
-}
-
-getSickNoteUrl(path?: string | null): string | null {
-  if (!path) return null;
-
-  if (!supabase) {
-    console.error('Supabase client is not initialized');
-    return null;
+  dayOffCategoryLabel(category?: string | null): string {
+    switch (String(category ?? '').toUpperCase()) {
+      case 'SICK': return 'יום מחלה';
+      case 'HOLIDAY': return 'יום חופש';
+      case 'PERSONAL': return 'יום אישי';
+      case 'OTHER': return 'אחר';
+      default: return 'היעדרות';
+    }
   }
 
-  const { data } = supabase.storage
-    .from('sick_notes')
-    .getPublicUrl(path);
+  formatDateTime(v?: string | null): string {
+    if (!v) return '—';
 
-  return data.publicUrl;
-}
+    const s = String(v);
+    const date = this.formatDateOnly(s);
+    const time = this.formatTimeOnly(s);
 
-isSickWithoutFile(row: InstructorUnavailabilityRow): boolean {
-  return String(row.category ?? '').toUpperCase() === 'SICK' && !row.sick_note_file_path;
-}
-isSickCategory(category?: string | null): boolean {
-  return (category ?? '').toUpperCase() === 'SICK';
-}
-
-formatDateOnly(v?: string | null): string {
-  if (!v) return '';
-
-  const iso = String(v).slice(0, 10); // YYYY-MM-DD
-  const [y, m, d] = iso.split('-');
-
-  return `${d}.${m}.${y}`;
-}
-
-formatTimeOnly(v?: string | null): string {
-  if (!v) return '';
-
-  const s = String(v);
-  const timePart = s.includes('T')
-    ? s.split('T')[1]
-    : s.split(' ')[1];
-
-  return timePart ? timePart.slice(0, 5) : '';
-}
-
-formatUnavailabilityWindow(d: InstructorUnavailabilityRow): string {
-  const fromDate = this.formatDateOnly(d.from_ts);
-
-  if (d.all_day) {
-    return `${fromDate} · יום מלא`;
+    return time ? `${date} ${time}` : date;
   }
 
-  const toDate = this.formatDateOnly(d.to_ts);
-  const fromTime = this.formatTimeOnly(d.from_ts);
-  const toTime = this.formatTimeOnly(d.to_ts);
+  getSickNoteUrl(path?: string | null): string | null {
+    if (!path) return null;
 
-  return fromDate === toDate
-    ? `${fromDate} · ${fromTime}–${toTime}`
-    : `${fromDate} ${fromTime} – ${toDate} ${toTime}`;
-}
+    if (!supabase) {
+      console.error('Supabase client is not initialized');
+      return null;
+    }
+
+    const { data } = supabase.storage
+      .from('sick_notes')
+      .getPublicUrl(path);
+
+    return data.publicUrl;
+  }
+
+  isSickWithoutFile(row: InstructorUnavailabilityRow): boolean {
+    return String(row.category ?? '').toUpperCase() === 'SICK' && !row.sick_note_file_path;
+  }
+  isSickCategory(category?: string | null): boolean {
+    return (category ?? '').toUpperCase() === 'SICK';
+  }
+
+  formatDateOnly(v?: string | null): string {
+    if (!v) return '';
+
+    const iso = String(v).slice(0, 10); // YYYY-MM-DD
+    const [y, m, d] = iso.split('-');
+
+    return `${d}.${m}.${y}`;
+  }
+
+  formatTimeOnly(v?: string | null): string {
+    if (!v) return '';
+
+    const s = String(v);
+    const timePart = s.includes('T')
+      ? s.split('T')[1]
+      : s.split(' ')[1];
+
+    return timePart ? timePart.slice(0, 5) : '';
+  }
+
+  formatUnavailabilityWindow(d: InstructorUnavailabilityRow): string {
+    const fromDate = this.formatDateOnly(d.from_ts);
+
+    if (d.all_day) {
+      return `${fromDate} · יום מלא`;
+    }
+
+    const toDate = this.formatDateOnly(d.to_ts);
+    const fromTime = this.formatTimeOnly(d.from_ts);
+    const toTime = this.formatTimeOnly(d.to_ts);
+
+    return fromDate === toDate
+      ? `${fromDate} · ${fromTime}–${toTime}`
+      : `${fromDate} ${fromTime} – ${toDate} ${toTime}`;
+  }
+  sanitizePhone(value: string | null | undefined): string {
+    return String(value ?? '')
+      .replace(/\D/g, '')
+      .slice(0, 10);
+  }
+
+  isValidIsraeliPhone(value: string | null | undefined): boolean {
+    const phone = this.sanitizePhone(value);
+
+    // מספר ישראלי בן 10 ספרות שמתחיל ב-0
+    return /^0\d{9}$/.test(phone);
+  }
+  get sickNotes(): InstructorUnavailabilityRow[] {
+    return (this.drawerUnavailability || []).filter(
+      row => !!row.sick_note_file_path
+    );
+  }
+  filesForDay(day: InstructorUnavailabilityRow): string[] {
+    return day.sick_note_file_path ?? [];
+  }
+
+  openSickFiles(day: InstructorUnavailabilityRow): void {
+    this.selectedSickDay = day;
+  }
+
+  async uploadSickFiles(
+    day: InstructorUnavailabilityRow,
+    event: Event
+  ): Promise<void> {
+    if (!supabase) return;
+
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+
+    if (!files.length || this.sickFilesBusy) return;
+
+    this.sickFilesBusy = true;
+
+    try {
+      for (const file of files) {
+        if (![
+          'application/pdf',
+          'image/jpeg',
+          'image/png',
+          'image/webp'
+        ].includes(file.type)) {
+          throw new Error('ניתן להעלות PDF או תמונה בלבד');
+        }
+
+        if (file.size > 10 * 1024 * 1024) {
+          throw new Error('גודל קובץ מרבי: 10MB');
+        }
+
+        const extension = file.name.split('.').pop();
+        const path =
+          `${day.instructor_id_number}/${day.id}/` +
+          `${crypto.randomUUID()}.${extension}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('sick_notes')
+          .upload(path, file, {
+            contentType: file.type,
+            upsert: false
+          });
+
+        if (uploadError) throw uploadError;
+
+        const updatedPaths = [...this.filesForDay(day), path];
+
+        const { data: updatedRows, error: updateError } =
+          await dbTenant()
+            .from('instructor_unavailability')
+            .update({
+              sick_note_file_path: updatedPaths
+            })
+            .eq('id', day.id)
+            .eq('instructor_id_number', day.instructor_id_number)
+            .select('id, sick_note_file_path');
+
+        if (updateError || updatedRows?.length !== 1) {
+
+          await supabase.storage
+            .from('sick_notes')
+            .remove([path]);
+
+          throw updateError || new Error(
+            'יום המחלה לא עודכן במסד הנתונים'
+          );
+        }
+
+        day.sick_note_file_path =
+          updatedRows[0].sick_note_file_path;
+
+      }
+      await this.ui.alert(
+        files.length === 1
+          ? 'אישור המחלה הועלה בהצלחה'
+          : `${files.length} אישורי מחלה הועלו בהצלחה`,
+        'העלאה הושלמה'
+      );
+    } catch (error: any) {
+      await this.ui.alert(
+        error?.message || 'העלאת הקובץ נכשלה',
+        'שגיאה'
+      );
+    } finally {
+      this.sickFilesBusy = false;
+    }
+    const { data: existingDay, error: readError } =
+      await dbTenant()
+        .from('instructor_unavailability')
+        .select('id, instructor_id_number, sick_note_file_path')
+        .eq('id', day.id);
+
+  }
+
+  async viewSickFile(path: string): Promise<void> {
+    if (!supabase) return;
+
+    const { data, error } = await supabase.storage
+      .from('sick_notes')
+      .createSignedUrl(path, 60);
+
+    if (error || !data?.signedUrl) {
+      await this.ui.alert('פתיחת הקובץ נכשלה', 'שגיאה');
+      return;
+    }
+
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  async deleteSickFile(path: string): Promise<void> {
+    if (!supabase || !this.selectedSickDay || this.sickFilesBusy) {
+      return;
+    }
+
+    const confirmed = await this.ui.confirm({
+      title: 'מחיקת אישור מחלה',
+      message: 'האם למחוק את הקובץ?',
+      okText: 'מחק',
+      cancelText: 'ביטול',
+      showCancel: true
+    });
+
+    if (!confirmed) return;
+
+    this.sickFilesBusy = true;
+
+    try {
+      const day = this.selectedSickDay;
+
+      const updatedPaths = this.filesForDay(day)
+        .filter(existingPath => existingPath !== path);
+
+      // מעדכנים תחילה את רשימת הנתיבים.
+      const { error: updateError } = await dbTenant()
+        .from('instructor_unavailability')
+        .update({ sick_note_file_path: updatedPaths })
+        .eq('id', day.id);
+
+      if (updateError) throw updateError;
+
+      const { error: storageError } = await supabase.storage
+        .from('sick_notes')
+        .remove([path]);
+
+      if (storageError) {
+        // שחזור הנתיב במקרה של כישלון המחיקה.
+        await dbTenant()
+          .from('instructor_unavailability')
+          .update({ sick_note_file_path: this.filesForDay(day) })
+          .eq('id', day.id);
+
+        throw storageError;
+      }
+
+      day.sick_note_file_path = updatedPaths;
+
+    } catch (error: any) {
+      await this.ui.alert(
+        error?.message || 'מחיקת הקובץ נכשלה',
+        'שגיאה'
+      );
+    } finally {
+      this.sickFilesBusy = false;
+    }
+  }
 }

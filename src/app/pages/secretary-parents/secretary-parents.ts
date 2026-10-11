@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { TranzilaService } from '../../services/tranzila.service';
@@ -24,6 +24,7 @@ import { PaymentsService } from '../../services/payments.service';
 import { CreateUserService } from '../../services/create-user.service';
 import { MailService } from '../../services/mail.service';
 
+
 declare const TzlaHostedFields: any;
 
 type HostedFieldsInstance = {
@@ -37,16 +38,23 @@ type ParentRow = {
   last_name: string;
   id_number?: string | null;
   billing_day_of_month?: number | null;
+
   phone?: string | null;
+  secondary_phone?: string | null;
+
   email?: string | null;
+  secondary_email?: string | null;
+
   is_active?: boolean | null;
+
   hasActiveChildren?: boolean;
   hasInactiveChildren?: boolean;
   paymentProfilesCount?: number;
-hasPaymentMethod?: boolean;
-hasExpiringPaymentMethod?: boolean;
-defaultPaymentLast4?: string | null;
-defaultPaymentExpiry?: string | null;
+  hasPaymentMethod?: boolean;
+  hasExpiringPaymentMethod?: boolean;
+  defaultPaymentLast4?: string | null;
+  defaultPaymentExpiry?: string | null;
+  scheduled_inactive_at?: string | null;
 };
 type PaymentProfileRow = {
   id: string;
@@ -82,6 +90,7 @@ type ParentColumnDef = {
   visible: boolean;
 };
 
+
 @Component({
   selector: 'app-secretary-parents',
   standalone: true,
@@ -100,13 +109,12 @@ export class SecretaryParentsComponent implements OnInit {
   @ViewChild('drawer') drawer!: MatSidenav;
 
   parents: ParentRow[] = [];
-
+  savingEdit = false;
   searchText = '';
   searchMode: 'name' | 'id' | 'email' = 'name';
-childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
+  childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
   statusFilter: 'all' | 'active' | 'inactive' = 'all';
   paymentFilter: 'all' | 'withPayment' | 'withoutPayment' = 'all';
-
   showSearchPanel = false;
   showColumnsPanel = false;
   panelFocus: 'search' | 'filter' = 'search';
@@ -127,12 +135,34 @@ childrenFilter: 'all' | 'active' | 'inactive' | 'withoutChildren' = 'all';
     gov_id?: string | null;
   }> = [];
 
+  readonly MAX_ID_NUMBER = 9;
+
   parentForm!: FormGroup;
   editMode = false;
+
+  private tokenCallbackHandled = false;
+  private addCardLockedParentUid: string | null = null;
+  private saveRequestId: string | null = null;
+  private drawerLoadRequestId: string | null = null;
+
+  cardFieldsLoading = false;
+
+
+
+  addCardOpen = false;
+  savingToken = false;
+  tokenSaved = false;
+  tokenError: string | null = null;
+
+  private hfAdd: HostedFieldsInstance | null = null;
+  private thtkAdd: string | null = null;
+  private hfInitTried = false;
+
+
   private originalParent: ParentDetailsRow | null = null;
 
   readonly STORAGE_KEY = 'secretary_parents_table_prefs';
-drawerPaymentProfiles: PaymentProfileRow[] = [];
+  drawerPaymentProfiles: PaymentProfileRow[] = [];
   columns: ParentColumnDef[] = [
     { key: 'first_name', label: 'שם פרטי', visible: true },
     { key: 'last_name', label: 'שם משפחה', visible: true },
@@ -161,6 +191,7 @@ drawerPaymentProfiles: PaymentProfileRow[] = [];
   readonly MAX_EXTRA_NOTES = 60;
   readonly MAX_PHONE = 11;
 
+
   readonly COMM_PREF_OPTIONS = [
     { value: 'inapp', label: 'אפליקציה (In-app)' },
     { value: 'voice', label: 'הודעה קולית' },
@@ -168,15 +199,6 @@ drawerPaymentProfiles: PaymentProfileRow[] = [];
     { value: 'email', label: 'אימייל' },
     { value: 'sms', label: 'SMS' },
   ];
-
-  addCardOpen = false;
-savingToken = false;
-tokenSaved = false;
-tokenError: string | null = null;
-
-private hfAdd: HostedFieldsInstance | null = null;
-private thtkAdd: string | null = null;
-private hfInitTried = false;
 
   constructor(
     private ui: UiDialogService,
@@ -186,14 +208,35 @@ private hfInitTried = false;
     private mailService: MailService,
     private pagos: PaymentsService,
     private tranzila: TranzilaService,
-  ) {}
+    private route: ActivatedRoute,
+    private router: Router,
+  ) { }
 
   async ngOnInit() {
     try {
       this.loadTablePrefs();
       await ensureTenantContextReady();
       await this.loadParents();
+      const parentUid = this.route.snapshot.queryParamMap.get('parentUid');
+
+      if (parentUid) {
+        setTimeout(() => this.openDetails(parentUid), 0);
+      }
       this.updateStats();
+      const openDrawer = this.route.snapshot.queryParamMap.get('openDrawer') === 'true';
+
+      if (parentUid) {
+        const found = this.parents.find(p => p.uid === parentUid);
+
+        if (found) {
+          this.searchMode = 'name';
+          this.searchText = `${found.first_name || ''} ${found.last_name || ''}`.trim();
+        }
+
+        if (openDrawer) {
+          setTimeout(() => this.openDetails(parentUid), 0);
+        }
+      }
     } catch (e: any) {
       this.error = e?.message || 'Failed to load parents';
       console.error(e);
@@ -213,33 +256,33 @@ private hfInitTried = false;
     const raw = (this.searchText || '').trim();
 
     if (raw) {
-  if (this.searchMode === 'name') {
-    const q = raw.toLowerCase();
+      if (this.searchMode === 'name') {
+        const q = raw.toLowerCase();
 
-    rows = rows.filter((p) => {
-      const hay = `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase();
-      return hay.includes(q);
-    });
-  }
+        rows = rows.filter((p) => {
+          const hay = `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase();
+          return hay.includes(q);
+        });
+      }
 
-  if (this.searchMode === 'id') {
-    const qId = raw.replace(/\s/g, '');
+      if (this.searchMode === 'id') {
+        const qId = raw.replace(/\s/g, '');
 
-    rows = rows.filter((p) => {
-      const id = (p.id_number || '').toString().replace(/\s/g, '');
-      return qId !== '' && id.startsWith(qId);
-    });
-  }
+        rows = rows.filter((p) => {
+          const id = (p.id_number || '').toString().replace(/\s/g, '');
+          return qId !== '' && id.startsWith(qId);
+        });
+      }
 
-  if (this.searchMode === 'email') {
-    const qEmail = raw.toLowerCase();
+      if (this.searchMode === 'email') {
+        const qEmail = raw.toLowerCase();
 
-    rows = rows.filter((p) => {
-      const email = (p.email || '').toLowerCase();
-      return email.includes(qEmail);
-    });
-  }
-}
+        rows = rows.filter((p) => {
+          const email = (p.email || '').toLowerCase();
+          return email.includes(qEmail);
+        });
+      }
+    }
 
     if (this.statusFilter !== 'all') {
       rows = rows.filter((p) => {
@@ -249,17 +292,17 @@ private hfInitTried = false;
     }
 
     if (this.childrenFilter === 'active') {
-  rows = rows.filter((p) => !!p.hasActiveChildren);
-} else if (this.childrenFilter === 'inactive') {
-  rows = rows.filter((p) => !!p.hasInactiveChildren);
-} else if (this.childrenFilter === 'withoutChildren') {
-  rows = rows.filter((p) => !p.hasActiveChildren && !p.hasInactiveChildren);
-}
-if (this.paymentFilter === 'withPayment') {
-  rows = rows.filter((p) => !!p.hasPaymentMethod);
-} else if (this.paymentFilter === 'withoutPayment') {
-  rows = rows.filter((p) => !p.hasPaymentMethod);
-}
+      rows = rows.filter((p) => !!p.hasActiveChildren);
+    } else if (this.childrenFilter === 'inactive') {
+      rows = rows.filter((p) => !!p.hasInactiveChildren);
+    } else if (this.childrenFilter === 'withoutChildren') {
+      rows = rows.filter((p) => !p.hasActiveChildren && !p.hasInactiveChildren);
+    }
+    if (this.paymentFilter === 'withPayment') {
+      rows = rows.filter((p) => !!p.hasPaymentMethod);
+    } else if (this.paymentFilter === 'withoutPayment') {
+      rows = rows.filter((p) => !p.hasPaymentMethod);
+    }
 
     return rows;
   }
@@ -267,18 +310,18 @@ if (this.paymentFilter === 'withPayment') {
   get visibleColumns(): ParentColumnDef[] {
     return this.columns.filter((c) => c.visible);
   }
-// async setDefaultPaymentProfile(profileId: string) {
-//   if (!this.selectedUid) return;
+  // async setDefaultPaymentProfile(profileId: string) {
+  //   if (!this.selectedUid) return;
 
-//   try {
-//     await this.pagos.setDefault(profileId, this.selectedUid);
+  //   try {
+  //     await this.pagos.setDefault(profileId, this.selectedUid);
 
-//     await this.loadDrawerData(this.selectedUid);
-//     await this.loadParents();
-//   } catch (e: any) {
-//     await this.ui.alert(e?.message ?? 'לא ניתן היה לשנות כרטיס ברירת מחדל', 'שגיאה');
-//   }
-// }
+  //     await this.loadDrawerData(this.selectedUid);
+  //     await this.loadParents();
+  //   } catch (e: any) {
+  //     await this.ui.alert(e?.message ?? 'לא ניתן היה לשנות כרטיס ברירת מחדל', 'שגיאה');
+  //   }
+  // }
   toggleSearchPanelFromBar() {
     this.panelFocus = 'search';
     this.showColumnsPanel = false;
@@ -329,6 +372,34 @@ if (this.paymentFilter === 'withPayment') {
       c.key === key ? { ...c, visible: !c.visible } : c
     );
     this.saveTablePrefs();
+  }
+
+  private normalizeIdNumber(value: any): string {
+    return String(value ?? '').replace(/\D/g, '');
+  }
+
+  private israeliIdValidator(): ValidatorFn {
+    return (control: AbstractControl): ValidationErrors | null => {
+      const raw = this.normalizeIdNumber(control.value);
+
+      if (!raw) return null;
+      if (raw.length !== 9) return { israelIdLength: true };
+
+      const sum = raw
+        .split('')
+        .map(Number)
+        .reduce((total, digit, index) => {
+          let value = digit * ((index % 2) + 1);
+
+          if (value > 9) {
+            value -= 9;
+          }
+
+          return total + value;
+        }, 0);
+
+      return sum % 10 === 0 ? null : { israelIdInvalid: true };
+    };
   }
 
   moveColumnLeft(index: number): void {
@@ -389,9 +460,19 @@ if (this.paymentFilter === 'withPayment') {
 
       const { data: parentsData, error: parentsErr } = await dbc
         .from('parents')
-        .select('uid, first_name, last_name, id_number, phone, email, is_active, billing_day_of_month')
-        .order('first_name', { ascending: true });
-
+        .select(`
+  uid,
+  first_name,
+  last_name,
+  id_number,
+  phone,
+  secondary_phone,
+  email,
+  secondary_email,
+  is_active,
+  billing_day_of_month,
+  scheduled_inactive_at
+`)
       if (parentsErr) throw parentsErr;
 
       const parents = (parentsData ?? []) as ParentRow[];
@@ -403,20 +484,20 @@ if (this.paymentFilter === 'withPayment') {
       if (kidsErr) {
         console.error('children fetch error', kidsErr);
       }
-const { data: profilesData, error: profilesErr } = await dbc
-  .from('payment_profiles')
-  .select('id, parent_uid, brand, last4, expiry_month, expiry_year, active, is_default, created_at')
-  .eq('active', true);
+      const { data: profilesData, error: profilesErr } = await dbc
+        .from('payment_profiles')
+        .select('id, parent_uid, brand, last4, expiry_month, expiry_year, active, is_default, created_at')
+        .eq('active', true);
 
-if (profilesErr) throw profilesErr;
+      if (profilesErr) throw profilesErr;
 
-const profilesMap = new Map<string, PaymentProfileRow[]>();
+      const profilesMap = new Map<string, PaymentProfileRow[]>();
 
-(profilesData ?? []).forEach((p: any) => {
-  const arr = profilesMap.get(p.parent_uid) || [];
-  arr.push(p);
-  profilesMap.set(p.parent_uid, arr);
-});
+      (profilesData ?? []).forEach((p: any) => {
+        const arr = profilesMap.get(p.parent_uid) || [];
+        arr.push(p);
+        profilesMap.set(p.parent_uid, arr);
+      });
       const map = new Map<string, { hasActive: boolean; hasInactive: boolean }>();
 
       (kidsData ?? []).forEach((kid: any) => {
@@ -438,18 +519,18 @@ const profilesMap = new Map<string, PaymentProfileRow[]>();
       this.parents = parents.map((p) => {
         const stats = map.get(p.uid) || { hasActive: false, hasInactive: false };
         const profiles = profilesMap.get(p.uid) || [];
-const defaultProfile = profiles.find(x => x.is_default) || profiles[0];
+        const defaultProfile = profiles.find(x => x.is_default) || profiles[0];
         return {
-         ...p,
-  hasActiveChildren: stats.hasActive,
-  hasInactiveChildren: stats.hasInactive,
-  paymentProfilesCount: profiles.length,
-  hasPaymentMethod: profiles.length > 0,
-  hasExpiringPaymentMethod: profiles.some(x => this.isExpiringSoon(x)),
-  defaultPaymentLast4: defaultProfile?.last4 ?? null,
-  defaultPaymentExpiry: defaultProfile
-    ? this.formatExpiry(defaultProfile.expiry_month, defaultProfile.expiry_year)
-    : null,
+          ...p,
+          hasActiveChildren: stats.hasActive,
+          hasInactiveChildren: stats.hasInactive,
+          paymentProfilesCount: profiles.length,
+          hasPaymentMethod: profiles.length > 0,
+          hasExpiringPaymentMethod: profiles.some(x => this.isExpiringSoon(x)),
+          defaultPaymentLast4: defaultProfile?.last4 ?? null,
+          defaultPaymentExpiry: defaultProfile
+            ? this.formatExpiry(defaultProfile.expiry_month, defaultProfile.expiry_year)
+            : null,
         };
       });
 
@@ -463,91 +544,6 @@ const defaultProfile = profiles.find(x => x.is_default) || profiles[0];
     }
   }
 
-  async openDetails(uid: string) {
-    const cleanUid = (uid || '').trim();
-
-    if (!cleanUid) {
-      await this.ui.alert('שגיאה: uid ריק. לא ניתן לפתוח פרטי הורה.', 'שגיאה');
-      return;
-    }
-
-    this.selectedUid = cleanUid;
-    this.drawerChildren = [];
-    this.editMode = false;
-    this.originalParent = null;
-
-    this.drawer.open();
-    await this.loadDrawerData(this.selectedUid);
-  }
-
-  closeDetails() {
-    this.drawer.close();
-    this.selectedUid = null;
-    this.drawerParent = null;
-    this.drawerChildren = [];
-    this.editMode = false;
-    this.originalParent = null;
-    this.drawerPaymentProfiles = [];
-  }
-
-  private async loadDrawerData(uid: string) {
-    this.drawerLoading = true;
-    this.drawerPaymentProfiles = [];
-
-    try {
-      const db = dbTenant();
-      const cleanUid = (uid || '').trim();
-
-      const { data: p, error: pErr } = await db
-        .from('parents')
-        .select(
-            'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month, is_active'
-          )
-        .eq('uid', cleanUid)
-        .maybeSingle();
-
-      if (pErr) throw pErr;
-
-      if (!p) {
-        this.drawerParent = null;
-        this.originalParent = null;
-        this.drawerChildren = [];
-        await this.ui.alert('לא נמצאה רשומת הורה עבור המשתמש הזה (uid לא קיים בטבלת parents).', 'לא נמצא');
-        return;
-      }
-
-      this.drawerParent = p as ParentDetailsRow;
-      this.originalParent = structuredClone(this.drawerParent);
-      this.buildParentForm(this.drawerParent);
-
-      const { data: kids, error: kidsErr } = await db
-        .from('children')
-        .select('child_uuid, first_name, last_name, parent_uid, gender, status, birth_date, gov_id')
-        .eq('parent_uid', cleanUid)
-        .order('first_name', { ascending: true });
-
-      if (kidsErr) throw kidsErr;
-const { data: profiles, error: profilesErr } = await db
-  .from('payment_profiles')
-  .select('id, parent_uid, brand, last4, expiry_month, expiry_year, active, is_default, created_at')
-  .eq('parent_uid', cleanUid)
-  .eq('active', true)
-  .order('is_default', { ascending: false })
-  .order('created_at', { ascending: false });
-
-if (profilesErr) throw profilesErr;
-
-this.drawerPaymentProfiles = profiles ?? [];
-      this.drawerChildren = kids ?? [];
-    } catch (e) {
-      console.error(e);
-      this.drawerChildren = [];
-      this.drawerParent = null;
-      this.originalParent = null;
-    } finally {
-      this.drawerLoading = false;
-    }
-  }
 
   private buildParentForm(parent: ParentDetailsRow) {
     this.parentForm = this.fb.group({
@@ -559,7 +555,14 @@ this.drawerPaymentProfiles = profiles ?? [];
         parent.last_name ?? '',
         [Validators.required, Validators.maxLength(this.MAX_LAST_NAME)],
       ],
-      id_number: [{ value: parent.id_number ?? '', disabled: true }],
+      id_number: [
+        parent.id_number ?? '',
+        [
+          Validators.required,
+          Validators.pattern(/^\d{9}$/),
+          this.israeliIdValidator(),
+        ],
+      ],
       phone: [
         parent.phone ?? '',
         [
@@ -585,10 +588,13 @@ this.drawerPaymentProfiles = profiles ?? [];
           : ['inapp'],
         [Validators.required],
       ],
+      inactive_date: [this.todayDate()],
     });
   }
 
   enterEditMode() {
+    this.savingEdit = false;
+
     if (!this.drawerParent) return;
     this.editMode = true;
     this.buildParentForm(this.drawerParent);
@@ -650,6 +656,20 @@ this.drawerPaymentProfiles = profiles ?? [];
     if (ln?.errors?.['required']) msgs.push('שם משפחה: שדה חובה');
     if (ln?.errors?.['maxlength']) msgs.push(`שם משפחה: עד ${this.MAX_LAST_NAME} תווים`);
 
+    const idNumber = this.parentForm.get('id_number');
+
+    if (idNumber?.errors?.['required']) {
+      msgs.push('תעודת זהות: שדה חובה');
+    }
+
+    if (idNumber?.errors?.['pattern'] || idNumber?.errors?.['israelIdLength']) {
+      msgs.push('תעודת זהות: יש להזין 9 ספרות');
+    }
+
+    if (idNumber?.errors?.['israelIdInvalid']) {
+      msgs.push('תעודת זהות: המספר אינו תקין');
+    }
+
     const email = this.parentForm.get('email');
     if (email?.errors?.['required']) msgs.push('אימייל: שדה חובה');
     if (email?.errors?.['email']) msgs.push('אימייל: פורמט לא תקין');
@@ -670,6 +690,7 @@ this.drawerPaymentProfiles = profiles ?? [];
   }
 
   async saveParentEdits() {
+
     if (!this.drawerParent || !this.originalParent || !this.selectedUid) return;
 
     if (this.parentForm.invalid) {
@@ -686,6 +707,7 @@ this.drawerPaymentProfiles = profiles ?? [];
 
     const first_name = String(formValue.first_name ?? '').trim();
     const last_name = String(formValue.last_name ?? '').trim();
+    const id_number = this.normalizeIdNumber(formValue.id_number);
     const email = String(formValue.email ?? '').trim().toLowerCase();
     const address = String(formValue.address ?? '').trim();
     const extra_notes = String(formValue.extra_notes ?? '');
@@ -694,6 +716,7 @@ this.drawerPaymentProfiles = profiles ?? [];
 
     if (first_name !== (this.originalParent.first_name ?? '')) changes.first_name = first_name;
     if (last_name !== (this.originalParent.last_name ?? '')) changes.last_name = last_name;
+    if (id_number !== (this.originalParent.id_number ?? '')) changes.id_number = id_number;
     if (formValue.phone !== this.originalParent.phone) changes.phone = formValue.phone;
     if (email !== (this.originalParent.email ?? '')) changes.email = email;
     if (address !== (this.originalParent.address ?? '')) changes.address = address || null;
@@ -709,35 +732,100 @@ this.drawerPaymentProfiles = profiles ?? [];
     const newBillingDay = Number(formValue.billing_day);
     const newIsActive = formValue.is_active === true;
     const oldIsActive = this.originalParent.is_active !== false;
+    const becameInactive = oldIsActive === true && newIsActive === false;
 
-    if (newIsActive !== oldIsActive) {
+    if (newIsActive !== oldIsActive && !becameInactive) {
       changes.is_active = newIsActive;
     }
     const oldBillingDay = this.originalParent.billing_day_of_month ?? 10;
     if (newBillingDay !== oldBillingDay) changes.billing_day_of_month = newBillingDay;
 
-    if (Object.keys(changes).length === 0) {
+    if (Object.keys(changes).length === 0 && !becameInactive) {
       this.editMode = false;
       return;
     }
+
+    if (this.savingEdit) return;
+
+    this.savingEdit = true;
 
     try {
       const db = dbTenant();
       const cleanUid = (this.selectedUid || '').trim();
 
-      const { data, error } = await db
-        .from('parents')
-        .update(changes)
-        .eq('uid', cleanUid)
-        .select(
-          'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month, is_active'
-        )
-        .maybeSingle();
+      if (changes.id_number) {
+        const { data: existingParent, error: duplicateError } = await db
+          .from('parents')
+          .select('uid, first_name, last_name')
+          .eq('id_number', changes.id_number)
+          .neq('uid', cleanUid)
+          .maybeSingle();
 
-      if (error) throw error;
+        if (duplicateError) {
+          throw duplicateError;
+        }
 
-      if (!data) {
-        throw new Error('עדכון נכשל: לא נמצא הורה עם ה-uid הזה.');
+        if (existingParent) {
+          const existingName =
+            `${existingParent.first_name ?? ''} ${existingParent.last_name ?? ''}`.trim();
+
+          await this.ui.alert(
+            `תעודת הזהות כבר משויכת להורה אחר${existingName ? `: ${existingName}` : ''}.`,
+            'תעודת זהות קיימת'
+          );
+
+          return;
+        }
+      }
+
+      let data: any = null;
+
+      if (Object.keys(changes).length > 0) {
+        const res = await db
+          .from('parents')
+          .update(changes)
+          .eq('uid', cleanUid)
+          .select(
+            'uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month, is_active, scheduled_inactive_at'
+          )
+          .maybeSingle();
+
+        if (res.error) throw res.error;
+
+        if (!res.data) {
+          throw new Error('עדכון נכשל: לא נמצא הורה עם ה-uid הזה.');
+        }
+
+        data = res.data;
+      }
+
+      if (becameInactive) {
+        const inactiveDate = formValue.inactive_date;
+
+        if (!inactiveDate) {
+          await this.ui.alert('חובה לבחור תאריך הפיכת הורה ללא פעיל', 'שגיאה');
+          return;
+        }
+
+        const { error: rpcError } = await db.rpc('schedule_parent_inactivation', {
+          p_parent_uid: cleanUid,
+          p_inactive_date: inactiveDate,
+        });
+
+        if (rpcError) throw rpcError;
+
+        await this.loadParents();
+        await this.loadDrawerData(cleanUid);
+
+        this.editMode = false;
+        const isToday = inactiveDate === this.todayDate();
+
+        await this.ui.alert(
+          isToday
+            ? 'ההורה הפך ללא פעיל. גם ילדיו הועברו לסטטוס לא פעיל והשיעורים העתידיים שלהם בוטלו.'
+            : 'השינויים נשמרו ונקבע תאריך שבו ההורה יהפוך ללא פעיל. באותו תאריך גם ילדיו יהפכו ללא פעילים והשיעורים העתידיים שלהם יבוטלו.',
+          'בוצע'
+        ); return;
       }
 
       this.drawerParent = data as ParentDetailsRow;
@@ -746,15 +834,15 @@ this.drawerPaymentProfiles = profiles ?? [];
       this.parents = this.parents.map((p) =>
         p.uid === cleanUid
           ? {
-              ...p,
-              is_active: this.drawerParent!.is_active,
-              first_name: this.drawerParent!.first_name,
-              last_name: this.drawerParent!.last_name,
-              phone: this.drawerParent!.phone,
-              email: this.drawerParent!.email,
-              id_number: this.drawerParent!.id_number,
-              billing_day_of_month: this.drawerParent!.billing_day_of_month,
-            }
+            ...p,
+            is_active: this.drawerParent!.is_active,
+            first_name: this.drawerParent!.first_name,
+            last_name: this.drawerParent!.last_name,
+            phone: this.drawerParent!.phone,
+            email: this.drawerParent!.email,
+            id_number: this.drawerParent!.id_number,
+            billing_day_of_month: this.drawerParent!.billing_day_of_month,
+          }
           : p
       );
 
@@ -762,15 +850,21 @@ this.drawerPaymentProfiles = profiles ?? [];
       this.editMode = false;
     } catch (e: any) {
       console.error(e);
-      await this.ui.alert(e?.message || 'שמירת השינויים נכשלה', 'שמירה נכשלה');
+      await this.ui.alert(
+        e?.message || 'שמירת השינויים נכשלה',
+        'שמירה נכשלה'
+      );
+    } finally {
+      this.savingEdit = false;
     }
   }
+
 
   openAddParentDialog() {
     const ref = this.dialog.open(AddParentDialogComponent, {
       width: '700px',
       maxWidth: '90vw',
-      height: '90vh',
+      maxHeight: '90vh',
       panelClass: 'parent-dialog',
       disableClose: true,
     });
@@ -907,6 +1001,22 @@ this.drawerPaymentProfiles = profiles ?? [];
         await this.ui.alert(e?.message ?? 'שגיאה - המערכת לא הצליחה להוסיף הורה', 'שגיאה');
       }
     });
+  }
+
+
+  onParentIdInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const cleanValue = input.value.replace(/\D/g, '').slice(0, 9);
+
+    input.value = cleanValue;
+
+    this.parentForm
+      .get('id_number')
+      ?.setValue(cleanValue, { emitEvent: false });
+
+    this.parentForm
+      .get('id_number')
+      ?.markAsTouched();
   }
 
   private getTenantSchemaOrThrow(): string {
@@ -1052,7 +1162,7 @@ this.drawerPaymentProfiles = profiles ?? [];
     return data;
   }
 
-    exportToExcel(): void {
+  exportToExcel(): void {
     try {
       const rows = this.filteredParents.map((parent) => {
         const row: Record<string, any> = {};
@@ -1136,297 +1246,640 @@ this.drawerPaymentProfiles = profiles ?? [];
         return '—';
     }
   }
- async removePaymentProfile(profileId: string) {
-  if (!this.selectedUid || !this.drawerParent) return;
-  const profile = this.drawerPaymentProfiles.find(p => p.id === profileId);
+  async removePaymentProfile(profileId: string) {
+    if (!this.selectedUid || !this.drawerParent) return;
 
-  // 👉 כאן מכניסים את ה־message הדינמי
-  const ok = await this.ui.confirm({
-    title: 'מחיקת אמצעי תשלום',
-    message: profile?.is_default
-      ? 'הכרטיס הזה הוא ברירת מחדל. יוגדר כרטיס אחר כברירת מחדל. להמשיך?'
-      : 'להסיר את אמצעי התשלום הזה?'
-  });
+    const profile = this.drawerPaymentProfiles.find(
+      p => p.id === profileId
+    );
 
-  if (!ok) return;
+    if (!profile) return;
 
-  const { error } = await dbTenant()
-    .from('payment_profiles')
-    .update({
-      active: false,
-      is_default: false,
-    })
-    .eq('id', profileId)
-    .eq('parent_uid', this.selectedUid);
+    const otherActiveProfiles = this.drawerPaymentProfiles.filter(
+      p => p.id !== profileId && p.active
+    );
 
-  if (error) {
-    await this.ui.alert(error.message, 'שגיאה');
-    return;
-  }
+    const isOnlyPaymentMethod =
+      otherActiveProfiles.length === 0;
 
-  await this.loadDrawerData(this.selectedUid);
-  await this.loadParents();
+    let message = 'להסיר את אמצעי התשלום הזה?';
 
-  await this.ui.alert('אמצעי התשלום הוסר בהצלחה', 'בוצע');
+    if (isOnlyPaymentMethod) {
+      message =
+        'זהו אמצעי התשלום היחיד המשויך להורה. לאחר הסרתו לא יהיה להורה אמצעי תשלום פעיל. האם להסיר אותו?';
+    } else if (profile.is_default) {
+      message =
+        'הכרטיס הזה הוא ברירת המחדל. לאחר הסרתו יוגדר אמצעי תשלום אחר כברירת מחדל. האם להמשיך?';
+    }
+
+    const ok = await this.ui.confirm({
+      title: 'מחיקת אמצעי תשלום',
+      message,
+    });
+
+    if (!ok) return;
+
+    const { data: deleted, error } = await dbTenant()
+  .from('payment_profiles')
+  .delete()
+  .eq('id', profileId)
+  .eq('parent_uid', this.selectedUid)
+  .select('id');
+
+if (error) {
+  await this.ui.alert(error.message, 'שגיאה');
+  return;
 }
-formatExpiry(month?: number | null, year?: number | null): string {
-  if (!month || !year) return '—';
-  return `${String(month).padStart(2, '0')}/${String(year).slice(-2)}`;
-}
 
-isExpiringSoon(profile: PaymentProfileRow): boolean {
-  if (!profile.expiry_month || !profile.expiry_year) return false;
-
-  const now = new Date();
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const expiryMonthEnd = new Date(profile.expiry_year, profile.expiry_month, 0);
-
-  const oneMonthFromNow = new Date(
-    currentMonthStart.getFullYear(),
-    currentMonthStart.getMonth() + 2,
-    0
+if (!deleted?.length) {
+  await this.ui.alert(
+    'הכרטיס לא נמחק. ייתכן שאין הרשאת מחיקה או שהרשומה כבר הוסרה.',
+    'שגיאה'
   );
-
-  return expiryMonthEnd >= currentMonthStart && expiryMonthEnd <= oneMonthFromNow;
+  return;
 }
-async setDefaultPaymentProfile(profileId: string) {
-  if (!this.selectedUid) return;
 
-  try {
-    await this.pagos.setDefault(profileId, this.selectedUid);
+    if (error) {
+      await this.ui.alert(error.message, 'שגיאה');
+      return;
+    }
 
     await this.loadDrawerData(this.selectedUid);
     await this.loadParents();
-  } catch (e: any) {
+
     await this.ui.alert(
-      e?.message ?? 'לא ניתן היה לשנות כרטיס ברירת מחדל',
-      'שגיאה'
+      'אמצעי התשלום הוסר בהצלחה',
+      'בוצע'
     );
   }
-}
-
-openAddCardModal(event?: MouseEvent): void {
-  event?.stopPropagation();
-
-  if (!this.selectedUid || !this.drawerParent) {
-    this.ui.alert('לא נבחר הורה להוספת כרטיס.', 'שגיאה');
-    return;
+  formatExpiry(month?: number | null, year?: number | null): string {
+    if (!month || !year) return '—';
+    return `${String(month).padStart(2, '0')}/${String(year).slice(-2)}`;
   }
 
-  this.addCardOpen = true;
-  this.tokenError = null;
-  this.tokenSaved = false;
+  isExpiringSoon(profile: PaymentProfileRow): boolean {
+    if (!profile.expiry_month || !profile.expiry_year) return false;
 
-  this.hfAdd = null;
-  this.thtkAdd = null;
-  this.hfInitTried = false;
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const expiryMonthEnd = new Date(profile.expiry_year, profile.expiry_month, 0);
 
-  setTimeout(() => this.ensureAddHostedFieldsReady(), 0);
-}
+    const oneMonthFromNow = new Date(
+      currentMonthStart.getFullYear(),
+      currentMonthStart.getMonth() + 2,
+      0
+    );
 
-closeAddCardModal(): void {
-  if (this.savingToken) return;
+    return expiryMonthEnd >= currentMonthStart && expiryMonthEnd <= oneMonthFromNow;
+  }
+  async setDefaultPaymentProfile(profileId: string) {
+    if (!this.selectedUid) return;
 
-  this.addCardOpen = false;
-  this.tokenError = null;
-  this.tokenSaved = false;
+    try {
+      await this.pagos.setDefault(profileId, this.selectedUid);
 
-  this.hfAdd = null;
-  this.thtkAdd = null;
-  this.hfInitTried = false;
-}
+      await this.loadDrawerData(this.selectedUid);
+      await this.loadParents();
+    } catch (e: any) {
+      await this.ui.alert(
+        e?.message ?? 'לא ניתן היה לשנות כרטיס ברירת מחדל',
+        'שגיאה'
+      );
+    }
+  }
 
-private async ensureAddHostedFieldsReady(): Promise<void> {
-  if (this.hfAdd || this.hfInitTried) return;
+  goToChildCard(childId: string): void {
+    if (!childId) return;
+
+    this.router.navigate(['/secretary/children'], {
+      queryParams: { childId },
+    });
+  }
+  getChildStatusLabel(status?: string | null): string {
+    switch ((status || '').trim()) {
+      case 'Active':
+        return 'פעיל';
+
+      case 'Deleted':
+        return 'נמחק';
+
+      case 'Pending Addition Approval':
+        return 'ממתין לאישור הוספה';
+
+      case 'Pending Deletion Approval':
+        return 'ממתין לאישור מחיקה';
+
+      case 'Deletion Scheduled':
+        return 'מחיקה מתוזמנת';
+
+      case 'Pending Parent Terms':
+        return 'ממתין לאישור הורה';
+
+      default:
+        return status || 'לא ידוע';
+    }
+  }
+  todayDate(): string {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+
+  // ===== Credit card / drawer state =====
+
+  private newRequestId(): string {
+    return typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  private resetAddCardState(destroyHostedFields = true): void {
+    if (destroyHostedFields) this.destroyHostedFields();
+
+    this.addCardOpen = false;
+    this.savingToken = false;
+    this.tokenSaved = false;
+    this.tokenError = null;
+
+    this.tokenCallbackHandled = false;
+    this.addCardLockedParentUid = null;
+    this.saveRequestId = null;
+
+    this.hfAdd = null;
+    this.thtkAdd = null;
+    this.hfInitTried = false;
+  }
+
+  private isActiveAddCardSession(parentUid: string | null, requestId: string | null): boolean {
+    return !!parentUid
+      && !!requestId
+      && this.addCardOpen
+      && this.addCardLockedParentUid === parentUid
+      && this.saveRequestId === requestId;
+  }
+
+  async openDetails(uid: string) {
+    this.savingEdit = false;
+
+    const cleanUid = (uid || '').trim();
+
+    if (!cleanUid) {
+      await this.ui.alert('שגיאה: uid ריק. לא ניתן לפתוח פרטי הורה.', 'שגיאה');
+      return;
+    }
+
+    this.resetAddCardState(true);
+
+    this.selectedUid = cleanUid;
+    this.drawerParent = null;
+    this.drawerChildren = [];
+    this.drawerPaymentProfiles = [];
+    this.editMode = false;
+    this.originalParent = null;
+
+    await this.drawer.open();
+    await this.loadDrawerData(cleanUid);
+  }
+
+  closeDetails() {
+    this.resetAddCardState(true);
+
+    this.drawer.close();
+    this.selectedUid = null;
+    this.drawerParent = null;
+    this.drawerChildren = [];
+    this.drawerPaymentProfiles = [];
+    this.editMode = false;
+    this.originalParent = null;
+    this.drawerLoading = false;
+    this.drawerLoadRequestId = null;
+  }
+
+  private async loadDrawerData(uid: string) {
+    const cleanUid = (uid || '').trim();
+    if (!cleanUid) return;
+
+    const requestId = this.newRequestId();
+    this.drawerLoadRequestId = requestId;
+
+    this.drawerLoading = true;
+    this.drawerPaymentProfiles = [];
+
+    try {
+      const db = dbTenant();
+
+      const { data: p, error: pErr } = await db
+        .from('parents')
+        .select('uid, first_name, last_name, id_number, phone, email, address, extra_notes, message_preferences, billing_day_of_month, is_active, scheduled_inactive_at')
+        .eq('uid', cleanUid)
+        .maybeSingle();
+
+      if (this.drawerLoadRequestId !== requestId || this.selectedUid !== cleanUid) return;
+      if (pErr) throw pErr;
+
+      if (!p) {
+        this.drawerParent = null;
+        this.originalParent = null;
+        this.drawerChildren = [];
+        this.drawerPaymentProfiles = [];
+        await this.ui.alert('לא נמצאה רשומת הורה עבור המשתמש הזה.', 'לא נמצא');
+        return;
+      }
+
+      const [{ data: kids, error: kidsErr }, { data: profiles, error: profilesErr }] =
+        await Promise.all([
+          db
+            .from('children')
+            .select('child_uuid, first_name, last_name, parent_uid, gender, status, birth_date, gov_id')
+            .eq('parent_uid', cleanUid)
+            .order('first_name', { ascending: true }),
+
+          db
+            .from('payment_profiles')
+            .select('id, parent_uid, brand, last4, expiry_month, expiry_year, active, is_default, created_at')
+            .eq('parent_uid', cleanUid)
+            .eq('active', true)
+            .order('is_default', { ascending: false })
+            .order('created_at', { ascending: false }),
+        ]);
+
+      if (this.drawerLoadRequestId !== requestId || this.selectedUid !== cleanUid) return;
+      if (kidsErr) throw kidsErr;
+      if (profilesErr) throw profilesErr;
+
+      this.drawerParent = p as ParentDetailsRow;
+      this.originalParent = structuredClone(this.drawerParent);
+      this.buildParentForm(this.drawerParent);
+
+      this.drawerChildren = kids ?? [];
+      this.drawerPaymentProfiles = profiles ?? [];
+    } catch (e) {
+      console.error(e);
+      if (this.drawerLoadRequestId === requestId) {
+        this.drawerChildren = [];
+        this.drawerParent = null;
+        this.originalParent = null;
+        this.drawerPaymentProfiles = [];
+      }
+    } finally {
+      if (this.drawerLoadRequestId === requestId) {
+        this.drawerLoading = false;
+      }
+    }
+  }
+
+  openAddCardModal(event?: MouseEvent): void {
+    event?.stopPropagation();
+
+    if (this.savingToken) return;
+
+    const parentUid = (this.selectedUid || '').trim();
+
+    if (!parentUid || !this.drawerParent || this.drawerParent.uid !== parentUid) {
+      this.ui.alert('לא נבחר הורה תקין להוספת כרטיס.', 'שגיאה');
+      return;
+    }
+
+    const requestId = this.newRequestId();
+
+    this.addCardOpen = true;
+    this.addCardLockedParentUid = parentUid;
+    this.saveRequestId = requestId;
+
+    this.tokenError = null;
+    this.tokenSaved = false;
+    this.cardFieldsLoading = true;
+
+    setTimeout(() => {
+      if (this.isActiveAddCardSession(parentUid, requestId)) {
+        this.ensureAddHostedFieldsReady(parentUid, requestId);
+      }
+    }, 0);
+  }
+
+  closeAddCardModal(): void {
+    if (this.savingToken) return;
+    this.resetAddCardState(true);
+  }
+
+ private async ensureAddHostedFieldsReady(
+  parentUid: string,
+  requestId: string,
+  retryCount = 0
+): Promise<void> {
+
+  if (!this.isActiveAddCardSession(parentUid, requestId)) return;
+
+  // בניסיון הראשון בלבד נמנע מאתחול כפול
+  if (retryCount === 0 && (this.hfAdd || this.hfInitTried)) return;
 
   this.hfInitTried = true;
   this.tokenError = null;
+  this.cardFieldsLoading = true;
 
   try {
     const farm = getCurrentFarmMetaSync();
     const tenantSchema = farm?.schema_name ?? null;
 
     if (!tenantSchema) {
-      this.tokenError = 'לא זוהתה סכמת חווה';
-      return;
+      throw new Error('לא זוהתה סכמת חווה');
     }
 
-    const { thtk } = await this.tranzila.getHandshakeToken(tenantSchema);
+    const { thtk } =
+      await this.tranzila.getHandshakeToken(tenantSchema);
+
+    if (!this.isActiveAddCardSession(parentUid, requestId)) return;
+
+    if (!thtk) {
+      throw new Error('לא התקבל handshake token');
+    }
+
     this.thtkAdd = thtk;
 
-    if (!TzlaHostedFields) {
-      this.tokenError = 'רכיב התשלום לא נטען';
-      return;
+    if (
+      typeof TzlaHostedFields === 'undefined' ||
+      !TzlaHostedFields
+    ) {
+      throw new Error('רכיב התשלום לא נטען');
+    }
+
+    // מוודאים שה-DOM של המודל כבר קיים
+    const cardElement =
+      document.getElementById('sp_credit_card_number');
+
+    const cvvElement =
+      document.getElementById('sp_cvv');
+
+    const expiryElement =
+      document.getElementById('sp_expiry');
+
+    if (!cardElement || !cvvElement || !expiryElement) {
+      throw new Error('שדות האשראי עדיין לא מוכנים');
     }
 
     this.hfAdd = TzlaHostedFields.create({
       sandbox: false,
+
       fields: {
         credit_card_number: {
           selector: '#sp_credit_card_number',
           placeholder: '4580 4580 4580 4580',
           tabindex: 1,
         },
+
         cvv: {
           selector: '#sp_cvv',
           placeholder: '123',
           tabindex: 2,
         },
+
         expiry: {
           selector: '#sp_expiry',
           placeholder: '12/26',
           version: '1',
         },
       },
+
       styles: {
         input: {
-          height: '42px',
-          'line-height': '42px',
+          height: '30px',
+          'line-height': '30px',
           padding: '0 10px',
           'font-size': '15px',
           'box-sizing': 'border-box',
         },
+
         select: {
-          height: '42px',
-          'line-height': '42px',
+          height: '30px',
+          'line-height': '30px',
           padding: '0 10px',
           'font-size': '15px',
           'box-sizing': 'border-box',
         },
       },
     });
-  } catch (e: any) {
-    console.error('ensureAddHostedFieldsReady error', e);
-    this.tokenError = e?.message ?? 'שגיאה באתחול שדות האשראי';
-  }
-}
 
-async tokenizeAndSaveCardForSelectedParent(): Promise<void> {
-  this.tokenError = null;
-  this.tokenSaved = false;
+    if (!this.hfAdd) {
+      throw new Error('רכיב האשראי לא אותחל');
+    }
 
-  const parentUid = this.selectedUid;
-  const parentEmail = this.drawerParent?.email ?? null;
+    if (!this.isActiveAddCardSession(parentUid, requestId)) {
+      this.destroyHostedFields();
+      return;
+    }
 
-  if (!parentUid) {
-    this.tokenError = 'לא זוהה הורה לשמירת אמצעי התשלום';
-    return;
-  }
+      this.cardFieldsLoading = false;
+    } catch (e: any) {
 
-  if (!this.hfAdd || !this.thtkAdd) {
-    this.tokenError = 'שדות התשלום לא מוכנים';
-    return;
+      this.cardFieldsLoading = false;
+      console.error('ensureAddHostedFieldsReady error', e);
+      if (this.isActiveAddCardSession(parentUid, requestId)) {
+        this.tokenError = e?.message ?? 'שגיאה באתחול שדות האשראי';
+      }
+    }
   }
 
-  const farm = getCurrentFarmMetaSync();
-  const tenantSchema = farm?.schema_name ?? undefined;
+  async tokenizeAndSaveCardForSelectedParent(): Promise<void> {
+    if (this.savingToken) return;
 
-  if (!tenantSchema) {
-    this.tokenError = 'לא זוהתה סכמת חווה';
-    return;
-  }
+    const parentUid = this.addCardLockedParentUid;
+    const requestId = this.saveRequestId;
 
-  ['credit_card_number', 'expiry', 'cvv'].forEach((k) => {
-    const el = document.getElementById('sp_errors_for_' + k);
-    if (el) el.textContent = '';
-  });
+    this.tokenError = null;
+    this.tokenSaved = false;
 
-  this.savingToken = true;
+    if (!this.isActiveAddCardSession(parentUid, requestId)) {
+      this.tokenError = 'חלון האשראי אינו שייך להורה הנוכחי. סגרי ופתחי מחדש.';
+      return;
+    }
 
-  try {
-    const db = dbTenant();
+    if (!parentUid || !requestId || this.selectedUid !== parentUid || this.drawerParent?.uid !== parentUid) {
+      this.tokenError = 'ההורה השתנה בזמן שמירת הכרטיס. סגרי ופתחי מחדש.';
+      return;
+    }
 
-    const { data } = await db
-      .from('billing_terminals')
-      .select('terminal_name,tok_terminal_name,secret_key_charge,secret_key_charge_token')
-      .eq('provider', 'tranzila')
-      .eq('mode', 'prod')
-      .eq('active', true)
-      .order('is_default', { ascending: false })
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    if (!this.hfAdd || !this.thtkAdd) {
+      this.tokenError = 'שדות התשלום לא מוכנים';
+      return;
+    }
 
-    const terminalName = data?.terminal_name ?? 'moachapp';
+    this.savingToken = true;
+    this.tokenCallbackHandled = false;
 
-    this.hfAdd.charge(
-      {
-        terminal_name: terminalName,
-        thtk: this.thtkAdd,
-        tran_mode: 'N',
-        tokenize: true,
-        amount: '1',
-        currency_code: 'ILS',
-        payment_plan: 1,
-        response_language: 'hebrew',
-        requested_by_user: 'secretary-parent-card-tokenize',
-        email: parentEmail || undefined,
-        contact: `${this.drawerParent?.first_name ?? ''} ${this.drawerParent?.last_name ?? ''}`.trim() || undefined,
-      },
-      async (err: any, response: any) => {
-        try {
-          if (err?.messages?.length) {
-            err.messages.forEach((msg: any) => {
-              const el = document.getElementById('sp_errors_for_' + msg.param);
-              if (el) el.textContent = msg.message;
+    try {
+      const farm = getCurrentFarmMetaSync();
+      const tenantSchema = farm?.schema_name ?? null;
+
+      if (!tenantSchema) {
+        this.tokenError = 'לא זוהתה סכמת חווה';
+        this.savingToken = false;
+        return;
+      }
+
+      const db = dbTenant();
+
+      const { data } = await db
+        .from('billing_terminals')
+        .select('terminal_name')
+        .eq('provider', 'tranzila')
+        .eq('mode', 'prod')
+        .eq('active', true)
+        .order('is_default', { ascending: false })
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!this.isActiveAddCardSession(parentUid, requestId)) {
+        this.savingToken = false;
+        return;
+      }
+
+      const terminalName = data?.terminal_name ?? 'moachapp';
+      const parentEmail = this.drawerParent?.email ?? null;
+      const parentContact =
+        `${this.drawerParent?.first_name ?? ''} ${this.drawerParent?.last_name ?? ''}`.trim();
+
+      const lockedParent =
+        structuredClone(this.drawerParent);
+
+      this.hfAdd.onEvent?.('change', () => {
+        this.tokenError = null;
+        this.tokenSaved = false;
+      });
+
+      this.hfAdd.charge(
+        {
+          terminal_name: terminalName,
+          thtk: this.thtkAdd,
+          tran_mode: 'N',
+          tokenize: true,
+          amount: '1',
+          currency_code: 'ILS',
+          payment_plan: 1,
+          response_language: 'hebrew',
+          requested_by_user: `secretary-parent-card-tokenize-${requestId}`,
+          email: parentEmail || undefined,
+          contact: parentContact || undefined,
+        },
+        async (err: any, response: any) => {
+          if (!this.isActiveAddCardSession(parentUid, requestId)) return;
+          if (this.tokenCallbackHandled) return;
+
+          this.tokenCallbackHandled = true;
+
+          try {
+            if (err?.messages?.length) {
+              err.messages.forEach((msg: any) => {
+                const el = document.getElementById('sp_errors_for_' + msg.param);
+                if (el) el.textContent = msg.message;
+              });
+
+              this.tokenError = 'שגיאה בפרטי הכרטיס';
+              return;
+            }
+
+            const tx = response?.transaction_response;
+
+            if (!tx?.success) {
+              this.tokenError = tx?.error || 'שמירת אמצעי תשלום נכשלה';
+              return;
+            }
+
+            const token = tx?.token;
+
+            if (!token) {
+              this.tokenError = 'לא התקבל טוקן מהסליקה';
+              return;
+            }
+
+            if (!this.isActiveAddCardSession(parentUid, requestId)) return;
+
+            const last4 =
+              tx?.credit_card_last_4_digits ??
+              tx?.last_4 ??
+              (tx?.card_mask ? String(tx.card_mask).slice(-4) : null);
+
+            const brand = tx?.card_type_name ?? tx?.card_type ?? null;
+
+            await this.tranzila.savePaymentMethod({
+              parentUid,
+              tenantSchema,
+              token: String(token),
+              last4: last4 ? String(last4) : null,
+              brand: brand ? String(brand) : null,
+              expiryMonth: tx?.expiry_month ?? null,
+              expiryYear: tx?.expiry_year ?? null,
             });
 
-            this.tokenError = 'שגיאה בפרטי הכרטיס';
-            return;
+            if (!this.isActiveAddCardSession(parentUid, requestId)) return;
+
+            if (this.selectedUid === parentUid) {
+              await this.loadDrawerData(parentUid);
+            }
+            await this.loadParents();
+
+            this.tokenSaved = true;
+
+            await this.ui.alert('אמצעי התשלום נשמר בהצלחה', 'בוצע');
+
+            this.resetAddCardState(true);
+
+            if (!this.isActiveAddCardSession(parentUid, requestId)) return;
+
+          } catch (e: any) {
+            const body = e?.error;
+
+            if (e?.status === 409 && body?.error === 'CARD_ALREADY_EXISTS') {
+              this.tokenError =
+                body.message ||
+                `הכרטיס שהוסף כבר קיים אצל ההורה ${body.existingParentUid || ''}`;
+              return;
+            }
+
+            this.tokenError =
+              body?.message ||
+              body?.error ||
+              e?.message ||
+              'שגיאה בשמירת אמצעי תשלום במערכת';
+          } finally {
+            if (this.isActiveAddCardSession(parentUid, requestId)) {
+              this.savingToken = false;
+            }
           }
-
-          const tx = response?.transaction_response;
-
-          if (!tx?.success) {
-            this.tokenError = tx?.error || 'שמירת אמצעי תשלום נכשלה';
-            return;
-          }
-
-          const token = tx?.token;
-
-          if (!token) {
-            this.tokenError = 'לא התקבל טוקן מהסליקה';
-            return;
-          }
-
-          const last4 =
-            tx?.credit_card_last_4_digits ??
-            tx?.last_4 ??
-            (tx?.card_mask ? String(tx.card_mask).slice(-4) : null);
-
-          const brand = tx?.card_type_name ?? tx?.card_type ?? null;
-
-          await this.tranzila.savePaymentMethod({
-            parentUid,
-            tenantSchema,
-            token: String(token),
-            last4: last4 ? String(last4) : null,
-            brand: brand ? String(brand) : null,
-            expiryMonth: tx?.expiry_month ?? null,
-            expiryYear: tx?.expiry_year ?? null,
-          });
-
-          this.tokenSaved = true;
-
-          await this.loadDrawerData(parentUid);
-          await this.loadParents();
-
-          this.closeAddCardModal();
-
-          await this.ui.alert('אמצעי התשלום נשמר בהצלחה.', 'הצלחה');
-        } catch (e: any) {
-          console.error('tokenize callback error', e);
-          this.tokenError = e?.message ?? 'שגיאה בשמירת אמצעי תשלום במערכת';
-        } finally {
-          this.savingToken = false;
         }
-      }
-    );
-  } catch (e: any) {
-    console.error('tokenizeAndSaveCardForSelectedParent error', e);
-    this.tokenError = e?.message ?? 'שגיאה בשמירת אמצעי תשלום';
-    this.savingToken = false;
-  }
-}
+      );
+    } catch (e: any) {
+      const body = e?.error;
 
+      if (this.isActiveAddCardSession(parentUid, requestId)) {
+        this.tokenError =
+          body?.message ||
+          body?.error ||
+          e?.message ||
+          'שגיאה בשמירת אמצעי תשלום במערכת';
+
+        this.savingToken = false;
+      }
+    }
+  }
+
+  private destroyHostedFields(): void {
+    try {
+      const anyHf = this.hfAdd as any;
+
+      if (anyHf?.destroy) anyHf.destroy();
+      if (anyHf?.remove) anyHf.remove();
+      if (anyHf?.unmount) anyHf.unmount();
+    } catch (e) {
+      console.warn('[ADD_CARD][HF_DESTROY_FAILED]', e);
+    }
+
+    this.hfAdd = null;
+    this.thtkAdd = null;
+    this.hfInitTried = false;
+
+    ['sp_credit_card_number', 'sp_cvv', 'sp_expiry'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '';
+    });
+  }
 }

@@ -20,14 +20,13 @@ export const processDueChildDeletions = onSchedule(
     );
 
     const { data, error } = await supabase.rpc(
-  'process_due_child_deletions_all_schemas'
-);
+      'process_due_child_deletions_all_schemas'
+    );
 
     if (error) {
       console.error('❌ process_due_child_deletions_all_schemas failed', error);
       throw error;
     }
 
-    console.log('✅ process_due_child_deletions_all_schemas finished. affected:', data);
   }
 );

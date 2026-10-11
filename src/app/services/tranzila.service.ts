@@ -63,6 +63,19 @@ export interface TranzilaChargeResponse {
   tranzila: any;
 }
 
+export type SavePaymentMethodResult =
+  | { ok: true; is_default: boolean }
+  | {
+    ok: false;
+    error: string;
+    message?: string;
+    existingParentUid?: string;
+    existingProfileId?: string;
+    last4?: string | null;
+    brand?: string | null;
+  };
+
+
 @Injectable({ providedIn: 'root' })
 export class TranzilaService {
 
@@ -87,71 +100,102 @@ export class TranzilaService {
   }
 
   savePaymentMethod(args: {
-  parentUid: string;
-  tenantSchema: string;
-  token: string;
-  last4?: string | null;
-  brand?: string | null;
-  expiryMonth?: string | null;
-  expiryYear?: string | null;
-}) {
-  return firstValueFrom(
-    this.http.post(`${this.base}/savePaymentMethod`, args)
-  );
-}
+    tenantSchema: string;
+    token: string;
+    last4?: string | null;
+    brand?: string | null;
+    expiryMonth?: string | null;
+    expiryYear?: string | null;
 
-
-chargeSelectedChargesForParent(args: {
-  parentUid: string;
-  tenantSchema: string;
-  secretaryEmail: string;
-  chargeIds: string[];
-invoiceExtraLinesByChild?: Record<string, string>;
-}) {
-  return firstValueFrom(
-    this.http.post<{ ok: boolean; results: any[]; failedCount: number }>(
-      `${this.base}/chargeSelectedChargesForParent`,
-      args
-    )
-  );
-}
+    userType?: 'parent' | 'independent_rider';
+    parentUid?: string | null;
+    riderUid?: string | null;
+  }) {
+    return firstValueFrom(
+      this.http.post<SavePaymentMethodResult>(
+        `${this.base}/savePaymentMethod`,
+        args
+      )
+    );
+  }
+  chargeSelectedChargesForRider(args: {
+    riderUid: string;
+    tenantSchema: string;
+    secretaryEmail: string;
+    chargeIds: string[];
+  }) {
+    return firstValueFrom(
+      this.http.post<{ ok: boolean; results: any[]; failedCount?: number }>(
+        `https://us-central1-bereshit-ac5d8.cloudfunctions.net/chargeSelectedChargesForRider`,
+        args
+      )
+    );
+  }
+  chargeSelectedChargesForParent(args: {
+    parentUid: string;
+    tenantSchema: string;
+    secretaryEmail: string;
+    chargeIds: string[];
+    invoiceExtraLinesByChild?: Record<string, string>;
+  }) {
+    return firstValueFrom(
+      this.http.post<{ ok: boolean; results: any[]; failedCount: number }>(
+        `${this.base}/chargeSelectedChargesForParent`,
+        args
+      )
+    );
+  }
 
   getHandshakeToken(tenantSchema: string) {
-  return firstValueFrom(
-    this.http.get<{ thtk: string; terminal_name: string }>(
-      `${this.base}/tranzilaHandshake`,
-      { params: { tenantSchema } }
-    )
-  );
-}
+    return firstValueFrom(
+      this.http.get<{ thtk: string; terminal_name: string }>(
+        `${this.base}/tranzilaHandshake`,
+        { params: { tenantSchema } }
+      )
+    );
+  }
 
 
 
-chargeOnce(body: {
-  amountAgorot: number;
-  card: { card_number: string; expire_month: number; expire_year: number; cvv: string; card_holder_id?: string; card_holder_name?: string; };
-  client?: { name?: string; id?: string; email?: string; phone_country_code?: string; phone_area_code?: string; phone_number?: string; };
-}) {
-  return this.http.post(`${this.base}/tranzilaCharge`, body);
-}
+  chargeOnce(body: {
+    amountAgorot: number;
+    card: { card_number: string; expire_month: number; expire_year: number; cvv: string; card_holder_id?: string; card_holder_name?: string; };
+    client?: { name?: string; id?: string; email?: string; phone_country_code?: string; phone_area_code?: string; phone_number?: string; };
+  }) {
+    return this.http.post(`${this.base}/tranzilaCharge`, body);
+  }
 
-// tranzila.service.ts
-recordOneTimePayment(args: {
-  parentUid?: string | null;
-  tenantSchema?: string | null;
-  amountAgorot: number;
-  tx: any;
-  email?: string | null;
-  fullName?: string | null;
-}) {
-  return firstValueFrom(
-    this.http.post('/api/recordOneTimePayment', args)
-  );
-}
+  // tranzila.service.ts
+  recordOneTimePayment(args: {
+    parentUid?: string | null;
+    tenantSchema?: string | null;
+    amountAgorot: number;
+    tx: any;
+    email?: string | null;
+    fullName?: string | null;
+  }) {
+    return firstValueFrom(
+      this.http.post('/api/recordOneTimePayment', args)
+    );
+  }
 
-
-
-
+  createManualPaymentAndInvoice(args: {
+    tenantSchema: string;
+    parentUid: string;
+    chargeId: string;
+    paymentMethod: 'cash' | 'bank_transfer' | 'check';
+    reference?: string | null;
+    checkNumber?: string | null;
+    shouldCreateInvoice: boolean;
+    invoiceExtraLinesByChild?: Record<string, string>;
+  }) {
+    return firstValueFrom(
+      this.http.post<{ ok: boolean; paymentId: string; invoiceUrl?: string | null }>(
+        `https://us-central1-bereshit-ac5d8.cloudfunctions.net/createManualPaymentAndInvoice`,
+        args
+      )
+    );
+  }
 
 
 }

@@ -10,8 +10,8 @@ const ALLOWED_ORIGINS = new Set<string>([
   'https://smart-farm.org',
   'https://bereshit-ac5d8.web.app',
   'https://bereshit-ac5d8.firebaseapp.com',
-  'http://localhost:4200',     
-  'https://localhost:4200',   
+  'http://localhost:4200',
+  'https://localhost:4200',
 ]);
 
 function applyCors(req: any, res: any): boolean {
@@ -41,10 +41,11 @@ function applyCors(req: any, res: any): boolean {
 
   return false;
 }
+
 export const autoRejectRequestAndNotify = onRequest(
   { secrets: [SUPABASE_URL_S, SUPABASE_KEY_S, INTERNAL_CALL_SECRET_S] },
   async (req, res): Promise<void> => {
-      if (applyCors(req, res)) return;
+    if (applyCors(req, res)) return;
 
     try {
       if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
@@ -84,7 +85,7 @@ export const autoRejectRequestAndNotify = onRequest(
         .update({
           status: 'REJECTED_BY_SYSTEM',
           decision_note: String(reason).trim(),
-          decided_by_uid: decidedByUid ?? null,
+          decided_by_uid: null,
           decided_at: new Date().toISOString(),
         })
         .eq('id', requestId)
@@ -135,7 +136,7 @@ export const autoRejectRequestAndNotify = onRequest(
 
     } catch (e: any) {
       console.error('[autoRejectRequestAndNotify] error:', e);
-    applyCors(req, res); // ✅ כדי שהדפדפן יקבל CORS גם בשגיאה
+      applyCors(req, res); // ✅ כדי שהדפדפן יקבל CORS גם בשגיאה
       res.status(500).json({ ok: false, error: e?.message ?? 'internal error' });
       return;
     }

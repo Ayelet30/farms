@@ -1,16 +1,8 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
-import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = defineSecret('SUPABASE_URL');
 const SUPABASE_SERVICE_KEY = defineSecret('SUPABASE_SERVICE_KEY');
-
-function supabaseForSchema(schema: string) {
-  return createClient(SUPABASE_URL.value(), SUPABASE_SERVICE_KEY.value(), {
-    db: { schema },
-    auth: { persistSession: false },
-  });
-}
 
 export const createMaccabiAutomationJob = onRequest(
   {
@@ -18,12 +10,9 @@ export const createMaccabiAutomationJob = onRequest(
     timeoutSeconds: 60,
     memory: '512MiB',
     secrets: [SUPABASE_URL, SUPABASE_SERVICE_KEY],
+    cors: true,
   },
   async (req, res) => {
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type');
-
     if (req.method === 'OPTIONS') {
       res.status(204).send('');
       return;
@@ -38,8 +27,13 @@ export const createMaccabiAutomationJob = onRequest(
     }
 
     try {
-      const schema = String(req.body?.schema || '').trim();
-      const groups = req.body?.groups  ?? [];
+      const schema = String(req.body?.schema ?? '').trim();
+      const action = String(
+  req.body?.action ?? 'create'
+)
+  .trim()
+  .toLowerCase();
+      const groups = req.body?.groups ?? [];
 
       if (!schema) {
         res.status(400).json({
@@ -48,6 +42,84 @@ export const createMaccabiAutomationJob = onRequest(
         });
         return;
       }
+const { createClient } = await import(
+  '@supabase/supabase-js'
+);
+if (action === 'status') {
+  const publicSupabase = createClient(
+    SUPABASE_URL.value(),
+    SUPABASE_SERVICE_KEY.value(),
+    {
+      db: {
+        schema: 'public',
+      },
+      auth: {
+        persistSession: false,
+      },
+    }
+  );
+
+  const {
+    data: installation,
+    error: statusError,
+  } = await publicSupabase
+    .from('automation_agent_installations')
+    .select(`
+      agent_id,
+      version,
+      last_status,
+      current_job_id,
+      last_seen_at
+    `)
+    .eq('schema_name', schema)
+    .eq('provider', 'MACCABI')
+    .eq('is_active', true)
+    .order('last_seen_at', {
+      ascending: false,
+    })
+    .limit(1)
+    .maybeSingle();
+
+  if (statusError) {
+    throw new Error(
+      `Could not load agent status: ${statusError.message}`
+    );
+  }
+
+  const lastSeenAt =
+    installation?.last_seen_at ?? null;
+
+  const millisecondsSinceLastSeen =
+    lastSeenAt
+      ? Date.now() -
+        new Date(lastSeenAt).getTime()
+      : Number.POSITIVE_INFINITY;
+
+  /*
+   * ה־Agent שולח heartbeat כל 30 שניות.
+   * נותנים מרווח של 90 שניות.
+   */
+  const online =
+    Number.isFinite(millisecondsSinceLastSeen) &&
+    millisecondsSinceLastSeen <= 90_000;
+
+  res.status(200).json({
+    ok: true,
+    online,
+    app: 'moach-maccabi-agent',
+    agentId:
+      installation?.agent_id ?? null,
+    version:
+      installation?.version ?? null,
+    status:
+      installation?.last_status ?? null,
+    currentJobId:
+      installation?.current_job_id ?? null,
+    lastSeenAt,
+  });
+
+  return;
+}
 
       if (!Array.isArray(groups) || groups.length === 0) {
         res.status(400).json({
@@ -57,36 +129,67 @@ export const createMaccabiAutomationJob = onRequest(
         return;
       }
 
-      const sb = supabaseForSchema(schema);
+      /*
+       * הייבוא מתבצע רק כאשר הפונקציה באמת מופעלת,
+       * ולא בזמן Firebase function discovery.
+       */
 
-      const { data, error } = await sb
-        .from('automation_jobs')
-        .insert({
-          provider: 'MACCABI',
-          schema_name: schema,
-          status: 'pending',
-          payload: {
-            groups,
-            createdFrom: 'claims-page',
+      const supabase = createClient(
+        SUPABASE_URL.value(),
+        SUPABASE_SERVICE_KEY.value(),
+        {
+          db: {
+            schema,
           },
-        })
-        .select('id, status, created_at')
-        .single();
+          auth: {
+            persistSession: false,
+          },
+        }
+      );
 
-      if (error) {
-        throw new Error(error.message);
-      }
+      const jobsToInsert = groups.map((group) => ({
+  provider: 'MACCABI',
+  schema_name: schema,
+  status: 'pending',
+  payload: {
+    groups: [group],
+    createdFrom: 'claims-page',
+  },
+}));
 
-      res.status(200).json({
-        ok: true,
-        jobId: data.id,
-        status: data.status,
-        message: 'Maccabi automation job created',
-      });
-    } catch (error: any) {
+const { data, error } = await supabase
+  .from('automation_jobs')
+  .insert(jobsToInsert)
+  .select('id, status, created_at');
+
+if (error) {
+  throw new Error(error.message);
+}
+
+res.status(200).json({
+  ok: true,
+  jobId: data?.[0]?.id ?? null,
+  jobIds: data?.map((job) => job.id) ?? [],
+  jobsCreated: data?.length ?? 0,
+  message: `${data?.length ?? 0} Maccabi automation jobs created`,
+});
+
+return;
+
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : String(error);
+
+      console.error(
+        'createMaccabiAutomationJob failed:',
+        error
+      );
+
       res.status(500).json({
         ok: false,
-        message: error?.message ?? 'Unknown error',
+        message,
       });
     }
   }

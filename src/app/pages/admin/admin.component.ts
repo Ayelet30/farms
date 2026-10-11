@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { ActivatedRoute, Router, RouterOutlet } from '@angular/router';
+import { Router, RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-admin',
@@ -14,13 +14,15 @@ export class AdminComponent {
     this.router.navigate(['/admin/email']);
   }
 
-
-
   openClalitAdmin() {
     this.router.navigate(['/admin/clalit']);
-}
+  }
 
-openHmoIntegrationsAdmin() {
+  openHmoIntegrationsAdmin() {
     this.router.navigate(['/admin/hmo-integrations']);
-}
+  }
+
+  openBillingAdmin() {
+    this.router.navigate(['/admin/billing']);
+  }
 }

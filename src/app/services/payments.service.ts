@@ -44,12 +44,30 @@ export type ParentChargeRow = {
   charge_amount_agorot: number;
   items_amount_agorot: number;
   office_note?: string | null;
-
   paid_agorot: number;
   credits_agorot: number;
   remaining_agorot: number;
   status: 'draft' | 'pending' | 'open' | 'partial' | 'paid' | 'failed' | 'cancelled';
   created_at: string;
+};
+
+export type ListParentChargesOpts = {
+  parentUid?: string | null;
+  onlyOpen?: boolean;
+  limit?: number;
+  offset?: number;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  parentName?: string | null;
+};
+
+export type ParentChargesSummary = {
+  totalCharges: number;
+  openCharges: number;
+  totalAgorot: number;
+  paidAgorot: number;
+  creditsAgorot: number;
+  remainingAgorot: number;
 };
 
 // זיכוי להורה – מטבלת parent_credits
@@ -61,14 +79,6 @@ export type ParentCreditRow = {
   related_charge_id: string | null;
   created_at: string;
   created_by: string | null;
-};
-
-/** אופציות לחיובים במסך "חיובים להורה" */
-export type ListParentChargesOpts = {
-  parentUid?: string | null;    // אם לא מעבירים – כל ההורים
-  onlyOpen?: boolean;           // רק חיובים עם יתרה > 0
-  limit?: number;
-  offset?: number;
 };
 
 /** ========= SERVICE ========= **/
@@ -150,42 +160,68 @@ export class PaymentsService {
 
   /* ========== PARENT CHARGES OVERVIEW (v_parent_charges) ========== */
 
-  async listParentCharges(
-    opts: ListParentChargesOpts
-  ): Promise<{ rows: ParentChargeRow[]; count: number | null }> {
-    const dbc = await this.dbc();
+ async listParentCharges(
+  opts: ListParentChargesOpts = {}
+): Promise<{ rows: ParentChargeRow[]; count: number | null }> {
+  const dbc = await this.dbc();
 
-    const limit = Math.max(1, opts.limit ?? 50);
-    const offset = Math.max(0, opts.offset ?? 0);
+  const limit = Math.max(1, opts.limit ?? 50);
+  const offset = Math.max(0, opts.offset ?? 0);
 
-    let q = dbc
-      .from('v_parent_charges')
-   .select(
-  'id,parent_name,parent_uid,period_start,period_end,description,charge_amount_agorot,items_amount_agorot,office_note,paid_agorot,credits_agorot,remaining_agorot,status,created_at',
-  { count: 'exact' }
-)
+  let q = dbc
+    .from('v_parent_charges')
+    .select(
+      `
+      id,
+      parent_name,
+      parent_uid,
+      period_start,
+      period_end,
+      description,
+      charge_amount_agorot,
+      items_amount_agorot,
+      office_note,
+      paid_agorot,
+      credits_agorot,
+      remaining_agorot,
+      status,
+      created_at
+      `,
+      { count: 'exact' }
+    )
+    .order('period_start', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
 
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (opts.parentUid) {
-      q = q.eq('parent_uid', opts.parentUid);
-    }
-
-    if (opts.onlyOpen) {
-      // חיובים פתוחים = יתרה > 0 ולא בוטל
-      q = q.gt('remaining_agorot', 0).neq('status', 'cancelled');
-    }
-
-    const { data, error, count } = await q;
-    if (error) throw error;
-
-    return {
-      rows: (data ?? []) as ParentChargeRow[],
-      count: count ?? null,
-    };
+  if (opts.parentUid) {
+    q = q.eq('parent_uid', opts.parentUid);
   }
 
+  if (opts.parentName?.trim()) {
+    q = q.ilike('parent_name', `%${opts.parentName.trim()}%`);
+  }
+
+if (opts.dateFrom) {
+  q = q.gte('period_start', opts.dateFrom);
+}
+
+if (opts.dateTo) {
+  q = q.lte('period_start', opts.dateTo);
+}
+
+  if (opts.onlyOpen) {
+    q = q.gt('remaining_agorot', 0).neq('status', 'cancelled');
+  }
+
+  const { data, error, count } = await q;
+
+  if (error) throw error;
+
+  return {
+    rows: (data ?? []) as ParentChargeRow[],
+    count: count ?? null,
+  };
+}
   /* ========== CREDITS (parent_credits) ========== */
 
   async listCreditsForParent(parentUid: string): Promise<ParentCreditRow[]> {
@@ -224,6 +260,28 @@ export class PaymentsService {
     if (error) throw error;
     return data as ParentCreditRow;
   }
+
+  async getParentChargesSummary(opts: ListParentChargesOpts = {}): Promise<ParentChargesSummary> {
+  const dbc = await this.dbc();
+
+  const { data, error } = await dbc.rpc('get_parent_charges_summary', {
+    p_only_open: opts.onlyOpen ?? false,
+    p_parent_name: opts.parentName?.trim() || null,
+    p_date_from: opts.dateFrom || null,
+    p_date_to: opts.dateTo || null,
+  });
+
+  if (error) throw error;
+
+  return {
+    totalCharges: Number(data?.totalCharges ?? 0),
+    openCharges: Number(data?.openCharges ?? 0),
+    totalAgorot: Number(data?.totalAgorot ?? 0),
+    paidAgorot: Number(data?.paidAgorot ?? 0),
+    creditsAgorot: Number(data?.creditsAgorot ?? 0),
+    remainingAgorot: Number(data?.remainingAgorot ?? 0),
+  };
+}
 
   /* ========== BULK CHARGE RPC ========== */
 

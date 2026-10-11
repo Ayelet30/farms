@@ -35,7 +35,8 @@
 
     <div class="row">
       <div class="k">תאריך שיעור</div>
-<div class="v">{{ lessonDateFormatted }}</div>    </div>
+      <div class="v">{{ lessonDateFormatted }}</div>
+    </div>
 
     <div class="row">
       <div class="k">מדריך/ה</div>
@@ -70,7 +71,7 @@
       <div class="v">{{ paymentPlanName() || '—' }}</div>
     </div>
 
-  
+
     <div class="row">
       <div class="k">קובץ הפניה</div>
       <div class="v">
@@ -81,7 +82,7 @@
       </div>
     </div>
 
-    <div class="subcard" *ngIf="existingParticipants().length">
+    <div class="subcard" *ngIf="canViewExistingPlacement && existingParticipants().length">
       <div class="row" *ngIf="participantsCapacity() as cap">
         <div class="k">שיבוץ קיים</div>
         <div class="v">{{ cap.current }} / {{ cap.max }}</div>
@@ -100,7 +101,7 @@
           <div class="cell c">{{ c.gender || '—' }}</div>
           <div class="cell c">{{ calcAge(c.birth_date) }}</div>
 
-         
+
           <div class="cell notes-cell">
             <span *ngIf="c.medical_notes">🩺 {{ c.medical_notes }}</span>
             <span *ngIf="c.behavior_notes">⚠ {{ c.behavior_notes }}</span>
@@ -117,33 +118,19 @@
       </div>
     </div>
 
-    <textarea
-      class="note"
-      *ngIf="canDecide()"
-      [(ngModel)]="note"
-      [disabled]="busy()"
+    <textarea class="note" *ngIf="canDecide()" [(ngModel)]="note" [disabled]="busy()"
       placeholder="סיבה לדחייה (אופציונלי)">
     </textarea>
 
     <div class="actions" *ngIf="canDecide()">
-      <button
-        mat-stroked-button
-        type="button"
-        class="action reject"
-        (click)="rejectSelected()"
+      <button mat-stroked-button type="button" class="action reject" (click)="rejectSelected()"
         [disabled]="loading() || busy()">
         דחייה
       </button>
 
-      <button
-        mat-flat-button
-        type="button"
-        class="action approve"
-        (click)="approveSelected()"
-        [disabled]="loading() || !canApprove() || busy()"
-        [matTooltip]="approveTooltip || ''"
-        [matTooltipDisabled]="!approveTooltip"
-        matTooltipPosition="above">
+      <button mat-flat-button type="button" class="action approve" (click)="approveSelected()"
+        [disabled]="loading() || !canApprove() || busy()" [matTooltip]="approveTooltip || ''"
+        [matTooltipDisabled]="!approveTooltip" matTooltipPosition="above">
         אישור
       </button>
     </div>

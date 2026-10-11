@@ -9,6 +9,42 @@
   line-height: 1.15;
 }
 
+.absence-alert {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.absence-alert.error {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+}
+
+.alert-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #f97316;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  flex: 0 0 22px;
+  margin-top: 2px;
+}
+
+.alert-text {
+  flex: 1;
+  font-weight: 600;
+}
+
 .bereshit-calendar .secondary-line {
   font-size: 9px;
 }
@@ -18,6 +54,75 @@
   height: 16px;
   padding: 0 4px;
   font-size: 9px;
+}
+
+.break-modal-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 30000 !important;
+
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+
+  padding: 28px 16px;
+  overflow-y: auto;
+
+  background: rgba(21, 24, 18, 0.34);
+}
+
+.break-management-modal {
+  width: min(600px, calc(100vw - 32px));
+  max-height: calc(100dvh - 56px);
+
+  direction: rtl;
+  text-align: right;
+}
+
+.break-management-modal .modal-content,
+.break-management-modal .modal-header,
+.break-management-modal .modal-header h3,
+.break-management-modal .modal-header p,
+.break-management-modal .field-row,
+.break-management-modal .field-row label,
+.break-management-modal .form-error,
+.break-management-modal .note-box,
+.break-management-modal p {
+  text-align: right;
+}
+
+.break-management-modal .compact-grid,
+.break-management-modal .modal-actions {
+  direction: rtl;
+}
+
+.break-management-modal .modal-actions {
+  justify-content: flex-start;
+}
+
+.break-management-modal input[type="time"] {
+  width: 100%;
+  box-sizing: border-box;
+
+  direction: ltr;
+  text-align: right;
+}
+
+.break-management-modal .modal-close {
+  left: 14px;
+  right: auto;
+}
+
+@media (max-width: 700px) {
+  .break-modal-backdrop {
+    padding: 12px 8px;
+    align-items: center;
+  }
+
+  .break-management-modal {
+    width: 100%;
+    max-height: calc(100dvh - 24px);
+  }
 }
 
 .bereshit-calendar .event-box.instructor-day-off-box,
@@ -119,13 +224,23 @@
   position: relative;
 }
 
+.schedule-modal {
+  direction: rtl;
+  text-align: right;
+}
+
 .modal-content {
-  padding: 18px 18px 12px;
+  padding: 24px 22px 12px;
   overflow-y: auto;
 }
 
+// .modal-header {
+//   margin-bottom: 10px;
+
+// }
 .modal-header {
   margin-bottom: 10px;
+  padding-left: 44px; // מקום לאיקס
 }
 
 .modal-header h3 {

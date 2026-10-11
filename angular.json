@@ -37,6 +37,11 @@
                 "inject": false
               },
               {
+                "input": "src/styles/tokens/tokens-good_point_farm.scss",
+                "bundleName": "tokens-good_point_farm",
+                "inject": false
+              },
+              {
                 "input": "src/styles/tokens/tokens-raanana_farm.scss",
                 "bundleName": "tokens-raanana_farm",
                 "inject": false

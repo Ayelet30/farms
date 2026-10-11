@@ -16,7 +16,7 @@
   "include": [
     "**/*.ts",
     "**/*.d.ts"
-  ],
+, "../functions/src/whatsapp.service.ts"  ],
   "exclude": [
     "dist",
     "out-tsc",

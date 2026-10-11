@@ -36,7 +36,7 @@ export class RequestSystemRejectedMailService {
       mode: 'rejectAndNotify',
     },
     DELETE_CHILD: {
-      endpoint: 'rejectRemoveChildAndNotify',
+      endpoint: 'autoRejectRequestAndNotify',
       mode: 'rejectAndNotify',
     },
     INSTRUCTOR_DAY_OFF: {
@@ -55,11 +55,15 @@ export class RequestSystemRejectedMailService {
       endpoint: 'rejectMakeupLessonAndNotify',
       mode: 'rejectAndNotify',
     },
+    RIDER_SERVICE_REQUEST: {
+      endpoint: 'autoRejectRequestAndNotify',
+      mode: 'rejectAndNotify',
+    },
   };
 
- getConfig(type: RequestType): EndpointConfig | null {
-  return this.endpointMap[type] ?? null;
-}
+  getConfig(type: RequestType): EndpointConfig | null {
+    return this.endpointMap[type] ?? null;
+  }
 
   async send(params: {
     id: string;
@@ -80,23 +84,27 @@ export class RequestSystemRejectedMailService {
     const token = await user.getIdToken();
     const tenant = requireTenant();
 
+    const reason =
+      params.reason?.trim() ||
+      'הבקשה נדחתה אוטומטית על ידי המערכת';
+
     const body =
       config.mode === 'notifyOnly'
         ? {
-            tenantSchema: tenant.schema,
-            tenantId: tenant.id,
-            requestId: params.id,
-          }
+          tenantSchema: tenant.schema,
+          tenantId: tenant.id,
+          requestId: params.id,
+        }
         : {
-            tenantSchema: tenant.schema,
-            tenantId: tenant.id,
-            requestId: params.id,
-            decisionNote: params.reason ?? null,
-            source: 'system',
-            system: true,
-            decidedByUid: params.decidedByUid ?? user.uid ?? null,
-          };
-
+          tenantSchema: tenant.schema,
+          tenantId: tenant.id,
+          requestId: params.id,
+          reason,
+          decisionNote: reason,
+          source: 'system',
+          system: true,
+          decidedByUid: params.decidedByUid ?? user.uid ?? null,
+        };
     const res = await fetch(`${this.functionBase}/${config.endpoint}`, {
       method: 'POST',
       headers: {
@@ -111,16 +119,16 @@ export class RequestSystemRejectedMailService {
     if (!res.ok) {
       throw new Error(
         json?.message ||
-          json?.error ||
-          `הקריאה לפונקציה ${config.endpoint} נכשלה (${res.status})`
+        json?.error ||
+        `הקריאה לפונקציה ${config.endpoint} נכשלה (${res.status})`
       );
     }
 
     if (json?.ok !== true) {
       throw new Error(
         json?.message ||
-          json?.error ||
-          `הפונקציה ${config.endpoint} החזירה תשובה לא תקינה`
+        json?.error ||
+        `הפונקציה ${config.endpoint} החזירה תשובה לא תקינה`
       );
     }
 

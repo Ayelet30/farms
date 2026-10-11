@@ -9,32 +9,41 @@ import { ParentHomeComponent } from './parent-home/parent-home';
 // import { BillingErrorComponent } from './billing/billing-error.component';
 
 export const routes: Routes = [
+
   { path: '', redirectTo: 'home', pathMatch: 'full' },
 
   { path: 'home', loadComponent: () => import('./pages/home/home.component').then(m => m.HomeComponent) },
   {
-  path: 'accessibility',
-  loadComponent: () =>
-    import('./pages/accessibility/accessibility.component')
-      .then(m => m.AccessibilityComponent)
-},
+    path: 'accessibility',
+    loadComponent: () =>
+      import('./pages/accessibility/accessibility.component')
+        .then(m => m.AccessibilityComponent)
+  },
 
-{
-  path: 'privacy-policy',
-  loadComponent: () =>
-    import('./pages/privacy-policy/privacy-policy.component')
-      .then(m => m.PrivacyPolicyComponent)
-},
+  {
+    path: 'privacy-policy',
+    loadComponent: () =>
+      import('./pages/privacy-policy/privacy-policy.component')
+        .then(m => m.PrivacyPolicyComponent)
+  },
 
   {
     path: 'checkout/ride/:productId',
     component: OneTimePaymentComponent,
   },
 
- {
-  path: 'register/:farm',
-  loadComponent: () => import('./parent-signup/parent-signup.component').then(m => m.ParentPublicSignupComponent)
- },
+  {
+    path: 'register-independent/:farm',
+    loadComponent: () =>
+      import('./independent-signup/independent-signup.component')
+        .then(m => m.IndependentPublicSignupComponent),
+  },
+
+  {
+    path: 'register/:farm',
+    loadComponent: () => import('./parent-signup/parent-signup.component')
+      .then(m => m.ParentPublicSignupComponent)
+  },
 
 
   { path: 'booking/:type', loadComponent: () => import('./pages/booking/booking.component').then(m => m.BookingComponent) },
@@ -50,7 +59,7 @@ export const routes: Routes = [
     canActivate: [RoleGuard, TenantReadyGuard],
     data: { role: 'parent' },
     children: [
-      { path: '', component: ParentHomeComponent }, 
+      { path: '', component: ParentHomeComponent },
       { path: 'children', loadComponent: () => import('./pages/parent-children/parent-children').then(m => m.ParentChildrenComponent) },
       { path: 'schedule', loadComponent: () => import('./pages/schedule/parent-schedule/parent-schedule').then(m => m.ParentScheduleComponent) },
       { path: 'appointment', loadComponent: () => import('./appointment-scheduler/appointment-scheduler.component').then(m => m.AppointmentSchedulerComponent) },
@@ -87,12 +96,12 @@ export const routes: Routes = [
       {
         path: 'monthly-summary',
         loadComponent: () =>
-        import('./pages/monthly-summary/monthly-summary')
-          .then(m => m.MonthlySummaryComponent),
-          data: {
-            monthlyTitle: 'הסיכום החודשי שלי',
-            yearlyTitle: 'הסיכום השנתי שלי',
-          },
+          import('./pages/monthly-summary/monthly-summary')
+            .then(m => m.MonthlySummaryComponent),
+        data: {
+          monthlyTitle: 'הסיכום החודשי שלי',
+          yearlyTitle: 'הסיכום השנתי שלי',
+        },
       },
       {
         path: 'settings',
@@ -101,7 +110,6 @@ export const routes: Routes = [
             .then(m => m.InstructorSettingsComponent)
       },
 
-      /* ⭐⭐⭐ חדש — העדפות זמינות ⭐⭐⭐ */
       {
         path: 'availability',
         loadComponent: () =>
@@ -147,6 +155,12 @@ export const routes: Routes = [
             .then(m => m.SecretaryInstructorsComponent)
       },
       {
+        path: 'independent-riders',
+        loadComponent: () =>
+          import('./pages/secretary-independent-riders/secretary-independent-riders')
+            .then(m => m.SecretaryIndependentRidersComponent),
+      },
+      {
         path: 'horses',
         loadComponent: () =>
           import('./pages/secretary-horses/secretary-horses.component')
@@ -157,6 +171,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./pages/secretary-arenas/secretary-arenas.component')
             .then(m => m.SecretaryArenasComponent)
+      },
+      {
+        path: 'rider-services',
+        loadComponent: () =>
+          import('./pages/secretary-rider-services/secretary-rider-services')
+            .then(m => m.SecretaryRiderServicesComponent)
       },
       {
         path: 'regulations',
@@ -184,6 +204,18 @@ export const routes: Routes = [
             .then(m => m.SecretaryMessagesComponent)
       },
       {
+        path: 'rider-service-tasks',
+        loadComponent: () =>
+          import('./pages/secretary-rider-service-tasks/secretary-rider-service-tasks')
+            .then(m => m.SecretaryRiderServiceTasksComponent)
+      },
+      {
+        path: 'rider-billing',
+        loadComponent: () =>
+          import('./pages/secretary-rider-billing/secretary-rider-billing.component')
+            .then(m => m.SecretaryRiderBillingComponent),
+      },
+      {
         path: 'claims',
         loadComponent: () =>
           import('./pages/claims-page/claims-page.component')
@@ -198,19 +230,20 @@ export const routes: Routes = [
       {
         path: 'monthly-summary',
         loadComponent: () =>
-        import('./pages/monthly-summary/monthly-summary')
-          .then(m => m.MonthlySummaryComponent),
-          data: {
-            monthlyTitle: 'הסיכום החודשי של החווה',
-            yearlyTitle: 'הסיכום השנתי של החווה',
-          },
+          import('./pages/monthly-summary/monthly-summary')
+            .then(m => m.MonthlySummaryComponent),
+        data: {
+          monthlyTitle: 'הסיכום החודשי של החווה',
+          yearlyTitle: 'הסיכום השנתי של החווה',
         },
+      },
       {
         path: 'requests',
         loadComponent: () =>
           import('./secretarial-requests-page/secretarial-requests-page.component')
             .then(m => m.SecretarialRequestsPageComponent)
       },
+
       {
         path: 'payments',
         loadComponent: () =>
@@ -257,6 +290,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('../admin-hmo/admin-hmo-integrations.page').then(m => m.AdminHmoIntegrationsPage)
       },
+      {
+        path: 'billing',
+        loadComponent: () =>
+          import('./admin/admin-billing/admin-billing')
+            .then(m => m.AdminBillingComponent)
+      }
       // {
       //   path: 'addChildren',
       //   loadComponent: () =>
@@ -275,6 +314,64 @@ export const routes: Routes = [
       import('./pages/booking/booking.component')
         .then(m => m.BookingComponent)
   },
+  {
+    path: 'independent',
+    loadComponent: () =>
+      import('./layout/layout').then(m => m.LayoutComponent),
+    canActivate: [RoleGuard, TenantReadyGuard],
+    data: { role: 'independent' },
+    children: [
+      {
+        path: '',
+        loadComponent: () =>
+          import('./pages/independent-home/independent-home.component')
+            .then(m => m.IndependentHomeComponent),
+      },
 
+      {
+        path: 'appointment',
+        loadComponent: () =>
+          import('./pages/independent-service-request/independent-service-request.component')
+            .then(m => m.IndependentServiceRequestComponent),
+      },
+      {
+        path: 'my-services',
+        loadComponent: () =>
+          import('./pages/independent-my-services/independent-my-services')
+            .then(m => m.IndependentMyServicesComponent)
+      },
+      {
+        path: 'payments',
+        loadComponent: () =>
+          import('./pages/independent-rider-payments/independent-rider-payments')
+            .then(m => m.IndependentRiderPaymentsComponent)
+      },
+
+      // {
+      //   path: 'billing',
+      //   loadComponent: () =>
+      //     import('./pages/independent-billing/independent-billing.component')
+      //       .then(m => m.IndependentBillingComponent),
+      // },
+      {
+        path: 'requests',
+        loadComponent: () =>
+          import('./secretarial-requests-page/secretarial-requests-page.component')
+            .then(m => m.SecretarialRequestsPageComponent),
+      },
+      {
+        path: 'details',
+        loadComponent: () =>
+          import('./pages/independent-details/independent-details.component')
+            .then(m => m.IndependentDetailsComponent),
+      },
+      {
+        path: 'horses',
+        loadComponent: () =>
+          import('./pages/independent-horses/independent-horses.component')
+            .then(m => m.IndependentHorsesComponent),
+      },
+    ],
+  },
   { path: '**', redirectTo: 'home' },
 ];

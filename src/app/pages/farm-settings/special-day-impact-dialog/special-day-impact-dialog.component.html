@@ -79,10 +79,18 @@
   </div>
 
   <div class="dialog-warning" *ngIf="groupedRows.length">
-    עם אישור הפעולה:
-    <strong>היום המיוחד יישמר</strong>,
-    <strong>השיעורים יסומנו כמבוטלים</strong>,
-    ויישלחו <strong>מיילים להורים הרלוונטיים</strong>.
+    <ng-container *ngIf="data.notifyParents; else withoutEmails">
+      עם אישור הפעולה: היום המיוחד יישמר,
+      השיעורים יסומנו כמבוטלים,
+      ויישלחו מיילים להורים ולמדריכים הרלוונטיים.
+    </ng-container>
+
+    <ng-template #withoutEmails>
+      עם אישור הפעולה: היום המיוחד יישמר,
+      השיעורים יסומנו כמבוטלים.
+      לא יישלחו מיילים.
+    </ng-template>
+
   </div>
 
   <div class="dialog-actions">

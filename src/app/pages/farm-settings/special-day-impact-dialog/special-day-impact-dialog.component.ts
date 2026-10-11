@@ -22,6 +22,7 @@ export interface SpecialDayImpactDialogData {
   startDate: string;
   endDate: string;
   allDay: boolean;
+  notifyParents: boolean;
   rows: SpecialDayImpactRow[];
 }
 

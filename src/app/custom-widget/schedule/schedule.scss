@@ -5,6 +5,39 @@
 /* =========================
    Base
 ========================= */
+.day-loading-placeholder {
+  min-height: 600px;
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+
+  color: #687160;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.day-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e1e7d4;
+  border-top-color: #748c40;
+  border-radius: 50%;
+  animation: day-loading-spin 0.8s linear infinite;
+}
+
+@keyframes day-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.day-blocked-overlay.kind-instructor-off {
+  background: rgba(255, 193, 7, 0.22) !important;
+  border: 1px solid rgba(224, 168, 0, 0.55) !important;
+}
 
 .card {
   background: #fff;
@@ -18,16 +51,127 @@
 .schedule-wrap {
   display: grid;
   grid-template-rows: auto 1fr;
-  gap: 12px;
+  gap: 2px;
   --toolbar-space: 96px;
 }
 
 .schedule-wrap.fullscreen {
   position: fixed;
-  inset: 80px 60px 0 0;
-  z-index: 1000;
+  inset: 0;
+  z-index: 10000;
+
+  /* ללא width: 100vw */
+  /* ללא height: 100dvh */
+
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+
+  gap: 60px;
+  margin-right: 43px;
+
   background: #fff;
-  padding: 12px;
+  padding: 10px;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.schedule-wrap.fullscreen .day-resource-header,
+.schedule-wrap.fullscreen .day-single-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--olive-50);
+}
+
+.schedule-wrap.fullscreen .day-corner-time {
+  position: sticky;
+  top: 0;
+  inset-inline-end: 0;
+  z-index: 130;
+  background: #f8faf3;
+}
+
+.schedule-wrap.fullscreen .day-time-cell {
+  position: sticky;
+  inset-inline-end: 0;
+  z-index: 50;
+  background: #fff;
+}
+
+.schedule-wrap.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: #fff;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.schedule-wrap.fullscreen .custom-day-host {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.schedule-wrap.fullscreen .custom-day-grid {
+  width: max-content;
+  min-width: 100%;
+  height: auto;
+}
+
+.schedule-wrap.fullscreen .calendar-host {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.schedule-wrap.fullscreen .custom-day-host {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: none;
+  overflow: auto;
+}
+
+.schedule-wrap.fullscreen .custom-day-grid {
+  /* חשוב לשמור על החישוב המקורי של הגריד */
+  width: max-content;
+  min-width: 100%;
+  height: auto;
+  min-height: max-content;
+}
+
+.schedule-wrap.fullscreen .schedule-host,
+.schedule-wrap.fullscreen full-calendar {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.schedule-wrap.fullscreen .calendar-toolbar {
+  width: 100%;
+  margin: 0;
+}
+
+.schedule-wrap.fullscreen .card {
+  margin: 0;
+}
+
+.schedule-wrap.fullscreen .calendar-host {
+  max-height: none;
+  height: 100%;
+  overflow: auto;
 }
 
 .schedule-wrap.fullscreen .card {
@@ -40,7 +184,7 @@
 
 .calendar-toolbar {
   display: grid;
-  grid-template-columns: auto minmax(150px, 220px) auto;
+  grid-template-columns: auto minmax(290px, 220px) auto;
   align-items: center;
   justify-content: center;
   gap: 8px;
@@ -48,6 +192,8 @@
   overflow-y: hidden;
   white-space: nowrap;
   scrollbar-width: none;
+  margin: 0;
+  border-radius: 12px;
 }
 
 .calendar-toolbar::-webkit-scrollbar {
@@ -110,6 +256,22 @@
   background: #f7f7f7 !important;
 }
 
+.reload-btn:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.btn-icon.spinning {
+  display: inline-block;
+  animation: schedule-reload-spin 0.8s linear infinite;
+}
+
+@keyframes schedule-reload-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .assign-btn {
   font-weight: 700;
   border-radius: 999px;
@@ -129,8 +291,8 @@
   grid-template-columns: 32px minmax(0, 1fr) 32px;
   align-items: center;
   gap: 6px;
-  max-width: 220px;
-  min-width: 0;
+  max-width: 320px;
+  min-width: 280px;
   background: #f3f6e9;
   border: 1px solid #dbe3cc;
   border-radius: 999px;
@@ -142,9 +304,9 @@
   font-weight: 800;
   font-size: 14px;
   color: #2f3a28;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  overflow: visible;
+  text-overflow: unset;
 }
 
 .nav-btn {
@@ -236,8 +398,8 @@
 
 .custom-day-grid {
   --time-col-width: 64px;
-  --min-resource-col: 170px;
-  --slot-row-height: 54px;
+  --min-resource-col: 190px;
+  --slot-row-height: 30px;
 
   display: grid;
   grid-template-columns:
@@ -347,7 +509,7 @@
 
 .day-bg-cell.blocked-cell {
   background: #ececec;
-  cursor: not-allowed;
+  cursor: context-menu;
 }
 
 .day-resource-header,
@@ -519,6 +681,22 @@
   background: #e8f5e9;
   border-color: #66bb6a;
   color: #1b5e20;
+}
+
+.day-lesson-card.instructor-day-off {
+  background: #fff4cc !important;
+  background-color: #fff4cc !important;
+  border-color: #e0a800 !important;
+  color: #7a5600 !important;
+}
+
+.day-lesson-card.instructor-day-off:hover {
+  background: #ffedaa !important;
+  background-color: #ffedaa !important;
+}
+
+.day-blocked-overlay {
+  pointer-events: none;
 }
 
 .day-lesson-card.status-pending {
@@ -1117,7 +1295,7 @@
 
 @media (max-width: 1400px) {
   .custom-day-grid {
-    --min-resource-col: 130px;
+    --min-resource-col: 170px;
   }
 
   .day-child-name {
@@ -1153,8 +1331,12 @@
   }
 
   .schedule-wrap.fullscreen {
+    top: 70px;
+    right: 0;
+    left: 0;
+    bottom: 0;
     padding: 8px;
-    inset: 60px 0px 0 0;
+    border-radius: 0;
   }
 
   .card.calendar-toolbar {
@@ -1301,8 +1483,8 @@
 
 }
 
-.fc .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > * {
-    top: -12px;
+.fc .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky>* {
+  top: -12px;
 }
 
 /* =========================
@@ -1341,7 +1523,7 @@
 
   margin: 3px !important;
 
-  box-shadow: 0 2px 6px rgba(0,0,0,0.10);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.10);
 
   font-size: 13px;
   font-weight: 900;
@@ -1430,6 +1612,11 @@
   border: none !important;
 }
 
+.fc-event.month-count-event {
+  pointer-events: none;
+  cursor: default;
+}
+
 .bereshit-calendar .month-count-event .fc-event-main {
   display: flex;
   gap: 6px;
@@ -1495,12 +1682,13 @@
 }
 
 .fc-h-event .fc-event-main {
-    color: black !important;
+  color: black !important;
 }
 
 .bereshit-calendar .month-count-event .fc-event-title {
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
+
 .month-badge-only {
   width: 28px;
   height: 28px;
@@ -1513,4 +1701,140 @@
 
   font-size: 13px;
   font-weight: 800;
+}
+
+.day-bg-cell.break-cell {
+
+  background-image:
+    repeating-linear-gradient(-45deg,
+      rgba(0, 0, 0, 0.10) 0px,
+      rgba(0, 0, 0, 0.10) 2px,
+      transparent 2px,
+      transparent 8px) !important;
+
+  background-size: auto;
+}
+
+.btn-icon {
+  display: none;
+}
+
+.btn-text {
+  display: inline;
+}
+
+/* עד 900px — מציגים אייקון ומקטינים */
+@media (max-width: 900px) {
+  .btn-group>button {
+    padding: 5px 8px;
+    min-width: 34px;
+    font-size: 12px;
+  }
+
+  .btn-icon {
+    display: inline;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .btn-text {
+    display: none;
+  }
+}
+
+.attendance-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 900;
+  margin-inline-end: 5px;
+  flex: 0 0 auto;
+}
+
+.attendance-mark.present {
+  background: #e7f6df;
+  color: #2f7d32;
+  border: 1px solid #9bd18c;
+}
+
+.attendance-mark.absent {
+  background: #fdecec;
+  color: #a12626;
+  border: 1px solid #e3a4a4;
+}
+
+@media (max-width: 600px) {
+  .card.calendar-toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "date date"
+      "views actions";
+    gap: 8px;
+    padding: 8px;
+    border-radius: 18px;
+    overflow: visible;
+  }
+
+  .view-buttons {
+    grid-area: views;
+    justify-self: start;
+  }
+
+  .date-nav {
+    grid-area: date;
+    justify-self: center;
+    width: 100%;
+    max-width: 330px;
+    min-width: 0;
+    height: 40px;
+    grid-template-columns: 34px 1fr 34px;
+    padding: 3px 6px;
+  }
+
+  .actions {
+    grid-area: actions;
+    justify-self: end;
+  }
+
+  .date-nav .current-date {
+    font-size: 15px;
+    font-weight: 900;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: unset;
+  }
+
+  .btn-group {
+    height: 38px;
+    padding: 3px;
+    gap: 4px;
+    border-radius: 999px;
+  }
+
+  .btn-group>button {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  .nav-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .btn-text {
+    display: none !important;
+  }
+
+  .btn-icon {
+    display: inline !important;
+    font-size: 14px;
+  }
 }
