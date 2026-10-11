@@ -93,6 +93,22 @@ type ParentBrief = {
   email: string | null;
 };
 
+type FarmWorkingHour = {
+  day_of_week: number;
+  is_open: boolean;
+  farm_start: string | null;
+  farm_end: string | null;
+};
+
+type WaitingTimeRange = {
+  from: string;
+  to: string;
+};
+
+type WaitingDayAvailability = {
+  day: number;
+  ranges: WaitingTimeRange[];
+};
 
 type ChildDetails = {
   child_uuid?: string;
@@ -337,6 +353,34 @@ export class SecretaryChildrenComponent implements OnInit {
   showColumnsPanel = false;
   panelFocus: 'search' | 'filter' = 'search';
   showAddChildWizard = false;
+  showWaitingListDialog = false;
+  waitingListAllInstructors = true;
+  waitingListInstructorIds: string[] = [];
+  waitingListInstructorSearch = '';
+  waitingListInstructorsOpen = false;
+  waitingListPriority: 'high' | 'medium' | 'low' = 'medium';
+  waitingListAllTimes = true;
+  farmWorkingHours: FarmWorkingHour[] = [];
+  farmWorkingHoursLoading = false;
+  farmWorkingHoursLoaded = false;
+  farmWorkingHoursError = '';
+  waitingListDays: WaitingDayAvailability[] = [];
+
+  waitingListWeekDays = [
+    { id: 1, name: 'ראשון' },
+    { id: 2, name: 'שני' },
+    { id: 3, name: 'שלישי' },
+    { id: 4, name: 'רביעי' },
+    { id: 5, name: 'חמישי' },
+    { id: 6, name: 'שישי' },
+    { id: 7, name: 'שבת' }
+  ];
+
+  waitingListSameHours = false;
+
+  waitingListCommonRanges: WaitingTimeRange[] = [
+    { from: '', to: '' }
+  ];
 
   horses: HorseLite[] = [];
   childHorses: Record<string, string[]> = {};
@@ -1482,11 +1526,20 @@ scheduled_deletion_at,deletion_note
     return `${dd}/${mm}/${yyyy}`;
   }
 
-  async openDetails(id?: string) {
+  async openDetails(id?: string): Promise<void> {
     if (!id) return;
 
+    // אם עברנו לילד אחר - סוגרים טפסים פתוחים
+    if (this.selectedId !== id) {
+      // יציאה ממצב עריכה
+      this.editMode = false;
+      this.closeWaitingListDialog();
+    }
+
+    // הצגת הילד החדש
     this.selectedId = id;
     this.drawer.open();
+
     await this.loadDrawerData(id);
   }
 
@@ -1512,6 +1565,510 @@ scheduled_deletion_at,deletion_note
 
   openAddChildDialog() {
     this.showAddChildWizard = true;
+  }
+
+  async openWaitingListDialog(): Promise<void> {
+    if (!this.drawerChild?.child_uuid) return;
+
+    // איפוס כל הבחירות בטופס
+    this.resetWaitingListForm();
+
+    // פתיחת מסך רשימת ההמתנה
+    this.showWaitingListDialog = true;
+
+    // טעינת שעות הפעילות של החווה
+    await this.loadWaitingListFarmHours();
+  }
+
+
+  closeWaitingListDialog(): void {
+    this.showWaitingListDialog = false;
+    this.resetWaitingListForm();
+  }
+
+  resetWaitingListForm(): void {
+
+    // מדריכים
+    this.waitingListAllInstructors = true;
+    this.waitingListInstructorIds = [];
+    this.waitingListInstructorSearch = '';
+    this.waitingListInstructorsOpen = false;
+
+    // זמינות
+    this.waitingListAllTimes = true;
+    this.waitingListDays = [];
+    this.waitingListSameHours = false;
+    this.waitingListCommonRanges = [
+      { from: '', to: '' }
+    ];
+
+    // עדיפות
+    this.waitingListPriority = 'medium';
+  }
+
+  get canSaveWaitingList(): boolean {
+
+    if (
+      !this.farmWorkingHoursLoaded ||
+      this.farmWorkingHoursLoading ||
+      this.farmWorkingHoursError ||
+      this.waitingListAvailableDays.length === 0
+    ) {
+      return false;
+    }
+
+    // חייב להיות ילד מזוהה
+    if (!this.drawerChild?.child_uuid) {
+      return false;
+    }
+
+    // אם בחרו מדריכים מסוימים - חייבים לבחור לפחות אחד
+    if (
+      !this.waitingListAllInstructors &&
+      this.waitingListInstructorIds.length === 0
+    ) {
+      return false;
+    }
+
+    // כל הימים והשעות - תקין
+    if (this.waitingListAllTimes) {
+      return true;
+    }
+
+    // בזמינות מותאמת חייבים לבחור לפחות יום אחד
+    if (this.waitingListDays.length === 0) {
+      return false;
+    }
+
+    // בדיקת שעות הפעילות של כל יום שנבחר
+    for (const day of this.waitingListDays) {
+
+      const hours = this.getWaitingListFarmHours(day.day);
+
+      if (
+        !hours?.is_open ||
+        !hours.farm_start ||
+        !hours.farm_end
+      ) {
+        return false;
+      }
+
+      const ranges = this.waitingListSameHours
+        ? this.waitingListCommonRanges
+        : day.ranges;
+
+      for (const range of ranges) {
+
+        const start = range.from || hours.farm_start;
+        const end = range.to || hours.farm_end;
+
+        if (
+          start < hours.farm_start ||
+          end > hours.farm_end ||
+          start >= end
+        ) {
+          return false;
+        }
+      }
+    }
+
+    // בחירת טווחי השעות הרלוונטיים
+    const rangesByDay = this.waitingListDays.map(day =>
+      this.waitingListSameHours
+        ? this.waitingListCommonRanges
+        : day.ranges
+    );
+
+    // בדיקת שעות תקינות וטווחים חופפים
+    for (const ranges of rangesByDay) {
+
+      if (ranges.length === 0) {
+        return false;
+      }
+
+      const intervals: { start: number; end: number }[] = [];
+
+      for (const range of ranges) {
+
+        // המרת שעה למספר דקות מתחילת היום
+        const toMinutes = (time: string): number | null => {
+          if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+            return null;
+          }
+
+          const [hours, minutes] = time.split(':').map(Number);
+          return hours * 60 + minutes;
+        };
+
+        // שדה ריק = ללא הגבלה באותו צד
+        const start = range.from ? toMinutes(range.from) : 0;
+        const end = range.to ? toMinutes(range.to) : 1440;
+
+        // שעות לא תקינות
+        if (start === null || end === null) {
+          return false;
+        }
+
+        // הסיום חייב להיות מאוחר מההתחלה
+        if (start >= end) {
+          return false;
+        }
+
+        intervals.push({ start, end });
+      }
+
+      // ממיינים את הטווחים לפי שעת ההתחלה
+      intervals.sort((a, b) => a.start - b.start);
+
+      // בודקים אם יש חפיפה בין שני טווחים
+      for (let i = 1; i < intervals.length; i++) {
+        if (intervals[i].start < intervals[i - 1].end) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  saveWaitingList(): void {
+
+    if (!this.canSaveWaitingList) {
+      return;
+    }
+
+    console.log('נתונים המיועדים לשמירה:', {
+
+
+      childId: this.drawerChild!.child_uuid,
+
+      allInstructors: this.waitingListAllInstructors,
+
+      instructorIds: this.waitingListAllInstructors
+        ? []
+        : [...this.waitingListInstructorIds],
+
+      allTimes: this.waitingListAllTimes,
+
+      priority: this.waitingListPriority,
+
+      availability: this.waitingListAllTimes
+        ? []
+        : this.waitingListDays.map(day => ({
+          day: day.day,
+          ranges: (
+            this.waitingListSameHours
+              ? this.waitingListCommonRanges
+              : day.ranges
+          ).map(range => ({ ...range }))
+        }))
+    });
+
+  }
+
+  get filteredWaitingListInstructors() {
+    const search = this.waitingListInstructorSearch.trim().toLowerCase();
+
+    return this.instructors.filter(instructor =>
+      this.getInstructorName(instructor.id_number)
+        .toLowerCase()
+        .includes(search)
+    );
+  }
+
+  getWaitingListInstructorName(id: string): string {
+    return this.getInstructorName(id);
+  }
+
+
+  getWaitingListChildAge(): number | null {
+    const birthDate = this.drawerChild?.birth_date;
+
+    if (!birthDate) return null;
+
+    const parts = birthDate.slice(0, 10).split('-').map(Number);
+
+    if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) {
+      return null;
+    }
+
+    const [year, month, day] = parts;
+    const today = new Date();
+
+    let age = today.getFullYear() - year;
+
+    if (
+      today.getMonth() + 1 < month ||
+      (today.getMonth() + 1 === month && today.getDate() < day)
+    ) {
+      age--;
+    }
+
+    return age >= 0 ? age : null;
+  }
+
+  setWaitingListAllInstructors(all: boolean): void {
+    this.waitingListAllInstructors = all;
+    this.waitingListInstructorIds = [];
+    this.waitingListInstructorSearch = '';
+    this.waitingListInstructorsOpen = false;
+  }
+
+  toggleWaitingListInstructor(id: string, checked: boolean): void {
+    if (checked) {
+      if (!this.waitingListInstructorIds.includes(id)) {
+        this.waitingListInstructorIds.push(id);
+      }
+    } else {
+      this.waitingListInstructorIds =
+        this.waitingListInstructorIds.filter(x => x !== id);
+    }
+  }
+
+  setWaitingListAllTimes(all: boolean): void {
+    this.waitingListAllTimes = all;
+
+    // איפוס כל בחירות הזמינות
+    this.waitingListDays = [];
+
+    // ביטול שעות אחידות
+    this.waitingListSameHours = false;
+
+    // איפוס טווחי השעות המשותפים
+    this.waitingListCommonRanges = [
+      { from: '', to: '' }
+    ];
+  }
+
+  isWaitingListDaySelected(day: number): boolean {
+    return this.waitingListDays.some(item => item.day === day);
+  }
+
+  toggleWaitingListDay(day: number): void {
+    const exists = this.isWaitingListDaySelected(day);
+
+    if (exists) {
+      this.waitingListDays = this.waitingListDays.filter(
+        item => item.day !== day
+      );
+    } else {
+      this.waitingListDays = [
+        ...this.waitingListDays,
+        {
+          day,
+          ranges: [{ from: '', to: '' }]
+        }
+      ].sort((a, b) => a.day - b.day);
+    }
+  }
+
+  getWaitingListDay(day: number): WaitingDayAvailability | undefined {
+    return this.waitingListDays.find(item => item.day === day);
+  }
+
+  getWaitingListAvailabilitySummary(): string[] {
+
+    if (this.waitingListAllTimes) {
+      return ['כל הימים והשעות'];
+    }
+
+    if (this.waitingListDays.length === 0) {
+      return ['לא נבחרו ימים'];
+    }
+
+    return this.waitingListDays.map(day => {
+
+      const dayName = this.getWaitingListDayName(day.day);
+
+      const ranges = this.waitingListSameHours
+        ? this.waitingListCommonRanges
+        : day.ranges;
+
+      const rangeTexts = ranges.map(range => {
+
+        if (!range.from && !range.to) {
+          return 'כל השעות';
+        }
+
+        if (range.from && !range.to) {
+          return `משעה ${range.from}`;
+        }
+
+        if (!range.from && range.to) {
+          return `עד שעה ${range.to}`;
+        }
+
+        return `${range.from}–${range.to}`;
+
+      });
+
+      return `יום ${dayName}: ${rangeTexts.join(', ')}`;
+
+    });
+  }
+
+  addWaitingListTimeRange(day: number): void {
+    const selectedDay = this.getWaitingListDay(day);
+
+    if (!selectedDay) return;
+
+    selectedDay.ranges.push({ from: '', to: '' });
+  }
+
+  removeWaitingListTimeRange(day: number, index: number): void {
+    const selectedDay = this.getWaitingListDay(day);
+
+    if (!selectedDay || selectedDay.ranges.length <= 1) return;
+
+    selectedDay.ranges.splice(index, 1);
+  }
+
+  addWaitingListCommonRange(): void {
+    this.waitingListCommonRanges.push({ from: '', to: '' });
+  }
+
+  removeWaitingListCommonRange(index: number): void {
+    if (this.waitingListCommonRanges.length <= 1) return;
+
+    this.waitingListCommonRanges.splice(index, 1);
+  }
+
+  private async loadWaitingListFarmHours(): Promise<void> {
+    this.farmWorkingHoursLoading = true;
+    this.farmWorkingHoursLoaded = false;
+    this.farmWorkingHoursError = '';
+    this.farmWorkingHours = [];
+
+    try {
+      const db = await this.dbc();
+
+      const { data, error } = await db
+        .from('farm_working_hours')
+        .select('day_of_week, is_open, farm_start, farm_end')
+        .order('day_of_week', { ascending: true });
+
+      if (error) throw error;
+
+      this.farmWorkingHours = (data ?? []).map((row: FarmWorkingHour) => ({
+        day_of_week: Number(row.day_of_week),
+        is_open: row.is_open === true,
+        farm_start: row.farm_start
+          ? String(row.farm_start).slice(0, 5)
+          : null,
+        farm_end: row.farm_end
+          ? String(row.farm_end).slice(0, 5)
+          : null
+      }));
+
+      this.farmWorkingHoursLoaded = true;
+
+      console.log(
+        'שעות הפעילות של החווה:',
+        this.farmWorkingHours
+      );
+
+    } catch (error) {
+      console.error('שגיאה בטעינת שעות החווה:', error);
+
+      this.farmWorkingHoursError =
+        'לא ניתן לטעון את שעות הפעילות של החווה';
+
+    } finally {
+      this.farmWorkingHoursLoading = false;
+    }
+  }
+
+  get waitingListAvailableDays() {
+    if (!this.farmWorkingHoursLoaded) {
+      return [];
+    }
+
+    return this.waitingListWeekDays.filter(day => {
+      const hours = this.farmWorkingHours.find(
+        row => row.day_of_week === day.id
+      );
+
+      return (
+        hours?.is_open === true &&
+        !!hours.farm_start &&
+        !!hours.farm_end &&
+        hours.farm_start < hours.farm_end
+      );
+    });
+  }
+
+  getWaitingListFarmHours(day: number): FarmWorkingHour | undefined {
+    return this.farmWorkingHours.find(
+      row => row.day_of_week === day && row.is_open
+    );
+  }
+
+  validateWaitingListTime(
+    day: number,
+    range: WaitingTimeRange,
+    field: 'from' | 'to'
+  ): void {
+
+    const hours = this.getWaitingListFarmHours(day);
+
+    if (!hours?.farm_start || !hours?.farm_end) {
+      return;
+    }
+
+    const value = range[field];
+
+    // שדה ריק מותר: אין הגבלה בצד הזה
+    if (!value) return;
+
+    if (value < hours.farm_start) {
+      range[field] = hours.farm_start;
+    }
+
+    if (value > hours.farm_end) {
+      range[field] = hours.farm_end;
+    }
+  }
+
+  get waitingListCommonMinTime(): string {
+    const starts = this.waitingListDays
+      .map(day => this.getWaitingListFarmHours(day.day)?.farm_start)
+      .filter((time): time is string => !!time);
+
+    return starts.length
+      ? starts.reduce((latest, time) => time > latest ? time : latest)
+      : '';
+  }
+
+  get waitingListCommonMaxTime(): string {
+    const ends = this.waitingListDays
+      .map(day => this.getWaitingListFarmHours(day.day)?.farm_end)
+      .filter((time): time is string => !!time);
+
+    return ends.length
+      ? ends.reduce((earliest, time) => time < earliest ? time : earliest)
+      : '';
+  }
+
+  validateWaitingListCommonTime(
+    range: WaitingTimeRange,
+    field: 'from' | 'to'
+  ): void {
+
+    const min = this.waitingListCommonMinTime;
+    const max = this.waitingListCommonMaxTime;
+    const value = range[field];
+
+    if (!value || !min || !max) return;
+
+    if (value < min) {
+      range[field] = min;
+    } else if (value > max) {
+      range[field] = max;
+    }
+  }
+
+  getWaitingListDayName(day: number): string {
+    return this.waitingListWeekDays.find(item => item.id === day)?.name ?? '';
   }
 
   private async loadDrawerData(id: string) {
@@ -2074,8 +2631,8 @@ scheduled_deletion_at,deletion_note
         null,
 
       effectiveFrom: this.isSeriesCurrentlyOpen(series)
-  ? this.getTodayIsoDate()
-  : '',
+        ? this.getTodayIsoDate()
+        : '',
 
       saving: false,
       error: '',
@@ -2111,32 +2668,32 @@ scheduled_deletion_at,deletion_note
     }
 
     const startDate = this.getSeriesActualStartDateIso(series);
-const endDate = series.seriesEndDate?.slice(0, 10);
+    const endDate = series.seriesEndDate?.slice(0, 10);
 
-if (!startDate) {
-  this.seriesPaymentPlanEditor.error =
-    'לא ניתן לזהות את תאריך תחילת הסדרה.';
-  return;
-}
+    if (!startDate) {
+      this.seriesPaymentPlanEditor.error =
+        'לא ניתן לזהות את תאריך תחילת הסדרה.';
+      return;
+    }
 
-if (effectiveFrom < startDate) {
-  this.seriesPaymentPlanEditor.error =
-    'תאריך תחולת המסלול לא יכול להיות לפני תחילת הסדרה.';
-  return;
-}
+    if (effectiveFrom < startDate) {
+      this.seriesPaymentPlanEditor.error =
+        'תאריך תחולת המסלול לא יכול להיות לפני תחילת הסדרה.';
+      return;
+    }
 
-if (endDate && effectiveFrom > endDate) {
-  this.seriesPaymentPlanEditor.error =
-    'תאריך תחולת המסלול לא יכול להיות אחרי סיום הסדרה.';
-  return;
-}
+    if (endDate && effectiveFrom > endDate) {
+      this.seriesPaymentPlanEditor.error =
+        'תאריך תחולת המסלול לא יכול להיות אחרי סיום הסדרה.';
+      return;
+    }
 
-if (
-  this.seriesPaymentPlanEditor.saving ||
-  this.seriesPaymentPlanEditor.lessonId !== series.lessonId
-) {
-  return;
-}
+    if (
+      this.seriesPaymentPlanEditor.saving ||
+      this.seriesPaymentPlanEditor.lessonId !== series.lessonId
+    ) {
+      return;
+    }
 
     const childId = this.drawerChild?.child_uuid ?? null;
 
@@ -2716,22 +3273,22 @@ if (
     }
 
     // שמירה כפעיל מבטלת כל תכנון להפיכה ללא פעיל,
-// גם אם הילד כבר מוצג כפעיל ונשאר לו תכנון ישן.
-if (
-  this.isActiveStatus(raw.status) &&
-  (
-    !this.isActiveStatus(this.originalChild?.status) ||
-    this.drawerChild?.scheduled_deletion_at != null ||
-    this.drawerChild?.deletion_requested_at != null ||
-    this.drawerChild?.deletion_note != null
-  )
-) {
-  (delta as any).status = 'Active';
-  (delta as any).deletion_requested_at = null;
-  (delta as any).scheduled_deletion_at = null;
-  (delta as any).deletion_note = null;
-}
-    
+    // גם אם הילד כבר מוצג כפעיל ונשאר לו תכנון ישן.
+    if (
+      this.isActiveStatus(raw.status) &&
+      (
+        !this.isActiveStatus(this.originalChild?.status) ||
+        this.drawerChild?.scheduled_deletion_at != null ||
+        this.drawerChild?.deletion_requested_at != null ||
+        this.drawerChild?.deletion_note != null
+      )
+    ) {
+      (delta as any).status = 'Active';
+      (delta as any).deletion_requested_at = null;
+      (delta as any).scheduled_deletion_at = null;
+      (delta as any).deletion_note = null;
+    }
+
     if (Object.keys(delta).length === 0) {
       this.editMode = false;
       return;
