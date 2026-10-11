@@ -8,6 +8,8 @@ import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { getAuth } from 'firebase/auth';
 import { RequestValidationService } from '../../services/request-validation.service';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { CurrentUserService } from '../../core/auth/current-user.service';
+
 
 
 type CancelDetails = {
@@ -407,5 +409,15 @@ export class RequestCancelOccurrenceDetailsComponent implements OnInit {
     const d = dateStr?.slice(0, 10);
     const t = (timeStr ?? '00:00').slice(0, 5);
     return new Date(`${d}T${t}:00`);
+  }
+  private currentUserService = inject(CurrentUserService);
+  get canDecide(): boolean {
+    const user = this.currentUserService.current;
+
+    const role = String(
+      (user as any)?.role_in_tenant ?? user?.role ?? ''
+    ).trim().toLowerCase();
+
+    return role === 'secretary';
   }
 }
