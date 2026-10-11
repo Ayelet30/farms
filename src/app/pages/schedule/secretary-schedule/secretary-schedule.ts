@@ -1643,7 +1643,13 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
   onRightClickDay(e: any): void {
     if (!e?.jsEvent) return;
-
+    console.log('RIGHT CLICK DATE DEBUG', {
+      dateStr: e.dateStr,
+      occurDate: e.occurDate,
+      lessonId: e.lessonId,
+      seriesId: e.seriesId,
+      event: e
+    });
     e.jsEvent.preventDefault();
     e.jsEvent.stopPropagation();
 
@@ -4376,7 +4382,13 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
   onRightClickEvent(e: any): void {
     if (!e?.jsEvent) return;
-
+    console.log('RIGHT CLICK DATE DEBUG', {
+      dateStr: e.dateStr,
+      occurDate: e.occurDate,
+      lessonId: e.lessonId,
+      seriesId: e.seriesId,
+      event: e
+    });
     e.jsEvent.preventDefault();
     e.jsEvent.stopPropagation();
 
