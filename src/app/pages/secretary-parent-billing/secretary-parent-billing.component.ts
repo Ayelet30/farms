@@ -89,6 +89,85 @@ export class SecretaryParentBillingComponent implements OnInit {
       : 0;
   });
 
+removingDraftItem = signal<string | null>(null);
+
+canRemoveDraftItem(): boolean {
+  const charge = this.activeDetailsCharge();
+  return charge?.status === 'draft';
+}
+
+async removeDraftItem(item: any): Promise<void> {
+  if (item.is_removed) return;
+
+  const confirmed = window.confirm(
+    'להסיר את השורה מהטיוטה?\n' +
+    'הסכום יעודכן. השורה תישאר בפירוט ותוכלי להחזיר אותה.'
+  );
+
+  if (!confirmed) return;
+
+  await this.changeDraftItem(item, false);
+}
+
+async restoreDraftItem(item: any): Promise<void> {
+  if (!item.is_removed) return;
+
+  await this.changeDraftItem(item, true);
+}
+
+private async changeDraftItem(
+  item: any,
+  restore: boolean
+): Promise<void> {
+  const chargeId = this.detailsOpenFor();
+
+  if (
+    !chargeId ||
+    !this.canRemoveDraftItem() ||
+    this.removingDraftItem() !== null
+  ) {
+    return;
+  }
+
+  this.removingDraftItem.set(item.id);
+  this.detailsError.set(null);
+  this.successMessage.set(null);
+
+  try {
+    const { error } = await dbTenant().rpc(
+      restore
+        ? 'restore_draft_charge_item'
+        : 'remove_draft_charge_item',
+      {
+        p_charge_id: chargeId,
+        p_item_id: item.id,
+        p_row_type: item.row_type,
+      }
+    );
+
+    if (error) throw error;
+
+    await this.loadCharges();
+
+    if (this.detailsOpenFor() === chargeId) {
+      await this.openChargeDetails(chargeId);
+    }
+
+    this.successMessage.set(
+      restore
+        ? 'השורה הוחזרה לטיוטה.'
+        : 'השורה הוסרה מהטיוטה.'
+    );
+  } catch (e: any) {
+    this.detailsError.set(
+      e?.message ??
+      (restore ? 'החזרת השורה נכשלה.' : 'הסרת השורה נכשלה.')
+    );
+  } finally {
+    this.removingDraftItem.set(null);
+  }
+}
+
   selectableVisibleCharges = computed(() =>
     this.visibleCharges().filter((charge) => this.canSelectForPayment(charge))
   );
@@ -815,6 +894,84 @@ this.totalChargesCount.set(count ?? 0);
 
       if (e1) throw e1;
 
+      const { data: chargeData, error: exclusionsError } = await dbTenant()
+  .from('charges')
+  .select('status, excluded_draft_items')
+  .eq('id', chargeId)
+  .single();
+
+if (exclusionsError) throw exclusionsError;
+
+if (this.detailsOpenFor() !== chargeId) return;
+
+// עדכון הסטטוס האמיתי שעליו מבוססת הצגת הפח.
+this.charges.update(rows =>
+  rows.map(charge =>
+    charge.id === chargeId
+      ? { ...charge, status: chargeData.status }
+      : charge
+  )
+);
+
+const excludedItems: any[] = Array.isArray(
+  chargeData.excluded_draft_items
+)
+  ? chargeData.excluded_draft_items
+  : [];
+
+const removedChildIds: string[] = Array.from(
+  new Set<string>(
+    excludedItems
+      .map(item => item.child_id as string | null)
+      .filter((id): id is string => !!id)
+  )
+);
+
+const childNames = new Map<string, string>();
+
+if (removedChildIds.length) {
+  const { data: children, error: childrenError } = await dbTenant()
+    .from('children')
+    .select('child_uuid, first_name, last_name')
+    .in('child_uuid', removedChildIds);
+
+  if (childrenError) throw childrenError;
+
+  for (const child of children ?? []) {
+    childNames.set(
+      child.child_uuid,
+      [child.first_name, child.last_name]
+        .filter(Boolean)
+        .join(' ')
+    );
+  }
+}
+
+const removedItems = excludedItems.map(item => ({
+  ...item,
+  is_removed: true,
+  child_name:
+    childNames.get(item.child_id) ||
+    item.child_name ||
+    'ללא שם ילד',
+  occur_date:
+    item.row_type === 'lesson'
+      ? item.occur_date
+      : item.item_date,
+  related_lesson_id:
+    item.row_type === 'lesson'
+      ? item.lesson_id
+      : item.related_lesson_id,
+}));
+
+const allDetailItems = [
+  ...(items ?? []).map((item: any) => ({
+    ...item,
+    is_removed: false,
+  })),
+  ...removedItems,
+];
+
       const { data: credits, error: e2 } = await dbTenant()
         .from('parent_credits')
         .select(`
@@ -833,7 +990,7 @@ this.totalChargesCount.set(count ?? 0);
         .order('created_at', { ascending: true });
 
       if (e2) throw e2;
-      const sortedItems = (items ?? []).sort((a: any, b: any) => {
+      const sortedItems = allDetailItems.sort((a: any, b: any) => {
         if (a.row_type === b.row_type) {
           const dateCompare = (a.occur_date || '').localeCompare(b.occur_date || '');
           if (dateCompare !== 0) return dateCompare;
@@ -844,6 +1001,9 @@ this.totalChargesCount.set(count ?? 0);
         return a.row_type === 'lesson' ? -1 : 1;
       });
 
+     if (this.detailsOpenFor() !== chargeId) return;
+      this.detailsCredits.set(credits ?? []);
+      
       this.detailsItems.set(sortedItems);
       this.detailsCredits.set(credits ?? []);
     } catch (e: any) {
@@ -1716,7 +1876,9 @@ this.totalChargesCount.set(count ?? 0);
       const group = upsert(key, item.child_name || 'ללא שיוך לילד/ה');
 
       group.items.push(item);
+      if (!item.is_removed) {
       group.itemsTotalAgorot += Number(item.amount_agorot ?? 0);
+    }
     }
 
     for (const cr of this.detailsCredits() ?? []) {

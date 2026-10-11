@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, signal, Input, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, signal, Input, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UiDialogService } from '../../services/ui-dialog.service';
@@ -19,6 +19,26 @@ import { DB_TENANT } from '../../services/db-tenant.token';
 //       TYPE DEFINITIONS
 // ===============================
 type UUID = string;
+
+interface ManagementBillingRow {
+  month: number;
+  status: string;
+  currency: string;
+  chargeCount: number;
+  parentCount: number;
+  amountAgorot: number;
+}
+
+interface ManagementDbResponse<T> {
+  data: T | null;
+  error: { code?: string; message: string; details?: string; hint?: string } | null;
+}
+
+interface ManagementInstructorRow {
+  id_number: string | number;
+  first_name: string | null;
+  last_name: string | null;
+}
 type LessonStatus = 'ממתין לאישור' | 'אושר' | 'בוטל' | 'הושלם';
 type LessonType = 'רגיל' | 'השלמה';
 
@@ -192,6 +212,61 @@ interface InstructorUnavailabilityRow {
   all_day: boolean;
 }
 
+interface ManagementMonth {
+  month: number;
+  fund: string;
+
+  activeChildren: number | null;
+  scheduledChildren: number;
+  lessonCount?: number | null;
+
+  present: number;
+  absent: number;
+  unknownAttendance: number;
+  canceled: number;
+
+  plannedValueAgorot: number | null;
+  dueAgorot: number | null;
+  receivedAgorot: number | null;
+  overdueAgorot: number | null;
+  openBalanceAgorot: number;
+
+  eligible: number | null;
+  reported: number | null;
+  accepted: number | null;
+  rejected: number | null;
+  conflictingClaims: number;
+
+  forecastAgorot: number | null;
+  forecastLowAgorot: number | null;
+  forecastHighAgorot: number | null;
+}
+
+interface ManagementPayload {
+  version: 1;
+  year: number;
+  asOf: string;
+  instructorId: string | null;
+
+  months: ManagementMonth[];
+
+  forecastBasis: string;
+  activeBasis: string;
+  receiptBasis: string;
+
+  lowBalanceChildren: number;
+  unallocatedAgorot: number;
+  scope: string;
+}
+
+interface AnnualActivity {
+  month: number;
+  children: number;
+  lessons: number;
+  canceled: number;
+  hours: number;
+}
+
 // ===============================
 //        COMPONENT
 // ===============================
@@ -212,7 +287,7 @@ interface InstructorUnavailabilityRow {
     MatTooltipModule,
   ],
 })
-export class MonthlySummaryComponent implements OnInit {
+export class MonthlySummaryComponent implements OnInit, OnDestroy {
   private dbTenantFactory = inject(DB_TENANT);
   private ui = inject(UiDialogService);
 
@@ -625,8 +700,10 @@ private toLocalDateString(d: Date): string {
 }
 
 
-  async load(): Promise<void> {
-    this.loading = true;
+ async load(): Promise<void> {
+  void this.refreshManagement();
+
+  this.loading = true;
 
     try {
       let from: string;
@@ -1750,4 +1827,721 @@ async exportInstructorsMonthlyReport(): Promise<void> {
       queryParams: childId ? { childId } : {},
     });
   }
+
+  get isInstructorView(): boolean {
+  return this.isInstructor();
+}
+
+managementBusy = signal(false);
+managementError = signal('');
+managementActivityError = signal('');
+
+managementPayload = signal<ManagementPayload | null>(null);
+annualSchedule = signal<MonthlyReportRow[]>([]);
+
+managementYear = signal(new Date().getFullYear());
+managementMonth = signal(new Date().getMonth() + 1);
+
+managementInstructor = signal<string>('all');
+managementFund = signal<string>('all');
+
+private managementRequest = 0;
+
+managementFunds = computed(() => {
+  const rows = this.managementPayload()?.months ?? [];
+
+  return [...new Set(rows.map(row => row.fund))]
+    .sort((a, b) => a.localeCompare(b, 'he'));
+});
+
+managementInstructorOptions = signal<Array<{ id: string; name: string }>>([]);
+managementInstructors = computed(() => this.managementInstructorOptions());
+
+managementRows = computed(() => {
+  const rows = this.managementPayload()?.months ?? [];
+  const fund = this.managementFund();
+
+  return rows.filter(row =>
+    fund === 'all' || row.fund === fund
+  );
+});
+
+managementSelectedRows = computed(() => {
+  const month = this.managementMonth();
+
+  return this.managementRows()
+    .filter(row => row.month === month);
+});
+
+annualActivity = computed<AnnualActivity[]>(() => {
+  const selectedInstructor = this.managementInstructor();
+
+  const rows = this.annualSchedule().filter(row =>
+    selectedInstructor === 'all'
+    || String(row.instructor_id) === selectedInstructor
+  );
+
+  return this.months.map(month => {
+    const monthlyRows = rows.filter(row =>
+      Number((row.lesson_date || '').slice(5, 7)) === month.v
+    );
+
+    const seen = new Set<string>();
+    const children = new Set<string>();
+
+    const slots = new Map<
+      string,
+      Array<[number, number]>
+    >();
+
+    let lessons = 0;
+    let canceled = 0;
+
+    for (const row of monthlyRows) {
+      const key = [
+        row.lesson_id,
+        row.child_id,
+        row.lesson_date,
+        row.start_time
+      ].join('|');
+
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      if (row.status === 'בוטל' || row.is_cancellation) {
+        canceled++;
+        continue;
+      }
+
+      lessons++;
+
+      if (row.child_id) {
+        children.add(row.child_id);
+      }
+
+      if (
+        row.instructor_id == null
+        || !row.start_time
+        || !row.end_time
+      ) {
+        continue;
+      }
+
+      const toMinutes = (time: string): number =>
+        Number(time.slice(0, 2)) * 60
+        + Number(time.slice(3, 5));
+
+      const start = toMinutes(row.start_time);
+      const end = toMinutes(row.end_time);
+
+      if (
+        !Number.isFinite(start)
+        || !Number.isFinite(end)
+        || end <= start
+      ) {
+        continue;
+      }
+
+      const slotKey = [
+        row.instructor_id,
+        row.lesson_date
+      ].join('|');
+
+      const intervals = slots.get(slotKey) ?? [];
+
+      intervals.push([start, end]);
+      slots.set(slotKey, intervals);
+    }
+
+    // איחוד חפיפות לפי מדריך ויום.
+    // שיעור זוגי/קבוצתי אינו מוכפל במספר הילדים.
+    let durationMinutes = 0;
+
+    for (const intervals of slots.values()) {
+      intervals.sort((a, b) => a[0] - b[0]);
+
+      let currentStart = -1;
+      let currentEnd = -1;
+
+      for (const [start, end] of intervals) {
+        if (currentStart < 0) {
+          currentStart = start;
+          currentEnd = end;
+        } else if (start <= currentEnd) {
+          currentEnd = Math.max(currentEnd, end);
+        } else {
+          durationMinutes += currentEnd - currentStart;
+          currentStart = start;
+          currentEnd = end;
+        }
+      }
+
+      if (currentStart >= 0) {
+        durationMinutes += currentEnd - currentStart;
+      }
+    }
+
+    return {
+      month: month.v,
+      children: children.size,
+      lessons,
+      canceled,
+      hours: durationMinutes / 60
+    };
+  });
+});
+
+managementForecastRows = computed(() => {
+  return this.months.map(month => {
+    const rows = this.managementRows()
+      .filter(row => row.month === month.v);
+
+    const total = (
+      field:
+        | 'receivedAgorot'
+        | 'forecastAgorot'
+        | 'forecastLowAgorot'
+        | 'forecastHighAgorot'
+    ): number | null => {
+      if (
+        !rows.length
+        || rows.some(row => row[field] == null)
+      ) {
+        return null;
+      }
+
+      return rows.reduce(
+        (sum, row) => sum + Number(row[field]),
+        0
+      );
+    };
+
+    return {
+      month: month.v,
+      received: total('receivedAgorot'),
+      forecast: total('forecastAgorot'),
+      low: total('forecastLowAgorot'),
+      high: total('forecastHighAgorot')
+    };
+  });
+});
+
+managementActions = computed(() => {
+  const rows = this.mode() === 'year' ? this.managementRows() : this.managementSelectedRows();
+
+  const total = (
+    field:
+      | 'unknownAttendance'
+      | 'rejected'
+      | 'conflictingClaims'
+  ): number => {
+    return rows.reduce(
+      (sum, row) => sum + Number(row[field] ?? 0),
+      0
+    );
+  };
+
+  return [
+    {
+      title: 'תביעות שנדחו',
+      value: total('rejected'),
+      action: 'בדיקת סיבת הדחייה והשלמת מסמכים בדף דיווח הקופה'
+    },
+    {
+      title: 'נוכחות שטרם סומנה',
+      value: total('unknownAttendance'),
+      action: 'השלמת נוכחות במפגשים שכבר הגיע מועד תחילתם'
+    },
+    {
+      title: 'תביעות עם סטטוסים סותרים',
+      value: total('conflictingClaims'),
+      action: 'בדיקת מצב התביעה ותיקון חוסר ההתאמה ברישום'
+    },
+    {
+      title: 'ילדים עם 3 טיפולים או פחות — כל הקופות',
+      value: this.managementPayload()?.lowBalanceChildren ?? 0,
+      action: 'בדיקת חידוש אישור מול ההורה והקופה; נתון עדכני למדריך הנבחר'
+    }
+  ].filter(action => action.value > 0);
+});
+
+managementBar(value: number | null): number {
+  const values = this.managementForecastRows()
+    .flatMap(row => [
+      row.received ?? 0,
+      row.forecast ?? 0
+    ]);
+
+  const max = Math.max(1, ...values);
+
+  return Math.min(
+    100,
+    Math.max(0, ((value ?? 0) / max) * 100)
+  );
+}
+
+managementTotal(
+  field: keyof ManagementMonth,
+  annual = false
+): number | null {
+  const rows = annual
+    ? this.managementRows()
+    : this.managementSelectedRows();
+
+  if (
+    !rows.length
+    || rows.some(row => row[field] == null)
+  ) {
+    return null;
+  }
+
+  return rows.reduce(
+    (sum, row) => sum + Number(row[field]),
+    0
+  );
+}
+
+managementAmount(value: number | null): string {
+  if (value == null) return 'אין נתון';
+
+  return new Intl.NumberFormat('he-IL', {
+    style: 'currency',
+    currency: 'ILS',
+    maximumFractionDigits: 0
+  }).format(value / 100);
+}
+
+managementCount(value: number | null): string {
+  return value == null
+    ? 'אין נתון'
+    : value.toLocaleString('he-IL');
+}
+
+
+managementTab = signal<'overview' | 'funds' | 'billing' | 'hours'>('overview');
+managementScheduleBusy = signal(false);
+managementInstructorError = signal('');
+private managementScheduleRequest = 0;
+private managementScheduleYear: number | null = null;
+private managementFinanceController: AbortController | null = null;
+private managementScheduleController: AbortController | null = null;
+private managementInstructorController: AbortController | null = null;
+private managementDestroyed = false;
+
+managementPeriodLabel = computed(() => this.mode() === 'year'
+  ? `שנת ${this.managementYear()}`
+  : `${this.months[this.managementMonth() - 1].t} ${this.managementYear()}`);
+
+managementPeriodReceipts = computed<number | null>(() => {
+  const rows = this.mode() === 'year'
+    ? this.managementRows().filter(r => r.receivedAgorot !== null)
+    : this.managementSelectedRows();
+  if (!rows.length || rows.some(r => r.receivedAgorot == null)) return null;
+  return rows.reduce((sum, r) => sum + Number(r.receivedAgorot), 0);
+});
+
+managementActiveChildren = computed<number | null>(() => {
+  const rows = this.managementRows().filter(r => r.activeChildren != null);
+  return rows.length ? rows.reduce((sum, r) => sum + Number(r.activeChildren), 0) : null;
+});
+
+managementFundSummary = computed<ManagementMonth[]>(() => {
+  if (this.mode() === 'month') return this.managementSelectedRows();
+  const grouped = new Map<string, ManagementMonth[]>();
+  for (const row of this.managementRows()) {
+    const list = grouped.get(row.fund) ?? [];
+    list.push(row); grouped.set(row.fund, list);
+  }
+  return [...grouped.values()].map(rows => {
+    const sum = (key: keyof ManagementMonth) => rows.reduce((total, r) => total + Number(r[key] ?? 0), 0);
+    const nullableSum = (key: keyof ManagementMonth) => rows.some(r => r[key] == null) ? null : sum(key);
+    const active = rows.find(r => r.activeChildren != null);
+    const receipts = rows.filter(r => r.receivedAgorot != null);
+    return {
+      ...rows[0], activeChildren: active?.activeChildren ?? null,
+      lessonCount: nullableSum('lessonCount'),
+      present: sum('present'), absent: sum('absent'),
+      unknownAttendance: sum('unknownAttendance'), canceled: sum('canceled'),
+      dueAgorot: nullableSum('dueAgorot'),
+      receivedAgorot: receipts.length ? receipts.reduce((total, r) => total + Number(r.receivedAgorot), 0) : null,
+      openBalanceAgorot: sum('openBalanceAgorot'),
+      reported: nullableSum('reported'), accepted: nullableSum('accepted'), rejected: nullableSum('rejected'),
+      forecastAgorot: nullableSum('forecastAgorot'),
+      forecastLowAgorot: nullableSum('forecastLowAgorot'),
+      forecastHighAgorot: nullableSum('forecastHighAgorot')
+    };
+  });
+});
+
+onManagementInstructorChange(id: string): void {
+  this.managementInstructor.set(id);
+  this.syncManagementInstructor();
+  void this.refreshManagement(true);
+}
+
+private syncManagementInstructor(): void {
+  const id = this.managementInstructor();
+  const instructor = this.managementInstructors().find(item => item.id === id);
+  this.onInstructorChange(id === 'all' ? 'all' : instructor?.name ?? id);
+}
+
+selectManagementTab(tab: 'overview' | 'funds' | 'billing' | 'hours'): void {
+  this.managementTab.set(tab);
+  if (tab === 'billing') void this.loadManagementBilling();
+  if (tab === 'hours') {
+    this.viewMode = 'reports';
+    this.syncManagementInstructor();
+    // The existing payroll export is monthly. Retain that behavior.
+    if (this.mode() !== 'month') this.setMode('month');
+    void this.loadManagementSchedule();
+  }
+}
+
+private async withManagementTimeout<T>(
+  task: PromiseLike<T>, controller: AbortController, timeoutMs: number
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(task),
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new Error('MANAGEMENT_TIMEOUT'));
+        }, timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+private managementErrorMessage(error: unknown): string {
+  const e = error as { code?: string; message?: string } | null;
+  if (e?.message === 'MANAGEMENT_TIMEOUT') return 'טעינת הנתונים התארכה. אפשר לנסות שוב.';
+  if (e?.code === '42501') return 'אין הרשאה לקריאת הנתונים הניהוליים. יש לבדוק את הרשאת המשתמש בחווה.';
+  if (e?.code === 'PGRST202' || e?.code === '42883') return 'פונקציית הנתונים הניהוליים אינה זמינה. יש להתקין את פונקציית ה־SQL שנמסרה.';
+  return 'לא ניתן לטעון את הנתונים הניהוליים. אפשר לנסות שוב.';
+}
+
+private async loadManagementInstructors(force = false): Promise<void> {
+  if (this.managementDestroyed || (this.managementInstructors().length && !force)) return;
+  this.managementInstructorController?.abort();
+  const controller = new AbortController();
+  this.managementInstructorController = controller;
+  this.managementInstructorError.set('');
+  try {
+    const instructors: Array<{ id: string; name: string }> = [];
+    const deadline = Date.now() + 20000;
+    for (let offset = 0; ; offset += 500) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw new Error('MANAGEMENT_TIMEOUT');
+      const { data, error } = await this.withManagementTimeout<ManagementDbResponse<ManagementInstructorRow[]>>(
+        this.dbc.from('instructors').select('id_number,first_name,last_name')
+          .order('id_number').range(offset, offset + 499).abortSignal(controller.signal),
+        controller, remaining
+      );
+      if (controller.signal.aborted || this.managementDestroyed) return;
+      if (error) throw error;
+      for (const row of data ?? []) {
+        const name = `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim();
+        instructors.push({ id: String(row.id_number), name: name || String(row.id_number) });
+      }
+      if ((data ?? []).length < 500) break;
+    }
+    instructors.sort((a, b) => a.name.localeCompare(b.name, 'he'));
+    this.managementInstructorOptions.set(instructors);
+    this.syncManagementInstructor();
+  } catch (error) {
+    if (this.managementInstructorController === controller && !this.managementDestroyed) {
+      this.managementInstructorError.set('רשימת המדריכים לא נטענה. אפשר לרענן ולנסות שוב.');
+    }
+  }
+}
+
+async loadManagementSchedule(force = false): Promise<void> {
+  if (this.managementDestroyed || this.isInstructor() || this.fromChildCard()) return;
+  const year = this.year;
+  if (!force && this.managementScheduleYear === year) return;
+  if (!force && this.managementScheduleBusy() && this.managementScheduleYear === -year) return;
+  this.managementScheduleController?.abort();
+  const controller = new AbortController();
+  this.managementScheduleController = controller;
+  const request = ++this.managementScheduleRequest;
+  this.managementScheduleYear = -year;
+  this.managementScheduleBusy.set(true);
+  this.managementActivityError.set('');
+  this.annualSchedule.set([]);
+  try {
+    const result: MonthlyReportRow[] = [];
+    const deadline = Date.now() + 45000;
+    for (let offset = 0; ; offset += 500) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw new Error('MANAGEMENT_TIMEOUT');
+      const { data, error } = await this.withManagementTimeout<ManagementDbResponse<MonthlyReportRow[]>>(
+        this.dbc.from('lessons_schedule_view')
+          .select('lesson_id,lesson_date,child_id,instructor_id,instructor_name,status,is_cancellation,start_time,end_time')
+          .gte('lesson_date', `${year}-01-01`).lt('lesson_date', `${year + 1}-01-01`)
+          .order('lesson_date').order('lesson_id').order('child_id').order('start_time')
+          .range(offset, offset + 499).abortSignal(controller.signal),
+        controller, remaining
+      );
+      if (request !== this.managementScheduleRequest || this.managementDestroyed) return;
+      if (error) throw error;
+      result.push(...((data ?? []) as MonthlyReportRow[]));
+      if ((data ?? []).length < 500) break;
+    }
+    if (request === this.managementScheduleRequest && !controller.signal.aborted) {
+      this.annualSchedule.set(result);
+      this.managementScheduleYear = year;
+    }
+  } catch (error) {
+    if (request === this.managementScheduleRequest && !this.managementDestroyed) {
+      this.managementScheduleYear = null;
+      this.managementActivityError.set('לא ניתן לטעון את פירוט הפעילות השנתית. נסי שוב.');
+    }
+  } finally {
+    if (request === this.managementScheduleRequest && !this.managementDestroyed) {
+      this.managementScheduleBusy.set(false);
+    }
+  }
+}
+
+async refreshManagement(force = false): Promise<void> {
+  if (this.managementDestroyed || this.isInstructor() || this.fromChildCard()) return;
+  this.managementYear.set(this.year);
+  this.managementMonth.set(this.month);
+  if (this.managementTab() === 'billing') void this.loadManagementBilling(force);
+  const year = this.year;
+  const instructor = this.managementInstructor();
+  void this.loadManagementInstructors(force && !!this.managementInstructorError());
+  if (this.managementTab() === 'hours') void this.loadManagementSchedule(force);
+  const previous = this.managementPayload();
+  if (!force && previous?.year === year && previous.instructorId === (instructor === 'all' ? null : instructor)) return;
+  this.managementFinanceController?.abort();
+  const controller = new AbortController();
+  this.managementFinanceController = controller;
+  const request = ++this.managementRequest;
+  this.managementBusy.set(true);
+  this.managementError.set('');
+  this.managementPayload.set(null);
+  try {
+    const { data, error } = await this.withManagementTimeout<ManagementDbResponse<unknown>>(
+      this.dbc.rpc('get_farm_management_dashboard', {
+        p_year: year, p_instructor_id: instructor === 'all' ? null : instructor
+      }).abortSignal(controller.signal),
+      controller, 25000
+    );
+    if (request !== this.managementRequest || this.managementDestroyed || controller.signal.aborted) return;
+    if (error) throw error;
+    const payload = data as ManagementPayload;
+
+    if (
+      !payload
+      || payload.version !== 1
+      || payload.year !== year
+      || payload.instructorId !== (
+        instructor === 'all' ? null : instructor
+      )
+      || !Array.isArray(payload.months)
+      || !payload.asOf
+      || !payload.forecastBasis
+    ) {
+      throw new Error('Invalid management dashboard response');
+    }
+
+    const numericFields = [
+      'activeChildren',
+      'scheduledChildren',
+      'present',
+      'absent',
+      'unknownAttendance',
+      'canceled',
+      'plannedValueAgorot',
+      'dueAgorot',
+      'receivedAgorot',
+      'overdueAgorot',
+      'openBalanceAgorot',
+      'eligible',
+      'reported',
+      'accepted',
+      'rejected',
+      'conflictingClaims',
+      'forecastAgorot',
+      'forecastLowAgorot',
+      'forecastHighAgorot'
+    ] as const;
+
+    const signedFields = new Set<string>([
+      'plannedValueAgorot',
+      'dueAgorot',
+      'receivedAgorot',
+      'openBalanceAgorot',
+      'forecastAgorot',
+      'forecastLowAgorot',
+      'forecastHighAgorot'
+    ]);
+
+    const seen = new Set<string>();
+
+    for (const row of payload.months) {
+      const key = `${row.month}|${row.fund}`;
+
+      const invalidNumbers = numericFields.some(field => {
+        const value = row[field];
+
+        return value !== null && (
+          !Number.isSafeInteger(value)
+          || (
+            !signedFields.has(field)
+            && Number(value) < 0
+          )
+        );
+      });
+
+      if (
+        !Number.isInteger(row.month)
+        || row.month < 1
+        || row.month > 12
+        || !row.fund
+        || seen.has(key)
+        || (row.lessonCount != null && (!Number.isSafeInteger(row.lessonCount) || row.lessonCount < 0))
+        || invalidNumbers
+      ) {
+        throw new Error('Invalid management dashboard rows');
+      }
+
+      seen.add(key);
+    }
+
+    const funds = [
+      ...new Set(payload.months.map(row => row.fund))
+    ];
+
+    if (
+      funds.some(fund =>
+        payload.months.filter(row => row.fund === fund)
+          .length !== 12
+      )
+    ) {
+      throw new Error('Incomplete management annual data');
+    }
+
+    this.managementPayload.set(payload);
+
+    if (
+      this.managementFund() !== 'all'
+      && !funds.includes(this.managementFund())
+    ) {
+      this.managementFund.set('all');
+    }
+  } catch (error) {
+    if (request === this.managementRequest && !this.managementDestroyed) {
+      this.managementError.set(this.managementErrorMessage(error));
+    }
+  } finally {
+    if (request === this.managementRequest && !this.managementDestroyed) this.managementBusy.set(false);
+  }
+}
+
+
+managementBillingBusy = signal(false);
+managementBillingError = signal('');
+managementBillingRows = signal<ManagementBillingRow[]>([]);
+private managementBillingYear: number | null = null;
+private managementBillingRequest = 0;
+private managementBillingController: AbortController | null = null;
+
+managementSelectedBillingRows = computed(() => {
+  const rows = this.managementBillingRows();
+  return this.mode() === 'year' ? rows : rows.filter(r => r.month === this.managementMonth());
+});
+
+managementBillingTotals = computed(() => {
+  const rows = this.managementSelectedBillingRows().filter(r => r.currency === 'ILS');
+  const total = (status: string) => rows.filter(r => r.status === status)
+    .reduce((sum, r) => sum + r.amountAgorot, 0);
+  return { paid: total('paid'), failed: total('failed'), draft: total('draft') };
+});
+
+managementBillingStatus(status: string): string {
+  const labels: Record<string, string> = {
+    paid: 'שולם', failed: 'נכשל', draft: 'טיוטה', pending: 'ממתין',
+    canceled: 'בוטל', cancelled: 'בוטל', refunded: 'הוחזר'
+  };
+  return labels[status] ?? status;
+}
+
+managementBillingAmount(value: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('he-IL', {
+      style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2
+    }).format(value / 100);
+  } catch {
+    return `${(value / 100).toLocaleString('he-IL', {minimumFractionDigits: 2})} ${currency}`;
+  }
+}
+
+async loadManagementBilling(force = false): Promise<void> {
+  if (this.managementDestroyed || this.isInstructor() || this.fromChildCard()) return;
+  const year = this.year;
+  if (!force && this.managementBillingYear === year) return;
+  if (!force && this.managementBillingBusy() && this.managementBillingYear === -year) return;
+  this.managementBillingController?.abort();
+  const controller = new AbortController();
+  this.managementBillingController = controller;
+  const request = ++this.managementBillingRequest;
+  this.managementBillingYear = -year;
+  this.managementBillingRows.set([]);
+  this.managementBillingBusy.set(true);
+  this.managementBillingError.set('');
+  try {
+    const {data, error} = await this.withManagementTimeout<ManagementDbResponse<unknown>>(
+      this.dbc.rpc('get_farm_billing_summary', {p_year: year}).abortSignal(controller.signal),
+      controller, 25000
+    );
+    if (request !== this.managementBillingRequest || this.managementDestroyed) return;
+    if (error) throw error;
+    if (!Array.isArray(data)) throw new Error('Invalid billing summary');
+    const rows = data as ManagementBillingRow[];
+    const seen = new Set<string>();
+    for (const row of rows) {
+      const key = `${row.month}|${row.status}|${row.currency}`;
+      if (!Number.isInteger(row.month) || row.month < 1 || row.month > 12
+          || typeof row.status !== 'string' || !row.status
+          || typeof row.currency !== 'string' || !row.currency
+          || !Number.isSafeInteger(row.chargeCount) || row.chargeCount < 0
+          || !Number.isSafeInteger(row.parentCount) || row.parentCount < 0
+          || !Number.isSafeInteger(row.amountAgorot) || seen.has(key)) {
+        throw new Error('Invalid billing summary row');
+      }
+      seen.add(key);
+    }
+    this.managementBillingRows.set(rows);
+    this.managementBillingYear = year;
+  } catch (error) {
+    if (request === this.managementBillingRequest && !this.managementDestroyed) {
+      this.managementBillingYear = null;
+      const e = error as {code?: string; message?: string};
+      this.managementBillingError.set(e?.code === 'PGRST202' || e?.code === '42883'
+        ? 'יש להתקין את פונקציית סיכום החיובים שנמסרה עם הקבצים.'
+        : this.managementErrorMessage(error));
+    }
+  } finally {
+    if (request === this.managementBillingRequest && !this.managementDestroyed)
+      this.managementBillingBusy.set(false);
+  }
+}
+
+ngOnDestroy(): void {
+  this.managementBillingController?.abort();
+  ++this.managementBillingRequest;
+  this.managementDestroyed = true;
+  ++this.managementRequest;
+  ++this.managementScheduleRequest;
+  this.managementFinanceController?.abort();
+  this.managementScheduleController?.abort();
+  this.managementInstructorController?.abort();
+}
+
 }

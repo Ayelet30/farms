@@ -2073,7 +2073,9 @@ scheduled_deletion_at,deletion_note
         series.paymentPlanId ??
         null,
 
-      effectiveFrom: this.getTodayIsoDate(),
+      effectiveFrom: this.isSeriesCurrentlyOpen(series)
+  ? this.getTodayIsoDate()
+  : '',
 
       saving: false,
       error: '',
@@ -2107,6 +2109,34 @@ scheduled_deletion_at,deletion_note
       this.seriesPaymentPlanEditor.error = 'יש לבחור תאריך תחולה.';
       return;
     }
+
+    const startDate = this.getSeriesActualStartDateIso(series);
+const endDate = series.seriesEndDate?.slice(0, 10);
+
+if (!startDate) {
+  this.seriesPaymentPlanEditor.error =
+    'לא ניתן לזהות את תאריך תחילת הסדרה.';
+  return;
+}
+
+if (effectiveFrom < startDate) {
+  this.seriesPaymentPlanEditor.error =
+    'תאריך תחולת המסלול לא יכול להיות לפני תחילת הסדרה.';
+  return;
+}
+
+if (endDate && effectiveFrom > endDate) {
+  this.seriesPaymentPlanEditor.error =
+    'תאריך תחולת המסלול לא יכול להיות אחרי סיום הסדרה.';
+  return;
+}
+
+if (
+  this.seriesPaymentPlanEditor.saving ||
+  this.seriesPaymentPlanEditor.lessonId !== series.lessonId
+) {
+  return;
+}
 
     const childId = this.drawerChild?.child_uuid ?? null;
 
@@ -2272,6 +2302,10 @@ scheduled_deletion_at,deletion_note
           Validators.maxLength(this.MAX_NAME_LEN),
           this.hebrewNameValidator(),
         ],
+      ],
+      gov_id: [
+        child.gov_id ?? '',
+        [Validators.pattern(/^\d{9}$/)],
       ],
       funding_source_id: [child.funding_source_id ?? null],
       status: [child.status ?? null],
@@ -2627,6 +2661,13 @@ scheduled_deletion_at,deletion_note
 
     const raw = this.childForm.getRawValue();
 
+    raw.gov_id = String(raw.gov_id ?? '').trim();
+
+    this.childForm.patchValue(
+      { gov_id: raw.gov_id },
+      { emitEvent: false }
+    );
+
     raw.first_name = this.cleanHebrewName(raw.first_name);
     raw.last_name = this.cleanHebrewName(raw.last_name);
 
@@ -2649,15 +2690,8 @@ scheduled_deletion_at,deletion_note
       this.isActiveStatus(this.originalChild?.status) &&
       raw.status === 'Deleted';
 
-    const becameActive =
-      !this.isActiveStatus(this.originalChild?.status) &&
-      raw.status === 'Active';
-
-    if (raw.created_at) {
-      raw.created_at = new Date(raw.created_at).toISOString();
-    }
-
     const fieldsToCompare: (keyof ChildDetails)[] = [
+      'gov_id',
       'first_name',
       'last_name',
       'funding_source_id',
@@ -2668,17 +2702,6 @@ scheduled_deletion_at,deletion_note
     ];
 
     const delta: Partial<ChildDetails> = {};
-    if (
-      this.isActiveStatus(raw.status) &&
-      this.drawerChild?.scheduled_deletion_at &&
-      raw.inactive_date
-    ) {
-      (delta as any).scheduled_deletion_at = raw.inactive_date;
-    }
-    if (becameActive) {
-      (delta as any).deletion_requested_at = null;
-      (delta as any).scheduled_deletion_at = null;
-    }
 
     for (const key of fieldsToCompare) {
       const oldVal = (this.originalChild as any)?.[key] ?? null;
@@ -2688,13 +2711,24 @@ scheduled_deletion_at,deletion_note
         (delta as any)[key] = newVal;
       }
     }
-    if (
-      this.isActiveStatus(raw.status) &&
-      this.drawerChild?.scheduled_deletion_at &&
-      raw.inactive_date
-    ) {
-      (delta as any).scheduled_deletion_at = raw.inactive_date;
-    }
+
+    // שמירה כפעיל מבטלת כל תכנון להפיכה ללא פעיל,
+// גם אם הילד כבר מוצג כפעיל ונשאר לו תכנון ישן.
+if (
+  this.isActiveStatus(raw.status) &&
+  (
+    !this.isActiveStatus(this.originalChild?.status) ||
+    this.drawerChild?.scheduled_deletion_at != null ||
+    this.drawerChild?.deletion_requested_at != null ||
+    this.drawerChild?.deletion_note != null
+  )
+) {
+  (delta as any).status = 'Active';
+  (delta as any).deletion_requested_at = null;
+  (delta as any).scheduled_deletion_at = null;
+  (delta as any).deletion_note = null;
+}
+    
     if (Object.keys(delta).length === 0) {
       this.editMode = false;
       return;

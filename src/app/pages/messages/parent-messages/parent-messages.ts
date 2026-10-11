@@ -99,7 +99,7 @@ export class ParentMessagesComponent implements OnInit {
   selectedFile: File | null = null;
   selectedKidId: string = ''; // ישמור את ה-ID של הילד שנבחר
   kids = signal<any[]>([]);
-
+  currentSchema: string = 'public'; // ברירת מחדל, שתתעדכן מיד בטעינה
 
 
   // הודעות שידור
@@ -263,11 +263,15 @@ export class ParentMessagesComponent implements OnInit {
     this.loadingThreads.set(true);
     try {
       const uid = this.myUid();
-      const { data, error } = await db()
+      const dbc = await dbTenant(); // <--- מעבר ללקוח החווה
+      
+      const { data, error } = await dbc
         .from('conversations')
-        .select('id, subject, status, opened_by_parent_uid, created_at, updated_at')
-        .eq('opened_by_parent_uid', uid)
+        // טריק ה-Alias: מושך את parent_id ומחזיר אותו כ-opened_by_parent_uid בשביל הקוד
+        .select('id, subject, status, opened_by_parent_uid:parent_id, created_at, updated_at')
+        .eq('parent_id', uid) // סינון לפי העמודה החדשה בדאטה-בייס
         .order('updated_at', { ascending: false });
+
       if (error) throw error;
       this.threads.set((data ?? []) as Conversation[]);
       if (!this.activeConv() && this.threads().length) {
@@ -280,111 +284,155 @@ export class ParentMessagesComponent implements OnInit {
 
   async openConversation(c: Conversation) {
     this.activeConv.set(c);
-    const { data, error } = await db()
+    const dbc = await dbTenant(); // <--- מעבר ללקוח החווה
+    
+    const { data, error } = await dbc
       .from('conversation_messages')
-      .select('*')
+      // הופך את עמודת body מהדאטה-בייס ל-body_md שהקוד וה-HTML שלכם מצפים לקבל
+      .select('id, conversation_id, body_md:body, sender_role, sender_uid, created_at')
       .eq('conversation_id', c.id)
       .order('created_at', { ascending: true });
+
     if (error) throw error;
     this.messages.set((data ?? []) as ConversationMessage[]);
   }
 
-  async handleSend() {
-    const isNew = this.tab() === 'new';
+// --- פונקציה 1: יצירת שיחה חדשה לגמרי ---
+  async createConversation() {
     this.toast.set(null); // איפוס הודעות קודמות
 
-    // --- שלב א: בדיקות תקינות (וולידציה) תוך שימוש ב-showToast ---
-
-    if (isNew) {
-      if (!this.newSubject) {
-        this.showToast('יש לבחור נושא לפני השליחה');
+    // וולידציה לשיחה חדשה
+    if (!this.newSubject) {
+      this.showToast('יש לבחור נושא לפני השליחה');
+      return;
+    }
+    if (!this.newBody.trim()) {
+      this.showToast('לא ניתן לשלוח הודעה ריקה');
+      return;
+    }
+    if (this.newSubject === 'files') {
+      if (!this.selectedKidId) {
+        this.showToast('יש לבחור ילד עבור שליחת קבצים');
         return;
       }
-      if (!this.newBody.trim()) {
-        this.showToast('לא ניתן לשלוח הודעה ריקה');
-        return;
-      }
-      if (this.newSubject === 'files') {
-        if (!this.selectedKidId) {
-          this.showToast('יש לבחור ילד עבור שליחת קבצים');
-          return;
-        }
-        if (!this.selectedFile) {
-          this.showToast('יש לבחור קובץ לשליחה');
-          return;
-        }
-      }
-    } else {
-      // בדיקה לתגובה בשיחה קיימת
-      if (!this.replyText.trim()) {
-        this.showToast('לא ניתן לשלוח הודעה ריקה');
+      if (!this.selectedFile) {
+        this.showToast('יש לבחור קובץ לשליחה');
         return;
       }
     }
 
-    // --- שלב ב: שליחה לסופבייס ---
     this.creating.set(true);
 
     try {
       const uid = this.myUid();
-      const bodyText = isNew ? this.newBody.trim() : this.replyText.trim();
-      let conversationId: string;
+      const dbc = await dbTenant();
 
-      if (isNew) {
-        // 1. יצירת שיחה חדשה
-        const { data: conv, error: e1 } = await db()
-          .from('conversations')
-          .insert({
-            subject: this.newSubject,
-            status: 'sent', // וי אפור ראשון
-            opened_by_parent_uid: uid,
-            student_id: this.selectedKidId || null
-          })
-          .select().single();
-
-        if (e1) throw e1;
-        conversationId = conv.id;
-      } else {
-        // 2. שיחה קיימת
-        conversationId = this.activeConv()!.id;
-      }
-
-      // 3. יצירת ההודעה
-      const { data: msgData, error: e2 } = await db()
-        .from('conversation_messages')
+      // 1. יצירת שיחה חדשה בטבלה
+      const { data: conv, error: e1 } = await dbc 
+        .from('conversations')
         .insert({
-          conversation_id: conversationId,
-          body_md: bodyText,
-          sender_role: 'parent',
-          sender_uid: uid,
-          has_attachment: !!this.selectedFile
+          subject: this.newSubject,
+          status: 'sent', // סטטוס התחלתי (וי אפור)
+          parent_id: uid,
+          student_id: this.selectedKidId || null
         })
         .select().single();
 
+      if (e1) throw e1;
+
+      // 2. יצירת ההודעה הראשונה המשוייכת לשיחה
+      const { error: e2 } = await dbc 
+        .from('conversation_messages')
+        .insert({
+          conversation_id: conv.id,
+          body: this.newBody.trim(),
+          sender_role: 'parent',
+          sender_uid: uid,
+          attachments: this.selectedFile ? [this.selectedFile.name] : null
+        });
+
+      if (e2) throw e2;
       if (e2) throw e2;
 
-      // --- שלב ג: ניקוי שדות ורענון ממשק ---
-      if (isNew) {
-        this.newBody = '';
-        this.newSubject = '';
-        await this.loadThreads();
-
-        const justCreated = this.threads().find(t => t.id === conversationId);
-        if (justCreated) {
-          await this.openConversation(justCreated);
-        }
-        this.tab.set('threads');
-      } else {
-        this.messages.update(arr => [...arr, msgData as ConversationMessage]);
-        this.replyText = '';
-      }
-
+      // 3. ניקוי שדות ורענון ממשק
+      this.newBody = '';
+      this.newSubject = '';
       this.selectedFile = null;
+      
+      // טעינת רשימת השיחות מחדש מסופבייס
+      await this.loadThreads(); 
+      
+      // מציאת השיחה שזה עתה יצרנו ופתיחה שלה בצד
+      const justCreated = this.threads().find(t => t.id === conv.id);
+      if (justCreated) {
+        await this.openConversation(justCreated);
+      }
+      
+      this.tab.set('threads'); // העברת המשתמש ללשונית ההודעות הפתוחות
       this.showToast('הודעתך נשלחה בהצלחה');
 
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error("Error creating conversation:", error);
       this.showToast('אופס, משהו השתבש בשליחה. נסו שוב.');
+    } finally {
+      this.creating.set(false);
+    }
+  }
+
+  // --- פונקציה 2: שליחת תגובה בתוך שיחה קיימת ---
+  async sendReply() {
+    this.toast.set(null);
+
+    if (!this.activeConv()) {
+      this.showToast('לא נבחרה שיחה פעילה להגבת תגובה');
+      return;
+    }
+    if (!this.replyText.trim()) {
+      this.showToast('לא ניתן לשלוח הודעה ריקה');
+      return;
+    }
+
+    this.creating.set(true);
+
+    try {
+      const uid = this.myUid();
+      const conversationId = this.activeConv()!.id;
+      const dbc = await dbTenant(); // <--- מעבר ללקוח החווה
+
+      // 1. יצירת הודעה חדשה בטבלת ההודעות של החווה
+      const { data: msgData, error: e2 } = await dbc
+        .from('conversation_messages')
+        .insert({
+          conversation_id: conversationId,
+          body: this.replyText.trim(), // עבודה מול עמודת body באותיות קטנות
+          sender_role: 'parent',
+          sender_uid: uid,
+          attachments: this.selectedFile ? [this.selectedFile.name] : null
+        })
+        .select('id, conversation_id, body_md:body, sender_role, sender_uid, created_at')
+        .single();
+
+      if (e2) throw e2;
+
+      // 2. עדכון סטטוס השיחה ל-open
+      await dbc
+        .from('conversations')
+        .update({ 
+          status: 'open',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', conversationId);
+
+      this.messages.update(arr => [...arr, msgData as ConversationMessage]);
+      this.replyText = ''; 
+      this.selectedFile = null;
+      
+      await this.loadThreads();
+      this.showToast('התגובה נשלחה בהצלחה');
+
+    } catch (error) {
+      console.error("Error sending reply:", error);
+      this.showToast('אופס, משהו השתבש בשליחת התגובה. נסו שוב.');
     } finally {
       this.creating.set(false);
     }

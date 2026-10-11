@@ -253,8 +253,12 @@ export const createClalitAutomationJob = onRequest({
       lessons: tasks, created_by_uid: user.uid,
     };
     const { data: job, error } = await db.from('automation_jobs').insert({
-      provider: 'CLALIT', status: 'pending', request_key: requestKey, payload,
-    }).select('id').single();
+  provider: 'CLALIT',
+  schema_name: body.schema,
+  status: 'pending',
+  request_key: requestKey,
+  payload,
+}).select('id').single();
     if (error) {
       if (error.code === '23505') fail(409, 'This exact batch already has a job');
       throw error;

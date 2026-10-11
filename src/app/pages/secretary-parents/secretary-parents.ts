@@ -1279,14 +1279,25 @@ export class SecretaryParentsComponent implements OnInit {
 
     if (!ok) return;
 
-    const { error } = await dbTenant()
-      .from('payment_profiles')
-      .update({
-        active: false,
-        is_default: false,
-      })
-      .eq('id', profileId)
-      .eq('parent_uid', this.selectedUid);
+    const { data: deleted, error } = await dbTenant()
+  .from('payment_profiles')
+  .delete()
+  .eq('id', profileId)
+  .eq('parent_uid', this.selectedUid)
+  .select('id');
+
+if (error) {
+  await this.ui.alert(error.message, 'שגיאה');
+  return;
+}
+
+if (!deleted?.length) {
+  await this.ui.alert(
+    'הכרטיס לא נמחק. ייתכן שאין הרשאת מחיקה או שהרשומה כבר הוסרה.',
+    'שגיאה'
+  );
+  return;
+}
 
     if (error) {
       await this.ui.alert(error.message, 'שגיאה');
