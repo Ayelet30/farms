@@ -1,29 +1,51 @@
 /* add-child-wizard.component.scss */
 .wizard-overlay {
   position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 2rem 1rem;
+  top: 104px;
+  bottom: 0;
+  left: 0;
+  right: 390px;
+
   z-index: 2000;
+
+  /* בלי הרקע האפור */
+  background: transparent;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+  box-sizing: border-box;
   overflow-y: auto;
+
+  /* הזזה קלה ימינה */
+  padding-left: 80px;
+  padding-right: 20px;
 }
 
 .wizard-dialog {
   background: #f9f7f3;
-  margin-top: 90px;
-  margin-right: 230px;
   border-radius: 24px;
-  max-width: 900px;
+
   width: 100%;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
-  position: relative;
+  max-width: 1100px;
+
+  height: min(700px, calc(100dvh - 144px));
+  max-height: calc(100dvh - 144px);
+
+  margin: auto;
   padding: 1.75rem 2rem 1.5rem;
+  box-sizing: border-box;
+
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.10);
+  border: 1px solid #e8e3d8;
+
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  min-height: 0;
 }
 
 .close-btn {
@@ -97,7 +119,9 @@
   background: #ffffff;
   border-radius: 18px;
   padding: 1.25rem 1.5rem;
-  max-height: 65vh;
+
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -246,6 +270,7 @@ textarea {
 
 .open-new {
   font-size: 0.82rem;
+
   a {
     color: inherit;
     text-decoration: underline;
@@ -276,6 +301,7 @@ textarea {
     align-items: center;
   }
 }
+
 .payment-step {
   gap: 1rem;
 }
@@ -394,6 +420,7 @@ textarea {
   position: relative;
   z-index: 1;
 }
+
 .health-fund-row {
   display: flex;
   align-items: center;
@@ -478,7 +505,8 @@ textarea {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-top: 0.5rem;
+  margin-top: auto;
+  flex-shrink: 0;
 }
 
 .spacer {
@@ -528,8 +556,8 @@ textarea {
 
 @media (max-width: 768px) {
   .wizard-dialog {
-    max-width: 388px;
-    margin-right: 90px;
+    max-width: 100%;
+    margin: auto;
     padding: 1.25rem 1rem 1rem;
     border-radius: 18px;
   }
@@ -547,6 +575,7 @@ textarea {
     height: 46vh;
     min-height: 320px;
   }
+
   .hf-grid {
     grid-template-columns: 1fr;
   }
@@ -565,9 +594,25 @@ textarea {
     min-height: 150px;
   }
 }
+
 .warning-note {
   font-size: 13px;
   color: #9a6a00;
   margin-top: 4px;
 }
 
+@media (max-width: 768px) {
+  .wizard-overlay {
+    top: 0;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    padding: 12px;
+  }
+
+  .wizard-dialog {
+    max-width: 100%;
+    max-height: calc(100dvh - 24px);
+    margin: auto;
+  }
+}
