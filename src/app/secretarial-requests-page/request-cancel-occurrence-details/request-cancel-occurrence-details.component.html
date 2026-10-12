@@ -6,8 +6,10 @@
 </div>
 
 <div class="req" *ngIf="details() as d; else loadingTpl">
-  <div class="req-title">ביטול שיעור</div>
-
+  <div class="req-title">
+    <mat-icon class="request-title-icon">event_busy</mat-icon>
+    ביטול שיעור
+  </div>
   <div class="grid">
     <div class="box"><span class="k">ילד/ה:</span><span class="v">{{ d.child_name || '—' }}</span></div>
     <div class="box"><span class="k">מדריך/ה:</span><span class="v">{{ d.instructor_name || '—' }}</span></div>

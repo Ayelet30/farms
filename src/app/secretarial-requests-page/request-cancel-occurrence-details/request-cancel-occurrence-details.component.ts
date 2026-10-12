@@ -9,7 +9,7 @@ import { getAuth } from 'firebase/auth';
 import { RequestValidationService } from '../../services/request-validation.service';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { CurrentUserService } from '../../core/auth/current-user.service';
-
+import { MatIconModule } from '@angular/material/icon';
 
 
 type CancelDetails = {
@@ -31,7 +31,7 @@ type ToastKind = 'success' | 'error' | 'info';
 @Component({
   selector: 'app-request-cancel-occurrence-details',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule, MatProgressSpinnerModule],
+  imports: [CommonModule, FormsModule, MatSnackBarModule, MatProgressSpinnerModule, MatIconModule],
   templateUrl: './request-cancel-occurrence-details.component.html',
   styleUrls: ['./request-cancel-occurrence-details.component.scss'],
 })
