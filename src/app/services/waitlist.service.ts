@@ -30,15 +30,15 @@ export class WaitlistService {
       .select('*')
       .eq('riding_type_id', params.ridingTypeId);
 
-      if (params.statuses?.length) q = q.in('status', params.statuses);
-      if (params.requestedDay) q = q.eq('requested_day', params.requestedDay);
-      
-      // סדר מומלץ לצוות
-      q = q.order('priority', { ascending: false })
+    if (params.statuses?.length) q = q.in('status', params.statuses);
+    if (params.requestedDay) q = q.eq('requested_day', params.requestedDay);
+
+    // סדר מומלץ לצוות
+    q = q.order('priority', { ascending: false })
       .order('position', { ascending: true })
       .order('created_at', { ascending: true });
-      
-      const { data, error } = await q;
+
+    const { data, error } = await q;
     if (error) throw error;
     return (data ?? []) as WaitlistEntry[];
   }
@@ -49,7 +49,7 @@ export class WaitlistService {
       .from('waitlist_entries')
       .select('*')
       .eq('parent_uid', parentUid)
-      .in('status', ['active','paused','offered'])
+      .in('status', ['active', 'paused', 'offered'])
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -96,7 +96,7 @@ export class WaitlistService {
   }
 
   async setLastContacted(entryId: string): Promise<void> {
-    await ensureTenantContextReady(); 
+    await ensureTenantContextReady();
     const { error } = await dbTenant()
       .from('waitlist_entries')
       .update({ last_contacted_at: new Date().toISOString() })
@@ -130,4 +130,137 @@ export class WaitlistService {
     });
     if (error) throw error;
   }
+
+
+  // כל בקשות ההמתנה בחווה - ללא סינון לפי סוג רכיבה
+  async listAllEntries(): Promise<WaitlistEntry[]> {
+    await ensureTenantContextReady();
+
+    const { data, error } = await dbTenant()
+      .from('waitlist_entries')
+      .select('*')
+      .in('status', ['active', 'paused'])
+      .order('priority', { ascending: false })
+      .order('position', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    return (data ?? []) as WaitlistEntry[];
+  }
+
+  // שינוי עדיפות - הילד עובר לסוף העדיפות החדשה
+  async changeWaitlistPriority(
+    entryId: string,
+    priority: 0 | 1 | 2
+  ): Promise<void> {
+    await ensureTenantContextReady();
+
+    const { error } = await dbTenant().rpc(
+      'waitlist_change_priority',
+      {
+        p_entry_id: entryId,
+        p_new_priority: priority
+      }
+    );
+
+    if (error) throw error;
+  }
+
+  // שינוי מיקום בתוך אותה קבוצת עדיפות
+  async reorderWaitlistEntry(
+    entryId: string,
+    targetPosition: number
+  ): Promise<void> {
+    await ensureTenantContextReady();
+
+    const { error } = await dbTenant().rpc(
+      'waitlist_reorder_within_priority',
+      {
+        p_entry_id: entryId,
+        p_target_position: targetPosition
+      }
+    );
+
+    if (error) throw error;
+  }
+
+  // השהיה או החזרה לרשימה הפעילה
+  async changeWaitlistStatus(
+    entryId: string,
+    status: 'active' | 'paused'
+  ): Promise<void> {
+    await ensureTenantContextReady();
+
+    const { error } = await dbTenant().rpc(
+      'waitlist_change_status',
+      {
+        p_entry_id: entryId,
+        p_new_status: status
+      }
+    );
+
+    if (error) throw error;
+  }
+
+  // מחיקה קבועה של בקשת המתנה
+  async deleteWaitlistRequest(
+    entryId: string
+  ): Promise<void> {
+    await ensureTenantContextReady();
+
+    const { error } = await dbTenant().rpc(
+      'waitlist_delete_request',
+      {
+        p_entry_id: entryId
+      }
+    );
+
+    if (error) throw error;
+  }
+
+  
+  // טעינת שמות הילדים לפי המזהים שברשימת ההמתנה
+  async listChildNames(
+    childIds: string[]
+  ): Promise<Record<string, string>> {
+
+    await ensureTenantContextReady();
+
+    const uniqueIds = [...new Set(childIds.filter(Boolean))];
+
+    if (uniqueIds.length === 0) {
+      return {};
+    }
+
+    const namesById: Record<string, string> = {};
+
+    // חלוקה לקבוצות כדי לא לשלוח שאילתה ארוכה מדי
+    for (let i = 0; i < uniqueIds.length; i += 200) {
+      const batch = uniqueIds.slice(i, i + 200);
+
+      const { data, error } = await dbTenant()
+        .from('children')
+        .select('child_uuid, first_name, last_name')
+        .in('child_uuid', batch);
+
+      if (error) throw error;
+
+      for (const child of data ?? []) {
+        const fullName = [
+          child.first_name,
+          child.last_name
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+
+        namesById[child.child_uuid] =
+          fullName || 'שם לא מעודכן';
+      }
+    }
+
+    return namesById;
+  }
+
 }

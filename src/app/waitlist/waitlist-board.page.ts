@@ -1,145 +1,303 @@
+
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
-import { RidingType, WaitlistEntry } from '../Types/waitlist.types';
+import {
+  CdkDragDrop,
+  DragDropModule
+} from '@angular/cdk/drag-drop';
+
+import { WaitlistEntry } from '../Types/waitlist.types';
 import { WaitlistService } from '../services/waitlist.service';
+
+type Priority = 0 | 1 | 2;
 
 @Component({
   selector: 'app-waitlist-board',
   standalone: true,
-  imports: [CommonModule, FormsModule, DragDropModule],
+  imports: [CommonModule, DragDropModule],
   templateUrl: './waitlist-board.page.html',
   styleUrls: ['./waitlist-board.page.scss'],
 })
 export class WaitlistBoardPage implements OnInit {
-  ridingTypes = signal<RidingType[]>([]);
-  selectedTypeId = signal<string>('');
-  requestedDay = signal<string>(''); // optional filter yyyy-mm-dd
 
   loading = signal(false);
+  saving = signal(false);
   errorText = signal<string | null>(null);
 
   entries = signal<WaitlistEntry[]>([]);
-  activeEntries = computed(() => this.entries().filter(e => e.status === 'active' || e.status === 'paused'));
+  
+  // שמות הילדים לפי child_uuid
+  childNamesById = signal<Record<string, string>>({});
 
-  constructor(private wl: WaitlistService) {}
+  // קבלת שם הילד להצגה במסך
+  childName(childUuid: string): string {
+    return this.childNamesById()[childUuid] ?? 'ילד/ה לא נמצא/ה';
+  }
 
-  async ngOnInit() {
-    await this.loadTypes();
+  selectedRidingTypeId = signal<string>('all');
+  selectedInstructorId = signal<string>('all');
+  childSearch = signal<string>('');
+
+  // איזו לשונית מוצגת
+  selectedTab = signal<'active' | 'paused'>('active');
+
+  // איזו בקשה פתוחה להצגת פרטים
+  expandedEntryId = signal<string | null>(null);
+
+  selectedEntry = computed(() =>
+    this.entries().find(e => e.id === this.expandedEntryId()) ?? null
+  );
+
+  expandedSection = signal<'high' | 'medium' | 'low' | 'paused' | null>(null);
+
+
+
+  toggleSectionSize(
+    section: 'high' | 'medium' | 'low' | 'paused'
+  ): void {
+    this.expandedSection.update(current =>
+      current === section ? null : section
+    );
   }
 
 
-  offeredEntries = computed(() =>
-  this.entries().filter(e => e.status === 'offered')
-);
 
-  async loadTypes() {
-    this.loading.set(true);
-    this.errorText.set(null);
-    try {
-      const types = await this.wl.listRidingTypes();
-      this.ridingTypes.set(types);
-      if (types[0]?.id) {
-        this.selectedTypeId.set(types[0].id);
-        await this.refresh();
-      }
-    } catch (e: any) {
-      this.errorText.set(e?.message ?? 'שגיאה בטעינת סוגי רכיבה');
-    } finally {
-      this.loading.set(false);
-    }
+  isSectionExpanded(section: 'high' | 'medium' | 'low' | 'paused'): boolean {
+    return this.expandedSection() === section;
   }
 
-  async refresh() {
-    const typeId = this.selectedTypeId();
-    if (!typeId) return;
-
-    this.loading.set(true);
-    this.errorText.set(null);
-    try {
-      const day = this.requestedDay().trim() || undefined;
-      const list = await this.wl.listEntriesByType({
-        ridingTypeId: typeId,
-        statuses: ['active','paused','offered'],
-        requestedDay: day,
-      });
-      this.entries.set(list);
-    } catch (e: any) {
-      this.errorText.set(e?.message ?? 'שגיאה בטעינת רשימת המתנה');
-    } finally {
-      this.loading.set(false);
-    }
+  closeDetails(): void {
+    this.expandedEntryId.set(null);
   }
 
-  async onTypeChanged() {
+  // כל הבקשות הפעילות
+  activeEntries = computed(() =>
+    this.entries()
+      .filter(e => e.status === 'active')
+      .sort((a, b) =>
+        b.priority - a.priority ||
+        Number(a.position) - Number(b.position) ||
+        a.id.localeCompare(b.id)
+      )
+  );
+
+  // בקשות מושהות - רשימה אחת
+  pausedEntries = computed(() =>
+    this.entries()
+      .filter(e => e.status === 'paused')
+      .sort((a, b) =>
+        a.created_at.localeCompare(b.created_at)
+      )
+  );
+
+  highPriorityEntries = computed(() =>
+    this.activeEntries().filter(e => e.priority === 2)
+  );
+
+  mediumPriorityEntries = computed(() =>
+    this.activeEntries().filter(e => e.priority === 1)
+  );
+
+  lowPriorityEntries = computed(() =>
+    this.activeEntries().filter(e => e.priority === 0)
+  );
+
+  constructor(private wl: WaitlistService) { }
+
+  async ngOnInit(): Promise<void> {
     await this.refresh();
   }
 
-  async drop(ev: CdkDragDrop<WaitlistEntry[]>) {
-    // UI reorder
-    const arr = [...this.activeEntries()];
-    moveItemInArray(arr, ev.previousIndex, ev.currentIndex);
-
-    // נחשב before/after לפי המיקום החדש
-    const moved = arr[ev.currentIndex];
-    const before = ev.currentIndex > 0 ? arr[ev.currentIndex - 1] : null;
-    const after = ev.currentIndex < arr.length - 1 ? arr[ev.currentIndex + 1] : null;
-
-    // optimistic update: נבנה entries מחדש עם הסדר החדש בתוך active/paused
-    const all = [...this.entries()];
-    const map = new Map(arr.map((x, i) => [x.id, i]));
-    all.sort((a, b) => {
-      const ia = map.has(a.id) ? map.get(a.id)! : 999999;
-      const ib = map.has(b.id) ? map.get(b.id)! : 999999;
-      if (ia !== ib) return ia - ib;
-      // offered נשארים אחרי active/paused
-      return (a.created_at || '').localeCompare(b.created_at || '');
-    });
-    this.entries.set(all);
+  
+  async refresh(): Promise<void> {
+    this.loading.set(true);
+    this.errorText.set(null);
 
     try {
-      await this.wl.moveEntry(moved.id, before?.id ?? null, after?.id ?? null);
-    } catch (e: any) {
-      this.errorText.set(e?.message ?? 'שגיאה בהזזה. ריענון רשימה…');
-      await this.refresh();
+      // טעינת כל בקשות ההמתנה
+      const list = await this.wl.listAllEntries();
+
+      // חילוץ מזהי הילדים מתוך הבקשות
+      const childIds = list.map(entry => entry.child_uuid);
+
+      // טעינת השמות לפי המזהים
+      const names = await this.wl.listChildNames(childIds);
+
+      // עדכון המידע שמוצג במסך
+      this.childNamesById.set(names);
+      this.entries.set(list);
+
+    } catch (error: any) {
+      console.error('שגיאה בטעינת רשימת ההמתנה:', error);
+
+      this.errorText.set(
+        error?.message ??
+        'אירעה שגיאה בטעינת רשימת ההמתנה.'
+      );
+
+    } finally {
+      this.loading.set(false);
     }
   }
 
-  async togglePause(e: WaitlistEntry) {
-    const next = e.status === 'paused' ? 'active' : 'paused';
-    try {
-      await this.wl.setStatus(e.id, next);
-      await this.refresh();
-    } catch (err: any) {
-      this.errorText.set(err?.message ?? 'שגיאה בעדכון סטטוס');
+
+  changeTab(tab: 'active' | 'paused'): void {
+    this.selectedTab.set(tab);
+    this.expandedEntryId.set(null);
+  }
+
+  toggleExpanded(entryId: string): void {
+    this.expandedEntryId.update(current =>
+      current === entryId ? null : entryId
+    );
+  }
+
+  isExpanded(entryId: string): boolean {
+    return this.expandedEntryId() === entryId;
+  }
+
+  priorityLabel(priority: number): string {
+    switch (priority) {
+      case 2: return 'גבוהה';
+      case 1: return 'בינונית';
+      default: return 'נמוכה';
     }
   }
 
-  async bumpPriority(e: WaitlistEntry, delta: number) {
+  preferenceLabel(
+    allFlag: boolean,
+    selectedLabel: string,
+    allLabel: string
+  ): string {
+    return allFlag ? allLabel : selectedLabel;
+  }
+
+
+  onPriorityChange(entry: WaitlistEntry, value: string): void {
+    const priority = Number(value);
+
+    if (priority !== 0 && priority !== 1 && priority !== 2) {
+      return;
+    }
+
+    void this.changePriority(entry, priority);
+  }
+
+
+  // שינוי עדיפות: מכניס לסוף הקבוצה החדשה
+  async changePriority(
+    entry: WaitlistEntry,
+    priority: Priority
+  ): Promise<void> {
+    if (this.saving() || entry.priority === priority) return;
+
+    this.saving.set(true);
+    this.errorText.set(null);
+
     try {
-      await this.wl.setPriority(e.id, (e.priority ?? 0) + delta);
+      await this.wl.changeWaitlistPriority(entry.id, priority);
       await this.refresh();
-    } catch (err: any) {
-      this.errorText.set(err?.message ?? 'שגיאה בעדכון קדימות');
+    } catch (error: any) {
+      console.error('שגיאה בשינוי עדיפות:', error);
+      this.errorText.set(
+        error?.message ?? 'לא ניתן לשנות את העדיפות.'
+      );
+    } finally {
+      this.saving.set(false);
     }
   }
 
-  async markContacted(e: WaitlistEntry) {
+  // השהיה או החזרה לפעיל
+  async togglePause(entry: WaitlistEntry): Promise<void> {
+    if (this.saving()) return;
+
+    this.saving.set(true);
+    this.errorText.set(null);
+
+    const newStatus =
+      entry.status === 'paused' ? 'active' : 'paused';
+
     try {
-      await this.wl.setLastContacted(e.id);
+      await this.wl.changeWaitlistStatus(entry.id, newStatus);
+      this.expandedEntryId.set(null);
       await this.refresh();
-    } catch (err: any) {
-      this.errorText.set(err?.message ?? 'שגיאה בעדכון “נוצר קשר”');
+    } catch (error: any) {
+      console.error('שגיאה בשינוי סטטוס:', error);
+      this.errorText.set(
+        error?.message ?? 'לא ניתן לעדכן את סטטוס הבקשה.'
+      );
+    } finally {
+      this.saving.set(false);
     }
   }
 
-  async normalizePositions() {
+  // מחיקה - עם אישור לפני פעולה בלתי הפיכה
+  async deleteRequest(entry: WaitlistEntry): Promise<void> {
+    if (this.saving()) return;
+
+    const confirmed = window.confirm(
+      'האם למחוק את בקשת ההמתנה?\n\n' +
+      'הבקשה וכל העדפותיה יימחקו לצמיתות.\n' +
+      'כרטיס הילד/ה במערכת לא יימחק.'
+    );
+
+    if (!confirmed) return;
+
+    this.saving.set(true);
+    this.errorText.set(null);
+
     try {
-      await this.wl.normalize(this.selectedTypeId());
+      await this.wl.deleteWaitlistRequest(entry.id);
+      this.expandedEntryId.set(null);
       await this.refresh();
-    } catch (err: any) {
-      this.errorText.set(err?.message ?? 'שגיאה ב־Normalize');
+    } catch (error: any) {
+      console.error('שגיאה במחיקת בקשה:', error);
+      this.errorText.set(
+        error?.message ?? 'לא ניתן למחוק את הבקשה.'
+      );
+    } finally {
+      this.saving.set(false);
     }
   }
+
+  // גרירה רק בתוך אותה קבוצת עדיפות
+  async drop(
+    event: CdkDragDrop<WaitlistEntry[]>,
+    priority: Priority
+  ): Promise<void> {
+    if (this.saving()) return;
+    if (event.previousIndex === event.currentIndex) return;
+
+    const items = [...event.container.data];
+    const moved = items[event.previousIndex];
+
+    if (!moved ||
+      moved.status !== 'active' ||
+      moved.priority !== priority ||
+      event.previousContainer !== event.container) {
+      return;
+    }
+
+    this.saving.set(true);
+    this.errorText.set(null);
+
+    try {
+      await this.wl.reorderWaitlistEntry(
+        moved.id,
+        event.currentIndex + 1
+      );
+
+      await this.refresh();
+    } catch (error: any) {
+      console.error('שגיאה בשינוי מיקום:', error);
+      this.errorText.set(
+        error?.message ?? 'לא ניתן לשנות את המיקום בתור.'
+      );
+
+      await this.refresh();
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
 }

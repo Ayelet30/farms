@@ -354,6 +354,7 @@ export class SecretaryChildrenComponent implements OnInit {
   panelFocus: 'search' | 'filter' = 'search';
   showAddChildWizard = false;
   showWaitingListDialog = false;
+  savingWaitingList = false;
   waitingListAllInstructors = true;
   waitingListInstructorIds: string[] = [];
   waitingListInstructorSearch = '';
@@ -365,6 +366,16 @@ export class SecretaryChildrenComponent implements OnInit {
   farmWorkingHoursLoaded = false;
   farmWorkingHoursError = '';
   waitingListDays: WaitingDayAvailability[] = [];
+
+  // סוגי רכיבה ברשימת המתנה
+  waitingListRidingTypes: { id: string; name: string }[] = [];
+  waitingListRidingTypesLoading = false;
+  waitingListRidingTypesError = '';
+  waitingListAllRidingTypes = true;
+  waitingListRidingTypeIds: string[] = [];
+  waitingListRidingTypeSearch = '';
+  waitingListRidingTypesOpen = false;
+
 
   waitingListWeekDays = [
     { id: 1, name: 'ראשון' },
@@ -1567,6 +1578,73 @@ scheduled_deletion_at,deletion_note
     this.showAddChildWizard = true;
   }
 
+
+  async loadWaitingListRidingTypes(): Promise<void> {
+    this.waitingListRidingTypesLoading = true;
+    this.waitingListRidingTypesError = '';
+    this.waitingListRidingTypes = [];
+
+    try {
+      const db = await this.dbc();
+
+      const { data, error } = await db
+        .from('riding_types')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+
+      this.waitingListRidingTypes = (data ?? []).map(
+        (type: any) => ({
+          id: type.id,
+          name: type.name
+        })
+      );
+
+    } catch (error: any) {
+      console.error('Loading riding types failed:', error);
+
+      this.waitingListRidingTypesError =
+        error?.message ?? 'שגיאה בטעינת סוגי הרכיבה';
+
+    } finally {
+      this.waitingListRidingTypesLoading = false;
+    }
+  }
+
+  get filteredWaitingListRidingTypes() {
+    const search =
+      this.waitingListRidingTypeSearch.trim().toLowerCase();
+
+    return this.waitingListRidingTypes.filter(type =>
+      type.name.toLowerCase().includes(search)
+    );
+  }
+
+  setWaitingListAllRidingTypes(all: boolean): void {
+    this.waitingListAllRidingTypes = all;
+    this.waitingListRidingTypeIds = [];
+    this.waitingListRidingTypeSearch = '';
+    this.waitingListRidingTypesOpen = false;
+  }
+
+  toggleWaitingListRidingType(
+    id: string,
+    checked: boolean
+  ): void {
+    if (checked) {
+      if (!this.waitingListRidingTypeIds.includes(id)) {
+        this.waitingListRidingTypeIds.push(id);
+      }
+    } else {
+      this.waitingListRidingTypeIds =
+        this.waitingListRidingTypeIds.filter(
+          typeId => typeId !== id
+        );
+    }
+  }
+
   async openWaitingListDialog(): Promise<void> {
     if (!this.drawerChild?.child_uuid) return;
 
@@ -1576,8 +1654,13 @@ scheduled_deletion_at,deletion_note
     // פתיחת מסך רשימת ההמתנה
     this.showWaitingListDialog = true;
 
-    // טעינת שעות הפעילות של החווה
-    await this.loadWaitingListFarmHours();
+
+    // טעינת שעות הפעילות וסוגי הרכיבה
+    await Promise.all([
+      this.loadWaitingListFarmHours(),
+      this.loadWaitingListRidingTypes()
+    ]);
+
   }
 
 
@@ -1604,9 +1687,36 @@ scheduled_deletion_at,deletion_note
 
     // עדיפות
     this.waitingListPriority = 'medium';
+
+
+    // איפוס בחירת סוגי רכיבה
+    this.waitingListAllRidingTypes = true;
+    this.waitingListRidingTypeIds = [];
+    this.waitingListRidingTypeSearch = '';
+    this.waitingListRidingTypesOpen = false;
+
   }
 
   get canSaveWaitingList(): boolean {
+
+
+    // סוגי הרכיבה חייבים להיטען בהצלחה
+    if (
+      this.waitingListRidingTypesLoading ||
+      this.waitingListRidingTypesError ||
+      this.waitingListRidingTypes.length === 0
+    ) {
+      return false;
+    }
+
+    // בבחירה מותאמת חובה לבחור לפחות סוג אחד
+    if (
+      !this.waitingListAllRidingTypes &&
+      this.waitingListRidingTypeIds.length === 0
+    ) {
+      return false;
+    }
+
 
     if (
       !this.farmWorkingHoursLoaded ||
@@ -1731,40 +1841,163 @@ scheduled_deletion_at,deletion_note
     return true;
   }
 
-  saveWaitingList(): void {
 
-    if (!this.canSaveWaitingList) {
+  async saveWaitingList(): Promise<void> {
+    if (!this.canSaveWaitingList || this.savingWaitingList) {
       return;
     }
 
-    console.log('נתונים המיועדים לשמירה:', {
-
-
-      childId: this.drawerChild!.child_uuid,
-
-      allInstructors: this.waitingListAllInstructors,
-
-      instructorIds: this.waitingListAllInstructors
-        ? []
-        : [...this.waitingListInstructorIds],
-
-      allTimes: this.waitingListAllTimes,
-
-      priority: this.waitingListPriority,
-
-      availability: this.waitingListAllTimes
-        ? []
-        : this.waitingListDays.map(day => ({
-          day: day.day,
-          ranges: (
-            this.waitingListSameHours
-              ? this.waitingListCommonRanges
-              : day.ranges
-          ).map(range => ({ ...range }))
-        }))
+    const childId = this.drawerChild?.child_uuid;
+    const parentUid = this.drawerChild?.parent_uid;
+    console.log('בדיקת פרטי הילד לפני שמירה:', {
+      childId,
+      parentUid,
+      drawerChild: this.drawerChild
     });
 
+    if (!childId || !parentUid) {
+      await this.ui.alert(
+        'לא ניתן לשמור: לילד חסר מזהה או הורה משויך.',
+        'שגיאה בשמירת רשימת המתנה'
+      );
+      return;
+    }
+
+    this.savingWaitingList = true;
+
+    try {
+      const db = await this.dbc();
+
+      // המרת העדיפות לערך שמסד הנתונים מכיר
+      const priorityMap = {
+        high: 2,
+        medium: 1,
+        low: 0
+      };
+
+      const priority = priorityMap[this.waitingListPriority];
+
+      // סוגי רכיבה: כשנבחר "הכול" שולחים מערך ריק
+      const ridingTypeIds = this.waitingListAllRidingTypes
+        ? []
+        : [...this.waitingListRidingTypeIds];
+
+      // מדריכים: המזהים הם id_number
+      const instructorIds = this.waitingListAllInstructors
+        ? []
+        : [...this.waitingListInstructorIds];
+
+      // זמינות בפורמט שהפונקציה ב-Supabase דורשת
+      const availability: {
+        day: number;
+        allDay: boolean;
+        from: string | null;
+        to: string | null;
+      }[] = [];
+
+      if (!this.waitingListAllTimes) {
+        for (const day of this.waitingListDays) {
+          const farmHours = this.getWaitingListFarmHours(day.day);
+
+          if (
+            !farmHours?.is_open ||
+            !farmHours.farm_start ||
+            !farmHours.farm_end
+          ) {
+            throw new Error(
+              `לא נמצאו שעות פעילות תקינות ליום ${day.day}`
+            );
+          }
+
+          const ranges = this.waitingListSameHours
+            ? this.waitingListCommonRanges
+            : day.ranges;
+
+          for (const range of ranges) {
+            const allDay = !range.from && !range.to;
+
+            if (allDay) {
+              availability.push({
+                day: day.day,
+                allDay: true,
+                from: null,
+                to: null
+              });
+            } else {
+              // שעה ריקה בצד אחד = גבול שעות החווה
+              availability.push({
+                day: day.day,
+                allDay: false,
+                from: (range.from || farmHours.farm_start).slice(0, 5),
+                to: (range.to || farmHours.farm_end).slice(0, 5)
+              });
+            }
+          }
+        }
+      }
+
+      // כל השדות שהפונקציה דורשת, ללא הסתמכות
+      // על ערכי ברירת מחדל
+      const payload = {
+        p_parent_uid: parentUid,
+        p_child_uuid: childId,
+        p_priority: priority,
+        p_all_riding_types: this.waitingListAllRidingTypes,
+        p_riding_type_ids: ridingTypeIds,
+        p_all_instructors: this.waitingListAllInstructors,
+        p_instructor_ids: instructorIds,
+        p_all_times: this.waitingListAllTimes,
+        p_availability: availability
+      };
+
+      console.log('נתונים הנשלחים ל-Supabase:', payload);
+
+      const { data, error } = await db.rpc(
+        'waitlist_create_request',
+        payload
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('בקשת המתנה נשמרה בהצלחה:', data);
+
+      this.closeWaitingListDialog();
+
+      await this.ui.alert(
+        'הילד נוסף בהצלחה לרשימת ההמתנה.',
+        'שמירה הושלמה'
+      );
+
+
+    } catch (error: any) {
+      console.error('שגיאה בשמירת רשימת ההמתנה:', error);
+
+      const isDuplicateRequest =
+        error?.code === '23505' &&
+        (
+          error?.message?.includes('waitlist_entries_unique_child') ||
+          error?.message?.includes('child_uuid')
+        );
+
+      const message = isDuplicateRequest
+        ? 'לילד/ה כבר קיימת בקשה ברשימת ההמתנה. לא ניתן לפתוח בקשת המתנה נוספת לפני שהבקשה הקיימת תטופל או תימחק.'
+        : error?.message || 'אירעה שגיאה בשמירת הבקשה.';
+
+      await this.ui.alert(
+        message,
+        isDuplicateRequest
+          ? 'בקשת המתנה כבר קיימת'
+          : 'שגיאה בשמירה'
+      );
+    } finally {
+      this.savingWaitingList = false;
+    }
+
+
   }
+
 
   get filteredWaitingListInstructors() {
     const search = this.waitingListInstructorSearch.trim().toLowerCase();

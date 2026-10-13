@@ -1,98 +1,490 @@
-<div class="wl-wrap" dir="rtl">
+<div class="wl-page" dir="rtl">
 
-  <div class="wl-head">
-    <div class="wl-title">רשימת המתנה</div>
+  <!-- כותרת העמוד -->
+  <section class="wl-hero-card">
 
-    <div class="wl-filters">
-      <label class="field">
-        <div class="lbl">סוג רכיבה</div>
-        <select [ngModel]="selectedTypeId()" (ngModelChange)="selectedTypeId.set($event); onTypeChanged()">
-          <option *ngFor="let t of ridingTypes()" [value]="t.id">{{ t.name }}</option>
+    <div class="wl-hero-text">
+      <h1>ניהול רשימת המתנה</h1>
+      <p>ניהול בקשות המתנה, מיקומים וסדרי עדיפויות.</p>
+    </div>
+
+    <div class="wl-hero-actions">
+      <button type="button" class="wl-main-btn" disabled>
+        <span class="plus">+</span>
+        הוספה לרשימת המתנה
+      </button>
+
+      <button type="button" class="wl-secondary-btn" disabled>
+        חיפוש התאמות
+      </button>
+    </div>
+
+  </section>
+
+  <!-- לשוניות -->
+  <section class="wl-top-toolbar">
+
+    <div class="wl-tabs">
+      <button type="button" class="wl-tab" [class.active]="selectedTab() === 'active'" (click)="changeTab('active')">
+        בקשות פעילות
+        <span class="count">{{ activeEntries().length }}</span>
+      </button>
+
+      <button type="button" class="wl-tab" [class.active]="selectedTab() === 'paused'" (click)="changeTab('paused')">
+        בקשות מושהות
+        <span class="count">{{ pausedEntries().length }}</span>
+      </button>
+    </div>
+
+    <span class="wl-toolbar-note">
+      לחצי על רשומה כדי לצפות בפרטיה ולערוך אותה.
+    </span>
+
+  </section>
+
+  <!-- סינונים -->
+  <section class="wl-filter-card">
+    <div class="wl-filter-grid">
+
+      <div class="wl-filter-field">
+        <label for="wl-riding-filter">סוג רכיבה</label>
+        <select id="wl-riding-filter" [value]="selectedRidingTypeId()"
+          (change)="selectedRidingTypeId.set($any($event.target).value)">
+          <option value="all">כל סוגי הרכיבה</option>
         </select>
-      </label>
+      </div>
 
-      <label class="field">
-        <div class="lbl">סינון יום (אופציונלי)</div>
-        <input type="date" [ngModel]="requestedDay()" (ngModelChange)="requestedDay.set($event); refresh()" />
-      </label>
+      <div class="wl-filter-field">
+        <label for="wl-instructor-filter">העדפת מדריך</label>
+        <select id="wl-instructor-filter" [value]="selectedInstructorId()"
+          (change)="selectedInstructorId.set($any($event.target).value)">
+          <option value="all">כל המדריכים</option>
+        </select>
+      </div>
 
-      <button class="btn" type="button" (click)="refresh()" [disabled]="loading()">רענן</button>
-      <button class="btn ghost" type="button" (click)="normalizePositions()" [disabled]="loading()">Normalize</button>
+      <div class="wl-filter-field">
+        <label for="wl-child-search">חיפוש ילד/ה</label>
+        <input id="wl-child-search" type="search" placeholder="חיפוש לפי שם הילד/ה" [value]="childSearch()"
+          (input)="childSearch.set($any($event.target).value)" />
+      </div>
+
+      <div class="wl-filter-actions">
+        <button type="button" class="wl-clear-btn" (click)="selectedRidingTypeId.set('all');
+                   selectedInstructorId.set('all');
+                   childSearch.set('')">
+          ניקוי סינון
+        </button>
+      </div>
+
     </div>
+  </section>
 
-    <div class="wl-error" *ngIf="errorText()">{{ errorText() }}</div>
+  <!-- הודעות -->
+  <div class="wl-state wl-error" *ngIf="errorText()">
+    {{ errorText() }}
   </div>
 
-  <div class="wl-list" *ngIf="!loading()">
+  <div class="wl-state wl-loading" *ngIf="loading()">
+    טוען רשימת המתנה...
+  </div>
 
-    <div class="wl-section-title">פעילים / מושהים (אפשר לגרור)</div>
+  <!-- בקשות פעילות -->
+  <ng-container *ngIf="!loading() && selectedTab() === 'active'">
 
-    <div cdkDropList class="cards" (cdkDropListDropped)="drop($event)">
-      <div class="card"
-           *ngFor="let e of activeEntries(); let i = index"
-           cdkDrag>
+    <!-- עדיפות גבוהה -->
+    <section class="wl-priority-block" [class.expanded]="isSectionExpanded('high')">
 
-        <div class="row top">
-          <div class="pill status" [class.paused]="e.status==='paused'">
-            {{ e.status === 'paused' ? 'מושהה' : 'פעיל' }}
-          </div>
-
-          <div class="meta">
-            <div class="small">קדימות: <b>{{ e.priority }}</b></div>
-            <div class="small">נוצר קשר: <b>{{ e.last_contacted_at ? (e.last_contacted_at | date:'dd/MM HH:mm') : '—' }}</b></div>
-          </div>
-        </div>
-
-        <div class="row mid">
-          <div class="title">ילד: {{ e.child_uuid }}</div>
-          <div class="sub">הורה: {{ e.parent_uid }}</div>
-        </div>
-
-        <div class="row chips">
-          <span class="chip" *ngIf="e.requested_day">יום: {{ e.requested_day }}</span>
-          <span class="chip" *ngIf="e.time_window_start && e.time_window_end">
-            שעות: {{ e.time_window_start!.slice(0,5) }}–{{ e.time_window_end!.slice(0,5) }}
+      <div class="wl-priority-head">
+        <div class="wl-priority-title-wrap">
+          <h2>עדיפות גבוהה</h2>
+          <span class="wl-priority-meta">
+            {{ highPriorityEntries().length }} בקשות
           </span>
-          <span class="chip" *ngIf="e.preferred_instructor_uid">מדריך: {{ e.preferred_instructor_uid }}</span>
         </div>
 
-        <div class="row actions">
-          <button class="btn ghost" type="button" (click)="togglePause(e)">
-            {{ e.status==='paused' ? 'החזר לפעיל' : 'השהה' }}
-          </button>
-
-          <button class="btn" type="button" (click)="bumpPriority(e, +1)">+ קדימות</button>
-          <button class="btn ghost" type="button" (click)="bumpPriority(e, -1)">- קדימות</button>
-
-          <button class="btn ghost" type="button" (click)="markContacted(e)">סמן “נוצר קשר”</button>
-        </div>
-
+        <button type="button" class="wl-expand-section-btn" (click)="toggleSectionSize('high')">
+          {{ isSectionExpanded('high') ? 'הקטנה' : 'הגדלה' }}
+        </button>
       </div>
-    </div>
 
-    <div class="wl-section-title">הצעות פתוחות (offered)</div>
+      <div class="wl-divider"></div>
 
-    <div class="cards">
-      <div class="card offered" *ngFor="let e of offeredEntries()">
-        <div class="row top">
-          <div class="pill offered">הצעה נשלחה</div>
-          <div class="meta">
-            <div class="small">תוקף עד: <b>{{ e.offer_expires_at ? (e.offer_expires_at | date:'dd/MM HH:mm') : '—' }}</b></div>
+      <div class="wl-table-card">
+        <ng-container *ngTemplateOutlet="activeTableHead"></ng-container>
+
+        <div class="wl-table-body" cdkDropList [cdkDropListData]="highPriorityEntries()"
+          [cdkDropListDisabled]="saving()" (cdkDropListDropped)="drop($event, 2)">
+
+          <div class="wl-table-row" *ngFor="let entry of highPriorityEntries(); let i = index" cdkDrag
+            cdkDragPreviewContainer="parent" [cdkDragDisabled]="saving()"
+            [class.selected]="expandedEntryId() === entry.id" (click)="toggleExpanded(entry.id)">
+
+            <ng-container *ngTemplateOutlet="activeRow;
+                context: { $implicit: entry, position: i + 1 }">
+            </ng-container>
+
+          </div>
+
+          <div class="wl-empty-row" *ngIf="highPriorityEntries().length === 0">
+            אין בקשות בעדיפות גבוהה
           </div>
         </div>
+      </div>
+    </section>
 
-        <div class="row mid">
-          <div class="title">ילד: {{ e.child_uuid }}</div>
-          <div class="sub">הורה: {{ e.parent_uid }}</div>
+    <!-- עדיפות בינונית -->
+    <section class="wl-priority-block" [class.expanded]="isSectionExpanded('medium')">
+
+      <div class="wl-priority-head">
+        <div class="wl-priority-title-wrap">
+          <h2>עדיפות בינונית</h2>
+          <span class="wl-priority-meta">
+            {{ mediumPriorityEntries().length }} בקשות
+          </span>
         </div>
 
-        <div class="row chips">
-          <span class="chip" *ngIf="e.linked_occurrence_id">שיעור: {{ e.linked_occurrence_id }}</span>
+        <button type="button" class="wl-expand-section-btn" (click)="toggleSectionSize('medium')">
+          {{ isSectionExpanded('medium') ? 'הקטנה' : 'הגדלה' }}
+        </button>
+      </div>
+
+      <div class="wl-divider"></div>
+
+      <div class="wl-table-card">
+        <ng-container *ngTemplateOutlet="activeTableHead"></ng-container>
+
+        <div class="wl-table-body" cdkDropList [cdkDropListData]="mediumPriorityEntries()"
+          [cdkDropListDisabled]="saving()" (cdkDropListDropped)="drop($event, 1)">
+
+          <div class="wl-table-row" *ngFor="let entry of mediumPriorityEntries(); let i = index" cdkDrag
+            cdkDragPreviewContainer="parent" [cdkDragDisabled]="saving()"
+            [class.selected]="expandedEntryId() === entry.id" (click)="toggleExpanded(entry.id)">
+
+            <ng-container *ngTemplateOutlet="activeRow;
+                context: { $implicit: entry, position: i + 1 }">
+            </ng-container>
+
+          </div>
+
+          <div class="wl-empty-row" *ngIf="mediumPriorityEntries().length === 0">
+            אין בקשות בעדיפות בינונית
+          </div>
         </div>
       </div>
+    </section>
+
+    <!-- עדיפות נמוכה -->
+    <section class="wl-priority-block" [class.expanded]="isSectionExpanded('low')">
+
+      <div class="wl-priority-head">
+        <div class="wl-priority-title-wrap">
+          <h2>עדיפות נמוכה</h2>
+          <span class="wl-priority-meta">
+            {{ lowPriorityEntries().length }} בקשות
+          </span>
+        </div>
+
+        <button type="button" class="wl-expand-section-btn" (click)="toggleSectionSize('low')">
+          {{ isSectionExpanded('low') ? 'הקטנה' : 'הגדלה' }}
+        </button>
+      </div>
+
+      <div class="wl-divider"></div>
+
+      <div class="wl-table-card">
+        <ng-container *ngTemplateOutlet="activeTableHead"></ng-container>
+
+        <div class="wl-table-body" cdkDropList [cdkDropListData]="lowPriorityEntries()" [cdkDropListDisabled]="saving()"
+          (cdkDropListDropped)="drop($event, 0)">
+
+          <div class="wl-table-row" *ngFor="let entry of lowPriorityEntries(); let i = index" cdkDrag
+            cdkDragPreviewContainer="parent" [cdkDragDisabled]="saving()"
+            [class.selected]="expandedEntryId() === entry.id" (click)="toggleExpanded(entry.id)">
+
+            <ng-container *ngTemplateOutlet="activeRow;
+                context: { $implicit: entry, position: i + 1 }">
+            </ng-container>
+
+          </div>
+
+          <div class="wl-empty-row" *ngIf="lowPriorityEntries().length === 0">
+            אין בקשות בעדיפות נמוכה
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </ng-container>
+
+  <!-- בקשות מושהות -->
+  <ng-container *ngIf="!loading() && selectedTab() === 'paused'">
+
+    <section class="wl-priority-block" [class.expanded]="isSectionExpanded('paused')">
+
+      <div class="wl-priority-head">
+        <div class="wl-priority-title-wrap">
+          <h2>בקשות מושהות</h2>
+          <span class="wl-priority-meta">
+            {{ pausedEntries().length }} בקשות
+          </span>
+        </div>
+
+        <button type="button" class="wl-expand-section-btn" (click)="toggleSectionSize('paused')">
+          {{ isSectionExpanded('paused') ? 'הקטנה' : 'הגדלה' }}
+        </button>
+      </div>
+
+      <div class="wl-divider"></div>
+
+      <div class="wl-table-card">
+
+        <div class="wl-table-head paused-head">
+          <div>שם הילד/ה</div>
+          <div>עדיפות</div>
+          <div>סוג רכיבה</div>
+          <div>העדפת מדריך</div>
+          <div>העדפת שעות</div>
+          <div>פעולות</div>
+        </div>
+
+        <div class="wl-table-body paused-body">
+
+          <div class="wl-table-row paused-row" *ngFor="let entry of pausedEntries()"
+            [class.selected]="expandedEntryId() === entry.id" (click)="toggleExpanded(entry.id)">
+
+            <div class="wl-col child-col">
+              <strong>{{ childName(entry.child_uuid) }}</strong>
+            </div>
+
+            <ng-container *ngTemplateOutlet="priorityDropdown;
+                context: { $implicit: entry }">
+            </ng-container>
+
+            <div class="wl-col">
+              {{ preferenceLabel(entry.all_riding_types,
+              'סוגים נבחרים', 'כל סוגי הרכיבה') }}
+            </div>
+
+            <div class="wl-col">
+              {{ preferenceLabel(entry.all_instructors,
+              'מדריכים נבחרים', 'כל המדריכים') }}
+            </div>
+
+            <div class="wl-col">
+              {{ preferenceLabel(entry.all_times,
+              'זמנים נבחרים', 'כל הימים והשעות') }}
+            </div>
+
+            <div class="wl-col actions-col">
+              <button type="button" class="row-action-btn" [disabled]="saving()"
+                (click)="$event.stopPropagation(); togglePause(entry)">
+                הפעלה
+              </button>
+
+              <button type="button" class="row-action-btn danger" [disabled]="saving()"
+                (click)="$event.stopPropagation(); deleteRequest(entry)">
+                מחיקה
+              </button>
+            </div>
+
+          </div>
+
+          <div class="wl-empty-row" *ngIf="pausedEntries().length === 0">
+            אין בקשות מושהות
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </ng-container>
+
+  <!-- כותרת טבלה משותפת לשלוש העדיפויות -->
+  <ng-template #activeTableHead>
+    <div class="wl-table-head">
+      <div>מיקום בתור</div>
+      <div>שם הילד/ה</div>
+      <div>עדיפות</div>
+      <div>סוג רכיבה</div>
+      <div>העדפת מדריך</div>
+      <div>העדפת שעות</div>
+      <div>פעולות</div>
+    </div>
+  </ng-template>
+
+  <!-- תפריט עדיפות משותף לפעילים ולמושהים -->
+  <ng-template #priorityDropdown let-entry>
+    <div class="wl-col priority-col">
+
+      <select class="wl-priority-select" aria-label="שינוי עדיפות" [value]="entry.priority" [disabled]="saving()"
+        (click)="$event.stopPropagation()" (pointerdown)="$event.stopPropagation()" (change)="
+          $event.stopPropagation();
+          onPriorityChange(entry, $any($event.target).value)
+        ">
+        <option value="2">גבוהה</option>
+        <option value="1">בינונית</option>
+        <option value="0">נמוכה</option>
+      </select>
+
+    </div>
+  </ng-template>
+
+  <!-- תוכן שורה משותף לטבלאות פעילות -->
+  <ng-template #activeRow let-entry let-position="position">
+
+    <div class="wl-col queue-col">
+      <span class="drag-handle" cdkDragHandle (click)="$event.stopPropagation()" title="גרירה לשינוי מיקום">
+        ⋮⋮
+      </span>
+
+      <span class="queue-number">
+        {{ position }}
+      </span>
     </div>
 
+    <div class="wl-col child-col">
+      <strong>{{ childName(entry.child_uuid) }}</strong>
+    </div>
+
+    <ng-container *ngTemplateOutlet="priorityDropdown;
+        context: { $implicit: entry }">
+    </ng-container>
+
+    <div class="wl-col">
+      {{ preferenceLabel(entry.all_riding_types,
+      'סוגים נבחרים', 'כל סוגי הרכיבה') }}
+    </div>
+
+    <div class="wl-col">
+      {{ preferenceLabel(entry.all_instructors,
+      'מדריכים נבחרים', 'כל המדריכים') }}
+    </div>
+
+    <div class="wl-col">
+      {{ preferenceLabel(entry.all_times,
+      'זמנים נבחרים', 'כל הימים והשעות') }}
+    </div>
+
+    <div class="wl-col actions-col">
+      <button type="button" class="row-action-btn" [disabled]="saving()"
+        (click)="$event.stopPropagation(); togglePause(entry)">
+        השהיה
+      </button>
+
+      <button type="button" class="row-action-btn danger" [disabled]="saving()"
+        (click)="$event.stopPropagation(); deleteRequest(entry)">
+        מחיקה
+      </button>
+    </div>
+
+  </ng-template>
+
+  <!-- רקע חלון הצד -->
+  <div class="wl-side-overlay" *ngIf="selectedEntry()" (click)="closeDetails()">
   </div>
 
-  <div class="wl-loading" *ngIf="loading()">טוען…</div>
+  <!-- חלון פרטי בקשה -->
+  <aside class="wl-side-panel" *ngIf="selectedEntry() as entry">
+
+    <div class="wl-side-header">
+      <div>
+        <h3>פרטי הבקשה</h3>
+        <p>ניהול מפורט של בקשת ההמתנה</p>
+      </div>
+
+      <button type="button" class="close-side-btn" (click)="closeDetails()">
+        ×
+      </button>
+    </div>
+
+    <div class="wl-side-body">
+
+      <div class="wl-info-grid">
+
+        <div class="wl-info-card">
+          <span>מזהה בקשה</span>
+          <strong>{{ entry.id }}</strong>
+        </div>
+
+        <div class="wl-info-card">
+          <span>שם הילד/ה</span>
+          <strong>{{ childName(entry.child_uuid) }}</strong>
+        </div>
+
+        <div class="wl-info-card">
+          <span>מזהה ילד</span>
+          <strong>{{ entry.child_uuid }}</strong>
+        </div>
+
+        <div class="wl-info-card">
+          <span>תאריך יצירה</span>
+          <strong>{{ entry.created_at | date:'dd/MM/yyyy HH:mm' }}</strong>
+        </div>
+
+        <div class="wl-info-card">
+          <span>סטטוס</span>
+          <strong>{{ entry.status === 'paused' ? 'מושהה' : 'פעיל' }}</strong>
+        </div>
+
+        <div class="wl-info-card">
+          <span>עדיפות</span>
+          <strong>{{ priorityLabel(entry.priority) }}</strong>
+        </div>
+
+        <div class="wl-info-card">
+          <span>מונה דחיות</span>
+          <strong>{{ entry.decline_count }}</strong>
+        </div>
+
+        <div class="wl-info-card wide">
+          <span>סוגי רכיבה</span>
+          <strong>
+            {{ preferenceLabel(entry.all_riding_types,
+            'סוגים נבחרים', 'כל סוגי הרכיבה') }}
+          </strong>
+        </div>
+
+        <div class="wl-info-card wide">
+          <span>מדריכים</span>
+          <strong>
+            {{ preferenceLabel(entry.all_instructors,
+            'מדריכים נבחרים', 'כל המדריכים') }}
+          </strong>
+        </div>
+
+        <div class="wl-info-card wide">
+          <span>זמינות</span>
+          <strong>
+            {{ preferenceLabel(entry.all_times,
+            'זמנים נבחרים', 'כל הימים והשעות') }}
+          </strong>
+        </div>
+
+      </div>
+
+      <div class="wl-side-editor">
+        <label [for]="'drawer-priority-' + entry.id">
+          שינוי עדיפות
+        </label>
+
+        <select [id]="'drawer-priority-' + entry.id" [value]="entry.priority" [disabled]="saving()"
+          (change)="onPriorityChange(entry, $any($event.target).value)">
+          <option value="2">גבוהה</option>
+          <option value="1">בינונית</option>
+          <option value="0">נמוכה</option>
+        </select>
+      </div>
+
+      <div class="wl-side-actions">
+        <button type="button" class="wl-secondary-btn side" [disabled]="saving()" (click)="togglePause(entry)">
+          {{ entry.status === 'paused' ? 'הפעלה' : 'השהיה' }}
+        </button>
+
+        <button type="button" class="wl-danger-btn" [disabled]="saving()" (click)="deleteRequest(entry)">
+          מחיקת בקשה
+        </button>
+      </div>
+
+    </div>
+  </aside>
+
 </div>
