@@ -68,7 +68,7 @@
 
     <mat-form-field *ngIf="reasonType === 'other' || reasonType === 'personal'" appearance="outline" class="full-width">
       <mat-label>פירוט נוסף (אופציונלי)</mat-label>
-      <textarea matInput rows="3" [(ngModel)]="reasonText" placeholder="כתבי כאן פירוט קצר"></textarea>
+      <textarea matInput rows="3" [(ngModel)]="reasonText" placeholder="הוספת פירוט קצר"></textarea>
     </mat-form-field>
 
     <div class="error" *ngIf="error">{{ error }}</div>

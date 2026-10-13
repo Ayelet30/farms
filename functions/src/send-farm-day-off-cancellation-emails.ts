@@ -301,10 +301,7 @@ export const sendFarmDayOffCancellationEmails = onRequest(
         ].join('\n');
 
         try {
-          console.log('[FARM DAY OFF EMAIL] sending parent', {
-            email,
-            lessons: rows.length,
-          });
+
 
           await sendEmailCore({
             tenantSchema,
@@ -315,14 +312,11 @@ export const sendFarmDayOffCancellationEmails = onRequest(
             fromName: 'Smart-Farm',
           });
 
-          console.log('[FARM DAY OFF EMAIL] parent sent successfully', {
-            email,
-          });
+
 
           parentSentCount++;
           successfulParents.push({
-            name: parentName,
-            email,
+            name: instructorName, email,
           });
         } catch (e: any) {
           failedCount++;
@@ -333,8 +327,7 @@ export const sendFarmDayOffCancellationEmails = onRequest(
           });
           failures.push({
             email,
-            name: parentName,
-            type: 'parent',
+            name: instructorName, type: 'parent',
             error: e?.message || String(e),
           });
 
@@ -647,17 +640,7 @@ export const sendFarmDayOffCancellationEmails = onRequest(
 
             secretarySummaryEmailSent = true;
 
-            console.log(
-              '[FARM DAY OFF EMAIL] secretary summary sent successfully',
-              {
-                secretaryUid: decoded.uid,
-                secretaryEmail,
-                parentSentCount,
-                instructorSentCount,
-                failedCount,
-                skippedCount,
-              }
-            );
+
           } else {
             secretarySummaryEmailError =
               'Secretary does not have a valid email address';
@@ -673,9 +656,6 @@ export const sendFarmDayOffCancellationEmails = onRequest(
           secretarySummaryEmailError =
             'Request was internal - no authenticated secretary';
 
-          console.log(
-            '[FARM DAY OFF EMAIL] summary email skipped - internal request'
-          );
         }
       } catch (e: any) {
         secretarySummaryEmailError =

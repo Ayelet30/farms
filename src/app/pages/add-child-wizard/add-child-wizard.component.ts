@@ -228,27 +228,21 @@ export class AddChildWizardComponent implements OnInit {
   parentsError: string | null = null;
   selectedParentUid: string | null = null;
   parentInputText = '';
-
   async ngOnInit() {
+    // בונים את שלבי האשף מיד כדי למנוע קפיצה של הכפתורים
+    this.rebuildSteps();
+
     await this.loadRegistrationFeeFromDb();
     await this.loadHealthFunds();
-
 
     if (this.isSecretaryMode) {
       await this.loadParentsForSecretary();
     }
 
-    // ✅ במצב הורה – נטען תקנון פעיל מהאחסון כבר בכניסה
     if (this.isParentMode) {
       await this.loadActiveTermsDocFromDbAndStorage();
-    }
-
-    // אם הורה ויש שלב תשלום — נביא כרטיס שמור כדי לדלג על Hosted Fields
-    if (this.isParentMode) {
       await this.loadCurrentParentPaymentProfile();
     }
-
-    this.rebuildSteps();
   }
 
   private rebuildSteps() {
@@ -468,13 +462,13 @@ export class AddChildWizardComponent implements OnInit {
   }
 
   close() {
-  if (this.saving) return;
+    if (this.saving) return;
 
-  this.destroyRegHostedFields();
-  this.tokenCallbackHandled = false;
+    this.destroyRegHostedFields();
+    this.tokenCallbackHandled = false;
 
-  this.closed.emit();
-}
+    this.closed.emit();
+  }
 
   get isRaananaFarm(): boolean {
     const farm = getCurrentFarmMetaSync();
@@ -1167,23 +1161,23 @@ export class AddChildWizardComponent implements OnInit {
     }
   }
   private destroyRegHostedFields(): void {
-  try {
-    const anyHf = this.hfReg as any;
+    try {
+      const anyHf = this.hfReg as any;
 
-    if (anyHf?.destroy) anyHf.destroy();
-    if (anyHf?.remove) anyHf.remove();
-    if (anyHf?.unmount) anyHf.unmount();
-  } catch (e) {
-    console.warn('[registration][HF_DESTROY_FAILED]', e);
+      if (anyHf?.destroy) anyHf.destroy();
+      if (anyHf?.remove) anyHf.remove();
+      if (anyHf?.unmount) anyHf.unmount();
+    } catch (e) {
+      console.warn('[registration][HF_DESTROY_FAILED]', e);
+    }
+
+    this.hfReg = null;
+    this.thtkReg = null;
+    this.paymentFieldsLoading = false;
+
+    ['reg_credit_card_number', 'reg_cvv', 'reg_expiry'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '';
+    });
   }
-
-  this.hfReg = null;
-  this.thtkReg = null;
-  this.paymentFieldsLoading = false;
-
-  ['reg_credit_card_number', 'reg_cvv', 'reg_expiry'].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = '';
-  });
-}
 }

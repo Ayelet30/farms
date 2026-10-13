@@ -489,23 +489,7 @@ async function chargeByToken(args: {
     'X-tranzila-api-access-token': auth.accessToken,
   };
 
-  console.log('[TRANZILA CHARGE REQUEST]', {
-    terminalName,
 
-    appKey: maskSecret(appKey),
-
-    apiSecret: maskSecret(apiSecret),
-
-    token: maskSecret(token),
-
-    amountAgorot,
-
-    amountNis: sum,
-
-    expiryMonth: expMonth,
-
-    expiryYear: expYearYY,
-  });
 
   const resp = await fetch(url, {
     method: 'POST',
@@ -522,15 +506,7 @@ async function chargeByToken(args: {
     ? await resp.json()
     : await resp.text();
 
-  console.log('[TRANZILA CHARGE RESPONSE]', {
-    httpStatus: resp.status,
 
-    httpOk: resp.ok,
-
-    contentType,
-
-    raw,
-  });
 
   const json = isObj(raw)
     ? (raw as any)
@@ -832,7 +808,6 @@ export const tranzilaHandshake = onRequest(
     try {
       if (handleCors(req, res)) return;
       if (req.method !== 'GET') { res.status(405).send('Method Not Allowed'); return; }
-      console.log('[tranzilaHandshake] req.query:', req.query);
 
       const tenantSchema = String(req.query.tenantSchema ?? '').trim();
       if (!tenantSchema) { res.status(400).json({ ok: false, error: 'missing tenantSchema' }); return; }
@@ -849,7 +824,6 @@ export const tranzilaHandshake = onRequest(
 
       const resp = await fetch(url.toString(), { method: 'GET' });
       const text = await resp.text();
-      console.log('[tranzilaHandshake] response text:', text);
 
       const kv: Record<string, string> = Object.fromEntries(
         text.split('&').map((p) => {
@@ -1206,18 +1180,6 @@ export const chargeSelectedChargesForParent = onRequest(
         accessSecret(terminal.secret_key_api_secret),
       ]);
 
-      console.log('[TRANZILA TENANT CONFIG]', {
-        tenantSchema,
-
-        terminal_name: terminal.terminal_name,
-        tok_terminal_name: terminal.tok_terminal_name,
-
-        app_key_secret_name: terminal.secret_key_app_key,
-        api_secret_name: terminal.secret_key_api_secret,
-
-        app_key: maskSecret(tenantAppKey),
-        api_secret: maskSecret(tenantApiSecret),
-      });
 
       if (!terminal.terminal_name) {
         res.status(500).json({ ok: false, error: 'terminal_name not configured in billing_terminals' });
@@ -1226,20 +1188,6 @@ export const chargeSelectedChargesForParent = onRequest(
 
       const tokenTerminalPassword = await accessSecret(terminal.secret_key_charge_token!);
 
-      console.log('[TRANZILA TEMP DEBUG] terminal configuration', {
-        tenantSchema,
-
-        terminal_name: terminal.terminal_name,
-        tok_terminal_name: terminal.tok_terminal_name,
-
-        secret_key_charge: terminal.secret_key_charge,
-        secret_key_charge_token: terminal.secret_key_charge_token,
-
-        token_terminal_password: maskSecret(tokenTerminalPassword),
-
-        // חשוב: הסיסמה נטענה, אבל אינה משמשת כרגע ב-chargeByToken
-        token_password_is_actually_used: false,
-      });
 
 
       // B) טוענים כרטיסים פעילים של ההורה + החיובים
@@ -1798,26 +1746,6 @@ export const chargeSelectedChargesForRider = onRequest(
           accessSecret(terminal.secret_key_api_secret),
         ]);
 
-      console.log('[TRANZILA RIDER TENANT CONFIG]', {
-        tenantSchema,
-
-        terminal_name: terminal.terminal_name,
-
-        tok_terminal_name:
-          terminal.tok_terminal_name,
-
-        app_key_secret_name:
-          terminal.secret_key_app_key,
-
-        api_secret_name:
-          terminal.secret_key_api_secret,
-
-        app_key:
-          maskSecret(tenantAppKey),
-
-        api_secret:
-          maskSecret(tenantApiSecret),
-      });
 
       const { data: profiles, error: pErr } = await sb
         .from('independent_rider_payment_profiles')
@@ -2114,12 +2042,7 @@ async function getRiderChargeCreditsAgorot(
 
 //   const json: any = await r.json().catch(() => ({}));
 
-//   console.log('[sendRiderInvoiceViaNotifyUser] response', {
-//     status: r.status,
-//     sent: json?.sent,
-//     reason: json?.reason,
-//     to: json?.to,
-//   });
+
 
 //   if (!r.ok) {
 //     throw new Error(`notifyUser failed: ${json?.message || json?.error || r.statusText}`);
