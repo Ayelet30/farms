@@ -782,24 +782,52 @@ export class WaitingListDialog implements OnInit {
         message: queuePosition ? 'הילד נוסף בהצלחה לרשימת ההמתנה.' : 'הילד נוסף בהצלחה לרשימת ההמתנה.\nהמיקום בתור אינו זמין כרגע.',
         okText: 'אישור', showCancel: false, queuePosition
       });
+
     } catch (e: any) {
       console.error('שגיאה בשמירת רשימת המתנה:', e);
+
       const code = String(e?.code ?? '');
       const txt = String(e?.message ?? '');
-      let title = approvedChild ? 'הילד אושר, אך ההמתנה לא נשמרה' : 'שגיאה בשמירה';
-      let message = approvedChild
-        ? 'הילד אושר במערכת, אבל ההוספה לרשימת ההמתנה נכשלה. אפשר לנסות שוב בלי לאשר את הילד מחדש.'
-        : 'לא הצלחנו לשמור את הבקשה. נסי שוב.';
-      if (code === '23505' || txt.includes('waitlist_entries_unique_child')) {
+
+      const alreadyExists =
+        code === '23505' ||
+        txt.includes('waitlist_entries_unique_child');
+
+      // אישור הילד הצליח, אבל שלב ההמתנה לא הסתיים בהצלחה.
+      if (approvedChild) {
+        // סוגרים את חלון ההמתנה.
+        // רכיב בקשות ואישורים יעדכן את סטטוס הבקשה.
+        this.closed.emit();
+
+        const title = alreadyExists
+          ? 'הילד אושר - קיימת בקשת המתנה'
+          : 'הילד אושר - יש להשלים את ההמתנה';
+
+        const message = alreadyExists
+          ? 'הילד אושר במערכת. כבר קיימת עבורו בקשה ברשימת ההמתנה. יש לבדוק את הבקשה הקיימת לפני שמנסים להוסיף אותו שוב.'
+          : 'הילד אושר ונוסף למערכת בהצלחה, אך לא התקבל אישור שההוספה לרשימת ההמתנה הושלמה.\n\nיש להיכנס למסך הילדים, לפתוח את כרטיס הילד ולבדוק אם הוא כבר מופיע ברשימת ההמתנה.\n\nאם אינו מופיע, יש ללחוץ על "הוספה לרשימת המתנה" מתוך כרטיס הילד. אין צורך לאשר את בקשת הילד מחדש.';
+
+        await this.ui.alert(message, title);
+        return;
+      }
+
+      // כישלון במסלול הרגיל של כרטיס הילד,
+      // או כישלון באישור הילד לפני שנוצרה בקשת המתנה.
+      let title = 'שגיאה בשמירה';
+      let message = 'לא הצלחנו לשמור את הבקשה. נסי שוב.';
+
+      if (alreadyExists) {
         title = 'בקשת המתנה כבר קיימת';
         message =
           'לילד/ה כבר קיימת בקשה ברשימת ההמתנה. ' +
           'לא ניתן לפתוח בקשה נוספת לפני שהבקשה הקיימת תטופל או תימחק.';
       } else if (code === '42501' || code === 'PGRST301') {
-        message = 'אין הרשאה לשמירת הבקשה. יש לבדוק את הרשאות המשתמש.';
+        message =
+          'אין הרשאה לשמירת הבקשה. יש לבדוק את הרשאות המשתמש.';
       }
+
       await this.ui.alert(message, title);
-    } finally {
+    }    finally {
       this.savingWaitingList = false;
     }
   }
