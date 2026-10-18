@@ -1223,16 +1223,9 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
 
     const mapped = this.mapView(this.currentView);
 
-    console.log('[SCHEDULE applyCurrentView]', {
-      currentView: this.currentView,
-      mapped,
-      beforeFcView: api.view.type,
-    });
+
     api.changeView(mapped);
-    console.log('[SCHEDULE applyCurrentView AFTER]', {
-      currentView: this.currentView,
-      fcView: api.view.type,
-    });
+
     if (this.currentView === 'timeGridWeek') {
       const weekRange = this.getWeekScheduleRange();
 
@@ -1897,7 +1890,6 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
         meta?.is_single_occurrence_move === 'true' ||
         meta?.occurrence_change_type === 'MOVE';
 
-      console.log('isSingleMove', isSingleMove, event.extendedProps['occurrence_change_type'], meta?.occurrence_change_type);
 
       const originalInstructorName = String(
         event.extendedProps['original_instructor_name'] ??
@@ -2149,12 +2141,7 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
 
 
     datesSet: (info: DatesSetArg) => {
-      console.log('[SCHEDULE datesSet]', {
-        currentView: this.currentView,
-        fcView: info.view.type,
-        start: info.start,
-        end: info.end,
-      });
+
       setTimeout(() => {
         const toLocalYMD = (d: Date) =>
           `${d.getFullYear()}-${this.pad(d.getMonth() + 1)}-${this.pad(d.getDate())}`;
@@ -2411,14 +2398,6 @@ export class ScheduleComponent implements OnChanges, AfterViewInit, OnDestroy {
   private debugViewState(source: string): void {
     const api = this.calendarApi;
 
-    console.log('[SCHEDULE VIEW DEBUG]', {
-      source,
-      currentView: this.currentView,
-      initialView: this.initialView,
-      fullCalendarView: api?.view?.type ?? 'NO API',
-      fullCalendarDate: api?.getDate?.(),
-      items: this.items?.length ?? 0,
-      resources: this.resources?.length ?? 0,
-    });
+
   }
 }

@@ -50,14 +50,43 @@
   </p>
 
 
+
   <p>
     <strong>דוא"ל:</strong>
-    <span *ngIf="!isEditing">{{ parent.email || '-' }}</span>
+
+    <span *ngIf="!isEditing">
+      {{ parent.email || '-' }}
+    </span>
+
     <ng-container *ngIf="isEditing">
       <input [(ngModel)]="editableParent.email" type="email" class="editable-input" />
-      <div *ngIf="emailError" class="error-msg">{{ emailError }}</div>
+
+      <div *ngIf="emailError" class="error-msg">
+        {{ emailError }}
+      </div>
     </ng-container>
   </p>
+
+
+  <div *ngIf="emailChanged" class="email-change-warning" role="alert">
+    <div class="email-warning-title">⚠️ שים לב!</div>
+
+    <div class="email-warning-line">
+      שינוי כתובת הדוא"ל אינו משנה את פרטי ההתחברות למערכת.
+    </div>
+
+    <div class="email-warning-line" *ngIf="loginEmail">
+      ההתחברות תמשיך להתבצע באמצעות
+      <bdi class="email-address">{{ loginEmail }}</bdi>
+    </div>
+
+    <div class="email-warning-line">
+      הודעות ועדכונים יישלחו לכתובת החדשה
+      <bdi class="email-address">{{ editableParent.email }}</bdi>
+    </div>
+  </div>
+
+
   <p>
     <strong>דוא"ל נוסף:</strong>
 

@@ -27,7 +27,7 @@ export class ParentDetailsComponent implements OnInit, OnDestroy {
   parent: any = null;
   children: any[] = [];
   visibleChildren: any[] = [];
-
+  loginEmail = '';
   loading = true;
   isEditing = false;
   error?: string;
@@ -67,6 +67,7 @@ export class ParentDetailsComponent implements OnInit, OnDestroy {
   async ngOnInit() {
     try {
       const user = await getCurrentUserData();
+      this.loginEmail = String(user?.email ?? '').trim();
       if (!user?.uid) {
         this.loading = false;
         this.error = 'משתמש לא מחובר';
@@ -291,5 +292,12 @@ export class ParentDetailsComponent implements OnInit, OnDestroy {
       this.error = e?.message ?? 'שגיאה לא צפויה בשמירה';
     }
   }
+  get emailChanged(): boolean {
+    if (!this.isEditing || !this.parent) return false;
 
+    const originalEmail = String(this.parent.email ?? '').trim().toLowerCase();
+    const updatedEmail = String(this.editableParent.email ?? '').trim().toLowerCase();
+
+    return originalEmail !== updatedEmail;
+  }
 }

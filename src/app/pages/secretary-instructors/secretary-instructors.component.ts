@@ -96,6 +96,27 @@ interface InstructorUnavailabilityRow {
 })
 export class SecretaryInstructorsComponent implements OnInit {
   instructors: InstructorRow[] = [];
+  get stats() {
+    const total = this.instructors.length;
+
+    const active = this.instructors.filter(i => {
+      const status = (i.status || '').toLowerCase();
+      return ['active', 'פעיל', 'פעילה'].includes(status);
+    }).length;
+
+    const acceptsMakeup = this.instructors.filter(
+      i => i.accepts_makeup_others === true
+    ).length;
+
+    return {
+      total,
+      filtered: this.filteredInstructors.length,
+      active,
+      inactive: total - active,
+      acceptsMakeup,
+      notAcceptsMakeup: total - acceptsMakeup
+    };
+  }
   ridingTypes: { id: string; name: string }[] = [];
 
   // לו"ז שבועי במגירה (מצב תצוגה)
