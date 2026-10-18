@@ -1750,95 +1750,123 @@ scheduled_deletion_at,deletion_note
       return false;
     }
 
-    // בדיקת שעות הפעילות של כל יום שנבחר
-    for (const day of this.waitingListDays) {
-
-      const hours = this.getWaitingListFarmHours(day.day);
-
-      if (
-        !hours?.is_open ||
-        !hours.farm_start ||
-        !hours.farm_end
-      ) {
-        return false;
-      }
-
-      const ranges = this.waitingListSameHours
-        ? this.waitingListCommonRanges
-        : day.ranges;
-
-      for (const range of ranges) {
-
-        const start = range.from || hours.farm_start;
-        const end = range.to || hours.farm_end;
-
-        if (
-          start < hours.farm_start ||
-          end > hours.farm_end ||
-          start >= end
-        ) {
-          return false;
-        }
-      }
-    }
-
-    // בחירת טווחי השעות הרלוונטיים
-    const rangesByDay = this.waitingListDays.map(day =>
-      this.waitingListSameHours
-        ? this.waitingListCommonRanges
-        : day.ranges
-    );
-
-    // בדיקת שעות תקינות וטווחים חופפים
-    for (const ranges of rangesByDay) {
-
-      if (ranges.length === 0) {
-        return false;
-      }
-
-      const intervals: { start: number; end: number }[] = [];
-
-      for (const range of ranges) {
-
-        // המרת שעה למספר דקות מתחילת היום
-        const toMinutes = (time: string): number | null => {
-          if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
-            return null;
-          }
-
-          const [hours, minutes] = time.split(':').map(Number);
-          return hours * 60 + minutes;
-        };
-
-        // שדה ריק = ללא הגבלה באותו צד
-        const start = range.from ? toMinutes(range.from) : 0;
-        const end = range.to ? toMinutes(range.to) : 1440;
-
-        // שעות לא תקינות
-        if (start === null || end === null) {
-          return false;
-        }
-
-        // הסיום חייב להיות מאוחר מההתחלה
-        if (start >= end) {
-          return false;
-        }
-
-        intervals.push({ start, end });
-      }
-
-      // ממיינים את הטווחים לפי שעת ההתחלה
-      intervals.sort((a, b) => a.start - b.start);
-
-      // בודקים אם יש חפיפה בין שני טווחים
-      for (let i = 1; i < intervals.length; i++) {
-        if (intervals[i].start < intervals[i - 1].end) {
-          return false;
-        }
-      }
+    // לא מאפשרים שמירה כאשר יש שגיאה בטווחי השעות
+    if (
+      this.waitingListDays.some(day =>
+        this.getWaitingListTimeErrors(day.day).length > 0
+      )
+    ) {
+      return false;
     }
 
     return true;
+  }
+
+
+
+  getWaitingListTimeErrors(dayId: number): string[] {
+    if (this.waitingListAllTimes) return [];
+
+    const errors: string[] = [];
+    const hours = this.getWaitingListFarmHours(dayId);
+
+    if (!hours?.is_open || !hours.farm_start || !hours.farm_end) {
+      return ['לא נמצאו שעות פעילות תקינות לחווה.'];
+    }
+
+    const toMinutes = (time: string): number | null => {
+      const value = time.slice(0, 5);
+
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) {
+        return null;
+      }
+
+      const [h, m] = value.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    const farmStart = toMinutes(hours.farm_start);
+    const farmEnd = toMinutes(hours.farm_end);
+
+    if (
+      farmStart === null ||
+      farmEnd === null ||
+      farmStart >= farmEnd
+    ) {
+      return ['שעות הפעילות של החווה אינן תקינות.'];
+    }
+
+    const ranges = this.waitingListSameHours
+      ? this.waitingListCommonRanges
+      : this.getWaitingListDay(dayId)?.ranges ?? [];
+
+    if (ranges.length === 0) {
+      return ['יש להגדיר לפחות טווח שעות אחד.'];
+    }
+
+    const validRanges: {
+      index: number;
+      start: number;
+      end: number;
+    }[] = [];
+
+    ranges.forEach((range, index) => {
+      const start = range.from
+        ? toMinutes(range.from)
+        : farmStart;
+
+      const end = range.to
+        ? toMinutes(range.to)
+        : farmEnd;
+
+      const number = index + 1;
+
+      if (start === null || end === null) {
+        errors.push(`טווח ${number}: יש להזין שעות תקינות.`);
+        return;
+      }
+
+      if (start >= end) {
+        errors.push(
+          `טווח ${number}: שעת הסיום חייבת להיות מאוחרת משעת ההתחלה.`
+        );
+        return;
+      }
+
+      if (start < farmStart || end > farmEnd) {
+        errors.push(
+          `טווח ${number}: השעות חייבות להיות בתוך שעות הפעילות של החווה.`
+        );
+        return;
+      }
+
+      validRanges.push({ index: number, start, end });
+    });
+
+    // בדיקה של כל זוג טווחים תקינים
+    for (let i = 0; i < validRanges.length; i++) {
+      for (let j = i + 1; j < validRanges.length; j++) {
+        const a = validRanges[i];
+        const b = validRanges[j];
+
+        if (a.start < b.end && b.start < a.end) {
+          errors.push(
+            `קיימת חפיפה בין טווח ${a.index} לטווח ${b.index}.`
+          );
+        }
+      }
+    }
+
+    return errors;
+  }
+
+  // בדיקה עבור כרטיס שעות המשותף למספר ימים
+  getWaitingListCommonTimeErrors(): string[] {
+    const errors = this.waitingListDays.flatMap(day =>
+      this.getWaitingListTimeErrors(day.day)
+    );
+
+    return [...new Set(errors)];
   }
 
 
@@ -1961,36 +1989,140 @@ scheduled_deletion_at,deletion_note
         throw error;
       }
 
+
       console.log('בקשת המתנה נשמרה בהצלחה:', data);
 
+      // הבקשה כבר נשמרה בהצלחה.
+      // כעת ננסה לקבל את המיקום שלה בתור.
+
+      let queuePosition: {
+        priority: number;
+        priorityPosition: number;
+        overallPosition: number;
+      } | undefined;
+
+      try {
+        const entryId = typeof data === 'string' ? data : null;
+
+        if (!entryId) {
+          throw new Error('לא התקבל מזהה בקשה תקין');
+        }
+
+        const { data: positionData, error: positionError } =
+          await db.rpc('waitlist_get_queue_position', {
+            p_entry_id: entryId
+          });
+
+        if (positionError) {
+          throw positionError;
+        }
+
+        const position = Array.isArray(positionData)
+          ? positionData[0]
+          : positionData;
+
+        if (
+          position &&
+          position.priority != null &&
+          position.priority_position != null &&
+          position.overall_position != null
+        ) {
+          queuePosition = {
+            priority: Number(position.priority),
+            priorityPosition: Number(position.priority_position),
+            overallPosition: Number(position.overall_position)
+          };
+        }
+
+      } catch (positionError) {
+        // השמירה הצליחה גם אם קבלת המיקום נכשלה
+        console.error(
+          'הבקשה נשמרה, אך לא ניתן לקבל את המיקום בתור:',
+          positionError
+        );
+      }
+
+      // סגירת חלון רשימת ההמתנה
       this.closeWaitingListDialog();
 
-      await this.ui.alert(
-        'הילד נוסף בהצלחה לרשימת ההמתנה.',
-        'שמירה הושלמה'
-      );
+      // הודעת הצלחה עם המיקומים, אם התקבלו
+      await this.ui.confirm({
+        title: 'שמירה הושלמה',
+        message: queuePosition
+          ? 'הילד נוסף בהצלחה לרשימת ההמתנה.'
+          : 'הילד נוסף בהצלחה לרשימת ההמתנה.\nהמיקום בתור אינו זמין כרגע.',
+        okText: 'אישור',
+        showCancel: false,
+        queuePosition
+      });
+
+
 
 
     } catch (error: any) {
+      // פרטי השגיאה נשמרים בקונסול לצורכי פיתוח בלבד
       console.error('שגיאה בשמירת רשימת ההמתנה:', error);
 
-      const isDuplicateRequest =
-        error?.code === '23505' &&
+      const errorCode = String(error?.code ?? '');
+      const errorMessage = String(error?.message ?? '').toLowerCase();
+
+      let title = 'שגיאה בשמירה';
+      let message = 'לא הצלחנו לשמור את הבקשה. נסי שוב בעוד מספר רגעים.';
+
+      // בקשה כפולה ברשימת ההמתנה
+      if (
+        errorCode === '23505' &&
         (
-          error?.message?.includes('waitlist_entries_unique_child') ||
-          error?.message?.includes('child_uuid')
-        );
+          errorMessage.includes('waitlist_entries_unique_child') ||
+          errorMessage.includes('child_uuid')
+        )
+      ) {
+        title = 'בקשת המתנה כבר קיימת';
+        message =
+          'לילד/ה כבר קיימת בקשה ברשימת ההמתנה. ' +
+          'לא ניתן לפתוח בקשה נוספת לפני שהבקשה הקיימת תטופל או תימחק.';
+      }
 
-      const message = isDuplicateRequest
-        ? 'לילד/ה כבר קיימת בקשה ברשימת ההמתנה. לא ניתן לפתוח בקשת המתנה נוספת לפני שהבקשה הקיימת תטופל או תימחק.'
-        : error?.message || 'אירעה שגיאה בשמירת הבקשה.';
+      // שעות פעילות חסרות או לא תקינות
+      else if (
+        errorMessage.includes('לא נמצאו שעות פעילות תקינות')
+      ) {
+        title = 'שעות פעילות לא זמינות';
+        message =
+          'לא ניתן לשמור את הזמינות שנבחרה. ' +
+          'יש לבדוק את שעות הפעילות של החווה ולנסות שוב.';
+      }
 
-      await this.ui.alert(
-        message,
-        isDuplicateRequest
-          ? 'בקשת המתנה כבר קיימת'
-          : 'שגיאה בשמירה'
-      );
+      // שגיאת הרשאות במסד הנתונים
+      else if (
+        errorCode === '42501' ||
+        errorCode === 'PGRST301' ||
+        errorCode === '401' ||
+        errorCode === '403'
+      ) {
+        title = 'אין הרשאה לשמירה';
+        message =
+          'אין הרשאה לבצע את הפעולה. ' +
+          'נסי להתחבר מחדש למערכת.';
+      }
+
+      // בעיית חיבור או תקשורת
+      else if (
+        errorMessage.includes('failed to fetch') ||
+        errorMessage.includes('networkerror') ||
+        errorMessage.includes('network request failed') ||
+        errorMessage.includes('timeout') ||
+        errorMessage.includes('timed out')
+      ) {
+        title = 'בעיית חיבור';
+        message =
+          'לא הצלחנו להתחבר למערכת. ' +
+          'בדקי את החיבור לאינטרנט ונסי שוב.';
+      }
+
+      // שגיאות אחרות יקבלו הודעה כללית ולא טכנית
+      await this.ui.alert(message, title);
+
     } finally {
       this.savingWaitingList = false;
     }
@@ -2099,8 +2231,8 @@ scheduled_deletion_at,deletion_note
     return this.waitingListDays.find(item => item.day === day);
   }
 
-  getWaitingListAvailabilitySummary(): string[] {
 
+  getWaitingListAvailabilitySummary(): string[] {
     if (this.waitingListAllTimes) {
       return ['כל הימים והשעות'];
     }
@@ -2110,15 +2242,20 @@ scheduled_deletion_at,deletion_note
     }
 
     return this.waitingListDays.map(day => {
-
       const dayName = this.getWaitingListDayName(day.day);
+
+      // כשיש שגיאות, לא מציגים שעות כאילו הן תקינות
+      const errors = this.getWaitingListTimeErrors(day.day);
+
+      if (errors.length > 0) {
+        return `יום ${dayName}: יש לתקן שגיאות בשעות`;
+      }
 
       const ranges = this.waitingListSameHours
         ? this.waitingListCommonRanges
         : day.ranges;
 
       const rangeTexts = ranges.map(range => {
-
         if (!range.from && !range.to) {
           return 'כל השעות';
         }
@@ -2132,13 +2269,12 @@ scheduled_deletion_at,deletion_note
         }
 
         return `${range.from}–${range.to}`;
-
       });
 
       return `יום ${dayName}: ${rangeTexts.join(', ')}`;
-
     });
   }
+
 
   addWaitingListTimeRange(day: number): void {
     const selectedDay = this.getWaitingListDay(day);
