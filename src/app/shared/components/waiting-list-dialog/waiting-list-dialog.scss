@@ -1,0 +1,1032 @@
+:host { display:block; direction:rtl; font-family: "Heebo", system-ui, Arial, sans-serif; --panel:#fff; --ink:#2f3a28; --ink-muted:#6e7462; --line:#cfd7b9; --olive-50:#f3f6e9; --olive-300:#c7d1a9; --olive-600:#748c40; }
+
+.error-state {
+  color: var(--fail);
+}
+.close-btn {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+  color: var(--ink-muted);
+}
+.close-btn:hover {
+  color: var(--ink);
+}
+.drawer-sub {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.mode-chip {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  border: 1px solid var(--line);
+  background: var(--olive-50);
+  color: var(--ink);
+}
+.mode-chip.edit {
+  background: rgba(116, 140, 64, 0.18);
+  border-color: rgba(116, 140, 64, 0.55);
+  color: var(--olive-600);
+}
+.val {
+  font-weight: 600;
+  color: var(--ink);
+  background: #fafafa;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+.hint {
+  color: var(--ink-muted);
+}
+.section-title {
+  margin: 6px 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.drawer-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+.err {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--fail);
+  font-weight: 700;
+}
+.drawer-top {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(207, 215, 185, 0.6);
+}
+.drawer-top-main {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.drawer-heading {
+  display: grid;
+  gap: 6px;
+}
+.drawer-heading h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+}
+.drawer-sub {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.child-fullname {
+  font-size: 15px;
+  font-weight: 800;
+}
+.drawer-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.close-btn {
+  font-size: 20px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+  .drawer-top-main {
+    display: grid;
+    grid-template-columns: 48px 1fr 88px;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+  }
+  .drawer-top-main .close-btn {
+    grid-column: 1;
+    justify-self: start;
+
+    position: absolute;
+    left: 12px;
+    right: auto;
+
+    margin: 0;
+  }
+  .drawer-top-main .drawer-heading {
+    grid-column: 2;
+    text-align: center;
+    justify-items: center;
+  }
+  .drawer-actions {
+    justify-content: flex-end;
+  }
+
+/* =========================================
+   WAITING LIST - רשימת המתנה
+   ========================================= */
+
+/* תוכן המסך */
+
+.waiting-list-content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0;
+  gap: 0;
+}
+
+
+
+.waiting-list-content .section-title {
+  margin: 0 0 12px;
+}
+
+
+/* =========================================
+   גיל הילד
+   ========================================= */
+
+
+.waiting-list-age {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+
+/* =========================================
+   בחירת מדריכים - אפשרויות ראשיות
+   ========================================= */
+
+
+/* אפשרויות הבחירה הראשיות בחלון רשימת המתנה */
+.waiting-list-content > .waiting-list-option {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  box-sizing: border-box;
+  gap: 10px;
+  padding: 3px 4px;
+  margin: 0;
+  line-height: 24px;
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+
+/* כפתורי רדיו וצ'קבוקס */
+.waiting-list-option input[type="radio"],
+.waiting-list-option input[type="checkbox"] {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--olive-600);
+  cursor: pointer;
+}
+
+/* =========================================
+   תיבת בחירת מדריכים
+   ========================================= */
+
+.waiting-list-select {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin-top: 10px;
+}
+
+/* הכפתור שפותח וסוגר את הרשימה */
+.waiting-list-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 12px;
+
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  text-align: right;
+  direction: rtl;
+  cursor: pointer;
+}
+
+/* =========================================
+   הרשימה הנפתחת
+   ========================================= */
+
+.waiting-list-dropdown {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+
+  margin-top: 6px;
+  padding: 10px;
+
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* חיפוש מדריך */
+.waiting-list-search {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+
+  padding: 10px;
+  margin-bottom: 8px;
+
+  border: 1px solid var(--line);
+  border-radius: 10px;
+
+  font: inherit;
+  text-align: right;
+  background: var(--panel);
+}
+
+.waiting-list-search:focus {
+  outline: 2px solid var(--olive-300);
+}
+
+/* רשימת המדריכים */
+.waiting-list-instructor-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+
+  width: 100%;
+  min-width: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* כל מדריך בשורה נפרדת */
+.waiting-list-instructor-options .waiting-list-option {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+
+  width: 100%;
+  box-sizing: border-box;
+
+  gap: 10px;
+  padding: 3px 4px;
+  margin: 0;
+  min-height: 0;
+  line-height: 24px;
+
+  border-radius: 8px;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.waiting-list-instructor-options .waiting-list-option:hover {
+  background: var(--olive-50);
+}
+
+/* =========================================
+   מדריכים שנבחרו
+   ========================================= */
+
+.waiting-list-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  width: 100%;
+  min-width: 0;
+  margin-top: 10px;
+}
+
+/* תגית של מדריך שנבחר */
+.waiting-list-chip {
+  display: inline-flex;
+  align-items: center;
+
+  max-width: 100%;
+  padding: 5px 10px;
+  box-sizing: border-box;
+
+  border-radius: 999px;
+  background: var(--olive-50);
+  border: 1px solid var(--olive-300);
+
+  font-size: 12px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* =========================================
+   התאמה למסכים צרים
+   ========================================= */
+
+@media (max-width: 700px) {
+  .waiting-list-content {
+    width: 100%;
+  }
+
+  .waiting-list-select,
+  .waiting-list-dropdown,
+  .waiting-list-search {
+    max-width: 100%;
+  }
+}
+
+/* =====================================
+   WAITING LIST - AVAILABILITY
+   זמינות לשיעורים
+   ===================================== */
+
+
+.waiting-availability {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+
+.waiting-availability * {
+  box-sizing: border-box;
+}
+
+/* אפשרויות בחירה ראשיות */
+.waiting-availability-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.waiting-availability-option,
+.waiting-same-hours {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 4px;
+  min-height: 0;
+  margin: 0;
+  line-height: 24px;
+  color: var(--ink);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.waiting-availability-option input,
+.waiting-same-hours input {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin: 0;
+  accent-color: var(--olive-600);
+}
+
+/* הודעה כאשר כל הזמנים נבחרו */
+.waiting-availability-message {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--olive-50);
+  border: 1px solid var(--olive-300);
+  border-radius: 12px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.waiting-availability-custom {
+  margin-top: 18px;
+}
+
+.waiting-availability h5 {
+  margin: 0 0 12px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* כפתורי ימות השבוע */
+.waiting-days-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.waiting-day-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+
+  min-width: 0;
+  min-height: 65px;
+  padding: 8px 4px;
+
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.waiting-day-button:hover {
+  background: var(--olive-50);
+}
+
+.waiting-day-button.selected {
+  background: var(--olive-100);
+  border-color: var(--olive-600);
+  font-weight: 700;
+}
+
+.waiting-day-button:focus-visible,
+.waiting-add-range:focus-visible,
+.waiting-remove-range:focus-visible {
+  outline: 2px solid var(--olive-600);
+  outline-offset: 2px;
+}
+
+/* שעות אחידות */
+.waiting-same-hours {
+  margin-top: 16px;
+  margin-bottom: 10px;
+}
+
+/* כרטיס שעות */
+.waiting-time-card {
+  width: 100%;
+  min-width: 0;
+  margin-top: 12px;
+  padding: 14px;
+
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.waiting-time-card h5 {
+  margin-bottom: 14px;
+}
+
+/* טווח שעות */
+.waiting-time-range {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eef1e4;
+}
+
+.waiting-time-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.waiting-time-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.waiting-time-fields input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 9px 4px;
+
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  direction: ltr;
+}
+
+.waiting-time-fields input:focus {
+  outline: 2px solid var(--olive-300);
+}
+
+/* הוספת טווח שעות */
+.waiting-add-range {
+  width: 100%;
+  padding: 10px;
+
+  background: var(--olive-50);
+  border: 1px dashed var(--olive-600);
+  border-radius: 10px;
+
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.waiting-add-range:hover {
+  background: var(--olive-100);
+}
+
+/* מחיקת טווח */
+.waiting-remove-range {
+  display: block;
+  margin-top: 10px;
+  padding: 5px 8px;
+
+  background: #fff8f8;
+  border: 1px solid #f3b4ad;
+  border-radius: 8px;
+
+  color: #991b1b;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.waiting-day-wrapper {
+  width: 100%;
+}
+
+/* הודעות הסבר */
+.waiting-availability-hint {
+  margin: 12px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+
+/* סיכום זמינות */
+.waiting-availability-summary {
+  margin-top: 20px;
+  padding: 14px;
+
+  border: 1px solid var(--olive-300);
+  border-radius: 12px;
+  background: var(--olive-50);
+}
+
+.waiting-availability-summary h5 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.waiting-summary-line {
+  padding: 5px 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.waiting-summary-error {
+  color: #b42318;
+  font-weight: 700;
+}
+
+
+.waiting-list-footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+
+.waiting-list-footer-actions button {
+  font-family: inherit;
+}
+
+/* כפתורי שמירה מושבתים ברשימת המתנה */
+.waiting-list-footer-actions button:disabled,
+.waiting-list-top-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.waiting-farm-hours {
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--olive-50);
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+/* =====================================
+   WAITING LIST - PRIORITY & QUEUE
+   ===================================== */
+
+
+.waiting-priority-section {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+
+.waiting-priority-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 0;
+}
+
+.waiting-priority-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  padding: 3px 4px;
+  min-height: 0;
+  margin: 0;
+  line-height: 24px;
+
+  color: var(--ink);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.waiting-priority-option input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+
+  accent-color: var(--olive-600);
+  cursor: pointer;
+}
+
+/* =========================================
+   WAITING LIST - CENTERED MODAL
+   ========================================= */
+
+/* רקע החלון */
+.waiting-modal-backdrop {
+  position: fixed;
+  inset: 92px 0 0 0;
+  z-index: 30000;
+
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+
+  padding: 16px 20px;
+  box-sizing: border-box;
+
+  background: transparent;
+  overflow: hidden;
+}
+
+
+/* כשהתפריט פתוח - מפנים מקום בצד ימין */
+:host-context(.body-layout:not(.menu-collapsed)) .waiting-modal-backdrop {
+  right: 280px;
+  left: 0;
+}
+
+/* כשהתפריט מצומצם - מתחשבים ברצועה הצרה */
+:host-context(.body-layout.menu-collapsed) .waiting-modal-backdrop {
+  right: 72px;
+  left: 0;
+}
+
+/* שכבת הרקע האפורה */
+.waiting-modal-backdrop::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 41, 27, 0.42);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* החלון המרכזי */
+.waiting-modal {
+  display: flex;
+  flex-direction: column;
+
+  width: min(700px, 100%);
+  max-width: 100%;
+
+  height: min(80vh, calc(100dvh - 124px));
+  max-height: calc(100dvh - 124px);
+  min-height: 0;
+
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+
+  background: var(--panel);
+  color: var(--ink);
+
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.20);
+
+  direction: rtl;
+  overflow: hidden;
+}
+
+/* הכותרת והכפתורים נשארים קבועים */
+.waiting-modal>.drawer-top {
+  display: grid;
+  flex: 0 0 auto;
+
+  padding: 20px;
+  margin: 0;
+
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+/* כותרת והאיקס */
+.waiting-modal .drawer-top-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.waiting-modal .drawer-heading {
+  order: 1;
+  flex: 1;
+  min-width: 0;
+}
+
+/* הכותרת */
+.waiting-modal .drawer-heading h3 {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* כפתור X מעוצב בצד שמאל */
+.waiting-modal .drawer-top-main .close-btn {
+  position: static;
+  order: 2;
+
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+  margin: 0;
+
+  background: #fffefa;
+  color: #6e7462;
+
+  border: 1px solid #cfd7b9;
+  border-radius: 11px;
+
+  font-size: 16px;
+  font-weight: 400;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.waiting-modal .drawer-top-main .close-btn:hover {
+  background: #f3f6e9;
+}
+
+/* רק תוכן הטופס נגלל */
+.waiting-modal>.drawer-form {
+  display: block;
+  flex: 1 1 auto;
+
+  min-height: 0;
+  width: 100%;
+
+  padding: 20px;
+  margin: 0;
+  box-sizing: border-box;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+.waiting-modal .waiting-list-content {
+  width: 100%;
+  min-width: 0;
+}
+
+/* =========================================
+   התאמה לטלפונים ולמסכים קטנים
+   ========================================= */
+
+@media (max-width: 700px) {
+
+  :host-context(.body-layout:not(.menu-collapsed)) .waiting-modal-backdrop,
+  :host-context(.body-layout.menu-collapsed) .waiting-modal-backdrop {
+    right: 0;
+    left: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .waiting-modal-backdrop {
+    padding: 12px;
+  }
+
+  .waiting-modal {
+    width: 100%;
+    max-width: 100%;
+    height: calc(100dvh - 116px);
+    max-height: calc(100dvh - 116px);
+    border-radius: 14px;
+  }
+
+  .waiting-modal>.drawer-top {
+    padding: 16px;
+  }
+
+  .waiting-modal>.drawer-form {
+    padding: 16px;
+  }
+}
+
+
+.waiting-section-divider {
+  width: 100%;
+  height: 1px;
+  flex-shrink: 0;
+  background-color: var(--line);
+  margin: 20px 0;
+}
+
+.waiting-validation-error {
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+  margin: 10px 0 0;
+  text-align: right;
+}
+
+
+/* =========================================
+   WAITING LIST - HEADER AND BUTTON FIX
+   ========================================= */
+
+/* כותרת בצד ימין, כפתור סגירה בצד שמאל */
+.waiting-modal .drawer-top-main {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+}
+
+.waiting-modal .drawer-heading {
+  order: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  justify-items: start;
+}
+
+.waiting-modal .drawer-heading h3 {
+  margin: 0;
+  text-align: right;
+}
+
+.waiting-modal .drawer-sub {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  text-align: right;
+}
+
+.waiting-modal .drawer-top-main .close-btn {
+  order: 1;
+  flex-shrink: 0;
+}
+
+/* כפתורי שמירה וביטול בצד ימין */
+.waiting-modal .waiting-list-top-actions,
+.waiting-modal .waiting-list-footer-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  text-align: right;
+}
+
+/* שחזור העיצוב המקורי של הכפתורים */
+.waiting-modal button.primary,
+.waiting-modal button.secondary {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  line-height: normal;
+  transition: filter 0.15s ease;
+}
+
+/* שמירה - ירוק */
+.waiting-modal button.primary {
+  background: var(--olive-600);
+  color: #ffffff;
+  border: none;
+}
+
+/* ביטול - רקע בהיר */
+.waiting-modal button.secondary {
+  background: #f6f7ee;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.waiting-modal button.primary:hover:not(:disabled),
+.waiting-modal button.secondary:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+/* כפתור מושבת */
+.waiting-modal button.primary:disabled,
+.waiting-modal button.secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* מניעת השפעה של עיצוב רספונסיבי ישן */
+@media (max-width: 700px) {
+  .waiting-modal .drawer-top-main {
+    display: flex;
+    flex-direction: row;
+  }
+
+  .waiting-modal .drawer-heading {
+    text-align: right;
+    justify-items: start;
+  }
+
+  .waiting-modal .waiting-list-top-actions,
+  .waiting-modal .waiting-list-footer-actions {
+    justify-content: flex-start;
+  }
+}
+
+

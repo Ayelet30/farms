@@ -7,6 +7,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
+import { WaitingListDialog } from '../../shared/components/waiting-list-dialog/waiting-list-dialog';
 import {
   ensureTenantContextReady,
   dbTenant,
@@ -199,14 +200,15 @@ type HelmetFilter =
   selector: 'app-secretary-children',
   standalone: true,
   imports: [
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    MatSidenavModule,
-    MatDialogModule,
-    AddChildWizardComponent,
-    RouterModule,
-  ],
+  CommonModule,
+  FormsModule,
+  ReactiveFormsModule,
+  MatSidenavModule,
+  MatDialogModule,
+  AddChildWizardComponent,
+  RouterModule,
+  WaitingListDialog
+],
   templateUrl: './secretary-children.component.html',
   styleUrls: ['./secretary-children.component.css'],
 })

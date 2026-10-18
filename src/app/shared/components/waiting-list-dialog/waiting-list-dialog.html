@@ -1,0 +1,552 @@
+
+<div class="waiting-modal-backdrop" (click)="closeWaitingListDialog()">
+
+  <section class="waiting-modal" role="dialog" aria-modal="true"
+    aria-labelledby="waiting-modal-title"
+    (click)="$event.stopPropagation()">
+
+    <div class="drawer-top">
+
+      <div class="drawer-top-main">
+        <button type="button" class="close-btn" aria-label="סגירה"
+          (click)="closeWaitingListDialog()">
+          ✕
+        </button>
+
+        <div class="drawer-heading">
+          <h3 id="waiting-modal-title">
+            הוספה לרשימת המתנה
+          </h3>
+
+          <div class="drawer-sub">
+            <span class="child-fullname">
+              {{ childName }}
+            </span>
+
+            <span class="mode-chip">
+              רשימת המתנה
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="drawer-actions waiting-list-top-actions">
+
+        <button type="button" class="secondary"
+          (click)="closeWaitingListDialog()">
+          ביטול
+        </button>
+
+        <button type="button" class="primary"
+          [disabled]="!canSaveWaitingList || savingWaitingList || savedEntryId !== null"
+          (click)="saveWaitingList()">
+          {{ savingWaitingList ? 'שומר...' : 'שמירה' }}
+        </button>
+
+      </div>
+    </div>
+
+    <div class="drawer-form">
+      <div class="waiting-list-content">
+
+        <div class="waiting-list-age">
+          <label>גיל הילד/ה</label>
+          <div class="val">
+            {{ childAge ?? 'לא ידוע' }}
+          </div>
+        </div>
+
+        <div class="waiting-section-divider"></div>
+
+        <!-- בחירת סוגי רכיבה -->
+
+        <h4 class="section-title">בחירת סוגי רכיבה</h4>
+
+        <div *ngIf="waitingListRidingTypesLoading" class="hint">
+          טוען סוגי רכיבה...
+        </div>
+
+        <div *ngIf="waitingListRidingTypesError" class="err">
+          {{ waitingListRidingTypesError }}
+        </div>
+
+        <div
+          *ngIf="!waitingListRidingTypesLoading &&
+                 !waitingListRidingTypesError &&
+                 waitingListRidingTypes.length === 0"
+          class="hint">
+          לא נמצאו סוגי רכיבה פעילים.
+        </div>
+
+        <label class="waiting-list-option">
+          <input type="radio" name="waitingRidingTypeMode"
+            [checked]="waitingListAllRidingTypes"
+            (change)="setWaitingListAllRidingTypes(true)" />
+          כל סוגי הרכיבה
+        </label>
+
+        <label class="waiting-list-option">
+          <input type="radio" name="waitingRidingTypeMode"
+            [checked]="!waitingListAllRidingTypes"
+            (change)="setWaitingListAllRidingTypes(false)" />
+          בחירת סוגי רכיבה מסוימים
+        </label>
+
+        <div *ngIf="!waitingListAllRidingTypes"
+          class="waiting-list-select">
+
+          <button type="button" class="waiting-list-select-trigger"
+            [attr.aria-expanded]="waitingListRidingTypesOpen"
+            (click)="waitingListRidingTypesOpen = !waitingListRidingTypesOpen">
+
+            <span>
+              {{
+                waitingListRidingTypeIds.length === 0
+                  ? 'בחרי סוגי רכיבה'
+                  : 'נבחרו ' + waitingListRidingTypeIds.length + ' סוגי רכיבה'
+              }}
+            </span>
+
+            <span>
+              {{ waitingListRidingTypesOpen ? '▲' : '▼' }}
+            </span>
+          </button>
+
+          <div *ngIf="waitingListRidingTypesOpen"
+            class="waiting-list-dropdown">
+
+            <input type="text" class="waiting-list-search"
+              placeholder="חיפוש סוג רכיבה..."
+              [(ngModel)]="waitingListRidingTypeSearch" />
+
+            <div class="waiting-list-instructor-options">
+
+              <label
+                *ngFor="let type of filteredWaitingListRidingTypes"
+                class="waiting-list-option">
+
+                <input type="checkbox"
+                  [checked]="waitingListRidingTypeIds.includes(type.id)"
+                  (change)="toggleWaitingListRidingType(
+                    type.id,
+                    $any($event.target).checked
+                  )" />
+
+                {{ type.name }}
+              </label>
+
+              <div
+                *ngIf="filteredWaitingListRidingTypes.length === 0"
+                class="hint">
+                לא נמצאו סוגי רכיבה מתאימים.
+              </div>
+
+            </div>
+          </div>
+
+          <div class="waiting-list-selected"
+            *ngIf="waitingListRidingTypeIds.length > 0">
+
+            <ng-container *ngFor="let type of waitingListRidingTypes">
+              <span
+                *ngIf="waitingListRidingTypeIds.includes(type.id)"
+                class="waiting-list-chip">
+                {{ type.name }}
+              </span>
+            </ng-container>
+
+          </div>
+        </div>
+
+        <div
+          *ngIf="!waitingListAllRidingTypes &&
+                 waitingListRidingTypeIds.length === 0"
+          class="waiting-validation-error"
+          role="alert">
+          יש לבחור לפחות סוג רכיבה אחד.
+        </div>
+
+        <div class="waiting-section-divider"></div>
+
+        <!-- בחירת מדריכים -->
+
+        <h4 class="section-title">בחירת מדריכים</h4>
+
+        <label class="waiting-list-option">
+          <input type="radio" name="waitingInstructorMode"
+            [checked]="waitingListAllInstructors"
+            (change)="setWaitingListAllInstructors(true)" />
+          כל המדריכים
+        </label>
+
+        <label class="waiting-list-option">
+          <input type="radio" name="waitingInstructorMode"
+            [checked]="!waitingListAllInstructors"
+            (change)="setWaitingListAllInstructors(false)" />
+          בחירת מדריכים מסוימים
+        </label>
+
+        <div *ngIf="!waitingListAllInstructors"
+          class="waiting-list-select">
+
+          <button type="button" class="waiting-list-select-trigger"
+            [attr.aria-expanded]="waitingListInstructorsOpen"
+            (click)="waitingListInstructorsOpen = !waitingListInstructorsOpen">
+
+            <span>
+              {{
+                waitingListInstructorIds.length === 0
+                  ? 'בחרי מדריכים'
+                  : 'נבחרו ' + waitingListInstructorIds.length + ' מדריכים'
+              }}
+            </span>
+
+            <span>
+              {{ waitingListInstructorsOpen ? '▲' : '▼' }}
+            </span>
+          </button>
+
+          <div *ngIf="waitingListInstructorsOpen"
+            class="waiting-list-dropdown">
+
+            <input type="text" class="waiting-list-search"
+              placeholder="חיפוש מדריך..."
+              [(ngModel)]="waitingListInstructorSearch" />
+
+            <div class="waiting-list-instructor-options">
+
+              <label
+                *ngFor="let instructor of filteredWaitingListInstructors"
+                class="waiting-list-option">
+
+                <input type="checkbox"
+                  [checked]="waitingListInstructorIds.includes(instructor.id_number)"
+                  (change)="toggleWaitingListInstructor(
+                    instructor.id_number,
+                    $any($event.target).checked
+                  )" />
+
+                {{ getWaitingListInstructorName(instructor.id_number) }}
+              </label>
+
+              <div
+                *ngIf="filteredWaitingListInstructors.length === 0"
+                class="hint">
+                לא נמצאו מדריכים מתאימים.
+              </div>
+
+            </div>
+          </div>
+
+          <div class="waiting-list-selected"
+            *ngIf="waitingListInstructorIds.length > 0">
+
+            <span *ngFor="let id of waitingListInstructorIds"
+              class="waiting-list-chip">
+              {{ getWaitingListInstructorName(id) }}
+            </span>
+
+          </div>
+        </div>
+
+        <div
+          *ngIf="!waitingListAllInstructors &&
+                 waitingListInstructorIds.length === 0"
+          class="waiting-validation-error"
+          role="alert">
+          יש לבחור לפחות מדריך אחד.
+        </div>
+
+        <div class="waiting-section-divider"></div>
+
+        <!-- זמינות לשיעורים -->
+
+        <section class="waiting-availability">
+
+          <h4 class="section-title">זמינות לשיעורים</h4>
+
+          <div class="waiting-availability-modes">
+
+            <label class="waiting-availability-option">
+              <input type="radio" name="waitingTimeMode"
+                [checked]="waitingListAllTimes"
+                (change)="setWaitingListAllTimes(true)" />
+              <span>כל הימים והשעות</span>
+            </label>
+
+            <label class="waiting-availability-option">
+              <input type="radio" name="waitingTimeMode"
+                [checked]="!waitingListAllTimes"
+                (change)="setWaitingListAllTimes(false)" />
+              <span>הגדרת זמינות מותאמת</span>
+            </label>
+
+          </div>
+
+          <div *ngIf="!waitingListAllTimes"
+            class="waiting-availability-custom">
+
+            <h5>באילו ימים הילד/ה זמין/ה?</h5>
+
+            <div class="waiting-days-grid">
+
+              <button
+                *ngFor="let day of waitingListAvailableDays"
+                type="button"
+                class="waiting-day-button"
+                [class.selected]="isWaitingListDaySelected(day.id)"
+                [attr.aria-pressed]="isWaitingListDaySelected(day.id)"
+                (click)="toggleWaitingListDay(day.id)">
+
+                <span>
+                  {{ isWaitingListDaySelected(day.id) ? '✓' : '+' }}
+                </span>
+
+                <span>{{ day.name }}</span>
+              </button>
+
+            </div>
+
+            <div *ngIf="waitingListDays.length === 0"
+              class="waiting-availability-hint">
+              יש לבחור לפחות יום אחד.
+            </div>
+
+            <label *ngIf="waitingListDays.length > 0"
+              class="waiting-same-hours">
+
+              <input type="checkbox"
+                [(ngModel)]="waitingListSameHours" />
+
+              <span>
+                אותן שעות בכל הימים שנבחרו
+              </span>
+            </label>
+
+            <!-- שעות משותפות -->
+
+            <div
+              *ngIf="waitingListDays.length > 0 && waitingListSameHours"
+              class="waiting-time-card">
+
+              <h5>שעות לכל הימים שנבחרו</h5>
+
+              <div
+                *ngFor="let range of waitingListCommonRanges; let i = index"
+                class="waiting-time-range">
+
+                <div class="waiting-time-fields">
+
+                  <label>
+                    משעה
+                    <input type="time"
+                      [(ngModel)]="range.from"
+                      [min]="waitingListCommonMinTime"
+                      [max]="waitingListCommonMaxTime"
+                      (change)="validateWaitingListCommonTime(range, 'from')" />
+                  </label>
+
+                  <label>
+                    עד שעה
+                    <input type="time"
+                      [(ngModel)]="range.to"
+                      [min]="waitingListCommonMinTime"
+                      [max]="waitingListCommonMaxTime"
+                      (change)="validateWaitingListCommonTime(range, 'to')" />
+                  </label>
+
+                </div>
+
+                <button
+                  *ngIf="waitingListCommonRanges.length > 1"
+                  type="button"
+                  class="waiting-remove-range"
+                  (click)="removeWaitingListCommonRange(i)">
+                  הסרת טווח
+                </button>
+
+              </div>
+
+              <div
+                *ngIf="getWaitingListCommonTimeErrors().length > 0"
+                class="waiting-validation-error"
+                role="alert">
+
+                <div
+                  *ngFor="let error of getWaitingListCommonTimeErrors()">
+                  {{ error }}
+                </div>
+              </div>
+
+              <button type="button" class="waiting-add-range"
+                (click)="addWaitingListCommonRange()">
+                + הוספת טווח שעות
+              </button>
+
+            </div>
+
+            <!-- שעות נפרדות לכל יום -->
+
+            <ng-container
+              *ngIf="waitingListDays.length > 0 && !waitingListSameHours">
+
+              <div
+                *ngFor="let day of waitingListWeekDays"
+                class="waiting-day-wrapper">
+
+                <ng-container
+                  *ngIf="getWaitingListDay(day.id) as selectedDay">
+
+                  <div class="waiting-time-card">
+
+                    <h5>יום {{ day.name }}</h5>
+
+                    <div
+                      *ngIf="getWaitingListFarmHours(day.id) as hours"
+                      class="waiting-farm-hours">
+                      שעות פעילות החווה:
+                      {{ hours.farm_start }}–{{ hours.farm_end }}
+                    </div>
+
+                    <div
+                      *ngFor="let range of selectedDay.ranges; let i = index"
+                      class="waiting-time-range">
+
+                      <div class="waiting-time-fields">
+
+                        <label>
+                          משעה
+                          <input type="time"
+                            [(ngModel)]="range.from"
+                            [min]="getWaitingListFarmHours(day.id)?.farm_start || ''"
+                            [max]="getWaitingListFarmHours(day.id)?.farm_end || ''"
+                            (change)="validateWaitingListTime(day.id, range, 'from')" />
+                        </label>
+
+                        <label>
+                          עד שעה
+                          <input type="time"
+                            [(ngModel)]="range.to"
+                            [min]="getWaitingListFarmHours(day.id)?.farm_start || ''"
+                            [max]="getWaitingListFarmHours(day.id)?.farm_end || ''"
+                            (change)="validateWaitingListTime(day.id, range, 'to')" />
+                        </label>
+
+                      </div>
+
+                      <button
+                        *ngIf="selectedDay.ranges.length > 1"
+                        type="button"
+                        class="waiting-remove-range"
+                        (click)="removeWaitingListTimeRange(day.id, i)">
+                        הסרת טווח
+                      </button>
+
+                    </div>
+
+                    <div
+                      *ngIf="getWaitingListTimeErrors(day.id).length > 0"
+                      class="waiting-validation-error"
+                      role="alert">
+
+                      <div
+                        *ngFor="let error of getWaitingListTimeErrors(day.id)">
+                        {{ error }}
+                      </div>
+                    </div>
+
+                    <button type="button" class="waiting-add-range"
+                      (click)="addWaitingListTimeRange(day.id)">
+                      + הוספת טווח שעות
+                    </button>
+
+                  </div>
+
+                </ng-container>
+              </div>
+            </ng-container>
+
+            <p *ngIf="waitingListDays.length > 0"
+              class="waiting-availability-hint">
+              אפשר להשאיר שעת התחלה או סיום ריקה כאשר
+              אין הגבלה באותו צד של הטווח.
+              שני שדות ריקים פירושם כל שעות היום.
+            </p>
+
+          </div>
+
+          <!-- סיכום זמינות -->
+
+          <div class="waiting-availability-summary">
+            <h5>סיכום הזמינות</h5>
+
+            <div
+              *ngFor="let line of getWaitingListAvailabilitySummary()"
+              class="waiting-summary-line"
+              [class.waiting-summary-error]="line.includes('יש לתקן שגיאות בשעות')">
+              {{ line }}
+            </div>
+
+          </div>
+        </section>
+
+        <div class="waiting-section-divider"></div>
+
+        <!-- עדיפות -->
+
+        <section class="waiting-priority-section">
+
+          <h4 class="section-title">
+            עדיפות
+          </h4>
+
+          <div class="waiting-priority-options">
+
+            <label class="waiting-priority-option">
+              <input type="radio" name="waitingPriority"
+                value="high"
+                [(ngModel)]="waitingListPriority" />
+              <span>גבוהה</span>
+            </label>
+
+            <label class="waiting-priority-option">
+              <input type="radio" name="waitingPriority"
+                value="medium"
+                [(ngModel)]="waitingListPriority" />
+              <span>בינונית</span>
+            </label>
+
+            <label class="waiting-priority-option">
+              <input type="radio" name="waitingPriority"
+                value="low"
+                [(ngModel)]="waitingListPriority" />
+              <span>נמוכה</span>
+            </label>
+
+          </div>
+        </section>
+
+        <div class="waiting-section-divider"></div>
+
+      </div>
+
+      <!-- כפתורי שמירה וביטול בתחתית -->
+
+      <div class="drawer-footer waiting-list-footer-actions">
+
+        <button type="button" class="secondary"
+          (click)="closeWaitingListDialog()">
+          ביטול
+        </button>
+
+        <button type="button" class="primary"
+          [disabled]="!canSaveWaitingList || savingWaitingList || savedEntryId !== null"
+          (click)="saveWaitingList()">
+          {{ savingWaitingList ? 'שומר...' : 'שמירה' }}
+        </button>
+
+      </div>
+    </div>
+
+  </section>
+</div>
