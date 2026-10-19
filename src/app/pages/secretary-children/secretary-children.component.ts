@@ -183,15 +183,15 @@ type HelmetFilter =
   selector: 'app-secretary-children',
   standalone: true,
   imports: [
-  CommonModule,
-  FormsModule,
-  ReactiveFormsModule,
-  MatSidenavModule,
-  MatDialogModule,
-  AddChildWizardComponent,
-  RouterModule,
-  WaitingListDialog
-],
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    MatSidenavModule,
+    MatDialogModule,
+    AddChildWizardComponent,
+    RouterModule,
+    WaitingListDialog
+  ],
   templateUrl: './secretary-children.component.html',
   styleUrls: ['./secretary-children.component.css'],
 })
