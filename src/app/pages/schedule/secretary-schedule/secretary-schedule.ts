@@ -93,7 +93,7 @@ type InstructorWeeklyAvailabilityRow = {
   end_time: string;
   lesson_type_mode?: string | null;
   lesson_ridding_type?: string | null;
-  valid_from: string;
+  valid_from: string | null;
   valid_until?: string | null;
   replaced_by_id?: string | null;
 };
@@ -1461,19 +1461,22 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   }
 
   private isWeeklyAvailabilityEffectiveOn(
-    row: InstructorWeeklyAvailabilityRow,
-    ymd: string
-  ): boolean {
-    const validFrom = String(row.valid_from || '').slice(0, 10);
-    const validUntil = row.valid_until
-      ? String(row.valid_until).slice(0, 10)
-      : null;
+  row: InstructorWeeklyAvailabilityRow,
+  ymd: string
+): boolean {
+  const validFrom = row.valid_from
+    ? String(row.valid_from).slice(0, 10)
+    : null;
 
-    if (!validFrom || ymd < validFrom) return false;
-    if (validUntil && ymd > validUntil) return false;
+  const validUntil = row.valid_until
+    ? String(row.valid_until).slice(0, 10)
+    : null;
 
-    return true;
-  }
+  if (validFrom && ymd < validFrom) return false;
+  if (validUntil && ymd > validUntil) return false;
+
+  return true;
+}
 
   private addOneDayYmdSafe(ymd: string): string {
     const [y, m, d] = ymd.split('-').map(Number);
@@ -2858,11 +2861,11 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       const today = this.dateToYmd(new Date());
 
       const { data: avail, error: e2 } = await dbc
-        .from('instructor_weekly_availability')
-        .select('instructor_id_number, valid_from, valid_until')
-        .eq('day_of_week', dow)
-        .lte('valid_from', today)
-        .or(`valid_until.is.null,valid_until.gte.${today}`);
+  .from('instructor_weekly_availability')
+  .select('instructor_id_number, valid_from, valid_until')
+  .eq('day_of_week', dow)
+  .or(`valid_from.is.null,valid_from.lte.${today}`)
+  .or(`valid_until.is.null,valid_until.gte.${today}`);
 
       if (e2) throw e2;
 

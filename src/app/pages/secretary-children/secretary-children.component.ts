@@ -2110,7 +2110,7 @@ scheduled_deletion_at,deletion_note
       return;
     }
 
-    const startDate = this.getSeriesActualStartDateIso(series);
+    const startDate = series.anchorWeekStart?.slice(0, 10) ?? null;
 const endDate = series.seriesEndDate?.slice(0, 10);
 
 if (!startDate) {

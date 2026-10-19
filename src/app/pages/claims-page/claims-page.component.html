@@ -530,35 +530,48 @@
         </ng-container>
 
         <ng-container matColumnDef="claimStatus">
-          <th mat-header-cell *matHeaderCellDef>
-            מצב דיווח
-          </th>
+  <th mat-header-cell *matHeaderCellDef>
+    מצב דיווח
+  </th>
 
-          <td mat-cell *matCellDef="let row">
-            <span
-              class="pill status-pill"
-              [ngClass]="
-                activeTab === 'MACCABI'
-                  ? displayStatusClass(row.displayStatus)
-                  : statusClass(row.claimStatus)
-              "
-            >
-              {{
-                activeTab === 'MACCABI'
-                  ? row.displayStatusText
-                  : statusLabel(row.claimStatus)
-              }}
-            </span>
+  <td mat-cell *matCellDef="let row">
+    <span
+      class="pill status-pill"
+      [ngClass]="
+        activeTab === 'CLALIT'
+          ? 'st-' + row.displayStatus.toLowerCase()
+          : activeTab === 'MACCABI'
+            ? displayStatusClass(row.displayStatus)
+            : statusClass(row.claimStatus)
+      ">
+      {{
+        activeTab === 'MACCABI' || activeTab === 'CLALIT'
+          ? row.displayStatusText
+          : statusLabel(row.claimStatus)
+      }}
+    </span>
 
-            <small
-              *ngIf="row.automationError"
-              class="automation-error"
-              [title]="row.automationError"
-            >
-              {{ row.automationError }}
-            </small>
-          </td>
-        </ng-container>
+    <small
+      *ngIf="activeTab === 'CLALIT' && row.automationClaimNumber"
+      class="secondary-value">
+      תביעה: {{ row.automationClaimNumber }}
+    </small>
+
+    <small
+      *ngIf="activeTab === 'CLALIT' && row.automationJobId"
+      class="secondary-value"
+      [title]="row.automationJobId">
+      משימה: {{ row.automationJobId }}
+    </small>
+
+    <small
+      *ngIf="row.automationError"
+      class="automation-error"
+      [title]="row.automationError">
+      {{ row.automationError }}
+    </small>
+  </td>
+</ng-container>
 
         <ng-container matColumnDef="actions">
           <th

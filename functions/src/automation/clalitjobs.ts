@@ -74,19 +74,38 @@ async function resolveInvoices(db: any, schema: string,
     chargesByLesson.get(key)!.add(String(item.charge_id));
   }
   for (const key of requested) {
-    if (chargesByLesson.get(key)?.size !== 1) {
-      fail(400, `Expected one billing charge for the selected child/date: ${key}`);
-    }
+   for (const key of requested) {
+  if ((chargesByLesson.get(key)?.size ?? 0) > 1) {
+    console.warn(
+      '[CLALIT] לא ניתן לזהות חשבונית: מספר חיובים לילד ולתאריך',
+      key,
+    );
+  }
+}
   }
 
   const chargeIds = [...new Set([...chargesByLesson.values()].flatMap(x => [...x]))];
-  const { data: invoices, error: invoiceError } = await db.from('payment_invoices')
-    .select('child_id,charge_id,payment_id,invoice_storage_bucket,invoice_storage_path,status')
-    .in('charge_id', chargeIds).in('child_id', children).eq('status', 'ready');
-  if (invoiceError) throw invoiceError;
+  if (!chargeIds.length) return new Map<string, InvoiceRef>();
+  const { data: invoices, error: invoiceError } = await db
+  .from('payment_invoices')
+  .select(`
+    child_id,
+    charge_id,
+    payment_id,
+    invoice_storage_bucket,
+    invoice_storage_path,
+    status
+  `)
+  .in('charge_id', chargeIds)
+  .in('child_id', children)
+  .eq('status', 'ready')
+  .order('created_at', { ascending: false, nullsFirst: false })
+  .order('id', { ascending: false });
+
+if (invoiceError) throw invoiceError;
   const invoiceRows = (invoices ?? []) as StoredInvoice[];
   const paymentIds = [...new Set(invoiceRows.filter(x => x.payment_id).map(x => String(x.payment_id)))];
-  if (!paymentIds.length) fail(400, 'No ready PDF invoice was found for the selected lessons');
+  if (!paymentIds.length) return new Map<string, InvoiceRef>();
   const { data: payments, error: paymentError } = await db.from('payments')
     .select('id,charge_id,date').in('id', paymentIds);
   if (paymentError) throw paymentError;
@@ -114,15 +133,27 @@ async function resolveInvoices(db: any, schema: string,
     byChildCharge.get(key)!.push(ref);
   }
   const resolved = new Map<string, InvoiceRef>();
-  for (const key of requested) {
-    const [childId] = key.split('__');
-    const chargeId = [...chargesByLesson.get(key)!][0];
-    const matches = byChildCharge.get(`${childId}__${chargeId}`) ?? [];
-    if (matches.length !== 1) {
-      fail(400, `Expected one ready invoice for the selected child/date: ${key}`);
-    }
-    resolved.set(key, matches[0]);
-  }
+
+for (const key of requested) {
+  const [childId] = key.split('__');
+  const chargeIdsForLesson = chargesByLesson.get(key);
+
+  // ללא חיוב: אין חשבונית זמינה.
+  // ממשיכים ללא חשבונית כאשר אין חיוב יחיד וברור.
+// לא בוחרים שרירותית את החיוב הראשון.
+if (!chargeIdsForLesson || chargeIdsForLesson.size !== 1) {
+  continue;
+}
+
+  const chargeId = [...chargeIdsForLesson][0];
+  const matches = byChildCharge.get(`${childId}__${chargeId}`) ?? [];
+
+  // ללא חשבונית: ממשיכים עם דיווח חסר חשבונית.
+  if (!matches.length) continue;
+
+
+  resolved.set(key, matches[0]);
+}
   for (const invoice of new Map([...resolved.values()].map(x => [x.path, x])).values()) {
     await verifiedInvoice(db, invoice);
   }
@@ -178,6 +209,79 @@ export const createClalitAutomationJob = onRequest({
     const db = createClient(SUPABASE_URL.value(), SUPABASE_SERVICE_KEY.value(), {
       db: { schema: body.schema }, auth: { persistSession: false },
     });
+    const requestKey = createHash('sha256').update(JSON.stringify({
+      schema: body.schema, lessons: selections.slice().sort((a, b) => keyOf(a).localeCompare(keyOf(b))),
+    })).digest('hex');
+
+    const {
+  data: existingJob,
+  error: existingJobError,
+} = await db.from('automation_jobs')
+  .select('id,status,payload,result')
+  .eq('provider', 'CLALIT')
+  .eq('request_key', requestKey)
+  .maybeSingle();
+
+if (existingJobError) throw existingJobError;
+
+if (existingJob) {
+  const status = String(existingJob.status);
+  const savedLessons = existingJob.payload?.lessons;
+
+  if (!Array.isArray(savedLessons)) {
+    fail(409, 'למשימה הקיימת חסרים נתוני שיעורים.');
+  }
+
+  // משימה פעילה או שהושלמה אינה צריכה איפוס.
+  if (['pending', 'running', 'done'].includes(status)) {
+    res.status(200).json({
+      ok: true,
+      jobId: existingJob.id,
+      lessonCount: savedLessons.length,
+      message:
+        status === 'running' ? 'המשימה בתהליך.' :
+        status === 'done' ? 'המשימה כבר הושלמה.' :
+        'המשימה ממתינה להרצה.',
+    });
+    return;
+  }
+
+  if (status !== 'failed') {
+    fail(409, `לא ניתן להחזיר להמתנה משימה במצב ${status}.`);
+  }
+
+  const { data: resumedJob, error: resumeError } = await db
+    .from('automation_jobs')
+    .update({
+      status: 'pending',
+      attempt_count: 0,
+      error: null,
+      started_at: null,
+      finished_at: null,
+      claimed_at: null,
+      lease_expires_at: null,
+      agent_id: null,
+      agent_installation_id: null,
+    })
+    .eq('id', existingJob.id)
+    .eq('status', 'failed')
+    .select('id')
+    .maybeSingle();
+
+  if (resumeError) throw resumeError;
+  if (!resumedJob) {
+    fail(409, 'מצב המשימה השתנה; רענני את המסך.');
+  }
+
+  res.status(200).json({
+    ok: true,
+    jobId: resumedJob.id,
+    lessonCount: savedLessons.length,
+    message: 'המשימה הוחזרה לממתין.',
+  });
+  return;
+}
+
     const childIds = [...new Set(selections.map((x) => x.child_id))];
     const dates = [...new Set(selections.map((x) => x.occur_date))];
     const lessonIds = [...new Set(selections.map((x) => x.lesson_id))];
@@ -211,6 +315,46 @@ export const createClalitAutomationJob = onRequest({
       [String(x.instructor_id), x]));
     const invoiceMap = await resolveInvoices(db, body.schema, selections);
 
+    const selectedChildIds = [
+  ...new Set(selections.map(x => x.child_id)),
+];
+
+const { data: referralRows, error: referralError } = await db
+  .from('lessons')
+  .select('id,child_id,payment_docs_url')
+  .in('child_id', selectedChildIds)
+  .eq('lesson_type', 'סידרה')
+  .not('payment_docs_url', 'is', null);
+
+if (referralError) throw referralError;
+
+const latestReferralByChild = new Map<
+  string,
+  { url: string; uploadedAt: number }
+>();
+
+for (const row of referralRows ?? []) {
+  const url = String(row.payment_docs_url ?? '').trim();
+
+  // בקוד ההעלאה שם הקובץ הוא lessonId-Date.now().extension.
+  const match = url.match(
+    /\/series-referrals\/[^/?]+-(\d{13})\.(pdf|png|jpe?g|webp)(?:\?.*)?$/i,
+  );
+
+  if (!match) continue;
+
+  const uploadedAt = Number(match[1]);
+  const childId = String(row.child_id);
+  const previous = latestReferralByChild.get(childId);
+
+  if (!previous || uploadedAt > previous.uploadedAt) {
+    latestReferralByChild.set(childId, {
+      url,
+      uploadedAt,
+    });
+  }
+}
+
     const tasks = selections.map((selection) => {
       const key = keyOf(selection);
       const row: any = rows.get(key);
@@ -220,34 +364,37 @@ export const createClalitAutomationJob = onRequest({
           !isReportable(row, occurrence)) {
         fail(400, `Lesson is missing, already reported, or not eligible: ${key}`);
       }
-      const actualInstructorId = String(row.instructor_id ?? '');
-      // If no matching site name exists, choose a mapped instructor working
-      // on the same date. The real instructor remains in the audit payload.
-      const alternative = (workingDays.data ?? []).find((x: any) =>
-        x.occur_date === selection.occur_date &&
-        String(x.attendance_status ?? '').toLowerCase() === 'present' &&
-        teacherMap.has(String(x.instructor_id)));
-      const reportedInstructorId = teacherMap.has(actualInstructorId)
-        ? actualInstructorId : String(alternative?.instructor_id ?? '');
-      if (!teacherMap.has(reportedInstructorId)) {
-        fail(400, `No mapped Clalit instructor worked on ${selection.occur_date}`);
+      const actualInstructorId = String(row.instructor_id ?? '').trim();
+      const reportedInstructorId = actualInstructorId;
+      const mapping = teacherMap.get(actualInstructorId);
+
+      if (!mapping) {
+        fail(
+          400,
+          `חסר מיפוי פעיל לכללית למדריך ${actualInstructorId}, ` +
+          `בתאריך ${selection.occur_date}. יש להשלים מיפוי לפני דיווח.`
+        );
       }
+      
+      const invoice =
+  invoiceMap.get(`${selection.child_id}__${selection.occur_date}`) ?? null;
       return {
         ...selection, child_id_number: String(child.gov_id),
         child_first_name: String(child.first_name ?? ''),
         child_last_name: String(child.last_name ?? ''),
         actual_instructor_id: actualInstructorId,
         reported_instructor_id: reportedInstructorId,
-        reported_instructor_name: (teacherMap.get(reportedInstructorId) as any).provider_name,
-        reported_instructor_code: (teacherMap.get(reportedInstructorId) as any).provider_code,
-        invoice: invoiceMap.get(`${selection.child_id}__${selection.occur_date}`),
+        reported_instructor_name: mapping.provider_name,
+        reported_instructor_code: mapping.provider_code,
+        referral_url: latestReferralByChild.get(selection.child_id)?.url ?? null,
+        invoice,
+reporting_status: invoice
+  ? 'ready'
+  : 'missing_invoice',
         claim_number: null, claim_phase: 'not_started', payment_phase: 'not_started',
       };
     });
 
-    const requestKey = createHash('sha256').update(JSON.stringify({
-      schema: body.schema, lessons: selections.slice().sort((a, b) => keyOf(a).localeCompare(keyOf(b))),
-    })).digest('hex');
     const payload = {
       version: 1, workflow: ['open_all_claims', 'submit_all_payment_requests'],
       lessons: tasks, created_by_uid: user.uid,
