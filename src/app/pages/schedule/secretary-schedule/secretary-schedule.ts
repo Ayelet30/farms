@@ -2853,7 +2853,12 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
       if (e1) throw e1;
 
-      const allRows = (all ?? []) as InstructorRow[];
+      const allRows = [...(all ?? []) as InstructorRow[]].sort((a, b) => {
+  const nameA = `${a.first_name ?? ''} ${a.last_name ?? ''}`.trim();
+  const nameB = `${b.first_name ?? ''} ${b.last_name ?? ''}`.trim();
+
+  return nameA.localeCompare(nameB, 'he');
+});
 
       // UI למעלה: כל הפעילים
       this.instructorsAll = allRows;
