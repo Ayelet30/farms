@@ -218,7 +218,8 @@ export class RequestSingleLessonDetailsComponent {
   }
 
   canDecide(): boolean {
-    return this.request?.status === 'PENDING';
+    return this.isSecretary === true &&
+      this.request?.status === 'PENDING';
   }
 
   private clearMessages() {
@@ -733,6 +734,11 @@ export class RequestSingleLessonDetailsComponent {
   }
 
   async approveSelected() {
+    if (!this.canDecide()) {
+      console.warn('Unauthorized approval attempt');
+      return;
+    }
+
     if (this.loading()) return;
     this.action.set('approve');
     this.busy.set(true);
@@ -932,9 +938,14 @@ export class RequestSingleLessonDetailsComponent {
     }
   }
 
-  async rejectSelected() {
-    if (this.loading()) return;
 
+  async rejectSelected() {
+    if (!this.canDecide()) {
+      console.warn('Unauthorized rejection attempt');
+      return;
+    }
+
+    if (this.loading()) return;
     this.action.set('reject');
     this.busy.set(true);
     this.loading.set(true);

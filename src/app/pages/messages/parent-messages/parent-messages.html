@@ -1,255 +1,239 @@
-<!-- <div class="page" dir="rtl">
-  <h2>מרכז הודעות להורה</h2>
-
-  <nav class="tabs">
-    <button [class.active]="tab()==='threads'" (click)="tab.set('threads'); loadThreads()">השיחות שלי</button>
-    <button [class.active]="tab()==='new'" (click)="tab.set('new')">פתחו שיחה חדשה</button>
-    <button [class.active]="tab()==='announcements'" (click)="tab.set('announcements'); loadAnnouncements()">הודעות מהחווה</button>
-  </nav> -->
-
-  <!-- שיחות -->
-  <!-- <section *ngIf="tab()==='threads'">
-    <div class="split">
-      <aside class="list">
-        <div class="row" *ngFor="let c of threads()" (click)="openConversation(c)" [class.active]="activeConv()?.id===c.id">
-          <div class="title">{{c.subject || 'ללא נושא'}}</div>
-          <div class="meta">
-            <span class="badge" [class.open]="c.status==='open'" [class.pending]="c.status==='pending'" [class.closed]="c.status==='closed'">{{c.status}}</span>
-            <span class="time">{{c.updated_at | date:'short'}}</span>
-          </div>
-        </div>
-        <div *ngIf="loadingThreads()">טוען…</div>
-      </aside>
-
-      <main class="thread" *ngIf="activeConv(); else pickConv">
-        <header>
-          <h3>{{activeConv()?.subject || 'שיחה'}}</h3>
-        </header>
-
-        <article class="msg" *ngFor="let m of messages()">
-          <div class="meta">
-            <strong>{{m.sender_role === 'parent' ? 'הורה' : 'צוות'}}</strong>
-            <small>{{m.created_at | date:'short'}}</small>
-          </div>
-          <div class="body" [innerHTML]="m.body_md"></div>
-        </article>
-
-        <footer class="reply">
-          <textarea [(ngModel)]="replyText" placeholder="כתבו תשובה…"></textarea>
-          <button (click)="sendReply()" [disabled]="!replyText.trim()">שליחה</button>
-        </footer>
-      </main>
-
-      <ng-template #pickConv>
-        <div class="empty">בחרו שיחה מרשימה</div>
-      </ng-template>
-    </div>
-  </section> -->
-
-  <!-- פתיחת שיחה -->
-  <!-- <section *ngIf="tab()==='new'" class="form">
-    <label>נושא
-      <input [(ngModel)]="newSubject" placeholder="נושא (אופציונלי)">
-    </label>
-
-    <label>תוכן ההודעה
-      <textarea [(ngModel)]="newBody" rows="6" placeholder="כתבו את פירוט הבקשה/שאלה"></textarea>
-    </label>
-
-    <button (click)="createConversation()" [disabled]="creating() || !newBody.trim()">פתחו שיחה</button>
-    <span class="toast" *ngIf="toast()">{{toast()}}</span>
-  </section> -->
-
-  <!-- הודעות שידור -->
-  <!-- <section *ngIf="tab()==='announcements'">
-    <div *ngIf="!announcements().length && !loadingAnn()">אין הודעות</div>
-    <article class="ann" *ngFor="let a of announcements()">
-      <header>
-        <strong>{{a.subject || 'ללא נושא'}}</strong>
-        <small>{{a.sent_at | date:'short'}}</small>
-      </header>
-      <div class="body" [innerHTML]="a.body_md"></div>
-      <footer class="channels">
-        <span *ngIf="a.channel_inapp">In-App</span>
-        <span *ngIf="a.channel_email"> · Email</span>
-        <span *ngIf="a.channel_sms"> · SMS</span>
-      </footer>
-    </article>
-    <div *ngIf="loadingAnn()">טוען…</div>
-  </section>
-</div> -->
-
-<!-- parent-messages.component.html -->
 <div class="page-wrap" dir="rtl">
 
-  <div class="chat-page-container">
-  <!-- כותרת ראשית גדולה במרכז -->
   <div class="chat-welcome-section">
     <h1>יצירת קשר</h1>
     <p>לכל שאלה, בקשה או עדכון ניתן לפנות אלינו כאן</p>
   </div>
 
-  <!-- תיבת ההזנה -->
-  <div class="input-container">
-    <div class="input-box-wrapper">
+  <nav class="chat-tabs-nav">
+    <button [class.active]="tab() === 'new'" (click)="tab.set('new')">פנייה חדשה</button>
+    <button [class.active]="tab() === 'threads'" (click)="tab.set('threads'); loadThreads()">השיחות שלי</button>
+    <button [class.active]="tab() === 'announcements'" (click)="tab.set('announcements'); loadAnnouncements()">הודעות מהחווה</button>
+  </nav>
 
-      <div class="file-preview-container animate-in" *ngIf="selectedFile">
-        <div class="file-card">
-          <span class="file-icon">📄</span>
-          <span class="file-name">{{ selectedFile.name }}</span>
-          <button class="remove-file-btn" (click)="removeFile()">✕</button>
+  <div class="chat-page-container" *ngIf="tab() === 'new'">
+    <div class="input-container">
+      <div class="input-box-wrapper">
+
+        <div class="file-preview-container animate-in" *ngIf="selectedFile">
+          <div class="file-card">
+            <span class="file-icon">📄</span>
+            <span class="file-name">{{ selectedFile.name }}</span>
+            <button class="remove-file-btn" (click)="removeFile()">✕</button>
+          </div>
         </div>
-      </div>
-      
-      <!-- אזור ההקלדה (למעלה) -->
-      <textarea 
-        [(ngModel)]="newBody" 
-        placeholder="איך נוכל לעזור?" 
-        rows="1" 
-        (input)="adjustHeight($event)">
-      </textarea>
+        
+        <textarea 
+          [(ngModel)]="newBody" 
+          placeholder="איך נוכל לעזור?" 
+          rows="1" 
+          (input)="adjustHeight($event)">
+        </textarea>
 
-      <!-- שורת הכלים (למטה) -->
-      <div class="input-toolbar">
-        <div class="toolbar-left">
-          
-          <!-- כפתור פלוס להוספת קבצים -->
-          <label class="tool-btn plus-btn">
-            <span class="icon">+</span>
-            <input type="file" (change)="onFileSelected($event)" hidden>
-          </label>
+        <div class="input-toolbar">
+          <div class="toolbar-left">
+            
+            <label class="tool-btn plus-btn">
+              <span class="icon">+</span>
+              <input type="file" (change)="onFileSelected($event)" hidden>
+            </label>
 
-          <!-- בחירת נושא -->
-          <div class="tool-dropdown-wrapper">
-            <select [(ngModel)]="newSubject" class="minimal-select">
-              <option value="" disabled selected>בחרו נושא</option>
-              <option value="billing">חיוב ותשלומים</option>
-              <option value="schedule">שינוי לוח זמנים</option>
-              <option value="general">בקשה כללית</option>
-              <option value="files">שליחת קבצים</option>
-            </select>
+            <div class="tool-dropdown-wrapper">
+              <select [(ngModel)]="newSubject" class="minimal-select">
+                <option value="" disabled selected>בחרו נושא</option>
+                <option value="billing">חיוב ותשלומים</option>
+                <option value="schedule">שינוי לוח זמנים</option>
+                <option value="general">בקשה כללית</option>
+                <option value="files">שליחת קבצים</option>
+              </select>
+            </div>
+
+            <div class="tool-dropdown-wrapper child-selection-animator" 
+              [class.is-visible]="newSubject === 'files'">
+              <select class="minimal-select" [(ngModel)]="selectedKidId">
+                <option value="" disabled selected>עבור איזה ילד?</option>
+                <option *ngFor="let kid of kids()" [value]="kid.id">
+                  {{ kid.student_name }}
+                </option>
+              </select>
+            </div>
+            
           </div>
 
-          <!-- בחירת ילד - מופיע רק כאשר בוחרים בנושא בחירת קבצים ונעלם עם אנימציה חלקה -->
-          <div class="tool-dropdown-wrapper child-selection-animator" 
-            [class.is-visible]="newSubject === 'files'">
-            <select class="minimal-select" [(ngModel)]="selectedKidId">
-              <option value="" disabled selected>עבור איזה ילד?</option>
-              <!-- לולאה שיוצרת אופציה לכל ילד ברשימה -->
-              <option *ngFor="let kid of kids()" [value]="kid.id">
-              {{ kid.student_name }}
-              </option>
-            </select>
-        </div>
-
-          
-        </div>
-
-        <div class="toolbar-right">
-          <!-- חץ שליחה -->
-          <button class="send-action-btn" 
-                  
-                  (click)="handleSend()">
-            <span class="send-arrow">➤</span>
-          </button>
+          <div class="toolbar-right">
+            <button class="send-action-btn" (click)="createConversation()" [disabled]="creating()">
+              <span class="send-arrow">➤</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- הודעת אישור (Toast) -->
+  <div class="threads-container" *ngIf="tab() === 'threads'">
+    <div class="split-chat-layout" *ngIf="threads().length > 0; else noThreads">
+      
+      <aside class="threads-list">
+        <div class="thread-row" 
+             *ngFor="let c of threads()" 
+             (click)="openConversation(c)" 
+             [class.active]="activeConv()?.id === c.id">
+          
+          <div class="thread-info">
+            <div class="thread-title">{{ c.subject || 'פנייה כללית' }}</div>
+            <div class="thread-time">{{ c.updated_at | date:'dd/MM/yy HH:mm' }}</div>
+          </div>
+          
+          <div class="thread-status" [ngSwitch]="c.status">
+            <span *ngSwitchCase="'sent'" style="color: #9ca3af; font-weight: bold;" title="נשלח">✓</span>
+            <span *ngSwitchCase="'read'" style="color: #9ca3af; font-weight: bold; letter-spacing: -3px;" title="נקרא">✓✓</span>
+            <span *ngSwitchCase="'pending'" style="color: #f59e0b; font-size: 0.9em;" title="בטיפול">⏳ בטיפול</span>
+            <span *ngSwitchCase="'completed'" style="color: #10b981; font-weight: bold; letter-spacing: -3px;" title="טופל">✓✓</span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="chat-window" *ngIf="activeConv(); else pickConv">
+        <header class="chat-header">
+          <h3>נושא הפנייה: {{ activeConv()?.subject || 'כללי' }}</h3>
+          
+          <div class="header-status" [ngSwitch]="activeConv()?.status">
+             <span *ngSwitchCase="'sent'" style="color: #9ca3af;">✓ נשלח למזכירות</span>
+             <span *ngSwitchCase="'read'" style="color: #9ca3af;">✓✓ נקרא על ידי הצוות</span>
+             <span *ngSwitchCase="'pending'" style="color: #f59e0b;">⏳ בטיפול המזכירות</span>
+             <span *ngSwitchCase="'completed'" style="color: #10b981;">✓✓ פנייה טופלה ונסגרה</span>
+          </div>
+        </header>
+
+        <div class="messages-area">
+          <div class="message-bubble" 
+               *ngFor="let m of messages()" 
+               [class.my-message]="m.sender_role === 'parent'" 
+               [class.their-message]="m.sender_role !== 'parent'">
+            
+            <div class="message-meta">
+              <strong>{{ m.sender_role === 'parent' ? 'אני' : 'צוות החווה' }}</strong>
+              <small>{{ m.created_at | date:'HH:mm' }}</small>
+            </div>
+            <div class="message-body" [innerHTML]="m.body_md"></div>
+          </div>
+        </div>
+
+        <footer class="reply-area" *ngIf="activeConv()?.status !== 'completed'">
+          <div class="input-box-wrapper reply-wrapper">
+            <textarea 
+              [(ngModel)]="replyText" 
+              placeholder="כתבו תגובה..." 
+              rows="1" 
+              (input)="adjustHeight($event)">
+            </textarea>
+            <div class="toolbar-right">
+              <button class="send-action-btn" (click)="sendReply()" [disabled]="creating() || !replyText.trim()">
+                <span class="send-arrow">➤</span>
+              </button>
+            </div>
+          </div>
+        </footer>
+
+        <footer class="reply-area closed-notice" *ngIf="activeConv()?.status === 'completed'">
+          הפנייה טופלה ונסגרה. לפניות נוספות אנא פתחו שיחה חדשה.
+        </footer>
+      </main>
+
+      <ng-template #pickConv>
+        <div class="empty-state">בחרו שיחה מהרשימה כדי לצפות בהודעות</div>
+      </ng-template>
+
+    </div>
+    
+    <ng-template #noThreads>
+      <div class="empty-state">
+        אין לכם שיחות פתוחות כרגע.
+      </div>
+    </ng-template>
+  </div>
+
+  <div class="announcements-container" *ngIf="tab() === 'announcements'">
+    
+    <div *ngIf="loadingAnn()" class="empty-state">
+      טוען הודעות מערכת... ⏳
+    </div>
+
+    <div *ngIf="!loadingAnn() && announcements().length === 0" class="empty-state">
+      אין הודעות מערכת חדשות.
+    </div>
+
+    <div class="announcements-list" *ngIf="!loadingAnn() && announcements().length > 0">
+      <div class="announcement-card" *ngFor="let a of announcements()">
+        <header>
+          <h3>{{a.subject || 'ללא נושא'}}</h3>
+          <small>{{a.sent_at | date:'dd/MM/yy HH:mm'}}</small>
+        </header>
+        <div class="body" [innerHTML]="a.body_md"></div>
+      </div>
+    </div>
+    
+  </div>
+
   <div class="toast-message" *ngIf="toast()">
     {{ toast() }}
-  </div>
-</div>
-
-  
-
-
-  <div class="card header-card">
-    <div class="title-block">
-      <h2>יצירת קשר</h2>
-      <p class="subtitle">
-        לכל שאלה, בקשה או עדכון – אפשר לפנות אלינו כאן...
-      </p>
-    </div>
   </div>
 
   <div class="card contact-card">
     <div class="contact-grid">
 
-      <!-- טלפון -->
       <div class="contact-item">
         <div class="contact-icon" aria-hidden="true">📞</div>
-
         <div class="contact-content">
           <div class="contact-label">טלפון</div>
-
           <ng-container *ngIf="farmSettings?.main_phone as phone; else noPhone">
             <a class="contact-value ltr" [href]="'tel:' + phone">{{ phone }}</a>
             <div class="contact-hint">לחיצה תחייג מהמכשיר שלך</div>
           </ng-container>
-
           <ng-template #noPhone>
             <div class="contact-value muted">לא עודכן טלפון במערכת</div>
           </ng-template>
         </div>
       </div>
 
-      <!-- מייל -->
       <div class="contact-item">
         <div class="contact-icon" aria-hidden="true">✉️</div>
-
         <div class="contact-content">
           <div class="contact-label">אימייל</div>
-
           <ng-container *ngIf="farmSettings?.main_mail as mail; else noMail">
             <a class="contact-value ltr" [href]="'mailto:' + mail">{{ mail }}</a>
             <div class="contact-hint">לחיצה תפתח הודעת מייל חדשה</div>
           </ng-container>
-
           <ng-template #noMail>
             <div class="contact-value muted">לא עודכן מייל במערכת</div>
           </ng-template>
         </div>
       </div>
-<!-- כתובת -->
-<div class="contact-item">
-  <div class="contact-icon" aria-hidden="true">📍</div>
-
-  <div class="contact-content">
-    <div class="contact-label">כתובת</div>
-
-    <ng-container *ngIf="farmSettings?.main_address as addr; else noAddr">
-      <div class="contact-value">{{ addr }}</div>
-
-      <!-- אופציונלי ניווט -->
-      <a class="contact-hint"
-         [href]="buildMapsUrl(addr)"
-         target="_blank" rel="noopener">
-        ניווט במפות
-      </a>
-    </ng-container>
-
-    <ng-template #noAddr>
-      <div class="contact-value muted">לא עודכנה כתובת במערכת</div>
-    </ng-template>
-  </div>
-</div>
-<!-- וואטסאפ -->
-<div class="contact-item whatsapp-item" *ngIf="farmSettings?.main_phone">
-  <div class="contact-icon" aria-hidden="true">💬</div>
-
-  <div class="contact-content">
-    <div class="contact-label">וואטסאפ</div>
-
-    <a class="contact-value ltr whatsapp-link" [href]="whatsappLink" target="_blank">
-      {{ farmSettings?.main_phone }}
-    </a>
-    
-    <div class="contact-hint">לחיצה תפתח שיחת וואטסאפ</div>
-  </div>
-</div>
+      
+      <div class="contact-item">
+        <div class="contact-icon" aria-hidden="true">📍</div>
+        <div class="contact-content">
+          <div class="contact-label">כתובת</div>
+          <ng-container *ngIf="farmSettings?.main_address as addr; else noAddr">
+            <div class="contact-value">{{ addr }}</div>
+            <a class="contact-hint" [href]="buildMapsUrl(addr)" target="_blank" rel="noopener">ניווט במפות</a>
+          </ng-container>
+          <ng-template #noAddr>
+            <div class="contact-value muted">לא עודכנה כתובת במערכת</div>
+          </ng-template>
+        </div>
+      </div>
+      
+      <div class="contact-item whatsapp-item" *ngIf="farmSettings?.main_phone">
+        <div class="contact-icon" aria-hidden="true">💬</div>
+        <div class="contact-content">
+          <div class="contact-label">וואטסאפ</div>
+          <a class="contact-value ltr whatsapp-link" [href]="whatsappLink" target="_blank">
+            {{ farmSettings?.main_phone }}
+          </a>
+          <div class="contact-hint">לחיצה תפתח שיחת וואטסאפ</div>
+        </div>
+      </div>
 
     </div>
 
@@ -262,60 +246,46 @@
       </div>
     </div>
   </div>
-<!-- שעות פעילות החווה -->
-<div class="card hours-card" dir="rtl" *ngIf="workingHours().length">
-  <div class="title-row">
-    <h3>שעות פעילות</h3>
-    <p class="subtitle small">השעות מוצגות לפי ימים. ייתכנו שינויים בחגים/אירועים מיוחדים.</p>
+
+  <div class="card hours-card" dir="rtl" *ngIf="workingHours().length">
+    <div class="title-row">
+      <h3>שעות פעילות</h3>
+      <p class="subtitle small">השעות מוצגות לפי ימים. ייתכנו שינויים בחגים/אירועים מיוחדים.</p>
+    </div>
+
+    <div class="table-wrap" role="region" aria-label="טבלת שעות פעילות" tabindex="0">
+      <table class="hours-table">
+        <thead>
+          <tr>
+            <th scope="col" class="col-day">יום</th>
+            <th scope="col" class="col-farm">חווה</th>
+            <th scope="col" class="col-office">משרד</th>
+            <th scope="col" class="col-status">סטטוס</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of workingHours()"
+              [class.closed-row]="!r.isAnyOpen"
+              [class.today-row]="isToday(r.day_of_week)">
+            <th scope="row" class="day-cell">
+              <span class="day-name">{{ r.dayLabel }}</span>
+              <span *ngIf="isToday(r.day_of_week)" class="today-chip">היום</span>
+            </th>
+            <td class="time-cell">
+              <span class="time-pill ltr" [class.muted]="!r.is_open">{{ r.farmRangeText }}</span>
+            </td>
+            <td class="time-cell">
+              <span class="time-pill ltr" [class.muted]="!r.is_offical_open">{{ r.officeRangeText }}</span>
+            </td>
+            <td class="status-cell">
+              <span class="status-badge" [class.open]="r.isAnyOpen" [class.closed]="!r.isAnyOpen">
+                {{ r.isAnyOpen ? 'פתוח' : 'סגור' }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
-
-  <div class="table-wrap" role="region" aria-label="טבלת שעות פעילות" tabindex="0">
-    <table class="hours-table">
-      <thead>
-        <tr>
-          <th scope="col" class="col-day">יום</th>
-          <th scope="col" class="col-farm">חווה</th>
-          <th scope="col" class="col-office">משרד</th>
-          <th scope="col" class="col-status">סטטוס</th>
-        </tr>
-      </thead>
-
-      <tbody>
-<tr *ngFor="let r of workingHours()"
-    [class.closed-row]="!r.isAnyOpen"
-    [class.today-row]="isToday(r.day_of_week)">
-
-
-<th scope="row" class="day-cell">
-  <span class="day-name">{{ r.dayLabel }}</span>
-  <span *ngIf="isToday(r.day_of_week)" class="today-chip">היום</span>
-</th>
-
-         <td class="time-cell">
-  <span class="time-pill ltr" [class.muted]="!r.is_open">
-    {{ r.farmRangeText }}
-  </span>
-</td>
-
-
-       <td class="time-cell">
-  <span class="time-pill ltr" [class.muted]="!r.is_offical_open">
-    {{ r.officeRangeText }}
-  </span>
-</td>
-
-
-    <td class="status-cell">
-  <span class="status-badge" [class.open]="r.isAnyOpen" [class.closed]="!r.isAnyOpen">
-    {{ r.isAnyOpen ? 'פתוח' : 'סגור' }}
-  </span>
-</td>
-
-
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
 
 </div>

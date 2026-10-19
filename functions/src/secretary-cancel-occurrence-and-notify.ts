@@ -171,21 +171,28 @@ export const secretaryCancelOccurrenceAndNotify = onRequest(
         .maybeSingle();
 
       if (childErr) throw childErr;
-      if (!childRow?.parent_uid) throw new Error('Child missing parent_uid');
+
+      const parentUid = String(childRow?.parent_uid ?? '').trim();
+      const hasParent = !!parentUid;
 
       const childName =
-        fullName(childRow.first_name, childRow.last_name) ?? 'הילד/ה';
+        fullName(childRow?.first_name, childRow?.last_name) ?? 'הילד/ה';
 
-      const { data: parentRow, error: parentErr } = await sbTenant
-        .from('parents')
-        .select('first_name, last_name')
-        .eq('uid', childRow.parent_uid)
-        .maybeSingle();
+      let parentName = 'הורה';
 
-      if (parentErr) throw parentErr;
+      if (hasParent) {
+        const { data: parentRow, error: parentErr } = await sbTenant
+          .from('parents')
+          .select('first_name, last_name')
+          .eq('uid', parentUid)
+          .maybeSingle();
 
-      const parentName =
-        fullName(parentRow?.first_name ?? null, parentRow?.last_name ?? null) ?? 'הורה';
+        if (parentErr) throw parentErr;
+
+        parentName =
+          fullName(parentRow?.first_name ?? null, parentRow?.last_name ?? null)
+          ?? 'הורה';
+      }
       let instructorName: string | null = null;
       let instructorUid: string | null = null;
 
@@ -242,24 +249,37 @@ export const secretaryCancelOccurrenceAndNotify = onRequest(
       let parentMailError: any = null;
       let instructorMailError: any = null;
 
-      try {
-        await notifyUserInternal({
-          tenantSchema,
-          userType: 'parent',
-          uid: childRow.parent_uid,
-          subject: parentEmail.subject,
-          html: parentEmail.html,
-          text: parentEmail.text,
-          category: 'secretary_cancel_occurrence',
-          forceEmail: true,
-        });
+      if (hasParent) {
+        try {
+          await notifyUserInternal({
+            tenantSchema,
+            userType: 'parent',
+            uid: parentUid,
+            subject: parentEmail.subject,
+            html: parentEmail.html,
+            text: parentEmail.text,
+            category: 'secretary_cancel_occurrence',
+            forceEmail: true,
+          });
 
-        parentMailOk = true;
-      } catch (e: any) {
-        parentMailError = { message: e?.message || String(e) };
-        console.warn('secretaryCancelOccurrenceAndNotify: parent mail failed', parentMailError);
+          parentMailOk = true;
+        } catch (e: any) {
+          parentMailError = { message: e?.message || String(e) };
+          console.warn(
+            'secretaryCancelOccurrenceAndNotify: parent mail failed',
+            parentMailError
+          );
+        }
+      } else {
+        parentMailError = {
+          message: 'לא נשלח מייל להורה כי אין הורה מקושר',
+        };
+
+        console.warn(
+          'secretaryCancelOccurrenceAndNotify: child has no linked parent',
+          { childId, lessonId, occurDate }
+        );
       }
-
       if (instructorId) {
         try {
           await notifyUserInternal({
@@ -285,6 +305,11 @@ export const secretaryCancelOccurrenceAndNotify = onRequest(
       return void res.status(200).json({
         ok: true,
         mailOk,
+        notificationStatus: !hasParent
+          ? 'no_parent'
+          : mailOk
+            ? 'sent'
+            : 'partial_failure',
         parentMailOk,
         instructorMailOk,
         parentMailError,

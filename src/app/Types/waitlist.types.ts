@@ -19,18 +19,20 @@ export type RidingType = {
   spacial_duration: number | null;
 };
 
+
 export type WaitlistEntry = {
   id: string;
   created_at: string;
-  created_by_uid: string;
+  created_by_uid: string | null;
 
   parent_uid: string;
   child_uuid: string;
 
-  riding_type_id: string;
+  // שדה ישן - כעת אפשר לבחור כמה סוגי רכיבה
+  riding_type_id: string | null;
 
-  requested_day: string | null;       // yyyy-mm-dd
-  time_window_start: string | null;   // HH:mm:ss
+  requested_day: string | null;
+  time_window_start: string | null;
   time_window_end: string | null;
 
   preferred_instructor_uid: string | null;
@@ -48,4 +50,16 @@ export type WaitlistEntry = {
   linked_occurrence_id: string | null;
   offer_expires_at: string | null;
   offer_token: string | null;
+
+  // שדות חדשים - העדפות
+  all_riding_types: boolean;
+  all_instructors: boolean;
+  all_times: boolean;
+
+  // שדות חדשים - הצעות ודחיות
+  offer_status: 'none' | 'offered' | 'declined';
+  decline_count: number;
+
+  updated_at: string | null;
 };
+

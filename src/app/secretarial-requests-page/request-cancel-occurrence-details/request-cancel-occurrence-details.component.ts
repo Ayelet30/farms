@@ -8,6 +8,8 @@ import { SupabaseTenantService } from '../../services/supabase-tenant.service';
 import { getAuth } from 'firebase/auth';
 import { RequestValidationService } from '../../services/request-validation.service';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { CurrentUserService } from '../../core/auth/current-user.service';
+import { MatIconModule } from '@angular/material/icon';
 
 
 type CancelDetails = {
@@ -29,7 +31,7 @@ type ToastKind = 'success' | 'error' | 'info';
 @Component({
   selector: 'app-request-cancel-occurrence-details',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule, MatProgressSpinnerModule],
+  imports: [CommonModule, FormsModule, MatSnackBarModule, MatProgressSpinnerModule, MatIconModule],
   templateUrl: './request-cancel-occurrence-details.component.html',
   styleUrls: ['./request-cancel-occurrence-details.component.scss'],
 })
@@ -407,5 +409,15 @@ export class RequestCancelOccurrenceDetailsComponent implements OnInit {
     const d = dateStr?.slice(0, 10);
     const t = (timeStr ?? '00:00').slice(0, 5);
     return new Date(`${d}T${t}:00`);
+  }
+  private currentUserService = inject(CurrentUserService);
+  get canDecide(): boolean {
+    const user = this.currentUserService.current;
+
+    const role = String(
+      (user as any)?.role_in_tenant ?? user?.role ?? ''
+    ).trim().toLowerCase();
+
+    return role === 'secretary';
   }
 }

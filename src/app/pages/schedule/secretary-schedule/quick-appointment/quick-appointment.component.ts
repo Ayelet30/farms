@@ -179,6 +179,7 @@ export class QuickAppointmentComponent implements OnInit {
   referralUploadError: string | null = null;
   farmLessonDurationMinutes: number | null = null;
   loading = false;
+  saveCompleted = false;
   loadingSlotInfo = false;
   slotInfoError: string | null = null;
 
@@ -271,9 +272,29 @@ export class QuickAppointmentComponent implements OnInit {
   }
 
   private showSuccess(msg: string): void {
-    this.snack.open(msg, 'סגור', { duration: 2500 });
+    this.snack.open(msg, 'סגור', {
+      duration: 5000,
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+      panelClass: ['quick-booking-success']
+    });
   }
+  onChildSearchChange(): void {
+    const selectedName = this.selectedChild
+      ? `${this.selectedChild.first_name ?? ''} ${this.selectedChild.last_name ?? ''}`.trim()
+      : '';
 
+    if (this.childSearchTerm !== selectedName) {
+      this.selectedChildId = null;
+      this.selectedPaymentPlanId = null;
+      this.selectedMakeupCandidate = null;
+      this.selectedOccupancyCandidate = null;
+      this.makeupCandidates = [];
+      this.occupancyCandidates = [];
+      this.makeupError = null;
+      this.occupancyError = null;
+    }
+  }
   calcAge(birthDate?: string | null): string {
     if (!birthDate) return '';
     const d = new Date(birthDate);
@@ -744,9 +765,10 @@ export class QuickAppointmentComponent implements OnInit {
   }
 
   async save(): Promise<void> {
-    if (this.isSlotUnavailable) {
+    if (this.loading || this.saveCompleted || this.isSlotUnavailable) {
       return;
     }
+
     this.loading = true;
 
     try {
@@ -786,12 +808,15 @@ export class QuickAppointmentComponent implements OnInit {
         if (!res?.ok) {
           throw new Error(res?.deny_reason || 'לא ניתן ליצור שיעור בודד');
         }
+        this.saveCompleted = true;
 
         this.showSuccess('השיעור הבודד נוצר בהצלחה');
         this.referralFile = null;
         this.referralUploadError = null;
         this.referralUrl = null;
         this.saved.emit();
+        this.close.emit();
+
         return;
       }
 
@@ -823,12 +848,16 @@ export class QuickAppointmentComponent implements OnInit {
         if (!res?.ok) {
           throw new Error(res?.deny_reason || 'לא ניתן ליצור שיעור/סדרה');
         }
+        this.saveCompleted = true;
+
         this.showSuccess(
           'הסדרה נוצרה בהצלחה');
         this.referralFile = null;
         this.referralUploadError = null;
         this.referralUrl = null;
         this.saved.emit();
+        this.close.emit();
+
         return;
       }
 
@@ -867,12 +896,15 @@ export class QuickAppointmentComponent implements OnInit {
         if (!data) {
           throw new Error('שיעור ההשלמה לא נוצר');
         }
+        this.saveCompleted = true;
 
         this.showSuccess('שיעור ההשלמה נוצר בהצלחה');
         this.referralFile = null;
         this.referralUploadError = null;
         this.referralUrl = null;
         this.saved.emit();
+        this.close.emit();
+
         return;
       }
 
@@ -914,11 +946,14 @@ export class QuickAppointmentComponent implements OnInit {
         if (!data) {
           throw new Error('שיעור מילוי המקום לא נוצר');
         }
+        this.saveCompleted = true;
         this.showSuccess('שיעור מילוי המקום נוצר בהצלחה');
         this.referralFile = null;
         this.referralUploadError = null;
         this.referralUrl = null;
         this.saved.emit();
+        this.close.emit();
+
         return;
       }
 

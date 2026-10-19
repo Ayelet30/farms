@@ -279,13 +279,7 @@ async function sendSplitInvoicesViaNotifyUser(params: {
 
   const j: any = await r.json().catch(() => ({}));
 
-  console.log("[notifyUser split invoices] response", {
-    status: r.status,
-    sent: j?.sent,
-    reason: j?.reason,
-    to: j?.to,
-    attachments: attachments.length,
-  });
+
 
   if (!r.ok || j?.sent !== true) {
     throw new Error(
@@ -343,7 +337,6 @@ async function sendSplitInvoicesViaNotifyUser(params: {
 //   const j: any = await r.json().catch(() => ({}));
 
 //   // לוג קצר שיעזור לך להבין למה לא נשלח
-//   console.log("[notifyUser] response", { status: r.status, sent: j?.sent, reason: j?.reason, to: j?.to });
 
 //   if (!r.ok) throw new Error(`notifyUser failed: ${j?.message || j?.error || r.statusText}`);
 //   return j;
@@ -810,9 +803,7 @@ export const ensureTranzilaInvoiceForPayment = onRequest(
   },
 
   async (req, res) => {
-    console.log("[ensureTranzilaInvoiceForPayment] secrets check:", {
-      hasSupabaseUrl: !!SUPABASE_URL_S.value(),
-    });
+
 
     try {
       if (handleCors(req, res)) return;
@@ -831,7 +822,6 @@ export const ensureTranzilaInvoiceForPayment = onRequest(
         res.status(400).json({ ok: false, error: "missing tenantSchema/paymentId" });
         return;
       }
-      console.log("[ensureTranzilaInvoiceForPayment] revision check", new Date().toISOString());
 
       const out = await ensureTranzilaInvoiceForPaymentInternal({
         tenantSchema,
@@ -881,10 +871,7 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
   const extraLinesByChild = args.extraLinesByChild ?? {};
   const sb = getSupabaseForTenant(tenantSchema);
   const rid = crypto.randomBytes(6).toString("hex");
-  console.log("[ensureInvoiceInternal] SPLIT_VERSION_2026_05_07_01", {
-    tenantSchema,
-    paymentId,
-  });
+
   // ===== 1) Load payment =====
   const { data: pay, error: pErr } = await sb
     .from("payments")
@@ -1114,21 +1101,7 @@ export async function ensureTranzilaInvoiceForPaymentInternal(args: {
       ),
     ]);
 
-  console.log("[TRanzila Invoice Tenant Config]", {
-    tenantSchema,
 
-    terminal_name:
-      terminal.terminal_name,
-
-    app_key_secret_name:
-      terminal.secret_key_app_key,
-
-    api_secret_name:
-      terminal.secret_key_api_secret,
-
-    has_parent_email:
-      !!parentEmail,
-  });
 
   // ===== 5) Tranzila create_document =====
   const auth = buildTranzilaAuth({

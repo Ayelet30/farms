@@ -1149,9 +1149,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       );
     }
 
-    if (!this.selectedInstructorIds.length) {
-      this.selectedInstructorIds = this.instructors.map(i => String(i.id_number));
-    }
+
 
     this.rebuildInstructorResources();
 
@@ -1460,6 +1458,8 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     ) ?? null;
   }
 
+
+
   private isWeeklyAvailabilityEffectiveOn(
   row: InstructorWeeklyAvailabilityRow,
   ymd: string
@@ -1642,15 +1642,17 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
     this.blockedDayCells = blocked;
 
-    console.log(
-      '[SECRETARY BLOCKED DAY CELLS]',
-      this.blockedDayCells
-    );
   }
 
   onRightClickDay(e: any): void {
     if (!e?.jsEvent) return;
-
+    console.log('RIGHT CLICK DATE DEBUG', {
+      dateStr: e.dateStr,
+      occurDate: e.occurDate,
+      lessonId: e.lessonId,
+      seriesId: e.seriesId,
+      event: e
+    });
     e.jsEvent.preventDefault();
     e.jsEvent.stopPropagation();
 
@@ -2219,6 +2221,14 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
       if (!resp.ok) {
         throw new Error(json?.message || json?.error || 'ביטול השיעור נכשל');
+      }
+      const noParent =
+        json?.notificationStatus === 'no_parent';
+      if (noParent) {
+        await this.ui.alert(
+          'השיעור בוטל, שים לב שלא נשלח מייל להורה כי אין הורה מקושר',
+          'ביטול שיעור'
+        );
       }
       this.cancelLessonModal.open = false;
       this.cdr.detectChanges();
@@ -2873,23 +2883,6 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
       this.instructorsToday = this.instructors.filter(i => todayIds.has(String(i.id_number)));
 
-      // 3) ברירת מחדל לבחירה: רק של היום (או אני אם אני עובד היום)
-
-      // אם אין מדריכים מסומנים — תמיד מציגים זמינים היום
-      if (!this.selectedInstructorIds.length) {
-        const me = String(this.instructorId || '');
-
-        if (me && this.instructorsToday.some(i => String(i.id_number) === me)) {
-          this.selectedInstructorIds = [me];
-        } else {
-          this.selectedInstructorIds = this.instructorsToday.map(i => String(i.id_number));
-        }
-
-        // אם אין מדריכים זמינים היום — fallback לכל הפעילים
-        if (!this.selectedInstructorIds.length) {
-          this.selectedInstructorIds = this.instructors.map(i => String(i.id_number));
-        }
-      }
 
       // 4) resources ללוח נקבעים לפי הבחירה הנוכחית
       this.rebuildInstructorResources();
@@ -3016,13 +3009,14 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
+
   private selectWorkingInstructorsForDay(dateYmd: string): void {
     if (!dateYmd) return;
 
     const dow = this.dbDowFromYmd(dateYmd);
 
     const workingInstructorIds = new Set(
-      (this.instructorWeeklyAvailability ?? [])
+      this.instructorWeeklyAvailability
         .filter(row =>
           Number(row.day_of_week) === dow &&
           this.isWeeklyAvailabilityEffectiveOn(row, dateYmd)
@@ -3030,26 +3024,17 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
         .map(row => String(row.instructor_id_number))
     );
 
-    // רק מדריכים פעילים שעובדים ביום שנבחר
-    this.instructorsToday = this.instructors.filter(instructor =>
-      workingInstructorIds.has(String(instructor.id_number))
+    this.instructorsToday = this.instructors.filter(inst =>
+      workingInstructorIds.has(String(inst.id_number))
     );
 
-    // אם יש מדריכים שעובדים באותו יום – בוחרים רק אותם
-    if (this.instructorsToday.length) {
-      this.selectedInstructorIds = this.instructorsToday.map(
-        instructor => String(instructor.id_number)
-      );
-    } else {
-      // אותה התנהגות כמו בטעינה הראשונה:
-      // אם לא הוגדרה זמינות לאותו יום, מציגים את כל הפעילים
-      this.selectedInstructorIds = this.instructors.map(
-        instructor => String(instructor.id_number)
-      );
-    }
+    this.selectedInstructorIds = this.instructorsToday.map(
+      inst => String(inst.id_number)
+    );
 
     this.rebuildInstructorResources();
   }
+
 
   private async loadLessons(
     range?: { start: string; end: string }
@@ -3988,7 +3973,6 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
         p_to_date: to,
       };
 
-      console.log('series slots search payload', payload);
 
       const { data, error } = await dbTenant().rpc(
         'find_series_slots_with_skips',
@@ -4384,7 +4368,13 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
   onRightClickEvent(e: any): void {
     if (!e?.jsEvent) return;
-
+    console.log('RIGHT CLICK DATE DEBUG', {
+      dateStr: e.dateStr,
+      occurDate: e.occurDate,
+      lessonId: e.lessonId,
+      seriesId: e.seriesId,
+      event: e
+    });
     e.jsEvent.preventDefault();
     e.jsEvent.stopPropagation();
 

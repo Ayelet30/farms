@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { supabase } from '../../../services/supabaseClient.service';
 
@@ -108,7 +108,7 @@ export class InstructorScheduleComponent implements OnInit {
   }
   private cdr = inject(ChangeDetectorRef);
   private cu = inject(CurrentUserService);
-
+  private snackBar = inject(MatSnackBar);
   instructorId = '';
   loading = false;
   error: string | null = null;
@@ -1822,7 +1822,16 @@ export class InstructorScheduleComponent implements OnInit {
       this.affectedChildren = [];
       this.selectedSickFile = null;
       this.pendingSickFile = null;
-
+      this.snackBar.open(
+        'הבקשה נשלחה בהצלחה וממתינה לאישור המזכירות',
+        'סגירה',
+        {
+          duration: 5000,
+          horizontalPosition: 'center',
+          verticalPosition: 'top',
+          direction: 'rtl',
+        }
+      );
     } catch (err: any) {
       console.error('submitRange save error', err);
       this.error = err?.message || 'שגיאה בשמירת הבקשה';

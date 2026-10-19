@@ -12,7 +12,7 @@ import { getAuth } from 'firebase/auth';
 import { requireTenant } from '../../services/supabaseClient.service';
 import { Output, EventEmitter } from '@angular/core';
 import { MatIcon } from "@angular/material/icon";
-
+import { WaitingListDialog } from '../../shared/components/waiting-list-dialog/waiting-list-dialog';
 
 type AddChildDetails = {
   request_id: string;
@@ -65,7 +65,7 @@ type ToastKind = 'success' | 'error' | 'info';
 @Component({
   selector: 'app-request-add-child-details',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule, MatProgressSpinnerModule, MatIcon],
+  imports: [CommonModule, FormsModule, MatSnackBarModule, MatProgressSpinnerModule, MatIcon,WaitingListDialog],
   templateUrl: './request-add-child-details.component.html',
   styleUrls: ['./request-add-child-details.component.scss'],
 })
@@ -444,4 +444,154 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
   get isPending(): boolean {
     return this.request?.status === 'PENDING';
   }
+
+  
+  // =========================================
+  // WAITING LIST - ADD CHILD REQUEST
+  // =========================================
+
+  showWaitlistDialog = false;
+  waitlistApprovedChild = false;
+  waitlistApprovalReported = false;
+
+  waitlistInstructors: {
+    id_number: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    name?: string | null;
+  }[] = [];
+
+  async openWaitlistDialog(): Promise<void> {
+    if (!this.isPending || this.loading()) return;
+
+    const d = this.details();
+    if (!d?.child_id || !d?.parent_uid) {
+      this.toast('חסרים פרטי ילד או הורה בבקשה', 'error');
+      return;
+    }
+
+    try {
+      await this.tenantSvc.ensureTenantContextReady();
+
+      const { data, error } = await dbTenant()
+        .from('instructors')
+        .select('id_number, first_name, last_name')
+        .order('first_name', { ascending: true });
+
+      if (error) throw error;
+
+      this.waitlistInstructors = (data ?? []).map((i: any) => ({
+        ...i,
+        name: `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()
+      }));
+
+      this.waitlistApprovedChild = false;
+      this.waitlistApprovalReported = false;
+      this.showWaitlistDialog = true;
+
+    } catch (error: any) {
+      console.error('Failed to open waiting list:', error);
+      this.toast(
+        error?.message ?? 'שגיאה בטעינת המדריכים',
+        'error'
+      );
+    }
+  }
+
+  
+  // הפונקציה מועברת לחלון המשותף.
+  // היא מופעלת רק כשהמשתמשת לוחצת על שמירה.
+  approveChildBeforeWaitlist = async (): Promise<{
+    childId: string;
+    parentUid: string;
+  }> => {
+    const d = this.details();
+
+    if (!d?.child_id || !d?.parent_uid) {
+      throw new Error('חסרים פרטי ילד או הורה');
+    }
+
+    if (this.waitlistApprovedChild) {
+      return {
+        childId: d.child_id,
+        parentUid: d.parent_uid
+      };
+    }
+
+    if (!this.isPending) {
+      throw new Error('הבקשה אינה ממתינה לאישור');
+    }
+
+    const validation = await this.validator.validate(
+      this.request,
+      'approve'
+    );
+
+    if (!validation.ok) {
+      throw new Error(
+        validation.reason ?? 'הבקשה אינה תקינה לאישור'
+      );
+    }
+    
+
+    await this.tenantSvc.ensureTenantContextReady();
+
+    const tenant = this.tenantSvc.requireTenant();
+
+    const json = await this.postCloud(this.approveUrl, {
+      tenantSchema: tenant.schema,
+      tenantId: tenant.id,
+      childId: d.child_id,
+      requestId: this.request.id,
+      decisionNote: this.decisionNote || null
+    });
+
+    // מעכשיו לא נאשר שוב את אותה בקשה.
+    this.waitlistApprovedChild = true;
+
+    if (json?.emailOk === false) {
+      this.toast(
+        'הילד אושר, אך שליחת המייל נכשלה',
+        'error'
+      );
+    }
+
+    return {
+      childId: d.child_id,
+      parentUid: d.parent_uid
+    };
+  };
+
+  onWaitlistSaved(): void {
+    this.finishWaitlistDialog();
+  }
+
+  closeWaitlistDialog(): void {
+    this.finishWaitlistDialog();
+  }
+
+  private finishWaitlistDialog(): void {
+    this.showWaitlistDialog = false;
+
+    // מעדכנים את מסך הבקשות גם במקרה שבו
+    // האישור הצליח אך שמירת ההמתנה נכשלה.
+    if (
+      this.waitlistApprovedChild &&
+      !this.waitlistApprovalReported
+    ) {
+      this.waitlistApprovalReported = true;
+
+      this.approved.emit({
+        requestId: this.request.id,
+        newStatus: 'APPROVED'
+      });
+
+      this.onApproved?.({
+        requestId: this.request.id,
+        newStatus: 'APPROVED',
+        message: 'הילד אושר במערכת'
+      });
+    }
+  }
+
 }

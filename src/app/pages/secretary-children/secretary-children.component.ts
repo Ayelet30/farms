@@ -7,6 +7,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
+import { WaitingListDialog } from '../../shared/components/waiting-list-dialog/waiting-list-dialog';
 import {
   ensureTenantContextReady,
   dbTenant,
@@ -92,7 +93,6 @@ type ParentBrief = {
   phone: string | null;
   email: string | null;
 };
-
 
 type ChildDetails = {
   child_uuid?: string;
@@ -190,6 +190,7 @@ type HelmetFilter =
     MatDialogModule,
     AddChildWizardComponent,
     RouterModule,
+    WaitingListDialog
   ],
   templateUrl: './secretary-children.component.html',
   styleUrls: ['./secretary-children.component.css'],
@@ -337,7 +338,7 @@ export class SecretaryChildrenComponent implements OnInit {
   showColumnsPanel = false;
   panelFocus: 'search' | 'filter' = 'search';
   showAddChildWizard = false;
-
+  showWaitingListDialog = false;
   horses: HorseLite[] = [];
   childHorses: Record<string, string[]> = {};
   savingChildHorses: Record<string, boolean> = {};
@@ -1482,11 +1483,20 @@ scheduled_deletion_at,deletion_note
     return `${dd}/${mm}/${yyyy}`;
   }
 
-  async openDetails(id?: string) {
+  async openDetails(id?: string): Promise<void> {
     if (!id) return;
 
+    // אם עברנו לילד אחר - סוגרים טפסים פתוחים
+    if (this.selectedId !== id) {
+      // יציאה ממצב עריכה
+      this.editMode = false;
+      this.closeWaitingListDialog();
+    }
+
+    // הצגת הילד החדש
     this.selectedId = id;
     this.drawer.open();
+
     await this.loadDrawerData(id);
   }
 
@@ -1514,6 +1524,41 @@ scheduled_deletion_at,deletion_note
     this.showAddChildWizard = true;
   }
 
+
+  openWaitingListDialog(): void {
+    if (!this.drawerChild?.child_uuid) return;
+    this.showWaitingListDialog = true;
+  }
+
+  closeWaitingListDialog(): void {
+    this.showWaitingListDialog = false;
+  }
+
+  getWaitingListChildAge(): number | null {
+    const birthDate = this.drawerChild?.birth_date;
+
+    if (!birthDate) return null;
+
+    const parts = birthDate.slice(0, 10).split('-').map(Number);
+
+    if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) {
+      return null;
+    }
+
+    const [year, month, day] = parts;
+    const today = new Date();
+
+    let age = today.getFullYear() - year;
+
+    if (
+      today.getMonth() + 1 < month ||
+      (today.getMonth() + 1 === month && today.getDate() < day)
+    ) {
+      age--;
+    }
+
+    return age >= 0 ? age : null;
+  }
   private async loadDrawerData(id: string) {
     this.drawerLoading = true;
 
@@ -2074,8 +2119,8 @@ scheduled_deletion_at,deletion_note
         null,
 
       effectiveFrom: this.isSeriesCurrentlyOpen(series)
-  ? this.getTodayIsoDate()
-  : '',
+        ? this.getTodayIsoDate()
+        : '',
 
       saving: false,
       error: '',
@@ -2113,30 +2158,30 @@ scheduled_deletion_at,deletion_note
     const startDate = series.anchorWeekStart?.slice(0, 10) ?? null;
 const endDate = series.seriesEndDate?.slice(0, 10);
 
-if (!startDate) {
-  this.seriesPaymentPlanEditor.error =
-    'לא ניתן לזהות את תאריך תחילת הסדרה.';
-  return;
-}
+    if (!startDate) {
+      this.seriesPaymentPlanEditor.error =
+        'לא ניתן לזהות את תאריך תחילת הסדרה.';
+      return;
+    }
 
-if (effectiveFrom < startDate) {
-  this.seriesPaymentPlanEditor.error =
-    'תאריך תחולת המסלול לא יכול להיות לפני תחילת הסדרה.';
-  return;
-}
+    if (effectiveFrom < startDate) {
+      this.seriesPaymentPlanEditor.error =
+        'תאריך תחולת המסלול לא יכול להיות לפני תחילת הסדרה.';
+      return;
+    }
 
-if (endDate && effectiveFrom > endDate) {
-  this.seriesPaymentPlanEditor.error =
-    'תאריך תחולת המסלול לא יכול להיות אחרי סיום הסדרה.';
-  return;
-}
+    if (endDate && effectiveFrom > endDate) {
+      this.seriesPaymentPlanEditor.error =
+        'תאריך תחולת המסלול לא יכול להיות אחרי סיום הסדרה.';
+      return;
+    }
 
-if (
-  this.seriesPaymentPlanEditor.saving ||
-  this.seriesPaymentPlanEditor.lessonId !== series.lessonId
-) {
-  return;
-}
+    if (
+      this.seriesPaymentPlanEditor.saving ||
+      this.seriesPaymentPlanEditor.lessonId !== series.lessonId
+    ) {
+      return;
+    }
 
     const childId = this.drawerChild?.child_uuid ?? null;
 
@@ -2352,10 +2397,7 @@ if (
     if (this.childForm.invalid) {
       this.childForm.markAllAsTouched();
 
-      console.log('❌ הטופס אינו תקין');
-      console.log('שגיאת שם פרטי:', this.childForm.get('first_name')?.errors);
-      console.log('שגיאת שם משפחה:', this.childForm.get('last_name')?.errors);
-      console.log('ערכי הטופס:', this.childForm.getRawValue());
+
     }
   }
 
@@ -2716,22 +2758,22 @@ if (
     }
 
     // שמירה כפעיל מבטלת כל תכנון להפיכה ללא פעיל,
-// גם אם הילד כבר מוצג כפעיל ונשאר לו תכנון ישן.
-if (
-  this.isActiveStatus(raw.status) &&
-  (
-    !this.isActiveStatus(this.originalChild?.status) ||
-    this.drawerChild?.scheduled_deletion_at != null ||
-    this.drawerChild?.deletion_requested_at != null ||
-    this.drawerChild?.deletion_note != null
-  )
-) {
-  (delta as any).status = 'Active';
-  (delta as any).deletion_requested_at = null;
-  (delta as any).scheduled_deletion_at = null;
-  (delta as any).deletion_note = null;
-}
-    
+    // גם אם הילד כבר מוצג כפעיל ונשאר לו תכנון ישן.
+    if (
+      this.isActiveStatus(raw.status) &&
+      (
+        !this.isActiveStatus(this.originalChild?.status) ||
+        this.drawerChild?.scheduled_deletion_at != null ||
+        this.drawerChild?.deletion_requested_at != null ||
+        this.drawerChild?.deletion_note != null
+      )
+    ) {
+      (delta as any).status = 'Active';
+      (delta as any).deletion_requested_at = null;
+      (delta as any).scheduled_deletion_at = null;
+      (delta as any).deletion_note = null;
+    }
+
     if (Object.keys(delta).length === 0) {
       this.editMode = false;
       return;

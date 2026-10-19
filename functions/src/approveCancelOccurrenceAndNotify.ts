@@ -119,7 +119,7 @@ export const approveCancelOccurrenceAndNotify = onRequest(
         return void res.status(400).json({ ok: false, message: 'Not a CANCEL_OCCURRENCE request' });
       }
 
-           const payload = parsePayload((reqRow as any).payload);
+      const payload = parsePayload((reqRow as any).payload);
       const cancelReason = String(payload?.reason ?? '').trim();
       const noteText = cancelReason
         ? `בוטל על ידי ההורה - ${cancelReason}`
@@ -135,27 +135,27 @@ export const approveCancelOccurrenceAndNotify = onRequest(
         throw new Error('Missing child_id in request');
       }
       // 2) resolve lessonId + occurrence row
-const lessonIdFromReq = (reqRow as any).lesson_id ? String((reqRow as any).lesson_id) : null; // אם קיים אצלך
-const lessonIdFromOcc = reqRow.lesson_occ_id ? String(reqRow.lesson_occ_id) : null;           // אצלך כנראה שזה lesson_id בפועל
+      const lessonIdFromReq = (reqRow as any).lesson_id ? String((reqRow as any).lesson_id) : null; // אם קיים אצלך
+      const lessonIdFromOcc = reqRow.lesson_occ_id ? String(reqRow.lesson_occ_id) : null;           // אצלך כנראה שזה lesson_id בפועל
 
-const lessonId = lessonIdFromReq ?? lessonIdFromOcc;
-if (!lessonId) {
-  return void res.status(400).json({ ok: false, message: 'Missing lesson_id (cannot resolve from request)' });
-}
+      const lessonId = lessonIdFromReq ?? lessonIdFromOcc;
+      if (!lessonId) {
+        return void res.status(400).json({ ok: false, message: 'Missing lesson_id (cannot resolve from request)' });
+      }
 
-const { data: occRow, error: occErr } = await sbTenant
-  .from('lessons_occurrences')
-  .select('lesson_id, occur_date, start_time, end_time, instructor_id')
-  .eq('lesson_id', lessonId)
-  .eq('occur_date', cancelDate)
-  .maybeSingle();
+      const { data: occRow, error: occErr } = await sbTenant
+        .from('lessons_occurrences')
+        .select('lesson_id, occur_date, start_time, end_time, instructor_id')
+        .eq('lesson_id', lessonId)
+        .eq('occur_date', cancelDate)
+        .maybeSingle();
 
-if (occErr) throw occErr;
-if (!occRow) {
-  return void res.status(400).json({ ok: false, message: `No occurrence found for lesson_id=${lessonId} on ${cancelDate}` });
-}
+      if (occErr) throw occErr;
+      if (!occRow) {
+        return void res.status(400).json({ ok: false, message: `No occurrence found for lesson_id=${lessonId} on ${cancelDate}` });
+      }
       // 2.1) farm settings לצורך זכאות להשלמה
-           const { data: farmSettings, error: fsErr } = await sbTenant
+      const { data: farmSettings, error: fsErr } = await sbTenant
         .from('farm_settings')
         .select(`
           cancel_before_hours,
@@ -233,33 +233,33 @@ if (!occRow) {
 
       const isMakeupAllowed = suggestMakeup && isBeforeCancelDeadline && underQuota;
       // 2.6) החלטת חיוב
-     // 2.6) החלטה האם הביטול עצמו מחויב
-let isBillable = false;
+      // 2.6) החלטה האם הביטול עצמו מחויב
+      let isBillable = false;
 
-if (isBeforeCancelDeadline) {
-  // ביטול בזמן
-  isBillable = farmSettings.parent_cancel_charge_before_deadline === true
-    && String(farmSettings.parent_cancel_charge_timing || 'at_cancel') === 'at_cancel';
-} else {
-  // ביטול מאוחר
-  isBillable = farmSettings.parent_cancel_charge_after_deadline === true
-    && String(farmSettings.parent_cancel_charge_timing || 'at_cancel') === 'at_cancel';
-}
-console.log('cancel billing decision', {
-  cancelDate,
-  lessonStart: lessonStart.toISOString(),
-  now: now.toISOString(),
-  timeDiffHours,
-  cancelBeforeHours,
-  isBeforeCancelDeadline,
-  parent_cancel_charge_before_deadline: farmSettings.parent_cancel_charge_before_deadline,
-  parent_cancel_charge_after_deadline: farmSettings.parent_cancel_charge_after_deadline,
-  parent_cancel_charge_timing: farmSettings.parent_cancel_charge_timing,
-  isBillable,
-});
+      if (isBeforeCancelDeadline) {
+        // ביטול בזמן
+        isBillable = farmSettings.parent_cancel_charge_before_deadline === true
+          && String(farmSettings.parent_cancel_charge_timing || 'at_cancel') === 'at_cancel';
+      } else {
+        // ביטול מאוחר
+        isBillable = farmSettings.parent_cancel_charge_after_deadline === true
+          && String(farmSettings.parent_cancel_charge_timing || 'at_cancel') === 'at_cancel';
+      }
+      console.log('cancel billing decision', {
+        cancelDate,
+        lessonStart: lessonStart.toISOString(),
+        now: now.toISOString(),
+        timeDiffHours,
+        cancelBeforeHours,
+        isBeforeCancelDeadline,
+        parent_cancel_charge_before_deadline: farmSettings.parent_cancel_charge_before_deadline,
+        parent_cancel_charge_after_deadline: farmSettings.parent_cancel_charge_after_deadline,
+        parent_cancel_charge_timing: farmSettings.parent_cancel_charge_timing,
+        isBillable,
+      });
       // 3) upsert exception (כמו RPC)
-           // 3) upsert exception (כמו RPC)
-           const { error: upExErr } = await sbTenant
+      // 3) upsert exception (כמו RPC)
+      const { error: upExErr } = await sbTenant
         .from('lesson_occurrence_exceptions')
         .upsert(
           {
@@ -303,27 +303,44 @@ console.log('cancel billing decision', {
         .select('parent_uid, first_name, last_name')
         .eq('child_uuid', childId)
         .maybeSingle();
-      if (childErr) throw childErr;
-      if (!childRow?.parent_uid) throw new Error('Child missing parent_uid');
+      if (childErr) {
+        console.warn('Failed to load child for notification', childErr);
+      }
 
-      const childName = fullName(childRow.first_name, childRow.last_name) ?? 'הילד/ה';
+      const parentUid = String(childRow?.parent_uid ?? '').trim();
+      const hasParent = !!parentUid;
 
-      const { data: parentRow, error: parErr } = await sbTenant
-        .from('parents')
-        .select('first_name,last_name')
-        .eq('uid', childRow.parent_uid)
-        .maybeSingle();
-      if (parErr) throw parErr;
+      const childName =
+        fullName(childRow?.first_name, childRow?.last_name) ?? 'הילד/ה';
+      let parentName = 'הורה';
 
-      const parentName = fullName(parentRow?.first_name ?? null, parentRow?.last_name ?? null) ?? 'הורה';
+      if (hasParent) {
+        const { data: parentRow, error: parErr } = await sbTenant
+          .from('parents')
+          .select('first_name,last_name')
+          .eq('uid', parentUid)
+          .maybeSingle();
+
+        if (parErr) {
+          console.warn('Failed to load parent details', parErr);
+        } else {
+          parentName =
+            fullName(parentRow?.first_name ?? null, parentRow?.last_name ?? null)
+            ?? 'הורה';
+        }
+      }
 
       const { data: farmRow, error: farmErr } = await sbPublic
         .from('farms')
         .select('name')
         .eq('id', tenantId)
         .maybeSingle();
-      if (farmErr) throw farmErr;
-      const farmName = String(farmRow?.name ?? 'החווה').trim() || 'החווה';
+      if (farmErr) {
+        console.warn(
+          'Failed to load farm name for notification',
+          farmErr
+        );
+      } const farmName = String(farmRow?.name ?? 'החווה').trim() || 'החווה';
 
       // מדריך/שעות (מה-occRow)
       let instructorName: string | null = null;
@@ -354,32 +371,60 @@ console.log('cancel billing decision', {
       let mail: any = null;
       let mailError: any = null;
 
-      try {
-        mail = await notifyUserInternal({
-          tenantSchema,
-          userType: 'parent',
-          uid: childRow.parent_uid,
-          subject,
-          html,
-          text,
-          category: 'cancel_occurrence',
-          forceEmail: true,
-        });
-        mailOk = true;
-      } catch (e: any) {
-        warning = 'הבקשה אושרה והשיעור בוטל, אך שליחת המייל נכשלה';
-        mailError = { message: e?.message || String(e) };
-        console.warn('approveCancelOccurrenceAndNotify: mail failed', mailError);
-      }
+      if (!hasParent) {
+        warning =
+          'השיעור בוטל, שים לב שלא נשלח מייל להורה כי אין הורה מקושר';
+        mailError = {
+          code: 'NO_PARENT',
+          message: 'לא נשלח מייל להורה כי אין הורה מקושר לילד',
+        };
 
-         return void res.status(200).json({
+        console.warn(
+          'approveCancelOccurrenceAndNotify: no linked parent',
+          { childId, lessonId, cancelDate }
+        );
+
+      } else {
+        try {
+          mail = await notifyUserInternal({
+            tenantSchema,
+            userType: 'parent',
+            uid: parentUid,
+            subject,
+            html,
+            text,
+            category: 'cancel_occurrence',
+            forceEmail: true,
+          });
+
+          mailOk = true;
+
+        } catch (e: any) {
+          warning =
+            'הבקשה אושרה והשיעור בוטל, אך שליחת המייל נכשלה';
+
+          mailError = {
+            message: e?.message || String(e),
+          };
+
+          console.warn(
+            'approveCancelOccurrenceAndNotify: mail failed',
+            mailError
+          );
+        }
+      }
+      return void res.status(200).json({
         ok: true,
         mailOk,
+        notificationStatus: !hasParent
+          ? 'no_parent'
+          : mailOk
+            ? 'sent'
+            : 'failed',
         warning,
         mail,
         mailError,
         isMakeupAllowed,
-    
         isBillable,
       });
     } catch (e: any) {
