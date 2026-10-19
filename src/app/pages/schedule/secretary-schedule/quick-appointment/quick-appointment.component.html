@@ -133,8 +133,8 @@
           <div class="qa-field qa-field-child-picker">
             <label>ילד/ה</label>
 
-            <input type="text" [(ngModel)]="childSearchTerm" (focus)="childDropdownOpen = true"
-              placeholder="בחר/י ילד/ה" autocomplete="off" />
+            <input type="text" [(ngModel)]="childSearchTerm" (ngModelChange)="onChildSearchChange()"
+              (focus)="childDropdownOpen = true" placeholder="בחר/י ילד/ה" autocomplete="off" />
             <div class="eligibility-warning" *ngIf="instructorEligibilityWarning">
               <span class="eligibility-warning-icon">⚠</span>
 

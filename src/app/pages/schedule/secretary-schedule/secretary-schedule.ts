@@ -2225,6 +2225,14 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       if (!resp.ok) {
         throw new Error(json?.message || json?.error || 'ביטול השיעור נכשל');
       }
+      const noParent =
+        json?.notificationStatus === 'no_parent';
+      if (noParent) {
+        await this.ui.alert(
+          'השיעור בוטל, שים לב שלא נשלח מייל להורה כי אין הורה מקושר',
+          'ביטול שיעור'
+        );
+      }
       this.cancelLessonModal.open = false;
       this.cdr.detectChanges();
       this.closeCancelLessonDialog();
