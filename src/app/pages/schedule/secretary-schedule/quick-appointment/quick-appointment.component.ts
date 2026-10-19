@@ -279,7 +279,22 @@ export class QuickAppointmentComponent implements OnInit {
       panelClass: ['quick-booking-success']
     });
   }
+  onChildSearchChange(): void {
+    const selectedName = this.selectedChild
+      ? `${this.selectedChild.first_name ?? ''} ${this.selectedChild.last_name ?? ''}`.trim()
+      : '';
 
+    if (this.childSearchTerm !== selectedName) {
+      this.selectedChildId = null;
+      this.selectedPaymentPlanId = null;
+      this.selectedMakeupCandidate = null;
+      this.selectedOccupancyCandidate = null;
+      this.makeupCandidates = [];
+      this.occupancyCandidates = [];
+      this.makeupError = null;
+      this.occupancyError = null;
+    }
+  }
   calcAge(birthDate?: string | null): string {
     if (!birthDate) return '';
     const d = new Date(birthDate);
