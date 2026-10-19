@@ -13,7 +13,7 @@
         <div class="small">{{ e.created_at | date:'dd/MM HH:mm' }}</div>
       </div>
 
-      <div class="name">{{ typeName(e.riding_type_id) }}</div>
+      <div class="name">{{ e.riding_type_id ? typeName(e.riding_type_id) : 'לא צוין' }}</div>
 
       <div class="chips">
         <span class="chip" *ngIf="e.requested_day">יום: {{ e.requested_day }}</span>

@@ -142,6 +142,14 @@
       <button mat-flat-button type="button" class="action approve" (click)="approve()" [disabled]="loading()">
         אישור
       </button>
+
+
+
+      <button type="button" class="waitlist-add-btn" (click)="openWaitlistDialog()" [disabled]="loading()">
+        + הוספה לרשימת המתנה
+      </button>
+
+
     </div>
   </div>
 </div>
@@ -177,3 +185,10 @@
     </ng-template>
   </div>
 </div>
+
+
+<app-waiting-list-dialog *ngIf="showWaitlistDialog && details() as child" [childId]="child.child_id"
+  [parentUid]="child.parent_uid" [childName]="child.child_name || ''" [childAge]="child.age_years"
+  [instructors]="waitlistInstructors" [beforeSave]="approveChildBeforeWaitlist" (saved)="onWaitlistSaved()"
+  (closed)="closeWaitlistDialog()">
+</app-waiting-list-dialog>

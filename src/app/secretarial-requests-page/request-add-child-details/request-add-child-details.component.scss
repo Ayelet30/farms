@@ -100,3 +100,34 @@
     height: 75vh;
   }
 }
+
+
+/* כפתור הוספה לרשימת המתנה - כמו בכרטיס הילד */
+.waitlist-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+
+  background: #f6f7ee;
+  color: var(--ink, #293826);
+  border: 1px solid var(--line, #cdd6bf);
+  border-radius: 10px;
+
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: normal;
+
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.waitlist-add-btn:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+
+.waitlist-add-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
