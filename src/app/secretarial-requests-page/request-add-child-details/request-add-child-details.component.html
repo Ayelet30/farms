@@ -131,10 +131,10 @@
       </div>
     </div>
 
-    <textarea class="note" *ngIf="isPending" [(ngModel)]="decisionNote" rows="2"
+    <textarea class="note" *ngIf="isPending && canManageRequests" [(ngModel)]="decisionNote" rows="2"
       placeholder="הערה פנימית / סיבת דחייה (אופציונלי)"></textarea>
 
-    <div class="actions" *ngIf="isPending">
+    <div class="actions" *ngIf="isPending && canManageRequests">
       <button mat-stroked-button type="button" class="action reject" (click)="reject()" [disabled]="loading()">
         דחייה
       </button>

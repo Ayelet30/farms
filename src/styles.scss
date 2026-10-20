@@ -577,4 +577,11 @@ option {
   display: block;
 }
 
+/* רקע חלון ההודעות של המערכת */
+.ui-confirm-dialog {
+  --mdc-dialog-container-color: #fffdf9;
+}
 
+.ui-confirm-dialog .mat-mdc-dialog-surface {
+  background-color: #fffdf9;
+}

@@ -23,6 +23,7 @@ import { MatButtonModule } from '@angular/material/button';
           <div class="queue-position-label">
             מיקום בעדיפות {{ getPriorityName(queue.priority) }}
           </div>
+
           <div class="queue-position-number">
             {{ queue.priorityPosition }}
           </div>
@@ -32,6 +33,7 @@ import { MatButtonModule } from '@angular/material/button';
           <div class="queue-position-label">
             מיקום בתור הכללי
           </div>
+
           <div class="queue-position-number">
             {{ queue.overallPosition }}
           </div>
@@ -49,6 +51,7 @@ import { MatButtonModule } from '@angular/material/button';
       </div>
 
       <div class="actions">
+
         <button
           mat-button
           class="btn-cancel"
@@ -63,6 +66,7 @@ import { MatButtonModule } from '@angular/material/button';
           (click)="close(true)">
           {{ data.okText }}
         </button>
+
       </div>
 
     </div>
@@ -93,6 +97,89 @@ import { MatButtonModule } from '@angular/material/button';
       justify-content: flex-end;
     }
 
+    /* =====================================
+       עיצוב משותף לכפתורים
+       ===================================== */
+
+    button.btn-cancel.mat-mdc-button,
+    button.btn-ok.mat-mdc-unelevated-button {
+      min-width: 90px;
+      min-height: 40px;
+      padding: 0 16px;
+
+      border-radius: 12px !important;
+
+      font-family: inherit;
+      font-weight: 700;
+
+      cursor: pointer;
+
+      transition:
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        color 0.2s ease;
+    }
+
+    /* =====================================
+       כפתור ביטול
+       ===================================== */
+
+    button.btn-cancel.mat-mdc-button {
+      background-color: #f3f6e9 !important;
+      border: 1px solid #cfd7b9 !important;
+      color: #40552b !important;
+
+      /* מניעת שכבת התכלת של Angular Material */
+      --mat-button-text-state-layer-color: transparent;
+      --mat-button-text-hover-state-layer-opacity: 0;
+      --mat-button-text-focus-state-layer-opacity: 0;
+      --mat-button-text-pressed-state-layer-opacity: 0;
+    }
+
+    button.btn-cancel.mat-mdc-button:hover {
+      background-color: #e1e9cf !important;
+      border-color: #a5b784 !important;
+      color: #344825 !important;
+    }
+
+    button.btn-cancel.mat-mdc-button:active {
+      background-color: #d5e1bb !important;
+    }
+
+    /* =====================================
+       כפתור אישור / שמירה
+       ===================================== */
+
+    button.btn-ok.mat-mdc-unelevated-button {
+      background-color: #748c40 !important;
+      border: 1px solid #748c40 !important;
+      color: #ffffff !important;
+
+      --mdc-filled-button-container-color: #748c40;
+      --mdc-filled-button-label-text-color: #ffffff;
+
+      /* מניעת שכבת צבע של Angular Material */
+      --mat-filled-button-state-layer-color: transparent;
+      --mat-filled-button-hover-state-layer-opacity: 0;
+      --mat-filled-button-focus-state-layer-opacity: 0;
+      --mat-filled-button-pressed-state-layer-opacity: 0;
+    }
+
+    button.btn-ok.mat-mdc-unelevated-button:hover {
+      background-color: #5f7531 !important;
+      border-color: #5f7531 !important;
+      color: #ffffff !important;
+    }
+
+    button.btn-ok.mat-mdc-unelevated-button:active {
+      background-color: #4f6328 !important;
+      border-color: #4f6328 !important;
+    }
+
+    /* =====================================
+       הודעת אזהרה
+       ===================================== */
+
     .dialog-danger-text {
       margin-top: 14px;
       color: #dc2626;
@@ -102,6 +189,10 @@ import { MatButtonModule } from '@angular/material/button';
       white-space: pre-wrap;
       line-height: 1.8;
     }
+
+    /* =====================================
+       מיקומים בתור
+       ===================================== */
 
     .queue-positions {
       display: grid;
@@ -143,7 +234,6 @@ import { MatButtonModule } from '@angular/material/button';
     }
   `],
 })
-
 export class ConfirmDialogComponent {
 
   private ref = inject(MatDialogRef<ConfirmDialogComponent>);

@@ -219,7 +219,7 @@ export class WaitlistService {
     if (error) throw error;
   }
 
-  
+
   // טעינת שמות הילדים לפי המזהים שברשימת ההמתנה
   async listChildNames(
     childIds: string[]
@@ -261,6 +261,128 @@ export class WaitlistService {
     }
 
     return namesById;
+  }
+
+  // =====================================
+  // WAITLIST - ALL FARM CHILDREN
+  // =====================================
+
+  async listAllFarmChildren(): Promise<{
+    child_uuid: string;
+    parent_uid: string;
+    first_name: string | null;
+    last_name: string | null;
+    birth_date: string | null;
+  }[]> {
+    await ensureTenantContextReady();
+
+    const allChildren: any[] = [];
+    const pageSize = 500;
+    let from = 0;
+
+    while (true) {
+      const { data, error } = await dbTenant()
+        .from('children')
+        .select(
+          'child_uuid, parent_uid, first_name, last_name, birth_date'
+        )
+        .order('child_uuid', { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (error) throw error;
+
+      allChildren.push(...(data ?? []));
+
+      if (!data || data.length < pageSize) break;
+
+      from += pageSize;
+    }
+
+    return allChildren;
+  }
+
+  // ==========================================
+  // WAITLIST - FILTER DATA
+  // ==========================================
+
+  async loadWaitlistFilterData(): Promise<{
+    ridingTypes: { id: string; name: string }[];
+    instructors: {
+      id_number: string;
+      name: string;
+    }[];
+    ridingTypesByEntry: Record<string, string[]>;
+    instructorsByEntry: Record<string, string[]>;
+  }> {
+    await ensureTenantContextReady();
+
+    const db = dbTenant();
+
+    const [
+      ridingResult,
+      instructorResult,
+      entryRidingResult,
+      entryInstructorResult
+    ] = await Promise.all([
+      db
+        .from('riding_types')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name'),
+
+      db
+        .from('instructors')
+        .select('id_number, first_name, last_name')
+        .order('first_name'),
+
+      db
+        .from('waitlist_entry_riding_types')
+        .select('waitlist_entry_id, riding_type_id'),
+
+      db
+        .from('waitlist_entry_instructors')
+        .select('waitlist_entry_id, instructor_id_number')
+    ]);
+
+    if (ridingResult.error) throw ridingResult.error;
+    if (instructorResult.error) throw instructorResult.error;
+    if (entryRidingResult.error) throw entryRidingResult.error;
+    if (entryInstructorResult.error) throw entryInstructorResult.error;
+
+    const ridingTypesByEntry: Record<string, string[]> = {};
+    const instructorsByEntry: Record<string, string[]> = {};
+
+    for (const row of entryRidingResult.data ?? []) {
+      if (!ridingTypesByEntry[row.waitlist_entry_id]) {
+        ridingTypesByEntry[row.waitlist_entry_id] = [];
+      }
+
+      ridingTypesByEntry[row.waitlist_entry_id]
+        .push(row.riding_type_id);
+    }
+
+    for (const row of entryInstructorResult.data ?? []) {
+      if (!instructorsByEntry[row.waitlist_entry_id]) {
+        instructorsByEntry[row.waitlist_entry_id] = [];
+      }
+
+      instructorsByEntry[row.waitlist_entry_id]
+        .push(row.instructor_id_number);
+    }
+
+    return {
+      ridingTypes: ridingResult.data ?? [],
+      instructors: (instructorResult.data ?? []).map((i: {
+        id_number: string;
+        first_name: string | null;
+        last_name: string | null;
+      }) => ({
+        id_number: i.id_number,
+        name: `${i.first_name ?? ''} ${i.last_name ?? ''}`.trim()
+      })),
+      ridingTypesByEntry,
+      instructorsByEntry
+    };
   }
 
 }

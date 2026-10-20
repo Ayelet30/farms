@@ -13,6 +13,7 @@ import { requireTenant } from '../../services/supabaseClient.service';
 import { Output, EventEmitter } from '@angular/core';
 import { MatIcon } from "@angular/material/icon";
 import { WaitingListDialog } from '../../shared/components/waiting-list-dialog/waiting-list-dialog';
+import { CurrentUserService } from '../../core/auth/current-user.service';
 
 type AddChildDetails = {
   request_id: string;
@@ -65,7 +66,7 @@ type ToastKind = 'success' | 'error' | 'info';
 @Component({
   selector: 'app-request-add-child-details',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSnackBarModule, MatProgressSpinnerModule, MatIcon,WaitingListDialog],
+  imports: [CommonModule, FormsModule, MatSnackBarModule, MatProgressSpinnerModule, MatIcon, WaitingListDialog],
   templateUrl: './request-add-child-details.component.html',
   styleUrls: ['./request-add-child-details.component.scss'],
 })
@@ -86,6 +87,7 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
   busy = signal(false);
   action = signal<'approve' | 'reject' | null>(null);
   private tenantSvc = inject(SupabaseTenantService);
+  private currentUserService = inject(CurrentUserService);
 
   busyText = computed(() => {
     switch (this.action()) {
@@ -298,7 +300,7 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
   }
 
   async approve() {
-    if (this.loading()) return;
+    if (!this.canManageRequests || !this.isPending || this.loading()) return;
 
     this.action.set('approve');
     this.loading.set(true);
@@ -358,7 +360,7 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
     }
   }
   async reject(args?: { source: 'user' | 'system'; reason?: string }) {
-    if (this.loading()) return;
+    if (!this.canManageRequests || !this.isPending || this.loading()) return;
 
     this.action.set('reject');
     this.loading.set(true);
@@ -445,7 +447,16 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
     return this.request?.status === 'PENDING';
   }
 
-  
+  get canManageRequests(): boolean {
+    const user = this.currentUserService.current;
+
+    const role = String(
+      (user as any)?.role_in_tenant ?? user?.role ?? ''
+    ).trim().toLowerCase();
+
+    return role === 'secretary';
+  }
+
   // =========================================
   // WAITING LIST - ADD CHILD REQUEST
   // =========================================
@@ -462,7 +473,7 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
   }[] = [];
 
   async openWaitlistDialog(): Promise<void> {
-    if (!this.isPending || this.loading()) return;
+    if (!this.canManageRequests || !this.isPending || this.loading()) return;
 
     const d = this.details();
     if (!d?.child_id || !d?.parent_uid) {
@@ -498,13 +509,16 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
     }
   }
 
-  
+
   // הפונקציה מועברת לחלון המשותף.
   // היא מופעלת רק כשהמשתמשת לוחצת על שמירה.
   approveChildBeforeWaitlist = async (): Promise<{
     childId: string;
     parentUid: string;
   }> => {
+    if (!this.canManageRequests) {
+      throw new Error('אין הרשאה לבצע פעולה זו');
+    }
     const d = this.details();
 
     if (!d?.child_id || !d?.parent_uid) {
@@ -532,7 +546,7 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
         validation.reason ?? 'הבקשה אינה תקינה לאישור'
       );
     }
-    
+
 
     await this.tenantSvc.ensureTenantContextReady();
 
