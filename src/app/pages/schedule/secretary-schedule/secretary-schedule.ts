@@ -93,7 +93,7 @@ type InstructorWeeklyAvailabilityRow = {
   end_time: string;
   lesson_type_mode?: string | null;
   lesson_ridding_type?: string | null;
-  valid_from: string;
+  valid_from: string | null;
   valid_until?: string | null;
   replaced_by_id?: string | null;
 };
@@ -1461,25 +1461,22 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
 
   private isWeeklyAvailabilityEffectiveOn(
-    row: InstructorWeeklyAvailabilityRow,
-    ymd: string
-  ): boolean {
-    const validFrom = row.valid_from
-      ? String(row.valid_from).slice(0, 10)
-      : null;
+  row: InstructorWeeklyAvailabilityRow,
+  ymd: string
+): boolean {
+  const validFrom = row.valid_from
+    ? String(row.valid_from).slice(0, 10)
+    : null;
 
-    const validUntil = row.valid_until
-      ? String(row.valid_until).slice(0, 10)
-      : null;
+  const validUntil = row.valid_until
+    ? String(row.valid_until).slice(0, 10)
+    : null;
 
-    // ללא תאריך התחלה = הזמינות תקפה ללא הגבלת התחלה
-    if (validFrom && ymd < validFrom) return false;
+  if (validFrom && ymd < validFrom) return false;
+  if (validUntil && ymd > validUntil) return false;
 
-    // ללא תאריך סיום = הזמינות תקפה ללא הגבלת סיום
-    if (validUntil && ymd > validUntil) return false;
-
-    return true;
-  }
+  return true;
+}
 
   private addOneDayYmdSafe(ymd: string): string {
     const [y, m, d] = ymd.split('-').map(Number);
@@ -2225,6 +2222,14 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       if (!resp.ok) {
         throw new Error(json?.message || json?.error || 'ביטול השיעור נכשל');
       }
+      const noParent =
+        json?.notificationStatus === 'no_parent';
+      if (noParent) {
+        await this.ui.alert(
+          'השיעור בוטל, שים לב שלא נשלח מייל להורה כי אין הורה מקושר',
+          'ביטול שיעור'
+        );
+      }
       this.cancelLessonModal.open = false;
       this.cdr.detectChanges();
       this.closeCancelLessonDialog();
@@ -2848,7 +2853,12 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
       if (e1) throw e1;
 
-      const allRows = (all ?? []) as InstructorRow[];
+      const allRows = [...(all ?? []) as InstructorRow[]].sort((a, b) => {
+  const nameA = `${a.first_name ?? ''} ${a.last_name ?? ''}`.trim();
+  const nameB = `${b.first_name ?? ''} ${b.last_name ?? ''}`.trim();
+
+  return nameA.localeCompare(nameB, 'he');
+});
 
       // UI למעלה: כל הפעילים
       this.instructorsAll = allRows;
@@ -2866,11 +2876,11 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       const today = this.dateToYmd(new Date());
 
       const { data: avail, error: e2 } = await dbc
-        .from('instructor_weekly_availability')
-        .select('instructor_id_number, valid_from, valid_until')
-        .eq('day_of_week', dow)
-        .lte('valid_from', today)
-        .or(`valid_until.is.null,valid_until.gte.${today}`);
+  .from('instructor_weekly_availability')
+  .select('instructor_id_number, valid_from, valid_until')
+  .eq('day_of_week', dow)
+  .or(`valid_from.is.null,valid_from.lte.${today}`)
+  .or(`valid_until.is.null,valid_until.gte.${today}`);
 
       if (e2) throw e2;
 

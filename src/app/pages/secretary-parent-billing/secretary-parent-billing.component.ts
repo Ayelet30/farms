@@ -591,9 +591,9 @@ this.totalChargesCount.set(count ?? 0);
   }
 
   canRecalculateParentCharge(charge: ParentChargeRow): boolean {
-    return charge.status === 'draft' &&
-      String((charge as any).charge_kind ?? 'monthly') === 'monthly';
-  }
+  return ['draft', 'failed'].includes(charge.status) &&
+    String((charge as any).charge_kind ?? 'monthly') === 'monthly';
+}
 
   isRecalculatingParentCharge(chargeId: string): boolean {
     return this.recalculatingChargeIds().has(chargeId);
@@ -604,9 +604,9 @@ this.totalChargesCount.set(count ?? 0);
 
     const parentName = this.chargeParentName(charge);
     const confirmed = window.confirm(
-      `לחשב מחדש את חיוב הטיוטה של ${parentName}?\n\n` +
-      `שורות השיעורים ייבנו מחדש לפי הנתונים וההגדרות העדכניים.`
-    );
+  `לחשב מחדש את החיוב של ${parentName}?\n\n` +
+  `שורות השיעורים ייבנו מחדש לפי הנתונים וההגדרות העדכניים.`
+);
 
     if (!confirmed) return;
 

@@ -183,15 +183,15 @@ type HelmetFilter =
   selector: 'app-secretary-children',
   standalone: true,
   imports: [
-  CommonModule,
-  FormsModule,
-  ReactiveFormsModule,
-  MatSidenavModule,
-  MatDialogModule,
-  AddChildWizardComponent,
-  RouterModule,
-  WaitingListDialog
-],
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    MatSidenavModule,
+    MatDialogModule,
+    AddChildWizardComponent,
+    RouterModule,
+    WaitingListDialog
+  ],
   templateUrl: './secretary-children.component.html',
   styleUrls: ['./secretary-children.component.css'],
 })
@@ -2155,8 +2155,8 @@ scheduled_deletion_at,deletion_note
       return;
     }
 
-    const startDate = this.getSeriesActualStartDateIso(series);
-    const endDate = series.seriesEndDate?.slice(0, 10);
+    const startDate = series.anchorWeekStart?.slice(0, 10) ?? null;
+const endDate = series.seriesEndDate?.slice(0, 10);
 
     if (!startDate) {
       this.seriesPaymentPlanEditor.error =

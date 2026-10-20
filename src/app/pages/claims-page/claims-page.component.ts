@@ -73,6 +73,11 @@ interface LessonClaimRow {
   occurrenceBillable: boolean | null;
   cancellerRole: string | null;
 
+  automationJobId?: string | null;
+  automationJobStatus?: string | null;
+  automationPhase?: string | null;
+  automationClaimNumber?: string | null;
+
   claimOpened: boolean;
   claimSubmitted: boolean;
   claimStatus: ClaimStatus;
@@ -286,6 +291,164 @@ agentUpdateAvailable = false;
   }
 
   this.updateAgentVersionState();
+}
+
+private async loadClalitAutomationStates(): Promise<void> {
+  console.log(
+  '[CLALIT UI] סכמה:',
+  this.tenantSvc.requireTenant().schema
+);
+  console.log('[CLALIT UI] התחלת טעינת סטטוסים');
+  const dbc = dbTenant();
+
+  const byLesson = new Map<string, {
+    jobId: string;
+    jobStatus: string;
+    phase: string | null;
+    claimNumber: string | null;
+    note: string | null;
+    reportingStatus: string | null;
+  }>();
+
+  const pageSize = 500;
+
+  for (let page = 0; ; page++) {
+    const { data, error } = await dbc
+      .from('automation_jobs')
+      .select('id,status,payload,result,created_at')
+      .eq('provider', 'CLALIT')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    if (error) throw error;
+
+    console.log('[CLALIT UI] תוצאת טעינת משימות', {
+  page,
+  count: data?.length ?? 0,
+  error,
+});
+
+    
+
+    for (const job of data ?? []) {
+      const payload = job.payload as any;
+      const result = job.result as any;
+      const checkpoints = result?.checkpoints ?? {};
+
+      if (!Array.isArray(payload?.lessons)) continue;
+
+      for (const lesson of payload.lessons) {
+        const key =
+          `${lesson.lesson_id}__${lesson.occur_date}__${lesson.child_id}`;
+
+        const checkpoint = checkpoints[key];
+        const previous = byLesson.get(key);
+
+        // אישור הגשה קודם אינו מתבטל בגלל משימה חדשה.
+        if (previous?.phase === 'payment_sent') continue;
+
+        // אחרת שומרים את המשימה החדשה ביותר.
+        if (
+          previous &&
+          checkpoint?.phase !== 'payment_sent'
+        ) {
+          continue;
+        }
+
+        byLesson.set(key, {
+          jobId: String(job.id),
+          jobStatus: String(job.status),
+          phase: checkpoint?.phase ?? null,
+          claimNumber: checkpoint?.claimNumber ?? null,
+          note: checkpoint?.error ?? null,
+          reportingStatus: lesson.reporting_status ?? null,
+        });
+      }
+    }
+
+    if ((data?.length ?? 0) < pageSize) break;
+  }
+
+  for (const row of this.lessons) {
+    const key =
+      `${row.lesson_id}__${row.occur_date}__${row.child_id}`;
+
+    const state = byLesson.get(key);
+    if (!state) continue;
+
+    row.automationJobId = state.jobId;
+    row.automationJobStatus = state.jobStatus;
+    row.automationPhase = state.phase;
+    row.automationClaimNumber = state.claimNumber;
+
+    const submitted =
+      row.claimSubmitted ||
+      row.claimStatus === 'APPROVED' ||
+      row.claimStatus === 'PENDING' ||
+      state.phase === 'payment_sent';
+
+    if (submitted) {
+      row.claimOpened = true;
+      row.claimSubmitted = true;
+      row.displayStatus = 'DONE';
+      row.displayStatusText =
+        row.claimStatus === 'APPROVED'
+          ? 'אושרה בכללית'
+          : 'דרישת התשלום הוגשה';
+
+      if (row.claimStatus === 'NONE' ||
+          row.claimStatus === 'OPENED_NOT_SUBMITTED') {
+        row.claimStatus = 'PENDING';
+      }
+
+      if (state.reportingStatus === 'missing_invoice') {
+  row.displayStatus = 'MISSING_INVOICE';
+  row.displayStatusText = 'לא קיימת חשבונית מתאימה לדיווח';
+  row.automationError = null;
+
+  if (state.phase === 'claim_opened') {
+    row.claimOpened = true;
+    row.claimStatus = 'OPENED_NOT_SUBMITTED';
+  }
+
+  continue;
+}
+
+      // הודעת קליטה אינה שגיאה.
+      row.automationError = null;
+      continue;
+    }
+
+    row.automationError = state.note;
+
+    if (state.phase === 'claim_opened') {
+      row.claimOpened = true;
+      row.claimStatus = 'OPENED_NOT_SUBMITTED';
+    }
+
+    if (['pending', 'running'].includes(state.jobStatus)) {
+      row.displayStatus =
+        state.jobStatus === 'running' ? 'RUNNING' : 'PENDING';
+
+      row.displayStatusText = row.claimOpened
+        ? state.jobStatus === 'running'
+          ? 'התביעה נפתחה — ההגשה בביצוע'
+          : 'התביעה נפתחה — ההגשה בתור'
+        : state.jobStatus === 'running'
+          ? 'פתיחת התביעה בביצוע'
+          : 'משימת דיווח בתור';
+    } else if (state.phase === 'uncertain') {
+      row.displayStatus = 'UNCERTAIN';
+      row.displayStatusText = 'נדרשת בדיקה לפני דיווח חוזר';
+    } else if (row.claimOpened) {
+      row.displayStatus = 'OPENED';
+      row.displayStatusText = 'התביעה נפתחה — נותר להגיש';
+    } else {
+      row.displayStatus = 'FAILED';
+      row.displayStatusText = 'הדיווח נעצר — ניתן לנסות שוב';
+    }
+  }
 }
 
 async downloadHealthAgent(): Promise<void> {
@@ -511,6 +674,10 @@ async downloadHealthAgent(): Promise<void> {
       ) ?? null
     )
   );
+
+  if (this.activeTab === 'CLALIT') {
+  await this.loadClalitAutomationStates();
+}
 
   const monthDebug = this.lessons.reduce(
   (result, row) => {
@@ -849,6 +1016,13 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
   }
 
   isRowSelectable(row: LessonClaimRow): boolean {
+    if (
+  this.activeTab === 'CLALIT' &&
+  ['PENDING', 'RUNNING', 'DONE', 'UNCERTAIN']
+    .includes(row.displayStatus)
+) {
+  return false;
+}
     if (this.activeTab === 'MACCABI' || this.activeTab === 'CLALIT') {
       const cancelled = row.isCancellation || row.exceptionStatus === 'בוטל';
       const billableCancellation = cancelled &&
@@ -870,6 +1044,19 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
   }
 
   rowBlockReason(row: LessonClaimRow): string {
+    if (this.activeTab === 'CLALIT') {
+  if (row.displayStatus === 'DONE') {
+    return 'דרישת התשלום כבר הוגשה';
+  }
+
+  if (['PENDING', 'RUNNING'].includes(row.displayStatus)) {
+    return 'קיימת משימה בתור או בביצוע';
+  }
+
+  if (row.displayStatus === 'UNCERTAIN') {
+    return 'יש לבדוק בכללית אם הדיווח נקלט';
+  }
+}
     if (this.activeTab === 'MACCABI' || this.activeTab === 'CLALIT') {
       const cancelled = row.isCancellation || row.exceptionStatus === 'בוטל';
       if (cancelled &&
