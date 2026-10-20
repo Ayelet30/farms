@@ -82,75 +82,74 @@ function windowText(a: { fromDate: string; toDate: string; allDay: boolean; star
 export function buildInstructorDayOffDecisionEmail(args: Args) {
   const farmName = esc(args.farmName);
 
-  if (args.kind === 'approved_parent') {
-  const subject = `עדכון מחוות בראשית – ביטול טיפול`;
-  const instructorName = esc(args.instructorName);
+ if (args.kind === 'approved_parent') {
+  const subject = `הודעה חשובה מ${args.farmName}`;
 
-  const cancelledTreatmentsHtml = (args.cancellations ?? [])
-    .map(x => `
-      <p>
-        <strong>
-          הטיפול של ${esc(x.childName)}, שיתקיים בתאריך
-          ${esc(fmtDateIL(x.occurDate))} בשעה
-          ${esc(x.startTime ?? '')}, מבוטל ואינו מחויב.
-        </strong>
-      </p>
-    `)
-    .join('');
+  const treatmentLines = (args.cancellations ?? []).map(item => {
+    const time = String(item.startTime ?? '').trim().slice(0, 5);
+    const timeText = time ? ` בשעה ${time}` : '';
 
-  const cancelledTreatmentsText = (args.cancellations ?? [])
-    .map(x =>
-      `הטיפול של ${x.childName}, שיתקיים בתאריך ` +
-      `${fmtDateIL(x.occurDate)} בשעה ${x.startTime ?? ''}, ` +
-      `מבוטל ואינו מחויב.`
-    )
-    .join('\n');
+    return (
+      `הטיפול של ${item.childName}, שנקבע לתאריך ` +
+      `${fmtDateIL(item.occurDate)}${timeText}, מבוטל ואינו מחויב.`
+    );
+  });
+
+  const scopeText =
+    `הביטול תקף לתאריכים ולשעות המצוינים בלבד ` +
+    `ולמטופלים של המדריך/ה ${args.instructorName} בלבד.`;
+
+  const alternativeText =
+    'ככל שיתאפשר ובהתאם לזמינות הקיימת במערכת, ' +
+    'החווה תיצור עמכם קשר לצורך הצעת מועד חלופי.';
 
   const html = `
-    <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.7">
-      <p><strong>הורים יקרים, שלום וברכה,</strong></p>
+    <div dir="rtl"
+         style="font-family:Arial,sans-serif;line-height:1.7;text-align:right">
+      <p>הורים יקרים, שלום וברכה 🌿</p>
+
+      ${treatmentLines
+        .map(line => `<p><strong>${esc(line)}</strong></p>`)
+        .join('')}
 
       <p>
-        עקב היעדרות של המדריך/ה ${instructorName}
-        בשל מחלה / יום חופש,
-      </p>
-
-      ${cancelledTreatmentsHtml}
-
-      <p>
-        <strong>שימו לב –</strong>
-        הביטול תקף למטופלים של ${instructorName} בלבד.
+        <strong>שימו לב:</strong><br>
+        <strong>${esc(scopeText)}</strong>
         טיפולים אצל מדריכים אחרים מתקיימים כרגיל.
       </p>
 
-      <p>
-        ככל שיתאפשר ובהתאם לזמינות הקיימת במערכת,
-        החווה תיצור קשר להציע מועד חלופי.
-      </p>
+      <p>הביטול נובע עקב היעדרות המדריך/ה המטפל/ת.</p>
+
+      <p>${esc(alternativeText)}</p>
 
       <p><strong>טיפול חלופי שיתקיים יחויב כרגיל.</strong></p>
 
-      <p>
-        בברכה,<br>
-        חוות בראשית.
-      </p>
+      <p>בברכה,<br>${farmName} 🐴🌿</p>
     </div>
   `.trim();
 
-  const text =
-    `הורים יקרים, שלום וברכה,\n\n` +
-    `עקב היעדרות של המדריך/ה ${args.instructorName} בשל מחלה / יום חופש,\n\n` +
-    `${cancelledTreatmentsText}\n\n` +
-    `שימו לב – הביטול תקף למטופלים של ${args.instructorName} בלבד. ` +
-    `טיפולים אצל מדריכים אחרים מתקיימים כרגיל.\n\n` +
-    `ככל שיתאפשר ובהתאם לזמינות הקיימת במערכת, ` +
-    `החווה תיצור קשר להציע מועד חלופי.\n\n` +
-    `טיפול חלופי שיתקיים יחויב כרגיל.\n\n` +
-    `בברכה,\n\n` +
-    `חוות בראשית.`;
+  const text = [
+    'הורים יקרים, שלום וברכה 🌿',
+    '',
+    treatmentLines.join('\n\n'),
+    '',
+    'שימו לב:',
+    scopeText,
+    'טיפולים אצל מדריכים אחרים מתקיימים כרגיל.',
+    '',
+    'הביטול נובע עקב היעדרות המדריך/ה המטפל/ת.',
+    '',
+    alternativeText,
+    '',
+    'טיפול חלופי שיתקיים יחויב כרגיל.',
+    '',
+    'בברכה,',
+    `${args.farmName} 🐴🌿`,
+  ].join('\n');
 
   return { subject, html, text };
 }
+
 
   if (args.kind === 'approved_instructor') {
     const subject = `הבקשה לחופש אושרה`;

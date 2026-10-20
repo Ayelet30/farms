@@ -225,80 +225,59 @@ export const sendFarmDayOffCancellationEmails = onRequest(
         }
 
         const instructorName = normStr(rows[0]?.instructor_name || 'המדריך/ה', 120);
-        const parentName = normStr(rows[0]?.parent_name || 'הורה', 120);
-        const safeInstructorName = escapeHtml(instructorName);
+       const parentName = normStr(rows[0]?.parent_name || 'הורה', 120);
 
-        const htmlItems = rows
-          .map((row) => {
-            const childName = escapeHtml(normStr(row.child_name || 'ללא שם', 150));
-            const occurDate = escapeHtml(formatDateIL(row.occur_date));
-            const start = escapeHtml(toHourMinute(row.start_time));
-            return `
-              <p>
-                <strong>
-                  הטיפול של ${childName}, שיתקיים בתאריך ${occurDate}
-                  בשעה ${start}, מבוטל ואינו מחויב.
-                </strong>
-              </p>
-            `;
-          })
-          .join('');
+const treatmentLines = rows.map(row => {
+  const childName = normStr(row.child_name || 'ללא שם', 150);
+  const occurDate = formatDateIL(row.occur_date);
 
-        const textItems = rows
-          .map((row) => {
-            const childName = normStr(row.child_name || 'ללא שם', 150);
-            const occurDate = formatDateIL(row.occur_date);
-            const start = toHourMinute(row.start_time);
-            return `הטיפול של ${childName}, שיתקיים בתאריך ${occurDate} בשעה ${start}, מבוטל ואינו מחויב.`;
-          })
-          .join('\n\n');
+  return (
+    `הטיפול של ${childName}, שנקבע לתאריך ${occurDate}, ` +
+    'מבוטל ואינו מחויב.'
+  );
+});
 
-        const subject = 'עדכון מחוות בראשית – ביטול טיפול';
+const reasonText = `הביטול נובע עקב יום מיוחד: ${reason}`;
 
-        const html = `
-          <div dir="rtl" style="font-family: Arial, sans-serif; line-height: 1.7; color: #1f2937;">
-            <p><strong>הורים יקרים, שלום וברכה,</strong></p>
+const alternativeText =
+  'ככל שיתאפשר ובהתאם לזמינות הקיימת במערכת, ' +
+  'החווה תיצור עמכם קשר לצורך הצעת מועד חלופי.';
 
-            <p>
-              עקב היעדרות של המדריך/ה ${safeInstructorName}
-              בשל מחלה / יום חופש,
-            </p>
+const subject = 'הודעה חשובה מחוות בראשית';
 
-            ${htmlItems}
+const html = `
+  <div dir="rtl"
+       style="font-family:Arial,sans-serif;line-height:1.7;text-align:right;color:#1f2937">
+    <p>הורים יקרים, שלום וברכה 🌿</p>
 
-            <p>
-              <strong>שימו לב –</strong>
-              הביטול תקף למטופלים של ${safeInstructorName} בלבד.
-              טיפולים אצל מדריכים אחרים מתקיימים כרגיל.
-            </p>
+    ${treatmentLines
+      .map(line => `<p><strong>${escapeHtml(line)}</strong></p>`)
+      .join('')}
 
-            <p>
-              ככל שיתאפשר ובהתאם לזמינות הקיימת במערכת,
-              החווה תיצור קשר להציע מועד חלופי.
-            </p>
+    <p>${escapeHtml(reasonText)}</p>
 
-            <p><strong>טיפול חלופי שיתקיים יחויב כרגיל.</strong></p>
+    <p>${escapeHtml(alternativeText)}</p>
 
-            <p>בברכה,<br>חוות בראשית.</p>
-          </div>
-        `;
+    <p><strong>טיפול חלופי שיתקיים יחויב כרגיל.</strong></p>
 
-        const text = [
-          'הורים יקרים, שלום וברכה,',
-          '',
-          `עקב היעדרות של המדריך/ה ${instructorName} בשל מחלה / יום חופש,`,
-          '',
-          textItems,
-          '',
-          `שימו לב – הביטול תקף למטופלים של ${instructorName} בלבד. טיפולים אצל מדריכים אחרים מתקיימים כרגיל.`,
-          '',
-          'ככל שיתאפשר ובהתאם לזמינות הקיימת במערכת, החווה תיצור קשר להציע מועד חלופי.',
-          '',
-          'טיפול חלופי שיתקיים יחויב כרגיל.',
-          '',
-          'בברכה,',
-          'חוות בראשית.',
-        ].join('\n');
+    <p>בברכה,<br>חוות בראשית 🐴🌿</p>
+  </div>
+`.trim();
+
+const text = [
+  'הורים יקרים, שלום וברכה 🌿',
+  '',
+  treatmentLines.join('\n\n'),
+  '',
+  reasonText,
+  '',
+  alternativeText,
+  '',
+  'טיפול חלופי שיתקיים יחויב כרגיל.',
+  '',
+  'בברכה,',
+  'חוות בראשית 🐴🌿',
+].join('\n');
 
         try {
 
