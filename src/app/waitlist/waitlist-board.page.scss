@@ -1,4 +1,3 @@
-
 :host {
   display: block;
   direction: rtl;
@@ -80,7 +79,6 @@
 .wl-secondary-btn,
 .wl-danger-btn,
 .wl-clear-btn,
-.wl-expand-section-btn,
 .row-action-btn {
   font-family: inherit;
   cursor: pointer;
@@ -233,10 +231,7 @@
 .wl-filter-grid {
   display: grid;
   grid-template-columns:
-    minmax(0, 1fr)
-    minmax(0, 1fr)
-    minmax(0, 1.2fr)
-    auto;
+    minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) auto;
 
   align-items: end;
   gap: 14px;
@@ -373,18 +368,6 @@
   font-weight: 400;
 }
 
-.wl-expand-section-btn {
-  flex: 0 0 auto;
-
-  border: 1px solid #d2dbbd;
-  border-radius: 11px;
-  padding: 8px 12px;
-
-  background: #fffdf8;
-  color: #687b45;
-  font-weight: 700;
-  white-space: nowrap;
-}
 
 .wl-divider {
   height: 1px;
@@ -408,6 +391,7 @@
   overflow-y: hidden;
 }
 
+
 /* שבע עמודות לטבלאות פעילות:
    מקום, ילד, עדיפות, סוג רכיבה,
    מדריך, שעות, פעולות */
@@ -415,33 +399,23 @@
 .wl-table-row {
   direction: rtl;
   display: grid;
+
   grid-template-columns:
-    105px
-    minmax(155px, 1.25fr)
-    112px
-    minmax(130px, 1fr)
-    minmax(145px, 1fr)
-    minmax(155px, 1fr)
-    155px;
+    90px 145px 92px minmax(105px, 1fr) minmax(105px, 1fr) minmax(125px, 1fr) 130px;
 
   align-items: center;
-  gap: 10px;
+  gap: 7px;
 
-  min-width: 1030px;
+  min-width: 900px;
   box-sizing: border-box;
 }
 
-/* בטבלת המושהים אין עמודת מקום */
 .wl-table-head.paused-head,
 .wl-table-row.paused-row {
   grid-template-columns:
-    minmax(155px, 1.25fr)
-    112px
-    minmax(130px, 1fr)
-    minmax(145px, 1fr)
-    minmax(155px, 1fr)
-    155px;
+    90px 145px 92px minmax(105px, 1fr) minmax(105px, 1fr) minmax(125px, 1fr) 130px;
 }
+
 
 .wl-table-head {
   min-height: 55px;
@@ -457,7 +431,7 @@
 
 .wl-table-body {
   direction: rtl;
-  min-width: 1030px;
+  min-width: 900px;
   max-height: 320px;
   overflow-y: auto;
   overflow-x: hidden;
@@ -556,7 +530,7 @@
 
 .wl-priority-select {
   width: 100%;
-  max-width: 112px;
+  max-width: 86px;
   min-height: 36px;
   box-sizing: border-box;
 
@@ -592,22 +566,41 @@
   gap: 8px;
 }
 
+/* כפתורי פעולות בטבלאות - עיצוב תואם לחלון */
 .row-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
   flex-shrink: 0;
-  padding: 8px 11px;
+  min-height: 36px;
+  padding: 7px 10px;
 
-  border: none;
-  border-radius: 999px;
-  background: #edf2e2;
-  color: #52683c;
+  border: 1px solid #cfd7b9;
+  border-radius: 10px;
 
-  font-size: 0.84rem;
-  font-weight: 700;
+  background: #f4f5e9;
+  color: #40552b;
+
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
   white-space: nowrap;
 
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: #eaf0dc;
+  }
+
   &.danger {
-    background: #fde6e6;
-    color: #bb4646;
+    border-color: #e8c4c1;
+    background: #fff0ef;
+    color: #b94242;
+
+    &:hover:not(:disabled) {
+      background: #fbe3e1;
+    }
   }
 
   &:disabled {
@@ -629,47 +622,6 @@
 }
 
 /* =========================================
-   IN-PAGE EXPANSION
-   ========================================= */
-
-/* הגדלה בתוך אזור התוכן, ללא Fullscreen
-   וללא הסתרת התפריט של האתר */
-.wl-priority-block.expanded {
-  position: relative;
-  inset: auto;
-  z-index: auto;
-
-  width: 100%;
-  max-width: 100%;
-  height: auto;
-  max-height: none;
-
-  box-shadow: 0 6px 22px rgba(41, 58, 29, 0.08);
-}
-
-.wl-priority-block.expanded .wl-table-card {
-  height: 72vh;
-  max-height: 760px;
-  min-height: 0;
-
-  display: flex;
-  flex-direction: column;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-.wl-priority-block.expanded .wl-table-head {
-  flex: 0 0 auto;
-}
-
-.wl-priority-block.expanded .wl-table-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  max-height: none;
-  overflow-y: auto;
-}
-
-/* =========================================
    DRAG & DROP
    ========================================= */
 
@@ -679,18 +631,12 @@
   display: grid !important;
 
   grid-template-columns:
-    105px
-    minmax(155px, 1.25fr)
-    112px
-    minmax(130px, 1fr)
-    minmax(145px, 1fr)
-    minmax(155px, 1fr)
-    155px;
+    90px 145px 92px minmax(105px, 1fr) minmax(105px, 1fr) minmax(125px, 1fr) 130px;
 
   align-items: center;
   gap: 10px;
 
-  min-width: 1030px;
+  min-width: 900px;
   min-height: 62px;
   padding: 8px 15px;
 
@@ -715,152 +661,427 @@
   transition: transform 180ms ease;
 }
 
+
 /* =========================================
-   SIDE DRAWER
+   WAITLIST DETAILS - VIEW MODE
    ========================================= */
 
-.wl-side-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
+/* Angular Material - Waitlist Details Drawer */
 
-  background: rgba(36, 45, 29, 0.24);
+.wl-details-container {
+  position: fixed !important;
+  top: 80px;
+  left: 0;
+  bottom: 0;
+
+  width: min(420px, 100vw);
+  height: auto;
+
+  z-index: 1001;
+  background: transparent;
+  pointer-events: none;
 }
 
-.wl-side-panel {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 1001;
+.wl-details-drawer {
+  width: 420px;
+  max-width: 95vw;
+  height: 100%;
 
-  width: min(440px, 92vw);
-  height: 100vh;
   box-sizing: border-box;
 
+  background: #ffffff;
+  color: #2f3a28;
+
+  border: 0;
+  border-right: 1px solid #cfd7b9;
+  border-radius: 0 20px 20px 0;
+
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
+
+  pointer-events: auto;
+}
+
+/* תוכן הפאנל */
+/* מבנה חלון פרטי בקשת המתנה */
+.wl-details-drawer {
+  display: flex;
+  flex-direction: column;
+}
+
+/* =========================================
+   WAITLIST DETAILS - FIXED HEADER & FOOTER
+   ========================================= */
+
+.wl-details-layout {
   display: flex;
   flex-direction: column;
 
-  background: #faf9f2;
-  border-right: 1px solid #d7dfc7;
-  box-shadow: 0 0 24px rgba(33, 43, 26, 0.16);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-.wl-side-header {
-  padding: 20px;
+.wl-details-layout .wl-side-header,
+.wl-details-layout .wl-details-top-actions,
+.wl-details-layout .wl-details-footer {
+  flex: 0 0 auto;
+}
+
+.wl-details-layout .wl-side-body {
+  flex: 1 1 auto;
+  min-height: 0;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+
+.wl-details-identity {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
 
-  border-bottom: 1px solid #dce2cb;
+  strong {
+    font-size: 1rem;
+    color: #303b26;
+  }
+}
 
-  h3 {
-    margin: 0 0 5px;
-    color: #2d3b29;
-    font-size: 1.35rem;
+.wl-view-badge {
+  padding: 5px 12px;
+  border: 1px solid #d4ddbd;
+  border-radius: 999px;
+  background: #f0f3e5;
+  color: #52672e;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* כותרת חלון - תואמת למבנה פרטי הילד */
+.wl-side-header {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+
+  padding: 16px;
+  flex: 0 0 auto;
+  direction: rtl;
+}
+
+.wl-details-heading {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.wl-details-heading h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+  color: #2f3a28;
+}
+
+.wl-side-header .close-side-btn {
+  position: static;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+
+  border: none;
+  border-radius: 0;
+  background: transparent;
+
+  color: #6e7462;
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+.wl-side-header .close-side-btn:hover {
+  background: transparent;
+  color: #2f3a28;
+}
+
+/* כפתורים עליונים */
+.wl-details-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+
+  padding: 0 16px 12px;
+  border-bottom: 1px solid rgba(207, 215, 185, 0.6);
+
+  flex: 0 0 auto;
+}
+
+.wl-details-edit-btn,
+.wl-details-soft-btn,
+.wl-details-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: auto;
+  min-width: 68px;
+  min-height: 38px;
+  padding: 8px 14px;
+
+  border-radius: 11px;
+  border: 1px solid transparent;
+
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.wl-details-edit-btn {
+  background: #728e3d;
+  color: #ffffff;
+}
+
+.wl-details-soft-btn {
+  background: #f4f5e9;
+  border-color: #cfd7b9;
+  color: #40552b;
+}
+
+.wl-details-delete-btn {
+  background: #fff0ef;
+  border-color: #e8c4c1;
+  color: #b94242;
+}
+
+.wl-details-soft-btn:hover:not(:disabled) {
+  background: #eaf0dc;
+}
+
+.wl-details-delete-btn:hover:not(:disabled) {
+  background: #fbe3e1;
+}
+
+.wl-details-edit-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wl-details-soft-btn:disabled,
+.wl-details-delete-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+/* אזור תוכן עם גלילה אחת בלבד */
+.wl-side-body {
+  display: flex;
+  flex-direction: column;
+  gap: 21px;
+
+  flex: 1 1 auto;
+  min-height: 0;
+
+  padding: 20px 22px 22px 16px;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.wl-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+
+  padding-bottom: 19px;
+  border-bottom: 1px solid #e0e4d8;
+
+  h4 {
+    margin: 0;
+    font-size: 0.97rem;
+    color: #36472b;
+  }
+}
+
+.wl-detail-value {
+  margin: 0;
+  color: #303b26;
+  font-weight: 600;
+}
+
+.wl-detail-caption {
+  margin: 0;
+  color: #738067;
+  font-size: 0.82rem;
+}
+
+.wl-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wl-detail-tag {
+  padding: 7px 11px;
+
+  border-radius: 999px;
+  background: #eff3e6;
+  color: #40552b;
+
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* זמינות */
+.wl-availability-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  padding: 18px;
+  border: 1px solid #d1dab9;
+  border-radius: 15px;
+  background: #f0f3e7;
+
+  strong {
+    color: #3d502b;
+    margin-bottom: 2px;
   }
 
   p {
     margin: 0;
-    color: #848a73;
-    font-size: 0.92rem;
+    font-size: 0.88rem;
+    color: #43503b;
+    line-height: 1.6;
   }
 }
 
-.close-side-btn {
-  border: none;
-  background: transparent;
-  color: #66734b;
-  font-size: 30px;
-  line-height: 1;
-  cursor: pointer;
+/* עדיפות וסטטוס */
+.wl-detail-summary-grid,
+.wl-position-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
 }
 
-.wl-side-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-
+.wl-detail-small-card {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 7px;
 
-  padding: 18px 20px 28px;
-}
-
-.wl-info-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
-}
-
-.wl-info-card {
-  padding: 14px;
-  min-width: 0;
-
-  background: white;
-  border: 1px solid #dce3ca;
-  border-radius: 15px;
+  padding: 15px;
+  border-radius: 13px;
+  background: #f4f5ee;
 
   span {
-    display: block;
-    margin-bottom: 8px;
-    color: #818a70;
-    font-size: 0.86rem;
+    color: #6a765d;
+    font-size: 0.83rem;
   }
 
   strong {
-    display: block;
-    color: #2b3928;
-    word-break: break-word;
-    font-size: 0.95rem;
-  }
-
-  &.wide {
-    grid-column: 1 / -1;
+    color: #344528;
+    font-size: 1rem;
   }
 }
 
-.wl-side-editor {
+.wl-status-paused {
+  color: #a47634 !important;
+}
+
+/* מיקומים */
+.wl-position-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 11px;
 
-  label {
-    color: #5d6b43;
-    font-weight: 700;
+  padding: 17px 9px;
+  text-align: center;
+
+  border: 1px solid #d1dab9;
+  border-radius: 14px;
+  background: #f0f3e7;
+
+  span {
+    font-size: 0.8rem;
+    color: #68765d;
   }
 
-  select {
-    width: 100%;
-    min-height: 44px;
-    padding: 0 12px;
-
-    border: 1px solid #d2dac0;
-    border-radius: 12px;
-    background: white;
-    font: inherit;
+  strong {
+    font-size: 2rem;
+    line-height: 1.1;
+    color: #354828;
   }
 }
 
-.wl-side-actions {
+.wl-paused-position-message {
+  padding: 16px;
+  border: 1px solid #d6dfc8;
+  border-radius: 13px;
+  background: #f5f6ed;
+  color: #657453;
+  font-size: 0.89rem;
+  line-height: 1.7;
+}
+
+.wl-details-meta {
   display: flex;
   flex-direction: column;
   gap: 10px;
+
+  color: #64705b;
+  font-size: 0.82rem;
+
+  strong {
+    color: #43503b;
+  }
 }
 
-.wl-danger-btn {
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 15px;
+.wl-details-loading,
+.wl-details-error {
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 0.86rem;
+}
 
-  background: #b94b4b;
-  border: none;
-  border-radius: 13px;
+.wl-details-loading {
+  background: #f0f3e7;
+  color: #52672e;
+}
 
-  color: white;
-  font-size: 0.94rem;
-  font-weight: 700;
+.wl-details-error {
+  background: #fff0ef;
+  color: #b94242;
+}
+
+/* כפתורים תחתונים - קטנים ומיושרים לימין */
+.wl-details-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 9px;
+
+  padding: 15px 22px;
+  border-top: 1px solid #e0e4d8;
+
+  background: #ffffff;
+  flex: 0 0 auto;
 }
 
 /* =========================================
@@ -938,4 +1159,349 @@
   .wl-info-card.wide {
     grid-column: auto;
   }
+}
+
+
+/* =========================================
+   WAITLIST - CHILD PICKER
+   עיצוב אחיד ללא כפילויות
+   ========================================= */
+
+/* שכבת החלון */
+.wl-picker-backdrop {
+  position: fixed;
+  top: 92px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+
+  z-index: 30000;
+
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+
+  padding: 16px 20px;
+  box-sizing: border-box;
+
+  background: transparent;
+  overflow: hidden;
+}
+
+/* התפריט פתוח */
+:host-context(.body-layout:not(.menu-collapsed)) .wl-picker-backdrop {
+  right: 280px;
+  left: 0;
+}
+
+/* התפריט מצומצם */
+:host-context(.body-layout.menu-collapsed) .wl-picker-backdrop {
+  right: 72px;
+  left: 0;
+}
+
+/* החשכת הרקע של כל המסך */
+.wl-picker-backdrop::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+
+  background: rgba(31, 41, 27, 0.42);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* גוף החלון */
+.wl-picker-modal {
+  display: flex;
+  flex-direction: column;
+
+  width: min(620px, 100%);
+  height: min(80vh, calc(100dvh - 124px));
+  max-height: calc(100dvh - 124px);
+  min-height: 0;
+
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+
+  direction: rtl;
+  overflow: hidden;
+}
+
+/* כותרת קבועה */
+.wl-picker-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+
+  flex: 0 0 auto;
+
+  padding: 20px 26px;
+  border-bottom: 1px solid #e5e7eb;
+
+  background: #ffffff;
+
+  h2 {
+    margin: 0 0 6px;
+    font-size: 21px;
+    font-weight: 700;
+    color: #283522;
+  }
+
+  p {
+    margin: 0;
+    font-size: 14px;
+    color: #64748b;
+  }
+}
+
+/* סגירת חלון */
+.wl-picker-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+
+  padding: 0;
+  border: 1px solid #cfd7b9;
+  border-radius: 11px;
+
+  background: #fffefa;
+  color: #70796b;
+
+  font-size: 23px;
+  font-weight: 400;
+  line-height: 1;
+
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.wl-picker-close:hover {
+  background: #f3f6e9;
+  border-color: #9ba981;
+}
+
+/* תוכן החלון - ללא גלילה חיצונית */
+.wl-picker-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+
+  min-height: 0;
+  padding: 20px 26px;
+
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* חיפוש שנשאר קבוע למעלה */
+.wl-picker-search {
+  width: 100%;
+  flex: 0 0 auto;
+
+  padding: 12px 14px;
+
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+
+  font: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.wl-picker-search:focus {
+  border-color: #52672e;
+}
+
+/* מספר הילדים */
+.wl-picker-count {
+  flex: 0 0 auto;
+  margin: 15px 0 10px;
+
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* רק רשימת הילדים נגללת */
+.wl-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  flex: 1 1 auto;
+  min-height: 0;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+
+  padding: 2px 4px 2px 0;
+}
+
+/* שורת ילד */
+.wl-picker-child {
+  width: 100%;
+  flex: 0 0 auto;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 14px 16px;
+
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+
+  background: #ffffff;
+  cursor: pointer;
+
+  text-align: right;
+  font: inherit;
+
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+
+.wl-picker-child:hover {
+  background: #f3f6e9;
+  border-color: #52672e;
+}
+
+/* שם הילד */
+.wl-picker-child-name {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* כפתור בחירה - ירוק החווה */
+.wl-picker-child-action {
+  color: #52672e;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.wl-picker-child:hover .wl-picker-child-action {
+  color: #35451d;
+}
+
+/* הודעות */
+.wl-picker-message {
+  padding: 22px;
+  text-align: center;
+  color: #64748b;
+}
+
+.wl-picker-error {
+  flex: 0 0 auto;
+
+  padding: 12px;
+  margin-top: 12px;
+
+  border-radius: 8px;
+  background: #fef2f2;
+
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+/* כפתור ביטול בתחתית - קבוע */
+.wl-picker-footer {
+  display: flex;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+
+  padding: 15px 26px;
+  border-top: 1px solid #e5e7eb;
+
+  background: #ffffff;
+}
+
+.wl-picker-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 64px;
+  height: 40px;
+
+  padding: 0 14px;
+
+  border: 1px solid #cfd7b9;
+  border-radius: 11px;
+
+  background: #f5f5e9;
+  color: #34412d;
+
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.wl-picker-cancel:hover {
+  background: #ebefd9;
+  border-color: #9ba981;
+}
+
+/* התאמה למסכים קטנים */
+@media (max-width: 700px) {
+
+  :host-context(.body-layout:not(.menu-collapsed)) .wl-picker-backdrop,
+  :host-context(.body-layout.menu-collapsed) .wl-picker-backdrop {
+    right: 0;
+    left: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .wl-picker-backdrop {
+    padding: 12px;
+  }
+
+  .wl-picker-modal {
+    width: 100%;
+    height: calc(100dvh - 116px);
+    max-height: calc(100dvh - 116px);
+    border-radius: 14px;
+  }
+
+  .wl-picker-header,
+  .wl-picker-content,
+  .wl-picker-footer {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+}
+
+/* איקס ניקוי החיפוש - ירוק כהה בשני שדות החיפוש */
+.wl-picker-search::-webkit-search-cancel-button,
+#wl-child-search::-webkit-search-cancel-button {
+  filter: grayscale(1) sepia(1) hue-rotate(35deg) saturate(3) brightness(0.65);
+  cursor: pointer;
+}
+
+
+
+/* מרכוז עיגול המיקום בבקשות מושהות */
+.wl-table-row.paused-row .queue-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
