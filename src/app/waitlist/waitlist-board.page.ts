@@ -170,6 +170,9 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
 
   showChildPicker = signal(false);
   showAddWaitlistDialog = signal(false);
+  showEditWaitlistDialog = signal(false);
+  editingWaitlistEntryId = signal<string | null>(null);
+  openingEditWaitlist = signal(false);
 
   loadingFarmChildren = signal(false);
   childPickerError = signal<string | null>(null);
@@ -347,6 +350,104 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   }
 
   private boardWaitlistSaveCompleted = false;
+
+
+  // =========================================
+  // WAITLIST - EDIT EXISTING REQUEST
+  // =========================================
+
+  async openEditWaitlist(entry: WaitlistEntry): Promise<void> {
+    if (
+      this.saving() ||
+      this.openingEditWaitlist() ||
+      this.showAddWaitlistDialog() ||
+      this.showEditWaitlistDialog()
+    ) {
+      return;
+    }
+
+    this.openingEditWaitlist.set(true);
+    this.errorText.set(null);
+
+    try {
+      await ensureTenantContextReady();
+
+      const db = dbTenant();
+
+      // פרטי הילד המשויך לבקשה
+      const { data: child, error: childError } = await db
+        .from('children')
+        .select(
+          'child_uuid, parent_uid, first_name, last_name, birth_date'
+        )
+        .eq('child_uuid', entry.child_uuid)
+        .single();
+
+      if (childError) throw childError;
+
+      if (!child || !child.parent_uid) {
+        throw new Error('לא נמצאו פרטי ילד והורה תקינים לבקשה');
+      }
+
+      // רשימת המדריכים עבור טופס העריכה
+      const { data: instructors, error: instructorsError } =
+        await db
+          .from('instructors')
+          .select('id_number, first_name, last_name')
+          .order('first_name', { ascending: true });
+
+      if (instructorsError) throw instructorsError;
+
+
+      this.waitlistInstructors = (instructors ?? []).map(
+        (instructor: {
+          id_number: string;
+          first_name: string | null;
+          last_name: string | null;
+        }) => ({
+          ...instructor,
+          name: [
+            instructor.first_name,
+            instructor.last_name
+          ].filter(Boolean).join(' ').trim()
+        })
+      );
+
+      // אותה תשתית פרטי ילד שמשמשת בטופס ההוספה
+      this.selectedWaitlistChild.set(child);
+
+      // מזהה הבקשה שאותה עורכים
+      this.editingWaitlistEntryId.set(entry.id);
+
+      // משאירים את פרטי הבקשה פתוחים מאחורי טופס העריכה
+      this.showEditWaitlistDialog.set(true);
+
+    } catch (error: any) {
+      console.error('Error opening waitlist edit:', error);
+
+      this.errorText.set(
+        error?.message ?? 'לא ניתן לפתוח את טופס העריכה'
+      );
+
+    } finally {
+      this.openingEditWaitlist.set(false);
+    }
+  }
+
+  async onEditWaitlistSaved(): Promise<void> {
+    this.closeDetails();
+    this.showEditWaitlistDialog.set(false);
+    this.editingWaitlistEntryId.set(null);
+    this.selectedWaitlistChild.set(null);
+
+    await this.refresh();
+  }
+
+  closeEditWaitlistDialog(): void {
+    this.showEditWaitlistDialog.set(false);
+    this.editingWaitlistEntryId.set(null);
+    this.selectedWaitlistChild.set(null);
+  }
 
   async onBoardWaitlistSaved(): Promise<void> {
     this.boardWaitlistSaveCompleted = true;

@@ -9,6 +9,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UiDialogService } from '../../../services/ui-dialog.service';
+import { WaitlistService } from '../../../services/waitlist.service';
 import { inject } from '@angular/core';
 
 import {
@@ -60,6 +61,17 @@ export class WaitingListDialog implements OnInit {
   // קריאה אופציונלית לפני השמירה, למשל אישור ילד מתוך בקשות ואישורים.
   @Input() beforeSave?: () => Promise<{ childId: string; parentUid: string }>;
   private readonly ui = inject(UiDialogService);
+  private readonly waitlistService = inject(WaitlistService);
+
+  @Input() editEntryId: string | null = null;
+
+  get isEditMode(): boolean {
+    return this.editEntryId !== null;
+  }
+
+  loadingEditData = false;
+  editDataError = '';
+  editDataLoaded = false;
   savedEntryId: string | null = null;
   private approvalCompleted = false;
 
@@ -483,6 +495,8 @@ export class WaitingListDialog implements OnInit {
   }
 
   waitingListPriority: 'high' | 'medium' | 'low' = 'medium';
+  // סיבת הפניה לרשימת ההמתנה
+  waitingListNotes = '';
 
   getWaitingListDayName(day: number): string {
     return this.waitingListWeekDays.find(
@@ -533,6 +547,16 @@ export class WaitingListDialog implements OnInit {
   }
 
   get canSaveWaitingList(): boolean {
+    if (
+      this.isEditMode &&
+      (
+        this.loadingEditData ||
+        !this.editDataLoaded ||
+        !!this.editDataError
+      )
+    ) {
+      return false;
+    }
     if (
       this.waitingListRidingTypesLoading ||
       this.waitingListRidingTypesError ||
@@ -588,12 +612,123 @@ export class WaitingListDialog implements OnInit {
   }
 
 
+
   async ngOnInit(): Promise<void> {
-    await Promise.all([
-      this.loadWaitingListRidingTypes(),
-      this.loadWaitingListFarmHours()
-    ]);
+    if (this.isEditMode) {
+      this.loadingEditData = true;
+      this.editDataLoaded = false;
+      this.editDataError = '';
+    }
+
+    try {
+      await Promise.all([
+        this.loadWaitingListRidingTypes(),
+        this.loadWaitingListFarmHours()
+      ]);
+
+      if (this.editEntryId) {
+        await this.loadExistingWaitlistRequest(this.editEntryId);
+      }
+    } catch (error: any) {
+      console.error('Waitlist initialization failed:', error);
+      this.editDataError =
+        error?.message ?? 'שגיאה בטעינת נתוני הבקשה';
+    } finally {
+      this.loadingEditData = false;
+    }
   }
+
+  private async loadExistingWaitlistRequest(
+    entryId: string
+  ): Promise<void> {
+    const data =
+      await this.waitlistService.getWaitlistEntryForEdit(entryId);
+
+    const entry = data.entry;
+
+    if (!entry || entry.id !== entryId) {
+      throw new Error('לא נמצאה הבקשה המבוקשת');
+    }
+
+    if (entry.status !== 'active' && entry.status !== 'paused') {
+      throw new Error('לא ניתן לערוך בקשה בסטטוס הנוכחי');
+    }
+
+
+    // סוגי רכיבה
+    this.waitingListAllRidingTypes = entry.all_riding_types;
+    this.waitingListRidingTypeIds = [...data.ridingTypeIds];
+
+    // מדריכים
+    this.waitingListAllInstructors = entry.all_instructors;
+    this.waitingListInstructorIds = [...data.instructorIds];
+
+    // טעינת סיבת הפניה הקיימת
+    this.waitingListNotes = entry.notes ?? '';
+
+    // עדיפות
+    const priorityMap: Record<number, 'high' | 'medium' | 'low'> = {
+      2: 'high',
+      1: 'medium',
+      0: 'low'
+    };
+
+    if (!(entry.priority in priorityMap)) {
+      throw new Error('עדיפות הבקשה אינה תקינה');
+    }
+
+    this.waitingListPriority = priorityMap[entry.priority];
+
+    // זמינות
+    this.waitingListAllTimes = entry.all_times;
+
+    // טוענים כל יום בנפרד, כדי לשמר את כל הטווחים
+    this.waitingListSameHours = false;
+
+    const days = new Map<
+      number,
+      { from: string; to: string }[]
+    >();
+
+    if (!entry.all_times) {
+      if (data.availability.length === 0) {
+        throw new Error('לא נמצאו נתוני זמינות לבקשה');
+      }
+
+      for (const item of data.availability) {
+        const ranges = days.get(item.day_of_week) ?? [];
+
+        ranges.push({
+          from: item.all_day
+            ? ''
+            : (item.time_from ?? '').slice(0, 5),
+          to: item.all_day
+            ? ''
+            : (item.time_to ?? '').slice(0, 5)
+        });
+
+        days.set(item.day_of_week, ranges);
+      }
+    }
+
+    this.waitingListDays = [...days.entries()]
+      .map(([day, ranges]) => ({
+        day,
+        ranges
+      }))
+      .sort((a, b) => a.day - b.day);
+
+    // בדיקה שלא חסרות בחירות שמורות
+    if (
+      (!entry.all_riding_types && !data.ridingTypeIds.length) ||
+      (!entry.all_instructors && !data.instructorIds.length)
+    ) {
+      throw new Error('נתוני ההעדפות של הבקשה אינם שלמים');
+    }
+
+    this.editDataLoaded = true;
+  }
+
 
 
   // =====================================
@@ -632,6 +767,7 @@ export class WaitingListDialog implements OnInit {
 
     // עדיפות
     this.waitingListPriority = 'medium';
+    this.waitingListNotes = '';
   }
 
 
@@ -729,6 +865,44 @@ export class WaitingListDialog implements OnInit {
           }
         }
       }
+
+
+      // עריכת בקשה קיימת - ללא יצירת רשומה חדשה
+      if (this.editEntryId) {
+        const entryId = this.editEntryId;
+
+        const updatedId =
+          await this.waitlistService.updateWaitlistRequest({
+            entryId,
+            priority: priorityMap[this.waitingListPriority] as 0 | 1 | 2,
+            allRidingTypes: this.waitingListAllRidingTypes,
+            ridingTypeIds: [...this.waitingListRidingTypeIds],
+            allInstructors: this.waitingListAllInstructors,
+            instructorIds: [...this.waitingListInstructorIds],
+            allTimes: this.waitingListAllTimes,
+            availability,
+            notes: this.waitingListNotes.trim() || null
+          });
+
+        this.savedEntryId = updatedId;
+
+        this.saved.emit({
+          entryId: updatedId,
+          childId: this.childId!,
+          parentUid: this.parentUid!
+        });
+
+        this.closed.emit();
+
+        await this.ui.alert(
+          'פרטי הבקשה עודכנו בהצלחה.',
+          'העדכון הושלם'
+        );
+
+        return;
+      }
+
+
       // האישור מתבצע רק לאחר שהטופס תקין, ורק פעם אחת.
       if (this.beforeSave) {
         const approved = await this.beforeSave();
@@ -759,7 +933,8 @@ export class WaitingListDialog implements OnInit {
         p_all_instructors: this.waitingListAllInstructors,
         p_instructor_ids: this.waitingListAllInstructors ? [] : [...this.waitingListInstructorIds],
         p_all_times: this.waitingListAllTimes,
-        p_availability: availability
+        p_availability: availability,
+        p_notes: this.waitingListNotes.trim() || null
       });
       if (error) throw error;
       const entryId = typeof data === 'string' ? data : null;
@@ -827,7 +1002,7 @@ export class WaitingListDialog implements OnInit {
       }
 
       await this.ui.alert(message, title);
-    }    finally {
+    } finally {
       this.savingWaitingList = false;
     }
   }

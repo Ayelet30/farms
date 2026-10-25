@@ -414,9 +414,12 @@
         <!-- פעולות עליונות -->
         <div class="wl-details-top-actions">
 
-          <button type="button" class="wl-details-edit-btn" disabled title="אפשרות העריכה תחובר בשלב הבא">
-            עריכה
+
+          <button type="button" class="wl-details-edit-btn" [disabled]="saving() || openingEditWaitlist()"
+            (click)="openEditWaitlist(entry)">
+            {{ openingEditWaitlist() ? 'פותח...' : 'עריכה' }}
           </button>
+
 
           <button type="button" class="wl-details-soft-btn" (click)="closeDetails()">
             ביטול
@@ -574,12 +577,22 @@
 
           </section>
 
+
+          <!-- סיבת הפניה -->
+          <section class="wl-detail-section">
+            <h4>סיבת הפניה</h4>
+
+            <p class="wl-detail-value" style="white-space: pre-wrap; overflow-wrap: anywhere;">
+              {{ entry.notes?.trim() || 'לא צוינה סיבת הפניה' }}
+            </p>
+          </section>
+
           <!-- מידע נוסף -->
           <div class="wl-details-meta">
 
             <div>
               מספר דחיות:
-              <strong>{{ entry.decline_count ?? 0 }}</strong>
+              <strong>{{ entry.decline_count }}</strong>
             </div>
 
             <div>
@@ -692,5 +705,17 @@
     (closed)="closeBoardWaitlistDialog()">
 
   </app-waiting-list-dialog>
+
+
+  <!-- =====================================
+     WAITLIST - EDIT EXISTING REQUEST
+     ===================================== -->
+
+  <app-waiting-list-dialog *ngIf="showEditWaitlistDialog() && selectedWaitlistChild() as child"
+    [editEntryId]="editingWaitlistEntryId()" [childId]="child.child_uuid" [parentUid]="child.parent_uid"
+    [childName]="getFarmChildName(child)" [childAge]="getFarmChildAge(child.birth_date)"
+    [instructors]="waitlistInstructors" (saved)="onEditWaitlistSaved()" (closed)="closeEditWaitlistDialog()">
+  </app-waiting-list-dialog>
+
 
 </div>
