@@ -2,6 +2,9 @@ import { createDecipheriv, createHash } from 'node:crypto';
 
 import { onRequest } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
+import {
+  handleRejectionAction,
+} from './clalit-rejections.server';
 
 const SUPABASE_URL = defineSecret('SUPABASE_URL');
 
@@ -559,6 +562,17 @@ export const clalitAgentApi = onRequest(
 
         return;
       }
+
+      const maintenanceResult = await handleRejectionAction(
+  tenantSupabase,
+  agentInstallation.id,
+  req.body,
+);
+
+if (maintenanceResult !== null) {
+  res.status(200).json(maintenanceResult);
+  return;
+}
 
       if (action === 'checkpoint' || action === 'invoice') {
         const { data: job, error: jobError } = await tenantSupabase

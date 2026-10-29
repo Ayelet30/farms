@@ -369,6 +369,74 @@ export class SecretaryChildrenComponent implements OnInit {
   };
 
   uploadingSeriesDocLessonId: string | null = null;
+  deletingSeriesDocLessonId: string | null = null;
+
+async deleteSeriesReferral(row: SeriesDocRow): Promise<void> {
+  if (
+    !row.paymentDocsUrl ||
+    this.uploadingSeriesDocLessonId ||
+    this.deletingSeriesDocLessonId
+  ) {
+    return;
+  }
+
+  const lessonId = row.lessonId;
+  const previousUrl = row.paymentDocsUrl;
+
+  // נעילה גם בזמן הצגת חלונית האישור.
+  this.deletingSeriesDocLessonId = lessonId;
+
+  try {
+    const confirmed = await this.ui.confirm({
+      title: 'מחיקת הפניה',
+      message:
+        'להסיר את ההפניה מסדרה זו? לאחר ההסרה ניתן להעלות הפניה חדשה.',
+      okText: 'מחיקת הפניה',
+      cancelText: 'ביטול',
+      dangerText: 'מחיקת הפניה',
+    });
+
+    if (!confirmed) return;
+
+    const db = await this.dbc();
+
+    const { data, error } = await db
+      .from('lessons')
+      .update({ payment_docs_url: null })
+      .eq('id', lessonId)
+      .eq('payment_docs_url', previousUrl)
+      .select('id')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      throw new Error(
+        'ההפניה השתנתה או שאין הרשאה למחיקה. יש לפתוח מחדש את פרטי הילד.'
+      );
+    }
+
+    this.seriesDocs = this.seriesDocs.map((series) =>
+      series.lessonId === lessonId
+        ? { ...series, paymentDocsUrl: null }
+        : series
+    );
+
+    await this.ui.alert(
+      'ההפניה הוסרה מהסדרה. ניתן להעלות הפניה חדשה.',
+      'המחיקה בוצעה'
+    );
+  } catch (error: any) {
+    console.error('deleteSeriesReferral error:', error);
+
+    await this.ui.alert(
+      'מחיקת ההפניה נכשלה: ' + (error?.message ?? error),
+      'שגיאה'
+    );
+  } finally {
+    this.deletingSeriesDocLessonId = null;
+  }
+}
   constructor(
     private ui: UiDialogService,
     private fb: FormBuilder,
@@ -804,6 +872,14 @@ scheduled_deletion_at,deletion_note
   ): Promise<void> {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
+
+    if (
+  this.uploadingSeriesDocLessonId ||
+  this.deletingSeriesDocLessonId
+) {
+  input.value = '';
+  return;
+}
 
     if (!file) return;
     if (!this.isAllowedReferralFile(file)) {

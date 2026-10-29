@@ -89,6 +89,10 @@ interface LessonClaimRow {
 
   reportMonth: string;
   reportMonthLabel: string;
+
+  decisionNote?: string | null;
+rejectionCode?: string | null;
+invoiceReattachedAt?: string | null;
 }
 
 interface FiltersState {
@@ -131,6 +135,7 @@ export class ClaimsPageComponent implements AfterViewInit, OnDestroy {
     private claimsApi: ClaimsApiService,
     private tenantSvc: SupabaseTenantService
   ) {}
+  
 
   agentDownloading = false;
 agentDownloadError: string | null = null;
@@ -166,6 +171,203 @@ agentUpdateAvailable = false;
 
   filtersExpanded = true;
   groupByChildId = false;
+
+  clalitMaintenanceSending = false;
+
+clalitMaintenanceInfo = '';
+clalitMaintenanceSummary = '';
+
+clalitMaintenanceReview: string[] = [];
+
+private clalitRequestIds:
+  Partial<
+    Record<
+      'scan' | 'repair_invoice',
+      string
+    >
+  > = {};
+
+async startClalitMaintenance(
+  mode: 'scan' | 'repair_invoice',
+): Promise<void> {
+  if (
+    this.clalitMaintenanceSending ||
+    this.activeTab !== 'CLALIT'
+  ) {
+    return;
+  }
+
+  this.clalitMaintenanceSending = true;
+  this.clalitMaintenanceInfo = '';
+
+  try {
+    const user = getAuth().currentUser;
+
+    if (!user) {
+      throw new Error('יש להתחבר מחדש.');
+    }
+
+    const requestId =
+      this.clalitRequestIds[mode] ??=
+        crypto.randomUUID();
+
+    const response = await fetch(
+      '/api/createClalitAutomationJob',
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type': 'application/json',
+
+          Authorization:
+            `Bearer ${await user.getIdToken()}`,
+        },
+
+        body: JSON.stringify({
+          schema:
+            this.tenantSvc.requireTenant().schema,
+
+          kind: 'clalit_rejections_v1',
+          mode,
+          requestId,
+        }),
+      },
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result?.ok) {
+      throw new Error(
+        result?.message ||
+        'יצירת המשימה נכשלה',
+      );
+    }
+
+    delete this.clalitRequestIds[mode];
+
+    this.clalitMaintenanceInfo =
+      mode === 'scan'
+        ? 'סריקת כל דפי הדחויים נוספה לתור. תוכנת הדיווח צריכה להיות פעילה. בסיום לחצי על רענון.'
+        : 'סריקה ותיקון חשבוניות נוספו לתור. יטופלו רק דחויים שחסרה להם חשבונית מתאימה. בסיום לחצי על רענון.';
+  } catch (error) {
+    this.clalitMaintenanceInfo =
+      error instanceof Error
+        ? error.message
+        : 'יצירת המשימה נכשלה';
+  } finally {
+    this.clalitMaintenanceSending = false;
+  }
+}
+
+private async loadClalitMaintenanceSummary():
+  Promise<void> {
+  const { data, error } = await dbTenant()
+    .from('automation_jobs')
+    .select('status,result,error')
+    .eq('provider', 'CLALIT')
+    .contains('payload', {
+      kind: 'clalit_rejections_v1',
+    })
+    .order('created_at', {
+      ascending: false,
+    })
+    .order('id', {
+      ascending: false,
+    })
+    .limit(1);
+
+  if (error) {
+    throw error;
+  }
+
+  const job = data?.[0];
+
+  this.clalitMaintenanceReview = [];
+  this.clalitMaintenanceSummary = '';
+
+  if (!job) {
+    return;
+  }
+
+  const entries = Object.values(
+    (job.result as any)?.rejections ?? {},
+  ) as any[];
+
+  const confirmed = entries.filter(
+    (entry) =>
+      entry.repair === 'confirmed',
+  ).length;
+
+  const review = entries.filter(
+    (entry) =>
+      !entry.matched ||
+      ['failed', 'unknown', 'sending'].includes(
+        entry.repair,
+      ),
+  );
+
+  this.clalitMaintenanceSummary =
+    `מצב משימה: ${job.status}` +
+    ` · נסרקו ${entries.length}` +
+    ` · צורפו חשבוניות ואומתו ${confirmed}` +
+    ` · לבדיקה ${review.length}`;
+
+  this.clalitMaintenanceReview =
+    review.map(
+      (entry) =>
+        `תביעה ${entry.claimNumber}: ` +
+        (
+          entry.repairNote ||
+          entry.error ||
+          'שליחה החלה ללא אישור סופי'
+        ),
+    );
+
+  if (job.error) {
+    this.clalitMaintenanceReview.unshift(
+      job.error,
+    );
+  }
+
+  const byKey = new Map(
+    entries
+      .filter((entry) => entry.lesson)
+      .map((entry) => [
+        `${entry.lesson.lesson_id}__` +
+        `${entry.lesson.occur_date}__` +
+        `${entry.lesson.child_id}`,
+
+        entry,
+      ]),
+  );
+
+  for (const row of this.lessons) {
+    const key =
+      `${row.lesson_id}__` +
+      `${row.occur_date}__` +
+      `${row.child_id}`;
+
+    const item = byKey.get(key);
+
+    if (!item) {
+      continue;
+    }
+
+    if (item.repair === 'confirmed') {
+      row.invoiceReattachedAt =
+        item.repairAt;
+    }
+
+    if (
+      ['sending', 'unknown'].includes(
+        item.repair,
+      )
+    ) {
+      row.automationError =
+        'שליחת החשבונית דורשת בדיקה בכללית לפני ניסיון נוסף';
+    }
+  }
+}
 
   get displayedColumns(): string[] {
     const columns = [
@@ -221,7 +423,7 @@ agentUpdateAvailable = false;
       dateFrom: '',
       dateTo: '',
       reportState: 'ALL',
-      reportMonth: '',
+      reportMonth: this.currentMonth(),
       missingId: 'ALL',
     };
   }
@@ -375,7 +577,31 @@ private async loadClalitAutomationStates(): Promise<void> {
       `${row.lesson_id}__${row.occur_date}__${row.child_id}`;
 
     const state = byLesson.get(key);
-    if (!state) continue;
+
+// ההגשה ההיסטורית והחלטת כללית הן שני דברים שונים.
+if (row.claimStatus === 'REJECTED') {
+  row.displayStatus = 'FAILED';
+
+  row.displayStatusText =
+  row.rejectionCode === 'missing_invoice_and_referral'
+    ? 'נדחתה — חסרות חשבונית והפניה'
+    : row.rejectionCode === 'referral_review'
+      ? 'נדחתה — נדרשת בדיקת הפניה'
+      : row.rejectionCode === 'missing_invoice'
+        ? 'נדחתה — חסרה חשבונית השתתפות עצמית'
+        : 'נדחתה בכללית';
+
+  row.automationClaimNumber ||=
+    state?.claimNumber ?? null;
+
+  row.automationError = null;
+
+  continue;
+}
+
+if (!state) {
+  continue;
+}
 
     row.automationJobId = state.jobId;
     row.automationJobStatus = state.jobStatus;
@@ -528,17 +754,21 @@ async downloadHealthAgent(): Promise<void> {
   private async loadClaimsLessons(): Promise<void> {
   const dbc = dbTenant();
 
-  const fromDate = new Date(
-    Date.now() - 8 * 7 * 24 * 60 * 60 * 1000
-  )
-    .toISOString()
-    .slice(0, 10);
+ const selectedMonth = this.filters.reportMonth;
 
-  const toDate = new Date(
-    Date.now() + 8 * 7 * 24 * 60 * 60 * 1000
-  )
-    .toISOString()
-    .slice(0, 10);
+if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(selectedMonth)) {
+  throw new Error('יש לבחור חודש דיווח תקין');
+}
+
+const [year, month] = selectedMonth.split('-').map(Number);
+
+const fromDate = `${selectedMonth}-01`;
+
+const nextYear = month === 12 ? year + 1 : year;
+const nextMonth = month === 12 ? 1 : month + 1;
+
+const toDate =
+  `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
 
   const commonColumns = `
     lesson_id,
@@ -567,10 +797,19 @@ async downloadHealthAgent(): Promise<void> {
   `;
 
   const selectedColumns =
-    commonColumns +
-    (this.activeTab === 'MACCABI'
+  commonColumns +
+  (
+    this.activeTab === 'MACCABI'
       ? maccabiColumns
-      : '');
+      : this.activeTab === 'CLALIT'
+        ? `
+          ,clalit_claim_number
+          ,decision_note
+          ,rejection_code
+          ,invoice_reattached_at
+        `
+        : ''
+  );
 
   const pageSize = 1000;
   const allRows: any[] = [];
@@ -586,7 +825,7 @@ async downloadHealthAgent(): Promise<void> {
       .from(this.getViewNameByTab())
       .select(selectedColumns)
       .gte('occur_date', fromDate)
-      .lte('occur_date', toDate)
+      .lt('occur_date', toDate)
       .order('occur_date', { ascending: false })
       .order('start_time', { ascending: true })
       .order('lesson_id', { ascending: true })
@@ -624,7 +863,7 @@ async downloadHealthAgent(): Promise<void> {
         .from('lessons_occurrences')
         .select('lesson_id, occur_date, child_id, status, is_cancellation, canceller_role, is_billable')
         .gte('occur_date', fromDate)
-        .lte('occur_date', toDate)
+        .lt('occur_date', toDate)
         .order('occur_date', { ascending: true })
         .order('lesson_id', { ascending: true })
         .range(occurrencePage * pageSize, (occurrencePage + 1) * pageSize - 1);
@@ -677,6 +916,7 @@ async downloadHealthAgent(): Promise<void> {
 
   if (this.activeTab === 'CLALIT') {
   await this.loadClalitAutomationStates();
+  await this.loadClalitMaintenanceSummary();
 }
 
   const monthDebug = this.lessons.reduce(
@@ -703,6 +943,23 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
       toDate,
     }
   );
+}
+
+async onReportMonthChange(month: string): Promise<void> {
+  if (
+    this.loading ||
+    !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)
+  ) {
+    return;
+  }
+
+  this.filters.reportMonth = month;
+  this.filters.dateFrom = '';
+  this.filters.dateTo = '';
+
+  this.selectedIds.clear();
+
+  await this.reloadCurrentTab();
 }
 
   private mapLessonRow(row: any, occurrence: any = null): LessonClaimRow {
@@ -792,6 +1049,18 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
       isCancellation: Boolean(occurrence?.is_cancellation),
       occurrenceBillable: occurrence?.is_billable ?? null,
       cancellerRole: occurrence?.canceller_role ?? null,
+
+      decisionNote:
+  row.decision_note ?? null,
+
+rejectionCode:
+  row.rejection_code ?? null,
+
+invoiceReattachedAt:
+  row.invoice_reattached_at ?? null,
+
+automationClaimNumber:
+  row.clalit_claim_number ?? null,
 
       claimOpened: Boolean(row.claim_opened),
       claimSubmitted: Boolean(row.claim_submitted),
@@ -1004,9 +1273,13 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
   }
 
   resetFilters(): void {
-    this.filters = this.createDefaultFilters();
-    this.applyFilters();
-  }
+  const selectedMonth = this.filters.reportMonth;
+
+  this.filters = this.createDefaultFilters();
+  this.filters.reportMonth = selectedMonth;
+
+  this.applyFilters();
+}
 
   setReportFilter(value: ReportFilter): void {
     this.filters.reportState =
@@ -1016,6 +1289,12 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
   }
 
   isRowSelectable(row: LessonClaimRow): boolean {
+    if (
+  this.activeTab === 'CLALIT' &&
+  row.claimStatus === 'REJECTED'
+) {
+  return false;
+}
     if (
   this.activeTab === 'CLALIT' &&
   ['PENDING', 'RUNNING', 'DONE', 'UNCERTAIN']
@@ -1071,6 +1350,7 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
         return 'לא דווחה נוכחות או ביטול הורה';
       }
     }
+    
 
     if (this.activeTab === 'MEUHEDET' && !row.occurred) {
       return 'השיעור לא סומן כהתקיים';
@@ -1168,6 +1448,14 @@ console.log('REPORT MONTH OPTIONS:', this.reportMonths);
       this.selectedIds.delete(row.id);
     }
   }
+
+  private currentMonth(): string {
+  const now = new Date();
+
+  return `${now.getFullYear()}-${String(
+    now.getMonth() + 1
+  ).padStart(2, '0')}`;
+}
 
   getCurrentPageRows(): LessonClaimRow[] {
     const rows = this.dataSource.data ?? [];

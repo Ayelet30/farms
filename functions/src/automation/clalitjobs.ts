@@ -4,6 +4,9 @@ import { getAuth } from 'firebase-admin/auth';
 import { onRequest } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { createClient } from '@supabase/supabase-js';
+import {
+  enqueueRejectionJob,
+} from './clalit-rejections.server';
 
 const SUPABASE_URL = defineSecret('SUPABASE_URL');
 const SUPABASE_SERVICE_KEY = defineSecret('SUPABASE_SERVICE_KEY');
@@ -14,7 +17,14 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 type SelectedLesson = { lesson_id: string; occur_date: string; child_id: string };
 type InvoiceRef = { child_id: string; charged_at: string; payment_id: string; charge_id: string; bucket: string; path: string };
-type RequestBody = { schema: string; lessons: SelectedLesson[] };
+type RequestBody = {
+  schema: string;
+  lessons: SelectedLesson[];
+
+  kind?: string;
+  mode?: 'scan' | 'repair_invoice';
+  requestId?: string;
+};
 type BillingItem = { child_id: string; occur_date: string; charge_id: string | null };
 type StoredInvoice = { child_id: string; charge_id: string; payment_id: string | null;
   invoice_storage_bucket: string | null; invoice_storage_path: string | null; status: string };
@@ -193,6 +203,31 @@ export const createClalitAutomationJob = onRequest({
       .in('id', allowedTenantIds).eq('schema_name', body.schema);
     if (farmError) throw farmError;
     if (!farms?.length) fail(403, 'Not authorized for this farm');
+    if (body.kind === 'clalit_rejections_v1') {
+  const maintenanceDb = createClient(
+    SUPABASE_URL.value(),
+    SUPABASE_SERVICE_KEY.value(),
+    {
+      db: {
+        schema: body.schema,
+      },
+
+      auth: {
+        persistSession: false,
+      },
+    },
+  );
+
+  const result = await enqueueRejectionJob(
+    maintenanceDb,
+    body.schema,
+    user.uid,
+    body,
+  );
+
+  res.status(201).json(result);
+  return;
+}
     if (!Array.isArray(body.lessons) || !body.lessons.length ||
         body.lessons.length > MAX_LESSONS) {
       fail(400, 'Select 1–100 lessons');

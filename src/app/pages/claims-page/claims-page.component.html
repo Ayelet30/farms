@@ -26,6 +26,63 @@
   </mat-tab-group>
 
   <section
+  *ngIf="activeTab === 'CLALIT'"
+  class="card"
+  style="padding:16px; margin-bottom:16px"
+>
+  <strong>
+    בדיקת תביעות שנדחו בכללית
+  </strong>
+
+  <p>
+    הסריקה כוללת את כל הדפים וכל התאריכים בכללית,
+    ללא תלות בחודש המוצג כאן.
+  </p>
+
+  <div
+    style="
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+    "
+  >
+    <button
+      mat-stroked-button
+      type="button"
+      [disabled]="clalitMaintenanceSending"
+      (click)="startClalitMaintenance('scan')"
+    >
+      סריקת דחויים ועדכון סיבות
+    </button>
+
+    <button
+      mat-flat-button
+      type="button"
+      [disabled]="clalitMaintenanceSending"
+      (click)="startClalitMaintenance('repair_invoice')"
+    >
+      סריקה וצירוף חשבוניות חסרות
+    </button>
+  </div>
+
+  <p role="status">
+    {{ clalitMaintenanceInfo }}
+  </p>
+
+  <p>
+    {{ clalitMaintenanceSummary }}
+  </p>
+
+  <ul *ngIf="clalitMaintenanceReview.length">
+    <li
+      *ngFor="let note of clalitMaintenanceReview"
+    >
+      {{ note }}
+    </li>
+  </ul>
+</section>
+
+  <section
     *ngIf="activeTab === 'MACCABI'"
     class="agent-banner"
     [class.online]="agentInstalled"
@@ -204,22 +261,16 @@
       </label>
 
       <label class="filter-field">
-        <span>חודש דיווח</span>
+  <span>חודש דיווח</span>
 
-        <mat-select
-          [(ngModel)]="filters.reportMonth"
-          (selectionChange)="applyFilters()"
-        >
-          <mat-option value="">כל החודשים</mat-option>
-
-          <mat-option
-            *ngFor="let month of reportMonths"
-            [value]="month"
-          >
-            {{ reportMonthLabel(month) }}
-          </mat-option>
-        </mat-select>
-      </label>
+  <input
+    type="month"
+    required
+    [ngModel]="filters.reportMonth"
+    (ngModelChange)="onReportMonthChange($event)"
+    [disabled]="loading || sending"
+  />
+</label>
 
       <label class="filter-field">
         <span>מצב דיווח</span>
@@ -563,6 +614,28 @@
       [title]="row.automationJobId">
       משימה: {{ row.automationJobId }}
     </small>
+
+    <small
+  *ngIf="
+    activeTab === 'CLALIT' &&
+    row.decisionNote
+  "
+  class="secondary-value"
+>
+  סיבת החלטת כללית:
+  {{ row.decisionNote }}
+</small>
+
+<small
+  *ngIf="
+    activeTab === 'CLALIT' &&
+    row.invoiceReattachedAt
+  "
+  class="secondary-value"
+>
+  החשבונית צורפה מחדש והתקבל אישור קליטה.
+  ממתינה לבדיקת כללית.
+</small>
 
     <small
       *ngIf="row.automationError"

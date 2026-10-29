@@ -93,7 +93,9 @@ removingDraftItem = signal<string | null>(null);
 
 canRemoveDraftItem(): boolean {
   const charge = this.activeDetailsCharge();
-  return charge?.status === 'draft';
+
+  return !!charge &&
+    (charge.status === 'draft' || charge.status === 'failed');
 }
 
 async removeDraftItem(item: any): Promise<void> {
@@ -590,9 +592,20 @@ this.totalChargesCount.set(count ?? 0);
     return this.selectedChargeIds().has(chargeId);
   }
 
-  canRecalculateParentCharge(charge: ParentChargeRow): boolean {
-  return ['draft', 'failed'].includes(charge.status) &&
+ canRecalculateParentCharge(charge: ParentChargeRow): boolean {
+  const isMonthly =
     String((charge as any).charge_kind ?? 'monthly') === 'monthly';
+
+  const isZeroWithoutPayment =
+    charge.status === 'paid' &&
+    this.chargeTotalAgorot(charge) === 0 &&
+    this.paidAgorot(charge) === 0 &&
+    this.creditsAgorot(charge) === 0;
+
+  return isMonthly && (
+    ['draft', 'failed'].includes(charge.status) ||
+    isZeroWithoutPayment
+  );
 }
 
   isRecalculatingParentCharge(chargeId: string): boolean {
@@ -823,6 +836,9 @@ this.totalChargesCount.set(count ?? 0);
     const remaining = this.realRemainingAgorot(c);
 
     if (c.status === 'cancelled') return 'בוטל';
+    if (c.status === 'paid' && total === 0) {
+       return 'סגור ללא חיוב';
+    }
     if (c.status === 'failed') return 'נכשל';
     if (c.status === 'pending') return 'ממתין לחיוב';
 
