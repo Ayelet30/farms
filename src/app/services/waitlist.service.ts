@@ -385,4 +385,121 @@ export class WaitlistService {
     };
   }
 
+
+  // ==========================================
+  // WAITLIST - EDIT EXISTING REQUEST
+  // ==========================================
+
+  async getWaitlistEntryForEdit(entryId: string) {
+    await ensureTenantContextReady();
+
+    const db = dbTenant();
+
+    const [
+      entryResult,
+      ridingResult,
+      instructorResult,
+      availabilityResult
+    ] = await Promise.all([
+      db
+        .from('waitlist_entries')
+        .select('*')
+        .eq('id', entryId)
+        .single(),
+
+      db
+        .from('waitlist_entry_riding_types')
+        .select('riding_type_id')
+        .eq('waitlist_entry_id', entryId),
+
+      db
+        .from('waitlist_entry_instructors')
+        .select('instructor_id_number')
+        .eq('waitlist_entry_id', entryId),
+
+      db
+        .from('waitlist_entry_availability')
+        .select('day_of_week, all_day, time_from, time_to')
+        .eq('waitlist_entry_id', entryId)
+        .order('day_of_week')
+    ]);
+
+    if (entryResult.error) throw entryResult.error;
+    if (ridingResult.error) throw ridingResult.error;
+    if (instructorResult.error) throw instructorResult.error;
+    if (availabilityResult.error) throw availabilityResult.error;
+
+    return {
+      entry: entryResult.data as WaitlistEntry,
+
+
+      ridingTypeIds: (ridingResult.data ?? [])
+        .map((row: { riding_type_id: string }) =>
+          row.riding_type_id
+        ),
+
+      instructorIds: (instructorResult.data ?? [])
+        .map((row: { instructor_id_number: string }) =>
+          row.instructor_id_number
+        ),
+
+
+      availability: availabilityResult.data ?? []
+    };
+  }
+
+  async updateWaitlistRequest(
+    payload: {
+      entryId: string;
+      priority: 0 | 1 | 2;
+      allRidingTypes: boolean;
+      ridingTypeIds: string[];
+      allInstructors: boolean;
+      instructorIds: string[];
+      allTimes: boolean;
+      availability: {
+        day: number;
+        allDay: boolean;
+        from: string | null;
+        to: string | null;
+      }[];
+      notes: string | null;
+    }
+  ): Promise<string> {
+
+    await ensureTenantContextReady();
+
+    const { data, error } = await dbTenant().rpc(
+      'waitlist_update_request',
+      {
+        p_entry_id: payload.entryId,
+        p_priority: payload.priority,
+        p_all_riding_types: payload.allRidingTypes,
+        p_riding_type_ids: payload.allRidingTypes
+          ? []
+          : payload.ridingTypeIds,
+        p_all_instructors: payload.allInstructors,
+        p_instructor_ids: payload.allInstructors
+          ? []
+          : payload.instructorIds,
+        p_all_times: payload.allTimes,
+        p_availability: payload.allTimes
+          ? []
+          : payload.availability,
+        p_notes: payload.notes
+      }
+    );
+
+    if (error) throw error;
+
+    if (data !== payload.entryId) {
+      throw new Error(
+        'עדכון הבקשה לא החזיר את מזהה הרשומה הצפוי'
+      );
+    }
+
+    return data;
+  }
+
+
 }

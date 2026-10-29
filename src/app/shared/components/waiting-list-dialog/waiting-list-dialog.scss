@@ -1030,3 +1030,56 @@
 }
 
 
+/* =====================================
+   WAITLIST - REFERRAL REASON
+   ===================================== */
+
+.waiting-notes-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.waiting-notes-label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 600;
+  color: #555c42;
+}
+
+.waiting-notes-optional {
+  font-size: 12px;
+  font-style: italic;
+  font-weight: 400;
+  color: #888;
+}
+
+.waiting-notes-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 60px;
+  padding: 12px 14px;
+
+  border: 1px solid #91ad58;
+  border-radius: 12px;
+  background: #fff;
+
+  color: #333;
+  font: inherit;
+  line-height: 1.6;
+  resize: vertical;
+
+  transition: border-color 0.2s, box-shadow 0.2s;
+
+  &::placeholder {
+    color: #999;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #739842;
+    box-shadow: 0 0 0 2px rgba(115, 152, 66, 0.12);
+  }
+}
+
