@@ -35,6 +35,15 @@
         בקשות מושהות
         <span class="count">{{ pausedEntries().length }}</span>
       </button>
+
+      <button type="button" class="wl-tab" [class.active]="selectedTab() === 'external'"
+        (click)="changeTab('external')">
+        בקשות ממקור חיצוני
+
+        <span class="count">
+          {{ externalEntries().length }}
+        </span>
+      </button>
     </div>
 
     <span class="wl-toolbar-note">
@@ -44,7 +53,7 @@
   </section>
 
   <!-- סינונים -->
-  <section class="wl-filter-card">
+  <section class="wl-filter-card" *ngIf="selectedTab() !== 'external'">
     <div class="wl-filter-grid">
 
       <div class="wl-filter-field">
@@ -299,6 +308,199 @@
 
   </ng-container>
 
+  <!-- =====================================
+     WAITLIST - EXTERNAL REQUESTS
+     ===================================== -->
+
+  <ng-container *ngIf="selectedTab() === 'external'">
+
+    <!-- סינונים - מעל שתי הטבלאות -->
+    <section class="wl-filter-card">
+
+      <div class="wl-filter-grid">
+
+        <div class="wl-filter-field">
+          <label for="external-search">חיפוש בקשה</label>
+
+          <input id="external-search" type="search" placeholder="שם ילד, שם הורה או טלפון" [value]="externalSearch()"
+            (input)="externalSearch.set($any($event.target).value)" />
+        </div>
+
+        <div class="wl-filter-field">
+          <label for="external-riding-type">סוג רכיבה</label>
+
+          <select id="external-riding-type" [value]="externalRidingTypeId()"
+            (change)="externalRidingTypeId.set($any($event.target).value)">
+            <option value="all">כל סוגי הרכיבה</option>
+
+            <option *ngFor="let type of filterRidingTypes()" [value]="type.id">
+              {{ type.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="wl-filter-actions">
+          <button type="button" class="wl-clear-btn" (click)="externalSearch.set(''); externalRidingTypeId.set('all')">
+            ניקוי סינון
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- טעינה ושגיאות -->
+    <div class="wl-state wl-loading" *ngIf="externalLoading()">
+      טוען בקשות ממקור חיצוני...
+    </div>
+
+    <div class="wl-state wl-error" *ngIf="externalError()">
+      {{ externalError() }}
+    </div>
+
+    <ng-container *ngIf="!externalLoading() && !externalError()">
+
+      <!-- ===============================
+         בקשות פתוחות
+         =============================== -->
+
+      <section class="wl-priority-block">
+
+        <div class="wl-priority-head">
+          <div class="wl-priority-title-wrap">
+
+            <h2>בקשות פתוחות</h2>
+
+            <span class="wl-priority-meta">
+              {{ openExternalEntries().length }} בקשות
+            </span>
+
+          </div>
+        </div>
+
+        <div class="wl-divider"></div>
+
+        <div class="wl-table-card">
+
+          <ng-container *ngTemplateOutlet="externalTableHead">
+          </ng-container>
+
+          <div class="wl-table-body">
+
+            <div class="wl-table-row external-row" *ngFor="let entry of openExternalEntries()">
+
+              <ng-container *ngTemplateOutlet="externalTableRow; context: { $implicit: entry }">
+              </ng-container>
+
+            </div>
+
+            <div class="wl-empty-row" *ngIf="openExternalEntries().length === 0">
+              אין בקשות פתוחות ממקור חיצוני
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ===============================
+         בקשות סגורות
+         =============================== -->
+
+      <section class="wl-priority-block">
+
+        <div class="wl-priority-head">
+          <div class="wl-priority-title-wrap">
+
+            <h2>בקשות סגורות</h2>
+
+            <span class="wl-priority-meta">
+              {{ closedExternalEntries().length }} בקשות
+            </span>
+
+          </div>
+        </div>
+
+        <div class="wl-divider"></div>
+
+        <div class="wl-table-card">
+
+          <ng-container *ngTemplateOutlet="externalTableHead">
+          </ng-container>
+
+          <div class="wl-table-body">
+
+            <div class="wl-table-row external-row" *ngFor="let entry of closedExternalEntries()">
+
+              <ng-container *ngTemplateOutlet="externalTableRow; context: { $implicit: entry }">
+              </ng-container>
+
+            </div>
+
+            <div class="wl-empty-row" *ngIf="closedExternalEntries().length === 0">
+              אין בקשות סגורות ממקור חיצוני
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+    </ng-container>
+
+  </ng-container>
+
+  <!-- כותרות משותפות לטבלאות חיצוניות -->
+  <ng-template #externalTableHead>
+    <div class="wl-table-head external-head">
+      <div>מיקום בתור</div>
+      <div>שם הילד/ה</div>
+      <div>קופת חולים</div>
+      <div>סוג רכיבה</div>
+      <div>זמינות</div>
+      <div>תאריך הבקשה</div>
+      <div>שם ההורה / טלפון</div>
+    </div>
+  </ng-template>
+
+  <!-- שורה משותפת לטבלאות חיצוניות -->
+  <ng-template #externalTableRow let-entry>
+
+    <div class="wl-col queue-col">
+      <span class="queue-number">
+        {{ entry.status === 'open' ? (entry.position ?? '—') : '—' }}
+      </span>
+    </div>
+
+    <div class="wl-col child-col">
+      <strong>
+        {{ entry.first_name }} {{ entry.last_name }}
+      </strong>
+    </div>
+
+    <div class="wl-col">
+      {{
+      entry.health_fund === 'other'
+      ? (entry.health_fund_other || 'אחרת')
+      : entry.health_fund
+      }}
+    </div>
+
+    <div class="wl-col">
+      {{ externalRidingTypesLabel(entry) }}
+    </div>
+
+    <div class="wl-col">
+      {{ externalAvailabilityLabel(entry) }}
+    </div>
+
+    <div class="wl-col">
+      {{ entry.submitted_at | date:'dd/MM/yyyy' }}
+    </div>
+
+    <div class="wl-col">
+      <div>{{ entry.parent_name || 'לא צוין' }}</div>
+      <div>{{ entry.phone }}</div>
+    </div>
+
+  </ng-template>
   <!-- כותרת טבלה משותפת לשלוש העדיפויות -->
   <ng-template #activeTableHead>
     <div class="wl-table-head">

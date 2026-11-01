@@ -1,10 +1,78 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { getAuth } from 'firebase/auth';
+import { SupabaseTenantService } from './supabase-tenant.service';
 import { ensureTenantContextReady, dbTenant } from '../services/legacy-compat';
 import { RidingType, WaitlistEntry, WaitlistStatus } from '../Types/waitlist.types';
 // import { co } from '@fullcalendar/core/internal-common';
 
+export interface ExternalWaitlistAvailability {
+  mode: 'all' | 'specific';
+  days: {
+    day: number;
+    start: string;
+  }[];
+}
+
+export interface ExternalWaitlistRequest {
+  // זיהוי ומקור הבקשה
+  id: string;
+  source: string;
+  form_type: string;
+  submitted_at: string;
+
+  // פרטי הילד
+  first_name: string;
+  last_name: string;
+  birth_date: string;
+  gender: string;
+
+  // פרטי ההורה ויצירת קשר
+  parent_name: string | null;
+  phone: string | null;
+  additional_phone: string | null;
+  email: string | null;
+
+  // רקע רכיבה
+  previous_riding: string | null;
+  previous_riding_details: string | null;
+
+  // פרטי הפנייה
+  referral_reason_text: string | null;
+  health_fund: string;
+  health_fund_other: string | null;
+
+  // זמינות
+  availability: ExternalWaitlistAvailability;
+
+  // מיקום ועדיפות
+  priority: number;
+  position: number | null;
+
+  // סטטוס
+  status: 'open' | 'closed';
+  notes: string | null;
+
+  // פרטי סגירת הבקשה
+  closure_reason: string | null;
+  closure_note: string | null;
+  closed_at: string | null;
+  closed_by_uid: string | null;
+
+  // קישור לרשימת ההמתנה הפנימית
+  linked_waitlist_entry_id: string | null;
+
+  // תאריכי מערכת
+  imported_at: string;
+  updated_at: string;
+
+  // מזהי סוגי הרכיבה המשויכים לבקשה
+  riding_type_ids: string[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class WaitlistService {
+
+  private readonly tenantService = inject(SupabaseTenantService);
 
   async listRidingTypes(): Promise<RidingType[]> {
     await ensureTenantContextReady();
@@ -501,5 +569,143 @@ export class WaitlistService {
     return data;
   }
 
+  // ==========================================
+  // WAITLIST - SYNC EXTERNAL REQUESTS
+  // ==========================================
+
+  async syncExternalRequests(): Promise<{
+    success: boolean;
+    received: number;
+    inserted: number;
+    skipped: number;
+  }> {
+    await this.tenantService.ensureTenantContextReady();
+
+    const tenantId = this.tenantService.requireTenant().id;
+
+    const user = getAuth().currentUser;
+
+    if (!user) {
+      throw new Error('לא נמצא משתמש מחובר');
+    }
+
+    const idToken = await user.getIdToken();
+
+    const response = await fetch(
+      'https://europe-west1-bereshit-ac5d8.cloudfunctions.net/syncExternalWaitlist',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ tenantId }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(
+        result.error || 'אירעה שגיאה בסנכרון הבקשות החיצוניות'
+      );
+    }
+
+    return {
+      success: true,
+      received: result.received ?? 0,
+      inserted: result.inserted ?? 0,
+      skipped: result.skipped ?? 0,
+    };
+  }
+
+  // ==========================================
+  // WAITLIST - EXTERNAL REQUESTS
+  // ==========================================
+
+  // ==========================================
+  // WAITLIST - EXTERNAL REQUESTS
+  // ==========================================
+
+  async listExternalRequests(): Promise<ExternalWaitlistRequest[]> {
+    await ensureTenantContextReady();
+
+    const { data, error } = await dbTenant()
+      .from('waitlist_external_requests')
+      .select(`
+      id,
+      source,
+      form_type,
+      submitted_at,
+      first_name,
+      last_name,
+      birth_date,
+      gender,
+      parent_name,
+      phone,
+      additional_phone,
+      email,
+      previous_riding,
+      previous_riding_details,
+      referral_reason_text,
+      health_fund,
+      health_fund_other,
+      availability,
+      priority,
+      position,
+      status,
+      notes,
+      closure_reason,
+      closure_note,
+      closed_at,
+      closed_by_uid,
+      linked_waitlist_entry_id,
+      imported_at,
+      updated_at
+    `)
+      .in('status', ['open', 'closed'])
+      .order('submitted_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    const requests: Omit<ExternalWaitlistRequest, 'riding_type_ids'>[] =
+      data ?? [];
+
+    if (requests.length === 0) {
+      return [];
+    }
+
+    // טעינת סוגי הרכיבה המשויכים לבקשות החיצוניות
+    const { data: ridingRelations, error: ridingError } =
+      await dbTenant()
+        .from('waitlist_external_request_riding_types')
+        .select('request_id, riding_type_id')
+        .in('request_id', requests.map(request => request.id));
+
+    if (ridingError) {
+      throw ridingError;
+    }
+
+    // יצירת מיפוי בין בקשה לסוגי הרכיבה שלה
+    const ridingTypesByRequest: Record<string, string[]> = {};
+
+    for (const relation of ridingRelations ?? []) {
+      if (!ridingTypesByRequest[relation.request_id]) {
+        ridingTypesByRequest[relation.request_id] = [];
+      }
+
+      ridingTypesByRequest[relation.request_id].push(
+        relation.riding_type_id
+      );
+    }
+
+    // צירוף סוגי הרכיבה לנתוני הבקשות
+    return requests.map(request => ({
+      ...request,
+      riding_type_ids: ridingTypesByRequest[request.id] ?? []
+    }));
+  }
 
 }

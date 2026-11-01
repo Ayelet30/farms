@@ -20,7 +20,7 @@ export { connectGmailForFarm } from './connectGmailForFarm';
 
 export * from "./loginBootstrap.js";
 
-export { testExternalWaitlistSheet } from './testExternalWaitlistSheet';
+export { syncExternalWaitlist } from './syncExternalWaitlist';
 
 export * from "./dailyBilling.js";
 

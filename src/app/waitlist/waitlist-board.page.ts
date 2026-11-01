@@ -19,7 +19,7 @@ import {
 } from '@angular/cdk/drag-drop';
 
 import { WaitlistEntry } from '../Types/waitlist.types';
-import { WaitlistService } from '../services/waitlist.service';
+import { WaitlistService, ExternalWaitlistRequest } from '../services/waitlist.service';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 type Priority = 0 | 1 | 2;
@@ -44,6 +44,65 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   errorText = signal<string | null>(null);
 
   entries = signal<WaitlistEntry[]>([]);
+  // בקשות ממקור חיצוני
+  externalEntries = signal<ExternalWaitlistRequest[]>([]);
+  // שעות הפעילות של החווה לפי יום
+  externalFarmWorkingHours = signal<{
+    day_of_week: number;
+    is_open: boolean;
+    farm_start: string | null;
+    farm_end: string | null;
+  }[]>([]);
+
+  externalLoading = signal(false);
+  externalError = signal<string | null>(null);
+
+  externalSearch = signal('');
+
+  externalRidingTypeId = signal<string>('all');
+
+  // סינון כל הבקשות החיצוניות
+  filteredExternalEntries = computed(() => {
+    const search = this.externalSearch().trim().toLowerCase();
+    const ridingTypeId = this.externalRidingTypeId();
+
+    return this.externalEntries().filter(entry => {
+      const fullName =
+        `${entry.first_name} ${entry.last_name}`.toLowerCase();
+
+      const parentName = (entry.parent_name ?? '').toLowerCase();
+      const phone = entry.phone ?? '';
+
+      const matchesSearch =
+        !search ||
+        fullName.includes(search) ||
+        parentName.includes(search) ||
+        phone.includes(search);
+
+      const ridingTypeId = this.externalRidingTypeId();
+
+      const matchesRidingType =
+        ridingTypeId === 'all' ||
+        entry.riding_type_ids.length === 0 ||
+        entry.riding_type_ids.includes(ridingTypeId);
+
+      return matchesSearch && matchesRidingType;
+    });
+  });
+
+  // בקשות פתוחות
+  openExternalEntries = computed(() =>
+    this.filteredExternalEntries().filter(
+      entry => entry.status === 'open'
+    )
+  );
+
+  // בקשות סגורות
+  closedExternalEntries = computed(() =>
+    this.filteredExternalEntries().filter(
+      entry => entry.status === 'closed'
+    )
+  );
   private readonly ui = inject(UiDialogService);
 
   // שמות הילדים לפי child_uuid
@@ -74,7 +133,7 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   instructorsByEntry = signal<Record<string, string[]>>({});
 
   // איזו לשונית מוצגת
-  selectedTab = signal<'active' | 'paused'>('active');
+  selectedTab = signal<'active' | 'paused' | 'external'>('active');
 
   // איזו בקשה פתוחה להצגת פרטים
   expandedEntryId = signal<string | null>(null);
@@ -607,8 +666,93 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   }
 
   async ngOnInit(): Promise<void> {
-    await this.refresh();
+    await Promise.all([
+      this.refresh(),
+      this.loadExternalRequests(),
+      this.loadExternalFarmWorkingHours()
+    ]);
+
     await this.startWaitlistRealtime();
+  }
+
+  // טעינת שעות הפעילות של החווה
+  async loadExternalFarmWorkingHours(): Promise<void> {
+    try {
+      await ensureTenantContextReady();
+
+      const { data, error } = await dbTenant()
+        .from('farm_working_hours')
+        .select('day_of_week, is_open, farm_start, farm_end')
+        .order('day_of_week', { ascending: true });
+
+      if (error) throw error;
+
+      this.externalFarmWorkingHours.set(
+        (data ?? []).map((row: {
+          day_of_week: number;
+          is_open: boolean;
+          farm_start: string | null;
+          farm_end: string | null;
+        }) => ({
+          day_of_week: Number(row.day_of_week),
+          is_open: row.is_open === true,
+          farm_start: row.farm_start
+            ? String(row.farm_start).slice(0, 5)
+            : null,
+          farm_end: row.farm_end
+            ? String(row.farm_end).slice(0, 5)
+            : null
+        }))
+      );
+
+    } catch (error) {
+      console.error(
+        'Error loading farm working hours:',
+        error
+      );
+
+      this.externalFarmWorkingHours.set([]);
+    }
+  }
+
+  // סנכרון וטעינת בקשות ממקור חיצוני
+  async loadExternalRequests(): Promise<void> {
+    // מניעת טעינות מקבילות
+    if (this.externalLoading()) return;
+
+    this.externalLoading.set(true);
+    this.externalError.set(null);
+
+    try {
+      // שלב 1: סנכרון בקשות חדשות דרך Firebase
+      const syncResult = await this.wl.syncExternalRequests();
+
+      console.log('External waitlist sync result:', syncResult);
+
+    } catch (error: any) {
+      console.error('External waitlist sync failed:', error);
+
+      this.externalError.set(
+        'לא ניתן לסנכרן בקשות חדשות מהמקור החיצוני. מוצגות הבקשות הקיימות במערכת.'
+      );
+    }
+
+    try {
+      // שלב 2: טעינת כל הבקשות מ-Supabase
+      const requests = await this.wl.listExternalRequests();
+
+      this.externalEntries.set(requests);
+
+    } catch (error: any) {
+      console.error('Error loading external requests:', error);
+
+      this.externalError.set(
+        'לא ניתן לטעון את הבקשות החיצוניות מ-Supabase.'
+      );
+
+    } finally {
+      this.externalLoading.set(false);
+    }
   }
 
 
@@ -645,9 +789,16 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   }
 
 
-  changeTab(tab: 'active' | 'paused'): void {
+  changeTab(tab: 'active' | 'paused' | 'external'): void {
+    const previousTab = this.selectedTab();
+
     this.selectedTab.set(tab);
     this.expandedEntryId.set(null);
+
+    // סנכרון אוטומטי בכניסה ללשונית החיצונית
+    if (tab === 'external' && previousTab !== 'external') {
+      void this.loadExternalRequests();
+    }
   }
 
   // ==========================================
@@ -754,6 +905,37 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     }
   }
 
+  // סיכום סוגי הרכיבה בטבלת הבקשות החיצוניות
+  externalRidingTypesLabel(
+    entry: ExternalWaitlistRequest
+  ): string {
+    if (!entry.riding_type_ids?.length) {
+      return 'כל סוגי הרכיבה';
+    }
+
+    return 'סוגים נבחרים';
+  }
+
+
+  // שמות סוגי הרכיבה להצגה בפרטי הבקשה החיצונית
+  getExternalRidingTypeNames(
+    entry: ExternalWaitlistRequest
+  ): string[] {
+
+    const ids = entry.riding_type_ids ?? [];
+
+    if (ids.length === 0) {
+      return ['כל סוגי הרכיבה'];
+    }
+
+    return ids.map(id => {
+      const type = this.filterRidingTypes()
+        .find(ridingType => ridingType.id === id);
+
+      return type?.name ?? 'סוג רכיבה לא נמצא';
+    });
+  }
+
   getSelectedRidingTypeNames(entryId: string): string[] {
     const ids = this.ridingTypesByEntry()[entryId] ?? [];
 
@@ -768,6 +950,80 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     return ids.map(id =>
       this.filterInstructors().find(i => i.id_number === id)?.name ?? id
     );
+  }
+
+  // סיכום זמינות להצגה בטבלת הבקשות החיצוניות
+  externalAvailabilityLabel(
+    entry: ExternalWaitlistRequest
+  ): string {
+    if (entry.availability?.mode === 'all') {
+      return 'כל הימים והשעות';
+    }
+
+    if (entry.availability?.mode === 'specific') {
+      return 'זמנים נבחרים';
+    }
+
+    return 'לא צוינה זמינות';
+  }
+
+
+  // פירוט הזמינות לחלון פרטי הבקשה החיצונית
+  getExternalAvailabilityDetails(
+    entry: ExternalWaitlistRequest
+  ): string[] {
+
+    const availability = entry.availability;
+
+    if (!availability) {
+      return ['לא צוינה זמינות'];
+    }
+
+    if (availability.mode === 'all') {
+      return ['כל הימים והשעות'];
+    }
+
+    if (availability.mode !== 'specific') {
+      return ['לא צוינה זמינות'];
+    }
+
+    const days = Array.isArray(availability.days)
+      ? availability.days
+      : [];
+
+    if (days.length === 0) {
+      return ['לא צוינה זמינות'];
+    }
+
+    return [...days]
+      .sort((a, b) => a.day - b.day)
+      .map(item => {
+
+        const dayName = this.getAvailabilityDayName(item.day);
+        const start = item.start?.slice(0, 5);
+
+        const farmHours = this.externalFarmWorkingHours()
+          .find(hours =>
+            hours.day_of_week === item.day
+          );
+
+        if (!start) {
+          return `יום ${dayName}: שעה לא צוינה`;
+        }
+
+        if (
+          !farmHours ||
+          !farmHours.is_open ||
+          !farmHours.farm_start ||
+          !farmHours.farm_end ||
+          start < farmHours.farm_start ||
+          start >= farmHours.farm_end
+        ) {
+          return `יום ${dayName}: החל מ־${start} (יש לבדוק שעות פעילות)`;
+        }
+
+        return `יום ${dayName}: ${start}–${farmHours.farm_end}`;
+      });
   }
 
   getAvailabilityDayName(day: number): string {

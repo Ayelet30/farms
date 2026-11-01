@@ -1492,7 +1492,8 @@
 
 /* איקס ניקוי החיפוש - ירוק כהה בשני שדות החיפוש */
 .wl-picker-search::-webkit-search-cancel-button,
-#wl-child-search::-webkit-search-cancel-button {
+#wl-child-search::-webkit-search-cancel-button,
+#external-search::-webkit-search-cancel-button {
   filter: grayscale(1) sepia(1) hue-rotate(35deg) saturate(3) brightness(0.65);
   cursor: pointer;
 }
@@ -1504,4 +1505,28 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* =========================================
+   EXTERNAL WAITLIST REQUESTS
+   ========================================= */
+
+/* ריווח בין הסינונים ושתי הטבלאות */
+.wl-page > ng-container {
+  display: contents;
+}
+
+/* מבנה שבע העמודות של הבקשות החיצוניות */
+.wl-table-head.external-head,
+.wl-table-row.external-row {
+  grid-template-columns:
+    90px
+    150px
+    120px
+    130px
+    minmax(130px, 1fr)
+    120px
+    minmax(155px, 1fr);
+
+  min-width: 1000px;
 }
