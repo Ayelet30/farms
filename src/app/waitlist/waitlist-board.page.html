@@ -41,7 +41,7 @@
         בקשות ממקור חיצוני
 
         <span class="count">
-          {{ externalEntries().length }}
+          {{ externalListLoaded() ? externalEntries().length : '—' }}
         </span>
       </button>
     </div>
@@ -52,47 +52,62 @@
 
   </section>
 
-  <!-- סינונים -->
+  <!-- סינונים - בקשות פעילות ומושהות -->
   <section class="wl-filter-card" *ngIf="selectedTab() !== 'external'">
+
     <div class="wl-filter-grid">
 
-      <div class="wl-filter-field">
-        <label for="wl-riding-filter">סוג רכיבה</label>
-        <select id="wl-riding-filter" [value]="selectedRidingTypeId()"
-          (change)="selectedRidingTypeId.set($any($event.target).value)">
-          <option value="all">כל סוגי הרכיבה</option>
-          <option *ngFor="let type of filterRidingTypes()" [value]="type.id">
-            {{ type.name }}
-          </option>
-        </select>
-      </div>
-
-      <div class="wl-filter-field">
-        <label for="wl-instructor-filter">העדפת מדריך</label>
-        <select id="wl-instructor-filter" [value]="selectedInstructorId()"
-          (change)="selectedInstructorId.set($any($event.target).value)">
-          <option value="all">כל המדריכים</option>
-          <option *ngFor="let instructor of filterInstructors()" [value]="instructor.id_number">
-            {{ instructor.name }}
-          </option>
-        </select>
-      </div>
-
+      <!-- חיפוש ילד -->
       <div class="wl-filter-field">
         <label for="wl-child-search">חיפוש ילד/ה</label>
+
         <input id="wl-child-search" type="search" placeholder="חיפוש לפי שם הילד/ה" [value]="childSearch()"
           (input)="childSearch.set($any($event.target).value)" />
       </div>
 
+      <!-- סוג רכיבה -->
+      <div class="wl-filter-field">
+        <label for="wl-riding-filter">סוג רכיבה</label>
+
+        <select id="wl-riding-filter" [value]="selectedRidingTypeId()"
+          (change)="selectedRidingTypeId.set($any($event.target).value)">
+
+          <option value="all">כל סוגי הרכיבה</option>
+
+          <option *ngFor="let type of filterRidingTypes()" [value]="type.id">
+            {{ type.name }}
+          </option>
+
+        </select>
+      </div>
+
+      <!-- העדפת מדריך -->
+      <div class="wl-filter-field">
+        <label for="wl-instructor-filter">העדפת מדריך</label>
+
+        <select id="wl-instructor-filter" [value]="selectedInstructorId()"
+          (change)="selectedInstructorId.set($any($event.target).value)">
+
+          <option value="all">כל המדריכים</option>
+
+          <option *ngFor="let instructor of filterInstructors()" [value]="instructor.id_number">
+            {{ instructor.name }}
+          </option>
+
+        </select>
+      </div>
+
+      <!-- ניקוי סינון -->
       <div class="wl-filter-actions">
-        <button type="button" class="wl-clear-btn" (click)="selectedRidingTypeId.set('all');
-                   selectedInstructorId.set('all');
-                   childSearch.set('')">
+        <button type="button" class="wl-clear-btn" (click)="childSearch.set('');
+                 selectedRidingTypeId.set('all');
+                 selectedInstructorId.set('all')">
           ניקוי סינון
         </button>
       </div>
 
     </div>
+
   </section>
 
   <!-- הודעות -->
@@ -314,11 +329,12 @@
 
   <ng-container *ngIf="selectedTab() === 'external'">
 
-    <!-- סינונים - מעל שתי הטבלאות -->
+    <!-- סינונים - בקשות ממקור חיצוני -->
     <section class="wl-filter-card">
 
       <div class="wl-filter-grid">
 
+        <!-- חיפוש בקשה -->
         <div class="wl-filter-field">
           <label for="external-search">חיפוש בקשה</label>
 
@@ -326,26 +342,43 @@
             (input)="externalSearch.set($any($event.target).value)" />
         </div>
 
+        <!-- סוג רכיבה -->
         <div class="wl-filter-field">
           <label for="external-riding-type">סוג רכיבה</label>
 
           <select id="external-riding-type" [value]="externalRidingTypeId()"
             (change)="externalRidingTypeId.set($any($event.target).value)">
+
             <option value="all">כל סוגי הרכיבה</option>
 
             <option *ngFor="let type of filterRidingTypes()" [value]="type.id">
               {{ type.name }}
             </option>
+
           </select>
         </div>
 
+        <!-- תאריך הגשת בקשה -->
+        <div class="wl-filter-field">
+          <label for="external-date-filter">
+            תאריך הגשת הבקשה
+          </label>
+
+          <input id="external-date-filter" type="date" [value]="externalDateFilter()"
+            (change)="externalDateFilter.set($any($event.target).value)" />
+        </div>
+
+        <!-- ניקוי סינון -->
         <div class="wl-filter-actions">
-          <button type="button" class="wl-clear-btn" (click)="externalSearch.set(''); externalRidingTypeId.set('all')">
+          <button type="button" class="wl-clear-btn" (click)="externalSearch.set('');
+                 externalRidingTypeId.set('all');
+                 externalDateFilter.set('')">
             ניקוי סינון
           </button>
         </div>
 
       </div>
+
     </section>
 
     <!-- טעינה ושגיאות -->
@@ -357,7 +390,7 @@
       {{ externalError() }}
     </div>
 
-    <ng-container *ngIf="!externalLoading() && !externalError()">
+    <ng-container *ngIf="!externalLoading()  && externalListLoaded()">
 
       <!-- ===============================
          בקשות פתוחות
@@ -384,9 +417,13 @@
           <ng-container *ngTemplateOutlet="externalTableHead">
           </ng-container>
 
-          <div class="wl-table-body">
+          <div class="wl-table-body" cdkDropList [cdkDropListData]="openExternalEntries()"
+            [cdkDropListDisabled]="saving() || externalLoading() || hasExternalFilters"
+            (cdkDropListDropped)="dropExternal($event)">
 
-            <div class="wl-table-row external-row" *ngFor="let entry of openExternalEntries()">
+            <div class="wl-table-row external-row" *ngFor="let entry of openExternalEntries()" cdkDrag
+              cdkDragPreviewContainer="parent" [cdkDragDisabled]="saving() || externalLoading() || hasExternalFilters"
+              [class.selected]="selectedExternalEntryId() === entry.id" (click)="toggleExternalDetails(entry.id)">
 
               <ng-container *ngTemplateOutlet="externalTableRow; context: { $implicit: entry }">
               </ng-container>
@@ -428,7 +465,8 @@
 
           <div class="wl-table-body">
 
-            <div class="wl-table-row external-row" *ngFor="let entry of closedExternalEntries()">
+            <div class="wl-table-row external-row paused-row" *ngFor="let entry of closedExternalEntries()"
+              [class.selected]="selectedExternalEntryId() === entry.id" (click)="toggleExternalDetails(entry.id)">
 
               <ng-container *ngTemplateOutlet="externalTableRow; context: { $implicit: entry }">
               </ng-container>
@@ -456,7 +494,7 @@
       <div>סוג רכיבה</div>
       <div>זמינות</div>
       <div>תאריך הבקשה</div>
-      <div>שם ההורה / טלפון</div>
+      <div>פעולות</div>
     </div>
   </ng-template>
 
@@ -464,6 +502,13 @@
   <ng-template #externalTableRow let-entry>
 
     <div class="wl-col queue-col">
+      <span *ngIf="entry.status === 'open'" class="drag-handle" cdkDragHandle (click)="$event.stopPropagation()"
+        (pointerdown)="showFilteredExternalDragMessage()" [title]="hasExternalFilters
+    ? 'לא ניתן לגרור רשומות כאשר מופעל סינון'
+    : 'גרירה לשינוי מיקום'">
+        ⋮⋮
+      </span>
+
       <span class="queue-number">
         {{ entry.status === 'open' ? (entry.position ?? '—') : '—' }}
       </span>
@@ -495,9 +540,14 @@
       {{ entry.submitted_at | date:'dd/MM/yyyy' }}
     </div>
 
-    <div class="wl-col">
-      <div>{{ entry.parent_name || 'לא צוין' }}</div>
-      <div>{{ entry.phone }}</div>
+    <div class="wl-col actions-col">
+      <button *ngIf="entry.status === 'open'" type="button" class="row-action-btn danger"
+        [disabled]="saving() || externalCloseSaving()"
+        (click)="$event.stopPropagation(); openExternalCloseDialog(entry)">
+        סגירת בקשה
+      </button>
+
+      <span *ngIf="entry.status === 'closed'">—</span>
     </div>
 
   </ng-template>
@@ -583,6 +633,305 @@
     </div>
 
   </ng-template>
+
+  <!-- =====================================
+     EXTERNAL WAITLIST - DETAILS VIEW
+     ===================================== -->
+
+  <mat-sidenav-container *ngIf="selectedExternalEntry() as entry" class="wl-details-container" dir="rtl"
+    [hasBackdrop]="false">
+
+    <mat-sidenav mode="side" position="end" class="wl-details-drawer" [opened]="true">
+
+      <div class="wl-details-layout">
+
+        <!-- כותרת קבועה -->
+        <div class="wl-side-header">
+
+          <button type="button" class="close-side-btn" aria-label="סגירה" (click)="closeExternalDetails()">
+            ✕
+          </button>
+
+          <div class="wl-details-heading">
+
+            <h3>פרטי בקשת המתנה ממקור חיצוני</h3>
+
+            <div class="wl-details-identity">
+              <strong>
+                {{ entry.first_name }} {{ entry.last_name }}
+              </strong>
+
+              <span class="wl-view-badge">צפייה</span>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- פעולות עליונות -->
+        <div class="wl-details-top-actions">
+
+          <button *ngIf="entry.status === 'open'" type="button" class="wl-details-edit-btn" disabled
+            title="עריכת בקשה חיצונית תתווסף בהמשך">
+            עריכה
+          </button>
+
+          <button type="button" class="wl-details-soft-btn" (click)="closeExternalDetails()">
+            ביטול
+          </button>
+
+        </div>
+
+        <!-- תוכן נגלל -->
+        <div class="wl-side-body">
+
+          <!-- סוגי רכיבה -->
+          <section class="wl-detail-section">
+
+            <h4>סוגי רכיבה</h4>
+
+            <ng-container *ngIf="entry.riding_type_ids.length === 0; else externalSelectedRiding">
+
+              <p class="wl-detail-value">
+                כל סוגי הרכיבה
+              </p>
+
+            </ng-container>
+
+            <ng-template #externalSelectedRiding>
+
+              <p class="wl-detail-caption">
+                סוגים נבחרים
+              </p>
+
+              <div class="wl-detail-tags">
+
+                <span class="wl-detail-tag" *ngFor="let name of getExternalRidingTypeNames(entry)">
+                  {{ name }}
+                </span>
+
+              </div>
+
+            </ng-template>
+
+          </section>
+
+          <!-- העדפת ימים ושעות -->
+          <section class="wl-detail-section">
+
+            <h4>העדפת ימים ושעות</h4>
+
+            <div class="wl-availability-summary">
+
+              <strong>סיכום הזמינות</strong>
+
+              <ng-container *ngIf="entry.availability?.mode === 'all'; else externalSelectedTimes">
+
+                <p>כל הימים והשעות</p>
+
+              </ng-container>
+
+              <ng-template #externalSelectedTimes>
+
+                <p class="wl-detail-caption">
+                  {{ externalAvailabilityLabel(entry) }}
+                </p>
+
+                <p *ngFor="let line of getExternalAvailabilityDetails(entry)">
+                  {{ line }}
+                </p>
+
+              </ng-template>
+
+            </div>
+
+          </section>
+
+          <!-- קופת חולים -->
+          <section class="wl-detail-section">
+
+            <h4>קופת חולים</h4>
+
+            <p class="wl-detail-value">
+              {{ externalHealthFundLabel(entry) }}
+            </p>
+
+          </section>
+
+          <!-- פרטי התקשרות -->
+          <section class="wl-detail-section">
+
+            <h4>פרטים נוספים</h4>
+
+            <div class="wl-external-contact-grid">
+
+              <div class="wl-external-contact-item">
+                <span>שם ההורה</span>
+                <strong>{{ entry.parent_name || 'לא צוין' }}</strong>
+              </div>
+
+              <div class="wl-external-contact-item">
+                <span>טלפון</span>
+                <strong dir="ltr">
+                  {{ entry.phone || 'לא צוין' }}
+                </strong>
+              </div>
+
+              <div class="wl-external-contact-item" *ngIf="entry.additional_phone">
+
+                <span>טלפון נוסף</span>
+
+                <strong dir="ltr">
+                  {{ entry.additional_phone }}
+                </strong>
+
+              </div>
+
+              <div class="wl-external-contact-item" *ngIf="entry.email">
+
+                <span>כתובת מייל</span>
+
+                <strong class="wl-external-email" dir="ltr">
+                  {{ entry.email }}
+                </strong>
+
+              </div>
+
+            </div>
+
+          </section>
+
+          <!-- ניסיון קודם ברכיבה -->
+          <section class="wl-detail-section">
+
+            <h4>ניסיון קודם ברכיבה</h4>
+
+            <div class="wl-external-experience">
+
+              <p class="wl-detail-value">
+                {{
+                entry.previous_riding === 'true'
+                ? 'יש ניסיון קודם ברכיבה'
+                : entry.previous_riding === 'false'
+                ? 'אין ניסיון קודם ברכיבה'
+                : 'לא צוין'
+                }}
+              </p>
+
+              <p *ngIf="entry.previous_riding === 'true'" class="wl-external-experience-details">
+                {{ entry.previous_riding_details?.trim() || 'לא צוין פירוט' }}
+              </p>
+
+            </div>
+
+          </section>
+
+          <!-- סיבת הפנייה -->
+          <section class="wl-detail-section">
+
+            <h4>סיבת הפנייה</h4>
+
+            <p class="wl-detail-value wl-external-multiline">
+              {{ entry.referral_reason_text?.trim() || 'לא צוינה סיבת פנייה' }}
+            </p>
+
+          </section>
+
+          <!-- סטטוס ומיקום בתור -->
+          <section class="wl-detail-section">
+
+            <div class="wl-detail-summary-grid">
+
+              <div class="wl-position-card" *ngIf="entry.status === 'open'">
+                <span>מיקום בתור החיצוני</span>
+                <strong>{{ entry.position ?? '—' }}</strong>
+              </div>
+
+              <div class="wl-detail-small-card">
+                <span>סטטוס</span>
+
+                <strong [class.wl-status-paused]="entry.status === 'closed'">
+                  {{ entry.status === 'open' ? 'פתוח' : 'סגור' }}
+                </strong>
+              </div>
+
+            </div>
+
+          </section>
+
+          <!-- פרטי סגירה של בקשה סגורה -->
+          <section class="wl-detail-section" *ngIf="entry.status === 'closed'">
+
+            <h4>פרטי סגירת הבקשה</h4>
+
+            <div class="wl-availability-summary">
+
+              <strong>סיבת הסגירה</strong>
+
+              <p>
+                {{ externalClosureReasonLabel(entry.closure_reason) }}
+              </p>
+
+              <ng-container *ngIf="entry.closure_note?.trim()">
+
+                <strong>הערות סגירה</strong>
+
+                <p class="wl-external-multiline">
+                  {{ entry.closure_note }}
+                </p>
+
+              </ng-container>
+
+            </div>
+
+            <div class="wl-details-meta" *ngIf="entry.closed_at">
+              <div>
+                נסגר בתאריך:
+                <strong>{{ entry.closed_at | date:'dd/MM/yyyy HH:mm' }}</strong>
+              </div>
+            </div>
+          </section>
+
+          <!-- מידע נוסף -->
+          <div class="wl-details-meta">
+
+            <div>
+              מספר דחיות:
+              <strong>{{ entry.decline_count}}</strong>
+            </div>
+
+            <div>
+              תאריך הגשת הבקשה:
+              <strong>
+                {{ entry.submitted_at | date:'dd/MM/yyyy HH:mm' }}
+              </strong>
+            </div>
+
+            <div>
+              נקלט במערכת:
+              <strong>
+                {{ entry.imported_at | date:'dd/MM/yyyy HH:mm' }}
+              </strong>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- אזור תחתון קבוע -->
+        <div class="wl-details-footer">
+
+          <button *ngIf="entry.status === 'open'" type="button" class="wl-details-delete-btn"
+            [disabled]="saving() || externalCloseSaving()" (click)="openExternalCloseDialog(entry)">
+            סגירת בקשה
+          </button>
+
+        </div>
+
+      </div>
+
+    </mat-sidenav>
+
+  </mat-sidenav-container>
 
 
   <!-- =====================================
@@ -824,6 +1173,124 @@
     </mat-sidenav>
   </mat-sidenav-container>
 
+  <!-- =====================================
+     EXTERNAL WAITLIST - CLOSE DIALOG
+     ===================================== -->
+
+  <div class="wl-picker-backdrop" *ngIf="externalRequestToClose() as request" (click)="cancelExternalClose()">
+
+    <div class="wl-picker-modal wl-external-close-modal" dir="rtl" role="dialog" aria-modal="true"
+      aria-labelledby="external-close-title" (click)="$event.stopPropagation()">
+
+      <!-- כותרת -->
+      <div class="wl-picker-header">
+
+        <div>
+          <h2 id="external-close-title">
+            סגירת בקשה חיצונית
+          </h2>
+
+          <p>
+            {{ request.first_name }} {{ request.last_name }}
+          </p>
+        </div>
+
+        <button type="button" class="wl-picker-close" aria-label="סגירה" [disabled]="externalCloseSaving()"
+          (click)="cancelExternalClose()">
+          ×
+        </button>
+
+      </div>
+
+      <!-- תוכן -->
+      <div class="wl-picker-content">
+
+        <!-- הודעת שגיאה -->
+        <div class="wl-picker-error" *ngIf="externalCloseError()">
+
+          {{ externalCloseError() }}
+
+        </div>
+
+        <p>
+          הבקשה תועבר לרשימת הבקשות הסגורות
+          ותוסר מהתור הפעיל.
+        </p>
+
+        <!-- סיבת סגירה -->
+        <div class="wl-filter-field">
+
+          <label for="external-close-reason">
+            סיבת סגירה *
+          </label>
+
+          <select id="external-close-reason" [value]="externalCloseReason()" [disabled]="externalCloseSaving()"
+            (change)="externalCloseReason.set($any($event.target).value);
+                    externalCloseError.set(null)">
+
+            <option value="">
+              בחרי סיבת סגירה
+            </option>
+
+            <option *ngFor="let reason of externalClosureReasons" [value]="reason.value">
+              {{ reason.label }}
+            </option>
+
+          </select>
+
+        </div>
+
+        <!-- הערות -->
+        <section class="waiting-notes-section">
+
+          <label for="external-close-note" class="waiting-notes-label">
+            הערות
+
+            <span class="waiting-notes-optional" *ngIf="externalCloseReason() !== 'other'">
+              (לא חובה)
+            </span>
+
+            <span *ngIf="externalCloseReason() === 'other'">
+              *
+            </span>
+          </label>
+
+          <textarea id="external-close-note" class="waiting-notes-textarea" rows="3" maxlength="2000"
+            placeholder="הוספת פרטים על סיבת הסגירה..." [value]="externalCloseNote()" [disabled]="externalCloseSaving()"
+            (input)="externalCloseNote.set($any($event.target).value);
+             externalCloseError.set(null)">
+  </textarea>
+
+        </section>
+
+
+
+      </div>
+
+      <!-- כפתורים -->
+      <div class="wl-picker-footer">
+
+        <button type="button" class="wl-details-soft-btn" [disabled]="externalCloseSaving()"
+          (click)="cancelExternalClose()">
+          ביטול
+        </button>
+
+        <button type="button" class="wl-details-edit-btn" [disabled]="externalCloseSaving()"
+          (click)="confirmExternalClose()">
+
+          {{
+          externalCloseSaving()
+          ? 'שומר סגירה...'
+          : 'אישור סגירת בקשה'
+          }}
+
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
 
   <!-- =====================================
      WAITLIST - CHILD PICKER

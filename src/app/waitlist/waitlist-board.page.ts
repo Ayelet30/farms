@@ -6,7 +6,7 @@ import {
   signal,
   computed
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant, ensureTenantContextReady, getSupabaseClient } from '../services/legacy-compat';
 import { WaitingListDialog } from '../shared/components/waiting-list-dialog/waiting-list-dialog';
@@ -21,6 +21,7 @@ import {
 import { WaitlistEntry } from '../Types/waitlist.types';
 import { WaitlistService, ExternalWaitlistRequest } from '../services/waitlist.service';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { SupabaseTenantService } from '../services/supabase-tenant.service';
 
 type Priority = 0 | 1 | 2;
 
@@ -56,15 +57,21 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
 
   externalLoading = signal(false);
   externalError = signal<string | null>(null);
+  // האם הבקשות החיצוניות נטענו בהצלחה מ-Supabase
+  externalListLoaded = signal(false);
 
   externalSearch = signal('');
-
+  // סינון לפי סוג רכיבה 
   externalRidingTypeId = signal<string>('all');
+
+  // סינון לפי תאריך הגשת הבקשה
+  externalDateFilter = signal<string>('');
 
   // סינון כל הבקשות החיצוניות
   filteredExternalEntries = computed(() => {
     const search = this.externalSearch().trim().toLowerCase();
     const ridingTypeId = this.externalRidingTypeId();
+    const selectedDate = this.externalDateFilter();
 
     return this.externalEntries().filter(entry => {
       const fullName =
@@ -73,28 +80,48 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
       const parentName = (entry.parent_name ?? '').toLowerCase();
       const phone = entry.phone ?? '';
 
+      // חיפוש לפי שם הילד, שם ההורה או טלפון
       const matchesSearch =
         !search ||
         fullName.includes(search) ||
         parentName.includes(search) ||
         phone.includes(search);
 
-      const ridingTypeId = this.externalRidingTypeId();
-
+      // סינון לפי סוג רכיבה
       const matchesRidingType =
         ridingTypeId === 'all' ||
         entry.riding_type_ids.length === 0 ||
         entry.riding_type_ids.includes(ridingTypeId);
 
-      return matchesSearch && matchesRidingType;
+      // סינון לפי יום הגשת הבקשה
+      const matchesDate =
+        !selectedDate ||
+        (
+          !!entry.submitted_at &&
+          formatDate(
+            entry.submitted_at,
+            'yyyy-MM-dd',
+            'en-US'
+          ) === selectedDate
+        );
+
+      return (
+        matchesSearch &&
+        matchesRidingType &&
+        matchesDate
+      );
     });
   });
 
-  // בקשות פתוחות
+  // בקשות פתוחות - מיון לפי המיקום בתור, מהראשון לאחרון
   openExternalEntries = computed(() =>
-    this.filteredExternalEntries().filter(
-      entry => entry.status === 'open'
-    )
+    this.filteredExternalEntries()
+      .filter(entry => entry.status === 'open')
+      .sort((a, b) =>
+        (a.position == null ? Infinity : Number(a.position)) -
+        (b.position == null ? Infinity : Number(b.position)) ||
+        a.id.localeCompare(b.id)
+      )
   );
 
   // בקשות סגורות
@@ -141,6 +168,158 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   selectedEntry = computed(() =>
     this.entries().find(e => e.id === this.expandedEntryId()) ?? null
   );
+
+  // הבקשה החיצונית שנבחרה להצגת פרטים
+  selectedExternalEntryId = signal<string | null>(null);
+
+  selectedExternalEntry = computed(() =>
+    this.externalEntries().find(
+      entry => entry.id === this.selectedExternalEntryId()
+    ) ?? null
+  );
+
+  // פתיחה וסגירה של פרטי בקשה חיצונית
+  toggleExternalDetails(requestId: string): void {
+    if (this.selectedExternalEntryId() === requestId) {
+      this.closeExternalDetails();
+      return;
+    }
+
+    this.closeDetails();
+    this.selectedExternalEntryId.set(requestId);
+  }
+
+  closeExternalDetails(): void {
+    this.selectedExternalEntryId.set(null);
+  }
+
+
+  // תרגום סיבת הסגירה לערך המוצג למשתמשת
+  externalClosureReasonLabel(reason: string | null): string {
+    const reasons: Record<string, string> = {
+      assigned_to_lesson: 'שובץ לשיעור',
+      handled_externally: 'טופל במקור החיצוני',
+      parent_not_interested: 'ההורה אינו מעוניין',
+      unreachable: 'לא ניתן ליצור קשר',
+      duplicate: 'בקשה כפולה',
+      other: 'אחר'
+    };
+
+    return reason ? (reasons[reason] ?? reason) : 'לא צוינה סיבת סגירה';
+  }
+
+  // סיבות הסגירה המותרות לפי אילוצי Supabase
+  readonly externalClosureReasons = [
+    { value: 'assigned_to_lesson', label: 'שובץ לשיעור' },
+    { value: 'handled_externally', label: 'טופל במקור החיצוני' },
+    { value: 'parent_not_interested', label: 'ההורה אינו מעוניין' },
+    { value: 'unreachable', label: 'לא ניתן ליצור קשר' },
+    { value: 'duplicate', label: 'בקשה כפולה' },
+    { value: 'other', label: 'אחר' }
+  ];
+
+  externalRequestToClose = signal<ExternalWaitlistRequest | null>(null);
+  externalCloseReason = signal('');
+  externalCloseNote = signal('');
+  externalCloseSaving = signal(false);
+  externalCloseError = signal<string | null>(null);
+
+  // פתיחת חלון הסגירה
+  openExternalCloseDialog(entry: ExternalWaitlistRequest): void {
+    if (
+      entry.status !== 'open' ||
+      this.saving() ||
+      this.externalCloseSaving()
+    ) {
+      return;
+    }
+
+    this.externalRequestToClose.set(entry);
+    this.externalCloseReason.set('');
+    this.externalCloseNote.set('');
+    this.externalCloseError.set(null);
+  }
+
+  // סגירת החלון ללא שמירה
+  cancelExternalClose(): void {
+    if (this.externalCloseSaving()) return;
+
+    this.externalRequestToClose.set(null);
+    this.externalCloseReason.set('');
+    this.externalCloseNote.set('');
+    this.externalCloseError.set(null);
+  }
+
+  // שמירת הסגירה בשרת
+  async confirmExternalClose(): Promise<void> {
+    const entry = this.externalRequestToClose();
+
+    if (!entry || this.externalCloseSaving()) return;
+
+    const reason = this.externalCloseReason();
+    const note = this.externalCloseNote().trim();
+
+    const validReason = this.externalClosureReasons.some(
+      item => item.value === reason
+    );
+
+    if (!validReason) {
+      this.externalCloseError.set('יש לבחור סיבת סגירה.');
+      return;
+    }
+
+    if (reason === 'other' && !note) {
+      this.externalCloseError.set(
+        'כאשר בוחרים "אחר", חובה למלא הערות.'
+      );
+      return;
+    }
+
+    this.externalCloseSaving.set(true);
+    this.externalCloseError.set(null);
+
+    try {
+      await this.wl.closeExternalRequest(
+        entry.id,
+        reason,
+        note || null
+      );
+
+      // הסגירה הצליחה בשרת: סוגרים את חלונית הפרטים
+      this.closeExternalDetails();
+
+      // טוענים מחדש ישירות מ-Supabase
+      const requests = await this.wl.listExternalRequests();
+
+      this.externalEntries.set(requests);
+      this.externalListLoaded.set(true);
+
+      this.externalRequestToClose.set(null);
+      this.externalCloseReason.set('');
+      this.externalCloseNote.set('');
+
+    } catch (error: any) {
+      console.error('Error closing external request:', error);
+
+      this.externalCloseError.set(
+        error?.message ?? 'לא ניתן לסגור את הבקשה.'
+      );
+
+    } finally {
+      this.externalCloseSaving.set(false);
+    }
+  }
+
+  // קופת חולים, כולל פירוט כאשר נבחר "אחר"
+  externalHealthFundLabel(entry: ExternalWaitlistRequest): string {
+    if (entry.health_fund === 'אחר') {
+      return entry.health_fund_other
+        ? `אחר – ${entry.health_fund_other}`
+        : 'אחר';
+    }
+
+    return entry.health_fund || 'לא צוינה';
+  }
 
   closeDetails(): void {
     ++this.detailsLoadId;
@@ -550,8 +729,8 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
 
     if (this.realtimeDestroyed || this.waitlistChannel) return;
 
-    // הסכמה של החווה הנוכחית
-    const tenantSchema = 'moacha_atarim_app';
+    // הסכמה של החווה הנוכחית מתוך הקשר המשתמש
+    const tenantSchema = this.tenantService.requireTenant().schema;
 
     const sb = getSupabaseClient();
 
@@ -643,7 +822,10 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   }
 
 
-  constructor(private wl: WaitlistService) { }
+  constructor(
+    private wl: WaitlistService,
+    private tenantService: SupabaseTenantService
+  ) { }
 
   async loadFilterData(): Promise<void> {
     try {
@@ -717,11 +899,11 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
 
   // סנכרון וטעינת בקשות ממקור חיצוני
   async loadExternalRequests(): Promise<void> {
-    // מניעת טעינות מקבילות
     if (this.externalLoading()) return;
 
     this.externalLoading.set(true);
     this.externalError.set(null);
+    this.externalListLoaded.set(false);
 
     try {
       // שלב 1: סנכרון בקשות חדשות דרך Firebase
@@ -738,13 +920,16 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     }
 
     try {
-      // שלב 2: טעינת כל הבקשות מ-Supabase
+      // שלב 2: טעינת הבקשות השמורות ב-Supabase
       const requests = await this.wl.listExternalRequests();
 
       this.externalEntries.set(requests);
+      this.externalListLoaded.set(true);
 
     } catch (error: any) {
       console.error('Error loading external requests:', error);
+
+      this.externalListLoaded.set(false);
 
       this.externalError.set(
         'לא ניתן לטעון את הבקשות החיצוניות מ-Supabase.'
@@ -793,7 +978,8 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     const previousTab = this.selectedTab();
 
     this.selectedTab.set(tab);
-    this.expandedEntryId.set(null);
+    this.closeDetails();
+    this.closeExternalDetails();
 
     // סנכרון אוטומטי בכניסה ללשונית החיצונית
     if (tab === 'external' && previousTab !== 'external') {
@@ -1126,6 +1312,15 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     );
   }
 
+  // חסימת גרירה כאשר מופעל סינון בבקשות חיצוניות
+  get hasExternalFilters(): boolean {
+    return (
+      this.externalRidingTypeId() !== 'all' ||
+      this.externalSearch().trim() !== '' ||
+      this.externalDateFilter() !== ''
+    );
+  }
+
   // השהיה או החזרה לפעיל
   async togglePause(entry: WaitlistEntry): Promise<void> {
     if (this.saving()) return;
@@ -1235,5 +1430,77 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
       'גרירה אינה זמינה'
     );
   }
+
+  // הצגת הודעה כאשר מנסים לגרור בקשה חיצונית בזמן סינון
+  showFilteredExternalDragMessage(): void {
+    if (!this.hasExternalFilters) return;
+
+    this.ui.alert(
+      'לא ניתן לגרור רשומות כאשר מופעל סינון.',
+      'גרירה אינה זמינה'
+    );
+  }
+
+  // שינוי מיקום באמצעות גרירה בתור הבקשות החיצוניות
+  async dropExternal(
+    event: CdkDragDrop<ExternalWaitlistRequest[]>
+  ): Promise<void> {
+    if (this.hasExternalFilters) return;
+    if (this.saving() || this.externalLoading()) return;
+    if (event.previousIndex === event.currentIndex) return;
+    if (event.previousContainer !== event.container) return;
+
+    const items = [...event.container.data];
+    const moved = items[event.previousIndex];
+
+    if (!moved || moved.status !== 'open') return;
+
+    const targetPosition = event.currentIndex + 1;
+
+    this.saving.set(true);
+    this.externalError.set(null);
+
+    try {
+      await this.wl.reorderExternalRequest(
+        moved.id,
+        targetPosition
+      );
+
+      // רענון הנתונים ישירות מ-Supabase,
+      // ללא הפעלת סנכרון נוסף מול Google Sheets
+      const requests = await this.wl.listExternalRequests();
+
+      this.externalEntries.set(requests);
+      this.externalListLoaded.set(true);
+
+    } catch (error: any) {
+      console.error(
+        'Error reordering external request:',
+        error
+      );
+
+      this.externalError.set(
+        error?.message ??
+        'לא ניתן לשנות את מיקום הבקשה בתור החיצוני.'
+      );
+
+      // שחזור התצוגה לפי המצב השמור בשרת
+      try {
+        const requests = await this.wl.listExternalRequests();
+        this.externalEntries.set(requests);
+        this.externalListLoaded.set(true);
+      } catch (refreshError) {
+        console.error(
+          'Error refreshing external requests:',
+          refreshError
+        );
+      }
+
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+
 
 }

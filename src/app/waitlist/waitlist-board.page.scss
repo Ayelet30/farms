@@ -1,3 +1,4 @@
+@use '../shared/components/waitlist-styles/waitlist-notes';
 :host {
   display: block;
   direction: rtl;
@@ -1516,17 +1517,85 @@
   display: contents;
 }
 
-/* מבנה שבע העמודות של הבקשות החיצוניות */
-.wl-table-head.external-head,
-.wl-table-row.external-row {
-  grid-template-columns:
-    90px
-    150px
-    120px
-    130px
-    minmax(130px, 1fr)
-    120px
-    minmax(155px, 1fr);
+/* =========================================
+   EXTERNAL WAITLIST - DETAILS
+   ========================================= */
 
-  min-width: 1000px;
+/* פרטי התקשרות - כרטיסיות מסודרות */
+.wl-external-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.wl-external-contact-item {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+
+  min-width: 0;
+  padding: 13px;
+
+  border-radius: 13px;
+  background: #f4f5ee;
+
+  span {
+    color: #6a765d;
+    font-size: 0.82rem;
+  }
+
+  strong {
+    color: #344528;
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+  }
+
+  strong[dir="ltr"] {
+    text-align: right;
+  }
+}
+
+/* מייל וטקסטים ארוכים */
+.wl-external-email {
+  direction: ltr;
+  unicode-bidi: plaintext;
+}
+
+.wl-external-multiline {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ניסיון קודם ברכיבה */
+.wl-external-experience {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  .wl-detail-value {
+    margin: 0;
+  }
+}
+
+.wl-external-experience-details {
+  margin: 0;
+  color: #6a765d;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* התאמת חלון בחירת הילד לשימוש כטופס סגירת בקשה */
+.wl-external-close-modal {
+
+  .wl-picker-content {
+    overflow-y: auto;
+    gap: 16px;
+  }
+
+  .wl-picker-footer {
+    gap: 10px;
+  }
+
 }

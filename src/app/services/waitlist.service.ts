@@ -48,6 +48,9 @@ export interface ExternalWaitlistRequest {
   priority: number;
   position: number | null;
 
+  // מספר הצעות שיבוץ שנדחו
+  decline_count: number;
+
   // סטטוס
   status: 'open' | 'closed';
   notes: string | null;
@@ -246,6 +249,24 @@ export class WaitlistService {
       'waitlist_reorder_within_priority',
       {
         p_entry_id: entryId,
+        p_target_position: targetPosition
+      }
+    );
+
+    if (error) throw error;
+  }
+
+  // שינוי מיקום בתור הבקשות החיצוניות
+  async reorderExternalRequest(
+    requestId: string,
+    targetPosition: number
+  ): Promise<void> {
+    await ensureTenantContextReady();
+
+    const { error } = await dbTenant().rpc(
+      'waitlist_reorder_external_request',
+      {
+        p_request_id: requestId,
         p_target_position: targetPosition
       }
     );
@@ -653,6 +674,7 @@ export class WaitlistService {
       availability,
       priority,
       position,
+      decline_count,
       status,
       notes,
       closure_reason,
@@ -706,6 +728,26 @@ export class WaitlistService {
       ...request,
       riding_type_ids: ridingTypesByRequest[request.id] ?? []
     }));
+  }
+
+  // סגירת בקשה חיצונית
+  async closeExternalRequest(
+    requestId: string,
+    reason: string,
+    note: string | null
+  ): Promise<void> {
+    await ensureTenantContextReady();
+
+    const { error } = await dbTenant().rpc(
+      'waitlist_close_external_request',
+      {
+        p_request_id: requestId,
+        p_closure_reason: reason,
+        p_closure_note: note
+      }
+    );
+
+    if (error) throw error;
   }
 
 }

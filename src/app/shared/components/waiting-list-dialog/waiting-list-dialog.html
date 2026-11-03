@@ -20,8 +20,8 @@
               {{ childName }}
             </span>
 
-            <span class="mode-chip">
-              רשימת המתנה
+            <span class="mode-chip" [class.edit]="isEditMode">
+              {{ isEditMode ? 'מצב עריכה' : 'רשימת המתנה' }}
             </span>
           </div>
         </div>
