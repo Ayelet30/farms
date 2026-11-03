@@ -730,6 +730,53 @@ export class WaitlistService {
     }));
   }
 
+  // עריכת בקשה חיצונית באמצעות RPC מאובטח
+  async updateExternalRequest(payload: {
+    requestId: string;
+    parentName: string;
+    phone: string;
+    additionalPhone: string;
+    email: string;
+    healthFund: string;
+    healthFundOther: string;
+    previousRiding: string | null;
+    previousRidingDetails: string;
+    referralReasonText: string;
+    ridingTypeIds: string[];
+    availability: ExternalWaitlistAvailability;
+  }): Promise<void> {
+
+    await ensureTenantContextReady();
+
+    const { data, error } = await dbTenant().rpc(
+      'waitlist_update_external_request',
+      {
+        p_request_id: payload.requestId,
+        p_parent_name: payload.parentName,
+        p_phone: payload.phone,
+        p_additional_phone: payload.additionalPhone,
+        p_email: payload.email,
+        p_health_fund: payload.healthFund,
+        p_health_fund_other: payload.healthFundOther,
+        p_previous_riding: payload.previousRiding,
+        p_previous_riding_details: payload.previousRidingDetails,
+        p_referral_reason_text: payload.referralReasonText,
+        p_riding_type_ids: payload.ridingTypeIds,
+        p_availability: payload.availability
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    if (data !== payload.requestId) {
+      throw new Error(
+        'לא התקבל אישור לעדכון הבקשה'
+      );
+    }
+  }
+
   // סגירת בקשה חיצונית
   async closeExternalRequest(
     requestId: string,

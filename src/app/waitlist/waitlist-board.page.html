@@ -69,9 +69,10 @@
       <div class="wl-filter-field">
         <label for="wl-riding-filter">סוג רכיבה</label>
 
-        <select id="wl-riding-filter" [value]="selectedRidingTypeId()"
-          (change)="selectedRidingTypeId.set($any($event.target).value)">
+        <select id="wl-riding-filter" [class.wl-filter-empty]="selectedRidingTypeId() === 'none'"
+          [value]="selectedRidingTypeId()" (change)="selectedRidingTypeId.set($any($event.target).value)">
 
+          <option value="none">ללא סינון</option>
           <option value="all">כל סוגי הרכיבה</option>
 
           <option *ngFor="let type of filterRidingTypes()" [value]="type.id">
@@ -85,9 +86,10 @@
       <div class="wl-filter-field">
         <label for="wl-instructor-filter">העדפת מדריך</label>
 
-        <select id="wl-instructor-filter" [value]="selectedInstructorId()"
-          (change)="selectedInstructorId.set($any($event.target).value)">
+        <select id="wl-instructor-filter" [class.wl-filter-empty]="selectedInstructorId() === 'none'"
+          [value]="selectedInstructorId()" (change)="selectedInstructorId.set($any($event.target).value)">
 
+          <option value="none">ללא סינון</option>
           <option value="all">כל המדריכים</option>
 
           <option *ngFor="let instructor of filterInstructors()" [value]="instructor.id_number">
@@ -100,8 +102,8 @@
       <!-- ניקוי סינון -->
       <div class="wl-filter-actions">
         <button type="button" class="wl-clear-btn" (click)="childSearch.set('');
-                 selectedRidingTypeId.set('all');
-                 selectedInstructorId.set('all')">
+                 selectedRidingTypeId.set('none');
+                 selectedInstructorId.set('none')">
           ניקוי סינון
         </button>
       </div>
@@ -346,9 +348,10 @@
         <div class="wl-filter-field">
           <label for="external-riding-type">סוג רכיבה</label>
 
-          <select id="external-riding-type" [value]="externalRidingTypeId()"
-            (change)="externalRidingTypeId.set($any($event.target).value)">
+          <select id="external-riding-type" [class.wl-filter-empty]="externalRidingTypeId() === 'none'"
+            [value]="externalRidingTypeId()" (change)="externalRidingTypeId.set($any($event.target).value)">
 
+            <option value="none">ללא סינון</option>
             <option value="all">כל סוגי הרכיבה</option>
 
             <option *ngFor="let type of filterRidingTypes()" [value]="type.id">
@@ -364,14 +367,14 @@
             תאריך הגשת הבקשה
           </label>
 
-          <input id="external-date-filter" type="date" [value]="externalDateFilter()"
-            (change)="externalDateFilter.set($any($event.target).value)" />
+          <input id="external-date-filter" type="date" [class.wl-filter-empty]="!externalDateFilter()"
+            [value]="externalDateFilter()" (change)="externalDateFilter.set($any($event.target).value)" />
         </div>
 
         <!-- ניקוי סינון -->
         <div class="wl-filter-actions">
           <button type="button" class="wl-clear-btn" (click)="externalSearch.set('');
-                 externalRidingTypeId.set('all');
+                 externalRidingTypeId.set('none');
                  externalDateFilter.set('')">
             ניקוי סינון
           </button>
@@ -670,8 +673,8 @@
         <!-- פעולות עליונות -->
         <div class="wl-details-top-actions">
 
-          <button *ngIf="entry.status === 'open'" type="button" class="wl-details-edit-btn" disabled
-            title="עריכת בקשה חיצונית תתווסף בהמשך">
+          <button *ngIf="entry.status === 'open'" type="button" class="wl-details-edit-btn"
+            [disabled]="saving() || externalLoading()" (click)="openExternalEdit(entry)">
             עריכה
           </button>
 
@@ -1362,6 +1365,13 @@
 
     </div>
   </div>
+
+  <!-- עריכת בקשת המתנה ממקור חיצוני -->
+
+  <app-external-waitlist-edit *ngIf="editingExternalRequest() as request" [request]="request"
+    [ridingTypes]="filterRidingTypes()" [farmHours]="externalFarmWorkingHours()" (closed)="closeExternalEdit()"
+    (saved)="onExternalEditSaved()">
+  </app-external-waitlist-edit>
 
 
   <!-- =====================================

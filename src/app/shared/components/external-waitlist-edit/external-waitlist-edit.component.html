@@ -1,0 +1,387 @@
+<div class="waiting-modal-backdrop" dir="rtl" (click)="cancel()">
+
+    <section class="waiting-modal" role="dialog" aria-modal="true" aria-labelledby="external-edit-title"
+        (click)="$event.stopPropagation()">
+
+        <!-- כותרת -->
+        <div class="drawer-top">
+
+            <div class="drawer-top-main">
+
+                <button type="button" class="close-btn" aria-label="סגירה" [disabled]="saving" (click)="cancel()">
+                    ✕
+                </button>
+
+                <div class="drawer-heading">
+
+                    <h3 id="external-edit-title">
+                        עריכת בקשת המתנה ממקור חיצוני
+                    </h3>
+
+                    <div class="drawer-sub">
+
+                        <span class="child-fullname">
+                            {{ request.first_name }} {{ request.last_name }}
+                        </span>
+
+                        <span class="mode-chip edit">
+                            מצב עריכה
+                        </span>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="drawer-actions waiting-list-top-actions">
+
+                <button type="button" class="secondary" [disabled]="saving" (click)="cancel()">
+                    ביטול
+                </button>
+
+                <button type="button" class="primary" [disabled]="saving || hasInvalidAvailability" (click)="save()">
+                    {{ saving ? 'שומר...' : 'שמירה' }}
+                </button>
+
+            </div>
+        </div>
+
+        <!-- הודעת שגיאה קבועה מעל אזור התוכן הנגלל -->
+        <div *ngIf="error" class="waiting-validation-error" role="alert" aria-live="assertive">
+            {{ error }}
+        </div>
+
+        <!-- גוף החלון -->
+        <div class="drawer-form">
+
+            <div class="waiting-list-content">
+
+                <!-- גיל הילד -->
+                <div class="waiting-list-age">
+                    <label>גיל הילד/ה</label>
+                    <div class="val">
+                        {{ age ?? 'לא ידוע' }}
+                    </div>
+                </div>
+
+                <div class="waiting-section-divider"></div>
+
+                <!-- סוגי רכיבה -->
+                <h4 class="section-title">
+                    בחירת סוגי רכיבה
+                </h4>
+
+                <label class="waiting-list-option">
+                    <input type="radio" name="externalRidingMode" [checked]="allRidingTypes"
+                        (change)="chooseAllRidingTypes(true)" />
+
+                    כל סוגי הרכיבה
+                </label>
+
+                <label class="waiting-list-option">
+                    <input type="radio" name="externalRidingMode" [checked]="!allRidingTypes"
+                        (change)="chooseAllRidingTypes(false)" />
+
+                    בחירת סוגי רכיבה מסוימים
+                </label>
+
+                <div class="waiting-list-select" *ngIf="!allRidingTypes">
+
+                    <button type="button" class="waiting-list-select-trigger" [attr.aria-expanded]="ridingOpen"
+                        (click)="ridingOpen = !ridingOpen">
+
+                        <span>
+                            {{
+                            ridingTypeIds.length
+                            ? 'נבחרו ' + ridingTypeIds.length + ' סוגי רכיבה'
+                            : 'בחרי סוגי רכיבה'
+                            }}
+                        </span>
+
+                        <span>
+                            {{ ridingOpen ? '▲' : '▼' }}
+                        </span>
+                    </button>
+
+                    <div class="waiting-list-dropdown" *ngIf="ridingOpen">
+
+                        <input class="waiting-list-search" type="search" placeholder="חיפוש סוג רכיבה..."
+                            [(ngModel)]="ridingSearch" />
+
+                        <div class="waiting-list-instructor-options">
+
+                            <label *ngFor="let type of filteredRidingTypes" class="waiting-list-option">
+
+                                <input type="checkbox" [checked]="ridingTypeIds.includes(type.id)" (change)="toggleRidingType(
+                    type.id,
+                    $any($event.target).checked
+                  )" />
+
+                                {{ type.name }}
+
+                            </label>
+
+                        </div>
+                    </div>
+
+                    <div class="waiting-list-selected" *ngIf="ridingTypeIds.length">
+
+                        <ng-container *ngFor="let type of ridingTypes">
+                            <span class="waiting-list-chip" *ngIf="ridingTypeIds.includes(type.id)">
+                                {{ type.name }}
+                            </span>
+                        </ng-container>
+
+                    </div>
+                </div>
+
+                <div class="waiting-section-divider"></div>
+
+                <!-- זמינות -->
+                <section class="waiting-availability">
+
+                    <h4 class="section-title">
+                        זמינות לשיעורים
+                    </h4>
+
+                    <div class="waiting-availability-modes">
+
+                        <label class="waiting-availability-option">
+                            <input type="radio" name="externalTimeMode" [checked]="allTimes"
+                                (change)="setAllTimes(true)" />
+
+                            <span>כל הימים והשעות</span>
+                        </label>
+
+                        <label class="waiting-availability-option">
+                            <input type="radio" name="externalTimeMode" [checked]="!allTimes"
+                                (change)="setAllTimes(false)" />
+
+                            <span>הגדרת זמינות מותאמת</span>
+                        </label>
+
+                    </div>
+
+                    <div class="waiting-availability-custom" *ngIf="!allTimes">
+
+                        <h5>באילו ימים הילד/ה זמין/ה?</h5>
+
+                        <div class="waiting-days-grid">
+
+                            <button type="button" *ngFor="let day of availableDays" class="waiting-day-button"
+                                [class.selected]="!!getDay(day.id)" [attr.aria-pressed]="!!getDay(day.id)"
+                                (click)="toggleDay(day.id)">
+
+                                <span>
+                                    {{ getDay(day.id) ? '✓' : '+' }}
+                                </span>
+
+                                <span>{{ day.name }}</span>
+                            </button>
+
+                        </div>
+
+                        <div class="waiting-availability-hint" *ngIf="!days.length">
+                            יש לבחור לפחות יום אחד.
+                        </div>
+
+                        <ng-container *ngFor="let day of weekDays">
+
+                            <div class="waiting-day-wrapper" *ngIf="getDay(day.id) as selectedDay">
+
+                                <div class="waiting-time-card">
+
+                                    <h5>יום {{ day.name }}</h5>
+
+                                    <div class="waiting-farm-hours" *ngIf="getHours(day.id) as hours">
+
+                                        שעות פעילות החווה:
+                                        {{ hours.farm_start }}–{{ hours.farm_end }}
+
+                                    </div>
+
+                                    <div class="waiting-time-range">
+
+                                        <div class="waiting-time-fields">
+
+                                            <label>
+                                                זמין/ה החל משעה
+
+                                                <input type="time" [(ngModel)]="selectedDay.start"
+                                                    [min]="getHours(day.id)?.farm_start || ''"
+                                                    [max]="getHours(day.id)?.farm_end || ''"
+                                                    (change)="validateDayStart(day.id)" />
+
+                                                <div *ngIf="getDayStartError(day.id) as timeError"
+                                                    class="waiting-validation-error" role="alert">
+                                                    {{ timeError }}
+                                                </div>
+
+                                            </label>
+
+                                        </div>
+                                    </div>
+
+                                    <p class="waiting-availability-hint">
+                                        הזמינות היא משעה זו עד סוף שעות
+                                        פעילות החווה.
+                                    </p>
+
+                                </div>
+                            </div>
+
+                        </ng-container>
+
+                    </div>
+
+                    <div class="waiting-availability-summary">
+
+                        <h5>סיכום הזמינות</h5>
+
+                        <div class="waiting-summary-line" *ngFor="let line of availabilitySummary()"
+                            [class.waiting-summary-error]="line.includes('יש לתקן שגיאות בשעות')">
+                            {{ line }}
+                        </div>
+
+                    </div>
+
+                </section>
+
+                <div class="waiting-section-divider"></div>
+
+                <!-- קופת חולים -->
+                <h4 class="section-title">קופת חולים</h4>
+
+                <div class="external-edit-fields">
+
+                    <label>
+                        קופת חולים
+
+                        <select [(ngModel)]="healthFund">
+                            <option value="כללית">כללית</option>
+                            <option value="מכבי">מכבי</option>
+                            <option value="מאוחדת">מאוחדת</option>
+                            <option value="לאומית">לאומית</option>
+                            <option value="אחר">אחר</option>
+                        </select>
+                    </label>
+
+                    <label *ngIf="healthFund === 'אחר'">
+                        שם קופת חולים *
+
+                        <input type="text" [(ngModel)]="healthFundOther" maxlength="150" />
+                    </label>
+
+                </div>
+
+                <div class="waiting-section-divider"></div>
+
+                <!-- פרטי התקשרות -->
+                <h4 class="section-title">פרטי התקשרות</h4>
+
+                <div class="external-edit-fields">
+
+                    <label>
+                        שם ההורה
+
+                        <input type="text" [(ngModel)]="parentName" maxlength="200" />
+                    </label>
+
+                    <label>
+                        טלפון
+
+                        <input type="tel" dir="ltr" [(ngModel)]="phone" maxlength="30" />
+                    </label>
+
+                    <label>
+                        טלפון נוסף
+
+                        <input type="tel" dir="ltr" [(ngModel)]="additionalPhone" maxlength="30" />
+                    </label>
+
+                    <label>
+                        כתובת מייל
+
+                        <input type="email" dir="ltr" [(ngModel)]="email" maxlength="254" />
+                    </label>
+
+                </div>
+
+                <div class="waiting-section-divider"></div>
+
+                <!-- ניסיון קודם -->
+                <h4 class="section-title">ניסיון קודם ברכיבה</h4>
+
+                <div class="external-edit-fields">
+
+                    <label>
+                        האם יש ניסיון קודם?
+
+                        <select [(ngModel)]="previousRiding">
+                            <option value="">לא צוין</option>
+                            <option value="true">כן</option>
+                            <option value="false">לא</option>
+                        </select>
+                    </label>
+
+                </div>
+
+                <section class="waiting-notes-section" *ngIf="previousRiding === 'true'">
+
+                    <label for="external-previous-riding-details" class="waiting-notes-label">
+
+                        פירוט הניסיון הקודם
+
+                        <span class="waiting-notes-optional">
+                            (לא חובה)
+                        </span>
+
+                    </label>
+
+                    <textarea id="external-previous-riding-details" class="waiting-notes-textarea" rows="2"
+                        maxlength="2000" [(ngModel)]="previousRidingDetails"
+                        placeholder="פירוט הניסיון הקודם ברכיבה...">
+  </textarea>
+
+                </section>
+
+                <div class="waiting-section-divider"></div>
+
+                <!-- סיבת הפנייה -->
+                <section class="waiting-notes-section">
+
+                    <label class="waiting-notes-label" for="external-edit-reason">
+
+                        סיבת הפנייה
+
+                        <span class="waiting-notes-optional">
+                            (לא חובה)
+                        </span>
+                    </label>
+
+                    <textarea id="external-edit-reason" class="waiting-notes-textarea" rows="3" maxlength="2000"
+                        [(ngModel)]="referralReasonText"
+                        placeholder="ניתן לפרט את סיבת הפנייה או להוסיף מידע רלוונטי לבקשה...">
+          </textarea>
+
+                </section>
+
+                <div class="waiting-section-divider"></div>
+
+            </div>
+
+            <!-- כפתורים תחתונים -->
+            <div class="drawer-footer waiting-list-footer-actions">
+
+                <button type="button" class="secondary" [disabled]="saving" (click)="cancel()">
+                    ביטול
+                </button>
+
+                <button type="button" class="primary" [disabled]="saving || hasInvalidAvailability" (click)="save()">
+                    {{ saving ? 'שומר...' : 'שמירה' }}
+                </button>
+
+            </div>
+
+        </div>
+    </section>
+</div>

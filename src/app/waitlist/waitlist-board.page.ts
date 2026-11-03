@@ -22,6 +22,7 @@ import { WaitlistEntry } from '../Types/waitlist.types';
 import { WaitlistService, ExternalWaitlistRequest } from '../services/waitlist.service';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { SupabaseTenantService } from '../services/supabase-tenant.service';
+import { ExternalWaitlistEditComponent } from '../shared/components/external-waitlist-edit/external-waitlist-edit.component';
 
 type Priority = 0 | 1 | 2;
 
@@ -33,6 +34,7 @@ type Priority = 0 | 1 | 2;
     FormsModule,
     DragDropModule,
     WaitingListDialog,
+    ExternalWaitlistEditComponent,
     MatSidenavModule
   ],
   templateUrl: './waitlist-board.page.html',
@@ -62,7 +64,7 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
 
   externalSearch = signal('');
   // סינון לפי סוג רכיבה 
-  externalRidingTypeId = signal<string>('all');
+  externalRidingTypeId = signal<string>('none');
 
   // סינון לפי תאריך הגשת הבקשה
   externalDateFilter = signal<string>('');
@@ -89,10 +91,13 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
 
       // סינון לפי סוג רכיבה
       const matchesRidingType =
-        ridingTypeId === 'all' ||
-        entry.riding_type_ids.length === 0 ||
-        entry.riding_type_ids.includes(ridingTypeId);
-
+        ridingTypeId === 'none' ||
+        (
+          ridingTypeId === 'all'
+            ? entry.riding_type_ids.length === 0
+            : entry.riding_type_ids.length === 0 ||
+            entry.riding_type_ids.includes(ridingTypeId)
+        );
       // סינון לפי יום הגשת הבקשה
       const matchesDate =
         !selectedDate ||
@@ -140,8 +145,8 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     return this.childNamesById()[childUuid] ?? 'ילד/ה לא נמצא/ה';
   }
 
-  selectedRidingTypeId = signal<string>('all');
-  selectedInstructorId = signal<string>('all');
+  selectedRidingTypeId = signal<string>('none');
+  selectedInstructorId = signal<string>('none');
   childSearch = signal<string>('');
 
   // אפשרויות הסינון
@@ -177,6 +182,66 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
       entry => entry.id === this.selectedExternalEntryId()
     ) ?? null
   );
+
+  // ==========================================
+  // EXTERNAL WAITLIST - EDIT REQUEST
+  // ==========================================
+
+  // הבקשה החיצונית שנמצאת בעריכה
+  editingExternalRequest =
+    signal<ExternalWaitlistRequest | null>(null);
+
+  // פתיחת חלון העריכה
+  openExternalEdit(entry: ExternalWaitlistRequest): void {
+    if (
+      entry.status !== 'open' ||
+      this.saving() ||
+      this.externalLoading()
+    ) {
+      return;
+    }
+
+    this.editingExternalRequest.set(entry);
+  }
+
+  // ביטול עריכה ללא שמירה
+  closeExternalEdit(): void {
+    this.editingExternalRequest.set(null);
+  }
+
+  // טיפול בשמירה מוצלחת
+  async onExternalEditSaved(): Promise<void> {
+
+    this.closeExternalEdit();
+    this.closeExternalDetails();
+
+    try {
+      // טעינה ישירות מ-Supabase
+      // ללא סנכרון נוסף מול Google Sheets
+      const requests =
+        await this.wl.listExternalRequests();
+
+      this.externalEntries.set(requests);
+      this.externalListLoaded.set(true);
+      this.externalError.set(null);
+
+      await this.ui.alert(
+        'פרטי הבקשה עודכנו בהצלחה.',
+        'העדכון הושלם'
+      );
+
+    } catch (error: any) {
+
+      console.error(
+        'Refresh after external update failed:',
+        error
+      );
+
+      this.externalError.set(
+        'הבקשה נשמרה, אך לא ניתן לרענן את הרשימה. רענני את העמוד.'
+      );
+    }
+  }
 
   // פתיחה וסגירה של פרטי בקשה חיצונית
   toggleExternalDetails(requestId: string): void {
@@ -338,27 +403,42 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     // חיפוש לפי שם הילד
     if (search) {
       const name = this.childName(entry.child_uuid).toLowerCase();
-      if (!name.includes(search)) return false;
+
+      if (!name.includes(search)) {
+        return false;
+      }
     }
 
     // סינון לפי סוג רכיבה
-    if (ridingTypeId !== 'all') {
+    if (ridingTypeId === 'all') {
+      if (!entry.all_riding_types) {
+        return false;
+      }
+    } else if (ridingTypeId !== 'none') {
       const matchesRiding =
         entry.all_riding_types ||
         (this.ridingTypesByEntry()[entry.id] ?? [])
           .includes(ridingTypeId);
 
-      if (!matchesRiding) return false;
+      if (!matchesRiding) {
+        return false;
+      }
     }
 
-    // סינון לפי מדריך
-    if (instructorId !== 'all') {
+    // סינון לפי העדפת מדריך
+    if (instructorId === 'all') {
+      if (!entry.all_instructors) {
+        return false;
+      }
+    } else if (instructorId !== 'none') {
       const matchesInstructor =
         entry.all_instructors ||
         (this.instructorsByEntry()[entry.id] ?? [])
           .includes(instructorId);
 
-      if (!matchesInstructor) return false;
+      if (!matchesInstructor) {
+        return false;
+      }
     }
 
     return true;
@@ -1305,21 +1385,21 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
 
   // חסימת הגרירה ברגע שסינון מופעל
   get hasActiveFilters(): boolean {
-    return (
-      this.selectedRidingTypeId() !== 'all' ||
-      this.selectedInstructorId() !== 'all' ||
-      this.childSearch().trim() !== ''
-    );
-  }
+  return (
+    this.selectedRidingTypeId() !== 'none' ||
+    this.selectedInstructorId() !== 'none' ||
+    this.childSearch().trim() !== ''
+  );
+}
 
   // חסימת גרירה כאשר מופעל סינון בבקשות חיצוניות
   get hasExternalFilters(): boolean {
-    return (
-      this.externalRidingTypeId() !== 'all' ||
-      this.externalSearch().trim() !== '' ||
-      this.externalDateFilter() !== ''
-    );
-  }
+  return (
+    this.externalRidingTypeId() !== 'none' ||
+    this.externalSearch().trim() !== '' ||
+    this.externalDateFilter() !== ''
+  );
+}
 
   // השהיה או החזרה לפעיל
   async togglePause(entry: WaitlistEntry): Promise<void> {
