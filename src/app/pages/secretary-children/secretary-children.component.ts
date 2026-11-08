@@ -36,6 +36,14 @@ import { AddChildWizardComponent } from '../add-child-wizard/add-child-wizard.co
 import { ActivatedRoute } from '@angular/router';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+type SeriesReferral = {
+  id: string;
+  url: string;
+  name: string;
+  uploadedAt: string | null;
+  validUntil: string | null;
+};
+
 
 type SeriesDocRow = {
   lessonId: string;
@@ -60,6 +68,8 @@ type SeriesDocRow = {
     paymentPlanName: string;
     effectiveFrom: string;
   }[];
+
+  paymentDocsHistory: SeriesReferral[];
 
   requiredDocs: string[];
   requireDocsAtBooking: boolean | null;
@@ -124,6 +134,7 @@ type ChildDocumentRow = {
   mimeType: string | null;
   fileSize: number | null;
   createdAt: string;
+  documentType: string;
 };
 
 type HorseLite = {
@@ -369,74 +380,7 @@ export class SecretaryChildrenComponent implements OnInit {
   };
 
   uploadingSeriesDocLessonId: string | null = null;
-  deletingSeriesDocLessonId: string | null = null;
 
-async deleteSeriesReferral(row: SeriesDocRow): Promise<void> {
-  if (
-    !row.paymentDocsUrl ||
-    this.uploadingSeriesDocLessonId ||
-    this.deletingSeriesDocLessonId
-  ) {
-    return;
-  }
-
-  const lessonId = row.lessonId;
-  const previousUrl = row.paymentDocsUrl;
-
-  // נעילה גם בזמן הצגת חלונית האישור.
-  this.deletingSeriesDocLessonId = lessonId;
-
-  try {
-    const confirmed = await this.ui.confirm({
-      title: 'מחיקת הפניה',
-      message:
-        'להסיר את ההפניה מסדרה זו? לאחר ההסרה ניתן להעלות הפניה חדשה.',
-      okText: 'מחיקת הפניה',
-      cancelText: 'ביטול',
-      dangerText: 'מחיקת הפניה',
-    });
-
-    if (!confirmed) return;
-
-    const db = await this.dbc();
-
-    const { data, error } = await db
-      .from('lessons')
-      .update({ payment_docs_url: null })
-      .eq('id', lessonId)
-      .eq('payment_docs_url', previousUrl)
-      .select('id')
-      .maybeSingle();
-
-    if (error) throw error;
-
-    if (!data) {
-      throw new Error(
-        'ההפניה השתנתה או שאין הרשאה למחיקה. יש לפתוח מחדש את פרטי הילד.'
-      );
-    }
-
-    this.seriesDocs = this.seriesDocs.map((series) =>
-      series.lessonId === lessonId
-        ? { ...series, paymentDocsUrl: null }
-        : series
-    );
-
-    await this.ui.alert(
-      'ההפניה הוסרה מהסדרה. ניתן להעלות הפניה חדשה.',
-      'המחיקה בוצעה'
-    );
-  } catch (error: any) {
-    console.error('deleteSeriesReferral error:', error);
-
-    await this.ui.alert(
-      'מחיקת ההפניה נכשלה: ' + (error?.message ?? error),
-      'שגיאה'
-    );
-  } finally {
-    this.deletingSeriesDocLessonId = null;
-  }
-}
   constructor(
     private ui: UiDialogService,
     private fb: FormBuilder,
@@ -866,90 +810,298 @@ scheduled_deletion_at,deletion_note
       console.error('loadHorsesAndChildMapping fatal:', e);
     }
   }
-  async uploadSeriesReferral(
-    event: Event,
-    lessonId: string,
-  ): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
+  referralBusy = false;
 
-    if (
-  this.uploadingSeriesDocLessonId ||
-  this.deletingSeriesDocLessonId
-) {
-  input.value = '';
-  return;
+referralDrafts: Record<string, {
+  file: File | null;
+  validUntil: string;
+}> = {};
+
+referralDraft(lessonId: string) {
+  return this.referralDrafts[lessonId] ??= {
+    file: null,
+    validUntil: '',
+  };
 }
 
-    if (!file) return;
-    if (!this.isAllowedReferralFile(file)) {
-      await this.ui.alert(
-        'ניתן להעלות רק קובצי PDF או תמונות (PNG/JPG/WEBP).',
-        'קובץ לא נתמך'
-      );
-      input.value = '';
-      return;
-    }
+selectSeriesReferral(event: Event, lessonId: string): void {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0] ?? null;
 
-    try {
-      this.uploadingSeriesDocLessonId = lessonId;
-
-      const db = await this.dbc();
-      const client = getSupabaseClient();
-
-      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-      const safeExt = fileExt || 'pdf';
-      const fileName = `${lessonId}-${Date.now()}.${safeExt}`;
-
-      // אפשר לשנות את שם הבאקט לפי מה שיש אצלך בפועל
-      const bucketName = 'referrals';
-      const filePath = `series-referrals/${fileName}`;
-
-      const { error: uploadError } = await client.storage
-        .from(bucketName)
-        .upload(filePath, file, {
-          upsert: true,
-          contentType: file.type || undefined,
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: publicData } = client.storage
-        .from(bucketName)
-        .getPublicUrl(filePath);
-
-      const publicUrl = publicData?.publicUrl;
-      if (!publicUrl) {
-        throw new Error('לא נוצר URL למסמך שהועלה');
-      }
-
-      const { error: updateError } = await db
-        .from('lessons')
-        .update({
-          payment_docs_url: publicUrl,
-        })
-        .eq('id', lessonId);
-
-      if (updateError) throw updateError;
-
-      this.seriesDocs = this.seriesDocs.map((row) =>
-        row.lessonId === lessonId
-          ? { ...row, paymentDocsUrl: publicUrl }
-          : row
-      );
-
-      await this.ui.alert('ההפניה הועלתה ונשמרה בהצלחה.', 'העלאת הפניה');
-    } catch (e: any) {
-      console.error('uploadSeriesReferral error:', e);
-      await this.ui.alert(
-        'העלאת ההפניה נכשלה: ' + (e?.message ?? e),
-        'שגיאה'
-      );
-    } finally {
-      this.uploadingSeriesDocLessonId = null;
-      input.value = '';
-    }
+  if (!this.referralBusy) {
+    this.referralDraft(lessonId).file = file;
   }
+
+  input.value = '';
+}
+
+referralExpired(doc: SeriesReferral): boolean {
+  if (!doc.validUntil) return false;
+
+  const now = new Date();
+  const today = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-');
+
+  return doc.validUntil < today;
+}
+
+/**
+ * קוראים מחדש לפני שמירה.
+ * מוסיפים גם קישור קיים שלא נכנס להיסטוריה,
+ * למשל אם הועלה דרך מסך אחר.
+ */
+private async readSeriesReferrals(lessonId: string) {
+  const db = await this.dbc();
+
+  const { data, error } = await db
+    .from('lessons')
+    .select('id, payment_docs_url, payment_docs_history')
+    .eq('id', lessonId)
+    .single();
+
+  if (error) throw error;
+
+  const original: SeriesReferral[] =
+    Array.isArray(data.payment_docs_history)
+      ? data.payment_docs_history
+      : [];
+
+  const docs = [...original];
+
+  if (
+    data.payment_docs_url &&
+    !docs.some(doc => doc.url === data.payment_docs_url)
+  ) {
+    docs.push({
+      id: crypto.randomUUID(),
+      url: data.payment_docs_url,
+      name: 'הפניה קודמת',
+      uploadedAt: null,
+      validUntil: null,
+    });
+  }
+
+  return {
+    original,
+    docs,
+    currentUrl: data.payment_docs_url as string | null,
+  };
+}
+
+/**
+ * עדכון ההיסטוריה והקישור הנוכחי באותה פעולת DB.
+ * תנאי השמירה מונעים דריסה של שינוי ממסך אחר.
+ */
+private async saveSeriesReferrals(
+  lessonId: string,
+  previous: {
+    original: SeriesReferral[];
+    currentUrl: string | null;
+  },
+  docs: SeriesReferral[],
+  currentUrl: string | null,
+): Promise<void> {
+  const db = await this.dbc();
+
+  let query = db
+    .from('lessons')
+    .update({
+      payment_docs_history: docs,
+      payment_docs_url: currentUrl,
+    })
+    .eq('id', lessonId)
+    .eq(
+      'payment_docs_history',
+      JSON.stringify(previous.original)
+    );
+
+  query = previous.currentUrl === null
+    ? query.is('payment_docs_url', null)
+    : query.eq('payment_docs_url', previous.currentUrl);
+
+  const { data, error } = await query
+    .select('id')
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!data) {
+    throw new Error(
+      'ההפניות השתנו במקביל או שאין הרשאת עדכון. ' +
+      'פתחי מחדש את פרטי הילד ונסי שוב.'
+    );
+  }
+
+  this.seriesDocs = this.seriesDocs.map(series =>
+    series.lessonId === lessonId
+      ? {
+          ...series,
+          paymentDocsHistory: docs,
+          paymentDocsUrl: currentUrl,
+        }
+      : series
+  );
+}
+
+async uploadSeriesReferral(lessonId: string): Promise<void> {
+  if (this.referralBusy) return;
+
+  const draft = this.referralDraft(lessonId);
+  const file = draft.file;
+
+  if (!file) return;
+
+  if (!this.isAllowedReferralFile(file)) {
+    await this.ui.alert(
+      'ניתן להעלות PDF או תמונות PNG/JPG/WEBP.',
+      'קובץ לא נתמך'
+    );
+    return;
+  }
+
+  const validUntil = draft.validUntil || null;
+
+  this.referralBusy = true;
+  this.uploadingSeriesDocLessonId = lessonId;
+
+  let uploadedPath: string | null = null;
+  let saved = false;
+
+  const client = getSupabaseClient();
+
+  try {
+    const previous = await this.readSeriesReferrals(lessonId);
+    const id = crypto.randomUUID();
+    const extension = file.name.split('.').pop()?.toLowerCase()
+      || 'pdf';
+
+    const path = `series-referrals/${lessonId}/${id}.${extension}`;
+
+    const { error: uploadError } = await client.storage
+      .from('referrals')
+      .upload(path, file, {
+        upsert: false,
+        contentType: file.type || undefined,
+      });
+
+    if (uploadError) throw uploadError;
+    uploadedPath = path;
+
+    const { data } = client.storage
+      .from('referrals')
+      .getPublicUrl(path);
+
+    if (!data.publicUrl) {
+      throw new Error('לא נוצר קישור למסמך.');
+    }
+
+    const doc: SeriesReferral = {
+      id,
+      url: data.publicUrl,
+      name: file.name,
+      uploadedAt: new Date().toISOString(),
+      validUntil,
+    };
+
+    await this.saveSeriesReferrals(
+      lessonId,
+      previous,
+      [...previous.docs, doc],
+      doc.url
+    );
+
+    saved = true;
+
+    this.referralDrafts[lessonId] = {
+      file: null,
+      validUntil: '',
+    };
+
+    await this.ui.alert(
+      'ההפניה נוספה. ההפניות הקודמות נשמרו בהיסטוריה.',
+      'ההפניה נשמרה'
+    );
+  } catch (error: any) {
+    // קובץ שהועלה אך לא שויך לסדרה אינו נדרש.
+    if (uploadedPath && !saved) {
+      try {
+        const { error: cleanupError } = await client.storage
+          .from('referrals')
+          .remove([uploadedPath]);
+
+        if (cleanupError) {
+          console.warn('Referral cleanup failed:', cleanupError);
+        }
+      } catch (cleanupError) {
+        console.warn('Referral cleanup failed:', cleanupError);
+      }
+    }
+
+    await this.ui.alert(
+      'העלאת ההפניה נכשלה: ' + (error?.message ?? error),
+      'שגיאה'
+    );
+  } finally {
+    this.referralBusy = false;
+    this.uploadingSeriesDocLessonId = null;
+  }
+}
+
+async deleteSeriesReferral(
+  series: SeriesDocRow,
+  doc: SeriesReferral
+): Promise<void> {
+  if (this.referralBusy) return;
+
+  this.referralBusy = true;
+
+  try {
+    const confirmed = await this.ui.confirm({
+      title: 'מחיקת הפניה',
+      message:
+        `להסיר את "${doc.name}" מהסדרה? ` +
+        'אם זו ההפניה הנוכחית, ההפניה האחרונה שנותרה תשמש במקומה.',
+      okText: 'מחיקת הפניה',
+      cancelText: 'ביטול',
+      dangerText: 'מחיקת הפניה',
+    });
+
+    if (!confirmed) return;
+
+    const previous = await this.readSeriesReferrals(series.lessonId);
+
+    if (!previous.docs.some(item => item.id === doc.id)) {
+      throw new Error(
+        'ההפניה כבר השתנתה. פתחי מחדש את פרטי הילד.'
+      );
+    }
+
+    const remaining = previous.docs.filter(
+      item => item.id !== doc.id
+    );
+
+    const nextUrl = previous.currentUrl === doc.url
+      ? remaining[remaining.length - 1]?.url ?? null
+      : previous.currentUrl;
+
+    await this.saveSeriesReferrals(
+      series.lessonId,
+      previous,
+      remaining,
+      nextUrl
+    );
+  } catch (error: any) {
+    await this.ui.alert(
+      'מחיקת ההפניה נכשלה: ' + (error?.message ?? error),
+      'שגיאה'
+    );
+  } finally {
+    this.referralBusy = false;
+  }
+}
   private isAllowedReferralFile(file: File): boolean {
     const allowedMimeTypes = [
       'application/pdf',
@@ -1347,6 +1499,24 @@ scheduled_deletion_at,deletion_note
       });
     }
 
+    if (f.intake !== 'all') {
+  chips.push({
+    label: 'אינטק: ' + (
+      f.intake === 'exists' ? 'יש אינטק' : 'אין אינטק'
+    ),
+    clear: () => f.intake = 'all',
+  });
+}
+
+if (f.referral !== 'all') {
+  chips.push({
+    label: 'הפניה: ' + (
+      f.referral === 'exists' ? 'יש הפניה' : 'חסרה הפניה'
+    ),
+    clear: () => f.referral = 'all',
+  });
+}
+
     return chips;
   }
 
@@ -1708,6 +1878,7 @@ scheduled_deletion_at,deletion_note
         .select(`
         id,
         child_id,
+        document_type,
         document_name,
         bucket,
         file_path,
@@ -1725,6 +1896,7 @@ scheduled_deletion_at,deletion_note
         id: row.id,
         childId: row.child_id,
         documentName: row.document_name,
+        documentType: row.document_type ?? 'GENERAL',
         bucket: row.bucket,
         filePath: row.file_path,
         fileUrl: row.file_url,
@@ -1735,9 +1907,19 @@ scheduled_deletion_at,deletion_note
 
       this.allChildDocs = docs;
 
-      this.childDocs = docs.filter(
-        (doc: { documentName: string; }) => doc.documentName?.trim() !== 'אינטק'
-      );
+
+this.childDocs = docs.filter(
+  (  doc: { documentType: string; }) => doc.documentType !== 'INTAKE'
+);
+
+this.intakeByChild = {
+  ...this.intakeByChild,
+  [childId]: docs.some(
+    (    doc: { documentType: string; }) => doc.documentType === 'INTAKE'
+  ),
+};
+
+this.updateStats();
 
     } catch (e: any) {
       console.error('loadChildDocuments error:', e);
@@ -1747,18 +1929,28 @@ scheduled_deletion_at,deletion_note
     }
   }
 
-  async uploadChildDocument(event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
+   async uploadChildDocument(
+  event: Event,
+  documentType: 'GENERAL' | 'INTAKE' = 'GENERAL'
+): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  const childId = this.drawerChild?.child_uuid;
 
-    if (!file || !this.drawerChild?.child_uuid) return;
+  if (!file || !childId || this.uploadingChildDoc) return;
 
-    const docName = this.newChildDocName.trim();
-    if (!docName) {
-      await this.ui.alert('יש להזין שם קובץ לפני ההעלאה.', 'שם קובץ חסר');
-      input.value = '';
-      return;
-    }
+  const docName = documentType === 'INTAKE'
+    ? 'אינטק'
+    : this.newChildDocName.trim();
+
+  if (!docName) {
+    await this.ui.alert(
+      'יש להזין שם קובץ לפני ההעלאה.',
+      'שם קובץ חסר'
+    );
+    input.value = '';
+    return;
+  }
 
     if (!this.isAllowedReferralFile(file)) {
       await this.ui.alert(
@@ -1775,7 +1967,6 @@ scheduled_deletion_at,deletion_note
       const db = await this.dbc();
       const client = getSupabaseClient();
 
-      const childId = this.drawerChild.child_uuid;
       const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
       const bucketName = 'child-documents';
 
@@ -1808,6 +1999,7 @@ scheduled_deletion_at,deletion_note
         .insert({
           child_id: childId,
           document_name: docName,
+          document_type: documentType,
           bucket: bucketName,
           file_path: filePath,
           file_url: publicUrl,
@@ -1833,9 +2025,11 @@ scheduled_deletion_at,deletion_note
     }
   }
 
-  get intakeDoc(): ChildDocumentRow | null {
-    return this.allChildDocs.find(d => d.documentName?.trim() === 'אינטק') ?? null;
-  }
+get intakeDoc(): ChildDocumentRow | null {
+  return this.allChildDocs.find(
+    doc => doc.documentType === 'INTAKE'
+  ) ?? null;
+}
 
   hasIntake(): boolean {
     return !!this.intakeDoc;
@@ -1948,6 +2142,7 @@ scheduled_deletion_at,deletion_note
         series_end_date,
         is_open_ended,
         status,
+        payment_docs_history,
         payment_docs_url,
         payment_plan_id,
         instructor_id,
@@ -2104,6 +2299,9 @@ scheduled_deletion_at,deletion_note
           isOpenEnded: row.is_open_ended ?? null,
           status: row.status ?? null,
           paymentDocsUrl: row.payment_docs_url ?? null,
+          paymentDocsHistory: Array.isArray(row.payment_docs_history)
+  ? row.payment_docs_history
+  : [],
 
           paymentPlanId: basePaymentPlanId,
 
@@ -2530,16 +2728,40 @@ const endDate = series.seriesEndDate?.slice(0, 10);
       }
     }
 
-    const { data: docsData } = await db
+  const docsData: Array<{
+  child_id: string;
+  document_name: string | null;
+  document_type: string;
+}> = [];
+
+for (let i = 0; i < childIds.length; i += 100) {
+  const batch = childIds.slice(i, i + 100);
+  let offset = 0;
+
+  while (true) {
+    const { data, error } = await db
       .from('child_documents')
-      .select('child_id, document_name')
-      .in('child_id', childIds);
+      .select('id, child_id, document_name, document_type')
+      .in('child_id', batch)
+      .order('id', { ascending: true })
+      .range(offset, offset + 99);
+
+    if (error) throw error;
+
+    const page = data ?? [];
+    docsData.push(...page);
+
+    if (page.length < 100) break;
+    offset += page.length;
+  }
+}
 
     this.intakeByChild = {};
     this.healthDeclarationByChild = {};
 
     for (const row of docsData ?? []) {
       const childId = String((row as any).child_id ?? '');
+      
       const documentName = String(
         (row as any).document_name ?? ''
       )
@@ -2548,9 +2770,9 @@ const endDate = series.seriesEndDate?.slice(0, 10);
 
       if (!childId) continue;
 
-      if (documentName === 'אינטק') {
-        this.intakeByChild[childId] = true;
-      }
+      if (row.document_type === 'INTAKE') {
+  this.intakeByChild[childId] = true;
+}
 
       if (
         documentName === 'הצהרת בריאות' ||
@@ -2644,7 +2866,33 @@ const endDate = series.seriesEndDate?.slice(0, 10);
     }
 
     this.lessonTypes = Array.from(typeSet).sort();
+
+    console.log('בדיקת סינון אינטק', {
+  filters: { ...this.advancedFilters },
+  statusFilter: this.statusFilter,
+  loadedChildren: this.children.length,
+  childrenWithIntake: Object.values(this.intakeByChild)
+    .filter(Boolean).length,
+  displayedChildren: this.filteredChildren.length,
+});
+
+console.table(
+  this.children
+    .filter(child => this.intakeByChild[child.child_uuid])
+    .map(child => ({
+      name: `${child.first_name ?? ''} ${child.last_name ?? ''}`,
+      status: child.status,
+      active: this.isChildActive(child),
+    }))
+);
   }
+
+  private isIntakeDocumentName(value: unknown): boolean {
+  return String(value ?? '')
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, '')
+    .trim() === 'אינטק';
+}
 
   openSeriesEndEditor(row: SeriesDocRow): void {
     this.seriesEndEditor = {

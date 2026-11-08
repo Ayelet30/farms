@@ -16,6 +16,63 @@
     </button>
   </header>
 
+  <section
+  class="agent-banner"
+  [class.online]="agentInstalled"
+  [class.offline]="!agentInstalled && !agentChecking"
+>
+  <span class="agent-status-dot"></span>
+
+  <div class="agent-copy">
+    <strong>תוכנת הדיווח לקופות החולים</strong>
+
+    <span>
+      תוכנה אחת לדיווח למכבי ולכללית
+    </span>
+
+    <span role="status">
+      {{
+        agentChecking
+          ? 'בודק חיבור לתוכנה...'
+          : agentInstalled
+            ? 'התוכנה המקומית פעילה'
+            : 'לא זוהתה תוכנה פעילה במחשב זה'
+      }}
+
+      <ng-container *ngIf="agentInstalled && agentVersion">
+        · גרסה {{ agentVersion }}
+      </ng-container>
+    </span>
+
+    <span *ngIf="agentInstalled && agentUpdateAvailable">
+      קיים עדכון לגרסה {{ latestAgentVersion }}
+    </span>
+
+    <span
+      *ngIf="agentDownloadError"
+      class="agent-download-error"
+      role="alert"
+    >
+      {{ agentDownloadError }}
+    </span>
+  </div>
+
+  <button
+    type="button"
+    class="pill-btn primary"
+    [disabled]="agentDownloading"
+    (click)="downloadHealthAgent()"
+  >
+    {{
+      agentDownloading
+        ? 'מכין הורדה...'
+        : agentUpdateAvailable
+          ? 'הורדת עדכון ' + latestAgentVersion
+          : 'הורדת תוכנת הדיווח'
+    }}
+  </button>
+</section>
+
   <mat-tab-group
     class="tabs-shell"
     (selectedIndexChange)="onTabChange($event)"
@@ -81,69 +138,6 @@
     </li>
   </ul>
 </section>
-
-  <section
-    *ngIf="activeTab === 'MACCABI'"
-    class="agent-banner"
-    [class.online]="agentInstalled"
-    [class.offline]="!agentInstalled && !agentChecking"
-  >
-    <span class="agent-status-dot"></span>
-<div class="agent-copy">
-  <strong>
-    {{
-      agentChecking
-        ? 'בודק את תוכנת הדיווח...'
-        : agentInstalled
-          ? 'תוכנת הדיווח למכבי פעילה'
-          : 'תוכנת הדיווח למכבי אינה פעילה'
-    }}
-  </strong>
-
-  <span *ngIf="agentInstalled">
-    ניתן לשלוח שיעורים לדיווח
-    <ng-container *ngIf="agentVersion">
-      · גרסה {{ agentVersion }}
-    </ng-container>
-  </span>
-
-  <span *ngIf=" (!agentInstalled || agentUpdateAvailable) && !agentChecking">
-   {{
-  agentDownloading
-    ? 'מכין הורדה...'
-    : agentUpdateAvailable
-      ? 'הורדת עדכון ' + latestAgentVersion
-      : 'הורדת תוכנת הדיווח'
-}}
-  </span>
-  <span *ngIf="agentInstalled && agentUpdateAvailable">
-  קיימת גרסה חדשה {{ latestAgentVersion }}
-  · הגרסה המותקנת {{ agentVersion }}
-</span>
-
-  <span
-    *ngIf="agentDownloadError"
-    class="agent-download-error"
-    role="alert"
-  >
-    {{ agentDownloadError }}
-  </span>
-</div>
-
-    <button
-  *ngIf="!agentInstalled && !agentChecking"
-  type="button"
-  class="pill-btn primary"
-  [disabled]="agentDownloading"
-  (click)="downloadHealthAgent()"
->
-  {{
-    agentDownloading
-      ? 'מכין הורדה...'
-      : 'הורדת תוכנת הדיווח'
-  }}
-</button>
-  </section>
 
   <section
     class="summary-grid"

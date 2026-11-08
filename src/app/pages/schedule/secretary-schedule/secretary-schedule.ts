@@ -33,6 +33,9 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatNativeDateModule } from '@angular/material/core';
+import {
+  ExternalCoverComponent,
+} from '../../../shared/external-substitutes/external-cover.component';
 
 type ChildRow = {
   child_uuid: string;
@@ -119,6 +122,7 @@ type InstructorBreakOccurrence = {
   imports: [CommonModule, FormsModule, ScheduleComponent, NoteComponent, OverlayModule, MatFormFieldModule,
     MatInputModule,
     MatDatepickerModule,
+    ExternalCoverComponent,
     MatNativeDateModule],
   templateUrl: './secretary-schedule.html',
   styleUrls: ['./secretary-schedule.css'],
@@ -492,6 +496,96 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
       this.cdr.detectChanges();
     }
   }
+
+  externalCoverOpen = false;
+externalCoverBusy = false;
+externalCoverRefreshing = false;
+externalCoverRefreshError = '';
+
+externalCoverContext = {
+  instructorId: '',
+  date: '',
+  start: '',
+  end: '',
+};
+
+openExternalCover(): void {
+  if (this.externalCoverBusy || this.externalCoverRefreshing) {
+    return;
+  }
+
+  const context = this.contextMenu;
+
+  this.externalCoverContext = {
+    instructorId: String(context.instructorId || ''),
+
+    date: String(
+      context.occurDate || context.date || '',
+    ).slice(0, 10),
+
+    start: String(
+      context.startTimeOnly ||
+      context.time ||
+      '08:00',
+    ).slice(0, 5),
+
+    end: String(
+      context.endTime || '12:00',
+    ).slice(0, 5),
+  };
+
+  this.externalCoverRefreshError = '';
+
+  this.closeContextMenu();
+  this.externalCoverOpen = true;
+}
+
+closeExternalCover(): void {
+  if (this.externalCoverBusy || this.externalCoverRefreshing) {
+    return;
+  }
+
+  this.externalCoverOpen = false;
+}
+
+async onExternalCoverSaved(): Promise<void> {
+  if (this.externalCoverRefreshing || !this.currentRange) {
+    return;
+  }
+
+  this.externalCoverRefreshing = true;
+  this.externalCoverRefreshError = '';
+
+  const range = {
+    start: this.currentRange.start,
+    end: this.currentRange.end,
+  };
+
+  try {
+    await this.loadLessons(range);
+
+    await this.loadRequestsForRange(
+      range.start.slice(0, 10),
+      range.end.slice(0, 10),
+    );
+
+    this.filterLessons();
+    this.setScheduleItems();
+
+    this.buildBlockedDayCells(this.currentRange);
+    this.buildAvailableDayCells(this.currentRange);
+    this.buildWeekStats();
+  } catch (error) {
+    console.error('External cover refresh failed', error);
+
+    this.externalCoverRefreshError =
+      'השיבוץ נשמר, אך רענון הלוח נכשל. יש לרענן את הלוח; אין לשמור שוב.';
+  } finally {
+    this.externalCoverRefreshing = false;
+    this.cdr.detectChanges();
+  }
+}
+
   isInstructorAvailableOnContextDay(): boolean {
     const instructorId = String(
       this.contextMenu.instructorId || ''

@@ -10,6 +10,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import {
+  InstructorPayrollReportService,
+} from '../../services/instructor-payroll-report.service';
 
 import { getAuth } from 'firebase/auth';
 
@@ -315,6 +318,11 @@ export class MonthlySummaryComponent implements OnInit, OnDestroy {
   canceller_role?: string | null;
 is_billable?: boolean | null;
 is_makeup_allowed?: boolean | null;
+
+private readonly payrollReport =
+  inject(InstructorPayrollReportService);
+
+private payrollExportBusy = false;
 
 
 
@@ -1131,387 +1139,45 @@ private isBillableLesson(l: LessonRow): boolean {
 }
 
 async exportInstructorsMonthlyReport(): Promise<void> {
-  if (this.mode() !== 'month') {
-    await this.ui.alert('דוח שעות מדריכים זמין כרגע לפי חודש בלבד.', 'שימי לב');
+  if (this.payrollExportBusy) {
     return;
   }
 
+  if (this.mode() !== 'month') {
+    await this.ui.alert(
+      'דוח שעות ושכר זמין לפי חודש בלבד.',
+      'שימי לב',
+    );
+
+    return;
+  }
+
+  this.payrollExportBusy = true;
+
   try {
-    const monthStart = this.toLocalDateString(new Date(this.year, this.month - 1, 1));
-    const nextMonthStart = this.toLocalDateString(new Date(this.year, this.month, 1));
-    const monthEnd = this.toLocalDateString(new Date(this.year, this.month, 0));
-
-    // Supabase מחזיר כברירת מחדל עד 1,000 שורות. בדוח שכר חייבים
-    // להביא את כל החודש, אחרת סוף החודש נחתך מהחישוב.
-    const reportRawRows: MonthlyReportRow[] = [];
-    const pageSize = 1000;
-    for (let fromIndex = 0; ; fromIndex += pageSize) {
-      let pageQuery = this.dbc
-        .from('lessons_schedule_view')
-        .select('*')
-        .gte('lesson_date', monthStart)
-        .lte('lesson_date', monthEnd)
-        .order('lesson_date', { ascending: true })
-        .order('start_time', { ascending: true })
-        .range(fromIndex, fromIndex + pageSize - 1);
-
-      if (this.isInstructor()) {
-        const uid = this.getFirebaseUidOrNull();
-        if (!uid) {
-          await this.ui.alert('לא נמצא משתמש מחובר. התחברי מחדש.', 'שגיאה');
-          return;
-        }
-        pageQuery = pageQuery.eq('instructor_uid', uid);
-      }
-
-      const { data, error } = await pageQuery;
-      if (error) throw error;
-
-      const page = (data ?? []) as MonthlyReportRow[];
-      reportRawRows.push(...page);
-      if (page.length < pageSize) break;
-    }
-
-    const reportLessons: LessonRow[] = reportRawRows.map((raw) => ({
-      lesson_id: (raw.lesson_id ?? '') as UUID,
-      child_id: raw.child_id ?? null,
-      occur_date: raw.lesson_date ?? null,
-      start_time: raw.start_time ? raw.start_time.slice(0, 5) : null,
-      end_time: raw.end_time ? raw.end_time.slice(0, 5) : null,
-      lesson_type: this.deriveLessonType(raw),
-      status: this.deriveStatus(raw),
-      riding_type_code: raw.riding_type_code ?? null,
-      riding_type_name: raw.riding_type_name ?? null,
-      riding_type: this.clean(raw.riding_type_name) || this.clean(raw.riding_type_code) || null,
-      child_full_name: this.clean(raw.child_name) || null,
-      instructor_name: this.clean(raw.instructor_name) || null,
-      instructor_uid: raw.instructor_uid ?? null,
-      instructor_id: raw.instructor_id ?? null,
-      lesson_price_agorot: raw.lesson_price_agorot ?? null,
-      canceller_role: raw.canceller_role ?? null,
-      is_billable: raw.is_billable ?? true,
-      is_makeup_allowed: raw.is_makeup_allowed ?? false,
-    }));
-
-    const lessonIds = Array.from(
-      new Set(reportLessons.map((l) => l.lesson_id).filter(Boolean))
+    const warningCount = await this.payrollReport.exportMonth(
+      this.year,
+      this.month,
+      this.isInstructorView,
     );
 
-    const lessonMetaQuery = lessonIds.length
-      ? this.dbc
-          .from('lessons')
-          .select('id,payment_plan_id,appointment_kind')
-          .in('id', lessonIds)
-      : Promise.resolve({ data: [], error: null });
-
-    const [lessonMetaResult, plansResult, breaksResult, absenceResult, instructorsResult] =
-      await Promise.all([
-        lessonMetaQuery,
-        this.dbc.from('payment_plans').select('id,name'),
-        this.dbc
-          .from('instructor_break_occurrences')
-          .select('instructor_id_number,break_date,start_time,end_time,duration_minutes')
-          .gte('break_date', monthStart)
-          .lte('break_date', monthEnd),
-        this.dbc
-          .from('instructor_unavailability')
-          .select('instructor_id_number,from_ts,to_ts,reason,category,all_day')
-          .lt('from_ts', `${nextMonthStart}T00:00:00`)
-          .gt('to_ts', `${monthStart}T00:00:00`),
-        this.dbc.from('instructors').select('id_number,first_name,last_name'),
-      ]);
-
-    const firstError = [
-      lessonMetaResult.error,
-      plansResult.error,
-      breaksResult.error,
-      absenceResult.error,
-      instructorsResult.error,
-    ].find(Boolean);
-    if (firstError) throw firstError;
-
-    const XLSXmod: any = await import('xlsx');
-    const XLSX = XLSXmod.default ?? XLSXmod;
-
-    type Summary = {
-      instructorId: string;
-      instructorName: string;
-      privateCount: number;
-      privateMinutes: number;
-      pairCount: number;
-      pairMinutes: number;
-      groupCount: number;
-      groupMinutes: number;
-      breakCount: number;
-      breakMinutes: number;
-      intakeCount: number;
-      intakeMinutes: number;
-      workDates: Set<string>;
-      vacationDates: Set<string>;
-      sickDates: Set<string>;
-    };
-
-    const namesById = new Map<string, string>();
-    for (const i of (instructorsResult.data ?? []) as any[]) {
-      namesById.set(
-        String(i.id_number),
-        `${this.clean(i.first_name)} ${this.clean(i.last_name)}`.trim() || String(i.id_number)
+    if (warningCount > 0) {
+      await this.ui.alert(
+        `הדוח הורד, אך נמצאו ${warningCount} חוסרים ` +
+        'בשיוכים או בתעריפים. יש לבדוק את גיליון "בדיקות" ' +
+        'לפני שימוש בסכומי השכר.',
+        'נדרשת בדיקה',
       );
     }
+  } catch (error: any) {
+    console.error('Payroll export failed', error);
 
-    const planNames = new Map<string, string>(
-      ((plansResult.data ?? []) as any[]).map((p) => [String(p.id), this.clean(p.name)])
+    await this.ui.alert(
+      error?.message || 'הפקת דוח השעות והשכר נכשלה',
+      'שגיאה',
     );
-    const lessonMeta = new Map<string, { payment_plan_id: string | null; appointment_kind: string | null }>(
-      ((lessonMetaResult.data ?? []) as any[]).map((m) => [
-        String(m.id),
-        {
-          payment_plan_id: m.payment_plan_id ? String(m.payment_plan_id) : null,
-          appointment_kind: m.appointment_kind ?? null,
-        },
-      ])
-    );
-
-    const summaries = new Map<string, Summary>();
-    const ensureSummary = (id: string, name?: string | null): Summary => {
-      if (!summaries.has(id)) {
-        summaries.set(id, {
-          instructorId: id,
-          instructorName: this.clean(name) || namesById.get(id) || id,
-          privateCount: 0,
-          privateMinutes: 0,
-          pairCount: 0,
-          pairMinutes: 0,
-          groupCount: 0,
-          groupMinutes: 0,
-          breakCount: 0,
-          breakMinutes: 0,
-          intakeCount: 0,
-          intakeMinutes: 0,
-          workDates: new Set<string>(),
-          vacationDates: new Set<string>(),
-          sickDates: new Set<string>(),
-        });
-      }
-      return summaries.get(id)!;
-    };
-
-    const isPaidForInstructor = (l: LessonRow): boolean => {
-      if (l.status === 'בוטל') return l.canceller_role === 'parent';
-      return l.status === 'אושר' || l.status === 'הושלם';
-    };
-
-    type Slot = {
-      instructorId: string;
-      instructorName: string;
-      date: string;
-      start: string;
-      end: string;
-      minutes: number;
-      isIntake: boolean;
-      children: Set<string>;
-      statuses: Set<string>;
-    };
-
-    const slots = new Map<string, Slot>();
-    for (const l of reportLessons.filter(isPaidForInstructor)) {
-      const instructorId = String(l.instructor_id ?? '');
-      const date = l.occur_date ?? '';
-      const start = l.start_time ?? '';
-      const end = l.end_time ?? '';
-      if (!instructorId || !date || !start || !end) continue;
-
-      const meta = lessonMeta.get(String(l.lesson_id));
-      const planName = meta?.payment_plan_id
-        ? planNames.get(meta.payment_plan_id) ?? ''
-        : '';
-      const isIntake = this.clean(planName) === 'אינטק';
-      const key = `${instructorId}__${date}__${start}__${end}__${isIntake ? 'intake' : 'lesson'}`;
-
-      if (!slots.has(key)) {
-        slots.set(key, {
-          instructorId,
-          instructorName: this.clean(l.instructor_name) || namesById.get(instructorId) || instructorId,
-          date,
-          start,
-          end,
-          minutes: this.lessonMinutes(l),
-          isIntake,
-          children: new Set<string>(),
-          statuses: new Set<string>(),
-        });
-      }
-      const slot = slots.get(key)!;
-      slot.children.add(String(l.child_id ?? l.lesson_id));
-      if (l.status) slot.statuses.add(l.status);
-    }
-
-    const detailsRows: Record<string, string | number>[] = [];
-    for (const slot of slots.values()) {
-      const summary = ensureSummary(slot.instructorId, slot.instructorName);
-      if (slot.statuses.has('אושר') || slot.statuses.has('הושלם')) {
-        summary.workDates.add(slot.date);
-      }
-
-      let category: 'פרטי' | 'זוגי' | 'קבוצתי';
-      if (slot.isIntake) {
-        summary.intakeCount += 1;
-        summary.intakeMinutes += slot.minutes;
-      }
-
-      // אינטייק הוא מידע נפרד בדוח, אך לצורך שכר הוא שיעור רגיל
-      // ומסווג לפי מספר התלמידים במשבצת.
-      if (slot.children.size >= 3) {
-        category = 'קבוצתי';
-        summary.groupCount += 1;
-        summary.groupMinutes += slot.minutes;
-      } else if (slot.children.size === 2) {
-        category = 'זוגי';
-        summary.pairCount += 1;
-        summary.pairMinutes += slot.minutes;
-      } else {
-        category = 'פרטי';
-        summary.privateCount += 1;
-        summary.privateMinutes += slot.minutes;
-      }
-
-      detailsRows.push({
-        'תאריך': slot.date,
-        'מדריך/ה': slot.instructorName,
-        'קטגוריה לחישוב': category,
-        'מספר תלמידים משובצים': slot.children.size,
-        'שעת התחלה': slot.start,
-        'שעת סיום': slot.end,
-        'משך': this.minutesToTime(slot.minutes),
-        'סטטוס': Array.from(slot.statuses).join(', '),
-        'האם אינטייק': slot.isIntake ? 'כן' : 'לא',
-      });
-    }
-
-    // הפסקה נספרת רק ביום שבו הייתה פעילות בפועל, ולא ביום חופש/מחלה.
-    const activityDates = new Set<string>();
-    for (const l of reportLessons) {
-      if ((l.status === 'אושר' || l.status === 'הושלם') && l.instructor_id && l.occur_date) {
-        activityDates.add(`${String(l.instructor_id)}__${l.occur_date}`);
-      }
-    }
-
-    const blockedBreakDates = new Set<string>();
-    const addAbsenceDates = (row: InstructorUnavailabilityRow): void => {
-      if (!row.all_day) return;
-      const id = String(row.instructor_id_number);
-      const summary = ensureSummary(id);
-      const description = `${row.category ?? ''} ${row.reason ?? ''}`.toLowerCase();
-      const target = description.includes('מחלה') || description.includes('sick')
-        ? summary.sickDates
-        : summary.vacationDates;
-      const first = new Date(row.from_ts);
-      const rawEnd = new Date(row.to_ts);
-      const last = new Date(Math.max(first.getTime(), rawEnd.getTime() - 1));
-      const cursor = new Date(first.getFullYear(), first.getMonth(), first.getDate());
-      const lastDate = new Date(last.getFullYear(), last.getMonth(), last.getDate());
-      while (cursor <= lastDate) {
-        const date = this.toLocalDateString(cursor);
-        if (date >= monthStart && date <= monthEnd) {
-          target.add(date);
-          blockedBreakDates.add(`${id}__${date}`);
-        }
-        cursor.setDate(cursor.getDate() + 1);
-      }
-    };
-    for (const absence of (absenceResult.data ?? []) as InstructorUnavailabilityRow[]) {
-      addAbsenceDates(absence);
-    }
-
-    for (const b of (breaksResult.data ?? []) as InstructorBreakRow[]) {
-      const id = String(b.instructor_id_number);
-      const dayKey = `${id}__${b.break_date}`;
-
-      if (!activityDates.has(dayKey) || blockedBreakDates.has(dayKey)) {
-        continue;
-      }
-
-      const breakStart = b.start_time?.slice(0, 5) ?? '';
-      const breakEnd = b.end_time?.slice(0, 5) ?? '';
-      const hasOverlappingLesson = Array.from(slots.values()).some((slot) =>
-        slot.instructorId === id &&
-        slot.date === b.break_date &&
-        slot.start < breakEnd &&
-        slot.end > breakStart
-      );
-
-      // כאשר נקבע שיעור בזמן ההפסקה, השיעור מחליף את ההפסקה.
-      if (hasOverlappingLesson) {
-        continue;
-      }
-
-      const minutes = b.duration_minutes ?? this.lessonMinutes({
-        lesson_id: '', lesson_type: null, status: null,
-        start_time: b.start_time, end_time: b.end_time,
-      });
-      const summary = ensureSummary(id);
-      summary.breakCount += 1;
-      summary.breakMinutes += minutes;
-      summary.workDates.add(b.break_date);
-      detailsRows.push({
-        'תאריך': b.break_date,
-        'מדריך/ה': summary.instructorName,
-        'קטגוריה לחישוב': 'הפסקה',
-        'מספר תלמידים משובצים': 0,
-        'שעת התחלה': breakStart,
-        'שעת סיום': breakEnd,
-        'משך': this.minutesToTime(minutes),
-        'סטטוס': '',
-      });
-    }
-
-    const summaryRows = Array.from(summaries.values())
-      .sort((a, b) => a.instructorName.localeCompare(b.instructorName, 'he'))
-      .map((r) => {
-        const lessonMinutes = r.privateMinutes + r.pairMinutes + r.groupMinutes;
-        // האינטייק כבר כלול בזמן השיעורים ולכן אין להוסיף אותו פעם נוספת.
-        const totalMinutes = lessonMinutes + r.breakMinutes;
-        return {
-          'מדריך/ה': r.instructorName,
-          'מספר שיעורים פרטיים': r.privateCount,
-          'זמן שיעורים פרטיים': this.minutesToTime(r.privateMinutes),
-          'מספר שיעורים זוגיים': r.pairCount,
-          'זמן שיעורים זוגיים': this.minutesToTime(r.pairMinutes),
-          'מספר שיעורים קבוצתיים': r.groupCount,
-          'זמן שיעורים קבוצתיים': this.minutesToTime(r.groupMinutes),
-          'סה״כ מספר שיעורים': r.privateCount + r.pairCount + r.groupCount,
-          'סה״כ זמן שיעורים': this.minutesToTime(lessonMinutes),
-          'מספר הפסקות': r.breakCount,
-          'זמן הפסקות': this.minutesToTime(r.breakMinutes),
-          'מספר פרטי + הפסקות': r.privateCount + r.breakCount,
-          'זמן פרטי + הפסקות': this.minutesToTime(r.privateMinutes + r.breakMinutes),
-          'מספר אינטייקים': r.intakeCount,
-          'זמן אינטייקים': this.minutesToTime(r.intakeMinutes),
-          'סה״כ זמן לתשלום': this.minutesToTime(totalMinutes),
-          'מספר ימי עבודה': r.workDates.size,
-          'מספר ימי חופש': r.vacationDates.size,
-          'מספר ימי מחלה': r.sickDates.size,
-        };
-      });
-
-    const wb = XLSX.utils.book_new();
-
-    XLSX.utils.book_append_sheet(
-      wb,
-      XLSX.utils.json_to_sheet(summaryRows),
-      'סיכום מדריכים'
-    );
-
-    XLSX.utils.book_append_sheet(
-      wb,
-      XLSX.utils.json_to_sheet(detailsRows),
-      'פירוט שעות מדריכים'
-    );
-
-    XLSX.writeFile(wb, `instructors_hours_${this.year}_${this.month}.xlsx`);
-  } catch (e) {
-    console.error(e);
-    this.ui.alert('חסר xlsx. להריץ: npm i xlsx', 'שגיאה');
+  } finally {
+    this.payrollExportBusy = false;
   }
 }
 

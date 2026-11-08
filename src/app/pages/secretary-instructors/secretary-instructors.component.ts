@@ -15,11 +15,18 @@ import {
   getCurrentFarmMetaSync,
 } from '../../services/legacy-compat';
 import { signal } from '@angular/core';
+import {
+  ExternalSubstitutesComponent,
+} from '../../shared/external-substitutes/external-substitutes.component';
 
 import {
   AddInstructorDialogComponent,
   AddInstructorPayload,
 } from './add-instructor-dialog/add-instructor-dialog.component';
+
+import {
+  InstructorPayrollComponent,
+} from '../../shared/instructor-payroll/instructor-payroll.component';
 
 import { CreateUserService } from '../../services/create-user.service';
 import { TaughtChildGender } from '../../Types/detailes.model';
@@ -87,10 +94,11 @@ interface InstructorUnavailabilityRow {
   sick_note_file_path?: string[] | null;
 }
 
+
 @Component({
   selector: 'app-secretary-instructors',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatSidenavModule, MatDialogModule],
+  imports: [CommonModule, FormsModule, MatSidenavModule, MatDialogModule,InstructorPayrollComponent , ExternalSubstitutesComponent],
   templateUrl: './secretary-instructors.component.html',
   styleUrls: ['./secretary-instructors.component.css'],
 })
@@ -117,6 +125,9 @@ export class SecretaryInstructorsComponent implements OnInit {
       notAcceptsMakeup: total - acceptsMakeup
     };
   }
+
+  activeTab: 'instructors' | 'externalSubstitutes' = 'instructors';
+
   ridingTypes: { id: string; name: string }[] = [];
 
   // לו"ז שבועי במגירה (מצב תצוגה)
@@ -181,6 +192,43 @@ export class SecretaryInstructorsComponent implements OnInit {
 
   isLoading = true;
   error: string | null = null;
+  payrollRatesOpen = false;
+payrollRatesBusy = false;
+
+payrollRatesInstructor = {
+  id: '',
+  name: '',
+};
+
+openPayrollRates(): void {
+  const instructor = this.drawerInstructor;
+
+  if (!instructor?.id_number || this.payrollRatesOpen) {
+    return;
+  }
+
+  this.payrollRatesInstructor = {
+    id: instructor.id_number,
+
+    name: [
+      instructor.first_name,
+      instructor.last_name,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  };
+
+  this.payrollRatesBusy = false;
+  this.payrollRatesOpen = true;
+}
+
+closePayrollRates(): void {
+  if (this.payrollRatesBusy) {
+    return;
+  }
+
+  this.payrollRatesOpen = false;
+}
 
   @ViewChild('drawer') drawer!: MatSidenav;
   selectedIdNumber: string | null = null;
