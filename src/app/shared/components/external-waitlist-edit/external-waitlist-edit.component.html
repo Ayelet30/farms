@@ -38,16 +38,11 @@
                     ביטול
                 </button>
 
-                <button type="button" class="primary" [disabled]="saving || hasInvalidAvailability" (click)="save()">
+                <button type="button" class="primary" [disabled]="saving || hasValidationErrors" (click)="save()">
                     {{ saving ? 'שומר...' : 'שמירה' }}
                 </button>
 
             </div>
-        </div>
-
-        <!-- הודעת שגיאה קבועה מעל אזור התוכן הנגלל -->
-        <div *ngIf="error" class="waiting-validation-error" role="alert" aria-live="assertive">
-            {{ error }}
         </div>
 
         <!-- גוף החלון -->
@@ -134,6 +129,10 @@
                     </div>
                 </div>
 
+                <div *ngIf="ridingTypesError" class="waiting-validation-error" role="alert">
+                    {{ ridingTypesError }}
+                </div>
+
                 <div class="waiting-section-divider"></div>
 
                 <!-- זמינות -->
@@ -161,6 +160,10 @@
 
                     </div>
 
+                    <div *ngIf="availabilityDaysError" class="waiting-validation-error" role="alert">
+                        {{ availabilityDaysError }}
+                    </div>
+
                     <div class="waiting-availability-custom" *ngIf="!allTimes">
 
                         <h5>באילו ימים הילד/ה זמין/ה?</h5>
@@ -178,10 +181,6 @@
                                 <span>{{ day.name }}</span>
                             </button>
 
-                        </div>
-
-                        <div class="waiting-availability-hint" *ngIf="!days.length">
-                            יש לבחור לפחות יום אחד.
                         </div>
 
                         <ng-container *ngFor="let day of weekDays">
@@ -263,12 +262,20 @@
                             <option value="לאומית">לאומית</option>
                             <option value="אחר">אחר</option>
                         </select>
+
+                        <div *ngIf="healthFundError" class="waiting-validation-error" role="alert">
+                            {{ healthFundError }}
+                        </div>
                     </label>
 
                     <label *ngIf="healthFund === 'אחר'">
                         שם קופת חולים *
 
                         <input type="text" [(ngModel)]="healthFundOther" maxlength="150" />
+
+                        <div *ngIf="healthFundOtherError" class="waiting-validation-error" role="alert">
+                            {{ healthFundOtherError }}
+                        </div>
                     </label>
 
                 </div>
@@ -290,18 +297,30 @@
                         טלפון
 
                         <input type="tel" dir="ltr" [(ngModel)]="phone" maxlength="30" />
+
+                        <div *ngIf="phoneError" class="waiting-validation-error" role="alert">
+                            {{ phoneError }}
+                        </div>
                     </label>
 
                     <label>
                         טלפון נוסף
 
                         <input type="tel" dir="ltr" [(ngModel)]="additionalPhone" maxlength="30" />
+
+                        <div *ngIf="additionalPhoneError" class="waiting-validation-error" role="alert">
+                            {{ additionalPhoneError }}
+                        </div>
                     </label>
 
                     <label>
                         כתובת מייל
 
                         <input type="email" dir="ltr" [(ngModel)]="email" maxlength="254" />
+
+                        <div *ngIf="emailError" class="waiting-validation-error" role="alert">
+                            {{ emailError }}
+                        </div>
                     </label>
 
                 </div>
@@ -376,7 +395,7 @@
                     ביטול
                 </button>
 
-                <button type="button" class="primary" [disabled]="saving || hasInvalidAvailability" (click)="save()">
+                <button type="button" class="primary" [disabled]="saving || hasValidationErrors" (click)="save()">
                     {{ saving ? 'שומר...' : 'שמירה' }}
                 </button>
 

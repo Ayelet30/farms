@@ -50,6 +50,124 @@ export class ExternalWaitlistEditComponent implements OnInit {
     saving = false;
     error = '';
 
+    // בדיקת בחירת סוגי רכיבה
+    get ridingTypesError(): string | null {
+        if (!this.allRidingTypes && this.ridingTypeIds.length === 0) {
+            return 'יש לבחור לפחות סוג רכיבה אחד.';
+        }
+
+        return null;
+    }
+
+    // בדיקת קופת חולים
+    get healthFundError(): string | null {
+        const validHealthFunds = [
+            'כללית',
+            'מכבי',
+            'מאוחדת',
+            'לאומית',
+            'אחר'
+        ];
+
+        if (!validHealthFunds.includes(this.healthFund?.trim() ?? '')) {
+            return 'יש לבחור קופת חולים תקינה.';
+        }
+
+        return null;
+    }
+
+    // בדיקת שם קופת חולים כאשר נבחר "אחר"
+    get healthFundOtherError(): string | null {
+        if (
+            this.healthFund === 'אחר' &&
+            !this.healthFundOther.trim()
+        ) {
+            return 'יש להזין את שם קופת החולים.';
+        }
+
+        return null;
+    }
+
+    // בדיקת תקינות מספר טלפון ישראלי
+    private isValidPhoneNumber(value: string): boolean {
+        const phone = value.trim().replace(/[\s-]/g, '');
+
+        // שדה ריק מותר – הטלפון אינו חובה
+        if (!phone) {
+            return true;
+        }
+
+        // המרת קידומת בינלאומית ישראלית לקידומת מקומית
+        const normalizedPhone = phone.startsWith('+972')
+            ? '0' + phone.slice(4)
+            : phone;
+
+        // מספר נייד – 10 ספרות
+        const isMobile = /^05\d{8}$/.test(normalizedPhone);
+
+        // מספר נייח – 9 ספרות
+        const isLandline = /^0[23489]\d{7}$/.test(normalizedPhone);
+
+        // מספר בקידומת 07 – 10 ספרות
+        const isVoip = /^07\d{8}$/.test(normalizedPhone);
+
+        return isMobile || isLandline || isVoip;
+    }
+
+    // בדיקת טלפון ראשי
+    get phoneError(): string | null {
+        if (!this.isValidPhoneNumber(this.phone)) {
+            return 'יש להזין מספר טלפון תקין.';
+        }
+
+        return null;
+    }
+
+    // בדיקת טלפון נוסף
+    get additionalPhoneError(): string | null {
+        if (!this.isValidPhoneNumber(this.additionalPhone)) {
+            return 'יש להזין מספר טלפון נוסף תקין.';
+        }
+
+        return null;
+    }
+
+    // בדיקת כתובת מייל
+    get emailError(): string | null {
+        const value = this.email.trim();
+
+        if (
+            value &&
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+        ) {
+            return 'כתובת המייל אינה תקינה.';
+        }
+
+        return null;
+    }
+
+    // בדיקת בחירת ימי זמינות
+    get availabilityDaysError(): string | null {
+        if (!this.allTimes && this.days.length === 0) {
+            return 'יש לבחור לפחות יום אחד.';
+        }
+
+        return null;
+    }
+
+    // בדיקת תקינות כוללת של הטופס
+    get hasValidationErrors(): boolean {
+        return !!(
+            this.ridingTypesError ||
+            this.healthFundError ||
+            this.healthFundOtherError ||
+            this.phoneError ||
+            this.additionalPhoneError ||
+            this.emailError ||
+            this.hasInvalidAvailability
+        );
+    }
+
     allRidingTypes = true;
     ridingTypeIds: string[] = [];
     ridingSearch = '';
@@ -256,88 +374,24 @@ export class ExternalWaitlistEditComponent implements OnInit {
     async save(): Promise<void> {
         if (this.saving) return;
 
-        this.error = '';
-        if (this.hasInvalidAvailability) {
-            this.error = 'יש לתקן את שעות הזמינות לפני השמירה.';
-            return;
-        }
-
+        // אין לאפשר שמירה של בקשה שאינה פתוחה
         if (this.request.status !== 'open') {
-            this.error = 'הבקשה אינה פתוחה.';
-            return;
-        }
-
-        if (!this.allRidingTypes && !this.ridingTypeIds.length) {
-            this.error = 'יש לבחור לפחות סוג רכיבה אחד.';
-            return;
-        }
-
-        const validHealthFunds = [
-            'כללית',
-            'מכבי',
-            'מאוחדת',
-            'לאומית',
-            'אחר'
-        ];
-
-        this.healthFund = this.healthFund?.trim() ?? '';
-
-        if (!validHealthFunds.includes(this.healthFund)) {
             await this.ui.alert(
-                'ערך קופת החולים אינו תקין. יש לבחור קופת חולים מהרשימה.',
-                'לא ניתן לשמור את הבקשה'
+                'לא ניתן לשמור שינויים בבקשה שאינה פתוחה.',
+                'הבקשה אינה פתוחה'
             );
             return;
         }
 
-        if (
-            this.healthFund === 'אחר' &&
-            !this.healthFundOther.trim()
-        ) {
-            await this.ui.alert(
-                'יש להזין את שם קופת החולים.',
-                'חסר מידע'
-            );
+        // חסימת שמירה כאשר קיימות שגיאות תקינות
+        if (this.hasValidationErrors) {
             return;
         }
 
-        if (
-            this.email.trim() &&
-            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.email.trim())
-        ) {
-            this.error = 'כתובת המייל אינה תקינה.';
-            return;
-        }
+        this.error = '';
 
-        if (!this.allTimes) {
-            if (!this.days.length) {
-                this.error = 'יש לבחור לפחות יום אחד.';
-                return;
-            }
-
-            for (const item of this.days) {
-                const hours = this.getHours(item.day);
-                const start = item.start?.slice(0, 5) || hours?.farm_start;
-
-                if (
-                    !hours?.farm_start ||
-                    !hours.farm_end ||
-                    !start ||
-                    !/^([01]\d|2[0-3]):[0-5]\d$/.test(start) ||
-                    start < hours.farm_start ||
-                    start >= hours.farm_end
-                ) {
-                    const dayName = this.weekDays.find(
-                        day => day.id === item.day
-                    )?.name;
-
-                    this.error =
-                        `יש להזין שעת התחלה תקינה ביום ${dayName}.`;
-
-                    return;
-                }
-            }
-        }
+        // שמירה על התנהגות הנרמול הקיימת
+        this.healthFund = this.healthFund.trim();
 
         const availability: ExternalWaitlistAvailability =
             this.allTimes

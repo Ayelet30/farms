@@ -28,12 +28,12 @@
     <div class="wl-tabs">
       <button type="button" class="wl-tab" [class.active]="selectedTab() === 'active'" (click)="changeTab('active')">
         בקשות פעילות
-        <span class="count">{{ activeEntries().length }}</span>
+        <span class="count">{{ totalActiveEntries() }}</span>
       </button>
 
       <button type="button" class="wl-tab" [class.active]="selectedTab() === 'paused'" (click)="changeTab('paused')">
         בקשות מושהות
-        <span class="count">{{ pausedEntries().length }}</span>
+        <span class="count">{{ totalPausedEntries() }}</span>
       </button>
 
       <button type="button" class="wl-tab" [class.active]="selectedTab() === 'external'"
@@ -110,6 +110,17 @@
 
     </div>
 
+    <!-- מספר תוצאות הסינון -->
+    <div class="wl-toolbar-note wl-filter-results" *ngIf="hasActiveFilters && !loading()">
+
+      נמצאו
+      {{ selectedTab() === 'active'
+      ? activeEntries().length
+      : pausedEntries().length }}
+      רשומות התואמות לסינון שלך
+
+    </div>
+
   </section>
 
   <!-- הודעות -->
@@ -131,7 +142,10 @@
         <div class="wl-priority-title-wrap">
           <h2>עדיפות גבוהה</h2>
           <span class="wl-priority-meta">
-            {{ highPriorityEntries().length }} בקשות
+            {{ totalHighPriorityEntries() }} בקשות
+            <span class="wl-filtered-count" *ngIf="hasActiveFilters">
+              ({{ highPriorityEntries().length }} בסינון)
+            </span>
           </span>
         </div>
 
@@ -151,7 +165,10 @@
             [class.selected]="expandedEntryId() === entry.id" (click)="toggleExpanded(entry.id)">
 
             <ng-container *ngTemplateOutlet="activeRow;
-                context: { $implicit: entry, position: i + 1 }">
+    context: {
+      $implicit: entry,
+      position: priorityQueuePositions()[entry.id] ?? '—'
+    }">
             </ng-container>
 
           </div>
@@ -170,7 +187,10 @@
         <div class="wl-priority-title-wrap">
           <h2>עדיפות בינונית</h2>
           <span class="wl-priority-meta">
-            {{ mediumPriorityEntries().length }} בקשות
+            {{ totalMediumPriorityEntries() }} בקשות
+            <span class="wl-filtered-count" *ngIf="hasActiveFilters">
+              ({{ mediumPriorityEntries().length }} בסינון)
+            </span>
           </span>
         </div>
 
@@ -189,7 +209,10 @@
             [class.selected]="expandedEntryId() === entry.id" (click)="toggleExpanded(entry.id)">
 
             <ng-container *ngTemplateOutlet="activeRow;
-                context: { $implicit: entry, position: i + 1 }">
+    context: {
+      $implicit: entry,
+      position: priorityQueuePositions()[entry.id] ?? '—'
+    }">
             </ng-container>
 
           </div>
@@ -208,7 +231,10 @@
         <div class="wl-priority-title-wrap">
           <h2>עדיפות נמוכה</h2>
           <span class="wl-priority-meta">
-            {{ lowPriorityEntries().length }} בקשות
+            {{ totalLowPriorityEntries() }} בקשות
+            <span class="wl-filtered-count" *ngIf="hasActiveFilters">
+              ({{ lowPriorityEntries().length }} בסינון)
+            </span>
           </span>
         </div>
 
@@ -227,7 +253,10 @@
             [class.selected]="expandedEntryId() === entry.id" (click)="toggleExpanded(entry.id)">
 
             <ng-container *ngTemplateOutlet="activeRow;
-                context: { $implicit: entry, position: i + 1 }">
+    context: {
+      $implicit: entry,
+      position: priorityQueuePositions()[entry.id] ?? '—'
+    }">
             </ng-container>
 
           </div>
@@ -250,7 +279,10 @@
         <div class="wl-priority-title-wrap">
           <h2>בקשות מושהות</h2>
           <span class="wl-priority-meta">
-            {{ pausedEntries().length }} בקשות
+            {{ totalPausedEntries() }} בקשות
+            <span class="wl-filtered-count" *ngIf="hasActiveFilters">
+              ({{ pausedEntries().length }} בסינון)
+            </span>
           </span>
         </div>
 
@@ -382,6 +414,16 @@
 
       </div>
 
+      <!-- מספר תוצאות הסינון החיצוני -->
+      <div class="wl-toolbar-note wl-filter-results"
+        *ngIf="hasExternalFilters && externalListLoaded() && !externalLoading()">
+
+        נמצאו
+        {{ filteredExternalEntries().length }}
+        רשומות התואמות לסינון שלך
+
+      </div>
+
     </section>
 
     <!-- טעינה ושגיאות -->
@@ -407,7 +449,10 @@
             <h2>בקשות פתוחות</h2>
 
             <span class="wl-priority-meta">
-              {{ openExternalEntries().length }} בקשות
+              {{ totalOpenExternalEntries() }} בקשות
+              <span class="wl-filtered-count" *ngIf="hasExternalFilters">
+                ({{ openExternalEntries().length }} בסינון)
+              </span>
             </span>
 
           </div>
@@ -453,7 +498,10 @@
             <h2>בקשות סגורות</h2>
 
             <span class="wl-priority-meta">
-              {{ closedExternalEntries().length }} בקשות
+              {{ totalClosedExternalEntries() }} בקשות
+              <span class="wl-filtered-count" *ngIf="hasExternalFilters">
+                ({{ closedExternalEntries().length }} בסינון)
+              </span>
             </span>
 
           </div>
@@ -1208,13 +1256,6 @@
       <!-- תוכן -->
       <div class="wl-picker-content">
 
-        <!-- הודעת שגיאה -->
-        <div class="wl-picker-error" *ngIf="externalCloseError()">
-
-          {{ externalCloseError() }}
-
-        </div>
-
         <p>
           הבקשה תועבר לרשימת הבקשות הסגורות
           ותוסר מהתור הפעיל.
@@ -1228,8 +1269,8 @@
           </label>
 
           <select id="external-close-reason" [value]="externalCloseReason()" [disabled]="externalCloseSaving()"
-            (change)="externalCloseReason.set($any($event.target).value);
-                    externalCloseError.set(null)">
+            [attr.aria-invalid]="externalCloseReasonError() ? 'true' : null"
+            (change)="externalCloseReason.set($any($event.target).value)">
 
             <option value="">
               בחרי סיבת סגירה
@@ -1240,6 +1281,14 @@
             </option>
 
           </select>
+
+          <div *ngIf="externalCloseReasonError()" class="wl-picker-error" role="alert">
+            {{ externalCloseReasonError() }}
+          </div>
+
+          <div *ngIf="externalCloseNoteError()" class="wl-picker-error" role="alert">
+            {{ externalCloseNoteError() }}
+          </div>
 
         </div>
 
@@ -1260,9 +1309,8 @@
 
           <textarea id="external-close-note" class="waiting-notes-textarea" rows="3" maxlength="2000"
             placeholder="הוספת פרטים על סיבת הסגירה..." [value]="externalCloseNote()" [disabled]="externalCloseSaving()"
-            (input)="externalCloseNote.set($any($event.target).value);
-             externalCloseError.set(null)">
-  </textarea>
+            (input)="externalCloseNote.set($any($event.target).value)">
+</textarea>
 
         </section>
 
@@ -1278,8 +1326,8 @@
           ביטול
         </button>
 
-        <button type="button" class="wl-details-edit-btn" [disabled]="externalCloseSaving()"
-          (click)="confirmExternalClose()">
+        <button type="button" class="wl-details-edit-btn"
+          [disabled]="externalCloseSaving() || !!externalCloseNoteError()" (click)="confirmExternalClose()">
 
           {{
           externalCloseSaving()

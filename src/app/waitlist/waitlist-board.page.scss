@@ -1614,4 +1614,31 @@
     gap: 10px;
   }
 
+  /* הודעות תקינות מתחת לשדה סיבת הסגירה */
+  .wl-picker-error {
+    padding: 0;
+    margin: 10px 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+
+    color: #b42318;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.6;
+    text-align: right;
+  }
+
+}
+
+/* מספר הרשומות התואמות לסינון */
+.wl-filtered-count,
+.wl-filter-results {
+  color: #60703c;
+}
+
+/* הזזת הודעת תוצאות הסינון כלפי מטה */
+.wl-filter-results {
+  position: relative;
+  top: 2mm;
 }

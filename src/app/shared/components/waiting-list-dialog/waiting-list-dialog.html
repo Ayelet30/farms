@@ -249,6 +249,13 @@
               <span>הגדרת זמינות מותאמת</span>
             </label>
 
+                    </div>
+
+          <div
+            *ngIf="!waitingListAllTimes && waitingListDays.length === 0"
+            class="waiting-validation-error"
+            role="alert">
+            יש לבחור לפחות יום אחד.
           </div>
 
           <div *ngIf="!waitingListAllTimes" class="waiting-availability-custom">
@@ -270,9 +277,7 @@
 
             </div>
 
-            <div *ngIf="waitingListDays.length === 0" class="waiting-availability-hint">
-              יש לבחור לפחות יום אחד.
-            </div>
+            
 
             <label *ngIf="waitingListDays.length > 0" class="waiting-same-hours">
 

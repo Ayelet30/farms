@@ -118,6 +118,19 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     });
   });
 
+  // ספירת בקשות חיצוניות ללא תלות בסינון
+  totalOpenExternalEntries = computed(() =>
+    this.externalEntries().filter(
+      entry => entry.status === 'open'
+    ).length
+  );
+
+  totalClosedExternalEntries = computed(() =>
+    this.externalEntries().filter(
+      entry => entry.status === 'closed'
+    ).length
+  );
+
   // בקשות פתוחות - מיון לפי המיקום בתור, מהראשון לאחרון
   openExternalEntries = computed(() =>
     this.filteredExternalEntries()
@@ -287,7 +300,36 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   externalCloseReason = signal('');
   externalCloseNote = signal('');
   externalCloseSaving = signal(false);
-  externalCloseError = signal<string | null>(null);
+
+  // האם בוצע ניסיון שמירה
+  externalCloseSubmitted = signal(false);
+
+  // בדיקת סיבת הסגירה
+  externalCloseReasonError = computed(() => {
+    if (!this.externalCloseSubmitted()) {
+      return null;
+    }
+
+    const reason = this.externalCloseReason();
+
+    const validReason = this.externalClosureReasons.some(
+      item => item.value === reason
+    );
+
+    return validReason ? null : 'יש לבחור סיבת סגירה.';
+  });
+
+  // בדיקת הערות כאשר נבחרה הסיבה "אחר"
+  externalCloseNoteError = computed(() => {
+    if (
+      this.externalCloseReason() === 'other' &&
+      !this.externalCloseNote().trim()
+    ) {
+      return 'כאשר בוחרים "אחר", חובה למלא הערות.';
+    }
+
+    return null;
+  });
 
   // פתיחת חלון הסגירה
   openExternalCloseDialog(entry: ExternalWaitlistRequest): void {
@@ -302,7 +344,7 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     this.externalRequestToClose.set(entry);
     this.externalCloseReason.set('');
     this.externalCloseNote.set('');
-    this.externalCloseError.set(null);
+    this.externalCloseSubmitted.set(false);
   }
 
   // סגירת החלון ללא שמירה
@@ -312,10 +354,11 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     this.externalRequestToClose.set(null);
     this.externalCloseReason.set('');
     this.externalCloseNote.set('');
-    this.externalCloseError.set(null);
+    this.externalCloseSubmitted.set(false);
   }
 
   // שמירת הסגירה בשרת
+  // שמירת סגירת בקשה חיצונית בשרת
   async confirmExternalClose(): Promise<void> {
     const entry = this.externalRequestToClose();
 
@@ -324,25 +367,19 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     const reason = this.externalCloseReason();
     const note = this.externalCloseNote().trim();
 
-    const validReason = this.externalClosureReasons.some(
-      item => item.value === reason
-    );
+    // הפעלת בדיקות התקינות לאחר ניסיון שמירה
+    this.externalCloseSubmitted.set(true);
 
-    if (!validReason) {
-      this.externalCloseError.set('יש לבחור סיבת סגירה.');
-      return;
-    }
-
-    if (reason === 'other' && !note) {
-      this.externalCloseError.set(
-        'כאשר בוחרים "אחר", חובה למלא הערות.'
-      );
+    if (
+      this.externalCloseReasonError() ||
+      this.externalCloseNoteError()
+    ) {
       return;
     }
 
     this.externalCloseSaving.set(true);
-    this.externalCloseError.set(null);
 
+    // שלב 1: סגירת הבקשה בשרת
     try {
       await this.wl.closeExternalRequest(
         entry.id,
@@ -350,28 +387,63 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
         note || null
       );
 
-      // הסגירה הצליחה בשרת: סוגרים את חלונית הפרטים
-      this.closeExternalDetails();
+    } catch (error: any) {
+      console.error('Error closing external request:', error);
 
-      // טוענים מחדש ישירות מ-Supabase
+      this.externalCloseSaving.set(false);
+
+      await this.ui.alert(
+        error?.message ?? 'לא ניתן לסגור את הבקשה.',
+        'שגיאה בסגירת הבקשה'
+      );
+
+      return;
+    }
+
+    // שלב 2: הסגירה הצליחה – סגירת החלוניות
+    this.closeExternalDetails();
+
+    this.externalRequestToClose.set(null);
+    this.externalCloseReason.set('');
+    this.externalCloseNote.set('');
+    this.externalCloseSubmitted.set(false);
+
+    // שלב 3: רענון הרשימה
+    let refreshFailed = false;
+
+    try {
       const requests = await this.wl.listExternalRequests();
 
       this.externalEntries.set(requests);
       this.externalListLoaded.set(true);
-
-      this.externalRequestToClose.set(null);
-      this.externalCloseReason.set('');
-      this.externalCloseNote.set('');
+      this.externalError.set(null);
 
     } catch (error: any) {
-      console.error('Error closing external request:', error);
-
-      this.externalCloseError.set(
-        error?.message ?? 'לא ניתן לסגור את הבקשה.'
+      console.error(
+        'Error refreshing external requests after close:',
+        error
       );
 
-    } finally {
-      this.externalCloseSaving.set(false);
+      refreshFailed = true;
+
+      this.externalError.set(
+        'הבקשה נסגרה בהצלחה, אך לא ניתן לרענן את הרשימה. יש לרענן את העמוד.'
+      );
+    }
+
+    this.externalCloseSaving.set(false);
+
+    // שלב 4: הודעה מתאימה לתוצאה
+    if (refreshFailed) {
+      await this.ui.alert(
+        'הבקשה נסגרה בהצלחה בשרת, אך לא ניתן לרענן את הרשימה. יש לרענן את העמוד כדי לראות את השינויים.',
+        'הסגירה הושלמה – הרענון נכשל'
+      );
+    } else {
+      await this.ui.alert(
+        'הבקשה נסגרה בהצלחה',
+        'הסגירה הושלמה'
+      );
     }
   }
 
@@ -443,6 +515,57 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
 
     return true;
   }
+
+  // ספירת כל הבקשות ללא תלות בסינון
+  totalActiveEntries = computed(() =>
+    this.entries().filter(entry => entry.status === 'active').length
+  );
+
+  totalPausedEntries = computed(() =>
+    this.entries().filter(entry => entry.status === 'paused').length
+  );
+
+  // ספירה כוללת לפי עדיפות, ללא תלות בסינון
+  totalHighPriorityEntries = computed(() =>
+    this.entries().filter(
+      entry => entry.status === 'active' && entry.priority === 2
+    ).length
+  );
+
+  totalMediumPriorityEntries = computed(() =>
+    this.entries().filter(
+      entry => entry.status === 'active' && entry.priority === 1
+    ).length
+  );
+
+  totalLowPriorityEntries = computed(() =>
+    this.entries().filter(
+      entry => entry.status === 'active' && entry.priority === 0
+    ).length
+  );
+
+  // מיקום מקורי בתור לפי עדיפות, ללא תלות בסינון
+  priorityQueuePositions = computed<Record<string, number>>(() => {
+    const positions: Record<string, number> = {};
+
+    for (const priority of [2, 1, 0]) {
+      const entries = this.entries()
+        .filter(entry =>
+          entry.status === 'active' &&
+          entry.priority === priority
+        )
+        .sort((a, b) =>
+          Number(a.position) - Number(b.position) ||
+          a.id.localeCompare(b.id)
+        );
+
+      entries.forEach((entry, index) => {
+        positions[entry.id] = index + 1;
+      });
+    }
+
+    return positions;
+  });
 
   // בקשות פעילות
   activeEntries = computed(() =>
@@ -798,51 +921,88 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   // =========================================
 
   private waitlistChannel: RealtimeChannel | null = null;
+
+  // הלקוח שיצר את ערוץ ה-Realtime
+  private waitlistRealtimeClient:
+    ReturnType<typeof getSupabaseClient> | null = null;
   private realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // רענון בקשות חיצוניות בעקבות אירועי Realtime
+  private externalRealtimeRefreshTimer:
+    ReturnType<typeof setTimeout> | null = null;
+
+  private externalRealtimeRefreshRunning = false;
+  private externalRealtimeRefreshPending = false;
 
   private realtimeRefreshRunning = false;
   private realtimeRefreshPending = false;
   private realtimeDestroyed = false;
 
   private async startWaitlistRealtime(): Promise<void> {
-    await ensureTenantContextReady();
+  await ensureTenantContextReady();
 
-    if (this.realtimeDestroyed || this.waitlistChannel) return;
+  if (this.realtimeDestroyed || this.waitlistChannel) return;
 
-    // הסכמה של החווה הנוכחית מתוך הקשר המשתמש
-    const tenantSchema = this.tenantService.requireTenant().schema;
+  // הסכמה של החווה הנוכחית
+  const tenant = this.tenantService.requireTenant();
+  const tenantSchema = tenant.schema;
 
-    const sb = getSupabaseClient();
+  const sb = getSupabaseClient();
 
-    this.waitlistChannel = sb
-      .channel(`waitlist-board-${tenantSchema}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: tenantSchema,
-          table: 'waitlist_entries'
-        },
-        (payload) => {
-          console.log(
-            'WAITLIST REALTIME EVENT:',
-            payload.eventType,
-            payload
-          );
-
-          this.scheduleRealtimeRefresh();
-        }
-      )
-      .subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('Waitlist Realtime error:', err);
-        }
-
-        if (status === 'SUBSCRIBED') {
-          console.log('Waitlist Realtime connected');
-        }
-      });
+  // העברת JWT לצורך הרשאות Realtime
+  if (tenant.accessToken) {
+    await sb.realtime.setAuth(tenant.accessToken);
   }
+
+  if (this.realtimeDestroyed) return;
+
+  // שמירת הלקוח לצורך ניקוי הערוץ ביציאה מהעמוד
+  this.waitlistRealtimeClient = sb;
+
+  this.waitlistChannel = sb
+    .channel(`waitlist-board-${tenantSchema}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: tenantSchema,
+        table: 'waitlist_entries'
+      },
+      (payload) => {
+        console.log(
+          'WAITLIST REALTIME EVENT:',
+          payload.eventType
+        );
+
+        this.scheduleRealtimeRefresh();
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: tenantSchema,
+        table: 'waitlist_external_requests'
+      },
+      (payload) => {
+        console.log(
+          'EXTERNAL WAITLIST REALTIME EVENT:',
+          payload.eventType
+        );
+
+        this.scheduleExternalRealtimeRefresh();
+      }
+    )
+    .subscribe((status, err) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.error('Waitlist Realtime error:', status, err);
+      }
+
+      if (status === 'SUBSCRIBED') {
+        console.log('Waitlist Realtime connected');
+      }
+    });
+}
 
   private scheduleRealtimeRefresh(): void {
     if (this.realtimeDestroyed) return;
@@ -887,19 +1047,90 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     }
   }
 
-  ngOnDestroy(): void {
-    this.realtimeDestroyed = true;
+  // איחוד אירועי Realtime של בקשות חיצוניות
+  private scheduleExternalRealtimeRefresh(): void {
+    if (this.realtimeDestroyed) return;
 
-    if (this.realtimeRefreshTimer) {
-      clearTimeout(this.realtimeRefreshTimer);
-      this.realtimeRefreshTimer = null;
+    if (this.externalRealtimeRefreshTimer) {
+      clearTimeout(this.externalRealtimeRefreshTimer);
     }
 
-    if (this.waitlistChannel) {
-      void getSupabaseClient().removeChannel(this.waitlistChannel);
-      this.waitlistChannel = null;
+    this.externalRealtimeRefreshTimer = setTimeout(() => {
+      this.externalRealtimeRefreshTimer = null;
+      void this.runExternalRealtimeRefresh();
+    }, 350);
+  }
+
+  // טעינת בקשות חיצוניות ישירות מ-Supabase
+  private async runExternalRealtimeRefresh(): Promise<void> {
+    if (this.realtimeDestroyed) return;
+
+    if (this.externalRealtimeRefreshRunning) {
+      this.externalRealtimeRefreshPending = true;
+      return;
+    }
+
+    this.externalRealtimeRefreshRunning = true;
+
+    try {
+      do {
+        this.externalRealtimeRefreshPending = false;
+
+        try {
+          const requests = await this.wl.listExternalRequests();
+
+          if (this.realtimeDestroyed) return;
+
+          this.externalEntries.set(requests);
+          this.externalListLoaded.set(true);
+          this.externalError.set(null);
+
+        } catch (error) {
+          console.error(
+            'External waitlist Realtime refresh failed:',
+            error
+          );
+
+          if (!this.realtimeDestroyed) {
+            this.externalError.set(
+              'לא ניתן לרענן את הבקשות החיצוניות.'
+            );
+          }
+        }
+
+      } while (
+        this.externalRealtimeRefreshPending &&
+        !this.realtimeDestroyed
+      );
+
+    } finally {
+      this.externalRealtimeRefreshRunning = false;
     }
   }
+
+  ngOnDestroy(): void {
+  this.realtimeDestroyed = true;
+
+  if (this.realtimeRefreshTimer) {
+    clearTimeout(this.realtimeRefreshTimer);
+    this.realtimeRefreshTimer = null;
+  }
+
+  if (this.externalRealtimeRefreshTimer) {
+    clearTimeout(this.externalRealtimeRefreshTimer);
+    this.externalRealtimeRefreshTimer = null;
+  }
+
+  // הסרת ערוץ ה-Realtime בעת יציאה מהעמוד
+  if (this.waitlistChannel && this.waitlistRealtimeClient) {
+    void this.waitlistRealtimeClient.removeChannel(
+      this.waitlistChannel
+    );
+
+    this.waitlistChannel = null;
+    this.waitlistRealtimeClient = null;
+  }
+}
 
 
   constructor(
@@ -928,14 +1159,14 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   }
 
   async ngOnInit(): Promise<void> {
-    await Promise.all([
-      this.refresh(),
-      this.loadExternalRequests(),
-      this.loadExternalFarmWorkingHours()
-    ]);
+  await Promise.all([
+    this.refresh(),
+    this.loadExternalRequests(),
+    this.loadExternalFarmWorkingHours()
+  ]);
 
-    await this.startWaitlistRealtime();
-  }
+  await this.startWaitlistRealtime();
+}
 
   // טעינת שעות הפעילות של החווה
   async loadExternalFarmWorkingHours(): Promise<void> {
@@ -1040,6 +1271,31 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
       this.entries.set(list);
       await this.loadFilterData();
 
+      // עדכון מיקום בחלונית הפרטים אם היא פתוחה
+      const selectedId = this.expandedEntryId();
+
+      if (selectedId) {
+        const selectedEntry = list.find(
+          entry => entry.id === selectedId
+        );
+
+        if (selectedEntry?.status === 'active') {
+          try {
+            await this.refreshDetailsQueuePosition(
+              selectedId,
+              this.detailsLoadId
+            );
+          } catch (error) {
+            console.error(
+              'Error refreshing details queue position:',
+              error
+            );
+          }
+        } else {
+          this.detailsQueuePosition.set(null);
+        }
+      }
+
     } catch (error: any) {
       console.error('שגיאה בטעינת רשימת ההמתנה:', error);
 
@@ -1056,6 +1312,21 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
 
   changeTab(tab: 'active' | 'paused' | 'external'): void {
     const previousTab = this.selectedTab();
+
+    // איפוס סינון רק במעבר בין הבקשות הרגילות לחיצוניות
+    if (previousTab !== tab &&
+      (previousTab === 'external' || tab === 'external')) {
+
+      // איפוס סינון בקשות פעילות ומושהות
+      this.childSearch.set('');
+      this.selectedRidingTypeId.set('none');
+      this.selectedInstructorId.set('none');
+
+      // איפוס סינון בקשות חיצוניות
+      this.externalSearch.set('');
+      this.externalRidingTypeId.set('none');
+      this.externalDateFilter.set('');
+    }
 
     this.selectedTab.set(tab);
     this.closeDetails();
@@ -1087,6 +1358,44 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   } | null>(null);
 
   private detailsLoadId = 0;
+  // רענון מיקום בקשה פעילה בחלונית הפרטים
+  private async refreshDetailsQueuePosition(
+    entryId: string,
+    loadId: number
+  ): Promise<void> {
+
+    const { data, error } = await dbTenant().rpc(
+      'waitlist_get_queue_position',
+      { p_entry_id: entryId }
+    );
+
+    if (error) throw error;
+
+    // מניעת עדכון אם המשתמשת סגרה את החלונית
+    // או עברה בינתיים לבקשה אחרת
+    if (
+      loadId !== this.detailsLoadId ||
+      this.expandedEntryId() !== entryId
+    ) {
+      return;
+    }
+
+    const position = Array.isArray(data)
+      ? data[0]
+      : data;
+
+    if (
+      position?.priority_position != null &&
+      position?.overall_position != null
+    ) {
+      this.detailsQueuePosition.set({
+        priorityPosition: Number(position.priority_position),
+        overallPosition: Number(position.overall_position)
+      });
+    } else {
+      this.detailsQueuePosition.set(null);
+    }
+  }
 
   toggleExpanded(entryId: string): void {
     const current = this.expandedEntryId();
@@ -1131,28 +1440,9 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
       }
 
       // מיקומים מחושבים רק לבקשה פעילה
+      // מיקומים מחושבים רק לבקשה פעילה
       if (entry.status === 'active') {
-        const { data, error } = await db.rpc(
-          'waitlist_get_queue_position',
-          { p_entry_id: entryId }
-        );
-
-        if (error) throw error;
-
-        const position = Array.isArray(data)
-          ? data[0]
-          : data;
-
-        if (
-          loadId === this.detailsLoadId &&
-          position?.priority_position != null &&
-          position?.overall_position != null
-        ) {
-          this.detailsQueuePosition.set({
-            priorityPosition: Number(position.priority_position),
-            overallPosition: Number(position.overall_position)
-          });
-        }
+        await this.refreshDetailsQueuePosition(entryId, loadId);
       }
 
     } catch (error: any) {
@@ -1385,21 +1675,21 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
 
   // חסימת הגרירה ברגע שסינון מופעל
   get hasActiveFilters(): boolean {
-  return (
-    this.selectedRidingTypeId() !== 'none' ||
-    this.selectedInstructorId() !== 'none' ||
-    this.childSearch().trim() !== ''
-  );
-}
+    return (
+      this.selectedRidingTypeId() !== 'none' ||
+      this.selectedInstructorId() !== 'none' ||
+      this.childSearch().trim() !== ''
+    );
+  }
 
   // חסימת גרירה כאשר מופעל סינון בבקשות חיצוניות
   get hasExternalFilters(): boolean {
-  return (
-    this.externalRidingTypeId() !== 'none' ||
-    this.externalSearch().trim() !== '' ||
-    this.externalDateFilter() !== ''
-  );
-}
+    return (
+      this.externalRidingTypeId() !== 'none' ||
+      this.externalSearch().trim() !== '' ||
+      this.externalDateFilter() !== ''
+    );
+  }
 
   // השהיה או החזרה לפעיל
   async togglePause(entry: WaitlistEntry): Promise<void> {
