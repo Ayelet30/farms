@@ -1,0 +1,40 @@
+@use '../waiting-list-dialog/waiting-list-dialog';
+
+.external-edit-fields {
+  display: grid;
+  gap: 14px;
+  margin: 16px 0;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.external-edit-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #51583e;
+  font-weight: 600;
+}
+
+.external-edit-fields input,
+.external-edit-fields select,
+.external-edit-fields textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  font: inherit;
+  color: #333;
+  padding: 11px 12px;
+  border: 1px solid #cfd7b9;
+  border-radius: 9px;
+  background: white;
+}
+
+.external-edit-fields textarea {
+  resize: vertical;
+}
+
+.external-edit-fields :is(input, select, textarea):focus {
+  outline: none;
+  border-color: #739842;
+  box-shadow: 0 0 0 2px rgba(115, 152, 66, 0.12);
+}

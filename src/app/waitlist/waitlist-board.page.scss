@@ -1,3 +1,5 @@
+@use '../shared/components/waitlist-styles/waitlist-notes';
+
 :host {
   display: block;
   direction: rtl;
@@ -277,6 +279,21 @@
   input::placeholder {
     color: #a2a590;
   }
+
+  // עיצוב שדות כאשר לא מופעל סינון
+  select.wl-filter-empty {
+    color: #a2a590 !important;
+    -webkit-text-fill-color: #a2a590;
+  }
+
+  input[type='date'].wl-filter-empty {
+    color: #a2a590;
+  }
+
+  input[type='date'].wl-filter-empty::-webkit-datetime-edit {
+    color: #a2a590;
+  }
+
 }
 
 .wl-filter-actions {
@@ -1492,7 +1509,8 @@
 
 /* איקס ניקוי החיפוש - ירוק כהה בשני שדות החיפוש */
 .wl-picker-search::-webkit-search-cancel-button,
-#wl-child-search::-webkit-search-cancel-button {
+#wl-child-search::-webkit-search-cancel-button,
+#external-search::-webkit-search-cancel-button {
   filter: grayscale(1) sepia(1) hue-rotate(35deg) saturate(3) brightness(0.65);
   cursor: pointer;
 }
@@ -1504,4 +1522,123 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* =========================================
+   EXTERNAL WAITLIST REQUESTS
+   ========================================= */
+
+/* ריווח בין הסינונים ושתי הטבלאות */
+.wl-page>ng-container {
+  display: contents;
+}
+
+/* =========================================
+   EXTERNAL WAITLIST - DETAILS
+   ========================================= */
+
+/* פרטי התקשרות - כרטיסיות מסודרות */
+.wl-external-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.wl-external-contact-item {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+
+  min-width: 0;
+  padding: 13px;
+
+  border-radius: 13px;
+  background: #f4f5ee;
+
+  span {
+    color: #6a765d;
+    font-size: 0.82rem;
+  }
+
+  strong {
+    color: #344528;
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+  }
+
+  strong[dir="ltr"] {
+    text-align: right;
+  }
+}
+
+/* מייל וטקסטים ארוכים */
+.wl-external-email {
+  direction: ltr;
+  unicode-bidi: plaintext;
+}
+
+.wl-external-multiline {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ניסיון קודם ברכיבה */
+.wl-external-experience {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  .wl-detail-value {
+    margin: 0;
+  }
+}
+
+.wl-external-experience-details {
+  margin: 0;
+  color: #6a765d;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* התאמת חלון בחירת הילד לשימוש כטופס סגירת בקשה */
+.wl-external-close-modal {
+
+  .wl-picker-content {
+    overflow-y: auto;
+    gap: 16px;
+  }
+
+  .wl-picker-footer {
+    gap: 10px;
+  }
+
+  /* הודעות תקינות מתחת לשדה סיבת הסגירה */
+  .wl-picker-error {
+    padding: 0;
+    margin: 10px 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+
+    color: #b42318;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.6;
+    text-align: right;
+  }
+
+}
+
+/* מספר הרשומות התואמות לסינון */
+.wl-filtered-count,
+.wl-filter-results {
+  color: #60703c;
+}
+
+/* הזזת הודעת תוצאות הסינון כלפי מטה */
+.wl-filter-results {
+  position: relative;
+  top: 2mm;
 }
