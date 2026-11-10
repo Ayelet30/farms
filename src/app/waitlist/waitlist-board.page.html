@@ -15,7 +15,7 @@
         הוספה לרשימת המתנה
       </button>
 
-      <button type="button" class="wl-secondary-btn" disabled>
+      <button type="button" class="wl-secondary-btn" [disabled]="saving()" (click)="openMatchingTab()">
         חיפוש התאמות
       </button>
     </div>
@@ -38,12 +38,17 @@
 
       <button type="button" class="wl-tab" [class.active]="selectedTab() === 'external'"
         (click)="changeTab('external')">
-        בקשות ממקור חיצוני
-
+        בקשות חיצוניות
         <span class="count">
           {{ externalListLoaded() ? externalEntries().length : '—' }}
         </span>
       </button>
+
+      <button type="button" class="wl-tab" [class.active]="selectedTab() === 'matching'"
+        (click)="changeTab('matching')">
+        התאמות שיעורים
+      </button>
+
     </div>
 
     <span class="wl-toolbar-note">
@@ -53,7 +58,7 @@
   </section>
 
   <!-- סינונים - בקשות פעילות ומושהות -->
-  <section class="wl-filter-card" *ngIf="selectedTab() !== 'external'">
+  <section class="wl-filter-card" *ngIf="selectedTab() === 'active' || selectedTab() === 'paused'">
 
     <div class="wl-filter-grid">
 
@@ -535,6 +540,18 @@
     </ng-container>
 
   </ng-container>
+
+
+<!-- לשונית התאמות שיעורים -->
+<app-matching-results
+  [hidden]="selectedTab() !== 'matching'"
+  [searchVersion]="matchingSearchVersion()"
+  [internalEntries]="entries()"
+  [externalEntries]="externalEntries()"
+  [childNamesById]="childNamesById()"
+  [instructors]="filterInstructors()">
+</app-matching-results>
+
 
   <!-- כותרות משותפות לטבלאות חיצוניות -->
   <ng-template #externalTableHead>
