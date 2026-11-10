@@ -23,6 +23,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSelectModule } from '@angular/material/select';
 import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
+import {
+  DomSanitizer,
+  SafeResourceUrl,
+} from '@angular/platform-browser';
 
 import { dbTenant, getCurrentUserDetails } from '../../services/legacy-compat';
 import { CurrentUserService } from '../../core/auth/current-user.service';
@@ -150,6 +154,11 @@ private noteAddedThisSession = false;
 private attendanceClickTimer: ReturnType<typeof setTimeout> | null = null;
 
 isDeletingAttendance = false;
+private sanitizer = inject(DomSanitizer);
+
+intakeSafeUrl: SafeResourceUrl | null = null;
+intakeIsImage = false;
+intakeError = '';
 
 get canDeleteAttendance(): boolean {
   return this.effectiveRole() === 'secretary';
@@ -1555,30 +1564,65 @@ tryClose() {
   this.close.emit();
 }
 
-async loadIntakeDocument() {
+async loadIntakeDocument(): Promise<void> {
   const childId = this.child?.child_uuid;
+
+  this.intakeUrl = null;
+  this.intakeSafeUrl = null;
+  this.intakeIsImage = false;
+  this.intakeError = '';
+  this.showIntakeModal = false;
+
   if (!childId) return;
 
   this.intakeLoading = true;
 
-  const { data, error } = await this.dbc
-    .from('child_documents')
-    .select('file_url, document_name, created_at')
-    .eq('child_id', childId)
-    .eq('document_name', 'אינטק')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  try {
+    const { data, error } = await this.dbc
+      .from('child_documents')
+      .select('file_url, mime_type, created_at')
+      .eq('child_id', childId)
+      .eq('document_type', 'INTAKE')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  if (error) {
+    if (error) throw error;
+
+    // התעלמות מתוצאה אם בינתיים נבחר ילד אחר
+    if (this.child?.child_uuid !== childId) return;
+
+    if (!data) return;
+
+    const rawUrl = String(data.file_url ?? '').trim();
+    if (!rawUrl) {
+      throw new Error('למסמך האינטק אין כתובת קובץ.');
+    }
+
+    const url = new URL(rawUrl);
+
+    if (url.protocol !== 'https:') {
+      throw new Error('כתובת מסמך האינטק אינה תקינה.');
+    }
+
+    this.intakeIsImage =
+      String(data.mime_type ?? '').toLowerCase().startsWith('image/') ||
+      /\.(png|jpe?g|webp|gif)$/i.test(url.pathname);
+
+    this.intakeUrl = url.href;
+    this.intakeSafeUrl =
+      this.sanitizer.bypassSecurityTrustResourceUrl(url.href);
+  } catch (error: any) {
+    if (this.child?.child_uuid !== childId) return;
+
     console.error('[NOTE] load intake document error', error);
-    this.intakeUrl = null;
-    this.intakeLoading = false;
-    return;
+    this.intakeError =
+      error?.message ?? 'טעינת מסמך האינטק נכשלה.';
+  } finally {
+    if (this.child?.child_uuid === childId) {
+      this.intakeLoading = false;
+    }
   }
-
-  this.intakeUrl = data?.file_url ?? null;
-  this.intakeLoading = false;
 }
 
 goToChildCard() {
