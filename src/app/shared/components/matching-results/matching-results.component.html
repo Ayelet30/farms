@@ -1,24 +1,13 @@
 <section class="matching-page" dir="rtl">
-  <header class="matching-header">
-    <div class="matching-heading">
-      <h2>חיפוש התאמות לשיבוץ</h2>
-      <p>מצאי משבצת שבועית מתאימה, ובחרי בה כדי לראות את הילדים שניתן לשבץ.</p>
-    </div>
 
-    <button
-      type="button"
-      class="matching-refresh"
-      [disabled]="loading()"
-      (click)="search()">
-      <span class="refresh-icon" aria-hidden="true">↻</span>
-      {{ searched() ? 'חיפוש מחדש' : 'חיפוש התאמות' }}
-    </button>
-  </header>
-
-  <div *ngIf="loading()" class="matching-loading" role="status" aria-live="polite">
+  <div *ngIf="showLoadingPanel()" class="matching-loading" role="status" aria-live="polite">
     <div class="matching-hourglass" aria-hidden="true">⌛</div>
-    <strong>מחפשים את ההתאמות המתאימות ביותר...</strong>
-    <p>בודקים זמינות ילדים, מדריכים, סוגי רכיבה וסדרות שבועיות.</p>
+    <strong>
+      {{ searching() ? 'המערכת מחפשת התאמות…' : 'טוענים את תוצאות ההרצה האחרונה…' }}
+    </strong>
+    <p *ngIf="searching()">
+      בודקים זמינות ילדים, מדריכים, סוגי רכיבה וסדרות שבועיות.
+    </p>
     <div class="matching-loading-line" aria-hidden="true"><span></span></div>
   </div>
 
@@ -27,69 +16,61 @@
     <p>{{ error() }}</p>
   </div>
 
-  <ng-container *ngIf="!loading() && !error() && searched()">
-    <div class="matching-summary">
-      <div class="summary-main">
-        <strong>{{ slots().length }} משבצות מתאימות</strong>
-        <span class="summary-separator" aria-hidden="true">·</span>
-        <span>{{ matchingCount() }} התאמות לילדים</span>
-      </div>
-      <span class="summary-note">התוצאות הן הצעות לבדיקה, לא שיבוצים מאושרים</span>
+  <div *ngIf="!loading() && !error() && !searched()" class="matching-empty">
+    עדיין אין תוצאות שמורות. לחצי על חיפוש התאמות כדי להתחיל.
+  </div>
+
+  <ng-container *ngIf="!loading() && searched()">
+    <div *ngIf="slots().length === 0" class="matching-state">
+      לא נמצאו משבצות מתאימות בחיפוש האחרון.
     </div>
 
     <ng-container *ngIf="!selectedSlot(); else slotDetails">
-      <div class="matching-filters" *ngIf="slots().length > 0">
-        <label class="matching-filter-search">
-          <span class="sr-only">חיפוש משבצת לפי מדריך, סוג רכיבה או שעה</span>
-          <input
-            type="search"
-            placeholder="חיפוש לפי מדריך, סוג רכיבה או שעה..."
-            [value]="searchText()"
-            (input)="searchText.set($any($event.target).value)" />
-        </label>
-        <label>
-          <span class="sr-only">סינון לפי יום</span>
-          <select [value]="selectedDay()" (change)="selectedDay.set($any($event.target).value)">
-            <option value="all">כל הימים</option>
-            <option value="0">יום ראשון</option>
-            <option value="1">יום שני</option>
-            <option value="2">יום שלישי</option>
-            <option value="3">יום רביעי</option>
-            <option value="4">יום חמישי</option>
-            <option value="5">יום שישי</option>
-            <option value="6">יום שבת</option>
-          </select>
-        </label>
-        <label>
-          <span class="sr-only">סינון לפי סוג משבצת</span>
-          <select [value]="selectedKind()" (change)="selectedKind.set($any($event.target).value)">
-            <option value="all">כל סוגי המשבצות</option>
-            <option value="new_slot">סדרה חדשה</option>
-            <option value="existing_group">קבוצה קיימת</option>
-          </select>
-        </label>
-        <button *ngIf="hasFilters()" type="button" class="matching-clear" (click)="clearFilters()">
-          ניקוי סינון
-        </button>
-      </div>
+      <section class="matching-filters" *ngIf="slots().length > 0">
+        <div class="matching-filter-grid">
+          <label class="matching-filter-field">
+            <span>חיפוש משבצת</span>
+            <input type="search" placeholder="חיפוש לפי מדריך, סוג רכיבה או שעה" [value]="searchText()"
+              (input)="searchText.set($any($event.target).value)" />
+          </label>
 
-      <p *ngIf="hasFilters() && slots().length > 0" class="matching-filter-count">
-        מוצגות {{ filteredSlots().length }} מתוך {{ slots().length }} משבצות
-      </p>
+          <label class="matching-filter-field">
+            <span>יום בשבוע</span>
+            <select [class.is-unfiltered]="selectedDay() === 'all'" [value]="selectedDay()"
+              (change)="selectedDay.set($any($event.target).value)">
+              <option value="all">כל הימים</option>
+              <option value="0">יום ראשון</option>
+              <option value="1">יום שני</option>
+              <option value="2">יום שלישי</option>
+              <option value="3">יום רביעי</option>
+              <option value="4">יום חמישי</option>
+              <option value="5">יום שישי</option>
+              <option value="6">שבת</option>
+            </select>
+          </label>
 
-      <div *ngIf="slots().length === 0" class="matching-state">
-        לא נמצאו משבצות מתאימות כרגע.
-      </div>
-      <div *ngIf="slots().length > 0 && filteredSlots().length === 0" class="matching-state">
-        לא נמצאו משבצות המתאימות לסינון שבחרת.
-        <button type="button" class="matching-clear" (click)="clearFilters()">ניקוי סינון</button>
-      </div>
+          <label class="matching-filter-field">
+            <span>סוג משבצת</span>
+            <select [class.is-unfiltered]="selectedKind() === 'all'" [value]="selectedKind()"
+              (change)="selectedKind.set($any($event.target).value)">
+              <option value="all">כל סוגי המשבצות</option>
+              <option value="new_slot">סדרה חדשה</option>
+              <option value="existing_group">קבוצה קיימת</option>
+            </select>
+          </label>
+
+          <button type="button" class="matching-clear" (click)="clearFilters()">
+            ניקוי סינון
+          </button>
+        </div>
+
+        <p *ngIf="hasFilters()" class="matching-filter-count" role="status">
+          נמצאו {{ filteredSlots().length }} משבצות התואמות לחיפוש שלך
+        </p>
+      </section>
 
       <div class="matching-grid" *ngIf="filteredSlots().length > 0">
-        <button
-          *ngFor="let slot of filteredSlots(); trackBy: trackSlot"
-          type="button"
-          class="matching-slot-card"
+        <button *ngFor="let slot of filteredSlots(); trackBy: trackSlot" type="button" class="matching-slot-card"
           [attr.aria-label]="'הצגת ' + slot.candidates.length + ' ילדים מתאימים ביום ' + dayName(slot.dayOfWeek)"
           (click)="toggleSlot(slot.key)">
           <div class="slot-card-top">
@@ -98,9 +79,13 @@
             </span>
             <span class="slot-card-date">החל מ־{{ dateLabel(slot.firstDate) }}</span>
           </div>
-          <strong class="slot-card-time">יום {{ dayName(slot.dayOfWeek) }} · {{ shortTime(slot.startTime) }}–{{ shortTime(slot.endTime) }}</strong>
-          <span class="slot-card-meta">{{ instructorName(slot.instructorId) }}</span>
-          <span class="slot-card-meta">{{ slot.ridingType }}</span>
+          <strong class="slot-card-time">יום {{ dayName(slot.dayOfWeek) }} · {{ shortTime(slot.startTime) }}–{{
+            shortTime(slot.endTime) }}</strong>
+          <span class="slot-card-meta">
+            {{ instructorName(slot.instructorId) }}
+            <span aria-hidden="true"> · </span>
+            {{ slot.ridingType }}
+          </span>
           <div class="slot-card-bottom">
             <span class="slot-child-count">{{ slot.candidates.length }} ילדים מתאימים</span>
             <span class="slot-warning-count" *ngIf="slotWarningCount(slot) > 0">
@@ -124,7 +109,8 @@
               {{ slot.slotKind === 'existing_group' ? 'קבוצה קיימת' : 'סדרה חדשה' }}
             </span>
             <h3>יום {{ dayName(slot.dayOfWeek) }} · {{ shortTime(slot.startTime) }}–{{ shortTime(slot.endTime) }}</h3>
-            <p>{{ instructorName(slot.instructorId) }} · {{ slot.ridingType }} · תאריך התחלה {{ dateLabel(slot.firstDate) }}</p>
+            <p>{{ instructorName(slot.instructorId) }} · {{ slot.ridingType }} · תאריך התחלה {{
+              dateLabel(slot.firstDate) }}</p>
           </div>
           <strong class="matching-detail-total">{{ slot.candidates.length }} ילדים מתאימים</strong>
         </div>
@@ -168,7 +154,7 @@
             <details class="matching-warning-details" *ngIf="candidate.warnings.length > 0">
               <summary>הצגת פירוט מועדים ואזהרות ({{ candidate.warnings.length }})</summary>
               <div class="matching-warning-item" *ngFor="let warning of candidate.warnings"
-                   [class.is-skipped]="warning.severity === 'skipped'">
+                [class.is-skipped]="warning.severity === 'skipped'">
                 <strong>
                   {{ dateLabel(warning.date) }} ·
                   {{ warning.severity === 'skipped' ? 'דילוג' : 'אזהרה' }}

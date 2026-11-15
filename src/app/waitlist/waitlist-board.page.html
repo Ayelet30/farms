@@ -2,24 +2,46 @@
 
   <!-- כותרת העמוד -->
   <section class="wl-hero-card">
-
     <div class="wl-hero-text">
-      <h1>ניהול רשימת המתנה</h1>
-      <p>ניהול בקשות המתנה, מיקומים וסדרי עדיפויות.</p>
+      <h1>{{ selectedTab() === 'matching' ? 'ניהול התאמות' : 'ניהול רשימת המתנה' }}</h1>
+      <p>
+        {{ selectedTab() === 'matching'
+        ? 'חיפוש משבצות שבועיות מתאימות לשיבוץ ילדים מרשימת ההמתנה.'
+        : 'ניהול בקשות המתנה, מיקומים וסדרי עדיפויות.' }}
+      </p>
     </div>
 
     <div class="wl-hero-actions">
-      <button type="button" class="wl-main-btn" [disabled]="saving() || loadingFarmChildren()"
-        (click)="openChildPicker()">
-        <span class="plus">+</span>
-        הוספה לרשימת המתנה
-      </button>
+      <div *ngIf="selectedTab() === 'matching'; else waitlistActions" class="wl-matching-actions">
+        <button type="button" class="wl-main-btn" [disabled]="matchingResults.loading()"
+          (click)="matchingResults.search()">
+          <span class="wl-main-btn-icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-9-9c2.5 0 4.8 1 6.5 2.7L21 8" />
+              <path d="M21 3v5h-5" />
+            </svg>
+          </span>
+          {{ matchingResults.searched() ? 'חיפוש מחדש' : 'חיפוש התאמות' }}
+        </button>
 
-      <button type="button" class="wl-secondary-btn" [disabled]="saving()" (click)="openMatchingTab()">
-        חיפוש התאמות
-      </button>
+        <span class="wl-matching-updated-at" *ngIf="matchingResults.lastRunAt() as completedAt">
+          עודכן לאחרונה {{ completedAt | date:'dd/MM/yyyy HH:mm' }}
+        </span>
+      </div>
+
+      <ng-template #waitlistActions>
+        <button type="button" class="wl-main-btn" [disabled]="saving() || loadingFarmChildren()"
+          (click)="openChildPicker()">
+          <span class="wl-main-btn-icon" aria-hidden="true">+</span>
+          הוספה לרשימת המתנה
+        </button>
+
+        <button type="button" class="wl-secondary-btn" [disabled]="saving()" (click)="openMatchingTab()">
+          חיפוש התאמות
+        </button>
+      </ng-template>
     </div>
-
   </section>
 
   <!-- לשוניות -->
@@ -47,12 +69,15 @@
       <button type="button" class="wl-tab" [class.active]="selectedTab() === 'matching'"
         (click)="changeTab('matching')">
         התאמות שיעורים
+        <span class="count">
+          {{ matchingResults.searched() ? matchingResults.slots().length : '—' }}
+        </span>
       </button>
 
     </div>
 
     <span class="wl-toolbar-note">
-      לחצי על רשומה כדי לצפות בפרטיה ולערוך אותה.
+      לחצי על רשומה לפרטים ולעריכה.
     </span>
 
   </section>
@@ -542,15 +567,11 @@
   </ng-container>
 
 
-<!-- לשונית התאמות שיעורים -->
-<app-matching-results
-  [hidden]="selectedTab() !== 'matching'"
-  [searchVersion]="matchingSearchVersion()"
-  [internalEntries]="entries()"
-  [externalEntries]="externalEntries()"
-  [childNamesById]="childNamesById()"
-  [instructors]="filterInstructors()">
-</app-matching-results>
+  <!-- לשונית התאמות שיעורים -->
+  <app-matching-results #matchingResults [hidden]="selectedTab() !== 'matching'" [active]="selectedTab() === 'matching'"
+    [searchVersion]="matchingSearchVersion()" [internalEntries]="entries()" [externalEntries]="externalEntries()"
+    [childNamesById]="childNamesById()" [instructors]="filterInstructors()">
+  </app-matching-results>
 
 
   <!-- כותרות משותפות לטבלאות חיצוניות -->

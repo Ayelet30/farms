@@ -1,4 +1,8 @@
-
+export interface SavedMatchingRun {
+  id: string;
+  completed_at: string;
+  candidates: WeeklyMatchingCandidate[];
+}
 import { Injectable } from '@angular/core';
 import {
   dbTenant,
@@ -54,6 +58,12 @@ export interface WeeklyMatchingCandidate {
   requires_secretary_review: boolean;
 }
 
+export interface SavedMatchingRun {
+  id: string;
+  completed_at: string;
+  candidates: WeeklyMatchingCandidate[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class MatchingService {
 
@@ -78,4 +88,24 @@ export class MatchingService {
 
     return (data ?? []) as WeeklyMatchingCandidate[];
   }
+
+  async loadLatestRun(): Promise<SavedMatchingRun | null> {
+    await ensureTenantContextReady();
+
+    const { data, error } = await dbTenant().rpc('matching_load_latest_run');
+    if (error) throw error;
+
+    return data as SavedMatchingRun | null;
+  }
+
+  async searchAndSaveRun(): Promise<SavedMatchingRun> {
+    await ensureTenantContextReady();
+
+    const { data, error } = await dbTenant().rpc('matching_search_and_save_run');
+    if (error) throw error;
+    if (!data) throw new Error('השרת לא החזיר תוצאות להרצה.');
+
+    return data as SavedMatchingRun;
+  }
+
 }

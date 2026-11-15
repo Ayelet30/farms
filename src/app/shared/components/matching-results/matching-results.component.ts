@@ -37,6 +37,7 @@ interface MatchingSlot {
 })
 export class MatchingResultsComponent implements OnChanges {
   @Input() searchVersion = 0;
+  @Input() active = false;
   @Input() internalEntries: WaitlistEntry[] = [];
   @Input() externalEntries: ExternalWaitlistRequest[] = [];
   @Input() childNamesById: Record<string, string> = {};
@@ -53,6 +54,9 @@ export class MatchingResultsComponent implements OnChanges {
   readonly searchText = signal('');
   readonly selectedDay = signal('all');
   readonly selectedKind = signal('all');
+  readonly lastRunAt = signal<string | null>(null);
+  readonly searching = signal(false);
+  readonly showLoadingPanel = signal(false);
 
   readonly slots = computed<MatchingSlot[]>(() => {
     const grouped = new Map<string, MatchingSlot>();
@@ -102,10 +106,6 @@ export class MatchingResultsComponent implements OnChanges {
     );
   });
 
-  readonly matchingCount = computed(() =>
-    this.slots().reduce((sum, slot) => sum + slot.candidates.length, 0)
-  );
-
   readonly filteredSlots = computed(() => {
     const text = this.searchText().trim().toLocaleLowerCase();
     const day = this.selectedDay();
@@ -137,11 +137,7 @@ export class MatchingResultsComponent implements OnChanges {
     this.selectedKind() !== 'all'
   );
 
-  ngOnChanges(changes: SimpleChanges): void {
-    if (changes['searchVersion'] && this.searchVersion > 0) {
-      void this.search();
-    }
-  }
+
 
   toggleSlot(slotKey: string): void {
     this.expandedSlotKey.update(current => current === slotKey ? null : slotKey);
@@ -157,31 +153,79 @@ export class MatchingResultsComponent implements OnChanges {
     this.selectedKind.set('all');
   }
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['active']?.previousValue === true && !this.active) {
+      this.clearFilters();
+      this.closeSlot();
+      return;
+    }
+    if (changes['searchVersion'] && this.searchVersion > 0) {
+      void this.search();
+      return;
+    }
+
+    if (changes['active'] && this.active && !this.searching()) {
+      void this.loadRun(false);
+    }
+  }
+
   async search(): Promise<void> {
-    const sequence = ++this.searchSequence;
+    if (this.searching()) return;
+
     this.closeSlot();
+    await this.loadRun(true);
+  }
+
+  private async loadRun(runNewSearch: boolean): Promise<void> {
+    const sequence = ++this.searchSequence;
+
     this.loading.set(true);
+    this.searching.set(runNewSearch);
     this.error.set(null);
 
-    try {
-      const today = new Date();
-      const fromDate = [
-        today.getFullYear(),
-        String(today.getMonth() + 1).padStart(2, '0'),
-        String(today.getDate()).padStart(2, '0')
-      ].join('-');
+    this.showLoadingPanel.set(runNewSearch);
 
-      const data = await this.matchingService.searchWeeklyMatches(fromDate, 14);
+    const loadingTimer = runNewSearch
+      ? undefined
+      : setTimeout(() => {
+        if (sequence === this.searchSequence && this.loading()) {
+          this.showLoadingPanel.set(true);
+        }
+      }, 250);
+
+    try {
+      const run = runNewSearch
+        ? await this.matchingService.searchAndSaveRun()
+        : await this.matchingService.loadLatestRun();
+
       if (sequence !== this.searchSequence) return;
 
-      this.results.set(data);
-      this.searched.set(true);
+      this.results.set(run?.candidates ?? []);
+      this.lastRunAt.set(run?.completed_at ?? null);
+      this.searched.set(run !== null);
+
+      if (this.expandedSlotKey() && !this.selectedSlot()) {
+        this.closeSlot();
+      }
     } catch (error) {
       if (sequence !== this.searchSequence) return;
-      console.error('Matching search failed:', error);
-      this.error.set('לא ניתן לטעון את ההתאמות. בדקי את הרשאות הגישה ונסי שוב.');
+
+      console.error('Matching run request failed:', error);
+      this.error.set(
+        runNewSearch
+          ? 'החיפוש לא הושלם. אפשר לנסות שוב.'
+          : 'לא ניתן לטעון את תוצאות ההרצה האחרונה.'
+      );
     } finally {
-      if (sequence === this.searchSequence) this.loading.set(false);
+      if (loadingTimer !== undefined) {
+        clearTimeout(loadingTimer);
+      }
+
+      if (sequence === this.searchSequence) {
+        this.showLoadingPanel.set(false);
+        this.loading.set(false);
+        this.searching.set(false);
+      }
     }
   }
 
