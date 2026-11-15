@@ -130,13 +130,16 @@
     {{ clalitMaintenanceSummary }}
   </p>
 
-  <ul *ngIf="clalitMaintenanceReview.length">
+  <details *ngIf="clalitMaintenanceReview.length">
+    <summary>עדכוני הרצה שדורשים בדיקה ({{ clalitMaintenanceReview.length }})</summary>
+    <ul>
     <li
       *ngFor="let note of clalitMaintenanceReview"
     >
       {{ note }}
     </li>
-  </ul>
+    </ul>
+  </details>
 </section>
 
   <section
@@ -185,6 +188,16 @@
       <span>דיווחים שנכשלו</span>
       <strong>{{ failedCount }}</strong>
       <small>דורשים טיפול</small>
+    </button>
+    <button
+      type="button"
+      class="summary-card failed"
+      [class.active]="filters.reportState === 'BLOCKED'"
+      (click)="setReportFilter('BLOCKED')"
+    >
+      <span>לא ניתן לדווח</span>
+      <strong>{{ blockedCount }}</strong>
+      <small>לחצי להצגת השיעורים</small>
     </button>
   </section>
 
@@ -279,7 +292,12 @@
           <mat-option value="PENDING">ממתין / בתהליך</mat-option>
           <mat-option value="DONE">דווח</mat-option>
           <mat-option value="FAILED">נכשל</mat-option>
-          <mat-option value="BLOCKED">חסום לדיווח</mat-option>
+          <mat-option value="BLOCKED">לא ניתן לדווח</mat-option>
+          <mat-optgroup *ngIf="reportNoteOptions.length" label="מצבים והערות בחודש הנבחר">
+            <mat-option *ngFor="let option of reportNoteOptions" [value]="option.value">
+              {{ option.label }}
+            </mat-option>
+          </mat-optgroup>
         </mat-select>
       </label>
 
@@ -597,6 +615,13 @@
     </span>
 
     <small
+      *ngIf="row.manuallySubmittedAt && row.displayStatusText !== 'הוגשה ידנית'"
+      class="secondary-value"
+    >
+      הוגשה ידנית
+    </small>
+
+    <small
       *ngIf="activeTab === 'CLALIT' && row.automationClaimNumber"
       class="secondary-value">
       תביעה: {{ row.automationClaimNumber }}
@@ -631,12 +656,10 @@
   ממתינה לבדיקת כללית.
 </small>
 
-    <small
-      *ngIf="row.automationError"
-      class="automation-error"
-      [title]="row.automationError">
-      {{ row.automationError }}
-    </small>
+    <details *ngIf="row.automationError" class="automation-error">
+      <summary>פרטי הרצה</summary>
+      <p style="white-space: pre-wrap; overflow-wrap: anywhere">{{ row.automationError }}</p>
+    </details>
   </td>
 </ng-container>
 
@@ -667,6 +690,25 @@
             >
               מוכן לדיווח
             </span>
+
+            <details *ngIf="row.displayStatus === 'FAILED' || canMarkManuallySubmitted(row)">
+              <summary class="pill-btn tiny">דיווח ידני</summary>
+              <p>{{ row.childName }} · {{ row.occur_date | date:'dd/MM/yyyy' }}</p>
+              <p *ngIf="row.automationClaimNumber">מספר תביעה: {{ row.automationClaimNumber }}</p>
+              <p>בדקי בפורטל הקופה אם קיימת תביעה לשיעור. משם אפשר להשלים את הדיווח או לתקן תביעה קיימת.</p>
+              <a *ngIf="activeTab === 'CLALIT'"
+                href="https://portalsapakim.mushlam.clalit.co.il/Mushlam/Login.aspx"
+                target="_blank" rel="noopener noreferrer">פתיחת פורטל כללית</a>
+              <button
+                *ngIf="canMarkManuallySubmitted(row)"
+                type="button"
+                class="pill-btn tiny"
+                [disabled]="manualSubmissionSavingId !== null"
+                (click)="markManuallySubmitted(row)"
+              >
+                סמני כהוגשה ידנית
+              </button>
+            </details>
 
             <button
               *ngIf="canDeleteClaimRow(row)"

@@ -1,7 +1,7 @@
-import { Component, OnInit, ViewChild, HostListener } from '@angular/core';
+import { Component, OnInit, ViewChild, HostListener, TemplateRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import * as XLSX from 'xlsx';
@@ -1348,6 +1348,156 @@ if (!deleted?.length) {
     }
   }
 
+
+    childParentChange: {
+    childId: string;
+    childName: string;
+    sourceUid: string;
+    query: string;
+    targetUid: string;
+  } | null = null;
+
+  private childParentDialogRef: MatDialogRef<unknown> | null = null;
+
+  savingChildParent = false;
+
+  get childParentCandidates(): ParentRow[] {
+    const change = this.childParentChange;
+    if (!change) return [];
+
+    const words = change.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+
+    return this.parents.filter(parent => {
+      if (parent.uid === change.sourceUid || parent.is_active !== true) return false;
+
+      const searchText = [parent.first_name, parent.last_name, parent.phone, parent.email]
+        .join(' ')
+        .toLowerCase();
+
+      return words.every(word => searchText.includes(word));
+    });
+  }
+
+  startChildParentChange(
+  child: SecretaryParentsComponent['drawerChildren'][number],
+  template: TemplateRef<unknown>,
+): void {
+  const sourceUid = this.selectedUid;
+  if (
+    !sourceUid ||
+    this.savingChildParent ||
+    this.drawerLoading ||
+    this.editMode ||
+    this.childParentDialogRef
+  ) return;
+
+  const change = {
+    childId: child.child_uuid,
+    childName: [child.first_name, child.last_name].filter(Boolean).join(' '),
+    sourceUid,
+    query: '',
+    targetUid: '',
+  };
+
+  this.childParentChange = change;
+
+  const dialogRef = this.dialog.open(template, {
+    width: '380px',
+    maxWidth: 'calc(100vw - 32px)',
+    ariaLabelledBy: 'parent-transfer-title',
+    autoFocus: 'input[type="search"]',
+    restoreFocus: true,
+  });
+
+  this.childParentDialogRef = dialogRef;
+
+  dialogRef.afterClosed().subscribe(() => {
+    if (this.childParentDialogRef === dialogRef) this.childParentDialogRef = null;
+    if (this.childParentChange === change) this.childParentChange = null;
+  });
+}
+
+  async saveChildParentChange(): Promise<void> {
+    const change = this.childParentChange;
+    if (
+      !change ||
+      this.savingChildParent ||
+      this.drawerLoading ||
+      this.editMode ||
+      this.selectedUid !== change.sourceUid
+    ) return;
+
+    const target = this.childParentCandidates.find(parent => parent.uid === change.targetUid);
+    if (!target) return;
+
+    this.savingChildParent = true;
+
+    const dialogRef = this.childParentDialogRef;
+if (dialogRef) dialogRef.disableClose = true;
+
+    try {
+      const db = dbTenant();
+      const { data: activeParent, error: parentError } = await db
+        .from('parents')
+        .select('uid')
+        .eq('uid', target.uid)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (parentError) throw parentError;
+      if (!activeParent) {
+        await this.ui.alert(
+          'ההורה שנבחר כבר אינו זמין להעברה. רענני את רשימת ההורים ובחרי מחדש.',
+          'שינוי שיוך להורה',
+        );
+        return;
+      }
+
+      const { data: updated, error } = await db
+        .from('children')
+        .update({ parent_uid: target.uid })
+        .eq('child_uuid', change.childId)
+        .eq('parent_uid', change.sourceUid)
+        .select('child_uuid')
+        .maybeSingle();
+
+      if (error) throw error;
+      dialogRef?.close();
+
+      const selectedUid = this.selectedUid;
+      if (
+        selectedUid &&
+        (selectedUid === change.sourceUid || selectedUid === target.uid) &&
+        !this.editMode
+      ) {
+        await this.loadDrawerData(selectedUid);
+      }
+      await this.loadParents();
+
+      if (!updated) {
+        await this.ui.alert(
+          'השיוך לא עודכן. ייתכן שהשיוך כבר השתנה או שאין הרשאת עדכון.',
+          'שינוי שיוך להורה',
+        );
+        return;
+      }
+
+      await this.ui.alert(
+        `${change.childName} משויך כעת לכרטיס של ${target.first_name} ${target.last_name}.`,
+        'שינוי שיוך להורה',
+      );
+    } catch (error) {
+      console.error('Child parent reassignment failed', error);
+      await this.ui.alert(
+        'לא ניתן היה לאמת את העדכון. רענני ובדקי את השיוך לפני ניסיון נוסף.',
+        'שינוי שיוך להורה',
+      );
+    } finally {
+      this.savingChildParent = false;
+      if (dialogRef) dialogRef.disableClose = false;
+    }
+  }
+
   goToChildCard(childId: string): void {
     if (!childId) return;
 
@@ -1418,6 +1568,7 @@ if (!deleted?.length) {
   }
 
   async openDetails(uid: string) {
+        this.childParentChange = null;
     this.savingEdit = false;
 
     const cleanUid = (uid || '').trim();
@@ -1441,6 +1592,7 @@ if (!deleted?.length) {
   }
 
   closeDetails() {
+        this.childParentChange = null;
     this.resetAddCardState(true);
 
     this.drawer.close();
