@@ -30,10 +30,18 @@ export interface FarmSettings {
   quiet_hours_start?: string | null;
   quiet_hours_end?: string | null;
 
-  enable_discounts?: boolean | null;
+   enable_discounts?: boolean | null;
   late_payment_fee?: number | null;
   interest_percent_monthly?: number | null;
+
+  farm_cancel_is_billable?: boolean | null;
+  farm_makeup_is_billable?: boolean | null;
+  farm_cancel_charge_target?:
+    | 'cancelled_lesson'
+    | 'makeup_lesson'
+    | null;
 }
+
 
 
 @Injectable({ providedIn: 'root' })
@@ -89,4 +97,6 @@ export class FarmSettingsService {
     this.cache = null;
     this.loadingPromise = null;
   }
+
+  
 }

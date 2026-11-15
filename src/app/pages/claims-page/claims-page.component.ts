@@ -43,7 +43,8 @@ type ReportFilter =
   | 'RUNNING'
   | 'DONE'
   | 'FAILED'
-  | 'BLOCKED';
+  | 'BLOCKED'
+  | `NOTE:${string}`;
 
 interface LessonClaimRow {
   id: string;
@@ -93,6 +94,9 @@ interface LessonClaimRow {
   decisionNote?: string | null;
 rejectionCode?: string | null;
 invoiceReattachedAt?: string | null;
+
+claimId?: string | null
+  manuallySubmittedAt?: string | null;
 }
 
 interface FiltersState {
@@ -599,6 +603,25 @@ if (row.claimStatus === 'REJECTED') {
   continue;
 }
 
+if (row.manuallySubmittedAt && row.claimStatus === 'PENDING') {
+  row.displayStatus = 'DONE';
+  row.displayStatusText = 'הוגשה ידנית';
+  row.automationError = null;
+  continue;
+}
+
+if (
+  row.claimStatus === 'PENDING' &&
+  row.claimSubmitted &&
+  row.rejectionCode === 'missing_invoice' &&
+  row.invoiceReattachedAt
+) {
+  row.displayStatus = 'DONE';
+  row.displayStatusText = 'דווח בהצלחה';
+  row.automationError = null;
+  continue;
+}
+
 if (!state) {
   continue;
 }
@@ -807,6 +830,8 @@ const toDate =
           ,decision_note
           ,rejection_code
           ,invoice_reattached_at
+          ,claim_id
+          ,manually_submitted_at
         `
         : ''
   );
@@ -1081,8 +1106,65 @@ automationClaimNumber:
 
       reportMonth,
       reportMonthLabel: `${month}/${year}`,
+      claimId: row.claim_id ?? null,
+      manuallySubmittedAt: row.manually_submitted_at ?? null,
     };
   }
+
+  manualSubmissionSavingId: string | null = null;
+
+canMarkManuallySubmitted(row: LessonClaimRow): boolean {
+  return this.activeTab === 'CLALIT' &&
+    Boolean(row.claimId) &&
+    !row.manuallySubmittedAt &&
+    (
+      row.claimStatus === 'REJECTED' ||
+      row.claimStatus === 'OPENED_NOT_SUBMITTED'
+    );
+}
+
+async markManuallySubmitted(row: LessonClaimRow): Promise<void> {
+  if (!this.canMarkManuallySubmitted(row) ||
+      !row.claimId ||
+      this.manualSubmissionSavingId) {
+    return;
+  }
+
+  if (!window.confirm('האם דרישת התשלום לתביעה הזו כבר הוגשה ידנית בפורטל כללית?')) {
+    return;
+  }
+
+  this.manualSubmissionSavingId = row.claimId;
+
+  try {
+    const { data, error } = await dbTenant()
+      .from('lesson_claims')
+      .update({
+        claim_status: 'PENDING',
+        claim_opened: true,
+        claim_submitted: true,
+        manually_submitted_at: new Date().toISOString(),
+      })
+      .eq('id', row.claimId)
+      .eq('claim_status', row.claimStatus)
+      .is('manually_submitted_at', null)
+      .select('id')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      window.alert('התביעה לא עודכנה. רענני את המסך ובדקי את הסטטוס שלה.');
+    }
+
+    await this.reloadCurrentTab();
+  } catch (error) {
+    console.error('Manual Clalit submission update failed:', error);
+    window.alert('לא ניתן היה לשמור את הסימון כהגשה ידנית.');
+  } finally {
+    this.manualSubmissionSavingId = null;
+  }
+}
 
   private getViewNameByTab(): string {
     switch (this.activeTab) {
@@ -1098,7 +1180,14 @@ automationClaimNumber:
   }
 
   applyFilters(): void {
+    const notes = [...new Set(this.lessons.flatMap((row) => this.reportNotes(row)))];
+    this.reportNoteOptions = notes.sort((a, b) => a.localeCompare(b, 'he'))
+      .map((label) => ({ value: `NOTE:${label}`, label }));
     const filter = this.filters;
+    if (filter.reportState.startsWith('NOTE:') &&
+        !this.reportNoteOptions.some((option) => option.value === filter.reportState)) {
+      filter.reportState = 'ALL';
+    }
 
     const normalize = (value: string | null | undefined): string =>
       String(value ?? '')
@@ -1262,13 +1351,15 @@ automationClaimNumber:
         return this.isRowSelectable(row);
 
       case 'BLOCKED':
-        return !this.isRowSelectable(row);
+        return this.isReportingBlocked(row);
 
       case 'PENDING':
         return ['PENDING', 'RUNNING'].includes(row.displayStatus);
 
       default:
-        return row.displayStatus === reportState;
+        return reportState.startsWith('NOTE:')
+          ? this.reportNotes(row).includes(reportState.slice(5))
+          : row.displayStatus === reportState;
     }
   }
 
@@ -1322,6 +1413,42 @@ automationClaimNumber:
     return row.occurred && row.chargeable;
   }
 
+  isReportingBlocked(row: LessonClaimRow): boolean {
+    if (row.claimSubmitted ||
+        ['DONE', 'PENDING', 'RUNNING', 'UNCERTAIN'].includes(row.displayStatus)) {
+      return false;
+    }
+
+    const cancelled = row.isCancellation || row.exceptionStatus === 'בוטל';
+    const billableParentCancellation = cancelled && row.occurrenceBillable === true &&
+      (row.cancellerRole === 'parent' || row.cancellerRole === null);
+
+    if (!row.chargeable || (cancelled && !billableParentCancellation)) {
+      return true;
+    }
+
+    if (this.activeTab === 'MEUHEDET') {
+      return !row.occurred;
+    }
+
+    return !row.childIdNumber ||
+      (!row.occurred && row.attendance_status !== 'absent' && !billableParentCancellation);
+  }
+
+  get blockedCount(): number {
+    return this.lessons.filter((row) => this.isReportingBlocked(row)).length;
+  }
+
+  private reportNotes(row: LessonClaimRow): string[] {
+    const label = this.activeTab === 'MEUHEDET'
+      ? this.statusLabel(row.claimStatus)
+      : row.displayStatusText;
+    const notes = [label, row.decisionNote, this.isReportingBlocked(row) ? this.rowBlockReason(row) : ''];
+    return notes.map((note) => note?.trim() ?? '').filter(Boolean);
+  }
+
+  reportNoteOptions: { value: ReportFilter; label: string }[] = [];
+
   rowBlockReason(row: LessonClaimRow): string {
     if (this.activeTab === 'CLALIT') {
   if (row.displayStatus === 'DONE') {
@@ -1338,6 +1465,9 @@ automationClaimNumber:
 }
     if (this.activeTab === 'MACCABI' || this.activeTab === 'CLALIT') {
       const cancelled = row.isCancellation || row.exceptionStatus === 'בוטל';
+      if (cancelled && row.cancellerRole === 'instructor') {
+        return 'השיעור בוטל על ידי המדריך';
+      }
       if (cancelled &&
           (row.occurrenceBillable !== true ||
            !['parent', null].includes(row.cancellerRole))) {

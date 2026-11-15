@@ -275,6 +275,28 @@ export const secretaryCreateInstructorDayOffAndNotify = onRequest(
           String(body.medicalCertificateUrl).trim() === ''
           ? null
           : String(body.medicalCertificateUrl).trim();
+
+          const { data: settings, error: settingsError } = await sbTenant
+  .from('farm_settings')
+  .select(
+    'farm_cancel_is_billable, farm_cancel_charge_target'
+  )
+  .order('updated_at', { ascending: false })
+  .limit(1)
+  .maybeSingle();
+
+if (settingsError) throw settingsError;
+
+if (!settings) {
+  throw new Error('לא נמצאו הגדרות חווה; לא ניתן לקבוע מדיניות חיוב');
+}
+
+// אותה קדימות שקיימת במסך הגדרות החווה.
+// false מפורש נשמר ואינו מוחלף בערך הגיבוי.
+const cancellationIsBillable =
+  settings.farm_cancel_is_billable ??
+  (settings.farm_cancel_charge_target === 'cancelled_lesson');
+
       const { error: unErr } = await sbTenant
         .from('instructor_unavailability')
         .insert({
@@ -324,6 +346,7 @@ export const secretaryCreateInstructorDayOffAndNotify = onRequest(
               canceller_role: 'secretary',
               cancelled_at: new Date().toISOString(),
               is_makeup_allowed: true,
+              is_billable: cancellationIsBillable,
             } as any,
             { onConflict: 'lesson_id,occur_date' }
           );
