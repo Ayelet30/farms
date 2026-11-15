@@ -168,6 +168,11 @@ export class QuickAppointmentComponent implements OnInit {
   @Input({ required: true }) endTime = '';
   @Input({ required: true }) instructorId = '';
   @Input() instructorName = '';
+  @Input() matchingPrefill: {
+    childId: string;
+    ridingTypeId: string;
+    ridingTypeName: string;
+  } | null = null;
 
   @Output() close = new EventEmitter<void>();
   @Output() saved = new EventEmitter<void>();
@@ -226,6 +231,11 @@ export class QuickAppointmentComponent implements OnInit {
   }
 
   async ngOnInit(): Promise<void> {
+    if (this.matchingPrefill) {
+      this.bookingMode = 'series';
+      this.seriesMode = 'open';
+    }
+
     await Promise.all([
       this.loadChildren(),
       this.loadInstructors(),
@@ -233,6 +243,20 @@ export class QuickAppointmentComponent implements OnInit {
       this.loadRidingTypes(),
       this.loadFarmSettings(),
     ]);
+
+    if (this.matchingPrefill) {
+      const child = this.children.find(
+        row => row.child_uuid === this.matchingPrefill?.childId
+      );
+
+      if (!child) {
+        this.slotInfoError = 'לא ניתן לטעון את הילד/ה שנבחר/ה להתאמה.';
+        return;
+      }
+
+      this.selectChild(child);
+    }
+
     this.buildTimeOptions();
     await this.loadSlotInfo();
   }
@@ -483,7 +507,7 @@ export class QuickAppointmentComponent implements OnInit {
         p_instructor_id_number: this.instructorId,
         p_date: this.date,
         p_start_time: this.startTime,
-        p_end_time: null,
+        p_end_time: this.matchingPrefill ? this.endTime : null,
       });
 
       if (error) {
@@ -765,7 +789,7 @@ export class QuickAppointmentComponent implements OnInit {
   }
 
   async save(): Promise<void> {
-    if (this.loading || this.saveCompleted || this.isSlotUnavailable) {
+    if (this.matchingPrefill || this.loading || this.saveCompleted || this.isSlotUnavailable) {
       return;
     }
 
@@ -1136,6 +1160,9 @@ export class QuickAppointmentComponent implements OnInit {
     return this.minutesToTime(this.timeToMinutes(this.startTime) + duration);
   }
   get displayEndTime(): string {
+    if (this.matchingPrefill) {
+      return this.endTime;
+    }
     try {
       return this.getCalculatedEndTime();
     } catch {

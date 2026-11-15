@@ -265,9 +265,9 @@
   gap: 8px;
   min-width: 0;
   padding: 16px;
-  border: 1px solid #dce4cc;
+  border: 1px solid #d5dcc1;
   border-radius: 16px;
-  background: #fbfcf7;
+  background: #fffdf8;
   color: inherit;
   text-align: right;
   font: inherit;
@@ -275,12 +275,11 @@
   transition: border-color .16s, background .16s, box-shadow .16s, transform .16s;
 
   &:hover {
-    background: #f2f6e7;
-    border-color: #a9bd7c;
+    border-color: #a47634;
     box-shadow: 0 3px 12px rgb(78 99 37 / 8%);
     transform: translateY(-1px);
   }
-}
+} 
 
 .slot-card-top,
 .slot-card-bottom {
@@ -354,7 +353,7 @@
   padding: 16px;
   border: 1px solid #dce4cc;
   border-radius: 18px;
-  background: #fbfcf7;
+  background: #fffdf8;
 }
 
 .matching-back {
@@ -418,8 +417,8 @@
   border-bottom: 1px solid #e9eddf;
 }
 
-.matching-child-list>.matching-child:nth-child(even) {
-  background: #fffdf8;
+.matching-child-list > .matching-child:nth-child(even) {
+  background: #fbfcf7;
 }
 
 .matching-child:last-child {
@@ -459,7 +458,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 9px;
+
 }
 
 .matching-warning-details {
@@ -542,5 +541,35 @@ summary:focus-visible {
 
   .matching-slot-card {
     transition: none;
+  }
+}
+
+.matching-child-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 9px;
+}
+
+.matching-booking-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid #cfd7b9;
+  border-radius: 10px;
+  background: #f4f5e9;
+  color: #40552b;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: #eaf0dc;
   }
 }

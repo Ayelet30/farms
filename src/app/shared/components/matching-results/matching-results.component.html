@@ -139,16 +139,23 @@
                   · מקום {{ candidate.queue_position ?? '—' }}
                 </span>
               </div>
-              <span class="matching-child-status" [class.has-warnings]="candidate.warning_weeks > 0">
+                            <span class="matching-child-status" [class.has-warnings]="candidate.warning_weeks > 0">
                 {{ candidate.warning_weeks > 0 ? 'מתאימה עם אזהרה' : 'מתאימה לבדיקה' }}
               </span>
             </div>
-            <div class="matching-week-summary">
-              {{ candidate.available_weeks }} שבועות פנויים
-              <span aria-hidden="true">·</span>
-              {{ candidate.skipped_weeks }} שבועות מדולגים
-              <span aria-hidden="true">·</span>
-              {{ candidate.warning_weeks }} שבועות עם אזהרה
+
+            <div class="matching-child-footer">
+              <div class="matching-week-summary">
+                {{ candidate.available_weeks }} שבועות פנויים
+                <span aria-hidden="true">·</span>
+                {{ candidate.skipped_weeks }} שבועות מדולגים
+                <span aria-hidden="true">·</span>
+                {{ candidate.warning_weeks }} שבועות עם אזהרה
+              </div>
+
+              <button type="button" class="matching-booking-btn" (click)="openMatchingBooking(candidate)">
+                שיבוץ
+              </button>
             </div>
 
             <details class="matching-warning-details" *ngIf="candidate.warnings.length > 0">

@@ -2,19 +2,24 @@ import {
   Component,
   Input,
   OnChanges,
+  OnDestroy,
   SimpleChanges,
   computed,
   inject,
   signal
 } from '@angular/core';
+import { Overlay, OverlayRef } from '@angular/cdk/overlay';
+import { ComponentPortal } from '@angular/cdk/portal';
+import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import {
   MatchingService,
   WeeklyMatchingCandidate
 } from '../../../services/matching.service';
 import { ExternalWaitlistRequest } from '../../../services/waitlist.service';
+import { UiDialogService } from '../../../services/ui-dialog.service';
 import { WaitlistEntry } from '../../../Types/waitlist.types';
-
+import { QuickAppointmentComponent } from '../../../pages/schedule/secretary-schedule/quick-appointment/quick-appointment.component';
 interface MatchingSlot {
   key: string;
   dayOfWeek: number;
@@ -35,7 +40,7 @@ interface MatchingSlot {
   templateUrl: './matching-results.component.html',
   styleUrls: ['./matching-results.component.scss']
 })
-export class MatchingResultsComponent implements OnChanges {
+export class MatchingResultsComponent implements OnChanges, OnDestroy {
   @Input() searchVersion = 0;
   @Input() active = false;
   @Input() internalEntries: WaitlistEntry[] = [];
@@ -44,6 +49,11 @@ export class MatchingResultsComponent implements OnChanges {
   @Input() instructors: { id_number: string; name: string }[] = [];
 
   private readonly matchingService = inject(MatchingService);
+  private readonly overlay = inject(Overlay);
+    private readonly ui = inject(UiDialogService);
+  private bookingOverlay: OverlayRef | null = null;
+  private bookingCloseSubscription: Subscription | null = null;
+
   private searchSequence = 0;
 
   readonly loading = signal(false);
@@ -138,6 +148,73 @@ export class MatchingResultsComponent implements OnChanges {
   );
 
 
+    async openMatchingBooking(candidate: WeeklyMatchingCandidate): Promise<void> {
+    const slot = this.selectedSlot();
+
+    if (!slot?.candidates.includes(candidate) || this.bookingOverlay) {
+      return;
+    }
+
+    if (candidate.request_source === 'external') {
+      await this.ui.alert(
+        'יש להוסיף את הילד/ה למערכת לפני ביצוע השיבוץ.',
+        'נדרש רישום ילד/ה'
+      );
+      return;
+    }
+
+    const request = this.internalEntries.find(entry => entry.id === candidate.request_id);
+
+    if (!request?.child_uuid) {
+      await this.ui.alert(
+        'פרטי הילד/ה אינם זמינים. רענני את רשימת ההמתנה ונסי שוב.',
+        'לא ניתן לפתוח שיבוץ'
+      );
+      return;
+    }
+
+    const overlayRef = this.overlay.create({
+      positionStrategy: this.overlay.position().global()
+        .centerHorizontally().centerVertically(),
+      scrollStrategy: this.overlay.scrollStrategies.block(),
+      hasBackdrop: false,
+      width: '100vw',
+      height: '100dvh',
+      panelClass: 'quick-booking-overlay-panel',
+    });
+
+    this.bookingOverlay = overlayRef;
+
+    const componentRef = overlayRef.attach(
+      new ComponentPortal(QuickAppointmentComponent)
+    );
+
+    componentRef.setInput('date', candidate.series_start_date);
+    componentRef.setInput('startTime', this.shortTime(candidate.start_time));
+    componentRef.setInput('endTime', this.shortTime(candidate.end_time));
+    componentRef.setInput('instructorId', candidate.instructor_id);
+    componentRef.setInput('instructorName', this.instructorName(candidate.instructor_id));
+    componentRef.setInput('matchingPrefill', {
+      childId: request.child_uuid,
+      ridingTypeId: candidate.riding_type_id,
+      ridingTypeName: candidate.riding_type,
+    });
+
+    this.bookingCloseSubscription = componentRef.instance.close.subscribe(() => {
+      this.closeMatchingBooking();
+    });
+  }
+
+  private closeMatchingBooking(): void {
+    this.bookingCloseSubscription?.unsubscribe();
+    this.bookingCloseSubscription = null;
+    this.bookingOverlay?.dispose();
+    this.bookingOverlay = null;
+  }
+
+  ngOnDestroy(): void {
+    this.closeMatchingBooking();
+  }
 
   toggleSlot(slotKey: string): void {
     this.expandedSlotKey.update(current => current === slotKey ? null : slotKey);

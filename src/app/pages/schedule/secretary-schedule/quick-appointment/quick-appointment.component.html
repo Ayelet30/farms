@@ -27,7 +27,7 @@
           <div class="qa-info-row">
             <div class="k">סוג שיעור מהזמינות</div>
             <div class="v">
-              {{ s.riding_type_name || '—' }}
+              {{ matchingPrefill?.ridingTypeName || s.riding_type_name || '—' }}
               <ng-container *ngIf="s.lesson_type_mode">
                 • {{ s.lesson_type_mode }}
               </ng-container>
@@ -133,8 +133,9 @@
           <div class="qa-field qa-field-child-picker">
             <label>ילד/ה</label>
 
-            <input type="text" [(ngModel)]="childSearchTerm" (ngModelChange)="onChildSearchChange()"
-              (focus)="childDropdownOpen = true" placeholder="בחר/י ילד/ה" autocomplete="off" />
+            <input type="text" [readOnly]="!!matchingPrefill" [(ngModel)]="childSearchTerm"
+              (ngModelChange)="onChildSearchChange()" (focus)="childDropdownOpen = !matchingPrefill"
+              placeholder="בחר/י ילד/ה" autocomplete="off" />
             <div class="eligibility-warning" *ngIf="instructorEligibilityWarning">
               <span class="eligibility-warning-icon">⚠</span>
 
@@ -157,7 +158,7 @@
 
           <div class="qa-field">
             <label>מסלול זימון</label>
-            <select [(ngModel)]="bookingMode" (ngModelChange)="onBookingModeChange()">
+            <select [disabled]="!!matchingPrefill" [(ngModel)]="bookingMode" (ngModelChange)="onBookingModeChange()">
               <option value="single">שיעור בודד</option>
               <option value="series">סדרה</option>
               <option value="makeup">שיעור השלמה</option>
@@ -168,7 +169,7 @@
 
           <div class="qa-field" *ngIf="bookingMode === 'series'">
             <label>סוג סדרה</label>
-            <select [(ngModel)]="seriesMode">
+            <select [disabled]="!!matchingPrefill" [(ngModel)]="seriesMode">
               <option value="fixed">מוגבלת</option>
               <option value="open">קבועה</option>
             </select>
@@ -318,12 +319,17 @@
         </table>
       </div>
 
+      <small class="qa-help-text" *ngIf="matchingPrefill">
+        שמירה מתוך התאמה תהיה זמינה לאחר חיבור בדיקת המקום בקבוצה.
+      </small>
+      
       <div class="qa-actions">
         <button type="button" class="secondary" (click)="close.emit()" [disabled]="loading">
           ביטול
         </button>
 
-        <button type="button" class="primary" (click)="save()" [disabled]="loading || !canEditAppointment">
+        <button type="button" class="primary" (click)="save()"
+          [disabled]="loading || !canEditAppointment || !!matchingPrefill">
           {{ loading ? 'שומר...' : 'שמור זימון' }}
         </button>
       </div>
