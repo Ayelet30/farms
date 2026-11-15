@@ -23,6 +23,7 @@ import { WaitlistService, ExternalWaitlistRequest } from '../services/waitlist.s
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { SupabaseTenantService } from '../services/supabase-tenant.service';
 import { ExternalWaitlistEditComponent } from '../shared/components/external-waitlist-edit/external-waitlist-edit.component';
+import { MatchingResultsComponent } from '../shared/components/matching-results/matching-results.component';
 
 type Priority = 0 | 1 | 2;
 
@@ -35,6 +36,7 @@ type Priority = 0 | 1 | 2;
     DragDropModule,
     WaitingListDialog,
     ExternalWaitlistEditComponent,
+    MatchingResultsComponent,
     MatSidenavModule
   ],
   templateUrl: './waitlist-board.page.html',
@@ -178,7 +180,16 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   instructorsByEntry = signal<Record<string, string[]>>({});
 
   // איזו לשונית מוצגת
-  selectedTab = signal<'active' | 'paused' | 'external'>('active');
+  selectedTab = signal<
+    'active' | 'paused' | 'external' | 'matching'
+  >('active');
+
+  matchingSearchVersion = signal(0);
+
+  openMatchingTab(): void {
+    this.changeTab('matching');
+    this.matchingSearchVersion.update(value => value + 1);
+  }
 
   // איזו בקשה פתוחה להצגת פרטים
   expandedEntryId = signal<string | null>(null);
@@ -939,70 +950,70 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   private realtimeDestroyed = false;
 
   private async startWaitlistRealtime(): Promise<void> {
-  await ensureTenantContextReady();
+    await ensureTenantContextReady();
 
-  if (this.realtimeDestroyed || this.waitlistChannel) return;
+    if (this.realtimeDestroyed || this.waitlistChannel) return;
 
-  // הסכמה של החווה הנוכחית
-  const tenant = this.tenantService.requireTenant();
-  const tenantSchema = tenant.schema;
+    // הסכמה של החווה הנוכחית
+    const tenant = this.tenantService.requireTenant();
+    const tenantSchema = tenant.schema;
 
-  const sb = getSupabaseClient();
+    const sb = getSupabaseClient();
 
-  // העברת JWT לצורך הרשאות Realtime
-  if (tenant.accessToken) {
-    await sb.realtime.setAuth(tenant.accessToken);
+    // העברת JWT לצורך הרשאות Realtime
+    if (tenant.accessToken) {
+      await sb.realtime.setAuth(tenant.accessToken);
+    }
+
+    if (this.realtimeDestroyed) return;
+
+    // שמירת הלקוח לצורך ניקוי הערוץ ביציאה מהעמוד
+    this.waitlistRealtimeClient = sb;
+
+    this.waitlistChannel = sb
+      .channel(`waitlist-board-${tenantSchema}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: tenantSchema,
+          table: 'waitlist_entries'
+        },
+        (payload) => {
+          console.log(
+            'WAITLIST REALTIME EVENT:',
+            payload.eventType
+          );
+
+          this.scheduleRealtimeRefresh();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: tenantSchema,
+          table: 'waitlist_external_requests'
+        },
+        (payload) => {
+          console.log(
+            'EXTERNAL WAITLIST REALTIME EVENT:',
+            payload.eventType
+          );
+
+          this.scheduleExternalRealtimeRefresh();
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('Waitlist Realtime error:', status, err);
+        }
+
+        if (status === 'SUBSCRIBED') {
+          console.log('Waitlist Realtime connected');
+        }
+      });
   }
-
-  if (this.realtimeDestroyed) return;
-
-  // שמירת הלקוח לצורך ניקוי הערוץ ביציאה מהעמוד
-  this.waitlistRealtimeClient = sb;
-
-  this.waitlistChannel = sb
-    .channel(`waitlist-board-${tenantSchema}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: tenantSchema,
-        table: 'waitlist_entries'
-      },
-      (payload) => {
-        console.log(
-          'WAITLIST REALTIME EVENT:',
-          payload.eventType
-        );
-
-        this.scheduleRealtimeRefresh();
-      }
-    )
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: tenantSchema,
-        table: 'waitlist_external_requests'
-      },
-      (payload) => {
-        console.log(
-          'EXTERNAL WAITLIST REALTIME EVENT:',
-          payload.eventType
-        );
-
-        this.scheduleExternalRealtimeRefresh();
-      }
-    )
-    .subscribe((status, err) => {
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        console.error('Waitlist Realtime error:', status, err);
-      }
-
-      if (status === 'SUBSCRIBED') {
-        console.log('Waitlist Realtime connected');
-      }
-    });
-}
 
   private scheduleRealtimeRefresh(): void {
     if (this.realtimeDestroyed) return;
@@ -1109,28 +1120,28 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-  this.realtimeDestroyed = true;
+    this.realtimeDestroyed = true;
 
-  if (this.realtimeRefreshTimer) {
-    clearTimeout(this.realtimeRefreshTimer);
-    this.realtimeRefreshTimer = null;
+    if (this.realtimeRefreshTimer) {
+      clearTimeout(this.realtimeRefreshTimer);
+      this.realtimeRefreshTimer = null;
+    }
+
+    if (this.externalRealtimeRefreshTimer) {
+      clearTimeout(this.externalRealtimeRefreshTimer);
+      this.externalRealtimeRefreshTimer = null;
+    }
+
+    // הסרת ערוץ ה-Realtime בעת יציאה מהעמוד
+    if (this.waitlistChannel && this.waitlistRealtimeClient) {
+      void this.waitlistRealtimeClient.removeChannel(
+        this.waitlistChannel
+      );
+
+      this.waitlistChannel = null;
+      this.waitlistRealtimeClient = null;
+    }
   }
-
-  if (this.externalRealtimeRefreshTimer) {
-    clearTimeout(this.externalRealtimeRefreshTimer);
-    this.externalRealtimeRefreshTimer = null;
-  }
-
-  // הסרת ערוץ ה-Realtime בעת יציאה מהעמוד
-  if (this.waitlistChannel && this.waitlistRealtimeClient) {
-    void this.waitlistRealtimeClient.removeChannel(
-      this.waitlistChannel
-    );
-
-    this.waitlistChannel = null;
-    this.waitlistRealtimeClient = null;
-  }
-}
 
 
   constructor(
@@ -1159,14 +1170,14 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   }
 
   async ngOnInit(): Promise<void> {
-  await Promise.all([
-    this.refresh(),
-    this.loadExternalRequests(),
-    this.loadExternalFarmWorkingHours()
-  ]);
+    await Promise.all([
+      this.refresh(),
+      this.loadExternalRequests(),
+      this.loadExternalFarmWorkingHours()
+    ]);
 
-  await this.startWaitlistRealtime();
-}
+    await this.startWaitlistRealtime();
+  }
 
   // טעינת שעות הפעילות של החווה
   async loadExternalFarmWorkingHours(): Promise<void> {
@@ -1310,7 +1321,9 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   }
 
 
-  changeTab(tab: 'active' | 'paused' | 'external'): void {
+  changeTab(
+    tab: 'active' | 'paused' | 'external' | 'matching'
+  ): void {
     const previousTab = this.selectedTab();
 
     // איפוס סינון רק במעבר בין הבקשות הרגילות לחיצוניות
