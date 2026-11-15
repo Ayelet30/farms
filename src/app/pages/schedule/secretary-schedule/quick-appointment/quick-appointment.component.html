@@ -319,17 +319,13 @@
         </table>
       </div>
 
-      <small class="qa-help-text" *ngIf="matchingPrefill">
-        שמירה מתוך התאמה תהיה זמינה לאחר חיבור בדיקת המקום בקבוצה.
-      </small>
-      
       <div class="qa-actions">
         <button type="button" class="secondary" (click)="close.emit()" [disabled]="loading">
           ביטול
         </button>
 
         <button type="button" class="primary" (click)="save()"
-          [disabled]="loading || !canEditAppointment || !!matchingPrefill">
+          [disabled]="loading || saveCompleted || !canEditAppointment">
           {{ loading ? 'שומר...' : 'שמור זימון' }}
         </button>
       </div>

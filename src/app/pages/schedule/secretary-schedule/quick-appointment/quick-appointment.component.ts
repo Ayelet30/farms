@@ -168,10 +168,12 @@ export class QuickAppointmentComponent implements OnInit {
   @Input({ required: true }) endTime = '';
   @Input({ required: true }) instructorId = '';
   @Input() instructorName = '';
-  @Input() matchingPrefill: {
+    @Input() matchingPrefill: {
+    requestId: string;
     childId: string;
     ridingTypeId: string;
     ridingTypeName: string;
+    slotKind: 'existing_group' | 'new_slot';
   } | null = null;
 
   @Output() close = new EventEmitter<void>();
@@ -789,7 +791,7 @@ export class QuickAppointmentComponent implements OnInit {
   }
 
   async save(): Promise<void> {
-    if (this.matchingPrefill || this.loading || this.saveCompleted || this.isSlotUnavailable) {
+    if (this.loading || this.saveCompleted || this.isSlotUnavailable) {
       return;
     }
 
@@ -806,6 +808,36 @@ export class QuickAppointmentComponent implements OnInit {
         this.selectedChildId
       ) {
         referralUrl = await this.uploadReferralIfNeeded(this.selectedChildId);
+      }
+            if (this.matchingPrefill) {
+        const { data, error } = await dbTenant().rpc('waitlist_book_matching_series', {
+          p_entry_id: this.matchingPrefill.requestId,
+          p_series_start_date: this.date,
+          p_instructor_id: this.instructorId,
+          p_start_time: this.startTime,
+          p_end_time: this.endTime,
+          p_riding_type_id: this.matchingPrefill.ridingTypeId,
+          p_slot_kind: this.matchingPrefill.slotKind,
+          p_payment_plan_id: this.selectedPaymentPlanId,
+          p_payment_docs_url: referralUrl,
+        });
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        if (!data) {
+          throw new Error('לא התקבל אישור לשמירת השיבוץ.');
+        }
+
+        this.saveCompleted = true;
+        this.referralFile = null;
+        this.referralUploadError = null;
+        this.referralUrl = null;
+        this.showSuccess('השיבוץ נשמר ובקשת ההמתנה הוסרה.');
+        this.saved.emit();
+        this.close.emit();
+        return;
       }
       if (this.bookingMode === 'single') {
         const instructorUid = this.getSelectedInstructorUidOrThrow();

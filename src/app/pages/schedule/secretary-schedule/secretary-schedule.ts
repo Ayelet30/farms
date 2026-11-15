@@ -25,6 +25,7 @@ import type { EventClickArg } from '@fullcalendar/core';
 import { CurrentUserService } from '../../../core/auth/current-user.service';
 import { NoteComponent } from '../../Notes/note.component';
 import { UiDialogService } from '../../../services/ui-dialog.service';
+import { WaitlistMatchingNavigationService } from '../../../services/waitlist-matching-navigation.service';
 import { requireTenant, supabase } from '../../../services/supabaseClient.service';
 import { QuickAppointmentComponent } from './quick-appointment/quick-appointment.component';
 import { NavigationStart, Router } from '@angular/router';
@@ -456,6 +457,7 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
 
   private unsubTenantChange: (() => void) | null = null;
   private ui = inject(UiDialogService);
+  private readonly matchingNavigation = inject(WaitlistMatchingNavigationService);
 
   public cu = inject(CurrentUserService);
   private cdr = inject(ChangeDetectorRef);
@@ -498,93 +500,93 @@ export class SecretaryScheduleComponent implements OnInit, OnDestroy {
   }
 
   externalCoverOpen = false;
-externalCoverBusy = false;
-externalCoverRefreshing = false;
-externalCoverRefreshError = '';
+  externalCoverBusy = false;
+  externalCoverRefreshing = false;
+  externalCoverRefreshError = '';
 
-externalCoverContext = {
-  instructorId: '',
-  date: '',
-  start: '',
-  end: '',
-};
-
-openExternalCover(): void {
-  if (this.externalCoverBusy || this.externalCoverRefreshing) {
-    return;
-  }
-
-  const context = this.contextMenu;
-
-  this.externalCoverContext = {
-    instructorId: String(context.instructorId || ''),
-
-    date: String(
-      context.occurDate || context.date || '',
-    ).slice(0, 10),
-
-    start: String(
-      context.startTimeOnly ||
-      context.time ||
-      '08:00',
-    ).slice(0, 5),
-
-    end: String(
-      context.endTime || '12:00',
-    ).slice(0, 5),
+  externalCoverContext = {
+    instructorId: '',
+    date: '',
+    start: '',
+    end: '',
   };
 
-  this.externalCoverRefreshError = '';
+  openExternalCover(): void {
+    if (this.externalCoverBusy || this.externalCoverRefreshing) {
+      return;
+    }
 
-  this.closeContextMenu();
-  this.externalCoverOpen = true;
-}
+    const context = this.contextMenu;
 
-closeExternalCover(): void {
-  if (this.externalCoverBusy || this.externalCoverRefreshing) {
-    return;
+    this.externalCoverContext = {
+      instructorId: String(context.instructorId || ''),
+
+      date: String(
+        context.occurDate || context.date || '',
+      ).slice(0, 10),
+
+      start: String(
+        context.startTimeOnly ||
+        context.time ||
+        '08:00',
+      ).slice(0, 5),
+
+      end: String(
+        context.endTime || '12:00',
+      ).slice(0, 5),
+    };
+
+    this.externalCoverRefreshError = '';
+
+    this.closeContextMenu();
+    this.externalCoverOpen = true;
   }
 
-  this.externalCoverOpen = false;
-}
+  closeExternalCover(): void {
+    if (this.externalCoverBusy || this.externalCoverRefreshing) {
+      return;
+    }
 
-async onExternalCoverSaved(): Promise<void> {
-  if (this.externalCoverRefreshing || !this.currentRange) {
-    return;
+    this.externalCoverOpen = false;
   }
 
-  this.externalCoverRefreshing = true;
-  this.externalCoverRefreshError = '';
+  async onExternalCoverSaved(): Promise<void> {
+    if (this.externalCoverRefreshing || !this.currentRange) {
+      return;
+    }
 
-  const range = {
-    start: this.currentRange.start,
-    end: this.currentRange.end,
-  };
+    this.externalCoverRefreshing = true;
+    this.externalCoverRefreshError = '';
 
-  try {
-    await this.loadLessons(range);
+    const range = {
+      start: this.currentRange.start,
+      end: this.currentRange.end,
+    };
 
-    await this.loadRequestsForRange(
-      range.start.slice(0, 10),
-      range.end.slice(0, 10),
-    );
+    try {
+      await this.loadLessons(range);
 
-    this.filterLessons();
-    this.setScheduleItems();
+      await this.loadRequestsForRange(
+        range.start.slice(0, 10),
+        range.end.slice(0, 10),
+      );
 
-    this.buildBlockedDayCells(this.currentRange);
-    this.buildAvailableDayCells(this.currentRange);
-    this.buildWeekStats();
-  } catch (error) {
-    console.error('External cover refresh failed', error);
+      this.filterLessons();
+      this.setScheduleItems();
 
-    this.externalCoverRefreshError =
-      'השיבוץ נשמר, אך רענון הלוח נכשל. יש לרענן את הלוח; אין לשמור שוב.';
-  } finally {
-    this.externalCoverRefreshing = false;
-    this.cdr.detectChanges();
+      this.buildBlockedDayCells(this.currentRange);
+      this.buildAvailableDayCells(this.currentRange);
+      this.buildWeekStats();
+    } catch (error) {
+      console.error('External cover refresh failed', error);
+
+      this.externalCoverRefreshError =
+        'השיבוץ נשמר, אך רענון הלוח נכשל. יש לרענן את הלוח; אין לשמור שוב.';
+    } finally {
+      this.externalCoverRefreshing = false;
+      this.cdr.detectChanges();
+    }
   }
-}
 
   isInstructorAvailableOnContextDay(): boolean {
     const instructorId = String(
@@ -928,7 +930,10 @@ async onExternalCoverSaved(): Promise<void> {
       this.endSeriesModal.saving = false;
       this.cdr.detectChanges();
       await this.ui.alert('שגיאה בסיום הסדרה', 'שגיאה');
+      return;
     }
+
+    await this.matchingNavigation.offerSearch('סיום הסדרה נשמר בהצלחה.');
   }
 
 
@@ -1555,22 +1560,22 @@ async onExternalCoverSaved(): Promise<void> {
 
 
   private isWeeklyAvailabilityEffectiveOn(
-  row: InstructorWeeklyAvailabilityRow,
-  ymd: string
-): boolean {
-  const validFrom = row.valid_from
-    ? String(row.valid_from).slice(0, 10)
-    : null;
+    row: InstructorWeeklyAvailabilityRow,
+    ymd: string
+  ): boolean {
+    const validFrom = row.valid_from
+      ? String(row.valid_from).slice(0, 10)
+      : null;
 
-  const validUntil = row.valid_until
-    ? String(row.valid_until).slice(0, 10)
-    : null;
+    const validUntil = row.valid_until
+      ? String(row.valid_until).slice(0, 10)
+      : null;
 
-  if (validFrom && ymd < validFrom) return false;
-  if (validUntil && ymd > validUntil) return false;
+    if (validFrom && ymd < validFrom) return false;
+    if (validUntil && ymd > validUntil) return false;
 
-  return true;
-}
+    return true;
+  }
 
   private addOneDayYmdSafe(ymd: string): string {
     const [y, m, d] = ymd.split('-').map(Number);
@@ -2948,11 +2953,11 @@ async onExternalCoverSaved(): Promise<void> {
       if (e1) throw e1;
 
       const allRows = [...(all ?? []) as InstructorRow[]].sort((a, b) => {
-  const nameA = `${a.first_name ?? ''} ${a.last_name ?? ''}`.trim();
-  const nameB = `${b.first_name ?? ''} ${b.last_name ?? ''}`.trim();
+        const nameA = `${a.first_name ?? ''} ${a.last_name ?? ''}`.trim();
+        const nameB = `${b.first_name ?? ''} ${b.last_name ?? ''}`.trim();
 
-  return nameA.localeCompare(nameB, 'he');
-});
+        return nameA.localeCompare(nameB, 'he');
+      });
 
       // UI למעלה: כל הפעילים
       this.instructorsAll = allRows;
@@ -2970,11 +2975,11 @@ async onExternalCoverSaved(): Promise<void> {
       const today = this.dateToYmd(new Date());
 
       const { data: avail, error: e2 } = await dbc
-  .from('instructor_weekly_availability')
-  .select('instructor_id_number, valid_from, valid_until')
-  .eq('day_of_week', dow)
-  .or(`valid_from.is.null,valid_from.lte.${today}`)
-  .or(`valid_until.is.null,valid_until.gte.${today}`);
+        .from('instructor_weekly_availability')
+        .select('instructor_id_number, valid_from, valid_until')
+        .eq('day_of_week', dow)
+        .or(`valid_from.is.null,valid_from.lte.${today}`)
+        .or(`valid_until.is.null,valid_until.gte.${today}`);
 
       if (e2) throw e2;
 

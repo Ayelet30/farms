@@ -13,6 +13,7 @@ import { WaitingListDialog } from '../shared/components/waiting-list-dialog/wait
 import { inject } from '@angular/core';
 import { UiDialogService } from '../services/ui-dialog.service';
 import { MatSidenavModule } from '@angular/material/sidenav';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   CdkDragDrop,
   DragDropModule
@@ -184,6 +185,8 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     'active' | 'paused' | 'external' | 'matching'
   >('active');
 
+    private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   matchingSearchVersion = signal(0);
 
   openMatchingTab(): void {
@@ -412,6 +415,11 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     }
 
     // שלב 2: הסגירה הצליחה – סגירת החלוניות
+    this.externalEntries.update(entries =>
+      entries.map(item =>
+        item.id === entry.id ? { ...item, status: 'closed' as const } : item
+      )
+    );
     this.closeExternalDetails();
 
     this.externalRequestToClose.set(null);
@@ -1169,7 +1177,20 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     }
   }
 
-  async ngOnInit(): Promise<void> {
+    async ngOnInit(): Promise<void> {
+    const shouldSearch = this.route.snapshot.queryParamMap.get('searchMatches') === '1';
+
+    if (shouldSearch) {
+      this.openMatchingTab();
+
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { searchMatches: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    }
+
     await Promise.all([
       this.refresh(),
       this.loadExternalRequests(),
@@ -1270,6 +1291,7 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     try {
       // טעינת כל בקשות ההמתנה
       const list = await this.wl.listAllEntries();
+      this.entries.set(list);
 
       // חילוץ מזהי הילדים מתוך הבקשות
       const childIds = list.map(entry => entry.child_uuid);
@@ -1279,7 +1301,7 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
 
       // עדכון המידע שמוצג במסך
       this.childNamesById.set(names);
-      this.entries.set(list);
+      
       await this.loadFilterData();
 
       // עדכון מיקום בחלונית הפרטים אם היא פתוחה
@@ -1752,6 +1774,7 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
 
     try {
       await this.wl.deleteWaitlistRequest(entry.id);
+      this.entries.update(entries => entries.filter(item => item.id !== entry.id));
       this.expandedEntryId.set(null);
       await this.refresh();
     } catch (error: any) {

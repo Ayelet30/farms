@@ -33,6 +33,12 @@
             <input type="search" placeholder="חיפוש לפי מדריך, סוג רכיבה או שעה" [value]="searchText()"
               (input)="searchText.set($any($event.target).value)" />
           </label>
+          <label class="matching-filter-field">
+            <span>חיפוש ילד/ה</span>
+            <input type="search" placeholder="חיפוש לפי שם" [value]="childSearchText()"
+              (input)="childSearchText.set($any($event.target).value)" />
+          </label>
+
 
           <label class="matching-filter-field">
             <span>יום בשבוע</span>
@@ -79,8 +85,10 @@
             </span>
             <span class="slot-card-date">החל מ־{{ dateLabel(slot.firstDate) }}</span>
           </div>
-          <strong class="slot-card-time">יום {{ dayName(slot.dayOfWeek) }} · {{ shortTime(slot.startTime) }}–{{
-            shortTime(slot.endTime) }}</strong>
+          <strong class="slot-card-time">
+            יום {{ dayName(slot.dayOfWeek) }} ·
+            <bdi dir="ltr">{{ shortTime(slot.startTime) }}–{{ shortTime(slot.endTime) }}</bdi>
+          </strong>
           <span class="slot-card-meta">
             {{ instructorName(slot.instructorId) }}
             <span aria-hidden="true"> · </span>
@@ -108,7 +116,10 @@
             <span class="slot-kind" [class.is-existing]="slot.slotKind === 'existing_group'">
               {{ slot.slotKind === 'existing_group' ? 'קבוצה קיימת' : 'סדרה חדשה' }}
             </span>
-            <h3>יום {{ dayName(slot.dayOfWeek) }} · {{ shortTime(slot.startTime) }}–{{ shortTime(slot.endTime) }}</h3>
+            <h3>
+              יום {{ dayName(slot.dayOfWeek) }} ·
+              <bdi dir="ltr">{{ shortTime(slot.startTime) }}–{{ shortTime(slot.endTime) }}</bdi>
+            </h3>
             <p>{{ instructorName(slot.instructorId) }} · {{ slot.ridingType }} · תאריך התחלה {{
               dateLabel(slot.firstDate) }}</p>
           </div>
@@ -129,17 +140,19 @@
 
         <div class="matching-children-title">ילדים שניתן לשייך למשבצת</div>
         <div class="matching-child-list">
-          <article class="matching-child" *ngFor="let candidate of slot.candidates; trackBy: trackCandidate">
+          <article class="matching-child"
+  *ngFor="let candidate of slot.candidates; trackBy: trackCandidate"
+  [class.is-child-search-match]="matchesChildSearch(candidate)">
             <div class="matching-child-head">
               <div class="matching-child-name">
                 <strong>{{ childName(candidate) }}</strong>
                 <span>
                   {{ candidate.request_source === 'external' ? 'בקשה חיצונית' : 'בקשה פנימית' }}
                   · עדיפות {{ priorityName(candidate.priority) }}
-                  · מקום {{ candidate.queue_position ?? '—' }}
+                  · מקום {{ queuePosition(candidate) ?? '—' }}
                 </span>
               </div>
-                            <span class="matching-child-status" [class.has-warnings]="candidate.warning_weeks > 0">
+              <span class="matching-child-status" [class.has-warnings]="candidate.warning_weeks > 0">
                 {{ candidate.warning_weeks > 0 ? 'מתאימה עם אזהרה' : 'מתאימה לבדיקה' }}
               </span>
             </div>

@@ -16,6 +16,7 @@ import {
 } from '../../services/legacy-compat';
 import type { ChildRow } from '../../Types/detailes.model';
 import { UiDialogService } from '../../services/ui-dialog.service';
+import { WaitlistMatchingNavigationService } from '../../services/waitlist-matching-navigation.service';
 import { Router, RouterModule } from '@angular/router';
 import {
   MatDialog,
@@ -393,6 +394,7 @@ export class SecretaryChildrenComponent implements OnInit {
 
   constructor(
     private ui: UiDialogService,
+    private readonly matchingNavigation: WaitlistMatchingNavigationService,
     private fb: FormBuilder,
     private dialog: MatDialog,
     private sanitizer: DomSanitizer,
@@ -433,30 +435,30 @@ export class SecretaryChildrenComponent implements OnInit {
 
   intakeMenuKey: string | null = null;
 
-toggleIntakeMenu(
-  event: MouseEvent,
-  lesson: ChildLessonHistoryRow
-): void {
-  event.stopPropagation();
+  toggleIntakeMenu(
+    event: MouseEvent,
+    lesson: ChildLessonHistoryRow
+  ): void {
+    event.stopPropagation();
 
-  if (this.intakeSaving[this.intakeRowKey(lesson)]) return;
+    if (this.intakeSaving[this.intakeRowKey(lesson)]) return;
 
-  const key = this.intakeRowKey(lesson);
-  this.intakeMenuKey = this.intakeMenuKey === key ? null : key;
-}
+    const key = this.intakeRowKey(lesson);
+    this.intakeMenuKey = this.intakeMenuKey === key ? null : key;
+  }
 
-async chooseIntakeType(
-  event: MouseEvent,
-  lesson: ChildLessonHistoryRow,
-  value: IntakeType
-): Promise<void> {
-  event.stopPropagation();
-  this.intakeMenuKey = null;
+  async chooseIntakeType(
+    event: MouseEvent,
+    lesson: ChildLessonHistoryRow,
+    value: IntakeType
+  ): Promise<void> {
+    event.stopPropagation();
+    this.intakeMenuKey = null;
 
-  if (lesson.intakeType === value) return;
+    if (lesson.intakeType === value) return;
 
-  await this.saveLessonIntakeType(lesson, value);
-}
+    await this.saveLessonIntakeType(lesson, value);
+  }
 
   get visibleColumns(): ChildColumnDef[] {
     return this.columns.filter((c) => c.visible);
@@ -534,287 +536,287 @@ async chooseIntakeType(
     }
   }
 
- async loadChildLessonsHistory(): Promise<void> {
-  const childId = this.drawerChild?.child_uuid;
-  if (!childId || this.lessonsHistoryLoading) return;
+  async loadChildLessonsHistory(): Promise<void> {
+    const childId = this.drawerChild?.child_uuid;
+    if (!childId || this.lessonsHistoryLoading) return;
 
-  this.lessonsHistoryLoading = true;
-  this.lessonsHistoryError = null;
+    this.lessonsHistoryLoading = true;
+    this.lessonsHistoryError = null;
 
-  try {
-    const db = await this.dbc();
+    try {
+      const db = await this.dbc();
 
-    let query = db
-      .from('lessons_occurrences')
-      .select('*')
-      .eq('child_id', childId)
-      .order('occur_date', { ascending: false });
+      let query = db
+        .from('lessons_occurrences')
+        .select('*')
+        .eq('child_id', childId)
+        .order('occur_date', { ascending: false });
 
-    if (this.lessonsHistoryFrom) {
-      query = query.gte('occur_date', this.lessonsHistoryFrom);
-    }
-
-    if (this.lessonsHistoryTo) {
-      query = query.lte('occur_date', this.lessonsHistoryTo);
-    }
-
-    const { data, error } = await query.limit(1000);
-    if (error) throw error;
-
-    const rawRows = data ?? [];
-    const attendanceRows: any[] = [];
-    const noteRows: any[] = [];
-    for (const table of ['lesson_attendance', 'lesson_notes_simple']) {
-      let offset = 0;
-      while (true) {
-        let q = db.from(table).select('*').eq('child_id', childId);
-        q = table === 'lesson_attendance'
-          ? q.order('lesson_id').order('occur_date')
-          : q.order('id');
-        const result = await q.range(offset, offset + 99);
-        if (result.error) throw result.error;
-        const page = result.data ?? [];
-        (table === 'lesson_attendance' ? attendanceRows : noteRows).push(...page);
-        if (page.length < 100) break;
-        offset += page.length;
+      if (this.lessonsHistoryFrom) {
+        query = query.gte('occur_date', this.lessonsHistoryFrom);
       }
-    }
-    this.historyNoteRows = noteRows;
-    const attendanceMap = new Map<string, string>(attendanceRows.map((r: any) =>
-      [`${r.lesson_id}_${String(r.occur_date).slice(0, 10)}`, r.attendance_status]
-    ));
-    const notesText = (id: string, date: string, office: boolean): string | null => {
-      const values = noteRows.filter((n: any) =>
-        String(n.lesson_id) === id && String(n.occur_date).slice(0, 10) === date &&
-        (office ? n.category === 'office' : ['general', 'medical', 'behavioral'].includes(n.category))
-      ).sort((a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at)));
-      return values.map((n: any) => n.note).filter(Boolean).join('\n\n') || null;
-    };
 
-
-    const intakeByOccurrence = new Map<string, IntakeType>();
-
-    const lessonIds: string[] = Array.from(
-      new Set<string>(
-        rawRows
-          .map((row: any) => String(row.lesson_id ?? ''))
-          .filter((id: string) => !!id)
-      )
-    );
-
-    for (let i = 0; i < lessonIds.length; i += 100) {
-      const batch = lessonIds.slice(i, i + 100);
-      let offset = 0;
-
-      while (true) {
-        let metadataQuery = db
-          .from('lesson_occurrence_metadata')
-          .select('lesson_id, occur_date, intake_type')
-          .in('lesson_id', batch)
-          .order('lesson_id')
-          .order('occur_date');
-
-        if (this.lessonsHistoryFrom) {
-          metadataQuery = metadataQuery.gte(
-            'occur_date',
-            this.lessonsHistoryFrom
-          );
-        }
-
-        if (this.lessonsHistoryTo) {
-          metadataQuery = metadataQuery.lte(
-            'occur_date',
-            this.lessonsHistoryTo
-          );
-        }
-
-        const {
-          data: metadata,
-          error: metadataError,
-        } = await metadataQuery.range(offset, offset + 99);
-
-        if (metadataError) throw metadataError;
-
-        const page = metadata ?? [];
-
-        for (const entry of page) {
-          const key =
-            `${entry.lesson_id}_${String(entry.occur_date).slice(0, 10)}`;
-
-          intakeByOccurrence.set(
-            key,
-            entry.intake_type as IntakeType
-          );
-        }
-
-        if (page.length < 100) break;
-        offset += page.length;
+      if (this.lessonsHistoryTo) {
+        query = query.lte('occur_date', this.lessonsHistoryTo);
       }
-    }
 
-    const instructorIds: string[] = Array.from(
-      new Set<string>(
-        rawRows
-          .map((row: any) =>
-            String(row.instructor_id ?? row.instructor_id_number ?? '')
-          )
-          .filter((id: string) => !!id)
-      )
-    );
+      const { data, error } = await query.limit(1000);
+      if (error) throw error;
 
-    let instructorNameById: Record<string, string> = {};
+      const rawRows = data ?? [];
+      const attendanceRows: any[] = [];
+      const noteRows: any[] = [];
+      for (const table of ['lesson_attendance', 'lesson_notes_simple']) {
+        let offset = 0;
+        while (true) {
+          let q = db.from(table).select('*').eq('child_id', childId);
+          q = table === 'lesson_attendance'
+            ? q.order('lesson_id').order('occur_date')
+            : q.order('id');
+          const result = await q.range(offset, offset + 99);
+          if (result.error) throw result.error;
+          const page = result.data ?? [];
+          (table === 'lesson_attendance' ? attendanceRows : noteRows).push(...page);
+          if (page.length < 100) break;
+          offset += page.length;
+        }
+      }
+      this.historyNoteRows = noteRows;
+      const attendanceMap = new Map<string, string>(attendanceRows.map((r: any) =>
+        [`${r.lesson_id}_${String(r.occur_date).slice(0, 10)}`, r.attendance_status]
+      ));
+      const notesText = (id: string, date: string, office: boolean): string | null => {
+        const values = noteRows.filter((n: any) =>
+          String(n.lesson_id) === id && String(n.occur_date).slice(0, 10) === date &&
+          (office ? n.category === 'office' : ['general', 'medical', 'behavioral'].includes(n.category))
+        ).sort((a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at)));
+        return values.map((n: any) => n.note).filter(Boolean).join('\n\n') || null;
+      };
 
-    if (instructorIds.length) {
-      const {
-        data: instructorsData,
-        error: instructorsError,
-      } = await db
-        .from('instructors')
-        .select('id_number, first_name, last_name')
-        .in('id_number', instructorIds);
 
-      if (instructorsError) throw instructorsError;
+      const intakeByOccurrence = new Map<string, IntakeType>();
 
-      instructorNameById = Object.fromEntries(
-        (instructorsData ?? []).map((instructor: any) => [
-          instructor.id_number,
-          `${instructor.first_name ?? ''} ${instructor.last_name ?? ''}`.trim(),
-        ])
+      const lessonIds: string[] = Array.from(
+        new Set<string>(
+          rawRows
+            .map((row: any) => String(row.lesson_id ?? ''))
+            .filter((id: string) => !!id)
+        )
       );
-    }
 
-    this.lessonsHistory = rawRows.map(
-      (row: any): ChildLessonHistoryRow => {
-        const lessonId = String(row.lesson_id ?? row.id ?? '');
+      for (let i = 0; i < lessonIds.length; i += 100) {
+        const batch = lessonIds.slice(i, i + 100);
+        let offset = 0;
 
-        const occurDate = String(
-          row.occur_date ??
-          row.occurrence_date ??
-          row.lesson_date ??
-          ''
-        ).slice(0, 10);
+        while (true) {
+          let metadataQuery = db
+            .from('lesson_occurrence_metadata')
+            .select('lesson_id, occur_date, intake_type')
+            .in('lesson_id', batch)
+            .order('lesson_id')
+            .order('occur_date');
 
-        const instructorId =
-          row.instructor_id ?? row.instructor_id_number ?? null;
+          if (this.lessonsHistoryFrom) {
+            metadataQuery = metadataQuery.gte(
+              'occur_date',
+              this.lessonsHistoryFrom
+            );
+          }
 
-        const isCancellation = Boolean(
-          row.is_cancellation ||
-          row.canceled_at ||
-          ['canceled', 'cancelled', 'בוטל', 'מבוטל'].includes(
-            String(row.status ?? row.lesson_status ?? '')
-              .trim()
-              .toLowerCase()
-          )
-        );
+          if (this.lessonsHistoryTo) {
+            metadataQuery = metadataQuery.lte(
+              'occur_date',
+              this.lessonsHistoryTo
+            );
+          }
 
-        return {
-          lessonId,
-          occurDate,
-          childId,
-          exceptionDate: String(row.original_occur_date ?? occurDate).slice(0, 10),
-          rawStatus: String(row.status ?? ''),
-          instructorNotes: notesText(lessonId, occurDate, false),
-          dayOfWeek: row.day_of_week ?? null,
-          startTime: row.start_time ?? null,
-          endTime: row.end_time ?? null,
-          instructorId,
-          instructorName:
-            row.instructor_name ??
-            (instructorId ? instructorNameById[instructorId] : null) ??
-            null,
+          const {
+            data: metadata,
+            error: metadataError,
+          } = await metadataQuery.range(offset, offset + 99);
 
-          lessonType: row.lesson_type ?? row.appointment_kind ?? null,
+          if (metadataError) throw metadataError;
 
-          intakeType:
-            intakeByOccurrence.get(`${lessonId}_${occurDate}`) ??
-            'REGULAR',
+          const page = metadata ?? [];
 
-          status: this.getLessonHistoryStatus(row, isCancellation),
-          attendanceStatus:
-            attendanceMap.get(`${lessonId}_${occurDate}`) ?? null,
-          isCancellation,
+          for (const entry of page) {
+            const key =
+              `${entry.lesson_id}_${String(entry.occur_date).slice(0, 10)}`;
 
-          isBillable: this.nullableBoolean(
-            row.is_billable ?? row.chargeable
-          ),
-          isMakeupAllowed: this.nullableBoolean(row.is_makeup_allowed),
+            intakeByOccurrence.set(
+              key,
+              entry.intake_type as IntakeType
+            );
+          }
 
-          officeNotes:
-            notesText(lessonId, occurDate, true),
-
-          makeupLessonText:
-            row.makeup_lesson_text ??
-            row.makeup_for_text ??
-            (row.makeup_for_lesson_id
-              ? `שיעור ${row.makeup_for_lesson_id}`
-              : null) ??
-            (row.completed_by_lesson_id
-              ? `הושלם בשיעור ${row.completed_by_lesson_id}`
-              : null),
-        };
+          if (page.length < 100) break;
+          offset += page.length;
+        }
       }
-    );
-  } catch (e: any) {
-    console.error('loadChildLessonsHistory error:', e);
-    this.lessonsHistory = [];
-    this.lessonsHistoryError =
-      e?.message ?? 'שגיאה בטעינת היסטוריית השיעורים';
-  } finally {
-    this.lessonsHistoryLoading = false;
+
+      const instructorIds: string[] = Array.from(
+        new Set<string>(
+          rawRows
+            .map((row: any) =>
+              String(row.instructor_id ?? row.instructor_id_number ?? '')
+            )
+            .filter((id: string) => !!id)
+        )
+      );
+
+      let instructorNameById: Record<string, string> = {};
+
+      if (instructorIds.length) {
+        const {
+          data: instructorsData,
+          error: instructorsError,
+        } = await db
+          .from('instructors')
+          .select('id_number, first_name, last_name')
+          .in('id_number', instructorIds);
+
+        if (instructorsError) throw instructorsError;
+
+        instructorNameById = Object.fromEntries(
+          (instructorsData ?? []).map((instructor: any) => [
+            instructor.id_number,
+            `${instructor.first_name ?? ''} ${instructor.last_name ?? ''}`.trim(),
+          ])
+        );
+      }
+
+      this.lessonsHistory = rawRows.map(
+        (row: any): ChildLessonHistoryRow => {
+          const lessonId = String(row.lesson_id ?? row.id ?? '');
+
+          const occurDate = String(
+            row.occur_date ??
+            row.occurrence_date ??
+            row.lesson_date ??
+            ''
+          ).slice(0, 10);
+
+          const instructorId =
+            row.instructor_id ?? row.instructor_id_number ?? null;
+
+          const isCancellation = Boolean(
+            row.is_cancellation ||
+            row.canceled_at ||
+            ['canceled', 'cancelled', 'בוטל', 'מבוטל'].includes(
+              String(row.status ?? row.lesson_status ?? '')
+                .trim()
+                .toLowerCase()
+            )
+          );
+
+          return {
+            lessonId,
+            occurDate,
+            childId,
+            exceptionDate: String(row.original_occur_date ?? occurDate).slice(0, 10),
+            rawStatus: String(row.status ?? ''),
+            instructorNotes: notesText(lessonId, occurDate, false),
+            dayOfWeek: row.day_of_week ?? null,
+            startTime: row.start_time ?? null,
+            endTime: row.end_time ?? null,
+            instructorId,
+            instructorName:
+              row.instructor_name ??
+              (instructorId ? instructorNameById[instructorId] : null) ??
+              null,
+
+            lessonType: row.lesson_type ?? row.appointment_kind ?? null,
+
+            intakeType:
+              intakeByOccurrence.get(`${lessonId}_${occurDate}`) ??
+              'REGULAR',
+
+            status: this.getLessonHistoryStatus(row, isCancellation),
+            attendanceStatus:
+              attendanceMap.get(`${lessonId}_${occurDate}`) ?? null,
+            isCancellation,
+
+            isBillable: this.nullableBoolean(
+              row.is_billable ?? row.chargeable
+            ),
+            isMakeupAllowed: this.nullableBoolean(row.is_makeup_allowed),
+
+            officeNotes:
+              notesText(lessonId, occurDate, true),
+
+            makeupLessonText:
+              row.makeup_lesson_text ??
+              row.makeup_for_text ??
+              (row.makeup_for_lesson_id
+                ? `שיעור ${row.makeup_for_lesson_id}`
+                : null) ??
+              (row.completed_by_lesson_id
+                ? `הושלם בשיעור ${row.completed_by_lesson_id}`
+                : null),
+          };
+        }
+      );
+    } catch (e: any) {
+      console.error('loadChildLessonsHistory error:', e);
+      this.lessonsHistory = [];
+      this.lessonsHistoryError =
+        e?.message ?? 'שגיאה בטעינת היסטוריית השיעורים';
+    } finally {
+      this.lessonsHistoryLoading = false;
+    }
   }
-}
 
-intakeSaving: Record<string, boolean> = {};
+  intakeSaving: Record<string, boolean> = {};
 
-intakeRowKey(row: ChildLessonHistoryRow): string {
-  return `${row.lessonId}_${String(row.occurDate).slice(0, 10)}`;
-}
+  intakeRowKey(row: ChildLessonHistoryRow): string {
+    return `${row.lessonId}_${String(row.occurDate).slice(0, 10)}`;
+  }
 
-async saveLessonIntakeType(
-  row: ChildLessonHistoryRow,
-  value: string
-): Promise<void> {
-  if (!['REGULAR', 'INTAKE_ZERO', 'INTAKE'].includes(value)) return;
+  async saveLessonIntakeType(
+    row: ChildLessonHistoryRow,
+    value: string
+  ): Promise<void> {
+    if (!['REGULAR', 'INTAKE_ZERO', 'INTAKE'].includes(value)) return;
 
-  const key = this.intakeRowKey(row);
-  if (this.intakeSaving[key]) return;
+    const key = this.intakeRowKey(row);
+    if (this.intakeSaving[key]) return;
 
-  const occurDate = String(row.occurDate ?? '').slice(0, 10);
-  if (!row.lessonId || !occurDate) return;
+    const occurDate = String(row.occurDate ?? '').slice(0, 10);
+    if (!row.lessonId || !occurDate) return;
 
-  this.intakeSaving[key] = true;
+    this.intakeSaving[key] = true;
 
-  try {
-    const db = await this.dbc();
+    try {
+      const db = await this.dbc();
 
-    const { data, error } = await db
-      .from('lesson_occurrence_metadata')
-      .upsert(
-        {
-          lesson_id: row.lessonId,
-          occur_date: occurDate,
-          intake_type: value,
-        },
-        { onConflict: 'lesson_id,occur_date' }
-      )
-      .select('intake_type')
-      .single();
+      const { data, error } = await db
+        .from('lesson_occurrence_metadata')
+        .upsert(
+          {
+            lesson_id: row.lessonId,
+            occur_date: occurDate,
+            intake_type: value,
+          },
+          { onConflict: 'lesson_id,occur_date' }
+        )
+        .select('intake_type')
+        .single();
 
-    if (error) throw error;
+      if (error) throw error;
 
-    row.intakeType = data.intake_type as IntakeType;
-  } catch (error: any) {
-    console.error('saveLessonIntakeType error:', error);
+      row.intakeType = data.intake_type as IntakeType;
+    } catch (error: any) {
+      console.error('saveLessonIntakeType error:', error);
 
-    await this.ui.alert(
-      'שמירת סימון האינטייק נכשלה: ' +
+      await this.ui.alert(
+        'שמירת סימון האינטייק נכשלה: ' +
         (error?.message ?? error),
-      'שגיאה'
-    );
-  } finally {
-    this.intakeSaving[key] = false;
+        'שגיאה'
+      );
+    } finally {
+      this.intakeSaving[key] = false;
+    }
   }
-}
 
 
   historyColumnDefs = [
@@ -917,7 +919,7 @@ async saveLessonIntakeType(
       if (off.error) throw off.error;
       if ((off.data ?? []).some((d: any) => d.day_type === 'FULL_DAY' ||
         (['HALF_DAY', 'HOURS'].includes(d.day_type) && row.startTime && row.endTime &&
-         row.startTime < d.end_time && row.endTime > d.start_time))) {
+          row.startTime < d.end_time && row.endTime > d.start_time))) {
         throw new Error('בחופשת חווה ערכים אלה נקבעים על ידי חופשת החווה ולא ניתן לשנותם כאן.');
       }
       const existing = await db.from('lesson_occurrence_exceptions')
@@ -956,7 +958,7 @@ async saveLessonIntakeType(
       open: true, saving: false, error: '', row, office, newNote: '',
       entries: this.historyNoteRows.filter(n => String(n.lesson_id) === row.lessonId &&
         String(n.child_id) === row.childId && String(n.occur_date).slice(0, 10) === row.occurDate &&
-        (office ? n.category === 'office' : ['general','medical','behavioral'].includes(n.category)))
+        (office ? n.category === 'office' : ['general', 'medical', 'behavioral'].includes(n.category)))
         .map(n => ({ id: n.id, note: n.note ?? '', original: n.note ?? '', category: n.category, createdAt: n.created_at })),
     };
   }
@@ -989,8 +991,10 @@ async saveLessonIntakeType(
         }).select('*').single();
         if (result.error) throw result.error;
         this.historyNoteRows.push(result.data);
-        editor.entries.push({ id: result.data.id, note: result.data.note, original: result.data.note,
-          category: result.data.category, createdAt: result.data.created_at });
+        editor.entries.push({
+          id: result.data.id, note: result.data.note, original: result.data.note,
+          category: result.data.category, createdAt: result.data.created_at
+        });
         editor.newNote = '';
       }
       editor.open = false;
@@ -999,7 +1003,7 @@ async saveLessonIntakeType(
       const notes = this.historyNoteRows.filter(n => String(n.lesson_id) === row.lessonId &&
         String(n.child_id) === row.childId && String(n.occur_date).slice(0, 10) === row.occurDate);
       row.officeNotes = notes.filter(n => n.category === 'office').map(n => n.note).join('\n\n') || null;
-      row.instructorNotes = notes.filter(n => ['general','medical','behavioral'].includes(n.category)).map(n => n.note).join('\n\n') || null;
+      row.instructorNotes = notes.filter(n => ['general', 'medical', 'behavioral'].includes(n.category)).map(n => n.note).join('\n\n') || null;
       editor.saving = false;
     }
   }
@@ -1232,296 +1236,296 @@ scheduled_deletion_at,deletion_note
   }
   referralBusy = false;
 
-referralDrafts: Record<string, {
-  file: File | null;
-  validUntil: string;
-}> = {};
+  referralDrafts: Record<string, {
+    file: File | null;
+    validUntil: string;
+  }> = {};
 
-referralDraft(lessonId: string) {
-  return this.referralDrafts[lessonId] ??= {
-    file: null,
-    validUntil: '',
-  };
-}
-
-selectSeriesReferral(event: Event, lessonId: string): void {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0] ?? null;
-
-  if (!this.referralBusy) {
-    this.referralDraft(lessonId).file = file;
+  referralDraft(lessonId: string) {
+    return this.referralDrafts[lessonId] ??= {
+      file: null,
+      validUntil: '',
+    };
   }
 
-  input.value = '';
-}
+  selectSeriesReferral(event: Event, lessonId: string): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
 
-referralExpired(doc: SeriesReferral): boolean {
-  if (!doc.validUntil) return false;
+    if (!this.referralBusy) {
+      this.referralDraft(lessonId).file = file;
+    }
 
-  const now = new Date();
-  const today = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-  ].join('-');
-
-  return doc.validUntil < today;
-}
-
-/**
- * קוראים מחדש לפני שמירה.
- * מוסיפים גם קישור קיים שלא נכנס להיסטוריה,
- * למשל אם הועלה דרך מסך אחר.
- */
-private async readSeriesReferrals(lessonId: string) {
-  const db = await this.dbc();
-
-  const { data, error } = await db
-    .from('lessons')
-    .select('id, payment_docs_url, payment_docs_history')
-    .eq('id', lessonId)
-    .single();
-
-  if (error) throw error;
-
-  const original: SeriesReferral[] =
-    Array.isArray(data.payment_docs_history)
-      ? data.payment_docs_history
-      : [];
-
-  const docs = [...original];
-
-  if (
-    data.payment_docs_url &&
-    !docs.some(doc => doc.url === data.payment_docs_url)
-  ) {
-    docs.push({
-      id: crypto.randomUUID(),
-      url: data.payment_docs_url,
-      name: 'הפניה קודמת',
-      uploadedAt: null,
-      validUntil: null,
-    });
+    input.value = '';
   }
 
-  return {
-    original,
-    docs,
-    currentUrl: data.payment_docs_url as string | null,
-  };
-}
+  referralExpired(doc: SeriesReferral): boolean {
+    if (!doc.validUntil) return false;
 
-/**
- * עדכון ההיסטוריה והקישור הנוכחי באותה פעולת DB.
- * תנאי השמירה מונעים דריסה של שינוי ממסך אחר.
- */
-private async saveSeriesReferrals(
-  lessonId: string,
-  previous: {
-    original: SeriesReferral[];
-    currentUrl: string | null;
-  },
-  docs: SeriesReferral[],
-  currentUrl: string | null,
-): Promise<void> {
-  const db = await this.dbc();
+    const now = new Date();
+    const today = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('-');
 
-  let query = db
-    .from('lessons')
-    .update({
-      payment_docs_history: docs,
-      payment_docs_url: currentUrl,
-    })
-    .eq('id', lessonId)
-    .eq(
-      'payment_docs_history',
-      JSON.stringify(previous.original)
-    );
-
-  query = previous.currentUrl === null
-    ? query.is('payment_docs_url', null)
-    : query.eq('payment_docs_url', previous.currentUrl);
-
-  const { data, error } = await query
-    .select('id')
-    .maybeSingle();
-
-  if (error) throw error;
-
-  if (!data) {
-    throw new Error(
-      'ההפניות השתנו במקביל או שאין הרשאת עדכון. ' +
-      'פתחי מחדש את פרטי הילד ונסי שוב.'
-    );
+    return doc.validUntil < today;
   }
 
-  this.seriesDocs = this.seriesDocs.map(series =>
-    series.lessonId === lessonId
-      ? {
+  /**
+   * קוראים מחדש לפני שמירה.
+   * מוסיפים גם קישור קיים שלא נכנס להיסטוריה,
+   * למשל אם הועלה דרך מסך אחר.
+   */
+  private async readSeriesReferrals(lessonId: string) {
+    const db = await this.dbc();
+
+    const { data, error } = await db
+      .from('lessons')
+      .select('id, payment_docs_url, payment_docs_history')
+      .eq('id', lessonId)
+      .single();
+
+    if (error) throw error;
+
+    const original: SeriesReferral[] =
+      Array.isArray(data.payment_docs_history)
+        ? data.payment_docs_history
+        : [];
+
+    const docs = [...original];
+
+    if (
+      data.payment_docs_url &&
+      !docs.some(doc => doc.url === data.payment_docs_url)
+    ) {
+      docs.push({
+        id: crypto.randomUUID(),
+        url: data.payment_docs_url,
+        name: 'הפניה קודמת',
+        uploadedAt: null,
+        validUntil: null,
+      });
+    }
+
+    return {
+      original,
+      docs,
+      currentUrl: data.payment_docs_url as string | null,
+    };
+  }
+
+  /**
+   * עדכון ההיסטוריה והקישור הנוכחי באותה פעולת DB.
+   * תנאי השמירה מונעים דריסה של שינוי ממסך אחר.
+   */
+  private async saveSeriesReferrals(
+    lessonId: string,
+    previous: {
+      original: SeriesReferral[];
+      currentUrl: string | null;
+    },
+    docs: SeriesReferral[],
+    currentUrl: string | null,
+  ): Promise<void> {
+    const db = await this.dbc();
+
+    let query = db
+      .from('lessons')
+      .update({
+        payment_docs_history: docs,
+        payment_docs_url: currentUrl,
+      })
+      .eq('id', lessonId)
+      .eq(
+        'payment_docs_history',
+        JSON.stringify(previous.original)
+      );
+
+    query = previous.currentUrl === null
+      ? query.is('payment_docs_url', null)
+      : query.eq('payment_docs_url', previous.currentUrl);
+
+    const { data, error } = await query
+      .select('id')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      throw new Error(
+        'ההפניות השתנו במקביל או שאין הרשאת עדכון. ' +
+        'פתחי מחדש את פרטי הילד ונסי שוב.'
+      );
+    }
+
+    this.seriesDocs = this.seriesDocs.map(series =>
+      series.lessonId === lessonId
+        ? {
           ...series,
           paymentDocsHistory: docs,
           paymentDocsUrl: currentUrl,
         }
-      : series
-  );
-}
-
-async uploadSeriesReferral(lessonId: string): Promise<void> {
-  if (this.referralBusy) return;
-
-  const draft = this.referralDraft(lessonId);
-  const file = draft.file;
-
-  if (!file) return;
-
-  if (!this.isAllowedReferralFile(file)) {
-    await this.ui.alert(
-      'ניתן להעלות PDF או תמונות PNG/JPG/WEBP.',
-      'קובץ לא נתמך'
+        : series
     );
-    return;
   }
 
-  const validUntil = draft.validUntil || null;
+  async uploadSeriesReferral(lessonId: string): Promise<void> {
+    if (this.referralBusy) return;
 
-  this.referralBusy = true;
-  this.uploadingSeriesDocLessonId = lessonId;
+    const draft = this.referralDraft(lessonId);
+    const file = draft.file;
 
-  let uploadedPath: string | null = null;
-  let saved = false;
+    if (!file) return;
 
-  const client = getSupabaseClient();
-
-  try {
-    const previous = await this.readSeriesReferrals(lessonId);
-    const id = crypto.randomUUID();
-    const extension = file.name.split('.').pop()?.toLowerCase()
-      || 'pdf';
-
-    const path = `series-referrals/${lessonId}/${id}.${extension}`;
-
-    const { error: uploadError } = await client.storage
-      .from('referrals')
-      .upload(path, file, {
-        upsert: false,
-        contentType: file.type || undefined,
-      });
-
-    if (uploadError) throw uploadError;
-    uploadedPath = path;
-
-    const { data } = client.storage
-      .from('referrals')
-      .getPublicUrl(path);
-
-    if (!data.publicUrl) {
-      throw new Error('לא נוצר קישור למסמך.');
+    if (!this.isAllowedReferralFile(file)) {
+      await this.ui.alert(
+        'ניתן להעלות PDF או תמונות PNG/JPG/WEBP.',
+        'קובץ לא נתמך'
+      );
+      return;
     }
 
-    const doc: SeriesReferral = {
-      id,
-      url: data.publicUrl,
-      name: file.name,
-      uploadedAt: new Date().toISOString(),
-      validUntil,
-    };
+    const validUntil = draft.validUntil || null;
 
-    await this.saveSeriesReferrals(
-      lessonId,
-      previous,
-      [...previous.docs, doc],
-      doc.url
-    );
+    this.referralBusy = true;
+    this.uploadingSeriesDocLessonId = lessonId;
 
-    saved = true;
+    let uploadedPath: string | null = null;
+    let saved = false;
 
-    this.referralDrafts[lessonId] = {
-      file: null,
-      validUntil: '',
-    };
+    const client = getSupabaseClient();
 
-    await this.ui.alert(
-      'ההפניה נוספה. ההפניות הקודמות נשמרו בהיסטוריה.',
-      'ההפניה נשמרה'
-    );
-  } catch (error: any) {
-    // קובץ שהועלה אך לא שויך לסדרה אינו נדרש.
-    if (uploadedPath && !saved) {
-      try {
-        const { error: cleanupError } = await client.storage
-          .from('referrals')
-          .remove([uploadedPath]);
+    try {
+      const previous = await this.readSeriesReferrals(lessonId);
+      const id = crypto.randomUUID();
+      const extension = file.name.split('.').pop()?.toLowerCase()
+        || 'pdf';
 
-        if (cleanupError) {
+      const path = `series-referrals/${lessonId}/${id}.${extension}`;
+
+      const { error: uploadError } = await client.storage
+        .from('referrals')
+        .upload(path, file, {
+          upsert: false,
+          contentType: file.type || undefined,
+        });
+
+      if (uploadError) throw uploadError;
+      uploadedPath = path;
+
+      const { data } = client.storage
+        .from('referrals')
+        .getPublicUrl(path);
+
+      if (!data.publicUrl) {
+        throw new Error('לא נוצר קישור למסמך.');
+      }
+
+      const doc: SeriesReferral = {
+        id,
+        url: data.publicUrl,
+        name: file.name,
+        uploadedAt: new Date().toISOString(),
+        validUntil,
+      };
+
+      await this.saveSeriesReferrals(
+        lessonId,
+        previous,
+        [...previous.docs, doc],
+        doc.url
+      );
+
+      saved = true;
+
+      this.referralDrafts[lessonId] = {
+        file: null,
+        validUntil: '',
+      };
+
+      await this.ui.alert(
+        'ההפניה נוספה. ההפניות הקודמות נשמרו בהיסטוריה.',
+        'ההפניה נשמרה'
+      );
+    } catch (error: any) {
+      // קובץ שהועלה אך לא שויך לסדרה אינו נדרש.
+      if (uploadedPath && !saved) {
+        try {
+          const { error: cleanupError } = await client.storage
+            .from('referrals')
+            .remove([uploadedPath]);
+
+          if (cleanupError) {
+            console.warn('Referral cleanup failed:', cleanupError);
+          }
+        } catch (cleanupError) {
           console.warn('Referral cleanup failed:', cleanupError);
         }
-      } catch (cleanupError) {
-        console.warn('Referral cleanup failed:', cleanupError);
       }
-    }
 
-    await this.ui.alert(
-      'העלאת ההפניה נכשלה: ' + (error?.message ?? error),
-      'שגיאה'
-    );
-  } finally {
-    this.referralBusy = false;
-    this.uploadingSeriesDocLessonId = null;
-  }
-}
-
-async deleteSeriesReferral(
-  series: SeriesDocRow,
-  doc: SeriesReferral
-): Promise<void> {
-  if (this.referralBusy) return;
-
-  this.referralBusy = true;
-
-  try {
-    const confirmed = await this.ui.confirm({
-      title: 'מחיקת הפניה',
-      message:
-        `להסיר את "${doc.name}" מהסדרה? ` +
-        'אם זו ההפניה הנוכחית, ההפניה האחרונה שנותרה תשמש במקומה.',
-      okText: 'מחיקת הפניה',
-      cancelText: 'ביטול',
-      dangerText: 'מחיקת הפניה',
-    });
-
-    if (!confirmed) return;
-
-    const previous = await this.readSeriesReferrals(series.lessonId);
-
-    if (!previous.docs.some(item => item.id === doc.id)) {
-      throw new Error(
-        'ההפניה כבר השתנתה. פתחי מחדש את פרטי הילד.'
+      await this.ui.alert(
+        'העלאת ההפניה נכשלה: ' + (error?.message ?? error),
+        'שגיאה'
       );
+    } finally {
+      this.referralBusy = false;
+      this.uploadingSeriesDocLessonId = null;
     }
-
-    const remaining = previous.docs.filter(
-      item => item.id !== doc.id
-    );
-
-    const nextUrl = previous.currentUrl === doc.url
-      ? remaining[remaining.length - 1]?.url ?? null
-      : previous.currentUrl;
-
-    await this.saveSeriesReferrals(
-      series.lessonId,
-      previous,
-      remaining,
-      nextUrl
-    );
-  } catch (error: any) {
-    await this.ui.alert(
-      'מחיקת ההפניה נכשלה: ' + (error?.message ?? error),
-      'שגיאה'
-    );
-  } finally {
-    this.referralBusy = false;
   }
-}
+
+  async deleteSeriesReferral(
+    series: SeriesDocRow,
+    doc: SeriesReferral
+  ): Promise<void> {
+    if (this.referralBusy) return;
+
+    this.referralBusy = true;
+
+    try {
+      const confirmed = await this.ui.confirm({
+        title: 'מחיקת הפניה',
+        message:
+          `להסיר את "${doc.name}" מהסדרה? ` +
+          'אם זו ההפניה הנוכחית, ההפניה האחרונה שנותרה תשמש במקומה.',
+        okText: 'מחיקת הפניה',
+        cancelText: 'ביטול',
+        dangerText: 'מחיקת הפניה',
+      });
+
+      if (!confirmed) return;
+
+      const previous = await this.readSeriesReferrals(series.lessonId);
+
+      if (!previous.docs.some(item => item.id === doc.id)) {
+        throw new Error(
+          'ההפניה כבר השתנתה. פתחי מחדש את פרטי הילד.'
+        );
+      }
+
+      const remaining = previous.docs.filter(
+        item => item.id !== doc.id
+      );
+
+      const nextUrl = previous.currentUrl === doc.url
+        ? remaining[remaining.length - 1]?.url ?? null
+        : previous.currentUrl;
+
+      await this.saveSeriesReferrals(
+        series.lessonId,
+        previous,
+        remaining,
+        nextUrl
+      );
+    } catch (error: any) {
+      await this.ui.alert(
+        'מחיקת ההפניה נכשלה: ' + (error?.message ?? error),
+        'שגיאה'
+      );
+    } finally {
+      this.referralBusy = false;
+    }
+  }
   private isAllowedReferralFile(file: File): boolean {
     const allowedMimeTypes = [
       'application/pdf',
@@ -1659,17 +1663,17 @@ async deleteSeriesReferral(
       });
     }
 
-  if (f.referral !== 'all') {
-  rows = rows.filter((c: any) => {
-    const meta = this.lessonMetaByChild[c.child_uuid];
+    if (f.referral !== 'all') {
+      rows = rows.filter((c: any) => {
+        const meta = this.lessonMetaByChild[c.child_uuid];
 
-    if (!meta?.hasActiveSeries) return false;
+        if (!meta?.hasActiveSeries) return false;
 
-    return f.referral === 'exists'
-      ? meta.hasReferral
-      : meta.missingReferral;
-  });
-}
+        return f.referral === 'exists'
+          ? meta.hasReferral
+          : meta.missingReferral;
+      });
+    }
 
     if (f.missingDocs !== 'all') {
       rows = rows.filter((c: any) => {
@@ -1921,22 +1925,22 @@ async deleteSeriesReferral(
     }
 
     if (f.intake !== 'all') {
-  chips.push({
-    label: 'אינטק: ' + (
-      f.intake === 'exists' ? 'יש אינטק' : 'אין אינטק'
-    ),
-    clear: () => f.intake = 'all',
-  });
-}
+      chips.push({
+        label: 'אינטק: ' + (
+          f.intake === 'exists' ? 'יש אינטק' : 'אין אינטק'
+        ),
+        clear: () => f.intake = 'all',
+      });
+    }
 
-if (f.referral !== 'all') {
-  chips.push({
-    label: 'הפניה: ' + (
-      f.referral === 'exists' ? 'יש הפניה' : 'חסרה הפניה'
-    ),
-    clear: () => f.referral = 'all',
-  });
-}
+    if (f.referral !== 'all') {
+      chips.push({
+        label: 'הפניה: ' + (
+          f.referral === 'exists' ? 'יש הפניה' : 'חסרה הפניה'
+        ),
+        clear: () => f.referral = 'all',
+      });
+    }
 
     return chips;
   }
@@ -2329,18 +2333,18 @@ scheduled_deletion_at,deletion_note
       this.allChildDocs = docs;
 
 
-this.childDocs = docs.filter(
-  (  doc: { documentType: string; }) => doc.documentType !== 'INTAKE'
-);
+      this.childDocs = docs.filter(
+        (doc: { documentType: string; }) => doc.documentType !== 'INTAKE'
+      );
 
-this.intakeByChild = {
-  ...this.intakeByChild,
-  [childId]: docs.some(
-    (    doc: { documentType: string; }) => doc.documentType === 'INTAKE'
-  ),
-};
+      this.intakeByChild = {
+        ...this.intakeByChild,
+        [childId]: docs.some(
+          (doc: { documentType: string; }) => doc.documentType === 'INTAKE'
+        ),
+      };
 
-this.updateStats();
+      this.updateStats();
 
     } catch (e: any) {
       console.error('loadChildDocuments error:', e);
@@ -2350,28 +2354,28 @@ this.updateStats();
     }
   }
 
-   async uploadChildDocument(
-  event: Event,
-  documentType: 'GENERAL' | 'INTAKE' = 'GENERAL'
-): Promise<void> {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  const childId = this.drawerChild?.child_uuid;
+  async uploadChildDocument(
+    event: Event,
+    documentType: 'GENERAL' | 'INTAKE' = 'GENERAL'
+  ): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const childId = this.drawerChild?.child_uuid;
 
-  if (!file || !childId || this.uploadingChildDoc) return;
+    if (!file || !childId || this.uploadingChildDoc) return;
 
-  const docName = documentType === 'INTAKE'
-    ? 'אינטק'
-    : this.newChildDocName.trim();
+    const docName = documentType === 'INTAKE'
+      ? 'אינטק'
+      : this.newChildDocName.trim();
 
-  if (!docName) {
-    await this.ui.alert(
-      'יש להזין שם קובץ לפני ההעלאה.',
-      'שם קובץ חסר'
-    );
-    input.value = '';
-    return;
-  }
+    if (!docName) {
+      await this.ui.alert(
+        'יש להזין שם קובץ לפני ההעלאה.',
+        'שם קובץ חסר'
+      );
+      input.value = '';
+      return;
+    }
 
     if (!this.isAllowedReferralFile(file)) {
       await this.ui.alert(
@@ -2446,11 +2450,11 @@ this.updateStats();
     }
   }
 
-get intakeDoc(): ChildDocumentRow | null {
-  return this.allChildDocs.find(
-    doc => doc.documentType === 'INTAKE'
-  ) ?? null;
-}
+  get intakeDoc(): ChildDocumentRow | null {
+    return this.allChildDocs.find(
+      doc => doc.documentType === 'INTAKE'
+    ) ?? null;
+  }
 
   hasIntake(): boolean {
     return !!this.intakeDoc;
@@ -2721,8 +2725,8 @@ get intakeDoc(): ChildDocumentRow | null {
           status: row.status ?? null,
           paymentDocsUrl: row.payment_docs_url ?? null,
           paymentDocsHistory: Array.isArray(row.payment_docs_history)
-  ? row.payment_docs_history
-  : [],
+            ? row.payment_docs_history
+            : [],
 
           paymentPlanId: basePaymentPlanId,
 
@@ -2851,7 +2855,7 @@ get intakeDoc(): ChildDocumentRow | null {
     }
 
     const startDate = series.anchorWeekStart?.slice(0, 10) ?? null;
-const endDate = series.seriesEndDate?.slice(0, 10);
+    const endDate = series.seriesEndDate?.slice(0, 10);
 
     if (!startDate) {
       this.seriesPaymentPlanEditor.error =
@@ -3149,40 +3153,40 @@ const endDate = series.seriesEndDate?.slice(0, 10);
       }
     }
 
-  const docsData: Array<{
-  child_id: string;
-  document_name: string | null;
-  document_type: string;
-}> = [];
+    const docsData: Array<{
+      child_id: string;
+      document_name: string | null;
+      document_type: string;
+    }> = [];
 
-for (let i = 0; i < childIds.length; i += 100) {
-  const batch = childIds.slice(i, i + 100);
-  let offset = 0;
+    for (let i = 0; i < childIds.length; i += 100) {
+      const batch = childIds.slice(i, i + 100);
+      let offset = 0;
 
-  while (true) {
-    const { data, error } = await db
-      .from('child_documents')
-      .select('id, child_id, document_name, document_type')
-      .in('child_id', batch)
-      .order('id', { ascending: true })
-      .range(offset, offset + 99);
+      while (true) {
+        const { data, error } = await db
+          .from('child_documents')
+          .select('id, child_id, document_name, document_type')
+          .in('child_id', batch)
+          .order('id', { ascending: true })
+          .range(offset, offset + 99);
 
-    if (error) throw error;
+        if (error) throw error;
 
-    const page = data ?? [];
-    docsData.push(...page);
+        const page = data ?? [];
+        docsData.push(...page);
 
-    if (page.length < 100) break;
-    offset += page.length;
-  }
-}
+        if (page.length < 100) break;
+        offset += page.length;
+      }
+    }
 
     this.intakeByChild = {};
     this.healthDeclarationByChild = {};
 
     for (const row of docsData ?? []) {
       const childId = String((row as any).child_id ?? '');
-      
+
       const documentName = String(
         (row as any).document_name ?? ''
       )
@@ -3192,8 +3196,8 @@ for (let i = 0; i < childIds.length; i += 100) {
       if (!childId) continue;
 
       if (row.document_type === 'INTAKE') {
-  this.intakeByChild[childId] = true;
-}
+        this.intakeByChild[childId] = true;
+      }
 
       if (
         documentName === 'הצהרת בריאות' ||
@@ -3206,14 +3210,14 @@ for (let i = 0; i < childIds.length; i += 100) {
 
     const lessonsData: any[] = [];
 
-for (let i = 0; i < childIds.length; i += 100) {
-  const batch = childIds.slice(i, i + 100);
-  let offset = 0;
+    for (let i = 0; i < childIds.length; i += 100) {
+      const batch = childIds.slice(i, i + 100);
+      let offset = 0;
 
-  while (true) {
-    const { data, error } = await db
-      .from('lessons')
-      .select(`
+      while (true) {
+        const { data, error } = await db
+          .from('lessons')
+          .select(`
         id,
         child_id,
         instructor_id,
@@ -3230,19 +3234,19 @@ for (let i = 0; i < childIds.length; i += 100) {
           require_docs_at_booking
         )
       `)
-      .in('child_id', batch)
-      .order('id', { ascending: true })
-      .range(offset, offset + 99);
+          .in('child_id', batch)
+          .order('id', { ascending: true })
+          .range(offset, offset + 99);
 
-    if (error) throw error;
+        if (error) throw error;
 
-    const page = data ?? [];
-    lessonsData.push(...page);
+        const page = data ?? [];
+        lessonsData.push(...page);
 
-    if (page.length < 100) break;
-    offset += page.length;
-  }
-}
+        if (page.length < 100) break;
+        offset += page.length;
+      }
+    }
 
     this.lessonMetaByChild = {};
     const typeSet = new Set<string>();
@@ -3282,74 +3286,74 @@ for (let i = 0; i < childIds.length; i += 100) {
 
       const today = this.getTodayIsoDate();
 
-const status = String(r.status ?? '').trim().toLowerCase();
-const lessonType = String(r.lesson_type ?? '').trim();
+      const status = String(r.status ?? '').trim().toLowerCase();
+      const lessonType = String(r.lesson_type ?? '').trim();
 
-const isSeries = ['סידרה', 'סדרה', 'SERIES']
-  .includes(lessonType.toUpperCase());
+      const isSeries = ['סידרה', 'סדרה', 'SERIES']
+        .includes(lessonType.toUpperCase());
 
-const isApproved = ['active', 'approved', 'אושר']
-  .includes(status);
+      const isApproved = ['active', 'approved', 'אושר']
+        .includes(status);
 
-const startDate = String(r.anchor_week_start ?? '').slice(0, 10);
-const endDate = String(r.series_end_date ?? '').slice(0, 10);
+      const startDate = String(r.anchor_week_start ?? '').slice(0, 10);
+      const endDate = String(r.series_end_date ?? '').slice(0, 10);
 
-const isActiveSeries =
-  isSeries &&
-  isApproved &&
-  (!startDate || startDate <= today) &&
-  (!endDate || endDate >= today);
+      const isActiveSeries =
+        isSeries &&
+        isApproved &&
+        (!startDate || startDate <= today) &&
+        (!endDate || endDate >= today);
 
-if (isActiveSeries) {
-  meta.hasActiveSeries = true;
+      if (isActiveSeries) {
+        meta.hasActiveSeries = true;
 
-  const referrals: SeriesReferral[] =
-    Array.isArray(r.payment_docs_history)
-      ? [...r.payment_docs_history]
-      : [];
+        const referrals: SeriesReferral[] =
+          Array.isArray(r.payment_docs_history)
+            ? [...r.payment_docs_history]
+            : [];
 
-  const currentUrl = String(r.payment_docs_url ?? '').trim();
+        const currentUrl = String(r.payment_docs_url ?? '').trim();
 
-  // תמיכה בהפניות ישנות שנשמרו רק כקישור
-  if (
-    currentUrl &&
-    !referrals.some(doc =>
-      String(doc.url ?? '').trim() === currentUrl
-    )
-  ) {
-    referrals.push({
-      id: `legacy_${r.id}`,
-      url: currentUrl,
-      name: 'הפניה קודמת',
-      uploadedAt: null,
-      validUntil: null,
-    });
-  }
+        // תמיכה בהפניות ישנות שנשמרו רק כקישור
+        if (
+          currentUrl &&
+          !referrals.some(doc =>
+            String(doc.url ?? '').trim() === currentUrl
+          )
+        ) {
+          referrals.push({
+            id: `legacy_${r.id}`,
+            url: currentUrl,
+            name: 'הפניה קודמת',
+            uploadedAt: null,
+            validUntil: null,
+          });
+        }
 
-  const hasValidReferral = referrals.some(doc =>
-    !!String(doc.url ?? '').trim() &&
-    !this.referralExpired(doc)
-  );
+        const hasValidReferral = referrals.some(doc =>
+          !!String(doc.url ?? '').trim() &&
+          !this.referralExpired(doc)
+        );
 
-  if (hasValidReferral) {
-    meta.hasReferral = true;
-  } else {
-    meta.missingReferral = true;
-  }
+        if (hasValidReferral) {
+          meta.hasReferral = true;
+        } else {
+          meta.missingReferral = true;
+        }
 
-  const plan = Array.isArray(r.payment_plans)
-    ? r.payment_plans[0]
-    : r.payment_plans;
+        const plan = Array.isArray(r.payment_plans)
+          ? r.payment_plans[0]
+          : r.payment_plans;
 
-  if (
-    !hasValidReferral &&
-    plan?.require_docs_at_booking &&
-    Array.isArray(plan.required_docs) &&
-    plan.required_docs.length > 0
-  ) {
-    meta.missingRequiredDocs = true;
-  }
-}
+        if (
+          !hasValidReferral &&
+          plan?.require_docs_at_booking &&
+          Array.isArray(plan.required_docs) &&
+          plan.required_docs.length > 0
+        ) {
+          meta.missingRequiredDocs = true;
+        }
+      }
 
       if (r.anchor_week_start) {
         meta.lessonDates.push(r.anchor_week_start);
@@ -3359,31 +3363,31 @@ if (isActiveSeries) {
     this.lessonTypes = Array.from(typeSet).sort();
 
     console.log('בדיקת סינון אינטק', {
-  filters: { ...this.advancedFilters },
-  statusFilter: this.statusFilter,
-  loadedChildren: this.children.length,
-  childrenWithIntake: Object.values(this.intakeByChild)
-    .filter(Boolean).length,
-  displayedChildren: this.filteredChildren.length,
-});
+      filters: { ...this.advancedFilters },
+      statusFilter: this.statusFilter,
+      loadedChildren: this.children.length,
+      childrenWithIntake: Object.values(this.intakeByChild)
+        .filter(Boolean).length,
+      displayedChildren: this.filteredChildren.length,
+    });
 
-console.table(
-  this.children
-    .filter(child => this.intakeByChild[child.child_uuid])
-    .map(child => ({
-      name: `${child.first_name ?? ''} ${child.last_name ?? ''}`,
-      status: child.status,
-      active: this.isChildActive(child),
-    }))
-);
+    console.table(
+      this.children
+        .filter(child => this.intakeByChild[child.child_uuid])
+        .map(child => ({
+          name: `${child.first_name ?? ''} ${child.last_name ?? ''}`,
+          status: child.status,
+          active: this.isChildActive(child),
+        }))
+    );
   }
 
   private isIntakeDocumentName(value: unknown): boolean {
-  return String(value ?? '')
-    .normalize('NFKC')
-    .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, '')
-    .trim() === 'אינטק';
-}
+    return String(value ?? '')
+      .normalize('NFKC')
+      .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, '')
+      .trim() === 'אינטק';
+  }
 
   openSeriesEndEditor(row: SeriesDocRow): void {
     this.seriesEndEditor = {
@@ -3495,9 +3499,8 @@ console.table(
         await this.loadChildSeriesDocs(childId);
       }
 
-      await this.ui.alert(
-        `הסדרה הסתיימה בהצלחה מתאריך ${this.formatIsoDateForDisplay(endDate)}.`,
-        'סיום סדרה'
+      await this.matchingNavigation.offerSearch(
+        `הסדרה הסתיימה בהצלחה מתאריך ${this.formatIsoDateForDisplay(endDate)}.`
       );
     } catch (error: any) {
       console.error('confirmSeriesEnd error:', error);
@@ -3635,11 +3638,10 @@ console.table(
 
         this.editMode = false;
 
-        await this.ui.alert(
+        await this.matchingNavigation.offerSearch(
           inactiveDate === this.todayDate()
-            ? 'הילד הוגדר כלא פעיל והשיעורים שלו נמחקו.'
-            : 'נקבע תאריך עתידי להפיכת הילד ללא פעיל.',
-          'בוצע'
+            ? 'הילד הוגדר כלא פעיל והשיעורים שלו בוטלו.'
+            : 'נקבע תאריך עתידי להפיכת הילד ללא פעיל.'
         );
 
         return;

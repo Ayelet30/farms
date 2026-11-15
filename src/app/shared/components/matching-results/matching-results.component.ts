@@ -6,6 +6,8 @@ import {
   SimpleChanges,
   computed,
   inject,
+  EventEmitter,
+  Output,
   signal
 } from '@angular/core';
 import { Overlay, OverlayRef } from '@angular/cdk/overlay';
@@ -47,10 +49,12 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
   @Input() externalEntries: ExternalWaitlistRequest[] = [];
   @Input() childNamesById: Record<string, string> = {};
   @Input() instructors: { id_number: string; name: string }[] = [];
+  @Input() priorityQueuePositions: Record<string, number> = {};
+  @Output() bookingSaved = new EventEmitter<void>();
 
   private readonly matchingService = inject(MatchingService);
   private readonly overlay = inject(Overlay);
-    private readonly ui = inject(UiDialogService);
+  private readonly ui = inject(UiDialogService);
   private bookingOverlay: OverlayRef | null = null;
   private bookingCloseSubscription: Subscription | null = null;
 
@@ -62,6 +66,8 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
   readonly results = signal<WeeklyMatchingCandidate[]>([]);
   readonly expandedSlotKey = signal<string | null>(null);
   readonly searchText = signal('');
+  readonly childSearchText = signal('');
+  private readonly bookingListsRevision = signal(0);
   readonly selectedDay = signal('all');
   readonly selectedKind = signal('all');
   readonly lastRunAt = signal<string | null>(null);
@@ -71,8 +77,27 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
   readonly slots = computed<MatchingSlot[]>(() => {
     const grouped = new Map<string, MatchingSlot>();
 
+    this.bookingListsRevision();
+
+    const activeInternalIds = new Set(
+      this.internalEntries
+        .filter(entry => entry.status === 'active')
+        .map(entry => entry.id)
+    );
+
+    const openExternalIds = new Set(
+      this.externalEntries
+        .filter(entry => entry.status === 'open')
+        .map(entry => entry.id)
+    );
+
     for (const candidate of this.results()) {
       if (!candidate.is_viable_candidate) continue;
+      const eligibleRequestIds = candidate.request_source === 'external'
+        ? openExternalIds
+        : activeInternalIds;
+
+      if (!eligibleRequestIds.has(candidate.request_id)) continue;
 
       const key = [
         candidate.day_of_week,
@@ -105,7 +130,8 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
     for (const slot of grouped.values()) {
       slot.candidates.sort((a, b) =>
         b.priority - a.priority ||
-        Number(a.queue_position ?? Infinity) - Number(b.queue_position ?? Infinity)
+        (this.queuePosition(a) ?? Number.MAX_SAFE_INTEGER) -
+        (this.queuePosition(b) ?? Number.MAX_SAFE_INTEGER)
       );
     }
 
@@ -120,10 +146,16 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
     const text = this.searchText().trim().toLocaleLowerCase();
     const day = this.selectedDay();
     const kind = this.selectedKind();
+    const searchingByChild = this.childSearchText().trim().length > 0;
 
     return this.slots().filter(slot => {
       if (day !== 'all' && slot.dayOfWeek !== Number(day)) return false;
       if (kind !== 'all' && slot.slotKind !== kind) return false;
+
+      if (searchingByChild && !slot.candidates.some(candidate => this.matchesChildSearch(candidate))) {
+        return false;
+      }
+
       if (!text) return true;
 
       return [
@@ -138,17 +170,19 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
   });
 
   readonly selectedSlot = computed(() =>
-    this.slots().find(slot => slot.key === this.expandedSlotKey()) ?? null
+    this.filteredSlots().find(slot => slot.key === this.expandedSlotKey()) ?? null
   );
 
   readonly hasFilters = computed(() =>
+    !!this.childSearchText().trim() ||
     !!this.searchText().trim() ||
     this.selectedDay() !== 'all' ||
     this.selectedKind() !== 'all'
+
   );
 
 
-    async openMatchingBooking(candidate: WeeklyMatchingCandidate): Promise<void> {
+  async openMatchingBooking(candidate: WeeklyMatchingCandidate): Promise<void> {
     const slot = this.selectedSlot();
 
     if (!slot?.candidates.includes(candidate) || this.bookingOverlay) {
@@ -190,19 +224,34 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
     );
 
     componentRef.setInput('date', candidate.series_start_date);
-    componentRef.setInput('startTime', this.shortTime(candidate.start_time));
-    componentRef.setInput('endTime', this.shortTime(candidate.end_time));
+    componentRef.setInput('startTime', candidate.start_time);
+    componentRef.setInput('endTime', candidate.end_time);
     componentRef.setInput('instructorId', candidate.instructor_id);
     componentRef.setInput('instructorName', this.instructorName(candidate.instructor_id));
     componentRef.setInput('matchingPrefill', {
+      requestId: candidate.request_id,
       childId: request.child_uuid,
       ridingTypeId: candidate.riding_type_id,
       ridingTypeName: candidate.riding_type,
+      slotKind: candidate.initial_slot_kind,
     });
 
     this.bookingCloseSubscription = componentRef.instance.close.subscribe(() => {
       this.closeMatchingBooking();
     });
+    this.bookingCloseSubscription.add(
+      componentRef.instance.saved.subscribe(() => {
+        this.results.update(results =>
+          results.filter(result =>
+            result.request_source !== 'internal' ||
+            result.request_id !== candidate.request_id
+          )
+        );
+
+        this.bookingSaved.emit();
+        void this.search();
+      })
+    );
   }
 
   private closeMatchingBooking(): void {
@@ -228,9 +277,19 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
     this.searchText.set('');
     this.selectedDay.set('all');
     this.selectedKind.set('all');
+    this.childSearchText.set('');
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (
+      changes['internalEntries'] ||
+      changes['externalEntries'] ||
+      changes['childNamesById'] ||
+      changes['priorityQueuePositions'] ||
+      changes['instructors']
+    ) {
+      this.bookingListsRevision.update(revision => revision + 1);
+    }
     if (changes['active']?.previousValue === true && !this.active) {
       this.clearFilters();
       this.closeSlot();
@@ -305,6 +364,21 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
       }
     }
   }
+
+  queuePosition(candidate: WeeklyMatchingCandidate): number | null {
+    if (candidate.request_source === 'external') {
+      return this.externalEntries.find(
+        entry => entry.id === candidate.request_id
+      )?.position ?? null;
+    }
+
+    return this.priorityQueuePositions[candidate.request_id] ?? null;
+  }
+
+  matchesChildSearch(candidate: WeeklyMatchingCandidate): boolean {
+  const query = this.childSearchText().trim().toLocaleLowerCase();
+  return query.length > 0 && this.childName(candidate).toLocaleLowerCase().includes(query);
+}
 
   childName(candidate: WeeklyMatchingCandidate): string {
     if (candidate.request_source === 'external') {

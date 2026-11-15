@@ -137,7 +137,7 @@
 
 .matching-filter-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.05fr) repeat(2, minmax(0, 0.85fr)) auto;
   align-items: end;
   gap: 14px;
 }
@@ -423,6 +423,10 @@
 
 .matching-child:last-child {
   border-bottom: none;
+}
+.matching-child-list > .matching-child.is-child-search-match {
+  background: #eef4e2;
+  box-shadow: inset -3px 0 0 #879c46;
 }
 
 .matching-child-name {

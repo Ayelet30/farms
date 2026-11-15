@@ -570,7 +570,7 @@
   <!-- לשונית התאמות שיעורים -->
   <app-matching-results #matchingResults [hidden]="selectedTab() !== 'matching'" [active]="selectedTab() === 'matching'"
     [searchVersion]="matchingSearchVersion()" [internalEntries]="entries()" [externalEntries]="externalEntries()"
-    [childNamesById]="childNamesById()" [instructors]="filterInstructors()">
+    [childNamesById]="childNamesById()" [instructors]="filterInstructors()" [priorityQueuePositions]="priorityQueuePositions()" (bookingSaved)="refresh()" >
   </app-matching-results>
 
 
