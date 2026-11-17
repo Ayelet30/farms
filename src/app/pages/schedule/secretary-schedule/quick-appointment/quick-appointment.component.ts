@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { dbTenant, supabase } from '../../../../services/supabaseClient.service';
 
+
 type BookingMode = 'series' | 'single' | 'makeup' | 'occupancy' | 'special';
 type SeriesMode = 'fixed' | 'open';
 
@@ -834,7 +835,6 @@ export class QuickAppointmentComponent implements OnInit {
         this.referralFile = null;
         this.referralUploadError = null;
         this.referralUrl = null;
-        this.showSuccess('השיבוץ נשמר ובקשת ההמתנה הוסרה.');
         this.saved.emit();
         this.close.emit();
         return;

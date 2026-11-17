@@ -19,6 +19,7 @@ export type UiConfirmOptions = {
     priorityPosition: number;
     overallPosition: number;
   };
+  question?: string;
 };
 
 
@@ -75,6 +76,7 @@ export class UiDialogService {
         cancelText: opts.cancelText ?? 'ביטול',
         showCancel: opts.showCancel ?? true,
         queuePosition: opts.queuePosition,
+        question: opts.question
       },
 
     });

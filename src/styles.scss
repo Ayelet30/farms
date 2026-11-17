@@ -585,3 +585,34 @@ option {
 .ui-confirm-dialog .mat-mdc-dialog-surface {
   background-color: #fffdf9;
 }
+
+.wl-action-tooltip .mat-mdc-tooltip-surface,
+.wl-action-tooltip.mat-mdc-tooltip-surface {
+  background-color: #2f3b2b ;
+  color: #f7f9ef;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+body:has(.wl-booking-flow-open) .cdk-overlay-container {
+  z-index: 30001;
+}
+
+p.ui-dialog-question {
+  text-align: center;
+  font-weight: 700;
+}
+
+.matching-expired {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px 8px;
+  border: 1px solid #e5c7bc;
+  border-radius: 999px;
+  background: #fff1ed;
+  color: #853e31;
+  font-size: 12px;
+  font-weight: 700;
+}

@@ -34,6 +34,12 @@ type WaitingDayAvailability = {
   day: number;
   ranges: WaitingTimeRange[];
 };
+export interface NewWaitlistMatchingData {
+  requestId: string;
+  childId: string;
+  childName: string;
+  instructors: { id_number: string; name: string }[];
+}
 
 @Component({
   selector: 'app-waiting-list-dialog',
@@ -60,6 +66,11 @@ export class WaitingListDialog implements OnInit {
   @Output() saved = new EventEmitter<{ entryId: string; childId: string; parentUid: string }>();
   // קריאה אופציונלית לפני השמירה, למשל אישור ילד מתוך בקשות ואישורים.
   @Input() beforeSave?: () => Promise<{ childId: string; parentUid: string }>;
+  @Input() searchMatchesAfterCreate?: (
+    entryId: string,
+    childId: string,
+    matching: NewWaitlistMatchingData
+  ) => Promise<void>;
   private readonly ui = inject(UiDialogService);
   private readonly waitlistService = inject(WaitlistService);
 
@@ -949,14 +960,46 @@ export class WaitingListDialog implements OnInit {
           queuePosition = { priority: Number(p.priority), priorityPosition: Number(p.priority_position), overallPosition: Number(p.overall_position) };
         }
       } catch (e) { console.error('מיקום בתור אינו זמין:', e); }
+      const searchMatches = this.searchMatchesAfterCreate;
+      const savedChildId = this.childId;
+      const matching: NewWaitlistMatchingData = {
+        requestId: entryId,
+        childId: savedChildId,
+        childName: this.childName.trim() || 'ילד/ה',
+        instructors: this.instructors.map(instructor => ({
+          id_number: instructor.id_number,
+          name: this.getWaitingListInstructorName(instructor.id_number)
+        }))
+      };
+
       this.saved.emit({ entryId, childId: this.childId, parentUid: this.parentUid });
-      // נסתיר את החלון לפני הודעת ההצלחה כדי שלא יסתיר אותה
       this.closed.emit();
-      await this.ui.confirm({
-        title: 'שמירה הושלמה',
-        message: queuePosition ? 'הילד נוסף בהצלחה לרשימת ההמתנה.' : 'הילד נוסף בהצלחה לרשימת ההמתנה.\nהמיקום בתור אינו זמין כרגע.',
-        okText: 'אישור', showCancel: false, queuePosition
-      });
+
+      const successMessage = queuePosition
+        ? 'הילד/ה נוסף/ה בהצלחה לרשימת ההמתנה.'
+        : 'הילד/ה נוסף/ה בהצלחה לרשימת ההמתנה.\nהמיקום בתור אינו זמין כרגע.';
+
+      try {
+        const confirmed = await this.ui.confirm({
+          title: 'שמירה הושלמה',
+          message: successMessage,
+          question: searchMatches ? 'האם לחפש התאמות עבור הילד/ה?' : undefined,
+          okText: searchMatches ? 'כן, חפשי התאמות' : 'אישור',
+          cancelText: 'לא',
+          showCancel: Boolean(searchMatches),
+          queuePosition
+        });
+
+        if (confirmed && searchMatches) {
+          await searchMatches(entryId, savedChildId, matching);
+        }
+      } catch (error) {
+        console.error('פתיחת חיפוש התאמות לאחר שמירת הבקשה נכשלה:', error);
+        await this.ui.alert(
+          'בקשת ההמתנה נשמרה בהצלחה. אפשר לפתוח את חיפוש ההתאמות מתוך הרשימה.',
+          'לא ניתן היה לפתוח חיפוש התאמות'
+        );
+      }
 
     } catch (e: any) {
       console.error('שגיאה בשמירת רשימת המתנה:', e);

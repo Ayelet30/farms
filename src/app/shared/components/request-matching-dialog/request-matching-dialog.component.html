@@ -1,0 +1,176 @@
+<div class="request-matching-dialog" dir="rtl">
+  <header class="matching-header">
+    <div>
+      <h2 id="request-matching-title" class="matching-title">
+        התאמות עבור {{ data.childName }}
+      </h2>
+
+      <p class="matching-last-run" *ngIf="run() as currentRun">
+        עודכן לאחרונה
+        <bdi>{{ currentRun.completed_at | date:'dd/MM/yyyy HH:mm' }}</bdi>
+      </p>
+    </div>
+
+    <button type="button" class="matching-close" cdkFocusInitial (click)="closed.emit()" aria-label="סגירה"
+      title="סגירה">
+      ×
+    </button>
+  </header>
+
+  <div class="matching-content">
+    <div *ngIf="loading(); else results" class="matching-loading" role="status">
+      <span class="matching-hourglass" aria-hidden="true">⏳</span>
+      <strong>המערכת מחפשת התאמות...</strong>
+      <p>בודקים זמינות, מדריכים, סוגי רכיבה וסדרות שבועיות.</p>
+      <span class="matching-progress" aria-hidden="true"></span>
+    </div>
+
+    <ng-template #results>
+      <p *ngIf="error() as message" class="matching-error" role="alert">
+        {{ message }}
+      </p>
+
+      <ng-container *ngIf="run() as currentRun">
+        <section *ngIf="selectedCandidate() as selected; else candidateList" class="matching-detail">
+          <button type="button" class="matching-back" (click)="selectedCandidate.set(null)">
+            <span aria-hidden="true">→</span> חזרה לכל ההתאמות
+          </button>
+
+          <div class="matching-detail-heading">
+            <div>
+              <span class="matching-slot-kind" [class.existing-group]="selected.initial_slot_kind === 'existing_group'">
+                {{ selected.initial_slot_kind === 'existing_group' ? 'קבוצה קיימת' : 'סדרה חדשה' }}
+              </span>
+
+              <h3>
+                יום {{ dayName(selected.day_of_week) }} ·
+                <bdi dir="ltr">{{ selected.start_time.slice(0, 5) }}–{{ selected.end_time.slice(0, 5) }}</bdi>
+              </h3>
+
+              <p>
+                {{ instructorName(selected.instructor_id) }} · {{ selected.riding_type }} ·
+                תאריך התחלה <bdi>{{ selected.series_start_date | date:'dd/MM/yyyy' }}</bdi>
+              </p>
+            </div>
+          </div>
+
+          <div *ngIf="selected.initial_slot_kind === 'existing_group'" class="matching-existing">
+            <strong>משתתפים קיימים בקבוצה</strong>
+
+            <p *ngIf="selected.group_participants.length === 0">
+              לא נמצאו פרטי משתתפים להצגה.
+            </p>
+
+            <div *ngIf="selected.group_participants.length > 0" class="matching-participant-list">
+              <span *ngFor="let child of selected.group_participants">
+                {{ child.first_name }} {{ child.last_name }}
+                <small *ngIf="child.age !== null">· גיל {{ child.age }}</small>
+                <small *ngIf="child.gender">· {{ child.gender }}</small>
+              </span>
+            </div>
+          </div>
+
+          <div class="matching-booking-row">
+            <p class="matching-week-summary">
+              {{ selected.available_weeks }} שבועות פנויים ·
+              {{ selected.skipped_weeks }} שבועות מדולגים ·
+              {{ selected.warning_weeks }} שבועות עם אזהרה
+            </p>
+
+            <button #bookingButton *ngIf="!isExpired(selected.series_start_date, selected.start_time)" type="button"
+              class="matching-cancel matching-booking-btn"
+              (click)="bookingRequested.emit({ candidate: selected, button: bookingButton })">
+              שיבוץ
+            </button>
+
+            <span *ngIf="isExpired(selected.series_start_date, selected.start_time)" class="matching-expired">
+              פג תוקף
+            </span>
+          </div>
+
+          <details *ngIf="selected.warnings.length > 0" class="matching-warning-details">
+            <summary>הצגת פירוט מועדים ואזהרות ({{ selected.warnings.length }})</summary>
+
+            <div *ngFor="let notice of selected.warnings" class="matching-warning-item"
+              [class.is-skipped]="notice.severity === 'skipped'">
+              <strong>
+                <bdi>{{ notice.date | date:'dd/MM/yyyy' }}</bdi> ·
+                {{ notice.severity === 'skipped' ? 'דילוג' : 'אזהרה' }}
+              </strong>
+
+              <p>{{ notice.message || notice.reason }}</p>
+
+              <p *ngFor="let lesson of notice.conflicting_lessons ?? []">
+                שיעור מתנגש: {{ lesson.lesson_type }} ·
+                <bdi dir="ltr">{{ lesson.start_time.slice(0, 5) }}–{{ lesson.end_time.slice(0, 5) }}</bdi>
+              </p>
+            </div>
+          </details>
+        </section>
+
+        <ng-template #candidateList>
+          <p *ngIf="currentRun.candidates.length === 0" class="matching-empty">
+            לא נמצאו התאמות לבקשה.
+          </p>
+
+          <p *ngIf="currentRun.candidates.length === 1" class="matching-count">
+            נמצאה התאמה אחת
+          </p>
+
+          <p *ngIf="currentRun.candidates.length > 1" class="matching-count">
+            נמצאו {{ currentRun.candidates.length }} התאמות
+          </p>
+
+          <ul *ngIf="currentRun.candidates.length > 0" class="matching-grid">
+            <li *ngFor="let candidate of currentRun.candidates">
+              <button type="button" class="matching-card matching-card-button"
+                (click)="selectedCandidate.set(candidate)">
+                <ng-container *ngTemplateOutlet="candidateSummary; context: { $implicit: candidate }">
+                </ng-container>
+
+                <span *ngIf="candidate.warning_weeks > 0" class="matching-warning">
+                  מועדים עם אזהרה · {{ candidate.warning_weeks }}
+                </span>
+                <span *ngIf="isExpired(candidate.series_start_date, candidate.start_time)" class="matching-expired">
+                  פג תוקף
+                </span>
+
+              </button>
+            </li>
+          </ul>
+        </ng-template>
+
+        <ng-template #candidateSummary let-candidate>
+          <span class="matching-card-meta">
+            <span class="matching-slot-kind" [class.existing-group]="candidate.initial_slot_kind === 'existing_group'">
+              {{ candidate.initial_slot_kind === 'existing_group' ? 'קבוצה קיימת' : 'סדרה חדשה' }}
+            </span>
+
+            <span>
+              החל מ־<bdi>{{ candidate.series_start_date | date:'dd/MM/yyyy' }}</bdi>
+            </span>
+          </span>
+
+          <strong class="matching-card-title">
+            יום {{ dayName(candidate.day_of_week) }} ·
+            <bdi dir="ltr">{{ candidate.start_time.slice(0, 5) }}–{{ candidate.end_time.slice(0, 5) }}</bdi>
+          </strong>
+
+          <span>{{ instructorName(candidate.instructor_id) }} · {{ candidate.riding_type }}</span>
+        </ng-template>
+      </ng-container>
+    </ng-template>
+  </div>
+
+  <footer class="matching-footer">
+    <button *ngIf="run() || error()" type="button" class="matching-search" [disabled]="loading()"
+      (click)="loadRun(run() !== null)">
+      <span aria-hidden="true">↻</span>
+      חיפוש מחדש
+    </button>
+
+    <button type="button" class="matching-cancel" (click)="closed.emit()">
+      ביטול
+    </button>
+  </footer>
+</div>

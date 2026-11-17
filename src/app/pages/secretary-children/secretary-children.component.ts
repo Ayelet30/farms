@@ -7,6 +7,8 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
+import { RequestMatchingDialogHostComponent } from '../../shared/components/request-matching-dialog/request-matching-dialog-host.component';
+import type { RequestMatchingDialogData } from '../../shared/components/request-matching-dialog/request-matching-dialog.component';
 import { WaitingListDialog } from '../../shared/components/waiting-list-dialog/waiting-list-dialog';
 import {
   ensureTenantContextReady,
@@ -18,6 +20,7 @@ import type { ChildRow } from '../../Types/detailes.model';
 import { UiDialogService } from '../../services/ui-dialog.service';
 import { WaitlistMatchingNavigationService } from '../../services/waitlist-matching-navigation.service';
 import { Router, RouterModule } from '@angular/router';
+import { ACTIVE_CHILD_UPDATE } from '../../services/child-activation';
 import {
   MatDialog,
   MatDialogModule,
@@ -210,7 +213,8 @@ type HelmetFilter =
     MatDialogModule,
     AddChildWizardComponent,
     RouterModule,
-    WaitingListDialog
+    WaitingListDialog,
+    RequestMatchingDialogHostComponent
   ],
   templateUrl: './secretary-children.component.html',
   styleUrls: ['./secretary-children.component.css'],
@@ -2204,6 +2208,34 @@ scheduled_deletion_at,deletion_note
   closeWaitingListDialog(): void {
     this.showWaitingListDialog = false;
   }
+  requestMatching: (RequestMatchingDialogData & { childId: string }) | null = null;
+
+readonly searchMatchesAfterCreate = async (
+  entryId: string,
+  childId: string
+): Promise<void> => {
+  const child = this.drawerChild;
+
+  if (!child || child.child_uuid !== childId) {
+    throw new Error('כרטיס הילד השתנה מאז שמירת הבקשה');
+  }
+
+  this.requestMatching = {
+    requestId: entryId,
+    childId,
+    childName: [child.first_name, child.last_name].filter(Boolean).join(' '),
+    instructors: this.instructors.map(instructor => ({
+      id_number: instructor.id_number,
+      name: this.getInstructorName(instructor.id_number)
+    }))
+  };
+};
+
+refreshChildAfterMatchingBooking(childId: string): void {
+  if (this.selectedId === childId) {
+    void this.openDetails(childId);
+  }
+}
 
   getWaitingListChildAge(): number | null {
     const birthDate = this.drawerChild?.birth_date;
@@ -3586,10 +3618,7 @@ scheduled_deletion_at,deletion_note
         this.drawerChild?.deletion_note != null
       )
     ) {
-      (delta as any).status = 'Active';
-      (delta as any).deletion_requested_at = null;
-      (delta as any).scheduled_deletion_at = null;
-      (delta as any).deletion_note = null;
+      Object.assign(delta, ACTIVE_CHILD_UPDATE);
     }
 
     if (Object.keys(delta).length === 0) {
@@ -3863,13 +3892,7 @@ scheduled_deletion_at,deletion_note
 
       const { error } = await db
         .from('children')
-        .update({
-          status: 'Active',
-          deletion_requested_at: null,
-          scheduled_deletion_at: null,
-          deletion_note: null,
-
-        })
+        .update(ACTIVE_CHILD_UPDATE)
         .eq('child_uuid', this.selectedId);
 
       if (error) throw error;

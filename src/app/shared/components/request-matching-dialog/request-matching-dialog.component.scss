@@ -1,0 +1,376 @@
+.request-matching-dialog {
+  background: #fffdf8;
+  color: #283524;
+  font: inherit;
+}
+
+.matching-header,
+.matching-footer {
+  display: flex;
+  gap: 12px;
+  padding: 14px 24px;
+}
+
+.matching-header {
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 1px solid #e2e8d7;
+}
+
+.matching-header .matching-title {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 1.3rem;
+  font-weight: 700;
+
+  &::before {
+    display: none;
+  }
+}
+
+.matching-last-run {
+  margin: 6px 0 0;
+  color: #5d694e;
+  font-size: 0.875rem;
+}
+
+.matching-content {
+  box-sizing: border-box;
+  max-height: min(60vh, max(6rem, calc(100dvh - 180px)));
+  overflow-y: auto;
+  padding: 16px 24px;
+  color: inherit;
+  font: inherit;
+}
+
+.matching-footer {
+  justify-content: flex-end;
+  border-top: 1px solid #e2e8d7;
+}
+
+.matching-close,
+.matching-cancel,
+.matching-search {
+  border: 1px solid #cbd5b5;
+  border-radius: 12px;
+  background: #f4f5e9;
+  color: #283524;
+  font: inherit;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid #576c34;
+    outline-offset: 2px;
+  }
+}
+
+.matching-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  block-size: 36px;
+  padding: 0;
+  background: #fffdf8;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.matching-cancel,
+.matching-search {
+  min-height: 40px;
+  padding: 6px 14px;
+}
+
+.matching-search {
+  border-color: #687c34;
+  background: #687c34;
+  color: #fff;
+  font-weight: 700;
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: default;
+  }
+}
+
+.matching-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.matching-card {
+  padding: 14px;
+  border: 1px solid #d5dcc1;
+  border-radius: 16px;
+  background: #fffef9;
+
+  h3 {
+    margin: 10px 0 4px;
+    font-size: 1rem;
+  }
+
+  p {
+    margin: 0;
+  }
+
+  .matching-warning {
+    margin-top: 8px;
+    color: #785a29;
+    font-size: 0.875rem;
+  }
+}
+
+.matching-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  color: #5d694e;
+  font-size: 0.8rem;
+}
+
+.matching-slot-kind {
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #e9f0d8;
+  color: #425829;
+  font-weight: 700;
+
+  &.existing-group {
+    background: #f5ead7;
+    color: #755520;
+  }
+}
+
+.matching-loading {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #d5dcc1;
+  border-radius: 16px;
+  background: #f0f5e5;
+  text-align: center;
+
+  p {
+    margin: 0;
+    color: #5d694e;
+  }
+}
+
+.matching-hourglass {
+  display: grid;
+  place-items: center;
+  inline-size: 44px;
+  block-size: 44px;
+  border: 1px solid #d5dcc1;
+  border-radius: 12px;
+  background: #fffdf8;
+  font-size: 24px;
+}
+
+.matching-progress {
+  inline-size: min(240px, 100%);
+  block-size: 5px;
+  border-radius: 999px;
+  background: #dbe6c5;
+}
+
+.matching-count,
+.matching-empty,
+.matching-error {
+  margin: 4px 0 12px;
+}
+
+.matching-error {
+  color: #932d2d;
+}
+
+:host,
+.request-matching-dialog {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.matching-header,
+.matching-footer {
+  flex: 0 0 auto;
+}
+
+.matching-content {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.matching-card-button {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color .16s, box-shadow .16s, transform .16s;
+
+  &:hover {
+    border-color: #a47634;
+    box-shadow: 0 3px 12px rgb(78 99 37 / 8%);
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #576c34;
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .matching-card-button {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
+.matching-card-title {
+  display: block;
+  margin: 10px 0 4px;
+}
+
+.matching-card-button .matching-warning {
+  display: block;
+}
+
+
+.matching-detail {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid #dce4cc;
+  border-radius: 18px;
+  background: #fffdf8;
+}
+
+.matching-back {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #65802d;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.matching-detail-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  .matching-slot-kind {
+    font-size: 12px;
+    padding: 3px 8px;
+  }
+
+  h3 {
+    margin: 10px 0 6px;
+    font-size: 20px;
+  }
+
+  p {
+    margin: 0;
+    color: #74805c;
+    font-size: 13px;
+  }
+}
+
+.matching-existing {
+  padding: 14px;
+  border: 1px solid #e1e7d3;
+  border-radius: 12px;
+  background: #f3f6e9;
+  font-size: 13px;
+
+  p {
+    margin: 8px 0 0;
+  }
+}
+
+.matching-participant-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+
+  span {
+    padding: 7px 10px;
+    border-radius: 8px;
+    background: white;
+  }
+
+  small {
+    color: #68785b;
+  }
+}
+
+.matching-week-summary {
+  margin: 0;
+  color: #7a856e;
+  font-size: 12px;
+}
+
+.matching-warning-details {
+  padding-top: 10px;
+  border-top: 1px solid #f0eddf;
+  font-size: 12px;
+
+  summary {
+    width: fit-content;
+    color: #8a682d;
+    cursor: pointer;
+    font-weight: 700;
+  }
+}
+
+.matching-warning-item {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-inline-start: 3px solid #d9ae68;
+  border-radius: 7px;
+  background: #fff9ed;
+
+  &.is-skipped {
+    border-inline-start-color: #aeb9a0;
+    background: #f5f6f1;
+  }
+
+  p {
+    margin: 5px 0 0;
+  }
+}
+.matching-booking-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.matching-booking-btn {
+  margin-inline-start: auto;
+}

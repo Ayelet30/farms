@@ -84,6 +84,9 @@
               {{ slot.slotKind === 'existing_group' ? 'קבוצה קיימת' : 'סדרה חדשה' }}
             </span>
             <span class="slot-card-date">החל מ־{{ dateLabel(slot.firstDate) }}</span>
+            <span *ngIf="isExpired(slot.firstDate, slot.startTime)" class="matching-expired">
+              פג תוקף
+            </span>
           </div>
           <strong class="slot-card-time">
             יום {{ dayName(slot.dayOfWeek) }} ·
@@ -140,9 +143,8 @@
 
         <div class="matching-children-title">ילדים שניתן לשייך למשבצת</div>
         <div class="matching-child-list">
-          <article class="matching-child"
-  *ngFor="let candidate of slot.candidates; trackBy: trackCandidate"
-  [class.is-child-search-match]="matchesChildSearch(candidate)">
+          <article class="matching-child" *ngFor="let candidate of slot.candidates; trackBy: trackCandidate"
+            [class.is-child-search-match]="matchesChildSearch(candidate)">
             <div class="matching-child-head">
               <div class="matching-child-name">
                 <strong>{{ childName(candidate) }}</strong>
@@ -152,9 +154,6 @@
                   · מקום {{ queuePosition(candidate) ?? '—' }}
                 </span>
               </div>
-              <span class="matching-child-status" [class.has-warnings]="candidate.warning_weeks > 0">
-                {{ candidate.warning_weeks > 0 ? 'מתאימה עם אזהרה' : 'מתאימה לבדיקה' }}
-              </span>
             </div>
 
             <div class="matching-child-footer">
@@ -166,9 +165,14 @@
                 {{ candidate.warning_weeks }} שבועות עם אזהרה
               </div>
 
-              <button type="button" class="matching-booking-btn" (click)="openMatchingBooking(candidate)">
+              <button *ngIf="!isExpired(candidate.series_start_date, candidate.start_time)" type="button"
+                class="matching-booking-btn" (click)="openMatchingBooking(candidate)">
                 שיבוץ
               </button>
+
+              <span *ngIf="isExpired(candidate.series_start_date, candidate.start_time)" class="matching-expired">
+                פג תוקף
+              </span>
             </div>
 
             <details class="matching-warning-details" *ngIf="candidate.warnings.length > 0">

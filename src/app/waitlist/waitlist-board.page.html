@@ -570,7 +570,8 @@
   <!-- לשונית התאמות שיעורים -->
   <app-matching-results #matchingResults [hidden]="selectedTab() !== 'matching'" [active]="selectedTab() === 'matching'"
     [searchVersion]="matchingSearchVersion()" [internalEntries]="entries()" [externalEntries]="externalEntries()"
-    [childNamesById]="childNamesById()" [instructors]="filterInstructors()" [priorityQueuePositions]="priorityQueuePositions()" (bookingSaved)="refresh()" >
+    [childNamesById]="childNamesById()" [instructors]="filterInstructors()"
+    [priorityQueuePositions]="priorityQueuePositions()" (bookingSaved)="refresh()">
   </app-matching-results>
 
 
@@ -709,15 +710,32 @@
       'זמנים נבחרים', 'כל הימים והשעות') }}
     </div>
 
-    <div class="wl-col actions-col">
-      <button type="button" class="row-action-btn" [disabled]="saving()"
-        (click)="$event.stopPropagation(); togglePause(entry)">
-        השהיה
+
+
+    <div class="wl-col actions-col active-row-actions">
+      <button type="button" class="row-action-btn wl-icon-action" matTooltip="חיפוש התאמה" matTooltipPosition="above"
+        [matTooltipShowDelay]="0" matTooltipClass="wl-action-tooltip" aria-label="חיפוש התאמה" [disabled]="saving()"
+        (click)="$event.stopPropagation(); openRequestMatching(entry)">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="10.5" cy="10.5" r="5.5"></circle>
+          <path d="m15 15 4 4"></path>
+        </svg>
       </button>
 
-      <button type="button" class="row-action-btn danger" [disabled]="saving()"
+      <button type="button" class="row-action-btn wl-icon-action" matTooltip="השהיה" matTooltipPosition="above"
+        [matTooltipShowDelay]="0" matTooltipClass="wl-action-tooltip" aria-label="השהיה" [disabled]="saving()"
+        (click)="$event.stopPropagation(); togglePause(entry)">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 5v14M15 5v14"></path>
+        </svg>
+      </button>
+
+      <button type="button" class="row-action-btn wl-icon-action danger" matTooltip="מחיקה" matTooltipPosition="above"
+        [matTooltipShowDelay]="0" matTooltipClass="wl-action-tooltip" aria-label="מחיקה" [disabled]="saving()"
         (click)="$event.stopPropagation(); deleteRequest(entry)">
-        מחיקה
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7m4-7v7"></path>
+        </svg>
       </button>
     </div>
 
@@ -1027,7 +1045,8 @@
      WAITLIST DETAILS - VIEW MODE
      ===================================== -->
 
-  <mat-sidenav-container *ngIf="selectedEntry() as entry" class="wl-details-container" dir="rtl" [hasBackdrop]="false">
+  <mat-sidenav-container *ngIf="selectedEntry() as entry" class="wl-details-container" dir="rtl"
+    [attr.inert]="requestMatchingBookingOpen() ? '' : null" [hasBackdrop]="false">
 
     <mat-sidenav #detailsDrawer mode="side" position="end" class="wl-details-drawer" [opened]="true">
 
@@ -1249,6 +1268,11 @@
         <!-- כפתורים תחתונים -->
         <div class="wl-details-footer">
 
+          <button *ngIf="entry.status === 'active'" type="button" class="wl-details-soft-btn" [disabled]="saving()"
+            (click)="openRequestMatching(entry)">
+            חיפוש התאמה
+          </button>
+
           <button type="button" class="wl-details-soft-btn" [disabled]="saving()" (click)="togglePause(entry)">
             {{ entry.status === 'paused' ? 'הפעלה' : 'השהיה' }}
           </button>
@@ -1464,7 +1488,7 @@
      WAITLIST - EXISTING SHARED DIALOG
      ===================================== -->
 
-  <app-waiting-list-dialog *ngIf="showAddWaitlistDialog() && selectedWaitlistChild() as child"
+  <app-waiting-list-dialog *ngIf="showAddWaitlistDialog() && selectedWaitlistChild() as child" [searchMatchesAfterCreate]="searchMatchesAfterCreate"
     [childId]="child.child_uuid" [parentUid]="child.parent_uid" [childName]="getFarmChildName(child)"
     [childAge]="getFarmChildAge(child.birth_date)" [instructors]="waitlistInstructors" (saved)="onBoardWaitlistSaved()"
     (closed)="closeBoardWaitlistDialog()">
@@ -1482,5 +1506,18 @@
     [instructors]="waitlistInstructors" (saved)="onEditWaitlistSaved()" (closed)="closeEditWaitlistDialog()">
   </app-waiting-list-dialog>
 
+  <div *ngIf="requestMatchingDialog() as matchingData" class="wl-picker-backdrop" [class.wl-booking-flow-open]="requestMatchingBookingOpen()"
+    [attr.inert]="requestMatchingBookingOpen() ? '' : null" (click)="closeRequestMatching()">
+
+    <div class="wl-picker-modal wl-request-matching-modal" role="dialog" aria-modal="true"
+      aria-labelledby="request-matching-title" [cdkTrapFocus]="!requestMatchingBookingOpen()"
+      [cdkTrapFocusAutoCapture]="true" (click)="$event.stopPropagation()"
+      (keydown.escape)="$event.stopPropagation(); closeRequestMatching()">
+
+      <app-request-matching-dialog [data]="matchingData" (closed)="closeRequestMatching()"
+        (bookingRequested)="openRequestMatchingBooking($event)">
+      </app-request-matching-dialog>
+    </div>
+</div>
 
 </div>

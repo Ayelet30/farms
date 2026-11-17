@@ -3,7 +3,9 @@ export interface SavedMatchingRun {
   completed_at: string;
   candidates: WeeklyMatchingCandidate[];
 }
-import { Injectable } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { map, timer } from 'rxjs';
 import {
   dbTenant,
   ensureTenantContextReady
@@ -63,9 +65,67 @@ export interface SavedMatchingRun {
   completed_at: string;
   candidates: WeeklyMatchingCandidate[];
 }
+export interface SavedRequestMatchingRun {
+  request_id: string;
+  completed_at: string;
+  candidates: WeeklyMatchingCandidate[];
+}
 
 @Injectable({ providedIn: 'root' })
 export class MatchingService {
+
+  private readonly farmTimezone = signal('Asia/Jerusalem');
+
+private readonly clock = toSignal(
+  timer(0, 5000).pipe(map(() => Date.now())),
+  { initialValue: Date.now() }
+);
+
+private readonly farmDateFormatter = computed(() =>
+  new Intl.DateTimeFormat('en-GB', {
+    timeZone: this.farmTimezone(),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  })
+);
+
+private readonly currentFarmDateTime = computed(() => {
+  const parts = Object.fromEntries(
+    this.farmDateFormatter().formatToParts(this.clock())
+      .map(part => [part.type, part.value])
+  );
+
+  return `${parts['year']}-${parts['month']}-${parts['day']}` +
+    `T${parts['hour']}:${parts['minute']}:${parts['second']}`;
+});
+
+async loadFarmTimezone(): Promise<void> {
+  await ensureTenantContextReady();
+
+  const { data, error } = await dbTenant()
+    .from('farm_settings')
+    .select('timezone')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  this.farmTimezone.set(data?.timezone?.trim() || 'Asia/Jerusalem');
+}
+
+isExpired(startDate: string, startTime: string): boolean {
+  const time = startTime.length === 5
+    ? `${startTime}:00`
+    : startTime.slice(0, 8);
+
+  return `${startDate}T${time}` <= this.currentFarmDateTime();
+}
 
   async searchWeeklyMatches(
     fromDate: string,
@@ -106,6 +166,37 @@ export class MatchingService {
     if (!data) throw new Error('השרת לא החזיר תוצאות להרצה.');
 
     return data as SavedMatchingRun;
+  }
+
+  async loadLatestRequestRun(
+    requestId: string
+  ): Promise<SavedRequestMatchingRun | null> {
+    await ensureTenantContextReady();
+
+    const { data, error } = await dbTenant().rpc(
+      'matching_load_latest_request_run',
+      { p_request_id: requestId }
+    );
+
+    if (error) throw error;
+
+    return data as SavedRequestMatchingRun | null;
+  }
+
+  async searchAndSaveRequestRun(
+    requestId: string
+  ): Promise<SavedRequestMatchingRun> {
+    await ensureTenantContextReady();
+
+    const { data, error } = await dbTenant().rpc(
+      'matching_search_and_save_request_run',
+      { p_request_id: requestId }
+    );
+
+    if (error) throw error;
+    if (!data) throw new Error('השרת לא החזיר תוצאות לחיפוש ההתאמות.');
+
+    return data as SavedRequestMatchingRun;
   }
 
 }

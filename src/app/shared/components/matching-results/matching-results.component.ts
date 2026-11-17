@@ -8,11 +8,11 @@ import {
   inject,
   EventEmitter,
   Output,
-  signal
+  signal,
+  HostListener
 } from '@angular/core';
-import { Overlay, OverlayRef } from '@angular/cdk/overlay';
-import { ComponentPortal } from '@angular/cdk/portal';
 import { Subscription } from 'rxjs';
+import { MatchingBookingService } from '../../../services/matching-booking.service';
 import { CommonModule } from '@angular/common';
 import {
   MatchingService,
@@ -53,12 +53,14 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
   @Output() bookingSaved = new EventEmitter<void>();
 
   private readonly matchingService = inject(MatchingService);
-  private readonly overlay = inject(Overlay);
   private readonly ui = inject(UiDialogService);
-  private bookingOverlay: OverlayRef | null = null;
-  private bookingCloseSubscription: Subscription | null = null;
+  private readonly matchingBooking = inject(MatchingBookingService);
+  private bookingSubscription: Subscription | null = null;
+
+
 
   private searchSequence = 0;
+  private searchPending = false;
 
   readonly loading = signal(false);
   readonly searched = signal(false);
@@ -100,6 +102,7 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
       if (!eligibleRequestIds.has(candidate.request_id)) continue;
 
       const key = [
+        candidate.series_start_date,
         candidate.day_of_week,
         candidate.instructor_id,
         candidate.start_time,
@@ -136,7 +139,7 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
     }
 
     return [...grouped.values()].sort((a, b) =>
-      a.dayOfWeek - b.dayOfWeek ||
+      a.firstDate.localeCompare(b.firstDate) ||
       a.startTime.localeCompare(b.startTime) ||
       a.instructorId.localeCompare(b.instructorId)
     );
@@ -185,7 +188,8 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
   async openMatchingBooking(candidate: WeeklyMatchingCandidate): Promise<void> {
     const slot = this.selectedSlot();
 
-    if (!slot?.candidates.includes(candidate) || this.bookingOverlay) {
+    if (!slot?.candidates.includes(candidate) ||
+      (this.bookingSubscription && !this.bookingSubscription.closed)) {
       return;
     }
 
@@ -207,40 +211,14 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
       return;
     }
 
-    const overlayRef = this.overlay.create({
-      positionStrategy: this.overlay.position().global()
-        .centerHorizontally().centerVertically(),
-      scrollStrategy: this.overlay.scrollStrategies.block(),
-      hasBackdrop: false,
-      width: '100vw',
-      height: '100dvh',
-      panelClass: 'quick-booking-overlay-panel',
-    });
+    this.bookingSubscription = this.matchingBooking.open(
+      candidate,
+      request.child_uuid,
+      this.instructorName(candidate.instructor_id)
+    ).subscribe({
+      next: saved => {
+        if (!saved) return;
 
-    this.bookingOverlay = overlayRef;
-
-    const componentRef = overlayRef.attach(
-      new ComponentPortal(QuickAppointmentComponent)
-    );
-
-    componentRef.setInput('date', candidate.series_start_date);
-    componentRef.setInput('startTime', candidate.start_time);
-    componentRef.setInput('endTime', candidate.end_time);
-    componentRef.setInput('instructorId', candidate.instructor_id);
-    componentRef.setInput('instructorName', this.instructorName(candidate.instructor_id));
-    componentRef.setInput('matchingPrefill', {
-      requestId: candidate.request_id,
-      childId: request.child_uuid,
-      ridingTypeId: candidate.riding_type_id,
-      ridingTypeName: candidate.riding_type,
-      slotKind: candidate.initial_slot_kind,
-    });
-
-    this.bookingCloseSubscription = componentRef.instance.close.subscribe(() => {
-      this.closeMatchingBooking();
-    });
-    this.bookingCloseSubscription.add(
-      componentRef.instance.saved.subscribe(() => {
         this.results.update(results =>
           results.filter(result =>
             result.request_source !== 'internal' ||
@@ -250,19 +228,16 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
 
         this.bookingSaved.emit();
         void this.search();
-      })
-    );
-  }
-
-  private closeMatchingBooking(): void {
-    this.bookingCloseSubscription?.unsubscribe();
-    this.bookingCloseSubscription = null;
-    this.bookingOverlay?.dispose();
-    this.bookingOverlay = null;
+      },
+      error: () => {
+        void this.ui.alert('לא ניתן היה לפתוח את חלון השיבוץ.', 'פתיחת שיבוץ');
+      }
+    });
   }
 
   ngOnDestroy(): void {
-    this.closeMatchingBooking();
+    this.searchPending = false;
+    this.bookingSubscription?.unsubscribe();
   }
 
   toggleSlot(slotKey: string): void {
@@ -280,7 +255,30 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
     this.childSearchText.set('');
   }
 
+  @HostListener('window:focus')
+reloadLatestRunOnFocus(): void {
+  if (this.active && !this.loading() && !this.searching()) {
+    void this.loadRun(false);
+  }
+}
+
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['internalEntries']) {
+  const pausedRequestIds = new Set(
+    this.internalEntries
+      .filter(entry => entry.status === 'paused')
+      .map(entry => entry.id)
+  );
+
+  if (pausedRequestIds.size > 0) {
+    this.results.update(results =>
+      results.filter(candidate =>
+        candidate.request_source !== 'internal' ||
+        !pausedRequestIds.has(candidate.request_id)
+      )
+    );
+  }
+}
     if (
       changes['internalEntries'] ||
       changes['externalEntries'] ||
@@ -296,21 +294,27 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
       return;
     }
     if (changes['searchVersion'] && this.searchVersion > 0) {
-      void this.search();
-      return;
-    }
+  void this.search(true);
+  return;
+}
 
     if (changes['active'] && this.active && !this.searching()) {
       void this.loadRun(false);
     }
   }
 
-  async search(): Promise<void> {
-    if (this.searching()) return;
+  async search(queueIfBusy = false): Promise<void> {
+  if (this.searching()) {
+    if (queueIfBusy) this.searchPending = true;
+    return;
+  }
 
+  do {
+    this.searchPending = false;
     this.closeSlot();
     await this.loadRun(true);
-  }
+  } while (this.searchPending);
+}
 
   private async loadRun(runNewSearch: boolean): Promise<void> {
     const sequence = ++this.searchSequence;
@@ -330,6 +334,7 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
       }, 250);
 
     try {
+      await this.matchingService.loadFarmTimezone();
       const run = runNewSearch
         ? await this.matchingService.searchAndSaveRun()
         : await this.matchingService.loadLatestRun();
@@ -376,9 +381,9 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
   }
 
   matchesChildSearch(candidate: WeeklyMatchingCandidate): boolean {
-  const query = this.childSearchText().trim().toLocaleLowerCase();
-  return query.length > 0 && this.childName(candidate).toLocaleLowerCase().includes(query);
-}
+    const query = this.childSearchText().trim().toLocaleLowerCase();
+    return query.length > 0 && this.childName(candidate).toLocaleLowerCase().includes(query);
+  }
 
   childName(candidate: WeeklyMatchingCandidate): string {
     if (candidate.request_source === 'external') {
@@ -397,6 +402,10 @@ export class MatchingResultsComponent implements OnChanges, OnDestroy {
   instructorName(instructorId: string): string {
     return this.instructors.find(instructor => instructor.id_number === instructorId)?.name || instructorId;
   }
+
+  isExpired(startDate: string, startTime: string): boolean {
+  return this.matchingService.isExpired(startDate, startTime);
+}
 
   dayName(day: number): string {
     return ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'][day] ?? String(day);
