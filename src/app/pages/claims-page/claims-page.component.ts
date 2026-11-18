@@ -1667,13 +1667,13 @@ async markManuallySubmitted(row: LessonClaimRow): Promise<void> {
       return;
     }
 
-    if (
-      this.activeTab === 'MACCABI' &&
-      !this.agentInstalled
-    ) {
-      alert('יש להפעיל את תוכנת הדיווח למכבי.');
-      return;
-    }
+    // if (
+    //   this.activeTab === 'MACCABI' &&
+    //   !this.agentInstalled
+    // ) {
+    //   alert('יש להפעיל את תוכנת הדיווח למכבי.');
+    //   return;
+    // }
 
     this.sending = true;
 
