@@ -4,8 +4,15 @@ import {
   OnInit,
   OnDestroy,
   signal,
-  computed
+  computed,
+  DestroyRef,
+  Injector,
+  afterNextRender
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { finalize } from 'rxjs';
+import { MatchingBookingService } from '../services/matching-booking.service';
+import type { WeeklyMatchingCandidate } from '../services/matching.service';
 import { CommonModule, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { dbTenant, ensureTenantContextReady, getSupabaseClient } from '../services/legacy-compat';
@@ -14,6 +21,8 @@ import { inject } from '@angular/core';
 import { UiDialogService } from '../services/ui-dialog.service';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { ActivatedRoute, Router } from '@angular/router';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { A11yModule } from '@angular/cdk/a11y';
 import {
   CdkDragDrop,
   DragDropModule
@@ -25,7 +34,10 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { SupabaseTenantService } from '../services/supabase-tenant.service';
 import { ExternalWaitlistEditComponent } from '../shared/components/external-waitlist-edit/external-waitlist-edit.component';
 import { MatchingResultsComponent } from '../shared/components/matching-results/matching-results.component';
-
+import {
+  RequestMatchingDialogComponent,
+  RequestMatchingDialogData
+} from '../shared/components/request-matching-dialog/request-matching-dialog.component';
 type Priority = 0 | 1 | 2;
 
 @Component({
@@ -38,7 +50,10 @@ type Priority = 0 | 1 | 2;
     WaitingListDialog,
     ExternalWaitlistEditComponent,
     MatchingResultsComponent,
-    MatSidenavModule
+    RequestMatchingDialogComponent,
+    MatSidenavModule,
+    MatTooltipModule,
+    A11yModule
   ],
   templateUrl: './waitlist-board.page.html',
   styleUrls: ['./waitlist-board.page.scss'],
@@ -153,12 +168,104 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
   );
   private readonly ui = inject(UiDialogService);
 
+
   // שמות הילדים לפי child_uuid
   childNamesById = signal<Record<string, string>>({});
 
   // קבלת שם הילד להצגה במסך
   childName(childUuid: string): string {
     return this.childNamesById()[childUuid] ?? 'ילד/ה לא נמצא/ה';
+  }
+
+  readonly requestMatchingDialog = signal<RequestMatchingDialogData | null>(null);
+  readonly requestMatchingBookingOpen = signal(false);
+
+  private readonly matchingBooking = inject(MatchingBookingService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+
+  openRequestMatching(entry: WaitlistEntry): void {
+    if (entry.status !== 'active' || this.saving()) return;
+
+    this.requestMatchingDialog.set({
+      requestId: entry.id,
+      childName: this.childName(entry.child_uuid),
+      instructors: this.filterInstructors()
+    });
+  }
+
+  readonly searchMatchesAfterCreate = async (entryId: string): Promise<void> => {
+    let entry = this.entries().find(item => item.id === entryId);
+
+    if (!entry) {
+      await this.refresh();
+      entry = this.entries().find(item => item.id === entryId);
+    }
+
+    if (!entry || entry.status !== 'active') {
+      throw new Error('בקשת ההמתנה החדשה אינה זמינה לחיפוש התאמות');
+    }
+
+    this.openRequestMatching(entry);
+  };
+
+  closeRequestMatching(): void {
+    this.requestMatchingDialog.set(null);
+  }
+
+  openRequestMatchingBooking(event: {
+    candidate: WeeklyMatchingCandidate;
+    button: HTMLButtonElement;
+  }): void {
+    const { candidate, button } = event;
+    const dialog = this.requestMatchingDialog();
+
+    if (this.requestMatchingBookingOpen() ||
+      candidate.request_source !== 'internal' ||
+      dialog?.requestId !== candidate.request_id) {
+      return;
+    }
+
+    const request = this.entries().find(entry =>
+      entry.id === candidate.request_id && entry.status === 'active'
+    );
+
+    if (!request?.child_uuid) {
+      void this.ui.alert(
+        'בקשת ההמתנה כבר אינה פעילה. יש לרענן את הרשימה.',
+        'לא ניתן לפתוח שיבוץ'
+      );
+      return;
+    }
+
+    const instructorName = dialog.instructors.find(
+      instructor => instructor.id_number === candidate.instructor_id
+    )?.name ?? candidate.instructor_id;
+
+    this.requestMatchingBookingOpen.set(true);
+
+    this.matchingBooking.open(candidate, request.child_uuid, instructorName).pipe(
+      takeUntilDestroyed(this.destroyRef),
+      finalize(() => this.requestMatchingBookingOpen.set(false))
+    ).subscribe({
+      next: saved => {
+        if (!saved) {
+          afterNextRender(() => button.focus(), { injector: this.injector });
+          return;
+        }
+
+        this.closeRequestMatching();
+
+        if (this.expandedEntryId() === candidate.request_id) {
+          this.closeDetails();
+        }
+
+        void this.refresh();
+      },
+      error: () => {
+        void this.ui.alert('לא ניתן היה לפתוח את חלון השיבוץ.', 'פתיחת שיבוץ');
+      }
+    });
   }
 
   selectedRidingTypeId = signal<string>('none');
@@ -185,7 +292,7 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     'active' | 'paused' | 'external' | 'matching'
   >('active');
 
-    private readonly route = inject(ActivatedRoute);
+  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   matchingSearchVersion = signal(0);
 
@@ -1177,7 +1284,7 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
     }
   }
 
-    async ngOnInit(): Promise<void> {
+  async ngOnInit(): Promise<void> {
     const shouldSearch = this.route.snapshot.queryParamMap.get('searchMatches') === '1';
 
     if (shouldSearch) {
@@ -1301,7 +1408,7 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
 
       // עדכון המידע שמוצג במסך
       this.childNamesById.set(names);
-      
+
       await this.loadFilterData();
 
       // עדכון מיקום בחלונית הפרטים אם היא פתוחה
@@ -1740,6 +1847,10 @@ export class WaitlistBoardPage implements OnInit, OnDestroy {
       await this.wl.changeWaitlistStatus(entry.id, newStatus);
       this.expandedEntryId.set(null);
       await this.refresh();
+
+      if (newStatus === 'active') {
+        this.matchingSearchVersion.update(version => version + 1);
+      }
     } catch (error: any) {
       console.error('שגיאה בשינוי סטטוס:', error);
       this.errorText.set(

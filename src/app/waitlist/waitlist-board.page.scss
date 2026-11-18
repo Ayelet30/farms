@@ -1657,3 +1657,47 @@
   position: relative;
   top: 2mm;
 }
+
+.actions-col.active-row-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  inline-size: 100%;
+  gap: clamp(4px, 0.65vw, 9px);
+
+  > .wl-icon-action {
+    display: grid;
+    place-items: center;
+    inline-size: 100%;
+    min-inline-size: 0;
+    min-block-size: 36px;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    border-radius: 8px;
+
+    svg {
+      inline-size: 17px;
+      block-size: 17px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #576c34;
+      outline-offset: 2px;
+    }
+  }
+}
+
+.wl-picker-modal.wl-request-matching-modal {
+  width: min(760px, 100%);
+  height: auto;
+  max-height: 100%;
+  background: #fffdf8;
+  border-color: var(--wl-border);
+  align-self: center;
+}

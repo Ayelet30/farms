@@ -12,7 +12,8 @@ import { getAuth } from 'firebase/auth';
 import { requireTenant } from '../../services/supabaseClient.service';
 import { Output, EventEmitter } from '@angular/core';
 import { MatIcon } from "@angular/material/icon";
-import { WaitingListDialog } from '../../shared/components/waiting-list-dialog/waiting-list-dialog';
+import { WaitingListDialog, NewWaitlistMatchingData } from '../../shared/components/waiting-list-dialog/waiting-list-dialog';
+
 import { CurrentUserService } from '../../core/auth/current-user.service';
 
 type AddChildDetails = {
@@ -80,6 +81,12 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
 
   @Output() approved = new EventEmitter<any>();
   @Output() rejected = new EventEmitter<any>();
+
+  @Input() searchMatchesAfterCreate?: (
+  entryId: string,
+  childId: string,
+  matching: NewWaitlistMatchingData
+) => Promise<void>;
 
   private db = dbTenant();
   private snack = inject(MatSnackBar);
@@ -606,6 +613,8 @@ export class RequestAddChildDetailsComponent implements OnInit, OnChanges {
         message: 'הילד אושר במערכת'
       });
     }
+    
   }
+  
 
 }

@@ -41,6 +41,8 @@ import { EnvironmentInjector, ViewContainerRef } from '@angular/core';
 import { RequestInstructorDayOffDetailsComponent } from './request-instructor-day-off-details/request-instructor-day-off-details.component';
 import { RequestCancelOccurrenceDetailsComponent } from './request-cancel-occurrence-details/request-cancel-occurrence-details.component';
 import { RequestAddChildDetailsComponent } from './request-add-child-details/request-add-child-details.component';
+import { RequestMatchingDialogHostComponent } from '../shared/components/request-matching-dialog/request-matching-dialog-host.component';
+import type { NewWaitlistMatchingData } from '../shared/components/waiting-list-dialog/waiting-list-dialog';
 import { SecretarialSeriesRequestsComponent } from './request-new-series-details/request-new-series-details.component';
 import { RequestAddParentDetailsComponent } from './request-add-parent-details/request-add-parent-details.component';
 import { RequestMakeupLessonDetailsComponent } from './request-makeup-lesson-details/request-makeup-lesson-details.component';
@@ -131,12 +133,39 @@ type BulkRunReport = {
 @Component({
   selector: 'app-secretarial-requests-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatIconModule, MatButtonModule, MatSidenavModule, MatSidenavModule, MatDialogModule, MatProgressSpinnerModule
+  imports: [CommonModule, FormsModule, MatIconModule, MatButtonModule, MatSidenavModule, MatSidenavModule, MatDialogModule, MatProgressSpinnerModule, RequestMatchingDialogHostComponent
   ],
   templateUrl: './secretarial-requests-page.component.html',
   styleUrls: ['./secretarial-requests-page.component.css'],
 })
 export class SecretarialRequestsPageComponent implements OnInit {
+  requestMatching: NewWaitlistMatchingData | null = null;
+
+  readonly openWaitlistMatching = async (
+    _entryId: string,
+    _childId: string,
+    matching: NewWaitlistMatchingData
+  ): Promise<void> => {
+    this.requestMatching = matching;
+  };
+
+  getRequestDetailsInputs(
+    request: unknown,
+    component: unknown
+  ): Record<string, unknown> {
+    const inputs = {
+      request,
+      decidedByUid: this.curentUser?.uid,
+      onApproved: this.onChildApprovedBound,
+      isSecretary: this.isSecretary,
+      onRejected: this.onChildRejectedBound,
+      onError: this.onChildErrorBound
+    };
+
+    return component === RequestAddChildDetailsComponent
+      ? { ...inputs, searchMatchesAfterCreate: this.openWaitlistMatching }
+      : inputs;
+  }
   // אם את רוצה שמי שמחזיק את הקומפוננטה יקבל callbacks גם כן
   @Input() onApproved?: (e: any) => void;
   @Input() onRejected?: (e: any) => void;

@@ -46,6 +46,10 @@ import { MatButtonModule } from '@angular/material/button';
         השיבוץ תלוי בהתאמה למדריך, לסוג הרכיבה ולשעות הזמינות.
       </p>
 
+      <p *ngIf="data.question" class="ui-dialog-question">
+  {{ data.question }}
+</p>
+
       <div class="dialog-danger-text" *ngIf="data.dangerText">
         {{ data.dangerText }}
       </div>

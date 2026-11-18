@@ -187,8 +187,9 @@
 </div>
 
 
-<app-waiting-list-dialog *ngIf="showWaitlistDialog && details() as child" [childId]="child.child_id"
+<app-waiting-list-dialog *ngIf="showWaitlistDialog && details() as child" [childId]="child.child_id" 
   [parentUid]="child.parent_uid" [childName]="child.child_name || ''" [childAge]="child.age_years"
-  [instructors]="waitlistInstructors" [beforeSave]="approveChildBeforeWaitlist" (saved)="onWaitlistSaved()"
+  [instructors]="waitlistInstructors" [beforeSave]="approveChildBeforeWaitlist"  [searchMatchesAfterCreate]="searchMatchesAfterCreate" (saved)="onWaitlistSaved()"
   (closed)="closeWaitlistDialog()">
 </app-waiting-list-dialog>
+
